@@ -2581,17 +2581,38 @@ void Rig::buildAbsoluteRigPoses(const AnimPoseVec& relativePoses, AnimPoseVec& a
         return;
     }
 
-    ASSERT(_animSkeleton->getNumJoints() == (int)relativePoses.size());
+    const auto jointCount = _animSkeleton->getNumJoints();
+    const AnimPoseVec* poses = &relativePoses;
+    if (jointCount != (int)relativePoses.size()) {
+        // Skeleton/model changes can complete between animation evaluation and
+        // rig-pose construction.  The old pose array is unusable with the new
+        // parent table, but this transient content race must not abort the
+        // entire client.  Render the current skeleton's bind pose for this
+        // frame; subsequent animation evaluation will provide matching poses.
+        static std::atomic<uint64_t> mismatchCount { 0 };
+        const auto count = ++mismatchCount;
+        if (count == 1 || count % 300 == 0) {
+            qCWarning(animation) << "RIG_POSE_COUNT_MISMATCH"
+                                 << "skeletonJoints" << jointCount
+                                 << "relativePoses" << relativePoses.size()
+                                 << "occurrences" << count;
+        }
+        poses = &_animSkeleton->getRelativeDefaultPoses();
+        if (jointCount != (int)poses->size()) {
+            absolutePosesOut.clear();
+            return;
+        }
+    }
 
-    absolutePosesOut.resize(relativePoses.size());
+    absolutePosesOut.resize(poses->size());
     AnimPose geometryToRigTransform(_geometryToRigTransform);
-    for (int i = 0; i < (int)relativePoses.size(); i++) {
+    for (int i = 0; i < (int)poses->size(); i++) {
         int parentIndex = _animSkeleton->getParentIndex(i);
         if (parentIndex == -1) {
             // transform all root absolute poses into rig space
-            absolutePosesOut[i] = geometryToRigTransform * relativePoses[i];
+            absolutePosesOut[i] = geometryToRigTransform * (*poses)[i];
         } else {
-            absolutePosesOut[i] = absolutePosesOut[parentIndex] * relativePoses[i];
+            absolutePosesOut[i] = absolutePosesOut[parentIndex] * (*poses)[i];
         }
     }
 }

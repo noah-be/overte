@@ -511,10 +511,19 @@ void PickScriptingInterface::setPerFrameTimeBudget(unsigned int numUsecs) {
 }
 
 float PickScriptingInterface::getHandLaserDelay() const {
+#ifdef Q_OS_ANDROID
+    // Tracked-controller rays must follow the physical controller without the
+    // desktop smoothing latency on standalone headsets.
+    return 0.0f;
+#else
     return _handLaserDelaySetting.get();
+#endif
 }
 
 void PickScriptingInterface::setHandLaserDelay(float delay) {
+#ifdef Q_OS_ANDROID
+    delay = 0.0f;
+#endif
     _handLaserDelaySetting.set(delay);
     emit handLaserDelayChanged(delay);
 }

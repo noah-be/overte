@@ -14,6 +14,7 @@
 #include "EntityTreeRenderer.h"
 
 #include <glm/gtx/quaternion.hpp>
+#include <array>
 #include <queue>
 
 #include <QEventLoop>
@@ -33,6 +34,7 @@
 #include <ScriptEngines.h>
 #include <ScriptManager.h>
 #include <EntitySimulation.h>
+#include <ModelEntityItem.h>
 #include <ZoneRenderer.h>
 #include <PhysicalEntitySimulation.h>
 
@@ -595,13 +597,35 @@ void EntityTreeRenderer::updateChangedEntities(const render::ScenePointer& scene
 
     float expectedUpdateCost = _avgRenderableUpdateCost * _renderablesToUpdate.size();
     _prevTotalNeededEntityUpdates = _renderablesToUpdate.size();
-    if (expectedUpdateCost < MAX_UPDATE_RENDERABLES_TIME_BUDGET) {
+    // A newly streamed dense region can enqueue many renderables before the
+    // moving average has learned their real cost. On Android, never take the
+    // unbounded fast path for a large batch: one underestimated batch can
+    // stall locomotion for tens of milliseconds and trigger more catch-up.
+#if defined(Q_OS_ANDROID)
+    constexpr size_t MAX_UNBUDGETED_RENDERABLE_UPDATES { 16 };
+    const bool smallEnoughForUnbudgetedUpdate =
+        _renderablesToUpdate.size() <= MAX_UNBUDGETED_RENDERABLE_UPDATES;
+#else
+    const bool smallEnoughForUnbudgetedUpdate = true;
+#endif
+    if (expectedUpdateCost < MAX_UPDATE_RENDERABLES_TIME_BUDGET && smallEnoughForUnbudgetedUpdate) {
         // we expect to update all renderables within available time budget
         PROFILE_RANGE_EX(simulation_physics, "UpdateRenderables", 0xffff00ff, (uint64_t)_renderablesToUpdate.size());
         uint64_t updateStart = usecTimestampNow();
         for (const auto& renderable : _renderablesToUpdate) {
             assert(renderable); // only valid renderables are added to _renderablesToUpdate
+            const uint64_t renderableStart = usecTimestampNow();
             renderable->updateInScene(scene, transaction);
+#if defined(Q_OS_ANDROID)
+            const uint64_t renderableDuration = usecTimestampNow() - renderableStart;
+            if (renderableDuration > 10000) {
+                const auto entity = renderable->getEntity();
+                qInfo() << "PICO_SLOW_RENDERABLE"
+                        << "durationMs" << renderableDuration / 1000.0
+                        << "id" << (entity ? entity->getEntityItemID() : UNKNOWN_ENTITY_ID)
+                        << "type" << (entity ? (int)entity->getType() : -1);
+            }
+#endif
         }
         _prevNumEntityUpdates = _renderablesToUpdate.size();
         size_t numRenderables = _prevNumEntityUpdates + 1; // add one to avoid divide by zero
@@ -660,7 +684,18 @@ void EntityTreeRenderer::updateChangedEntities(const render::ScenePointer& scene
                     break;
                 }
                 const auto& renderable = sortedRenderable.getRenderer();
+                const uint64_t renderableStart = usecTimestampNow();
                 renderable->updateInScene(scene, transaction);
+#if defined(Q_OS_ANDROID)
+                const uint64_t renderableDuration = usecTimestampNow() - renderableStart;
+                if (renderableDuration > 10000) {
+                    const auto entity = renderable->getEntity();
+                    qInfo() << "PICO_SLOW_RENDERABLE"
+                            << "durationMs" << renderableDuration / 1000.0
+                            << "id" << (entity ? entity->getEntityItemID() : UNKNOWN_ENTITY_ID)
+                            << "type" << (entity ? (int)entity->getType() : -1);
+                }
+#endif
                 _renderablesToUpdate.erase(renderable);
             }
 
@@ -685,12 +720,23 @@ void EntityTreeRenderer::update(bool simulate) {
     PerformanceTimer perfTimer("ETRupdate");
     if (_tree && !_shuttingDown) {
         EntityTreePointer tree = std::static_pointer_cast<EntityTree>(_tree);
+#if defined(Q_OS_ANDROID)
+        const uint64_t picoUpdateStart = usecTimestampNow();
+        uint64_t picoAfterTree = picoUpdateStart;
+        uint64_t picoAfterAdd = picoUpdateStart;
+        uint64_t picoAfterChanged = picoUpdateStart;
+        uint64_t picoAfterSceneEnqueue = picoUpdateStart;
+        uint64_t picoAfterWorkload = picoUpdateStart;
+#endif
 
         // here we update _currentFrame and _lastAnimated and sync with the server properties.
         {
             PerformanceTimer perfTimer("tree::update");
             tree->update(simulate);
         }
+#if defined(Q_OS_ANDROID)
+        picoAfterTree = usecTimestampNow();
+#endif
 
         {   // Update the rendereable entities as needed
             PROFILE_RANGE(simulation_physics, "Scene");
@@ -699,9 +745,18 @@ void EntityTreeRenderer::update(bool simulate) {
             if (scene) {
                 render::Transaction transaction;
                 addPendingEntities(scene, transaction);
+#if defined(Q_OS_ANDROID)
+                picoAfterAdd = usecTimestampNow();
+#endif
 
                 updateChangedEntities(scene, transaction);
+#if defined(Q_OS_ANDROID)
+                picoAfterChanged = usecTimestampNow();
+#endif
                 scene->enqueueTransaction(transaction);
+#if defined(Q_OS_ANDROID)
+                picoAfterSceneEnqueue = usecTimestampNow();
+#endif
             }
         }
         {
@@ -722,6 +777,9 @@ void EntityTreeRenderer::update(bool simulate) {
                 }
             }
         }
+#if defined(Q_OS_ANDROID)
+        picoAfterWorkload = usecTimestampNow();
+#endif
 
         if (simulate) {
             // Handle enter/leave entity logic
@@ -735,6 +793,76 @@ void EntityTreeRenderer::update(bool simulate) {
             }
         }
 
+#if defined(Q_OS_ANDROID)
+        struct PicoEntityUpdateStats {
+            uint64_t windowStart { 0 };
+            uint64_t calls { 0 };
+            uint64_t tree { 0 };
+            uint64_t add { 0 };
+            uint64_t changed { 0 };
+            uint64_t sceneEnqueue { 0 };
+            uint64_t workload { 0 };
+            uint64_t enterLeave { 0 };
+            uint64_t maximum { 0 };
+        };
+        static PicoEntityUpdateStats stats;
+        const uint64_t end = usecTimestampNow();
+        if (stats.windowStart == 0) {
+            stats.windowStart = picoUpdateStart;
+        }
+        stats.calls++;
+        stats.tree += picoAfterTree - picoUpdateStart;
+        stats.add += picoAfterAdd - picoAfterTree;
+        stats.changed += picoAfterChanged - picoAfterAdd;
+        stats.sceneEnqueue += picoAfterSceneEnqueue - picoAfterChanged;
+        stats.workload += picoAfterWorkload - picoAfterSceneEnqueue;
+        stats.enterLeave += end - picoAfterWorkload;
+        stats.maximum = std::max(stats.maximum, end - picoUpdateStart);
+        if (end - stats.windowStart >= USECS_PER_SECOND) {
+            const double divisor = std::max<uint64_t>(1, stats.calls);
+            std::array<uint32_t, EntityTypes::NUM_TYPES> pendingTypes {};
+            uint32_t pendingNotReady { 0 };
+            uint32_t pendingEntityDirty { 0 };
+            uint32_t pendingAnimatingModels { 0 };
+            for (const auto& renderable : _renderablesToUpdate) {
+                const auto entity = renderable ? renderable->getEntity() : nullptr;
+                if (entity) {
+                    const auto type = entity->getType();
+                    if (type >= EntityTypes::Unknown && type < EntityTypes::NUM_TYPES) {
+                        ++pendingTypes[type];
+                    }
+                    pendingNotReady += entity->isVisuallyReady() ? 0 : 1;
+                    pendingEntityDirty += entity->needsRenderUpdate() ? 1 : 0;
+                    if (entity->getType() == EntityTypes::Model) {
+                        const auto modelEntity = std::dynamic_pointer_cast<ModelEntityItem>(entity);
+                        pendingAnimatingModels += modelEntity && modelEntity->isAnimatingSomething() ? 1 : 0;
+                    }
+                }
+            }
+            qInfo() << "PICO_ENTITY_UPDATE_STAGES"
+                    << "callsPerSec" << stats.calls
+                    << "maxMs" << stats.maximum / 1000.0
+                    << "treeMs" << stats.tree / divisor / 1000.0
+                    << "addPendingMs" << stats.add / divisor / 1000.0
+                    << "changedMs" << stats.changed / divisor / 1000.0
+                    << "sceneEnqueueMs" << stats.sceneEnqueue / divisor / 1000.0
+                    << "workloadMs" << stats.workload / divisor / 1000.0
+                    << "enterLeaveMs" << stats.enterLeave / divisor / 1000.0
+                    << "pendingAdds" << _entitiesToAdd.size()
+                    << "pendingRenderUpdates" << _renderablesToUpdate.size()
+                    << "pendingNotReady" << pendingNotReady
+                    << "pendingEntityDirty" << pendingEntityDirty
+                    << "pendingAnimatingModels" << pendingAnimatingModels
+                    << "pendingModel" << pendingTypes[EntityTypes::Model]
+                    << "pendingZone" << pendingTypes[EntityTypes::Zone]
+                    << "pendingImage" << pendingTypes[EntityTypes::Image]
+                    << "pendingWeb" << pendingTypes[EntityTypes::Web]
+                    << "pendingParticle" << (pendingTypes[EntityTypes::ParticleEffect] + pendingTypes[EntityTypes::ProceduralParticleEffect])
+                    << "pendingMaterial" << pendingTypes[EntityTypes::Material];
+            stats = PicoEntityUpdateStats {};
+            stats.windowStart = end;
+        }
+#endif
     }
 }
 
@@ -812,10 +940,12 @@ void EntityTreeRenderer::checkEnterLeaveEntities() {
         // if some amount of time has elapsed since we last checked. We check the time
         // elapsed because zones or entities might have been created "around us" while we've
         // been stationary
-        auto movedEnough = glm::distance(avatarPosition, _avatarPosition) > ZONE_CHECK_DISTANCE;
         auto enoughTimeElapsed = (now - _lastZoneCheck) > ZONE_CHECK_INTERVAL;
         
-        if (_forceRecheckEntities || movedEnough || enoughTimeElapsed) {
+        // Movement used to bypass ZONE_CHECK_INTERVAL, so normal HMD jitter and
+        // locomotion caused a full entity-tree containment query every update.
+        // Forced checks must remain immediate; regular checks are rate limited.
+        if (_forceRecheckEntities || enoughTimeElapsed) {
             _avatarPosition = avatarPosition;
             _lastZoneCheck = now;
             _forceRecheckEntities = false;

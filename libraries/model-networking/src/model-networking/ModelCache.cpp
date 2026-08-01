@@ -375,7 +375,13 @@ void GeometryResource::resetTextures() {
 }
 
 ModelCache::ModelCache() {
+#if defined(Q_OS_ANDROID)
+    // The desktop default retains up to 1 GB of unused decoded geometry.
+    // Standalone headsets share RAM with the GPU, so keep only a small LRU.
+    const qint64 GEOMETRY_DEFAULT_UNUSED_MAX_SIZE = 64 * BYTES_PER_MEGABYTES;
+#else
     const qint64 GEOMETRY_DEFAULT_UNUSED_MAX_SIZE = DEFAULT_UNUSED_MAX_SIZE;
+#endif
     setUnusedResourceCacheSize(GEOMETRY_DEFAULT_UNUSED_MAX_SIZE);
     setObjectName("ModelCache");
 

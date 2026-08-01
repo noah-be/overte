@@ -21,6 +21,11 @@
 #include <shared/QtHelpers.h>
 #include <SettingHandle.h>
 
+#if defined(Q_OS_ANDROID)
+#include <dlfcn.h>
+#include <jni.h>
+#endif
+
 #include <plugins/PluginManager.h>
 #include <display-plugins/CompositorHelper.h>
 #include <AddressManager.h>
@@ -79,6 +84,66 @@ WindowScriptingInterface::~WindowScriptingInterface() {
     }
 
     _messageBoxes.clear();
+}
+
+void WindowScriptingInterface::restartApplication(const QString& url) {
+#if defined(Q_OS_ANDROID)
+    const QString arguments = url.isEmpty()
+        ? QStringLiteral("--display=OpenXR")
+        : QStringLiteral("--display=OpenXR --url ") + url;
+    using JavaVmFunction = JavaVM* (*)();
+    using ActivityFunction = jobject (*)();
+    void* openXrLibrary = dlopen("libpicoOpenXR.so", RTLD_NOW);
+    if (!openXrLibrary) {
+        qWarning() << "PICO_RESTART unable to open libpicoOpenXR.so:" << dlerror();
+        return;
+    }
+    auto javaVmFunction = reinterpret_cast<JavaVmFunction>(
+        dlsym(openXrLibrary, "overtePicoOpenXRJavaVm"));
+    auto activityFunction = reinterpret_cast<ActivityFunction>(
+        dlsym(openXrLibrary, "overtePicoOpenXRActivity"));
+    JavaVM* vm = javaVmFunction ? javaVmFunction() : nullptr;
+    jobject activity = activityFunction ? activityFunction() : nullptr;
+    if (!vm || !activity) {
+        qWarning() << "PICO_RESTART Java VM or Activity unavailable";
+        dlclose(openXrLibrary);
+        return;
+    }
+
+    JNIEnv* env { nullptr };
+    bool detachThread { false };
+    if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
+        if (vm->AttachCurrentThread(&env, nullptr) != JNI_OK) {
+            dlclose(openXrLibrary);
+            return;
+        }
+        detachThread = true;
+    }
+
+    jclass activityClass = env->GetObjectClass(activity);
+    jmethodID restartMethod = activityClass
+        ? env->GetStaticMethodID(activityClass, "scheduleRestart", "(Ljava/lang/String;)V")
+        : nullptr;
+    jstring javaArguments = env->NewStringUTF(arguments.toUtf8().constData());
+    if (restartMethod && javaArguments) {
+        env->CallStaticVoidMethod(activityClass, restartMethod, javaArguments);
+    }
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+    }
+    if (javaArguments) {
+        env->DeleteLocalRef(javaArguments);
+    }
+    if (activityClass) {
+        env->DeleteLocalRef(activityClass);
+    }
+    if (detachThread) {
+        vm->DetachCurrentThread();
+    }
+    dlclose(openXrLibrary);
+#else
+    Q_UNUSED(url)
+#endif
 }
 
 ScriptValue WindowScriptingInterface::hasFocus() {

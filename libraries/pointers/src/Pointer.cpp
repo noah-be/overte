@@ -40,6 +40,15 @@ bool Pointer::isEnabled() {
     return _enabled;
 }
 
+bool Pointer::needsUpdate() {
+    return resultWithReadLock<bool>([&] {
+        // Run one final update after disable so hover/trigger state is
+        // released. Afterwards a disabled pointer has no visuals or events to
+        // update and should not consume the Android application loop.
+        return _enabled || _prevEnabled;
+    });
+}
+
 PickResultPointer Pointer::getPrevPickResult() {
     return DependencyManager::get<PickManager>()->getPrevPickResult(_pickUID);
 }
@@ -94,6 +103,26 @@ void Pointer::update(unsigned int pointerID) {
     // This only needs to be a read lock because update won't change any of the properties that can be modified from scripts
     withReadLock([&] {
         auto pickResult = getPrevPickResult();
+#if defined(Q_OS_ANDROID)
+        static std::unordered_map<unsigned int, uint64_t> lastLog;
+        static std::unordered_map<unsigned int, uint32_t> updateCounts;
+        ++updateCounts[pointerID];
+        const uint64_t now = usecTimestampNow();
+        if (_enabled && now - lastLog[pointerID] >= 2 * USECS_PER_SECOND) {
+            const uint64_t updated = pickResult
+                ? pickResult->pickVariant.value("picoUpdatedUsec").toULongLong()
+                : 0;
+            qInfo() << "PICO_LATENCY_POINTER_UPDATE"
+                    << "pointer" << pointerID
+                    << "callsPerSec" << updateCounts[pointerID]
+                    << "pickAge(ms)" << (updated ? (now - updated) / 1000.0 : -1.0)
+                    << "enabled" << _enabled
+                    << "left" << isLeftHand()
+                    << "right" << isRightHand();
+            lastLog[pointerID] = now;
+            updateCounts[pointerID] = 0;
+        }
+#endif
         // Pointer needs its own PickResult object so it doesn't modify the cached pick result
         auto visualPickResult = getVisualPickResult(getPickResultCopy(pickResult));
         updateVisuals(visualPickResult);
@@ -111,14 +140,18 @@ void Pointer::generatePointerEvents(unsigned int pointerID, const PickResultPoin
     Buttons newButtons;
     Buttons sameButtons;
     if (_enabled && shouldTrigger(pickResult)) {
-        buttons = getPressedButtons(pickResult);
-        for (const std::string& button : buttons) {
+        const Buttons pressedButtons = getPressedButtons(pickResult);
+        for (const std::string& button : pressedButtons) {
             auto buttonType = chooseButton(button);
             if (buttonType == PointerEvent::NoButtons) {
-                // don't issue trigger events for virtual triggers
+                // Virtual triggers (for example ScrollX/ScrollY) are sampled
+                // by getScroll(), but they are not pointer buttons.  Keeping
+                // them in _prevButtons makes every subsequent frame look like
+                // another release and floods tablet web surfaces with clicks.
                 continue;
             }
 
+            buttons.insert(button);
             if (_prevButtons.find(button) == _prevButtons.end()) {
                 newButtons.insert(button);
             } else {
@@ -127,6 +160,16 @@ void Pointer::generatePointerEvents(unsigned int pointerID, const PickResultPoin
             }
         }
     }
+
+#if defined(Q_OS_ANDROID)
+    if (!newButtons.empty() || !_prevButtons.empty()) {
+        qInfo() << "PICO_POINTER_TRIGGER pointer" << pointerID
+                << "pressCount" << newButtons.size()
+                << "releaseCount" << _prevButtons.size()
+                << "pickValid" << static_cast<bool>(pickResult)
+                << "intersects" << (pickResult && pickResult->doesIntersect());
+    }
+#endif
 
     // Hover events
     bool doHover = shouldHover(pickResult);

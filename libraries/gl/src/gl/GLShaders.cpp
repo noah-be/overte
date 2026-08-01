@@ -3,6 +3,7 @@
 #include "GLLogging.h"
 
 #include <fstream>
+#include <numeric>
 #include <QtCore/QFileInfo>
 #include <QtCore/QCryptographicHash>
 #include <nlohmann/json.hpp>
@@ -250,7 +251,24 @@ bool gl::compileShader(GLenum shaderDomain,
     getShaderInfoLog(glshader, message);
     // if compilation fails
     if (!compiled) {
-        qCCritical(glLogging) << "GLShader::compileShader - failed to compile the gl shader object:";
+        const GLenum compileError = glGetError();
+        GLint maxTextureUnits { 0 };
+        GLint maxUniformVectors { 0 };
+        GLint maxUniformBlocks { 0 };
+        glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &maxTextureUnits);
+        glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_VECTORS, &maxUniformVectors);
+        glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_BLOCKS, &maxUniformBlocks);
+        qCCritical(glLogging)
+            << "GLShader::compileShader - failed to compile the gl shader object:"
+            << "domain=" << QString::number(shaderDomain, 16)
+            << "glError=" << QString::number(compileError, 16)
+            << "sourceBytes=" << std::accumulate(shaderSources.begin(), shaderSources.end(), size_t { 0 },
+                                                   [](size_t total, const std::string& source) {
+                                                       return total + source.size();
+                                                   })
+            << "maxTextureUnits=" << maxTextureUnits
+            << "maxFragmentUniformVectors=" << maxUniformVectors
+            << "maxFragmentUniformBlocks=" << maxUniformBlocks;
         int lineNumber = 0;
         for (const auto& s : cstrs) {
             QString str(s);

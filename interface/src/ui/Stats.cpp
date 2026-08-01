@@ -50,7 +50,9 @@ QString getTextureMemoryPressureModeStringVK();
 #endif
 #endif
 Stats* Stats::getInstance() {
-    Q_ASSERT(INSTANCE);
+    if (!INSTANCE) {
+        INSTANCE = new Stats();
+    }
     return INSTANCE;
 }
 
@@ -114,6 +116,12 @@ void Stats::updateStats(bool force) {
         return;
     }
     QQuickItem* parent = parentItem();
+    // Stats::getInstance() may be requested before Stats.qml has been created.
+    // In that case the singleton is a temporary, parentless QQuickItem and must
+    // not be treated as part of the scene graph yet.
+    if (!parent) {
+        return;
+    }
     if (!force) {
         if (!Menu::getInstance()->isOptionChecked(MenuOption::Stats)) {
             if (parent->isVisible()) {

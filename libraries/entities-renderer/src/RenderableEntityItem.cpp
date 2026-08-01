@@ -578,7 +578,15 @@ bool EntityRenderer::needsRenderUpdateFromEntity(const EntityItemPointer& entity
     }
 
     if (!entity->isVisuallyReady()) {
+#if defined(Q_OS_ANDROID)
+        // Asset completion and entity changes already schedule render
+        // updates. Polling an unresolved (or permanently failed) asset on
+        // every application update keeps hundreds of renderables queued in
+        // dense domains and can consume the entire standalone-headset frame.
+        return false;
+#else
         return true;
+#endif
     }
 
     bool success = false;
@@ -622,7 +630,11 @@ void EntityRenderer::doRenderUpdateSynchronous(const ScenePointer& scene, Transa
     DETAILED_PROFILE_RANGE(simulation_physics, __FUNCTION__);
     withWriteLock([&] {
         auto transparent = isTransparent();
-        if (_prevIsTransparent != transparent || !entity->isVisuallyReady()) {
+        if (_prevIsTransparent != transparent
+#if !defined(Q_OS_ANDROID)
+                || !entity->isVisuallyReady()
+#endif
+                ) {
             emit requestRenderUpdate();
         }
 

@@ -25,6 +25,28 @@
 
 #include "InterfaceLogging.h"
 #include "LODManager.h"
+#include "ui/Keyboard.h"
+
+#ifdef Q_OS_ANDROID
+#include <sys/system_properties.h>
+
+static float getPicoEntityStreamingDistance() {
+    char value[PROP_VALUE_MAX] {};
+    const QByteArray property = __system_property_get("debug.overte.entity_range", value) > 0
+        ? QByteArray(value)
+        : QByteArray();
+    static QByteArray previousProperty;
+    static float distance = 150.0f;
+    if (property != previousProperty) {
+        bool ok { false };
+        const float requested = property.toFloat(&ok);
+        distance = ok ? std::max(50.0f, std::min(requested, 1000.0f)) : 150.0f;
+        previousProperty = property;
+        qCInfo(interfaceapp) << "PICO_RESOURCE_LIMIT entityStreamingDistanceM" << distance;
+    }
+    return distance;
+}
+#endif
 
 static const float FOCUS_HIGHLIGHT_EXPANSION_FACTOR = 1.05f;
 
@@ -253,6 +275,13 @@ void Application::setKeyboardFocusHighlight(const glm::vec3& position, const glm
 
 void Application::setKeyboardFocusEntity(const QUuid& id) {
     if (_keyboardFocusedEntity.get() != id) {
+#if defined(Q_OS_ANDROID)
+        qInfo() << "PICO_KEYBOARD_FOCUS_CHANGE"
+                << "from" << _keyboardFocusedEntity.get()
+                << "to" << id
+                << "keyboardRaised" << DependencyManager::get<Keyboard>()->isRaised()
+                << "usec" << usecTimestampNow();
+#endif
         if (qApp->getLoginDialogPoppedUp() && !_loginDialogID.isNull()) {
             if (id == _loginDialogID) {
                 emit loginDialogFocusEnabled();
@@ -366,7 +395,19 @@ void Application::queryOctree(NodeType_t serverType, PacketType packetType) {
         static constexpr float MIN_LOD_ADJUST = -20.0f;
         _octreeQuery.setBoundaryLevelAdjust(MIN_LOD_ADJUST);
     } else {
-        _octreeQuery.setConicalViews(_conicalViews);
+        auto queryViews = _conicalViews;
+#ifdef Q_OS_ANDROID
+        // Desktop uses a 16 km camera far plane for entity-server queries.
+        // Standalone headsets cannot retain all models, collision geometry,
+        // textures, and entity scripts from that volume without severe memory
+        // pressure.  This only limits streamed entity content; it does not
+        // shorten the render projection or controller lasers.
+        const float picoEntityStreamingDistance = getPicoEntityStreamingDistance();
+        for (auto& view : queryViews) {
+            view.setFarClip(std::min(view.getFarClip(), picoEntityStreamingDistance));
+        }
+#endif
+        _octreeQuery.setConicalViews(queryViews);
         auto lodManager = DependencyManager::get<LODManager>();
         _octreeQuery.setOctreeSizeScale(lodManager->getOctreeSizeScale());
         _octreeQuery.setBoundaryLevelAdjust(lodManager->getBoundaryLevelAdjust());

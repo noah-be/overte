@@ -43,7 +43,13 @@ using namespace gpu;
 #endif
 
 static const glm::uvec2 SPARSE_PAGE_SIZE(128);
-static const glm::uvec2 MAX_TEXTURE_SIZE_GLES(2048);
+// Standalone GLES headsets share system and graphics memory. Desktop domains
+// commonly contain hundreds of 2K/4K textures; retaining their decoded CPU
+// storage plus GL allocations can push the Pico process beyond 2 GB and
+// collapse the simulation thread even while XR presentation stays at 72 Hz.
+// 1K preserves useful world detail at headset pixel density while reducing
+// each oversized texture's CPU/GPU footprint by roughly four times.
+static const glm::uvec2 MAX_TEXTURE_SIZE_GLES(1024);
 static const glm::uvec2 MAX_TEXTURE_SIZE_GL(8192);
 bool DEV_DECIMATE_TEXTURES = false;
 std::atomic<size_t> DECIMATED_TEXTURE_COUNT{ 0 };

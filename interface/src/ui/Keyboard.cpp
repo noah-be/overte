@@ -62,7 +62,13 @@ static const glm::vec3 MALLET_TIP_OFFSET{0.0f, MALLET_LENGTH - MALLET_TOUCH_Y_OF
 
 
 static const glm::vec3 Z_AXIS {0.0f, 0.0f, 1.0f};
+#ifdef Q_OS_ANDROID
+// Leave a clear gap below the tablet. The desktop offset lets the lower tablet
+// bezel occlude the first keyboard row at the standalone-HMD spawn distance.
+static const glm::vec3 KEYBOARD_TABLET_OFFSET{0.30f, -0.54f, -0.04f};
+#else
 static const glm::vec3 KEYBOARD_TABLET_OFFSET{0.30f, -0.38f, -0.04f};
+#endif
 static const glm::vec3 KEYBOARD_TABLET_DEGREES_OFFSET{-45.0f, 0.0f, 0.0f};
 static const glm::vec3 KEYBOARD_TABLET_LANDSCAPE_OFFSET{-0.2f, -0.27f, -0.05f};
 static const glm::vec3 KEYBOARD_TABLET_LANDSCAPE_DEGREES_OFFSET{-45.0f, 0.0f, -90.0f};
@@ -75,8 +81,13 @@ static const QString MALLET_MODEL_URL = PathUtils::resourcesUrl() + "meshes/drum
 static const float PULSE_STRENGTH = 0.6f;
 static const float PULSE_DURATION = 3.0f;
 
+#ifdef Q_OS_ANDROID
+static const int KEY_PRESS_TIMEOUT_MS = 0;
+static const int LAYER_SWITCH_TIMEOUT_MS = 0;
+#else
 static const int KEY_PRESS_TIMEOUT_MS = 100;
 static const int LAYER_SWITCH_TIMEOUT_MS = 200;
+#endif
 
 static const QString CHARACTER_STRING = "character";
 static const QString CAPS_STRING = "caps";
@@ -239,11 +250,19 @@ Keyboard::Keyboard() {
     auto windowScriptingInterface = DependencyManager::get<WindowScriptingInterface>();
     auto myAvatar = DependencyManager::get<AvatarManager>()->getMyAvatar();
     auto hmdScriptingInterface = DependencyManager::get<HMDScriptingInterface>();
-    connect(pointerManager.data(), &PointerManager::triggerBeginOverlay, this, &Keyboard::handleTriggerBegin, Qt::QueuedConnection);
-    connect(pointerManager.data(), &PointerManager::triggerContinueOverlay, this, &Keyboard::handleTriggerContinue, Qt::QueuedConnection);
-    connect(pointerManager.data(), &PointerManager::triggerEndOverlay, this, &Keyboard::handleTriggerEnd, Qt::QueuedConnection);
-    connect(pointerManager.data(), &PointerManager::hoverBeginOverlay, this, &Keyboard::handleHoverBegin, Qt::QueuedConnection);
-    connect(pointerManager.data(), &PointerManager::hoverEndOverlay, this, &Keyboard::handleHoverEnd, Qt::QueuedConnection);
+    connect(pointerManager.data(), &PointerManager::triggerBeginOverlay, this, &Keyboard::handleTriggerBegin);
+    connect(pointerManager.data(), &PointerManager::triggerContinueOverlay, this, &Keyboard::handleTriggerContinue);
+    connect(pointerManager.data(), &PointerManager::triggerEndOverlay, this, &Keyboard::handleTriggerEnd);
+    connect(pointerManager.data(), &PointerManager::hoverBeginOverlay, this, &Keyboard::handleHoverBegin);
+    connect(pointerManager.data(), &PointerManager::hoverEndOverlay, this, &Keyboard::handleHoverEnd);
+    // Keyboard keys are local entities in the current renderer.  Listening
+    // only for the legacy overlay signals makes laser hover and trigger events
+    // disappear before they reach the keyboard.
+    connect(pointerManager.data(), &PointerManager::triggerBeginEntity, this, &Keyboard::handleTriggerBegin);
+    connect(pointerManager.data(), &PointerManager::triggerContinueEntity, this, &Keyboard::handleTriggerContinue);
+    connect(pointerManager.data(), &PointerManager::triggerEndEntity, this, &Keyboard::handleTriggerEnd);
+    connect(pointerManager.data(), &PointerManager::hoverBeginEntity, this, &Keyboard::handleHoverBegin);
+    connect(pointerManager.data(), &PointerManager::hoverEndEntity, this, &Keyboard::handleHoverEnd);
     connect(myAvatar.get(), &MyAvatar::sensorToWorldScaleChanged, this, &Keyboard::scaleKeyboard, Qt::QueuedConnection);
     connect(windowScriptingInterface.data(), &WindowScriptingInterface::domainChanged, [&]() { setRaised(false); });
     connect(hmdScriptingInterface.data(), &HMDScriptingInterface::displayModeChanged, [&]() { setRaised(false); });
@@ -285,11 +304,14 @@ void Keyboard::createKeyboard() {
     auto pointerManager = DependencyManager::get<PointerManager>();
 
     if (_created) {
+#if !defined(Q_OS_ANDROID)
         pointerManager->removePointer(_leftHandStylus);
         pointerManager->removePointer(_rightHandStylus);
+#endif
         clearKeyboardKeys();
     }
 
+#if !defined(Q_OS_ANDROID)
     QVariantMap modelProperties {
         { "url", MALLET_MODEL_URL }
     };
@@ -315,6 +337,7 @@ void Keyboard::createKeyboard() {
 
     pointerManager->disablePointer(_rightHandStylus);
     pointerManager->disablePointer(_leftHandStylus);
+#endif
 
     QString keyboardSvg = PathUtils::resourcesUrl() + "config/keyboard.json";
     loadKeyboardFile(keyboardSvg);
@@ -336,6 +359,20 @@ void Keyboard::setRaised(bool raised, bool inputToHudUI) {
     _inputToHudUI = inputToHudUI;
 
     if (isRaised != raised) {
+        if (raised && !inputToHudUI) {
+            _inputTarget = qApp->getKeyboardFocusEntity();
+            if (_inputTarget == UNKNOWN_ENTITY_ID || _inputTarget.isNull()) {
+                // Some web/QML paths request the keyboard just after a pointer
+                // focus transition. The tablet's web surface is the correct
+                // fallback and prevents number keys becoming camera shortcuts.
+                _inputTarget = DependencyManager::get<HMDScriptingInterface>()->getCurrentTabletScreenID();
+            }
+            qInfo() << "PICO_KEYBOARD_RAISE_TARGET"
+                    << _inputTarget
+                    << "usec" << usecTimestampNow();
+        } else if (!raised) {
+            _inputTarget = UNKNOWN_ENTITY_ID;
+        }
         raiseKeyboardAnchor(raised);
         raiseKeyboard(raised);
         raised ? enableStylus() : disableStylus();
@@ -389,8 +426,18 @@ void Keyboard::raiseKeyboardAnchor(bool raise) const {
     properties.setIgnorePickIntersection(!raise);
     entityScriptingInterface->editEntity(_backPlate.entityID, properties);
 
+#ifdef Q_OS_ANDROID
+    // Parenting the keyboard anchor to MyAvatar makes all of its key children
+    // participate in the avatar-entity update path. On Pico this raises
+    // AvatarManager::update from ~10 ms to 60-100 ms while the keyboard is
+    // open. The keyboard already receives an explicit world transform below,
+    // so it does not need avatar parenting on standalone Android.
+    properties.setParentID(QUuid());
+    properties.setParentJointIndex(0);
+#else
     properties.setParentID(raise ? myAvatar->getSelfID() : QUuid());
     properties.setParentJointIndex(raise ? SENSOR_TO_WORLD_MATRIX_INDEX : 0);
+#endif
 
     if (_resetKeyboardPositionOnRaise) {
         std::pair<glm::vec3, glm::quat> keyboardLocation = calculateKeyboardPositionAndOrientation();
@@ -483,7 +530,14 @@ void Keyboard::setPreferMalletsOverLasers(bool preferMalletsOverLasers) {
 
 bool Keyboard::getPreferMalletsOverLasers() const {
     return _preferMalletsOverLasersSettingLock.resultWithReadLock<bool>([&] {
+#ifdef Q_OS_ANDROID
+        // Tracked controllers on standalone Android headsets are primarily
+        // operated as rays.  The desktop default selects short mallets, which
+        // suppresses laser events even when the controller ray hits a key.
+        return false;
+#else
         return _preferMalletsOverLasers.get();
+#endif
     });
 }
 
@@ -512,7 +566,6 @@ void Keyboard::switchToLayer(int layerIndex) {
          entityScriptingInterface->editEntity(_anchor.entityID, properties);
 
          addIncludeItemsToMallets();
-
          startLayerSwitchTimer();
     }
 }
@@ -525,8 +578,15 @@ bool Keyboard::shouldProcessPointerEvent(const PointerEvent& event) const {
     bool preferMalletsOverLasers = getPreferMalletsOverLasers();
     unsigned int pointerID = event.getID();
     bool isStylusEvent = (pointerID == _leftHandStylus || pointerID == _rightHandStylus);
-    bool isLaserEvent = (pointerID == _leftHandLaser || pointerID == _rightHandLaser);
-    return ((isStylusEvent && preferMalletsOverLasers) || (isLaserEvent && !preferMalletsOverLasers));
+    if (preferMalletsOverLasers) {
+        return isStylusEvent;
+    }
+
+    // Pointer IDs can change when controller scripts are restarted.  The
+    // handler already verifies that the event target is a key in the active
+    // keyboard layer, so accept any non-mallet pointer in laser mode instead
+    // of silently rejecting a valid controller ray with a newer ID.
+    return !isStylusEvent;
 }
 
 void Keyboard::handleSpecialKey(Key::Type keyType) {
@@ -574,24 +634,43 @@ void Keyboard::handleSpecialKey(Key::Type keyType) {
             return;
     }
 
-    // Qt automatically remaps ⌘A, ⌘C, etc. to ^A and ^C on macOS
-    QKeyEvent* pressEvent = new QKeyEvent(QEvent::KeyPress, keyCode, keyMod);
-    QKeyEvent* releaseEvent = new QKeyEvent(QEvent::KeyRelease, keyCode, keyMod);
-
-    if (_inputToHudUI) {
-        QCoreApplication::postEvent(qApp->getPrimaryWidget(), pressEvent);
-        QCoreApplication::postEvent(qApp->getPrimaryWidget(), releaseEvent);
-    } else {
-        QCoreApplication::postEvent(QCoreApplication::instance(), pressEvent);
-        QCoreApplication::postEvent(QCoreApplication::instance(), releaseEvent);
-    }
+    // Qt automatically remaps ⌘A, ⌘C, etc. to ^A and ^C on macOS.
+    dispatchKey(keyCode, keyMod);
 
     _typedCharacters.clear();
     updateTextDisplay();
 }
 
+void Keyboard::dispatchKey(int keyCode, Qt::KeyboardModifiers modifiers, const QString& text) {
+    QKeyEvent pressEvent(QEvent::KeyPress, keyCode, modifiers, text);
+    QKeyEvent releaseEvent(QEvent::KeyRelease, keyCode, modifiers, text);
+
+    if (_inputToHudUI) {
+        QCoreApplication::sendEvent(qApp->getPrimaryWidget(), &pressEvent);
+        QCoreApplication::sendEvent(qApp->getPrimaryWidget(), &releaseEvent);
+        return;
+    }
+
+    // Keep the most recently valid web target. A keyboard key click can race
+    // with focus-clearing pointer events, but must not become a global key.
+    const auto currentFocus = qApp->getKeyboardFocusEntity();
+    if (currentFocus != UNKNOWN_ENTITY_ID && !currentFocus.isNull() && !containsID(currentFocus)) {
+        _inputTarget = currentFocus;
+    }
+    qApp->dispatchVirtualKeyboardEvent(&pressEvent, _inputTarget);
+    qApp->dispatchVirtualKeyboardEvent(&releaseEvent, _inputTarget);
+}
+
 void Keyboard::handleTriggerBegin(const QUuid& id, const PointerEvent& event) {
     auto buttonType = event.getButton();
+    qInfo() << "PICO_KEYBOARD_TRIGGER"
+            << "id=" << id
+            << "pointer=" << event.getID()
+            << "button=" << buttonType
+            << "activeKey=" << (_layerIndex >= 0 && _layerIndex < (int)_keyboardLayers.size()
+                && _keyboardLayers[_layerIndex].contains(id))
+            << "acceptedPointer=" << shouldProcessPointerEvent(event)
+            << "ready=" << shouldProcessEntity();
     if (!shouldProcessEntityAndPointerEvent(event) || buttonType != PointerEvent::PrimaryButton) {
         return;
     }
@@ -678,15 +757,13 @@ void Keyboard::handleTriggerBegin(const QUuid& id, const PointerEvent& event) {
                 break;
         }
 
-        QKeyEvent* pressEvent = new QKeyEvent(QEvent::KeyPress, scanCode, Qt::NoModifier, keyString);
-        QKeyEvent* releaseEvent = new QKeyEvent(QEvent::KeyRelease, scanCode, Qt::NoModifier, keyString);
-        if (_inputToHudUI) {
-            QCoreApplication::postEvent(qApp->getPrimaryWidget(), pressEvent);
-            QCoreApplication::postEvent(qApp->getPrimaryWidget(), releaseEvent);
-        } else {
-            QCoreApplication::postEvent(QCoreApplication::instance(), pressEvent);
-            QCoreApplication::postEvent(QCoreApplication::instance(), releaseEvent);
-        }
+        qInfo() << "PICO_KEYBOARD_POST"
+                << "key" << scanCode
+                << "text" << keyString
+                << "target" << (_inputToHudUI ? "primaryWidget" : "application")
+                << "thread" << QThread::currentThreadId()
+                << "usec" << usecTimestampNow();
+        dispatchKey(scanCode, Qt::NoModifier, keyString);
 
         if (!getPreferMalletsOverLasers()) {
             key.startTimer(KEY_PRESS_TIMEOUT_MS);
@@ -709,6 +786,12 @@ void Keyboard::setRightHandLaser(unsigned int rightHandLaser) {
 }
 
 void Keyboard::handleTriggerEnd(const QUuid& id, const PointerEvent& event) {
+    qInfo() << "PICO_KEYBOARD_RELEASE"
+            << "id=" << id
+            << "pointer=" << event.getID()
+            << "button=" << event.getButton()
+            << "acceptedPointer=" << shouldProcessPointerEvent(event)
+            << "ready=" << shouldProcessEntity();
     if (!shouldProcessEntityAndPointerEvent(event)) {
         return;
     }
@@ -808,11 +891,13 @@ void Keyboard::handleHoverEnd(const QUuid& id, const PointerEvent& event) {
 }
 
 void Keyboard::disableStylus() {
+#if !defined(Q_OS_ANDROID)
     auto pointerManager = DependencyManager::get<PointerManager>();
     pointerManager->setRenderState(_leftHandStylus, "events off");
     pointerManager->disablePointer(_leftHandStylus);
     pointerManager->setRenderState(_rightHandStylus, "events off");
     pointerManager->disablePointer(_rightHandStylus);
+#endif
 }
 
 void Keyboard::setLayerIndex(int layerIndex) {
@@ -938,14 +1023,35 @@ void Keyboard::loadKeyboardFile(const QString& keyboardFile) {
                 QString url = (useResourcePath ? (resourcePath + modelUrl) : modelUrl);
 
                 EntityItemProperties properties;
+#ifdef Q_OS_ANDROID
+                // The desktop keyboard creates 124 individual FBX model
+                // renderers. On standalone Android, showing or switching a
+                // layer can then block EntityTreeRenderer for several seconds.
+                // A Text entity provides the same rectangular pick target and
+                // label without model loading or per-key model simulation.
+                properties.setType(EntityTypes::Text);
+#else
                 properties.setType(EntityTypes::Model);
+#endif
                 properties.setDimensions(vec3FromVariant(keyboardKeyValue["dimensions"].toVariant()));
                 properties.setPosition(vec3FromVariant(keyboardKeyValue["position"].toVariant()));
                 properties.setVisible(false);
-                properties.setEmissive(true);
                 properties.setParentID(_anchor.entityID);
+#ifdef Q_OS_ANDROID
+                const QString keyLabel = keyboardKeyValue["key"].toString();
+                properties.setText(keyLabel);
+                properties.setLineHeight(0.035f);
+                properties.setTextColor(u8vec3Color(245, 245, 245));
+                properties.setBackgroundColor(u8vec3Color(45, 49, 58));
+                properties.setBackgroundAlpha(1.0f);
+                properties.setAlignment(TextAlignment::CENTER);
+                properties.setVerticalAlignment(TextVerticalAlignment::CENTER);
+                properties.setUnlit(true);
+#else
+                properties.setEmissive(true);
                 properties.setModelURL(url);
                 properties.setTextures(QString(QJsonDocument::fromVariant(textureMap).toJson()));
+#endif
                 properties.getGrab().setGrabbable(false);
                 properties.setLocalRotation(quatFromVariant(keyboardKeyValue["localOrientation"].toVariant()));
                 QUuid id = entityScriptingInterface->addEntityInternal(properties, entity::HostType::LOCAL);
@@ -1063,10 +1169,12 @@ void Keyboard::clearKeyboardKeys() {
 }
 
 void Keyboard::enableStylus() {
+#if !defined(Q_OS_ANDROID)
     if (getPreferMalletsOverLasers()) {
         enableRightMallet();
         enableLeftMallet();
     }
+#endif
 }
 
 void Keyboard::enableRightMallet() {

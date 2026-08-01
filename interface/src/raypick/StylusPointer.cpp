@@ -63,7 +63,11 @@ QUuid StylusPointer::buildStylus(const QVariantMap& properties) {
     entityProperties.setName("stylus");
     entityProperties.setModelURL(modelURL);
     entityProperties.setPrimitiveMode(PrimitiveMode::SOLID);
-    entityProperties.setVisible(true);
+    // Pointer construction and disabling are separate render transactions.
+    // Starting visible lets a newly-created keyboard mallet flash at the
+    // controller for a frame during application startup. updateVisuals()
+    // explicitly shows it when the enabled stylus is actually needed.
+    entityProperties.setVisible(false);
     entityProperties.setIgnorePickIntersection(true);
     return DependencyManager::get<EntityScriptingInterface>()->addEntityInternal(entityProperties, entity::HostType::LOCAL);
 }

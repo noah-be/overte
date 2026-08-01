@@ -236,7 +236,9 @@ static const int MIN_PROCESSING_THREAD_POOL_SIZE = 2;
 #if !defined(Q_OS_ANDROID)
 static const uint32_t MAX_CONCURRENT_RESOURCE_DOWNLOADS = 16;
 #else
-static const uint32_t MAX_CONCURRENT_RESOURCE_DOWNLOADS = 4;
+// Avoid letting model, texture, script, and audio decode jobs overwhelm the
+// Pico's shared-memory system while a content-heavy domain is streaming.
+static const uint32_t MAX_CONCURRENT_RESOURCE_DOWNLOADS = 2;
 #endif
 
 #if defined(Q_OS_ANDROID)
@@ -2027,7 +2029,9 @@ void Application::setupSignalsAndOperators() {
                     audioClient->setMuted(!audioClient->isMuted());
                 } else if (action == controller::toInt(controller::Action::CYCLE_CAMERA)) {
                     cycleCamera();
-                } else if (action == controller::toInt(controller::Action::CONTEXT_MENU) && !isInterstitialMode()) {
+                } else if (action == controller::toInt(controller::Action::CONTEXT_MENU)) {
+                    qInfo() << "PICO_MENU_TRACE Actions.ContextMenu received; toggling tablet UI"
+                            << "interstitial=" << isInterstitialMode();
                     toggleTabletUI();
                 } else if (action == controller::toInt(controller::Action::RETICLE_X)) {
                     auto oldPos = getApplicationCompositor().getReticlePosition();

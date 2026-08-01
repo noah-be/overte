@@ -95,6 +95,12 @@ protected:
     SetOfEntities _entitiesToSort; // entities moved by simulation (and might need resort in EntityTree)
     SetOfEntities _simpleKinematicEntities; // entities undergoing non-colliding kinematic motion
     SetOfEntities _deadEntitiesToRemoveFromTree;
+#if defined(Q_OS_ANDROID)
+    // Continue the time-budgeted kinematic scan after the last entity handled.
+    // Keeping a pointer rather than an iterator is safe when the set changes
+    // between application updates.
+    EntityItemPointer _androidKinematicCursor;
+#endif
 
 private:
     void moveSimpleKinematics();

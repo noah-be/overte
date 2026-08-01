@@ -40,6 +40,7 @@ public:
     float getAngle() const { return _angle; }
     float getRadius() const { return _radius; }
     float getFarClip() const { return _farClip; }
+    void setFarClip(float farClip) { _farClip = farClip; }
 
     bool isVerySimilar(const ConicalViewFrustum& other) const;
 

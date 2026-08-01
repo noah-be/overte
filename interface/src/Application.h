@@ -500,6 +500,7 @@ public slots:
     void setKeyboardFocusHighlight(const glm::vec3& position, const glm::quat& rotation, const glm::vec3& dimensions);
     QUuid getKeyboardFocusEntity() const { return _keyboardFocusedEntity.get(); }  // thread-safe
     void setKeyboardFocusEntity(const QUuid& id);
+    bool dispatchVirtualKeyboardEvent(QEvent* event, const QUuid& target);
 
 
     // Assets
@@ -813,6 +814,7 @@ private:
 
     bool _resumeAfterLoginDialogActionTaken_WasPostponed { false };
     bool _resumeAfterLoginDialogActionTaken_SafeToRun { false };
+    bool _resumeAfterLoginDialogActionTaken_Completed { false };
 
     bool _isForeground { true }; // starts out assumed to be in foreground
 

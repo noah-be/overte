@@ -68,6 +68,9 @@ public:
 
 public slots:
 
+    // Restarts the Pico Android application and optionally restores a URL.
+    Q_INVOKABLE void restartApplication(const QString& url = QString());
+
     /*@jsdoc
      * Checks whether the Interface window has focus.
      * @function Window.hasFocus

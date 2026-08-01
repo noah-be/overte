@@ -100,6 +100,14 @@ bool Application::event(QEvent* event) {
         // Explicit idle keeps the idle running at a lower interval, but without any rendering
         // see (windowMinimizedChanged)
         case ApplicationEvent::Idle:
+#if defined(Q_OS_ANDROID)
+            // A standalone HMD can present another frame while the main-thread
+            // update is still running. Allow that present to queue exactly one
+            // subsequent update instead of waiting for yet another display
+            // period after idle() completes. The atomic flag still prevents an
+            // unbounded event backlog.
+            _pendingIdleEvent.store(false);
+#endif
             idle();
 
 #ifdef DEBUG_EVENT_QUEUE_DEPTH
@@ -113,7 +121,9 @@ bool Application::event(QEvent* event) {
             }
 #endif // DEBUG_EVENT_QUEUE_DEPTH
 
+#if !defined(Q_OS_ANDROID)
             _pendingIdleEvent.store(false);
+#endif
 
             return true;
 
@@ -903,9 +913,25 @@ bool Application::handleKeyEventForFocusedEntity(QEvent* event) {
             case QEvent::KeyRelease:
                 {
                     auto eventHandler = getEntities()->getEventHandler(_keyboardFocusedEntity.get());
+#if defined(Q_OS_ANDROID)
+                    auto* keyEvent = static_cast<QKeyEvent*>(event);
+                    qInfo() << "PICO_KEY_FOCUS_BEGIN"
+                            << "type" << event->type()
+                            << "key" << keyEvent->key()
+                            << "text" << keyEvent->text()
+                            << "focus" << _keyboardFocusedEntity.get()
+                            << "handler" << eventHandler
+                            << "thread" << QThread::currentThreadId()
+                            << "usec" << usecTimestampNow();
+#endif
                     if (eventHandler) {
                         event->setAccepted(false);
                         QCoreApplication::sendEvent(eventHandler, event);
+#if defined(Q_OS_ANDROID)
+                        qInfo() << "PICO_KEY_FOCUS_END"
+                                << "accepted" << event->isAccepted()
+                                << "usec" << usecTimestampNow();
+#endif
                         if (event->isAccepted()) {
                             _lastAcceptedKeyPress = usecTimestampNow();
                             return true;
@@ -919,6 +945,29 @@ bool Application::handleKeyEventForFocusedEntity(QEvent* event) {
     }
 
     return false;
+}
+
+bool Application::dispatchVirtualKeyboardEvent(QEvent* event, const QUuid& target) {
+    // Virtual keyboard events must never fall through to Application's global
+    // shortcuts (notably 1/2/3 camera modes). Restore the web surface selected
+    // when the keyboard was raised and dispatch only to that surface.
+    if (_keyboardFocusedEntity.get() == UNKNOWN_ENTITY_ID && target != UNKNOWN_ENTITY_ID && !target.isNull()) {
+        setKeyboardFocusEntity(target);
+    }
+
+    const bool handled = handleKeyEventForFocusedEntity(event);
+#if defined(Q_OS_ANDROID)
+    auto* keyEvent = static_cast<QKeyEvent*>(event);
+    qInfo() << "PICO_VIRTUAL_KEY_DISPATCH"
+            << "type" << event->type()
+            << "key" << keyEvent->key()
+            << "text" << keyEvent->text()
+            << "requestedTarget" << target
+            << "actualFocus" << _keyboardFocusedEntity.get()
+            << "handled" << handled
+            << "usec" << usecTimestampNow();
+#endif
+    return handled;
 }
 
 bool Application::handleFileOpenEvent(QFileOpenEvent* fileEvent) {

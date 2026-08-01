@@ -27,7 +27,11 @@ int animationPointerMetaTypeId = qRegisterMetaType<AnimationPointer>();
 AnimationCache::AnimationCache(QObject* parent) :
     ResourceCache(parent)
 {
+#if defined(Q_OS_ANDROID)
+    const qint64 ANIMATION_DEFAULT_UNUSED_MAX_SIZE = 8 * BYTES_PER_MEGABYTES;
+#else
     const qint64 ANIMATION_DEFAULT_UNUSED_MAX_SIZE = 50 * BYTES_PER_MEGABYTES;
+#endif
     setUnusedResourceCacheSize(ANIMATION_DEFAULT_UNUSED_MAX_SIZE);
     setObjectName("AnimationCache");
 }
@@ -145,4 +149,3 @@ void Animation::animationParseError(int error, QString str) {
     emit failed(QNetworkReply::UnknownContentError);
     finishedLoading(false);
 }
-

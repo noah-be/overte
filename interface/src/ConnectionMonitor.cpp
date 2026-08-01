@@ -48,6 +48,14 @@ void ConnectionMonitor::init() {
     }
 
     connect(&_timer, &QTimer::timeout, this, [this]() {
+        // A serverless JSON scene intentionally has no domain connection.
+        // Treating that as a connection failure repeatedly opens the tablet's
+        // "No Connection" dialog while local scenes (including the Pico
+        // tutorial) are running.
+        if (qApp->isServerlessMode()) {
+            return;
+        }
+
         // set in a timeout error
         bool enableInterstitial = DependencyManager::get<NodeList>()->getDomainHandler().getInterstitialModeEnabled();
         if (enableInterstitial) {
@@ -63,6 +71,10 @@ void ConnectionMonitor::init() {
 }
 
 void ConnectionMonitor::startTimer() {
+    if (qApp->isServerlessMode()) {
+        _timer.stop();
+        return;
+    }
     _timer.start(REDIRECT_AFTER_DISCONNECTED_FOR_X_MS);
 }
 

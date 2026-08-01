@@ -17,7 +17,9 @@ HIFI_QML_DEF(AnimStats)
 static AnimStats* INSTANCE{ nullptr };
 
 AnimStats* AnimStats::getInstance() {
-    Q_ASSERT(INSTANCE);
+    if (!INSTANCE) {
+        INSTANCE = new AnimStats();
+    }
     return INSTANCE;
 }
 
@@ -27,6 +29,11 @@ AnimStats::AnimStats(QQuickItem* parent) :  QQuickItem(parent) {
 
 void AnimStats::updateStats(bool force) {
     QQuickItem* parent = parentItem();
+    // AnimStats may be registered with the script engine before its QML item
+    // exists, leaving the temporary singleton without a scene-graph parent.
+    if (!parent) {
+        return;
+    }
     if (!force) {
         if (!Menu::getInstance()->isOptionChecked(MenuOption::AnimStats)) {
             if (parent->isVisible()) {
@@ -204,5 +211,3 @@ void AnimStats::updateStats(bool force) {
     }
     emit animStateMachinesChanged();
 }
-
-

@@ -35,6 +35,11 @@ const QStringList& FileUtils::getFileSelectors() {
 
 #if defined(Q_OS_ANDROID)
         extraSelectors << "android_" HIFI_ANDROID_APP;
+        // Pico uses the same reduced mobile script variants as the standalone
+        // Quest client (not the much larger desktop defaults).
+        if (QStringLiteral(HIFI_ANDROID_APP) == QStringLiteral("picoInterface")) {
+            extraSelectors << "android_questInterface";
+        }
 #endif
 
     auto backendApi = hifi::properties::getGraphicsAPI();

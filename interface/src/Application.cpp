@@ -16,11 +16,19 @@
 
 #include <QDesktopWidget>
 #include <QDesktopServices>
+#include <QDir>
+#include <QFile>
 #include <QtGui/QClipboard>
 #include <QtNetwork/QLocalSocket>
 #include <QtNetwork/QLocalServer>
+#include <QtNetwork/QSslCertificate>
+#include <QtNetwork/QSslConfiguration>
 #include <QtQuick/QQuickWindow>
 #include <QWidget>
+#ifdef Q_OS_ANDROID
+#include <QLoggingCategory>
+#include <sys/system_properties.h>
+#endif
 
 #include <AccountManager.h>
 #include <AddressManager.h>
@@ -254,6 +262,23 @@ Application::Application(
     _fieldOfView("fieldOfView", DEFAULT_FIELD_OF_VIEW_DEGREES),
     _cameraClippingEnabled("cameraClippingEnabled", false)
 {
+#ifdef Q_OS_ANDROID
+    // Qt's generic Unix CA search paths do not include Android's system trust
+    // store. Import it before AccountManager starts HTTPS requests.
+    auto sslConfiguration = QSslConfiguration::defaultConfiguration();
+    QList<QSslCertificate> androidSystemCAs;
+    const QDir androidCaDirectory("/system/etc/security/cacerts");
+    for (const auto& fileName : androidCaDirectory.entryList(QDir::Files)) {
+        QFile certificateFile(androidCaDirectory.filePath(fileName));
+        if (certificateFile.open(QIODevice::ReadOnly)) {
+            androidSystemCAs.append(
+                QSslCertificate::fromData(certificateFile.readAll(), QSsl::Pem));
+        }
+    }
+    sslConfiguration.addCaCertificates(androidSystemCAs);
+    QSslConfiguration::setDefaultConfiguration(sslConfiguration);
+    qInfo() << "Loaded Android system CA certificates:" << androidSystemCAs.size();
+#endif
 
     setProperty(hifi::properties::CRASHED, _previousSessionCrashed);
 
@@ -819,6 +844,7 @@ void Application::updateThreadPoolCount() const {
 
 void Application::gotoTutorial() {
     const QString TUTORIAL_ADDRESS = "file:///~/serverless/tutorial.json";
+    qCInfo(interfaceapp) << "Loading tutorial domain from" << TUTORIAL_ADDRESS;
     DependencyManager::get<AddressManager>()->handleLookupString(TUTORIAL_ADDRESS);
 }
 
@@ -1251,6 +1277,16 @@ void Application::loadSettings(const QCommandLineParser& parser) {
     // On the first run, the Preset is evaluated from the
     getPerformanceManager().setupPerformancePresetSettings(_firstRun.get());
 
+#if defined(Q_OS_ANDROID)
+    // Standalone headsets need a predictable low-cost VR profile. The desktop
+    // platform tier can otherwise enable shadows, bloom and SSAO even though
+    // Pico has no UI controls exposing those individual settings.
+    RenderScriptingInterface::getInstance()->setShadowsEnabled(false);
+    RenderScriptingInterface::getInstance()->setBloomEnabled(false);
+    RenderScriptingInterface::getInstance()->setAmbientOcclusionEnabled(false);
+    DependencyManager::get<LODManager>()->setWorldDetailQuality(WORLD_DETAIL_LOW);
+#endif
+
     // finish initializing the camera, based on everything we checked above. Third person camera will be used if no settings
     // dictated that we should be in first person
     Menu::getInstance()->setIsOptionChecked(MenuOption::FirstPersonLookAt, isFirstPerson);
@@ -1614,14 +1650,35 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
     QString sentTo;
 
     // If this is a first run we short-circuit the address passed in
-    if (_firstRun.get()) {
+    if (_firstRun.get()
+#ifdef Q_OS_ANDROID
+        || addressLookupString.isEmpty()
+#endif
+    ) {
         if (!BuildInfo::PRELOADED_STARTUP_LOCATION.isEmpty()) {
             DependencyManager::get<LocationBookmarks>()->setHomeLocationToAddress(NetworkingConstants::DEFAULT_OVERTE_ADDRESS);
             Menu::getInstance()->triggerOption(MenuOption::HomeLocation);
         }
 
         if (!_overrideEntry) {
+#ifdef Q_OS_ANDROID
+            // Mobile builds ship a self-contained tutorial and may have no
+            // entry-point setting yet (or retain an empty one from an older
+            // install). Always choose the packaged, known-good location.
+#if defined(ANDROID_APP_PICO_INTERFACE) && !defined(NDEBUG)
+            // Pico development builds start in a tiny local scene so a new
+            // native/UI fix can be tested without loading tutorial models,
+            // particles, scripts, sounds, or any network domain content.
+            qCInfo(interfaceapp) << "Pico fast debug startup: loading local pico-debug.json";
+            DependencyManager::get<AddressManager>()->handleLookupString(
+                "file:///~/serverless/pico-debug.json");
+#else
+            DependencyManager::get<AddressManager>()->handleLookupString(
+                NetworkingConstants::DEFAULT_OVERTE_ADDRESS);
+#endif
+#else
             DependencyManager::get<AddressManager>()->goToEntry();
+#endif
             sentTo = SENT_TO_ENTRY;
         } else {
             DependencyManager::get<AddressManager>()->loadSettings(addressLookupString);
@@ -1953,6 +2010,117 @@ void Application::update(float deltaTime) {
     if (_aboutToQuit) {
         return;
     }
+#if defined(Q_OS_ANDROID)
+    const quint64 picoUpdateStart = usecTimestampNow();
+    // ADB-controlled navigation for unattended Pico performance tests. The
+    // nonce prefix lets the same destination be requested more than once.
+    static quint64 lastNavigationPropertyCheck { 0 };
+    static QString lastNavigationCommand;
+    if (picoUpdateStart - lastNavigationPropertyCheck >= 250 * USECS_PER_MSEC) {
+        lastNavigationPropertyCheck = picoUpdateStart;
+        char navigationValue[PROP_VALUE_MAX] {};
+        if (__system_property_get("debug.overte.navigate", navigationValue) > 0) {
+            const QString command = QString::fromUtf8(navigationValue).trimmed();
+            if (!command.isEmpty() && command != lastNavigationCommand) {
+                lastNavigationCommand = command;
+                const qsizetype separator = command.indexOf('|');
+                const QString address = separator >= 0 ? command.mid(separator + 1) : command;
+                qCInfo(interfaceapp) << "PICO_ADB_NAVIGATE" << address;
+                DependencyManager::get<AddressManager>()->handleLookupString(address);
+            }
+        }
+    }
+    // Direct, verifiable return to a known-safe world position. Re-entering a
+    // domain does not guarantee that its spawn is applied when already there.
+    // Format: nonce|x|y|z.
+    static QString lastTeleportCommand;
+    char teleportValue[PROP_VALUE_MAX] {};
+    if (__system_property_get("debug.overte.teleport", teleportValue) > 0) {
+        const QString command = QString::fromUtf8(teleportValue).trimmed();
+        if (!command.isEmpty() && command != lastTeleportCommand) {
+            lastTeleportCommand = command;
+            const QStringList fields = command.split('|');
+            bool xOk { false }, yOk { false }, zOk { false };
+            const float x = fields.value(1).toFloat(&xOk);
+            const float y = fields.value(2).toFloat(&yOk);
+            const float z = fields.value(3).toFloat(&zOk);
+            if (fields.size() == 4 && xOk && yOk && zOk) {
+                getMyAvatar()->goToLocation(glm::vec3(x, y, z), false, glm::quat(), false, true);
+                qCInfo(interfaceapp) << "PICO_ADB_TELEPORT" << glm::vec3(x, y, z);
+            } else {
+                qCWarning(interfaceapp) << "PICO_ADB_TELEPORT invalid command" << command;
+            }
+        }
+    }
+    // ADB-controlled locomotion for repeatable unattended performance tests.
+    // Format: nonce|forward|strafe|turn|durationMs. A new nonce starts a new
+    // segment; duration 0 stops playback. Values use the same -1..1 range as
+    // controller axes.
+    static quint64 lastAutowalkPropertyCheck { 0 };
+    static QString lastAutowalkCommand;
+    static quint64 autowalkUntil { 0 };
+    static float autowalkForward { 0.0f };
+    static float autowalkStrafe { 0.0f };
+    static float autowalkTurn { 0.0f };
+    if (picoUpdateStart - lastAutowalkPropertyCheck >= 250 * USECS_PER_MSEC) {
+        lastAutowalkPropertyCheck = picoUpdateStart;
+        char autowalkValue[PROP_VALUE_MAX] {};
+        if (__system_property_get("debug.overte.autowalk", autowalkValue) > 0) {
+            const QString command = QString::fromUtf8(autowalkValue).trimmed();
+            if (!command.isEmpty() && command != lastAutowalkCommand) {
+                lastAutowalkCommand = command;
+                const QStringList fields = command.split('|');
+                bool forwardOk { false };
+                bool strafeOk { false };
+                bool turnOk { false };
+                bool durationOk { false };
+                const float forward = fields.value(1).toFloat(&forwardOk);
+                const float strafe = fields.value(2).toFloat(&strafeOk);
+                const float turn = fields.value(3).toFloat(&turnOk);
+                const int durationMs = fields.value(4).toInt(&durationOk);
+                if (fields.size() == 5 && forwardOk && strafeOk && turnOk && durationOk) {
+                    // Locomotion measurements model normal walking, not
+                    // walking while operating the tablet. Closing it also
+                    // lets the controller dispatcher disable both expensive
+                    // hand rays until the next real UI interaction.
+                    DependencyManager::get<HMDScriptingInterface>()->closeTablet();
+                    autowalkForward = glm::clamp(forward, -1.0f, 1.0f);
+                    autowalkStrafe = glm::clamp(strafe, -1.0f, 1.0f);
+                    autowalkTurn = glm::clamp(turn, -1.0f, 1.0f);
+                    autowalkUntil = durationMs > 0
+                        ? picoUpdateStart + static_cast<quint64>(durationMs) * USECS_PER_MSEC
+                        : 0;
+                    qCInfo(interfaceapp) << "PICO_ADB_AUTOWALK"
+                                         << "forward" << autowalkForward
+                                         << "strafe" << autowalkStrafe
+                                         << "turn" << autowalkTurn
+                                         << "durationMs" << durationMs;
+                } else {
+                    qCWarning(interfaceapp) << "PICO_ADB_AUTOWALK invalid command" << command;
+                }
+            }
+        }
+    }
+    quint64 picoAfterDevices = picoUpdateStart;
+    quint64 picoBeforeInputPlugins = picoUpdateStart;
+    quint64 picoAfterInputPlugins = picoUpdateStart;
+    quint64 picoAfterInputMapper = picoUpdateStart;
+    quint64 picoAfterDriveKeys = picoUpdateStart;
+    quint64 picoBeforePick = picoUpdateStart;
+    quint64 picoAfterPick = picoUpdateStart;
+    quint64 picoAfterPointer = picoUpdateStart;
+    quint64 picoAfterSimulationSetup = picoUpdateStart;
+    quint64 picoAfterPrePhysics = picoUpdateStart;
+    quint64 picoBeforeEntityUpdate = picoUpdateStart;
+    quint64 picoAfterEntityUpdate = picoUpdateStart;
+    quint64 picoBeforeSimulationCleanup = picoUpdateStart;
+    quint64 picoAfterSimulation = picoUpdateStart;
+    quint64 picoAfterAvatars = picoUpdateStart;
+    quint64 picoAfterOverlays = picoUpdateStart;
+    quint64 picoBeforePostUpdate = picoUpdateStart;
+    quint64 picoAfterPostLambdas = picoUpdateStart;
+    quint64 picoAfterRenderArgs = picoUpdateStart;
+#endif
 
     if (!_physicsEnabled) {
         if (!_domainLoadingInProgress) {
@@ -1992,6 +2160,9 @@ void Application::update(float deltaTime) {
     }
 
     auto myAvatar = getMyAvatar();
+#if defined(Q_OS_ANDROID)
+    picoBeforeInputPlugins = usecTimestampNow();
+#endif
     {
         PerformanceTimer perfTimer("devices");
         auto userInputMapper = DependencyManager::get<UserInputMapper>();
@@ -2028,9 +2199,33 @@ void Application::update(float deltaTime) {
                 inputPlugin->pluginUpdate(deltaTime, calibrationData);
             }
         }
+#if defined(Q_OS_ANDROID)
+        picoAfterInputPlugins = usecTimestampNow();
+#endif
 
         userInputMapper->setInputCalibrationData(calibrationData);
         userInputMapper->update(deltaTime);
+#if defined(Q_OS_ANDROID)
+        picoAfterInputMapper = usecTimestampNow();
+#endif
+
+#if defined(ANDROID_APP_PICO_INTERFACE) && !defined(NDEBUG)
+        {
+            static quint64 nextPicoLocomotionLog { 0 };
+            const quint64 now = usecTimestampNow();
+            if (now >= nextPicoLocomotionLog) {
+                nextPicoLocomotionLog = now + USECS_PER_SECOND;
+                qInfo() << "PICO_LOCOMOTION"
+                        << "translateX" << userInputMapper->getActionState(controller::Action::TRANSLATE_X)
+                        << "translateY" << userInputMapper->getActionState(controller::Action::TRANSLATE_Y)
+                        << "translateZ" << userInputMapper->getActionState(controller::Action::TRANSLATE_Z)
+                        << "yaw" << userInputMapper->getActionState(controller::Action::YAW)
+                        << "actionsCaptured" << _controllerScriptingInterface->areActionsCaptured()
+                        << "interstitial" << isInterstitialMode()
+                        << "cameraMode" << static_cast<int>(_myCamera.getMode());
+            }
+        }
+#endif
 
         if (keyboardMousePlugin && keyboardMousePlugin->isActive()) {
             keyboardMousePlugin->pluginUpdate(deltaTime, calibrationData);
@@ -2052,12 +2247,40 @@ void Application::update(float deltaTime) {
                 }
             }
             myAvatar->setDriveKey(MyAvatar::ZOOM, userInputMapper->getActionState(controller::Action::TRANSLATE_CAMERA_Z));
+#if defined(Q_OS_ANDROID)
+            if (picoUpdateStart < autowalkUntil) {
+                myAvatar->setDriveKey(MyAvatar::TRANSLATE_Z, autowalkForward);
+                myAvatar->setDriveKey(MyAvatar::TRANSLATE_X, autowalkStrafe);
+                myAvatar->setDriveKey(MyAvatar::YAW, autowalkTurn);
+#if !defined(NDEBUG)
+                static quint64 nextAutowalkLog { 0 };
+                if (picoUpdateStart >= nextAutowalkLog) {
+                    nextAutowalkLog = picoUpdateStart + USECS_PER_SECOND;
+                    qInfo() << "PICO_ADB_AUTOWALK_ACTIVE"
+                            << "position" << myAvatar->getWorldPosition()
+                            << "forward" << autowalkForward
+                            << "strafe" << autowalkStrafe
+                            << "turn" << autowalkTurn
+                            << "remainingMs" << (autowalkUntil - picoUpdateStart) / USECS_PER_MSEC;
+                }
+#endif
+            }
+#endif
         }
 
         myAvatar->setSprintMode((bool)userInputMapper->getActionState(controller::Action::SPRINT));
+#if defined(Q_OS_ANDROID)
+        picoAfterDriveKeys = usecTimestampNow();
+#endif
         static const std::vector<controller::Action> avatarControllerActions = {
             controller::Action::LEFT_HAND,
             controller::Action::RIGHT_HAND,
+#if defined(ANDROID_APP_PICO_INTERFACE)
+            // Pico OpenXR currently supplies head and controller poses here,
+            // not desktop full-body, eye, or per-finger tracking. Avoid dozens
+            // of mapper lookups and invalid pose writes on every world update.
+            controller::Action::HEAD
+#else
             controller::Action::LEFT_FOOT,
             controller::Action::RIGHT_FOOT,
             controller::Action::HIPS,
@@ -2117,6 +2340,7 @@ void Application::update(float deltaTime) {
             controller::Action::RIGHT_TOE_BASE,
             controller::Action::LEFT_EYE,
             controller::Action::RIGHT_EYE
+#endif
 
         };
 
@@ -2165,12 +2389,18 @@ void Application::update(float deltaTime) {
         }
         _prevShowTrackedObjects = _showTrackedObjects;
     }
+#if defined(Q_OS_ANDROID)
+    picoAfterDevices = usecTimestampNow();
+#endif
 
     updateThreads(deltaTime); // If running non-threaded, then give the threads some time to process...
     updateDialogs(deltaTime); // update various stats dialogs if present
 
     auto grabManager = DependencyManager::get<GrabManager>();
     grabManager->simulateGrabs();
+#if defined(Q_OS_ANDROID)
+    picoBeforePick = usecTimestampNow();
+#endif
 
     // TODO: break these out into distinct perfTimers when they prove interesting
     {
@@ -2178,12 +2408,18 @@ void Application::update(float deltaTime) {
         PerformanceTimer perfTimer("pickManager");
         DependencyManager::get<PickManager>()->update();
     }
+#if defined(Q_OS_ANDROID)
+    picoAfterPick = usecTimestampNow();
+#endif
 
     {
         PROFILE_RANGE(app, "PointerManager");
         PerformanceTimer perfTimer("pointerManager");
         DependencyManager::get<PointerManager>()->update();
     }
+#if defined(Q_OS_ANDROID)
+    picoAfterPointer = usecTimestampNow();
+#endif
 
     QSharedPointer<AvatarManager> avatarManager = DependencyManager::get<AvatarManager>();
 
@@ -2193,6 +2429,9 @@ void Application::update(float deltaTime) {
 
         getEntities()->preUpdate();
         _entitySimulation->removeDeadEntities();
+#if defined(Q_OS_ANDROID)
+        picoAfterSimulationSetup = usecTimestampNow();
+#endif
 
         auto t0 = std::chrono::high_resolution_clock::now();
         auto t1 = t0;
@@ -2220,6 +2459,11 @@ void Application::update(float deltaTime) {
                 myAvatar->getCharacterController()->preSimulation();
             }
         }
+#if defined(Q_OS_ANDROID)
+        picoAfterPrePhysics = usecTimestampNow();
+        picoBeforeEntityUpdate = picoAfterPrePhysics;
+        picoAfterEntityUpdate = picoAfterPrePhysics;
+#endif
 
         if (_physicsEnabled) {
             {
@@ -2286,7 +2530,13 @@ void Application::update(float deltaTime) {
 
                     // NOTE: the getEntities()->update() call below will wait for lock
                     // and will provide non-physical entity motion
+#if defined(Q_OS_ANDROID)
+                    picoBeforeEntityUpdate = usecTimestampNow();
+#endif
                     getEntities()->update(true); // update the models...
+#if defined(Q_OS_ANDROID)
+                    picoAfterEntityUpdate = usecTimestampNow();
+#endif
 
                     auto t5 = std::chrono::high_resolution_clock::now();
 
@@ -2302,13 +2552,25 @@ void Application::update(float deltaTime) {
             }
         } else {
             // update the rendering without any simulation
+#if defined(Q_OS_ANDROID)
+            picoBeforeEntityUpdate = usecTimestampNow();
+#endif
             getEntities()->update(false);
+#if defined(Q_OS_ANDROID)
+            picoAfterEntityUpdate = usecTimestampNow();
+#endif
         }
+#if defined(Q_OS_ANDROID)
+        picoBeforeSimulationCleanup = usecTimestampNow();
+#endif
         // remove recently dead avatarEntities
         SetOfEntities deadAvatarEntities;
         _entitySimulation->takeDeadAvatarEntities(deadAvatarEntities);
         avatarManager->removeDeadAvatarEntities(deadAvatarEntities);
     }
+#if defined(Q_OS_ANDROID)
+    picoAfterSimulation = usecTimestampNow();
+#endif
 
     // AvatarManager update
     {
@@ -2325,6 +2587,9 @@ void Application::update(float deltaTime) {
             avatarManager->updateMyAvatar(deltaTime);
         }
     }
+#if defined(Q_OS_ANDROID)
+    picoAfterAvatars = usecTimestampNow();
+#endif
 
     bool showWarnings = Menu::getInstance()->isOptionChecked(MenuOption::PipelineWarnings);
     PerformanceWarning warn(showWarnings, "Application::update()");
@@ -2341,6 +2606,9 @@ void Application::update(float deltaTime) {
         PerformanceTimer perfTimer("overlays");
         _overlays.update(deltaTime);
     }
+#if defined(Q_OS_ANDROID)
+    picoAfterOverlays = usecTimestampNow();
+#endif
 
     // Update _viewFrustum with latest camera and view frustum data...
     // NOTE: we get this from the view frustum, to make it simpler, since the
@@ -2414,6 +2682,9 @@ void Application::update(float deltaTime) {
             QMetaObject::invokeMethod(DependencyManager::get<AudioClient>().data(), "sendDownstreamAudioStatsPacket", Qt::QueuedConnection);
         }
     }
+#if defined(Q_OS_ANDROID)
+    picoBeforePostUpdate = usecTimestampNow();
+#endif
 
     {
         PerformanceTimer perfTimer("avatarManager/postUpdate");
@@ -2429,9 +2700,15 @@ void Application::update(float deltaTime) {
         }
         _postUpdateLambdas.clear();
     }
+#if defined(Q_OS_ANDROID)
+    picoAfterPostLambdas = usecTimestampNow();
+#endif
 
 
     updateRenderArgs(deltaTime);
+#if defined(Q_OS_ANDROID)
+    picoAfterRenderArgs = usecTimestampNow();
+#endif
 
     {
         PerformanceTimer perfTimer("AnimDebugDraw");
@@ -2453,6 +2730,95 @@ void Application::update(float deltaTime) {
         PerformanceTimer perfTimer("squeezeVision");
         _visionSqueeze.updateVisionSqueeze(myAvatar->getSensorToWorldMatrix(), deltaTime);
     }
+#if defined(Q_OS_ANDROID)
+    struct PicoUpdateStats {
+        quint64 windowStart { 0 };
+        quint64 calls { 0 };
+        quint64 total { 0 };
+        quint64 devices { 0 };
+        quint64 devicesPrefix { 0 };
+        quint64 inputPlugins { 0 };
+        quint64 inputMapper { 0 };
+        quint64 driveKeys { 0 };
+        quint64 controllerPoses { 0 };
+        quint64 prePick { 0 };
+        quint64 pick { 0 };
+        quint64 pointer { 0 };
+        quint64 simulationSetup { 0 };
+        quint64 prePhysics { 0 };
+        quint64 physics { 0 };
+        quint64 entityUpdate { 0 };
+        quint64 afterEntityUpdate { 0 };
+        quint64 simulationCleanup { 0 };
+        quint64 avatars { 0 };
+        quint64 overlaysAndView { 0 };
+        quint64 postUpdate { 0 };
+        quint64 postLambdas { 0 };
+        quint64 renderArgs { 0 };
+        quint64 frameEnd { 0 };
+        quint64 maximum { 0 };
+    };
+    static PicoUpdateStats stats;
+    const quint64 end = usecTimestampNow();
+    if (stats.windowStart == 0) {
+        stats.windowStart = picoUpdateStart;
+    }
+    const quint64 total = end - picoUpdateStart;
+    stats.calls++;
+    stats.total += total;
+    stats.devices += picoAfterDevices - picoUpdateStart;
+    stats.devicesPrefix += picoBeforeInputPlugins - picoUpdateStart;
+    stats.inputPlugins += picoAfterInputPlugins - picoBeforeInputPlugins;
+    stats.inputMapper += picoAfterInputMapper - picoAfterInputPlugins;
+    stats.driveKeys += picoAfterDriveKeys - picoAfterInputMapper;
+    stats.controllerPoses += picoAfterDevices - picoAfterDriveKeys;
+    stats.prePick += picoBeforePick - picoAfterDevices;
+    stats.pick += picoAfterPick - picoBeforePick;
+    stats.pointer += picoAfterPointer - picoAfterPick;
+    stats.simulationSetup += picoAfterSimulationSetup - picoAfterPointer;
+    stats.prePhysics += picoAfterPrePhysics - picoAfterSimulationSetup;
+    stats.physics += picoBeforeEntityUpdate - picoAfterPrePhysics;
+    stats.entityUpdate += picoAfterEntityUpdate - picoBeforeEntityUpdate;
+    stats.afterEntityUpdate += picoBeforeSimulationCleanup - picoAfterEntityUpdate;
+    stats.simulationCleanup += picoAfterSimulation - picoBeforeSimulationCleanup;
+    stats.avatars += picoAfterAvatars - picoAfterSimulation;
+    stats.overlaysAndView += picoAfterOverlays - picoAfterAvatars;
+    stats.postUpdate += picoBeforePostUpdate - picoAfterOverlays;
+    stats.postLambdas += picoAfterPostLambdas - picoBeforePostUpdate;
+    stats.renderArgs += picoAfterRenderArgs - picoAfterPostLambdas;
+    stats.frameEnd += end - picoAfterRenderArgs;
+    stats.maximum = std::max(stats.maximum, total);
+    if (end - stats.windowStart >= USECS_PER_SECOND) {
+        const double divisor = std::max<quint64>(1, stats.calls);
+        qInfo() << "PICO_UPDATE_STAGES"
+                << "callsPerSec" << stats.calls
+                << "avgTotalMs" << stats.total / divisor / 1000.0
+                << "maxTotalMs" << stats.maximum / 1000.0
+                << "devicesMs" << stats.devices / divisor / 1000.0
+                << "devicesPrefixMs" << stats.devicesPrefix / divisor / 1000.0
+                << "inputPluginsMs" << stats.inputPlugins / divisor / 1000.0
+                << "inputMapperMs" << stats.inputMapper / divisor / 1000.0
+                << "driveKeysMs" << stats.driveKeys / divisor / 1000.0
+                << "controllerPosesMs" << stats.controllerPoses / divisor / 1000.0
+                << "prePickMs" << stats.prePick / divisor / 1000.0
+                << "pickMs" << stats.pick / divisor / 1000.0
+                << "pointerMs" << stats.pointer / divisor / 1000.0
+                << "simulationSetupMs" << stats.simulationSetup / divisor / 1000.0
+                << "prePhysicsMs" << stats.prePhysics / divisor / 1000.0
+                << "physicsMs" << stats.physics / divisor / 1000.0
+                << "entityUpdateMs" << stats.entityUpdate / divisor / 1000.0
+                << "afterEntityUpdateMs" << stats.afterEntityUpdate / divisor / 1000.0
+                << "simulationCleanupMs" << stats.simulationCleanup / divisor / 1000.0
+                << "avatarsMs" << stats.avatars / divisor / 1000.0
+                << "overlaysViewMs" << stats.overlaysAndView / divisor / 1000.0
+                << "postUpdateMs" << stats.postUpdate / divisor / 1000.0
+                << "postLambdasMs" << stats.postLambdas / divisor / 1000.0
+                << "renderArgsMs" << stats.renderArgs / divisor / 1000.0
+                << "frameEndMs" << stats.frameEnd / divisor / 1000.0;
+        stats = PicoUpdateStats{};
+        stats.windowStart = end;
+    }
+#endif
 }
 
 

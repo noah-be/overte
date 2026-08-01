@@ -314,9 +314,18 @@ void PhysicsEngine::stepSimulation() {
     // (3) synchronize outgoing motion states
     // (4) send outgoing packets
 
-    const float MAX_TIMESTEP = (float)PHYSICS_ENGINE_MAX_NUM_SUBSTEPS * PHYSICS_ENGINE_FIXED_SUBSTEP;
     float dt = 1.0e-6f * (float)(_clock.getTimeMicroseconds());
     _clock.reset();
+#if defined(Q_OS_ANDROID)
+    // Do not let a streaming/thermal hitch create a self-sustaining Bullet
+    // catch-up spiral. Healthy frames retain the full three-step allowance;
+    // late frames intentionally lose simulation time so tracking and the next
+    // collision step can run promptly again.
+    const int32_t maxSubsteps = dt > 0.050f ? 1 : (dt > 0.033f ? 2 : PHYSICS_ENGINE_MAX_NUM_SUBSTEPS);
+#else
+    const int32_t maxSubsteps = PHYSICS_ENGINE_MAX_NUM_SUBSTEPS;
+#endif
+    const float MAX_TIMESTEP = (float)maxSubsteps * PHYSICS_ENGINE_FIXED_SUBSTEP;
     float timeStep = btMin(dt, MAX_TIMESTEP);
 
     auto onSubStep = [this]() {
@@ -324,8 +333,29 @@ void PhysicsEngine::stepSimulation() {
         this->doOwnershipInfectionForConstraints();
     };
 
-    int numSubsteps = _dynamicsWorld->stepSimulationWithSubstepCallback(timeStep, PHYSICS_ENGINE_MAX_NUM_SUBSTEPS,
+    int numSubsteps = _dynamicsWorld->stepSimulationWithSubstepCallback(timeStep, maxSubsteps,
                                                                         PHYSICS_ENGINE_FIXED_SUBSTEP, onSubStep);
+#if defined(Q_OS_ANDROID)
+    static uint64_t lastStepLog { 0 };
+    static uint32_t stepCalls { 0 };
+    static uint32_t accumulatedSubsteps { 0 };
+    static uint32_t maximumSubsteps { 0 };
+    ++stepCalls;
+    accumulatedSubsteps += numSubsteps;
+    maximumSubsteps = std::max(maximumSubsteps, static_cast<uint32_t>(numSubsteps));
+    const uint64_t stepLogNow = usecTimestampNow();
+    if (stepLogNow - lastStepLog >= USECS_PER_SECOND) {
+        qInfo() << "PICO_PHYSICS_STEP callsPerSec" << stepCalls
+                << "averageSubsteps" << (stepCalls ? static_cast<float>(accumulatedSubsteps) / stepCalls : 0.0f)
+                << "maximumSubsteps" << maximumSubsteps
+                << "collisionObjects" << getNumCollisionObjects()
+                << "fixedHz" << NUM_SUBSTEPS_PER_SECOND;
+        lastStepLog = stepLogNow;
+        stepCalls = 0;
+        accumulatedSubsteps = 0;
+        maximumSubsteps = 0;
+    }
+#endif
     if (numSubsteps > 0) {
         _hasOutgoingChanges = true;
         if (_physicsDebugDraw->getDebugMode()) {
@@ -930,4 +960,3 @@ std::vector<ContactTestResult> PhysicsEngine::contactTest(uint16_t mask, const S
 
     return contactCallback.contacts;
 }
-

@@ -55,8 +55,11 @@ LoginDialog::LoginDialog(QQuickItem *parent) : OffscreenQmlDialog(parent) {
             this, &LoginDialog::handleLoginFailed);
     connect(qApp, &Application::loginDialogFocusEnabled, this, &LoginDialog::focusEnabled);
     connect(qApp, &Application::loginDialogFocusDisabled, this, &LoginDialog::focusDisabled);
-    connect(this, SIGNAL(dismissedLoginDialog()), qApp, SLOT(onDismissedLoginDialog()));
 #endif
+    // Android uses the login dialog on a WebEntity. Its Cancel button still
+    // has to notify Application so that the entity and keyboard are removed
+    // and startup resumes.
+    connect(this, SIGNAL(dismissedLoginDialog()), qApp, SLOT(onDismissedLoginDialog()));
 }
 
 LoginDialog::~LoginDialog() {
@@ -139,7 +142,16 @@ void LoginDialog::dismissLoginDialog() {
     Q_CHECK_PTR(loginAction);
     loginAction->setEnabled(true);
 
+#if defined(Q_OS_ANDROID)
+    qInfo() << "PICO_LOGIN_DISMISS requested";
+    // The Android login QML is rendered through a WebEntity. Queue the
+    // application cleanup explicitly so entity deletion cannot happen inside
+    // the QML button's signal handler and does not depend on legacy dialog
+    // signal wiring.
+    QMetaObject::invokeMethod(qApp, "onDismissedLoginDialog", Qt::QueuedConnection);
+#else
     emit dismissedLoginDialog();
+#endif
 }
 
 void LoginDialog::login(const QString& username, const QString& password) const {
