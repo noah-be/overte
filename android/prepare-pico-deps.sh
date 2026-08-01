@@ -33,15 +33,18 @@ require_dir PICO_QT_BUILD_DIR "$qt_build_dir"
 require_dir PICO_TBB_PACKAGE_DIR "$tbb_package_dir"
 require_dir PICO_DRACO_PACKAGE_DIR "$draco_package_dir"
 
+patch_applied=0
 if git -C "$qt_source_dir" apply --reverse --check "$patch_file" >/dev/null 2>&1; then
     echo "Qt Pico patch already applied"
 else
     git -C "$qt_source_dir" apply --check "$patch_file"
     git -C "$qt_source_dir" apply "$patch_file"
+    patch_applied=1
     echo "Applied Qt Pico runtime patch"
 fi
 
-if [[ "${PICO_REBUILD_QT:-0}" == "1" ]]; then
+if [[ "$patch_applied" == "1" || "${PICO_REBUILD_QT:-0}" == "1" ]]; then
+    echo "Building patched Qt runtime"
     make -C "$qt_build_dir/qtbase" -j"${PICO_BUILD_JOBS:-$(nproc)}"
 fi
 
@@ -65,7 +68,15 @@ install -m 0755 "$qt_platform" \
 install -m 0755 "$tbb_runtime" "$runtime_dir/libtbb.so"
 
 for tool in glslangValidator scribe spirv-cross spirv-opt; do
-    tool_path="$(command -v "$tool" || true)"
+    case "$tool" in
+        glslangValidator) tool_path="${PICO_GLSLANG_VALIDATOR:-}" ;;
+        scribe) tool_path="${PICO_SCRIBE:-}" ;;
+        spirv-cross) tool_path="${PICO_SPIRV_CROSS:-}" ;;
+        spirv-opt) tool_path="${PICO_SPIRV_OPT:-}" ;;
+    esac
+    if [[ -z "$tool_path" ]]; then
+        tool_path="$(command -v "$tool" || true)"
+    fi
     if [[ -z "$tool_path" ]]; then
         echo "required host tool not found in PATH: ${tool}" >&2
         exit 2

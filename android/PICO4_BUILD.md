@@ -5,7 +5,21 @@ runtime fixes. The fixes are stored as source changes in
 `conan/patches/qt-pico-android-runtime.patch`; generated libraries and absolute
 links into a Conan cache are intentionally not tracked.
 
-## Prepare dependencies
+## One-command build
+
+Once the Pico Conan dependencies and patched Qt build exist locally, the
+wrapper detects their cache locations, the Android SDK, and the Android Studio
+JDK automatically:
+
+```bash
+./build-pico.sh
+```
+
+This prepares the runtime files and builds the debug APK. Individual stages
+can be run with `./build-pico.sh prepare` and `./build-pico.sh build`. Use
+`./build-pico.sh --help` for supported path overrides.
+
+## Manual dependency preparation
 
 Install the Pico Conan graph first, including host builds of `glslang`,
 `scribe`, `spirv-cross`, and `spirv-tools`. Make those four host executables
@@ -22,15 +36,16 @@ export PICO_DRACO_PACKAGE_DIR=/path/to/draco/package
 
 The Qt source directory must be the `qt5` Git checkout and the build directory
 must contain the matching shadow build. The script applies the Pico patch when
-needed. To rebuild Qt after applying it, use:
+needed and automatically rebuilds Qt when it applies the patch. To force
+another Qt rebuild, use:
 
 ```bash
 PICO_REBUILD_QT=1 PICO_BUILD_JOBS="$(nproc)" ./prepare-pico-deps.sh
 ```
 
-Without `PICO_REBUILD_QT=1`, the script stages existing Qt build outputs. It
-also stages the release TBB runtime, creates the legacy Draco compatibility
-layout, and resolves shader host tools from `PATH`.
+Otherwise, the script stages existing Qt build outputs. It also stages the
+release TBB runtime, creates the legacy Draco compatibility layout, and
+resolves shader host tools from explicit `PICO_*` variables or `PATH`.
 
 ## Build the debug APK
 
