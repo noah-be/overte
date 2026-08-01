@@ -23,9 +23,11 @@ fail() {
 
 usage() {
     cat <<'EOF'
-Usage: ./build-pico.sh [doctor|deps|prepare|build|install|all|deploy|setup] [--download]
+Usage: ./build-pico.sh [doctor|bootstrap|deps|prepare|build|install|all|deploy|setup] [option]
 
   doctor   Check the development environment and print installation help
+  bootstrap [--check|--system-packages|--with-deps]
+           Install as many missing build requirements as possible
   deps     Install dependencies; use --download for prebuilt Qt and Node
   prepare  Locate and stage the existing Conan/Qt dependencies
   build    Build the Pico debug APK
@@ -120,6 +122,13 @@ doctor() {
             echo "           Install with SDK Manager: sdkmanager \"platforms;android-36\""
             echo "           Help: $android_tools_url"
         fi
+        if [[ -d "$sdk_path/build-tools/36.0.0" ]]; then
+            doctor_ok "Android SDK Build-Tools 36.0.0"
+        else
+            doctor_error "Android SDK Build-Tools 36.0.0 is missing"
+            echo "           Install with SDK Manager: sdkmanager \"build-tools;36.0.0\""
+            echo "           Help: $android_tools_url"
+        fi
 
         ndk_path="${ANDROID_NDK_HOME:-$sdk_path/ndk/27.3.13750724}"
         if [[ -d "$ndk_path" ]]; then
@@ -141,16 +150,8 @@ doctor() {
 
     echo
     echo "Java and project files:"
-    for candidate in "${JAVA_HOME:-}" \
-        "${HOME}/Applications/android-studio/jbr" \
-        "/opt/android-studio/jbr"; do
-        [[ -x "$candidate/bin/java" ]] || continue
-        major="$(java_major "$candidate")"
-        if [[ "$major" =~ ^[0-9]+$ && "$major" -ge 17 && "$major" -le 21 ]]; then
-            detected_java="$candidate"
-            break
-        fi
-    done
+    detected_java="$(find_compatible_jdk || true)"
+    [[ -z "$detected_java" ]] || major="$(java_major "$detected_java")"
     if [[ -n "$detected_java" ]]; then
         doctor_ok "JDK $major ($detected_java)"
     else
@@ -179,6 +180,129 @@ doctor() {
     fi
     echo "Not ready: $errors required item(s) missing, $warnings warning(s)."
     return 2
+}
+
+run_as_root() {
+    if [[ "$(id -u)" -eq 0 ]]; then
+        "$@"
+    elif command -v sudo >/dev/null; then
+        sudo "$@"
+    else
+        fail "system packages are missing and sudo is unavailable"
+    fi
+}
+
+install_system_packages() {
+    local needs_packages=0 tool
+    for tool in git curl cmake ninja python3 perl file make ar tar sha256sum unzip; do
+        command -v "$tool" >/dev/null 2>&1 || needs_packages=1
+    done
+    [[ -n "$(find_compatible_jdk || true)" ]] || needs_packages=1
+    command -v conan >/dev/null 2>&1 || command -v pipx >/dev/null 2>&1 || needs_packages=1
+
+    if [[ "$needs_packages" -eq 0 ]]; then
+        echo "System build tools are already installed"
+        return
+    fi
+
+    echo "Installing missing system build tools (administrator access may be requested)"
+    if command -v dnf >/dev/null; then
+        run_as_root dnf install -y git curl cmake ninja-build python3 python3-pip \
+            pipx perl file make binutils tar coreutils unzip java-21-openjdk-devel
+    elif command -v apt-get >/dev/null; then
+        run_as_root apt-get update
+        run_as_root apt-get install -y git curl cmake ninja-build python3 python3-pip \
+            pipx perl file make binutils tar coreutils unzip openjdk-21-jdk
+    elif command -v pacman >/dev/null; then
+        run_as_root pacman -S --needed --noconfirm git curl cmake ninja python \
+            python-pipx perl file make binutils tar coreutils unzip jdk21-openjdk
+    elif command -v zypper >/dev/null; then
+        run_as_root zypper --non-interactive install git curl cmake ninja python3 \
+            python3-pipx perl file make binutils tar gzip coreutils unzip \
+            java-21-openjdk-devel
+    else
+        fail "unsupported package manager; install the items reported by ./build-pico.sh doctor"
+    fi
+}
+
+find_sdkmanager() {
+    local sdk_path="$1" candidate
+    for candidate in \
+        "$sdk_path/cmdline-tools/latest/bin/sdkmanager" \
+        "$sdk_path/tools/bin/sdkmanager"; do
+        if [[ -x "$candidate" ]]; then
+            echo "$candidate"
+            return
+        fi
+    done
+    find "$sdk_path/cmdline-tools" -mindepth 3 -maxdepth 3 \
+        -path '*/bin/sdkmanager' -type f -perm -u+x -print 2>/dev/null \
+        | sort -V | tail -1 || true
+}
+
+bootstrap() {
+    local option="${1:-}" sdk_path="" sdkmanager="" candidate java_home
+    case "$option" in
+        ""|--system-packages|--with-deps) ;;
+        --check) doctor; return ;;
+        *) fail "unsupported bootstrap option: $option" ;;
+    esac
+
+    echo "Bootstrapping the Pico 4 build environment"
+    install_system_packages
+    if [[ "$option" == "--system-packages" ]]; then
+        echo
+        doctor
+        return
+    fi
+
+    export PATH="${HOME}/.local/bin:$PATH"
+    if ! command -v conan >/dev/null || ! conan --version 2>/dev/null | grep -q '^Conan version 2\.'; then
+        command -v pipx >/dev/null \
+            || fail "pipx was not installed; see https://pipx.pypa.io/stable/how-to/install-pipx.html"
+        echo "Installing Conan 2 in an isolated pipx environment"
+        pipx install --force 'conan>=2,<3'
+    fi
+    if ! conan profile path default >/dev/null 2>&1; then
+        echo "Creating the Conan default profile"
+        conan profile detect --force
+    fi
+
+    for candidate in "${ANDROID_SDK_ROOT:-}" "${ANDROID_HOME:-}" "${HOME}/Android/Sdk"; do
+        if [[ -n "$candidate" && -d "$candidate" ]]; then
+            sdk_path="$candidate"
+            break
+        fi
+    done
+    if [[ -z "$sdk_path" ]]; then
+        echo "Android command-line tools require acceptance of Google's license terms."
+        echo "Install them once from: $android_tools_url"
+        echo "Then rerun this command; SDK 36, NDK, and ADB will be installed automatically."
+    else
+        sdkmanager="$(find_sdkmanager "$sdk_path")"
+        if [[ -z "$sdkmanager" ]]; then
+            echo "Android SDK found at $sdk_path, but sdkmanager is missing."
+            echo "Install the official command-line tools: $android_tools_url"
+        else
+            java_home="$(find_compatible_jdk || true)"
+            [[ -z "$java_home" ]] || export JAVA_HOME="$java_home"
+            echo "Review and accept the Android SDK licenses when prompted"
+            "$sdkmanager" --sdk_root="$sdk_path" --licenses
+            echo "Installing Android SDK Platform 36, NDK, and Platform-Tools"
+            "$sdkmanager" --sdk_root="$sdk_path" \
+                "platforms;android-36" "build-tools;36.0.0" \
+                "ndk;27.3.13750724" "platform-tools"
+            export ANDROID_SDK_ROOT="$sdk_path"
+            export ANDROID_HOME="$sdk_path"
+        fi
+    fi
+
+    echo
+    doctor
+    if [[ "$option" == "--with-deps" ]]; then
+        echo
+        download_prebuilt_dependencies
+    fi
 }
 
 newest_match() {
@@ -215,18 +339,38 @@ java_major() {
     "$1/bin/java" -version 2>&1 | sed -n '1s/.*version "\([0-9]*\).*/\1/p'
 }
 
-detect_jdk() {
-    local candidate major
-    for candidate in "${JAVA_HOME:-}" \
-        "${HOME}/Applications/android-studio/jbr" \
-        "/opt/android-studio/jbr"; do
-        [[ -x "$candidate/bin/java" ]] || continue
+find_compatible_jdk() {
+    local candidate major java_path
+    local -a candidates=(
+        "${JAVA_HOME:-}"
+        "${HOME}/Applications/android-studio/jbr"
+        "/opt/android-studio/jbr"
+        "/usr/lib/jvm/java-21-openjdk"
+        "/usr/lib/jvm/java-21-openjdk-amd64"
+    )
+    java_path="$(command -v java 2>/dev/null || true)"
+    if [[ -n "$java_path" ]]; then
+        java_path="$(readlink -f "$java_path")"
+        candidates+=("${java_path%/bin/java}")
+    fi
+    for candidate in "${candidates[@]}"; do
+        [[ -n "$candidate" && -x "$candidate/bin/java" ]] || continue
         major="$(java_major "$candidate")"
         if [[ "$major" =~ ^[0-9]+$ && "$major" -ge 17 && "$major" -le 21 ]]; then
-            export JAVA_HOME="$candidate"
+            echo "$candidate"
             return
         fi
     done
+    return 1
+}
+
+detect_jdk() {
+    local candidate
+    candidate="$(find_compatible_jdk || true)"
+    if [[ -n "$candidate" ]]; then
+        export JAVA_HOME="$candidate"
+        return
+    fi
     fail "a JDK between versions 17 and 21 was not found; set JAVA_HOME (install: $android_tools_url)"
 }
 
@@ -413,6 +557,7 @@ install_apk() {
 
 case "$command_name" in
     doctor) doctor ;;
+    bootstrap) bootstrap "$command_option" ;;
     deps)
         if [[ "$command_option" == "--download" ]]; then
             download_prebuilt_dependencies

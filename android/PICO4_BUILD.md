@@ -19,13 +19,42 @@ Check the complete local environment before downloading or building anything:
 ```
 
 The command reports every required command-line tool, Android SDK Platform 36,
-NDK `27.3.13750724`, Platform-Tools/ADB, JDK compatibility, the Gradle wrapper,
-and available disk space. Missing requirements are shown together with an
-official installation page or an appropriate `sdkmanager` command. Android
-Studio itself is optional; it is the easiest way to install the Android SDK,
-NDK, Platform-Tools, and a compatible JDK together. The `setup` command runs
-this check automatically and stops before downloading anything when a required
-item is missing.
+Build-Tools 36.0.0, NDK `27.3.13750724`, Platform-Tools/ADB, JDK compatibility,
+the Gradle wrapper, and available disk space. Missing requirements are shown
+together with an official installation page or an appropriate `sdkmanager`
+command. Android Studio itself is optional; it is the easiest way to install
+the Android SDK, NDK, Platform-Tools, and a compatible JDK together. The
+`setup` command runs this check automatically and stops before downloading
+anything when a required item is missing.
+
+On a new Linux development machine, install as many missing requirements as
+possible with:
+
+```bash
+./build-pico.sh bootstrap
+```
+
+The bootstrap supports Fedora, Debian/Ubuntu, Arch Linux, and openSUSE package
+managers. It may request administrator access for system packages. Conan is
+installed in an isolated `pipx` environment when needed, and its default
+profile is created automatically. If Android's `sdkmanager` is already
+available, the command interactively handles the required licenses and installs
+SDK Platform 36, NDK `27.3.13750724`, and Platform-Tools. Google's command-line
+tools cannot be installed before their license terms have been accepted, so a
+missing base SDK is reported with the official download page.
+
+Available variants are:
+
+```bash
+./build-pico.sh bootstrap --check
+./build-pico.sh bootstrap --system-packages
+./build-pico.sh bootstrap --with-deps
+```
+
+`--check` performs the read-only doctor check, `--system-packages` only handles
+packages from the operating system, and `--with-deps` additionally downloads
+and installs the prebuilt Pico Qt and Node artifacts plus the remaining Conan
+dependencies.
 
 For a fresh development environment, install the Conan dependencies, prepare
 the runtime files, and build the APK with:
