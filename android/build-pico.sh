@@ -472,7 +472,7 @@ newest_host_tool() {
             echo "$candidate"
             return
         fi
-    done < <(find "$conan_home/p/b" -maxdepth 7 -path "$pattern" \
+    done < <(find "$conan_home/p" -maxdepth 8 -path "$pattern" \
         -type f -perm -u+x -printf '%T@ %p\n' 2>/dev/null \
         | sort -nr | sed 's/^[^ ]* //')
 }
