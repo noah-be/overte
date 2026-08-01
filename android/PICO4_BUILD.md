@@ -15,9 +15,11 @@ cd android
 
 The bootstrap supports Fedora, Debian/Ubuntu, Arch Linux, and openSUSE. It may
 request administrator access for missing system packages and Android SDK
-license acceptance. If the base Android command-line tools are not installed,
-the script prints Google's official download page. Install those tools, then
-run the bootstrap command again.
+license acceptance. When the operating system only provides a newer,
+incompatible Java version, the bootstrap installs a checksum-verified Eclipse
+Temurin 21 JDK locally. If the base Android command-line tools are not
+installed, the script prints Google's official download page. Install those
+tools, then run the bootstrap command again.
 
 With an authorized Pico 4 connected over USB, build the APK, install it, and
 start the client:

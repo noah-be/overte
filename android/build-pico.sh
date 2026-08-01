@@ -15,6 +15,7 @@ ninja_install_url="https://github.com/ninja-build/ninja/releases"
 git_install_url="https://git-scm.com/downloads"
 python_install_url="https://www.python.org/downloads/"
 perl_install_url="https://www.perl.org/get.html"
+temurin_api_url="https://api.adoptium.net/v3/assets/latest/21/hotspot"
 
 fail() {
     echo "error: $*" >&2
@@ -197,7 +198,6 @@ install_system_packages() {
     for tool in git curl cmake ninja python3 perl file make ar tar sha256sum unzip; do
         command -v "$tool" >/dev/null 2>&1 || needs_packages=1
     done
-    [[ -n "$(find_compatible_jdk || true)" ]] || needs_packages=1
     command -v conan >/dev/null 2>&1 || command -v pipx >/dev/null 2>&1 || needs_packages=1
 
     if [[ "$needs_packages" -eq 0 ]]; then
@@ -208,21 +208,74 @@ install_system_packages() {
     echo "Installing missing system build tools (administrator access may be requested)"
     if command -v dnf >/dev/null; then
         run_as_root dnf install -y git curl cmake ninja-build python3 python3-pip \
-            pipx perl file make binutils tar coreutils unzip java-21-openjdk-devel
+            pipx perl file make binutils tar coreutils unzip
     elif command -v apt-get >/dev/null; then
         run_as_root apt-get update
         run_as_root apt-get install -y git curl cmake ninja-build python3 python3-pip \
-            pipx perl file make binutils tar coreutils unzip openjdk-21-jdk
+            pipx perl file make binutils tar coreutils unzip
     elif command -v pacman >/dev/null; then
         run_as_root pacman -S --needed --noconfirm git curl cmake ninja python \
-            python-pipx perl file make binutils tar coreutils unzip jdk21-openjdk
+            python-pipx perl file make binutils tar coreutils unzip
     elif command -v zypper >/dev/null; then
         run_as_root zypper --non-interactive install git curl cmake ninja python3 \
-            python3-pipx perl file make binutils tar gzip coreutils unzip \
-            java-21-openjdk-devel
+            python3-pipx perl file make binutils tar gzip coreutils unzip
     else
         fail "unsupported package manager; install the items reported by ./build-pico.sh doctor"
     fi
+}
+
+install_compatible_jdk() {
+    local architecture metadata download_url checksum download_dir archive
+    local install_parent="$script_dir/pico-host-tools"
+    local install_dir="$install_parent/jdk-21"
+    local temporary_install
+
+    if [[ -n "$(find_compatible_jdk || true)" ]]; then
+        echo "A compatible JDK is already installed"
+        return
+    fi
+    command -v curl >/dev/null || fail "curl is required to download JDK 21"
+    command -v python3 >/dev/null || fail "Python is required to resolve the JDK 21 download"
+
+    case "$(uname -m)" in
+        x86_64) architecture="x64" ;;
+        aarch64|arm64) architecture="aarch64" ;;
+        *) fail "automatic JDK installation is unsupported on $(uname -m)" ;;
+    esac
+
+    echo "Resolving the latest Eclipse Temurin 21 JDK"
+    metadata="$(curl --fail --location --retry 3 --silent --show-error \
+        "${temurin_api_url}?architecture=${architecture}&image_type=jdk&os=linux&vendor=eclipse")"
+    read -r download_url checksum < <(python3 -c '
+import json, sys
+assets = json.load(sys.stdin)
+if not assets:
+    raise SystemExit("no matching Temurin JDK asset returned")
+package = assets[0]["binary"]["package"]
+print(package["link"], package["checksum"])
+' <<< "$metadata")
+    [[ -n "$download_url" && -n "$checksum" ]] \
+        || fail "the Temurin API returned incomplete JDK metadata"
+
+    download_dir="$(mktemp -d)"
+    archive="$download_dir/temurin-jdk-21.tar.gz"
+    install -d "$install_parent"
+    [[ ! -e "$install_dir" ]] \
+        || fail "an incomplete local JDK already exists: $install_dir"
+    temporary_install="$(mktemp -d "$install_parent/.jdk-21.XXXXXX")"
+    trap 'rm -rf -- "$download_dir" "$temporary_install"' RETURN
+
+    echo "Downloading Eclipse Temurin 21 JDK"
+    curl --fail --location --retry 3 --output "$archive" "$download_url"
+    echo "$checksum  $archive" | sha256sum --check --status \
+        || fail "invalid checksum for downloaded Temurin JDK"
+    tar -xzf "$archive" -C "$temporary_install" --strip-components=1
+    [[ -x "$temporary_install/bin/java" ]] \
+        || fail "the downloaded Temurin archive does not contain a JDK"
+    mv "$temporary_install" "$install_dir"
+    rm -rf -- "$download_dir"
+    trap - RETURN
+    echo "Installed Eclipse Temurin JDK 21 in $install_dir"
 }
 
 find_sdkmanager() {
@@ -255,6 +308,7 @@ bootstrap() {
         doctor
         return
     fi
+    install_compatible_jdk
 
     export PATH="${HOME}/.local/bin:$PATH"
     if ! command -v conan >/dev/null || ! conan --version 2>/dev/null | grep -q '^Conan version 2\.'; then
@@ -344,6 +398,7 @@ find_compatible_jdk() {
     local -a candidates=(
         "${JAVA_HOME:-}"
         "${HOME}/Applications/android-studio/jbr"
+        "$script_dir/pico-host-tools/jdk-21"
         "/opt/android-studio/jbr"
         "/usr/lib/jvm/java-21-openjdk"
         "/usr/lib/jvm/java-21-openjdk-amd64"
