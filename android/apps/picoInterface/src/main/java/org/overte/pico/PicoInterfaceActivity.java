@@ -1,0 +1,94 @@
+package org.overte.pico;
+
+import android.app.AlarmManager;
+import android.app.PendingIntent;
+import android.content.Context;
+import android.content.Intent;
+import android.os.Bundle;
+import android.os.Process;
+import android.os.SystemClock;
+import android.util.Log;
+import android.view.KeyEvent;
+
+import org.qtproject.qt5.android.bindings.QtActivity;
+
+import io.highfidelity.utils.HifiUtils;
+
+public final class PicoInterfaceActivity extends QtActivity {
+    private static final String TAG = "OvertePico";
+    private static PicoInterfaceActivity instance;
+
+    static {
+        // Qt 5 resolves OpenSSL dynamically.  Android packages the libraries
+        // without their 1.1 suffix, so preload them to make their SONAMEs
+        // available before QtNetwork initializes TLS.
+        System.loadLibrary("crypto");
+        System.loadLibrary("ssl");
+        System.loadLibrary("picoOpenXR");
+    }
+
+    private native boolean initializeOpenXRLoader();
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        instance = this;
+        String requestedParameters = getIntent().hasExtra("applicationArguments")
+            ? getIntent().getStringExtra("applicationArguments")
+            : "--display=OpenXR";
+        APPLICATION_PARAMETERS = requestedParameters + " --cache "
+            + getCacheDir().getAbsolutePath();
+
+        HifiUtils.upackAssets(getAssets(), getCacheDir().getAbsolutePath());
+
+        if (!initializeOpenXRLoader()) {
+            Log.e(TAG, "The Android OpenXR loader could not be initialized");
+        }
+
+        super.onCreate(savedInstanceState);
+    }
+
+    public static void scheduleRestart(String applicationArguments) {
+        final PicoInterfaceActivity activity = instance;
+        if (activity == null) {
+            Log.e(TAG, "Cannot restart: activity is unavailable");
+            return;
+        }
+        Log.i(TAG, "Scheduling application restart with arguments: "
+            + applicationArguments);
+
+        Intent restartIntent = new Intent(activity, PermissionsActivity.class);
+        restartIntent.putExtra("args", applicationArguments);
+        restartIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+            | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+            activity,
+            1001,
+            restartIntent,
+            PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        AlarmManager alarmManager =
+            (AlarmManager) activity.getSystemService(Context.ALARM_SERVICE);
+        // Pico OS may batch inexact alarms as soon as the activity closes,
+        // which leaves the application stopped instead of relaunching it.
+        alarmManager.setExact(
+            AlarmManager.ELAPSED_REALTIME,
+            SystemClock.elapsedRealtime() + 1500,
+            pendingIntent);
+
+        activity.finishAffinity();
+        new android.os.Handler(activity.getMainLooper()).postDelayed(() -> {
+            Log.i(TAG, "Terminating old application process for restart");
+            Process.killProcess(Process.myPid());
+        }, 750);
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        // Pico controller input is handled through OpenXR. Pico OS also sends
+        // some controller buttons through Android, which can otherwise queue
+        // indefinitely behind Qt's native event loop and trigger an input ANR.
+        Log.d(TAG, "Consuming Android key event " + event.getKeyCode()
+            + " action=" + event.getAction());
+        return true;
+    }
+}

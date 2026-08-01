@@ -132,6 +132,8 @@ if (ANDROID)
   # Allow client code to use preprocessor macros to distinguish between quest and non-quest builds
   if (${HIFI_ANDROID_APP} STREQUAL "questInterface")
     add_definitions(-DANDROID_APP_QUEST_INTERFACE)
+  elseif(${HIFI_ANDROID_APP} STREQUAL "picoInterface")
+    add_definitions(-DANDROID_APP_PICO_INTERFACE)
   elseif(${HIFI_ANDROID_APP} STREQUAL "interface")
     add_definitions(-DANDROID_APP_INTERFACE)
   endif()

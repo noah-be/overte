@@ -121,9 +121,13 @@ QUrl PathUtils::expandToLocalDataAbsolutePath(const QUrl& fileUrl) {
 
 #ifdef Q_OS_MAC
         static const QString staticResourcePath = QCoreApplication::applicationDirPath() + "/../Resources/";
-#elif defined (ANDROID)
-        static const QString staticResourcePath =
-            QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/resources/";
+#elif defined(Q_OS_ANDROID) || defined(ANDROID)
+        const QString appLocalDataPath =
+            qApp ? qApp->property(hifi::properties::APP_LOCAL_DATA_PATH).toString() : QString();
+        const QString staticResourcePath =
+            (appLocalDataPath.isEmpty()
+                 ? QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
+                 : appLocalDataPath) + "/resources/";
 #else
         static const QString staticResourcePath = QCoreApplication::applicationDirPath() + "/resources/";
 #endif
@@ -283,14 +287,32 @@ QUrl PathUtils::defaultScriptsLocation(const QString& newDefaultPath) {
 #if defined(Q_OS_OSX)
         path = QCoreApplication::applicationDirPath() + "/../Resources/scripts";
 #elif defined(Q_OS_ANDROID)
-        path = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/scripts";
+        // Android launchers pass the cache location through APP_LOCAL_DATA_PATH.
+        // QStandardPaths can be empty later during native VR startup, so use the
+        // same path that unpackAndroidAssets() and the RCC loader use.
+        const QString appLocalDataPath =
+            qApp ? qApp->property(hifi::properties::APP_LOCAL_DATA_PATH).toString() : QString();
+        path = (appLocalDataPath.isEmpty()
+                    ? QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
+                    : appLocalDataPath) +
+            "/scripts";
 #else
         path = QCoreApplication::applicationDirPath() + "/scripts";
 #endif
     }
 
+    // Android's cache directory may be accessible to the application while
+    // canonicalFilePath() still returns an empty string because of the
+    // platform's cache-directory permissions.  Keep the absolute cache path;
+    // the scripts were unpacked there by this same process.
+#if defined(Q_OS_ANDROID)
+    const QFileInfo pathInfo(path);
+    const QString canonicalPath = pathInfo.canonicalFilePath();
+    return QUrl::fromLocalFile(canonicalPath.isEmpty() ? pathInfo.absoluteFilePath() : canonicalPath);
+#else
     // turn the string into a legit QUrl
     return QUrl::fromLocalFile(QFileInfo(path).canonicalFilePath());
+#endif
 }
 
 QString PathUtils::stripFilename(const QUrl& url) {

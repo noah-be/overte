@@ -552,6 +552,17 @@ void WebEntityRenderer::handlePointerEventAsMouse(const PointerEvent& event) {
             return;
     }
 
+#if defined(Q_OS_ANDROID)
+    if (type == QEvent::MouseButtonPress || type == QEvent::MouseButtonRelease) {
+        qInfo() << "PICO_WEB_MOUSE"
+                << (type == QEvent::MouseButtonPress ? "press" : "release")
+                << "pointer" << event.getID()
+                << "position" << windowPoint
+                << "button" << button
+                << "buttons" << buttons;
+    }
+#endif
+
     if (type == QEvent::Wheel) {
         const auto& scroll = event.getScroll() * POINTEREVENT_SCROLL_SENSITIVITY;
         QWheelEvent wheelEvent(windowPoint, windowPoint, QPoint(), QPoint(scroll.x, scroll.y), buttons, event.getKeyboardModifiers(), Qt::ScrollPhase::NoScrollPhase, false);

@@ -60,6 +60,7 @@ public:
 
 protected:
     PickResultPointer getPickResultCopy(const PickResultPointer& pickResult) const override;
+    PickResultPointer getVisualPickResult(const PickResultPointer& pickResult) override;
 
     void editRenderStatePath(const std::string& state, const QVariant& pathProps) override;
 

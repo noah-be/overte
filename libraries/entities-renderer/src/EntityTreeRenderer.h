@@ -262,7 +262,15 @@ private:
 
     LayeredZones _layeredZones;
     uint64_t _lastZoneCheck { 0 };
-    const uint64_t ZONE_CHECK_INTERVAL = USECS_PER_MSEC * 100; // ~10hz
+#if defined(Q_OS_ANDROID)
+    // Containment queries are expensive on standalone headsets. Forced checks
+    // (entity additions/removals and script changes) remain immediate, while
+    // regular checks once per second avoid repeated multi-millisecond tree
+    // walks while walking through dense domains.
+    const uint64_t ZONE_CHECK_INTERVAL = USECS_PER_SECOND; // ~1 Hz
+#else
+    const uint64_t ZONE_CHECK_INTERVAL = USECS_PER_MSEC * 100; // ~10 Hz
+#endif
     const float ZONE_CHECK_DISTANCE = 0.001f;
 
     float _avgRenderableUpdateCost { 0.0f };

@@ -48,12 +48,13 @@ var SUBMESH = 2;
 // returns object with two fields:
 //    * position - position in front of the user
 //    * rotation - rotation of entity so it faces the user.
-function calcSpawnInfo(hand, landscape) {
+function calcSpawnInfo(hand, landscape, forcedRightOffset) {
     var finalPosition;
 
     var controllerStandard = Controller.Standard;
     var LEFT_HAND = controllerStandard.LeftHand;
     var sensorToWorldScale = MyAvatar.sensorToWorldScale;
+    var picoCenteredTablet = Settings.getValue("deferTabletCreationUntilOpen", false);
     var headPos = (HMD.active && (Camera.mode === "first person" || Camera.mode === "first person look at")) ? HMD.position : Camera.position;
     var headRot = Quat.cancelOutRollAndPitch((HMD.active && (Camera.mode === "first person" || Camera.mode === "first person look at")) ?
         HMD.orientation : Camera.orientation);
@@ -62,9 +63,25 @@ function calcSpawnInfo(hand, landscape) {
     var forward = Quat.getForward(headRot);
     var up = Quat.getUp(headRot);
 
-    var FORWARD_OFFSET = 0.5 * sensorToWorldScale;
-    var UP_OFFSET = -0.16 * sensorToWorldScale;
-    var RIGHT_OFFSET = ((hand === LEFT_HAND) ? -0.18 : 0.18) * sensorToWorldScale;
+    // Keep this configurable so headset-specific launchers can choose a more
+    // comfortable permanent spawn distance without changing desktop behavior.
+    // Pico used the legacy HMD keys, whose persisted values predate the
+    // centered tablet layout and override every attempted default change.
+    // Keep separate keys so the centered layout starts at its intended
+    // position while remaining configurable for later tuning.
+    var FORWARD_OFFSET = Settings.getValue(
+        picoCenteredTablet ? "picoTabletForwardOffset" : "hmdTabletForwardOffset",
+        picoCenteredTablet ? 1.25 : 0.5
+    ) * sensorToWorldScale;
+    var UP_OFFSET = Settings.getValue(
+        picoCenteredTablet ? "picoTabletUpOffset" : "hmdTabletUpOffset",
+        picoCenteredTablet ? -0.52 : -0.16
+    ) * sensorToWorldScale;
+    var RIGHT_OFFSET = (forcedRightOffset !== undefined
+        ? forcedRightOffset
+        : (picoCenteredTablet
+            ? 0
+            : ((hand === LEFT_HAND) ? -0.18 : 0.18))) * sensorToWorldScale;
 
     var forwardPosition = Vec3.sum(headPos, Vec3.multiply(FORWARD_OFFSET, forward));
     var lateralPosition = Vec3.sum(forwardPosition, Vec3.multiply(RIGHT_OFFSET, right));
@@ -73,6 +90,16 @@ function calcSpawnInfo(hand, landscape) {
     var MY_EYES = { x: 0.0, y: 0.15, z: 0.0 };
     var lookAtEndPosition = Vec3.sum(Vec3.multiply(RIGHT_OFFSET, right), Vec3.multiply(FORWARD_OFFSET, forward));
     var orientation = Quat.lookAt(MY_EYES, lookAtEndPosition, Vec3.multiplyQbyV(MyAvatar.orientation, Vec3.UNIT_Y));
+    if (picoCenteredTablet) {
+        orientation = Quat.multiply(
+            orientation,
+            Quat.fromPitchYawRollDegrees(
+                Settings.getValue("picoTabletTiltDegrees", -18),
+                0,
+                0
+            )
+        );
+    }
 
     return {
         position: finalPosition,
@@ -175,19 +202,23 @@ WebTablet = function (url, width, dpi, hand, location, visible) {
     var HOME_BUTTON_X_OFFSET = 0.00079 * sensorScaleFactor;
     var HOME_BUTTON_Y_OFFSET = -1 * ((tabletHeight / 2) - (4.0 * tabletScaleFactor / 2));
     var HOME_BUTTON_Z_OFFSET = (tabletDepth / 1.9) * sensorScaleFactor;
+    // Keep the Gizmo type expected by the tablet lifecycle code, but turn its
+    // ring into a closed disc for picking.  The old default inner radius left
+    // a hole under the visible close icon, so centre-pointing rays missed it.
     this.homeButtonID = Entities.addEntity({
         "type": "Gizmo",
         "gizmoType": "ring",
         "name": "homeButton",
         "localPosition": { "x": HOME_BUTTON_X_OFFSET, "y": HOME_BUTTON_Y_OFFSET, "z": -HOME_BUTTON_Z_OFFSET },
         "localRotation": Quat.fromVec3Degrees({ "x": 90, "y": 0, "z": 0}),
-        "dimensions": { "x": homeButtonDim, "y": homeButtonDim, "z": homeButtonDim },
+        "dimensions": { "x": homeButtonDim * 1.35, "y": homeButtonDim * 1.35, "z": homeButtonDim * 1.35 },
         "primitiveMode": "solid",
         "ring": {
             "innerStartAlpha": 0.0,
             "innerEndAlpha": 0.0,
             "outerStartAlpha": 0.0,
             "outerEndAlpha": 0.0,
+            "innerRadius": 0.0
         },
         "visible": visible,
         "renderLayer": "world",
@@ -306,11 +337,15 @@ WebTablet.prototype.setLandscape = function(newLandscapeValue) {
         return;
     }
 
+    var previousLocalPosition =
+        Entities.getEntityProperties(this.tabletEntityID, ["localPosition"]).localPosition;
     this.landscape = newLandscapeValue;
     var cameraOrientation = Quat.cancelOutRollAndPitch(Camera.orientation);
     var tabletRotation = Quat.multiply(cameraOrientation, this.landscape ? ROT_LANDSCAPE : ROT_Y_180);
     Entities.editEntity(this.tabletEntityID, {
-        "rotation": tabletRotation
+        "rotation": tabletRotation,
+        // Rotation and resizing must not move the tablet's center.
+        "localPosition": previousLocalPosition
     });
 
     var tabletWidth = getTabletWidthFromSettings() * MyAvatar.sensorToWorldScale;
@@ -322,6 +357,18 @@ WebTablet.prototype.setLandscape = function(newLandscapeValue) {
     Entities.editEntity(this.webOverlayID, {
         "localRotation": this.landscape ? Quat.multiply(screenRotation, Quat.angleAxis(-90, Vec3.FRONT)) : screenRotation,
         "dimensions": {"x": this.landscape ? screenHeight : screenWidth, "y": this.landscape ? screenWidth : screenHeight, "z": 0.1}
+    });
+};
+
+WebTablet.prototype.moveAsideForCreate = function() {
+    if (!HMD.active || !Settings.getValue("deferTabletCreationUntilOpen", false)) {
+        return;
+    }
+    var spawnInfo = calcSpawnInfo(NO_HANDS, this.landscape, -0.7);
+    Entities.editEntity(this.tabletEntityID, {
+        parentJointIndex: SENSOR_TO_ROOM_MATRIX,
+        position: spawnInfo.position,
+        rotation: spawnInfo.rotation
     });
 };
 

@@ -41,6 +41,10 @@ pkglist.json
 *.iml
 *.class
 local.properties
+/android/build/
+/android/apps/picoInterface/build/
+/android/apps/picoInterface/.cxx/
+/android/conan/pico4-*/
 /android/gradle*
 /android/.gradle
 /android/**/src/main/jniLibs

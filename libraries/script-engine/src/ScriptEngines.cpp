@@ -365,7 +365,15 @@ QVariantList ScriptEngines::getRunning() {
 }
 
 void ScriptEngines::loadDefaultScripts() {
+#if defined(Q_OS_ANDROID)
+    QUrl defaultScriptsURL = PathUtils::defaultScriptsLocation();
+    defaultScriptsURL.setPath(defaultScriptsURL.path() + "/defaultScripts.js");
+    qInfo() << "Loading Android default scripts from" << defaultScriptsURL
+            << "exists=" << QFileInfo(defaultScriptsURL.toLocalFile()).exists();
+    loadScript(defaultScriptsURL);
+#else
     loadScript(DEFAULT_SCRIPTS_LOCATION);
+#endif
 }
 
 void ScriptEngines::loadOneScript(const QString& scriptFilename) {

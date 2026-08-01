@@ -100,7 +100,7 @@ static const QString SYSTEM_TABLET = "com.highfidelity.interface.tablet.system";
 
 static const QString STANDARD_TO_ACTION_MAPPING_NAME = "Standard to Action";
 static const QString NO_MOVEMENT_MAPPING_NAME = "Standard to Action (No Movement)";
-static const QString NO_MOVEMENT_MAPPING_JSON = PathUtils::resourcesPath() + "/controllers/standard_nomovement.json";
+static const QString NO_MOVEMENT_MAPPING_JSON = PathUtils::resourcesPath() + "controllers/standard_nomovement.json";
 
 const QString DEFAULT_CURSOR_NAME = "SYSTEM";
 
@@ -857,11 +857,13 @@ void Application::showVRKeyboardForHudUI(bool show) {
 }
 
 void Application::onDesktopRootItemCreated(QQuickItem* rootItem) {
-    Stats::show();
-    AnimStats::show();
     auto surfaceContext = getOffscreenUI()->getSurfaceContext();
-    surfaceContext->setContextProperty("Stats", Stats::getInstance());
-    surfaceContext->setContextProperty("AnimStats", AnimStats::getInstance());
+    Stats::show([surfaceContext](QQmlContext*, QObject*) {
+        surfaceContext->setContextProperty("Stats", Stats::getInstance());
+    });
+    AnimStats::show([surfaceContext](QQmlContext*, QObject*) {
+        surfaceContext->setContextProperty("AnimStats", AnimStats::getInstance());
+    });
 
 #if !defined(Q_OS_ANDROID)
     auto offscreenUi = getOffscreenUI();
@@ -1132,6 +1134,7 @@ bool Application::askToReplaceDomainContent(const QString& url) {
 void Application::onDismissedLoginDialog() {
     _loginDialogPoppedUp = false;
     auto keyboard = DependencyManager::get<Keyboard>().data();
+    keyboard->setRaised(false);
     keyboard->setResetKeyboardPositionOnRaise(true);
     if (!_loginDialogID.isNull()) {
         DependencyManager::get<EntityScriptingInterface>()->deleteEntity(_loginDialogID);
@@ -1180,7 +1183,12 @@ void Application::pauseUntilLoginDetermined() {
     menu->getMenu("Navigate")->setVisible(false);
     menu->getMenu("Settings")->setVisible(false);
     _developerMenuVisible = menu->getMenu("Developer")->isVisible();
+#if defined(Q_OS_ANDROID)
+    // The Pico HUD always includes the compact FPS counter.
+    menu->setIsOptionChecked(MenuOption::Stats, true);
+#else
     menu->setIsOptionChecked(MenuOption::Stats, false);
+#endif
     if (_developerMenuVisible) {
         menu->getMenu("Developer")->setVisible(false);
     }
@@ -1210,6 +1218,14 @@ void Application::resumeAfterLoginDialogActionTaken() {
         _resumeAfterLoginDialogActionTaken_WasPostponed = true;
         return;
     }
+
+    // keyboardFocusActive can be emitted for every text field on Android.
+    // Resuming more than once reloads all default scripts and creates duplicate
+    // tablet/controller systems.
+    if (_resumeAfterLoginDialogActionTaken_Completed) {
+        return;
+    }
+    _resumeAfterLoginDialogActionTaken_Completed = true;
 
 #if !defined(DISABLE_QML)
     if (!isHMDMode() && getDesktopTabletBecomesToolbarSetting()) {
@@ -1248,7 +1264,14 @@ void Application::resumeAfterLoginDialogActionTaken() {
             scriptEngines->loadDefaultScripts();
             scriptEngines->defaultScriptsLocationOverridden(true);
         } else {
+#if defined(Q_OS_ANDROID)
+            // Always start one known set of mobile system scripts. Loading the
+            // persisted list here can accumulate stale aliases of the same
+            // default script across Android's /data/user and /data/data paths.
+            scriptEngines->loadDefaultScripts();
+#else
             scriptEngines->loadScripts();
+#endif
         }
     }
 

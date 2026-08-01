@@ -118,7 +118,9 @@ void PointerManager::update() {
     });
 
     for (const auto& pointerPair : cachedPointers) {
-        pointerPair.second->update(pointerPair.first);
+        if (pointerPair.second->needsUpdate()) {
+            pointerPair.second->update(pointerPair.first);
+        }
     }
 }
 

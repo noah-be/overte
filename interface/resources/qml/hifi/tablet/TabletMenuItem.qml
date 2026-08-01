@@ -23,7 +23,10 @@ Item {
     implicitHeight: source !== null ? source.visible ? 2 * label.implicitHeight : 0 : 0
     implicitWidth: 2 * hifi.dimensions.menuPadding.x + check.width + label.width + tail.width
     visible: source !== null ? source.visible : false
-    width: parent.width
+    // A delegate is parented to ListView's content item. Binding to that
+    // parent's width forms a loop with ListView.contentWidth while delegates
+    // are being created and released.
+    width: ListView.view ? ListView.view.width : 0
 
     Item {
         id: check

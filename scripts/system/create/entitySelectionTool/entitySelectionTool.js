@@ -238,6 +238,12 @@ SelectionManager = (function() {
     that.setSelections = function(entityIDs, caller) {
         print("setSelections: " + JSON.stringify(entityIDs));
         Script.logBacktrace("setSelections");
+        // Replace the selection atomically. Native tablet editors render every
+        // event, so an intermediate clear would visibly flash "no selection".
+        for (var oldIndex = 0; oldIndex < that.selections.length; oldIndex++) {
+            Selection.removeFromSelectedItemsList(
+                HIGHLIGHT_LIST_NAME, "entity", that.selections[oldIndex]);
+        }
         that.selections = [];
         for (var i = 0; i < entityIDs.length; i++) {
             var entityID = entityIDs[i];
@@ -1319,6 +1325,45 @@ SelectionDisplay = (function() {
 
     var activeTool = null;
     var handleTools = {};
+    var picoGizmoStats = {
+        nextLog: Date.now() + 1000,
+        dragStart: 0,
+        mode: "none",
+        controllerChecks: 0,
+        validPoses: 0,
+        changedPoses: 0,
+        moveCalls: 0,
+        toolMoveMs: 0,
+        toolMoveMaxMs: 0,
+        selectionUpdateMs: 0,
+        selectionUpdateMaxMs: 0
+    };
+
+    function logPicoGizmoStats(force) {
+        var now = Date.now();
+        if (!force && now < picoGizmoStats.nextLog) {
+            return;
+        }
+        print("PICO_CREATE_GIZMO mode=" + picoGizmoStats.mode +
+            " dragMs=" + (picoGizmoStats.dragStart ? now - picoGizmoStats.dragStart : 0) +
+            " checks=" + picoGizmoStats.controllerChecks +
+            " valid=" + picoGizmoStats.validPoses +
+            " changed=" + picoGizmoStats.changedPoses +
+            " moves=" + picoGizmoStats.moveCalls +
+            " toolMoveMs=" + picoGizmoStats.toolMoveMs +
+            " toolMoveMaxMs=" + picoGizmoStats.toolMoveMaxMs +
+            " selectionMs=" + picoGizmoStats.selectionUpdateMs +
+            " selectionMaxMs=" + picoGizmoStats.selectionUpdateMaxMs);
+        picoGizmoStats.nextLog = now + 1000;
+        picoGizmoStats.controllerChecks = 0;
+        picoGizmoStats.validPoses = 0;
+        picoGizmoStats.changedPoses = 0;
+        picoGizmoStats.moveCalls = 0;
+        picoGizmoStats.toolMoveMs = 0;
+        picoGizmoStats.toolMoveMaxMs = 0;
+        picoGizmoStats.selectionUpdateMs = 0;
+        picoGizmoStats.selectionUpdateMaxMs = 0;
+    }
     
     var debugPickPlaneEnabled = false;
     var debugPickPlane = Entities.addEntity({
@@ -1336,14 +1381,18 @@ SelectionDisplay = (function() {
 
     // We get mouseMoveEvents from the handControllers, via handControllerPointer.
     // But we dont' get mousePressEvents.
+    var picoLaserOnlyUI = Settings.getValue("deferTabletCreationUntilOpen", false);
     that.triggerClickMapping = Controller.newMapping(Script.resolvePath('') + '-click');
     that.triggerPressMapping = Controller.newMapping(Script.resolvePath('') + '-press');
+    that.picoPoseMoveMapping = picoLaserOnlyUI ?
+        Controller.newMapping(Script.resolvePath('') + '-pico-pose-move') : null;
     that.triggeredHand = NO_HAND;
     that.pressedHand = NO_HAND;
     that.editingHand = NO_HAND;
     that.triggered = function() {
         return that.triggeredHand !== NO_HAND;
     };
+    var picoAnalogClicked = [false, false];
     function pointingAtDesktopWindowOrTablet(hand) {
         var pointingAtDesktopWindow = (hand === controllerStandard.RightHand &&
                                        SelectionManager.pointingAtDesktopWindowRight) ||
@@ -1376,6 +1425,20 @@ SelectionDisplay = (function() {
             if (!SelectionManager.editEnabled) {
                 return;
             }
+            // Pico's analog trigger value is continuous and reliable while the
+            // synthesized *Click channel may be missed during a transition
+            // from the tablet laser to an edit handle.  Apply hysteresis and
+            // feed the same begin/end path used by the click mapping.
+            if (picoLaserOnlyUI) {
+                var handIndex = hand === controllerStandard.LeftHand ? 0 : 1;
+                if (!picoAnalogClicked[handIndex] && value >= TRIGGER_ON_VALUE) {
+                    picoAnalogClicked[handIndex] = true;
+                    picoClickHandlers[handIndex](true);
+                } else if (picoAnalogClicked[handIndex] && value <= TRIGGER_OFF_VALUE) {
+                    picoAnalogClicked[handIndex] = false;
+                    picoClickHandlers[handIndex](false);
+                }
+            }
             if (value >= TRIGGER_ON_VALUE && !that.triggered() && !pointingAtDesktopWindowOrTablet(hand)) {
                 that.pressedHand = hand;
                 that.updateHighlight({});
@@ -1385,17 +1448,55 @@ SelectionDisplay = (function() {
             }
         }
     }
-    that.triggerClickMapping.from(controllerStandard.RTClick).peek().to(makeClickHandler(controllerStandard.RightHand));
-    that.triggerClickMapping.from(controllerStandard.LTClick).peek().to(makeClickHandler(controllerStandard.LeftHand));
+    var picoClickHandlers = [
+        makeClickHandler(controllerStandard.LeftHand),
+        makeClickHandler(controllerStandard.RightHand)
+    ];
+    that.triggerClickMapping.from(controllerStandard.RTClick).peek().to(picoClickHandlers[1]);
+    that.triggerClickMapping.from(controllerStandard.LTClick).peek().to(picoClickHandlers[0]);
     that.triggerPressMapping.from(controllerStandard.RT).peek().to(makePressHandler(controllerStandard.RightHand));
     that.triggerPressMapping.from(controllerStandard.LT).peek().to(makePressHandler(controllerStandard.LeftHand));
+    if (that.picoPoseMoveMapping) {
+        function updatePicoDragFromPose(hand, handIndex, triggerInput, pose) {
+            if (!pose.valid || that.triggeredHand !== hand) {
+                return;
+            }
+            // Pose routes can be delivered more reliably than the synthesized
+            // trigger-click release.  Never let a stale click state keep a
+            // Create drag alive after the physical analog trigger is up.
+            if (Controller.getValue(triggerInput) <= TRIGGER_OFF_VALUE) {
+                picoAnalogClicked[handIndex] = false;
+                picoClickHandlers[handIndex](false);
+                return;
+            }
+            that.checkControllerMove();
+        }
+        // Run the drag from the controller input mapping pass, immediately
+        // after a fresh OpenXR standard-hand pose enters the mapper.  Waiting
+        // for edit.js's later Script.update callback adds another full,
+        // irregular simulation interval.
+        that.picoPoseMoveMapping.from(controllerStandard.LeftHand).peek().to(function (pose) {
+            updatePicoDragFromPose(
+                controllerStandard.LeftHand, 0, controllerStandard.LT, pose);
+        });
+        that.picoPoseMoveMapping.from(controllerStandard.RightHand).peek().to(function (pose) {
+            updatePicoDragFromPose(
+                controllerStandard.RightHand, 1, controllerStandard.RT, pose);
+        });
+    }
     that.enableTriggerMapping = function() {
         that.triggerClickMapping.enable();
         that.triggerPressMapping.enable();
+        if (that.picoPoseMoveMapping) {
+            that.picoPoseMoveMapping.enable();
+        }
     };
     that.disableTriggerMapping = function() {
         that.triggerClickMapping.disable();
         that.triggerPressMapping.disable();
+        if (that.picoPoseMoveMapping) {
+            that.picoPoseMoveMapping.disable();
+        }
     };
     Script.scriptEnding.connect(that.disableTriggerMapping);
 
@@ -1514,6 +1615,11 @@ SelectionDisplay = (function() {
                 that.clearDebugPickPlane();
                 if (activeTool.onBegin) {
                     that.editingHand = that.triggeredHand;
+                    picoGizmoStats.dragStart = Date.now();
+                    picoGizmoStats.mode = activeTool.mode || toolEntityNames[hitToolEntityID] || "unknown";
+                    print("PICO_CREATE_GIZMO_BEGIN hand=" + that.editingHand +
+                        " handle=" + toolEntityNames[hitToolEntityID] +
+                        " mode=" + picoGizmoStats.mode);
                     Messages.sendLocalMessage(INEDIT_STATUS_CHANNEL, JSON.stringify({
                         method: "editing",
                         hand: that.editingHand === controllerStandard.LeftHand ? LEFT_HAND : RIGHT_HAND,
@@ -1691,12 +1797,19 @@ SelectionDisplay = (function() {
             if (wantDebug) {
                 print("    Trigger ActiveTool(" + activeTool.mode + ")'s onMove");
             }
+            var toolMoveStart = Date.now();
             activeTool.onMove(event);
+            var toolMoveDuration = Date.now() - toolMoveStart;
+            picoGizmoStats.moveCalls++;
+            picoGizmoStats.toolMoveMs += toolMoveDuration;
+            picoGizmoStats.toolMoveMaxMs = Math.max(picoGizmoStats.toolMoveMaxMs, toolMoveDuration);
 
             if (wantDebug) {
                 print("    Trigger SelectionManager::update");
             }
-            SelectionManager._update(false, that);
+            // Every handle tool updates the selection after applying its
+            // transform.  Do not do the same work a second time here.
+            logPicoGizmoStats(false);
 
             if (wantDebug) {
                 print("=============== eST::MouseMoveEvent END =======================");
@@ -1732,6 +1845,11 @@ SelectionDisplay = (function() {
                 }));
                 that.editingHand = NO_HAND;
                 activeTool.onEnd(event);
+                logPicoGizmoStats(true);
+                print("PICO_CREATE_GIZMO_END mode=" + picoGizmoStats.mode +
+                    " dragMs=" + (Date.now() - picoGizmoStats.dragStart));
+                picoGizmoStats.dragStart = 0;
+                picoGizmoStats.mode = "none";
             } else if (wantDebug) {
                 print("    ActiveTool(" + activeTool.mode + ")'s missing onEnd");
             }
@@ -1795,16 +1913,22 @@ SelectionDisplay = (function() {
     Controller.keyReleaseEvent.connect(that.keyReleaseEvent);
 
     that.checkControllerMove = function() {
-        if (SelectionManager.hasSelection()) {
+        if (SelectionManager.hasSelection() && that.triggered()) {
+            picoGizmoStats.controllerChecks++;
             var controllerPose = getControllerWorldLocation(that.triggeredHand, true);
             var hand = (that.triggeredHand === controllerStandard.LeftHand) ? 0 : 1;
+            if (controllerPose.valid) {
+                picoGizmoStats.validPoses++;
+            }
             if (controllerPose.valid && lastControllerPoses[hand].valid && that.triggered()) {
-                if (!Vec3.equal(controllerPose.position, lastControllerPoses[hand].position) ||
+                if (!Vec3.equal(controllerPose.translation, lastControllerPoses[hand].translation) ||
                     !Vec3.equal(controllerPose.rotation, lastControllerPoses[hand].rotation)) {
+                    picoGizmoStats.changedPoses++;
                     that.mouseMoveEvent({});
                 }
             }
             lastControllerPoses[hand] = controllerPose;
+            logPicoGizmoStats(false);
         }
     };
 
@@ -1842,10 +1966,34 @@ SelectionDisplay = (function() {
                (Vec3.dot(pickRayDirection, normal) < 0 && Vec3.dot(previousPickRayDirection, normal) > 0);
     }
 
+    // Return the signed position on an infinite axis nearest to an infinite
+    // ray.  This is a better controller-drag primitive than intersecting a
+    // camera-oriented plane: rotating a hand ray through that plane used to
+    // make usePreviousPickRay() retain an old ray for many frames.
+    function rayAxisParameter(pickRay, axisPosition, axisDirection) {
+        var rayDirection = Vec3.normalize(pickRay.direction);
+        var axis = Vec3.normalize(axisDirection);
+        var originDelta = Vec3.subtract(pickRay.origin, axisPosition);
+        var axisDotRay = Vec3.dot(axis, rayDirection);
+        var denominator = 1.0 - axisDotRay * axisDotRay;
+        if (denominator < 0.0001) {
+            return null;
+        }
+        return (Vec3.dot(axis, originDelta) -
+            axisDotRay * Vec3.dot(rayDirection, originDelta)) / denominator;
+    }
+
     // @return string - The mode of the currently active tool;
     //                  otherwise, "UNKNOWN" if there's no active tool.
     function getMode() {
         return (activeTool ? activeTool.mode : "UNKNOWN");
+    }
+
+    function getGizmoRotation() {
+        var rotation = spaceMode === SPACE_LOCAL ?
+            SelectionManager.localRotation : SelectionManager.worldRotation;
+        return picoLaserOnlyUI ?
+            Quat.multiply(rotation, Quat.angleAxis(180, Vec3.UP)) : rotation;
     }
 
     that.cleanup = function() {
@@ -2010,7 +2158,7 @@ SelectionDisplay = (function() {
 
         if (SelectionManager.hasSelection()) {
             var position = SelectionManager.worldPosition;
-            var rotation = spaceMode === SPACE_LOCAL ? SelectionManager.localRotation : SelectionManager.worldRotation;
+            var rotation = getGizmoRotation();
             var dimensions = spaceMode === SPACE_LOCAL ? SelectionManager.localDimensions : SelectionManager.worldDimensions;
             var rotationInverse = Quat.inverse(rotation);
             var toCameraDistance = getDistanceToCamera(position);
@@ -2054,6 +2202,9 @@ SelectionDisplay = (function() {
             // UPDATE ROTATION RINGS
             // rotateDimension is used as the base dimension for all toolEntities
             var rotateDimension = Math.max(maxHandleDimension, toCameraDistance * ROTATE_RING_CAMERA_DISTANCE_MULTIPLE);
+            if (picoLaserOnlyUI) {
+                rotateDimension *= 1.35;
+            }
             var rotateDimensions = { x: rotateDimension, y: rotateDimension, z: rotateDimension };
             if (!isActiveTool(handleRotatePitchXRedRing)) {
                 Entities.editEntity(handleRotatePitchXRedRing, { 
@@ -2807,6 +2958,9 @@ SelectionDisplay = (function() {
         var projectionVector = null;
         var previousPickRay = null;
         var rotation = null;
+        var initialAxisParameter = null;
+        var previousAxisParameter = null;
+        var lastSelectionVisualUpdate = 0;
         addHandleTool(toolEntity, {
             mode: mode,
             onBegin: function(event, pickRay, pickResult) {
@@ -2834,13 +2988,17 @@ SelectionDisplay = (function() {
                     axisVector = { x: 0, y: 0, z: 1 };
                 }
                 
-                rotation = spaceMode === SPACE_LOCAL ? SelectionManager.localRotation : SelectionManager.worldRotation;
+                rotation = getGizmoRotation();
                 axisVector = Vec3.multiplyQbyV(rotation, axisVector);
                 pickPlaneNormal = Vec3.cross(Vec3.cross(pickRay.direction, axisVector), axisVector);
                 pickPlanePosition = SelectionManager.worldPosition;
                 initialPick = that.createApp.rayPlaneIntersection(pickRay, pickPlanePosition, pickPlaneNormal);
+                initialAxisParameter = picoLaserOnlyUI ?
+                    rayAxisParameter(pickRay, pickPlanePosition, axisVector) : null;
+                previousAxisParameter = initialAxisParameter;
     
                 SelectionManager.saveProperties();
+                lastSelectionVisualUpdate = 0;
                 that.resetPreviousHandleColor();
 
                 that.setHandleTranslateXVisible(direction === TRANSLATE_DIRECTION.X);
@@ -2859,23 +3017,12 @@ SelectionDisplay = (function() {
                 }
             },
             onEnd: function(event, reason) {
+                SelectionManager._update(false, this);
                 that.createApp.pushCommandForSelections(duplicatedEntityIDs);
             },
             onMove: function(event) {
                 var pickRay = generalComputePickRay(event.x, event.y);
-                
-                // Use previousPickRay if new pickRay will cause resulting rayPlaneIntersection values to wrap around
-                if (usePreviousPickRay(pickRay.direction, previousPickRay.direction, pickPlaneNormal)) {
-                    pickRay = previousPickRay;
-                }
-    
-                var newPick = that.createApp.rayPlaneIntersection(pickRay, pickPlanePosition, pickPlaneNormal);
-                if (debugPickPlaneEnabled) {
-                    that.showDebugPickPlaneHit(newPick);
-                }
-                
-                var vector = Vec3.subtract(newPick, initialPick);
-                
+
                 if (direction === TRANSLATE_DIRECTION.X) {
                     projectionVector = { x: 1, y: 0, z: 0 };
                 } else if (direction === TRANSLATE_DIRECTION.Y) {
@@ -2885,10 +3032,33 @@ SelectionDisplay = (function() {
                 }
                 projectionVector = Vec3.multiplyQbyV(rotation, projectionVector);
 
-                var dotVector = Vec3.dot(vector, projectionVector);
-                vector = Vec3.multiply(dotVector, projectionVector);
-                var gridOrigin = that.grid.getOrigin();
-                vector = Vec3.subtract(that.grid.snapToGrid(Vec3.sum(vector, gridOrigin)), gridOrigin);
+                var vector;
+                if (picoLaserOnlyUI && initialAxisParameter !== null) {
+                    var axisParameter = rayAxisParameter(pickRay, pickPlanePosition, projectionVector);
+                    if (axisParameter === null) {
+                        axisParameter = previousAxisParameter;
+                    } else {
+                        previousAxisParameter = axisParameter;
+                    }
+                    vector = Vec3.multiply(axisParameter - initialAxisParameter, projectionVector);
+                } else {
+                    // Use previousPickRay if new pickRay will cause resulting
+                    // rayPlaneIntersection values to wrap around.
+                    if (usePreviousPickRay(pickRay.direction, previousPickRay.direction, pickPlaneNormal)) {
+                        pickRay = previousPickRay;
+                    }
+
+                    var newPick = that.createApp.rayPlaneIntersection(pickRay, pickPlanePosition, pickPlaneNormal);
+                    if (debugPickPlaneEnabled) {
+                        that.showDebugPickPlaneHit(newPick);
+                    }
+
+                    vector = Vec3.subtract(newPick, initialPick);
+                    var dotVector = Vec3.dot(vector, projectionVector);
+                    vector = Vec3.multiply(dotVector, projectionVector);
+                    var gridOrigin = that.grid.getOrigin();
+                    vector = Vec3.subtract(that.grid.snapToGrid(Vec3.sum(vector, gridOrigin)), gridOrigin);
+                }
                 
                 var wantDebug = false;
                 if (wantDebug) {
@@ -2917,7 +3087,16 @@ SelectionDisplay = (function() {
                 
                 previousPickRay = pickRay;
     
-                SelectionManager._update(false, this);
+                // Position is latency-critical; rebuilding all selection
+                // bounds, gizmo entities and Create UI listeners is not.
+                // Keep the object on every fresh pose and refresh the visual
+                // affordances at a bounded rate.
+                var selectionVisualUpdateTime = Date.now();
+                if (!picoLaserOnlyUI ||
+                        selectionVisualUpdateTime - lastSelectionVisualUpdate >= 50) {
+                    SelectionManager._update(false, this);
+                    lastSelectionVisualUpdate = selectionVisualUpdateTime;
+                }
             }
         });
     }
@@ -3309,7 +3488,7 @@ SelectionDisplay = (function() {
                     selectedHandle = handleRotateRollZBlueRing;
                 }
                 
-                initialRotation = spaceMode === SPACE_LOCAL ? SelectionManager.localRotation : SelectionManager.worldRotation;
+                initialRotation = getGizmoRotation();
                 rotationNormal = Vec3.multiplyQbyV(initialRotation, rotationNormal);
                 rotationCenter = SelectionManager.worldPosition;
 
@@ -3444,6 +3623,8 @@ SelectionDisplay = (function() {
                         that.showDebugPickPlaneHit(result);
                     }
                 }
+
+                SelectionManager._update(false, this);
 
                 if (wantDebug) {
                     print("================== "+ getMode() + "(addHandleRotateTool onMove) <- =======================");

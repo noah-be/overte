@@ -14,23 +14,23 @@
 
 (function() { // BEGIN LOCAL_SCOPE
 
-    function addGotoButton(destination) {
-        tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
-        button = tablet.addButton({
+    function addGotoButton(name, destination) {
+        var tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
+        var button = tablet.addButton({
             icon: "icons/tablet-icons/goto-i.svg",
             activeIcon: "icons/tablet-icons/goto-a.svg",
-            text: destination
+            text: name
         });
         var buttonDestination = destination;
         button.clicked.connect(function() {
-            Window.location = "hifi://" + buttonDestination;
+            Window.location = buttonDestination;
         });
         Script.scriptEnding.connect(function () {
             tablet.removeButton(button);
         });
     }
 
-    addGotoButton("hub.daleglass.net");
-    addGotoButton("file:///~/serverless/tutorial.json");
+    addGotoButton("Tutorial", "file:///~/serverless/tutorial.json");
+    addGotoButton("Home", "file:///~/serverless/pico-debug.json");
 
 }()); // END LOCAL_SCOPE

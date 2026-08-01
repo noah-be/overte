@@ -6,6 +6,7 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 #include "Pick.h"
+#include <SharedUtil.h>
 
 int pickTypeMetaTypeId = qRegisterMetaType<PickQuery::PickType>("PickType");
 
@@ -46,6 +47,11 @@ void PickQuery::setPrecisionPicking(bool precisionPicking) {
 
 void PickQuery::setPickResult(const PickResultPointer& pickResult) {
     withWriteLock([&] {
+#if defined(Q_OS_ANDROID)
+        if (pickResult) {
+            pickResult->pickVariant["picoUpdatedUsec"] = QVariant::fromValue<qulonglong>(usecTimestampNow());
+        }
+#endif
         _prevResult = pickResult;
     });
 }

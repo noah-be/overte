@@ -1,6 +1,5 @@
 import QtQuick 2.7
 import QtQuick.Controls 2.2
-import QtWebChannel 1.0
 import controls 1.0
 import hifi.toolbars 1.0
 import QtGraphicalEffects 1.0

@@ -1423,7 +1423,9 @@ void ModelEntityRenderer::doRenderUpdateAsynchronousTyped(const TypedEntityPoint
         _texturesLoaded = true;
         needsUpdate = true;
     } else if (!_texturesLoaded) {
+#if !defined(Q_OS_ANDROID)
         emit requestRenderUpdate();
+#endif
     }
 
     if (!_allProceduralMaterialsLoaded) {
@@ -1444,7 +1446,9 @@ void ModelEntityRenderer::doRenderUpdateAsynchronousTyped(const TypedEntityPoint
             }
         }
         if (!allProceduralMaterialsLoaded) {
+#if !defined(Q_OS_ANDROID)
             emit requestRenderUpdate();
+#endif
         } else {
             _allProceduralMaterialsLoaded = true;
             needsUpdate = true;
@@ -1466,6 +1470,25 @@ void ModelEntityRenderer::doRenderUpdateSynchronousTyped(const ScenePointer& sce
     if (entity->isAnimatingSomething()) {
         DETAILED_PROFILE_RANGE(simulation_physics, "Animate");
 
+#if defined(Q_OS_ANDROID)
+        // Smooth model animation can otherwise requeue a full rig simulation
+        // and render-item rebuild on every application frame.  A fixed 24 Hz
+        // animation cadence is sufficient for background/domain entities and
+        // leaves CPU time for head tracking, locomotion and physics. Advance
+        // the deadline by a fixed period (rather than resetting it to `now`)
+        // so uneven frame pacing does not slow the animation cadence further.
+        constexpr uint64_t MODEL_ANIMATION_INTERVAL { USECS_PER_SECOND / 24 };
+        const uint64_t now = usecTimestampNow();
+        const bool animationSampleDue = _lastAnimated == 0 || now - _lastAnimated >= MODEL_ANIMATION_INTERVAL;
+        if (animationSampleDue) {
+            if (_lastAnimated == 0 || now - _lastAnimated > 4 * MODEL_ANIMATION_INTERVAL) {
+                _lastAnimated = now;
+            } else {
+                _lastAnimated += MODEL_ANIMATION_INTERVAL;
+            }
+        }
+#endif
+
         auto animationURL = entity->getAnimationURL();
         bool animationChanged = _animationURL != animationURL;
         if (animationChanged) {
@@ -1481,7 +1504,11 @@ void ModelEntityRenderer::doRenderUpdateSynchronousTyped(const ScenePointer& sce
         ModelPointer model = resultWithReadLock<ModelPointer>([&] {
             return _model;
         });
-        if (model && model->isLoaded()) {
+        if (model && model->isLoaded()
+#if defined(Q_OS_ANDROID)
+                && animationSampleDue
+#endif
+                ) {
             if (!_jointMappingCompleted) {
                 mapJoints(entity, model);
             }

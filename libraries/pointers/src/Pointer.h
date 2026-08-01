@@ -46,6 +46,7 @@ public:
     virtual void enable();
     virtual void disable();
     virtual bool isEnabled();
+    bool needsUpdate();
     virtual PickQuery::PickType getType() const = 0;
     virtual PickResultPointer getPrevPickResult();
 

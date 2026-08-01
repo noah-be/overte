@@ -1558,21 +1558,25 @@ ScriptValue ScriptManager::newModule(const QString& modulePath, const ScriptValu
 QVariantMap ScriptManager::fetchModuleSource(const QString& modulePath, const bool forceDownload) {
     using UrlMap = QMap<QUrl, QString>;
     auto scriptCache = DependencyManager::get<ScriptCache>();
-    QVariantMap req;
+    // BatchLoader::finished may be delivered after the nested event loop exits
+    // during script shutdown. Keep the response alive until that queued
+    // callback has been destroyed instead of capturing a stack map by
+    // reference (which caused the Android 0xcdcd... use-after-free crash).
+    auto req = std::make_shared<QVariantMap>();
     qCDebug(scriptengine_module) << "require.fetchModuleSource: " << QUrl(modulePath).fileName() << QThread::currentThread();
 
-    auto onload = [=, this, &req](const UrlMap& data, const UrlMap& _status) {
+    auto onload = [=, this](const UrlMap& data, const UrlMap& _status) {
         auto url = modulePath;
         auto status = _status[url];
         auto contents = data[url];
         if (isStopping()) {
-            req["status"] = "Stopped";
-            req["success"] = false;
+            (*req)["status"] = "Stopped";
+            (*req)["success"] = false;
         } else {
-            req["url"] = url;
-            req["status"] = status;
-            req["success"] = ScriptCache::isSuccessStatus(status);
-            req["contents"] = contents;
+            (*req)["url"] = url;
+            (*req)["status"] = status;
+            (*req)["success"] = ScriptCache::isSuccessStatus(status);
+            (*req)["contents"] = contents;
         }
     };
 
@@ -1609,7 +1613,7 @@ QVariantMap ScriptManager::fetchModuleSource(const QString& modulePath, const bo
         loop->exec();
     }
     loader->deleteLater();
-    return req;
+    return *req;
 }
 
 // evaluate a pending module object using the fetched source code

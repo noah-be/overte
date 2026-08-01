@@ -60,7 +60,12 @@ const float DEFAULT_LOD_QUALITY_LEVEL = 0.5f; // default quality level setting i
 #ifdef Q_OS_ANDROID
 const WorldDetailQuality DEFAULT_WORLD_DETAIL_QUALITY = WORLD_DETAIL_LOW;
 const std::vector<float> QUALITY_TO_FPS_DESKTOP = { 60.0f, 30.0f, 15.0f };
-const std::vector<float> QUALITY_TO_FPS_HMD = { 25.0f, 16.0f, 10.0f };
+// Pico renders the XR compositor at 72 Hz even when the main simulation
+// thread has collapsed to single-digit updates. A 25 FPS LOD target therefore
+// continually increases world detail in exactly the domains where CPU and
+// memory are already saturated. Match the headset refresh rate for LOW so
+// automatic LOD keeps a sustainable octree/entity working set.
+const std::vector<float> QUALITY_TO_FPS_HMD = { 72.0f, 45.0f, 25.0f };
 #else
 const WorldDetailQuality DEFAULT_WORLD_DETAIL_QUALITY = WORLD_DETAIL_MEDIUM;
 const std::vector<float> QUALITY_TO_FPS_DESKTOP = { 60.0f, 30.0f, 15.0f };

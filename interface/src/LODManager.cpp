@@ -182,6 +182,7 @@ void LODManager::autoAdjustLOD(float realTimeDelta) {
             lodToolsDialog->reloadSliders();
         }
     }
+
 }
 
 float LODManager::getLODHalfAngleTan() const {

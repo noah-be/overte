@@ -290,6 +290,9 @@ Rectangle {
     height: 706
 
     function setShown(value) {
+        if (typeof HMD === "undefined" || !HMD) {
+            return
+        }
         if (value === true) {
             HMD.openTablet(HMD.tabletContextualMode) // pass in current contextual mode flag to maintain flag (otherwise uses default false argument)
         } else {

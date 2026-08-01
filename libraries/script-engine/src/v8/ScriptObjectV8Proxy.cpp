@@ -364,11 +364,11 @@ void ScriptObjectV8Proxy::investigate() {
         } else {
             int parameterCount = method.parameterCount();
             if(method.returnType() == QMetaType::UnknownType) {
-                qCCritical(scriptengine_v8) << "Method " << metaObject->className() << "::" << name.toQString() << " has QMetaType::UnknownType return value";
+                qCDebug(scriptengine_v8) << "Method " << metaObject->className() << "::" << name.toQString() << " has QMetaType::UnknownType return value";
             }
             for (int i = 0; i < method.parameterCount(); i++) {
                 if (method.parameterType(i) == QMetaType::UnknownType) {
-                    qCCritical(scriptengine_v8) << "Parameter " << i << "in method " << metaObject->className() << "::" << name.toQString() << " is of type QMetaType::UnknownType";
+                    qCDebug(scriptengine_v8) << "Parameter " << i << "in method " << metaObject->className() << "::" << name.toQString() << " is of type QMetaType::UnknownType";
                 }
             }
             if (nameLookup == methodNames.end()) {
@@ -420,11 +420,13 @@ void ScriptObjectV8Proxy::weakHandleCallback(const v8::WeakCallbackInfo<ScriptOb
 }
 
 QString ScriptObjectV8Proxy::name() const {
-    Q_ASSERT(_object);
-    if (!_object) return "";
-    return _object ? _object->objectName() : "";
+    if (!_object) {
+        return "<deleted QObject>";
+    }
     QString objectName = _object->objectName();
-    if (!objectName.isEmpty()) return objectName;
+    if (!objectName.isEmpty()) {
+        return objectName;
+    }
     return _object->metaObject()->className();
 }
 

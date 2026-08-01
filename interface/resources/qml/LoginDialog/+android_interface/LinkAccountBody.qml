@@ -225,7 +225,9 @@ Item {
             text: qsTr("Cancel")
 
             onClicked: {
+                console.info("PICO_LOGIN_CANCEL handler");
                 Qt.inputMethod.hide();
+                loginDialog.dismissLoginDialog();
                 root.tryDestroy();
             }
         }

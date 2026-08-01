@@ -17,6 +17,7 @@
  */
 
 var controllerStandard = Controller.Standard;
+var picoDirectControllerPose = Settings.getValue("deferTabletCreationUntilOpen", false);
 
 const GRAB_COMMUNICATIONS_SETTING = "io.highfidelity.isFarGrabbing";
 const setGrabCommunications = function setFarGrabCommunications(on) {
@@ -91,13 +92,26 @@ const getControllerWorldLocation = function (handController, doOffset) {
         valid = pose.valid;
         var controllerJointIndex;
         if (pose.valid) {
-            if (handController === controllerStandard.RightHand) {
-                controllerJointIndex = MyAvatar.getJointIndex("_CAMERA_RELATIVE_CONTROLLER_RIGHTHAND");
+            if (picoDirectControllerPose) {
+                // OpenXR already supplies the standard hand pose in avatar
+                // coordinates.  Using the avatar skeleton's controller joint
+                // here adds an animation/joint-update stage and can leave
+                // Create transforms several simulation ticks behind the ray.
+                orientation = Quat.multiply(MyAvatar.orientation, pose.rotation);
+                position = Vec3.sum(
+                    MyAvatar.position,
+                    Vec3.multiplyQbyV(MyAvatar.orientation, pose.translation));
             } else {
-                controllerJointIndex = MyAvatar.getJointIndex("_CAMERA_RELATIVE_CONTROLLER_LEFTHAND");
+                if (handController === controllerStandard.RightHand) {
+                    controllerJointIndex = MyAvatar.getJointIndex("_CAMERA_RELATIVE_CONTROLLER_RIGHTHAND");
+                } else {
+                    controllerJointIndex = MyAvatar.getJointIndex("_CAMERA_RELATIVE_CONTROLLER_LEFTHAND");
+                }
+                orientation = Quat.multiply(MyAvatar.orientation,
+                    MyAvatar.getAbsoluteJointRotationInObjectFrame(controllerJointIndex));
+                position = Vec3.sum(MyAvatar.position, Vec3.multiplyQbyV(MyAvatar.orientation,
+                    MyAvatar.getAbsoluteJointTranslationInObjectFrame(controllerJointIndex)));
             }
-            orientation = Quat.multiply(MyAvatar.orientation, MyAvatar.getAbsoluteJointRotationInObjectFrame(controllerJointIndex));
-            position = Vec3.sum(MyAvatar.position, Vec3.multiplyQbyV(MyAvatar.orientation, MyAvatar.getAbsoluteJointTranslationInObjectFrame(controllerJointIndex)));
 
             // add to the real position so the grab-point is out in front of the hand, a bit
             if (doOffset) {

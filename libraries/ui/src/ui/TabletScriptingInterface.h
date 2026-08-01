@@ -15,6 +15,7 @@
 #include <atomic>
 
 #include <QtCore/QObject>
+#include <QtCore/QPointer>
 #include <QtCore/QSharedPointer>
 #include <QtCore/QUuid>
 #include <QtCore/QVariant>
@@ -564,9 +565,12 @@ protected:
     bool _initialScreen { false };
     QVariant _currentPathLoaded { "" };
     QString _name;
-    QQuickItem* _qmlTabletRoot { nullptr };
-    OffscreenQmlSurface* _qmlOffscreenSurface { nullptr };
-    QmlWindowClass* _desktopWindow { nullptr };
+    // These objects are owned by their QML/offscreen surfaces and can be
+    // destroyed while a screen transition still has queued tablet events.
+    // QPointer prevents those events from dereferencing the retired screen.
+    QPointer<QQuickItem> _qmlTabletRoot;
+    QPointer<OffscreenQmlSurface> _qmlOffscreenSurface;
+    QPointer<QmlWindowClass> _desktopWindow;
     bool _toolbarMode { false };
     bool _tabletShown { false };
 

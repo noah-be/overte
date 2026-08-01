@@ -521,7 +521,7 @@ void TabletProxy::setQmlTabletRoot(OffscreenQmlSurface* qmlOffscreenSurface) {
         QObject::connect(_qmlTabletRoot, SIGNAL(screenChanged(QVariant, QVariant)), this, SIGNAL(screenChanged(QVariant, QVariant)));
 
         // forward qml surface events to interface js
-        connect(_qmlOffscreenSurface, &OffscreenQmlSurface::fromQml, [this](QVariant message) {
+        connect(_qmlOffscreenSurface, &OffscreenQmlSurface::fromQml, this, [this](QVariant message) {
             if (message.canConvert<QJSValue>()) {
                 emit fromQml(qvariant_cast<QJSValue>(message).toVariant());
             } else if (message.canConvert<QString>()) {
@@ -542,7 +542,7 @@ void TabletProxy::setQmlTabletRoot(OffscreenQmlSurface* qmlOffscreenSurface) {
 
         // hook up username changed signal.
         auto accountManager = DependencyManager::get<AccountManager>();
-        QObject::connect(accountManager.data(), &AccountManager::profileChanged, [this]() {
+        QObject::connect(accountManager.data(), &AccountManager::profileChanged, this, [this]() {
             if (_qmlTabletRoot) {
                 QMetaObject::invokeMethod(_qmlTabletRoot, "setUsername", Q_ARG(const QVariant&, QVariant(getUsername())));
             }
@@ -805,7 +805,15 @@ void TabletProxy::popFromStack() {
 
     if (root) {
         auto stack = root->findChild<QQuickItem*>("stack");
-        QMetaObject::invokeMethod(stack, "popSource");
+        if (stack) {
+            QMetaObject::invokeMethod(stack, "popSource");
+        } else {
+            // Some Android/Pico tablet screens are loaded directly rather
+            // than through TabletRoot's StackView. In that state Cancel used
+            // to invoke popSource on a null object and visibly did nothing.
+            qCWarning(uiLogging) << "tablet stack unavailable while popping; returning home";
+            loadHomeScreen(true);
+        }
     } else {
         qCDebug(uiLogging) << "tablet cannot pop QML because _qmlTabletRoot or _desktopWindow is null";
     }

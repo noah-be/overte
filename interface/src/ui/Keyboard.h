@@ -173,11 +173,15 @@ private:
     void startLayerSwitchTimer();
     bool isLayerSwitchTimerFinished() const;
     void handleSpecialKey(Key::Type keyType);
+    void dispatchKey(int keyCode, Qt::KeyboardModifiers modifiers, const QString& text = QString());
 
     bool _raised { false };
     bool _resetKeyboardPositionOnRaise { true };
     bool _password { false };
     bool _capsEnabled { false };
+    // A keyboard key is itself an entity, so clicking it must not erase the
+    // web entity that owned text focus when the keyboard was raised.
+    QUuid _inputTarget;
     int _layerIndex { 0 };
     Setting::Handle<bool> _preferMalletsOverLasers { "preferMalletsOverLaser", true };
     unsigned int _leftHandStylus { 0 };

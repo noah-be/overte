@@ -65,6 +65,31 @@ PickResultPointer RayPick::getEntityIntersection(const PickRay& pick) {
         searchFilter.setFlag(PickFilter::PRECISE, false);
     }
 
+#if defined(Q_OS_ANDROID)
+    if ((isLeftHand() || isRightHand()) && searchFilter.doesPickLocalEntities()) {
+        // Tablet, keyboard and their controls are local entities.  Searching
+        // them together with a large domain tree can delay or even starve the
+        // UI hit.  Give local UI a cheap priority pass before touching world
+        // entities so controller clicks remain deterministic under load.
+        PickFilter localFilter = searchFilter;
+        localFilter.setFlag(PickFilter::DOMAIN_ENTITIES, false);
+        localFilter.setFlag(PickFilter::AVATAR_ENTITIES, false);
+        localFilter.setFlag(PickFilter::LOCAL_ENTITIES, true);
+        localFilter.setFlag(PickFilter::AVATARS, false);
+        localFilter.setFlag(PickFilter::HUD, false);
+        RayToEntityIntersectionResult localResult =
+            DependencyManager::get<EntityScriptingInterface>()->evalRayIntersectionVector(
+                pick, localFilter, getIncludeItemsAs<EntityItemID>(),
+                getIgnoreItemsAs<EntityItemID>());
+        if (localResult.intersects) {
+            return std::make_shared<RayPickResult>(
+                IntersectionType::LOCAL_ENTITY, localResult.entityID,
+                localResult.distance, localResult.intersection, pick,
+                localResult.surfaceNormal, localResult.extraInfo);
+        }
+    }
+#endif
+
     RayToEntityIntersectionResult entityRes =
         DependencyManager::get<EntityScriptingInterface>()->evalRayIntersectionVector(pick, searchFilter,
             getIncludeItemsAs<EntityItemID>(), getIgnoreItemsAs<EntityItemID>());

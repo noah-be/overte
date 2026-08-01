@@ -21,6 +21,7 @@
 #include <thread>
 #include <unordered_map>
 #include <chrono>
+#include <cmath>
 
 #include <QtCore/QOperatingSystemVersion>
 #include <glm/glm.hpp>
@@ -604,8 +605,14 @@ int unpackFloatRatioFromTwoByte(const unsigned char* buffer, float& ratio) {
 }
 
 int packClipValueToTwoByte(unsigned char* buffer, float clipValue) {
-    // Clip values must be less than max signed 16bit integers
-    assert(clipValue < std::numeric_limits<int16_t>::max());
+    // The wire format cannot represent values outside the signed 16-bit
+    // range. A temporarily invalid projection must not abort the client.
+    const float maxClipValue = std::numeric_limits<int16_t>::max() - 1.0f;
+    if (!std::isfinite(clipValue)) {
+        clipValue = maxClipValue;
+    } else {
+        clipValue = std::max(0.0f, std::min(clipValue, maxClipValue));
+    }
     int16_t holder;
 
     // if the clip is less than 10, then encode it as a positive number scaled from 0 to int16::max()

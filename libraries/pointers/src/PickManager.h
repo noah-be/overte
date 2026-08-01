@@ -52,6 +52,7 @@ public:
 
     Transform getParentTransform(unsigned int uid) const;
     Transform getResultTransform(unsigned int uid) const;
+    PickRay getCurrentRay(unsigned int uid) const;
 
     bool isLeftHand(unsigned int uid);
     bool isRightHand(unsigned int uid);

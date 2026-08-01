@@ -57,6 +57,37 @@ PickResultPointer LaserPointer::getPickResultCopy(const PickResultPointer& pickR
     return std::make_shared<RayPickResult>(*rayPickResult.get());
 }
 
+PickResultPointer LaserPointer::getVisualPickResult(const PickResultPointer& pickResult) {
+    auto visualResult = Parent::getVisualPickResult(pickResult);
+#if defined(Q_OS_ANDROID)
+    // Entity intersection is the expensive part of a controller pick.  Keep
+    // its budgeted result for events, but draw from the current controller ray
+    // so alternating pick updates cannot leave the visible laser behind.
+    if (isLeftHand() || isRightHand()) {
+        auto rayResult = std::dynamic_pointer_cast<RayPickResult>(visualResult);
+        if (rayResult) {
+            const PickRay currentRay =
+                DependencyManager::get<PickManager>()->getCurrentRay(_pickUID);
+            rayResult->pickVariant["origin"] = vec3toVariant(currentRay.origin);
+            rayResult->pickVariant["direction"] = vec3toVariant(currentRay.direction);
+            rayResult->pickVariant["unmodifiedDirection"] =
+                vec3toVariant(currentRay.unmodifiedDirection);
+
+            if (rayResult->type == IntersectionType::ENTITY ||
+                    rayResult->type == IntersectionType::LOCAL_ENTITY) {
+                const glm::vec3 intersection = RayPick::intersectRayWithEntityXYPlane(
+                    rayResult->objectID, currentRay.origin, currentRay.direction);
+                if (!isNaN(intersection.x)) {
+                    rayResult->intersection = intersection;
+                    rayResult->distance = glm::distance(currentRay.origin, intersection);
+                }
+            }
+        }
+    }
+#endif
+    return visualResult;
+}
+
 QVariantMap LaserPointer::toVariantMap() const {
     QVariantMap qVariantMap = Parent::toVariantMap();
 

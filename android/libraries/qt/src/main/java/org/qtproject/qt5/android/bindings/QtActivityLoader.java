@@ -150,6 +150,17 @@ public class QtActivityLoader {
 
     private void copyAsset(String source, String destination)
         throws IOException {
+        AssetManager assetsManager = m_context.getAssets();
+        String[] children = assetsManager.list(source);
+        if (children != null && children.length > 0) {
+            File destinationDirectory = new File(destination);
+            destinationDirectory.mkdirs();
+            for (String child : children) {
+                copyAsset(source + "/" + child, destination + "/" + child);
+            }
+            return;
+        }
+
         // Already exists, we don't have to do anything
         File destinationFile = new File(destination);
         if (destinationFile.exists()) {
@@ -163,7 +174,6 @@ public class QtActivityLoader {
 
         destinationFile.createNewFile();
 
-        AssetManager assetsManager = m_context.getAssets();
         InputStream inputStream = assetsManager.open(source);
         OutputStream outputStream = new FileOutputStream(destinationFile);
         copyFile(inputStream, outputStream);

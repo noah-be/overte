@@ -124,6 +124,18 @@ void ModelEntityItem::update(const quint64& now) {
 
     // increment timestamp before checking "hold"
     auto interval = now - _lastAnimated;
+#if defined(Q_OS_ANDROID)
+    // Updating every smoothly animated entity at the display refresh rate is
+    // disproportionately expensive on standalone headsets: each update also
+    // simulates the model rig and rebuilds its render items.  Keep animation
+    // time accumulated in _lastAnimated and publish at most 30 updates/second.
+    // This preserves playback speed while avoiding duplicate work between
+    // animation samples.
+    constexpr quint64 MIN_ANIMATION_UPDATE_INTERVAL { USECS_PER_SECOND / 24 };
+    if (interval < MIN_ANIMATION_UPDATE_INTERVAL) {
+        return;
+    }
+#endif
     _lastAnimated = now;
 
     // grab a local copy of _animationProperties to avoid multiple locks

@@ -254,6 +254,9 @@ void fixBisectedAxis(float& full, float& negative, float& positive) {
 
 void UserInputMapper::update(float deltaTime) {
     Locker locker(_lock);
+#if defined(Q_OS_ANDROID)
+    const quint64 picoMapperStart = usecTimestampNow();
+#endif
     InputRecorder* inputRecorder = InputRecorder::getInstance();
 
     inputRecorder->resetFrame();
@@ -271,9 +274,15 @@ void UserInputMapper::update(float deltaTime) {
 
     // Remove callbacks to script engines that are being destroyed
     runScriptEndpointCleanup();
+#if defined(Q_OS_ANDROID)
+    const quint64 picoAfterReset = usecTimestampNow();
+#endif
 
     // Run the mappings code
     runMappings();
+#if defined(Q_OS_ANDROID)
+    const quint64 picoAfterMappings = usecTimestampNow();
+#endif
 
     // merge the bisected and non-bisected axes for now
     fixBisectedAxis(_actionStates[toInt(Action::TRANSLATE_X)], _actionStates[toInt(Action::LATERAL_LEFT)], _actionStates[toInt(Action::LATERAL_RIGHT)]);
@@ -296,6 +305,9 @@ void UserInputMapper::update(float deltaTime) {
         }
         // TODO: emit signal for pose changes
     }
+#if defined(Q_OS_ANDROID)
+    const quint64 picoAfterActions = usecTimestampNow();
+#endif
 
     auto standardInputs = getStandardInputs();
     if ((int)_lastStandardStates.size() != standardInputs.size()) {
@@ -315,6 +327,35 @@ void UserInputMapper::update(float deltaTime) {
         }
     }
     inputRecorder->frameTick();
+#if defined(Q_OS_ANDROID)
+    const quint64 picoMapperEnd = usecTimestampNow();
+    struct PicoMapperStats {
+        quint64 start { 0 }, calls { 0 }, reset { 0 }, mappings { 0 };
+        quint64 actions { 0 }, standardEvents { 0 }, maximum { 0 };
+    };
+    static PicoMapperStats stats;
+    if (stats.start == 0) {
+        stats.start = picoMapperStart;
+    }
+    ++stats.calls;
+    stats.reset += picoAfterReset - picoMapperStart;
+    stats.mappings += picoAfterMappings - picoAfterReset;
+    stats.actions += picoAfterActions - picoAfterMappings;
+    stats.standardEvents += picoMapperEnd - picoAfterActions;
+    stats.maximum = std::max(stats.maximum, picoMapperEnd - picoMapperStart);
+    if (picoMapperEnd - stats.start >= USECS_PER_SECOND) {
+        const double divisor = std::max<quint64>(1, stats.calls);
+        qInfo() << "PICO_INPUT_MAPPER"
+                << "callsPerSec" << stats.calls
+                << "resetMs" << stats.reset / divisor / 1000.0
+                << "mappingsMs" << stats.mappings / divisor / 1000.0
+                << "actionsMs" << stats.actions / divisor / 1000.0
+                << "standardEventsMs" << stats.standardEvents / divisor / 1000.0
+                << "maxMs" << stats.maximum / 1000.0;
+        stats = PicoMapperStats{};
+        stats.start = picoMapperEnd;
+    }
+#endif
 }
 
 Input::NamedVector UserInputMapper::getAvailableInputs(uint16 deviceID) const {
@@ -484,6 +525,9 @@ static const auto DEBUG_INTERVAL = USECS_PER_SECOND;
 
 void UserInputMapper::runMappings() {
     auto now = usecTimestampNow();
+#if defined(Q_OS_ANDROID)
+    const quint64 picoRoutesStart = now;
+#endif
     if (debuggableRoutes && now - lastDebugTime > DEBUG_INTERVAL) {
         lastDebugTime = now;
         debugRoutes = true;
@@ -495,17 +539,26 @@ void UserInputMapper::runMappings() {
     for (const auto& endpointEntry : _endpointsByInput) {
         endpointEntry.second->reset();
     }
+#if defined(Q_OS_ANDROID)
+    const quint64 picoAfterEndpointReset = usecTimestampNow();
+#endif
 
     if (debugRoutes) {
         qCDebug(controllers) << "Processing device routes";
     }
     // Now process the current values for each level of the stack
     applyRoutes(_deviceRoutes);
+#if defined(Q_OS_ANDROID)
+    const quint64 picoAfterDeviceRoutes = usecTimestampNow();
+#endif
 
     if (debugRoutes) {
         qCDebug(controllers) << "Processing standard routes";
     }
     applyRoutes(_standardRoutes);
+#if defined(Q_OS_ANDROID)
+    const quint64 picoAfterStandardRoutes = usecTimestampNow();
+#endif
 
     InputRecorder* inputRecorder = InputRecorder::getInstance();
     if (inputRecorder->isPlayingback()) {
@@ -526,6 +579,36 @@ void UserInputMapper::runMappings() {
         qCDebug(controllers) << "Done with mappings";
     }
     debugRoutes = false;
+#if defined(Q_OS_ANDROID)
+    const quint64 picoRoutesEnd = usecTimestampNow();
+    struct PicoRouteStats {
+        quint64 start { 0 }, calls { 0 }, endpointReset { 0 };
+        quint64 deviceRoutes { 0 }, standardRoutes { 0 }, playback { 0 };
+    };
+    static PicoRouteStats stats;
+    if (stats.start == 0) {
+        stats.start = picoRoutesStart;
+    }
+    ++stats.calls;
+    stats.endpointReset += picoAfterEndpointReset - picoRoutesStart;
+    stats.deviceRoutes += picoAfterDeviceRoutes - picoAfterEndpointReset;
+    stats.standardRoutes += picoAfterStandardRoutes - picoAfterDeviceRoutes;
+    stats.playback += picoRoutesEnd - picoAfterStandardRoutes;
+    if (picoRoutesEnd - stats.start >= USECS_PER_SECOND) {
+        const double divisor = std::max<quint64>(1, stats.calls);
+        qInfo() << "PICO_INPUT_ROUTES"
+                << "callsPerSec" << stats.calls
+                << "endpoints" << _endpointsByInput.size()
+                << "deviceRouteCount" << _deviceRoutes.size()
+                << "standardRouteCount" << _standardRoutes.size()
+                << "endpointResetMs" << stats.endpointReset / divisor / 1000.0
+                << "deviceRoutesMs" << stats.deviceRoutes / divisor / 1000.0
+                << "standardRoutesMs" << stats.standardRoutes / divisor / 1000.0
+                << "playbackMs" << stats.playback / divisor / 1000.0;
+        stats = PicoRouteStats{};
+        stats.start = picoRoutesEnd;
+    }
+#endif
 }
 
 // Encapsulate the logic that routes should not be read before they are written
@@ -536,20 +619,28 @@ void UserInputMapper::applyRoutes(const Route::List& routes) {
         if (!route) {
             continue;
         }
-
-        // Try all the deferred routes
-        deferredRoutes.remove_if([](Route::Pointer route) {
-            return UserInputMapper::applyRoute(route);
-        });
-
         if (!applyRoute(route)) {
             deferredRoutes.push_back(route);
         }
     }
 
-    bool force = true;
+    // A route can depend on a standard endpoint written by a later route. The
+    // old implementation retried every deferred route before every subsequent
+    // route, making a frame quadratic when many standard routes were pending.
+    // Resolve dependencies in passes instead, stopping as soon as a pass makes
+    // no progress. This retains chained-route ordering without repeated scans.
+    while (!deferredRoutes.empty()) {
+        const auto previousSize = deferredRoutes.size();
+        deferredRoutes.remove_if([](const Route::Pointer& route) {
+            return UserInputMapper::applyRoute(route);
+        });
+        if (deferredRoutes.empty() || deferredRoutes.size() == previousSize) {
+            break;
+        }
+    }
+
     for (const auto& route : deferredRoutes) {
-        UserInputMapper::applyRoute(route, force);
+        UserInputMapper::applyRoute(route, true);
     }
 }
 
@@ -806,24 +897,37 @@ Pose UserInputMapper::getPose(const Input& input) const {
 Mapping::Pointer UserInputMapper::loadMapping(const QString& jsonFile, bool enable) {
     Locker locker(_lock);
     if (jsonFile.isEmpty()) {
+        qCWarning(controllers) << "CONTROLLER_MAPPING_TRACE refusing empty mapping path";
         return Mapping::Pointer();
     }
     // Each mapping only needs to be loaded once
     if (_loadedRouteJsonFiles.contains(jsonFile)) {
+        qCInfo(controllers) << "CONTROLLER_MAPPING_TRACE already loaded" << jsonFile;
         return Mapping::Pointer();
     }
     _loadedRouteJsonFiles.insert(jsonFile);
     QString json;
     {
         QFile file(jsonFile);
+        qCInfo(controllers) << "CONTROLLER_MAPPING_TRACE loading" << jsonFile
+                            << "exists=" << file.exists();
         if (file.open(QFile::ReadOnly | QFile::Text)) {
             json = QTextStream(&file).readAll();
+        } else {
+            qCWarning(controllers) << "CONTROLLER_MAPPING_TRACE open failed" << jsonFile
+                                   << file.errorString();
         }
         file.close();
     }
     auto result = parseMapping(json);
+    qCInfo(controllers) << "CONTROLLER_MAPPING_TRACE parsed" << jsonFile
+                        << "bytes=" << json.toUtf8().size()
+                        << "valid=" << static_cast<bool>(result)
+                        << "routes=" << (result ? result->routes.size() : 0);
     if (enable) {
-        enableMapping(result->name);
+        if (result) {
+            enableMapping(result->name);
+        }
     }
     return result;
 }
@@ -1340,4 +1444,3 @@ bool UserInputMapper::getActionStateValid(Action action) const {
 
 
 }
-

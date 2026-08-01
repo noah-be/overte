@@ -21,6 +21,9 @@ void EntitySimulation::setEntityTree(EntityTreePointer tree) {
     if (_entityTree && _entityTree != tree) {
         _entitiesToSort.clear();
         _simpleKinematicEntities.clear();
+#if defined(Q_OS_ANDROID)
+        _androidKinematicCursor.reset();
+#endif
         _changedEntities.clear();
         _entitiesToUpdate.clear();
         _mortalEntities.clear();
@@ -33,13 +36,69 @@ void EntitySimulation::updateEntities() {
     PerformanceTimer perfTimer("EntitySimulation::updateEntities");
     QMutexLocker lock(&_mutex);
     uint64_t now = usecTimestampNow();
+#if defined(Q_OS_ANDROID)
+    const uint64_t picoStart = now;
+#endif
 
     // these methods may accumulate entries in _entitiesToBeDeleted
     expireMortalEntities(now);
+#if defined(Q_OS_ANDROID)
+    const uint64_t picoAfterExpire = usecTimestampNow();
+#endif
     callUpdateOnEntitiesThatNeedIt(now);
+#if defined(Q_OS_ANDROID)
+    const uint64_t picoAfterCallUpdate = usecTimestampNow();
+#endif
     moveSimpleKinematics(now);
+#if defined(Q_OS_ANDROID)
+    const uint64_t picoAfterKinematics = usecTimestampNow();
+#endif
     sortEntitiesThatMoved();
+#if defined(Q_OS_ANDROID)
+    const uint64_t picoAfterSort = usecTimestampNow();
+#endif
     processDeadEntities();
+#if defined(Q_OS_ANDROID)
+    const uint64_t picoEnd = usecTimestampNow();
+    struct PicoSimulationStats {
+        uint64_t windowStart { 0 };
+        uint64_t calls { 0 };
+        uint64_t expire { 0 };
+        uint64_t callUpdate { 0 };
+        uint64_t kinematics { 0 };
+        uint64_t sort { 0 };
+        uint64_t dead { 0 };
+        uint64_t maximum { 0 };
+    };
+    static PicoSimulationStats stats;
+    if (stats.windowStart == 0) {
+        stats.windowStart = picoStart;
+    }
+    stats.calls++;
+    stats.expire += picoAfterExpire - picoStart;
+    stats.callUpdate += picoAfterCallUpdate - picoAfterExpire;
+    stats.kinematics += picoAfterKinematics - picoAfterCallUpdate;
+    stats.sort += picoAfterSort - picoAfterKinematics;
+    stats.dead += picoEnd - picoAfterSort;
+    stats.maximum = std::max(stats.maximum, picoEnd - picoStart);
+    if (picoEnd - stats.windowStart >= USECS_PER_SECOND) {
+        const double divisor = std::max<uint64_t>(1, stats.calls);
+        qInfo() << "PICO_ENTITY_SIM_STAGES"
+                << "callsPerSec" << stats.calls
+                << "maxMs" << stats.maximum / 1000.0
+                << "expireMs" << stats.expire / divisor / 1000.0
+                << "callUpdateMs" << stats.callUpdate / divisor / 1000.0
+                << "kinematicsMs" << stats.kinematics / divisor / 1000.0
+                << "sortMs" << stats.sort / divisor / 1000.0
+                << "deadMs" << stats.dead / divisor / 1000.0
+                << "allEntities" << _allEntities.size()
+                << "needsUpdate" << _entitiesToUpdate.size()
+                << "kinematicEntities" << _simpleKinematicEntities.size()
+                << "needsSort" << _entitiesToSort.size();
+        stats = PicoSimulationStats {};
+        stats.windowStart = picoEnd;
+    }
+#endif
 }
 
 void EntitySimulation::removeEntityFromInternalLists(EntityItemPointer entity) {
@@ -47,6 +106,11 @@ void EntitySimulation::removeEntityFromInternalLists(EntityItemPointer entity) {
     // remove from all internal lists except _deadEntitiesToRemoveFromTree
     _entitiesToSort.remove(entity);
     _simpleKinematicEntities.remove(entity);
+#if defined(Q_OS_ANDROID)
+    if (_androidKinematicCursor == entity) {
+        _androidKinematicCursor.reset();
+    }
+#endif
     _allEntities.remove(entity);
     _entitiesToUpdate.remove(entity);
     _mortalEntities.remove(entity);
@@ -217,6 +281,9 @@ void EntitySimulation::clearEntities() {
     QMutexLocker lock(&_mutex);
     _entitiesToSort.clear();
     _simpleKinematicEntities.clear();
+#if defined(Q_OS_ANDROID)
+    _androidKinematicCursor.reset();
+#endif
     _changedEntities.clear();
     _allEntities.clear();
     _deadEntitiesToRemoveFromTree.clear();
@@ -228,6 +295,29 @@ void EntitySimulation::clearEntities() {
 void EntitySimulation::moveSimpleKinematics(uint64_t now) {
     PROFILE_RANGE_EX(simulation_physics, "MoveSimples", 0xffff00ff, (uint64_t)_simpleKinematicEntities.size());
     SetOfEntities::iterator itemItr = _simpleKinematicEntities.begin();
+#if defined(Q_OS_ANDROID)
+    // A large group of cheap-looking kinematic entities can collectively hold
+    // the application thread for tens of milliseconds. Process them round-robin
+    // within a small per-update budget. EntityItem::simulate() uses its last
+    // simulation timestamp, so an entity catches up correctly when revisited.
+    // As the application update rate recovers, every entity is still refreshed
+    // many times per second.
+    static const uint64_t ANDROID_KINEMATIC_BUDGET_USECS = 4000;
+    static const size_t ANDROID_KINEMATIC_MAX_PER_UPDATE = 2;
+    const uint64_t budgetStart = usecTimestampNow();
+    size_t entitiesRemaining = _simpleKinematicEntities.size();
+    size_t entitiesProcessed = 0;
+    if (_androidKinematicCursor) {
+        auto cursorItr = _simpleKinematicEntities.find(_androidKinematicCursor);
+        if (cursorItr != _simpleKinematicEntities.end()) {
+            itemItr = cursorItr;
+            ++itemItr;
+            if (itemItr == _simpleKinematicEntities.end()) {
+                itemItr = _simpleKinematicEntities.begin();
+            }
+        }
+    }
+#endif
     while (itemItr != _simpleKinematicEntities.end()) {
         EntityItemPointer entity = *itemItr;
 
@@ -255,6 +345,18 @@ void EntitySimulation::moveSimpleKinematics(uint64_t now) {
             // the entity is no longer non-physical-kinematic
             itemItr = _simpleKinematicEntities.erase(itemItr);
         }
+#if defined(Q_OS_ANDROID)
+        _androidKinematicCursor = entity;
+        ++entitiesProcessed;
+        if (itemItr == _simpleKinematicEntities.end() && !_simpleKinematicEntities.empty()) {
+            itemItr = _simpleKinematicEntities.begin();
+        }
+        if (--entitiesRemaining == 0 ||
+                entitiesProcessed >= ANDROID_KINEMATIC_MAX_PER_UPDATE ||
+                usecTimestampNow() - budgetStart >= ANDROID_KINEMATIC_BUDGET_USECS) {
+            break;
+        }
+#endif
     }
 }
 

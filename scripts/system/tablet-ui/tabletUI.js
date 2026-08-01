@@ -150,6 +150,42 @@
         gTablet.tabletShown = true;
     }
 
+    var PICO_TABLET_POSITION_CHANNEL = "Pico-Tablet-Position";
+
+    function onPicoTabletPositionMessage(channel, message, senderUUID) {
+        if (channel !== PICO_TABLET_POSITION_CHANNEL || senderUUID !== MyAvatar.sessionUUID) {
+            return;
+        }
+
+        var data;
+        try {
+            data = JSON.parse(message);
+        } catch (error) {
+            return;
+        }
+        if (data.method !== "apply" || !UIWebTablet || !tabletRezzed) {
+            return;
+        }
+
+        var forward = Math.max(0.4, Math.min(2.0, Number(data.forward)));
+        var up = Math.max(-1.3, Math.min(0.3, Number(data.up)));
+        var tilt = Math.max(-45, Math.min(30, Number(data.tilt)));
+        if (!isFinite(forward) || !isFinite(up) || !isFinite(tilt)) {
+            return;
+        }
+
+        Settings.setValue("picoTabletForwardOffset", forward);
+        Settings.setValue("picoTabletUpOffset", up);
+        Settings.setValue("picoTabletTiltDegrees", tilt);
+
+        var tabletProperties = {};
+        UIWebTablet.calculateTabletAttachmentProperties(activeHand, true, tabletProperties);
+        Entities.editEntity(HMD.tabletID, tabletProperties);
+    }
+
+    Messages.subscribe(PICO_TABLET_POSITION_CHANNEL);
+    Messages.messageReceived.connect(onPicoTabletPositionMessage);
+
     function hideTabletUI() {
         checkTablet()
         gTablet.tabletShown = false;
@@ -243,7 +279,7 @@
 
         // if the tablet is an overlay, attempt to pre-create it and then hide it so that when it's
         // summoned, it will appear quickly.
-        if (!toolbarMode) {
+        if (!toolbarMode && !Settings.getValue("deferTabletCreationUntilOpen", false)) {
             if (now - preMakeTime > MSECS_PER_SEC) {
                 preMakeTime = now;
                 if (!tabletIsValid()) {
@@ -287,10 +323,14 @@
                 gTablet.landscape = false;
             }
         }
+        if (channel === "Pico-Tablet-Move-Aside-For-Create" && UIWebTablet) {
+            UIWebTablet.moveAsideForCreate();
+        }
     }
 
     Messages.subscribe("toggleHand");
     Messages.subscribe("home");
+    Messages.subscribe("Pico-Tablet-Move-Aside-For-Create");
     Messages.messageReceived.connect(handleMessage);
 
     var clickMapping = Controller.newMapping('tabletToggle-click');
@@ -323,9 +363,44 @@
     });
     clickMapping.enable();
 
+    // Pico: use the left controller's X button as the tablet-wide Back key.
+    // A page/dialog returns to the tablet home screen; pressing X once more
+    // on Home closes the tablet.  Keep this scoped to the Pico setup so the
+    // desktop and other controller layouts retain their existing X behavior.
+    var picoBackMapping = null;
+    if (Settings.getValue("deferTabletCreationUntilOpen", false)) {
+        picoBackMapping = Controller.newMapping("pico-tablet-x-back");
+        picoBackMapping.from(controllerStandard.LeftPrimaryThumb).peek().to(function (pressed) {
+            if (!pressed) {
+                return;
+            }
+
+            checkTablet();
+            if (!gTablet || !gTablet.tabletShown) {
+                return;
+            }
+
+            if (gTablet.onHomeScreen()) {
+                print("PICO_TABLET_X_BACK close");
+                HMD.closeTablet(false);
+            } else {
+                print("PICO_TABLET_X_BACK home");
+                // This also closes any active preferences keyboard and gives
+                // directly-loaded QML pages a reliable cancellation target.
+                gTablet.gotoHomeScreen();
+            }
+        });
+        picoBackMapping.enable();
+    }
+
     Script.setInterval(updateShowTablet, 100);
 
     Script.scriptEnding.connect(function () {
+        Messages.messageReceived.disconnect(onPicoTabletPositionMessage);
+        Messages.unsubscribe(PICO_TABLET_POSITION_CHANNEL);
+        if (picoBackMapping) {
+            picoBackMapping.disable();
+        }
 
         // if we reload scripts in tablet mode make sure we close the currently open window, by calling gotoHomeScreen
         var tabletProxy = Tablet.getTablet("com.highfidelity.interface.tablet.system");

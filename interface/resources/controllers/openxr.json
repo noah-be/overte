@@ -2,6 +2,7 @@
     "name": "OpenXR to Standard",
     "channels": [
         { "from": "OpenXR.Head", "to" : "Standard.Head", "when" : ["Application.InHMD"] },
+        { "from": "OpenXR.Start", "to": "Actions.ContextMenu" },
 
         { "from": "OpenXR.LT", "to": "Standard.LT" },
         { "from": "OpenXR.RT", "to": "Standard.RT" },

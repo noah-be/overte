@@ -462,8 +462,8 @@ EndpointPointer StandardController::createEndpoint(const Input& input) const {
 }
 
 QStringList StandardController::getDefaultMappingConfigs() const {
-    static const QString DEFAULT_MAPPING_JSON = PathUtils::resourcesPath() + "/controllers/standard.json";
-    static const QString DEFAULT_NAV_MAPPING_JSON = PathUtils::resourcesPath() + "/controllers/standard_navigation.json";
+    static const QString DEFAULT_MAPPING_JSON = PathUtils::resourcesPath() + "controllers/standard.json";
+    static const QString DEFAULT_NAV_MAPPING_JSON = PathUtils::resourcesPath() + "controllers/standard_navigation.json";
     return QStringList() << DEFAULT_NAV_MAPPING_JSON << DEFAULT_MAPPING_JSON;
 }
 

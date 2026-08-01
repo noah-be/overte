@@ -32,6 +32,8 @@
 
     var APP_NAME = "PLACES";
     var APP_URL = ROOT + "places.html";
+    var APP_QML_URL = ROOT + "PicoPlaces.qml";
+    var useQmlApp = !PlatformInfo.has3DHTML();
     var APP_ICON_INACTIVE = ROOT + "icons/appicon_i.png";
     var APP_ICON_ACTIVE = ROOT + "icons/appicon_a.png";
     var appStatus = false;
@@ -62,12 +64,21 @@
     
     function clicked(){
         if (appStatus === true) {
-            tablet.webEventReceived.disconnect(onAppWebEventReceived);
+            if (useQmlApp) {
+                tablet.fromQml.disconnect(onAppQmlEventReceived);
+            } else {
+                tablet.webEventReceived.disconnect(onAppWebEventReceived);
+            }
             tablet.gotoHomeScreen();
             appStatus = false;
         } else {
-            tablet.gotoWebScreen(APP_URL);
-            tablet.webEventReceived.connect(onAppWebEventReceived);
+            if (useQmlApp) {
+                tablet.loadQMLSource(APP_QML_URL);
+                tablet.fromQml.connect(onAppQmlEventReceived);
+            } else {
+                tablet.gotoWebScreen(APP_URL);
+                tablet.webEventReceived.connect(onAppWebEventReceived);
+            }
             appStatus = true;
         }
 
@@ -78,6 +89,11 @@
 
     button.clicked.connect(clicked);
 
+    function onAppQmlEventReceived(message) {
+        if (message && message.channel === channel) {
+            onAppWebEventReceived(JSON.stringify(message));
+        }
+    }
 
     function onAppWebEventReceived(message) {
         var d = new Date();
@@ -97,6 +113,8 @@
                 timestamp = d.getTime();
 
                 if (messageObj.address.length > 0) {
+                    print("PICO_PLACES_TELEPORT name=" + (messageObj.name || "")
+                        + " address=" + messageObj.address);
                     Window.location = messageObj.address;
                 }
                 
@@ -228,11 +246,12 @@
             "data": location.href
         };
 
-        tablet.emitScriptEvent(currentLocationMessage);
+        sendToPlacesUi(currentLocationMessage);
     }
     
     function onScreenChanged(type, url) {
-        if (type == "Web" && url.indexOf(APP_URL) != -1) {
+        if ((type == "Web" && url.indexOf(APP_URL) != -1)
+                || (type == "QML" && url.indexOf("PicoPlaces.qml") != -1)) {
             appStatus = true;
         } else {
             appStatus = false;
@@ -289,9 +308,17 @@
             "metaverseServers": metaverseServers
         };
 
-        tablet.emitScriptEvent(message);
+        sendToPlacesUi(message);
         getLocationBookmarks();
     };
+
+    function sendToPlacesUi(message) {
+        if (useQmlApp) {
+            tablet.sendToQml(message);
+        } else {
+            tablet.emitScriptEvent(message);
+        }
+    }
 
     function sendPersistedMaturityFilter() {
         var messageSent = {
@@ -299,7 +326,7 @@
             "action": "MATURITY_FILTER",
             "filter": Settings.getValue(SETTING_MATURITY_FILTER, DEFAULT_MATURITY)
         };
-        tablet.emitScriptEvent(messageSent);
+        sendToPlacesUi(messageSent);
     }
 
     function getFederationData() {
@@ -412,7 +439,7 @@
             "action": "BOOKMARKS_DATA",
             "data": bookmarks
         };
-        tablet.emitScriptEvent(message);
+        sendToPlacesUi(message);
     }
 
     function renameLocationBookmark(originalName, name, url) {
@@ -620,6 +647,23 @@
     }
 
     function sortOrder(a, b) {
+        // Keep the main Pico test destination at the top of Places regardless
+        // of attendance, thumbnail category, or the seeded directory order.
+        // Normalize spaces and punctuation so both "Overte Hub" and
+        // "overte_hub" match without affecting the ordering of other places.
+        function isOverteHub(place) {
+            if (!place) {
+                return false;
+            }
+            var normalizedName = String(place.name || "")
+                .toLocaleLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+            return normalizedName === "overte_hub";
+        }
+        var aIsOverteHub = isOverteHub(a);
+        var bIsOverteHub = isOverteHub(b);
+        if (aIsOverteHub !== bIsOverteHub) {
+            return aIsOverteHub ? -1 : 1;
+        }
         var orderA = a.order.toUpperCase();
         var orderB = b.order.toUpperCase();
         if (orderA > orderB) {

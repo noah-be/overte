@@ -24,7 +24,11 @@ int soundPointerMetaTypeId = qRegisterMetaType<SharedSoundPointer>();
 SoundCache::SoundCache(QObject* parent) :
     ResourceCache(parent)
 {
+#if defined(Q_OS_ANDROID)
+    const qint64 SOUND_DEFAULT_UNUSED_MAX_SIZE = 8 * BYTES_PER_MEGABYTES;
+#else
     const qint64 SOUND_DEFAULT_UNUSED_MAX_SIZE = 50 * BYTES_PER_MEGABYTES;
+#endif
     setUnusedResourceCacheSize(SOUND_DEFAULT_UNUSED_MAX_SIZE);
     setObjectName("SoundCache");
 }

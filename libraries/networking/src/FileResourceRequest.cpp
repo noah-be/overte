@@ -41,7 +41,6 @@ void FileResourceRequest::doSend() {
         }
     }
 
-
     // Allow platform specific versions of files loaded out of a resource cache via file://
     {
         QString originalFilename = filename;

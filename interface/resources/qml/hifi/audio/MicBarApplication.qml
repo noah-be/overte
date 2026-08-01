@@ -49,10 +49,12 @@ Rectangle {
                 micBar.gated = true;
             }
         });
-        HMD.displayModeChanged.connect(function() {
-            muted = AudioScriptingInterface.muted;
-            pushToTalk = AudioScriptingInterface.pushToTalk;
-        });
+        if (typeof HMD !== "undefined" && HMD) {
+            HMD.displayModeChanged.connect(function() {
+                muted = AudioScriptingInterface.muted;
+                pushToTalk = AudioScriptingInterface.pushToTalk;
+            });
+        }
         AudioScriptingInterface.mutedChanged.connect(function() {
             muted = AudioScriptingInterface.muted;
         });
