@@ -11,7 +11,47 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
+// Standalone headsets are more comfortable with the tablet beyond arm's
+// immediate near field. WebTablet reads this whenever it is spawned.
+Settings.setValue("hmdTabletForwardOffset", 0.95);
+Settings.setValue("hmdTabletUpOffset", -0.22);
+Settings.setValue("hmdTabletBackwardTiltDegrees", -8);
+Settings.setValue("hmdTabletScale", 125);
+// Hide only the locally rendered mesh.  The avatar object, skeleton,
+// collision, controller joints and network representation remain active.
+MyAvatar.shouldRenderLocally = false;
+// A single per-hand ray can pick both tablet/world entities and the HUD on
+// standalone VR. The desktop dispatcher historically creates separate rays
+// for both layers, doubling controller pick work every application update.
+Settings.setValue("combineHudAndWorldPointers", true);
+// On Pico, constructing the hidden tablet and stylus as a cache warm-up causes
+// visible startup flashes and expensive EntityTree work. Create it only when
+// it is actually opened.
+Settings.setValue("deferTabletCreationUntilOpen", true);
+
+// Keep the Pico movement default migration versioned so experimental defaults
+// can be corrected once without continually overriding a speed the user chose.
+var PICO_WALK_SPEED_MIGRATION_KEY = "picoVrWalkSpeedDefaultVersion";
+var PICO_WALK_SPEED_MIGRATION_VERSION = 2;
+var LEGACY_VR_WALK_SPEED = 4.0;
+var PREVIOUS_PICO_DEFAULT_VR_WALK_SPEED = 5.0;
+var PICO_DEFAULT_VR_WALK_SPEED = 4.0;
+var walkSpeedMigrationVersion = Number(Settings.getValue(PICO_WALK_SPEED_MIGRATION_KEY, 0));
+if (walkSpeedMigrationVersion < PICO_WALK_SPEED_MIGRATION_VERSION) {
+    if (Math.abs(MyAvatar.vrWalkSpeed - LEGACY_VR_WALK_SPEED) < 0.001
+            || Math.abs(MyAvatar.vrWalkSpeed - PREVIOUS_PICO_DEFAULT_VR_WALK_SPEED) < 0.001) {
+        MyAvatar.vrWalkSpeed = PICO_DEFAULT_VR_WALK_SPEED;
+        Settings.setValue("Avatar/vrWalkSpeed", PICO_DEFAULT_VR_WALK_SPEED);
+        print("PICO_MOVEMENT restored VR walk speed default to "
+            + PICO_DEFAULT_VR_WALK_SPEED + " m/s");
+    }
+    Settings.setValue(PICO_WALK_SPEED_MIGRATION_KEY, PICO_WALK_SPEED_MIGRATION_VERSION);
+}
+
 var DEFAULT_SCRIPTS_COMBINED = [
+    // Bring up the core VR UI before any optional service script can block on
+    // network or account initialization on a standalone headset.
+    "system/tablet-ui/tabletUI.js",
     "system/request-service.js",
     "system/progress.js",
     "system/away.js",
@@ -20,16 +60,21 @@ var DEFAULT_SCRIPTS_COMBINED = [
     "system/bubble.js",
     "system/pal.js", // "system/mod.js", // older UX, if you prefer
     "system/avatarapp.js",
+    "system/settings/settings.js",
     "system/makeUserConnection.js",
-    "system/tablet-goto.js",
+    // Use Overte's current federated domain directory instead of the legacy
+    // user-stories based OLD GOTO application.
+    "system/places/places.js",
     "system/notifications.js",
     "system/dialTone.js",
     "system/quickGoto.js",
-    "system/firstPersonHMD.js",
-    "system/tablet-ui/tabletUI.js",
-    "system/miniTablet.js"
+    "system/tablet-position/tabletPosition.js",
+    "system/firstPersonHMD.js"
 ];
 var DEFAULT_SCRIPTS_SEPARATE = [
+    // The Create app is bundled locally. Keep its large editor script in its
+    // own engine so initialization cannot stall the core tablet/UI scripts.
+    "system/create/edit.js",
     "system/controllers/controllerScripts.js",
     //"system/chat.js"
 ];

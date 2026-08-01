@@ -5,7 +5,7 @@ import QtQuick.Controls 2.12
 Button {
     id: control
     text: checked ? "Seated" : "Standing"
-    checked: MyAvatar.standingMode !== 0
+    checked: typeof MyAvatar !== "undefined" && MyAvatar ? MyAvatar.standingMode !== 0 : false
     checkable: true
     hoverEnabled: true
 
@@ -20,7 +20,9 @@ Button {
         const standing = 0;
         const forcedHeight = 2;
 
-        MyAvatar.standingMode = checked ? forcedHeight : standing;
+        if (typeof MyAvatar !== "undefined" && MyAvatar) {
+            MyAvatar.standingMode = checked ? forcedHeight : standing;
+        }
         Tablet.playSound(0 /* ButtonClick */);
     }
 

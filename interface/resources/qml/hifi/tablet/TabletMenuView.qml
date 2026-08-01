@@ -45,12 +45,13 @@ FocusScope {
         contentWidth: parent.width
         contentHeight: parent.height
         objectName: "menuList"
+        property bool recalcPending: false
 
         topMargin: hifi.dimensions.menuPadding.y
         bottomMargin: hifi.dimensions.menuPadding.y
-        onEnabledChanged: recalcSize();
-        onVisibleChanged: recalcSize();
-        onCountChanged: recalcSize();
+        onEnabledChanged: scheduleRecalcSize();
+        onVisibleChanged: scheduleRecalcSize();
+        onCountChanged: scheduleRecalcSize();
         focus: true
         highlightMoveDuration: 0
 
@@ -67,8 +68,8 @@ FocusScope {
         delegate: TabletMenuItem {
             text: name
             source: item
-            onImplicitHeightChanged: listView !== null ? listView.recalcSize() : 0
-            onImplicitWidthChanged: listView !== null ? listView.recalcSize() : 0
+            onImplicitHeightChanged: listView !== null ? listView.scheduleRecalcSize() : 0
+            onImplicitWidthChanged: listView !== null ? listView.scheduleRecalcSize() : 0
 
             MouseArea {
                 enabled: name !== "" && item.enabled
@@ -86,24 +87,33 @@ FocusScope {
             }
         }
 
+        function scheduleRecalcSize() {
+            if (recalcPending) {
+                return;
+            }
+            recalcPending = true;
+            Qt.callLater(recalcSize);
+        }
+
         function recalcSize() {
+            recalcPending = false;
             if (!model || model.count !== count || !visible) {
                 return;
             }
 
-            var originalIndex = currentIndex;
             var maxWidth = width;
             var newHeight = 0;
-            for (var i = 0; i < count; ++i) {
-                currentIndex = i;
-                if (!currentItem) {
-                    continue;
+            // Never walk the model by changing currentIndex here. Doing so
+            // creates/releases delegates from inside delegate size-change
+            // handlers and can trip QQmlDelegateModel's objectRef assertion.
+            var delegates = contentItem.children;
+            for (var i = 0; i < delegates.length; ++i) {
+                var delegateItem = delegates[i];
+                if (delegateItem.implicitWidth !== undefined && delegateItem.implicitWidth > maxWidth) {
+                    maxWidth = delegateItem.implicitWidth;
                 }
-                if (currentItem && currentItem.implicitWidth > maxWidth) {
-                    maxWidth = currentItem.implicitWidth
-                }
-                if (currentItem.visible) {
-                    newHeight += currentItem.implicitHeight
+                if (delegateItem.visible && delegateItem.implicitHeight !== undefined) {
+                    newHeight += delegateItem.implicitHeight;
                 }
             }
             newHeight += hifi.dimensions.menuPadding.y * 2;  // White space at top and bottom.
@@ -113,7 +123,6 @@ FocusScope {
             if (newHeight > contentHeight) {
                 contentHeight = newHeight;
             }
-            currentIndex = originalIndex;
         }
         
         Keys.onUpPressed: previousItem();
@@ -129,6 +138,5 @@ FocusScope {
     function selectCurrentItem() { if (listView.currentIndex != -1) root.selected(currentItem.source); }
     function previousPage() { root.parent.pop(); }
 }
-
 
 

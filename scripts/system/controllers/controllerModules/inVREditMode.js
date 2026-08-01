@@ -11,7 +11,7 @@
 //  SPDX-License-Identifier: Apache-2.0
 //
 
-/* global Script, HMD, Messages, MyAvatar, RIGHT_HAND, LEFT_HAND, enableDispatcherModule, disableDispatcherModule,
+/* global Script, HMD, Messages, MyAvatar, Settings, RIGHT_HAND, LEFT_HAND, enableDispatcherModule, disableDispatcherModule,
    makeDispatcherModuleParameters, makeRunningValues, getEnabledModuleByName, makeLaserParams
 */
 
@@ -25,6 +25,7 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
         this.isEditing = false;
         this.running = false;
         var NO_HAND_LASER = -1; // Invalid hand parameter so that standard laser is not displayed.
+        var picoUsesNativeCreateUI = Settings.getValue("deferTabletCreationUntilOpen", false);
         this.parameters = makeDispatcherModuleParameters(
             166, // Slightly lower priority than inEditMode.
             this.hand === RIGHT_HAND
@@ -32,7 +33,12 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
                 : ["leftHand", "leftHandEquip", "leftHandTrigger"],
             [],
             100,
-            makeLaserParams(NO_HAND_LASER, false)
+            // The legacy Shapes app rendered its own edit laser.  Pico's
+            // native Create UI relies on the standard hand laser instead.
+            makeLaserParams(
+                picoUsesNativeCreateUI ? this.hand : NO_HAND_LASER,
+                picoUsesNativeCreateUI
+            )
         );
 
         this.pointingAtTablet = function (objectID) {

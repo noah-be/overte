@@ -24,6 +24,103 @@
     var EDIT_TOGGLE_BUTTON = "com.highfidelity.interface.system.editButton";
 
     var CONTROLLER_MAPPING_NAME = "com.highfidelity.editMode";
+    var PICO_NUMERIC_MAPPING_NAME = "com.overte.pico.create.numericInput";
+    var picoNumericMapping = Controller.newMapping(PICO_NUMERIC_MAPPING_NAME);
+    var picoNumericMappingEnabled = false;
+    var picoNumericDirection = 0;
+    var picoNumericNextRepeat = 0;
+    var picoNumericRepeatTimer = null;
+    var picoNumericEditing = false;
+    var picoNumericEditDirty = false;
+
+    function sendPicoNumericStep(direction) {
+        Tablet.getTablet("com.highfidelity.interface.tablet.system").sendToQml({
+            method: "picoAdjustFocusedNumber",
+            params: { direction: direction }
+        });
+    }
+
+    function handlePicoNumericAxis(value) {
+        var DEAD_ZONE = 0.35;
+        var direction = value > DEAD_ZONE ? 1 : (value < -DEAD_ZONE ? -1 : 0);
+        var now = Date.now();
+        if (direction === 0) {
+            picoNumericDirection = 0;
+            picoNumericNextRepeat = 0;
+            if (picoNumericRepeatTimer !== null) {
+                Script.clearInterval(picoNumericRepeatTimer);
+                picoNumericRepeatTimer = null;
+            }
+            return;
+        }
+        if (direction !== picoNumericDirection) {
+            picoNumericDirection = direction;
+            picoNumericNextRepeat = now + 300;
+            sendPicoNumericStep(direction);
+            if (picoNumericRepeatTimer === null) {
+                picoNumericRepeatTimer = Script.setInterval(function () {
+                    var repeatNow = Date.now();
+                    if (picoNumericMappingEnabled && picoNumericDirection !== 0
+                            && repeatNow >= picoNumericNextRepeat) {
+                        picoNumericNextRepeat = repeatNow + 15;
+                        sendPicoNumericStep(picoNumericDirection);
+                    }
+                }, 15);
+            }
+        }
+    }
+
+    // These routes intentionally do not peek: while enabled they consume both
+    // left-stick movement axes before the standard locomotion mapping.
+    picoNumericMapping.from(Controller.Standard.LY).to(handlePicoNumericAxis);
+    picoNumericMapping.from(Controller.Standard.LX).to(function () {});
+
+    function setPicoNumericFocus(focused) {
+        if (focused && !picoNumericMappingEnabled) {
+            picoNumericMappingEnabled = true;
+            picoNumericDirection = 0;
+            picoNumericNextRepeat = 0;
+            Controller.enableMapping(PICO_NUMERIC_MAPPING_NAME);
+        } else if (!focused && picoNumericMappingEnabled) {
+            picoNumericMappingEnabled = false;
+            picoNumericDirection = 0;
+            picoNumericNextRepeat = 0;
+            if (picoNumericRepeatTimer !== null) {
+                Script.clearInterval(picoNumericRepeatTimer);
+                picoNumericRepeatTimer = null;
+            }
+            Controller.disableMapping(PICO_NUMERIC_MAPPING_NAME);
+        }
+    }
+
+    function finishPicoNumericEditing() {
+        setPicoNumericFocus(false);
+        if (picoNumericEditing) {
+            if (picoNumericEditDirty) {
+                createApp.pushCommandForSelections();
+                SelectionManager.saveProperties();
+            }
+            picoNumericEditing = false;
+            picoNumericEditDirty = false;
+        }
+    }
+
+    function onPicoTabletShownChanged() {
+        // Hiding the tablet does not change its current screen. Consequently,
+        // screenChanged is not emitted and a focused numeric field used to
+        // keep consuming both left-stick axes after the tablet was gone.
+        if (!Tablet.getTablet("com.highfidelity.interface.tablet.system").tabletShown) {
+            finishPicoNumericEditing();
+        }
+    }
+
+    Script.scriptEnding.connect(function () {
+        if (picoNumericRepeatTimer !== null) {
+            Script.clearInterval(picoNumericRepeatTimer);
+            picoNumericRepeatTimer = null;
+        }
+        Controller.disableMapping(PICO_NUMERIC_MAPPING_NAME);
+    });
 
     Script.include([
         "../libraries/stringHelpers.js",
@@ -185,7 +282,31 @@
         entityIconOverlayManager.updatePositions(selectionManager.selections);
         entityShapeVisualizer.setEntities(selectionManager.selections);
         createApp.entityShapeVisualizerLocalEntityToExclude = entityShapeVisualizer.getLocalEntityToExclude();
+        sendPicoPropertiesSelection();
     });
+
+    function sendPicoPropertiesSelection() {
+        if (!HMD.active) {
+            return;
+        }
+        var params = {};
+        if (selectionManager.selections.length === 1) {
+            var entityID = selectionManager.selections[0];
+            var properties = Entities.getEntityProperties(entityID, [
+                "type", "name", "position", "rotation", "dimensions", "color",
+                "visible", "dynamic", "collisionless", "locked"
+            ]);
+            properties.rotation = Quat.safeEulerAngles(properties.rotation);
+            params = {
+                id: entityID,
+                properties: properties
+            };
+        }
+        Tablet.getTablet("com.highfidelity.interface.tablet.system").sendToQml({
+            method: "picoPropertiesSelection",
+            params: params
+        });
+    }
 
     var DEGREES_TO_RADIANS = Math.PI / 180.0;
     var RADIANS_TO_DEGREES = 180.0 / Math.PI;
@@ -670,6 +791,14 @@
 
                 entityID = Entities.addEntity(properties, entityHostType);
 
+                // Move the Pico tablet before selection bounds, properties UI
+                // and entity-list refreshes can occupy subsequent script
+                // turns.  Waiting until the end made the tablet visibly linger
+                // over the newly created object.
+                if (entityID && Settings.getValue("deferTabletCreationUntilOpen", false)) {
+                    Messages.sendLocalMessage("Pico-Tablet-Move-Aside-For-Create", "");
+                }
+
                 var dimensionsCheckCallback = function(){
                     // Adjust position of entity per bounding box after it has been created and auto-resized.
                     var initialDimensions = Entities.getEntityProperties(entityID, ["dimensions"]).dimensions;
@@ -714,7 +843,6 @@
                         })
                         dimensionsCheckCallback();
                         // We want to update the selection manager again since the script has moved on without us.
-                        selectionManager.clearSelections(this);
                         entityListTool.sendUpdate();
                         selectionManager.setSelections([entityID], this);
                         return;
@@ -739,7 +867,6 @@
                                         properties.type + " would be out of bounds.");
             }
 
-            selectionManager.clearSelections(this);
             entityListTool.sendUpdate();
             selectionManager.setSelections([entityID], this);
 
@@ -760,6 +887,7 @@
         function cleanup() {
             that.setActive(false);
             if (tablet) {
+                tablet.tabletShownChanged.disconnect(onPicoTabletShownChanged);
                 tablet.removeButton(activeButton);
             }
             if (systemToolbar) {
@@ -984,7 +1112,9 @@
 
         function fromQml(message) { // messages are {method, params}, like json-rpc. See also sendToQml.
             var tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
-            tablet.popFromStack();
+            if (message.method.indexOf("Dialog") !== -1) {
+                tablet.popFromStack();
+            }
             switch (message.method) {
                 case "newModelDialogAdd":
                     handleNewModelDialogResult(message.params);
@@ -995,6 +1125,64 @@
                     break;
                 case "newEntityButtonClicked":
                     buttonHandlers[message.params.buttonName]();
+                    break;
+                case "picoRequestSelection":
+                    sendPicoPropertiesSelection();
+                    break;
+                case "picoNumericFocus":
+                    if (message.params.focused === true && !picoNumericEditing
+                            && selectionManager.selections.length === 1) {
+                        SelectionManager.saveProperties();
+                        picoNumericEditing = true;
+                        picoNumericEditDirty = false;
+                    } else if (message.params.focused !== true && picoNumericEditing) {
+                        if (picoNumericEditDirty) {
+                            createApp.pushCommandForSelections();
+                            SelectionManager.saveProperties();
+                        }
+                        picoNumericEditing = false;
+                        picoNumericEditDirty = false;
+                    }
+                    setPicoNumericFocus(message.params.focused === true);
+                    break;
+                case "picoPreviewEntity":
+                    if (selectionManager.selections.length === 1
+                            && selectionManager.selections[0].toString() === message.params.id.toString()) {
+                        var picoPreviewProperties = message.params.properties;
+                        picoPreviewProperties.rotation = Quat.fromVec3Degrees(picoPreviewProperties.rotation);
+                        if (picoPreviewProperties.dynamic === false) {
+                            picoPreviewProperties.localVelocity = Vec3.ZERO;
+                            picoPreviewProperties.localAngularVelocity = Vec3.ZERO;
+                        }
+                        Entities.editEntity(message.params.id, picoPreviewProperties);
+                        picoNumericEditDirty = true;
+                        selectionManager._update(false, this);
+                    }
+                    break;
+                case "picoEditEntity":
+                    if (selectionManager.selections.length === 1
+                            && selectionManager.selections[0].toString() === message.params.id.toString()) {
+                        SelectionManager.saveProperties();
+                        var picoProperties = message.params.properties;
+                        picoProperties.rotation = Quat.fromVec3Degrees(picoProperties.rotation);
+                        if (picoProperties.dynamic === false) {
+                            picoProperties.localVelocity = Vec3.ZERO;
+                            picoProperties.localAngularVelocity = Vec3.ZERO;
+                        }
+                        Entities.editEntity(message.params.id, picoProperties);
+                        createApp.pushCommandForSelections();
+                        SelectionManager.saveProperties();
+                        selectionManager._update(false, this);
+                        entityListTool.sendUpdate();
+                        sendPicoPropertiesSelection();
+                    }
+                    break;
+                case "picoDeleteEntity":
+                    if (selectionManager.selections.length === 1
+                            && selectionManager.selections[0].toString() === message.params.id.toString()) {
+                        createApp.deleteSelectedEntities();
+                        sendPicoPropertiesSelection();
+                    }
                     break;
                 case "newMaterialDialogAdd":
                     handleNewMaterialDialogResult(message.params);
@@ -1087,6 +1275,7 @@
 
             var createButtonIconRsrc = (hasRezPermissions ? CREATE_ENABLED_ICON : CREATE_DISABLED_ICON);
             tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
+            tablet.tabletShownChanged.connect(onPicoTabletShownChanged);
             activeButton = tablet.addButton({
                 captionColor: hasRezPermissions ? "#ffffff" : "#888888",
                 icon: createButtonIconRsrc,
@@ -1262,6 +1451,7 @@
             var tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
 
             if (!isActive) {
+                setPicoNumericFocus(false);
                 entityListTool.setVisible(false);
                 gridTool.setVisible(false);
                 grid.setEnabled(false);

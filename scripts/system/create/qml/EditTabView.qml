@@ -1,6 +1,5 @@
 import QtQuick 2.7
 import QtQuick.Controls 2.2
-import QtWebChannel 1.0
 import controls 1.0
 import hifi.toolbars 1.0
 import QtGraphicalEffects 1.0
@@ -304,7 +303,8 @@ TabBar {
     EditTabButton {
         title: "LIST"
         active: true
-        enabled: true
+        enabled: Qt.platform.os !== "android"
+        visible: enabled
         property string originalUrl: ""
 
         property Component visualItem: Component {
@@ -321,9 +321,10 @@ TabBar {
         title: "PROPERTIES"
         active: true
         enabled: true
+        visible: true
         property string originalUrl: ""
 
-        property Component visualItem: Component {
+        property Component webProperties: Component {
             WebView {
                 id: entityPropertiesWebView
                 url: Qt.resolvedUrl("../entityProperties/html/entityProperties.html")
@@ -331,12 +332,18 @@ TabBar {
                 blurOnCtrlShift: false
             }
         }
+        property Component picoProperties: Component {
+            PicoProperties {
+            }
+        }
+        property Component visualItem: Qt.platform.os === "android" ? picoProperties : webProperties
     }
 
     EditTabButton {
         title: "TOOLS"
         active: true
-        enabled: true
+        enabled: Qt.platform.os !== "android"
+        visible: enabled
         property string originalUrl: ""
 
         property Component visualItem: Component {
@@ -352,7 +359,8 @@ TabBar {
     EditTabButton {
         title: "IMPORT"
         active: true
-        enabled: true
+        enabled: Qt.platform.os !== "android"
+        visible: enabled
         property string originalUrl: ""
 
         property Component visualItem: Component {

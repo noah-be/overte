@@ -12,7 +12,7 @@
 
 /* jslint bitwise: true */
 
-/* global Script, Pointers,
+/* global Script, Pointers, Settings,
    DEFAULT_SEARCH_SPHERE_DISTANCE, COLORS_GRAB_SEARCHING_HALF_SQUEEZE, COLORS_GRAB_SEARCHING_FULL_SQUEEZE,
    COLORS_GRAB_DISTANCE_HOLD, TRIGGER_ON_VALUE,
    Pointer:true, PointerManager:true
@@ -27,6 +27,9 @@ var Pointer = function(hudLayer, pickType, pointerData) {
     const CURSOR_DEFAULT_URL = `${Script.resourcesPath()}images/laser_cursor_default.png`;
     const CURSOR_GRABBING_URL = `${Script.resourcesPath()}images/laser_cursor_grabbing.png`;
     const BEAM_IMAGE_URL = `${Script.resourcesPath()}images/laser_beam_default.png`;
+    const DEFAULT_POINTER_RENDER_DISTANCE =
+        Settings.getValue("deferTabletCreationUntilOpen", false) ?
+            20.0 : DEFAULT_SEARCH_SPHERE_DISTANCE;
 
     const CURSOR_SIZE = { x: SEARCH_SPHERE_SIZE, y: SEARCH_SPHERE_SIZE, z: SEARCH_SPHERE_SIZE };
 
@@ -121,9 +124,9 @@ var Pointer = function(hudLayer, pickType, pointerData) {
     ];
 
     this.defaultRenderStates = [
-        {name: "half", distance: DEFAULT_SEARCH_SPHERE_DISTANCE, path: this.halfPath},
-        {name: "full", distance: DEFAULT_SEARCH_SPHERE_DISTANCE, path: this.fullPath},
-        {name: "hold", distance: DEFAULT_SEARCH_SPHERE_DISTANCE, path: this.holdPath}
+        {name: "half", distance: DEFAULT_POINTER_RENDER_DISTANCE, path: this.halfPath},
+        {name: "full", distance: DEFAULT_POINTER_RENDER_DISTANCE, path: this.fullPath},
+        {name: "hold", distance: DEFAULT_POINTER_RENDER_DISTANCE, path: this.holdPath}
     ];
 
 
@@ -225,6 +228,13 @@ var PointerManager = function() {
         var index = laserParams.hand;
         if (index < this.pointers.length && index >= 0) {
             this.pointers[index].makeInvisible();
+        }
+    };
+
+    this.forceHandPointerVisible = function(hand) {
+        if (hand >= 0 && hand < this.pointers.length) {
+            this.pointers[hand].makeVisible();
+            this.pointers[hand].alwaysOn = true;
         }
     };
 

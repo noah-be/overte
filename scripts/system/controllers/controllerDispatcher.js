@@ -17,7 +17,8 @@
    controllerDispatcherPlugins:true, controllerDispatcherPluginsNeedSort:true,
    LEFT_HAND, RIGHT_HAND, NEAR_GRAB_PICK_RADIUS, DEFAULT_SEARCH_SPHERE_DISTANCE, DISPATCHER_PROPERTIES,
    getGrabPointSphereOffset, HMD, MyAvatar, Messages, findHandChildEntities, Picks, PickType, Pointers,
-   PointerManager, getGrabPointSphereOffset, HMD, MyAvatar, Messages, findHandChildEntities, print, Keyboard
+   PointerManager, getGrabPointSphereOffset, HMD, MyAvatar, Messages, findHandChildEntities, print, Keyboard,
+   Tablet, Settings, isInEditMode
 */
 
 var controllerDispatcherPlugins = {};
@@ -41,6 +42,10 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
     var PROFILE = false;
     var DEBUG = false;
     var SHOW_GRAB_SPHERE = false;
+    var picoLazyHandRays = Settings.getValue("deferTabletCreationUntilOpen", false);
+    var systemTablet = picoLazyHandRays
+        ? Tablet.getTablet("com.highfidelity.interface.tablet.system")
+        : null;
 
     if (typeof Test !== "undefined") {
         PROFILE = true;
@@ -57,11 +62,30 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
         this.orderedPluginNames = [];
         this.tabletID = null;
         this.blocklist = [];
+        this.picoEditingHand = null;
         this.pointerManager = new PointerManager();
         this.grabSphereOverlays = [null, null];
         this.targetIDs = {};
         this.debugPanelID = null;
         this.debugLines = [];
+
+        this.pointerUsedByAnotherRunningPlugin = function(stoppingPluginName, laserParams) {
+            if (!laserParams || laserParams.hand < 0) {
+                return false;
+            }
+            for (var pluginName in _this.runningPluginNames) {
+                if (_this.runningPluginNames.hasOwnProperty(pluginName) &&
+                        pluginName !== stoppingPluginName) {
+                    var otherPlugin = controllerDispatcherPlugins[pluginName];
+                    var otherLaser = otherPlugin && otherPlugin.parameters &&
+                        otherPlugin.parameters.handLaser;
+                    if (otherLaser && otherLaser.hand === laserParams.hand) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
 
         // a module can occupy one or more "activity" slots while it's running.  If all the required slots for a module are
         // not set to false (not in use), a module cannot start.  When a module is using a slot, that module's name
@@ -354,13 +378,67 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
                 }
             }
 
-            // Enable/disable controller raypicking depending on whether we are in HMD
-            if (HMD.active) {
-                Pointers.enablePointer(_this.leftPointer);
-                Pointers.enablePointer(_this.rightPointer);
-                Pointers.enablePointer(_this.leftHudPointer);
-                Pointers.enablePointer(_this.rightHudPointer);
-                Pointers.enablePointer(_this.mouseRayPointer);
+            // On Pico, two continuously active world rays cost roughly 5 ms
+            // even while the user is simply walking.  Keep them hot for the
+            // tablet/keyboard and while an interaction control is held, but
+            // do not ray-pick an idle world every simulation update.
+            var handRaysNeeded = !picoLazyHandRays ||
+                (systemTablet && systemTablet.tabletShown) ||
+                HMD.showTablet ||
+                isInEditMode() ||
+                Keyboard.raised ||
+                _this.leftTriggerValue > 0.01 ||
+                _this.rightTriggerValue > 0.01 ||
+                _this.leftSecondaryValue > 0.01 ||
+                _this.rightSecondaryValue > 0.01;
+
+            // Enable/disable controller raypicking depending on whether we are in HMD.
+            if (HMD.active && handRaysNeeded) {
+                // Once a Create handle has been acquired, its drag math uses
+                // the current controller pose directly.  Keep only the
+                // grabbing hand's world pointer alive; repicking the other
+                // hand and both HUD rays just steals time from the drag loop.
+                if (picoLazyHandRays && systemTablet && systemTablet.tabletShown &&
+                        _this.picoEditingHand === null) {
+                    // Precise tablet rays can each exceed the pick budget in
+                    // a dense scene. Keep one stable interaction hand instead
+                    // of alternating stale hover/click results between both.
+                    var tabletHand = MyAvatar.getDominantHand() === "left" ? LEFT_HAND : RIGHT_HAND;
+                    if (_this.leftTriggerValue > 0.01 && _this.rightTriggerValue <= 0.01) {
+                        tabletHand = LEFT_HAND;
+                    } else if (_this.rightTriggerValue > 0.01 && _this.leftTriggerValue <= 0.01) {
+                        tabletHand = RIGHT_HAND;
+                    }
+                    if (tabletHand === LEFT_HAND) {
+                        Pointers.enablePointer(_this.leftPointer);
+                        Pointers.disablePointer(_this.rightPointer);
+                    } else {
+                        Pointers.disablePointer(_this.leftPointer);
+                        Pointers.enablePointer(_this.rightPointer);
+                    }
+                    if (_this.leftHudPointer !== _this.leftPointer) {
+                        Pointers.disablePointer(_this.leftHudPointer);
+                    }
+                    if (_this.rightHudPointer !== _this.rightPointer) {
+                        Pointers.disablePointer(_this.rightHudPointer);
+                    }
+                } else if (picoLazyHandRays && _this.picoEditingHand !== null) {
+                    if (_this.picoEditingHand === LEFT_HAND) {
+                        Pointers.enablePointer(_this.leftPointer);
+                        Pointers.disablePointer(_this.rightPointer);
+                    } else {
+                        Pointers.disablePointer(_this.leftPointer);
+                        Pointers.enablePointer(_this.rightPointer);
+                    }
+                    Pointers.disablePointer(_this.leftHudPointer);
+                    Pointers.disablePointer(_this.rightHudPointer);
+                } else {
+                    Pointers.enablePointer(_this.leftPointer);
+                    Pointers.enablePointer(_this.rightPointer);
+                    Pointers.enablePointer(_this.leftHudPointer);
+                    Pointers.enablePointer(_this.rightHudPointer);
+                }
+                Pointers.disablePointer(_this.mouseRayPointer);
             } else {
                 Pointers.disablePointer(_this.leftPointer);
                 Pointers.disablePointer(_this.rightPointer);
@@ -529,7 +607,15 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
                                 _this.addDebugLine("deleted targetIDs[" + runningPluginName + "]");
                             }
                             _this.markSlots(plugin, false);
-                            _this.pointerManager.makePointerInvisible(plugin.parameters.handLaser);
+                            // Multiple dispatcher modules share each physical
+                            // hand pointer.  A tablet/web module may stop on
+                            // the same frame that the Create edit module takes
+                            // ownership.  Do not let the stopping module hide
+                            // a pointer that is still in use.
+                            if (!_this.pointerUsedByAnotherRunningPlugin(
+                                    runningPluginName, plugin.parameters.handLaser)) {
+                                _this.pointerManager.makePointerInvisible(plugin.parameters.handLaser);
+                            }
                             if (DEBUG) {
                                 _this.addDebugLine("stopping " + runningPluginName);
                             }
@@ -539,6 +625,18 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
                             Script.endProfileRange("dispatch.run." + runningPluginName);
                         }
                     }
+                }
+            }
+            // Create's edit affordances use the same physical ray pointers as
+            // tablet, web and grab modules.  Make the final visibility
+            // decision here so module transition order cannot erase the edit
+            // laser before render-state selection.
+            if (picoLazyHandRays && isInEditMode()) {
+                if (_this.picoEditingHand !== null) {
+                    _this.pointerManager.forceHandPointerVisible(_this.picoEditingHand);
+                } else {
+                    _this.pointerManager.forceHandPointerVisible(LEFT_HAND);
+                    _this.pointerManager.forceHandPointerVisible(RIGHT_HAND);
                 }
             }
             _this.pointerManager.updatePointersRenderState(controllerData.triggerClicks, controllerData.triggerValues);
@@ -578,7 +676,10 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
 
         this.leftPointer = this.pointerManager.createPointer(false, PickType.Ray, {
             joint: "_CAMERA_RELATIVE_CONTROLLER_LEFTHAND",
-            filter: Picks.PICK_OVERLAYS | Picks.PICK_LOCAL_ENTITIES | Picks.PICK_ENTITIES | Picks.PICK_INCLUDE_NONCOLLIDABLE,
+            maxDistance: picoLazyHandRays ? 20.0 : DEFAULT_SEARCH_SPHERE_DISTANCE,
+            filter: Picks.PICK_OVERLAYS | Picks.PICK_LOCAL_ENTITIES | Picks.PICK_ENTITIES |
+                Picks.PICK_INCLUDE_NONCOLLIDABLE |
+                (Settings.getValue("combineHudAndWorldPointers", false) ? Picks.PICK_HUD : 0),
             triggers: [
                 {action: controllerStandard.LTClick, button: "Primary"},
                 {action: controllerStandard.LX, button: "ScrollX"},
@@ -589,12 +690,15 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
             scaleWithParent: true,
             distanceScaleEnd: true,
             hand: LEFT_HAND,
-            delay: Picks.handLaserDelay
+            delay: 0
         });
         Keyboard.setLeftHandLaser(this.leftPointer);
         this.rightPointer = this.pointerManager.createPointer(false, PickType.Ray, {
             joint: "_CAMERA_RELATIVE_CONTROLLER_RIGHTHAND",
-            filter: Picks.PICK_OVERLAYS | Picks.PICK_LOCAL_ENTITIES | Picks.PICK_ENTITIES | Picks.PICK_INCLUDE_NONCOLLIDABLE,
+            maxDistance: picoLazyHandRays ? 20.0 : DEFAULT_SEARCH_SPHERE_DISTANCE,
+            filter: Picks.PICK_OVERLAYS | Picks.PICK_LOCAL_ENTITIES | Picks.PICK_ENTITIES |
+                Picks.PICK_INCLUDE_NONCOLLIDABLE |
+                (Settings.getValue("combineHudAndWorldPointers", false) ? Picks.PICK_HUD : 0),
             triggers: [
                 {action: controllerStandard.RTClick, button: "Primary"},
                 {action: controllerStandard.RX, button: "ScrollX"},
@@ -605,10 +709,11 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
             scaleWithParent: true,
             distanceScaleEnd: true,
             hand: RIGHT_HAND,
-            delay: Picks.handLaserDelay
+            delay: 0
         });
         Keyboard.setRightHandLaser(this.rightPointer);
-        this.leftHudPointer = this.pointerManager.createPointer(true, PickType.Ray, {
+        this.leftHudPointer = Settings.getValue("combineHudAndWorldPointers", false) ? this.leftPointer :
+            this.pointerManager.createPointer(true, PickType.Ray, {
             joint: "_CAMERA_RELATIVE_CONTROLLER_LEFTHAND",
             filter: Picks.PICK_HUD,
             maxDistance: DEFAULT_SEARCH_SPHERE_DISTANCE,
@@ -623,9 +728,10 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
             scaleWithParent: true,
             distanceScaleEnd: true,
             hand: LEFT_HAND,
-            delay: Picks.handLaserDelay
+            delay: 0
         });
-        this.rightHudPointer = this.pointerManager.createPointer(true, PickType.Ray, {
+        this.rightHudPointer = Settings.getValue("combineHudAndWorldPointers", false) ? this.rightPointer :
+            this.pointerManager.createPointer(true, PickType.Ray, {
             joint: "_CAMERA_RELATIVE_CONTROLLER_RIGHTHAND",
             filter: Picks.PICK_HUD,
             maxDistance: DEFAULT_SEARCH_SPHERE_DISTANCE,
@@ -640,12 +746,14 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
             scaleWithParent: true,
             distanceScaleEnd: true,
             hand: RIGHT_HAND,
-            delay: Picks.handLaserDelay
+            delay: 0
         });
 
         this.mouseRayPointer = Pointers.createRayPointer({
             joint: "Mouse",
-            filter: Picks.PICK_OVERLAYS | Picks.PICK_LOCAL_ENTITIES | Picks.PICK_ENTITIES | Picks.PICK_INCLUDE_NONCOLLIDABLE,
+            maxDistance: picoLazyHandRays ? 20.0 : 0.0,
+            filter: Picks.PICK_OVERLAYS | Picks.PICK_LOCAL_ENTITIES | Picks.PICK_ENTITIES |
+                Picks.PICK_INCLUDE_NONCOLLIDABLE | (picoLazyHandRays ? Picks.PICK_COARSE : 0),
             enabled: true
         });
         this.handleMessage = function (channel, data, sender) {
@@ -681,6 +789,11 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
                                 _this.rightBlocklistTabletIDs = tabletIDs;
                                 _this.setRightBlocklist();
                             }
+                        }
+                    } else if (channel === "Hifi-InEdit-Status") {
+                        message = JSON.parse(data);
+                        if (message.method === "editing") {
+                            _this.picoEditingHand = message.editing ? message.hand : null;
                         }
                     }
                 } catch (e) {
@@ -756,6 +869,7 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
 
     var controllerDispatcher = new ControllerDispatcher();
     Messages.subscribe('Hifi-Hand-RayPick-Blocklist');
+    Messages.subscribe("Hifi-InEdit-Status");
     Messages.messageReceived.connect(controllerDispatcher.handleMessage);
 
     Picks.handLaserDelayChanged.connect(controllerDispatcher.handLaserDelayChanged);

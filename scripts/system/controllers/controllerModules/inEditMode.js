@@ -10,7 +10,7 @@
 
 /* jslint bitwise: true */
 
-/* global Script, Controller, RIGHT_HAND, LEFT_HAND, enableDispatcherModule, disableDispatcherModule, makeRunningValues,
+/* global Script, Controller, Settings, RIGHT_HAND, LEFT_HAND, enableDispatcherModule, disableDispatcherModule, makeRunningValues,
    Messages, makeDispatcherModuleParameters, HMD, getEnabledModuleByName, TRIGGER_ON_VALUE, isInEditMode, Picks,
    makeLaserParams
 */
@@ -31,13 +31,14 @@ Script.include("/~/system/libraries/utils.js");
         this.reticleMaxX = null;
         this.reticleMinY = MARGIN;
         this.reticleMaxY = null;
+        this.picoUsesNativeCreateUI = Settings.getValue("deferTabletCreationUntilOpen", false);
 
         this.parameters = makeDispatcherModuleParameters(
             165, // Lower priority than webSurfaceLaserInput and hudOverlayPointer.
             this.hand === RIGHT_HAND ? ["rightHand", "rightHandEquip", "rightHandTrigger"] : ["leftHand", "leftHandEquip", "leftHandTrigger"],
             [],
             100,
-            makeLaserParams(this.hand, false));
+            makeLaserParams(this.hand, this.picoUsesNativeCreateUI));
 
         this.nearTablet = function(overlays) {
             for (var i = 0; i < overlays.length; i++) {
@@ -111,18 +112,18 @@ Script.include("/~/system/libraries/utils.js");
         this.sendPointingAtData = function(controllerData) {
             var rayPick = controllerData.rayPicks[this.hand];
             var hudRayPick = controllerData.hudRayPicks[this.hand];
-            // V8TODO: this needs to be checked if it works correctly
-            if (!hudRayPick.intersects) {
-                return;
+            var desktopWindow = false;
+            if (hudRayPick.intersects) {
+                var point2d = this.calculateNewReticlePosition(hudRayPick.intersection);
+                desktopWindow = Window.isPointOnDesktopWindow(point2d);
             }
-            var point2d = this.calculateNewReticlePosition(hudRayPick.intersection);
-            var desktopWindow = Window.isPointOnDesktopWindow(point2d);
             var tablet = this.pointingAtTablet(rayPick.objectID);
             var rightHand = this.hand === RIGHT_HAND;
             Messages.sendLocalMessage(this.ENTITY_TOOL_UPDATES_CHANNEL, JSON.stringify({
                 method: "pointingAt",
                 desktopWindow: desktopWindow,
                 tablet: tablet,
+                hand: rightHand ? controllerStandard.RightHand : controllerStandard.LeftHand,
                 rightHand: rightHand
             }));
         };

@@ -78,6 +78,15 @@ Item {
         }
     }
 
+    function cancelToTabletHome() {
+        console.info("PICO_TABLET_PREFERENCES_CANCEL category=" + showCategories);
+        for (var i = 0; i < sections.length; ++i) {
+            sections[i].restoreAll();
+        }
+        keyboard.raised = false;
+        tablet.gotoHomeScreen();
+    }
+
     function closeDialog() {
         var tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
 
@@ -272,12 +281,19 @@ Item {
             HifiControls.Button {
                 text: "Save changes"
                 color: hifi.buttons.blue
+                androidClickAction: function() {
+                    console.info("PICO_TABLET_PREFERENCES_SAVE category=" + showCategories);
+                    dialog.saveAll();
+                }
                 onClicked: dialog.saveAll()
             }
 
             HifiControls.Button {
                 text: "Cancel"
                 color: hifi.buttons.white
+                androidClickAction: function() {
+                    dialog.cancelToTabletHome();
+                }
                 onClicked: dialog.restoreAll()
             }
         }

@@ -28,6 +28,11 @@ Original.Button {
     property int buttonGlyphSize: 34;
     property int buttonGlyphRightMargin: 0;
     property int fontCapitalization: Font.AllUppercase
+    // QML-derived signal handlers do not reliably replace this component's
+    // onClicked handler on the Android Qt build.  Let callers that need a
+    // guaranteed action route it through the handler that actually receives
+    // the signal.
+    property var androidClickAction: null
 
     width: hifi.dimensions.buttonWidth
     height: hifi.dimensions.controlLineHeight
@@ -45,13 +50,32 @@ Original.Button {
     }
 
     onFocusChanged: {
-        if (focus) {
+        // A controller hover also moves Qt focus. Playing both transitions
+        // produces duplicate hover sounds for one visual selection.
+        if (focus && Qt.platform.os !== "android") {
             Tablet.playSound(TabletEnums.ButtonHover);
         }
     }
 
     onClicked: {
+        if (Qt.platform.os === "android") {
+            console.info("PICO_QML_BUTTON clicked text=" + control.text);
+            if (control.androidClickAction) {
+                control.androidClickAction();
+            }
+        }
         Tablet.playSound(TabletEnums.ButtonClick);
+    }
+
+    // On mobile VR the controller pose can advance noticeably between the
+    // trigger press and release frames. Qt then cancels an AbstractButton
+    // press even though the user began the click on the button. Treat that
+    // cancellation as activation on Android so tablet buttons remain usable.
+    onCanceled: {
+        if (Qt.platform.os === "android") {
+            console.info("PICO_QML_BUTTON canceled->clicked text=" + control.text);
+            control.clicked();
+        }
     }
 
     background: Rectangle {

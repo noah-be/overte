@@ -10,7 +10,7 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
-/* global Script, Controller, RIGHT_HAND, LEFT_HAND, HMD, makeLaserParams */
+/* global Script, Controller, RIGHT_HAND, LEFT_HAND, HMD, Settings, makeLaserParams */
 (function() {
     var controllerStandard = Controller.Standard;
     Script.include("/~/system/libraries/controllers.js");
@@ -77,6 +77,7 @@
         };
 
         const SCROLL_MAPPING_NAME = `overte.thumbstick_scroll_${this.hand}.hud`;
+        this.laserOnlyUI = Settings.getValue("deferTabletCreationUntilOpen", false);
         this.scrollMappingEnabled = false;
         this.scrollMapping = Controller.newMapping(SCROLL_MAPPING_NAME);
         this.stickXMapping = this.scrollMapping.from(
@@ -85,6 +86,22 @@
         this.stickYMapping = this.scrollMapping.from(
             this.hand == LEFT_HAND ? Controller.Standard.LY : Controller.Standard.RY
         ).to(function(_value) { /* dummy to temporarily eat stick input */ });
+
+        this.disableScrollMapping = function() {
+            if (this.scrollMappingEnabled) {
+                this.scrollMapping.disable();
+                this.scrollMappingEnabled = false;
+            }
+        };
+
+        this.enableScrollMapping = function() {
+            if (this.laserOnlyUI) {
+                this.disableScrollMapping();
+            } else if (!this.scrollMappingEnabled) {
+                this.scrollMapping.enable();
+                this.scrollMappingEnabled = true;
+            }
+        };
 
         this.processLaser = function(controllerData) {
             var controllerLocation = controllerData.controllerLocations[this.hand];
@@ -98,17 +115,11 @@
                 Window.isPointOnDesktopWindow(point2d) &&
                 !this.pointingAtTablet(controllerData)
             ) {
-                if (!this.scrollMappingEnabled) {
-                    this.scrollMapping.enable();
-                    this.scrollMappingEnabled = true;
-                }
+                this.enableScrollMapping();
 
                 return true;
             } else {
-                if (this.scrollMappingEnabled) {
-                    this.scrollMapping.disable();
-                    this.scrollMappingEnabled = false;
-                }
+                this.disableScrollMapping();
 
                 return false;
             }
@@ -125,6 +136,11 @@
                     return ControllerDispatcherUtils.makeRunningValues(false, [], []);
                 }
             }
+            // The active hand can change without processLaser() being called.
+            // Always release a mapping owned by a hand that is no longer
+            // eligible to run.
+            this.disableScrollMapping();
+            this.running = false;
             return ControllerDispatcherUtils.makeRunningValues(false, [], []);
         };
 
@@ -141,6 +157,8 @@
     ControllerDispatcherUtils.enableDispatcherModule("RightHudOverlayPointer", rightHudOverlayPointer);
 
     function cleanup() {
+        leftHudOverlayPointer.disableScrollMapping();
+        rightHudOverlayPointer.disableScrollMapping();
         ControllerDispatcherUtils.disableDispatcherModule("LeftHudOverlayPointer");
         ControllerDispatcherUtils.disableDispatcherModule("RightHudOverlayPointer");
     }

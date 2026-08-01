@@ -7,7 +7,7 @@
 
 /* global Script, Entities, enableDispatcherModule, disableDispatcherModule, makeRunningValues,
    makeDispatcherModuleParameters, Overlays, HMD, TRIGGER_ON_VALUE, TRIGGER_OFF_VALUE, getEnabledModuleByName,
-   Picks, makeLaserParams, Settings, MyAvatar, RIGHT_HAND, LEFT_HAND
+   Picks, makeLaserParams, Settings, MyAvatar, RIGHT_HAND, LEFT_HAND, Keyboard
 */
 
 Script.include("/~/system/libraries/controllerDispatcherUtils.js");
@@ -145,6 +145,14 @@ Script.include("/~/system/libraries/controllers.js");
             // but for pointing at locked web entities or non-web overlays user must be pressing trigger
             var intersection = controllerData.rayPicks[this.hand];
             var objectID = intersection.objectID;
+
+            // The 3D keyboard is made from local model entities rather than a
+            // Web entity.  It must be identified before the generic entity
+            // checks so the hand laser is made visible and receives events.
+            if (Keyboard.raised && Keyboard.containsID(objectID)) {
+                return intersectionType["HifiKeyboard"];
+            }
+
             var entityProperties = Entities.getEntityProperties(objectID, ["type","locked"]);
             var entityType = entityProperties.type;
             var isLocked = entityProperties.locked;
@@ -169,6 +177,15 @@ Script.include("/~/system/libraries/controllers.js");
             // Trivial rejection for when FarGrab is active.
             if (this.farGrabActive()) {
                 return makeRunningValues(false, [], []);
+            }
+
+            // Keep the controller ray visible while the 3D keyboard is open.
+            // Requiring an existing key intersection before showing the ray is
+            // circular: the user cannot see where to aim in order to produce
+            // that first intersection.
+            if (Keyboard.raised) {
+                this.updateAlwaysOn(intersectionType["HifiKeyboard"]);
+                return makeRunningValues(true, [], []);
             }
 
             var isTriggerPressed = controllerData.triggerValues[this.hand] > TRIGGER_OFF_VALUE &&
@@ -213,6 +230,10 @@ Script.include("/~/system/libraries/controllers.js");
         };
 
         const SCROLL_MAPPING_NAME = `overte.thumbstick_scroll_${this.hand}.web`;
+        // Pico uses controller lasers, not thumbstick scrolling, for these
+        // surfaces.  Consuming RX/RY here can strand locomotion if a web/QML
+        // surface changes state without another dispatcher run.
+        this.laserOnlyUI = Settings.getValue("deferTabletCreationUntilOpen", false);
         this.scrollMappingEnabled = false;
         this.scrollMapping = Controller.newMapping(SCROLL_MAPPING_NAME);
         this.stickXMapping = this.scrollMapping.from(
@@ -222,7 +243,33 @@ Script.include("/~/system/libraries/controllers.js");
             this.hand == LEFT_HAND ? Controller.Standard.LY : Controller.Standard.RY
         ).to(function(_value) { /* dummy to temporarily eat stick input */ });
 
+        this.disableScrollMapping = function() {
+            if (this.scrollMappingEnabled) {
+                this.scrollMapping.disable();
+                this.scrollMappingEnabled = false;
+            }
+        };
+
+        this.enableScrollMapping = function() {
+            if (this.laserOnlyUI) {
+                this.disableScrollMapping();
+            } else if (!this.scrollMappingEnabled) {
+                this.scrollMapping.enable();
+                this.scrollMappingEnabled = true;
+            }
+        };
+
         this.run = function(controllerData, deltaTime) {
+            if (Keyboard.raised) {
+                // Keyboard interaction is laser-only on Pico.  A scroll mapping
+                // left over from the tablet must not keep consuming either
+                // thumbstick while the keyboard is open.
+                this.disableScrollMapping();
+                this.updateAlwaysOn(intersectionType["HifiKeyboard"]);
+                this.running = true;
+                return makeRunningValues(true, [], []);
+            }
+
             this.addObjectToIgnoreList(controllerData);
             var isTriggerPressed = controllerData.triggerValues[this.hand] > TRIGGER_OFF_VALUE;
             var type = this.getInteractableType(controllerData, isTriggerPressed);
@@ -231,33 +278,23 @@ Script.include("/~/system/libraries/controllers.js");
 
             if (type === intersectionType["HifiTablet"] && laserOn) {
                 if (this.shouldThisModuleRun(controllerData)) {
-                    if (!this.scrollMappingEnabled) {
-                        this.scrollMapping.enable();
-                        this.scrollMappingEnabled = true;
-                    }
+                    this.enableScrollMapping();
                     this.running = true;
                     return makeRunningValues(true, [], []);
                 }
             } else if ((type === intersectionType["WebOverlay"] || type === intersectionType["WebEntity"]) && laserOn) { // auto laser on WebEntities andWebOverlays
                 if (this.shouldThisModuleRun(controllerData)) {
-                    if (!this.scrollMappingEnabled) {
-                        this.scrollMapping.enable();
-                        this.scrollMappingEnabled = true;
-                    }
+                    this.enableScrollMapping();
                     this.running = true;
                     return makeRunningValues(true, [], []);
                 }
             } else if ((type === intersectionType["HifiKeyboard"] && laserOn) || type === intersectionType["Overlay"]) {
-                if (!this.scrollMappingEnabled) {
-                    this.scrollMapping.enable();
-                    this.scrollMappingEnabled = true;
-                }
+                this.enableScrollMapping();
                 this.running = true;
                 return makeRunningValues(true, [], []);
             }
 
-            this.scrollMapping.disable();
-            this.scrollMappingEnabled = false;
+            this.disableScrollMapping();
             this.running = false;
             this.dominantHandOverride = false;
             return makeRunningValues(false, [], []);
@@ -271,6 +308,8 @@ Script.include("/~/system/libraries/controllers.js");
     enableDispatcherModule("RightWebSurfaceLaserInput", rightOverlayLaserInput);
 
     function cleanup() {
+        leftOverlayLaserInput.disableScrollMapping();
+        rightOverlayLaserInput.disableScrollMapping();
         disableDispatcherModule("LeftWebSurfaceLaserInput");
         disableDispatcherModule("RightWebSurfaceLaserInput");
     }

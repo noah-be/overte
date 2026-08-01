@@ -101,8 +101,10 @@ function notificationPollCallback(userStoriesArray) {
 }
 
 function isReturnedDataEmpty(data) {
-    var storiesArray = data.user_stories;
-    return storiesArray.length === 0;
+    // Login and domain transitions can cancel the outstanding request. Treat
+    // an absent/malformed response as empty instead of throwing from the
+    // notification poll callback.
+    return !data || !Array.isArray(data.user_stories) || data.user_stories.length === 0;
 }
 
 var ui;

@@ -51,7 +51,7 @@ Item {
         }
 
         SitStandToggle {
-            visible: HMD.active
+            visible: typeof HMD !== "undefined" && HMD ? HMD.active : false
 
             anchors {
                 left: muteBar.right
@@ -284,7 +284,7 @@ Item {
 
                             Connections {
                                 target: modelData;
-                                onPropertiesChanged:  {
+                                function onPropertiesChanged() {
                                     updateProperties();
                                 }
                             }

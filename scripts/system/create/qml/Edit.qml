@@ -26,6 +26,14 @@ StackView {
             anchors.fill: parent
             currentIndex: -1
             onCurrentIndexChanged: {
+                // This Android Qt build has no QtWebEngine. Entity creation is
+                // native and works, but the desktop LIST/PROPERTIES/TOOLS/
+                // IMPORT pages are HTML WebViews. Do not replace the working
+                // Create page with ProxyWebView's unsupported-feature screen.
+                if (Qt.platform.os === "android" && currentIndex !== 0 && currentIndex !== 2) {
+                    currentIndex = 0;
+                    return;
+                }
                 editRoot.replace(null, tab.itemAt(currentIndex).visualItem,
                                  itemProperties,
                                  StackView.Immediate)
@@ -57,4 +65,3 @@ StackView {
         }
     }
 }
-
