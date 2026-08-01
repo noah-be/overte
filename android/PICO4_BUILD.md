@@ -12,6 +12,21 @@ Prerequisites are Conan 2, Android SDK 36 with Platform-Tools, Android NDK
 detects the usual Android Studio installation paths; custom locations can be
 provided through the environment variables shown by `./build-pico.sh --help`.
 
+Check the complete local environment before downloading or building anything:
+
+```bash
+./build-pico.sh doctor
+```
+
+The command reports every required command-line tool, Android SDK Platform 36,
+NDK `27.3.13750724`, Platform-Tools/ADB, JDK compatibility, the Gradle wrapper,
+and available disk space. Missing requirements are shown together with an
+official installation page or an appropriate `sdkmanager` command. Android
+Studio itself is optional; it is the easiest way to install the Android SDK,
+NDK, Platform-Tools, and a compatible JDK together. The `setup` command runs
+this check automatically and stops before downloading anything when a required
+item is missing.
+
 For a fresh development environment, install the Conan dependencies, prepare
 the runtime files, and build the APK with:
 

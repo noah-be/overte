@@ -7,6 +7,14 @@ jobs="${PICO_BUILD_JOBS:-$(nproc)}"
 command_name="${1:-all}"
 command_option="${2:-}"
 prebuilt_tag="pico4-deps-v1"
+android_tools_url="https://developer.android.com/studio"
+platform_tools_url="https://developer.android.com/tools/releases/platform-tools"
+conan_install_url="https://docs.conan.io/2/installation.html"
+cmake_install_url="https://cmake.org/download/"
+ninja_install_url="https://github.com/ninja-build/ninja/releases"
+git_install_url="https://git-scm.com/downloads"
+python_install_url="https://www.python.org/downloads/"
+perl_install_url="https://www.perl.org/get.html"
 
 fail() {
     echo "error: $*" >&2
@@ -15,8 +23,9 @@ fail() {
 
 usage() {
     cat <<'EOF'
-Usage: ./build-pico.sh [deps|prepare|build|install|all|deploy|setup] [--download]
+Usage: ./build-pico.sh [doctor|deps|prepare|build|install|all|deploy|setup] [--download]
 
+  doctor   Check the development environment and print installation help
   deps     Install dependencies; use --download for prebuilt Qt and Node
   prepare  Locate and stage the existing Conan/Qt dependencies
   build    Build the Pico debug APK
@@ -29,6 +38,147 @@ Detected paths can be overridden with ANDROID_SDK_ROOT, JAVA_HOME,
 PICO_QT_SOURCE_DIR, PICO_QT_BUILD_DIR, PICO_TBB_PACKAGE_DIR,
 PICO_DRACO_PACKAGE_DIR, and the PICO_* host-tool variables.
 EOF
+}
+
+doctor() {
+    local errors=0 warnings=0 command_path version sdk_path ndk_path adb_path
+    local detected_java="" major="" free_kb
+
+    doctor_ok() { printf '  [OK]   %s\n' "$*"; }
+    doctor_warn() { printf '  [WARN] %s\n' "$*"; warnings=$((warnings + 1)); }
+    doctor_error() { printf '  [MISS] %s\n' "$*"; errors=$((errors + 1)); }
+
+    echo "Pico 4 build environment"
+    echo
+    echo "Command-line tools:"
+
+    if command_path="$(command -v conan 2>/dev/null)"; then
+        version="$(conan --version 2>/dev/null || true)"
+        if [[ "$version" =~ Conan\ version\ 2\. ]]; then
+            doctor_ok "$version ($command_path)"
+            if conan profile path default >/dev/null 2>&1; then
+                doctor_ok "Conan default profile"
+            else
+                doctor_error "the Conan default profile is missing"
+                echo "           Create it with: conan profile detect --force"
+            fi
+        else
+            doctor_error "Conan 2 is required; found: ${version:-unknown version}"
+            echo "           Install: $conan_install_url"
+        fi
+    else
+        doctor_error "Conan 2 is not installed or not in PATH"
+        echo "           Install: $conan_install_url"
+    fi
+
+    local tool url
+    for tool in git curl cmake ninja python3 perl; do
+        case "$tool" in
+            git) url="$git_install_url" ;;
+            curl) url="https://curl.se/download.html" ;;
+            cmake) url="$cmake_install_url" ;;
+            ninja) url="$ninja_install_url" ;;
+            python3) url="$python_install_url" ;;
+            perl) url="$perl_install_url" ;;
+        esac
+        if command_path="$(command -v "$tool" 2>/dev/null)"; then
+            doctor_ok "$tool ($command_path)"
+        else
+            doctor_error "$tool is not installed or not in PATH"
+            echo "           Install: $url"
+        fi
+    done
+
+    for tool in file make ar tar sha256sum; do
+        if command_path="$(command -v "$tool" 2>/dev/null)"; then
+            doctor_ok "$tool ($command_path)"
+        else
+            doctor_error "$tool is not installed or not in PATH"
+            echo "           Install it with your operating system's development-tools package."
+        fi
+    done
+
+    echo
+    echo "Android toolchain:"
+    sdk_path=""
+    local candidate
+    for candidate in "${ANDROID_SDK_ROOT:-}" "${ANDROID_HOME:-}" "${HOME}/Android/Sdk"; do
+        if [[ -n "$candidate" && -d "$candidate" ]]; then
+            sdk_path="$candidate"
+            break
+        fi
+    done
+    if [[ -z "$sdk_path" ]]; then
+        doctor_error "Android SDK was not found"
+        echo "           Install Android Studio or the command-line tools: $android_tools_url"
+    else
+        doctor_ok "Android SDK ($sdk_path)"
+        if [[ -d "$sdk_path/platforms/android-36" ]]; then
+            doctor_ok "Android SDK Platform 36"
+        else
+            doctor_error "Android SDK Platform 36 is missing"
+            echo "           Install with SDK Manager: sdkmanager \"platforms;android-36\""
+            echo "           Help: $android_tools_url"
+        fi
+
+        ndk_path="${ANDROID_NDK_HOME:-$sdk_path/ndk/27.3.13750724}"
+        if [[ -d "$ndk_path" ]]; then
+            doctor_ok "Android NDK 27.3.13750724 ($ndk_path)"
+        else
+            doctor_error "Android NDK 27.3.13750724 is missing"
+            echo "           Install with SDK Manager: sdkmanager \"ndk;27.3.13750724\""
+            echo "           Help: $android_tools_url"
+        fi
+
+        adb_path="${PICO_ADB:-$sdk_path/platform-tools/adb}"
+        if [[ -x "$adb_path" ]]; then
+            doctor_ok "Android Platform-Tools/ADB ($adb_path)"
+        else
+            doctor_error "Android Platform-Tools/ADB is missing"
+            echo "           Install: $platform_tools_url"
+        fi
+    fi
+
+    echo
+    echo "Java and project files:"
+    for candidate in "${JAVA_HOME:-}" \
+        "${HOME}/Applications/android-studio/jbr" \
+        "/opt/android-studio/jbr"; do
+        [[ -x "$candidate/bin/java" ]] || continue
+        major="$(java_major "$candidate")"
+        if [[ "$major" =~ ^[0-9]+$ && "$major" -ge 17 && "$major" -le 21 ]]; then
+            detected_java="$candidate"
+            break
+        fi
+    done
+    if [[ -n "$detected_java" ]]; then
+        doctor_ok "JDK $major ($detected_java)"
+    else
+        doctor_error "a JDK between versions 17 and 21 was not found"
+        echo "           Android Studio includes a compatible JDK: $android_tools_url"
+    fi
+
+    if [[ -x "$script_dir/gradlew" ]]; then
+        doctor_ok "Gradle wrapper ($script_dir/gradlew)"
+    else
+        doctor_error "the project Gradle wrapper is missing or not executable"
+    fi
+
+    free_kb="$(df -Pk "$script_dir" | awk 'NR == 2 { print $4 }')"
+    if [[ "$free_kb" =~ ^[0-9]+$ && "$free_kb" -lt 15728640 ]]; then
+        doctor_warn "less than 15 GiB of free disk space is available"
+    else
+        doctor_ok "at least 15 GiB of free disk space"
+    fi
+
+    echo
+    if [[ "$errors" -eq 0 ]]; then
+        echo "Ready: all required build tools were found ($warnings warning(s))."
+        echo "Next: ./build-pico.sh setup --download"
+        return 0
+    fi
+    echo "Not ready: $errors required item(s) missing, $warnings warning(s)."
+    return 2
 }
 
 newest_match() {
@@ -58,7 +208,7 @@ detect_sdk() {
             return
         fi
     done
-    fail "Android SDK 36 not found; set ANDROID_SDK_ROOT"
+    fail "Android SDK 36 not found; set ANDROID_SDK_ROOT (install: $android_tools_url)"
 }
 
 java_major() {
@@ -77,7 +227,7 @@ detect_jdk() {
             return
         fi
     done
-    fail "a JDK between versions 17 and 21 was not found; set JAVA_HOME"
+    fail "a JDK between versions 17 and 21 was not found; set JAVA_HOME (install: $android_tools_url)"
 }
 
 detect_dependencies() {
@@ -125,7 +275,7 @@ detect_dependencies() {
 }
 
 install_dependencies() {
-    command -v conan >/dev/null || fail "Conan 2 is not installed or not in PATH"
+    command -v conan >/dev/null || fail "Conan 2 is not installed or not in PATH (install: $conan_install_url)"
     detect_sdk
     export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/27.3.13750724}"
     [[ -d "$ANDROID_NDK_HOME" ]] \
@@ -186,7 +336,7 @@ download_prebuilt_dependencies() {
     local base_url="https://github.com/noah-be/overte/releases/download/${prebuilt_tag}"
     local download_dir asset
 
-    command -v conan >/dev/null || fail "Conan 2 is not installed or not in PATH"
+    command -v conan >/dev/null || fail "Conan 2 is not installed or not in PATH (install: $conan_install_url)"
     command -v curl >/dev/null || fail "curl is not installed or not in PATH"
     [[ -f "$checksums" ]] || fail "prebuilt checksum manifest not found: $checksums"
     download_dir="$(mktemp -d)"
@@ -262,6 +412,7 @@ install_apk() {
 }
 
 case "$command_name" in
+    doctor) doctor ;;
     deps)
         if [[ "$command_option" == "--download" ]]; then
             download_prebuilt_dependencies
@@ -277,6 +428,8 @@ case "$command_name" in
     all) prepare; build ;;
     deploy) prepare; build; install_apk ;;
     setup)
+        doctor
+        echo
         if [[ "$command_option" == "--download" ]]; then
             download_prebuilt_dependencies
         elif [[ -z "$command_option" ]]; then
