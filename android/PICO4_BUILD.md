@@ -93,7 +93,8 @@ The `setup` command runs the environment check before downloading anything.
 The recommended download path restores checksum-verified Conan cache packages
 for Qt 5.15.18 and Node.js 22.22.3 together with the patched Qt/TBB runtime.
 The three archives total approximately 1.1 GiB. Smaller dependencies are then
-resolved normally through Conan.
+resolved normally through Conan. The script automatically configures Overte's
+public official Conan repository for Overte-specific packages.
 
 The files are published in the
 [Pico 4 prebuilt dependencies v1 release](https://github.com/noah-be/overte/releases/tag/pico4-deps-v1).

@@ -11,6 +11,7 @@ android_tools_url="https://developer.android.com/studio"
 android_repository_url="https://dl.google.com/android/repository/repository2-1.xml"
 platform_tools_url="https://developer.android.com/tools/releases/platform-tools"
 conan_install_url="https://docs.conan.io/2/installation.html"
+overte_conan_url="https://artifactory.overte.org/artifactory/api/conan/overte"
 cmake_install_url="https://cmake.org/download/"
 ninja_install_url="https://github.com/ninja-build/ninja/releases"
 git_install_url="https://git-scm.com/downloads"
@@ -539,6 +540,9 @@ install_dependencies() {
     export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/27.3.13750724}"
     [[ -d "$ANDROID_NDK_HOME" ]] \
         || fail "Android NDK 27.3.13750724 not found: $ANDROID_NDK_HOME"
+
+    echo "Configuring the official Overte Conan repository"
+    conan remote add overte "$overte_conan_url" --force
 
     if ! perl -MEnglish -e 1 >/dev/null 2>&1; then
         local perl_module_dir="$script_dir/pico-host-tools/perl"
