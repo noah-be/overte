@@ -1,13 +1,18 @@
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/cmake")
-file(
-    COPY "${CMAKE_CURRENT_LIST_DIR}/conan/pico4-debug/cmake/ConanToolsDirs.cmake"
-    DESTINATION "${CMAKE_BINARY_DIR}/cmake"
-)
-
 set(ENV{SCRIBE_DIR} "${CMAKE_CURRENT_LIST_DIR}/pico-host-tools")
 set(ENV{GLSLANG_DIR} "${CMAKE_CURRENT_LIST_DIR}/pico-host-tools")
 set(ENV{SPIRV_CROSS_DIR} "${CMAKE_CURRENT_LIST_DIR}/pico-host-tools")
 set(ENV{SPIRV_TOOLS_DIR} "${CMAKE_CURRENT_LIST_DIR}/pico-host-tools")
+
+# AutoScribeShader includes this generated Conan file after consulting the
+# environment.  The target dependency graph's copy points at Android ARM64
+# executables, which cannot run while generating shaders on the Linux host.
+file(WRITE "${CMAKE_BINARY_DIR}/cmake/ConanToolsDirs.cmake" [=[
+set(GLSLANG_DIR "$ENV{GLSLANG_DIR}")
+set(SCRIBE_DIR "$ENV{SCRIBE_DIR}")
+set(SPIRV_CROSS_DIR "$ENV{SPIRV_CROSS_DIR}")
+set(SPIRV_TOOLS_DIR "$ENV{SPIRV_TOOLS_DIR}")
+]=])
 
 # The legacy Android CMake path expects desktop OpenGL and Qt modules which are
 # either named differently or no longer shipped in our minimal Qt Android build.
