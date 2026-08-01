@@ -1,0 +1,14 @@
+plugins {
+    id 'com.android.application' version '8.13.2' apply false
+}
+
+ext {
+    appVersionCode = providers.gradleProperty('VERSION_CODE').getOrElse('1').toInteger()
+    appVersionName = providers.gradleProperty('RELEASE_NUMBER').getOrElse('0.1.0')
+    releaseType = providers.gradleProperty('RELEASE_TYPE').getOrElse('DEV')
+    stableBuild = providers.gradleProperty('STABLE_BUILD').getOrElse('0')
+}
+
+tasks.register('clean', Delete) {
+    delete rootProject.layout.buildDirectory
+}
