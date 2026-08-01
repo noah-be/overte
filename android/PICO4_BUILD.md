@@ -1,5 +1,7 @@
 # Build the Overte client for Pico 4
 
+> **Note:** This build workflow has so far only been tested on Fedora Linux 44.
+
 The Pico 4 client has a maintained command-line build workflow for 64-bit
 Linux. Run all commands below from the repository's `android/` directory.
 
