@@ -13,12 +13,14 @@ fail() {
 
 usage() {
     cat <<'EOF'
-Usage: ./build-pico.sh [deps|prepare|build|all|setup]
+Usage: ./build-pico.sh [deps|prepare|build|install|all|deploy|setup]
 
   deps     Install target dependencies and native shader tools with Conan
   prepare  Locate and stage the existing Conan/Qt dependencies
   build    Build the Pico debug APK
+  install  Install the existing APK on a connected Pico via ADB
   all      Prepare dependencies and build the APK (default)
+  deploy   Prepare, build, and install the APK
   setup    Install dependencies, prepare them, and build the APK
 
 Detected paths can be overridden with ANDROID_SDK_ROOT, JAVA_HOME,
@@ -170,11 +172,43 @@ build() {
     echo "APK: $script_dir/apps/picoInterface/build/outputs/apk/debug/picoInterface-debug.apk"
 }
 
+install_apk() {
+    local adb apk serial
+    local -a devices
+
+    detect_sdk
+    adb="${PICO_ADB:-$ANDROID_SDK_ROOT/platform-tools/adb}"
+    [[ -x "$adb" ]] || fail "ADB not found; install Android SDK Platform-Tools or set PICO_ADB"
+    apk="$script_dir/apps/picoInterface/build/outputs/apk/debug/picoInterface-debug.apk"
+    [[ -f "$apk" ]] || fail "APK not found; run ./build-pico.sh build first"
+
+    if [[ -n "${ANDROID_SERIAL:-}" ]]; then
+        serial="$ANDROID_SERIAL"
+        "$adb" -s "$serial" get-state >/dev/null \
+            || fail "ADB device is not available: $serial"
+    else
+        mapfile -t devices < <("$adb" devices | awk '$2 == "device" { print $1 }')
+        if [[ "${#devices[@]}" -eq 0 ]]; then
+            fail "no authorized ADB device found; connect the Pico and allow USB debugging"
+        fi
+        if [[ "${#devices[@]}" -gt 1 ]]; then
+            fail "multiple ADB devices found; select one with ANDROID_SERIAL=<serial>"
+        fi
+        serial="${devices[0]}"
+    fi
+
+    echo "Installing APK on $serial"
+    "$adb" -s "$serial" install -r "$apk"
+    echo "Installed org.overte.pico on $serial"
+}
+
 case "$command_name" in
     deps) install_dependencies ;;
     prepare) prepare ;;
     build) build ;;
+    install) install_apk ;;
     all) prepare; build ;;
+    deploy) prepare; build; install_apk ;;
     setup) install_dependencies; prepare; build ;;
     help|-h|--help) usage ;;
     *) usage >&2; fail "unknown command: $command_name" ;;

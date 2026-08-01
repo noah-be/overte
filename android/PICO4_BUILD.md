@@ -7,6 +7,11 @@ links into a Conan cache are intentionally not tracked.
 
 ## One-command build
 
+Prerequisites are Conan 2, Android SDK 36 with Platform-Tools, Android NDK
+`27.3.13750724`, CMake/Ninja, and a JDK from version 17 through 21. The wrapper
+detects the usual Android Studio installation paths; custom locations can be
+provided through the environment variables shown by `./build-pico.sh --help`.
+
 For a fresh development environment, install the Conan dependencies, prepare
 the runtime files, and build the APK with:
 
@@ -25,6 +30,26 @@ Android Studio JDK automatically and can use the faster command:
 Individual stages can be run with `./build-pico.sh deps`,
 `./build-pico.sh prepare`, and `./build-pico.sh build`. Use
 `./build-pico.sh --help` for supported path overrides.
+
+## Install on a Pico 4
+
+Enable developer mode and USB debugging on the headset, connect it over USB,
+and accept the authorization prompt inside the headset. Then install an
+already built APK with:
+
+```bash
+./build-pico.sh install
+```
+
+To prepare dependencies, build, and install in one step, use:
+
+```bash
+./build-pico.sh deploy
+```
+
+The command requires exactly one authorized ADB device. If several devices
+are connected, select one with `ANDROID_SERIAL=<serial>`. Existing app data is
+preserved because installation uses ADB's replace mode.
 
 ## Manual dependency preparation
 
