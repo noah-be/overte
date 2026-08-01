@@ -649,7 +649,7 @@ build() {
 }
 
 install_apk() {
-    local adb apk serial
+    local adb apk serial install_output
     local -a devices
 
     detect_sdk
@@ -674,7 +674,21 @@ install_apk() {
     fi
 
     echo "Installing APK on $serial"
-    "$adb" -s "$serial" install -r "$apk"
+    if ! install_output="$("$adb" -s "$serial" install -r "$apk" 2>&1)"; then
+        printf '%s\n' "$install_output" >&2
+        if [[ "$install_output" == *INSTALL_FAILED_UPDATE_INCOMPATIBLE* ]]; then
+            echo >&2
+            echo "The installed org.overte.pico app was signed with a different key." >&2
+            echo "Android cannot update it with this development APK." >&2
+            echo "Uninstall the existing app first (this deletes its local app data):" >&2
+            echo "  adb -s $serial uninstall org.overte.pico" >&2
+            echo "Then retry:" >&2
+            echo "  ./build-pico.sh install" >&2
+            exit 2
+        fi
+        fail "ADB could not install the Pico APK"
+    fi
+    printf '%s\n' "$install_output"
     echo "Starting org.overte.pico on $serial"
     "$adb" -s "$serial" shell am start -W \
         -a android.intent.action.MAIN \
