@@ -25,6 +25,36 @@ fail() {
     exit 2
 }
 
+find_conan() {
+    local candidate
+
+    if [[ -n "${PICO_CONAN:-}" ]]; then
+        if [[ -x "$PICO_CONAN" ]]; then
+            printf '%s\n' "$PICO_CONAN"
+            return 0
+        fi
+        command -v "$PICO_CONAN" 2>/dev/null && return 0
+    fi
+
+    command -v conan 2>/dev/null && return 0
+    for candidate in \
+        "${HOME}/.local/bin/conan" \
+        "${PIPX_HOME:-${HOME}/.local/share/pipx}/venvs/conan/bin/conan"; do
+        if [[ -x "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+run_conan() {
+    local conan_path
+    conan_path="$(find_conan)" \
+        || fail "Conan 2 was not found (install: $conan_install_url)"
+    "$conan_path" "$@"
+}
+
 usage() {
     cat <<'EOF'
 Usage: ./build-pico.sh [doctor|bootstrap|deps|prepare|build|install|all|deploy|setup] [option]
@@ -42,7 +72,7 @@ Usage: ./build-pico.sh [doctor|bootstrap|deps|prepare|build|install|all|deploy|s
 
 Detected paths can be overridden with ANDROID_SDK_ROOT, JAVA_HOME,
 PICO_QT_SOURCE_DIR, PICO_QT_BUILD_DIR, PICO_TBB_PACKAGE_DIR,
-PICO_DRACO_PACKAGE_DIR, and the PICO_* host-tool variables.
+PICO_DRACO_PACKAGE_DIR, PICO_CONAN, and the PICO_* host-tool variables.
 EOF
 }
 
@@ -58,15 +88,15 @@ doctor() {
     echo
     echo "Command-line tools:"
 
-    if command_path="$(command -v conan 2>/dev/null)"; then
-        version="$(conan --version 2>/dev/null || true)"
+    if command_path="$(find_conan)"; then
+        version="$("$command_path" --version 2>/dev/null || true)"
         if [[ "$version" =~ Conan\ version\ 2\. ]]; then
             doctor_ok "$version ($command_path)"
-            if conan profile path default >/dev/null 2>&1; then
+            if "$command_path" profile path default >/dev/null 2>&1; then
                 doctor_ok "Conan default profile"
             else
                 doctor_error "the Conan default profile is missing"
-                echo "           Create it with: conan profile detect --force"
+                echo "           Create it with: $command_path profile detect --force"
             fi
         else
             doctor_error "Conan 2 is required; found: ${version:-unknown version}"
@@ -209,7 +239,7 @@ install_system_packages() {
     for tool in git curl cmake ninja python3 perl file make ar tar sha1sum sha256sum unzip; do
         command -v "$tool" >/dev/null 2>&1 || needs_packages=1
     done
-    command -v conan >/dev/null 2>&1 || command -v pipx >/dev/null 2>&1 || needs_packages=1
+    find_conan >/dev/null 2>&1 || command -v pipx >/dev/null 2>&1 || needs_packages=1
 
     if [[ "$needs_packages" -eq 0 ]]; then
         echo "System build tools are already installed"
@@ -383,15 +413,15 @@ bootstrap() {
     install_compatible_jdk
 
     export PATH="${HOME}/.local/bin:$PATH"
-    if ! command -v conan >/dev/null || ! conan --version 2>/dev/null | grep -q '^Conan version 2\.'; then
+    if ! find_conan >/dev/null || ! run_conan --version 2>/dev/null | grep -q '^Conan version 2\.'; then
         command -v pipx >/dev/null \
             || fail "pipx was not installed; see https://pipx.pypa.io/stable/how-to/install-pipx.html"
         echo "Installing Conan 2 in an isolated pipx environment"
         pipx install --force 'conan>=2,<3'
     fi
-    if ! conan profile path default >/dev/null 2>&1; then
+    if ! run_conan profile path default >/dev/null 2>&1; then
         echo "Creating the Conan default profile"
-        conan profile detect --force
+        run_conan profile detect --force
     fi
 
     for candidate in "${ANDROID_SDK_ROOT:-}" "${ANDROID_HOME:-}" "${HOME}/Android/Sdk"; do
@@ -544,14 +574,14 @@ detect_dependencies() {
 }
 
 install_dependencies() {
-    command -v conan >/dev/null || fail "Conan 2 is not installed or not in PATH (install: $conan_install_url)"
+    find_conan >/dev/null || fail "Conan 2 was not found (install: $conan_install_url)"
     detect_sdk
     export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/27.3.13750724}"
     [[ -d "$ANDROID_NDK_HOME" ]] \
         || fail "Android NDK 27.3.13750724 not found: $ANDROID_NDK_HOME"
 
     echo "Configuring the official Overte Conan repository"
-    conan remote add overte "$overte_conan_url" --force
+    run_conan remote add overte "$overte_conan_url" --force
 
     if ! perl -MEnglish -e 1 >/dev/null 2>&1; then
         local perl_module_dir="$script_dir/pico-host-tools/perl"
@@ -570,23 +600,23 @@ install_dependencies() {
     fi
 
     echo "Exporting local Pico recipes"
-    conan export "$script_dir/conan/recipes/libnode"
-    conan export "$script_dir/conan/recipes/nvidia-texture-tools"
-    conan export "$script_dir/conan/recipes/onetbb-local" --version=2021.10.0
+    run_conan export "$script_dir/conan/recipes/libnode"
+    run_conan export "$script_dir/conan/recipes/nvidia-texture-tools"
+    run_conan export "$script_dir/conan/recipes/onetbb-local" --version=2021.10.0
 
     echo "Installing native shader tools"
-    conan install "$script_dir/conan/conanfile-pico-host-tools.py" \
+    run_conan install "$script_dir/conan/conanfile-pico-host-tools.py" \
         -of "$script_dir/conan/pico4-host" \
         -pr:h default -pr:b default --build=missing
 
     echo "Installing Android ARM64 dependencies"
-    conan install "$script_dir/conan/conanfile-pico.py" \
+    run_conan install "$script_dir/conan/conanfile-pico.py" \
         -of "$script_dir/conan/pico4-debug" \
         -pr:h "$script_dir/conan/profiles/pico4-arm64" \
         -pr:b default --build=missing
 
     echo "Installing the Android ARM64 release TBB runtime"
-    conan install --requires=onetbb/2021.10.0 \
+    run_conan install --requires=onetbb/2021.10.0 \
         -of "$script_dir/conan/pico4-tbb-release" \
         -pr:h "$script_dir/conan/profiles/pico4-arm64" \
         -pr:b default -s:h build_type=Release --build=missing
@@ -594,7 +624,7 @@ install_dependencies() {
     if [[ ! -f "$script_dir/apps/picoInterface/src/main/runtime-overrides/arm64-v8a/.prebuilt-runtime" \
         && -z "$(newest_match '*/qt*/b/build_folder/qtbase/lib/libQt5Core_arm64-v8a.so')" ]]; then
         echo "No local Qt build tree found; building Qt from source (this can take a long time)"
-        conan install "$script_dir/conan/conanfile-pico.py" \
+        run_conan install "$script_dir/conan/conanfile-pico.py" \
             -of "$script_dir/conan/pico4-debug" \
             -pr:h "$script_dir/conan/profiles/pico4-arm64" \
             -pr:b default --build=missing --build='qt/*'
@@ -608,7 +638,7 @@ download_prebuilt_dependencies() {
     local base_url="https://github.com/noah-be/overte/releases/download/${prebuilt_tag}"
     local download_dir asset
 
-    command -v conan >/dev/null || fail "Conan 2 is not installed or not in PATH (install: $conan_install_url)"
+    find_conan >/dev/null || fail "Conan 2 was not found (install: $conan_install_url)"
     command -v curl >/dev/null || fail "curl is not installed or not in PATH"
     [[ -f "$checksums" ]] || fail "prebuilt checksum manifest not found: $checksums"
     download_dir="$(mktemp -d)"
@@ -622,8 +652,8 @@ download_prebuilt_dependencies() {
     done < "$checksums"
 
     (cd "$download_dir" && sha256sum --check "$checksums")
-    conan cache restore "$download_dir/pico4-qt-conan.tgz"
-    conan cache restore "$download_dir/pico4-node-conan.tgz"
+    run_conan cache restore "$download_dir/pico4-qt-conan.tgz"
+    run_conan cache restore "$download_dir/pico4-node-conan.tgz"
     tar -xzf "$download_dir/pico4-runtime.tgz" -C "$script_dir"
     echo "Restored prebuilt Pico Qt, Node, and runtime artifacts"
     rm -rf -- "$download_dir"
