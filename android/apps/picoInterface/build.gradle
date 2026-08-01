@@ -115,8 +115,13 @@ tasks.register('preparePicoQtRuntime', Copy) {
             'libQt5VersitOrganizer_arm64-v8a.so',
             'libQt5Versit_arm64-v8a.so'
     }
-    from(file('.cxx/Debug/4i1c3k49/arm64-v8a/interface/Debug/plugins')) {
-        include 'libopenxr.so'
+    from({
+        def plugins = fileTree(new File(projectDir, '.cxx')) {
+            include '**/interface/Debug/plugins/libopenxr.so'
+        }.files
+        def newestPlugin = plugins ? plugins.max { it.lastModified() } : null
+        newestPlugin ?: []
+    }) {
         // PluginManager only scans libplugins_lib*.so on Android.
         rename 'libopenxr.so', 'libplugins_libopenxr.so'
     }
@@ -217,12 +222,14 @@ android {
         // The runtime unpacks these CMake-produced assets into its cache on startup.
         // Ensure they are generated before merging and include the manifest expected
         // by HifiUtils.upackAssets().
-        def nativeResourcesRcc = file("${buildDir}/intermediates/cxx/Debug/4i1c3k49/obj/arm64-v8a/resources.rcc")
+        def nativeResourcesRcc = fileTree(new File(projectDir, '.cxx')) {
+            include '**/android/apps/picoInterface/libraries/interface/resources.rcc'
+        }
         variant.externalNativeBuildTasks.each { task ->
             variant.mergeResources.dependsOn(task)
             variant.mergeAssets.dependsOn(task)
         }
-        variant.mergeAssets.inputs.file(nativeResourcesRcc)
+        variant.mergeAssets.inputs.files(nativeResourcesRcc)
         variant.mergeAssets.inputs.dir(file("${projectDir}/../../../interface/resources"))
         // System scripts are copied into the merged asset directory below.
         // Declare them as task inputs so incremental builds do not silently
@@ -233,9 +240,10 @@ android {
             def assetList = new LinkedList<String>()
             def youngestLastModified = 0
             def mergedAssetsDir = outputDir.get().asFile
-            def generatedResourcesRcc = fileTree(new File(projectDir, '.cxx')) {
-                include '**/android/apps/picoInterface/libraries/interface/resources.rcc'
-            }.files.max { it.lastModified() }
+            def generatedResourcesRcc = nativeResourcesRcc.files.max { it.lastModified() }
+            if (generatedResourcesRcc == null) {
+                throw new GradleException('The native build did not generate resources.rcc')
+            }
 
             copy {
                 from new File(projectDir, '../../../interface/compiledResources')
@@ -251,7 +259,7 @@ android {
                 // CMake's post-build copy is not run when only resources.rcc
                 // changes. Select the freshly generated RCC directly instead
                 // of silently packaging the stale obj-directory copy.
-                from generatedResourcesRcc ?: nativeResourcesRcc
+                from generatedResourcesRcc
                 into mergedAssetsDir
                 eachFile { details ->
                     youngestLastModified = Math.max(youngestLastModified, details.lastModified)
