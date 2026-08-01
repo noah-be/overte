@@ -617,6 +617,8 @@ download_prebuilt_dependencies() {
     conan cache restore "$download_dir/pico4-node-conan.tgz"
     tar -xzf "$download_dir/pico4-runtime.tgz" -C "$script_dir"
     echo "Restored prebuilt Pico Qt, Node, and runtime artifacts"
+    rm -rf -- "$download_dir"
+    trap - RETURN
 
     install_dependencies
 }
