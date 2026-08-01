@@ -350,10 +350,9 @@ dependencies {
     implementation 'com.google.guava:guava:23.0'
 }
 
-// Conan's Android OpenSSL build carries versioned SONAMEs, while Android's JNI
-// packager installs the primary copies as libssl.so/libcrypto.so. Keep the
-// OpenSSL files themselves untouched: PicoInterfaceActivity preloads crypto
-// before ssl, allowing the loader to resolve their original 1.1 SONAMEs.
+// PicoInterfaceActivity preloads crypto before ssl so Android can resolve the
+// original OpenSSL 1.1 SONAMEs. Do not rewrite any ELF metadata here: older
+// patchelf versions corrupt Android symbol and version string tables.
 tasks.configureEach { task ->
     if (task.name.startsWith('merge') && task.name.endsWith('JniLibFolders')) {
         task.dependsOn tasks.named('preparePicoQtRuntime')
@@ -366,17 +365,6 @@ tasks.configureEach { task ->
                 }
                 if (library.name == 'libQt5Core_arm64-v8a.so') {
                     ant.copy(file: picoPatchedQtCore, tofile: library, overwrite: true)
-                }
-                if (!(library.name in [
-                        'libcrypto.so', 'libssl.so',
-                        'libcrypto_1_1.so', 'libssl_1_1.so'])) {
-                    exec {
-                        commandLine 'patchelf',
-                            '--replace-needed', 'libssl.so.1.1', 'libssl.so',
-                            '--replace-needed', 'libcrypto.so.1.1', 'libcrypto.so',
-                            library.absolutePath
-                        ignoreExitValue true
-                    }
                 }
             }
         }
