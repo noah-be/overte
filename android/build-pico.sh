@@ -7,6 +7,7 @@ jobs="${PICO_BUILD_JOBS:-$(nproc)}"
 command_name="${1:-all}"
 command_option="${2:-}"
 prebuilt_tag="pico4-deps-v1"
+android_cmake_version="3.31.6"
 android_tools_url="https://developer.android.com/studio"
 android_repository_url="https://dl.google.com/android/repository/repository2-1.xml"
 platform_tools_url="https://developer.android.com/tools/releases/platform-tools"
@@ -130,6 +131,14 @@ doctor() {
         else
             doctor_error "Android SDK Build-Tools 36.0.0 is missing"
             echo "           Install with SDK Manager: sdkmanager \"build-tools;36.0.0\""
+            echo "           Help: $android_tools_url"
+        fi
+
+        if [[ -x "$sdk_path/cmake/$android_cmake_version/bin/cmake" ]]; then
+            doctor_ok "Android SDK CMake $android_cmake_version"
+        else
+            doctor_error "Android SDK CMake $android_cmake_version is missing"
+            echo "           Install with SDK Manager: sdkmanager \"cmake;$android_cmake_version\""
             echo "           Help: $android_tools_url"
         fi
 
@@ -405,10 +414,10 @@ bootstrap() {
     [[ -z "$java_home" ]] || export JAVA_HOME="$java_home"
     echo "Review and accept the Android SDK component licenses when prompted"
     "$sdkmanager" --sdk_root="$sdk_path" --licenses
-    echo "Installing Android SDK Platform 36, Build-Tools, NDK, and Platform-Tools"
+    echo "Installing Android SDK Platform 36, Build-Tools, CMake, NDK, and Platform-Tools"
     "$sdkmanager" --sdk_root="$sdk_path" \
         "platforms;android-36" "build-tools;36.0.0" \
-        "ndk;27.3.13750724" "platform-tools"
+        "cmake;$android_cmake_version" "ndk;27.3.13750724" "platform-tools"
     export ANDROID_SDK_ROOT="$sdk_path"
     export ANDROID_HOME="$sdk_path"
 
