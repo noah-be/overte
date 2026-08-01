@@ -681,7 +681,7 @@ install_apk() {
             echo "The installed org.overte.pico app was signed with a different key." >&2
             echo "Android cannot update it with this development APK." >&2
             echo "Uninstall the existing app first (this deletes its local app data):" >&2
-            echo "  adb -s $serial uninstall org.overte.pico" >&2
+            printf '  %q -s %q uninstall org.overte.pico\n' "$adb" "$serial" >&2
             echo "Then retry:" >&2
             echo "  ./build-pico.sh install" >&2
             exit 2
