@@ -7,16 +7,23 @@ links into a Conan cache are intentionally not tracked.
 
 ## One-command build
 
-Once the Pico Conan dependencies and patched Qt build exist locally, the
-wrapper detects their cache locations, the Android SDK, and the Android Studio
-JDK automatically:
+For a fresh development environment, install the Conan dependencies, prepare
+the runtime files, and build the APK with:
+
+```bash
+./build-pico.sh setup
+```
+
+The first setup may take a long time because Qt must be built from source.
+Later builds detect the existing Conan cache locations, Android SDK, and
+Android Studio JDK automatically and can use the faster command:
 
 ```bash
 ./build-pico.sh
 ```
 
-This prepares the runtime files and builds the debug APK. Individual stages
-can be run with `./build-pico.sh prepare` and `./build-pico.sh build`. Use
+Individual stages can be run with `./build-pico.sh deps`,
+`./build-pico.sh prepare`, and `./build-pico.sh build`. Use
 `./build-pico.sh --help` for supported path overrides.
 
 ## Manual dependency preparation

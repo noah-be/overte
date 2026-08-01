@@ -13,11 +13,13 @@ fail() {
 
 usage() {
     cat <<'EOF'
-Usage: ./build-pico.sh [prepare|build|all]
+Usage: ./build-pico.sh [deps|prepare|build|all|setup]
 
+  deps     Install target dependencies and native shader tools with Conan
   prepare  Locate and stage the existing Conan/Qt dependencies
   build    Build the Pico debug APK
   all      Prepare dependencies and build the APK (default)
+  setup    Install dependencies, prepare them, and build the APK
 
 Detected paths can be overridden with ANDROID_SDK_ROOT, JAVA_HOME,
 PICO_QT_SOURCE_DIR, PICO_QT_BUILD_DIR, PICO_TBB_PACKAGE_DIR,
@@ -112,6 +114,46 @@ detect_dependencies() {
     echo "Draco package: $PICO_DRACO_PACKAGE_DIR"
 }
 
+install_dependencies() {
+    command -v conan >/dev/null || fail "Conan 2 is not installed or not in PATH"
+    detect_sdk
+    export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/27.3.13750724}"
+    [[ -d "$ANDROID_NDK_HOME" ]] \
+        || fail "Android NDK 27.3.13750724 not found: $ANDROID_NDK_HOME"
+
+    echo "Exporting local Pico recipes"
+    conan export "$script_dir/conan/recipes/libnode"
+    conan export "$script_dir/conan/recipes/nvidia-texture-tools"
+    conan export "$script_dir/conan/recipes/onetbb-local" --version=2021.10.0
+
+    echo "Installing native shader tools"
+    conan install "$script_dir/conan/conanfile-pico-host-tools.py" \
+        -of "$script_dir/conan/pico4-host" \
+        -pr:h default -pr:b default --build=missing
+
+    echo "Installing Android ARM64 dependencies"
+    conan install "$script_dir/conan/conanfile-pico.py" \
+        -of "$script_dir/conan/pico4-debug" \
+        -pr:h "$script_dir/conan/profiles/pico4-arm64" \
+        -pr:b default --build=missing
+
+    echo "Installing the Android ARM64 release TBB runtime"
+    conan install --requires=onetbb/2021.10.0 \
+        -of "$script_dir/conan/pico4-tbb-release" \
+        -pr:h "$script_dir/conan/profiles/pico4-arm64" \
+        -pr:b default -s:h build_type=Release --build=missing
+
+    if [[ -z "$(newest_match '*/qt*/b/build_folder/qtbase/lib/libQt5Core_arm64-v8a.so')" ]]; then
+        echo "No local Qt build tree found; building Qt from source (this can take a long time)"
+        conan install "$script_dir/conan/conanfile-pico.py" \
+            -of "$script_dir/conan/pico4-debug" \
+            -pr:h "$script_dir/conan/profiles/pico4-arm64" \
+            -pr:b default --build=missing --build='qt/*'
+    fi
+
+    echo "Installed Pico dependencies"
+}
+
 prepare() {
     detect_dependencies
     PICO_BUILD_JOBS="$jobs" "$script_dir/prepare-pico-deps.sh"
@@ -129,9 +171,11 @@ build() {
 }
 
 case "$command_name" in
+    deps) install_dependencies ;;
     prepare) prepare ;;
     build) build ;;
     all) prepare; build ;;
+    setup) install_dependencies; prepare; build ;;
     help|-h|--help) usage ;;
     *) usage >&2; fail "unknown command: $command_name" ;;
 esac
