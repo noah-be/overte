@@ -346,7 +346,7 @@ android {
 }
 
 dependencies {
-    implementation fileTree(dir: '../../libraries/qt/libs', include: ['*.jar'])
+    implementation fileTree(dir: new File(qtPackageDir, 'jar'), include: ['*.jar'])
     implementation 'com.google.guava:guava:23.0'
 }
 
