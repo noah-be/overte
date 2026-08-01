@@ -7,9 +7,52 @@ SPDX-License-Identifier: Apache-2.0
 
 # Build Android
 
+## Pico 4 (current Linux workflow)
+
+The Pico 4 client has a maintained command-line build workflow for Linux. It
+checks the development environment, installs supported prerequisites, downloads
+checksum-verified prebuilt Qt and Node packages, builds the APK, and can install
+and start it on a USB-connected Pico 4.
+
+For a new development environment, run:
+
+```bash
+cd android
+./build-pico.sh bootstrap --with-deps
+./build-pico.sh
+```
+
+The bootstrap may request administrator access for missing system packages and
+prompts for Android SDK license acceptance when required. If the Android
+command-line tools have not been installed yet, it prints the official download
+page and explains how to continue.
+
+To inspect the machine without making changes, use:
+
+```bash
+cd android
+./build-pico.sh doctor
+```
+
+To build, install, and automatically start the client on an authorized
+USB-connected headset, use:
+
+```bash
+cd android
+./build-pico.sh deploy
+```
+
+See the [complete Pico 4 build guide](android/PICO4_BUILD.md) for prerequisites,
+individual build stages, the source-build fallback, device selection, path
+overrides, and troubleshooting information.
+
+## Legacy Quest 1 workflow
+
 *Last Updated on December 15, 2020*
 > [!WARNING]  
-> Android building is currently broken, due to breaking changes in Qt and Gradle. Help with updating (or rewriting) the Gradle scripts would be great.
+> The historical Quest 1 workflow below is currently broken due to breaking
+> changes in Qt and Gradle. This warning does not apply to the Pico 4 workflow
+> documented above.
 
 Please read the [general build guide](BUILD.md) for information on building other platforms. Only Android specific instructions are found in this file. **Note that these instructions apply to building for the Oculus Quest 1.**
 
