@@ -10,6 +10,7 @@ runtime_dir="${script_dir}/apps/picoInterface/src/main/runtime-overrides/arm64-v
 host_tools_dir="${script_dir}/pico-host-tools"
 precompiled_dir="${script_dir}/pico-precompiled-compat"
 patch_file="${script_dir}/conan/patches/qt-pico-android-runtime.patch"
+prebuilt_marker="${runtime_dir}/.prebuilt-runtime"
 
 require_dir() {
     local variable_name="$1"
@@ -28,44 +29,59 @@ require_file() {
     fi
 }
 
-require_dir PICO_QT_SOURCE_DIR "$qt_source_dir"
-require_dir PICO_QT_BUILD_DIR "$qt_build_dir"
-require_dir PICO_TBB_PACKAGE_DIR "$tbb_package_dir"
 require_dir PICO_DRACO_PACKAGE_DIR "$draco_package_dir"
 
-patch_applied=0
-if git -C "$qt_source_dir" apply --reverse --check "$patch_file" >/dev/null 2>&1; then
-    echo "Qt Pico patch already applied"
-else
-    git -C "$qt_source_dir" apply --check "$patch_file"
-    git -C "$qt_source_dir" apply "$patch_file"
-    patch_applied=1
-    echo "Applied Qt Pico runtime patch"
-fi
-
-if [[ "$patch_applied" == "1" || "${PICO_REBUILD_QT:-0}" == "1" ]]; then
-    echo "Building patched Qt runtime"
-    make -C "$qt_build_dir/qtbase" -j"${PICO_BUILD_JOBS:-$(nproc)}"
-fi
-
-qt_core="$qt_build_dir/qtbase/lib/libQt5Core_arm64-v8a.so"
-qt_platform="$qt_build_dir/qtbase/plugins/platforms/libplugins_platforms_qtforandroid_arm64-v8a.so"
-tbb_runtime="$tbb_package_dir/lib/libtbb.so"
 draco_include="$draco_package_dir/include"
 draco_library="$draco_package_dir/lib/libdraco.a"
 
-for file in "$qt_core" "$qt_platform" "$tbb_runtime" "$draco_library"; do
-    require_file "$file"
-done
+require_file "$draco_library"
 require_dir PICO_DRACO_PACKAGE_DIR "$draco_include"
+
+if [[ -f "$prebuilt_marker" ]]; then
+    echo "Using downloaded Pico runtime libraries"
+    for file in \
+        "$runtime_dir/libQt5Core_arm64-v8a.so" \
+        "$runtime_dir/libplugins_platforms_qtforandroid_arm64-v8a.so" \
+        "$runtime_dir/libtbb.so"; do
+        require_file "$file"
+    done
+else
+    require_dir PICO_QT_SOURCE_DIR "$qt_source_dir"
+    require_dir PICO_QT_BUILD_DIR "$qt_build_dir"
+    require_dir PICO_TBB_PACKAGE_DIR "$tbb_package_dir"
+
+    patch_applied=0
+    if git -C "$qt_source_dir" apply --reverse --check "$patch_file" >/dev/null 2>&1; then
+        echo "Qt Pico patch already applied"
+    else
+        git -C "$qt_source_dir" apply --check "$patch_file"
+        git -C "$qt_source_dir" apply "$patch_file"
+        patch_applied=1
+        echo "Applied Qt Pico runtime patch"
+    fi
+
+    if [[ "$patch_applied" == "1" || "${PICO_REBUILD_QT:-0}" == "1" ]]; then
+        echo "Building patched Qt runtime"
+        make -C "$qt_build_dir/qtbase" -j"${PICO_BUILD_JOBS:-$(nproc)}"
+    fi
+
+    qt_core="$qt_build_dir/qtbase/lib/libQt5Core_arm64-v8a.so"
+    qt_platform="$qt_build_dir/qtbase/plugins/platforms/libplugins_platforms_qtforandroid_arm64-v8a.so"
+    tbb_runtime="$tbb_package_dir/lib/libtbb.so"
+    for file in "$qt_core" "$qt_platform" "$tbb_runtime"; do
+        require_file "$file"
+    done
+fi
 
 install -d "$runtime_dir" "$host_tools_dir" \
     "$precompiled_dir/breakpad/lib" "$precompiled_dir/draco/include" \
     "$precompiled_dir/draco/lib"
-install -m 0755 "$qt_core" "$runtime_dir/libQt5Core_arm64-v8a.so"
-install -m 0755 "$qt_platform" \
-    "$runtime_dir/libplugins_platforms_qtforandroid_arm64-v8a.so"
-install -m 0755 "$tbb_runtime" "$runtime_dir/libtbb.so"
+if [[ ! -f "$prebuilt_marker" ]]; then
+    install -m 0755 "$qt_core" "$runtime_dir/libQt5Core_arm64-v8a.so"
+    install -m 0755 "$qt_platform" \
+        "$runtime_dir/libplugins_platforms_qtforandroid_arm64-v8a.so"
+    install -m 0755 "$tbb_runtime" "$runtime_dir/libtbb.so"
+fi
 
 for tool in glslangValidator scribe spirv-cross spirv-opt; do
     case "$tool" in

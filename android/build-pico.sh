@@ -5,6 +5,8 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 conan_home="${CONAN_HOME:-${HOME}/.conan2}"
 jobs="${PICO_BUILD_JOBS:-$(nproc)}"
 command_name="${1:-all}"
+command_option="${2:-}"
+prebuilt_tag="pico4-deps-v1"
 
 fail() {
     echo "error: $*" >&2
@@ -13,9 +15,9 @@ fail() {
 
 usage() {
     cat <<'EOF'
-Usage: ./build-pico.sh [deps|prepare|build|install|all|deploy|setup]
+Usage: ./build-pico.sh [deps|prepare|build|install|all|deploy|setup] [--download]
 
-  deps     Install target dependencies and native shader tools with Conan
+  deps     Install dependencies; use --download for prebuilt Qt and Node
   prepare  Locate and stage the existing Conan/Qt dependencies
   build    Build the Pico debug APK
   install  Install the existing APK on a connected Pico via ADB
@@ -81,26 +83,28 @@ detect_jdk() {
 detect_dependencies() {
     local qt_build qt_source draco_package tbb_package
 
-    qt_build="${PICO_QT_BUILD_DIR:-$(newest_match '*/qt*/b/build_folder/qtbase/lib/libQt5Core_arm64-v8a.so')}"
-    [[ -n "$qt_build" ]] || fail "patched Qt build not found; set PICO_QT_BUILD_DIR"
-    [[ "$qt_build" != *.so ]] || qt_build="${qt_build%/qtbase/lib/libQt5Core_arm64-v8a.so}"
-    qt_source="${PICO_QT_SOURCE_DIR:-${qt_build%/build_folder}/qt5}"
-    [[ -d "$qt_source" ]] || fail "matching Qt source not found; set PICO_QT_SOURCE_DIR"
-
     draco_package="${PICO_DRACO_PACKAGE_DIR:-$(newest_match '*/draco*/p/lib/libdraco.a')}"
     [[ -n "$draco_package" ]] || fail "Draco Conan package not found; set PICO_DRACO_PACKAGE_DIR"
     [[ "$draco_package" != *.a ]] || draco_package="${draco_package%/lib/libdraco.a}"
 
-    tbb_package="${PICO_TBB_PACKAGE_DIR:-$(newest_match '*/onetb*/p/lib/libtbb.so')}"
-    [[ -n "$tbb_package" ]] || fail "release TBB Conan package not found; set PICO_TBB_PACKAGE_DIR"
-    [[ "$tbb_package" != *.so ]] || tbb_package="${tbb_package%/lib/libtbb.so}"
-    file "$tbb_package/lib/libtbb.so" | grep -Eq 'ARM aarch64|ARM64' \
-        || fail "TBB runtime is not Android ARM64: $tbb_package/lib/libtbb.so"
-
-    export PICO_QT_BUILD_DIR="$qt_build"
-    export PICO_QT_SOURCE_DIR="$qt_source"
     export PICO_DRACO_PACKAGE_DIR="$draco_package"
-    export PICO_TBB_PACKAGE_DIR="$tbb_package"
+    if [[ ! -f "$script_dir/apps/picoInterface/src/main/runtime-overrides/arm64-v8a/.prebuilt-runtime" ]]; then
+        qt_build="${PICO_QT_BUILD_DIR:-$(newest_match '*/qt*/b/build_folder/qtbase/lib/libQt5Core_arm64-v8a.so')}"
+        [[ -n "$qt_build" ]] || fail "patched Qt build not found; set PICO_QT_BUILD_DIR"
+        [[ "$qt_build" != *.so ]] || qt_build="${qt_build%/qtbase/lib/libQt5Core_arm64-v8a.so}"
+        qt_source="${PICO_QT_SOURCE_DIR:-${qt_build%/build_folder}/qt5}"
+        [[ -d "$qt_source" ]] || fail "matching Qt source not found; set PICO_QT_SOURCE_DIR"
+
+        tbb_package="${PICO_TBB_PACKAGE_DIR:-$(newest_match '*/onetb*/p/lib/libtbb.so')}"
+        [[ -n "$tbb_package" ]] || fail "release TBB Conan package not found; set PICO_TBB_PACKAGE_DIR"
+        [[ "$tbb_package" != *.so ]] || tbb_package="${tbb_package%/lib/libtbb.so}"
+        file "$tbb_package/lib/libtbb.so" | grep -Eq 'ARM aarch64|ARM64' \
+            || fail "TBB runtime is not Android ARM64: $tbb_package/lib/libtbb.so"
+
+        export PICO_QT_BUILD_DIR="$qt_build"
+        export PICO_QT_SOURCE_DIR="$qt_source"
+        export PICO_TBB_PACKAGE_DIR="$tbb_package"
+    fi
     export PICO_GLSLANG_VALIDATOR="${PICO_GLSLANG_VALIDATOR:-$(newest_host_tool '*/glsl*/p/bin/glslang')}"
     export PICO_SCRIBE="${PICO_SCRIBE:-$(newest_host_tool '*/scrib*/p/tools/scribe')}"
     export PICO_SPIRV_CROSS="${PICO_SPIRV_CROSS:-$(newest_host_tool '*/spirv*/p/bin/spirv-cross')}"
@@ -111,8 +115,12 @@ detect_dependencies() {
         [[ -x "${!tool:-}" ]] || fail "host tool $tool not found; set it explicitly"
     done
 
-    echo "Qt build: $PICO_QT_BUILD_DIR"
-    echo "TBB package: $PICO_TBB_PACKAGE_DIR"
+    if [[ -f "$script_dir/apps/picoInterface/src/main/runtime-overrides/arm64-v8a/.prebuilt-runtime" ]]; then
+        echo "Runtime: downloaded prebuilt artifacts"
+    else
+        echo "Qt build: $PICO_QT_BUILD_DIR"
+        echo "TBB package: $PICO_TBB_PACKAGE_DIR"
+    fi
     echo "Draco package: $PICO_DRACO_PACKAGE_DIR"
 }
 
@@ -122,6 +130,22 @@ install_dependencies() {
     export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$ANDROID_SDK_ROOT/ndk/27.3.13750724}"
     [[ -d "$ANDROID_NDK_HOME" ]] \
         || fail "Android NDK 27.3.13750724 not found: $ANDROID_NDK_HOME"
+
+    if ! perl -MEnglish -e 1 >/dev/null 2>&1; then
+        local perl_module_dir="$script_dir/pico-host-tools/perl"
+        local perl_module="$perl_module_dir/English.pm"
+        command -v curl >/dev/null || fail "curl is required to install the Perl English module"
+        install -d "$perl_module_dir"
+        if [[ ! -f "$perl_module" ]]; then
+            echo "Downloading the Perl English module required by Qt"
+            curl --fail --location --retry 3 --output "$perl_module" \
+                https://raw.githubusercontent.com/Perl/perl5/v5.42.0/lib/English.pm
+        fi
+        echo "f857b95e26385272525a7519267c8c63648d692608b7633b46d267c38092ccb3  $perl_module" \
+            | sha256sum --check --status \
+            || fail "invalid checksum for downloaded Perl English module"
+        export PERL5LIB="$perl_module_dir${PERL5LIB:+:$PERL5LIB}"
+    fi
 
     echo "Exporting local Pico recipes"
     conan export "$script_dir/conan/recipes/libnode"
@@ -145,7 +169,8 @@ install_dependencies() {
         -pr:h "$script_dir/conan/profiles/pico4-arm64" \
         -pr:b default -s:h build_type=Release --build=missing
 
-    if [[ -z "$(newest_match '*/qt*/b/build_folder/qtbase/lib/libQt5Core_arm64-v8a.so')" ]]; then
+    if [[ ! -f "$script_dir/apps/picoInterface/src/main/runtime-overrides/arm64-v8a/.prebuilt-runtime" \
+        && -z "$(newest_match '*/qt*/b/build_folder/qtbase/lib/libQt5Core_arm64-v8a.so')" ]]; then
         echo "No local Qt build tree found; building Qt from source (this can take a long time)"
         conan install "$script_dir/conan/conanfile-pico.py" \
             -of "$script_dir/conan/pico4-debug" \
@@ -154,6 +179,33 @@ install_dependencies() {
     fi
 
     echo "Installed Pico dependencies"
+}
+
+download_prebuilt_dependencies() {
+    local checksums="$script_dir/conan/prebuilt/${prebuilt_tag}.sha256"
+    local base_url="https://github.com/noah-be/overte/releases/download/${prebuilt_tag}"
+    local download_dir asset
+
+    command -v conan >/dev/null || fail "Conan 2 is not installed or not in PATH"
+    command -v curl >/dev/null || fail "curl is not installed or not in PATH"
+    [[ -f "$checksums" ]] || fail "prebuilt checksum manifest not found: $checksums"
+    download_dir="$(mktemp -d)"
+    trap 'rm -rf -- "$download_dir"' RETURN
+
+    while read -r _ asset; do
+        [[ -n "$asset" ]] || continue
+        echo "Downloading $asset"
+        curl --fail --location --retry 3 \
+            --output "$download_dir/$asset" "$base_url/$asset"
+    done < "$checksums"
+
+    (cd "$download_dir" && sha256sum --check "$checksums")
+    conan cache restore "$download_dir/pico4-qt-conan.tgz"
+    conan cache restore "$download_dir/pico4-node-conan.tgz"
+    tar -xzf "$download_dir/pico4-runtime.tgz" -C "$script_dir"
+    echo "Restored prebuilt Pico Qt, Node, and runtime artifacts"
+
+    install_dependencies
 }
 
 prepare() {
@@ -210,13 +262,31 @@ install_apk() {
 }
 
 case "$command_name" in
-    deps) install_dependencies ;;
+    deps)
+        if [[ "$command_option" == "--download" ]]; then
+            download_prebuilt_dependencies
+        elif [[ -z "$command_option" ]]; then
+            install_dependencies
+        else
+            fail "unsupported deps option: $command_option"
+        fi
+        ;;
     prepare) prepare ;;
     build) build ;;
     install) install_apk ;;
     all) prepare; build ;;
     deploy) prepare; build; install_apk ;;
-    setup) install_dependencies; prepare; build ;;
+    setup)
+        if [[ "$command_option" == "--download" ]]; then
+            download_prebuilt_dependencies
+        elif [[ -z "$command_option" ]]; then
+            install_dependencies
+        else
+            fail "unsupported setup option: $command_option"
+        fi
+        prepare
+        build
+        ;;
     help|-h|--help) usage ;;
     *) usage >&2; fail "unknown command: $command_name" ;;
 esac

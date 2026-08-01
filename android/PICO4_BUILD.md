@@ -16,12 +16,21 @@ For a fresh development environment, install the Conan dependencies, prepare
 the runtime files, and build the APK with:
 
 ```bash
+./build-pico.sh setup --download
+```
+
+This downloads checksum-verified, prebuilt Qt and Node Conan packages plus the
+patched Pico runtime from the `pico4-deps-v1` GitHub release. The remaining,
+smaller dependencies are resolved normally through Conan. To build every
+dependency locally from source instead, omit `--download`; that first build
+can take several hours:
+
+```bash
 ./build-pico.sh setup
 ```
 
-The first setup may take a long time because Qt must be built from source.
 Later builds detect the existing Conan cache locations, Android SDK, and
-Android Studio JDK automatically and can use the faster command:
+Android Studio JDK automatically and use the faster command:
 
 ```bash
 ./build-pico.sh
@@ -30,6 +39,12 @@ Android Studio JDK automatically and can use the faster command:
 Individual stages can be run with `./build-pico.sh deps`,
 `./build-pico.sh prepare`, and `./build-pico.sh build`. Use
 `./build-pico.sh --help` for supported path overrides.
+
+To only download and install the prebuilt dependencies, use:
+
+```bash
+./build-pico.sh deps --download
+```
 
 ## Install on a Pico 4
 
