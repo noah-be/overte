@@ -199,7 +199,14 @@ install_apk() {
 
     echo "Installing APK on $serial"
     "$adb" -s "$serial" install -r "$apk"
-    echo "Installed org.overte.pico on $serial"
+    echo "Starting org.overte.pico on $serial"
+    "$adb" -s "$serial" shell am start -W \
+        -a android.intent.action.MAIN \
+        -c android.intent.category.LAUNCHER \
+        -n org.overte.pico/.PermissionsActivity
+    "$adb" -s "$serial" shell pidof org.overte.pico >/dev/null \
+        || fail "the APK was installed, but org.overte.pico did not stay running"
+    echo "Installed and started org.overte.pico on $serial"
 }
 
 case "$command_name" in

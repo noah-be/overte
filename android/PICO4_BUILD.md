@@ -34,8 +34,8 @@ Individual stages can be run with `./build-pico.sh deps`,
 ## Install on a Pico 4
 
 Enable developer mode and USB debugging on the headset, connect it over USB,
-and accept the authorization prompt inside the headset. Then install an
-already built APK with:
+and accept the authorization prompt inside the headset. Then install and start
+an already built APK with:
 
 ```bash
 ./build-pico.sh install
@@ -49,7 +49,9 @@ To prepare dependencies, build, and install in one step, use:
 
 The command requires exactly one authorized ADB device. If several devices
 are connected, select one with `ANDROID_SERIAL=<serial>`. Existing app data is
-preserved because installation uses ADB's replace mode.
+preserved because installation uses ADB's replace mode. After installation,
+the launcher activity starts automatically and the script verifies that the
+app process remains active.
 
 ## Manual dependency preparation
 
