@@ -17,9 +17,11 @@ The bootstrap supports Fedora, Debian/Ubuntu, Arch Linux, and openSUSE. It may
 request administrator access for missing system packages and Android SDK
 license acceptance. When the operating system only provides a newer,
 incompatible Java version, the bootstrap installs a checksum-verified Eclipse
-Temurin 21 JDK locally. If the base Android command-line tools are not
-installed, the script prints Google's official download page. Install those
-tools, then run the bootstrap command again.
+Temurin 21 JDK locally. If the base Android command-line tools are missing, the
+script displays Google's license page, asks for explicit acceptance, and then
+downloads and checksum-verifies the current official Linux tools. Android SDK
+Platform 36, Build-Tools 36.0.0, the NDK, and ADB are installed afterward with
+`sdkmanager`.
 
 With an authorized Pico 4 connected over USB, build the APK, install it, and
 start the client:

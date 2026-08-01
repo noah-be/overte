@@ -24,8 +24,9 @@ cd android
 
 The bootstrap may request administrator access for missing system packages and
 prompts for Android SDK license acceptance when required. If the Android
-command-line tools have not been installed yet, it prints the official download
-page and explains how to continue.
+command-line tools have not been installed yet, it asks for explicit acceptance
+of Google's license terms before downloading and checksum-verifying the
+official tools automatically.
 
 To inspect the machine without making changes, use:
 

@@ -8,6 +8,7 @@ command_name="${1:-all}"
 command_option="${2:-}"
 prebuilt_tag="pico4-deps-v1"
 android_tools_url="https://developer.android.com/studio"
+android_repository_url="https://dl.google.com/android/repository/repository2-1.xml"
 platform_tools_url="https://developer.android.com/tools/releases/platform-tools"
 conan_install_url="https://docs.conan.io/2/installation.html"
 cmake_install_url="https://cmake.org/download/"
@@ -92,7 +93,7 @@ doctor() {
         fi
     done
 
-    for tool in file make ar tar sha256sum; do
+    for tool in file make ar tar sha1sum sha256sum; do
         if command_path="$(command -v "$tool" 2>/dev/null)"; then
             doctor_ok "$tool ($command_path)"
         else
@@ -195,7 +196,7 @@ run_as_root() {
 
 install_system_packages() {
     local needs_packages=0 tool
-    for tool in git curl cmake ninja python3 perl file make ar tar sha256sum unzip; do
+    for tool in git curl cmake ninja python3 perl file make ar tar sha1sum sha256sum unzip; do
         command -v "$tool" >/dev/null 2>&1 || needs_packages=1
     done
     command -v conan >/dev/null 2>&1 || command -v pipx >/dev/null 2>&1 || needs_packages=1
@@ -208,7 +209,7 @@ install_system_packages() {
     echo "Installing missing system build tools (administrator access may be requested)"
     if command -v dnf >/dev/null; then
         run_as_root dnf install -y git curl cmake ninja-build python3 python3-pip \
-            pipx perl file make binutils tar coreutils unzip
+            pipx perl-interpreter file make binutils tar coreutils unzip
     elif command -v apt-get >/dev/null; then
         run_as_root apt-get update
         run_as_root apt-get install -y git curl cmake ninja-build python3 python3-pip \
@@ -222,6 +223,67 @@ install_system_packages() {
     else
         fail "unsupported package manager; install the items reported by ./build-pico.sh doctor"
     fi
+}
+
+install_android_command_line_tools() {
+    local sdk_path="$1" metadata download_name checksum checksum_type
+    local download_dir archive extracted_tools
+
+    if [[ ! -t 0 ]]; then
+        fail "Android command-line tools require interactive license acceptance (install: $android_tools_url)"
+    fi
+    echo
+    echo "The Android command-line tools are subject to the Android SDK License Agreement:"
+    echo "$android_tools_url"
+    read -r -p "Have you read and accepted the Android SDK License Agreement? [y/N] " answer
+    case "$answer" in
+        y|Y|yes|YES) ;;
+        *) fail "Android SDK license acceptance is required to install the command-line tools" ;;
+    esac
+
+    echo "Resolving the latest official Android command-line tools"
+    metadata="$(curl --fail --location --retry 3 --silent --show-error \
+        "$android_repository_url")"
+    read -r download_name checksum checksum_type < <(python3 -c '
+import sys, xml.etree.ElementTree as ET
+root = ET.parse(sys.stdin).getroot()
+for package in root.findall("remotePackage"):
+    if package.get("path") != "cmdline-tools;latest":
+        continue
+    for archive in package.findall("./archives/archive"):
+        if archive.findtext("host-os") == "linux":
+            complete = archive.find("complete")
+            checksum = complete.find("checksum")
+            print(complete.findtext("url"), checksum.text, checksum.get("type", "sha1"))
+            raise SystemExit
+raise SystemExit("no Linux command-line tools found in the Android repository")
+' <<< "$metadata")
+    [[ -n "$download_name" && -n "$checksum" ]] \
+        || fail "the Android repository returned incomplete command-line tools metadata"
+
+    download_dir="$(mktemp -d)"
+    archive="$download_dir/android-command-line-tools.zip"
+    trap 'rm -rf -- "$download_dir"' RETURN
+    echo "Downloading Android command-line tools"
+    curl --fail --location --retry 3 --output "$archive" \
+        "https://dl.google.com/android/repository/$download_name"
+    case "$checksum_type" in
+        sha1) echo "$checksum  $archive" | sha1sum --check --status ;;
+        sha256) echo "$checksum  $archive" | sha256sum --check --status ;;
+        *) fail "unsupported Android archive checksum: $checksum_type" ;;
+    esac || fail "invalid checksum for downloaded Android command-line tools"
+
+    unzip -q "$archive" -d "$download_dir/extracted"
+    extracted_tools="$download_dir/extracted/cmdline-tools"
+    [[ -x "$extracted_tools/bin/sdkmanager" ]] \
+        || fail "the Android archive does not contain sdkmanager"
+    install -d "$sdk_path/cmdline-tools"
+    [[ ! -e "$sdk_path/cmdline-tools/latest" ]] \
+        || fail "an incomplete command-line tools installation already exists: $sdk_path/cmdline-tools/latest"
+    mv "$extracted_tools" "$sdk_path/cmdline-tools/latest"
+    rm -rf -- "$download_dir"
+    trap - RETURN
+    echo "Installed Android command-line tools in $sdk_path/cmdline-tools/latest"
 }
 
 install_compatible_jdk() {
@@ -329,27 +391,25 @@ bootstrap() {
         fi
     done
     if [[ -z "$sdk_path" ]]; then
-        echo "Android command-line tools require acceptance of Google's license terms."
-        echo "Install them once from: $android_tools_url"
-        echo "Then rerun this command; SDK 36, NDK, and ADB will be installed automatically."
-    else
-        sdkmanager="$(find_sdkmanager "$sdk_path")"
-        if [[ -z "$sdkmanager" ]]; then
-            echo "Android SDK found at $sdk_path, but sdkmanager is missing."
-            echo "Install the official command-line tools: $android_tools_url"
-        else
-            java_home="$(find_compatible_jdk || true)"
-            [[ -z "$java_home" ]] || export JAVA_HOME="$java_home"
-            echo "Review and accept the Android SDK licenses when prompted"
-            "$sdkmanager" --sdk_root="$sdk_path" --licenses
-            echo "Installing Android SDK Platform 36, NDK, and Platform-Tools"
-            "$sdkmanager" --sdk_root="$sdk_path" \
-                "platforms;android-36" "build-tools;36.0.0" \
-                "ndk;27.3.13750724" "platform-tools"
-            export ANDROID_SDK_ROOT="$sdk_path"
-            export ANDROID_HOME="$sdk_path"
-        fi
+        sdk_path="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-${HOME}/Android/Sdk}}"
     fi
+    sdkmanager="$(find_sdkmanager "$sdk_path")"
+    if [[ -z "$sdkmanager" ]]; then
+        install_android_command_line_tools "$sdk_path"
+        sdkmanager="$(find_sdkmanager "$sdk_path")"
+    fi
+    [[ -x "$sdkmanager" ]] || fail "sdkmanager installation failed"
+
+    java_home="$(find_compatible_jdk || true)"
+    [[ -z "$java_home" ]] || export JAVA_HOME="$java_home"
+    echo "Review and accept the Android SDK component licenses when prompted"
+    "$sdkmanager" --sdk_root="$sdk_path" --licenses
+    echo "Installing Android SDK Platform 36, Build-Tools, NDK, and Platform-Tools"
+    "$sdkmanager" --sdk_root="$sdk_path" \
+        "platforms;android-36" "build-tools;36.0.0" \
+        "ndk;27.3.13750724" "platform-tools"
+    export ANDROID_SDK_ROOT="$sdk_path"
+    export ANDROID_HOME="$sdk_path"
 
     echo
     doctor
