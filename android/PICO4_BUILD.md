@@ -9,6 +9,9 @@ Linux. Run all commands below from the repository's `android/` directory.
 | --- | --- |
 | Fedora Linux 44 | ✅ |
 | Ubuntu 24.04 | ✅ |
+| openSUSE Tumbleweed | ✅ |
+| Arch Linux | ✅ |
+| Debian 13 | ✅ |
 
 ## Quick start
 
