@@ -40,6 +40,8 @@ class AnalyzerTests(unittest.TestCase):
         "cpu_policy4_khz",
         "cpu_policy7_khz",
         "gpu_hz",
+        "fan_rpm",
+        "fan_duty",
     ]
 
     def recording(self, rows):
@@ -150,12 +152,16 @@ class AnalyzerTests(unittest.TestCase):
                     "cpu_policy4_khz": 2_419_200,
                     "cpu_policy7_khz": 2_841_600,
                     "gpu_hz": 587_000_000,
+                    "fan_rpm": 7_000 + second * 10,
+                    "fan_duty": fan_state,
                 }
             )
         summary = MODULE.summarize(self.recording(rows))
         self.assertEqual(summary.brightness_vr_min, 86)
         self.assertEqual(summary.brightness_vr_max, 90)
         self.assertEqual(summary.fan_state_max, 45)
+        self.assertEqual(summary.fan_rpm_median, 7_300)
+        self.assertEqual(summary.fan_duty_max, 45)
         self.assertEqual(summary.cpu_temp_max_c, 85)
         self.assertEqual(summary.refresh_min_hz, summary.refresh_max_hz)
         self.assertEqual(summary.gpu_median_mhz, 587)

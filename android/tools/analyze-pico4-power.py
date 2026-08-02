@@ -69,6 +69,11 @@ class Summary:
     refresh_max_hz: float | None
     fan_state_min: float | None
     fan_state_max: float | None
+    fan_rpm_min: float | None
+    fan_rpm_median: float | None
+    fan_rpm_max: float | None
+    fan_duty_min: float | None
+    fan_duty_max: float | None
     cpu_temp_max_c: float | None
     gpu_temp_max_c: float | None
     skin_temp_max_c: float | None
@@ -207,6 +212,8 @@ def summarize(path: Path) -> Summary:
     brightness_actual = column_numbers(rows, "brightness_actual")
     refresh_rates = column_numbers(rows, "refresh_hz")
     fan_states = column_numbers(rows, "fan_state")
+    fan_rpms = column_numbers(rows, "fan_rpm")
+    fan_duties = column_numbers(rows, "fan_duty")
     cpu_temperatures = [value / 1000 for value in column_numbers(rows, "cpu_temp_max_mC")]
     gpu_temperatures = [value / 1000 for value in column_numbers(rows, "gpu_temp_max_mC")]
     skin_temperatures = column_numbers(rows, "skin_temp_c")
@@ -246,6 +253,11 @@ def summarize(path: Path) -> Summary:
         refresh_max_hz=maximum(refresh_rates),
         fan_state_min=minimum(fan_states),
         fan_state_max=maximum(fan_states),
+        fan_rpm_min=minimum(fan_rpms),
+        fan_rpm_median=median(fan_rpms),
+        fan_rpm_max=maximum(fan_rpms),
+        fan_duty_min=minimum(fan_duties),
+        fan_duty_max=maximum(fan_duties),
         cpu_temp_max_c=maximum(cpu_temperatures),
         gpu_temp_max_c=maximum(gpu_temperatures),
         skin_temp_max_c=maximum(skin_temperatures),
@@ -313,6 +325,15 @@ def print_summary(summary: Summary) -> None:
     print(
         "    Fan state (not RPM):   "
         f"{display_range(summary.fan_state_min, summary.fan_state_max, 0)}"
+    )
+    print(
+        "    Fan RPM min/med/max:   "
+        f"{display(summary.fan_rpm_min, 0)} / {display(summary.fan_rpm_median, 0)} / "
+        f"{display(summary.fan_rpm_max, 0)}"
+    )
+    print(
+        "    Fan duty:              "
+        f"{display_range(summary.fan_duty_min, summary.fan_duty_max, 0)} / 100"
     )
     print(
         "    Max CPU/GPU/skin temp: "

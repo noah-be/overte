@@ -62,8 +62,9 @@ CSV.
 The same firmware exposes VR brightness, reported panel brightness, automatic
 brightness state, active refresh rate, CPU-cluster clocks, GPU clock, Android
 thermal status, and CPU/GPU/skin temperatures. Pico's `pxrfanservice` does not
-publish fan RPM, but it does publish `mFanState`, the control value used by its
-fan service. The recorder stores this as `fan_state` and never labels it as RPM.
+publish fan RPM, but the MCU diagnostic client supplies the automatic
+controller state, applied duty, and actual RPM. The recorder stores them
+separately as `fan_state`, `fan_duty`, and `fan_rpm`.
 
 ## Test controls
 
@@ -112,6 +113,35 @@ For a short setup validation before committing to a full run:
     --duration 60
 ```
 
+## Fixed-fan tests
+
+The Pico 4 MCU exposes a factory fan-test mode with a control range from 0 to
+100. To hold a fixed fan setting during a recording:
+
+```bash
+./pico4-power-test.sh record \
+    --label fan-50 \
+    --fan-speed 50 \
+    --warmup 120 \
+    --duration 300
+```
+
+The recorder verifies the requested setting, logs the applied duty and actual
+fan RPM, and restores automatic control before analysis. Shell exit and
+`Ctrl+C`, `SIGTERM`, or `SIGHUP` also trigger restoration. If the host process
+is forcibly killed or the connection is lost, restore automatic control as
+soon as ADB is available:
+
+```bash
+adb shell gd32ipdclient_test setfantestmode 0
+```
+
+Fixed-fan runs default to safety limits of 95 C CPU, 70 C skin, and 45 C
+battery temperature. Override them only with a clear reason using
+`--max-cpu-temp`, `--max-skin-temp`, and `--max-battery-temp`. A limit aborts
+the run and restores automatic fan control. Low fan settings can cause thermal
+throttling, so compare temperatures and clocks alongside power.
+
 Results are written under `android/power-results/`, which Git ignores. Each CSV
 contains timestamps, device/build identity, battery values, charge status,
 screen state, display configuration, fan state, thermal data, CPU/GPU clocks,
@@ -157,8 +187,9 @@ throttling can change power and performance during a run.
 - The displayed charge-counter check is an independent estimate. Large
   disagreement with current integration indicates that the run or telemetry
   needs investigation.
-- `fan_state` is a Pico vendor control value. It is useful for relative fan
-  behavior, but it cannot be converted to RPM without a documented calibration.
+- `fan_state` is the automatic Pico controller's requested value, `fan_duty` is
+  the applied MCU duty, and `fan_rpm` is its measured rotational speed. RPM may
+  take several seconds to stabilize after a change.
 - Collecting the extended telemetry has a small measurement cost. The same
   sampling interval and tool version must be used for every compared scenario.
 - USB ADB can leave a physical power connection. If the Pico reports charging,

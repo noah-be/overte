@@ -25,6 +25,10 @@ Record options:
   --warmup SECONDS       Warm-up period before recording (default: 300)
   --interval SECONDS     Sampling interval (default: 1)
   --output FILE          CSV path (default: power-results/<timestamp>-<label>.csv)
+  --fan-speed PERCENT    Hold the fan at 0-100% during this run, then restore auto
+  --max-cpu-temp C       Abort a fixed-fan run at this CPU temperature (default: 95)
+  --max-skin-temp C      Abort a fixed-fan run at this skin temperature (default: 70)
+  --max-battery-temp C   Abort at this battery temperature (default: 45)
   --allow-charging       Record even if USB/external power is detected
   --no-app-check         Do not require org.overte.pico to be running
 
@@ -37,6 +41,7 @@ Examples:
   ./pico4-power-test.sh doctor
   ./pico4-power-test.sh record --label idle --duration 1800
   ./pico4-power-test.sh record --label overte-simple --duration 1800
+  ./pico4-power-test.sh record --label fan-50 --fan-speed 50 --duration 300
   ./pico4-power-test.sh analyze power-results/*.csv
 EOF
 }
@@ -137,6 +142,52 @@ print_sensor() {
     fi
 }
 
+fan_test_active=0
+
+restore_fan_control() {
+    local output auto_state actual_state attempt
+    if [[ "$fan_test_active" -eq 1 ]]; then
+        echo "Restoring automatic fan control..." >&2
+        output="$(adb_shell gd32ipdclient_test setfantestmode 0 2>&1 || true)"
+        printf '%s\n' "$output" >&2
+        for attempt in {1..10}; do
+            sleep 1
+            auto_state="$(adb_shell dumpsys pxrfanservice 2>/dev/null \
+                | sed -n 's/^mFanState=//p' | head -n 1)"
+            actual_state="$(adb_shell gd32ipdclient_test getfanspeed 2>/dev/null \
+                | sed -n 's/.*GetFanSpeed = //p' | head -n 1)"
+            if [[ -n "$auto_state" && "$actual_state" == "$auto_state" ]]; then
+                echo "Automatic fan control verified at duty $actual_state" >&2
+                fan_test_active=0
+                return 0
+            fi
+        done
+        fan_test_active=0
+        echo "error: automatic fan control could not be verified after 10 seconds" >&2
+        return 1
+    fi
+}
+
+set_test_fan_speed() {
+    local speed="$1" output actual
+    adb_shell 'command -v gd32ipdclient_test >/dev/null' \
+        || fail "Pico fan-control utility is unavailable"
+    output="$(adb_shell gd32ipdclient_test setfantestmode 1 2>&1)"
+    [[ "$output" == *success* ]] || fail "could not enter Pico fan test mode: $output"
+    fan_test_active=1
+    trap restore_fan_control EXIT
+    trap 'exit 130' INT TERM HUP
+    output="$(adb_shell gd32ipdclient_test setfantestspeed "$speed" 2>&1)"
+    [[ "$output" == *success* ]] || fail "could not set Pico fan speed: $output"
+    sleep 2
+    output="$(adb_shell gd32ipdclient_test getfanspeed 2>&1)"
+    actual="$(sed -n 's/.*GetFanSpeed = \([0-9][0-9]*\).*/\1/p' <<<"$output")"
+    [[ "$actual" == "$speed" ]] \
+        || fail "fan-speed verification failed (requested $speed, response: $output)"
+    echo "Fan fixed at $speed% for this run"
+    adb_shell gd32ipdclient_test getfaninfo
+}
+
 doctor() {
     local dump level voltage current charge temperature status plugged telemetry
     local -a telemetry_fields
@@ -213,6 +264,8 @@ doctor() {
     print_sensor "CPU policy4" "${telemetry_fields[19]:-}" " kHz"
     print_sensor "CPU policy7" "${telemetry_fields[20]:-}" " kHz"
     print_sensor "GPU clock" "${telemetry_fields[21]:-}" " Hz"
+    print_sensor "fan speed" "${telemetry_fields[22]:-}" " RPM"
+    print_sensor "fan duty" "${telemetry_fields[23]:-}" " / 100"
 }
 
 sample_device() {
@@ -260,10 +313,12 @@ sample_device() {
         cpu4_khz=\"\$(cat /sys/devices/system/cpu/cpufreq/policy4/scaling_cur_freq 2>/dev/null)\";
         cpu7_khz=\"\$(cat /sys/devices/system/cpu/cpufreq/policy7/scaling_cur_freq 2>/dev/null)\";
         gpu_hz=\"\$(cat /sys/class/kgsl/kgsl-3d0/gpuclk 2>/dev/null)\";
-        printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\\n' \\
+        fan_rpm=\"\$(gd32ipdclient_test getfanrpm 2>/dev/null | sed -n 's/.*GetFanRPM = //p' | head -n 1)\";
+        fan_duty=\"\$(gd32ipdclient_test getfanspeed 2>/dev/null | sed -n 's/.*GetFanSpeed = //p' | head -n 1)\";
+        printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\\n' \\
             \"\$level\" \"\$voltage\" \"\$current\" \"\$charge\" \"\$temperature\" \"\$status\" \"\$plugged\" \"\$app_pid\" \"\$screen_state\" \\
             \"\$brightness_vr\" \"\$brightness_actual\" \"\$auto_brightness\" \"\$refresh_hz\" \"\$fan_state\" \"\$cpu_temp_max\" \"\$gpu_temp_max\" \\
-            \"\$skin_temp\" \"\$thermal_status\" \"\$cpu0_khz\" \"\$cpu4_khz\" \"\$cpu7_khz\" \"\$gpu_hz\"" \
+            \"\$skin_temp\" \"\$thermal_status\" \"\$cpu0_khz\" \"\$cpu4_khz\" \"\$cpu7_khz\" \"\$gpu_hz\" \"\$fan_rpm\" \"\$fan_duty\"" \
         2>/dev/null || true
 }
 
@@ -273,8 +328,10 @@ csv_safe() {
 
 record() {
     local label="" duration=1800 warmup=300 interval=1 output=""
-    local allow_charging=0 app_check=1 arg dump plugged start_epoch now_epoch elapsed next_sample
-    local timestamp device_row
+    local allow_charging=0 app_check=1 fan_speed="" max_cpu_temp=95 max_skin_temp=70
+    local max_battery_temp=45 arg dump plugged start_epoch now_epoch elapsed next_sample
+    local timestamp device_row cpu_temp_raw skin_temp_raw battery_temp_raw aborted=0
+    local -a sample_fields
 
     while [[ "$#" -gt 0 ]]; do
         arg="$1"
@@ -284,6 +341,10 @@ record() {
             --warmup) [[ "$#" -ge 2 ]] || fail "--warmup requires a value"; warmup="$2"; shift 2 ;;
             --interval) [[ "$#" -ge 2 ]] || fail "--interval requires a value"; interval="$2"; shift 2 ;;
             --output) [[ "$#" -ge 2 ]] || fail "--output requires a value"; output="$2"; shift 2 ;;
+            --fan-speed) [[ "$#" -ge 2 ]] || fail "--fan-speed requires a value"; fan_speed="$2"; shift 2 ;;
+            --max-cpu-temp) [[ "$#" -ge 2 ]] || fail "--max-cpu-temp requires a value"; max_cpu_temp="$2"; shift 2 ;;
+            --max-skin-temp) [[ "$#" -ge 2 ]] || fail "--max-skin-temp requires a value"; max_skin_temp="$2"; shift 2 ;;
+            --max-battery-temp) [[ "$#" -ge 2 ]] || fail "--max-battery-temp requires a value"; max_battery_temp="$2"; shift 2 ;;
             --allow-charging) allow_charging=1; shift ;;
             --no-app-check) app_check=0; shift ;;
             -h|--help) usage; return ;;
@@ -297,6 +358,11 @@ record() {
     [[ "$duration" =~ ^[1-9][0-9]*$ ]] || fail "duration must be a positive integer"
     [[ "$warmup" =~ ^[0-9]+$ ]] || fail "warmup must be a non-negative integer"
     [[ "$interval" =~ ^[1-9][0-9]*$ ]] || fail "interval must be a positive integer"
+    [[ -z "$fan_speed" || "$fan_speed" =~ ^([0-9]|[1-9][0-9]|100)$ ]] \
+        || fail "fan speed must be an integer from 0 through 100"
+    [[ "$max_cpu_temp" =~ ^[1-9][0-9]*$ ]] || fail "max CPU temperature must be a positive integer"
+    [[ "$max_skin_temp" =~ ^[1-9][0-9]*$ ]] || fail "max skin temperature must be a positive integer"
+    [[ "$max_battery_temp" =~ ^[1-9][0-9]*$ ]] || fail "max battery temperature must be a positive integer"
 
     adb="$(find_adb)" || fail "ADB not found; set PICO_ADB or ANDROID_SDK_ROOT"
     serial="$(select_device "$adb")"
@@ -321,6 +387,10 @@ record() {
         fail "external power is detected (plugged=$plugged); disconnect it or use --allow-charging"
     fi
 
+    if [[ -n "$fan_speed" ]]; then
+        set_test_fan_speed "$fan_speed"
+    fi
+
     timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
     if [[ -z "$output" ]]; then
         output="$script_dir/power-results/${timestamp}-${label}.csv"
@@ -337,7 +407,7 @@ record() {
     fi
 
     printf '%s\n' \
-        'timestamp_utc,epoch_s,elapsed_s,label,serial,manufacturer,model,android_version,build_fingerprint,battery_dir,level_pct,voltage_raw,current_raw,charge_raw,temp_raw,status,plugged,app_pid,screen_state,brightness_vr,brightness_actual,auto_brightness,refresh_hz,fan_state,cpu_temp_max_mC,gpu_temp_max_mC,skin_temp_c,thermal_status,cpu_policy0_khz,cpu_policy4_khz,cpu_policy7_khz,gpu_hz' \
+        'timestamp_utc,epoch_s,elapsed_s,label,serial,manufacturer,model,android_version,build_fingerprint,battery_dir,level_pct,voltage_raw,current_raw,charge_raw,temp_raw,status,plugged,app_pid,screen_state,brightness_vr,brightness_actual,auto_brightness,refresh_hz,fan_state,cpu_temp_max_mC,gpu_temp_max_mC,skin_temp_c,thermal_status,cpu_policy0_khz,cpu_policy4_khz,cpu_policy7_khz,gpu_hz,fan_rpm,fan_duty' \
         >"$output"
 
     echo "Recording $duration seconds to $output"
@@ -352,6 +422,26 @@ record() {
             "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$now_epoch" "$elapsed" "$label" \
             "$serial" "$manufacturer" "$model" "$android_version" \
             "$build_fingerprint" "$battery_dir" "$device_row" >>"$output"
+        if [[ -n "$fan_speed" ]]; then
+            IFS=',' read -r -a sample_fields <<<"$device_row"
+            battery_temp_raw="${sample_fields[4]:-0}"
+            cpu_temp_raw="${sample_fields[14]:-0}"
+            skin_temp_raw="${sample_fields[16]:-0}"
+            if [[ "$battery_temp_raw" =~ ^[0-9]+$ ]] \
+                && ((battery_temp_raw >= max_battery_temp * 10)); then
+                echo "error: battery temperature limit reached (${battery_temp_raw} tenths C)" >&2
+                aborted=1
+            elif [[ "$cpu_temp_raw" =~ ^[0-9]+$ ]] \
+                && ((cpu_temp_raw >= max_cpu_temp * 1000)); then
+                echo "error: CPU temperature limit reached (${cpu_temp_raw} mC)" >&2
+                aborted=1
+            elif [[ "${skin_temp_raw%%.*}" =~ ^[0-9]+$ ]] \
+                && ((10#${skin_temp_raw%%.*} >= max_skin_temp)); then
+                echo "error: skin temperature limit reached (${skin_temp_raw} C)" >&2
+                aborted=1
+            fi
+            [[ "$aborted" -eq 0 ]] || break
+        fi
         next_sample=$((next_sample + interval))
         now_epoch="$(date +%s)"
         if [[ "$next_sample" -gt "$now_epoch" ]]; then
@@ -360,8 +450,11 @@ record() {
             next_sample="$now_epoch"
         fi
     done
+    restore_fan_control
+    trap - EXIT INT TERM HUP
     echo "Recorded $(($(wc -l <"$output") - 1)) samples"
     python3 "$script_dir/tools/analyze-pico4-power.py" "$output"
+    [[ "$aborted" -eq 0 ]] || return 3
 }
 
 analyze() {
