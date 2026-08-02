@@ -6,6 +6,7 @@ experiments:
 - [Fan duty](fan-power.md)
 - [Display brightness](display-brightness-power.md)
 - [Overte Hub baseline at 100% display and fan](overte-hub-baseline.md)
+- [Experimental bundled Pico power profile](pico-power-profile.md)
 
 The test procedure and recorder usage are documented in
 [PICO4_POWER_TEST.md](../../PICO4_POWER_TEST.md). Raw CSV recordings remain in

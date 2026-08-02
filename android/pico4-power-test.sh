@@ -391,6 +391,7 @@ record() {
     local allow_charging=0 app_check=1 fan_speed="" brightness="" max_cpu_temp=95 max_skin_temp=70
     local max_battery_temp=45 min_battery=21 arg dump plugged start_epoch now_epoch elapsed next_sample
     local timestamp device_row cpu_temp_raw skin_temp_raw battery_temp_raw battery_level active_package aborted=0
+    local power_profile foveation
     local -a sample_fields
 
     while [[ "$#" -gt 0 ]]; do
@@ -434,6 +435,10 @@ record() {
     serial="$(select_device "$adb")"
     battery_dir="$(find_battery_dir)"
     read_device_info
+    power_profile="$(adb_shell getprop debug.overte.power_profile 2>/dev/null || true)"
+    foveation="$(adb_shell getprop debug.overte.foveation 2>/dev/null || true)"
+    power_profile="$(csv_safe "${power_profile:-off}")"
+    foveation="$(csv_safe "${foveation:-off}")"
     manufacturer="$(csv_safe "$manufacturer")"
     model="$(csv_safe "$model")"
     android_version="$(csv_safe "$android_version")"
@@ -474,6 +479,8 @@ record() {
 
     echo "Device: ${manufacturer:-unknown} ${model:-unknown} ($serial)"
     echo "Scenario: $label"
+    echo "Overte power profile: $power_profile"
+    echo "OpenXR foveation: $foveation"
     echo "Battery sysfs: ${battery_dir:-not readable}; using Android battery properties and dumpsys fallbacks"
     if [[ "$warmup" -gt 0 ]]; then
         echo "Warming up for $warmup seconds; keep the test scene active..."
@@ -490,7 +497,7 @@ record() {
     fi
 
     printf '%s\n' \
-        'timestamp_utc,epoch_s,elapsed_s,label,serial,manufacturer,model,android_version,build_fingerprint,battery_dir,level_pct,voltage_raw,current_raw,charge_raw,temp_raw,status,plugged,app_pid,screen_state,brightness_vr,brightness_actual,auto_brightness,refresh_hz,fan_state,cpu_temp_max_mC,gpu_temp_max_mC,skin_temp_c,thermal_status,cpu_policy0_khz,cpu_policy4_khz,cpu_policy7_khz,gpu_hz,fan_rpm,fan_duty,mcu_brightness' \
+        'timestamp_utc,epoch_s,elapsed_s,label,serial,manufacturer,model,android_version,build_fingerprint,battery_dir,power_profile,foveation,level_pct,voltage_raw,current_raw,charge_raw,temp_raw,status,plugged,app_pid,screen_state,brightness_vr,brightness_actual,auto_brightness,refresh_hz,fan_state,cpu_temp_max_mC,gpu_temp_max_mC,skin_temp_c,thermal_status,cpu_policy0_khz,cpu_policy4_khz,cpu_policy7_khz,gpu_hz,fan_rpm,fan_duty,mcu_brightness' \
         >"$output"
 
     echo "Recording $duration seconds to $output"
@@ -501,10 +508,10 @@ record() {
         elapsed=$((now_epoch - start_epoch))
         [[ "$elapsed" -le "$duration" ]] || break
         device_row="$(sample_device)"
-        printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
+        printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
             "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$now_epoch" "$elapsed" "$label" \
             "$serial" "$manufacturer" "$model" "$android_version" \
-            "$build_fingerprint" "$battery_dir" "$device_row" >>"$output"
+            "$build_fingerprint" "$battery_dir" "$power_profile" "$foveation" "$device_row" >>"$output"
         IFS=',' read -r -a sample_fields <<<"$device_row"
         battery_level="${sample_fields[0]:-}"
         if [[ "$battery_level" =~ ^[0-9]+$ ]] && ((battery_level < min_battery)); then

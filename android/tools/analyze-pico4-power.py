@@ -46,6 +46,8 @@ def maximum(values: list[float]) -> float | None:
 class Summary:
     path: Path
     label: str
+    power_profile: str
+    foveation: str
     samples: int
     duration_s: float
     level_start: float | None
@@ -233,6 +235,8 @@ def summarize(path: Path) -> Summary:
     return Summary(
         path=path,
         label=(rows[0].get("label") or path.stem).strip(),
+        power_profile=(rows[0].get("power_profile") or "not recorded").strip(),
+        foveation=(rows[0].get("foveation") or "not recorded").strip(),
         samples=len(rows),
         duration_s=duration_s,
         level_start=valid_levels[0] if valid_levels else None,
@@ -295,6 +299,8 @@ def print_summary(summary: Summary) -> None:
     )
     discharge_rate = level_delta / hours if level_delta is not None and hours else None
     print(f"\n{summary.label} ({summary.path})")
+    print(f"  Overte power profile:    {summary.power_profile}")
+    print(f"  OpenXR foveation:        {summary.foveation}")
     print(f"  Samples / duration:       {summary.samples} / {summary.duration_s:.0f} s")
     print(
         "  Battery level:           "

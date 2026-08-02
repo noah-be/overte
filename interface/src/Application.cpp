@@ -1278,13 +1278,68 @@ void Application::loadSettings(const QCommandLineParser& parser) {
     getPerformanceManager().setupPerformancePresetSettings(_firstRun.get());
 
 #if defined(Q_OS_ANDROID)
-    // Standalone headsets need a predictable low-cost VR profile. The desktop
-    // platform tier can otherwise enable shadows, bloom and SSAO even though
-    // Pico has no UI controls exposing those individual settings.
-    RenderScriptingInterface::getInstance()->setShadowsEnabled(false);
-    RenderScriptingInterface::getInstance()->setBloomEnabled(false);
-    RenderScriptingInterface::getInstance()->setAmbientOcclusionEnabled(false);
+    auto renderSettings = RenderScriptingInterface::getInstance();
+    // Standalone headsets need a predictable baseline. The desktop platform
+    // tier can otherwise enable these passes even though Pico has no UI
+    // controls exposing the individual settings.
+    renderSettings->setShadowsEnabled(false);
+    renderSettings->setBloomEnabled(false);
+    renderSettings->setAmbientOcclusionEnabled(false);
     DependencyManager::get<LODManager>()->setWorldDetailQuality(WORLD_DETAIL_LOW);
+
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    // Opt-in, process-start power profile for controlled Pico A/B tests. It
+    // deliberately leaves viewport and OpenXR swapchain resolution unchanged.
+    // adb shell setprop debug.overte.power_profile 1
+    char picoPowerProfileValue[PROP_VALUE_MAX] {};
+    const QString picoPowerProfile = __system_property_get(
+        "debug.overte.power_profile", picoPowerProfileValue) > 0
+        ? QString::fromLatin1(picoPowerProfileValue).trimmed().toLower()
+        : QString();
+    const bool picoPowerProfileEnabled = picoPowerProfile == "1" ||
+        picoPowerProfile == "on" || picoPowerProfile == "enabled";
+    int disabledMirrorViews { 0 };
+    if (picoPowerProfileEnabled) {
+        renderSettings->setRenderMethod(RenderScriptingInterface::RenderMethod::FORWARD);
+        renderSettings->setHazeEnabled(false);
+        renderSettings->setLocalLightingEnabled(false);
+        renderSettings->setProceduralMaterialsEnabled(false);
+        renderSettings->setAntialiasingMode(AntialiasingSetupConfig::Mode::NONE);
+
+        // Do not render recursive world mirrors. The normal main stereo view
+        // remains untouched; mirror surfaces simply retain their fallback.
+        auto renderConfig = qApp->getRenderEngine()->getConfiguration();
+        const QStringList viewNames { "RenderMainView", "RenderSecondView" };
+        for (const auto& viewName : viewNames) {
+            constexpr size_t MIRROR_VIEWS_PER_LEVEL { 3 };
+            for (size_t mirrorIndex = 0; mirrorIndex < MIRROR_VIEWS_PER_LEVEL; ++mirrorIndex) {
+                const QString mirrorName = viewName + ".RenderMirrorView" +
+                    QString::number(mirrorIndex) + "Depth0";
+                if (auto mirrorConfig = renderConfig->getConfig(mirrorName)) {
+                    if (mirrorConfig->setProperty("enabled", false)) {
+                        ++disabledMirrorViews;
+                    }
+                }
+            }
+        }
+    } else {
+        // Restore the known Pico baseline after an A/B profile run. The public
+        // render setters persist values, so leaving this implicit would make a
+        // later "profile off" run inherit parts of the power profile.
+        renderSettings->setRenderMethod(RenderScriptingInterface::RenderMethod::FORWARD);
+        renderSettings->setHazeEnabled(true);
+        renderSettings->setLocalLightingEnabled(true);
+        renderSettings->setProceduralMaterialsEnabled(true);
+        renderSettings->setAntialiasingMode(AntialiasingSetupConfig::Mode::NONE);
+    }
+    qCInfo(interfaceapp) << "PICO_POWER_PROFILE" << (picoPowerProfileEnabled ? "enabled" : "disabled")
+                         << "renderScale" << renderSettings->getViewportResolutionScale()
+                         << "forward" << (renderSettings->getRenderMethod() == RenderScriptingInterface::RenderMethod::FORWARD)
+                         << "haze" << renderSettings->getHazeEnabled()
+                         << "localLights" << renderSettings->getLocalLightingEnabled()
+                         << "proceduralMaterials" << renderSettings->getProceduralMaterialsEnabled()
+                         << "disabledMirrorViews" << disabledMirrorViews;
+#endif
 #endif
 
     // finish initializing the camera, based on everything we checked above. Third person camera will be used if no settings
