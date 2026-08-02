@@ -84,6 +84,10 @@ case "${1:-status}" in
     hub)
         force_worn
         nonce="${2:-$(date +%s)}"
+        # Navigation and in-domain teleport are separate commands. Teleporting
+        # alone would leave Interface in whichever domain was already open.
+        adb_shell setprop debug.overte.navigate "${nonce}\\|${TARGET}"
+        sleep 15
         safe_position "$nonce"
         ;;
     walk)
