@@ -32,6 +32,11 @@ SPDX-License-Identifier: Apache-2.0
 >
 > The Overte project has a [no-AI-contributions policy](https://github.com/overte-org/overte/blob/master/CONTRIBUTING.md), which I respect. AI tools help me work more efficiently, so I use them only for work maintained separately in this fork.
 
+### Pico 4 port
+
+See [Build the Overte client for Pico 4](android/PICO4_BUILD.md) for setup,
+build, installation, and deployment instructions.
+
 ### What is this?
 
 Overte is a free and open source 3D social virtual worlds software.
