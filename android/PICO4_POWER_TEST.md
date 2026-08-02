@@ -5,6 +5,9 @@ firmware and compares repeatable scenarios. It measures the complete headset,
 not Overte in isolation. The difference between an idle baseline and an Overte
 run is an estimate of the application's additional power cost.
 
+See [Pico 4 fan power test results](PICO4_FAN_POWER_RESULTS.md) for the first
+25%, 50%, and 100% fixed-fan comparison.
+
 > [!IMPORTANT]
 > Internal battery telemetry is suitable for development comparisons, but it is
 > not laboratory-grade measurement. Sensor availability, update rate, accuracy,
@@ -127,7 +130,8 @@ The Pico 4 MCU exposes a factory fan-test mode with a control range from 0 to
 ```
 
 The recorder verifies the requested setting, logs the applied duty and actual
-fan RPM, and restores automatic control before analysis. Shell exit and
+fan RPM, exits factory-test mode, reapplies the live automatic-controller value,
+and verifies the MCU duty before analysis. Shell exit and
 `Ctrl+C`, `SIGTERM`, or `SIGHUP` also trigger restoration. If the host process
 is forcibly killed or the connection is lost, restore automatic control as
 soon as ADB is available:

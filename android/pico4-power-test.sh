@@ -151,7 +151,6 @@ restore_fan_control() {
         output="$(adb_shell gd32ipdclient_test setfantestmode 0 2>&1 || true)"
         printf '%s\n' "$output" >&2
         for attempt in {1..10}; do
-            sleep 1
             auto_state="$(adb_shell dumpsys pxrfanservice 2>/dev/null \
                 | sed -n 's/^mFanState=//p' | head -n 1)"
             actual_state="$(adb_shell gd32ipdclient_test getfanspeed 2>/dev/null \
@@ -161,6 +160,10 @@ restore_fan_control() {
                 fan_test_active=0
                 return 0
             fi
+            if [[ "$auto_state" =~ ^([0-9]|[1-9][0-9]|100)$ ]]; then
+                adb_shell gd32ipdclient_test setfanspeed "$auto_state" >/dev/null 2>&1 || true
+            fi
+            sleep 1
         done
         fan_test_active=0
         echo "error: automatic fan control could not be verified after 10 seconds" >&2
