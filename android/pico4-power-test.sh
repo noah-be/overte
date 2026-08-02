@@ -99,6 +99,21 @@ read_battery_dump() {
     adb_shell dumpsys battery 2>/dev/null || true
 }
 
+battery_property() {
+    local property="$1" result status low high
+    result="$(adb_shell service call batteryproperties 1 i32 "$property" 2>/dev/null || true)"
+    status="$(awk '$1 == "0x00000000:" { print $3; exit }' <<<"$result")"
+    [[ "$status" == "00000000" ]] || return 0
+    low="$(awk '$1 == "0x00000000:" { print $5; exit }' <<<"$result")"
+    high="$(awk '$1 == "0x00000010:" { print $2; exit }' <<<"$result")"
+    [[ "$low" =~ ^[0-9a-fA-F]{8}$ && "$high" =~ ^[0-9a-fA-F]{8}$ ]] || return 0
+    if [[ "$high" == "ffffffff" || "$high" == "FFFFFFFF" ]]; then
+        printf '%d\n' "$((0x$low - 0x100000000))"
+    elif [[ "$high" == "00000000" ]]; then
+        printf '%d\n' "$((0x$low))"
+    fi
+}
+
 dump_value() {
     local dump="$1" key="$2"
     awk -F: -v key="$key" '$1 ~ "^[[:space:]]*" key "$" {
@@ -136,8 +151,10 @@ doctor() {
     voltage="$(sysfs_value voltage_now)"
     [[ -n "$voltage" ]] || voltage="$(dump_value "$dump" voltage)"
     current="$(sysfs_value current_now)"
+    [[ -n "$current" ]] || current="$(battery_property 2)"
     charge="$(sysfs_value charge_counter)"
     [[ -n "$charge" ]] || charge="$(sysfs_value charge_now)"
+    [[ -n "$charge" ]] || charge="$(battery_property 1)"
     [[ -n "$charge" ]] || charge="$(dump_value "$dump" 'Charge counter')"
     temperature="$(sysfs_value temp)"
     [[ -n "$temperature" ]] || temperature="$(dump_value "$dump" temperature)"
@@ -185,10 +202,21 @@ sample_device() {
         battery_dump=\"\$(dumpsys battery 2>/dev/null)\";
         sysfs_read() { [ -n \"\$battery_dir\" ] && [ -r \"\$battery_dir/\$1\" ] && cat \"\$battery_dir/\$1\"; };
         dump_read() { printf '%s\\n' \"\$battery_dump\" | sed -n \"s/^[[:space:]]*\$1:[[:space:]]*//p\" | head -n 1; };
+        battery_property() {
+            result=\"\$(service call batteryproperties 1 i32 \"\$1\" 2>/dev/null)\";
+            status=\"\$(printf '%s\\n' \"\$result\" | awk '\$1 == \"0x00000000:\" { print \$3; exit }')\";
+            [ \"\$status\" = 00000000 ] || return;
+            low=\"\$(printf '%s\\n' \"\$result\" | awk '\$1 == \"0x00000000:\" { print \$5; exit }')\";
+            high=\"\$(printf '%s\\n' \"\$result\" | awk '\$1 == \"0x00000010:\" { print \$2; exit }')\";
+            case \"\$high\" in
+                ffffffff|FFFFFFFF) echo \"\$((0x\$low - 0x100000000))\" ;;
+                00000000) echo \"\$((0x\$low))\" ;;
+            esac;
+        };
         level=\"\$(sysfs_read capacity)\"; [ -n \"\$level\" ] || level=\"\$(dump_read level)\";
         voltage=\"\$(sysfs_read voltage_now)\"; [ -n \"\$voltage\" ] || voltage=\"\$(dump_read voltage)\";
-        current=\"\$(sysfs_read current_now)\";
-        charge=\"\$(sysfs_read charge_counter)\"; [ -n \"\$charge\" ] || charge=\"\$(sysfs_read charge_now)\"; [ -n \"\$charge\" ] || charge=\"\$(dump_read 'Charge counter')\";
+        current=\"\$(sysfs_read current_now)\"; [ -n \"\$current\" ] || current=\"\$(battery_property 2)\";
+        charge=\"\$(sysfs_read charge_counter)\"; [ -n \"\$charge\" ] || charge=\"\$(sysfs_read charge_now)\"; [ -n \"\$charge\" ] || charge=\"\$(battery_property 1)\"; [ -n \"\$charge\" ] || charge=\"\$(dump_read 'Charge counter')\";
         temperature=\"\$(sysfs_read temp)\"; [ -n \"\$temperature\" ] || temperature=\"\$(dump_read temperature)\";
         status=\"\$(sysfs_read status)\"; [ -n \"\$status\" ] || status=\"\$(dump_read status)\";
         if printf '%s\\n' \"\$battery_dump\" | grep -Eq '^[[:space:]]*(AC|USB|Wireless) powered:[[:space:]]*true'; then plugged=1; else plugged=0; fi;
@@ -261,7 +289,7 @@ record() {
 
     echo "Device: ${manufacturer:-unknown} ${model:-unknown} ($serial)"
     echo "Scenario: $label"
-    echo "Battery source: ${battery_dir:-dumpsys fallback}"
+    echo "Battery sysfs: ${battery_dir:-not readable}; using Android battery properties and dumpsys fallbacks"
     if [[ "$warmup" -gt 0 ]]; then
         echo "Warming up for $warmup seconds; keep the test scene active..."
         sleep "$warmup"

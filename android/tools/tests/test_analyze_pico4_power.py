@@ -60,6 +60,7 @@ class AnalyzerTests(unittest.TestCase):
         summary = MODULE.summarize(path)
         self.assertAlmostEqual(summary.power_w, 8.0)
         self.assertAlmostEqual(summary.energy_wh, 8.0 * 20 / 3600)
+        self.assertIsNone(summary.charge_power_w)
 
     def test_uses_charge_counter_delta(self):
         path = self.recording(
@@ -81,6 +82,7 @@ class AnalyzerTests(unittest.TestCase):
         summary = MODULE.summarize(path)
         self.assertAlmostEqual(summary.energy_wh, 2.0)
         self.assertAlmostEqual(summary.power_w, 2.0)
+        self.assertAlmostEqual(summary.charge_power_w, 2.0)
 
     def test_rejects_charging_power(self):
         path = self.recording(
@@ -102,6 +104,7 @@ class AnalyzerTests(unittest.TestCase):
         summary = MODULE.summarize(path)
         self.assertIsNone(summary.energy_wh)
         self.assertIsNone(summary.power_w)
+        self.assertIsNone(summary.charge_power_w)
         self.assertIn("invalid", summary.power_method)
 
 

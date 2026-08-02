@@ -42,6 +42,7 @@ class Summary:
     current_a: float | None
     power_w: float | None
     energy_wh: float | None
+    charge_power_w: float | None
     temp_start_c: float | None
     temp_max_c: float | None
     app_present_pct: float
@@ -63,29 +64,22 @@ def scaled_voltage(raw: float | None) -> float | None:
 def scaled_current(raw: float | None) -> float | None:
     if raw is None:
         return None
-    absolute = abs(raw)
-    if absolute > 1_000:
-        return raw / 1_000_000
-    if absolute > 10:
-        return raw / 1_000
-    return raw
+    # Android BatteryManager CURRENT_NOW and power_supply current_now use uA.
+    return raw / 1_000_000
 
 
 def scaled_charge(raw: float | None) -> float | None:
     if raw is None:
         return None
-    absolute = abs(raw)
-    if absolute > 10_000:
-        return raw / 1_000_000
-    if absolute > 100:
-        return raw / 1_000
-    return raw
+    # Android BatteryManager CHARGE_COUNTER and power_supply charge_now use uAh.
+    return raw / 1_000_000
 
 
 def scaled_temperature(raw: float | None) -> float | None:
     if raw is None:
         return None
-    return raw / 10 if abs(raw) > 80 else raw
+    # Both dumpsys battery and power_supply temp report tenths of a degree C.
+    return raw / 10
 
 
 def integrate_power(rows: list[dict[str, str]]) -> tuple[float | None, float | None]:
@@ -158,14 +152,25 @@ def summarize(path: Path) -> Summary:
     voltage_v = median(voltages)
     current_a = median(currents)
 
-    if energy_wh is None and len(charges) >= 2 and voltage_v is not None:
-        energy_wh = abs(charges[-1] - charges[0]) * voltage_v
-        power_w = energy_wh * 3600 / duration_s if duration_s else None
+    charge_energy_wh = (
+        abs(charges[-1] - charges[0]) * voltage_v
+        if len(charges) >= 2 and voltage_v is not None
+        else None
+    )
+    charge_power_w = (
+        charge_energy_wh * 3600 / duration_s
+        if charge_energy_wh is not None and duration_s
+        else None
+    )
+    if energy_wh is None and charge_energy_wh is not None:
+        energy_wh = charge_energy_wh
+        power_w = charge_power_w
         method = "charge-counter delta x median voltage"
 
     if charging_samples:
         power_w = None
         energy_wh = None
+        charge_power_w = None
         method = "invalid while external power is connected"
 
     app_samples = sum(bool((row.get("app_pid") or "").strip()) for row in rows)
@@ -180,6 +185,7 @@ def summarize(path: Path) -> Summary:
         current_a=current_a,
         power_w=power_w,
         energy_wh=energy_wh,
+        charge_power_w=charge_power_w,
         temp_start_c=temperatures[0] if temperatures else None,
         temp_max_c=max(temperatures) if temperatures else None,
         app_present_pct=app_samples * 100 / len(rows),
@@ -210,6 +216,7 @@ def print_summary(summary: Summary) -> None:
     print(f"  Median voltage:          {display(summary.voltage_v, 3)} V")
     print(f"  Median |current|:        {display(summary.current_a, 3)} A")
     print(f"  Average power:           {display(summary.power_w, 3)} W")
+    print(f"  Charge-counter check:    {display(summary.charge_power_w, 3)} W")
     print(f"  Measured energy:         {display(summary.energy_wh, 4)} Wh")
     print(
         "  Battery temperature:     "
@@ -219,6 +226,14 @@ def print_summary(summary: Summary) -> None:
     print(f"  Power calculation:       {summary.power_method}")
     if summary.charging_samples:
         print(f"  WARNING: external power appeared in {summary.charging_samples} samples")
+    if (
+        summary.power_w is not None
+        and summary.charge_power_w is not None
+        and summary.power_w > 0
+        and abs(summary.charge_power_w - summary.power_w) / summary.power_w > 0.15
+    ):
+        difference = abs(summary.charge_power_w - summary.power_w) / summary.power_w * 100
+        print(f"  WARNING: current and charge estimates differ by {difference:.1f}%")
     if summary.duration_s < 1200:
         print("  WARNING: runs shorter than 20 minutes are useful only for setup checks")
 

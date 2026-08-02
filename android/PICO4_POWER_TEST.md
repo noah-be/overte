@@ -49,6 +49,16 @@ ANDROID_SERIAL=<pico-ip-address>:5555 ./pico4-power-test.sh doctor
 Only enable network ADB on a trusted network. To stop listening on TCP port
 5555, reconnect USB and run `adb usb`.
 
+### Verified Pico 4 telemetry
+
+On the tested Pico 4 A8110 with Android 10, direct reads from
+`/sys/class/power_supply/` are permission-restricted. The public Android battery
+properties service nevertheless exposes momentary current in microamperes and
+remaining charge in microampere-hours. `dumpsys battery` supplies voltage in
+millivolts, battery level, temperature, and external-power state. The tool uses
+this verified combination automatically and retains all source values in the
+CSV.
+
 ## Test controls
 
 Keep all conditions other than the tested scenario fixed:
@@ -116,10 +126,12 @@ together:
     power-results/20260802T130000Z-overte-simple.csv
 ```
 
-When voltage and current are available, the analyzer integrates their product
-over time. If current is unavailable but a charge counter exists, it uses the
-charge-counter change and median voltage. Otherwise it reports battery-level
-discharge only and does not invent an absolute watt value.
+The recorder first tries Android's public BatteryManager properties, then
+readable power-supply sysfs values, and finally `dumpsys battery`. When voltage
+and current are available, the analyzer integrates their product over time. If
+current is unavailable but a charge counter exists, it uses the charge-counter
+change and median voltage. Otherwise it reports battery-level discharge only
+and does not invent an absolute watt value.
 
 The first input file is the comparison baseline. Use recordings with matching
 duration and conditions, and compare repeated-run averages rather than a single
@@ -130,6 +142,9 @@ throttling can change power and performance during a run.
 
 - `current_now` sign differs across Android devices; the analyzer uses its
   magnitude for discharge power.
+- The displayed charge-counter check is an independent estimate. Large
+  disagreement with current integration indicates that the run or telemetry
+  needs investigation.
 - USB ADB can leave a physical power connection. If the Pico reports charging,
   use wireless ADB or a USB data connection that does not supply power.
 - An inline USB-C meter measures charger input and charging losses, not headset
