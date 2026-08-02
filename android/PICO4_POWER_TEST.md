@@ -144,6 +144,13 @@ soon as ADB is available:
 adb shell gd32ipdclient_test setfantestmode 0
 ```
 
+For Overte runs, the recorder also verifies that `org.overte.pico` remains the
+active XR application during warm-up and every recorded sample. It aborts if
+Pico Seethrough, Boundary, or another application takes focus. Battery levels
+below 21% also abort the recording by default because Pico energy-saving mode
+can change the measured workload. Override the threshold only for explicitly
+non-comparable diagnostics with `--min-battery`.
+
 Fixed-fan runs default to safety limits of 95 C CPU, 70 C skin, and 45 C
 battery temperature. Override them only with a clear reason using
 `--max-cpu-temp`, `--max-skin-temp`, and `--max-battery-temp`. A limit aborts

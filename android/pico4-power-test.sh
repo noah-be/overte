@@ -30,6 +30,7 @@ Record options:
   --max-cpu-temp C       Abort a fixed-fan run at this CPU temperature (default: 95)
   --max-skin-temp C      Abort a fixed-fan run at this skin temperature (default: 70)
   --max-battery-temp C   Abort at this battery temperature (default: 45)
+  --min-battery PERCENT  Abort below this battery level (default: 21)
   --allow-charging       Record even if USB/external power is detected
   --no-app-check         Do not require org.overte.pico to be running
 
@@ -379,11 +380,17 @@ csv_safe() {
     printf '%s' "$1" | tr ',\r\n' ';  '
 }
 
+foreground_package() {
+    adb_shell dumpsys activity activities 2>/dev/null \
+        | sed -n 's/.*mResumedActivity:.* u0 \([^/ ]*\).*/\1/p' \
+        | head -n 1
+}
+
 record() {
     local label="" duration=1800 warmup=300 interval=1 output=""
     local allow_charging=0 app_check=1 fan_speed="" brightness="" max_cpu_temp=95 max_skin_temp=70
-    local max_battery_temp=45 arg dump plugged start_epoch now_epoch elapsed next_sample
-    local timestamp device_row cpu_temp_raw skin_temp_raw battery_temp_raw aborted=0
+    local max_battery_temp=45 min_battery=21 arg dump plugged start_epoch now_epoch elapsed next_sample
+    local timestamp device_row cpu_temp_raw skin_temp_raw battery_temp_raw battery_level active_package aborted=0
     local -a sample_fields
 
     while [[ "$#" -gt 0 ]]; do
@@ -399,6 +406,7 @@ record() {
             --max-cpu-temp) [[ "$#" -ge 2 ]] || fail "--max-cpu-temp requires a value"; max_cpu_temp="$2"; shift 2 ;;
             --max-skin-temp) [[ "$#" -ge 2 ]] || fail "--max-skin-temp requires a value"; max_skin_temp="$2"; shift 2 ;;
             --max-battery-temp) [[ "$#" -ge 2 ]] || fail "--max-battery-temp requires a value"; max_battery_temp="$2"; shift 2 ;;
+            --min-battery) [[ "$#" -ge 2 ]] || fail "--min-battery requires a value"; min_battery="$2"; shift 2 ;;
             --allow-charging) allow_charging=1; shift ;;
             --no-app-check) app_check=0; shift ;;
             -h|--help) usage; return ;;
@@ -419,6 +427,8 @@ record() {
     [[ "$max_cpu_temp" =~ ^[1-9][0-9]*$ ]] || fail "max CPU temperature must be a positive integer"
     [[ "$max_skin_temp" =~ ^[1-9][0-9]*$ ]] || fail "max skin temperature must be a positive integer"
     [[ "$max_battery_temp" =~ ^[1-9][0-9]*$ ]] || fail "max battery temperature must be a positive integer"
+    [[ "$min_battery" =~ ^([0-9]|[1-9][0-9]|100)$ ]] \
+        || fail "minimum battery level must be an integer from 0 through 100"
 
     adb="$(find_adb)" || fail "ADB not found; set PICO_ADB or ANDROID_SDK_ROOT"
     serial="$(select_device "$adb")"
@@ -431,6 +441,11 @@ record() {
 
     if [[ "$app_check" -eq 1 ]] && ! adb_shell pidof org.overte.pico >/dev/null 2>&1; then
         fail "org.overte.pico is not running; start it or use --no-app-check for a baseline"
+    fi
+    if [[ "$app_check" -eq 1 ]]; then
+        active_package="$(foreground_package)"
+        [[ "$active_package" == "org.overte.pico" ]] \
+            || fail "Overte is not the active XR app (active: ${active_package:-unknown})"
     fi
 
     dump="$(read_battery_dump)"
@@ -462,7 +477,16 @@ record() {
     echo "Battery sysfs: ${battery_dir:-not readable}; using Android battery properties and dumpsys fallbacks"
     if [[ "$warmup" -gt 0 ]]; then
         echo "Warming up for $warmup seconds; keep the test scene active..."
-        sleep "$warmup"
+        elapsed=0
+        while ((elapsed < warmup)); do
+            sleep "$((warmup - elapsed < 5 ? warmup - elapsed : 5))"
+            elapsed=$((elapsed + (warmup - elapsed < 5 ? warmup - elapsed : 5)))
+            if [[ "$app_check" -eq 1 ]]; then
+                active_package="$(foreground_package)"
+                [[ "$active_package" == "org.overte.pico" ]] \
+                    || fail "Overte lost XR focus during warm-up (active: ${active_package:-unknown})"
+            fi
+        done
     fi
 
     printf '%s\n' \
@@ -481,8 +505,19 @@ record() {
             "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$now_epoch" "$elapsed" "$label" \
             "$serial" "$manufacturer" "$model" "$android_version" \
             "$build_fingerprint" "$battery_dir" "$device_row" >>"$output"
+        IFS=',' read -r -a sample_fields <<<"$device_row"
+        battery_level="${sample_fields[0]:-}"
+        if [[ "$battery_level" =~ ^[0-9]+$ ]] && ((battery_level < min_battery)); then
+            echo "error: battery validity threshold crossed (${battery_level}% < ${min_battery}%)" >&2
+            aborted=1
+        elif [[ "$app_check" -eq 1 ]]; then
+            active_package="$(foreground_package)"
+            if [[ "$active_package" != "org.overte.pico" ]]; then
+                echo "error: Overte lost XR focus (active: ${active_package:-unknown})" >&2
+                aborted=1
+            fi
+        fi
         if [[ -n "$fan_speed" ]]; then
-            IFS=',' read -r -a sample_fields <<<"$device_row"
             battery_temp_raw="${sample_fields[4]:-0}"
             cpu_temp_raw="${sample_fields[14]:-0}"
             skin_temp_raw="${sample_fields[16]:-0}"
@@ -499,8 +534,8 @@ record() {
                 echo "error: skin temperature limit reached (${skin_temp_raw} C)" >&2
                 aborted=1
             fi
-            [[ "$aborted" -eq 0 ]] || break
         fi
+        [[ "$aborted" -eq 0 ]] || break
         next_sample=$((next_sample + interval))
         now_epoch="$(date +%s)"
         if [[ "$next_sample" -gt "$now_epoch" ]]; then
