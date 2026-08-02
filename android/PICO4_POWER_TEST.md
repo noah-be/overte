@@ -59,6 +59,12 @@ millivolts, battery level, temperature, and external-power state. The tool uses
 this verified combination automatically and retains all source values in the
 CSV.
 
+The same firmware exposes VR brightness, reported panel brightness, automatic
+brightness state, active refresh rate, CPU-cluster clocks, GPU clock, Android
+thermal status, and CPU/GPU/skin temperatures. Pico's `pxrfanservice` does not
+publish fan RPM, but it does publish `mFanState`, the control value used by its
+fan service. The recorder stores this as `fan_state` and never labels it as RPM.
+
 ## Test controls
 
 Keep all conditions other than the tested scenario fixed:
@@ -108,8 +114,14 @@ For a short setup validation before committing to a full run:
 
 Results are written under `android/power-results/`, which Git ignores. Each CSV
 contains timestamps, device/build identity, battery values, charge status,
-screen state, and the Overte process ID. Raw values are retained so firmware
-behavior can be audited later.
+screen state, display configuration, fan state, thermal data, CPU/GPU clocks,
+and the Overte process ID. Raw values are retained so firmware behavior can be
+audited later.
+
+The analyzer reports ranges for brightness, refresh rate, and fan state. It
+also reports maximum CPU/GPU/skin temperatures and median clocks. A warning is
+printed if brightness, automatic-brightness state, or refresh rate changes
+during a run, because that makes comparisons less controlled.
 
 The recorder refuses to run while external power is detected. The
 `--allow-charging` option exists for diagnostics, but charging runs should not
@@ -145,6 +157,10 @@ throttling can change power and performance during a run.
 - The displayed charge-counter check is an independent estimate. Large
   disagreement with current integration indicates that the run or telemetry
   needs investigation.
+- `fan_state` is a Pico vendor control value. It is useful for relative fan
+  behavior, but it cannot be converted to RPM without a documented calibration.
+- Collecting the extended telemetry has a small measurement cost. The same
+  sampling interval and tool version must be used for every compared scenario.
 - USB ADB can leave a physical power connection. If the Pico reports charging,
   use wireless ADB or a USB data connection that does not supply power.
 - An inline USB-C meter measures charger input and charging losses, not headset

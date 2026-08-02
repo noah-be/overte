@@ -27,6 +27,19 @@ class AnalyzerTests(unittest.TestCase):
         "temp_raw",
         "plugged",
         "app_pid",
+        "brightness_vr",
+        "brightness_actual",
+        "auto_brightness",
+        "refresh_hz",
+        "fan_state",
+        "cpu_temp_max_mC",
+        "gpu_temp_max_mC",
+        "skin_temp_c",
+        "thermal_status",
+        "cpu_policy0_khz",
+        "cpu_policy4_khz",
+        "cpu_policy7_khz",
+        "gpu_hz",
     ]
 
     def recording(self, rows):
@@ -106,6 +119,46 @@ class AnalyzerTests(unittest.TestCase):
         self.assertIsNone(summary.power_w)
         self.assertIsNone(summary.charge_power_w)
         self.assertIn("invalid", summary.power_method)
+
+    def test_summarizes_display_and_thermal_telemetry(self):
+        rows = []
+        for second, brightness, fan_state, cpu_temp in (
+            (0, 86, 40, 80_000),
+            (60, 90, 45, 85_000),
+        ):
+            rows.append(
+                {
+                    "epoch_s": second,
+                    "label": "telemetry",
+                    "level_pct": 80,
+                    "voltage_raw": 4_000,
+                    "current_raw": -1_000_000,
+                    "charge_raw": "",
+                    "temp_raw": 250,
+                    "plugged": 0,
+                    "app_pid": 123,
+                    "brightness_vr": brightness,
+                    "brightness_actual": 10,
+                    "auto_brightness": 0,
+                    "refresh_hz": 72,
+                    "fan_state": fan_state,
+                    "cpu_temp_max_mC": cpu_temp,
+                    "gpu_temp_max_mC": 75_000,
+                    "skin_temp_c": 60,
+                    "thermal_status": 0,
+                    "cpu_policy0_khz": 1_804_800,
+                    "cpu_policy4_khz": 2_419_200,
+                    "cpu_policy7_khz": 2_841_600,
+                    "gpu_hz": 587_000_000,
+                }
+            )
+        summary = MODULE.summarize(self.recording(rows))
+        self.assertEqual(summary.brightness_vr_min, 86)
+        self.assertEqual(summary.brightness_vr_max, 90)
+        self.assertEqual(summary.fan_state_max, 45)
+        self.assertEqual(summary.cpu_temp_max_c, 85)
+        self.assertEqual(summary.refresh_min_hz, summary.refresh_max_hz)
+        self.assertEqual(summary.gpu_median_mhz, 587)
 
 
 if __name__ == "__main__":

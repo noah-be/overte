@@ -30,6 +30,18 @@ def mean(values: list[float]) -> float | None:
     return statistics.fmean(values) if values else None
 
 
+def column_numbers(rows: list[dict[str, str]], key: str) -> list[float]:
+    return [value for row in rows if (value := number(row.get(key))) is not None]
+
+
+def minimum(values: list[float]) -> float | None:
+    return min(values) if values else None
+
+
+def maximum(values: list[float]) -> float | None:
+    return max(values) if values else None
+
+
 @dataclass
 class Summary:
     path: Path
@@ -48,6 +60,23 @@ class Summary:
     app_present_pct: float
     charging_samples: int
     power_method: str
+    brightness_vr_min: float | None
+    brightness_vr_max: float | None
+    brightness_actual_min: float | None
+    brightness_actual_max: float | None
+    auto_brightness_values: set[str]
+    refresh_min_hz: float | None
+    refresh_max_hz: float | None
+    fan_state_min: float | None
+    fan_state_max: float | None
+    cpu_temp_max_c: float | None
+    gpu_temp_max_c: float | None
+    skin_temp_max_c: float | None
+    thermal_status_max: float | None
+    cpu0_median_mhz: float | None
+    cpu4_median_mhz: float | None
+    cpu7_median_mhz: float | None
+    gpu_median_mhz: float | None
 
 
 def scaled_voltage(raw: float | None) -> float | None:
@@ -174,6 +203,23 @@ def summarize(path: Path) -> Summary:
         method = "invalid while external power is connected"
 
     app_samples = sum(bool((row.get("app_pid") or "").strip()) for row in rows)
+    brightness_vr = column_numbers(rows, "brightness_vr")
+    brightness_actual = column_numbers(rows, "brightness_actual")
+    refresh_rates = column_numbers(rows, "refresh_hz")
+    fan_states = column_numbers(rows, "fan_state")
+    cpu_temperatures = [value / 1000 for value in column_numbers(rows, "cpu_temp_max_mC")]
+    gpu_temperatures = [value / 1000 for value in column_numbers(rows, "gpu_temp_max_mC")]
+    skin_temperatures = column_numbers(rows, "skin_temp_c")
+    thermal_statuses = column_numbers(rows, "thermal_status")
+    cpu0_frequencies = [value / 1000 for value in column_numbers(rows, "cpu_policy0_khz")]
+    cpu4_frequencies = [value / 1000 for value in column_numbers(rows, "cpu_policy4_khz")]
+    cpu7_frequencies = [value / 1000 for value in column_numbers(rows, "cpu_policy7_khz")]
+    gpu_frequencies = [value / 1_000_000 for value in column_numbers(rows, "gpu_hz")]
+    auto_brightness_values = {
+        value
+        for row in rows
+        if (value := (row.get("auto_brightness") or "").strip())
+    }
     return Summary(
         path=path,
         label=(rows[0].get("label") or path.stem).strip(),
@@ -191,11 +237,36 @@ def summarize(path: Path) -> Summary:
         app_present_pct=app_samples * 100 / len(rows),
         charging_samples=charging_samples,
         power_method=method,
+        brightness_vr_min=minimum(brightness_vr),
+        brightness_vr_max=maximum(brightness_vr),
+        brightness_actual_min=minimum(brightness_actual),
+        brightness_actual_max=maximum(brightness_actual),
+        auto_brightness_values=auto_brightness_values,
+        refresh_min_hz=minimum(refresh_rates),
+        refresh_max_hz=maximum(refresh_rates),
+        fan_state_min=minimum(fan_states),
+        fan_state_max=maximum(fan_states),
+        cpu_temp_max_c=maximum(cpu_temperatures),
+        gpu_temp_max_c=maximum(gpu_temperatures),
+        skin_temp_max_c=maximum(skin_temperatures),
+        thermal_status_max=maximum(thermal_statuses),
+        cpu0_median_mhz=median(cpu0_frequencies),
+        cpu4_median_mhz=median(cpu4_frequencies),
+        cpu7_median_mhz=median(cpu7_frequencies),
+        gpu_median_mhz=median(gpu_frequencies),
     )
 
 
 def display(value: float | None, precision: int = 2) -> str:
     return "n/a" if value is None else f"{value:.{precision}f}"
+
+
+def display_range(low: float | None, high: float | None, precision: int = 1) -> str:
+    if low is None or high is None:
+        return "n/a"
+    if low == high:
+        return display(low, precision)
+    return f"{display(low, precision)} -> {display(high, precision)}"
 
 
 def print_summary(summary: Summary) -> None:
@@ -224,6 +295,37 @@ def print_summary(summary: Summary) -> None:
     )
     print(f"  Overte process present:  {summary.app_present_pct:.1f}% of samples")
     print(f"  Power calculation:       {summary.power_method}")
+    print("  Display / cooling:")
+    print(
+        "    VR brightness:         "
+        f"{display_range(summary.brightness_vr_min, summary.brightness_vr_max, 0)} / 255"
+    )
+    print(
+        "    Reported panel level:  "
+        f"{display_range(summary.brightness_actual_min, summary.brightness_actual_max, 0)} / 255"
+    )
+    auto_brightness = ", ".join(sorted(summary.auto_brightness_values)) or "n/a"
+    print(f"    Auto brightness:       {auto_brightness}")
+    print(
+        "    Refresh rate:          "
+        f"{display_range(summary.refresh_min_hz, summary.refresh_max_hz, 2)} Hz"
+    )
+    print(
+        "    Fan state (not RPM):   "
+        f"{display_range(summary.fan_state_min, summary.fan_state_max, 0)}"
+    )
+    print(
+        "    Max CPU/GPU/skin temp: "
+        f"{display(summary.cpu_temp_max_c, 1)} / {display(summary.gpu_temp_max_c, 1)} / "
+        f"{display(summary.skin_temp_max_c, 1)} C"
+    )
+    print(f"    Max thermal status:    {display(summary.thermal_status_max, 0)}")
+    print(
+        "    Median CPU MHz:        "
+        f"{display(summary.cpu0_median_mhz, 0)} / {display(summary.cpu4_median_mhz, 0)} / "
+        f"{display(summary.cpu7_median_mhz, 0)}"
+    )
+    print(f"    Median GPU MHz:        {display(summary.gpu_median_mhz, 0)}")
     if summary.charging_samples:
         print(f"  WARNING: external power appeared in {summary.charging_samples} samples")
     if (
@@ -236,6 +338,12 @@ def print_summary(summary: Summary) -> None:
         print(f"  WARNING: current and charge estimates differ by {difference:.1f}%")
     if summary.duration_s < 1200:
         print("  WARNING: runs shorter than 20 minutes are useful only for setup checks")
+    if summary.brightness_vr_min != summary.brightness_vr_max:
+        print("  WARNING: VR brightness changed during the run")
+    if summary.refresh_min_hz != summary.refresh_max_hz:
+        print("  WARNING: refresh rate changed during the run")
+    if len(summary.auto_brightness_values) > 1:
+        print("  WARNING: auto-brightness state changed during the run")
 
 
 def main() -> int:

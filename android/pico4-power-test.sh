@@ -138,7 +138,8 @@ print_sensor() {
 }
 
 doctor() {
-    local dump level voltage current charge temperature status plugged
+    local dump level voltage current charge temperature status plugged telemetry
+    local -a telemetry_fields
 
     adb="$(find_adb)" || fail "ADB not found; set PICO_ADB or ANDROID_SDK_ROOT"
     serial="$(select_device "$adb")"
@@ -194,6 +195,24 @@ doctor() {
     else
         echo "Only a coarse battery-level discharge test is available on this firmware."
     fi
+
+    telemetry="$(sample_device)"
+    IFS=',' read -r -a telemetry_fields <<<"$telemetry"
+    echo
+    echo "Display and performance telemetry:"
+    print_sensor "VR brightness" "${telemetry_fields[9]:-}" " / 255"
+    print_sensor "panel brightness" "${telemetry_fields[10]:-}" " / 255"
+    print_sensor "auto brightness" "${telemetry_fields[11]:-}" ""
+    print_sensor "refresh rate" "${telemetry_fields[12]:-}" " Hz"
+    print_sensor "fan state" "${telemetry_fields[13]:-}" " (vendor control value; not RPM)"
+    print_sensor "max CPU temp" "${telemetry_fields[14]:-}" " mC"
+    print_sensor "max GPU temp" "${telemetry_fields[15]:-}" " mC"
+    print_sensor "skin temp" "${telemetry_fields[16]:-}" " C"
+    print_sensor "thermal status" "${telemetry_fields[17]:-}" ""
+    print_sensor "CPU policy0" "${telemetry_fields[18]:-}" " kHz"
+    print_sensor "CPU policy4" "${telemetry_fields[19]:-}" " kHz"
+    print_sensor "CPU policy7" "${telemetry_fields[20]:-}" " kHz"
+    print_sensor "GPU clock" "${telemetry_fields[21]:-}" " Hz"
 }
 
 sample_device() {
@@ -221,8 +240,30 @@ sample_device() {
         status=\"\$(sysfs_read status)\"; [ -n \"\$status\" ] || status=\"\$(dump_read status)\";
         if printf '%s\\n' \"\$battery_dump\" | grep -Eq '^[[:space:]]*(AC|USB|Wireless) powered:[[:space:]]*true'; then plugged=1; else plugged=0; fi;
         app_pid=\"\$(pidof org.overte.pico 2>/dev/null | awk '{ print \$1 }')\";
-        screen_state=\"\$(dumpsys power 2>/dev/null | awk -F= '/mWakefulness=/{print \$2; exit} /Display Power: state=/{print \$2; exit}' | tr -d '[:space:]')\";
-        printf '%s,%s,%s,%s,%s,%s,%s,%s,%s\\n' \"\$level\" \"\$voltage\" \"\$current\" \"\$charge\" \"\$temperature\" \"\$status\" \"\$plugged\" \"\$app_pid\" \"\$screen_state\"" \
+        power_dump=\"\$(dumpsys power 2>/dev/null)\";
+        screen_state=\"\$(printf '%s\\n' \"\$power_dump\" | awk -F= '/mWakefulness=/{print \$2; exit} /Display Power: state=/{print \$2; exit}' | tr -d '[:space:]')\";
+        brightness_vr=\"\$(settings get system screen_brightness_for_vr 2>/dev/null)\";
+        auto_brightness=\"\$(settings get global pxr_auto_brightness_enable 2>/dev/null)\";
+        [ \"\$auto_brightness\" != null ] || auto_brightness=\"\$(settings get system screen_brightness_mode 2>/dev/null)\";
+        display_dump=\"\$(dumpsys display 2>/dev/null)\";
+        brightness_actual=\"\$(printf '%s\\n' \"\$display_dump\" | sed -n 's/^[[:space:]]*mScreenBrightness=//p' | head -n 1)\";
+        active_mode=\"\$(printf '%s\\n' \"\$display_dump\" | sed -n 's/^[[:space:]]*mActiveModeId=//p' | head -n 1)\";
+        refresh_hz=\"\$(printf '%s\\n' \"\$display_dump\" | sed -n \"s/.*{id=\$active_mode, width=[^,]*, height=[^,]*, fps=\\([0-9.]*\\)}.*/\\1/p\" | head -n 1)\";
+        fan_dump=\"\$(dumpsys pxrfanservice 2>/dev/null)\";
+        fan_state=\"\$(printf '%s\\n' \"\$fan_dump\" | sed -n 's/^mFanState=//p' | head -n 1)\";
+        cpu_temp_max=\"\$(printf '%s\\n' \"\$fan_dump\" | awk '/^Cpu Temperature/ { for (i=1; i<=NF; i++) if (\$i ~ /^temp=/) { sub(/^temp=/, \"\", \$i); sub(/,.*/, \"\", \$i); if (\$i+0 > max) max=\$i+0 } } END { if (max) print max }')\";
+        gpu_temp_max=\"\$(printf '%s\\n' \"\$fan_dump\" | awk '/^Gpu Temperature/ { for (i=1; i<=NF; i++) if (\$i ~ /^temp=/) { sub(/^temp=/, \"\", \$i); sub(/,.*/, \"\", \$i); if (\$i+0 > max) max=\$i+0 } } END { if (max) print max }')\";
+        thermal_dump=\"\$(dumpsys thermalservice 2>/dev/null)\";
+        thermal_status=\"\$(printf '%s\\n' \"\$thermal_dump\" | sed -n 's/^[[:space:]]*Thermal Status:[[:space:]]*//p' | head -n 1)\";
+        skin_temp=\"\$(printf '%s\\n' \"\$thermal_dump\" | sed -n 's/.*mValue=\\([^,]*\\).*mName=skin,.*/\\1/p' | tail -n 1)\";
+        cpu0_khz=\"\$(cat /sys/devices/system/cpu/cpufreq/policy0/scaling_cur_freq 2>/dev/null)\";
+        cpu4_khz=\"\$(cat /sys/devices/system/cpu/cpufreq/policy4/scaling_cur_freq 2>/dev/null)\";
+        cpu7_khz=\"\$(cat /sys/devices/system/cpu/cpufreq/policy7/scaling_cur_freq 2>/dev/null)\";
+        gpu_hz=\"\$(cat /sys/class/kgsl/kgsl-3d0/gpuclk 2>/dev/null)\";
+        printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\\n' \\
+            \"\$level\" \"\$voltage\" \"\$current\" \"\$charge\" \"\$temperature\" \"\$status\" \"\$plugged\" \"\$app_pid\" \"\$screen_state\" \\
+            \"\$brightness_vr\" \"\$brightness_actual\" \"\$auto_brightness\" \"\$refresh_hz\" \"\$fan_state\" \"\$cpu_temp_max\" \"\$gpu_temp_max\" \\
+            \"\$skin_temp\" \"\$thermal_status\" \"\$cpu0_khz\" \"\$cpu4_khz\" \"\$cpu7_khz\" \"\$gpu_hz\"" \
         2>/dev/null || true
 }
 
@@ -296,7 +337,7 @@ record() {
     fi
 
     printf '%s\n' \
-        'timestamp_utc,epoch_s,elapsed_s,label,serial,manufacturer,model,android_version,build_fingerprint,battery_dir,level_pct,voltage_raw,current_raw,charge_raw,temp_raw,status,plugged,app_pid,screen_state' \
+        'timestamp_utc,epoch_s,elapsed_s,label,serial,manufacturer,model,android_version,build_fingerprint,battery_dir,level_pct,voltage_raw,current_raw,charge_raw,temp_raw,status,plugged,app_pid,screen_state,brightness_vr,brightness_actual,auto_brightness,refresh_hz,fan_state,cpu_temp_max_mC,gpu_temp_max_mC,skin_temp_c,thermal_status,cpu_policy0_khz,cpu_policy4_khz,cpu_policy7_khz,gpu_hz' \
         >"$output"
 
     echo "Recording $duration seconds to $output"
