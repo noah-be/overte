@@ -144,6 +144,11 @@ public:
     PFN_xrEnumerateDisplayRefreshRatesFB xrEnumerateDisplayRefreshRatesFB = nullptr;
     PFN_xrGetDisplayRefreshRateFB xrGetDisplayRefreshRateFB = nullptr;
     PFN_xrRequestDisplayRefreshRateFB xrRequestDisplayRefreshRateFB = nullptr;
+
+    bool _foveationSupported = false;
+    PFN_xrCreateFoveationProfileFB xrCreateFoveationProfileFB = nullptr;
+    PFN_xrDestroyFoveationProfileFB xrDestroyFoveationProfileFB = nullptr;
+    PFN_xrUpdateSwapchainFB xrUpdateSwapchainFB = nullptr;
 #endif
 
     bool _MNDX_xdevSpaceSupported = false;

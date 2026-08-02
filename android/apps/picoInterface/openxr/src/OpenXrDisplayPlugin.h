@@ -76,6 +76,10 @@ private:
     std::vector<uint32_t> _swapChainIndices;
     std::vector<std::vector<XrSwapchainImageOpenGLKHR>> _images;
 
+#if defined(Q_OS_ANDROID)
+    XrFoveationProfileFB _foveationProfile { XR_NULL_HANDLE };
+#endif
+
     XrFrameState _lastFrameState;
 
     bool initViews();
