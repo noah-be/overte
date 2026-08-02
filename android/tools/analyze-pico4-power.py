@@ -64,6 +64,8 @@ class Summary:
     brightness_vr_max: float | None
     brightness_actual_min: float | None
     brightness_actual_max: float | None
+    mcu_brightness_min: float | None
+    mcu_brightness_max: float | None
     auto_brightness_values: set[str]
     refresh_min_hz: float | None
     refresh_max_hz: float | None
@@ -210,6 +212,7 @@ def summarize(path: Path) -> Summary:
     app_samples = sum(bool((row.get("app_pid") or "").strip()) for row in rows)
     brightness_vr = column_numbers(rows, "brightness_vr")
     brightness_actual = column_numbers(rows, "brightness_actual")
+    mcu_brightness = column_numbers(rows, "mcu_brightness")
     refresh_rates = column_numbers(rows, "refresh_hz")
     fan_states = column_numbers(rows, "fan_state")
     fan_rpms = column_numbers(rows, "fan_rpm")
@@ -248,6 +251,8 @@ def summarize(path: Path) -> Summary:
         brightness_vr_max=maximum(brightness_vr),
         brightness_actual_min=minimum(brightness_actual),
         brightness_actual_max=maximum(brightness_actual),
+        mcu_brightness_min=minimum(mcu_brightness),
+        mcu_brightness_max=maximum(mcu_brightness),
         auto_brightness_values=auto_brightness_values,
         refresh_min_hz=minimum(refresh_rates),
         refresh_max_hz=maximum(refresh_rates),
@@ -316,6 +321,10 @@ def print_summary(summary: Summary) -> None:
         "    Reported panel level:  "
         f"{display_range(summary.brightness_actual_min, summary.brightness_actual_max, 0)} / 255"
     )
+    print(
+        "    MCU brightness:        "
+        f"{display_range(summary.mcu_brightness_min, summary.mcu_brightness_max, 0)} / 100"
+    )
     auto_brightness = ", ".join(sorted(summary.auto_brightness_values)) or "n/a"
     print(f"    Auto brightness:       {auto_brightness}")
     print(
@@ -361,6 +370,8 @@ def print_summary(summary: Summary) -> None:
         print("  WARNING: runs shorter than 20 minutes are useful only for setup checks")
     if summary.brightness_vr_min != summary.brightness_vr_max:
         print("  WARNING: VR brightness changed during the run")
+    if summary.mcu_brightness_min != summary.mcu_brightness_max:
+        print("  WARNING: MCU display brightness changed during the run")
     if summary.refresh_min_hz != summary.refresh_max_hz:
         print("  WARNING: refresh rate changed during the run")
     if len(summary.auto_brightness_values) > 1:

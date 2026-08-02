@@ -146,6 +146,27 @@ battery temperature. Override them only with a clear reason using
 the run and restores automatic fan control. Low fan settings can cause thermal
 throttling, so compare temperatures and clocks alongside power.
 
+## Fixed-brightness tests
+
+Pico's MCU exposes the actual display-backlight range from 0 to 100. Android's
+`screen_brightness_for_vr` value is not equivalent to this MCU level. Hold both
+brightness and fan duty during a recording with:
+
+```bash
+./pico4-power-test.sh record \
+    --label display-50 \
+    --brightness 50 \
+    --fan-speed 50 \
+    --warmup 15 \
+    --duration 60 \
+    --no-app-check
+```
+
+The recorder saves and verifies the original MCU brightness, logs the applied
+level every second, and restores it on normal exit or handled termination. If a
+host crash prevents restoration, use `gd32ipdclient_test getbrightness` and
+`setbrightness <original-value>` over ADB.
+
 Results are written under `android/power-results/`, which Git ignores. Each CSV
 contains timestamps, device/build identity, battery values, charge status,
 screen state, display configuration, fan state, thermal data, CPU/GPU clocks,

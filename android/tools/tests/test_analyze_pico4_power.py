@@ -42,6 +42,7 @@ class AnalyzerTests(unittest.TestCase):
         "gpu_hz",
         "fan_rpm",
         "fan_duty",
+        "mcu_brightness",
     ]
 
     def recording(self, rows):
@@ -154,11 +155,14 @@ class AnalyzerTests(unittest.TestCase):
                     "gpu_hz": 587_000_000,
                     "fan_rpm": 7_000 + second * 10,
                     "fan_duty": fan_state,
+                    "mcu_brightness": brightness,
                 }
             )
         summary = MODULE.summarize(self.recording(rows))
         self.assertEqual(summary.brightness_vr_min, 86)
         self.assertEqual(summary.brightness_vr_max, 90)
+        self.assertEqual(summary.mcu_brightness_min, 86)
+        self.assertEqual(summary.mcu_brightness_max, 90)
         self.assertEqual(summary.fan_state_max, 45)
         self.assertEqual(summary.fan_rpm_median, 7_300)
         self.assertEqual(summary.fan_duty_max, 45)
