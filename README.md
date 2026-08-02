@@ -23,6 +23,15 @@ SPDX-License-Identifier: Apache-2.0
     <a href="https://github.com/overte-org/overte/actions/workflows/master_deploy_doxygen.yml"><img alt="Doxygen CI Build & Deploy" src="https://github.com/overte-org/overte/actions/workflows/master_deploy_doxygen.yml/badge.svg"></a>
 </p>
 
+> [!CAUTION]
+> **AI-assisted experimental fork**
+>
+> I use AI tools to assist with experiments and implementation work in this fork. I work in a separate fork for this reason and do not consider its changes suitable for contribution to the original Overte project.
+>
+> Code in this fork should be reviewed and used with caution. It may contain incomplete, poorly tested, insecure, or otherwise dangerous code, including quick-and-dirty fixes. Do not treat this fork as a clean, stable, or production-ready version of Overte. For the official, stable project, use the [original Overte repository](https://github.com/overte-org/overte).
+>
+> The Overte project has a [no-AI-contributions policy](https://github.com/overte-org/overte/blob/master/CONTRIBUTING.md), which I respect. AI tools help me work more efficiently, so I use them only for work maintained separately in this fork.
+
 ### What is this?
 
 Overte is a free and open source 3D social virtual worlds software.

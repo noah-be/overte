@@ -1,5 +1,19 @@
 # Build the Overte client for Pico 4
 
+> [!CAUTION]
+> **AI-assisted experimental Pico 4 port**
+>
+> This Pico 4 port is developed with the assistance of AI tools. Its code and
+> build workflow are experimental and may contain incomplete, poorly tested,
+> insecure, or otherwise dangerous changes, including quick-and-dirty fixes.
+> Review everything carefully and do not treat this port as production-ready.
+>
+> This work is maintained separately in a fork in respect of Overte's
+> [no-AI-contributions policy](https://github.com/overte-org/overte/blob/master/CONTRIBUTING.md).
+> For the official, stable project, use the
+> [original Overte repository](https://github.com/overte-org/overte). See the
+> fork's [full AI-use disclaimer](../README.md) for more information.
+
 The Pico 4 client has a maintained command-line build workflow for 64-bit
 Linux. Run all commands below from the repository's `android/` directory.
 
