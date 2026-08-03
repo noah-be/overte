@@ -190,6 +190,40 @@ the total workload to justify a global bounding-box or mesh-update quality
 reduction. The result supports fixing scheduling/content outliers rather than
 removing required render-item work.
 
+### Input routing and scheduler profile
+
+Route-level instrumentation identified a JavaScript polling endpoint in the
+`tabletToggle-click` mapping as the largest input-routing outlier. In the
+baseline it accounted for 373 of 613 routes exceeding 2 ms and 1.62 seconds of
+their cumulative measured wall time. The mapping called a JavaScript getter
+every input update merely to copy `wantsMenu` to `Actions.ContextMenu`.
+
+Routing the three relevant controller inputs directly to `ContextMenu`, while
+retaining JavaScript callbacks only for their UI side effects, produced:
+
+| Input result | JavaScript polling | Direct routes | Change |
+| --- | ---: | ---: | ---: |
+| Mean mapping time per call | 1.414 ms | 1.169 ms | -17.4% |
+| Mean device-route time per call | 0.727 ms | 0.441 ms | -39.4% |
+| Routes exceeding 2 ms | 613 | 217 | -64.6% |
+| `tabletToggle-click` routes exceeding 2 ms | 373 | 7 | -98.1% |
+| Mean process CPU | 285.2% | 290.5% | +1.9% |
+
+This is a confirmed local input-path improvement, but the single A/B run did
+not demonstrate a total CPU reduction; its process-CPU result moved in the
+wrong direction within the already observed run variance. Keep the direct
+routing change for its removal of unnecessary per-update JavaScript work, but
+do not count it as a global CPU saving until repeated interleaved runs confirm
+one. Both variants passed start/end 4320x2160 reference-image validation.
+
+A 30-second Android scheduler trace confirms substantial preemption in the
+same workload. The Qt main-loop thread had 9,097 runnable switch-outs, with a
+mean runnable off-CPU interval of 2.02 ms and a maximum overall off-CPU interval
+of 88.64 ms. The controller and edit JavaScript threads showed the same pattern,
+including runnable off-CPU intervals and occasional much larger sleeping
+intervals. Consequently, multi-millisecond wall-time outliers in route or model
+timers must not automatically be interpreted as equivalent CPU execution time.
+
 ## Test artifacts and automation
 
 Raw data is stored in the Git-ignored `power-results/graphics-matrix-*`
@@ -202,6 +236,10 @@ The repeated model-update-rate screen is in
 `power-results/graphics-matrix-20260803T150423Z`.
 The internal model stage profile is in
 `power-results/model-render-stages-20260803T153354Z`.
+The input-route baseline and direct-route comparison are in
+`power-results/input-route-mapping-20260803T161749Z` and
+`power-results/input-route-direct-20260803T162404Z`. The scheduler trace is
+`power-results/pico-input-sched.atrace`.
 
 `pico-graphics-matrix.sh` automates:
 
