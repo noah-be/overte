@@ -52,7 +52,7 @@ run_case() {
     adb_shell setprop debug.overte.power_profile "$profile"
     adb_shell setprop debug.overte.foveation "$foveation"
     local feature
-    for feature in shadows bloom ambient_occlusion haze local_lights procedural_materials mirror_views stats; do
+    for feature in shadows bloom ambient_occlusion haze local_lights procedural_materials mirror_views stats simulation_hz; do
         adb_shell setprop "debug.overte.$feature" default
     done
     while (( $# >= 2 )); do
@@ -121,7 +121,7 @@ run_case() {
     capture_and_validate_scene "$output/scene-end.png" "$output/scene-end.txt"
     "$ADB_BIN" -s "$PICO_SERIAL" logcat -d -v brief > "$output/logcat.txt"
     grep 'PICO_GPU_BENCH' "$output/logcat.txt" > "$output/gpu-bench.txt" || true
-    grep -E 'PICO_(RENDER_SCALE|FOVEATION_LEVEL|POWER_PROFILE)' "$output/logcat.txt" > "$output/verified-config.txt" || true
+    grep -E 'PICO_(RENDER_SCALE|FOVEATION_LEVEL|POWER_PROFILE|SIMULATION_HZ)' "$output/logcat.txt" > "$output/verified-config.txt" || true
 }
 
 case "${1:-screen}" in
@@ -171,6 +171,21 @@ case "${1:-screen}" in
         run_case final_baseline_100_r2 1.00 0 off stats off
         run_case final_recommended_080_r3 0.80 0 off stats off
         run_case final_baseline_100_r3 1.00 0 off stats off
+        ;;
+    cpu)
+        run_case cpu_breakdown_080 0.80 0 off stats off
+        ;;
+    cpu_matrix)
+        run_case cpu_full_rate_080 0.80 0 off stats off
+        run_case cpu_simulation_36hz_080 0.80 0 off stats off simulation_hz 36
+        run_case cpu_simulation_24hz_080 0.80 0 off stats off simulation_hz 24
+        run_case cpu_full_rate_repeat_080 0.80 0 off stats off
+        ;;
+    cpu_dynamic)
+        run_case cpu_dynamic_full_r1_080 0.80 0 off stats off
+        run_case cpu_dynamic_24hz_r1_080 0.80 0 off stats off simulation_hz 24
+        run_case cpu_dynamic_full_r2_080 0.80 0 off stats off
+        run_case cpu_dynamic_24hz_r2_080 0.80 0 off stats off simulation_hz 24
         ;;
     *) echo "usage: $0 [screen]" >&2; exit 2 ;;
 esac
