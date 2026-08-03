@@ -190,6 +190,9 @@ void CauterizedModel::updateRenderItems() {
         void* key = (void*)this;
         std::weak_ptr<CauterizedModel> weakSelf = std::dynamic_pointer_cast<CauterizedModel>(shared_from_this());
         AbstractViewStateInterface::instance()->pushPostUpdateLambda(key, [weakSelf]() {
+#if defined(Q_OS_ANDROID)
+            const uint64_t picoStart = usecTimestampNow();
+#endif
             // do nothing, if the model has already been destroyed.
             auto self = weakSelf.lock();
             if (!self || !self->isLoaded()) {
@@ -198,6 +201,9 @@ void CauterizedModel::updateRenderItems() {
 
             // lazy update of cluster matrices used for rendering.  We need to update them here, so we can correctly update the bounding box.
             self->updateClusterMatrices();
+#if defined(Q_OS_ANDROID)
+            const uint64_t picoAfterClusters = usecTimestampNow();
+#endif
 
             render::ScenePointer scene = AbstractViewStateInterface::instance()->getMain3DScene();
 
@@ -208,6 +214,9 @@ void CauterizedModel::updateRenderItems() {
             PrimitiveMode primitiveMode = self->getPrimitiveMode();
             auto renderItemKeyGlobalFlags = self->getRenderItemKeyGlobalFlags();
             bool enableCauterization = self->getEnableCauterization();
+#if defined(Q_OS_ANDROID)
+            const uint64_t picoAfterSetup = usecTimestampNow();
+#endif
 
             render::Transaction transaction;
             for (int i = 0; i < (int)self->_modelMeshRenderItemIDs.size(); i++) {
@@ -242,8 +251,23 @@ void CauterizedModel::updateRenderItems() {
                     data.setShapeKey(invalidatePayloadShapeKey, primitiveMode, useDualQuaternionSkinning);
                 });
             }
+#if defined(Q_OS_ANDROID)
+            const uint64_t picoAfterMeshes = usecTimestampNow();
+#endif
 
             scene->enqueueTransaction(transaction);
+#if defined(Q_OS_ANDROID)
+            const uint64_t picoEnd = usecTimestampNow();
+            if (picoEnd - picoStart > 5000) {
+                qInfo() << "PICO_CAUTERIZED_MODEL_RENDER_STAGES"
+                        << "totalMs" << (picoEnd - picoStart) / 1000.0
+                        << "clusterMs" << (picoAfterClusters - picoStart) / 1000.0
+                        << "setupMs" << (picoAfterSetup - picoAfterClusters) / 1000.0
+                        << "meshesMs" << (picoAfterMeshes - picoAfterSetup) / 1000.0
+                        << "enqueueMs" << (picoEnd - picoAfterMeshes) / 1000.0
+                        << "meshItems" << self->_modelMeshRenderItemIDs.size();
+            }
+#endif
         });
     } else {
         Model::updateRenderItems();

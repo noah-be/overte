@@ -176,6 +176,20 @@ Rate limiting reduced direct callback time by 20-24% and reduced slow callback
 events, but did not reduce total process CPU. It also lowers animation/model
 freshness. Retain unlimited model updates in the recommended profile.
 
+Internal timing of callbacks exceeding 5 ms separated cluster-matrix work,
+property setup, per-mesh payload/bounding-box updates, and scene enqueue. For
+ordinary models, the median slow callback was 8.17 ms, but the median measured
+work in each individual stage was only 0.03-0.08 ms. Cauterized models showed
+the same pattern, with a median 8.24 ms callback but sub-millisecond median
+stages. The missing wall time moves between stages and is consistent with main
+thread preemption rather than one consistently expensive function.
+
+Five-mesh models were the exception: their mesh stage had an 8.58 ms median,
+but only five slow events occurred in the 90-second run. This is too little of
+the total workload to justify a global bounding-box or mesh-update quality
+reduction. The result supports fixing scheduling/content outliers rather than
+removing required render-item work.
+
 ## Test artifacts and automation
 
 Raw data is stored in the Git-ignored `power-results/graphics-matrix-*`
@@ -186,6 +200,8 @@ The repeated simulation-rate screen is in
 screen is in `power-results/graphics-matrix-20260803T132034Z`.
 The repeated model-update-rate screen is in
 `power-results/graphics-matrix-20260803T150423Z`.
+The internal model stage profile is in
+`power-results/model-render-stages-20260803T153354Z`.
 
 `pico-graphics-matrix.sh` automates:
 
