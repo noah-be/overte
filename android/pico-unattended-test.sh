@@ -95,7 +95,7 @@ verify_spawn() {
 case "${1:-status}" in
     start)
         force_worn
-        adb_shell am start -W -a android.intent.action.MAIN \
+        adb_shell am start -a android.intent.action.MAIN \
             -c android.intent.category.LAUNCHER \
             -c com.picovr.intent.category.VR \
             -n org.overte.pico/.PermissionsActivity

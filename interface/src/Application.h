@@ -869,6 +869,7 @@ private:
     QPointF _mouseCaptureTarget { NAN, NAN };
 
     std::map<void*, std::function<void()>> _postUpdateLambdas;
+    std::map<void*, void*> _postUpdateLambdaCallers;
     std::mutex _postUpdateLambdasLock;
 
     std::atomic<bool> _pendingIdleEvent { true };

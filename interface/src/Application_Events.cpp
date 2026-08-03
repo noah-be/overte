@@ -286,6 +286,9 @@ void Application::sendLambdaEvent(const std::function<void()>& f) {
 void Application::pushPostUpdateLambda(void* key, const std::function<void()>& func) {
     std::unique_lock<std::mutex> guard(_postUpdateLambdasLock);
     _postUpdateLambdas[key] = func;
+#if defined(Q_OS_ANDROID)
+    _postUpdateLambdaCallers[key] = __builtin_return_address(0);
+#endif
 }
 
 // thread-safe

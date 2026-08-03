@@ -161,6 +161,21 @@ updates. At 500 us, CPU becomes slightly worse while the backlog grows further.
 Retain the default 2000 us. All selected runs had valid 4320x2160 start/end
 images and no visually unready entities at the one-second sampling points.
 
+Detailed avatar and post-update profiling found that other avatars and look-at
+work were negligible in the Hub. Native caller tracing instead identified
+`Model::updateRenderItems()` and `CauterizedModel::updateRenderItems()` as the
+dominant slow post-update callbacks. A repeated per-model rate screen produced:
+
+| Model update rate | Mean process CPU | Median callback time | Slow callback count |
+| --- | ---: | ---: | ---: |
+| Unlimited | 292.9% | 1.81 ms | 450 |
+| 30 Hz | 295.8% | 1.45 ms | 390 |
+| 24 Hz | 295.4% | 1.37 ms | 341 |
+
+Rate limiting reduced direct callback time by 20-24% and reduced slow callback
+events, but did not reduce total process CPU. It also lowers animation/model
+freshness. Retain unlimited model updates in the recommended profile.
+
 ## Test artifacts and automation
 
 Raw data is stored in the Git-ignored `power-results/graphics-matrix-*`
@@ -169,6 +184,8 @@ directories. The final repeated comparison is in
 The repeated simulation-rate screen is in
 `power-results/graphics-matrix-20260803T122038Z`, and the renderable-budget
 screen is in `power-results/graphics-matrix-20260803T132034Z`.
+The repeated model-update-rate screen is in
+`power-results/graphics-matrix-20260803T150423Z`.
 
 `pico-graphics-matrix.sh` automates:
 
@@ -196,6 +213,7 @@ debug.overte.mirror_views
 debug.overte.stats
 debug.overte.simulation_hz
 debug.overte.renderable_budget_us
+debug.overte.model_update_hz
 ```
 
 ## Limitations and next work
@@ -211,4 +229,4 @@ debug.overte.renderable_budget_us
 - The strongest next candidates are physics broadphase/entity workload
   reduction, script/update scheduling, inactive-entity throttling, and avatar
   complexity controls. Global simulation-rate and renderable-budget reductions
-  have now been screened and rejected.
+  and model-update throttling have now been screened and rejected.

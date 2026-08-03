@@ -52,7 +52,7 @@ run_case() {
     adb_shell setprop debug.overte.power_profile "$profile"
     adb_shell setprop debug.overte.foveation "$foveation"
     local feature
-    for feature in shadows bloom ambient_occlusion haze local_lights procedural_materials mirror_views stats simulation_hz renderable_budget_us; do
+    for feature in shadows bloom ambient_occlusion haze local_lights procedural_materials mirror_views stats simulation_hz renderable_budget_us model_update_hz; do
         adb_shell setprop "debug.overte.$feature" default
     done
     while (( $# >= 2 )); do
@@ -63,7 +63,19 @@ run_case() {
     printf '\n' >> "$output/config.txt"
     adb_shell am force-stop org.overte.pico
     "$ADB_BIN" -s "$PICO_SERIAL" logcat -c
-    PICO_SERIAL="$PICO_SERIAL" ./pico-unattended-test.sh start >/dev/null
+    local start_ok=0
+    for attempt in 1 2 3; do
+        if timeout 60 env PICO_SERIAL="$PICO_SERIAL" ./pico-unattended-test.sh start >/dev/null; then
+            start_ok=1
+            break
+        fi
+        adb_shell am force-stop org.overte.pico
+        sleep 5
+    done
+    if (( start_ok == 0 )); then
+        echo "unable to start Pico app for $label" >&2
+        return 1
+    fi
     sleep 25
     local hub_ok=0 attempt
     for attempt in 1 2 3; do
@@ -132,7 +144,7 @@ run_case() {
     capture_and_validate_scene "$output/scene-end.png" "$output/scene-end.txt"
     "$ADB_BIN" -s "$PICO_SERIAL" logcat -d -v brief > "$output/logcat.txt"
     grep 'PICO_GPU_BENCH' "$output/logcat.txt" > "$output/gpu-bench.txt" || true
-    grep -E 'PICO_(RENDER_SCALE|FOVEATION_LEVEL|POWER_PROFILE|SIMULATION_HZ|RENDERABLE_BUDGET_US)' "$output/logcat.txt" > "$output/verified-config.txt" || true
+    grep -E 'PICO_(RENDER_SCALE|FOVEATION_LEVEL|POWER_PROFILE|SIMULATION_HZ|RENDERABLE_BUDGET_US|MODEL_UPDATE_HZ)' "$output/logcat.txt" > "$output/verified-config.txt" || true
 }
 
 case "${1:-screen}" in
@@ -210,6 +222,14 @@ case "${1:-screen}" in
         run_case renderable_budget_2000_r2b_080 0.80 0 off stats off
         run_case renderable_budget_1000_r2_080 0.80 0 off stats off renderable_budget_us 1000
         run_case renderable_budget_0500_r2_080 0.80 0 off stats off renderable_budget_us 500
+        ;;
+    model_updates)
+        run_case model_updates_full_r1_080 0.80 0 off stats off
+        run_case model_updates_30hz_r1_080 0.80 0 off stats off model_update_hz 30
+        run_case model_updates_24hz_r1_080 0.80 0 off stats off model_update_hz 24
+        run_case model_updates_full_r2_080 0.80 0 off stats off
+        run_case model_updates_30hz_r2_080 0.80 0 off stats off model_update_hz 30
+        run_case model_updates_24hz_r2_080 0.80 0 off stats off model_update_hz 24
         ;;
     *) echo "usage: $0 [screen]" >&2; exit 2 ;;
 esac
