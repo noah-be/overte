@@ -140,11 +140,35 @@ stability but not the roughly 20 FPS new-frame rate. The next optimization work
 should target physics/entity simulation and domain content complexity rather
 than further resolution loss.
 
+### CPU optimization screens
+
+Two process-start CPU experiments were tested with constant slow rotation,
+30 seconds of warm-up, 90 seconds of telemetry, app restarts, and validated XR
+images.
+
+Limiting physics/entity simulation to 24 Hz reduced mean process CPU from
+294.5% to 292.6%, only about 0.6%. The small saving does not justify reducing
+simulation freshness, so the recommendation remains unlimited simulation rate.
+
+| Renderable budget | Mean process CPU | Median changed-renderable time | Median pending updates |
+| --- | ---: | ---: | ---: |
+| 2000 us | 295.4% | 3.91 ms | 36.5 |
+| 1000 us | 293.1% | 3.45 ms | 38.5 |
+| 500 us | 296.6% | 2.69 ms | 40.5 |
+
+The 1000 us budget saves only about 0.8% process CPU and increases deferred
+updates. At 500 us, CPU becomes slightly worse while the backlog grows further.
+Retain the default 2000 us. All selected runs had valid 4320x2160 start/end
+images and no visually unready entities at the one-second sampling points.
+
 ## Test artifacts and automation
 
 Raw data is stored in the Git-ignored `power-results/graphics-matrix-*`
 directories. The final repeated comparison is in
 `power-results/graphics-matrix-20260803T111534Z`.
+The repeated simulation-rate screen is in
+`power-results/graphics-matrix-20260803T122038Z`, and the renderable-budget
+screen is in `power-results/graphics-matrix-20260803T132034Z`.
 
 `pico-graphics-matrix.sh` automates:
 
@@ -154,7 +178,8 @@ directories. The final repeated comparison is in
 - start/end XR screenshots with reference validation;
 - Overte frame telemetry, process CPU, CPU/GPU clocks, and thermals;
 - five-second battery monitoring with immediate drop warnings; and
-- static, dynamic, feature, quality, overlay, and final repeated matrices.
+- static, dynamic, feature, quality, overlay, final, CPU simulation, and
+  renderable-budget repeated matrices.
 
 The added debug properties permit controlled individual tests:
 
@@ -169,6 +194,8 @@ debug.overte.local_lights
 debug.overte.procedural_materials
 debug.overte.mirror_views
 debug.overte.stats
+debug.overte.simulation_hz
+debug.overte.renderable_budget_us
 ```
 
 ## Limitations and next work
@@ -183,4 +210,5 @@ debug.overte.stats
   72 presents/s, while Overte generated about 20 new frames/s.
 - The strongest next candidates are physics broadphase/entity workload
   reduction, script/update scheduling, inactive-entity throttling, and avatar
-  complexity controls.
+  complexity controls. Global simulation-rate and renderable-budget reductions
+  have now been screened and rejected.
