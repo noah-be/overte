@@ -18,6 +18,8 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>
+#include <QDateTime>
+#include <QSaveFile>
 #include <QtGui/QClipboard>
 #include <QtNetwork/QLocalSocket>
 #include <QtNetwork/QLocalServer>
@@ -1298,13 +1300,39 @@ void Application::loadSettings(const QCommandLineParser& parser) {
         : QString();
     const bool picoPowerProfileEnabled = picoPowerProfile == "1" ||
         picoPowerProfile == "on" || picoPowerProfile == "enabled";
+    const auto picoBoolOverride = [](const char* property, bool fallback) {
+        char value[PROP_VALUE_MAX] {};
+        if (__system_property_get(property, value) <= 0) {
+            return fallback;
+        }
+        const QString requested = QString::fromLatin1(value).trimmed().toLower();
+        if (requested == "1" || requested == "on" || requested == "true" || requested == "enabled") {
+            return true;
+        }
+        if (requested == "0" || requested == "off" || requested == "false" || requested == "disabled") {
+            return false;
+        }
+        return fallback;
+    };
+    const bool shadowsEnabled = picoBoolOverride("debug.overte.shadows", false);
+    const bool bloomEnabled = picoBoolOverride("debug.overte.bloom", false);
+    const bool ambientOcclusionEnabled = picoBoolOverride("debug.overte.ambient_occlusion", false);
+    const bool hazeEnabled = picoBoolOverride("debug.overte.haze", !picoPowerProfileEnabled);
+    const bool localLightsEnabled = picoBoolOverride("debug.overte.local_lights", !picoPowerProfileEnabled);
+    const bool proceduralMaterialsEnabled = picoBoolOverride(
+        "debug.overte.procedural_materials", !picoPowerProfileEnabled);
+    const bool mirrorViewsEnabled = picoBoolOverride("debug.overte.mirror_views", !picoPowerProfileEnabled);
+
+    renderSettings->setShadowsEnabled(shadowsEnabled);
+    renderSettings->setBloomEnabled(bloomEnabled);
+    renderSettings->setAmbientOcclusionEnabled(ambientOcclusionEnabled);
+    renderSettings->setHazeEnabled(hazeEnabled);
+    renderSettings->setLocalLightingEnabled(localLightsEnabled);
+    renderSettings->setProceduralMaterialsEnabled(proceduralMaterialsEnabled);
+    renderSettings->setAntialiasingMode(AntialiasingSetupConfig::Mode::NONE);
     int disabledMirrorViews { 0 };
-    if (picoPowerProfileEnabled) {
+    if (!mirrorViewsEnabled) {
         renderSettings->setRenderMethod(RenderScriptingInterface::RenderMethod::FORWARD);
-        renderSettings->setHazeEnabled(false);
-        renderSettings->setLocalLightingEnabled(false);
-        renderSettings->setProceduralMaterialsEnabled(false);
-        renderSettings->setAntialiasingMode(AntialiasingSetupConfig::Mode::NONE);
 
         // Do not render recursive world mirrors. The normal main stereo view
         // remains untouched; mirror surfaces simply retain their fallback.
@@ -1327,15 +1355,14 @@ void Application::loadSettings(const QCommandLineParser& parser) {
         // render setters persist values, so leaving this implicit would make a
         // later "profile off" run inherit parts of the power profile.
         renderSettings->setRenderMethod(RenderScriptingInterface::RenderMethod::FORWARD);
-        renderSettings->setHazeEnabled(true);
-        renderSettings->setLocalLightingEnabled(true);
-        renderSettings->setProceduralMaterialsEnabled(true);
-        renderSettings->setAntialiasingMode(AntialiasingSetupConfig::Mode::NONE);
     }
     qCInfo(interfaceapp) << "PICO_POWER_PROFILE" << (picoPowerProfileEnabled ? "enabled" : "disabled")
                          << "renderScale" << renderSettings->getViewportResolutionScale()
                          << "forward" << (renderSettings->getRenderMethod() == RenderScriptingInterface::RenderMethod::FORWARD)
+                         << "shadows" << renderSettings->getShadowsEnabled()
                          << "haze" << renderSettings->getHazeEnabled()
+                         << "bloom" << renderSettings->getBloomEnabled()
+                         << "ambientOcclusion" << renderSettings->getAmbientOcclusionEnabled()
                          << "localLights" << renderSettings->getLocalLightingEnabled()
                          << "proceduralMaterials" << renderSettings->getProceduralMaterialsEnabled()
                          << "disabledMirrorViews" << disabledMirrorViews;
@@ -2073,6 +2100,31 @@ void Application::update(float deltaTime) {
     static QString lastNavigationCommand;
     if (picoUpdateStart - lastNavigationPropertyCheck >= 250 * USECS_PER_MSEC) {
         lastNavigationPropertyCheck = picoUpdateStart;
+        auto addressManager = DependencyManager::get<AddressManager>();
+        // Publish the authoritative connected world and avatar position for
+        // the external power-test guard. This comes from AddressManager, not
+        // from the requested navigation command, so a failed lookup cannot be
+        // mistaken for a successful world change. One atomic update per second
+        // keeps the validation I/O negligible compared with telemetry sampling.
+        static quint64 lastWorldStatusWrite { 0 };
+        if (picoUpdateStart - lastWorldStatusWrite >= USECS_PER_SECOND) {
+            lastWorldStatusWrite = picoUpdateStart;
+            const glm::vec3 worldPosition = getMyAvatar()->getWorldPosition();
+            const QString worldStatus = QStringLiteral("%1|%2|%3|%4|%5|%6|%7")
+                .arg(QDateTime::currentSecsSinceEpoch())
+                .arg(addressManager->isConnected() ? 1 : 0)
+                .arg(addressManager->getPlaceName().replace('|', '_'))
+                .arg(addressManager->getDomainID().replace('|', '_'))
+                .arg(worldPosition.x, 0, 'f', 3)
+                .arg(worldPosition.y, 0, 'f', 3)
+                .arg(worldPosition.z, 0, 'f', 3);
+            QSaveFile worldStatusFile("/data/user/0/org.overte.pico/cache/world-status");
+            if (worldStatusFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                worldStatusFile.write(worldStatus.toUtf8());
+                worldStatusFile.commit();
+            }
+        }
+
         char navigationValue[PROP_VALUE_MAX] {};
         if (__system_property_get("debug.overte.navigate", navigationValue) > 0) {
             const QString command = QString::fromUtf8(navigationValue).trimmed();
@@ -2081,7 +2133,7 @@ void Application::update(float deltaTime) {
                 const qsizetype separator = command.indexOf('|');
                 const QString address = separator >= 0 ? command.mid(separator + 1) : command;
                 qCInfo(interfaceapp) << "PICO_ADB_NAVIGATE" << address;
-                DependencyManager::get<AddressManager>()->handleLookupString(address);
+                addressManager->handleLookupString(address);
             }
         }
     }

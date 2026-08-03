@@ -25,6 +25,10 @@ Record options:
   --warmup SECONDS       Warm-up period before recording (default: 300)
   --interval SECONDS     Sampling interval (default: 1)
   --output FILE          CSV path (default: power-results/<timestamp>-<label>.csv)
+  --expected-world NAME  Required for Overte runs; abort unless this place stays connected
+  --expected-position X,Y,Z
+                        Abort if the avatar leaves this world position
+  --position-tolerance M Maximum position error in metres (default: 2)
   --fan-speed PERCENT    Hold the fan at 0-100% during this run, then restore auto
   --brightness PERCENT   Hold MCU display brightness at 0-100%, then restore it
   --max-cpu-temp C       Abort a fixed-fan run at this CPU temperature (default: 95)
@@ -42,8 +46,8 @@ Environment:
 Examples:
   ./pico4-power-test.sh doctor
   ./pico4-power-test.sh record --label idle --duration 1800
-  ./pico4-power-test.sh record --label overte-simple --duration 1800
-  ./pico4-power-test.sh record --label fan-50 --fan-speed 50 --duration 300
+  ./pico4-power-test.sh record --label overte-simple --expected-world overte_hub --duration 1800
+  ./pico4-power-test.sh record --label fan-50 --expected-world overte_hub --fan-speed 50 --duration 300
   ./pico4-power-test.sh record --label display-50 --fan-speed 50 --brightness 50
   ./pico4-power-test.sh analyze power-results/*.csv
 EOF
@@ -386,12 +390,45 @@ foreground_package() {
         | head -n 1
 }
 
+validate_world() {
+    local stage="$1" status status_epoch connected place domain_id x y z now
+    status="$(adb_shell run-as org.overte.pico cat cache/world-status 2>/dev/null || true)"
+    IFS='|' read -r status_epoch connected place domain_id x y z <<<"$status"
+    now="$(date +%s)"
+    if [[ ! "$status_epoch" =~ ^[0-9]+$ ]] || (( now - status_epoch < -5 || now - status_epoch > 5 )); then
+        echo "error: Overte world status is missing or stale during $stage (status: ${status:-missing})" >&2
+        return 1
+    fi
+    if [[ "$connected" != "1" ]]; then
+        echo "error: Overte is not connected to a world during $stage (status: ${status:-missing})" >&2
+        return 1
+    fi
+    if [[ "${place,,}" != "${expected_world,,}" ]]; then
+        echo "error: wrong Overte world during $stage (expected '$expected_world', got '${place:-unknown}', domain ${domain_id:-unknown})" >&2
+        return 1
+    fi
+    if [[ -n "$expected_position" ]]; then
+        IFS=',' read -r expected_x expected_y expected_z <<<"$expected_position"
+        if ! awk -v x="$x" -v y="$y" -v z="$z" \
+            -v ex="$expected_x" -v ey="$expected_y" -v ez="$expected_z" \
+            -v tolerance="$position_tolerance" 'BEGIN {
+                if (x == "" || y == "" || z == "") exit 1;
+                dx=x-ex; dy=y-ey; dz=z-ez;
+                exit (dx*dx + dy*dy + dz*dz <= tolerance*tolerance) ? 0 : 1;
+            }'; then
+            echo "error: avatar left expected test position during $stage (expected $expected_position +/- ${position_tolerance}m, got ${x:-?},${y:-?},${z:-?})" >&2
+            return 1
+        fi
+    fi
+}
+
 record() {
     local label="" duration=1800 warmup=300 interval=1 output=""
     local allow_charging=0 app_check=1 fan_speed="" brightness="" max_cpu_temp=95 max_skin_temp=70
     local max_battery_temp=45 min_battery=21 arg dump plugged start_epoch now_epoch elapsed next_sample
     local timestamp device_row cpu_temp_raw skin_temp_raw battery_temp_raw battery_level active_package aborted=0
     local power_profile foveation
+    local expected_world="" expected_position="" position_tolerance="2" expected_x expected_y expected_z
     local -a sample_fields
 
     while [[ "$#" -gt 0 ]]; do
@@ -402,6 +439,9 @@ record() {
             --warmup) [[ "$#" -ge 2 ]] || fail "--warmup requires a value"; warmup="$2"; shift 2 ;;
             --interval) [[ "$#" -ge 2 ]] || fail "--interval requires a value"; interval="$2"; shift 2 ;;
             --output) [[ "$#" -ge 2 ]] || fail "--output requires a value"; output="$2"; shift 2 ;;
+            --expected-world) [[ "$#" -ge 2 ]] || fail "--expected-world requires a value"; expected_world="$2"; shift 2 ;;
+            --expected-position) [[ "$#" -ge 2 ]] || fail "--expected-position requires a value"; expected_position="$2"; shift 2 ;;
+            --position-tolerance) [[ "$#" -ge 2 ]] || fail "--position-tolerance requires a value"; position_tolerance="$2"; shift 2 ;;
             --fan-speed) [[ "$#" -ge 2 ]] || fail "--fan-speed requires a value"; fan_speed="$2"; shift 2 ;;
             --brightness) [[ "$#" -ge 2 ]] || fail "--brightness requires a value"; brightness="$2"; shift 2 ;;
             --max-cpu-temp) [[ "$#" -ge 2 ]] || fail "--max-cpu-temp requires a value"; max_cpu_temp="$2"; shift 2 ;;
@@ -430,6 +470,12 @@ record() {
     [[ "$max_battery_temp" =~ ^[1-9][0-9]*$ ]] || fail "max battery temperature must be a positive integer"
     [[ "$min_battery" =~ ^([0-9]|[1-9][0-9]|100)$ ]] \
         || fail "minimum battery level must be an integer from 0 through 100"
+    [[ "$position_tolerance" =~ ^[0-9]+([.][0-9]+)?$ ]] \
+        || fail "position tolerance must be a non-negative number"
+    if [[ -n "$expected_position" ]]; then
+        [[ "$expected_position" =~ ^-?[0-9]+([.][0-9]+)?,-?[0-9]+([.][0-9]+)?,-?[0-9]+([.][0-9]+)?$ ]] \
+            || fail "expected position must use X,Y,Z numeric form"
+    fi
 
     adb="$(find_adb)" || fail "ADB not found; set PICO_ADB or ANDROID_SDK_ROOT"
     serial="$(select_device "$adb")"
@@ -448,6 +494,8 @@ record() {
         fail "org.overte.pico is not running; start it or use --no-app-check for a baseline"
     fi
     if [[ "$app_check" -eq 1 ]]; then
+        [[ -n "$expected_world" ]] \
+            || fail "Overte runs require --expected-world NAME to guard against testing the wrong world"
         active_package="$(foreground_package)"
         [[ "$active_package" == "org.overte.pico" ]] \
             || fail "Overte is not the active XR app (active: ${active_package:-unknown})"
@@ -492,6 +540,7 @@ record() {
                 active_package="$(foreground_package)"
                 [[ "$active_package" == "org.overte.pico" ]] \
                     || fail "Overte lost XR focus during warm-up (active: ${active_package:-unknown})"
+                validate_world "warm-up" || fail "world validation failed"
             fi
         done
     fi
@@ -521,6 +570,8 @@ record() {
             active_package="$(foreground_package)"
             if [[ "$active_package" != "org.overte.pico" ]]; then
                 echo "error: Overte lost XR focus (active: ${active_package:-unknown})" >&2
+                aborted=1
+            elif ! validate_world "measurement at ${elapsed}s"; then
                 aborted=1
             fi
         fi

@@ -108,7 +108,7 @@ the difference is an operational comparison rather than isolated app power.
 Start Overte, enter the test location, keep the chosen scene active, and run:
 
 ```bash
-./pico4-power-test.sh record --label overte-simple
+./pico4-power-test.sh record --label overte-simple --expected-world overte_hub
 ```
 
 For a short setup validation before committing to a full run:
@@ -116,6 +116,8 @@ For a short setup validation before committing to a full run:
 ```bash
 ./pico4-power-test.sh record \
     --label smoke-test \
+    --expected-world overte_hub \
+    --expected-position 155.084,-97.403,-397.162 \
     --warmup 0 \
     --duration 60
 ```
@@ -128,6 +130,7 @@ The Pico 4 MCU exposes a factory fan-test mode with a control range from 0 to
 ```bash
 ./pico4-power-test.sh record \
     --label fan-50 \
+    --expected-world overte_hub \
     --fan-speed 50 \
     --warmup 120 \
     --duration 300
@@ -150,6 +153,14 @@ Pico Seethrough, Boundary, or another application takes focus. Battery levels
 below 21% also abort the recording by default because Pico energy-saving mode
 can change the measured workload. Override the threshold only for explicitly
 non-comparable diagnostics with `--min-battery`.
+
+Every Overte run must provide `--expected-world`. Interface publishes its
+authoritative AddressManager connection state, resolved place name, domain ID,
+and avatar position. The recorder checks the connected place every five seconds
+during warm-up and at every measurement sample. Use `--expected-position X,Y,Z`
+to guard the test pose as well; `--position-tolerance` defaults to 2 metres. A
+failed lookup, disconnect, world change, or movement outside that radius aborts
+the run immediately.
 
 Fixed-fan runs default to safety limits of 95 C CPU, 70 C skin, and 45 C
 battery temperature. Override them only with a clear reason using
