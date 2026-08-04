@@ -11,6 +11,7 @@ SETTLE="${SETTLE:-15}"
 LOAD_WAIT="${LOAD_WAIT:-30}"
 RESULT_DIR="${RESULT_DIR:-$SCRIPT_DIR/power-results/avatar-matrix-$(date -u +%Y%m%dT%H%M%SZ)}"
 REPLICA_COUNTS=()
+MATRIX_DOMAIN_ID=""
 
 usage() {
     cat <<'EOF'
@@ -102,6 +103,28 @@ validate_xr_focus() {
     fi
 }
 
+validate_domain() {
+    local stage="$1" status status_epoch connected domain_id now
+    status="$(adb_shell run-as "$PACKAGE" cat cache/world-status 2>/dev/null | tr -d '\r' || true)"
+    IFS='|' read -r status_epoch connected _ domain_id _ <<<"$status"
+    now="$(date +%s)"
+    [[ "$status_epoch" =~ ^[0-9]+$ ]] &&
+        (( now - status_epoch >= -5 && now - status_epoch <= 5 )) &&
+        [[ "$connected" == 1 ]] &&
+        [[ "$domain_id" =~ ^\{?[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}\}?$ ]] &&
+        [[ "$domain_id" != "{00000000-0000-0000-0000-000000000000}" &&
+            "$domain_id" != "00000000-0000-0000-0000-000000000000" ]] || {
+        echo "missing, stale, or disconnected world during $stage" >&2
+        return 1
+    }
+    if [[ -z "$MATRIX_DOMAIN_ID" ]]; then
+        MATRIX_DOMAIN_ID="$domain_id"
+    elif [[ "$domain_id" != "$MATRIX_DOMAIN_ID" ]]; then
+        echo "domain changed during $stage" >&2
+        return 1
+    fi
+}
+
 read_avatar_status() {
     local status now field_count
     status="$(adb_shell run-as "$PACKAGE" cat cache/avatar-status 2>/dev/null || true)"
@@ -152,6 +175,7 @@ set_replicas() {
 wait_for_replica_load() {
     local count="$1" timeout="${2:-$LOAD_WAIT}" elapsed=0 real expected_replicated
     while (( elapsed < timeout )); do
+        validate_domain "replica load" || return 1
         if read_avatar_status && [[ "$AVATAR_TARGET" == "$count" ]]; then
             real="$(real_avatar_count)"
             expected_replicated=$((real * count))
@@ -209,6 +233,7 @@ PID="$(adb_shell pidof "$PACKAGE" | tr -d '\r')"
 
 adb_shell setprop debug.overte.test_mode 1 >/dev/null
 set_replicas 0
+validate_domain "avatar matrix setup"
 REAL_TEMPLATES="$(wait_for_replica_load 0)"
 (( REAL_TEMPLATES > 0 )) || { echo "the current domain has no other avatar template" >&2; exit 1; }
 
@@ -242,6 +267,7 @@ for count in "${REPLICA_COUNTS[@]}"; do
     }
     sleep "$SETTLE"
     validate_xr_focus "$label warm-up"
+    validate_domain "$label warm-up"
     read_avatar_status || { echo "missing avatar status after $label warm-up" >&2; exit 1; }
     [[ "$(real_avatar_count)" == "$REAL_TEMPLATES" ]] || {
         echo "real avatar template count changed during $label warm-up" >&2
@@ -253,6 +279,7 @@ for count in "${REPLICA_COUNTS[@]}"; do
     elapsed=0
     while (( elapsed < DURATION )); do
         validate_xr_focus "$label measurement at ${elapsed}s"
+        validate_domain "$label measurement at ${elapsed}s"
         read_avatar_status || { echo "missing avatar status during $label" >&2; exit 1; }
         real="$(real_avatar_count)"
         [[ "$real" == "$REAL_TEMPLATES" && "$AVATAR_TARGET" == "$count" &&
@@ -274,6 +301,7 @@ for count in "${REPLICA_COUNTS[@]}"; do
     done
 
     validate_xr_focus "$label completion"
+    validate_domain "$label completion"
     read_avatar_status || { echo "missing avatar status after $label" >&2; exit 1; }
     real="$(real_avatar_count)"
     [[ "$real" == "$REAL_TEMPLATES" && "$AVATAR_TARGET" == "$count" &&

@@ -83,12 +83,13 @@ For a guarded repeated A/B matrix in the current domain, run:
 The default sequence is 0, 5, 0, and 5 copies per real template avatar.
 Repeated `--replicas` options define a different sequence. The matrix fixes the
 fan and brightness during measurement, rejects XR-focus loss or any change in
-the real template population, enables test mode for the run, writes aggregate
-CSV results under `android/power-results/`, then clears all copies and restores
-test mode and the device controls. An app restart also rejects the run rather
-than mixing measurements from different processes. It never records
-screenshots or avatar identifiers. The summary includes mean updated and
-budget-skipped avatar counts, so CPU stability is not mistaken for full crowd
-simulation quality. Here, `updated` counts in-view avatars with fresh joint
-data while the update is within budget; it is not a count of every simulated
-avatar. `aggregate.csv` combines repeated stages with the same replica count.
+the real template population, disconnect, or starting domain, enables test
+mode for the run, writes aggregate CSV results under `android/power-results/`,
+then clears all copies and restores test mode and the device controls. An app
+restart also rejects the run rather than mixing measurements from different
+processes. It never records screenshots, avatar identifiers, or the checked
+domain ID. The summary includes mean updated and budget-skipped avatar counts,
+so CPU stability is not mistaken for full crowd simulation quality. Here,
+`updated` counts in-view avatars with fresh joint data while the update is
+within budget; it is not a count of every simulated avatar. `aggregate.csv`
+combines repeated stages with the same replica count.
