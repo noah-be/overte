@@ -22,7 +22,8 @@ Usage: ./pico-simpleperf.sh [options]
 Record a bounded CPU profile of the debuggable Pico Interface app. By default
 the script cold-starts Interface, verifies the Overte Hub test position, waits
 for the scene to settle, records a low-overhead leaf profile, and restores the
-original fan and brightness controls on exit. It does not capture screenshots.
+original fan and brightness controls on exit. A foreground/Guardian watchdog
+rejects recordings that lose XR focus. The script does not capture screenshots.
 
 Options:
   --duration SECONDS       Recording duration (default: 30)
@@ -66,6 +67,27 @@ done
 
 adb_shell() { "$ADB_BIN" -s "$PICO_SERIAL" shell "$@"; }
 
+foreground_package() {
+    adb_shell dumpsys activity activities 2>/dev/null \
+        | sed -n 's/.*mResumedActivity:.* u0 \([^/ ]*\).*/\1/p' \
+        | head -n 1
+}
+
+validate_xr_focus() {
+    local stage="$1" active_package boundary_ready guardian_vst
+    active_package="$(foreground_package)"
+    boundary_ready="$(adb_shell getprop sys.pxr.boundary.ready 2>/dev/null | tr -d '\r')"
+    guardian_vst="$(adb_shell getprop sys.guardian.vst.status 2>/dev/null | tr -d '\r')"
+    [[ "$active_package" == "$PACKAGE" ]] || {
+        echo "Overte lost XR focus during $stage (active: ${active_package:-unknown})" >&2
+        return 1
+    }
+    [[ "$boundary_ready" != "0" && "$guardian_vst" != "1" ]] || {
+        echo "Pico Guardian/Seethrough is active during $stage (boundary_ready=${boundary_ready:-unknown}, guardian_vst=${guardian_vst:-unknown})" >&2
+        return 1
+    }
+}
+
 "$ADB_BIN" -s "$PICO_SERIAL" get-state >/dev/null
 adb_shell command -v simpleperf >/dev/null
 adb_shell run-as "$PACKAGE" true >/dev/null 2>&1 || {
@@ -79,8 +101,19 @@ RECORD_FILE="$RESULT_DIR/perf.data"
 REMOTE_FILE="/data/local/tmp/overte-simpleperf-$$.data"
 ORIGINAL_BRIGHTNESS="$(adb_shell gd32ipdclient_test getbrightness 2>/dev/null | sed -n 's/.*= //p' | tr -d '\r')"
 ORIGINAL_FAN_SPEED="$(adb_shell gd32ipdclient_test getfanspeed 2>/dev/null | sed -n 's/.*= //p' | tr -d '\r')"
+FOCUS_MONITOR_PID=""
+FOCUS_FAILURE_FILE="$RESULT_DIR/focus-error.txt"
+
+stop_focus_monitor() {
+    if [[ -n "$FOCUS_MONITOR_PID" ]]; then
+        kill "$FOCUS_MONITOR_PID" >/dev/null 2>&1 || true
+        wait "$FOCUS_MONITOR_PID" >/dev/null 2>&1 || true
+        FOCUS_MONITOR_PID=""
+    fi
+}
 
 cleanup() {
+    stop_focus_monitor
     adb_shell "rm -f '$REMOTE_FILE'" >/dev/null 2>&1 || true
     if [[ "$ORIGINAL_FAN_SPEED" =~ ^[0-9]+$ ]]; then
         adb_shell gd32ipdclient_test setfantestspeed "$ORIGINAL_FAN_SPEED" >/dev/null 2>&1 || true
@@ -114,6 +147,7 @@ fi
 
 PID="$(adb_shell pidof "$PACKAGE" | tr -d '\r')"
 [[ -n "$PID" ]] || { echo "$PACKAGE is not running" >&2; exit 1; }
+validate_xr_focus "profile setup"
 
 {
     printf 'timestamp_utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -139,7 +173,31 @@ printf 'simpleperf_command=' >> "$RESULT_DIR/metadata.txt"
 printf '%q ' simpleperf "${record_args[@]}" >> "$RESULT_DIR/metadata.txt"
 printf '\n' >> "$RESULT_DIR/metadata.txt"
 
-adb_shell simpleperf "${record_args[@]}" 2> "$RESULT_DIR/record-warnings.txt"
+monitor_xr_focus() {
+    while true; do
+        if ! validate_xr_focus "simpleperf recording" > "$FOCUS_FAILURE_FILE" 2>&1; then
+            return
+        fi
+        sleep 1
+    done
+}
+
+rm -f "$FOCUS_FAILURE_FILE"
+monitor_xr_focus &
+FOCUS_MONITOR_PID=$!
+record_status=0
+adb_shell simpleperf "${record_args[@]}" 2> "$RESULT_DIR/record-warnings.txt" || record_status=$?
+stop_focus_monitor
+if [[ ! -s "$FOCUS_FAILURE_FILE" ]]; then
+    validate_xr_focus "profile completion" > "$FOCUS_FAILURE_FILE" 2>&1 || true
+fi
+if [[ -s "$FOCUS_FAILURE_FILE" ]]; then
+    sed -n '1p' "$FOCUS_FAILURE_FILE" >&2
+    echo "discarding invalid simpleperf recording" >&2
+    exit 1
+fi
+rm -f "$FOCUS_FAILURE_FILE"
+(( record_status == 0 )) || exit "$record_status"
 "$ADB_BIN" -s "$PICO_SERIAL" pull "$REMOTE_FILE" "$RECORD_FILE" >/dev/null
 [[ -s "$RECORD_FILE" ]] || { echo "simpleperf produced an empty record" >&2; exit 1; }
 

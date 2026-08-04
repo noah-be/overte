@@ -17,7 +17,10 @@ For bounded CPU hot-path recording, `pico-simpleperf.sh` prepares and verifies
 the same Hub scene, records the debuggable app through `simpleperf --app`, and
 produces command-, library-, and symbol-sorted reports without taking a
 screenshot. Its default 99 Hz leaf sampling avoids the multi-gigabyte temporary
-stack data produced by Android simpleperf's 4000 Hz DWARF default. Run:
+stack data produced by Android simpleperf's 4000 Hz DWARF default. A watchdog
+checks the resumed activity and Pico Guardian state before, during, and after
+recording; it rejects the profile instead of publishing measurements taken
+after Overte has lost XR focus. Run:
 
 ```bash
 cd android
@@ -30,7 +33,6 @@ has usable frame pointers. Results are written below the Git-ignored
 record against unstripped native build outputs, but is opt-in because a full
 cache can require several gigabytes.
 
-The graphics matrix additionally rejects a run whenever Overte is not the
-resumed XR activity or Pico reports an unready boundary/active Guardian
-passthrough state. This check complements image similarity and prevents a
+The graphics matrix applies the same XR-focus checks around scene capture and
+each telemetry sample. This complements image similarity and prevents a
 boundary dialog from being accepted as a low-load scene.
