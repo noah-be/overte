@@ -216,4 +216,3 @@ void ThreadSafeDynamicsWorld::debugDrawObject(const btTransform& worldTransform,
         btCollisionWorld::debugDrawObject(worldTransform, shape, color);
     }
 }
-

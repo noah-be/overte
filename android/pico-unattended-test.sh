@@ -24,6 +24,11 @@ adb_shell() {
     "$ADB_BIN" -s "$PICO_SERIAL" shell "$@"
 }
 
+stop_autowalk() {
+    local nonce="${1:-stop-$(date +%s%N)}"
+    adb_shell setprop debug.overte.autowalk "${nonce}\\|0\\|0\\|0\\|0"
+}
+
 force_worn() {
     # Disable Pico's physical proximity check and keep both the Android display
     # and XR runtime in their worn/active state. The persist property survives
@@ -34,6 +39,9 @@ force_worn() {
     adb_shell setprop sys.pxr.psensor.status 1
     adb_shell setprop sys.pxr.screenstatus 1
     adb_shell setprop debug.overte.test_mode 1
+    # Android debug properties survive app restarts. Replace any previous
+    # locomotion command before Interface can replay it on a fresh launch.
+    stop_autowalk "worn-$(date +%s%N)"
     adb_shell input keyevent KEYCODE_WAKEUP
 }
 
@@ -42,20 +50,22 @@ safe_position() {
     # the avatar's final centre position; safe landing settles it on the nearby
     # collision surface at approximately (155.084, -97.403, -397.162).
     local nonce="${1:-$(date +%s)}"
-    nonce="${nonce:0:8}"
+    stop_autowalk "${nonce}-stop"
     adb_shell setprop debug.overte.teleport \
         "${nonce}\\|${TEST_X}\\|${TEST_Y}\\|${TEST_Z}"
 }
 
 wait_for_world() {
-    local timeout="${1:-60}" elapsed=0 status status_epoch connected place now
+    local timeout="${1:-60}" elapsed=0 status status_epoch connected place domain_id now
     while (( elapsed < timeout )); do
         status="$(adb_shell run-as org.overte.pico cat cache/world-status 2>/dev/null || true)"
-        IFS='|' read -r status_epoch connected place _ <<<"$status"
+        IFS='|' read -r status_epoch connected place domain_id _ <<<"$status"
         now="$(date +%s)"
         if [[ "$status_epoch" =~ ^[0-9]+$ ]] &&
             (( now - status_epoch >= -5 && now - status_epoch <= 5 )) &&
-            [[ "$connected" == "1" && "${place,,}" == "$TARGET_PLACE" ]]; then
+            [[ "$connected" == "1" && "${place,,}" == "$TARGET_PLACE" ]] &&
+            [[ "$domain_id" =~ ^\{?[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}\}?$ ]] &&
+            [[ "$domain_id" != "{00000000-0000-0000-0000-000000000000}" ]]; then
             return 0
         fi
         sleep 1
@@ -112,7 +122,8 @@ case "${1:-status}" in
         sleep 5
         status="$(adb_shell run-as org.overte.pico cat cache/world-status 2>/dev/null || true)"
         IFS='|' read -r status_epoch connected place domain_id x y z <<<"$status"
-        if [[ "$connected" != "1" || "${place,,}" != "$TARGET_PLACE" ]] ||
+        if [[ "$connected" != "1" || "${place,,}" != "$TARGET_PLACE" ||
+                "$domain_id" == "{00000000-0000-0000-0000-000000000000}" ]] ||
             ! awk -v x="$x" -v y="$y" -v z="$z" 'BEGIN {
                 dx=x-155.084; dy=y-(-97.403); dz=z-(-397.162);
                 exit (dx*dx + dy*dy + dz*dz <= 4.0) ? 0 : 1;
