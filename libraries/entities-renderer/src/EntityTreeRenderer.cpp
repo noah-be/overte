@@ -22,6 +22,7 @@
 
 #ifdef Q_OS_ANDROID
 #include <sys/system_properties.h>
+#include <time.h>
 #endif
 
 #include <shared/QtHelpers.h>
@@ -49,6 +50,14 @@
 
 #include <PointerManager.h>
 #include <QtConcurrent/QtConcurrentRun>
+
+#if defined(Q_OS_ANDROID)
+static uint64_t picoEntityThreadCpuUsecs() {
+    timespec time {};
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time);
+    return static_cast<uint64_t>(time.tv_sec) * USECS_PER_SECOND + time.tv_nsec / 1000;
+}
+#endif
 
 QString resolveScriptURL(const QString& scriptUrl) {
     auto normalizedScriptUrl = DependencyManager::get<ResourceManager>()->normalizeURL(scriptUrl);
@@ -747,11 +756,17 @@ void EntityTreeRenderer::update(bool simulate) {
         EntityTreePointer tree = std::static_pointer_cast<EntityTree>(_tree);
 #if defined(Q_OS_ANDROID)
         const uint64_t picoUpdateStart = usecTimestampNow();
+        const uint64_t picoCpuUpdateStart = picoEntityThreadCpuUsecs();
         uint64_t picoAfterTree = picoUpdateStart;
+        uint64_t picoCpuAfterTree = picoCpuUpdateStart;
         uint64_t picoAfterAdd = picoUpdateStart;
+        uint64_t picoCpuAfterAdd = picoCpuUpdateStart;
         uint64_t picoAfterChanged = picoUpdateStart;
+        uint64_t picoCpuAfterChanged = picoCpuUpdateStart;
         uint64_t picoAfterSceneEnqueue = picoUpdateStart;
+        uint64_t picoCpuAfterSceneEnqueue = picoCpuUpdateStart;
         uint64_t picoAfterWorkload = picoUpdateStart;
+        uint64_t picoCpuAfterWorkload = picoCpuUpdateStart;
 #endif
 
         // here we update _currentFrame and _lastAnimated and sync with the server properties.
@@ -761,6 +776,7 @@ void EntityTreeRenderer::update(bool simulate) {
         }
 #if defined(Q_OS_ANDROID)
         picoAfterTree = usecTimestampNow();
+        picoCpuAfterTree = picoEntityThreadCpuUsecs();
 #endif
 
         {   // Update the rendereable entities as needed
@@ -772,15 +788,18 @@ void EntityTreeRenderer::update(bool simulate) {
                 addPendingEntities(scene, transaction);
 #if defined(Q_OS_ANDROID)
                 picoAfterAdd = usecTimestampNow();
+                picoCpuAfterAdd = picoEntityThreadCpuUsecs();
 #endif
 
                 updateChangedEntities(scene, transaction);
 #if defined(Q_OS_ANDROID)
                 picoAfterChanged = usecTimestampNow();
+                picoCpuAfterChanged = picoEntityThreadCpuUsecs();
 #endif
                 scene->enqueueTransaction(transaction);
 #if defined(Q_OS_ANDROID)
                 picoAfterSceneEnqueue = usecTimestampNow();
+                picoCpuAfterSceneEnqueue = picoEntityThreadCpuUsecs();
 #endif
             }
         }
@@ -804,6 +823,7 @@ void EntityTreeRenderer::update(bool simulate) {
         }
 #if defined(Q_OS_ANDROID)
         picoAfterWorkload = usecTimestampNow();
+        picoCpuAfterWorkload = picoEntityThreadCpuUsecs();
 #endif
 
         if (simulate) {
@@ -828,10 +848,17 @@ void EntityTreeRenderer::update(bool simulate) {
             uint64_t sceneEnqueue { 0 };
             uint64_t workload { 0 };
             uint64_t enterLeave { 0 };
+            uint64_t cpuTree { 0 };
+            uint64_t cpuAdd { 0 };
+            uint64_t cpuChanged { 0 };
+            uint64_t cpuSceneEnqueue { 0 };
+            uint64_t cpuWorkload { 0 };
+            uint64_t cpuEnterLeave { 0 };
             uint64_t maximum { 0 };
         };
         static PicoEntityUpdateStats stats;
         const uint64_t end = usecTimestampNow();
+        const uint64_t cpuEnd = picoEntityThreadCpuUsecs();
         if (stats.windowStart == 0) {
             stats.windowStart = picoUpdateStart;
         }
@@ -842,6 +869,12 @@ void EntityTreeRenderer::update(bool simulate) {
         stats.sceneEnqueue += picoAfterSceneEnqueue - picoAfterChanged;
         stats.workload += picoAfterWorkload - picoAfterSceneEnqueue;
         stats.enterLeave += end - picoAfterWorkload;
+        stats.cpuTree += picoCpuAfterTree - picoCpuUpdateStart;
+        stats.cpuAdd += picoCpuAfterAdd - picoCpuAfterTree;
+        stats.cpuChanged += picoCpuAfterChanged - picoCpuAfterAdd;
+        stats.cpuSceneEnqueue += picoCpuAfterSceneEnqueue - picoCpuAfterChanged;
+        stats.cpuWorkload += picoCpuAfterWorkload - picoCpuAfterSceneEnqueue;
+        stats.cpuEnterLeave += cpuEnd - picoCpuAfterWorkload;
         stats.maximum = std::max(stats.maximum, end - picoUpdateStart);
         if (end - stats.windowStart >= USECS_PER_SECOND) {
             const double divisor = std::max<uint64_t>(1, stats.calls);
@@ -873,6 +906,12 @@ void EntityTreeRenderer::update(bool simulate) {
                     << "sceneEnqueueMs" << stats.sceneEnqueue / divisor / 1000.0
                     << "workloadMs" << stats.workload / divisor / 1000.0
                     << "enterLeaveMs" << stats.enterLeave / divisor / 1000.0
+                    << "cpuTreeMs" << stats.cpuTree / divisor / 1000.0
+                    << "cpuAddPendingMs" << stats.cpuAdd / divisor / 1000.0
+                    << "cpuChangedMs" << stats.cpuChanged / divisor / 1000.0
+                    << "cpuSceneEnqueueMs" << stats.cpuSceneEnqueue / divisor / 1000.0
+                    << "cpuWorkloadMs" << stats.cpuWorkload / divisor / 1000.0
+                    << "cpuEnterLeaveMs" << stats.cpuEnterLeave / divisor / 1000.0
                     << "pendingAdds" << _entitiesToAdd.size()
                     << "pendingRenderUpdates" << _renderablesToUpdate.size()
                     << "pendingNotReady" << pendingNotReady

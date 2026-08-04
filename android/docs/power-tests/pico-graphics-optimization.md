@@ -209,12 +209,23 @@ retaining JavaScript callbacks only for their UI side effects, produced:
 | `tabletToggle-click` routes exceeding 2 ms | 373 | 7 | -98.1% |
 | Mean process CPU | 285.2% | 290.5% | +1.9% |
 
-This is a confirmed local input-path improvement, but the single A/B run did
+This is a confirmed local input-path improvement, but the initial A/B run did
 not demonstrate a total CPU reduction; its process-CPU result moved in the
-wrong direction within the already observed run variance. Keep the direct
-routing change for its removal of unnecessary per-update JavaScript work, but
-do not count it as a global CPU saving until repeated interleaved runs confirm
-one. Both variants passed start/end 4320x2160 reference-image validation.
+wrong direction within the already observed run variance. A subsequent
+interleaved A/B/A/B comparison produced:
+
+| Run | Polling CPU | Direct-route CPU | Direct-route delta |
+| --- | ---: | ---: | ---: |
+| Pair 1 | 284.89% | 291.17% | +6.28 points |
+| Pair 2 | 283.56% | 281.11% | -2.45 points |
+| Combined | 284.22% | 286.14% | +1.92 points (+0.67%) |
+
+The pair deltas changed sign, while the GPU remained at 441.6 MHz in all four
+runs. This confirms that the total process result is dominated by run variance
+and provides no evidence of an overall CPU saving. Keep the direct routing
+change because it removes unnecessary per-update JavaScript work, but do not
+count it as a global CPU optimization. All six input-route test variants passed
+start/end 4320x2160 reference-image validation.
 
 A 30-second Android scheduler trace confirms substantial preemption in the
 same workload. The Qt main-loop thread had 9,097 runnable switch-outs, with a
@@ -239,7 +250,8 @@ The internal model stage profile is in
 The input-route baseline and direct-route comparison are in
 `power-results/input-route-mapping-20260803T161749Z` and
 `power-results/input-route-direct-20260803T162404Z`. The scheduler trace is
-`power-results/pico-input-sched.atrace`.
+`power-results/pico-input-sched.atrace`. The repeated interleaved comparison is
+in `power-results/input-route-abab-20260803T163113Z`.
 
 `pico-graphics-matrix.sh` automates:
 
@@ -269,6 +281,36 @@ debug.overte.simulation_hz
 debug.overte.renderable_budget_us
 debug.overte.model_update_hz
 ```
+
+## Physics and entity CPU-time baseline (2026-08-04)
+
+The Pico-specific physics/entity instrumentation now records both wall time and
+`CLOCK_THREAD_CPUTIME_ID` time. This prevents runnable-but-preempted intervals
+from being misclassified as CPU execution. A fixed 100% fan, MCU brightness 1,
+80% scale/72 Hz Hub run kept the verified reference position and passed the
+end XR image check (4320x2160, reference RMSE 0.176). The app was stopped after
+the run and automatic fan control was restored.
+
+The repeatedly observed per-update ranges were:
+
+| Stage | Wall time | Thread CPU time | Interpretation |
+| --- | ---: | ---: | --- |
+| Bullet step | 2.8–5.3 ms | 2.1–2.7 ms | Real CPU work is substantial, but part of each wall-time outlier is scheduling delay. |
+| Entity tree update | 0.7–1.5 ms | 0.6–0.7 ms | Mostly real work. |
+| Changed-renderable synchronization | 2.5–4.5 ms | 1.7–1.9 ms | Largest measured entity CPU stage; the wall-time excess is preemption/lock delay. |
+| EntitySimulation simple kinematics | 0.5–1.0 ms | 0.46–0.52 ms | Small, stable cost. |
+
+Physics contained 46 collision objects: 45 rigid bodies, of which one was
+active, 13 sleeping, and 31 kinematic; no entity dynamics were registered.
+This does not support an optimization that broadly skips sleeping bodies. The
+Hub instead concentrates entity CPU in `updateChangedEntities()` / renderable
+updates, normally with only 0–7 pending render updates (mostly models).
+
+The next targeted, quality-neutral A/B should instrument that function into
+changed-ID transfer, renderer lookup, and individual `updateInScene()` calls,
+including CPU time and type/counts. Test a coalescing path only for duplicate
+same-frame model updates, then use interleaved A/B/A/B runs; do not lower the
+global entity/simulation rate or the existing 2000-us budget.
 
 ## Limitations and next work
 
