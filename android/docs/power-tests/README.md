@@ -94,3 +94,8 @@ so CPU stability is not mistaken for full crowd simulation quality. Here,
 `updated` counts in-view avatars with fresh joint data while the update is
 within budget; it is not a count of every simulated avatar. `aggregate.csv`
 combines repeated stages with the same replica count.
+
+Both matrix tools create an `INVALID` marker before collecting a matrix or
+graphics case and remove it only after all required validation and output
+steps complete. Partial diagnostic files are retained after an abort, but a
+consumer can reject them without interpreting CSV or image contents.

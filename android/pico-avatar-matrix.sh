@@ -199,6 +199,7 @@ adb_shell run-as "$PACKAGE" true >/dev/null 2>&1 || {
 
 mkdir -p "$RESULT_DIR"
 RESULT_DIR="$(cd -- "$RESULT_DIR" && pwd)"
+printf '%s\n' 'Avatar matrix did not complete; do not use partial results.' > "$RESULT_DIR/INVALID"
 ORIGINAL_BRIGHTNESS="$(adb_shell gd32ipdclient_test getbrightness 2>/dev/null | sed -n 's/.*= //p' | tr -d '\r')"
 ORIGINAL_FAN_SPEED="$(adb_shell gd32ipdclient_test getfanspeed 2>/dev/null | sed -n 's/.*= //p' | tr -d '\r')"
 ORIGINAL_TEST_MODE="$(adb_shell getprop debug.overte.test_mode 2>/dev/null | tr -d '\r')"
@@ -367,4 +368,5 @@ END {
     }
 }' "$RESULT_DIR/summary.csv" >> "$RESULT_DIR/aggregate.csv"
 
+rm -f "$RESULT_DIR/INVALID"
 echo "results=$RESULT_DIR"

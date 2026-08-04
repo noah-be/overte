@@ -131,6 +131,7 @@ run_case() {
     CASE_PID=""
     CASE_DOMAIN_ID=""
     mkdir -p "$output"
+    printf '%s\n' 'Graphics case did not complete; do not use partial results.' > "$output/INVALID"
     printf '%s\n' "case=$label scale=$scale profile=$profile foveation=$foveation" | tee "$output/config.txt"
 
     apply_controls
@@ -253,6 +254,7 @@ run_case() {
     "$ADB_BIN" -s "$PICO_SERIAL" logcat -d -v brief > "$output/logcat.txt"
     grep 'PICO_GPU_BENCH' "$output/logcat.txt" > "$output/gpu-bench.txt" || true
     grep -E 'PICO_(RENDER_SCALE|FOVEATION_LEVEL|POWER_PROFILE|SIMULATION_HZ|RENDERABLE_BUDGET_US|MODEL_UPDATE_HZ)' "$output/logcat.txt" > "$output/verified-config.txt" || true
+    rm -f "$output/INVALID"
 }
 
 case "${1:-screen}" in
