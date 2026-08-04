@@ -525,7 +525,7 @@ record() {
     mkdir -p -- "$(dirname -- "$output")"
     [[ ! -e "$output" ]] || fail "output file already exists: $output"
 
-    echo "Device: ${manufacturer:-unknown} ${model:-unknown} ($serial)"
+    echo "Device: ${manufacturer:-unknown} ${model:-unknown}"
     echo "Scenario: $label"
     echo "Overte power profile: $power_profile"
     echo "OpenXR foveation: $foveation"
@@ -546,7 +546,7 @@ record() {
     fi
 
     printf '%s\n' \
-        'timestamp_utc,epoch_s,elapsed_s,label,serial,manufacturer,model,android_version,build_fingerprint,battery_dir,power_profile,foveation,level_pct,voltage_raw,current_raw,charge_raw,temp_raw,status,plugged,app_pid,screen_state,brightness_vr,brightness_actual,auto_brightness,refresh_hz,fan_state,cpu_temp_max_mC,gpu_temp_max_mC,skin_temp_c,thermal_status,cpu_policy0_khz,cpu_policy4_khz,cpu_policy7_khz,gpu_hz,fan_rpm,fan_duty,mcu_brightness' \
+        'timestamp_utc,epoch_s,elapsed_s,label,manufacturer,model,android_version,build_fingerprint,battery_dir,power_profile,foveation,level_pct,voltage_raw,current_raw,charge_raw,temp_raw,status,plugged,app_pid,screen_state,brightness_vr,brightness_actual,auto_brightness,refresh_hz,fan_state,cpu_temp_max_mC,gpu_temp_max_mC,skin_temp_c,thermal_status,cpu_policy0_khz,cpu_policy4_khz,cpu_policy7_khz,gpu_hz,fan_rpm,fan_duty,mcu_brightness' \
         >"$output"
 
     echo "Recording $duration seconds to $output"
@@ -557,9 +557,9 @@ record() {
         elapsed=$((now_epoch - start_epoch))
         [[ "$elapsed" -le "$duration" ]] || break
         device_row="$(sample_device)"
-        printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
+        printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
             "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$now_epoch" "$elapsed" "$label" \
-            "$serial" "$manufacturer" "$model" "$android_version" \
+            "$manufacturer" "$model" "$android_version" \
             "$build_fingerprint" "$battery_dir" "$power_profile" "$foveation" "$device_row" >>"$output"
         IFS=',' read -r -a sample_fields <<<"$device_row"
         battery_level="${sample_fields[0]:-}"
