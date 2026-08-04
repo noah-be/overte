@@ -41,11 +41,12 @@ either variable they require exactly one authorized device in `adb devices`
 and select it automatically. No developer-specific device address or serial
 number is stored in the repository or result metadata.
 
-The graphics matrix applies the same XR-focus and process-identity checks
-around scene capture and each telemetry sample. This complements image
-similarity and prevents a boundary dialog or restarted process from being
-accepted as a low-load scene. Missing or malformed process-CPU samples also
-invalidate the case instead of entering an empty CSV value.
+The graphics matrix applies XR-focus, process-identity, and authoritative Hub
+world/domain checks around scene capture and each telemetry sample. This
+complements image similarity and prevents a boundary dialog, restarted
+process, disconnect, or domain change from being accepted as a low-load scene.
+Missing or malformed process-CPU samples also invalidate the case instead of
+entering an empty CSV value.
 
 For local avatar-load screening, first enter a domain containing at least one
 other avatar, then create up to 50 client-only copies per received avatar:

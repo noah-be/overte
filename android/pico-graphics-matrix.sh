@@ -12,6 +12,7 @@ VISUAL_REFERENCE="${VISUAL_REFERENCE:-$SCRIPT_DIR/power-results/visual-check/hub
 MAX_CPU_TEMP_MC="${MAX_CPU_TEMP_MC:-90000}"
 MAX_SKIN_TEMP_C="${MAX_SKIN_TEMP_C:-65}"
 CASE_PID=""
+CASE_DOMAIN_ID=""
 
 [[ -x "$ADB_BIN" ]] || { echo "adb not executable: $ADB_BIN" >&2; exit 1; }
 if [[ -z "$PICO_SERIAL" ]]; then
@@ -55,6 +56,31 @@ validate_xr_focus() {
     fi
 }
 
+validate_hub_world() {
+    local stage="$1" status status_epoch connected place domain_id now
+    status="$(adb_shell run-as org.overte.pico cat cache/world-status 2>/dev/null | tr -d '\r' || true)"
+    IFS='|' read -r status_epoch connected place domain_id _ <<<"$status"
+    now="$(date +%s)"
+    [[ "$status_epoch" =~ ^[0-9]+$ ]] &&
+        (( now - status_epoch >= -5 && now - status_epoch <= 5 )) || {
+        echo "missing or stale Hub status during $stage (status: ${status:-missing})" >&2
+        return 1
+    }
+    [[ "$connected" == 1 && "${place,,}" == overte_hub ]] &&
+        [[ "$domain_id" =~ ^\{?[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}\}?$ ]] &&
+        [[ "$domain_id" != "{00000000-0000-0000-0000-000000000000}" &&
+            "$domain_id" != "00000000-0000-0000-0000-000000000000" ]] || {
+        echo "wrong or disconnected Hub world during $stage (status: ${status:-missing})" >&2
+        return 1
+    }
+    if [[ -z "$CASE_DOMAIN_ID" ]]; then
+        CASE_DOMAIN_ID="$domain_id"
+    elif [[ "$domain_id" != "$CASE_DOMAIN_ID" ]]; then
+        echo "Hub domain changed during $stage ($CASE_DOMAIN_ID -> $domain_id)" >&2
+        return 1
+    fi
+}
+
 ORIGINAL_BRIGHTNESS="$(adb_shell gd32ipdclient_test getbrightness 2>/dev/null | sed -n 's/.*= //p' | tr -d '\r')"
 ORIGINAL_FAN_SPEED="$(adb_shell gd32ipdclient_test getfanspeed 2>/dev/null | sed -n 's/.*= //p' | tr -d '\r')"
 cleanup() {
@@ -80,6 +106,7 @@ apply_controls() {
 capture_and_validate_scene() {
     local image="$1" metrics="$2"
     validate_xr_focus "scene capture"
+    validate_hub_world "scene capture"
     "$ADB_BIN" -s "$PICO_SERIAL" exec-out screencap -p > "$image"
     local width height mean std rmse
     read -r width height mean std < <(identify -format '%w %h %[fx:mean] %[fx:standard_deviation]\n' "$image")
@@ -102,6 +129,7 @@ run_case() {
     shift 4
     local output="$RESULT_DIR/$label"
     CASE_PID=""
+    CASE_DOMAIN_ID=""
     mkdir -p "$output"
     printf '%s\n' "case=$label scale=$scale profile=$profile foveation=$foveation" | tee "$output/config.txt"
 
@@ -147,6 +175,7 @@ run_case() {
         echo "unable to establish stable Hub scene for $label" >&2
         return 1
     fi
+    validate_hub_world "Hub setup"
     CASE_PID="$(adb_shell pidof org.overte.pico 2>/dev/null | tr -d '\r')"
     [[ -n "$CASE_PID" ]] || { echo "org.overte.pico is not running after Hub setup" >&2; return 1; }
     capture_and_validate_scene "$output/scene-start.png" "$output/scene-start.txt"
@@ -166,6 +195,7 @@ run_case() {
     while (( elapsed < DURATION )); do
         local top_line cpu rss cpu0 cpu4 cpu7 gpu ct gt skin rpm duty brightness battery
         validate_xr_focus "measurement at ${elapsed}s" || return 1
+        validate_hub_world "measurement at ${elapsed}s" || return 1
         top_line="$(adb_shell top -b -n 1 -p "$pid" 2>/dev/null | tail -n 1 | tr -d '\r')"
         cpu="$(awk '{print $9}' <<<"$top_line" | tr -d '%')"
         rss="$(awk '{print $6}' <<<"$top_line")"
