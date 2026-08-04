@@ -45,6 +45,13 @@ All four sources remained active and delivered roughly 70-109 Qt reads per two
 seconds and approximately 100 network audio frames per second. Android routed
 all of them as 48 kHz, 16-bit mono input.
 
+| Qt device | Android source | Source ID | AEC | Noise suppression |
+| --- | --- | ---: | --- | --- |
+| voicecommunication | `AUDIO_SOURCE_VOICE_COMMUNICATION` | 7 | Enabled | Enabled |
+| voicerecognition | `AUDIO_SOURCE_VOICE_RECOGNITION` | 6 | Disabled | Disabled |
+| mic | `AUDIO_SOURCE_MIC` | 1 | Disabled | Disabled |
+| camcorder | `AUDIO_SOURCE_CAMCORDER` | 5 | Disabled | Disabled |
+
 `voicecommunication` is the only tested source for which Android attached its
 Acoustic Echo Canceler and Noise Suppression effects. `voicerecognition`, `mic`,
 and `camcorder` had no Android capture effects. The saved device configuration
