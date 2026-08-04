@@ -309,6 +309,35 @@ static bool startAndroidAudioInput(const QAudioFormat& format, int framesPerBuff
     return started;
 }
 
+static void prioritizeAndroidAudioThread() {
+    const jclass inputClass = androidAudioInputClass.load(std::memory_order_acquire);
+    if (!inputClass) {
+        qCWarning(audioclient) << "Android microphone bridge unavailable while prioritizing audio thread";
+        return;
+    }
+    AndroidJniEnvironment environment;
+    if (!environment) {
+        qCWarning(audioclient) << "JNI unavailable while prioritizing Android audio thread";
+        return;
+    }
+    const jmethodID priorityMethod = environment->GetStaticMethodID(
+        inputClass, "prioritizeCurrentThreadForAudio", "()I");
+    if (!priorityMethod) {
+        if (environment->ExceptionCheck()) {
+            environment->ExceptionClear();
+        }
+        qCWarning(audioclient) << "Android audio thread priority method unavailable";
+        return;
+    }
+    const jint priority = environment->CallStaticIntMethod(inputClass, priorityMethod);
+    if (environment->ExceptionCheck()) {
+        environment->ExceptionDescribe();
+        environment->ExceptionClear();
+        return;
+    }
+    qCInfo(audioclient) << "Android audio thread priority" << priority;
+}
+
 static void stopAndroidAudioInput() {
     const jclass inputClass = androidAudioInputClass.load(std::memory_order_acquire);
     if (!inputClass) {
@@ -1106,6 +1135,10 @@ int possibleResampling(AudioSRC* resampler,
 }
 
 void AudioClient::start() {
+
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    prioritizeAndroidAudioThread();
+#endif
 
     // set up the desired audio format
     _desiredInputFormat.setSampleRate(AudioConstants::SAMPLE_RATE);

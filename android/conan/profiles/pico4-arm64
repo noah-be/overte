@@ -10,6 +10,9 @@ compiler.version=18
 compiler.libcxx=c++_shared
 compiler.cppstd=gnu20
 build_type=Debug
+# WebRTC AEC must keep up with 10 ms audio frames under the full XR workload.
+# Retain debug symbols for the app while optimizing this CPU-intensive dependency.
+webrtc-audio-processing/*:build_type=Release
 
 [options]
 qt*:android_sdk={{ android_sdk }}

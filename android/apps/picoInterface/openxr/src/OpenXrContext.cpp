@@ -606,6 +606,10 @@ bool OpenXrContext::initSession() {
 #if defined(Q_OS_ANDROID)
     // ANDROID TODO: This is untested and will need changes in
     // OpenXrDisplayPlugin to use the OpenGLES structs instead
+    XrGraphicsBindingOpenGLESAndroidKHR androidBinding = {
+        .type = XR_TYPE_GRAPHICS_BINDING_OPENGL_ES_ANDROID_KHR,
+        .next = nullptr,
+    };
     if (!eglBindingAvailable) {
         auto eglContext = eglGetCurrentContext();
         auto eglDisplay = eglGetCurrentDisplay();
@@ -630,13 +634,9 @@ bool OpenXrContext::initSession() {
             return false;
         }
 
-        XrGraphicsBindingOpenGLESAndroidKHR androidBinding = {
-            .type = XR_TYPE_GRAPHICS_BINDING_OPENGL_ES_ANDROID_KHR,
-            .next = nullptr,
-            .display = eglDisplay,
-            .config = eglConfig,
-            .context = eglContext,
-        };
+        androidBinding.display = eglDisplay;
+        androidBinding.config = eglConfig;
+        androidBinding.context = eglContext;
 
         info.next = &androidBinding;
     }

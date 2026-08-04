@@ -27,6 +27,20 @@ public final class AndroidAudioInput {
         Log.i(TAG, "Initialized native microphone bridge");
     }
 
+    /** Applies Android's public audio priority to the calling native audio thread. */
+    public static int prioritizeCurrentThreadForAudio() {
+        try {
+            Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
+            final int priority = Process.getThreadPriority(Process.myTid());
+            Log.i(TAG, "Prioritized native audio thread tid=" + Process.myTid()
+                + ", priority=" + priority);
+            return priority;
+        } catch (IllegalArgumentException | SecurityException exception) {
+            Log.e(TAG, "Could not prioritize native audio thread", exception);
+            return Integer.MAX_VALUE;
+        }
+    }
+
     public static boolean start(int sampleRate, int channelCount, int framesPerBuffer) {
         stop();
 

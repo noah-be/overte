@@ -230,72 +230,62 @@ all Pico UI input labels currently map to the one verified public MIC source.
 The older source-comparison results below remain research evidence, not a claim
 that the new production backend opens sources 6 or 7.
 
-### Remaining full-XR debug throughput limit
+### Resolved full-XR debug throughput limit
 
-Before replacement, later unattended tests no longer reproduced the earlier
-sustained rate. With
-the corrected time window, a five-second `voicecommunication` run delivered
-240 frames. Per-second traces began near the expected 100 frames/s for roughly
-two seconds, then fell to approximately 13-27 frames/s. The two-second
-watchdog's `readyRead` counts fell at the same time, proving that frames are
-not discarded by Overtes resampler, gate, encoder, or packet path: Qt/OpenSL
-stops delivering sufficient input buffers.
+The public `AudioRecord` backend removed the Qt/OpenSL capture bottleneck, but
+the first integrated FIFO test still processed only 67,200 of 476,160 captured
+frames in ten seconds. The bounded FIFO correctly prevented unlimited latency,
+but it could not make the downstream AudioClient path run in real time.
 
-Several controlled exclusions narrowed the problem:
+A focused `simpleperf` trace of the urgent-priority AudioClient thread found
+the actual CPU bottleneck in WebRTC's software echo canceller. Its matched
+filter accounted for 33.47% of sampled child CPU cycles, and the broader
+near-end AEC path dominated the microphone work. The Conan package had inherited
+the app's Debug setting and all 247 WebRTC translation units were compiled with
+`-O0 -g`. The profile's unusually large time in trivial `ArrayView` accessors
+was consistent with that unoptimized build.
 
-- commit `99e08148e1`, before the merged graphics and physics optimizations,
-  delivered 488 frames under the same older, overlong 15-second harness window
-  versus 452 for the current branch; the graphics changes are not causal;
-- increasing QAudioInput's requested buffer from 20 ms to 100 ms did not
-  improve delivery;
-- suppressing audio output did not improve input throughput, so shared
-  AudioClient-thread output work is not starving input; and
-- repeatedly forcing PicOS worn/screen properties did not improve a corrected
-  five-second run (218 frames versus the 240-frame baseline).
+The Pico Conan profile now selects Release only for
+`webrtc-audio-processing`, which compiles this BSD-3-Clause dependency with
+`-O3 -DNDEBUG`. The surrounding Overte APK remains a debuggable build. Pico's
+native debug targets also use `-O2` while retaining debug information, reducing
+the full XR workload that competes with audio. This optimization exposed an
+existing Android OpenXR lifetime bug: `XrSessionCreateInfo::next` referenced a
+block-local graphics binding after its lifetime ended. Both OpenXR source
+copies now keep that binding alive through `xrCreateSession`.
 
-A diagnostic Qt build processed OpenSL's completed-buffer callback directly
-instead of queueing it onto the owning Qt thread. Source 7 improved from 240
-to 335 frames in five seconds, confirming that delayed two-buffer queue
-replenishment is part of the loss. It still fell well short of 500 frames, and
-switching that build to source 1 failed to activate the source. Direct callback
-processing races Qt's QBuffer and AudioClient state, so it was rejected and
-the original plugin was restored. A production fix needs thread-safe immediate
-OpenSL re-enqueueing with copied data delivery, or replacement of the OpenSL
-input backend with Android AudioRecord/AAudio.
+The AudioClient thread receives Android's public urgent-audio priority through
+the same Java/JNI bridge as capture. A direct capture-thread processing
+experiment was rejected: although it avoided FIFO loss, it reduced capture to
+167,040 frames in ten seconds and introduced unsafe cross-thread AudioClient
+access. Production delivery remains the bounded FIFO plus queued AudioClient
+drain.
 
-A temporary Java `AudioRecord` diagnostic, run in the same microphone-granted
-APK without Qt or OpenXR, captured source 1 (`MIC`) for 10.004 seconds. It read
-942,720 bytes / 471,360 mono frames with no errors, 98.2% of the nominal
-480,000 frames. The identical diagnostic using source 7
-(`VOICE_COMMUNICATION`) blocked inside even a nominally non-blocking read.
-This proves that Pico hardware and Android's basic recording path can sustain
-real time, while PicOS source 7 and Qt 5's deprecated OpenSL ES input path need
-separate treatment. The temporary Java diagnostic was removed after recording
-these results.
+Two fixed-50% validation runs with optimized WebRTC were real-time and stable:
 
-The new backend removes that Qt/OpenSL capture bottleneck: the standalone public
-API test still obtains 98.2% of nominal PCM and the integrated app receives the
-same source successfully. A corrected ten-second FIFO test captured 476,160 of
-the nominal 480,000 PCM frames (99.2%) with one AudioRecord opening. Under the
-full XR debug workload AudioClient processed 67,200 frames, produced 140 network
-frames, reached the FIFO's 96,000-frame/two-second bound, and deliberately
-dropped 401,280 oldest frames to prevent ever-growing voice latency. Automatic
-fan control was restored after the test.
+| Duration | Captured PCM | Processed PCM | Dropped PCM | Final backlog | Network frames |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 10 s | 476,160 | 476,160 | 0 | 0 | 1,008 |
+| 15 s | 719,040 | 719,040 | 0 | 0 | 1,507 |
 
-The batching experiment therefore disproves JNI/Qt event count as the primary
-remaining bottleneck. It localizes the problem to integrated AudioClient
-processing or scheduling under the full XR debug workload, not Pico hardware,
-permissions, proprietary APIs, or Qt's former input plugin. That path must be
-profiled stage-by-stage or checked in a release-equivalent build before using
-raw WAV duration as a speech-quality result.
+The second test used the final one-batch-per-event drain, not the rejected
+direct or extended-drain experiments. Peak FIFO backlog was only 4,800 frames
+(100 ms), and cleanup restored automatic fan control. The result demonstrates
+that public Android capture, Overte's WebRTC AEC, noise gate, codec, and network
+packet path can run together at approximately 100 network frames per second
+under the full Pico OpenXR workload.
 
 ## Host-TTS capture check
 
-The file-triggered host playback hook successfully placed the fixed sentence
-in the Pico raw capture; the captured speech peaked at -3.52 dBFS. The WAV held
-only 3.78 seconds of samples during a much longer wall-clock capture because
-of the callback-throughput failure. This validates playback timing and signal
-routing, but it is not yet a valid full-phrase quality comparison.
+The file-triggered host playback hook produced a complete ten-second, 48 kHz
+raw capture with 480,000 samples. During the measured interval, transport
+captured and processed 477,120 frames with zero drops and zero final backlog.
+The expected playback window contains a distinct signal and the automatic gate
+opened for 66.9% of measured blocks. The recording is quiet: the full WAV has
+-50.9 dBFS mean volume and -32.8 dBFS peak volume, while the approximate phrase
+window is about -57 dBFS RMS. This validates timing, routing, and full-duration
+capture; microphone gain and subjective intelligibility remain separate
+quality work.
 
 ## Overte noise-gate interaction
 
