@@ -13,6 +13,7 @@
 
 #include "Rig.h"
 
+#include <cmath>
 #include <glm/gtx/vector_angle.hpp>
 #include <queue>
 #include <QWriteLocker>
@@ -55,6 +56,15 @@ static bool isEqual(const glm::vec3& u, const glm::vec3& v) {
 static bool isEqual(const glm::quat& p, const glm::quat& q) {
     const float EPSILON = 0.00001f;
     return 1.0f - fabsf(glm::dot(p, q)) <= EPSILON;
+}
+
+static bool isFiniteVector(const glm::vec3& value) {
+    return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
+}
+
+static bool isFiniteQuaternion(const glm::quat& value) {
+    return std::isfinite(value.w) && std::isfinite(value.x) &&
+        std::isfinite(value.y) && std::isfinite(value.z);
 }
 
 #define ASSERT(cond) assert(cond)
@@ -2172,15 +2182,27 @@ void Rig::updateEyeJoint(int index, const glm::vec3& modelTranslation, const glm
     if (isIndexValid(index) && !_internalPoseSet._overrideFlags[index]) {
         const glm::mat4 rigToWorld = createMatFromQuatAndPos(modelRotation, modelTranslation);
         const glm::mat4 worldToRig = glm::inverse(rigToWorld);
-        const glm::vec3 lookAtVector = glm::normalize(transformPoint(worldToRig, lookAtSpot) - _internalPoseSet._absolutePoses[index].trans());
+        const glm::vec3 lookAtOffset = transformPoint(worldToRig, lookAtSpot) -
+            _internalPoseSet._absolutePoses[index].trans();
+        const float MIN_AXIS_LENGTH_SQUARED = 1.0e-6f;
+        if (!isFiniteVector(lookAtOffset) || glm::length2(lookAtOffset) <= MIN_AXIS_LENGTH_SQUARED) {
+            return;
+        }
+        const glm::vec3 lookAtVector = glm::normalize(lookAtOffset);
 
         int headIndex = indexOfJoint("Head");
-        glm::quat headQuat;
+        glm::quat headQuat { 1.0f, 0.0f, 0.0f, 0.0f };
         if (headIndex >= 0) {
             headQuat = _internalPoseSet._absolutePoses[headIndex].rot();
         }
+        if (!isFiniteQuaternion(headQuat) || glm::length2(headQuat) <= MIN_AXIS_LENGTH_SQUARED) {
+            return;
+        }
 
         glm::vec3 headUp = headQuat * Vectors::UNIT_Y;
+        if (!isFiniteVector(headUp) || glm::length2(headUp) <= MIN_AXIS_LENGTH_SQUARED) {
+            return;
+        }
         glm::vec3 z, y, zCrossY;
         generateBasisVectors(lookAtVector, headUp, z, y, zCrossY);
         glm::mat3 m(-zCrossY, y, z);
@@ -2699,7 +2721,8 @@ void Rig::copyJointsFromJointData(const QVector<JointData>& jointDataVec) {
 
     for (int i = 0; i < numJoints; i++) {
         const JointData& data = jointDataVec.at(i);
-        if (data.rotationIsDefaultPose) {
+        if (data.rotationIsDefaultPose || !isFiniteQuaternion(data.rotation) ||
+                glm::length2(data.rotation) <= EPSILON) {
             rotations.push_back(absoluteDefaultPoses[i].rot());
         } else {
             // JointData rotations are in absolute rig-frame so we rotate them to absolute model-frame
@@ -2718,7 +2741,7 @@ void Rig::copyJointsFromJointData(const QVector<JointData>& jointDataVec) {
     for (int i = 0; i < numJoints; i++) {
         const JointData& data = jointDataVec.at(i);
         _internalPoseSet._relativePoses[i].rot() = rotations[i];
-        if (data.translationIsDefaultPose) {
+        if (data.translationIsDefaultPose || !isFiniteVector(data.translation)) {
             _internalPoseSet._relativePoses[i].trans() = relativeDefaultPoses[i].trans();
         } else {
             // JointData translations are in relative-frame

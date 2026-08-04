@@ -15,6 +15,7 @@
 #include "AvatarData.h"
 
 #include <cstdio>
+#include <cmath>
 #include <cstring>
 #include <stdint.h>
 
@@ -1409,6 +1410,13 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
         PACKET_READ_CHECK(JointMaxTranslationDimension, sizeof(float));
         memcpy(&maxTranslationDimension, sourceBuffer, sizeof(float));
         sourceBuffer += sizeof(float);
+        if (!std::isfinite(maxTranslationDimension)) {
+            if (shouldLogError(now)) {
+                qCWarning(avatars) << "Discard AvatarData packet: joint translation scale is not finite, uuid"
+                                   << getSessionUUID();
+            }
+            return buffer.size();
+        }
 
         // each joint translation component is stored in 6 bytes.
         const int COMPRESSED_TRANSLATION_SIZE = 6;

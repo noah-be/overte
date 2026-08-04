@@ -619,6 +619,17 @@ plumbing, not a production optimization. Replica creation also produced brief
 warm-up keep them outside the measurement interval. The next meaningful test
 is a longer interleaved run with a controlled, stable template population.
 
+The first longer follow-up correctly became invalid when Interface aborted in
+the loaded-stage warm-up. Its native backtrace showed non-finite joint poses
+reaching eye-rig basis construction, where a zero or invalid look-at axis hit a
+debug assertion. Avatar packet parsing now rejects a non-finite joint
+translation scale, rig pose copying falls back to the model defaults for
+non-finite joint transforms, and eye updates ignore non-finite or near-zero
+basis inputs. A subsequent 60-second stress run kept all four sources and 20
+replicas loaded with no NaN warning, assertion, or process restart. The
+rejected matrix remains diagnostic only; a complete longer matrix is still
+required.
+
 ## Limitations and next work
 
 - The Hub test is CPU-limited and has no controlled avatar population or active
