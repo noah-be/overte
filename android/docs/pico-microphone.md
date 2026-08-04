@@ -20,7 +20,9 @@ The microphone research build supports two opt-in ADB properties:
 start, verifies the requested source, samples its raw input level, reports fan
 RPM and maximum temperatures, then stops Overte and restores automatic fan
 control. It aborts at 90 C CPU or 85 C GPU, and limits fan-off XR runs to five
-seconds.
+seconds. A thermally limited run still emits a CSV row with its actual elapsed
+time, partial microphone statistics, maximum temperatures, and
+`status=thermal_limit`, then returns a failure status.
 
 ## Initial source matrix
 
@@ -111,3 +113,15 @@ the saved HMD input key: `voicecommunication` stayed active across consecutive
 watchdog intervals and delivered continuous samples. The original device
 configuration was restored after the test. An explicit saved `camcorder`
 selection was also verified to remain authoritative.
+
+## Stability and thermal limit
+
+A requested five-minute `voicecommunication` run under automatic fan control
+was thermally limited after 76 seconds of level samples while Overte rendered
+the test scene. Until shutdown, all 38 watchdog checks reported an active input
+with 60-108 reads per two-second interval (mean 95.53), for 7,299 measured
+audio frames in total. The safety cutoff triggered at 90.55 C CPU and 76 C
+GPU; the app then stopped and automatic fan control was verified. This is a
+thermal render-duration limit, not a microphone dropout. Long microphone-only
+stability tests require a lower-load scene or another way to suspend XR
+rendering without suspending audio.

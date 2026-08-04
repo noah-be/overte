@@ -98,8 +98,11 @@ done
 
 cpu_temp=0
 gpu_temp=0
+elapsed_seconds=0
+status="ok"
 for (( elapsed = 0; elapsed < DURATION; ++elapsed )); do
     sleep 1
+    elapsed_seconds=$((elapsed + 1))
     fan_status="$(adb_shell dumpsys pxrfanservice 2>/dev/null)"
     current_cpu_temp="$(printf '%s\n' "$fan_status" \
         | awk '/^Cpu Temperature/ { for (i=1; i<=NF; i++) if ($i ~ /^temp=/) { sub(/^temp=/, "", $i); sub(/,.*/, "", $i); if ($i+0 > max) max=$i+0 } } END { print max+0 }')"
@@ -113,7 +116,8 @@ for (( elapsed = 0; elapsed < DURATION; ++elapsed )); do
     fi
     if (( current_cpu_temp >= 90000 || current_gpu_temp >= 85000 )); then
         echo "temperature limit reached: CPU ${current_cpu_temp}mC, GPU ${current_gpu_temp}mC" >&2
-        exit 1
+        status="thermal_limit"
+        break
     fi
 done
 
@@ -126,7 +130,8 @@ fan_rpm="$(adb_shell gd32ipdclient_test getfanrpm 2>/dev/null \
 fan_duty="$(adb_shell gd32ipdclient_test getfanspeed 2>/dev/null \
     | sed -n 's/.*GetFanSpeed = //p' | head -n 1)"
 
-printf '%s\n' "$samples" | awk -v source="$SOURCE" -v duration="$DURATION" \
+printf '%s\n' "$samples" | awk -v source="$SOURCE" -v requested_duration="$DURATION" \
+    -v elapsed="$elapsed_seconds" -v status="$status" \
     -v fan_rpm="$fan_rpm" -v fan_duty="$fan_duty" \
     -v cpu_temp="$cpu_temp" -v gpu_temp="$gpu_temp" '
     {
@@ -137,7 +142,9 @@ printf '%s\n' "$samples" | awk -v source="$SOURCE" -v duration="$DURATION" \
         }
     }
     END {
-        print "source,duration_s,samples,frames,mean_level,max_peak,fan_rpm,fan_duty,cpu_temp_max_mC,gpu_temp_max_mC";
-        printf "%s,%s,%d,%d,%.6f,%.6f,%s,%s,%s,%s\n", source, duration, n, frames,
-            n ? level/n : 0, peak, fan_rpm, fan_duty, cpu_temp, gpu_temp;
+        print "source,requested_duration_s,elapsed_s,status,samples,frames,mean_level,max_peak,fan_rpm,fan_duty,cpu_temp_max_mC,gpu_temp_max_mC";
+        printf "%s,%s,%s,%s,%d,%d,%.6f,%.6f,%s,%s,%s,%s\n", source, requested_duration,
+            elapsed, status, n, frames, n ? level/n : 0, peak, fan_rpm, fan_duty, cpu_temp, gpu_temp;
     }'
+
+[[ "$status" == "ok" ]]
