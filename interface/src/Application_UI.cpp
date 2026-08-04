@@ -1187,13 +1187,14 @@ void Application::pauseUntilLoginDetermined() {
     menu->getMenu("Settings")->setVisible(false);
     _developerMenuVisible = menu->getMenu("Developer")->isVisible();
 #if defined(Q_OS_ANDROID)
-    // The Pico HUD always includes the compact FPS counter.
+    // Keep the compact FPS counter out of the normal Pico view. It remains
+    // available through an ADB override for controlled performance tests.
     char picoStatsValue[PROP_VALUE_MAX] {};
     const QString picoStats = __system_property_get("debug.overte.stats", picoStatsValue) > 0
         ? QString::fromLatin1(picoStatsValue).trimmed().toLower()
         : QString();
-    const bool picoStatsEnabled = picoStats != "0" && picoStats != "off" &&
-        picoStats != "false" && picoStats != "disabled";
+    const bool picoStatsEnabled = picoStats == "1" || picoStats == "on" ||
+        picoStats == "true" || picoStats == "enabled";
     menu->setIsOptionChecked(MenuOption::Stats, picoStatsEnabled);
     qInfo() << "PICO_STATS_OVERLAY" << picoStatsEnabled;
 #else

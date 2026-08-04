@@ -33,6 +33,7 @@ force_worn() {
     adb_shell setprop pvr.factorytest.never.sleep 1
     adb_shell setprop sys.pxr.psensor.status 1
     adb_shell setprop sys.pxr.screenstatus 1
+    adb_shell setprop debug.overte.test_mode 1
     adb_shell input keyevent KEYCODE_WAKEUP
 }
 

@@ -2101,13 +2101,20 @@ void Application::update(float deltaTime) {
     if (picoUpdateStart - lastNavigationPropertyCheck >= 250 * USECS_PER_MSEC) {
         lastNavigationPropertyCheck = picoUpdateStart;
         auto addressManager = DependencyManager::get<AddressManager>();
-        // Publish the authoritative connected world and avatar position for
-        // the external power-test guard. This comes from AddressManager, not
-        // from the requested navigation command, so a failed lookup cannot be
-        // mistaken for a successful world change. One atomic update per second
-        // keeps the validation I/O negligible compared with telemetry sampling.
+        // Publish the authoritative connected world and avatar position only
+        // for explicitly enabled unattended tests. Normal Pico sessions avoid
+        // this once-per-second cache-file write.
+        static const bool picoTestMode = [] {
+            char value[PROP_VALUE_MAX] {};
+            if (__system_property_get("debug.overte.test_mode", value) <= 0) {
+                return false;
+            }
+            const QString requested = QString::fromLatin1(value).trimmed().toLower();
+            return requested == "1" || requested == "on" || requested == "true" ||
+                requested == "enabled";
+        }();
         static quint64 lastWorldStatusWrite { 0 };
-        if (picoUpdateStart - lastWorldStatusWrite >= USECS_PER_SECOND) {
+        if (picoTestMode && picoUpdateStart - lastWorldStatusWrite >= USECS_PER_SECOND) {
             lastWorldStatusWrite = picoUpdateStart;
             const glm::vec3 worldPosition = getMyAvatar()->getWorldPosition();
             const QString worldStatus = QStringLiteral("%1|%2|%3|%4|%5|%6|%7")

@@ -36,13 +36,14 @@ constexpr GLint XR_PREFERRED_COLOR_FORMAT = GL_SRGB8_ALPHA8;
 static uint32_t scaledEyeDimension(uint32_t recommended) {
 #if defined(Q_OS_ANDROID)
     // Swapchain dimensions cannot safely be changed while an OpenXR session
-    // is active. Read the persistent tablet setting when the session starts.
-    // The adb property remains as a fallback for development builds.
+    // is active. Read overrides only when the session starts. The ADB property
+    // takes precedence for controlled tests, followed by the persistent tablet
+    // setting and the measured Pico 4 quality/performance knee of 80%.
     static const float renderScale = [] {
         Setting::Handle<float> renderScaleSetting("pico/renderScale", 0.0f);
-        float scale = renderScaleSetting.get();
+        float scale { 0.0f };
         char value[PROP_VALUE_MAX] {};
-        if (scale <= 0.0f && __system_property_get("debug.overte.render_scale", value) > 0) {
+        if (__system_property_get("debug.overte.render_scale", value) > 0) {
             bool ok { false };
             const float requested = QString::fromLatin1(value).toFloat(&ok);
             if (ok) {
@@ -50,7 +51,10 @@ static uint32_t scaledEyeDimension(uint32_t recommended) {
             }
         }
         if (scale <= 0.0f) {
-            scale = 1.0f;
+            scale = renderScaleSetting.get();
+        }
+        if (scale <= 0.0f) {
+            scale = 0.80f;
         }
         scale = std::max(0.50f, std::min(scale, 1.0f));
         qCInfo(xr_display_cat) << "PICO_RENDER_SCALE" << scale;

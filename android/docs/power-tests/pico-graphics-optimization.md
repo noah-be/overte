@@ -35,6 +35,26 @@ that every Overte domain has the same bottleneck.
 This profile preserves the scene features whose removal produced no repeatable
 benefit and uses render scale, the one control that reliably reduced GPU load.
 
+## Adopted Pico defaults
+
+The confirmed profile is now the normal Pico Interface baseline rather than a
+benchmark-only property combination. With no `debug.overte.*` overrides and no
+previously saved user choice, Pico starts with:
+
+- 80% OpenXR render scale, also exposed as an explicit 80% choice in Graphics
+  Settings;
+- the lowest runtime-supported refresh rate (72 Hz on Pico 4);
+- forward rendering, low world detail, no shadows, bloom, ambient occlusion,
+  antialiasing, fixed foveation, or statistics overlay; and
+- haze, local lights, procedural materials, and normal model/simulation update
+  rates enabled.
+
+An explicit saved render-scale choice still overrides the 80% default. ADB
+properties remain available for controlled tests and take precedence over the
+saved render-scale choice. Unattended world-status file output is gated behind
+`debug.overte.test_mode`, so normal sessions do not perform benchmark cache
+writes once per second.
+
 ## Final repeated A/B result
 
 The final comparison used three 120-second measured runs per profile after a
