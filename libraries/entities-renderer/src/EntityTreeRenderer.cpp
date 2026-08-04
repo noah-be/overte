@@ -20,6 +20,10 @@
 #include <QEventLoop>
 #include <QThreadPool>
 
+#ifdef Q_OS_ANDROID
+#include <sys/system_properties.h>
+#endif
+
 #include <shared/QtHelpers.h>
 #include <AbstractScriptingServicesInterface.h>
 #include <AbstractViewStateInterface.h>
@@ -602,13 +606,34 @@ void EntityTreeRenderer::updateChangedEntities(const render::ScenePointer& scene
     // unbounded fast path for a large batch: one underestimated batch can
     // stall locomotion for tens of milliseconds and trigger more catch-up.
 #if defined(Q_OS_ANDROID)
+    static const uint64_t picoRenderableBudget = [] {
+        char value[PROP_VALUE_MAX] {};
+        if (__system_property_get("debug.overte.renderable_budget_us", value) <= 0 ||
+                QString::fromLatin1(value) == "default") {
+            return MAX_UPDATE_RENDERABLES_TIME_BUDGET;
+        }
+        bool ok { false };
+        const auto requested = QString::fromLatin1(value).toULongLong(&ok);
+        return ok ? glm::clamp<uint64_t>(requested, 500, MAX_UPDATE_RENDERABLES_TIME_BUDGET)
+                  : MAX_UPDATE_RENDERABLES_TIME_BUDGET;
+    }();
+    static bool loggedPicoRenderableBudget { false };
+    if (!loggedPicoRenderableBudget) {
+        qInfo() << "PICO_RENDERABLE_BUDGET_US" << picoRenderableBudget;
+        loggedPicoRenderableBudget = true;
+    }
+    const uint64_t updateRenderableTimeBudget = picoRenderableBudget;
+    const uint64_t minSortedUpdateRenderableTimeBudget =
+        std::min<uint64_t>(MIN_SORTED_UPDATE_RENDERABLES_TIME_BUDGET, updateRenderableTimeBudget);
     constexpr size_t MAX_UNBUDGETED_RENDERABLE_UPDATES { 16 };
     const bool smallEnoughForUnbudgetedUpdate =
         _renderablesToUpdate.size() <= MAX_UNBUDGETED_RENDERABLE_UPDATES;
 #else
+    constexpr uint64_t updateRenderableTimeBudget = MAX_UPDATE_RENDERABLES_TIME_BUDGET;
+    constexpr uint64_t minSortedUpdateRenderableTimeBudget = MIN_SORTED_UPDATE_RENDERABLES_TIME_BUDGET;
     const bool smallEnoughForUnbudgetedUpdate = true;
 #endif
-    if (expectedUpdateCost < MAX_UPDATE_RENDERABLES_TIME_BUDGET && smallEnoughForUnbudgetedUpdate) {
+    if (expectedUpdateCost < updateRenderableTimeBudget && smallEnoughForUnbudgetedUpdate) {
         // we expect to update all renderables within available time budget
         PROFILE_RANGE_EX(simulation_physics, "UpdateRenderables", 0xffff00ff, (uint64_t)_renderablesToUpdate.size());
         uint64_t updateStart = usecTimestampNow();
@@ -672,9 +697,9 @@ void EntityTreeRenderer::updateChangedEntities(const render::ScenePointer& scene
             const auto& sortedRenderablesVector = sortedRenderables.getSortedVector();
             uint64_t updateStart = usecTimestampNow();
             uint64_t sortCost = updateStart - sortStart;
-            uint64_t timeBudget = MIN_SORTED_UPDATE_RENDERABLES_TIME_BUDGET;
-            if (sortCost < MAX_UPDATE_RENDERABLES_TIME_BUDGET - MIN_SORTED_UPDATE_RENDERABLES_TIME_BUDGET) {
-                timeBudget = MAX_UPDATE_RENDERABLES_TIME_BUDGET - sortCost;
+            uint64_t timeBudget = minSortedUpdateRenderableTimeBudget;
+            if (sortCost < updateRenderableTimeBudget - minSortedUpdateRenderableTimeBudget) {
+                timeBudget = updateRenderableTimeBudget - sortCost;
             }
             uint64_t expiry = updateStart + timeBudget;
 

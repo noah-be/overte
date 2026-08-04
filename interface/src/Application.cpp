@@ -18,6 +18,8 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>
+#include <QDateTime>
+#include <QSaveFile>
 #include <QtGui/QClipboard>
 #include <QtNetwork/QLocalSocket>
 #include <QtNetwork/QLocalServer>
@@ -1278,13 +1280,93 @@ void Application::loadSettings(const QCommandLineParser& parser) {
     getPerformanceManager().setupPerformancePresetSettings(_firstRun.get());
 
 #if defined(Q_OS_ANDROID)
-    // Standalone headsets need a predictable low-cost VR profile. The desktop
-    // platform tier can otherwise enable shadows, bloom and SSAO even though
-    // Pico has no UI controls exposing those individual settings.
-    RenderScriptingInterface::getInstance()->setShadowsEnabled(false);
-    RenderScriptingInterface::getInstance()->setBloomEnabled(false);
-    RenderScriptingInterface::getInstance()->setAmbientOcclusionEnabled(false);
+    auto renderSettings = RenderScriptingInterface::getInstance();
+    // Standalone headsets need a predictable baseline. The desktop platform
+    // tier can otherwise enable these passes even though Pico has no UI
+    // controls exposing the individual settings.
+    renderSettings->setShadowsEnabled(false);
+    renderSettings->setBloomEnabled(false);
+    renderSettings->setAmbientOcclusionEnabled(false);
     DependencyManager::get<LODManager>()->setWorldDetailQuality(WORLD_DETAIL_LOW);
+
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    // Opt-in, process-start power profile for controlled Pico A/B tests. It
+    // deliberately leaves viewport and OpenXR swapchain resolution unchanged.
+    // adb shell setprop debug.overte.power_profile 1
+    char picoPowerProfileValue[PROP_VALUE_MAX] {};
+    const QString picoPowerProfile = __system_property_get(
+        "debug.overte.power_profile", picoPowerProfileValue) > 0
+        ? QString::fromLatin1(picoPowerProfileValue).trimmed().toLower()
+        : QString();
+    const bool picoPowerProfileEnabled = picoPowerProfile == "1" ||
+        picoPowerProfile == "on" || picoPowerProfile == "enabled";
+    const auto picoBoolOverride = [](const char* property, bool fallback) {
+        char value[PROP_VALUE_MAX] {};
+        if (__system_property_get(property, value) <= 0) {
+            return fallback;
+        }
+        const QString requested = QString::fromLatin1(value).trimmed().toLower();
+        if (requested == "1" || requested == "on" || requested == "true" || requested == "enabled") {
+            return true;
+        }
+        if (requested == "0" || requested == "off" || requested == "false" || requested == "disabled") {
+            return false;
+        }
+        return fallback;
+    };
+    const bool shadowsEnabled = picoBoolOverride("debug.overte.shadows", false);
+    const bool bloomEnabled = picoBoolOverride("debug.overte.bloom", false);
+    const bool ambientOcclusionEnabled = picoBoolOverride("debug.overte.ambient_occlusion", false);
+    const bool hazeEnabled = picoBoolOverride("debug.overte.haze", !picoPowerProfileEnabled);
+    const bool localLightsEnabled = picoBoolOverride("debug.overte.local_lights", !picoPowerProfileEnabled);
+    const bool proceduralMaterialsEnabled = picoBoolOverride(
+        "debug.overte.procedural_materials", !picoPowerProfileEnabled);
+    const bool mirrorViewsEnabled = picoBoolOverride("debug.overte.mirror_views", !picoPowerProfileEnabled);
+
+    renderSettings->setShadowsEnabled(shadowsEnabled);
+    renderSettings->setBloomEnabled(bloomEnabled);
+    renderSettings->setAmbientOcclusionEnabled(ambientOcclusionEnabled);
+    renderSettings->setHazeEnabled(hazeEnabled);
+    renderSettings->setLocalLightingEnabled(localLightsEnabled);
+    renderSettings->setProceduralMaterialsEnabled(proceduralMaterialsEnabled);
+    renderSettings->setAntialiasingMode(AntialiasingSetupConfig::Mode::NONE);
+    int disabledMirrorViews { 0 };
+    if (!mirrorViewsEnabled) {
+        renderSettings->setRenderMethod(RenderScriptingInterface::RenderMethod::FORWARD);
+
+        // Do not render recursive world mirrors. The normal main stereo view
+        // remains untouched; mirror surfaces simply retain their fallback.
+        auto renderConfig = qApp->getRenderEngine()->getConfiguration();
+        const QStringList viewNames { "RenderMainView", "RenderSecondView" };
+        for (const auto& viewName : viewNames) {
+            constexpr size_t MIRROR_VIEWS_PER_LEVEL { 3 };
+            for (size_t mirrorIndex = 0; mirrorIndex < MIRROR_VIEWS_PER_LEVEL; ++mirrorIndex) {
+                const QString mirrorName = viewName + ".RenderMirrorView" +
+                    QString::number(mirrorIndex) + "Depth0";
+                if (auto mirrorConfig = renderConfig->getConfig(mirrorName)) {
+                    if (mirrorConfig->setProperty("enabled", false)) {
+                        ++disabledMirrorViews;
+                    }
+                }
+            }
+        }
+    } else {
+        // Restore the known Pico baseline after an A/B profile run. The public
+        // render setters persist values, so leaving this implicit would make a
+        // later "profile off" run inherit parts of the power profile.
+        renderSettings->setRenderMethod(RenderScriptingInterface::RenderMethod::FORWARD);
+    }
+    qCInfo(interfaceapp) << "PICO_POWER_PROFILE" << (picoPowerProfileEnabled ? "enabled" : "disabled")
+                         << "renderScale" << renderSettings->getViewportResolutionScale()
+                         << "forward" << (renderSettings->getRenderMethod() == RenderScriptingInterface::RenderMethod::FORWARD)
+                         << "shadows" << renderSettings->getShadowsEnabled()
+                         << "haze" << renderSettings->getHazeEnabled()
+                         << "bloom" << renderSettings->getBloomEnabled()
+                         << "ambientOcclusion" << renderSettings->getAmbientOcclusionEnabled()
+                         << "localLights" << renderSettings->getLocalLightingEnabled()
+                         << "proceduralMaterials" << renderSettings->getProceduralMaterialsEnabled()
+                         << "disabledMirrorViews" << disabledMirrorViews;
+#endif
 #endif
 
     // finish initializing the camera, based on everything we checked above. Third person camera will be used if no settings
@@ -2018,6 +2100,38 @@ void Application::update(float deltaTime) {
     static QString lastNavigationCommand;
     if (picoUpdateStart - lastNavigationPropertyCheck >= 250 * USECS_PER_MSEC) {
         lastNavigationPropertyCheck = picoUpdateStart;
+        auto addressManager = DependencyManager::get<AddressManager>();
+        // Publish the authoritative connected world and avatar position only
+        // for explicitly enabled unattended tests. Normal Pico sessions avoid
+        // this once-per-second cache-file write.
+        static const bool picoTestMode = [] {
+            char value[PROP_VALUE_MAX] {};
+            if (__system_property_get("debug.overte.test_mode", value) <= 0) {
+                return false;
+            }
+            const QString requested = QString::fromLatin1(value).trimmed().toLower();
+            return requested == "1" || requested == "on" || requested == "true" ||
+                requested == "enabled";
+        }();
+        static quint64 lastWorldStatusWrite { 0 };
+        if (picoTestMode && picoUpdateStart - lastWorldStatusWrite >= USECS_PER_SECOND) {
+            lastWorldStatusWrite = picoUpdateStart;
+            const glm::vec3 worldPosition = getMyAvatar()->getWorldPosition();
+            const QString worldStatus = QStringLiteral("%1|%2|%3|%4|%5|%6|%7")
+                .arg(QDateTime::currentSecsSinceEpoch())
+                .arg(addressManager->isConnected() ? 1 : 0)
+                .arg(addressManager->getPlaceName().replace('|', '_'))
+                .arg(addressManager->getDomainID().replace('|', '_'))
+                .arg(worldPosition.x, 0, 'f', 3)
+                .arg(worldPosition.y, 0, 'f', 3)
+                .arg(worldPosition.z, 0, 'f', 3);
+            QSaveFile worldStatusFile("/data/user/0/org.overte.pico/cache/world-status");
+            if (worldStatusFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                worldStatusFile.write(worldStatus.toUtf8());
+                worldStatusFile.commit();
+            }
+        }
+
         char navigationValue[PROP_VALUE_MAX] {};
         if (__system_property_get("debug.overte.navigate", navigationValue) > 0) {
             const QString command = QString::fromUtf8(navigationValue).trimmed();
@@ -2026,7 +2140,7 @@ void Application::update(float deltaTime) {
                 const qsizetype separator = command.indexOf('|');
                 const QString address = separator >= 0 ? command.mid(separator + 1) : command;
                 qCInfo(interfaceapp) << "PICO_ADB_NAVIGATE" << address;
-                DependencyManager::get<AddressManager>()->handleLookupString(address);
+                addressManager->handleLookupString(address);
             }
         }
     }

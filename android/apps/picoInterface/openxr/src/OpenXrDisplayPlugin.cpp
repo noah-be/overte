@@ -36,13 +36,14 @@ constexpr GLint XR_PREFERRED_COLOR_FORMAT = GL_SRGB8_ALPHA8;
 static uint32_t scaledEyeDimension(uint32_t recommended) {
 #if defined(Q_OS_ANDROID)
     // Swapchain dimensions cannot safely be changed while an OpenXR session
-    // is active. Read the persistent tablet setting when the session starts.
-    // The adb property remains as a fallback for development builds.
+    // is active. Read overrides only when the session starts. The ADB property
+    // takes precedence for controlled tests, followed by the persistent tablet
+    // setting and the measured Pico 4 quality/performance knee of 80%.
     static const float renderScale = [] {
         Setting::Handle<float> renderScaleSetting("pico/renderScale", 0.0f);
-        float scale = renderScaleSetting.get();
+        float scale { 0.0f };
         char value[PROP_VALUE_MAX] {};
-        if (scale <= 0.0f && __system_property_get("debug.overte.render_scale", value) > 0) {
+        if (__system_property_get("debug.overte.render_scale", value) > 0) {
             bool ok { false };
             const float requested = QString::fromLatin1(value).toFloat(&ok);
             if (ok) {
@@ -50,7 +51,10 @@ static uint32_t scaledEyeDimension(uint32_t recommended) {
             }
         }
         if (scale <= 0.0f) {
-            scale = 1.0f;
+            scale = renderScaleSetting.get();
+        }
+        if (scale <= 0.0f) {
+            scale = 0.80f;
         }
         scale = std::max(0.50f, std::min(scale, 1.0f));
         qCInfo(xr_display_cat) << "PICO_RENDER_SCALE" << scale;
@@ -61,6 +65,33 @@ static uint32_t scaledEyeDimension(uint32_t recommended) {
     return recommended;
 #endif
 }
+
+#if defined(Q_OS_ANDROID)
+static XrFoveationLevelFB picoFoveationLevel() {
+    // Keep this as a process-start setting because OpenXR swapchain foveation
+    // is configured when the display session is initialized. The adb property
+    // makes repeatable A/B power tests possible without changing Pico settings.
+    char value[PROP_VALUE_MAX] {};
+    if (__system_property_get("debug.overte.foveation", value) <= 0) {
+        // Keep the experimental path available for later A/B tests, but do
+        // not silently enable it in normal builds. The first Pico power run
+        // did not show an efficiency benefit from LOW foveation.
+        return XR_FOVEATION_LEVEL_NONE_FB;
+    }
+
+    const QString requested = QString::fromLatin1(value).trimmed().toLower();
+    if (requested == "0" || requested == "off" || requested == "none") {
+        return XR_FOVEATION_LEVEL_NONE_FB;
+    }
+    if (requested == "2" || requested == "medium") {
+        return XR_FOVEATION_LEVEL_MEDIUM_FB;
+    }
+    if (requested == "3" || requested == "high") {
+        return XR_FOVEATION_LEVEL_HIGH_FB;
+    }
+    return XR_FOVEATION_LEVEL_LOW_FB;
+}
+#endif
 
 OpenXrDisplayPlugin::OpenXrDisplayPlugin(std::shared_ptr<OpenXrContext> c) {
     _context = c;
@@ -234,11 +265,24 @@ bool OpenXrDisplayPlugin::initSwapChains() {
 
     int64_t format = chooseSwapChainFormat(instance, session, XR_PREFERRED_COLOR_FORMAT);
 
+#if defined(Q_OS_ANDROID)
+    const XrFoveationLevelFB foveationLevel = picoFoveationLevel();
+    const bool enableFoveation = _context->_foveationSupported && foveationLevel != XR_FOVEATION_LEVEL_NONE_FB;
+    XrSwapchainCreateInfoFoveationFB foveationSwapchainInfo = {
+        .type = XR_TYPE_SWAPCHAIN_CREATE_INFO_FOVEATION_FB,
+        .next = nullptr,
+        .flags = XR_SWAPCHAIN_CREATE_FOVEATION_SCALED_BIN_BIT_FB,
+    };
+#endif
+
     for (uint32_t i = 0; i < _viewCount; i++) {
         _images[i].clear();
 
         XrSwapchainCreateInfo info = {
             .type = XR_TYPE_SWAPCHAIN_CREATE_INFO,
+#if defined(Q_OS_ANDROID)
+            .next = enableFoveation ? &foveationSwapchainInfo : nullptr,
+#endif
             .createFlags = 0,
             .usageFlags = XR_SWAPCHAIN_USAGE_SAMPLED_BIT | XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT,
             .format = format,
@@ -267,6 +311,42 @@ bool OpenXrDisplayPlugin::initSwapChains() {
         if (!xrCheck(instance, result, "Failed to enumerate swapchain images"))
             return false;
     }
+
+#if defined(Q_OS_ANDROID)
+    if (enableFoveation) {
+        XrFoveationLevelProfileCreateInfoFB levelInfo = {
+            .type = XR_TYPE_FOVEATION_LEVEL_PROFILE_CREATE_INFO_FB,
+            .next = nullptr,
+            .level = foveationLevel,
+            .verticalOffset = 0.0f,
+            .dynamic = XR_FOVEATION_DYNAMIC_DISABLED_FB,
+        };
+        XrFoveationProfileCreateInfoFB profileInfo = {
+            .type = XR_TYPE_FOVEATION_PROFILE_CREATE_INFO_FB,
+            .next = &levelInfo,
+        };
+        XrResult result = _context->xrCreateFoveationProfileFB(session, &profileInfo, &_foveationProfile);
+        if (!xrCheck(instance, result, "Failed to create foveation profile")) {
+            return false;
+        }
+
+        XrSwapchainStateFoveationFB state = {
+            .type = XR_TYPE_SWAPCHAIN_STATE_FOVEATION_FB,
+            .next = nullptr,
+            .flags = 0,
+            .profile = _foveationProfile,
+        };
+        for (XrSwapchain swapchain : _swapChains) {
+            result = _context->xrUpdateSwapchainFB(
+                swapchain, reinterpret_cast<const XrSwapchainStateBaseHeaderFB*>(&state));
+            if (!xrCheck(instance, result, "Failed to apply foveation profile")) {
+                return false;
+            }
+        }
+    }
+    qCInfo(xr_display_cat) << "PICO_FOVEATION_LEVEL" << static_cast<int>(foveationLevel)
+                           << "active" << (enableFoveation && _foveationProfile != XR_NULL_HANDLE);
+#endif
 
     return true;
 }
@@ -364,6 +444,13 @@ void OpenXrDisplayPlugin::customizeContext() {
 }
 
 void OpenXrDisplayPlugin::uncustomizeContext() {
+#if defined(Q_OS_ANDROID)
+    if (_foveationProfile != XR_NULL_HANDLE && _context->xrDestroyFoveationProfileFB) {
+        xrCheck(_context->_instance, _context->xrDestroyFoveationProfileFB(_foveationProfile),
+                "Failed to destroy foveation profile");
+        _foveationProfile = XR_NULL_HANDLE;
+    }
+#endif
     _compositeSwapChain.clear();
     _projectionLayerViews.clear();
     for (uint32_t i = 0; i < _viewCount; i++) {

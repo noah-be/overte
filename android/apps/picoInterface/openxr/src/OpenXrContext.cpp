@@ -151,6 +151,9 @@ bool OpenXrContext::initInstance() {
 #if defined(Q_OS_ANDROID)
     bool androidCreateInstanceSupported = false;
     bool displayRefreshRateSupported = false;
+    bool swapchainUpdateStateSupported = false;
+    bool foveationSupported = false;
+    bool foveationConfigurationSupported = false;
 #endif
 
     qCInfo(xr_context_cat, "Runtime supports %d extensions:", count);
@@ -163,6 +166,12 @@ bool OpenXrContext::initInstance() {
             androidCreateInstanceSupported = true;
         } else if (strcmp(XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME, properties[i].extensionName) == 0) {
             displayRefreshRateSupported = true;
+        } else if (strcmp(XR_FB_SWAPCHAIN_UPDATE_STATE_EXTENSION_NAME, properties[i].extensionName) == 0) {
+            swapchainUpdateStateSupported = true;
+        } else if (strcmp(XR_FB_FOVEATION_EXTENSION_NAME, properties[i].extensionName) == 0) {
+            foveationSupported = true;
+        } else if (strcmp(XR_FB_FOVEATION_CONFIGURATION_EXTENSION_NAME, properties[i].extensionName) == 0) {
+            foveationConfigurationSupported = true;
 #endif
         } else if (strcmp(XR_EXT_USER_PRESENCE_EXTENSION_NAME, properties[i].extensionName) == 0) {
             userPresenceSupported = true;
@@ -204,6 +213,13 @@ bool OpenXrContext::initInstance() {
     if (displayRefreshRateSupported) {
         enabled.push_back(XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME);
         _displayRefreshRateSupported = true;
+    }
+
+    if (swapchainUpdateStateSupported && foveationSupported && foveationConfigurationSupported) {
+        enabled.push_back(XR_FB_SWAPCHAIN_UPDATE_STATE_EXTENSION_NAME);
+        enabled.push_back(XR_FB_FOVEATION_EXTENSION_NAME);
+        enabled.push_back(XR_FB_FOVEATION_CONFIGURATION_EXTENSION_NAME);
+        _foveationSupported = true;
     }
 #endif
 
@@ -299,6 +315,16 @@ bool OpenXrContext::initInstance() {
         qCCritical(xr_context_cat) << "Failed to get OpenGL graphics requirements function!";
         return false;
     }
+
+#if defined(Q_OS_ANDROID)
+    if (_foveationSupported) {
+        _foveationSupported =
+            loadXrFunction(_instance, "xrCreateFoveationProfileFB", (PFN_xrVoidFunction*)&xrCreateFoveationProfileFB) &&
+            loadXrFunction(_instance, "xrDestroyFoveationProfileFB", (PFN_xrVoidFunction*)&xrDestroyFoveationProfileFB) &&
+            loadXrFunction(_instance, "xrUpdateSwapchainFB", (PFN_xrVoidFunction*)&xrUpdateSwapchainFB);
+        qCInfo(xr_context_cat) << "PICO_FOVEATION_SUPPORTED" << _foveationSupported;
+    }
+#endif
 
     xrStringToPath(_instance, "/user/hand/left", &_handPaths[0]);
     xrStringToPath(_instance, "/user/hand/right", &_handPaths[1]);

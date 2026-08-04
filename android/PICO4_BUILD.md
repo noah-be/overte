@@ -60,6 +60,9 @@ Without a connected headset, only build the APK:
 ./build-pico.sh
 ```
 
+To measure the completed client's battery and power use on the headset, see
+[Measure Overte power use on Pico 4](PICO4_POWER_TEST.md).
+
 `deploy` assumes that the one-time bootstrap or setup has already installed the
 dependencies. It does not download missing Conan packages itself.
 
@@ -111,6 +114,20 @@ The `setup` command runs the environment check before downloading anything.
 | `./build-pico.sh prepare` | Restage existing Conan and runtime dependencies |
 | `./build-pico.sh deps --download` | Download and install prebuilt dependencies only |
 | `./build-pico.sh --help` | Show commands and supported path overrides |
+
+## Default Pico graphics profile
+
+The Pico Interface uses the measured Pico 4 quality/performance baseline by
+default: 80% OpenXR render scale at the runtime's lowest supported refresh rate
+(72 Hz on Pico 4), forward rendering, low world detail, and no shadows, bloom,
+ambient occlusion, antialiasing, fixed foveation, or statistics overlay. Haze,
+local lights, and procedural materials remain enabled because disabling them
+did not produce a repeatable benefit.
+
+The render scale can be changed under **Settings > Graphics > Pico render
+resolution** and takes effect after the prompted app restart. See
+[Pico 4 graphics optimization results](docs/power-tests/pico-graphics-optimization.md)
+for the controlled measurements and rejected alternatives.
 
 ## Prebuilt dependencies
 

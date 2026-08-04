@@ -15,6 +15,7 @@ PICO_SERIAL="${PICO_SERIAL:-192.168.188.75:5555}"
 # Use the registered Places address, not a raw domain IP. The placename lookup
 # carries the authoritative destination/spawn context used by the Places app.
 TARGET="hifi://overte_hub/155.084,-98.5,-397.328"
+TARGET_PLACE="overte_hub"
 TEST_X="155.084"
 TEST_Y="-98.5"
 TEST_Z="-397.328"
@@ -32,6 +33,7 @@ force_worn() {
     adb_shell setprop pvr.factorytest.never.sleep 1
     adb_shell setprop sys.pxr.psensor.status 1
     adb_shell setprop sys.pxr.screenstatus 1
+    adb_shell setprop debug.overte.test_mode 1
     adb_shell input keyevent KEYCODE_WAKEUP
 }
 
@@ -43,6 +45,24 @@ safe_position() {
     nonce="${nonce:0:8}"
     adb_shell setprop debug.overte.teleport \
         "${nonce}\\|${TEST_X}\\|${TEST_Y}\\|${TEST_Z}"
+}
+
+wait_for_world() {
+    local timeout="${1:-60}" elapsed=0 status status_epoch connected place now
+    while (( elapsed < timeout )); do
+        status="$(adb_shell run-as org.overte.pico cat cache/world-status 2>/dev/null || true)"
+        IFS='|' read -r status_epoch connected place _ <<<"$status"
+        now="$(date +%s)"
+        if [[ "$status_epoch" =~ ^[0-9]+$ ]] &&
+            (( now - status_epoch >= -5 && now - status_epoch <= 5 )) &&
+            [[ "$connected" == "1" && "${place,,}" == "$TARGET_PLACE" ]]; then
+            return 0
+        fi
+        sleep 1
+        elapsed=$((elapsed + 1))
+    done
+    echo "failed to verify connected world '$TARGET_PLACE' (status: ${status:-missing})" >&2
+    return 1
 }
 
 verify_spawn() {
@@ -76,7 +96,7 @@ verify_spawn() {
 case "${1:-status}" in
     start)
         force_worn
-        adb_shell am start -W -a android.intent.action.MAIN \
+        adb_shell am start -a android.intent.action.MAIN \
             -c android.intent.category.LAUNCHER \
             -c com.picovr.intent.category.VR \
             -n org.overte.pico/.PermissionsActivity
@@ -84,7 +104,23 @@ case "${1:-status}" in
     hub)
         force_worn
         nonce="${2:-$(date +%s)}"
+        # Navigation and in-domain teleport are separate commands. Teleporting
+        # alone would leave Interface in whichever domain was already open.
+        adb_shell setprop debug.overte.navigate "${nonce}\\|${TARGET}"
+        wait_for_world 60
         safe_position "$nonce"
+        sleep 5
+        status="$(adb_shell run-as org.overte.pico cat cache/world-status 2>/dev/null || true)"
+        IFS='|' read -r status_epoch connected place domain_id x y z <<<"$status"
+        if [[ "$connected" != "1" || "${place,,}" != "$TARGET_PLACE" ]] ||
+            ! awk -v x="$x" -v y="$y" -v z="$z" 'BEGIN {
+                dx=x-155.084; dy=y-(-97.403); dz=z-(-397.162);
+                exit (dx*dx + dy*dy + dz*dz <= 4.0) ? 0 : 1;
+            }'; then
+            echo "Hub world/position verification failed (status: ${status:-missing})" >&2
+            exit 1
+        fi
+        echo "verified world=$place domain=$domain_id position=$x,$y,$z"
         ;;
     walk)
         force_worn

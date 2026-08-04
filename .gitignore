@@ -47,6 +47,7 @@ local.properties
 /android/conan/pico4-*/
 /android/pico-host-tools/
 /android/pico-precompiled-compat/
+/android/power-results/
 /android/apps/picoInterface/src/main/runtime-overrides/
 /android/gradle*
 /android/.gradle

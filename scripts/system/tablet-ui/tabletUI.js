@@ -334,14 +334,18 @@
     Messages.messageReceived.connect(handleMessage);
 
     var clickMapping = Controller.newMapping('tabletToggle-click');
-    var wantsMenu = 0;
-    clickMapping.from(function () { return wantsMenu; }).to(Controller.Actions.ContextMenu);
+    clickMapping.from(controllerStandard.RightSecondaryThumb).peek()
+        .when(Controller.Hardware.Application.LeftHandDominant)
+        .to(Controller.Actions.ContextMenu);
+    clickMapping.from(controllerStandard.LeftSecondaryThumb).peek()
+        .when(Controller.Hardware.Application.RightHandDominant)
+        .to(Controller.Actions.ContextMenu);
+    clickMapping.from(controllerStandard.Start).peek().to(Controller.Actions.ContextMenu);
     clickMapping.from(controllerStandard.RightSecondaryThumb).peek().when(Controller.Hardware.Application.LeftHandDominant).to(function (clicked) {
     if (clicked) {
         //activeHudPoint2d(controllerStandard.RightHand);
         Messages.sendLocalMessage("toggleHand", controllerStandard.RightHand);
     }
-        wantsMenu = clicked;
     });
     
     clickMapping.from(controllerStandard.LeftSecondaryThumb).peek().when(Controller.Hardware.Application.RightHandDominant).to(function (clicked) {
@@ -349,7 +353,6 @@
             //activeHudPoint2d(controllerStandard.LeftHand);
             Messages.sendLocalMessage("toggleHand", controllerStandard.LeftHand);
         }
-        wantsMenu = clicked;
     });
 
     clickMapping.from(controllerStandard.Start).peek().to(function (clicked) {
@@ -359,7 +362,6 @@
         Messages.sendLocalMessage("toggleHand", controllerStandard.LeftHand);
     }
 
-        wantsMenu = clicked;
     });
     clickMapping.enable();
 

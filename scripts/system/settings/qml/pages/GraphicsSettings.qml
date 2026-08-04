@@ -194,13 +194,13 @@ Flickable {
         SettingComboBox {
             id: picoResolutionScale
             settingText: "Pico render resolution"
-            options: ["50%", "60%", "70%", "75%", "85%", "100%"]
-            property var scales: [0.50, 0.60, 0.70, 0.75, 0.85, 1.00]
+            options: ["50%", "60%", "70%", "75%", "80%", "85%", "100%"]
+            property var scales: [0.50, 0.60, 0.70, 0.75, 0.80, 0.85, 1.00]
             property bool initialized: false
             property int pendingIndex: -1
 
             function syncFromSettings() {
-                var current = Number(Settings.getValue("pico/renderScale", 1.0))
+                var current = Number(Settings.getValue("pico/renderScale", 0.80))
                 var closest = 0
                 var distance = Math.abs(scales[0] - current)
                 for (var i = 1; i < scales.length; ++i) {
@@ -218,7 +218,7 @@ Flickable {
 
             onValueChanged: {
                 if (!initialized || scales[index] ===
-                        Number(Settings.getValue("pico/renderScale", 1.0))) {
+                        Number(Settings.getValue("pico/renderScale", 0.80))) {
                     return
                 }
                 pendingIndex = index
