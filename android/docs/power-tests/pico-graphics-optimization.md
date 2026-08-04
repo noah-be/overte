@@ -591,10 +591,39 @@ agrees with the leaf profile and provides no evidence that the state-poll
 wall-clock bucket is a comparable CPU cost. No production state-poll or avatar
 budget change is justified by this scene.
 
+Loaded-model telemetry subsequently exposed an important limitation in all of
+the local replica results above. `setReplicaCount()` removed the received
+source avatars even when the requested count was already zero. Their unchanged
+identity and skeleton traits were not guaranteed to be retransmitted, so the
+source avatars and their replicas were recreated as loading-orb placeholders.
+The prominent `updateOrbPosition()` profile was consistent with that state.
+Consequently, the preceding numbers describe placeholder/update-budget harness
+behavior and must not be used as rendered-avatar performance evidence.
+
+The test-only replica implementation now leaves received source avatars alive,
+does nothing when the requested count is unchanged, reconciles replicas on a
+normal avatar data packet, and seeds new replicas from the source identity and
+skeleton traits. Status reports loaded source and replica model counts without
+recording identifiers. The matrix waits until every expected model is loaded
+and rejects a stage if any model becomes unloaded.
+
+A live `0 -> 5 -> 0` validation retained four loaded source models throughout,
+loaded all 20 expected replica models, and removed those replicas without
+reloading the sources. A short 10-second-per-stage smoke matrix then measured
+5 loaded total avatars at baseline and 25 loaded total avatars under load. The
+two baseline stages averaged 228.5% process CPU and 4.742 ms avatar simulation;
+the loaded stage averaged 224.0% and 4.108 ms. Budget-skipped updates rose from
+1.8 to 22.0 per frame. These short, noisy values validate loaded-model test
+plumbing, not a production optimization. Replica creation also produced brief
+`ensureInScene()` warm-up spikes before settling; the matrix's load wait and
+warm-up keep them outside the measurement interval. The next meaningful test
+is a longer interleaved run with a controlled, stable template population.
+
 ## Limitations and next work
 
-- The Hub test is CPU-limited and contains no nearby avatars or active mirror
-  views. Avatar-heavy and mirror-heavy domain tests are still needed.
+- The Hub test is CPU-limited and has no controlled avatar population or active
+  mirror views. Longer loaded-avatar and mirror-heavy domain tests are still
+  needed.
 - The dynamic turning screen had large resource-streaming/order variance and
   was not used for the final numeric recommendation.
 - Internal frame counters and Android telemetry are appropriate for comparative

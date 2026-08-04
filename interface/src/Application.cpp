@@ -2189,16 +2189,28 @@ void Application::update(float deltaTime) {
                 auto avatarManager = DependencyManager::get<AvatarManager>();
                 const auto avatarHash = avatarManager->getHashCopy();
                 int replicatedAvatars { 0 };
+                int loadedOtherAvatars { 0 };
+                int loadedReplicatedAvatars { 0 };
                 for (const auto& avatar : avatarHash) {
-                    if (avatar->getReplicaIndex() > 0) {
+                    const bool replicated = avatar->getReplicaIndex() > 0;
+                    if (replicated) {
                         ++replicatedAvatars;
+                    }
+                    const auto renderedAvatar = std::dynamic_pointer_cast<Avatar>(avatar);
+                    const auto skeletonModel = renderedAvatar ? renderedAvatar->getSkeletonModel() : nullptr;
+                    if (avatar.get() != avatarManager->getMyAvatar().get() &&
+                            skeletonModel && skeletonModel->isLoaded()) {
+                        ++loadedOtherAvatars;
+                        if (replicated) {
+                            ++loadedReplicatedAvatars;
+                        }
                     }
                 }
                 const double averageAvatarSimulationMs = picoAvatarSimulationSamples > 0
                     ? picoAvatarSimulationMsSum / double(picoAvatarSimulationSamples)
                     : 0.0;
                 const double timingDivisor = double(std::max<quint64>(1, picoAvatarSimulationSamples));
-                const QString avatarStatus = QStringLiteral("%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11|%12|%13|%14|%15|%16")
+                const QString avatarStatus = QStringLiteral("%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11|%12|%13|%14|%15|%16|%17|%18")
                     .arg(QDateTime::currentSecsSinceEpoch())
                     .arg(avatarHash.size())
                     .arg(replicatedAvatars)
@@ -2214,7 +2226,9 @@ void Application::update(float deltaTime) {
                     .arg(picoAvatarStatePollMsSum / timingDivisor, 0, 'f', 3)
                     .arg(picoAvatarEnsureSceneMsSum / timingDivisor, 0, 'f', 3)
                     .arg(picoAvatarScaleAnimationMsSum / timingDivisor, 0, 'f', 3)
-                    .arg(picoAvatarSimulateMsSum / timingDivisor, 0, 'f', 3);
+                    .arg(picoAvatarSimulateMsSum / timingDivisor, 0, 'f', 3)
+                    .arg(loadedOtherAvatars)
+                    .arg(loadedReplicatedAvatars);
                 QSaveFile avatarStatusFile("/data/user/0/org.overte.pico/cache/avatar-status");
                 if (avatarStatusFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
                     avatarStatusFile.write(avatarStatus.toUtf8());
