@@ -686,6 +686,19 @@ but are not claimed as an exact production CPU reduction. Interface remained
 connected and crash-free, all 24 other skeleton models loaded, and the local
 replica count returned to zero after each run.
 
+A later avatar-load validation exposed transient non-finite absolute joint
+poses while a fallback rig was initialized. Matrix decomposition in
+`AnimPose` divided each basis column by its scale even when an axis had
+collapsed to zero, which turned a valid degenerate transform into NaN. The
+decomposition now normalizes only nonzero finite axes, reconstructs a single
+missing axis from the other two when possible, and uses an identity rotation
+when the orientation cannot be recovered safely. Non-finite input matrices
+also fall back to an identity pose. Regression coverage exercises each of the
+three collapsed axes, a fully collapsed transform, and non-finite input. The
+Android build and a clean Pico cold start completed without a NaN, native
+crash, or JNI error. A loaded-crowd rerun is still needed when a controlled
+external template population is available.
+
 ## Limitations and next work
 
 - The Hub test is CPU-limited and has no controlled avatar population or active

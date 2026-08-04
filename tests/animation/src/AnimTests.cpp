@@ -24,6 +24,8 @@
 #include <StatTracker.h>
 #include <test-utils/QTestExtensions.h>
 
+#include <limits>
+
 QTEST_MAIN(AnimTests)
 
 const float TEST_EPSILON = 0.001f;
@@ -475,6 +477,32 @@ void AnimTests::testAnimPose() {
     }
     QCOMPARE_WITH_ABS_ERROR(p.rot(), resultRot, TEST_EPSILON2);
     QCOMPARE_WITH_ABS_ERROR(p.scale(), resultScale, TEST_EPSILON2);
+
+    // A collapsed scale axis is valid for a transform but must not turn the
+    // decomposed rotation or translation into NaN through division by zero.
+    glm::quat collapsedRotation = ROT_X_90 * ROT_Y_180;
+    glm::vec3 collapsedTranslation(4.0f, 5.0f, 6.0f);
+    const glm::vec3 collapsedScales[] {
+        glm::vec3(0.0f, 2.0f, 3.0f),
+        glm::vec3(1.0f, 0.0f, 3.0f),
+        glm::vec3(1.0f, 2.0f, 0.0f)
+    };
+    for (const auto& collapsedScale : collapsedScales) {
+        glm::mat4 collapsedMatrix = createMatFromQuatAndPos(collapsedRotation, collapsedTranslation) *
+            glm::scale(glm::mat4(), collapsedScale);
+        AnimPose collapsedPose(collapsedMatrix);
+        QCOMPARE_WITH_ABS_ERROR((glm::mat4)collapsedPose, collapsedMatrix, TEST_EPSILON);
+    }
+
+    glm::mat4 fullyCollapsedMatrix = glm::translate(glm::mat4(), collapsedTranslation) *
+        glm::scale(glm::mat4(), glm::vec3(0.0f));
+    AnimPose fullyCollapsedPose(fullyCollapsedMatrix);
+    QCOMPARE_WITH_ABS_ERROR((glm::mat4)fullyCollapsedPose, fullyCollapsedMatrix, TEST_EPSILON);
+
+    glm::mat4 nonFiniteMatrix;
+    nonFiniteMatrix[0][0] = std::numeric_limits<float>::infinity();
+    AnimPose nonFinitePose(nonFiniteMatrix);
+    QCOMPARE_WITH_ABS_ERROR((glm::mat4)nonFinitePose, glm::mat4(), TEST_EPSILON);
 }
 
 void AnimTests::testExpressionTokenizer() {
@@ -705,5 +733,3 @@ void AnimTests::testExpressionEvaluator() {
     TEST_BOOL_EXPR(!!!(t) && (!!f || true));
     TEST_BOOL_EXPR(!(true && f) && true);
 }
-
-
