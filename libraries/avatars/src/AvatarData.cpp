@@ -987,6 +987,14 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
     lazyInitHeadData();
 
     AvatarDataPacket::HasFlags packetStateFlags;
+    quint64 now = usecTimestampNow();
+    if (buffer.size() < static_cast<int>(sizeof(packetStateFlags))) {
+        if (shouldLogError(now)) {
+            qCWarning(avatars) << "AvatarData packet too small to contain flags," << buffer.size()
+                               << "bytes available," << getSessionUUID();
+        }
+        return buffer.size();
+    }
 
     const unsigned char* startPosition = reinterpret_cast<const unsigned char*>(buffer.data());
     const unsigned char* endPosition = startPosition + buffer.size();
@@ -1013,8 +1021,6 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
     bool hasJointData             = HAS_FLAG(packetStateFlags, AvatarDataPacket::PACKET_HAS_JOINT_DATA);
     bool hasJointDefaultPoseFlags = HAS_FLAG(packetStateFlags, AvatarDataPacket::PACKET_HAS_JOINT_DEFAULT_POSE_FLAGS);
     bool hasGrabJoints            = HAS_FLAG(packetStateFlags, AvatarDataPacket::PACKET_HAS_GRAB_JOINTS);
-
-    quint64 now = usecTimestampNow();
 
     if (hasAvatarGlobalPosition) {
         auto startSection = sourceBuffer;
@@ -1323,12 +1329,13 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
         auto faceTrackerInfo = reinterpret_cast<const AvatarDataPacket::FaceTrackerInfo*>(sourceBuffer);
         int numCoefficients = faceTrackerInfo->numBlendshapeCoefficients;
         const int coefficientsSize = sizeof(float) * numCoefficients;
+        const int storedCoefficients = std::min(numCoefficients, (int)Blendshapes::BlendshapeCount);
         sourceBuffer += sizeof(AvatarDataPacket::FaceTrackerInfo);
 
         PACKET_READ_CHECK(FaceTrackerCoefficients, coefficientsSize);
-        _headData->_blendshapeCoefficients.resize(std::min(numCoefficients, (int)Blendshapes::BlendshapeCount));  // make sure there's room for the copy!
+        _headData->_blendshapeCoefficients.resize(storedCoefficients);
         //only copy the blendshapes to headData, not the procedural face info
-        memcpy(_headData->_blendshapeCoefficients.data(), sourceBuffer, coefficientsSize);
+        memcpy(_headData->_blendshapeCoefficients.data(), sourceBuffer, sizeof(float) * storedCoefficients);
         sourceBuffer += coefficientsSize;
 
         int numBytesRead = sourceBuffer - startSection;
