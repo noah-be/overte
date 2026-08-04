@@ -210,6 +210,9 @@ public slots:
 
     void sendDownstreamAudioStatsPacket() { _stats.publish(); }
     void handleMicAudioInput();
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    void handleAndroidAudioInput(const QByteArray& audio);
+#endif
     void audioInputStateChanged(QAudio::State state);
     void checkInputTimeout();
     void handleDummyAudioInput();
@@ -260,7 +263,7 @@ public slots:
     // Qt opensles plugin is not able to detect when the headset is plugged in
     void setHeadsetPluggedIn(bool pluggedIn);
 
-    float getInputVolume() const { return (_audioInput) ? (float)_audioInput->volume() : 0.0f; }
+    float getInputVolume() const;
     void setInputVolume(float volume, bool emitSignal = true);
     void setReverb(bool reverb);
     void setReverbOptions(const AudioEffectOptions* options);
@@ -334,6 +337,7 @@ private:
 
     void outputFormatChanged();
     void handleAudioInput(QByteArray& audioBuffer);
+    void processMicAudioInput(QByteArray& inputByteArray);
     void prepareLocalAudioInjectors(std::unique_ptr<Lock> localAudioLock = nullptr);
     bool mixLocalAudioInjectors(float* mixBuffer);
     float azimuthForSource(const glm::vec3& relativePosition);
@@ -343,6 +347,10 @@ private:
     QTimer _checkInputTimer{ this };
     long _inputReadsSinceLastCheck = 0l;
     bool _isHeadsetPluggedIn { false };
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    bool _androidAudioInputActive { false };
+    float _androidAudioInputVolume { 1.0f };
+#endif
 #endif
 
     class Gate {

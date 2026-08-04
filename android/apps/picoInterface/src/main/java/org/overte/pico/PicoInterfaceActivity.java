@@ -45,6 +45,7 @@ public final class PicoInterfaceActivity extends QtActivity {
         }
 
         super.onCreate(savedInstanceState);
+        AndroidAudioInput.initializeNativeBridge();
     }
 
     public static void scheduleRestart(String applicationArguments) {

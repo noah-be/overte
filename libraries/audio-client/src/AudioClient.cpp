@@ -14,6 +14,7 @@
 
 #include "AudioClient.h"
 
+#include <atomic>
 #include <cmath>
 #include <cstring>
 #include <math.h>
@@ -112,6 +113,125 @@ static QString picoMicRequestedInput() {
 static QString picoMicCapturePath() {
     return PathUtils::getAppLocalDataFilePath(QStringLiteral("pico-mic-input.wav"));
 }
+
+#if defined(ANDROID_APP_PICO_INTERFACE)
+static std::atomic<jclass> androidAudioInputClass { nullptr };
+static std::atomic<JavaVM*> androidJavaVm { nullptr };
+
+class AndroidJniEnvironment {
+public:
+    AndroidJniEnvironment() {
+        auto vm = androidJavaVm.load(std::memory_order_acquire);
+        if (!vm) {
+            return;
+        }
+        const jint status = vm->GetEnv(reinterpret_cast<void**>(&_environment), JNI_VERSION_1_6);
+        if (status == JNI_EDETACHED && vm->AttachCurrentThread(&_environment, nullptr) == JNI_OK) {
+            _attached = true;
+        }
+    }
+
+    ~AndroidJniEnvironment() {
+        if (_attached) {
+            androidJavaVm.load(std::memory_order_acquire)->DetachCurrentThread();
+        }
+    }
+
+    JNIEnv* operator->() const { return _environment; }
+    explicit operator bool() const { return _environment != nullptr; }
+
+private:
+    JNIEnv* _environment { nullptr };
+    bool _attached { false };
+};
+
+static bool startAndroidAudioInput(const QAudioFormat& format, int framesPerBuffer) {
+    const jclass inputClass = androidAudioInputClass.load(std::memory_order_acquire);
+    if (!inputClass) {
+        return false;
+    }
+    AndroidJniEnvironment environment;
+    if (!environment) {
+        return false;
+    }
+    const jmethodID startMethod = environment->GetStaticMethodID(inputClass, "start", "(III)Z");
+    const bool started = startMethod && environment->CallStaticBooleanMethod(
+        inputClass,
+        startMethod,
+        static_cast<jint>(format.sampleRate()),
+        static_cast<jint>(format.channelCount()),
+        static_cast<jint>(framesPerBuffer));
+    if (environment->ExceptionCheck()) {
+        environment->ExceptionDescribe();
+        environment->ExceptionClear();
+        return false;
+    }
+    return started;
+}
+
+static void stopAndroidAudioInput() {
+    const jclass inputClass = androidAudioInputClass.load(std::memory_order_acquire);
+    if (!inputClass) {
+        return;
+    }
+    AndroidJniEnvironment environment;
+    if (!environment) {
+        return;
+    }
+    const jmethodID stopMethod = environment->GetStaticMethodID(inputClass, "stop", "()V");
+    if (stopMethod) {
+        environment->CallStaticVoidMethod(inputClass, stopMethod);
+    }
+    if (environment->ExceptionCheck()) {
+        environment->ExceptionDescribe();
+        environment->ExceptionClear();
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_overte_pico_AndroidAudioInput_nativeInitialize(
+        JNIEnv* environment, jclass inputClass) {
+    JavaVM* vm { nullptr };
+    if (environment->GetJavaVM(&vm) != JNI_OK) {
+        return;
+    }
+    auto globalClass = static_cast<jclass>(environment->NewGlobalRef(inputClass));
+    if (!globalClass) {
+        return;
+    }
+    androidJavaVm.store(vm, std::memory_order_release);
+    jclass expected { nullptr };
+    if (!androidAudioInputClass.compare_exchange_strong(
+            expected, globalClass, std::memory_order_acq_rel)) {
+        environment->DeleteGlobalRef(globalClass);
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_overte_pico_AndroidAudioInput_nativeOnAudioData(
+        JNIEnv* environment, jclass, jbyteArray data, jint bytesRead) {
+    if (!data || bytesRead <= 0 || bytesRead > environment->GetArrayLength(data)) {
+        return;
+    }
+
+    QByteArray audio(bytesRead, Qt::Uninitialized);
+    environment->GetByteArrayRegion(
+        data, 0, bytesRead, reinterpret_cast<jbyte*>(audio.data()));
+    if (environment->ExceptionCheck()) {
+        environment->ExceptionClear();
+        return;
+    }
+
+    auto audioClient = DependencyManager::get<AudioClient>();
+    if (audioClient) {
+        QMetaObject::invokeMethod(
+            audioClient.data(),
+            "handleAndroidAudioInput",
+            Qt::QueuedConnection,
+            Q_ARG(QByteArray, audio));
+    }
+}
+#endif
 #endif
 
 const AudioClient::AudioPositionGetter  AudioClient::DEFAULT_POSITION_GETTER = []{ return Vectors::ZERO; };
@@ -1080,7 +1200,20 @@ bool AudioClient::switchAudioDevice(QAudio::Mode mode, const HifiAudioDeviceInfo
             << deviceInfo.deviceName() << " : " << deviceInfo.getDevice().deviceName();
     }
 
-#if defined(Q_OS_ANDROID)
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    if (mode == QAudio::AudioInput && _androidAudioInputActive &&
+            !deviceInfo.getDevice().isNull()) {
+        // All Pico UI input choices use the same public Android MIC backend.
+        // Keep the working AudioRecord session when device discovery updates
+        // the logical label, avoiding a capture interruption.
+        Lock lock(_deviceMutex);
+        _inputDeviceInfo = deviceInfo;
+        emit deviceChanged(QAudio::AudioInput, _inputDeviceInfo);
+        qInfo() << "PICO_MIC_INPUT_REUSED" << _inputDeviceInfo.deviceName()
+            << "backend AudioRecord state ActiveState";
+        return true;
+    }
+#elif defined(Q_OS_ANDROID)
     if (mode == QAudio::AudioInput && _audioInput && _inputDevice &&
             _audioInput->state() != QAudio::StoppedState &&
             _audioInput->error() == QAudio::NoError &&
@@ -1528,13 +1661,36 @@ void AudioClient::handleMicAudioInput() {
     _inputReadsSinceLastCheck++;
 #endif
 
+    QByteArray inputByteArray = _inputDevice->readAll();
+    processMicAudioInput(inputByteArray);
+}
+
+#if defined(ANDROID_APP_PICO_INTERFACE)
+void AudioClient::handleAndroidAudioInput(const QByteArray& audio) {
+    if (!_androidAudioInputActive || _isPlayingBackRecording || audio.isEmpty()) {
+        return;
+    }
+
+    ++_inputReadsSinceLastCheck;
+    QByteArray inputByteArray(audio);
+    if (_androidAudioInputVolume < 1.0f) {
+        auto* samples = reinterpret_cast<int16_t*>(inputByteArray.data());
+        const int sampleCount = inputByteArray.size() / static_cast<int>(sizeof(int16_t));
+        for (int i = 0; i < sampleCount; ++i) {
+            samples[i] = static_cast<int16_t>(samples[i] * _androidAudioInputVolume);
+        }
+    }
+    processMicAudioInput(inputByteArray);
+}
+#endif
+
+void AudioClient::processMicAudioInput(QByteArray& inputByteArray) {
     // input samples required to produce exactly NETWORK_FRAME_SAMPLES of output
     const int inputSamplesRequired = (_inputToNetworkResampler ?
                                       _inputToNetworkResampler->getMinInput(AudioConstants::NETWORK_FRAME_SAMPLES_PER_CHANNEL) :
                                       AudioConstants::NETWORK_FRAME_SAMPLES_PER_CHANNEL) * _inputFormat.channelCount();
 
     const auto inputAudioSamples = std::unique_ptr<int16_t[]>(new int16_t[inputSamplesRequired]);
-    QByteArray inputByteArray = _inputDevice->readAll();
 
 #if defined(Q_OS_ANDROID)
     const int captureSeconds = picoMicCaptureSeconds();
@@ -2051,6 +2207,14 @@ bool AudioClient::switchInputToAudioDevice(const HifiAudioDeviceInfo inputDevice
         _inputDeviceInfo.setDevice(QAudioDeviceInfo());
     }
 
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    if (_androidAudioInputActive) {
+        stopAndroidAudioInput();
+        _androidAudioInputActive = false;
+        _numInputCallbackBytes = 0;
+    }
+#endif
+
     if (_dummyAudioInput) {
         _dummyAudioInput->stop();
         _dummyAudioInput->deleteLater();
@@ -2117,15 +2281,24 @@ bool AudioClient::switchInputToAudioDevice(const HifiAudioDeviceInfo inputDevice
 
             // if the user wants stereo but this device can't provide then bail
             if (!_isStereoInput || _inputFormat.channelCount() == 2) {
-                _audioInput = new QAudioInput(_inputDeviceInfo.getDevice(), _inputFormat, this);
                 _numInputCallbackBytes = calculateNumberOfInputCallbackBytes(_inputFormat);
+                int numFrameSamples = calculateNumberOfFrameSamples(_numInputCallbackBytes);
+                _inputRingBuffer.resizeForFrameSize(numFrameSamples);
+
+#if defined(ANDROID_APP_PICO_INTERFACE)
+                _androidAudioInputActive = startAndroidAudioInput(_inputFormat, numFrameSamples);
+                if (_androidAudioInputActive) {
+                    emit inputVolumeChanged(_androidAudioInputVolume);
+                    supportedFormat = true;
+                    qInfo() << "PICO_MIC_BACKEND Android AudioRecord source MIC";
+                } else {
+                    qCWarning(audioclient) << "Error starting Android AudioRecord input";
+                }
+#else
+                _audioInput = new QAudioInput(_inputDeviceInfo.getDevice(), _inputFormat, this);
                 _audioInput->setBufferSize(_numInputCallbackBytes);
                 // different audio input devices may have different volumes
                 emit inputVolumeChanged(_audioInput->volume());
-
-                // how do we want to handle input working, but output not working?
-                int numFrameSamples = calculateNumberOfFrameSamples(_numInputCallbackBytes);
-                _inputRingBuffer.resizeForFrameSize(numFrameSamples);
 
 #if defined(Q_OS_ANDROID)
                 if (_audioInput) {
@@ -2143,6 +2316,7 @@ bool AudioClient::switchInputToAudioDevice(const HifiAudioDeviceInfo inputDevice
                     _audioInput->deleteLater();
                     _audioInput = NULL;
                 }
+#endif
             }
         }
     }
@@ -2150,7 +2324,11 @@ bool AudioClient::switchInputToAudioDevice(const HifiAudioDeviceInfo inputDevice
     // If there is no working input device, use the dummy input device.
     // It generates audio callbacks on a timer to simulate a mic stream of silent packets.
     // This enables clients without a mic to still receive an audio stream from the mixer.
-    if (!_audioInput) {
+    if (!_audioInput
+#if defined(ANDROID_APP_PICO_INTERFACE)
+            && !_androidAudioInputActive
+#endif
+            ) {
         qCDebug(audioclient) << "Audio input device is not available, using dummy input.";
         _inputDeviceInfo.setDevice(QAudioDeviceInfo());
         emit deviceChanged(QAudio::AudioInput, _inputDeviceInfo);
@@ -2206,9 +2384,25 @@ void AudioClient::checkInputTimeout() {
         qInfo() << "PICO_MIC_WATCHDOG"
             << "device" << _inputDeviceInfo.deviceName()
             << "reads" << _inputReadsSinceLastCheck
+            << "backend"
+#if defined(ANDROID_APP_PICO_INTERFACE)
+            << (_androidAudioInputActive ? "AudioRecord" : "Qt")
+            << "state" << (_audioInput ? _audioInput->state() :
+                (_androidAudioInputActive ? QAudio::ActiveState : QAudio::StoppedState))
+#else
+            << "Qt"
             << "state" << (_audioInput ? _audioInput->state() : QAudio::StoppedState)
+#endif
             << "error" << (_audioInput ? _audioInput->error() : QAudio::NoError);
     }
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    if (_androidAudioInputActive && _inputReadsSinceLastCheck < MIN_READS_TO_CONSIDER_INPUT_ALIVE) {
+        qCWarning(audioclient) << "Android AudioRecord input stalled; restarting";
+        _inputReadsSinceLastCheck = 0;
+        switchInputToAudioDevice(_inputDeviceInfo);
+        return;
+    }
+#endif
     if (_audioInput && _inputReadsSinceLastCheck < MIN_READS_TO_CONSIDER_INPUT_ALIVE) {
         if (picoMicTraceEnabled()) {
             qInfo() << "PICO_MIC_WATCHDOG_RESTART" << _inputDeviceInfo.deviceName()
@@ -2685,7 +2879,28 @@ void AudioClient::startThread() {
     moveToNewNamedThread(this, "Audio Thread", [this] { start(); }, QThread::TimeCriticalPriority);
 }
 
+float AudioClient::getInputVolume() const {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    if (_androidAudioInputActive) {
+        return _androidAudioInputVolume;
+    }
+#endif
+    return _audioInput ? static_cast<float>(_audioInput->volume()) : 0.0f;
+}
+
 void AudioClient::setInputVolume(float volume, bool emitSignal) {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    if (_androidAudioInputActive) {
+        const float clampedVolume = std::max(0.0f, std::min(volume, 1.0f));
+        if (clampedVolume != _androidAudioInputVolume) {
+            _androidAudioInputVolume = clampedVolume;
+            if (emitSignal) {
+                emit inputVolumeChanged(_androidAudioInputVolume);
+            }
+        }
+        return;
+    }
+#endif
     if (_audioInput && volume != (float)_audioInput->volume()) {
         _audioInput->setVolume(volume);
         if (emitSignal) {

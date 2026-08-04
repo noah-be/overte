@@ -1,9 +1,14 @@
 # Pico 4 microphone investigation
 
 This document records controlled microphone findings for the Pico Interface.
-The Android microphone permission is granted and Qt receives continuous 48 kHz
-mono input from every tested source. The current problem is therefore audio
-quality and source selection, not permission or loss of capture.
+The production Pico path now captures 48 kHz mono PCM through Android's public
+`AudioRecord` API with `AUDIO_SOURCE_MIC`, bypassing Qt 5's deprecated OpenSL
+ES input plugin. Audio quality and sustained delivery remain separate questions
+and the current debug-build throughput limit is described below.
+
+The implementation is Apache-2.0 licensed like the surrounding Overte code.
+It uses only Android SDK and JNI APIs; it does not import, link, or redistribute
+the Pico SDK or any proprietary Pico microphone library.
 
 ## Test controls
 
@@ -14,23 +19,47 @@ The microphone research build supports three opt-in ADB properties:
 - `debug.overte.audio_trace=1`: one-second raw input-level, Overte noise-gate,
   and watchdog summaries; and
 - `debug.overte.audio_capture_seconds`: capture 1-60 seconds of the exact raw
-  Qt input to the app-private cache file `pico-mic-input.wav`.
+  Android input delivered to Overte in the app-private cache file
+  `pico-mic-input.wav`.
 
 `pico-microphone-test.sh SOURCE [SECONDS] [auto|FAN_PERCENT]` performs a cold
 start, verifies the requested source, samples its raw input level, reports fan
 RPM and maximum temperatures, then stops Overte and restores automatic fan
-control. It aborts at 90 C CPU or 85 C GPU, and limits fan-off XR runs to five
-seconds. A thermally limited run still emits a CSV row with its actual elapsed
-time, partial microphone statistics, maximum temperatures, and
-`status=thermal_limit`, then returns a failure status.
+control. An omitted fan argument defaults to a fixed 50% for reproducible
+short source and speech comparisons. The runner verifies the requested fixed
+duty and refuses to start above 72 C CPU or 70 C GPU. These preflight limits
+can be overridden with `PICO_MIC_MAX_START_CPU_MC` and
+`PICO_MIC_MAX_START_GPU_MC` when a test protocol explicitly requires it. It
+first cools a warm headset in up to three ten-second 100% fan intervals during
+fixed-fan tests. After each interval it restores the requested duty, waits five
+seconds, and repeats the preflight check. It aborts at 90 C CPU or 85 C GPU,
+and limits fan-off XR runs to five seconds. A thermally limited run still emits
+a CSV row with its actual elapsed time, partial microphone statistics, maximum
+temperatures, and `status=thermal_limit`, then returns a failure status.
 
 An `auto` run disables any stale fixed-fan test mode and verifies that actual
 fan duty matches the thermal service before launching Overte. If this cannot
-be verified, the microphone test does not start.
+be verified, the microphone test does not start. Use `auto` for the final
+real-world validation after completing controlled fixed-50% comparisons.
 
 The CSV also reports `gate_blocks`, `gate_open_blocks`, and their weighted
 ratio. These describe Overte's adaptive noise gate after Android capture
-processing, whereas `mean_level` and `max_peak` describe the raw Qt input.
+processing, whereas `mean_level` and `max_peak` describe the raw Android input.
+
+For reproducible host-generated speech, set `PICO_MIC_PLAYBACK_WAV` to a local
+WAV file. The runner then enables a raw Pico capture for the requested test
+duration and plays the file through the host's default PulseAudio/PipeWire
+sink after the newly created Pico capture file proves that the requested
+source is recording. `PICO_MIC_PLAYBACK_DELAY` controls the delay before
+playback in whole seconds and defaults to one. Playback tests require a
+duration of at least ten seconds. This file-based in-run hook avoids racing an
+external listener against the heavily flooded Interface log.
+
+The runner also disables Pico's proximity-based sleep for the duration of an
+unattended test, refreshes the XR worn/screen state at launch, and clears its
+Overte test properties during cleanup. This keeps Qt audio callbacks active
+when no person is wearing the headset while preserving the same capture path
+used by a normal worn session.
 
 Each run also inspects the active Android AudioFlinger input thread and reports
 the numeric and symbolic audio source plus whether Acoustic Echo Canceler and
@@ -41,6 +70,14 @@ device name.
 `startup_input_starts` counts actual AudioRecord openings during cold-start
 stabilization; `startup_input_reuses` counts same-source selections that
 updated UI classification without reopening capture.
+
+The runner polls bounded log snapshots for source readiness instead of waiting
+on a streaming `logcat | grep` pipeline. PicOS did not terminate the old
+pipeline promptly after a match, which delayed some measurement markers by up
+to 14 seconds. Measurement duration now uses a monotonic deadline, includes
+ADB temperature-query time, and is delimited by explicit start/end log
+markers. This prevents both slow temperature queries and the final live log
+dump from adding unreported seconds or frames to a CSV row.
 
 ## Initial source matrix
 
@@ -162,6 +199,89 @@ suppression enabled, one AudioRecord opening, and two reuse events. The cutoff
 occurred at 90.1 C CPU and 74.8 C GPU; cleanup again restored automatic fan
 control and stopped the app. The microphone and all assertions remained valid
 through the thermally limited run.
+
+### Public Android AudioRecord backend
+
+The Pico Interface now replaces only its microphone capture backend with a
+small Java `AudioRecord` worker using source 1 (`MIC`). PCM is copied through a
+standard JNI callback into the existing AudioClient path, so local echo,
+resampling, loudness reporting, Overte's noise gate, codec selection, and
+network packets remain unchanged. The capture worker uses Android's urgent
+audio thread priority and blocking reads with a reusable 20 ms buffer.
+
+The bridge is initialized by `PicoInterfaceActivity`, which supplies a stable
+application-class-loader reference before AudioClient needs it. Logical Qt
+device rediscovery updates the displayed input name without reopening the same
+Android MIC session. The watchdog can still restart a genuinely stalled
+session. A device test verified source ID 1, no Android AEC or noise suppression,
+one real AudioRecord opening, successful level/gate samples, and automatic fan
+restoration.
+
+This deliberately does not emulate the historical diagnostic source selector:
+all Pico UI input labels currently map to the one verified public MIC source.
+The older source-comparison results below remain research evidence, not a claim
+that the new production backend opens sources 6 or 7.
+
+### Remaining full-XR debug throughput limit
+
+Before replacement, later unattended tests no longer reproduced the earlier
+sustained rate. With
+the corrected time window, a five-second `voicecommunication` run delivered
+240 frames. Per-second traces began near the expected 100 frames/s for roughly
+two seconds, then fell to approximately 13-27 frames/s. The two-second
+watchdog's `readyRead` counts fell at the same time, proving that frames are
+not discarded by Overtes resampler, gate, encoder, or packet path: Qt/OpenSL
+stops delivering sufficient input buffers.
+
+Several controlled exclusions narrowed the problem:
+
+- commit `99e08148e1`, before the merged graphics and physics optimizations,
+  delivered 488 frames under the same older, overlong 15-second harness window
+  versus 452 for the current branch; the graphics changes are not causal;
+- increasing QAudioInput's requested buffer from 20 ms to 100 ms did not
+  improve delivery;
+- suppressing audio output did not improve input throughput, so shared
+  AudioClient-thread output work is not starving input; and
+- repeatedly forcing PicOS worn/screen properties did not improve a corrected
+  five-second run (218 frames versus the 240-frame baseline).
+
+A diagnostic Qt build processed OpenSL's completed-buffer callback directly
+instead of queueing it onto the owning Qt thread. Source 7 improved from 240
+to 335 frames in five seconds, confirming that delayed two-buffer queue
+replenishment is part of the loss. It still fell well short of 500 frames, and
+switching that build to source 1 failed to activate the source. Direct callback
+processing races Qt's QBuffer and AudioClient state, so it was rejected and
+the original plugin was restored. A production fix needs thread-safe immediate
+OpenSL re-enqueueing with copied data delivery, or replacement of the OpenSL
+input backend with Android AudioRecord/AAudio.
+
+A temporary Java `AudioRecord` diagnostic, run in the same microphone-granted
+APK without Qt or OpenXR, captured source 1 (`MIC`) for 10.004 seconds. It read
+942,720 bytes / 471,360 mono frames with no errors, 98.2% of the nominal
+480,000 frames. The identical diagnostic using source 7
+(`VOICE_COMMUNICATION`) blocked inside even a nominally non-blocking read.
+This proves that Pico hardware and Android's basic recording path can sustain
+real time, while PicOS source 7 and Qt 5's deprecated OpenSL ES input path need
+separate treatment. The temporary Java diagnostic was removed after recording
+these results.
+
+The new backend removes that Qt/OpenSL capture bottleneck: the standalone public
+API test still obtains 98.2% of nominal PCM and the integrated app receives the
+same source successfully. The unoptimized full-XR debug build nevertheless
+processes only about 120-289 network frames in a measured ten-second interval
+after startup, despite briefly reaching the expected 100 frames/s. The remaining
+backlog is therefore in integrated debug AudioClient scheduling/processing, not
+in Pico hardware, permissions, proprietary APIs, or Qt's former input plugin.
+It must be resolved or checked in a release-equivalent build before using raw
+WAV duration as a speech-quality result.
+
+## Host-TTS capture check
+
+The file-triggered host playback hook successfully placed the fixed sentence
+in the Pico raw capture; the captured speech peaked at -3.52 dBFS. The WAV held
+only 3.78 seconds of samples during a much longer wall-clock capture because
+of the callback-throughput failure. This validates playback timing and signal
+routing, but it is not yet a valid full-phrase quality comparison.
 
 ## Overte noise-gate interaction
 
