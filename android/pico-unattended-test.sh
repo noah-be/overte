@@ -24,6 +24,11 @@ adb_shell() {
     "$ADB_BIN" -s "$PICO_SERIAL" shell "$@"
 }
 
+stop_autowalk() {
+    local nonce="${1:-stop-$(date +%s%N)}"
+    adb_shell setprop debug.overte.autowalk "${nonce}\\|0\\|0\\|0\\|0"
+}
+
 force_worn() {
     # Disable Pico's physical proximity check and keep both the Android display
     # and XR runtime in their worn/active state. The persist property survives
@@ -34,6 +39,9 @@ force_worn() {
     adb_shell setprop sys.pxr.psensor.status 1
     adb_shell setprop sys.pxr.screenstatus 1
     adb_shell setprop debug.overte.test_mode 1
+    # Android debug properties survive app restarts. Replace any previous
+    # locomotion command before Interface can replay it on a fresh launch.
+    stop_autowalk "worn-$(date +%s%N)"
     adb_shell input keyevent KEYCODE_WAKEUP
 }
 
@@ -42,7 +50,7 @@ safe_position() {
     # the avatar's final centre position; safe landing settles it on the nearby
     # collision surface at approximately (155.084, -97.403, -397.162).
     local nonce="${1:-$(date +%s)}"
-    nonce="${nonce:0:8}"
+    stop_autowalk "${nonce}-stop"
     adb_shell setprop debug.overte.teleport \
         "${nonce}\\|${TEST_X}\\|${TEST_Y}\\|${TEST_Z}"
 }

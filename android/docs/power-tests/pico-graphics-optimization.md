@@ -210,6 +210,31 @@ the total workload to justify a global bounding-box or mesh-update quality
 reduction. The result supports fixing scheduling/content outliers rather than
 removing required render-item work.
 
+### Physics ghost narrowphase
+
+Thread-CPU profiling split Bullet's internal simulation step into collision,
+constraint, integration, action, and activation stages. In the stationary Hub
+test, collision dispatch accounted for roughly 1.19 ms of the internal step.
+About 0.75 ms came from three no-contact-response pairs involving the local
+avatar's `CharacterGhostObject`.
+
+The ghost object is required: its broadphase overlap cache limits the ray
+shotgun that decides whether the avatar can walk over an obstacle. However,
+the current controller never consumes collision manifolds generated for that
+ghost. A custom near callback now preserves the overlap cache and all ray tests
+while skipping only the redundant ghost narrowphase.
+
+In matched instrumented Hub runs, ghost-pair CPU fell from approximately
+0.75 ms to 0.002 ms per physics substep. Total collision dispatch fell from
+approximately 1.19 ms to 0.49 ms, while the useful manifold count remained
+available for the real avatar rigid body. A 30-second curved locomotion route
+stayed grounded and completed safely. The clean, non-instrumented build also
+passed 4320x2160 start/end image validation; its 45-second telemetry window
+averaged 296.4% process CPU, reached 83.7 C maximum CPU temperature and 56.8 C
+maximum skin temperature, and kept the battery at 100%. Treat the per-stage
+CPU reduction as the result: the short whole-process sample has no paired
+control and is not evidence of an equivalent total CPU reduction.
+
 ### Input routing and scheduler profile
 
 Route-level instrumentation identified a JavaScript polling endpoint in the
@@ -271,7 +296,11 @@ The input-route baseline and direct-route comparison are in
 `power-results/input-route-mapping-20260803T161749Z` and
 `power-results/input-route-direct-20260803T162404Z`. The scheduler trace is
 `power-results/pico-input-sched.atrace`. The repeated interleaved comparison is
-in `power-results/input-route-abab-20260803T163113Z`.
+in `power-results/input-route-abab-20260803T163113Z`. The Bullet stage,
+collision-pair, and final clean-build runs are in
+`power-results/bullet-top-profile-20260804T095057Z`,
+`power-results/bullet-pair-profile-20260804T100739Z`, and
+`power-results/ghost-narrowphase-final-20260804T103142Z`.
 
 `pico-graphics-matrix.sh` automates:
 
