@@ -40,6 +40,16 @@ esac
 [[ "$TURN_RATE" =~ ^-?[0-9]+([.][0-9]+)?$ ]] || { echo "TURN_RATE must be numeric" >&2; exit 2; }
 [[ "$MAX_CPU_TEMP_MC" =~ ^[1-9][0-9]*$ ]] || { echo "MAX_CPU_TEMP_MC must be a positive integer" >&2; exit 2; }
 [[ "$MAX_SKIN_TEMP_C" =~ ^[1-9][0-9]*([.][0-9]+)?$ ]] || { echo "MAX_SKIN_TEMP_C must be positive" >&2; exit 2; }
+for required_command in awk compare identify timeout; do
+    command -v "$required_command" >/dev/null || {
+        echo "required host command is unavailable: $required_command" >&2
+        exit 1
+    }
+done
+[[ -s "$VISUAL_REFERENCE" ]] || {
+    echo "visual reference is missing or empty: $VISUAL_REFERENCE" >&2
+    exit 2
+}
 
 [[ -x "$ADB_BIN" ]] || { echo "adb not executable: $ADB_BIN" >&2; exit 1; }
 if [[ -z "$PICO_SERIAL" ]]; then

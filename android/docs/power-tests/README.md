@@ -50,7 +50,8 @@ Missing or malformed process-CPU samples also invalidate the case instead of
 entering an empty CSV value.
 Run `./pico-graphics-matrix.sh --help` to list the available matrix modes and
 environment controls; invalid modes and measurement bounds fail before ADB or
-device controls are touched.
+device controls are touched. Required ImageMagick commands and the visual
+reference are also checked before the headset is modified.
 
 For local avatar-load screening, first enter a domain containing at least one
 other avatar, then create up to 50 client-only copies per received avatar:
