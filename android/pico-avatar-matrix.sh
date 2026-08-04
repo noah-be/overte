@@ -223,7 +223,11 @@ cleanup() {
         [[ "$cleanup_target" == "0" ]] && break
         sleep 1
     done
-    adb_shell setprop debug.overte.test_mode "${ORIGINAL_TEST_MODE:-0}" >/dev/null 2>&1 || true
+    if [[ -z "$ORIGINAL_TEST_MODE" ]]; then
+        adb_shell "setprop 'debug.overte.test_mode' ''" >/dev/null 2>&1 || true
+    else
+        adb_shell setprop debug.overte.test_mode "$ORIGINAL_TEST_MODE" >/dev/null 2>&1 || true
+    fi
     if [[ "$ORIGINAL_FAN_SPEED" =~ ^[0-9]+$ ]]; then
         adb_shell gd32ipdclient_test setfantestspeed "$ORIGINAL_FAN_SPEED" >/dev/null 2>&1 || true
     fi
