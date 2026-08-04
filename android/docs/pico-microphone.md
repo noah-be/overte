@@ -29,6 +29,12 @@ The CSV also reports `gate_blocks`, `gate_open_blocks`, and their weighted
 ratio. These describe Overte's adaptive noise gate after Android capture
 processing, whereas `mean_level` and `max_peak` describe the raw Qt input.
 
+Each run also inspects the active Android AudioFlinger input thread and reports
+the numeric and symbolic audio source plus whether Acoustic Echo Canceler and
+Noise Suppression are attached. This turns the expected source/effect mapping
+into a per-run assertion trail instead of relying only on the requested Qt
+device name.
+
 ## Initial source matrix
 
 All four sources remained active and delivered roughly 70-109 Qt reads per two
@@ -142,6 +148,8 @@ approximately 6,600 RPM throughout.
 | voicecommunication A | 7.52 | 35.14 | 4.17% |
 | camcorder | 62.09 | 346.01 | 74.98% |
 | voicecommunication B | 8.00 | 33.35 | 8.44% |
+| voicerecognition | 7.95 | 33.76 | 11.19% |
+| mic | 8.41 | 30.25 | 17.28% |
 
 After brief adaptive periods, `voicecommunication` commonly held the software
 gate fully closed against the background. `camcorder` held it fully open for
@@ -149,3 +157,9 @@ many consecutive seconds and would therefore transmit the background noise
 much more often. This establishes that the high-sensitivity source also
 defeats the later software gate; it does not establish near-field speech
 quality or attack behavior, which still require a controlled spoken phrase.
+
+The active `voicecommunication` Android record thread was independently
+verified as 48 kHz mono `AUDIO_SOURCE_VOICE_COMMUNICATION` with no read errors.
+Its session had both Qualcomm Fluence Acoustic Echo Canceler and Noise
+Suppression registered and enabled. The other tested sources did not receive
+those preprocessing effects.

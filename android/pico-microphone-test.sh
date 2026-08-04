@@ -136,6 +136,26 @@ read -r gate_blocks gate_open_blocks <<< "$(printf '%s\n' "$gate_samples" | awk 
     }
     END { print blocks+0, open_blocks+0 }')"
 
+audio_flinger="$(adb_shell dumpsys media.audio_flinger 2>/dev/null)"
+active_input="$(printf '%s\n' "$audio_flinger" | awk '
+    /^Input thread / { active=1 }
+    active && /^- Input thread / { exit }
+    active { print }')"
+audio_source_id="$(printf '%s\n' "$active_input" \
+    | sed -n 's/^  Audio source: \([0-9][0-9]*\).*/\1/p' | head -n 1)"
+audio_source_name="$(printf '%s\n' "$active_input" \
+    | sed -n 's/^  Audio source: [0-9][0-9]* (\([^)]*\)).*/\1/p' | head -n 1)"
+[[ -n "$audio_source_id" ]] || audio_source_id="unknown"
+[[ -n "$audio_source_name" ]] || audio_source_name="unknown"
+aec_enabled=0
+noise_suppression_enabled=0
+if printf '%s\n' "$active_input" | grep -Fq -- '- name: Acoustic Echo Canceler'; then
+    aec_enabled=1
+fi
+if printf '%s\n' "$active_input" | grep -Fq -- '- name: Noise Suppression'; then
+    noise_suppression_enabled=1
+fi
+
 fan_rpm="$(adb_shell gd32ipdclient_test getfanrpm 2>/dev/null \
     | sed -n 's/.*GetFanRPM = //p' | head -n 1)"
 fan_duty="$(adb_shell gd32ipdclient_test getfanspeed 2>/dev/null \
@@ -143,6 +163,8 @@ fan_duty="$(adb_shell gd32ipdclient_test getfanspeed 2>/dev/null \
 
 printf '%s\n' "$samples" | awk -v source="$SOURCE" -v requested_duration="$DURATION" \
     -v elapsed="$elapsed_seconds" -v status="$status" \
+    -v audio_source_id="$audio_source_id" -v audio_source_name="$audio_source_name" \
+    -v aec_enabled="$aec_enabled" -v ns_enabled="$noise_suppression_enabled" \
     -v fan_rpm="$fan_rpm" -v fan_duty="$fan_duty" \
     -v gate_blocks="$gate_blocks" -v gate_open_blocks="$gate_open_blocks" \
     -v cpu_temp="$cpu_temp" -v gpu_temp="$gpu_temp" '
@@ -154,8 +176,9 @@ printf '%s\n' "$samples" | awk -v source="$SOURCE" -v requested_duration="$DURAT
         }
     }
     END {
-        print "source,requested_duration_s,elapsed_s,status,samples,frames,mean_level,max_peak,gate_blocks,gate_open_blocks,gate_open_ratio,fan_rpm,fan_duty,cpu_temp_max_mC,gpu_temp_max_mC";
-        printf "%s,%s,%s,%s,%d,%d,%.6f,%.6f,%d,%d,%.6f,%s,%s,%s,%s\n", source,
+        print "source,audio_source_id,audio_source_name,aec_enabled,noise_suppression_enabled,requested_duration_s,elapsed_s,status,samples,frames,mean_level,max_peak,gate_blocks,gate_open_blocks,gate_open_ratio,fan_rpm,fan_duty,cpu_temp_max_mC,gpu_temp_max_mC";
+        printf "%s,%s,%s,%s,%s,%s,%s,%s,%d,%d,%.6f,%.6f,%d,%d,%.6f,%s,%s,%s,%s\n",
+            source, audio_source_id, audio_source_name, aec_enabled, ns_enabled,
             requested_duration, elapsed, status, n, frames, n ? level/n : 0, peak,
             gate_blocks, gate_open_blocks, gate_blocks ? gate_open_blocks/gate_blocks : 0,
             fan_rpm, fan_duty, cpu_temp, gpu_temp;
