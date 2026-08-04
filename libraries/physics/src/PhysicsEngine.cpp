@@ -27,6 +27,24 @@
 #include "ThreadSafeDynamicsWorld.h"
 #include "PhysicsLogging.h"
 
+namespace {
+
+void overteNearCallback(btBroadphasePair& collisionPair, btCollisionDispatcher& dispatcher,
+                        const btDispatcherInfo& dispatchInfo) {
+    auto* object0 = static_cast<btCollisionObject*>(collisionPair.m_pProxy0->m_clientObject);
+    auto* object1 = static_cast<btCollisionObject*>(collisionPair.m_pProxy1->m_clientObject);
+
+    // CharacterGhostObject only uses Bullet's broadphase overlap cache to limit
+    // its ray-shotgun queries. It does not consume contact manifolds, so running
+    // narrowphase collision detection for its pairs is redundant.
+    if ((object0->getInternalType() | object1->getInternalType()) & btCollisionObject::CO_GHOST_OBJECT) {
+        return;
+    }
+    btCollisionDispatcher::defaultNearCallback(collisionPair, dispatcher, dispatchInfo);
+}
+
+}
+
 
 
 PhysicsEngine::PhysicsEngine(const glm::vec3& offset) :
@@ -48,6 +66,7 @@ void PhysicsEngine::init() {
     if (!_dynamicsWorld) {
         _collisionConfig = new btDefaultCollisionConfiguration();
         _collisionDispatcher = new btCollisionDispatcher(_collisionConfig);
+        _collisionDispatcher->setNearCallback(overteNearCallback);
         _broadphaseFilter = new btDbvtBroadphase();
         _constraintSolver = new btSequentialImpulseConstraintSolver;
         _dynamicsWorld = new ThreadSafeDynamicsWorld(_collisionDispatcher, _broadphaseFilter, _constraintSolver, _collisionConfig);

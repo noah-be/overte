@@ -8,10 +8,26 @@ DURATION="${DURATION:-90}"
 TURN_RATE="${TURN_RATE:-0}"
 RESULT_DIR="${RESULT_DIR:-power-results/graphics-matrix-$(date -u +%Y%m%dT%H%M%SZ)}"
 VISUAL_REFERENCE="${VISUAL_REFERENCE:-power-results/visual-check/hub-reference.png}"
+MAX_CPU_TEMP_MC="${MAX_CPU_TEMP_MC:-90000}"
+MAX_SKIN_TEMP_C="${MAX_SKIN_TEMP_C:-65}"
 
 mkdir -p "$RESULT_DIR"
 
 adb_shell() { "$ADB_BIN" -s "$PICO_SERIAL" shell "$@"; }
+
+ORIGINAL_BRIGHTNESS="$(adb_shell gd32ipdclient_test getbrightness 2>/dev/null | sed -n 's/.*= //p' | tr -d '\r')"
+ORIGINAL_FAN_SPEED="$(adb_shell gd32ipdclient_test getfanspeed 2>/dev/null | sed -n 's/.*= //p' | tr -d '\r')"
+cleanup() {
+    adb_shell am force-stop org.overte.pico >/dev/null 2>&1 || true
+    if [[ "$ORIGINAL_FAN_SPEED" =~ ^[0-9]+$ ]]; then
+        adb_shell gd32ipdclient_test setfantestspeed "$ORIGINAL_FAN_SPEED" >/dev/null 2>&1 || true
+    fi
+    adb_shell gd32ipdclient_test setfantestmode 0 >/dev/null 2>&1 || true
+    if [[ "$ORIGINAL_BRIGHTNESS" =~ ^[0-9]+$ ]]; then
+        adb_shell gd32ipdclient_test setbrightness "$ORIGINAL_BRIGHTNESS" >/dev/null 2>&1 || true
+    fi
+}
+trap cleanup EXIT INT TERM
 
 apply_controls() {
     adb_shell gd32ipdclient_test setfantestmode 1 >/dev/null
@@ -111,13 +127,25 @@ run_case() {
         cpu4="$(adb_shell cat /sys/devices/system/cpu/cpufreq/policy4/scaling_cur_freq 2>/dev/null | tr -d '\r')"
         cpu7="$(adb_shell cat /sys/devices/system/cpu/cpufreq/policy7/scaling_cur_freq 2>/dev/null | tr -d '\r')"
         gpu="$(adb_shell cat /sys/class/kgsl/kgsl-3d0/gpuclk 2>/dev/null | tr -d '\r')"
-        ct="$(adb_shell 'for z in /sys/class/thermal/thermal_zone*/type; do t=$(cat "$z"); case "$t" in cpu*|soc*) cat "${z%/type}/temp";; esac; done' 2>/dev/null | sort -nr | head -1 | tr -d '\r')"
+        # The Pico exposes a synthetic `soc` trip-point zone fixed at 274000,
+        # which is not a temperature. Only actual per-core CPU sensors are
+        # valid for the thermal cutoff.
+        ct="$(adb_shell 'for z in /sys/class/thermal/thermal_zone*/type; do t=$(cat "$z"); case "$t" in cpu-*-usr) cat "${z%/type}/temp";; esac; done' 2>/dev/null | sort -nr | head -1 | tr -d '\r')"
         gt="$(adb_shell 'for z in /sys/class/thermal/thermal_zone*/type; do t=$(cat "$z"); case "$t" in gpu*) cat "${z%/type}/temp";; esac; done' 2>/dev/null | sort -nr | head -1 | tr -d '\r')"
         skin="$(adb_shell dumpsys thermalservice 2>/dev/null | sed -n 's/.*mValue=\([^,]*\), mType=3.*/\1/p' | sort -nr | head -1 | tr -d '\r')"
         rpm="$(adb_shell gd32ipdclient_test getfanrpm | sed -n 's/.*= //p' | tr -d '\r')"
         duty="$(adb_shell gd32ipdclient_test getfanspeed | sed -n 's/.*= //p' | tr -d '\r')"
         brightness="$(adb_shell gd32ipdclient_test getbrightness | sed -n 's/.*= //p' | tr -d '\r')"
         battery="$(adb_shell dumpsys battery | sed -n 's/^  level: //p' | tr -d '\r')"
+        if [[ "$ct" =~ ^[0-9]+$ ]] && (( ct >= MAX_CPU_TEMP_MC )); then
+            echo "thermal abort: CPU ${ct} mC reached limit ${MAX_CPU_TEMP_MC} mC" >&2
+            return 1
+        fi
+        if [[ "$skin" =~ ^[0-9]+([.][0-9]+)?$ ]] &&
+                awk -v value="$skin" -v limit="$MAX_SKIN_TEMP_C" 'BEGIN { exit value >= limit ? 0 : 1 }'; then
+            echo "thermal abort: skin ${skin} C reached limit ${MAX_SKIN_TEMP_C} C" >&2
+            return 1
+        fi
         if [[ "$battery" =~ ^[0-9]+$ && "$last_battery" =~ ^[0-9]+$ ]] && (( battery < last_battery )); then
             echo "BATTERY_DROP case=$label previous=$last_battery current=$battery start=$starting_battery" >&2
         fi
