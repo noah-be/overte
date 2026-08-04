@@ -664,6 +664,28 @@ independent mixer-fed avatars. The result identifies packet parsing as the
 next controlled-crowd profiling target; it does not by itself justify changing
 production avatar update budgets or quality limits.
 
+A higher-resolution follow-up used guarded 30-second, 399 Hz frame-pointer
+profiles. The initial baseline and 20-replica runs recorded 35,109 and 34,207
+samples with no loss; their incomplete-callchain rates were 27.50% and 27.75%.
+The loaded `AvatarData::parseDataFromBuffer()` callgraph exposed repeated Qt
+detach/refcount work from two temporary `QVector<bool>` validity arrays and
+from indexing the already write-locked joint array. Joint packets now read the
+two validated wire-format bit vectors directly and acquire the joint-array data
+pointer once after resize, avoiding those allocations and repeated detach
+checks without changing the packet format or decoded state.
+
+After build, install, and a fully settled loaded-crowd check, the paired
+profiles recorded 35,914 baseline and 33,604 loaded samples with no loss and
+26.50% and 25.79% incomplete callchains. Under 20 loaded replicas,
+`AvatarHashMap::parseAvatarData()` fell from 3.02% to 1.06% inclusive and
+`AvatarData::parseDataFromBuffer()` from 1.95% to 0.45%. The new detailed
+callgraph contains none of the removed `QVector<bool>` or joint-vector detach
+paths. These percentages also depend on the uncontrolled remote avatars'
+packet rates, so they demonstrate removal of the identified decoder overhead
+but are not claimed as an exact production CPU reduction. Interface remained
+connected and crash-free, all 24 other skeleton models loaded, and the local
+replica count returned to zero after each run.
+
 ## Limitations and next work
 
 - The Hub test is CPU-limited and has no controlled avatar population or active

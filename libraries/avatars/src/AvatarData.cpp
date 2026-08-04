@@ -1345,27 +1345,18 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
         PACKET_READ_CHECK(JointRotationValidityBits, bytesOfValidity);
 
         int numValidJointRotations = 0;
-        QVector<bool> validRotations;
-        validRotations.resize(numJoints);
-        { // rotation validity bits
-            unsigned char validity = 0;
-            int validityBit = 0;
-            for (int i = 0; i < numJoints; i++) {
-                if (validityBit == 0) {
-                    validity = *sourceBuffer++;
-                }
-                bool valid = (bool)(validity & (1 << validityBit));
-                if (valid) {
-                    ++numValidJointRotations;
-                }
-                validRotations[i] = valid;
-                validityBit = (validityBit + 1) % BITS_IN_BYTE;
+        const unsigned char* validRotations = sourceBuffer;
+        sourceBuffer += bytesOfValidity;
+        for (int i = 0; i < numJoints; ++i) {
+            if (validRotations[i / BITS_IN_BYTE] & (1 << (i % BITS_IN_BYTE))) {
+                ++numValidJointRotations;
             }
         }
 
         // each joint rotation is stored in 6 bytes.
         QWriteLocker writeLock(&_jointDataLock);
         _jointData.resize(numJoints);
+        JointData* jointData = _jointData.data();
 
         if (_hasNewJointDataVec.size() != static_cast<size_t>(numJoints)) {
             _hasNewJointDataVec.resize(numJoints, false);
@@ -1374,8 +1365,8 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
         const int COMPRESSED_QUATERNION_SIZE = 6;
         PACKET_READ_CHECK(JointRotations, numValidJointRotations * COMPRESSED_QUATERNION_SIZE);
         for (int i = 0; i < numJoints; i++) {
-            JointData& data = _jointData[i];
-            if (validRotations[i]) {
+            JointData& data = jointData[i];
+            if (validRotations[i / BITS_IN_BYTE] & (1 << (i % BITS_IN_BYTE))) {
                 sourceBuffer += unpackOrientationQuatFromSixBytes(sourceBuffer, data.rotation);
                 _hasNewJointData = true;
                 _hasNewJointDataVec[i] = true;
@@ -1387,23 +1378,13 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
 
         // get translation validity bits -- these indicate which translations were packed
         int numValidJointTranslations = 0;
-        QVector<bool> validTranslations;
-        validTranslations.resize(numJoints);
-        { // translation validity bits
-            unsigned char validity = 0;
-            int validityBit = 0;
-            for (int i = 0; i < numJoints; i++) {
-                if (validityBit == 0) {
-                    validity = *sourceBuffer++;
-                }
-                bool valid = (bool)(validity & (1 << validityBit));
-                if (valid) {
-                    ++numValidJointTranslations;
-                }
-                validTranslations[i] = valid;
-                validityBit = (validityBit + 1) % BITS_IN_BYTE;
+        const unsigned char* validTranslations = sourceBuffer;
+        sourceBuffer += bytesOfValidity;
+        for (int i = 0; i < numJoints; ++i) {
+            if (validTranslations[i / BITS_IN_BYTE] & (1 << (i % BITS_IN_BYTE))) {
+                ++numValidJointTranslations;
             }
-        } // 1 + bytesOfValidity bytes
+        }
 
         // read maxTranslationDimension
         float maxTranslationDimension;
@@ -1426,8 +1407,8 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
             _hasNewJointDataVec.resize(numJoints, false);
         }
         for (int i = 0; i < numJoints; i++) {
-            JointData& data = _jointData[i];
-            if (validTranslations[i]) {
+            JointData& data = jointData[i];
+            if (validTranslations[i / BITS_IN_BYTE] & (1 << (i % BITS_IN_BYTE))) {
                 sourceBuffer += unpackFloatVec3FromSignedTwoByteFixed(sourceBuffer, data.translation, TRANSLATION_COMPRESSION_RADIX);
                 data.translation *= maxTranslationDimension;
                 _hasNewJointData = true;
@@ -1497,6 +1478,7 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
         int numJoints = (int)*sourceBuffer++;
 
         _jointData.resize(numJoints);
+        JointData* jointData = _jointData.data();
         if (_hasNewJointDataVec.size() != static_cast<size_t>(numJoints)) {
             _hasNewJointDataVec.resize(numJoints, false);
         }
@@ -1504,12 +1486,12 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
         size_t bitVectorSize = calcBitVectorSize(numJoints);
         PACKET_READ_CHECK(JointDefaultPoseFlagsRotationFlags, bitVectorSize);
         sourceBuffer += readBitVector(sourceBuffer, numJoints, [&](int i, bool value) {
-            _jointData[i].rotationIsDefaultPose = value;
+            jointData[i].rotationIsDefaultPose = value;
         });
 
         PACKET_READ_CHECK(JointDefaultPoseFlagsTranslationFlags, bitVectorSize);
         sourceBuffer += readBitVector(sourceBuffer, numJoints, [&](int i, bool value) {
-            _jointData[i].translationIsDefaultPose = value;
+            jointData[i].translationIsDefaultPose = value;
         });
 
         int numBytesRead = sourceBuffer - startSection;
