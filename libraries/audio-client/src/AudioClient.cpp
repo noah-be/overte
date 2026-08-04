@@ -1080,6 +1080,24 @@ bool AudioClient::switchAudioDevice(QAudio::Mode mode, const HifiAudioDeviceInfo
             << deviceInfo.deviceName() << " : " << deviceInfo.getDevice().deviceName();
     }
 
+#if defined(Q_OS_ANDROID)
+    if (mode == QAudio::AudioInput && _audioInput && _inputDevice &&
+            _audioInput->state() != QAudio::StoppedState &&
+            _audioInput->error() == QAudio::NoError &&
+            !deviceInfo.getDevice().isNull() &&
+            _inputDeviceInfo.getDevice() == deviceInfo.getDevice()) {
+        // Device discovery can present the same Android source first as the
+        // platform default and later as the HMD default. Preserve the active
+        // AudioRecord session while still updating its UI classification.
+        Lock lock(_deviceMutex);
+        _inputDeviceInfo = deviceInfo;
+        emit deviceChanged(QAudio::AudioInput, _inputDeviceInfo);
+        qInfo() << "PICO_MIC_INPUT_REUSED" << _inputDeviceInfo.deviceName()
+            << "state" << _audioInput->state();
+        return true;
+    }
+#endif
+
     if (mode == QAudio::AudioInput) {
         return switchInputToAudioDevice(device);
     } else {

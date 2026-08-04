@@ -35,6 +35,10 @@ Noise Suppression are attached. This turns the expected source/effect mapping
 into a per-run assertion trail instead of relying only on the requested Qt
 device name.
 
+`startup_input_starts` counts actual AudioRecord openings during cold-start
+stabilization; `startup_input_reuses` counts same-source selections that
+updated UI classification without reopening capture.
+
 ## Initial source matrix
 
 All four sources remained active and delivered roughly 70-109 Qt reads per two
@@ -163,3 +167,15 @@ verified as 48 kHz mono `AUDIO_SOURCE_VOICE_COMMUNICATION` with no read errors.
 Its session had both Qualcomm Fluence Acoustic Echo Canceler and Noise
 Suppression registered and enabled. The other tested sources did not receive
 those preprocessing effects.
+
+Android device discovery may announce the same physical source first as the
+platform default and later as the HMD default. The Pico path reuses an active,
+error-free AudioRecord session in that case while updating the UI device
+classification. Actual source changes, stopped inputs, errors, stereo-format
+changes, and wake recovery still perform a full restart.
+
+On-device cold starts confirmed one real opening plus two reuse events when
+`voicecommunication` was already the active source. Selecting `camcorder`
+performed the required source change once and reused that session for the
+following duplicate selection. Continuous watchdog reads confirmed that reuse
+did not stall capture.

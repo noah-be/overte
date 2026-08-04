@@ -94,6 +94,15 @@ for _ in {1..35}; do
 done
 (( ready == 1 )) || { echo "microphone source did not become active: $SOURCE" >&2; exit 1; }
 
+# Allow the later HMD-default and settings-selection events to settle so the
+# startup counters include duplicate selections after the first active frame.
+sleep 3
+startup_log="$("$ADB_BIN" -s "$PICO_SERIAL" logcat -d -v brief)"
+startup_input_starts="$(printf '%s\n' "$startup_log" \
+    | grep -Fc 'PICO_MIC_INPUT device' || true)"
+startup_input_reuses="$(printf '%s\n' "$startup_log" \
+    | grep -Fc 'PICO_MIC_INPUT_REUSED' || true)"
+
 "$ADB_BIN" -s "$PICO_SERIAL" logcat -c
 
 cpu_temp=0
@@ -163,6 +172,7 @@ fan_duty="$(adb_shell gd32ipdclient_test getfanspeed 2>/dev/null \
 
 printf '%s\n' "$samples" | awk -v source="$SOURCE" -v requested_duration="$DURATION" \
     -v elapsed="$elapsed_seconds" -v status="$status" \
+    -v startup_input_starts="$startup_input_starts" -v startup_input_reuses="$startup_input_reuses" \
     -v audio_source_id="$audio_source_id" -v audio_source_name="$audio_source_name" \
     -v aec_enabled="$aec_enabled" -v ns_enabled="$noise_suppression_enabled" \
     -v fan_rpm="$fan_rpm" -v fan_duty="$fan_duty" \
@@ -176,10 +186,11 @@ printf '%s\n' "$samples" | awk -v source="$SOURCE" -v requested_duration="$DURAT
         }
     }
     END {
-        print "source,audio_source_id,audio_source_name,aec_enabled,noise_suppression_enabled,requested_duration_s,elapsed_s,status,samples,frames,mean_level,max_peak,gate_blocks,gate_open_blocks,gate_open_ratio,fan_rpm,fan_duty,cpu_temp_max_mC,gpu_temp_max_mC";
-        printf "%s,%s,%s,%s,%s,%s,%s,%s,%d,%d,%.6f,%.6f,%d,%d,%.6f,%s,%s,%s,%s\n",
+        print "source,audio_source_id,audio_source_name,aec_enabled,noise_suppression_enabled,startup_input_starts,startup_input_reuses,requested_duration_s,elapsed_s,status,samples,frames,mean_level,max_peak,gate_blocks,gate_open_blocks,gate_open_ratio,fan_rpm,fan_duty,cpu_temp_max_mC,gpu_temp_max_mC";
+        printf "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%d,%.6f,%.6f,%d,%d,%.6f,%s,%s,%s,%s\n",
             source, audio_source_id, audio_source_name, aec_enabled, ns_enabled,
-            requested_duration, elapsed, status, n, frames, n ? level/n : 0, peak,
+            startup_input_starts, startup_input_reuses, requested_duration, elapsed, status,
+            n, frames, n ? level/n : 0, peak,
             gate_blocks, gate_open_blocks, gate_blocks ? gate_open_blocks/gate_blocks : 0,
             fan_rpm, fan_duty, cpu_temp, gpu_temp;
     }'
