@@ -55,6 +55,29 @@ safe_position() {
         "${nonce}\\|${TEST_X}\\|${TEST_Y}\\|${TEST_Z}"
 }
 
+set_avatar_replicas() {
+    local count="$1"
+    [[ "$count" =~ ^[0-9]+$ ]] && (( count <= 50 )) || {
+        echo "replica count must be an integer from 0 through 50" >&2
+        return 2
+    }
+    adb_shell setprop debug.overte.avatar_replicas "$(date +%s)\\|${count}"
+}
+
+print_avatar_status() {
+    local status status_epoch total replicated target updated not_updated heroes simulation_ms now
+    status="$(adb_shell run-as org.overte.pico cat cache/avatar-status 2>/dev/null || true)"
+    IFS='|' read -r status_epoch total replicated target updated not_updated heroes simulation_ms <<<"$status"
+    now="$(date +%s)"
+    if [[ ! "$status_epoch" =~ ^[0-9]+$ ]] ||
+            (( now - status_epoch < -5 || now - status_epoch > 5 )); then
+        echo "missing or stale avatar status: ${status:-missing}" >&2
+        return 1
+    fi
+    printf 'avatars=%s replicated=%s target_per_avatar=%s updated=%s not_updated=%s heroes=%s simulation_ms=%s\n' \
+        "$total" "$replicated" "$target" "$updated" "$not_updated" "$heroes" "$simulation_ms"
+}
+
 wait_for_world() {
     local timeout="${1:-60}" elapsed=0 status status_epoch connected place domain_id now
     while (( elapsed < timeout )); do
@@ -171,6 +194,34 @@ case "${1:-status}" in
         nonce="${2:-$(date +%s)}"
         adb_shell setprop debug.overte.autowalk "${nonce}\\|0\\|0\\|0\\|0"
         ;;
+    replicas)
+        count="${2:-0}"
+        [[ "$count" =~ ^[0-9]+$ ]] || {
+            echo "replica count must be an integer from 0 through 50" >&2
+            exit 2
+        }
+        count=$((10#$count))
+        (( count <= 50 )) || {
+            echo "replica count must be an integer from 0 through 50" >&2
+            exit 2
+        }
+        force_worn
+        set_avatar_replicas "$count"
+        for attempt in {1..10}; do
+            sleep 1
+            status="$(adb_shell run-as org.overte.pico cat cache/avatar-status 2>/dev/null || true)"
+            IFS='|' read -r status_epoch total replicated target remainder <<<"$status"
+            if [[ "$target" == "$count" ]]; then
+                print_avatar_status
+                exit 0
+            fi
+        done
+        echo "Interface did not apply avatar replica count $count" >&2
+        exit 1
+        ;;
+    avatar-status)
+        print_avatar_status
+        ;;
     status)
         printf 'pid: '
         adb_shell pidof org.overte.pico || true
@@ -182,7 +233,8 @@ case "${1:-status}" in
         adb_shell getprop sys.pxr.screenstatus
         ;;
     *)
-        echo "usage: $0 {start|hub [nonce]|walk [nonce duration_ms forward strafe turn]|stop [nonce]|status}" >&2
+        printf 'usage: %s %s\n' "$0" \
+            '{start|hub [nonce]|walk [nonce duration_ms forward strafe turn]|stop [nonce]|replicas [0..50]|avatar-status|status}' >&2
         exit 2
         ;;
 esac

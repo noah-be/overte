@@ -2132,6 +2132,61 @@ void Application::update(float deltaTime) {
             }
         }
 
+        // Locally replicate received other avatars for repeatable Pico crowd
+        // load tests. The timestamped command is accepted only while fresh so
+        // a debug property left behind by an interrupted test cannot replay on
+        // a later Interface launch. Format: epochSeconds|replicasPerAvatar.
+        static QString lastAvatarReplicaCommand;
+        if (picoTestMode) {
+            char avatarReplicaValue[PROP_VALUE_MAX] {};
+            if (__system_property_get("debug.overte.avatar_replicas", avatarReplicaValue) > 0) {
+                const QString command = QString::fromUtf8(avatarReplicaValue).trimmed();
+                if (!command.isEmpty() && command != lastAvatarReplicaCommand) {
+                    lastAvatarReplicaCommand = command;
+                    const QStringList fields = command.split('|');
+                    bool timestampOk { false };
+                    bool countOk { false };
+                    const qint64 timestamp = fields.value(0).toLongLong(&timestampOk);
+                    const int count = fields.value(1).toInt(&countOk);
+                    const qint64 commandAge = QDateTime::currentSecsSinceEpoch() - timestamp;
+                    if (fields.size() == 2 && timestampOk && countOk &&
+                            commandAge >= -5 && commandAge <= 10 && count >= 0 && count <= 50) {
+                        DependencyManager::get<AvatarManager>()->setReplicaCount(count);
+                        qCInfo(interfaceapp) << "PICO_AVATAR_REPLICAS" << count;
+                    } else {
+                        qCWarning(interfaceapp) << "PICO_AVATAR_REPLICAS invalid or stale command" << command;
+                    }
+                }
+            }
+
+            static quint64 lastAvatarStatusWrite { 0 };
+            if (picoUpdateStart - lastAvatarStatusWrite >= USECS_PER_SECOND) {
+                lastAvatarStatusWrite = picoUpdateStart;
+                auto avatarManager = DependencyManager::get<AvatarManager>();
+                const auto avatarHash = avatarManager->getHashCopy();
+                int replicatedAvatars { 0 };
+                for (const auto& avatar : avatarHash) {
+                    if (avatar->getReplicaIndex() > 0) {
+                        ++replicatedAvatars;
+                    }
+                }
+                const QString avatarStatus = QStringLiteral("%1|%2|%3|%4|%5|%6|%7|%8")
+                    .arg(QDateTime::currentSecsSinceEpoch())
+                    .arg(avatarHash.size())
+                    .arg(replicatedAvatars)
+                    .arg(avatarManager->getReplicaCount())
+                    .arg(avatarManager->getNumAvatarsUpdated())
+                    .arg(avatarManager->getNumAvatarsNotUpdated())
+                    .arg(avatarManager->getNumHeroAvatars())
+                    .arg(avatarManager->getAvatarSimulationTime(), 0, 'f', 3);
+                QSaveFile avatarStatusFile("/data/user/0/org.overte.pico/cache/avatar-status");
+                if (avatarStatusFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                    avatarStatusFile.write(avatarStatus.toUtf8());
+                    avatarStatusFile.commit();
+                }
+            }
+        }
+
         char navigationValue[PROP_VALUE_MAX] {};
         if (__system_property_get("debug.overte.navigate", navigationValue) > 0) {
             const QString command = QString::fromUtf8(navigationValue).trimmed();

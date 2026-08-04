@@ -266,10 +266,12 @@ AvatarSharedPointer AvatarHashMap::parseAvatarData(QSharedPointer<ReceivedMessag
         auto avatar = newOrExistingAvatar(sessionUUID, sendingNode, isNewAvatar);
 
         if (isNewAvatar) {
-            QWriteLocker locker(&_hashLock);
             avatar->setIsNewAvatar(true);
             auto replicaIDs = _replicas.getReplicaIDs(sessionUUID);
             for (auto replicaID : replicaIDs) {
+                // addAvatar() acquires _hashLock itself. Holding the write lock
+                // here would recursively lock the non-recursive QReadWriteLock
+                // and freeze the receive thread as soon as replicas are used.
                 auto replicaAvatar = addAvatar(replicaID, sendingNode);
                 replicaAvatar->setIsNewAvatar(true);
                 _replicas.addReplica(sessionUUID, replicaAvatar);

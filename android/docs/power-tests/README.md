@@ -36,3 +36,18 @@ cache can require several gigabytes.
 The graphics matrix applies the same XR-focus checks around scene capture and
 each telemetry sample. This complements image similarity and prevents a
 boundary dialog from being accepted as a low-load scene.
+
+For local avatar-load screening, first enter a domain containing at least one
+other avatar, then create up to 50 client-only copies per received avatar:
+
+```bash
+cd android
+./pico-unattended-test.sh replicas 5
+./pico-unattended-test.sh avatar-status
+./pico-unattended-test.sh replicas 0
+```
+
+The status reports total and locally replicated avatar counts plus the existing
+avatar update-budget counters. Replica commands are timestamped and ignored
+when stale, so an interrupted test cannot replay its load after a later app
+restart. Always return the count to zero after a test.

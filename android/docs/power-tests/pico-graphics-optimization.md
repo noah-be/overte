@@ -480,6 +480,40 @@ Create-lazy runs are in `power-results/controller-batch-ab-20260804T175126Z`,
 `power-results/create-lazy-valid-r2-20260804T182241Z`, and
 `power-results/create-lazy-simpleperf-20260804T182608Z`.
 
+## Local avatar-load screening (2026-08-04)
+
+A branch and upstream audit found an existing client-side test facility that
+creates offset copies of received other avatars. It was not usable as written:
+the first replica recursively acquired the non-recursive avatar-map write lock
+through `addAvatar()` and froze avatar packet processing. Removing the outer
+lock lets `addAvatar()` retain its own normal locking and fixed the reproduced
+deadlock. No other Pico branch or upstream `master` contained that fix.
+
+Pico test mode now accepts a timestamped, bounded replica count and publishes
+aggregate avatar status without identifiers or screenshots. Commands older
+than ten seconds are rejected, counts are limited to 0--50 copies per received
+avatar, and setting zero removes the local load. Build, install, live changes
+from 0 to 2 and 5 copies, return to zero, and stale-command rejection all
+passed on the headset. With three received template avatars, five copies of
+each produced 19 total avatars and the status correctly identified 15 local
+replicas.
+
+Two short interleaved A/B screening pairs used a fixed 100% fan and MCU
+brightness 1. Each side contained six samples and retained the same three real
+template avatars:
+
+| Metric | 4 avatars | 19 avatars | Combined delta |
+| --- | ---: | ---: | ---: |
+| Mean process CPU | 218.08% | 229.67% | +11.58 points (+5.3%) |
+| Mean avatar simulation | 3.861 ms | 5.421 ms | +1.560 ms (+40.4%) |
+
+The direction repeated in both pairs, but the individual CPU deltas were 8.4%
+and 2.3%, and individual one-second avatar timings contained loading/scheduling
+outliers. This validates the load generator and confirms that the existing
+avatar update budget limits growth, but it is not yet evidence for a specific
+production complexity limit. A controlled template avatar and longer
+interleaved runs are required before changing avatar quality or distance rules.
+
 ## Limitations and next work
 
 - The Hub test is CPU-limited and contains no nearby avatars or active mirror
@@ -492,8 +526,9 @@ Create-lazy runs are in `power-results/controller-batch-ab-20260804T175126Z`,
   72 presents/s, while Overte generated about 20 new frames/s.
 - Physics broadphase and inactive simple-kinematic work are already bounded and
   are not strong next candidates for this scene. The strongest remaining work
-  is avatar-heavy domain testing and avatar complexity controls. Per-module
-  controller profiling and safe Create lazy loading have now also been screened.
+  is longer avatar-load testing with a controlled template, followed by avatar
+  complexity controls only if those runs identify a scalable bottleneck.
+  Per-module controller profiling and safe Create lazy loading have now also been screened.
   Global simulation-rate and renderable-budget reductions, model-update
   throttling, redundant Create gizmo updates, and idle near-search suppression
   have been screened and rejected.
