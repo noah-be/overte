@@ -193,8 +193,10 @@ those preprocessing effects.
 Android device discovery may announce the same physical source first as the
 platform default and later as the HMD default. The Pico path reuses an active,
 error-free AudioRecord session in that case while updating the UI device
-classification. Actual source changes, stopped inputs, errors, stereo-format
-changes, and wake recovery still perform a full restart.
+classification. Actual source changes and internal direct restart calls for
+format or explicit wake recovery bypass this shortcut; a stopped or errored
+input cannot qualify for reuse. Android may also recover a stopped state by
+restarting the existing QAudioInput object, as tested below.
 
 On-device cold starts confirmed one real opening plus two reuse events when
 `voicecommunication` was already the active source. Selecting `camcorder`
