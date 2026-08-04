@@ -38,6 +38,14 @@ Results are written below the Git-ignored `android/power-results/` directory.
 build outputs, but is opt-in because a full cache can require several
 gigabytes.
 
+When profiling an already prepared avatar-load scene, pass
+`--expect-avatar-replicas COUNT` together with `--no-prepare`. The watchdog then
+requires a stable, nonzero source-avatar population and verifies once per
+second that the configured number of replicas and every source and replica
+skeleton model remain loaded. It rejects the profile if the crowd changes or
+falls back to loading placeholders. The validated source and replica counts
+are recorded in the profile metadata.
+
 The Pico test scripts use `PICO_SERIAL` or `ANDROID_SERIAL` when set. Without
 either variable they require exactly one authorized device in `adb devices`
 and select it automatically. No developer-specific device address or serial

@@ -13,8 +13,10 @@ LOAD_WAIT="${LOAD_WAIT:-25}"
 PREPARE_SCENE="${PREPARE_SCENE:-1}"
 CALL_GRAPH="${CALL_GRAPH:-none}"
 BUILD_BINARY_CACHE="${BUILD_BINARY_CACHE:-0}"
+EXPECTED_AVATAR_REPLICAS="${EXPECTED_AVATAR_REPLICAS:-}"
 RESULT_DIR="${RESULT_DIR:-$SCRIPT_DIR/power-results/simpleperf-$(date -u +%Y%m%dT%H%M%SZ)}"
 PROFILE_DOMAIN_ID=""
+PROFILE_REAL_TEMPLATES=""
 
 usage() {
     cat <<'EOF'
@@ -32,6 +34,8 @@ Options:
   --warmup SECONDS         Settled-Hub delay before recording (default: 20)
   --result-dir DIR         Output directory
   --call-graph MODE        none or fp (default: none)
+  --expect-avatar-replicas COUNT
+                           Require 0..50 loaded replicas per source avatar
   --no-prepare             Profile the already-running app without navigation
   --binary-cache           Build a large host debug-symbol cache and report
   --no-binary-cache        Do not build the host cache (the default)
@@ -39,7 +43,7 @@ Options:
 
 Environment overrides: ADB_BIN, ANDROID_NDK_HOME, PICO_SERIAL, PACKAGE,
 DURATION, FREQUENCY, WARMUP, LOAD_WAIT, PREPARE_SCENE, CALL_GRAPH,
-BUILD_BINARY_CACHE, and RESULT_DIR.
+EXPECTED_AVATAR_REPLICAS, BUILD_BINARY_CACHE, and RESULT_DIR.
 EOF
 }
 
@@ -50,6 +54,7 @@ while (( $# > 0 )); do
         --warmup) [[ $# -ge 2 ]] || { echo "--warmup requires a value" >&2; exit 2; }; WARMUP="$2"; shift 2 ;;
         --result-dir) [[ $# -ge 2 ]] || { echo "--result-dir requires a value" >&2; exit 2; }; RESULT_DIR="$2"; shift 2 ;;
         --call-graph) [[ $# -ge 2 ]] || { echo "--call-graph requires a value" >&2; exit 2; }; CALL_GRAPH="$2"; shift 2 ;;
+        --expect-avatar-replicas) [[ $# -ge 2 ]] || { echo "--expect-avatar-replicas requires a value" >&2; exit 2; }; EXPECTED_AVATAR_REPLICAS="$2"; shift 2 ;;
         --no-prepare) PREPARE_SCENE=0; shift ;;
         --binary-cache) BUILD_BINARY_CACHE=1; shift ;;
         --no-binary-cache) BUILD_BINARY_CACHE=0; shift ;;
@@ -64,6 +69,17 @@ done
 [[ "$PREPARE_SCENE" == 0 || "$PREPARE_SCENE" == 1 ]] || { echo "PREPARE_SCENE must be 0 or 1" >&2; exit 2; }
 [[ "$BUILD_BINARY_CACHE" == 0 || "$BUILD_BINARY_CACHE" == 1 ]] || { echo "BUILD_BINARY_CACHE must be 0 or 1" >&2; exit 2; }
 [[ "$CALL_GRAPH" == none || "$CALL_GRAPH" == fp ]] || { echo "call graph must be none or fp" >&2; exit 2; }
+if [[ -n "$EXPECTED_AVATAR_REPLICAS" ]]; then
+    [[ "$EXPECTED_AVATAR_REPLICAS" =~ ^[0-9]+$ ]] || {
+        echo "expected avatar replicas must be an integer from 0 through 50" >&2
+        exit 2
+    }
+    EXPECTED_AVATAR_REPLICAS=$((10#$EXPECTED_AVATAR_REPLICAS))
+    (( EXPECTED_AVATAR_REPLICAS <= 50 )) || {
+        echo "expected avatar replicas must be an integer from 0 through 50" >&2
+        exit 2
+    }
+fi
 [[ -x "$ADB_BIN" ]] || { echo "adb not executable: $ADB_BIN" >&2; exit 1; }
 if [[ -z "$PICO_SERIAL" ]]; then
     mapfile -t pico_devices < <("$ADB_BIN" devices | awk '$2 == "device" { print $1 }')
@@ -105,6 +121,41 @@ validate_prepared_world() {
     fi
 }
 
+validate_avatar_load() {
+    local stage="$1" status field_count status_epoch total replicated target now real
+    local expected_replicated loaded_other loaded_replicated
+    [[ -n "$EXPECTED_AVATAR_REPLICAS" ]] || return 0
+    status="$(adb_shell run-as "$PACKAGE" cat cache/avatar-status 2>/dev/null | tr -d '\r' || true)"
+    field_count="$(awk -F'|' '{ print NF }' <<<"$status")"
+    IFS='|' read -r status_epoch total replicated target _ _ _ _ _ _ _ _ _ _ _ _ \
+        loaded_other loaded_replicated <<<"$status"
+    now="$(date +%s)"
+    [[ "$field_count" == 18 && "$status_epoch" =~ ^[0-9]+$ &&
+        "$total" =~ ^[0-9]+$ && "$replicated" =~ ^[0-9]+$ &&
+        "$target" =~ ^[0-9]+$ && "$loaded_other" =~ ^[0-9]+$ &&
+        "$loaded_replicated" =~ ^[0-9]+$ ]] &&
+        (( now - status_epoch >= -5 && now - status_epoch <= 5 &&
+            total >= replicated + 1 )) || {
+        echo "loaded avatar status is missing or invalid during $stage" >&2
+        return 1
+    }
+    real=$((total - replicated - 1))
+    expected_replicated=$((real * EXPECTED_AVATAR_REPLICAS))
+    (( real > 0 && target == EXPECTED_AVATAR_REPLICAS &&
+        replicated == expected_replicated &&
+        loaded_other == real + expected_replicated &&
+        loaded_replicated == expected_replicated )) || {
+        echo "loaded avatar population changed during $stage" >&2
+        return 1
+    }
+    if [[ -z "$PROFILE_REAL_TEMPLATES" ]]; then
+        PROFILE_REAL_TEMPLATES="$real"
+    elif [[ "$real" != "$PROFILE_REAL_TEMPLATES" ]]; then
+        echo "source avatar population changed during $stage" >&2
+        return 1
+    fi
+}
+
 validate_xr_focus() {
     local stage="$1" active_package boundary_ready guardian_vst current_pid
     active_package="$(foreground_package)"
@@ -126,6 +177,7 @@ validate_xr_focus() {
         }
     fi
     validate_prepared_world "$stage"
+    validate_avatar_load "$stage"
 }
 
 "$ADB_BIN" -s "$PICO_SERIAL" get-state >/dev/null
@@ -211,6 +263,10 @@ validate_xr_focus "profile setup"
     printf 'package=%s\npid=%s\n' "$PACKAGE" "$PID"
     printf 'duration_s=%s\nfrequency_hz=%s\ncall_graph=%s\n' "$DURATION" "$FREQUENCY" "$CALL_GRAPH"
     printf 'prepared_hub=%s\nwarmup_s=%s\n' "$PREPARE_SCENE" "$WARMUP"
+    if [[ -n "$EXPECTED_AVATAR_REPLICAS" ]]; then
+        printf 'expected_replicas_per_source=%s\nsource_avatars=%s\n' \
+            "$EXPECTED_AVATAR_REPLICAS" "$PROFILE_REAL_TEMPLATES"
+    fi
     printf 'device=%s\n' "$(adb_shell getprop ro.product.model | tr -d '\r')"
     printf 'build_fingerprint=%s\n' "$(adb_shell getprop ro.build.fingerprint | tr -d '\r')"
 } > "$RESULT_DIR/metadata.txt"
