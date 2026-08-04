@@ -14,6 +14,9 @@ MAX_SKIN_TEMP_C="${MAX_SKIN_TEMP_C:-65}"
 CASE_PID=""
 CASE_DOMAIN_ID=""
 MODE="${1:-screen}"
+FEATURE_PROPERTIES=(shadows bloom ambient_occlusion haze local_lights procedural_materials mirror_views stats simulation_hz renderable_budget_us model_update_hz)
+CONFIG_PROPERTIES=(render_scale power_profile foveation "${FEATURE_PROPERTIES[@]}")
+declare -A ORIGINAL_CONFIG_PROPERTIES
 
 usage() {
     cat <<'EOF'
@@ -73,6 +76,11 @@ mkdir -p "$RESULT_DIR"
 
 adb_shell() { "$ADB_BIN" -s "$PICO_SERIAL" shell "$@"; }
 
+for property in "${CONFIG_PROPERTIES[@]}"; do
+    ORIGINAL_CONFIG_PROPERTIES["$property"]="$(adb_shell getprop "debug.overte.$property" 2>/dev/null | tr -d '\r')"
+done
+ORIGINAL_TEST_MODE="$(adb_shell getprop debug.overte.test_mode 2>/dev/null | tr -d '\r')"
+
 foreground_package() {
     adb_shell dumpsys activity activities 2>/dev/null \
         | sed -n 's/.*mResumedActivity:.* u0 \([^/ ]*\).*/\1/p' \
@@ -129,7 +137,12 @@ validate_hub_world() {
 ORIGINAL_BRIGHTNESS="$(adb_shell gd32ipdclient_test getbrightness 2>/dev/null | sed -n 's/.*= //p' | tr -d '\r')"
 ORIGINAL_FAN_SPEED="$(adb_shell gd32ipdclient_test getfanspeed 2>/dev/null | sed -n 's/.*= //p' | tr -d '\r')"
 cleanup() {
+    adb_shell setprop debug.overte.autowalk "cleanup-$(date +%s%N)\|0\|0\|0\|0" >/dev/null 2>&1 || true
     adb_shell am force-stop org.overte.pico >/dev/null 2>&1 || true
+    for property in "${CONFIG_PROPERTIES[@]}"; do
+        adb_shell setprop "debug.overte.$property" "${ORIGINAL_CONFIG_PROPERTIES[$property]}" >/dev/null 2>&1 || true
+    done
+    adb_shell setprop debug.overte.test_mode "$ORIGINAL_TEST_MODE" >/dev/null 2>&1 || true
     if [[ "$ORIGINAL_FAN_SPEED" =~ ^[0-9]+$ ]]; then
         adb_shell gd32ipdclient_test setfantestspeed "$ORIGINAL_FAN_SPEED" >/dev/null 2>&1 || true
     fi
@@ -184,7 +197,7 @@ run_case() {
     adb_shell setprop debug.overte.power_profile "$profile"
     adb_shell setprop debug.overte.foveation "$foveation"
     local feature
-    for feature in shadows bloom ambient_occlusion haze local_lights procedural_materials mirror_views stats simulation_hz renderable_budget_us model_update_hz; do
+    for feature in "${FEATURE_PROPERTIES[@]}"; do
         adb_shell setprop "debug.overte.$feature" default
     done
     while (( $# >= 2 )); do

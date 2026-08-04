@@ -52,6 +52,10 @@ Run `./pico-graphics-matrix.sh --help` to list the available matrix modes and
 environment controls; invalid modes and measurement bounds fail before ADB or
 device controls are touched. Required ImageMagick commands and the visual
 reference are also checked before the headset is modified.
+On every handled exit, the matrix restores all graphics/debug overrides and
+the prior test-mode value in addition to fan and brightness controls. It also
+writes a fresh zero-duration autowalk command before stopping Interface, so an
+interrupted dynamic route cannot replay on a later app start.
 
 For local avatar-load screening, first enter a domain containing at least one
 other avatar, then create up to 50 client-only copies per received avatar:
