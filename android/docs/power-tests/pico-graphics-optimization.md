@@ -304,8 +304,8 @@ debug.overte.model_update_hz
 
 ## Physics and entity CPU-time baseline (2026-08-04)
 
-The Pico-specific physics/entity instrumentation now records both wall time and
-`CLOCK_THREAD_CPUTIME_ID` time. This prevents runnable-but-preempted intervals
+The Pico-specific diagnostic build recorded both wall time and
+`CLOCK_THREAD_CPUTIME_ID` time. This prevented runnable-but-preempted intervals
 from being misclassified as CPU execution. A fixed 100% fan, MCU brightness 1,
 80% scale/72 Hz Hub run kept the verified reference position and passed the
 end XR image check (4320x2160, reference RMSE 0.176). The app was stopped after
@@ -326,11 +326,50 @@ This does not support an optimization that broadly skips sleeping bodies. The
 Hub instead concentrates entity CPU in `updateChangedEntities()` / renderable
 updates, normally with only 0–7 pending render updates (mostly models).
 
-The next targeted, quality-neutral A/B should instrument that function into
-changed-ID transfer, renderer lookup, and individual `updateInScene()` calls,
-including CPU time and type/counts. Test a coalescing path only for duplicate
-same-frame model updates, then use interleaved A/B/A/B runs; do not lower the
-global entity/simulation rate or the existing 2000-us budget.
+The follow-up below splits that function into changed-ID transfer, renderer
+lookup, prioritization, and individual `updateInScene()` calls. The global
+entity/simulation rate and existing 2000-us budget remained unchanged.
+
+## Entity synchronization and animation-joint update (2026-08-04)
+
+Thread-CPU instrumentation of 3,567 Hub entity-render synchronization calls
+showed that changed-ID transfer, renderable lookup, and priority sorting cost
+only 0.009, 0.037, and 0.121 ms per call respectively. `updateInScene()` cost
+1.230 ms per call and accounted for nearly all remaining CPU work. Model
+entities represented 92.5% of that CPU time. The existing changed-ID and
+renderable containers are both sets, so duplicate same-frame work was already
+coalesced and did not offer another optimization.
+
+Deeper profiling of 4,817 animation samples attributed 89.2% of their measured
+thread CPU to joint-data generation and transfer, 6.7% to smooth-frame
+interpolation, and 4.1% to setup. Reusing temporary interpolation and joint
+vectors did not help: model CPU per render update changed from 0.1619 to
+0.1637 ms (+1.1%), so that experiment was rejected.
+
+The retained Android change removes a redundant per-joint string-map lookup.
+`_jointMapping[j]` already maps model-joint index `j` to an animation-joint
+index, but the default-translation path previously looked up the animation
+joint name to recover the same model index on every sample. Directly using
+model joint `j` produced:
+
+| Metric | Name lookup | Direct model-joint index | Delta |
+| --- | ---: | ---: | ---: |
+| Joint CPU per animation sample | 0.2286 ms | 0.2028 ms | -11.3% |
+| Joint CPU normalized per joint | 0.02741 ms | 0.02386 ms | -13.0% |
+| Total measured animation CPU | 0.2563 ms | 0.2287 ms | -10.8% |
+| Mean process CPU | 291.83% | 298.00% | +2.1% |
+
+The direct-index run covered 5,117 animation samples. Its process-CPU result
+moved in the wrong direction within known run variance, so this is a confirmed
+local hot-path improvement rather than evidence of a global CPU reduction.
+Both variants retained the same 24 Hz animation cadence and passed start/end
+Hub XR image validation; end-image RMSE was 0.275 for the lookup variant and
+0.269 for the direct-index variant.
+
+Artifacts are in `power-results/entity-sync-profile-20260804T091757Z`,
+`power-results/entity-sync-reuse-20260804T092607Z`,
+`power-results/model-animation-profile-20260804T093217Z`, and
+`power-results/model-joint-direct-20260804T093636Z`.
 
 ## Limitations and next work
 

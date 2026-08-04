@@ -1138,11 +1138,15 @@ void ModelEntityRenderer::onRemoveFromSceneTyped(const TypedEntityPointer& entit
 }
 
 void ModelEntityRenderer::updateJointData(const QVector<glm::vec3>& translations, const QVector<glm::quat>& rotations, const TypedEntityPointer& entity, const ModelPointer& model) {
+#if !defined(Q_OS_ANDROID)
     QStringList animationJointNames = _animation->getHFMModel().getJointNames();
+#endif
     auto& hfmJoints = _animation->getHFMModel().joints;
 
     auto& originalHFMJoints = model->getHFMModel().joints;
+#if !defined(Q_OS_ANDROID)
     auto& originalHFMIndices = model->getHFMModel().jointIndices;
+#endif
 
     bool allowTranslation = entity->getAnimationAllowTranslation();
 
@@ -1157,13 +1161,24 @@ void ModelEntityRenderer::updateJointData(const QVector<glm::vec3>& translations
                 if (index < translations.size()) {
                     translationMat = glm::translate(translations[index]);
                 }
-            } else if (index < animationJointNames.size()) {
-                QString jointName = hfmJoints[index].name; // Pushing this here so its not done on every entity, with the exceptions of those allowing for translation
-                if (originalHFMIndices.contains(jointName)) {
-                    // Making sure the joint names exist in the original model the animation is trying to apply onto. If they do, then remap and get it's translation.
-                    int remappedIndex = originalHFMIndices[jointName] - 1; // JointIndeces seem to always start from 1 and the found index is always 1 higher than actual.
-                    translationMat = glm::translate(originalHFMJoints[remappedIndex].translation);
+            } else {
+#if defined(Q_OS_ANDROID)
+                if (j < originalHFMJoints.size()) {
+                    // _jointMapping maps model-joint index `j` to animation-
+                    // joint index `index`. The old name lookup mapped that
+                    // animation joint straight back to `j` on every sample.
+                    translationMat = glm::translate(originalHFMJoints[j].translation);
                 }
+#else
+                if (index < animationJointNames.size()) {
+                    QString jointName = hfmJoints[index].name; // Pushing this here so its not done on every entity, with the exceptions of those allowing for translation
+                    if (originalHFMIndices.contains(jointName)) {
+                        // Making sure the joint names exist in the original model the animation is trying to apply onto. If they do, then remap and get it's translation.
+                        int remappedIndex = originalHFMIndices[jointName] - 1; // JointIndeces seem to always start from 1 and the found index is always 1 higher than actual.
+                        translationMat = glm::translate(originalHFMJoints[remappedIndex].translation);
+                    }
+                }
+#endif
             }
             glm::mat4 rotationMat;
             if (index < rotations.size()) {
