@@ -630,6 +630,21 @@ replicas loaded with no NaN warning, assertion, or process restart. The
 rejected matrix remains diagnostic only; a complete longer matrix is still
 required.
 
+The repaired 30-second-per-stage `0/5/0/5` matrix then completed with four
+stable source avatars and compared 5 with 25 fully loaded total avatars. Every
+sample reported all four source models and all 20 expected replica models as
+loaded. Baseline stages averaged 230.417% process CPU, 3.987 ms avatar
+simulation, 4.378 ms complete avatar processing, and 2.333 budget-skipped
+updates. Loaded stages averaged 227.084% CPU, 4.318 ms simulation, 5.832 ms
+processing, and 22.000 skipped updates. Priority construction increased from
+0.391 to 1.514 ms and the budgeted simulate/render section from 3.800 to
+4.117 ms; sorting and scene assurance remained below 0.03 ms. The 0.331 ms
+simulation increase is modest, while the lower total-process CPU again shows
+that scene/process variance and the fixed avatar budget dominate this test.
+No production budget increase or crowd-quality reduction is justified. A
+loaded-avatar CPU callgraph is the next useful way to check whether priority
+construction or the budgeted section contains an actionable compute hotspot.
+
 ## Limitations and next work
 
 - The Hub test is CPU-limited and has no controlled avatar population or active
