@@ -14,6 +14,7 @@ PREPARE_SCENE="${PREPARE_SCENE:-1}"
 CALL_GRAPH="${CALL_GRAPH:-none}"
 BUILD_BINARY_CACHE="${BUILD_BINARY_CACHE:-0}"
 RESULT_DIR="${RESULT_DIR:-$SCRIPT_DIR/power-results/simpleperf-$(date -u +%Y%m%dT%H%M%SZ)}"
+PROFILE_DOMAIN_ID=""
 
 usage() {
     cat <<'EOF'
@@ -81,6 +82,29 @@ foreground_package() {
         | head -n 1
 }
 
+validate_prepared_world() {
+    local stage="$1" status status_epoch connected place domain_id now
+    [[ "$PREPARE_SCENE" == 1 ]] || return 0
+    status="$(adb_shell run-as "$PACKAGE" cat cache/world-status 2>/dev/null | tr -d '\r' || true)"
+    IFS='|' read -r status_epoch connected place domain_id _ <<<"$status"
+    now="$(date +%s)"
+    [[ "$status_epoch" =~ ^[0-9]+$ ]] &&
+        (( now - status_epoch >= -5 && now - status_epoch <= 5 )) &&
+        [[ "$connected" == 1 && "${place,,}" == overte_hub ]] &&
+        [[ "$domain_id" =~ ^\{?[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}\}?$ ]] &&
+        [[ "$domain_id" != "{00000000-0000-0000-0000-000000000000}" &&
+            "$domain_id" != "00000000-0000-0000-0000-000000000000" ]] || {
+        echo "prepared Hub world is missing, stale, or disconnected during $stage" >&2
+        return 1
+    }
+    if [[ -z "$PROFILE_DOMAIN_ID" ]]; then
+        PROFILE_DOMAIN_ID="$domain_id"
+    elif [[ "$domain_id" != "$PROFILE_DOMAIN_ID" ]]; then
+        echo "prepared Hub domain changed during $stage" >&2
+        return 1
+    fi
+}
+
 validate_xr_focus() {
     local stage="$1" active_package boundary_ready guardian_vst current_pid
     active_package="$(foreground_package)"
@@ -101,6 +125,7 @@ validate_xr_focus() {
             return 1
         }
     fi
+    validate_prepared_world "$stage"
 }
 
 "$ADB_BIN" -s "$PICO_SERIAL" get-state >/dev/null

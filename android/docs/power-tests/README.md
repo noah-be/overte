@@ -18,9 +18,10 @@ the same Hub scene, records the debuggable app through `simpleperf --app`, and
 produces command-, library-, and symbol-sorted reports without taking a
 screenshot. Its default 99 Hz leaf sampling avoids the multi-gigabyte temporary
 stack data produced by Android simpleperf's 4000 Hz DWARF default. A watchdog
-checks the resumed activity and Pico Guardian state before, during, and after
-recording; it rejects the profile instead of publishing measurements taken
-after Overte has lost XR focus. Run:
+checks the resumed activity, Pico Guardian state, process identity, and (for a
+prepared run) Hub domain before, during, and after recording; it rejects the
+profile instead of publishing measurements after XR focus, process, or scene
+validity has been lost. Run:
 
 ```bash
 cd android
