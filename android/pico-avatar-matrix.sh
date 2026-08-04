@@ -257,4 +257,28 @@ for count in "${REPLICA_COUNTS[@]}"; do
         "$label" "$mean_cpu" "$mean_simulation" "$mean_updated" "$mean_not_updated"
 done
 
+printf 'replicas_per_template,total_avatars,runs,mean_cpu_pct,mean_avatar_simulation_ms,mean_updated,mean_not_updated\n' \
+    > "$RESULT_DIR/aggregate.csv"
+awk -F, 'NR > 1 {
+    replicas = $2
+    if (!(replicas in seen)) {
+        seen[replicas] = 1
+        order[++orderCount] = replicas
+    }
+    total[replicas] = $3
+    runs[replicas]++
+    cpu[replicas] += $6
+    simulation[replicas] += $7
+    updated[replicas] += $8
+    notUpdated[replicas] += $9
+}
+END {
+    for (i = 1; i <= orderCount; i++) {
+        replicas = order[i]
+        printf "%s,%s,%d,%.3f,%.3f,%.3f,%.3f\n", replicas, total[replicas], runs[replicas],
+            cpu[replicas] / runs[replicas], simulation[replicas] / runs[replicas],
+            updated[replicas] / runs[replicas], notUpdated[replicas] / runs[replicas]
+    }
+}' "$RESULT_DIR/summary.csv" >> "$RESULT_DIR/aggregate.csv"
+
 echo "results=$RESULT_DIR"

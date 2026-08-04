@@ -69,4 +69,6 @@ test mode and the device controls. An app restart also rejects the run rather
 than mixing measurements from different processes. It never records
 screenshots or avatar identifiers. The summary includes mean updated and
 budget-skipped avatar counts, so CPU stability is not mistaken for full crowd
-simulation quality.
+simulation quality. Here, `updated` counts in-view avatars with fresh joint
+data while the update is within budget; it is not a count of every simulated
+avatar. `aggregate.csv` combines repeated stages with the same replica count.

@@ -532,13 +532,25 @@ of the current scene. No production avatar limit is justified by these runs.
 A higher-load 20-second-per-stage 0/20/0/20 matrix retained two stable real
 templates and produced 43 total avatars during load. Combined process CPU was
 222.95% at baseline and 225.30% under load (+1.05%); mean avatar simulation was
-3.542 ms and 3.857 ms (+8.9%). The loaded stages updated only 1.10 avatars and
-skipped 40.75 avatars per frame on average, compared with 1.20 updated and 0.65
-skipped at baseline. This demonstrates that the existing fixed update budget
-successfully bounds CPU growth at high local crowd counts. It also makes the
-tradeoff explicit: additional avatars primarily lose update frequency rather
-than consuming unbounded simulation time. The matrix summary now preserves
-these updated and skipped means for future comparisons.
+3.542 ms and 3.857 ms (+8.9%). The loaded stages skipped 40.75 avatars per
+frame on average because the time budget had expired, compared with 0.65 at
+baseline. The separate `updated` counter averaged 1.10 and 1.20 respectively;
+it counts in-view avatars with fresh joint data while within budget, not every
+avatar that was simulated. This demonstrates that the existing fixed update
+budget successfully bounds CPU growth at high local crowd counts. It also
+makes the tradeoff explicit: additional avatars primarily lose update
+frequency rather than consuming unbounded simulation time.
+
+An ascending and descending 0/1/2/5/10/20/10/5/2/1/0 saturation ramp then
+measured where this tradeoff begins. With two stable templates, mean
+budget-skipped counts were 0.60 at 3 total avatars, 2.80 at 5, 4.30 at 7,
+10.65 at 13, 20.65 at 23, and 40.90 at 43. Process CPU stayed between 222.3%
+and 228.5% without a monotonic increase; avatar simulation stayed between
+3.494 ms and 4.130 ms. The budget is therefore already active in this scene at
+the smallest tested crowd increase and becomes the dominant limiter as the
+crowd grows. Raising it would trade CPU for smoother crowd updates rather than
+remove CPU work. The matrix now writes both per-stage `summary.csv` and an
+`aggregate.csv` that combines repeated replica counts.
 
 ## Limitations and next work
 
