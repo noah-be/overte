@@ -1311,6 +1311,7 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
     if (hasHandControllers) {
         auto startSection = sourceBuffer;
 
+        PACKET_READ_CHECK(HandControllers, AvatarDataPacket::HAND_CONTROLLERS_SIZE);
         sourceBuffer = unpackHandController(sourceBuffer, _controllerLeftHandMatrixCache);
         sourceBuffer = unpackHandController(sourceBuffer, _controllerRightHandMatrixCache);
 
