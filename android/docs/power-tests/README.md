@@ -28,10 +28,13 @@ cd android
 ```
 
 Use `--call-graph fp` only when a call graph is required and the current build
-has usable frame pointers. Results are written below the Git-ignored
-`android/power-results/` directory. `--binary-cache` additionally resolves the
-record against unstripped native build outputs, but is opt-in because a full
-cache can require several gigabytes.
+has usable frame pointers. In this mode the recorder also writes
+`report-callgraph-children.txt`, whose `Children` column attributes samples to
+every parent in a captured call chain instead of only to the sampled leaf.
+Results are written below the Git-ignored `android/power-results/` directory.
+`--binary-cache` additionally resolves the record against unstripped native
+build outputs, but is opt-in because a full cache can require several
+gigabytes.
 
 The Pico test scripts use `PICO_SERIAL` or `ANDROID_SERIAL` when set. Without
 either variable they require exactly one authorized device in `adb devices`

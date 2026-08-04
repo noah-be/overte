@@ -567,6 +567,16 @@ scene assurance, and scale animation as useful Pico crowd targets in this
 scene. Priority construction scales, but its current process-level effect is
 too small to justify a production change.
 
+A guarded 15-second, 99 Hz frame-pointer callgraph follow-up captured 2858
+samples with none lost. `AvatarManager::updateOtherAvatars()` accounted for
+2.79% of sampled cycles including descendants. Its largest visible descendant
+was `OtherAvatar::updateOrbPosition()` at 1.82%; `OtherAvatar::simulate()` was
+0.60%, and the remaining reported avatar functions were each below 0.4%.
+Although 25.7% of samples had incomplete call chains, this inclusive result
+agrees with the leaf profile and provides no evidence that the state-poll
+wall-clock bucket is a comparable CPU cost. No production state-poll or avatar
+budget change is justified by this scene.
+
 ## Limitations and next work
 
 - The Hub test is CPU-limited and contains no nearby avatars or active mirror

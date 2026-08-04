@@ -223,6 +223,12 @@ for sort_key in comm dso comm,dso,symbol; do
         2> "$RESULT_DIR/report-$report_name-warnings.txt"
 done
 
+if [[ "$CALL_GRAPH" == fp ]]; then
+    adb_shell simpleperf report -i "$REMOTE_FILE" --children --sort comm,dso,symbol \
+        > "$RESULT_DIR/report-callgraph-children.txt" \
+        2> "$RESULT_DIR/report-callgraph-children-warnings.txt"
+fi
+
 HOST_SIMPLEPERF="$ANDROID_NDK_HOME/simpleperf/bin/linux/x86_64/simpleperf"
 CACHE_BUILDER="$ANDROID_NDK_HOME/simpleperf/binary_cache_builder.py"
 NATIVE_LIB_DIR="$SCRIPT_DIR/apps/picoInterface/build/intermediates/cmake/debug/obj/arm64-v8a"
