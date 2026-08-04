@@ -149,9 +149,10 @@ adb shell gd32ipdclient_test setfantestmode 0
 
 For Overte runs, the recorder also verifies that `org.overte.pico` remains the
 active XR application during warm-up and every recorded sample. It aborts if
-Pico Seethrough, Boundary, or another application takes focus. Battery levels
-below 21% also abort the recording by default because Pico energy-saving mode
-can change the measured workload. Override the threshold only for explicitly
+Pico Seethrough, Boundary, or another application takes focus, or if Interface
+restarts and would mix different processes in one result. Battery levels below
+21% also abort the recording by default because Pico energy-saving mode can
+change the measured workload. Override the threshold only for explicitly
 non-comparable diagnostics with `--min-battery`.
 
 Every Overte run must provide `--expected-world`. Interface publishes its
@@ -161,6 +162,11 @@ during warm-up and at every measurement sample. Use `--expected-position X,Y,Z`
 to guard the test pose as well; `--position-tolerance` defaults to 2 metres. A
 failed lookup, disconnect, world change, or movement outside that radius aborts
 the run immediately.
+
+If any runtime validity check aborts a recording, the partial CSV is renamed
+with an `.invalid` suffix and automatic analysis is skipped. This preserves
+diagnostic samples without allowing a normal `power-results/*.csv` comparison
+to consume a known-invalid run.
 
 Fixed-fan runs default to safety limits of 95 C CPU, 70 C skin, and 45 C
 battery temperature. Override them only with a clear reason using

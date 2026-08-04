@@ -426,7 +426,9 @@ record() {
     local label="" duration=1800 warmup=300 interval=1 output=""
     local allow_charging=0 app_check=1 fan_speed="" brightness="" max_cpu_temp=95 max_skin_temp=70
     local max_battery_temp=45 min_battery=21 arg dump plugged start_epoch now_epoch elapsed next_sample
-    local timestamp device_row cpu_temp_raw skin_temp_raw battery_temp_raw battery_level active_package aborted=0
+    local timestamp device_row cpu_temp_raw skin_temp_raw battery_temp_raw battery_level active_package="" aborted=0
+    local invalid_output
+    local expected_pid="" current_pid
     local power_profile foveation
     local expected_world="" expected_position="" position_tolerance="2" expected_x expected_y expected_z
     local -a sample_fields
@@ -490,10 +492,10 @@ record() {
     android_version="$(csv_safe "$android_version")"
     build_fingerprint="$(csv_safe "$build_fingerprint")"
 
-    if [[ "$app_check" -eq 1 ]] && ! adb_shell pidof org.overte.pico >/dev/null 2>&1; then
-        fail "org.overte.pico is not running; start it or use --no-app-check for a baseline"
-    fi
     if [[ "$app_check" -eq 1 ]]; then
+        expected_pid="$(adb_shell pidof org.overte.pico 2>/dev/null | awk '{ print $1 }')"
+        [[ -n "$expected_pid" ]] \
+            || fail "org.overte.pico is not running; start it or use --no-app-check for a baseline"
         [[ -n "$expected_world" ]] \
             || fail "Overte runs require --expected-world NAME to guard against testing the wrong world"
         active_package="$(foreground_package)"
@@ -537,6 +539,9 @@ record() {
             sleep "$((warmup - elapsed < 5 ? warmup - elapsed : 5))"
             elapsed=$((elapsed + (warmup - elapsed < 5 ? warmup - elapsed : 5)))
             if [[ "$app_check" -eq 1 ]]; then
+                current_pid="$(adb_shell pidof org.overte.pico 2>/dev/null | awk '{ print $1 }')"
+                [[ "$current_pid" == "$expected_pid" ]] \
+                    || fail "Overte restarted during warm-up (expected PID $expected_pid, active: ${current_pid:-none})"
                 active_package="$(foreground_package)"
                 [[ "$active_package" == "org.overte.pico" ]] \
                     || fail "Overte lost XR focus during warm-up (active: ${active_package:-unknown})"
@@ -567,11 +572,17 @@ record() {
             echo "error: battery validity threshold crossed (${battery_level}% < ${min_battery}%)" >&2
             aborted=1
         elif [[ "$app_check" -eq 1 ]]; then
-            active_package="$(foreground_package)"
-            if [[ "$active_package" != "org.overte.pico" ]]; then
+            current_pid="${sample_fields[7]:-}"
+            if [[ "$current_pid" != "$expected_pid" ]]; then
+                echo "error: Overte restarted during measurement (expected PID $expected_pid, active: ${current_pid:-none})" >&2
+                aborted=1
+            else
+                active_package="$(foreground_package)"
+            fi
+            if [[ "$aborted" -eq 0 && "$active_package" != "org.overte.pico" ]]; then
                 echo "error: Overte lost XR focus (active: ${active_package:-unknown})" >&2
                 aborted=1
-            elif ! validate_world "measurement at ${elapsed}s"; then
+            elif [[ "$aborted" -eq 0 ]] && ! validate_world "measurement at ${elapsed}s"; then
                 aborted=1
             fi
         fi
@@ -605,8 +616,15 @@ record() {
     restore_test_controls
     trap - EXIT INT TERM HUP
     echo "Recorded $(($(wc -l <"$output") - 1)) samples"
+    if [[ "$aborted" -ne 0 ]]; then
+        invalid_output="${output}.invalid"
+        [[ ! -e "$invalid_output" ]] \
+            || invalid_output="${output}.$(date -u +%Y%m%dT%H%M%SZ).invalid"
+        mv -- "$output" "$invalid_output"
+        echo "Invalid partial recording retained at $invalid_output; analysis skipped" >&2
+        return 3
+    fi
     python3 "$script_dir/tools/analyze-pico4-power.py" "$output"
-    [[ "$aborted" -eq 0 ]] || return 3
 }
 
 analyze() {
