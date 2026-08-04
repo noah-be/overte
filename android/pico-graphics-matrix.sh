@@ -76,6 +76,15 @@ mkdir -p "$RESULT_DIR"
 
 adb_shell() { "$ADB_BIN" -s "$PICO_SERIAL" shell "$@"; }
 
+set_debug_property() {
+    local property="$1" value="$2"
+    if [[ -z "$value" ]]; then
+        adb_shell "setprop 'debug.overte.$property' ''"
+    else
+        adb_shell setprop "debug.overte.$property" "$value"
+    fi
+}
+
 for property in "${CONFIG_PROPERTIES[@]}"; do
     ORIGINAL_CONFIG_PROPERTIES["$property"]="$(adb_shell getprop "debug.overte.$property" 2>/dev/null | tr -d '\r')"
 done
@@ -140,9 +149,9 @@ cleanup() {
     adb_shell setprop debug.overte.autowalk "cleanup-$(date +%s%N)\|0\|0\|0\|0" >/dev/null 2>&1 || true
     adb_shell am force-stop org.overte.pico >/dev/null 2>&1 || true
     for property in "${CONFIG_PROPERTIES[@]}"; do
-        adb_shell setprop "debug.overte.$property" "${ORIGINAL_CONFIG_PROPERTIES[$property]}" >/dev/null 2>&1 || true
+        set_debug_property "$property" "${ORIGINAL_CONFIG_PROPERTIES[$property]}" >/dev/null 2>&1 || true
     done
-    adb_shell setprop debug.overte.test_mode "$ORIGINAL_TEST_MODE" >/dev/null 2>&1 || true
+    set_debug_property test_mode "$ORIGINAL_TEST_MODE" >/dev/null 2>&1 || true
     if [[ "$ORIGINAL_FAN_SPEED" =~ ^[0-9]+$ ]]; then
         adb_shell gd32ipdclient_test setfantestspeed "$ORIGINAL_FAN_SPEED" >/dev/null 2>&1 || true
     fi
@@ -151,7 +160,9 @@ cleanup() {
         adb_shell gd32ipdclient_test setbrightness "$ORIGINAL_BRIGHTNESS" >/dev/null 2>&1 || true
     fi
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 apply_controls() {
     adb_shell gd32ipdclient_test setfantestmode 1 >/dev/null
