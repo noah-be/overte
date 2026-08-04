@@ -2217,12 +2217,7 @@ void Application::update(float deltaTime) {
     quint64 picoAfterPick = picoUpdateStart;
     quint64 picoAfterPointer = picoUpdateStart;
     quint64 picoAfterSimulationSetup = picoUpdateStart;
-    quint64 picoAfterEntityPhysicsTransaction = picoUpdateStart;
-    quint64 picoAfterAvatarPhysicsTransaction = picoUpdateStart;
     quint64 picoAfterPrePhysics = picoUpdateStart;
-    quint64 picoAfterPrepareActions = picoUpdateStart;
-    quint64 picoAfterStepPhysics = picoUpdateStart;
-    quint64 picoAfterPostPhysics = picoUpdateStart;
     quint64 picoBeforeEntityUpdate = picoUpdateStart;
     quint64 picoAfterEntityUpdate = picoUpdateStart;
     quint64 picoBeforeSimulationCleanup = picoUpdateStart;
@@ -2535,44 +2530,6 @@ void Application::update(float deltaTime) {
 
     QSharedPointer<AvatarManager> avatarManager = DependencyManager::get<AvatarManager>();
 
-#if defined(ANDROID_APP_PICO_INTERFACE)
-    // Physics and non-physical entity simulation can dominate the Pico game
-    // loop even when the renderer only produces about 20 new frames/second.
-    // Keep the default unlimited, and expose a process-start rate for
-    // controlled A/B tests before selecting a production default.
-    static const float picoSimulationHz = [] {
-        char value[PROP_VALUE_MAX] {};
-        if (__system_property_get("debug.overte.simulation_hz", value) <= 0) {
-            return 0.0f;
-        }
-        bool ok { false };
-        const float requested = QString::fromLatin1(value).toFloat(&ok);
-        return ok && requested > 0.0f ? glm::clamp(requested, 15.0f, 72.0f) : 0.0f;
-    }();
-    static quint64 nextPicoSimulationStep { 0 };
-    static bool loggedPicoSimulationHz { false };
-    if (!loggedPicoSimulationHz) {
-        qInfo() << "PICO_SIMULATION_HZ" << picoSimulationHz;
-        loggedPicoSimulationHz = true;
-    }
-    bool runPicoSimulationStep { true };
-    if (picoSimulationHz > 0.0f) {
-        const quint64 interval = static_cast<quint64>(USECS_PER_SECOND / picoSimulationHz);
-        if (nextPicoSimulationStep == 0) {
-            nextPicoSimulationStep = picoUpdateStart;
-        }
-        runPicoSimulationStep = picoUpdateStart >= nextPicoSimulationStep;
-        if (runPicoSimulationStep) {
-            nextPicoSimulationStep += interval;
-            if (nextPicoSimulationStep + interval < picoUpdateStart) {
-                nextPicoSimulationStep = picoUpdateStart + interval;
-            }
-        }
-    }
-#else
-    constexpr bool runPicoSimulationStep { true };
-#endif
-
     {
         PROFILE_RANGE(simulation_physics, "Simulation");
         PerformanceTimer perfTimer("simulation");
@@ -2594,9 +2551,6 @@ void Application::update(float deltaTime) {
                 _entitySimulation->buildPhysicsTransaction(transaction);
                 _physicsEngine->processTransaction(transaction);
                 _entitySimulation->handleProcessedPhysicsTransaction(transaction);
-#if defined(Q_OS_ANDROID)
-                picoAfterEntityPhysicsTransaction = usecTimestampNow();
-#endif
             }
 
             t1 = std::chrono::high_resolution_clock::now();
@@ -2610,21 +2564,15 @@ void Application::update(float deltaTime) {
 
                 myAvatar->prepareForPhysicsSimulation();
                 myAvatar->getCharacterController()->preSimulation();
-#if defined(Q_OS_ANDROID)
-                picoAfterAvatarPhysicsTransaction = usecTimestampNow();
-#endif
             }
         }
 #if defined(Q_OS_ANDROID)
         picoAfterPrePhysics = usecTimestampNow();
-        picoAfterPrepareActions = picoAfterPrePhysics;
-        picoAfterStepPhysics = picoAfterPrePhysics;
-        picoAfterPostPhysics = picoAfterPrePhysics;
         picoBeforeEntityUpdate = picoAfterPrePhysics;
         picoAfterEntityUpdate = picoAfterPrePhysics;
 #endif
 
-        if (_physicsEnabled && runPicoSimulationStep) {
+        if (_physicsEnabled) {
             {
                 PROFILE_RANGE(simulation_physics, "PrepareActions");
                 _entitySimulation->applyDynamicChanges();
@@ -2632,9 +2580,6 @@ void Application::update(float deltaTime) {
                     dynamic->prepareForPhysicsSimulation();
                 });
             }
-#if defined(Q_OS_ANDROID)
-            picoAfterPrepareActions = usecTimestampNow();
-#endif
             auto t2 = std::chrono::high_resolution_clock::now();
             {
                 PROFILE_RANGE(simulation_physics, "StepPhysics");
@@ -2643,9 +2588,6 @@ void Application::update(float deltaTime) {
                     _physicsEngine->stepSimulation();
                 });
             }
-#if defined(Q_OS_ANDROID)
-            picoAfterStepPhysics = usecTimestampNow();
-#endif
             auto t3 = std::chrono::high_resolution_clock::now();
             {
                 if (_physicsEngine->hasOutgoingChanges()) {
@@ -2691,9 +2633,6 @@ void Application::update(float deltaTime) {
                         // NOTE: the PhysicsEngine stats are written to stdout NOT to Qt log framework
                         _physicsEngine->dumpStatsIfNecessary();
                     }
-#if defined(Q_OS_ANDROID)
-                    picoAfterPostPhysics = usecTimestampNow();
-#endif
                     auto t4 = std::chrono::high_resolution_clock::now();
 
                     // NOTE: the getEntities()->update() call below will wait for lock
@@ -2718,7 +2657,7 @@ void Application::update(float deltaTime) {
                     _gameWorkload.updateSimulationTimings(timings);
                 }
             }
-        } else if (!_physicsEnabled) {
+        } else {
             // update the rendering without any simulation
 #if defined(Q_OS_ANDROID)
             picoBeforeEntityUpdate = usecTimestampNow();
@@ -2913,12 +2852,7 @@ void Application::update(float deltaTime) {
         quint64 pick { 0 };
         quint64 pointer { 0 };
         quint64 simulationSetup { 0 };
-        quint64 entityPhysicsTransaction { 0 };
-        quint64 avatarPhysicsTransaction { 0 };
         quint64 prePhysics { 0 };
-        quint64 prepareActions { 0 };
-        quint64 stepPhysics { 0 };
-        quint64 postPhysics { 0 };
         quint64 physics { 0 };
         quint64 entityUpdate { 0 };
         quint64 afterEntityUpdate { 0 };
@@ -2949,12 +2883,7 @@ void Application::update(float deltaTime) {
     stats.pick += picoAfterPick - picoBeforePick;
     stats.pointer += picoAfterPointer - picoAfterPick;
     stats.simulationSetup += picoAfterSimulationSetup - picoAfterPointer;
-    stats.entityPhysicsTransaction += picoAfterEntityPhysicsTransaction - picoAfterSimulationSetup;
-    stats.avatarPhysicsTransaction += picoAfterAvatarPhysicsTransaction - picoAfterEntityPhysicsTransaction;
     stats.prePhysics += picoAfterPrePhysics - picoAfterSimulationSetup;
-    stats.prepareActions += picoAfterPrepareActions - picoAfterPrePhysics;
-    stats.stepPhysics += picoAfterStepPhysics - picoAfterPrepareActions;
-    stats.postPhysics += picoAfterPostPhysics - picoAfterStepPhysics;
     stats.physics += picoBeforeEntityUpdate - picoAfterPrePhysics;
     stats.entityUpdate += picoAfterEntityUpdate - picoBeforeEntityUpdate;
     stats.afterEntityUpdate += picoBeforeSimulationCleanup - picoAfterEntityUpdate;
@@ -2982,12 +2911,7 @@ void Application::update(float deltaTime) {
                 << "pickMs" << stats.pick / divisor / 1000.0
                 << "pointerMs" << stats.pointer / divisor / 1000.0
                 << "simulationSetupMs" << stats.simulationSetup / divisor / 1000.0
-                << "entityPhysicsTransactionMs" << stats.entityPhysicsTransaction / divisor / 1000.0
-                << "avatarPhysicsTransactionMs" << stats.avatarPhysicsTransaction / divisor / 1000.0
                 << "prePhysicsMs" << stats.prePhysics / divisor / 1000.0
-                << "prepareActionsMs" << stats.prepareActions / divisor / 1000.0
-                << "stepPhysicsMs" << stats.stepPhysics / divisor / 1000.0
-                << "postPhysicsMs" << stats.postPhysics / divisor / 1000.0
                 << "physicsMs" << stats.physics / divisor / 1000.0
                 << "entityUpdateMs" << stats.entityUpdate / divisor / 1000.0
                 << "afterEntityUpdateMs" << stats.afterEntityUpdate / divisor / 1000.0
