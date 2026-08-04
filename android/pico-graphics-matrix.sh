@@ -13,6 +13,33 @@ MAX_CPU_TEMP_MC="${MAX_CPU_TEMP_MC:-90000}"
 MAX_SKIN_TEMP_C="${MAX_SKIN_TEMP_C:-65}"
 CASE_PID=""
 CASE_DOMAIN_ID=""
+MODE="${1:-screen}"
+
+usage() {
+    cat <<'EOF'
+Usage: ./pico-graphics-matrix.sh [mode]
+
+Modes:
+  screen, dynamic, features, quality, stats, final, cpu, cpu_matrix,
+  cpu_dynamic, renderable_budget, renderable_budget_resume, model_updates
+
+Environment overrides: ADB_BIN, PICO_SERIAL, WARMUP, DURATION, TURN_RATE,
+RESULT_DIR, VISUAL_REFERENCE, MAX_CPU_TEMP_MC, and MAX_SKIN_TEMP_C.
+EOF
+}
+
+(( $# <= 1 )) || { echo "expected at most one mode" >&2; usage >&2; exit 2; }
+case "$MODE" in
+    -h|--help|help) usage; exit 0 ;;
+    screen|dynamic|features|quality|stats|final|cpu|cpu_matrix|cpu_dynamic|renderable_budget|renderable_budget_resume|model_updates) ;;
+    *) echo "unknown graphics matrix mode: $MODE" >&2; usage >&2; exit 2 ;;
+esac
+
+[[ "$WARMUP" =~ ^[0-9]+$ ]] || { echo "WARMUP must be a non-negative integer" >&2; exit 2; }
+[[ "$DURATION" =~ ^[1-9][0-9]*$ ]] || { echo "DURATION must be a positive integer" >&2; exit 2; }
+[[ "$TURN_RATE" =~ ^-?[0-9]+([.][0-9]+)?$ ]] || { echo "TURN_RATE must be numeric" >&2; exit 2; }
+[[ "$MAX_CPU_TEMP_MC" =~ ^[1-9][0-9]*$ ]] || { echo "MAX_CPU_TEMP_MC must be a positive integer" >&2; exit 2; }
+[[ "$MAX_SKIN_TEMP_C" =~ ^[1-9][0-9]*([.][0-9]+)?$ ]] || { echo "MAX_SKIN_TEMP_C must be positive" >&2; exit 2; }
 
 [[ -x "$ADB_BIN" ]] || { echo "adb not executable: $ADB_BIN" >&2; exit 1; }
 if [[ -z "$PICO_SERIAL" ]]; then
@@ -265,7 +292,7 @@ run_case() {
     rm -f "$output/INVALID"
 }
 
-case "${1:-screen}" in
+case "$MODE" in
     screen)
         run_case baseline_100 1.00 0 off
         run_case scale_085 0.85 0 off
@@ -349,7 +376,6 @@ case "${1:-screen}" in
         run_case model_updates_30hz_r2_080 0.80 0 off stats off model_update_hz 30
         run_case model_updates_24hz_r2_080 0.80 0 off stats off model_update_hz 24
         ;;
-    *) echo "usage: $0 [screen]" >&2; exit 2 ;;
 esac
 
 printf 'results=%s\n' "$RESULT_DIR"
