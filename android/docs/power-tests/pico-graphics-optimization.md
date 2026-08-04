@@ -513,6 +513,8 @@ outliers. This validates the load generator and confirms that the existing
 avatar update budget limits growth, but it is not yet evidence for a specific
 production complexity limit. A controlled template avatar and longer
 interleaved runs are required before changing avatar quality or distance rules.
+`pico-avatar-matrix.sh` now automates those repeated stages and rejects a run if
+XR focus or the real template-avatar population changes.
 
 ## Limitations and next work
 

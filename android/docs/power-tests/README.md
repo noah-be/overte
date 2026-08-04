@@ -51,3 +51,16 @@ The status reports total and locally replicated avatar counts plus the existing
 avatar update-budget counters. Replica commands are timestamped and ignored
 when stale, so an interrupted test cannot replay its load after a later app
 restart. Always return the count to zero after a test.
+
+For a guarded repeated A/B matrix in the current domain, run:
+
+```bash
+./pico-avatar-matrix.sh
+```
+
+The default sequence is 0, 5, 0, and 5 copies per real template avatar.
+Repeated `--replicas` options define a different sequence. The matrix fixes the
+fan and brightness during measurement, rejects XR-focus loss or any change in
+the real template population, writes aggregate CSV results under
+`android/power-results/`, then clears all copies and restores the device
+controls. It never records screenshots or avatar identifiers.
