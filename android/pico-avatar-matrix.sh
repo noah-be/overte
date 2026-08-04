@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ADB_BIN="${ADB_BIN:-${ANDROID_SDK_ROOT:-${HOME}/Android/Sdk}/platform-tools/adb}"
-PICO_SERIAL="${PICO_SERIAL:-192.168.188.75:5555}"
+PICO_SERIAL="${PICO_SERIAL:-${ANDROID_SERIAL:-}}"
 PACKAGE="org.overte.pico"
 DURATION="${DURATION:-30}"
 INTERVAL="${INTERVAL:-5}"
@@ -62,6 +62,14 @@ for index in "${!REPLICA_COUNTS[@]}"; do
     REPLICA_COUNTS[$index]="$count"
 done
 [[ -x "$ADB_BIN" ]] || { echo "adb not executable: $ADB_BIN" >&2; exit 1; }
+if [[ -z "$PICO_SERIAL" ]]; then
+    mapfile -t pico_devices < <("$ADB_BIN" devices | awk '$2 == "device" { print $1 }')
+    (( ${#pico_devices[@]} == 1 )) || {
+        echo "expected exactly one authorized ADB device; set PICO_SERIAL or ANDROID_SERIAL" >&2
+        exit 2
+    }
+    PICO_SERIAL="${pico_devices[0]}"
+fi
 
 adb_shell() { "$ADB_BIN" -s "$PICO_SERIAL" shell "$@"; }
 

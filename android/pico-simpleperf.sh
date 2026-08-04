@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ADB_BIN="${ADB_BIN:-${ANDROID_SDK_ROOT:-${HOME}/Android/Sdk}/platform-tools/adb}"
 ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-${ANDROID_SDK_ROOT:-${HOME}/Android/Sdk}/ndk/27.3.13750724}"
-PICO_SERIAL="${PICO_SERIAL:-192.168.188.75:5555}"
+PICO_SERIAL="${PICO_SERIAL:-${ANDROID_SERIAL:-}}"
 PACKAGE="${PACKAGE:-org.overte.pico}"
 DURATION="${DURATION:-30}"
 FREQUENCY="${FREQUENCY:-99}"
@@ -64,6 +64,14 @@ done
 [[ "$BUILD_BINARY_CACHE" == 0 || "$BUILD_BINARY_CACHE" == 1 ]] || { echo "BUILD_BINARY_CACHE must be 0 or 1" >&2; exit 2; }
 [[ "$CALL_GRAPH" == none || "$CALL_GRAPH" == fp ]] || { echo "call graph must be none or fp" >&2; exit 2; }
 [[ -x "$ADB_BIN" ]] || { echo "adb not executable: $ADB_BIN" >&2; exit 1; }
+if [[ -z "$PICO_SERIAL" ]]; then
+    mapfile -t pico_devices < <("$ADB_BIN" devices | awk '$2 == "device" { print $1 }')
+    (( ${#pico_devices[@]} == 1 )) || {
+        echo "expected exactly one authorized ADB device; set PICO_SERIAL or ANDROID_SERIAL" >&2
+        exit 2
+    }
+    PICO_SERIAL="${pico_devices[0]}"
+fi
 
 adb_shell() { "$ADB_BIN" -s "$PICO_SERIAL" shell "$@"; }
 

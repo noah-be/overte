@@ -33,6 +33,11 @@ has usable frame pointers. Results are written below the Git-ignored
 record against unstripped native build outputs, but is opt-in because a full
 cache can require several gigabytes.
 
+The Pico test scripts use `PICO_SERIAL` or `ANDROID_SERIAL` when set. Without
+either variable they require exactly one authorized device in `adb devices`
+and select it automatically; no developer-specific device address is stored
+in the repository.
+
 The graphics matrix applies the same XR-focus checks around scene capture and
 each telemetry sample. This complements image similarity and prevents a
 boundary dialog from being accepted as a low-load scene.

@@ -10,7 +10,15 @@ if [[ ! -x "$ADB_BIN" ]]; then
     echo "adb not found at ${ADB_BIN}; set ADB_BIN, ANDROID_SDK_ROOT, or ANDROID_HOME" >&2
     exit 2
 fi
-PICO_SERIAL="${PICO_SERIAL:-192.168.188.75:5555}"
+PICO_SERIAL="${PICO_SERIAL:-${ANDROID_SERIAL:-}}"
+if [[ -z "$PICO_SERIAL" ]]; then
+    mapfile -t pico_devices < <("$ADB_BIN" devices | awk '$2 == "device" { print $1 }')
+    (( ${#pico_devices[@]} == 1 )) || {
+        echo "expected exactly one authorized ADB device; set PICO_SERIAL or ANDROID_SERIAL" >&2
+        exit 2
+    }
+    PICO_SERIAL="${pico_devices[0]}"
+fi
 # Navigate without an explicit pose so the domain's original spawn is used.
 # Use the registered Places address, not a raw domain IP. The placename lookup
 # carries the authoritative destination/spawn context used by the Places app.
