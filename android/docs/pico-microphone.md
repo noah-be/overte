@@ -7,13 +7,12 @@ quality and source selection, not permission or loss of capture.
 
 ## Test controls
 
-The microphone research build supports two opt-in ADB properties:
+The microphone research build supports three opt-in ADB properties:
 
 - `debug.overte.audio_input`: `voicecommunication`, `voicerecognition`, `mic`,
-  or `camcorder`; and
+  or `camcorder`;
 - `debug.overte.audio_trace=1`: one-second raw input-level, Overte noise-gate,
-  and watchdog summaries;
-  and
+  and watchdog summaries; and
 - `debug.overte.audio_capture_seconds`: capture 1-60 seconds of the exact raw
   Qt input to the app-private cache file `pico-mic-input.wav`.
 
