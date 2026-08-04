@@ -115,7 +115,9 @@ read_avatar_status() {
     [[ "$field_count" == "16" && "$AVATAR_EPOCH" =~ ^[0-9]+$ ]] &&
         (( now - AVATAR_EPOCH >= -5 && now - AVATAR_EPOCH <= 5 )) &&
         [[ "$AVATAR_TOTAL" =~ ^[0-9]+$ && "$AVATAR_REPLICATED" =~ ^[0-9]+$ &&
-            "$AVATAR_TARGET" =~ ^[0-9]+$ && "$AVATAR_SIMULATION_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
+            "$AVATAR_TARGET" =~ ^[0-9]+$ && "$AVATAR_UPDATED" =~ ^[0-9]+$ &&
+            "$AVATAR_NOT_UPDATED" =~ ^[0-9]+$ && "$AVATAR_HEROES" =~ ^[0-9]+$ &&
+            "$AVATAR_SIMULATION_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
             "$AVATAR_PROCESSING_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
             "$AVATAR_PRIORITY_BUILD_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
             "$AVATAR_SORT_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
@@ -124,6 +126,7 @@ read_avatar_status() {
             "$AVATAR_ENSURE_SCENE_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
             "$AVATAR_SCALE_ANIMATION_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
             "$AVATAR_SIMULATE_MS" =~ ^[0-9]+([.][0-9]+)?$ ]] &&
+        (( AVATAR_TOTAL >= AVATAR_REPLICATED + 1 && AVATAR_TARGET <= 50 )) &&
         awk -v processing="$AVATAR_PROCESSING_MS" -v priority="$AVATAR_PRIORITY_BUILD_MS" \
             -v simulation="$AVATAR_SIMULATION_MS" -v pre="$AVATAR_PRE_UPDATE_MS" \
             -v state="$AVATAR_STATE_POLL_MS" -v scene="$AVATAR_ENSURE_SCENE_MS" \
