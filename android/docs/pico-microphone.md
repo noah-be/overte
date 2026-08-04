@@ -152,6 +152,14 @@ thermal render-duration limit, not a microphone dropout. Long microphone-only
 stability tests require a lower-load scene or another way to suspend XR
 rendering without suspending audio.
 
+After all diagnostics and session-reuse changes, a final requested 60-second
+integration run reached the thermal limit after 58 seconds. It reported 6,281
+gate blocks, a 4.90% gate-open ratio, Android source ID 7, both AEC and noise
+suppression enabled, one AudioRecord opening, and two reuse events. The cutoff
+occurred at 90.1 C CPU and 74.8 C GPU; cleanup again restored automatic fan
+control and stopped the app. The microphone and all assertions remained valid
+through the thermally limited run.
+
 ## Overte noise-gate interaction
 
 A bracketing 15-second external-noise comparison measured both raw input and
