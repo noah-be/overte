@@ -59,7 +59,9 @@ priority-queue construction, sorting, pre-update state work, scene assurance,
 scale animation, and the budgeted simulation/render-update section. These are
 wall-clock timings and can include time while Android deschedules the main
 thread; use a CPU profile before treating a large stage as compute work. When
-no other avatar exists, all timings and update counters reset to zero.
+no other avatar exists, all timings and update counters reset to zero. The
+matrix rejects an old, incomplete, or internally inconsistent timing schema
+instead of silently shifting CSV columns.
 
 For a guarded repeated A/B matrix in the current domain, run:
 

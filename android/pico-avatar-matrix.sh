@@ -95,15 +95,16 @@ validate_xr_focus() {
 }
 
 read_avatar_status() {
-    local status now
+    local status now field_count
     status="$(adb_shell run-as "$PACKAGE" cat cache/avatar-status 2>/dev/null || true)"
+    field_count="$(awk -F'|' '{ print NF }' <<<"$status")"
     IFS='|' read -r AVATAR_EPOCH AVATAR_TOTAL AVATAR_REPLICATED AVATAR_TARGET \
         AVATAR_UPDATED AVATAR_NOT_UPDATED AVATAR_HEROES AVATAR_SIMULATION_MS \
         AVATAR_PROCESSING_MS AVATAR_PRIORITY_BUILD_MS AVATAR_SORT_MS AVATAR_PRE_UPDATE_MS \
         AVATAR_STATE_POLL_MS AVATAR_ENSURE_SCENE_MS AVATAR_SCALE_ANIMATION_MS AVATAR_SIMULATE_MS \
         <<<"$status"
     now="$(date +%s)"
-    [[ "$AVATAR_EPOCH" =~ ^[0-9]+$ ]] &&
+    [[ "$field_count" == "16" && "$AVATAR_EPOCH" =~ ^[0-9]+$ ]] &&
         (( now - AVATAR_EPOCH >= -5 && now - AVATAR_EPOCH <= 5 )) &&
         [[ "$AVATAR_TOTAL" =~ ^[0-9]+$ && "$AVATAR_REPLICATED" =~ ^[0-9]+$ &&
             "$AVATAR_TARGET" =~ ^[0-9]+$ && "$AVATAR_SIMULATION_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
@@ -114,7 +115,17 @@ read_avatar_status() {
             "$AVATAR_STATE_POLL_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
             "$AVATAR_ENSURE_SCENE_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
             "$AVATAR_SCALE_ANIMATION_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
-            "$AVATAR_SIMULATE_MS" =~ ^[0-9]+([.][0-9]+)?$ ]]
+            "$AVATAR_SIMULATE_MS" =~ ^[0-9]+([.][0-9]+)?$ ]] &&
+        awk -v processing="$AVATAR_PROCESSING_MS" -v priority="$AVATAR_PRIORITY_BUILD_MS" \
+            -v simulation="$AVATAR_SIMULATION_MS" -v pre="$AVATAR_PRE_UPDATE_MS" \
+            -v state="$AVATAR_STATE_POLL_MS" -v scene="$AVATAR_ENSURE_SCENE_MS" \
+            -v scale="$AVATAR_SCALE_ANIMATION_MS" 'BEGIN {
+                totalError = processing - priority - simulation
+                if (totalError < 0) totalError = -totalError
+                preError = pre - state - scene - scale
+                if (preError < 0) preError = -preError
+                exit (totalError <= 0.02 && preError <= 0.02) ? 0 : 1
+            }'
 }
 
 real_avatar_count() {
