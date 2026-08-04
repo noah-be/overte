@@ -135,6 +135,14 @@ adb_shell run-as "$PACKAGE" true >/dev/null 2>&1 || {
     exit 1
 }
 
+if [[ -e "$RESULT_DIR" && ! -d "$RESULT_DIR" ]]; then
+    echo "result path is not a directory: $RESULT_DIR" >&2
+    exit 2
+fi
+if [[ -d "$RESULT_DIR" && -n "$(find "$RESULT_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+    echo "result directory is not empty: $RESULT_DIR" >&2
+    exit 2
+fi
 mkdir -p "$RESULT_DIR"
 RESULT_DIR="$(cd -- "$RESULT_DIR" && pwd)"
 RECORD_FILE="$RESULT_DIR/perf.data"

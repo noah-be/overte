@@ -99,3 +99,7 @@ Both matrix tools create an `INVALID` marker before collecting a matrix or
 graphics case and remove it only after all required validation and output
 steps complete. Partial diagnostic files are retained after an abort, but a
 consumer can reject them without interpreting CSV or image contents.
+
+Avatar matrices, graphics matrices, and simpleperf recordings refuse a
+non-empty result directory. This prevents a retry or mistyped path from
+overwriting a prior valid run or combining artifacts from different runs.

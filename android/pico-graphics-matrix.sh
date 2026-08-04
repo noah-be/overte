@@ -24,6 +24,14 @@ if [[ -z "$PICO_SERIAL" ]]; then
     PICO_SERIAL="${pico_devices[0]}"
 fi
 
+if [[ -e "$RESULT_DIR" && ! -d "$RESULT_DIR" ]]; then
+    echo "result path is not a directory: $RESULT_DIR" >&2
+    exit 2
+fi
+if [[ -d "$RESULT_DIR" && -n "$(find "$RESULT_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+    echo "result directory is not empty: $RESULT_DIR" >&2
+    exit 2
+fi
 mkdir -p "$RESULT_DIR"
 
 adb_shell() { "$ADB_BIN" -s "$PICO_SERIAL" shell "$@"; }
