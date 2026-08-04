@@ -529,6 +529,17 @@ replicas and 4.178 ms with replicas (+44.3%), while combined process CPU was
 local avatar work scales, but the total-process effect remains below the noise
 of the current scene. No production avatar limit is justified by these runs.
 
+A higher-load 20-second-per-stage 0/20/0/20 matrix retained two stable real
+templates and produced 43 total avatars during load. Combined process CPU was
+222.95% at baseline and 225.30% under load (+1.05%); mean avatar simulation was
+3.542 ms and 3.857 ms (+8.9%). The loaded stages updated only 1.10 avatars and
+skipped 40.75 avatars per frame on average, compared with 1.20 updated and 0.65
+skipped at baseline. This demonstrates that the existing fixed update budget
+successfully bounds CPU growth at high local crowd counts. It also makes the
+tradeoff explicit: additional avatars primarily lose update frequency rather
+than consuming unbounded simulation time. The matrix summary now preserves
+these updated and skipped means for future comparisons.
+
 ## Limitations and next work
 
 - The Hub test is CPU-limited and contains no nearby avatars or active mirror

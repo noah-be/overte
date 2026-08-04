@@ -67,4 +67,6 @@ the real template population, enables test mode for the run, writes aggregate
 CSV results under `android/power-results/`, then clears all copies and restores
 test mode and the device controls. An app restart also rejects the run rather
 than mixing measurements from different processes. It never records
-screenshots or avatar identifiers.
+screenshots or avatar identifiers. The summary includes mean updated and
+budget-skipped avatar counts, so CPU stability is not mistaken for full crowd
+simulation quality.

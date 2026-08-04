@@ -191,7 +191,7 @@ adb_shell gd32ipdclient_test setbrightness 1 >/dev/null
         "$REAL_TEMPLATES" "$DURATION" "$INTERVAL" "$SETTLE" "$LOAD_WAIT"
     printf 'replica_sequence=%s\n' "${REPLICA_COUNTS[*]}"
 } > "$RESULT_DIR/metadata.txt"
-printf 'run,replicas_per_template,total_avatars,local_replicas,real_templates,mean_cpu_pct,mean_avatar_simulation_ms\n' \
+printf 'run,replicas_per_template,total_avatars,local_replicas,real_templates,mean_cpu_pct,mean_avatar_simulation_ms,mean_updated,mean_not_updated\n' \
     > "$RESULT_DIR/summary.csv"
 
 run_number=0
@@ -246,11 +246,15 @@ for count in "${REPLICA_COUNTS[@]}"; do
         exit 1
     }
 
-    read -r mean_cpu mean_simulation < <(awk -F, 'NR > 1 { cpu += $2; sim += $9; n++ }
-        END { if (n > 0) printf "%.3f %.3f\n", cpu / n, sim / n; else exit 1 }' "$output/telemetry.csv")
-    printf '%s,%s,%s,%s,%s,%s,%s\n' "$run_number" "$count" "$AVATAR_TOTAL" "$AVATAR_REPLICATED" \
-        "$REAL_TEMPLATES" "$mean_cpu" "$mean_simulation" >> "$RESULT_DIR/summary.csv"
-    printf '%s mean_cpu=%s mean_avatar_simulation_ms=%s\n' "$label" "$mean_cpu" "$mean_simulation"
+    read -r mean_cpu mean_simulation mean_updated mean_not_updated < <(awk -F, \
+        'NR > 1 { cpu += $2; updated += $6; notUpdated += $7; sim += $9; n++ }
+        END { if (n > 0) printf "%.3f %.3f %.3f %.3f\n", cpu / n, sim / n, updated / n, notUpdated / n; else exit 1 }' \
+        "$output/telemetry.csv")
+    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "$run_number" "$count" "$AVATAR_TOTAL" "$AVATAR_REPLICATED" \
+        "$REAL_TEMPLATES" "$mean_cpu" "$mean_simulation" "$mean_updated" "$mean_not_updated" \
+        >> "$RESULT_DIR/summary.csv"
+    printf '%s mean_cpu=%s mean_avatar_simulation_ms=%s mean_updated=%s mean_not_updated=%s\n' \
+        "$label" "$mean_cpu" "$mean_simulation" "$mean_updated" "$mean_not_updated"
 done
 
 echo "results=$RESULT_DIR"
