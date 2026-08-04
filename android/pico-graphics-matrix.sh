@@ -15,6 +15,27 @@ mkdir -p "$RESULT_DIR"
 
 adb_shell() { "$ADB_BIN" -s "$PICO_SERIAL" shell "$@"; }
 
+foreground_package() {
+    adb_shell dumpsys activity activities 2>/dev/null \
+        | sed -n 's/.*mResumedActivity:.* u0 \([^/ ]*\).*/\1/p' \
+        | head -n 1
+}
+
+validate_xr_focus() {
+    local stage="$1" active_package boundary_ready guardian_vst
+    active_package="$(foreground_package)"
+    boundary_ready="$(adb_shell getprop sys.pxr.boundary.ready 2>/dev/null | tr -d '\r')"
+    guardian_vst="$(adb_shell getprop sys.guardian.vst.status 2>/dev/null | tr -d '\r')"
+    [[ "$active_package" == "org.overte.pico" ]] || {
+        echo "Overte lost XR focus during $stage (active: ${active_package:-unknown})" >&2
+        return 1
+    }
+    [[ "$boundary_ready" != "0" && "$guardian_vst" != "1" ]] || {
+        echo "Pico Guardian/Seethrough is active during $stage (boundary_ready=${boundary_ready:-unknown}, guardian_vst=${guardian_vst:-unknown})" >&2
+        return 1
+    }
+}
+
 ORIGINAL_BRIGHTNESS="$(adb_shell gd32ipdclient_test getbrightness 2>/dev/null | sed -n 's/.*= //p' | tr -d '\r')"
 ORIGINAL_FAN_SPEED="$(adb_shell gd32ipdclient_test getfanspeed 2>/dev/null | sed -n 's/.*= //p' | tr -d '\r')"
 cleanup() {
@@ -39,6 +60,7 @@ apply_controls() {
 
 capture_and_validate_scene() {
     local image="$1" metrics="$2"
+    validate_xr_focus "scene capture"
     "$ADB_BIN" -s "$PICO_SERIAL" exec-out screencap -p > "$image"
     local width height mean std rmse
     read -r width height mean std < <(identify -format '%w %h %[fx:mean] %[fx:standard_deviation]\n' "$image")
@@ -111,6 +133,7 @@ run_case() {
             "$(date +%s)r\\|0\\|0\\|${TURN_RATE}\\|$(((WARMUP + DURATION) * 1000))"
     fi
     sleep "$WARMUP"
+    validate_xr_focus "warm-up"
 
     local pid elapsed=0
     pid="$(adb_shell pidof org.overte.pico | tr -d '\r')"
@@ -120,6 +143,7 @@ run_case() {
     printf 'epoch,cpu_pct,rss_kb,cpu0_khz,cpu4_khz,cpu7_khz,gpu_hz,cpu_temp_mC,gpu_temp_mC,skin_temp_c,fan_rpm,fan_duty,brightness,battery_pct\n' > "$output/telemetry.csv"
     while (( elapsed < DURATION )); do
         local top_line cpu rss cpu0 cpu4 cpu7 gpu ct gt skin rpm duty brightness battery
+        validate_xr_focus "measurement at ${elapsed}s" || return 1
         top_line="$(adb_shell top -b -n 1 -p "$pid" 2>/dev/null | tail -n 1 | tr -d '\r')"
         cpu="$(awk '{print $9}' <<<"$top_line" | tr -d '%')"
         rss="$(awk '{print $6}' <<<"$top_line")"

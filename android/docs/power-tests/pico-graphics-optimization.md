@@ -307,6 +307,7 @@ collision-pair, and final clean-build runs are in
 - fixed Pico fan and brightness controls;
 - process-start render configuration;
 - app restart, Hub navigation, and position validation;
+- foreground-app and Guardian/Seethrough focus validation;
 - start/end XR screenshots with reference validation;
 - Overte frame telemetry, process CPU, CPU/GPU clocks, and thermals;
 - five-second battery monitoring with immediate drop warnings; and
@@ -451,11 +452,33 @@ overlay/entity searches while idle measured 291.00%, within the adaptive
 30-Hz runs' normal spread. These results indicate that dispatcher cadence, not
 the individual near-search calls, is the useful low-risk lever in this scene.
 
+Per-module wall-time instrumentation then split the dispatcher into controller
+location, overlay, nearby-entity, pointer, and individual module calls. Nearby
+entity-property collection was the largest blocking stage. Replacing its
+individual property reads with `Entities.getMultipleEntityProperties()` made
+that local stage about 26% shorter, but a clean 60-second run measured 290.17%
+process CPU, indistinguishable from the 291.42% and 288.08% adaptive runs. The
+dispatcher simply completed more polls, so the batch experiment was rejected.
+
+Deferring the entire Create editor behind a lightweight button was also
+screened and rejected. Two valid idle runs without `edit.js` averaged 282.42%
+CPU versus 289.75% for the adaptive comparison, but the repeated delta varied
+substantially. More importantly, an automated first-open test found that the
+large editor could remain in initialization for more than five minutes when
+loaded in an already active domain. Delaying a core function by an unbounded
+amount is not an acceptable tradeoff, so the launcher and handshake were fully
+removed. One run that lost XR focus to the Pico boundary UI was discarded and
+is not included in these figures.
+
 Artifacts are in `power-results/physics-open-baseline-20260804T164324Z`,
 `power-results/overte-open-20260804T164643Z-r2-leaf-r2.data`,
 `power-results/controller-idle-ab-20260804T165549Z`,
 `power-results/controller-idle-repeat-20260804T170117Z`, and
-`power-results/controller-idle-20260804T165900Z.data`.
+`power-results/controller-idle-20260804T165900Z.data`. The rejected batch and
+Create-lazy runs are in `power-results/controller-batch-ab-20260804T175126Z`,
+`power-results/create-lazy-valid-20260804T181855Z`,
+`power-results/create-lazy-valid-r2-20260804T182241Z`, and
+`power-results/create-lazy-simpleperf-20260804T182608Z`.
 
 ## Limitations and next work
 
@@ -469,8 +492,8 @@ Artifacts are in `power-results/physics-open-baseline-20260804T164324Z`,
   72 presents/s, while Overte generated about 20 new frames/s.
 - Physics broadphase and inactive simple-kinematic work are already bounded and
   are not strong next candidates for this scene. The strongest remaining work
-  is per-module controller-script profiling, safe lazy loading of inactive
-  applications such as Create, avatar-heavy domain testing, and avatar
-  complexity controls. Global simulation-rate and renderable-budget reductions,
-  model-update throttling, redundant Create gizmo updates, and idle near-search
-  suppression have now been screened and rejected.
+  is avatar-heavy domain testing and avatar complexity controls. Per-module
+  controller profiling and safe Create lazy loading have now also been screened.
+  Global simulation-rate and renderable-budget reductions, model-update
+  throttling, redundant Create gizmo updates, and idle near-search suppression
+  have been screened and rejected.

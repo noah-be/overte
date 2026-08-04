@@ -29,3 +29,8 @@ has usable frame pointers. Results are written below the Git-ignored
 `android/power-results/` directory. `--binary-cache` additionally resolves the
 record against unstripped native build outputs, but is opt-in because a full
 cache can require several gigabytes.
+
+The graphics matrix additionally rejects a run whenever Overte is not the
+resumed XR activity or Pico reports an unready boundary/active Guardian
+passthrough state. This check complements image similarity and prevents a
+boundary dialog from being accepted as a low-load scene.
