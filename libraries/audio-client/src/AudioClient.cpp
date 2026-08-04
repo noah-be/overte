@@ -1440,6 +1440,33 @@ void AudioClient::handleAudioInput(QByteArray& audioBuffer) {
         bool closedInLastBlock = _audioGateOpen && !audioGateOpen;  // the gate just closed
         _audioGateOpen = audioGateOpen;
 
+#if defined(Q_OS_ANDROID)
+        if (picoMicTraceEnabled()) {
+            static quint64 gateTraceStart { usecTimestampNow() };
+            static quint64 gateTraceBlocks { 0 };
+            static quint64 gateTraceOpenBlocks { 0 };
+            ++gateTraceBlocks;
+            gateTraceOpenBlocks += audioGateOpen ? 1 : 0;
+
+            const quint64 now = usecTimestampNow();
+            if (now - gateTraceStart >= USECS_PER_SECOND) {
+                qInfo() << "PICO_MIC_GATE"
+                    << "device" << _inputDeviceInfo.deviceName()
+                    << "blocks" << gateTraceBlocks
+                    << "openBlocks" << gateTraceOpenBlocks
+                    << "openRatio" << (gateTraceBlocks > 0
+                        ? static_cast<double>(gateTraceOpenBlocks) / gateTraceBlocks : 0.0)
+                    << "enabled" << _isNoiseGateEnabled
+                    << "automatic" << _isNoiseReductionAutomatic
+                    << "threshold" << _noiseReductionThreshold
+                    << "muted" << _isMuted;
+                gateTraceStart = now;
+                gateTraceBlocks = 0;
+                gateTraceOpenBlocks = 0;
+            }
+        }
+#endif
+
         if (openedInLastBlock) {
             emit noiseGateOpened();
         } else if (closedInLastBlock) {

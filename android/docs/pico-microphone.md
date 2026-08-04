@@ -11,7 +11,8 @@ The microphone research build supports two opt-in ADB properties:
 
 - `debug.overte.audio_input`: `voicecommunication`, `voicerecognition`, `mic`,
   or `camcorder`; and
-- `debug.overte.audio_trace=1`: one-second input-level and watchdog summaries;
+- `debug.overte.audio_trace=1`: one-second raw input-level, Overte noise-gate,
+  and watchdog summaries;
   and
 - `debug.overte.audio_capture_seconds`: capture 1-60 seconds of the exact raw
   Qt input to the app-private cache file `pico-mic-input.wav`.
@@ -23,6 +24,10 @@ control. It aborts at 90 C CPU or 85 C GPU, and limits fan-off XR runs to five
 seconds. A thermally limited run still emits a CSV row with its actual elapsed
 time, partial microphone statistics, maximum temperatures, and
 `status=thermal_limit`, then returns a failure status.
+
+The CSV also reports `gate_blocks`, `gate_open_blocks`, and their weighted
+ratio. These describe Overte's adaptive noise gate after Android capture
+processing, whereas `mean_level` and `max_peak` describe the raw Qt input.
 
 ## Initial source matrix
 
@@ -125,3 +130,22 @@ GPU; the app then stopped and automatic fan control was verified. This is a
 thermal render-duration limit, not a microphone dropout. Long microphone-only
 stability tests require a lower-load scene or another way to suspend XR
 rendering without suspending audio.
+
+## Overte noise-gate interaction
+
+A bracketing 15-second external-noise comparison measured both raw input and
+Overte's default enabled, automatic noise gate. Fan speed remained
+approximately 6,600 RPM throughout.
+
+| Input source | Mean raw level | Maximum peak | Gate-open ratio |
+| --- | ---: | ---: | ---: |
+| voicecommunication A | 7.52 | 35.14 | 4.17% |
+| camcorder | 62.09 | 346.01 | 74.98% |
+| voicecommunication B | 8.00 | 33.35 | 8.44% |
+
+After brief adaptive periods, `voicecommunication` commonly held the software
+gate fully closed against the background. `camcorder` held it fully open for
+many consecutive seconds and would therefore transmit the background noise
+much more often. This establishes that the high-sensitivity source also
+defeats the later software gate; it does not establish near-field speech
+quality or attack behavior, which still require a controlled spoken phrase.

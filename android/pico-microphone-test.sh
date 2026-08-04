@@ -124,6 +124,17 @@ done
 samples="$("$ADB_BIN" -s "$PICO_SERIAL" logcat -d -v brief \
     | grep -F "PICO_MIC_LEVEL device \"$SOURCE\"" || true)"
 [[ -n "$samples" ]] || { echo "no microphone level samples captured" >&2; exit 1; }
+gate_samples="$("$ADB_BIN" -s "$PICO_SERIAL" logcat -d -v brief \
+    | grep -F "PICO_MIC_GATE device \"$SOURCE\"" || true)"
+[[ -n "$gate_samples" ]] || { echo "no microphone gate samples captured" >&2; exit 1; }
+read -r gate_blocks gate_open_blocks <<< "$(printf '%s\n' "$gate_samples" | awk '
+    {
+        for (i=1; i<=NF; i++) {
+            if ($i == "blocks") blocks += $(i+1);
+            if ($i == "openBlocks") open_blocks += $(i+1);
+        }
+    }
+    END { print blocks+0, open_blocks+0 }')"
 
 fan_rpm="$(adb_shell gd32ipdclient_test getfanrpm 2>/dev/null \
     | sed -n 's/.*GetFanRPM = //p' | head -n 1)"
@@ -133,6 +144,7 @@ fan_duty="$(adb_shell gd32ipdclient_test getfanspeed 2>/dev/null \
 printf '%s\n' "$samples" | awk -v source="$SOURCE" -v requested_duration="$DURATION" \
     -v elapsed="$elapsed_seconds" -v status="$status" \
     -v fan_rpm="$fan_rpm" -v fan_duty="$fan_duty" \
+    -v gate_blocks="$gate_blocks" -v gate_open_blocks="$gate_open_blocks" \
     -v cpu_temp="$cpu_temp" -v gpu_temp="$gpu_temp" '
     {
         for (i=1; i<=NF; i++) {
@@ -142,9 +154,11 @@ printf '%s\n' "$samples" | awk -v source="$SOURCE" -v requested_duration="$DURAT
         }
     }
     END {
-        print "source,requested_duration_s,elapsed_s,status,samples,frames,mean_level,max_peak,fan_rpm,fan_duty,cpu_temp_max_mC,gpu_temp_max_mC";
-        printf "%s,%s,%s,%s,%d,%d,%.6f,%.6f,%s,%s,%s,%s\n", source, requested_duration,
-            elapsed, status, n, frames, n ? level/n : 0, peak, fan_rpm, fan_duty, cpu_temp, gpu_temp;
+        print "source,requested_duration_s,elapsed_s,status,samples,frames,mean_level,max_peak,gate_blocks,gate_open_blocks,gate_open_ratio,fan_rpm,fan_duty,cpu_temp_max_mC,gpu_temp_max_mC";
+        printf "%s,%s,%s,%s,%d,%d,%.6f,%.6f,%d,%d,%.6f,%s,%s,%s,%s\n", source,
+            requested_duration, elapsed, status, n, frames, n ? level/n : 0, peak,
+            gate_blocks, gate_open_blocks, gate_blocks ? gate_open_blocks/gate_blocks : 0,
+            fan_rpm, fan_duty, cpu_temp, gpu_temp;
     }'
 
 [[ "$status" == "ok" ]]
