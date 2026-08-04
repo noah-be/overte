@@ -217,6 +217,14 @@ session. A device test verified source ID 1, no Android AEC or noise suppression
 one real AudioRecord opening, successful level/gate samples, and automatic fan
 restoration.
 
+JNI delivery now writes into a mutex-protected, two-second bounded PCM FIFO and
+posts at most one pending Qt drain event. AudioClient drains no more than the
+capacity of its existing ten-frame input ring per event. This prevents both an
+unbounded Qt event backlog and accidental loss inside that smaller ring. The
+watchdog uses actual capture callbacks rather than the lower number of batched
+drains. `PICO_MIC_TRANSPORT` and the test CSV separately expose captured,
+processed, dropped, current-backlog, and peak-backlog PCM frames.
+
 This deliberately does not emulate the historical diagnostic source selector:
 all Pico UI input labels currently map to the one verified public MIC source.
 The older source-comparison results below remain research evidence, not a claim
@@ -267,13 +275,19 @@ these results.
 
 The new backend removes that Qt/OpenSL capture bottleneck: the standalone public
 API test still obtains 98.2% of nominal PCM and the integrated app receives the
-same source successfully. The unoptimized full-XR debug build nevertheless
-processes only about 120-289 network frames in a measured ten-second interval
-after startup, despite briefly reaching the expected 100 frames/s. The remaining
-backlog is therefore in integrated debug AudioClient scheduling/processing, not
-in Pico hardware, permissions, proprietary APIs, or Qt's former input plugin.
-It must be resolved or checked in a release-equivalent build before using raw
-WAV duration as a speech-quality result.
+same source successfully. A corrected ten-second FIFO test captured 476,160 of
+the nominal 480,000 PCM frames (99.2%) with one AudioRecord opening. Under the
+full XR debug workload AudioClient processed 67,200 frames, produced 140 network
+frames, reached the FIFO's 96,000-frame/two-second bound, and deliberately
+dropped 401,280 oldest frames to prevent ever-growing voice latency. Automatic
+fan control was restored after the test.
+
+The batching experiment therefore disproves JNI/Qt event count as the primary
+remaining bottleneck. It localizes the problem to integrated AudioClient
+processing or scheduling under the full XR debug workload, not Pico hardware,
+permissions, proprietary APIs, or Qt's former input plugin. That path must be
+profiled stage-by-stage or checked in a release-equivalent build before using
+raw WAV duration as a speech-quality result.
 
 ## Host-TTS capture check
 

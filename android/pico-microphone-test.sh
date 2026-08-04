@@ -281,6 +281,24 @@ read -r gate_blocks gate_open_blocks <<< "$(printf '%s\n' "$gate_samples" | awk 
         }
     }
     END { print blocks+0, open_blocks+0 }')"
+transport_samples="$(printf '%s\n' "$measurement_log" \
+    | grep -F 'PICO_MIC_TRANSPORT' || true)"
+[[ -n "$transport_samples" ]] \
+    || { echo "no microphone transport samples captured" >&2; exit 1; }
+read -r captured_pcm_frames processed_pcm_frames dropped_pcm_frames \
+    backlog_pcm_frames peak_backlog_pcm_frames transport_drains <<< \
+    "$(printf '%s\n' "$transport_samples" | awk '
+    {
+        for (i=1; i<=NF; i++) {
+            if ($i == "capturedFrames") captured += $(i+1);
+            if ($i == "processedFrames") processed += $(i+1);
+            if ($i == "droppedFrames") dropped += $(i+1);
+            if ($i == "backlogFrames") backlog = $(i+1);
+            if ($i == "peakBacklogFrames" && $(i+1) > peak_backlog) peak_backlog = $(i+1);
+            if ($i == "drains") drains += $(i+1);
+        }
+    }
+    END { print captured+0, processed+0, dropped+0, backlog+0, peak_backlog+0, drains+0 }')"
 
 audio_flinger="$(adb_shell dumpsys media.audio_flinger 2>/dev/null)"
 active_input="$(printf '%s\n' "$audio_flinger" | awk '
@@ -314,6 +332,12 @@ printf '%s\n' "$samples" | awk -v source="$SOURCE" -v requested_duration="$DURAT
     -v aec_enabled="$aec_enabled" -v ns_enabled="$noise_suppression_enabled" \
     -v fan_rpm="$fan_rpm" -v fan_duty="$fan_duty" \
     -v gate_blocks="$gate_blocks" -v gate_open_blocks="$gate_open_blocks" \
+    -v captured_pcm_frames="$captured_pcm_frames" \
+    -v processed_pcm_frames="$processed_pcm_frames" \
+    -v dropped_pcm_frames="$dropped_pcm_frames" \
+    -v backlog_pcm_frames="$backlog_pcm_frames" \
+    -v peak_backlog_pcm_frames="$peak_backlog_pcm_frames" \
+    -v transport_drains="$transport_drains" \
     -v cpu_temp="$cpu_temp" -v gpu_temp="$gpu_temp" '
     {
         for (i=1; i<=NF; i++) {
@@ -323,12 +347,14 @@ printf '%s\n' "$samples" | awk -v source="$SOURCE" -v requested_duration="$DURAT
         }
     }
     END {
-        print "source,audio_source_id,audio_source_name,aec_enabled,noise_suppression_enabled,startup_input_starts,startup_input_reuses,requested_duration_s,elapsed_s,status,samples,frames,mean_level,max_peak,gate_blocks,gate_open_blocks,gate_open_ratio,fan_rpm,fan_duty,cpu_temp_max_mC,gpu_temp_max_mC";
-        printf "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%d,%.6f,%.6f,%d,%d,%.6f,%s,%s,%s,%s\n",
+        print "source,audio_source_id,audio_source_name,aec_enabled,noise_suppression_enabled,startup_input_starts,startup_input_reuses,requested_duration_s,elapsed_s,status,samples,frames,mean_level,max_peak,gate_blocks,gate_open_blocks,gate_open_ratio,captured_pcm_frames,processed_pcm_frames,dropped_pcm_frames,backlog_pcm_frames,peak_backlog_pcm_frames,transport_drains,fan_rpm,fan_duty,cpu_temp_max_mC,gpu_temp_max_mC";
+        printf "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%d,%.6f,%.6f,%d,%d,%.6f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
             source, audio_source_id, audio_source_name, aec_enabled, ns_enabled,
             startup_input_starts, startup_input_reuses, requested_duration, elapsed, status,
             n, frames, n ? level/n : 0, peak,
             gate_blocks, gate_open_blocks, gate_blocks ? gate_open_blocks/gate_blocks : 0,
+            captured_pcm_frames, processed_pcm_frames, dropped_pcm_frames,
+            backlog_pcm_frames, peak_backlog_pcm_frames, transport_drains,
             fan_rpm, fan_duty, cpu_temp, gpu_temp;
     }'
 

@@ -211,7 +211,7 @@ public slots:
     void sendDownstreamAudioStatsPacket() { _stats.publish(); }
     void handleMicAudioInput();
 #if defined(ANDROID_APP_PICO_INTERFACE)
-    void handleAndroidAudioInput(const QByteArray& audio);
+    void drainAndroidAudioInput();
 #endif
     void audioInputStateChanged(QAudio::State state);
     void checkInputTimeout();

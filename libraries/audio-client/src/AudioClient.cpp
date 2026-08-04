@@ -18,6 +18,7 @@
 #include <cmath>
 #include <cstring>
 #include <math.h>
+#include <mutex>
 #include <sys/stat.h>
 
 #include <glm/glm.hpp>
@@ -117,6 +118,145 @@ static QString picoMicCapturePath() {
 #if defined(ANDROID_APP_PICO_INTERFACE)
 static std::atomic<jclass> androidAudioInputClass { nullptr };
 static std::atomic<JavaVM*> androidJavaVm { nullptr };
+
+struct AndroidAudioTransportStats {
+    quint64 capturedFrames { 0 };
+    quint64 processedFrames { 0 };
+    quint64 droppedFrames { 0 };
+    quint64 backlogFrames { 0 };
+    quint64 peakBacklogFrames { 0 };
+    quint64 drains { 0 };
+};
+
+static std::mutex androidAudioTransportMutex;
+static QByteArray androidAudioTransportBuffer;
+static bool androidAudioDrainScheduled { false };
+static int androidAudioBytesPerFrame { static_cast<int>(sizeof(int16_t)) };
+static int androidAudioMaxBufferBytes { 0 };
+static quint64 androidAudioTraceStart { 0 };
+static quint64 androidAudioCapturedBytes { 0 };
+static quint64 androidAudioProcessedBytes { 0 };
+static quint64 androidAudioDroppedBytes { 0 };
+static quint64 androidAudioPeakBacklogBytes { 0 };
+static quint64 androidAudioDrainCount { 0 };
+static quint64 androidAudioCapturedCallbacksSinceWatchdog { 0 };
+
+static void resetAndroidAudioTransport(const QAudioFormat& format) {
+    std::lock_guard<std::mutex> guard(androidAudioTransportMutex);
+    androidAudioTransportBuffer.clear();
+    androidAudioDrainScheduled = false;
+    androidAudioBytesPerFrame = std::max(
+        1, format.channelCount() * static_cast<int>(sizeof(int16_t)));
+    // Bound latency and memory if AudioClient temporarily cannot keep up.
+    androidAudioMaxBufferBytes = format.sampleRate() * androidAudioBytesPerFrame * 2;
+    androidAudioTraceStart = usecTimestampNow();
+    androidAudioCapturedBytes = 0;
+    androidAudioProcessedBytes = 0;
+    androidAudioDroppedBytes = 0;
+    androidAudioPeakBacklogBytes = 0;
+    androidAudioDrainCount = 0;
+    androidAudioCapturedCallbacksSinceWatchdog = 0;
+}
+
+static bool enqueueAndroidAudio(const QByteArray& audio) {
+    std::lock_guard<std::mutex> guard(androidAudioTransportMutex);
+    androidAudioCapturedBytes += audio.size();
+    ++androidAudioCapturedCallbacksSinceWatchdog;
+
+    if (androidAudioMaxBufferBytes > 0 &&
+            androidAudioTransportBuffer.size() + audio.size() > androidAudioMaxBufferBytes) {
+        const int overflow = androidAudioTransportBuffer.size() + audio.size() -
+            androidAudioMaxBufferBytes;
+        if (overflow >= androidAudioTransportBuffer.size()) {
+            androidAudioDroppedBytes += androidAudioTransportBuffer.size();
+            androidAudioTransportBuffer.clear();
+            const int incomingOverflow = audio.size() - androidAudioMaxBufferBytes;
+            if (incomingOverflow > 0) {
+                androidAudioDroppedBytes += incomingOverflow;
+                androidAudioTransportBuffer.append(audio.constData() + incomingOverflow,
+                    androidAudioMaxBufferBytes);
+            } else {
+                androidAudioTransportBuffer.append(audio);
+            }
+        } else {
+            androidAudioDroppedBytes += overflow;
+            androidAudioTransportBuffer.remove(0, overflow);
+            androidAudioTransportBuffer.append(audio);
+        }
+    } else {
+        androidAudioTransportBuffer.append(audio);
+    }
+
+    androidAudioPeakBacklogBytes = std::max(
+        androidAudioPeakBacklogBytes,
+        static_cast<quint64>(androidAudioTransportBuffer.size()));
+    if (androidAudioDrainScheduled) {
+        return false;
+    }
+    androidAudioDrainScheduled = true;
+    return true;
+}
+
+static void cancelAndroidAudioDrainSchedule() {
+    std::lock_guard<std::mutex> guard(androidAudioTransportMutex);
+    androidAudioDrainScheduled = false;
+}
+
+static QByteArray takePendingAndroidAudio(int maxBytes) {
+    std::lock_guard<std::mutex> guard(androidAudioTransportMutex);
+    const int bytes = std::min(maxBytes, androidAudioTransportBuffer.size());
+    QByteArray audio(androidAudioTransportBuffer.constData(), bytes);
+    androidAudioTransportBuffer.remove(0, bytes);
+    ++androidAudioDrainCount;
+    return audio;
+}
+
+static bool finishAndroidAudioDrain(bool discardPending) {
+    std::lock_guard<std::mutex> guard(androidAudioTransportMutex);
+    if (discardPending) {
+        androidAudioTransportBuffer.clear();
+    }
+    if (androidAudioTransportBuffer.isEmpty()) {
+        androidAudioDrainScheduled = false;
+        return false;
+    }
+    return true;
+}
+
+static void markAndroidAudioProcessed(int bytes) {
+    std::lock_guard<std::mutex> guard(androidAudioTransportMutex);
+    androidAudioProcessedBytes += bytes;
+}
+
+static quint64 takeAndroidAudioCapturedCallbacksSinceWatchdog() {
+    std::lock_guard<std::mutex> guard(androidAudioTransportMutex);
+    const quint64 callbacks = androidAudioCapturedCallbacksSinceWatchdog;
+    androidAudioCapturedCallbacksSinceWatchdog = 0;
+    return callbacks;
+}
+
+static bool takeAndroidAudioTransportStats(
+        quint64 now, AndroidAudioTransportStats& stats) {
+    std::lock_guard<std::mutex> guard(androidAudioTransportMutex);
+    if (now - androidAudioTraceStart < USECS_PER_SECOND) {
+        return false;
+    }
+    const quint64 bytesPerFrame = static_cast<quint64>(androidAudioBytesPerFrame);
+    stats.capturedFrames = androidAudioCapturedBytes / bytesPerFrame;
+    stats.processedFrames = androidAudioProcessedBytes / bytesPerFrame;
+    stats.droppedFrames = androidAudioDroppedBytes / bytesPerFrame;
+    stats.backlogFrames = androidAudioTransportBuffer.size() / bytesPerFrame;
+    stats.peakBacklogFrames = androidAudioPeakBacklogBytes / bytesPerFrame;
+    stats.drains = androidAudioDrainCount;
+
+    androidAudioTraceStart = now;
+    androidAudioCapturedBytes = 0;
+    androidAudioProcessedBytes = 0;
+    androidAudioDroppedBytes = 0;
+    androidAudioPeakBacklogBytes = androidAudioTransportBuffer.size();
+    androidAudioDrainCount = 0;
+    return true;
+}
 
 class AndroidJniEnvironment {
 public:
@@ -223,12 +363,14 @@ Java_org_overte_pico_AndroidAudioInput_nativeOnAudioData(
     }
 
     auto audioClient = DependencyManager::get<AudioClient>();
-    if (audioClient) {
-        QMetaObject::invokeMethod(
+    if (enqueueAndroidAudio(audio)) {
+        const bool scheduled = audioClient && QMetaObject::invokeMethod(
             audioClient.data(),
-            "handleAndroidAudioInput",
-            Qt::QueuedConnection,
-            Q_ARG(QByteArray, audio));
+            "drainAndroidAudioInput",
+            Qt::QueuedConnection);
+        if (!scheduled) {
+            cancelAndroidAudioDrainSchedule();
+        }
     }
 }
 #endif
@@ -1666,13 +1808,17 @@ void AudioClient::handleMicAudioInput() {
 }
 
 #if defined(ANDROID_APP_PICO_INTERFACE)
-void AudioClient::handleAndroidAudioInput(const QByteArray& audio) {
-    if (!_androidAudioInputActive || _isPlayingBackRecording || audio.isEmpty()) {
+void AudioClient::drainAndroidAudioInput() {
+    // AudioClient's existing input ring holds ten network frames. Drain at
+    // most that much per event so a batched write cannot discard older PCM.
+    const int maxDrainBytes = std::max(_numInputCallbackBytes, _numInputCallbackBytes * 5);
+    QByteArray inputByteArray = takePendingAndroidAudio(maxDrainBytes);
+    if (!_androidAudioInputActive || _isPlayingBackRecording || inputByteArray.isEmpty()) {
+        finishAndroidAudioDrain(true);
         return;
     }
 
     ++_inputReadsSinceLastCheck;
-    QByteArray inputByteArray(audio);
     if (_androidAudioInputVolume < 1.0f) {
         auto* samples = reinterpret_cast<int16_t*>(inputByteArray.data());
         const int sampleCount = inputByteArray.size() / static_cast<int>(sizeof(int16_t));
@@ -1681,6 +1827,25 @@ void AudioClient::handleAndroidAudioInput(const QByteArray& audio) {
         }
     }
     processMicAudioInput(inputByteArray);
+    markAndroidAudioProcessed(inputByteArray.size());
+
+    if (picoMicTraceEnabled()) {
+        AndroidAudioTransportStats stats;
+        if (takeAndroidAudioTransportStats(usecTimestampNow(), stats)) {
+            qInfo() << "PICO_MIC_TRANSPORT"
+                << "capturedFrames" << stats.capturedFrames
+                << "processedFrames" << stats.processedFrames
+                << "droppedFrames" << stats.droppedFrames
+                << "backlogFrames" << stats.backlogFrames
+                << "peakBacklogFrames" << stats.peakBacklogFrames
+                << "drains" << stats.drains;
+        }
+    }
+
+    if (finishAndroidAudioDrain(false) && !QMetaObject::invokeMethod(
+            this, "drainAndroidAudioInput", Qt::QueuedConnection)) {
+        cancelAndroidAudioDrainSchedule();
+    }
 }
 #endif
 
@@ -2286,6 +2451,7 @@ bool AudioClient::switchInputToAudioDevice(const HifiAudioDeviceInfo inputDevice
                 _inputRingBuffer.resizeForFrameSize(numFrameSamples);
 
 #if defined(ANDROID_APP_PICO_INTERFACE)
+                resetAndroidAudioTransport(_inputFormat);
                 _androidAudioInputActive = startAndroidAudioInput(_inputFormat, numFrameSamples);
                 if (_androidAudioInputActive) {
                     emit inputVolumeChanged(_androidAudioInputVolume);
@@ -2380,6 +2546,10 @@ void AudioClient::audioInputStateChanged(QAudio::State state) {
 
 void AudioClient::checkInputTimeout() {
 #if defined(Q_OS_ANDROID)
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    const quint64 androidCapturedCallbacks = _androidAudioInputActive
+        ? takeAndroidAudioCapturedCallbacksSinceWatchdog() : 0;
+#endif
     if (picoMicTraceEnabled()) {
         qInfo() << "PICO_MIC_WATCHDOG"
             << "device" << _inputDeviceInfo.deviceName()
@@ -2387,6 +2557,7 @@ void AudioClient::checkInputTimeout() {
             << "backend"
 #if defined(ANDROID_APP_PICO_INTERFACE)
             << (_androidAudioInputActive ? "AudioRecord" : "Qt")
+            << "captures" << androidCapturedCallbacks
             << "state" << (_audioInput ? _audioInput->state() :
                 (_androidAudioInputActive ? QAudio::ActiveState : QAudio::StoppedState))
 #else
@@ -2396,7 +2567,7 @@ void AudioClient::checkInputTimeout() {
             << "error" << (_audioInput ? _audioInput->error() : QAudio::NoError);
     }
 #if defined(ANDROID_APP_PICO_INTERFACE)
-    if (_androidAudioInputActive && _inputReadsSinceLastCheck < MIN_READS_TO_CONSIDER_INPUT_ALIVE) {
+    if (_androidAudioInputActive && androidCapturedCallbacks < MIN_READS_TO_CONSIDER_INPUT_ALIVE) {
         qCWarning(audioclient) << "Android AudioRecord input stalled; restarting";
         _inputReadsSinceLastCheck = 0;
         switchInputToAudioDevice(_inputDeviceInfo);
