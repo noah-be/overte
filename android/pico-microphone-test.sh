@@ -52,6 +52,7 @@ restore_fan() {
     done
     echo "warning: automatic fan control could not be verified" >&2
     fan_test_active=0
+    return 1
 }
 
 cleanup() {
@@ -60,11 +61,15 @@ cleanup() {
     adb_shell "setprop debug.overte.audio_input ''" >/dev/null 2>&1 || true
     adb_shell "setprop debug.overte.audio_trace ''" >/dev/null 2>&1 || true
     adb_shell "setprop debug.overte.audio_capture_seconds ''" >/dev/null 2>&1 || true
-    restore_fan
+    restore_fan || true
 }
 trap cleanup EXIT INT TERM HUP
 
-if [[ "$FAN_SPEED" != auto ]]; then
+if [[ "$FAN_SPEED" == auto ]]; then
+    # Recover safely if a previous interrupted fixed-fan test left test mode on.
+    fan_test_active=1
+    restore_fan
+else
     output="$(adb_shell gd32ipdclient_test setfantestmode 1 2>&1)"
     [[ "$output" == *success* ]] || { echo "$output" >&2; exit 1; }
     fan_test_active=1

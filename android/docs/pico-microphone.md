@@ -24,6 +24,10 @@ seconds. A thermally limited run still emits a CSV row with its actual elapsed
 time, partial microphone statistics, maximum temperatures, and
 `status=thermal_limit`, then returns a failure status.
 
+An `auto` run disables any stale fixed-fan test mode and verifies that actual
+fan duty matches the thermal service before launching Overte. If this cannot
+be verified, the microphone test does not start.
+
 The CSV also reports `gate_blocks`, `gate_open_blocks`, and their weighted
 ratio. These describe Overte's adaptive noise gate after Android capture
 processing, whereas `mean_level` and `max_peak` describe the raw Qt input.
