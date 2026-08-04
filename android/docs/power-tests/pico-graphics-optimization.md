@@ -567,6 +567,20 @@ scene assurance, and scale animation as useful Pico crowd targets in this
 scene. Priority construction scales, but its current process-level effect is
 too small to justify a production change.
 
+A later guarded 30-second-per-stage 0/5/0/5 matrix retained two stable real
+templates throughout and compared 3 with 13 total avatars. The two baseline
+stages averaged 223.583% process CPU, 3.116 ms avatar simulation, and 0.75
+budget-skipped updates. The two loaded stages averaged 223.083% CPU, 3.646 ms
+simulation, and 10.75 skipped updates. Thus process CPU changed by only -0.50
+percentage points while avatar simulation increased by 0.530 ms (17.0%) and
+ten additional updates per frame were skipped. The budgeted simulate/render
+section remained effectively unchanged at 1.074 versus 1.063 ms. Complete
+other-avatar processing grew from 3.279 to 4.014 ms, again mostly in the
+wall-clock state-poll bucket rather than in a CPU-profiled compute hotspot.
+This longer stable repetition reinforces the fixed-budget conclusion without
+justifying a production budget increase or crowd-quality change. Raw local
+artifacts are in `power-results/avatar-long-guarded-20260804`.
+
 A guarded 15-second, 99 Hz frame-pointer callgraph follow-up captured 2858
 samples with none lost. `AvatarManager::updateOtherAvatars()` accounted for
 2.79% of sampled cycles including descendants. Its largest visible descendant
