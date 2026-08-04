@@ -47,10 +47,12 @@ cd android
 ./pico-unattended-test.sh replicas 0
 ```
 
-The status reports total and locally replicated avatar counts plus the existing
-avatar update-budget counters. Replica commands are timestamped and ignored
-when stale, so an interrupted test cannot replay its load after a later app
-restart. Always return the count to zero after a test.
+The status reports total and locally replicated avatar counts, the existing
+avatar update-budget counters, and the mean avatar-simulation time across all
+frames in the latest one-second status interval. Replica commands are
+timestamped and ignored when stale, so an interrupted test cannot replay its
+load after a later app restart. Test mode itself is re-read at runtime. Always
+return the count to zero after a test.
 
 For a guarded repeated A/B matrix in the current domain, run:
 

@@ -2094,6 +2094,23 @@ void Application::update(float deltaTime) {
     }
 #if defined(Q_OS_ANDROID)
     const quint64 picoUpdateStart = usecTimestampNow();
+    static bool picoTestMode { false };
+    static double picoAvatarSimulationMsSum { 0.0 };
+    static quint64 picoAvatarSimulationSamples { 0 };
+    static quint64 lastTestModePropertyCheck { 0 };
+    if (picoUpdateStart - lastTestModePropertyCheck >= USECS_PER_SECOND) {
+        lastTestModePropertyCheck = picoUpdateStart;
+        char testModeValue[PROP_VALUE_MAX] {};
+        const QString requestedTestMode = __system_property_get("debug.overte.test_mode", testModeValue) > 0
+            ? QString::fromLatin1(testModeValue).trimmed().toLower()
+            : QString();
+        picoTestMode = requestedTestMode == "1" || requestedTestMode == "on" ||
+            requestedTestMode == "true" || requestedTestMode == "enabled";
+        if (!picoTestMode) {
+            picoAvatarSimulationMsSum = 0.0;
+            picoAvatarSimulationSamples = 0;
+        }
+    }
     // ADB-controlled navigation for unattended Pico performance tests. The
     // nonce prefix lets the same destination be requested more than once.
     static quint64 lastNavigationPropertyCheck { 0 };
@@ -2104,15 +2121,6 @@ void Application::update(float deltaTime) {
         // Publish the authoritative connected world and avatar position only
         // for explicitly enabled unattended tests. Normal Pico sessions avoid
         // this once-per-second cache-file write.
-        static const bool picoTestMode = [] {
-            char value[PROP_VALUE_MAX] {};
-            if (__system_property_get("debug.overte.test_mode", value) <= 0) {
-                return false;
-            }
-            const QString requested = QString::fromLatin1(value).trimmed().toLower();
-            return requested == "1" || requested == "on" || requested == "true" ||
-                requested == "enabled";
-        }();
         static quint64 lastWorldStatusWrite { 0 };
         if (picoTestMode && picoUpdateStart - lastWorldStatusWrite >= USECS_PER_SECOND) {
             lastWorldStatusWrite = picoUpdateStart;
@@ -2170,6 +2178,9 @@ void Application::update(float deltaTime) {
                         ++replicatedAvatars;
                     }
                 }
+                const double averageAvatarSimulationMs = picoAvatarSimulationSamples > 0
+                    ? picoAvatarSimulationMsSum / double(picoAvatarSimulationSamples)
+                    : 0.0;
                 const QString avatarStatus = QStringLiteral("%1|%2|%3|%4|%5|%6|%7|%8")
                     .arg(QDateTime::currentSecsSinceEpoch())
                     .arg(avatarHash.size())
@@ -2178,12 +2189,14 @@ void Application::update(float deltaTime) {
                     .arg(avatarManager->getNumAvatarsUpdated())
                     .arg(avatarManager->getNumAvatarsNotUpdated())
                     .arg(avatarManager->getNumHeroAvatars())
-                    .arg(avatarManager->getAvatarSimulationTime(), 0, 'f', 3);
+                    .arg(averageAvatarSimulationMs, 0, 'f', 3);
                 QSaveFile avatarStatusFile("/data/user/0/org.overte.pico/cache/avatar-status");
                 if (avatarStatusFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
                     avatarStatusFile.write(avatarStatus.toUtf8());
                     avatarStatusFile.commit();
                 }
+                picoAvatarSimulationMsSum = 0.0;
+                picoAvatarSimulationSamples = 0;
             }
         }
 
@@ -2747,6 +2760,14 @@ void Application::update(float deltaTime) {
             PROFILE_RANGE(simulation, "OtherAvatars");
             PerformanceTimer perfTimer("otherAvatars");
             avatarManager->updateOtherAvatars(deltaTime);
+#if defined(Q_OS_ANDROID)
+            if (picoTestMode) {
+                picoAvatarSimulationMsSum += avatarManager->size() > 1
+                    ? avatarManager->getAvatarSimulationTime()
+                    : 0.0;
+                ++picoAvatarSimulationSamples;
+            }
+#endif
         }
 
         {

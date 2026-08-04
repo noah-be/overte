@@ -500,7 +500,8 @@ replicas.
 
 Two short interleaved A/B screening pairs used a fixed 100% fan and MCU
 brightness 1. Each side contained six samples and retained the same three real
-template avatars:
+template avatars. At this point the avatar-simulation value was an
+instantaneous sample taken when status was published:
 
 | Metric | 4 avatars | 19 avatars | Combined delta |
 | --- | ---: | ---: | ---: |
@@ -515,6 +516,18 @@ production complexity limit. A controlled template avatar and longer
 interleaved runs are required before changing avatar quality or distance rules.
 `pico-avatar-matrix.sh` now automates those repeated stages and rejects a run if
 XR focus or the real template-avatar population changes.
+
+A follow-up 20-second-per-stage 0/5/0/5 matrix retained one stable template.
+Combined process CPU was 226.38% without replicas and 222.88% with replicas,
+so this run did not reproduce an overall CPU increase. It also confirmed that
+an instantaneous avatar-simulation sample is too sensitive to frame timing for
+small matrices. Test-mode status now reports the mean of every avatar
+simulation frame in its one-second publication interval and test mode can be
+toggled at runtime. A post-change smoke matrix measured 2.895 ms without
+replicas and 4.178 ms with replicas (+44.3%), while combined process CPU was
+231.5% and 225.4% respectively. This more stable internal metric confirms that
+local avatar work scales, but the total-process effect remains below the noise
+of the current scene. No production avatar limit is justified by these runs.
 
 ## Limitations and next work
 
