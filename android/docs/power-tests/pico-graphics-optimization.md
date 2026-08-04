@@ -695,9 +695,10 @@ missing axis from the other two when possible, and uses an identity rotation
 when the orientation cannot be recovered safely. Non-finite input matrices
 also fall back to an identity pose. Regression coverage exercises each of the
 three collapsed axes, a fully collapsed transform, and non-finite input. The
-Android build and a clean Pico cold start completed without a NaN, native
-crash, or JNI error. A loaded-crowd rerun is still needed when a controlled
-external template population is available.
+complete host animation test executable passed all 12 test groups. The Android
+build and a clean Pico cold start also completed without a NaN, native crash,
+or JNI error. A loaded-crowd rerun is still needed when a controlled external
+template population is available.
 
 ## Limitations and next work
 
