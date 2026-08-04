@@ -63,6 +63,8 @@ For a guarded repeated A/B matrix in the current domain, run:
 The default sequence is 0, 5, 0, and 5 copies per real template avatar.
 Repeated `--replicas` options define a different sequence. The matrix fixes the
 fan and brightness during measurement, rejects XR-focus loss or any change in
-the real template population, writes aggregate CSV results under
-`android/power-results/`, then clears all copies and restores the device
-controls. It never records screenshots or avatar identifiers.
+the real template population, enables test mode for the run, writes aggregate
+CSV results under `android/power-results/`, then clears all copies and restores
+test mode and the device controls. An app restart also rejects the run rather
+than mixing measurements from different processes. It never records
+screenshots or avatar identifiers.

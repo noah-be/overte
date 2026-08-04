@@ -74,7 +74,7 @@ foreground_package() {
 }
 
 validate_xr_focus() {
-    local stage="$1" active_package boundary_ready guardian_vst
+    local stage="$1" active_package boundary_ready guardian_vst current_pid
     active_package="$(foreground_package)"
     boundary_ready="$(adb_shell getprop sys.pxr.boundary.ready 2>/dev/null | tr -d '\r')"
     guardian_vst="$(adb_shell getprop sys.guardian.vst.status 2>/dev/null | tr -d '\r')"
@@ -86,6 +86,13 @@ validate_xr_focus() {
         echo "Pico Guardian/Seethrough is active during $stage (boundary_ready=${boundary_ready:-unknown}, guardian_vst=${guardian_vst:-unknown})" >&2
         return 1
     }
+    if [[ -n "${PID:-}" ]]; then
+        current_pid="$(adb_shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r')"
+        [[ "$current_pid" == "$PID" ]] || {
+            echo "Overte restarted during $stage (expected PID $PID, active: ${current_pid:-none})" >&2
+            return 1
+        }
+    fi
 }
 
 "$ADB_BIN" -s "$PICO_SERIAL" get-state >/dev/null

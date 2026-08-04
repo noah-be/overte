@@ -72,7 +72,7 @@ foreground_package() {
 }
 
 validate_xr_focus() {
-    local stage="$1" active_package boundary_ready guardian_vst
+    local stage="$1" active_package boundary_ready guardian_vst current_pid
     active_package="$(foreground_package)"
     boundary_ready="$(adb_shell getprop sys.pxr.boundary.ready 2>/dev/null | tr -d '\r')"
     guardian_vst="$(adb_shell getprop sys.guardian.vst.status 2>/dev/null | tr -d '\r')"
@@ -85,6 +85,13 @@ validate_xr_focus() {
             "(boundary_ready=${boundary_ready:-unknown}, guardian_vst=${guardian_vst:-unknown})" >&2
         return 1
     }
+    if [[ -n "${PID:-}" ]]; then
+        current_pid="$(adb_shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r')"
+        [[ "$current_pid" == "$PID" ]] || {
+            echo "Overte restarted during $stage (expected PID $PID, active: ${current_pid:-none})" >&2
+            return 1
+        }
+    fi
 }
 
 read_avatar_status() {
@@ -137,9 +144,20 @@ mkdir -p "$RESULT_DIR"
 RESULT_DIR="$(cd -- "$RESULT_DIR" && pwd)"
 ORIGINAL_BRIGHTNESS="$(adb_shell gd32ipdclient_test getbrightness 2>/dev/null | sed -n 's/.*= //p' | tr -d '\r')"
 ORIGINAL_FAN_SPEED="$(adb_shell gd32ipdclient_test getfanspeed 2>/dev/null | sed -n 's/.*= //p' | tr -d '\r')"
+ORIGINAL_TEST_MODE="$(adb_shell getprop debug.overte.test_mode 2>/dev/null | tr -d '\r')"
 
 cleanup() {
+    local cleanup_status cleanup_epoch cleanup_total cleanup_replicated cleanup_target cleanup_rest
     adb_shell setprop debug.overte.avatar_replicas "$(date +%s)\\|0" >/dev/null 2>&1 || true
+    # Give the running app a chance to remove replicas before disabling a test
+    # mode that was off when the matrix started.
+    for _ in 1 2 3; do
+        cleanup_status="$(adb_shell run-as "$PACKAGE" cat cache/avatar-status 2>/dev/null || true)"
+        IFS='|' read -r cleanup_epoch cleanup_total cleanup_replicated cleanup_target cleanup_rest <<<"$cleanup_status"
+        [[ "$cleanup_target" == "0" ]] && break
+        sleep 1
+    done
+    adb_shell setprop debug.overte.test_mode "${ORIGINAL_TEST_MODE:-0}" >/dev/null 2>&1 || true
     if [[ "$ORIGINAL_FAN_SPEED" =~ ^[0-9]+$ ]]; then
         adb_shell gd32ipdclient_test setfantestspeed "$ORIGINAL_FAN_SPEED" >/dev/null 2>&1 || true
     fi
@@ -156,6 +174,7 @@ validate_xr_focus "avatar matrix setup"
 PID="$(adb_shell pidof "$PACKAGE" | tr -d '\r')"
 [[ -n "$PID" ]] || { echo "$PACKAGE is not running" >&2; exit 1; }
 
+adb_shell setprop debug.overte.test_mode 1 >/dev/null
 set_replicas 0
 REAL_TEMPLATES="$(wait_for_replica_load 0)"
 (( REAL_TEMPLATES > 0 )) || { echo "the current domain has no other avatar template" >&2; exit 1; }
