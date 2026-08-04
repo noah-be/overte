@@ -46,6 +46,11 @@ skeleton model remain loaded. It rejects the profile if the crowd changes or
 falls back to loading placeholders. The validated source and replica counts
 are recorded in the profile metadata.
 
+Profile metadata records whether the tracked source tree was clean and the
+SHA-256 digest of the APK actually installed on the headset. This distinguishes
+an experimental APK built from uncommitted changes from the named Git commit
+without storing its device-specific installation path.
+
 The Pico test scripts use `PICO_SERIAL` or `ANDROID_SERIAL` when set. Without
 either variable they require exactly one authorized device in `adb devices`
 and select it automatically. No developer-specific device address or serial

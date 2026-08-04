@@ -186,6 +186,14 @@ adb_shell run-as "$PACKAGE" true >/dev/null 2>&1 || {
     echo "$PACKAGE must be installed as a debuggable app for simpleperf --app" >&2
     exit 1
 }
+INSTALLED_APK_PATH="$(adb_shell pm path "$PACKAGE" 2>/dev/null | sed -n 's/^package://p' | tr -d '\r' | head -n 1 || true)"
+INSTALLED_APK_SHA256="$(adb_shell sha256sum "$INSTALLED_APK_PATH" 2>/dev/null | awk '{ print $1 }' | tr -d '\r' || true)"
+[[ -n "$INSTALLED_APK_PATH" && "$INSTALLED_APK_SHA256" =~ ^[[:xdigit:]]{64}$ ]] || {
+    echo "unable to fingerprint the installed $PACKAGE APK" >&2
+    exit 1
+}
+GIT_TRACKED_STATE=clean
+[[ -z "$(git -C "$SCRIPT_DIR/.." status --porcelain --untracked-files=no)" ]] || GIT_TRACKED_STATE=dirty
 
 if [[ -e "$RESULT_DIR" && ! -d "$RESULT_DIR" ]]; then
     echo "result path is not a directory: $RESULT_DIR" >&2
@@ -260,6 +268,7 @@ validate_xr_focus "profile setup"
 {
     printf 'timestamp_utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     printf 'git_commit=%s\n' "$(git -C "$SCRIPT_DIR/.." rev-parse HEAD)"
+    printf 'git_tracked_state=%s\ninstalled_apk_sha256=%s\n' "$GIT_TRACKED_STATE" "$INSTALLED_APK_SHA256"
     printf 'package=%s\npid=%s\n' "$PACKAGE" "$PID"
     printf 'duration_s=%s\nfrequency_hz=%s\ncall_graph=%s\n' "$DURATION" "$FREQUENCY" "$CALL_GRAPH"
     printf 'prepared_hub=%s\nwarmup_s=%s\n' "$PREPARE_SCENE" "$WARMUP"
