@@ -150,10 +150,12 @@ adb shell gd32ipdclient_test setfantestmode 0
 For Overte runs, the recorder also verifies that `org.overte.pico` remains the
 active XR application during warm-up and every recorded sample. It aborts if
 Pico Seethrough, Boundary, or another application takes focus, or if Interface
-restarts and would mix different processes in one result. Battery levels below
-21% also abort the recording by default because Pico energy-saving mode can
-change the measured workload. Override the threshold only for explicitly
-non-comparable diagnostics with `--min-battery`.
+restarts and would mix different processes in one result. The Guardian check
+uses the Pico boundary-ready and video-seethrough runtime properties, since a
+system overlay can be visible while Android still reports Interface as the
+resumed activity. Battery levels below 21% also abort the recording by default
+because Pico energy-saving mode can change the measured workload. Override the
+threshold only for explicitly non-comparable diagnostics with `--min-battery`.
 
 Every Overte run must provide `--expected-world`. Interface publishes its
 authoritative AddressManager connection state, resolved place name, domain ID,

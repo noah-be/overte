@@ -390,6 +390,22 @@ foreground_package() {
         | head -n 1
 }
 
+validate_xr_focus() {
+    local stage="$1" active_package boundary_ready guardian_vst
+    active_package="$(foreground_package)"
+    boundary_ready="$(adb_shell getprop sys.pxr.boundary.ready 2>/dev/null)"
+    guardian_vst="$(adb_shell getprop sys.guardian.vst.status 2>/dev/null)"
+    [[ "$active_package" == "org.overte.pico" ]] || {
+        echo "error: Overte lost XR focus during $stage (active: ${active_package:-unknown})" >&2
+        return 1
+    }
+    [[ "$boundary_ready" != "0" && "$guardian_vst" != "1" ]] || {
+        echo "error: Pico Guardian/Seethrough is active during $stage" \
+            "(boundary_ready=${boundary_ready:-unknown}, guardian_vst=${guardian_vst:-unknown})" >&2
+        return 1
+    }
+}
+
 validate_world() {
     local stage="$1" status status_epoch connected place domain_id x y z now
     status="$(adb_shell run-as org.overte.pico cat cache/world-status 2>/dev/null || true)"
@@ -426,7 +442,7 @@ record() {
     local label="" duration=1800 warmup=300 interval=1 output=""
     local allow_charging=0 app_check=1 fan_speed="" brightness="" max_cpu_temp=95 max_skin_temp=70
     local max_battery_temp=45 min_battery=21 arg dump plugged start_epoch now_epoch elapsed next_sample
-    local timestamp device_row cpu_temp_raw skin_temp_raw battery_temp_raw battery_level active_package="" aborted=0
+    local timestamp device_row cpu_temp_raw skin_temp_raw battery_temp_raw battery_level aborted=0
     local invalid_output
     local expected_pid="" current_pid
     local power_profile foveation
@@ -498,9 +514,7 @@ record() {
             || fail "org.overte.pico is not running; start it or use --no-app-check for a baseline"
         [[ -n "$expected_world" ]] \
             || fail "Overte runs require --expected-world NAME to guard against testing the wrong world"
-        active_package="$(foreground_package)"
-        [[ "$active_package" == "org.overte.pico" ]] \
-            || fail "Overte is not the active XR app (active: ${active_package:-unknown})"
+        validate_xr_focus "recording setup" || fail "Overte XR focus validation failed"
     fi
 
     dump="$(read_battery_dump)"
@@ -542,9 +556,7 @@ record() {
                 current_pid="$(adb_shell pidof org.overte.pico 2>/dev/null | awk '{ print $1 }')"
                 [[ "$current_pid" == "$expected_pid" ]] \
                     || fail "Overte restarted during warm-up (expected PID $expected_pid, active: ${current_pid:-none})"
-                active_package="$(foreground_package)"
-                [[ "$active_package" == "org.overte.pico" ]] \
-                    || fail "Overte lost XR focus during warm-up (active: ${active_package:-unknown})"
+                validate_xr_focus "warm-up" || fail "Overte XR focus validation failed"
                 validate_world "warm-up" || fail "world validation failed"
             fi
         done
@@ -576,13 +588,9 @@ record() {
             if [[ "$current_pid" != "$expected_pid" ]]; then
                 echo "error: Overte restarted during measurement (expected PID $expected_pid, active: ${current_pid:-none})" >&2
                 aborted=1
-            else
-                active_package="$(foreground_package)"
-            fi
-            if [[ "$aborted" -eq 0 && "$active_package" != "org.overte.pico" ]]; then
-                echo "error: Overte lost XR focus (active: ${active_package:-unknown})" >&2
+            elif ! validate_xr_focus "measurement at ${elapsed}s"; then
                 aborted=1
-            elif [[ "$aborted" -eq 0 ]] && ! validate_world "measurement at ${elapsed}s"; then
+            elif ! validate_world "measurement at ${elapsed}s"; then
                 aborted=1
             fi
         fi
