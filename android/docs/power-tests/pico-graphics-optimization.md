@@ -645,6 +645,25 @@ No production budget increase or crowd-quality reduction is justified. A
 loaded-avatar CPU callgraph is the next useful way to check whether priority
 construction or the budgeted section contains an actionable compute hotspot.
 
+Paired 15-second, 99 Hz frame-pointer callgraphs compared the same four loaded
+sources without replicas and with 20 loaded replicas. The baseline recorded
+2812 samples with 24.96% incomplete call chains; the loaded profile recorded
+2748 with 23.33% incomplete chains. Neither lost samples. Inclusive
+`AvatarManager::updateOtherAvatars()` stayed nearly unchanged at 1.81% and
+1.86%, and `OtherAvatar::simulate()` was 1.38% and 1.24%. This rules out an
+avatar-update compute hotspot corresponding to the larger priority-construction
+wall-clock measurement.
+
+The scaling CPU path was avatar packet decoding. Inclusive
+`AvatarHashMap::parseAvatarData()` increased from 0.69% to 2.61%, while
+`OtherAvatar::parseDataFromBuffer()` increased from 0.55% to 2.35%. The loaded
+profile attributed 1.78% to `AvatarReplicas::parseDataFromBuffer()`. Local
+replicas intentionally decode the received source packet once per copy, which
+resembles per-avatar decode work but is not the same network population as
+independent mixer-fed avatars. The result identifies packet parsing as the
+next controlled-crowd profiling target; it does not by itself justify changing
+production avatar update budgets or quality limits.
+
 ## Limitations and next work
 
 - The Hub test is CPU-limited and has no controlled avatar population or active
