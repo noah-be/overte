@@ -18,6 +18,10 @@
 #include <plugins/PluginManager.h>
 #include <plugins/DisplayPlugin.h>
 
+#if defined(Q_OS_ANDROID)
+#include <sys/system_properties.h>
+#endif
+
 #include "Application.h"
 #include "AudioClient.h"
 #include "Audio.h"
@@ -60,6 +64,30 @@ QHash<int, QByteArray> AudioDeviceList::_roles {
 };
 
 static QString getTargetDevice(bool hmd, QAudio::Mode mode) {
+#if defined(Q_OS_ANDROID)
+    if (hmd && mode == QAudio::AudioInput) {
+        char value[PROP_VALUE_MAX] {};
+        if (__system_property_get("debug.overte.audio_input", value) > 0) {
+            const QString requested = QString::fromLatin1(value).trimmed().toLower();
+            if (!requested.isEmpty()) {
+                qInfo() << "PICO_MIC_OVERRIDE" << requested;
+                return requested;
+            }
+        }
+
+        auto& setting = getSetting(hmd, mode);
+        if (!setting.isSet() || setting.get() == HifiAudioDeviceInfo::DEFAULT_DEVICE_NAME) {
+            foreach(DisplayPluginPointer displayPlugin, PluginManager::getInstance()->getAllDisplayPlugins()) {
+                if (displayPlugin && displayPlugin->isHmd()) {
+                    const QString preferred = displayPlugin->getPreferredAudioInDevice();
+                    if (!preferred.isEmpty()) {
+                        return preferred;
+                    }
+                }
+            }
+        }
+    }
+#endif
     QString deviceName;
     auto& setting = getSetting(hmd, mode);
     if (setting.isSet()) {
@@ -329,6 +357,20 @@ void AudioDeviceList::onDevicesChanged(QAudio::Mode mode, const QList<HifiAudioD
                 .replace("High Definition", "HD")
                 .remove("Device")
                 .replace(" )", ")");
+#if defined(Q_OS_ANDROID)
+            if (deviceInfo.getMode() == QAudio::AudioInput) {
+                const QString source = device.info.deviceName().trimmed().toLower();
+                if (source == QStringLiteral("voicecommunication")) {
+                    device.display = QStringLiteral("Voice communication (recommended: echo/noise reduction)");
+                } else if (source == QStringLiteral("voicerecognition")) {
+                    device.display = QStringLiteral("Voice recognition");
+                } else if (source == QStringLiteral("mic")) {
+                    device.display = QStringLiteral("Microphone (general)");
+                } else if (source == QStringLiteral("camcorder")) {
+                    device.display = QStringLiteral("Camcorder (high background sensitivity)");
+                }
+            }
+#endif
         }
         
         switch (deviceInfo.getDeviceType()) {

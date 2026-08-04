@@ -505,6 +505,12 @@ private:
     QString _hmdOutputName{ QString() };
 
     AudioFileWav _audioFileWav;
+#if defined(Q_OS_ANDROID)
+    AudioFileWav _picoMicCaptureFile;
+    bool _picoMicCaptureActive { false };
+    bool _picoMicCaptureComplete { false };
+    quint64 _picoMicCaptureEnd { 0 };
+#endif
 
     bool _hasReceivedFirstPacket { false };
 

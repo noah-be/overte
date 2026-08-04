@@ -19,6 +19,7 @@ public:
     OpenXrDisplayPlugin(std::shared_ptr<OpenXrContext> c);
     bool isSupported() const override;
     const QString getName() const override;
+    QString getPreferredAudioInDevice() const override;
     bool getSupportsAutoSwitch() override final { return true; }
 
     glm::mat4 getEyeProjection(Eye eye, const glm::mat4& baseProjection) const override;

@@ -53,6 +53,7 @@
 #include <udt/PacketHeaders.h>
 #include <SettingHandle.h>
 #include <SharedUtil.h>
+#include <PathUtils.h>
 #include <Transform.h>
 
 #include "AudioClientLogging.h"
@@ -61,6 +62,7 @@
 
 #if defined(Q_OS_ANDROID)
 #include <QtAndroidExtras/QAndroidJniObject>
+#include <sys/system_properties.h>
 #endif
 
 const int AudioClient::MIN_BUFFER_FRAMES = 1;
@@ -70,6 +72,46 @@ const int AudioClient::MAX_BUFFER_FRAMES = 20;
 #if defined(Q_OS_ANDROID)
 static const int CHECK_INPUT_READS_MSECS = 2000;
 static const int MIN_READS_TO_CONSIDER_INPUT_ALIVE = 10;
+
+static bool picoMicTraceEnabled() {
+    static const bool enabled = [] {
+        char value[PROP_VALUE_MAX] {};
+        if (__system_property_get("debug.overte.audio_trace", value) <= 0) {
+            return false;
+        }
+        const QString requested = QString::fromLatin1(value).trimmed().toLower();
+        return requested == "1" || requested == "on" || requested == "true" ||
+            requested == "enabled";
+    }();
+    return enabled;
+}
+
+static int picoMicCaptureSeconds() {
+    static const int seconds = [] {
+        char value[PROP_VALUE_MAX] {};
+        if (__system_property_get("debug.overte.audio_capture_seconds", value) <= 0) {
+            return 0;
+        }
+        bool ok { false };
+        const int requested = QString::fromLatin1(value).toInt(&ok);
+        return ok ? std::max(0, std::min(requested, 60)) : 0;
+    }();
+    return seconds;
+}
+
+static QString picoMicRequestedInput() {
+    static const QString requested = [] {
+        char value[PROP_VALUE_MAX] {};
+        return __system_property_get("debug.overte.audio_input", value) > 0
+            ? QString::fromLatin1(value).trimmed().toLower()
+            : QString();
+    }();
+    return requested;
+}
+
+static QString picoMicCapturePath() {
+    return PathUtils::getAppLocalDataFilePath(QStringLiteral("pico-mic-input.wav"));
+}
 #endif
 
 const AudioClient::AudioPositionGetter  AudioClient::DEFAULT_POSITION_GETTER = []{ return Vectors::ZERO; };
@@ -1449,6 +1491,37 @@ void AudioClient::handleMicAudioInput() {
     const auto inputAudioSamples = std::unique_ptr<int16_t[]>(new int16_t[inputSamplesRequired]);
     QByteArray inputByteArray = _inputDevice->readAll();
 
+#if defined(Q_OS_ANDROID)
+    const int captureSeconds = picoMicCaptureSeconds();
+    const QString requestedInput = picoMicRequestedInput();
+    const bool requestedInputActive = requestedInput.isEmpty() ||
+        _inputDeviceInfo.deviceName().trimmed().toLower() == requestedInput;
+    if (captureSeconds > 0 && requestedInputActive && !_picoMicCaptureComplete) {
+        const quint64 now = usecTimestampNow();
+        if (!_picoMicCaptureActive) {
+            const QString path = picoMicCapturePath();
+            _picoMicCaptureActive = _picoMicCaptureFile.create(_inputFormat, path);
+            if (_picoMicCaptureActive) {
+                _picoMicCaptureEnd = now + captureSeconds * USECS_PER_SECOND;
+                qInfo() << "PICO_MIC_CAPTURE_STARTED" << path << "seconds" << captureSeconds;
+            } else {
+                _picoMicCaptureComplete = true;
+                qWarning() << "PICO_MIC_CAPTURE_FAILED" << path;
+            }
+        }
+        if (_picoMicCaptureActive) {
+            if (now < _picoMicCaptureEnd) {
+                _picoMicCaptureFile.addRawAudioChunk(inputByteArray.data(), inputByteArray.size());
+            } else {
+                _picoMicCaptureFile.close();
+                _picoMicCaptureActive = false;
+                _picoMicCaptureComplete = true;
+                qInfo() << "PICO_MIC_CAPTURE_COMPLETE" << picoMicCapturePath();
+            }
+        }
+    }
+#endif
+
     handleLocalEchoAndReverb(inputByteArray);
 
     _inputRingBuffer.writeData(inputByteArray.data(), inputByteArray.size());
@@ -1487,6 +1560,32 @@ void AudioClient::handleMicAudioInput() {
 
         float loudness = computeLoudness(inputAudioSamples.get(), inputSamplesRequired);
         _lastRawInputLoudness = loudness;
+
+#if defined(Q_OS_ANDROID)
+        if (picoMicTraceEnabled()) {
+            static quint64 traceStart { usecTimestampNow() };
+            static quint64 traceFrames { 0 };
+            static double traceLoudnessTotal { 0.0 };
+            static float traceLoudnessPeak { 0.0f };
+            ++traceFrames;
+            traceLoudnessTotal += loudness;
+            traceLoudnessPeak = std::max(traceLoudnessPeak, loudness);
+
+            const quint64 now = usecTimestampNow();
+            if (now - traceStart >= USECS_PER_SECOND) {
+                qInfo() << "PICO_MIC_LEVEL"
+                    << "device" << _inputDeviceInfo.deviceName()
+                    << "frames" << traceFrames
+                    << "mean" << (traceFrames > 0 ? traceLoudnessTotal / traceFrames : 0.0)
+                    << "peak" << traceLoudnessPeak
+                    << "muted" << _isMuted;
+                traceStart = now;
+                traceFrames = 0;
+                traceLoudnessTotal = 0.0;
+                traceLoudnessPeak = 0.0f;
+            }
+        }
+#endif
 
         // envelope detection
         float tc = (loudness > _lastSmoothedRawInputLoudness) ? 0.378f : 0.967f;  // 10ms attack, 300ms release @ 100Hz
@@ -1943,6 +2042,13 @@ bool AudioClient::switchInputToAudioDevice(const HifiAudioDeviceInfo inputDevice
 
         if (adjustedFormatForAudioDevice(_inputDeviceInfo.getDevice(), _desiredInputFormat, _inputFormat)) {
             qCDebug(audioclient) << "The format to be used for audio input is" << _inputFormat;
+#if defined(Q_OS_ANDROID)
+            qInfo() << "PICO_MIC_INPUT"
+                << "device" << _inputDeviceInfo.deviceName()
+                << "rate" << _inputFormat.sampleRate()
+                << "channels" << _inputFormat.channelCount()
+                << "sampleBits" << _inputFormat.sampleSize();
+#endif
 
             // we've got the best we can get for input
             // if required, setup a resampler for this input to our desired network format
@@ -2047,6 +2153,13 @@ void AudioClient::audioInputStateChanged(QAudio::State state) {
 
 void AudioClient::checkInputTimeout() {
 #if defined(Q_OS_ANDROID)
+    if (picoMicTraceEnabled()) {
+        qInfo() << "PICO_MIC_WATCHDOG"
+            << "device" << _inputDeviceInfo.deviceName()
+            << "reads" << _inputReadsSinceLastCheck
+            << "state" << (_audioInput ? _audioInput->state() : QAudio::StoppedState)
+            << "error" << (_audioInput ? _audioInput->error() : QAudio::NoError);
+    }
     if (_audioInput && _inputReadsSinceLastCheck < MIN_READS_TO_CONSIDER_INPUT_ALIVE) {
         _audioInput->stop();
     } else {

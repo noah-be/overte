@@ -165,6 +165,11 @@ Use `./build-pico.sh deploy` to build a new APK before installation, or
 Both installation paths preserve existing app data, start the launcher
 activity automatically, and verify that the app process remains active.
 
+For reproducible Pico microphone source and fan-noise tests, see
+[`docs/pico-microphone.md`](docs/pico-microphone.md). The accompanying
+`pico-microphone-test.sh` script restores automatic fan control and stops the
+app after each run.
+
 The command expects exactly one authorized ADB device. Select a device
 explicitly when several are connected:
 

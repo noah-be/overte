@@ -402,6 +402,12 @@ const QString OpenXrDisplayPlugin::getName() const {
     return QStringLiteral("OpenXR");
 }
 
+QString OpenXrDisplayPlugin::getPreferredAudioInDevice() const {
+    // Android applies acoustic echo cancellation and noise suppression only to
+    // this capture source on Pico 4. An explicitly saved user choice still wins.
+    return QStringLiteral("voicecommunication");
+}
+
 bool OpenXrDisplayPlugin::internalActivate() {
     if (!_context->_isValid) { return false; }
 
