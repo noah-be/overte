@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ADB_BIN="${ADB_BIN:-${ANDROID_SDK_ROOT:-${HOME}/Android/Sdk}/platform-tools/adb}"
 PICO_SERIAL="${PICO_SERIAL:-${ANDROID_SERIAL:-}}"
 WARMUP="${WARMUP:-30}"
 DURATION="${DURATION:-90}"
 TURN_RATE="${TURN_RATE:-0}"
-RESULT_DIR="${RESULT_DIR:-power-results/graphics-matrix-$(date -u +%Y%m%dT%H%M%SZ)}"
-VISUAL_REFERENCE="${VISUAL_REFERENCE:-power-results/visual-check/hub-reference.png}"
+RESULT_DIR="${RESULT_DIR:-$SCRIPT_DIR/power-results/graphics-matrix-$(date -u +%Y%m%dT%H%M%SZ)}"
+VISUAL_REFERENCE="${VISUAL_REFERENCE:-$SCRIPT_DIR/power-results/visual-check/hub-reference.png}"
 MAX_CPU_TEMP_MC="${MAX_CPU_TEMP_MC:-90000}"
 MAX_SKIN_TEMP_C="${MAX_SKIN_TEMP_C:-65}"
+CASE_PID=""
 
 [[ -x "$ADB_BIN" ]] || { echo "adb not executable: $ADB_BIN" >&2; exit 1; }
 if [[ -z "$PICO_SERIAL" ]]; then
@@ -32,7 +34,7 @@ foreground_package() {
 }
 
 validate_xr_focus() {
-    local stage="$1" active_package boundary_ready guardian_vst
+    local stage="$1" active_package boundary_ready guardian_vst current_pid
     active_package="$(foreground_package)"
     boundary_ready="$(adb_shell getprop sys.pxr.boundary.ready 2>/dev/null | tr -d '\r')"
     guardian_vst="$(adb_shell getprop sys.guardian.vst.status 2>/dev/null | tr -d '\r')"
@@ -44,6 +46,13 @@ validate_xr_focus() {
         echo "Pico Guardian/Seethrough is active during $stage (boundary_ready=${boundary_ready:-unknown}, guardian_vst=${guardian_vst:-unknown})" >&2
         return 1
     }
+    if [[ -n "$CASE_PID" ]]; then
+        current_pid="$(adb_shell pidof org.overte.pico 2>/dev/null | tr -d '\r')"
+        [[ "$current_pid" == "$CASE_PID" ]] || {
+            echo "Overte restarted during $stage (expected PID $CASE_PID, active: ${current_pid:-none})" >&2
+            return 1
+        }
+    fi
 }
 
 ORIGINAL_BRIGHTNESS="$(adb_shell gd32ipdclient_test getbrightness 2>/dev/null | sed -n 's/.*= //p' | tr -d '\r')"
@@ -92,6 +101,7 @@ run_case() {
     local label="$1" scale="$2" profile="$3" foveation="$4"
     shift 4
     local output="$RESULT_DIR/$label"
+    CASE_PID=""
     mkdir -p "$output"
     printf '%s\n' "case=$label scale=$scale profile=$profile foveation=$foveation" | tee "$output/config.txt"
 
@@ -113,7 +123,7 @@ run_case() {
     "$ADB_BIN" -s "$PICO_SERIAL" logcat -c
     local start_ok=0
     for attempt in 1 2 3; do
-        if timeout 60 env PICO_SERIAL="$PICO_SERIAL" ./pico-unattended-test.sh start >/dev/null; then
+        if timeout 60 env PICO_SERIAL="$PICO_SERIAL" "$SCRIPT_DIR/pico-unattended-test.sh" start >/dev/null; then
             start_ok=1
             break
         fi
@@ -127,7 +137,7 @@ run_case() {
     sleep 25
     local hub_ok=0 attempt
     for attempt in 1 2 3; do
-        if PICO_SERIAL="$PICO_SERIAL" ./pico-unattended-test.sh hub "$(date +%s)-$attempt"; then
+        if PICO_SERIAL="$PICO_SERIAL" "$SCRIPT_DIR/pico-unattended-test.sh" hub "$(date +%s)-$attempt"; then
             hub_ok=1
             break
         fi
@@ -137,6 +147,8 @@ run_case() {
         echo "unable to establish stable Hub scene for $label" >&2
         return 1
     fi
+    CASE_PID="$(adb_shell pidof org.overte.pico 2>/dev/null | tr -d '\r')"
+    [[ -n "$CASE_PID" ]] || { echo "org.overte.pico is not running after Hub setup" >&2; return 1; }
     capture_and_validate_scene "$output/scene-start.png" "$output/scene-start.txt"
     if awk -v turn="$TURN_RATE" 'BEGIN { exit (turn != 0) ? 0 : 1 }'; then
         adb_shell setprop debug.overte.autowalk \
@@ -146,7 +158,7 @@ run_case() {
     validate_xr_focus "warm-up"
 
     local pid elapsed=0
-    pid="$(adb_shell pidof org.overte.pico | tr -d '\r')"
+    pid="$CASE_PID"
     local starting_battery last_battery
     starting_battery="$(adb_shell dumpsys battery | sed -n 's/^  level: //p' | tr -d '\r')"
     last_battery="$starting_battery"
@@ -157,6 +169,10 @@ run_case() {
         top_line="$(adb_shell top -b -n 1 -p "$pid" 2>/dev/null | tail -n 1 | tr -d '\r')"
         cpu="$(awk '{print $9}' <<<"$top_line" | tr -d '%')"
         rss="$(awk '{print $6}' <<<"$top_line")"
+        [[ "$cpu" =~ ^[0-9]+([.][0-9]+)?$ ]] || {
+            echo "invalid CPU sample during $label at ${elapsed}s" >&2
+            return 1
+        }
         cpu0="$(adb_shell cat /sys/devices/system/cpu/cpufreq/policy0/scaling_cur_freq 2>/dev/null | tr -d '\r')"
         cpu4="$(adb_shell cat /sys/devices/system/cpu/cpufreq/policy4/scaling_cur_freq 2>/dev/null | tr -d '\r')"
         cpu7="$(adb_shell cat /sys/devices/system/cpu/cpufreq/policy7/scaling_cur_freq 2>/dev/null | tr -d '\r')"
@@ -192,7 +208,7 @@ run_case() {
         adb_shell setprop debug.overte.autowalk "$(date +%s)s\\|0\\|0\\|0\\|0"
         local end_hub_ok=0
         for attempt in 1 2 3; do
-            if PICO_SERIAL="$PICO_SERIAL" ./pico-unattended-test.sh hub "$(date +%s)e-$attempt"; then
+            if PICO_SERIAL="$PICO_SERIAL" "$SCRIPT_DIR/pico-unattended-test.sh" hub "$(date +%s)e-$attempt"; then
                 end_hub_ok=1
                 break
             fi
