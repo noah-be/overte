@@ -2180,6 +2180,10 @@ void AudioClient::audioInputStateChanged(QAudio::State state) {
             }
             // Stopped on purpose
             if (_shouldRestartInputSetup) {
+                if (picoMicTraceEnabled()) {
+                    qInfo() << "PICO_MIC_STATE_RESTART" << _inputDeviceInfo.deviceName()
+                        << "error" << _audioInput->error();
+                }
                 Lock lock(_deviceMutex);
                 _inputDevice = _audioInput->start();
                 lock.unlock();
@@ -2206,6 +2210,10 @@ void AudioClient::checkInputTimeout() {
             << "error" << (_audioInput ? _audioInput->error() : QAudio::NoError);
     }
     if (_audioInput && _inputReadsSinceLastCheck < MIN_READS_TO_CONSIDER_INPUT_ALIVE) {
+        if (picoMicTraceEnabled()) {
+            qInfo() << "PICO_MIC_WATCHDOG_RESTART" << _inputDeviceInfo.deviceName()
+                << "reads" << _inputReadsSinceLastCheck;
+        }
         _audioInput->stop();
     } else {
         _inputReadsSinceLastCheck = 0;

@@ -179,3 +179,12 @@ On-device cold starts confirmed one real opening plus two reuse events when
 performed the required source change once and reused that session for the
 following duplicate selection. Continuous watchdog reads confirmed that reuse
 did not stall capture.
+
+In one five-second display-sleep/wake test, two-second input reads fell from
+about 100 through 60 and 22 to 7, then recovered immediately to 87 and returned
+to roughly 100. A repeated test with explicit recovery tracing recorded 29,
+21, and 19 reads during the transition, followed by an Android stopped-state
+restart with `NoError`; reads then reached 80 and 102. Recovery therefore does
+not require a full device-selection restart. Dedicated trace events identify
+both low-read watchdog decisions and Android stopped-state restarts, which are
+separate paths.
