@@ -57,6 +57,10 @@ Acoustic Echo Canceler and Noise Suppression effects. `voicerecognition`, `mic`,
 and `camcorder` had no Android capture effects. The saved device configuration
 on the test headset was `Audio/VR/INPUT=camcorder`; this explicit user setting
 replaced the initially selected `voicecommunication` source during startup.
+After completing the comparative tests, the headset's saved input was changed
+to `voicecommunication`. A normal cold start without diagnostic properties
+then opened it once, reused it for both later selection events, and never
+opened `camcorder`.
 
 Ambient observations before the controlled fan run showed the lowest and most
 stable levels for `voicecommunication`, moderate levels for
