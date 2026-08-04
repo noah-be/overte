@@ -384,8 +384,6 @@ signals:
     void rigReset();
 
 protected:
-    bool shouldDeferPicoRenderItemsUpdate();
-    uint64_t _lastPicoRenderItemsUpdate { 0 };
 
     std::unordered_map<unsigned int, quint16> _priorityMap; // only used for materialMapping
     std::unordered_map<unsigned int, std::vector<graphics::MaterialLayer>> _materialMapping; // generated during applyMaterialMapping

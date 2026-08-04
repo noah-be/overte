@@ -2227,16 +2227,11 @@ void Application::update(float deltaTime) {
     quint64 picoAfterEntityUpdate = picoUpdateStart;
     quint64 picoBeforeSimulationCleanup = picoUpdateStart;
     quint64 picoAfterSimulation = picoUpdateStart;
-    quint64 picoAfterOtherAvatars = picoUpdateStart;
-    quint64 picoAfterAvatarLookAt = picoUpdateStart;
     quint64 picoAfterAvatars = picoUpdateStart;
     quint64 picoAfterOverlays = picoUpdateStart;
     quint64 picoBeforePostUpdate = picoUpdateStart;
-    quint64 picoAfterAvatarPostUpdate = picoUpdateStart;
     quint64 picoAfterPostLambdas = picoUpdateStart;
     quint64 picoAfterRenderArgs = picoUpdateStart;
-    quint64 picoPostUpdateCallbackCount { 0 };
-    quint64 picoPostUpdateCallbackMaximum { 0 };
 #endif
 
     if (!_physicsEnabled) {
@@ -2752,17 +2747,11 @@ void Application::update(float deltaTime) {
             PerformanceTimer perfTimer("otherAvatars");
             avatarManager->updateOtherAvatars(deltaTime);
         }
-#if defined(Q_OS_ANDROID)
-        picoAfterOtherAvatars = usecTimestampNow();
-#endif
 
         {
             PROFILE_RANGE(simulation, "MyAvatar");
             PerformanceTimer perfTimer("MyAvatar");
             qApp->updateMyAvatarLookAtPosition(deltaTime);
-#if defined(Q_OS_ANDROID)
-            picoAfterAvatarLookAt = usecTimestampNow();
-#endif
             avatarManager->updateMyAvatar(deltaTime);
         }
     }
@@ -2869,35 +2858,15 @@ void Application::update(float deltaTime) {
         PerformanceTimer perfTimer("avatarManager/postUpdate");
         avatarManager->postUpdate(deltaTime, getMain3DScene());
     }
-#if defined(Q_OS_ANDROID)
-    picoAfterAvatarPostUpdate = usecTimestampNow();
-#endif
 
     {
         PROFILE_RANGE_EX(app, "PostUpdateLambdas", 0xffff0000, (uint64_t)0);
         PerformanceTimer perfTimer("postUpdateLambdas");
         std::unique_lock<std::mutex> guard(_postUpdateLambdasLock);
         for (auto& iter : _postUpdateLambdas) {
-#if defined(Q_OS_ANDROID)
-            const quint64 callbackStart = usecTimestampNow();
-#endif
             iter.second();
-#if defined(Q_OS_ANDROID)
-            ++picoPostUpdateCallbackCount;
-            const quint64 callbackDuration = usecTimestampNow() - callbackStart;
-            picoPostUpdateCallbackMaximum = std::max(picoPostUpdateCallbackMaximum, callbackDuration);
-            if (callbackDuration > 5000) {
-                const auto caller = _postUpdateLambdaCallers.find(iter.first);
-                qInfo() << "PICO_SLOW_POST_UPDATE_CALLBACK"
-                        << "durationMs" << callbackDuration / 1000.0
-                        << "caller" << (caller != _postUpdateLambdaCallers.end() ? caller->second : nullptr);
-            }
-#endif
         }
         _postUpdateLambdas.clear();
-#if defined(Q_OS_ANDROID)
-        _postUpdateLambdaCallers.clear();
-#endif
     }
 #if defined(Q_OS_ANDROID)
     picoAfterPostLambdas = usecTimestampNow();
@@ -2954,17 +2923,9 @@ void Application::update(float deltaTime) {
         quint64 entityUpdate { 0 };
         quint64 afterEntityUpdate { 0 };
         quint64 simulationCleanup { 0 };
-        quint64 otherAvatars { 0 };
-        quint64 avatarLookAt { 0 };
-        quint64 avatarManagerUpdate { 0 };
-        quint64 myAvatar { 0 };
         quint64 avatars { 0 };
         quint64 overlaysAndView { 0 };
         quint64 postUpdate { 0 };
-        quint64 avatarPostUpdate { 0 };
-        quint64 postUpdateCallbacks { 0 };
-        quint64 postUpdateCallbackCount { 0 };
-        quint64 postUpdateCallbackMaximum { 0 };
         quint64 postLambdas { 0 };
         quint64 renderArgs { 0 };
         quint64 frameEnd { 0 };
@@ -2998,18 +2959,9 @@ void Application::update(float deltaTime) {
     stats.entityUpdate += picoAfterEntityUpdate - picoBeforeEntityUpdate;
     stats.afterEntityUpdate += picoBeforeSimulationCleanup - picoAfterEntityUpdate;
     stats.simulationCleanup += picoAfterSimulation - picoBeforeSimulationCleanup;
-    stats.otherAvatars += picoAfterOtherAvatars - picoAfterSimulation;
-    stats.avatarLookAt += picoAfterAvatarLookAt - picoAfterOtherAvatars;
-    stats.avatarManagerUpdate += picoAfterAvatars - picoAfterAvatarLookAt;
-    stats.myAvatar += picoAfterAvatars - picoAfterOtherAvatars;
     stats.avatars += picoAfterAvatars - picoAfterSimulation;
     stats.overlaysAndView += picoAfterOverlays - picoAfterAvatars;
     stats.postUpdate += picoBeforePostUpdate - picoAfterOverlays;
-    stats.avatarPostUpdate += picoAfterAvatarPostUpdate - picoBeforePostUpdate;
-    stats.postUpdateCallbacks += picoAfterPostLambdas - picoAfterAvatarPostUpdate;
-    stats.postUpdateCallbackCount += picoPostUpdateCallbackCount;
-    stats.postUpdateCallbackMaximum = std::max(stats.postUpdateCallbackMaximum,
-                                               picoPostUpdateCallbackMaximum);
     stats.postLambdas += picoAfterPostLambdas - picoBeforePostUpdate;
     stats.renderArgs += picoAfterRenderArgs - picoAfterPostLambdas;
     stats.frameEnd += end - picoAfterRenderArgs;
@@ -3040,17 +2992,9 @@ void Application::update(float deltaTime) {
                 << "entityUpdateMs" << stats.entityUpdate / divisor / 1000.0
                 << "afterEntityUpdateMs" << stats.afterEntityUpdate / divisor / 1000.0
                 << "simulationCleanupMs" << stats.simulationCleanup / divisor / 1000.0
-                << "otherAvatarsMs" << stats.otherAvatars / divisor / 1000.0
-                << "avatarLookAtMs" << stats.avatarLookAt / divisor / 1000.0
-                << "avatarManagerUpdateMs" << stats.avatarManagerUpdate / divisor / 1000.0
-                << "myAvatarMs" << stats.myAvatar / divisor / 1000.0
                 << "avatarsMs" << stats.avatars / divisor / 1000.0
                 << "overlaysViewMs" << stats.overlaysAndView / divisor / 1000.0
                 << "postUpdateMs" << stats.postUpdate / divisor / 1000.0
-                << "avatarPostUpdateMs" << stats.avatarPostUpdate / divisor / 1000.0
-                << "postUpdateCallbacksMs" << stats.postUpdateCallbacks / divisor / 1000.0
-                << "postUpdateCallbacksPerCall" << double(stats.postUpdateCallbackCount) / divisor
-                << "postUpdateCallbackMaxMs" << stats.postUpdateCallbackMaximum / 1000.0
                 << "postLambdasMs" << stats.postLambdas / divisor / 1000.0
                 << "renderArgsMs" << stats.renderArgs / divisor / 1000.0
                 << "frameEndMs" << stats.frameEnd / divisor / 1000.0;

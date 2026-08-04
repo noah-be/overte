@@ -179,9 +179,6 @@ void CauterizedModel::updateRenderItems() {
         if (!_addedToScene) {
             return;
         }
-        if (shouldDeferPicoRenderItemsUpdate()) {
-            return;
-        }
         _needsUpdateClusterMatrices = true;
         _renderItemsNeedUpdate = false;
 

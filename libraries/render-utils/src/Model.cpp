@@ -15,10 +15,6 @@
 #include <QRunnable>
 #include <QThreadPool>
 
-#ifdef Q_OS_ANDROID
-#include <sys/system_properties.h>
-#endif
-
 #include <glm/gtx/transform.hpp>
 #include <glm/gtx/norm.hpp>
 
@@ -208,9 +204,6 @@ void Model::updateRenderItems() {
     if (!_addedToScene) {
         return;
     }
-    if (shouldDeferPicoRenderItemsUpdate()) {
-        return;
-    }
 
     _needsUpdateClusterMatrices = true;
     _renderItemsNeedUpdate = false;
@@ -278,34 +271,6 @@ void Model::updateRenderItems() {
 
         AbstractViewStateInterface::instance()->getMain3DScene()->enqueueTransaction(transaction);
     });
-}
-
-bool Model::shouldDeferPicoRenderItemsUpdate() {
-#if defined(Q_OS_ANDROID)
-    static const float updateHz = [] {
-        char value[PROP_VALUE_MAX] {};
-        if (__system_property_get("debug.overte.model_update_hz", value) <= 0) {
-            return 0.0f;
-        }
-        bool ok { false };
-        const float requested = QString::fromLatin1(value).toFloat(&ok);
-        return ok && requested > 0.0f ? glm::clamp(requested, 15.0f, 72.0f) : 0.0f;
-    }();
-    static bool logged { false };
-    if (!logged) {
-        qInfo() << "PICO_MODEL_UPDATE_HZ" << updateHz;
-        logged = true;
-    }
-    if (updateHz > 0.0f) {
-        const uint64_t now = usecTimestampNow();
-        const uint64_t interval = static_cast<uint64_t>(USECS_PER_SECOND / updateHz);
-        if (_lastPicoRenderItemsUpdate != 0 && now - _lastPicoRenderItemsUpdate < interval) {
-            return true;
-        }
-        _lastPicoRenderItemsUpdate = now;
-    }
-#endif
-    return false;
 }
 
 void Model::setRenderItemsNeedUpdate() {
