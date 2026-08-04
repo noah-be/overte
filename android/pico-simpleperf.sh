@@ -167,7 +167,7 @@ validate_xr_focus "profile setup"
 {
     printf 'timestamp_utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     printf 'git_commit=%s\n' "$(git -C "$SCRIPT_DIR/.." rev-parse HEAD)"
-    printf 'serial=%s\npackage=%s\npid=%s\n' "$PICO_SERIAL" "$PACKAGE" "$PID"
+    printf 'package=%s\npid=%s\n' "$PACKAGE" "$PID"
     printf 'duration_s=%s\nfrequency_hz=%s\ncall_graph=%s\n' "$DURATION" "$FREQUENCY" "$CALL_GRAPH"
     printf 'prepared_hub=%s\nwarmup_s=%s\n' "$PREPARE_SCENE" "$WARMUP"
     printf 'device=%s\n' "$(adb_shell getprop ro.product.model | tr -d '\r')"

@@ -216,7 +216,7 @@ adb_shell gd32ipdclient_test setbrightness 1 >/dev/null
 {
     printf 'timestamp_utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     printf 'git_commit=%s\n' "$(git -C "$SCRIPT_DIR/.." rev-parse HEAD)"
-    printf 'serial=%s\npackage=%s\npid=%s\n' "$PICO_SERIAL" "$PACKAGE" "$PID"
+    printf 'package=%s\npid=%s\n' "$PACKAGE" "$PID"
     printf 'real_template_avatars=%s\nduration_s=%s\ninterval_s=%s\nsettle_s=%s\nload_wait_s=%s\n' \
         "$REAL_TEMPLATES" "$DURATION" "$INTERVAL" "$SETTLE" "$LOAD_WAIT"
     printf 'replica_sequence=%s\n' "${REPLICA_COUNTS[*]}"

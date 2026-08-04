@@ -35,8 +35,8 @@ cache can require several gigabytes.
 
 The Pico test scripts use `PICO_SERIAL` or `ANDROID_SERIAL` when set. Without
 either variable they require exactly one authorized device in `adb devices`
-and select it automatically; no developer-specific device address is stored
-in the repository.
+and select it automatically. No developer-specific device address or serial
+number is stored in the repository or result metadata.
 
 The graphics matrix applies the same XR-focus checks around scene capture and
 each telemetry sample. This complements image similarity and prevents a
