@@ -207,3 +207,20 @@ restart with `NoError`; reads then reached 80 and 102. Recovery therefore does
 not require a full device-selection restart. Dedicated trace events identify
 both low-read watchdog decisions and Android stopped-state restarts, which are
 separate paths.
+
+## Next spoken-phrase test
+
+The remaining decision is speech quality, not background rejection. Run it
+in a controlled quiet environment after the headset cools, with automatic fan
+control and a fixed speaker-to-headset distance. Record the same short phrase
+three times each with `voicecommunication`, `voicerecognition`, and `mic`;
+`camcorder` is already excluded as the normal chat choice by the background
+results.
+
+Compare consonant attack, word intelligibility, tonal colour, level pumping,
+and whether the first syllable opens Overte's automatic gate reliably. A
+second pass should play speech from the Pico speakers while recording to check
+echo cancellation. Keep source order counterbalanced and retain the raw WAVs,
+gate-open ratios, Android effect flags, fan RPM, and temperatures. Only this
+test can decide whether `voicecommunication` should remain merely the default
+or become a stronger enforced Pico policy.
