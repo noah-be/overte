@@ -13,20 +13,9 @@
 
 #include <AACube.h>
 #include <Profile.h>
-#if defined(Q_OS_ANDROID)
-#include <time.h>
-#endif
 
 #include "EntitiesLogging.h"
 #include "MovingEntitiesOperator.h"
-
-#if defined(Q_OS_ANDROID)
-static uint64_t picoThreadCpuUsecs() {
-    timespec time {};
-    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time);
-    return static_cast<uint64_t>(time.tv_sec) * USECS_PER_SECOND + time.tv_nsec / 1000;
-}
-#endif
 
 void EntitySimulation::setEntityTree(EntityTreePointer tree) {
     if (_entityTree && _entityTree != tree) {
@@ -49,34 +38,28 @@ void EntitySimulation::updateEntities() {
     uint64_t now = usecTimestampNow();
 #if defined(Q_OS_ANDROID)
     const uint64_t picoStart = now;
-    const uint64_t picoCpuStart = picoThreadCpuUsecs();
 #endif
 
     // these methods may accumulate entries in _entitiesToBeDeleted
     expireMortalEntities(now);
 #if defined(Q_OS_ANDROID)
     const uint64_t picoAfterExpire = usecTimestampNow();
-    const uint64_t picoCpuAfterExpire = picoThreadCpuUsecs();
 #endif
     callUpdateOnEntitiesThatNeedIt(now);
 #if defined(Q_OS_ANDROID)
     const uint64_t picoAfterCallUpdate = usecTimestampNow();
-    const uint64_t picoCpuAfterCallUpdate = picoThreadCpuUsecs();
 #endif
     moveSimpleKinematics(now);
 #if defined(Q_OS_ANDROID)
     const uint64_t picoAfterKinematics = usecTimestampNow();
-    const uint64_t picoCpuAfterKinematics = picoThreadCpuUsecs();
 #endif
     sortEntitiesThatMoved();
 #if defined(Q_OS_ANDROID)
     const uint64_t picoAfterSort = usecTimestampNow();
-    const uint64_t picoCpuAfterSort = picoThreadCpuUsecs();
 #endif
     processDeadEntities();
 #if defined(Q_OS_ANDROID)
     const uint64_t picoEnd = usecTimestampNow();
-    const uint64_t picoCpuEnd = picoThreadCpuUsecs();
     struct PicoSimulationStats {
         uint64_t windowStart { 0 };
         uint64_t calls { 0 };
@@ -85,11 +68,6 @@ void EntitySimulation::updateEntities() {
         uint64_t kinematics { 0 };
         uint64_t sort { 0 };
         uint64_t dead { 0 };
-        uint64_t cpuExpire { 0 };
-        uint64_t cpuCallUpdate { 0 };
-        uint64_t cpuKinematics { 0 };
-        uint64_t cpuSort { 0 };
-        uint64_t cpuDead { 0 };
         uint64_t maximum { 0 };
     };
     static PicoSimulationStats stats;
@@ -102,11 +80,6 @@ void EntitySimulation::updateEntities() {
     stats.kinematics += picoAfterKinematics - picoAfterCallUpdate;
     stats.sort += picoAfterSort - picoAfterKinematics;
     stats.dead += picoEnd - picoAfterSort;
-    stats.cpuExpire += picoCpuAfterExpire - picoCpuStart;
-    stats.cpuCallUpdate += picoCpuAfterCallUpdate - picoCpuAfterExpire;
-    stats.cpuKinematics += picoCpuAfterKinematics - picoCpuAfterCallUpdate;
-    stats.cpuSort += picoCpuAfterSort - picoCpuAfterKinematics;
-    stats.cpuDead += picoCpuEnd - picoCpuAfterSort;
     stats.maximum = std::max(stats.maximum, picoEnd - picoStart);
     if (picoEnd - stats.windowStart >= USECS_PER_SECOND) {
         const double divisor = std::max<uint64_t>(1, stats.calls);
@@ -118,11 +91,6 @@ void EntitySimulation::updateEntities() {
                 << "kinematicsMs" << stats.kinematics / divisor / 1000.0
                 << "sortMs" << stats.sort / divisor / 1000.0
                 << "deadMs" << stats.dead / divisor / 1000.0
-                << "cpuExpireMs" << stats.cpuExpire / divisor / 1000.0
-                << "cpuCallUpdateMs" << stats.cpuCallUpdate / divisor / 1000.0
-                << "cpuKinematicsMs" << stats.cpuKinematics / divisor / 1000.0
-                << "cpuSortMs" << stats.cpuSort / divisor / 1000.0
-                << "cpuDeadMs" << stats.cpuDead / divisor / 1000.0
                 << "allEntities" << _allEntities.size()
                 << "needsUpdate" << _entitiesToUpdate.size()
                 << "kinematicEntities" << _simpleKinematicEntities.size()

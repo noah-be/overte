@@ -220,9 +220,6 @@ void Model::updateRenderItems() {
     void* key = (void*)this;
     std::weak_ptr<Model> weakSelf = shared_from_this();
     AbstractViewStateInterface::instance()->pushPostUpdateLambda(key, [weakSelf]() {
-#if defined(Q_OS_ANDROID)
-        const uint64_t picoStart = usecTimestampNow();
-#endif
 
         // do nothing, if the model has already been destroyed.
         auto self = weakSelf.lock();
@@ -233,9 +230,6 @@ void Model::updateRenderItems() {
         // lazy update of cluster matrices used for rendering.
         // We need to update them here so we can correctly update the bounding box.
         self->updateClusterMatrices();
-#if defined(Q_OS_ANDROID)
-        const uint64_t picoAfterClusters = usecTimestampNow();
-#endif
 
         Transform modelTransform = self->getTransform();
         modelTransform.setScale(glm::vec3(1.0f));
@@ -247,9 +241,6 @@ void Model::updateRenderItems() {
         bool cauterized = self->isCauterized();
         auto mirrorMode = self->getMirrorMode();
         const QUuid& portalExitID = self->getPortalExitID();
-#if defined(Q_OS_ANDROID)
-        const uint64_t picoAfterSetup = usecTimestampNow();
-#endif
 
         render::Transaction transaction;
         for (int i = 0; i < (int) self->_modelMeshRenderItemIDs.size(); i++) {
@@ -284,23 +275,8 @@ void Model::updateRenderItems() {
                 data.setShapeKey(invalidatePayloadShapeKey, primitiveMode, useDualQuaternionSkinning);
             });
         }
-#if defined(Q_OS_ANDROID)
-        const uint64_t picoAfterMeshes = usecTimestampNow();
-#endif
 
         AbstractViewStateInterface::instance()->getMain3DScene()->enqueueTransaction(transaction);
-#if defined(Q_OS_ANDROID)
-        const uint64_t picoEnd = usecTimestampNow();
-        if (picoEnd - picoStart > 5000) {
-            qInfo() << "PICO_MODEL_RENDER_STAGES"
-                    << "totalMs" << (picoEnd - picoStart) / 1000.0
-                    << "clusterMs" << (picoAfterClusters - picoStart) / 1000.0
-                    << "setupMs" << (picoAfterSetup - picoAfterClusters) / 1000.0
-                    << "meshesMs" << (picoAfterMeshes - picoAfterSetup) / 1000.0
-                    << "enqueueMs" << (picoEnd - picoAfterMeshes) / 1000.0
-                    << "meshItems" << self->_modelMeshRenderItemIDs.size();
-        }
-#endif
     });
 }
 

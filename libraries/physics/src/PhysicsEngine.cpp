@@ -25,18 +25,7 @@
 #include "PhysicsHelpers.h"
 #include "PhysicsDebugDraw.h"
 #include "ThreadSafeDynamicsWorld.h"
-#if defined(Q_OS_ANDROID)
-#include <time.h>
-#endif
 #include "PhysicsLogging.h"
-
-#if defined(Q_OS_ANDROID)
-static uint64_t picoPhysicsThreadCpuUsecs() {
-    timespec time {};
-    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time);
-    return static_cast<uint64_t>(time.tv_sec) * USECS_PER_SECOND + time.tv_nsec / 1000;
-}
-#endif
 
 
 
@@ -336,9 +325,6 @@ void PhysicsEngine::stepSimulation() {
 #else
     const int32_t maxSubsteps = PHYSICS_ENGINE_MAX_NUM_SUBSTEPS;
 #endif
-#if defined(Q_OS_ANDROID)
-    const uint64_t picoCpuStart = picoPhysicsThreadCpuUsecs();
-#endif
     const float MAX_TIMESTEP = (float)maxSubsteps * PHYSICS_ENGINE_FIXED_SUBSTEP;
     float timeStep = btMin(dt, MAX_TIMESTEP);
 
@@ -350,53 +336,24 @@ void PhysicsEngine::stepSimulation() {
     int numSubsteps = _dynamicsWorld->stepSimulationWithSubstepCallback(timeStep, maxSubsteps,
                                                                         PHYSICS_ENGINE_FIXED_SUBSTEP, onSubStep);
 #if defined(Q_OS_ANDROID)
-    const uint64_t picoCpuEnd = picoPhysicsThreadCpuUsecs();
     static uint64_t lastStepLog { 0 };
     static uint32_t stepCalls { 0 };
     static uint32_t accumulatedSubsteps { 0 };
     static uint32_t maximumSubsteps { 0 };
-    static uint64_t accumulatedCpuUs { 0 };
     ++stepCalls;
     accumulatedSubsteps += numSubsteps;
     maximumSubsteps = std::max(maximumSubsteps, static_cast<uint32_t>(numSubsteps));
-    accumulatedCpuUs += picoCpuEnd - picoCpuStart;
     const uint64_t stepLogNow = usecTimestampNow();
     if (stepLogNow - lastStepLog >= USECS_PER_SECOND) {
-        uint32_t rigidBodies { 0 };
-        uint32_t activeRigidBodies { 0 };
-        uint32_t sleepingRigidBodies { 0 };
-        uint32_t kinematicBodies { 0 };
-        const auto& collisionObjects = _dynamicsWorld->getCollisionObjectArray();
-        for (int i = 0; i < collisionObjects.size(); ++i) {
-            const auto body = btRigidBody::upcast(collisionObjects[i]);
-            if (!body) {
-                continue;
-            }
-            ++rigidBodies;
-            if (body->isKinematicObject()) {
-                ++kinematicBodies;
-            } else if (body->isActive()) {
-                ++activeRigidBodies;
-            } else {
-                ++sleepingRigidBodies;
-            }
-        }
         qInfo() << "PICO_PHYSICS_STEP callsPerSec" << stepCalls
                 << "averageSubsteps" << (stepCalls ? static_cast<float>(accumulatedSubsteps) / stepCalls : 0.0f)
                 << "maximumSubsteps" << maximumSubsteps
-                << "cpuMs" << (stepCalls ? static_cast<double>(accumulatedCpuUs) / stepCalls / 1000.0 : 0.0)
                 << "collisionObjects" << getNumCollisionObjects()
-                << "rigidBodies" << rigidBodies
-                << "activeRigidBodies" << activeRigidBodies
-                << "sleepingRigidBodies" << sleepingRigidBodies
-                << "kinematicBodies" << kinematicBodies
-                << "dynamics" << _objectDynamics.size()
                 << "fixedHz" << NUM_SUBSTEPS_PER_SECOND;
         lastStepLog = stepLogNow;
         stepCalls = 0;
         accumulatedSubsteps = 0;
         maximumSubsteps = 0;
-        accumulatedCpuUs = 0;
     }
 #endif
     if (numSubsteps > 0) {
