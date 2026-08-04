@@ -149,6 +149,7 @@ RECORD_FILE="$RESULT_DIR/perf.data"
 REMOTE_FILE="/data/local/tmp/overte-simpleperf-$$.data"
 ORIGINAL_BRIGHTNESS="$(adb_shell gd32ipdclient_test getbrightness 2>/dev/null | sed -n 's/.*= //p' | tr -d '\r')"
 ORIGINAL_FAN_SPEED="$(adb_shell gd32ipdclient_test getfanspeed 2>/dev/null | sed -n 's/.*= //p' | tr -d '\r')"
+ORIGINAL_TEST_MODE="$(adb_shell getprop debug.overte.test_mode 2>/dev/null | tr -d '\r')"
 FOCUS_MONITOR_PID=""
 FOCUS_FAILURE_FILE="$RESULT_DIR/focus-error.txt"
 
@@ -170,8 +171,15 @@ cleanup() {
     if [[ "$ORIGINAL_BRIGHTNESS" =~ ^[0-9]+$ ]]; then
         adb_shell gd32ipdclient_test setbrightness "$ORIGINAL_BRIGHTNESS" >/dev/null 2>&1 || true
     fi
+    if [[ -z "$ORIGINAL_TEST_MODE" ]]; then
+        adb_shell "setprop 'debug.overte.test_mode' ''" >/dev/null 2>&1 || true
+    else
+        adb_shell setprop debug.overte.test_mode "$ORIGINAL_TEST_MODE" >/dev/null 2>&1 || true
+    fi
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 adb_shell gd32ipdclient_test setfantestmode 1 >/dev/null
 adb_shell gd32ipdclient_test setfantestspeed 100 >/dev/null

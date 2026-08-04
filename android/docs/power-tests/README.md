@@ -21,7 +21,8 @@ stack data produced by Android simpleperf's 4000 Hz DWARF default. A watchdog
 checks the resumed activity, Pico Guardian state, process identity, and (for a
 prepared run) Hub domain before, during, and after recording; it rejects the
 profile instead of publishing measurements after XR focus, process, or scene
-validity has been lost. Run:
+validity has been lost. It restores the prior test-mode value as well as fan
+and brightness controls on every handled exit. Run:
 
 ```bash
 cd android
