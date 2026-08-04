@@ -98,12 +98,23 @@ read_avatar_status() {
     local status now
     status="$(adb_shell run-as "$PACKAGE" cat cache/avatar-status 2>/dev/null || true)"
     IFS='|' read -r AVATAR_EPOCH AVATAR_TOTAL AVATAR_REPLICATED AVATAR_TARGET \
-        AVATAR_UPDATED AVATAR_NOT_UPDATED AVATAR_HEROES AVATAR_SIMULATION_MS <<<"$status"
+        AVATAR_UPDATED AVATAR_NOT_UPDATED AVATAR_HEROES AVATAR_SIMULATION_MS \
+        AVATAR_PROCESSING_MS AVATAR_PRIORITY_BUILD_MS AVATAR_SORT_MS AVATAR_PRE_UPDATE_MS \
+        AVATAR_STATE_POLL_MS AVATAR_ENSURE_SCENE_MS AVATAR_SCALE_ANIMATION_MS AVATAR_SIMULATE_MS \
+        <<<"$status"
     now="$(date +%s)"
     [[ "$AVATAR_EPOCH" =~ ^[0-9]+$ ]] &&
         (( now - AVATAR_EPOCH >= -5 && now - AVATAR_EPOCH <= 5 )) &&
         [[ "$AVATAR_TOTAL" =~ ^[0-9]+$ && "$AVATAR_REPLICATED" =~ ^[0-9]+$ &&
-            "$AVATAR_TARGET" =~ ^[0-9]+$ && "$AVATAR_SIMULATION_MS" =~ ^[0-9]+([.][0-9]+)?$ ]]
+            "$AVATAR_TARGET" =~ ^[0-9]+$ && "$AVATAR_SIMULATION_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
+            "$AVATAR_PROCESSING_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
+            "$AVATAR_PRIORITY_BUILD_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
+            "$AVATAR_SORT_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
+            "$AVATAR_PRE_UPDATE_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
+            "$AVATAR_STATE_POLL_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
+            "$AVATAR_ENSURE_SCENE_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
+            "$AVATAR_SCALE_ANIMATION_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
+            "$AVATAR_SIMULATE_MS" =~ ^[0-9]+([.][0-9]+)?$ ]]
 }
 
 real_avatar_count() {
@@ -191,7 +202,7 @@ adb_shell gd32ipdclient_test setbrightness 1 >/dev/null
         "$REAL_TEMPLATES" "$DURATION" "$INTERVAL" "$SETTLE" "$LOAD_WAIT"
     printf 'replica_sequence=%s\n' "${REPLICA_COUNTS[*]}"
 } > "$RESULT_DIR/metadata.txt"
-printf 'run,replicas_per_template,total_avatars,local_replicas,real_templates,mean_cpu_pct,mean_avatar_simulation_ms,mean_updated,mean_not_updated\n' \
+printf 'run,replicas_per_template,total_avatars,local_replicas,real_templates,mean_cpu_pct,mean_avatar_simulation_ms,mean_updated,mean_not_updated,mean_processing_ms,mean_priority_build_ms,mean_sort_ms,mean_pre_update_ms,mean_state_poll_ms,mean_ensure_scene_ms,mean_scale_animation_ms,mean_simulate_ms\n' \
     > "$RESULT_DIR/summary.csv"
 
 run_number=0
@@ -215,7 +226,7 @@ for count in "${REPLICA_COUNTS[@]}"; do
         exit 1
     }
 
-    printf 'epoch,cpu_pct,total_avatars,local_replicas,real_templates,updated,not_updated,heroes,avatar_simulation_ms\n' \
+    printf 'epoch,cpu_pct,total_avatars,local_replicas,real_templates,updated,not_updated,heroes,avatar_simulation_ms,processing_ms,priority_build_ms,sort_ms,pre_update_ms,state_poll_ms,ensure_scene_ms,scale_animation_ms,simulate_ms\n' \
         > "$output/telemetry.csv"
     elapsed=0
     while (( elapsed < DURATION )); do
@@ -230,9 +241,12 @@ for count in "${REPLICA_COUNTS[@]}"; do
         top_line="$(adb_shell top -b -n 1 -p "$PID" 2>/dev/null | tail -n 1 | tr -d '\r')"
         cpu="$(awk '{gsub(/%/, "", $9); print $9}' <<<"$top_line")"
         [[ "$cpu" =~ ^[0-9]+([.][0-9]+)?$ ]] || { echo "invalid CPU sample during $label" >&2; exit 1; }
-        printf '%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "$(date +%s)" "$cpu" "$AVATAR_TOTAL" \
+        printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "$(date +%s)" "$cpu" "$AVATAR_TOTAL" \
             "$AVATAR_REPLICATED" "$real" "$AVATAR_UPDATED" "$AVATAR_NOT_UPDATED" "$AVATAR_HEROES" \
-            "$AVATAR_SIMULATION_MS" >> "$output/telemetry.csv"
+            "$AVATAR_SIMULATION_MS" "$AVATAR_PROCESSING_MS" "$AVATAR_PRIORITY_BUILD_MS" \
+            "$AVATAR_SORT_MS" "$AVATAR_PRE_UPDATE_MS" "$AVATAR_STATE_POLL_MS" \
+            "$AVATAR_ENSURE_SCENE_MS" "$AVATAR_SCALE_ANIMATION_MS" "$AVATAR_SIMULATE_MS" \
+            >> "$output/telemetry.csv"
         sleep "$INTERVAL"
         elapsed=$((elapsed + INTERVAL))
     done
@@ -246,18 +260,27 @@ for count in "${REPLICA_COUNTS[@]}"; do
         exit 1
     }
 
-    read -r mean_cpu mean_simulation mean_updated mean_not_updated < <(awk -F, \
-        'NR > 1 { cpu += $2; updated += $6; notUpdated += $7; sim += $9; n++ }
-        END { if (n > 0) printf "%.3f %.3f %.3f %.3f\n", cpu / n, sim / n, updated / n, notUpdated / n; else exit 1 }' \
+    read -r mean_cpu mean_simulation mean_updated mean_not_updated mean_processing \
+        mean_priority_build mean_sort mean_pre_update mean_state_poll mean_ensure_scene \
+        mean_scale_animation mean_simulate < <(awk -F, \
+        'NR > 1 { cpu += $2; updated += $6; notUpdated += $7; sim += $9; processing += $10;
+            priorityBuild += $11; sort += $12; preUpdate += $13; statePoll += $14;
+            ensureScene += $15; scaleAnimation += $16; simulate += $17; n++ }
+        END { if (n > 0) printf "%.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f\n",
+            cpu / n, sim / n, updated / n, notUpdated / n, processing / n, priorityBuild / n,
+            sort / n, preUpdate / n, statePoll / n, ensureScene / n, scaleAnimation / n,
+            simulate / n; else exit 1 }' \
         "$output/telemetry.csv")
-    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "$run_number" "$count" "$AVATAR_TOTAL" "$AVATAR_REPLICATED" \
+    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "$run_number" "$count" "$AVATAR_TOTAL" "$AVATAR_REPLICATED" \
         "$REAL_TEMPLATES" "$mean_cpu" "$mean_simulation" "$mean_updated" "$mean_not_updated" \
+        "$mean_processing" "$mean_priority_build" "$mean_sort" "$mean_pre_update" "$mean_state_poll" \
+        "$mean_ensure_scene" "$mean_scale_animation" "$mean_simulate" \
         >> "$RESULT_DIR/summary.csv"
     printf '%s mean_cpu=%s mean_avatar_simulation_ms=%s mean_updated=%s mean_not_updated=%s\n' \
         "$label" "$mean_cpu" "$mean_simulation" "$mean_updated" "$mean_not_updated"
 done
 
-printf 'replicas_per_template,total_avatars,runs,mean_cpu_pct,mean_avatar_simulation_ms,mean_updated,mean_not_updated\n' \
+printf 'replicas_per_template,total_avatars,runs,mean_cpu_pct,mean_avatar_simulation_ms,mean_updated,mean_not_updated,mean_processing_ms,mean_priority_build_ms,mean_sort_ms,mean_pre_update_ms,mean_state_poll_ms,mean_ensure_scene_ms,mean_scale_animation_ms,mean_simulate_ms\n' \
     > "$RESULT_DIR/aggregate.csv"
 awk -F, 'NR > 1 {
     replicas = $2
@@ -271,13 +294,26 @@ awk -F, 'NR > 1 {
     simulation[replicas] += $7
     updated[replicas] += $8
     notUpdated[replicas] += $9
+    processing[replicas] += $10
+    priorityBuild[replicas] += $11
+    sort[replicas] += $12
+    preUpdate[replicas] += $13
+    statePoll[replicas] += $14
+    ensureScene[replicas] += $15
+    scaleAnimation[replicas] += $16
+    simulate[replicas] += $17
 }
 END {
     for (i = 1; i <= orderCount; i++) {
         replicas = order[i]
-        printf "%s,%s,%d,%.3f,%.3f,%.3f,%.3f\n", replicas, total[replicas], runs[replicas],
+        printf "%s,%s,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\n", replicas, total[replicas], runs[replicas],
             cpu[replicas] / runs[replicas], simulation[replicas] / runs[replicas],
-            updated[replicas] / runs[replicas], notUpdated[replicas] / runs[replicas]
+            updated[replicas] / runs[replicas], notUpdated[replicas] / runs[replicas],
+            processing[replicas] / runs[replicas], priorityBuild[replicas] / runs[replicas],
+            sort[replicas] / runs[replicas], preUpdate[replicas] / runs[replicas],
+            statePoll[replicas] / runs[replicas], ensureScene[replicas] / runs[replicas],
+            scaleAnimation[replicas] / runs[replicas],
+            simulate[replicas] / runs[replicas]
     }
 }' "$RESULT_DIR/summary.csv" >> "$RESULT_DIR/aggregate.csv"
 

@@ -2096,6 +2096,14 @@ void Application::update(float deltaTime) {
     const quint64 picoUpdateStart = usecTimestampNow();
     static bool picoTestMode { false };
     static double picoAvatarSimulationMsSum { 0.0 };
+    static double picoAvatarProcessingMsSum { 0.0 };
+    static double picoAvatarPriorityBuildMsSum { 0.0 };
+    static double picoAvatarSortMsSum { 0.0 };
+    static double picoAvatarPreUpdateMsSum { 0.0 };
+    static double picoAvatarStatePollMsSum { 0.0 };
+    static double picoAvatarEnsureSceneMsSum { 0.0 };
+    static double picoAvatarScaleAnimationMsSum { 0.0 };
+    static double picoAvatarSimulateMsSum { 0.0 };
     static quint64 picoAvatarSimulationSamples { 0 };
     static quint64 lastTestModePropertyCheck { 0 };
     if (picoUpdateStart - lastTestModePropertyCheck >= USECS_PER_SECOND) {
@@ -2108,6 +2116,14 @@ void Application::update(float deltaTime) {
             requestedTestMode == "true" || requestedTestMode == "enabled";
         if (!picoTestMode) {
             picoAvatarSimulationMsSum = 0.0;
+            picoAvatarProcessingMsSum = 0.0;
+            picoAvatarPriorityBuildMsSum = 0.0;
+            picoAvatarSortMsSum = 0.0;
+            picoAvatarPreUpdateMsSum = 0.0;
+            picoAvatarStatePollMsSum = 0.0;
+            picoAvatarEnsureSceneMsSum = 0.0;
+            picoAvatarScaleAnimationMsSum = 0.0;
+            picoAvatarSimulateMsSum = 0.0;
             picoAvatarSimulationSamples = 0;
         }
     }
@@ -2181,7 +2197,8 @@ void Application::update(float deltaTime) {
                 const double averageAvatarSimulationMs = picoAvatarSimulationSamples > 0
                     ? picoAvatarSimulationMsSum / double(picoAvatarSimulationSamples)
                     : 0.0;
-                const QString avatarStatus = QStringLiteral("%1|%2|%3|%4|%5|%6|%7|%8")
+                const double timingDivisor = double(std::max<quint64>(1, picoAvatarSimulationSamples));
+                const QString avatarStatus = QStringLiteral("%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11|%12|%13|%14|%15|%16")
                     .arg(QDateTime::currentSecsSinceEpoch())
                     .arg(avatarHash.size())
                     .arg(replicatedAvatars)
@@ -2189,13 +2206,29 @@ void Application::update(float deltaTime) {
                     .arg(avatarManager->getNumAvatarsUpdated())
                     .arg(avatarManager->getNumAvatarsNotUpdated())
                     .arg(avatarManager->getNumHeroAvatars())
-                    .arg(averageAvatarSimulationMs, 0, 'f', 3);
+                    .arg(averageAvatarSimulationMs, 0, 'f', 3)
+                    .arg(picoAvatarProcessingMsSum / timingDivisor, 0, 'f', 3)
+                    .arg(picoAvatarPriorityBuildMsSum / timingDivisor, 0, 'f', 3)
+                    .arg(picoAvatarSortMsSum / timingDivisor, 0, 'f', 3)
+                    .arg(picoAvatarPreUpdateMsSum / timingDivisor, 0, 'f', 3)
+                    .arg(picoAvatarStatePollMsSum / timingDivisor, 0, 'f', 3)
+                    .arg(picoAvatarEnsureSceneMsSum / timingDivisor, 0, 'f', 3)
+                    .arg(picoAvatarScaleAnimationMsSum / timingDivisor, 0, 'f', 3)
+                    .arg(picoAvatarSimulateMsSum / timingDivisor, 0, 'f', 3);
                 QSaveFile avatarStatusFile("/data/user/0/org.overte.pico/cache/avatar-status");
                 if (avatarStatusFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
                     avatarStatusFile.write(avatarStatus.toUtf8());
                     avatarStatusFile.commit();
                 }
                 picoAvatarSimulationMsSum = 0.0;
+                picoAvatarProcessingMsSum = 0.0;
+                picoAvatarPriorityBuildMsSum = 0.0;
+                picoAvatarSortMsSum = 0.0;
+                picoAvatarPreUpdateMsSum = 0.0;
+                picoAvatarStatePollMsSum = 0.0;
+                picoAvatarEnsureSceneMsSum = 0.0;
+                picoAvatarScaleAnimationMsSum = 0.0;
+                picoAvatarSimulateMsSum = 0.0;
                 picoAvatarSimulationSamples = 0;
             }
         }
@@ -2759,14 +2792,24 @@ void Application::update(float deltaTime) {
         {
             PROFILE_RANGE(simulation, "OtherAvatars");
             PerformanceTimer perfTimer("otherAvatars");
-            avatarManager->updateOtherAvatars(deltaTime);
 #if defined(Q_OS_ANDROID)
+            avatarManager->updateOtherAvatars(deltaTime, picoTestMode);
             if (picoTestMode) {
                 picoAvatarSimulationMsSum += avatarManager->size() > 1
                     ? avatarManager->getAvatarSimulationTime()
                     : 0.0;
+                picoAvatarProcessingMsSum += avatarManager->getAvatarProcessingTime();
+                picoAvatarPriorityBuildMsSum += avatarManager->getAvatarPriorityBuildTime();
+                picoAvatarSortMsSum += avatarManager->getAvatarSortTime();
+                picoAvatarPreUpdateMsSum += avatarManager->getAvatarPreUpdateTime();
+                picoAvatarStatePollMsSum += avatarManager->getAvatarStatePollTime();
+                picoAvatarEnsureSceneMsSum += avatarManager->getAvatarEnsureSceneTime();
+                picoAvatarScaleAnimationMsSum += avatarManager->getAvatarScaleAnimationTime();
+                picoAvatarSimulateMsSum += avatarManager->getAvatarSimulateTime();
                 ++picoAvatarSimulationSamples;
             }
+#else
+            avatarManager->updateOtherAvatars(deltaTime);
 #endif
         }
 

@@ -65,17 +65,23 @@ set_avatar_replicas() {
 }
 
 print_avatar_status() {
-    local status status_epoch total replicated target updated not_updated heroes simulation_ms now
+    local status status_epoch total replicated target updated not_updated heroes simulation_ms
+    local processing_ms priority_build_ms sort_ms pre_update_ms state_poll_ms ensure_scene_ms
+    local scale_animation_ms simulate_ms now
     status="$(adb_shell run-as org.overte.pico cat cache/avatar-status 2>/dev/null || true)"
-    IFS='|' read -r status_epoch total replicated target updated not_updated heroes simulation_ms <<<"$status"
+    IFS='|' read -r status_epoch total replicated target updated not_updated heroes simulation_ms \
+        processing_ms priority_build_ms sort_ms pre_update_ms state_poll_ms ensure_scene_ms \
+        scale_animation_ms simulate_ms <<<"$status"
     now="$(date +%s)"
     if [[ ! "$status_epoch" =~ ^[0-9]+$ ]] ||
             (( now - status_epoch < -5 || now - status_epoch > 5 )); then
         echo "missing or stale avatar status: ${status:-missing}" >&2
         return 1
     fi
-    printf 'avatars=%s replicated=%s target_per_avatar=%s updated=%s not_updated=%s heroes=%s simulation_ms=%s\n' \
-        "$total" "$replicated" "$target" "$updated" "$not_updated" "$heroes" "$simulation_ms"
+    printf 'avatars=%s replicated=%s target_per_avatar=%s updated=%s not_updated=%s heroes=%s simulation_ms=%s processing_ms=%s priority_build_ms=%s sort_ms=%s pre_update_ms=%s state_poll_ms=%s ensure_scene_ms=%s scale_animation_ms=%s simulate_ms=%s\n' \
+        "$total" "$replicated" "$target" "$updated" "$not_updated" "$heroes" "$simulation_ms" \
+        "$processing_ms" "$priority_build_ms" "$sort_ms" "$pre_update_ms" "$state_poll_ms" \
+        "$ensure_scene_ms" "$scale_animation_ms" "$simulate_ms"
 }
 
 wait_for_world() {

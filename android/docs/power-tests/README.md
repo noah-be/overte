@@ -54,6 +54,13 @@ timestamped and ignored when stale, so an interrupted test cannot replay its
 load after a later app restart. Test mode itself is re-read at runtime. Always
 return the count to zero after a test.
 
+In test mode, the status also breaks total other-avatar processing into
+priority-queue construction, sorting, pre-update state work, scene assurance,
+scale animation, and the budgeted simulation/render-update section. These are
+wall-clock timings and can include time while Android deschedules the main
+thread; use a CPU profile before treating a large stage as compute work. When
+no other avatar exists, all timings and update counters reset to zero.
+
 For a guarded repeated A/B matrix in the current domain, run:
 
 ```bash

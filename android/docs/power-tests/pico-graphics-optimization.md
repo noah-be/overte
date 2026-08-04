@@ -552,6 +552,21 @@ crowd grows. Raising it would trade CPU for smoother crowd updates rather than
 remove CPU work. The matrix now writes both per-stage `summary.csv` and an
 `aggregate.csv` that combines repeated replica counts.
 
+Test-mode timing was then split around the other-avatar update stages. A
+repeated 0/5/0/5 matrix with three stable templates measured 4 and 19 total
+avatars. Combined process CPU was 228.95% and 229.60%, while complete
+other-avatar processing was 7.636 ms and 9.730 ms. Priority construction grew
+from 0.349 ms to 1.226 ms, but sorting was only 0.005--0.032 ms,
+`ensureInScene()` 0.070--0.086 ms, scale animation 0.001--0.022 ms, and the
+budgeted simulate/render-update section 2.100--2.194 ms. The remaining
+wall-clock time was observed around the lightweight skeleton/orb/physics state
+polls. Those functions did not appear as material leaf costs in the guarded
+CPU profile, so the wall-clock bucket likely includes main-thread descheduling
+and must not be interpreted as equivalent CPU time. The result rules out sort,
+scene assurance, and scale animation as useful Pico crowd targets in this
+scene. Priority construction scales, but its current process-level effect is
+too small to justify a production change.
+
 ## Limitations and next work
 
 - The Hub test is CPU-limited and contains no nearby avatars or active mirror

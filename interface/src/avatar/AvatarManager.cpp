@@ -262,11 +262,25 @@ float AvatarManager::getAvatarSimulationRate(const QUuid& sessionID, const QStri
     return avatar ? avatar->getSimulationRate(rateName) : 0.0f;
 }
 
-void AvatarManager::updateOtherAvatars(float deltaTime) {
+void AvatarManager::updateOtherAvatars(float deltaTime, bool collectDetailedTimings) {
+    const uint64_t detailedTimingStart = collectDetailedTimings ? usecTimestampNow() : 0;
+    _avatarProcessingTime = 0.0f;
+    _avatarPriorityBuildTime = 0.0f;
+    _avatarSortTime = 0.0f;
+    _avatarPreUpdateTime = 0.0f;
+    _avatarStatePollTime = 0.0f;
+    _avatarEnsureSceneTime = 0.0f;
+    _avatarScaleAnimationTime = 0.0f;
+    _avatarSimulateTime = 0.0f;
     {
         // lock the hash for read to check the size
         QReadLocker lock(&_hashLock);
         if (_avatarHash.size() < 2) {
+            _avatarSimulationTime = 0.0f;
+            _numAvatarsUpdated = 0;
+            _numAvatarsNotUpdated = 0;
+            _numHeroAvatars = 0;
+            _numHeroAvatarsUpdated = 0;
             return;
         }
     }
@@ -331,6 +345,9 @@ void AvatarManager::updateOtherAvatars(float deltaTime) {
 
     // process in sorted order
     uint64_t startTime = usecTimestampNow();
+    if (collectDetailedTimings) {
+        _avatarPriorityBuildTime = float(startTime - detailedTimingStart) / float(USECS_PER_MSEC);
+    }
 
     const uint64_t MAX_UPDATE_HEROS_TIME_BUDGET = uint64_t(0.8 * MAX_UPDATE_AVATARS_TIME_BUDGET);
 
@@ -345,11 +362,16 @@ void AvatarManager::updateOtherAvatars(float deltaTime) {
     for (int p = kHero; p < NumVariants; p++) {
         auto& priorityQueue = avatarPriorityQueues[p];
         // Sorting the current queue HERE as part of the measured timing.
+        const uint64_t sortStart = collectDetailedTimings ? usecTimestampNow() : 0;
         const auto& sortedAvatarVector = priorityQueue.getSortedVector();
+        if (collectDetailedTimings) {
+            _avatarSortTime += float(usecTimestampNow() - sortStart) / float(USECS_PER_MSEC);
+        }
 
         auto passExpiry = updatePriorityExpiries[p];
 
         for (auto it = sortedAvatarVector.begin(); it != sortedAvatarVector.end(); ++it) {
+            const uint64_t preUpdateStart = collectDetailedTimings ? usecTimestampNow() : 0;
             const SortableAvatar& sortData = *it;
             const auto avatar = std::static_pointer_cast<OtherAvatar>(sortData.getAvatar());
             if (!avatar->_isClientAvatar) {
@@ -365,17 +387,26 @@ void AvatarManager::updateOtherAvatars(float deltaTime) {
             } else {
                 avatar->updateOrbPosition();
             }
+            const uint64_t afterStatePoll = collectDetailedTimings ? usecTimestampNow() : 0;
 
             // for ALL avatars...
             if (_shouldRender) {
                 avatar->ensureInScene(avatar, qApp->getMain3DScene());
             }
+            const uint64_t afterEnsureScene = collectDetailedTimings ? usecTimestampNow() : 0;
 
             avatar->animateScaleChanges(deltaTime);
 
             uint64_t now = usecTimestampNow();
+            if (collectDetailedTimings) {
+                _avatarPreUpdateTime += float(now - preUpdateStart) / float(USECS_PER_MSEC);
+                _avatarStatePollTime += float(afterStatePoll - preUpdateStart) / float(USECS_PER_MSEC);
+                _avatarEnsureSceneTime += float(afterEnsureScene - afterStatePoll) / float(USECS_PER_MSEC);
+                _avatarScaleAnimationTime += float(now - afterEnsureScene) / float(USECS_PER_MSEC);
+            }
             if (now < passExpiry) {
                 // we're within budget
+                const uint64_t simulateStart = collectDetailedTimings ? now : 0;
                 bool inView = sortData.getPriority() > OUT_OF_VIEW_THRESHOLD;
                 if (inView && avatar->hasNewJointData()) {
                     numAvatarsUpdated++;
@@ -397,6 +428,9 @@ void AvatarManager::updateOtherAvatars(float deltaTime) {
                 avatar->updateRenderItem(renderTransaction);
                 avatar->updateSpaceProxy(workloadTransaction);
                 avatar->setLastRenderUpdateTime(startTime);
+                if (collectDetailedTimings) {
+                    _avatarSimulateTime += float(usecTimestampNow() - simulateStart) / float(USECS_PER_MSEC);
+                }
 
             } else {
                 // we've spent our time budget for this priority bucket
@@ -442,7 +476,11 @@ void AvatarManager::updateOtherAvatars(float deltaTime) {
     _numAvatarsNotUpdated = numAvatarsNotUpdated;
     _numHeroAvatarsUpdated = numHerosUpdated;
 
-    _avatarSimulationTime = (float)(usecTimestampNow() - startTime) / (float)USECS_PER_MSEC;
+    const uint64_t endTime = usecTimestampNow();
+    _avatarSimulationTime = float(endTime - startTime) / float(USECS_PER_MSEC);
+    if (collectDetailedTimings) {
+        _avatarProcessingTime = float(endTime - detailedTimingStart) / float(USECS_PER_MSEC);
+    }
 }
 
 void AvatarManager::postUpdate(float deltaTime, const render::ScenePointer& scene) {
