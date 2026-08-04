@@ -38,6 +38,8 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
 
     var TARGET_UPDATE_HZ = 60; // 50hz good enough, but we're using update
     var BASIC_TIMER_INTERVAL_MS = 1000 / TARGET_UPDATE_HZ;
+    var PICO_IDLE_UPDATE_HZ = 30;
+    var PICO_IDLE_TIMER_INTERVAL_MS = 1000 / PICO_IDLE_UPDATE_HZ;
 
     var PROFILE = false;
     var DEBUG = false;
@@ -230,13 +232,38 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
             }
         };
 
+        this.hasActiveInteraction = function () {
+            if ((systemTablet && systemTablet.tabletShown) || HMD.showTablet ||
+                    isInEditMode() || Keyboard.raised || _this.picoEditingHand !== null ||
+                    _this.leftTriggerValue > 0.01 || _this.rightTriggerValue > 0.01 ||
+                    _this.leftTriggerClicked || _this.rightTriggerClicked ||
+                    _this.leftSecondaryValue > 0.01 || _this.rightSecondaryValue > 0.01) {
+                return true;
+            }
+
+            for (var runningPluginName in _this.runningPluginNames) {
+                if (_this.runningPluginNames.hasOwnProperty(runningPluginName)) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
         this.update = function () {
             try {
                 _this.updateInternal();
             } catch (e) {
                 print(e);
             }
-            Script.setTimeout(_this.update, BASIC_TIMER_INTERVAL_MS);
+            // Controller mappings update the trigger/grip state independently,
+            // so an idle standalone headset can poll the expensive dispatcher
+            // less often without missing the start of an interaction. Return to
+            // the full rate as soon as the tablet, keyboard, edit mode, an input,
+            // or a dispatcher module becomes active.
+            var nextInterval = picoLazyHandRays && !_this.hasActiveInteraction()
+                ? PICO_IDLE_TIMER_INTERVAL_MS
+                : BASIC_TIMER_INTERVAL_MS;
+            Script.setTimeout(_this.update, nextInterval);
         };
 
         this.addDebugLine = function(line) {

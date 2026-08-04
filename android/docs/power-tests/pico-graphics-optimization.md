@@ -400,6 +400,63 @@ Artifacts are in `power-results/entity-sync-profile-20260804T091757Z`,
 `power-results/model-animation-profile-20260804T093217Z`, and
 `power-results/model-joint-direct-20260804T093636Z`.
 
+## Idle controller-script scheduling (2026-08-04)
+
+A history and branch audit preceded this follow-up. Android already limits
+simple-kinematic work to two entities or 4000 us per update, model animation
+already runs at 24 Hz, Bullet already disables unconditional AABB refreshes,
+and the retained ghost-pair narrowphase skip was already present. None of the
+other Pico branches contained an additional physics, entity, or script
+scheduling optimization to carry over.
+
+A clean build of the branch was installed before recording a new fixed-fan Hub
+baseline. The 60-second baseline averaged 301.17% process CPU over 12 samples
+(292–307%), with a maximum CPU sensor temperature of 84.5 C. Start and end XR
+screenshots passed the 4320x2160 reference check with RMSE 0.357 and 0.267.
+
+A separate 30-second, 99 Hz `simpleperf` sample showed that the remaining work
+was not dominated by Bullet broadphase. The controller-script thread accounted
+for 27.64% of sampled process cycles, while all of `libphysics.so` accounted
+for 1.75%. Existing internal Bullet measurements put AABB refresh plus
+overlapping-pair calculation at only about 0.12–0.14 ms per substep after the
+ghost-pair fix. Further broadphase changes were therefore not justified.
+
+The retained change makes the standalone controller dispatcher adaptive. Its
+normal interaction rate remains 60 Hz whenever the tablet, keyboard, Create
+mode, trigger/grip input, or a dispatcher module is active. When all of those
+are idle, the already-independent controller mappings continue to capture
+input while the expensive dispatcher poll runs at 30 Hz. Other platforms do
+not enable the standalone lazy-ray setting and retain their existing behavior.
+
+Two repeated 60-second Hub runs produced:
+
+| Metric | Clean baseline | Adaptive run 1 | Adaptive run 2 |
+| --- | ---: | ---: | ---: |
+| Mean process CPU | 301.17% | 291.42% | 288.08% |
+| Process CPU range | 292–307% | 278–300% | 274–300% |
+| Maximum CPU temperature | 84.5 C | 81.8 C | 80.6 C |
+| End-image reference RMSE | 0.267 | 0.270 | 0.266 |
+
+The repeated adaptive mean was 289.75%, a reduction of 11.42 CPU percentage
+points (3.8%) from the clean baseline. Both runs reported zero dropped frames
+and zero stutters in the final GPU sample. A follow-up `simpleperf` recording
+reduced the controller-script share from 27.64% to 23.04%; normalized by each
+recording's total event count, that is approximately 18% fewer cycles in the
+controller-script thread.
+
+Two narrower experiments were not retained. Coalescing repeated hidden Create
+gizmo edits and fully disconnecting their inactive frame callback did not
+produce a repeatable process-CPU improvement. Skipping the dispatcher's nearby
+overlay/entity searches while idle measured 291.00%, within the adaptive
+30-Hz runs' normal spread. These results indicate that dispatcher cadence, not
+the individual near-search calls, is the useful low-risk lever in this scene.
+
+Artifacts are in `power-results/physics-open-baseline-20260804T164324Z`,
+`power-results/overte-open-20260804T164643Z-r2-leaf-r2.data`,
+`power-results/controller-idle-ab-20260804T165549Z`,
+`power-results/controller-idle-repeat-20260804T170117Z`, and
+`power-results/controller-idle-20260804T165900Z.data`.
+
 ## Limitations and next work
 
 - The Hub test is CPU-limited and contains no nearby avatars or active mirror
@@ -410,7 +467,10 @@ Artifacts are in `power-results/entity-sync-profile-20260804T091757Z`,
   engineering tests but are not a substitute for a hardware GPU profiler.
 - A stable native 72 new FPS was not achieved. The compositor stayed near
   72 presents/s, while Overte generated about 20 new frames/s.
-- The strongest next candidates are physics broadphase/entity workload
-  reduction, script/update scheduling, inactive-entity throttling, and avatar
-  complexity controls. Global simulation-rate and renderable-budget reductions
-  and model-update throttling have now been screened and rejected.
+- Physics broadphase and inactive simple-kinematic work are already bounded and
+  are not strong next candidates for this scene. The strongest remaining work
+  is per-module controller-script profiling, safe lazy loading of inactive
+  applications such as Create, avatar-heavy domain testing, and avatar
+  complexity controls. Global simulation-rate and renderable-budget reductions,
+  model-update throttling, redundant Create gizmo updates, and idle near-search
+  suppression have now been screened and rejected.
