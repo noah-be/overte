@@ -48,14 +48,16 @@ safe_position() {
 }
 
 wait_for_world() {
-    local timeout="${1:-60}" elapsed=0 status status_epoch connected place now
+    local timeout="${1:-60}" elapsed=0 status status_epoch connected place domain_id now
     while (( elapsed < timeout )); do
         status="$(adb_shell run-as org.overte.pico cat cache/world-status 2>/dev/null || true)"
-        IFS='|' read -r status_epoch connected place _ <<<"$status"
+        IFS='|' read -r status_epoch connected place domain_id _ <<<"$status"
         now="$(date +%s)"
         if [[ "$status_epoch" =~ ^[0-9]+$ ]] &&
             (( now - status_epoch >= -5 && now - status_epoch <= 5 )) &&
-            [[ "$connected" == "1" && "${place,,}" == "$TARGET_PLACE" ]]; then
+            [[ "$connected" == "1" && "${place,,}" == "$TARGET_PLACE" ]] &&
+            [[ "$domain_id" =~ ^\{?[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}\}?$ ]] &&
+            [[ "$domain_id" != "{00000000-0000-0000-0000-000000000000}" ]]; then
             return 0
         fi
         sleep 1
@@ -112,7 +114,8 @@ case "${1:-status}" in
         sleep 5
         status="$(adb_shell run-as org.overte.pico cat cache/world-status 2>/dev/null || true)"
         IFS='|' read -r status_epoch connected place domain_id x y z <<<"$status"
-        if [[ "$connected" != "1" || "${place,,}" != "$TARGET_PLACE" ]] ||
+        if [[ "$connected" != "1" || "${place,,}" != "$TARGET_PLACE" ||
+                "$domain_id" == "{00000000-0000-0000-0000-000000000000}" ]] ||
             ! awk -v x="$x" -v y="$y" -v z="$z" 'BEGIN {
                 dx=x-155.084; dy=y-(-97.403); dz=z-(-397.162);
                 exit (dx*dx + dy*dy + dz*dz <= 4.0) ? 0 : 1;
