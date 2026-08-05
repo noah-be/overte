@@ -557,10 +557,9 @@ void Application::initialize(const QCommandLineParser &parser) {
                 TestScriptingInterface::getInstance()->setTestResultsLocation(path);
             }
         }
-        // Pico always opens the packaged debug world. This is an internal
-        // default; explicit command-line URLs are not used for production
-        // headset launches.
-        _urlParam = QUrl(QStringLiteral("file:///~/serverless/pico-debug.json"));
+        // Keep an explicit developer URL, while the normal empty Pico URL is
+        // resolved by the Android startup branch in Application.cpp.
+        _urlParam = parser.value("url");
 
         if (parser.isSet("disableWatchdog")) {
             DISABLE_WATCHDOG = true;
