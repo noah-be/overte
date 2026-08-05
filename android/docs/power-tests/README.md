@@ -148,3 +148,14 @@ consumer can reject them without interpreting CSV or image contents.
 Avatar matrices, graphics matrices, and simpleperf recordings refuse a
 non-empty result directory. This prevents a retry or mistyped path from
 overwriting a prior valid run or combining artifacts from different runs.
+
+The ADB-independent control/status regressions can be run on a host without a
+headset:
+
+```bash
+./tests/pico-unattended-test-test.sh
+```
+
+They cover one/zero/multiple-device selection, an explicit generic serial,
+fresh and stale status, the current 20-field schema, malformed refresh data,
+and replica/template command acknowledgements.
