@@ -29,6 +29,16 @@ class EntityItemID;
 
 class SafeLanding : public QObject {
 public:
+    struct LoadingStatus {
+        int32_t trackedEntityCount { 0 };
+        int32_t maximumTrackedEntityCount { 0 };
+        int32_t physicsBlockedEntityCount { 0 };
+        int32_t visuallyBlockedEntityCount { 0 };
+        uint32_t receivedSequenceCount { 0 };
+        uint32_t expectedSequenceCount { 0 };
+        bool completionReceived { false };
+    };
+
     static constexpr OCTREE_PACKET_SEQUENCE MAX_SEQUENCE = std::numeric_limits<OCTREE_PACKET_SEQUENCE>::max();
     static constexpr OCTREE_PACKET_SEQUENCE INVALID_SEQUENCE = MAX_SEQUENCE; // not technically invalid, but close enough
 
@@ -36,12 +46,14 @@ public:
     void updateTracking();
     void stopTracking();
     void reset();
+    void restartSequenceTracking();
     bool isTracking() const { return _trackingEntities; }
     bool trackingIsComplete() const;
 
     void finishSequence(OCTREE_PACKET_SEQUENCE first, OCTREE_PACKET_SEQUENCE last);  // 'last' exclusive.
     void addToSequence(OCTREE_PACKET_SEQUENCE sequenceNumber);
     float loadingProgressPercentage();
+    LoadingStatus loadingStatus();
 
 private slots:
     void addTrackedEntity(const EntityItemID& entityID);

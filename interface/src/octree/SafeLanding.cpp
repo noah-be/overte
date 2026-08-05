@@ -88,8 +88,8 @@ void SafeLanding::deleteTrackedEntity(const EntityItemID& entityID) {
 
 void SafeLanding::finishSequence(OCTREE_PACKET_SEQUENCE first, OCTREE_PACKET_SEQUENCE last) {
     Locker lock(_lock);
-    if (_trackingEntities) {
-        // An empty initial scene has no first EntityData packet. Represent it
+    if (_trackingEntities && _sequenceStart == SafeLanding::INVALID_SEQUENCE) {
+        // An empty initial scene has no first entity packet. Represent it
         // as a zero-length sequence so Safe Landing can still complete.
         _sequenceStart = first == SafeLanding::INVALID_SEQUENCE ? last : first;
         _sequenceEnd = last;
@@ -178,6 +178,15 @@ void SafeLanding::reset() {
     _sequenceEnd = SafeLanding::INVALID_SEQUENCE;
 }
 
+void SafeLanding::restartSequenceTracking() {
+    Locker lock(_lock);
+    if (_trackingEntities) {
+        _sequenceStart = SafeLanding::INVALID_SEQUENCE;
+        _sequenceEnd = SafeLanding::INVALID_SEQUENCE;
+        _sequenceNumbers.clear();
+    }
+}
+
 bool SafeLanding::trackingIsComplete() const {
     return !_trackingEntities && (_sequenceStart != SafeLanding::INVALID_SEQUENCE);
 }
@@ -196,6 +205,45 @@ float SafeLanding::loadingProgressPercentage() {
     }
 
     return entityReadyPercentage;
+}
+
+SafeLanding::LoadingStatus SafeLanding::loadingStatus() {
+    Locker lock(_lock);
+
+    LoadingStatus status;
+    status.trackedEntityCount = static_cast<int32_t>(_trackedEntities.size());
+    status.maximumTrackedEntityCount = _maxTrackedEntityCount;
+    if (_entityTreeRenderer) {
+        const bool requireVisualReadiness =
+            DependencyManager::get<NodeList>()->getDomainHandler().getInterstitialModeEnabled();
+        for (const auto& trackedEntity : _trackedEntities) {
+            const auto& entity = trackedEntity.second;
+            if (!isEntityPhysicsReady(entity)) {
+                ++status.physicsBlockedEntityCount;
+            }
+            if (requireVisualReadiness) {
+                const auto entityRenderable = _entityTreeRenderer->renderableForEntityId(trackedEntity.first);
+                const bool isVisuallyReady = entity->isVisuallyReady() ||
+                    (!entityRenderable && !entity->isParentPathComplete());
+                if (!isVisuallyReady) {
+                    ++status.visuallyBlockedEntityCount;
+                }
+            }
+        }
+    }
+    status.completionReceived = _sequenceStart != SafeLanding::INVALID_SEQUENCE;
+    if (status.completionReceived) {
+        status.expectedSequenceCount = static_cast<uint32_t>(_sequenceEnd - _sequenceStart);
+        for (uint32_t offset = 0; offset < status.expectedSequenceCount; ++offset) {
+            const auto sequence = static_cast<OCTREE_PACKET_SEQUENCE>(_sequenceStart + offset);
+            if (_sequenceNumbers.find(sequence) != _sequenceNumbers.end()) {
+                ++status.receivedSequenceCount;
+            }
+        }
+    } else {
+        status.receivedSequenceCount = static_cast<uint32_t>(_sequenceNumbers.size());
+    }
+    return status;
 }
 
 bool SafeLanding::isEntityPhysicsReady(const EntityItemPointer& entity) {

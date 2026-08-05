@@ -70,6 +70,10 @@ GraphicsEngine::GraphicsEngine() {
         makeLoadingStatusTexture(
             QCoreApplication::translate("PicoLoadingScreen", "Receiving world data"),
             QCoreApplication::translate("PicoLoadingScreen", "Loading nearby entities"));
+    _loadingStatusTextures[static_cast<size_t>(LoadingPhase::RECOVERING_WORLD)] =
+        makeLoadingStatusTexture(
+            QCoreApplication::translate("PicoLoadingScreen", "Receiving world data"),
+            QCoreApplication::translate("PicoLoadingScreen", "Recovering missing entity packets"));
     _loadingStatusTextures[static_cast<size_t>(LoadingPhase::DOWNLOADING_RESOURCES)] =
         makeLoadingStatusTexture(
             QCoreApplication::translate("PicoLoadingScreen", "Downloading world resources"),
@@ -92,8 +96,8 @@ GraphicsEngine::GraphicsEngine() {
             QCoreApplication::translate("PicoLoadingScreen", "Waiting for the entity server"));
     _loadingStatusTextures[static_cast<size_t>(LoadingPhase::RECONNECTING_WORLD)] =
         makeLoadingStatusTexture(
-            QCoreApplication::translate("PicoLoadingScreen", "Reconnecting world data"),
-            QCoreApplication::translate("PicoLoadingScreen", "Restarting the entity data stream"));
+            QCoreApplication::translate("PicoLoadingScreen", "Retrying world data"),
+            QCoreApplication::translate("PicoLoadingScreen", "Requesting a fresh entity scene"));
     for (int percentage = 0; percentage <= 100; ++percentage) {
         _loadingProgressTextures[percentage] = makeLoadingProgressTexture(percentage);
     }
@@ -440,12 +444,12 @@ gpu::TexturePointer GraphicsEngine::makeLoadingStatusTexture(const QString& titl
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setRenderHint(QPainter::TextAntialiasing);
     QFont font = painter.font();
-    font.setPixelSize(50);
+    font.setPixelSize(64);
     font.setWeight(QFont::DemiBold);
     painter.setFont(font);
     painter.setPen(QColor(240, 245, 250));
     painter.drawText(QRect(0, 0, WIDTH, 94), Qt::AlignHCenter | Qt::AlignBottom, title);
-    font.setPixelSize(32);
+    font.setPixelSize(42);
     font.setWeight(QFont::Normal);
     painter.setFont(font);
     painter.setPen(QColor(190, 202, 215));
@@ -471,7 +475,7 @@ gpu::TexturePointer GraphicsEngine::makeLoadingProgressTexture(int percentage) c
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setRenderHint(QPainter::TextAntialiasing);
     QFont font = painter.font();
-    font.setPixelSize(48);
+    font.setPixelSize(64);
     font.setWeight(QFont::DemiBold);
     painter.setFont(font);
     painter.setPen(QColor(210, 219, 229));
