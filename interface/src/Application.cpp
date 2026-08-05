@@ -2662,6 +2662,7 @@ void Application::update(float deltaTime) {
             const int readyPhase = static_cast<int>(GraphicsEngine::LoadingPhase::READY);
             const int unavailablePhase = static_cast<int>(GraphicsEngine::LoadingPhase::WORLD_SERVER_UNAVAILABLE);
             const int retryingPhase = static_cast<int>(GraphicsEngine::LoadingPhase::RECONNECTING_WORLD);
+            const int recoveringPhase = static_cast<int>(GraphicsEngine::LoadingPhase::RECOVERING_WORLD);
             constexpr quint64 PHASE_DEBOUNCE_TIME = 1500 * USECS_PER_MSEC;
             const bool waitingForConnection = _picoLoadingDisplayedPhase < 0 ||
                 _picoLoadingDisplayedPhase == static_cast<int>(GraphicsEngine::LoadingPhase::STARTING) ||
@@ -2673,12 +2674,24 @@ void Application::update(float deltaTime) {
                 desiredPhase == uploadingPhase || desiredPhase == physicsPhase || desiredPhase == readyPhase ||
                 desiredPhase == unavailablePhase || desiredPhase == retryingPhase ||
                 leavingConfirmation;
+            // A transient domain connection flap must not replace a more advanced status with an
+            // earlier one (for example Connected -> Connecting). Recovery and server-unavailable
+            // states remain explicit exceptions so genuine failures are still visible immediately.
+            const bool regressiveConnectionPhase = _picoLoadingDisplayedPhase >= 0 &&
+                progress + 0.005f < _picoLoadingDisplayedProgress &&
+                desiredPhase != recoveringPhase && desiredPhase != retryingPhase &&
+                desiredPhase != unavailablePhase;
 
             if (_picoLoadingDisplayedPhase < 0 || immediatePhase) {
+                if (regressiveConnectionPhase) {
+                    _picoLoadingCandidatePhase = -1;
+                    _picoLoadingCandidatePhaseSince = 0;
+                } else {
                 _picoLoadingDisplayedPhase = desiredPhase;
                 _picoLoadingDisplayedProgress = glm::max(_picoLoadingDisplayedProgress, progress);
                 _picoLoadingCandidatePhase = -1;
                 _picoLoadingCandidatePhaseSince = 0;
+                }
             } else if (desiredPhase == _picoLoadingDisplayedPhase) {
                 _picoLoadingDisplayedProgress = glm::max(_picoLoadingDisplayedProgress, progress);
                 _picoLoadingCandidatePhase = -1;
