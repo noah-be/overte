@@ -48,6 +48,7 @@ private slots:
     void rejectNonFiniteFarGrabTransform();
     void rejectInvalidJointTranslationScale_data();
     void rejectInvalidJointTranslationScale();
+    void sanitizeInvalidJointTranslationEncoding();
     void roundTripSkeletonTrait();
     void limitSkeletonTraitJointCount();
     void rejectMalformedSkeletonTrait();
@@ -338,6 +339,26 @@ void AvatarDataTests::rejectInvalidJointTranslationScale() {
     QVERIFY(jointData[0].translation == previousJointData[0].translation);
     QCOMPARE(jointData[0].rotationIsDefaultPose, previousJointData[0].rotationIsDefaultPose);
     QCOMPARE(jointData[0].translationIsDefaultPose, previousJointData[0].translationIsDefaultPose);
+}
+
+void AvatarDataTests::sanitizeInvalidJointTranslationEncoding() {
+    AvatarData source;
+    source.setJointData(0, glm::quat(1.0f, 0.0f, 0.0f, 0.0f),
+                        glm::vec3(std::numeric_limits<float>::infinity(),
+                                  std::numeric_limits<float>::quiet_NaN(), 1.0f));
+
+    const auto packet = source.toByteArrayStateful(AvatarData::SendAllData);
+    AvatarData destination;
+    QCOMPARE(destination.parseDataFromBuffer(packet), packet.size());
+
+    const auto jointData = destination.getJointData();
+    QCOMPARE(jointData.size(), 1);
+    QVERIFY(std::isfinite(jointData[0].translation.x));
+    QVERIFY(std::isfinite(jointData[0].translation.y));
+    QVERIFY(std::isfinite(jointData[0].translation.z));
+    QCOMPARE(jointData[0].translation.x, 0.0f);
+    QCOMPARE(jointData[0].translation.y, 0.0f);
+    QVERIFY(std::abs(jointData[0].translation.z - 1.0f) < 0.001f);
 }
 
 void AvatarDataTests::roundTripSkeletonTrait() {

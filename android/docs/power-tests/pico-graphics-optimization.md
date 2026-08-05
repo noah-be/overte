@@ -700,6 +700,10 @@ before resizing or updating the joint array; every truncated prefix and an
 invalid far-grab tail preserve seeded joint state. The decoder also enforces
 the encoder's positive, finite joint-translation scale invariant; zero,
 negative, NaN, and both infinities preserve seeded state in the host regression.
+The matching encoder now derives that scale only from finite components, so an
+invalid component follows the fixed-point encoder's zero fallback without
+making the complete packet undecodable; an encode/decode regression retains a
+valid component from the same joint.
 The rebuilt Android client completed a clean Pico cold start without a native,
 JNI, or packet-validation error.
 The shared six-byte quaternion decoder was hardened as well: byte patterns

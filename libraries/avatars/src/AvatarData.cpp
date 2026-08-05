@@ -727,9 +727,11 @@ QByteArray AvatarData::toByteArray(AvatarDataDetail dataDetail, quint64 lastSent
         for (int i = sendStatus.translationsSent; i < numJoints; ++i) {
             const JointData& data = jointData[i];
             if (!data.translationIsDefaultPose) {
-                maxTranslationDimension = glm::max(fabsf(data.translation.x), maxTranslationDimension);
-                maxTranslationDimension = glm::max(fabsf(data.translation.y), maxTranslationDimension);
-                maxTranslationDimension = glm::max(fabsf(data.translation.z), maxTranslationDimension);
+                for (float component : { data.translation.x, data.translation.y, data.translation.z }) {
+                    if (std::isfinite(component)) {
+                        maxTranslationDimension = glm::max(fabsf(component), maxTranslationDimension);
+                    }
+                }
             }
         }
 
