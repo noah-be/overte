@@ -21,6 +21,7 @@ private slots:
     void testEulerDecomposition();
     void testSixByteOrientationCompression();
     void testMalformedSixByteOrientationCompression();
+    void testInvalidSixByteOrientationInput();
     void testSimd();
     void testGenerateBasisVectors();
     void roundPerf();

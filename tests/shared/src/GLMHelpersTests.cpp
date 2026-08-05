@@ -20,6 +20,7 @@
 
 #include <array>
 #include <cmath>
+#include <limits>
 
 QTEST_MAIN(GLMHelpersTests)
 
@@ -123,6 +124,30 @@ void GLMHelpersTests::testMalformedSixByteOrientationCompression() {
         QVERIFY(std::isfinite(result.y));
         QVERIFY(std::isfinite(result.z));
         QCOMPARE_WITH_ABS_ERROR(glm::length(result), 1.0f, 1.0e-6f);
+    }
+}
+
+void GLMHelpersTests::testInvalidSixByteOrientationInput() {
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    const float infinity = std::numeric_limits<float>::infinity();
+    const std::array<glm::quat, 4> invalidInputs {{
+        glm::quat(0.0f, 0.0f, 0.0f, 0.0f),
+        glm::quat(1.0f, nan, 0.0f, 0.0f),
+        glm::quat(infinity, 0.0f, 0.0f, 0.0f),
+        glm::quat(2.0f, 0.0f, 0.0f, 0.0f)
+    }};
+
+    for (const auto& input : invalidInputs) {
+        uint8_t bytes[6];
+        glm::quat result;
+        packOrientationQuatToSixBytes(bytes, input);
+        unpackOrientationQuatFromSixBytes(bytes, result);
+
+        QVERIFY(std::isfinite(result.w));
+        QVERIFY(std::isfinite(result.x));
+        QVERIFY(std::isfinite(result.y));
+        QVERIFY(std::isfinite(result.z));
+        QCOMPARE_WITH_ABS_ERROR(std::abs(glm::dot(result, Quaternions::IDENTITY)), 1.0f, 1.0e-6f);
     }
 }
 

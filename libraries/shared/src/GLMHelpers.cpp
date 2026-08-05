@@ -11,6 +11,7 @@
 
 #include "GLMHelpers.h"
 
+#include <cmath>
 #include <limits>
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -155,17 +156,25 @@ int unpackOrientationQuatFromBytes(const unsigned char* buffer, glm::quat& quatO
 #define LO_BYTE(x) (uint8_t)(0xff & x)
 
 int packOrientationQuatToSixBytes(unsigned char* buffer, const glm::quat& quatInput) {
+    float lengthSquared = glm::dot(quatInput, quatInput);
+    glm::quat normalized = Quaternions::IDENTITY;
+    if (std::isfinite(lengthSquared) && lengthSquared > EPSILON) {
+        normalized = quatInput;
+        if (fabsf(lengthSquared - 1.0f) > EPSILON) {
+            normalized /= sqrtf(lengthSquared);
+        }
+    }
 
     // find largest component
     uint8_t largestComponent = 0;
     for (int i = 1; i < 4; i++) {
-        if (fabs(quatInput[i]) > fabs(quatInput[largestComponent])) {
+        if (fabs(normalized[i]) > fabs(normalized[largestComponent])) {
             largestComponent = i;
         }
     }
 
     // ensure that the sign of the dropped component is always negative.
-    glm::quat q = quatInput[largestComponent] > 0 ? -quatInput : quatInput;
+    glm::quat q = normalized[largestComponent] > 0 ? -normalized : normalized;
 
     const float MAGNITUDE = 1.0f / sqrtf(2.0f);
     const uint32_t NUM_BITS_PER_COMPONENT = 15;
