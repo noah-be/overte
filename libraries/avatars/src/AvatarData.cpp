@@ -692,15 +692,19 @@ QByteArray AvatarData::toByteArray(AvatarDataDetail dataDetail, quint64 lastSent
         auto faceTrackerInfo = reinterpret_cast<AvatarDataPacket::FaceTrackerInfo*>(destinationBuffer);
         // note: we don't use the blink and average loudness, we just use the numBlendShapes and
         // compute the procedural info on the client side.
-        faceTrackerInfo->leftEyeBlink = _headData->_leftEyeBlink;
-        faceTrackerInfo->rightEyeBlink = _headData->_rightEyeBlink;
-        faceTrackerInfo->averageLoudness = _headData->_averageLoudness;
-        faceTrackerInfo->browAudioLift = _headData->_browAudioLift;
+        const auto finiteOrZero = [](float value) { return std::isfinite(value) ? value : 0.0f; };
+        faceTrackerInfo->leftEyeBlink = finiteOrZero(_headData->_leftEyeBlink);
+        faceTrackerInfo->rightEyeBlink = finiteOrZero(_headData->_rightEyeBlink);
+        faceTrackerInfo->averageLoudness = finiteOrZero(_headData->_averageLoudness);
+        faceTrackerInfo->browAudioLift = finiteOrZero(_headData->_browAudioLift);
         faceTrackerInfo->numBlendshapeCoefficients = numBlendshapeCoefficients;
         destinationBuffer += sizeof(AvatarDataPacket::FaceTrackerInfo);
 
-        memcpy(destinationBuffer, blendshapeCoefficients.data(), numBlendshapeCoefficients * sizeof(float));
-        destinationBuffer += numBlendshapeCoefficients * sizeof(float);
+        for (int i = 0; i < numBlendshapeCoefficients; ++i) {
+            const float coefficient = finiteOrZero(blendshapeCoefficients[i]);
+            memcpy(destinationBuffer, &coefficient, sizeof(coefficient));
+            destinationBuffer += sizeof(coefficient);
+        }
 
         int numBytes = destinationBuffer - startSection;
         if (outboundDataRateOut) {

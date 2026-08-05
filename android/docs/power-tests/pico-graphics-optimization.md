@@ -709,6 +709,10 @@ entries representable by their one-byte wire fields while leaving the complete
 local rig and expression vectors unchanged. Regressions serialize 301 local
 joints and 300 local blendshapes; the latter deliberately precedes joint data
 to verify that the following section remains aligned and decodable.
+Non-finite outbound blendshape coefficients and the legacy face header's float
+fields now use a zero fallback as well. An encode/decode regression combines
+finite, NaN, and infinite coefficients with a following joint and verifies that
+both sections remain decodable.
 The rebuilt Android client completed a clean Pico cold start without a native,
 JNI, or packet-validation error.
 The shared six-byte quaternion decoder was hardened as well: byte patterns

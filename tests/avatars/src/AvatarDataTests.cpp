@@ -51,6 +51,7 @@ private slots:
     void sanitizeInvalidJointTranslationEncoding();
     void limitAvatarDataJointCount();
     void limitAvatarDataBlendshapeCount();
+    void sanitizeInvalidBlendshapeEncoding();
     void roundTripSkeletonTrait();
     void limitSkeletonTraitJointCount();
     void rejectMalformedSkeletonTrait();
@@ -380,6 +381,7 @@ void AvatarDataTests::limitAvatarDataJointCount() {
 void AvatarDataTests::limitAvatarDataBlendshapeCount() {
     AvatarData source;
     source.toByteArrayStateful(AvatarData::NoData); // Lazily create HeadData.
+    source.setForceFaceTrackerConnected(true);
     const QVector<float> blendshapes(300, 0.5f);
     source.setBlendshapeCoefficients(blendshapes);
     QCOMPARE(source.getHeadData()->getBlendshapeCoefficients().size(), blendshapes.size());
@@ -393,6 +395,21 @@ void AvatarDataTests::limitAvatarDataBlendshapeCount() {
 
     // Wire-format capping must not resize the local expression state.
     QCOMPARE(source.getHeadData()->getBlendshapeCoefficients().size(), blendshapes.size());
+}
+
+void AvatarDataTests::sanitizeInvalidBlendshapeEncoding() {
+    AvatarData source;
+    source.toByteArrayStateful(AvatarData::NoData); // Lazily create HeadData.
+    source.setForceFaceTrackerConnected(true);
+    source.setBlendshapeCoefficients({ 0.5f, std::numeric_limits<float>::quiet_NaN(),
+                                      std::numeric_limits<float>::infinity() });
+    source.setJointData(0, glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f));
+
+    const auto packet = source.toByteArrayStateful(AvatarData::SendAllData);
+    AvatarData destination;
+    QCOMPARE(destination.parseDataFromBuffer(packet), packet.size());
+    QCOMPARE(destination.getHeadData()->getBlendshapeCoefficients(), QVector<float>({ 0.5f, 0.0f, 0.0f }));
+    QCOMPARE(destination.getJointCount(), 1);
 }
 
 void AvatarDataTests::roundTripSkeletonTrait() {
