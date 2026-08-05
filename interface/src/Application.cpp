@@ -1092,12 +1092,19 @@ void Application::setIsInterstitialMode(bool interstitialMode) {
             _picoLoadingSequenceProgress = 0.0f;
             _picoLoadingLastAdvance = 0;
             _picoLoadingLastRecovery = 0;
+            _picoLoadingRecoveryAttempts = 0;
             _picoLoadingConnectedAt = 0;
+            _picoLoadingFinalizingAt = 0;
+            _picoLoadingPhysicsEnabledAt = 0;
+            _picoLoadingPhysicsPresentFrame = 0;
+            _picoLoadingReadyAt = 0;
+            _picoLoadingReadyPresentFrame = 0;
             _picoLoadingCandidatePhaseSince = 0;
             _picoLoadingDisplayedProgress = 0.0f;
             _picoLoadingDisplayedPhase = -1;
             _picoLoadingCandidatePhase = -1;
-            _picoLoadingAllowsUnpopulatedTextures = false;
+            _picoLoadingTextureMemoryReady = false;
+            _picoLoadingGpuFallbackUsed = false;
             _picoLoadingWasConnected = false;
             if (_graphicsEngine) {
                 _graphicsEngine->setLoadingState(
@@ -1144,7 +1151,9 @@ bool Application::gpuTextureMemSizeStable() {
     auto renderStats = renderConfig->getConfig<render::EngineStats>("Stats");
 
     qint64 textureResourceGPUMemSize = renderStats->textureResourceGPUMemSize;
+#if !defined(ANDROID_APP_PICO_INTERFACE)
     qint64 texturePopulatedGPUMemSize = renderStats->textureResourcePopulatedGPUMemSize;
+#endif
     qint64 textureTransferSize = renderStats->texturePendingGPUTransferSize;
 
     if (_gpuTextureMemSizeAtLastCheck == textureResourceGPUMemSize) {
@@ -1155,13 +1164,14 @@ bool Application::gpuTextureMemSizeStable() {
     _gpuTextureMemSizeAtLastCheck = textureResourceGPUMemSize;
 
     if (_gpuTextureMemSizeStabilityCount >= _minimumGPUTextureMemSizeStabilityCount) {
-        bool populatedTextureMemoryReady = textureResourceGPUMemSize == texturePopulatedGPUMemSize;
 #if defined(ANDROID_APP_PICO_INTERFACE)
-        // Failed external assets can leave requested memory permanently above populated memory.
-        // The Pico loading flow only enables this after the scene and GPU queues are otherwise idle.
-        populatedTextureMemoryReady = populatedTextureMemoryReady || _picoLoadingAllowsUnpopulatedTextures;
+        // Android texture streaming intentionally keeps some requested mip levels non-resident. Waiting for
+        // requested and populated memory to match can therefore deadlock the Pico loading screen forever.
+        // Stable allocation and an empty transfer queue are the reliable completion signals on this client.
+        return textureTransferSize == 0;
+#else
+        return textureResourceGPUMemSize == texturePopulatedGPUMemSize && textureTransferSize == 0;
 #endif
-        return populatedTextureMemoryReady && textureTransferSize == 0;
     }
     return false;
 }
@@ -2450,15 +2460,15 @@ void Application::update(float deltaTime) {
                     _picoLoadingResourceProgress = 0.0f;
                     _picoLoadingSequenceProgress = 0.0f;
                     _picoLoadingLastAdvance = loadingNow;
-                    _picoLoadingAllowsUnpopulatedTextures = false;
                     _picoLoadingWasConnected = false;
                     const auto connectionTimes = nodeList->getLastConnectionTimes();
                     if (!connectionTimes.isEmpty()) {
                         const int latestStep = static_cast<int>(connectionTimes.last());
                         const int firstStep = static_cast<int>(LimitedNodeList::ConnectionStep::LookupAddress);
                         const int connectedStep = static_cast<int>(LimitedNodeList::ConnectionStep::ReceiveDSList);
-                        progress = glm::clamp(
+                        const float connectionProgress = glm::clamp(
                             static_cast<float>(latestStep - firstStep) / (connectedStep - firstStep), 0.0f, 1.0f);
+                        progress = 0.05f + 0.13f * connectionProgress;
                     }
                 }
             } else if (_failedToConnectToEntityServer) {
@@ -2511,39 +2521,56 @@ void Application::update(float deltaTime) {
                 if (initialWorldDataReceived && _picoLoadingConnectedAt == 0) {
                     _picoLoadingConnectedAt = loadingNow;
                 }
-                constexpr quint64 STATUS_CONFIRMATION_TIME = 1500 * USECS_PER_MSEC;
+                constexpr quint64 STATUS_CONFIRMATION_TIME = 1000 * USECS_PER_MSEC;
                 const bool showConnectedConfirmation = initialWorldDataReceived && _picoLoadingConnectedAt > 0 &&
                     loadingNow - _picoLoadingConnectedAt < STATUS_CONFIRMATION_TIME;
-                const bool showRecoveryConfirmation = _picoLoadingLastRecovery > 0 &&
+                const bool showRecoveryConfirmation = _picoLoadingRecoveryAttempts == 1 &&
+                    _picoLoadingLastRecovery > 0 &&
                     loadingNow - _picoLoadingLastRecovery < STATUS_CONFIRMATION_TIME;
                 if (showRecoveryConfirmation) {
                     phase = GraphicsEngine::LoadingPhase::RECONNECTING_WORLD;
-                    progress = 0.0f;
+                    progress = 0.28f;
                 } else if (showConnectedConfirmation) {
                     phase = GraphicsEngine::LoadingPhase::CONNECTED;
-                    progress = 1.0f;
+                    progress = 0.20f;
                 } else if (!initialWorldDataReceived) {
                     phase = _picoLoadingLastRecovery > 0
                         ? GraphicsEngine::LoadingPhase::RECOVERING_WORLD
-                        : GraphicsEngine::LoadingPhase::CONNECTING;
-                    progress = _picoLoadingLastRecovery > 0 ? _picoLoadingSequenceProgress : 0.95f;
-                } else if (isProcessing) {
-                    phase = GraphicsEngine::LoadingPhase::PROCESSING_RESOURCES;
-                    progress = _picoLoadingWorldProgress;
-                } else if (isDownloading) {
-                    phase = GraphicsEngine::LoadingPhase::DOWNLOADING_RESOURCES;
-                    progress = _picoLoadingResourceProgress;
+                        : GraphicsEngine::LoadingPhase::WAITING_FOR_WORLD;
+                    progress = _picoLoadingLastRecovery > 0
+                        ? 0.28f + 0.27f * _picoLoadingSequenceProgress
+                        : 0.22f;
                 } else if (isRecoveringWorldPackets) {
                     phase = GraphicsEngine::LoadingPhase::RECOVERING_WORLD;
-                    progress = _picoLoadingSequenceProgress;
-                } else {
+                    progress = 0.28f + 0.27f * _picoLoadingSequenceProgress;
+                } else if (!safeLandingStatus.completionReceived) {
                     phase = GraphicsEngine::LoadingPhase::RECEIVING_WORLD;
-                    progress = _picoLoadingWorldProgress;
+                    progress = 0.25f + 0.30f * glm::max(
+                        _picoLoadingWorldProgress, _picoLoadingSequenceProgress);
+                } else {
+                    // Once the complete entity packet sequence is present, all remaining safe-landing work is
+                    // local: models, textures, and collision shapes. Keep this umbrella phase stable instead of
+                    // flickering between download and processing queues as individual requests finish and spawn.
+                    phase = GraphicsEngine::LoadingPhase::PREPARING_WORLD;
+                    progress = 0.55f + 0.30f * glm::max(
+                        _picoLoadingWorldProgress, _picoLoadingResourceProgress);
                 }
 
                 if (_octreeProcessor->safeLandingIsComplete()) {
-                    phase = GraphicsEngine::LoadingPhase::PREPARING_WORLD;
-                    progress = 1.0f;
+                    if (_picoLoadingFinalizingAt == 0) {
+                        _picoLoadingFinalizingAt = loadingNow;
+                    }
+                    if (_picoLoadingTextureMemoryReady || _picoLoadingGpuFallbackUsed) {
+                        phase = GraphicsEngine::LoadingPhase::STARTING_PHYSICS;
+                        progress = 0.97f;
+                    } else {
+                        phase = GraphicsEngine::LoadingPhase::UPLOADING_RESOURCES;
+                        const float gpuStabilityProgress = glm::clamp(
+                            static_cast<float>(_gpuTextureMemSizeStabilityCount) /
+                                static_cast<float>(_minimumGPUTextureMemSizeStabilityCount),
+                            0.0f, 1.0f);
+                        progress = 0.88f + 0.07f * gpuStabilityProgress;
+                    }
                 } else {
                     constexpr quint64 WORLD_PROGRESS_STALL_TIME = 5 * USECS_PER_SECOND;
                     constexpr quint64 WORLD_PROGRESS_RECOVERY_TIME = 10 * USECS_PER_SECOND;
@@ -2567,40 +2594,59 @@ void Application::update(float deltaTime) {
                             timeWithoutProgress >= WORLD_PROGRESS_RECOVERY_TIME) {
                         qCWarning(interfaceapp) << "Pico world loading completed an empty scene"
                             << "after the completion packet did not arrive";
-                        _picoLoadingAllowsUnpopulatedTextures = true;
                         _octreeProcessor->finishEmptySafeLandingSequence();
                         phase = GraphicsEngine::LoadingPhase::PREPARING_WORLD;
-                        progress = 1.0f;
+                        progress = 0.85f;
                     } else if (onlyUnavailableVisualsRemain &&
                             timeWithoutProgress >= WORLD_PROGRESS_RECOVERY_TIME) {
                         qCWarning(interfaceapp) << "Pico world loading completed after unavailable visual assets"
                             << "entities" << safeLandingStatus.visuallyBlockedEntityCount;
-                        _picoLoadingAllowsUnpopulatedTextures = true;
                         _octreeProcessor->stopSafeLanding();
                         phase = GraphicsEngine::LoadingPhase::PREPARING_WORLD;
-                        progress = 1.0f;
-                    } else if (_picoLoadingLastRecovery == 0 &&
-                            timeWithoutProgress >= WORLD_PROGRESS_RECOVERY_TIME) {
-                        phase = GraphicsEngine::LoadingPhase::RECONNECTING_WORLD;
-                        progress = 0.0f;
-                        _picoLoadingLastRecovery = loadingNow;
-                        _picoLoadingLastAdvance = loadingNow;
-                        _picoLoadingSequenceProgress = 0.0f;
-                        qCWarning(interfaceapp) << "Pico world loading stalled; requesting a fresh entity scene"
-                            << "tracked" << safeLandingStatus.trackedEntityCount
-                            << "maximum" << safeLandingStatus.maximumTrackedEntityCount
-                            << "physics" << safeLandingStatus.physicsBlockedEntityCount
-                            << "visual" << safeLandingStatus.visuallyBlockedEntityCount
-                            << "sequence" << safeLandingStatus.receivedSequenceCount
-                            << "/" << safeLandingStatus.expectedSequenceCount
-                            << "completion" << safeLandingStatus.completionReceived;
-                        _octreeProcessor->restartSafeLandingSequence();
-                        _octreeQuery.incrementConnectionID();
-                        _lastQueriedViews.clear();
-                        _queryExpiry = SteadyClock::now();
-                    } else if (!isDownloading && !isProcessing &&
-                            timeWithoutProgress >= WORLD_PROGRESS_STALL_TIME) {
-                        phase = GraphicsEngine::LoadingPhase::WAITING_FOR_WORLD;
+                        progress = 0.85f;
+                    } else {
+                        // Only retry when the initial scene has not started at all or its completion marker proves
+                        // that packet numbers are missing. Never restart for slow model, texture, or collision work.
+                        // Further packet retries stay under the stable RECOVERING status and back off to 30 seconds.
+                        const quint64 retryDelay = glm::min(
+                            WORLD_PROGRESS_RECOVERY_TIME +
+                                static_cast<quint64>(_picoLoadingRecoveryAttempts) * 10 * USECS_PER_SECOND,
+                            30 * USECS_PER_SECOND);
+                        const bool recoverySceneHasNoCompletion =
+                            _picoLoadingRecoveryAttempts > 0 && !safeLandingStatus.completionReceived;
+                        const bool shouldRetryWorldPackets =
+                            (!initialWorldDataReceived || isRecoveringWorldPackets ||
+                                recoverySceneHasNoCompletion) &&
+                            timeWithoutProgress >= retryDelay;
+                        if (shouldRetryWorldPackets) {
+                            const bool firstRecoveryAttempt = _picoLoadingRecoveryAttempts == 0;
+                            phase = firstRecoveryAttempt
+                                ? GraphicsEngine::LoadingPhase::RECONNECTING_WORLD
+                                : GraphicsEngine::LoadingPhase::RECOVERING_WORLD;
+                            progress = 0.28f + 0.27f * _picoLoadingSequenceProgress;
+                            ++_picoLoadingRecoveryAttempts;
+                            _picoLoadingLastRecovery = loadingNow;
+                            _picoLoadingLastAdvance = loadingNow;
+                            _picoLoadingSequenceProgress = 0.0f;
+                            qCWarning(interfaceapp) << "Pico world loading missing entity packets; requesting a fresh scene"
+                                << "attempt" << _picoLoadingRecoveryAttempts
+                                << "tracked" << safeLandingStatus.trackedEntityCount
+                                << "maximum" << safeLandingStatus.maximumTrackedEntityCount
+                                << "physics" << safeLandingStatus.physicsBlockedEntityCount
+                                << "visual" << safeLandingStatus.visuallyBlockedEntityCount
+                                << "sequence" << safeLandingStatus.receivedSequenceCount
+                                << "/" << safeLandingStatus.expectedSequenceCount
+                                << "completion" << safeLandingStatus.completionReceived;
+                            _octreeProcessor->restartSafeLandingSequence();
+                            _octreeQuery.incrementConnectionID();
+                            _lastQueriedViews.clear();
+                            _queryExpiry = SteadyClock::now();
+                        } else if (!isDownloading && !isProcessing &&
+                                timeWithoutProgress >= WORLD_PROGRESS_STALL_TIME) {
+                            phase = initialWorldDataReceived
+                                ? GraphicsEngine::LoadingPhase::RECOVERING_WORLD
+                                : GraphicsEngine::LoadingPhase::WAITING_FOR_WORLD;
+                        }
                     }
                 }
             }
@@ -2609,6 +2655,9 @@ void Application::update(float deltaTime) {
             const int connectingPhase = static_cast<int>(GraphicsEngine::LoadingPhase::CONNECTING);
             const int connectedPhase = static_cast<int>(GraphicsEngine::LoadingPhase::CONNECTED);
             const int preparingPhase = static_cast<int>(GraphicsEngine::LoadingPhase::PREPARING_WORLD);
+            const int uploadingPhase = static_cast<int>(GraphicsEngine::LoadingPhase::UPLOADING_RESOURCES);
+            const int physicsPhase = static_cast<int>(GraphicsEngine::LoadingPhase::STARTING_PHYSICS);
+            const int readyPhase = static_cast<int>(GraphicsEngine::LoadingPhase::READY);
             const int unavailablePhase = static_cast<int>(GraphicsEngine::LoadingPhase::WORLD_SERVER_UNAVAILABLE);
             const int retryingPhase = static_cast<int>(GraphicsEngine::LoadingPhase::RECONNECTING_WORLD);
             constexpr quint64 PHASE_DEBOUNCE_TIME = 1500 * USECS_PER_MSEC;
@@ -2619,12 +2668,13 @@ void Application::update(float deltaTime) {
                 _picoLoadingDisplayedPhase == connectedPhase || _picoLoadingDisplayedPhase == retryingPhase;
             const bool immediatePhase = (desiredPhase == connectingPhase && waitingForConnection) ||
                 desiredPhase == connectedPhase || desiredPhase == preparingPhase ||
+                desiredPhase == uploadingPhase || desiredPhase == physicsPhase || desiredPhase == readyPhase ||
                 desiredPhase == unavailablePhase || desiredPhase == retryingPhase ||
                 leavingConfirmation;
 
             if (_picoLoadingDisplayedPhase < 0 || immediatePhase) {
                 _picoLoadingDisplayedPhase = desiredPhase;
-                _picoLoadingDisplayedProgress = progress;
+                _picoLoadingDisplayedProgress = glm::max(_picoLoadingDisplayedProgress, progress);
                 _picoLoadingCandidatePhase = -1;
                 _picoLoadingCandidatePhaseSince = 0;
             } else if (desiredPhase == _picoLoadingDisplayedPhase) {
@@ -2636,27 +2686,9 @@ void Application::update(float deltaTime) {
                 _picoLoadingCandidatePhaseSince = loadingNow;
             } else if (loadingNow - _picoLoadingCandidatePhaseSince >= PHASE_DEBOUNCE_TIME) {
                 _picoLoadingDisplayedPhase = desiredPhase;
-                _picoLoadingDisplayedProgress = progress;
+                _picoLoadingDisplayedProgress = glm::max(_picoLoadingDisplayedProgress, progress);
                 _picoLoadingCandidatePhase = -1;
                 _picoLoadingCandidatePhaseSince = 0;
-            }
-
-            const int receivingPhase = static_cast<int>(GraphicsEngine::LoadingPhase::RECEIVING_WORLD);
-            const int processingPhase = static_cast<int>(GraphicsEngine::LoadingPhase::PROCESSING_RESOURCES);
-            const int waitingPhase = static_cast<int>(GraphicsEngine::LoadingPhase::WAITING_FOR_WORLD);
-            const int downloadingPhase = static_cast<int>(GraphicsEngine::LoadingPhase::DOWNLOADING_RESOURCES);
-            const int recoveringPhase = static_cast<int>(GraphicsEngine::LoadingPhase::RECOVERING_WORLD);
-            if (_picoLoadingDisplayedPhase == receivingPhase ||
-                    _picoLoadingDisplayedPhase == processingPhase ||
-                    _picoLoadingDisplayedPhase == waitingPhase) {
-                _picoLoadingDisplayedProgress = glm::max(
-                    _picoLoadingDisplayedProgress, _picoLoadingWorldProgress);
-            } else if (_picoLoadingDisplayedPhase == downloadingPhase) {
-                _picoLoadingDisplayedProgress = glm::max(
-                    _picoLoadingDisplayedProgress, _picoLoadingResourceProgress);
-            } else if (_picoLoadingDisplayedPhase == recoveringPhase) {
-                _picoLoadingDisplayedProgress = glm::max(
-                    _picoLoadingDisplayedProgress, _picoLoadingSequenceProgress);
             }
 
             phase = static_cast<GraphicsEngine::LoadingPhase>(_picoLoadingDisplayedPhase);
@@ -2668,6 +2700,47 @@ void Application::update(float deltaTime) {
         _domainLoadingInProgress = false;
         PROFILE_ASYNC_END(app, "Scene Loading", "");
     }
+
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    // Physics activation makes the scene playable, but render-scene transactions still need a short time to
+    // produce the first complete frame. Keep input locked and the opaque overlay visible while those frames are
+    // presented, then show READY briefly. Hard time limits guarantee that stale counters cannot trap the user.
+    if (_physicsEnabled && isInterstitialMode() && _picoLoadingPhysicsEnabledAt > 0 && _graphicsEngine) {
+        const quint64 handoffNow = usecTimestampNow();
+        const auto displayPlugin = getActiveDisplayPlugin();
+        const uint32_t presentFrame = displayPlugin ? displayPlugin->presentCount() : 0;
+        if (_picoLoadingReadyAt == 0) {
+            _graphicsEngine->setLoadingState(true, GraphicsEngine::LoadingPhase::FINALIZING_SCENE, 0.98f);
+            constexpr quint64 SCENE_SETTLE_TIME = 4 * USECS_PER_SECOND;
+            constexpr quint64 SCENE_SETTLE_TIMEOUT = 8 * USECS_PER_SECOND;
+            constexpr uint32_t SCENE_SETTLE_PRESENT_FRAMES = 30;
+            const quint64 sceneSettleElapsed = handoffNow - _picoLoadingPhysicsEnabledAt;
+            const bool sceneFramesPresented = displayPlugin &&
+                presentFrame >= _picoLoadingPhysicsPresentFrame + SCENE_SETTLE_PRESENT_FRAMES;
+            if ((sceneSettleElapsed >= SCENE_SETTLE_TIME && sceneFramesPresented) ||
+                    sceneSettleElapsed >= SCENE_SETTLE_TIMEOUT) {
+                _picoLoadingReadyAt = handoffNow;
+                _picoLoadingReadyPresentFrame = presentFrame;
+                _graphicsEngine->setLoadingState(true, GraphicsEngine::LoadingPhase::READY, 1.0f);
+            }
+        } else {
+            _graphicsEngine->setLoadingState(true, GraphicsEngine::LoadingPhase::READY, 1.0f);
+            constexpr quint64 READY_DISPLAY_TIME = 900 * USECS_PER_MSEC;
+            constexpr quint64 READY_DISPLAY_TIMEOUT = 2 * USECS_PER_SECOND;
+            constexpr uint32_t READY_PRESENT_FRAMES = 3;
+            const quint64 readyElapsed = handoffNow - _picoLoadingReadyAt;
+            const bool readyFramesPresented = displayPlugin &&
+                presentFrame >= _picoLoadingReadyPresentFrame + READY_PRESENT_FRAMES;
+            if ((readyElapsed >= READY_DISPLAY_TIME && readyFramesPresented) ||
+                    readyElapsed >= READY_DISPLAY_TIMEOUT) {
+                qCInfo(interfaceapp) << "Pico world ready; releasing loading screen"
+                    << "presentedFrames"
+                    << (presentFrame - _picoLoadingPhysicsPresentFrame);
+                setIsInterstitialMode(false);
+            }
+        }
+    }
+#endif
 
      if (shouldCaptureMouse()) {
         QPoint point = _primaryWidget->mapToGlobal(_primaryWidget->geometry().center());
@@ -3467,6 +3540,34 @@ void Application::queryAvatars() {
 void Application::tryToEnablePhysics() {
     bool enableInterstitial = DependencyManager::get<NodeList>()->getDomainHandler().getInterstitialModeEnabled();
     bool textureMemoryReady = gpuTextureMemSizeStable();
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    const quint64 physicsNow = usecTimestampNow();
+    if (enableInterstitial && _picoLoadingFinalizingAt == 0) {
+        _picoLoadingFinalizingAt = physicsNow;
+    }
+    _picoLoadingTextureMemoryReady = textureMemoryReady;
+
+    // A stale driver transfer statistic must not leave the user trapped forever after every entity and
+    // collision shape is ready. This fallback is deliberately bounded and only applies when CPU resource
+    // queues are idle and GPU allocation has already been stable for the normal settling interval.
+    constexpr quint64 GPU_FINALIZATION_TIMEOUT = 15 * USECS_PER_SECOND;
+    if (!textureMemoryReady && enableInterstitial && !_picoLoadingGpuFallbackUsed &&
+            _picoLoadingFinalizingAt > 0 && physicsNow - _picoLoadingFinalizingAt >= GPU_FINALIZATION_TIMEOUT) {
+        const auto loadingRequests = ResourceCache::getLoadingRequests();
+        const bool resourceQueuesIdle = loadingRequests.empty() && ResourceCache::getPendingRequestCount() == 0;
+        const auto statTracker = DependencyManager::get<StatTracker>();
+        const bool processingQueuesIdle = statTracker->getStat("Processing").toInt() == 0 &&
+            statTracker->getStat("PendingProcessing").toInt() == 0;
+        const bool gpuAllocationStable =
+            _gpuTextureMemSizeStabilityCount >= _minimumGPUTextureMemSizeStabilityCount;
+        if (resourceQueuesIdle && processingQueuesIdle && gpuAllocationStable) {
+            _picoLoadingGpuFallbackUsed = true;
+            textureMemoryReady = true;
+            qCWarning(interfaceapp) << "Pico world loading ignored a stale GPU transfer statistic"
+                << "after resources and GPU allocation became stable";
+        }
+    }
+#endif
     if (textureMemoryReady || !enableInterstitial) {
         _fullSceneCounterAtLastPhysicsCheck = _octreeProcessor->getFullSceneReceivedCounter();
         _lastQueriedViews.clear();  // Force new view.
@@ -3477,8 +3578,10 @@ void Application::tryToEnablePhysics() {
         auto myAvatar = getMyAvatar();
 #if defined(ANDROID_APP_PICO_INTERFACE)
         constexpr quint64 DOMAIN_SETTINGS_TIMEOUT = 10 * USECS_PER_SECOND;
-        const bool domainSettingsTimedOut = enableInterstitial && _picoLoadingConnectedAt > 0 &&
-            usecTimestampNow() - _picoLoadingConnectedAt >= DOMAIN_SETTINGS_TIMEOUT;
+        const quint64 domainSettingsWaitStarted = _picoLoadingConnectedAt > 0
+            ? _picoLoadingConnectedAt : _picoLoadingFinalizingAt;
+        const bool domainSettingsTimedOut = enableInterstitial && domainSettingsWaitStarted > 0 &&
+            physicsNow - domainSettingsWaitStarted >= DOMAIN_SETTINGS_TIMEOUT;
         if (domainSettingsTimedOut && !myAvatar->isReadyForPhysics()) {
             qCWarning(interfaceapp) << "Pico world loading using default avatar height limits"
                 << "because domain settings did not arrive";
@@ -3489,7 +3592,21 @@ void Application::tryToEnablePhysics() {
             myAvatar->getCharacterController()->setPhysicsEngine(_physicsEngine);
             _octreeProcessor->resetSafeLanding();
             _physicsEnabled = true;
+#if defined(ANDROID_APP_PICO_INTERFACE)
+            if (enableInterstitial && _graphicsEngine) {
+                _picoLoadingPhysicsEnabledAt = physicsNow;
+                const auto displayPlugin = getActiveDisplayPlugin();
+                _picoLoadingPhysicsPresentFrame = displayPlugin ? displayPlugin->presentCount() : 0;
+                _picoLoadingDisplayedPhase = static_cast<int>(GraphicsEngine::LoadingPhase::FINALIZING_SCENE);
+                _picoLoadingDisplayedProgress = 0.98f;
+                _graphicsEngine->setLoadingState(
+                    true, GraphicsEngine::LoadingPhase::FINALIZING_SCENE, 0.98f);
+            } else {
+                setIsInterstitialMode(false);
+            }
+#else
             setIsInterstitialMode(false);
+#endif
             myAvatar->updateMotionBehaviorFromMenu();
         }
     }

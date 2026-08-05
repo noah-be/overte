@@ -84,8 +84,24 @@ GraphicsEngine::GraphicsEngine() {
             QCoreApplication::translate("PicoLoadingScreen", "Preparing models and collision data"));
     _loadingStatusTextures[static_cast<size_t>(LoadingPhase::PREPARING_WORLD)] =
         makeLoadingStatusTexture(
-            QCoreApplication::translate("PicoLoadingScreen", "Preparing world"),
-            QCoreApplication::translate("PicoLoadingScreen", "Starting physics and simulation"));
+            QCoreApplication::translate("PicoLoadingScreen", "Preparing nearby entities"),
+            QCoreApplication::translate("PicoLoadingScreen", "Models, textures, and collision shapes"));
+    _loadingStatusTextures[static_cast<size_t>(LoadingPhase::UPLOADING_RESOURCES)] =
+        makeLoadingStatusTexture(
+            QCoreApplication::translate("PicoLoadingScreen", "Uploading world resources"),
+            QCoreApplication::translate("PicoLoadingScreen", "Transferring textures to the GPU"));
+    _loadingStatusTextures[static_cast<size_t>(LoadingPhase::STARTING_PHYSICS)] =
+        makeLoadingStatusTexture(
+            QCoreApplication::translate("PicoLoadingScreen", "Starting physics"),
+            QCoreApplication::translate("PicoLoadingScreen", "Enabling movement and simulation"));
+    _loadingStatusTextures[static_cast<size_t>(LoadingPhase::FINALIZING_SCENE)] =
+        makeLoadingStatusTexture(
+            QCoreApplication::translate("PicoLoadingScreen", "Finalizing world"),
+            QCoreApplication::translate("PicoLoadingScreen", "Preparing the first playable frame"));
+    _loadingStatusTextures[static_cast<size_t>(LoadingPhase::READY)] =
+        makeLoadingStatusTexture(
+            QCoreApplication::translate("PicoLoadingScreen", "World ready"),
+            QCoreApplication::translate("PicoLoadingScreen", "You can start exploring"));
     _loadingStatusTextures[static_cast<size_t>(LoadingPhase::WAITING_FOR_WORLD)] =
         makeLoadingStatusTexture(
             QCoreApplication::translate("PicoLoadingScreen", "Waiting for world data"),
