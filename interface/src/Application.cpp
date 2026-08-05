@@ -1085,6 +1085,13 @@ void Application::setIsInterstitialMode(bool interstitialMode) {
 
             DependencyManager::get<AudioClient>()->setAudioPaused(_interstitialMode);
             DependencyManager::get<AvatarManager>()->setMyAvatarDataPacketsPaused(_interstitialMode);
+#if defined(ANDROID_APP_PICO_INTERFACE)
+            if (_graphicsEngine) {
+                _graphicsEngine->setLoadingState(
+                    _interstitialMode, GraphicsEngine::LoadingPhase::STARTING,
+                    _interstitialMode ? 0.03f : 1.0f);
+            }
+#endif
         }
     }
 }
@@ -2402,6 +2409,44 @@ void Application::update(float deltaTime) {
                 tryToEnablePhysics();
             }
         }
+
+#if defined(ANDROID_APP_PICO_INTERFACE)
+        if (_graphicsEngine && isInterstitialMode()) {
+            auto nodeList = DependencyManager::get<NodeList>();
+            const auto& domainHandler = nodeList->getDomainHandler();
+            GraphicsEngine::LoadingPhase phase = GraphicsEngine::LoadingPhase::CONNECTING;
+            float progress = 0.05f;
+
+            if (!domainHandler.isConnected()) {
+                const auto connectionTimes = nodeList->getLastConnectionTimes();
+                if (!connectionTimes.isEmpty()) {
+                    constexpr float CONNECTION_PROGRESS_SPAN = 0.30f;
+                    const int latestStep = static_cast<int>(connectionTimes.last());
+                    const int connectedStep = static_cast<int>(LimitedNodeList::ConnectionStep::ReceiveDSList);
+                    progress += CONNECTION_PROGRESS_SPAN * glm::clamp(
+                        static_cast<float>(latestStep) / connectedStep, 0.0f, 1.0f);
+                }
+            } else if (_failedToConnectToEntityServer) {
+                phase = GraphicsEngine::LoadingPhase::WAITING_FOR_WORLD;
+                progress = 0.35f;
+            } else {
+                const float worldProgress = glm::clamp(
+                    _octreeProcessor->domainLoadingProgress(), 0.0f, 1.0f);
+                const bool sceneReceived =
+                    _octreeProcessor->getFullSceneReceivedCounter().load() > 0;
+                phase = sceneReceived
+                    ? GraphicsEngine::LoadingPhase::LOADING_WORLD
+                    : GraphicsEngine::LoadingPhase::CONNECTING;
+                progress = 0.35f + 0.55f * worldProgress;
+                if (_octreeProcessor->safeLandingIsComplete()) {
+                    phase = GraphicsEngine::LoadingPhase::PREPARING_WORLD;
+                    progress = 0.95f;
+                }
+            }
+
+            _graphicsEngine->setLoadingState(true, phase, progress);
+        }
+#endif
     } else if (_domainLoadingInProgress) {
         _domainLoadingInProgress = false;
         PROFILE_ASYNC_END(app, "Scene Loading", "");

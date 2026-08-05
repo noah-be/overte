@@ -35,6 +35,12 @@
 
 #include <display-plugins/CompositorHelper.h>
 #include <QMetaObject>
+#if defined(ANDROID_APP_PICO_INTERFACE)
+#include <QCoreApplication>
+#include <QFont>
+#include <QImage>
+#include <QPainter>
+#endif
 #include "ui/Stats.h"
 #include "Application.h"
 
@@ -43,6 +49,21 @@ GraphicsEngine::GraphicsEngine() {
     _splashScreen->parse(SPLASH_SKYBOX);
     const QUrl SPLASH_IMAGE { PathUtils::resourcesUrl("images/splashShaders.png") };
     _texture = DependencyManager::get<TextureCache>()->getTexture(SPLASH_IMAGE);
+
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    _loadingLogo = DependencyManager::get<TextureCache>()->getTexture(
+        PathUtils::resourcesUrl("images/brand-banner.svg"));
+    _loadingStatusTextures[static_cast<size_t>(LoadingPhase::STARTING)] =
+        makeLoadingStatusTexture(QCoreApplication::translate("PicoLoadingScreen", "Starting Overte..."));
+    _loadingStatusTextures[static_cast<size_t>(LoadingPhase::CONNECTING)] =
+        makeLoadingStatusTexture(QCoreApplication::translate("PicoLoadingScreen", "Connecting to world..."));
+    _loadingStatusTextures[static_cast<size_t>(LoadingPhase::LOADING_WORLD)] =
+        makeLoadingStatusTexture(QCoreApplication::translate("PicoLoadingScreen", "Loading world..."));
+    _loadingStatusTextures[static_cast<size_t>(LoadingPhase::PREPARING_WORLD)] =
+        makeLoadingStatusTexture(QCoreApplication::translate("PicoLoadingScreen", "Preparing world..."));
+    _loadingStatusTextures[static_cast<size_t>(LoadingPhase::WAITING_FOR_WORLD)] =
+        makeLoadingStatusTexture(QCoreApplication::translate("PicoLoadingScreen", "Waiting for world data..."));
+#endif
 }
 
 GraphicsEngine::~GraphicsEngine() {
@@ -94,6 +115,15 @@ void GraphicsEngine::initializeRender() {
 
     // Now that OpenGL is initialized, we are sure we have a valid context and can create the various pipeline shaders with success.
     DependencyManager::get<GeometryCache>()->initializeShapePipelines();
+
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    auto geometryCache = DependencyManager::get<GeometryCache>();
+    _loadingBackgroundGeometry = geometryCache->allocateID();
+    _loadingLogoGeometry = geometryCache->allocateID();
+    _loadingStatusGeometry = geometryCache->allocateID();
+    _loadingTrackGeometry = geometryCache->allocateID();
+    _loadingProgressGeometry = geometryCache->allocateID();
+#endif
 }
 
 void GraphicsEngine::startup() {
@@ -108,6 +138,17 @@ void GraphicsEngine::shutdown() {
     _renderScene->processTransactionQueue(); // process and apply deletions
 
     _gpuContext->shutdown();
+
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    auto geometryCache = DependencyManager::get<GeometryCache>();
+    if (geometryCache) {
+        geometryCache->releaseID(_loadingBackgroundGeometry);
+        geometryCache->releaseID(_loadingLogoGeometry);
+        geometryCache->releaseID(_loadingStatusGeometry);
+        geometryCache->releaseID(_loadingTrackGeometry);
+        geometryCache->releaseID(_loadingProgressGeometry);
+    }
+#endif
 
 
     // shutdown render engine
@@ -306,6 +347,12 @@ void GraphicsEngine::render_performFrame() {
         }
     }
 
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    if (_loadingVisible.load(std::memory_order_acquire)) {
+        renderLoadingFrame(finalFramebuffer, isStereo);
+    }
+#endif
+
     auto frame = getGPUContext()->endFrame();
     frame->frameIndex = _renderFrameCount;
     frame->framebuffer = finalFramebuffer;
@@ -345,3 +392,113 @@ void GraphicsEngine::editRenderArgs(RenderArgsEditor editor) {
     QMutexLocker renderLocker(&_renderArgsMutex);
     editor(_appRenderArgs);
 }
+
+#if defined(ANDROID_APP_PICO_INTERFACE)
+gpu::TexturePointer GraphicsEngine::makeLoadingStatusTexture(const QString& text) const {
+    constexpr int WIDTH = 1024;
+    constexpr int HEIGHT = 160;
+    QImage image(WIDTH, HEIGHT, QImage::Format_RGBA8888);
+    image.fill(Qt::transparent);
+
+    QPainter painter(&image);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setRenderHint(QPainter::TextAntialiasing);
+    QFont font = painter.font();
+    font.setPixelSize(58);
+    font.setWeight(QFont::DemiBold);
+    painter.setFont(font);
+    painter.setPen(QColor(240, 245, 250));
+    painter.drawText(image.rect(), Qt::AlignCenter, text);
+    painter.end();
+
+    auto texture = gpu::Texture::create2D(
+        gpu::Element(gpu::VEC4, gpu::NUINT8, gpu::RGBA), WIDTH, HEIGHT,
+        gpu::Texture::SINGLE_MIP, Sampler(Sampler::FILTER_MIN_MAG_LINEAR, Sampler::WRAP_CLAMP));
+    texture->setStoredMipFormat(gpu::Element(gpu::VEC4, gpu::NUINT8, gpu::RGBA));
+    texture->assignStoredMip(0, image.sizeInBytes(), image.constBits());
+    texture->setImportant(true);
+    return texture;
+}
+
+void GraphicsEngine::setLoadingState(bool visible, LoadingPhase phase, float progress) {
+    _loadingPhase.store(phase, std::memory_order_relaxed);
+    _loadingProgress.store(glm::clamp(progress, 0.0f, 1.0f), std::memory_order_relaxed);
+    _loadingVisible.store(visible, std::memory_order_release);
+}
+
+void GraphicsEngine::renderLoadingFrame(const gpu::FramebufferPointer& framebuffer, bool isStereo) {
+    if (!framebuffer) {
+        return;
+    }
+
+    auto geometryCache = DependencyManager::get<GeometryCache>();
+    auto textureCache = DependencyManager::get<TextureCache>();
+    const glm::uvec2 framebufferSize = framebuffer->getSize();
+    const int eyeCount = isStereo ? 2 : 1;
+    const int eyeWidth = static_cast<int>(framebufferSize.x) / eyeCount;
+    const int eyeHeight = static_cast<int>(framebufferSize.y);
+    const float eyeAspect = eyeHeight > 0 ? static_cast<float>(eyeWidth) / eyeHeight : 1.0f;
+    const float logoWidth = 1.18f;
+    const float logoHeight = logoWidth * eyeAspect * (130.60057f / 497.41665f);
+    const float statusWidth = 1.35f;
+    const float statusHeight = statusWidth * eyeAspect * (160.0f / 1024.0f);
+    const float progress = _loadingProgress.load(std::memory_order_relaxed);
+    const auto phase = _loadingPhase.load(std::memory_order_relaxed);
+
+    gpu::doInBatch("PicoLoadingFrame", _gpuContext, [&](gpu::Batch& batch) {
+        batch.setFramebuffer(framebuffer);
+        batch.enableStereo(false);
+        batch.setProjectionTransform(glm::mat4(1.0f));
+        batch.setModelTransform(Transform());
+        batch.resetViewTransform();
+        geometryCache->useSimpleDrawPipeline(batch);
+
+        for (int eye = 0; eye < eyeCount; ++eye) {
+            batch.setViewportTransform({ eye * eyeWidth, 0, eyeWidth, eyeHeight });
+
+            batch.setResourceTexture(0, textureCache->getWhiteTexture());
+            geometryCache->renderUnitQuad(batch, glm::vec4(0.018f, 0.035f, 0.060f, 1.0f),
+                                          _loadingBackgroundGeometry);
+
+            if (_loadingLogo && _loadingLogo->isLoaded()) {
+                batch.setResourceTexture(0, _loadingLogo->getGPUTexture());
+                geometryCache->renderQuad(
+                    batch,
+                    glm::vec2(-0.5f * logoWidth, 0.24f - 0.5f * logoHeight),
+                    glm::vec2(0.5f * logoWidth, 0.24f + 0.5f * logoHeight),
+                    glm::vec2(0.0f, 1.0f), glm::vec2(1.0f, 0.0f), glm::vec4(1.0f),
+                    _loadingLogoGeometry);
+            }
+
+            const size_t phaseIndex = static_cast<size_t>(phase);
+            if (phaseIndex < _loadingStatusTextures.size() && _loadingStatusTextures[phaseIndex]) {
+                batch.setResourceTexture(0, _loadingStatusTextures[phaseIndex]);
+                geometryCache->renderQuad(
+                    batch,
+                    glm::vec2(-0.5f * statusWidth, -0.18f - 0.5f * statusHeight),
+                    glm::vec2(0.5f * statusWidth, -0.18f + 0.5f * statusHeight),
+                    glm::vec2(0.0f, 1.0f), glm::vec2(1.0f, 0.0f), glm::vec4(1.0f),
+                    _loadingStatusGeometry);
+            }
+
+            constexpr float TRACK_WIDTH = 1.10f;
+            constexpr float TRACK_HEIGHT = 0.035f;
+            constexpr float TRACK_Y = -0.40f;
+            batch.setResourceTexture(0, textureCache->getWhiteTexture());
+            geometryCache->renderQuad(
+                batch,
+                glm::vec2(-0.5f * TRACK_WIDTH, TRACK_Y - 0.5f * TRACK_HEIGHT),
+                glm::vec2(0.5f * TRACK_WIDTH, TRACK_Y + 0.5f * TRACK_HEIGHT),
+                glm::vec4(0.10f, 0.16f, 0.23f, 1.0f), _loadingTrackGeometry);
+            geometryCache->renderQuad(
+                batch,
+                glm::vec2(-0.5f * TRACK_WIDTH, TRACK_Y - 0.5f * TRACK_HEIGHT),
+                glm::vec2(-0.5f * TRACK_WIDTH + TRACK_WIDTH * progress,
+                          TRACK_Y + 0.5f * TRACK_HEIGHT),
+                glm::vec4(0.40f, 0.40f, 0.67f, 1.0f), _loadingProgressGeometry);
+        }
+
+        batch.setResourceTexture(0, nullptr);
+    });
+}
+#endif
