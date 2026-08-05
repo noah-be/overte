@@ -713,6 +713,9 @@ Tests cover invalid values, underflow, overflow, and the unchanged boundary.
 The two-byte view-angle encoder now uses the same policy: non-finite values
 fall back to zero and finite overflow is clamped to `[-180, 180]` before the
 unsigned conversion. Both limits and all non-finite classes are covered.
+Packed audio gain now treats non-positive and non-finite input as silence
+instead of allowing the bit-level logarithm approximation to turn invalid
+values into a loud byte. The exact unity-gain roundtrip remains unchanged.
 The underlying `ReceivedMessage` API now clamps copied and zero-copy reads and
 seek positions to the actual message bounds, including string payloads with a
 truncated length or body. Bulk avatar parsing additionally rejects incomplete

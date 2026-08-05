@@ -11,6 +11,7 @@
 
 #include "GLMHelpersTests.h"
 
+#include <AudioHelpers.h>
 #include <NumericalConstants.h>
 #include <StreamUtils.h>
 
@@ -104,6 +105,22 @@ void GLMHelpersTests::testInvalidAngleInput() {
     packFloatAngleToTwoByte(bytes, -1000.0f);
     unpackFloatAngleFromTwoByte(reinterpret_cast<const uint16_t*>(bytes), &result);
     QCOMPARE(result, -180.0f);
+}
+
+void GLMHelpersTests::testInvalidAudioGainInput() {
+    const std::array<float, 5> silentInputs {{
+        0.0f,
+        -1.0f,
+        std::numeric_limits<float>::quiet_NaN(),
+        std::numeric_limits<float>::infinity(),
+        -std::numeric_limits<float>::infinity()
+    }};
+    for (float input : silentInputs) {
+        QCOMPARE(packFloatGainToByte(input), uint8_t(0));
+    }
+
+    const uint8_t unity = packFloatGainToByte(1.0f);
+    QCOMPARE(unpackFloatGainFromByte(unity), 1.0f);
 }
 
 void GLMHelpersTests::testInvalidRatioInput() {

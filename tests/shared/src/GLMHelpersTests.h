@@ -21,6 +21,7 @@ private slots:
     void testEulerDecomposition();
     void testInvalidFixedPointInput();
     void testInvalidAngleInput();
+    void testInvalidAudioGainInput();
     void testInvalidRatioInput();
     void testInvalidOrientationInput();
     void testSixByteOrientationCompression();
