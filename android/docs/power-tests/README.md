@@ -172,6 +172,6 @@ AvatarData, Packet, ReceivedMessage, and GLMHelpers suites. It runs from the
 repository root with an isolated temporary settings directory, discovers the
 Qt platform plugins associated with the selected CMake build, and applies a
 per-suite timeout. Use `--build-dir`, `--config`, and `--no-build` for another
-configured tree; `--keep-logs` retains detailed local output when diagnosing a
-failure. By default, temporary logs are removed and only per-suite Qt totals
-are printed.
+configured tree whose Conan dependencies include that configuration;
+`--keep-logs` retains detailed local output when diagnosing a failure. By
+default, temporary logs are removed and only per-suite Qt totals are printed.

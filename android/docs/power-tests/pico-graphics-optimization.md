@@ -942,6 +942,19 @@ non-finite-pose diagnostic was present. These profiles isolate the removed
 overhead, but whole-process CPU remains too scene-sensitive for an exact power
 claim.
 
+### Reproducible host regression set
+
+`tests/pico-host-regression-test.sh` now explicitly builds and runs the six
+host suites covering the changed animation, positional-audio, avatar-data,
+packet, received-message, and GLM paths. The Debug run passed 81 tests with one
+expected configuration-dependent skip. A separately generated Release
+dependency configuration passed all 82 tests with no skips, covering optimized
+and `NDEBUG` behavior as well as the regular Debug assertions. Both runs used
+an isolated settings directory and the Qt platform plugins belonging to their
+CMake build. The headless Release dependency graph disabled SDL X11 support
+because these suites do not create an SDL display; this does not change the
+Android build or runtime configuration.
+
 ## Limitations and next work
 
 - The Hub test is CPU-limited. A controlled local avatar population is now
