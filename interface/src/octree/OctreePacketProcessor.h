@@ -36,6 +36,7 @@ public:
     void stopSafeLanding();
     void resetSafeLanding();
     void restartSafeLandingSequence();
+    void finishEmptySafeLandingSequence();
     bool safeLandingIsActive() const;
     bool safeLandingIsComplete() const;
 

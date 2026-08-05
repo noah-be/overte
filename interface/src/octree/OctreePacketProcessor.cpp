@@ -184,6 +184,13 @@ void OctreePacketProcessor::restartSafeLandingSequence() {
     _fullSceneReceivedCounter = 0;
 }
 
+void OctreePacketProcessor::finishEmptySafeLandingSequence() {
+    if (_safeLanding && _safeLanding->isTracking()) {
+        _safeLanding->finishSequence(SafeLanding::INVALID_SEQUENCE, 0);
+        _safeLanding->stopTracking();
+    }
+}
+
 bool OctreePacketProcessor::safeLandingIsActive() const {
     return _safeLanding && _safeLanding->isTracking();
 }

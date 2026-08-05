@@ -1097,7 +1097,7 @@ void Application::setIsInterstitialMode(bool interstitialMode) {
             _picoLoadingDisplayedProgress = 0.0f;
             _picoLoadingDisplayedPhase = -1;
             _picoLoadingCandidatePhase = -1;
-            _picoLoadingHasUnavailableVisuals = false;
+            _picoLoadingAllowsUnpopulatedTextures = false;
             _picoLoadingWasConnected = false;
             if (_graphicsEngine) {
                 _graphicsEngine->setLoadingState(
@@ -1155,7 +1155,13 @@ bool Application::gpuTextureMemSizeStable() {
     _gpuTextureMemSizeAtLastCheck = textureResourceGPUMemSize;
 
     if (_gpuTextureMemSizeStabilityCount >= _minimumGPUTextureMemSizeStabilityCount) {
-        return (textureResourceGPUMemSize == texturePopulatedGPUMemSize) && (textureTransferSize == 0);
+        bool populatedTextureMemoryReady = textureResourceGPUMemSize == texturePopulatedGPUMemSize;
+#if defined(ANDROID_APP_PICO_INTERFACE)
+        // Failed external assets can leave requested memory permanently above populated memory.
+        // The Pico loading flow only enables this after the scene and GPU queues are otherwise idle.
+        populatedTextureMemoryReady = populatedTextureMemoryReady || _picoLoadingAllowsUnpopulatedTextures;
+#endif
+        return populatedTextureMemoryReady && textureTransferSize == 0;
     }
     return false;
 }
@@ -2444,7 +2450,7 @@ void Application::update(float deltaTime) {
                     _picoLoadingResourceProgress = 0.0f;
                     _picoLoadingSequenceProgress = 0.0f;
                     _picoLoadingLastAdvance = loadingNow;
-                    _picoLoadingHasUnavailableVisuals = false;
+                    _picoLoadingAllowsUnpopulatedTextures = false;
                     _picoLoadingWasConnected = false;
                     const auto connectionTimes = nodeList->getLastConnectionTimes();
                     if (!connectionTimes.isEmpty()) {
@@ -2543,17 +2549,33 @@ void Application::update(float deltaTime) {
                     constexpr quint64 WORLD_PROGRESS_RECOVERY_TIME = 10 * USECS_PER_SECOND;
                     const quint64 timeWithoutProgress = _picoLoadingLastAdvance > 0
                         ? loadingNow - _picoLoadingLastAdvance : 0;
+                    const bool emptySceneComplete = sceneReceived &&
+                        safeLandingStatus.trackedEntityCount == 0 &&
+                        safeLandingStatus.maximumTrackedEntityCount == 0 &&
+                        safeLandingStatus.receivedSequenceCount == 0 &&
+                        !safeLandingStatus.completionReceived &&
+                        !isDownloading;
                     const bool packetSequenceComplete = safeLandingStatus.completionReceived &&
                         safeLandingStatus.receivedSequenceCount == safeLandingStatus.expectedSequenceCount;
-                    const bool onlyFailedVisualsRemain = packetSequenceComplete &&
+                    const bool onlyUnavailableVisualsRemain = _picoLoadingLastRecovery > 0 &&
+                        packetSequenceComplete &&
                         safeLandingStatus.trackedEntityCount > 0 &&
                         safeLandingStatus.physicsBlockedEntityCount == 0 &&
-                        safeLandingStatus.visuallyBlockedEntityCount > 0;
-                    if (onlyFailedVisualsRemain &&
+                        safeLandingStatus.visuallyBlockedEntityCount == safeLandingStatus.trackedEntityCount &&
+                        !isDownloading && !isProcessing;
+                    if (emptySceneComplete &&
                             timeWithoutProgress >= WORLD_PROGRESS_RECOVERY_TIME) {
-                        qCWarning(interfaceapp) << "Pico world loading continuing past unavailable visual assets"
+                        qCWarning(interfaceapp) << "Pico world loading completed an empty scene"
+                            << "after the completion packet did not arrive";
+                        _picoLoadingAllowsUnpopulatedTextures = true;
+                        _octreeProcessor->finishEmptySafeLandingSequence();
+                        phase = GraphicsEngine::LoadingPhase::PREPARING_WORLD;
+                        progress = 1.0f;
+                    } else if (onlyUnavailableVisualsRemain &&
+                            timeWithoutProgress >= WORLD_PROGRESS_RECOVERY_TIME) {
+                        qCWarning(interfaceapp) << "Pico world loading completed after unavailable visual assets"
                             << "entities" << safeLandingStatus.visuallyBlockedEntityCount;
-                        _picoLoadingHasUnavailableVisuals = true;
+                        _picoLoadingAllowsUnpopulatedTextures = true;
                         _octreeProcessor->stopSafeLanding();
                         phase = GraphicsEngine::LoadingPhase::PREPARING_WORLD;
                         progress = 1.0f;
@@ -3445,10 +3467,6 @@ void Application::queryAvatars() {
 void Application::tryToEnablePhysics() {
     bool enableInterstitial = DependencyManager::get<NodeList>()->getDomainHandler().getInterstitialModeEnabled();
     bool textureMemoryReady = gpuTextureMemSizeStable();
-#if defined(ANDROID_APP_PICO_INTERFACE)
-    textureMemoryReady = textureMemoryReady || _picoLoadingHasUnavailableVisuals;
-#endif
-
     if (textureMemoryReady || !enableInterstitial) {
         _fullSceneCounterAtLastPhysicsCheck = _octreeProcessor->getFullSceneReceivedCounter();
         _lastQueriedViews.clear();  // Force new view.
@@ -3458,9 +3476,12 @@ void Application::tryToEnablePhysics() {
         // scene is ready to compute its collision shape.
         auto myAvatar = getMyAvatar();
 #if defined(ANDROID_APP_PICO_INTERFACE)
-        if (_picoLoadingHasUnavailableVisuals && !myAvatar->isReadyForPhysics()) {
+        constexpr quint64 DOMAIN_SETTINGS_TIMEOUT = 10 * USECS_PER_SECOND;
+        const bool domainSettingsTimedOut = enableInterstitial && _picoLoadingConnectedAt > 0 &&
+            usecTimestampNow() - _picoLoadingConnectedAt >= DOMAIN_SETTINGS_TIMEOUT;
+        if (domainSettingsTimedOut && !myAvatar->isReadyForPhysics()) {
             qCWarning(interfaceapp) << "Pico world loading using default avatar height limits"
-                << "because domain settings were unavailable";
+                << "because domain settings did not arrive";
             myAvatar->restrictScaleFromDomainSettings(QJsonObject());
         }
 #endif

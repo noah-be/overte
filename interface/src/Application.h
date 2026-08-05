@@ -960,7 +960,7 @@ private:
     float _picoLoadingDisplayedProgress { 0.0f };
     int _picoLoadingDisplayedPhase { -1 };
     int _picoLoadingCandidatePhase { -1 };
-    bool _picoLoadingHasUnavailableVisuals { false };
+    bool _picoLoadingAllowsUnpopulatedTextures { false };
     bool _picoLoadingWasConnected { false };
 #endif
     // This is needed so that physics do not get re-enabled before safe landing starts when moving from
