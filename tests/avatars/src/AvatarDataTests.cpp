@@ -46,6 +46,8 @@ private slots:
     void rejectNonFiniteLocalPosition();
     void rejectNonFiniteFaceCoefficient();
     void rejectNonFiniteFarGrabTransform();
+    void rejectInvalidJointTranslationScale_data();
+    void rejectInvalidJointTranslationScale();
     void roundTripSkeletonTrait();
     void limitSkeletonTraitJointCount();
     void rejectMalformedSkeletonTrait();
@@ -292,6 +294,50 @@ void AvatarDataTests::rejectNonFiniteFarGrabTransform() {
     QVERIFY(!avatar.isJointDataValid(FARGRAB_LEFTHAND_INDEX));
     QVERIFY(!avatar.isJointDataValid(FARGRAB_RIGHTHAND_INDEX));
     QVERIFY(!avatar.isJointDataValid(FARGRAB_MOUSE_INDEX));
+}
+
+void AvatarDataTests::rejectInvalidJointTranslationScale_data() {
+    QTest::addColumn<float>("scale");
+
+    QTest::newRow("zero") << 0.0f;
+    QTest::newRow("negative") << -1.0f;
+    QTest::newRow("nan") << std::numeric_limits<float>::quiet_NaN();
+    QTest::newRow("positive-infinity") << std::numeric_limits<float>::infinity();
+    QTest::newRow("negative-infinity") << -std::numeric_limits<float>::infinity();
+}
+
+void AvatarDataTests::rejectInvalidJointTranslationScale() {
+    QFETCH(float, scale);
+
+    const AvatarDataPacket::HasFlags flags = AvatarDataPacket::PACKET_HAS_JOINT_DATA;
+    constexpr uint8_t numJoints = 1;
+    constexpr uint8_t rotationValidity = 0;
+    constexpr uint8_t translationValidity = 1;
+    QByteArray packet(sizeof(flags) + sizeof(numJoints) + sizeof(rotationValidity) +
+                          sizeof(translationValidity) + sizeof(scale) + sizeof(AvatarDataPacket::SixByteTrans),
+                      '\0');
+    char* destination = packet.data();
+    memcpy(destination, &flags, sizeof(flags));
+    destination += sizeof(flags);
+    memcpy(destination, &numJoints, sizeof(numJoints));
+    destination += sizeof(numJoints);
+    memcpy(destination, &rotationValidity, sizeof(rotationValidity));
+    destination += sizeof(rotationValidity);
+    memcpy(destination, &translationValidity, sizeof(translationValidity));
+    destination += sizeof(translationValidity);
+    memcpy(destination, &scale, sizeof(scale));
+
+    AvatarData avatar;
+    avatar.setJointData(0, glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 2.0f, 3.0f));
+    const auto previousJointData = avatar.getJointData();
+    avatar.parseDataFromBuffer(packet);
+
+    const auto jointData = avatar.getJointData();
+    QCOMPARE(jointData.size(), previousJointData.size());
+    QVERIFY(jointData[0].rotation == previousJointData[0].rotation);
+    QVERIFY(jointData[0].translation == previousJointData[0].translation);
+    QCOMPARE(jointData[0].rotationIsDefaultPose, previousJointData[0].rotationIsDefaultPose);
+    QCOMPARE(jointData[0].translationIsDefaultPose, previousJointData[0].translationIsDefaultPose);
 }
 
 void AvatarDataTests::roundTripSkeletonTrait() {

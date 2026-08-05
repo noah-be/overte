@@ -1425,9 +1425,9 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
         PACKET_READ_CHECK(JointMaxTranslationDimension, sizeof(float));
         memcpy(&maxTranslationDimension, sourceBuffer, sizeof(float));
         sourceBuffer += sizeof(float);
-        if (!std::isfinite(maxTranslationDimension)) {
+        if (!std::isfinite(maxTranslationDimension) || maxTranslationDimension <= 0.0f) {
             if (shouldLogError(now)) {
-                qCWarning(avatars) << "Discard AvatarData packet: joint translation scale is not finite, uuid"
+                qCWarning(avatars) << "Discard AvatarData packet: joint translation scale is not positive and finite, uuid"
                                    << getSessionUUID();
             }
             return buffer.size();
