@@ -1111,8 +1111,14 @@ void Application::setIsInterstitialMode(bool interstitialMode) {
             _picoLoadingTextureMemoryReady = false;
             _picoLoadingGpuFallbackUsed = false;
             _picoLoadingWasConnected = false;
-            _picoLoadingDismissedByUser = false;
-            _picoLoadingDismissButtonWasPressed = false;
+            // Keep a manual dismissal latched while leaving the interstitial. Otherwise
+            // the false transition below clears the flag before a subsequent
+            // setIsInterstitialMode(true) can honor it. Domain switches reset this
+            // state explicitly in clearDomainOctreeDetails().
+            if (interstitialMode) {
+                _picoLoadingDismissedByUser = false;
+                _picoLoadingDismissButtonWasPressed = false;
+            }
             if (_graphicsEngine) {
                 _graphicsEngine->setLoadingState(
                     _interstitialMode, GraphicsEngine::LoadingPhase::STARTING,
