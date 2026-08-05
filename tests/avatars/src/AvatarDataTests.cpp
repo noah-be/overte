@@ -52,6 +52,8 @@ private slots:
     void rejectNonFiniteGlobalPosition();
     void rejectNonFiniteBoundingBox();
     void rejectNonFiniteSensorTranslation();
+    void rejectInvalidSensorScale_data();
+    void rejectInvalidSensorScale();
     void rejectNonFiniteLookAtPosition();
     void rejectNonFiniteLocalPosition();
     void rejectNonFiniteFaceCoefficient();
@@ -223,6 +225,14 @@ void AvatarDataTests::rejectNonFiniteBoundingBox() {
 
     QCOMPARE(after.getCorner(), before.getCorner());
     QCOMPARE(after.getDimensions(), before.getDimensions());
+
+    box = {};
+    box.avatarDimensions[0] = -1.0f;
+    const auto negativePacket = packetWithSection(AvatarDataPacket::PACKET_HAS_AVATAR_BOUNDING_BOX, box);
+    avatar.parseDataFromBuffer(negativePacket);
+    const auto afterNegative = avatar.getGlobalBoundingBox();
+    QCOMPARE(afterNegative.getCorner(), before.getCorner());
+    QCOMPARE(afterNegative.getDimensions(), before.getDimensions());
 }
 
 void AvatarDataTests::rejectNonFiniteSensorTranslation() {
@@ -230,6 +240,29 @@ void AvatarDataTests::rejectNonFiniteSensorTranslation() {
     sensor.sensorToWorldTrans[2] = -std::numeric_limits<float>::infinity();
 
     AvatarData avatar;
+    const auto before = avatar.getSensorToWorldMatrix();
+    const auto packet = packetWithSection(AvatarDataPacket::PACKET_HAS_SENSOR_TO_WORLD_MATRIX, sensor);
+    avatar.parseDataFromBuffer(packet);
+
+    QCOMPARE(avatar.getSensorToWorldMatrix(), before);
+}
+
+void AvatarDataTests::rejectInvalidSensorScale_data() {
+    QTest::addColumn<qint16>("encodedScale");
+
+    QTest::newRow("zero") << qint16(0);
+    QTest::newRow("negative") << qint16(-1);
+    QTest::newRow("minimum") << std::numeric_limits<qint16>::min();
+}
+
+void AvatarDataTests::rejectInvalidSensorScale() {
+    QFETCH(qint16, encodedScale);
+
+    AvatarDataPacket::SensorToWorldMatrix sensor {};
+    memcpy(&sensor.sensorToWorldScale, &encodedScale, sizeof(encodedScale));
+
+    TestAvatarData avatar;
+    avatar.setOutboundSensorToWorldMatrix(glm::mat4(1.0f));
     const auto before = avatar.getSensorToWorldMatrix();
     const auto packet = packetWithSection(AvatarDataPacket::PACKET_HAS_SENSOR_TO_WORLD_MATRIX, sensor);
     avatar.parseDataFromBuffer(packet);

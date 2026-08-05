@@ -1124,9 +1124,10 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
         auto newDimensions = glm::vec3(data->avatarDimensions[0], data->avatarDimensions[1], data->avatarDimensions[2]);
         auto newOffset = glm::vec3(data->boundOriginOffset[0], data->boundOriginOffset[1], data->boundOriginOffset[2]);
 
-        if (!isFiniteVector(newDimensions) || !isFiniteVector(newOffset)) {
+        if (!isFiniteVector(newDimensions) || !isFiniteVector(newOffset) ||
+                newDimensions.x < 0.0f || newDimensions.y < 0.0f || newDimensions.z < 0.0f) {
             if (shouldLogError(now)) {
-                qCWarning(avatars) << "Discard AvatarData packet: bounding box is not finite, uuid" << getSessionUUID();
+                qCWarning(avatars) << "Discard AvatarData packet: bounding box is invalid, uuid" << getSessionUUID();
             }
             return buffer.size();
         }
@@ -1237,9 +1238,9 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
         auto srcSensorToWorldScale = data->sensorToWorldScale;
         unpackFloatScalarFromSignedTwoByteFixed((int16_t*)&srcSensorToWorldScale, &sensorToWorldScale, SENSOR_TO_WORLD_SCALE_RADIX);
         glm::vec3 sensorToWorldTrans(data->sensorToWorldTrans[0], data->sensorToWorldTrans[1], data->sensorToWorldTrans[2]);
-        if (!isFiniteVector(sensorToWorldTrans)) {
+        if (!isFiniteVector(sensorToWorldTrans) || !std::isfinite(sensorToWorldScale) || sensorToWorldScale <= 0.0f) {
             if (shouldLogError(now)) {
-                qCWarning(avatars) << "Discard AvatarData packet: sensor-to-world translation is not finite, uuid"
+                qCWarning(avatars) << "Discard AvatarData packet: sensor-to-world transform is invalid, uuid"
                                    << getSessionUUID();
             }
             return buffer.size();
