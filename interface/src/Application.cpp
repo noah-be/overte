@@ -2589,19 +2589,11 @@ void Application::update(float deltaTime) {
                         safeLandingStatus.physicsBlockedEntityCount == 0 &&
                         safeLandingStatus.visuallyBlockedEntityCount == safeLandingStatus.trackedEntityCount &&
                         !isDownloading && !isProcessing;
-                    const bool onlyUnavailableVisualsRemain = _picoLoadingRecoveryAttempts > 0 && visualAssetsBlocked;
                     if (emptySceneComplete &&
                             timeWithoutProgress >= WORLD_PROGRESS_RECOVERY_TIME) {
                         qCWarning(interfaceapp) << "Pico world loading completed an empty scene"
                             << "after the completion packet did not arrive";
                         _octreeProcessor->finishEmptySafeLandingSequence();
-                        phase = GraphicsEngine::LoadingPhase::PREPARING_WORLD;
-                        progress = 0.85f;
-                    } else if (onlyUnavailableVisualsRemain &&
-                            timeWithoutProgress >= WORLD_PROGRESS_RECOVERY_TIME) {
-                        qCWarning(interfaceapp) << "Pico world loading completed after unavailable visual assets"
-                            << "entities" << safeLandingStatus.visuallyBlockedEntityCount;
-                        _octreeProcessor->stopSafeLanding();
                         phase = GraphicsEngine::LoadingPhase::PREPARING_WORLD;
                         progress = 0.85f;
                     } else {
@@ -2628,7 +2620,14 @@ void Application::update(float deltaTime) {
                             ++_picoLoadingRecoveryAttempts;
                             _picoLoadingLastRecovery = loadingNow;
                             _picoLoadingLastAdvance = loadingNow;
-                            _picoLoadingSequenceProgress = 0.0f;
+                            // Do not discard a partially received initial scene.  A missing completion
+                            // marker is recoverable by requesting another view while retaining the
+                            // packets already processed; resetting the sequence here made the UI fall
+                            // back to 25% repeatedly and could release a visibly incomplete scene.
+                            const bool restartIncompleteSequence = safeLandingStatus.completionReceived;
+                            if (restartIncompleteSequence) {
+                                _picoLoadingSequenceProgress = 0.0f;
+                            }
                             qCWarning(interfaceapp) << "Pico world loading missing entity packets; requesting a fresh scene"
                                 << "attempt" << _picoLoadingRecoveryAttempts
                                 << "tracked" << safeLandingStatus.trackedEntityCount
@@ -2638,7 +2637,9 @@ void Application::update(float deltaTime) {
                                 << "sequence" << safeLandingStatus.receivedSequenceCount
                                 << "/" << safeLandingStatus.expectedSequenceCount
                                 << "completion" << safeLandingStatus.completionReceived;
-                            _octreeProcessor->restartSafeLandingSequence();
+                            if (restartIncompleteSequence) {
+                                _octreeProcessor->restartSafeLandingSequence();
+                            }
                             _octreeQuery.incrementConnectionID();
                             _lastQueriedViews.clear();
                             _queryExpiry = SteadyClock::now();
