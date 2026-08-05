@@ -961,6 +961,15 @@ must contain a finite root and child from one consistent generation. Twenty
 repeated Debug and twenty repeated Release runner invocations completed with no
 suite failure, adding 3,260 passed tests and 20 expected Debug-only skips.
 
+The dedicated Pico Gradle configuration also completed `lintDebug`, Java
+compilation, the ARM64 native build, and final APK assembly with no lint issues.
+The package now carries the shared Overte launcher icon and explicit no-backup
+rules for both legacy and Android 12 data extraction. Its controlled restart
+uses an exact alarm only on pre-Android-12 systems or after the platform
+confirms exact-alarm access; otherwise it uses an allowed idle-capable fallback
+instead of risking a permission exception. The packaged manifest and all three
+new resources were verified from the generated APK.
+
 ## Limitations and next work
 
 - The Hub test is CPU-limited. A controlled local avatar population is now
