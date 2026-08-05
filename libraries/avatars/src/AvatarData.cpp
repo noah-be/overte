@@ -683,8 +683,11 @@ QByteArray AvatarData::toByteArray(AvatarDataDetail dataDetail, quint64 lastSent
     }
 
     const auto& blendshapeCoefficients = _headData->getBlendshapeCoefficients();
+    const int numBlendshapeCoefficients = std::min(
+        blendshapeCoefficients.size(), int(std::numeric_limits<uint8_t>::max()));
     // If it is connected, pack up the data
-    IF_AVATAR_SPACE(PACKET_HAS_FACE_TRACKER_INFO, sizeof(AvatarDataPacket::FaceTrackerInfo) + (size_t)blendshapeCoefficients.size() * sizeof(float)) {
+    IF_AVATAR_SPACE(PACKET_HAS_FACE_TRACKER_INFO,
+                    sizeof(AvatarDataPacket::FaceTrackerInfo) + (size_t)numBlendshapeCoefficients * sizeof(float)) {
         auto startSection = destinationBuffer;
         auto faceTrackerInfo = reinterpret_cast<AvatarDataPacket::FaceTrackerInfo*>(destinationBuffer);
         // note: we don't use the blink and average loudness, we just use the numBlendShapes and
@@ -693,11 +696,11 @@ QByteArray AvatarData::toByteArray(AvatarDataDetail dataDetail, quint64 lastSent
         faceTrackerInfo->rightEyeBlink = _headData->_rightEyeBlink;
         faceTrackerInfo->averageLoudness = _headData->_averageLoudness;
         faceTrackerInfo->browAudioLift = _headData->_browAudioLift;
-        faceTrackerInfo->numBlendshapeCoefficients = blendshapeCoefficients.size();
+        faceTrackerInfo->numBlendshapeCoefficients = numBlendshapeCoefficients;
         destinationBuffer += sizeof(AvatarDataPacket::FaceTrackerInfo);
 
-        memcpy(destinationBuffer, blendshapeCoefficients.data(), blendshapeCoefficients.size() * sizeof(float));
-        destinationBuffer += blendshapeCoefficients.size() * sizeof(float);
+        memcpy(destinationBuffer, blendshapeCoefficients.data(), numBlendshapeCoefficients * sizeof(float));
+        destinationBuffer += numBlendshapeCoefficients * sizeof(float);
 
         int numBytes = destinationBuffer - startSection;
         if (outboundDataRateOut) {
@@ -710,8 +713,7 @@ QByteArray AvatarData::toByteArray(AvatarDataDetail dataDetail, quint64 lastSent
         QReadLocker readLock(&_jointDataLock);
         jointData = _jointData;
     }
-    const int numJoints = jointData.size();
-    assert(numJoints <= 255);
+    const int numJoints = std::min(jointData.size(), int(std::numeric_limits<uint8_t>::max()));
     const int jointBitVectorSize = calcBitVectorSize(numJoints);
 
     // include jointData if there is room for the most minimal section. i.e. no translations or rotations.

@@ -49,6 +49,8 @@ private slots:
     void rejectInvalidJointTranslationScale_data();
     void rejectInvalidJointTranslationScale();
     void sanitizeInvalidJointTranslationEncoding();
+    void limitAvatarDataJointCount();
+    void limitAvatarDataBlendshapeCount();
     void roundTripSkeletonTrait();
     void limitSkeletonTraitJointCount();
     void rejectMalformedSkeletonTrait();
@@ -359,6 +361,38 @@ void AvatarDataTests::sanitizeInvalidJointTranslationEncoding() {
     QCOMPARE(jointData[0].translation.x, 0.0f);
     QCOMPARE(jointData[0].translation.y, 0.0f);
     QVERIFY(std::abs(jointData[0].translation.z - 1.0f) < 0.001f);
+}
+
+void AvatarDataTests::limitAvatarDataJointCount() {
+    AvatarData source;
+    source.setJointData(300, glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f));
+    QCOMPARE(source.getJointCount(), 301);
+
+    const auto packet = source.toByteArrayStateful(AvatarData::SendAllData);
+    AvatarData destination;
+    QCOMPARE(destination.parseDataFromBuffer(packet), packet.size());
+    QCOMPARE(destination.getJointCount(), int(std::numeric_limits<uint8_t>::max()));
+
+    // Wire-format capping must not discard the additional local rig joints.
+    QCOMPARE(source.getJointCount(), 301);
+}
+
+void AvatarDataTests::limitAvatarDataBlendshapeCount() {
+    AvatarData source;
+    source.toByteArrayStateful(AvatarData::NoData); // Lazily create HeadData.
+    const QVector<float> blendshapes(300, 0.5f);
+    source.setBlendshapeCoefficients(blendshapes);
+    QCOMPARE(source.getHeadData()->getBlendshapeCoefficients().size(), blendshapes.size());
+    source.setJointData(0, glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f));
+
+    const auto packet = source.toByteArrayStateful(AvatarData::SendAllData);
+    AvatarData destination;
+    QCOMPARE(destination.parseDataFromBuffer(packet), packet.size());
+    QCOMPARE(destination.getJointCount(), 1);
+    QCOMPARE(destination.getHeadData()->getBlendshapeCoefficients().size(), int(Blendshapes::BlendshapeCount));
+
+    // Wire-format capping must not resize the local expression state.
+    QCOMPARE(source.getHeadData()->getBlendshapeCoefficients().size(), blendshapes.size());
 }
 
 void AvatarDataTests::roundTripSkeletonTrait() {

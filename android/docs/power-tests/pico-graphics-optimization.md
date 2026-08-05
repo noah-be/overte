@@ -704,6 +704,11 @@ The matching encoder now derives that scale only from finite components, so an
 invalid component follows the fixed-point encoder's zero fallback without
 making the complete packet undecodable; an encode/decode regression retains a
 valid component from the same joint.
+The avatar-data encoder now also caps joint and blendshape counts to the 255
+entries representable by their one-byte wire fields while leaving the complete
+local rig and expression vectors unchanged. Regressions serialize 301 local
+joints and 300 local blendshapes; the latter deliberately precedes joint data
+to verify that the following section remains aligned and decodable.
 The rebuilt Android client completed a clean Pico cold start without a native,
 JNI, or packet-validation error.
 The shared six-byte quaternion decoder was hardened as well: byte patterns
