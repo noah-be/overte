@@ -700,7 +700,8 @@ whose three stored components fall outside the unit sphere are projected onto
 it instead of taking the square root of a negative remainder. Existing
 rotation-accuracy tests and new malformed-extreme tests both pass. The matching
 encoder now normalizes finite inputs and substitutes identity for zero-length
-or non-finite rotations; its invalid-input roundtrips are covered as well.
+or non-finite rotations; its invalid-input roundtrips are covered as well. The
+same guarded normalization is shared by the legacy eight-byte encoder.
 The underlying `ReceivedMessage` API now clamps copied and zero-copy reads and
 seek positions to the actual message bounds, including string payloads with a
 truncated length or body. Bulk avatar parsing additionally rejects incomplete

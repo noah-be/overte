@@ -48,6 +48,14 @@ const mat4 Matrices::X_180 { createMatFromQuatAndPos(Quaternions::X_180, Vectors
 const mat4 Matrices::Y_180 { createMatFromQuatAndPos(Quaternions::Y_180, Vectors::ZERO) };
 const mat4 Matrices::Z_180 { createMatFromQuatAndPos(Quaternions::Z_180, Vectors::ZERO) };
 
+static glm::quat normalizedQuatOrIdentity(const glm::quat& quat, bool alwaysNormalize = false) {
+    float lengthSquared = glm::dot(quat, quat);
+    if (!std::isfinite(lengthSquared) || lengthSquared <= EPSILON) {
+        return Quaternions::IDENTITY;
+    }
+    return alwaysNormalize || fabsf(lengthSquared - 1.0f) > EPSILON ? quat / sqrtf(lengthSquared) : quat;
+}
+
 //  Safe version of glm::mix; based on the code in Nick Bobic's article,
 //  https://www.gamasutra.com/view/feature/131686/rotating_objects_using_quaternions.php?page=1 (via Clyde,
 //  https://github.com/threerings/clyde/blob/master/src/main/java/com/threerings/math/Quaternion.java)
@@ -128,7 +136,7 @@ int unpackFloatAngleFromTwoByte(const uint16_t* byteAnglePointer, float* destina
 }
 
 int packOrientationQuatToBytes(unsigned char* buffer, const glm::quat& quatInput) {
-    glm::quat quatNormalized = glm::normalize(quatInput);
+    glm::quat quatNormalized = normalizedQuatOrIdentity(quatInput, true);
     const float QUAT_PART_CONVERSION_RATIO = (std::numeric_limits<uint16_t>::max() / 2.0f);
     uint16_t quatParts[4];
     quatParts[0] = floorf((quatNormalized.x + 1.0f) * QUAT_PART_CONVERSION_RATIO);
@@ -156,14 +164,7 @@ int unpackOrientationQuatFromBytes(const unsigned char* buffer, glm::quat& quatO
 #define LO_BYTE(x) (uint8_t)(0xff & x)
 
 int packOrientationQuatToSixBytes(unsigned char* buffer, const glm::quat& quatInput) {
-    float lengthSquared = glm::dot(quatInput, quatInput);
-    glm::quat normalized = Quaternions::IDENTITY;
-    if (std::isfinite(lengthSquared) && lengthSquared > EPSILON) {
-        normalized = quatInput;
-        if (fabsf(lengthSquared - 1.0f) > EPSILON) {
-            normalized /= sqrtf(lengthSquared);
-        }
-    }
+    glm::quat normalized = normalizedQuatOrIdentity(quatInput);
 
     // find largest component
     uint8_t largestComponent = 0;

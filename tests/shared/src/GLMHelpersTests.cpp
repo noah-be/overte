@@ -76,6 +76,30 @@ static void testQuatCompression(glm::quat testQuat) {
     QCOMPARE_WITH_ABS_ERROR(q.w, testQuat.w, MAX_COMPONENT_ERROR);
 }
 
+void GLMHelpersTests::testInvalidOrientationInput() {
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    const float infinity = std::numeric_limits<float>::infinity();
+    const std::array<glm::quat, 4> invalidInputs {{
+        glm::quat(0.0f, 0.0f, 0.0f, 0.0f),
+        glm::quat(1.0f, nan, 0.0f, 0.0f),
+        glm::quat(infinity, 0.0f, 0.0f, 0.0f),
+        glm::quat(2.0f, 0.0f, 0.0f, 0.0f)
+    }};
+
+    for (const auto& input : invalidInputs) {
+        uint8_t bytes[8];
+        glm::quat result;
+        packOrientationQuatToBytes(bytes, input);
+        unpackOrientationQuatFromBytes(bytes, result);
+
+        QVERIFY(std::isfinite(result.w));
+        QVERIFY(std::isfinite(result.x));
+        QVERIFY(std::isfinite(result.y));
+        QVERIFY(std::isfinite(result.z));
+        QCOMPARE_WITH_ABS_ERROR(std::abs(glm::dot(result, Quaternions::IDENTITY)), 1.0f, 1.0e-6f);
+    }
+}
+
 void GLMHelpersTests::testSixByteOrientationCompression() {
     const glm::quat ROT_X_90 = glm::angleAxis(PI / 2.0f, glm::vec3(1.0f, 0.0f, 0.0f));
     const glm::quat ROT_Y_180 = glm::angleAxis(PI, glm::vec3(0.0f, 1.0, 0.0f));
