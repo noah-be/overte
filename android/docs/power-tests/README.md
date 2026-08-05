@@ -87,14 +87,19 @@ cd android
 The status reports total and locally replicated avatar counts, how many other
 avatars and replicas have loaded skeleton models, the existing avatar
 update-budget counters, and the mean avatar-simulation time across all frames
-in the latest one-second status interval. The loaded counters distinguish a
-renderable crowd from loading-orb placeholders without recording avatar IDs.
+in the latest one-second status interval. It also reports how many client
+updates replayed the local template packet during that interval. The loaded
+counters distinguish a renderable crowd from loading-orb placeholders without
+recording avatar IDs.
 Replica and template commands are timestamped and ignored when stale, so an
 interrupted test cannot replay its load after a later app restart. The local
 template copies MyAvatar pose, identity, and skeleton traits entirely inside
 the client; it sends no synthetic avatar to the domain and uses no Pico SDK or
-proprietary Pico library. Changing the count preserves each source and seeds
-new replicas immediately, so an unchanged model does not remain a loading orb.
+proprietary Pico library. While the template is active, its cached complete
+pose packet is replayed once per client update before other-avatar simulation.
+This exercises fresh-joint-data and replica packet-decoding paths without
+network transmission. Changing the count preserves each source and seeds new
+replicas immediately, so an unchanged model does not remain a loading orb.
 Test mode itself is re-read at runtime and disabling it removes all replicas
 and the local template. Always return both the replica count and template state
 to zero after a manual test.
@@ -131,7 +136,9 @@ so CPU stability is not mistaken for full crowd simulation quality. Here,
 `updated` counts in-view avatars with fresh joint data while the update is
 within budget; it is not a count of every simulated avatar. `aggregate.csv`
 combines repeated stages with the same replica count and includes mean loaded
-other-avatar and loaded-replica counts.
+other-avatar and loaded-replica counts plus the mean local-template refresh
+count. A zero refresh count while the local template is active invalidates a
+fresh-joint-data performance interpretation even if the population is stable.
 
 Both matrix tools create an `INVALID` marker before collecting a matrix or
 graphics case and remove it only after all required validation and output

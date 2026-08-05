@@ -2105,6 +2105,7 @@ void Application::update(float deltaTime) {
     static double picoAvatarScaleAnimationMsSum { 0.0 };
     static double picoAvatarSimulateMsSum { 0.0 };
     static quint64 picoAvatarSimulationSamples { 0 };
+    static quint64 picoLocalAvatarTemplateRefreshes { 0 };
     static quint64 lastTestModePropertyCheck { 0 };
     if (picoUpdateStart - lastTestModePropertyCheck >= USECS_PER_SECOND) {
         lastTestModePropertyCheck = picoUpdateStart;
@@ -2125,6 +2126,7 @@ void Application::update(float deltaTime) {
             picoAvatarScaleAnimationMsSum = 0.0;
             picoAvatarSimulateMsSum = 0.0;
             picoAvatarSimulationSamples = 0;
+            picoLocalAvatarTemplateRefreshes = 0;
         }
     }
     // ADB-controlled navigation for unattended Pico performance tests. The
@@ -2232,7 +2234,7 @@ void Application::update(float deltaTime) {
                     ? picoAvatarSimulationMsSum / double(picoAvatarSimulationSamples)
                     : 0.0;
                 const double timingDivisor = double(std::max<quint64>(1, picoAvatarSimulationSamples));
-                const QString avatarStatus = QStringLiteral("%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11|%12|%13|%14|%15|%16|%17|%18|%19")
+                const QString avatarStatus = QStringLiteral("%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11|%12|%13|%14|%15|%16|%17|%18|%19|%20")
                     .arg(QDateTime::currentSecsSinceEpoch())
                     .arg(avatarHash.size())
                     .arg(replicatedAvatars)
@@ -2251,7 +2253,8 @@ void Application::update(float deltaTime) {
                     .arg(picoAvatarSimulateMsSum / timingDivisor, 0, 'f', 3)
                     .arg(loadedOtherAvatars)
                     .arg(loadedReplicatedAvatars)
-                    .arg(avatarManager->isLocalTestAvatarTemplateEnabled() ? 1 : 0);
+                    .arg(avatarManager->isLocalTestAvatarTemplateEnabled() ? 1 : 0)
+                    .arg(picoLocalAvatarTemplateRefreshes);
                 QSaveFile avatarStatusFile("/data/user/0/org.overte.pico/cache/avatar-status");
                 if (avatarStatusFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
                     avatarStatusFile.write(avatarStatus.toUtf8());
@@ -2267,6 +2270,7 @@ void Application::update(float deltaTime) {
                 picoAvatarScaleAnimationMsSum = 0.0;
                 picoAvatarSimulateMsSum = 0.0;
                 picoAvatarSimulationSamples = 0;
+                picoLocalAvatarTemplateRefreshes = 0;
             }
         } else {
             auto avatarManager = DependencyManager::get<AvatarManager>();
@@ -2834,6 +2838,9 @@ void Application::update(float deltaTime) {
             PROFILE_RANGE(simulation, "OtherAvatars");
             PerformanceTimer perfTimer("otherAvatars");
 #if defined(Q_OS_ANDROID)
+            if (picoTestMode && avatarManager->refreshLocalTestAvatarTemplate()) {
+                ++picoLocalAvatarTemplateRefreshes;
+            }
             avatarManager->updateOtherAvatars(deltaTime, picoTestMode);
             if (picoTestMode) {
                 picoAvatarSimulationMsSum += avatarManager->size() > 1

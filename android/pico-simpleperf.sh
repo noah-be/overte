@@ -124,20 +124,22 @@ validate_prepared_world() {
 
 validate_avatar_load() {
     local stage="$1" status field_count status_epoch total replicated target now sources
-    local expected_replicated loaded_other loaded_replicated local_template
+    local expected_replicated loaded_other loaded_replicated local_template template_refreshes
     [[ -n "$EXPECTED_AVATAR_REPLICAS" ]] || return 0
     status="$(adb_shell run-as "$PACKAGE" cat cache/avatar-status 2>/dev/null | tr -d '\r' || true)"
     field_count="$(awk -F'|' '{ print NF }' <<<"$status")"
     IFS='|' read -r status_epoch total replicated target _ _ _ _ _ _ _ _ _ _ _ _ \
-        loaded_other loaded_replicated local_template <<<"$status"
+        loaded_other loaded_replicated local_template template_refreshes <<<"$status"
     now="$(date +%s)"
-    [[ "$field_count" == 19 && "$status_epoch" =~ ^[0-9]+$ &&
+    [[ "$field_count" == 20 && "$status_epoch" =~ ^[0-9]+$ &&
         "$total" =~ ^[0-9]+$ && "$replicated" =~ ^[0-9]+$ &&
         "$target" =~ ^[0-9]+$ && "$loaded_other" =~ ^[0-9]+$ &&
         "$loaded_replicated" =~ ^[0-9]+$ &&
-        ( "$local_template" == "0" || "$local_template" == "1" ) ]] &&
+        ( "$local_template" == "0" || "$local_template" == "1" ) &&
+        "$template_refreshes" =~ ^[0-9]+$ ]] &&
         (( now - status_epoch >= -5 && now - status_epoch <= 5 &&
-            total >= replicated + 1 )) || {
+            total >= replicated + 1 &&
+            (local_template == 0 || template_refreshes > 0) )) || {
         echo "loaded avatar status is missing or invalid during $stage" >&2
         return 1
     }

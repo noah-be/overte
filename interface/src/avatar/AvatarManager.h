@@ -262,6 +262,7 @@ public:
     // or packet to the domain.
     void setLocalTestAvatarTemplateEnabled(bool enabled);
     bool isLocalTestAvatarTemplateEnabled() const { return !_localTestAvatarTemplateID.isNull(); }
+    bool refreshLocalTestAvatarTemplate();
     void setReplicaCount(int count);
 
     void queuePhysicsChange(const OtherAvatarPointer& avatar);

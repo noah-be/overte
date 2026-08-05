@@ -842,11 +842,43 @@ avatars, retained loaded models for every stage, and cleaned back to one. Its
 four-second measurements validate the harness only and are not used as a
 performance recommendation.
 
+The first 30-second-per-stage local `0/5/0/5` run exposed a remaining fixture
+gap. Baseline and five-replica stages averaged 289.083% and 292.333% process
+CPU, 1.306 and 3.245 ms avatar simulation, and 1.385 and 3.457 ms complete
+other-avatar processing. However, `updated` remained zero in every stage: the
+local pose had only been injected during template creation, so the copies no
+longer had fresh joint data. These values characterize static loaded-avatar
+simulation, not the normal continuously received avatar path, and are retained
+only as that limited baseline.
+
+The local fixture now replays its cached complete pose packet once per client
+update immediately before other-avatar simulation. A twentieth status field
+and matching CSV column count successful replays, allowing stale-fixture runs
+to be identified. This remains entirely client-local, sends no synthetic
+packet to the domain, and adds no Pico SDK or proprietary dependency. The
+updated 0/2 harness smoke test passed with 20-column status/summary/telemetry
+and 18-column aggregate output.
+
+A repeated 30-second-per-stage `0/5/0/5` matrix then compared one refreshed
+local source with that source plus five fully loaded replicas. The two baseline
+stages averaged 286.583% process CPU, 1.056 ms avatar simulation, and 1.164 ms
+complete processing. The two loaded stages averaged 285.417% CPU, 3.115 ms
+avatar simulation, and 3.360 ms complete processing. Almost all of the 2.196 ms
+processing increase was in the budgeted simulate/render section (0.972 to
+2.995 ms); priority construction grew from 0.107 to 0.245 ms and pre-update
+work from 0.005 to 0.022 ms. The source refreshed 54.584 times per baseline
+interval and 37.334 times under load. Mean `updated`/budget-skipped counts
+changed from 1.000/0.000 to 3.250/2.750, proving that fresh joint data now
+reaches the fixed update budget. Process CPU changed by -1.166 percentage
+points (-0.4%), so this controlled result supports the existing budget's
+bounded CPU behavior and still does not justify a production avatar-quality
+or population reduction.
+
 ## Limitations and next work
 
 - The Hub test is CPU-limited. A controlled local avatar population is now
-  available, but longer loaded-avatar and mirror-heavy domain tests are still
-  needed.
+  available and its refreshed-pose 0/5/0/5 test is complete, but higher-load
+  saturation and mirror-heavy domain tests are still needed.
 - The dynamic turning screen had large resource-streaming/order variance and
   was not used for the final numeric recommendation.
 - Internal frame counters and Android telemetry are appropriate for comparative
@@ -855,8 +887,9 @@ performance recommendation.
   72 presents/s, while Overte generated about 20 new frames/s.
 - Physics broadphase and inactive simple-kinematic work are already bounded and
   are not strong next candidates for this scene. The strongest remaining work
-  is longer avatar-load testing with the controlled local template, followed by avatar
-  complexity controls only if those runs identify a scalable bottleneck.
+  is a refreshed-template saturation run and matching CPU profile at the first
+  stable budget plateau, followed by avatar complexity controls only if those
+  runs identify a scalable bottleneck.
   Per-module controller profiling and safe Create lazy loading have now also been screened.
   Global simulation-rate and renderable-budget reductions, model-update
   throttling, redundant Create gizmo updates, and idle near-search suppression

@@ -87,7 +87,7 @@ get_fresh_avatar_status() {
     field_count="$(awk -F'|' '{ print NF }' <<<"$status")"
     IFS='|' read -r status_epoch _ <<<"$status"
     now="$(date +%s)"
-    [[ "$field_count" == "19" && "$status_epoch" =~ ^[0-9]+$ ]] &&
+    [[ "$field_count" == "20" && "$status_epoch" =~ ^[0-9]+$ ]] &&
         (( now - status_epoch >= -5 && now - status_epoch <= 5 )) || return 1
     printf '%s\n' "$status"
 }
@@ -95,22 +95,23 @@ get_fresh_avatar_status() {
 print_avatar_status() {
     local status status_epoch total replicated target updated not_updated heroes simulation_ms
     local processing_ms priority_build_ms sort_ms pre_update_ms state_poll_ms ensure_scene_ms
-    local scale_animation_ms simulate_ms loaded_other loaded_replicated local_template now
+    local scale_animation_ms simulate_ms loaded_other loaded_replicated local_template template_refreshes now
     status="$(get_fresh_avatar_status || true)"
     IFS='|' read -r status_epoch total replicated target updated not_updated heroes simulation_ms \
         processing_ms priority_build_ms sort_ms pre_update_ms state_poll_ms ensure_scene_ms \
-        scale_animation_ms simulate_ms loaded_other loaded_replicated local_template <<<"$status"
+        scale_animation_ms simulate_ms loaded_other loaded_replicated local_template template_refreshes <<<"$status"
     now="$(date +%s)"
     if [[ ! "$status_epoch" =~ ^[0-9]+$ ]] ||
             (( now - status_epoch < -5 || now - status_epoch > 5 )) ||
-            [[ "$local_template" != "0" && "$local_template" != "1" ]]; then
+            [[ "$local_template" != "0" && "$local_template" != "1" ]] ||
+            [[ ! "$template_refreshes" =~ ^[0-9]+$ ]]; then
         echo "missing or stale avatar status: ${status:-missing}" >&2
         return 1
     fi
-    printf 'avatars=%s replicated=%s target_per_avatar=%s updated=%s not_updated=%s heroes=%s simulation_ms=%s processing_ms=%s priority_build_ms=%s sort_ms=%s pre_update_ms=%s state_poll_ms=%s ensure_scene_ms=%s scale_animation_ms=%s simulate_ms=%s loaded_other=%s loaded_replicated=%s local_template=%s\n' \
+    printf 'avatars=%s replicated=%s target_per_avatar=%s updated=%s not_updated=%s heroes=%s simulation_ms=%s processing_ms=%s priority_build_ms=%s sort_ms=%s pre_update_ms=%s state_poll_ms=%s ensure_scene_ms=%s scale_animation_ms=%s simulate_ms=%s loaded_other=%s loaded_replicated=%s local_template=%s template_refreshes=%s\n' \
         "$total" "$replicated" "$target" "$updated" "$not_updated" "$heroes" "$simulation_ms" \
         "$processing_ms" "$priority_build_ms" "$sort_ms" "$pre_update_ms" "$state_poll_ms" \
-        "$ensure_scene_ms" "$scale_animation_ms" "$simulate_ms" "$loaded_other" "$loaded_replicated" "$local_template"
+        "$ensure_scene_ms" "$scale_animation_ms" "$simulate_ms" "$loaded_other" "$loaded_replicated" "$local_template" "$template_refreshes"
 }
 
 wait_for_world() {
@@ -242,10 +243,11 @@ case "${1:-status}" in
         }
         force_worn
         set_avatar_replicas "$count"
-        for attempt in {1..10}; do
+        for attempt in {1..30}; do
             sleep 1
             status="$(get_fresh_avatar_status || true)"
-            IFS='|' read -r status_epoch total replicated target remainder <<<"$status"
+            IFS='|' read -ra avatar_fields <<<"$status"
+            target="${avatar_fields[3]:-}"
             if [[ "$target" == "$count" ]]; then
                 print_avatar_status
                 exit 0
@@ -258,10 +260,11 @@ case "${1:-status}" in
         enabled="${2:-0}"
         force_worn
         set_local_avatar_template "$enabled"
-        for attempt in {1..10}; do
+        for attempt in {1..30}; do
             sleep 1
             status="$(get_fresh_avatar_status || true)"
-            IFS='|' read -r _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ active_template <<<"$status"
+            IFS='|' read -ra avatar_fields <<<"$status"
+            active_template="${avatar_fields[18]:-}"
             if [[ "$active_template" == "$enabled" ]]; then
                 print_avatar_status
                 exit 0

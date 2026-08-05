@@ -158,6 +158,20 @@ void AvatarManager::setLocalTestAvatarTemplateEnabled(bool enabled) {
     _replicas.parseDataFromBuffer(templateID, avatarData);
 }
 
+bool AvatarManager::refreshLocalTestAvatarTemplate() {
+    if (_localTestAvatarTemplateID.isNull() || _localTestAvatarData.isEmpty()) {
+        return false;
+    }
+
+    const auto templateAvatar = findAvatar(_localTestAvatarTemplateID);
+    if (!templateAvatar || templateAvatar->parseDataFromBuffer(_localTestAvatarData) != _localTestAvatarData.size()) {
+        return false;
+    }
+
+    _replicas.parseDataFromBuffer(_localTestAvatarTemplateID, _localTestAvatarData);
+    return true;
+}
+
 AvatarManager::~AvatarManager() {
     assert(_otherAvatarsToChangeInPhysics.empty());
 }

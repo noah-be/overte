@@ -137,10 +137,10 @@ read_avatar_status() {
         AVATAR_UPDATED AVATAR_NOT_UPDATED AVATAR_HEROES AVATAR_SIMULATION_MS \
         AVATAR_PROCESSING_MS AVATAR_PRIORITY_BUILD_MS AVATAR_SORT_MS AVATAR_PRE_UPDATE_MS \
         AVATAR_STATE_POLL_MS AVATAR_ENSURE_SCENE_MS AVATAR_SCALE_ANIMATION_MS AVATAR_SIMULATE_MS \
-        AVATAR_LOADED_OTHER AVATAR_LOADED_REPLICATED AVATAR_LOCAL_TEMPLATE \
+        AVATAR_LOADED_OTHER AVATAR_LOADED_REPLICATED AVATAR_LOCAL_TEMPLATE AVATAR_TEMPLATE_REFRESHES \
         <<<"$status"
     now="$(date +%s)"
-    [[ "$field_count" == "19" && "$AVATAR_EPOCH" =~ ^[0-9]+$ ]] &&
+    [[ "$field_count" == "20" && "$AVATAR_EPOCH" =~ ^[0-9]+$ ]] &&
         (( now - AVATAR_EPOCH >= -5 && now - AVATAR_EPOCH <= 5 )) &&
         [[ "$AVATAR_TOTAL" =~ ^[0-9]+$ && "$AVATAR_REPLICATED" =~ ^[0-9]+$ &&
             "$AVATAR_TARGET" =~ ^[0-9]+$ && "$AVATAR_UPDATED" =~ ^[0-9]+$ &&
@@ -155,7 +155,8 @@ read_avatar_status() {
             "$AVATAR_SCALE_ANIMATION_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
             "$AVATAR_SIMULATE_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
             "$AVATAR_LOADED_OTHER" =~ ^[0-9]+$ && "$AVATAR_LOADED_REPLICATED" =~ ^[0-9]+$ &&
-            ( "$AVATAR_LOCAL_TEMPLATE" == "0" || "$AVATAR_LOCAL_TEMPLATE" == "1" ) ]] &&
+            ( "$AVATAR_LOCAL_TEMPLATE" == "0" || "$AVATAR_LOCAL_TEMPLATE" == "1" ) &&
+            "$AVATAR_TEMPLATE_REFRESHES" =~ ^[0-9]+$ ]] &&
         (( AVATAR_TOTAL >= AVATAR_REPLICATED + 1 && AVATAR_TARGET <= 50 &&
             AVATAR_LOADED_OTHER <= AVATAR_TOTAL - 1 &&
             AVATAR_LOADED_REPLICATED <= AVATAR_REPLICATED )) &&
@@ -173,6 +174,14 @@ read_avatar_status() {
 
 source_avatar_count() {
     printf '%s\n' "$((AVATAR_TOTAL - AVATAR_REPLICATED - 1))"
+}
+
+validate_template_refresh() {
+    local stage="$1"
+    if [[ "$EXPECTED_LOCAL_TEMPLATE" == "1" ]] && (( AVATAR_TEMPLATE_REFRESHES == 0 )); then
+        echo "local avatar template did not refresh during $stage" >&2
+        return 1
+    fi
 }
 
 set_local_template() {
@@ -296,7 +305,7 @@ adb_shell gd32ipdclient_test setbrightness 1 >/dev/null
         "$TEMPLATE_MODE" "$SOURCE_TEMPLATES" "$DURATION" "$INTERVAL" "$SETTLE" "$LOAD_WAIT"
     printf 'replica_sequence=%s\n' "${REPLICA_COUNTS[*]}"
 } > "$RESULT_DIR/metadata.txt"
-printf 'run,replicas_per_template,total_avatars,local_replicas,source_templates,mean_cpu_pct,mean_avatar_simulation_ms,mean_updated,mean_not_updated,mean_processing_ms,mean_priority_build_ms,mean_sort_ms,mean_pre_update_ms,mean_state_poll_ms,mean_ensure_scene_ms,mean_scale_animation_ms,mean_simulate_ms,mean_loaded_other,mean_loaded_replicated\n' \
+printf 'run,replicas_per_template,total_avatars,local_replicas,source_templates,mean_cpu_pct,mean_avatar_simulation_ms,mean_updated,mean_not_updated,mean_processing_ms,mean_priority_build_ms,mean_sort_ms,mean_pre_update_ms,mean_state_poll_ms,mean_ensure_scene_ms,mean_scale_animation_ms,mean_simulate_ms,mean_loaded_other,mean_loaded_replicated,mean_template_refreshes\n' \
     > "$RESULT_DIR/summary.csv"
 
 run_number=0
@@ -316,6 +325,7 @@ for count in "${REPLICA_COUNTS[@]}"; do
     validate_xr_focus "$label warm-up"
     validate_domain "$label warm-up"
     read_avatar_status || { echo "missing avatar status after $label warm-up" >&2; exit 1; }
+    validate_template_refresh "$label warm-up"
     [[ "$(source_avatar_count)" == "$SOURCE_TEMPLATES" &&
         "$AVATAR_LOCAL_TEMPLATE" == "$EXPECTED_LOCAL_TEMPLATE" ]] || {
         echo "source avatar template count changed during $label warm-up" >&2
@@ -327,13 +337,14 @@ for count in "${REPLICA_COUNTS[@]}"; do
         exit 1
     }
 
-    printf 'epoch,cpu_pct,total_avatars,local_replicas,source_templates,updated,not_updated,heroes,avatar_simulation_ms,processing_ms,priority_build_ms,sort_ms,pre_update_ms,state_poll_ms,ensure_scene_ms,scale_animation_ms,simulate_ms,loaded_other,loaded_replicated\n' \
+    printf 'epoch,cpu_pct,total_avatars,local_replicas,source_templates,updated,not_updated,heroes,avatar_simulation_ms,processing_ms,priority_build_ms,sort_ms,pre_update_ms,state_poll_ms,ensure_scene_ms,scale_animation_ms,simulate_ms,loaded_other,loaded_replicated,template_refreshes\n' \
         > "$output/telemetry.csv"
     elapsed=0
     while (( elapsed < DURATION )); do
         validate_xr_focus "$label measurement at ${elapsed}s"
         validate_domain "$label measurement at ${elapsed}s"
         read_avatar_status || { echo "missing avatar status during $label" >&2; exit 1; }
+        validate_template_refresh "$label measurement at ${elapsed}s"
         sources="$(source_avatar_count)"
         [[ "$sources" == "$SOURCE_TEMPLATES" && "$AVATAR_TARGET" == "$count" &&
             "$AVATAR_LOCAL_TEMPLATE" == "$EXPECTED_LOCAL_TEMPLATE" &&
@@ -346,12 +357,12 @@ for count in "${REPLICA_COUNTS[@]}"; do
         top_line="$(adb_shell top -b -n 1 -p "$PID" 2>/dev/null | tail -n 1 | tr -d '\r')"
         cpu="$(awk '{gsub(/%/, "", $9); print $9}' <<<"$top_line")"
         [[ "$cpu" =~ ^[0-9]+([.][0-9]+)?$ ]] || { echo "invalid CPU sample during $label" >&2; exit 1; }
-        printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "$(date +%s)" "$cpu" "$AVATAR_TOTAL" \
+        printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "$(date +%s)" "$cpu" "$AVATAR_TOTAL" \
             "$AVATAR_REPLICATED" "$sources" "$AVATAR_UPDATED" "$AVATAR_NOT_UPDATED" "$AVATAR_HEROES" \
             "$AVATAR_SIMULATION_MS" "$AVATAR_PROCESSING_MS" "$AVATAR_PRIORITY_BUILD_MS" \
             "$AVATAR_SORT_MS" "$AVATAR_PRE_UPDATE_MS" "$AVATAR_STATE_POLL_MS" \
             "$AVATAR_ENSURE_SCENE_MS" "$AVATAR_SCALE_ANIMATION_MS" "$AVATAR_SIMULATE_MS" \
-            "$AVATAR_LOADED_OTHER" "$AVATAR_LOADED_REPLICATED" \
+            "$AVATAR_LOADED_OTHER" "$AVATAR_LOADED_REPLICATED" "$AVATAR_TEMPLATE_REFRESHES" \
             >> "$output/telemetry.csv"
         sleep "$INTERVAL"
         elapsed=$((elapsed + INTERVAL))
@@ -360,6 +371,7 @@ for count in "${REPLICA_COUNTS[@]}"; do
     validate_xr_focus "$label completion"
     validate_domain "$label completion"
     read_avatar_status || { echo "missing avatar status after $label" >&2; exit 1; }
+    validate_template_refresh "$label completion"
     sources="$(source_avatar_count)"
     [[ "$sources" == "$SOURCE_TEMPLATES" && "$AVATAR_TARGET" == "$count" &&
         "$AVATAR_LOCAL_TEMPLATE" == "$EXPECTED_LOCAL_TEMPLATE" &&
@@ -372,28 +384,28 @@ for count in "${REPLICA_COUNTS[@]}"; do
 
     read -r mean_cpu mean_simulation mean_updated mean_not_updated mean_processing \
         mean_priority_build mean_sort mean_pre_update mean_state_poll mean_ensure_scene \
-        mean_scale_animation mean_simulate mean_loaded_other mean_loaded_replicated < <(awk -F, \
+        mean_scale_animation mean_simulate mean_loaded_other mean_loaded_replicated mean_template_refreshes < <(awk -F, \
         'NR > 1 { cpu += $2; updated += $6; notUpdated += $7; sim += $9; processing += $10;
             priorityBuild += $11; sort += $12; preUpdate += $13; statePoll += $14;
             ensureScene += $15; scaleAnimation += $16; simulate += $17;
-            loadedOther += $18; loadedReplicated += $19; n++ }
-        END { if (n > 0) printf "%.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f\n",
+            loadedOther += $18; loadedReplicated += $19; templateRefreshes += $20; n++ }
+        END { if (n > 0) printf "%.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f\n",
             cpu / n, sim / n, updated / n, notUpdated / n, processing / n, priorityBuild / n,
             sort / n, preUpdate / n, statePoll / n, ensureScene / n, scaleAnimation / n,
-            simulate / n, loadedOther / n, loadedReplicated / n; else exit 1 }' \
+            simulate / n, loadedOther / n, loadedReplicated / n, templateRefreshes / n; else exit 1 }' \
         "$output/telemetry.csv")
-    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "$run_number" "$count" "$AVATAR_TOTAL" "$AVATAR_REPLICATED" \
+    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "$run_number" "$count" "$AVATAR_TOTAL" "$AVATAR_REPLICATED" \
         "$SOURCE_TEMPLATES" "$mean_cpu" "$mean_simulation" "$mean_updated" "$mean_not_updated" \
         "$mean_processing" "$mean_priority_build" "$mean_sort" "$mean_pre_update" "$mean_state_poll" \
         "$mean_ensure_scene" "$mean_scale_animation" "$mean_simulate" \
-        "$mean_loaded_other" "$mean_loaded_replicated" \
+        "$mean_loaded_other" "$mean_loaded_replicated" "$mean_template_refreshes" \
         >> "$RESULT_DIR/summary.csv"
-    printf '%s mean_cpu=%s mean_avatar_simulation_ms=%s mean_updated=%s mean_not_updated=%s mean_loaded_other=%s mean_loaded_replicated=%s\n' \
+    printf '%s mean_cpu=%s mean_avatar_simulation_ms=%s mean_updated=%s mean_not_updated=%s mean_loaded_other=%s mean_loaded_replicated=%s mean_template_refreshes=%s\n' \
         "$label" "$mean_cpu" "$mean_simulation" "$mean_updated" "$mean_not_updated" \
-        "$mean_loaded_other" "$mean_loaded_replicated"
+        "$mean_loaded_other" "$mean_loaded_replicated" "$mean_template_refreshes"
 done
 
-printf 'replicas_per_template,total_avatars,runs,mean_cpu_pct,mean_avatar_simulation_ms,mean_updated,mean_not_updated,mean_processing_ms,mean_priority_build_ms,mean_sort_ms,mean_pre_update_ms,mean_state_poll_ms,mean_ensure_scene_ms,mean_scale_animation_ms,mean_simulate_ms,mean_loaded_other,mean_loaded_replicated\n' \
+printf 'replicas_per_template,total_avatars,runs,mean_cpu_pct,mean_avatar_simulation_ms,mean_updated,mean_not_updated,mean_processing_ms,mean_priority_build_ms,mean_sort_ms,mean_pre_update_ms,mean_state_poll_ms,mean_ensure_scene_ms,mean_scale_animation_ms,mean_simulate_ms,mean_loaded_other,mean_loaded_replicated,mean_template_refreshes\n' \
     > "$RESULT_DIR/aggregate.csv"
 awk -F, 'NR > 1 {
     replicas = $2
@@ -417,11 +429,12 @@ awk -F, 'NR > 1 {
     simulate[replicas] += $17
     loadedOther[replicas] += $18
     loadedReplicated[replicas] += $19
+    templateRefreshes[replicas] += $20
 }
 END {
     for (i = 1; i <= orderCount; i++) {
         replicas = order[i]
-        printf "%s,%s,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\n", replicas, total[replicas], runs[replicas],
+        printf "%s,%s,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\n", replicas, total[replicas], runs[replicas],
             cpu[replicas] / runs[replicas], simulation[replicas] / runs[replicas],
             updated[replicas] / runs[replicas], notUpdated[replicas] / runs[replicas],
             processing[replicas] / runs[replicas], priorityBuild[replicas] / runs[replicas],
@@ -429,7 +442,7 @@ END {
             statePoll[replicas] / runs[replicas], ensureScene[replicas] / runs[replicas],
             scaleAnimation[replicas] / runs[replicas],
             simulate[replicas] / runs[replicas], loadedOther[replicas] / runs[replicas],
-            loadedReplicated[replicas] / runs[replicas]
+            loadedReplicated[replicas] / runs[replicas], templateRefreshes[replicas] / runs[replicas]
     }
 }' "$RESULT_DIR/summary.csv" >> "$RESULT_DIR/aggregate.csv"
 
