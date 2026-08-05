@@ -874,6 +874,47 @@ points (-0.4%), so this controlled result supports the existing budget's
 bounded CPU behavior and still does not justify a production avatar-quality
 or population reduction.
 
+A refreshed-pose `0/1/2/5/10/20/10/5/2/1/0` saturation ramp then located the
+first update-budget plateau. The repeated aggregate stages measured:
+
+| Replicas | Total avatars | Mean CPU | Avatar simulation | Updated | Budget-skipped |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 0 | 2 | 284.9% | 1.053 ms | 1.0 | 0.0 |
+| 1 | 3 | 289.4% | 1.792 ms | 1.9 | 0.1 |
+| 2 | 4 | 279.4% | 2.743 ms | 2.9 | 0.1 |
+| 5 | 7 | 285.9% | 3.078 ms | 3.7 | 2.3 |
+| 10 | 12 | 291.5% | 3.642 ms | 3.4 | 7.6 |
+| 20 | 22 | 289.6% | 4.621 ms | 3.2 | 17.8 |
+
+Only the peak 20-replica stage occurred once; every other row combines the
+ascending and descending stages. CPU remained inside the run's background
+variance while the updated count stabilized around three to four from five
+replicas onward. Five replicas are therefore the first useful controlled
+plateau, rather than an arbitrary crowd-size limit.
+
+Paired 30-second, 399 Hz frame-pointer profiles at that plateau recorded
+41,319 baseline and 38,444 loaded samples with no loss. They exposed work
+outside the already measured `updateOtherAvatars()` interval: every decoded
+joint packet immediately forced all of an avatar's kinematic detailed motion
+states active, even when the fixed update budget had not applied that packet
+to the rig. Inclusive `DetailedMotionState::getWorldTransform()` grew from
+0.74% to 1.86%, while `AvatarManager::postUpdate()` grew from 0.95% to 2.22%.
+
+Detailed motion states are now activated after fresh joint data is accepted by
+`OtherAvatar::simulate()`, immediately after interpolation updates the rig.
+Position-only motion continues to dirty the main avatar motion state during
+packet parsing. This aligns collision-transform pulls with the same accepted
+pose that rendering uses and avoids physics work for budget-skipped packets.
+The repeated profiles recorded 40,183 baseline and 38,669 loaded samples with
+no loss. The detailed-motion load delta fell from 1.12 to 0.63 percentage
+points (44%), and the complete avatar post-update delta fell from 1.27 to 1.03
+points (19%). These are reductions in the isolated callgraph deltas, not an
+exact whole-process CPU claim: a post-change `0/5/0/5` matrix still had enough
+run variance that loaded process CPU was lower than its baseline. All models,
+fresh-data counters, and budget counters remained valid, and a guarded
+10-second locomotion check completed without an unsafe height, restart, native
+failure, or non-finite-pose diagnostic.
+
 ## Limitations and next work
 
 - The Hub test is CPU-limited. A controlled local avatar population is now
@@ -887,9 +928,10 @@ or population reduction.
   72 presents/s, while Overte generated about 20 new frames/s.
 - Physics broadphase and inactive simple-kinematic work are already bounded and
   are not strong next candidates for this scene. The strongest remaining work
-  is a refreshed-template saturation run and matching CPU profile at the first
-  stable budget plateau, followed by avatar complexity controls only if those
-  runs identify a scalable bottleneck.
+  is to determine whether the remaining per-avatar fit-bounding-box work can be
+  keyed safely to applied rig changes without making collision bounds stale.
+  Avatar complexity controls remain unjustified unless that audit identifies a
+  scalable bottleneck that cannot be removed without reducing quality.
   Per-module controller profiling and safe Create lazy loading have now also been screened.
   Global simulation-rate and renderable-budget reductions, model-update
   throttling, redundant Create gizmo updates, and idle near-search suppression
