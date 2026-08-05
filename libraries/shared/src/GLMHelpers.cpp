@@ -216,8 +216,22 @@ int unpackOrientationQuatFromSixBytes(const unsigned char* buffer, glm::quat& qu
         floatComponents[i] = ((float)components[i] / RANGE) * (2.0f * MAGNITUDE) - MAGNITUDE;
     }
 
-    // missingComponent is always negative.
-    float missingComponent = -sqrtf(1.0f - floatComponents[0] * floatComponents[0] - floatComponents[1] * floatComponents[1] - floatComponents[2] * floatComponents[2]);
+    float componentLengthSquared = floatComponents[0] * floatComponents[0] +
+        floatComponents[1] * floatComponents[1] + floatComponents[2] * floatComponents[2];
+    float missingComponent;
+    if (componentLengthSquared > 1.0f) {
+        // Arbitrary or damaged bytes need not describe a point inside the
+        // quaternion unit sphere. Project the stored components onto the
+        // sphere instead of taking the square root of a negative value.
+        float inverseLength = 1.0f / sqrtf(componentLengthSquared);
+        for (float& component : floatComponents) {
+            component *= inverseLength;
+        }
+        missingComponent = 0.0f;
+    } else {
+        // missingComponent is always negative.
+        missingComponent = -sqrtf(1.0f - componentLengthSquared);
+    }
 
     for (int i = 0, j = 0; i < 4; i++) {
         if (i != largestComponent) {

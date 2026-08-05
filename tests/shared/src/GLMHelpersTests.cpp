@@ -18,6 +18,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/simd/matrix.h>
 
+#include <array>
+#include <cmath>
 
 QTEST_MAIN(GLMHelpersTests)
 
@@ -103,6 +105,25 @@ void GLMHelpersTests::testSixByteOrientationCompression() {
     testQuatCompression(-(ROT_X_90 * ROT_Y_180 * ROT_Z_30));
     testQuatCompression(-(ROT_Y_180 * ROT_Z_30 * ROT_X_90));
     testQuatCompression(-(ROT_Z_30 * ROT_X_90 * ROT_Y_180));
+}
+
+void GLMHelpersTests::testMalformedSixByteOrientationCompression() {
+    const std::array<std::array<uint8_t, 6>, 3> malformedInputs {{
+        {{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }},
+        {{ 0x7f, 0xff, 0x7f, 0xff, 0x7f, 0xff }},
+        {{ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff }}
+    }};
+
+    for (const auto& bytes : malformedInputs) {
+        glm::quat result;
+        unpackOrientationQuatFromSixBytes(bytes.data(), result);
+
+        QVERIFY(std::isfinite(result.w));
+        QVERIFY(std::isfinite(result.x));
+        QVERIFY(std::isfinite(result.y));
+        QVERIFY(std::isfinite(result.z));
+        QCOMPARE_WITH_ABS_ERROR(glm::length(result), 1.0f, 1.0e-6f);
+    }
 }
 
 #define LOOPS 500000

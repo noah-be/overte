@@ -695,6 +695,10 @@ before changing avatar state. The host regression suite covers every truncated
 hand-controller length and verifies that invalid numeric follow-up packets
 preserve the preceding valid state. The rebuilt Android client also completed
 a clean Pico cold start without a native, JNI, or packet-validation error.
+The shared six-byte quaternion decoder was hardened as well: byte patterns
+whose three stored components fall outside the unit sphere are projected onto
+it instead of taking the square root of a negative remainder. Existing
+rotation-accuracy tests and new malformed-extreme tests both pass.
 
 A later avatar-load validation exposed transient non-finite absolute joint
 poses while a fallback rig was initialized. Matrix decomposition in
