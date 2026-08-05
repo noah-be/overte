@@ -25,7 +25,10 @@
 #include <StatTracker.h>
 #include <test-utils/QTestExtensions.h>
 
+#include <atomic>
+#include <cmath>
 #include <limits>
+#include <thread>
 
 QTEST_MAIN(AnimTests)
 
@@ -553,6 +556,48 @@ void AnimTests::testRigPoseSnapshot() {
         QVERIFY(rig.getAbsoluteJointPoseInRigFrame((int)i, expectedPose));
         QCOMPARE_WITH_ABS_ERROR((glm::mat4)snapshot[i], (glm::mat4)expectedPose, TEST_EPSILON);
     }
+
+    QVector<JointData> jointData(2);
+    jointData[0].translationIsDefaultPose = false;
+    jointData[1].translationIsDefaultPose = false;
+    jointData[1].translation = glm::vec3(1.0f, 0.0f, 0.0f);
+
+    constexpr int CONCURRENT_SNAPSHOT_COUNT = 5000;
+    std::atomic<int> snapshotCount { 0 };
+    std::atomic<bool> invalidSnapshot { false };
+    std::thread reader([&] {
+        const auto isFinite = [](const glm::vec3& value) {
+            return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
+        };
+        while (snapshotCount < CONCURRENT_SNAPSHOT_COUNT && !invalidSnapshot) {
+            AnimPoseVec concurrentSnapshot;
+            if (!rig.getAbsoluteJointPosesInRigFrame(concurrentSnapshot) || concurrentSnapshot.size() != 2) {
+                invalidSnapshot = true;
+                break;
+            }
+
+            const glm::vec3 rootTranslation = concurrentSnapshot[0].trans();
+            const glm::vec3 childTranslation = concurrentSnapshot[1].trans();
+            const glm::vec3 relativeTranslation = childTranslation - rootTranslation;
+            if (!isFinite(rootTranslation) || !isFinite(childTranslation) ||
+                    glm::distance(relativeTranslation, glm::vec3(1.0f, 0.0f, 0.0f)) > TEST_EPSILON) {
+                invalidSnapshot = true;
+                break;
+            }
+            ++snapshotCount;
+        }
+    });
+
+    for (int generation = 1; snapshotCount < CONCURRENT_SNAPSHOT_COUNT && !invalidSnapshot; ++generation) {
+        jointData[0].translation = glm::vec3((generation % 1000) * 0.01f, 0.0f, 0.0f);
+        rig.copyJointsFromJointData(jointData);
+        rig.computeExternalPoses(glm::mat4(1.0f));
+        std::this_thread::yield();
+    }
+    reader.join();
+
+    QVERIFY(!invalidSnapshot);
+    QCOMPARE(snapshotCount.load(), CONCURRENT_SNAPSHOT_COUNT);
 }
 
 void AnimTests::testExpressionTokenizer() {

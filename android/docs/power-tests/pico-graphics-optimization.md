@@ -955,6 +955,12 @@ CMake build. The headless Release dependency graph disabled SDL X11 support
 because these suites do not create an SDL display; this does not change the
 Android build or runtime configuration.
 
+The Rig snapshot regression also publishes changing two-joint poses on the Rig
+owner thread while a foreign thread copies 5,000 bulk snapshots. Every copy
+must contain a finite root and child from one consistent generation. Twenty
+repeated Debug and twenty repeated Release runner invocations completed with no
+suite failure, adding 3,260 passed tests and 20 expected Debug-only skips.
+
 ## Limitations and next work
 
 - The Hub test is CPU-limited. A controlled local avatar population is now
