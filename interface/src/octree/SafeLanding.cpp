@@ -108,12 +108,20 @@ void SafeLanding::updateTracking() {
 
     {
         Locker lock(_lock);
-        bool enableInterstitial = DependencyManager::get<NodeList>()->getDomainHandler().getInterstitialModeEnabled();
+#if defined(ANDROID_APP_PICO_INTERFACE)
+        // On Pico the interstitial must only cover the playable handoff.  Visual assets may continue
+        // streaming after the user can move; blocking safe landing on model/texture readiness caused
+        // the loading screen to enter an endless "missing entities" recovery loop.
+        constexpr bool requireVisualReadiness = false;
+#else
+        const bool enableInterstitial = DependencyManager::get<NodeList>()->getDomainHandler().getInterstitialModeEnabled();
+        const bool requireVisualReadiness = enableInterstitial;
+#endif
         auto entityMapIter = _trackedEntities.begin();
         while (entityMapIter != _trackedEntities.end()) {
             auto entity = entityMapIter->second;
             bool isVisuallyReady = true;
-            if (enableInterstitial) {
+            if (requireVisualReadiness) {
                 auto entityRenderable = _entityTreeRenderer->renderableForEntityId(entityMapIter->first);
                 if (!entityRenderable) {
                     _entityTreeRenderer->addingEntity(entityMapIter->first);
@@ -126,7 +134,7 @@ void SafeLanding::updateTracking() {
                 entityMapIter++;
             }
         }
-        if (enableInterstitial) {
+        if (requireVisualReadiness) {
             _trackedEntityStabilityCount++;
         }
     }
@@ -214,8 +222,12 @@ SafeLanding::LoadingStatus SafeLanding::loadingStatus() {
     status.trackedEntityCount = static_cast<int32_t>(_trackedEntities.size());
     status.maximumTrackedEntityCount = _maxTrackedEntityCount;
     if (_entityTreeRenderer) {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+        constexpr bool requireVisualReadiness = false;
+#else
         const bool requireVisualReadiness =
             DependencyManager::get<NodeList>()->getDomainHandler().getInterstitialModeEnabled();
+#endif
         for (const auto& trackedEntity : _trackedEntities) {
             const auto& entity = trackedEntity.second;
             if (!isEntityPhysicsReady(entity)) {
