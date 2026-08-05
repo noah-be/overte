@@ -11,6 +11,7 @@
 
 #include "AudioMixer.h"
 
+#include <cmath>
 #include <thread>
 
 #include <QtCore/QJsonArray>
@@ -182,13 +183,17 @@ void AudioMixer::handleMuteEnvironmentPacket(QSharedPointer<ReceivedMessage> mes
 
     if (sendingNode->getCanKick()) {
         glm::vec3 position;
-        float radius;
+        float radius { 0.0f };
+
+        // Read and validate the complete request before broadcasting it.
+        if (message->readPrimitive(&position) != sizeof(position) ||
+                message->readPrimitive(&radius) != sizeof(radius) ||
+                !std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z) ||
+                !std::isfinite(radius) || radius < 0.0f) {
+            return;
+        }
 
         auto newPacket = NLPacket::create(PacketType::MuteEnvironment, sizeof(position) + sizeof(radius));
-
-        // read the position and radius from the sent packet
-        message->readPrimitive(&position);
-        message->readPrimitive(&radius);
 
         // write them to our packet
         newPacket->writePrimitive(position);
@@ -226,9 +231,16 @@ const pair<QString, CodecPluginPointer> AudioMixer::negotiateCodec(vector<QStrin
 
 
 void AudioMixer::handleNodeMuteRequestPacket(QSharedPointer<ReceivedMessage> packet, SharedNodePointer sendingNode) {
-    auto nodeList = DependencyManager::get<NodeList>();
-    QUuid nodeUUID = QUuid::fromRfc4122(packet->readWithoutCopy(NUM_BYTES_RFC4122_UUID));
     if (sendingNode->getCanKick()) {
+        if (packet->getBytesLeftToRead() < NUM_BYTES_RFC4122_UUID) {
+            return;
+        }
+        QUuid nodeUUID = QUuid::fromRfc4122(packet->readWithoutCopy(NUM_BYTES_RFC4122_UUID));
+        if (nodeUUID.isNull()) {
+            return;
+        }
+
+        auto nodeList = DependencyManager::get<NodeList>();
         auto node = nodeList->nodeWithUUID(nodeUUID);
         if (node) {
             // we need to set a flag so we send them the appropriate packet to mute them

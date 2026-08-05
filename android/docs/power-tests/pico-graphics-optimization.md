@@ -729,6 +729,9 @@ Replicated audio wrappers now require a recognized mapping and a complete,
 non-null source UUID before creating a replicated node. Radius-ignore, solo,
 stop-injector, and replicated-codec control messages likewise reject incomplete
 records before mutating mixer state.
+Privileged environment-mute broadcasts now require a complete finite position
+and a non-negative finite radius. Node-mute requests similarly require a
+complete non-null target UUID before looking up or changing a node.
 The underlying `ReceivedMessage` API now clamps copied and zero-copy reads and
 seek positions to the actual message bounds, including string payloads with a
 truncated length or body. Bulk avatar parsing additionally rejects incomplete
