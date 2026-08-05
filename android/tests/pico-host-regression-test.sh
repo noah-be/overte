@@ -75,6 +75,16 @@ fi
 command -v cmake >/dev/null || { printf 'error: cmake is required\n' >&2; exit 2; }
 command -v timeout >/dev/null || { printf 'error: timeout is required\n' >&2; exit 2; }
 
+CONAN_GENERATORS_DIR="$BUILD_DIR/generators"
+BUILD_CONFIG_LOWER="${BUILD_CONFIG,,}"
+if [[ -f "$CONAN_GENERATORS_DIR/glmTargets.cmake" && \
+      ! -f "$CONAN_GENERATORS_DIR/glm-Target-$BUILD_CONFIG_LOWER.cmake" ]]; then
+    printf 'error: Conan dependencies for configuration %s are not installed in %s\n' \
+        "$BUILD_CONFIG" "$BUILD_DIR" >&2
+    printf 'error: run the matching Conan install and reconfigure CMake first\n' >&2
+    exit 2
+fi
+
 TARGETS=(
     animation-AnimTests
     audio-PositionalAudioStreamTests

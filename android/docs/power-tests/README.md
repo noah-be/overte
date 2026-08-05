@@ -175,3 +175,5 @@ per-suite timeout. Use `--build-dir`, `--config`, and `--no-build` for another
 configured tree whose Conan dependencies include that configuration;
 `--keep-logs` retains detailed local output when diagnosing a failure. By
 default, temporary logs are removed and only per-suite Qt totals are printed.
+When CMake uses Conan, the runner rejects a configuration with missing Conan
+package generators before starting a partial compile.
