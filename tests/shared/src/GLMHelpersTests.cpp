@@ -81,6 +81,38 @@ void GLMHelpersTests::testInvalidFixedPointInput() {
     QCOMPARE(result, glm::vec3(0.5f, 0.0f, -0.5f));
 }
 
+void GLMHelpersTests::testInvalidRatioInput() {
+    const std::array<float, 5> invalidInputs {{
+        0.0f,
+        -1.0f,
+        std::numeric_limits<float>::quiet_NaN(),
+        std::numeric_limits<float>::infinity(),
+        -std::numeric_limits<float>::infinity()
+    }};
+    for (float input : invalidInputs) {
+        uint8_t bytes[2];
+        float result;
+        packFloatRatioToTwoByte(bytes, input);
+        unpackFloatRatioFromTwoByte(bytes, result);
+        QVERIFY(std::abs(result - 1.0f) < 3.0e-4f);
+    }
+
+    uint8_t bytes[2];
+    float result;
+    packFloatRatioToTwoByte(bytes, std::numeric_limits<float>::min());
+    unpackFloatRatioFromTwoByte(bytes, result);
+    QVERIFY(result > 0.0f);
+    QVERIFY(result < 0.001f);
+
+    packFloatRatioToTwoByte(bytes, 2000.0f);
+    unpackFloatRatioFromTwoByte(bytes, result);
+    QVERIFY(std::abs(result - 1000.0f) < 0.1f);
+
+    packFloatRatioToTwoByte(bytes, 10.0f);
+    unpackFloatRatioFromTwoByte(bytes, result);
+    QCOMPARE(result, 10.0f);
+}
+
 static void testQuatCompression(glm::quat testQuat) {
 
     float MAX_COMPONENT_ERROR = 4.3e-5f;

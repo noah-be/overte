@@ -706,6 +706,10 @@ The shared signed fixed-point encoder similarly maps non-finite scalar and
 vector components to zero before integer conversion. Its radix scaling now
 uses a bounded floating-point exponent instead of a potentially undefined
 integer shift, with direct scalar and mixed-vector regression coverage.
+Avatar scale-ratio packing now maps non-finite and non-positive inputs to the
+neutral scale, clamps finite overflow to the format maximum, and keeps tiny
+positive ratios away from the wire value reserved for the `10` range boundary.
+Tests cover invalid values, underflow, overflow, and the unchanged boundary.
 The underlying `ReceivedMessage` API now clamps copied and zero-copy reads and
 seek positions to the actual message bounds, including string payloads with a
 truncated length or body. Bulk avatar parsing additionally rejects incomplete
