@@ -15,6 +15,7 @@
 #include <AnimVariant.h>
 #include <AnimExpression.h>
 #include <AnimUtil.h>
+#include <Rig.h>
 #include <ExternalResource.h>
 #include <NodeList.h>
 #include <AddressManager.h>
@@ -503,6 +504,55 @@ void AnimTests::testAnimPose() {
     nonFiniteMatrix[0][0] = std::numeric_limits<float>::infinity();
     AnimPose nonFinitePose(nonFiniteMatrix);
     QCOMPARE_WITH_ABS_ERROR((glm::mat4)nonFinitePose, glm::mat4(), TEST_EPSILON);
+}
+
+void AnimTests::testRigPoseSnapshot() {
+    AnimPoseVec snapshot { AnimPose() };
+    Rig emptyRig;
+    QVERIFY(!emptyRig.getAbsoluteJointPosesInRigFrame(snapshot));
+    QVERIFY(snapshot.empty());
+
+    HFMModel model;
+    model.offset = glm::mat4(1.0f);
+
+    HFMJoint joint;
+    joint.parentIndex = -1;
+    joint.distanceToParent = 0.0f;
+    joint.translation = glm::vec3(0.0f);
+    joint.preTransform = glm::mat4(1.0f);
+    joint.preRotation = glm::quat();
+    joint.rotation = glm::quat();
+    joint.postRotation = glm::quat();
+    joint.postTransform = glm::mat4(1.0f);
+    joint.transform = glm::mat4(1.0f);
+    joint.rotationMin = glm::vec3(-PI);
+    joint.rotationMax = glm::vec3(PI);
+    joint.inverseDefaultRotation = glm::quat();
+    joint.inverseBindRotation = glm::quat();
+    joint.bindTransform = glm::mat4(1.0f);
+    joint.name = "Root";
+    joint.isSkeletonJoint = true;
+    model.joints.push_back(joint);
+
+    joint.parentIndex = 0;
+    joint.distanceToParent = 1.0f;
+    joint.translation = glm::vec3(1.0f, 0.0f, 0.0f);
+    joint.transform = glm::translate(glm::mat4(1.0f), joint.translation);
+    joint.bindTransform = joint.transform;
+    joint.name = "Child";
+    model.joints.push_back(joint);
+
+    Rig rig;
+    rig.initJointStates(model, glm::mat4(1.0f));
+    rig.computeExternalPoses(glm::mat4(1.0f));
+
+    QVERIFY(rig.getAbsoluteJointPosesInRigFrame(snapshot));
+    QCOMPARE(snapshot.size(), model.joints.size());
+    for (size_t i = 0; i < snapshot.size(); ++i) {
+        AnimPose expectedPose;
+        QVERIFY(rig.getAbsoluteJointPoseInRigFrame((int)i, expectedPose));
+        QCOMPARE_WITH_ABS_ERROR((glm::mat4)snapshot[i], (glm::mat4)expectedPose, TEST_EPSILON);
+    }
 }
 
 void AnimTests::testExpressionTokenizer() {
