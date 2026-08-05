@@ -557,10 +557,7 @@ void Application::initialize(const QCommandLineParser &parser) {
                 TestScriptingInterface::getInstance()->setTestResultsLocation(path);
             }
         }
-        // Pico always starts in the packaged serverless tutorial. Do not let
-        // a persisted address or an entry override select the first world.
-        _urlParam = QUrl(QStringLiteral("file:///~/serverless/tutorial.json"));
-        qCInfo(interfaceapp) << "Pico startup URL fixed to serverless tutorial";
+        _urlParam = parser.value("url");
 
         if (parser.isSet("disableWatchdog")) {
             DISABLE_WATCHDOG = true;
