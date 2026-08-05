@@ -736,6 +736,10 @@ GCC's static analyzer reported no primary-source diagnostics in the four audio
 stream/parser translation units or the two mixer translation units. Its
 remaining diagnostics originated in dependency headers rather than these
 changed paths.
+A matching analyzer pass reported no primary-source diagnostics in the changed
+avatar packet, avatar-map, trait, received-message, animation-pose, GLM, or
+shared packing translation units. A syntax pass also accepted every
+`android/pico-*.sh` test and profiling script.
 A clean Debug configuration with server targets enabled subsequently compiled
 and linked the complete `assignment-client` target, including all modified
 audio stream and mixer translation units.
