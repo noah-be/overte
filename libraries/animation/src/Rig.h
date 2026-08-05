@@ -187,6 +187,8 @@ public:
     bool getAbsoluteJointRotationInRigFrame(int jointIndex, glm::quat& rotation) const;
     bool getAbsoluteJointTranslationInRigFrame(int jointIndex, glm::vec3& translation) const;
     bool getAbsoluteJointPoseInRigFrame(int jointIndex, AnimPose& returnPose) const;
+    // Copy one consistent pose-set snapshot under a single read lock.
+    bool getAbsoluteJointPosesInRigFrame(AnimPoseVec& returnPoses) const;
 
     // rig space
     glm::mat4 getJointTransform(int jointIndex) const;

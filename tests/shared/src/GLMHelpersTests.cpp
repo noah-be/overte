@@ -11,6 +11,7 @@
 
 #include "GLMHelpersTests.h"
 
+#include <AudioHelpers.h>
 #include <NumericalConstants.h>
 #include <StreamUtils.h>
 
@@ -18,6 +19,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/simd/matrix.h>
 
+#include <array>
+#include <cmath>
+#include <limits>
 
 QTEST_MAIN(GLMHelpersTests)
 
@@ -56,6 +60,101 @@ void GLMHelpersTests::testEulerDecomposition() {
     }
 }
 
+void GLMHelpersTests::testInvalidFixedPointInput() {
+    const std::array<float, 3> invalidInputs {{
+        std::numeric_limits<float>::quiet_NaN(),
+        std::numeric_limits<float>::infinity(),
+        -std::numeric_limits<float>::infinity()
+    }};
+    for (float input : invalidInputs) {
+        uint8_t bytes[2];
+        float result;
+        packFloatScalarToSignedTwoByteFixed(bytes, input, 14);
+        unpackFloatScalarFromSignedTwoByteFixed(reinterpret_cast<const int16_t*>(bytes), &result, 14);
+        QCOMPARE(result, 0.0f);
+    }
+
+    uint8_t bytes[6];
+    glm::vec3 result;
+    packFloatVec3ToSignedTwoByteFixed(bytes,
+        glm::vec3(0.5f, std::numeric_limits<float>::quiet_NaN(), -0.5f), 14);
+    unpackFloatVec3FromSignedTwoByteFixed(bytes, result, 14);
+    QCOMPARE(result, glm::vec3(0.5f, 0.0f, -0.5f));
+}
+
+void GLMHelpersTests::testInvalidAngleInput() {
+    const std::array<float, 3> invalidInputs {{
+        std::numeric_limits<float>::quiet_NaN(),
+        std::numeric_limits<float>::infinity(),
+        -std::numeric_limits<float>::infinity()
+    }};
+    for (float input : invalidInputs) {
+        uint8_t bytes[2];
+        float result;
+        packFloatAngleToTwoByte(bytes, input);
+        unpackFloatAngleFromTwoByte(reinterpret_cast<const uint16_t*>(bytes), &result);
+        QVERIFY(std::abs(result) < 0.01f);
+    }
+
+    uint8_t bytes[2];
+    float result;
+    packFloatAngleToTwoByte(bytes, 1000.0f);
+    unpackFloatAngleFromTwoByte(reinterpret_cast<const uint16_t*>(bytes), &result);
+    QCOMPARE(result, 180.0f);
+
+    packFloatAngleToTwoByte(bytes, -1000.0f);
+    unpackFloatAngleFromTwoByte(reinterpret_cast<const uint16_t*>(bytes), &result);
+    QCOMPARE(result, -180.0f);
+}
+
+void GLMHelpersTests::testInvalidAudioGainInput() {
+    const std::array<float, 5> silentInputs {{
+        0.0f,
+        -1.0f,
+        std::numeric_limits<float>::quiet_NaN(),
+        std::numeric_limits<float>::infinity(),
+        -std::numeric_limits<float>::infinity()
+    }};
+    for (float input : silentInputs) {
+        QCOMPARE(packFloatGainToByte(input), uint8_t(0));
+    }
+
+    const uint8_t unity = packFloatGainToByte(1.0f);
+    QCOMPARE(unpackFloatGainFromByte(unity), 1.0f);
+}
+
+void GLMHelpersTests::testInvalidRatioInput() {
+    const std::array<float, 5> invalidInputs {{
+        0.0f,
+        -1.0f,
+        std::numeric_limits<float>::quiet_NaN(),
+        std::numeric_limits<float>::infinity(),
+        -std::numeric_limits<float>::infinity()
+    }};
+    for (float input : invalidInputs) {
+        uint8_t bytes[2];
+        float result;
+        packFloatRatioToTwoByte(bytes, input);
+        unpackFloatRatioFromTwoByte(bytes, result);
+        QVERIFY(std::abs(result - 1.0f) < 3.0e-4f);
+    }
+
+    uint8_t bytes[2];
+    float result;
+    packFloatRatioToTwoByte(bytes, std::numeric_limits<float>::min());
+    unpackFloatRatioFromTwoByte(bytes, result);
+    QVERIFY(result > 0.0f);
+    QVERIFY(result < 0.001f);
+
+    packFloatRatioToTwoByte(bytes, 2000.0f);
+    unpackFloatRatioFromTwoByte(bytes, result);
+    QVERIFY(std::abs(result - 1000.0f) < 0.1f);
+
+    packFloatRatioToTwoByte(bytes, 10.0f);
+    unpackFloatRatioFromTwoByte(bytes, result);
+    QCOMPARE(result, 10.0f);
+}
+
 static void testQuatCompression(glm::quat testQuat) {
 
     float MAX_COMPONENT_ERROR = 4.3e-5f;
@@ -71,6 +170,30 @@ static void testQuatCompression(glm::quat testQuat) {
     QCOMPARE_WITH_ABS_ERROR(q.y, testQuat.y, MAX_COMPONENT_ERROR);
     QCOMPARE_WITH_ABS_ERROR(q.z, testQuat.z, MAX_COMPONENT_ERROR);
     QCOMPARE_WITH_ABS_ERROR(q.w, testQuat.w, MAX_COMPONENT_ERROR);
+}
+
+void GLMHelpersTests::testInvalidOrientationInput() {
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    const float infinity = std::numeric_limits<float>::infinity();
+    const std::array<glm::quat, 4> invalidInputs {{
+        glm::quat(0.0f, 0.0f, 0.0f, 0.0f),
+        glm::quat(1.0f, nan, 0.0f, 0.0f),
+        glm::quat(infinity, 0.0f, 0.0f, 0.0f),
+        glm::quat(2.0f, 0.0f, 0.0f, 0.0f)
+    }};
+
+    for (const auto& input : invalidInputs) {
+        uint8_t bytes[8];
+        glm::quat result;
+        packOrientationQuatToBytes(bytes, input);
+        unpackOrientationQuatFromBytes(bytes, result);
+
+        QVERIFY(std::isfinite(result.w));
+        QVERIFY(std::isfinite(result.x));
+        QVERIFY(std::isfinite(result.y));
+        QVERIFY(std::isfinite(result.z));
+        QCOMPARE_WITH_ABS_ERROR(std::abs(glm::dot(result, Quaternions::IDENTITY)), 1.0f, 1.0e-6f);
+    }
 }
 
 void GLMHelpersTests::testSixByteOrientationCompression() {
@@ -103,6 +226,49 @@ void GLMHelpersTests::testSixByteOrientationCompression() {
     testQuatCompression(-(ROT_X_90 * ROT_Y_180 * ROT_Z_30));
     testQuatCompression(-(ROT_Y_180 * ROT_Z_30 * ROT_X_90));
     testQuatCompression(-(ROT_Z_30 * ROT_X_90 * ROT_Y_180));
+}
+
+void GLMHelpersTests::testMalformedSixByteOrientationCompression() {
+    const std::array<std::array<uint8_t, 6>, 3> malformedInputs {{
+        {{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }},
+        {{ 0x7f, 0xff, 0x7f, 0xff, 0x7f, 0xff }},
+        {{ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff }}
+    }};
+
+    for (const auto& bytes : malformedInputs) {
+        glm::quat result;
+        unpackOrientationQuatFromSixBytes(bytes.data(), result);
+
+        QVERIFY(std::isfinite(result.w));
+        QVERIFY(std::isfinite(result.x));
+        QVERIFY(std::isfinite(result.y));
+        QVERIFY(std::isfinite(result.z));
+        QCOMPARE_WITH_ABS_ERROR(glm::length(result), 1.0f, 1.0e-6f);
+    }
+}
+
+void GLMHelpersTests::testInvalidSixByteOrientationInput() {
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    const float infinity = std::numeric_limits<float>::infinity();
+    const std::array<glm::quat, 4> invalidInputs {{
+        glm::quat(0.0f, 0.0f, 0.0f, 0.0f),
+        glm::quat(1.0f, nan, 0.0f, 0.0f),
+        glm::quat(infinity, 0.0f, 0.0f, 0.0f),
+        glm::quat(2.0f, 0.0f, 0.0f, 0.0f)
+    }};
+
+    for (const auto& input : invalidInputs) {
+        uint8_t bytes[6];
+        glm::quat result;
+        packOrientationQuatToSixBytes(bytes, input);
+        unpackOrientationQuatFromSixBytes(bytes, result);
+
+        QVERIFY(std::isfinite(result.w));
+        QVERIFY(std::isfinite(result.x));
+        QVERIFY(std::isfinite(result.y));
+        QVERIFY(std::isfinite(result.z));
+        QCOMPARE_WITH_ABS_ERROR(std::abs(glm::dot(result, Quaternions::IDENTITY)), 1.0f, 1.0e-6f);
+    }
 }
 
 #define LOOPS 500000

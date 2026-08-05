@@ -11,6 +11,7 @@
 
 #include "InjectedAudioStream.h"
 
+#include <cmath>
 #include <cstring>
 
 #include <QtCore/QDataStream>
@@ -31,6 +32,16 @@ int InjectedAudioStream::parseStreamProperties(PacketType type,
                                                const QByteArray& packetAfterSeqNum,
                                                int& numAudioSamples) {
 
+    const int positionalDataSize = sizeof(_position) + sizeof(_orientation) +
+        sizeof(_avatarBoundingBoxCorner) + sizeof(_avatarBoundingBoxScale);
+    // QDataStream uses double precision for floating point values by default, including values read into float.
+    const int serializedRadiusSize = sizeof(double);
+    const int minimumPropertySize = NUM_BYTES_RFC4122_UUID + sizeof(quint8) + sizeof(LoopbackFlag) +
+        positionalDataSize + serializedRadiusSize + sizeof(quint8) + sizeof(quint8);
+    if (packetAfterSeqNum.size() < minimumPropertySize) {
+        return -1;
+    }
+
     // setup a data stream to read from this packet
     QDataStream packetStream(packetAfterSeqNum);
 
@@ -38,33 +49,57 @@ int InjectedAudioStream::parseStreamProperties(PacketType type,
     packetStream.skipRawData(NUM_BYTES_RFC4122_UUID);
     
     // read the channel flag
-    bool isStereo;
-    packetStream >> isStereo;
-    
-    // if isStereo value has changed, restart the ring buffer with new frame size
+    quint8 isStereoFlag { 0 };
+    packetStream >> isStereoFlag;
+    if (isStereoFlag > 1) {
+        return -1;
+    }
+    const bool isStereo = isStereoFlag == 1;
+
+    // pull the loopback flag and set our boolean
+    LoopbackFlag shouldLoopback { 0 };
+    packetStream >> shouldLoopback;
+    if (shouldLoopback > 1) {
+        return -1;
+    }
+
+    const int positionalDataOffset = packetStream.device()->pos();
+    if (packetStream.skipRawData(positionalDataSize) != positionalDataSize) {
+        return -1;
+    }
+
+    // pull out the radius for this injected source - if it's zero this is a point source
+    float radius { 0.0f };
+    packetStream >> radius;
+    if (!std::isfinite(radius) || radius < 0.0f) {
+        return -1;
+    }
+
+    quint8 attenuationByte = 0;
+    packetStream >> attenuationByte;
+
+    quint8 ignorePenumbraFlag { 0 };
+    packetStream >> ignorePenumbraFlag;
+    if (packetStream.status() != QDataStream::Ok || ignorePenumbraFlag > 1) {
+        return -1;
+    }
+
+    // Apply properties only after the complete fixed header has been validated.
+    const int positionalBytes = parsePositionalData(packetAfterSeqNum.mid(positionalDataOffset, positionalDataSize));
+    if (positionalBytes != positionalDataSize) {
+        return -1;
+    }
+
     if (isStereo != _isStereo) {
         _ringBuffer.resizeForFrameSize(isStereo
                                        ? AudioConstants::NETWORK_FRAME_SAMPLES_STEREO
                                        : AudioConstants::NETWORK_FRAME_SAMPLES_PER_CHANNEL);
         _isStereo = isStereo;
     }
-
-    // pull the loopback flag and set our boolean
-    LoopbackFlag shouldLoopback;
-    packetStream >> shouldLoopback;
-    _shouldLoopbackForNode = (shouldLoopback == 1);
-
-    // use parsePositionalData in parent PostionalAudioRingBuffer class to pull common positional data
-    packetStream.skipRawData(parsePositionalData(packetAfterSeqNum.mid(packetStream.device()->pos())));
-
-    // pull out the radius for this injected source - if it's zero this is a point source
-    packetStream >> _radius;
-
-    quint8 attenuationByte = 0;
-    packetStream >> attenuationByte;
+    _shouldLoopbackForNode = shouldLoopback == 1;
+    _radius = radius;
     _attenuationRatio = unpackFloatGainFromByte(attenuationByte);
-    
-    packetStream >> _ignorePenumbra;
+    _ignorePenumbra = ignorePenumbraFlag == 1;
     
     int numAudioBytes = packetAfterSeqNum.size() - packetStream.device()->pos();
     numAudioSamples = numAudioBytes / sizeof(int16_t);

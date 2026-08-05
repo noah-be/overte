@@ -11,6 +11,8 @@
 
 #include "AvatarAudioStream.h"
 
+#include <cstring>
+
 #include <udt/PacketHeaders.h>
 
 #include "AudioLogging.h"
@@ -21,22 +23,45 @@ AvatarAudioStream::AvatarAudioStream(bool isStereo, int numStaticJitterFrames) :
 int AvatarAudioStream::parseStreamProperties(PacketType type, const QByteArray& packetAfterSeqNum, int& numAudioSamples) {
     int readBytes = 0;
 
-    if (type == PacketType::SilentAudioFrame) {
-        const char* dataAt = packetAfterSeqNum.constData();
-        SilentSamplesBytes numSilentSamples = *(reinterpret_cast<const quint16*>(dataAt));
+    if (type == PacketType::SilentAudioFrame || type == PacketType::ReplicatedSilentAudioFrame) {
+        if (packetAfterSeqNum.size() < static_cast<int>(sizeof(SilentSamplesBytes))) {
+            return -1;
+        }
+
+        SilentSamplesBytes numSilentSamples { 0 };
+        memcpy(&numSilentSamples, packetAfterSeqNum.constData(), sizeof(numSilentSamples));
         readBytes += sizeof(SilentSamplesBytes);
         numAudioSamples = (int) numSilentSamples;
 
         // read the positional data
-        readBytes += parsePositionalData(packetAfterSeqNum.mid(readBytes));
+        const int positionalBytes = parsePositionalData(packetAfterSeqNum.mid(readBytes));
+        if (positionalBytes < 0) {
+            return -1;
+        }
+        readBytes += positionalBytes;
 
     } else {
-        _shouldLoopbackForNode = (type == PacketType::MicrophoneAudioWithEcho);
+        const bool shouldLoopbackForNode = type == PacketType::MicrophoneAudioWithEcho;
 
         // read the channel flag
-        ChannelFlag channelFlag = packetAfterSeqNum.at(readBytes);
+        if (packetAfterSeqNum.size() < static_cast<int>(sizeof(ChannelFlag))) {
+            return -1;
+        }
+        ChannelFlag channelFlag = static_cast<ChannelFlag>(packetAfterSeqNum.at(readBytes));
+        if (channelFlag > 1) {
+            return -1;
+        }
         bool isStereo = channelFlag == 1;
         readBytes += sizeof(ChannelFlag);
+
+        // Validate positional data before changing the frame size or codec.
+        const int positionalBytes = parsePositionalData(packetAfterSeqNum.mid(readBytes));
+        if (positionalBytes < 0) {
+            return -1;
+        }
+        readBytes += positionalBytes;
+
+        _shouldLoopbackForNode = shouldLoopbackForNode;
 
         // if isStereo value has changed, restart the ring buffer with new frame size
         if (isStereo != _isStereo) {
@@ -56,9 +81,6 @@ int AvatarAudioStream::parseStreamProperties(PacketType type, const QByteArray& 
             _isStereo = isStereo;
         }
 
-        // read the positional data
-        readBytes += parsePositionalData(packetAfterSeqNum.mid(readBytes));
-        
         // calculate how many samples are in this packet
         int numAudioBytes = packetAfterSeqNum.size() - readBytes;
         numAudioSamples = numAudioBytes / sizeof(int16_t);

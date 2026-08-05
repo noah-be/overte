@@ -149,10 +149,13 @@ adb shell gd32ipdclient_test setfantestmode 0
 
 For Overte runs, the recorder also verifies that `org.overte.pico` remains the
 active XR application during warm-up and every recorded sample. It aborts if
-Pico Seethrough, Boundary, or another application takes focus. Battery levels
-below 21% also abort the recording by default because Pico energy-saving mode
-can change the measured workload. Override the threshold only for explicitly
-non-comparable diagnostics with `--min-battery`.
+Pico Seethrough, Boundary, or another application takes focus, or if Interface
+restarts and would mix different processes in one result. The Guardian check
+uses the Pico boundary-ready and video-seethrough runtime properties, since a
+system overlay can be visible while Android still reports Interface as the
+resumed activity. Battery levels below 21% also abort the recording by default
+because Pico energy-saving mode can change the measured workload. Override the
+threshold only for explicitly non-comparable diagnostics with `--min-battery`.
 
 Every Overte run must provide `--expected-world`. Interface publishes its
 authoritative AddressManager connection state, resolved place name, domain ID,
@@ -161,6 +164,11 @@ during warm-up and at every measurement sample. Use `--expected-position X,Y,Z`
 to guard the test pose as well; `--position-tolerance` defaults to 2 metres. A
 failed lookup, disconnect, world change, or movement outside that radius aborts
 the run immediately.
+
+If any runtime validity check aborts a recording, the partial CSV is renamed
+with an `.invalid` suffix and automatic analysis is skipped. This preserves
+diagnostic samples without allowing a normal `power-results/*.csv` comparison
+to consume a known-invalid run.
 
 Fixed-fan runs default to safety limits of 95 C CPU, 70 C skin, and 45 C
 battery temperature. Override them only with a clear reason using
@@ -190,10 +198,11 @@ host crash prevents restoration, use `gd32ipdclient_test getbrightness` and
 `setbrightness <original-value>` over ADB.
 
 Results are written under `android/power-results/`, which Git ignores. Each CSV
-contains timestamps, device/build identity, battery values, charge status,
+contains timestamps, product/build information, battery values, charge status,
 screen state, display configuration, fan state, thermal data, CPU/GPU clocks,
-and the Overte process ID. Raw values are retained so firmware behavior can be
-audited later.
+and the Overte process ID. Device serial numbers are used only to select the
+ADB target and are not stored in recorder CSV files. Raw values are retained so
+firmware behavior can be audited later.
 
 The analyzer reports ranges for brightness, refresh rate, and fan state. It
 also reports maximum CPU/GPU/skin temperatures and median clocks. A warning is

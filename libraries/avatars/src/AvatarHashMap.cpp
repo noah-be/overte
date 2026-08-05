@@ -87,8 +87,8 @@ std::vector<AvatarSharedPointer> AvatarReplicas::takeReplicas(const QUuid& paren
 void AvatarReplicas::processAvatarIdentity(const QUuid& parentID, const QByteArray& identityData, bool& identityChanged, bool& displayNameChanged) {
     if (_replicasMap.find(parentID) != _replicasMap.end()) {
         auto &replicas = _replicasMap[parentID];
-        QDataStream identityDataStream(identityData);
         for (auto avatar : replicas) {
+            QDataStream identityDataStream(identityData);
             avatar->processAvatarIdentity(identityDataStream, identityChanged, displayNameChanged);
         }
     }
@@ -173,16 +173,23 @@ bool AvatarHashMap::isAvatarInRange(const glm::vec3& position, const float range
 }
 
 void AvatarHashMap::setReplicaCount(int count) {
+    if (_replicas.getReplicaCount() == count) {
+        return;
+    }
+
     _replicas.setReplicaCount(count);
-    auto avatars = getAvatarIdentifiers();
-    for (int i = 0; i < avatars.size(); i++) {
-        KillAvatarReason reason = KillAvatarReason::NoReason;
-        if (avatars[i] != QUuid()) {
-            removeAvatar(avatars[i], reason);
-            auto replicaIDs = _replicas.getReplicaIDs(avatars[i]);
-            for (auto id : replicaIDs) {
-                removeAvatar(id, reason);
-            }
+
+    // Keep the received avatars alive when changing synthetic load. Removing
+    // them discards their identity and traits, so they return as loading orbs
+    // until the mixer happens to send those unchanged values again.
+    const auto avatars = getHashCopy();
+    for (const auto& avatar : avatars) {
+        if (avatar->getSessionUUID().isNull() || avatar->getReplicaIndex() > 0) {
+            continue;
+        }
+        const auto oldReplicas = _replicas.takeReplicas(avatar->getSessionUUID());
+        for (const auto& replica : oldReplicas) {
+            removeAvatar(replica->getSessionUUID(), KillAvatarReason::NoReason);
         }
     }
 }
@@ -222,6 +229,33 @@ AvatarSharedPointer AvatarHashMap::addAvatar(const QUuid& sessionUUID, const QWe
     return avatar;
 }
 
+void AvatarHashMap::reconcileReplicas(const QUuid& parentID, const AvatarSharedPointer& sourceAvatar,
+                                      const QWeakPointer<Node>& mixerWeakPointer) {
+    const auto replicaIDs = _replicas.getReplicaIDs(parentID);
+    for (const auto& replicaID : replicaIDs) {
+        if (findAvatar(replicaID)) {
+            continue;
+        }
+        // addAvatar() acquires _hashLock itself. Holding the write lock here
+        // would recursively lock the non-recursive QReadWriteLock.
+        auto replicaAvatar = addAvatar(replicaID, mixerWeakPointer);
+        replicaAvatar->setIsNewAvatar(true);
+        _replicas.addReplica(parentID, replicaAvatar);
+
+        // Identity and traits are sent only when they change. Seed new
+        // replicas from the current source state instead of waiting for a
+        // future mixer update that may never arrive during the test.
+        bool identityChanged { false };
+        bool displayNameChanged { false };
+        QDataStream identityStream(sourceAvatar->identityByteArray(true));
+        replicaAvatar->processAvatarIdentity(identityStream, identityChanged, displayNameChanged);
+        replicaAvatar->processTrait(AvatarTraits::SkeletonModelURL,
+            sourceAvatar->packTrait(AvatarTraits::SkeletonModelURL));
+        replicaAvatar->processTrait(AvatarTraits::SkeletonData,
+            sourceAvatar->packTrait(AvatarTraits::SkeletonData));
+    }
+}
+
 AvatarSharedPointer AvatarHashMap::newOrExistingAvatar(const QUuid& sessionUUID, const QWeakPointer<Node>& mixerWeakPointer, bool& isNew) {
     auto avatar = findAvatar(sessionUUID);
     if (!avatar) {
@@ -247,8 +281,19 @@ void AvatarHashMap::processAvatarDataPacket(QSharedPointer<ReceivedMessage> mess
     PerformanceTimer perfTimer("receiveAvatar");
     // enumerate over all of the avatars in this packet
     // only add them if mixerWeakPointer points to something (meaning that mixer is still around)
-    while (message->getBytesLeftToRead()) {
+    while (message->getBytesLeftToRead() >= static_cast<qint64>(AvatarDataPacket::MIN_BULK_PACKET_SIZE)) {
+        const qint64 positionBeforeAvatar = message->getPosition();
         parseAvatarData(message, sendingNode);
+        if (message->getPosition() <= positionBeforeAvatar) {
+            qCWarning(avatars) << "Discarding bulk avatar packet after parser made no progress";
+            message->seek(message->getSize());
+            return;
+        }
+    }
+    if (message->getBytesLeftToRead() > 0) {
+        qCWarning(avatars) << "Discarding" << message->getBytesLeftToRead()
+                           << "trailing bytes from truncated bulk avatar packet";
+        message->seek(message->getSize());
     }
 }
 
@@ -266,18 +311,22 @@ AvatarSharedPointer AvatarHashMap::parseAvatarData(QSharedPointer<ReceivedMessag
         auto avatar = newOrExistingAvatar(sessionUUID, sendingNode, isNewAvatar);
 
         if (isNewAvatar) {
-            QWriteLocker locker(&_hashLock);
             avatar->setIsNewAvatar(true);
-            auto replicaIDs = _replicas.getReplicaIDs(sessionUUID);
-            for (auto replicaID : replicaIDs) {
-                auto replicaAvatar = addAvatar(replicaID, sendingNode);
-                replicaAvatar->setIsNewAvatar(true);
-                _replicas.addReplica(sessionUUID, replicaAvatar);
-            }
-        } 
+        }
+
+        // Reconcile replicas on a normal data packet so an existing, fully
+        // loaded source avatar does not need to be removed when the requested
+        // test load changes.
+        reconcileReplicas(sessionUUID, avatar, sendingNode);
         
         // have the matching (or new) avatar parse the data from the packet
         int bytesRead = avatar->parseDataFromBuffer(byteArray);
+        if (bytesRead <= 0 || bytesRead > byteArray.size()) {
+            qCWarning(avatars) << "Discarding invalid avatar record length" << bytesRead
+                               << "with" << byteArray.size() << "bytes available";
+            message->seek(message->getSize());
+            return avatar;
+        }
         message->seek(positionBeforeRead + bytesRead);
         _replicas.parseDataFromBuffer(sessionUUID, byteArray);
         
@@ -300,6 +349,7 @@ void AvatarHashMap::processAvatarIdentityPacket(QSharedPointer<ReceivedMessage> 
     QDataStream avatarIdentityStream(message->getMessage());
 
     while (!avatarIdentityStream.atEnd()) {
+        const qint64 identityStart = avatarIdentityStream.device()->pos();
         // peek the avatar UUID from the incoming packet
         avatarIdentityStream.startTransaction();
         QUuid identityUUID;
@@ -334,7 +384,26 @@ void AvatarHashMap::processAvatarIdentityPacket(QSharedPointer<ReceivedMessage> 
             bool displayNameChanged = false;
             // In this case, the "sendingNode" is the Avatar Mixer.
             avatar->processAvatarIdentity(avatarIdentityStream, identityChanged, displayNameChanged);
-            _replicas.processAvatarIdentity(identityUUID, message->getMessage(), identityChanged, displayNameChanged);
+            if (avatarIdentityStream.status() != QDataStream::Ok) {
+                qCWarning(avatars) << "Discarding truncated avatar identity packet";
+                return;
+            }
+            const qint64 identityEnd = avatarIdentityStream.device()->pos();
+            const QByteArray identityData = message->getMessage().mid(identityStart, identityEnd - identityStart);
+            _replicas.processAvatarIdentity(identityUUID, identityData, identityChanged, displayNameChanged);
+        } else {
+            QUuid ignoredSessionID;
+            udt::SequenceNumber::Type ignoredSequenceNumber;
+            QString ignoredDisplayName;
+            QString ignoredSessionDisplayName;
+            AvatarDataPacket::IdentityFlags ignoredFlags;
+            avatarIdentityStream.startTransaction();
+            avatarIdentityStream >> ignoredSessionID >> ignoredSequenceNumber >> ignoredDisplayName
+                >> ignoredSessionDisplayName >> ignoredFlags;
+            if (!avatarIdentityStream.commitTransaction()) {
+                qCWarning(avatars) << "Discarding truncated ignored avatar identity packet";
+                return;
+            }
         }
     }
 }
@@ -378,11 +447,15 @@ void AvatarHashMap::processBulkAvatarTraits(QSharedPointer<ReceivedMessage> mess
         // read the first trait type for this avatar
         AvatarTraits::TraitType traitType;
         message->readPrimitive(&traitType);
+        if (traitType != AvatarTraits::NullTrait && !AvatarTraits::isValidTrait(traitType)) {
+            qWarning() << "Malformed bulk trait packet, invalid trait type" << traitType;
+            return;
+        }
 
         // grab the last trait versions for this avatar
         auto& lastProcessedVersions = _processedTraitVersions[avatarID];
 
-        while (traitType != AvatarTraits::NullTrait && message->getBytesLeftToRead() > 0) {
+        while (traitType != AvatarTraits::NullTrait) {
             // Trying to read more bytes than available, bail
             if (message->getBytesLeftToRead() < qint64(sizeof(AvatarTraits::TraitVersion))) {
                 qWarning() << "Malformed bulk trait packet, bailling";
@@ -405,7 +478,8 @@ void AvatarHashMap::processBulkAvatarTraits(QSharedPointer<ReceivedMessage> mess
                 message->readPrimitive(&traitBinarySize);
 
                 // Trying to read more bytes than available, bail
-                if (message->getBytesLeftToRead() < traitBinarySize) {
+                if (!AvatarTraits::isValidTraitWireSize(
+                        traitBinarySize, message->getBytesLeftToRead(), false)) {
                     qWarning() << "Malformed bulk trait packet, bailling";
                     return;
                 }
@@ -433,7 +507,8 @@ void AvatarHashMap::processBulkAvatarTraits(QSharedPointer<ReceivedMessage> mess
                 message->readPrimitive(&traitBinarySize);
 
                 // Trying to read more bytes than available, bail
-                if (traitBinarySize < -1 || message->getBytesLeftToRead() < traitBinarySize) {
+                if (!AvatarTraits::isValidTraitWireSize(
+                        traitBinarySize, message->getBytesLeftToRead(), true)) {
                     qWarning() << "Malformed bulk trait packet, bailling";
                     return;
                 }
@@ -460,12 +535,25 @@ void AvatarHashMap::processBulkAvatarTraits(QSharedPointer<ReceivedMessage> mess
             }
 
             // read the next trait type, which is null if there are no more traits for this avatar
+            if (message->getBytesLeftToRead() < qint64(sizeof(AvatarTraits::TraitType))) {
+                qWarning() << "Malformed bulk trait packet, missing trait terminator";
+                return;
+            }
             message->readPrimitive(&traitType);
+            if (traitType != AvatarTraits::NullTrait && !AvatarTraits::isValidTrait(traitType)) {
+                qWarning() << "Malformed bulk trait packet, invalid trait type" << traitType;
+                return;
+            }
         }
     }
 }
 
 void AvatarHashMap::processKillAvatar(QSharedPointer<ReceivedMessage> message, SharedNodePointer sendingNode) {
+    if (message->getBytesLeftToRead() < qint64(NUM_BYTES_RFC4122_UUID + sizeof(KillAvatarReason))) {
+        qWarning() << "Malformed kill avatar packet";
+        return;
+    }
+
     // read the node id
     QUuid sessionUUID = QUuid::fromRfc4122(message->readWithoutCopy(NUM_BYTES_RFC4122_UUID));
 

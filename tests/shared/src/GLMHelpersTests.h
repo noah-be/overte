@@ -19,7 +19,14 @@ class GLMHelpersTests : public QObject {
     Q_OBJECT
 private slots:
     void testEulerDecomposition();
+    void testInvalidFixedPointInput();
+    void testInvalidAngleInput();
+    void testInvalidAudioGainInput();
+    void testInvalidRatioInput();
+    void testInvalidOrientationInput();
     void testSixByteOrientationCompression();
+    void testMalformedSixByteOrientationCompression();
+    void testInvalidSixByteOrientationInput();
     void testSimd();
     void testGenerateBasisVectors();
     void roundPerf();

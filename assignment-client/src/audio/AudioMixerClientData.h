@@ -180,7 +180,7 @@ private:
 
     void setGainForAvatar(QUuid nodeID, float gain);
 
-    bool containsValidPosition(ReceivedMessage& message) const;
+    bool containsValidAudioProperties(ReceivedMessage& message) const;
 
     Streams _streams;
 

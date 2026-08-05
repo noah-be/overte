@@ -2094,6 +2094,41 @@ void Application::update(float deltaTime) {
     }
 #if defined(Q_OS_ANDROID)
     const quint64 picoUpdateStart = usecTimestampNow();
+    static bool picoTestMode { false };
+    static double picoAvatarSimulationMsSum { 0.0 };
+    static double picoAvatarProcessingMsSum { 0.0 };
+    static double picoAvatarPriorityBuildMsSum { 0.0 };
+    static double picoAvatarSortMsSum { 0.0 };
+    static double picoAvatarPreUpdateMsSum { 0.0 };
+    static double picoAvatarStatePollMsSum { 0.0 };
+    static double picoAvatarEnsureSceneMsSum { 0.0 };
+    static double picoAvatarScaleAnimationMsSum { 0.0 };
+    static double picoAvatarSimulateMsSum { 0.0 };
+    static quint64 picoAvatarSimulationSamples { 0 };
+    static quint64 picoLocalAvatarTemplateRefreshes { 0 };
+    static quint64 lastTestModePropertyCheck { 0 };
+    if (picoUpdateStart - lastTestModePropertyCheck >= USECS_PER_SECOND) {
+        lastTestModePropertyCheck = picoUpdateStart;
+        char testModeValue[PROP_VALUE_MAX] {};
+        const QString requestedTestMode = __system_property_get("debug.overte.test_mode", testModeValue) > 0
+            ? QString::fromLatin1(testModeValue).trimmed().toLower()
+            : QString();
+        picoTestMode = requestedTestMode == "1" || requestedTestMode == "on" ||
+            requestedTestMode == "true" || requestedTestMode == "enabled";
+        if (!picoTestMode) {
+            picoAvatarSimulationMsSum = 0.0;
+            picoAvatarProcessingMsSum = 0.0;
+            picoAvatarPriorityBuildMsSum = 0.0;
+            picoAvatarSortMsSum = 0.0;
+            picoAvatarPreUpdateMsSum = 0.0;
+            picoAvatarStatePollMsSum = 0.0;
+            picoAvatarEnsureSceneMsSum = 0.0;
+            picoAvatarScaleAnimationMsSum = 0.0;
+            picoAvatarSimulateMsSum = 0.0;
+            picoAvatarSimulationSamples = 0;
+            picoLocalAvatarTemplateRefreshes = 0;
+        }
+    }
     // ADB-controlled navigation for unattended Pico performance tests. The
     // nonce prefix lets the same destination be requested more than once.
     static quint64 lastNavigationPropertyCheck { 0 };
@@ -2104,15 +2139,6 @@ void Application::update(float deltaTime) {
         // Publish the authoritative connected world and avatar position only
         // for explicitly enabled unattended tests. Normal Pico sessions avoid
         // this once-per-second cache-file write.
-        static const bool picoTestMode = [] {
-            char value[PROP_VALUE_MAX] {};
-            if (__system_property_get("debug.overte.test_mode", value) <= 0) {
-                return false;
-            }
-            const QString requested = QString::fromLatin1(value).trimmed().toLower();
-            return requested == "1" || requested == "on" || requested == "true" ||
-                requested == "enabled";
-        }();
         static quint64 lastWorldStatusWrite { 0 };
         if (picoTestMode && picoUpdateStart - lastWorldStatusWrite >= USECS_PER_SECOND) {
             lastWorldStatusWrite = picoUpdateStart;
@@ -2130,6 +2156,126 @@ void Application::update(float deltaTime) {
                 worldStatusFile.write(worldStatus.toUtf8());
                 worldStatusFile.commit();
             }
+        }
+
+        // Locally replicate received other avatars for repeatable Pico crowd
+        // load tests. The timestamped command is accepted only while fresh so
+        // a debug property left behind by an interrupted test cannot replay on
+        // a later Interface launch. Format: epochSeconds|replicasPerAvatar.
+        static QString lastAvatarReplicaCommand;
+        if (picoTestMode) {
+            static QString lastLocalAvatarTemplateCommand;
+            char localAvatarTemplateValue[PROP_VALUE_MAX] {};
+            if (__system_property_get("debug.overte.avatar_local_template", localAvatarTemplateValue) > 0) {
+                const QString command = QString::fromUtf8(localAvatarTemplateValue).trimmed();
+                if (!command.isEmpty() && command != lastLocalAvatarTemplateCommand) {
+                    lastLocalAvatarTemplateCommand = command;
+                    const QStringList fields = command.split('|');
+                    bool timestampOk { false };
+                    bool enabledOk { false };
+                    const qint64 timestamp = fields.value(0).toLongLong(&timestampOk);
+                    const int enabled = fields.value(1).toInt(&enabledOk);
+                    const qint64 commandAge = QDateTime::currentSecsSinceEpoch() - timestamp;
+                    if (fields.size() == 2 && timestampOk && enabledOk &&
+                            commandAge >= -5 && commandAge <= 10 && (enabled == 0 || enabled == 1)) {
+                        DependencyManager::get<AvatarManager>()->setLocalTestAvatarTemplateEnabled(enabled == 1);
+                        qCInfo(interfaceapp) << "PICO_LOCAL_AVATAR_TEMPLATE" << enabled;
+                    } else {
+                        qCWarning(interfaceapp) << "PICO_LOCAL_AVATAR_TEMPLATE invalid or stale command" << command;
+                    }
+                }
+            }
+
+            char avatarReplicaValue[PROP_VALUE_MAX] {};
+            if (__system_property_get("debug.overte.avatar_replicas", avatarReplicaValue) > 0) {
+                const QString command = QString::fromUtf8(avatarReplicaValue).trimmed();
+                if (!command.isEmpty() && command != lastAvatarReplicaCommand) {
+                    lastAvatarReplicaCommand = command;
+                    const QStringList fields = command.split('|');
+                    bool timestampOk { false };
+                    bool countOk { false };
+                    const qint64 timestamp = fields.value(0).toLongLong(&timestampOk);
+                    const int count = fields.value(1).toInt(&countOk);
+                    const qint64 commandAge = QDateTime::currentSecsSinceEpoch() - timestamp;
+                    if (fields.size() == 2 && timestampOk && countOk &&
+                            commandAge >= -5 && commandAge <= 10 && count >= 0 && count <= 50) {
+                        DependencyManager::get<AvatarManager>()->setReplicaCount(count);
+                        qCInfo(interfaceapp) << "PICO_AVATAR_REPLICAS" << count;
+                    } else {
+                        qCWarning(interfaceapp) << "PICO_AVATAR_REPLICAS invalid or stale command" << command;
+                    }
+                }
+            }
+
+            static quint64 lastAvatarStatusWrite { 0 };
+            if (picoUpdateStart - lastAvatarStatusWrite >= USECS_PER_SECOND) {
+                lastAvatarStatusWrite = picoUpdateStart;
+                auto avatarManager = DependencyManager::get<AvatarManager>();
+                const auto avatarHash = avatarManager->getHashCopy();
+                int replicatedAvatars { 0 };
+                int loadedOtherAvatars { 0 };
+                int loadedReplicatedAvatars { 0 };
+                for (const auto& avatar : avatarHash) {
+                    const bool replicated = avatar->getReplicaIndex() > 0;
+                    if (replicated) {
+                        ++replicatedAvatars;
+                    }
+                    const auto renderedAvatar = std::dynamic_pointer_cast<Avatar>(avatar);
+                    const auto skeletonModel = renderedAvatar ? renderedAvatar->getSkeletonModel() : nullptr;
+                    if (avatar.get() != avatarManager->getMyAvatar().get() &&
+                            skeletonModel && skeletonModel->isLoaded()) {
+                        ++loadedOtherAvatars;
+                        if (replicated) {
+                            ++loadedReplicatedAvatars;
+                        }
+                    }
+                }
+                const double averageAvatarSimulationMs = picoAvatarSimulationSamples > 0
+                    ? picoAvatarSimulationMsSum / double(picoAvatarSimulationSamples)
+                    : 0.0;
+                const double timingDivisor = double(std::max<quint64>(1, picoAvatarSimulationSamples));
+                const QString avatarStatus = QStringLiteral("%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11|%12|%13|%14|%15|%16|%17|%18|%19|%20")
+                    .arg(QDateTime::currentSecsSinceEpoch())
+                    .arg(avatarHash.size())
+                    .arg(replicatedAvatars)
+                    .arg(avatarManager->getReplicaCount())
+                    .arg(avatarManager->getNumAvatarsUpdated())
+                    .arg(avatarManager->getNumAvatarsNotUpdated())
+                    .arg(avatarManager->getNumHeroAvatars())
+                    .arg(averageAvatarSimulationMs, 0, 'f', 3)
+                    .arg(picoAvatarProcessingMsSum / timingDivisor, 0, 'f', 3)
+                    .arg(picoAvatarPriorityBuildMsSum / timingDivisor, 0, 'f', 3)
+                    .arg(picoAvatarSortMsSum / timingDivisor, 0, 'f', 3)
+                    .arg(picoAvatarPreUpdateMsSum / timingDivisor, 0, 'f', 3)
+                    .arg(picoAvatarStatePollMsSum / timingDivisor, 0, 'f', 3)
+                    .arg(picoAvatarEnsureSceneMsSum / timingDivisor, 0, 'f', 3)
+                    .arg(picoAvatarScaleAnimationMsSum / timingDivisor, 0, 'f', 3)
+                    .arg(picoAvatarSimulateMsSum / timingDivisor, 0, 'f', 3)
+                    .arg(loadedOtherAvatars)
+                    .arg(loadedReplicatedAvatars)
+                    .arg(avatarManager->isLocalTestAvatarTemplateEnabled() ? 1 : 0)
+                    .arg(picoLocalAvatarTemplateRefreshes);
+                QSaveFile avatarStatusFile("/data/user/0/org.overte.pico/cache/avatar-status");
+                if (avatarStatusFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                    avatarStatusFile.write(avatarStatus.toUtf8());
+                    avatarStatusFile.commit();
+                }
+                picoAvatarSimulationMsSum = 0.0;
+                picoAvatarProcessingMsSum = 0.0;
+                picoAvatarPriorityBuildMsSum = 0.0;
+                picoAvatarSortMsSum = 0.0;
+                picoAvatarPreUpdateMsSum = 0.0;
+                picoAvatarStatePollMsSum = 0.0;
+                picoAvatarEnsureSceneMsSum = 0.0;
+                picoAvatarScaleAnimationMsSum = 0.0;
+                picoAvatarSimulateMsSum = 0.0;
+                picoAvatarSimulationSamples = 0;
+                picoLocalAvatarTemplateRefreshes = 0;
+            }
+        } else {
+            auto avatarManager = DependencyManager::get<AvatarManager>();
+            avatarManager->setReplicaCount(0);
+            avatarManager->setLocalTestAvatarTemplateEnabled(false);
         }
 
         char navigationValue[PROP_VALUE_MAX] {};
@@ -2691,7 +2837,28 @@ void Application::update(float deltaTime) {
         {
             PROFILE_RANGE(simulation, "OtherAvatars");
             PerformanceTimer perfTimer("otherAvatars");
+#if defined(Q_OS_ANDROID)
+            if (picoTestMode && avatarManager->refreshLocalTestAvatarTemplate()) {
+                ++picoLocalAvatarTemplateRefreshes;
+            }
+            avatarManager->updateOtherAvatars(deltaTime, picoTestMode);
+            if (picoTestMode) {
+                picoAvatarSimulationMsSum += avatarManager->size() > 1
+                    ? avatarManager->getAvatarSimulationTime()
+                    : 0.0;
+                picoAvatarProcessingMsSum += avatarManager->getAvatarProcessingTime();
+                picoAvatarPriorityBuildMsSum += avatarManager->getAvatarPriorityBuildTime();
+                picoAvatarSortMsSum += avatarManager->getAvatarSortTime();
+                picoAvatarPreUpdateMsSum += avatarManager->getAvatarPreUpdateTime();
+                picoAvatarStatePollMsSum += avatarManager->getAvatarStatePollTime();
+                picoAvatarEnsureSceneMsSum += avatarManager->getAvatarEnsureSceneTime();
+                picoAvatarScaleAnimationMsSum += avatarManager->getAvatarScaleAnimationTime();
+                picoAvatarSimulateMsSum += avatarManager->getAvatarSimulateTime();
+                ++picoAvatarSimulationSamples;
+            }
+#else
             avatarManager->updateOtherAvatars(deltaTime);
+#endif
         }
 
         {

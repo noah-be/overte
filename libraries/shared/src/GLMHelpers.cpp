@@ -11,6 +11,7 @@
 
 #include "GLMHelpers.h"
 
+#include <cmath>
 #include <limits>
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -47,6 +48,14 @@ const mat4 Matrices::X_180 { createMatFromQuatAndPos(Quaternions::X_180, Vectors
 const mat4 Matrices::Y_180 { createMatFromQuatAndPos(Quaternions::Y_180, Vectors::ZERO) };
 const mat4 Matrices::Z_180 { createMatFromQuatAndPos(Quaternions::Z_180, Vectors::ZERO) };
 
+static glm::quat normalizedQuatOrIdentity(const glm::quat& quat, bool alwaysNormalize = false) {
+    float lengthSquared = glm::dot(quat, quat);
+    if (!std::isfinite(lengthSquared) || lengthSquared <= EPSILON) {
+        return Quaternions::IDENTITY;
+    }
+    return alwaysNormalize || fabsf(lengthSquared - 1.0f) > EPSILON ? quat / sqrtf(lengthSquared) : quat;
+}
+
 //  Safe version of glm::mix; based on the code in Nick Bobic's article,
 //  https://www.gamasutra.com/view/feature/131686/rotating_objects_using_quaternions.php?page=1 (via Clyde,
 //  https://github.com/threerings/clyde/blob/master/src/main/java/com/threerings/math/Quaternion.java)
@@ -81,7 +90,11 @@ glm::quat safeMix(const glm::quat& q1, const glm::quat& q2, float proportion) {
 // Allows sending of fixed-point numbers: radix 1 makes 15.1 number, radix 8 makes 8.8 number, etc
 int packFloatScalarToSignedTwoByteFixed(unsigned char* buffer, float scalar, int radix) {
     using FixedType = int16_t;
-    FixedType twoByteFixed = (FixedType) glm::clamp(scalar * (1 << radix), (float)std::numeric_limits<FixedType>::min(),
+    const float requestedRadixScale = std::ldexp(1.0f, radix);
+    const float radixScale = std::isfinite(requestedRadixScale) && requestedRadixScale > 0.0f ?
+        requestedRadixScale : 1.0f;
+    const float scaled = std::isfinite(scalar) ? scalar * radixScale : 0.0f;
+    FixedType twoByteFixed = (FixedType) glm::clamp(scaled, (float)std::numeric_limits<FixedType>::min(),
         (float)std::numeric_limits<FixedType>::max());
     memcpy(buffer, &twoByteFixed, sizeof(FixedType));
     return sizeof(FixedType);
@@ -90,7 +103,10 @@ int packFloatScalarToSignedTwoByteFixed(unsigned char* buffer, float scalar, int
 int unpackFloatScalarFromSignedTwoByteFixed(const int16_t* byteFixedPointer, float* destinationPointer, int radix) {
     int16_t twoByteFixed;
     memcpy(&twoByteFixed, byteFixedPointer, sizeof(int16_t));
-    *destinationPointer = twoByteFixed / (float)(1 << radix);
+    const float requestedRadixScale = std::ldexp(1.0f, radix);
+    const float radixScale = std::isfinite(requestedRadixScale) && requestedRadixScale > 0.0f ?
+        requestedRadixScale : 1.0f;
+    *destinationPointer = twoByteFixed / radixScale;
     return sizeof(int16_t);
 }
 
@@ -113,7 +129,10 @@ int unpackFloatVec3FromSignedTwoByteFixed(const unsigned char* sourceBuffer, glm
 int packFloatAngleToTwoByte(unsigned char* buffer, float degrees) {
     const float ANGLE_CONVERSION_RATIO = (std::numeric_limits<uint16_t>::max() / 360.0f);
 
-    uint16_t twoByteAngle = floorf((degrees + 180.0f) * ANGLE_CONVERSION_RATIO);
+    degrees = std::isfinite(degrees) ? glm::clamp(degrees, -180.0f, 180.0f) : 0.0f;
+    const float encoded = glm::clamp(floorf((degrees + 180.0f) * ANGLE_CONVERSION_RATIO),
+        0.0f, static_cast<float>(std::numeric_limits<uint16_t>::max()));
+    uint16_t twoByteAngle = static_cast<uint16_t>(encoded);
     memcpy(buffer, &twoByteAngle, sizeof(uint16_t));
 
     return sizeof(uint16_t);
@@ -127,7 +146,7 @@ int unpackFloatAngleFromTwoByte(const uint16_t* byteAnglePointer, float* destina
 }
 
 int packOrientationQuatToBytes(unsigned char* buffer, const glm::quat& quatInput) {
-    glm::quat quatNormalized = glm::normalize(quatInput);
+    glm::quat quatNormalized = normalizedQuatOrIdentity(quatInput, true);
     const float QUAT_PART_CONVERSION_RATIO = (std::numeric_limits<uint16_t>::max() / 2.0f);
     uint16_t quatParts[4];
     quatParts[0] = floorf((quatNormalized.x + 1.0f) * QUAT_PART_CONVERSION_RATIO);
@@ -155,17 +174,18 @@ int unpackOrientationQuatFromBytes(const unsigned char* buffer, glm::quat& quatO
 #define LO_BYTE(x) (uint8_t)(0xff & x)
 
 int packOrientationQuatToSixBytes(unsigned char* buffer, const glm::quat& quatInput) {
+    glm::quat normalized = normalizedQuatOrIdentity(quatInput);
 
     // find largest component
     uint8_t largestComponent = 0;
     for (int i = 1; i < 4; i++) {
-        if (fabs(quatInput[i]) > fabs(quatInput[largestComponent])) {
+        if (fabs(normalized[i]) > fabs(normalized[largestComponent])) {
             largestComponent = i;
         }
     }
 
     // ensure that the sign of the dropped component is always negative.
-    glm::quat q = quatInput[largestComponent] > 0 ? -quatInput : quatInput;
+    glm::quat q = normalized[largestComponent] > 0 ? -normalized : normalized;
 
     const float MAGNITUDE = 1.0f / sqrtf(2.0f);
     const uint32_t NUM_BITS_PER_COMPONENT = 15;
@@ -216,8 +236,22 @@ int unpackOrientationQuatFromSixBytes(const unsigned char* buffer, glm::quat& qu
         floatComponents[i] = ((float)components[i] / RANGE) * (2.0f * MAGNITUDE) - MAGNITUDE;
     }
 
-    // missingComponent is always negative.
-    float missingComponent = -sqrtf(1.0f - floatComponents[0] * floatComponents[0] - floatComponents[1] * floatComponents[1] - floatComponents[2] * floatComponents[2]);
+    float componentLengthSquared = floatComponents[0] * floatComponents[0] +
+        floatComponents[1] * floatComponents[1] + floatComponents[2] * floatComponents[2];
+    float missingComponent;
+    if (componentLengthSquared > 1.0f) {
+        // Arbitrary or damaged bytes need not describe a point inside the
+        // quaternion unit sphere. Project the stored components onto the
+        // sphere instead of taking the square root of a negative value.
+        float inverseLength = 1.0f / sqrtf(componentLengthSquared);
+        for (float& component : floatComponents) {
+            component *= inverseLength;
+        }
+        missingComponent = 0.0f;
+    } else {
+        // missingComponent is always negative.
+        missingComponent = -sqrtf(1.0f - componentLengthSquared);
+    }
 
     for (int i = 0, j = 0; i < 4; i++) {
         if (i != largestComponent) {

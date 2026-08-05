@@ -1,9 +1,11 @@
 package org.overte.pico;
 
+import android.annotation.SuppressLint;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Process;
 import android.os.SystemClock;
@@ -71,16 +73,34 @@ public final class PicoInterfaceActivity extends QtActivity {
             (AlarmManager) activity.getSystemService(Context.ALARM_SERVICE);
         // Pico OS may batch inexact alarms as soon as the activity closes,
         // which leaves the application stopped instead of relaunching it.
-        alarmManager.setExact(
-            AlarmManager.ELAPSED_REALTIME,
-            SystemClock.elapsedRealtime() + 1500,
-            pendingIntent);
+        long restartAt = SystemClock.elapsedRealtime() + 1500;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                && !alarmManager.canScheduleExactAlarms()) {
+            alarmManager.setAndAllowWhileIdle(
+                AlarmManager.ELAPSED_REALTIME,
+                restartAt,
+                pendingIntent);
+        } else {
+            scheduleExactRestart(alarmManager, restartAt, pendingIntent);
+        }
 
         activity.finishAffinity();
         new android.os.Handler(activity.getMainLooper()).postDelayed(() -> {
             Log.i(TAG, "Terminating old application process for restart");
             Process.killProcess(Process.myPid());
         }, 750);
+    }
+
+    @SuppressLint("MissingPermission")
+    private static void scheduleExactRestart(
+            AlarmManager alarmManager, long restartAt,
+            PendingIntent pendingIntent) {
+        // The caller uses this only before Android 12 or after
+        // canScheduleExactAlarms() confirms that the exact call is allowed.
+        alarmManager.setExact(
+            AlarmManager.ELAPSED_REALTIME,
+            restartAt,
+            pendingIntent);
     }
 
     @Override

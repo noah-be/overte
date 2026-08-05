@@ -63,6 +63,57 @@ safe_position() {
         "${nonce}\\|${TEST_X}\\|${TEST_Y}\\|${TEST_Z}"
 }
 
+set_avatar_replicas() {
+    local count="$1"
+    [[ "$count" =~ ^[0-9]+$ ]] && (( count <= 50 )) || {
+        echo "replica count must be an integer from 0 through 50" >&2
+        return 2
+    }
+    adb_shell setprop debug.overte.avatar_replicas "$(date +%s)\\|${count}"
+}
+
+set_local_avatar_template() {
+    local enabled="$1"
+    [[ "$enabled" == "0" || "$enabled" == "1" ]] || {
+        echo "local avatar template state must be 0 or 1" >&2
+        return 2
+    }
+    adb_shell setprop debug.overte.avatar_local_template "$(date +%s)\\|${enabled}"
+}
+
+get_fresh_avatar_status() {
+    local status status_epoch field_count now
+    status="$(adb_shell run-as org.overte.pico cat cache/avatar-status 2>/dev/null || true)"
+    field_count="$(awk -F'|' '{ print NF }' <<<"$status")"
+    IFS='|' read -r status_epoch _ <<<"$status"
+    now="$(date +%s)"
+    [[ "$field_count" == "20" && "$status_epoch" =~ ^[0-9]+$ ]] &&
+        (( now - status_epoch >= -5 && now - status_epoch <= 5 )) || return 1
+    printf '%s\n' "$status"
+}
+
+print_avatar_status() {
+    local status status_epoch total replicated target updated not_updated heroes simulation_ms
+    local processing_ms priority_build_ms sort_ms pre_update_ms state_poll_ms ensure_scene_ms
+    local scale_animation_ms simulate_ms loaded_other loaded_replicated local_template template_refreshes now
+    status="$(get_fresh_avatar_status || true)"
+    IFS='|' read -r status_epoch total replicated target updated not_updated heroes simulation_ms \
+        processing_ms priority_build_ms sort_ms pre_update_ms state_poll_ms ensure_scene_ms \
+        scale_animation_ms simulate_ms loaded_other loaded_replicated local_template template_refreshes <<<"$status"
+    now="$(date +%s)"
+    if [[ ! "$status_epoch" =~ ^[0-9]+$ ]] ||
+            (( now - status_epoch < -5 || now - status_epoch > 5 )) ||
+            [[ "$local_template" != "0" && "$local_template" != "1" ]] ||
+            [[ ! "$template_refreshes" =~ ^[0-9]+$ ]]; then
+        echo "missing or stale avatar status: ${status:-missing}" >&2
+        return 1
+    fi
+    printf 'avatars=%s replicated=%s target_per_avatar=%s updated=%s not_updated=%s heroes=%s simulation_ms=%s processing_ms=%s priority_build_ms=%s sort_ms=%s pre_update_ms=%s state_poll_ms=%s ensure_scene_ms=%s scale_animation_ms=%s simulate_ms=%s loaded_other=%s loaded_replicated=%s local_template=%s template_refreshes=%s\n' \
+        "$total" "$replicated" "$target" "$updated" "$not_updated" "$heroes" "$simulation_ms" \
+        "$processing_ms" "$priority_build_ms" "$sort_ms" "$pre_update_ms" "$state_poll_ms" \
+        "$ensure_scene_ms" "$scale_animation_ms" "$simulate_ms" "$loaded_other" "$loaded_replicated" "$local_template" "$template_refreshes"
+}
+
 wait_for_world() {
     local timeout="${1:-60}" elapsed=0 status status_epoch connected place domain_id now
     while (( elapsed < timeout )); do
@@ -179,6 +230,52 @@ case "${1:-status}" in
         nonce="${2:-$(date +%s)}"
         adb_shell setprop debug.overte.autowalk "${nonce}\\|0\\|0\\|0\\|0"
         ;;
+    replicas)
+        count="${2:-0}"
+        [[ "$count" =~ ^[0-9]+$ ]] || {
+            echo "replica count must be an integer from 0 through 50" >&2
+            exit 2
+        }
+        count=$((10#$count))
+        (( count <= 50 )) || {
+            echo "replica count must be an integer from 0 through 50" >&2
+            exit 2
+        }
+        force_worn
+        set_avatar_replicas "$count"
+        for attempt in {1..30}; do
+            sleep 1
+            status="$(get_fresh_avatar_status || true)"
+            IFS='|' read -ra avatar_fields <<<"$status"
+            target="${avatar_fields[3]:-}"
+            if [[ "$target" == "$count" ]]; then
+                print_avatar_status
+                exit 0
+            fi
+        done
+        echo "Interface did not apply avatar replica count $count" >&2
+        exit 1
+        ;;
+    avatar-template)
+        enabled="${2:-0}"
+        force_worn
+        set_local_avatar_template "$enabled"
+        for attempt in {1..30}; do
+            sleep 1
+            status="$(get_fresh_avatar_status || true)"
+            IFS='|' read -ra avatar_fields <<<"$status"
+            active_template="${avatar_fields[18]:-}"
+            if [[ "$active_template" == "$enabled" ]]; then
+                print_avatar_status
+                exit 0
+            fi
+        done
+        echo "Interface did not apply local avatar template state $enabled" >&2
+        exit 1
+        ;;
+    avatar-status)
+        print_avatar_status
+        ;;
     status)
         printf 'pid: '
         adb_shell pidof org.overte.pico || true
@@ -190,7 +287,8 @@ case "${1:-status}" in
         adb_shell getprop sys.pxr.screenstatus
         ;;
     *)
-        echo "usage: $0 {start|hub [nonce]|walk [nonce duration_ms forward strafe turn]|stop [nonce]|status}" >&2
+        printf 'usage: %s %s\n' "$0" \
+            '{start|hub [nonce]|walk [nonce duration_ms forward strafe turn]|stop [nonce]|replicas [0..50]|avatar-template [0|1]|avatar-status|status}' >&2
         exit 2
         ;;
 esac

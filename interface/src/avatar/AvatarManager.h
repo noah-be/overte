@@ -120,9 +120,17 @@ public:
     int getNumHeroAvatars() const { return _numHeroAvatars; }
     int getNumHeroAvatarsUpdated() const { return _numHeroAvatarsUpdated; }
     float getAvatarSimulationTime() const { return _avatarSimulationTime; }
+    float getAvatarProcessingTime() const { return _avatarProcessingTime; }
+    float getAvatarPriorityBuildTime() const { return _avatarPriorityBuildTime; }
+    float getAvatarSortTime() const { return _avatarSortTime; }
+    float getAvatarPreUpdateTime() const { return _avatarPreUpdateTime; }
+    float getAvatarStatePollTime() const { return _avatarStatePollTime; }
+    float getAvatarEnsureSceneTime() const { return _avatarEnsureSceneTime; }
+    float getAvatarScaleAnimationTime() const { return _avatarScaleAnimationTime; }
+    float getAvatarSimulateTime() const { return _avatarSimulateTime; }
 
     void updateMyAvatar(float deltaTime);
-    void updateOtherAvatars(float deltaTime);
+    void updateOtherAvatars(float deltaTime, bool collectDetailedTimings = false);
 
     void setMyAvatarDataPacketsPaused(bool puase);
 
@@ -249,6 +257,14 @@ public:
 
     float getMyAvatarSendRate() const { return _myAvatarSendRate.rate(); }
 
+    // Test-only local source used by guarded Android crowd-load tooling. It
+    // copies the current MyAvatar state and never sends a synthetic identity
+    // or packet to the domain.
+    void setLocalTestAvatarTemplateEnabled(bool enabled);
+    bool isLocalTestAvatarTemplateEnabled() const { return !_localTestAvatarTemplateID.isNull(); }
+    bool refreshLocalTestAvatarTemplate();
+    void setReplicaCount(int count);
+
     void queuePhysicsChange(const OtherAvatarPointer& avatar);
     void buildPhysicsTransaction(PhysicsEngine::Transaction& transaction);
     void handleProcessedPhysicsTransaction(PhysicsEngine::Transaction& transaction);
@@ -307,6 +323,14 @@ private:
     int _numHeroAvatars{ 0 };
     int _numHeroAvatarsUpdated{ 0 };
     float _avatarSimulationTime { 0.0f };
+    float _avatarProcessingTime { 0.0f };
+    float _avatarPriorityBuildTime { 0.0f };
+    float _avatarSortTime { 0.0f };
+    float _avatarPreUpdateTime { 0.0f };
+    float _avatarStatePollTime { 0.0f };
+    float _avatarEnsureSceneTime { 0.0f };
+    float _avatarScaleAnimationTime { 0.0f };
+    float _avatarSimulateTime { 0.0f };
     bool _shouldRender { true };
     bool _myAvatarDataPacketsPaused { false };
 
@@ -315,6 +339,8 @@ private:
 
     AvatarTransit::TransitConfig  _transitConfig;
     bool _drawOtherAvatarSkeletons { false };
+    QUuid _localTestAvatarTemplateID;
+    QByteArray _localTestAvatarData;
 };
 
 #endif // hifi_AvatarManager_h

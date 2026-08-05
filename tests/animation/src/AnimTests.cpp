@@ -15,6 +15,7 @@
 #include <AnimVariant.h>
 #include <AnimExpression.h>
 #include <AnimUtil.h>
+#include <Rig.h>
 #include <ExternalResource.h>
 #include <NodeList.h>
 #include <AddressManager.h>
@@ -23,6 +24,11 @@
 #include <ResourceRequestObserver.h>
 #include <StatTracker.h>
 #include <test-utils/QTestExtensions.h>
+
+#include <atomic>
+#include <cmath>
+#include <limits>
+#include <thread>
 
 QTEST_MAIN(AnimTests)
 
@@ -475,6 +481,123 @@ void AnimTests::testAnimPose() {
     }
     QCOMPARE_WITH_ABS_ERROR(p.rot(), resultRot, TEST_EPSILON2);
     QCOMPARE_WITH_ABS_ERROR(p.scale(), resultScale, TEST_EPSILON2);
+
+    // A collapsed scale axis is valid for a transform but must not turn the
+    // decomposed rotation or translation into NaN through division by zero.
+    glm::quat collapsedRotation = ROT_X_90 * ROT_Y_180;
+    glm::vec3 collapsedTranslation(4.0f, 5.0f, 6.0f);
+    const glm::vec3 collapsedScales[] {
+        glm::vec3(0.0f, 2.0f, 3.0f),
+        glm::vec3(1.0f, 0.0f, 3.0f),
+        glm::vec3(1.0f, 2.0f, 0.0f)
+    };
+    for (const auto& collapsedScale : collapsedScales) {
+        glm::mat4 collapsedMatrix = createMatFromQuatAndPos(collapsedRotation, collapsedTranslation) *
+            glm::scale(glm::mat4(), collapsedScale);
+        AnimPose collapsedPose(collapsedMatrix);
+        QCOMPARE_WITH_ABS_ERROR((glm::mat4)collapsedPose, collapsedMatrix, TEST_EPSILON);
+    }
+
+    glm::mat4 fullyCollapsedMatrix = glm::translate(glm::mat4(), collapsedTranslation) *
+        glm::scale(glm::mat4(), glm::vec3(0.0f));
+    AnimPose fullyCollapsedPose(fullyCollapsedMatrix);
+    QCOMPARE_WITH_ABS_ERROR((glm::mat4)fullyCollapsedPose, fullyCollapsedMatrix, TEST_EPSILON);
+
+    glm::mat4 nonFiniteMatrix;
+    nonFiniteMatrix[0][0] = std::numeric_limits<float>::infinity();
+    AnimPose nonFinitePose(nonFiniteMatrix);
+    QCOMPARE_WITH_ABS_ERROR((glm::mat4)nonFinitePose, glm::mat4(), TEST_EPSILON);
+}
+
+void AnimTests::testRigPoseSnapshot() {
+    AnimPoseVec snapshot { AnimPose() };
+    Rig emptyRig;
+    QVERIFY(!emptyRig.getAbsoluteJointPosesInRigFrame(snapshot));
+    QVERIFY(snapshot.empty());
+
+    HFMModel model;
+    model.offset = glm::mat4(1.0f);
+
+    HFMJoint joint;
+    joint.parentIndex = -1;
+    joint.distanceToParent = 0.0f;
+    joint.translation = glm::vec3(0.0f);
+    joint.preTransform = glm::mat4(1.0f);
+    joint.preRotation = glm::quat();
+    joint.rotation = glm::quat();
+    joint.postRotation = glm::quat();
+    joint.postTransform = glm::mat4(1.0f);
+    joint.transform = glm::mat4(1.0f);
+    joint.rotationMin = glm::vec3(-PI);
+    joint.rotationMax = glm::vec3(PI);
+    joint.inverseDefaultRotation = glm::quat();
+    joint.inverseBindRotation = glm::quat();
+    joint.bindTransform = glm::mat4(1.0f);
+    joint.name = "Root";
+    joint.isSkeletonJoint = true;
+    model.joints.push_back(joint);
+
+    joint.parentIndex = 0;
+    joint.distanceToParent = 1.0f;
+    joint.translation = glm::vec3(1.0f, 0.0f, 0.0f);
+    joint.transform = glm::translate(glm::mat4(1.0f), joint.translation);
+    joint.bindTransform = joint.transform;
+    joint.name = "Child";
+    model.joints.push_back(joint);
+
+    Rig rig;
+    rig.initJointStates(model, glm::mat4(1.0f));
+    rig.computeExternalPoses(glm::mat4(1.0f));
+
+    QVERIFY(rig.getAbsoluteJointPosesInRigFrame(snapshot));
+    QCOMPARE(snapshot.size(), model.joints.size());
+    for (size_t i = 0; i < snapshot.size(); ++i) {
+        AnimPose expectedPose;
+        QVERIFY(rig.getAbsoluteJointPoseInRigFrame((int)i, expectedPose));
+        QCOMPARE_WITH_ABS_ERROR((glm::mat4)snapshot[i], (glm::mat4)expectedPose, TEST_EPSILON);
+    }
+
+    QVector<JointData> jointData(2);
+    jointData[0].translationIsDefaultPose = false;
+    jointData[1].translationIsDefaultPose = false;
+    jointData[1].translation = glm::vec3(1.0f, 0.0f, 0.0f);
+
+    constexpr int CONCURRENT_SNAPSHOT_COUNT = 5000;
+    std::atomic<int> snapshotCount { 0 };
+    std::atomic<bool> invalidSnapshot { false };
+    std::thread reader([&] {
+        const auto isFinite = [](const glm::vec3& value) {
+            return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
+        };
+        while (snapshotCount < CONCURRENT_SNAPSHOT_COUNT && !invalidSnapshot) {
+            AnimPoseVec concurrentSnapshot;
+            if (!rig.getAbsoluteJointPosesInRigFrame(concurrentSnapshot) || concurrentSnapshot.size() != 2) {
+                invalidSnapshot = true;
+                break;
+            }
+
+            const glm::vec3 rootTranslation = concurrentSnapshot[0].trans();
+            const glm::vec3 childTranslation = concurrentSnapshot[1].trans();
+            const glm::vec3 relativeTranslation = childTranslation - rootTranslation;
+            if (!isFinite(rootTranslation) || !isFinite(childTranslation) ||
+                    glm::distance(relativeTranslation, glm::vec3(1.0f, 0.0f, 0.0f)) > TEST_EPSILON) {
+                invalidSnapshot = true;
+                break;
+            }
+            ++snapshotCount;
+        }
+    });
+
+    for (int generation = 1; snapshotCount < CONCURRENT_SNAPSHOT_COUNT && !invalidSnapshot; ++generation) {
+        jointData[0].translation = glm::vec3((generation % 1000) * 0.01f, 0.0f, 0.0f);
+        rig.copyJointsFromJointData(jointData);
+        rig.computeExternalPoses(glm::mat4(1.0f));
+        std::this_thread::yield();
+    }
+    reader.join();
+
+    QVERIFY(!invalidSnapshot);
+    QCOMPARE(snapshotCount.load(), CONCURRENT_SNAPSHOT_COUNT);
 }
 
 void AnimTests::testExpressionTokenizer() {
@@ -705,5 +828,3 @@ void AnimTests::testExpressionEvaluator() {
     TEST_BOOL_EXPR(!!!(t) && (!!f || true));
     TEST_BOOL_EXPR(!(true && f) && true);
 }
-
-

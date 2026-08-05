@@ -145,11 +145,6 @@ void OtherAvatar::updateSpaceProxy(workload::Transaction& transaction) const {
 
 int OtherAvatar::parseDataFromBuffer(const QByteArray& buffer) {
     int32_t bytesRead = Avatar::parseDataFromBuffer(buffer);
-    for (auto& detailedMotionState : _detailedMotionStates) {
-        // NOTE: we activate _detailedMotionStates is because they are KINEMATIC
-        // and Bullet will automagically call DetailedMotionState::getWorldTransform() when active.
-        detailedMotionState->forceActive();
-    }
     if (_moving && _motionState) {
         _motionState->addDirtyFlags(Simulation::DIRTY_POSITION);
     }
@@ -349,6 +344,7 @@ finishRigSetup:
 
 void OtherAvatar::simulate(float deltaTime, bool inView) {
     PROFILE_RANGE(simulation, "simulate");
+    bool appliedNewJointData { false };
 
     if (!_lerpServerPosition) { _lerpServerPosition = _serverPosition; }
 
@@ -404,6 +400,7 @@ void OtherAvatar::simulate(float deltaTime, bool inView) {
 
                 _jointDataSimulationRate.increment();
                 _hasNewJointData = false;
+                appliedNewJointData = true;
             }
 
             glm::vec3 headPosition = getWorldPosition();
@@ -422,6 +419,14 @@ void OtherAvatar::simulate(float deltaTime, bool inView) {
     }
 
     interpolateJoints();
+    if (appliedNewJointData) {
+        for (auto& detailedMotionState : _detailedMotionStates) {
+            // These bodies are kinematic, so Bullet pulls their new transforms
+            // after activation. Defer that work until the avatar update budget
+            // actually applies the received joint data to the rig.
+            detailedMotionState->forceActive();
+        }
+    }
 
     // update animation for display name fade in/out
     if ( _displayNameTargetAlpha != _displayNameAlpha) {

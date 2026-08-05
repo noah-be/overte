@@ -56,7 +56,7 @@ public:
 
     qint64 getBytesLeftToRead() const { return _data.size() -  _position; }
 
-    void seek(qint64 position) { _position = position; }
+    void seek(qint64 position);
 
     qint64 peek(char* data, qint64 size);
     qint64 read(char* data, qint64 size);

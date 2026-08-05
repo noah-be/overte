@@ -182,14 +182,14 @@ task runBreakpadDumpSymsRelease() {
 
 task zipDumpSymsDebug(type: Zip, dependsOn: runBreakpadDumpSymsDebug) {
     from (new File(breakpadDumpSymsDir, "debug").absolutePath)
-    archiveName "symbols-${RELEASE_NUMBER}-debug.zip"
-    destinationDir(new File("${appDir}/build/tmp/"))
+    archiveFileName.set("symbols-${RELEASE_NUMBER}-debug.zip")
+    destinationDirectory.set(new File("${appDir}/build/tmp/"))
 }
 
 task zipDumpSymsRelease(type: Zip, dependsOn: runBreakpadDumpSymsRelease) {
     from (new File(breakpadDumpSymsDir, "release").absolutePath)
-    archiveName "symbols-${RELEASE_NUMBER}-release.zip"
-    destinationDir(new File("${appDir}/build/tmp/"))
+    archiveFileName.set("symbols-${RELEASE_NUMBER}-release.zip")
+    destinationDirectory.set(new File("${appDir}/build/tmp/"))
 }
 
 // Symbol upload used an abandoned HTTP plugin whose transitive dependencies

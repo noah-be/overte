@@ -167,7 +167,9 @@ void ClientTraitsHandler::processTraitOverride(QSharedPointer<ReceivedMessage> m
             message->readPrimitive(&traitBinarySize);
 
             // Trying to read more bytes than available, bail
-            if (traitBinarySize < -1 || message->getBytesLeftToRead() < traitBinarySize) {
+            if (!AvatarTraits::isValidTrait(traitType) ||
+                    !AvatarTraits::isValidTraitWireSize(
+                        traitBinarySize, message->getBytesLeftToRead(), false)) {
                 qWarning() << "Malformed trait override packet, bailling";
                 return;
             }

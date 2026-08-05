@@ -124,6 +124,9 @@ const float GAIN_CONVERSION_RATIO = 2.0f * 6.02059991f; // scale log2 to 0.5dB
 const float GAIN_CONVERSION_OFFSET = 255 - 60.0f;       // translate +30dB to max
 
 static inline uint8_t packFloatGainToByte(float gain) {
+    if (!std::isfinite(gain) || gain <= 0.0f) {
+        return 0;
+    }
     float f = fastLog2f(gain) * GAIN_CONVERSION_RATIO + GAIN_CONVERSION_OFFSET;
     int32_t i = std::lround(f);  // quantize
 

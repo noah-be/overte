@@ -579,12 +579,20 @@ int packFloatRatioToTwoByte(unsigned char* buffer, float ratio) {
     // if the ratio is less than 10, then encode it as a positive number scaled from 0 to int16::max()
     int16_t ratioHolder;
 
+    // Zero shares its wire value with the large-range boundary at 10, so
+    // invalid non-positive inputs use the neutral scale instead.
+    if (!std::isfinite(ratio) || ratio <= 0.0f) {
+        ratio = 1.0f;
+    } else {
+        ratio = std::min(ratio, LARGE_LIMIT);
+    }
+
     if (ratio < SMALL_LIMIT) {
         const float SMALL_RATIO_CONVERSION_RATIO = (std::numeric_limits<int16_t>::max() / SMALL_LIMIT);
-        ratioHolder = floorf(ratio * SMALL_RATIO_CONVERSION_RATIO);
+        ratioHolder = std::max<int16_t>(1, floorf(ratio * SMALL_RATIO_CONVERSION_RATIO));
     } else {
         const float LARGE_RATIO_CONVERSION_RATIO = std::numeric_limits<int16_t>::min() / LARGE_LIMIT;
-        ratioHolder = floorf((std::min(ratio,LARGE_LIMIT) - SMALL_LIMIT) * LARGE_RATIO_CONVERSION_RATIO);
+        ratioHolder = floorf((ratio - SMALL_LIMIT) * LARGE_RATIO_CONVERSION_RATIO);
     }
     memcpy(buffer, &ratioHolder, sizeof(ratioHolder));
     return sizeof(ratioHolder);

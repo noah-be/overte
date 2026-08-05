@@ -1615,15 +1615,19 @@ void Avatar::computeMultiSphereShapes() {
 
 void Avatar::updateFitBoundingBox() {
     _fitBoundingBox = AABox();
-    if (getJointCount() == (int)_multiSphereShapes.size()) {
-        for (int i = 0; i < getJointCount(); i++) {
-            auto &shape = _multiSphereShapes[i];
-            glm::vec3 jointPosition;
-            glm::quat jointRotation;
-            _skeletonModel->getJointPositionInWorldFrame(i, jointPosition);
-            _skeletonModel->getJointRotationInWorldFrame(i, jointRotation);
-            _fitBoundingBox += shape.updateBoundingBox(jointPosition, jointRotation);
-        }
+    if (getJointCount() != (int)_multiSphereShapes.size() ||
+            !_skeletonModel->getRig().getAbsoluteJointPosesInRigFrame(_fitBoundingBoxPoses) ||
+            _fitBoundingBoxPoses.size() != _multiSphereShapes.size()) {
+        return;
+    }
+
+    const glm::vec3 modelTranslation = _skeletonModel->getTranslation();
+    const glm::quat modelRotation = _skeletonModel->getRotation();
+    for (size_t i = 0; i < _multiSphereShapes.size(); ++i) {
+        const AnimPose& pose = _fitBoundingBoxPoses[i];
+        const glm::vec3 jointPosition = modelRotation * pose.trans() + modelTranslation;
+        const glm::quat jointRotation = modelRotation * pose.rot();
+        _fitBoundingBox += _multiSphereShapes[i].updateBoundingBox(jointPosition, jointRotation);
     }
 }
 
