@@ -71,14 +71,17 @@ the prior test-mode value in addition to fan and brightness controls. It also
 writes a fresh zero-duration autowalk command before stopping Interface, so an
 interrupted dynamic route cannot replay on a later app start.
 
-For local avatar-load screening, first enter a domain containing at least one
-other avatar, then create up to 50 client-only copies per received avatar:
+For a private local avatar-load smoke test, first enter an otherwise empty
+domain. Create a local source from the current MyAvatar state, then create up
+to 50 client-only copies of it:
 
 ```bash
 cd android
+./pico-unattended-test.sh avatar-template 1
 ./pico-unattended-test.sh replicas 5
 ./pico-unattended-test.sh avatar-status
 ./pico-unattended-test.sh replicas 0
+./pico-unattended-test.sh avatar-template 0
 ```
 
 The status reports total and locally replicated avatar counts, how many other
@@ -86,12 +89,15 @@ avatars and replicas have loaded skeleton models, the existing avatar
 update-budget counters, and the mean avatar-simulation time across all frames
 in the latest one-second status interval. The loaded counters distinguish a
 renderable crowd from loading-orb placeholders without recording avatar IDs.
-Replica commands are timestamped and ignored when stale, so an interrupted
-test cannot replay its load after a later app restart. Changing the count
-preserves the received source avatars and seeds each new replica with the
-source identity and skeleton traits, so an unchanged model does not remain a
-loading orb. Test mode itself is re-read at runtime. Always return the count to
-zero after a test.
+Replica and template commands are timestamped and ignored when stale, so an
+interrupted test cannot replay its load after a later app restart. The local
+template copies MyAvatar pose, identity, and skeleton traits entirely inside
+the client; it sends no synthetic avatar to the domain and uses no Pico SDK or
+proprietary Pico library. Changing the count preserves each source and seeds
+new replicas immediately, so an unchanged model does not remain a loading orb.
+Test mode itself is re-read at runtime and disabling it removes all replicas
+and the local template. Always return both the replica count and template state
+to zero after a manual test.
 
 In test mode, the status also breaks total other-avatar processing into
 priority-queue construction, sorting, pre-update state work, scene assurance,
@@ -108,17 +114,19 @@ For a guarded repeated A/B matrix in the current domain, run:
 ./pico-avatar-matrix.sh
 ```
 
-The default sequence is 0, 5, 0, and 5 copies per real template avatar.
-Repeated `--replicas` options define a different sequence. The matrix fixes the
-fan and brightness during measurement, rejects XR-focus loss or any change in
-the real template population, disconnect, or starting domain, and waits for
-every source and replica skeleton model to load. A stage is rejected if any
-model returns to a loading placeholder. The tool enables test mode for the
-run, writes aggregate CSV results under `android/power-results/`, then clears
-all copies and restores test mode and the device controls. An app restart also
-rejects the run rather than mixing measurements from different processes. It
-never records screenshots, avatar identifiers, or the checked domain ID. The
-summary includes mean updated and budget-skipped avatar counts,
+The default sequence is 0, 5, 0, and 5 copies of one local template and requires
+that no received other avatar be present. Repeated `--replicas` options define
+a different sequence; `--received-template` retains the older mode for a
+deliberately controlled received source population. The matrix fixes fan and
+brightness during measurement, rejects XR-focus loss or any source-population
+change, disconnect, or starting domain, and waits for every source and replica
+skeleton model to load. A stage is rejected if any model returns to a loading
+placeholder. The tool enables test mode for the run, writes aggregate CSV
+results under `android/power-results/`, then clears the template and all copies
+and restores test mode and device controls. An app restart also rejects the run
+rather than mixing measurements from different processes. It never records
+screenshots, avatar identifiers, or the checked domain ID. The summary includes
+mean updated and budget-skipped avatar counts,
 so CPU stability is not mistaken for full crowd simulation quality. Here,
 `updated` counts in-view avatars with fresh joint data while the update is
 within budget; it is not a count of every simulated avatar. `aggregate.csv`

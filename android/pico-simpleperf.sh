@@ -16,7 +16,8 @@ BUILD_BINARY_CACHE="${BUILD_BINARY_CACHE:-0}"
 EXPECTED_AVATAR_REPLICAS="${EXPECTED_AVATAR_REPLICAS:-}"
 RESULT_DIR="${RESULT_DIR:-$SCRIPT_DIR/power-results/simpleperf-$(date -u +%Y%m%dT%H%M%SZ)}"
 PROFILE_DOMAIN_ID=""
-PROFILE_REAL_TEMPLATES=""
+PROFILE_SOURCE_TEMPLATES=""
+PROFILE_LOCAL_TEMPLATE=""
 
 usage() {
     cat <<'EOF'
@@ -122,36 +123,43 @@ validate_prepared_world() {
 }
 
 validate_avatar_load() {
-    local stage="$1" status field_count status_epoch total replicated target now real
-    local expected_replicated loaded_other loaded_replicated
+    local stage="$1" status field_count status_epoch total replicated target now sources
+    local expected_replicated loaded_other loaded_replicated local_template
     [[ -n "$EXPECTED_AVATAR_REPLICAS" ]] || return 0
     status="$(adb_shell run-as "$PACKAGE" cat cache/avatar-status 2>/dev/null | tr -d '\r' || true)"
     field_count="$(awk -F'|' '{ print NF }' <<<"$status")"
     IFS='|' read -r status_epoch total replicated target _ _ _ _ _ _ _ _ _ _ _ _ \
-        loaded_other loaded_replicated <<<"$status"
+        loaded_other loaded_replicated local_template <<<"$status"
     now="$(date +%s)"
-    [[ "$field_count" == 18 && "$status_epoch" =~ ^[0-9]+$ &&
+    [[ "$field_count" == 19 && "$status_epoch" =~ ^[0-9]+$ &&
         "$total" =~ ^[0-9]+$ && "$replicated" =~ ^[0-9]+$ &&
         "$target" =~ ^[0-9]+$ && "$loaded_other" =~ ^[0-9]+$ &&
-        "$loaded_replicated" =~ ^[0-9]+$ ]] &&
+        "$loaded_replicated" =~ ^[0-9]+$ &&
+        ( "$local_template" == "0" || "$local_template" == "1" ) ]] &&
         (( now - status_epoch >= -5 && now - status_epoch <= 5 &&
             total >= replicated + 1 )) || {
         echo "loaded avatar status is missing or invalid during $stage" >&2
         return 1
     }
-    real=$((total - replicated - 1))
-    expected_replicated=$((real * EXPECTED_AVATAR_REPLICAS))
-    (( real > 0 && target == EXPECTED_AVATAR_REPLICAS &&
+    sources=$((total - replicated - 1))
+    expected_replicated=$((sources * EXPECTED_AVATAR_REPLICAS))
+    (( sources > 0 && target == EXPECTED_AVATAR_REPLICAS &&
         replicated == expected_replicated &&
-        loaded_other == real + expected_replicated &&
+        loaded_other == sources + expected_replicated &&
         loaded_replicated == expected_replicated )) || {
         echo "loaded avatar population changed during $stage" >&2
         return 1
     }
-    if [[ -z "$PROFILE_REAL_TEMPLATES" ]]; then
-        PROFILE_REAL_TEMPLATES="$real"
-    elif [[ "$real" != "$PROFILE_REAL_TEMPLATES" ]]; then
+    if [[ -z "$PROFILE_SOURCE_TEMPLATES" ]]; then
+        PROFILE_SOURCE_TEMPLATES="$sources"
+    elif [[ "$sources" != "$PROFILE_SOURCE_TEMPLATES" ]]; then
         echo "source avatar population changed during $stage" >&2
+        return 1
+    fi
+    if [[ -z "$PROFILE_LOCAL_TEMPLATE" ]]; then
+        PROFILE_LOCAL_TEMPLATE="$local_template"
+    elif [[ "$local_template" != "$PROFILE_LOCAL_TEMPLATE" ]]; then
+        echo "local avatar template state changed during $stage" >&2
         return 1
     fi
 }
@@ -273,8 +281,8 @@ validate_xr_focus "profile setup"
     printf 'duration_s=%s\nfrequency_hz=%s\ncall_graph=%s\n' "$DURATION" "$FREQUENCY" "$CALL_GRAPH"
     printf 'prepared_hub=%s\nwarmup_s=%s\n' "$PREPARE_SCENE" "$WARMUP"
     if [[ -n "$EXPECTED_AVATAR_REPLICAS" ]]; then
-        printf 'expected_replicas_per_source=%s\nsource_avatars=%s\n' \
-            "$EXPECTED_AVATAR_REPLICAS" "$PROFILE_REAL_TEMPLATES"
+        printf 'expected_replicas_per_source=%s\nsource_avatars=%s\nlocal_avatar_template=%s\n' \
+            "$EXPECTED_AVATAR_REPLICAS" "$PROFILE_SOURCE_TEMPLATES" "$PROFILE_LOCAL_TEMPLATE"
     fi
     printf 'device=%s\n' "$(adb_shell getprop ro.product.model | tr -d '\r')"
     printf 'build_fingerprint=%s\n' "$(adb_shell getprop ro.build.fingerprint | tr -d '\r')"

@@ -257,6 +257,13 @@ public:
 
     float getMyAvatarSendRate() const { return _myAvatarSendRate.rate(); }
 
+    // Test-only local source used by guarded Android crowd-load tooling. It
+    // copies the current MyAvatar state and never sends a synthetic identity
+    // or packet to the domain.
+    void setLocalTestAvatarTemplateEnabled(bool enabled);
+    bool isLocalTestAvatarTemplateEnabled() const { return !_localTestAvatarTemplateID.isNull(); }
+    void setReplicaCount(int count);
+
     void queuePhysicsChange(const OtherAvatarPointer& avatar);
     void buildPhysicsTransaction(PhysicsEngine::Transaction& transaction);
     void handleProcessedPhysicsTransaction(PhysicsEngine::Transaction& transaction);
@@ -331,6 +338,8 @@ private:
 
     AvatarTransit::TransitConfig  _transitConfig;
     bool _drawOtherAvatarSkeletons { false };
+    QUuid _localTestAvatarTemplateID;
+    QByteArray _localTestAvatarData;
 };
 
 #endif // hifi_AvatarManager_h

@@ -103,6 +103,61 @@ AvatarSharedPointer AvatarManager::addAvatar(const QUuid& sessionUUID, const QWe
     return avatar;
 }
 
+void AvatarManager::setReplicaCount(int count) {
+    AvatarHashMap::setReplicaCount(count);
+    if (_localTestAvatarTemplateID.isNull()) {
+        return;
+    }
+
+    const auto sourceAvatar = findAvatar(_localTestAvatarTemplateID);
+    if (sourceAvatar) {
+        reconcileReplicas(_localTestAvatarTemplateID, sourceAvatar, QWeakPointer<Node>());
+        _replicas.parseDataFromBuffer(_localTestAvatarTemplateID, _localTestAvatarData);
+    }
+}
+
+void AvatarManager::setLocalTestAvatarTemplateEnabled(bool enabled) {
+    if (enabled == isLocalTestAvatarTemplateEnabled()) {
+        return;
+    }
+
+    if (!enabled) {
+        const QUuid templateID = _localTestAvatarTemplateID;
+        _localTestAvatarTemplateID = QUuid();
+        _localTestAvatarData.clear();
+        removeAvatar(templateID, KillAvatarReason::NoReason);
+        return;
+    }
+
+    const QUuid templateID = QUuid::createUuid();
+    auto templateAvatar = addAvatar(templateID, QWeakPointer<Node>());
+    templateAvatar->setIsNewAvatar(true);
+
+    bool identityChanged { false };
+    bool displayNameChanged { false };
+    QDataStream identityStream(_myAvatar->identityByteArray());
+    templateAvatar->processAvatarIdentity(identityStream, identityChanged, displayNameChanged);
+    templateAvatar->processTrait(AvatarTraits::SkeletonModelURL,
+        _myAvatar->packTrait(AvatarTraits::SkeletonModelURL));
+    templateAvatar->processTrait(AvatarTraits::SkeletonData,
+        _myAvatar->packTrait(AvatarTraits::SkeletonData));
+
+    AvatarDataPacket::SendStatus sendStatus;
+    const QVector<JointData> lastSentJointData(_myAvatar->getJointCount());
+    const QByteArray avatarData = _myAvatar->toByteArray(AvatarData::SendAllData, 0,
+        lastSentJointData, sendStatus, false, false, glm::vec3(0.0f), nullptr);
+    if (avatarData.isEmpty() || templateAvatar->parseDataFromBuffer(avatarData) != avatarData.size()) {
+        removeAvatar(templateID, KillAvatarReason::NoReason);
+        qCWarning(interfaceapp) << "PICO_LOCAL_AVATAR_TEMPLATE could not copy local avatar state";
+        return;
+    }
+
+    _localTestAvatarTemplateID = templateID;
+    _localTestAvatarData = avatarData;
+    reconcileReplicas(templateID, templateAvatar, QWeakPointer<Node>());
+    _replicas.parseDataFromBuffer(templateID, avatarData);
+}
+
 AvatarManager::~AvatarManager() {
     assert(_otherAvatarsToChangeInPhysics.empty());
 }
@@ -706,6 +761,11 @@ void AvatarManager::handleRemovedAvatar(const AvatarSharedPointer& removedAvatar
 
 void AvatarManager::clearOtherAvatars() {
     _myAvatar->clearLookAtTargetAvatar();
+    if (!_localTestAvatarTemplateID.isNull()) {
+        _replicas.takeReplicas(_localTestAvatarTemplateID);
+    }
+    _localTestAvatarTemplateID = QUuid();
+    _localTestAvatarData.clear();
 
     // setup a vector of removed avatars outside the scope of the hash lock
     std::vector<AvatarSharedPointer> removedAvatars;

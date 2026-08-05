@@ -229,6 +229,33 @@ AvatarSharedPointer AvatarHashMap::addAvatar(const QUuid& sessionUUID, const QWe
     return avatar;
 }
 
+void AvatarHashMap::reconcileReplicas(const QUuid& parentID, const AvatarSharedPointer& sourceAvatar,
+                                      const QWeakPointer<Node>& mixerWeakPointer) {
+    const auto replicaIDs = _replicas.getReplicaIDs(parentID);
+    for (const auto& replicaID : replicaIDs) {
+        if (findAvatar(replicaID)) {
+            continue;
+        }
+        // addAvatar() acquires _hashLock itself. Holding the write lock here
+        // would recursively lock the non-recursive QReadWriteLock.
+        auto replicaAvatar = addAvatar(replicaID, mixerWeakPointer);
+        replicaAvatar->setIsNewAvatar(true);
+        _replicas.addReplica(parentID, replicaAvatar);
+
+        // Identity and traits are sent only when they change. Seed new
+        // replicas from the current source state instead of waiting for a
+        // future mixer update that may never arrive during the test.
+        bool identityChanged { false };
+        bool displayNameChanged { false };
+        QDataStream identityStream(sourceAvatar->identityByteArray(true));
+        replicaAvatar->processAvatarIdentity(identityStream, identityChanged, displayNameChanged);
+        replicaAvatar->processTrait(AvatarTraits::SkeletonModelURL,
+            sourceAvatar->packTrait(AvatarTraits::SkeletonModelURL));
+        replicaAvatar->processTrait(AvatarTraits::SkeletonData,
+            sourceAvatar->packTrait(AvatarTraits::SkeletonData));
+    }
+}
+
 AvatarSharedPointer AvatarHashMap::newOrExistingAvatar(const QUuid& sessionUUID, const QWeakPointer<Node>& mixerWeakPointer, bool& isNew) {
     auto avatar = findAvatar(sessionUUID);
     if (!avatar) {
@@ -290,29 +317,7 @@ AvatarSharedPointer AvatarHashMap::parseAvatarData(QSharedPointer<ReceivedMessag
         // Reconcile replicas on a normal data packet so an existing, fully
         // loaded source avatar does not need to be removed when the requested
         // test load changes.
-        const auto replicaIDs = _replicas.getReplicaIDs(sessionUUID);
-        for (const auto& replicaID : replicaIDs) {
-            if (findAvatar(replicaID)) {
-                continue;
-            }
-            // addAvatar() acquires _hashLock itself. Holding the write lock
-            // here would recursively lock the non-recursive QReadWriteLock.
-            auto replicaAvatar = addAvatar(replicaID, sendingNode);
-            replicaAvatar->setIsNewAvatar(true);
-            _replicas.addReplica(sessionUUID, replicaAvatar);
-
-            // Identity and traits are sent only when they change. Seed new
-            // replicas from the current source state instead of waiting for a
-            // future mixer update that may never arrive during the test.
-            bool identityChanged { false };
-            bool displayNameChanged { false };
-            QDataStream identityStream(avatar->identityByteArray(true));
-            replicaAvatar->processAvatarIdentity(identityStream, identityChanged, displayNameChanged);
-            replicaAvatar->processTrait(AvatarTraits::SkeletonModelURL,
-                avatar->packTrait(AvatarTraits::SkeletonModelURL));
-            replicaAvatar->processTrait(AvatarTraits::SkeletonData,
-                avatar->packTrait(AvatarTraits::SkeletonData));
-        }
+        reconcileReplicas(sessionUUID, avatar, sendingNode);
         
         // have the matching (or new) avatar parse the data from the packet
         int bytesRead = avatar->parseDataFromBuffer(byteArray);

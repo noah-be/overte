@@ -2162,6 +2162,28 @@ void Application::update(float deltaTime) {
         // a later Interface launch. Format: epochSeconds|replicasPerAvatar.
         static QString lastAvatarReplicaCommand;
         if (picoTestMode) {
+            static QString lastLocalAvatarTemplateCommand;
+            char localAvatarTemplateValue[PROP_VALUE_MAX] {};
+            if (__system_property_get("debug.overte.avatar_local_template", localAvatarTemplateValue) > 0) {
+                const QString command = QString::fromUtf8(localAvatarTemplateValue).trimmed();
+                if (!command.isEmpty() && command != lastLocalAvatarTemplateCommand) {
+                    lastLocalAvatarTemplateCommand = command;
+                    const QStringList fields = command.split('|');
+                    bool timestampOk { false };
+                    bool enabledOk { false };
+                    const qint64 timestamp = fields.value(0).toLongLong(&timestampOk);
+                    const int enabled = fields.value(1).toInt(&enabledOk);
+                    const qint64 commandAge = QDateTime::currentSecsSinceEpoch() - timestamp;
+                    if (fields.size() == 2 && timestampOk && enabledOk &&
+                            commandAge >= -5 && commandAge <= 10 && (enabled == 0 || enabled == 1)) {
+                        DependencyManager::get<AvatarManager>()->setLocalTestAvatarTemplateEnabled(enabled == 1);
+                        qCInfo(interfaceapp) << "PICO_LOCAL_AVATAR_TEMPLATE" << enabled;
+                    } else {
+                        qCWarning(interfaceapp) << "PICO_LOCAL_AVATAR_TEMPLATE invalid or stale command" << command;
+                    }
+                }
+            }
+
             char avatarReplicaValue[PROP_VALUE_MAX] {};
             if (__system_property_get("debug.overte.avatar_replicas", avatarReplicaValue) > 0) {
                 const QString command = QString::fromUtf8(avatarReplicaValue).trimmed();
@@ -2210,7 +2232,7 @@ void Application::update(float deltaTime) {
                     ? picoAvatarSimulationMsSum / double(picoAvatarSimulationSamples)
                     : 0.0;
                 const double timingDivisor = double(std::max<quint64>(1, picoAvatarSimulationSamples));
-                const QString avatarStatus = QStringLiteral("%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11|%12|%13|%14|%15|%16|%17|%18")
+                const QString avatarStatus = QStringLiteral("%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11|%12|%13|%14|%15|%16|%17|%18|%19")
                     .arg(QDateTime::currentSecsSinceEpoch())
                     .arg(avatarHash.size())
                     .arg(replicatedAvatars)
@@ -2228,7 +2250,8 @@ void Application::update(float deltaTime) {
                     .arg(picoAvatarScaleAnimationMsSum / timingDivisor, 0, 'f', 3)
                     .arg(picoAvatarSimulateMsSum / timingDivisor, 0, 'f', 3)
                     .arg(loadedOtherAvatars)
-                    .arg(loadedReplicatedAvatars);
+                    .arg(loadedReplicatedAvatars)
+                    .arg(avatarManager->isLocalTestAvatarTemplateEnabled() ? 1 : 0);
                 QSaveFile avatarStatusFile("/data/user/0/org.overte.pico/cache/avatar-status");
                 if (avatarStatusFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
                     avatarStatusFile.write(avatarStatus.toUtf8());
@@ -2245,6 +2268,10 @@ void Application::update(float deltaTime) {
                 picoAvatarSimulateMsSum = 0.0;
                 picoAvatarSimulationSamples = 0;
             }
+        } else {
+            auto avatarManager = DependencyManager::get<AvatarManager>();
+            avatarManager->setReplicaCount(0);
+            avatarManager->setLocalTestAvatarTemplateEnabled(false);
         }
 
         char navigationValue[PROP_VALUE_MAX] {};

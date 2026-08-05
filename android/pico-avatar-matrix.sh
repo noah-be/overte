@@ -12,15 +12,17 @@ LOAD_WAIT="${LOAD_WAIT:-30}"
 RESULT_DIR="${RESULT_DIR:-$SCRIPT_DIR/power-results/avatar-matrix-$(date -u +%Y%m%dT%H%M%SZ)}"
 REPLICA_COUNTS=()
 MATRIX_DOMAIN_ID=""
+TEMPLATE_MODE="local"
+EXPECTED_LOCAL_TEMPLATE="1"
 
 usage() {
     cat <<'EOF'
 Usage: ./pico-avatar-matrix.sh [options]
 
 Measure the already-running Pico client with repeated client-only avatar loads.
-The current domain must contain at least one other avatar. The test rejects XR
-focus loss or a change in the number of real template avatars and always clears
-local replicas on exit. It does not capture screenshots or avatar identifiers.
+By default, the domain must contain no other user: the tool creates one local
+template from MyAvatar and removes it on exit. The test rejects XR focus loss
+or any source-population change and never captures screenshots or avatar IDs.
 
 Options:
   --replicas COUNT       Append a 0..50 replicas-per-template stage
@@ -29,6 +31,7 @@ Options:
   --settle SECONDS       Delay after each load becomes ready (default: 15)
   --load-wait SECONDS    Maximum wait for avatar population changes (default: 30)
   --result-dir DIR       Output directory
+  --received-template    Use already-received avatars instead of a local template
   -h, --help             Show this help
 
 If --replicas is omitted, the sequence is: 0, 5, 0, 5.
@@ -45,6 +48,7 @@ while (( $# > 0 )); do
         --settle) [[ $# -ge 2 ]] || { echo "--settle requires a value" >&2; exit 2; }; SETTLE="$2"; shift 2 ;;
         --load-wait) [[ $# -ge 2 ]] || { echo "--load-wait requires a value" >&2; exit 2; }; LOAD_WAIT="$2"; shift 2 ;;
         --result-dir) [[ $# -ge 2 ]] || { echo "--result-dir requires a value" >&2; exit 2; }; RESULT_DIR="$2"; shift 2 ;;
+        --received-template) TEMPLATE_MODE="received"; EXPECTED_LOCAL_TEMPLATE="0"; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
     esac
@@ -133,10 +137,10 @@ read_avatar_status() {
         AVATAR_UPDATED AVATAR_NOT_UPDATED AVATAR_HEROES AVATAR_SIMULATION_MS \
         AVATAR_PROCESSING_MS AVATAR_PRIORITY_BUILD_MS AVATAR_SORT_MS AVATAR_PRE_UPDATE_MS \
         AVATAR_STATE_POLL_MS AVATAR_ENSURE_SCENE_MS AVATAR_SCALE_ANIMATION_MS AVATAR_SIMULATE_MS \
-        AVATAR_LOADED_OTHER AVATAR_LOADED_REPLICATED \
+        AVATAR_LOADED_OTHER AVATAR_LOADED_REPLICATED AVATAR_LOCAL_TEMPLATE \
         <<<"$status"
     now="$(date +%s)"
-    [[ "$field_count" == "18" && "$AVATAR_EPOCH" =~ ^[0-9]+$ ]] &&
+    [[ "$field_count" == "19" && "$AVATAR_EPOCH" =~ ^[0-9]+$ ]] &&
         (( now - AVATAR_EPOCH >= -5 && now - AVATAR_EPOCH <= 5 )) &&
         [[ "$AVATAR_TOTAL" =~ ^[0-9]+$ && "$AVATAR_REPLICATED" =~ ^[0-9]+$ &&
             "$AVATAR_TARGET" =~ ^[0-9]+$ && "$AVATAR_UPDATED" =~ ^[0-9]+$ &&
@@ -150,7 +154,8 @@ read_avatar_status() {
             "$AVATAR_ENSURE_SCENE_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
             "$AVATAR_SCALE_ANIMATION_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
             "$AVATAR_SIMULATE_MS" =~ ^[0-9]+([.][0-9]+)?$ &&
-            "$AVATAR_LOADED_OTHER" =~ ^[0-9]+$ && "$AVATAR_LOADED_REPLICATED" =~ ^[0-9]+$ ]] &&
+            "$AVATAR_LOADED_OTHER" =~ ^[0-9]+$ && "$AVATAR_LOADED_REPLICATED" =~ ^[0-9]+$ &&
+            ( "$AVATAR_LOCAL_TEMPLATE" == "0" || "$AVATAR_LOCAL_TEMPLATE" == "1" ) ]] &&
         (( AVATAR_TOTAL >= AVATAR_REPLICATED + 1 && AVATAR_TARGET <= 50 &&
             AVATAR_LOADED_OTHER <= AVATAR_TOTAL - 1 &&
             AVATAR_LOADED_REPLICATED <= AVATAR_REPLICATED )) &&
@@ -166,8 +171,14 @@ read_avatar_status() {
             }'
 }
 
-real_avatar_count() {
+source_avatar_count() {
     printf '%s\n' "$((AVATAR_TOTAL - AVATAR_REPLICATED - 1))"
+}
+
+set_local_template() {
+    local enabled="$1"
+    PICO_SERIAL="$PICO_SERIAL" PACKAGE="$PACKAGE" \
+        "$SCRIPT_DIR/pico-unattended-test.sh" avatar-template "$enabled" >/dev/null
 }
 
 set_replicas() {
@@ -177,24 +188,25 @@ set_replicas() {
 }
 
 wait_for_replica_load() {
-    local count="$1" timeout="${2:-$LOAD_WAIT}" elapsed=0 real expected_replicated expected_loaded_other
+    local count="$1" timeout="${2:-$LOAD_WAIT}" elapsed=0 sources expected_replicated expected_loaded_other
     while (( elapsed < timeout )); do
         validate_domain "replica load" || return 1
-        if read_avatar_status && [[ "$AVATAR_TARGET" == "$count" ]]; then
-            real="$(real_avatar_count)"
-            expected_replicated=$((real * count))
-            expected_loaded_other=$((real + expected_replicated))
-            if (( real > 0 && AVATAR_REPLICATED == expected_replicated &&
+        if read_avatar_status && [[ "$AVATAR_TARGET" == "$count" &&
+                "$AVATAR_LOCAL_TEMPLATE" == "$EXPECTED_LOCAL_TEMPLATE" ]]; then
+            sources="$(source_avatar_count)"
+            expected_replicated=$((sources * count))
+            expected_loaded_other=$((sources + expected_replicated))
+            if (( sources > 0 && AVATAR_REPLICATED == expected_replicated &&
                     AVATAR_LOADED_OTHER == expected_loaded_other &&
                     AVATAR_LOADED_REPLICATED == expected_replicated )); then
-                printf '%s\n' "$real"
+                printf '%s\n' "$sources"
                 return 0
             fi
         fi
         sleep 1
         elapsed=$((elapsed + 1))
     done
-    echo "avatar load did not settle at $count replicas per real avatar" >&2
+    echo "avatar load did not settle at $count replicas per source avatar" >&2
     return 1
 }
 
@@ -220,14 +232,16 @@ ORIGINAL_FAN_SPEED="$(adb_shell gd32ipdclient_test getfanspeed 2>/dev/null | sed
 ORIGINAL_TEST_MODE="$(adb_shell getprop debug.overte.test_mode 2>/dev/null | tr -d '\r')"
 
 cleanup() {
-    local cleanup_status cleanup_epoch cleanup_total cleanup_replicated cleanup_target cleanup_rest
+    local cleanup_status cleanup_epoch cleanup_total cleanup_replicated cleanup_target cleanup_local_template
     adb_shell setprop debug.overte.avatar_replicas "$(date +%s)\\|0" >/dev/null 2>&1 || true
+    adb_shell setprop debug.overte.avatar_local_template "$(date +%s)\\|0" >/dev/null 2>&1 || true
     # Give the running app a chance to remove replicas before disabling a test
     # mode that was off when the matrix started.
     for _ in 1 2 3; do
         cleanup_status="$(adb_shell run-as "$PACKAGE" cat cache/avatar-status 2>/dev/null || true)"
-        IFS='|' read -r cleanup_epoch cleanup_total cleanup_replicated cleanup_target cleanup_rest <<<"$cleanup_status"
-        [[ "$cleanup_target" == "0" ]] && break
+        IFS='|' read -r cleanup_epoch cleanup_total cleanup_replicated cleanup_target \
+            _ _ _ _ _ _ _ _ _ _ _ _ _ _ cleanup_local_template <<<"$cleanup_status"
+        [[ "$cleanup_target" == "0" && "$cleanup_local_template" == "0" ]] && break
         sleep 1
     done
     if [[ -z "$ORIGINAL_TEST_MODE" ]]; then
@@ -253,9 +267,22 @@ PID="$(adb_shell pidof "$PACKAGE" | tr -d '\r')"
 
 adb_shell setprop debug.overte.test_mode 1 >/dev/null
 set_replicas 0
+if [[ "$TEMPLATE_MODE" == "local" ]]; then
+    set_local_template 1
+else
+    set_local_template 0
+fi
 validate_domain "avatar matrix setup"
-REAL_TEMPLATES="$(wait_for_replica_load 0)"
-(( REAL_TEMPLATES > 0 )) || { echo "the current domain has no other avatar template" >&2; exit 1; }
+SOURCE_TEMPLATES="$(wait_for_replica_load 0)"
+read_avatar_status || { echo "missing avatar status after template setup" >&2; exit 1; }
+if [[ "$TEMPLATE_MODE" == "local" ]]; then
+    [[ "$AVATAR_LOCAL_TEMPLATE" == "$EXPECTED_LOCAL_TEMPLATE" && "$SOURCE_TEMPLATES" == "1" ]] || {
+        echo "local-template mode requires a domain with no received other avatars" >&2
+        exit 1
+    }
+else
+    [[ "$AVATAR_LOCAL_TEMPLATE" == "$EXPECTED_LOCAL_TEMPLATE" ]] || { echo "local template did not clear" >&2; exit 1; }
+fi
 
 adb_shell gd32ipdclient_test setfantestmode 1 >/dev/null
 adb_shell gd32ipdclient_test setfantestspeed 100 >/dev/null
@@ -265,11 +292,11 @@ adb_shell gd32ipdclient_test setbrightness 1 >/dev/null
     printf 'timestamp_utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     printf 'git_commit=%s\n' "$(git -C "$SCRIPT_DIR/.." rev-parse HEAD)"
     printf 'package=%s\npid=%s\n' "$PACKAGE" "$PID"
-    printf 'real_template_avatars=%s\nduration_s=%s\ninterval_s=%s\nsettle_s=%s\nload_wait_s=%s\n' \
-        "$REAL_TEMPLATES" "$DURATION" "$INTERVAL" "$SETTLE" "$LOAD_WAIT"
+    printf 'template_mode=%s\nsource_template_avatars=%s\nduration_s=%s\ninterval_s=%s\nsettle_s=%s\nload_wait_s=%s\n' \
+        "$TEMPLATE_MODE" "$SOURCE_TEMPLATES" "$DURATION" "$INTERVAL" "$SETTLE" "$LOAD_WAIT"
     printf 'replica_sequence=%s\n' "${REPLICA_COUNTS[*]}"
 } > "$RESULT_DIR/metadata.txt"
-printf 'run,replicas_per_template,total_avatars,local_replicas,real_templates,mean_cpu_pct,mean_avatar_simulation_ms,mean_updated,mean_not_updated,mean_processing_ms,mean_priority_build_ms,mean_sort_ms,mean_pre_update_ms,mean_state_poll_ms,mean_ensure_scene_ms,mean_scale_animation_ms,mean_simulate_ms,mean_loaded_other,mean_loaded_replicated\n' \
+printf 'run,replicas_per_template,total_avatars,local_replicas,source_templates,mean_cpu_pct,mean_avatar_simulation_ms,mean_updated,mean_not_updated,mean_processing_ms,mean_priority_build_ms,mean_sort_ms,mean_pre_update_ms,mean_state_poll_ms,mean_ensure_scene_ms,mean_scale_animation_ms,mean_simulate_ms,mean_loaded_other,mean_loaded_replicated\n' \
     > "$RESULT_DIR/summary.csv"
 
 run_number=0
@@ -280,37 +307,39 @@ for count in "${REPLICA_COUNTS[@]}"; do
     mkdir -p "$output"
 
     set_replicas "$count"
-    loaded_real="$(wait_for_replica_load "$count")"
-    [[ "$loaded_real" == "$REAL_TEMPLATES" ]] || {
-        echo "real avatar template count changed before $label ($REAL_TEMPLATES -> $loaded_real)" >&2
+    loaded_sources="$(wait_for_replica_load "$count")"
+    [[ "$loaded_sources" == "$SOURCE_TEMPLATES" ]] || {
+        echo "source avatar template count changed before $label ($SOURCE_TEMPLATES -> $loaded_sources)" >&2
         exit 1
     }
     sleep "$SETTLE"
     validate_xr_focus "$label warm-up"
     validate_domain "$label warm-up"
     read_avatar_status || { echo "missing avatar status after $label warm-up" >&2; exit 1; }
-    [[ "$(real_avatar_count)" == "$REAL_TEMPLATES" ]] || {
-        echo "real avatar template count changed during $label warm-up" >&2
+    [[ "$(source_avatar_count)" == "$SOURCE_TEMPLATES" &&
+        "$AVATAR_LOCAL_TEMPLATE" == "$EXPECTED_LOCAL_TEMPLATE" ]] || {
+        echo "source avatar template count changed during $label warm-up" >&2
         exit 1
     }
-    [[ "$AVATAR_LOADED_OTHER" == "$((REAL_TEMPLATES * (count + 1)))" &&
-        "$AVATAR_LOADED_REPLICATED" == "$((REAL_TEMPLATES * count))" ]] || {
+    [[ "$AVATAR_LOADED_OTHER" == "$((SOURCE_TEMPLATES * (count + 1)))" &&
+        "$AVATAR_LOADED_REPLICATED" == "$((SOURCE_TEMPLATES * count))" ]] || {
         echo "avatar models became unloaded during $label warm-up" >&2
         exit 1
     }
 
-    printf 'epoch,cpu_pct,total_avatars,local_replicas,real_templates,updated,not_updated,heroes,avatar_simulation_ms,processing_ms,priority_build_ms,sort_ms,pre_update_ms,state_poll_ms,ensure_scene_ms,scale_animation_ms,simulate_ms,loaded_other,loaded_replicated\n' \
+    printf 'epoch,cpu_pct,total_avatars,local_replicas,source_templates,updated,not_updated,heroes,avatar_simulation_ms,processing_ms,priority_build_ms,sort_ms,pre_update_ms,state_poll_ms,ensure_scene_ms,scale_animation_ms,simulate_ms,loaded_other,loaded_replicated\n' \
         > "$output/telemetry.csv"
     elapsed=0
     while (( elapsed < DURATION )); do
         validate_xr_focus "$label measurement at ${elapsed}s"
         validate_domain "$label measurement at ${elapsed}s"
         read_avatar_status || { echo "missing avatar status during $label" >&2; exit 1; }
-        real="$(real_avatar_count)"
-        [[ "$real" == "$REAL_TEMPLATES" && "$AVATAR_TARGET" == "$count" &&
-            "$AVATAR_REPLICATED" == "$((real * count))" &&
-            "$AVATAR_LOADED_OTHER" == "$((real * (count + 1)))" &&
-            "$AVATAR_LOADED_REPLICATED" == "$((real * count))" ]] || {
+        sources="$(source_avatar_count)"
+        [[ "$sources" == "$SOURCE_TEMPLATES" && "$AVATAR_TARGET" == "$count" &&
+            "$AVATAR_LOCAL_TEMPLATE" == "$EXPECTED_LOCAL_TEMPLATE" &&
+            "$AVATAR_REPLICATED" == "$((sources * count))" &&
+            "$AVATAR_LOADED_OTHER" == "$((sources * (count + 1)))" &&
+            "$AVATAR_LOADED_REPLICATED" == "$((sources * count))" ]] || {
             echo "avatar population changed during $label" >&2
             exit 1
         }
@@ -318,7 +347,7 @@ for count in "${REPLICA_COUNTS[@]}"; do
         cpu="$(awk '{gsub(/%/, "", $9); print $9}' <<<"$top_line")"
         [[ "$cpu" =~ ^[0-9]+([.][0-9]+)?$ ]] || { echo "invalid CPU sample during $label" >&2; exit 1; }
         printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "$(date +%s)" "$cpu" "$AVATAR_TOTAL" \
-            "$AVATAR_REPLICATED" "$real" "$AVATAR_UPDATED" "$AVATAR_NOT_UPDATED" "$AVATAR_HEROES" \
+            "$AVATAR_REPLICATED" "$sources" "$AVATAR_UPDATED" "$AVATAR_NOT_UPDATED" "$AVATAR_HEROES" \
             "$AVATAR_SIMULATION_MS" "$AVATAR_PROCESSING_MS" "$AVATAR_PRIORITY_BUILD_MS" \
             "$AVATAR_SORT_MS" "$AVATAR_PRE_UPDATE_MS" "$AVATAR_STATE_POLL_MS" \
             "$AVATAR_ENSURE_SCENE_MS" "$AVATAR_SCALE_ANIMATION_MS" "$AVATAR_SIMULATE_MS" \
@@ -331,11 +360,12 @@ for count in "${REPLICA_COUNTS[@]}"; do
     validate_xr_focus "$label completion"
     validate_domain "$label completion"
     read_avatar_status || { echo "missing avatar status after $label" >&2; exit 1; }
-    real="$(real_avatar_count)"
-    [[ "$real" == "$REAL_TEMPLATES" && "$AVATAR_TARGET" == "$count" &&
-        "$AVATAR_REPLICATED" == "$((real * count))" &&
-        "$AVATAR_LOADED_OTHER" == "$((real * (count + 1)))" &&
-        "$AVATAR_LOADED_REPLICATED" == "$((real * count))" ]] || {
+    sources="$(source_avatar_count)"
+    [[ "$sources" == "$SOURCE_TEMPLATES" && "$AVATAR_TARGET" == "$count" &&
+        "$AVATAR_LOCAL_TEMPLATE" == "$EXPECTED_LOCAL_TEMPLATE" &&
+        "$AVATAR_REPLICATED" == "$((sources * count))" &&
+        "$AVATAR_LOADED_OTHER" == "$((sources * (count + 1)))" &&
+        "$AVATAR_LOADED_REPLICATED" == "$((sources * count))" ]] || {
         echo "avatar population changed before $label completion" >&2
         exit 1
     }
@@ -353,7 +383,7 @@ for count in "${REPLICA_COUNTS[@]}"; do
             simulate / n, loadedOther / n, loadedReplicated / n; else exit 1 }' \
         "$output/telemetry.csv")
     printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "$run_number" "$count" "$AVATAR_TOTAL" "$AVATAR_REPLICATED" \
-        "$REAL_TEMPLATES" "$mean_cpu" "$mean_simulation" "$mean_updated" "$mean_not_updated" \
+        "$SOURCE_TEMPLATES" "$mean_cpu" "$mean_simulation" "$mean_updated" "$mean_not_updated" \
         "$mean_processing" "$mean_priority_build" "$mean_sort" "$mean_pre_update" "$mean_state_poll" \
         "$mean_ensure_scene" "$mean_scale_animation" "$mean_simulate" \
         "$mean_loaded_other" "$mean_loaded_replicated" \

@@ -821,13 +821,31 @@ also fall back to an identity pose. Regression coverage exercises each of the
 three collapsed axes, a fully collapsed transform, and non-finite input. The
 complete host animation test executable passed all 12 test groups. The Android
 build and a clean Pico cold start also completed without a NaN, native crash,
-or JNI error. A loaded-crowd rerun is still needed when a controlled external
-template population is available.
+or JNI error.
+
+The avatar matrix no longer depends on another user as its source. In guarded
+test mode it can create one local `OtherAvatar` from the current MyAvatar pose,
+identity, skeleton URL, and skeleton trait, then feed the existing replica path
+without transmitting a synthetic identity or pose to the domain. Commands are
+timestamped, the status schema exposes whether this source is active, and test
+mode shutdown removes it and all replicas. The matrix now defaults to this mode and requires an
+otherwise empty domain; `--received-template` keeps the prior explicitly
+selected behavior. Cleanup removes both replicas and source before restoring
+test mode and device controls.
+
+Host avatar tests, the ARM64 Android build, and a Pico live sequence all passed.
+The live sequence moved from one self avatar to one fully loaded local source,
+then to five fully loaded copies (seven total), and returned to one self avatar.
+A stale template command was rejected. A short end-to-end 0/2 smoke matrix also
+completed with one stable source, produced the expected two and four total
+avatars, retained loaded models for every stage, and cleaned back to one. Its
+four-second measurements validate the harness only and are not used as a
+performance recommendation.
 
 ## Limitations and next work
 
-- The Hub test is CPU-limited and has no controlled avatar population or active
-  mirror views. Longer loaded-avatar and mirror-heavy domain tests are still
+- The Hub test is CPU-limited. A controlled local avatar population is now
+  available, but longer loaded-avatar and mirror-heavy domain tests are still
   needed.
 - The dynamic turning screen had large resource-streaming/order variance and
   was not used for the final numeric recommendation.
@@ -837,7 +855,7 @@ template population is available.
   72 presents/s, while Overte generated about 20 new frames/s.
 - Physics broadphase and inactive simple-kinematic work are already bounded and
   are not strong next candidates for this scene. The strongest remaining work
-  is longer avatar-load testing with a controlled template, followed by avatar
+  is longer avatar-load testing with the controlled local template, followed by avatar
   complexity controls only if those runs identify a scalable bottleneck.
   Per-module controller profiling and safe Create lazy loading have now also been screened.
   Global simulation-rate and renderable-budget reductions, model-update
