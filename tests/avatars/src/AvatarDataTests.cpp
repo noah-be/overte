@@ -8,6 +8,7 @@
 #include <limits>
 
 #include <AvatarData.h>
+#include <AvatarHashMap.h>
 #include <HeadData.h>
 
 template<typename Section>
@@ -47,6 +48,8 @@ private slots:
     void roundTripSkeletonTrait();
     void limitSkeletonTraitJointCount();
     void rejectMalformedSkeletonTrait();
+    void rejectTruncatedAvatarIdentity();
+    void replicateAvatarIdentity();
 };
 
 void AvatarDataTests::parseTruncatedFlags() {
@@ -281,6 +284,57 @@ void AvatarDataTests::rejectMalformedSkeletonTrait() {
     header->maxTranslationDimension = std::numeric_limits<float>::quiet_NaN();
     destination.processTrait(AvatarTraits::SkeletonData, malformed);
     QCOMPARE(destination.getSkeletonData()[0].jointName, sentinel.jointName);
+}
+
+void AvatarDataTests::rejectTruncatedAvatarIdentity() {
+    AvatarData source;
+    source.setDisplayName(QStringLiteral("complete identity"));
+    const QByteArray identity = source.identityByteArray();
+
+    for (int size = 0; size < identity.size(); ++size) {
+        QDataStream stream(identity.left(size));
+        AvatarData destination;
+        bool identityChanged { false };
+        bool displayNameChanged { false };
+        destination.processAvatarIdentity(stream, identityChanged, displayNameChanged);
+
+        QVERIFY(!destination.hasProcessedFirstIdentity());
+        QVERIFY(!identityChanged);
+        QVERIFY(!displayNameChanged);
+        QVERIFY(destination.getDisplayName().isEmpty());
+    }
+
+    QDataStream stream(identity);
+    AvatarData destination;
+    bool identityChanged { false };
+    bool displayNameChanged { false };
+    destination.processAvatarIdentity(stream, identityChanged, displayNameChanged);
+    QVERIFY(destination.hasProcessedFirstIdentity());
+    QCOMPARE(destination.getDisplayName(), source.getDisplayName());
+    QVERIFY(identityChanged);
+    QVERIFY(displayNameChanged);
+}
+
+void AvatarDataTests::replicateAvatarIdentity() {
+    AvatarData source;
+    source.setDisplayName(QStringLiteral("replicated identity"));
+    const QByteArray identity = source.identityByteArray();
+
+    const QUuid parentID = QUuid::createUuid();
+    auto firstReplica = std::make_shared<AvatarData>();
+    auto secondReplica = std::make_shared<AvatarData>();
+    AvatarReplicas replicas;
+    replicas.addReplica(parentID, firstReplica);
+    replicas.addReplica(parentID, secondReplica);
+
+    bool identityChanged { false };
+    bool displayNameChanged { false };
+    replicas.processAvatarIdentity(parentID, identity, identityChanged, displayNameChanged);
+
+    QCOMPARE(firstReplica->getDisplayName(), source.getDisplayName());
+    QCOMPARE(secondReplica->getDisplayName(), source.getDisplayName());
+    QVERIFY(firstReplica->hasProcessedFirstIdentity());
+    QVERIFY(secondReplica->hasProcessedFirstIdentity());
 }
 
 QTEST_MAIN(AvatarDataTests)

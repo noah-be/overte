@@ -2064,28 +2064,30 @@ glm::quat AvatarData::getOrientationOutbound() const {
 
 void AvatarData::processAvatarIdentity(QDataStream& packetStream, bool& identityChanged,
                                        bool& displayNameChanged) {
-
+    packetStream.startTransaction();
     QUuid avatarSessionID;
 
     // peek the sequence number, this will tell us if we should be processing this identity packet at all
     udt::SequenceNumber::Type incomingSequenceNumberType;
     packetStream >> avatarSessionID >> incomingSequenceNumberType;
-    udt::SequenceNumber incomingSequenceNumber(incomingSequenceNumberType);
 
+    Identity identity;
+    packetStream
+        >> identity.displayName
+        >> identity.sessionDisplayName
+        >> identity.identityFlags
+        ;
+    if (!packetStream.commitTransaction()) {
+        return;
+    }
+
+    udt::SequenceNumber incomingSequenceNumber(incomingSequenceNumberType);
     if (!_hasProcessedFirstIdentity) {
         _identitySequenceNumber = incomingSequenceNumber - 1;
         _hasProcessedFirstIdentity = true;
         qCDebug(avatars) << "Processing first identity packet for" << avatarSessionID << "-"
             << (udt::SequenceNumber::Type) incomingSequenceNumber;
     }
-
-    Identity identity;
-
-    packetStream
-        >> identity.displayName
-        >> identity.sessionDisplayName
-        >> identity.identityFlags
-        ;
 
     if (incomingSequenceNumber > _identitySequenceNumber) {
 

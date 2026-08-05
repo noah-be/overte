@@ -87,8 +87,8 @@ std::vector<AvatarSharedPointer> AvatarReplicas::takeReplicas(const QUuid& paren
 void AvatarReplicas::processAvatarIdentity(const QUuid& parentID, const QByteArray& identityData, bool& identityChanged, bool& displayNameChanged) {
     if (_replicasMap.find(parentID) != _replicasMap.end()) {
         auto &replicas = _replicasMap[parentID];
-        QDataStream identityDataStream(identityData);
         for (auto avatar : replicas) {
+            QDataStream identityDataStream(identityData);
             avatar->processAvatarIdentity(identityDataStream, identityChanged, displayNameChanged);
         }
     }

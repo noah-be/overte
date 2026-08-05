@@ -717,6 +717,13 @@ transforms before replacing the current skeleton. Regression coverage includes
 negative translations, zero and non-finite transforms, non-ASCII names, an
 oversized joint vector, and every truncated prefix of a valid trait.
 
+Avatar identity decoding is transactional now, so a truncated variable-length
+identity cannot advance its sequence number or partially replace names and
+flags. Replica identity forwarding also creates an input stream per replica;
+previously only the first replica consumed the shared stream successfully.
+Regression coverage checks every truncated identity prefix and two recipients
+of the same replicated identity.
+
 A later avatar-load validation exposed transient non-finite absolute joint
 poses while a fallback rig was initialized. Matrix decomposition in
 `AnimPose` divided each basis column by its scale even when an axis had
