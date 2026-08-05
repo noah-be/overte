@@ -736,6 +736,9 @@ GCC's static analyzer reported no primary-source diagnostics in the four audio
 stream/parser translation units or the two mixer translation units. Its
 remaining diagnostics originated in dependency headers rather than these
 changed paths.
+A clean Debug configuration with server targets enabled subsequently compiled
+and linked the complete `assignment-client` target, including all modified
+audio stream and mixer translation units.
 The underlying `ReceivedMessage` API now clamps copied and zero-copy reads and
 seek positions to the actual message bounds, including string payloads with a
 truncated length or body. Bulk avatar parsing additionally rejects incomplete
