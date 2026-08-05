@@ -109,6 +109,13 @@ void OctreePacketProcessor::processPacket(QSharedPointer<ReceivedMessage> messag
                 auto renderer = qApp->getEntities();
                 if (renderer) {
                     renderer->processEraseMessage(*message, sendingNode);
+                    if (_safeLanding && _safeLanding->isTracking()) {
+                        OCTREE_PACKET_SEQUENCE thisSequence = renderer->getLastOctreeMessageSequence();
+                        _safeLanding->addToSequence(thisSequence);
+                        if (_safeLandingSequenceStart == SafeLanding::INVALID_SEQUENCE) {
+                            _safeLandingSequenceStart = thisSequence;
+                        }
+                    }
                 }
             }
         } break;
@@ -167,6 +174,21 @@ void OctreePacketProcessor::resetSafeLanding() {
         _safeLanding->reset();
     }
     _safeLandingSequenceStart = SafeLanding::INVALID_SEQUENCE;
+}
+
+void OctreePacketProcessor::restartSafeLandingSequence() {
+    if (_safeLanding) {
+        _safeLanding->restartSequenceTracking();
+    }
+    _safeLandingSequenceStart = SafeLanding::INVALID_SEQUENCE;
+    _fullSceneReceivedCounter = 0;
+}
+
+void OctreePacketProcessor::finishEmptySafeLandingSequence() {
+    if (_safeLanding && _safeLanding->isTracking()) {
+        _safeLanding->finishSequence(SafeLanding::INVALID_SEQUENCE, 0);
+        _safeLanding->stopTracking();
+    }
 }
 
 bool OctreePacketProcessor::safeLandingIsActive() const {

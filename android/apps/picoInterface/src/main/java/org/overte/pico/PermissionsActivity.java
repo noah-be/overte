@@ -15,6 +15,7 @@ public final class PermissionsActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_startup);
         applicationArguments = getIntent().getStringExtra(EXTRA_ARGS);
 
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
@@ -46,4 +47,3 @@ public final class PermissionsActivity extends Activity {
         finish();
     }
 }
-

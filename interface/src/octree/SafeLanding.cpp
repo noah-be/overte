@@ -88,8 +88,10 @@ void SafeLanding::deleteTrackedEntity(const EntityItemID& entityID) {
 
 void SafeLanding::finishSequence(OCTREE_PACKET_SEQUENCE first, OCTREE_PACKET_SEQUENCE last) {
     Locker lock(_lock);
-    if (_trackingEntities) {
-        _sequenceStart = first;
+    if (_trackingEntities && _sequenceStart == SafeLanding::INVALID_SEQUENCE) {
+        // An empty initial scene has no first entity packet. Represent it
+        // as a zero-length sequence so Safe Landing can still complete.
+        _sequenceStart = first == SafeLanding::INVALID_SEQUENCE ? last : first;
         _sequenceEnd = last;
     }
 }
@@ -106,12 +108,20 @@ void SafeLanding::updateTracking() {
 
     {
         Locker lock(_lock);
-        bool enableInterstitial = DependencyManager::get<NodeList>()->getDomainHandler().getInterstitialModeEnabled();
+#if defined(ANDROID_APP_PICO_INTERFACE)
+        // On Pico the interstitial must only cover the playable handoff.  Visual assets may continue
+        // streaming after the user can move; blocking safe landing on model/texture readiness caused
+        // the loading screen to enter an endless "missing entities" recovery loop.
+        constexpr bool requireVisualReadiness = false;
+#else
+        const bool enableInterstitial = DependencyManager::get<NodeList>()->getDomainHandler().getInterstitialModeEnabled();
+        const bool requireVisualReadiness = enableInterstitial;
+#endif
         auto entityMapIter = _trackedEntities.begin();
         while (entityMapIter != _trackedEntities.end()) {
             auto entity = entityMapIter->second;
             bool isVisuallyReady = true;
-            if (enableInterstitial) {
+            if (requireVisualReadiness) {
                 auto entityRenderable = _entityTreeRenderer->renderableForEntityId(entityMapIter->first);
                 if (!entityRenderable) {
                     _entityTreeRenderer->addingEntity(entityMapIter->first);
@@ -124,7 +134,7 @@ void SafeLanding::updateTracking() {
                 entityMapIter++;
             }
         }
-        if (enableInterstitial) {
+        if (requireVisualReadiness) {
             _trackedEntityStabilityCount++;
         }
     }
@@ -176,6 +186,15 @@ void SafeLanding::reset() {
     _sequenceEnd = SafeLanding::INVALID_SEQUENCE;
 }
 
+void SafeLanding::restartSequenceTracking() {
+    Locker lock(_lock);
+    if (_trackingEntities) {
+        _sequenceStart = SafeLanding::INVALID_SEQUENCE;
+        _sequenceEnd = SafeLanding::INVALID_SEQUENCE;
+        _sequenceNumbers.clear();
+    }
+}
+
 bool SafeLanding::trackingIsComplete() const {
     return !_trackingEntities && (_sequenceStart != SafeLanding::INVALID_SEQUENCE);
 }
@@ -194,6 +213,49 @@ float SafeLanding::loadingProgressPercentage() {
     }
 
     return entityReadyPercentage;
+}
+
+SafeLanding::LoadingStatus SafeLanding::loadingStatus() {
+    Locker lock(_lock);
+
+    LoadingStatus status;
+    status.trackedEntityCount = static_cast<int32_t>(_trackedEntities.size());
+    status.maximumTrackedEntityCount = _maxTrackedEntityCount;
+    if (_entityTreeRenderer) {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+        constexpr bool requireVisualReadiness = false;
+#else
+        const bool requireVisualReadiness =
+            DependencyManager::get<NodeList>()->getDomainHandler().getInterstitialModeEnabled();
+#endif
+        for (const auto& trackedEntity : _trackedEntities) {
+            const auto& entity = trackedEntity.second;
+            if (!isEntityPhysicsReady(entity)) {
+                ++status.physicsBlockedEntityCount;
+            }
+            if (requireVisualReadiness) {
+                const auto entityRenderable = _entityTreeRenderer->renderableForEntityId(trackedEntity.first);
+                const bool isVisuallyReady = entity->isVisuallyReady() ||
+                    (!entityRenderable && !entity->isParentPathComplete());
+                if (!isVisuallyReady) {
+                    ++status.visuallyBlockedEntityCount;
+                }
+            }
+        }
+    }
+    status.completionReceived = _sequenceStart != SafeLanding::INVALID_SEQUENCE;
+    if (status.completionReceived) {
+        status.expectedSequenceCount = static_cast<uint32_t>(_sequenceEnd - _sequenceStart);
+        for (uint32_t offset = 0; offset < status.expectedSequenceCount; ++offset) {
+            const auto sequence = static_cast<OCTREE_PACKET_SEQUENCE>(_sequenceStart + offset);
+            if (_sequenceNumbers.find(sequence) != _sequenceNumbers.end()) {
+                ++status.receivedSequenceCount;
+            }
+        }
+    } else {
+        status.receivedSequenceCount = static_cast<uint32_t>(_sequenceNumbers.size());
+    }
+    return status;
 }
 
 bool SafeLanding::isEntityPhysicsReady(const EntityItemPointer& entity) {

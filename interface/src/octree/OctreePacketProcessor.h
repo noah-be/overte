@@ -35,10 +35,13 @@ public:
     void updateSafeLanding();
     void stopSafeLanding();
     void resetSafeLanding();
+    void restartSafeLandingSequence();
+    void finishEmptySafeLandingSequence();
     bool safeLandingIsActive() const;
     bool safeLandingIsComplete() const;
 
     float domainLoadingProgress() const { return _safeLanding->loadingProgressPercentage(); }
+    SafeLanding::LoadingStatus safeLandingLoadingStatus() const { return _safeLanding->loadingStatus(); }
 
 signals:
     void packetVersionMismatch();

@@ -949,6 +949,29 @@ private:
     PhysicsEnginePointer _physicsEngine;
 
     bool _physicsEnabled { false };
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    float _picoLoadingWorldProgress { 0.0f };
+    float _picoLoadingResourceProgress { 0.0f };
+    float _picoLoadingSequenceProgress { 0.0f };
+    quint64 _picoLoadingLastAdvance { 0 };
+    quint64 _picoLoadingLastRecovery { 0 };
+    uint32_t _picoLoadingRecoveryAttempts { 0 };
+    quint64 _picoLoadingConnectedAt { 0 };
+    quint64 _picoLoadingFinalizingAt { 0 };
+    quint64 _picoLoadingPhysicsEnabledAt { 0 };
+    uint32_t _picoLoadingPhysicsPresentFrame { 0 };
+    quint64 _picoLoadingReadyAt { 0 };
+    uint32_t _picoLoadingReadyPresentFrame { 0 };
+    quint64 _picoLoadingCandidatePhaseSince { 0 };
+    float _picoLoadingDisplayedProgress { 0.0f };
+    int _picoLoadingDisplayedPhase { -1 };
+    int _picoLoadingCandidatePhase { -1 };
+    bool _picoLoadingTextureMemoryReady { false };
+    bool _picoLoadingGpuFallbackUsed { false };
+    bool _picoLoadingWasConnected { false };
+    bool _picoLoadingDismissedByUser { false };
+    bool _picoLoadingDismissButtonWasPressed { false };
+#endif
     // This is needed so that physics do not get re-enabled before safe landing starts when moving from
     // serverless to domain server.
     // It's set to true by Application::clearDomainOctreeData and is cleared by Application::setIsServerlessMode

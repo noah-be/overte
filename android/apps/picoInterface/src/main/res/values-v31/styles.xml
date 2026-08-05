@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright 2026 Overte e.V.
+    SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <style name="OverteStartupTheme" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowBackground">@drawable/startup_background</item>
+        <item name="android:windowDisablePreview">false</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:navigationBarColor">#050A12</item>
+        <item name="android:colorAccent">#6667AB</item>
+        <item name="android:windowSplashScreenBackground">#050A12</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher</item>
+        <item name="android:windowSplashScreenAnimationDuration">300</item>
+    </style>
+</resources>

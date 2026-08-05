@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">Overte for PICO</string>
+    <string name="startup_status">Starting Overte…</string>
 </resources>
-

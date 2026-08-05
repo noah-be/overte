@@ -18,6 +18,9 @@
 #endif
 #include <qmutex.h>
 
+#include <array>
+#include <atomic>
+
 #include <render/Engine.h>
 #include <procedural/ProceduralSkybox.h>
 
@@ -49,6 +52,25 @@ using RenderArgsEditor = std::function <void(AppRenderArgs&)>;
  */
 class GraphicsEngine {
 public:
+    enum class LoadingPhase {
+        STARTING,
+        CONNECTING,
+        CONNECTED,
+        RECEIVING_WORLD,
+        RECOVERING_WORLD,
+        DOWNLOADING_RESOURCES,
+        PROCESSING_RESOURCES,
+        PREPARING_WORLD,
+        UPLOADING_RESOURCES,
+        STARTING_PHYSICS,
+        FINALIZING_SCENE,
+        READY,
+        WAITING_FOR_WORLD,
+        WORLD_SERVER_UNAVAILABLE,
+        RECONNECTING_WORLD,
+        COUNT
+    };
+
     GraphicsEngine();
     ~GraphicsEngine();
 
@@ -135,6 +157,15 @@ public:
      */
     void editRenderArgs(RenderArgsEditor editor);
 
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    /**
+     * Updates the head-locked loading frame shown by the Pico OpenXR build.
+     * The values are atomics because the application thread produces them and
+     * the render thread consumes them.
+     */
+    void setLoadingState(bool visible, LoadingPhase phase, float progress);
+#endif
+
 private:
     // Thread specific calls
     /**
@@ -148,6 +179,12 @@ private:
      * @param renderArgs Configuration for this frame.
      */
     void render_runRenderFrame(RenderArgs* renderArgs);
+
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    void renderLoadingFrame(const gpu::FramebufferPointer& framebuffer, bool isStereo);
+    gpu::TexturePointer makeLoadingStatusTexture(const QString& title, const QString& detail) const;
+    gpu::TexturePointer makeLoadingProgressTexture(int percentage) const;
+#endif
 
 protected:
     /**
@@ -217,6 +254,21 @@ protected:
     std::atomic<bool> _programsCompiled { false };
 #else
     std::atomic<bool> _programsCompiled { true };
+#endif
+
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    std::atomic<bool> _loadingVisible { true };
+    std::atomic<LoadingPhase> _loadingPhase { LoadingPhase::STARTING };
+    std::atomic<float> _loadingProgress { 0.03f };
+    NetworkTexturePointer _loadingLogo;
+    std::array<gpu::TexturePointer, static_cast<size_t>(LoadingPhase::COUNT)> _loadingStatusTextures;
+    std::array<gpu::TexturePointer, 101> _loadingProgressTextures;
+    int _loadingBackgroundGeometry { -1 };
+    int _loadingLogoGeometry { -1 };
+    int _loadingStatusGeometry { -1 };
+    int _loadingProgressTextGeometry { -1 };
+    int _loadingTrackGeometry { -1 };
+    int _loadingProgressGeometry { -1 };
 #endif
 
     friend class Application;

@@ -767,6 +767,10 @@ void Application::initialize(const QCommandLineParser &parser) {
     DependencyManager::get<MessagesClient>()->startThread();
 
     nodeList->getDomainHandler().setErrorDomainURL(QUrl(REDIRECT_HIFI_ADDRESS));
+    // Pico users cannot safely interact with a partially streamed world. Keep
+    // Overte's existing interstitial/safe-landing path enabled so the loading
+    // frame remains visible until visual assets and collision data are ready.
+    nodeList->getDomainHandler().setInterstitialModeEnabled(true);
 
     // Inititalize sample before registering
     _sampleSound = DependencyManager::get<SoundCache>()->getSound(PathUtils::resourcesUrl("sounds/sample.wav"));
