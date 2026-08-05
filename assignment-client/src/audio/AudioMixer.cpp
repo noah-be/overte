@@ -143,11 +143,24 @@ void AudioMixer::queueAudioPacket(QSharedPointer<ReceivedMessage> message, Share
 }
 
 void AudioMixer::queueReplicatedAudioPacket(QSharedPointer<ReceivedMessage> message) {
+    PacketType rewrittenType = PacketTypeEnum::getReplicatedPacketMapping().key(message->getType());
+    if (rewrittenType == PacketType::Unknown) {
+        qCDebug(audio) << "Cannot unwrap replicated packet type not present in REPLICATED_PACKET_WRAPPING";
+        return;
+    }
+
+    if (message->getBytesLeftToRead() < NUM_BYTES_RFC4122_UUID) {
+        return;
+    }
+
+    // Node ID is part of user data, since replicated audio packets are non-sourced.
+    QUuid nodeID = QUuid::fromRfc4122(message->readWithoutCopy(NUM_BYTES_RFC4122_UUID));
+    if (nodeID.isNull()) {
+        return;
+    }
+
     // make sure we have a replicated node for the original sender of the packet
     auto nodeList = DependencyManager::get<NodeList>();
-
-    // Node ID is now part of user data, since replicated audio packets are non-sourced.
-    QUuid nodeID = QUuid::fromRfc4122(message->readWithoutCopy(NUM_BYTES_RFC4122_UUID));
 
     auto replicatedNode = nodeList->addOrUpdateNode(nodeID, NodeType::Agent,
                                                     message->getSenderSockAddr(), message->getSenderSockAddr(),
@@ -156,12 +169,6 @@ void AudioMixer::queueReplicatedAudioPacket(QSharedPointer<ReceivedMessage> mess
 
     // construct a "fake" audio received message from the byte array and packet list information
     auto audioData = message->getMessage().mid(NUM_BYTES_RFC4122_UUID);
-
-    PacketType rewrittenType = PacketTypeEnum::getReplicatedPacketMapping().key(message->getType());
-
-    if (rewrittenType == PacketType::Unknown) {
-        qCDebug(audio) << "Cannot unwrap replicated packet type not present in REPLICATED_PACKET_WRAPPING";
-    }
 
     auto replicatedMessage = QSharedPointer<ReceivedMessage>::create(audioData, rewrittenType,
                                                                      versionForPacketType(rewrittenType),

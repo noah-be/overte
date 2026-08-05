@@ -725,6 +725,10 @@ The audio mixer now performs the same fixed-header validation before creating
 a microphone or injector stream. Truncated codec negotiation, domain-list,
 per-avatar gain, and injector-gain messages are ignored before they can change
 mixer state; the server-side translation unit passes host syntax compilation.
+Replicated audio wrappers now require a recognized mapping and a complete,
+non-null source UUID before creating a replicated node. Radius-ignore, solo,
+stop-injector, and replicated-codec control messages likewise reject incomplete
+records before mutating mixer state.
 The underlying `ReceivedMessage` API now clamps copied and zero-copy reads and
 seek positions to the actual message bounds, including string payloads with a
 truncated length or body. Bulk avatar parsing additionally rejects incomplete

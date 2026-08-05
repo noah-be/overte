@@ -200,11 +200,11 @@ void AudioMixerClientData::negotiateAudioFormat(ReceivedMessage& message, const 
 }
 
 void AudioMixerClientData::parseRequestsDomainListData(ReceivedMessage& message) {
-    bool isRequesting { false };
-    if (message.readPrimitive(&isRequesting) != sizeof(isRequesting)) {
+    quint8 isRequestingFlag { 0 };
+    if (message.readPrimitive(&isRequestingFlag) != sizeof(isRequestingFlag) || isRequestingFlag > 1) {
         return;
     }
-    setRequestsDomainListData(isRequesting);
+    setRequestsDomainListData(isRequestingFlag == 1);
 }
 
 void AudioMixerClientData::parsePerAvatarGainSet(ReceivedMessage& message, const SharedNodePointer& node) {
@@ -330,8 +330,11 @@ void AudioMixerClientData::clearStagedIgnoreChanges() {
 }
 
 void AudioMixerClientData::parseRadiusIgnoreRequest(QSharedPointer<ReceivedMessage> message, const SharedNodePointer& node) {
-    bool enabled;
-    message->readPrimitive(&enabled);
+    quint8 enabledFlag { 0 };
+    if (message->readPrimitive(&enabledFlag) != sizeof(enabledFlag) || enabledFlag > 1) {
+        return;
+    }
+    const bool enabled = enabledFlag == 1;
 
     _isIgnoreRadiusEnabled = enabled;
 
@@ -350,8 +353,11 @@ void AudioMixerClientData::parseRadiusIgnoreRequest(QSharedPointer<ReceivedMessa
 
 void AudioMixerClientData::parseSoloRequest(QSharedPointer<ReceivedMessage> message, const SharedNodePointer& node) {
 
-    uint8_t addToSolo;
-    message->readPrimitive(&addToSolo);
+    uint8_t addToSolo { 0 };
+    if (message->readPrimitive(&addToSolo) != sizeof(addToSolo) || addToSolo > 1 ||
+            message->getBytesLeftToRead() % NUM_BYTES_RFC4122_UUID != 0) {
+        return;
+    }
 
     while (message->getBytesLeftToRead()) {
         // parse out the UUID being soloed from the packet
@@ -661,7 +667,13 @@ int AudioMixerClientData::checkBuffersBeforeFrameSend() {
 }
 
 void AudioMixerClientData::parseStopInjectorPacket(QSharedPointer<ReceivedMessage> packet) {
+    if (packet->getBytesLeftToRead() < NUM_BYTES_RFC4122_UUID) {
+        return;
+    }
     auto streamID = QUuid::fromRfc4122(packet->readWithoutCopy(NUM_BYTES_RFC4122_UUID));
+    if (streamID.isNull()) {
+        return;
+    }
 
     auto it = std::find_if(std::begin(_audioStreams), std::end(_audioStreams), [&](auto stream) {
         return streamID == stream->getStreamIdentifier();
@@ -905,6 +917,17 @@ void AudioMixerClientData::setupCodecForReplicatedAgent(QSharedPointer<ReceivedM
     // hop past the sequence number that leads the packet
     message->seek(sizeof(quint16));
 
+    if (message->getBytesLeftToRead() < static_cast<qint64>(sizeof(uint32_t))) {
+        message->seek(0);
+        return;
+    }
+    uint32_t codecSize { 0 };
+    message->peekPrimitive(&codecSize);
+    if (codecSize > static_cast<uint32_t>(message->getBytesLeftToRead() - sizeof(codecSize))) {
+        message->seek(0);
+        return;
+    }
+
     // pull the codec string from the packet
     auto codecString = message->readString();
 
@@ -915,7 +938,8 @@ void AudioMixerClientData::setupCodecForReplicatedAgent(QSharedPointer<ReceivedM
         const std::pair<QString, CodecPluginPointer> codec = AudioMixer::negotiateCodec({ codecString });
         setupCodec(codec.second, codec.first);
 
-        // seek back to the beginning of the message so other readers are in the right place
-        message->seek(0);
     }
+
+    // seek back to the beginning of the message so other readers are in the right place
+    message->seek(0);
 }
