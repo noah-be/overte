@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ADB_BIN="${ADB_BIN:-${ANDROID_SDK_ROOT:-${HOME}/Android/Sdk}/platform-tools/adb}"
-PICO_SERIAL="${PICO_SERIAL:-192.168.188.75:5555}"
+PICO_SERIAL="${PICO_SERIAL:-${ANDROID_SERIAL:-}}"
 WARMUP="${WARMUP:-30}"
 DURATION="${DURATION:-90}"
 TURN_RATE="${TURN_RATE:-0}"
@@ -10,6 +10,16 @@ RESULT_DIR="${RESULT_DIR:-power-results/graphics-matrix-$(date -u +%Y%m%dT%H%M%S
 VISUAL_REFERENCE="${VISUAL_REFERENCE:-power-results/visual-check/hub-reference.png}"
 MAX_CPU_TEMP_MC="${MAX_CPU_TEMP_MC:-90000}"
 MAX_SKIN_TEMP_C="${MAX_SKIN_TEMP_C:-65}"
+
+[[ -x "$ADB_BIN" ]] || { echo "adb not executable: $ADB_BIN" >&2; exit 2; }
+if [[ -z "$PICO_SERIAL" ]]; then
+    mapfile -t pico_devices < <("$ADB_BIN" devices | awk '$2 == "device" { print $1 }')
+    (( ${#pico_devices[@]} == 1 )) || {
+        echo "expected exactly one authorized ADB device; set PICO_SERIAL or ANDROID_SERIAL" >&2
+        exit 2
+    }
+    PICO_SERIAL="${pico_devices[0]}"
+fi
 
 mkdir -p "$RESULT_DIR"
 

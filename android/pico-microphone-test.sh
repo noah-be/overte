@@ -6,7 +6,7 @@ if [[ -z "${ADB_BIN:-}" ]]; then
     ADB_BIN="${android_sdk}/platform-tools/adb"
 fi
 
-PICO_SERIAL="${PICO_SERIAL:-192.168.188.75:5555}"
+PICO_SERIAL="${PICO_SERIAL:-${ANDROID_SERIAL:-}}"
 SOURCE="${1:-voicecommunication}"
 DURATION="${2:-15}"
 FAN_SPEED="${3:-50}"
@@ -39,6 +39,14 @@ if [[ "$FAN_SPEED" == 0 && "$DURATION" -gt 5 ]]; then
     exit 2
 fi
 [[ -x "$ADB_BIN" ]] || { echo "adb not found at $ADB_BIN" >&2; exit 2; }
+if [[ -z "$PICO_SERIAL" ]]; then
+    mapfile -t pico_devices < <("$ADB_BIN" devices | awk '$2 == "device" { print $1 }')
+    (( ${#pico_devices[@]} == 1 )) || {
+        echo "expected exactly one authorized ADB device; set PICO_SERIAL or ANDROID_SERIAL" >&2
+        exit 2
+    }
+    PICO_SERIAL="${pico_devices[0]}"
+fi
 
 adb_shell() {
     "$ADB_BIN" -s "$PICO_SERIAL" shell "$@"
