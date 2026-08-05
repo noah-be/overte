@@ -720,7 +720,10 @@ oversized joint vector, and every truncated prefix of a valid trait.
 Avatar identity decoding is transactional now, so a truncated variable-length
 identity cannot advance its sequence number or partially replace names and
 flags. Replica identity forwarding also creates an input stream per replica;
-previously only the first replica consumed the shared stream successfully.
+previously only the first replica consumed the shared stream successfully. In
+multi-identity packets, forwarding is limited to the byte range of the current
+record, and records for ignored avatars are still consumed so parsing can
+continue with the next identity.
 Regression coverage checks every truncated identity prefix and two recipients
 of the same replicated identity.
 

@@ -344,6 +344,7 @@ void AvatarHashMap::processAvatarIdentityPacket(QSharedPointer<ReceivedMessage> 
     QDataStream avatarIdentityStream(message->getMessage());
 
     while (!avatarIdentityStream.atEnd()) {
+        const qint64 identityStart = avatarIdentityStream.device()->pos();
         // peek the avatar UUID from the incoming packet
         avatarIdentityStream.startTransaction();
         QUuid identityUUID;
@@ -378,7 +379,26 @@ void AvatarHashMap::processAvatarIdentityPacket(QSharedPointer<ReceivedMessage> 
             bool displayNameChanged = false;
             // In this case, the "sendingNode" is the Avatar Mixer.
             avatar->processAvatarIdentity(avatarIdentityStream, identityChanged, displayNameChanged);
-            _replicas.processAvatarIdentity(identityUUID, message->getMessage(), identityChanged, displayNameChanged);
+            if (avatarIdentityStream.status() != QDataStream::Ok) {
+                qCWarning(avatars) << "Discarding truncated avatar identity packet";
+                return;
+            }
+            const qint64 identityEnd = avatarIdentityStream.device()->pos();
+            const QByteArray identityData = message->getMessage().mid(identityStart, identityEnd - identityStart);
+            _replicas.processAvatarIdentity(identityUUID, identityData, identityChanged, displayNameChanged);
+        } else {
+            QUuid ignoredSessionID;
+            udt::SequenceNumber::Type ignoredSequenceNumber;
+            QString ignoredDisplayName;
+            QString ignoredSessionDisplayName;
+            AvatarDataPacket::IdentityFlags ignoredFlags;
+            avatarIdentityStream.startTransaction();
+            avatarIdentityStream >> ignoredSessionID >> ignoredSequenceNumber >> ignoredDisplayName
+                >> ignoredSessionDisplayName >> ignoredFlags;
+            if (!avatarIdentityStream.commitTransaction()) {
+                qCWarning(avatars) << "Discarding truncated ignored avatar identity packet";
+                return;
+            }
         }
     }
 }
