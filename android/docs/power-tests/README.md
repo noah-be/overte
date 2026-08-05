@@ -159,3 +159,19 @@ headset:
 They cover one/zero/multiple-device selection, an explicit generic serial,
 fresh and stale status, the current 20-field schema, malformed refresh data,
 and replica/template command acknowledgements.
+
+The C++ paths changed by the Pico avatar, networking, audio, and math work can
+be checked without a headset as one bounded host regression run:
+
+```bash
+./tests/pico-host-regression-test.sh
+```
+
+The runner explicitly builds and executes the Animation, PositionalAudioStream,
+AvatarData, Packet, ReceivedMessage, and GLMHelpers suites. It runs from the
+repository root with an isolated temporary settings directory, discovers the
+Qt platform plugins associated with the selected CMake build, and applies a
+per-suite timeout. Use `--build-dir`, `--config`, and `--no-build` for another
+configured tree; `--keep-logs` retains detailed local output when diagnosing a
+failure. By default, temporary logs are removed and only per-suite Qt totals
+are printed.
