@@ -1086,6 +1086,9 @@ void Application::setIsInterstitialMode(bool interstitialMode) {
             DependencyManager::get<AudioClient>()->setAudioPaused(_interstitialMode);
             DependencyManager::get<AvatarManager>()->setMyAvatarDataPacketsPaused(_interstitialMode);
 #if defined(ANDROID_APP_PICO_INTERFACE)
+            _picoLoadingWorldProgress = 0.0f;
+            _picoLoadingLastAdvance = 0;
+            _picoLoadingWasConnected = false;
             if (_graphicsEngine) {
                 _graphicsEngine->setLoadingState(
                     _interstitialMode, GraphicsEngine::LoadingPhase::STARTING,
@@ -2416,8 +2419,12 @@ void Application::update(float deltaTime) {
             const auto& domainHandler = nodeList->getDomainHandler();
             GraphicsEngine::LoadingPhase phase = GraphicsEngine::LoadingPhase::CONNECTING;
             float progress = 0.05f;
+            const quint64 loadingNow = usecTimestampNow();
 
             if (!domainHandler.isConnected()) {
+                _picoLoadingWorldProgress = 0.0f;
+                _picoLoadingLastAdvance = loadingNow;
+                _picoLoadingWasConnected = false;
                 const auto connectionTimes = nodeList->getLastConnectionTimes();
                 if (!connectionTimes.isEmpty()) {
                     constexpr float CONNECTION_PROGRESS_SPAN = 0.30f;
@@ -2432,6 +2439,12 @@ void Application::update(float deltaTime) {
             } else {
                 const float worldProgress = glm::clamp(
                     _octreeProcessor->domainLoadingProgress(), 0.0f, 1.0f);
+                if (!_picoLoadingWasConnected ||
+                        worldProgress > _picoLoadingWorldProgress + 0.005f) {
+                    _picoLoadingWorldProgress = worldProgress;
+                    _picoLoadingLastAdvance = loadingNow;
+                }
+                _picoLoadingWasConnected = true;
                 const bool sceneReceived =
                     _octreeProcessor->getFullSceneReceivedCounter().load() > 0;
                 phase = sceneReceived
@@ -2441,6 +2454,12 @@ void Application::update(float deltaTime) {
                 if (_octreeProcessor->safeLandingIsComplete()) {
                     phase = GraphicsEngine::LoadingPhase::PREPARING_WORLD;
                     progress = 0.95f;
+                } else {
+                    constexpr quint64 WORLD_PROGRESS_STALL_TIME = 15 * USECS_PER_SECOND;
+                    if (_picoLoadingLastAdvance > 0 &&
+                            loadingNow - _picoLoadingLastAdvance >= WORLD_PROGRESS_STALL_TIME) {
+                        phase = GraphicsEngine::LoadingPhase::WAITING_FOR_WORLD;
+                    }
                 }
             }
 
