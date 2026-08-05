@@ -19,7 +19,22 @@ CAPTURE_OUTPUT="${PICO_MIC_CAPTURE_OUTPUT:-}"
 PACKAGE="org.overte.pico"
 
 case "$SOURCE" in
-    voicecommunication|voicerecognition|mic|camcorder) ;;
+    voicecommunication)
+        EXPECTED_AUDIO_SOURCE_ID=7
+        EXPECTED_AUDIO_SOURCE_NAME=VOICE_COMMUNICATION
+        ;;
+    voicerecognition)
+        EXPECTED_AUDIO_SOURCE_ID=6
+        EXPECTED_AUDIO_SOURCE_NAME=VOICE_RECOGNITION
+        ;;
+    mic)
+        EXPECTED_AUDIO_SOURCE_ID=1
+        EXPECTED_AUDIO_SOURCE_NAME=MIC
+        ;;
+    camcorder)
+        EXPECTED_AUDIO_SOURCE_ID=5
+        EXPECTED_AUDIO_SOURCE_NAME=CAMCORDER
+        ;;
     *) echo "unsupported source: $SOURCE" >&2; exit 2 ;;
 esac
 [[ "$DURATION" =~ ^[1-9][0-9]*$ ]] || { echo "duration must be a positive integer" >&2; exit 2; }
@@ -137,6 +152,7 @@ cleanup() {
     adb_shell "setprop debug.overte.audio_capture_seconds ''" >/dev/null 2>&1 || true
     adb_shell "setprop debug.overte.test_mode ''" >/dev/null 2>&1 || true
     adb_shell "setprop debug.overte.autowalk ''" >/dev/null 2>&1 || true
+    adb_shell run-as "$PACKAGE" rm -f cache/pico-mic-input.wav >/dev/null 2>&1 || true
     restore_fan || true
     if [[ -n "$capture_partial" ]]; then
         rm -f -- "$capture_partial"
@@ -232,6 +248,40 @@ fi
 set -o pipefail
 (( ready_status == 0 )) && [[ -n "$ready_log" ]] \
     || { echo "microphone source did not become active: $SOURCE" >&2; exit 1; }
+
+audio_source_id="unknown"
+audio_source_name="unknown"
+active_input=""
+for _ in {1..20}; do
+    audio_flinger="$(adb_shell dumpsys media.audio_flinger 2>/dev/null)"
+    active_input="$(printf '%s\n' "$audio_flinger" | awk '
+        /^Input thread / { active=1 }
+        active && /^- Input thread / { active=0 }
+        active { print }')"
+    audio_source_id="$(printf '%s\n' "$active_input" \
+        | sed -n 's/^  Audio source: \([0-9][0-9]*\).*/\1/p' | head -n 1)"
+    audio_source_name="$(printf '%s\n' "$active_input" \
+        | sed -n 's/^  Audio source: [0-9][0-9]* (\([^)]*\)).*/\1/p' | head -n 1)"
+    if [[ "$audio_source_id" == "$EXPECTED_AUDIO_SOURCE_ID" ]]; then
+        break
+    fi
+    sleep 0.25
+done
+[[ -n "$audio_source_id" ]] || audio_source_id="unknown"
+[[ -n "$audio_source_name" ]] || audio_source_name="unknown"
+if [[ "$audio_source_id" != "$EXPECTED_AUDIO_SOURCE_ID" ]]; then
+    echo "Android audio source mismatch for $SOURCE: expected $EXPECTED_AUDIO_SOURCE_ID ($EXPECTED_AUDIO_SOURCE_NAME), got $audio_source_id ($audio_source_name)" >&2
+    exit 1
+fi
+
+aec_enabled=0
+noise_suppression_enabled=0
+if printf '%s\n' "$active_input" | grep -Fq -- '- name: Acoustic Echo Canceler'; then
+    aec_enabled=1
+fi
+if printf '%s\n' "$active_input" | grep -Fq -- '- name: Noise Suppression'; then
+    noise_suppression_enabled=1
+fi
 
 measurement_marker="PICO_MIC_MEASUREMENT_START_${SOURCE}"
 adb_shell log -t OverteMicTest "$measurement_marker"
@@ -353,26 +403,6 @@ read -r captured_pcm_frames processed_pcm_frames dropped_pcm_frames \
         }
     }
     END { print captured+0, processed+0, dropped+0, backlog+0, peak_backlog+0, drains+0 }')"
-
-audio_flinger="$(adb_shell dumpsys media.audio_flinger 2>/dev/null)"
-active_input="$(printf '%s\n' "$audio_flinger" | awk '
-    /^Input thread / { active=1 }
-    active && /^- Input thread / { active=0 }
-    active { print }')"
-audio_source_id="$(printf '%s\n' "$active_input" \
-    | sed -n 's/^  Audio source: \([0-9][0-9]*\).*/\1/p' | head -n 1)"
-audio_source_name="$(printf '%s\n' "$active_input" \
-    | sed -n 's/^  Audio source: [0-9][0-9]* (\([^)]*\)).*/\1/p' | head -n 1)"
-[[ -n "$audio_source_id" ]] || audio_source_id="unknown"
-[[ -n "$audio_source_name" ]] || audio_source_name="unknown"
-aec_enabled=0
-noise_suppression_enabled=0
-if printf '%s\n' "$active_input" | grep -Fq -- '- name: Acoustic Echo Canceler'; then
-    aec_enabled=1
-fi
-if printf '%s\n' "$active_input" | grep -Fq -- '- name: Noise Suppression'; then
-    noise_suppression_enabled=1
-fi
 
 fan_rpm="$(adb_shell gd32ipdclient_test getfanrpm 2>/dev/null \
     | sed -n 's/.*GetFanRPM = //p' | head -n 1)"

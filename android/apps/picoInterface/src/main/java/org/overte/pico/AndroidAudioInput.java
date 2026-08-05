@@ -41,8 +41,15 @@ public final class AndroidAudioInput {
         }
     }
 
-    public static boolean start(int sampleRate, int channelCount, int framesPerBuffer) {
+    public static boolean start(
+            String requestedSource, int sampleRate, int channelCount, int framesPerBuffer) {
         stop();
+
+        final int audioSource = resolveAudioSource(requestedSource);
+        if (audioSource < 0) {
+            Log.e(TAG, "Unsupported diagnostic audio source: " + requestedSource);
+            return false;
+        }
 
         final int channelConfig = channelCount == 2
             ? AudioFormat.CHANNEL_IN_STEREO
@@ -61,7 +68,7 @@ public final class AndroidAudioInput {
         final AudioRecord newRecorder;
         try {
             newRecorder = new AudioRecord(
-                MediaRecorder.AudioSource.MIC,
+                audioSource,
                 sampleRate,
                 channelConfig,
                 AudioFormat.ENCODING_PCM_16BIT,
@@ -93,7 +100,8 @@ public final class AndroidAudioInput {
                 "Overte Android microphone");
             captureThread.start();
         }
-        Log.i(TAG, "Started AudioRecord MIC at " + sampleRate + " Hz, channels="
+        Log.i(TAG, "Started AudioRecord source=" + audioSourceName(audioSource)
+            + "(" + audioSource + ") at " + sampleRate + " Hz, channels="
             + channelCount + ", callbackBytes=" + callbackBytes);
         return true;
     }
@@ -125,7 +133,37 @@ public final class AndroidAudioInput {
             }
         }
         oldRecorder.release();
-        Log.i(TAG, "Stopped AudioRecord MIC");
+        Log.i(TAG, "Stopped AudioRecord");
+    }
+
+    private static int resolveAudioSource(String requestedSource) {
+        if (requestedSource == null || requestedSource.isEmpty()
+                || requestedSource.equals("mic")) {
+            return MediaRecorder.AudioSource.MIC;
+        }
+        if (requestedSource.equals("voicecommunication")) {
+            return MediaRecorder.AudioSource.VOICE_COMMUNICATION;
+        }
+        if (requestedSource.equals("voicerecognition")) {
+            return MediaRecorder.AudioSource.VOICE_RECOGNITION;
+        }
+        if (requestedSource.equals("camcorder")) {
+            return MediaRecorder.AudioSource.CAMCORDER;
+        }
+        return -1;
+    }
+
+    private static String audioSourceName(int audioSource) {
+        if (audioSource == MediaRecorder.AudioSource.VOICE_COMMUNICATION) {
+            return "VOICE_COMMUNICATION";
+        }
+        if (audioSource == MediaRecorder.AudioSource.VOICE_RECOGNITION) {
+            return "VOICE_RECOGNITION";
+        }
+        if (audioSource == MediaRecorder.AudioSource.CAMCORDER) {
+            return "CAMCORDER";
+        }
+        return "MIC";
     }
 
     private static void captureLoop(AudioRecord activeRecorder, int callbackBytes) {

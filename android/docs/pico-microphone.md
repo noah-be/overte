@@ -15,7 +15,9 @@ the Pico SDK or any proprietary Pico microphone library.
 The microphone research build supports three opt-in ADB properties:
 
 - `debug.overte.audio_input`: `voicecommunication`, `voicerecognition`, `mic`,
-  or `camcorder`;
+  or `camcorder`; on the Pico `AudioRecord` backend this diagnostic override
+  opens the corresponding public Android audio source instead of changing only
+  the logical Qt device label;
 - `debug.overte.audio_trace=1`: one-second raw input-level, Overte noise-gate,
   and watchdog summaries; and
 - `debug.overte.audio_capture_seconds`: capture 1-60 seconds of the exact raw
@@ -59,10 +61,10 @@ Set `PICO_MIC_CAPTURE_OUTPUT` to a new host path when the raw WAV must survive
 the run. This also enables raw capture without host playback, which is useful
 for a controlled ambient baseline. The runner waits for the app to close the
 WAV, copies it with binary-safe `adb exec-out`, refuses to overwrite an
-existing host file, and removes an incomplete `.part` file on failure. Android
-limits this diagnostic capture to 60 seconds. Raw captures can contain private
-speech and must remain in the ignored local results area unless they have been
-deliberately sanitized.
+existing host file, removes the app-cache copy during cleanup, and removes an
+incomplete `.part` file on failure. Android limits this diagnostic capture to
+60 seconds. Raw captures can contain private speech and must remain in the
+ignored local results area unless they have been deliberately sanitized.
 
 The runner's own argument, ADB parsing, CSV aggregation, capture-copy, cleanup,
 and fan-restoration paths can be checked without a microphone or headset:
@@ -79,9 +81,9 @@ used by a normal worn session.
 
 Each run also inspects the active Android AudioFlinger input thread and reports
 the numeric and symbolic audio source plus whether Acoustic Echo Canceler and
-Noise Suppression are attached. This turns the expected source/effect mapping
-into a per-run assertion trail instead of relying only on the requested Qt
-device name.
+Noise Suppression are attached. Before playback or measurement begins, it now
+requires the active numeric source to match the requested source. This prevents
+a nominal source comparison from recording the same backend path repeatedly.
 
 `startup_input_starts` counts actual AudioRecord openings during cold-start
 stabilization; `startup_input_reuses` counts same-source selections that
@@ -219,7 +221,10 @@ through the thermally limited run.
 ### Public Android AudioRecord backend
 
 The Pico Interface now replaces only its microphone capture backend with a
-small Java `AudioRecord` worker using source 1 (`MIC`). PCM is copied through a
+small Java `AudioRecord` worker. Normal launches use source 1 (`MIC`). The
+opt-in test property can instead request the public `VOICE_COMMUNICATION`,
+`VOICE_RECOGNITION`, or `CAMCORDER` source so controlled comparisons exercise
+the same production capture worker and JNI transport. PCM is copied through a
 standard JNI callback into the existing AudioClient path, so local echo,
 resampling, loudness reporting, Overte's noise gate, codec selection, and
 network packets remain unchanged. The capture worker uses Android's urgent
@@ -241,10 +246,10 @@ watchdog uses actual capture callbacks rather than the lower number of batched
 drains. `PICO_MIC_TRANSPORT` and the test CSV separately expose captured,
 processed, dropped, current-backlog, and peak-backlog PCM frames.
 
-This deliberately does not emulate the historical diagnostic source selector:
-all Pico UI input labels currently map to the one verified public MIC source.
-The older source-comparison results below remain research evidence, not a claim
-that the new production backend opens sources 6 or 7.
+Normal Pico UI input labels still map to the verified public MIC source. Only
+the opt-in diagnostic property changes the backend source, and the test runner
+rejects a run unless AudioFlinger confirms the requested numeric source. This
+keeps ordinary behavior unchanged while making new source comparisons real.
 
 ### Resolved full-XR debug throughput limit
 
@@ -356,7 +361,7 @@ separate paths.
 ## Next spoken-phrase test
 
 The remaining decision is speech quality, not background rejection. Run it
-in a controlled quiet environment after the headset cools, with automatic fan
+in a controlled quiet environment after the headset cools, with fixed 50% fan
 control and a fixed speaker-to-headset distance. Record the same short phrase
 three times each with `voicecommunication`, `voicerecognition`, and `mic`;
 `camcorder` is already excluded as the normal chat choice by the background
@@ -366,6 +371,7 @@ Compare consonant attack, word intelligibility, tonal colour, level pumping,
 and whether the first syllable opens Overte's automatic gate reliably. A
 second pass should play speech from the Pico speakers while recording to check
 echo cancellation. Keep source order counterbalanced and retain the raw WAVs,
-gate-open ratios, Android effect flags, fan RPM, and temperatures. Only this
-test can decide whether `voicecommunication` should remain merely the default
-or become a stronger enforced Pico policy.
+gate-open ratios, Android effect flags, fan RPM, and temperatures. Repeat the
+final preferred-source check with automatic fan control for real conditions.
+Only this test can decide whether `voicecommunication` should remain merely the
+default or become a stronger enforced Pico policy.

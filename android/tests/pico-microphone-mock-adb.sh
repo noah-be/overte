@@ -24,6 +24,32 @@ source_name="voicecommunication"
 if [[ -s "$STATE_DIR/source" ]]; then
     source_name="$(<"$STATE_DIR/source")"
 fi
+case "$source_name" in
+    voicecommunication)
+        audio_source_id=7
+        audio_source_label=VOICE_COMMUNICATION
+        ;;
+    voicerecognition)
+        audio_source_id=6
+        audio_source_label=VOICE_RECOGNITION
+        ;;
+    mic)
+        audio_source_id=1
+        audio_source_label=MIC
+        ;;
+    camcorder)
+        audio_source_id=5
+        audio_source_label=CAMCORDER
+        ;;
+    *)
+        audio_source_id=1
+        audio_source_label=MIC
+        ;;
+esac
+if [[ "${MOCK_AUDIO_SOURCE_MISMATCH:-0}" == 1 ]]; then
+    audio_source_id=1
+    audio_source_label=MIC
+fi
 
 if [[ "${1:-}" == logcat ]]; then
     if [[ " $* " == *' -c '* ]]; then
@@ -63,7 +89,11 @@ case "$command_line" in
         ;;
     'dumpsys media.audio_flinger')
         printf 'Input thread mock\n'
-        printf '  Audio source: 1 (MIC)\n'
+        printf '  Audio source: %s (%s)\n' "$audio_source_id" "$audio_source_label"
+        if [[ "$audio_source_id" == 7 ]]; then
+            printf '    - name: Acoustic Echo Canceler\n'
+            printf '    - name: Noise Suppression\n'
+        fi
         ;;
     'gd32ipdclient_test getfanspeed')
         printf 'GetFanSpeed = 45\n'

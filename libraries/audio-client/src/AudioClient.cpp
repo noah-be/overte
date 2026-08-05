@@ -285,7 +285,18 @@ private:
     bool _attached { false };
 };
 
-static bool startAndroidAudioInput(const QAudioFormat& format, int framesPerBuffer) {
+static QString picoAndroidAudioSource() {
+    const QString requested = picoMicRequestedInput();
+    if (requested == QStringLiteral("voicecommunication") ||
+            requested == QStringLiteral("voicerecognition") ||
+            requested == QStringLiteral("camcorder")) {
+        return requested;
+    }
+    return QStringLiteral("mic");
+}
+
+static bool startAndroidAudioInput(
+        const QAudioFormat& format, int framesPerBuffer, const QString& audioSource) {
     const jclass inputClass = androidAudioInputClass.load(std::memory_order_acquire);
     if (!inputClass) {
         return false;
@@ -294,13 +305,33 @@ static bool startAndroidAudioInput(const QAudioFormat& format, int framesPerBuff
     if (!environment) {
         return false;
     }
-    const jmethodID startMethod = environment->GetStaticMethodID(inputClass, "start", "(III)Z");
-    const bool started = startMethod && environment->CallStaticBooleanMethod(
+    const jmethodID startMethod = environment->GetStaticMethodID(
+        inputClass, "start", "(Ljava/lang/String;III)Z");
+    if (!startMethod) {
+        if (environment->ExceptionCheck()) {
+            environment->ExceptionDescribe();
+            environment->ExceptionClear();
+        }
+        return false;
+    }
+    const QByteArray sourceUtf8 = audioSource.toUtf8();
+    const jstring sourceString = environment->NewStringUTF(sourceUtf8.constData());
+    if (!sourceString) {
+        if (environment->ExceptionCheck()) {
+            environment->ExceptionClear();
+        }
+        return false;
+    }
+    const bool started = environment->CallStaticBooleanMethod(
         inputClass,
         startMethod,
+        sourceString,
         static_cast<jint>(format.sampleRate()),
         static_cast<jint>(format.channelCount()),
         static_cast<jint>(framesPerBuffer));
+    if (sourceString) {
+        environment->DeleteLocalRef(sourceString);
+    }
     if (environment->ExceptionCheck()) {
         environment->ExceptionDescribe();
         environment->ExceptionClear();
@@ -2485,11 +2516,15 @@ bool AudioClient::switchInputToAudioDevice(const HifiAudioDeviceInfo inputDevice
 
 #if defined(ANDROID_APP_PICO_INTERFACE)
                 resetAndroidAudioTransport(_inputFormat);
-                _androidAudioInputActive = startAndroidAudioInput(_inputFormat, numFrameSamples);
+                const QString androidAudioSource = picoAndroidAudioSource();
+                _androidAudioInputActive = startAndroidAudioInput(
+                    _inputFormat, numFrameSamples, androidAudioSource);
                 if (_androidAudioInputActive) {
                     emit inputVolumeChanged(_androidAudioInputVolume);
                     supportedFormat = true;
-                    qInfo() << "PICO_MIC_BACKEND Android AudioRecord source MIC";
+                    qInfo() << "PICO_MIC_BACKEND Android AudioRecord source"
+                        << androidAudioSource
+                        << "diagnosticOverride" << !picoMicRequestedInput().isEmpty();
                 } else {
                     qCWarning(audioclient) << "Error starting Android AudioRecord input";
                 }

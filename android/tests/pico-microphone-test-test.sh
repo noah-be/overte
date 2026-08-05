@@ -58,6 +58,8 @@ run_failure_case existing_capture 2 'capture output already exists' \
 
 run_failure_case multiple_devices 2 'expected exactly one authorized ADB device' \
     env MOCK_DEVICE_COUNT=2 "$CONTROL_SCRIPT" mic 1 auto
+run_failure_case mismatched_android_source 1 'Android audio source mismatch' \
+    env MOCK_AUDIO_SOURCE_MISMATCH=1 "$CONTROL_SCRIPT" voicecommunication 1 auto
 
 success_state="$TEST_ROOT/success"
 capture_output="$TEST_ROOT/capture.wav"
@@ -69,7 +71,7 @@ success_output="$(env ADB_BIN="$MOCK_ADB" MOCK_MIC_STATE_DIR="$success_state" \
     "$CONTROL_SCRIPT" voicecommunication 1 auto 2>&1)"
 success_code=$?
 set -e
-expected_row='voicecommunication,1,MIC,0,0,1,0,1,1,ok,1,48000,2.000000,5.000000,100,30,0.300000,48000,48000,0,0,960,100,7000,45,65000,60000'
+expected_row='voicecommunication,7,VOICE_COMMUNICATION,1,1,1,0,1,1,ok,1,48000,2.000000,5.000000,100,30,0.300000,48000,48000,0,0,960,100,7000,45,65000,60000'
 if [[ "$success_code" == 0 && "$success_output" == *"$expected_row"* && \
       "$success_output" == *"saved raw microphone capture: $capture_output"* && \
       -s "$capture_output" && "$(head -c 4 "$capture_output")" == RIFF ]]; then
@@ -84,6 +86,7 @@ fi
 if [[ ! -e "$success_state/device.lock.owner" ]] && \
    rg -Fq 'setfantestmode 0' "$success_state/commands.log" && \
    rg -Fq "setprop debug.overte.audio_capture_seconds ''" "$success_state/commands.log" && \
+   rg -Fq 'run-as org.overte.pico rm -f cache/pico-mic-input.wav' "$success_state/commands.log" && \
    rg -Fq 'am force-stop org.overte.pico' "$success_state/commands.log"; then
     PASSED=$((PASSED + 1))
     printf 'PASS cleanup_and_fan_restore\n'
