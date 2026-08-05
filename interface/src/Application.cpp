@@ -1093,6 +1093,10 @@ void Application::setIsInterstitialMode(bool interstitialMode) {
             _picoLoadingLastAdvance = 0;
             _picoLoadingLastRecovery = 0;
             _picoLoadingConnectedAt = 0;
+            _picoLoadingCandidatePhaseSince = 0;
+            _picoLoadingDisplayedProgress = 0.0f;
+            _picoLoadingDisplayedPhase = -1;
+            _picoLoadingCandidatePhase = -1;
             _picoLoadingHasUnavailableVisuals = false;
             _picoLoadingWasConnected = false;
             if (_graphicsEngine) {
@@ -2428,20 +2432,28 @@ void Application::update(float deltaTime) {
             const quint64 loadingNow = usecTimestampNow();
 
             if (!domainHandler.isConnected()) {
-                _picoLoadingWorldProgress = 0.0f;
-                _picoLoadingResourceProgress = 0.0f;
-                _picoLoadingSequenceProgress = 0.0f;
-                _picoLoadingLastAdvance = loadingNow;
-                _picoLoadingConnectedAt = 0;
-                _picoLoadingHasUnavailableVisuals = false;
-                _picoLoadingWasConnected = false;
-                const auto connectionTimes = nodeList->getLastConnectionTimes();
-                if (!connectionTimes.isEmpty()) {
-                    const int latestStep = static_cast<int>(connectionTimes.last());
-                    const int firstStep = static_cast<int>(LimitedNodeList::ConnectionStep::LookupAddress);
-                    const int connectedStep = static_cast<int>(LimitedNodeList::ConnectionStep::ReceiveDSList);
-                    progress = glm::clamp(
-                        static_cast<float>(latestStep - firstStep) / (connectedStep - firstStep), 0.0f, 1.0f);
+                if (_picoLoadingConnectedAt > 0) {
+                    phase = _picoLoadingLastRecovery > 0
+                        ? GraphicsEngine::LoadingPhase::RECOVERING_WORLD
+                        : GraphicsEngine::LoadingPhase::WAITING_FOR_WORLD;
+                    progress = _picoLoadingLastRecovery > 0
+                        ? _picoLoadingSequenceProgress
+                        : _picoLoadingWorldProgress;
+                } else {
+                    _picoLoadingWorldProgress = 0.0f;
+                    _picoLoadingResourceProgress = 0.0f;
+                    _picoLoadingSequenceProgress = 0.0f;
+                    _picoLoadingLastAdvance = loadingNow;
+                    _picoLoadingHasUnavailableVisuals = false;
+                    _picoLoadingWasConnected = false;
+                    const auto connectionTimes = nodeList->getLastConnectionTimes();
+                    if (!connectionTimes.isEmpty()) {
+                        const int latestStep = static_cast<int>(connectionTimes.last());
+                        const int firstStep = static_cast<int>(LimitedNodeList::ConnectionStep::LookupAddress);
+                        const int connectedStep = static_cast<int>(LimitedNodeList::ConnectionStep::ReceiveDSList);
+                        progress = glm::clamp(
+                            static_cast<float>(latestStep - firstStep) / (connectedStep - firstStep), 0.0f, 1.0f);
+                    }
                 }
             } else if (_failedToConnectToEntityServer) {
                 phase = GraphicsEngine::LoadingPhase::WORLD_SERVER_UNAVAILABLE;
@@ -2476,23 +2488,25 @@ void Application::update(float deltaTime) {
                     : 0.0f;
 
                 const bool connectionJustEstablished = !_picoLoadingWasConnected;
-                if (connectionJustEstablished) {
-                    _picoLoadingConnectedAt = loadingNow;
-                }
-                if (connectionJustEstablished ||
-                        glm::abs(worldProgress - _picoLoadingWorldProgress) > 0.005f ||
-                        glm::abs(resourceProgress - _picoLoadingResourceProgress) > 0.005f ||
-                        glm::abs(sequenceProgress - _picoLoadingSequenceProgress) > 0.005f) {
-                    _picoLoadingWorldProgress = worldProgress;
-                    _picoLoadingResourceProgress = resourceProgress;
-                    _picoLoadingSequenceProgress = sequenceProgress;
+                const bool worldAdvanced = worldProgress > _picoLoadingWorldProgress + 0.005f;
+                const bool sequenceAdvanced = sequenceProgress > _picoLoadingSequenceProgress + 0.005f;
+                if (connectionJustEstablished || worldAdvanced || sequenceAdvanced) {
                     _picoLoadingLastAdvance = loadingNow;
                 }
+                _picoLoadingWorldProgress = glm::max(_picoLoadingWorldProgress, worldProgress);
+                _picoLoadingResourceProgress = glm::max(_picoLoadingResourceProgress, resourceProgress);
+                _picoLoadingSequenceProgress = glm::max(_picoLoadingSequenceProgress, sequenceProgress);
                 _picoLoadingWasConnected = true;
                 const bool sceneReceived =
                     _octreeProcessor->getFullSceneReceivedCounter().load() > 0;
+                const bool initialWorldDataReceived = sceneReceived ||
+                    safeLandingStatus.receivedSequenceCount > 0 ||
+                    safeLandingStatus.maximumTrackedEntityCount > 0;
+                if (initialWorldDataReceived && _picoLoadingConnectedAt == 0) {
+                    _picoLoadingConnectedAt = loadingNow;
+                }
                 constexpr quint64 STATUS_CONFIRMATION_TIME = 1500 * USECS_PER_MSEC;
-                const bool showConnectedConfirmation = !sceneReceived && _picoLoadingConnectedAt > 0 &&
+                const bool showConnectedConfirmation = initialWorldDataReceived && _picoLoadingConnectedAt > 0 &&
                     loadingNow - _picoLoadingConnectedAt < STATUS_CONFIRMATION_TIME;
                 const bool showRecoveryConfirmation = _picoLoadingLastRecovery > 0 &&
                     loadingNow - _picoLoadingLastRecovery < STATUS_CONFIRMATION_TIME;
@@ -2502,21 +2516,23 @@ void Application::update(float deltaTime) {
                 } else if (showConnectedConfirmation) {
                     phase = GraphicsEngine::LoadingPhase::CONNECTED;
                     progress = 1.0f;
-                } else if (!sceneReceived) {
-                    phase = GraphicsEngine::LoadingPhase::RECEIVING_WORLD;
-                    progress = 0.0f;
+                } else if (!initialWorldDataReceived) {
+                    phase = _picoLoadingLastRecovery > 0
+                        ? GraphicsEngine::LoadingPhase::RECOVERING_WORLD
+                        : GraphicsEngine::LoadingPhase::CONNECTING;
+                    progress = _picoLoadingLastRecovery > 0 ? _picoLoadingSequenceProgress : 0.95f;
                 } else if (isProcessing) {
                     phase = GraphicsEngine::LoadingPhase::PROCESSING_RESOURCES;
-                    progress = worldProgress;
+                    progress = _picoLoadingWorldProgress;
                 } else if (isDownloading) {
                     phase = GraphicsEngine::LoadingPhase::DOWNLOADING_RESOURCES;
-                    progress = resourceProgress;
+                    progress = _picoLoadingResourceProgress;
                 } else if (isRecoveringWorldPackets) {
                     phase = GraphicsEngine::LoadingPhase::RECOVERING_WORLD;
-                    progress = sequenceProgress;
+                    progress = _picoLoadingSequenceProgress;
                 } else {
                     phase = GraphicsEngine::LoadingPhase::RECEIVING_WORLD;
-                    progress = worldProgress;
+                    progress = _picoLoadingWorldProgress;
                 }
 
                 if (_octreeProcessor->safeLandingIsComplete()) {
@@ -2533,8 +2549,7 @@ void Application::update(float deltaTime) {
                         safeLandingStatus.trackedEntityCount > 0 &&
                         safeLandingStatus.physicsBlockedEntityCount == 0 &&
                         safeLandingStatus.visuallyBlockedEntityCount > 0;
-                    if (_picoLoadingLastRecovery > 0 && onlyFailedVisualsRemain &&
-                            !isDownloading && !isProcessing &&
+                    if (onlyFailedVisualsRemain &&
                             timeWithoutProgress >= WORLD_PROGRESS_RECOVERY_TIME) {
                         qCWarning(interfaceapp) << "Pico world loading continuing past unavailable visual assets"
                             << "entities" << safeLandingStatus.visuallyBlockedEntityCount;
@@ -2542,12 +2557,13 @@ void Application::update(float deltaTime) {
                         _octreeProcessor->stopSafeLanding();
                         phase = GraphicsEngine::LoadingPhase::PREPARING_WORLD;
                         progress = 1.0f;
-                    } else if (timeWithoutProgress >= WORLD_PROGRESS_RECOVERY_TIME &&
-                            loadingNow - _picoLoadingLastRecovery >= WORLD_PROGRESS_RECOVERY_TIME) {
+                    } else if (_picoLoadingLastRecovery == 0 &&
+                            timeWithoutProgress >= WORLD_PROGRESS_RECOVERY_TIME) {
                         phase = GraphicsEngine::LoadingPhase::RECONNECTING_WORLD;
                         progress = 0.0f;
                         _picoLoadingLastRecovery = loadingNow;
                         _picoLoadingLastAdvance = loadingNow;
+                        _picoLoadingSequenceProgress = 0.0f;
                         qCWarning(interfaceapp) << "Pico world loading stalled; requesting a fresh entity scene"
                             << "tracked" << safeLandingStatus.trackedEntityCount
                             << "maximum" << safeLandingStatus.maximumTrackedEntityCount
@@ -2567,6 +2583,62 @@ void Application::update(float deltaTime) {
                 }
             }
 
+            const int desiredPhase = static_cast<int>(phase);
+            const int connectingPhase = static_cast<int>(GraphicsEngine::LoadingPhase::CONNECTING);
+            const int connectedPhase = static_cast<int>(GraphicsEngine::LoadingPhase::CONNECTED);
+            const int preparingPhase = static_cast<int>(GraphicsEngine::LoadingPhase::PREPARING_WORLD);
+            const int unavailablePhase = static_cast<int>(GraphicsEngine::LoadingPhase::WORLD_SERVER_UNAVAILABLE);
+            const int retryingPhase = static_cast<int>(GraphicsEngine::LoadingPhase::RECONNECTING_WORLD);
+            constexpr quint64 PHASE_DEBOUNCE_TIME = 1500 * USECS_PER_MSEC;
+            const bool waitingForConnection = _picoLoadingDisplayedPhase < 0 ||
+                _picoLoadingDisplayedPhase == static_cast<int>(GraphicsEngine::LoadingPhase::STARTING) ||
+                _picoLoadingDisplayedPhase == connectingPhase;
+            const bool leavingConfirmation =
+                _picoLoadingDisplayedPhase == connectedPhase || _picoLoadingDisplayedPhase == retryingPhase;
+            const bool immediatePhase = (desiredPhase == connectingPhase && waitingForConnection) ||
+                desiredPhase == connectedPhase || desiredPhase == preparingPhase ||
+                desiredPhase == unavailablePhase || desiredPhase == retryingPhase ||
+                leavingConfirmation;
+
+            if (_picoLoadingDisplayedPhase < 0 || immediatePhase) {
+                _picoLoadingDisplayedPhase = desiredPhase;
+                _picoLoadingDisplayedProgress = progress;
+                _picoLoadingCandidatePhase = -1;
+                _picoLoadingCandidatePhaseSince = 0;
+            } else if (desiredPhase == _picoLoadingDisplayedPhase) {
+                _picoLoadingDisplayedProgress = glm::max(_picoLoadingDisplayedProgress, progress);
+                _picoLoadingCandidatePhase = -1;
+                _picoLoadingCandidatePhaseSince = 0;
+            } else if (_picoLoadingCandidatePhase != desiredPhase) {
+                _picoLoadingCandidatePhase = desiredPhase;
+                _picoLoadingCandidatePhaseSince = loadingNow;
+            } else if (loadingNow - _picoLoadingCandidatePhaseSince >= PHASE_DEBOUNCE_TIME) {
+                _picoLoadingDisplayedPhase = desiredPhase;
+                _picoLoadingDisplayedProgress = progress;
+                _picoLoadingCandidatePhase = -1;
+                _picoLoadingCandidatePhaseSince = 0;
+            }
+
+            const int receivingPhase = static_cast<int>(GraphicsEngine::LoadingPhase::RECEIVING_WORLD);
+            const int processingPhase = static_cast<int>(GraphicsEngine::LoadingPhase::PROCESSING_RESOURCES);
+            const int waitingPhase = static_cast<int>(GraphicsEngine::LoadingPhase::WAITING_FOR_WORLD);
+            const int downloadingPhase = static_cast<int>(GraphicsEngine::LoadingPhase::DOWNLOADING_RESOURCES);
+            const int recoveringPhase = static_cast<int>(GraphicsEngine::LoadingPhase::RECOVERING_WORLD);
+            if (_picoLoadingDisplayedPhase == receivingPhase ||
+                    _picoLoadingDisplayedPhase == processingPhase ||
+                    _picoLoadingDisplayedPhase == waitingPhase) {
+                _picoLoadingDisplayedProgress = glm::max(
+                    _picoLoadingDisplayedProgress, _picoLoadingWorldProgress);
+            } else if (_picoLoadingDisplayedPhase == downloadingPhase) {
+                _picoLoadingDisplayedProgress = glm::max(
+                    _picoLoadingDisplayedProgress, _picoLoadingResourceProgress);
+            } else if (_picoLoadingDisplayedPhase == recoveringPhase) {
+                _picoLoadingDisplayedProgress = glm::max(
+                    _picoLoadingDisplayedProgress, _picoLoadingSequenceProgress);
+            }
+
+            phase = static_cast<GraphicsEngine::LoadingPhase>(_picoLoadingDisplayedPhase);
+            progress = _picoLoadingDisplayedProgress;
             _graphicsEngine->setLoadingState(true, phase, progress);
         }
 #endif

@@ -956,6 +956,10 @@ private:
     quint64 _picoLoadingLastAdvance { 0 };
     quint64 _picoLoadingLastRecovery { 0 };
     quint64 _picoLoadingConnectedAt { 0 };
+    quint64 _picoLoadingCandidatePhaseSince { 0 };
+    float _picoLoadingDisplayedProgress { 0.0f };
+    int _picoLoadingDisplayedPhase { -1 };
+    int _picoLoadingCandidatePhase { -1 };
     bool _picoLoadingHasUnavailableVisuals { false };
     bool _picoLoadingWasConnected { false };
 #endif
