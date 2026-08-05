@@ -724,6 +724,10 @@ The receiver mirrors the same geometric constraints: negative bounding-box
 dimensions and zero or negative sensor-to-world scales are rejected before
 replacing the preceding valid state. Host coverage includes zero, a negative
 unit, and the minimum signed wire value for the sensor scale.
+Far-grab output now applies the same finite, non-degenerate matrix validation.
+Invalid individual poses use identity, and the far-grab section is omitted
+when no valid pose remains, allowing the joint section that shares its packet
+to stay decodable. A valid identity-pose control remains present on the wire.
 The rebuilt Android client completed a clean Pico cold start without a native,
 JNI, or packet-validation error.
 The shared six-byte quaternion decoder was hardened as well: byte patterns

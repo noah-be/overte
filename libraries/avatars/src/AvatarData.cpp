@@ -80,7 +80,7 @@ static bool isFiniteQuaternion(const glm::quat& value) {
         std::isfinite(value.y) && std::isfinite(value.z);
 }
 
-static bool isValidSensorToWorldMatrix(const glm::mat4& value) {
+static bool isValidTransformMatrix(const glm::mat4& value) {
     for (int column = 0; column < 4; ++column) {
         for (int row = 0; row < 4; ++row) {
             if (!std::isfinite(value[column][row])) {
@@ -430,7 +430,7 @@ QByteArray AvatarData::toByteArray(AvatarDataDetail dataDetail, quint64 lastSent
             isFiniteVector(_globalBoundingBoxOffset) && _globalBoundingBoxDimensions.x >= 0.0f &&
             _globalBoundingBoxDimensions.y >= 0.0f && _globalBoundingBoxDimensions.z >= 0.0f;
         hasLookAtPosition = hasLookAtPosition && isFiniteVector(_headData->getLookAtPosition());
-        hasSensorToWorldMatrix = hasSensorToWorldMatrix && isValidSensorToWorldMatrix(getSensorToWorldMatrix());
+        hasSensorToWorldMatrix = hasSensorToWorldMatrix && isValidTransformMatrix(getSensorToWorldMatrix());
         hasAvatarLocalPosition = hasAvatarLocalPosition && isFiniteVector(getLocalPosition());
 
         wantedFlags =
@@ -464,18 +464,21 @@ QByteArray AvatarData::toByteArray(AvatarDataDetail dataDetail, quint64 lastSent
     if (wantedFlags & AvatarDataPacket::PACKET_HAS_GRAB_JOINTS) {
         bool leftValid;
         leftFarGrabMatrix = _farGrabLeftMatrixCache.get(leftValid);
+        leftValid = leftValid && isValidTransformMatrix(leftFarGrabMatrix);
         if (!leftValid) {
-            leftFarGrabMatrix = glm::mat4();
+            leftFarGrabMatrix = glm::mat4(1.0f);
         }
         bool rightValid;
         rightFarGrabMatrix = _farGrabRightMatrixCache.get(rightValid);
+        rightValid = rightValid && isValidTransformMatrix(rightFarGrabMatrix);
         if (!rightValid) {
-            rightFarGrabMatrix = glm::mat4();
+            rightFarGrabMatrix = glm::mat4(1.0f);
         }
         bool mouseValid;
         mouseFarGrabMatrix = _farGrabMouseMatrixCache.get(mouseValid);
+        mouseValid = mouseValid && isValidTransformMatrix(mouseFarGrabMatrix);
         if (!mouseValid) {
-            mouseFarGrabMatrix = glm::mat4();
+            mouseFarGrabMatrix = glm::mat4(1.0f);
         }
         if (!(leftValid || rightValid || mouseValid)) {
             wantedFlags &= ~AvatarDataPacket::PACKET_HAS_GRAB_JOINTS;

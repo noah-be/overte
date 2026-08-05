@@ -39,6 +39,7 @@ public:
         _globalBoundingBoxOffset = offset;
     }
     void setOutboundSensorToWorldMatrix(const glm::mat4& matrix) { _sensorToWorldMatrixCache.set(matrix); }
+    void setOutboundFarGrabMatrix(const glm::mat4& matrix) { _farGrabLeftMatrixCache.set(matrix); }
 };
 
 class AvatarDataTests : public QObject {
@@ -65,6 +66,7 @@ private slots:
     void limitAvatarDataBlendshapeCount();
     void sanitizeInvalidBlendshapeEncoding();
     void omitInvalidRawTransformSections();
+    void omitInvalidFarGrabTransform();
     void roundTripSkeletonTrait();
     void limitSkeletonTraitJointCount();
     void rejectMalformedSkeletonTrait();
@@ -489,6 +491,31 @@ void AvatarDataTests::omitInvalidRawTransformSections() {
     memcpy(&flags, packet.constData(), sizeof(flags));
     QCOMPARE(flags & rawTransformFlags, HasFlags(0));
     QVERIFY(flags & PACKET_HAS_JOINT_DATA);
+
+    AvatarData destination;
+    QCOMPARE(destination.parseDataFromBuffer(packet), packet.size());
+    QCOMPARE(destination.getJointCount(), 1);
+}
+
+void AvatarDataTests::omitInvalidFarGrabTransform() {
+    using namespace AvatarDataPacket;
+
+    TestAvatarData validSource;
+    validSource.setJointData(0, glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f));
+    validSource.setOutboundFarGrabMatrix(glm::mat4(1.0f));
+    const auto validPacket = validSource.toByteArrayStateful(AvatarData::SendAllData);
+    HasFlags validFlags;
+    memcpy(&validFlags, validPacket.constData(), sizeof(validFlags));
+    QVERIFY(validFlags & PACKET_HAS_GRAB_JOINTS);
+
+    TestAvatarData invalidSource;
+    invalidSource.setJointData(0, glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f));
+    invalidSource.setOutboundFarGrabMatrix(glm::mat4(0.0f));
+    const auto packet = invalidSource.toByteArrayStateful(AvatarData::SendAllData);
+    HasFlags flags;
+    memcpy(&flags, packet.constData(), sizeof(flags));
+    QVERIFY(flags & PACKET_HAS_JOINT_DATA);
+    QVERIFY(!(flags & PACKET_HAS_GRAB_JOINTS));
 
     AvatarData destination;
     QCOMPARE(destination.parseDataFromBuffer(packet), packet.size());
