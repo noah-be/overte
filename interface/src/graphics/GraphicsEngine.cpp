@@ -438,7 +438,7 @@ void GraphicsEngine::renderLoadingFrame(const gpu::FramebufferPointer& framebuff
     const int eyeWidth = static_cast<int>(framebufferSize.x) / eyeCount;
     const int eyeHeight = static_cast<int>(framebufferSize.y);
     const float eyeAspect = eyeHeight > 0 ? static_cast<float>(eyeWidth) / eyeHeight : 1.0f;
-    constexpr float LOADING_UI_SCALE = 0.5f;
+    constexpr float LOADING_UI_SCALE = 0.25f;
     const float logoWidth = 1.18f * LOADING_UI_SCALE;
     const float logoHeight = logoWidth * eyeAspect * (130.60057f / 497.41665f);
     const auto phase = _loadingPhase.load(std::memory_order_relaxed);
