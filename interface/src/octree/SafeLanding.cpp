@@ -89,7 +89,9 @@ void SafeLanding::deleteTrackedEntity(const EntityItemID& entityID) {
 void SafeLanding::finishSequence(OCTREE_PACKET_SEQUENCE first, OCTREE_PACKET_SEQUENCE last) {
     Locker lock(_lock);
     if (_trackingEntities) {
-        _sequenceStart = first;
+        // An empty initial scene has no first EntityData packet. Represent it
+        // as a zero-length sequence so Safe Landing can still complete.
+        _sequenceStart = first == SafeLanding::INVALID_SEQUENCE ? last : first;
         _sequenceEnd = last;
     }
 }

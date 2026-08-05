@@ -55,9 +55,15 @@ public:
     enum class LoadingPhase {
         STARTING,
         CONNECTING,
-        LOADING_WORLD,
+        CONNECTED,
+        RECEIVING_WORLD,
+        DOWNLOADING_RESOURCES,
+        PROCESSING_RESOURCES,
         PREPARING_WORLD,
-        WAITING_FOR_WORLD
+        WAITING_FOR_WORLD,
+        WORLD_SERVER_UNAVAILABLE,
+        RECONNECTING_WORLD,
+        COUNT
     };
 
     GraphicsEngine();
@@ -171,7 +177,8 @@ private:
 
 #if defined(ANDROID_APP_PICO_INTERFACE)
     void renderLoadingFrame(const gpu::FramebufferPointer& framebuffer, bool isStereo);
-    gpu::TexturePointer makeLoadingStatusTexture(const QString& text) const;
+    gpu::TexturePointer makeLoadingStatusTexture(const QString& title, const QString& detail) const;
+    gpu::TexturePointer makeLoadingProgressTexture(int percentage) const;
 #endif
 
 protected:
@@ -249,10 +256,12 @@ protected:
     std::atomic<LoadingPhase> _loadingPhase { LoadingPhase::STARTING };
     std::atomic<float> _loadingProgress { 0.03f };
     NetworkTexturePointer _loadingLogo;
-    std::array<gpu::TexturePointer, 5> _loadingStatusTextures;
+    std::array<gpu::TexturePointer, static_cast<size_t>(LoadingPhase::COUNT)> _loadingStatusTextures;
+    std::array<gpu::TexturePointer, 101> _loadingProgressTextures;
     int _loadingBackgroundGeometry { -1 };
     int _loadingLogoGeometry { -1 };
     int _loadingStatusGeometry { -1 };
+    int _loadingProgressTextGeometry { -1 };
     int _loadingTrackGeometry { -1 };
     int _loadingProgressGeometry { -1 };
 #endif

@@ -40,6 +40,7 @@
 #include <QFont>
 #include <QImage>
 #include <QPainter>
+#include <cmath>
 #endif
 #include "ui/Stats.h"
 #include "Application.h"
@@ -54,15 +55,48 @@ GraphicsEngine::GraphicsEngine() {
     _loadingLogo = DependencyManager::get<TextureCache>()->getTexture(
         PathUtils::resourcesUrl("images/brand-banner.svg"));
     _loadingStatusTextures[static_cast<size_t>(LoadingPhase::STARTING)] =
-        makeLoadingStatusTexture(QCoreApplication::translate("PicoLoadingScreen", "Starting Overte..."));
+        makeLoadingStatusTexture(
+            QCoreApplication::translate("PicoLoadingScreen", "Starting Overte"),
+            QCoreApplication::translate("PicoLoadingScreen", "Initializing the renderer"));
     _loadingStatusTextures[static_cast<size_t>(LoadingPhase::CONNECTING)] =
-        makeLoadingStatusTexture(QCoreApplication::translate("PicoLoadingScreen", "Connecting to world..."));
-    _loadingStatusTextures[static_cast<size_t>(LoadingPhase::LOADING_WORLD)] =
-        makeLoadingStatusTexture(QCoreApplication::translate("PicoLoadingScreen", "Loading world..."));
+        makeLoadingStatusTexture(
+            QCoreApplication::translate("PicoLoadingScreen", "Connecting to world"),
+            QCoreApplication::translate("PicoLoadingScreen", "Contacting the domain server"));
+    _loadingStatusTextures[static_cast<size_t>(LoadingPhase::CONNECTED)] =
+        makeLoadingStatusTexture(
+            QCoreApplication::translate("PicoLoadingScreen", "Connected"),
+            QCoreApplication::translate("PicoLoadingScreen", "Waiting for initial scene data"));
+    _loadingStatusTextures[static_cast<size_t>(LoadingPhase::RECEIVING_WORLD)] =
+        makeLoadingStatusTexture(
+            QCoreApplication::translate("PicoLoadingScreen", "Receiving world data"),
+            QCoreApplication::translate("PicoLoadingScreen", "Loading nearby entities"));
+    _loadingStatusTextures[static_cast<size_t>(LoadingPhase::DOWNLOADING_RESOURCES)] =
+        makeLoadingStatusTexture(
+            QCoreApplication::translate("PicoLoadingScreen", "Downloading world resources"),
+            QCoreApplication::translate("PicoLoadingScreen", "Models, textures, and collision data"));
+    _loadingStatusTextures[static_cast<size_t>(LoadingPhase::PROCESSING_RESOURCES)] =
+        makeLoadingStatusTexture(
+            QCoreApplication::translate("PicoLoadingScreen", "Processing world resources"),
+            QCoreApplication::translate("PicoLoadingScreen", "Preparing models and collision data"));
     _loadingStatusTextures[static_cast<size_t>(LoadingPhase::PREPARING_WORLD)] =
-        makeLoadingStatusTexture(QCoreApplication::translate("PicoLoadingScreen", "Preparing world..."));
+        makeLoadingStatusTexture(
+            QCoreApplication::translate("PicoLoadingScreen", "Preparing world"),
+            QCoreApplication::translate("PicoLoadingScreen", "Starting physics and simulation"));
     _loadingStatusTextures[static_cast<size_t>(LoadingPhase::WAITING_FOR_WORLD)] =
-        makeLoadingStatusTexture(QCoreApplication::translate("PicoLoadingScreen", "Waiting for world data..."));
+        makeLoadingStatusTexture(
+            QCoreApplication::translate("PicoLoadingScreen", "Waiting for world data"),
+            QCoreApplication::translate("PicoLoadingScreen", "No new scene data received yet"));
+    _loadingStatusTextures[static_cast<size_t>(LoadingPhase::WORLD_SERVER_UNAVAILABLE)] =
+        makeLoadingStatusTexture(
+            QCoreApplication::translate("PicoLoadingScreen", "World server unavailable"),
+            QCoreApplication::translate("PicoLoadingScreen", "Waiting for the entity server"));
+    _loadingStatusTextures[static_cast<size_t>(LoadingPhase::RECONNECTING_WORLD)] =
+        makeLoadingStatusTexture(
+            QCoreApplication::translate("PicoLoadingScreen", "Reconnecting world data"),
+            QCoreApplication::translate("PicoLoadingScreen", "Restarting the entity data stream"));
+    for (int percentage = 0; percentage <= 100; ++percentage) {
+        _loadingProgressTextures[percentage] = makeLoadingProgressTexture(percentage);
+    }
 #endif
 }
 
@@ -121,6 +155,7 @@ void GraphicsEngine::initializeRender() {
     _loadingBackgroundGeometry = geometryCache->allocateID();
     _loadingLogoGeometry = geometryCache->allocateID();
     _loadingStatusGeometry = geometryCache->allocateID();
+    _loadingProgressTextGeometry = geometryCache->allocateID();
     _loadingTrackGeometry = geometryCache->allocateID();
     _loadingProgressGeometry = geometryCache->allocateID();
 #endif
@@ -145,6 +180,7 @@ void GraphicsEngine::shutdown() {
         geometryCache->releaseID(_loadingBackgroundGeometry);
         geometryCache->releaseID(_loadingLogoGeometry);
         geometryCache->releaseID(_loadingStatusGeometry);
+        geometryCache->releaseID(_loadingProgressTextGeometry);
         geometryCache->releaseID(_loadingTrackGeometry);
         geometryCache->releaseID(_loadingProgressGeometry);
     }
@@ -394,7 +430,7 @@ void GraphicsEngine::editRenderArgs(RenderArgsEditor editor) {
 }
 
 #if defined(ANDROID_APP_PICO_INTERFACE)
-gpu::TexturePointer GraphicsEngine::makeLoadingStatusTexture(const QString& text) const {
+gpu::TexturePointer GraphicsEngine::makeLoadingStatusTexture(const QString& title, const QString& detail) const {
     constexpr int WIDTH = 1024;
     constexpr int HEIGHT = 160;
     QImage image(WIDTH, HEIGHT, QImage::Format_RGBA8888);
@@ -404,11 +440,42 @@ gpu::TexturePointer GraphicsEngine::makeLoadingStatusTexture(const QString& text
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setRenderHint(QPainter::TextAntialiasing);
     QFont font = painter.font();
-    font.setPixelSize(58);
+    font.setPixelSize(50);
     font.setWeight(QFont::DemiBold);
     painter.setFont(font);
     painter.setPen(QColor(240, 245, 250));
-    painter.drawText(image.rect(), Qt::AlignCenter, text);
+    painter.drawText(QRect(0, 0, WIDTH, 94), Qt::AlignHCenter | Qt::AlignBottom, title);
+    font.setPixelSize(32);
+    font.setWeight(QFont::Normal);
+    painter.setFont(font);
+    painter.setPen(QColor(190, 202, 215));
+    painter.drawText(QRect(0, 98, WIDTH, 52), Qt::AlignHCenter | Qt::AlignTop, detail);
+    painter.end();
+
+    auto texture = gpu::Texture::create2D(
+        gpu::Element(gpu::VEC4, gpu::NUINT8, gpu::RGBA), WIDTH, HEIGHT,
+        gpu::Texture::SINGLE_MIP, Sampler(Sampler::FILTER_MIN_MAG_LINEAR, Sampler::WRAP_CLAMP));
+    texture->setStoredMipFormat(gpu::Element(gpu::VEC4, gpu::NUINT8, gpu::RGBA));
+    texture->assignStoredMip(0, image.sizeInBytes(), image.constBits());
+    texture->setImportant(true);
+    return texture;
+}
+
+gpu::TexturePointer GraphicsEngine::makeLoadingProgressTexture(int percentage) const {
+    constexpr int WIDTH = 256;
+    constexpr int HEIGHT = 96;
+    QImage image(WIDTH, HEIGHT, QImage::Format_RGBA8888);
+    image.fill(Qt::transparent);
+
+    QPainter painter(&image);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setRenderHint(QPainter::TextAntialiasing);
+    QFont font = painter.font();
+    font.setPixelSize(48);
+    font.setWeight(QFont::DemiBold);
+    painter.setFont(font);
+    painter.setPen(QColor(210, 219, 229));
+    painter.drawText(image.rect(), Qt::AlignCenter, QString::number(percentage) + QLatin1Char('%'));
     painter.end();
 
     auto texture = gpu::Texture::create2D(
@@ -445,6 +512,7 @@ void GraphicsEngine::renderLoadingFrame(const gpu::FramebufferPointer& framebuff
     const float statusWidth = 1.35f * LOADING_UI_SCALE;
     const float statusHeight = statusWidth * eyeAspect * (160.0f / 1024.0f);
     const float progress = _loadingProgress.load(std::memory_order_relaxed);
+    const int progressPercentage = glm::clamp(static_cast<int>(std::round(progress * 100.0f)), 0, 100);
 
     gpu::doInBatch("PicoLoadingFrame", _gpuContext, [&](gpu::Batch& batch) {
         batch.setFramebuffer(framebuffer);
@@ -497,6 +565,17 @@ void GraphicsEngine::renderLoadingFrame(const gpu::FramebufferPointer& framebuff
                 glm::vec2(-0.5f * TRACK_WIDTH + TRACK_WIDTH * progress,
                           TRACK_Y + 0.5f * TRACK_HEIGHT),
                 glm::vec4(0.40f, 0.40f, 0.67f, 1.0f), _loadingProgressGeometry);
+
+            constexpr float PROGRESS_TEXT_WIDTH = 0.34f * LOADING_UI_SCALE;
+            const float progressTextHeight = PROGRESS_TEXT_WIDTH * eyeAspect * (96.0f / 256.0f);
+            constexpr float PROGRESS_TEXT_Y = -0.53f * LOADING_UI_SCALE;
+            batch.setResourceTexture(0, _loadingProgressTextures[progressPercentage]);
+            geometryCache->renderQuad(
+                batch,
+                glm::vec2(-0.5f * PROGRESS_TEXT_WIDTH, PROGRESS_TEXT_Y - 0.5f * progressTextHeight),
+                glm::vec2(0.5f * PROGRESS_TEXT_WIDTH, PROGRESS_TEXT_Y + 0.5f * progressTextHeight),
+                glm::vec2(0.0f, 1.0f), glm::vec2(1.0f, 0.0f), glm::vec4(1.0f),
+                _loadingProgressTextGeometry);
         }
 
         batch.setResourceTexture(0, nullptr);

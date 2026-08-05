@@ -951,7 +951,9 @@ private:
     bool _physicsEnabled { false };
 #if defined(ANDROID_APP_PICO_INTERFACE)
     float _picoLoadingWorldProgress { 0.0f };
+    float _picoLoadingResourceProgress { 0.0f };
     quint64 _picoLoadingLastAdvance { 0 };
+    quint64 _picoLoadingLastRecovery { 0 };
     bool _picoLoadingWasConnected { false };
 #endif
     // This is needed so that physics do not get re-enabled before safe landing starts when moving from
