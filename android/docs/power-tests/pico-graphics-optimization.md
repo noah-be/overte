@@ -713,6 +713,13 @@ Non-finite outbound blendshape coefficients and the legacy face header's float
 fields now use a zero fallback as well. An encode/decode regression combines
 finite, NaN, and infinite coefficients with a following joint and verifies that
 both sections remain decodable.
+Raw global/local positions, bounding boxes, look-at positions, and
+sensor-to-world matrices are now flagged for transmission only when their
+floating-point values are valid. Bounding-box dimensions must be non-negative,
+and sensor matrices must have finite positive axis scales. A regression first
+verifies that valid versions of all five sections remain present, then makes
+all five invalid and confirms that they are omitted while following joint data
+is still decoded.
 The rebuilt Android client completed a clean Pico cold start without a native,
 JNI, or packet-validation error.
 The shared six-byte quaternion decoder was hardened as well: byte patterns

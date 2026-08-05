@@ -31,6 +31,16 @@ AvatarSkeletonTrait::UnpackedJointData skeletonJoint(const QString& name, const 
     return joint;
 }
 
+class TestAvatarData : public AvatarData {
+public:
+    void setOutboundGlobalPosition(const glm::vec3& position) { _globalPosition = position; }
+    void setOutboundBoundingBox(const glm::vec3& dimensions, const glm::vec3& offset) {
+        _globalBoundingBoxDimensions = dimensions;
+        _globalBoundingBoxOffset = offset;
+    }
+    void setOutboundSensorToWorldMatrix(const glm::mat4& matrix) { _sensorToWorldMatrixCache.set(matrix); }
+};
+
 class AvatarDataTests : public QObject {
     Q_OBJECT
 
@@ -52,6 +62,7 @@ private slots:
     void limitAvatarDataJointCount();
     void limitAvatarDataBlendshapeCount();
     void sanitizeInvalidBlendshapeEncoding();
+    void omitInvalidRawTransformSections();
     void roundTripSkeletonTrait();
     void limitSkeletonTraitJointCount();
     void rejectMalformedSkeletonTrait();
@@ -409,6 +420,45 @@ void AvatarDataTests::sanitizeInvalidBlendshapeEncoding() {
     AvatarData destination;
     QCOMPARE(destination.parseDataFromBuffer(packet), packet.size());
     QCOMPARE(destination.getHeadData()->getBlendshapeCoefficients(), QVector<float>({ 0.5f, 0.0f, 0.0f }));
+    QCOMPARE(destination.getJointCount(), 1);
+}
+
+void AvatarDataTests::omitInvalidRawTransformSections() {
+    using namespace AvatarDataPacket;
+    const HasFlags rawTransformFlags = PACKET_HAS_AVATAR_GLOBAL_POSITION | PACKET_HAS_AVATAR_BOUNDING_BOX |
+        PACKET_HAS_LOOK_AT_POSITION | PACKET_HAS_SENSOR_TO_WORLD_MATRIX | PACKET_HAS_AVATAR_LOCAL_POSITION;
+
+    TestAvatarData validSource;
+    validSource.toByteArrayStateful(AvatarData::NoData); // Lazily create HeadData.
+    validSource.setOutboundGlobalPosition(glm::vec3(1.0f));
+    validSource.setOutboundBoundingBox(glm::vec3(1.0f), glm::vec3(0.0f));
+    validSource.setLookAtPosition(glm::vec3(1.0f));
+    validSource.setOutboundSensorToWorldMatrix(glm::mat4(1.0f));
+    validSource.setParentID(QUuid::createUuid());
+    validSource.setLocalPosition(glm::vec3(1.0f));
+    const auto validPacket = validSource.toByteArrayStateful(AvatarData::SendAllData);
+    HasFlags validFlags;
+    memcpy(&validFlags, validPacket.constData(), sizeof(validFlags));
+    QCOMPARE(validFlags & rawTransformFlags, rawTransformFlags);
+
+    TestAvatarData source;
+    source.toByteArrayStateful(AvatarData::NoData); // Lazily create HeadData.
+    source.setOutboundGlobalPosition(glm::vec3(std::numeric_limits<float>::infinity()));
+    source.setOutboundBoundingBox(glm::vec3(-1.0f), glm::vec3(0.0f));
+    source.setLookAtPosition(glm::vec3(std::numeric_limits<float>::quiet_NaN()));
+    source.setOutboundSensorToWorldMatrix(glm::mat4(0.0f));
+    source.setParentID(QUuid::createUuid());
+    source.setLocalPosition(glm::vec3(std::numeric_limits<float>::infinity()));
+    source.setJointData(0, glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f));
+
+    const auto packet = source.toByteArrayStateful(AvatarData::SendAllData);
+    HasFlags flags;
+    memcpy(&flags, packet.constData(), sizeof(flags));
+    QCOMPARE(flags & rawTransformFlags, HasFlags(0));
+    QVERIFY(flags & PACKET_HAS_JOINT_DATA);
+
+    AvatarData destination;
+    QCOMPARE(destination.parseDataFromBuffer(packet), packet.size());
     QCOMPARE(destination.getJointCount(), 1);
 }
 

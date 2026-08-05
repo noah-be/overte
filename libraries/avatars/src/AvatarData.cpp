@@ -80,6 +80,19 @@ static bool isFiniteQuaternion(const glm::quat& value) {
         std::isfinite(value.y) && std::isfinite(value.z);
 }
 
+static bool isValidSensorToWorldMatrix(const glm::mat4& value) {
+    for (int column = 0; column < 4; ++column) {
+        for (int row = 0; row < 4; ++row) {
+            if (!std::isfinite(value[column][row])) {
+                return false;
+            }
+        }
+    }
+
+    const glm::vec3 scale = extractScale(value);
+    return isFiniteVector(scale) && scale.x > 0.0f && scale.y > 0.0f && scale.z > 0.0f;
+}
+
 #define ASSERT(COND)  do { if (!(COND)) { abort(); } } while(0)
 
 STATIC_SCRIPT_TYPES_INITIALIZER((+[](ScriptManager* manager) {
@@ -408,6 +421,17 @@ QByteArray AvatarData::toByteArray(AvatarDataDetail dataDetail, quint64 lastSent
             hasJointData = !sendMinimum;
             hasJointDefaultPoseFlags = hasJointData;
         }
+
+        // Raw floating-point sections are rejected by the receiver when
+        // malformed. Omit an invalid section here so it cannot prevent later
+        // valid sections in the same packet from being decoded.
+        hasAvatarGlobalPosition = hasAvatarGlobalPosition && isFiniteVector(_globalPosition);
+        hasAvatarBoundingBox = hasAvatarBoundingBox && isFiniteVector(_globalBoundingBoxDimensions) &&
+            isFiniteVector(_globalBoundingBoxOffset) && _globalBoundingBoxDimensions.x >= 0.0f &&
+            _globalBoundingBoxDimensions.y >= 0.0f && _globalBoundingBoxDimensions.z >= 0.0f;
+        hasLookAtPosition = hasLookAtPosition && isFiniteVector(_headData->getLookAtPosition());
+        hasSensorToWorldMatrix = hasSensorToWorldMatrix && isValidSensorToWorldMatrix(getSensorToWorldMatrix());
+        hasAvatarLocalPosition = hasAvatarLocalPosition && isFiniteVector(getLocalPosition());
 
         wantedFlags =
             (hasAvatarGlobalPosition ? AvatarDataPacket::PACKET_HAS_AVATAR_GLOBAL_POSITION : 0)
