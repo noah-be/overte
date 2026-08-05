@@ -729,6 +729,7 @@ install_apk() {
     "$adb" -s "$serial" shell am start -W \
         -a android.intent.action.MAIN \
         -c android.intent.category.LAUNCHER \
+        --es args "--display=OpenXR --url file:///~/serverless/tutorial.json" \
         -n org.overte.pico/.PermissionsActivity
     "$adb" -s "$serial" shell pidof org.overte.pico >/dev/null \
         || fail "the APK was installed, but org.overte.pico did not stay running"
