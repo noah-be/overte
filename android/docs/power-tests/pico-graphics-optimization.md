@@ -702,6 +702,10 @@ rotation-accuracy tests and new malformed-extreme tests both pass. The matching
 encoder now normalizes finite inputs and substitutes identity for zero-length
 or non-finite rotations; its invalid-input roundtrips are covered as well. The
 same guarded normalization is shared by the legacy eight-byte encoder.
+The shared signed fixed-point encoder similarly maps non-finite scalar and
+vector components to zero before integer conversion. Its radix scaling now
+uses a bounded floating-point exponent instead of a potentially undefined
+integer shift, with direct scalar and mixed-vector regression coverage.
 The underlying `ReceivedMessage` API now clamps copied and zero-copy reads and
 seek positions to the actual message bounds, including string payloads with a
 truncated length or body. Bulk avatar parsing additionally rejects incomplete

@@ -59,6 +59,28 @@ void GLMHelpersTests::testEulerDecomposition() {
     }
 }
 
+void GLMHelpersTests::testInvalidFixedPointInput() {
+    const std::array<float, 3> invalidInputs {{
+        std::numeric_limits<float>::quiet_NaN(),
+        std::numeric_limits<float>::infinity(),
+        -std::numeric_limits<float>::infinity()
+    }};
+    for (float input : invalidInputs) {
+        uint8_t bytes[2];
+        float result;
+        packFloatScalarToSignedTwoByteFixed(bytes, input, 14);
+        unpackFloatScalarFromSignedTwoByteFixed(reinterpret_cast<const int16_t*>(bytes), &result, 14);
+        QCOMPARE(result, 0.0f);
+    }
+
+    uint8_t bytes[6];
+    glm::vec3 result;
+    packFloatVec3ToSignedTwoByteFixed(bytes,
+        glm::vec3(0.5f, std::numeric_limits<float>::quiet_NaN(), -0.5f), 14);
+    unpackFloatVec3FromSignedTwoByteFixed(bytes, result, 14);
+    QCOMPARE(result, glm::vec3(0.5f, 0.0f, -0.5f));
+}
+
 static void testQuatCompression(glm::quat testQuat) {
 
     float MAX_COMPONENT_ERROR = 4.3e-5f;
