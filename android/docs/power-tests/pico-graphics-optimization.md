@@ -699,6 +699,11 @@ The shared six-byte quaternion decoder was hardened as well: byte patterns
 whose three stored components fall outside the unit sphere are projected onto
 it instead of taking the square root of a negative remainder. Existing
 rotation-accuracy tests and new malformed-extreme tests both pass.
+The underlying `ReceivedMessage` API now clamps copied and zero-copy reads and
+seek positions to the actual message bounds, including string payloads with a
+truncated length or body. Bulk avatar parsing additionally rejects incomplete
+UUID/header tails and records whose parser length cannot make valid progress.
+Dedicated networking tests cover these boundary conditions.
 
 A later avatar-load validation exposed transient non-finite absolute joint
 poses while a fallback rig was initialized. Matrix decomposition in

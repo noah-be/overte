@@ -254,8 +254,19 @@ void AvatarHashMap::processAvatarDataPacket(QSharedPointer<ReceivedMessage> mess
     PerformanceTimer perfTimer("receiveAvatar");
     // enumerate over all of the avatars in this packet
     // only add them if mixerWeakPointer points to something (meaning that mixer is still around)
-    while (message->getBytesLeftToRead()) {
+    while (message->getBytesLeftToRead() >= static_cast<qint64>(AvatarDataPacket::MIN_BULK_PACKET_SIZE)) {
+        const qint64 positionBeforeAvatar = message->getPosition();
         parseAvatarData(message, sendingNode);
+        if (message->getPosition() <= positionBeforeAvatar) {
+            qCWarning(avatars) << "Discarding bulk avatar packet after parser made no progress";
+            message->seek(message->getSize());
+            return;
+        }
+    }
+    if (message->getBytesLeftToRead() > 0) {
+        qCWarning(avatars) << "Discarding" << message->getBytesLeftToRead()
+                           << "trailing bytes from truncated bulk avatar packet";
+        message->seek(message->getSize());
     }
 }
 
@@ -305,6 +316,12 @@ AvatarSharedPointer AvatarHashMap::parseAvatarData(QSharedPointer<ReceivedMessag
         
         // have the matching (or new) avatar parse the data from the packet
         int bytesRead = avatar->parseDataFromBuffer(byteArray);
+        if (bytesRead <= 0 || bytesRead > byteArray.size()) {
+            qCWarning(avatars) << "Discarding invalid avatar record length" << bytesRead
+                               << "with" << byteArray.size() << "bytes available";
+            message->seek(message->getSize());
+            return avatar;
+        }
         message->seek(positionBeforeRead + bytesRead);
         _replicas.parseDataFromBuffer(sessionUUID, byteArray);
         

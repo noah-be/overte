@@ -22,6 +22,10 @@ static const int HEAD_DATA_SIZE = 512;
 
 using namespace std::chrono;
 
+static qint64 boundedReadSize(qint64 requestedSize, qint64 availableSize) {
+    return std::max<qint64>(0, std::min(requestedSize, availableSize));
+}
+
 ReceivedMessage::ReceivedMessage(const NLPacketList& packetList)
     : _data(packetList.getMessage()),
       _headData(_data.mid(0, HEAD_DATA_SIZE)),
@@ -95,41 +99,46 @@ void ReceivedMessage::appendPacket(NLPacket& packet) {
 }
 
 qint64 ReceivedMessage::peek(char* data, qint64 size) {
-    size_t bytesLeft = _data.size() - _position;
-    size_t sizeRead = std::min((size_t)size, bytesLeft);
-    memcpy(data, _data.constData() + _position, sizeRead);
+    qint64 sizeRead = boundedReadSize(size, getBytesLeftToRead());
+    if (sizeRead > 0) {
+        memcpy(data, _data.constData() + _position, sizeRead);
+    }
     return sizeRead;
 }
 
 qint64 ReceivedMessage::read(char* data, qint64 size) {
-    size_t bytesLeft = _data.size() - _position;
-    size_t sizeRead = std::min((size_t)size, bytesLeft);
-    memcpy(data, _data.constData() + _position, sizeRead);
+    qint64 sizeRead = boundedReadSize(size, getBytesLeftToRead());
+    if (sizeRead > 0) {
+        memcpy(data, _data.constData() + _position, sizeRead);
+    }
     _position += sizeRead;
     return sizeRead;
 }
 
 qint64 ReceivedMessage::readHead(char* data, qint64 size) {
-    size_t bytesLeft = _headData.size() - _position;
-    size_t sizeRead = std::min((size_t)size, bytesLeft);
-    memcpy(data, _headData.constData() + _position, sizeRead);
+    qint64 sizeRead = boundedReadSize(size, _headData.size() - _position);
+    if (sizeRead > 0) {
+        memcpy(data, _headData.constData() + _position, sizeRead);
+    }
     _position += sizeRead;
     return sizeRead;
 }
 
 QByteArray ReceivedMessage::peek(qint64 size) {
-    return _data.mid(_position, size);
+    return _data.mid(_position, boundedReadSize(size, getBytesLeftToRead()));
 }
 
 QByteArray ReceivedMessage::read(qint64 size) {
-    auto data = _data.mid(_position, size);
-    _position += size;
+    qint64 sizeRead = boundedReadSize(size, getBytesLeftToRead());
+    auto data = _data.mid(_position, sizeRead);
+    _position += sizeRead;
     return data;
 }
 
 QByteArray ReceivedMessage::readHead(qint64 size) {
-    auto data = _headData.mid(_position, size);
-    _position += size;
+    qint64 sizeRead = boundedReadSize(size, _headData.size() - _position);
+    auto data = _headData.mid(_position, sizeRead);
+    _position += sizeRead;
     return data;
 }
 
@@ -138,18 +147,22 @@ QByteArray ReceivedMessage::readAll() {
 }
 
 QString ReceivedMessage::readString() {
-    uint32_t size;
-    readPrimitive(&size);
-    //Q_ASSERT(size <= _size - _position);
-    auto string = QString::fromUtf8(_data.constData() + _position, size);
-    _position += size;
-    return string;
+    uint32_t size { 0 };
+    if (readPrimitive(&size) != sizeof(size)) {
+        return {};
+    }
+    return QString::fromUtf8(readWithoutCopy(size));
 }
 
 QByteArray ReceivedMessage::readWithoutCopy(qint64 size) {
-    QByteArray data { QByteArray::fromRawData(_data.constData() + _position, size) };
-    _position += size;
+    qint64 sizeRead = boundedReadSize(size, getBytesLeftToRead());
+    QByteArray data { QByteArray::fromRawData(_data.constData() + _position, sizeRead) };
+    _position += sizeRead;
     return data;
+}
+
+void ReceivedMessage::seek(qint64 position) {
+    _position = std::max<qint64>(0, std::min(position, static_cast<qint64>(_data.size())));
 }
 
 void ReceivedMessage::onComplete() {
