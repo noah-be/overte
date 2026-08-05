@@ -3,6 +3,7 @@
 
 #include <QtTest/QtTest>
 
+#include <cmath>
 #include <cstring>
 #include <limits>
 
@@ -15,6 +16,18 @@ QByteArray packetWithSection(AvatarDataPacket::HasFlags flags, const Section& se
     memcpy(packet.data(), &flags, sizeof(flags));
     memcpy(packet.data() + sizeof(flags), &section, sizeof(section));
     return packet;
+}
+
+AvatarSkeletonTrait::UnpackedJointData skeletonJoint(const QString& name, const glm::vec3& translation,
+                                                     float scale, int boneType) {
+    AvatarSkeletonTrait::UnpackedJointData joint {};
+    joint.jointName = name;
+    joint.defaultTranslation = translation;
+    joint.defaultRotation = Quaternions::IDENTITY;
+    joint.defaultScale = scale;
+    joint.boneType = boneType;
+    joint.parentIndex = boneType == AvatarSkeletonTrait::BoneType::SkeletonRoot ? -1 : 0;
+    return joint;
 }
 
 class AvatarDataTests : public QObject {
@@ -31,6 +44,9 @@ private slots:
     void rejectNonFiniteLocalPosition();
     void rejectNonFiniteFaceCoefficient();
     void rejectNonFiniteFarGrabTransform();
+    void roundTripSkeletonTrait();
+    void limitSkeletonTraitJointCount();
+    void rejectMalformedSkeletonTrait();
 };
 
 void AvatarDataTests::parseTruncatedFlags() {
@@ -169,6 +185,102 @@ void AvatarDataTests::rejectNonFiniteFarGrabTransform() {
     QVERIFY(!avatar.isJointDataValid(FARGRAB_LEFTHAND_INDEX));
     QVERIFY(!avatar.isJointDataValid(FARGRAB_RIGHTHAND_INDEX));
     QVERIFY(!avatar.isJointDataValid(FARGRAB_MOUSE_INDEX));
+}
+
+void AvatarDataTests::roundTripSkeletonTrait() {
+    const QString firstName = QString::fromUtf8("Hüfte");
+    const QString secondName = QString::fromUtf8("右手");
+    const QString invalidName = QStringLiteral("invalid");
+    auto invalidJoint = skeletonJoint(invalidName,
+        glm::vec3(std::numeric_limits<float>::quiet_NaN()), std::numeric_limits<float>::infinity(),
+        AvatarSkeletonTrait::BoneType::SkeletonChild);
+    invalidJoint.defaultRotation = glm::quat(0.0f, 0.0f, 0.0f, 0.0f);
+    std::vector<AvatarSkeletonTrait::UnpackedJointData> sourceJoints {
+        skeletonJoint(firstName, glm::vec3(-0.25f, -2.0f, -0.5f), 0.0f,
+            AvatarSkeletonTrait::BoneType::SkeletonRoot),
+        skeletonJoint(secondName, glm::vec3(0.5f, 1.0f, -1.5f), 0.5f,
+            AvatarSkeletonTrait::BoneType::SkeletonChild),
+        invalidJoint
+    };
+    AvatarData source;
+    source.setSkeletonData(sourceJoints);
+
+    const QByteArray packed = source.packTrait(AvatarTraits::SkeletonData);
+    AvatarSkeletonTrait::Header header;
+    memcpy(&header, packed.constData(), sizeof(header));
+    QCOMPARE(header.numJoints, uint8_t(3));
+    QCOMPARE(header.maxTranslationDimension, 2.0f);
+    QCOMPARE(header.maxScaleDimension, 1.0f);
+    QCOMPARE(header.stringTableLength,
+        uint16_t(firstName.toUtf8().size() + secondName.toUtf8().size() + invalidName.toUtf8().size()));
+
+    AvatarData destination;
+    destination.processTrait(AvatarTraits::SkeletonData, packed);
+    const auto result = destination.getSkeletonData();
+    QCOMPARE(result.size(), size_t(3));
+    QCOMPARE(result[0].jointName, firstName);
+    QCOMPARE(result[1].jointName, secondName);
+    QVERIFY(std::abs(result[0].defaultTranslation.x + 0.25f) < 2.0e-4f);
+    QVERIFY(std::abs(result[0].defaultTranslation.y + 2.0f) < 2.0e-4f);
+    QVERIFY(std::abs(result[0].defaultTranslation.z + 0.5f) < 2.0e-4f);
+    QVERIFY(std::abs(result[0].defaultScale - 1.0f) < 3.0e-4f);
+    QVERIFY(std::abs(result[1].defaultScale - 0.5f) < 2.0e-4f);
+    QCOMPARE(result[2].jointName, invalidName);
+    QCOMPARE(result[2].defaultTranslation, glm::vec3(0.0f));
+    QVERIFY(std::abs(result[2].defaultScale - 1.0f) < 3.0e-4f);
+    QVERIFY(std::abs(glm::dot(result[2].defaultRotation, Quaternions::IDENTITY)) > 1.0f - 1.0e-6f);
+}
+
+void AvatarDataTests::limitSkeletonTraitJointCount() {
+    std::vector<AvatarSkeletonTrait::UnpackedJointData> sourceJoints;
+    for (int i = 0; i < 300; ++i) {
+        sourceJoints.push_back(skeletonJoint(QString(), glm::vec3(0.0f), 1.0f,
+            i == 0 ? AvatarSkeletonTrait::BoneType::SkeletonRoot : AvatarSkeletonTrait::BoneType::SkeletonChild));
+    }
+    AvatarData source;
+    source.setSkeletonData(sourceJoints);
+
+    const QByteArray packed = source.packTrait(AvatarTraits::SkeletonData);
+    AvatarSkeletonTrait::Header header;
+    memcpy(&header, packed.constData(), sizeof(header));
+    QCOMPARE(header.numJoints, std::numeric_limits<uint8_t>::max());
+    QCOMPARE(packed.size(), static_cast<int>(sizeof(header) +
+        size_t(header.numJoints) * sizeof(AvatarSkeletonTrait::JointData)));
+
+    AvatarData destination;
+    destination.processTrait(AvatarTraits::SkeletonData, packed);
+    QCOMPARE(destination.getSkeletonData().size(), size_t(std::numeric_limits<uint8_t>::max()));
+}
+
+void AvatarDataTests::rejectMalformedSkeletonTrait() {
+    AvatarData source;
+    source.setSkeletonData({ skeletonJoint(QStringLiteral("joint"), glm::vec3(1.0f), 1.0f,
+        AvatarSkeletonTrait::BoneType::SkeletonRoot) });
+    const QByteArray packed = source.packTrait(AvatarTraits::SkeletonData);
+
+    AvatarData destination;
+    const auto sentinel = skeletonJoint(QStringLiteral("sentinel"), glm::vec3(0.0f), 1.0f,
+        AvatarSkeletonTrait::BoneType::SkeletonRoot);
+    destination.setSkeletonData({ sentinel });
+    for (int size = 0; size < packed.size(); ++size) {
+        destination.processTrait(AvatarTraits::SkeletonData, packed.left(size));
+        const auto unchanged = destination.getSkeletonData();
+        QCOMPARE(unchanged.size(), size_t(1));
+        QCOMPARE(unchanged[0].jointName, sentinel.jointName);
+    }
+
+    QByteArray malformed = packed;
+    auto jointData = reinterpret_cast<AvatarSkeletonTrait::JointData*>(
+        malformed.data() + sizeof(AvatarSkeletonTrait::Header));
+    jointData->stringStart = std::numeric_limits<uint16_t>::max();
+    destination.processTrait(AvatarTraits::SkeletonData, malformed);
+    QCOMPARE(destination.getSkeletonData()[0].jointName, sentinel.jointName);
+
+    malformed = packed;
+    auto header = reinterpret_cast<AvatarSkeletonTrait::Header*>(malformed.data());
+    header->maxTranslationDimension = std::numeric_limits<float>::quiet_NaN();
+    destination.processTrait(AvatarTraits::SkeletonData, malformed);
+    QCOMPARE(destination.getSkeletonData()[0].jointName, sentinel.jointName);
 }
 
 QTEST_MAIN(AvatarDataTests)

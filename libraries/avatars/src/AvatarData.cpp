@@ -14,9 +14,11 @@
 
 #include "AvatarData.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <stdint.h>
 
 #include <QtCore/QDataStream>
@@ -2168,21 +2170,43 @@ QByteArray AvatarData::packSkeletonData() const {
     int avatarDataSize = 0;
     QByteArray avatarDataByteArray;
     _avatarSkeletonDataLock.withReadLock([&] {
-        // Add header
-        AvatarSkeletonTrait::Header header;
-        header.maxScaleDimension = 0.0f;
-        header.maxTranslationDimension = 0.0f;
-        header.numJoints = (uint8_t)_avatarSkeletonData.size();
-        header.stringTableLength = 0;
+        const size_t jointCount = std::min(_avatarSkeletonData.size(),
+            static_cast<size_t>(std::numeric_limits<uint8_t>::max()));
+        AvatarSkeletonTrait::Header header {};
+        header.numJoints = static_cast<uint8_t>(jointCount);
 
-        for (size_t i = 0; i < _avatarSkeletonData.size(); i++) {
-            header.stringTableLength += (uint16_t)_avatarSkeletonData[i].jointName.size();
-            auto& translation = _avatarSkeletonData[i].defaultTranslation;
-            header.maxTranslationDimension = std::max(header.maxTranslationDimension, std::max(std::max(translation.x, translation.y), translation.z));
-            header.maxScaleDimension = std::max(header.maxScaleDimension, _avatarSkeletonData[i].defaultScale);
+        QByteArray stringTable;
+        std::vector<QByteArray> encodedJointNames;
+        encodedJointNames.reserve(jointCount);
+        for (size_t i = 0; i < jointCount; ++i) {
+            const auto& sourceJoint = _avatarSkeletonData[i];
+            QByteArray encodedName = sourceJoint.jointName.toUtf8();
+            const int remainingStringBytes = std::numeric_limits<uint16_t>::max() - stringTable.size();
+            if (encodedName.size() > std::numeric_limits<uint8_t>::max() || encodedName.size() > remainingStringBytes) {
+                encodedName.clear();
+            }
+            stringTable.append(encodedName);
+            encodedJointNames.push_back(encodedName);
+
+            if (isFiniteVector(sourceJoint.defaultTranslation)) {
+                const auto absoluteTranslation = glm::abs(sourceJoint.defaultTranslation);
+                header.maxTranslationDimension = std::max(header.maxTranslationDimension,
+                    std::max(absoluteTranslation.x, std::max(absoluteTranslation.y, absoluteTranslation.z)));
+            }
+            const float scale = std::isfinite(sourceJoint.defaultScale) && sourceJoint.defaultScale > 0.0f ?
+                sourceJoint.defaultScale : 1.0f;
+            header.maxScaleDimension = std::max(header.maxScaleDimension, scale);
         }
+        if (header.maxTranslationDimension <= 0.0f) {
+            header.maxTranslationDimension = 1.0f;
+        }
+        if (header.maxScaleDimension <= 0.0f) {
+            header.maxScaleDimension = 1.0f;
+        }
+        header.stringTableLength = static_cast<uint16_t>(stringTable.size());
 
-        const int byteArraySize = (int)sizeof(AvatarSkeletonTrait::Header) + (int)(header.numJoints * sizeof(AvatarSkeletonTrait::JointData)) + header.stringTableLength;
+        const int byteArraySize = static_cast<int>(sizeof(AvatarSkeletonTrait::Header) +
+            jointCount * sizeof(AvatarSkeletonTrait::JointData) + stringTable.size());
         avatarDataByteArray = QByteArray(byteArraySize, 0);
         unsigned char* destinationBuffer = reinterpret_cast<unsigned char*>(avatarDataByteArray.data());
         const unsigned char* const startPosition = destinationBuffer;
@@ -2190,23 +2214,29 @@ QByteArray AvatarData::packSkeletonData() const {
         memcpy(destinationBuffer, &header, sizeof(header));
         destinationBuffer += sizeof(AvatarSkeletonTrait::Header);
 
-        QString stringTable = "";
-        for (size_t i = 0; i < _avatarSkeletonData.size(); i++) {
-            AvatarSkeletonTrait::JointData jdata;
-            jdata.boneType = _avatarSkeletonData[i].boneType;
-            jdata.parentIndex = _avatarSkeletonData[i].parentIndex;
-            packFloatRatioToTwoByte((uint8_t*)(&jdata.defaultScale), _avatarSkeletonData[i].defaultScale / header.maxScaleDimension);
-            packOrientationQuatToSixBytes(jdata.defaultRotation, _avatarSkeletonData[i].defaultRotation);
-            packFloatVec3ToSignedTwoByteFixed(jdata.defaultTranslation, _avatarSkeletonData[i].defaultTranslation / header.maxTranslationDimension, TRANSLATION_COMPRESSION_RADIX);
-            jdata.jointIndex = (uint16_t)i;
-            jdata.stringStart = (uint16_t)_avatarSkeletonData[i].stringStart;
-            jdata.stringLength = (uint8_t)_avatarSkeletonData[i].stringLength;
-            stringTable += _avatarSkeletonData[i].jointName;
+        uint16_t stringStart = 0;
+        for (size_t i = 0; i < jointCount; ++i) {
+            const auto& sourceJoint = _avatarSkeletonData[i];
+            AvatarSkeletonTrait::JointData jdata {};
+            jdata.boneType = sourceJoint.boneType;
+            jdata.parentIndex = sourceJoint.parentIndex;
+            const float scale = std::isfinite(sourceJoint.defaultScale) && sourceJoint.defaultScale > 0.0f ?
+                sourceJoint.defaultScale : 1.0f;
+            const glm::vec3 translation = isFiniteVector(sourceJoint.defaultTranslation) ?
+                sourceJoint.defaultTranslation : glm::vec3(0.0f);
+            packFloatRatioToTwoByte(reinterpret_cast<uint8_t*>(&jdata.defaultScale), scale / header.maxScaleDimension);
+            packOrientationQuatToSixBytes(jdata.defaultRotation, sourceJoint.defaultRotation);
+            packFloatVec3ToSignedTwoByteFixed(jdata.defaultTranslation,
+                translation / header.maxTranslationDimension, TRANSLATION_COMPRESSION_RADIX);
+            jdata.jointIndex = static_cast<uint16_t>(i);
+            jdata.stringStart = stringStart;
+            jdata.stringLength = static_cast<uint8_t>(encodedJointNames[i].size());
+            stringStart += jdata.stringLength;
             memcpy(destinationBuffer, &jdata, sizeof(AvatarSkeletonTrait::JointData));
             destinationBuffer += sizeof(AvatarSkeletonTrait::JointData);
         }
 
-        memcpy(destinationBuffer, stringTable.toUtf8(), header.stringTableLength);
+        memcpy(destinationBuffer, stringTable.constData(), header.stringTableLength);
         destinationBuffer += header.stringTableLength;
 
         avatarDataSize = destinationBuffer - startPosition;
@@ -2219,35 +2249,56 @@ QByteArray AvatarData::packSkeletonModelURL() const {
 }
 
 void AvatarData::unpackSkeletonData(const QByteArray& data) {
+    if (data.size() < static_cast<int>(sizeof(AvatarSkeletonTrait::Header))) {
+        return;
+    }
 
-    const unsigned char* startPosition = reinterpret_cast<const unsigned char*>(data.data());
-    const unsigned char* sourceBuffer = startPosition;
+    const unsigned char* sourceBuffer = reinterpret_cast<const unsigned char*>(data.constData());
+    AvatarSkeletonTrait::Header header;
+    memcpy(&header, sourceBuffer, sizeof(header));
+    sourceBuffer += sizeof(header);
+    const size_t jointDataSize = static_cast<size_t>(header.numJoints) * sizeof(AvatarSkeletonTrait::JointData);
+    const size_t requiredSize = sizeof(header) + jointDataSize + header.stringTableLength;
+    if (requiredSize > static_cast<size_t>(data.size()) ||
+            !std::isfinite(header.maxTranslationDimension) || header.maxTranslationDimension < 0.0f ||
+            !std::isfinite(header.maxScaleDimension) || header.maxScaleDimension < 0.0f) {
+        return;
+    }
 
-    auto header = reinterpret_cast<const AvatarSkeletonTrait::Header*>(sourceBuffer);
-    sourceBuffer += sizeof(const AvatarSkeletonTrait::Header);
+    const char* stringTable = data.constData() + sizeof(header) + jointDataSize;
 
     std::vector<AvatarSkeletonTrait::UnpackedJointData> joints;
-    for (uint8_t i = 0; i < header->numJoints; i++) {
-        auto jointData = reinterpret_cast<const AvatarSkeletonTrait::JointData*>(sourceBuffer);
-        sourceBuffer += sizeof(const AvatarSkeletonTrait::JointData);
+    joints.reserve(header.numJoints);
+    for (uint8_t i = 0; i < header.numJoints; ++i) {
+        AvatarSkeletonTrait::JointData jointData;
+        memcpy(&jointData, sourceBuffer, sizeof(jointData));
+        sourceBuffer += sizeof(jointData);
+        const size_t stringEnd = static_cast<size_t>(jointData.stringStart) + jointData.stringLength;
+        if (jointData.boneType > AvatarSkeletonTrait::BoneType::NonSkeletonChild ||
+                stringEnd > header.stringTableLength) {
+            return;
+        }
+
         AvatarSkeletonTrait::UnpackedJointData uJointData;
-        uJointData.boneType = (int)jointData->boneType;
+        uJointData.boneType = static_cast<int>(jointData.boneType);
         uJointData.jointIndex = (int)i;
-        uJointData.stringLength = (int)jointData->stringLength;
-        uJointData.stringStart = (int)jointData->stringStart;
+        uJointData.stringLength = static_cast<int>(jointData.stringLength);
+        uJointData.stringStart = static_cast<int>(jointData.stringStart);
         uJointData.parentIndex = ((uJointData.boneType == AvatarSkeletonTrait::BoneType::SkeletonRoot) ||
-                                  (uJointData.boneType == AvatarSkeletonTrait::BoneType::NonSkeletonRoot)) ? -1 : (int)jointData->parentIndex;
-        unpackOrientationQuatFromSixBytes(reinterpret_cast<const unsigned char*>(&jointData->defaultRotation), uJointData.defaultRotation);
-        unpackFloatVec3FromSignedTwoByteFixed(reinterpret_cast<const unsigned char*>(&jointData->defaultTranslation), uJointData.defaultTranslation, TRANSLATION_COMPRESSION_RADIX);
-        unpackFloatRatioFromTwoByte(reinterpret_cast<const unsigned char*>(&jointData->defaultScale), uJointData.defaultScale);
-        uJointData.defaultTranslation *= header->maxTranslationDimension;
-        uJointData.defaultScale *= header->maxScaleDimension;
+                                  (uJointData.boneType == AvatarSkeletonTrait::BoneType::NonSkeletonRoot)) ?
+            -1 : static_cast<int>(jointData.parentIndex);
+        unpackOrientationQuatFromSixBytes(jointData.defaultRotation, uJointData.defaultRotation);
+        unpackFloatVec3FromSignedTwoByteFixed(jointData.defaultTranslation,
+            uJointData.defaultTranslation, TRANSLATION_COMPRESSION_RADIX);
+        unpackFloatRatioFromTwoByte(reinterpret_cast<const unsigned char*>(&jointData.defaultScale), uJointData.defaultScale);
+        uJointData.defaultTranslation *= header.maxTranslationDimension;
+        uJointData.defaultScale *= header.maxScaleDimension;
+        if (!isFiniteVector(uJointData.defaultTranslation) || !isFiniteQuaternion(uJointData.defaultRotation) ||
+                !std::isfinite(uJointData.defaultScale)) {
+            return;
+        }
+        uJointData.jointName = QString::fromUtf8(stringTable + jointData.stringStart, jointData.stringLength);
         joints.push_back(uJointData);
-    }
-    QString table = QString::fromUtf8(reinterpret_cast<const char*>(sourceBuffer), (int)header->stringTableLength);
-    for (size_t i = 0; i < joints.size(); i++) {
-        QStringRef subString(&table, joints[i].stringStart, joints[i].stringLength);
-        joints[i].jointName = subString.toString();
     }
     if (_clientTraitsHandler) {
         _clientTraitsHandler->markTraitUpdated(AvatarTraits::SkeletonData);

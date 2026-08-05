@@ -708,6 +708,15 @@ truncated length or body. Bulk avatar parsing additionally rejects incomplete
 UUID/header tails and records whose parser length cannot make valid progress.
 Dedicated networking tests cover these boundary conditions.
 
+Skeleton traits now receive equivalent boundary handling. Serialization is
+limited to the 255 joints representable by the wire header, derives UTF-8 name
+offsets from the encoded bytes, and substitutes safe transforms for invalid
+joint input. Deserialization verifies the complete joint and string-table
+payload, finite scale headers, bone types, string ranges, and reconstructed
+transforms before replacing the current skeleton. Regression coverage includes
+negative translations, zero and non-finite transforms, non-ASCII names, an
+oversized joint vector, and every truncated prefix of a valid trait.
+
 A later avatar-load validation exposed transient non-finite absolute joint
 poses while a fallback rig was initialized. Matrix decomposition in
 `AnimPose` divided each basis column by its scale even when an axis had
