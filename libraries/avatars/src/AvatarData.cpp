@@ -69,6 +69,15 @@ static const int SENSOR_TO_WORLD_SCALE_RADIX = 10;
 static const float AUDIO_LOUDNESS_SCALE = 1024.0f;
 static const float DEFAULT_AVATAR_DENSITY = 1000.0f; // density of water
 
+static bool isFiniteVector(const glm::vec3& value) {
+    return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
+}
+
+static bool isFiniteQuaternion(const glm::quat& value) {
+    return std::isfinite(value.w) && std::isfinite(value.x) &&
+        std::isfinite(value.y) && std::isfinite(value.z);
+}
+
 #define ASSERT(COND)  do { if (!(COND)) { abort(); } } while(0)
 
 STATIC_SCRIPT_TYPES_INITIALIZER((+[](ScriptManager* manager) {
@@ -1038,7 +1047,14 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
             offset = glm::vec3(row * SPACE_BETWEEN_AVATARS, 0.0f, col * SPACE_BETWEEN_AVATARS);
         }
 
-        _serverPosition = glm::vec3(data->globalPosition[0], data->globalPosition[1], data->globalPosition[2]) + offset;
+        const glm::vec3 globalPosition(data->globalPosition[0], data->globalPosition[1], data->globalPosition[2]);
+        if (!isFiniteVector(globalPosition)) {
+            if (shouldLogError(now)) {
+                qCWarning(avatars) << "Discard AvatarData packet: global position is not finite, uuid" << getSessionUUID();
+            }
+            return buffer.size();
+        }
+        _serverPosition = globalPosition + offset;
         if (_isClientAvatar) {
             auto oneStepDistance = glm::length(_globalPosition - _serverPosition);
             if (oneStepDistance <= AVATAR_TRANSIT_MIN_TRIGGER_DISTANCE || oneStepDistance >= AVATAR_TRANSIT_MAX_TRIGGER_DISTANCE) {
@@ -1074,6 +1090,12 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
         auto newDimensions = glm::vec3(data->avatarDimensions[0], data->avatarDimensions[1], data->avatarDimensions[2]);
         auto newOffset = glm::vec3(data->boundOriginOffset[0], data->boundOriginOffset[1], data->boundOriginOffset[2]);
 
+        if (!isFiniteVector(newDimensions) || !isFiniteVector(newOffset)) {
+            if (shouldLogError(now)) {
+                qCWarning(avatars) << "Discard AvatarData packet: bounding box is not finite, uuid" << getSessionUUID();
+            }
+            return buffer.size();
+        }
 
         if (_globalBoundingBoxDimensions != newDimensions) {
             _globalBoundingBoxDimensions = newDimensions;
@@ -1115,9 +1137,9 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
         auto data = reinterpret_cast<const AvatarDataPacket::AvatarScale*>(sourceBuffer);
         float scale;
         unpackFloatRatioFromTwoByte((uint8_t*)&data->scale, scale);
-        if (isNaN(scale)) {
+        if (!std::isfinite(scale)) {
             if (shouldLogError(now)) {
-                qCWarning(avatars) << "Discard AvatarData packet: scale NaN, uuid " << getSessionUUID();
+                qCWarning(avatars) << "Discard AvatarData packet: scale is not finite, uuid" << getSessionUUID();
             }
             return buffer.size();
         }
@@ -1134,9 +1156,9 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
         PACKET_READ_CHECK(LookAtPosition, sizeof(AvatarDataPacket::LookAtPosition));
         auto data = reinterpret_cast<const AvatarDataPacket::LookAtPosition*>(sourceBuffer);
         glm::vec3 lookAt = glm::vec3(data->lookAtPosition[0], data->lookAtPosition[1], data->lookAtPosition[2]);
-        if (isNaN(lookAt)) {
+        if (!isFiniteVector(lookAt)) {
             if (shouldLogError(now)) {
-                qCWarning(avatars) << "Discard AvatarData packet: lookAtPosition is NaN, uuid " << getSessionUUID();
+                qCWarning(avatars) << "Discard AvatarData packet: look-at position is not finite, uuid" << getSessionUUID();
             }
             return buffer.size();
         }
@@ -1181,6 +1203,13 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
         auto srcSensorToWorldScale = data->sensorToWorldScale;
         unpackFloatScalarFromSignedTwoByteFixed((int16_t*)&srcSensorToWorldScale, &sensorToWorldScale, SENSOR_TO_WORLD_SCALE_RADIX);
         glm::vec3 sensorToWorldTrans(data->sensorToWorldTrans[0], data->sensorToWorldTrans[1], data->sensorToWorldTrans[2]);
+        if (!isFiniteVector(sensorToWorldTrans)) {
+            if (shouldLogError(now)) {
+                qCWarning(avatars) << "Discard AvatarData packet: sensor-to-world translation is not finite, uuid"
+                                   << getSessionUUID();
+            }
+            return buffer.size();
+        }
         glm::mat4 sensorToWorldMatrix = createMatFromScaleQuatAndPos(glm::vec3(sensorToWorldScale), sensorToWorldQuat, sensorToWorldTrans);
         if (_sensorToWorldMatrixCache.get() != sensorToWorldMatrix) {
             _sensorToWorldMatrixCache.set(sensorToWorldMatrix);
@@ -1291,9 +1320,9 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
         PACKET_READ_CHECK(AvatarLocalPosition, sizeof(AvatarDataPacket::AvatarLocalPosition));
         auto data = reinterpret_cast<const AvatarDataPacket::AvatarLocalPosition*>(sourceBuffer);
         glm::vec3 position = glm::vec3(data->localPosition[0], data->localPosition[1], data->localPosition[2]);
-        if (isNaN(position)) {
+        if (!isFiniteVector(position)) {
             if (shouldLogError(now)) {
-                qCWarning(avatars) << "Discard AvatarData packet: position NaN, uuid " << getSessionUUID();
+                qCWarning(avatars) << "Discard AvatarData packet: local position is not finite, uuid" << getSessionUUID();
             }
             return buffer.size();
         }
@@ -1334,6 +1363,17 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
         sourceBuffer += sizeof(AvatarDataPacket::FaceTrackerInfo);
 
         PACKET_READ_CHECK(FaceTrackerCoefficients, coefficientsSize);
+        for (int i = 0; i < storedCoefficients; ++i) {
+            float coefficient;
+            memcpy(&coefficient, sourceBuffer + i * sizeof(float), sizeof(coefficient));
+            if (!std::isfinite(coefficient)) {
+                if (shouldLogError(now)) {
+                    qCWarning(avatars) << "Discard AvatarData packet: face coefficient is not finite, uuid"
+                                       << getSessionUUID();
+                }
+                return buffer.size();
+            }
+        }
         _headData->_blendshapeCoefficients.resize(storedCoefficients);
         //only copy the blendshapes to headData, not the procedural face info
         memcpy(_headData->_blendshapeCoefficients.data(), sourceBuffer, sizeof(float) * storedCoefficients);
@@ -1465,6 +1505,16 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
                                                        farGrabJoints.mouseFarGrabRotation[1],
                                                        farGrabJoints.mouseFarGrabRotation[2],
                                                        farGrabJoints.mouseFarGrabRotation[3]);
+
+            if (!isFiniteVector(leftFarGrabPosition) || !isFiniteQuaternion(leftFarGrabRotation) ||
+                    !isFiniteVector(rightFarGrabPosition) || !isFiniteQuaternion(rightFarGrabRotation) ||
+                    !isFiniteVector(mouseFarGrabPosition) || !isFiniteQuaternion(mouseFarGrabRotation)) {
+                if (shouldLogError(now)) {
+                    qCWarning(avatars) << "Discard AvatarData packet: far-grab transform is not finite, uuid"
+                                       << getSessionUUID();
+                }
+                return buffer.size();
+            }
 
             _farGrabLeftMatrixCache.set(createMatFromQuatAndPos(leftFarGrabRotation, leftFarGrabPosition));
             _farGrabRightMatrixCache.set(createMatFromQuatAndPos(rightFarGrabRotation, rightFarGrabPosition));

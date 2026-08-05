@@ -686,6 +686,16 @@ but are not claimed as an exact production CPU reduction. Interface remained
 connected and crash-free, all 24 other skeleton models loaded, and the local
 replica count returned to zero after each run.
 
+The decoder audit also found that truncated hand-controller data could be read
+past the received buffer and that several raw floating-point fields accepted
+non-finite values. The parser now checks the complete hand-controller block
+before decoding and rejects non-finite positions, bounding boxes,
+sensor-to-world translations, face coefficients, and far-grab transforms
+before changing avatar state. The host regression suite covers every truncated
+hand-controller length and verifies that invalid numeric follow-up packets
+preserve the preceding valid state. The rebuilt Android client also completed
+a clean Pico cold start without a native, JNI, or packet-validation error.
+
 A later avatar-load validation exposed transient non-finite absolute joint
 poses while a fallback rig was initialized. Matrix decomposition in
 `AnimPose` divided each basis column by its scale even when an axis had
