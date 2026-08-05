@@ -724,6 +724,13 @@ previously only the first replica consumed the shared stream successfully.
 Regression coverage checks every truncated identity prefix and two recipients
 of the same replicated identity.
 
+Bulk and override trait records now reject enum values outside the declared
+trait range, negative payload sizes on simple traits, oversized declared
+payloads, and missing per-avatar trait terminators. Instanced-trait deletion
+retains its defined `-1` marker. Truncated kill-avatar records are discarded
+before reading either field. Unit coverage exercises the shared type and wire
+size validation, including the deletion exception.
+
 A later avatar-load validation exposed transient non-finite absolute joint
 poses while a fallback rig was initialized. Matrix decomposition in
 `AnimPose` divided each basis column by its scale even when an axis had

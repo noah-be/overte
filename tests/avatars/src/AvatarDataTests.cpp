@@ -50,6 +50,7 @@ private slots:
     void rejectMalformedSkeletonTrait();
     void rejectTruncatedAvatarIdentity();
     void replicateAvatarIdentity();
+    void validateAvatarTraitWireFields();
 };
 
 void AvatarDataTests::parseTruncatedFlags() {
@@ -335,6 +336,23 @@ void AvatarDataTests::replicateAvatarIdentity() {
     QCOMPARE(secondReplica->getDisplayName(), source.getDisplayName());
     QVERIFY(firstReplica->hasProcessedFirstIdentity());
     QVERIFY(secondReplica->hasProcessedFirstIdentity());
+}
+
+void AvatarDataTests::validateAvatarTraitWireFields() {
+    QVERIFY(AvatarTraits::isValidTrait(AvatarTraits::SkeletonModelURL));
+    QVERIFY(AvatarTraits::isValidTrait(AvatarTraits::SkeletonData));
+    QVERIFY(AvatarTraits::isValidTrait(AvatarTraits::AvatarEntity));
+    QVERIFY(AvatarTraits::isValidTrait(AvatarTraits::Grab));
+    QVERIFY(!AvatarTraits::isValidTrait(AvatarTraits::NullTrait));
+    QVERIFY(!AvatarTraits::isValidTrait(static_cast<AvatarTraits::TraitType>(AvatarTraits::TotalTraitTypes)));
+    QVERIFY(!AvatarTraits::isValidTrait(static_cast<AvatarTraits::TraitType>(-2)));
+
+    QVERIFY(AvatarTraits::isValidTraitWireSize(0, 0, false));
+    QVERIFY(AvatarTraits::isValidTraitWireSize(4, 4, false));
+    QVERIFY(!AvatarTraits::isValidTraitWireSize(5, 4, false));
+    QVERIFY(!AvatarTraits::isValidTraitWireSize(-1, 4, false));
+    QVERIFY(AvatarTraits::isValidTraitWireSize(AvatarTraits::DELETED_TRAIT_SIZE, 0, true));
+    QVERIFY(!AvatarTraits::isValidTraitWireSize(-2, 100, true));
 }
 
 QTEST_MAIN(AvatarDataTests)

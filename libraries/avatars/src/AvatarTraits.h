@@ -49,6 +49,10 @@ namespace AvatarTraits {
         return traitType > NullTrait && traitType < FirstInstancedTrait;
     }
 
+    inline bool isValidTrait(TraitType traitType) {
+        return traitType > NullTrait && traitType < TotalTraitTypes;
+    }
+
     using TraitVersion = int32_t;
     const TraitVersion DEFAULT_TRAIT_VERSION = 0;
     const TraitVersion NULL_TRAIT_VERSION = -1;
@@ -56,6 +60,11 @@ namespace AvatarTraits {
     using TraitWireSize = int16_t;
     const TraitWireSize DELETED_TRAIT_SIZE = -1;
     const TraitWireSize MAXIMUM_TRAIT_SIZE = INT16_MAX;
+
+    inline bool isValidTraitWireSize(TraitWireSize size, qint64 bytesAvailable, bool allowDelete) {
+        return bytesAvailable >= 0 && (size >= 0 || (allowDelete && size == DELETED_TRAIT_SIZE)) &&
+            (size <= 0 || size <= bytesAvailable);
+    }
 
     using TraitMessageSequence = int64_t;
     const TraitMessageSequence FIRST_TRAIT_SEQUENCE = 0;

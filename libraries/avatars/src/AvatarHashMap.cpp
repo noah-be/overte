@@ -422,11 +422,15 @@ void AvatarHashMap::processBulkAvatarTraits(QSharedPointer<ReceivedMessage> mess
         // read the first trait type for this avatar
         AvatarTraits::TraitType traitType;
         message->readPrimitive(&traitType);
+        if (traitType != AvatarTraits::NullTrait && !AvatarTraits::isValidTrait(traitType)) {
+            qWarning() << "Malformed bulk trait packet, invalid trait type" << traitType;
+            return;
+        }
 
         // grab the last trait versions for this avatar
         auto& lastProcessedVersions = _processedTraitVersions[avatarID];
 
-        while (traitType != AvatarTraits::NullTrait && message->getBytesLeftToRead() > 0) {
+        while (traitType != AvatarTraits::NullTrait) {
             // Trying to read more bytes than available, bail
             if (message->getBytesLeftToRead() < qint64(sizeof(AvatarTraits::TraitVersion))) {
                 qWarning() << "Malformed bulk trait packet, bailling";
@@ -449,7 +453,8 @@ void AvatarHashMap::processBulkAvatarTraits(QSharedPointer<ReceivedMessage> mess
                 message->readPrimitive(&traitBinarySize);
 
                 // Trying to read more bytes than available, bail
-                if (message->getBytesLeftToRead() < traitBinarySize) {
+                if (!AvatarTraits::isValidTraitWireSize(
+                        traitBinarySize, message->getBytesLeftToRead(), false)) {
                     qWarning() << "Malformed bulk trait packet, bailling";
                     return;
                 }
@@ -477,7 +482,8 @@ void AvatarHashMap::processBulkAvatarTraits(QSharedPointer<ReceivedMessage> mess
                 message->readPrimitive(&traitBinarySize);
 
                 // Trying to read more bytes than available, bail
-                if (traitBinarySize < -1 || message->getBytesLeftToRead() < traitBinarySize) {
+                if (!AvatarTraits::isValidTraitWireSize(
+                        traitBinarySize, message->getBytesLeftToRead(), true)) {
                     qWarning() << "Malformed bulk trait packet, bailling";
                     return;
                 }
@@ -504,12 +510,25 @@ void AvatarHashMap::processBulkAvatarTraits(QSharedPointer<ReceivedMessage> mess
             }
 
             // read the next trait type, which is null if there are no more traits for this avatar
+            if (message->getBytesLeftToRead() < qint64(sizeof(AvatarTraits::TraitType))) {
+                qWarning() << "Malformed bulk trait packet, missing trait terminator";
+                return;
+            }
             message->readPrimitive(&traitType);
+            if (traitType != AvatarTraits::NullTrait && !AvatarTraits::isValidTrait(traitType)) {
+                qWarning() << "Malformed bulk trait packet, invalid trait type" << traitType;
+                return;
+            }
         }
     }
 }
 
 void AvatarHashMap::processKillAvatar(QSharedPointer<ReceivedMessage> message, SharedNodePointer sendingNode) {
+    if (message->getBytesLeftToRead() < qint64(NUM_BYTES_RFC4122_UUID + sizeof(KillAvatarReason))) {
+        qWarning() << "Malformed kill avatar packet";
+        return;
+    }
+
     // read the node id
     QUuid sessionUUID = QUuid::fromRfc4122(message->readWithoutCopy(NUM_BYTES_RFC4122_UUID));
 
