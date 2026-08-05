@@ -19,7 +19,8 @@
         android:fullBackupContent="@xml/backup_rules"
         android:hasCode="true"
         android:icon="@drawable/ic_launcher"
-        android:label="@string/app_name">
+        android:label="@string/app_name"
+        android:theme="@style/OverteStartupTheme">
 
         <meta-data android:name="pvr.app.type" android:value="vr" />
 
@@ -28,6 +29,7 @@
             android:excludeFromRecents="true"
             android:exported="true"
             android:screenOrientation="landscape"
+            android:theme="@style/OverteStartupTheme"
             tools:ignore="DiscouragedApi">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -42,6 +44,7 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:screenOrientation="landscape"
+            android:theme="@style/OverteStartupTheme"
             tools:ignore="DiscouragedApi">
             <meta-data android:name="android.app.lib_name" android:value="picoInterface" />
             <meta-data android:name="android.app.qt_libs_resource_id" android:resource="@array/qt_libs" />
