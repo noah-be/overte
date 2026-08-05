@@ -710,6 +710,9 @@ Avatar scale-ratio packing now maps non-finite and non-positive inputs to the
 neutral scale, clamps finite overflow to the format maximum, and keeps tiny
 positive ratios away from the wire value reserved for the `10` range boundary.
 Tests cover invalid values, underflow, overflow, and the unchanged boundary.
+The two-byte view-angle encoder now uses the same policy: non-finite values
+fall back to zero and finite overflow is clamped to `[-180, 180]` before the
+unsigned conversion. Both limits and all non-finite classes are covered.
 The underlying `ReceivedMessage` API now clamps copied and zero-copy reads and
 seek positions to the actual message bounds, including string payloads with a
 truncated length or body. Bulk avatar parsing additionally rejects incomplete

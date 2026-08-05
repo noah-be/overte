@@ -81,6 +81,31 @@ void GLMHelpersTests::testInvalidFixedPointInput() {
     QCOMPARE(result, glm::vec3(0.5f, 0.0f, -0.5f));
 }
 
+void GLMHelpersTests::testInvalidAngleInput() {
+    const std::array<float, 3> invalidInputs {{
+        std::numeric_limits<float>::quiet_NaN(),
+        std::numeric_limits<float>::infinity(),
+        -std::numeric_limits<float>::infinity()
+    }};
+    for (float input : invalidInputs) {
+        uint8_t bytes[2];
+        float result;
+        packFloatAngleToTwoByte(bytes, input);
+        unpackFloatAngleFromTwoByte(reinterpret_cast<const uint16_t*>(bytes), &result);
+        QVERIFY(std::abs(result) < 0.01f);
+    }
+
+    uint8_t bytes[2];
+    float result;
+    packFloatAngleToTwoByte(bytes, 1000.0f);
+    unpackFloatAngleFromTwoByte(reinterpret_cast<const uint16_t*>(bytes), &result);
+    QCOMPARE(result, 180.0f);
+
+    packFloatAngleToTwoByte(bytes, -1000.0f);
+    unpackFloatAngleFromTwoByte(reinterpret_cast<const uint16_t*>(bytes), &result);
+    QCOMPARE(result, -180.0f);
+}
+
 void GLMHelpersTests::testInvalidRatioInput() {
     const std::array<float, 5> invalidInputs {{
         0.0f,

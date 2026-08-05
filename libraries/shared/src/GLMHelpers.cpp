@@ -129,7 +129,10 @@ int unpackFloatVec3FromSignedTwoByteFixed(const unsigned char* sourceBuffer, glm
 int packFloatAngleToTwoByte(unsigned char* buffer, float degrees) {
     const float ANGLE_CONVERSION_RATIO = (std::numeric_limits<uint16_t>::max() / 360.0f);
 
-    uint16_t twoByteAngle = floorf((degrees + 180.0f) * ANGLE_CONVERSION_RATIO);
+    degrees = std::isfinite(degrees) ? glm::clamp(degrees, -180.0f, 180.0f) : 0.0f;
+    const float encoded = glm::clamp(floorf((degrees + 180.0f) * ANGLE_CONVERSION_RATIO),
+        0.0f, static_cast<float>(std::numeric_limits<uint16_t>::max()));
+    uint16_t twoByteAngle = static_cast<uint16_t>(encoded);
     memcpy(buffer, &twoByteAngle, sizeof(uint16_t));
 
     return sizeof(uint16_t);
