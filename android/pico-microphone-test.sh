@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -z "${ADB_BIN:-}" ]]; then
     android_sdk="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-${HOME}/Android/Sdk}}"
     ADB_BIN="${android_sdk}/platform-tools/adb"
@@ -14,6 +15,7 @@ MAX_START_CPU_TEMP="${PICO_MIC_MAX_START_CPU_MC:-72000}"
 MAX_START_GPU_TEMP="${PICO_MIC_MAX_START_GPU_MC:-70000}"
 PLAYBACK_FILE="${PICO_MIC_PLAYBACK_WAV:-}"
 PLAYBACK_DELAY="${PICO_MIC_PLAYBACK_DELAY:-1}"
+CAPTURE_OUTPUT="${PICO_MIC_CAPTURE_OUTPUT:-}"
 PACKAGE="org.overte.pico"
 
 case "$SOURCE" in
@@ -34,9 +36,29 @@ if [[ -n "$PLAYBACK_FILE" ]]; then
     (( DURATION >= 10 )) || { echo "TTS playback tests require at least 10 seconds" >&2; exit 2; }
     command -v paplay >/dev/null || { echo "paplay is required for TTS playback tests" >&2; exit 2; }
 fi
+capture_requested=0
+if [[ -n "$PLAYBACK_FILE" || -n "$CAPTURE_OUTPUT" ]]; then
+    capture_requested=1
+    (( DURATION <= 60 )) \
+        || { echo "raw microphone capture is limited to 60 seconds" >&2; exit 2; }
+fi
+capture_partial=""
+if [[ -n "$CAPTURE_OUTPUT" ]]; then
+    capture_directory="$(dirname -- "$CAPTURE_OUTPUT")"
+    [[ -d "$capture_directory" && -w "$capture_directory" ]] \
+        || { echo "capture output directory is not writable: $capture_directory" >&2; exit 2; }
+    [[ ! -e "$CAPTURE_OUTPUT" ]] \
+        || { echo "capture output already exists: $CAPTURE_OUTPUT" >&2; exit 2; }
+    capture_partial="${CAPTURE_OUTPUT}.part"
+    [[ ! -e "$capture_partial" ]] \
+        || { echo "capture output partial file already exists: $capture_partial" >&2; exit 2; }
+fi
 if [[ "$FAN_SPEED" == 0 && "$DURATION" -gt 5 ]]; then
     echo "0% fan tests are limited to 5 seconds because XR load can overheat the headset" >&2
     exit 2
+fi
+if [[ "${PICO_DEVICE_LOCK_HELD:-0}" != 1 ]]; then
+    exec "$SCRIPT_DIR/pico-device-lock.sh" run -- "$0" "$@"
 fi
 [[ -x "$ADB_BIN" ]] || { echo "adb not found at $ADB_BIN" >&2; exit 2; }
 if [[ -z "$PICO_SERIAL" ]]; then
@@ -116,6 +138,9 @@ cleanup() {
     adb_shell "setprop debug.overte.test_mode ''" >/dev/null 2>&1 || true
     adb_shell "setprop debug.overte.autowalk ''" >/dev/null 2>&1 || true
     restore_fan || true
+    if [[ -n "$capture_partial" ]]; then
+        rm -f -- "$capture_partial"
+    fi
 }
 trap cleanup EXIT INT TERM HUP
 
@@ -170,7 +195,7 @@ echo "preflight temperatures: CPU ${start_cpu_temp}mC, GPU ${start_gpu_temp}mC" 
 force_worn
 adb_shell setprop debug.overte.audio_input "$SOURCE"
 adb_shell setprop debug.overte.audio_trace 1
-if [[ -n "$PLAYBACK_FILE" ]]; then
+if (( capture_requested )); then
     adb_shell setprop debug.overte.audio_capture_seconds "$DURATION"
     adb_shell run-as "$PACKAGE" rm -f cache/pico-mic-input.wav
 fi
@@ -182,7 +207,7 @@ adb_shell am start -a android.intent.action.MAIN \
 refresh_worn_state
 
 set +o pipefail
-if [[ -n "$PLAYBACK_FILE" ]]; then
+if (( capture_requested )); then
     ready_status=1
     for _ in {1..140}; do
         if adb_shell run-as "$PACKAGE" ls cache/pico-mic-input.wav >/dev/null 2>&1; then
@@ -219,8 +244,8 @@ if [[ -n "$PLAYBACK_FILE" ]]; then
     playback_pid=$!
 fi
 
-cpu_temp=0
-gpu_temp=0
+cpu_temp="$start_cpu_temp"
+gpu_temp="$start_gpu_temp"
 elapsed_seconds=0
 status="ok"
 measurement_start_seconds=$SECONDS
@@ -261,6 +286,27 @@ if [[ -n "$playback_pid" ]]; then
         exit 1
     fi
     playback_pid=""
+fi
+
+if [[ -n "$CAPTURE_OUTPUT" ]]; then
+    capture_complete=1
+    for _ in {1..40}; do
+        if "$ADB_BIN" -s "$PICO_SERIAL" logcat -d -t 250 -v brief -s Interface \
+                | grep -Fq 'PICO_MIC_CAPTURE_COMPLETE'; then
+            capture_complete=0
+            break
+        fi
+        sleep 0.25
+    done
+    (( capture_complete == 0 )) \
+        || { echo "raw microphone capture did not complete" >&2; exit 1; }
+    "$ADB_BIN" -s "$PICO_SERIAL" exec-out run-as "$PACKAGE" \
+        cat cache/pico-mic-input.wav >"$capture_partial"
+    [[ -s "$capture_partial" ]] \
+        || { echo "raw microphone capture is empty" >&2; exit 1; }
+    mv -- "$capture_partial" "$CAPTURE_OUTPUT"
+    capture_partial=""
+    echo "saved raw microphone capture: $CAPTURE_OUTPUT" >&2
 fi
 
 measurement_log="$("$ADB_BIN" -s "$PICO_SERIAL" logcat -d -v brief -s Interface OverteMicTest)"

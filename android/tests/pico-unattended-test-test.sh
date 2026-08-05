@@ -13,7 +13,8 @@ run_case() {
     local output code
     set +e
     output="$(env ADB_BIN="$MOCK_ADB" MOCK_DEVICE_COUNT="$device_count" \
-        MOCK_AVATAR_STATUS="$status" PICO_SERIAL="$serial" "$CONTROL_SCRIPT" "$@" 2>&1)"
+        MOCK_AVATAR_STATUS="$status" PICO_SERIAL="$serial" PICO_DEVICE_LOCK_HELD=1 \
+        "$CONTROL_SCRIPT" "$@" 2>&1)"
     code=$?
     set -e
     if [[ "$code" == "$expected_code" && "$output" == *"$expected_text"* ]]; then

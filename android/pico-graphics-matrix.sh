@@ -54,6 +54,9 @@ done
     exit 2
 }
 
+if [[ "${PICO_DEVICE_LOCK_HELD:-0}" != 1 ]]; then
+    exec "$SCRIPT_DIR/pico-device-lock.sh" run -- "$0" "$@"
+fi
 [[ -x "$ADB_BIN" ]] || { echo "adb not executable: $ADB_BIN" >&2; exit 1; }
 if [[ -z "$PICO_SERIAL" ]]; then
     mapfile -t pico_devices < <("$ADB_BIN" devices | awk '$2 == "device" { print $1 }')

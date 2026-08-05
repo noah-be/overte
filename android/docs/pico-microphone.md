@@ -55,6 +55,22 @@ playback in whole seconds and defaults to one. Playback tests require a
 duration of at least ten seconds. This file-based in-run hook avoids racing an
 external listener against the heavily flooded Interface log.
 
+Set `PICO_MIC_CAPTURE_OUTPUT` to a new host path when the raw WAV must survive
+the run. This also enables raw capture without host playback, which is useful
+for a controlled ambient baseline. The runner waits for the app to close the
+WAV, copies it with binary-safe `adb exec-out`, refuses to overwrite an
+existing host file, and removes an incomplete `.part` file on failure. Android
+limits this diagnostic capture to 60 seconds. Raw captures can contain private
+speech and must remain in the ignored local results area unless they have been
+deliberately sanitized.
+
+The runner's own argument, ADB parsing, CSV aggregation, capture-copy, cleanup,
+and fan-restoration paths can be checked without a microphone or headset:
+
+```bash
+./tests/pico-microphone-test-test.sh
+```
+
 The runner also disables Pico's proximity-based sleep for the duration of an
 unattended test, refreshes the XR worn/screen state at launch, and clears its
 Overte test properties during cleanup. This keeps Qt audio callbacks active

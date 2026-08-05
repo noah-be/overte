@@ -69,9 +69,9 @@ dependencies. It does not download missing Conan packages itself.
 ## Requirements and automatic setup
 
 The build requires Conan 2, Git, CMake, Ninja, Python, Perl, Android SDK
-Platform 36, Build-Tools 36.0.0, NDK `27.3.13750724`, Platform-Tools/ADB, and a
-JDK from version 17 through 21. Android Studio is optional, but provides the
-Android SDK and a compatible JDK conveniently.
+Platform 36, Build-Tools 36.0.0, NDK `27.3.13750724`, Platform-Tools/ADB,
+util-linux `flock`, and a JDK from version 17 through 21. Android Studio is
+optional, but provides the Android SDK and a compatible JDK conveniently.
 
 Inspect the complete environment without changing anything:
 
@@ -128,6 +128,34 @@ The render scale can be changed under **Settings > Graphics > Pico render
 resolution** and takes effect after the prompted app restart. See
 [Pico 4 graphics optimization results](docs/power-tests/pico-graphics-optimization.md)
 for the controlled measurements and rejected alternatives.
+
+## Sharing one headset between worktrees
+
+All tracked Pico device runners coordinate through an exclusive lock in the
+repository's Git common directory. Linked worktrees share that directory, so a
+test in one Codex session makes another session wait before its first ADB
+operation instead of changing the app, fan, properties, or scene underneath
+the active test.
+
+Check the shared state or wrap an ad-hoc device command explicitly:
+
+```bash
+./pico-device-lock.sh status
+./pico-device-lock.sh run -- "${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}/platform-tools/adb" devices
+```
+
+`status` exits with 1 while the headset is occupied and reports only the holder
+PID, start time, and branch. `run` prints that it is waiting, blocks until the
+current operation releases the lock, and releases it when its command exits or
+is interrupted. Use the wrapper for every manual ADB sequence. The Pico build
+installer, power runner, graphics/avatar matrices, simpleperf, unattended
+controller, and microphone runner acquire it automatically.
+
+The coordination behavior can be tested without ADB or a headset:
+
+```bash
+./tests/pico-device-lock-test.sh
+```
 
 ## Prebuilt dependencies
 

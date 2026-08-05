@@ -125,7 +125,7 @@ doctor() {
         fi
     done
 
-    for tool in c++ file find make ar tar awk sha1sum sha256sum unzip; do
+    for tool in c++ file find make ar tar awk sha1sum sha256sum unzip flock; do
         if command_path="$(command -v "$tool" 2>/dev/null)"; then
             doctor_ok "$tool ($command_path)"
         else
@@ -239,7 +239,7 @@ run_as_root() {
 
 install_system_packages() {
     local needs_packages=0 tool
-    for tool in git curl cmake ninja python3 perl c++ file find make ar tar awk sha1sum sha256sum unzip; do
+    for tool in git curl cmake ninja python3 perl c++ file find make ar tar awk sha1sum sha256sum unzip flock; do
         command -v "$tool" >/dev/null 2>&1 || needs_packages=1
     done
     find_conan >/dev/null 2>&1 || command -v pipx >/dev/null 2>&1 || needs_packages=1
@@ -252,17 +252,17 @@ install_system_packages() {
     echo "Installing missing system build tools (administrator access may be requested)"
     if command -v dnf >/dev/null; then
         run_as_root dnf install -y git curl cmake ninja-build python3 python3-pip \
-            pipx perl-interpreter gcc-c++ file findutils make binutils tar gawk coreutils unzip
+            pipx perl-interpreter gcc-c++ file findutils make binutils tar gawk coreutils unzip util-linux
     elif command -v apt-get >/dev/null; then
         run_as_root apt-get update
         run_as_root apt-get install -y git curl cmake ninja-build python3 python3-pip \
-            pipx perl g++ file findutils make binutils tar gawk coreutils unzip
+            pipx perl g++ file findutils make binutils tar gawk coreutils unzip util-linux
     elif command -v pacman >/dev/null; then
         run_as_root pacman -Syu --needed --noconfirm git curl cmake ninja python \
-            python-pipx perl gcc file findutils make binutils tar gawk coreutils unzip
+            python-pipx perl gcc file findutils make binutils tar gawk coreutils unzip util-linux
     elif command -v zypper >/dev/null; then
         run_as_root zypper --non-interactive install git curl cmake ninja python3 \
-            python3-pipx perl gcc-c++ file findutils make binutils tar gzip coreutils unzip
+            python3-pipx perl gcc-c++ file findutils make binutils tar gzip coreutils unzip util-linux
     else
         fail "unsupported package manager; install the items reported by ./build-pico.sh doctor"
     fi
@@ -685,6 +685,9 @@ install_apk() {
     local adb apk serial install_output
     local -a devices
 
+    if [[ "${PICO_DEVICE_LOCK_HELD:-0}" != 1 ]]; then
+        exec "$script_dir/pico-device-lock.sh" run -- "$0" install
+    fi
     detect_sdk
     adb="${PICO_ADB:-$ANDROID_SDK_ROOT/platform-tools/adb}"
     [[ -x "$adb" ]] || fail "ADB not found; install Android SDK Platform-Tools or set PICO_ADB"

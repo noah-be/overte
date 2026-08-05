@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "${PICO_DEVICE_LOCK_HELD:-0}" != 1 ]]; then
+    exec "$SCRIPT_DIR/pico-device-lock.sh" run -- "$0" "$@"
+fi
 if [[ -z "${ADB_BIN:-}" ]]; then
     android_sdk="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-${HOME}/Android/Sdk}}"
     ADB_BIN="${android_sdk}/platform-tools/adb"

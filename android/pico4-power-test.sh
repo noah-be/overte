@@ -641,8 +641,19 @@ analyze() {
 }
 
 case "$command_name" in
-    doctor) [[ "$#" -eq 0 ]] || fail "doctor does not accept options"; doctor ;;
-    record) record "$@" ;;
+    doctor)
+        [[ "$#" -eq 0 ]] || fail "doctor does not accept options"
+        if [[ "${PICO_DEVICE_LOCK_HELD:-0}" != 1 ]]; then
+            exec "$script_dir/pico-device-lock.sh" run -- "$0" doctor
+        fi
+        doctor
+        ;;
+    record)
+        if [[ "${PICO_DEVICE_LOCK_HELD:-0}" != 1 ]]; then
+            exec "$script_dir/pico-device-lock.sh" run -- "$0" record "$@"
+        fi
+        record "$@"
+        ;;
     analyze) analyze "$@" ;;
     help|-h|--help) usage ;;
     *) fail "unknown command: $command_name" ;;

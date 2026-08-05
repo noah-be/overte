@@ -2,6 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ORIGINAL_ARGS=("$@")
 ADB_BIN="${ADB_BIN:-${ANDROID_SDK_ROOT:-${HOME}/Android/Sdk}/platform-tools/adb}"
 ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-${ANDROID_SDK_ROOT:-${HOME}/Android/Sdk}/ndk/27.3.13750724}"
 PICO_SERIAL="${PICO_SERIAL:-${ANDROID_SERIAL:-}}"
@@ -80,6 +81,9 @@ if [[ -n "$EXPECTED_AVATAR_REPLICAS" ]]; then
         echo "expected avatar replicas must be an integer from 0 through 50" >&2
         exit 2
     }
+fi
+if [[ "${PICO_DEVICE_LOCK_HELD:-0}" != 1 ]]; then
+    exec "$SCRIPT_DIR/pico-device-lock.sh" run -- "$0" "${ORIGINAL_ARGS[@]}"
 fi
 [[ -x "$ADB_BIN" ]] || { echo "adb not executable: $ADB_BIN" >&2; exit 1; }
 if [[ -z "$PICO_SERIAL" ]]; then
