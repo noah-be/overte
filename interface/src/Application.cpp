@@ -2584,12 +2584,12 @@ void Application::update(float deltaTime) {
                         !isDownloading;
                     const bool packetSequenceComplete = safeLandingStatus.completionReceived &&
                         safeLandingStatus.receivedSequenceCount == safeLandingStatus.expectedSequenceCount;
-                    const bool onlyUnavailableVisualsRemain = _picoLoadingLastRecovery > 0 &&
-                        packetSequenceComplete &&
+                    const bool visualAssetsBlocked = packetSequenceComplete &&
                         safeLandingStatus.trackedEntityCount > 0 &&
                         safeLandingStatus.physicsBlockedEntityCount == 0 &&
                         safeLandingStatus.visuallyBlockedEntityCount == safeLandingStatus.trackedEntityCount &&
                         !isDownloading && !isProcessing;
+                    const bool onlyUnavailableVisualsRemain = _picoLoadingRecoveryAttempts > 0 && visualAssetsBlocked;
                     if (emptySceneComplete &&
                             timeWithoutProgress >= WORLD_PROGRESS_RECOVERY_TIME) {
                         qCWarning(interfaceapp) << "Pico world loading completed an empty scene"
@@ -2616,7 +2616,8 @@ void Application::update(float deltaTime) {
                             _picoLoadingRecoveryAttempts > 0 && !safeLandingStatus.completionReceived;
                         const bool shouldRetryWorldPackets =
                             (!initialWorldDataReceived || isRecoveringWorldPackets ||
-                                recoverySceneHasNoCompletion) &&
+                                recoverySceneHasNoCompletion ||
+                                (visualAssetsBlocked && _picoLoadingRecoveryAttempts == 0)) &&
                             timeWithoutProgress >= retryDelay;
                         if (shouldRetryWorldPackets) {
                             const bool firstRecoveryAttempt = _picoLoadingRecoveryAttempts == 0;

@@ -339,7 +339,37 @@ void Application::clearDomainOctreeDetails(bool clearAll) {
 
     _waitForServerlessToBeSet = true;
     resetPhysicsReadyInformation();
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    // A domain switch can happen while the previous Pico loading interstitial is still active. In that case
+    // setIsInterstitialMode(true) does not see a boolean transition and therefore cannot reset its counters.
+    // Start the new world's progress and recovery state from a clean slate before querying its octree.
+    _picoLoadingWorldProgress = 0.0f;
+    _picoLoadingResourceProgress = 0.0f;
+    _picoLoadingSequenceProgress = 0.0f;
+    _picoLoadingLastAdvance = 0;
+    _picoLoadingLastRecovery = 0;
+    _picoLoadingRecoveryAttempts = 0;
+    _picoLoadingConnectedAt = 0;
+    _picoLoadingFinalizingAt = 0;
+    _picoLoadingPhysicsEnabledAt = 0;
+    _picoLoadingPhysicsPresentFrame = 0;
+    _picoLoadingReadyAt = 0;
+    _picoLoadingReadyPresentFrame = 0;
+    _picoLoadingCandidatePhaseSince = 0;
+    _picoLoadingDisplayedProgress = 0.0f;
+    _picoLoadingDisplayedPhase = -1;
+    _picoLoadingCandidatePhase = -1;
+    _picoLoadingTextureMemoryReady = false;
+    _picoLoadingGpuFallbackUsed = false;
+    _picoLoadingWasConnected = false;
+#endif
     setIsInterstitialMode(true);
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    // The renderer is already running during a domain switch. Do not show the app-start message again.
+    if (_graphicsEngine) {
+        _graphicsEngine->setLoadingState(true, GraphicsEngine::LoadingPhase::CONNECTING, 0.05f);
+    }
+#endif
 
     auto octreeServerSceneStats = getOcteeSceneStats();
     octreeServerSceneStats->withWriteLock([&] {
