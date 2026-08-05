@@ -1403,26 +1403,10 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
             }
         }
 
-        // each joint rotation is stored in 6 bytes.
-        QWriteLocker writeLock(&_jointDataLock);
-        _jointData.resize(numJoints);
-        JointData* jointData = _jointData.data();
-
-        if (_hasNewJointDataVec.size() != static_cast<size_t>(numJoints)) {
-            _hasNewJointDataVec.resize(numJoints, false);
-        }
-
         const int COMPRESSED_QUATERNION_SIZE = 6;
         PACKET_READ_CHECK(JointRotations, numValidJointRotations * COMPRESSED_QUATERNION_SIZE);
-        for (int i = 0; i < numJoints; i++) {
-            JointData& data = jointData[i];
-            if (validRotations[i / BITS_IN_BYTE] & (1 << (i % BITS_IN_BYTE))) {
-                sourceBuffer += unpackOrientationQuatFromSixBytes(sourceBuffer, data.rotation);
-                _hasNewJointData = true;
-                _hasNewJointDataVec[i] = true;
-                data.rotationIsDefaultPose = false;
-            }
-        }
+        const unsigned char* packedRotations = sourceBuffer;
+        sourceBuffer += numValidJointRotations * COMPRESSED_QUATERNION_SIZE;
 
         PACKET_READ_CHECK(JointTranslationValidityBits, bytesOfValidity);
 
@@ -1452,14 +1436,74 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
         // each joint translation component is stored in 6 bytes.
         const int COMPRESSED_TRANSLATION_SIZE = 6;
         PACKET_READ_CHECK(JointTranslation, numValidJointTranslations * COMPRESSED_TRANSLATION_SIZE);
+        const unsigned char* packedTranslations = sourceBuffer;
+        sourceBuffer += numValidJointTranslations * COMPRESSED_TRANSLATION_SIZE;
+        const unsigned char* endJointSection = sourceBuffer;
+
+        AvatarDataPacket::FarGrabJoints farGrabJoints {};
+        const unsigned char* farGrabStart = nullptr;
+        if (hasGrabJoints) {
+            farGrabStart = sourceBuffer;
+            PACKET_READ_CHECK(FarGrabJoints, sizeof(AvatarDataPacket::FarGrabJoints));
+            memcpy(&farGrabJoints, sourceBuffer, sizeof(farGrabJoints)); // to avoid misaligned floats
+
+            const glm::vec3 leftPosition(farGrabJoints.leftFarGrabPosition[0],
+                                         farGrabJoints.leftFarGrabPosition[1],
+                                         farGrabJoints.leftFarGrabPosition[2]);
+            const glm::quat leftRotation(farGrabJoints.leftFarGrabRotation[0],
+                                         farGrabJoints.leftFarGrabRotation[1],
+                                         farGrabJoints.leftFarGrabRotation[2],
+                                         farGrabJoints.leftFarGrabRotation[3]);
+            const glm::vec3 rightPosition(farGrabJoints.rightFarGrabPosition[0],
+                                          farGrabJoints.rightFarGrabPosition[1],
+                                          farGrabJoints.rightFarGrabPosition[2]);
+            const glm::quat rightRotation(farGrabJoints.rightFarGrabRotation[0],
+                                          farGrabJoints.rightFarGrabRotation[1],
+                                          farGrabJoints.rightFarGrabRotation[2],
+                                          farGrabJoints.rightFarGrabRotation[3]);
+            const glm::vec3 mousePosition(farGrabJoints.mouseFarGrabPosition[0],
+                                          farGrabJoints.mouseFarGrabPosition[1],
+                                          farGrabJoints.mouseFarGrabPosition[2]);
+            const glm::quat mouseRotation(farGrabJoints.mouseFarGrabRotation[0],
+                                          farGrabJoints.mouseFarGrabRotation[1],
+                                          farGrabJoints.mouseFarGrabRotation[2],
+                                          farGrabJoints.mouseFarGrabRotation[3]);
+
+            if (!isFiniteVector(leftPosition) || !isFiniteQuaternion(leftRotation) ||
+                    !isFiniteVector(rightPosition) || !isFiniteQuaternion(rightRotation) ||
+                    !isFiniteVector(mousePosition) || !isFiniteQuaternion(mouseRotation)) {
+                if (shouldLogError(now)) {
+                    qCWarning(avatars) << "Discard AvatarData packet: far-grab transform is not finite, uuid"
+                                       << getSessionUUID();
+                }
+                return buffer.size();
+            }
+            sourceBuffer += sizeof(farGrabJoints);
+        }
+
+        // All variable-length fields are complete and valid. Apply them only
+        // now so a truncated tail cannot resize or partially replace joints.
+        QWriteLocker writeLock(&_jointDataLock);
+        _jointData.resize(numJoints);
+        JointData* jointData = _jointData.data();
 
         if (_hasNewJointDataVec.size() != static_cast<size_t>(numJoints)) {
             _hasNewJointDataVec.resize(numJoints, false);
         }
         for (int i = 0; i < numJoints; i++) {
             JointData& data = jointData[i];
+            if (validRotations[i / BITS_IN_BYTE] & (1 << (i % BITS_IN_BYTE))) {
+                packedRotations += unpackOrientationQuatFromSixBytes(packedRotations, data.rotation);
+                _hasNewJointData = true;
+                _hasNewJointDataVec[i] = true;
+                data.rotationIsDefaultPose = false;
+            }
+        }
+        for (int i = 0; i < numJoints; i++) {
+            JointData& data = jointData[i];
             if (validTranslations[i / BITS_IN_BYTE] & (1 << (i % BITS_IN_BYTE))) {
-                sourceBuffer += unpackFloatVec3FromSignedTwoByteFixed(sourceBuffer, data.translation, TRANSLATION_COMPRESSION_RADIX);
+                packedTranslations += unpackFloatVec3FromSignedTwoByteFixed(
+                    packedTranslations, data.translation, TRANSLATION_COMPRESSION_RADIX);
                 data.translation *= maxTranslationDimension;
                 _hasNewJointData = true;
                 _hasNewJointDataVec[i] = true;
@@ -1471,21 +1515,14 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
         if (numValidJointRotations > 15) {
             qCDebug(avatars) << "RECEIVING -- rotations:" << numValidJointRotations
                 << "translations:" << numValidJointTranslations
-                << "size:" << (int)(sourceBuffer - startPosition);
+                << "size:" << (int)(endJointSection - startPosition);
         }
 #endif
-        int numBytesRead = sourceBuffer - startSection;
+        int numBytesRead = endJointSection - startSection;
         _jointDataRate.increment(numBytesRead);
         _jointDataUpdateRate.increment();
 
         if (hasGrabJoints) {
-            auto startSection = sourceBuffer;
-
-            PACKET_READ_CHECK(FarGrabJoints, sizeof(AvatarDataPacket::FarGrabJoints));
-
-            AvatarDataPacket::FarGrabJoints farGrabJoints;
-            memcpy(&farGrabJoints, sourceBuffer, sizeof(farGrabJoints)); // to avoid misaligned floats
-
             glm::vec3 leftFarGrabPosition = glm::vec3(farGrabJoints.leftFarGrabPosition[0],
                                                       farGrabJoints.leftFarGrabPosition[1],
                                                       farGrabJoints.leftFarGrabPosition[2]);
@@ -1508,23 +1545,11 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
                                                        farGrabJoints.mouseFarGrabRotation[2],
                                                        farGrabJoints.mouseFarGrabRotation[3]);
 
-            if (!isFiniteVector(leftFarGrabPosition) || !isFiniteQuaternion(leftFarGrabRotation) ||
-                    !isFiniteVector(rightFarGrabPosition) || !isFiniteQuaternion(rightFarGrabRotation) ||
-                    !isFiniteVector(mouseFarGrabPosition) || !isFiniteQuaternion(mouseFarGrabRotation)) {
-                if (shouldLogError(now)) {
-                    qCWarning(avatars) << "Discard AvatarData packet: far-grab transform is not finite, uuid"
-                                       << getSessionUUID();
-                }
-                return buffer.size();
-            }
-
             _farGrabLeftMatrixCache.set(createMatFromQuatAndPos(leftFarGrabRotation, leftFarGrabPosition));
             _farGrabRightMatrixCache.set(createMatFromQuatAndPos(rightFarGrabRotation, rightFarGrabPosition));
             _farGrabMouseMatrixCache.set(createMatFromQuatAndPos(mouseFarGrabRotation, mouseFarGrabPosition));
 
-            sourceBuffer += sizeof(AvatarDataPacket::FarGrabJoints);
-            int numBytesRead = sourceBuffer - startSection;
-            _farGrabJointRate.increment(numBytesRead);
+            _farGrabJointRate.increment(sourceBuffer - farGrabStart);
             _farGrabJointUpdateRate.increment();
         }
     }
@@ -1532,25 +1557,28 @@ int AvatarData::parseDataFromBuffer(const QByteArray& buffer) {
     if (hasJointDefaultPoseFlags) {
         auto startSection = sourceBuffer;
 
-        QWriteLocker writeLock(&_jointDataLock);
-
         PACKET_READ_CHECK(JointDefaultPoseFlagsNumJoints, sizeof(uint8_t));
         int numJoints = (int)*sourceBuffer++;
 
+        size_t bitVectorSize = calcBitVectorSize(numJoints);
+        PACKET_READ_CHECK(JointDefaultPoseFlagsRotationFlags, bitVectorSize);
+        const unsigned char* rotationFlags = sourceBuffer;
+        sourceBuffer += bitVectorSize;
+
+        PACKET_READ_CHECK(JointDefaultPoseFlagsTranslationFlags, bitVectorSize);
+        const unsigned char* translationFlags = sourceBuffer;
+        sourceBuffer += bitVectorSize;
+
+        QWriteLocker writeLock(&_jointDataLock);
         _jointData.resize(numJoints);
         JointData* jointData = _jointData.data();
         if (_hasNewJointDataVec.size() != static_cast<size_t>(numJoints)) {
             _hasNewJointDataVec.resize(numJoints, false);
         }
-
-        size_t bitVectorSize = calcBitVectorSize(numJoints);
-        PACKET_READ_CHECK(JointDefaultPoseFlagsRotationFlags, bitVectorSize);
-        sourceBuffer += readBitVector(sourceBuffer, numJoints, [&](int i, bool value) {
+        readBitVector(rotationFlags, numJoints, [&](int i, bool value) {
             jointData[i].rotationIsDefaultPose = value;
         });
-
-        PACKET_READ_CHECK(JointDefaultPoseFlagsTranslationFlags, bitVectorSize);
-        sourceBuffer += readBitVector(sourceBuffer, numJoints, [&](int i, bool value) {
+        readBitVector(translationFlags, numJoints, [&](int i, bool value) {
             jointData[i].translationIsDefaultPose = value;
         });
 

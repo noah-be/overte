@@ -131,10 +131,27 @@ void AvatarDataTests::parseTruncatedSections() {
     packets.push_back(defaultPosePacket);
 
     for (const auto& completePacket : packets) {
+        HasFlags packetFlags;
+        memcpy(&packetFlags, completePacket.constData(), sizeof(packetFlags));
+        const bool containsJointState = packetFlags &
+            (PACKET_HAS_JOINT_DATA | PACKET_HAS_JOINT_DEFAULT_POSE_FLAGS);
         for (int size = sizeof(HasFlags); size < completePacket.size(); ++size) {
             AvatarData avatar;
+            QVector<JointData> previousJointData;
+            if (containsJointState) {
+                avatar.setJointData(0, glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 2.0f, 3.0f));
+                previousJointData = avatar.getJointData();
+            }
             const auto truncatedPacket = completePacket.left(size);
             QCOMPARE(avatar.parseDataFromBuffer(truncatedPacket), truncatedPacket.size());
+            if (containsJointState) {
+                const auto jointData = avatar.getJointData();
+                QCOMPARE(jointData.size(), previousJointData.size());
+                QVERIFY(jointData[0].rotation == previousJointData[0].rotation);
+                QVERIFY(jointData[0].translation == previousJointData[0].translation);
+                QCOMPARE(jointData[0].rotationIsDefaultPose, previousJointData[0].rotationIsDefaultPose);
+                QCOMPARE(jointData[0].translationIsDefaultPose, previousJointData[0].translationIsDefaultPose);
+            }
         }
 
         AvatarData avatar;
@@ -265,7 +282,13 @@ void AvatarDataTests::rejectNonFiniteFarGrabTransform() {
     memcpy(destination, &farGrab, sizeof(farGrab));
 
     AvatarData avatar;
+    avatar.setJointData(0, glm::quat(1.0f, 0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 2.0f, 3.0f));
+    const auto previousJointData = avatar.getJointData();
     avatar.parseDataFromBuffer(packet);
+    const auto jointData = avatar.getJointData();
+    QCOMPARE(jointData.size(), previousJointData.size());
+    QVERIFY(jointData[0].rotation == previousJointData[0].rotation);
+    QVERIFY(jointData[0].translation == previousJointData[0].translation);
     QVERIFY(!avatar.isJointDataValid(FARGRAB_LEFTHAND_INDEX));
     QVERIFY(!avatar.isJointDataValid(FARGRAB_RIGHTHAND_INDEX));
     QVERIFY(!avatar.isJointDataValid(FARGRAB_MOUSE_INDEX));

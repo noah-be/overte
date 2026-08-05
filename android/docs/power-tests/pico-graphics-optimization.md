@@ -694,9 +694,12 @@ sensor-to-world translations, face coefficients, and far-grab transforms
 before changing avatar state. The host regression suite covers every truncated
 prefix of the fixed and variable avatar-data sections, including face, joint,
 far-grab, default-pose, and hand-controller data. It also verifies that invalid
-numeric follow-up packets preserve the preceding valid state. The rebuilt
-Android client completed a clean Pico cold start without a native, JNI, or
-packet-validation error.
+numeric follow-up packets preserve the preceding valid state. Joint and
+default-pose sections now validate their complete variable-length payload
+before resizing or updating the joint array; every truncated prefix and an
+invalid far-grab tail preserve seeded joint state. The rebuilt Android client
+completed a clean Pico cold start without a native, JNI, or packet-validation
+error.
 The shared six-byte quaternion decoder was hardened as well: byte patterns
 whose three stored components fall outside the unit sphere are projected onto
 it instead of taking the square root of a negative remainder. Existing
