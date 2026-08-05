@@ -1743,22 +1743,22 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
         }
 
         // Pico starts without a command-line URL always use the packaged
-        // serverless tutorial, even when an older entry override is active.
+        // serverless debug world, even when an older entry override is active.
 #if defined(ANDROID_APP_PICO_INTERFACE)
         if (!_overrideEntry || addressLookupString.isEmpty()) {
 #else
         if (!_overrideEntry) {
 #endif
 #ifdef Q_OS_ANDROID
-            // Mobile builds ship a self-contained tutorial and may have no
+            // Mobile builds ship a self-contained startup world and may have no
             // entry-point setting yet (or retain an empty one from an older
             // install). Always choose the packaged, known-good location.
 #if defined(ANDROID_APP_PICO_INTERFACE)
-            // Pico builds always start in the packaged tutorial so the headset
-            // does not resume a slow or unavailable saved network location.
-            qCInfo(interfaceapp) << "Pico tutorial startup: loading tutorial.json";
+            // Pico builds always start in the packaged debug world so the
+            // headset does not resume a slow or unavailable saved location.
+            qCInfo(interfaceapp) << "Pico debug startup: loading pico-debug.json";
             DependencyManager::get<AddressManager>()->handleLookupString(
-                "file:///~/serverless/tutorial.json");
+                "file:///~/serverless/pico-debug.json");
 #else
             DependencyManager::get<AddressManager>()->handleLookupString(
                 NetworkingConstants::DEFAULT_OVERTE_ADDRESS);
