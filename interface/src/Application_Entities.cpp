@@ -362,6 +362,8 @@ void Application::clearDomainOctreeDetails(bool clearAll) {
     _picoLoadingTextureMemoryReady = false;
     _picoLoadingGpuFallbackUsed = false;
     _picoLoadingWasConnected = false;
+    _picoLoadingDismissedByUser = false;
+    _picoLoadingDismissButtonWasPressed = false;
 #endif
     setIsInterstitialMode(true);
 #if defined(ANDROID_APP_PICO_INTERFACE)

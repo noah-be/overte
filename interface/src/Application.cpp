@@ -1078,6 +1078,11 @@ void Application::loadErrorDomain(QUrl domainURL) {
 }
 
 void Application::setIsInterstitialMode(bool interstitialMode) {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    if (interstitialMode && _picoLoadingDismissedByUser) {
+        return;
+    }
+#endif
     bool enableInterstitial = DependencyManager::get<NodeList>()->getDomainHandler().getInterstitialModeEnabled();
     if (enableInterstitial) {
         if (_interstitialMode != interstitialMode) {
@@ -1106,6 +1111,8 @@ void Application::setIsInterstitialMode(bool interstitialMode) {
             _picoLoadingTextureMemoryReady = false;
             _picoLoadingGpuFallbackUsed = false;
             _picoLoadingWasConnected = false;
+            _picoLoadingDismissedByUser = false;
+            _picoLoadingDismissButtonWasPressed = false;
             if (_graphicsEngine) {
                 _graphicsEngine->setLoadingState(
                     _interstitialMode, GraphicsEngine::LoadingPhase::STARTING,
@@ -1693,6 +1700,15 @@ void Application::nodeKilled(SharedNodePointer node) {
         QMetaObject::invokeMethod(DependencyManager::get<AudioClient>().data(), "audioMixerKilled");
     } else if (node->getType() == NodeType::EntityServer) {
         // we lost an entity server, clear all of the domain octree details
+#if defined(ANDROID_APP_PICO_INTERFACE)
+        // Once the player is already in a playable world, an entity-server reconnect is not a
+        // domain change. Keep the current scene and controls active while the server reconnects;
+        // clearing the octree here re-entered the full loading interstitial a few seconds later.
+        if (_physicsEnabled && !isInterstitialMode()) {
+            qCWarning(interfaceapp) << "Pico entity server disconnected; keeping playable scene during reconnect";
+            return;
+        }
+#endif
         clearDomainOctreeDetails(false);
     } else if (node->getType() == NodeType::AssetServer) {
         // asset server going away - check if we have the asset browser showing
@@ -2815,6 +2831,19 @@ void Application::update(float deltaTime) {
 
         userInputMapper->setInputCalibrationData(calibrationData);
         userInputMapper->update(deltaTime);
+#if defined(ANDROID_APP_PICO_INTERFACE)
+        // Keep an emergency escape hatch available while the loading interstitial captures normal input.
+        // OpenXR exposes the controller face buttons through the public standard X channel.
+        const auto standardDevice = userInputMapper->getStandardDevice();
+        const bool dismissLoadingPressed = standardDevice &&
+            standardDevice->getButton(controller::X) > 0.5f;
+        if (dismissLoadingPressed && !_picoLoadingDismissButtonWasPressed && isInterstitialMode()) {
+            _picoLoadingDismissedByUser = true;
+            qCInfo(interfaceapp) << "Pico loading screen dismissed by controller X button";
+            setIsInterstitialMode(false);
+        }
+        _picoLoadingDismissButtonWasPressed = dismissLoadingPressed;
+#endif
 #if defined(Q_OS_ANDROID)
         picoAfterInputMapper = usecTimestampNow();
 #endif

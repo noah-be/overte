@@ -969,6 +969,8 @@ private:
     bool _picoLoadingTextureMemoryReady { false };
     bool _picoLoadingGpuFallbackUsed { false };
     bool _picoLoadingWasConnected { false };
+    bool _picoLoadingDismissedByUser { false };
+    bool _picoLoadingDismissButtonWasPressed { false };
 #endif
     // This is needed so that physics do not get re-enabled before safe landing starts when moving from
     // serverless to domain server.
