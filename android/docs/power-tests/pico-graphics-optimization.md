@@ -915,6 +915,33 @@ fresh-data counters, and budget counters remained valid, and a guarded
 10-second locomotion check completed without an unsafe height, restart, native
 failure, or non-finite-pose diagnostic.
 
+The post-change profile still showed a separate scalable bound-update cost.
+`Avatar::updateFitBoundingBox()` read every joint's position and rotation
+through two independent thread-safe Rig calls. With five replicas it accounted
+for 1.40% inclusive versus 0.48% at baseline; repeated `QReadWriteLock` paths
+were visible below it. Skipping or rate-limiting collision bounds would risk
+stale avatar physics, so that approach was not used.
+
+Rig now provides one consistent absolute-pose snapshot copied under a single
+read lock. Each avatar reuses snapshot storage, transforms every pose to world
+space, and computes the same multi-sphere fit bound every frame. This removes
+per-joint lock/relookup overhead without reducing bound freshness or avatar
+quality. Paired 30-second, 399 Hz profiles recorded 39,289 baseline and 41,461
+loaded samples with no loss. Fit-bound work measured 0.25% and 0.58%; compared
+with the preceding pair, loaded inclusive cost fell by 59% and the load delta
+fell from 0.92 to 0.33 percentage points (64%). Complete avatar post-update
+measured 0.40% and 0.80%, reducing its load delta from 1.03 to 0.40 points
+(61%). The new bulk Rig snapshot itself measured only 0.02% and 0.04%.
+
+The shared ARM64 Android build and rebuilt host animation test executable
+passed. A guarded local 0/5 smoke matrix retained every model, fresh-pose
+refresh, and update-budget invariant. A subsequent 15-second verified Hub
+locomotion run with five replicas completed at the expected safe height and
+returned to the test start; no process restart, native failure, assertion, or
+non-finite-pose diagnostic was present. These profiles isolate the removed
+overhead, but whole-process CPU remains too scene-sensitive for an exact power
+claim.
+
 ## Limitations and next work
 
 - The Hub test is CPU-limited. A controlled local avatar population is now
@@ -928,10 +955,11 @@ failure, or non-finite-pose diagnostic.
   72 presents/s, while Overte generated about 20 new frames/s.
 - Physics broadphase and inactive simple-kinematic work are already bounded and
   are not strong next candidates for this scene. The strongest remaining work
-  is to determine whether the remaining per-avatar fit-bounding-box work can be
-  keyed safely to applied rig changes without making collision bounds stale.
-  Avatar complexity controls remain unjustified unless that audit identifies a
-  scalable bottleneck that cannot be removed without reducing quality.
+  is validation with independent mixer-fed moving avatars and a mirror-heavy
+  domain; the local fixture intentionally controls pose traffic but cannot
+  reproduce every network and content interaction. Avatar complexity controls
+  remain unjustified unless those tests expose a bottleneck that cannot be
+  removed without reducing quality.
   Per-module controller profiling and safe Create lazy loading have now also been screened.
   Global simulation-rate and renderable-budget reductions, model-update
   throttling, redundant Create gizmo updates, and idle near-search suppression

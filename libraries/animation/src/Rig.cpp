@@ -1038,6 +1038,16 @@ bool Rig::getAbsoluteJointPoseInRigFrame(int jointIndex, AnimPose& returnPose) c
     }
 }
 
+bool Rig::getAbsoluteJointPosesInRigFrame(AnimPoseVec& returnPoses) const {
+    if (QThread::currentThread() == thread()) {
+        returnPoses = _internalPoseSet._absolutePoses;
+    } else {
+        QReadLocker readLock(&_externalPoseSetLock);
+        returnPoses = _externalPoseSet._absolutePoses;
+    }
+    return !returnPoses.empty();
+}
+
 void Rig::setEnableInverseKinematics(bool enable) {
     _enableInverseKinematics = enable;
 }

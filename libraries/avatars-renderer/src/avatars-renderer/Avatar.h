@@ -765,6 +765,7 @@ protected:
 
     std::vector<MultiSphereShape> _multiSphereShapes;
     AABox _fitBoundingBox;
+    AnimPoseVec _fitBoundingBoxPoses;
     void clearAvatarGrabData(const QUuid& grabID) override;
 
     using SetOfIDs = std::set<QUuid>;
