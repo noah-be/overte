@@ -438,12 +438,13 @@ void GraphicsEngine::renderLoadingFrame(const gpu::FramebufferPointer& framebuff
     const int eyeWidth = static_cast<int>(framebufferSize.x) / eyeCount;
     const int eyeHeight = static_cast<int>(framebufferSize.y);
     const float eyeAspect = eyeHeight > 0 ? static_cast<float>(eyeWidth) / eyeHeight : 1.0f;
-    const float logoWidth = 1.18f;
+    constexpr float LOADING_UI_SCALE = 0.5f;
+    const float logoWidth = 1.18f * LOADING_UI_SCALE;
     const float logoHeight = logoWidth * eyeAspect * (130.60057f / 497.41665f);
-    const float statusWidth = 1.35f;
+    const auto phase = _loadingPhase.load(std::memory_order_relaxed);
+    const float statusWidth = 1.35f * LOADING_UI_SCALE;
     const float statusHeight = statusWidth * eyeAspect * (160.0f / 1024.0f);
     const float progress = _loadingProgress.load(std::memory_order_relaxed);
-    const auto phase = _loadingPhase.load(std::memory_order_relaxed);
 
     gpu::doInBatch("PicoLoadingFrame", _gpuContext, [&](gpu::Batch& batch) {
         batch.setFramebuffer(framebuffer);
@@ -464,8 +465,8 @@ void GraphicsEngine::renderLoadingFrame(const gpu::FramebufferPointer& framebuff
                 batch.setResourceTexture(0, _loadingLogo->getGPUTexture());
                 geometryCache->renderQuad(
                     batch,
-                    glm::vec2(-0.5f * logoWidth, 0.24f - 0.5f * logoHeight),
-                    glm::vec2(0.5f * logoWidth, 0.24f + 0.5f * logoHeight),
+                    glm::vec2(-0.5f * logoWidth, 0.24f * LOADING_UI_SCALE - 0.5f * logoHeight),
+                    glm::vec2(0.5f * logoWidth, 0.24f * LOADING_UI_SCALE + 0.5f * logoHeight),
                     glm::vec2(0.0f, 1.0f), glm::vec2(1.0f, 0.0f), glm::vec4(1.0f),
                     _loadingLogoGeometry);
             }
@@ -475,15 +476,15 @@ void GraphicsEngine::renderLoadingFrame(const gpu::FramebufferPointer& framebuff
                 batch.setResourceTexture(0, _loadingStatusTextures[phaseIndex]);
                 geometryCache->renderQuad(
                     batch,
-                    glm::vec2(-0.5f * statusWidth, -0.18f - 0.5f * statusHeight),
-                    glm::vec2(0.5f * statusWidth, -0.18f + 0.5f * statusHeight),
+                    glm::vec2(-0.5f * statusWidth, -0.18f * LOADING_UI_SCALE - 0.5f * statusHeight),
+                    glm::vec2(0.5f * statusWidth, -0.18f * LOADING_UI_SCALE + 0.5f * statusHeight),
                     glm::vec2(0.0f, 1.0f), glm::vec2(1.0f, 0.0f), glm::vec4(1.0f),
                     _loadingStatusGeometry);
             }
 
-            constexpr float TRACK_WIDTH = 1.10f;
-            constexpr float TRACK_HEIGHT = 0.035f;
-            constexpr float TRACK_Y = -0.40f;
+            constexpr float TRACK_WIDTH = 1.10f * LOADING_UI_SCALE;
+            constexpr float TRACK_HEIGHT = 0.035f * LOADING_UI_SCALE;
+            constexpr float TRACK_Y = -0.40f * LOADING_UI_SCALE;
             batch.setResourceTexture(0, textureCache->getWhiteTexture());
             geometryCache->renderQuad(
                 batch,
