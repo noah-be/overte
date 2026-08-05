@@ -945,8 +945,9 @@ claim.
 ## Limitations and next work
 
 - The Hub test is CPU-limited. A controlled local avatar population is now
-  available and its refreshed-pose 0/5/0/5 test is complete, but higher-load
-  saturation and mirror-heavy domain tests are still needed.
+  available; its refreshed-pose 0/5/0/5 and 0-through-20 saturation tests are
+  complete. Mirror-heavy and independent mixer-fed moving-avatar tests are
+  still needed.
 - The dynamic turning screen had large resource-streaming/order variance and
   was not used for the final numeric recommendation.
 - Internal frame counters and Android telemetry are appropriate for comparative
