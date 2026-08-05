@@ -716,6 +716,11 @@ unsigned conversion. Both limits and all non-finite classes are covered.
 Packed audio gain now treats non-positive and non-finite input as silence
 instead of allowing the bit-level logarithm approximation to turn invalid
 values into a loud byte. The exact unity-gain roundtrip remains unchanged.
+Inbound microphone and injector property parsing now rejects truncated fixed
+headers, invalid channel/boolean flags, non-finite transforms, and invalid
+injector radii before audio reaches the jitter buffer. A host regression test
+checks every truncation boundary as well as representative invalid scalar and
+transform values; the suite passes all seven QtTest entries.
 The underlying `ReceivedMessage` API now clamps copied and zero-copy reads and
 seek positions to the actual message bounds, including string payloads with a
 truncated length or body. Bulk avatar parsing additionally rejects incomplete

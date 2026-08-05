@@ -120,19 +120,35 @@ void InboundAudioStream::perSecondCallbackForUpdatingStats() {
 
 int InboundAudioStream::parseData(ReceivedMessage& message) {
     // parse sequence number and track it
-    quint16 sequence;
-    message.readPrimitive(&sequence);
-    SequenceNumberStats::ArrivalInfo arrivalInfo =
-        _incomingSequenceNumberStats.sequenceNumberReceived(sequence, message.getSourceID());
+    quint16 sequence { 0 };
+    if (message.readPrimitive(&sequence) != sizeof(sequence) ||
+            message.getBytesLeftToRead() < static_cast<qint64>(sizeof(uint32_t))) {
+        return message.getPosition();
+    }
+
+    uint32_t codecSize { 0 };
+    message.peekPrimitive(&codecSize);
+    if (codecSize > static_cast<uint32_t>(message.getBytesLeftToRead() - sizeof(codecSize))) {
+        return message.getPosition();
+    }
+
     QString codecInPacket = message.readString();
 
-    packetReceivedUpdateTimingStats();
-
-    int networkFrames;
+    int networkFrames { 0 };
 
     // parse the info after the seq number and before the audio data (the stream properties)
     int prePropertyPosition = message.getPosition();
-    int propertyBytes = parseStreamProperties(message.getType(), message.readWithoutCopy(message.getBytesLeftToRead()), networkFrames);
+    const QByteArray propertyData = message.readWithoutCopy(message.getBytesLeftToRead());
+    int propertyBytes = parseStreamProperties(message.getType(), propertyData, networkFrames);
+
+    if (propertyBytes < 0 || propertyBytes > propertyData.size()) {
+        message.seek(prePropertyPosition);
+        return message.getPosition();
+    }
+
+    SequenceNumberStats::ArrivalInfo arrivalInfo =
+        _incomingSequenceNumberStats.sequenceNumberReceived(sequence, message.getSourceID());
+    packetReceivedUpdateTimingStats();
 
     message.seek(prePropertyPosition + propertyBytes);
 
@@ -233,6 +249,9 @@ int InboundAudioStream::parseData(ReceivedMessage& message) {
 
 int InboundAudioStream::parseStreamProperties(PacketType type, const QByteArray& packetAfterSeqNum, int& numAudioSamples) {
     if (type == PacketType::SilentAudioFrame) {
+        if (packetAfterSeqNum.size() < static_cast<int>(sizeof(quint16))) {
+            return -1;
+        }
         quint16 numSilentSamples = 0;
         memcpy(&numSilentSamples, packetAfterSeqNum.constData(), sizeof(quint16));
         numAudioSamples = numSilentSamples;
