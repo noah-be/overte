@@ -308,6 +308,37 @@ window is about -57 dBFS RMS. This validates timing, routing, and full-duration
 capture; microphone gain and subjective intelligibility remain separate
 quality work.
 
+## Controlled production-backend source smoke
+
+After the diagnostic selector was connected to the public `AudioRecord`
+worker, a counterbalanced fixed-50% matrix used the same nine-second host-TTS
+WAV for three 12-second runs of each candidate. The orders were
+`voicecommunication` / `voicerecognition` / `mic`, then
+`voicerecognition` / `mic` / `voicecommunication`, then `mic` /
+`voicecommunication` / `voicerecognition`.
+
+AudioFlinger confirmed source IDs 7, 6, and 1 before playback in every
+corresponding run. All nine exported files were 48 kHz mono WAVs lasting
+12.00-12.04 seconds. Capture and downstream processing remained balanced with
+zero dropped PCM frames and zero final backlog:
+
+| Input source | Runs | Source ID | Android effects | Mean raw level | Gate-open ratio | Captured / processed PCM | Dropped PCM |
+| --- | ---: | ---: | --- | ---: | ---: | ---: | ---: |
+| voicecommunication | 3 | 7 | AEC + NS | 33.71 | 80.57% | 1,724,160 / 1,724,160 | 0 |
+| voicerecognition | 3 | 6 | None | 31.83 | 81.22% | 1,731,840 / 1,731,840 | 0 |
+| mic | 3 | 1 | None | 30.74 | 81.02% | 1,726,080 / 1,726,080 | 0 |
+
+The maximum observed CPU and GPU temperatures were 88.4 C and 71.3 C,
+respectively, below the runner's emergency limits. Every run stopped Overte,
+cleared its test properties, removed the app-cache recording, and restored
+automatic fan control.
+
+This proves that the current production capture worker opens distinct public
+Android sources and that their WAV-export and transport paths remain stable.
+The similar raw levels and gate ratios do not establish equivalent
+intelligibility, attack, tone, or pumping; those require listening to the saved
+captures rather than inferring subjective quality from aggregate counters.
+
 ## Overte noise-gate interaction
 
 A bracketing 15-second external-noise comparison measured both raw input and
@@ -360,18 +391,16 @@ separate paths.
 
 ## Next spoken-phrase test
 
-The remaining decision is speech quality, not background rejection. Run it
-in a controlled quiet environment after the headset cools, with fixed 50% fan
-control and a fixed speaker-to-headset distance. Record the same short phrase
-three times each with `voicecommunication`, `voicerecognition`, and `mic`;
-`camcorder` is already excluded as the normal chat choice by the background
-results.
+The automated counterbalanced host-TTS matrix is complete, but the remaining
+decision is still speech quality rather than background rejection. Compare the
+saved captures for consonant attack, word intelligibility, tonal colour, level
+pumping, and whether the first syllable is preserved. `camcorder` remains
+excluded as the normal chat choice by the background results.
 
-Compare consonant attack, word intelligibility, tonal colour, level pumping,
-and whether the first syllable opens Overte's automatic gate reliably. A
-second pass should play speech from the Pico speakers while recording to check
-echo cancellation. Keep source order counterbalanced and retain the raw WAVs,
-gate-open ratios, Android effect flags, fan RPM, and temperatures. Repeat the
-final preferred-source check with automatic fan control for real conditions.
-Only this test can decide whether `voicecommunication` should remain merely the
-default or become a stronger enforced Pico policy.
+A second pass should play the same speech from the Pico speakers while
+recording to check echo cancellation. Keep the source order counterbalanced
+and retain the raw WAVs, gate-open ratios, Android effect flags, fan RPM, and
+temperatures. Repeat the final preferred-source check with automatic fan
+control for real conditions. Only this work can decide whether
+`voicecommunication` should remain merely the default or become a stronger
+enforced Pico policy.
