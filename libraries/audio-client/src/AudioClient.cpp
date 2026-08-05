@@ -1681,7 +1681,9 @@ void AudioClient::processWebrtcNearEnd(int16_t* samples, int numFrames, int numC
 void AudioClient::handleLocalEchoAndReverb(QByteArray& inputByteArray) {
     // If there is server echo, reverb will be applied to the recieved audio stream so no need to have it here.
     bool hasReverb = _reverb || _receivedAudioStream.hasReverb();
-    if ((_isMuted && !_shouldEchoLocally) || !_audioOutput || (!_shouldEchoLocally && !hasReverb) || !_audioGateOpen) {
+    if ((_isMuted && !_shouldEchoLocally) || !_audioOutput ||
+            (!_shouldEchoLocally && !hasReverb) || (!_shouldEchoLocally && !_audioGateOpen)) {
+        _loopbackPendingAudio.clear();
         return;
     }
 
@@ -1726,6 +1728,14 @@ void AudioClient::handleLocalEchoAndReverb(QByteArray& inputByteArray) {
 
     loopBackByteArray.resize(numLoopbackSamples * AudioConstants::SAMPLE_SIZE);
 
+    // Keep the loopback output active while the noise gate is closed. Starting
+    // and starving a push-mode QAudioOutput at every speech boundary produces
+    // audible clicks on Android. Silence preserves the gate behavior without
+    // repeatedly underrunning the output device.
+    if (_shouldEchoLocally && !_audioGateOpen) {
+        loopBackByteArray.fill(0);
+    }
+
     // apply stereo reverb at the source, to the loopback audio
     if (!_shouldEchoLocally && hasReverb) {
         updateReverbOptions();
@@ -1734,11 +1744,8 @@ void AudioClient::handleLocalEchoAndReverb(QByteArray& inputByteArray) {
 
     // if required, upmix or downmix to deviceChannelCount
     int deviceChannelCount = _outputFormat.channelCount();
-    if (deviceChannelCount == OUTPUT_CHANNEL_COUNT) {
-
-        _loopbackOutputDevice->write(loopBackByteArray);
-
-    } else {
+    const QByteArray* outputBytes { &loopBackByteArray };
+    if (deviceChannelCount != OUTPUT_CHANNEL_COUNT) {
 
         static QByteArray deviceByteArray;
 
@@ -1753,7 +1760,33 @@ void AudioClient::handleLocalEchoAndReverb(QByteArray& inputByteArray) {
         } else {
             channelDownmix(loopbackSamples, deviceSamples, numLoopbackSamples);
         }
-        _loopbackOutputDevice->write(deviceByteArray);
+        outputBytes = &deviceByteArray;
+    }
+
+    // Android capture delivery can be batched when the main thread is busy.
+    // QAudioOutput may then accept only part of a push-mode write. Retain the
+    // remainder instead of dropping it and introducing a discontinuity.
+    _loopbackPendingAudio.append(*outputBytes);
+
+    const int frameBytes = deviceChannelCount * AudioConstants::SAMPLE_SIZE;
+    const int maxPendingBytes = static_cast<int>(_outputFormat.bytesForDuration(250 * USECS_PER_MSEC));
+    if (_loopbackPendingAudio.size() > maxPendingBytes) {
+        int bytesToDrop = _loopbackPendingAudio.size() - maxPendingBytes;
+        bytesToDrop = ((bytesToDrop + frameBytes - 1) / frameBytes) * frameBytes;
+        _loopbackPendingAudio.remove(0, bytesToDrop);
+        qCWarning(audioclient) << "Loopback audio queue overflow; dropped bytes" << bytesToDrop;
+    }
+
+    const qint64 bytesFree = _loopbackAudioOutput->bytesFree();
+    const qint64 bytesToWrite = std::min<qint64>(_loopbackPendingAudio.size(), bytesFree);
+    if (bytesToWrite > 0) {
+        const qint64 bytesWritten = _loopbackOutputDevice->write(
+            _loopbackPendingAudio.constData(), bytesToWrite);
+        if (bytesWritten > 0) {
+            _loopbackPendingAudio.remove(0, static_cast<int>(bytesWritten));
+        } else if (bytesWritten < 0) {
+            qCWarning(audioclient) << "Failed to write loopback audio" << _loopbackAudioOutput->error();
+        }
     }
 }
 
@@ -2460,6 +2493,7 @@ bool AudioClient::switchInputToAudioDevice(const HifiAudioDeviceInfo inputDevice
         delete _loopbackResampler;
         _loopbackResampler = NULL;
     }
+    _loopbackPendingAudio.clear();
 
     if (_audioGate) {
         delete _audioGate;
@@ -2746,6 +2780,7 @@ bool AudioClient::switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDevi
         //must be deleted in next eventloop cycle when its called from notify()
         _loopbackAudioOutput->deleteLater();
         _loopbackAudioOutput = NULL;
+        _loopbackPendingAudio.clear();
 
         delete[] _outputMixBuffer;
         _outputMixBuffer = NULL;
@@ -2868,6 +2903,7 @@ bool AudioClient::switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDevi
 
             // setup a loopback audio output device
             _loopbackAudioOutput = new QAudioOutput(outputDeviceInfo.getDevice(), _outputFormat, this);
+            _loopbackAudioOutput->setBufferSize(requestedSize * 8);
 
             _timeSinceLastReceived.start();
 

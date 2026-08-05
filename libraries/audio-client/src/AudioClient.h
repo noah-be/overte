@@ -394,6 +394,7 @@ private:
     int _numOutputCallbackBytes{ 0 };
     QAudioOutput* _loopbackAudioOutput{ nullptr };
     QIODevice* _loopbackOutputDevice{ nullptr };
+    QByteArray _loopbackPendingAudio;
     AudioRingBuffer _inputRingBuffer{ 0 };
     LocalInjectorsStream _localInjectorsStream{ 0 , 1 };
     // In order to use _localInjectorsStream as a lock-free pipe,
