@@ -36,6 +36,7 @@ class AvatarDataTests : public QObject {
 
 private slots:
     void parseTruncatedFlags();
+    void parseTruncatedSections();
     void parseTruncatedHandControllers();
     void parseCompleteHandControllers();
     void rejectNonFiniteGlobalPosition();
@@ -60,6 +61,85 @@ void AvatarDataTests::parseTruncatedFlags() {
 
     QCOMPARE(avatar.parseDataFromBuffer(emptyPacket), emptyPacket.size());
     QCOMPARE(avatar.parseDataFromBuffer(oneBytePacket), oneBytePacket.size());
+}
+
+void AvatarDataTests::parseTruncatedSections() {
+    using namespace AvatarDataPacket;
+
+    const QVector<QPair<HasFlags, int>> fixedSections {
+        { PACKET_HAS_AVATAR_GLOBAL_POSITION, int(sizeof(AvatarGlobalPosition)) },
+        { PACKET_HAS_AVATAR_BOUNDING_BOX, int(sizeof(AvatarBoundingBox)) },
+        { PACKET_HAS_AVATAR_ORIENTATION, int(sizeof(SixByteQuat)) },
+        { PACKET_HAS_AVATAR_SCALE, int(sizeof(AvatarScale)) },
+        { PACKET_HAS_LOOK_AT_POSITION, int(sizeof(LookAtPosition)) },
+        { PACKET_HAS_AUDIO_LOUDNESS, int(sizeof(AudioLoudness)) },
+        { PACKET_HAS_SENSOR_TO_WORLD_MATRIX, int(sizeof(SensorToWorldMatrix)) },
+        { PACKET_HAS_ADDITIONAL_FLAGS, int(sizeof(AdditionalFlags)) },
+        { PACKET_HAS_PARENT_INFO, int(sizeof(ParentInfo)) },
+        { PACKET_HAS_AVATAR_LOCAL_POSITION, int(sizeof(AvatarLocalPosition)) },
+        { PACKET_HAS_HAND_CONTROLLERS, int(HAND_CONTROLLERS_SIZE) },
+    };
+
+    QVector<QByteArray> packets;
+    for (const auto& section : fixedSections) {
+        QByteArray packet(sizeof(HasFlags) + section.second, '\0');
+        memcpy(packet.data(), &section.first, sizeof(HasFlags));
+        packets.push_back(packet);
+    }
+
+    FaceTrackerInfo faceInfo {};
+    faceInfo.numBlendshapeCoefficients = 2;
+    QByteArray facePacket(sizeof(HasFlags) + sizeof(faceInfo) + 2 * sizeof(float), '\0');
+    const HasFlags faceFlags = PACKET_HAS_FACE_TRACKER_INFO;
+    memcpy(facePacket.data(), &faceFlags, sizeof(faceFlags));
+    memcpy(facePacket.data() + sizeof(faceFlags), &faceInfo, sizeof(faceInfo));
+    packets.push_back(facePacket);
+
+    constexpr uint8_t numJoints = 8;
+    constexpr int validityBytes = 1;
+    constexpr int compressedJointBytes = numJoints * 6;
+    const HasFlags jointFlags = PACKET_HAS_JOINT_DATA;
+    QByteArray jointPacket(sizeof(HasFlags) + sizeof(numJoints) + validityBytes + compressedJointBytes +
+                               validityBytes + sizeof(float) + compressedJointBytes,
+                           '\0');
+    char* jointCursor = jointPacket.data();
+    memcpy(jointCursor, &jointFlags, sizeof(jointFlags));
+    jointCursor += sizeof(jointFlags);
+    memcpy(jointCursor, &numJoints, sizeof(numJoints));
+    jointCursor += sizeof(numJoints);
+    *jointCursor++ = static_cast<char>(0xff);
+    jointCursor += compressedJointBytes;
+    *jointCursor++ = static_cast<char>(0xff);
+    const float maxTranslationDimension = 1.0f;
+    memcpy(jointCursor, &maxTranslationDimension, sizeof(maxTranslationDimension));
+    packets.push_back(jointPacket);
+
+    QByteArray farGrabPacket = jointPacket;
+    const HasFlags farGrabFlags = jointFlags | PACKET_HAS_GRAB_JOINTS;
+    memcpy(farGrabPacket.data(), &farGrabFlags, sizeof(farGrabFlags));
+    FarGrabJoints farGrab {};
+    farGrab.leftFarGrabRotation[0] = 1.0f;
+    farGrab.rightFarGrabRotation[0] = 1.0f;
+    farGrab.mouseFarGrabRotation[0] = 1.0f;
+    farGrabPacket.append(reinterpret_cast<const char*>(&farGrab), sizeof(farGrab));
+    packets.push_back(farGrabPacket);
+
+    const HasFlags defaultPoseFlags = PACKET_HAS_JOINT_DEFAULT_POSE_FLAGS;
+    QByteArray defaultPosePacket(sizeof(HasFlags) + sizeof(numJoints) + 2 * validityBytes, '\0');
+    memcpy(defaultPosePacket.data(), &defaultPoseFlags, sizeof(defaultPoseFlags));
+    memcpy(defaultPosePacket.data() + sizeof(defaultPoseFlags), &numJoints, sizeof(numJoints));
+    packets.push_back(defaultPosePacket);
+
+    for (const auto& completePacket : packets) {
+        for (int size = sizeof(HasFlags); size < completePacket.size(); ++size) {
+            AvatarData avatar;
+            const auto truncatedPacket = completePacket.left(size);
+            QCOMPARE(avatar.parseDataFromBuffer(truncatedPacket), truncatedPacket.size());
+        }
+
+        AvatarData avatar;
+        QCOMPARE(avatar.parseDataFromBuffer(completePacket), completePacket.size());
+    }
 }
 
 void AvatarDataTests::parseTruncatedHandControllers() {
