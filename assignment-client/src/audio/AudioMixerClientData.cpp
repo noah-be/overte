@@ -11,11 +11,13 @@
 
 #include "AudioMixerClientData.h"
 
+#include <cmath>
 #include <random>
 
 #include <glm/common.hpp>
 
 #include <QtCore/QDebug>
+#include <QtCore/QDataStream>
 #include <QtCore/QJsonArray>
 
 #include <udt/PacketHeaders.h>
@@ -174,10 +176,21 @@ void AudioMixerClientData::optionallyReplicatePacket(ReceivedMessage& message, c
 }
 
 void AudioMixerClientData::negotiateAudioFormat(ReceivedMessage& message, const SharedNodePointer& node) {
-    quint8 numberOfCodecs;
-    message.readPrimitive(&numberOfCodecs);
+    quint8 numberOfCodecs { 0 };
+    if (message.readPrimitive(&numberOfCodecs) != sizeof(numberOfCodecs)) {
+        return;
+    }
+
     std::vector<QString> codecs;
     for (auto i = 0; i < numberOfCodecs; i++) {
+        if (message.getBytesLeftToRead() < static_cast<qint64>(sizeof(uint32_t))) {
+            return;
+        }
+        uint32_t codecSize { 0 };
+        message.peekPrimitive(&codecSize);
+        if (codecSize > static_cast<uint32_t>(message.getBytesLeftToRead() - sizeof(codecSize))) {
+            return;
+        }
         codecs.push_back(message.readString());
     }
     const std::pair<QString, CodecPluginPointer> codec = AudioMixer::negotiateCodec(codecs);
@@ -187,17 +200,24 @@ void AudioMixerClientData::negotiateAudioFormat(ReceivedMessage& message, const 
 }
 
 void AudioMixerClientData::parseRequestsDomainListData(ReceivedMessage& message) {
-    bool isRequesting;
-    message.readPrimitive(&isRequesting);
+    bool isRequesting { false };
+    if (message.readPrimitive(&isRequesting) != sizeof(isRequesting)) {
+        return;
+    }
     setRequestsDomainListData(isRequesting);
 }
 
 void AudioMixerClientData::parsePerAvatarGainSet(ReceivedMessage& message, const SharedNodePointer& node) {
     QUuid uuid = node->getUUID();
     // parse the UUID from the packet
+    if (message.getBytesLeftToRead() < NUM_BYTES_RFC4122_UUID + static_cast<qint64>(sizeof(uint8_t))) {
+        return;
+    }
     QUuid avatarUUID = QUuid::fromRfc4122(message.readWithoutCopy(NUM_BYTES_RFC4122_UUID));
-    uint8_t packedGain;
-    message.readPrimitive(&packedGain);
+    uint8_t packedGain { 0 };
+    if (message.readPrimitive(&packedGain) != sizeof(packedGain)) {
+        return;
+    }
     float gain = unpackFloatGainFromByte(packedGain);
 
     if (avatarUUID.isNull()) {
@@ -214,8 +234,10 @@ void AudioMixerClientData::parsePerAvatarGainSet(ReceivedMessage& message, const
 void AudioMixerClientData::parseInjectorGainSet(ReceivedMessage& message, const SharedNodePointer& node) {
     QUuid uuid = node->getUUID();
 
-    uint8_t packedGain;
-    message.readPrimitive(&packedGain);
+    uint8_t packedGain { 0 };
+    if (message.readPrimitive(&packedGain) != sizeof(packedGain)) {
+        return;
+    }
     float gain = unpackFloatGainFromByte(packedGain);
 
     setPrimaryInjectorGain(gain);
@@ -398,55 +420,106 @@ int AudioMixerClientData::parseData(ReceivedMessage& message) {
     return 0;
 }
 
-bool AudioMixerClientData::containsValidPosition(ReceivedMessage& message) const {
-    static const int SEQUENCE_NUMBER_BYTES = sizeof(quint16);
-
+bool AudioMixerClientData::containsValidAudioProperties(ReceivedMessage& message) const {
     auto posBefore = message.getPosition();
+    const bool valid = [&] {
+        message.seek(0);
 
-    message.seek(SEQUENCE_NUMBER_BYTES);
-
-    // skip over the codec string
-    message.readString();
-
-    switch (message.getType()) {
-        case PacketType::MicrophoneAudioNoEcho:
-        case PacketType::MicrophoneAudioWithEcho: {
-            // skip over the stereo flag
-            message.seek(message.getPosition() + sizeof(ChannelFlag));
-            break;
+        StreamSequenceNumber sequence { 0 };
+        if (message.readPrimitive(&sequence) != sizeof(sequence) ||
+                message.getBytesLeftToRead() < static_cast<qint64>(sizeof(uint32_t))) {
+            return false;
         }
-        case PacketType::SilentAudioFrame: {
-            // skip the number of silent samples
-            message.seek(message.getPosition() + sizeof(SilentSamplesBytes));
-            break;
-        }
-        case PacketType::InjectAudio: {
-            // skip the stream ID, stereo flag, and loopback flag
-            message.seek(message.getPosition() + NUM_STREAM_ID_BYTES + sizeof(ChannelFlag) + sizeof(LoopbackFlag));
-            break;
-        }
-        default:
-            Q_UNREACHABLE();
-            break;
-    }
 
-    glm::vec3 peekPosition;
-    message.readPrimitive(&peekPosition);
+        uint32_t codecSize { 0 };
+        message.peekPrimitive(&codecSize);
+        if (codecSize > static_cast<uint32_t>(message.getBytesLeftToRead() - sizeof(codecSize))) {
+            return false;
+        }
+        message.readString();
+
+        bool isInjector { false };
+        switch (message.getType()) {
+            case PacketType::MicrophoneAudioNoEcho:
+            case PacketType::MicrophoneAudioWithEcho: {
+                ChannelFlag channelFlag { 0 };
+                if (message.readPrimitive(&channelFlag) != sizeof(channelFlag) || channelFlag > 1) {
+                    return false;
+                }
+                break;
+            }
+            case PacketType::SilentAudioFrame: {
+                SilentSamplesBytes numSilentSamples { 0 };
+                if (message.readPrimitive(&numSilentSamples) != sizeof(numSilentSamples) ||
+                        (numSilentSamples != AudioConstants::NETWORK_FRAME_SAMPLES_PER_CHANNEL &&
+                         numSilentSamples != AudioConstants::NETWORK_FRAME_SAMPLES_STEREO)) {
+                    return false;
+                }
+                break;
+            }
+            case PacketType::InjectAudio: {
+                if (message.readWithoutCopy(NUM_STREAM_ID_BYTES).size() != NUM_STREAM_ID_BYTES) {
+                    return false;
+                }
+                ChannelFlag channelFlag { 0 };
+                LoopbackFlag loopbackFlag { 0 };
+                if (message.readPrimitive(&channelFlag) != sizeof(channelFlag) || channelFlag > 1 ||
+                        message.readPrimitive(&loopbackFlag) != sizeof(loopbackFlag) || loopbackFlag > 1) {
+                    return false;
+                }
+                isInjector = true;
+                break;
+            }
+            default:
+                return false;
+        }
+
+        QDataStream propertyStream(message.readWithoutCopy(message.getBytesLeftToRead()));
+        glm::vec3 position;
+        glm::quat orientation;
+        glm::vec3 avatarBoundingBoxCorner;
+        glm::vec3 avatarBoundingBoxScale;
+        if (propertyStream.readRawData(reinterpret_cast<char*>(&position), sizeof(position)) != sizeof(position) ||
+                propertyStream.readRawData(reinterpret_cast<char*>(&orientation), sizeof(orientation)) != sizeof(orientation) ||
+                propertyStream.readRawData(reinterpret_cast<char*>(&avatarBoundingBoxCorner), sizeof(avatarBoundingBoxCorner)) !=
+                    sizeof(avatarBoundingBoxCorner) ||
+                propertyStream.readRawData(reinterpret_cast<char*>(&avatarBoundingBoxScale), sizeof(avatarBoundingBoxScale)) !=
+                    sizeof(avatarBoundingBoxScale)) {
+            return false;
+        }
+
+        const auto finiteVec3 = [](const glm::vec3& value) {
+            return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
+        };
+        if (!finiteVec3(position) || !finiteVec3(avatarBoundingBoxCorner) || !finiteVec3(avatarBoundingBoxScale) ||
+                !std::isfinite(orientation.x) || !std::isfinite(orientation.y) ||
+                !std::isfinite(orientation.z) || !std::isfinite(orientation.w)) {
+            return false;
+        }
+
+        if (isInjector) {
+            float radius { 0.0f };
+            quint8 attenuationByte { 0 };
+            quint8 ignorePenumbraFlag { 0 };
+            propertyStream >> radius >> attenuationByte >> ignorePenumbraFlag;
+            if (propertyStream.status() != QDataStream::Ok || !std::isfinite(radius) || radius < 0.0f ||
+                    ignorePenumbraFlag > 1) {
+                return false;
+            }
+        }
+
+        return true;
+    }();
 
     // reset the position the message was at before we were called
     message.seek(posBefore);
-
-    if (glm::any(glm::isnan(peekPosition))) {
-        return false;
-    }
-
-    return true;
+    return valid;
 }
 
 void AudioMixerClientData::processStreamPacket(ReceivedMessage& message, ConcurrentAddedStreams &addedStreams) {
 
-    if (!containsValidPosition(message)) {
-        qDebug() << "Refusing to process audio stream from" << message.getSourceID() << "with invalid position";
+    if (!containsValidAudioProperties(message)) {
+        qDebug() << "Refusing to process audio stream from" << message.getSourceID() << "with invalid properties";
         return;
     }
 
@@ -473,13 +546,13 @@ void AudioMixerClientData::processStreamPacket(ReceivedMessage& message, Concurr
             auto codecString = message.readString();
 
             // determine if the stream is stereo or not
-            bool isStereo;
+            bool isStereo { false };
             if (packetType == PacketType::SilentAudioFrame || packetType == PacketType::ReplicatedSilentAudioFrame) {
-                SilentSamplesBytes numSilentSamples;
+                SilentSamplesBytes numSilentSamples { 0 };
                 message.readPrimitive(&numSilentSamples);
                 isStereo = numSilentSamples == AudioConstants::NETWORK_FRAME_SAMPLES_STEREO;
             } else {
-                ChannelFlag channelFlag;
+                ChannelFlag channelFlag { 0 };
                 message.readPrimitive(&channelFlag);
                 isStereo = channelFlag == 1;
             }
@@ -519,7 +592,7 @@ void AudioMixerClientData::processStreamPacket(ReceivedMessage& message, Concurr
         });
 
         if (streamIt == _audioStreams.end()) {
-            bool isStereo;
+            bool isStereo { false };
             message.readPrimitive(&isStereo);
 
             // we don't have this injected stream yet, so add it

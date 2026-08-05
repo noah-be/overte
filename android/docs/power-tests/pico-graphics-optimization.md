@@ -721,6 +721,10 @@ headers, invalid channel/boolean flags, non-finite transforms, and invalid
 injector radii before audio reaches the jitter buffer. A host regression test
 checks every truncation boundary as well as representative invalid scalar and
 transform values; the suite passes all seven QtTest entries.
+The audio mixer now performs the same fixed-header validation before creating
+a microphone or injector stream. Truncated codec negotiation, domain-list,
+per-avatar gain, and injector-gain messages are ignored before they can change
+mixer state; the server-side translation unit passes host syntax compilation.
 The underlying `ReceivedMessage` API now clamps copied and zero-copy reads and
 seek positions to the actual message bounds, including string payloads with a
 truncated length or body. Bulk avatar parsing additionally rejects incomplete
