@@ -12,6 +12,15 @@ Run the measurement from `android/`:
 ./pico-world-loading-report.sh power-results/<run>.csv
 ```
 
+For the bundled Hub A/B fixtures use the serverless mode:
+
+```bash
+./pico-world-loading-test.sh --runs 3 --serverless \
+  --target file:///~/serverless/overte-hub-original.json
+./pico-world-loading-test.sh --runs 3 --serverless \
+  --target file:///~/serverless/overte-hub-pico4-optimized.json
+```
+
 Each run produces milestone CSV, one-second telemetry samples, active-resource
 snapshots, and filtered diagnostics. The runner uses wireless ADB, enforces
 brightness 1% and fan 100% during the test, and restores the previous controls

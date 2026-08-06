@@ -186,3 +186,32 @@ the number of domain resets, playable time, loading-screen release time, settled
 time, resource bytes and request counts, entity count, and script-load count.
 Discard a run only for a documented infrastructure failure; a slow reconnect is
 part of the user experience and must remain in the data.
+
+## Serverless Hub A/B fixture
+
+The branch also contains an exported Hub fixture in
+`android/world-copies/overte-hub-original.json` and a conservative optimized
+copy in `android/world-copies/overte-hub-pico4-optimized.json`. Both are bundled
+under `file:///~/serverless/` for repeatable Pico tests. The optimized copy
+removes the 14 measured `sitClient.js` entity scripts while preserving entity
+geometry, transforms, and IDs.
+
+Three matched runs per fixture were executed with brightness 1% and fan 100%.
+The serverless loader does not emit a domain entity-sequence milestone, so its
+`entity_sequence_complete_ms` is `-1`; the runner's `--serverless` mode checks
+the remaining milestones and accepts the local-loader status explicitly.
+
+| fixture | median playable | median release | median settled |
+|---|---:|---:|---:|
+| original | 35.7 s | 36.8 s | 61.0 s |
+| optimized | 39.0 s | 39.9 s | 65.9 s |
+
+In this small serverless series the optimized copy was not faster (about +3.4 s
+playable and +4.9 s settled). The result is therefore a negative/neutral A/B
+finding, not evidence to remove the change from a live Hub: entity scripts were
+outside the measured spawn/culling volume in this fixture (`tracked_entities=0`)
+and the series is only three runs. Use the copy as a reproducible harness, then
+repeat at the actual spawn position after moving the relevant seating entities
+into the initial visible volume. The original and optimized CSV, samples,
+active-resource snapshots, and diagnostics remain in `power-results/` locally;
+that directory is intentionally ignored by Git.
