@@ -67,6 +67,8 @@ adb_shell() { "$ADB_BIN" -s "$PICO_SERIAL" shell "$@"; }
 fan_test_active=0
 brightness_test_active=0
 original_brightness=""
+current_run=0
+LOG_OUTPUT=""
 cleanup() {
     adb_shell setprop debug.overte.navigate '' >/dev/null 2>&1 || true
     adb_shell setprop debug.overte.test_mode '' >/dev/null 2>&1 || true
@@ -79,7 +81,19 @@ cleanup() {
         fan_test_active=0
     fi
 }
-trap cleanup EXIT INT TERM
+finalize() {
+    local exit_status=$?
+    trap - EXIT INT TERM
+    if [[ -n "$LOG_OUTPUT" && "$current_run" -gt 0 ]]; then
+        {
+            echo "===== run $current_run diagnostics (aborted, status=$exit_status) ====="
+            adb_shell logcat -d -v brief 2>/dev/null | rg 'PICO_ENTITY_PRELOAD_SLOW|PICO_UPDATE_STAGES|PICO_ENTITY_UPDATE_STAGES|Pico world loading' || true
+        } >> "$LOG_OUTPUT"
+    fi
+    cleanup
+    exit "$exit_status"
+}
+trap finalize EXIT INT TERM
 
 original_brightness="$(adb_shell gd32ipdclient_test getbrightness 2>/dev/null \
     | sed -n 's/.*GetBrightness = //p' | head -n 1)"
@@ -148,6 +162,7 @@ collect_sample() {
 }
 
 for (( run=1; run<=RUNS; ++run )); do
+    current_run="$run"
     echo "world loading run $run/$RUNS"
     adb_shell am force-stop "$PACKAGE"
     adb_shell logcat -c
@@ -237,6 +252,7 @@ for (( run=1; run<=RUNS; ++run )); do
     } >> "$LOG_OUTPUT"
 
     printf '%s\n' "$run,$epoch,$domain,$world,$sequence,$safe,$gpu,$physics,$ready,$release,$postload_quiet_ms,$quiet_at,$((world-domain)),$((sequence-world)),$((safe-sequence)),$((gpu-safe)),$((physics-gpu)),$((ready-physics)),$((release-ready)),$entities,$received,$expected,$recovery,$fallback,$frames,$dismissed,$reconnects" >> "$OUTPUT"
+    current_run=0
 done
 
 cleanup
