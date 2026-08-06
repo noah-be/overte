@@ -215,3 +215,10 @@ repeat at the actual spawn position after moving the relevant seating entities
 into the initial visible volume. The original and optimized CSV, samples,
 active-resource snapshots, and diagnostics remain in `power-results/` locally;
 that directory is intentionally ignored by Git.
+
+The serverless loader does not execute the exported remote entity scripts in
+this fixture, so its script-preload counters remain zero. The live Hub series is
+the authoritative measurement for `sitClient.js`; the serverless copies are
+useful for geometry/resource and packaging checks. Run
+`tests/serverless-hub-fixture-test.sh` to verify schema, entity-ID parity, and
+the expected 14-script removal after editing either copy.

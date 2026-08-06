@@ -26,3 +26,9 @@ Each run produces milestone CSV, one-second telemetry samples, active-resource
 snapshots, and filtered diagnostics. The runner uses wireless ADB, enforces
 brightness 1% and fan 100% during the test, and restores the previous controls
 afterwards.
+
+Validate the checked-in serverless fixtures without a headset:
+
+```bash
+./tests/serverless-hub-fixture-test.sh
+```
