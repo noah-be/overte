@@ -9,6 +9,10 @@ from the production Hub content.
 - `overte-hub-pico4-optimized.json` keeps the same entity data but removes the
   measured startup-cost `sitClient.js` scripts (14 instances) and any matching
   server-side script fields. The remaining four scripts are not changed.
+- `overte-hub-original-spawn.json` and `overte-hub-pico4-optimized-spawn.json`
+  are test variants translated by the captured Hub center. They place the same
+  scene around the packaged serverless spawn so culling/late-resource tests can
+  observe the exported entities without a physics-dependent teleport.
 
 The optimized copy is a conservative A/B fixture: geometry, transforms,
 materials, and entity IDs remain unchanged. It does not pretend to be a full
