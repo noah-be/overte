@@ -223,12 +223,20 @@ for (( run=1; run<=RUNS; ++run )); do
     done
     [[ -n "$status" && "${fields:-0}" == 17 ]] || { echo "timed out waiting for loading telemetry" >&2; exit 1; }
 
-    for value in "$domain" "$world" "$sequence" "$safe" "$gpu" "$physics" "$ready" "$release"; do
+    for value in "$domain" "$world" "$safe" "$gpu" "$physics" "$ready" "$release"; do
         [[ "$value" =~ ^[0-9]+$ ]] || { echo "invalid or missing milestone: $status" >&2; exit 1; }
     done
-    (( domain <= world && world <= sequence && sequence <= safe && safe <= gpu && gpu <= physics && physics <= ready && ready <= release )) || {
-        echo "out-of-order loading milestones: $status" >&2; exit 1;
-    }
+    if [[ "$EXPECTED_CONNECTED" == 1 ]]; then
+        [[ "$sequence" =~ ^[0-9]+$ ]] || { echo "invalid entity sequence milestone: $status" >&2; exit 1; }
+        (( domain <= world && world <= sequence && sequence <= safe && safe <= gpu && gpu <= physics && physics <= ready && ready <= release )) || {
+            echo "out-of-order loading milestones: $status" >&2; exit 1;
+        }
+    else
+        [[ "$sequence" == -1 || "$sequence" =~ ^[0-9]+$ ]] || { echo "invalid serverless sequence milestone: $status" >&2; exit 1; }
+        (( domain <= world && world <= safe && safe <= gpu && gpu <= physics && physics <= ready && ready <= release )) || {
+            echo "out-of-order serverless loading milestones: $status" >&2; exit 1;
+        }
+    fi
     world_status="$(adb_shell run-as "$PACKAGE" cat cache/world-status 2>/dev/null | tr -d '\r' || true)"
     IFS='|' read -r _ connected place domain_id _ <<< "$world_status"
     [[ "$connected" == "$EXPECTED_CONNECTED" ]] || {
