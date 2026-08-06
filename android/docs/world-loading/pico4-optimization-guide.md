@@ -141,6 +141,20 @@ request during initial world construction. This is a concrete authoring change
 that can be validated by rerunning the same telemetry and comparing preload
 totals and `max_sample_gap`.
 
+## Five-run diagnostics series
+
+A five-run series with brightness 1% and fan 100% completed all runs. The median
+playable time was 40.9 s, median loading-screen release 41.9 s, and median
+settled time 94.3 s. Median maximum telemetry gap was 20.7 s, showing that
+post-screen local work remains substantial even when the render thread stays
+active.
+
+Across the five diagnostics logs, `sitClient.js` produced 144 slow preload
+calls totaling 157.2 s, while `script_server_crasher_client_console.js`
+produced five calls totaling 42.5 s. These totals are cumulative across
+entities and runs; they are not a single wall-clock duration, but they clearly
+rank repeated entity scripts ahead of ordinary one-off assets for optimization.
+
 It also reports `max_sample_gap`. A large value means the interface update loop
 did not publish telemetry during that interval; treat it as a real local stall,
 even if the render thread continued displaying frames. In the repeat validation
