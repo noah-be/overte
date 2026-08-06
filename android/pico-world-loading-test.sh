@@ -10,6 +10,9 @@ ADB_BIN="${ADB_BIN:-${ANDROID_SDK_ROOT:-${ANDROID_HOME:-${HOME}/Android/Sdk}}/pl
 PACKAGE="org.overte.pico"
 ACTIVITY="$PACKAGE/.PermissionsActivity"
 TARGET="hifi://overte_hub/155.084,-98.5,-397.328"
+EXPECTED_CONNECTED=1
+EXPECTED_PLACE="overte_hub"
+EXPECTED_PLACE_PREFIX=""
 RUNS=5
 TIMEOUT=120
 SETTLE=8
@@ -21,13 +24,17 @@ usage() {
     cat <<'EOF'
 Usage: ./pico-world-loading-test.sh [options]
 
-Measure verified overte_hub entry milestones on a Pico connected through WLAN ADB.
+Measure verified world-entry milestones on a Pico connected through WLAN ADB.
 
   --runs N       Number of cold-process runs (default: 5)
   --timeout SEC  Per-run world loading timeout (default: 120)
   --settle SEC   Local startup scene settling time (default: 8)
   --post-timeout SEC  Maximum observation after screen release (default: 120)
   --quiet SEC     Required seconds without loading activity (default: 10)
+  --target URL    Navigation target (default: overte_hub)
+  --expected-connected 0|1  Expected world-status connection flag (default: 1)
+  --expected-place NAME    Exact expected place for connected targets
+  --expected-place-prefix PREFIX  Prefix accepted for the place field
   --output FILE  CSV output (default: power-results/<timestamp>-world-loading.csv)
 EOF
 }
@@ -39,11 +46,19 @@ while (( $# > 0 )); do
         --settle) SETTLE="$2"; shift 2 ;;
         --post-timeout) POST_TIMEOUT="$2"; shift 2 ;;
         --quiet) QUIET_SECONDS="$2"; shift 2 ;;
+        --target) TARGET="$2"; shift 2 ;;
+        --expected-connected) EXPECTED_CONNECTED="$2"; shift 2 ;;
+        --expected-place) EXPECTED_PLACE="$2"; shift 2 ;;
+        --expected-place-prefix) EXPECTED_PLACE_PREFIX="$2"; shift 2 ;;
         --output) OUTPUT="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
     esac
 done
+
+[[ "$EXPECTED_CONNECTED" == 0 || "$EXPECTED_CONNECTED" == 1 ]] || {
+    echo "expected-connected must be 0 or 1" >&2; exit 2;
+}
 
 for value in "$RUNS" "$TIMEOUT" "$POST_TIMEOUT" "$QUIET_SECONDS"; do
     [[ "$value" =~ ^[1-9][0-9]*$ ]] || { echo "runs and timeout must be positive integers" >&2; exit 2; }
@@ -216,9 +231,21 @@ for (( run=1; run<=RUNS; ++run )); do
     }
     world_status="$(adb_shell run-as "$PACKAGE" cat cache/world-status 2>/dev/null | tr -d '\r' || true)"
     IFS='|' read -r _ connected place domain_id _ <<< "$world_status"
-    [[ "$connected" == 1 && "${place,,}" == overte_hub && -n "$domain_id" ]] || {
-        echo "telemetry completed outside overte_hub: ${world_status:-missing}" >&2; exit 1;
+    [[ "$connected" == "$EXPECTED_CONNECTED" ]] || {
+        echo "telemetry connection flag mismatch: ${world_status:-missing}" >&2; exit 1;
     }
+    if [[ -n "$EXPECTED_PLACE_PREFIX" ]]; then
+        [[ "${place,,}" == "${EXPECTED_PLACE_PREFIX,,}"* ]] || {
+            echo "telemetry place mismatch: ${world_status:-missing}" >&2; exit 1;
+        }
+    else
+        [[ "${place,,}" == "${EXPECTED_PLACE,,}" ]] || {
+            echo "telemetry place mismatch: ${world_status:-missing}" >&2; exit 1;
+        }
+    fi
+    if [[ "$EXPECTED_CONNECTED" == 1 ]]; then
+        [[ -n "$domain_id" ]] || { echo "connected telemetry has no domain id" >&2; exit 1; }
+    fi
 
     quiet_samples=0
     quiet_at=-1
