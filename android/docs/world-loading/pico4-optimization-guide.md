@@ -141,8 +141,11 @@ entity's `preload()` method.
 
 ## Live VM A/B and ten-second Pico target
 
-For a reproducible live comparison, the fresh Proxmox VM at `192.168.188.180`
-was given isolated Overte instances: original (`40202`), conservative optimized
+For a reproducible live comparison, a fresh Proxmox VM was used as the private
+test server. Replace `(Proxmox Overte VM IP)` below with the VM's LAN address.
+For installation and server setup, follow the [official Overte Linux domain
+server documentation](https://docs.overte.org/en/latest/host/server-setup/linux-server.html).
+The VM was given isolated Overte instances: original (`40202`), conservative optimized
 (`40302`), aggressive (`40402`), and ultra (`40502`). The Pico reached the Hub
 coordinates at `155.084,-98.5,-397.328` over WLAN ADB, with brightness 1% and
 fan 100% enforced for every run. The local domain has no public place name, so
@@ -171,11 +174,13 @@ settle plus 0.1 s READY display with bounded timeouts. This is safe only because
 physics and GPU readiness are already established; do not copy the constants to
 desktop clients without the same milestone gates.
 
-The Pico application now uses this ultra domain as its ordinary startup target,
+The Pico application in this private test setup uses this ultra domain as its
+ordinary startup target,
 so launching the app without an explicit deep link enters the optimized world
 automatically. The deployed LAN endpoint is
-`hifi://192.168.188.180:40502/155.084,-98.5,-397.328`; explicit command-line
-URLs remain available for diagnostics.
+`hifi://(Proxmox Overte VM IP):40502/155.084,-98.5,-397.328`; replace the
+placeholder in a local build before deploying. Explicit command-line URLs remain
+available for diagnostics.
 
 Inspection of the measured `sitClient.js` source explains why: every
 `preload()` immediately starts 13 presit-image `TextureCache.prefetch()` calls,
