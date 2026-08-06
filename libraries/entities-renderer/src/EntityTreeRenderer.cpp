@@ -287,6 +287,7 @@ void EntityTreeRenderer::setupEntityScriptEngineSignals(const ScriptManagerPoint
     });
 
     connect(scriptManager.get(), &ScriptManager::entityScriptPreloadFinished, [this](const EntityItemID& entityID) {
+        _entityScriptPreloadFinishedCount.fetch_add(1, std::memory_order_relaxed);
         EntityItemPointer entity = getTree()->findEntityByID(entityID);
         if (entity) {
             entity->setScriptHasFinishedPreload(true);
@@ -1414,6 +1415,7 @@ bool EntityTreeRenderer::checkAndCallPreload(const EntityItemID& entityID,
 
         if (!newScriptURL.isEmpty()) {
             entity->setScriptHasFinishedPreload(false);
+            _entityScriptLoadCount.fetch_add(1, std::memory_order_relaxed);
             scriptEngine->loadEntityScript(entityID, resolveScriptURL(newScriptURL), reload);
             entity->scriptHasPreloaded();
         }

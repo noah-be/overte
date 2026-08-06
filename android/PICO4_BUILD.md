@@ -63,6 +63,9 @@ Without a connected headset, only build the APK:
 To measure the completed client's battery and power use on the headset, see
 [Measure Overte power use on Pico 4](PICO4_POWER_TEST.md).
 
+For world-entry and post-loading optimization measurements, see the
+[Pico 4 world-loading guide](docs/world-loading/pico4-optimization-guide.md).
+
 `deploy` assumes that the one-time bootstrap or setup has already installed the
 dependencies. It does not download missing Conan packages itself.
 

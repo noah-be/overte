@@ -36,6 +36,8 @@ SPDX-License-Identifier: Apache-2.0
 
 See [Build the Overte client for Pico 4](android/PICO4_BUILD.md) for setup,
 build, installation, and deployment instructions.
+For measured world-entry and post-loading optimization guidance, see the
+[Pico 4 world-loading guide](android/docs/world-loading/pico4-optimization-guide.md).
 
 ### What is this?
 

@@ -30,6 +30,8 @@ public:
 
     NodeToOctreeSceneStats* getOctreeSceneStats() { return &_octreeServerSceneStats; }
     std::atomic<uint32_t>& getFullSceneReceivedCounter() { return _fullSceneReceivedCounter; }
+    uint64_t getEntityPacketCount() const { return _entityPacketCount.load(); }
+    uint64_t getEntityPacketBytes() const { return _entityPacketBytes.load(); }
 
     void startSafeLanding();
     void updateSafeLanding();
@@ -58,6 +60,8 @@ private:
 
     NodeToOctreeSceneStats _octreeServerSceneStats;
     std::atomic<uint32_t> _fullSceneReceivedCounter { 0 };  // how many times have we received a full-scene octree stats packet
+    std::atomic<uint64_t> _entityPacketCount { 0 };
+    std::atomic<uint64_t> _entityPacketBytes { 0 };
 
     OCTREE_PACKET_SEQUENCE _safeLandingSequenceStart { SafeLanding::INVALID_SEQUENCE };
     std::unique_ptr<SafeLanding> _safeLanding;

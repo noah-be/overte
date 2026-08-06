@@ -146,6 +146,8 @@ public:
 
     size_t getPrevNumEntityUpdates() const { return _prevNumEntityUpdates; }
     size_t getPrevTotalNeededEntityUpdates() const { return _prevTotalNeededEntityUpdates; }
+    uint64_t getEntityScriptLoadCount() const { return _entityScriptLoadCount.load(); }
+    uint64_t getEntityScriptPreloadFinishedCount() const { return _entityScriptPreloadFinishedCount.load(); }
 
     bool layeredZonesHaveFade(const TransitionType type) const { return _layeredZones.hasFade(type); }
 
@@ -214,6 +216,8 @@ private:
     bool _wantScripts;
     ScriptManagerPointer _nonPersistentEntitiesScriptManager; // used for domain + non-owned avatar entities, cleared on domain switch
     ScriptManagerPointer _persistentEntitiesScriptManager; // used for local + owned avatar entities, persists on domain switch, cleared on reload content
+    std::atomic<uint64_t> _entityScriptLoadCount { 0 };
+    std::atomic<uint64_t> _entityScriptPreloadFinishedCount { 0 };
 
     void playEntityCollisionSound(const EntityItemPointer& entity, const Collision& collision);
 

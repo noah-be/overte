@@ -355,6 +355,20 @@ void Application::clearDomainOctreeDetails(bool clearAll) {
     _picoLoadingPhysicsPresentFrame = 0;
     _picoLoadingReadyAt = 0;
     _picoLoadingReadyPresentFrame = 0;
+    if (_picoLoadingMeasurementStartedAt == 0) {
+        _picoLoadingMeasurementStartedAt = usecTimestampNow();
+        _picoLoadingMeasurementEpochMs = QDateTime::currentMSecsSinceEpoch();
+        _picoLoadingDomainReconnects = 0;
+    } else if (_picoLoadingAwaitingInitialDomainClear) {
+        _picoLoadingAwaitingInitialDomainClear = false;
+    } else {
+        ++_picoLoadingDomainReconnects;
+    }
+    _picoLoadingDomainConnectedAt = 0;
+    _picoLoadingSequenceCompleteAt = 0;
+    _picoLoadingSafeLandingCompleteAt = 0;
+    _picoLoadingGpuReadyAt = 0;
+    _picoLoadingFinalStatus = {};
     _picoLoadingCandidatePhaseSince = 0;
     _picoLoadingDisplayedProgress = 0.0f;
     _picoLoadingDisplayedPhase = -1;

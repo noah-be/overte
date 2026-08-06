@@ -86,6 +86,7 @@
 #include <render/EngineStats.h>
 #include <ResourceScriptingInterface.h>
 #include <ResourceCache.h>
+#include <ResourceRequest.h>
 #include <SandboxUtils.h>
 #include <SceneScriptingInterface.h>
 #include <ScriptEngines.h>
@@ -1084,6 +1085,11 @@ void Application::setIsInterstitialMode(bool interstitialMode) {
     }
 #endif
     bool enableInterstitial = DependencyManager::get<NodeList>()->getDomainHandler().getInterstitialModeEnabled();
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    // Always permit an already-visible Pico interstitial to close. Domain
+    // settings can disable future interstitials while this one is finishing.
+    enableInterstitial = enableInterstitial || (!interstitialMode && _interstitialMode);
+#endif
     if (enableInterstitial) {
         if (_interstitialMode != interstitialMode) {
             _interstitialMode = interstitialMode;
@@ -1710,7 +1716,7 @@ void Application::nodeKilled(SharedNodePointer node) {
         // Once the player is already in a playable world, an entity-server reconnect is not a
         // domain change. Keep the current scene and controls active while the server reconnects;
         // clearing the octree here re-entered the full loading interstitial a few seconds later.
-        if (_physicsEnabled && !isInterstitialMode()) {
+        if (_physicsEnabled) {
             qCWarning(interfaceapp) << "Pico entity server disconnected; keeping playable scene during reconnect";
             return;
         }
@@ -1775,6 +1781,14 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
 
     QString addressLookupString;
 
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    // The Pico app is deployed with a dedicated LAN domain containing the
+    // measured ultra-optimized spawn scene. Use it for every ordinary launch
+    // (explicit command-line URLs still take precedence).
+    static const QString PICO_DEFAULT_STARTUP_ADDRESS =
+        QStringLiteral("hifi://192.168.188.180:40502/155.084,-98.5,-397.328");
+#endif
+
     // when --url in command line, teleport to location
     if (!_urlParam.isEmpty()) { // Not sure if format supported by isValid().
         if (_urlParam.scheme() == URL_SCHEME_OVERTEAPP) {
@@ -1783,6 +1797,12 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
             addressLookupString = _urlParam.toString();
         }
     }
+
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    if (_urlParam.isEmpty()) {
+        addressLookupString = PICO_DEFAULT_STARTUP_ADDRESS;
+    }
+#endif
 
     static const QString SENT_TO_PREVIOUS_LOCATION = "previous_location";
     static const QString SENT_TO_ENTRY = "entry";
@@ -1805,13 +1825,11 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
             // Mobile builds ship a self-contained tutorial and may have no
             // entry-point setting yet (or retain an empty one from an older
             // install). Always choose the packaged, known-good location.
-#if defined(ANDROID_APP_PICO_INTERFACE) && !defined(NDEBUG)
-            // Pico development builds start in a tiny local scene so a new
-            // native/UI fix can be tested without loading tutorial models,
-            // particles, scripts, sounds, or any network domain content.
-            qCInfo(interfaceapp) << "Pico fast debug startup: loading local pico-debug.json";
+#if defined(ANDROID_APP_PICO_INTERFACE)
+            qCInfo(interfaceapp) << "Pico startup: loading optimized LAN world"
+                << PICO_DEFAULT_STARTUP_ADDRESS;
             DependencyManager::get<AddressManager>()->handleLookupString(
-                "file:///~/serverless/pico-debug.json");
+                PICO_DEFAULT_STARTUP_ADDRESS);
 #else
             DependencyManager::get<AddressManager>()->handleLookupString(
                 NetworkingConstants::DEFAULT_OVERTE_ADDRESS);
@@ -2191,9 +2209,43 @@ void Application::update(float deltaTime) {
     // nonce prefix lets the same destination be requested more than once.
     static quint64 lastNavigationPropertyCheck { 0 };
     static QString lastNavigationCommand;
+    static QString lastExportCommand;
     if (picoUpdateStart - lastNavigationPropertyCheck >= 250 * USECS_PER_MSEC) {
         lastNavigationPropertyCheck = picoUpdateStart;
         auto addressManager = DependencyManager::get<AddressManager>();
+#if defined(ANDROID_APP_PICO_INTERFACE)
+        // Test-only export of the currently received domain scene. This is
+        // intentionally ADB/property controlled and never active in normal
+        // sessions; it lets the Pico loading harness create a reproducible
+        // serverless copy for before/after comparisons.
+        char exportValue[PROP_VALUE_MAX] {};
+        if (__system_property_get("debug.overte.export", exportValue) > 0) {
+            const QString command = QString::fromUtf8(exportValue).trimmed();
+            if (!command.isEmpty() && command != lastExportCommand) {
+                    lastExportCommand = command;
+                    const QStringList fields = command.split('|');
+                    bool xOk { false };
+                    bool yOk { false };
+                    bool zOk { false };
+                    bool scaleOk { false };
+                    const QString filename = fields.value(1);
+                    const float x = fields.value(2).toFloat(&xOk);
+                    const float y = fields.value(3).toFloat(&yOk);
+                    const float z = fields.value(4).toFloat(&zOk);
+                    const float scale = fields.value(5).toFloat(&scaleOk);
+                    if (fields.size() == 6 && !filename.isEmpty() && xOk && yOk && zOk && scaleOk && scale > 0.0f) {
+                        QVariantMap options;
+                        options.insert("globalPositions", true);
+                        const bool exported = exportEntities(filename, x, y, z, scale, options);
+                        qCInfo(interfaceapp) << "PICO_SERVERLESS_EXPORT"
+                            << "success" << exported << "filename" << filename
+                            << "center" << x << y << z << "scale" << scale;
+                    } else {
+                        qCWarning(interfaceapp) << "PICO_SERVERLESS_EXPORT invalid command" << command;
+                    }
+            }
+        }
+#endif
         // Publish the authoritative connected world and avatar position only
         // for explicitly enabled unattended tests. Normal Pico sessions avoid
         // this once-per-second cache-file write.
@@ -2214,6 +2266,111 @@ void Application::update(float deltaTime) {
                 worldStatusFile.write(worldStatus.toUtf8());
                 worldStatusFile.commit();
             }
+
+#if defined(ANDROID_APP_PICO_INTERFACE)
+            if (_picoLoadingMeasurementStartedAt > 0) {
+                const auto loadingRequests = ResourceCache::getLoadingRequests();
+                const auto statTracker = DependencyManager::get<StatTracker>();
+                const auto scriptEngines = DependencyManager::get<ScriptEngines>();
+                const auto safeLandingStatus = _octreeProcessor->safeLandingLoadingStatus();
+                const auto loadingElapsedMs = [this](quint64 milestone) -> qint64 {
+                    return milestone > 0 && _picoLoadingMeasurementStartedAt > 0
+                        ? static_cast<qint64>((milestone - _picoLoadingMeasurementStartedAt) / USECS_PER_MSEC)
+                        : -1;
+                };
+                int activeScripts { 0 };
+                int activeModels { 0 };
+                int activeTextures { 0 };
+                int activeAudio { 0 };
+                int activeOther { 0 };
+                QString activeResourceManifest;
+                for (const auto& request : loadingRequests) {
+                    const QString path = request.first->getURL().path().toLower();
+                    QString category { QStringLiteral("other") };
+                    if (path.endsWith(".js") || path.endsWith(".json")) {
+                        ++activeScripts;
+                        category = QStringLiteral("script");
+                    } else if (path.endsWith(".fbx") || path.endsWith(".gltf") || path.endsWith(".glb") ||
+                            path.endsWith(".obj")) {
+                        ++activeModels;
+                        category = QStringLiteral("model");
+                    } else if (path.endsWith(".png") || path.endsWith(".jpg") || path.endsWith(".jpeg") ||
+                            path.endsWith(".ktx") || path.endsWith(".ktx2")) {
+                        ++activeTextures;
+                        category = QStringLiteral("texture");
+                    } else if (path.endsWith(".wav") || path.endsWith(".mp3") || path.endsWith(".ogg")) {
+                        ++activeAudio;
+                        category = QStringLiteral("audio");
+                    } else {
+                        ++activeOther;
+                    }
+                    const auto resource = request.first;
+                    const auto encodedURL = QUrl::toPercentEncoding(
+                        resource->getURL().toString(), "", "|,\n\r\"");
+                    activeResourceManifest += QStringLiteral("%1|%2|%3|%4|%5|%6|%7\n")
+                        .arg(QDateTime::currentMSecsSinceEpoch())
+                        .arg((picoUpdateStart - _picoLoadingMeasurementStartedAt) / USECS_PER_MSEC)
+                        .arg(category)
+                        .arg(resource->getProgress(), 0, 'f', 3)
+                        .arg(resource->getBytesReceived())
+                        .arg(resource->getBytesTotal())
+                        .arg(QString::fromLatin1(encodedURL));
+                }
+                const QString loadingSample = QStringLiteral(
+                    "%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11|%12|%13|%14|%15|%16|%17|%18|%19|%20|%21|%22|%23|%24|%25|%26|%27|%28|%29|%30|%31|%32|%33|%34|%35|%36|%37|%38|%39|%40|%41")
+                    .arg(QDateTime::currentMSecsSinceEpoch())
+                    .arg((picoUpdateStart - _picoLoadingMeasurementStartedAt) / USECS_PER_MSEC)
+                    .arg(isInterstitialMode() ? 1 : 0)
+                    .arg(loadingRequests.size())
+                    .arg(ResourceCache::getPendingRequestCount())
+                    .arg(statTracker->getStat("Processing").toInt())
+                    .arg(statTracker->getStat("PendingProcessing").toInt())
+                    .arg(statTracker->getStat(STAT_ATP_REQUEST_STARTED).toLongLong())
+                    .arg(statTracker->getStat(STAT_HTTP_REQUEST_STARTED).toLongLong())
+                    .arg(statTracker->getStat(STAT_ATP_REQUEST_SUCCESS).toLongLong())
+                    .arg(statTracker->getStat(STAT_HTTP_REQUEST_SUCCESS).toLongLong())
+                    .arg(statTracker->getStat(STAT_ATP_REQUEST_FAILED).toLongLong())
+                    .arg(statTracker->getStat(STAT_HTTP_REQUEST_FAILED).toLongLong())
+                    .arg(statTracker->getStat(STAT_ATP_RESOURCE_TOTAL_BYTES).toLongLong())
+                    .arg(statTracker->getStat(STAT_HTTP_RESOURCE_TOTAL_BYTES).toLongLong())
+                    .arg(_octreeProcessor->getEntityPacketCount())
+                    .arg(_octreeProcessor->getEntityPacketBytes())
+                    .arg(scriptEngines ? scriptEngines->getRunningScripts().size() : 0)
+                    .arg(gpu::Context::getUsedGPUMemSize())
+                    .arg(safeLandingStatus.trackedEntityCount)
+                    .arg(safeLandingStatus.maximumTrackedEntityCount)
+                    .arg(safeLandingStatus.physicsBlockedEntityCount)
+                    .arg(safeLandingStatus.visuallyBlockedEntityCount)
+                    .arg(safeLandingStatus.receivedSequenceCount)
+                    .arg(safeLandingStatus.expectedSequenceCount)
+                    .arg(safeLandingStatus.completionReceived ? 1 : 0)
+                    .arg(_octreeProcessor->getFullSceneReceivedCounter().load())
+                    .arg(getEntities()->getEntityScriptLoadCount())
+                    .arg(getEntities()->getEntityScriptPreloadFinishedCount())
+                    .arg(activeScripts)
+                    .arg(activeModels)
+                    .arg(activeTextures)
+                    .arg(activeAudio)
+                    .arg(activeOther)
+                    .arg(_physicsEnabled ? 1 : 0)
+                    .arg(loadingElapsedMs(_picoLoadingSafeLandingCompleteAt))
+                    .arg(loadingElapsedMs(_picoLoadingGpuReadyAt))
+                    .arg(loadingElapsedMs(_picoLoadingPhysicsEnabledAt))
+                    .arg(loadingElapsedMs(_picoLoadingReadyAt))
+                    .arg(_picoLoadingMeasurementEpochMs)
+                    .arg(_picoLoadingDomainReconnects);
+                QSaveFile loadingSampleFile("/data/user/0/org.overte.pico/cache/world-loading-sample");
+                if (loadingSampleFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                    loadingSampleFile.write(loadingSample.toUtf8());
+                    loadingSampleFile.commit();
+                }
+                QSaveFile activeResourceFile("/data/user/0/org.overte.pico/cache/world-loading-active-resources");
+                if (activeResourceFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                    activeResourceFile.write(activeResourceManifest.toUtf8());
+                    activeResourceFile.commit();
+                }
+            }
+#endif
         }
 
         // Locally replicate received other avatars for repeatable Pico crowd
@@ -2343,8 +2500,35 @@ void Application::update(float deltaTime) {
                 lastNavigationCommand = command;
                 const qsizetype separator = command.indexOf('|');
                 const QString address = separator >= 0 ? command.mid(separator + 1) : command;
-                qCInfo(interfaceapp) << "PICO_ADB_NAVIGATE" << address;
-                addressManager->handleLookupString(address);
+                _picoLoadingMeasurementStartedAt = usecTimestampNow();
+                _picoLoadingMeasurementEpochMs = QDateTime::currentMSecsSinceEpoch();
+                _picoLoadingDomainReconnects = 0;
+                _picoLoadingAwaitingInitialDomainClear = true;
+                if (address.startsWith("EXPORT|")) {
+                    const QStringList fields = address.split('|');
+                    bool xOk { false };
+                    bool yOk { false };
+                    bool zOk { false };
+                    bool scaleOk { false };
+                    const QString filename = fields.value(1);
+                    const float x = fields.value(2).toFloat(&xOk);
+                    const float y = fields.value(3).toFloat(&yOk);
+                    const float z = fields.value(4).toFloat(&zOk);
+                    const float scale = fields.value(5).toFloat(&scaleOk);
+                    if (fields.size() == 6 && !filename.isEmpty() && xOk && yOk && zOk && scaleOk && scale > 0.0f) {
+                        QVariantMap options;
+                        options.insert("globalPositions", true);
+                        const bool exported = exportEntities(filename, x, y, z, scale, options);
+                        qCInfo(interfaceapp) << "PICO_SERVERLESS_EXPORT"
+                            << "success" << exported << "filename" << filename
+                            << "center" << x << y << z << "scale" << scale;
+                    } else {
+                        qCWarning(interfaceapp) << "PICO_SERVERLESS_EXPORT invalid navigate command" << address;
+                    }
+                } else {
+                    qCInfo(interfaceapp) << "PICO_ADB_NAVIGATE" << address;
+                    addressManager->handleLookupString(address);
+                }
             }
         }
     }
@@ -2420,6 +2604,10 @@ void Application::update(float deltaTime) {
         }
     }
     quint64 picoAfterDevices = picoUpdateStart;
+    quint64 picoAfterTestProperties = usecTimestampNow();
+    quint64 picoAfterWorldLoading = picoUpdateStart;
+    quint64 picoAfterLoadingHandoff = picoUpdateStart;
+    quint64 picoAfterMouseCapture = picoUpdateStart;
     quint64 picoBeforeInputPlugins = picoUpdateStart;
     quint64 picoAfterInputPlugins = picoUpdateStart;
     quint64 picoAfterInputMapper = picoUpdateStart;
@@ -2457,6 +2645,16 @@ void Application::update(float deltaTime) {
         } else {
             _octreeProcessor->updateSafeLanding();
             if (_octreeProcessor->safeLandingIsComplete()) {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+                // Ignore a safe-landing completion inherited from the local
+                // startup scene. The world-loading milestone starts only once
+                // the new domain is connected; the authoritative physics
+                // handoff below records the final collision-ready timestamp.
+                if (_picoLoadingConnectedAt > 0 && _picoLoadingSafeLandingCompleteAt == 0) {
+                    _picoLoadingSafeLandingCompleteAt = usecTimestampNow();
+                    _picoLoadingFinalStatus = _octreeProcessor->safeLandingLoadingStatus();
+                }
+#endif
                 tryToEnablePhysics();
             }
         }
@@ -2497,6 +2695,9 @@ void Application::update(float deltaTime) {
                 phase = GraphicsEngine::LoadingPhase::WORLD_SERVER_UNAVAILABLE;
                 progress = 0.0f;
             } else {
+                if (_picoLoadingDomainConnectedAt == 0) {
+                    _picoLoadingDomainConnectedAt = loadingNow;
+                }
                 const float worldProgress = glm::clamp(
                     _octreeProcessor->domainLoadingProgress(), 0.0f, 1.0f);
 
@@ -2524,6 +2725,9 @@ void Application::update(float deltaTime) {
                             static_cast<float>(safeLandingStatus.expectedSequenceCount)
                         : 1.0f)
                     : 0.0f;
+                if (safeLandingStatus.completionReceived && _picoLoadingSequenceCompleteAt == 0) {
+                    _picoLoadingSequenceCompleteAt = loadingNow;
+                }
 
                 const bool connectionJustEstablished = !_picoLoadingWasConnected;
                 const bool worldAdvanced = worldProgress > _picoLoadingWorldProgress + 0.005f;
@@ -2579,6 +2783,10 @@ void Application::update(float deltaTime) {
                 }
 
                 if (_octreeProcessor->safeLandingIsComplete()) {
+                    if (_picoLoadingSafeLandingCompleteAt == 0) {
+                        _picoLoadingSafeLandingCompleteAt = loadingNow;
+                        _picoLoadingFinalStatus = safeLandingStatus;
+                    }
                     if (_picoLoadingFinalizingAt == 0) {
                         _picoLoadingFinalizingAt = loadingNow;
                     }
@@ -2737,19 +2945,32 @@ void Application::update(float deltaTime) {
         _domainLoadingInProgress = false;
         PROFILE_ASYNC_END(app, "Scene Loading", "");
     }
+#if defined(Q_OS_ANDROID)
+    picoAfterWorldLoading = usecTimestampNow();
+#endif
 
 #if defined(ANDROID_APP_PICO_INTERFACE)
     // Physics activation makes the scene playable, but render-scene transactions still need a short time to
     // produce the first complete frame. Keep input locked and the opaque overlay visible while those frames are
     // presented, then show READY briefly. Hard time limits guarantee that stale counters cannot trap the user.
-    if (_physicsEnabled && isInterstitialMode() && _picoLoadingPhysicsEnabledAt > 0 && _graphicsEngine) {
+    if (_physicsEnabled && isInterstitialMode() && _graphicsEngine) {
         const quint64 handoffNow = usecTimestampNow();
         const auto displayPlugin = getActiveDisplayPlugin();
         const uint32_t presentFrame = displayPlugin ? displayPlugin->presentCount() : 0;
+        if (_picoLoadingPhysicsEnabledAt == 0) {
+            // Safe Landing is reset as part of enabling physics. Preserve a
+            // deterministic handoff even if a domain transition reset the
+            // Pico-only timestamp during that same update.
+            _picoLoadingPhysicsEnabledAt = handoffNow;
+            _picoLoadingPhysicsPresentFrame = presentFrame;
+        }
         if (_picoLoadingReadyAt == 0) {
             _graphicsEngine->setLoadingState(true, GraphicsEngine::LoadingPhase::FINALIZING_SCENE, 0.98f);
-            constexpr quint64 SCENE_SETTLE_TIME = 4 * USECS_PER_SECOND;
-            constexpr quint64 SCENE_SETTLE_TIMEOUT = 8 * USECS_PER_SECOND;
+            // Keep the final handoff short on Pico 4. Physics is already
+            // enabled here and the presented-frame gate below still prevents
+            // exposing an incomplete render scene.
+            constexpr quint64 SCENE_SETTLE_TIME = 1000 * USECS_PER_MSEC;
+            constexpr quint64 SCENE_SETTLE_TIMEOUT = 2 * USECS_PER_SECOND;
             constexpr uint32_t SCENE_SETTLE_PRESENT_FRAMES = 30;
             const quint64 sceneSettleElapsed = handoffNow - _picoLoadingPhysicsEnabledAt;
             const bool sceneFramesPresented = displayPlugin &&
@@ -2762,14 +2983,44 @@ void Application::update(float deltaTime) {
             }
         } else {
             _graphicsEngine->setLoadingState(true, GraphicsEngine::LoadingPhase::READY, 1.0f);
-            constexpr quint64 READY_DISPLAY_TIME = 900 * USECS_PER_MSEC;
-            constexpr quint64 READY_DISPLAY_TIMEOUT = 2 * USECS_PER_SECOND;
+            constexpr quint64 READY_DISPLAY_TIME = 100 * USECS_PER_MSEC;
+            constexpr quint64 READY_DISPLAY_TIMEOUT = 500 * USECS_PER_MSEC;
             constexpr uint32_t READY_PRESENT_FRAMES = 3;
             const quint64 readyElapsed = handoffNow - _picoLoadingReadyAt;
             const bool readyFramesPresented = displayPlugin &&
                 presentFrame >= _picoLoadingReadyPresentFrame + READY_PRESENT_FRAMES;
             if ((readyElapsed >= READY_DISPLAY_TIME && readyFramesPresented) ||
                     readyElapsed >= READY_DISPLAY_TIMEOUT) {
+                const quint64 releasedAt = usecTimestampNow();
+                const auto elapsedMs = [this](quint64 milestone) -> qint64 {
+                    return milestone > 0 && _picoLoadingMeasurementStartedAt > 0
+                        ? static_cast<qint64>((milestone - _picoLoadingMeasurementStartedAt) / USECS_PER_MSEC)
+                        : -1;
+                };
+                const QString loadingStatus = QStringLiteral(
+                    "%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11|%12|%13|%14|%15|%16|%17")
+                    .arg(_picoLoadingMeasurementEpochMs)
+                    .arg(elapsedMs(_picoLoadingDomainConnectedAt))
+                    .arg(elapsedMs(_picoLoadingConnectedAt))
+                    .arg(elapsedMs(_picoLoadingSequenceCompleteAt))
+                    .arg(elapsedMs(_picoLoadingSafeLandingCompleteAt))
+                    .arg(elapsedMs(_picoLoadingGpuReadyAt))
+                    .arg(elapsedMs(_picoLoadingPhysicsEnabledAt))
+                    .arg(elapsedMs(_picoLoadingReadyAt))
+                    .arg(elapsedMs(releasedAt))
+                    .arg(_picoLoadingFinalStatus.maximumTrackedEntityCount)
+                    .arg(_picoLoadingFinalStatus.receivedSequenceCount)
+                    .arg(_picoLoadingFinalStatus.expectedSequenceCount)
+                    .arg(_picoLoadingRecoveryAttempts)
+                    .arg(_picoLoadingGpuFallbackUsed ? 1 : 0)
+                    .arg(presentFrame - _picoLoadingPhysicsPresentFrame)
+                    .arg(_picoLoadingDismissedByUser ? 1 : 0)
+                    .arg(_picoLoadingDomainReconnects);
+                QSaveFile loadingStatusFile("/data/user/0/org.overte.pico/cache/world-loading-status");
+                if (loadingStatusFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                    loadingStatusFile.write(loadingStatus.toUtf8());
+                    loadingStatusFile.commit();
+                }
                 qCInfo(interfaceapp) << "Pico world ready; releasing loading screen"
                     << "presentedFrames"
                     << (presentFrame - _picoLoadingPhysicsPresentFrame);
@@ -2777,6 +3028,9 @@ void Application::update(float deltaTime) {
             }
         }
     }
+#endif
+#if defined(Q_OS_ANDROID)
+    picoAfterLoadingHandoff = usecTimestampNow();
 #endif
 
      if (shouldCaptureMouse()) {
@@ -2793,6 +3047,7 @@ void Application::update(float deltaTime) {
 
     auto myAvatar = getMyAvatar();
 #if defined(Q_OS_ANDROID)
+    picoAfterMouseCapture = usecTimestampNow();
     picoBeforeInputPlugins = usecTimestampNow();
 #endif
     {
@@ -3402,6 +3657,10 @@ void Application::update(float deltaTime) {
         quint64 calls { 0 };
         quint64 total { 0 };
         quint64 devices { 0 };
+        quint64 testProperties { 0 };
+        quint64 worldLoading { 0 };
+        quint64 loadingHandoff { 0 };
+        quint64 mouseCapture { 0 };
         quint64 devicesPrefix { 0 };
         quint64 inputPlugins { 0 };
         quint64 inputMapper { 0 };
@@ -3433,6 +3692,10 @@ void Application::update(float deltaTime) {
     stats.calls++;
     stats.total += total;
     stats.devices += picoAfterDevices - picoUpdateStart;
+    stats.testProperties += picoAfterTestProperties - picoUpdateStart;
+    stats.worldLoading += picoAfterWorldLoading - picoAfterTestProperties;
+    stats.loadingHandoff += picoAfterLoadingHandoff - picoAfterWorldLoading;
+    stats.mouseCapture += picoAfterMouseCapture - picoAfterLoadingHandoff;
     stats.devicesPrefix += picoBeforeInputPlugins - picoUpdateStart;
     stats.inputPlugins += picoAfterInputPlugins - picoBeforeInputPlugins;
     stats.inputMapper += picoAfterInputMapper - picoAfterInputPlugins;
@@ -3461,6 +3724,10 @@ void Application::update(float deltaTime) {
                 << "avgTotalMs" << stats.total / divisor / 1000.0
                 << "maxTotalMs" << stats.maximum / 1000.0
                 << "devicesMs" << stats.devices / divisor / 1000.0
+                << "testPropertiesMs" << stats.testProperties / divisor / 1000.0
+                << "worldLoadingMs" << stats.worldLoading / divisor / 1000.0
+                << "loadingHandoffMs" << stats.loadingHandoff / divisor / 1000.0
+                << "mouseCaptureMs" << stats.mouseCapture / divisor / 1000.0
                 << "devicesPrefixMs" << stats.devicesPrefix / divisor / 1000.0
                 << "inputPluginsMs" << stats.inputPlugins / divisor / 1000.0
                 << "inputMapperMs" << stats.inputMapper / divisor / 1000.0
@@ -3589,6 +3856,12 @@ void Application::queryAvatars() {
 
 void Application::tryToEnablePhysics() {
     bool enableInterstitial = DependencyManager::get<NodeList>()->getDomainHandler().getInterstitialModeEnabled();
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    // Domain settings may arrive or change while Pico's native interstitial is
+    // already visible. Once shown, finish the same safe GPU/physics/present
+    // handoff instead of bypassing it mid-load and dropping the final status.
+    enableInterstitial = enableInterstitial || isInterstitialMode();
+#endif
     bool textureMemoryReady = gpuTextureMemSizeStable();
 #if defined(ANDROID_APP_PICO_INTERFACE)
     const quint64 physicsNow = usecTimestampNow();
@@ -3596,6 +3869,9 @@ void Application::tryToEnablePhysics() {
         _picoLoadingFinalizingAt = physicsNow;
     }
     _picoLoadingTextureMemoryReady = textureMemoryReady;
+    if ((textureMemoryReady || _picoLoadingGpuFallbackUsed) && _picoLoadingGpuReadyAt == 0) {
+        _picoLoadingGpuReadyAt = physicsNow;
+    }
 
     // A stale driver transfer statistic must not leave the user trapped forever after every entity and
     // collision shape is ready. This fallback is deliberately bounded and only applies when CPU resource
@@ -3613,6 +3889,9 @@ void Application::tryToEnablePhysics() {
         if (resourceQueuesIdle && processingQueuesIdle && gpuAllocationStable) {
             _picoLoadingGpuFallbackUsed = true;
             textureMemoryReady = true;
+            if (_picoLoadingGpuReadyAt == 0) {
+                _picoLoadingGpuReadyAt = physicsNow;
+            }
             qCWarning(interfaceapp) << "Pico world loading ignored a stale GPU transfer statistic"
                 << "after resources and GPU allocation became stable";
         }
@@ -3640,6 +3919,15 @@ void Application::tryToEnablePhysics() {
 #endif
         if (myAvatar->isReadyForPhysics()) {
             myAvatar->getCharacterController()->setPhysicsEngine(_physicsEngine);
+#if defined(ANDROID_APP_PICO_INTERFACE)
+            if (enableInterstitial && _picoLoadingSafeLandingCompleteAt == 0) {
+                // This is the authoritative safe-landing commit point: physics
+                // can only be enabled after the tracked collision set and its
+                // initial entity packet sequence have completed.
+                _picoLoadingSafeLandingCompleteAt = physicsNow;
+                _picoLoadingFinalStatus = _octreeProcessor->safeLandingLoadingStatus();
+            }
+#endif
             _octreeProcessor->resetSafeLanding();
             _physicsEnabled = true;
 #if defined(ANDROID_APP_PICO_INTERFACE)

@@ -1,0 +1,6675 @@
+{
+  "DataVersion": 3,
+  "Entities": [
+    {
+      "angularDamping": 0,
+      "color": {
+        "blue": 239,
+        "green": 180,
+        "red": 0
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 0.20000000298023224,
+        "y": 0.20000000298023224,
+        "z": 0.20000000298023224
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{4c2636a5-054f-446e-8145-880a21a0657d}",
+      "position": {
+        "x": -0.8281864013671907,
+        "y": 1.0912094116210938,
+        "z": 2.2575654296874745
+      },
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "shape": "Cube",
+      "type": "Box"
+    },
+    {
+      "angularDamping": 0,
+      "color": {
+        "blue": 239,
+        "green": 180,
+        "red": 0
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 0.20000000298023224,
+        "y": 0.20000000298023224,
+        "z": 0.20000000298023224
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{43c238ed-60c5-4204-917b-03fe59cb76a2}",
+      "position": {
+        "x": -0.9878391113281282,
+        "y": 1.2014923095703125,
+        "z": 1.5039643554687245
+      },
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "shape": "Cube",
+      "type": "Box"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 1.061875581741333,
+        "y": 1.898659110069275,
+        "z": 1.3348568677902222
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{7880e77b-f18a-43c5-9514-392b65144290}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/shrub-noodle-1b/baked/shrub-noodle-1b.baked.fst",
+      "position": {
+        "x": 2.648940673828122,
+        "y": 0.7835693359375,
+        "z": 3.2797211914062245
+      },
+      "rotation": {
+        "w": 0.930418848991394,
+        "x": -0.0000457763671875,
+        "y": 0.3664454221725464,
+        "z": -0.0000457763671875
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 1.2368052005767822,
+        "y": 1.768533706665039,
+        "z": 1.2682390213012695
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{5867665a-faee-448c-a820-fb0d77e6060a}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/shrub-bluepops-1a/baked/shrub-bluepops-1a.baked.fst",
+      "position": {
+        "x": 1.6992946777343718,
+        "y": 0.07050323486328125,
+        "z": 3.6921052246093495
+      },
+      "rotation": {
+        "w": 0.9528496265411377,
+        "x": -0.03404289484024048,
+        "y": -0.3013198971748352,
+        "z": -0.011184871196746826
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 1.53977370262146,
+        "y": 1.258410096168518,
+        "z": 1.4623616933822632
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{86fb82d8-fb3c-42af-86fe-ccc99466715f}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/shrub-jungle-leafy-1a/baked/shrub-jungle-leafy-1a.baked.fst",
+      "position": {
+        "x": 3.463668457031247,
+        "y": 0.05718994140625,
+        "z": 7.2796601562499745
+      },
+      "rotation": {
+        "w": 0.7675135135650635,
+        "x": -0.0000762939453125,
+        "y": -0.6410467624664307,
+        "z": 0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 1.3893667459487915,
+        "y": 1.258410096168518,
+        "z": 1.4623616933822632
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{b094be52-cc35-4da9-a640-7aa9e2dbb0b6}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/shrub-jungle-leafy-1a/baked/shrub-jungle-leafy-1a.baked.fst",
+      "position": {
+        "x": 1.2823482666015593,
+        "y": 0.05860137939453125,
+        "z": 7.3828095703124745
+      },
+      "rotation": {
+        "w": 0.769710898399353,
+        "x": -0.0000762939453125,
+        "y": -0.6383612155914307,
+        "z": 0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 1.53977370262146,
+        "y": 1.258410096168518,
+        "z": 1.4623616933822632
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{f73306d6-0698-4197-b46c-5174450d226e}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/shrub-jungle-leafy-1a/baked/shrub-jungle-leafy-1a.baked.fst",
+      "position": {
+        "x": 0.8021541748046843,
+        "y": 0.4876861572265625,
+        "z": 8.119931152343725
+      },
+      "rotation": {
+        "w": 0.7679102420806885,
+        "x": -0.0000762939453125,
+        "y": -0.6405279636383057,
+        "z": 0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "damping": 0,
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{abb5c018-ac1c-499a-a806-36a714f5e0cc}",
+      "position": {
+        "x": 0.5622554931640593,
+        "y": 1.2709121704101562,
+        "z": -2.6537810058594005
+      },
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "type": "Empty"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 3.3756256103515625,
+        "y": 3.85854434967041,
+        "z": 0.9328365325927734
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{963f3392-c904-417e-a31e-ca9ad5407120}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/dock-pieces/baked/dock-pieces.baked.fst",
+      "position": {
+        "x": -0.5144199218750032,
+        "y": -0.7471694946289062,
+        "z": -4.4038115234375255
+      },
+      "rotation": {
+        "w": 0.99993896484375,
+        "x": -0.0001373291015625,
+        "y": -0.010818660259246826,
+        "z": -0.0000457763671875
+      },
+      "type": "Model"
+    },
+    {
+      "animation": {
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "collisionless": true,
+      "description": "Specify URL to your 48K 16bit PCM wav file & volume (0-1) in userData below",
+      "dimensions": {
+        "x": 0.6447294354438782,
+        "y": 0.6438502073287964,
+        "z": 0.26574596762657166
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{e3d1ff75-3431-4732-b457-4f5ca4d1f466}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/speakerGizmo/baked/speakerGizmo.baked.fst",
+      "name": "Sound Emitter Birds",
+      "position": {
+        "x": 5.773299804687497,
+        "y": 0.11600494384765625,
+        "z": 4.5974702148437245
+      },
+      "rotation": {
+        "w": 0.30904102325439453,
+        "x": -0.0000152587890625,
+        "y": -0.9510490298271179,
+        "z": -0.0000152587890625
+      },
+      "serverScripts": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Releases/usefulUtilities/soundEmitter/v1.2/soundEmitter.js",
+      "type": "Model",
+      "userData": "{\"soundURL\":\"https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Audio/rainforest-birds.wav\",\"volume\":1,\"shouldLoop\":true}",
+      "visible": false
+    },
+    {
+      "angularDamping": 0,
+      "collisionless": true,
+      "color": {
+        "blue": 0,
+        "green": 0,
+        "red": 0
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 0.059937696903944016,
+        "y": 0.17801693081855774,
+        "z": 0.099061019718647
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{b33e6f82-c655-4372-982c-6a6fbad3d96c}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "name": "SitCube",
+      "position": {
+        "x": 8.645965209960934,
+        "y": 0.1938629150390625,
+        "z": 6.3937348632812245
+      },
+      "rotation": {
+        "w": 0.8845502138137817,
+        "x": -0.0000457763671875,
+        "y": -0.46639198064804077,
+        "z": -0.0000152587890625
+      },
+      "shape": "Triangle",
+      "type": "Shape",
+      "userData": "{\"canClickOnModelToSit\":false}",
+      "visible": false
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 0.7516027688980103,
+        "y": 0.9198242425918579,
+        "z": 1.202530026435852
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{a039837a-29f5-4f31-ade2-a4742677b3ed}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/lounge-chair-1d/baked/lounge-chair-1d.baked.fst",
+      "position": {
+        "x": 7.600753417968747,
+        "y": 0.5219497680664062,
+        "z": 7.7606477050780995
+      },
+      "rotation": {
+        "w": 0.7359273433685303,
+        "x": -0.0001373291015625,
+        "y": 0.6770275831222534,
+        "z": -0.0000457763671875
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "collisionless": true,
+      "color": {
+        "blue": 0,
+        "green": 0,
+        "red": 0
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 0.059937696903944016,
+        "y": 0.17801693081855774,
+        "z": 0.099061019718647
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{1ece6080-4be0-4b8f-9c25-e10bd4430b25}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "name": "SitCube",
+      "position": {
+        "x": 7.953307739257809,
+        "y": 0.6298751831054688,
+        "z": 7.8147248535155995
+      },
+      "rotation": {
+        "w": 0.6929274797439575,
+        "x": -0.0001068115234375,
+        "y": -0.7210040092468262,
+        "z": -0.0000152587890625
+      },
+      "shape": "Triangle",
+      "type": "Shape",
+      "userData": "{\"canClickOnModelToSit\":false}",
+      "visible": false
+    },
+    {
+      "angularDamping": 0,
+      "collisionless": true,
+      "color": {
+        "blue": 0,
+        "green": 0,
+        "red": 0
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 0.059937696903944016,
+        "y": 0.17801693081855774,
+        "z": 0.099061019718647
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{7ae2cef5-5310-4b1e-b8d4-8c8aedcc7733}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "name": "SitCube",
+      "position": {
+        "x": 10.183333984374997,
+        "y": 0.19390106201171875,
+        "z": 8.6284455566406
+      },
+      "rotation": {
+        "w": 0.8851605653762817,
+        "x": -0.0000457763671875,
+        "y": -0.46529334783554077,
+        "z": -0.0000152587890625
+      },
+      "shape": "Triangle",
+      "type": "Shape",
+      "userData": "{\"canClickOnModelToSit\":false}",
+      "visible": false
+    },
+    {
+      "angularDamping": 0,
+      "collisionless": true,
+      "color": {
+        "blue": 0,
+        "green": 0,
+        "red": 0
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 0.059937696903944016,
+        "y": 0.17801693081855774,
+        "z": 0.099061019718647
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{ee480b45-d1b5-4a16-8ef1-18f6a9309364}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "name": "SitCube",
+      "position": {
+        "x": 9.400786987304684,
+        "y": 0.19388580322265625,
+        "z": 7.4937104492187245
+      },
+      "rotation": {
+        "w": 0.8842145204544067,
+        "x": -0.0000457763671875,
+        "y": -0.46709394454956055,
+        "z": -0.0000152587890625
+      },
+      "shape": "Triangle",
+      "type": "Shape",
+      "userData": "{\"canClickOnModelToSit\":false}",
+      "visible": false
+    },
+    {
+      "angularDamping": 0,
+      "collisionless": true,
+      "color": {
+        "blue": 0,
+        "green": 0,
+        "red": 0
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 0.059937696903944016,
+        "y": 0.17801693081855774,
+        "z": 0.099061019718647
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{01e1bc8a-fb4d-4c84-8976-fdb29012133b}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "name": "SitCube",
+      "position": {
+        "x": 9.170943847656247,
+        "y": 0.6300582885742188,
+        "z": 9.5043000488281
+      },
+      "rotation": {
+        "w": 0.9830319881439209,
+        "x": -0.0000762939453125,
+        "y": -0.18339818716049194,
+        "z": 0.0000457763671875
+      },
+      "shape": "Triangle",
+      "type": "Shape",
+      "userData": "{\"canClickOnModelToSit\":false}",
+      "visible": false
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 0.7516027688980103,
+        "y": 0.9198242425918579,
+        "z": 1.202530026435852
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{4350b122-d687-44b7-b62f-2d2bc86adff7}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/lounge-chair-1f/baked/lounge-chair-1f.baked.fst",
+      "position": {
+        "x": 9.02319299316406,
+        "y": 0.5219497680664062,
+        "z": 9.835873535156225
+      },
+      "rotation": {
+        "w": 0.20598149299621582,
+        "x": -0.0001068115234375,
+        "y": 0.9785457849502563,
+        "z": 0.0000457763671875
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "collisionless": true,
+      "color": {
+        "blue": 0,
+        "green": 0,
+        "red": 0
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 0.059937696903944016,
+        "y": 0.17801693081855774,
+        "z": 0.099061019718647
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{4e73b712-039b-44c1-8387-a90cadf42eeb}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "name": "SitCube",
+      "position": {
+        "x": 10.663039794921872,
+        "y": 0.19391632080078125,
+        "z": 9.32308666992185
+      },
+      "rotation": {
+        "w": 0.8854962587356567,
+        "x": -0.0000457763671875,
+        "y": -0.46459144353866577,
+        "z": -0.0000152587890625
+      },
+      "shape": "Triangle",
+      "type": "Shape",
+      "userData": "{\"canClickOnModelToSit\":false}",
+      "visible": false
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 6.693292140960693,
+        "y": 0.7907310724258423,
+        "z": 2.9234328269958496
+      },
+      "friction": 0.44999998807907104,
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{b42a2c92-2a33-400d-a6b4-30e3d3ff2282}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/bridge-wood-2/baked/bridge-wood-2.baked.fst",
+      "position": {
+        "x": -0.5054324951171907,
+        "y": 0.6536788940429688,
+        "z": -1.4606352539062755
+      },
+      "rotation": {
+        "w": 0.7050125598907471,
+        "x": 0.055191874504089355,
+        "y": 0.7048599720001221,
+        "z": 0.055374979972839355
+      },
+      "shapeType": "static-mesh",
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 5.049962043762207,
+        "y": 1.0044445991516113,
+        "z": 4.514469623565674
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{5b39024d-310e-4c42-b380-9d94489787e1}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/rocks-group-1c/baked/rocks-group-1c.baked.fst",
+      "position": {
+        "x": 2.9902034912109343,
+        "y": 0.098541259765625,
+        "z": 5.5341767578124745
+      },
+      "rotation": {
+        "w": 0.9366750717163086,
+        "x": -0.0000152587890625,
+        "y": 0.3501793146133423,
+        "z": -0.0000457763671875
+      },
+      "shapeType": "simple-compound",
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "backgroundColor": {
+        "blue": 255,
+        "green": 255,
+        "red": 255
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 3.410370111465454,
+        "y": 2.790506601333618,
+        "z": 0.009999999776482582
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{f000da92-6cd4-4f74-b9e6-5e90ac3f6120}",
+      "lineHeight": 0.05999999865889549,
+      "locked": true,
+      "position": {
+        "x": 6.983092895507809,
+        "y": 2.545806884765625,
+        "z": 8.5864533691406
+      },
+      "rotation": {
+        "w": 0.6747386455535889,
+        "x": -0.6830701231956482,
+        "y": 0.19768059253692627,
+        "z": 0.19765007495880127
+      },
+      "text": "Text",
+      "type": "Text"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 1.2368052005767822,
+        "y": 1.768533706665039,
+        "z": 1.2682390213012695
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{851fea2f-c126-4e38-a710-467f2e1709f9}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/shrub-bluepops-1a/baked/shrub-bluepops-1a.baked.fst",
+      "position": {
+        "x": 4.489150634765622,
+        "y": 0.3063201904296875,
+        "z": 3.6734895019530995
+      },
+      "rotation": {
+        "w": 0.7976958751678467,
+        "x": -0.0000457763671875,
+        "y": -0.6030212640762329,
+        "z": -0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 3.46384596824646,
+        "y": 2.6381566524505615,
+        "z": 3.102454900741577
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{c5ffe2c5-2580-4da1-a24f-b44889c75a5e}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/tree-banana-GB/baked/tree-banana-GB.baked.fst",
+      "position": {
+        "x": -2.583114990234378,
+        "y": 1.021728515625,
+        "z": 2.2880219726562245
+      },
+      "rotation": {
+        "w": 0.9107652902603149,
+        "x": -0.0000457763671875,
+        "y": -0.4129244089126587,
+        "z": -0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 9.17088794708252,
+        "y": 6.607067108154297,
+        "z": 8.110982894897461
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{8d7dfdd5-ced3-469e-8ff1-7cb5ecc874fa}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Tree-Cedar-GB/baked/Tree-Cedar-GB.baked.fst",
+      "position": {
+        "x": -8.69525183105469,
+        "y": 5.838653564453125,
+        "z": -7.1815825195312755
+      },
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 6.693292140960693,
+        "y": 0.7907310724258423,
+        "z": 2.9234328269958496
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{9ba26ea6-06e9-4a6a-8e00-4508be0a312d}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/bridge-wood-2/baked/bridge-wood-2.baked.fst",
+      "position": {
+        "x": -0.5043948974609407,
+        "y": 1.20037841796875,
+        "z": -7.9503203125000255
+      },
+      "rotation": {
+        "w": 0.7071183919906616,
+        "x": -0.0003204345703125,
+        "y": 0.7070573568344116,
+        "z": -0.0001068115234375
+      },
+      "shapeType": "static-mesh",
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 5.049962043762207,
+        "y": 1.0044445991516113,
+        "z": 4.514469623565674
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{e740ff91-f0d2-47fa-b2a9-1e733959c77d}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/rocks-group-1c/baked/rocks-group-1c.baked.fst",
+      "position": {
+        "x": 5.608108154296872,
+        "y": -0.41892242431640625,
+        "z": 1.3668183593749745
+      },
+      "rotation": {
+        "w": 0.9366750717163086,
+        "x": -0.0000152587890625,
+        "y": 0.3501793146133423,
+        "z": -0.0000457763671875
+      },
+      "shapeType": "simple-compound",
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 9.98013973236084,
+        "y": 7.226651668548584,
+        "z": 9.74244499206543
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{9c89c95f-f618-4369-95aa-36aa53ffd424}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Tree-Royal-Poinciana-1/baked/Tree-Royal-Poinciana-1.baked.fst",
+      "position": {
+        "x": -5.605545410156253,
+        "y": 5.415855407714844,
+        "z": -0.9180021972656505
+      },
+      "rotation": {
+        "w": 0.7920194864273071,
+        "x": -0.0000457763671875,
+        "y": -0.6104981899261475,
+        "z": -0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "color": {
+        "blue": 240,
+        "green": 0,
+        "red": 0
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 2.9954147338867188,
+        "y": 1.7028464078903198,
+        "z": 6.375170707702637
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{b25ebc53-510d-4328-8d7c-2661ed7f35ab}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "name": "Collider",
+      "position": {
+        "x": -0.5227969970703157,
+        "y": -0.5247726440429688,
+        "z": -1.5259733886719005
+      },
+      "rotation": {
+        "w": 0.996917724609375,
+        "x": 0.07841610908508301,
+        "y": -0.0000457763671875,
+        "z": -0.0000457763671875
+      },
+      "shape": "Cube",
+      "type": "Box",
+      "visible": false
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 1.53977370262146,
+        "y": 1.258410096168518,
+        "z": 1.4623616933822632
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{b1f37218-6b18-44d5-964c-851e83e7f329}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/shrub-jungle-leafy-1a/baked/shrub-jungle-leafy-1a.baked.fst",
+      "position": {
+        "x": 5.897262207031247,
+        "y": 0.3987884521484375,
+        "z": 4.6170930175780995
+      },
+      "rotation": {
+        "w": 0.7670252323150635,
+        "x": -0.0000762939453125,
+        "y": -0.6415960788726807,
+        "z": 0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 1.6568313837051392,
+        "y": 2.962454319000244,
+        "z": 2.082760810852051
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{ab877f13-a83d-4d09-bda8-da9d74fbdf34}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/shrub-noodle-1a/baked/shrub-noodle-1a.baked.fst",
+      "position": {
+        "x": 2.212112060546872,
+        "y": 1.3539352416992188,
+        "z": 7.4597749023437245
+      },
+      "rotation": {
+        "w": 0.9993896484375,
+        "x": -0.0000457763671875,
+        "y": 0.0348668098449707,
+        "z": -0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 1.4817324876785278,
+        "y": 1.9467934370040894,
+        "z": 1.218510627746582
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{e0b98352-5ad6-4a58-ab77-dd7109c7adc5}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/shrub-round-1/baked/shrub-round-1.baked.fst",
+      "position": {
+        "x": 5.066360107421872,
+        "y": 0.7163238525390625,
+        "z": 6.1300935058593495
+      },
+      "rotation": {
+        "w": -0.23567557334899902,
+        "x": 0.0000152587890625,
+        "y": 0.9718317985534668,
+        "z": -0.0000762939453125
+      },
+      "shapeType": "simple-hull",
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 5.049962043762207,
+        "y": 1.0044445991516113,
+        "z": 4.514469623565674
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{938fe3da-a588-42e9-ba22-9f83a6b96083}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/rocks-group-1c/baked/rocks-group-1c.baked.fst",
+      "position": {
+        "x": 4.084426513671872,
+        "y": -0.09622955322265625,
+        "z": 2.6911591796874745
+      },
+      "rotation": {
+        "w": 0.9366750717163086,
+        "x": -0.0000152587890625,
+        "y": 0.3501793146133423,
+        "z": -0.0000457763671875
+      },
+      "shapeType": "static-mesh",
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 3.0492494106292725,
+        "y": 3.7179207801818848,
+        "z": 1.5536855459213257
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{88008f9f-979c-4517-9b66-b115278ea354}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Tree-Palm-Triangle-Low-Poly-GB/baked/Tree-Palm-Triangle-Low-Poly-GB.baked.fst",
+      "position": {
+        "x": 6.589629760742184,
+        "y": 1.6728591918945312,
+        "z": 5.1269807128905995
+      },
+      "rotation": {
+        "w": -0.44847792387008667,
+        "x": -0.0000457763671875,
+        "y": 0.8937971591949463,
+        "z": -0.0001373291015625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 13.467927932739258,
+        "y": 2.3968706130981445,
+        "z": 14.434452056884766
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{68eeb384-fbb7-4ee3-97cf-270414ded21f}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/rocks-group-1a-underwater/baked/rocks-group-1a-underwater.baked.fst?1",
+      "position": {
+        "x": 86.21386682128906,
+        "y": -9.215950012207031,
+        "z": -99.56726367187503
+      },
+      "rotation": {
+        "w": 0.841092586517334,
+        "x": 0.0028228759765625,
+        "y": 0.5402151346206665,
+        "z": 0.026077628135681152
+      },
+      "shapeType": "simple-hull",
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "currentFrame": 100.17732238769531,
+        "firstFrame": 1,
+        "lastFrame": 220,
+        "running": true,
+        "url": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/buoy/original/buoy.fbx"
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 2.5312328338623047,
+        "y": 12.926484107971191,
+        "z": 2.4073450565338135
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{d6567122-5bf5-4269-9d04-01037813a830}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/buoy/original/buoy.fbx",
+      "position": {
+        "x": 83.67829858398437,
+        "y": -2.66253662109375,
+        "z": -96.81289965820315
+      },
+      "rotation": {
+        "w": 0.8745098114013672,
+        "x": -0.0000457763671875,
+        "y": -0.48500800132751465,
+        "z": -0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 1.3893667459487915,
+        "y": 1.258410096168518,
+        "z": 1.4623616933822632
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{1ae299e7-875a-4335-be3d-3aa9218c908a}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/shrub-jungle-leafy-1a/baked/shrub-jungle-leafy-1a.baked.fst",
+      "position": {
+        "x": -0.06994665527344068,
+        "y": 0.05860137939453125,
+        "z": 16.1610383300781
+      },
+      "rotation": {
+        "w": 0.770138144493103,
+        "x": -0.0000762939453125,
+        "y": -0.6378729343414307,
+        "z": 0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 0.7516027688980103,
+        "y": 0.9198242425918579,
+        "z": 1.202530026435852
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{8f2870cb-acd5-466a-b685-6778fe3916bd}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/lounge-chair-1f/baked/lounge-chair-1f.baked.fst",
+      "position": {
+        "x": 3.383498779296872,
+        "y": -0.016998291015625,
+        "z": 51.03988354492185
+      },
+      "rotation": {
+        "w": 0.9998779296875,
+        "x": -0.0000762939453125,
+        "y": -0.015518426895141602,
+        "z": -0.0000457763671875
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "collisionless": true,
+      "color": {
+        "blue": 0,
+        "green": 0,
+        "red": 0
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 0.059937696903944016,
+        "y": 0.17801693081855774,
+        "z": 0.099061019718647
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{82f2718b-62a9-4d48-a6b8-550e7d4f8b94}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "name": "SitCube",
+      "position": {
+        "x": 4.561492553710934,
+        "y": 0.0909271240234375,
+        "z": 51.3803986816406
+      },
+      "rotation": {
+        "w": 0.00862133502960205,
+        "x": -0.0000762939453125,
+        "y": -0.999969482421875,
+        "z": -0.0000152587890625
+      },
+      "shape": "Triangle",
+      "type": "Shape",
+      "userData": "{\"canClickOnModelToSit\":false}",
+      "visible": false
+    },
+    {
+      "animation": {
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "collisionless": true,
+      "description": "Specify URL to your 48K 16bit PCM wav file & volume (0-1) in userData below",
+      "dimensions": {
+        "x": 0.6447294354438782,
+        "y": 0.6438502073287964,
+        "z": 0.26574596762657166
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{e241e578-b6fd-43cf-bc01-731dec89b840}",
+      "ignoreForCollisions": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/speakerGizmo/baked/speakerGizmo.baked.fst",
+      "name": "Sound Emitter Fire",
+      "parentID": "{0b5c8275-0cd4-402a-82c7-31091bcfd165}",
+      "position": {
+        "x": -155.11076391601563,
+        "y": 97.70784759521484,
+        "z": 397.48139165925977
+      },
+      "rotation": {
+        "w": 0.30904102325439453,
+        "x": -0.0000152587890625,
+        "y": -0.9510490298271179,
+        "z": -0.0000457763671875
+      },
+      "serverScripts": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Releases/usefulUtilities/soundEmitter/v1.2/soundEmitter.js",
+      "type": "Model",
+      "userData": "{\"soundURL\":\"https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Audio/Fire-Small.wav\",\"volume\":0.1,\"shouldLoop\":true}",
+      "visible": false
+    },
+    {
+      "animation": {
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "collisionless": true,
+      "description": "Specify URL to your 48K 16bit PCM wav file & volume (0-1) in userData below",
+      "dimensions": {
+        "x": 0.6447294354438782,
+        "y": 0.6438502073287964,
+        "z": 0.26574596762657166
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{3277fd2a-5407-45d9-a359-9f32863bb3b3}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/speakerGizmo/baked/speakerGizmo.baked.fst",
+      "name": "Sound Emitter Birds",
+      "position": {
+        "x": 2.587417236328122,
+        "y": 6.667060852050781,
+        "z": 16.1542023925781
+      },
+      "rotation": {
+        "w": 0.30904102325439453,
+        "x": -0.0000152587890625,
+        "y": -0.9510490298271179,
+        "z": -0.0000152587890625
+      },
+      "script": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Releases/usefulUtilities/soundEmitter/v1.2/soundEmitter.js",
+      "type": "Model",
+      "userData": "{\"soundURL\":\"https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Audio/rainforest-birds.wav\",\"volume\":1,\"shouldLoop\":true}",
+      "visible": false
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 0.8129993677139282,
+        "y": 1.0681697130203247,
+        "z": 0.7664602994918823
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{65e2e63a-4a1a-48d5-9569-e3c1f41993f7}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/shrub-round-1b/baked/shrub-round-1b.baked.fst",
+      "position": {
+        "x": 9.603789916992184,
+        "y": 0.30823516845703125,
+        "z": 24.550900390624975
+      },
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 1.2071062326431274,
+        "y": 2.158334970474243,
+        "z": 1.5174226760864258
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{4cde8586-9f38-4d62-873e-0251bec1112b}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/shrub-noodle-1c/baked/shrub-noodle-1c.baked.fst",
+      "position": {
+        "x": 9.77685510253906,
+        "y": 0.8838653564453125,
+        "z": 23.6920441894531
+      },
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 0.9866825342178345,
+        "y": 0.8473218679428101,
+        "z": 0.7664602994918823
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{26c12603-70d6-4dab-9dcb-b74837e35790}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/shrub-round-1b/baked/shrub-round-1b.baked.fst",
+      "position": {
+        "x": 8.81201135253906,
+        "y": 0.19781494140625,
+        "z": 24.185543945312475
+      },
+      "rotation": {
+        "w": 0.3979705572128296,
+        "x": -0.0000457763671875,
+        "y": -0.9173876643180847,
+        "z": -0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "collisionless": true,
+      "color": {
+        "blue": 0,
+        "green": 0,
+        "red": 0
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 0.059937696903944016,
+        "y": 0.17801693081855774,
+        "z": 0.099061019718647
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{55ac00fe-2d0f-4f12-8313-bb9e0ff7ba5a}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "name": "SitCube",
+      "position": {
+        "x": 16.666167846679684,
+        "y": 1.7140274047851562,
+        "z": 32.560482910156225
+      },
+      "rotation": {
+        "w": -0.18236058950424194,
+        "x": -0.0001068115234375,
+        "y": -0.9832456111907959,
+        "z": -0.0000152587890625
+      },
+      "shape": "Triangle",
+      "type": "Shape",
+      "userData": "{\"canClickOnModelToSit\":false}",
+      "visible": false
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 0.6684185862541199,
+        "y": 0.3205789029598236,
+        "z": 3.1552939414978027
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{8e578011-e135-4a20-8c23-23719b047f6b}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/surfboard-3/baked/surfboard-3.baked.fst",
+      "position": {
+        "x": 17.030181518554684,
+        "y": 0.741119384765625,
+        "z": 40.20162670898435
+      },
+      "rotation": {
+        "w": 0.29329371452331543,
+        "x": -0.2575570344924927,
+        "y": -0.6372625231742859,
+        "z": -0.6644846200942993
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 0.6861221194267273,
+        "y": 0.3784741163253784,
+        "z": 3.238863468170166
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{aa8f92e0-917e-4423-9459-c1b4745fd496}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/surfboard-4/baked/surfboard-4.baked.fst",
+      "position": {
+        "x": 17.582778564453122,
+        "y": 0.601348876953125,
+        "z": 38.383541992187475
+      },
+      "rotation": {
+        "w": -0.7001602053642273,
+        "x": 0.6476997137069702,
+        "y": -0.26182955503463745,
+        "z": -0.14726483821868896
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "collisionless": true,
+      "color": {
+        "blue": 0,
+        "green": 0,
+        "red": 0
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 0.059937696903944016,
+        "y": 0.17801693081855774,
+        "z": 0.099061019718647
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{9d3e94f4-2eae-407b-b76d-6e3fae091368}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "name": "SitCube",
+      "position": {
+        "x": 5.734756103515622,
+        "y": 0.0686492919921875,
+        "z": 51.360165527343725
+      },
+      "rotation": {
+        "w": 0.00862133502960205,
+        "x": -0.0000762939453125,
+        "y": -0.999969482421875,
+        "z": -0.0000152587890625
+      },
+      "shape": "Triangle",
+      "type": "Shape",
+      "userData": "{\"canClickOnModelToSit\":false}",
+      "visible": false
+    },
+    {
+      "angularDamping": 0,
+      "collisionless": true,
+      "color": {
+        "blue": 0,
+        "green": 0,
+        "red": 0
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 0.10274213552474976,
+        "y": 0.30514752864837646,
+        "z": 0.16980533301830292
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{74934026-fc7e-439e-a2cf-7522f8ba2459}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "name": "SitCube",
+      "position": {
+        "x": 6.922896972656247,
+        "y": 0.37490081787109375,
+        "z": 73.9687775878906
+      },
+      "rotation": {
+        "w": 0.19484245777130127,
+        "x": 0.0000152587890625,
+        "y": -0.9808346629142761,
+        "z": -0.0000457763671875
+      },
+      "shape": "Triangle",
+      "type": "Shape",
+      "userData": "{\"canClickOnModelToSit\":false}",
+      "visible": false
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 7.287749767303467,
+        "y": 7.53541374206543,
+        "z": 5.487236022949219
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{c190f348-6258-4b17-80fb-331b10a07a48}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Rock-01c/baked/Rock-01c.baked.fst",
+      "position": {
+        "x": 5.798339477539059,
+        "y": -2.94952392578125,
+        "z": 71.3775910644531
+      },
+      "rotation": {
+        "w": 0.9851071834564209,
+        "x": -0.014023065567016602,
+        "y": -0.17125201225280762,
+        "z": -0.006332516670227051
+      },
+      "shapeType": "static-mesh",
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 4.5972208976745605,
+        "y": 6.664166450500488,
+        "z": 4.928356647491455
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{7984f62a-84ca-4dc4-a9fa-f8310905d3a9}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/tree-palm-macarthur-GB/baked/tree-palm-macarthur-GB.baked.fst",
+      "position": {
+        "x": 17.425262084960934,
+        "y": 2.25372314453125,
+        "z": 21.94308178710935
+      },
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 8.001836776733398,
+        "y": 11.599523544311523,
+        "z": 8.578205108642578
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{2238b88b-55d9-4885-b351-f29f2dbeafd0}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/tree-palm-macarthur-GB/baked/tree-palm-macarthur-GB.baked.fst",
+      "position": {
+        "x": 10.04510461425781,
+        "y": 3.937164306640625,
+        "z": 25.786068847656225
+      },
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 3.5050437450408936,
+        "y": 2.292463541030884,
+        "z": 2.8034415245056152
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{c60eec8b-8c13-46dd-862a-7a3635b3cd45}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/tree-bocote-GB/baked/tree-bocote-GB.baked.fst",
+      "position": {
+        "x": 4.433776489257809,
+        "y": 0.9124298095703125,
+        "z": 15.993466308593725
+      },
+      "rotation": {
+        "w": 0.7193255424499512,
+        "x": -0.0000152587890625,
+        "y": 0.6946364641189575,
+        "z": -0.0000457763671875
+      },
+      "shapeType": "simple-hull",
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "currentFrame": 96.94540405273438,
+        "fps": 16,
+        "lastFrame": 120,
+        "running": true,
+        "url": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/jimi/environment/lilypad/kitev1-1.fbx"
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 4.4209675788879395,
+        "y": 22.943315505981445,
+        "z": 15.645556449890137
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{a901cb81-a3ef-4b5a-a247-18422021ec7a}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/jimi/environment/lilypad/kitev1-1.fbx",
+      "name": "Kite-1-Animated",
+      "position": {
+        "x": 3.5001217041015593,
+        "y": 12.319892883300781,
+        "z": 62.6559113769531
+      },
+      "rotation": {
+        "w": 0.2694590091705322,
+        "x": -0.0000762939453125,
+        "y": -0.9630120992660522,
+        "z": -0.0000457763671875
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "compoundShapeURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Courtyard/original/Courtyard-COLL.obj?1",
+      "damping": 0,
+      "dimensions": {
+        "x": 21.04935646057129,
+        "y": 3.930176019668579,
+        "z": 16.13222885131836
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{73e82bc6-f720-4023-8fe6-045ccdf7fee2}",
+      "keyLight": {
+        "castShadows": true,
+        "direction": {
+          "x": 0,
+          "y": -0.7071067690849304,
+          "z": 0.7071067690849304
+        }
+      },
+      "locked": true,
+      "name": "Courtyard Bouncer Zone",
+      "parentID": "{e923b8ff-4c58-4bfa-9901-0fd4b3b19e30}",
+      "position": {
+        "x": -154.45456106328965,
+        "y": 96.86109924316406,
+        "z": 397.9271516113281
+      },
+      "rotation": {
+        "w": 0.9505913257598877,
+        "x": -0.0000457763671875,
+        "y": 0.31035327911376953,
+        "z": -0.0001068115234375
+      },
+      "script": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Releases/usefulUtilities/bouncerZone/2019-09-18_14-12-00/bouncerZone.js",
+      "scriptTimestamp": 1568929480704,
+      "shapeType": "cylinder-y",
+      "type": "Zone",
+      "userData": "{\"rejectTeleportLocation\":\"/152.059,-98.5907,-355.838/0,0.664368,0,0.747405\",\"bounceSound\":{\"bounceSoundURL\":\"\",\"bounceSoundVolume\":0.5},\"whitelist\":{\"allowAdmins\":false,\"marketplaceID\":\"\",\"usernames\":[\"\"]}}"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 4.5972208976745605,
+        "y": 6.664166450500488,
+        "z": 4.928356647491455
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{a5cd3725-b6ba-4e9b-8236-4548e64547b6}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/tree-palm-macarthur-GB/baked/tree-palm-macarthur-GB.baked.fst",
+      "position": {
+        "x": 5.649459472656247,
+        "y": 3.16552734375,
+        "z": 31.796933105468725
+      },
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "alphaFinish": 0,
+      "alphaStart": 0.843999981880188,
+      "angularDamping": 0,
+      "color": {
+        "blue": 48,
+        "green": 73,
+        "red": 255
+      },
+      "colorFinish": {
+        "blue": 0,
+        "green": 0,
+        "red": 255
+      },
+      "colorSpread": {
+        "blue": 79,
+        "green": 79,
+        "red": 79
+      },
+      "colorStart": {
+        "blue": 20,
+        "green": 204,
+        "red": 255
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 2.5286149978637695,
+        "y": 2.5286149978637695,
+        "z": 2.5286149978637695
+      },
+      "emitAcceleration": {
+        "x": 0,
+        "y": 1.3300000429153442,
+        "z": 0
+      },
+      "emitDimensions": {
+        "x": 0.25,
+        "y": 0.25,
+        "z": 0.25
+      },
+      "emitOrientation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "emitRadiusStart": 0,
+      "emitRate": 6,
+      "emitSpeed": 0,
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{f185a19f-6a75-4a1d-a8a2-7e47356ec9c5}",
+      "lifespan": 0.6200000047683716,
+      "locked": true,
+      "maxParticles": 10,
+      "name": "Firepit flames",
+      "parentID": "{0b5c8275-0cd4-402a-82c7-31091bcfd165}",
+      "particleRadius": 0.6899999976158142,
+      "polarFinish": 3.1415927410125732,
+      "position": {
+        "x": -155.11640966796875,
+        "y": 98.58589172363281,
+        "z": 397.2850685327053
+      },
+      "radiusFinish": 0.7400000095367432,
+      "radiusSpread": 0.09000000357627869,
+      "radiusStart": 0.4300000071525574,
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "shapeType": "ellipsoid",
+      "speedSpread": 0,
+      "spinFinish": 0,
+      "spinSpread": 6.28000020980835,
+      "spinStart": null,
+      "textures": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/splat_0.texmeta.json",
+      "type": "ParticleEffect"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 4.115819931030273,
+        "y": 7.396396160125732,
+        "z": 3.516676425933838
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{befdf4d3-e2c8-4f92-a960-74a02c7220f3}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Rock-01c/baked/Rock-01c.baked.fst",
+      "position": {
+        "x": -1.7411044921875032,
+        "y": 0.10406494140625,
+        "z": 58.037533691406225
+      },
+      "rotation": {
+        "w": -0.20399785041809082,
+        "x": 0.2634165287017822,
+        "y": 0.683741569519043,
+        "z": 0.6492255926132202
+      },
+      "shapeType": "static-mesh",
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 5.049962043762207,
+        "y": 1.0044445991516113,
+        "z": 4.514469623565674
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{96071fe3-bb1b-4964-9bdd-ee329626aaee}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/rocks-group-1a/baked/rocks-group-1a.baked.fst",
+      "position": {
+        "x": 18.49175988769531,
+        "y": -0.3378448486328125,
+        "z": 23.4704865722656
+      },
+      "rotation": {
+        "w": 0.9366750717163086,
+        "x": -0.0000152587890625,
+        "y": 0.3501793146133423,
+        "z": -0.0000457763671875
+      },
+      "shapeType": "simple-compound",
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "collisionless": true,
+      "damping": 0,
+      "dimensions": {
+        "x": 6.699489116668701,
+        "y": 0.39650654792785645,
+        "z": 11.788041114807129
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{49f76dd9-1d0e-4d8c-b6cb-7e5c5a97bd69}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Sand-Plane/baked/Sand-Plane.baked.fst",
+      "position": {
+        "x": 0.3491817626953093,
+        "y": -0.36505889892578125,
+        "z": 40.538449218749975
+      },
+      "rotation": {
+        "w": -0.0164034366607666,
+        "x": 0.01103222370147705,
+        "y": 0.999786376953125,
+        "z": 0.005783200263977051
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 1.8059507608413696,
+        "y": 0.9691882729530334,
+        "z": 1.8059507608413696
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{0b5c8275-0cd4-402a-82c7-31091bcfd165}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/firepit/baked/firepit.baked.fst?2",
+      "name": "Firepit",
+      "position": {
+        "x": 4.243636718749997,
+        "y": -0.06988525390625,
+        "z": 53.808041503906225
+      },
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 0.7516027688980103,
+        "y": 0.9198242425918579,
+        "z": 1.202530026435852
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{ce942bc6-29af-43be-8c4f-892e724f5451}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/lounge-chair-1a/baked/lounge-chair-1a.baked.fst",
+      "position": {
+        "x": 5.720962158203122,
+        "y": -0.016998291015625,
+        "z": 51.04513256835935
+      },
+      "rotation": {
+        "w": 0.9998779296875,
+        "x": -0.0000762939453125,
+        "y": -0.015518426895141602,
+        "z": -0.0000457763671875
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "currentFrame": 41158.578125,
+        "fps": 14,
+        "running": true,
+        "smoothFrames": false,
+        "url": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/tree-palm-1b-anim/original/tree-palm-1b-anim.fbx"
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 10.030266761779785,
+        "y": 10.028541564941406,
+        "z": 9.505327224731445
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{2953241a-ed43-4ad4-8ef2-cdba9e71280e}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/tree-palm-1b-anim/original/tree-palm-1b-anim.fbx",
+      "name": "Tree-Palm-Cluster-Animated",
+      "position": {
+        "x": 1.7431636962890593,
+        "y": 4.57183837890625,
+        "z": 37.671749999999975
+      },
+      "rotation": {
+        "w": 0.8170748949050903,
+        "x": 0.14982831478118896,
+        "y": 0.550163984298706,
+        "z": 0.08485543727874756
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 7.869719505310059,
+        "y": 1.565298318862915,
+        "z": 7.035223007202148
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{9f7375ce-3463-4adc-bff0-d08f251a901f}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/rocks-group-1a/baked/rocks-group-1a.baked.fst",
+      "position": {
+        "x": 30.858733764648434,
+        "y": -1.03521728515625,
+        "z": 23.9089631347656
+      },
+      "rotation": {
+        "w": 0.9366750717163086,
+        "x": -0.0000152587890625,
+        "y": 0.3501793146133423,
+        "z": -0.0000457763671875
+      },
+      "shapeType": "simple-compound",
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "collisionless": true,
+      "damping": 0,
+      "dimensions": {
+        "x": 1.4973478317260742,
+        "y": 1.0112075805664062,
+        "z": 1.1475040912628174
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{fc6ba615-ab67-4b2a-8e9c-cd3fef2557d9}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/grass-tuft-2-toon/baked/grass-tuft-2-toon.baked.fst",
+      "position": {
+        "x": 5.933517089843747,
+        "y": 0.29644775390625,
+        "z": 31.540768554687475
+      },
+      "rotation": {
+        "w": 0.19743645191192627,
+        "x": -0.0000457763671875,
+        "y": -0.9803158640861511,
+        "z": 0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 4.5972208976745605,
+        "y": 6.664166450500488,
+        "z": 4.928356647491455
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{4d598d8e-018c-49d3-8175-4b50a0842546}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/tree-palm-macarthur-GB/baked/tree-palm-macarthur-GB.baked.fst",
+      "position": {
+        "x": 12.208022705078122,
+        "y": 2.25372314453125,
+        "z": 46.8033723144531
+      },
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "collisionless": true,
+      "damping": 0,
+      "dimensions": {
+        "x": 7.1297383308410645,
+        "y": 0.37777432799339294,
+        "z": 11.231136322021484
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{45f6cc8e-0525-4333-80be-d990cc69356b}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Sand-Plane/baked/Sand-Plane.baked.fst",
+      "position": {
+        "x": -1.5633548583984407,
+        "y": -0.41216278076171875,
+        "z": 52.009640624999975
+      },
+      "rotation": {
+        "w": -0.18931865692138672,
+        "x": 0.0176851749420166,
+        "y": 0.9817502498626709,
+        "z": 0.0034637451171875
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "currentFrame": 83.14835357666016,
+        "fps": 12,
+        "lastFrame": 120,
+        "running": true,
+        "url": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/kitev2-1/original/kitev2-1.fbx"
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 1.4379204511642456,
+        "y": 10.644495010375977,
+        "z": 7.245250225067139
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{4ce5fadb-8cde-47da-a2ca-449a6d05fab4}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/kitev2-1/original/kitev2-1.fbx",
+      "name": "Kite-2-Animated",
+      "position": {
+        "x": 1.0340877685546843,
+        "y": 7.098152160644531,
+        "z": 60.8807648925781
+      },
+      "rotation": {
+        "w": 0.43929195404052734,
+        "x": -0.0000457763671875,
+        "y": -0.8983443975448608,
+        "z": -0.0000762939453125
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "currentFrame": 41085.05859375,
+        "fps": 14,
+        "running": true,
+        "smoothFrames": false,
+        "url": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/tree-palm-1b-anim/original/tree-palm-1b-anim.fbx"
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 10.030266761779785,
+        "y": 10.028541564941406,
+        "z": 9.505327224731445
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{2c75f943-930d-49ea-a02b-ce06b88ce045}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/tree-palm-1b-anim/original/tree-palm-1b-anim.fbx",
+      "name": "Tree-Palm-Cluster-Animated",
+      "position": {
+        "x": 17.508590332031247,
+        "y": 3.355133056640625,
+        "z": 30.940976074218725
+      },
+      "rotation": {
+        "w": 0.9875791072845459,
+        "x": -0.0000152587890625,
+        "y": -0.0000457763671875,
+        "z": -0.15706110000610352
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 6.922111511230469,
+        "y": 0.4479408264160156,
+        "z": 12.073164939880371
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{831012e1-e961-4ba6-81cf-71c328710e96}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Sand-Plane/baked/Sand-Plane.baked.fst",
+      "position": {
+        "x": -0.5351718750000032,
+        "y": -0.2340087890625,
+        "z": 20.6261262207031
+      },
+      "rotation": {
+        "w": 0.5400320291519165,
+        "x": 0.0009918212890625,
+        "y": 0.841611385345459,
+        "z": 0.006179928779602051
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 0.7012709379196167,
+        "y": 0.17615795135498047,
+        "z": 3.3103744983673096
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{98bfd58c-cba4-40f4-abc4-85ab8c080d75}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/surfboard-1/baked/surfboard-1.baked.fst",
+      "position": {
+        "x": 17.30560266113281,
+        "y": 0.9027328491210938,
+        "z": 39.449215820312475
+      },
+      "rotation": {
+        "w": 0.6122682094573975,
+        "x": 0.6274356842041016,
+        "y": 0.32442212104797363,
+        "z": -0.35515373945236206
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "currentFrame": 122.93315887451172,
+        "fps": 40,
+        "lastFrame": 150,
+        "running": true,
+        "smoothFrames": false,
+        "url": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/smallPlantAnim/baked/smallPlantAnim.baked.fst?12"
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "collidesWith": "static,dynamic,kinematic,otherAvatar,",
+      "collisionMask": 23,
+      "damping": 0,
+      "dimensions": {
+        "x": 4.090910911560059,
+        "y": 2.376516580581665,
+        "z": 3.819122076034546
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{828a89c7-4c93-46e3-92e4-0d4575207436}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/palmStubby/baked/palmStubby.baked.fst?2",
+      "position": {
+        "x": -3.079697021484378,
+        "y": 1.0485305786132812,
+        "z": 18.575619628906225
+      },
+      "rotation": {
+        "w": 0.8385900259017944,
+        "x": -0.0000457763671875,
+        "y": -0.544762372970581,
+        "z": -0.0000457763671875
+      },
+      "shapeType": "static-mesh",
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "currentFrame": 41135.3203125,
+        "fps": 14,
+        "running": true,
+        "smoothFrames": false,
+        "url": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/tree-palm-1b-anim/original/tree-palm-1b-anim.fbx"
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 10.030266761779785,
+        "y": 10.028541564941406,
+        "z": 9.505327224731445
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{581e6803-44f3-4230-b037-7ef26b78a7c2}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/tree-palm-1b-anim/original/tree-palm-1b-anim.fbx",
+      "name": "Tree-Palm-Cluster-Animated",
+      "position": {
+        "x": 7.997146240234372,
+        "y": 3.355133056640625,
+        "z": 47.6062287597656
+      },
+      "rotation": {
+        "w": -0.6028381586074829,
+        "x": 0.024216055870056152,
+        "y": -0.7971770763397217,
+        "z": -0.022629141807556152
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 0.7516027688980103,
+        "y": 0.9198242425918579,
+        "z": 1.202530026435852
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{48b022a6-2a6e-470a-a5f0-e6e986a546fc}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/lounge-chair-1d/baked/lounge-chair-1d.baked.fst",
+      "position": {
+        "x": 4.597060791015622,
+        "y": -0.016998291015625,
+        "z": 51.025509765624975
+      },
+      "rotation": {
+        "w": 0.9998779296875,
+        "x": -0.0000762939453125,
+        "y": -0.015518426895141602,
+        "z": -0.0000457763671875
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "currentFrame": 21.377363204956055,
+        "fps": 20,
+        "lastFrame": 120,
+        "running": true,
+        "url": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/kitev3-1/original/kitev3-1.fbx"
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 2.5183987617492676,
+        "y": 8.959258079528809,
+        "z": 6.09818172454834
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{1b03a535-bfd4-42db-a810-205a181bb8cb}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/kitev3-1/original/kitev3-1.fbx",
+      "name": "Kite-3-Animated",
+      "position": {
+        "x": 1.0725856933593718,
+        "y": 5.816062927246094,
+        "z": 57.405697753906225
+      },
+      "rotation": {
+        "w": 0.614557147026062,
+        "x": -0.0000457763671875,
+        "y": -0.7888761758804321,
+        "z": -0.0001068115234375
+      },
+      "type": "Model"
+    },
+    {
+      "animation": {
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "collisionless": true,
+      "description": "Specify URL to your 48K 16bit PCM wav file & volume (0-1) in userData below",
+      "dimensions": {
+        "x": 0.6447294354438782,
+        "y": 0.6438502073287964,
+        "z": 0.26574596762657166
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{cfdd50b8-5b7d-4270-8f2a-aeb1abf1deb6}",
+      "ignoreForCollisions": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/speakerGizmo/baked/speakerGizmo.baked.fst",
+      "name": "Sound Emitter Waves",
+      "position": {
+        "x": 89.42500268554687,
+        "y": -10.499168395996094,
+        "z": 18.53670971679685
+      },
+      "rotation": {
+        "w": 0.30986499786376953,
+        "x": -0.0000152587890625,
+        "y": -0.9507743716239929,
+        "z": -0.0000152587890625
+      },
+      "script": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Releases/usefulUtilities/soundEmitter/v1.2/soundEmitter.js",
+      "type": "Model",
+      "userData": "{\"soundURL\":\"https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Audio/beach-tide-amplified.wav\",\"volume\":6,\"shouldLoop\":true}",
+      "visible": false
+    },
+    {
+      "angularDamping": 0,
+      "color": {
+        "blue": 120,
+        "green": 165,
+        "red": 255
+      },
+      "cutoff": 75,
+      "damping": 0,
+      "dimensions": {
+        "x": 32,
+        "y": 32,
+        "z": 32
+      },
+      "exponent": 1,
+      "falloffRadius": 0.30000001192092896,
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{8b0f7627-882e-4d64-a663-c94888e0ac7f}",
+      "intensity": 5.83411979675293,
+      "locked": true,
+      "name": "Fire light Flicker",
+      "position": {
+        "x": 4.206908813476559,
+        "y": 0.392791748046875,
+        "z": 53.859677246093725
+      },
+      "renderWithZones": [
+        "{a8d7868a-0740-4220-a76e-524abe9699fb}"
+      ],
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "serverScripts": "https://content.overte.org/DomainContent/Zombies/flicker.js",
+      "type": "Light",
+      "userData": "{\"maxLightIntensity\":8.1,\"interval\":100}"
+    },
+    {
+      "angularDamping": 0,
+      "color": {
+        "blue": 102,
+        "green": 125,
+        "red": 255
+      },
+      "cutoff": 75,
+      "damping": 0,
+      "dimensions": {
+        "x": 32,
+        "y": 32,
+        "z": 32
+      },
+      "exponent": 1,
+      "falloffRadius": 1.2999999523162842,
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{b8399a12-4bdf-4f6c-ba51-7dd02f8013a7}",
+      "intensity": 8.100000381469727,
+      "locked": true,
+      "name": "Fire light",
+      "position": {
+        "x": 4.206908813476559,
+        "y": 0.392791748046875,
+        "z": 53.859677246093725
+      },
+      "renderWithZones": [
+        "{a8d7868a-0740-4220-a76e-524abe9699fb}"
+      ],
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "type": "Light"
+    },
+    {
+      "angularDamping": 0,
+      "color": {
+        "blue": 73,
+        "green": 56,
+        "red": 64
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 2,
+        "y": 2.799999952316284,
+        "z": 1
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{642a341f-a143-4539-b893-82d1c4f42351}",
+      "locked": true,
+      "name": "Welcome Background",
+      "position": {
+        "x": -7.368439086914066,
+        "y": 1.3004913330078125,
+        "z": 12.291256835937475
+      },
+      "rotation": {
+        "w": -0.5231860876083374,
+        "x": -0.0000152587890625,
+        "y": -0.8522316217422485,
+        "z": 0.0000762939453125
+      },
+      "shape": "Cube",
+      "type": "Box"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 6.699489116668701,
+        "y": 0.39650654792785645,
+        "z": 11.788041114807129
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{ffa7d751-5c47-44e3-a494-61026f8ea09e}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Sand-Plane/baked/Sand-Plane.baked.fst",
+      "position": {
+        "x": -7.795898803710941,
+        "y": -0.134124755859375,
+        "z": 7.6847199707030995
+      },
+      "rotation": {
+        "w": -0.7289386987686157,
+        "x": 0.003952145576477051,
+        "y": 0.684412956237793,
+        "z": 0.013107538223266602
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 14.090607643127441,
+        "y": 8.465168952941895,
+        "z": 9.766536712646484
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{422fdff6-393c-464a-9063-949cf877182b}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/tree-thorn-GB/baked/tree-thorn-GB.baked.fst",
+      "position": {
+        "x": -1.1073154296875032,
+        "y": 3.703369140625,
+        "z": 18.19637768554685
+      },
+      "rotation": {
+        "w": 0.304951548576355,
+        "x": -0.0000457763671875,
+        "y": -0.9523918628692627,
+        "z": -0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "collisionless": true,
+      "damping": 0,
+      "dimensions": {
+        "x": 1.4973478317260742,
+        "y": 1.0112075805664062,
+        "z": 1.1475040912628174
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{049c189f-0f0c-4d08-bfa9-9149c4ad0c6a}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/grass-tuft-2-toon/baked/grass-tuft-2-toon.baked.fst",
+      "position": {
+        "x": 2.258041015624997,
+        "y": 0.29644775390625,
+        "z": 13.246334960937475
+      },
+      "rotation": {
+        "w": 0.999603271484375,
+        "x": -0.0000457763671875,
+        "y": -0.028152883052825928,
+        "z": -0.0000457763671875
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "collisionless": true,
+      "damping": 0,
+      "dimensions": {
+        "x": 1.4973478317260742,
+        "y": 1.0112075805664062,
+        "z": 1.1475040912628174
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{29645543-8a9c-4a31-8a6e-0e751e45c2bd}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/grass-tuft-2-toon/baked/grass-tuft-2-toon.baked.fst",
+      "position": {
+        "x": 3.062240234374997,
+        "y": 0.29644775390625,
+        "z": 12.4715852050781
+      },
+      "rotation": {
+        "w": 0.19743645191192627,
+        "x": -0.0000457763671875,
+        "y": -0.9803158640861511,
+        "z": 0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "cutoff": 45,
+      "damping": 0,
+      "dimensions": {
+        "x": 9.3872709274292,
+        "y": 9.3872709274292,
+        "z": 9.3872709274292
+      },
+      "exponent": 1,
+      "falloffRadius": 1,
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{1e69bb44-9dd2-49bd-b7d2-c453e82b86f7}",
+      "intensity": 8,
+      "locked": true,
+      "name": "Welcome Light",
+      "parentID": "{642a341f-a143-4539-b893-82d1c4f42351}",
+      "position": {
+        "x": -155.11132849121094,
+        "y": 100.8340072631836,
+        "z": 398.5013245849609
+      },
+      "rotation": {
+        "w": -0.6058289408683777,
+        "x": 0.5988403558731079,
+        "y": -0.3651636242866516,
+        "z": -0.37560081481933594
+      },
+      "type": "Light"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 1.9015601873397827,
+        "y": 3.816960573196411,
+        "z": 2.0921058654785156
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{805dc5b4-5685-4403-811f-7c164a6d0697}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/plant-rubber-fig-GB/baked/plant-rubber-fig-GB.baked.fst",
+      "position": {
+        "x": 9.953704467773434,
+        "y": 1.127593994140625,
+        "z": 12.6881379394531
+      },
+      "rotation": {
+        "w": 0.6068360805511475,
+        "x": -0.0000457763671875,
+        "y": -0.7948272228240967,
+        "z": -0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "color": {
+        "blue": 138,
+        "green": 177,
+        "red": 255
+      },
+      "cutoff": 76.51000213623047,
+      "damping": 0,
+      "dimensions": {
+        "x": 32,
+        "y": 32,
+        "z": 32
+      },
+      "exponent": 2.759999990463257,
+      "falloffRadius": 1.600000023841858,
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{ebe450ca-a679-4587-b633-eb3dec7b5b93}",
+      "intensity": 5.599999904632568,
+      "name": "Fire Light",
+      "parentID": "{56f9b785-f3f7-440e-892a-50096b9f5eef}",
+      "position": {
+        "x": -155.10176123046875,
+        "y": 98.78237915039062,
+        "z": 397.3398509829044
+      },
+      "renderWithZones": [
+        "{a8d7868a-0740-4220-a76e-524abe9699fb}"
+      ],
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "type": "Light"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "collidesWith": "myAvatar,otherAvatar,",
+      "collisionMask": 24,
+      "compoundShapeURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Courtyard/original/Courtyard-COLL.obj",
+      "damping": 0,
+      "dimensions": {
+        "x": 19.460487365722656,
+        "y": 0.38477039337158203,
+        "z": 19.460487365722656
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{e923b8ff-4c58-4bfa-9901-0fd4b3b19e30}",
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Courtyard/baked/Courtyard.baked.fst?1",
+      "name": "Courtyard",
+      "position": {
+        "x": -13.33050573730469,
+        "y": -3.143096923828125,
+        "z": 38.2475861816406
+      },
+      "restitution": 0,
+      "rotation": {
+        "w": 0.7070878744125366,
+        "x": -0.0000152587890625,
+        "y": 0.7070878744125366,
+        "z": -0.0000152587890625
+      },
+      "scriptTimestamp": 1567104696320,
+      "serverScripts": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Releases/modules/empty/v1.0.0/empty.js",
+      "shapeType": "compound",
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 3.824658155441284,
+        "y": 2.785828113555908,
+        "z": 3.0590789318084717
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{0014474d-01e2-4374-afb7-aa86c232b878}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/tree-bocote-GB/baked/tree-bocote-GB.baked.fst",
+      "position": {
+        "x": 2.1211849365234343,
+        "y": 1.04388427734375,
+        "z": 15.710385253906225
+      },
+      "rotation": {
+        "w": 0.2672312259674072,
+        "x": -0.0000152587890625,
+        "y": 0.9636224508285522,
+        "z": -0.0000762939453125
+      },
+      "shapeType": "simple-hull",
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "color": {
+        "blue": 239,
+        "green": 180,
+        "red": 0
+      },
+      "damping": 0,
+      "description": "Content Version: 2019-12-06_12-12-23",
+      "dimensions": {
+        "x": 12.432283401489258,
+        "y": 5.008144855499268,
+        "z": 5.008144855499268
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{65b101c8-2a80-41b7-91bb-50ffd0fd5b32}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "name": "Content Info",
+      "position": {
+        "x": -3.943283447265628,
+        "y": -2.6070632934570312,
+        "z": 12.531124999999975
+      },
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "shape": "Cube",
+      "type": "Box",
+      "visible": false
+    },
+    {
+      "angularDamping": 0,
+      "angularVelocity": {
+        "x": 0,
+        "y": 0.017500000074505806,
+        "z": 0
+      },
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 22.366064071655273,
+        "y": 49.2697639465332,
+        "z": 21.910646438598633
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{d91a737d-1fce-4a80-be73-fd05afde726a}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Water-pond-geo/baked/Water-pond-geo.baked.fst?1",
+      "position": {
+        "x": -40.21421087646485,
+        "y": -24.857742309570312,
+        "z": 29.434872558593725
+      },
+      "rotation": {
+        "w": 0.44784706830978394,
+        "x": -0.000011250493116676807,
+        "y": -0.8941101431846619,
+        "z": -0.0002122305886587128
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 0.15883101522922516,
+        "y": 0.7044857740402222,
+        "z": 0.15874361991882324
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{56f9b785-f3f7-440e-892a-50096b9f5eef}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/Zaru_Theater/content/Torch/baked/Torch.baked.fbx",
+      "name": "Fire Torch",
+      "position": {
+        "x": -34.578331359863284,
+        "y": 0.24037933349609375,
+        "z": 6.8974274902343495
+      },
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "currentFrame": 40714,
+        "fps": 14,
+        "running": true,
+        "smoothFrames": false,
+        "url": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/tree-palm-1b-anim/original/tree-palm-1b-anim.fbx"
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 10.030266761779785,
+        "y": 10.837882041931152,
+        "z": 9.505327224731445
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{c8a1949c-927a-4830-ba99-63620e1e73b6}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/tree-palm-1b-anim/original/tree-palm-1b-anim.fbx",
+      "name": "Tree-Palm-Cluster-Animated",
+      "position": {
+        "x": 5.055648437499997,
+        "y": 4.3939361572265625,
+        "z": 12.5912141113281
+      },
+      "rotation": {
+        "w": 0.999847412109375,
+        "x": -0.0000762939453125,
+        "y": -0.0000457763671875,
+        "z": 0.0167086124420166
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 0.8771165013313293,
+        "y": 1.152410864830017,
+        "z": 0.8269071578979492
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{ca61950b-8ee3-41a3-b71e-559986a23c60}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/shrub-round-1b/baked/shrub-round-1b.baked.fst",
+      "position": {
+        "x": 8.628829589843747,
+        "y": 0.463623046875,
+        "z": 12.9024934082031
+      },
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "angularVelocity": {
+        "x": 0,
+        "y": 0.017500000074505806,
+        "z": 0
+      },
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 23.06296730041504,
+        "y": 50.804962158203125,
+        "z": 22.593360900878906
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{185489bf-2a50-48be-b208-1c41da7b0991}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Water-pond-geo/baked/Water-pond-geo.baked.fst?1",
+      "position": {
+        "x": -45.6454013671875,
+        "y": -25.565322875976562,
+        "z": 23.022519042968725
+      },
+      "rotation": {
+        "w": 0.9292224645614624,
+        "x": 0.00009490231605013832,
+        "y": 0.36952081322669983,
+        "z": 0.00017485632270108908
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "compoundShapeURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Cabana-2/original/Cabana-2-COLL.obj",
+      "damping": 0,
+      "dimensions": {
+        "x": 5.754586696624756,
+        "y": 2.958082914352417,
+        "z": 5.140634536743164
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{3a3a8492-1f53-4fda-ba2c-395a0daf1678}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Cabana-2/baked/Cabana-2.baked.fst",
+      "position": {
+        "x": 7.504455200195309,
+        "y": 1.2481918334960938,
+        "z": 9.234616210937475
+      },
+      "rotation": {
+        "w": 0.2751353979110718,
+        "x": -0.0000457763671875,
+        "y": -0.9614251852035522,
+        "z": -0.0000457763671875
+      },
+      "shapeType": "compound",
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 6.922111511230469,
+        "y": 0.4479408264160156,
+        "z": 12.073164939880371
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{685e9291-9969-40a0-b666-571a13a3fc55}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Sand-Plane/baked/Sand-Plane.baked.fst",
+      "position": {
+        "x": 3.681930175781247,
+        "y": -0.24444580078125,
+        "z": 11.4930695800781
+      },
+      "rotation": {
+        "w": 0.5400320291519165,
+        "x": 0.0009918212890625,
+        "y": 0.841611385345459,
+        "z": 0.006179928779602051
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "damping": 0,
+      "dimensions": {
+        "x": 53.097984313964844,
+        "y": 3.580681562423706,
+        "z": 36.48233413696289
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{bb21f03f-aa51-4e83-b65c-be18ccd52b09}",
+      "keyLight": {
+        "castShadows": true,
+        "direction": {
+          "x": 0,
+          "y": -0.7071067690849304,
+          "z": 0.7071067690849304
+        }
+      },
+      "locked": true,
+      "name": "Meeting Room Exterior Nighttime Zone",
+      "position": {
+        "x": -20.092804321289066,
+        "y": 0.8886871337890625,
+        "z": 24.685788085937475
+      },
+      "renderWithZones": [
+        "{a8d7868a-0740-4220-a76e-524abe9699fb}"
+      ],
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "shapeType": "box",
+      "type": "Zone"
+    },
+    {
+      "color": {
+        "blue": 0,
+        "green": 0,
+        "red": 255
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        }
+      },
+      "id": "{2db9cc0f-bd36-402f-8bc8-63b065b2facc}",
+      "name": "scriptServerIndicatorPanel entity offlineIndicator",
+      "parentID": "{98400614-b559-4f01-8b72-3c85daf5489d}",
+      "position": {
+        "x": -41.71966589355469,
+        "y": -28.783180236816406,
+        "z": 628.0938233642578
+      },
+      "rotation": {
+        "w": 1,
+        "x": 0.0000152587890625,
+        "y": 0.0000152587890625,
+        "z": 0.0002593994140625
+      },
+      "serverScripts": "https://content.overte.org/modules/empty/empty.js",
+      "shape": "Cube",
+      "tags": [
+        "offlineIndicator",
+        "scriptServerIndicatorPanel entity"
+      ],
+      "type": "Box"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "currentFrame": 50165.0234375,
+        "fps": 9,
+        "running": true,
+        "smoothFrames": false,
+        "url": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/waves3600/original/waves3600.fbx"
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "collidesWith": "static,dynamic,kinematic,otherAvatar,",
+      "collisionMask": 23,
+      "damping": 0,
+      "dimensions": {
+        "x": 176.9563446044922,
+        "y": 70.60397338867188,
+        "z": 174.26800537109375
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{bb6b52c6-31e4-4b7e-876e-92971eabc703}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/waves3600/original/waves3600.fbx",
+      "position": {
+        "x": -18.320022949218753,
+        "y": -36.03523254394531,
+        "z": 27.55880444335935
+      },
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 13.467927932739258,
+        "y": 3.2055115699768066,
+        "z": 14.434452056884766
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{037fc74c-417a-494e-86da-aa8aaf36ef34}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/rocks-group-1a-underwater/baked/rocks-group-1a-underwater.baked.fst?1",
+      "position": {
+        "x": 88.09620629882812,
+        "y": -10.186058044433594,
+        "z": -105.88110644531253
+      },
+      "rotation": {
+        "w": 0.9490958452224731,
+        "x": 0.06929123401641846,
+        "y": -0.30589759349823,
+        "z": 0.028061389923095703
+      },
+      "shapeType": "simple-hull",
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 0.3614087700843811,
+        "y": 0.40632909536361694,
+        "z": 0.32920342683792114
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{e36be1b1-a44b-4a4c-aec8-f8b927dfb2be}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/plant-potted-house-GB/baked/plant-potted-house-GB.baked.fst",
+      "position": {
+        "x": 756.5113979492187,
+        "y": -0.551513671875,
+        "z": 558.5237397460937
+      },
+      "rotation": {
+        "w": 0.7604027986526489,
+        "x": -0.0000457763671875,
+        "y": 0.6494086980819702,
+        "z": -0.0000457763671875
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "collisionless": true,
+      "color": {
+        "blue": 0,
+        "green": 0,
+        "red": 0
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 0.059937696903944016,
+        "y": 0.17801693081855774,
+        "z": 0.099061019718647
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{98821c49-7fb7-4ea5-985f-8911bfe3969c}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "name": "SitCube",
+      "position": {
+        "x": 755.7662807617187,
+        "y": -0.9367294311523438,
+        "z": 559.45348828125
+      },
+      "rotation": {
+        "w": 0.9948118925094604,
+        "x": 0.0000152587890625,
+        "y": -0.10173189640045166,
+        "z": -0.0000457763671875
+      },
+      "shape": "Triangle",
+      "type": "Shape",
+      "userData": "{\"canClickOnModelToSit\":false}",
+      "visible": false
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 0.49243947863578796,
+        "y": 0.5716310143470764,
+        "z": 0.49241337180137634
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{e7ea95b1-711a-4341-93ea-ae62c5efb637}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Stool-Gold-White-1/baked/Stool-Gold-White-1.baked.fst?5",
+      "position": {
+        "x": 755.7631069335937,
+        "y": -1.3123245239257812,
+        "z": 559.4359406738281
+      },
+      "rotation": {
+        "w": -0.07527273893356323,
+        "x": 0.0000457763671875,
+        "y": -0.9971923232078552,
+        "z": -0.0000762939453125
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 0.8842591047286987,
+        "y": 0.1416625678539276,
+        "z": 0.884259045124054
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{083ceb1c-913e-4350-94be-8a006af21f0f}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/dev/lifering.fbx",
+      "position": {
+        "x": 752.9562221679687,
+        "y": 0.396453857421875,
+        "z": 558.6416291503906
+      },
+      "rotation": {
+        "w": 0.29796290397644043,
+        "x": 0.7036087512969971,
+        "y": 0.6131837368011475,
+        "z": -0.20039671659469604
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "currentFrame": 28.8946533203125,
+        "lastFrame": 500,
+        "running": true,
+        "smoothFrames": false,
+        "url": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/parrot/original/parrot.fbx"
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 0.22679997980594635,
+        "y": 0.5737032890319824,
+        "z": 0.6655611991882324
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{2f7c9213-dd50-4e33-b4a0-ca8f206b69aa}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/seagull/original/seagull.fbx",
+      "name": "Bird-Seagull-Animated",
+      "position": {
+        "x": 759.6540981445312,
+        "y": -0.5111923217773438,
+        "z": 560.6022309570312
+      },
+      "rotation": {
+        "w": 0.8703287839889526,
+        "x": -0.0001068115234375,
+        "y": 0.4924238920211792,
+        "z": -0.0000457763671875
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 0.49243947863578796,
+        "y": 0.5716310143470764,
+        "z": 0.49241337180137634
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{0113cf1d-370d-40b4-b0c0-548c3ad5a749}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Stool-Gold-White-1/baked/Stool-Gold-White-1.baked.fst?5",
+      "position": {
+        "x": 756.8939052734374,
+        "y": -1.3123245239257812,
+        "z": 559.6150178222656
+      },
+      "rotation": {
+        "w": -0.07527273893356323,
+        "x": 0.0000457763671875,
+        "y": -0.9971923232078552,
+        "z": -0.0000762939453125
+      },
+      "type": "Model"
+    },
+    {
+      "animation": {
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "collisionless": true,
+      "description": "Specify URL to your 48K 16bit PCM wav file & volume (0-1) in userData below",
+      "dimensions": {
+        "x": 0.6447294354438782,
+        "y": 0.6438502073287964,
+        "z": 0.26574596762657166
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{43d8264e-af5e-47e2-a4f3-7fa4b4b2a140}",
+      "ignoreForCollisions": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/speakerGizmo/baked/speakerGizmo.baked.fst",
+      "name": "Sound Emitter Water",
+      "position": {
+        "x": 754.4183193359374,
+        "y": -13.047775268554688,
+        "z": 558.5090302734375
+      },
+      "rotation": {
+        "w": 0.30904102325439453,
+        "x": -0.0000152587890625,
+        "y": -0.9510490298271179,
+        "z": -0.0000152587890625
+      },
+      "scriptTimestamp": 1568054706176,
+      "serverScripts": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Releases/usefulUtilities/soundEmitter/v1.2/soundEmitter.js",
+      "type": "Model",
+      "userData": "{\"soundURL\":\"https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/dev/Audio/Sea-water-churning-near-boat-01.wav\",\"volume\":0.1,\"shouldLoop\":true}",
+      "visible": false
+    },
+    {
+      "angularDamping": 0,
+      "collisionless": true,
+      "color": {
+        "blue": 0,
+        "green": 0,
+        "red": 0
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 0.059937696903944016,
+        "y": 0.17801693081855774,
+        "z": 0.099061019718647
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{76d07e75-ec11-4cc2-8955-22d32759d529}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "name": "SitCube",
+      "position": {
+        "x": 756.8970791015624,
+        "y": -0.9367294311523438,
+        "z": 559.6325959472656
+      },
+      "rotation": {
+        "w": 0.9948118925094604,
+        "x": 0.0000152587890625,
+        "y": -0.10173189640045166,
+        "z": -0.0000457763671875
+      },
+      "shape": "Triangle",
+      "type": "Shape",
+      "userData": "{\"canClickOnModelToSit\":false}",
+      "visible": false
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 0.49243947863578796,
+        "y": 0.5716310143470764,
+        "z": 0.49241337180137634
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{26d6b778-ecbc-4691-9803-3880e2154616}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Stool-Gold-White-1/baked/Stool-Gold-White-1.baked.fst?5",
+      "position": {
+        "x": 757.2351528320312,
+        "y": -1.3123245239257812,
+        "z": 557.4608125
+      },
+      "rotation": {
+        "w": 0.996826171875,
+        "x": -0.0000762939453125,
+        "y": -0.07960629463195801,
+        "z": -0.0001068115234375
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 0.49243947863578796,
+        "y": 0.5716310143470764,
+        "z": 0.49241337180137634
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{35cec643-e570-4851-b916-3e9dfb36c0e2}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Stool-Gold-White-1/baked/Stool-Gold-White-1.baked.fst?5",
+      "position": {
+        "x": 756.1042934570312,
+        "y": -1.3123245239257812,
+        "z": 557.2816743164062
+      },
+      "rotation": {
+        "w": 0.996826171875,
+        "x": -0.0000762939453125,
+        "y": -0.07960629463195801,
+        "z": -0.0001068115234375
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 2.3591716289520264,
+        "y": 0.8166636228561401,
+        "z": 1.4133758544921875
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{54715173-d170-4d12-971f-24ddfb8cd83e}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Table-Wood/baked/Table-Wood.baked.fst",
+      "position": {
+        "x": 756.7350917968749,
+        "y": -1.09716796875,
+        "z": 558.5295686035156
+      },
+      "rotation": {
+        "w": 0.996368408203125,
+        "x": -0.0009002685546875,
+        "y": -0.08470284938812256,
+        "z": 0.00862133502960205
+      },
+      "shapeType": "box",
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "collisionless": true,
+      "color": {
+        "blue": 0,
+        "green": 0,
+        "red": 0
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 0.059937696903944016,
+        "y": 0.17801693081855774,
+        "z": 0.099061019718647
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{604c0734-4b36-4ee1-b410-6e7cc762f751}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "name": "SitCube",
+      "position": {
+        "x": 756.1011806640624,
+        "y": -0.9367294311523438,
+        "z": 557.2641267089843
+      },
+      "rotation": {
+        "w": 0.09581136703491211,
+        "x": -0.0000457763671875,
+        "y": 0.9953917264938354,
+        "z": -0.0000762939453125
+      },
+      "shape": "Triangle",
+      "type": "Shape",
+      "userData": "{\"canClickOnModelToSit\":false}",
+      "visible": false
+    },
+    {
+      "angularDamping": 0,
+      "collisionless": true,
+      "color": {
+        "blue": 0,
+        "green": 0,
+        "red": 0
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 0.059937696903944016,
+        "y": 0.17801693081855774,
+        "z": 0.099061019718647
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{e3027a76-0120-48f4-bfe6-a570841084ef}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "name": "SitCube",
+      "position": {
+        "x": 757.2319790039062,
+        "y": -0.9367294311523438,
+        "z": 557.4432648925781
+      },
+      "rotation": {
+        "w": 0.09581136703491211,
+        "x": -0.0000457763671875,
+        "y": 0.9953917264938354,
+        "z": -0.0000762939453125
+      },
+      "shape": "Triangle",
+      "type": "Shape",
+      "userData": "{\"canClickOnModelToSit\":false}",
+      "visible": false
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 18.171646118164062,
+        "y": 7.434727668762207,
+        "z": 5.435254096984863
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{d3f78ffe-9ada-41c8-97dd-11792c3e217c}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/dev/Fishing-Boat.fbx?a",
+      "position": {
+        "x": 751.3514248046874,
+        "y": 0.0953216552734375,
+        "z": 557.5465974121093
+      },
+      "rotation": {
+        "w": 0.996826171875,
+        "x": -0.0000457763671875,
+        "y": -0.07960629463195801,
+        "z": -0.0000457763671875
+      },
+      "shapeType": "static-mesh",
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "canCastShadow": false,
+      "damping": 0,
+      "dimensions": {
+        "x": 178.3484649658203,
+        "y": 0.0010000000474974513,
+        "z": 355.1711730957031
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{efef3a55-a594-441e-8ba7-7d2c6457d8da}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/dev/Atoll-test.fbx",
+      "position": {
+        "x": 32.56059228515625,
+        "y": -9.501998901367188,
+        "z": -65.49579150390628
+      },
+      "rotation": {
+        "w": 0.5045701265335083,
+        "x": -0.0000457763671875,
+        "y": -0.8633707165718079,
+        "z": -0.0000152587890625
+      },
+      "shapeType": "static-mesh",
+      "type": "Model"
+    },
+    {
+      "ambientLight": {
+        "ambientIntensity": 1.7999999523162842,
+        "ambientURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/dev/SKY-Underwater-Test.jpg"
+      },
+      "ambientLightMode": "enabled",
+      "angularDamping": 0,
+      "angularVelocity": {
+        "x": 0.0000013132265621607075,
+        "y": 0.026100000366568565,
+        "z": 0.000003842577370960498
+      },
+      "bloom": {
+        "bloomIntensity": 0.12300000339746475,
+        "bloomSize": 1.8300000429153442,
+        "bloomThreshold": 0.6970000267028809
+      },
+      "bloomMode": "enabled",
+      "damping": 0,
+      "dimensions": {
+        "x": 132124.359375,
+        "y": 791.2164306640625,
+        "z": 144298.390625
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "haze": {
+        "hazeAltitudeEffect": true,
+        "hazeBaseRef": -382,
+        "hazeCeiling": -86,
+        "hazeColor": {
+          "blue": 207,
+          "green": 90,
+          "red": 0
+        },
+        "hazeEnableGlare": true,
+        "hazeGlareAngle": 56,
+        "hazeGlareColor": {
+          "blue": 255,
+          "green": 255,
+          "red": 59
+        },
+        "hazeRange": 2
+      },
+      "hazeMode": "enabled",
+      "id": "{4077892b-a62f-4fbb-acba-9469c57463e0}",
+      "keyLight": {
+        "castShadows": true,
+        "color": {
+          "blue": 255,
+          "green": 140,
+          "red": 0
+        },
+        "direction": {
+          "x": 0,
+          "y": -0.9734845757484436,
+          "z": -0.22875277698040009
+        },
+        "intensity": 7.519999980926514,
+        "shadowBias": 0.05999999865889549,
+        "shadowMaxDistance": 48.20000076293945
+      },
+      "keyLightMode": "enabled",
+      "name": "Unterzee (2)",
+      "parentID": "{a8d7868a-0740-4220-a76e-524abe9699fb}",
+      "position": {
+        "x": -250.65774572753907,
+        "y": -220.26776123046875,
+        "z": 778.2698640136718
+      },
+      "renderLayer": "front",
+      "rotation": {
+        "w": 0.8916353583335876,
+        "x": 0.000016629704987281002,
+        "y": -0.45275411009788513,
+        "z": -0.000479467969853431
+      },
+      "shapeType": "box",
+      "type": "Zone",
+      "visible": false
+    },
+    {
+      "angularDamping": 0,
+      "angularVelocity": {
+        "x": 0,
+        "y": 0.008700000122189522,
+        "z": 0
+      },
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 663.478271484375,
+        "y": 1.0837881565093994,
+        "z": 668.2838745117188
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{f1f20d73-b062-43a2-95e2-ba865a5ccee2}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Water-island-wave-disk-LP/baked/Water-island-wave-disk-LP.baked.fst",
+      "position": {
+        "x": 514.2977749023437,
+        "y": -2.0015029907226562,
+        "z": 34.476864746093725
+      },
+      "rotation": {
+        "w": 0.7513270378112793,
+        "x": -0.00010133496107300743,
+        "y": 0.6599301099777222,
+        "z": 0.00003705962444655597
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "color": {
+        "blue": 8,
+        "green": 1,
+        "red": 0
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 3620.990478515625,
+        "y": 88.00687408447266,
+        "z": 3953.580810546875
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{dac92750-d52c-4779-a779-333f6a96c0dc}",
+      "locked": true,
+      "name": "Water",
+      "position": {
+        "x": -213.41656149291993,
+        "y": -53.69999694824219,
+        "z": 387.1577538757324
+      },
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "shape": "Cube",
+      "type": "Box"
+    },
+    {
+      "angularDamping": 0,
+      "angularVelocity": {
+        "x": 0,
+        "y": 0.008700000122189522,
+        "z": 0
+      },
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 663.478271484375,
+        "y": 1.0837881565093994,
+        "z": 668.2838745117188
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{68ee9fc3-b30d-4f47-a224-e87023f66dc7}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Water-island-wave-disk-LP/baked/Water-island-wave-disk-LP.baked.fst",
+      "position": {
+        "x": 265.1975856933594,
+        "y": -2.0015029907226562,
+        "z": 469.5492753295898
+      },
+      "rotation": {
+        "w": 0.7447115778923035,
+        "x": -0.00010133357136510313,
+        "y": 0.6673864722251892,
+        "z": 0.000037059719034004956
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "angularVelocity": {
+        "x": 0,
+        "y": 0.08730000257492065,
+        "z": 0
+      },
+      "canCastShadow": false,
+      "collisionless": true,
+      "color": {
+        "blue": 104,
+        "green": 0,
+        "red": 240
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 103.54402923583984,
+        "y": 34.777320861816406,
+        "z": 103.54402923583984
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{9f323e31-d3a6-45f0-9bc4-d0ffb13eaab6}",
+      "ignoreForCollisions": true,
+      "ignorePickIntersection": true,
+      "locked": true,
+      "name": "Bird-Rotator-1",
+      "position": {
+        "x": -61.726044067382816,
+        "y": 26.42534637451172,
+        "z": 73.6346711425781
+      },
+      "rotation": {
+        "w": 0.4820653796195984,
+        "x": 0.0030969649087637663,
+        "y": -0.8761296272277832,
+        "z": -0.0004357248544692993
+      },
+      "shape": "Cube",
+      "type": "Box",
+      "visible": false
+    },
+    {
+      "ambientLight": {
+        "ambientIntensity": 1.7999999523162842,
+        "ambientURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/dev/SKY-Underwater-Test.jpg"
+      },
+      "ambientLightMode": "enabled",
+      "angularDamping": 0,
+      "bloom": {
+        "bloomIntensity": 0.12300000339746475,
+        "bloomSize": 1.8300000429153442,
+        "bloomThreshold": 0.6970000267028809
+      },
+      "bloomMode": "enabled",
+      "damping": 0,
+      "dimensions": {
+        "x": 3525.95458984375,
+        "y": 51.76300811767578,
+        "z": 3850.8388671875
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "haze": {
+        "hazeAltitudeEffect": true,
+        "hazeBaseRef": -382,
+        "hazeCeiling": -86,
+        "hazeColor": {
+          "blue": 207,
+          "green": 90,
+          "red": 0
+        },
+        "hazeEnableGlare": true,
+        "hazeGlareAngle": 56,
+        "hazeGlareColor": {
+          "blue": 255,
+          "green": 255,
+          "red": 59
+        },
+        "hazeRange": 2
+      },
+      "hazeMode": "enabled",
+      "id": "{25d95422-dedf-42bc-99f6-f392f89e49ea}",
+      "keyLight": {
+        "castShadows": true,
+        "color": {
+          "blue": 255,
+          "green": 140,
+          "red": 0
+        },
+        "direction": {
+          "x": 0,
+          "y": -0.9734845757484436,
+          "z": -0.22875277698040009
+        },
+        "intensity": 9.149999618530273,
+        "shadowBias": 0.05999999865889549,
+        "shadowMaxDistance": 48.20000076293945
+      },
+      "keyLightMode": "enabled",
+      "name": "Unterzee",
+      "parentID": "{184edf9f-43c5-4db8-8b15-6b6ca88d044d}",
+      "position": {
+        "x": -335.9899143066406,
+        "y": 42.94490051269531,
+        "z": 743.9056977539062
+      },
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "shapeType": "box",
+      "type": "Zone"
+    },
+    {
+      "angularDamping": 0,
+      "angularVelocity": {
+        "x": 0,
+        "y": 0.008700000122189522,
+        "z": 0
+      },
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 802.8087158203125,
+        "y": 1.3113837242126465,
+        "z": 808.62353515625
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{d7a9a5b9-40c4-4632-915b-4dc350193ad6}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Water-island-wave-disk-LP/baked/Water-island-wave-disk-LP.baked.fst",
+      "position": {
+        "x": -572.4104770507813,
+        "y": -2.2778396606445312,
+        "z": -846.36584765625
+      },
+      "rotation": {
+        "w": -0.9958453178405762,
+        "x": 0.00010674025543266907,
+        "y": 0.09106151759624481,
+        "z": -0.00016788922948762774
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "angularVelocity": {
+        "x": 0,
+        "y": 0.008700000122189522,
+        "z": 0
+      },
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 663.478271484375,
+        "y": 1.0837881565093994,
+        "z": 668.2838745117188
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{c8e1aaef-ad1a-461a-96db-94063dc24d02}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Water-island-wave-disk-LP/baked/Water-island-wave-disk-LP.baked.fst",
+      "position": {
+        "x": -209.66133154296875,
+        "y": -2.0015029907226562,
+        "z": -456.172732421875
+      },
+      "rotation": {
+        "w": 0.7495431900024414,
+        "x": -0.00010132928582606837,
+        "y": 0.6619555354118347,
+        "z": 0.00003707409632625058
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "damping": 0,
+      "dimensions": {
+        "x": 0.20000000298023224,
+        "y": 0.20000000298023224,
+        "z": 0.10000000149011612
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{98400614-b559-4f01-8b72-3c85daf5489d}",
+      "locked": true,
+      "name": "Domain Script Server Indicator",
+      "position": {
+        "x": -18.181610473632816,
+        "y": 4.402473449707031,
+        "z": 11.291623046874975
+      },
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "serverScripts": "https://content.zedwork.co.uk/overte/script/server_entity/scriptServerIndicatorPanel.js?10",
+      "type": "Empty"
+    },
+    {
+      "angularDamping": 0,
+      "angularVelocity": {
+        "x": 0,
+        "y": 0.008700000122189522,
+        "z": 0
+      },
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 663.478271484375,
+        "y": 1.0837881565093994,
+        "z": 668.2838745117188
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{bcb41ac8-69e9-45c3-9711-dbeddd1e27c9}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Water-island-wave-disk-LP/baked/Water-island-wave-disk-LP.baked.fst",
+      "position": {
+        "x": -279.0106052246094,
+        "y": -2.0015029907226562,
+        "z": 497.5780839233398
+      },
+      "rotation": {
+        "w": 0.7462623119354248,
+        "x": -0.00010132903844350949,
+        "y": 0.6656519770622253,
+        "z": 0.00003707352152559906
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "angularVelocity": {
+        "x": 0,
+        "y": 0.009600000455975533,
+        "z": 0
+      },
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "canCastShadow": false,
+      "damping": 0,
+      "dimensions": {
+        "x": 5030.28759765625,
+        "y": 600.8663330078125,
+        "z": 5300.57763671875
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{cea5506f-811c-4bc7-9d1e-4cc1b56839d9}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/clouds-smooth-low-poly-ring/baked/clouds-smooth-low-poly-ring.baked.fst",
+      "position": {
+        "x": 184.06886254882812,
+        "y": 116.36860656738281,
+        "z": 630.0045441894531
+      },
+      "rotation": {
+        "w": -0.8122974038124084,
+        "x": -0.00010050589480670169,
+        "y": 0.5832434296607971,
+        "z": 0.00003924958218703978
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "angularVelocity": {
+        "x": 0,
+        "y": 0.008700000122189522,
+        "z": 0
+      },
+      "animation": {
+        "allowTranslation": false,
+        "fps": 45,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 570.4161987304688,
+        "y": 0.25,
+        "z": 567.9921264648438
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{cf3c3d52-35c7-4486-962d-5108fa259324}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Water-island-wave-ring-3/baked/Water-island-wave-ring-3.baked.fst",
+      "position": {
+        "x": -24.244980224609378,
+        "y": -1.31549072265625,
+        "z": 30.756894042968725
+      },
+      "rotation": {
+        "w": -0.44004109501838684,
+        "x": 0.00027590192621573806,
+        "y": 0.8979777097702026,
+        "z": 0.00005074711953056976
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "collisionless": true,
+      "color": {
+        "blue": 33,
+        "green": 3,
+        "red": 0
+      },
+      "damping": 0,
+      "dimensions": {
+        "x": 3620.990478515625,
+        "y": 88.00687408447266,
+        "z": 3953.580810546875
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{af0c391d-f665-4979-a212-48cff6826fd1}",
+      "ignoreForCollisions": true,
+      "name": "Water-Collider",
+      "position": {
+        "x": -213.4255641784668,
+        "y": -46.69999694824219,
+        "z": 387.1667584686279
+      },
+      "rotation": {
+        "w": 1,
+        "x": -0.0000152587890625,
+        "y": -0.0000152587890625,
+        "z": -0.0000152587890625
+      },
+      "shape": "Cube",
+      "type": "Box",
+      "visible": false
+    },
+    {
+      "angularDamping": 0,
+      "angularVelocity": {
+        "x": 0,
+        "y": 0.008700000122189522,
+        "z": 0
+      },
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 663.478271484375,
+        "y": 1.0837881565093994,
+        "z": 668.2838745117188
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{0dfb17cb-d395-44dd-9658-cbce83b3b1de}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Water-island-wave-disk-LP/baked/Water-island-wave-disk-LP.baked.fst",
+      "position": {
+        "x": 303.96293603515625,
+        "y": -2.0015029907226562,
+        "z": -414.872927734375
+      },
+      "rotation": {
+        "w": 0.7506842017173767,
+        "x": -0.00010130763985216618,
+        "y": 0.6606613397598267,
+        "z": 0.00003713032492669299
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "angularVelocity": {
+        "x": 0,
+        "y": 0.008700000122189522,
+        "z": 0
+      },
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 663.478271484375,
+        "y": 1.0837881565093994,
+        "z": 668.2838745117188
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{d207eb28-788b-43c2-a835-e413c0ecd1c8}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Water-island-wave-disk-LP/baked/Water-island-wave-disk-LP.baked.fst",
+      "position": {
+        "x": -543.1754916992188,
+        "y": -2.0015029907226562,
+        "z": -1.8547697753906505
+      },
+      "rotation": {
+        "w": 0.7478587627410889,
+        "x": -0.0001013287328532897,
+        "y": 0.6638579368591309,
+        "z": 0.000037072266422910616
+      },
+      "type": "Model"
+    },
+    {
+      "ambientLight": {
+        "ambientIntensity": 0.23999999463558197,
+        "ambientURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/dev/SKY-HDR-sunset_fairway_2k.exr"
+      },
+      "ambientLightMode": "enabled",
+      "ambientOcclusionMode": "enabled",
+      "angularDamping": 0,
+      "angularVelocity": {
+        "x": 0,
+        "y": 0.008700000122189522,
+        "z": 0
+      },
+      "audio": {
+        "listenerAttenuationCoefficients": [
+          0.800000011920929,
+          0.30000001192092896
+        ],
+        "listenerZones": [
+          "{bc10c088-d2a1-4243-85ac-9505ac02a0c6}",
+          "{184edf9f-43c5-4db8-8b15-6b6ca88d044d}"
+        ]
+      },
+      "bloomMode": "enabled",
+      "canCastShadow": false,
+      "damping": 0,
+      "dimensions": {
+        "x": 10000,
+        "y": 10000,
+        "z": 10000
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "haze": {
+        "hazeAltitudeEffect": true,
+        "hazeBackgroundBlend": 0.7129999995231628,
+        "hazeBaseRef": -100,
+        "hazeCeiling": 156,
+        "hazeColor": {
+          "blue": 255,
+          "green": 255,
+          "red": 255
+        },
+        "hazeGlareAngle": 59,
+        "hazeGlareColor": {
+          "blue": 255,
+          "green": 255,
+          "red": 255
+        },
+        "hazeRange": 4400
+      },
+      "hazeMode": "enabled",
+      "id": "{184edf9f-43c5-4db8-8b15-6b6ca88d044d}",
+      "keyLight": {
+        "castShadows": true,
+        "color": {
+          "blue": 189,
+          "green": 224,
+          "red": 255
+        },
+        "direction": {
+          "x": 0.012285582721233368,
+          "y": -0.7446431517601013,
+          "z": -0.6673497557640076
+        },
+        "intensity": 1.75,
+        "shadowBias": 0.05000000074505806,
+        "shadowMaxDistance": 50
+      },
+      "keyLightMode": "enabled",
+      "locked": true,
+      "name": "Daytime-Sky-Static",
+      "position": {
+        "x": -16.755295166015628,
+        "y": 27.819000244140625,
+        "z": 35.51693432617185
+      },
+      "rotation": {
+        "w": 0.98835688829422,
+        "x": -0.0000542599409527611,
+        "y": 0.1521536409854889,
+        "z": -0.00003531052789185196
+      },
+      "shapeType": "box",
+      "skybox": {
+        "color": {
+          "blue": 255,
+          "green": 255,
+          "red": 255
+        },
+        "url": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/dev/SKY-brush-clouds.exr"
+      },
+      "skyboxMode": "enabled",
+      "type": "Zone"
+    },
+    {
+      "angularDamping": 0,
+      "angularVelocity": {
+        "x": 0,
+        "y": 0.008700000122189522,
+        "z": 0
+      },
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 802.8087158203125,
+        "y": 1.3113837242126465,
+        "z": 808.62353515625
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{727c9626-4c64-4b6d-9aa1-8fa5643cc121}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Water-island-wave-disk-LP/baked/Water-island-wave-disk-LP.baked.fst",
+      "position": {
+        "x": -867.7807163085938,
+        "y": -2.2778396606445312,
+        "z": -437.6143828125
+      },
+      "rotation": {
+        "w": -0.9597942233085632,
+        "x": 0.0001677807158557698,
+        "y": 0.280704528093338,
+        "z": -0.00013740274880547076
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "angularVelocity": {
+        "x": 0,
+        "y": 1.9722000360488892,
+        "z": 0
+      },
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 93.40074920654297,
+        "y": 0.041344355791807175,
+        "z": 93.40074920654297
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{c1328554-a6a5-40b3-b042-81981e783f89}",
+      "ignorePickIntersection": true,
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Foam-Ring/baked/Foam-Ring.baked.fst",
+      "position": {
+        "x": -20.85137976074219,
+        "y": -0.9128646850585938,
+        "z": 28.8670930175781
+      },
+      "rotation": {
+        "w": -0.8857077360153198,
+        "x": -0.00011630171502474695,
+        "y": -0.4642428755760193,
+        "z": -0.0007400155300274491
+      },
+      "type": "Model"
+    },
+    {
+      "ambientLight": {
+        "ambientIntensity": 0.6000000238418579,
+        "ambientURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Skybox-Sun-high_EQ_10.texmeta.json"
+      },
+      "angularDamping": 0,
+      "damping": 0,
+      "dimensions": {
+        "x": 1825.3011474609375,
+        "y": 2000,
+        "z": 2884.213134765625
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "haze": {
+        "hazeAltitudeEffect": true,
+        "hazeBaseRef": 890,
+        "hazeCeiling": 920,
+        "hazeColor": {
+          "blue": 219,
+          "green": 218,
+          "red": 215
+        },
+        "hazeEnableGlare": true,
+        "hazeGlareAngle": 75,
+        "hazeGlareColor": {
+          "blue": 196,
+          "green": 221,
+          "red": 255
+        }
+      },
+      "id": "{e5ff3411-1612-4529-93ed-3d313acb3324}",
+      "keyLight": {
+        "castShadows": true,
+        "color": {
+          "blue": 181,
+          "green": 234,
+          "red": 255
+        },
+        "direction": {
+          "x": -0.08862395584583282,
+          "y": -0.7071067690849304,
+          "z": -0.7015310525894165
+        },
+        "intensity": 1.3899999856948853
+      },
+      "locked": true,
+      "name": "Bubble Disabler",
+      "position": {
+        "x": -334.33686865234375,
+        "y": 232.48207092285156,
+        "z": 1068.944455078125
+      },
+      "rotation": {
+        "w": 0.9500114917755127,
+        "x": -0.0000457763671875,
+        "y": -0.31221485137939453,
+        "z": -0.0000152587890625
+      },
+      "script": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Releases/usefulUtilities/bubbleDisabler/v1.0/bubbleDisabler.js",
+      "scriptTimestamp": 1558386835456,
+      "shapeType": "box",
+      "skybox": {
+        "url": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Skybox-Sun-high_EQ_9.texmeta.json"
+      },
+      "type": "Zone"
+    },
+    {
+      "angularDamping": 0,
+      "angularVelocity": {
+        "x": 0,
+        "y": 0.008700000122189522,
+        "z": 0
+      },
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "damping": 0,
+      "dimensions": {
+        "x": 802.8087158203125,
+        "y": 1.3113837242126465,
+        "z": 808.62353515625
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{8d6c3b32-fbe2-4c95-b387-69920b91598f}",
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Water-island-wave-disk-LP/baked/Water-island-wave-disk-LP.baked.fst",
+      "position": {
+        "x": 851.0496059570312,
+        "y": -2.2778396606445312,
+        "z": 536.857052734375
+      },
+      "rotation": {
+        "w": -0.9999982714653015,
+        "x": 0.00010587248107185587,
+        "y": 0.0018754411721602082,
+        "z": -0.0001628128084121272
+      },
+      "type": "Model"
+    },
+    {
+      "angularDamping": 0,
+      "animation": {
+        "allowTranslation": false,
+        "smoothFrames": false
+      },
+      "blendshapeCoefficients": "{\n}\n",
+      "compoundShapeURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Small-Island-v4l/original/Small-Island-v4l-COLL-out.obj",
+      "damping": 0,
+      "dimensions": {
+        "x": 272.8819274902344,
+        "y": 212.67300415039062,
+        "z": 272.8818664550781
+      },
+      "friction": 0.9800000190734863,
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "id": "{8688b4e8-5c2e-40c7-914f-64fae2da1873}",
+      "locked": true,
+      "modelURL": "https://content.overte.org/Bazaar/Worlds/HQ_HiFi/content/Small-Island-v4l/baked/Small-Island-v4l.baked.fst",
+      "position": {
+        "x": -19.015396484375003,
+        "y": -0.24919891357421875,
+        "z": 29.122189453124975
+      },
+      "rotation": {
+        "w": 0.7070878744125366,
+        "x": -0.0000152587890625,
+        "y": 0.7070878744125366,
+        "z": -0.0000152587890625
+      },
+      "shapeType": "compound",
+      "type": "Model"
+    },
+    {
+      "ambientLight": {
+        "ambientColor": {
+          "blue": 250,
+          "green": 70,
+          "red": 70
+        },
+        "ambientIntensity": 0.20000000298023224,
+        "ambientURL": "https://files.thingvellir.net/NightSkyHDRI007_2K_HDR.exr"
+      },
+      "ambientLightMode": "enabled",
+      "ambientOcclusionMode": "enabled",
+      "angularDamping": 0,
+      "audio": {
+        "listenerAttenuationCoefficients": [
+          0.800000011920929
+        ],
+        "listenerZones": [
+          "{bc10c088-d2a1-4243-85ac-9505ac02a0c6}"
+        ]
+      },
+      "bloomMode": "enabled",
+      "canCastShadow": false,
+      "damping": 0,
+      "dimensions": {
+        "x": 10000,
+        "y": 10000,
+        "z": 10000
+      },
+      "grab": {
+        "equippableLeftRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "equippableRightRotation": {
+          "w": 1,
+          "x": -0.0000152587890625,
+          "y": -0.0000152587890625,
+          "z": -0.0000152587890625
+        },
+        "grabbable": false
+      },
+      "haze": {
+        "hazeAltitudeEffect": true,
+        "hazeBackgroundBlend": 0.7129999995231628,
+        "hazeBaseRef": -100,
+        "hazeCeiling": 156,
+        "hazeColor": {
+          "blue": 117,
+          "green": 37,
+          "red": 0
+        },
+        "hazeGlareAngle": 59,
+        "hazeGlareColor": {
+          "blue": 255,
+          "green": 255,
+          "red": 255
+        },
+        "hazeRange": 4400
+      },
+      "hazeMode": "enabled",
+      "id": "{a8d7868a-0740-4220-a76e-524abe9699fb}",
+      "keyLight": {
+        "castShadows": true,
+        "color": {
+          "blue": 247,
+          "green": 99,
+          "red": 111
+        },
+        "direction": {
+          "x": 0.012285582721233368,
+          "y": -0.7446431517601013,
+          "z": -0.6673497557640076
+        },
+        "intensity": 0.029999999329447746,
+        "shadowBias": 0.05000000074505806,
+        "shadowMaxDistance": 250
+      },
+      "keyLightMode": "enabled",
+      "locked": true,
+      "name": "Nighttime-Sky-Static",
+      "position": {
+        "x": -16.755295166015628,
+        "y": 27.819000244140625,
+        "z": 35.51693432617185
+      },
+      "rotation": {
+        "w": -0.1308155655860901,
+        "x": -0.0000152587890625,
+        "y": -0.9914244413375854,
+        "z": -0.0000762939453125
+      },
+      "shapeType": "box",
+      "skybox": {
+        "color": {
+          "blue": 153,
+          "green": 44,
+          "red": 44
+        },
+        "url": "https://files.thingvellir.net/NightSkyHDRI007_2K_HDR.exr"
+      },
+      "skyboxMode": "enabled",
+      "type": "Zone",
+      "visible": false
+    }
+  ],
+  "Id": "00b27e56-95c3-442f-bfbb-2fcfefd1cd00",
+  "Version": 154,
+  "Paths": {
+    "/": "/-14.74,0.09,-5.75/0,-0.819884,0,0.572529"
+  }
+}
