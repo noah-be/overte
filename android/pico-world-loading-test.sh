@@ -71,6 +71,7 @@ current_run=0
 LOG_OUTPUT=""
 cleanup() {
     adb_shell setprop debug.overte.navigate '' >/dev/null 2>&1 || true
+    adb_shell setprop debug.overte.export '' >/dev/null 2>&1 || true
     adb_shell setprop debug.overte.test_mode '' >/dev/null 2>&1 || true
     if (( brightness_test_active )); then
         adb_shell gd32ipdclient_test setbrightness "$original_brightness" >/dev/null 2>&1 || true

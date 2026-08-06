@@ -2197,9 +2197,43 @@ void Application::update(float deltaTime) {
     // nonce prefix lets the same destination be requested more than once.
     static quint64 lastNavigationPropertyCheck { 0 };
     static QString lastNavigationCommand;
+    static QString lastExportCommand;
     if (picoUpdateStart - lastNavigationPropertyCheck >= 250 * USECS_PER_MSEC) {
         lastNavigationPropertyCheck = picoUpdateStart;
         auto addressManager = DependencyManager::get<AddressManager>();
+#if defined(ANDROID_APP_PICO_INTERFACE)
+        // Test-only export of the currently received domain scene. This is
+        // intentionally ADB/property controlled and never active in normal
+        // sessions; it lets the Pico loading harness create a reproducible
+        // serverless copy for before/after comparisons.
+        char exportValue[PROP_VALUE_MAX] {};
+        if (__system_property_get("debug.overte.export", exportValue) > 0) {
+            const QString command = QString::fromUtf8(exportValue).trimmed();
+            if (!command.isEmpty() && command != lastExportCommand) {
+                    lastExportCommand = command;
+                    const QStringList fields = command.split('|');
+                    bool xOk { false };
+                    bool yOk { false };
+                    bool zOk { false };
+                    bool scaleOk { false };
+                    const QString filename = fields.value(1);
+                    const float x = fields.value(2).toFloat(&xOk);
+                    const float y = fields.value(3).toFloat(&yOk);
+                    const float z = fields.value(4).toFloat(&zOk);
+                    const float scale = fields.value(5).toFloat(&scaleOk);
+                    if (fields.size() == 6 && !filename.isEmpty() && xOk && yOk && zOk && scaleOk && scale > 0.0f) {
+                        QVariantMap options;
+                        options.insert("globalPositions", true);
+                        const bool exported = exportEntities(filename, x, y, z, scale, options);
+                        qCInfo(interfaceapp) << "PICO_SERVERLESS_EXPORT"
+                            << "success" << exported << "filename" << filename
+                            << "center" << x << y << z << "scale" << scale;
+                    } else {
+                        qCWarning(interfaceapp) << "PICO_SERVERLESS_EXPORT invalid command" << command;
+                    }
+            }
+        }
+#endif
         // Publish the authoritative connected world and avatar position only
         // for explicitly enabled unattended tests. Normal Pico sessions avoid
         // this once-per-second cache-file write.
@@ -2458,8 +2492,31 @@ void Application::update(float deltaTime) {
                 _picoLoadingMeasurementEpochMs = QDateTime::currentMSecsSinceEpoch();
                 _picoLoadingDomainReconnects = 0;
                 _picoLoadingAwaitingInitialDomainClear = true;
-                qCInfo(interfaceapp) << "PICO_ADB_NAVIGATE" << address;
-                addressManager->handleLookupString(address);
+                if (address.startsWith("EXPORT|")) {
+                    const QStringList fields = address.split('|');
+                    bool xOk { false };
+                    bool yOk { false };
+                    bool zOk { false };
+                    bool scaleOk { false };
+                    const QString filename = fields.value(1);
+                    const float x = fields.value(2).toFloat(&xOk);
+                    const float y = fields.value(3).toFloat(&yOk);
+                    const float z = fields.value(4).toFloat(&zOk);
+                    const float scale = fields.value(5).toFloat(&scaleOk);
+                    if (fields.size() == 6 && !filename.isEmpty() && xOk && yOk && zOk && scaleOk && scale > 0.0f) {
+                        QVariantMap options;
+                        options.insert("globalPositions", true);
+                        const bool exported = exportEntities(filename, x, y, z, scale, options);
+                        qCInfo(interfaceapp) << "PICO_SERVERLESS_EXPORT"
+                            << "success" << exported << "filename" << filename
+                            << "center" << x << y << z << "scale" << scale;
+                    } else {
+                        qCWarning(interfaceapp) << "PICO_SERVERLESS_EXPORT invalid navigate command" << address;
+                    }
+                } else {
+                    qCInfo(interfaceapp) << "PICO_ADB_NAVIGATE" << address;
+                    addressManager->handleLookupString(address);
+                }
             }
         }
     }
