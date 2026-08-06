@@ -83,6 +83,12 @@ sample to identify resources that remain active across the loading-screen
 release. `qrc:` entries are client-bundled assets; network URLs identify world
 content or scripts.
 
+In the first active-resource validation, the longest-lived observed request was
+the model `.../Misc/woodypillow/bodypillow3.fbx` at 6.4 s across samples. Treat
+this as an optimization candidate for the hub (mesh size, collision strategy,
+and whether it belongs in the initial spawn area), then confirm its impact with
+another run rather than assuming one asset explains the complete load time.
+
 ## Before publishing a performance claim
 
 Use at least five runs for each cache condition. Report median and worst case,
