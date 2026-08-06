@@ -113,6 +113,19 @@ counts, and the longest-lived active resources.
 The runner additionally writes `*-diagnostics.log`, containing filtered
 slow-preload and per-stage update logs for each run.
 
+## Latest diagnostic run
+
+The latest complete run reached a playable frame at 43.8 s, released the
+loading screen at 44.7 s, and became quiet at 69.2 s. It recorded 1,174 HTTP
+requests, 86.4 MB of HTTP data, 982 entity packets, 293 entity-script loads,
+and 196 completed preload callbacks. The largest telemetry gap was 13.5 s.
+
+The diagnostics log reported one `sitClient.js` preload taking 10.2 s and an
+active `Lamp_Stand.glb` request spanning 25.9 s. These timings make repeated
+client-side script preload work and large model dependencies first-class
+optimization targets for the world author; they are not hidden by the loading
+screen milestone.
+
 It also reports `max_sample_gap`. A large value means the interface update loop
 did not publish telemetry during that interval; treat it as a real local stall,
 even if the render thread continued displaying frames. In the repeat validation
