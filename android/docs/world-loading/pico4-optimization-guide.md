@@ -161,6 +161,12 @@ renderer for every instance. It should not be present in a production Pico
 spawn area; remove debug/crasher controls from the initial entity set or defer
 them behind an explicit developer-only interaction.
 
+Across the same five runs, 191–197 of the 198 preload callbacks occurred after
+the loading screen had already been released. The remaining post-release quiet
+window was still about 50–55 s per run. This confirms that the screen milestone
+and the settled-world milestone measure different user-visible phases and that
+initial script fan-out is the dominant post-screen work to reduce.
+
 It also reports `max_sample_gap`. A large value means the interface update loop
 did not publish telemetry during that interval; treat it as a real local stall,
 even if the render thread continued displaying frames. In the repeat validation
