@@ -83,11 +83,16 @@ sample to identify resources that remain active across the loading-screen
 release. `qrc:` entries are client-bundled assets; network URLs identify world
 content or scripts.
 
-In the first active-resource validation, the longest-lived observed request was
-the model `.../Misc/woodypillow/bodypillow3.fbx` at 6.4 s across samples. Treat
-this as an optimization candidate for the hub (mesh size, collision strategy,
-and whether it belongs in the initial spawn area), then confirm its impact with
-another run rather than assuming one asset explains the complete load time.
+In one active-resource validation, the longest-lived observed request was the
+model `.../Misc/woodypillow/bodypillow3.fbx` at 6.4 s across samples. A repeat
+run did not reproduce that long request, so it remains only a candidate for
+inspection, not a proven bottleneck.
+
+The repeat run exposed a more consistent post-screen cost: entity-script
+preload callbacks increased from 6 to 198 between roughly 15.5 s and 85 s,
+while download queues were often already empty. World authors should therefore
+measure and reduce deferred script/preload work independently of network
+requests.
 
 For a compact human-readable summary, run:
 
