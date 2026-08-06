@@ -2237,21 +2237,38 @@ void Application::update(float deltaTime) {
                 int activeTextures { 0 };
                 int activeAudio { 0 };
                 int activeOther { 0 };
+                QString activeResourceManifest;
                 for (const auto& request : loadingRequests) {
                     const QString path = request.first->getURL().path().toLower();
+                    QString category { QStringLiteral("other") };
                     if (path.endsWith(".js") || path.endsWith(".json")) {
                         ++activeScripts;
+                        category = QStringLiteral("script");
                     } else if (path.endsWith(".fbx") || path.endsWith(".gltf") || path.endsWith(".glb") ||
                             path.endsWith(".obj")) {
                         ++activeModels;
+                        category = QStringLiteral("model");
                     } else if (path.endsWith(".png") || path.endsWith(".jpg") || path.endsWith(".jpeg") ||
                             path.endsWith(".ktx") || path.endsWith(".ktx2")) {
                         ++activeTextures;
+                        category = QStringLiteral("texture");
                     } else if (path.endsWith(".wav") || path.endsWith(".mp3") || path.endsWith(".ogg")) {
                         ++activeAudio;
+                        category = QStringLiteral("audio");
                     } else {
                         ++activeOther;
                     }
+                    const auto resource = request.first;
+                    const auto encodedURL = QUrl::toPercentEncoding(
+                        resource->getURL().toString(), "", "|,\n\r\"");
+                    activeResourceManifest += QStringLiteral("%1|%2|%3|%4|%5|%6|%7\n")
+                        .arg(QDateTime::currentMSecsSinceEpoch())
+                        .arg((picoUpdateStart - _picoLoadingMeasurementStartedAt) / USECS_PER_MSEC)
+                        .arg(category)
+                        .arg(resource->getProgress(), 0, 'f', 3)
+                        .arg(resource->getBytesReceived())
+                        .arg(resource->getBytesTotal())
+                        .arg(QString::fromLatin1(encodedURL));
                 }
                 const QString loadingSample = QStringLiteral(
                     "%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11|%12|%13|%14|%15|%16|%17|%18|%19|%20|%21|%22|%23|%24|%25|%26|%27|%28|%29|%30|%31|%32|%33|%34|%35|%36|%37|%38|%39|%40|%41")
@@ -2300,6 +2317,11 @@ void Application::update(float deltaTime) {
                 if (loadingSampleFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
                     loadingSampleFile.write(loadingSample.toUtf8());
                     loadingSampleFile.commit();
+                }
+                QSaveFile activeResourceFile("/data/user/0/org.overte.pico/cache/world-loading-active-resources");
+                if (activeResourceFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                    activeResourceFile.write(activeResourceManifest.toUtf8());
+                    activeResourceFile.commit();
                 }
             }
 #endif

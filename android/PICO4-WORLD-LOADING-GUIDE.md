@@ -76,6 +76,13 @@ entity-script loads and completed preloads, and active script/model/texture/
 audio/other resources. Use this series to find what loaded after the screen,
 rather than inferring it from the final duration.
 
+The companion `-active-resources.csv` adds one row for every resource that was
+active at a sample: category, progress, received/total bytes, and a
+percent-encoded URL. Group rows by URL and compare the first and last elapsed
+sample to identify resources that remain active across the loading-screen
+release. `qrc:` entries are client-bundled assets; network URLs identify world
+content or scripts.
+
 ## Before publishing a performance claim
 
 Use at least five runs for each cache condition. Report median and worst case,

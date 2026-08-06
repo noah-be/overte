@@ -111,6 +111,9 @@ SAMPLES_OUTPUT="${OUTPUT%.csv}-samples.csv"
 [[ ! -e "$SAMPLES_OUTPUT" ]] || { echo "refusing to overwrite $SAMPLES_OUTPUT" >&2; exit 2; }
 printf '%s\n' 'run,started_epoch_ms,domain_connect_ms,first_world_data_ms,entity_sequence_complete_ms,safe_landing_complete_ms,gpu_ready_ms,physics_enabled_ms,playable_frame_ms,loading_screen_release_ms,postload_quiet_ms,total_settled_ms,domain_to_world_ms,world_to_sequence_ms,sequence_to_safe_landing_ms,safe_landing_to_gpu_ms,gpu_to_physics_ms,physics_to_playable_ms,playable_to_release_ms,tracked_entities,received_sequences,expected_sequences,recovery_attempts,gpu_fallback,presented_frames,manual_dismissal,domain_resets' > "$OUTPUT"
 printf '%s\n' 'run,epoch_ms,elapsed_ms,loading_screen_visible,active_downloads,pending_downloads,processing_resources,pending_processing,atp_started,http_started,atp_success,http_success,atp_failed,http_failed,atp_bytes,http_bytes,entity_packets,entity_packet_bytes,running_interface_scripts,gpu_memory_bytes,tracked_entities,maximum_tracked_entities,physics_blocked_entities,visually_blocked_entities,received_sequences,expected_sequences,completion_received,full_scenes_received,entity_script_loads,entity_script_preloads_finished,active_script_resources,active_model_resources,active_texture_resources,active_audio_resources,active_other_resources,physics_enabled,safe_landing_complete_ms,gpu_ready_ms,physics_enabled_ms,playable_frame_ms,measurement_started_epoch_ms,domain_resets' > "$SAMPLES_OUTPUT"
+ACTIVE_OUTPUT="${OUTPUT%.csv}-active-resources.csv"
+[[ ! -e "$ACTIVE_OUTPUT" ]] || { echo "refusing to overwrite $ACTIVE_OUTPUT" >&2; exit 2; }
+printf '%s\n' 'run,epoch_ms,elapsed_ms,category,progress,bytes_received,bytes_total,url_percent_encoded' > "$ACTIVE_OUTPUT"
 
 collect_sample() {
     local run_number="$1" sample sample_fields
@@ -131,6 +134,11 @@ collect_sample() {
     if [[ "$sample_epoch" != "${last_sample_epoch:-}" ]]; then
         last_sample_epoch="$sample_epoch"
         printf '%s,%s\n' "$run_number" "${sample//|/,}" >> "$SAMPLES_OUTPUT"
+        active_resources="$(adb_shell run-as "$PACKAGE" cat cache/world-loading-active-resources 2>/dev/null | tr -d '\r' || true)"
+        while IFS='|' read -r active_epoch active_elapsed active_category active_progress active_received active_total active_url; do
+            [[ -n "${active_url:-}" ]] || continue
+            printf '%s,%s,%s,%s,%s,%s,%s,%s\n' "$run_number" "$active_epoch" "$active_elapsed" "$active_category" "$active_progress" "$active_received" "$active_total" "$active_url" >> "$ACTIVE_OUTPUT"
+        done <<< "$active_resources"
         return 0
     fi
     return 1
@@ -158,6 +166,7 @@ for (( run=1; run<=RUNS; ++run )); do
     sleep "$SETTLE"
     adb_shell run-as "$PACKAGE" rm -f cache/world-loading-status
     adb_shell run-as "$PACKAGE" rm -f cache/world-loading-sample
+    adb_shell run-as "$PACKAGE" rm -f cache/world-loading-active-resources
     nonce="$(date +%s%N)"
     command_epoch_ms="$(date +%s%3N)"
     last_sample_epoch=""
@@ -225,3 +234,4 @@ cleanup
 trap - EXIT INT TERM
 echo "results=$OUTPUT"
 echo "samples=$SAMPLES_OUTPUT"
+echo "active_resources=$ACTIVE_OUTPUT"
