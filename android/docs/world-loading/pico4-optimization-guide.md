@@ -171,6 +171,12 @@ settle plus 0.1 s READY display with bounded timeouts. This is safe only because
 physics and GPU readiness are already established; do not copy the constants to
 desktop clients without the same milestone gates.
 
+The Pico application now uses this ultra domain as its ordinary startup target,
+so launching the app without an explicit deep link enters the optimized world
+automatically. The deployed LAN endpoint is
+`hifi://192.168.188.180:40502/155.084,-98.5,-397.328`; explicit command-line
+URLs remain available for diagnostics.
+
 Inspection of the measured `sitClient.js` source explains why: every
 `preload()` immediately starts 13 presit-image `TextureCache.prefetch()` calls,
 reads entity `userData`, and calls `requestSitData()`. For a Pico-optimized
