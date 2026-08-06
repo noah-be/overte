@@ -9,9 +9,10 @@ SPAWN_OPTIMIZED="$ROOT_DIR/world-copies/overte-hub-pico4-spawn-optimized.json"
 ORIGINAL_SPAWN="$ROOT_DIR/world-copies/overte-hub-original-spawn.json"
 OPTIMIZED_SPAWN="$ROOT_DIR/world-copies/overte-hub-pico4-optimized-spawn.json"
 AGGRESSIVE="$ROOT_DIR/world-copies/overte-hub-pico4-aggressive.json"
+ULTRA="$ROOT_DIR/world-copies/overte-hub-pico4-ultra.json"
 
 command -v jq >/dev/null || { echo "jq is required" >&2; exit 2; }
-for file in "$ORIGINAL" "$OPTIMIZED" "$SPAWN_OPTIMIZED" "$ORIGINAL_SPAWN" "$OPTIMIZED_SPAWN" "$AGGRESSIVE"; do
+for file in "$ORIGINAL" "$OPTIMIZED" "$SPAWN_OPTIMIZED" "$ORIGINAL_SPAWN" "$OPTIMIZED_SPAWN" "$AGGRESSIVE" "$ULTRA"; do
     jq -e 'type == "object" and .DataVersion == 3 and (.Entities | type == "array") and (.Paths["/"] | type == "string")' "$file" >/dev/null
 done
 
@@ -35,10 +36,14 @@ spawn_remaining_bad="$(jq '[.Entities[] | select((.script // "") | test("sitClie
 aggressive_waves="$(jq '[.Entities[] | select((.modelURL // "") | test("waves3600"; "i"))] | length' "$AGGRESSIVE")"
 [[ "$aggressive_waves" == 0 ]] || { echo "aggressive fixture still contains waves3600" >&2; exit 1; }
 
+ultra_waves="$(jq '[.Entities[] | select((.modelURL // "") | test("waves3600"; "i"))] | length' "$ULTRA")"
+ultra_hdr="$(jq '[.Entities[] | select(.type == "Zone") | (.skybox.url // ""), (.ambientLight.ambientURL // "")] | map(select(test("https?://"))) | length' "$ULTRA")"
+[[ "$ultra_waves" == 0 && "$ultra_hdr" == 4 ]] || { echo "ultra fixture retained unexpected heavy startup resources" >&2; exit 1; }
+
 spawn_original_count="$(jq '.Entities | length' "$ORIGINAL_SPAWN")"
 spawn_optimized_count="$(jq '.Entities | length' "$OPTIMIZED_SPAWN")"
 [[ "$spawn_original_count" == "$original_count" && "$spawn_optimized_count" == "$optimized_count" ]] || {
     echo "spawn fixture entity counts diverged" >&2; exit 1;
 }
 
-echo "PASS serverless fixture schema/entities/scripts (entities=$original_count removed_scripts=$removed_scripts aggressive_waves=$aggressive_waves)"
+echo "PASS serverless fixture schema/entities/scripts (entities=$original_count removed_scripts=$removed_scripts aggressive_waves=$aggressive_waves ultra_waves=$ultra_waves ultra_hdr=$ultra_hdr)"
