@@ -1,5 +1,5 @@
 {
-  "DataVersion": 0,
+  "DataVersion": 3,
   "Entities": [
     {
       "angularDamping": 0,
@@ -6668,5 +6668,8 @@
     }
   ],
   "Id": "00b27e56-95c3-442f-bfbb-2fcfefd1cd00",
-  "Version": 154
+  "Version": 154,
+  "Paths": {
+    "/": "/155.084,-98.5,-397.328/0,0,0,1"
+  }
 }
