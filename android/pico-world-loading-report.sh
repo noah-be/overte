@@ -18,8 +18,8 @@ awk -F, '
 NR == 1 { next }
 {
     run = $1
-    printf "run %s: playable=%sms release=%sms settled=%sms entities=%s http=%s requests, %s bytes, script_loads=see samples, domain_resets=%s\n",
-        run, $9, $10, $12, $20, "?", "?", $27
+    printf "run %s: playable=%sms release=%sms settled=%sms entities=%s domain_resets=%s\n",
+        run, $9, $10, $12, $20, $27
     playable[run] = $9
     release[run] = $10
     settled[run] = $12
