@@ -117,6 +117,8 @@ The report ends with provisional `HIGH` priorities for interface telemetry gaps
 of at least 10 s, cumulative script-preload cost of at least 10 s per URL, and
 active-resource spans of at least 10 s. These thresholds are triage aids, not
 hard platform limits; confirm any proposed world change with a new series.
+When the server advertises a resource size, the report also lists the largest
+active `bytes_total` values; unknown sizes are intentionally not estimated.
 
 ## Latest diagnostic run
 
