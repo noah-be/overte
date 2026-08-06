@@ -1781,6 +1781,14 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
 
     QString addressLookupString;
 
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    // The Pico app is deployed with a dedicated LAN domain containing the
+    // measured ultra-optimized spawn scene. Use it for every ordinary launch
+    // (explicit command-line URLs still take precedence).
+    static const QString PICO_DEFAULT_STARTUP_ADDRESS =
+        QStringLiteral("hifi://192.168.188.180:40502/155.084,-98.5,-397.328");
+#endif
+
     // when --url in command line, teleport to location
     if (!_urlParam.isEmpty()) { // Not sure if format supported by isValid().
         if (_urlParam.scheme() == URL_SCHEME_OVERTEAPP) {
@@ -1789,6 +1797,12 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
             addressLookupString = _urlParam.toString();
         }
     }
+
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    if (_urlParam.isEmpty()) {
+        addressLookupString = PICO_DEFAULT_STARTUP_ADDRESS;
+    }
+#endif
 
     static const QString SENT_TO_PREVIOUS_LOCATION = "previous_location";
     static const QString SENT_TO_ENTRY = "entry";
@@ -1811,13 +1825,11 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
             // Mobile builds ship a self-contained tutorial and may have no
             // entry-point setting yet (or retain an empty one from an older
             // install). Always choose the packaged, known-good location.
-#if defined(ANDROID_APP_PICO_INTERFACE) && !defined(NDEBUG)
-            // Pico development builds start in a tiny local scene so a new
-            // native/UI fix can be tested without loading tutorial models,
-            // particles, scripts, sounds, or any network domain content.
-            qCInfo(interfaceapp) << "Pico fast debug startup: loading local pico-debug.json";
+#if defined(ANDROID_APP_PICO_INTERFACE)
+            qCInfo(interfaceapp) << "Pico startup: loading optimized LAN world"
+                << PICO_DEFAULT_STARTUP_ADDRESS;
             DependencyManager::get<AddressManager>()->handleLookupString(
-                "file:///~/serverless/pico-debug.json");
+                PICO_DEFAULT_STARTUP_ADDRESS);
 #else
             DependencyManager::get<AddressManager>()->handleLookupString(
                 NetworkingConstants::DEFAULT_OVERTE_ADDRESS);
