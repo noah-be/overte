@@ -8,6 +8,7 @@ RESULTS="${1:-}"
 }
 ACTIVE="${2:-${RESULTS%.csv}-active-resources.csv}"
 SAMPLES="${RESULTS%.csv}-samples.csv"
+DIAGNOSTICS="${RESULTS%.csv}-diagnostics.log"
 
 echo "Pico 4 world-loading report"
 echo "results=$RESULTS"
@@ -59,6 +60,22 @@ if [[ -f "$SAMPLES" ]]; then
                 scripts[run] - scripts0[run], preloads[run] - preloads0[run], max_gap[run]
     }
     ' "$SAMPLES" | sort -t' ' -k2,2n
+fi
+
+if [[ -f "$DIAGNOSTICS" ]]; then
+    echo
+    echo "slow entity preloads (descending):"
+    awk '
+    /PICO_ENTITY_PRELOAD_SLOW/ {
+        elapsed = ""; script = ""
+        for (i = 1; i <= NF; ++i) {
+            if ($i == "elapsedMs") elapsed = $(i + 1)
+            if ($i == "script") script = $(i + 1)
+        }
+        gsub(/^"|"$/, "", script)
+        if (elapsed != "" && script != "") print elapsed "\t" script
+    }
+    ' "$DIAGNOSTICS" | sort -rn | head -n 20 | awk -F'\t' '{printf "%6d ms  %s\n", $1, $2}'
 fi
 
 if [[ ! -f "$ACTIVE" ]]; then
