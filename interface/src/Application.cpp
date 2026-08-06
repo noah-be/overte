@@ -2957,8 +2957,8 @@ void Application::update(float deltaTime) {
             // Keep the final handoff short on Pico 4. Physics is already
             // enabled here and the presented-frame gate below still prevents
             // exposing an incomplete render scene.
-            constexpr quint64 SCENE_SETTLE_TIME = 2 * USECS_PER_SECOND;
-            constexpr quint64 SCENE_SETTLE_TIMEOUT = 4 * USECS_PER_SECOND;
+            constexpr quint64 SCENE_SETTLE_TIME = 1500 * USECS_PER_MSEC;
+            constexpr quint64 SCENE_SETTLE_TIMEOUT = 3 * USECS_PER_SECOND;
             constexpr uint32_t SCENE_SETTLE_PRESENT_FRAMES = 30;
             const quint64 sceneSettleElapsed = handoffNow - _picoLoadingPhysicsEnabledAt;
             const bool sceneFramesPresented = displayPlugin &&
@@ -2971,8 +2971,8 @@ void Application::update(float deltaTime) {
             }
         } else {
             _graphicsEngine->setLoadingState(true, GraphicsEngine::LoadingPhase::READY, 1.0f);
-            constexpr quint64 READY_DISPLAY_TIME = 500 * USECS_PER_MSEC;
-            constexpr quint64 READY_DISPLAY_TIMEOUT = 1 * USECS_PER_SECOND;
+            constexpr quint64 READY_DISPLAY_TIME = 300 * USECS_PER_MSEC;
+            constexpr quint64 READY_DISPLAY_TIMEOUT = 750 * USECS_PER_MSEC;
             constexpr uint32_t READY_PRESENT_FRAMES = 3;
             const quint64 readyElapsed = handoffNow - _picoLoadingReadyAt;
             const bool readyFramesPresented = displayPlugin &&
