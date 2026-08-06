@@ -76,6 +76,27 @@ if [[ -f "$DIAGNOSTICS" ]]; then
         if (elapsed != "" && script != "") print elapsed "\t" script
     }
     ' "$DIAGNOSTICS" | sort -rn | head -n 20 | awk -F'\t' '{printf "%6d ms  %s\n", $1, $2}'
+    echo
+    echo "slow entity preload totals by script URL:"
+    awk '
+    /PICO_ENTITY_PRELOAD_SLOW/ {
+        elapsed = ""; script = ""
+        for (i = 1; i <= NF; ++i) {
+            if ($i == "elapsedMs") elapsed = $(i + 1)
+            if ($i == "script") script = $(i + 1)
+        }
+        gsub(/^"|"$/, "", script)
+        if (elapsed != "" && script != "") {
+            count[script]++
+            total[script] += elapsed
+            if (elapsed > maximum[script]) maximum[script] = elapsed
+        }
+    }
+    END {
+        for (script in count)
+            printf "%8d ms total  max=%6d ms  calls=%-3d %s\n", total[script], maximum[script], count[script], script
+    }
+    ' "$DIAGNOSTICS" | sort -rn | head -n 20
 fi
 
 if [[ ! -f "$ACTIVE" ]]; then
