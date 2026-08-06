@@ -14,6 +14,7 @@ EXPECTED_CONNECTED=1
 EXPECTED_PLACE="overte_hub"
 EXPECTED_PLACE_PREFIX=""
 SERVERLESS_MODE=0
+TELEPORT=""
 RUNS=5
 TIMEOUT=120
 SETTLE=8
@@ -37,6 +38,7 @@ Measure verified world-entry milestones on a Pico connected through WLAN ADB.
   --expected-place NAME    Exact expected place for connected targets
   --expected-place-prefix PREFIX  Prefix accepted for the place field
   --serverless   Accept local-file loader status (no domain sequence/place)
+  --teleport X,Y,Z  Teleport into a measured scene volume after milestones
   --output FILE  CSV output (default: power-results/<timestamp>-world-loading.csv)
 EOF
 }
@@ -53,6 +55,7 @@ while (( $# > 0 )); do
         --expected-place) EXPECTED_PLACE="$2"; shift 2 ;;
         --expected-place-prefix) EXPECTED_PLACE_PREFIX="$2"; shift 2 ;;
         --serverless) SERVERLESS_MODE=1; shift ;;
+        --teleport) TELEPORT="$2"; shift 2 ;;
         --output) OUTPUT="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -90,6 +93,7 @@ LOG_OUTPUT=""
 cleanup() {
     adb_shell setprop debug.overte.navigate '' >/dev/null 2>&1 || true
     adb_shell setprop debug.overte.export '' >/dev/null 2>&1 || true
+    adb_shell setprop debug.overte.teleport '' >/dev/null 2>&1 || true
     adb_shell setprop debug.overte.test_mode '' >/dev/null 2>&1 || true
     if (( brightness_test_active )); then
         adb_shell gd32ipdclient_test setbrightness "$original_brightness" >/dev/null 2>&1 || true
@@ -260,6 +264,17 @@ for (( run=1; run<=RUNS; ++run )); do
     fi
     if [[ "$SERVERLESS_MODE" == 0 && "$EXPECTED_CONNECTED" == 1 ]]; then
         [[ -n "$domain_id" ]] || { echo "connected telemetry has no domain id" >&2; exit 1; }
+    fi
+
+    if [[ -n "$TELEPORT" ]]; then
+        IFS=',' read -r teleport_x teleport_y teleport_z <<< "$TELEPORT"
+        [[ "$teleport_x" =~ ^-?[0-9]+([.][0-9]+)?$ && "$teleport_y" =~ ^-?[0-9]+([.][0-9]+)?$ && "$teleport_z" =~ ^-?[0-9]+([.][0-9]+)?$ ]] || {
+            echo "invalid teleport coordinates: $TELEPORT" >&2; exit 2;
+        }
+        teleport_nonce="$(date +%s)"
+        teleport_command="${teleport_nonce}|${teleport_x}|${teleport_y}|${teleport_z}"
+        adb_shell setprop debug.overte.teleport "${teleport_command//|/\\|}"
+        echo "teleport applied: $TELEPORT"
     fi
 
     quiet_samples=0
