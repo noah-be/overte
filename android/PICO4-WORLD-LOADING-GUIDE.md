@@ -103,6 +103,11 @@ For a compact human-readable summary, run:
 The report includes milestone ranges, HTTP/entity/script deltas, category
 counts, and the longest-lived active resources.
 
+It also reports `max_sample_gap`. A large value means the interface update loop
+did not publish telemetry during that interval; treat it as a real local stall,
+even if the render thread continued displaying frames. In the repeat validation
+the maximum gap was 19.1 s, coinciding with deferred entity-script preload work.
+
 ## Before publishing a performance claim
 
 Use at least five runs for each cache condition. Report median and worst case,

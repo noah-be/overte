@@ -48,12 +48,15 @@ if [[ -f "$SAMPLES" ]]; then
         }
         http[run] = $10; bytes[run] = $16; packets[run] = $17
         scripts[run] = $29; preloads[run] = $30
+        if (run in previous_epoch && $2 - previous_epoch[run] > max_gap[run])
+            max_gap[run] = $2 - previous_epoch[run]
+        previous_epoch[run] = $2
     }
     END {
         for (run in first)
-            printf "run %s: http_requests=%d http_bytes=%d entity_packets=%d script_loads=%d preload_callbacks=%d\n",
+            printf "run %s: http_requests=%d http_bytes=%d entity_packets=%d script_loads=%d preload_callbacks=%d max_sample_gap=%dms\n",
                 run, http[run] - http0[run], bytes[run] - bytes0[run], packets[run] - packets0[run],
-                scripts[run] - scripts0[run], preloads[run] - preloads0[run]
+                scripts[run] - scripts0[run], preloads[run] - preloads0[run], max_gap[run]
     }
     ' "$SAMPLES" | sort -t' ' -k2,2n
 fi
