@@ -128,3 +128,52 @@ END {
 echo
 echo "resource snapshot counts by category:"
 awk -F, 'NR > 1 { count[$4]++ } END { for (category in count) print category "," count[category] }' "$ACTIVE" | sort
+
+echo
+echo "optimization priorities (provisional thresholds):"
+if [[ -f "$SAMPLES" ]]; then
+    awk -F, '
+    NR == 1 { next }
+    {
+        run = $1
+        if (run in previous && $2 - previous[run] > maxGap[run]) maxGap[run] = $2 - previous[run]
+        previous[run] = $2
+    }
+    END {
+        for (run in maxGap)
+            if (maxGap[run] >= 10000) printf "HIGH  run %s: interface telemetry gap %d ms\n", run, maxGap[run]
+    }
+    ' "$SAMPLES"
+fi
+if [[ -f "$DIAGNOSTICS" ]]; then
+    awk '
+    /PICO_ENTITY_PRELOAD_SLOW/ {
+        elapsed = ""; script = ""
+        for (i = 1; i <= NF; ++i) {
+            if ($i == "elapsedMs") elapsed = $(i + 1)
+            if ($i == "script") script = $(i + 1)
+        }
+        gsub(/^"|"$/, "", script)
+        if (elapsed != "" && script != "") { total[script] += elapsed; count[script]++ }
+    }
+    END {
+        for (script in total)
+            if (total[script] >= 10000)
+                printf "HIGH  script preload %s: %d ms across %d calls\n", script, total[script], count[script]
+    }
+    ' "$DIAGNOSTICS"
+fi
+awk -F, '
+NR == 1 { next }
+{
+    run = $1; url = $8; key = run SUBSEP url
+    if (!(key in first)) first[key] = $3
+    last[key] = $3; category[key] = $4
+}
+END {
+    for (key in last) {
+        span = last[key] - first[key]
+        if (span >= 10000) printf "HIGH  run/resource span %d ms (%s)\n", span, category[key]
+    }
+}
+' "$ACTIVE"
