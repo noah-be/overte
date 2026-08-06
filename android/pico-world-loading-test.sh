@@ -237,7 +237,11 @@ for (( run=1; run<=RUNS; ++run )); do
     done
     if [[ "$SERVERLESS_MODE" == 0 && "$EXPECTED_CONNECTED" == 1 ]]; then
         [[ "$sequence" =~ ^[0-9]+$ ]] || { echo "invalid entity sequence milestone: $status" >&2; exit 1; }
-        (( domain <= world && world <= sequence && sequence <= safe && safe <= gpu && gpu <= physics && physics <= ready && ready <= release )) || {
+        # Entity packet completion and safe landing are independent signals: the
+        # collision volume can become usable before the final sequence packet
+        # arrives (or vice versa). Require both after world data, then enforce
+        # the deterministic GPU/physics/render handoff ordering.
+        (( domain <= world && world <= sequence && world <= safe && sequence <= release && safe <= gpu && gpu <= physics && physics <= ready && ready <= release )) || {
             echo "out-of-order loading milestones: $status" >&2; exit 1;
         }
     else
