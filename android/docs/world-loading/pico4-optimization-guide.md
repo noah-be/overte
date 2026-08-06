@@ -139,6 +139,38 @@ same URL is attached to many entities, inspect whether all instances need to be
 in the initial scene and whether the script can avoid expensive work in every
 entity's `preload()` method.
 
+## Live VM A/B and ten-second Pico target
+
+For a reproducible live comparison, the fresh Proxmox VM at `192.168.188.180`
+was given isolated Overte instances: original (`40202`), conservative optimized
+(`40302`), aggressive (`40402`), and ultra (`40502`). The Pico reached the Hub
+coordinates at `155.084,-98.5,-397.328` over WLAN ADB, with brightness 1% and
+fan 100% enforced for every run. The local domain has no public place name, so
+the validation uses the connection flag and world ID instead.
+
+The ultra fixture (`overte-hub-pico4-ultra.json`) removes the measured
+`waves3600.fbx` startup model and external HDR skybox/ambient URLs from the two
+spawn-area zones, while retaining the rest of the Hub geometry. A five-run cold
+series on the physical Pico after the final loading-handoff fix produced:
+
+| milestone | runs | median | range |
+|---|---:|---:|---:|
+| loading-screen release | 5 | **8.64 s** | 8.51–10.07 s |
+| settled (10 s quiet) | 5 | 39.6 s | 36.7–49.9 s |
+
+All five runs connected and completed the entity sequence; the first run's
+10.07 s release is the only target miss. The remaining settled phase is mostly
+post-screen resource/processing work and must not be hidden by shortening the
+loading overlay. The original VM five-run baseline released at a median 12.32 s
+and settled at 37.7 s, so the ultra fixture trades a small amount of post-load
+settling variance for a 3.7 s faster visible handoff.
+
+The final Pico handoff keeps a 30-presented-frame gate, ignores stale
+safe-landing timestamps from the local startup scene, and uses a 1.0 s scene
+settle plus 0.1 s READY display with bounded timeouts. This is safe only because
+physics and GPU readiness are already established; do not copy the constants to
+desktop clients without the same milestone gates.
+
 Inspection of the measured `sitClient.js` source explains why: every
 `preload()` immediately starts 13 presit-image `TextureCache.prefetch()` calls,
 reads entity `userData`, and calls `requestSitData()`. For a Pico-optimized
