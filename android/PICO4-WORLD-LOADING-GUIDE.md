@@ -94,6 +94,13 @@ while download queues were often already empty. World authors should therefore
 measure and reduce deferred script/preload work independently of network
 requests.
 
+The slow-preload diagnostic run identified repeated `sitClient.js` preload
+calls taking 0.5–4.3 s. The same run kept `birds-nest.fbx` active for 25.4 s
+and `coffee_table.glb` for 23.0 s. These are concrete candidates for
+deduplication, deferral, mesh simplification, or replacement in the initial
+spawn area. That run also had an 18.8 s maximum telemetry gap, so these local
+operations materially affect perceived loading even while rendering continues.
+
 For a compact human-readable summary, run:
 
 ```bash
@@ -102,6 +109,9 @@ For a compact human-readable summary, run:
 
 The report includes milestone ranges, HTTP/entity/script deltas, category
 counts, and the longest-lived active resources.
+
+The runner additionally writes `*-diagnostics.log`, containing filtered
+slow-preload and per-stage update logs for each run.
 
 It also reports `max_sample_gap`. A large value means the interface update loop
 did not publish telemetry during that interval; treat it as a real local stall,

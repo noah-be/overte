@@ -114,6 +114,9 @@ printf '%s\n' 'run,epoch_ms,elapsed_ms,loading_screen_visible,active_downloads,p
 ACTIVE_OUTPUT="${OUTPUT%.csv}-active-resources.csv"
 [[ ! -e "$ACTIVE_OUTPUT" ]] || { echo "refusing to overwrite $ACTIVE_OUTPUT" >&2; exit 2; }
 printf '%s\n' 'run,epoch_ms,elapsed_ms,category,progress,bytes_received,bytes_total,url_percent_encoded' > "$ACTIVE_OUTPUT"
+LOG_OUTPUT="${OUTPUT%.csv}-diagnostics.log"
+[[ ! -e "$LOG_OUTPUT" ]] || { echo "refusing to overwrite $LOG_OUTPUT" >&2; exit 2; }
+: > "$LOG_OUTPUT"
 
 collect_sample() {
     local run_number="$1" sample sample_fields
@@ -147,6 +150,7 @@ collect_sample() {
 for (( run=1; run<=RUNS; ++run )); do
     echo "world loading run $run/$RUNS"
     adb_shell am force-stop "$PACKAGE"
+    adb_shell logcat -c
     adb_shell setprop debug.overte.test_mode 1
     adb_shell setprop persist.pvr.psensor_checkmode 0
     adb_shell setprop persist.pvr.sleep_by_static 0
@@ -227,6 +231,11 @@ for (( run=1; run<=RUNS; ++run )); do
         echo "warning: world did not reach a ${QUIET_SECONDS}s quiet state after ${POST_TIMEOUT}s" >&2
     fi
 
+    {
+        echo "===== run $run diagnostics ====="
+        adb_shell logcat -d -v brief 2>/dev/null | rg 'PICO_ENTITY_PRELOAD_SLOW|PICO_UPDATE_STAGES|PICO_ENTITY_UPDATE_STAGES' || true
+    } >> "$LOG_OUTPUT"
+
     printf '%s\n' "$run,$epoch,$domain,$world,$sequence,$safe,$gpu,$physics,$ready,$release,$postload_quiet_ms,$quiet_at,$((world-domain)),$((sequence-world)),$((safe-sequence)),$((gpu-safe)),$((physics-gpu)),$((ready-physics)),$((release-ready)),$entities,$received,$expected,$recovery,$fallback,$frames,$dismissed,$reconnects" >> "$OUTPUT"
 done
 
@@ -235,3 +244,4 @@ trap - EXIT INT TERM
 echo "results=$OUTPUT"
 echo "samples=$SAMPLES_OUTPUT"
 echo "active_resources=$ACTIVE_OUTPUT"
+echo "diagnostics=$LOG_OUTPUT"
