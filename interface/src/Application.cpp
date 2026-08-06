@@ -2634,7 +2634,11 @@ void Application::update(float deltaTime) {
             _octreeProcessor->updateSafeLanding();
             if (_octreeProcessor->safeLandingIsComplete()) {
 #if defined(ANDROID_APP_PICO_INTERFACE)
-                if (_picoLoadingSafeLandingCompleteAt == 0) {
+                // Ignore a safe-landing completion inherited from the local
+                // startup scene. The world-loading milestone starts only once
+                // the new domain is connected; the authoritative physics
+                // handoff below records the final collision-ready timestamp.
+                if (_picoLoadingConnectedAt > 0 && _picoLoadingSafeLandingCompleteAt == 0) {
                     _picoLoadingSafeLandingCompleteAt = usecTimestampNow();
                     _picoLoadingFinalStatus = _octreeProcessor->safeLandingLoadingStatus();
                 }
