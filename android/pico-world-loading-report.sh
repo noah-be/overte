@@ -126,6 +126,25 @@ END {
 ' "$ACTIVE" | sort -rn | head -n 20
 
 echo
+echo "largest advertised active resources (bytes_total):"
+awk -F, '
+NR == 1 { next }
+{
+    run = $1; total = $7; url = $8
+    if (total ~ /^[0-9]+$/ && total > 0 && total > maximum[run SUBSEP url]) {
+        maximum[run SUBSEP url] = total
+        category[run SUBSEP url] = $4
+        run_number[run SUBSEP url] = run
+        display_url[run SUBSEP url] = url
+    }
+}
+END {
+    for (key in maximum)
+        printf "run %-2s %12d bytes %-8s %s\n", run_number[key], maximum[key], category[key], display_url[key]
+}
+' "$ACTIVE" | sort -k3,3nr | head -n 20
+
+echo
 echo "resource snapshot counts by category:"
 awk -F, 'NR > 1 { count[$4]++ } END { for (category in count) print category "," count[category] }' "$ACTIVE" | sort
 
