@@ -2471,7 +2471,19 @@ void ScriptManager::entityScriptContentAvailable(const EntityItemID& entityID, c
     }
 
     // if we got this far, then call the preload method
+#if defined(Q_OS_ANDROID)
+    const quint64 preloadStartedAt = usecTimestampNow();
+#endif
     callEntityScriptMethodForScript(entityID, scriptOrURL, "preload");
+#if defined(Q_OS_ANDROID)
+    const quint64 preloadElapsed = usecTimestampNow() - preloadStartedAt;
+    if (preloadElapsed >= 250 * USECS_PER_MSEC) {
+        qCWarning(scriptengine) << "PICO_ENTITY_PRELOAD_SLOW"
+            << "elapsedMs" << preloadElapsed / USECS_PER_MSEC
+            << "entity" << entityID
+            << "script" << scriptOrURL;
+    }
+#endif
 
     emit entityScriptPreloadFinished(entityID);
 }
