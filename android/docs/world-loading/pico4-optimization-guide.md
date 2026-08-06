@@ -222,3 +222,20 @@ the authoritative measurement for `sitClient.js`; the serverless copies are
 useful for geometry/resource and packaging checks. Run
 `tests/serverless-hub-fixture-test.sh` to verify schema, entity-ID parity, and
 the expected 14-script removal after editing either copy.
+
+## Follow-up live Hub baseline
+
+After fixing the runner's early-status race, a fresh five-run live Hub series
+completed successfully with 923 tracked entities on every run. Medians were
+39.5 s to playable, 40.4 s to loading-screen release, and 95.3 s to settled.
+Median traffic was 1,206 HTTP requests and 100.7 MB; the median maximum
+telemetry gap was 20.6 s.
+
+The priority ordering is stable and stronger than the earlier sample: the
+`sitClient.js` URL accounted for 126 preload calls and 109.7 s cumulative time,
+while `script_server_crasher_client_console.js?2` accounted for five calls and
+60.8 s. The longest active resource was `waves3600.fbx` at 30.9 s; the largest
+advertised resource was `SKY-HDR-sunset_fairway_2k.exr` at 4.93 MB. These are
+the first production-world changes to validate: remove/defer the crasher
+control, and replace per-seat startup prefetch/network work with shared,
+interaction-triggered loading before touching lower-impact assets.
