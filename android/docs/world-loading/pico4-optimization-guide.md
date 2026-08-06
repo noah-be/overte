@@ -126,6 +126,12 @@ client-side script preload work and large model dependencies first-class
 optimization targets for the world author; they are not hidden by the loading
 screen milestone.
 
+The report aggregates these calls as well: in this run `sitClient.js` accounted
+for four slow preload calls and 14.2 s of cumulative preload time. When the
+same URL is attached to many entities, inspect whether all instances need to be
+in the initial scene and whether the script can avoid expensive work in every
+entity's `preload()` method.
+
 It also reports `max_sample_gap`. A large value means the interface update loop
 did not publish telemetry during that interval; treat it as a real local stall,
 even if the render thread continued displaying frames. In the repeat validation
