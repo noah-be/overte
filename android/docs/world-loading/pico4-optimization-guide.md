@@ -155,6 +155,12 @@ produced five calls totaling 42.5 s. These totals are cumulative across
 entities and runs; they are not a single wall-clock duration, but they clearly
 rank repeated entity scripts ahead of ordinary one-off assets for optimization.
 
+The second script is explicitly a diagnostic/crasher control. Its `preload()`
+calls a remote `Script.require()` for a tactile UI library and constructs a
+renderer for every instance. It should not be present in a production Pico
+spawn area; remove debug/crasher controls from the initial entity set or defer
+them behind an explicit developer-only interaction.
+
 It also reports `max_sample_gap`. A large value means the interface update loop
 did not publish telemetry during that interval; treat it as a real local stall,
 even if the render thread continued displaying frames. In the repeat validation
