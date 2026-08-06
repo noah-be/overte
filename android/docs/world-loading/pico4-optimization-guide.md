@@ -132,6 +132,15 @@ same URL is attached to many entities, inspect whether all instances need to be
 in the initial scene and whether the script can avoid expensive work in every
 entity's `preload()` method.
 
+Inspection of the measured `sitClient.js` source explains why: every
+`preload()` immediately starts 13 presit-image `TextureCache.prefetch()` calls,
+reads entity `userData`, and calls `requestSitData()`. For a Pico-optimized
+world, use a shared image/resource cache, defer presit image prefetching until
+the player approaches or interacts with a seat, and avoid a per-entity network
+request during initial world construction. This is a concrete authoring change
+that can be validated by rerunning the same telemetry and comparing preload
+totals and `max_sample_gap`.
+
 It also reports `max_sample_gap`. A large value means the interface update loop
 did not publish telemetry during that interval; treat it as a real local stall,
 even if the render thread continued displaying frames. In the repeat validation
