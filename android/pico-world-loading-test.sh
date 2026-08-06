@@ -91,10 +91,10 @@ original_brightness=""
 current_run=0
 LOG_OUTPUT=""
 cleanup() {
-    adb_shell setprop debug.overte.navigate '' >/dev/null 2>&1 || true
-    adb_shell setprop debug.overte.export '' >/dev/null 2>&1 || true
-    adb_shell setprop debug.overte.teleport '' >/dev/null 2>&1 || true
-    adb_shell setprop debug.overte.test_mode '' >/dev/null 2>&1 || true
+    adb_shell sh -c "setprop debug.overte.navigate ''" >/dev/null 2>&1 || true
+    adb_shell sh -c "setprop debug.overte.export ''" >/dev/null 2>&1 || true
+    adb_shell sh -c "setprop debug.overte.teleport ''" >/dev/null 2>&1 || true
+    adb_shell sh -c "setprop debug.overte.test_mode ''" >/dev/null 2>&1 || true
     if (( brightness_test_active )); then
         adb_shell gd32ipdclient_test setbrightness "$original_brightness" >/dev/null 2>&1 || true
         brightness_test_active=0
@@ -223,7 +223,9 @@ for (( run=1; run<=RUNS; ++run )); do
                 entities received expected recovery fallback frames dismissed reconnects <<< "$status"
             fields="$(awk -F'|' '{ print NF }' <<< "$status")"
             if [[ "$fields" == 17 && "$epoch" =~ ^[0-9]+$ && "$epoch" -ge $((command_epoch_ms - 5000)) ]]; then
-                break
+                if [[ "$SERVERLESS_MODE" == 1 || "$sequence" =~ ^[0-9]+$ ]]; then
+                    break
+                fi
             fi
         fi
         sleep 1
