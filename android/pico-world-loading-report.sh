@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+RESULTS="${1:-}"
+[[ -n "$RESULTS" && -f "$RESULTS" ]] || {
+    echo "usage: $0 RESULTS.csv [ACTIVE_RESOURCES.csv]" >&2
+    exit 2
+}
+ACTIVE="${2:-${RESULTS%.csv}-active-resources.csv}"
+SAMPLES="${RESULTS%.csv}-samples.csv"
+
+echo "Pico 4 world-loading report"
+echo "results=$RESULTS"
+echo
+
+awk -F, '
+NR == 1 { next }
+{
+    run = $1
+    printf "run %s: playable=%sms release=%sms settled=%sms entities=%s http=%s requests, %s bytes, script_loads=see samples, domain_resets=%s\n",
+        run, $9, $10, $12, $20, "?", "?", $27
+    playable[run] = $9
+    release[run] = $10
+    settled[run] = $12
+    n = run
+}
+END {
+    if (n == 0) exit
+    print ""
+    printf "range: playable=%sms..%sms release=%sms..%sms settled=%sms..%sms\n",
+        min(playable), max(playable), min(release), max(release), min(settled), max(settled)
+}
+function min(a, i, v) { v = -1; for (i in a) if (v < 0 || a[i] < v) v = a[i]; return v }
+function max(a, i, v) { v = -1; for (i in a) if (v < 0 || a[i] > v) v = a[i]; return v }
+' "$RESULTS"
+
+if [[ -f "$SAMPLES" ]]; then
+    echo
+    echo "resource/entity deltas from sampled telemetry:"
+    awk -F, '
+    NR == 1 { next }
+    {
+        run = $1
+        if (!(run in first)) {
+            first[run] = 1
+            http0[run] = $10; bytes0[run] = $16; packets0[run] = $17
+            scripts0[run] = $29; preloads0[run] = $30
+        }
+        http[run] = $10; bytes[run] = $16; packets[run] = $17
+        scripts[run] = $29; preloads[run] = $30
+    }
+    END {
+        for (run in first)
+            printf "run %s: http_requests=%d http_bytes=%d entity_packets=%d script_loads=%d preload_callbacks=%d\n",
+                run, http[run] - http0[run], bytes[run] - bytes0[run], packets[run] - packets0[run],
+                scripts[run] - scripts0[run], preloads[run] - preloads0[run]
+    }
+    ' "$SAMPLES" | sort -t' ' -k2,2n
+fi
+
+if [[ ! -f "$ACTIVE" ]]; then
+    echo
+    echo "active_resources=missing ($ACTIVE)"
+    exit 0
+fi
+
+echo
+echo "longest-lived active resources (sample span >= 1 s):"
+awk -F, '
+NR == 1 { next }
+{
+    url = $8
+    if (!(url in first)) { first[url] = $3; category[url] = $4 }
+    last[url] = $3
+    count[url]++
+}
+END {
+    for (url in count) {
+        span = last[url] - first[url]
+        if (span >= 1000) printf "%8d ms  samples=%-3d %-8s %s\n", span, count[url], category[url], url
+    }
+}
+' "$ACTIVE" | sort -rn | head -n 20
+
+echo
+echo "resource snapshot counts by category:"
+awk -F, 'NR > 1 { count[$4]++ } END { for (category in count) print category "," count[category] }' "$ACTIVE" | sort

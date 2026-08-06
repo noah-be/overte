@@ -89,6 +89,15 @@ this as an optimization candidate for the hub (mesh size, collision strategy,
 and whether it belongs in the initial spawn area), then confirm its impact with
 another run rather than assuming one asset explains the complete load time.
 
+For a compact human-readable summary, run:
+
+```bash
+./pico-world-loading-report.sh power-results/<run>.csv
+```
+
+The report includes milestone ranges, HTTP/entity/script deltas, category
+counts, and the longest-lived active resources.
+
 ## Before publishing a performance claim
 
 Use at least five runs for each cache condition. Report median and worst case,
