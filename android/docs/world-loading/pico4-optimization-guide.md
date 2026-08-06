@@ -113,6 +113,11 @@ counts, and the longest-lived active resources.
 The runner additionally writes `*-diagnostics.log`, containing filtered
 slow-preload and per-stage update logs for each run.
 
+The report ends with provisional `HIGH` priorities for interface telemetry gaps
+of at least 10 s, cumulative script-preload cost of at least 10 s per URL, and
+active-resource spans of at least 10 s. These thresholds are triage aids, not
+hard platform limits; confirm any proposed world change with a new series.
+
 ## Latest diagnostic run
 
 The latest complete run reached a playable frame at 43.8 s, released the
