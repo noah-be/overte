@@ -95,7 +95,10 @@ case "$COMMAND" in
         export PICO_DEVICE_LOCK_HELD=1
 
         set +e
-        "$@"
+        # The wrapper process keeps the flock while the command runs. Close its
+        # duplicate in the child so long-lived helpers such as the ADB server
+        # cannot inherit the descriptor and retain the headset lock forever.
+        "$@" {LOCK_FD}>&-
         command_status=$?
         set -e
         exit "$command_status"

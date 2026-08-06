@@ -962,6 +962,15 @@ private:
     uint32_t _picoLoadingPhysicsPresentFrame { 0 };
     quint64 _picoLoadingReadyAt { 0 };
     uint32_t _picoLoadingReadyPresentFrame { 0 };
+    quint64 _picoLoadingMeasurementStartedAt { 0 };
+    qint64 _picoLoadingMeasurementEpochMs { 0 };
+    uint32_t _picoLoadingDomainReconnects { 0 };
+    bool _picoLoadingAwaitingInitialDomainClear { false };
+    quint64 _picoLoadingDomainConnectedAt { 0 };
+    quint64 _picoLoadingSequenceCompleteAt { 0 };
+    quint64 _picoLoadingSafeLandingCompleteAt { 0 };
+    quint64 _picoLoadingGpuReadyAt { 0 };
+    SafeLanding::LoadingStatus _picoLoadingFinalStatus;
     quint64 _picoLoadingCandidatePhaseSince { 0 };
     float _picoLoadingDisplayedProgress { 0.0f };
     int _picoLoadingDisplayedPhase { -1 };

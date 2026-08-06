@@ -6,12 +6,16 @@ LOCK_SCRIPT="$SCRIPT_DIR/../pico-device-lock.sh"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/pico-device-lock-test.XXXXXX")"
 LOCK_FILE="$TEST_ROOT/device.lock"
 READY_FILE="$TEST_ROOT/holder.ready"
+DAEMON_PID_FILE="$TEST_ROOT/daemon.pid"
 PASSED=0
 FAILED=0
 
 cleanup() {
     if [[ -n "${holder_pid:-}" ]]; then
         wait "$holder_pid" >/dev/null 2>&1 || true
+    fi
+    if [[ -s "$DAEMON_PID_FILE" ]]; then
+        kill "$(<"$DAEMON_PID_FILE")" >/dev/null 2>&1 || true
     fi
     if [[ -d "$TEST_ROOT" && "$(basename -- "$TEST_ROOT")" == pico-device-lock-test.* ]]; then
         rm -rf -- "$TEST_ROOT"
@@ -70,6 +74,17 @@ if [[ ! -e "${LOCK_FILE}.owner" ]] && \
 else
     FAILED=$((FAILED + 1))
     echo 'FAIL release_and_metadata_cleanup' >&2
+fi
+
+PICO_DEVICE_LOCK_FILE="$LOCK_FILE" "$LOCK_SCRIPT" run -- \
+    bash -c 'sleep 10 </dev/null >/dev/null 2>&1 & printf "%s" "$!" >"$1"' bash "$DAEMON_PID_FILE"
+if PICO_DEVICE_LOCK_FILE="$LOCK_FILE" "$LOCK_SCRIPT" status \
+        | grep -Fq 'Pico headset is available'; then
+    PASSED=$((PASSED + 1))
+    echo 'PASS child_daemon_does_not_inherit_lock'
+else
+    FAILED=$((FAILED + 1))
+    echo 'FAIL child_daemon_does_not_inherit_lock' >&2
 fi
 
 printf 'Totals: %s passed, %s failed\n' "$PASSED" "$FAILED"

@@ -77,6 +77,10 @@ void OctreePacketProcessor::processPacket(QSharedPointer<ReceivedMessage> messag
     } // fall through to piggyback message
 
     PacketType packetType = message->getType();
+    if (packetType == PacketType::EntityData || packetType == PacketType::EntityErase) {
+        _entityPacketCount.fetch_add(1, std::memory_order_relaxed);
+        _entityPacketBytes.fetch_add(message->getSize(), std::memory_order_relaxed);
+    }
 
     // check version of piggyback packet against expected version
     if (message->getVersion() != versionForPacketType(message->getType())) {
