@@ -110,15 +110,17 @@ echo "longest-lived active resources (sample span >= 1 s):"
 awk -F, '
 NR == 1 { next }
 {
+    run = $1
     url = $8
-    if (!(url in first)) { first[url] = $3; category[url] = $4 }
-    last[url] = $3
-    count[url]++
+    key = run SUBSEP url
+    if (!(key in first)) { first[key] = $3; category[key] = $4; run_number[key] = run; display_url[key] = url }
+    last[key] = $3
+    count[key]++
 }
 END {
-    for (url in count) {
-        span = last[url] - first[url]
-        if (span >= 1000) printf "%8d ms  samples=%-3d %-8s %s\n", span, count[url], category[url], url
+    for (key in count) {
+        span = last[key] - first[key]
+        if (span >= 1000) printf "run %-2s %8d ms  samples=%-3d %-8s %s\n", run_number[key], span, count[key], category[key], display_url[key]
     }
 }
 ' "$ACTIVE" | sort -rn | head -n 20
