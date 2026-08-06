@@ -4,6 +4,7 @@ This directory contains the measured guidance for optimizing Overte worlds for
 the Pico 4, including work that continues after the loading screen disappears.
 
 - [Pico 4 world optimization guide](pico4-optimization-guide.md)
+- [Serverless Hub A/B result record](serverless-hub-ab-results.md)
 
 Run the measurement from `android/`:
 
