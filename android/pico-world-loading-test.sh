@@ -13,6 +13,7 @@ TARGET="hifi://overte_hub/155.084,-98.5,-397.328"
 EXPECTED_CONNECTED=1
 EXPECTED_PLACE="overte_hub"
 EXPECTED_PLACE_PREFIX=""
+SERVERLESS_MODE=0
 RUNS=5
 TIMEOUT=120
 SETTLE=8
@@ -35,6 +36,7 @@ Measure verified world-entry milestones on a Pico connected through WLAN ADB.
   --expected-connected 0|1  Expected world-status connection flag (default: 1)
   --expected-place NAME    Exact expected place for connected targets
   --expected-place-prefix PREFIX  Prefix accepted for the place field
+  --serverless   Accept local-file loader status (no domain sequence/place)
   --output FILE  CSV output (default: power-results/<timestamp>-world-loading.csv)
 EOF
 }
@@ -50,6 +52,7 @@ while (( $# > 0 )); do
         --expected-connected) EXPECTED_CONNECTED="$2"; shift 2 ;;
         --expected-place) EXPECTED_PLACE="$2"; shift 2 ;;
         --expected-place-prefix) EXPECTED_PLACE_PREFIX="$2"; shift 2 ;;
+        --serverless) SERVERLESS_MODE=1; shift ;;
         --output) OUTPUT="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -226,7 +229,7 @@ for (( run=1; run<=RUNS; ++run )); do
     for value in "$domain" "$world" "$safe" "$gpu" "$physics" "$ready" "$release"; do
         [[ "$value" =~ ^[0-9]+$ ]] || { echo "invalid or missing milestone: $status" >&2; exit 1; }
     done
-    if [[ "$EXPECTED_CONNECTED" == 1 ]]; then
+    if [[ "$SERVERLESS_MODE" == 0 && "$EXPECTED_CONNECTED" == 1 ]]; then
         [[ "$sequence" =~ ^[0-9]+$ ]] || { echo "invalid entity sequence milestone: $status" >&2; exit 1; }
         (( domain <= world && world <= sequence && sequence <= safe && safe <= gpu && gpu <= physics && physics <= ready && ready <= release )) || {
             echo "out-of-order loading milestones: $status" >&2; exit 1;
@@ -239,10 +242,14 @@ for (( run=1; run<=RUNS; ++run )); do
     fi
     world_status="$(adb_shell run-as "$PACKAGE" cat cache/world-status 2>/dev/null | tr -d '\r' || true)"
     IFS='|' read -r _ connected place domain_id _ <<< "$world_status"
-    [[ "$connected" == "$EXPECTED_CONNECTED" ]] || {
+    if [[ "$SERVERLESS_MODE" == 0 && "$connected" != "$EXPECTED_CONNECTED" ]]; then
         echo "telemetry connection flag mismatch: ${world_status:-missing}" >&2; exit 1;
-    }
-    if [[ -n "$EXPECTED_PLACE_PREFIX" ]]; then
+    fi
+    if [[ "$SERVERLESS_MODE" == 1 ]]; then
+        [[ -z "$place" || "${place,,}" == serverless:* ]] || {
+            echo "telemetry place mismatch for serverless target: ${world_status:-missing}" >&2; exit 1;
+        }
+    elif [[ -n "$EXPECTED_PLACE_PREFIX" ]]; then
         [[ "${place,,}" == "${EXPECTED_PLACE_PREFIX,,}"* ]] || {
             echo "telemetry place mismatch: ${world_status:-missing}" >&2; exit 1;
         }
@@ -251,7 +258,7 @@ for (( run=1; run<=RUNS; ++run )); do
             echo "telemetry place mismatch: ${world_status:-missing}" >&2; exit 1;
         }
     fi
-    if [[ "$EXPECTED_CONNECTED" == 1 ]]; then
+    if [[ "$SERVERLESS_MODE" == 0 && "$EXPECTED_CONNECTED" == 1 ]]; then
         [[ -n "$domain_id" ]] || { echo "connected telemetry has no domain id" >&2; exit 1; }
     fi
 
