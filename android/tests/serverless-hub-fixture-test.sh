@@ -8,9 +8,10 @@ OPTIMIZED="$ROOT_DIR/world-copies/overte-hub-pico4-optimized.json"
 SPAWN_OPTIMIZED="$ROOT_DIR/world-copies/overte-hub-pico4-spawn-optimized.json"
 ORIGINAL_SPAWN="$ROOT_DIR/world-copies/overte-hub-original-spawn.json"
 OPTIMIZED_SPAWN="$ROOT_DIR/world-copies/overte-hub-pico4-optimized-spawn.json"
+AGGRESSIVE="$ROOT_DIR/world-copies/overte-hub-pico4-aggressive.json"
 
 command -v jq >/dev/null || { echo "jq is required" >&2; exit 2; }
-for file in "$ORIGINAL" "$OPTIMIZED" "$SPAWN_OPTIMIZED" "$ORIGINAL_SPAWN" "$OPTIMIZED_SPAWN"; do
+for file in "$ORIGINAL" "$OPTIMIZED" "$SPAWN_OPTIMIZED" "$ORIGINAL_SPAWN" "$OPTIMIZED_SPAWN" "$AGGRESSIVE"; do
     jq -e 'type == "object" and .DataVersion == 3 and (.Entities | type == "array") and (.Paths["/"] | type == "string")' "$file" >/dev/null
 done
 
@@ -31,10 +32,13 @@ removed_scripts="$(jq '[.Entities[] | select((.script // "") | test("sitClient\\
 spawn_remaining_bad="$(jq '[.Entities[] | select((.script // "") | test("sitClient\\.js|script_server_crasher_client_console"; "i"))] | length' "$SPAWN_OPTIMIZED")"
 [[ "$spawn_remaining_bad" -lt "$removed_scripts" ]] || { echo "spawn optimized fixture did not reduce measured startup scripts" >&2; exit 1; }
 
+aggressive_waves="$(jq '[.Entities[] | select((.modelURL // "") | test("waves3600"; "i"))] | length' "$AGGRESSIVE")"
+[[ "$aggressive_waves" == 0 ]] || { echo "aggressive fixture still contains waves3600" >&2; exit 1; }
+
 spawn_original_count="$(jq '.Entities | length' "$ORIGINAL_SPAWN")"
 spawn_optimized_count="$(jq '.Entities | length' "$OPTIMIZED_SPAWN")"
 [[ "$spawn_original_count" == "$original_count" && "$spawn_optimized_count" == "$optimized_count" ]] || {
     echo "spawn fixture entity counts diverged" >&2; exit 1;
 }
 
-echo "PASS serverless fixture schema/entities/scripts (entities=$original_count removed_scripts=$removed_scripts)"
+echo "PASS serverless fixture schema/entities/scripts (entities=$original_count removed_scripts=$removed_scripts aggressive_waves=$aggressive_waves)"
