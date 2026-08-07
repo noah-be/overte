@@ -16,8 +16,8 @@ usage() {
     cat <<'EOF'
 Usage: ./tests/check-phone-elf-alignment.sh <apk-or-directory>
 
-Checks every packaged or staged .so file and fails if any ELF LOAD segment has
-an alignment below 0x4000 (16 KiB). The input is never modified.
+Checks every packaged or staged .so/.so.* file and fails if any ELF LOAD
+segment has an alignment below 0x4000 (16 KiB). The input is never modified.
 EOF
 }
 
@@ -51,6 +51,11 @@ else
     exit 2
 fi
 
+scan_root_canonical=$(realpath -e -- "$scan_root") || {
+    echo "ERROR: could not resolve scan root: $scan_root" >&2
+    exit 2
+}
+
 readelf_tool=""
 for candidate in llvm-readelf readelf; do
     if command -v "$candidate" >/dev/null 2>&1; then
@@ -77,7 +82,23 @@ inspection_error_count=0
 while IFS= read -r -d '' library; do
     ((library_count += 1))
     display_path=${library#"$scan_root"/}
-    program_headers=$($readelf_tool -lW -- "$library" 2>&1)
+    inspected_library=$library
+    if [[ -L "$library" ]]; then
+        inspected_library=$(realpath -e -- "$library") || {
+            echo "ERROR  $display_path: shared-library symlink has no existing target" >&2
+            ((inspection_error_count += 1))
+            continue
+        }
+        case "$inspected_library" in
+            "$scan_root_canonical"/*) ;;
+            *)
+                echo "ERROR  $display_path: shared-library symlink escapes the package directory" >&2
+                ((inspection_error_count += 1))
+                continue
+                ;;
+        esac
+    fi
+    program_headers=$($readelf_tool -lW -- "$inspected_library" 2>&1)
     readelf_status=$?
     if (( readelf_status != 0 )); then
         echo "ERROR  $display_path: readelf failed" >&2
@@ -116,10 +137,12 @@ while IFS= read -r -d '' library; do
     elif (( library_failed == 0 )); then
         printf 'PASS   %s (%d LOAD segments)\n' "$display_path" "$library_segments"
     fi
-done < <(find "$scan_root" -type f -name '*.so' -print0 | sort -z)
+done < <(find "$scan_root" \( -type f -o -type l \) \
+    \( -name '*.so' -o -name '*.so.*' \) \
+    -print0 | sort -z)
 
 if (( library_count == 0 )); then
-    echo "ERROR: no .so files found below $input_path" >&2
+    echo "ERROR: no .so or .so.* files found below $input_path" >&2
     exit 2
 fi
 

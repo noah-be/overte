@@ -349,6 +349,18 @@ void Application::keyPressEvent(QKeyEvent* event) {
         _keysPressed.insert(event->key(), *event);
     }
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (event->key() == Qt::Key_Back) {
+        if (_phoneBackKeyConsumed ||
+                (!event->isAutoRepeat() && DependencyManager::get<DialogsManager>()->closePhoneDialog())) {
+            _phoneBackKeyConsumed = true;
+            _keysPressed.remove(event->key());
+            event->accept();
+            return;
+        }
+    }
+#endif
+
     _controllerScriptingInterface->emitKeyPressEvent(event); // send events to any registered scripts
     // if one of our scripts have asked to capture this event, then stop processing it
     if (_controllerScriptingInterface->isKeyCaptured(event) || isInterstitialMode()) {
@@ -580,6 +592,14 @@ void Application::keyReleaseEvent(QKeyEvent* event) {
 #if defined(Q_OS_ANDROID)
     if (event->key() == Qt::Key_Back) {
         event->accept();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        if (_phoneBackKeyConsumed) {
+            // The matching press already closed phone UI. _keysPressed was
+            // cleared above; do not leak either half of this key to scripts.
+            _phoneBackKeyConsumed = false;
+            return;
+        }
+#endif
         AndroidHelper::instance().requestActivity("Home", false);
     }
 #endif
@@ -611,6 +631,12 @@ void Application::focusOutEvent(QFocusEvent* event) {
 #endif
 
     synthesizeKeyReleasEvents();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // A focus transition can prevent Android from delivering the physical
+    // release paired with a consumed Back press. Do not carry that state into
+    // the next foreground session.
+    _phoneBackKeyConsumed = false;
+#endif
 }
 
 void Application::synthesizeKeyReleasEvents() {

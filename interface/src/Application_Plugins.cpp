@@ -473,6 +473,15 @@ void Application::setDisplayPlugin(DisplayPluginPointer newDisplayPlugin) {
             RefreshRateManager::UXMode::DESKTOP;
 
         refreshRateManager.setUXMode(uxMode);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        // The present-thread operator is installed only when the display
+        // plugin activates. Re-apply the previously selected custom profile
+        // now so the 30 Hz phone target becomes an active frame-pacing limit,
+        // including when UX mode was already DESKTOP and did not change.
+        refreshRateManager.updateRefreshRateController();
+        qCInfo(interfaceapp) << "PHONE_FRAME_PACING"
+                             << "targetFps" << refreshRateManager.getActiveRefreshRate();
+#endif
     }
 
     bool isHmd = _displayPlugin->isHmd();

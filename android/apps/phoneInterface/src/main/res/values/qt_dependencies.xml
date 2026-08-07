@@ -7,7 +7,6 @@
         <item>libplugins_imageformats_qjpeg_arm64-v8a.so:plugins/imageformats/libqjpeg.so</item>
         <item>libplugins_imageformats_qsvg_arm64-v8a.so:plugins/imageformats/libqsvg.so</item>
         <item>libplugins_audio_qtaudio_opensles_arm64-v8a.so:plugins/audio/libqtaudio_opensles.so</item>
-        <item>libQt5QuickParticles_arm64-v8a.so:lib/libQt5QuickParticles.so</item>
         <item>libqml_Qt_labs_settings_qmlsettingsplugin_arm64-v8a.so:qml/Qt/labs/settings/libqmlsettingsplugin.so</item>
         <item>libqml_QtQml_qmlplugin_arm64-v8a.so:qml/QtQml/libqmlplugin.so</item>
         <item>libqml_QtQml_Models.2_modelsplugin_arm64-v8a.so:qml/QtQml/Models.2/libmodelsplugin.so</item>

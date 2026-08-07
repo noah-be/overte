@@ -28,13 +28,14 @@ public:
     }
     void requestActivity(const QString &activityName, const bool backToScene, QMap<QString, QString> args = QMap<QString, QString>());
     void notifyLoadComplete();
+    bool isLoadComplete() const { return _loadComplete; }
     void notifyEnterForeground();
     void notifyBeforeEnterBackground();
     void notifyEnterBackground();
     void notifyToggleAwayMode();
 
     void performHapticFeedback(int duration);
-    void processURL(const QString &url);
+    bool processURL(const QString &url);
     void notifyHeadsetOn(bool pluggedIn);
     void muteMic();
 
@@ -67,6 +68,7 @@ private:
     ~AndroidHelper();
 
     QString errorStringFromAPIObject(const QJsonValue& apiObject);
+    bool _loadComplete { false };
 };
 
 #endif

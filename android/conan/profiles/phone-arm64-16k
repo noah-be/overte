@@ -1,0 +1,33 @@
+{% set android_sdk = os.getenv("ANDROID_SDK_ROOT") or os.getenv("ANDROID_HOME") or os.path.expanduser("~/Android/Sdk") %}
+{% set android_ndk = os.getenv("ANDROID_NDK_HOME") or os.path.join(android_sdk, "ndk", "27.3.13750724") %}
+
+[settings]
+os=Android
+os.api_level=26
+arch=armv8
+compiler=clang
+compiler.version=18
+compiler.libcxx=c++_shared
+compiler.cppstd=gnu20
+build_type=Debug
+webrtc-audio-processing/*:build_type=Release
+
+[options]
+qt*:android_sdk={{ android_sdk }}
+qt*:config=QMAKE_CXXFLAGS+=-D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION QMAKE_CXXFLAGS+=-Wno-enum-constexpr-conversion QMAKE_CXXFLAGS+=-Wno-c++11-narrowing-const-reference
+qt*:opengl=es2
+qt*:qtwebengine=False
+qt*:with_mysql=False
+qt*:with_odbc=False
+qt*:with_openal=False
+qt*:with_pq=False
+hwloc/*:shared=True
+
+[conf]
+tools.android:ndk_path={{ android_ndk }}
+tools.cmake.cmaketoolchain:generator=Ninja
+tools.build:jobs=16
+tools.build:cflags=["-D__BIONIC_NO_PAGE_SIZE_MACRO"]
+tools.build:cxxflags=["-D__BIONIC_NO_PAGE_SIZE_MACRO"]
+tools.build:sharedlinkflags=["-Wl,-z,max-page-size=16384", "-Wl,-z,common-page-size=16384"]
+tools.build:exelinkflags=["-Wl,-z,max-page-size=16384", "-Wl,-z,common-page-size=16384"]

@@ -12,6 +12,8 @@
 
 #include "DialogsManager.h"
 
+#include <QGuiApplication>
+#include <QInputMethod>
 #include <QMessageBox>
 
 #include <AccountManager.h>
@@ -48,6 +50,11 @@ void DialogsManager::maybeCreateDialog(QPointer<T>& member) {
 }
 
 void DialogsManager::showAddressBar() {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    AddressBarDialog::show();
+    setAddressBarVisible(true);
+    return;
+#else
     auto hmd = DependencyManager::get<HMDScriptingInterface>();
     auto tabletScriptingInterface = DependencyManager::get<TabletScriptingInterface>();
     auto tablet = dynamic_cast<TabletProxy*>(tabletScriptingInterface->getTablet("com.highfidelity.interface.tablet.system"));
@@ -60,9 +67,16 @@ void DialogsManager::showAddressBar() {
     }
     qApp->setKeyboardFocusEntity(hmd->getCurrentTabletScreenID());
     setAddressBarVisible(true);
+#endif
 }
 
 void DialogsManager::hideAddressBar() {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    AddressBarDialog::hide();
+    qApp->setKeyboardFocusEntity(UNKNOWN_ENTITY_ID);
+    setAddressBarVisible(false);
+    return;
+#else
     auto hmd = DependencyManager::get<HMDScriptingInterface>();
     auto tabletScriptingInterface = DependencyManager::get<TabletScriptingInterface>();
     auto tablet = dynamic_cast<TabletProxy*>(tabletScriptingInterface->getTablet("com.highfidelity.interface.tablet.system"));
@@ -73,6 +87,7 @@ void DialogsManager::hideAddressBar() {
     }
     qApp->setKeyboardFocusEntity(UNKNOWN_ENTITY_ID);
     setAddressBarVisible(false);
+#endif
 }
 
 void DialogsManager::showFeed() {
@@ -142,13 +157,33 @@ void DialogsManager::showLoginDialog() {
 }
 
 void DialogsManager::hideLoginDialog() {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    LoginDialog::hidePhoneDialog();
+#else
     LoginDialog::hide();
+#endif
 }
 
 
 void DialogsManager::showDomainLoginDialog(const QString& domain) {
     setDomainLogin(true, domain);
     LoginDialog::showWithSelection();
+}
+
+bool DialogsManager::closePhoneDialog() {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    auto offscreenUi = DependencyManager::get<OffscreenUi>();
+    if (offscreenUi && offscreenUi->isVisible("LoginDialog")) {
+        QGuiApplication::inputMethod()->hide();
+        LoginDialog::hidePhoneDialog();
+        return true;
+    }
+    if (offscreenUi && offscreenUi->isVisible("AddressBarDialog")) {
+        hideAddressBar();
+        return true;
+    }
+#endif
+    return false;
 }
 
 // #######: TODO: Domain version of toggleLoginDialog()?

@@ -50,7 +50,12 @@ if(ANDROID)
 
     # Several legacy Android target macros skip find_package() but still link
     # the corresponding imported target. Load all resolved Conan targets once.
-    include(
-        "${CMAKE_CURRENT_LIST_DIR}/conan/pico4-debug/generators/conandeps_legacy.cmake"
-    )
+    if(HIFI_ANDROID_CONAN_GENERATORS)
+        set(_android_conan_generators "${HIFI_ANDROID_CONAN_GENERATORS}")
+    else()
+        set(_android_conan_generators
+            "${CMAKE_CURRENT_LIST_DIR}/conan/pico4-debug/generators")
+    endif()
+    include("${_android_conan_generators}/conandeps_legacy.cmake")
+    unset(_android_conan_generators)
 endif()

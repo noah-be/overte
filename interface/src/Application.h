@@ -856,6 +856,11 @@ private:
 
     // Events
     QHash<int, QKeyEvent> _keysPressed;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Tracks a Back press consumed by phone screen-space UI so the matching
+    // release is not exposed to scripts or treated as an app-backgrounding key.
+    bool _phoneBackKeyConsumed { false };
+#endif
     TouchEvent _lastTouchEvent;
     quint64 _lastAcceptedKeyPress { 0 };
 

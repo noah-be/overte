@@ -258,6 +258,13 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     const int listenPort = parser.isSet("listenPort") ? parser.value("listenPort").toInt() : INVALID_PORT;
 
     bool suppressPrompt = parser.isSet("suppress-settings-reset");
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // The crash recovery UI is a native desktop QDialog which is neither
+    // sized nor styled for the Android activity. Keep the crash marker result
+    // (checkForResetSettings returns it when prompts are suppressed), but do
+    // not interrupt phone startup with desktop settings/reset controls.
+    suppressPrompt = true;
+#endif
 
     // set the OCULUS_STORE property so the oculus plugin can know if we ran from the Oculus Store
     qApp->setProperty(hifi::properties::OCULUS_STORE, parser.isSet("oculus-store"));
@@ -270,8 +277,17 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
 
     bool previousSessionCrashed { false };
     if (!inTestMode) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        // CrashRecoveryHandler presents a desktop QWidget dialog before the
+        // Android surface has reached its final size. Besides being unusable
+        // on a phone, that modal dialog can freeze the canvas at the small
+        // pre-rotation geometry. Preserve the crash state for diagnostics,
+        // but leave recovery to Android's normal app lifecycle.
+        previousSessionCrashed = runningMarkerExisted;
+#else
         // TODO: FIX
         previousSessionCrashed = CrashRecoveryHandler::checkForResetSettings(runningMarkerExisted, suppressPrompt);
+#endif
     }
 
     // get dir to use for cache
@@ -564,6 +580,12 @@ void Application::initialize(const QCommandLineParser &parser) {
             _useSystemCursor = true;
         }
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        // ResourceCacheSharedItems defaults to the desktop request count. Set
+        // the phone baseline explicitly; --concurrent-downloads below remains
+        // the intentional escape hatch for profiling and troubleshooting.
+        ResourceCache::setRequestLimit(MAX_CONCURRENT_RESOURCE_DOWNLOADS);
+#endif
         if (parser.isSet("concurrent-downloads")) {
             bool success;
             uint32_t concurrentDownloads = parser.value("concurrent-downloads").toUInt(&success);
@@ -603,7 +625,10 @@ void Application::initialize(const QCommandLineParser &parser) {
             _overrideDefaultScriptsLocation = false;
         }
 
-        // If launched from Steam, let it handle updates
+        // If launched from Steam, let it handle updates. Android packages are
+        // updated by their installer/store and must not launch the desktop
+        // updater UI during startup.
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
         bool buildCanUpdate = BuildInfo::BUILD_TYPE == BuildInfo::BuildType::Stable
             || BuildInfo::BUILD_TYPE == BuildInfo::BuildType::Nightly;
         if (!parser.isSet("no-updater") && buildCanUpdate) {
@@ -620,6 +645,7 @@ void Application::initialize(const QCommandLineParser &parser) {
             connect(applicationUpdater.data(), &AutoUpdater::newVersionIsAvailable, dialogsManager.data(), &DialogsManager::showUpdateDialog);
             applicationUpdater->checkForUpdate();
         }
+#endif
 
         // setup the stats interval depending on if the 1s faster hearbeat was requested
         if (parser.isSet("fast-heartbeat")) {
@@ -795,11 +821,8 @@ void Application::initialize(const QCommandLineParser &parser) {
 #endif
 
 #if defined(ANDROID_APP_PHONE_INTERFACE)
-    // Android may still report the pre-rotation portrait geometry while Qt is
-    // creating its top-level widget. Restoring desktop window geometry here
-    // can therefore leave the GL canvas at that small initial size until the
-    // display plugin is activated. A modal startup dialog makes the mismatch
-    // especially visible. Let Android own the window bounds from the outset.
+    // Do not restore desktop window geometry on Android. The Activity owns
+    // the fullscreen landscape bounds.
     _window->showFullScreen();
 #else
     _window->restoreGeometry();

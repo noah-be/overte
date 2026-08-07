@@ -4,10 +4,13 @@
 
 #include <jni.h>
 
+#include <utility>
+
 #include <QCoreApplication>
 #include <QMetaObject>
+#include <QObject>
+#include <QPointer>
 #include <QString>
-#include <QThread>
 
 #include "AndroidHelper.h"
 
@@ -32,24 +35,66 @@ QString fromJavaString(JNIEnv* env, jstring value) {
     return result;
 }
 
+// One application-owned delivery object preserves "latest pending URL" while
+// native startup is incomplete. AndroidHelper's load-complete notification is
+// emitted only after Application has installed its Android connections and
+// startup services, making it a stronger boundary than dependency existence.
+class PendingUrlDelivery final : public QObject {
+public:
+    explicit PendingUrlDelivery(QCoreApplication* application) : QObject(application) {
+        auto& helper = AndroidHelper::instance();
+        connect(&helper, &AndroidHelper::qtAppLoadComplete,
+                this, [this]() { deliverIfReady(); });
+    }
+
+    void submit(QString url) {
+        _url = std::move(url);
+        deliverIfReady();
+    }
+
+private:
+    void deliverIfReady() {
+        if (_url.isEmpty() || !AndroidHelper::instance().isLoadComplete()) {
+            return;
+        }
+        const QString url = std::move(_url);
+        _url.clear();
+        // Keep the established Application canAcceptURL/acceptURL policy as
+        // the sole navigation boundary. Supported phone links have already
+        // been normalized to the native hifi scheme by Java.
+        AndroidHelper::instance().processURL(url);
+    }
+
+    QString _url;
+};
+
+PendingUrlDelivery* urlDelivery(QCoreApplication* application) {
+    static QPointer<PendingUrlDelivery> delivery;
+    if (!delivery) {
+        delivery = new PendingUrlDelivery(application);
+    }
+    return delivery;
+}
+
 } // namespace
 
-extern "C" JNIEXPORT void JNICALL
+extern "C" JNIEXPORT jboolean JNICALL
 Java_org_overte_phone_PhoneInterfaceActivity_nativeProcessUrl(
-        JNIEnv* env, jobject /* activity */, jstring value) {
+        JNIEnv* env, jclass /* activityClass */, jstring value) {
     const QString url = fromJavaString(env, value).trimmed();
-    if (url.isEmpty() || !QCoreApplication::instance()) {
-        return;
+    auto* application = QCoreApplication::instance();
+    if (url.isEmpty() || !application) {
+        return JNI_FALSE;
     }
 
-    auto& androidHelper = AndroidHelper::instance();
-    if (QThread::currentThread() == androidHelper.thread()) {
-        androidHelper.processURL(url);
-        return;
-    }
-
-    QMetaObject::invokeMethod(
-        &androidHelper,
-        [url]() { AndroidHelper::instance().processURL(url); },
+    // Transfer ownership to Qt instead of blocking Android's UI thread during
+    // native startup. The native owner retains only the latest pending URL and
+    // waits for Application's established load-complete boundary.
+    const bool ownedByNative = QMetaObject::invokeMethod(
+        application,
+        [application, url]() {
+            urlDelivery(application)->submit(url);
+        },
         Qt::QueuedConnection);
+    return ownedByNative ? JNI_TRUE : JNI_FALSE;
 }

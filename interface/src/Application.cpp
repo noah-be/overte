@@ -1346,14 +1346,52 @@ void Application::loadSettings(const QCommandLineParser& parser) {
 
 #if defined(ANDROID_APP_PHONE_INTERFACE)
     // Phones are passively cooled and share system/GPU memory. Prefer a
-    // predictable 30 FPS-oriented baseline; users can raise quality after
-    // device-specific testing without making first launch thermally unsafe.
+    // predictable MVP baseline. Apply it after the performance preset so a
+    // first-run preset cannot immediately restore the desktop values.
+    constexpr float PHONE_VIEWPORT_RESOLUTION_SCALE { 0.5f };
+    constexpr int PHONE_TARGET_FPS { 30 };
     renderSettings->setRenderMethod(RenderScriptingInterface::RenderMethod::FORWARD);
     renderSettings->setAntialiasingMode(AntialiasingSetupConfig::Mode::NONE);
+    renderSettings->setHazeEnabled(false);
+    renderSettings->setLocalLightingEnabled(false);
+    renderSettings->setProceduralMaterialsEnabled(false);
+    renderSettings->setViewportResolutionScale(PHONE_VIEWPORT_RESOLUTION_SCALE);
+
+    auto& phoneRefreshRateManager = getRefreshRateManager();
+    phoneRefreshRateManager.setCustomRefreshRate(RefreshRateManager::RefreshRateRegime::FOCUS_ACTIVE, PHONE_TARGET_FPS);
+    phoneRefreshRateManager.setCustomRefreshRate(RefreshRateManager::RefreshRateRegime::FOCUS_INACTIVE, PHONE_TARGET_FPS);
+    phoneRefreshRateManager.setCustomRefreshRate(RefreshRateManager::RefreshRateRegime::STARTUP, PHONE_TARGET_FPS);
+    phoneRefreshRateManager.setRefreshRateProfile(RefreshRateManager::RefreshRateProfile::CUSTOM);
+
+    int disabledMirrorViews { 0 };
+    auto renderConfig = qApp->getRenderEngine()->getConfiguration();
+    const QStringList viewNames { "RenderMainView", "RenderSecondView" };
+    for (const auto& viewName : viewNames) {
+        constexpr size_t MIRROR_VIEWS_PER_LEVEL { 3 };
+        for (size_t mirrorIndex = 0; mirrorIndex < MIRROR_VIEWS_PER_LEVEL; ++mirrorIndex) {
+            const QString mirrorName = viewName + ".RenderMirrorView" +
+                QString::number(mirrorIndex) + "Depth0";
+            if (auto mirrorConfig = renderConfig->getConfig(mirrorName)) {
+                if (mirrorConfig->setProperty("enabled", false)) {
+                    ++disabledMirrorViews;
+                }
+            }
+        }
+    }
     qCInfo(interfaceapp) << "PHONE_GRAPHICS_PROFILE"
-                         << "forward" << true
-                         << "antialiasing" << false
-                         << "worldDetail" << WORLD_DETAIL_LOW;
+                         << "targetFps" << PHONE_TARGET_FPS
+                         << "renderScale" << renderSettings->getViewportResolutionScale()
+                         << "forward" << (renderSettings->getRenderMethod() == RenderScriptingInterface::RenderMethod::FORWARD)
+                         << "antialiasing" << (renderSettings->getAntialiasingMode() != AntialiasingSetupConfig::Mode::NONE)
+                         << "shadows" << renderSettings->getShadowsEnabled()
+                         << "haze" << renderSettings->getHazeEnabled()
+                         << "bloom" << renderSettings->getBloomEnabled()
+                         << "ambientOcclusion" << renderSettings->getAmbientOcclusionEnabled()
+                         << "localLights" << renderSettings->getLocalLightingEnabled()
+                         << "proceduralMaterials" << renderSettings->getProceduralMaterialsEnabled()
+                         << "disabledMirrorViews" << disabledMirrorViews
+                         << "worldDetail" << WORLD_DETAIL_LOW
+                         << "downloadLimit" << ResourceCache::getRequestLimit();
 #endif
 
 #if defined(ANDROID_APP_PICO_INTERFACE)
@@ -1440,7 +1478,13 @@ void Application::loadSettings(const QCommandLineParser& parser) {
     // dictated that we should be in first person
     Menu::getInstance()->setIsOptionChecked(MenuOption::FirstPersonLookAt, isFirstPerson);
     Menu::getInstance()->setIsOptionChecked(MenuOption::ThirdPerson, !isFirstPerson);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // The native desktop menu bar is neither reachable nor appropriate in
+    // Android's fullscreen activity. Phone controls live in the touch UI.
+    Menu::getInstance()->setVisible(false);
+#else
     Menu::getInstance()->setVisible(_menuBarVisible.get());
+#endif
     _myCamera.setMode((isFirstPerson) ? CAMERA_MODE_FIRST_PERSON_LOOK_AT : CAMERA_MODE_LOOK_AT);
     cameraMenuChanged();
 
@@ -2150,9 +2194,18 @@ void Application::idle() {
         std::call_once(once, [this] {
             const QString& bookmarksError = DependencyManager::get<AvatarBookmarks>()->getBookmarkError();
             if (!bookmarksError.isEmpty()) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+                qWarning() << "Avatar bookmarks JSON parse error:" << bookmarksError;
+#else
                 OffscreenUi::asyncWarning("Avatar Bookmarks Error", "JSON parse error: " + bookmarksError, QMessageBox::Ok, QMessageBox::Ok);
+#endif
             }
 
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
+            // Desktop GPU drivers can be replaced or rolled back by the user,
+            // so the blocklist warning is actionable there. Android GPU
+            // drivers are delivered with the OS and the desktop warning is
+            // misleading (and poorly sized) in the phone activity.
             QString os = platform::getComputer()[platform::keys::computer::OS].dump().c_str();
             os = os.replace("\"", "");
             GPUIdent* gpuIdent = GPUIdent::getInstance();
@@ -2170,6 +2223,7 @@ void Application::idle() {
                 auto onFinished = std::bind(&Application::processDriverBlocklistReply, this, fullDriverToTest, os, vendor, renderer, api, driver.replace(" ", "."));
                 connect(reply, &QNetworkReply::finished, this, onFinished);
             }
+#endif
         });
     }
 }

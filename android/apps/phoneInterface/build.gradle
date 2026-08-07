@@ -2,8 +2,35 @@ plugins {
     id 'com.android.application'
 }
 
-def androidConanDir = file('../../conan/pico4-debug')
-def qtConanData = new File(androidConanDir, 'generators/Qt5-debug-armv8-data.cmake')
+def legacyConanDir = file('../../conan/pico4-debug')
+def phoneQtConanDir = file('../../conan/phone-16k-debug')
+def phoneNonQtConanDir = file('../../conan/phone-nonqt-16k-debug')
+def phone16kReadySentinel = new File(phoneNonQtConanDir,
+    '.phone-16k-dependencies.ready')
+def phoneConanGeneratorsDir = layout.buildDirectory.dir('generated/phone16kConanGenerators')
+def phoneQtConanData = new File(phoneQtConanDir,
+    'generators/Qt5-debug-armv8-data.cmake')
+// Generator files can survive an interrupted Conan rebuild. Only the atomic
+// sentinel written after checking every relevant package enables this graph.
+def usePhone16kDependencies = phone16kReadySentinel.isFile()
+def allowLegacy4kDependencies = System.getenv('PHONE_ALLOW_LEGACY_4K_DEPS') == '1'
+if (!usePhone16kDependencies && !allowLegacy4kDependencies) {
+    throw new GradleException(
+        'Phone builds require verified 16 KiB dependencies. Run ' +
+        './finalize-phone-16k-deps.sh after both dependency builds finish. ' +
+        'For temporary local migration work only, set ' +
+        'PHONE_ALLOW_LEGACY_4K_DEPS=1.')
+}
+def usePhone16kQt = usePhone16kDependencies
+def androidConanDir = usePhone16kDependencies
+    ? file(phoneConanGeneratorsDir.get().asFile)
+    : legacyConanDir
+def androidConanGeneratorsDir = usePhone16kDependencies
+    ? androidConanDir
+    : new File(androidConanDir, 'generators')
+def qtConanData = usePhone16kDependencies
+    ? phoneQtConanData
+    : new File(legacyConanDir, 'generators/Qt5-debug-armv8-data.cmake')
 if (!qtConanData.isFile()) {
     throw new GradleException(
         "Android dependencies are missing. Run ./build-phone.sh setup --download first.")
@@ -15,17 +42,158 @@ if (!qtPackageMatch.find()) {
 def qtPackageDir = file(qtPackageMatch.group(1))
 def phoneQtRuntimeDir = layout.buildDirectory.dir('generated/phoneQtRuntime')
 def runtimeOverrides = file('../picoInterface/src/main/runtime-overrides/arm64-v8a')
-def androidOpenSslDir = new File(androidConanDir, 'conanlibs/Debug')
+def phoneElfAlignmentCheck = file('../../tests/check-phone-elf-alignment.sh')
+def phone16kDependencyCheck = file('../../tests/verify-phone-16k-dependencies.sh')
+def phone16kApkCheck = file('../../tests/check-phone-apk-16k.sh')
+def androidOpenSslDir = new File(
+    usePhone16kDependencies ? phoneNonQtConanDir : legacyConanDir,
+    'conanlibs/Debug')
 
-tasks.register('preparePhoneQtRuntime', Copy) {
+// Release credentials are deliberately optional and never have repository
+// defaults. CI can provide them as environment variables; developers can use
+// the same names in ~/.gradle/gradle.properties (outside this checkout).
+def releaseCredential = { String name ->
+    def gradleValue = providers.gradleProperty(name).orNull
+    gradleValue != null ? gradleValue : providers.environmentVariable(name).orNull
+}
+def releaseCredentials = [
+    storeFile: releaseCredential('OVERTE_ANDROID_KEYSTORE'),
+    storePassword: releaseCredential('OVERTE_ANDROID_KEYSTORE_PASSWORD'),
+    keyAlias: releaseCredential('OVERTE_ANDROID_KEY_ALIAS'),
+    keyPassword: releaseCredential('OVERTE_ANDROID_KEY_PASSWORD')
+]
+def suppliedReleaseCredentials = releaseCredentials.findAll { key, value ->
+    value != null && !value.trim().isEmpty()
+}
+if (!suppliedReleaseCredentials.isEmpty() &&
+        suppliedReleaseCredentials.size() != releaseCredentials.size()) {
+    throw new GradleException(
+        'Android release signing is only enabled when all four ' +
+        'OVERTE_ANDROID_KEYSTORE* / OVERTE_ANDROID_KEY_ALIAS values are set.')
+}
+def hasReleaseSigning = suppliedReleaseCredentials.size() == releaseCredentials.size()
+if (hasReleaseSigning && !file(releaseCredentials.storeFile).isFile()) {
+    throw new GradleException('The configured Android upload keystore does not exist.')
+}
+
+def requirePhoneReleaseVersionCode = tasks.register('requirePhoneReleaseVersionCode') {
+    doLast {
+        def versionCodeProperty = providers.gradleProperty('VERSION_CODE').orNull
+        if (versionCodeProperty == null || !(versionCodeProperty ==~ /[1-9][0-9]*/)) {
+            throw new GradleException(
+                'Release builds require an explicit positive integer VERSION_CODE. ' +
+                'It must be greater than the latest code uploaded to Play.')
+        }
+        if (new BigInteger(versionCodeProperty) >
+                BigInteger.valueOf(Integer.MAX_VALUE)) {
+            throw new GradleException(
+                "VERSION_CODE must not exceed ${Integer.MAX_VALUE}.")
+        }
+    }
+}
+
+// Conan's aggregate Qt target exposes every library built by the Qt package to
+// the Android Gradle plugin, including optional modules that the phone client
+// never loads. Keep this list deliberately narrow: Qt5Test/Qt5QuickTest are
+// currently DT_NEEDED by the native client, and Qt5PositioningQuick is needed
+// by Qt5Location, so those cannot be removed at packaging time.
+def unusedPhoneQtRuntimeLibraries = [
+    'libQt5Contacts_arm64-v8a.so',
+    'libQt5DocGallery_arm64-v8a.so',
+    'libQt5Feedback_arm64-v8a.so',
+    'libQt5Organizer_arm64-v8a.so',
+    'libQt5QuickParticles_arm64-v8a.so',
+    'libQt5Versit_arm64-v8a.so',
+    'libQt5VersitOrganizer_arm64-v8a.so'
+]
+
+// Conan's non-Qt install intentionally resolves against the legacy Qt package.
+// Start with the rebuilt Qt graph and replace only the four rebuilt non-Qt
+// package configurations. This prevents its old Qt generator from leaking back
+// into the phone native build.
+tasks.register('preparePhoneConanGenerators') {
+    onlyIf { usePhone16kDependencies }
+    dependsOn tasks.named('verifyPhone16kDependencies')
+    inputs.file(phone16kReadySentinel)
+    inputs.dir(new File(phoneQtConanDir, 'generators'))
+    inputs.dir(new File(phoneNonQtConanDir, 'generators'))
+    outputs.dir(phoneConanGeneratorsDir)
+    doLast {
+        def destination = phoneConanGeneratorsDir.get().asFile
+        delete destination
+        copy {
+            from new File(phoneQtConanDir, 'generators')
+            into destination
+        }
+        copy {
+            from new File(phoneNonQtConanDir, 'generators')
+            into destination
+            include 'OpenSSL*', 'module-OpenSSL*', 'FindOpenSSL.cmake'
+            include 'TBB*'
+            include 'libnode*'
+            include 'webrtc-audio-processing*'
+            duplicatesStrategy DuplicatesStrategy.INCLUDE
+        }
+    }
+}
+
+tasks.register('verifyPhone16kDependencies') {
+    onlyIf { usePhone16kDependencies }
+    // The sentinel authenticates the complete dependency graph at the time it
+    // is written. Always re-read and validate it immediately before staging;
+    // neither Gradle's task history nor a remote/local build cache may replace
+    // this check after package files have changed outside the build directory.
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+    inputs.file(phone16kReadySentinel)
+    inputs.dir(new File(phoneQtConanDir, 'generators'))
+    inputs.dir(new File(phoneNonQtConanDir, 'generators'))
+    doLast {
+        exec {
+            commandLine phone16kDependencyCheck.absolutePath,
+                phoneQtConanDir.absolutePath,
+                phoneNonQtConanDir.absolutePath,
+                phone16kReadySentinel.absolutePath
+        }
+    }
+}
+
+tasks.register('requirePhone16kReleaseDependencies') {
+    inputs.file(phone16kReadySentinel).optional()
+    inputs.dir(new File(phoneQtConanDir, 'generators')).optional()
+    inputs.dir(new File(phoneNonQtConanDir, 'generators')).optional()
+    doLast {
+        if (!phone16kReadySentinel.isFile()) {
+            throw new GradleException(
+                'Release builds require verified 16 KiB phone dependencies. ' +
+                'Run ./prepare-phone-16k-conan-deps.sh first.')
+        }
+        exec {
+            commandLine phone16kDependencyCheck.absolutePath,
+                phoneQtConanDir.absolutePath,
+                phoneNonQtConanDir.absolutePath,
+                phone16kReadySentinel.absolutePath
+        }
+    }
+}
+
+tasks.register('preparePhoneQtRuntime', Sync) {
+    dependsOn tasks.named('verifyPhone16kDependencies')
     into phoneQtRuntimeDir.map { it.dir('arm64-v8a') }
+    // Qt5Location has a direct DT_NEEDED edge to PositioningQuick. Stage it
+    // explicitly from the verified Qt package; Sync also removes stale runtime
+    // files left behind by older Pico/legacy staging rules.
+    from(new File(qtPackageDir, 'lib')) {
+        include 'libQt5PositioningQuick_arm64-v8a.so'
+    }
     from(new File(qtPackageDir, 'plugins/platforms')) {
         include 'libplugins_platforms_qtforandroid_arm64-v8a.so'
-        exclude { new File(runtimeOverrides,
+        exclude { !usePhone16kQt && new File(runtimeOverrides,
             'libplugins_platforms_qtforandroid_arm64-v8a.so').exists() }
     }
     from(runtimeOverrides) {
         include 'libplugins_platforms_qtforandroid_arm64-v8a.so'
+        exclude { usePhone16kQt }
     }
     from(new File(qtPackageDir, 'plugins/bearer')) {
         include 'libplugins_bearer_qandroidbearer_arm64-v8a.so'
@@ -37,9 +205,7 @@ tasks.register('preparePhoneQtRuntime', Copy) {
     from(new File(qtPackageDir, 'plugins/audio')) {
         include 'libplugins_audio_qtaudio_opensles_arm64-v8a.so'
     }
-    from(new File(qtPackageDir, 'lib')) {
-        include 'libQt5QuickParticles_arm64-v8a.so'
-    }
+    // QtActivity preloads these Android-safe names before libphoneInterface.
     from(androidOpenSslDir) {
         include 'libcrypto.so.1.1'
         rename { 'libcrypto_1_1.so' }
@@ -48,7 +214,6 @@ tasks.register('preparePhoneQtRuntime', Copy) {
         include 'libssl.so.1.1'
         rename { 'libssl_1_1.so' }
     }
-
     def qmlPluginPaths = [
         'Qt/labs/settings', 'QtQml', 'QtQml/Models.2',
         'QtQml/WorkerScript.2', 'QtQuick.2', 'QtQuick/Controls.2',
@@ -61,15 +226,6 @@ tasks.register('preparePhoneQtRuntime', Copy) {
         from(new File(qtPackageDir, "qml/${modulePath}")) {
             include '*.so'
         }
-    }
-    from(androidOpenSslDir) {
-        include 'libQt5Contacts_arm64-v8a.so',
-            'libQt5DocGallery_arm64-v8a.so',
-            'libQt5Feedback_arm64-v8a.so',
-            'libQt5Organizer_arm64-v8a.so',
-            'libQt5PositioningQuick_arm64-v8a.so',
-            'libQt5VersitOrganizer_arm64-v8a.so',
-            'libQt5Versit_arm64-v8a.so'
     }
 }
 
@@ -97,10 +253,12 @@ android {
                     '-DCMAKE_CXX_SCAN_FOR_MODULES=OFF',
                     '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON',
                     '-DCMAKE_PROJECT_INCLUDE_BEFORE=' + file('../../cmake-pico-bootstrap.cmake').absolutePath,
+                    '-DHIFI_ANDROID_CONAN_GENERATORS=' +
+                        androidConanGeneratorsDir.absolutePath,
                     '-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON',
-                    '-DCMAKE_PREFIX_PATH=' + new File(androidConanDir, 'generators').absolutePath,
+                    '-DCMAKE_PREFIX_PATH=' + androidConanGeneratorsDir.absolutePath,
                     '-DCMAKE_MODULE_PATH=' + file('../../cmake-pico-modules').absolutePath + ';' +
-                        new File(androidConanDir, 'generators').absolutePath,
+                        androidConanGeneratorsDir.absolutePath,
                     '-DRELEASE_NUMBER=' + rootProject.ext.appVersionName,
                     '-DRELEASE_TYPE=' + rootProject.ext.releaseType,
                     '-DSTABLE_BUILD=' + rootProject.ext.stableBuild,
@@ -122,6 +280,16 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(releaseCredentials.storeFile)
+                storePassword releaseCredentials.storePassword
+                keyAlias releaseCredentials.keyAlias
+                keyPassword releaseCredentials.keyPassword
+            }
+        }
+    }
     buildTypes {
         debug {
             buildConfigField 'String', 'BACKTRACE_URL', '""'
@@ -139,6 +307,11 @@ android {
             buildConfigField 'String', 'OAUTH_CLIENT_ID', '""'
             buildConfigField 'String', 'OAUTH_CLIENT_SECRET', '""'
             buildConfigField 'String', 'OAUTH_REDIRECT_URI', '""'
+            // With no external upload key the release APK/AAB stays unsigned.
+            // This makes accidental signing with a checked-in key impossible.
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
     buildFeatures { buildConfig true }
@@ -148,7 +321,17 @@ android {
             version '3.31.6'
         }
     }
-    packaging { jniLibs { useLegacyPackaging true } }
+    // Qt 5's Android loader resolves android.app.load_local_libs from the
+    // extracted nativeLibraryDir. Keep JNI extraction enabled even for the
+    // verified 16 KiB graph; the ELF gate below still enforces page alignment.
+    packaging {
+        jniLibs {
+            useLegacyPackaging true
+            unusedPhoneQtRuntimeLibraries.each { libraryName ->
+                excludes += "lib/arm64-v8a/${libraryName}"
+            }
+        }
+    }
 
     applicationVariants.all { variant ->
         def nativeResourcesRcc = fileTree(new File(projectDir, '.cxx')) {
@@ -182,6 +365,12 @@ android {
             }
             copy {
                 from new File(projectDir, '../../../interface/resources/serverless')
+                // Serverless scene documents are opened through file:///~/ and
+                // therefore must be extracted beside the cache. Their models,
+                // textures, sounds, and scripts use qrc:/// URLs and already
+                // live in resources.rcc; packaging those directories here as
+                // well would add a second, unused copy to the phone APK.
+                include '*.json'
                 into new File(mergedAssetsDir, 'resources/serverless')
                 eachFile { details ->
                     youngestLastModified = Math.max(youngestLastModified, details.lastModified)
@@ -250,28 +439,93 @@ android {
                 assetList.each { file -> out.println(file) }
             }
         }
+
+        def packageTask = variant.packageApplicationProvider
+        if (variant.buildType.name == 'release') {
+            packageTask.configure {
+                dependsOn requirePhoneReleaseVersionCode
+                dependsOn tasks.named('requirePhone16kReleaseDependencies')
+            }
+            def bundleTaskName = "bundle${variant.name.substring(0, 1).toUpperCase()}" +
+                variant.name.substring(1)
+            tasks.matching { it.name == bundleTaskName }.configureEach {
+                dependsOn requirePhoneReleaseVersionCode
+                dependsOn tasks.named('requirePhone16kReleaseDependencies')
+            }
+        }
+        if (usePhone16kDependencies) {
+            variant.outputs.each { output ->
+                def canonicalVariantApk = output.outputFile
+                packageTask.configure {
+                    doLast {
+                        if (!canonicalVariantApk.isFile()) {
+                            throw new GradleException(
+                                "Canonical ${variant.name} APK was not produced: " +
+                                canonicalVariantApk)
+                        }
+                        exec {
+                            commandLine phone16kApkCheck.absolutePath,
+                                canonicalVariantApk.absolutePath
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+def preparePhoneQtAndroidJar = tasks.register('preparePhoneQtAndroidJar', Jar) {
+    def originalQtAndroidJar = new File(qtPackageDir, 'jar/QtAndroid.jar')
+    inputs.file originalQtAndroidJar
+    archiveFileName = 'QtAndroid-phone.jar'
+    destinationDirectory = layout.buildDirectory.dir('generated/phoneQtJava')
+    from(zipTree(originalQtAndroidJar)) {
+        exclude 'org/qtproject/qt5/android/QtLayout.class'
+        exclude 'org/qtproject/qt5/android/QtLayout$LayoutParams.class'
     }
 }
 
 dependencies {
-    implementation fileTree(dir: new File(qtPackageDir, 'jar'), include: ['*.jar'])
+    implementation files(preparePhoneQtAndroidJar.flatMap { it.archiveFile })
+    implementation fileTree(dir: new File(qtPackageDir, 'jar'),
+            include: ['*.jar'], exclude: ['QtAndroid.jar'])
     implementation 'com.google.guava:guava:23.0'
 }
 
 tasks.configureEach { task ->
+    if (task.name.startsWith('configureCMake') ||
+            task.name.startsWith('buildCMake') ||
+            task.name.startsWith('externalNativeBuild')) {
+        task.dependsOn tasks.named('preparePhoneConanGenerators')
+    }
     if (task.name.startsWith('merge') && task.name.endsWith('JniLibFolders')) {
         task.dependsOn tasks.named('preparePhoneQtRuntime')
     }
     if (task.name.startsWith('merge') && task.name.endsWith('NativeLibs')) {
         task.doLast {
             task.outputs.files.asFileTree.matching { include '**/*.so' }.files.each { library ->
-                if (library.name == 'libtbb_debug.so') {
+                if (!usePhone16kDependencies && library.name == 'libtbb_debug.so') {
                     ant.copy(file: new File(runtimeOverrides, 'libtbb.so'),
                         tofile: library, overwrite: true)
                 }
-                if (library.name == 'libQt5Core_arm64-v8a.so') {
+                if (!usePhone16kQt && library.name == 'libQt5Core_arm64-v8a.so') {
                     ant.copy(file: new File(runtimeOverrides, 'libQt5Core_arm64-v8a.so'),
                         tofile: library, overwrite: true)
+                }
+            }
+            if (usePhone16kDependencies) {
+                def stagedNativeRoots = task.outputs.files.files.findAll {
+                    it.isDirectory() && !fileTree(it).matching { include '**/*.so' }.isEmpty()
+                }
+                if (stagedNativeRoots.isEmpty()) {
+                    throw new GradleException(
+                        "No staged native libraries were produced by ${task.name}")
+                }
+                stagedNativeRoots.each { stagedRoot ->
+                    exec {
+                        commandLine phoneElfAlignmentCheck.absolutePath,
+                            stagedRoot.absolutePath
+                    }
                 }
             }
         }

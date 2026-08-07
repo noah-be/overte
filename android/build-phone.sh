@@ -44,6 +44,11 @@ Usage: ./build-phone.sh [doctor|prepare|build|install|all|deploy|setup] [option]
   deploy   Prepare, build, install, and start the client
   setup    Download dependencies when requested, prepare, and build
 
+Phone builds require the verified 16 KiB dependency sentinel. For temporary
+local migration work only, PHONE_ALLOW_LEGACY_4K_DEPS=1 enables the old graph.
+Installation never uses ADB's implicit device. Set ANDROID_SERIAL, or connect
+exactly one authorized non-Pico phone.
+
 The phone port intentionally shares the proven Qt/Conan Android toolchain with
 the Pico build. Use `setup --download` on a new development machine.
 EOF
@@ -67,6 +72,42 @@ build() {
         :phoneInterface:assembleDebug
 }
 
+device_property() {
+    "$1" -s "$2" shell getprop "$3" 2>/dev/null | tr -d '\r'
+}
+
+is_vr_device() {
+    local adb="$1" serial="$2" identity characteristics
+    identity="$(device_property "$adb" "$serial" ro.product.manufacturer) $(device_property "$adb" "$serial" ro.product.brand) $(device_property "$adb" "$serial" ro.product.model) $(device_property "$adb" "$serial" ro.product.device)"
+    characteristics="$(device_property "$adb" "$serial" ro.build.characteristics)"
+    [[ "${identity,,}" =~ pico|bytedance ]] || [[ "${characteristics,,}" =~ (^|,)vr(,|$) ]]
+}
+
+select_phone_serial() {
+    local adb="$1" requested="${ANDROID_SERIAL:-}" serial state
+    local -a authorized=() phones=()
+    while read -r serial state _; do
+        [[ -n "$serial" && "$serial" != "List" ]] || continue
+        [[ "$state" == device ]] && authorized+=("$serial")
+    done < <("$adb" devices -l)
+
+    if [[ -n "$requested" ]]; then
+        for serial in "${authorized[@]}"; do
+            if [[ "$serial" == "$requested" ]]; then
+                is_vr_device "$adb" "$serial" && fail "refusing to install the phone client on a Pico/VR device"
+                printf '%s\n' "$serial"
+                return
+            fi
+        done
+        fail "ANDROID_SERIAL does not identify an authorized connected device"
+    fi
+    for serial in "${authorized[@]}"; do
+        is_vr_device "$adb" "$serial" || phones+=("$serial")
+    done
+    ((${#phones[@]} == 1)) || fail "set ANDROID_SERIAL explicitly; found ${#phones[@]} unambiguous non-Pico phones"
+    printf '%s\n' "${phones[0]}"
+}
+
 adb_command() {
     local sdk adb
     sdk="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-${HOME}/Android/Sdk}}"
@@ -76,13 +117,13 @@ adb_command() {
 }
 
 install_apk() {
-    local adb apk serial_args=()
+    local adb apk serial
     adb="$(adb_command)"
-    apk="$script_dir/apps/phoneInterface/build/outputs/apk/debug/phoneInterface-debug.apk"
+    apk="${PHONE_APK:-$script_dir/apps/phoneInterface/build/outputs/apk/debug/phoneInterface-debug.apk}"
     [[ -f "$apk" ]] || fail "APK does not exist; run ./build-phone.sh build first"
-    [[ -z "${ANDROID_SERIAL:-}" ]] || serial_args=(-s "$ANDROID_SERIAL")
-    "$adb" "${serial_args[@]}" install -r "$apk"
-    "$adb" "${serial_args[@]}" shell am start \
+    serial="$(select_phone_serial "$adb")"
+    "$adb" -s "$serial" install -r "$apk"
+    "$adb" -s "$serial" shell am start \
         -n org.overte.phone/.PermissionsActivity
 }
 
