@@ -44,6 +44,8 @@ local.properties
 /android/build/
 /android/apps/picoInterface/build/
 /android/apps/picoInterface/.cxx/
+/android/apps/phoneInterface/build/
+/android/apps/phoneInterface/.cxx/
 /android/conan/pico4-*/
 /android/pico-host-tools/
 /android/pico-precompiled-compat/

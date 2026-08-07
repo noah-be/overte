@@ -1,0 +1,11 @@
+<resources>
+    <style name="OverteStartupTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowBackground">@drawable/startup_background</item>
+        <item name="android:colorAccent">#5A45FF</item>
+        <item name="android:navigationBarColor">#11121A</item>
+        <item name="android:statusBarColor">#11121A</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

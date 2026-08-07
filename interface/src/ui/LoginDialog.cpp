@@ -44,7 +44,7 @@ LoginDialog::LoginDialog(QQuickItem *parent) : OffscreenQmlDialog(parent) {
     auto accountManager = DependencyManager::get<AccountManager>();
     auto domainAccountManager = DependencyManager::get<DomainAccountManager>();
     // the login hasn't been dismissed yet if the user isn't logged in and is encouraged to login.
-#if !defined(Q_OS_ANDROID)
+#if !defined(Q_OS_ANDROID) || defined(ANDROID_APP_PHONE_INTERFACE)
     connect(accountManager.data(), &AccountManager::loginComplete,
         this, &LoginDialog::handleLoginCompleted);
     connect(accountManager.data(), &AccountManager::loginFailed,

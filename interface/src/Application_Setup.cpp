@@ -50,6 +50,7 @@
 #include <gl/GLHelpers.h>
 #include <GPUIdent.h>
 #include <graphics-scripting/GraphicsScriptingInterface.h>
+#include <gpu/Texture.h>
 #include <hfm/ModelFormatRegistry.h>
 #include <input-plugins/KeyboardMouseDevice.h>
 #include <input-plugins/TouchscreenDevice.h>
@@ -279,7 +280,17 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     }
 
     {
-        const QString resourcesBinaryFile = PathUtils::getRccPath();
+        QString resourcesBinaryFile = PathUtils::getRccPath();
+#if defined(Q_OS_ANDROID)
+        // Android extracts the generated RCC beside the application's cache.
+        // Qt can otherwise resolve the resource path to the filesystem root,
+        // where an unprivileged application cannot package or write it.
+        if (resourcesBinaryFile == "/resources.rcc") {
+            resourcesBinaryFile =
+                qApp->property(hifi::properties::APP_LOCAL_DATA_PATH).toString() +
+                "/resources.rcc";
+        }
+#endif
         qCInfo(interfaceapp) << "Loading primary resources from" << resourcesBinaryFile;
 
         if (!QFile::exists(resourcesBinaryFile)) {
@@ -803,6 +814,16 @@ void Application::initialize(const QCommandLineParser &parser) {
     // Create the main thread context, the GPU backend
     initializeGL();
     qCDebug(interfaceapp, "Initialized GL");
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Android GPUs use shared memory and do not expose a reliable dedicated
+    // texture budget. Bound residency to reduce low-memory kills in complex
+    // desktop-authored domains while retaining useful texture detail.
+    constexpr gpu::Texture::Size PHONE_TEXTURE_BUDGET = 256 * 1024 * 1024;
+    gpu::Texture::setAllowedGPUMemoryUsage(PHONE_TEXTURE_BUDGET);
+    qCInfo(interfaceapp) << "PHONE_RESOURCE_LIMIT textureBudgetMB"
+                         << (PHONE_TEXTURE_BUDGET / (1024 * 1024));
+#endif
 
     // Initialize the display plugin architecture
     initializeDisplayPlugins();
@@ -1446,7 +1467,7 @@ void Application::setupSignalsAndOperators() {
         connect(nodeList.data(), &NodeList::packetVersionMismatch, this, &Application::notifyPacketVersionMismatch);
 
         auto accountManager = DependencyManager::get<AccountManager>();
-#if defined(Q_OS_ANDROID)
+#if defined(Q_OS_ANDROID) && !defined(ANDROID_APP_PHONE_INTERFACE)
         connect(accountManager.data(), &AccountManager::authRequired, this, []() {
             auto addressManager = DependencyManager::get<AddressManager>();
             AndroidHelper::instance().showLoginDialog(addressManager->currentAddress());

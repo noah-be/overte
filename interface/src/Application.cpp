@@ -1344,6 +1344,18 @@ void Application::loadSettings(const QCommandLineParser& parser) {
     renderSettings->setAmbientOcclusionEnabled(false);
     DependencyManager::get<LODManager>()->setWorldDetailQuality(WORLD_DETAIL_LOW);
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Phones are passively cooled and share system/GPU memory. Prefer a
+    // predictable 30 FPS-oriented baseline; users can raise quality after
+    // device-specific testing without making first launch thermally unsafe.
+    renderSettings->setRenderMethod(RenderScriptingInterface::RenderMethod::FORWARD);
+    renderSettings->setAntialiasingMode(AntialiasingSetupConfig::Mode::NONE);
+    qCInfo(interfaceapp) << "PHONE_GRAPHICS_PROFILE"
+                         << "forward" << true
+                         << "antialiasing" << false
+                         << "worldDetail" << WORLD_DETAIL_LOW;
+#endif
+
 #if defined(ANDROID_APP_PICO_INTERFACE)
     // Opt-in, process-start power profile for controlled Pico A/B tests. It
     // deliberately leaves viewport and OpenXR swapchain resolution unchanged.
