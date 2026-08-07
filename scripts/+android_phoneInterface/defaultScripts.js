@@ -18,7 +18,7 @@
 var DEFAULT_SCRIPTS_COMBINED = [
     "system/progress.js",
     "system/+android_interface/touchscreenvirtualpad.js",
-    "system/+android_interface/audio.js",
+    "system/+android_phoneInterface/mobileActionBar.js",
     "system/+android_interface/modes.js",
     "system/makeUserConnection.js"
 ];

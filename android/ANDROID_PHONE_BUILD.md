@@ -185,10 +185,14 @@ support and reject any packaged ELF whose `LOAD` alignment is below `0x4000`.
 Also validate the APK container alignment with Build-Tools 36:
 
 ```bash
-llvm-readelf -lW libphoneInterface.so
+./tests/check-phone-elf-alignment.sh \
+    apps/phoneInterface/build/outputs/apk/release/phoneInterface-release.apk
 "${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}/build-tools/36.0.0/zipalign" \
     -c -P 16 -v 4 phoneInterface-release.apk
 ```
+
+The ELF check also accepts an unpacked APK or staged library directory. It is
+read-only and checks every `.so` below that directory.
 
 A production release additionally needs a CI-managed upload key (never stored
 in this repository), a monotonically increasing `versionCode`, bundle-size

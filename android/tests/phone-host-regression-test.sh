@@ -63,6 +63,7 @@ for source_file in \
         build-phone.sh \
         build-phone.gradle \
         settings-phone.gradle \
+        tests/check-phone-elf-alignment.sh \
         "$gradle" \
         "$cmake" \
         "$manifest" \
@@ -166,12 +167,21 @@ else
 fi
 require_text "$phone_defaults" 'touchscreenvirtualpad\.js' \
     'phone defaults load the touchscreen virtual pad'
-require_text "$phone_defaults" '/audio\.js' \
-    'phone defaults load Android audio controls'
+require_text "$phone_defaults" 'mobileActionBar\.js' \
+    'phone defaults load the native-QML mobile action bar'
+require_file '../scripts/system/+android_phoneInterface/mobileActionBar.js'
 require_text "$phone_defaults" '/modes\.js' \
     'phone defaults load mobile view modes'
-reject_text "$phone_defaults" 'actionbar|openAndroidActivity' \
+reject_text "$phone_defaults" '\+android_interface/actionbar\.js|openAndroidActivity' \
     'phone defaults avoid the unavailable legacy Home activity'
+if grep -Eq -- 'DialogsManager\.showAddressBar\(\)' \
+        "$repo_root/scripts/system/+android_phoneInterface/mobileActionBar.js" && \
+        grep -Eq -- 'DialogsManager\.showLoginDialog\(\)' \
+        "$repo_root/scripts/system/+android_phoneInterface/mobileActionBar.js"; then
+    pass 'phone action bar exposes address and login dialogs'
+else
+    fail 'phone action bar exposes address and login dialogs'
+fi
 
 require_text build-phone.sh \
     ':phoneInterface:assembleDebug' \
