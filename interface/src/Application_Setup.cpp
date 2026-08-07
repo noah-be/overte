@@ -794,8 +794,17 @@ void Application::initialize(const QCommandLineParser &parser) {
     _window->setCentralWidget(_vkWindowWrapper);
 #endif
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Android may still report the pre-rotation portrait geometry while Qt is
+    // creating its top-level widget. Restoring desktop window geometry here
+    // can therefore leave the GL canvas at that small initial size until the
+    // display plugin is activated. A modal startup dialog makes the mismatch
+    // especially visible. Let Android own the window bounds from the outset.
+    _window->showFullScreen();
+#else
     _window->restoreGeometry();
     _window->setVisible(true);
+#endif
 
     _primaryWidget->setFocusPolicy(Qt::StrongFocus);
     _primaryWidget->setFocus();

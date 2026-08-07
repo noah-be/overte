@@ -171,6 +171,20 @@ if grep -Eq -- 'extraSelectors[[:space:]]*<<[[:space:]]*"android_interface"' \
 else
     fail 'phone file selector falls back to the existing Android touch scripts'
 fi
+if grep -Eq -- '#if defined\(ANDROID_APP_PHONE_INTERFACE\)' \
+        "$repo_root/interface/src/Application_Plugins.cpp" && \
+        grep -Eq -- 'setPreferredDisplayPlugins\(\{[[:space:]]*DESKTOP_DISPLAY_PLUGIN_NAME[[:space:]]*\}\)' \
+        "$repo_root/interface/src/Application_Plugins.cpp"; then
+    pass 'phone startup selects the 2D desktop display without a chooser'
+else
+    fail 'phone startup selects the 2D desktop display without a chooser'
+fi
+if grep -Eq -- '_window->showFullScreen\(\)' \
+        "$repo_root/interface/src/Application_Setup.cpp"; then
+    pass 'phone Qt window claims the Android fullscreen bounds immediately'
+else
+    fail 'phone Qt window claims the Android fullscreen bounds immediately'
+fi
 require_text "$phone_defaults" 'touchscreenvirtualpad\.js' \
     'phone defaults load the touchscreen virtual pad'
 require_text "$phone_defaults" 'mobileActionBar\.js' \
