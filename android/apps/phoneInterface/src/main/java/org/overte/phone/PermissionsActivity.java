@@ -11,7 +11,6 @@ import android.text.TextUtils;
 /** Requests optional voice permission before starting the native client. */
 public final class PermissionsActivity extends Activity {
     private static final int RECORD_AUDIO_REQUEST = 20;
-    private static final String STATE_LAUNCHED = "interfaceLaunched";
     private String applicationArguments;
     private boolean interfaceLaunched;
 
@@ -20,12 +19,6 @@ public final class PermissionsActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_startup);
         applicationArguments = getApplicationArguments(getIntent());
-        interfaceLaunched = savedInstanceState != null
-                && savedInstanceState.getBoolean(STATE_LAUNCHED, false);
-
-        if (interfaceLaunched) {
-            return;
-        }
 
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
                 == PackageManager.PERMISSION_GRANTED) {
@@ -35,12 +28,6 @@ public final class PermissionsActivity extends Activity {
                     new String[] { Manifest.permission.RECORD_AUDIO },
                     RECORD_AUDIO_REQUEST);
         }
-    }
-
-    @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        outState.putBoolean(STATE_LAUNCHED, interfaceLaunched);
-        super.onSaveInstanceState(outState);
     }
 
     @Override

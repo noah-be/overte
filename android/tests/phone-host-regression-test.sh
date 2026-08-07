@@ -146,6 +146,9 @@ require_text "$permissions_activity" \
 reject_text "$permissions_activity" \
     'getStringExtra\([^)]*args' \
     'exported launcher rejects arbitrary external native arguments'
+reject_text "$permissions_activity" \
+    'STATE_LAUNCHED|savedInstanceState\.getBoolean' \
+    'launcher does not persist a stale already-launched process guard'
 require_text "$interface_activity" \
     'extends[[:space:]]+QtActivity' \
     'phone activity hosts QtActivity'
