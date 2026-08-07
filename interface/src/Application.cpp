@@ -2512,10 +2512,12 @@ void Application::update(float deltaTime) {
                 lastNavigationCommand = command;
                 const qsizetype separator = command.indexOf('|');
                 const QString address = separator >= 0 ? command.mid(separator + 1) : command;
+#if defined(ANDROID_APP_PICO_INTERFACE)
                 _picoLoadingMeasurementStartedAt = usecTimestampNow();
                 _picoLoadingMeasurementEpochMs = QDateTime::currentMSecsSinceEpoch();
                 _picoLoadingDomainReconnects = 0;
                 _picoLoadingAwaitingInitialDomainClear = true;
+#endif
                 if (address.startsWith("EXPORT|")) {
                     const QStringList fields = address.split('|');
                     bool xOk { false };
