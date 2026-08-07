@@ -12,6 +12,14 @@ import io.highfidelity.utils.HifiUtils;
 
 /** Hosts Overte's existing mono 2D display and touchscreen input plugins. */
 public final class PhoneInterfaceActivity extends QtActivity {
+    static {
+        // The packaged filenames must end in .so, while OpenSSL 1.1 keeps its
+        // versioned SONAME. Loading both libraries first registers those
+        // SONAMEs before Android resolves libphoneInterface's dependencies.
+        System.loadLibrary("crypto");
+        System.loadLibrary("ssl");
+    }
+
     private static final int IMMERSIVE_UI_FLAGS =
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
             | View.SYSTEM_UI_FLAG_FULLSCREEN

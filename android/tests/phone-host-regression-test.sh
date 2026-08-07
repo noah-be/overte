@@ -153,6 +153,12 @@ require_text "$interface_activity" \
     'FLAG_KEEP_SCREEN_ON' \
     'phone activity keeps the display awake'
 require_text "$interface_activity" \
+    'System\.loadLibrary\("crypto"\)' \
+    'phone activity preloads the OpenSSL crypto SONAME'
+require_text "$interface_activity" \
+    'System\.loadLibrary\("ssl"\)' \
+    'phone activity preloads the OpenSSL TLS SONAME'
+require_text "$interface_activity" \
     'nativeProcessUrl\(destination\.toString\(\)\)' \
     'warm deep links cross the Java/native bridge'
 require_text "$url_handler" \
