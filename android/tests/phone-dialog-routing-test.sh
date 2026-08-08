@@ -5,6 +5,8 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "$script_dir/../.." && pwd)"
 
+"$script_dir/phone-login-state-contract-test.sh"
+
 dialogs="$repo_root/interface/src/ui/DialogsManager.cpp"
 login="$repo_root/interface/src/ui/LoginDialog.cpp"
 events="$repo_root/interface/src/Application_Events.cpp"
@@ -121,8 +123,10 @@ require "$body" 'Component[.]onDestruction:' \
     'phone login releases IME state during external or programmatic teardown'
 require "$body" 'if[[:space:]]*\(phoneLogin[.]closing\)' \
     'late authentication responses cannot revive a closing dialog'
-require "$login" 'phoneLoginRequestPending[[:space:]]*=[[:space:]]*true' \
-    'phone login records an in-flight request across dialog instances'
+require "$login" 'phoneLoginState[.]beginRequest\(\)' \
+    'phone login rejects a competing request at the C++ boundary'
+require "$login" 'phoneLoginState[.]finishRequest\(\)' \
+    'terminal authentication responses release the C++ request guard'
 require "$body" 'waiting:[[:space:]]*loginDialog[.]isPhoneLoginRequestPending\(\)' \
     'a reopened login waits for an older in-flight request'
 require "$body" 'if[[:space:]]*\(!phoneLogin[.]requestSubmitted\)' \
