@@ -24,6 +24,7 @@
     var REQUEST_TIMEOUT = 10000; //10 seconds
 
     var httpRequest = null;
+    var shuttingDown = false;
     var placesData;
     var portalList = [];
 
@@ -82,6 +83,13 @@
         }
     }
 
+    function abortActiveRequest() {
+        if (httpRequest !== null) {
+            httpRequest.abort();
+            httpRequest = null;
+        }
+    }
+
     var button = tablet.addButton({
         text: APP_NAME,
         icon: APP_ICON_INACTIVE,
@@ -132,7 +140,15 @@
         var d = new Date();
         var n = d.getTime();
         
-        var messageObj = JSON.parse(message);
+        var messageObj;
+        try {
+            messageObj = typeof message === "string" ? JSON.parse(message) : message;
+        } catch (error) {
+            return;
+        }
+        if (!messageObj || typeof messageObj !== "object") {
+            return;
+        }
         if (messageObj.channel === channel) {
             if (messageObj.action === "READY_FOR_CONTENT" && (n - timestamp) > INTERCALL_DELAY) {
                 d = new Date();
@@ -288,6 +304,7 @@
             appStatus = true;
         } else {
             appStatus = false;
+            abortActiveRequest();
             disconnectQmlEvents();
             disconnectWebEvents();
         }
@@ -318,7 +335,11 @@
                 }
                 try {
                     placesData = JSON.parse(extractedData);
-                    processData(metaverseServers[i]);
+                    if (placesData && placesData.data && Array.isArray(placesData.data.places)) {
+                        processData(metaverseServers[i]);
+                    } else {
+                        metaverseServers[i].error = true;
+                    }
                 } catch(e) {
                     placesData = {};
                 }
@@ -350,6 +371,9 @@
     };
 
     function sendToPlacesUi(message) {
+        if (shuttingDown || !appStatus) {
+            return;
+        }
         if (useQmlApp) {
             tablet.sendToQml(message);
         } else {
@@ -485,15 +509,21 @@
     }
 
     function getContent(url) {
-        httpRequest = new XMLHttpRequest();
-        httpRequest.open("GET", url, false); // false for synchronous request
-        httpRequest.setRequestHeader("Cache-Control", "no-cache");
-        httpRequest.timeout = REQUEST_TIMEOUT;
-        httpRequest.ontimeout=function(){ 
-            return ""; 
-        };        
-        httpRequest.send( null );
-        return httpRequest.responseText;
+        try {
+            httpRequest = new XMLHttpRequest();
+            httpRequest.open("GET", url, false); // false for synchronous request
+            httpRequest.setRequestHeader("Cache-Control", "no-cache");
+            httpRequest.timeout = REQUEST_TIMEOUT;
+            httpRequest.send(null);
+            if (httpRequest.status < 200 || httpRequest.status >= 300) {
+                return "";
+            }
+            return httpRequest.responseText || "";
+        } catch (error) {
+            return "";
+        } finally {
+            httpRequest = null;
+        }
     }
 
     function processData(metaverseInfo){
@@ -503,6 +533,10 @@
         var places = placesData.data.places;
         var i, j;
         for (i = 0;i < places.length; i++) {
+
+            if (!places[i] || !places[i].domain || !places[i].domain.protocol_version) {
+                continue;
+            }
 
             var region, category, accessStatus;
             
@@ -760,7 +794,15 @@
 
     function onMessageReceived(paramChannel, paramMessage, paramSender, paramLocalOnly) {
         if (paramChannel === portalChannelName) {
-            var instruction = JSON.parse(paramMessage);
+            var instruction;
+            try {
+                instruction = JSON.parse(paramMessage);
+            } catch (error) {
+                return;
+            }
+            if (!instruction || typeof instruction !== "object") {
+                return;
+            }
             if (instruction.action === "REZ_PORTAL") {
                 generatePortal(instruction.position, instruction.url, instruction.name, instruction.placeID);
             }
@@ -810,6 +852,8 @@
     }
 
     function cleanup() {
+        shuttingDown = true;
+        abortActiveRequest();
 
         if (appStatus) {
             tablet.gotoHomeScreen();
