@@ -58,14 +58,18 @@ is_pico_device() {
 }
 
 is_supported_phone_device() {
-    local serial="$1" qemu characteristics abis features
+    local serial="$1" qemu characteristics abis features sdk gles
     qemu="$(device_property "$serial" ro.kernel.qemu)"
     characteristics="$(device_property "$serial" ro.build.characteristics)"
     abis="$(device_property "$serial" ro.product.cpu.abilist)"
+    sdk="$(device_property "$serial" ro.build.version.sdk)"
+    gles="$(device_property "$serial" ro.opengles.version)"
     features="$("$ADB" -s "$serial" shell pm list features 2>/dev/null | tr -d '\r')"
     [[ "$qemu" != 1 ]] &&
         [[ ! "${characteristics,,}" =~ (^|,)(watch|tv|automotive|vr)(,|$) ]] &&
         [[ ",$abis," == *,arm64-v8a,* ]] &&
+        [[ "$sdk" =~ ^[0-9]+$ ]] && ((10#$sdk >= 26)) &&
+        [[ "$gles" =~ ^[0-9]+$ ]] && ((10#$gles >= 196610)) &&
         grep -Fxq 'feature:android.hardware.touchscreen' <<<"$features"
 }
 
@@ -82,7 +86,7 @@ select_serial() {
             if [[ "$serial" == "$requested" ]]; then
                 is_pico_device "$serial" && die "refusing to run the phone test on a Pico/VR device"
                 is_supported_phone_device "$serial" || \
-                    die "ANDROID_SERIAL is not a physical ARM64 touchscreen phone target"
+                    die "ANDROID_SERIAL does not meet the physical Phone runtime contract"
                 printf '%s\n' "$serial"
                 return
             fi

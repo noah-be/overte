@@ -503,6 +503,10 @@ require_text tests/phone-device-test.sh 'ro[.]product[.]cpu[.]abilist' \
     'device smoke requires the APK-supported ARM64 ABI'
 require_text tests/phone-device-test.sh 'android[.]hardware[.]touchscreen' \
     'device smoke requires a touchscreen target'
+require_text tests/phone-device-test.sh '10#\$sdk >= 26' \
+    'device smoke enforces the APK minimum Android API'
+require_text tests/phone-device-test.sh '10#\$gles >= 196610' \
+    'device smoke enforces the manifest OpenGL ES 3.2 requirement'
 require_text tests/phone-device-test.sh 'sha256sum -- "\$APK"' \
     'device smoke test identifies the exact installed APK by content'
 require_text tests/phone-device-test.sh 'apk_sha256=%s' \

@@ -34,6 +34,8 @@ case "$*" in
     'shell getprop ro.build.characteristics') printf 'default\n' ;;
     'shell getprop ro.kernel.qemu') printf '%s\n' "${MOCK_QEMU:-0}" ;;
     'shell getprop ro.product.cpu.abilist') printf 'arm64-v8a,armeabi-v7a\n' ;;
+    'shell getprop ro.build.version.sdk') printf '%s\n' "${MOCK_SDK:-36}" ;;
+    'shell getprop ro.opengles.version') printf '196610\n' ;;
     'shell pm list features') printf 'feature:android.hardware.touchscreen\n' ;;
     install\ -r\ -g\ *) ;;
     'shell pm path org.overte.phone')
@@ -127,7 +129,17 @@ if run_smoke "$test_root/emulator-report" env MOCK_QEMU=1 \
     echo 'FAIL: emulator was accepted as a physical phone target' >&2
     exit 1
 fi
-grep -Fq 'not a physical ARM64 touchscreen phone target' "$test_root/emulator.out"
+grep -Fq 'does not meet the physical Phone runtime contract' "$test_root/emulator.out"
+! grep -q '^install ' "$test_root/adb-commands"
+
+mkdir "$test_root/old-sdk-report"
+: >"$test_root/adb-commands"
+if run_smoke "$test_root/old-sdk-report" env MOCK_SDK=25 \
+        >"$test_root/old-sdk.out" 2>&1; then
+    echo 'FAIL: device below the APK minimum SDK was accepted' >&2
+    exit 1
+fi
+grep -Fq 'does not meet the physical Phone runtime contract' "$test_root/old-sdk.out"
 ! grep -q '^install ' "$test_root/adb-commands"
 
 mkdir "$test_root/restart-report"

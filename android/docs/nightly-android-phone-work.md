@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 72 — Enforce the Phone runtime device requirements
+
+- Branch: `nightly/android-phone-72-device-runtime-contract`
+- Commit: `Check phone smoke runtime requirements` (this task's commit)
+- Change: Complete the pre-install target contract with numeric Android API 26+
+  and OpenGL ES 3.2+ checks, matching Gradle and manifest requirements that a
+  direct ADB install may not prefilter. Invalid/missing properties fail closed.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, including API 25
+    rejection before installation.
+  - Anonymous locked device runtime probe: **passed**,
+    `phone_runtime_contract=1`; no values or identifier were logged.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 241/241 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 241/241 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Vendor builds with malformed standard numeric properties fail
+  closed even if their hardware might otherwise work.
+- Real-device validation still required: Exercise rendering on representative
+  minimum API/ES hardware; the prepared phone's positive preflight is complete.
+
 ## 71 — Restrict smoke tests to supported physical phones
 
 - Branch: `nightly/android-phone-71-device-target-contract`
