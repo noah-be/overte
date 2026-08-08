@@ -312,9 +312,9 @@ before rebuilding and publishes a new marker only after verifying the complete
 Qt, OpenSSL, TBB, Node, and WebRTC package set. Gradle enables that dependency
 graph only when the marker exists and revalidates it before native compilation.
 
-The 16 KiB Gradle graph also uses modern JNI packaging and automatically runs
-the combined ELF and APK-container gate after packaging. Run the same gate on
-an existing APK explicitly with:
+The 16 KiB Gradle graph keeps the JNI libraries extracted as required by the
+Qt 5 Android loader and automatically runs the combined ELF and APK-container
+gate after packaging. Run the same gate on an existing APK explicitly with:
 
 ```bash
 ./tests/check-phone-apk-16k.sh \
@@ -324,7 +324,10 @@ an existing APK explicitly with:
 The lower-level ELF check also accepts an unpacked APK or staged library
 directory. It is read-only and checks every `.so` and versioned `.so.*` below
 that directory. The combined APK gate additionally executes Build-Tools 36
-`zipalign -c -P 16 -v 4`.
+`zipalign -c -P 16 -v 4` and rejects excessive padding between ZIP entries.
+If the padding check fails after removing large packaged resources, delete only
+the generated APK output and rerun the same Gradle packaging task; do not clean
+the native build tree.
 
 A production release additionally needs a CI-managed upload key (never stored
 in this repository), a monotonically increasing `versionCode`, bundle-size

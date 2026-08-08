@@ -10,6 +10,7 @@ fi
 readonly apk=$1
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 "$script_dir/check-phone-elf-alignment.sh" "$apk"
+"$script_dir/check-phone-apk-padding.py" "$apk"
 
 android_sdk=${ANDROID_SDK_ROOT:-${ANDROID_HOME:-${HOME}/Android/Sdk}}
 zipalign_bin="$android_sdk/build-tools/36.0.0/zipalign"
