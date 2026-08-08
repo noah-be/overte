@@ -41,7 +41,7 @@ public final class AndroidAudioInput {
         }
     }
 
-    public static boolean start(
+    public static synchronized boolean start(
             String requestedSource, int sampleRate, int channelCount, int framesPerBuffer) {
         stop();
 
@@ -138,7 +138,7 @@ public final class AndroidAudioInput {
         return true;
     }
 
-    public static void stop() {
+    public static synchronized void stop() {
         final AudioRecord oldRecorder;
         final Thread oldThread;
         synchronized (LOCK) {

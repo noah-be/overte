@@ -1633,8 +1633,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 90 — WebView command/render queue rejection
 
 - Branch: `nightly/pico4-90-webview-queue-lifecycle`
-- Commit: identified by subject `Retire Pico WebViews on queue shutdown`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `aa8984851f` (`Retire Pico WebViews on queue shutdown`)
 - Change: check main-Handler acceptance for all post-creation commands and each
   delayed render tick. A dead/quitting Looper now reports native failure; rejected
   render rescheduling additionally removes and destroys the current Java instance
@@ -1647,6 +1646,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Navigate, resize, scroll and render while
   terminating/recreating the Activity Looper; verify no frozen created surface,
   bounded retries, cleanup of the old instance and recovery on the new Activity.
+
+### 91 — Serialized microphone lifecycle transactions
+
+- Branch: `nightly/pico4-91-audio-lifecycle-serialization`
+- Commit: identified by subject `Serialize Pico microphone lifecycle`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: serialize complete public AudioRecord start and stop transactions at
+  the Java class monitor while retaining the short internal state lock for the
+  capture thread. Concurrent source/lifecycle starts can no longer both create
+  recorders and overwrite ownership, leaking the displaced live session.
+- Regression: 10 audio transport/lifecycle contracts require synchronized public
+  boundaries and stop-before-create-before-publication ordering.
+- Passed: targeted 10-contract audio suite; `git diff --check`.
+- Risk: concurrent lifecycle callers now wait for the active bounded stop/join;
+  normal AudioClient-thread switching is already sequential and unchanged.
+- Pico 4 validation: **not executed**. Race multiple source starts, Activity stop
+  and capture failure; verify at most one AudioRecord, one owner/release per
+  generation, bounded callers and clean PCM from the final requested source.
 
 ## Deferred, rejected, or blocked ideas
 

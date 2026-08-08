@@ -15,6 +15,16 @@ JAVA = (
 
 
 class PicoAudioTransportTests(unittest.TestCase):
+    def test_complete_start_and_stop_transactions_are_serialized(self):
+        self.assertIn("public static synchronized boolean start(", JAVA)
+        self.assertIn("public static synchronized void stop()", JAVA)
+        start = JAVA.index("public static synchronized boolean start(")
+        nested_stop = JAVA.index("stop();", start)
+        create = JAVA.index("new AudioRecord(", nested_stop)
+        publish = JAVA.index("recorder = newRecorder", create)
+        self.assertLess(nested_stop, create)
+        self.assertLess(create, publish)
+
     def test_jni_rejects_unconfigured_or_misaligned_callbacks_before_copy(self):
         callback = re.search(
             r"Java_org_overte_pico_AndroidAudioInput_nativeOnAudioData\((.*?)\n\}",
@@ -61,8 +71,8 @@ class PicoAudioTransportTests(unittest.TestCase):
         self.assertIn("if (bytes <= 0)", body)
 
     def test_capture_thread_startup_rolls_back_recorder_state(self):
-        start = JAVA.index("public static boolean start(")
-        end = JAVA.index("public static void stop()", start)
+        start = JAVA.index("public static synchronized boolean start(")
+        end = JAVA.index("public static synchronized void stop()", start)
         body = JAVA[start:end]
         create = body.index("newCaptureThread = new Thread")
         publish = body.index("recorder = newRecorder", create)
@@ -122,7 +132,7 @@ class PicoAudioTransportTests(unittest.TestCase):
         self.assertLess(finally_block, release)
 
     def test_audio_stop_and_release_driver_errors_are_contained(self):
-        stop_start = JAVA.index("public static void stop()")
+        stop_start = JAVA.index("public static synchronized void stop()")
         stop_end = JAVA.index("private static int resolveAudioSource", stop_start)
         stop = JAVA[stop_start:stop_end]
         stop_call = stop.index("oldRecorder.stop()")
