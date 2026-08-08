@@ -533,11 +533,20 @@ detect_jdk() {
 }
 
 detect_dependencies() {
-    local qt_build qt_source draco_package tbb_package
+    local qt_build qt_source draco_package draco_member tbb_package
 
-    draco_package="${PICO_DRACO_PACKAGE_DIR:-$(newest_match '*/draco*/p/lib/libdraco.a')}"
+    local draco_conan_data="$script_dir/conan/pico4-debug/generators/draco-debug-armv8-data.cmake"
+    if [[ -z "${PICO_DRACO_PACKAGE_DIR:-}" && -f "$draco_conan_data" ]]; then
+        draco_package="$(sed -n 's/^set(draco_PACKAGE_FOLDER_DEBUG "\(.*\)")$/\1/p' "$draco_conan_data" | head -n 1)"
+    fi
+
+    draco_package="${PICO_DRACO_PACKAGE_DIR:-${draco_package:-$(newest_match '*/draco*/p/lib/libdraco.a')}}"
     [[ -n "$draco_package" ]] || fail "Draco Conan package not found; set PICO_DRACO_PACKAGE_DIR"
     [[ "$draco_package" != *.a ]] || draco_package="${draco_package%/lib/libdraco.a}"
+    read -r draco_member < <(ar t "$draco_package/lib/libdraco.a")
+    [[ -n "$draco_member" ]] || fail "Draco archive is empty: $draco_package/lib/libdraco.a"
+    ar p "$draco_package/lib/libdraco.a" "$draco_member" | file - | grep -Eq 'ARM aarch64|ARM64' \
+        || fail "Draco library is not Android ARM64: $draco_package/lib/libdraco.a"
 
     export PICO_DRACO_PACKAGE_DIR="$draco_package"
     if [[ ! -f "$script_dir/apps/picoInterface/src/main/runtime-overrides/arm64-v8a/.prebuilt-runtime" ]]; then

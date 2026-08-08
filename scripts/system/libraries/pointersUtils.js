@@ -238,6 +238,12 @@ var PointerManager = function() {
         }
     };
 
+    this.makeTriggerPointerVisible = function(hand) {
+        if (hand >= 0 && hand < this.pointers.length) {
+            this.pointers[hand].makeVisible();
+        }
+    };
+
     this.lockPointerEnd = function(laserParams, lockData) {
         var index = laserParams.hand;
         if (index < this.pointers.length && index >= 0) {

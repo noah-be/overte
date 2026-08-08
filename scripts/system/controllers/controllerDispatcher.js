@@ -18,7 +18,7 @@
    LEFT_HAND, RIGHT_HAND, NEAR_GRAB_PICK_RADIUS, DEFAULT_SEARCH_SPHERE_DISTANCE, DISPATCHER_PROPERTIES,
    getGrabPointSphereOffset, HMD, MyAvatar, Messages, findHandChildEntities, Picks, PickType, Pointers,
    PointerManager, getGrabPointSphereOffset, HMD, MyAvatar, Messages, findHandChildEntities, print, Keyboard,
-   Tablet, Settings, isInEditMode
+   Tablet, Settings, isInEditMode, console
 */
 
 var controllerDispatcherPlugins = {};
@@ -45,6 +45,13 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
     var DEBUG = false;
     var SHOW_GRAB_SPHERE = false;
     var picoLazyHandRays = Settings.getValue("deferTabletCreationUntilOpen", false);
+    // A combined ray always intersects the fixed HUD sphere before distant
+    // world entities on Pico. Keep dedicated rays for the two surfaces.
+    var combineHudAndWorldPointers = !picoLazyHandRays &&
+        Settings.getValue("combineHudAndWorldPointers", false);
+    var PICO_TRIGGER_CLICK_ON_VALUE = 0.90;
+    var PICO_TRIGGER_RAY_ON_VALUE = 0.50;
+    var PICO_TRIGGER_CLICK_OFF_VALUE = 0.10;
     var systemTablet = picoLazyHandRays
         ? Tablet.getTablet("com.highfidelity.interface.tablet.system")
         : null;
@@ -61,6 +68,7 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
         this.totalVariance = 0;
         this.highVarianceCount = 0;
         this.veryhighVarianceCount = 0;
+        this.lastPicoRayTrace = [0, 0];
         this.orderedPluginNames = [];
         this.tabletID = null;
         this.blocklist = [];
@@ -142,17 +150,69 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
         this.rightTrackerClicked = false; // is rightTriggerClicked == 1 because a hand tracker set it?
         this.rightSecondaryValue = 0;
 
+        // Pico normally disables idle controller rays to avoid paying their pick
+        // cost continuously. Input mappings run before the pick update, while
+        // the dispatcher timer runs afterwards. Wake the relevant ray here so
+        // the first trigger-click frame already has a current distant hit.
+        this.wakeHandRay = function (hand) {
+            if (!picoLazyHandRays || !HMD.active) {
+                return;
+            }
+
+            var worldPointer = hand === LEFT_HAND ? _this.leftPointer : _this.rightPointer;
+            var hudPointer = hand === LEFT_HAND ? _this.leftHudPointer : _this.rightHudPointer;
+            if (worldPointer !== undefined && worldPointer !== null) {
+                Pointers.enablePointer(worldPointer);
+            }
+            if (hudPointer !== undefined && hudPointer !== null && hudPointer !== worldPointer) {
+                Pointers.enablePointer(hudPointer);
+            }
+        };
+
         this.leftTriggerPress = function (value) {
             _this.leftTriggerValue = value;
+            if (picoLazyHandRays) {
+                if (value >= PICO_TRIGGER_CLICK_ON_VALUE) {
+                    _this.leftTriggerClicked = 1;
+                } else if (value <= PICO_TRIGGER_CLICK_OFF_VALUE) {
+                    _this.leftTriggerClicked = 0;
+                }
+            }
+            if (value > 0.01) {
+                _this.wakeHandRay(LEFT_HAND);
+            }
         };
         this.leftTriggerClick = function (value) {
-            _this.leftTriggerClicked = value;
+            // Pico's OpenXR trigger can top out below the digital click
+            // threshold. Preserve the analog click synthesized above when the
+            // unavailable digital route repeatedly reports zero.
+            if (!picoLazyHandRays || value) {
+                _this.leftTriggerClicked = value;
+            }
+            if (value) {
+                _this.wakeHandRay(LEFT_HAND);
+            }
         };
         this.rightTriggerPress = function (value) {
             _this.rightTriggerValue = value;
+            if (picoLazyHandRays) {
+                if (value >= PICO_TRIGGER_CLICK_ON_VALUE) {
+                    _this.rightTriggerClicked = 1;
+                } else if (value <= PICO_TRIGGER_CLICK_OFF_VALUE) {
+                    _this.rightTriggerClicked = 0;
+                }
+            }
+            if (value > 0.01) {
+                _this.wakeHandRay(RIGHT_HAND);
+            }
         };
         this.rightTriggerClick = function (value) {
-            _this.rightTriggerClicked = value;
+            if (!picoLazyHandRays || value) {
+                _this.rightTriggerClicked = value;
+            }
+            if (value) {
+                _this.wakeHandRay(RIGHT_HAND);
+            }
         };
         this.leftSecondaryPress = function (value) {
             _this.leftSecondaryValue = value;
@@ -483,6 +543,23 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
                 Pointers.getPrevPickResult(_this.leftHudPointer),
                 Pointers.getPrevPickResult(_this.rightHudPointer)
             ];
+            if (picoLazyHandRays) {
+                var rayTraceNow = Date.now();
+                for (var traceHand = LEFT_HAND; traceHand <= RIGHT_HAND; traceHand++) {
+                    if ((_this.leftTriggerValue > 0.01 && traceHand === LEFT_HAND ||
+                            _this.rightTriggerValue > 0.01 && traceHand === RIGHT_HAND) &&
+                            rayTraceNow - _this.lastPicoRayTrace[traceHand] >= 250) {
+                        _this.lastPicoRayTrace[traceHand] = rayTraceNow;
+                        console.info("PICO4_RAY_SEARCH " + JSON.stringify({
+                            hand: traceHand,
+                            trigger: traceHand === LEFT_HAND
+                                ? _this.leftTriggerValue : _this.rightTriggerValue,
+                            world: rayPicks[traceHand],
+                            hud: hudRayPicks[traceHand]
+                        }));
+                    }
+                }
+            }
             var mouseRayPointer = Pointers.getPrevPickResult(_this.mouseRayPointer);
             // if the pickray hit something very nearby, put it into the nearby entities list
             for (h = LEFT_HAND; h <= RIGHT_HAND; h++) {
@@ -666,6 +743,15 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
                     _this.pointerManager.forceHandPointerVisible(RIGHT_HAND);
                 }
             }
+            // A held Pico trigger always represents an active world search.
+            // Keep its beam visible even when no dispatcher module currently
+            // owns a target, so distant aiming is observable and consistent.
+            if (picoLazyHandRays && _this.leftTriggerValue >= PICO_TRIGGER_RAY_ON_VALUE) {
+                _this.pointerManager.makeTriggerPointerVisible(LEFT_HAND);
+            }
+            if (picoLazyHandRays && _this.rightTriggerValue >= PICO_TRIGGER_RAY_ON_VALUE) {
+                _this.pointerManager.makeTriggerPointerVisible(RIGHT_HAND);
+            }
             _this.pointerManager.updatePointersRenderState(controllerData.triggerClicks, controllerData.triggerValues);
             if (PROFILE) {
                 Script.endProfileRange("dispatch.run");
@@ -706,7 +792,7 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
             maxDistance: picoLazyHandRays ? 20.0 : DEFAULT_SEARCH_SPHERE_DISTANCE,
             filter: Picks.PICK_OVERLAYS | Picks.PICK_LOCAL_ENTITIES | Picks.PICK_ENTITIES |
                 Picks.PICK_INCLUDE_NONCOLLIDABLE |
-                (Settings.getValue("combineHudAndWorldPointers", false) ? Picks.PICK_HUD : 0),
+                (combineHudAndWorldPointers ? Picks.PICK_HUD : 0),
             triggers: [
                 {action: controllerStandard.LTClick, button: "Primary"},
                 {action: controllerStandard.LX, button: "ScrollX"},
@@ -725,7 +811,7 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
             maxDistance: picoLazyHandRays ? 20.0 : DEFAULT_SEARCH_SPHERE_DISTANCE,
             filter: Picks.PICK_OVERLAYS | Picks.PICK_LOCAL_ENTITIES | Picks.PICK_ENTITIES |
                 Picks.PICK_INCLUDE_NONCOLLIDABLE |
-                (Settings.getValue("combineHudAndWorldPointers", false) ? Picks.PICK_HUD : 0),
+                (combineHudAndWorldPointers ? Picks.PICK_HUD : 0),
             triggers: [
                 {action: controllerStandard.RTClick, button: "Primary"},
                 {action: controllerStandard.RX, button: "ScrollX"},
@@ -739,7 +825,7 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
             delay: 0
         });
         Keyboard.setRightHandLaser(this.rightPointer);
-        this.leftHudPointer = Settings.getValue("combineHudAndWorldPointers", false) ? this.leftPointer :
+        this.leftHudPointer = combineHudAndWorldPointers ? this.leftPointer :
             this.pointerManager.createPointer(true, PickType.Ray, {
             joint: "_CAMERA_RELATIVE_CONTROLLER_LEFTHAND",
             filter: Picks.PICK_HUD,
@@ -757,7 +843,7 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
             hand: LEFT_HAND,
             delay: 0
         });
-        this.rightHudPointer = Settings.getValue("combineHudAndWorldPointers", false) ? this.rightPointer :
+        this.rightHudPointer = combineHudAndWorldPointers ? this.rightPointer :
             this.pointerManager.createPointer(true, PickType.Ray, {
             joint: "_CAMERA_RELATIVE_CONTROLLER_RIGHTHAND",
             filter: Picks.PICK_HUD,

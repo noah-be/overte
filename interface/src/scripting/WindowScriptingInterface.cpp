@@ -271,6 +271,14 @@ void WindowScriptingInterface::setInterstitialModeEnabled(bool enableInterstitia
     DependencyManager::get<NodeList>()->getDomainHandler().setInterstitialModeEnabled(enableInterstitialMode);
 }
 
+bool WindowScriptingInterface::getNativeLoadingScreenEnabled() const {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    return true;
+#else
+    return false;
+#endif
+}
+
 bool WindowScriptingInterface::isPointOnDesktopWindow(QVariant point) {
     auto offscreenUI = DependencyManager::get<OffscreenUi>();
     return offscreenUI ? offscreenUI->isPointOnDesktopWindow(point) : false;

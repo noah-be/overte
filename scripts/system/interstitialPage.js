@@ -236,8 +236,14 @@
     var connectionToDomainFailed = false;
 
     function getAnchorLocalYOffset() {
-        var loadingSpherePosition = Entities.getEntityProperties(loadingSphereID, ["position"]).position;
-        var loadingSphereOrientation = Entities.getEntityProperties(loadingSphereID, ["rotation"]).rotation;
+        // The loading sphere is an Overlay, not an Entity. Reconstruct its
+        // transform from the same avatar values used when it was created;
+        // querying the overlay ID through Entities returns undefined on Pico.
+        var loadingSpherePosition = Vec3.sum(
+            Vec3.sum(MyAvatar.position, { x: 0.0, y: -1.0, z: 0.0 }),
+            Vec3.multiplyQbyV(MyAvatar.orientation, { x: 0, y: 0.95, z: 0 }));
+        var loadingSphereOrientation = Quat.multiply(
+            Quat.fromVec3Degrees({ x: 0, y: 180, z: 0 }), MyAvatar.orientation);
         var overlayXform = new Xform(loadingSphereOrientation, loadingSpherePosition);
         var worldToOverlayXform = overlayXform.inv();
         var headPosition = MyAvatar.getHeadPosition();

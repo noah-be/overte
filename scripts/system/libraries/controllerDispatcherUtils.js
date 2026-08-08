@@ -132,6 +132,7 @@ var DISPATCHER_HOVERING_STYLE = {
 
 var DISPATCHER_PROPERTIES = [
     "id",
+    "entityHostType",
     "position",
     "registrationPoint",
     "rotation",

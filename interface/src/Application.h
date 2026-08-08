@@ -980,6 +980,8 @@ private:
     bool _picoLoadingWasConnected { false };
     bool _picoLoadingDismissedByUser { false };
     bool _picoLoadingDismissButtonWasPressed { false };
+    bool _picoServerlessSceneImportCommitted { false };
+    QUrl _picoServerlessSceneURL;
 #endif
     // This is needed so that physics do not get re-enabled before safe landing starts when moving from
     // serverless to domain server.

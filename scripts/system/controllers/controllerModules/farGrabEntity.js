@@ -12,7 +12,7 @@
    HAPTIC_PULSE_STRENGTH, HAPTIC_PULSE_DURATION, TRIGGER_OFF_VALUE, TRIGGER_ON_VALUE, ZERO_VEC,
    projectOntoEntityXYPlane, HMD, Picks, makeLaserLockInfo, makeLaserParams, AddressManager,
    getEntityParents, Selection, DISPATCHER_HOVERING_LIST, unhighlightTargetEntity, Messages, findGrabbableGroupParent,
-   worldPositionToRegistrationFrameMatrix, DISPATCHER_PROPERTIES, handsAreTracked
+   worldPositionToRegistrationFrameMatrix, DISPATCHER_PROPERTIES, handsAreTracked, console, Settings
 */
 
 Script.include("/~/system/libraries/controllerDispatcherUtils.js");
@@ -20,6 +20,8 @@ Script.include("/~/system/libraries/controllers.js");
 
 (function () {
     var controllerStandard = Controller.Standard;
+    var picoUsesStickDepth = Settings.getValue("deferTabletCreationUntilOpen", false);
+    var PICO_FAR_GRAB_RAY_ON_VALUE = 0.50;
 
     var MARGIN = 25;
 
@@ -66,6 +68,8 @@ Script.include("/~/system/libraries/controllers.js");
         this.currentControllerRotation = Quat.IDENTITY;
         this.manipulating = false;
         this.wasManipulating = false;
+        this.lastPicoTrace = 0;
+        this.directLocalGrab = false;
 
         var FAR_GRAB_JOINTS = [65527, 65528]; // FARGRAB_LEFTHAND_INDEX, FARGRAB_RIGHTHAND_INDEX
 
@@ -73,6 +77,9 @@ Script.include("/~/system/libraries/controllers.js");
         var DISTANCE_HOLDING_ACTION_TIMEFRAME = 0.1; // how quickly objects move to their new position
         var DISTANCE_HOLDING_UNITY_MASS = 1200; //  The mass at which the distance holding action timeframe is unmodified
         var DISTANCE_HOLDING_UNITY_DISTANCE = 6; //  The distance at which the distance holding action timeframe is unmodified
+        var DEPTH_STICK_DEADZONE = 0.2;
+        var MINIMUM_GRAB_RADIUS = 0.25;
+        var MAXIMUM_GRAB_RADIUS = 20.0;
 
         this.parameters = makeDispatcherModuleParameters(
             540,
@@ -195,15 +202,28 @@ Script.include("/~/system/libraries/controllers.js");
             Entities.callEntityMethod(targetProps.id, "startDistanceGrab", args);
 
             this.targetEntityID = targetProps.id;
-
+            this.directLocalGrab = targetProps.entityHostType === "local";
 
             if (this.grabID) {
                 MyAvatar.releaseGrab(this.grabID);
             }
+            this.grabID = null;
             var farJointIndex = FAR_GRAB_JOINTS[this.hand];
-            this.grabID = MyAvatar.grab(targetProps.id, farJointIndex,
-                Entities.worldToLocalPosition(targetProps.position, MyAvatar.SELF_ID, farJointIndex),
-                Entities.worldToLocalRotation(targetProps.rotation, MyAvatar.SELF_ID, farJointIndex));
+            if (!this.directLocalGrab) {
+                this.grabID = MyAvatar.grab(targetProps.id, farJointIndex,
+                    Entities.worldToLocalPosition(targetProps.position, MyAvatar.SELF_ID, farJointIndex),
+                    Entities.worldToLocalRotation(targetProps.rotation, MyAvatar.SELF_ID, farJointIndex));
+            }
+
+            console.info("PICO4_FAR_GRAB start " + JSON.stringify({
+                hand: this.hand,
+                entityID: targetProps.id,
+                entityHostType: targetProps.entityHostType,
+                directLocalGrab: this.directLocalGrab,
+                grabID: this.grabID,
+                entityPosition: targetProps.position,
+                jointPosition: MyAvatar.getJointTranslation(farJointIndex)
+            }));
 
             Messages.sendMessage('Hifi-Object-Manipulation', JSON.stringify({
                 action: 'grab',
@@ -244,31 +264,44 @@ Script.include("/~/system/libraries/controllers.js");
             var args = [this.hand === RIGHT_HAND ? "right" : "left", MyAvatar.sessionUUID];
             Entities.callEntityMethod(this.targetEntityID, "continueDistanceGrab", args);
 
-            //  Update radialVelocity
-            var lastVelocity = Vec3.multiply(worldHandDelta, 1.0 / deltaObjectTime);
-            var delta = Vec3.normalize(Vec3.subtract(targetProps.position, worldControllerPosition));
-            var newRadialVelocity = Vec3.dot(lastVelocity, delta);
+            // Desktop/HMD controllers traditionally change far-grab depth from
+            // radial hand velocity. On Pico, squeezing the trigger introduces
+            // enough small forward motion for that amplified input to pull a
+            // newly selected object toward the hand. Pico has explicit stick
+            // depth control below, so preserve the acquired radius here.
+            if (!picoUsesStickDepth) {
+                var lastVelocity = Vec3.multiply(worldHandDelta, 1.0 / deltaObjectTime);
+                var delta = Vec3.normalize(Vec3.subtract(targetProps.position, worldControllerPosition));
+                var newRadialVelocity = Vec3.dot(lastVelocity, delta);
 
-            var VELOCITY_AVERAGING_TIME = 0.016;
-            var blendFactor = deltaObjectTime / VELOCITY_AVERAGING_TIME;
-            if (blendFactor < 0.0) {
-                blendFactor = 0.0;
-            } else if (blendFactor > 1.0) {
-                blendFactor = 1.0;
-            }
-            this.grabRadialVelocity = blendFactor * newRadialVelocity + (1.0 - blendFactor) * this.grabRadialVelocity;
+                var VELOCITY_AVERAGING_TIME = 0.016;
+                var blendFactor = deltaObjectTime / VELOCITY_AVERAGING_TIME;
+                if (blendFactor < 0.0) {
+                    blendFactor = 0.0;
+                } else if (blendFactor > 1.0) {
+                    blendFactor = 1.0;
+                }
+                this.grabRadialVelocity = blendFactor * newRadialVelocity +
+                    (1.0 - blendFactor) * this.grabRadialVelocity;
 
-            var RADIAL_GRAB_AMPLIFIER = 10.0;
-            if (Math.abs(this.grabRadialVelocity) > 0.0) {
-                this.grabRadius = this.grabRadius + (this.grabRadialVelocity * deltaObjectTime *
-                    this.grabRadius * RADIAL_GRAB_AMPLIFIER);
+                var RADIAL_GRAB_AMPLIFIER = 10.0;
+                if (Math.abs(this.grabRadialVelocity) > 0.0) {
+                    this.grabRadius = this.grabRadius + (this.grabRadialVelocity * deltaObjectTime *
+                        this.grabRadius * RADIAL_GRAB_AMPLIFIER);
+                }
             }
 
-            // don't let grabRadius go all the way to zero, because it can't come back from that
-            var MINIMUM_GRAB_RADIUS = 0.1;
-            if (this.grabRadius < MINIMUM_GRAB_RADIUS) {
-                this.grabRadius = MINIMUM_GRAB_RADIUS;
+            // Pico's right stick controls depth while either hand is far-grabbing.
+            // OpenXR reports stick-forward as negative Y, hence the inversion.
+            var depthInput = -Controller.getValue(controllerStandard.RY);
+            if (Math.abs(depthInput) > DEPTH_STICK_DEADZONE) {
+                var depthDirection = (depthInput > 0 ? 1 : -1) *
+                    (Math.abs(depthInput) - DEPTH_STICK_DEADZONE) / (1 - DEPTH_STICK_DEADZONE);
+                var depthSpeed = Math.max(0.5, this.grabRadius * 0.8);
+                this.grabRadius += depthDirection * depthSpeed * deltaObjectTime;
             }
+            this.grabRadius = Math.max(MINIMUM_GRAB_RADIUS,
+                Math.min(MAXIMUM_GRAB_RADIUS, this.grabRadius));
             var newTargetPosition = Vec3.multiply(this.grabRadius, Quat.getUp(worldControllerRotation));
             newTargetPosition = Vec3.sum(newTargetPosition, worldControllerPosition);
             newTargetPosition = Vec3.sum(newTargetPosition, this.offsetPosition);
@@ -311,11 +344,42 @@ Script.include("/~/system/libraries/controllers.js");
                 this.initialControllerRotation = Quat.IDENTITY;
             }
             this.setJointTranslation(newTargetPosLocal);
+            if (this.directLocalGrab) {
+                var localEdit = {
+                    position: newTargetPosition,
+                    velocity: Vec3.ZERO,
+                    angularVelocity: Vec3.ZERO
+                };
+                if (this.manipulating) {
+                    localEdit.rotation = this.lastJointRotation;
+                }
+                Entities.editEntity(this.targetEntityID, localEdit);
+            }
+
+            if (now - this.lastPicoTrace >= 250) {
+                this.lastPicoTrace = now;
+                console.info("PICO4_FAR_GRAB update " + JSON.stringify({
+                    hand: this.hand,
+                    entityID: this.targetEntityID,
+                    entityPosition: targetProps.position,
+                    targetPosition: newTargetPosition,
+                    jointPosition: MyAvatar.getJointTranslation(FAR_GRAB_JOINTS[this.hand]),
+                    handDelta: worldHandDelta,
+                    depthInput: depthInput,
+                    grabRadius: this.grabRadius
+                }));
+            }
 
             this.previousRoomControllerPosition = roomControllerPosition;
         };
 
         this.endFarGrabEntity = function (controllerData) {
+            console.info("PICO4_FAR_GRAB end " + JSON.stringify({
+                hand: this.hand,
+                entityID: this.targetEntityID,
+                grabID: this.grabID,
+                entityPosition: Entities.getEntityProperties(this.targetEntityID, "position").position
+            }));
             if (this.grabID) {
                 MyAvatar.releaseGrab(this.grabID);
                 this.grabID = null;
@@ -336,6 +400,7 @@ Script.include("/~/system/libraries/controllers.js");
             this.initialEntityRotation = Quat.IDENTITY;
             this.initialControllerRotation = Quat.IDENTITY;
             this.targetEntityID = null;
+            this.directLocalGrab = false;
             this.manipulating = false;
             this.wasManipulating = false;
             var otherModule = this.getOtherModule();
@@ -407,7 +472,8 @@ Script.include("/~/system/libraries/controllers.js");
 
                 this.distanceHolding = false;
 
-                if (controllerData.triggerValues[this.hand] > TRIGGER_ON_VALUE && !this.disabled) {
+                var rayOnValue = picoUsesStickDepth ? PICO_FAR_GRAB_RAY_ON_VALUE : TRIGGER_ON_VALUE;
+                if (controllerData.triggerValues[this.hand] >= rayOnValue && !this.disabled) {
                     var otherModule = this.getOtherModule();
                     otherModule.disabled = true;
                     return makeRunningValues(true, [], []);

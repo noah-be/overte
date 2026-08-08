@@ -201,6 +201,9 @@ For reproducible Pico microphone source and fan-noise tests, see
 `pico-microphone-test.sh` script restores automatic fan control and stops the
 app after each run.
 
+For controller-to-entity debugging, see the
+[object interaction architecture and hardware test matrix](docs/pico4-object-interaction.md).
+
 The command expects exactly one authorized ADB device. Select a device
 explicitly when several are connected:
 
