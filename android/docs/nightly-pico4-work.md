@@ -1325,8 +1325,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 72 — Atomic OpenXR controller user paths
 
 - Branch: `nightly/pico4-72-openxr-user-paths`
-- Commit: identified by subject `Validate Pico OpenXR controller paths`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `b800036698` (`Validate Pico OpenXR controller paths`)
 - Change: initialize both Pico hand user paths to `XR_NULL_PATH`, resolve them
   into local candidates with checked results, and publish neither until both
   required conversions succeed. Optional Vive-profile conversion is checked and
@@ -1340,6 +1339,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Inject left/right path-conversion failures
   and verify clean startup rejection with no action creation; verify normal Pico
   controllers, profile changes and haptics when both paths resolve.
+
+### 73 — Validated Pico display-refresh capability
+
+- Branch: `nightly/pico4-73-openxr-refresh-capability`
+- Commit: identified by subject `Validate Pico OpenXR refresh rates`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: atomically disable and clear the FB display-refresh capability when
+  any required entry point is missing, reject empty or count-changing runtime
+  enumerations, and select the existing lowest-rate policy only from finite,
+  positive advertised values. No refresh-rate constant or tuning target changed.
+- Regression: display/context contracts cover partial function loading, zero and
+  changed counts, finite/positive filtering before the runtime request.
+- Passed: 19 OpenXR display/context contracts; `git diff --check`.
+- Risk: malformed refresh-rate data now skips the optional request and leaves
+  runtime defaults active rather than issuing an invalid request.
+- Pico 4 validation: **not executed**. Inject missing FB functions and malformed/
+  changing rate lists; verify startup/rendering continues at runtime defaults.
+  With Pico's normal 72/90 Hz list, verify the logged/requested mode remains 72 Hz.
 
 ## Deferred, rejected, or blocked ideas
 

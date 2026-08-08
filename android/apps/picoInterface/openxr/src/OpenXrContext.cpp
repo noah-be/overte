@@ -776,7 +776,7 @@ bool OpenXrContext::initSession() {
 
 #if defined(Q_OS_ANDROID)
     if (_displayRefreshRateSupported) {
-        bool functionsLoaded =
+        const bool functionsLoaded =
             loadXrFunction(_instance, "xrEnumerateDisplayRefreshRatesFB",
                            reinterpret_cast<PFN_xrVoidFunction*>(&xrEnumerateDisplayRefreshRatesFB)) &&
             loadXrFunction(_instance, "xrGetDisplayRefreshRateFB",
@@ -784,18 +784,30 @@ bool OpenXrContext::initSession() {
             loadXrFunction(_instance, "xrRequestDisplayRefreshRateFB",
                            reinterpret_cast<PFN_xrVoidFunction*>(&xrRequestDisplayRefreshRateFB));
 
-        if (functionsLoaded) {
+        if (!functionsLoaded) {
+            _displayRefreshRateSupported = false;
+            xrEnumerateDisplayRefreshRatesFB = nullptr;
+            xrGetDisplayRefreshRateFB = nullptr;
+            xrRequestDisplayRefreshRateFB = nullptr;
+        } else {
             uint32_t rateCount = 0;
             result = xrEnumerateDisplayRefreshRatesFB(_session, 0, &rateCount, nullptr);
-            if (xrCheck(_instance, result, "Failed to enumerate display refresh-rate count")) {
+            if (xrCheck(_instance, result, "Failed to enumerate display refresh-rate count") &&
+                    rateCount > 0) {
                 std::vector<float> rates(rateCount);
-                result = xrEnumerateDisplayRefreshRatesFB(_session, rateCount, &rateCount, rates.data());
-                if (xrCheck(_instance, result, "Failed to enumerate display refresh rates")) {
+                uint32_t populatedRateCount { 0 };
+                result = xrEnumerateDisplayRefreshRatesFB(
+                    _session, rateCount, &populatedRateCount, rates.data());
+                if (xrCheck(_instance, result, "Failed to enumerate display refresh rates") &&
+                        populatedRateCount == rateCount) {
                     QStringList rateNames;
-                    float lowestRate = rates.empty() ? 0.0f : rates.front();
+                    float lowestRate { 0.0f };
                     for (float rate : rates) {
                         rateNames << QString::number(rate, 'f', 1);
-                        lowestRate = std::min(lowestRate, rate);
+                        if (std::isfinite(rate) && rate > 0.0f &&
+                                (lowestRate == 0.0f || rate < lowestRate)) {
+                            lowestRate = rate;
+                        }
                     }
                     qCInfo(xr_context_cat) << "Supported display refresh rates:" << rateNames.join(", ") << "Hz";
 
@@ -811,7 +823,12 @@ bool OpenXrContext::initSession() {
                     } else {
                         qCWarning(xr_context_cat, "The OpenXR runtime returned no usable display refresh rate.");
                     }
+                } else if (XR_SUCCEEDED(result)) {
+                    qCWarning(xr_context_cat,
+                              "OpenXR display refresh-rate count changed during enumeration");
                 }
+            } else if (XR_SUCCEEDED(result)) {
+                qCWarning(xr_context_cat, "The OpenXR runtime returned no display refresh rates.");
             }
         }
     }

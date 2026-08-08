@@ -259,6 +259,25 @@ class PicoOpenXRDisplayTests(unittest.TestCase):
         self.assertLess(destroy, instance)
         self.assertIn("_debugMessenger = XR_NULL_HANDLE", destructor[destroy:instance])
 
+    def test_refresh_rate_capability_and_enumeration_fail_closed(self):
+        start = CONTEXT.index("if (_displayRefreshRateSupported)")
+        end = CONTEXT.index("return true;", start)
+        refresh = CONTEXT[start:end]
+        self.assertIn("const bool functionsLoaded", refresh)
+        failure = refresh.index("if (!functionsLoaded)")
+        self.assertIn("_displayRefreshRateSupported = false", refresh[failure:])
+        self.assertIn("xrEnumerateDisplayRefreshRatesFB = nullptr", refresh[failure:])
+        self.assertIn("xrGetDisplayRefreshRateFB = nullptr", refresh[failure:])
+        self.assertIn("xrRequestDisplayRefreshRateFB = nullptr", refresh[failure:])
+        self.assertIn("rateCount > 0", refresh)
+        self.assertIn("uint32_t populatedRateCount { 0 }", refresh)
+        self.assertIn("populatedRateCount == rateCount", refresh)
+        finite = refresh.index("std::isfinite(rate)")
+        positive = refresh.index("rate > 0.0f", finite)
+        request = refresh.index("xrRequestDisplayRefreshRateFB(_session", positive)
+        self.assertLess(finite, positive)
+        self.assertLess(positive, request)
+
 
 if __name__ == "__main__":
     unittest.main()
