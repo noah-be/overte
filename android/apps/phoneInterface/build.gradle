@@ -446,6 +446,12 @@ android {
                 exclude 'developer/**'
                 exclude 'tutorials/**'
                 exclude 'communityScripts/**'
+                // The touchscreen client has no tracked hands, grip inputs,
+                // or haptics for the desktop/VR handshake service.
+                exclude 'system/makeUserConnection.js'
+                exclude 'system/assets/images/Bokeh-Particle.png'
+                exclude 'system/assets/sounds/4beat_sweep.wav'
+                exclude 'system/assets/sounds/3rdbeat_success_bell.wav'
                 eachFile { details ->
                     youngestLastModified = Math.max(youngestLastModified, details.lastModified)
                     assetList.add("scripts/${details.path}")

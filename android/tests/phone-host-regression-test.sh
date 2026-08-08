@@ -127,6 +127,10 @@ require_text "$gradle" "exclude 'tutorials/[*][*]'" \
     'phone packaging omits tutorial-only script examples'
 require_text "$gradle" "exclude 'communityScripts/[*][*]'" \
     'phone packaging omits the unreachable desktop community-app bundle'
+reject_text "$phone_defaults" 'makeUserConnection' \
+    'touchscreen phone defaults do not start the VR handshake service'
+require_text "$gradle" "exclude 'system/assets/sounds/4beat_sweep[.]wav'" \
+    'phone packaging omits the unreachable VR handshake sound payload'
 require_text "$gradle" "dependsOn tasks\.named\('verifyPhone16kDependencies'\)" \
     'Conan generator staging runs only after dependency verification'
 require_text "$gradle" 'outputs\.upToDateWhen[[:space:]]*\{[[:space:]]*false[[:space:]]*\}' \

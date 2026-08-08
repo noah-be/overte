@@ -21,12 +21,22 @@ if grep -Eq 'developer/|tutorials/|communityScripts/' "$defaults"; then
     echo 'FAIL: phone defaults depend on an excluded example or desktop app' >&2
     exit 1
 fi
+if grep -Eq 'makeUserConnection' "$defaults"; then
+    echo 'FAIL: touchscreen-only phone defaults start the VR handshake service' >&2
+    exit 1
+fi
+for excluded in \
+        system/makeUserConnection.js \
+        system/assets/images/Bokeh-Particle.png \
+        system/assets/sounds/4beat_sweep.wav \
+        system/assets/sounds/3rdbeat_success_bell.wav; do
+    grep -Fq "exclude '$excluded'" "$gradle"
+done
 
 for required in \
         system/progress.js \
         system/+android_interface/touchscreenvirtualpad.js \
         system/+android_phoneInterface/mobileActionBar.js \
-        system/makeUserConnection.js \
         system/+android_interface/androidControls.js; do
     test -f "$repo_root/scripts/$required" || {
         echo "FAIL: required phone script is missing: $required" >&2

@@ -18,8 +18,7 @@
 var PHONE_DEFAULT_SCRIPTS = [
     "system/progress.js",
     "system/+android_interface/touchscreenvirtualpad.js",
-    "system/+android_phoneInterface/mobileActionBar.js",
-    "system/makeUserConnection.js"
+    "system/+android_phoneInterface/mobileActionBar.js"
 ];
 
 Script.require("/~/system/+android_interface/androidControls.js");
