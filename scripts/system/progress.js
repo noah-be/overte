@@ -14,6 +14,12 @@
 //
 
 (function () { // BEGIN LOCAL_SCOPE
+    // Phone rendering is capped at 30 FPS. Avoid waking its script engine twice
+    // per rendered frame while retaining the established desktop cadence.
+    var UPDATE_INTERVAL = typeof ANDROID_PHONE_INTERFACE !== "undefined" && ANDROID_PHONE_INTERFACE
+        ? 1000 / 30
+        : 1000 / 60;
+
     function debug() {
         //print.apply(null, arguments);
     }
@@ -381,7 +387,7 @@
     Window.interstitialModeChanged.connect(interstitialModeChanged);
     GlobalServices.downloadInfoChanged.connect(onDownloadInfoChanged);
     GlobalServices.updateDownloadInfo();
-    Script.setInterval(update, 1000 / 60);
+    Script.setInterval(update, UPDATE_INTERVAL);
     Script.scriptEnding.connect(tearDown);
 
 }()); // END LOCAL_SCOPE

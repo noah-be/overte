@@ -15,6 +15,7 @@
 // established touch controls and essential client services without loading the
 // legacy Android action bar, which depends on a native Home activity that the
 // phone client does not provide.
+var ANDROID_PHONE_INTERFACE = true;
 var PHONE_DEFAULT_SCRIPTS = [
     "system/progress.js",
     "system/+android_interface/touchscreenvirtualpad.js",

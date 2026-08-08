@@ -6,6 +6,7 @@ readonly android_root="$(cd -- "$script_dir/.." && pwd)"
 readonly repo_root="$(cd -- "$android_root/.." && pwd)"
 readonly gradle="$android_root/apps/phoneInterface/build.gradle"
 readonly defaults="$repo_root/scripts/+android_phoneInterface/defaultScripts.js"
+readonly progress="$repo_root/scripts/system/progress.js"
 
 grep -Eq "exclude 'simplifiedUI/[*][*]'" "$gradle"
 grep -Eq "exclude 'simplifiedUIBootstrapper[.]js'" "$gradle"
@@ -43,6 +44,16 @@ for required in \
         exit 1
     }
 done
+
+grep -Eq '^var ANDROID_PHONE_INTERFACE = true;' "$defaults"
+grep -Eq 'typeof ANDROID_PHONE_INTERFACE.*ANDROID_PHONE_INTERFACE' "$progress"
+grep -Eq '[?][[:space:]]*1000 / 30' "$progress"
+grep -Eq ':[[:space:]]*1000 / 60' "$progress"
+grep -Fq 'Script.setInterval(update, UPDATE_INTERVAL);' "$progress"
+if grep -Fq 'Script.setInterval(update, 1000 / 60);' "$progress"; then
+    echo 'FAIL: phone progress indicator still unconditionally updates at 60 Hz' >&2
+    exit 1
+fi
 
 python3 - \
         "$repo_root/scripts/simplifiedUI" \
