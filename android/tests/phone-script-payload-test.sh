@@ -8,6 +8,24 @@ readonly gradle="$android_root/apps/phoneInterface/build.gradle"
 readonly defaults="$repo_root/scripts/+android_phoneInterface/defaultScripts.js"
 readonly progress="$repo_root/scripts/system/progress.js"
 
+grep -Fq "variant.mergeAssets.inputs.file(project.file('build.gradle'))" "$gradle"
+python3 - "$gradle" <<'PY'
+import pathlib
+import re
+import sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+scripts_stage = re.search(
+    r"project[.]sync\s*\{\s*from new File\(projectDir, '../../../scripts'\)(.*?)\n\s*\}",
+    source,
+    re.S,
+)
+if not scripts_stage:
+    raise SystemExit('FAIL: phone scripts are not staged with stale-output cleanup')
+if "into new File(mergedAssetsDir, 'scripts')" not in scripts_stage.group(1):
+    raise SystemExit('FAIL: phone script sync no longer targets merged scripts')
+PY
+
 grep -Eq "exclude 'simplifiedUI/[*][*]'" "$gradle"
 grep -Eq "exclude 'simplifiedUIBootstrapper[.]js'" "$gradle"
 for excluded in developer tutorials communityScripts; do
@@ -33,6 +51,20 @@ for excluded in \
         system/assets/sounds/3rdbeat_success_bell.wav; do
     grep -Fq "exclude '$excluded'" "$gradle"
 done
+
+for excluded in \
+        system/voxels.js \
+        system/assets/images/textures/dirt.jpeg \
+        system/assets/images/textures/grass.png; do
+    grep -Fq "exclude '$excluded'" "$gradle"
+done
+grep -Fq 'assets/images/textures/dirt.jpeg' "$repo_root/scripts/system/voxels.js"
+grep -Fq 'assets/images/textures/grass.png' "$repo_root/scripts/system/voxels.js"
+if rg -l --glob '*.js' 'assets/images/textures/(dirt[.]jpeg|grass[.]png)' \
+        "$repo_root/scripts" | grep -Fvqx "$repo_root/scripts/system/voxels.js"; then
+    echo 'FAIL: excluded voxel texture gained another script consumer' >&2
+    exit 1
+fi
 
 for required in \
         system/progress.js \

@@ -344,6 +344,9 @@ android {
         variant.mergeAssets.inputs.files(nativeResourcesRcc)
         variant.mergeAssets.inputs.dir(file("${projectDir}/../../../interface/resources"))
         variant.mergeAssets.inputs.dir(file("${projectDir}/../../../scripts"))
+        // Packaging rules are implemented in doLast below. Make changes to
+        // those include/exclude rules invalidate the merged asset output.
+        variant.mergeAssets.inputs.file(project.file('build.gradle'))
 
         variant.mergeAssets.doLast {
             def mergedAssetsDir = outputDir.get().asFile
@@ -425,7 +428,7 @@ android {
             youngestLastModified = Math.max(youngestLastModified, qmlRccFile.lastModified())
             assetList.add('android_rcc_bundle.rcc')
 
-            copy {
+            project.sync {
                 from new File(projectDir, '../../../scripts')
                 into new File(mergedAssetsDir, 'scripts')
                 duplicatesStrategy DuplicatesStrategy.INCLUDE
@@ -452,6 +455,12 @@ android {
                 exclude 'system/assets/images/Bokeh-Particle.png'
                 exclude 'system/assets/sounds/4beat_sweep.wav'
                 exclude 'system/assets/sounds/3rdbeat_success_bell.wav'
+                // The dedicated phone startup never loads the legacy voxel
+                // paint tool. These textures are referenced only by that
+                // script, so keep the complete unused feature out of the APK.
+                exclude 'system/voxels.js'
+                exclude 'system/assets/images/textures/dirt.jpeg'
+                exclude 'system/assets/images/textures/grass.png'
                 eachFile { details ->
                     youngestLastModified = Math.max(youngestLastModified, details.lastModified)
                     assetList.add("scripts/${details.path}")
