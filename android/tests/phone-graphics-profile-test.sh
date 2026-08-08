@@ -7,6 +7,7 @@ readonly application="$repo_root/interface/src/Application.cpp"
 readonly application_setup="$repo_root/interface/src/Application_Setup.cpp"
 readonly plugins="$repo_root/interface/src/Application_Plugins.cpp"
 readonly offscreen_ui="$repo_root/libraries/ui/src/OffscreenUi.cpp"
+readonly application_overlay="$repo_root/interface/src/ui/ApplicationOverlay.cpp"
 
 failures=0
 checks=0
@@ -248,6 +249,17 @@ if awk '
     pass 'phone debug builds suppress desktop QML debug decorations'
 else
     fail 'phone debug builds suppress desktop QML debug decorations'
+fi
+
+if awk '
+    /#if !defined\(ANDROID_APP_PHONE_INTERFACE\)/ { guarded = 1 }
+    guarded && /renderDomainConnectionStatusBorder\(renderArgs\)/ { border = 1 }
+    border && /#endif/ { closed = 1; exit }
+    END { exit !(guarded && border && closed) }
+' "$application_overlay"; then
+    pass 'phone suppresses the desktop disconnected-domain border'
+else
+    fail 'phone suppresses the desktop disconnected-domain border'
 fi
 
 printf 'Checks: %s total, %s failed\n' "$checks" "$failures"

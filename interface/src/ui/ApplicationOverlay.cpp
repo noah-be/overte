@@ -79,7 +79,9 @@ void ApplicationOverlay::renderOverlay(RenderArgs* renderArgs) {
         batch.clearFramebuffer(gpu::Framebuffer::BUFFER_COLOR0 | gpu::Framebuffer::BUFFER_DEPTH, color, depth, stencil);
 
         // Now render the overlay components together into a single texture
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
         renderDomainConnectionStatusBorder(renderArgs); // renders the connected domain line
+#endif
         renderOverlays(renderArgs); // renders Scripts Overlay and AudioScope
 #if !defined(DISABLE_QML)
         renderQmlUi(renderArgs); // renders a unit quad with the QML UI texture, and the text overlays from scripts
