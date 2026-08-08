@@ -105,7 +105,8 @@ fi
 
 readonly SUMMARY="$REPORT_DIR/summary.txt"
 readonly TEST_DEEP_LINK="overte://localhost"
-printf 'package=%s\napk_sha256=%s\n' "$PACKAGE" "$APK_SHA256" | tee "$SUMMARY"
+printf 'package=%s\napk_sha256=%s\nruntime_permissions_auto_granted=1\n' \
+    "$PACKAGE" "$APK_SHA256" | tee "$SUMMARY"
 
 current_pid() {
     adb_for shell pidof -s "$PACKAGE" 2>/dev/null | tr -d '\r' || true
@@ -149,7 +150,10 @@ phone_activity_is_resumed() {
 }
 
 printf '\nInstalling APK on the selected phone...\n'
-adb_for install -r "$APK" >/dev/null
+# Keep the smoke test entirely unattended. Permission denial/revocation is a
+# separate lifecycle matrix; this main launch path grants declared runtime
+# permissions at install time so it cannot wait on Android permission UI.
+adb_for install -r -g "$APK" >/dev/null
 
 printf '\nLaunching %s...\n' "$LAUNCHER"
 adb_for shell am force-stop "$PACKAGE"

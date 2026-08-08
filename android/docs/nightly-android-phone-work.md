@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 52 — Make the device smoke test unattended
+
+- Branch: `nightly/android-phone-52-device-permission-automation`
+- Commit: `Automate phone smoke test permissions` (this task's commit)
+- Change: Install the test artifact with ADB `-r -g`, preventing the main smoke
+  path from blocking on Android's microphone dialog, and record the automatic
+  runtime-permission grant in the external summary. Permission denial/revocation
+  remains an explicit separate lifecycle test rather than hidden human input.
+- Tests:
+  - `bash -n android/tests/phone-device-test.sh`: **passed**.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 204/204 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/APK suites and 204/204 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: The smoke install changes runtime permission state on its test
+  package as declared; deny/don't-ask-again/regrant paths require separate runs.
+- Real-device validation still required: Run the current APK through this smoke
+  from both fresh and previously denied states and confirm it reaches the Qt
+  Activity without a dialog or human action; separately automate revoke/deny.
+
 ## 51 — Record device-test APK provenance
 
 - Branch: `nightly/android-phone-51-device-apk-provenance`
