@@ -72,6 +72,10 @@ case "$*" in
         ;;
     logcat\ -d\ -T\ *\ -v\ threadtime\ --pid=4242)
         [[ "${MOCK_LOGCAT_FAILURE:-0}" != 1 ]] || exit 9
+        case "${MOCK_LOGCAT_FIXTURE:-}" in
+            benign-16k) printf 'Phone dependencies verified for 16 KiB page size\n' ;;
+            bad-16k) printf 'linker error: library has incompatible 16 KB page alignment\n' ;;
+        esac
         ;;
     *) printf 'unexpected mock adb command: %s\n' "$*" >&2; exit 4 ;;
 esac
@@ -141,6 +145,24 @@ if run_smoke "$test_root/logcat-failure-report" env MOCK_LOGCAT_FAILURE=1 \
 fi
 grep -Fq 'could not read process-scoped log diagnostics' "$test_root/logcat-failure.out"
 ! grep -Fq 'crash_log_matches=' "$test_root/logcat-failure-report/summary.txt"
+
+mkdir "$test_root/benign-16k-report"
+run_smoke "$test_root/benign-16k-report" env MOCK_LOGCAT_FIXTURE=benign-16k \
+    >"$test_root/benign-16k.out"
+grep -Fxq 'page_size_mismatch_matches=0' "$test_root/benign-16k-report/summary.txt"
+
+mkdir "$test_root/bad-16k-report"
+set +e
+run_smoke "$test_root/bad-16k-report" env MOCK_LOGCAT_FIXTURE=bad-16k \
+    >"$test_root/bad-16k.out" 2>&1
+bad_16k_status=$?
+set -e
+[[ $bad_16k_status -eq 2 ]] || {
+    printf 'FAIL: incompatible 16 KiB marker returned status %d instead of 2\n' \
+        "$bad_16k_status" >&2
+    exit 1
+}
+grep -Fxq 'page_size_mismatch_matches=1' "$test_root/bad-16k-report/summary.txt"
 
 mkdir "$test_root/exit-info-failure-report"
 if run_smoke "$test_root/exit-info-failure-report" env MOCK_EXIT_INFO_FAILURE=1 \

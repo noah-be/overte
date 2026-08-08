@@ -4,6 +4,28 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 70 — Avoid benign 16-KiB log false positives
+
+- Branch: `nightly/android-phone-70-page-size-markers`
+- Commit: `Tighten phone page-size log markers` (this task's commit)
+- Change: Stop treating every generic `16 KB`/`16 KiB` app log line as an
+  incompatibility. Explicit page-size mismatch forms still count; otherwise the
+  size token must accompany error, failure, incompatibility, invalidity,
+  unsupported, or misalignment context.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; a benign
+    verification message records zero, while an incompatible linker-alignment
+    message records one and returns the diagnostic failure status 2.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 236/236 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 236/236 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Unseen OEM linker wording may need a reviewed explicit marker;
+  aggregate real-device logs should be correlated with the static ELF gate.
+- Real-device validation still required: Run a current 16-KiB APK and confirm
+  normal compatibility telemetry stays at zero; use an isolated known-bad APK
+  to confirm its linker wording is detected without persisting raw logs.
+
 ## 69 — Validate Android exit-info structure
 
 - Branch: `nightly/android-phone-69-exit-info-contract`

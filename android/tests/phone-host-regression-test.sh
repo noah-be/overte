@@ -572,6 +572,8 @@ reject_text tests/phone-device-test.sh \
     'device reports never persist caller URIs or raw Android diagnostics'
 require_text tests/phone-device-test.sh 'crash_log_matches=%s\\nexit_crash_matches=%s\\npage_size_mismatch_matches=%s' \
     'device reports retain only aggregate crash and page-size counters'
+require_text tests/phone-device-test.sh 'has_16k_size.*has_failure_context' \
+    'device smoke requires error context before treating generic 16 KiB text as failure'
 for command_name in doctor prepare build install all deploy setup; do
     require_text build-phone.sh \
         "(^|[[:space:]])${command_name}\)" \

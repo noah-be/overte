@@ -243,7 +243,10 @@ log_marker_counts="$(
         {
             line = tolower($0)
             if (line ~ /fatal exception|fatal signal|debug.*backtrace|am_crash|crash_dump/) crashes++
-            if (line ~ /pagesizemismatch|page size mismatch|16[ -]?k(b|ib)|load segment.*align/) pages++
+            explicit_mismatch = line ~ /pagesizemismatch|page size mismatch|load segment.*(not|mis).*align/
+            has_16k_size = line ~ /16[ -]?k(b|ib)/
+            has_failure_context = line ~ /error|fail|incompat|invalid|mismatch|misalign|not .*align|unsupported/
+            if (explicit_mismatch || (has_16k_size && has_failure_context)) pages++
         }
         END { print crashes, pages }
     '
