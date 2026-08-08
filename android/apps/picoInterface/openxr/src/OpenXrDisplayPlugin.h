@@ -86,7 +86,7 @@ private:
     bool initViews();
     bool initSwapChains();
     bool initLayers();
-    bool endFrame();
+    bool endFrame(bool submitLayer = true);
 
     bool _haveFrameToSubmit = false;
     std::mutex _haveFrameMutex;

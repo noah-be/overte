@@ -559,23 +559,76 @@ void OpenXrDisplayPlugin::hmdPresent() {
         return;
 
     if (_lastFrameState.shouldRender) {
+        uint32_t waitedSwapChains { 0 };
+        auto releaseWaitedSwapChains = [&] {
+            bool success { true };
+            for (uint32_t i = 0; i < waitedSwapChains; ++i) {
+                XrSwapchainImageReleaseInfo releaseInfo = {
+                    .type = XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO
+                };
+                const XrResult releaseResult = xrReleaseSwapchainImage(
+                    _swapChains[i], &releaseInfo);
+                success = xrCheck(_context->_instance, releaseResult,
+                    "failed to release swapchain image!") && success;
+            }
+            return success;
+        };
+        auto failFrame = [&] {
+            // OpenXR only permits release after a successful wait. Images
+            // acquired by a failed wait belong to the failing session/runtime;
+            // attempting to release them would itself violate call ordering.
+            releaseWaitedSwapChains();
+            // xrBeginFrame succeeded, so the runtime still requires exactly
+            // one xrEndFrame even though no projection layer is safe to submit.
+            endFrame(false);
+        };
+
+        constexpr uint32_t STEREO_VIEW_COUNT { 2 };
+        if (_swapChains.size() < STEREO_VIEW_COUNT ||
+                _swapChainIndices.size() < STEREO_VIEW_COUNT ||
+                _images.size() < STEREO_VIEW_COUNT || !_compositeFramebuffer) {
+            qCWarning(xr_display_cat) << "OpenXR stereo frame resources are incomplete";
+            failFrame();
+            return;
+        }
+
         // TODO: Use multiview swapchain
-        for (uint32_t i = 0; i < 2; i++) {
+        for (uint32_t i = 0; i < STEREO_VIEW_COUNT; i++) {
             XrSwapchainImageAcquireInfo acquireInfo = { .type = XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO };
 
             XrResult result = xrAcquireSwapchainImage(_swapChains[i], &acquireInfo, &_swapChainIndices[i]);
-            if (!xrCheck(_context->_instance, result, "failed to acquire swapchain image!"))
+            if (!xrCheck(_context->_instance, result, "failed to acquire swapchain image!")) {
+                failFrame();
                 return;
-
-            XrSwapchainImageWaitInfo waitInfo = { .type = XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO, .timeout = 1000 };
+            }
+            XrSwapchainImageWaitInfo waitInfo = {
+                .type = XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO,
+                .timeout = XR_INFINITE_DURATION
+            };
             result = xrWaitSwapchainImage(_swapChains[i], &waitInfo);
-            if (!xrCheck(_context->_instance, result, "failed to wait for swapchain image!"))
+            if (result == XR_TIMEOUT_EXPIRED ||
+                    !xrCheck(_context->_instance, result, "failed to wait for swapchain image!")) {
+                failFrame();
                 return;
+            }
+            ++waitedSwapChains;
         }
 
         auto backend = getBackend();
         auto glBackend = std::dynamic_pointer_cast<gpu::gl::GLBackend>(backend);
-        Q_ASSERT(glBackend);
+        if (!glBackend) {
+            qCWarning(xr_display_cat) << "OpenXR frame has no OpenGL backend";
+            failFrame();
+            return;
+        }
+        for (uint32_t i = 0; i < STEREO_VIEW_COUNT; ++i) {
+            if (_swapChainIndices[i] >= _images[i].size()) {
+                qCWarning(xr_display_cat) << "OpenXR returned an invalid swapchain image index"
+                                          << i << _swapChainIndices[i];
+                failFrame();
+                return;
+            }
+        }
         GLuint glTexId = glBackend->getTextureID(_compositeFramebuffer->getRenderBuffer(0));
 
         glCopyImageSubData(glTexId, GL_TEXTURE_2D, 0, 0, 0, 0, _images[0][_swapChainIndices[0]].image, GL_TEXTURE_2D, 0, 0, 0,
@@ -584,22 +637,20 @@ void OpenXrDisplayPlugin::hmdPresent() {
         glCopyImageSubData(glTexId, GL_TEXTURE_2D, 0, _renderTargetSize.x / 2, 0, 0, _images[1][_swapChainIndices[1]].image,
                            GL_TEXTURE_2D, 0, 0, 0, 0, _renderTargetSize.x / 2, _renderTargetSize.y, 1);
 
-        for (uint32_t i = 0; i < 2; i++) {
-            XrSwapchainImageReleaseInfo releaseInfo = { .type = XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
-            XrResult result = xrReleaseSwapchainImage(_swapChains[i], &releaseInfo);
-            if (!xrCheck(_context->_instance, result, "failed to release swapchain image!")) {
-                assert(false);
-                return;
-            }
+        if (!releaseWaitedSwapChains()) {
+            endFrame(false);
+            return;
         }
     }
 
-    endFrame();
+    if (!endFrame()) {
+        return;
+    }
 
     _presentRate.increment();
 }
 
-bool OpenXrDisplayPlugin::endFrame() {
+bool OpenXrDisplayPlugin::endFrame(bool submitLayer) {
     XrCompositionLayerProjection projectionLayer = {
         .type = XR_TYPE_COMPOSITION_LAYER_PROJECTION,
         .layerFlags = 0,
@@ -620,7 +671,8 @@ bool OpenXrDisplayPlugin::endFrame() {
         .layers = layers.data(),
     };
 
-    if ((_lastViewState.viewStateFlags & XR_VIEW_STATE_ORIENTATION_VALID_BIT) == 0) {
+    if (!submitLayer ||
+            (_lastViewState.viewStateFlags & XR_VIEW_STATE_ORIENTATION_VALID_BIT) == 0) {
         info.layerCount = 0;
     }
 

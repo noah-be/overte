@@ -635,8 +635,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 35 — Private restart entry point
 
 - Branch: `nightly/pico4-35-private-restart-entrypoint`
-- Commit: identified by subject `Protect Pico restart entry point`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `2096887ef7` (`Protect Pico restart entry point`)
 - Change: route scheduled restarts through a dedicated non-exported,
   no-history Activity which alone consumes the app-private one-shot argument
   handoff. The exported launcher no longer inspects any Intent extras or can be
@@ -654,6 +653,29 @@ headset, ADB, Android device, external domain, or device setting is used.
   permission granted and denied, rotate/recreate around startup, launch the app
   externally during the 1.5-second handoff, and verify exactly one Qt Activity
   starts with the preserved arguments.
+
+### 36 — OpenXR frame failure cleanup
+
+- Branch: `nightly/pico4-36-openxr-frame-cleanup`
+- Commit: identified by subject `Complete failed Pico OpenXR frames`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: after a successful `xrBeginFrame`, all acquire/wait/backend/index/
+  release failures now best-effort release every successfully waited eye image
+  and call `xrEndFrame` with zero layers. Wait uses OpenXR's infinite duration
+  instead of a one-microsecond timeout; images from a failed wait are not
+  illegally released. Stereo resource/index validation replaces a release-
+  build null dereference, and present rate advances only after successful end.
+- Regression: source contracts verify acquire-count ordering, common cleanup
+  use by every failure class, empty-layer submission, resource/index guards,
+  and success-only present accounting.
+- Passed: OpenXR display cleanup contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: cleanup follows OpenXR's required acquire/release and begin/end pairing;
+  runtime-specific recovery after a fatal session error still depends on the
+  existing session state machine.
+- Pico 4 validation: **not executed**. Inject/observe acquire, wait, release,
+  context-loss and suspend/resume failures; verify no swapchain starvation,
+  unmatched-frame validation errors, crash, or permanently frozen presentation.
 
 ## Deferred, rejected, or blocked ideas
 
