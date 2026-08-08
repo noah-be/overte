@@ -336,6 +336,15 @@ OpenXrInputPlugin::InputDevice::~InputDevice() {
         }
         tracker = XR_NULL_HANDLE;
     }
+    for (auto& entry : _xdev) {
+        auto& tracker = entry.second;
+        if (tracker.space != XR_NULL_HANDLE && _context->_session != XR_NULL_HANDLE) {
+            xrCheck(_context->_instance, xrDestroySpace(tracker.space),
+                    "Failed to destroy XDev space");
+        }
+        tracker.space = XR_NULL_HANDLE;
+    }
+    _xdev.clear();
     // Action destructors release their pose spaces before the parent set.
     _actions.clear();
     if (_actionSet != XR_NULL_HANDLE) {

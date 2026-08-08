@@ -1684,8 +1684,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 93 — Transactional XDev enumeration
 
 - Branch: `nightly/pico4-93-openxr-xdev-enumeration`
-- Commit: identified by subject `Harden Pico OpenXR XDev enumeration`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `e56830126b` (`Harden Pico OpenXR XDev enumeration`)
 - Change: initialize/check the temporary XDev list, bound returned IDs to the
   supplied capacity, require valid properties and space capability, and publish
   each null-initialized candidate space only after successful creation. The
@@ -1698,6 +1697,23 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Inject CreateList, overflow, property and
   CreateSpace failures; verify no invalid calls/handles, one list destroy and
   valid trackers still enumerate independently where supported.
+
+### 94 — XDev space ownership cleanup
+
+- Branch: `nightly/pico4-94-openxr-xdev-cleanup`
+- Commit: identified by subject `Release Pico OpenXR XDev spaces`; the exact hash
+  is recorded by the following stacked task or final report.
+- Change: explicitly destroy every published optional XDev tracker space while
+  its Session remains live, invalidate each handle and clear the tracker map
+  before Action pose spaces and their parent ActionSet are released.
+- Regression: input lifecycle contracts cover guarded XDev space destruction,
+  per-handle/map invalidation and ordering before action cleanup.
+- Passed: 18 OpenXR input/lifecycle contracts; `git diff --check`.
+- Risk: spaces implicitly invalidated by runtime loss skip calls and are cleared;
+  active-session shutdown now owns them explicitly.
+- Pico 4 validation: **not executed**. With compatible optional body trackers,
+  quit during active tracking and after runtime loss; verify one destroy per
+  space, no validation leaks and clean enumeration after restart.
 
 ## Deferred, rejected, or blocked ideas
 
