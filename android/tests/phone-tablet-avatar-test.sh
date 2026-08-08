@@ -35,5 +35,15 @@ require 'if[[:space:]]*\(!isAndroidPhone\)' \
     'Phone Avatar avoids mutable tablet-button proxy updates'
 require 'wireEventBridge\(false\);' \
     'Avatar explicitly releases its QML bridge during shutdown'
+require 'cancelScheduledCallbacks\(\);' \
+    'Avatar cancels delayed bookmark and wearable updates when the app closes'
+require 'if[[:space:]]*\(isWired\)' \
+    'Avatar suppresses delayed QML delivery after lifecycle teardown'
+require 'Bookmark not found' \
+    'Avatar reports missing bookmark selections without changing wearables'
+require '!message[.]entityID[[:space:]]*\|\|[[:space:]]*!message[.]properties' \
+    'Avatar rejects malformed wearable edits'
+require 'Array[.]isArray\(bookmark[.]avatarEntites\)' \
+    'Avatar tolerates legacy bookmarks without wearable arrays'
 
 printf 'Phone tablet Avatar checks passed.\n'

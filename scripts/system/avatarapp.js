@@ -25,12 +25,29 @@ var ENTRY_AVATAR_URL = "avatarUrl";
 var ENTRY_AVATAR_ENTITIES = "avatarEntites";
 var ENTRY_AVATAR_SCALE = "avatarScale";
 
+var scheduledCallbacks = [];
 function executeLater(callback) {
-    Script.setTimeout(callback, 300);
+    var timeoutID = Script.setTimeout(function() {
+        var index = scheduledCallbacks.indexOf(timeoutID);
+        if (index !== -1) {
+            scheduledCallbacks.splice(index, 1);
+        }
+        if (isWired) {
+            callback();
+        }
+    }, 300);
+    scheduledCallbacks.push(timeoutID);
+}
+
+function cancelScheduledCallbacks() {
+    scheduledCallbacks.forEach(function(timeoutID) {
+        Script.clearTimeout(timeoutID);
+    });
+    scheduledCallbacks = [];
 }
 
 function isWearable(avatarEntity) {
-    return avatarEntity.properties.visible === true &&
+    return avatarEntity && avatarEntity.properties && avatarEntity.properties.visible === true &&
         (avatarEntity.properties.parentID === MyAvatar.sessionUUID || avatarEntity.properties.parentID === MyAvatar.SELF_ID);
 }
 
@@ -231,6 +248,10 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
         sendToQml(message);
         break;
     case 'selectAvatar':
+        if (!message.name || !AvatarBookmarks.getBookmark(message.name)) {
+            sendToQml({ 'method': 'avatarError', 'reason': 'Bookmark not found' });
+            break;
+        }
         Entities.addingWearable.disconnect(onAddingWearable);
         Entities.deletingWearable.disconnect(onDeletingWearable);
         AvatarBookmarks.loadBookmark(message.name);
@@ -245,6 +266,10 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
         AvatarBookmarks.addBookmark(message.name);
         break;
     case 'adjustWearable':
+        if (!message.entityID || !message.properties || !isEntityBeingWorn(message.entityID)) {
+            sendToQml({ 'method': 'avatarError', 'reason': 'Invalid wearable' });
+            break;
+        }
         if(message.properties.localRotationAngles) {
             message.properties.localRotation = Quat.fromVec3Degrees(message.properties.localRotationAngles);
         }
@@ -285,6 +310,11 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
         Messages.unsubscribe('Hifi-Object-Manipulation');
         break;
     case 'addWearable':
+
+        if (!message.url || typeof message.url !== 'string') {
+            sendToQml({ 'method': 'avatarError', 'reason': 'Invalid wearable URL' });
+            break;
+        }
 
         var joints = MyAvatar.getJointNames();
         var hipsIndex = -1;
@@ -514,7 +544,14 @@ function onBookmarkDeleted(bookmarkName) {
 
 function onBookmarkAdded(bookmarkName) {
     var bookmark = AvatarBookmarks.getBookmark(bookmarkName);
-    bookmark.avatarEntites.forEach(function(avatarEntity) {
+    if (!bookmark) {
+        return;
+    }
+    var avatarEntities = Array.isArray(bookmark.avatarEntites) ? bookmark.avatarEntites : [];
+    avatarEntities.forEach(function(avatarEntity) {
+        if (!avatarEntity || !avatarEntity.properties || !avatarEntity.properties.localRotation) {
+            return;
+        }
         avatarEntity.properties.localRotationAngles = Quat.safeEulerAngles(avatarEntity.properties.localRotation);
     });
 
@@ -544,6 +581,7 @@ startup();
 
 var isWired = false;
 function off() {
+    cancelScheduledCallbacks();
     if(adjustWearables.opened) {
         adjustWearables.setOpened(false);
         ensureWearableSelected(null);
