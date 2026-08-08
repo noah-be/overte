@@ -601,16 +601,19 @@ void OpenXrDisplayPlugin::hmdPresent() {
     _context->_lastPredictedDisplayPeriod = _lastFrameState.predictedDisplayPeriod;
 
 #if defined(Q_OS_ANDROID)
-    static uint64_t lastPredictionLog { 0 };
-    const uint64_t now = usecTimestampNow();
-    if (now - lastPredictionLog >= USECS_PER_SECOND) {
-        lastPredictionLog = now;
-        qCInfo(xr_display_cat) << "PICO_LATENCY_XR_FRAME predictedDisplayTime(ns)"
-                              << _lastFrameState.predictedDisplayTime
-                              << "period(ms)"
-                              << (_lastFrameState.predictedDisplayPeriod / 1000000.0)
-                              << "inputLead(ms)"
-                              << ((_context->inputPredictionTime() - _lastFrameState.predictedDisplayTime) / 1000000.0);
+    if (_context->_picoLatencyTraceEnabled) {
+        static uint64_t lastPredictionLog { 0 };
+        const uint64_t now = usecTimestampNow();
+        if (now - lastPredictionLog >= USECS_PER_SECOND) {
+            lastPredictionLog = now;
+            qCInfo(xr_display_cat) << "PICO_LATENCY_XR_FRAME predictedDisplayTime(ns)"
+                                  << _lastFrameState.predictedDisplayTime
+                                  << "period(ms)"
+                                  << (_lastFrameState.predictedDisplayPeriod / 1000000.0)
+                                  << "inputLead(ms)"
+                                  << ((_context->inputPredictionTime() -
+                                       _lastFrameState.predictedDisplayTime) / 1000000.0);
+        }
     }
 #endif
 

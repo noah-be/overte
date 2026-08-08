@@ -18,6 +18,10 @@
 #include <QtPlatformHeaders/QGLXNativeContext>
 #endif
 
+#if defined(Q_OS_ANDROID)
+#include <sys/system_properties.h>
+#endif
+
 #if defined(HAVE_VULKAN)
 #include <QMessageBox>
 #endif
@@ -88,6 +92,14 @@ static bool loadXrFunction(XrInstance instance, const char* name, PFN_xrVoidFunc
 }
 
 OpenXrContext::OpenXrContext() {
+#if defined(Q_OS_ANDROID)
+    char latencyTraceValue[PROP_VALUE_MAX] {};
+    if (__system_property_get("debug.overte.latency_trace", latencyTraceValue) > 0) {
+        const QString requested = QString::fromLatin1(latencyTraceValue).trimmed().toLower();
+        _picoLatencyTraceEnabled = requested == QStringLiteral("1") ||
+            requested == QStringLiteral("true") || requested == QStringLiteral("on");
+    }
+#endif
 #if defined(HAVE_VULKAN)
     _isSupported = false;
     qCCritical(xr_context_cat, "OpenXR is not supported on the Vulkan backend yet.");

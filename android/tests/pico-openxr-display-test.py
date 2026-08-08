@@ -12,6 +12,12 @@ SOURCE = (ROOT / "android/apps/picoInterface/openxr/src/OpenXrDisplayPlugin.cpp"
 HEADER = (ROOT / "android/apps/picoInterface/openxr/src/OpenXrDisplayPlugin.h").read_text(
     encoding="utf-8"
 )
+CONTEXT = (ROOT / "android/apps/picoInterface/openxr/src/OpenXrContext.cpp").read_text(
+    encoding="utf-8"
+)
+INPUT = (ROOT / "android/apps/picoInterface/openxr/src/OpenXrInputPlugin.cpp").read_text(
+    encoding="utf-8"
+)
 
 
 class PicoOpenXRDisplayTests(unittest.TestCase):
@@ -110,6 +116,20 @@ class PicoOpenXRDisplayTests(unittest.TestCase):
         self.assertIn("swapchain = XR_NULL_HANDLE", destroy)
         uncustomize = SOURCE.index("void OpenXrDisplayPlugin::uncustomizeContext()")
         self.assertIn("destroySwapChains();", SOURCE[uncustomize:uncustomize + 300])
+
+    def test_periodic_latency_traces_are_opt_in(self):
+        self.assertIn('"debug.overte.latency_trace"', CONTEXT)
+        self.assertIn("_picoLatencyTraceEnabled = requested ==", CONTEXT)
+        display_guard = SOURCE.index("if (_context->_picoLatencyTraceEnabled)")
+        display_clock = SOURCE.index("usecTimestampNow()", display_guard)
+        display_log = SOURCE.index("PICO_LATENCY_XR_FRAME", display_clock)
+        self.assertLess(display_guard, display_clock)
+        self.assertLess(display_clock, display_log)
+        input_guard = INPUT.index("if (_context->_picoLatencyTraceEnabled)")
+        input_clock = INPUT.index("usecTimestampNow()", input_guard)
+        input_log = INPUT.index("PICO_LATENCY_INPUT", input_clock)
+        self.assertLess(input_guard, input_clock)
+        self.assertLess(input_clock, input_log)
 
 
 if __name__ == "__main__":

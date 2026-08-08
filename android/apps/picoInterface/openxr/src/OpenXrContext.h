@@ -141,6 +141,7 @@ public:
 
 #if defined(Q_OS_ANDROID)
     bool _displayRefreshRateSupported = false;
+    bool _picoLatencyTraceEnabled = false;
     PFN_xrEnumerateDisplayRefreshRatesFB xrEnumerateDisplayRefreshRatesFB = nullptr;
     PFN_xrGetDisplayRefreshRateFB xrGetDisplayRefreshRateFB = nullptr;
     PFN_xrRequestDisplayRefreshRateFB xrRequestDisplayRefreshRateFB = nullptr;

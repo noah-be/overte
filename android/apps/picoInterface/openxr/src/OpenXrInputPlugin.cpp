@@ -1087,17 +1087,20 @@ void OpenXrInputPlugin::InputDevice::update(float deltaTime, const controller::I
     }
 
 #if defined(Q_OS_ANDROID)
-    static uint64_t lastInputLog { 0 };
-    const uint64_t inputNow = usecTimestampNow();
-    if (inputNow - lastInputLog >= USECS_PER_SECOND && _context->_lastPredictedDisplayTime.has_value()) {
-        lastInputLog = inputNow;
-        qCInfo(xr_input_cat) << "PICO_LATENCY_INPUT locateTime(ns)"
-                            << _context->inputPredictionTime()
-                            << "basePrediction(ns)"
-                            << _context->_lastPredictedDisplayTime.value()
-                            << "lead(ms)"
-                            << ((_context->inputPredictionTime() -
-                                 _context->_lastPredictedDisplayTime.value()) / 1000000.0);
+    if (_context->_picoLatencyTraceEnabled) {
+        static uint64_t lastInputLog { 0 };
+        const uint64_t inputNow = usecTimestampNow();
+        if (inputNow - lastInputLog >= USECS_PER_SECOND &&
+                _context->_lastPredictedDisplayTime.has_value()) {
+            lastInputLog = inputNow;
+            qCInfo(xr_input_cat) << "PICO_LATENCY_INPUT locateTime(ns)"
+                                << _context->inputPredictionTime()
+                                << "basePrediction(ns)"
+                                << _context->_lastPredictedDisplayTime.value()
+                                << "lead(ms)"
+                                << ((_context->inputPredictionTime() -
+                                     _context->_lastPredictedDisplayTime.value()) / 1000000.0);
+        }
     }
 #endif
 

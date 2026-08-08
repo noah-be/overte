@@ -836,8 +836,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 45 — OpenXR swapchain initialization
 
 - Branch: `nightly/pico4-45-openxr-swapchain-init`
-- Commit: identified by subject `Harden Pico OpenXR swapchain initialization`;
-  the exact hash is recorded by the following stacked task or final report.
+- Commit: `747a00cd8e` (`Harden Pico OpenXR swapchain initialization`)
 - Change: reject empty or changing swapchain-format/image enumerations before
   indexing storage, reject a missing chosen format, publish image arrays only
   after exact enumeration, and destroy all partial swapchains/foveation state on
@@ -852,6 +851,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Repeatedly activate/deactivate and restart
   the OpenXR session; inject format/image enumeration and foveation failures and
   verify clean recovery without stale textures, handle growth or native crashes.
+
+### 46 — Opt-in OpenXR latency tracing
+
+- Branch: `nightly/pico4-46-openxr-latency-trace`
+- Commit: identified by subject `Gate Pico OpenXR latency tracing`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: read `debug.overte.latency_trace` once when creating the OpenXR context
+  and run the per-second input/present clocks and info logs only for explicit
+  `1`, `true`, or `on`. The trace format remains available for controlled tests.
+- Regression: OpenXR display contracts verify the property parser and that both
+  timestamp reads and both latency logs are downstream of the opt-in guard.
+- Passed: 10 OpenXR display/lifecycle contracts; full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: normal sessions stop emitting unused periodic latency lines; controlled
+  traces must explicitly enable the documented process-start property.
+- Pico 4 validation: **not executed**. Compare normal and opt-in log capture;
+  verify zero `PICO_LATENCY_*` lines by default and paired input/frame samples
+  approximately once per second when the property is enabled before launch.
 
 ## Deferred, rejected, or blocked ideas
 
