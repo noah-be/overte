@@ -59,7 +59,14 @@ The script records:
 - analog trigger, trigger-click, and grip values;
 - the entity intersected by the same grip-derived ray used by the dispatcher;
 - local `Hifi-Object-Manipulation` grab/release events;
-- transition and invalid-pose counters when the script stops.
+- analog trigger, trigger-click, grip, target, tracking-validity, and invalid-
+  pose counters when the script stops.
+
+Input transitions are sampled on `Script.update`, while the full state summary
+remains throttled to once per second. This allows short trigger-click or
+tracking-loss sequences to be counted without flooding the log each frame. The
+mocked device-free regression is
+`node android/tests/pico-interaction-diagnostics-test.js`.
 
 The script is diagnostic only. It does not create or modify test entities and
 does not replace the normal controller dispatcher.

@@ -9,7 +9,6 @@
 
 "use strict";
 
-var SAMPLE_INTERVAL_MS = 100;
 var SUMMARY_INTERVAL_MS = 1000;
 var LEFT = 0;
 var RIGHT = 1;
@@ -20,7 +19,9 @@ var previous = [{}, {}];
 var counters = {
     samples: 0,
     invalidPose: [0, 0],
+    trackingTransitions: [0, 0],
     triggerTransitions: [0, 0],
+    triggerClickTransitions: [0, 0],
     gripTransitions: [0, 0],
     targetTransitions: [0, 0],
     manipulationEvents: 0
@@ -67,10 +68,21 @@ function recordTransitions(hand, state) {
     if (!state.pose.valid) {
         counters.invalidPose[hand] += 1;
     }
+    if (old.pose !== undefined && old.pose.valid !== state.pose.valid) {
+        counters.trackingTransitions[hand] += 1;
+        console.info("PICO4_INTERACTION tracking " + handNames[hand] +
+            " valid=" + state.pose.valid);
+    }
     if (old.trigger !== undefined && changedAcrossThreshold(old.trigger, state.trigger, 0.95)) {
         counters.triggerTransitions[hand] += 1;
         console.info("PICO4_INTERACTION trigger " + handNames[hand] + " value=" + rounded(state.trigger) +
             " click=" + state.triggerClick);
+    }
+    if (old.triggerClick !== undefined &&
+            changedAcrossThreshold(old.triggerClick, state.triggerClick, 0.5)) {
+        counters.triggerClickTransitions[hand] += 1;
+        console.info("PICO4_INTERACTION triggerClick " + handNames[hand] +
+            " value=" + rounded(state.triggerClick));
     }
     if (old.grip !== undefined && changedAcrossThreshold(old.grip, state.grip, 0.15)) {
         counters.gripTransitions[hand] += 1;
@@ -110,11 +122,11 @@ function sample() {
     }
 }
 
-var timer = Script.setInterval(sample, SAMPLE_INTERVAL_MS);
+Script.update.connect(sample);
 
 console.info("PICO4_INTERACTION started; exercise near/far grab, trigger, release and both hands.");
 
 Script.scriptEnding.connect(function () {
-    Script.clearInterval(timer);
+    Script.update.disconnect(sample);
     console.info("PICO4_INTERACTION summary " + JSON.stringify(counters));
 });

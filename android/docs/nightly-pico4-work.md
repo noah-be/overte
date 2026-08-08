@@ -106,8 +106,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 06 — WebView navigation and background state
 
 - Branch: `nightly/pico4-06-webview-navigation-state`
-- Commit: identified by subject `Reset Pico WebView navigation state`; the
-  exact hash is recorded by the following stacked task or the final report.
+- Commit: `2147fb218b` (`Reset Pico WebView navigation state`)
 - Change: apply `useBackground` to Android WebView as opaque white or
   transparent, and cancel active touch plus fractional scroll state before
   navigating an existing offscreen WebView to a new document.
@@ -123,6 +122,27 @@ headset, ADB, Android device, external domain, or device setting is used.
   with `useBackground` true/false over contrasting geometry; navigate while
   pressed and after a sub-wheel scroll, then verify no click, drag, hover, or
   fractional scroll leaks into the destination page.
+
+### 07 — Fast interaction transition diagnostics
+
+- Branch: `nightly/pico4-07-interaction-transition-diagnostics`
+- Commit: identified by subject `Capture fast Pico input transitions`; the
+  exact hash is recorded by the following stacked task or the final report.
+- Change: sample the opt-in Pico controller diagnostic on `Script.update`
+  instead of every 100 ms, separately count trigger-click and tracking-validity
+  transitions, and keep verbose snapshots throttled to one second.
+- Regression: a Node mock drives a rapid trigger/click press-release and a
+  tracking loss/recovery, then asserts exact summary counters and logs.
+- Passed: JavaScript syntax for diagnostic and test; interaction diagnostic
+  mock; full `pico-device-free-test.sh` including all task-06 results plus the
+  new interaction test; `git diff --check`.
+- Risk: the diagnostic is opt-in but samples two controller states each frame;
+  only transitions and one-second summaries log. Host mocks cannot reproduce
+  OpenXR event coalescing below one rendered frame.
+- Pico 4 validation: **not executed**. Run rapid trigger and grip taps, click
+  near the runtime threshold, alternate hands/targets, cover and uncover each
+  controller, and verify transition counts and recovery logs against a video or
+  independent input trace; confirm the diagnostic itself does not alter grabs.
 
 ## Cumulative remaining device validation
 
