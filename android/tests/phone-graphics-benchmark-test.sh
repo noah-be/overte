@@ -37,6 +37,11 @@ sed 's/^+//' >"$fixture/adb" <<'MOCK'
 +fi
 +if [[ $1 == logcat && ${2:-} == -d ]]; then
 +  printf 'I/OvertePhoneGraphics: profile_render_scale=0.5 profile_target_fps=30 profile_forward_msaa_samples=1 profile_haze=0 profile_local_lights=0\n'
++  case ${MOCK_RENDER_TIMING_MODE:-valid} in
++    valid) printf 'I/OvertePhoneGraphics: render_gpu_ms=7.25 render_batch_ms=1.50\n' ;;
++    malformed) printf 'I/OvertePhoneGraphics: render_gpu_ms=nan-private render_batch_ms=-1\n' ;;
++    missing) ;;
++  esac
 +  case ${MOCK_OVERLAY_CACHE_MODE:-valid} in
 +    valid) printf 'I/OvertePhoneGraphics: overlay_cache_enabled=1 overlay_cache_samples=600 overlay_cache_hits=450 overlay_cache_misses=150 overlay_cache_new_textures=149 overlay_cache_resizes=1\n' ;;
 +    malformed) printf 'I/OvertePhoneGraphics: overlay_cache_enabled=1 overlay_cache_samples=600 overlay_cache_hits=500 overlay_cache_misses=200 overlay_cache_new_textures=private overlay_cache_resizes=1\n' ;;
@@ -100,6 +105,9 @@ grep -q '^overlay_cache_misses=150$' "$summary"
 grep -q '^overlay_cache_hit_percent=75.00$' "$summary"
 grep -q '^overlay_cache_new_textures=149$' "$summary"
 grep -q '^overlay_cache_resizes=1$' "$summary"
+grep -q '^render_timing_metrics_valid=1$' "$summary"
+grep -q '^render_gpu_ms=7.25$' "$summary"
+grep -q '^render_batch_ms=1.50$' "$summary"
 grep -q '^native_present_metrics_available=1$' "$summary"
 grep -q '^native_present_fps=30.00$' "$summary"
 grep -q '^native_present_window_seconds=10.02$' "$summary"
@@ -272,12 +280,25 @@ PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/overlay-cache-missing-ex
     PHONE_BENCHMARK_INTERVAL=1 "$script_dir/phone-graphics-benchmark.sh" 1 >/dev/null
 grep -q '^overlay_cache_metrics_valid=0$' "$overlay_cache_missing_report/summary.txt"
 grep -q '^overlay_cache_enabled=unknown$' "$overlay_cache_missing_report/summary.txt"
+render_timing_malformed_report="$fixture/render-timing-malformed-report"
+PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/render-timing-malformed-exits" MOCK_RENDER_TIMING_MODE=malformed \
+    ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES PHONE_BENCHMARK_REPORT="$render_timing_malformed_report" \
+    PHONE_BENCHMARK_INTERVAL=1 "$script_dir/phone-graphics-benchmark.sh" 1 >/dev/null
+grep -q '^render_timing_metrics_valid=0$' "$render_timing_malformed_report/summary.txt"
+grep -q '^render_gpu_ms=unknown$' "$render_timing_malformed_report/summary.txt"
+render_timing_missing_report="$fixture/render-timing-missing-report"
+PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/render-timing-missing-exits" MOCK_RENDER_TIMING_MODE=missing \
+    ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES PHONE_BENCHMARK_REPORT="$render_timing_missing_report" \
+    PHONE_BENCHMARK_INTERVAL=1 "$script_dir/phone-graphics-benchmark.sh" 1 >/dev/null
+grep -q '^render_timing_metrics_valid=0$' "$render_timing_missing_report/summary.txt"
+grep -q '^render_batch_ms=unknown$' "$render_timing_missing_report/summary.txt"
 if grep -Eqi 'phone-secret|private|serial|account|url|manufacturer|model|fingerprint|android_id|domain|12x|9223372036854775808' \
         "$malformed_report/summary.txt" "$missing_report/summary.txt" \
         "$gpu_malformed_report/summary.txt" "$gpu_missing_report/summary.txt" \
         "$trash_malformed_report/summary.txt" "$trash_missing_report/summary.txt" "$trash_mismatch_report/summary.txt" \
         "$framebuffer_malformed_report/summary.txt" "$framebuffer_missing_report/summary.txt" \
-        "$overlay_cache_malformed_report/summary.txt" "$overlay_cache_missing_report/summary.txt"; then
+        "$overlay_cache_malformed_report/summary.txt" "$overlay_cache_missing_report/summary.txt" \
+        "$render_timing_malformed_report/summary.txt" "$render_timing_missing_report/summary.txt"; then
     echo 'FAIL: malformed or identifying data escaped into aggregate report' >&2; exit 1
 fi
 printf 'Phone graphics benchmark harness checks passed.\n'

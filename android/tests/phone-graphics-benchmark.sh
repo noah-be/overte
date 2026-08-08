@@ -143,6 +143,7 @@ profile_scale="$(sed -nE 's/.*(renderScale|profile_render_scale)[^0-9]*([0-9]+([
 profile_fps="$(sed -nE 's/.*(targetFps|profile_target_fps)[^0-9]*([0-9]+).*/\2/p' <<<"$profile_line")"
 profile_msaa="$(sed -nE 's/.*(forwardMsaaSamples|profile_forward_msaa_samples)[^0-9]*([0-9]+).*/\2/p' <<<"$profile_line")"
 overlay_cache_line="$(grep 'OvertePhoneGraphics.*overlay_cache_enabled=' "$raw_dir/logcat.txt" | tail -n 1 || true)"
+render_timing_line="$(grep 'OvertePhoneGraphics.*render_gpu_ms=' "$raw_dir/logcat.txt" | tail -n 1 || true)"
 present_line="$(grep 'OvertePhoneGraphics.*present_fps=' "$raw_dir/logcat.txt" | tail -n 1 || true)"
 present_window_id="$(grep -oE '(^|[[:space:]])window_id=(0|[1-9][0-9]*)' <<<"$present_line" | tail -n 1 | cut -d= -f2- || true)"
 if [[ "$present_window_id" =~ ^(0|[1-9][0-9]*)$ ]]; then
@@ -249,6 +250,14 @@ overlay_cache_hits="$(extract_native_field overlay_cache_hits "$overlay_cache_li
 overlay_cache_misses="$(extract_native_field overlay_cache_misses "$overlay_cache_line" || true)"
 overlay_cache_new_textures="$(extract_native_field overlay_cache_new_textures "$overlay_cache_line" || true)"
 overlay_cache_resizes="$(extract_native_field overlay_cache_resizes "$overlay_cache_line" || true)"
+render_gpu_ms="$(extract_native_field render_gpu_ms "$render_timing_line" || true)"
+render_batch_ms="$(extract_native_field render_batch_ms "$render_timing_line" || true)"
+render_timing_metrics_valid=0
+if valid_finite_decimal "$render_gpu_ms" && valid_finite_decimal "$render_batch_ms"; then
+    render_timing_metrics_valid=1
+else
+    render_gpu_ms=unknown; render_batch_ms=unknown
+fi
 overlay_cache_metrics_valid=0
 overlay_cache_hit_percent=unknown
 if [[ "$overlay_cache_enabled" =~ ^[01]$ ]] && valid_u32 "$overlay_cache_samples" &&
@@ -359,6 +368,8 @@ chmod 600 "$summary_tmp"
         "$overlay_cache_hits" "$overlay_cache_misses" "$overlay_cache_hit_percent"
     printf 'overlay_cache_new_textures=%s\noverlay_cache_resizes=%s\n' \
         "$overlay_cache_new_textures" "$overlay_cache_resizes"
+    printf 'render_timing_metrics_valid=%s\nrender_gpu_ms=%s\nrender_batch_ms=%s\n' \
+        "$render_timing_metrics_valid" "$render_gpu_ms" "$render_batch_ms"
     printf 'native_present_metrics_available=%s\nnative_present_fps=%s\nnative_new_frame_fps=%s\n' \
         "$native_present_metrics_available" "${native_present_fps:-unknown}" "${native_new_frame_fps:-unknown}"
     printf 'native_present_window_seconds=%s\nnative_present_window_scope=latest_complete\n' \

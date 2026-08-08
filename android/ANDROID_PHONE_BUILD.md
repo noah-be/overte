@@ -253,9 +253,10 @@ complete ten-second window after a successful OpenGL buffer swap; the report
 marks Android HWUI frame statistics invalid when they do not cover the native
 Qt/OpenGL surface. The same window reports aggregate GPU buffer and texture
 memory, deferred GL cleanup, process/allocator memory, framebuffer recreation,
-and pending GPU transfers. The latest complete overlay-cache sample adds its
-validated hit ratio; missing or inconsistent counters are reported as unknown.
-Set
+pending GPU transfers, and the latest GPU-frame and batch timings already
+maintained by the render context. The latest complete overlay-cache sample adds
+its validated hit ratio; missing or inconsistent counters are reported as
+unknown. Set
 `PHONE_BENCHMARK_REPORT` to retain the aggregate summary in a chosen directory
 outside the repository.
 

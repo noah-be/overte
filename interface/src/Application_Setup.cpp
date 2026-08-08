@@ -1295,8 +1295,15 @@ void Application::initialize(const QCommandLineParser &parser) {
         };
         properties["gpu_used_memory"] = (int)BYTES_TO_MB(gpu::Context::getUsedGPUMemSize());
         properties["gpu_free_memory"] = (int)BYTES_TO_MB(gpu::Context::getFreeGPUMemSize());
-        properties["gpu_frame_time"] = (float)(qApp->getGPUContext()->getFrameTimerGPUAverage());
-        properties["batch_frame_time"] = (float)(qApp->getGPUContext()->getFrameTimerBatchAverage());
+        const float gpuFrameTime = (float)(qApp->getGPUContext()->getFrameTimerGPUAverage());
+        const float batchFrameTime = (float)(qApp->getGPUContext()->getFrameTimerBatchAverage());
+        properties["gpu_frame_time"] = gpuFrameTime;
+        properties["batch_frame_time"] = batchFrameTime;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        __android_log_print(ANDROID_LOG_INFO, "OvertePhoneGraphics",
+            "render_gpu_ms=%.2f render_batch_ms=%.2f",
+            static_cast<double>(gpuFrameTime), static_cast<double>(batchFrameTime));
+#endif
         properties["ideal_thread_count"] = QThread::idealThreadCount();
 
         auto hmdHeadPose = getHMDSensorPose();
