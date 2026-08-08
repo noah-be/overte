@@ -11,6 +11,9 @@
 
 #include "ApplicationOverlay.h"
 
+#include <algorithm>
+#include <cmath>
+
 #include <glm/gtc/type_ptr.hpp>
 
 #include <avatar/AvatarManager.h>
@@ -42,6 +45,7 @@ static const float ORTHO_FAR_CLIP = 1000.0f;
 
 #if defined(ANDROID_APP_PHONE_INTERFACE)
 static bool isPhoneOverlayDepthEnabled();
+static float getPhoneOverlayScale();
 #endif
 
 ApplicationOverlay::ApplicationOverlay()
@@ -212,29 +216,59 @@ static bool isPhoneOverlayDepthEnabled() {
     }();
     return enabled;
 }
+
+static float getPhoneOverlayScale() {
+    static const float scale = [] {
+        char propertyValue[PROP_VALUE_MAX] {};
+        if (__system_property_get("debug.overte.phone_overlay_scale", propertyValue) <= 0) {
+            return 1.0f;
+        }
+
+        bool parsed { false };
+        const double requested = QByteArray(propertyValue).trimmed().toDouble(&parsed);
+        if (!parsed || !std::isfinite(requested)) {
+            return 1.0f;
+        }
+        return static_cast<float>(std::max(0.5, std::min(1.0, requested)));
+    }();
+    return scale;
+}
 #endif
 
 void ApplicationOverlay::buildFramebufferObject() {
     PROFILE_RANGE(render, __FUNCTION__);
 
-    auto uiSize = glm::uvec2(qApp->getUiSize());
-    if (!_overlayFramebuffer || uiSize != _overlayFramebuffer->getSize()) {
+    const auto logicalSize = glm::uvec2(qApp->getUiSize());
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    const float overlayScale = getPhoneOverlayScale();
+    const auto targetSize = glm::uvec2(
+        std::max(1L, std::lround(static_cast<double>(logicalSize.x) * overlayScale)),
+        std::max(1L, std::lround(static_cast<double>(logicalSize.y) * overlayScale)));
+#else
+    const auto targetSize = logicalSize;
+#endif
+    if (!_overlayFramebuffer || targetSize != _overlayFramebuffer->getSize()) {
         _overlayFramebuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("ApplicationOverlay"));
     }
 
-    auto width = uiSize.x;
-    auto height = uiSize.y;
+    const auto width = targetSize.x;
+    const auto height = targetSize.y;
 #if defined(ANDROID_APP_PHONE_INTERFACE)
     const bool overlayDepthEnabled = isPhoneOverlayDepthEnabled();
     static std::once_flag phoneOverlayDepthMarker;
-    std::call_once(phoneOverlayDepthMarker, [overlayDepthEnabled, width, height] {
+    std::call_once(phoneOverlayDepthMarker, [overlayDepthEnabled, overlayScale, logicalSize, width, height] {
         constexpr double BYTES_PER_MIB { 1024.0 * 1024.0 };
+        const double estimatedColorMiB =
+            static_cast<double>(width) * static_cast<double>(height) * 4.0 / BYTES_PER_MIB;
         const double estimatedDepthMiB = overlayDepthEnabled
             ? static_cast<double>(width) * static_cast<double>(height) * sizeof(float) / BYTES_PER_MIB
             : 0.0;
         __android_log_print(ANDROID_LOG_INFO, "OvertePhoneGraphics",
-            "overlay_depth_enabled=%d overlay_width=%u overlay_height=%u overlay_depth_estimated_mib=%.2f",
-            overlayDepthEnabled ? 1 : 0, width, height, estimatedDepthMiB);
+            "overlay_depth_enabled=%d overlay_logical_width=%u overlay_logical_height=%u "
+            "overlay_target_width=%u overlay_target_height=%u overlay_scale=%.3f "
+            "overlay_color_estimated_mib=%.2f overlay_depth_estimated_mib=%.2f",
+            overlayDepthEnabled ? 1 : 0, logicalSize.x, logicalSize.y, width, height, overlayScale,
+            estimatedColorMiB, estimatedDepthMiB);
     });
     if (overlayDepthEnabled && !_overlayFramebuffer->getDepthStencilBuffer()) {
 #else

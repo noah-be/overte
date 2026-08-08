@@ -28,7 +28,8 @@ parser_body=$(awk '
 }
 require 'overlayDepthEnabled && !_overlayFramebuffer->getDepthStencilBuffer\(\)' 'phone depth attachment is not conditional'
 require 'isPhoneOverlayDepthEnabled\(\) \? gpu::Framebuffer::BUFFER_DEPTH : 0' 'phone depth clear is not conditional'
-require 'overlay_depth_enabled=%d overlay_width=%u overlay_height=%u overlay_depth_estimated_mib=%\.2f' 'numeric one-time telemetry is incomplete'
+require 'overlay_depth_enabled=%d overlay_logical_width=%u overlay_logical_height=%u' 'numeric one-time depth telemetry is incomplete'
+require 'overlay_color_estimated_mib=%\.2f overlay_depth_estimated_mib=%\.2f' 'numeric allocation telemetry is incomplete'
 require 'std::call_once\(phoneOverlayDepthMarker' 'overlay depth telemetry is not one-time'
 
 if grep -Eqi -- '(__android_log_print|OvertePhoneGraphics).*(url|uri|id=|timestamp|serial|account)' "$source_file"; then
