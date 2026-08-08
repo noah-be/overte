@@ -110,7 +110,11 @@
     }
 
     function onScreenChanged(type, source) {
+        var wasOpen = appOpen;
         appOpen = type === "QML" && source === APP_SOURCE;
+        if (wasOpen && !appOpen) {
+            stopActive(false);
+        }
     }
 
     function fromQml(message) {

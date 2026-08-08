@@ -4,6 +4,29 @@ This file records the cumulative, device-free Android phone work based on
 `origin/feature/android-phone-support`. Real-device and emulator tests are out
 of scope for this worktree and are called out explicitly where still needed.
 
+## 21 — Emote close cleanup
+
+- Branch: `nightly/android-phone-21-emote-close-cleanup`
+- Commit: `Stop phone Emote animation on close` (this task's commit)
+- Change: Treat the transition away from the exact Emote QML surface as an
+  ownership boundary. Back, Home, or an app switch now cancels the completion
+  timer and restores the avatar animation immediately instead of leaving an
+  invisible override running until its nominal frame duration expires.
+- Tests:
+  - `android/tests/phone-tablet-emote-test.sh`: **passed**, 15 source contracts
+    plus the executable lifecycle mock.
+  - Lifecycle mock: **passed** for play, same-action stop, surface close,
+    timer cancellation, restoration, reopen/play, and script shutdown.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet suites and 181/181 host checks.
+  - JavaScript syntax and `git diff --check`: **passed**.
+- Known risks: Animation restoration on actual movement still belongs to the
+  avatar locomotion system; Phone deliberately does not recreate the legacy
+  controller mapping merely to observe movement.
+- Real-device validation still required: **not executed**. Start every Emote
+  and leave through Back, Home, tablet close, app switch, and backgrounding;
+  verify locomotion returns immediately and reopen shows no stale highlight.
+
 ## 20 — Settings message source scope
 
 - Branch: `nightly/android-phone-20-settings-message-scope`

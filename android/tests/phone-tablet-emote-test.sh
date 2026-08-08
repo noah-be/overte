@@ -33,6 +33,8 @@ require "$script" 'Script[.]clearTimeout\(activeTimer\)' \
     'Emote cancels an existing completion timer before replacement'
 require "$script" 'MyAvatar[.]restoreAnimation\(\)' \
     'Emote restores avatar animation on stop and teardown'
+require "$script" 'if \(wasOpen && !appOpen\)' \
+    'leaving the Emote surface restores avatar animation immediately'
 require "$script" 'tablet[.]fromQml[.]disconnect\(fromQml\)' \
     'Emote releases its QML message bridge at shutdown'
 require "$qml" 'signal sendToScript\(var message\)' \

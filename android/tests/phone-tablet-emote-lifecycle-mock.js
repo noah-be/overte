@@ -84,9 +84,16 @@ assert.strictEqual(sentMessages.at(-1).active, "");
 
 fromQml.emit({ method: "phoneEmote.play", name: "Love" });
 assert.strictEqual(overrides.length, 2);
-scriptEnding.emit();
+screenChanged.emit("Home", "");
 assert.deepStrictEqual(clearedTimers, [1, 2]);
 assert.strictEqual(restored, 2);
+
+screenChanged.emit("QML", loadedSource);
+fromQml.emit({ method: "phoneEmote.play", name: "Waving" });
+assert.strictEqual(overrides.length, 3);
+scriptEnding.emit();
+assert.deepStrictEqual(clearedTimers, [1, 2, 3]);
+assert.strictEqual(restored, 3);
 assert.strictEqual(removedButton, button);
 assert(!buttonClicked.connected());
 assert(!screenChanged.connected());
