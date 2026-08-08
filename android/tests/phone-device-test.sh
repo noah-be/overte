@@ -105,8 +105,14 @@ fi
 
 readonly SUMMARY="$REPORT_DIR/summary.txt"
 readonly TEST_DEEP_LINK="overte://localhost"
+[[ -w "$REPORT_DIR" && -x "$REPORT_DIR" ]] || \
+    die "PHONE_TEST_REPORT must be writable and searchable"
+[[ ! -e "$SUMMARY" && ! -L "$SUMMARY" ]] || \
+    die "refusing to overwrite an existing device-test summary"
+(umask 077; : >"$SUMMARY")
+chmod 600 "$SUMMARY"
 printf 'package=%s\napk_sha256=%s\nruntime_permissions_auto_granted=1\n' \
-    "$PACKAGE" "$APK_SHA256" | tee "$SUMMARY"
+    "$PACKAGE" "$APK_SHA256" | tee -a "$SUMMARY"
 
 current_pid() {
     adb_for shell pidof -s "$PACKAGE" 2>/dev/null | tr -d '\r' || true

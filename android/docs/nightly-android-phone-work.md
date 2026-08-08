@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 56 — Keep device smoke reports private
+
+- Branch: `nightly/android-phone-56-private-device-reports`
+- Commit: `Harden phone device report creation` (this task's commit)
+- Change: Require writable/searchable external report directories, refuse an
+  existing or symlinked `summary.txt`, and create the aggregate report with
+  owner-only permissions. This prevents accidental disclosure or overwrite via
+  a caller-selected report directory while preserving all data minimization.
+- Tests:
+  - `bash -n android/tests/phone-device-test.sh`: **passed**.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 218/218 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 218/218 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: Callers that intentionally reused one report directory must now
+  select a fresh directory or remove/archive its previous summary first.
+- Real-device validation still required: Run against a fresh private report
+  directory and confirm mode 0600; then retry with an existing file and a
+  summary symlink and confirm both abort before installing the APK.
+
 ## 55 — Exercise repeatable device lifecycle stress
 
 - Branch: `nightly/android-phone-55-device-lifecycle-stress`

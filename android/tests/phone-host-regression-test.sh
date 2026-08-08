@@ -493,6 +493,12 @@ require_text tests/phone-device-test.sh 'installed_apk_verified=1' \
     'device smoke records successful installed-package provenance verification'
 reject_text tests/phone-device-test.sh 'installed_base_apk.*tee|installed_base_apk.*SUMMARY' \
     'device smoke never persists the private installed APK path'
+require_text tests/phone-device-test.sh '! -e "\$SUMMARY".*! -L "\$SUMMARY"' \
+    'device smoke refuses existing files and symlinks at its summary target'
+require_text tests/phone-device-test.sh 'umask 077.*>"\$SUMMARY"' \
+    'device smoke creates its report summary with private permissions'
+require_text tests/phone-device-test.sh 'chmod 600 "\$SUMMARY"' \
+    'device smoke enforces a private report summary mode'
 require_text tests/phone-graphics-benchmark.sh 'phone-device-lock[.]sh.*run' \
     'graphics benchmark automatically acquires the shared phone lock'
 require_text phone-build-resource-guard.sh 'OVERTE_PHONE_MIN_SWAP_BYTES=32000000000' \
