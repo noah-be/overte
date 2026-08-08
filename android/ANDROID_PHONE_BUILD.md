@@ -251,16 +251,32 @@ exit. Its report is refused inside the Git worktree and contains only numeric
 aggregates. Native present FPS and p50/p95/max timings come from the latest
 complete ten-second window after a successful OpenGL buffer swap; the report
 marks Android HWUI frame statistics invalid when they do not cover the native
-Qt/OpenGL surface. The same window reports aggregate variable-texture
-allocation, populated texture memory, and pending GPU transfers in MiB. Set
+Qt/OpenGL surface. The same window reports aggregate GPU buffer and texture
+memory, deferred GL cleanup, process/allocator memory, framebuffer recreation,
+and pending GPU transfers. The latest complete overlay-cache sample adds its
+validated hit ratio; missing or inconsistent counters are reported as unknown.
+Set
 `PHONE_BENCHMARK_REPORT` to retain the aggregate summary in a chosen directory
 outside the repository.
 
-For a controlled texture-residency A/B run, set
-`debug.overte.phone_texture_budget_mb` before starting the process. Values are
-bounded to 128–384 MiB and the default remains 256 MiB; 192 MiB is the first
-lower-memory candidate to compare. Clear the property after the run. Do not
-change the budget while the process is running.
+The process-start Android properties below support controlled A/B runs:
+
+- `debug.overte.phone_render_scale`: 0.50–0.70, default 0.65;
+- `debug.overte.phone_texture_budget_mb`: 128–384 MiB, default 256 MiB;
+- `debug.overte.phone_overlay_scale`: 0.50–1.00, default 1.00;
+- `debug.overte.phone_overlay_depth`: recognized true values restore the
+  legacy overlay depth attachment; default and invalid values keep it off;
+- `debug.overte.phone_overlay_cache`: default on; recognized false values and
+  invalid values disable it as a safe fallback;
+- `debug.overte.phone_haze` and `debug.overte.phone_local_lights`: default off
+  experimental quality switches.
+
+Use 192 MiB as the first lower texture-residency candidate and 0.75 as the
+first lower overlay-scale candidate. Change only one property per comparison,
+force-stop and restart the process, keep the scene and warm-up duration fixed,
+and clear the property afterwards. Do not change these properties while the
+process is running. Never put a real device serial or raw benchmark output in
+the repository.
 
 ## Release gates
 
