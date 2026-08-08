@@ -85,12 +85,19 @@ for name, omit in [('complete.apk', None), ('partial.apk', 'assets/kept.txt')]:
             if entry != omit:
                 archive.writestr(entry, data)
 
+with zipfile.ZipFile(root / 'content-digest.apk', 'w') as archive:
+    archive.writestr('assets/cache_assets.txt', ('a' * 64) + '\nkept.txt\n')
+    for entry, data in required.items():
+        archive.writestr(entry, data)
+
 invalid_manifests = {
     'cache-traversal.apk': '123\n../escape\n',
     'cache-absolute.apk': '123\n/escape\n',
     'cache-duplicate.apk': '123\nkept.txt\nkept.txt\n',
     'cache-nonascii-stamp.apk': '\u0661\nkept.txt\n',
     'cache-oversized-stamp.apk': '12345678901234567890\nkept.txt\n',
+    'cache-short-digest.apk': ('a' * 63) + '\nkept.txt\n',
+    'cache-nonhex-digest.apk': ('g' * 64) + '\nkept.txt\n',
 }
 for name, manifest in invalid_manifests.items():
     with zipfile.ZipFile(root / name, 'w') as archive:
@@ -121,6 +128,7 @@ with (root / 'qml-asset-fixtures.txt').open('w', encoding='utf-8') as fixture_li
 PY
 
 "$checker" "$fixture_dir/complete.apk" >/dev/null
+"$checker" "$fixture_dir/content-digest.apk" >/dev/null
 if "$checker" "$fixture_dir/partial.apk" >"$fixture_dir/out" 2>&1; then
     echo 'FAIL: incomplete APK fixture was accepted' >&2
     exit 1
@@ -132,7 +140,9 @@ for fixture in \
         cache-absolute.apk \
         cache-duplicate.apk \
         cache-nonascii-stamp.apk \
-        cache-oversized-stamp.apk; do
+        cache-oversized-stamp.apk \
+        cache-short-digest.apk \
+        cache-nonhex-digest.apk; do
     if "$checker" "$fixture_dir/$fixture" >"$fixture_dir/cache-out" 2>&1; then
         printf 'FAIL: unsafe cache manifest was accepted: %s\n' "$fixture" >&2
         exit 1

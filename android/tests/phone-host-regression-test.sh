@@ -139,6 +139,12 @@ reject_text "$gradle" 'useLegacyPackaging[[:space:]]+!usePhone16kDependencies' \
     'verified dependencies do not disable extraction required by the Qt 5 loader'
 require_text "$gradle" 'check-phone-apk-16k\.sh' \
     '16 KiB builds enforce the final APK alignment gate'
+require_text "$gradle" "MessageDigest[.]getInstance\\('SHA-256'\\)" \
+    'Phone cache invalidation uses a content digest instead of mtimes'
+require_text "$gradle" 'assetList[.]toSet\(\)[.]sort\(\)' \
+    'Phone cache manifest ordering is deterministic'
+reject_text "$gradle" 'youngestLastModified' \
+    'Phone cache invalidation no longer depends on the newest source mtime'
 require_text "$gradle" 'def escapeQrcXml = ' \
     'generated Phone QML resources centralize XML escaping'
 require_text "$gradle" "[.]replace\\('&', '&amp;'\\)" \

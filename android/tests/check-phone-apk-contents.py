@@ -109,8 +109,13 @@ def main():
             if (
                 len(cache_lines) < 2
                 or not cache_lines[0].isascii()
-                or not cache_lines[0].isdigit()
-                or len(cache_lines[0]) > 19
+                or not (
+                    (cache_lines[0].isdigit() and len(cache_lines[0]) <= 19)
+                    or (
+                        len(cache_lines[0]) == 64
+                        and all(character in "0123456789abcdef" for character in cache_lines[0])
+                    )
+                )
             ):
                 raise ValueError("invalid cache_assets.txt header")
             cache_paths = cache_lines[1:]

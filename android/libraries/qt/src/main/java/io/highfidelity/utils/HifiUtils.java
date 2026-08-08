@@ -54,12 +54,13 @@ public class HifiUtils {
         try {
             File destinationRoot = new File(destDir).getCanonicalFile();
             LinkedList<String> assets = readAssetLines(assetManager, "cache_assets.txt");
-            String dateStamp = assets.poll();
-            if (dateStamp == null || !dateStamp.matches("[0-9]{1,19}")) {
-                throw new IOException("Invalid packaged asset timestamp");
+            String cacheStamp = assets.poll();
+            if (cacheStamp == null ||
+                    !cacheStamp.matches("(?:[0-9]{1,19}|[0-9a-f]{64})")) {
+                throw new IOException("Invalid packaged asset cache marker");
             }
-            File dateStampFile = resolveDestination(destinationRoot, dateStamp);
-            if (dateStampFile.exists()) {
+            File cacheStampFile = resolveDestination(destinationRoot, cacheStamp);
+            if (cacheStampFile.exists()) {
                 return;
             }
             for (String fileToCopy : assets) {
@@ -75,7 +76,7 @@ public class HifiUtils {
                 }
                 copyAsset(assetManager, fileToCopy, destFile.getPath());
             }
-            Files.write("touch".getBytes(), dateStampFile);
+            Files.write("touch".getBytes(), cacheStampFile);
         } catch (IOException e){
             throw new RuntimeException(e);
         }

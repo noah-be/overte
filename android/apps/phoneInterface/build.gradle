@@ -351,7 +351,6 @@ android {
         variant.mergeAssets.doLast {
             def mergedAssetsDir = outputDir.get().asFile
             def assetList = new LinkedList<String>()
-            def youngestLastModified = 0L
             def generatedResourcesRcc = nativeResourcesRcc.files.max { it.lastModified() }
             if (generatedResourcesRcc == null) {
                 throw new GradleException('The native build did not generate resources.rcc')
@@ -362,7 +361,6 @@ android {
                 into mergedAssetsDir
                 duplicatesStrategy DuplicatesStrategy.INCLUDE
                 eachFile { details ->
-                    youngestLastModified = Math.max(youngestLastModified, details.lastModified)
                     assetList.add(details.path)
                 }
             }
@@ -376,7 +374,6 @@ android {
                 include '*.json'
                 into new File(mergedAssetsDir, 'resources/serverless')
                 eachFile { details ->
-                    youngestLastModified = Math.max(youngestLastModified, details.lastModified)
                     assetList.add("resources/serverless/${details.path}")
                 }
             }
@@ -434,7 +431,6 @@ android {
                     '--binary', '--root', '/android_rcc_bundle',
                     '--output', qmlRccFile.absolutePath, qmlQrcFile.absolutePath
             }
-            youngestLastModified = Math.max(youngestLastModified, qmlRccFile.lastModified())
             assetList.add('android_rcc_bundle.rcc')
 
             project.sync {
@@ -471,13 +467,31 @@ android {
                 exclude 'system/assets/images/textures/dirt.jpeg'
                 exclude 'system/assets/images/textures/grass.png'
                 eachFile { details ->
-                    youngestLastModified = Math.max(youngestLastModified, details.lastModified)
                     assetList.add("scripts/${details.path}")
                 }
             }
+            def assetPaths = assetList.toSet().sort()
+            if (assetPaths.size() != assetList.size()) {
+                throw new GradleException('Phone cache manifest contains duplicate asset paths')
+            }
+            def cacheDigest = java.security.MessageDigest.getInstance('SHA-256')
+            assetPaths.each { assetPath ->
+                cacheDigest.update(assetPath.getBytes(java.nio.charset.StandardCharsets.UTF_8))
+                cacheDigest.update((byte) 0)
+                new File(mergedAssetsDir, assetPath).withInputStream { input ->
+                    byte[] buffer = new byte[64 * 1024]
+                    int count
+                    while ((count = input.read(buffer)) != -1) {
+                        cacheDigest.update(buffer, 0, count)
+                    }
+                }
+            }
+            def cacheStamp = cacheDigest.digest().collect {
+                String.format('%02x', it & 0xff)
+            }.join()
             new File(mergedAssetsDir, 'cache_assets.txt').withWriter { out ->
-                out.println(Long.toString(youngestLastModified))
-                assetList.each { file -> out.println(file) }
+                out.println(cacheStamp)
+                assetPaths.each { file -> out.println(file) }
             }
         }
 

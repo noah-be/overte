@@ -4,6 +4,32 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 35 — Invalidate the Phone asset cache by content
+
+- Branch: `nightly/android-phone-35-content-cache-stamp`
+- Commit: `Use content digest for phone asset cache` (this task's commit)
+- Change: Replace Phone's maximum-mtime extraction marker with a deterministic
+  SHA-256 over sorted asset paths and bytes, and reject duplicate paths while
+  generating the manifest. The shared Android extractor accepts this 64-digit
+  lowercase hex marker plus the legacy 1–19 digit timestamp, preserving Pico
+  compatibility while ensuring changed Phone assets are never skipped merely
+  because another file has a newer mtime.
+- Tests:
+  - `android/tests/phone-apk-contents-test.sh`: **passed**, covering legacy and
+    content-digest markers plus short, non-hex, oversized, non-ASCII, duplicate,
+    traversal, missing-asset, native-runtime, and QML-asset failures.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 188/188 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/APK suites and 188/188 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: Full Gradle asset merging is blocked by absent Phone dependencies;
+  hashing adds one sequential read of the packaged cache assets during build.
+  The common extractor's legacy numeric branch is intentionally retained.
+- Real-device validation still required: Build two APKs whose changed asset is
+  older than an unchanged asset, install both with `-r`, and verify the second
+  start extracts and uses the changed script/QML. Confirm upgrade from a legacy
+  timestamp-marker APK also re-extracts once and starts normally.
+
 ## 34 — Escape generated Phone QML resource XML
 
 - Branch: `nightly/android-phone-34-qml-qrc-escaping`
