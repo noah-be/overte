@@ -73,6 +73,16 @@ require "$places" 'validPortalPosition\(instruction[.]position\).*&&' \
     'Places validates received portal positions before Vec3 operations'
 require "$places" 'validUiAddress\(instruction[.]url\)' \
     'Places validates received portal destinations before entity creation'
+require "$places" 'rezzerPortalCount < MAX_REZZED_PORTAL' \
+    'Places enforces its portal limit without an off-by-one overflow'
+require "$places" 'rezzedPortalTimers\[portalID\][[:space:]]*=[[:space:]]*cleanupTimer' \
+    'Places owns every portal expiry timer'
+require "$places" 'function clearRezzedPortals\(\)' \
+    'Places centralizes portal timer and entity teardown'
+require "$places" 'Script[.]clearTimeout\(rezzedPortalTimers\[portalID\]\)' \
+    'Places cancels portal expiry callbacks at shutdown'
+require "$places" 'clearRezzedPortals\(\);' \
+    'Places removes live local portals during script cleanup'
 require "$places" 'if[[:space:]]*\(!isAndroidPhone\)' \
     'Phone Places avoids mutable tablet-button proxy updates'
 require "$qml" 'height:[[:space:]]*Math[.]max\(82,' \

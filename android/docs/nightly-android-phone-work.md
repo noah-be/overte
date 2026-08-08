@@ -4,6 +4,28 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 43 — Own Places portal resources
+
+- Branch: `nightly/android-phone-43-places-portal-ownership`
+- Commit: `Own Places portal timers and entities` (this task's commit)
+- Change: Enforce the documented 15-portal ceiling with `<` instead of an
+  off-by-one `<=`, track every 45-second expiry timer by portal entity, remove
+  ownership when it fires, and cancel/delete all remaining timers/entities when
+  Places shuts down. No local portal can outlive its owning system script.
+- Tests:
+  - `android/tests/phone-tablet-places-test.sh`: **passed**, covering exact
+    limit, timer registration, expiry ownership, callback cancellation, entity
+    deletion, and cleanup invocation contracts.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including portal
+    entity lifecycle, all tablet/APK suites, and 188/188 host checks.
+  - JavaScript syntax and `git diff --check`: **passed**.
+- Known risks: The shared Messages channel intentionally supports portals from
+  other users; existing distance, schema, duration, and count limits remain.
+- Real-device validation still required: **not executed for this task**. Rezz
+  16 portals and verify at most 15 exist, wait for expiry and rezz again, then
+  stop/restart Places while portals are live and confirm immediate cleanup with
+  no delayed callback errors or orphan sound/particle children.
+
 ## 42 — Bound Avatar resource URLs
 
 - Branch: `nightly/android-phone-42-avatar-url-contract`

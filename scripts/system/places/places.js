@@ -49,6 +49,7 @@
     var PORTAL_DURATION_MILLISEC = 45000; //45 sec
     var rezzerPortalCount = 0;
     var MAX_REZZED_PORTAL = 15;
+    var rezzedPortalTimers = {};
     
     var placesOfTheCurrentDomain = [];
 
@@ -894,7 +895,7 @@
     }
 
     function generatePortal(position, url, name, placeID) {
-        if (rezzerPortalCount <= MAX_REZZED_PORTAL) {
+        if (rezzerPortalCount < MAX_REZZED_PORTAL) {
             var TOLERANCE_FACTOR = 1.1;
             if (Vec3.distance(MyAvatar.position, position) < MAX_DISTANCE_TO_CONSIDER_PORTAL) {
                 var height = MyAvatar.userHeight * MyAvatar.scale * TOLERANCE_FACTOR;
@@ -924,20 +925,32 @@
                 }, "local");
                 rezzerPortalCount = rezzerPortalCount + 1;
                 
-                Script.setTimeout(function () {
+                var cleanupTimer = Script.setTimeout(function () {
+                    delete rezzedPortalTimers[portalID];
                     Entities.deleteEntity(portalID);
                     rezzerPortalCount = rezzerPortalCount - 1;
                     if (rezzerPortalCount < 0) {
                         rezzerPortalCount = 0;
                     }
                 }, PORTAL_DURATION_MILLISEC);
+                rezzedPortalTimers[portalID] = cleanupTimer;
             }
         }
+    }
+
+    function clearRezzedPortals() {
+        Object.keys(rezzedPortalTimers).forEach(function (portalID) {
+            Script.clearTimeout(rezzedPortalTimers[portalID]);
+            Entities.deleteEntity(portalID);
+        });
+        rezzedPortalTimers = {};
+        rezzerPortalCount = 0;
     }
 
     function cleanup() {
         shuttingDown = true;
         abortActiveRequest();
+        clearRezzedPortals();
 
         if (appStatus) {
             tablet.gotoHomeScreen();
