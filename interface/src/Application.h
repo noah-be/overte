@@ -980,6 +980,7 @@ private:
     bool _picoLoadingWasConnected { false };
     bool _picoLoadingDismissedByUser { false };
     bool _picoLoadingDismissButtonWasPressed { false };
+    bool _picoStatsThumbChordLatched { false };
     bool _picoServerlessSceneImportCommitted { false };
     QUrl _picoServerlessSceneURL;
 #endif

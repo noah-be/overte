@@ -861,7 +861,11 @@ void Application::showVRKeyboardForHudUI(bool show) {
 
 void Application::onDesktopRootItemCreated(QQuickItem* rootItem) {
     auto surfaceContext = getOffscreenUI()->getSurfaceContext();
-    Stats::show([surfaceContext](QQmlContext*, QObject*) {
+    Stats::show([surfaceContext](QQmlContext*, QObject* statsObject) {
+        // QQuickItem defaults to visible. Initialize it from the menu state
+        // before its first frame instead of waiting for Stats::updateStats().
+        statsObject->setProperty("visible",
+            Menu::getInstance()->isOptionChecked(MenuOption::Stats));
         surfaceContext->setContextProperty("Stats", Stats::getInstance());
     });
     AnimStats::show([surfaceContext](QQmlContext*, QObject*) {
@@ -1186,9 +1190,10 @@ void Application::pauseUntilLoginDetermined() {
     menu->getMenu("Navigate")->setVisible(false);
     menu->getMenu("Settings")->setVisible(false);
     _developerMenuVisible = menu->getMenu("Developer")->isVisible();
-#if defined(Q_OS_ANDROID)
-    // Keep the compact FPS counter out of the normal Pico view. It remains
-    // available through an ADB override for controlled performance tests.
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    // The Pico stats action is initialized unchecked in Menu. Its state is
+    // changed only by the two-thumbstick chord.
+#elif defined(Q_OS_ANDROID)
     char picoStatsValue[PROP_VALUE_MAX] {};
     const QString picoStats = __system_property_get("debug.overte.stats", picoStatsValue) > 0
         ? QString::fromLatin1(picoStatsValue).trimmed().toLower()

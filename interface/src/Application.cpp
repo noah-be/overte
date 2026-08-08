@@ -3339,6 +3339,20 @@ void Application::update(float deltaTime) {
             setIsInterstitialMode(false);
         }
         _picoLoadingDismissButtonWasPressed = dismissLoadingPressed;
+
+        const bool leftThumbPressed = standardDevice &&
+            standardDevice->getButton(controller::LEFT_PRIMARY_THUMB) > 0.5f;
+        const bool rightThumbPressed = standardDevice &&
+            standardDevice->getButton(controller::RIGHT_PRIMARY_THUMB) > 0.5f;
+        if (leftThumbPressed && rightThumbPressed && !_picoStatsThumbChordLatched) {
+            _picoStatsThumbChordLatched = true;
+            auto menu = Menu::getInstance();
+            menu->triggerOption(MenuOption::Stats);
+            qCInfo(interfaceapp) << "PICO_STATS_OVERLAY toggled"
+                                 << menu->isOptionChecked(MenuOption::Stats);
+        } else if (!leftThumbPressed && !rightThumbPressed) {
+            _picoStatsThumbChordLatched = false;
+        }
 #endif
 #if defined(Q_OS_ANDROID)
         picoAfterInputMapper = usecTimestampNow();
