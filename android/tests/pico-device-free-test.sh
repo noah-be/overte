@@ -19,6 +19,7 @@ run "Shell syntax" bash -c '
 run "WebView frame/JNI bridge" python3 "$SCRIPT_DIR/pico-webview-bridge-test.py"
 run "WebView gesture state" "$SCRIPT_DIR/pico-webview-input-test.sh"
 run "AudioRecord lifecycle state" "$SCRIPT_DIR/pico-audio-capture-state-test.sh"
+run "AudioRecord native transport" python3 "$SCRIPT_DIR/pico-audio-transport-test.py"
 run "OpenXR loader lifecycle" python3 "$SCRIPT_DIR/pico-openxr-loader-test.py"
 run "OpenXR input fail-closed state" python3 "$SCRIPT_DIR/pico-openxr-input-test.py"
 run "OpenXR display frame cleanup" python3 "$SCRIPT_DIR/pico-openxr-display-test.py"

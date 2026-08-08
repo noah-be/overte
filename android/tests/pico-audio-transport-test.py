@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+"""Source contracts for Pico native microphone FIFO boundaries."""
+
+from pathlib import Path
+import re
+import unittest
+
+
+ROOT = Path(__file__).resolve().parents[2]
+SOURCE = (ROOT / "libraries/audio-client/src/AudioClient.cpp").read_text(encoding="utf-8")
+
+
+class PicoAudioTransportTests(unittest.TestCase):
+    def test_jni_rejects_unconfigured_or_misaligned_callbacks_before_copy(self):
+        callback = re.search(
+            r"Java_org_overte_pico_AndroidAudioInput_nativeOnAudioData\((.*?)\n\}",
+            SOURCE,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(callback)
+        body = callback.group(0)
+        validation = body.index("androidAudioCallbackSizeValid(bytesRead)")
+        allocation = body.index("QByteArray audio(bytesRead")
+        copy = body.index("GetByteArrayRegion")
+        self.assertLess(validation, allocation)
+        self.assertLess(validation, copy)
+
+    def test_size_validation_uses_current_pcm_frame_and_active_capacity(self):
+        validator = re.search(
+            r"static bool androidAudioCallbackSizeValid\(.*?\n\}", SOURCE, re.DOTALL
+        )
+        self.assertIsNotNone(validator)
+        body = validator.group(0)
+        self.assertIn("androidAudioTransportMutex", body)
+        self.assertIn("androidAudioMaxBufferBytes > 0", body)
+        self.assertIn("bytes % androidAudioBytesPerFrame == 0", body)
+        self.assertIn("androidAudioDroppedBytes += bytes;", body)
+
+    def test_enqueue_rechecks_alignment_and_does_not_feed_watchdog(self):
+        enqueue = re.search(
+            r"static bool enqueueAndroidAudio\(.*?\n\}", SOURCE, re.DOTALL
+        )
+        self.assertIsNotNone(enqueue)
+        body = enqueue.group(0)
+        reject = body.index("audio.size() % androidAudioBytesPerFrame != 0")
+        callback_count = body.index("++androidAudioCapturedCallbacksSinceWatchdog")
+        self.assertLess(reject, callback_count)
+        self.assertIn("androidAudioDroppedBytes += audio.size();", body)
+
+    def test_drain_slice_is_pcm_frame_aligned(self):
+        drain = re.search(
+            r"static QByteArray takePendingAndroidAudio\(.*?\n\}", SOURCE, re.DOTALL
+        )
+        self.assertIsNotNone(drain)
+        body = drain.group(0)
+        self.assertIn("boundedBytes % androidAudioBytesPerFrame", body)
+        self.assertIn("if (bytes <= 0)", body)
+
+
+if __name__ == "__main__":
+    unittest.main()

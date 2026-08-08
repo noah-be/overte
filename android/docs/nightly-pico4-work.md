@@ -739,8 +739,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 40 — WebView creation handshake
 
 - Branch: `nightly/pico4-40-webview-creation-handshake`
-- Commit: identified by subject `Confirm Pico WebView creation`; the exact hash
-  is recorded by the following stacked task or final report.
+- Commit: `23bed0c0b9` (`Confirm Pico WebView creation`)
 - Change: distinguish native creation-pending from Java-confirmed creation;
   report Activity/provider/frame-allocation failures back through JNI; marshal
   results to the owning Qt thread with lifetime protection; and reapply current
@@ -758,6 +757,27 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Create entities during Activity startup,
   change URL/User-Agent/size/background before first frame, inject provider or
   allocation failure, then retry and verify the latest state is rendered.
+
+### 41 — Native microphone frame alignment
+
+- Branch: `nightly/pico4-41-audio-frame-alignment`
+- Commit: identified by subject `Validate Pico microphone frame alignment`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: reject JNI PCM callbacks unless transport is configured and byte
+  count is aligned to the current channel frame, before allocating/copying the
+  Java array; recheck under enqueue lock; exclude invalid callbacks from the
+  liveness watchdog while counting them as dropped; align every FIFO drain
+  slice to the same frame boundary.
+- Regression: source contracts cover validation-before-copy, configured/frame
+  checks under lock, watchdog ordering, drop accounting and drain alignment.
+- Passed: native audio transport contracts; audio JVM lifecycle/buffer tests;
+  full `pico-device-free-test.sh`; `git diff --check`.
+- Risk: Android PCM16 reads are normally frame-aligned, so valid capture is
+  unchanged; corrupt partial samples/channels now drop as one callback instead
+  of phase-shifting all subsequent audio.
+- Pico 4 validation: **not executed**. Capture mono/stereo sources while forcing
+  partial/error reads and rapid restart; verify invalid callbacks are dropped,
+  watchdog recovery occurs, and later speech retains channel/sample alignment.
 
 ## Deferred, rejected, or blocked ideas
 
