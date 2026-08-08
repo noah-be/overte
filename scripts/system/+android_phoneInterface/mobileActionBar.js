@@ -2,7 +2,7 @@
 
 // A small, screen-space control surface for the phone client.  It deliberately
 // uses Interface's QML dialogs instead of the legacy Android Java activities.
-/* globals Audio, Camera, Controller, DialogsManager, Menu, print, QmlFragment, Script, Window */
+/* globals Audio, Camera, Controller, DialogsManager, MyAvatar, print, QmlFragment, Script, Window */
 
 (function () {
     var navigationBar;
@@ -12,6 +12,7 @@
     var cameraButton;
     var microphoneButton;
     var currentButtonStyle;
+    var thirdPersonBoomLength = 1.5;
 
     var BASE_BUTTON_STYLE = {
         bgOpacity: 0.22,
@@ -207,15 +208,16 @@
     }
 
     function toggleCameraMode() {
-        // Use the native menu actions even though the phone menu bar is hidden.
-        // They update camera mode and boom length atomically; assigning
-        // Camera.mode directly can leave a first-person camera with a
-        // third-person boom and trigger a recursive mode correction.
-        // Defer the native action until the QML clicked handler has unwound;
-        // modeUpdated edits this same button and must not re-enter that handler.
-        Script.setTimeout(function () {
-            Menu.triggerOption(isFirstPersonMode(Camera.mode) ? "Third Person" : "First Person");
-        }, 0);
+        if (isFirstPersonMode(Camera.mode)) {
+            Camera.mode = "look at";
+            MyAvatar.cameraBoomLength = thirdPersonBoomLength;
+        } else {
+            thirdPersonBoomLength = Math.max(MyAvatar.cameraBoomLength, 1.5);
+            // The automatic view correction requires the first-person mode and
+            // boom to agree. Set the boom first to avoid a corrective mode loop.
+            MyAvatar.cameraBoomLength = 0.5;
+            Camera.mode = "first person look at";
+        }
     }
 
     currentButtonStyle = calculateLayout(Math.max(Window.innerWidth, 1), Math.max(Window.innerHeight, 1)).buttonStyle;
