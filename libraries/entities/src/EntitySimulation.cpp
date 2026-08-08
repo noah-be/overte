@@ -36,69 +36,13 @@ void EntitySimulation::updateEntities() {
     PerformanceTimer perfTimer("EntitySimulation::updateEntities");
     QMutexLocker lock(&_mutex);
     uint64_t now = usecTimestampNow();
-#if defined(Q_OS_ANDROID)
-    const uint64_t picoStart = now;
-#endif
 
     // these methods may accumulate entries in _entitiesToBeDeleted
     expireMortalEntities(now);
-#if defined(Q_OS_ANDROID)
-    const uint64_t picoAfterExpire = usecTimestampNow();
-#endif
     callUpdateOnEntitiesThatNeedIt(now);
-#if defined(Q_OS_ANDROID)
-    const uint64_t picoAfterCallUpdate = usecTimestampNow();
-#endif
     moveSimpleKinematics(now);
-#if defined(Q_OS_ANDROID)
-    const uint64_t picoAfterKinematics = usecTimestampNow();
-#endif
     sortEntitiesThatMoved();
-#if defined(Q_OS_ANDROID)
-    const uint64_t picoAfterSort = usecTimestampNow();
-#endif
     processDeadEntities();
-#if defined(Q_OS_ANDROID)
-    const uint64_t picoEnd = usecTimestampNow();
-    struct PicoSimulationStats {
-        uint64_t windowStart { 0 };
-        uint64_t calls { 0 };
-        uint64_t expire { 0 };
-        uint64_t callUpdate { 0 };
-        uint64_t kinematics { 0 };
-        uint64_t sort { 0 };
-        uint64_t dead { 0 };
-        uint64_t maximum { 0 };
-    };
-    static PicoSimulationStats stats;
-    if (stats.windowStart == 0) {
-        stats.windowStart = picoStart;
-    }
-    stats.calls++;
-    stats.expire += picoAfterExpire - picoStart;
-    stats.callUpdate += picoAfterCallUpdate - picoAfterExpire;
-    stats.kinematics += picoAfterKinematics - picoAfterCallUpdate;
-    stats.sort += picoAfterSort - picoAfterKinematics;
-    stats.dead += picoEnd - picoAfterSort;
-    stats.maximum = std::max(stats.maximum, picoEnd - picoStart);
-    if (picoEnd - stats.windowStart >= USECS_PER_SECOND) {
-        const double divisor = std::max<uint64_t>(1, stats.calls);
-        qInfo() << "PICO_ENTITY_SIM_STAGES"
-                << "callsPerSec" << stats.calls
-                << "maxMs" << stats.maximum / 1000.0
-                << "expireMs" << stats.expire / divisor / 1000.0
-                << "callUpdateMs" << stats.callUpdate / divisor / 1000.0
-                << "kinematicsMs" << stats.kinematics / divisor / 1000.0
-                << "sortMs" << stats.sort / divisor / 1000.0
-                << "deadMs" << stats.dead / divisor / 1000.0
-                << "allEntities" << _allEntities.size()
-                << "needsUpdate" << _entitiesToUpdate.size()
-                << "kinematicEntities" << _simpleKinematicEntities.size()
-                << "needsSort" << _entitiesToSort.size();
-        stats = PicoSimulationStats {};
-        stats.windowStart = picoEnd;
-    }
-#endif
 }
 
 void EntitySimulation::removeEntityFromInternalLists(EntityItemPointer entity) {

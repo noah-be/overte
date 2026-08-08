@@ -640,18 +640,7 @@ void EntityTreeRenderer::updateChangedEntities(const render::ScenePointer& scene
         uint64_t updateStart = usecTimestampNow();
         for (const auto& renderable : _renderablesToUpdate) {
             assert(renderable); // only valid renderables are added to _renderablesToUpdate
-            const uint64_t renderableStart = usecTimestampNow();
             renderable->updateInScene(scene, transaction);
-#if defined(Q_OS_ANDROID)
-            const uint64_t renderableDuration = usecTimestampNow() - renderableStart;
-            if (renderableDuration > 10000) {
-                const auto entity = renderable->getEntity();
-                qInfo() << "PICO_SLOW_RENDERABLE"
-                        << "durationMs" << renderableDuration / 1000.0
-                        << "id" << (entity ? entity->getEntityItemID() : UNKNOWN_ENTITY_ID)
-                        << "type" << (entity ? (int)entity->getType() : -1);
-            }
-#endif
         }
         _prevNumEntityUpdates = _renderablesToUpdate.size();
         size_t numRenderables = _prevNumEntityUpdates + 1; // add one to avoid divide by zero
@@ -710,18 +699,7 @@ void EntityTreeRenderer::updateChangedEntities(const render::ScenePointer& scene
                     break;
                 }
                 const auto& renderable = sortedRenderable.getRenderer();
-                const uint64_t renderableStart = usecTimestampNow();
                 renderable->updateInScene(scene, transaction);
-#if defined(Q_OS_ANDROID)
-                const uint64_t renderableDuration = usecTimestampNow() - renderableStart;
-                if (renderableDuration > 10000) {
-                    const auto entity = renderable->getEntity();
-                    qInfo() << "PICO_SLOW_RENDERABLE"
-                            << "durationMs" << renderableDuration / 1000.0
-                            << "id" << (entity ? entity->getEntityItemID() : UNKNOWN_ENTITY_ID)
-                            << "type" << (entity ? (int)entity->getType() : -1);
-                }
-#endif
                 _renderablesToUpdate.erase(renderable);
             }
 
@@ -746,24 +724,11 @@ void EntityTreeRenderer::update(bool simulate) {
     PerformanceTimer perfTimer("ETRupdate");
     if (_tree && !_shuttingDown) {
         EntityTreePointer tree = std::static_pointer_cast<EntityTree>(_tree);
-#if defined(Q_OS_ANDROID)
-        const uint64_t picoUpdateStart = usecTimestampNow();
-        uint64_t picoAfterTree = picoUpdateStart;
-        uint64_t picoAfterAdd = picoUpdateStart;
-        uint64_t picoAfterChanged = picoUpdateStart;
-        uint64_t picoAfterSceneEnqueue = picoUpdateStart;
-        uint64_t picoAfterWorkload = picoUpdateStart;
-#endif
-
         // here we update _currentFrame and _lastAnimated and sync with the server properties.
         {
             PerformanceTimer perfTimer("tree::update");
             tree->update(simulate);
         }
-#if defined(Q_OS_ANDROID)
-        picoAfterTree = usecTimestampNow();
-#endif
-
         {   // Update the rendereable entities as needed
             PROFILE_RANGE(simulation_physics, "Scene");
             PerformanceTimer sceneTimer("scene");
@@ -771,18 +736,8 @@ void EntityTreeRenderer::update(bool simulate) {
             if (scene) {
                 render::Transaction transaction;
                 addPendingEntities(scene, transaction);
-#if defined(Q_OS_ANDROID)
-                picoAfterAdd = usecTimestampNow();
-#endif
-
                 updateChangedEntities(scene, transaction);
-#if defined(Q_OS_ANDROID)
-                picoAfterChanged = usecTimestampNow();
-#endif
                 scene->enqueueTransaction(transaction);
-#if defined(Q_OS_ANDROID)
-                picoAfterSceneEnqueue = usecTimestampNow();
-#endif
             }
         }
         {
@@ -803,10 +758,6 @@ void EntityTreeRenderer::update(bool simulate) {
                 }
             }
         }
-#if defined(Q_OS_ANDROID)
-        picoAfterWorkload = usecTimestampNow();
-#endif
-
         if (simulate) {
             // Handle enter/leave entity logic
             checkEnterLeaveEntities();
@@ -819,76 +770,6 @@ void EntityTreeRenderer::update(bool simulate) {
             }
         }
 
-#if defined(Q_OS_ANDROID)
-        struct PicoEntityUpdateStats {
-            uint64_t windowStart { 0 };
-            uint64_t calls { 0 };
-            uint64_t tree { 0 };
-            uint64_t add { 0 };
-            uint64_t changed { 0 };
-            uint64_t sceneEnqueue { 0 };
-            uint64_t workload { 0 };
-            uint64_t enterLeave { 0 };
-            uint64_t maximum { 0 };
-        };
-        static PicoEntityUpdateStats stats;
-        const uint64_t end = usecTimestampNow();
-        if (stats.windowStart == 0) {
-            stats.windowStart = picoUpdateStart;
-        }
-        stats.calls++;
-        stats.tree += picoAfterTree - picoUpdateStart;
-        stats.add += picoAfterAdd - picoAfterTree;
-        stats.changed += picoAfterChanged - picoAfterAdd;
-        stats.sceneEnqueue += picoAfterSceneEnqueue - picoAfterChanged;
-        stats.workload += picoAfterWorkload - picoAfterSceneEnqueue;
-        stats.enterLeave += end - picoAfterWorkload;
-        stats.maximum = std::max(stats.maximum, end - picoUpdateStart);
-        if (end - stats.windowStart >= USECS_PER_SECOND) {
-            const double divisor = std::max<uint64_t>(1, stats.calls);
-            std::array<uint32_t, EntityTypes::NUM_TYPES> pendingTypes {};
-            uint32_t pendingNotReady { 0 };
-            uint32_t pendingEntityDirty { 0 };
-            uint32_t pendingAnimatingModels { 0 };
-            for (const auto& renderable : _renderablesToUpdate) {
-                const auto entity = renderable ? renderable->getEntity() : nullptr;
-                if (entity) {
-                    const auto type = entity->getType();
-                    if (type >= EntityTypes::Unknown && type < EntityTypes::NUM_TYPES) {
-                        ++pendingTypes[type];
-                    }
-                    pendingNotReady += entity->isVisuallyReady() ? 0 : 1;
-                    pendingEntityDirty += entity->needsRenderUpdate() ? 1 : 0;
-                    if (entity->getType() == EntityTypes::Model) {
-                        const auto modelEntity = std::dynamic_pointer_cast<ModelEntityItem>(entity);
-                        pendingAnimatingModels += modelEntity && modelEntity->isAnimatingSomething() ? 1 : 0;
-                    }
-                }
-            }
-            qInfo() << "PICO_ENTITY_UPDATE_STAGES"
-                    << "callsPerSec" << stats.calls
-                    << "maxMs" << stats.maximum / 1000.0
-                    << "treeMs" << stats.tree / divisor / 1000.0
-                    << "addPendingMs" << stats.add / divisor / 1000.0
-                    << "changedMs" << stats.changed / divisor / 1000.0
-                    << "sceneEnqueueMs" << stats.sceneEnqueue / divisor / 1000.0
-                    << "workloadMs" << stats.workload / divisor / 1000.0
-                    << "enterLeaveMs" << stats.enterLeave / divisor / 1000.0
-                    << "pendingAdds" << _entitiesToAdd.size()
-                    << "pendingRenderUpdates" << _renderablesToUpdate.size()
-                    << "pendingNotReady" << pendingNotReady
-                    << "pendingEntityDirty" << pendingEntityDirty
-                    << "pendingAnimatingModels" << pendingAnimatingModels
-                    << "pendingModel" << pendingTypes[EntityTypes::Model]
-                    << "pendingZone" << pendingTypes[EntityTypes::Zone]
-                    << "pendingImage" << pendingTypes[EntityTypes::Image]
-                    << "pendingWeb" << pendingTypes[EntityTypes::Web]
-                    << "pendingParticle" << (pendingTypes[EntityTypes::ParticleEffect] + pendingTypes[EntityTypes::ProceduralParticleEffect])
-                    << "pendingMaterial" << pendingTypes[EntityTypes::Material];
-            stats = PicoEntityUpdateStats {};
-            stats.windowStart = end;
-        }
-#endif
     }
 }
 

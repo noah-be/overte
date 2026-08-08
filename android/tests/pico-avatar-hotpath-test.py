@@ -9,6 +9,8 @@ ROOT = Path(__file__).resolve().parents[2]
 MY_AVATAR = (ROOT / "interface/src/avatar/MyAvatar.cpp").read_text(encoding="utf-8")
 AVATAR_MANAGER = (ROOT / "interface/src/avatar/AvatarManager.cpp").read_text(encoding="utf-8")
 PHYSICS_ENGINE = (ROOT / "libraries/physics/src/PhysicsEngine.cpp").read_text(encoding="utf-8")
+ENTITY_SIMULATION = (ROOT / "libraries/entities/src/EntitySimulation.cpp").read_text(encoding="utf-8")
+ENTITY_RENDERER = (ROOT / "libraries/entities-renderer/src/EntityTreeRenderer.cpp").read_text(encoding="utf-8")
 
 
 class PicoAvatarHotpathTests(unittest.TestCase):
@@ -41,6 +43,31 @@ class PicoAvatarHotpathTests(unittest.TestCase):
         self.assertIn("dt > 0.050f ? 1", PHYSICS_ENGINE)
         self.assertIn("dt > 0.033f ? 2", PHYSICS_ENGINE)
         self.assertIn("stepSimulationWithSubstepCallback", PHYSICS_ENGINE)
+
+    def test_entity_profilers_are_not_always_on(self):
+        combined = ENTITY_SIMULATION + ENTITY_RENDERER
+        for marker in (
+            "PICO_ENTITY_SIM_STAGES",
+            "PICO_ENTITY_UPDATE_STAGES",
+            "PICO_SLOW_RENDERABLE",
+            "PicoSimulationStats",
+            "PicoEntityUpdateStats",
+        ):
+            self.assertNotIn(marker, combined)
+
+    def test_entity_update_paths_remain_present(self):
+        for call in (
+            "expireMortalEntities(now);",
+            "callUpdateOnEntitiesThatNeedIt(now);",
+            "moveSimpleKinematics(now);",
+            "sortEntitiesThatMoved();",
+            "processDeadEntities();",
+        ):
+            self.assertIn(call, ENTITY_SIMULATION)
+        self.assertIn("tree->update(simulate);", ENTITY_RENDERER)
+        self.assertIn("addPendingEntities(scene, transaction);", ENTITY_RENDERER)
+        self.assertIn("updateChangedEntities(scene, transaction);", ENTITY_RENDERER)
+        self.assertIn("checkEnterLeaveEntities();", ENTITY_RENDERER)
 
 
 if __name__ == "__main__":

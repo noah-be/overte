@@ -498,8 +498,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 28 — Physics hot-path logging cleanup
 
 - Branch: `nightly/pico4-28-physics-hotpath-logging`
-- Commit: identified by subject `Remove always-on Pico physics profiling`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `4433258bb1` (`Remove always-on Pico physics profiling`)
 - Change: remove the release-build per-step counters, timestamp, and periodic
   physics info log. Pico's existing late-frame substep cap and Bullet stepping,
   contact processing, outgoing-change signaling, and debug drawing are intact.
@@ -513,6 +512,27 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Exercise collision-heavy grabbing and
   locomotion while capturing logs; verify normal physics behavior and absence
   of the periodic `PICO_PHYSICS_STEP` line.
+
+### 29 — Entity hot-path logging cleanup
+
+- Branch: `nightly/pico4-29-entity-hotpath-logging`
+- Commit: identified by subject `Remove always-on Pico entity profiling`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: remove per-stage timestamps and periodic info logs from entity
+  simulation and rendering, including two extra per-renderable timestamps and
+  a once-per-second traversal of all pending renderables. Entity expiry,
+  kinematics, sorting, scene transactions, workload updates, and enter/leave
+  handling are unchanged.
+- Regression: source contracts reject all three removed profiler families and
+  require the functional simulation and renderer calls to remain.
+- Passed: hot-path source contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: coarse always-on entity timing lines are removed. Existing scoped
+  `PerformanceTimer`/`PROFILE_RANGE` instrumentation remains for intentional
+  profiling without permanent runtime traversal and logging cost.
+- Pico 4 validation: **not executed**. Load a dense online and serverless world,
+  exercise animated/web/particle entities and enter/leave events, and confirm
+  behavior remains correct with the periodic entity profiler lines absent.
 
 ## Deferred, rejected, or blocked ideas
 
