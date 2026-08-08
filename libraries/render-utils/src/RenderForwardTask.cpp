@@ -187,9 +187,11 @@ void RenderForwardTask::build(JobModel& task, const render::Varying& input, rend
     const auto resolveInputs = ResolveFramebuffer::Inputs(scaledPrimaryFramebuffer, newResolvedFramebuffer).asVarying();
     const auto resolvedFramebuffer = task.addJob<ResolveFramebuffer>("Resolve", resolveInputs);
 
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
     // Add bloom
     const auto bloomInputs = BloomEffect::Inputs(deferredFrameTransform, resolvedFramebuffer, bloomFrame, lightingModel).asVarying();
     task.addJob<BloomEffect>("Bloom", bloomInputs);
+#endif
 
     const auto destFramebuffer = static_cast<gpu::FramebufferPointer>(nullptr);
 
