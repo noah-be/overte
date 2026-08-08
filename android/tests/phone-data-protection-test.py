@@ -17,6 +17,17 @@ EXPECTED_DOMAINS = {
     "device_sharedpref",
 }
 ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
+EXPECTED_PERMISSIONS = {
+    "android.permission.INTERNET",
+    "android.permission.ACCESS_NETWORK_STATE",
+    "android.permission.RECORD_AUDIO",
+    "android.permission.MODIFY_AUDIO_SETTINGS",
+    "android.permission.VIBRATE",
+}
+EXPECTED_ACTIVITIES = {
+    ".PermissionsActivity": "true",
+    ".PhoneInterfaceActivity": "false",
+}
 
 
 def exclusions(element):
@@ -62,6 +73,29 @@ def main():
     if application.get(ANDROID_NS + "backupAgent") is not None:
         raise ValueError("phone manifest installs a custom backup agent")
 
+    permissions = {
+        element.get(ANDROID_NS + "name") for element in manifest.findall("uses-permission")
+    }
+    if permissions != EXPECTED_PERMISSIONS:
+        raise ValueError(
+            "phone permissions differ from the minimal allowlist: "
+            f"missing={sorted(EXPECTED_PERMISSIONS - permissions)}, "
+            f"unexpected={sorted(permissions - EXPECTED_PERMISSIONS)}"
+        )
+
+    activities = {
+        element.get(ANDROID_NS + "name"): element.get(ANDROID_NS + "exported")
+        for element in application.findall("activity")
+    }
+    if activities != EXPECTED_ACTIVITIES:
+        raise ValueError(
+            "phone activities differ from the export allowlist: "
+            f"actual={activities!r}"
+        )
+    for component_type in ("activity-alias", "provider", "receiver", "service"):
+        if application.findall(component_type):
+            raise ValueError(f"phone manifest unexpectedly declares {component_type}")
+
     legacy = ET.parse(resource_root / "backup_rules.xml").getroot()
     if legacy.tag != "full-backup-content":
         raise ValueError("legacy backup rules have the wrong root element")
@@ -77,7 +111,7 @@ def main():
     require_complete_exclusions(cloud, "cloud backup")
     require_complete_exclusions(transfer, "device transfer")
 
-    print("Android phone backup and transfer exclusions cover all 9 data domains.")
+    print("Android phone backup, permissions, and exported-component contracts passed.")
 
 
 if __name__ == "__main__":

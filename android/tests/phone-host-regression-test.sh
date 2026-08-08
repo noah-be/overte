@@ -243,6 +243,12 @@ require_text "$manifest" 'android\.permission\.INTERNET' \
     'manifest allows network access'
 require_text "$manifest" 'android\.permission\.RECORD_AUDIO' \
     'manifest declares microphone access'
+require_text tests/phone-data-protection-test.py 'EXPECTED_PERMISSIONS' \
+    'data protection gate enforces an exact phone permission allowlist'
+require_text tests/phone-data-protection-test.py 'EXPECTED_ACTIVITIES' \
+    'data protection gate enforces an exact exported-activity allowlist'
+require_text tests/phone-data-protection-test.py 'provider.*receiver.*service' \
+    'data protection gate rejects unexpected Android components'
 require_text "$manifest" 'android:name="\.PermissionsActivity"' \
     'manifest declares the permission launcher activity'
 require_text "$manifest" 'android\.intent\.action\.MAIN' \

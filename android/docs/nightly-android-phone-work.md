@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 60 — Gate the Android manifest attack surface
+
+- Branch: `nightly/android-phone-60-scope-audit`
+- Commit: `Gate phone manifest permissions and exports` (this task's commit)
+- Change: Extend the structured data-protection test from backup XML to an
+  exact five-permission allowlist, exactly two Activities with only the launcher
+  exported, and rejection of aliases, providers, receivers, or services. New
+  Android entry points now require an explicit reviewed contract change.
+- Tests:
+  - `android/tests/phone-data-protection-test.sh`: **passed**.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 224/224 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 224/224 host checks.
+  - Python syntax and `git diff --check`: **passed**.
+- Known risks: Gradle dependencies can contribute to the merged manifest; the
+  final packaged-manifest review remains necessary in release CI.
+- Real-device validation still required: Confirm microphone denial still allows
+  world access and microphone grant enables voice; no device test is needed for
+  the source XML allowlist itself.
+
 ## 59 — Require explicit release version names
 
 - Branch: `nightly/android-phone-59-release-metadata-gate`

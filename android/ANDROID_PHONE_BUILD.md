@@ -222,7 +222,10 @@ are treated as background states; transient Back-key and pending URL retry
 bookkeeping is stopped or reset on Activity pause and resumed safely later.
 Android cloud backup and device-to-device transfer are both denied across all
 credential- and device-protected app-data domains so account state and cached
-world data cannot silently migrate through platform backup.
+world data cannot silently migrate through platform backup. The structured
+data-protection gate also permits exactly the five required Android permissions
+and two Activities, with only the launcher exported; new aliases, providers,
+receivers, services, or entry points fail closed pending explicit review.
 
 ### Touchscreen system tablet
 
