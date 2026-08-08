@@ -19,6 +19,7 @@ Item {
     HifiConstants { id: hifi  }
     property alias text: label.text
     property var source
+    property bool platformEnabled: true
 
     implicitHeight: source !== null ? source.visible ? 2 * label.implicitHeight : 0 : 0
     implicitWidth: 2 * hifi.dimensions.menuPadding.x + check.width + label.width + tail.width
@@ -79,11 +80,11 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         verticalAlignment: Text.AlignVCenter
         color: source !== null ?
-                   source.enabled ? hifi.colors.baseGrayShadow :
+                   source.enabled && platformEnabled ? hifi.colors.baseGrayShadow :
                                     hifi.colors.baseGrayShadow50 :
         "transparent"
 
-        enabled: source !== null ? source.visible && (source.type !== 0 ? source.enabled : false) : false
+        enabled: source !== null ? source.visible && platformEnabled && (source.type !== 0 ? source.enabled : false) : false
         visible: source !== null ? source.visible : false
         wrapMode: Text.WordWrap
     }
@@ -130,7 +131,7 @@ Item {
 
         HiFiGlyphs {
             text: hifi.glyphs.disclosureExpand
-            color: source !== null ? source.enabled ? hifi.colors.baseGrayShadow : hifi.colors.baseGrayShadow25 : "transparent"
+            color: source !== null ? source.enabled && platformEnabled ? hifi.colors.baseGrayShadow : hifi.colors.baseGrayShadow25 : "transparent"
             size: 70
             anchors.verticalCenter: parent.verticalCenter
             anchors.right: parent.right
