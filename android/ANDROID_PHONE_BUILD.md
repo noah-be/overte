@@ -246,6 +246,7 @@ Run the device-free tablet contract checks with:
 ./tests/phone-tablet-audio-test.sh
 ./tests/phone-tablet-avatar-test.sh
 ./tests/phone-tablet-places-test.sh
+./tests/phone-tablet-people-menu-test.sh
 ./tests/phone-tablet-quick-goto-test.sh
 ./tests/phone-tablet-shield-test.sh
 ./tests/phone-dialog-routing-test.sh
