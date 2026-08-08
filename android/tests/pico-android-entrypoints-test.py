@@ -33,6 +33,14 @@ class AndroidEntrypointsTest(unittest.TestCase):
         self.assertNotIn('getStringExtra("args")', permissions)
         self.assertIn("RestartArguments.consume(this)", permissions)
 
+    def test_permission_activity_preserves_one_shot_restart_state(self):
+        permissions = (JAVA / "PermissionsActivity.java").read_text(encoding="utf-8")
+        self.assertIn("onSaveInstanceState(Bundle outState)", permissions)
+        self.assertIn("outState.putString(STATE_ARGUMENTS, applicationArguments)", permissions)
+        self.assertIn("savedInstanceState.getString(STATE_ARGUMENTS)", permissions)
+        self.assertGreaterEqual(permissions.count("if (interfaceLaunched)"), 2)
+        self.assertIn("interfaceLaunched = true", permissions)
+
     def test_restart_arguments_are_private_and_not_logged(self):
         activity = (JAVA / "PicoInterfaceActivity.java").read_text(encoding="utf-8")
         storage = (JAVA / "RestartArguments.java").read_text(encoding="utf-8")

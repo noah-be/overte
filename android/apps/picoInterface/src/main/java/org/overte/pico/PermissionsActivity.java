@@ -9,15 +9,28 @@ import android.text.TextUtils;
 
 public final class PermissionsActivity extends Activity {
     private static final int RECORD_AUDIO_REQUEST = 20;
+    private static final String STATE_ARGUMENTS = "restartArguments";
+    private static final String STATE_LAUNCHED = "interfaceLaunched";
     private String applicationArguments;
+    private boolean interfaceLaunched;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_startup);
-        applicationArguments = getIntent().getBooleanExtra(
-                RestartArguments.EXTRA_INTERNAL_RESTART, false)
-            ? RestartArguments.consume(this) : null;
+        if (savedInstanceState != null && savedInstanceState.containsKey(STATE_ARGUMENTS)) {
+            applicationArguments = savedInstanceState.getString(STATE_ARGUMENTS);
+            interfaceLaunched = savedInstanceState.getBoolean(STATE_LAUNCHED, false);
+        } else {
+            applicationArguments = getIntent().getBooleanExtra(
+                    RestartArguments.EXTRA_INTERNAL_RESTART, false)
+                ? RestartArguments.consume(this) : null;
+        }
+
+        if (interfaceLaunched) {
+            finish();
+            return;
+        }
 
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
                 == PackageManager.PERMISSION_GRANTED) {
@@ -27,6 +40,13 @@ public final class PermissionsActivity extends Activity {
                     new String[] { Manifest.permission.RECORD_AUDIO },
                     RECORD_AUDIO_REQUEST);
         }
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        outState.putString(STATE_ARGUMENTS, applicationArguments);
+        outState.putBoolean(STATE_LAUNCHED, interfaceLaunched);
+        super.onSaveInstanceState(outState);
     }
 
     @Override
@@ -40,6 +60,10 @@ public final class PermissionsActivity extends Activity {
     }
 
     private void launchInterface() {
+        if (interfaceLaunched) {
+            return;
+        }
+        interfaceLaunched = true;
         Intent intent = new Intent(this, PicoInterfaceActivity.class);
         if (!TextUtils.isEmpty(applicationArguments)) {
             intent.putExtra("applicationArguments", applicationArguments);

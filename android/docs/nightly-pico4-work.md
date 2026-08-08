@@ -246,8 +246,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 14 — Android restart argument isolation
 
 - Branch: `nightly/pico4-14-android-restart-arguments`
-- Commit: identified by subject `Protect Pico restart arguments`; the exact hash
-  is recorded by the following stacked task or final report.
+- Commit: `7ca079b3d2` (`Protect Pico restart arguments`)
 - Change: make the internal Qt Activity non-exported; move process-restart
   arguments from an externally injectable Intent string to one-shot private app
   preferences; stop logging the argument contents; abort restart if durable
@@ -264,6 +263,26 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Launch normally, change Pico render scale
   to exercise process restart, verify arguments survive exactly once, then send
   explicit external intents and confirm raw arguments cannot reach Qt.
+
+### 15 — Permission Activity recreation
+
+- Branch: `nightly/pico4-15-permission-activity-recreation`
+- Commit: identified by subject `Preserve Pico restart permission state`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: preserve consumed restart arguments across Android Activity
+  recreation and make Interface launch idempotent across lifecycle and
+  permission callbacks.
+- Regression: Android entry-point tests require saved/restored arguments,
+  persisted launch state, and duplicate-launch guards.
+- Passed: Android entry-point regression (4); full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: state remains process-local plus Android-managed instance state; a full
+  process death correctly falls back to the private persisted handoff until it
+  is consumed by the first launcher instance.
+- Pico 4 validation: **not executed**. Recreate the launcher during the first
+  microphone permission prompt and during a render-scale restart; verify one
+  Interface Activity starts with the intended arguments in both grant and deny
+  cases.
 
 ## Deferred, rejected, or blocked ideas
 
