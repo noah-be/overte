@@ -10,6 +10,12 @@ The implementation is Apache-2.0 licensed like the surrounding Overte code.
 It uses only Android SDK and JNI APIs; it does not import, link, or redistribute
 the Pico SDK or any proprietary Pico microphone library.
 
+AudioRecord delivery is guarded again after every blocking `read()`. If a stop,
+source switch, or restart replaces the recorder while that read is pending, a
+final buffer from the old recorder is discarded instead of entering the new
+source's native FIFO. The device-free state regression is
+`android/tests/pico-audio-capture-state-test.sh`.
+
 ## Test controls
 
 The microphone research build supports three opt-in ADB properties:

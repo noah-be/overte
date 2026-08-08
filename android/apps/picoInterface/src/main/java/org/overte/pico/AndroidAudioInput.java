@@ -172,7 +172,11 @@ public final class AndroidAudioInput {
         while (running && recorder == activeRecorder) {
             final int bytesRead = activeRecorder.read(
                 audio, 0, audio.length, AudioRecord.READ_BLOCKING);
-            if (bytesRead > 0) {
+            // stop() can unblock a pending read with a final positive buffer.
+            // Re-check recorder identity after the blocking call so an old
+            // source cannot enter a newly started source's native FIFO.
+            if (PicoAudioCaptureState.shouldDeliver(
+                    running, recorder, activeRecorder, bytesRead)) {
                 nativeOnAudioData(audio, bytesRead);
             } else if (!running || recorder != activeRecorder) {
                 break;

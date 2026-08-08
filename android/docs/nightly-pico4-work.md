@@ -29,8 +29,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 02 — WebView input gesture state
 
 - Branch: `nightly/pico4-02-webview-input-state`
-- Commit: identified by subject `Preserve Pico WebView input gestures`; the
-  exact hash is recorded by the following stacked task or the final report.
+- Commit: `268d37ab22` (`Preserve Pico WebView input gestures`)
 - Change: preserve Android's original `downTime` across down/move/up/cancel,
   send the correct hover-enter action, cancel an active touch when Qt revokes
   the mouse grab, and cancel before an offscreen WebView is destroyed.
@@ -46,6 +45,26 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Rapidly press, drag off target, release,
   alternate targets and hands, delete a pressed Web entity, and confirm there
   is exactly one click/release with no stuck pressed or hover state.
+
+### 03 — Microphone stale-capture isolation
+
+- Branch: `nightly/pico4-03-microphone-stale-capture`
+- Commit: identified by subject `Discard stale Pico microphone reads`; the
+  exact hash is recorded by the following stacked task or the final report.
+- Change: after each blocking `AudioRecord.read()`, deliver bytes only if
+  capture is still running and the reader is still the current recorder. This
+  prevents a final old-source buffer from entering the FIFO after stop, source
+  switch, or restart.
+- Regression: pure-Java lifecycle guard covering active, stopped, replaced,
+  empty, and failed reads.
+- Passed: `pico-audio-capture-state-test.sh`; microphone runner mocks (11);
+  Bash syntax for the new runner; `git diff --check`.
+- Risk: the JVM test proves the delivery decision, not AudioRecord's device-
+  specific unblock timing or captured audio quality.
+- Pico 4 validation: **not executed**. Switch repeatedly among microphone
+  sources while speaking distinct markers, stop/restart capture during input,
+  and verify the first buffer after each switch belongs only to the new source;
+  then run the documented transport/backpressure and long-duration checks.
 
 ## Cumulative remaining device validation
 
