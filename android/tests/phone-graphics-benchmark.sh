@@ -161,6 +161,13 @@ valid_u64() {
         (( ${#value} == 20 )) && [[ "$value" < 18446744073709551615 || "$value" == 18446744073709551615 ]]
     }
 }
+valid_u32() {
+    local value="$1"
+    [[ "$value" =~ ^(0|[1-9][0-9]*)$ ]] || return 1
+    (( ${#value} < 10 )) || {
+        (( ${#value} == 10 )) && [[ "$value" < 4294967295 || "$value" == 4294967295 ]]
+    }
+}
 u64_lte() {
     local left="$1" right="$2"
     (( ${#left} < ${#right} )) || { (( ${#left} == ${#right} )) && [[ "$left" < "$right" || "$left" == "$right" ]]; }
@@ -180,9 +187,19 @@ native_new_frame_fps="$(sed -nE 's/.*new_frame_fps=([0-9]+([.][0-9]+)?).*/\1/p' 
 native_present_p50_ms="$(sed -nE 's/.*inter_present_p50_ms=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
 native_present_p95_ms="$(sed -nE 's/.*inter_present_p95_ms=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
 native_present_max_ms="$(sed -nE 's/.*inter_present_max_ms=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
-texture_resource_mib="$(sed -nE 's/.*texture_resource_mib=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
-texture_populated_mib="$(sed -nE 's/.*texture_populated_mib=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
-texture_pending_transfer_mib="$(sed -nE 's/.*texture_pending_transfer_mib=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
+texture_resource_mib="$(extract_native_field texture_resource_mib || true)"
+texture_populated_mib="$(extract_native_field texture_populated_mib || true)"
+texture_pending_transfer_mib="$(extract_native_field texture_pending_transfer_mib || true)"
+gpu_buffer_count="$(extract_native_field gpu_buffer_count || true)"
+gpu_buffer_mib="$(extract_native_field gpu_buffer_mib || true)"
+gpu_texture_resident_count="$(extract_native_field gpu_texture_resident_count || true)"
+gpu_texture_resident_mib="$(extract_native_field gpu_texture_resident_mib || true)"
+gpu_texture_framebuffer_count="$(extract_native_field gpu_texture_framebuffer_count || true)"
+gpu_texture_framebuffer_mib="$(extract_native_field gpu_texture_framebuffer_mib || true)"
+gpu_texture_resource_count="$(extract_native_field gpu_texture_resource_count || true)"
+gpu_texture_external_count="$(extract_native_field gpu_texture_external_count || true)"
+gpu_texture_external_mib="$(extract_native_field gpu_texture_external_mib || true)"
+gpu_texture_pending_transfer_count="$(extract_native_field gpu_texture_pending_transfer_count || true)"
 memory_proc_flag="$(extract_native_field memory_proc_valid || true)"
 memory_rss_kib="$(extract_native_field memory_rss_kib || true)"
 memory_data_kib="$(extract_native_field memory_data_kib || true)"
@@ -235,6 +252,24 @@ else
     framebuffer_resolve_width=unknown; framebuffer_resolve_height=unknown; framebuffer_resolve_samples=unknown
     framebuffer_estimated_mib=unknown
 fi
+gpu_live_metrics_valid=0
+if valid_u32 "$gpu_buffer_count" && valid_finite_decimal "$gpu_buffer_mib" &&
+        valid_u32 "$gpu_texture_resident_count" && valid_finite_decimal "$gpu_texture_resident_mib" &&
+        valid_u32 "$gpu_texture_framebuffer_count" && valid_finite_decimal "$gpu_texture_framebuffer_mib" &&
+        valid_u32 "$gpu_texture_resource_count" && valid_finite_decimal "$texture_resource_mib" &&
+        valid_u32 "$gpu_texture_external_count" && valid_finite_decimal "$gpu_texture_external_mib" &&
+        valid_finite_decimal "$texture_populated_mib" &&
+        valid_u32 "$gpu_texture_pending_transfer_count" && valid_finite_decimal "$texture_pending_transfer_mib"; then
+    gpu_live_metrics_valid=1
+else
+    gpu_buffer_count=unknown; gpu_buffer_mib=unknown
+    gpu_texture_resident_count=unknown; gpu_texture_resident_mib=unknown
+    gpu_texture_framebuffer_count=unknown; gpu_texture_framebuffer_mib=unknown
+    gpu_texture_resource_count=unknown; texture_resource_mib=unknown
+    gpu_texture_external_count=unknown; gpu_texture_external_mib=unknown
+    texture_populated_mib=unknown
+    gpu_texture_pending_transfer_count=unknown; texture_pending_transfer_mib=unknown
+fi
 native_present_metrics_available=0
 [[ -n "$native_present_fps" && -n "$native_new_frame_fps" && -n "$native_present_p95_ms" ]] && \
     native_present_metrics_available=1
@@ -259,8 +294,18 @@ chmod 600 "$summary_tmp"
         "${native_window_seconds:-unknown}"
     printf 'native_inter_present_p50_ms=%s\nnative_inter_present_p95_ms=%s\nnative_inter_present_max_ms=%s\n' \
         "${native_present_p50_ms:-unknown}" "${native_present_p95_ms:-unknown}" "${native_present_max_ms:-unknown}"
-    printf 'texture_resource_mib=%s\ntexture_populated_mib=%s\ntexture_pending_transfer_mib=%s\n' \
-        "${texture_resource_mib:-unknown}" "${texture_populated_mib:-unknown}" "${texture_pending_transfer_mib:-unknown}"
+    printf 'gpu_live_metrics_valid=%s\n' "$gpu_live_metrics_valid"
+    printf 'gpu_buffer_count=%s\ngpu_buffer_mib=%s\n' "$gpu_buffer_count" "$gpu_buffer_mib"
+    printf 'gpu_texture_resident_count=%s\ngpu_texture_resident_mib=%s\n' \
+        "$gpu_texture_resident_count" "$gpu_texture_resident_mib"
+    printf 'gpu_texture_framebuffer_count=%s\ngpu_texture_framebuffer_mib=%s\n' \
+        "$gpu_texture_framebuffer_count" "$gpu_texture_framebuffer_mib"
+    printf 'gpu_texture_resource_count=%s\ntexture_resource_mib=%s\n' \
+        "$gpu_texture_resource_count" "$texture_resource_mib"
+    printf 'gpu_texture_external_count=%s\ngpu_texture_external_mib=%s\n' \
+        "$gpu_texture_external_count" "$gpu_texture_external_mib"
+    printf 'texture_populated_mib=%s\ngpu_texture_pending_transfer_count=%s\ntexture_pending_transfer_mib=%s\n' \
+        "$texture_populated_mib" "$gpu_texture_pending_transfer_count" "$texture_pending_transfer_mib"
     printf 'memory_proc_valid=%s\nmemory_rss_kib=%s\nmemory_data_kib=%s\nmemory_swap_kib=%s\n' \
         "$memory_proc_valid" "$memory_rss_kib" "$memory_data_kib" "$memory_swap_kib"
     printf 'memory_allocator_valid=%s\nmemory_allocator_used_kib=%s\nmemory_allocator_free_kib=%s\n' \

@@ -48,7 +48,12 @@ sed 's/^+//' >"$fixture/adb" <<'MOCK'
 +    malformed) framebuffer='framebuffer_primary_recreate_delta=43 framebuffer_primary_recreate_total=42 framebuffer_resolve_recreate_delta=-1 framebuffer_resolve_recreate_total=18446744073709551616 framebuffer_primary_width=0 framebuffer_primary_height=999999 framebuffer_primary_samples=65 framebuffer_resolve_width=12x framebuffer_resolve_height=655 framebuffer_resolve_samples=1 framebuffer_estimated_mib=nan-private' ;;
 +    missing) framebuffer='' ;;
 +  esac
-+  printf 'I/OvertePhoneGraphics: window_seconds=10.02 present_fps=30.00 new_frame_fps=29.50 inter_present_p50_ms=33.20 inter_present_p95_ms=34.10 inter_present_max_ms=40.00 texture_resource_mib=192.25 texture_populated_mib=190.75 texture_pending_transfer_mib=1.50 %s %s\n' "$framebuffer" "$memory"
++  case ${MOCK_GPU_MODE:-valid} in
++    valid) gpu='gpu_buffer_count=123 gpu_buffer_mib=45.50 gpu_texture_resident_count=7 gpu_texture_resident_mib=8.25 gpu_texture_framebuffer_count=9 gpu_texture_framebuffer_mib=10.75 gpu_texture_resource_count=321 texture_resource_mib=192.25 gpu_texture_external_count=2 gpu_texture_external_mib=3.50 texture_populated_mib=190.75 gpu_texture_pending_transfer_count=4 texture_pending_transfer_mib=1.50' ;;
++    malformed) gpu='gpu_buffer_count=-1 gpu_buffer_mib=nan-private gpu_texture_resident_count=7x gpu_texture_resident_mib=-8 gpu_texture_framebuffer_count=18446744073709551616 gpu_texture_framebuffer_mib=10.75 gpu_texture_resource_count=yes texture_resource_mib=192.25 gpu_texture_external_count=2 gpu_texture_external_mib=inf texture_populated_mib=190.75 gpu_texture_pending_transfer_count=4.5 texture_pending_transfer_mib=1.50' ;;
++    missing) gpu='' ;;
++  esac
++  printf 'I/OvertePhoneGraphics: window_seconds=10.02 present_fps=30.00 new_frame_fps=29.50 inter_present_p50_ms=33.20 inter_present_p95_ms=34.10 inter_present_max_ms=40.00 %s %s %s\n' "$gpu" "$framebuffer" "$memory"
 +  exit
 +fi
 +exit 0
@@ -78,8 +83,19 @@ grep -q '^native_present_fps=30.00$' "$summary"
 grep -q '^native_present_window_seconds=10.02$' "$summary"
 grep -q '^native_new_frame_fps=29.50$' "$summary"
 grep -q '^native_inter_present_p95_ms=34.10$' "$summary"
+grep -q '^gpu_live_metrics_valid=1$' "$summary"
+grep -q '^gpu_buffer_count=123$' "$summary"
+grep -q '^gpu_buffer_mib=45.50$' "$summary"
+grep -q '^gpu_texture_resident_count=7$' "$summary"
+grep -q '^gpu_texture_resident_mib=8.25$' "$summary"
+grep -q '^gpu_texture_framebuffer_count=9$' "$summary"
+grep -q '^gpu_texture_framebuffer_mib=10.75$' "$summary"
+grep -q '^gpu_texture_resource_count=321$' "$summary"
 grep -q '^texture_resource_mib=192.25$' "$summary"
+grep -q '^gpu_texture_external_count=2$' "$summary"
+grep -q '^gpu_texture_external_mib=3.50$' "$summary"
 grep -q '^texture_populated_mib=190.75$' "$summary"
+grep -q '^gpu_texture_pending_transfer_count=4$' "$summary"
 grep -q '^texture_pending_transfer_mib=1.50$' "$summary"
 grep -q '^memory_proc_valid=1$' "$summary"
 grep -q '^memory_rss_kib=123456$' "$summary"
@@ -157,6 +173,23 @@ grep -q '^memory_proc_valid=0$' "$missing_report/summary.txt"
 grep -q '^memory_rss_kib=unknown$' "$missing_report/summary.txt"
 grep -q '^memory_allocator_valid=0$' "$missing_report/summary.txt"
 grep -q '^memory_allocator_used_kib=unknown$' "$missing_report/summary.txt"
+gpu_malformed_report="$fixture/gpu-malformed-report"
+PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/gpu-malformed-exits" MOCK_GPU_MODE=malformed \
+    ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES PHONE_BENCHMARK_REPORT="$gpu_malformed_report" \
+    PHONE_BENCHMARK_INTERVAL=1 "$script_dir/phone-graphics-benchmark.sh" 1 >/dev/null
+grep -q '^gpu_live_metrics_valid=0$' "$gpu_malformed_report/summary.txt"
+grep -q '^gpu_buffer_count=unknown$' "$gpu_malformed_report/summary.txt"
+grep -q '^gpu_texture_resident_mib=unknown$' "$gpu_malformed_report/summary.txt"
+grep -q '^gpu_texture_pending_transfer_count=unknown$' "$gpu_malformed_report/summary.txt"
+grep -q '^texture_resource_mib=unknown$' "$gpu_malformed_report/summary.txt"
+
+gpu_missing_report="$fixture/gpu-missing-report"
+PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/gpu-missing-exits" MOCK_GPU_MODE=missing \
+    ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES PHONE_BENCHMARK_REPORT="$gpu_missing_report" \
+    PHONE_BENCHMARK_INTERVAL=1 "$script_dir/phone-graphics-benchmark.sh" 1 >/dev/null
+grep -q '^gpu_live_metrics_valid=0$' "$gpu_missing_report/summary.txt"
+grep -q '^gpu_texture_framebuffer_count=unknown$' "$gpu_missing_report/summary.txt"
+grep -q '^gpu_texture_external_mib=unknown$' "$gpu_missing_report/summary.txt"
 framebuffer_malformed_report="$fixture/framebuffer-malformed-report"
 PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/framebuffer-malformed-exits" MOCK_FRAMEBUFFER_MODE=malformed \
     ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES PHONE_BENCHMARK_REPORT="$framebuffer_malformed_report" \
@@ -175,6 +208,7 @@ grep -q '^framebuffer_primary_width=unknown$' "$framebuffer_missing_report/summa
 grep -q '^framebuffer_resolve_samples=unknown$' "$framebuffer_missing_report/summary.txt"
 if grep -Eqi 'phone-secret|private|serial|account|url|manufacturer|model|fingerprint|android_id|domain|12x|9223372036854775808' \
         "$malformed_report/summary.txt" "$missing_report/summary.txt" \
+        "$gpu_malformed_report/summary.txt" "$gpu_missing_report/summary.txt" \
         "$framebuffer_malformed_report/summary.txt" "$framebuffer_missing_report/summary.txt"; then
     echo 'FAIL: malformed or identifying data escaped into aggregate report' >&2; exit 1
 fi
