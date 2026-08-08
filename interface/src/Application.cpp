@@ -1929,6 +1929,12 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
 #if defined(ANDROID_APP_PICO_INTERFACE)
     if (_urlParam.isEmpty()) {
         addressLookupString = PICO_DEFAULT_STARTUP_ADDRESS;
+        // Apply the packaged world's fixed spawn exactly once. Encoding this
+        // as an AddressManager location query replays it during later
+        // serverless handoffs and teleports a moving avatar back to spawn.
+        getMyAvatar()->goToLocation(glm::vec3(0.0f, 1.0f, 0.0f),
+            false, glm::quat(), false, false);
+        qCInfo(interfaceapp) << "Pico startup: initialized avatar at deck spawn";
     }
 #endif
 

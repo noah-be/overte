@@ -67,7 +67,12 @@ does not replace the normal controller dispatcher.
 ## Hardware test matrix
 
 The Pico development client starts in the bundled, spawn-aligned test world
-`file:///~/serverless/overte-hub-pico4-optimized-spawn.json`. This intentionally
+`file:///~/serverless/overte-hub-pico4-optimized-spawn.json`. For an ordinary
+launch, the Pico startup path initializes the avatar once at `(0, 1, 0)` before
+navigating to this URL; neither the world nor a later test script is moved. The
+position is deliberately not encoded as a URL `location` query, because later
+serverless address handoffs can replay such a viewpoint and teleport a moving
+avatar back to spawn. This intentionally
 overrides a remembered previous location for ordinary Pico launches, while an
 explicit command-line `--url` remains available for targeted tests.
 The Pico loading overlay detects serverless mode before checking domain
