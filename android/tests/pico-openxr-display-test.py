@@ -317,6 +317,29 @@ class PicoOpenXRDisplayTests(unittest.TestCase):
         self.assertLess(disable, invalidate)
         self.assertLess(invalidate, failed_return)
 
+    def test_context_destroys_spaces_and_session_before_instance(self):
+        start = CONTEXT.index("OpenXrContext::~OpenXrContext()")
+        end = CONTEXT.index("bool OpenXrContext::initInstance()", start)
+        cleanup = CONTEXT[start:end]
+        session_guard = cleanup.index("_session != XR_NULL_HANDLE")
+        view_destroy = cleanup.index("xrDestroySpace(_viewSpace)", session_guard)
+        stage_destroy = cleanup.index("xrDestroySpace(_stageSpace)", view_destroy)
+        session_destroy = cleanup.index("xrDestroySession(_session)", stage_destroy)
+        clear_view = cleanup.index("_viewSpace = XR_NULL_HANDLE", session_destroy)
+        clear_stage = cleanup.index("_stageSpace = XR_NULL_HANDLE", clear_view)
+        clear_session = cleanup.index("_session = XR_NULL_HANDLE", clear_stage)
+        debug_destroy = cleanup.index("xrDestroyDebugUtilsMessengerEXT", clear_session)
+        instance_destroy = cleanup.index("xrDestroyInstance(_instance)", debug_destroy)
+        self.assertLess(view_destroy, stage_destroy)
+        self.assertLess(stage_destroy, session_destroy)
+        self.assertLess(session_destroy, clear_view)
+        self.assertLess(clear_view, clear_stage)
+        self.assertLess(clear_stage, clear_session)
+        self.assertLess(clear_session, debug_destroy)
+        self.assertLess(debug_destroy, instance_destroy)
+        self.assertIn("_isSessionRunning = false", cleanup)
+        self.assertIn("_shouldRunFrameCycle = false", cleanup)
+
 
 if __name__ == "__main__":
     unittest.main()

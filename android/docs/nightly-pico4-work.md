@@ -1496,8 +1496,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 82 — Complete OpenXR action-set cleanup
 
 - Branch: `nightly/pico4-82-openxr-actionset-cleanup`
-- Commit: identified by subject `Release Pico OpenXR action sets`; the exact hash
-  is recorded by the following stacked task or final report.
+- Commit: `76fb640316` (`Release Pico OpenXR action sets`)
 - Change: complete normal input teardown by clearing Action objects (and their
   pose spaces) before destroying the parent ActionSet, clearing its handle and
   retiring the initialized flag. Hand trackers remain the first session children
@@ -1510,6 +1509,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Quit/deactivate after actions attach and
   after partial initialization/runtime loss; verify child-before-parent destroy
   ordering, no validation warning/leak and clean mappings after restart.
+
+### 83 — Complete OpenXR context cleanup
+
+- Branch: `nightly/pico4-83-openxr-context-cleanup`
+- Commit: identified by subject `Release Pico OpenXR context children`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: explicitly destroy live View/Stage spaces and their parent Session
+  before the debug messenger and OpenXR Instance during normal context teardown.
+  All space/session handles and running/frame flags are invalidated even if a
+  runtime cleanup call reports failure.
+- Regression: context contracts verify child-to-parent destroy ordering through
+  spaces, session, debug messenger and instance plus local state retirement.
+- Passed: 22 OpenXR display/context lifecycle contracts; `git diff --check`.
+- Risk: runtime-loss paths that already invalidated the session skip child calls
+  and still clear stale local handles; active normal teardown becomes explicit.
+- Pico 4 validation: **not executed**. Quit from focused, paused, pre-session and
+  runtime-loss states under validation; verify each live handle is destroyed in
+  order, shutdown is bounded and the next process creates a clean context.
 
 ## Deferred, rejected, or blocked ideas
 

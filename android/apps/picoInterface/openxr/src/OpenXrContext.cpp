@@ -117,6 +117,20 @@ OpenXrContext::~OpenXrContext() {
     if (_instance == XR_NULL_HANDLE) {
         return;
     }
+    if (_session != XR_NULL_HANDLE) {
+        if (_viewSpace != XR_NULL_HANDLE) {
+            xrCheck(_instance, xrDestroySpace(_viewSpace), "Failed to destroy view space");
+        }
+        if (_stageSpace != XR_NULL_HANDLE) {
+            xrCheck(_instance, xrDestroySpace(_stageSpace), "Failed to destroy stage space");
+        }
+        xrCheck(_instance, xrDestroySession(_session), "Failed to destroy OpenXR session");
+    }
+    _viewSpace = XR_NULL_HANDLE;
+    _stageSpace = XR_NULL_HANDLE;
+    _session = XR_NULL_HANDLE;
+    _isSessionRunning = false;
+    _shouldRunFrameCycle = false;
     if (_debugMessenger != XR_NULL_HANDLE && xrDestroyDebugUtilsMessengerEXT) {
         xrCheck(_instance, xrDestroyDebugUtilsMessengerEXT(_debugMessenger),
                 "Failed to destroy OpenXR debug messenger");
