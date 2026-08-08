@@ -873,9 +873,11 @@ void Application::touchUpdateEvent(QTouchEvent* event) {
 }
 
 void Application::touchGestureEvent(QGestureEvent* event) {
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
     if (_keyboardMouseDevice->isActive()) {
         _keyboardMouseDevice->touchGestureEvent(event);
     }
+#endif
     if (_touchscreenDevice && _touchscreenDevice->isActive()) {
         _touchscreenDevice->touchGestureEvent(event);
     }

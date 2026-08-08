@@ -10,6 +10,9 @@ phone_action_bar="$repo_root/scripts/system/+android_phoneInterface/mobileAction
 phone_defaults="$repo_root/scripts/+android_phoneInterface/defaultScripts.js"
 phone_preferences="$repo_root/interface/resources/qml/hifi/tablet/+android_phoneInterface/TabletGeneralPreferences.qml"
 preferences_cpp="$repo_root/interface/src/ui/PreferencesDialog.cpp"
+application_events="$repo_root/interface/src/Application_Events.cpp"
+application_graphics="$repo_root/interface/src/Application_Graphics.cpp"
+gl_widget="$repo_root/libraries/gl/src/gl/GLWidget.cpp"
 
 require() {
     local file=$1 pattern=$2 message=$3
@@ -55,6 +58,10 @@ require "$device_cpp" 'phonePinchZoomEnabled.*android/phone/pinchZoomEnabled.*fa
     'phone pinch zoom is not disabled by default'
 require "$device_cpp" 'if \(!phonePinchZoomEnabled[.]get\(\)\)' \
     'phone pinch gestures do not honor the navigation preference'
+require "$application_events" '#if !defined\(ANDROID_APP_PHONE_INTERFACE\)' \
+    'phone gesture routing does not isolate the legacy keyboard pinch path'
+require "$application_events" '_keyboardMouseDevice->touchGestureEvent\(event\)' \
+    'legacy keyboard gesture routing contract is missing'
 require "$preferences_cpp" '"Navigation"' \
     'phone navigation preference category is missing'
 require "$preferences_cpp" 'Enable two-finger perspective zoom' \
@@ -73,6 +80,12 @@ require "$phone_action_bar" 'Camera[.]mode = "look at";' \
     'phone camera button cannot enter third-person view'
 reject "$phone_action_bar" 'Camera[.]modeUpdated.*cameraButton|updateCameraButton' \
     'phone camera mode changes synchronously mutate the triggering QML button'
+require "$gl_widget" '#if !defined\(ANDROID_APP_PHONE_INTERFACE\)' \
+    'phone GL viewport remains permanently IME enabled'
+require "$application_graphics" 'focusTextChanged.*_primaryWidget' \
+    'phone GL viewport does not follow real QML text focus'
+require "$application_graphics" 'WA_InputMethodEnabled, focusText' \
+    'phone input-method state is not gated by text focus'
 
 require "$phone_mapping" 'TouchscreenVirtualPad[.]LX.*Actions[.]TranslateX' \
     'virtual joystick lateral movement mapping is missing'
