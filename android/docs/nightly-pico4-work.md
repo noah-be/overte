@@ -427,8 +427,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 24 — Finite native Create properties
 
 - Branch: `nightly/pico4-24-create-finite-properties`
-- Commit: identified by subject `Validate Pico Create numeric values`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `b3f43daf2e` (`Validate Pico Create numeric values`)
 - Change: normalize displayed and submitted Pico property numbers to finite
   values, require a positive finite focus step, and accept controller numeric
   adjustments only as the discrete directions -1 or 1.
@@ -441,6 +440,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Enter/paste invalid, infinite, signed,
   decimal, and extreme finite values into every native property field; confirm
   no invalid transform reaches the entity and normal stick adjustment remains.
+
+### 25 — Create message property allowlist
+
+- Branch: `nightly/pico4-25-create-message-validation`
+- Commit: identified by subject `Validate Pico Create property messages`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: validate QML Preview/Apply payloads again in `edit.js` through a
+  shared allowlist module; require finite vectors/colors and strict booleans,
+  clamp dimensions/colors, copy only supported properties, and reject missing
+  IDs before string conversion. Unexpected entity fields cannot pass through.
+- Regression: Node behavior tests cover valid copies, extra-field removal,
+  infinity/NaN rejection, dimension minima, color bounds, and boolean types.
+- Passed: Create validation Node test; module/edit/test JavaScript syntax; full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: this deliberately narrows only the native Pico properties payload to
+  fields its UI exposes; the desktop Web properties editor remains unchanged.
+- Pico 4 validation: **not executed**. Preview/apply every exposed property and
+  undo it; inject malformed QML messages and confirm no entity edit or script
+  failure occurs.
 
 ## Deferred, rejected, or blocked ideas
 
