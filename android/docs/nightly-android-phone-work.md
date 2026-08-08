@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 49 — Require the Phone default-script payload
+
+- Branch: `nightly/android-phone-49-apk-default-scripts`
+- Commit: `Require phone default scripts in APK` (this task's commit)
+- Change: Extend start-critical cached assets to the Phone default-script
+  selector and every directly included touch/action-bar/tablet/Emote/Shield/
+  People/Avatar/Places/Home runtime, including `androidControls`. APK fixtures
+  import this exact checker set so additions cannot silently diverge.
+- Tests:
+  - `android/tests/phone-apk-contents-test.sh`: **passed**, with every required
+    cached script present in valid fixtures and covered by cache/ZIP checks.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 199/199 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/APK suites and 199/199 host checks.
+  - Python syntax and `git diff --check`: **passed**.
+- Known risks: Transitive `Script.require/include` assets below these roots are
+  still protected by the complete cache-manifest presence check, but not each
+  named individually as a start-critical top-level entry.
+- Real-device validation still required: Covered by the cumulative cold/warm
+  start and each-default-app smoke test on the final gated APK.
+
 ## 48 — Require extraction of packaged resource bundles
 
 - Branch: `nightly/android-phone-48-apk-cache-contract`

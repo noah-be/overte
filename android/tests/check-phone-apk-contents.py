@@ -25,7 +25,23 @@ DEPENDENCY_XML = (
     Path(__file__).resolve().parents[1]
     / "apps/phoneInterface/src/main/res/values/qt_dependencies.xml"
 )
-REQUIRED_CACHED_ASSETS = {"resources.rcc", "android_rcc_bundle.rcc"}
+REQUIRED_CACHED_ASSETS = {
+    "resources.rcc",
+    "android_rcc_bundle.rcc",
+    "scripts/+android_phoneInterface/defaultScripts.js",
+    "scripts/system/request-service.js",
+    "scripts/system/progress.js",
+    "scripts/system/+android_interface/touchscreenvirtualpad.js",
+    "scripts/system/+android_interface/androidControls.js",
+    "scripts/system/+android_phoneInterface/mobileActionBar.js",
+    "scripts/system/+android_phoneInterface/mobileTabletApps.js",
+    "scripts/system/+android_phoneInterface/phoneEmote.js",
+    "scripts/system/bubble.js",
+    "scripts/system/pal.js",
+    "scripts/system/avatarapp.js",
+    "scripts/system/places/places.js",
+    "scripts/system/quickGoto.js",
+}
 
 
 def is_safe_relative_path(value):

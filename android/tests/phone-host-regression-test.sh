@@ -112,6 +112,12 @@ require_text tests/check-phone-apk-contents.py 'REQUIRED_CACHED_ASSETS' \
     'APK completeness gate identifies start-critical extracted bundles'
 require_text tests/check-phone-apk-contents.py 'omits required extracted assets' \
     'APK completeness gate rejects bundles absent from the cache manifest'
+require_text tests/check-phone-apk-contents.py 'scripts/[+]android_phoneInterface/defaultScripts[.]js' \
+    'APK completeness gate requires the Phone default-script selector'
+require_text tests/check-phone-apk-contents.py 'scripts/system/[+]android_phoneInterface/mobileActionBar[.]js' \
+    'APK completeness gate requires the Phone action-bar runtime'
+require_text tests/check-phone-apk-contents.py 'scripts/system/places/places[.]js' \
+    'APK completeness gate requires an enabled shared tablet-app runtime'
 require_text tests/check-phone-apk-contents.py '"[.][.]" not in path[.]parts' \
     'APK completeness gate rejects traversing Qt extraction declarations'
 require_text libraries/qt/src/main/java/io/highfidelity/utils/HifiUtils.java \

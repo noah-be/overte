@@ -41,7 +41,9 @@ for index, (function, contents) in enumerate(cases):
     raise AssertionError(f'invalid Qt dependency declaration {index} was accepted')
 PY
 
-python3 - "$fixture_dir" "$script_dir/../apps/phoneInterface/src/main/res/values/qt_dependencies.xml" <<'PY'
+python3 - "$fixture_dir" "$script_dir/../apps/phoneInterface/src/main/res/values/qt_dependencies.xml" \
+        "$checker" <<'PY'
+import importlib.util
 import pathlib
 import sys
 import warnings
@@ -50,6 +52,10 @@ from xml.etree import ElementTree
 
 root = pathlib.Path(sys.argv[1])
 dependency_xml = pathlib.Path(sys.argv[2])
+checker_path = pathlib.Path(sys.argv[3])
+spec = importlib.util.spec_from_file_location("phone_apk_contents_fixture", checker_path)
+checker = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(checker)
 required = {
     'AndroidManifest.xml': b'manifest',
     'classes.dex': b'dex',
@@ -83,7 +89,10 @@ assert len(declared_asset_markers) == 12
 assert 'assets/qml/QtQuick.2/qmldir' in declared_asset_markers
 required.update({entry: b'declared-runtime' for entry in declared_libraries})
 required.update({entry: b'qmldir' for entry in declared_asset_markers})
-cache_manifest = '123\nresources.rcc\nandroid_rcc_bundle.rcc\nkept.txt\n'
+required.update({'assets/' + entry: b'required-cache-asset'
+                 for entry in checker.REQUIRED_CACHED_ASSETS})
+cache_paths = sorted(checker.REQUIRED_CACHED_ASSETS | {'kept.txt'})
+cache_manifest = '123\n' + '\n'.join(cache_paths) + '\n'
 for name, omit in [('complete.apk', None), ('partial.apk', 'assets/kept.txt')]:
     with zipfile.ZipFile(root / name, 'w') as archive:
         archive.writestr('assets/cache_assets.txt', cache_manifest)
@@ -92,8 +101,8 @@ for name, omit in [('complete.apk', None), ('partial.apk', 'assets/kept.txt')]:
                 archive.writestr(entry, data)
 
 with zipfile.ZipFile(root / 'content-digest.apk', 'w') as archive:
-    archive.writestr('assets/cache_assets.txt',
-                     ('a' * 64) + '\nresources.rcc\nandroid_rcc_bundle.rcc\nkept.txt\n')
+    archive.writestr('assets/cache_assets.txt', ('a' * 64) + '\n' +
+                     '\n'.join(cache_paths) + '\n')
     for entry, data in required.items():
         archive.writestr(entry, data)
 
@@ -112,7 +121,10 @@ with warnings.catch_warnings():
         archive.writestr('assets/kept.txt', b'duplicate')
 
 with zipfile.ZipFile(root / 'missing-required-cache-entry.apk', 'w') as archive:
-    archive.writestr('assets/cache_assets.txt', '123\nresources.rcc\nkept.txt\n')
+    incomplete_cache_paths = [entry for entry in cache_paths
+                              if entry != 'android_rcc_bundle.rcc']
+    archive.writestr('assets/cache_assets.txt', '123\n' +
+                     '\n'.join(incomplete_cache_paths) + '\n')
     for entry, data in required.items():
         archive.writestr(entry, data)
 
