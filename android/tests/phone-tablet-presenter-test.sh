@@ -22,10 +22,12 @@ require "$tablet_header" 'Q_INVOKABLE void showAndroidTablet\(int width, int hei
     'screen-space presenter is not exposed to the phone script'
 require "$tablet_source" 'setToolbarMode\(true\)' \
     'presenter does not reuse the established tablet window and proxy path'
-require "$tablet_source" 'setPosition\(0, 0\)' \
-    'tablet is not anchored to the screen origin'
-require "$tablet_source" 'setSize\(width, height\)' \
-    'tablet does not follow the Android surface dimensions'
+require "$tablet_source" 'setPosition\(ANDROID_TABLET_SAFE_INSET, ANDROID_TABLET_SAFE_INSET\)' \
+    'tablet is not anchored inside the rounded-corner safe area'
+require "$tablet_source" 'setSize\(width - ANDROID_TABLET_TOTAL_INSET,' \
+    'tablet does not follow the safe Android surface dimensions'
+require "$tablet_source" 'height - ANDROID_TABLET_TOTAL_INSET\)' \
+    'tablet height does not preserve its safe Android surface inset'
 require "$tablet_source" 'TABLET_HOME_SOURCE_URL' \
     'presenter does not load the established Tablet home'
 require "$window_root" 'property bool screenSpaceMode: false' \

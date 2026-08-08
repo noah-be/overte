@@ -10,10 +10,12 @@
 //  Distributed under the Apache License, Version 2.0.
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
-/* global Script, Users, Entities, AvatarList, Controller, Camera, getControllerWorldLocation, UserActivityLogger */
+/* global Script, Users, Entities, UserActivityLogger, MyAvatar, Quat, SoundCache, Audio, Menu, AvatarInputs,
+   Tablet, ANDROID_PHONE_INTERFACE */
 
 (function () { // BEGIN LOCAL_SCOPE
     var button;
+    var isAndroidPhone = typeof ANDROID_PHONE_INTERFACE !== "undefined" && ANDROID_PHONE_INTERFACE;
     // Used for animating and disappearing the bubble
     var bubbleOverlayTimestamp;
     // Used for rate limiting the bubble sound
@@ -115,7 +117,9 @@
 
     // Used to set the state of the bubble HUD button
     function writeButtonProperties(parameter) {
-        button.editProperties({isActive: parameter});
+        if (!isAndroidPhone) {
+            button.editProperties({isActive: parameter});
+        }
     }
 
     // The bubble script's update function
@@ -195,7 +199,14 @@
 
     onBubbleToggled(Users.getIgnoreRadiusEnabled(), true); // pass in true so we don't log this initial one in the UserActivity table
 
-    button.clicked.connect(Users.toggleIgnoreRadius);
+    function toggleShield() {
+        Users.toggleIgnoreRadius();
+        if (isAndroidPhone) {
+            tablet.hideAndroidTablet();
+        }
+    }
+
+    button.clicked.connect(toggleShield);
     Users.ignoreRadiusEnabledChanged.connect(onBubbleToggled);
     Users.enteredIgnoreRadius.connect(enteredIgnoreRadius);
 
@@ -204,7 +215,7 @@
         Menu.menuItemEvent.disconnect(onToggleHudShieldButton);
         AvatarInputs.showBubbleToolsChanged.disconnect(showBubbleToolsChanged);
         Menu.removeMenuItem("Settings", menuItemName);
-        button.clicked.disconnect(Users.toggleIgnoreRadius);
+        button.clicked.disconnect(toggleShield);
         if (tablet) {
             tablet.removeButton(button);
         }

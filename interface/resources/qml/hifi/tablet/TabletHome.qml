@@ -141,8 +141,8 @@ Item {
 
             Item {
                 id: loginItem
-                width: loginTextMetrics.width
-                height: loginTextMetrics.height
+                width: Math.max(loginTextMetrics.width, touchConfiguration.minimumTouchTarget)
+                height: Math.max(loginTextMetrics.height, touchConfiguration.minimumTouchTarget)
                 anchors {
                     bottom: parent.bottom
                     bottomMargin: 10
@@ -152,6 +152,7 @@ Item {
                 Text {
                     id: loginText
                     anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
                     text: Account.loggedIn ? tabletRoot.usernameShort : qsTr("Log in")
                     horizontalAlignment: Text.AlignRight
                     Layout.alignment: Qt.AlignRight

@@ -177,8 +177,7 @@ for supported in \
         system/pal.js \
         system/avatarapp.js \
         system/places/places.js \
-        system/quickGoto.js \
-        system/create/edit.js; do
+        system/quickGoto.js; do
     require "$phone_defaults" "$supported" \
         "the Android tablet enables Pico app backend $supported"
 done
@@ -188,21 +187,14 @@ for unsupported in \
         system/tablet-users.js \
         system/emote.js \
         system/more/app-more.js \
-        system/tablet-position/tabletPosition.js; do
+        system/tablet-position/tabletPosition.js \
+        system/create/edit.js; do
     if grep -Fq -- "$unsupported" "$phone_defaults"; then
         printf 'FAIL: unvalidated tablet app is enabled in the Android MVP: %s\n' "$unsupported" >&2
         exit 1
     fi
 done
 printf 'PASS: VR-only and unsupported remote-web tablet apps remain disabled\n'
-if grep -Eq 'PHONE_SEPARATE_SCRIPTS|Script[.]load\([^)]*create/edit' "$phone_defaults"; then
-    printf 'FAIL: Create uses an Android-unsafe separate V8 engine\n' >&2
-    exit 1
-fi
-printf 'PASS: Create remains in the lifecycle-safe shared phone script engine\n'
-require "$repo_root/scripts/system/create/edit.js" \
-    'typeof ANDROID_PHONE_INTERFACE !== "undefined" && ANDROID_PHONE_INTERFACE' \
-    'Create selects its Tablet QML instead of desktop native windows on the phone'
 require "$tablet_apps" 'tablet[.]loadQMLSource\(GENERAL_SETTINGS_SOURCE\)' \
     'General Settings stays inside the Android tablet instead of opening a desktop window'
 

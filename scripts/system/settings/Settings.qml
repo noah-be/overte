@@ -11,11 +11,12 @@ Rectangle {
 	height: parent.height;
 	anchors.centerIn: parent;
 	anchors.horizontalCenter: parent.horizontalCenter
-	property var pages: [
+	property var allPages: [
 		{name: "General", icon: "../img/overte.svg", targetPage: "hifi/tablet/TabletGeneralPreferences.qml" },
 		{name: "Graphics", icon: "../img/computer.svg", targetPage: "" }, 
 		{name: "Audio", icon: "../img/volume.svg", targetPage: "hifi/audio/Audio.qml" }, 
-		{name: "Controls", icon: "../img/dpad.svg", targetPage: "hifi/tablet/ControllerSettings.qml" }, 
+		{name: "Controls", icon: "../img/dpad.svg", targetPage: "hifi/tablet/ControllerSettings.qml",
+			requiresControllerSettings: true },
 		{name: "Security", icon: "../img/badge.svg", targetPage: "hifi/dialogs/security/Security.qml" }, 
 		{name: "QML Allowlist", icon: "../img/lock.svg", targetPage: "hifi/dialogs/security/EntityScriptQMLAllowlist.qml" }, 
 		{name: "Script Security", icon: "../img/shield.svg", targetPage: "hifi/dialogs/security/ScriptSecurity.qml" }, 
@@ -25,6 +26,9 @@ Rectangle {
 	SettingsTouchConfiguration {
 		id: touchConfiguration
 	}
+	property var pages: allPages.filter(function (page) {
+		return !page.requiresControllerSettings || touchConfiguration.showControllerSettings;
+	})
 
 	ColumnLayout {
 		width: parent.width / touchConfiguration.contentScale

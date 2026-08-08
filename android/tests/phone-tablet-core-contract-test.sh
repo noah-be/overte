@@ -9,6 +9,7 @@ readonly tablet_source="$repo_root/libraries/ui/src/ui/TabletScriptingInterface.
 readonly tablet_root="$repo_root/interface/resources/qml/hifi/tablet/TabletRoot.qml"
 readonly tablet_home="$repo_root/interface/resources/qml/hifi/tablet/TabletHome.qml"
 readonly application="$repo_root/interface/src/Application.cpp"
+readonly interface_cmake="$repo_root/interface/CMakeLists.txt"
 readonly phone_gradle="$repo_root/android/apps/phoneInterface/build.gradle"
 
 require() {
@@ -58,6 +59,16 @@ require "$tablet_home" 'SwipeView[[:space:]]*\{' \
 
 require "$phone_gradle" 'inputs.dir\(file\("[$]\{projectDir\}/../../../interface/resources"\)\)' \
     'tablet QML resources participate in Android package invalidation'
+require "$interface_cmake" 'file\(GLOB_RECURSE QML_SRC CONFIGURE_DEPENDS' \
+    'new tablet QML selector files trigger incremental CMake regeneration'
+require "$phone_gradle" 'inputs.dir\(file\("[$]\{projectDir\}/../../../scripts"\)\)' \
+    'tablet script QML and selectors participate in Android package invalidation'
+require "$phone_gradle" 'from new File\(projectDir, '\''../../../scripts'\''\)' \
+    'Settings QML and its Android selector are copied into phone assets'
+if grep -Eq "exclude .*android_phoneInterface|exclude .*settings" "$phone_gradle"; then
+    printf 'FAIL: Android selector or Settings assets are excluded from phone packaging\n' >&2
+    exit 1
+fi
 require "$phone_gradle" "include '[*][*]/android/apps/phoneInterface/libraries/interface/resources[.]rcc'" \
     'the phone package includes the native Interface resource collection'
 
