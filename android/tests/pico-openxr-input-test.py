@@ -18,6 +18,10 @@ CONTEXT = (
     Path(__file__).resolve().parents[2]
     / "android/apps/picoInterface/openxr/src/OpenXrContext.cpp"
 ).read_text(encoding="utf-8")
+CONTEXT_HEADER = (
+    Path(__file__).resolve().parents[2]
+    / "android/apps/picoInterface/openxr/src/OpenXrContext.h"
+).read_text(encoding="utf-8")
 
 
 class OpenXrInputStateTest(unittest.TestCase):
@@ -196,6 +200,32 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertNotIn("&_handTracker[", creation)
         self.assertIn("createHandTracker(0, XR_HAND_LEFT_EXT", creation)
         self.assertIn("createHandTracker(1, XR_HAND_RIGHT_EXT", creation)
+
+    def test_required_hand_paths_publish_atomically(self):
+        start = CONTEXT.index("XrPath leftHandPath { XR_NULL_PATH }")
+        end = CONTEXT.index("return true;", start)
+        paths = CONTEXT[start:end]
+        left_call = paths.index('xrStringToPath(_instance, "/user/hand/left"')
+        left_check = paths.index('"Failed to resolve left-hand OpenXR user path"', left_call)
+        right_call = paths.index('xrStringToPath(_instance, "/user/hand/right"', left_check)
+        right_check = paths.index('"Failed to resolve right-hand OpenXR user path"', right_call)
+        publish_left = paths.index("_handPaths[0] = leftHandPath", right_check)
+        publish_right = paths.index("_handPaths[1] = rightHandPath", publish_left)
+        self.assertLess(left_call, left_check)
+        self.assertLess(left_check, right_call)
+        self.assertLess(right_call, right_check)
+        self.assertLess(right_check, publish_left)
+        self.assertLess(publish_left, publish_right)
+        self.assertIn(
+            "XrPath _handPaths[HAND_COUNT] { XR_NULL_PATH, XR_NULL_PATH }",
+            CONTEXT_HEADER,
+        )
+
+        optional = paths.index('"/interaction_profiles/htc/vive_controller"', publish_right)
+        optional_check = paths.index('"Failed to resolve optional Vive controller profile path"', optional)
+        optional_publish = paths.index("_viveControllerPath = viveControllerPath", optional_check)
+        self.assertLess(optional, optional_check)
+        self.assertLess(optional_check, optional_publish)
 
 
 if __name__ == "__main__":

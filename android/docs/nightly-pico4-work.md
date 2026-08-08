@@ -1308,8 +1308,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 71 — Checked OpenXR debug-messenger lifecycle
 
 - Branch: `nightly/pico4-71-openxr-debug-messenger`
-- Commit: identified by subject `Harden Pico OpenXR debug messenger`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `4db0e8325a` (`Harden Pico OpenXR debug messenger`)
 - Change: require both debug-utils Create and Destroy entry points before using
   the optional extension, publish a null-initialized messenger only after
   successful creation, and explicitly destroy it before its parent OpenXR
@@ -1322,6 +1321,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Run with validation/debug-utils enabled,
   inject missing/create-failing entry points, and verify bounded shutdown, no
   null dispatch, no leaked messenger and unchanged rendering without diagnostics.
+
+### 72 — Atomic OpenXR controller user paths
+
+- Branch: `nightly/pico4-72-openxr-user-paths`
+- Commit: identified by subject `Validate Pico OpenXR controller paths`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: initialize both Pico hand user paths to `XR_NULL_PATH`, resolve them
+  into local candidates with checked results, and publish neither until both
+  required conversions succeed. Optional Vive-profile conversion is checked and
+  published separately, so its absence cannot contaminate required input paths.
+- Regression: input/context contracts cover null defaults, conversion/check/
+  publication order for both hands and conditional optional-profile publication.
+- Passed: 13 OpenXR input/fail-closed contracts; `git diff --check`.
+- Risk: an invalid runtime path table now rejects OpenXR initialization instead
+  of continuing with undefined action subpaths; this is intentional fail-closed
+  behavior and does not alter valid Pico mappings.
+- Pico 4 validation: **not executed**. Inject left/right path-conversion failures
+  and verify clean startup rejection with no action creation; verify normal Pico
+  controllers, profile changes and haptics when both paths resolve.
 
 ## Deferred, rejected, or blocked ideas
 

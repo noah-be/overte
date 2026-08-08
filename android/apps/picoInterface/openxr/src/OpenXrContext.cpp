@@ -375,10 +375,25 @@ bool OpenXrContext::initInstance() {
     }
 #endif
 
-    xrStringToPath(_instance, "/user/hand/left", &_handPaths[0]);
-    xrStringToPath(_instance, "/user/hand/right", &_handPaths[1]);
+    XrPath leftHandPath { XR_NULL_PATH };
+    XrPath rightHandPath { XR_NULL_PATH };
+    result = xrStringToPath(_instance, "/user/hand/left", &leftHandPath);
+    if (!xrCheck(_instance, result, "Failed to resolve left-hand OpenXR user path")) {
+        return false;
+    }
+    result = xrStringToPath(_instance, "/user/hand/right", &rightHandPath);
+    if (!xrCheck(_instance, result, "Failed to resolve right-hand OpenXR user path")) {
+        return false;
+    }
+    _handPaths[0] = leftHandPath;
+    _handPaths[1] = rightHandPath;
 
-    xrStringToPath(_instance, "/interaction_profiles/htc/vive_controller", &_viveControllerPath);
+    XrPath viveControllerPath { XR_NULL_PATH };
+    result = xrStringToPath(
+        _instance, "/interaction_profiles/htc/vive_controller", &viveControllerPath);
+    if (xrCheck(_instance, result, "Failed to resolve optional Vive controller profile path")) {
+        _viveControllerPath = viveControllerPath;
+    }
 
     return true;
 #endif
