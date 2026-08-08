@@ -4,6 +4,51 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 91 — Final cumulative hand-off
+
+- Branch: `nightly/android-phone-91-nightly-handoff`
+- Commit: `Document final Android phone nightly handoff` (this task's commit)
+- Change: Refresh the exact 01–91 linear branch/commit chain, consolidate the
+  completed device-free work, preserve rejected/product-blocked boundaries, and
+  separate anonymous capability probes and an installed unknown-artifact
+  baseline from validation still required on an APK built from this chain.
+- Tests:
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 36 explicit
+    device-free suites; nested host regression passed 277/277 checks.
+  - `./android/build-phone.sh doctor`: **passed**, all host tools found and the
+    absent dedicated Phone dependency graph correctly reported `[SETUP]`.
+  - Offline Gradle missing-dependency diagnostics: **expected failures passed**;
+    the verified and explicit legacy setup errors were actionable and had no
+    false `compileSdk` error.
+  - Linear ancestry, task-section/branch/commit consistency, shell/Python/JS
+    syntax exercised by aggregate suites, and `git diff --check`: **passed**.
+  - Branch-tip/parent audit: **passed** for all 90 committed task branches;
+    every branch points at its recorded commit and descends from its predecessor.
+  - Scope/privacy audit: **passed**, 81 changed Phone/shared files, zero
+    Pico-specific paths, and no real serial, private host path/domain, personal
+    datum, or retained raw device log; identifier-like values are mock fixtures.
+  - Changed-file syntax audit: **passed** for 31 shell, 2 Python, 18 JavaScript,
+    and 2 XML files; all 30 documented test paths exist and task sections 01–91
+    are unique and complete.
+- Device evidence:
+  - Installed-artifact baseline with unknown provenance: **passed** for launch,
+    one neutral local deep link, five background/foreground cycles, long Back,
+    stable process, resumed Phone Qt Activity, zero crash markers, and zero
+    page-size mismatch markers. It is not evidence for commits 01–91.
+  - Anonymous locked capability probes: **passed** for physical ARM64 touchscreen
+    Phone classification, API/OpenGL requirements, epoch log cursor, and
+    structured exit-info. No identifier, property value, or raw log was retained.
+  - Current-chain APK install/smoke: **not executed**; no APK was buildable because
+    the dedicated verified 16-KiB Phone Qt/non-Qt dependency graph is absent.
+- Known risks and remaining boundaries: More/Community, Create, Pico WebView
+  abstraction, asymmetric WindowInsets transport, signed release/split APKs,
+  online account/domain behavior, audio hardware, graphics/thermal performance,
+  and OEM lifecycle behavior still require product decisions, external systems,
+  a buildable artifact, or representative hardware. No speculative integration
+  was added for them.
+- Real-device validation still required: Follow the prioritized checklist below
+  using a package-gated, digest-recorded APK from this final chain.
+
 ## 90 — Label APK analyzer failures without private paths
 
 - Branch: `nightly/android-phone-90-apkanalyzer-errors`
@@ -1992,7 +2037,86 @@ All branches form one linear chain starting at
 9. `nightly/android-phone-09-doctor-output` — `86f4ad08cb`
 10. `nightly/android-phone-10-deep-link-audit` — `c513546a1e`
 11. `nightly/android-phone-11-settings-privacy` — `af9e84f984`
-12. `nightly/android-phone-12-nightly-handoff` — this documentation commit
+12. `nightly/android-phone-12-nightly-handoff` — `2bbdf69a24`
+13. `nightly/android-phone-13-tablet-route-allowlist` — `eb84857640`
+14. `nightly/android-phone-14-bookmark-log-privacy` — `6eaff19c18`
+15. `nightly/android-phone-15-qml-runtime-gate` — `b06bee5136`
+16. `nightly/android-phone-16-qml-asset-gate` — `a14eb575cf`
+17. `nightly/android-phone-17-cache-manifest-gate` — `08108aa93c`
+18. `nightly/android-phone-18-security-settings` — `adc6e3e3a8`
+19. `nightly/android-phone-19-actionbar-lifecycle` — `df4ec29499`
+20. `nightly/android-phone-20-settings-message-scope` — `7a40893e8f`
+21. `nightly/android-phone-21-emote-close-cleanup` — `378fbcf848`
+22. `nightly/android-phone-22-audio-controls` — `bb6d806bf6`
+23. `nightly/android-phone-23-graphics-settings` — `03210855fa`
+24. `nightly/android-phone-24-people-log-privacy` — `f9798cda44`
+25. `nightly/android-phone-25-menu-settings-policy` — `41db95822b`
+26. `nightly/android-phone-26-people-message-validation` — `b035dec9de`
+27. `nightly/android-phone-27-avatar-message-validation` — `9bea441b3a`
+28. `nightly/android-phone-28-places-portal-validation` — `750bc10b03`
+29. `nightly/android-phone-29-portal-entity-lifecycle` — `3c6566779e`
+30. `nightly/android-phone-30-shield-menu-scope` — `a9bcbea59b`
+31. `nightly/android-phone-31-quick-goto-contract` — `53684f0bd8`
+32. `nightly/android-phone-32-back-repeat-lifecycle` — `5f1685e379`
+33. `nightly/android-phone-33-background-deep-link` — `af14d93556`
+34. `nightly/android-phone-34-qml-qrc-escaping` — `fbac2f1cb9`
+35. `nightly/android-phone-35-content-cache-stamp` — `f8de1537c0`
+36. `nightly/android-phone-36-menu-deferred-action` — `58f1a6f39f`
+37. `nightly/android-phone-37-people-request-validation` — `eb3d1c4f3e`
+38. `nightly/android-phone-38-avatar-scale-contract` — `d7b2b532a9`
+39. `nightly/android-phone-39-address-input-contract` — `611f6e4a01`
+40. `nightly/android-phone-40-login-credential-lifetime` — `31f75abddb`
+41. `nightly/android-phone-41-avatar-community-boundary` — `a2de0e061d`
+42. `nightly/android-phone-42-avatar-url-contract` — `e3fa05e20e`
+43. `nightly/android-phone-43-places-portal-ownership` — `f9ee2df7cc`
+44. `nightly/android-phone-44-people-response-validation` — `45c0465751`
+45. `nightly/android-phone-45-people-payload-validation` — `f53699435b`
+46. `nightly/android-phone-46-apk-core-runtimes` — `4b64a30fa6`
+47. `nightly/android-phone-47-apk-archive-uniqueness` — `180bcdfe5a`
+48. `nightly/android-phone-48-apk-cache-contract` — `613b3a04c1`
+49. `nightly/android-phone-49-apk-default-scripts` — `aeb5705083`
+50. `nightly/android-phone-50-default-script-sync` — `f3377093ea`
+51. `nightly/android-phone-51-device-apk-provenance` — `2a8bee67db`
+52. `nightly/android-phone-52-device-permission-automation` — `d3fd9f56be`
+53. `nightly/android-phone-53-release-bundle-gate` — `7430e6c299`
+54. `nightly/android-phone-54-device-smoke-integrity` — `710b9eba06`
+55. `nightly/android-phone-55-device-lifecycle-stress` — `f649a45656`
+56. `nightly/android-phone-56-private-device-reports` — `27589e6ba9`
+57. `nightly/android-phone-57-device-smoke-mock` — `a3d8ee3ec8`
+58. `nightly/android-phone-58-atomic-device-summary` — `bff542c71a`
+59. `nightly/android-phone-59-release-metadata-gate` — `7f0247b54a`
+60. `nightly/android-phone-60-scope-audit` — `05b977ffa6`
+61. `nightly/android-phone-61-device-smoke-failures` — `9ef52a86d5`
+62. `nightly/android-phone-62-gradle-release-contract` — `e87215f1ba`
+63. `nightly/android-phone-63-doctor-dependency-status` — `6ec106bbb0`
+64. `nightly/android-phone-64-doctor-content-verification` — `a47915a3ba`
+65. `nightly/android-phone-65-private-doctor-status` — `31b42564da`
+66. `nightly/android-phone-66-private-device-output` — `6d74915440`
+67. `nightly/android-phone-67-logcat-delta` — `1eba03cf62`
+68. `nightly/android-phone-68-device-diagnostic-failures` — `501ba562d7`
+69. `nightly/android-phone-69-exit-info-contract` — `79001db716`
+70. `nightly/android-phone-70-page-size-markers` — `a7b623f89a`
+71. `nightly/android-phone-71-device-target-contract` — `a8980c358c`
+72. `nightly/android-phone-72-device-runtime-contract` — `9db8bc8ac8`
+73. `nightly/android-phone-73-apk-identity-preflight` — `4c56cd603a`
+74. `nightly/android-phone-74-apk-sdk-preflight` — `07de073444`
+75. `nightly/android-phone-75-apk-permission-preflight` — `cd9763aa09`
+76. `nightly/android-phone-76-apk-debug-contract` — `1536cb9055`
+77. `nightly/android-phone-77-apk-package-preflight` — `518a3d5737`
+78. `nightly/android-phone-78-local-preflight-order` — `56c92b1418`
+79. `nightly/android-phone-79-private-adb-errors` — `27002f7922`
+80. `nightly/android-phone-80-adb-phase-errors` — `df9474836b`
+81. `nightly/android-phone-81-installed-apk-read-failure` — `7ee070ac89`
+82. `nightly/android-phone-82-device-summary-status` — `37733e4916`
+83. `nightly/android-phone-83-device-smoke-cleanup` — `82286fdd80`
+84. `nightly/android-phone-84-cleanup-failure-contract` — `391805b8c2`
+85. `nightly/android-phone-85-exit-info-phase-errors` — `3038e4adc8`
+86. `nightly/android-phone-86-preflight-override-guard` — `6bf12937cd`
+87. `nightly/android-phone-87-apk-metadata-gate` — `b89b1c7f4b`
+88. `nightly/android-phone-88-variant-debuggable-gate` — `bcef8b1c81`
+89. `nightly/android-phone-89-apk-version-metadata` — `ecfec1c1b3`
+90. `nightly/android-phone-90-apkanalyzer-errors` — `488fb4bf47`
+91. `nightly/android-phone-91-nightly-handoff` — this documentation commit
 
 ### Device-free audit disposition
 
@@ -2030,25 +2154,29 @@ All branches form one linear chain starting at
 
 ### Prioritized real-device checklist
 
-1. On one Adreno and one Mali phone, perform clean install/cold launch on an
+1. Build a current debug and signed release APK from the final commit. Require
+   the combined metadata/content/ELF/zipalign/padding gate, record SHA-256, run
+   `PHONE_EXPECT_DEBUGGABLE=1` and `0` smokes respectively, and accept only
+   summaries ending in `cleanup_force_stopped=1` and `test_status=passed`.
+2. On one Adreno and one Mali phone, perform clean install/cold launch on an
    API 26–29 device and an API 30+ device; cover microphone accept and deny,
    native-library loading, TLS, and a neutral `overte:` deep link.
-2. Exercise login success, invalid credentials, cancellation, gesture/physical
+3. Exercise login success, invalid credentials, cancellation, gesture/physical
    Back, IME resize, background/foreground, and focus release against both a
    metaverse account and a domain login.
-3. Verify landscape orientations on flat, notched, hole-punch, waterfall, and
+4. Verify landscape orientations on flat, notched, hole-punch, waterfall, and
    rounded displays: tablet edges, close button, portrait-sized transition,
    DPI scaling, system-bar reveal, keyboard, and all retained Settings fields.
-4. Connect to live domains and repeat tablet open/app/Home/close cycles for
+5. Connect to live domains and repeat tablet open/app/Home/close cycles for
    Audio, Menu, Shield, People, Avatar, Places, Home, Tutorial, and Emote;
    confirm no world-control touch-through and no stale signal/timer state.
-5. Stress Emote play/stop/switch, movement interruption, cache-cold animation
+6. Stress Emote play/stop/switch, movement interruption, cache-cold animation
    loading, and background/foreground; the avatar must always regain normal
    locomotion.
-6. Validate Audio input/output devices, mute, push-to-talk, sliders, People
+7. Validate Audio input/output devices, mute, push-to-talk, sliders, People
    levels/actions, Places slow/offline/federated responses, Avatar bookmarks
    and wearables, and reconnect after network loss or process backgrounding.
-7. Run the 16-KiB APK/ELF gate on the produced release artifact, inspect only
+8. Run the 16-KiB APK/ELF gate on the produced release artifact, inspect only
    PID-filtered aggregate diagnostics, and sustain the graphics benchmark long
    enough to assess frame pacing, memory, temperature, and battery without
    retaining identifiers or raw logs.
