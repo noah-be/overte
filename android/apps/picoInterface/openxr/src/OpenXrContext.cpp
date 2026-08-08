@@ -1033,6 +1033,11 @@ bool OpenXrContext::initPostGraphics() {
     }
 
     if (!initSpaces()) {
+        // Do not publish a session whose required reference spaces could not be
+        // created. A later activation must start from a clean OpenXR session.
+        xrCheck(_instance, xrDestroySession(_session),
+                "Failed to roll back session after reference-space initialization failure");
+        _session = XR_NULL_HANDLE;
         return false;
     }
 

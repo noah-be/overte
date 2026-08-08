@@ -1199,8 +1199,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 65 — Owned OpenXR Activity references
 
 - Branch: `nightly/pico4-65-openxr-activity-ref`
-- Commit: identified by subject `Own Pico OpenXR Activity JNI references`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `f0d5271243` (`Own Pico OpenXR Activity JNI references`)
 - Change: serialize publication and teardown of the process-wide OpenXR loader
   state, replace the borrowed raw Activity accessor with an acquire operation
   that returns a caller-owned JNI global reference, and retain that reference
@@ -1217,6 +1216,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Recreate/finish the Activity while OpenXR
   instance creation and restart requests are in flight; verify no stale jobject,
   JNI warning, deadlock, missed normal restart, or leaked Activity reference.
+
+### 66 — OpenXR post-graphics session rollback
+
+- Branch: `nightly/pico4-66-openxr-session-rollback`
+- Commit: identified by subject `Roll back incomplete Pico OpenXR sessions`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: make post-graphics OpenXR initialization transactional across session
+  and required reference-space creation. If Stage/View space setup fails, the
+  newly created session is destroyed and its published handle cleared before
+  returning failure, so a retry cannot inherit a half-initialized session.
+- Regression: display/source contracts require session destruction and handle
+  invalidation between reference-space failure and the failed return.
+- Passed: 15 OpenXR display/context contracts; `git diff --check`.
+- Risk: rollback failure is logged and the handle is still invalidated to fail
+  closed; instance destruction remains the final runtime cleanup boundary.
+- Pico 4 validation: **not executed**. Inject unsupported/failing Stage or View
+  space creation, then retry activation; verify one session teardown, clean
+  subsequent creation, no stale space use and normal successful rendering.
 
 ## Deferred, rejected, or blocked ideas
 

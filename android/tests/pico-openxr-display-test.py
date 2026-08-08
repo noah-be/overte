@@ -176,6 +176,21 @@ class PicoOpenXRDisplayTests(unittest.TestCase):
         self.assertLess(publish_stage, publish_view)
         self.assertIn("_stageSpace != XR_NULL_HANDLE && _viewSpace != XR_NULL_HANDLE", spaces)
 
+    def test_failed_space_initialization_rolls_back_session(self):
+        start = CONTEXT.index("bool OpenXrContext::initPostGraphics()")
+        body = CONTEXT[start:]
+        create = body.index("if (!initSession())")
+        space_failure = body.index("if (!initSpaces())", create)
+        destroy = body.index("xrDestroySession(_session)", space_failure)
+        clear = body.index("_session = XR_NULL_HANDLE", destroy)
+        failed_return = body.index("return false;", clear)
+        success = body.index("return true;", failed_return)
+        self.assertLess(create, space_failure)
+        self.assertLess(space_failure, destroy)
+        self.assertLess(destroy, clear)
+        self.assertLess(clear, failed_return)
+        self.assertLess(failed_return, success)
+
 
 if __name__ == "__main__":
     unittest.main()
