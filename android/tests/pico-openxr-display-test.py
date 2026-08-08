@@ -151,6 +151,14 @@ class PicoOpenXRDisplayTests(unittest.TestCase):
         self.assertIn("deactivate();", render)
         self.assertIn("return false;", render)
 
+    def test_egl_config_requires_all_color_channels(self):
+        start = CONTEXT.index("bool OpenXrContext::initSession()")
+        end = CONTEXT.index("bool OpenXrContext::initSpaces()", start)
+        session = CONTEXT[start:end]
+        self.assertEqual(session.count("EGL_RED_SIZE, 8"), 2)
+        self.assertEqual(session.count("EGL_GREEN_SIZE, 8"), 2)
+        self.assertEqual(session.count("EGL_BLUE_SIZE, 8"), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

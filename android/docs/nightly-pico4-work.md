@@ -872,8 +872,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 47 — OpenXR event-loss termination
 
 - Branch: `nightly/pico4-47-openxr-event-loss`
-- Commit: identified by subject `Stop Pico OpenXR event loss loops`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `d2d053b428` (`Stop Pico OpenXR event loss loops`)
 - Change: stop the frame cycle and finish the current event iteration when the
   runtime reports instance loss, then reset and poll a fresh event buffer. The
   previous `continue` reprocessed the same successful buffer indefinitely.
@@ -888,6 +887,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Force Activity/runtime loss during active
   rendering and suspend/resume; verify prompt exit/deactivation, no frozen CPU
   loop, and a clean subsequent cold start.
+
+### 48 — OpenXR EGL color configuration
+
+- Branch: `nightly/pico4-48-openxr-egl-blue`
+- Commit: identified by subject `Require Pico OpenXR EGL blue channel`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: request an 8-bit blue channel in both generic EGL and Android GLES
+  OpenXR config selection. Both lists previously requested red twice and placed
+  no constraint on blue, allowing a color-incompatible EGL config.
+- Regression: OpenXR contracts require exactly one 8-bit red, green and blue
+  attribute in each of the two session EGL configuration lists.
+- Passed: 13 OpenXR display/lifecycle contracts; full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: the Pico's normal RGBA8-compatible config satisfies the corrected
+  request; runtimes without an 8-bit RGB window config now fail selection rather
+  than entering OpenXR with an incompatible framebuffer.
+- Pico 4 validation: **not executed**. Cold-start OpenXR through both available
+  EGL binding paths where possible and verify normal full-color rendering with
+  no config-selection or graphics-device error.
 
 ## Deferred, rejected, or blocked ideas
 

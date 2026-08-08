@@ -584,7 +584,7 @@ bool OpenXrContext::initSession() {
         auto attribs = std::to_array<EGLint>({
             EGL_RED_SIZE, 8,
             EGL_GREEN_SIZE, 8,
-            EGL_RED_SIZE, 8,
+            EGL_BLUE_SIZE, 8,
             EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
 #if defined(Q_OS_ANDROID)
             EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
@@ -629,7 +629,7 @@ bool OpenXrContext::initSession() {
         auto attribs = std::to_array<EGLint>({
             EGL_RED_SIZE, 8,
             EGL_GREEN_SIZE, 8,
-            EGL_RED_SIZE, 8,
+            EGL_BLUE_SIZE, 8,
             EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
             EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
             EGL_NONE // terminator
