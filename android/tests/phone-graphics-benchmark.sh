@@ -78,7 +78,12 @@ adb_for logcat -c >/dev/null 2>&1 || true
 exit_info_before_valid=1
 adb_for shell dumpsys activity exit-info "$PACKAGE" >"$raw_dir/exits-before.txt" || exit_info_before_valid=0
 adb_for shell am start -W -n "$ACTIVITY" >"$raw_dir/start.txt"
-expected_pid="$(adb_for shell pidof -s "$PACKAGE" 2>/dev/null | tr -d '\r')"
+expected_pid=''
+for _ in {1..10}; do
+    expected_pid="$(adb_for shell pidof -s "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
+    [[ "$expected_pid" =~ ^[0-9]+$ ]] && break
+    sleep 1
+done
 [[ "$expected_pid" =~ ^[0-9]+$ ]] || die "phone process did not start"
 
 elapsed=0

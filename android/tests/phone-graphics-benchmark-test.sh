@@ -16,6 +16,11 @@ sed 's/^+//' >"$fixture/adb" <<'MOCK'
 +  [[ $3 == ro.build.characteristics ]] && printf 'phone\n' || printf 'Generic\n'; exit
 +fi
 +if [[ $1 == shell && $2 == pidof ]]; then
++  if [[ -n ${MOCK_PID_DELAY_FILE:-} ]]; then
++    delay_count=0; [[ -f $MOCK_PID_DELAY_FILE ]] && read -r delay_count <"$MOCK_PID_DELAY_FILE"
++    delay_count=$((delay_count + 1)); printf '%s\n' "$delay_count" >"$MOCK_PID_DELAY_FILE"
++    (( delay_count <= 2 )) && exit 1
++  fi
 +  if [[ -n ${MOCK_PID_CHANGE_FILE:-} ]]; then
 +    count=0; [[ -f $MOCK_PID_CHANGE_FILE ]] && read -r count <"$MOCK_PID_CHANGE_FILE"
 +    count=$((count + 1)); printf '%s\n' "$count" >"$MOCK_PID_CHANGE_FILE"
@@ -108,6 +113,13 @@ grep -q '^overlay_cache_resizes=1$' "$summary"
 grep -q '^render_timing_metrics_valid=1$' "$summary"
 grep -q '^render_gpu_ms=7.25$' "$summary"
 grep -q '^render_batch_ms=1.50$' "$summary"
+
+delayed_report="$fixture/delayed-start-report"
+PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/delayed-start-exits" \
+    MOCK_PID_DELAY_FILE="$fixture/delayed-start-pid" ANDROID_SERIAL=phone-secret \
+    PHONE_BENCHMARK_CONFIRM_NON_VR=YES PHONE_BENCHMARK_REPORT="$delayed_report" PHONE_BENCHMARK_INTERVAL=1 \
+    "$script_dir/phone-graphics-benchmark.sh" 1 >/dev/null
+grep -q '^stable_process=1$' "$delayed_report/summary.txt"
 grep -q '^native_present_metrics_available=1$' "$summary"
 grep -q '^native_present_fps=30.00$' "$summary"
 grep -q '^native_present_window_seconds=10.02$' "$summary"
