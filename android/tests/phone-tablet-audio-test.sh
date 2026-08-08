@@ -26,16 +26,24 @@ require "$desktop_config" 'showModeTabs:[[:space:]]*true' \
     'desktop and VR retain the established audio mode tabs'
 require "$desktop_config" 'showVrMode:[[:space:]]*true' \
     'VR clients retain their audio controls'
-require "$phone_config" 'showModeTabs:[[:space:]]*true' \
-    'phone Audio keeps the legacy form layout anchored to its native context tab'
+require "$phone_config" 'showModeTabs:[[:space:]]*false' \
+    'phone Audio omits the redundant single Desktop mode tab'
 require "$phone_config" 'showVrMode:[[:space:]]*false' \
     'phone Audio does not offer unavailable HMD configuration'
+require "$phone_config" 'showPushToTalk:[[:space:]]*false' \
+    'phone Audio omits the unavailable desktop keyboard push-to-talk contract'
+require "$phone_config" 'showAvatarAudioTools:[[:space:]]*false' \
+    'phone Audio omits the unavailable desktop avatar audio-tools overlay'
 require "$phone_config" 'minimumControlHeight:[[:space:]]*20' \
     'phone Audio exposes physically touchable switches after host scaling'
 require "$audio" 'currentIndex:[[:space:]]*touchConfiguration[.]showVrMode[[:space:]]*&&[[:space:]]*isVR[[:space:]]*[?][[:space:]]*1[[:space:]]*:[[:space:]]*0' \
     'phone Audio remains on the native desktop audio context'
 require "$audio" 'anchors[.]top:[[:space:]]*bar[.]visible[[:space:]]*[?][[:space:]]*bar[.]bottom[[:space:]]*:[[:space:]]*parent[.]top' \
     'phone Audio reclaims the hidden mode selector space'
+require "$audio" 'if[[:space:]]*\(touchConfiguration[.]showPushToTalk\)' \
+    'hidden push-to-talk state cannot be written during Phone construction'
+require "$audio" 'if[[:space:]]*\(touchConfiguration[.]showAvatarAudioTools\)' \
+    'hidden avatar audio-tools state cannot be written during Phone construction'
 require "$audio" 'peakValuesEnabledChanged[.]connect\(onPeakValuesEnabledChanged\)' \
     'Audio uses a named peak-level listener'
 require "$audio" 'peakValuesEnabledChanged[.]disconnect\(onPeakValuesEnabledChanged\)' \

@@ -215,6 +215,7 @@ Rectangle {
 
                 HifiControlsUit.Switch {
                     id: pttSwitch
+                    visible: touchConfiguration.showPushToTalk;
                     height: root.switchHeight;
                     switchWidth: root.switchWidth;
                     anchors.top: muteMic.bottom;
@@ -225,10 +226,12 @@ Rectangle {
                     backgroundOnColor: "#E3E3E3";
                     checked: (bar.currentIndex === 0) ? AudioScriptingInterface.pushToTalkDesktop : AudioScriptingInterface.pushToTalkHMD;
                     onCheckedChanged: {
-                        if (bar.currentIndex === 0) {
-                            AudioScriptingInterface.pushToTalkDesktop = checked;
-                        } else {
-                            AudioScriptingInterface.pushToTalkHMD = checked;
+                        if (touchConfiguration.showPushToTalk) {
+                            if (bar.currentIndex === 0) {
+                                AudioScriptingInterface.pushToTalkDesktop = checked;
+                            } else {
+                                AudioScriptingInterface.pushToTalkHMD = checked;
+                            }
                         }
                     }
                 }
@@ -260,6 +263,7 @@ Rectangle {
 
                 HifiControlsUit.Switch {
                     id: audioLevelSwitch
+                    visible: touchConfiguration.showAvatarAudioTools;
                     height: root.switchHeight;
                     switchWidth: root.switchWidth;
                     anchors.top: warnMutedSwitch.visible ? warnMutedSwitch.bottom : parent.top
@@ -270,8 +274,10 @@ Rectangle {
                     backgroundOnColor: "#E3E3E3";
                     checked: AvatarInputs.showAudioTools;
                     onCheckedChanged: {
-                        AvatarInputs.showAudioTools = checked;
-                        checked = Qt.binding(function() { return AvatarInputs.showAudioTools; }); // restore binding
+                        if (touchConfiguration.showAvatarAudioTools) {
+                            AvatarInputs.showAudioTools = checked;
+                            checked = Qt.binding(function() { return AvatarInputs.showAudioTools; }); // restore binding
+                        }
                     }
                 }
 
@@ -279,8 +285,8 @@ Rectangle {
                     id: stereoInput;
                     height: root.switchHeight;
                     switchWidth: root.switchWidth;
-                    anchors.top: audioLevelSwitch.bottom
-                    anchors.topMargin: 24
+                    anchors.top: audioLevelSwitch.visible ? audioLevelSwitch.bottom : parent.top
+                    anchors.topMargin: audioLevelSwitch.visible ? 24 : 0
                     anchors.left: parent.left
                     labelTextOn:  qsTr("Stereo input");
                     labelTextSize: 16;
@@ -296,11 +302,12 @@ Rectangle {
 
         Item {
             id: pttTextContainer
+            visible: touchConfiguration.showPushToTalk;
             anchors.top: switchesContainer.bottom;
             anchors.topMargin: 10;
             anchors.left: parent.left;
             width: rightMostInputLevelPos;
-            height: pttText.height;
+            height: visible ? pttText.height : 0;
             RalewayRegular {
                 id: pttText;
                 x: margins.paddings;

@@ -4,6 +4,29 @@ This file records the cumulative, device-free Android phone work based on
 `origin/feature/android-phone-support`. Real-device and emulator tests are out
 of scope for this worktree and are called out explicitly where still needed.
 
+## 22 — Complete Phone Audio controls
+
+- Branch: `nightly/android-phone-22-audio-controls`
+- Commit: `Remove inactive phone Audio controls` (this task's commit)
+- Change: Remove the redundant single Desktop tab, keyboard-`T` push-to-talk,
+  and desktop avatar-audio-tools overlay from the Phone Audio selector while
+  retaining mute, stereo, devices, gains, processing, meters, and scrolling.
+  Hidden PTT/audio-tools bindings are write-guarded so construction cannot
+  mutate their settings. Desktop and VR presentations remain unchanged.
+- Tests:
+  - `android/tests/phone-tablet-audio-test.sh`: **passed**, 16 Phone/Desktop/VR
+    presentation and lifecycle contracts.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet suites and 181/181 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: Phone currently has no dedicated press-and-hold PTT input. It can
+  be reintroduced only with a native touch action and explicit capture/release
+  lifecycle, rather than exposing an unusable desktop setting.
+- Real-device validation still required: **not executed**. Confirm the Audio
+  view starts at its form without a mode strip, contains no PTT/audio-tools/HMD
+  controls, and exercises mute, stereo, processing, sliders, input/output device
+  selection, peak meters, scrolling, Back, and repeated reopen.
+
 ## 21 — Emote close cleanup
 
 - Branch: `nightly/android-phone-21-emote-close-cleanup`
