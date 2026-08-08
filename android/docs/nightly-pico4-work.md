@@ -555,8 +555,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 31 — Application update hot-path logging cleanup
 
 - Branch: `nightly/pico4-31-application-hotpath-logging`
-- Commit: identified by subject `Remove always-on Pico application profiling`;
-  the exact hash is recorded by the following stacked task or final report.
+- Commit: `0e1f07b865` (`Remove always-on Pico application profiling`)
 - Change: remove 23 stage variables, their per-frame timestamp writes, the
   accumulator, and the unconditional once-per-second main-update timing log.
   The shared Pico update clock remains because it drives test controls,
@@ -571,6 +570,29 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Navigate online/serverless worlds while
   interacting and capturing logs; confirm normal loading, input, physics,
   avatars, and rendering without periodic `PICO_UPDATE_STAGES` output.
+
+### 32 — Fail-closed serverless parsing
+
+- Branch: `nightly/pico4-32-serverless-parse-failure`
+- Commit: identified by subject `Reject invalid Pico serverless scenes`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: make serverless scene preparation report parse success separately
+  from its potentially empty named-path map. Local and requested malformed
+  scenes now return before changing session UUID/permissions, announcing a
+  serverless connection, incrementing full-scene state, or committing the Pico
+  import.
+- Regression: source contracts verify parse failure precedes every external
+  state mutation and that both synchronous-local and asynchronous-request paths
+  return before connection/commit while valid empty named-path maps remain valid.
+- Passed: world-loading failure-path contracts; full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: malformed files which were previously misreported as loaded now remain
+  in the current loading/error state. Valid scenes, including those with no
+  named paths, retain their existing import sequence.
+- Pico 4 validation: **not executed**. Navigate from a playable online and local
+  scene to malformed, empty-valid, and normal serverless files; verify malformed
+  input never reports READY or replaces session/permissions, then recover by
+  navigating to a valid scene.
 
 ## Deferred, rejected, or blocked ideas
 

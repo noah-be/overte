@@ -1022,34 +1022,40 @@ void Application::setIsServerlessMode(bool serverlessDomain) {
     }
 }
 
-std::map<QString, QString> Application::prepareServerlessDomainContents(QUrl domainURL, QByteArray data) {
-    QUuid serverlessSessionID = QUuid::createUuid();
-    getMyAvatar()->setSessionUUID(serverlessSessionID);
-    auto nodeList = DependencyManager::get<NodeList>();
-    nodeList->setSessionUUID(serverlessSessionID);
-
-    // there is no domain-server to tell us our permissions, so enable all
-    NodePermissions permissions;
-    permissions.setAll(true);
-    nodeList->setPermissions(permissions);
-
+bool Application::prepareServerlessDomainContents(const QUrl& domainURL, const QByteArray& data,
+                                                   std::map<QString, QString>& namedPaths) {
     // FIXME: Lock the main tree and import directly into it.
     EntityTreePointer tmpTree(std::make_shared<EntityTree>());
     tmpTree->setIsServerlessMode(true);
     tmpTree->createRootElement();
     auto myAvatar = getMyAvatar();
     tmpTree->setMyAvatar(myAvatar);
-    bool success = tmpTree->readFromByteArray(domainURL.toString(), data);
-    if (success) {
-        tmpTree->reaverageOctreeElements();
-        tmpTree->sendEntities(_entityEditSender.get(), getEntities()->getTree(), "domain", 0, 0, 0);
+    if (!tmpTree->readFromByteArray(domainURL.toString(), data)) {
+        tmpTree->eraseAllOctreeElements(false);
+        namedPaths.clear();
+        return false;
     }
-    std::map<QString, QString> namedPaths = tmpTree->getNamedPaths();
+
+    const QUuid serverlessSessionID = QUuid::createUuid();
+    myAvatar->setSessionUUID(serverlessSessionID);
+    auto nodeList = DependencyManager::get<NodeList>();
+    nodeList->setSessionUUID(serverlessSessionID);
+
+    // There is no domain server to tell us our permissions, so enable all only
+    // after the scene has parsed successfully. A malformed file must not alter
+    // the current session or permission state.
+    NodePermissions permissions;
+    permissions.setAll(true);
+    nodeList->setPermissions(permissions);
+
+    tmpTree->reaverageOctreeElements();
+    tmpTree->sendEntities(_entityEditSender.get(), getEntities()->getTree(), "domain", 0, 0, 0);
+    namedPaths = tmpTree->getNamedPaths();
 
     // we must manually eraseAllOctreeElements(false) else the tmpTree will mem-leak
     tmpTree->eraseAllOctreeElements(false);
 
-    return namedPaths;
+    return true;
 }
 
 void Application::loadServerlessDomain(QUrl domainURL) {
@@ -1074,7 +1080,12 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         const QByteArray domainData = domainFile.readAll();
         qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE localRead"
             << localDomainURL << "bytes" << domainData.size();
-        auto namedPaths = prepareServerlessDomainContents(domainURL, domainData);
+        std::map<QString, QString> namedPaths;
+        if (!prepareServerlessDomainContents(domainURL, domainData, namedPaths)) {
+            qCWarning(interfaceapp) << "PICO_SERVERLESS_TRACE localParseFailed"
+                << localDomainURL;
+            return;
+        }
         auto nodeList = DependencyManager::get<NodeList>();
         nodeList->getDomainHandler().connectedToServerless(namedPaths);
         setIsServerlessMode(true);
@@ -1106,7 +1117,13 @@ void Application::loadServerlessDomain(QUrl domainURL) {
             << domainURL << "result" << static_cast<int>(request->getResult())
             << "bytes" << request->getData().size();
         if (request->getResult() == ResourceRequest::Success) {
-            auto namedPaths = prepareServerlessDomainContents(domainURL, request->getData());
+            std::map<QString, QString> namedPaths;
+            if (!prepareServerlessDomainContents(domainURL, request->getData(), namedPaths)) {
+                qCWarning(interfaceapp) << "PICO_SERVERLESS_TRACE requestParseFailed"
+                    << domainURL;
+                request->deleteLater();
+                return;
+            }
             auto nodeList = DependencyManager::get<NodeList>();
             nodeList->getDomainHandler().connectedToServerless(namedPaths);
             // connectedToServerless() emits the domain transition that clears

@@ -421,7 +421,8 @@ public slots:
     void rotationModeChanged() const;
 
     void setIsServerlessMode(bool serverlessDomain);
-    std::map<QString, QString> prepareServerlessDomainContents(QUrl domainURL, QByteArray data);
+    bool prepareServerlessDomainContents(const QUrl& domainURL, const QByteArray& data,
+                                         std::map<QString, QString>& namedPaths);
 
     void loadServerlessDomain(QUrl domainURL);
     void loadErrorDomain(QUrl domainURL);
