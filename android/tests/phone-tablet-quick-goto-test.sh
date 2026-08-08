@@ -29,8 +29,14 @@ require 'LocationBookmarks[.]getHomeLocationAddress\(\)' \
     'Home resolves the user-configured home location'
 require 'location[.]handleLookupString\(home\)' \
     'Home uses the established address lookup path'
-require 'Window[.]location = "file:///~/serverless/tutorial[.]json"' \
+require 'FALLBACK_DESTINATION = "file:///~/serverless/tutorial[.]json"' \
     'missing Home configuration falls back to bundled content'
+require 'typeof candidate !== "string"' \
+    'Home rejects non-string persisted bookmark data'
+require 'candidate[[:space:]]*=[[:space:]]*candidate[.]trim\(\)' \
+    'Home normalizes surrounding bookmark whitespace'
+require '\\u0000-\\u001f\\u007f' \
+    'Home rejects bookmark values containing control characters'
 
 if grep -Fq 'pico-debug.json' "$quick_goto"; then
     printf 'FAIL: Home still routes users to a development world\n' >&2

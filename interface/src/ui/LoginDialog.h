@@ -75,6 +75,7 @@ protected slots:
     // Runs the shared, idempotent screen-space focus and startup cleanup
     // transaction for both startup and action-bar phone login dialogs.
     Q_INVOKABLE void dismissPhoneLoginDialog();
+    Q_INVOKABLE bool isPhoneLoginRequestPending() const;
 #endif
 
     Q_INVOKABLE bool isSteamRunning() const;

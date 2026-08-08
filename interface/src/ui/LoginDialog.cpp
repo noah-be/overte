@@ -44,6 +44,7 @@ const QUrl LOGIN_DIALOG = PathUtils::qmlUrl("OverlayLoginDialog.qml");
 namespace {
 bool phoneLoginOwnsUiFocus { false };
 bool phoneLoginCleanupQueued { false };
+bool phoneLoginRequestPending { false };
 
 void acquirePhoneLoginUiFocus() {
     if (!phoneLoginOwnsUiFocus) {
@@ -75,6 +76,14 @@ LoginDialog::LoginDialog(QQuickItem *parent) : OffscreenQmlDialog(parent) {
         this, &LoginDialog::handleLoginCompleted);
     connect(domainAccountManager.data(), &DomainAccountManager::loginFailed,
             this, &LoginDialog::handleLoginFailed);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    connect(this, &LoginDialog::handleLoginCompleted, this, [] {
+        phoneLoginRequestPending = false;
+    });
+    connect(this, &LoginDialog::handleLoginFailed, this, [] {
+        phoneLoginRequestPending = false;
+    });
+#endif
     connect(qApp, &Application::loginDialogFocusEnabled, this, &LoginDialog::focusEnabled);
     connect(qApp, &Application::loginDialogFocusDisabled, this, &LoginDialog::focusDisabled);
 #endif
@@ -211,13 +220,25 @@ void LoginDialog::dismissPhoneLoginDialog() {
 
 void LoginDialog::login(const QString& username, const QString& password) const {
     qDebug() << "Attempting to login" << username;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    phoneLoginRequestPending = true;
+#endif
     DependencyManager::get<AccountManager>()->requestAccessToken(username, password);
 }
 
 void LoginDialog::loginDomain(const QString& username, const QString& password) const {
     qDebug() << "Attempting to login" << username << "into a domain";
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    phoneLoginRequestPending = true;
+#endif
     DependencyManager::get<DomainAccountManager>()->requestAccessToken(username, password);
 }
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+bool LoginDialog::isPhoneLoginRequestPending() const {
+    return phoneLoginRequestPending;
+}
+#endif
 
 void LoginDialog::loginThroughOculus() {
    qDebug() << "Attempting to login through Oculus";

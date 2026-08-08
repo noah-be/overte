@@ -109,6 +109,24 @@ require "$body" 'keyDismissPending[[:space:]]*=[[:space:]]*true' \
     'phone login remains alive until it can consume the matching key release'
 require "$body" 'if[[:space:]]*\(closing\)' \
     'phone login dismissal is guarded against duplicate cleanup'
+require "$body" 'if[[:space:]]*\(waiting[[:space:]]*\|\|[[:space:]]*closing\)' \
+    'phone login rejects duplicate keyboard and touch submissions'
+require "$body" 'Flickable[[:space:]]*\{' \
+    'phone login remains scrollable when the IME reduces available height'
+require "$body" 'contentHeight:[[:space:]]*Math[.]max\(height,[[:space:]]*panel[.]height\)' \
+    'phone login only scrolls when its form no longer fits'
+require "$body" 'anchors[.]leftMargin:[[:space:]]*Math[.]min\(24,[[:space:]]*parent[.]width[[:space:]]*/[[:space:]]*4\)' \
+    'phone login keeps non-negative usable width on narrow resize'
+require "$body" 'Component[.]onDestruction:' \
+    'phone login releases IME state during external or programmatic teardown'
+require "$body" 'if[[:space:]]*\(phoneLogin[.]closing\)' \
+    'late authentication responses cannot revive a closing dialog'
+require "$login" 'phoneLoginRequestPending[[:space:]]*=[[:space:]]*true' \
+    'phone login records an in-flight request across dialog instances'
+require "$body" 'waiting:[[:space:]]*loginDialog[.]isPhoneLoginRequestPending\(\)' \
+    'a reopened login waits for an older in-flight request'
+require "$body" 'if[[:space:]]*\(!phoneLogin[.]requestSubmitted\)' \
+    'an older failed authentication response cannot alter a newly opened dialog'
 
 if grep -Eq -- 'WelcomeBody|AndroidHelper|openTablet|Tablet\.getTablet' "$body"; then
     printf 'FAIL: phone login body contains an HMD/tablet-only dependency\n' >&2

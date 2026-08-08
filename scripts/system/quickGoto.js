@@ -14,6 +14,22 @@
 
 (function() { // BEGIN LOCAL_SCOPE
 
+    var FALLBACK_DESTINATION = "file:///~/serverless/tutorial.json";
+
+    function validHomeDestination(candidate) {
+        if (typeof candidate !== "string") {
+            return "";
+        }
+        candidate = candidate.trim();
+        // Do not pass malformed persisted data to AddressManager. In
+        // particular, embedded control characters can turn one bookmark into
+        // a different lookup when it crosses the script/C++ boundary.
+        if (!candidate || /[\u0000-\u001f\u007f]/.test(candidate)) {
+            return "";
+        }
+        return candidate;
+    }
+
     function addGotoButton(name, navigate) {
         var tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
         var button = tablet.addButton({
@@ -33,14 +49,14 @@
     }
 
     addGotoButton("Tutorial", function () {
-        Window.location = "file:///~/serverless/tutorial.json";
+        Window.location = FALLBACK_DESTINATION;
     });
     addGotoButton("Home", function () {
-        var home = LocationBookmarks.getHomeLocationAddress();
+        var home = validHomeDestination(LocationBookmarks.getHomeLocationAddress());
         if (home) {
             location.handleLookupString(home);
         } else {
-            Window.location = "file:///~/serverless/tutorial.json";
+            Window.location = FALLBACK_DESTINATION;
         }
     });
 
