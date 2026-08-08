@@ -189,6 +189,9 @@ installed_apk_sha256="$(adb_for exec-out cat "$installed_base_apk" | sha256sum |
 printf 'installed_apk_verified=1\n' | tee -a "$SUMMARY"
 
 printf '\nLaunching %s...\n' "$LAUNCHER"
+logcat_start_epoch="$(adb_for shell date +%s.%3N 2>/dev/null | tr -d '\r')"
+[[ "$logcat_start_epoch" =~ ^[0-9]+[.][0-9]{3}$ ]] || \
+    die "device does not provide a precise logcat test cursor"
 adb_for shell am force-stop "$PACKAGE"
 baseline_exit_crash_count="$(crash_exit_count)"
 adb_for shell am start -W -n "$LAUNCHER" >/dev/null
@@ -231,7 +234,7 @@ printf 'back_background_survived=1\nback_recovery_survived=1\n' | tee -a "$SUMMA
 # Inspect raw process logs only in memory. Persisting them could retain visited
 # locations, account identifiers, chat, or other user content.
 read -r crash_count page_mismatch_count < <(
-    adb_for logcat -d -v threadtime --pid="$pid" | awk '
+    adb_for logcat -d -T "$logcat_start_epoch" -v threadtime --pid="$pid" | awk '
         BEGIN { crashes = 0; pages = 0 }
         {
             line = tolower($0)

@@ -4,6 +4,29 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 67 — Bound device log diagnostics to the test window
+
+- Branch: `nightly/android-phone-67-logcat-delta`
+- Commit: `Bound phone smoke logcat to launch time` (this task's commit)
+- Change: Capture a validated millisecond epoch from the device immediately
+  before launch and pass it to `logcat -T` together with the tested PID. Crash
+  and 16-KiB markers from an older process that reused the PID can no longer
+  create false failures, while launch-time linker markers remain covered.
+- Tests:
+  - Anonymous locked device capability probe: **passed**,
+    `device_epoch_cursor_supported=1`; no identifier or logs were read.
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, exercising the
+    cursor command and time-bounded logcat invocation.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 231/231 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 231/231 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Vendor logcat implementations must accept the documented epoch
+  `-T` form; lack of cursor support intentionally fails before launch.
+- Real-device validation still required: Run the full smoke with a current APK
+  and confirm launch-time crash/page-size markers are counted while older
+  entries for a recycled PID are excluded.
+
 ## 66 — Keep device-test console output path-private
 
 - Branch: `nightly/android-phone-66-private-device-output`

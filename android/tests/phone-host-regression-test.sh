@@ -533,8 +533,10 @@ reject_text phone-build-resource-guard.sh 'ulimit' \
     'dependency resource guard has no unenforceable ulimit fallback'
 require_text finalize-phone-16k-deps.sh '--write-sentinel' \
     'completed dependency outputs can be finalized without rebuilding'
-require_text tests/phone-device-test.sh 'logcat -d -v threadtime --pid=' \
-    'device reports restrict logcat to the phone app process'
+require_text tests/phone-device-test.sh 'logcat -d -T "\$logcat_start_epoch" -v threadtime --pid=' \
+    'device reports restrict logcat to the test window and phone app process'
+require_text tests/phone-device-test.sh 'date [+]%s[.]%3N' \
+    'device smoke obtains a precise on-device logcat cursor before launch'
 require_text tests/phone-device-test.sh 'require_stable_pid "launch" "\$pid" 30' \
     'device test requires one stable process for thirty seconds after launch'
 require_text tests/phone-device-test.sh '\(mResumedActivity\|topResumedActivity\).*PhoneInterfaceActivity' \

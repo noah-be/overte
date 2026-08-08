@@ -36,6 +36,7 @@ case "$*" in
     'shell pm path org.overte.phone')
         printf 'package:/data/app/~~mock/org.overte.phone-mock/base.apk\n'
         ;;
+    'shell date +%s.%3N') printf '1786212000.123\n' ;;
     'exec-out cat /data/app/~~mock/org.overte.phone-mock/base.apk')
         if [[ "${MOCK_APK_MISMATCH:-0}" == 1 ]]; then
             printf 'different installed bytes\n'
@@ -66,7 +67,7 @@ case "$*" in
         fi
         ;;
     'shell dumpsys activity exit-info org.overte.phone') ;;
-    'logcat -d -v threadtime --pid=4242') ;;
+    logcat\ -d\ -T\ *\ -v\ threadtime\ --pid=4242) ;;
     *) printf 'unexpected mock adb command: %s\n' "$*" >&2; exit 4 ;;
 esac
 MOCK_ADB

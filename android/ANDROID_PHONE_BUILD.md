@@ -385,7 +385,8 @@ identifies the report only as
 temporary or caller-provided; it never prints its absolute path. Set
 `PHONE_TEST_REPORT` when a known retained location is required.
 Logcat is restricted to the tested app process and inspected only as a stream;
-package exit diagnostics
+an on-device epoch cursor also excludes entries older than this test launch.
+Package exit diagnostics
 are likewise reduced immediately to a count. Neither raw source is written to
 the report.
 The script never uses ADB's implicit default device: without
