@@ -68,7 +68,11 @@ APK_ANALYZER="$(find_apk_analyzer)"
 APK_PREFLIGHT="${PHONE_APK_PREFLIGHT:-$SCRIPT_DIR/check-phone-apk-16k.sh}"
 [[ -x "$APK_PREFLIGHT" ]] || die "Phone APK package preflight was not found"
 
-adb_for() { "$ADB" -s "$SERIAL" "$@"; }
+adb_for() {
+    # ADB transport errors may embed serials and host paths. Callers receive the
+    # status and intentionally reduced output, never raw stderr.
+    "$ADB" -s "$SERIAL" "$@" 2>/dev/null
+}
 
 device_property() {
     "$ADB" -s "$1" shell getprop "$2" 2>/dev/null | tr -d '\r'
@@ -103,7 +107,7 @@ select_serial() {
     while read -r serial state _; do
         [[ -n "$serial" && "$serial" != "List" ]] || continue
         [[ "$state" == "device" ]] && authorized+=("$serial")
-    done < <("$ADB" devices -l)
+    done < <("$ADB" devices -l 2>/dev/null)
 
     if [[ -n "$requested" ]]; then
         for serial in "${authorized[@]}"; do
@@ -252,7 +256,7 @@ printf '\nInstalling APK on the selected phone...\n'
 # Keep the smoke test entirely unattended. Permission denial/revocation is a
 # separate lifecycle matrix; this main launch path grants declared runtime
 # permissions at install time so it cannot wait on Android permission UI.
-adb_for install -r -g "$APK" >/dev/null
+adb_for install -r -g "$APK" >/dev/null || die "APK installation failed"
 
 # Verify the installed package itself, not merely the input passed to adb. Keep
 # its private on-device path out of output and reports.

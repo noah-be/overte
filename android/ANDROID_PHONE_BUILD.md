@@ -388,6 +388,8 @@ URI, account data, process IDs, or raw Android output. Console output likewise
 identifies the report only as
 temporary or caller-provided; it never prints its absolute path. Set
 `PHONE_TEST_REPORT` when a known retained location is required.
+Raw ADB stderr is reduced to generic phase errors so serials and host paths do
+not enter captured output.
 Set `PHONE_EXPECT_DEBUGGABLE=0` for a release smoke or `1` for a debug smoke;
 the validated state is recorded as a boolean in the summary.
 Logcat is restricted to the tested app process and inspected only as a stream;

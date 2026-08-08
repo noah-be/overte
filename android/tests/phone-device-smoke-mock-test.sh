@@ -37,7 +37,12 @@ case "$*" in
     'shell getprop ro.build.version.sdk') printf '%s\n' "${MOCK_SDK:-36}" ;;
     'shell getprop ro.opengles.version') printf '196610\n' ;;
     'shell pm list features') printf 'feature:android.hardware.touchscreen\n' ;;
-    install\ -r\ -g\ *) ;;
+    install\ -r\ -g\ *)
+        if [[ "${MOCK_INSTALL_FAILURE:-0}" == 1 ]]; then
+            printf 'private adb detail: mock-phone %s\n' "$MOCK_ROOT/phone.apk" >&2
+            exit 10
+        fi
+        ;;
     'shell pm path org.overte.phone')
         printf 'package:/data/app/~~mock/org.overte.phone-mock/base.apk\n'
         ;;
@@ -235,6 +240,15 @@ fi
 grep -Fq 'app process restarted' "$test_root/restart.out"
 ! grep -Fq "$test_root" "$test_root/restart.out"
 ! grep -Fq 'background_foreground_cycles=3' "$test_root/restart-report/summary.txt"
+
+mkdir "$test_root/install-failure-report"
+if run_smoke "$test_root/install-failure-report" env MOCK_INSTALL_FAILURE=1 \
+        >"$test_root/install-failure.out" 2>&1; then
+    echo 'FAIL: failed ADB installation was accepted' >&2
+    exit 1
+fi
+grep -Fq 'APK installation failed' "$test_root/install-failure.out"
+! grep -Eq 'mock-phone|private adb detail|phone[.]apk' "$test_root/install-failure.out"
 
 mkdir "$test_root/sticky-report"
 if run_smoke "$test_root/sticky-report" env MOCK_STICKY_FOREGROUND=1 \

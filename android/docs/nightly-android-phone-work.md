@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 79 — Keep ADB transport errors identifier-free
+
+- Branch: `nightly/android-phone-79-private-adb-errors`
+- Commit: `Minimize phone smoke ADB error output` (this task's commit)
+- Change: Suppress raw stderr for every selected-device ADB command and replace
+  installation detail with a generic checked failure. A disconnect or install
+  error can no longer place a serial or local APK path in shared console logs.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; a failed install
+    emits a synthetic serial/path on raw stderr, which is absent from captured
+    smoke output while the generic error remains.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 255/255 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 255/255 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Detailed ADB diagnosis now requires an intentional separate local
+  command outside shared logs; smoke output preserves phase and exit status.
+- Real-device validation still required: Disconnect/revoke ADB during a
+  disposable current-APK run and confirm no serial/path appears in output.
+
 ## 78 — Complete local APK validation before ADB
 
 - Branch: `nightly/android-phone-78-local-preflight-order`

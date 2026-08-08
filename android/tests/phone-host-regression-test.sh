@@ -537,6 +537,10 @@ require_text tests/phone-device-test.sh 'apk_sha256=%s' \
     'device smoke summary records APK provenance without a local path'
 require_text tests/phone-device-test.sh 'install -r -g "\$APK"' \
     'device smoke automatically grants runtime permissions without human input'
+require_text tests/phone-device-test.sh '"\$ADB" -s "\$SERIAL" "\$@" 2>/dev/null' \
+    'device smoke suppresses ADB transport details that can contain identifiers'
+require_text tests/phone-device-test.sh 'APK installation failed' \
+    'device smoke replaces raw install errors with a generic failure'
 require_text tests/phone-device-test.sh 'runtime_permissions_auto_granted=1' \
     'device smoke summary records its permission precondition'
 require_text tests/phone-device-test.sh 'shell pm path "\$PACKAGE"' \
