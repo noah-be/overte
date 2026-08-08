@@ -521,6 +521,10 @@ require_text tests/phone-device-test.sh 'manifest permissions "\$APK"' \
     'device smoke reads permissions from the final APK before installation'
 require_text tests/phone-device-test.sh 'APK_PERMISSIONS.*== "\$EXPECTED_APK_PERMISSIONS"' \
     'device smoke rejects APK permission drift'
+require_text tests/phone-device-test.sh 'manifest debuggable "\$APK"' \
+    'device smoke reads and validates the APK debuggable state'
+require_text tests/phone-device-test.sh 'PHONE_EXPECT_DEBUGGABLE' \
+    'device smoke can fail closed on debug versus release artifact mismatch'
 require_text tests/phone-device-test.sh 'PHONE_APK_ANALYZER' \
     'device smoke supports a controlled apkanalyzer path for host testing'
 require_text tests/phone-device-test.sh 'apk_sha256=%s' \

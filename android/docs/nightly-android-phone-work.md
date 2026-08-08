@@ -4,6 +4,25 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 76 — Distinguish debug and release device tests
+
+- Branch: `nightly/android-phone-76-apk-debug-contract`
+- Commit: `Record phone APK debug mode in device smoke` (this task's commit)
+- Change: Read and strictly validate the final APK's debuggable flag, record it
+  only as `apk_debuggable=0/1`, and allow unattended callers to require the
+  expected mode with `PHONE_EXPECT_DEBUGGABLE`. Mode mismatch aborts before ADB.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, recording debug
+    mode and rejecting a debug APK when release mode is required, before install.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 250/250 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 250/250 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Omitting `PHONE_EXPECT_DEBUGGABLE` accepts either mode but records
+  it unambiguously; release automation should always set it to `0`.
+- Real-device validation still required: Run both current debug and signed
+  release APKs with the corresponding expected mode and retain their digests.
+
 ## 75 — Gate permissions in the actual APK
 
 - Branch: `nightly/android-phone-75-apk-permission-preflight`

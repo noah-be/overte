@@ -107,6 +107,7 @@ case "$2" in
         [[ "${MOCK_EXTRA_PERMISSION:-0}" != 1 ]] || \
             printf '%s\n' android.permission.CAMERA
         ;;
+    debuggable) printf '%s\n' "${MOCK_APK_DEBUGGABLE:-true}" ;;
     *) exit 3 ;;
 esac
 MOCK_ANALYZER
@@ -127,6 +128,7 @@ run_smoke "$test_root/success-report" env >"$test_root/success.out"
 ! grep -Fq "$test_root" "$test_root/success.out"
 summary="$test_root/success-report/summary.txt"
 grep -Fxq 'installed_apk_verified=1' "$summary"
+grep -Fxq 'apk_debuggable=1' "$summary"
 grep -Fxq 'background_foreground_cycles=3' "$summary"
 grep -Fxq 'back_recovery_survived=1' "$summary"
 grep -Fxq 'crash_log_matches=0' "$summary"
@@ -172,6 +174,17 @@ if run_smoke "$test_root/extra-permission-report" env MOCK_EXTRA_PERMISSION=1 \
 fi
 grep -Fq 'APK permissions do not match the minimal Phone allowlist' \
     "$test_root/extra-permission.out"
+! grep -q '^install ' "$test_root/adb-commands"
+
+mkdir "$test_root/debug-mode-report"
+: >"$test_root/adb-commands"
+if run_smoke "$test_root/debug-mode-report" env PHONE_EXPECT_DEBUGGABLE=0 \
+        >"$test_root/debug-mode.out" 2>&1; then
+    echo 'FAIL: debuggable APK was accepted for a release-mode smoke' >&2
+    exit 1
+fi
+grep -Fq 'APK debuggable state does not match the requested test mode' \
+    "$test_root/debug-mode.out"
 ! grep -q '^install ' "$test_root/adb-commands"
 
 mkdir "$test_root/emulator-report"

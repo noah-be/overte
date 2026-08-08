@@ -26,6 +26,7 @@ exactly one authorized, non-Pico phone can be identified.
 Environment:
   ANDROID_SERIAL       Exact ADB serial to use (recommended).
   PHONE_ADB            ADB executable (otherwise resolved automatically).
+  PHONE_EXPECT_DEBUGGABLE  Optional expected APK state: 0 or 1.
   PHONE_TEST_REPORT    Existing report directory (otherwise mktemp -d).
 EOF
 }
@@ -146,6 +147,19 @@ APK_PERMISSIONS="$("$APK_ANALYZER" manifest permissions "$APK" 2>/dev/null \
 EXPECTED_APK_PERMISSIONS="$(printf '%s\n' "${EXPECTED_PERMISSIONS[@]}" | LC_ALL=C sort)"
 [[ "$APK_PERMISSIONS" == "$EXPECTED_APK_PERMISSIONS" ]] || \
     die "APK permissions do not match the minimal Phone allowlist"
+APK_DEBUGGABLE_TEXT="$("$APK_ANALYZER" manifest debuggable "$APK" 2>/dev/null \
+    | tr -d '\r')" || die "could not read APK debuggable state"
+case "$APK_DEBUGGABLE_TEXT" in
+    true) APK_DEBUGGABLE=1 ;;
+    false) APK_DEBUGGABLE=0 ;;
+    *) die "APK debuggable state is invalid" ;;
+esac
+if [[ -n "${PHONE_EXPECT_DEBUGGABLE:-}" ]]; then
+    [[ "$PHONE_EXPECT_DEBUGGABLE" =~ ^[01]$ ]] || \
+        die "PHONE_EXPECT_DEBUGGABLE must be 0 or 1"
+    [[ "$APK_DEBUGGABLE" == "$PHONE_EXPECT_DEBUGGABLE" ]] || \
+        die "APK debuggable state does not match the requested test mode"
+fi
 
 if [[ -n "${PHONE_TEST_REPORT:-}" ]]; then
     REPORT_DIR="$(realpath "$PHONE_TEST_REPORT")"
@@ -170,8 +184,8 @@ readonly TEST_DEEP_LINK="overte://localhost"
 (set -o noclobber; umask 077; : >"$SUMMARY") || \
     die "could not create a fresh device-test summary"
 chmod 600 "$SUMMARY"
-printf 'package=%s\napk_sha256=%s\nruntime_permissions_auto_granted=1\n' \
-    "$PACKAGE" "$APK_SHA256" | tee -a "$SUMMARY"
+printf 'package=%s\napk_sha256=%s\napk_debuggable=%s\nruntime_permissions_auto_granted=1\n' \
+    "$PACKAGE" "$APK_SHA256" "$APK_DEBUGGABLE" | tee -a "$SUMMARY"
 
 current_pid() {
     adb_for shell pidof -s "$PACKAGE" 2>/dev/null | tr -d '\r' || true
