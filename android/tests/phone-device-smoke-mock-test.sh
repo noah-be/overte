@@ -96,6 +96,14 @@ case "$*" in
         ;;
     'shell dumpsys activity exit-info org.overte.phone')
         [[ "${MOCK_EXIT_INFO_FAILURE:-0}" != 1 ]] || exit 8
+        if [[ "${MOCK_FINAL_EXIT_INFO_FAILURE:-0}" == 1 ]]; then
+            exit_info_count=0
+            [[ ! -f "$MOCK_ROOT/exit-info-count" ]] || \
+                exit_info_count="$(<"$MOCK_ROOT/exit-info-count")"
+            exit_info_count=$((exit_info_count + 1))
+            printf '%s' "$exit_info_count" >"$MOCK_ROOT/exit-info-count"
+            ((exit_info_count < 2)) || exit 8
+        fi
         printf 'ACTIVITY MANAGER PROCESS EXIT INFO\n'
         ;;
     logcat\ -d\ -T\ *\ -v\ threadtime\ --pid=4242)
@@ -352,7 +360,21 @@ if run_smoke "$test_root/exit-info-failure-report" env MOCK_EXIT_INFO_FAILURE=1 
     echo 'FAIL: unavailable exit diagnostics were accepted' >&2
     exit 1
 fi
+grep -Fq 'could not read baseline package exit diagnostics' \
+    "$test_root/exit-info-failure.out"
 ! grep -Fq 'launch_survived=1' "$test_root/exit-info-failure-report/summary.txt"
+
+mkdir "$test_root/final-exit-info-failure-report"
+rm -f -- "$test_root/exit-info-count"
+if run_smoke "$test_root/final-exit-info-failure-report" env MOCK_FINAL_EXIT_INFO_FAILURE=1 \
+        >"$test_root/final-exit-info-failure.out" 2>&1; then
+    echo 'FAIL: unavailable final exit diagnostics were accepted' >&2
+    exit 1
+fi
+grep -Fq 'could not read final package exit diagnostics' \
+    "$test_root/final-exit-info-failure.out"
+grep -Fxq 'test_status=failed' "$test_root/final-exit-info-failure-report/summary.txt"
+! grep -Fq 'exit_crash_matches=' "$test_root/final-exit-info-failure-report/summary.txt"
 
 mkdir "$test_root/existing-report"
 printf preserve >"$test_root/existing-report/summary.txt"

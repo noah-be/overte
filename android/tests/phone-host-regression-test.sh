@@ -613,6 +613,10 @@ require_text tests/phone-device-test.sh 'process exit info.*valid = 1' \
     'device test validates the dumpsys exit-info response structure'
 require_text tests/phone-device-test.sh 'exit_crash_count >= 0' \
     'device test rejects exit-info counters that move backwards'
+require_text tests/phone-device-test.sh 'could not read baseline package exit diagnostics' \
+    'device smoke labels unavailable pre-launch exit diagnostics'
+require_text tests/phone-device-test.sh 'could not read final package exit diagnostics' \
+    'device smoke labels unavailable post-lifecycle exit diagnostics'
 reject_text tests/phone-device-test.sh \
     'serial=%s|model=%s|dumpsys window|SurfaceFlinger' \
     'device reports omit serial, model, and global display diagnostics'

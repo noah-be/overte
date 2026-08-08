@@ -300,7 +300,8 @@ logcat_start_epoch="$(adb_for shell date +%s.%3N 2>/dev/null | tr -d '\r')"
 [[ "$logcat_start_epoch" =~ ^[0-9]+[.][0-9]{3}$ ]] || \
     die "device does not provide a precise logcat test cursor"
 require_adb "pre-launch force-stop" shell am force-stop "$PACKAGE"
-baseline_exit_crash_count="$(crash_exit_count)"
+baseline_exit_crash_count="$(crash_exit_count)" || \
+    die "could not read baseline package exit diagnostics"
 require_adb "launcher start" shell am start -W -n "$LAUNCHER"
 pid="$(wait_for_pid || true)"
 [[ -n "$pid" ]] || die "app process did not start; inspect the private $REPORT_KIND report"
@@ -357,7 +358,8 @@ log_marker_counts="$(
 [[ "$log_marker_counts" =~ ^[0-9]+[[:space:]][0-9]+$ ]] || \
     die "process-scoped log diagnostics returned invalid counters"
 read -r crash_count page_mismatch_count <<<"$log_marker_counts"
-final_exit_crash_count="$(crash_exit_count)"
+final_exit_crash_count="$(crash_exit_count)" || \
+    die "could not read final package exit diagnostics"
 exit_crash_count=$((final_exit_crash_count - baseline_exit_crash_count))
 ((exit_crash_count >= 0)) || \
     die "package exit diagnostics moved backwards during the test"

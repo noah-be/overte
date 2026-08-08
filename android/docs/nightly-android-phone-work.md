@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 85 — Label package exit-diagnostic phases
+
+- Branch: `nightly/android-phone-85-exit-info-phase-errors`
+- Commit: `Report phone exit diagnostic phase failures` (this task's commit)
+- Change: Check and label baseline and final package exit-info queries
+  independently. Both remain identifier-free, but an unavailable or malformed
+  response now identifies whether launch baseline or post-lifecycle diagnosis
+  failed instead of exiting silently under shell error handling.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; baseline and
+    second-query failures emit their respective safe errors, final status is
+    failed, and no unverifiable aggregate crash field is written.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 265/265 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 265/265 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Unsupported OEM exit-info output remains an explicit failure;
+  review it locally before extending the structural parser.
+- Real-device validation still required: Run a current-APK smoke and confirm
+  both exit-info phases succeed and remain monotonic.
+
 ## 84 — Prove cleanup failure cannot pass
 
 - Branch: `nightly/android-phone-84-cleanup-failure-contract`
