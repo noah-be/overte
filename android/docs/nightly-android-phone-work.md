@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 40 — Shorten Phone credential lifetime
+
+- Branch: `nightly/android-phone-40-login-credential-lifetime`
+- Commit: `Shorten phone login credential lifetime` (this task's commit)
+- Change: Clear password text synchronously when Phone login dismisses and clear
+  username, password, and local error text again in the destruction fallback.
+  Bound each QML credential field to a generous 4096 characters to prevent
+  accidental/untrusted unbounded retention without affecting normal accounts.
+- Tests:
+  - `android/tests/phone-dialog-routing-test.sh`: **passed**, including bounded
+    fields, synchronous password clearing, and destruction-fallback clearing.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including the C++
+    async login contract, all tablet/lifecycle/APK suites, and 188/188 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: The account managers necessarily retain their own request copy
+  while authentication is in flight; this task only minimizes QML field lifetime.
+- Real-device validation still required: **not executed for this task**. Submit
+  valid/invalid credentials, retry after failure, Cancel while pending, Back,
+  background/foreground, and reopen; verify retry usability, empty fields after
+  every dismissal, no stale errors, and no credential text in screenshots/logs.
+
 ## 39 — Validate Phone address input
 
 - Branch: `nightly/android-phone-39-address-input-contract`

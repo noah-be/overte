@@ -20,12 +20,14 @@ Item {
     property bool requestSubmitted: false
     property bool closing: false
     property bool keyDismissPending: false
+    readonly property int maximumCredentialLength: 4096
 
     function dismiss() {
         if (closing) {
             return
         }
         closing = true
+        password.text = ""
         Qt.inputMethod.hide()
         phoneLogin.forceActiveFocus()
         loginDialog.dismissPhoneLoginDialog()
@@ -103,6 +105,7 @@ Item {
                 width: parent.width
                 height: 52
                 placeholderText: qsTr("Username or email")
+                maximumLength: phoneLogin.maximumCredentialLength
                 enabled: !phoneLogin.waiting
                 activeFocusOnPress: true
                 font.pixelSize: 20
@@ -114,6 +117,7 @@ Item {
                 width: parent.width
                 height: 52
                 placeholderText: qsTr("Password")
+                maximumLength: phoneLogin.maximumCredentialLength
                 echoMode: TextInput.Password
                 enabled: !phoneLogin.waiting
                 activeFocusOnPress: true
@@ -194,6 +198,9 @@ Item {
     Component.onDestruction: {
         closing = true
         keyDismissPending = false
+        username.text = ""
+        password.text = ""
+        errorText.text = ""
         Qt.inputMethod.hide()
     }
 }

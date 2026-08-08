@@ -133,6 +133,12 @@ require "$body" 'Component[.]onDestruction:' \
     'phone login releases IME state during external or programmatic teardown'
 require "$body" 'if[[:space:]]*\(phoneLogin[.]closing\)' \
     'late authentication responses cannot revive a closing dialog'
+require "$body" 'maximumCredentialLength:[[:space:]]*4096' \
+    'phone login bounds credential text retained by QML'
+require "$body" 'password[.]text[[:space:]]*=[[:space:]]*""' \
+    'phone login clears password text during dismissal and teardown'
+require "$body" 'username[.]text[[:space:]]*=[[:space:]]*""' \
+    'phone login clears username text during destruction fallback'
 require "$login" 'phoneLoginState[.]beginRequest\(\)' \
     'phone login rejects a competing request at the C++ boundary'
 require "$login" 'phoneLoginState[.]finishRequest\(\)' \
