@@ -429,6 +429,12 @@ android {
                 from new File(projectDir, '../../../scripts')
                 into new File(mergedAssetsDir, 'scripts')
                 duplicatesStrategy DuplicatesStrategy.INCLUDE
+                // Browser source maps and editor metadata are not runtime
+                // inputs. Keep the executable scripts and all user-visible
+                // assets while avoiding phone-only APK payload with no client
+                // behavior.
+                exclude '**/*.map'
+                exclude '**/web-types.json'
                 eachFile { details ->
                     youngestLastModified = Math.max(youngestLastModified, details.lastModified)
                     assetList.add("scripts/${details.path}")
