@@ -4,6 +4,29 @@ This file records the cumulative, device-free Android phone work based on
 `origin/feature/android-phone-support`. Real-device and emulator tests are out
 of scope for this worktree and are called out explicitly where still needed.
 
+## 19 — Action-bar teardown race
+
+- Branch: `nightly/android-phone-19-actionbar-lifecycle`
+- Commit: `Harden phone action bar teardown` (this task's commit)
+- Change: Own and cancel the deferred initial-layout timer, reject layout work
+  once shutdown starts, tolerate a QML fragment disappearing between a geometry
+  signal and teardown, and clear all fragment/button references after closing.
+  Existing signal, virtual-pad, and touch-capture cleanup remains deterministic.
+- Tests:
+  - `android/tests/phone-actionbar-qml-lifetime-test.sh`: **passed**, including
+    a new executable mock for deferred-timer cancellation, destroyed-fragment
+    geometry, signal teardown, fragment close, and world-control restoration.
+  - `android/tests/phone-tablet-routing-test.sh`: **passed**.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet suites and 181/181 host checks.
+  - JavaScript syntax and `git diff --check`: **passed**.
+- Known risks: QML fragment destruction timing is mocked; the defensive catch
+  intentionally treats a vanished action bar as terminal until script restart.
+- Real-device validation still required: **not executed**. Rapidly launch,
+  background, foreground, rotate within supported landscape orientations, open
+  the tablet, and terminate/restart while layout is pending; confirm no stale
+  controls, touch capture, script exception, or post-teardown geometry update.
+
 ## 18 — Touch-safe Phone Security Settings
 
 - Branch: `nightly/android-phone-18-security-settings`

@@ -22,4 +22,11 @@ if grep -Eq 'mutedChanged[.](connect|disconnect)|microphoneButton[.](isActive|te
     exit 1
 fi
 
+grep -Fq 'Script.clearTimeout(deferredLayoutTimer)' "$action_bar"
+grep -Fq 'if (shuttingDown || width <= 0 || height <= 0)' "$action_bar"
+grep -Fq 'applyBarGeometry(navigationBar' "$action_bar"
+
+node --check "$action_bar"
+node "$script_dir/phone-actionbar-lifecycle-mock.js"
+
 printf 'Phone action-bar QML lifetime checks passed.\n'

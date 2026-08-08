@@ -14,6 +14,8 @@
     var systemTablet;
     var currentButtonStyle;
     var thirdPersonBoomLength = 1.5;
+    var deferredLayoutTimer = null;
+    var shuttingDown = false;
 
     var BASE_BUTTON_STYLE = {
         bgOpacity: 0.22,
@@ -134,24 +136,31 @@
         var height = Window.innerHeight;
         var layout;
 
-        if (width <= 0 || height <= 0) {
+        if (shuttingDown || width <= 0 || height <= 0) {
             return;
         }
 
         layout = calculateLayout(width, height);
         currentButtonStyle = layout.buttonStyle;
-        if (navigationBar) {
-            navigationBar.setPosition(layout.navigationPosition.x, layout.navigationPosition.y);
-            navigationBar.setSize(layout.navigationSize.x, layout.navigationSize.y);
-        }
-        if (audioBar) {
-            audioBar.setPosition(layout.audioPosition.x, layout.audioPosition.y);
-            audioBar.setSize(layout.audioSize.x, layout.audioSize.y);
-        }
+        applyBarGeometry(navigationBar, layout.navigationPosition, layout.navigationSize);
+        applyBarGeometry(audioBar, layout.audioPosition, layout.audioSize);
         applyButtonStyle(gotoButton, currentButtonStyle);
         applyButtonStyle(tabletButton, currentButtonStyle);
         applyButtonStyle(cameraButton, currentButtonStyle);
         applyButtonStyle(microphoneButton, currentButtonStyle);
+    }
+
+    function applyBarGeometry(bar, position, size) {
+        if (!bar) {
+            return;
+        }
+        try {
+            bar.setPosition(position.x, position.y);
+            bar.setSize(size.x, size.y);
+        } catch (error) {
+            // The Activity can destroy a fragment between a geometry signal
+            // and script shutdown. The next startup creates a fresh surface.
+        }
     }
 
     function buttonProperties(properties) {
@@ -275,9 +284,17 @@
     tabletVisibilityChanged();
     // QML fragments also perform their initial placement in Component.onCompleted;
     // defer once so the phone-specific adaptive placement wins deterministically.
-    Script.setTimeout(updateLayout, 0);
+    deferredLayoutTimer = Script.setTimeout(function () {
+        deferredLayoutTimer = null;
+        updateLayout();
+    }, 0);
 
     Script.scriptEnding.connect(function () {
+        shuttingDown = true;
+        if (deferredLayoutTimer !== null) {
+            Script.clearTimeout(deferredLayoutTimer);
+            deferredLayoutTimer = null;
+        }
         Window.geometryChanged.disconnect(updateLayout);
         Window.geometryChanged.disconnect(resizeTablet);
         systemTablet.tabletShownChanged.disconnect(tabletVisibilityChanged);
@@ -293,5 +310,11 @@
         disconnectSignal(microphoneButton, "entered", hapticFeedback);
         closeFragment(navigationBar);
         closeFragment(audioBar);
+        navigationBar = null;
+        audioBar = null;
+        gotoButton = null;
+        tabletButton = null;
+        cameraButton = null;
+        microphoneButton = null;
     });
 }());
