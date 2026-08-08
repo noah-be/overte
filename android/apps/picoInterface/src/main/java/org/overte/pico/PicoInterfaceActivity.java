@@ -52,6 +52,7 @@ public final class PicoInterfaceActivity extends QtActivity {
         }
 
         super.onCreate(savedInstanceState);
+        OffscreenWebView.initializeNativeBridge();
         AndroidAudioInput.initializeNativeBridge();
     }
 

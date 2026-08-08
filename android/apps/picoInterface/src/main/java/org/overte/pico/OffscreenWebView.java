@@ -31,6 +31,11 @@ public final class OffscreenWebView {
 
     private OffscreenWebView() { }
 
+    public static void initializeNativeBridge() {
+        nativeInitialize();
+    }
+
+    private static native void nativeInitialize();
     private static native void nativeFrame(
         long nativeHandle, ByteBuffer pixels, int width, int height);
 

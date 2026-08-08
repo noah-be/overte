@@ -12,13 +12,13 @@
 #include <android/log.h>
 
 #include <limits>
-
-extern "C" JavaVM* overtePicoOpenXRJavaVm();
+#include <atomic>
 
 namespace {
-constexpr const char* CLASS_NAME = "org/overte/pico/OffscreenWebView";
 QMutex itemRegistryMutex;
 QHash<jlong, PicoWebViewItem*> itemRegistry;
+std::atomic<JavaVM*> webViewJavaVm { nullptr };
+std::atomic<jclass> webViewClass { nullptr };
 
 class PicoWebImageProvider : public QQuickImageProvider {
 public:
@@ -42,24 +42,24 @@ struct JniScope {
     JNIEnv* env { nullptr };
     bool attached { false };
     JniScope() {
-        JavaVM* vm = overtePicoOpenXRJavaVm();
+        JavaVM* vm = webViewJavaVm.load(std::memory_order_acquire);
         if (!vm) { return; }
         if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
             attached = vm->AttachCurrentThread(&env, nullptr) == JNI_OK;
         }
     }
     ~JniScope() {
-        if (attached) { overtePicoOpenXRJavaVm()->DetachCurrentThread(); }
+        JavaVM* vm = webViewJavaVm.load(std::memory_order_acquire);
+        if (attached && vm) { vm->DetachCurrentThread(); }
     }
 };
 
 void callStatic(const char* name, const char* signature, jvalue* args) {
     JniScope jni;
     if (!jni.env) { return; }
-    jclass clazz = jni.env->FindClass(CLASS_NAME);
+    jclass clazz = webViewClass.load(std::memory_order_acquire);
     if (!clazz) {
-        __android_log_print(ANDROID_LOG_ERROR, "OverteWebEntity", "Cannot find Java WebView bridge class");
-        jni.env->ExceptionClear();
+        __android_log_print(ANDROID_LOG_ERROR, "OverteWebEntity", "Java WebView bridge is not initialized");
         return;
     }
     jmethodID method = jni.env->GetStaticMethodID(clazz, name, signature);
@@ -73,7 +73,6 @@ void callStatic(const char* name, const char* signature, jvalue* args) {
         jni.env->ExceptionDescribe();
         jni.env->ExceptionClear();
     }
-    jni.env->DeleteLocalRef(clazz);
 }
 
 void registerPicoWebViewType() {
@@ -81,6 +80,25 @@ void registerPicoWebViewType() {
 }
 }
 Q_COREAPP_STARTUP_FUNCTION(registerPicoWebViewType)
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_overte_pico_OffscreenWebView_nativeInitialize(
+        JNIEnv* environment, jclass inputClass) {
+    JavaVM* vm { nullptr };
+    if (environment->GetJavaVM(&vm) != JNI_OK) {
+        return;
+    }
+    auto globalClass = static_cast<jclass>(environment->NewGlobalRef(inputClass));
+    if (!globalClass) {
+        return;
+    }
+    webViewJavaVm.store(vm, std::memory_order_release);
+    jclass expected { nullptr };
+    if (!webViewClass.compare_exchange_strong(
+            expected, globalClass, std::memory_order_acq_rel)) {
+        environment->DeleteGlobalRef(globalClass);
+    }
+}
 
 PicoWebViewItem::PicoWebViewItem(QQuickItem* parent) : QQuickItem(parent) {
     QMutexLocker locker(&itemRegistryMutex);

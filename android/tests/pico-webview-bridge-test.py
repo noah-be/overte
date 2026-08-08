@@ -89,6 +89,19 @@ class PicoWebViewBridgeTest(unittest.TestCase):
         self.assertIn("catch (RuntimeException exception)", body)
         self.assertNotIn("new WebView(PicoInterfaceActivity.getInstance())", body)
 
+    def test_jni_bridge_uses_java_initialized_global_class(self):
+        activity = (ROOT / "android/apps/picoInterface/src/main/java/org/overte/pico/PicoInterfaceActivity.java").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("OffscreenWebView.initializeNativeBridge();", activity)
+        self.assertIn("private static native void nativeInitialize();", self.java_source)
+        self.assertIn("OffscreenWebView_nativeInitialize", self.source)
+        self.assertIn("environment->NewGlobalRef(inputClass)", self.source)
+        self.assertIn("webViewClass.compare_exchange_strong", self.source)
+        self.assertIn("webViewJavaVm.store(vm", self.source)
+        self.assertNotIn("FindClass(", self.source)
+        self.assertNotIn("overtePicoOpenXRJavaVm", self.source)
+
 
 if __name__ == "__main__":
     unittest.main()

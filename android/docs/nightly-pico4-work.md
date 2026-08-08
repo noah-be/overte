@@ -679,8 +679,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 37 — Fail-closed OpenXR present poses
 
 - Branch: `nightly/pico4-37-openxr-present-pose`
-- Commit: identified by subject `Validate Pico OpenXR present poses`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `a37bc97a50` (`Validate Pico OpenXR present poses`)
 - Change: stop mutating the configured view count with `xrLocateViews` output;
   require exact counts plus position/orientation validity before using eye or
   stage views; validate optional projection storage; check `xrLocateSpace` and
@@ -696,6 +695,27 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Cover startup, guardian/tracking loss,
   headset removal, suspend/resume and runtime recenter; verify no pose jump,
   NaN view, stale rendered layer, crash, or failure to recover tracking.
+
+### 38 — WebView JNI class-loader isolation
+
+- Branch: `nightly/pico4-38-webview-jni-classloader`
+- Commit: identified by subject `Initialize Pico WebView JNI bridge`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: initialize the WebView native bridge from its Java class and retain a
+  process-lifetime global class reference plus its own `JavaVM`. Qt-originated
+  calls no longer depend on `FindClass` from a natively attached thread or on
+  the unrelated OpenXR loader's VM lifecycle.
+- Regression: bridge contracts require Activity initialization, transactional
+  global-reference storage, own-VM attachment, and absence of both `FindClass`
+  and the OpenXR VM accessor.
+- Passed: WebView/JNI bridge contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: the global class reference intentionally lives for process lifetime,
+  matching the static native library and Java class; repeated Activity creation
+  discards the redundant new reference without replacing the valid one.
+- Pico 4 validation: **not executed**. Cold-start, recreate and restart the
+  Activity, then create/destroy multiple Web entities from Qt worker/main
+  contexts; verify bridge methods resolve without class-loader exceptions.
 
 ## Deferred, rejected, or blocked ideas
 
