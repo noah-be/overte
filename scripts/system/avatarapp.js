@@ -89,6 +89,10 @@ function getMyAvatarSettings() {
     };
 }
 
+function validAvatarScale(value) {
+    return typeof value === 'number' && isFinite(value) && value > 0;
+}
+
 function updateAvatarWearables(avatar, callback, wearablesOverride) {
     executeLater(function() {
         var wearables = wearablesOverride ? wearablesOverride : getMyAvatarWearables();
@@ -388,16 +392,29 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
 
         break;
     case 'setScale':
+        if (!currentAvatar || !validAvatarScale(message.avatarScale)) {
+            sendToQml({ 'method': 'avatarError', 'reason': 'Invalid avatar scale' });
+            break;
+        }
         notifyScaleChanged = false;
         MyAvatar.setAvatarScale(message.avatarScale);
         currentAvatar.avatarScale = message.avatarScale;
         notifyScaleChanged = true;
         break;
     case 'revertScale':
+        if (!currentAvatar || !validAvatarScale(message.avatarScale)) {
+            sendToQml({ 'method': 'avatarError', 'reason': 'Invalid avatar scale' });
+            break;
+        }
         MyAvatar.setAvatarScale(message.avatarScale);
         currentAvatar.avatarScale = message.avatarScale;
         break;
     case 'saveSettings':
+        if (!currentAvatar || !validAvatarScale(message.avatarScale) ||
+                !message.settings || typeof message.settings !== 'object') {
+            sendToQml({ 'method': 'avatarError', 'reason': 'Invalid avatar settings' });
+            break;
+        }
         MyAvatar.setAvatarScale(message.avatarScale);
         currentAvatar.avatarScale = message.avatarScale;
 

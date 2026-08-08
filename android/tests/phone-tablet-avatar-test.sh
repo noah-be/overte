@@ -84,6 +84,16 @@ require "typeof message[.]url !== 'string'" \
     'Avatar rejects navigation without a string URL'
 require 'Invalid navigation URL' \
     'Avatar reports rejected navigation to its QML surface'
+require 'function validAvatarScale\(value\)' \
+    'Avatar centralizes scale input validation'
+require "typeof value === 'number' && isFinite\(value\) && value > 0" \
+    'Avatar rejects non-numeric, non-finite, and non-positive scales'
+require "!currentAvatar[[:space:]]*\\|\\|[[:space:]]*!validAvatarScale\\(message[.]avatarScale\\)" \
+    'Avatar scale preview and revert require an initialized valid model'
+require "!message[.]settings[[:space:]]*\\|\\|[[:space:]]*typeof message[.]settings !== 'object'" \
+    'Avatar rejects save messages without a settings object'
+require 'Invalid avatar settings' \
+    'Avatar reports rejected settings without mutating the model'
 require '!message[.]entityID[[:space:]]*\|\|[[:space:]]*!message[.]properties' \
     'Avatar rejects malformed wearable edits'
 require "!parsedMessage[[:space:]]*\\|\\|[[:space:]]*typeof parsedMessage !== 'object'" \

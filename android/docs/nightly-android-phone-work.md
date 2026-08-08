@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 38 — Validate Avatar scale/settings state
+
+- Branch: `nightly/android-phone-38-avatar-scale-contract`
+- Commit: `Validate Avatar scale and settings state` (this task's commit)
+- Change: Require an initialized current-avatar model plus a finite positive
+  numeric scale before preview/revert/save mutations, and require a settings
+  object before dereferencing it. Rejected actions return bounded QML errors
+  instead of throwing or passing NaN/Infinity into native avatar state.
+- Tests:
+  - `android/tests/phone-tablet-avatar-test.sh`: **passed**, including scale
+    type/finiteness/range, initialized-model, settings-object, and error contracts.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/APK suites and 188/188 host checks.
+  - JavaScript syntax and `git diff --check`: **passed**.
+- Known risks: Native avatar-scale clamping remains authoritative for the upper
+  product range; this boundary rejects only values that are intrinsically unsafe.
+- Real-device validation still required: **not executed for this task**. Open
+  Avatar Settings before/after bookmark loads, drag scale, Cancel/revert, Save,
+  and rapidly close/reopen; confirm finite scale persistence, no stale preview,
+  and a responsive UI after malformed test-bridge messages.
+
 ## 37 — Validate People account actions
 
 - Branch: `nightly/android-phone-37-people-request-validation`
