@@ -26,11 +26,7 @@ var PHONE_DEFAULT_SCRIPTS = [
     "system/pal.js",
     "system/avatarapp.js",
     "system/places/places.js",
-    "system/quickGoto.js",
-    // Android lifecycle teardown currently cannot safely destroy Create's
-    // V8 method proxies from a separate script thread. Keep it in the shared
-    // default engine, where the phone marker also selects its Tablet QML.
-    "system/create/edit.js"
+    "system/quickGoto.js"
 ];
 
 Script.require("/~/system/+android_interface/androidControls.js");
