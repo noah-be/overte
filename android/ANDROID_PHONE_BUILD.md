@@ -61,8 +61,9 @@ Inspect the environment without downloading dependencies or changing it:
 ./build-phone.sh doctor
 ```
 
-The doctor command uses the established Pico environment checker because both
-applications intentionally use the same toolchain versions.
+The doctor command uses the established shared environment checker because both
+applications intentionally use the same toolchain versions. Its Phone wrapper
+prints the Phone-specific 16-KiB setup hand-off rather than Pico build steps.
 
 ## First setup and required 16 KiB build order
 

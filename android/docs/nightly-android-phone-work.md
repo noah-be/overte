@@ -26,6 +26,28 @@ of scope for this worktree and are called out explicitly where still needed.
 - Real-device validation still required: **not required for this test-only
   change; not executed**.
 
+## 09 — Phone-specific doctor hand-off
+
+- Branch: `nightly/android-phone-09-doctor-output`
+- Commit: `Fix Android phone doctor guidance` (this task's commit)
+- Change: Keep reusing the shared Pico/Phone toolchain checker, but translate
+  its heading and successful next step at the Phone wrapper boundary. Preserve
+  the original checker exit status through the output filter.
+- Tests:
+  - `android/tests/phone-doctor-output-test.sh`: **passed**, including shared
+    checker status propagation.
+  - `bash -n android/build-phone.sh android/tests/phone-doctor-output-test.sh`:
+    **passed**.
+  - `./android/build-phone.sh doctor`: **passed**, Phone heading and next step,
+    all tools found with no warnings.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 34 suites;
+    nested host regression passed 174/174 checks.
+  - `git diff --check`: **passed**.
+- Known risks: Diagnostic detail still comes from the shared checker by design;
+  only the product heading and successful hand-off are Phone-specific.
+- Real-device validation still required: **not required for this wrapper-only
+  change; not executed**.
+
 ## 08 — Complete required-runtime APK gate
 
 - Branch: `nightly/android-phone-08-error-path-audit`

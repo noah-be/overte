@@ -59,6 +59,14 @@ prepare() {
         "$script_dir/build-pico.sh" prepare
 }
 
+doctor() {
+    # Reuse the shared checker without leaking Pico-specific hand-off text into
+    # the Phone entry point. pipefail preserves the checker's failure status.
+    "$script_dir/build-pico.sh" doctor | sed \
+        -e 's/^Pico 4 build environment$/Android phone build environment (shared toolchain)/' \
+        -e 's|^Next: ./build-pico.sh setup --download$|Next: follow ANDROID_PHONE_BUILD.md 16 KiB setup order; then ./build-phone.sh build|'
+}
+
 build() {
     local jdk sdk
     jdk="$(find_compatible_jdk)" \
@@ -131,7 +139,7 @@ install_apk() {
 }
 
 case "$command_name" in
-    doctor) "$script_dir/build-pico.sh" doctor ;;
+    doctor) doctor ;;
     prepare) prepare ;;
     build) build ;;
     install) install_apk ;;
