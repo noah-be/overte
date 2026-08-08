@@ -1,0 +1,53 @@
+#pragma once
+
+#include <QImage>
+#include <QMutex>
+#include <QQuickItem>
+
+class PicoWebViewItem : public QQuickItem {
+    Q_OBJECT
+    Q_PROPERTY(QString url READ url WRITE setUrl NOTIFY urlChanged)
+    Q_PROPERTY(QString scriptUrl MEMBER _scriptUrl)
+    Q_PROPERTY(bool useBackground MEMBER _useBackground)
+    Q_PROPERTY(QString userAgent READ userAgent WRITE setUserAgent)
+    Q_PROPERTY(QString frameSource READ frameSource)
+
+public:
+    explicit PicoWebViewItem(QQuickItem* parent = nullptr);
+    ~PicoWebViewItem() override;
+    QString url() const { return _url; }
+    void setUrl(const QString& value);
+    QString userAgent() const { return _userAgent; }
+    void setUserAgent(const QString& value);
+    QString frameSource() const;
+    QImage frameImage() const;
+    void acceptFrame(const void* pixels, int width, int height);
+    void componentComplete() override;
+
+signals:
+    void urlChanged();
+
+protected:
+    void geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry) override;
+    void hoverEnterEvent(QHoverEvent* event) override;
+    void hoverMoveEvent(QHoverEvent* event) override;
+    void hoverLeaveEvent(QHoverEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+    void wheelEvent(QWheelEvent* event) override;
+
+private:
+    void createWebView();
+    void sendPointer(int action, const QPointF& position);
+    int pixelWidth() const;
+    int pixelHeight() const;
+
+    QString _url;
+    QString _scriptUrl;
+    QString _userAgent;
+    bool _useBackground { true };
+    mutable QMutex _imageMutex;
+    QImage _image;
+    quint64 _frameSerial { 0 };
+};

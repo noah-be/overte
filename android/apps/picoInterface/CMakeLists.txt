@@ -5,9 +5,16 @@ target_link_libraries(${TARGET_NAME} android log)
 
 set(TARGET_NAME picoInterface)
 setup_hifi_library()
-target_sources(${TARGET_NAME} PRIVATE
+get_target_property(PICO_INTERFACE_SOURCES picoInterface SOURCES)
+list(FILTER PICO_INTERFACE_SOURCES EXCLUDE REGEX "PicoWebViewItem\\.(cpp|h)$")
+set_property(TARGET picoInterface PROPERTY SOURCES "${PICO_INTERFACE_SOURCES}")
+target_sources(picoInterface PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src/QtInputConnectionCompat.cpp"
 )
+# setup_hifi_library() keeps the directory's native library target while this
+# standalone Android CMake file switches TARGET_NAME.  The Pico-specific QML
+# item therefore needs its Qt GUI dependencies explicitly on that target.
+target_link_libraries(picoOpenXR Qt5::Gui Qt5::Qml Qt5::Quick)
 link_hifi_libraries(
     shared task networking qml
     image model-serializers hfm render-utils physics entities octree

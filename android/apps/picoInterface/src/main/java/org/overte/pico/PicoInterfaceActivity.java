@@ -20,6 +20,10 @@ public final class PicoInterfaceActivity extends QtActivity {
     private static final String TAG = "OvertePico";
     private static PicoInterfaceActivity instance;
 
+    public static PicoInterfaceActivity getInstance() {
+        return instance;
+    }
+
     static {
         // Qt 5 resolves OpenSSL dynamically.  Android packages the libraries
         // without their 1.1 suffix, so preload them to make their SONAMEs
