@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 78 — Complete local APK validation before ADB
+
+- Branch: `nightly/android-phone-78-local-preflight-order`
+- Commit: `Validate phone APK before device selection` (this task's commit)
+- Change: Move device selection after every local artifact check: file/hash,
+  identity, SDKs, permissions, debug mode, contents, ELF, zipalign, and padding.
+  Invalid input now causes zero ADB commands, including read-only property calls.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; foreign/stale/
+    extra-permission/mode/package-gate failures each leave the ADB command log
+    completely empty.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 253/253 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 253/253 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Local preflight can take longer before reporting device
+  availability because native libraries are inspected first; no device state is
+  touched during that time.
+- Real-device validation still required: Run the current-APK smoke and confirm
+  the first ADB interaction occurs only after local preflight completes.
+
 ## 77 — Gate complete APK packaging before device changes
 
 - Branch: `nightly/android-phone-77-apk-package-preflight`

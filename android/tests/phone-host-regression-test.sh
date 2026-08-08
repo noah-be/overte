@@ -529,6 +529,8 @@ require_text tests/phone-device-test.sh 'check-phone-apk-16k[.]sh' \
     'device smoke runs the complete Phone package gate before installation'
 require_text tests/phone-device-test.sh 'PHONE_APK_PREFLIGHT' \
     'device smoke package gate is replaceable only for controlled host testing'
+require_text tests/phone-device-test.sh 'Do not query a connected device until every host-only artifact contract' \
+    'device smoke completes local APK validation before selecting a device'
 require_text tests/phone-device-test.sh 'PHONE_APK_ANALYZER' \
     'device smoke supports a controlled apkanalyzer path for host testing'
 require_text tests/phone-device-test.sh 'apk_sha256=%s' \

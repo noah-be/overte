@@ -161,7 +161,7 @@ if run_smoke "$test_root/wrong-package-report" env MOCK_APK_ID=example.unrelated
     exit 1
 fi
 grep -Fq 'APK application ID does not match the Phone package' "$test_root/wrong-package.out"
-! grep -q '^install ' "$test_root/adb-commands"
+[[ ! -s "$test_root/adb-commands" ]]
 
 mkdir "$test_root/old-apk-report"
 : >"$test_root/adb-commands"
@@ -171,7 +171,7 @@ if run_smoke "$test_root/old-apk-report" env MOCK_APK_TARGET_SDK=35 \
     exit 1
 fi
 grep -Fq 'APK SDK metadata does not match the Phone build contract' "$test_root/old-apk.out"
-! grep -q '^install ' "$test_root/adb-commands"
+[[ ! -s "$test_root/adb-commands" ]]
 
 mkdir "$test_root/extra-permission-report"
 : >"$test_root/adb-commands"
@@ -182,7 +182,7 @@ if run_smoke "$test_root/extra-permission-report" env MOCK_EXTRA_PERMISSION=1 \
 fi
 grep -Fq 'APK permissions do not match the minimal Phone allowlist' \
     "$test_root/extra-permission.out"
-! grep -q '^install ' "$test_root/adb-commands"
+[[ ! -s "$test_root/adb-commands" ]]
 
 mkdir "$test_root/debug-mode-report"
 : >"$test_root/adb-commands"
@@ -193,7 +193,7 @@ if run_smoke "$test_root/debug-mode-report" env PHONE_EXPECT_DEBUGGABLE=0 \
 fi
 grep -Fq 'APK debuggable state does not match the requested test mode' \
     "$test_root/debug-mode.out"
-! grep -q '^install ' "$test_root/adb-commands"
+[[ ! -s "$test_root/adb-commands" ]]
 
 mkdir "$test_root/package-preflight-report"
 : >"$test_root/adb-commands"
@@ -204,7 +204,7 @@ if run_smoke "$test_root/package-preflight-report" env MOCK_PREFLIGHT_FAILURE=1 
 fi
 grep -Fq 'APK failed the Phone content, ELF, alignment, or padding preflight' \
     "$test_root/package-preflight.out"
-! grep -q '^install ' "$test_root/adb-commands"
+[[ ! -s "$test_root/adb-commands" ]]
 
 mkdir "$test_root/emulator-report"
 : >"$test_root/adb-commands"

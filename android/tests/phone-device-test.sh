@@ -128,7 +128,6 @@ select_serial() {
     printf '%s\n' "${phones[0]}"
 }
 
-SERIAL="$(select_serial)"
 APK="${1:-$DEFAULT_APK}"
 [[ -f "$APK" ]] || die "APK not found: $APK"
 APK="$(realpath "$APK")"
@@ -166,6 +165,10 @@ if [[ -n "${PHONE_EXPECT_DEBUGGABLE:-}" ]]; then
 fi
 "$APK_PREFLIGHT" "$APK" >/dev/null 2>&1 || \
     die "APK failed the Phone content, ELF, alignment, or padding preflight"
+
+# Do not query a connected device until every host-only artifact contract has
+# passed. Invalid input must be side-effect free even at the ADB read level.
+SERIAL="$(select_serial)"
 
 if [[ -n "${PHONE_TEST_REPORT:-}" ]]; then
     REPORT_DIR="$(realpath "$PHONE_TEST_REPORT")"
