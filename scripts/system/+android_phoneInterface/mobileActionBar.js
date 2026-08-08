@@ -197,6 +197,11 @@
     function tabletVisibilityChanged() {
         var tabletShown = systemTablet.tabletShown;
         Controller.setVPadHidden(tabletShown);
+        if (tabletShown) {
+            Controller.captureTouchEvents();
+        } else {
+            Controller.releaseTouchEvents();
+        }
         if (navigationBar) {
             navigationBar.visible = !tabletShown;
         }
@@ -253,6 +258,7 @@
     Window.geometryChanged.connect(updateLayout);
     Window.geometryChanged.connect(resizeTablet);
     systemTablet.tabletShownChanged.connect(tabletVisibilityChanged);
+    tabletVisibilityChanged();
     // QML fragments also perform their initial placement in Component.onCompleted;
     // defer once so the phone-specific adaptive placement wins deterministically.
     Script.setTimeout(updateLayout, 0);
@@ -262,6 +268,7 @@
         Window.geometryChanged.disconnect(resizeTablet);
         systemTablet.tabletShownChanged.disconnect(tabletVisibilityChanged);
         Controller.setVPadHidden(false);
+        Controller.releaseTouchEvents();
         disconnectSignal(gotoButton, "clicked", showAddressBar);
         disconnectSignal(gotoButton, "entered", hapticFeedback);
         disconnectSignal(tabletButton, "clicked", showTablet);

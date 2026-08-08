@@ -69,12 +69,18 @@ require "$action_bar" 'systemTablet\.tabletShownChanged\.connect\(tabletVisibili
     'the action bar observes tablet visibility'
 require "$action_bar" 'Controller\.setVPadHidden\(tabletShown\)' \
     'the virtual pad cannot receive touches through the tablet'
+require "$action_bar" 'Controller\.captureTouchEvents\(\)' \
+    'the general touchscreen device cannot receive tablet drags as world input'
+require "$action_bar" 'Controller\.releaseTouchEvents\(\)' \
+    'closing the tablet releases the captured touchscreen input'
 require "$action_bar" 'navigationBar\.visible[[:space:]]*=[[:space:]]*!tabletShown' \
     'navigation controls do not overlay the open tablet'
 require "$action_bar" 'audioBar\.visible[[:space:]]*=[[:space:]]*!tabletShown' \
     'audio controls do not overlay the open tablet'
 require "$action_bar" 'Controller\.setVPadHidden\(false\)' \
     'script shutdown restores world touch controls'
+require "$action_bar" 'tabletVisibilityChanged\(\);' \
+    'script startup synchronizes controls with an already-visible tablet'
 require "$phone_defaults" '"system/audio[.]js"' \
     'the Android tablet registers the touch-compatible Audio app'
 require "$phone_defaults" '"system/settings/settings[.]js"' \
