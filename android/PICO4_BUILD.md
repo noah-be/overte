@@ -145,6 +145,10 @@ resolution** and takes effect after the prompted app restart. See
 [Pico 4 graphics optimization results](docs/power-tests/pico-graphics-optimization.md)
 for the controlled measurements and rejected alternatives.
 
+Restart arguments are stored once in app-private preferences before the old
+process exits. The exported launcher cannot accept raw command arguments from
+another application, and the internal Qt Activity is not exported.
+
 ## Sharing one headset between worktrees
 
 All tracked Pico device runners coordinate through an exclusive lock in the

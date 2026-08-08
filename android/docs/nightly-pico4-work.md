@@ -227,8 +227,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 13 — Tracked-controller availability
 
 - Branch: `nightly/pico4-13-openxr-tracked-controller-count`
-- Commit: identified by subject `Count valid Pico controller poses`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `fefc212f07` (`Count valid Pico controller poses`)
 - Change: reset the OpenXR tracked-controller count to zero each input update
   and increment it only for controller locations with a valid orientation.
   Missing sessions, sync failures, and total tracking loss no longer report two
@@ -243,6 +242,28 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Test zero, one, and two visible
   controllers, full tracking loss, session suspend/resume, and recovery; compare
   `HMD.isHandControllerAvailable()` and diagnostic poses with physical state.
+
+### 14 — Android restart argument isolation
+
+- Branch: `nightly/pico4-14-android-restart-arguments`
+- Commit: identified by subject `Protect Pico restart arguments`; the exact hash
+  is recorded by the following stacked task or final report.
+- Change: make the internal Qt Activity non-exported; move process-restart
+  arguments from an externally injectable Intent string to one-shot private app
+  preferences; stop logging the argument contents; abort restart if durable
+  private storage fails.
+- Regression: XML/Java contracts verify launcher/export boundaries, absence of
+  external string ingestion, private storage, one-shot removal, and redacted
+  restart logging.
+- Passed: Android entry-point regression (3); full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: the exported launcher remains required by Android/Pico OS, but it can
+  now request only consumption of app-generated state rather than supply raw
+  arguments. The private write uses synchronous commit because the process is
+  deliberately killed shortly afterward.
+- Pico 4 validation: **not executed**. Launch normally, change Pico render scale
+  to exercise process restart, verify arguments survive exactly once, then send
+  explicit external intents and confirm raw arguments cannot reach Qt.
 
 ## Deferred, rejected, or blocked ideas
 

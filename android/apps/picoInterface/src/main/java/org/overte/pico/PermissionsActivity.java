@@ -9,14 +9,15 @@ import android.text.TextUtils;
 
 public final class PermissionsActivity extends Activity {
     private static final int RECORD_AUDIO_REQUEST = 20;
-    private static final String EXTRA_ARGS = "args";
     private String applicationArguments;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_startup);
-        applicationArguments = getIntent().getStringExtra(EXTRA_ARGS);
+        applicationArguments = getIntent().getBooleanExtra(
+                RestartArguments.EXTRA_INTERNAL_RESTART, false)
+            ? RestartArguments.consume(this) : null;
 
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
                 == PackageManager.PERMISSION_GRANTED) {

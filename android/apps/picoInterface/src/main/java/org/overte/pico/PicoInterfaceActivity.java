@@ -60,11 +60,14 @@ public final class PicoInterfaceActivity extends QtActivity {
             Log.e(TAG, "Cannot restart: activity is unavailable");
             return;
         }
-        Log.i(TAG, "Scheduling application restart with arguments: "
-            + applicationArguments);
+        if (!RestartArguments.store(activity, applicationArguments)) {
+            Log.e(TAG, "Cannot restart: arguments could not be stored privately");
+            return;
+        }
+        Log.i(TAG, "Scheduling application restart");
 
         Intent restartIntent = new Intent(activity, PermissionsActivity.class);
-        restartIntent.putExtra("args", applicationArguments);
+        restartIntent.putExtra(RestartArguments.EXTRA_INTERNAL_RESTART, true);
         restartIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
             | Intent.FLAG_ACTIVITY_CLEAR_TASK);
 
