@@ -4,6 +4,28 @@ This file records the cumulative, device-free Android phone work based on
 `origin/feature/android-phone-support`. Real-device and emulator tests are out
 of scope for this worktree and are called out explicitly where still needed.
 
+## 16 — Declared QML metadata APK gate
+
+- Branch: `nightly/android-phone-16-qml-asset-gate`
+- Commit: `Require declared phone QML assets in APK gate` (this task's commit)
+- Change: Extend the final APK checker from native QML plugins to the
+  `bundled_in_assets` loader contract. Each declared module must contain its
+  packaged `qmldir` marker. Absolute/traversing paths, empty declarations, and
+  duplicate markers fail closed.
+- Tests:
+  - `android/tests/phone-apk-contents-test.sh`: **passed**, including twelve
+    independently omitted QML-module metadata fixtures in addition to all 25
+    native-runtime omissions, the general cached-asset fixture, and three
+    malformed/traversing/duplicate declaration fixtures.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 179/179 checks.
+  - `git diff --check`: **passed**.
+- Known risks: A `qmldir` marker proves module metadata presence, not that every
+  optional QML component is packaged. Native plugin presence, cached app assets,
+  ELF alignment, and real surface loading remain separate gates.
+- Real-device validation still required: **not executed**. Open all Settings,
+  dialog, graphical-effect, and native Phone QML surfaces from a clean install;
+  confirm no `module ... is not installed` or plugin-loader failure occurs.
+
 ## 15 — Declared QML runtime APK gate
 
 - Branch: `nightly/android-phone-15-qml-runtime-gate`

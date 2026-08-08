@@ -94,6 +94,10 @@ require_text tests/check-phone-apk-contents.py 'qt_dependencies[.]xml' \
     'APK completeness gate consumes the Qt runtime declaration'
 require_text tests/check-phone-apk-contents.py 'bundled_in_lib' \
     'APK completeness gate covers every declared native QML/plugin runtime'
+require_text tests/check-phone-apk-contents.py 'bundled_in_assets' \
+    'APK completeness gate covers every declared QML module asset'
+require_text tests/check-phone-apk-contents.py '"[.][.]" not in path[.]parts' \
+    'APK completeness gate rejects traversing Qt extraction declarations'
 
 require_text settings-phone.gradle \
     "include[[:space:]]+['\"]:phoneInterface['\"]" \

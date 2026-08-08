@@ -2,7 +2,7 @@
 
 import sys
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from xml.etree import ElementTree
 
 
@@ -23,6 +23,11 @@ DEPENDENCY_XML = (
 )
 
 
+def is_safe_relative_path(value):
+    path = PurePosixPath(value)
+    return value not in ("", ".") and not path.is_absolute() and ".." not in path.parts
+
+
 def declared_native_entries():
     root = ElementTree.parse(DEPENDENCY_XML).getroot()
     bundled = root.find("./string-array[@name='bundled_in_lib']")
@@ -35,7 +40,7 @@ def declared_native_entries():
         packaged_name, separator, runtime_path = declaration.partition(":")
         if (
             not separator
-            or not runtime_path
+            or not is_safe_relative_path(runtime_path)
             or packaged_name != Path(packaged_name).name
             or not packaged_name.endswith("_arm64-v8a.so")
         ):
@@ -53,12 +58,47 @@ def declared_native_entries():
     return entries
 
 
+def declared_asset_markers():
+    root = ElementTree.parse(DEPENDENCY_XML).getroot()
+    bundled = root.find("./string-array[@name='bundled_in_assets']")
+    if bundled is None:
+        raise ValueError("qt_dependencies.xml has no bundled_in_assets array")
+
+    entries = set()
+    for item in bundled.findall("item"):
+        declaration = (item.text or "").strip()
+        packaged_path, separator, runtime_path = declaration.partition(":")
+        path = PurePosixPath(packaged_path)
+        if (
+            not separator
+            or not is_safe_relative_path(packaged_path)
+            or not is_safe_relative_path(runtime_path)
+        ):
+            raise ValueError(
+                "invalid bundled asset dependency declaration: " + declaration
+            )
+        marker = path if path.name == "qmldir" else path / "qmldir"
+        archive_entry = "assets/" + marker.as_posix()
+        if archive_entry in entries:
+            raise ValueError(
+                "duplicate bundled asset dependency declaration: " + packaged_path
+            )
+        entries.add(archive_entry)
+    if not entries:
+        raise ValueError("qt_dependencies.xml declares no bundled QML assets")
+    return entries
+
+
 def main():
     if len(sys.argv) != 2:
         print("Usage: check-phone-apk-contents.py <apk>", file=sys.stderr)
         return 2
     try:
-        required_entries = BASE_REQUIRED_ENTRIES | declared_native_entries()
+        required_entries = (
+            BASE_REQUIRED_ENTRIES
+            | declared_native_entries()
+            | declared_asset_markers()
+        )
         with zipfile.ZipFile(sys.argv[1]) as archive:
             names = set(archive.namelist())
             missing = required_entries - names

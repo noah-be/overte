@@ -39,8 +39,9 @@ broad phone/GPU compatibility are outside this first milestone.
 The final APK content gate also requires every explicitly staged startup,
 network, image, audio, positioning, and QML plugin runtime. The QML/plugin set
 is read from `qt_dependencies.xml`, so adding a loader declaration cannot drift
-away from the archive gate. This catches incomplete incremental packages before
-an APK can fail later at launch or first use.
+away from the archive gate. Every declared QML module must also retain its
+`qmldir` metadata in the archive. This catches incomplete incremental packages
+before an APK can fail later at launch or first use.
 
 ## Requirements
 
