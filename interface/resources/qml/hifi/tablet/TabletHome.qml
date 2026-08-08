@@ -230,12 +230,13 @@ Item {
                         property bool containsMouse: false
 
                         anchors {
-                            fill: parent
-                            topMargin: presentation.verticalMargin
-                            leftMargin: presentation.horizontalMargin
-                            rightMargin: presentation.horizontalMargin
-                            bottomMargin: 0
+                            verticalCenter: parent.verticalCenter
+                            horizontalCenter: parent.horizontalCenter
                         }
+                        width: Math.min(parent.width - 2 * presentation.horizontalMargin,
+                            presentation.columns * (presentation.maximumButtonExtent + presentation.buttonSpacing))
+                        height: Math.min(parent.height - 2 * presentation.verticalMargin,
+                            rowCount * (presentation.maximumButtonExtent + presentation.buttonSpacing))
 
                         onCurrentIndexChanged: {
                             previousGridIndex = currentIndex
@@ -253,9 +254,10 @@ Item {
                             }
                         }
 
-                        property int rowCount: Math.ceil(TabletEnums.ButtonsOnPage / presentation.columns)
+                        property int rowCount: Math.max(1, Math.ceil(count / presentation.columns))
                         property real buttonExtent: Math.min(presentation.maximumButtonExtent,
-                            Math.max(1, Math.min(cellWidth - 12, cellHeight - 12)))
+                            Math.max(1, Math.min(cellWidth - presentation.buttonSpacing,
+                                cellHeight - presentation.buttonSpacing)))
 
                         cellWidth: width / presentation.columns
                         cellHeight: height / rowCount
@@ -290,6 +292,10 @@ Item {
                                 anchors.centerIn: parent
                                 width: gridView.buttonExtent
                                 height: gridView.buttonExtent
+                                iconExtent: presentation.touchOptimized
+                                    ? Math.min(260, gridView.buttonExtent * 0.72) : 50
+                                captionPixelSize: presentation.touchOptimized ? 32 : 18
+                                captionBottomMargin: presentation.touchOptimized ? 22 : 20
                                 hoverEnabled: !presentation.touchOptimized
                                 gridView: wrapper.GridView.view
                                 buttonIndex: page.proxyModel.buttonIndex(uuid);
