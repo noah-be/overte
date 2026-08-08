@@ -80,7 +80,7 @@ function grabbableData(label) {
 addFixture({
     name: "Pico 4 interaction test platform",
     type: "Box",
-    position: worldOffset({ x: 0, y: 0.75, z: -1.05 }),
+    position: worldOffset({ x: 2.0, y: 0.75, z: -1.05 }),
     rotation: avatarYaw,
     dimensions: { x: 1.6, y: 0.08, z: 1.5 },
     color: { red: 55, green: 55, blue: 60 },
@@ -93,7 +93,7 @@ addFixture({
 addFixture({
     name: "Pico 4 NEAR GRAB red cube",
     type: "Box",
-    position: worldOffset({ x: -0.32, y: 1.02, z: -0.62 }),
+    position: worldOffset({ x: 1.68, y: 1.02, z: -0.62 }),
     rotation: avatarYaw,
     dimensions: { x: 0.22, y: 0.22, z: 0.22 },
     color: { red: 235, green: 45, blue: 45 },
@@ -109,7 +109,7 @@ addFixture({
 addFixture({
     name: "Pico 4 FAR GRAB blue cube",
     type: "Box",
-    position: worldOffset({ x: 0.35, y: 1.12, z: -1.45 }),
+    position: worldOffset({ x: 2.35, y: 1.12, z: -1.45 }),
     rotation: avatarYaw,
     dimensions: { x: 0.32, y: 0.32, z: 0.32 },
     color: { red: 35, green: 105, blue: 245 },
@@ -125,7 +125,7 @@ addFixture({
 addFixture({
     name: "Pico 4 NOT GRABBABLE control cube",
     type: "Box",
-    position: worldOffset({ x: 0, y: 1.02, z: -0.95 }),
+    position: worldOffset({ x: 2.0, y: 1.02, z: -0.95 }),
     rotation: avatarYaw,
     dimensions: { x: 0.18, y: 0.18, z: 0.18 },
     color: { red: 235, green: 210, blue: 35 },
