@@ -3,6 +3,7 @@ set -euo pipefail
 
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly source_file="$script_dir/../../libraries/render-utils/src/RenderForwardTask.cpp"
+readonly fetch_file="$script_dir/../../libraries/render/src/render/RenderFetchCullSortTask.cpp"
 
 awk '
     /#if !defined\(ANDROID_APP_PHONE_INTERFACE\)/ { guarded = 1 }
@@ -50,6 +51,18 @@ awk '
     }
 ' "$source_file" || {
     echo 'FAIL: phone empty forward buckets still bind lighting resources' >&2
+    exit 1
+}
+
+awk '
+    /#if defined\(ANDROID_APP_PHONE_INTERFACE\)/ { guarded = 1 }
+    guarded && /const auto mirrors = filteredSpatialBuckets\[MIRROR_BUCKET\]/ { passthrough = 1 }
+    passthrough && /#else/ { alternate = 1 }
+    alternate && /"DepthSortMirrors"/ { non_phone_sort = 1 }
+    non_phone_sort && /#endif/ { closed = 1; exit }
+    END { exit !(guarded && passthrough && alternate && non_phone_sort && closed) }
+' "$fetch_file" || {
+    echo 'FAIL: phone still depth-sorts the unrendered mirror bucket' >&2
     exit 1
 }
 
