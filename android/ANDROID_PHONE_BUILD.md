@@ -241,7 +241,7 @@ app having a tablet button:
 | Surface | Device-free status | Remaining device validation |
 | --- | --- | --- |
 | Login | Screen-space QML, native IME fields, touch-sized entry, cancellable pending request, idempotent focus cleanup | IME resize and real account/domain authentication |
-| Settings | Local QML with selector-backed 250% host scaling; General Settings is fail-closed to Phone Navigation, touch-look sensitivity, and Privacy | Every retained subpage and numeric IME entry |
+| Settings | Local QML with selector-backed 250% host scaling; General Settings is fail-closed to Phone Navigation and touch-look sensitivity | Every retained subpage and numeric IME entry |
 | Audio | Local QML locked to the available non-HMD context | Device enumeration, sliders, mute and scrolling |
 | Menu | Local QML navigation | Each retained action and modal result |
 | Shield | Native privacy-radius action; closes the phone tablet after activation | Visible/audio feedback and repeated activation |

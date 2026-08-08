@@ -7,6 +7,8 @@ readonly repo_root="$(cd -- "$script_dir/../.." && pwd)"
 readonly phone_preferences="$repo_root/interface/resources/qml/hifi/tablet/+android_phoneInterface/TabletGeneralPreferences.qml"
 readonly shared_preferences="$repo_root/interface/resources/qml/hifi/tablet/TabletGeneralPreferences.qml"
 readonly preference_source="$repo_root/interface/src/ui/PreferencesDialog.cpp"
+readonly phone_gradle="$repo_root/android/apps/phoneInterface/build.gradle"
+readonly discord_stub="$repo_root/android/cmake-pico-modules/discord_rpc.h"
 
 require() {
     local file="$1" pattern="$2" description="$3"
@@ -27,12 +29,12 @@ reject() {
 }
 
 require "$phone_preferences" \
-    'showCategories:[[:space:]]*\["Navigation",[[:space:]]*"Mouse Sensitivity",[[:space:]]*"Privacy"\]' \
+    'showCategories:[[:space:]]*\["Navigation",[[:space:]]*"Mouse Sensitivity"\]' \
     'phone General Settings use an explicit reviewed category allowlist'
 reject "$phone_preferences" \
-    'showCategories:.*"(User Interface|HMD|Snapshots|Plugins)"' \
-    'phone General Settings exclude desktop, VR, filesystem, and Oculus categories'
-require "$phone_preferences" 'Hidden individual preferences are still loaded and saved' \
+    'showCategories:.*"(User Interface|HMD|Snapshots|Privacy|Plugins)"' \
+    'phone General Settings exclude incomplete, desktop, VR, filesystem, and Oculus categories'
+require "$phone_preferences" 'Hidden individual' \
     'phone filtering documents why whole unsupported categories are excluded'
 
 require "$preference_source" '#if defined\(ANDROID_APP_PHONE_INTERFACE\)' \
@@ -41,6 +43,12 @@ require "$preference_source" '"android/phone/pinchZoomEnabled"' \
     'phone Navigation retains the touch-specific pinch setting'
 require "$preference_source" 'static const QString AVATAR_CAMERA\{ "Mouse Sensitivity" \}' \
     'touch look sensitivity retains its shared runtime category'
+require "$phone_gradle" 'USE_BREAKPAD=OFF' \
+    'phone build keeps crash reporting disabled'
+require "$discord_stub" 'static inline void Discord_UpdatePresence' \
+    'phone build resolves Discord presence to its Android no-op stub'
+require "$phone_preferences" 'Privacy includes crash reporting and Discord controls' \
+    'phone selector documents why the incomplete Privacy category is excluded'
 
 require "$shared_preferences" \
     'showCategories:.*"User Interface".*"HMD".*"Snapshots".*"Plugins"' \

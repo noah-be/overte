@@ -48,6 +48,31 @@ of scope for this worktree and are called out explicitly where still needed.
 - Real-device validation still required: **not required for this wrapper-only
   change; not executed**.
 
+## 11 — Remove inactive Phone Privacy controls
+
+- Branch: `nightly/android-phone-11-settings-privacy`
+- Commit: `Remove inactive phone privacy settings` (this task's commit)
+- Change: Remove the shared Privacy category from Phone General Settings. Its
+  crash toggle cannot work with the Phone target's `USE_BREAKPAD=OFF`, and its
+  Discord toggle resolves to the Android no-op stub. Phone now exposes only
+  complete Navigation and touch-look sensitivity categories; other clients are
+  unchanged.
+- Tests:
+  - `android/tests/phone-tablet-general-preferences-test.sh`: passed (10
+    contract checks).
+  - `android/tests/phone-tablet-static-test.sh`: passed (174 checks plus
+    focused tablet suites).
+  - `android/tests/phone-static-regression-test.sh`: passed (34 explicitly
+    device-free suites).
+  - `git diff --check`: passed.
+- Known risks: The generic activity-data preference is hidden together with
+  its two inactive category siblings because individual hidden controls are
+  still loaded/saved by the shared dialog. Reintroducing it safely requires a
+  Phone-specific complete category or per-preference construction filter.
+- Real-device validation still required: **not executed**. Confirm General
+  Settings shows exactly Navigation and Mouse Sensitivity, saves/cancels both,
+  scrolls correctly, and exposes no crash or Discord controls.
+
 ## 10 — Places navigation input and log privacy
 
 - Branch: `nightly/android-phone-10-deep-link-audit`

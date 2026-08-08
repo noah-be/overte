@@ -39,10 +39,11 @@ Settings startup script is deliberately not loaded as well, avoiding duplicate
 Settings buttons and mutable QML button-proxy updates.
 
 Phone General Settings now uses a fail-closed category allowlist. It retains
-phone pinch navigation, touch-look X/Y sensitivity, and privacy controls while
-excluding the shared categories that still contain desktop toolbar/tablet,
-desktop filesystem, HMD, VR laser/keyboard, and Oculus-only controls. Desktop,
-Pico, and other VR clients retain their established categories.
+phone pinch navigation and touch-look X/Y sensitivity while excluding the
+shared categories that still contain desktop toolbar/tablet, desktop
+filesystem, HMD, VR laser/keyboard, Oculus-only, disabled crash-reporting, or
+no-op Discord controls. Desktop, Pico, and other VR clients retain their
+established categories.
 
 The combined tablet and touch-navigation host regression suites pass. The
 incremental phone build, APK gates, and focused manual integration checks are

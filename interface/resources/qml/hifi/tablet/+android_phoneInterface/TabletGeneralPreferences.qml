@@ -33,9 +33,10 @@ StackView {
         // Keep this fail-closed. The shared User Interface category still
         // contains desktop toolbar/tablet and VR laser/keyboard controls;
         // Snapshots exposes a desktop directory picker; HMD and Plugins are
-        // VR-only. Hidden individual preferences are still loaded and saved by
-        // TabletPreferencesDialog, so only admit categories whose complete
-        // contract is meaningful on the phone.
-        showCategories: ["Navigation", "Mouse Sensitivity", "Privacy"]
+        // VR-only. Privacy includes crash reporting and Discord controls that
+        // are compiled as no-ops in the phone target. Hidden individual
+        // preferences are still loaded and saved by TabletPreferencesDialog,
+        // so only admit categories whose complete contract is meaningful.
+        showCategories: ["Navigation", "Mouse Sensitivity"]
     }
 }
