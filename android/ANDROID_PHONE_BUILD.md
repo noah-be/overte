@@ -235,6 +235,40 @@ app having a tablet button:
 Users, Emote, More, VR tablet positioning, and other remote-web/VR-only tablet
 scripts remain disabled until they have an equally explicit phone contract.
 
+### Tablet device-validation status
+
+A focused phone spot check on 2026-08-08 confirmed that the tablet launcher and
+the currently enabled applications open, and that the Audio and Avatar views
+render after the incremental QML resource-regeneration fix. This is an
+integration observation, not release coverage. The following checks remain
+required before the tablet application set and login workflow can be treated as
+fully validated:
+
+- Login success, invalid credentials, cancellation, Android Back, IME resize,
+  and focus release against a real account and online domain.
+- Audio device enumeration, microphone mute, push-to-talk, every slider,
+  scrolling, and repeated open/Back/reopen behavior with active audio.
+- Avatar list/header spacing at supported phone sizes, hidden phone-only HMD
+  and dominant-hand controls, Save/Cancel placement and behavior, bookmarks,
+  wearables, malformed content, and failure feedback.
+- Places directory loading, refresh, slow/offline/error responses, federation
+  selection, long-list scrolling, and navigation to multiple real online
+  destinations.
+- People presence and selection with multiple live avatars, audio levels,
+  domain changes, server-backed actions, and teardown after Back or disconnect.
+- Menu action coverage, including confirmation that the legacy General Settings
+  dialog stays unavailable while the dedicated tablet Settings app remains
+  usable.
+- Cross-app lifecycle coverage: repeated open, Android Back to tablet Home,
+  close, background/foreground, reconnect, IME teardown, and restoration of
+  world and mobile controls.
+- Broader hardware coverage on at least one Adreno and one Mali phone, including
+  unusual DPI/cutout layouts and sustained performance.
+
+Do not interpret a successful launch, one visual pass, or the static contract
+suite as completing any of these runtime checks. Record only aggregate,
+non-identifying results; keep screenshots and raw logs private and temporary.
+
 Run the device-free tablet contract checks with:
 
 ```bash
