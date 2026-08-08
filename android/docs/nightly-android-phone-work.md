@@ -4,6 +4,28 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 47 — Reject ambiguous or multi-ABI Phone APKs
+
+- Branch: `nightly/android-phone-47-apk-archive-uniqueness`
+- Commit: `Reject ambiguous phone APK entries` (this task's commit)
+- Change: Inspect raw ZIP names before set conversion and fail on duplicates,
+  preventing archive/loader ambiguity. Reject every native entry outside
+  `lib/arm64-v8a/`, enforcing the Gradle ARM64-only contract against stale or
+  injected multi-ABI package output.
+- Tests:
+  - `android/tests/phone-apk-contents-test.sh`: **passed**, including explicit
+    duplicate-entry and unexpected-x86_64 fixtures plus all completeness cases.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 194/194 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/APK suites and 194/194 host checks.
+  - Python syntax and `git diff --check`: **passed**.
+- Known risks: Non-native archive paths remain allowed unless governed by their
+  specific resource/cache contracts; Android signing verification is outside
+  this unsigned local package-content gate.
+- Real-device validation still required: **none specific**. The cumulative
+  gated APK still needs install/start tests on ARM64 phones; archive rejection
+  is completely covered by host fixtures.
+
 ## 46 — Require core native APK runtimes
 
 - Branch: `nightly/android-phone-46-apk-core-runtimes`

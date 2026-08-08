@@ -44,6 +44,7 @@ PY
 python3 - "$fixture_dir" "$script_dir/../apps/phoneInterface/src/main/res/values/qt_dependencies.xml" <<'PY'
 import pathlib
 import sys
+import warnings
 import zipfile
 from xml.etree import ElementTree
 
@@ -94,6 +95,20 @@ with zipfile.ZipFile(root / 'content-digest.apk', 'w') as archive:
     for entry, data in required.items():
         archive.writestr(entry, data)
 
+with zipfile.ZipFile(root / 'unexpected-abi.apk', 'w') as archive:
+    archive.writestr('assets/cache_assets.txt', '123\nkept.txt\n')
+    for entry, data in required.items():
+        archive.writestr(entry, data)
+    archive.writestr('lib/x86_64/libstale.so', b'stale')
+
+with warnings.catch_warnings():
+    warnings.simplefilter('ignore', UserWarning)
+    with zipfile.ZipFile(root / 'duplicate-entry.apk', 'w') as archive:
+        archive.writestr('assets/cache_assets.txt', '123\nkept.txt\n')
+        for entry, data in required.items():
+            archive.writestr(entry, data)
+        archive.writestr('assets/kept.txt', b'duplicate')
+
 invalid_manifests = {
     'cache-traversal.apk': '123\n../escape\n',
     'cache-absolute.apk': '123\n/escape\n',
@@ -133,6 +148,14 @@ PY
 
 "$checker" "$fixture_dir/complete.apk" >/dev/null
 "$checker" "$fixture_dir/content-digest.apk" >/dev/null
+for fixture in unexpected-abi.apk duplicate-entry.apk; do
+    if "$checker" "$fixture_dir/$fixture" >"$fixture_dir/archive-out" 2>&1; then
+        printf 'FAIL: invalid APK archive structure was accepted: %s\n' "$fixture" >&2
+        exit 1
+    fi
+done
+grep -Fq 'outside arm64-v8a' "$fixture_dir/archive-out" || \
+    grep -Fq 'duplicate ZIP entry names' "$fixture_dir/archive-out"
 if "$checker" "$fixture_dir/partial.apk" >"$fixture_dir/out" 2>&1; then
     echo 'FAIL: incomplete APK fixture was accepted' >&2
     exit 1

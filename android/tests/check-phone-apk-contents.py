@@ -104,7 +104,19 @@ def main():
             | declared_asset_markers()
         )
         with zipfile.ZipFile(sys.argv[1]) as archive:
-            names = set(archive.namelist())
+            archive_names = archive.namelist()
+            names = set(archive_names)
+            if len(archive_names) != len(names):
+                raise ValueError("APK contains duplicate ZIP entry names")
+            unexpected_native_abis = sorted(
+                name for name in names
+                if name.startswith("lib/") and not name.startswith("lib/arm64-v8a/")
+            )
+            if unexpected_native_abis:
+                raise ValueError(
+                    "APK contains native entries outside arm64-v8a: "
+                    + ", ".join(unexpected_native_abis[:5])
+                )
             missing = required_entries - names
             if missing:
                 raise ValueError("missing required entries: " + ", ".join(sorted(missing)))
