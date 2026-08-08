@@ -55,3 +55,21 @@ of scope for this worktree and are called out explicitly where still needed.
   retained sections render, scroll, save/cancel correctly, and that pinch and
   X/Y sensitivity changes affect touch navigation after restart. Confirm each
   Privacy toggle has the expected Android behavior.
+
+## 03 — Working-directory-independent static gate
+
+- Branch: `nightly/android-phone-03-static-gate-cwd`
+- Commit: `Fix modern Android test working directory` (this task's commit)
+- Change: Resolve all remaining Modern Android API test inputs from its
+  normalized repository root. This makes the test itself and the aggregate
+  tablet static gate independent of the caller's working directory.
+- Tests:
+  - `android/tests/phone-modern-android-api-test.sh`: **passed**, 15 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet suites, JavaScript syntax checks, and 174/174 host checks.
+  - Absolute aggregate-gate invocation from `/tmp`: **passed** with the same
+    complete result.
+  - `git diff --check`: **passed**.
+- Known risks: None in runtime code; this changes only source-test paths.
+- Real-device validation still required: **not required for this test-only
+  change; not executed**.

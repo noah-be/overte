@@ -37,13 +37,13 @@ require "$phone_activity" 'void onConfigurationChanged\(Configuration newConfig\
     'Qt surface bounds are refreshed after Android orientation changes'
 require "$phone_activity" 'window\.setLayout\(' \
     'phone activity explicitly fills the complete display window'
-require apps/phoneInterface/src/main/java/org/qtproject/qt5/android/QtLayout.java \
+require "$repo_root/android/apps/phoneInterface/src/main/java/org/qtproject/qt5/android/QtLayout.java" \
     'postDelayed\(\(\) -> QtNative\.setApplicationDisplayMetrics' \
     'phone reapplies real metrics after Qt replaces its fallback screen'
-require apps/phoneInterface/build.gradle \
+require "$repo_root/android/apps/phoneInterface/build.gradle" \
     "exclude 'org/qtproject/qt5/android/QtLayout.class'" \
     'phone packaging replaces only the bundled QtLayout implementation'
-require apps/phoneInterface/src/main/java/org/qtproject/qt5/android/QtLayout.java \
+require "$repo_root/android/apps/phoneInterface/src/main/java/org/qtproject/qt5/android/QtLayout.java" \
     '\(applicationWidth > applicationHeight\).*\(maximumWidth > maximumHeight\)' \
     'Qt current and maximum metrics share the requested orientation'
 
