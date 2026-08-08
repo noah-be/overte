@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 51 — Record device-test APK provenance
+
+- Branch: `nightly/android-phone-51-device-apk-provenance`
+- Commit: `Record phone device test APK digest` (this task's commit)
+- Change: Hash the exact resolved APK before installation, validate a lowercase
+  64-digit SHA-256, and write only that digest plus package name to the external
+  device-test summary. Future results can be tied to an artifact without
+  exposing local paths, device identifiers, or raw logs.
+- Tests:
+  - `bash -n android/tests/phone-device-test.sh`: **passed**.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 202/202 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/APK suites and 202/202 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: SHA-256 identifies content but does not establish signer trust;
+  release signing/provenance remains an external pipeline responsibility.
+- Real-device validation still required: **not executed for this task** because
+  no current APK exists. On the next current-build run, confirm the summary
+  digest matches the locally gated APK before accepting device results.
+
 ## 50 — Synchronize Phone startup scripts and APK gate
 
 - Branch: `nightly/android-phone-50-default-script-sync`

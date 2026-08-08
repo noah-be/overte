@@ -471,6 +471,10 @@ require_text phone-device-lock.sh 'PHONE_DEVICE_LOCK_HELD=1' \
     'phone device lock marks protected child operations'
 require_text tests/phone-device-test.sh 'phone-device-lock[.]sh.*run' \
     'device smoke test automatically acquires the shared phone lock'
+require_text tests/phone-device-test.sh 'sha256sum -- "\$APK"' \
+    'device smoke test identifies the exact installed APK by content'
+require_text tests/phone-device-test.sh 'apk_sha256=%s' \
+    'device smoke summary records APK provenance without a local path'
 require_text tests/phone-graphics-benchmark.sh 'phone-device-lock[.]sh.*run' \
     'graphics benchmark automatically acquires the shared phone lock'
 require_text phone-build-resource-guard.sh 'OVERTE_PHONE_MIN_SWAP_BYTES=32000000000' \

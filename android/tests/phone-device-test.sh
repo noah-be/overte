@@ -87,6 +87,9 @@ SERIAL="$(select_serial)"
 APK="${1:-$DEFAULT_APK}"
 [[ -f "$APK" ]] || die "APK not found: $APK"
 APK="$(realpath "$APK")"
+command -v sha256sum >/dev/null 2>&1 || die "sha256sum was not found"
+APK_SHA256="$(sha256sum -- "$APK" | awk '{ print $1 }')"
+[[ "$APK_SHA256" =~ ^[0-9a-f]{64}$ ]] || die "could not identify the APK by SHA-256"
 
 if [[ -n "${PHONE_TEST_REPORT:-}" ]]; then
     REPORT_DIR="$(realpath "$PHONE_TEST_REPORT")"
@@ -102,7 +105,7 @@ fi
 
 readonly SUMMARY="$REPORT_DIR/summary.txt"
 readonly TEST_DEEP_LINK="overte://localhost"
-printf 'package=%s\n' "$PACKAGE" | tee "$SUMMARY"
+printf 'package=%s\napk_sha256=%s\n' "$PACKAGE" "$APK_SHA256" | tee "$SUMMARY"
 
 current_pid() {
     adb_for shell pidof -s "$PACKAGE" 2>/dev/null | tr -d '\r' || true
