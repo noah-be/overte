@@ -96,6 +96,14 @@ require_text tests/check-phone-apk-contents.py 'bundled_in_lib' \
     'APK completeness gate covers every declared native QML/plugin runtime'
 require_text tests/check-phone-apk-contents.py 'bundled_in_assets' \
     'APK completeness gate covers every declared QML module asset'
+require_text tests/check-phone-apk-contents.py 'libc[+][+]_shared[.]so' \
+    'APK completeness gate requires the native C++ runtime'
+require_text tests/check-phone-apk-contents.py 'libQt5Core_arm64-v8a[.]so' \
+    'APK completeness gate requires the Qt Core runtime'
+require_text tests/check-phone-apk-contents.py 'libQt5Qml_arm64-v8a[.]so' \
+    'APK completeness gate requires the Qt QML runtime'
+require_text tests/check-phone-apk-contents.py 'libQt5Quick_arm64-v8a[.]so' \
+    'APK completeness gate requires the Qt Quick runtime'
 require_text tests/check-phone-apk-contents.py '"[.][.]" not in path[.]parts' \
     'APK completeness gate rejects traversing Qt extraction declarations'
 require_text libraries/qt/src/main/java/io/highfidelity/utils/HifiUtils.java \

@@ -4,6 +4,29 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 46 — Require core native APK runtimes
+
+- Branch: `nightly/android-phone-46-apk-core-runtimes`
+- Commit: `Require core phone APK runtimes` (this task's commit)
+- Change: Extend the final APK completeness gate to require `libc++_shared.so`
+  and the Qt Core, QML, and Quick ARM64 libraries in addition to the app,
+  OpenSSL, PositioningQuick, and every declared plugin. Incremental/stale APKs
+  missing a fundamental loader dependency now fail before install.
+- Tests:
+  - `android/tests/phone-apk-contents-test.sh`: **passed**, with a generated
+    omission fixture for every base/declaration runtime including all four new
+    entries, plus QML/cache failure fixtures.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 192/192 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/APK suites and 192/192 host checks.
+  - Python syntax and `git diff --check`: **passed**.
+- Known risks: This is a reviewed start-critical subset, not a general ELF
+  `DT_NEEDED` resolver; Android system libraries and preloaded versioned OpenSSL
+  SONAMEs make such a resolver a separate task.
+- Real-device validation still required: **not executed for this task**. Install
+  the gated APK on API 26 and current API devices, cold-start before/after OS
+  reboot, and confirm no linker/Qt loader error using PID-filtered aggregates.
+
 ## 45 — Validate People success payloads
 
 - Branch: `nightly/android-phone-45-people-payload-validation`
