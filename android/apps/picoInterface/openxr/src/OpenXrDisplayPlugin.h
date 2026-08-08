@@ -17,6 +17,7 @@
 class OpenXrDisplayPlugin : public HmdDisplayPlugin {
 public:
     OpenXrDisplayPlugin(std::shared_ptr<OpenXrContext> c);
+    ~OpenXrDisplayPlugin() override;
     bool isSupported() const override;
     const QString getName() const override;
     QString getPreferredAudioInDevice() const override;

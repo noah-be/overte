@@ -345,6 +345,21 @@ class PicoOpenXRDisplayTests(unittest.TestCase):
         self.assertIn("_isSessionRunning = false", cleanup)
         self.assertIn("_shouldRunFrameCycle = false", cleanup)
 
+    def test_display_destructor_has_idempotent_swapchain_fallback(self):
+        start = SOURCE.index("OpenXrDisplayPlugin::~OpenXrDisplayPlugin()")
+        end = SOURCE.index("bool OpenXrDisplayPlugin::isSupported", start)
+        destructor = SOURCE[start:end]
+        self.assertIn("destroySwapChains();", destructor)
+        self.assertIn("~OpenXrDisplayPlugin() override", HEADER)
+
+        destroy_start = SOURCE.index("void OpenXrDisplayPlugin::destroySwapChains()")
+        destroy_end = SOURCE.index("bool OpenXrDisplayPlugin::initLayers", destroy_start)
+        destroy = SOURCE[destroy_start:destroy_end]
+        self.assertIn("_foveationProfile != XR_NULL_HANDLE", destroy)
+        self.assertIn("_foveationProfile = XR_NULL_HANDLE", destroy)
+        self.assertIn("swapchain != XR_NULL_HANDLE", destroy)
+        self.assertIn("swapchain = XR_NULL_HANDLE", destroy)
+
 
 if __name__ == "__main__":
     unittest.main()

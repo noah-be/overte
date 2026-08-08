@@ -98,6 +98,12 @@ OpenXrDisplayPlugin::OpenXrDisplayPlugin(std::shared_ptr<OpenXrContext> c) {
     _context = c;
 }
 
+OpenXrDisplayPlugin::~OpenXrDisplayPlugin() {
+    // uncustomizeContext normally owns this cleanup. Keep destruction safe for
+    // partial activation and shutdown paths that never reach uncustomization.
+    destroySwapChains();
+}
+
 bool OpenXrDisplayPlugin::isSupported() const {
     return _context->_isValid && _context->_isSupported;
 }

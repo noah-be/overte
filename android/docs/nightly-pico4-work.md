@@ -1530,8 +1530,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 84 — Deferred parent-session destruction
 
 - Branch: `nightly/pico4-84-openxr-deferred-session-cleanup`
-- Commit: identified by subject `Defer Pico OpenXR session destruction`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `cddefe764b` (`Defer Pico OpenXR session destruction`)
 - Change: on `LOSS_PENDING`/`EXITING`, immediately publish quit, non-rendering,
   invalid and non-running state but retain the Session handle for ordered owner
   teardown. The event handler no longer destroys the parent while swapchains,
@@ -1545,6 +1544,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Inject LOSS_PENDING and EXITING with live
   swapchains/controllers/hands; verify no further use, child-before-parent
   destruction under validation, bounded quit and clean next-process startup.
+
+### 85 — Display swapchain destructor fallback
+
+- Branch: `nightly/pico4-85-openxr-display-cleanup`
+- Commit: identified by subject `Add Pico OpenXR display cleanup fallback`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: add an idempotent OpenXR display-plugin destructor that invokes the
+  existing centralized foveation-profile/swapchain cleanup. Partial activation
+  or shutdown paths that never reach `uncustomizeContext()` can no longer leave
+  live display children for parent Session destruction.
+- Regression: display contracts require the destructor fallback and confirm the
+  shared cleanup null-checks and invalidates both profile and swapchain handles.
+- Passed: 23 OpenXR display/context lifecycle contracts; `git diff --check`.
+- Risk: normal uncustomization invokes the same cleanup first, making destructor
+  fallback a no-op; runtime errors are logged and handles remain retired.
+- Pico 4 validation: **not executed**. Abort during view/swapchain/foveation and
+  layer initialization, then quit after normal rendering; verify one destruction
+  per published child, no validation leaks and Session destruction occurs last.
 
 ## Deferred, rejected, or blocked ideas
 
