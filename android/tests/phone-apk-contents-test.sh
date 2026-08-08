@@ -85,6 +85,19 @@ for name, omit in [('complete.apk', None), ('partial.apk', 'assets/kept.txt')]:
             if entry != omit:
                 archive.writestr(entry, data)
 
+invalid_manifests = {
+    'cache-traversal.apk': '123\n../escape\n',
+    'cache-absolute.apk': '123\n/escape\n',
+    'cache-duplicate.apk': '123\nkept.txt\nkept.txt\n',
+    'cache-nonascii-stamp.apk': '\u0661\nkept.txt\n',
+    'cache-oversized-stamp.apk': '12345678901234567890\nkept.txt\n',
+}
+for name, manifest in invalid_manifests.items():
+    with zipfile.ZipFile(root / name, 'w') as archive:
+        archive.writestr('assets/cache_assets.txt', manifest)
+        for entry, data in required.items():
+            archive.writestr(entry, data)
+
 native_entries = sorted(entry for entry in required if entry.startswith('lib/'))
 with (root / 'native-fixtures.txt').open('w', encoding='utf-8') as fixture_list:
     for index, omitted in enumerate(native_entries):
@@ -113,6 +126,18 @@ if "$checker" "$fixture_dir/partial.apk" >"$fixture_dir/out" 2>&1; then
     exit 1
 fi
 grep -q '1 cache assets are absent' "$fixture_dir/out"
+
+for fixture in \
+        cache-traversal.apk \
+        cache-absolute.apk \
+        cache-duplicate.apk \
+        cache-nonascii-stamp.apk \
+        cache-oversized-stamp.apk; do
+    if "$checker" "$fixture_dir/$fixture" >"$fixture_dir/cache-out" 2>&1; then
+        printf 'FAIL: unsafe cache manifest was accepted: %s\n' "$fixture" >&2
+        exit 1
+    fi
+done
 
 while IFS=$'\t' read -r fixture omitted; do
     if "$checker" "$fixture" >"$fixture_dir/native-out" 2>&1; then

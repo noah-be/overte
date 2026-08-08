@@ -43,6 +43,11 @@ away from the archive gate. Every declared QML module must also retain its
 `qmldir` metadata in the archive. This catches incomplete incremental packages
 before an APK can fail later at launch or first use.
 
+The generated `cache_assets.txt` extraction manifest is also treated as an
+untrusted package boundary: timestamps must be bounded ASCII integers, asset
+paths must be unique and relative, and Java canonicalizes every destination
+below the application cache before writing it.
+
 ## Requirements
 
 The phone build currently shares the Pico Android dependency set and therefore

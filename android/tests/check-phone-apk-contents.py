@@ -106,9 +106,19 @@ def main():
                 raise ValueError("missing required entries: " + ", ".join(sorted(missing)))
 
             cache_lines = archive.read("assets/cache_assets.txt").decode("utf-8").splitlines()
-            if len(cache_lines) < 2 or not cache_lines[0].isdigit():
+            if (
+                len(cache_lines) < 2
+                or not cache_lines[0].isascii()
+                or not cache_lines[0].isdigit()
+                or len(cache_lines[0]) > 19
+            ):
                 raise ValueError("invalid cache_assets.txt header")
-            declared_assets = {"assets/" + line for line in cache_lines[1:] if line}
+            cache_paths = cache_lines[1:]
+            if any(not is_safe_relative_path(path) for path in cache_paths):
+                raise ValueError("cache_assets.txt contains an unsafe asset path")
+            if len(cache_paths) != len(set(cache_paths)):
+                raise ValueError("cache_assets.txt contains a duplicate asset path")
+            declared_assets = {"assets/" + path for path in cache_paths}
             missing_assets = declared_assets - names
             if missing_assets:
                 preview = ", ".join(sorted(missing_assets)[:5])

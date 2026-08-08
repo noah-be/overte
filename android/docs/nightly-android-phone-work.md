@@ -4,6 +4,31 @@ This file records the cumulative, device-free Android phone work based on
 `origin/feature/android-phone-support`. Real-device and emulator tests are out
 of scope for this worktree and are called out explicitly where still needed.
 
+## 17 — Safe cached-asset extraction
+
+- Branch: `nightly/android-phone-17-cache-manifest-gate`
+- Commit: `Harden phone cached asset extraction` (this task's commit)
+- Change: Validate the generated `cache_assets.txt` as a fail-closed archive
+  manifest and harden the shared Android extractor used by Phone. Cache stamps
+  must be bounded ASCII integers; asset entries must be unique safe relative
+  paths. Java resolves the cache root and every target canonically and refuses
+  any destination outside the app-private cache before creating or replacing a
+  file.
+- Tests:
+  - `android/tests/phone-apk-contents-test.sh`: **passed**, including traversal,
+    absolute-path, duplicate-entry, Unicode-digit, and oversized-stamp fixtures.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 181/181 checks,
+    including canonical-root and containment contracts for `HifiUtils`.
+  - `git diff --check`: **passed**.
+- Known risks: The runtime extractor is shared Android code because Phone calls
+  it directly; other Android clients receive the same path validation without
+  changes to their branches or product-specific files. Archive verification
+  remains the first line of defense for Phone builds.
+- Real-device validation still required: **not executed**. Install twice from
+  clean and warm app cache, confirm assets extract once and are reused, then
+  install a newer APK and confirm its new timestamp refreshes assets without a
+  startup exception.
+
 ## 16 — Declared QML metadata APK gate
 
 - Branch: `nightly/android-phone-16-qml-asset-gate`

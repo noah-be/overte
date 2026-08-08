@@ -98,6 +98,12 @@ require_text tests/check-phone-apk-contents.py 'bundled_in_assets' \
     'APK completeness gate covers every declared QML module asset'
 require_text tests/check-phone-apk-contents.py '"[.][.]" not in path[.]parts' \
     'APK completeness gate rejects traversing Qt extraction declarations'
+require_text libraries/qt/src/main/java/io/highfidelity/utils/HifiUtils.java \
+    'getCanonicalFile\(\)' \
+    'Android cached-asset extraction canonicalizes its destination root and files'
+require_text libraries/qt/src/main/java/io/highfidelity/utils/HifiUtils.java \
+    'destination[.]getPath\(\)[.]startsWith\(rootPrefix\)' \
+    'Android cached-asset extraction rejects destinations outside app cache'
 
 require_text settings-phone.gradle \
     "include[[:space:]]+['\"]:phoneInterface['\"]" \
