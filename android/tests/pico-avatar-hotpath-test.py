@@ -14,6 +14,7 @@ ENTITY_RENDERER = (ROOT / "libraries/entities-renderer/src/EntityTreeRenderer.cp
 PICK = (ROOT / "libraries/pointers/src/Pick.cpp").read_text(encoding="utf-8")
 PICK_MANAGER = (ROOT / "libraries/pointers/src/PickManager.cpp").read_text(encoding="utf-8")
 POINTER = (ROOT / "libraries/pointers/src/Pointer.cpp").read_text(encoding="utf-8")
+APPLICATION = (ROOT / "interface/src/Application.cpp").read_text(encoding="utf-8")
 
 
 class PicoAvatarHotpathTests(unittest.TestCase):
@@ -85,6 +86,20 @@ class PicoAvatarHotpathTests(unittest.TestCase):
         self.assertIn("usecTimestampNow() + _perFrameTimeBudget", PICK_MANAGER)
         self.assertIn("if (updateRaysThisFrame)", PICK_MANAGER)
         self.assertIn("_prevResult = pickResult;", PICK)
+
+    def test_application_stage_profiler_is_not_always_on(self):
+        self.assertNotIn("PICO_UPDATE_STAGES", APPLICATION)
+        self.assertNotIn("PicoUpdateStats", APPLICATION)
+        self.assertNotIn("picoAfterInputPlugins", APPLICATION)
+        self.assertNotIn("picoBeforeEntityUpdate", APPLICATION)
+
+    def test_application_pico_state_clock_and_update_paths_remain(self):
+        self.assertIn("const quint64 picoUpdateStart = usecTimestampNow();", APPLICATION)
+        self.assertIn("DependencyManager::get<PickManager>()->update();", APPLICATION)
+        self.assertIn("DependencyManager::get<PointerManager>()->update();", APPLICATION)
+        self.assertIn("getEntities()->update(true);", APPLICATION)
+        self.assertIn("avatarManager->updateMyAvatar(deltaTime);", APPLICATION)
+        self.assertIn("updateRenderArgs(deltaTime);", APPLICATION)
 
 
 if __name__ == "__main__":

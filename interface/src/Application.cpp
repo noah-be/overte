@@ -2750,29 +2750,6 @@ void Application::update(float deltaTime) {
             }
         }
     }
-    quint64 picoAfterDevices = picoUpdateStart;
-    quint64 picoAfterTestProperties = usecTimestampNow();
-    quint64 picoAfterWorldLoading = picoUpdateStart;
-    quint64 picoAfterLoadingHandoff = picoUpdateStart;
-    quint64 picoAfterMouseCapture = picoUpdateStart;
-    quint64 picoBeforeInputPlugins = picoUpdateStart;
-    quint64 picoAfterInputPlugins = picoUpdateStart;
-    quint64 picoAfterInputMapper = picoUpdateStart;
-    quint64 picoAfterDriveKeys = picoUpdateStart;
-    quint64 picoBeforePick = picoUpdateStart;
-    quint64 picoAfterPick = picoUpdateStart;
-    quint64 picoAfterPointer = picoUpdateStart;
-    quint64 picoAfterSimulationSetup = picoUpdateStart;
-    quint64 picoAfterPrePhysics = picoUpdateStart;
-    quint64 picoBeforeEntityUpdate = picoUpdateStart;
-    quint64 picoAfterEntityUpdate = picoUpdateStart;
-    quint64 picoBeforeSimulationCleanup = picoUpdateStart;
-    quint64 picoAfterSimulation = picoUpdateStart;
-    quint64 picoAfterAvatars = picoUpdateStart;
-    quint64 picoAfterOverlays = picoUpdateStart;
-    quint64 picoBeforePostUpdate = picoUpdateStart;
-    quint64 picoAfterPostLambdas = picoUpdateStart;
-    quint64 picoAfterRenderArgs = picoUpdateStart;
 #endif
 
     if (!_physicsEnabled) {
@@ -3170,10 +3147,6 @@ void Application::update(float deltaTime) {
         tryToEnablePhysics();
     }
 #endif
-#if defined(Q_OS_ANDROID)
-    picoAfterWorldLoading = usecTimestampNow();
-#endif
-
 #if defined(ANDROID_APP_PICO_INTERFACE)
     // Physics activation makes the scene playable, but render-scene transactions still need a short time to
     // produce the first complete frame. Keep input locked and the opaque overlay visible while those frames are
@@ -3273,10 +3246,6 @@ void Application::update(float deltaTime) {
         DependencyManager::get<ScriptEngines>()->loadScript(testStationURL.toString());
     }
 #endif
-#if defined(Q_OS_ANDROID)
-    picoAfterLoadingHandoff = usecTimestampNow();
-#endif
-
      if (shouldCaptureMouse()) {
         QPoint point = _primaryWidget->mapToGlobal(_primaryWidget->geometry().center());
         if (QCursor::pos() != point) {
@@ -3290,10 +3259,6 @@ void Application::update(float deltaTime) {
     }
 
     auto myAvatar = getMyAvatar();
-#if defined(Q_OS_ANDROID)
-    picoAfterMouseCapture = usecTimestampNow();
-    picoBeforeInputPlugins = usecTimestampNow();
-#endif
     {
         PerformanceTimer perfTimer("devices");
         auto userInputMapper = DependencyManager::get<UserInputMapper>();
@@ -3330,10 +3295,6 @@ void Application::update(float deltaTime) {
                 inputPlugin->pluginUpdate(deltaTime, calibrationData);
             }
         }
-#if defined(Q_OS_ANDROID)
-        picoAfterInputPlugins = usecTimestampNow();
-#endif
-
         userInputMapper->setInputCalibrationData(calibrationData);
         userInputMapper->update(deltaTime);
 #if defined(ANDROID_APP_PICO_INTERFACE)
@@ -3363,10 +3324,6 @@ void Application::update(float deltaTime) {
             _picoStatsThumbChordLatched = false;
         }
 #endif
-#if defined(Q_OS_ANDROID)
-        picoAfterInputMapper = usecTimestampNow();
-#endif
-
 #if defined(ANDROID_APP_PICO_INTERFACE) && !defined(NDEBUG)
         {
             static quint64 nextPicoLocomotionLog { 0 };
@@ -3427,9 +3384,6 @@ void Application::update(float deltaTime) {
         }
 
         myAvatar->setSprintMode((bool)userInputMapper->getActionState(controller::Action::SPRINT));
-#if defined(Q_OS_ANDROID)
-        picoAfterDriveKeys = usecTimestampNow();
-#endif
         static const std::vector<controller::Action> avatarControllerActions = {
             controller::Action::LEFT_HAND,
             controller::Action::RIGHT_HAND,
@@ -3547,38 +3501,22 @@ void Application::update(float deltaTime) {
         }
         _prevShowTrackedObjects = _showTrackedObjects;
     }
-#if defined(Q_OS_ANDROID)
-    picoAfterDevices = usecTimestampNow();
-#endif
-
     updateThreads(deltaTime); // If running non-threaded, then give the threads some time to process...
     updateDialogs(deltaTime); // update various stats dialogs if present
 
     auto grabManager = DependencyManager::get<GrabManager>();
     grabManager->simulateGrabs();
-#if defined(Q_OS_ANDROID)
-    picoBeforePick = usecTimestampNow();
-#endif
-
     // TODO: break these out into distinct perfTimers when they prove interesting
     {
         PROFILE_RANGE(app, "PickManager");
         PerformanceTimer perfTimer("pickManager");
         DependencyManager::get<PickManager>()->update();
     }
-#if defined(Q_OS_ANDROID)
-    picoAfterPick = usecTimestampNow();
-#endif
-
     {
         PROFILE_RANGE(app, "PointerManager");
         PerformanceTimer perfTimer("pointerManager");
         DependencyManager::get<PointerManager>()->update();
     }
-#if defined(Q_OS_ANDROID)
-    picoAfterPointer = usecTimestampNow();
-#endif
-
     QSharedPointer<AvatarManager> avatarManager = DependencyManager::get<AvatarManager>();
 
     {
@@ -3587,10 +3525,6 @@ void Application::update(float deltaTime) {
 
         getEntities()->preUpdate();
         _entitySimulation->removeDeadEntities();
-#if defined(Q_OS_ANDROID)
-        picoAfterSimulationSetup = usecTimestampNow();
-#endif
-
         auto t0 = std::chrono::high_resolution_clock::now();
         auto t1 = t0;
         {
@@ -3617,12 +3551,6 @@ void Application::update(float deltaTime) {
                 myAvatar->getCharacterController()->preSimulation();
             }
         }
-#if defined(Q_OS_ANDROID)
-        picoAfterPrePhysics = usecTimestampNow();
-        picoBeforeEntityUpdate = picoAfterPrePhysics;
-        picoAfterEntityUpdate = picoAfterPrePhysics;
-#endif
-
         if (_physicsEnabled) {
             {
                 PROFILE_RANGE(simulation_physics, "PrepareActions");
@@ -3688,13 +3616,7 @@ void Application::update(float deltaTime) {
 
                     // NOTE: the getEntities()->update() call below will wait for lock
                     // and will provide non-physical entity motion
-#if defined(Q_OS_ANDROID)
-                    picoBeforeEntityUpdate = usecTimestampNow();
-#endif
                     getEntities()->update(true); // update the models...
-#if defined(Q_OS_ANDROID)
-                    picoAfterEntityUpdate = usecTimestampNow();
-#endif
 
                     auto t5 = std::chrono::high_resolution_clock::now();
 
@@ -3710,26 +3632,13 @@ void Application::update(float deltaTime) {
             }
         } else {
             // update the rendering without any simulation
-#if defined(Q_OS_ANDROID)
-            picoBeforeEntityUpdate = usecTimestampNow();
-#endif
             getEntities()->update(false);
-#if defined(Q_OS_ANDROID)
-            picoAfterEntityUpdate = usecTimestampNow();
-#endif
         }
-#if defined(Q_OS_ANDROID)
-        picoBeforeSimulationCleanup = usecTimestampNow();
-#endif
         // remove recently dead avatarEntities
         SetOfEntities deadAvatarEntities;
         _entitySimulation->takeDeadAvatarEntities(deadAvatarEntities);
         avatarManager->removeDeadAvatarEntities(deadAvatarEntities);
     }
-#if defined(Q_OS_ANDROID)
-    picoAfterSimulation = usecTimestampNow();
-#endif
-
     // AvatarManager update
     {
         {
@@ -3766,10 +3675,6 @@ void Application::update(float deltaTime) {
             avatarManager->updateMyAvatar(deltaTime);
         }
     }
-#if defined(Q_OS_ANDROID)
-    picoAfterAvatars = usecTimestampNow();
-#endif
-
     bool showWarnings = Menu::getInstance()->isOptionChecked(MenuOption::PipelineWarnings);
     PerformanceWarning warn(showWarnings, "Application::update()");
 
@@ -3785,10 +3690,6 @@ void Application::update(float deltaTime) {
         PerformanceTimer perfTimer("overlays");
         _overlays.update(deltaTime);
     }
-#if defined(Q_OS_ANDROID)
-    picoAfterOverlays = usecTimestampNow();
-#endif
-
     // Update _viewFrustum with latest camera and view frustum data...
     // NOTE: we get this from the view frustum, to make it simpler, since the
     // loadViewFrumstum() method will get the correct details from the camera
@@ -3861,10 +3762,6 @@ void Application::update(float deltaTime) {
             QMetaObject::invokeMethod(DependencyManager::get<AudioClient>().data(), "sendDownstreamAudioStatsPacket", Qt::QueuedConnection);
         }
     }
-#if defined(Q_OS_ANDROID)
-    picoBeforePostUpdate = usecTimestampNow();
-#endif
-
     {
         PerformanceTimer perfTimer("avatarManager/postUpdate");
         avatarManager->postUpdate(deltaTime, getMain3DScene());
@@ -3879,15 +3776,7 @@ void Application::update(float deltaTime) {
         }
         _postUpdateLambdas.clear();
     }
-#if defined(Q_OS_ANDROID)
-    picoAfterPostLambdas = usecTimestampNow();
-#endif
-
-
     updateRenderArgs(deltaTime);
-#if defined(Q_OS_ANDROID)
-    picoAfterRenderArgs = usecTimestampNow();
-#endif
 
     {
         PerformanceTimer perfTimer("AnimDebugDraw");
@@ -3909,107 +3798,6 @@ void Application::update(float deltaTime) {
         PerformanceTimer perfTimer("squeezeVision");
         _visionSqueeze.updateVisionSqueeze(myAvatar->getSensorToWorldMatrix(), deltaTime);
     }
-#if defined(Q_OS_ANDROID)
-    struct PicoUpdateStats {
-        quint64 windowStart { 0 };
-        quint64 calls { 0 };
-        quint64 total { 0 };
-        quint64 devices { 0 };
-        quint64 testProperties { 0 };
-        quint64 worldLoading { 0 };
-        quint64 loadingHandoff { 0 };
-        quint64 mouseCapture { 0 };
-        quint64 devicesPrefix { 0 };
-        quint64 inputPlugins { 0 };
-        quint64 inputMapper { 0 };
-        quint64 driveKeys { 0 };
-        quint64 controllerPoses { 0 };
-        quint64 prePick { 0 };
-        quint64 pick { 0 };
-        quint64 pointer { 0 };
-        quint64 simulationSetup { 0 };
-        quint64 prePhysics { 0 };
-        quint64 physics { 0 };
-        quint64 entityUpdate { 0 };
-        quint64 afterEntityUpdate { 0 };
-        quint64 simulationCleanup { 0 };
-        quint64 avatars { 0 };
-        quint64 overlaysAndView { 0 };
-        quint64 postUpdate { 0 };
-        quint64 postLambdas { 0 };
-        quint64 renderArgs { 0 };
-        quint64 frameEnd { 0 };
-        quint64 maximum { 0 };
-    };
-    static PicoUpdateStats stats;
-    const quint64 end = usecTimestampNow();
-    if (stats.windowStart == 0) {
-        stats.windowStart = picoUpdateStart;
-    }
-    const quint64 total = end - picoUpdateStart;
-    stats.calls++;
-    stats.total += total;
-    stats.devices += picoAfterDevices - picoUpdateStart;
-    stats.testProperties += picoAfterTestProperties - picoUpdateStart;
-    stats.worldLoading += picoAfterWorldLoading - picoAfterTestProperties;
-    stats.loadingHandoff += picoAfterLoadingHandoff - picoAfterWorldLoading;
-    stats.mouseCapture += picoAfterMouseCapture - picoAfterLoadingHandoff;
-    stats.devicesPrefix += picoBeforeInputPlugins - picoUpdateStart;
-    stats.inputPlugins += picoAfterInputPlugins - picoBeforeInputPlugins;
-    stats.inputMapper += picoAfterInputMapper - picoAfterInputPlugins;
-    stats.driveKeys += picoAfterDriveKeys - picoAfterInputMapper;
-    stats.controllerPoses += picoAfterDevices - picoAfterDriveKeys;
-    stats.prePick += picoBeforePick - picoAfterDevices;
-    stats.pick += picoAfterPick - picoBeforePick;
-    stats.pointer += picoAfterPointer - picoAfterPick;
-    stats.simulationSetup += picoAfterSimulationSetup - picoAfterPointer;
-    stats.prePhysics += picoAfterPrePhysics - picoAfterSimulationSetup;
-    stats.physics += picoBeforeEntityUpdate - picoAfterPrePhysics;
-    stats.entityUpdate += picoAfterEntityUpdate - picoBeforeEntityUpdate;
-    stats.afterEntityUpdate += picoBeforeSimulationCleanup - picoAfterEntityUpdate;
-    stats.simulationCleanup += picoAfterSimulation - picoBeforeSimulationCleanup;
-    stats.avatars += picoAfterAvatars - picoAfterSimulation;
-    stats.overlaysAndView += picoAfterOverlays - picoAfterAvatars;
-    stats.postUpdate += picoBeforePostUpdate - picoAfterOverlays;
-    stats.postLambdas += picoAfterPostLambdas - picoBeforePostUpdate;
-    stats.renderArgs += picoAfterRenderArgs - picoAfterPostLambdas;
-    stats.frameEnd += end - picoAfterRenderArgs;
-    stats.maximum = std::max(stats.maximum, total);
-    if (end - stats.windowStart >= USECS_PER_SECOND) {
-        const double divisor = std::max<quint64>(1, stats.calls);
-        qInfo() << "PICO_UPDATE_STAGES"
-                << "callsPerSec" << stats.calls
-                << "avgTotalMs" << stats.total / divisor / 1000.0
-                << "maxTotalMs" << stats.maximum / 1000.0
-                << "devicesMs" << stats.devices / divisor / 1000.0
-                << "testPropertiesMs" << stats.testProperties / divisor / 1000.0
-                << "worldLoadingMs" << stats.worldLoading / divisor / 1000.0
-                << "loadingHandoffMs" << stats.loadingHandoff / divisor / 1000.0
-                << "mouseCaptureMs" << stats.mouseCapture / divisor / 1000.0
-                << "devicesPrefixMs" << stats.devicesPrefix / divisor / 1000.0
-                << "inputPluginsMs" << stats.inputPlugins / divisor / 1000.0
-                << "inputMapperMs" << stats.inputMapper / divisor / 1000.0
-                << "driveKeysMs" << stats.driveKeys / divisor / 1000.0
-                << "controllerPosesMs" << stats.controllerPoses / divisor / 1000.0
-                << "prePickMs" << stats.prePick / divisor / 1000.0
-                << "pickMs" << stats.pick / divisor / 1000.0
-                << "pointerMs" << stats.pointer / divisor / 1000.0
-                << "simulationSetupMs" << stats.simulationSetup / divisor / 1000.0
-                << "prePhysicsMs" << stats.prePhysics / divisor / 1000.0
-                << "physicsMs" << stats.physics / divisor / 1000.0
-                << "entityUpdateMs" << stats.entityUpdate / divisor / 1000.0
-                << "afterEntityUpdateMs" << stats.afterEntityUpdate / divisor / 1000.0
-                << "simulationCleanupMs" << stats.simulationCleanup / divisor / 1000.0
-                << "avatarsMs" << stats.avatars / divisor / 1000.0
-                << "overlaysViewMs" << stats.overlaysAndView / divisor / 1000.0
-                << "postUpdateMs" << stats.postUpdate / divisor / 1000.0
-                << "postLambdasMs" << stats.postLambdas / divisor / 1000.0
-                << "renderArgsMs" << stats.renderArgs / divisor / 1000.0
-                << "frameEndMs" << stats.frameEnd / divisor / 1000.0;
-        stats = PicoUpdateStats{};
-        stats.windowStart = end;
-    }
-#endif
 }
 
 

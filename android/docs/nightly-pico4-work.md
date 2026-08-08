@@ -536,8 +536,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 30 — Pointer/pick hot-path logging cleanup
 
 - Branch: `nightly/pico4-30-pointer-hotpath-logging`
-- Commit: identified by subject `Remove always-on Pico pointer profiling`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `1edc106997` (`Remove always-on Pico pointer profiling`)
 - Change: remove per-pointer maps/counters, per-pick result timestamp insertion,
   five per-frame pick timestamps, periodic pick-cache scans, and their info
   logs. The pick time budget, active-hand full-rate policy, pointer event
@@ -552,6 +551,26 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Exercise tablet/world rays, rapid target
   changes, tracking loss, click/drag/scroll, and both hands; confirm interaction
   plus transition traces without periodic latency log traffic.
+
+### 31 — Application update hot-path logging cleanup
+
+- Branch: `nightly/pico4-31-application-hotpath-logging`
+- Commit: identified by subject `Remove always-on Pico application profiling`;
+  the exact hash is recorded by the following stacked task or final report.
+- Change: remove 23 stage variables, their per-frame timestamp writes, the
+  accumulator, and the unconditional once-per-second main-update timing log.
+  The shared Pico update clock remains because it drives test controls,
+  loading/reconnect state, and diagnostic property polling rather than profiling.
+- Regression: source contracts reject the stage profiler and require the Pico
+  state clock plus pick, pointer, entity, avatar, and render-update calls.
+- Passed: hot-path source contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: the coarse aggregate update-stage line is removed. Existing scoped
+  performance instrumentation remains available for deliberate profiling;
+  no update ordering or Pico state-machine timing was changed.
+- Pico 4 validation: **not executed**. Navigate online/serverless worlds while
+  interacting and capturing logs; confirm normal loading, input, physics,
+  avatars, and rendering without periodic `PICO_UPDATE_STAGES` output.
 
 ## Deferred, rejected, or blocked ideas
 
