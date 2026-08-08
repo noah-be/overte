@@ -153,7 +153,7 @@ if awk '
         in_task && /dependsOn tasks\.named\('\''verifyPhone16kDependencies'\''\)/ { found = 1; exit }
         in_task && /^}/ { exit }
         END { exit !found }
-    ' "$gradle"; then
+    ' "$android_root/$gradle"; then
     pass 'Qt runtime staging runs only after dependency verification'
 else
     fail 'Qt runtime staging runs only after dependency verification'
