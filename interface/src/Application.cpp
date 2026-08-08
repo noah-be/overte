@@ -1064,14 +1064,14 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         return;
     }
 
+    // Resource requests may complete out of order when navigation changes
+    // quickly. Only the newest requested destination may mutate the entity
+    // tree, session, permissions, or DomainHandler state. An empty destination
+    // is also a navigation/reset boundary and must retire an in-flight request.
+    const quint64 requestGeneration = ++_serverlessDomainRequestGeneration;
     if (domainURL.isEmpty()) {
         return;
     }
-
-    // Resource requests may complete out of order when navigation changes
-    // quickly. Only the newest requested destination may mutate the entity
-    // tree, session, permissions, or DomainHandler state.
-    const quint64 requestGeneration = ++_serverlessDomainRequestGeneration;
 #if defined(ANDROID_APP_PICO_INTERFACE)
     _picoServerlessLoadFailed = false;
 #endif

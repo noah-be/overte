@@ -1360,8 +1360,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 74 — Quiet Android controller-key hot path
 
 - Branch: `nightly/pico4-74-controller-key-logging`
-- Commit: identified by subject `Remove Pico controller key hot-path logging`;
-  the exact hash is recorded by the following stacked task or final report.
+- Commit: `7bdc0bd381` (`Remove Pico controller key hot-path logging`)
 - Change: retain the deliberate consume-all behavior for Pico OS controller key
   duplicates, but remove per-event debug string construction/logging from the
   Android dispatch hot path. OpenXR remains the authoritative controller source
@@ -1374,6 +1373,23 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Hold/repeat every controller button while
   watching input latency and ANR behavior; verify OpenXR button transitions are
   unchanged and no `Consuming Android key event` log flood remains.
+
+### 75 — Empty serverless navigation invalidation
+
+- Branch: `nightly/pico4-75-world-load-generation`
+- Commit: identified by subject `Invalidate Pico world loads on empty navigation`;
+  the exact hash is recorded by the following stacked task or final report.
+- Change: treat an empty serverless destination as a request-generation boundary
+  before returning. A pending HTTP/ATP scene load can no longer finish later and
+  commit entities, permissions or session state after a reset/empty navigation.
+- Regression: world-state contracts require generation advancement before the
+  empty-URL early return in addition to existing stale-before-parse checks.
+- Passed: 8 world-loading/failure-path contracts; `git diff --check`.
+- Risk: empty navigation now retires outstanding scene requests but otherwise
+  retains its previous no-load behavior.
+- Pico 4 validation: **not executed**. Start a throttled remote serverless load,
+  issue an empty/reset navigation before completion, and verify the late request
+  is logged as stale with no entity/session/permission commit; retry normally.
 
 ## Deferred, rejected, or blocked ideas
 

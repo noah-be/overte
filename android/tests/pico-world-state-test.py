@@ -71,6 +71,17 @@ class PicoWorldStateTests(unittest.TestCase):
         self.assertLess(stale_check, parse)
         self.assertIn("staleRequestIgnored", body)
 
+    def test_empty_navigation_invalidates_inflight_serverless_request(self):
+        body = function_body(
+            "void Application::loadServerlessDomain",
+            "void Application::loadErrorDomain",
+        )
+        generation = body.index("const quint64 requestGeneration = ++_serverlessDomainRequestGeneration")
+        empty = body.index("if (domainURL.isEmpty())")
+        empty_return = body.index("return;", empty)
+        self.assertLess(generation, empty)
+        self.assertLess(empty, empty_return)
+
     def test_online_navigation_invalidates_serverless_request(self):
         body = function_body(
             "void Application::domainURLChanged",
