@@ -4,6 +4,29 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 29 — Own the Places portal entity lifecycle
+
+- Branch: `nightly/android-phone-29-portal-entity-lifecycle`
+- Commit: `Harden Places portal entity lifecycle` (this task's commit)
+- Change: Make the packaged portal entity script reject invalid JSON, missing or
+  bounded-invalid text, and non-finite dimensions before creating child
+  entities. Entering an invalid portal is inert; repeated enter events own one
+  teleport timer; entity unload cancels it and prevents delayed navigation.
+- Tests:
+  - `android/tests/phone-tablet-portal-lifecycle-test.sh`: **passed**, including
+    JavaScript syntax and an executable invalid/valid preload, repeated-entry,
+    unload-cancellation, completed-navigation, and deletion mock.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including the new
+    portal suite, all tablet suites, and 181/181 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: The mock does not render particles/text or play real Android
+  audio. Portal URLs use the same bounded address contract as their creator,
+  while final scheme handling remains the established `Window.location` path.
+- Real-device validation still required: **not executed for this task**. Create
+  a portal, enter once and confirm sound plus delayed navigation; rapidly cross
+  its boundary repeatedly and confirm one transition; delete/unload it during
+  the delay and confirm no later navigation or orphan child/audio entities.
+
 ## 28 — Validate Places portal contracts
 
 - Branch: `nightly/android-phone-28-places-portal-validation`

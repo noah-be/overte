@@ -20,6 +20,7 @@ tests=(
     phone-tablet-emote-test.sh
     phone-tablet-avatar-test.sh
     phone-tablet-places-test.sh
+    phone-tablet-portal-lifecycle-test.sh
     phone-tablet-places-directory-test.sh
     phone-tablet-people-menu-test.sh
     phone-tablet-quick-goto-test.sh
@@ -41,6 +42,7 @@ for script in \
         scripts/system/quickGoto.js \
         scripts/system/avatarapp.js \
         scripts/system/places/places.js \
+        scripts/system/places/portal.js \
         scripts/system/bubble.js; do
     node --check "$repo_root/$script"
 done
