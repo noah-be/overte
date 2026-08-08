@@ -39,15 +39,29 @@ public final class OffscreenWebView {
                               String userAgent, boolean useBackground) {
         MAIN.post(() -> {
             destroyOnMain(nativeHandle);
-            if (!wholeDocumentDrawEnabled) {
-                // This WebView has no ViewRoot and is rendered exclusively through
-                // draw(Canvas). Chromium otherwise retains only compositor tiles for
-                // its assumed on-screen viewport, leaving stale/blank areas after a
-                // scroll. Android requires enabling this before creating WebViews.
-                WebView.enableSlowWholeDocumentDraw();
-                wholeDocumentDrawEnabled = true;
+            PicoInterfaceActivity activity = PicoInterfaceActivity.getInstance();
+            if (activity == null) {
+                Log.e(TAG, "Cannot create offscreen WebView: Activity is unavailable");
+                return;
             }
-            WebView view = new WebView(PicoInterfaceActivity.getInstance());
+            final WebView view;
+            try {
+                boolean enableWholeDocumentDraw = !wholeDocumentDrawEnabled;
+                if (enableWholeDocumentDraw) {
+                    // This WebView has no ViewRoot and is rendered exclusively through
+                    // draw(Canvas). Chromium otherwise retains only compositor tiles for
+                    // its assumed on-screen viewport, leaving stale/blank areas after a
+                    // scroll. Android requires enabling this before creating WebViews.
+                    WebView.enableSlowWholeDocumentDraw();
+                }
+                view = new WebView(activity);
+                if (enableWholeDocumentDraw) {
+                    wholeDocumentDrawEnabled = true;
+                }
+            } catch (RuntimeException exception) {
+                Log.e(TAG, "Cannot create offscreen WebView", exception);
+                return;
+            }
             view.setBackgroundColor(useBackground ? Color.WHITE : Color.TRANSPARENT);
             view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
             view.setWebViewClient(new WebViewClient() {
@@ -66,8 +80,7 @@ public final class OffscreenWebView {
             if (userAgent != null && !userAgent.isEmpty()) {
                 settings.setUserAgentString(userAgent);
             }
-            float displayDensity = PicoInterfaceActivity.getInstance()
-                .getResources().getDisplayMetrics().density;
+            float displayDensity = activity.getResources().getDisplayMetrics().density;
             Instance instance = new Instance(nativeHandle, view, displayDensity);
             INSTANCES.put(nativeHandle, instance);
             instance.resize(width, height);

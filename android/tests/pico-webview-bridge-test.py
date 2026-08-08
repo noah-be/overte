@@ -77,6 +77,18 @@ class PicoWebViewBridgeTest(unittest.TestCase):
         self.assertIn("action != MotionEvent.ACTION_DOWN && !touchState.isActive()", body)
         self.assertIn("return;", body)
 
+    def test_creation_fails_closed_without_activity_or_webview_provider(self):
+        create = re.search(
+            r"public static void create\(.*?\n    \}", self.java_source, re.DOTALL
+        )
+        self.assertIsNotNone(create)
+        body = create.group(0)
+        self.assertIn("PicoInterfaceActivity activity = PicoInterfaceActivity.getInstance()", body)
+        self.assertIn("if (activity == null)", body)
+        self.assertIn("view = new WebView(activity)", body)
+        self.assertIn("catch (RuntimeException exception)", body)
+        self.assertNotIn("new WebView(PicoInterfaceActivity.getInstance())", body)
+
 
 if __name__ == "__main__":
     unittest.main()

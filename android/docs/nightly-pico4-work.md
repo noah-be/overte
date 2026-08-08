@@ -354,8 +354,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 20 — Strict WebView touch sequences
 
 - Branch: `nightly/pico4-20-webview-touch-sequences`
-- Commit: identified by subject `Validate Pico WebView touch sequences`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `4e82d00a32` (`Validate Pico WebView touch sequences`)
 - Change: cancel an existing WebView gesture before accepting a replacement
   Down, and discard Move/Up/Cancel events that have no active Down. Valid
   gestures continue to preserve their original Android `downTime`.
@@ -368,6 +367,27 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Generate rapid repeated trigger presses,
   target switches, release outside the page, and page deletion; verify every
   new press begins cleanly and no orphan event creates a click or stuck drag.
+
+### 21 — WebView creation failures
+
+- Branch: `nightly/pico4-21-webview-creation-failures`
+- Commit: identified by subject `Handle Pico WebView creation failures`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: reject offscreen WebView creation when the Pico Activity is absent,
+  and catch Android WebView-provider/runtime construction failures on the main
+  thread. Density is read from the validated local Activity instance. The
+  whole-document flag is committed only after successful construction.
+- Regression: WebView bridge contracts require Activity guarding, caught
+  provider failures, local Activity construction, and absence of the former
+  unchecked dereference.
+- Passed: WebView bridge regression (7); full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: the affected Web entity remains blank rather than crashing the whole
+  process; recovery after Activity recreation occurs through newly constructed
+  QML/native surfaces.
+- Pico 4 validation: **not executed**. Create/destroy Web entities during
+  Activity shutdown/recreation and test a missing/disabled WebView provider on
+  a disposable environment; confirm a diagnostic error without process death.
 
 ## Deferred, rejected, or blocked ideas
 

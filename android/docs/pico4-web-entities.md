@@ -56,6 +56,8 @@ WebView background, matching the shared renderer's transparency contract.
 Destroying the Pico Qt Activity bulk-destroys all registered offscreen WebViews
 on Android's UI thread so an Activity recreation cannot retain old Contexts,
 render callbacks, or page state.
+Creation also fails locally with an error log when no live Activity or usable
+Android WebView provider exists, instead of terminating the Android main thread.
 
 No Qt WebEngine library, Chromium resource bundle, Gradle browser dependency,
 or APK packaging rule is added. Rendering uses the WebView implementation
