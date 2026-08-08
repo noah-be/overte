@@ -134,8 +134,6 @@ reject_text "$phone_defaults" 'makeUserConnection' \
     'touchscreen phone defaults do not start the VR handshake service'
 require_text "$gradle" "exclude 'system/assets/sounds/4beat_sweep[.]wav'" \
     'phone packaging omits the unreachable VR handshake sound payload'
-require_text ../interface/src/Application.cpp 'debug\.overte\.phone_procedurals' \
-    'phone exposes a bounded process-start procedural-material A/B switch'
 require_text ../interface/src/Application_Graphics.cpp 'offscreenUi->setGenerateMips\(false\)' \
     'phone desktop UI disables its unused mip chain'
 require_text "$gradle" "dependsOn tasks\.named\('verifyPhone16kDependencies'\)" \
@@ -336,8 +334,8 @@ require_text '../interface/src/Application.cpp' \
     'mirrorConfig->setProperty\("enabled",[[:space:]]*false\)' \
     'phone MVP profile disables every configured mirror view'
 require_text '../interface/src/Application.cpp' \
-    'setProceduralMaterialsEnabled\(phoneProceduralMaterialsEnabled\)' \
-    'phone profile applies the bounded procedural-material selection'
+    'setProceduralMaterialsEnabled\(false\)' \
+    'phone MVP profile keeps procedural materials disabled'
 require_text '../interface/src/Application.cpp' \
     'phoneBoolOverride\("debug\.overte\.phone_haze",[[:space:]]*false\)' \
     'phone MVP profile keeps haze off unless a bounded A/B test enables it'
