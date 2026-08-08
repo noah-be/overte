@@ -999,12 +999,11 @@ bool OpenXrContext::updateSessionState(XrSessionState newState) {
             _shouldQuit = true;
             _shouldRunFrameCycle = false;
             _isValid = false;
-            XrResult result = xrDestroySession(_session);
-            if (!xrCheck(_instance, result, "Failed to destroy session!"))
-                return false;
-            _session = XR_NULL_HANDLE;
             _isSessionRunning = false;
-            qCDebug(xr_context_cat, "Destroyed session");
+            // Keep the session handle alive for ordered teardown. Display and
+            // input owners must release swapchains, trackers, action spaces and
+            // action sets before OpenXrContext destroys their parent session.
+            qCDebug(xr_context_cat, "OpenXR session queued for ordered teardown");
             break;
         }
         default:

@@ -209,11 +209,16 @@ class PicoOpenXRDisplayTests(unittest.TestCase):
         self.assertIn("_isValid = false", stopping[end_failure:end_failure + 180])
 
         loss = transitions[transitions.index("XR_SESSION_STATE_LOSS_PENDING"):]
-        destroy = loss.index("xrDestroySession")
-        self.assertLess(loss.index("_shouldQuit = true"), destroy)
-        self.assertLess(loss.index("_shouldRunFrameCycle = false"), destroy)
-        self.assertLess(loss.index("_isValid = false"), destroy)
-        self.assertIn("_isSessionRunning = false", loss[destroy:])
+        quit_state = loss.index("_shouldQuit = true")
+        disable = loss.index("_shouldRunFrameCycle = false", quit_state)
+        invalid = loss.index("_isValid = false", disable)
+        stopped = loss.index("_isSessionRunning = false", invalid)
+        self.assertLess(quit_state, disable)
+        self.assertLess(disable, invalid)
+        self.assertLess(invalid, stopped)
+        self.assertNotIn("xrDestroySession", loss)
+        self.assertNotIn("_session = XR_NULL_HANDLE", loss)
+        self.assertIn("queued for ordered teardown", loss)
 
     def test_session_scoped_events_reject_stale_handles(self):
         start = CONTEXT.index("bool OpenXrContext::pollEvents()")

@@ -1513,8 +1513,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 83 — Complete OpenXR context cleanup
 
 - Branch: `nightly/pico4-83-openxr-context-cleanup`
-- Commit: identified by subject `Release Pico OpenXR context children`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `a337a3e6e4` (`Release Pico OpenXR context children`)
 - Change: explicitly destroy live View/Stage spaces and their parent Session
   before the debug messenger and OpenXR Instance during normal context teardown.
   All space/session handles and running/frame flags are invalidated even if a
@@ -1527,6 +1526,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Quit from focused, paused, pre-session and
   runtime-loss states under validation; verify each live handle is destroyed in
   order, shutdown is bounded and the next process creates a clean context.
+
+### 84 — Deferred parent-session destruction
+
+- Branch: `nightly/pico4-84-openxr-deferred-session-cleanup`
+- Commit: identified by subject `Defer Pico OpenXR session destruction`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: on `LOSS_PENDING`/`EXITING`, immediately publish quit, non-rendering,
+  invalid and non-running state but retain the Session handle for ordered owner
+  teardown. The event handler no longer destroys the parent while swapchains,
+  hand trackers, action spaces and ActionSet children are still live; their
+  owners now release first and the Context destructor releases the Session.
+- Regression: context contracts require fail-closed loss flags, forbid event-time
+  Session destruction/handle clearing and require the ordered-teardown marker.
+- Passed: 22 OpenXR display/context lifecycle contracts; `git diff --check`.
+- Risk: parent destruction moves from event dispatch to immediate application
+  shutdown ownership; `_shouldQuit` still prevents every further frame/input use.
+- Pico 4 validation: **not executed**. Inject LOSS_PENDING and EXITING with live
+  swapchains/controllers/hands; verify no further use, child-before-parent
+  destruction under validation, bounded quit and clean next-process startup.
 
 ## Deferred, rejected, or blocked ideas
 
