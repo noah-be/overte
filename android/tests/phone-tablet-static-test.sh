@@ -15,6 +15,7 @@ tests=(
     phone-tablet-settings-scale-test.sh
     phone-tablet-touch-qml-test.sh
     phone-tablet-audio-test.sh
+    phone-tablet-emote-test.sh
     phone-tablet-avatar-test.sh
     phone-tablet-places-test.sh
     phone-tablet-places-directory-test.sh

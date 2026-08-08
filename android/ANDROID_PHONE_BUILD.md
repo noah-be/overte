@@ -228,14 +228,17 @@ app having a tablet button:
 | Menu | Local QML navigation | Each retained action and modal result |
 | Shield | Native privacy-radius action; closes the phone tablet after activation | Visible/audio feedback and repeated activation |
 | People | Local QML application | Live presence, touch selection and domain changes |
+| Emote | Local touch QML with validated animation allowlist and lifecycle-owned playback | Animation loading, all actions, repeated stop/switch, movement interruption and avatar restoration |
 | Avatar | Local QML bookmarks/settings; external marketplace web pages are explicitly unavailable | Bookmark changes, wearable editing and failure feedback |
 | Places | Local `PicoPlaces.qml`; guarded QML lifecycle | Network failure, federation data and destination loading |
 | Tutorial | Bundled serverless destination; closes the tablet before navigation | Loading and return behavior |
 | Home | Configured home bookmark with bundled Tutorial fallback | Valid, invalid and unreachable bookmark behavior |
 | Create | Disabled | Requires a dedicated touch design without desktop windows, controller mappings or entity-click capture |
 
-Users, Emote, More, VR tablet positioning, and other remote-web/VR-only tablet
-scripts remain disabled until they have an equally explicit phone contract.
+Users, More, VR tablet positioning, and other remote-web/VR-only tablet scripts
+remain disabled until they have an equally explicit phone contract. The legacy
+Web/controller Emote script also remains disabled; Phone uses its dedicated
+native-QML implementation instead.
 
 ### Tablet device-validation status
 

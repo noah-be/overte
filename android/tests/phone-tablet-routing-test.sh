@@ -185,7 +185,6 @@ done
 for unsupported in \
         system/tablet-ui/tabletUI.js \
         system/tablet-users.js \
-        system/emote.js \
         system/more/app-more.js \
         system/tablet-position/tabletPosition.js \
         system/create/edit.js; do
@@ -195,6 +194,13 @@ for unsupported in \
     fi
 done
 printf 'PASS: VR-only and unsupported remote-web tablet apps remain disabled\n'
+require "$phone_defaults" 'system/\+android_phoneInterface/phoneEmote[.]js' \
+    'the Android tablet enables the native-QML phone Emote app'
+if grep -Fq -- 'system/emote.js' "$phone_defaults"; then
+    printf 'FAIL: phone startup enables the legacy Web/controller Emote app\n' >&2
+    exit 1
+fi
+printf 'PASS: legacy Web/controller Emote remains disabled\n'
 require "$tablet_apps" 'tablet[.]loadQMLSource\(GENERAL_SETTINGS_SOURCE\)' \
     'General Settings stays inside the Android tablet instead of opening a desktop window'
 

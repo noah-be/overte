@@ -22,6 +22,7 @@ var PHONE_DEFAULT_SCRIPTS = [
     "system/+android_interface/touchscreenvirtualpad.js",
     "system/+android_phoneInterface/mobileActionBar.js",
     "system/+android_phoneInterface/mobileTabletApps.js",
+    "system/+android_phoneInterface/phoneEmote.js",
     "system/bubble.js",
     "system/pal.js",
     "system/avatarapp.js",

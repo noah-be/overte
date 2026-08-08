@@ -26,6 +26,39 @@ of scope for this worktree and are called out explicitly where still needed.
 - Real-device validation still required: **not required for this test-only
   change; not executed**.
 
+## 05 — Native touch Emote
+
+- Branch: `nightly/android-phone-05-emote-audit`
+- Commit: `Add native Android phone Emote app` (this task's commit)
+- Change: Add a Phone-only native QML Emote grid and lifecycle-owned script.
+  Requests are namespaced and allowlisted, unavailable resources fail safely,
+  timers and avatar overrides are cleaned up deterministically, and the app has
+  no Web surface, controller mapping, or mutable QML button-proxy dependency.
+  More remains disabled because it downloads remote metadata and installs
+  third-party scripts; Create remains disabled by its existing isolation gate.
+- Tests:
+  - `android/tests/phone-tablet-emote-test.sh`: **passed**, 14 source
+    contracts, JavaScript syntax, and the lifecycle mock.
+  - `android/tests/phone-tablet-emote-lifecycle-mock.js`: **passed** for open,
+    ready, invalid request, play, same-action stop, timer cancellation, avatar
+    restoration, signal disconnection, and button removal.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet suites, JavaScript syntax checks, and 174/174 host checks.
+  - Qt 6 `qmllint` on `PhoneEmote.qml`: **passed** with non-fatal Qt 6
+    unqualified-access warnings for Qt 5-compatible delegate context access.
+  - `android/tests/phone-script-payload-test.sh`: **passed** again after the
+    new assets became tracked; all required defaults and payload exclusions
+    remain consistent.
+  - `git diff --check`: **passed**.
+- Known risks: Animation availability and visual behavior depend on runtime
+  resource loading. Playback deliberately uses a finite timer for every emote,
+  including Sit, instead of installing the legacy controller mapping.
+- Real-device validation still required: **not executed**. Open/close/reopen
+  Emote, trigger every action after cold and warm cache, stop an action by
+  tapping it again, switch actions rapidly, move during Sit, background and
+  foreground during playback, and confirm the avatar always returns to its
+  locomotion animation with no stale highlighted state.
+
 ## 04 — Background, Back, and IME lifecycle
 
 - Branch: `nightly/android-phone-04-lifecycle-audit`
