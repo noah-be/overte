@@ -190,13 +190,6 @@
         Audio.muted = !Audio.muted;
     }
 
-    function updateMicrophoneButton() {
-        if (microphoneButton) {
-            microphoneButton.isActive = Audio.muted;
-            microphoneButton.text = Audio.muted ? "UNMUTE" : "MUTE";
-        }
-    }
-
     currentButtonStyle = calculateLayout(Math.max(Window.innerWidth, 1), Math.max(Window.innerHeight, 1)).buttonStyle;
 
     navigationBar = createFragment("hifi/ActionBar.qml");
@@ -215,7 +208,9 @@
     microphoneButton = addButton(audioBar, buttonProperties({
         icon: "icons/tablet-icons/mic-unmute-i.svg",
         activeIcon: "icons/tablet-icons/mic-mute-a.svg",
-        text: "MUTE"
+        text: Audio.muted ? "UNMUTE" : "MUTE",
+        isActive: Audio.muted,
+        bindToAudioMute: true
     }));
 
     connectSignal(gotoButton, "clicked", showAddressBar);
@@ -224,8 +219,6 @@
     connectSignal(loginButton, "entered", hapticFeedback);
     connectSignal(microphoneButton, "clicked", toggleMicrophone);
     connectSignal(microphoneButton, "entered", hapticFeedback);
-    Audio.mutedChanged.connect(updateMicrophoneButton);
-    updateMicrophoneButton();
     Window.geometryChanged.connect(updateLayout);
     // QML fragments also perform their initial placement in Component.onCompleted;
     // defer once so the phone-specific adaptive placement wins deterministically.
@@ -233,7 +226,6 @@
 
     Script.scriptEnding.connect(function () {
         Window.geometryChanged.disconnect(updateLayout);
-        Audio.mutedChanged.disconnect(updateMicrophoneButton);
         disconnectSignal(gotoButton, "clicked", showAddressBar);
         disconnectSignal(gotoButton, "entered", hapticFeedback);
         disconnectSignal(loginButton, "clicked", showLoginDialog);

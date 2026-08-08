@@ -71,6 +71,7 @@ for source_file in \
         tests/check-phone-apk-padding.py \
         tests/phone-apk-contents-test.sh \
         tests/phone-apk-padding-test.sh \
+        tests/phone-actionbar-qml-lifetime-test.sh \
         tests/phone-audio-output-race-test.sh \
         tests/phone-offscreen-ui-mip-test.sh \
         tests/phone-script-payload-test.sh \
