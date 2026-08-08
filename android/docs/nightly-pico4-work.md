@@ -339,8 +339,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 19 — OpenXR haptic device bounds
 
 - Branch: `nightly/pico4-19-openxr-haptic-index`
-- Commit: identified by subject `Reject invalid Pico haptic indices`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `4532675ea0` (`Reject invalid Pico haptic indices`)
 - Change: reject haptic device indices greater than or equal to the two-hand
   OpenXR count. Index 2 can no longer be silently redirected to the right hand.
 - Regression: OpenXR input test requires the `HAND_COUNT` bound and rejects the
@@ -351,6 +350,24 @@ headset, ADB, Android device, external domain, or device setting is used.
   explicitly instead of producing misleading right-controller feedback.
 - Pico 4 validation: **not executed**. Trigger left/right haptics separately and
   submit an invalid test index; verify only indices 0 and 1 vibrate.
+
+### 20 — Strict WebView touch sequences
+
+- Branch: `nightly/pico4-20-webview-touch-sequences`
+- Commit: identified by subject `Validate Pico WebView touch sequences`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: cancel an existing WebView gesture before accepting a replacement
+  Down, and discard Move/Up/Cancel events that have no active Down. Valid
+  gestures continue to preserve their original Android `downTime`.
+- Regression: WebView bridge contracts cover both sequence guards; the pure-
+  Java state test covers cancel-plus-replacement timestamp behavior.
+- Passed: WebView bridge regression (6), gesture-state JVM regression, full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: malformed streams now fail closed instead of being interpreted by
+  Android WebView; normal hover and single-touch sequences are unchanged.
+- Pico 4 validation: **not executed**. Generate rapid repeated trigger presses,
+  target switches, release outside the page, and page deletion; verify every
+  new press begins cleanly and no orphan event creates a click or stuck drag.
 
 ## Deferred, rejected, or blocked ideas
 

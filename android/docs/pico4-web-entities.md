@@ -47,6 +47,8 @@ or controller-ray thresholds were changed.
 Android touch events in one gesture retain the original down timestamp through
 move, release, or cancellation. Losing Qt's mouse grab and destroying a page
 cancel an active gesture, so the WebView cannot retain a pressed DOM target.
+Repeated Down events cancel the preceding gesture first, while Move, Up, or
+Cancel without an active Down are discarded at the Java boundary.
 Navigating the same surface also cancels an active touch and clears fractional
 scroll accumulation before loading the next document. The entity's
 `useBackground` value now selects an opaque white or transparent Android

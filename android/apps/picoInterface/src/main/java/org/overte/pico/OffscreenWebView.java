@@ -232,6 +232,11 @@ public final class OffscreenWebView {
             boolean hover = action == MotionEvent.ACTION_HOVER_ENTER
                 || action == MotionEvent.ACTION_HOVER_MOVE
                 || action == MotionEvent.ACTION_HOVER_EXIT;
+            if (!hover && action == MotionEvent.ACTION_DOWN && touchState.isActive()) {
+                dispatchPointer(MotionEvent.ACTION_CANCEL, x, y);
+            } else if (!hover && action != MotionEvent.ACTION_DOWN && !touchState.isActive()) {
+                return;
+            }
             long downTime = hover ? now : touchState.downTimeFor(action, now);
             MotionEvent event = MotionEvent.obtain(downTime, now, action,
                 x * displayDensity, y * displayDensity, 0);

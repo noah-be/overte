@@ -66,6 +66,17 @@ class PicoWebViewBridgeTest(unittest.TestCase):
         self.assertIn("instance.cancelActiveTouch()", load.group(0))
         self.assertIn("instance.pendingScroll = 0.0f", load.group(0))
 
+    def test_touch_dispatch_rejects_malformed_sequences(self):
+        dispatch = re.search(
+            r"void dispatchPointer\(.*?\n        \}", self.java_source, re.DOTALL
+        )
+        self.assertIsNotNone(dispatch)
+        body = dispatch.group(0)
+        self.assertIn("action == MotionEvent.ACTION_DOWN && touchState.isActive()", body)
+        self.assertIn("dispatchPointer(MotionEvent.ACTION_CANCEL", body)
+        self.assertIn("action != MotionEvent.ACTION_DOWN && !touchState.isActive()", body)
+        self.assertIn("return;", body)
+
 
 if __name__ == "__main__":
     unittest.main()

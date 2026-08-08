@@ -31,5 +31,12 @@ public final class PicoTouchStateTest {
         require(state.downTimeFor(PicoTouchState.ACTION_MOVE, 300) == 300,
             "an orphan move must fail closed to its own eventTime");
         require(!state.isActive(), "an orphan move must not start a gesture");
+
+        require(state.downTimeFor(PicoTouchState.ACTION_DOWN, 400) == 400,
+            "replacement setup must start a gesture");
+        require(state.downTimeFor(PicoTouchState.ACTION_CANCEL, 410) == 400,
+            "a replacement down must first cancel with the original downTime");
+        require(state.downTimeFor(PicoTouchState.ACTION_DOWN, 411) == 411,
+            "replacement down must start a fresh gesture");
     }
 }
