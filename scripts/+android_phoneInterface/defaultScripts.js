@@ -17,13 +17,20 @@
 // phone client does not provide.
 var ANDROID_PHONE_INTERFACE = true;
 var PHONE_DEFAULT_SCRIPTS = [
+    "system/request-service.js",
     "system/progress.js",
     "system/+android_interface/touchscreenvirtualpad.js",
     "system/+android_phoneInterface/mobileActionBar.js",
-    // Curated Tablet apps that use the existing TabletProxy/QML path without
-    // desktop windows, VR controllers, or remote web-only presentation.
-    "system/audio.js",
-    "system/settings/settings.js"
+    "system/+android_phoneInterface/mobileTabletApps.js",
+    "system/bubble.js",
+    "system/pal.js",
+    "system/avatarapp.js",
+    "system/places/places.js",
+    "system/quickGoto.js",
+    // Android lifecycle teardown currently cannot safely destroy Create's
+    // V8 method proxies from a separate script thread. Keep it in the shared
+    // default engine, where the phone marker also selects its Tablet QML.
+    "system/create/edit.js"
 ];
 
 Script.require("/~/system/+android_interface/androidControls.js");

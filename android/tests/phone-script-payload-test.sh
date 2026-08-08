@@ -70,11 +70,23 @@ for required in \
         system/progress.js \
         system/+android_interface/touchscreenvirtualpad.js \
         system/+android_phoneInterface/mobileActionBar.js \
-        system/audio.js \
-        system/settings/settings.js \
+        system/+android_phoneInterface/mobileTabletApps.js \
         system/+android_interface/androidControls.js; do
     test -f "$repo_root/scripts/$required" || {
         echo "FAIL: required phone script is missing: $required" >&2
+        exit 1
+    }
+done
+
+for required_tablet_app in \
+        system/bubble.js \
+        system/pal.js \
+        system/avatarapp.js \
+        system/places/places.js \
+        system/quickGoto.js \
+        system/create/edit.js; do
+    grep -Fq "$required_tablet_app" "$defaults" || {
+        echo "FAIL: Pico-compatible tablet app is not enabled: $required_tablet_app" >&2
         exit 1
     }
 done

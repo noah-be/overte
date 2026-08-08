@@ -9,7 +9,10 @@ readonly tablet_source="$repo_root/libraries/ui/src/ui/TabletScriptingInterface.
 readonly dialogs="$repo_root/interface/src/ui/DialogsManager.cpp"
 readonly action_bar="$repo_root/scripts/system/+android_phoneInterface/mobileActionBar.js"
 readonly phone_defaults="$repo_root/scripts/+android_phoneInterface/defaultScripts.js"
-readonly settings_app="$repo_root/scripts/system/settings/settings.js"
+readonly tablet_apps="$repo_root/scripts/system/+android_phoneInterface/mobileTabletApps.js"
+readonly activity="$repo_root/android/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java"
+readonly native_handler="$repo_root/android/apps/phoneInterface/src/PhoneUrlHandler.cpp"
+readonly phone_router="$repo_root/interface/src/ui/PhoneDialogRouter.h"
 
 require() {
     local file="$1"
@@ -47,6 +50,36 @@ require "$dialogs" 'if \(offscreenUi && offscreenUi->isVisible\("AddressBarDialo
     'Android Back gives the address modal refusal before the tablet'
 require "$dialogs" 'tablet->handleAndroidTabletBack\(\)' \
     'Android Back is routed into tablet navigation'
+require "$activity" 'private static native boolean nativeHandleBack\(\);' \
+    'the Android activity exposes the native Back router'
+require "$activity" 'public boolean dispatchKeyEvent\(KeyEvent event\)' \
+    'the Android activity intercepts Back key events'
+require "$activity" 'public void onBackPressed\(\)' \
+    'the Android activity also intercepts the Qt 5 direct Back callback'
+require "$activity" 'registerOnBackInvokedCallback' \
+    'Android 13 predictive Back is registered with the phone router'
+require "$activity" 'unregisterOnBackInvokedCallback' \
+    'the predictive Back callback is released with the Activity'
+require "$activity" 'private void handleSystemBack\(\)' \
+    'all Android Back delivery paths share one routing function'
+require "$activity" 'moveTaskToBack\(true\)' \
+    'Back backgrounds Overte instead of destroying native state when no UI consumes it'
+require "$activity" 'event\.getAction\(\) == KeyEvent\.ACTION_DOWN && event\.getRepeatCount\(\) == 0' \
+    'only the first Back key-down invokes native routing'
+require "$activity" 'event\.getAction\(\) == KeyEvent\.ACTION_UP && nativeBackConsumed' \
+    'the matching Back key-up is consumed with its handled key-down'
+require "$native_handler" 'PhoneInterfaceActivity_nativeHandleBack' \
+    'JNI implements the Android Back bridge'
+require "$native_handler" 'QThread::currentThread\(\) == application->thread\(\)' \
+    'the Back bridge avoids blocking when already on the Qt thread'
+require "$native_handler" 'Qt::BlockingQueuedConnection' \
+    'the Android thread receives the synchronous dialog-routing result'
+require "$native_handler" 'phone::closeTopmostDialog\(\)' \
+    'the JNI bridge reuses the minimal phone dialog router'
+require "$phone_router" 'bool closeTopmostDialog\(\);' \
+    'the Android entry point avoids the desktop dialog header graph'
+require "$dialogs" 'bool phone::closeTopmostDialog\(\)' \
+    'the minimal bridge delegates inside DialogsManager implementation'
 if awk '
     /bool DialogsManager::closePhoneDialog\(\)/ { in_function = 1 }
     in_function && /isVisible\("LoginDialog"\)/ { login = NR }
@@ -81,27 +114,52 @@ require "$action_bar" 'Controller\.setVPadHidden\(false\)' \
     'script shutdown restores world touch controls'
 require "$action_bar" 'tabletVisibilityChanged\(\);' \
     'script startup synchronizes controls with an already-visible tablet'
-require "$phone_defaults" '"system/audio[.]js"' \
-    'the Android tablet registers the touch-compatible Audio app'
-require "$phone_defaults" '"system/settings/settings[.]js"' \
-    'the Android tablet registers the touch-compatible Settings app'
+require "$phone_defaults" '"system/\+android_phoneInterface/mobileTabletApps[.]js"' \
+    'the Android tablet starts its dedicated touch-compatible app registrar'
+require "$tablet_apps" 'text:[[:space:]]*"AUDIO"' \
+    'the Android tablet registers the Audio app'
+require "$tablet_apps" 'text:[[:space:]]*"SETTINGS"' \
+    'the Android tablet registers the Settings app'
+require "$tablet_apps" 'text:[[:space:]]*"MENU"' \
+    'the Android tablet registers Pico-compatible Menu navigation'
+if grep -Eq 'editProperties|HMD|WebTablet|Desktop[.]show' "$tablet_apps"; then
+    printf 'FAIL: Android Tablet apps use a mutable QML proxy or desktop/VR presentation\n' >&2
+    exit 1
+fi
+printf 'PASS: Android Tablet app buttons are immutable and screen-space only\n'
+
+for supported in \
+        system/bubble.js \
+        system/pal.js \
+        system/avatarapp.js \
+        system/places/places.js \
+        system/quickGoto.js \
+        system/create/edit.js; do
+    require "$phone_defaults" "$supported" \
+        "the Android tablet enables Pico app backend $supported"
+done
 
 for unsupported in \
         system/tablet-ui/tabletUI.js \
-        system/create/edit.js \
         system/tablet-users.js \
-        system/avatarapp.js \
         system/emote.js \
-        system/more/app-more.js; do
+        system/more/app-more.js \
+        system/tablet-position/tabletPosition.js; do
     if grep -Fq -- "$unsupported" "$phone_defaults"; then
         printf 'FAIL: unvalidated tablet app is enabled in the Android MVP: %s\n' "$unsupported" >&2
         exit 1
     fi
 done
-printf 'PASS: unvalidated VR, desktop, and remote-web tablet apps remain disabled\n'
-require "$settings_app" 'typeof ANDROID_PHONE_INTERFACE !== "undefined" && ANDROID_PHONE_INTERFACE' \
-    'Settings recognizes the Android screen-space tablet'
-require "$settings_app" 'tablet[.]loadQMLSource\("hifi/tablet/TabletGeneralPreferences[.]qml"\)' \
+printf 'PASS: VR-only and unsupported remote-web tablet apps remain disabled\n'
+if grep -Eq 'PHONE_SEPARATE_SCRIPTS|Script[.]load\([^)]*create/edit' "$phone_defaults"; then
+    printf 'FAIL: Create uses an Android-unsafe separate V8 engine\n' >&2
+    exit 1
+fi
+printf 'PASS: Create remains in the lifecycle-safe shared phone script engine\n'
+require "$repo_root/scripts/system/create/edit.js" \
+    'typeof ANDROID_PHONE_INTERFACE !== "undefined" && ANDROID_PHONE_INTERFACE' \
+    'Create selects its Tablet QML instead of desktop native windows on the phone'
+require "$tablet_apps" 'tablet[.]loadQMLSource\(GENERAL_SETTINGS_SOURCE\)' \
     'General Settings stays inside the Android tablet instead of opening a desktop window'
 
 printf 'Android tablet routing checks passed.\n'

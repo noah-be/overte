@@ -11,6 +11,7 @@
 //
 
 #include "DialogsManager.h"
+#include "PhoneDialogRouter.h"
 
 #include <QGuiApplication>
 #include <QInputMethod>
@@ -190,6 +191,15 @@ bool DialogsManager::closePhoneDialog() {
     }
 #endif
     return false;
+}
+
+bool phone::closeTopmostDialog() {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    auto dialogs = DependencyManager::get<DialogsManager>();
+    return dialogs && dialogs->closePhoneDialog();
+#else
+    return false;
+#endif
 }
 
 // #######: TODO: Domain version of toggleLoginDialog()?

@@ -7,11 +7,14 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
+import android.window.OnBackInvokedCallback;
+import android.window.OnBackInvokedDispatcher;
 
 import org.qtproject.qt5.android.bindings.QtActivity;
 
@@ -36,6 +39,7 @@ public final class PhoneInterfaceActivity extends QtActivity {
             | View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
 
     private static native boolean nativeProcessUrl(String url);
+    private static native boolean nativeHandleBack();
     private static final long URL_RETRY_DELAY_MS = 100;
     private static final int MAX_URL_RETRY_ATTEMPTS = 300;
     private static final String STATE_PENDING_URL = "pendingUrl";
@@ -45,6 +49,66 @@ public final class PhoneInterfaceActivity extends QtActivity {
     private String pendingUrl;
     private int pendingUrlRetryAttempts;
     private boolean resumed;
+    private boolean nativeBackConsumed;
+    private Object api33BackHandler;
+
+    // Keep API-33-only types out of the Activity's field signatures so this
+    // class remains verifiable on the supported Android 8-12 releases.
+    private static final class Api33BackHandler {
+        private final PhoneInterfaceActivity activity;
+        private final OnBackInvokedCallback callback;
+
+        Api33BackHandler(PhoneInterfaceActivity activity) {
+            this.activity = activity;
+            callback = activity::handleSystemBack;
+            activity.getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback);
+        }
+
+        void unregister() {
+            activity.getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(callback);
+        }
+    }
+
+    private boolean tryHandleNativeBack() {
+        try {
+            return nativeHandleBack();
+        } catch (UnsatisfiedLinkError error) {
+            return false;
+        }
+    }
+
+    private void handleSystemBack() {
+        if (!tryHandleNativeBack()) {
+            // There is no remaining phone UI layer to close. Preserve the Qt
+            // process and background the task instead of terminating native
+            // state through Qt 5's legacy Back implementation.
+            moveTaskToBack(true);
+        }
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                nativeBackConsumed = tryHandleNativeBack();
+                if (nativeBackConsumed) {
+                    return true;
+                }
+            } else if (event.getAction() == KeyEvent.ACTION_UP && nativeBackConsumed) {
+                nativeBackConsumed = false;
+                return true;
+            }
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    @Override
+    public void onBackPressed() {
+        // Qt 5 delegates some Android Back deliveries directly to this
+        // callback without dispatching a KeyEvent to the Activity subclass.
+        handleSystemBack();
+    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -75,6 +139,9 @@ public final class PhoneInterfaceActivity extends QtActivity {
 
         HifiUtils.upackAssets(getAssets(), getCacheDir().getAbsolutePath());
         super.onCreate(savedInstanceState);
+        if (Build.VERSION.SDK_INT >= 33) {
+            api33BackHandler = new Api33BackHandler(this);
+        }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         applyPhoneWindowBounds();
     }
@@ -92,6 +159,15 @@ public final class PhoneInterfaceActivity extends QtActivity {
         resumed = false;
         mainHandler.removeCallbacks(drainPendingUrlTask);
         super.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (Build.VERSION.SDK_INT >= 33 && api33BackHandler != null) {
+            ((Api33BackHandler) api33BackHandler).unregister();
+            api33BackHandler = null;
+        }
+        super.onDestroy();
     }
 
     @Override
