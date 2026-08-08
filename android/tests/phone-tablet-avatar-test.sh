@@ -9,6 +9,7 @@ qml="$repo_root/interface/resources/qml/hifi/AvatarApp.qml"
 settings_qml="$repo_root/interface/resources/qml/hifi/avatarapp/Settings.qml"
 desktop_config="$repo_root/interface/resources/qml/hifi/avatarapp/AvatarTouchConfiguration.qml"
 phone_config="$repo_root/interface/resources/qml/hifi/avatarapp/+android_phoneInterface/AvatarTouchConfiguration.qml"
+message_boxes="$repo_root/interface/resources/qml/hifi/avatarapp/MessageBoxes.qml"
 
 require() {
     local pattern="$1"
@@ -63,6 +64,8 @@ require_qml "$settings_qml" 'anchors[.]rightMargin:[[:space:]]*touchConfiguratio
     'Avatar Settings positions actions against the phone right edge'
 require_qml "$settings_qml" 'anchors[.]bottomMargin:[[:space:]]*touchConfiguration[.]settingsBottomMargin' \
     'Avatar Settings positions Save and Cancel against the phone bottom edge'
+require_qml "$message_boxes" 'inputText[.]maximumLength[[:space:]]*=[[:space:]]*4096' \
+    'Avatar custom URL fields enforce the script boundary length'
 
 require 'if[[:space:]]*\(!currentAvatar[[:space:]]*\|\|' \
     'avatar changes cannot dereference an uninitialized model'
@@ -100,6 +103,14 @@ require "!message[.]settings[[:space:]]*\\|\\|[[:space:]]*typeof message[.]setti
     'Avatar rejects save messages without a settings object'
 require 'Invalid avatar settings' \
     'Avatar reports rejected settings without mutating the model'
+require 'function validAvatarResourceUrl\(value\)' \
+    'Avatar centralizes custom resource URL validation'
+require 'value[.]length <= 4096' \
+    'Avatar bounds custom resource URLs before native loaders'
+require "!validAvatarResourceUrl\\(message[.]url\\)" \
+    'Avatar validates custom wearable URLs'
+require "!validAvatarResourceUrl\\(message[.]avatarURL\\)" \
+    'Avatar validates external avatar URLs'
 require '!message[.]entityID[[:space:]]*\|\|[[:space:]]*!message[.]properties' \
     'Avatar rejects malformed wearable edits'
 require "!parsedMessage[[:space:]]*\\|\\|[[:space:]]*typeof parsedMessage !== 'object'" \

@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 42 — Bound Avatar resource URLs
+
+- Branch: `nightly/android-phone-42-avatar-url-contract`
+- Commit: `Validate Avatar resource URLs` (this task's commit)
+- Change: Apply one non-empty, 4096-character, control-character-free contract
+  to custom wearable and external avatar URLs before native resource loaders,
+  and mirror the length in both custom URL text fields. Scheme acceptance stays
+  with the established resource system so ATP/HTTP/file workflows are preserved.
+- Tests:
+  - `android/tests/phone-tablet-avatar-test.sh`: **passed**, covering shared URL
+    validation, both action boundaries, and QML input lengths.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/APK suites and 188/188 host checks.
+  - JavaScript syntax and `git diff --check`: **passed**.
+- Known risks: Reachability and content trust remain native resource-system
+  responsibilities; this change bounds transport shape, not remote content.
+- Real-device validation still required: **not executed for this task**. Apply
+  valid ATP/HTTPS avatar and wearable URLs, blank/overlong/control test inputs,
+  Cancel/Back/reopen, and verify errors are bounded with no load or stale IME.
+
 ## 41 — Remove the dead Phone Community avatar action
 
 - Branch: `nightly/android-phone-41-avatar-community-boundary`

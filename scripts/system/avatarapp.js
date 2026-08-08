@@ -93,6 +93,11 @@ function validAvatarScale(value) {
     return typeof value === 'number' && isFinite(value) && value > 0;
 }
 
+function validAvatarResourceUrl(value) {
+    return typeof value === 'string' && value.length > 0 && value.length <= 4096 &&
+        !/[\u0000-\u001f\u007f]/.test(value);
+}
+
 function updateAvatarWearables(avatar, callback, wearablesOverride) {
     executeLater(function() {
         var wearables = wearablesOverride ? wearablesOverride : getMyAvatarWearables();
@@ -318,7 +323,7 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
         break;
     case 'addWearable':
 
-        if (!message.url || typeof message.url !== 'string') {
+        if (!validAvatarResourceUrl(message.url)) {
             sendToQml({ 'method': 'avatarError', 'reason': 'Invalid wearable URL' });
             break;
         }
@@ -368,6 +373,10 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
         }
         break;
     case 'applyExternalAvatar':
+        if (!validAvatarResourceUrl(message.avatarURL)) {
+            sendToQml({ 'method': 'avatarError', 'reason': 'Invalid avatar URL' });
+            break;
+        }
         var currentAvatarURL = MyAvatar.getFullAvatarURLFromPreferences();
         if(currentAvatarURL !== message.avatarURL) {
             MyAvatar.useFullAvatarURL(message.avatarURL);
