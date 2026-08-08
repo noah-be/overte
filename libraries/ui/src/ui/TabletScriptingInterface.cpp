@@ -614,11 +614,15 @@ void TabletProxy::resizeAndroidTablet(int width, int height) {
         QMetaObject::invokeMethod(this, "resizeAndroidTablet", Q_ARG(int, width), Q_ARG(int, height));
         return;
     }
-    if (!_androidScreenSpaceMode || !_desktopWindow || width <= 0 || height <= 0) {
+    constexpr int ANDROID_TABLET_SAFE_INSET { 25 };
+    constexpr int ANDROID_TABLET_TOTAL_INSET { 2 * ANDROID_TABLET_SAFE_INSET };
+    if (!_androidScreenSpaceMode || !_desktopWindow ||
+            width <= ANDROID_TABLET_TOTAL_INSET || height <= ANDROID_TABLET_TOTAL_INSET) {
         return;
     }
-    _desktopWindow->setPosition(0, 0);
-    _desktopWindow->setSize(width, height);
+    _desktopWindow->setPosition(ANDROID_TABLET_SAFE_INSET, ANDROID_TABLET_SAFE_INSET);
+    _desktopWindow->setSize(width - ANDROID_TABLET_TOTAL_INSET,
+                            height - ANDROID_TABLET_TOTAL_INSET);
 }
 
 void TabletProxy::hideAndroidTablet() {
@@ -647,7 +651,11 @@ bool TabletProxy::handleAndroidTabletBack() {
     if (isMessageDialogOpen()) {
         closeDialog();
     } else if (_state != State::Home) {
-        showAndroidTablet(_desktopWindow->asQuickItem()->width(), _desktopWindow->asQuickItem()->height());
+        // The screen-space host is already visible and correctly inset. Only
+        // replace its content; passing its reduced size back through
+        // the presenter entry point would apply the safety inset a second time and
+        // make the tablet drift toward the top-left after every Back gesture.
+        gotoHomeScreen();
     } else {
         hideAndroidTablet();
     }

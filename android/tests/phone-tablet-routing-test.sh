@@ -13,6 +13,7 @@ readonly tablet_apps="$repo_root/scripts/system/+android_phoneInterface/mobileTa
 readonly activity="$repo_root/android/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java"
 readonly native_handler="$repo_root/android/apps/phoneInterface/src/PhoneUrlHandler.cpp"
 readonly phone_router="$repo_root/interface/src/ui/PhoneDialogRouter.h"
+readonly window_root="$repo_root/interface/resources/qml/hifi/tablet/WindowRoot.qml"
 
 require() {
     local file="$1"
@@ -31,14 +32,57 @@ for method in showAndroidTablet resizeAndroidTablet hideAndroidTablet handleAndr
 done
 require "$tablet_header" '#if defined\(ANDROID_APP_PHONE_INTERFACE\)' \
     'the screen-space presenter API is restricted to the phone client'
-require "$tablet_source" '_desktopWindow->setPosition\(0,[[:space:]]*0\)' \
-    'the tablet surface starts at the Android viewport origin'
-require "$tablet_source" '_desktopWindow->setSize\(width,[[:space:]]*height\)' \
-    'the tablet surface fills the current Android viewport'
-require "$tablet_source" 'width <= 0 \|\| height <= 0' \
+require "$tablet_source" 'ANDROID_TABLET_SAFE_INSET[[:space:]]*\{[[:space:]]*25[[:space:]]*\}' \
+    'the tablet surface keeps a twenty-five-pixel rounded-corner safety inset'
+require "$tablet_source" '_desktopWindow->setPosition\(ANDROID_TABLET_SAFE_INSET,[[:space:]]*ANDROID_TABLET_SAFE_INSET\)' \
+    'the tablet surface starts inside the top-left safe area'
+require "$tablet_source" 'width[[:space:]]*-[[:space:]]*ANDROID_TABLET_TOTAL_INSET' \
+    'the tablet width preserves both horizontal safety margins'
+require "$tablet_source" 'height[[:space:]]*-[[:space:]]*ANDROID_TABLET_TOTAL_INSET' \
+    'the tablet height preserves both vertical safety margins'
+require "$tablet_source" 'width <= ANDROID_TABLET_TOTAL_INSET \|\| height <= ANDROID_TABLET_TOTAL_INSET' \
     'invalid transient Android surface dimensions are ignored'
+require "$tablet_source" 'else if \(_state != State::Home\)[[:space:]]*\{[[:space:]]*$' \
+    'Back distinguishes app navigation from closing the tablet home'
+require "$tablet_source" 'gotoHomeScreen\(\);' \
+    'Back from an app replaces content without reapplying host geometry'
+if awk '
+    /bool TabletProxy::handleAndroidTabletBack\(\)/ { in_back = 1 }
+    in_back && /showAndroidTablet\(/ { bad = 1 }
+    in_back && /^}/ { exit bad }
+    END { if (bad) exit 1 }
+' "$tablet_source"; then
+    printf 'PASS: app Back cannot compound the screen-space safety inset\n'
+else
+    printf 'FAIL: app Back must not resize the existing screen-space host\n' >&2
+    exit 1
+fi
 require "$tablet_source" 'setScreenSpaceMode' \
     'the shared root is explicitly switched to screen-space presentation'
+require "$window_root" 'Qt\.callLater\(alignScreenSpaceWindow\)' \
+    'the frameless tablet corrects desktop visibility repositioning asynchronously'
+require "$window_root" 'function alignScreenSpaceWindow\(\)' \
+    'the screen-space host exposes a deterministic display-origin alignment step'
+require "$window_root" 'property int screenSpaceSafeInset:[[:space:]]*25' \
+    'the QML host shares the twenty-five-pixel rounded-corner inset'
+require "$window_root" 'x[[:space:]]*=[[:space:]]*screenSpaceSafeInset' \
+    'the screen-space tablet preserves its left display margin'
+require "$window_root" 'y[[:space:]]*=[[:space:]]*screenSpaceSafeInset' \
+    'the screen-space tablet preserves its top display margin'
+require "$window_root" 'property real screenSpaceContentScale:[[:space:]]*2\.5' \
+    'Android tablet applications share a touch-readable 250 percent scale'
+require "$window_root" 'readonly property real contentScale:[[:space:]]*tabletRoot\.screenSpaceMode' \
+    'the single host scale covers every Android tablet surface'
+require "$window_root" 'scale:[[:space:]]*contentScale' \
+    'the common loader applies the Android scale to the complete app subtree'
+require "$window_root" 'width:[[:space:]]*pane\.contentWidth[[:space:]]*/[[:space:]]*contentScale' \
+    'the loader compensates logical width before anchored apps are laid out'
+require "$window_root" 'height:[[:space:]]*pane\.scrollHeight[[:space:]]*/[[:space:]]*contentScale' \
+    'the loader compensates logical height before anchored apps are laid out'
+require "$window_root" 'loader\.item\.width[[:space:]]*=[[:space:]]*loader\.width' \
+    'loaded apps inherit the already compensated parent width'
+require "$window_root" 'loader\.item\.height[[:space:]]*=[[:space:]]*loader\.height' \
+    'loaded apps inherit the already compensated parent height'
 require "$tablet_source" 'QVariant\(TABLET_HOME_SOURCE_URL\)' \
     'opening the tablet deterministically presents its home screen'
 require "$tablet_source" 'emit tabletShownChanged\(\)' \
@@ -49,7 +93,7 @@ require "$dialogs" 'if \(offscreenUi && offscreenUi->isVisible\("LoginDialog"\)\
 require "$dialogs" 'if \(offscreenUi && offscreenUi->isVisible\("AddressBarDialog"\)\)' \
     'Android Back gives the address modal refusal before the tablet'
 require "$dialogs" 'tablet->handleAndroidTabletBack\(\)' \
-    'Android Back is routed into tablet navigation'
+    'Android edge-swipe Back is routed into tablet navigation'
 require "$activity" 'private static native boolean nativeHandleBack\(\);' \
     'the Android activity exposes the native Back router'
 require "$activity" 'public boolean dispatchKeyEvent\(KeyEvent event\)' \
@@ -57,7 +101,7 @@ require "$activity" 'public boolean dispatchKeyEvent\(KeyEvent event\)' \
 require "$activity" 'public void onBackPressed\(\)' \
     'the Android activity also intercepts the Qt 5 direct Back callback'
 require "$activity" 'registerOnBackInvokedCallback' \
-    'Android 13 predictive Back is registered with the phone router'
+    'Android edge-swipe and predictive Back are registered with the phone router'
 require "$activity" 'unregisterOnBackInvokedCallback' \
     'the predictive Back callback is released with the Activity'
 require "$activity" 'private void handleSystemBack\(\)' \

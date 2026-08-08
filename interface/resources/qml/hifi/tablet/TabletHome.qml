@@ -174,6 +174,7 @@ Item {
                     }
                 }
             }
+
             Component.onCompleted: {
                 rightContainer.timeChanged();
             }
@@ -292,10 +293,6 @@ Item {
                                 anchors.centerIn: parent
                                 width: gridView.buttonExtent
                                 height: gridView.buttonExtent
-                                iconExtent: presentation.touchOptimized
-                                    ? Math.min(260, gridView.buttonExtent * 0.72) : 50
-                                captionPixelSize: presentation.touchOptimized ? 32 : 18
-                                captionBottomMargin: presentation.touchOptimized ? 22 : 20
                                 hoverEnabled: !presentation.touchOptimized
                                 gridView: wrapper.GridView.view
                                 buttonIndex: page.proxyModel.buttonIndex(uuid);
@@ -384,10 +381,42 @@ Item {
 
             interactive: false
             height: presentation.pageIndicatorHeight
-            anchors.bottom: parent.bottom
+            anchors.bottom: closeTabletButton.top
             anchors.horizontalCenter: parent.horizontalCenter
             count: swipeView.count
         }
+
+        Rectangle {
+            id: closeTabletButton
+            objectName: "androidTabletCloseButton"
+            visible: presentation.showCloseButton
+            enabled: visible
+            width: Math.min(240, parent.width * 0.30)
+            height: presentation.closeButtonHeight
+            radius: 10
+            color: closeTabletMouseArea.pressed ? "#169c86" : "#1fc6a6"
+            border.width: 2
+            border.color: "#75ead5"
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: presentation.closeButtonBottomMargin
+            anchors.horizontalCenter: parent.horizontalCenter
+
+            Text {
+                anchors.centerIn: parent
+                text: qsTr("CLOSE")
+                color: "#10252d"
+                font.family: "Rawline"
+                font.bold: true
+                font.pixelSize: 18
+            }
+
+            MouseArea {
+                id: closeTabletMouseArea
+                anchors.fill: parent
+                onClicked: tabletProxy.hideAndroidTablet()
+            }
+        }
+
     }
 
     Component.onCompleted: {

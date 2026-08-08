@@ -27,10 +27,18 @@ require "$phone_config" 'property bool touchOptimized:[[:space:]]*true' \
     'the phone selector enables touchscreen presentation'
 require "$phone_config" 'availableWidth[[:space:]]*>=[[:space:]]*availableHeight[[:space:]]*\?[[:space:]]*5[[:space:]]*:[[:space:]]*3' \
     'the phone tablet responds to landscape and transient portrait sizes'
-require "$phone_config" 'property int maximumButtonExtent:[[:space:]]*320' \
-    'landscape app cards are large enough for direct touch'
-require "$phone_config" 'property int buttonSpacing:[[:space:]]*12' \
+require "$phone_config" 'property int maximumButtonExtent:[[:space:]]*120' \
+    'launcher cards use compact logical units before host scaling'
+require "$phone_config" 'property int buttonSpacing:[[:space:]]*5' \
     'the compact app grid retains a clear gap between touch targets'
+require "$shared_config" 'property bool showCloseButton:[[:space:]]*false' \
+    'desktop and VR do not gain Android-specific tablet chrome'
+require "$phone_config" 'property bool showCloseButton:[[:space:]]*true' \
+    'the phone selector enables the touchscreen close control'
+require "$phone_config" 'property int closeButtonHeight:[[:space:]]*32' \
+    'the close control uses the shared host scale'
+require "$phone_config" 'property int closeButtonBottomMargin:[[:space:]]*28' \
+    'the close control remains fully visible above the Android display edge'
 require "$phone_config" 'property int minimumTouchTarget:[[:space:]]*48' \
     'page controls expose touch-sized targets'
 require "$home" 'TabletTouchConfiguration[[:space:]]*\{' \
@@ -43,12 +51,17 @@ require "$home" 'rowCount[[:space:]]*\*[[:space:]]*\(presentation\.maximumButton
     'the app rows are vertically compact instead of spanning the display'
 require "$home" 'width:[[:space:]]*gridView\.buttonExtent' \
     'app buttons scale inside the available landscape grid'
-require "$home" 'iconExtent:[[:space:]]*presentation\.touchOptimized' \
-    'touch presentation enlarges visible icons with their app cards'
-require "$home" 'Math\.min\(260,[[:space:]]*gridView\.buttonExtent[[:space:]]*\*[[:space:]]*0\.72\)' \
-    'touch icons fill the enlarged launcher cards'
-require "$home" 'captionPixelSize:[[:space:]]*presentation\.touchOptimized[[:space:]]*\?[[:space:]]*32' \
-    'touch presentation enlarges app labels with their app cards'
+if grep -Eq 'iconExtent:[[:space:]]*presentation\.touchOptimized|captionPixelSize:[[:space:]]*presentation\.touchOptimized' "$home"; then
+    printf 'FAIL: launcher visuals must not apply a second Android scale\n' >&2
+    exit 1
+fi
+printf 'PASS: launcher visuals rely exclusively on the shared host scale\n'
+require "$home" 'anchors\.bottom:[[:space:]]*closeTabletButton\.top' \
+    'the app pages reserve bottom space and sit above the close control'
+require "$home" 'objectName:[[:space:]]*"androidTabletCloseButton"' \
+    'the Android tablet exposes a stable close-control identity'
+require "$home" 'onClicked:[[:space:]]*tabletProxy\.hideAndroidTablet\(\)' \
+    'the close control routes through the native screen-space presenter'
 require "$home" 'hoverEnabled:[[:space:]]*!presentation\.touchOptimized' \
     'touch presentation does not depend on hover input'
 require "$button" 'hoverEnabled:[[:space:]]*tabletButton\.hoverEnabled' \

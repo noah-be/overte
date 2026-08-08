@@ -14,4 +14,7 @@ QtObject {
     property int minimumTouchTarget: 30
     property int maximumButtonExtent: 129
     property int buttonSpacing: 0
+    property bool showCloseButton: false
+    property int closeButtonHeight: 0
+    property int closeButtonBottomMargin: 0
 }
