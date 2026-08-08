@@ -203,6 +203,12 @@ readonly TEST_DEEP_LINK="overte://localhost"
 (set -o noclobber; umask 077; : >"$SUMMARY") || \
     die "could not create a fresh device-test summary"
 chmod 600 "$SUMMARY"
+write_final_status() {
+    local status=$? result=failed
+    ((status == 0)) && result=passed
+    printf 'test_status=%s\n' "$result" >>"$SUMMARY" || true
+}
+trap write_final_status EXIT
 printf 'package=%s\napk_sha256=%s\napk_debuggable=%s\nruntime_permissions_auto_granted=1\n' \
     "$PACKAGE" "$APK_SHA256" "$APK_DEBUGGABLE" | tee -a "$SUMMARY"
 

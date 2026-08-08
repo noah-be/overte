@@ -154,6 +154,7 @@ grep -Fxq 'apk_debuggable=1' "$summary"
 grep -Fxq 'background_foreground_cycles=3' "$summary"
 grep -Fxq 'back_recovery_survived=1' "$summary"
 grep -Fxq 'crash_log_matches=0' "$summary"
+grep -Fxq 'test_status=passed' "$summary"
 [[ "$(stat -c %a "$summary")" == 600 ]]
 ! grep -Eq 'mock-phone|/data/app|4242' "$summary"
 
@@ -177,6 +178,7 @@ grep -Fq 'could not read the installed APK for provenance verification' \
     "$test_root/read-failure.out"
 ! grep -Eq 'mock-phone|private installed path' "$test_root/read-failure.out"
 ! grep -Fq 'installed_apk_verified=1' "$test_root/read-failure-report/summary.txt"
+grep -Fxq 'test_status=failed' "$test_root/read-failure-report/summary.txt"
 
 mkdir "$test_root/wrong-package-report"
 : >"$test_root/adb-commands"
@@ -279,6 +281,7 @@ fi
 grep -Fq 'launcher start failed' "$test_root/start-failure.out"
 ! grep -Fq 'private start failure for mock-phone' "$test_root/start-failure.out"
 ! grep -Fq 'launch_survived=1' "$test_root/start-failure-report/summary.txt"
+grep -Fxq 'test_status=failed' "$test_root/start-failure-report/summary.txt"
 
 mkdir "$test_root/sticky-report"
 if run_smoke "$test_root/sticky-report" env MOCK_STICKY_FOREGROUND=1 \

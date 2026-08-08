@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 82 — Give device summaries an explicit final status
+
+- Branch: `nightly/android-phone-82-device-summary-status`
+- Commit: `Record final phone device smoke status` (this task's commit)
+- Change: Install an EXIT finalizer immediately after private summary creation.
+  Every run reaching device/report phases now ends with exactly one explicit
+  `test_status=passed` or `test_status=failed`, so incremental lifecycle flags
+  cannot be mistaken for a complete pass after a later abort.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; successful flow
+    records `passed`, while installed-read and launcher failures record `failed`.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 260/260 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 260/260 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Failures before report creation intentionally produce no summary;
+  their local preflight error remains the authoritative result.
+- Real-device validation still required: Run both a successful current-APK
+  smoke and an intentionally interrupted disposable run; confirm final status.
+
 ## 81 — Report installed-APK read failures safely
 
 - Branch: `nightly/android-phone-81-installed-apk-read-failure`

@@ -547,6 +547,10 @@ require_text tests/phone-device-test.sh 'require_adb "launcher start"' \
     'device smoke reports Activity launch failure without raw ADB output'
 require_text tests/phone-device-test.sh 'runtime_permissions_auto_granted=1' \
     'device smoke summary records its permission precondition'
+require_text tests/phone-device-test.sh 'test_status=%s' \
+    'device smoke summary records one explicit final result'
+require_text tests/phone-device-test.sh 'trap write_final_status EXIT' \
+    'device smoke records failure even on late checked exits'
 require_text tests/phone-device-test.sh 'shell pm path "\$PACKAGE"' \
     'device smoke resolves the installed base APK after installation'
 require_text tests/phone-device-test.sh 'installed_apk_sha256.*== "\$APK_SHA256"' \

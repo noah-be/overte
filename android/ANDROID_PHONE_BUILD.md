@@ -392,6 +392,8 @@ Raw ADB stderr is reduced to generic phase errors so serials and host paths do
 not enter captured output.
 Set `PHONE_EXPECT_DEBUGGABLE=0` for a release smoke or `1` for a debug smoke;
 the validated state is recorded as a boolean in the summary.
+Always require the final `test_status=passed`; earlier lifecycle fields are
+incremental evidence and a failed run records `test_status=failed` on exit.
 Logcat is restricted to the tested app process and inspected only as a stream;
 an on-device epoch cursor also excludes entries older than this test launch.
 Package exit diagnostics
