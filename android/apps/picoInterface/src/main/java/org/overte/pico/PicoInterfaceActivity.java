@@ -18,7 +18,7 @@ import io.highfidelity.utils.HifiUtils;
 
 public final class PicoInterfaceActivity extends QtActivity {
     private static final String TAG = "OvertePico";
-    private static PicoInterfaceActivity instance;
+    private static volatile PicoInterfaceActivity instance;
 
     public static PicoInterfaceActivity getInstance() {
         return instance;
@@ -101,12 +101,12 @@ public final class PicoInterfaceActivity extends QtActivity {
 
     @Override
     protected void onDestroy() {
-        OffscreenWebView.destroyAll();
-        AndroidAudioInput.stop();
-        releaseOpenXRActivity();
         if (instance == this) {
             instance = null;
         }
+        OffscreenWebView.destroyAll();
+        AndroidAudioInput.stop();
+        releaseOpenXRActivity();
         super.onDestroy();
     }
 

@@ -1145,8 +1145,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 62 — Serialized microphone failure cleanup
 
 - Branch: `nightly/pico4-62-audio-cleanup-serialization`
-- Commit: identified by subject `Serialize Pico microphone failure cleanup`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `a5d649faed` (`Serialize Pico microphone failure cleanup`)
 - Change: when an unexpectedly exiting capture loop still owns the current
   recorder, finish stop/release under the lifecycle lock before publishing the
   empty recorder slot. Concurrent `start()->stop()` either owns cleanup first or
@@ -1160,6 +1159,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Race forced read failure against rapid
   source restart; verify no simultaneous AudioRecord sessions, single release,
   bounded start delay and clean first samples from the replacement source.
+
+### 63 — Activity instance lifecycle publication
+
+- Branch: `nightly/pico4-63-activity-instance-lifecycle`
+- Commit: identified by subject `Retire Pico Activity before cleanup`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: publish the static Pico Activity reference as `volatile` for native/
+  Java cross-thread restart access and clear the exact dying instance at the
+  beginning of `onDestroy`, before WebView, microphone and OpenXR cleanup. New
+  work can no longer bind to an Activity already being torn down.
+- Regression: Android entry-point contracts require volatile publication and
+  instance invalidation before each static/native resource cleanup.
+- Passed: 5 Android entry-point/lifecycle contracts; full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: restart requests racing destruction now fail closed as unavailable;
+  normal restart is scheduled before `finishAffinity()` and remains unchanged.
+- Pico 4 validation: **not executed**. Race restart/Web entity creation against
+  finish, recreation and process shutdown; verify no stale Activity use, leaked
+  resource, missed normal restart or crash during cleanup.
 
 ## Deferred, rejected, or blocked ideas
 
