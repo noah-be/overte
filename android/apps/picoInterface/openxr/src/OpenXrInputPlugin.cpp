@@ -706,6 +706,18 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
     if (!xrCheck(instance, result, "Failed to create action set."))
         return false;
 
+    // Until the action set is attached, every action is required by update(),
+    // which uses keyed lookups. Roll back the entire set on any partial failure
+    // instead of publishing a map that will throw on its first missing action.
+    auto discardUnattachedActionSet = [&] {
+        _actions.clear();
+        if (_actionSet != XR_NULL_HANDLE) {
+            xrCheck(instance, xrDestroyActionSet(_actionSet),
+                    "Failed to roll back unattached action set");
+            _actionSet = XR_NULL_HANDLE;
+        }
+    };
+
     std::map<std::string, std::pair<std::string, XrActionType>> actionTypes = {
         {"left_primary_click",     {"Left Primary",           XR_ACTION_TYPE_BOOLEAN_INPUT}},
         {"left_primary_touch",     {"Left Primary Touch",     XR_ACTION_TYPE_BOOLEAN_INPUT}},
@@ -961,6 +973,8 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
         std::shared_ptr<Action> action = std::make_shared<Action>(_context, id, friendlyName, xr_type);
         if (!action->init(_actionSet)) {
             qCCritical(xr_input_cat) << "Creating action " << id.c_str() << " failed!";
+            discardUnattachedActionSet();
+            return false;
         } else {
             _actions.emplace(id, action);
         }
@@ -978,8 +992,10 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
         .actionSets = &_actionSet,
     };
     result = xrAttachSessionActionSets(_context->_session, &attachInfo);
-    if (!xrCheck(_context->_instance, result, "Failed to attach action set"))
+    if (!xrCheck(_context->_instance, result, "Failed to attach action set")) {
+        discardUnattachedActionSet();
         return false;
+    }
 
     if (_context->_handTrackingSupported) {
         XrHandTrackerCreateInfoEXT createInfo = {

@@ -112,7 +112,7 @@ private:
         friend class OpenXrInputPlugin;
 
         uint32_t _trackedControllers = 0;
-        XrActionSet _actionSet;
+        XrActionSet _actionSet { XR_NULL_HANDLE };
         std::map<std::string, std::shared_ptr<Action>> _actions;
         std::shared_ptr<OpenXrContext> _context;
         bool _actionsInitialized = false;

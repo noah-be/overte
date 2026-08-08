@@ -10,6 +10,10 @@ SOURCE = (
     Path(__file__).resolve().parents[2]
     / "android/apps/picoInterface/openxr/src/OpenXrInputPlugin.cpp"
 ).read_text(encoding="utf-8")
+HEADER = (
+    Path(__file__).resolve().parents[2]
+    / "android/apps/picoInterface/openxr/src/OpenXrInputPlugin.h"
+).read_text(encoding="utf-8")
 
 
 class OpenXrInputStateTest(unittest.TestCase):
@@ -96,6 +100,23 @@ class OpenXrInputStateTest(unittest.TestCase):
         body = haptics.group(0)
         self.assertIn("index >= HAND_COUNT", body)
         self.assertNotIn("index > 2", body)
+
+    def test_required_actions_initialize_atomically(self):
+        start = SOURCE.index("bool OpenXrInputPlugin::InputDevice::initActions()")
+        end = SOURCE.index("void OpenXrInputPlugin::InputDevice::update", start)
+        init = SOURCE[start:end]
+        self.assertIn("auto discardUnattachedActionSet = [&]", init)
+        self.assertIn("xrDestroyActionSet(_actionSet)", init)
+        self.assertIn("_actionSet = XR_NULL_HANDLE", init)
+        failure = init.index("if (!action->init(_actionSet))")
+        rollback = init.index("discardUnattachedActionSet();", failure)
+        failed_return = init.index("return false;", rollback)
+        publish = init.index("_actions.emplace(id, action)", failure)
+        self.assertLess(rollback, failed_return)
+        self.assertLess(failed_return, publish)
+        attach_failure = init.index('"Failed to attach action set"')
+        self.assertIn("discardUnattachedActionSet();", init[attach_failure:attach_failure + 180])
+        self.assertIn("XrActionSet _actionSet { XR_NULL_HANDLE };", HEADER)
 
 
 if __name__ == "__main__":

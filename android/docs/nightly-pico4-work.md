@@ -909,8 +909,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 49 — OpenXR reference-space initialization
 
 - Branch: `nightly/pico4-49-openxr-reference-spaces`
-- Commit: identified by subject `Harden Pico OpenXR reference spaces`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `e28a6006d9` (`Harden Pico OpenXR reference spaces`)
 - Change: enumerate an exact, stable reference-space capability list before
   requiring Stage and View, reuse an already complete pair during graphics
   re-customization, and create both through local handles. View creation failure
@@ -924,6 +923,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Re-customize graphics and suspend/resume
   repeatedly; inject View-space creation failure and verify Stage rollback,
   clean recovery, stable tracking origin and no reference-space handle growth.
+
+### 50 — Atomic OpenXR action initialization
+
+- Branch: `nightly/pico4-50-openxr-action-init`
+- Commit: identified by subject `Initialize Pico OpenXR actions atomically`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: initialize the action-set handle to null and treat every declared
+  action as required by the keyed update path. Any action/pose-space or attach
+  failure now clears unpublished wrappers, destroys the unattached action set,
+  nulls its handle and reports failure instead of later throwing in `at()`.
+- Regression: input contracts verify initialized handles, rollback/destroy,
+  failure-before-map-publication and the identical attach-failure cleanup path.
+- Passed: 8 OpenXR input contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: a runtime that cannot create a declared action now leaves controller
+  state neutral and retries initialization rather than providing a partial map.
+- Pico 4 validation: **not executed**. Inject action, pose-space and attach
+  failures during controller startup; verify neutral input/no crash, then remove
+  the fault and confirm both controllers initialize normally on retry.
 
 ## Deferred, rejected, or blocked ideas
 
