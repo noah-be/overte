@@ -171,6 +171,8 @@ public final class PhoneInterfaceActivity extends QtActivity {
 
     @Override
     protected void onDestroy() {
+        resumed = false;
+        mainHandler.removeCallbacks(drainPendingUrlTask);
         if (Build.VERSION.SDK_INT >= 33 && api33BackHandler != null) {
             ((Api33BackHandler) api33BackHandler).unregister();
             api33BackHandler = null;
@@ -262,7 +264,10 @@ public final class PhoneInterfaceActivity extends QtActivity {
 
     private void drainPendingUrl() {
         mainHandler.removeCallbacks(drainPendingUrlTask);
-        if (pendingUrl == null) {
+        // onNewIntent may run while this singleTask Activity is backgrounded.
+        // Retain the latest destination until onResume instead of navigating a
+        // world behind another foreground application.
+        if (pendingUrl == null || !resumed) {
             return;
         }
         boolean handedOff = false;

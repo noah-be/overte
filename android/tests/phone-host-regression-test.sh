@@ -275,6 +275,9 @@ require_text "$interface_activity" \
     'postDelayed\(drainPendingUrlTask,[[:space:]]*URL_RETRY_DELAY_MS\)' \
     'an early warm deep link remains pending until Qt is initialized'
 require_text "$interface_activity" \
+    'pendingUrl == null[[:space:]]*\|\|[[:space:]]*!resumed' \
+    'background deep links remain pending until the phone Activity resumes'
+require_text "$interface_activity" \
     'MAX_URL_RETRY_ATTEMPTS[[:space:]]*=[[:space:]]*300' \
     'native startup retries have a finite retry budget'
 require_text "$interface_activity" \

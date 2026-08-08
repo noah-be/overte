@@ -61,6 +61,32 @@ else
     exit 1
 fi
 
+if awk '
+        /private void drainPendingUrl\(\)/ { in_drain = 1 }
+        in_drain && /removeCallbacks\(drainPendingUrlTask\)/ { removed = NR }
+        in_drain && /pendingUrl == null \|\| !resumed/ { foreground = NR }
+        in_drain && /nativeProcessUrl\(pendingUrl\)/ { native = NR; exit }
+        END { exit !(removed && foreground && native && removed < foreground && foreground < native) }
+    ' "$activity"; then
+    printf 'PASS: background deep links remain pending until Activity resume\n'
+else
+    printf 'FAIL: a background deep link can reach native navigation\n' >&2
+    exit 1
+fi
+
+if awk '
+        /protected void onDestroy\(\)/ { in_destroy = 1 }
+        in_destroy && /resumed = false;/ { paused = NR }
+        in_destroy && /removeCallbacks\(drainPendingUrlTask\)/ { removed = NR }
+        in_destroy && /super[.]onDestroy\(\)/ { parent = NR; exit }
+        END { exit !(paused && removed && parent && paused < removed && removed < parent) }
+    ' "$activity"; then
+    printf 'PASS: Activity destroy cancels pending deep-link callbacks\n'
+else
+    printf 'FAIL: Activity destroy can retain a deep-link callback\n' >&2
+    exit 1
+fi
+
 require "$address_dialog" 'Component[.]onDestruction:[[:space:]]*\{' \
     'address dialog has an external teardown fallback'
 require "$address_dialog" 'addressField[.]focus[[:space:]]*=[[:space:]]*false' \

@@ -4,6 +4,28 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 33 — Defer deep links received in the background
+
+- Branch: `nightly/android-phone-33-background-deep-link`
+- Commit: `Defer phone deep links until resume` (this task's commit)
+- Change: Do not hand a new singleTask deep link to native navigation while the
+  Phone Activity is paused. Retain only the latest normalized destination and
+  drain it from `onResume`; Activity destruction also clears retry callbacks
+  explicitly before parent teardown.
+- Tests:
+  - `android/tests/phone-app-lifecycle-test.sh`: **passed**, including ordered
+    background-retention and destroy-cleanup contracts.
+  - `android/tests/phone-deep-link-test.sh`: **passed**, 20 JVM assertions.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle suites and 182/182 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: Android framework scheduling is represented by ordered source
+  contracts; native delivery still intentionally retains only the latest link.
+- Real-device validation still required: **not executed for this task**. Put
+  Overte in background, deliver two neutral test links, verify no world changes
+  while backgrounded and only the latest applies once after foreground; repeat
+  across Activity recreation and process restart.
+
 ## 32 — Own the complete Android Back gesture
 
 - Branch: `nightly/android-phone-32-back-repeat-lifecycle`
