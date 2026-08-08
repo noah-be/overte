@@ -1,7 +1,4 @@
 import QtQuick 2.5
-import QtQuick.Controls 1.4
-import QtQuick.Controls.Styles 1.4
-import QtQuick.Layouts 1.3
 
 Item {
     id: button
@@ -86,10 +83,6 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         fillMode: Image.Stretch
         source: urlHelper(button.icon)
-    }
-    FontLoader {
-        id: firaSans
-        source: "../../../fonts/FiraSans-Regular.ttf"
     }
     Text {
         id: text

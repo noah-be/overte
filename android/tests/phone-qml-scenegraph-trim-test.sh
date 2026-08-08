@@ -46,4 +46,18 @@ done
 grep -Eq 'Window\.geometryChanged\.connect' "$qml_dir/AudioBar.qml"
 grep -Eq 'Window\.geometryChanged\.disconnect' "$qml_dir/AudioBar.qml"
 
+button_file="$qml_dir/button.qml"
+[[ $(grep -Ec '^import ' "$button_file") -eq 1 ]] || {
+    echo 'FAIL: Android touch button retains unused QML imports' >&2
+    exit 1
+}
+if grep -Eq 'FontLoader|FiraSans-Regular\.ttf' "$button_file"; then
+    echo 'FAIL: Android touch buttons redundantly load the globally registered font' >&2
+    exit 1
+fi
+grep -Eq 'font\.family:[[:space:]]*button\.fontFamily' "$button_file" || {
+    echo 'FAIL: Android touch button no longer uses its configured font family' >&2
+    exit 1
+}
+
 echo 'Phone QML scenegraph trim checks passed.'
