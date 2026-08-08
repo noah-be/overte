@@ -14,15 +14,18 @@
   phone viewport while preserving text-entry support.
 
 The disabled pinch state and removal of the phantom text-selection UI were
-confirmed manually on a phone build. Host regression tests and Android APK
-content, padding, and 16 KiB packaging gates passed.
+confirmed manually on a phone build. Enabling pinch zoom, saving the preference,
+and disabling it again were also confirmed to take effect without restarting.
+The phone-specific compact General Settings footer was confirmed to render at
+the lower-right with usable button dimensions. Host regression tests and
+Android APK content, padding, and 16 KiB packaging gates passed; the final app
+process remained running with no fatal entries in the PID-filtered diagnostic.
 
-## Open verification
+## Next steps
 
-- Enable the two-finger perspective zoom preference under
-  **Settings > General Settings > Navigation** and confirm that pinch zoom
-  starts without restarting the app.
-- Disable the preference again and confirm that pinch zoom stops immediately.
+- Remove the remaining VR-only preferences from Android phone Tablet General
+  Settings. Keep that filtering phone-specific so desktop, Pico, and other VR
+  clients retain their established settings.
 - Recheck text entry in address, login, and settings fields after the dynamic
   IME gating change.
 
@@ -38,6 +41,8 @@ The dedicated phone tablet registrar owns the Settings button. The generic
 Settings startup script is deliberately not loaded as well, avoiding duplicate
 Settings buttons and mutable QML button-proxy updates.
 
-The combined tablet and touch-navigation host regression suites pass. An
-incremental phone build, APK gates, and the open manual verification above are
-still required before merging into the phone branch.
+The combined tablet and touch-navigation host regression suites pass. The
+incremental phone build, APK gates, and focused manual integration checks are
+complete, so this branch is ready to merge into the phone branch. The items
+under **Next steps** remain follow-up validation and cleanup rather than merge
+blockers.
