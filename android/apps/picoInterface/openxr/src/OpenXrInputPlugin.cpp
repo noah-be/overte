@@ -401,7 +401,9 @@ XrActionStateFloat OpenXrInputPlugin::Action::getFloat() {
     };
 
     XrResult result = xrGetActionStateFloat(_context->_session, &info, &state);
-    xrCheck(_context->_instance, result, "Failed to get float state!");
+    if (!xrCheck(_context->_instance, result, "Failed to get float state!")) {
+        return { .type = XR_TYPE_ACTION_STATE_FLOAT };
+    }
 
     return state;
 }
@@ -417,7 +419,9 @@ XrActionStateVector2f OpenXrInputPlugin::Action::getVector2f() {
     };
 
     XrResult result = xrGetActionStateVector2f(_context->_session, &info, &state);
-    xrCheck(_context->_instance, result, "Failed to get vector2 state!");
+    if (!xrCheck(_context->_instance, result, "Failed to get vector2 state!")) {
+        return { .type = XR_TYPE_ACTION_STATE_VECTOR2F };
+    }
 
     return state;
 }
@@ -433,7 +437,9 @@ XrActionStateBoolean OpenXrInputPlugin::Action::getBool() {
     };
 
     XrResult result = xrGetActionStateBoolean(_context->_session, &info, &state);
-    xrCheck(_context->_instance, result, "Failed to get float state!");
+    if (!xrCheck(_context->_instance, result, "Failed to get boolean state!")) {
+        return { .type = XR_TYPE_ACTION_STATE_BOOLEAN };
+    }
 
     return state;
 }
@@ -447,16 +453,21 @@ XrSpaceLocation OpenXrInputPlugin::Action::getPose() {
         .action = _action,
     };
 
-    XrResult result = xrGetActionStatePose(_context->_session, &info, &state);
-    xrCheck(_context->_instance, result, "failed to get pose value!");
-
     XrSpaceLocation location = {
         .type = XR_TYPE_SPACE_LOCATION,
     };
 
+    XrResult result = xrGetActionStatePose(_context->_session, &info, &state);
+    if (!xrCheck(_context->_instance, result, "failed to get pose value!") ||
+            !state.isActive) {
+        return location;
+    }
+
     if (_context->_lastPredictedDisplayTime.has_value()) {
         result = xrLocateSpace(_poseSpace, _context->_stageSpace, _context->inputPredictionTime(), &location);
-        xrCheck(_context->_instance, result, "Failed to locate hand space!");
+        if (!xrCheck(_context->_instance, result, "Failed to locate hand space!")) {
+            return { .type = XR_TYPE_SPACE_LOCATION };
+        }
     }
 
     return location;
@@ -472,9 +483,8 @@ bool OpenXrInputPlugin::Action::isPoseActive() {
     };
 
     XrResult result = xrGetActionStatePose(_context->_session, &info, &state);
-    xrCheck(_context->_instance, result, "failed to get pose value!");
-
-    return state.isActive;
+    return xrCheck(_context->_instance, result, "failed to get pose value!") &&
+        state.isActive;
 }
 
 bool OpenXrInputPlugin::Action::applyHaptic(XrDuration duration, float frequency, float amplitude) {

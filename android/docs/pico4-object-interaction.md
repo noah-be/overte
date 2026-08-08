@@ -31,6 +31,9 @@ querying and republishing potentially stale action state.
 Its tracked-controller count also starts at zero each update and increases only
 for controller locations with valid orientation, so availability no longer
 remains hard-coded to two during session or tracking loss.
+Individual OpenXR action getters likewise return neutral state on query errors.
+Pose spaces are located only while their action is active, and failed locations
+cannot contribute a valid controller pose.
 
 If a dispatcher module is disabled while running, its occupied activity slots
 are released by checking ownership on the slot table itself. This prevents a

@@ -61,6 +61,31 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertIn("++_trackedControllers", valid_pose.group(1))
         self.assertNotIn("_trackedControllers = 2", SOURCE)
 
+    def test_action_getters_fail_closed(self):
+        self.assertIn("return { .type = XR_TYPE_ACTION_STATE_FLOAT }", SOURCE)
+        self.assertIn("return { .type = XR_TYPE_ACTION_STATE_VECTOR2F }", SOURCE)
+        self.assertIn("return { .type = XR_TYPE_ACTION_STATE_BOOLEAN }", SOURCE)
+        pose = re.search(
+            r"XrSpaceLocation OpenXrInputPlugin::Action::getPose\(\) \{(.*?)\n\}",
+            SOURCE,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(pose)
+        body = pose.group(1)
+        self.assertIn("!state.isActive", body)
+        self.assertIn("return location", body)
+        self.assertRegex(body, r"if \(!xrCheck\(.*Failed to locate hand space!")
+
+    def test_pose_activity_failure_returns_false(self):
+        active = re.search(
+            r"bool OpenXrInputPlugin::Action::isPoseActive\(\) \{(.*?)\n\}",
+            SOURCE,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(active)
+        self.assertIn("return xrCheck", active.group(1))
+        self.assertIn("&&\n        state.isActive", active.group(1))
+
 
 if __name__ == "__main__":
     unittest.main()

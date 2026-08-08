@@ -303,8 +303,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 17 — Native OpenXR Activity release
 
 - Branch: `nightly/pico4-17-openxr-activity-release`
-- Commit: identified by subject `Release Pico OpenXR Activity reference`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `f63fe424d7` (`Release Pico OpenXR Activity reference`)
 - Change: release the native OpenXR loader's global Activity JNI reference from
   `onDestroy()`, but only when `IsSameObject` proves the destroying Activity is
   still the published instance. The process-global application Context remains
@@ -318,6 +317,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Recreate Activities rapidly and inspect
   logcat/native behavior for stale or prematurely cleared Activity references
   while OpenXR sessions stop and restart.
+
+### 18 — OpenXR action query failures
+
+- Branch: `nightly/pico4-18-openxr-action-errors`
+- Commit: identified by subject `Fail closed on Pico OpenXR action errors`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: Float, vector, boolean, pose-state, and pose-location queries return
+  deterministic inactive/neutral values when OpenXR reports an error. Pose
+  spaces are located only for active actions, and a failed locate returns an
+  invalid location rather than partially populated data.
+- Regression: OpenXR input contracts cover neutral action return types,
+  active-pose gating, locate failure, and false activity on query failure.
+- Passed: OpenXR input regression (6); full `pico-device-free-test.sh`;
+  Python syntax; `git diff --check`.
+- Risk: dropping invalid action data matches OpenXR's failure semantics and the
+  input maps' fail-closed policy; runtime error frequency remains device-only.
+- Pico 4 validation: **not executed**. Exercise controller sleep/reconnect and
+  Activity/session transitions; verify failed queries cannot revive old poses,
+  buttons, axes, grabs, rays, or locomotion.
 
 ## Deferred, rejected, or blocked ideas
 
