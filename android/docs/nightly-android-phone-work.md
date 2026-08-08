@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 58 — Create the device summary atomically
+
+- Branch: `nightly/android-phone-58-atomic-device-summary`
+- Commit: `Create phone device summaries atomically` (this task's commit)
+- Change: Close the check/create race at `summary.txt` with shell noclobber, so
+  a file or symlink appearing after validation cannot be overwritten or
+  followed. The end-to-end Fake-ADB suite now proves a symlink target remains
+  unchanged and installation never starts on this failure path.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, including the
+    new protected symlink fixture.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 220/220 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 220/220 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Atomic creation prevents local overwrite races; filesystem-level
+  integrity of a caller-owned parent directory remains the caller's concern.
+- Real-device validation still required: None specific to atomic file creation;
+  the broader current-APK lifecycle smoke remains pending.
+
 ## 57 — Mock the complete unattended device smoke
 
 - Branch: `nightly/android-phone-57-device-smoke-mock`

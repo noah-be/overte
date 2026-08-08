@@ -498,6 +498,8 @@ require_text tests/phone-device-test.sh '! -e "\$SUMMARY".*! -L "\$SUMMARY"' \
     'device smoke refuses existing files and symlinks at its summary target'
 require_text tests/phone-device-test.sh 'umask 077.*>"\$SUMMARY"' \
     'device smoke creates its report summary with private permissions'
+require_text tests/phone-device-test.sh 'set -o noclobber' \
+    'device smoke creates its summary atomically without following a raced target'
 require_text tests/phone-device-test.sh 'chmod 600 "\$SUMMARY"' \
     'device smoke enforces a private report summary mode'
 require_text tests/phone-graphics-benchmark.sh 'phone-device-lock[.]sh.*run' \

@@ -109,7 +109,8 @@ readonly TEST_DEEP_LINK="overte://localhost"
     die "PHONE_TEST_REPORT must be writable and searchable"
 [[ ! -e "$SUMMARY" && ! -L "$SUMMARY" ]] || \
     die "refusing to overwrite an existing device-test summary"
-(umask 077; : >"$SUMMARY")
+(set -o noclobber; umask 077; : >"$SUMMARY") || \
+    die "could not create a fresh device-test summary"
 chmod 600 "$SUMMARY"
 printf 'package=%s\napk_sha256=%s\nruntime_permissions_auto_granted=1\n' \
     "$PACKAGE" "$APK_SHA256" | tee -a "$SUMMARY"

@@ -106,4 +106,16 @@ fi
 [[ "$(<"$test_root/existing-report/summary.txt")" == preserve ]]
 ! grep -q '^install ' "$test_root/adb-commands"
 
+mkdir "$test_root/symlink-report"
+printf protected >"$test_root/protected-target"
+ln -s "$test_root/protected-target" "$test_root/symlink-report/summary.txt"
+: >"$test_root/adb-commands"
+if run_smoke "$test_root/symlink-report" env >"$test_root/symlink.out" 2>&1; then
+    echo 'FAIL: summary symlink was followed' >&2
+    exit 1
+fi
+[[ "$(<"$test_root/protected-target")" == protected ]]
+[[ -L "$test_root/symlink-report/summary.txt" ]]
+! grep -q '^install ' "$test_root/adb-commands"
+
 printf 'PASS: unattended phone device smoke mock\n'
