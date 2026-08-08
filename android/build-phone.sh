@@ -66,8 +66,17 @@ doctor() {
         -e 's/^Pico 4 build environment$/Android phone build environment (shared toolchain)/' \
         -e 's|^Next: ./build-pico.sh setup --download$|Next: follow ANDROID_PHONE_BUILD.md 16 KiB setup order; then ./build-phone.sh build|'
     printf '\nPhone dependency graph:\n'
-    if [[ -f "$script_dir/conan/phone-nonqt-16k-debug/.phone-16k-dependencies.ready" ]]; then
-        printf '  [READY] verified 16 KiB dependency marker is present\n'
+    local qt_dir="$script_dir/conan/phone-16k-debug"
+    local nonqt_dir="$script_dir/conan/phone-nonqt-16k-debug"
+    local ready_marker="$nonqt_dir/.phone-16k-dependencies.ready"
+    if [[ -f "$ready_marker" ]]; then
+        if "$script_dir/tests/verify-phone-16k-dependencies.sh" \
+                "$qt_dir" "$nonqt_dir" "$ready_marker" >/dev/null; then
+            printf '  [READY] verified 16 KiB dependency contents match the marker\n'
+        else
+            printf '  [STALE] 16 KiB dependency contents do not match the marker\n' >&2
+            return 1
+        fi
     else
         printf '  [SETUP] verified 16 KiB dependencies are not prepared yet\n'
     fi

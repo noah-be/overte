@@ -17,6 +17,12 @@ sed 's/^+//' > "$fixture/build-pico.sh" <<'MOCK'
 +exit "${MOCK_DOCTOR_STATUS:-0}"
 MOCK
 chmod +x "$fixture/build-phone.sh" "$fixture/build-pico.sh"
+mkdir -p "$fixture/tests"
+cat > "$fixture/tests/verify-phone-16k-dependencies.sh" <<'MOCK'
+#!/usr/bin/env bash
+exit "${MOCK_VERIFIER_STATUS:-0}"
+MOCK
+chmod +x "$fixture/tests/verify-phone-16k-dependencies.sh"
 
 output="$($fixture/build-phone.sh doctor)"
 grep -Fq 'Android phone build environment (shared toolchain)' <<< "$output"
@@ -40,10 +46,20 @@ fi
 mkdir -p "$fixture/conan/phone-nonqt-16k-debug"
 touch "$fixture/conan/phone-nonqt-16k-debug/.phone-16k-dependencies.ready"
 ready_output="$($fixture/build-phone.sh doctor)"
-grep -Fq '[READY] verified 16 KiB dependency marker is present' <<< "$ready_output"
+grep -Fq '[READY] verified 16 KiB dependency contents match the marker' <<< "$ready_output"
 if grep -Fq '[SETUP]' <<< "$ready_output"; then
     echo 'FAIL: Phone doctor reports setup after finding the readiness marker' >&2
     exit 1
 fi
+
+set +e
+stale_output="$(MOCK_VERIFIER_STATUS=9 "$fixture/build-phone.sh" doctor 2>&1)"
+stale_status=$?
+set -e
+[[ $stale_status -eq 1 ]] || {
+    printf 'FAIL: stale dependency marker returned status %d instead of 1\n' "$stale_status" >&2
+    exit 1
+}
+grep -Fq '[STALE] 16 KiB dependency contents do not match the marker' <<< "$stale_output"
 
 printf 'Android phone doctor output checks passed.\n'

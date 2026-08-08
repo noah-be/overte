@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 64 — Verify dependency contents in doctor
+
+- Branch: `nightly/android-phone-64-doctor-content-verification`
+- Commit: `Verify phone dependencies before doctor readiness` (this task's commit)
+- Change: A present marker no longer earns `[READY]` by existence alone. Doctor
+  runs the full read-only content hash, symlink boundary, and ELF-alignment
+  verifier; mismatches report `[STALE]` and fail, while absent graphs remain the
+  normal non-failing `[SETUP]` state.
+- Tests:
+  - `android/tests/phone-doctor-output-test.sh`: **passed**, covering setup,
+    content-verified ready, stale, and shared-checker failure states.
+  - `./android/build-phone.sh doctor`: **passed**, expected `[SETUP]` locally.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 228/228 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 228/228 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Doctor takes longer on a prepared graph because it hashes and
+  checks every relevant native dependency; this is intentional verification.
+- Real-device validation still required: None for dependency diagnosis.
+
 ## 63 — Report Phone dependency readiness in doctor
 
 - Branch: `nightly/android-phone-63-doctor-dependency-status`

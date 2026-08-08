@@ -74,7 +74,9 @@ applications intentionally use the same toolchain versions. Its Phone wrapper
 prints the Phone-specific 16-KiB setup hand-off rather than Pico build steps.
 It separately reports `[SETUP]` or `[READY]` for the atomic Phone dependency
 marker, so a complete host toolchain is not confused with a build-ready graph.
-Gradle still revalidates marker contents before compiling.
+When the marker exists, doctor runs the complete read-only content, symlink,
+and ELF-alignment verifier before reporting `[READY]`; mismatch reports
+`[STALE]` and fails. Gradle revalidates the same contract before compiling.
 
 ## First setup and required 16 KiB build order
 
