@@ -371,8 +371,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 21 — WebView creation failures
 
 - Branch: `nightly/pico4-21-webview-creation-failures`
-- Commit: identified by subject `Handle Pico WebView creation failures`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `342f44ee45` (`Handle Pico WebView creation failures`)
 - Change: reject offscreen WebView creation when the Pico Activity is absent,
   and catch Android WebView-provider/runtime construction failures on the main
   thread. Density is read from the validated local Activity instance. The
@@ -388,6 +387,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Create/destroy Web entities during
   Activity shutdown/recreation and test a missing/disabled WebView provider on
   a disposable environment; confirm a diagnostic error without process death.
+
+### 22 — Audio buffer configuration validation
+
+- Branch: `nightly/pico4-22-audio-buffer-validation`
+- Commit: identified by subject `Validate Pico audio buffer sizes`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: calculate PCM16 callback and AudioRecord buffer sizes with `long`
+  intermediates; reject nonpositive rates/frame counts, channel counts other
+  than mono/stereo, and values that exceed Java `int` before calling AudioRecord.
+- Regression: pure-Java tests cover existing mono/stereo sizing, native and
+  Android minimum selection, invalid fields, callback overflow, and doubled-
+  recorder overflow.
+- Passed: audio lifecycle/buffer JVM regressions; full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: valid production format sizes are unchanged; malformed JNI inputs now
+  fail startup with a diagnostic rather than wrap into an invalid allocation.
+- Pico 4 validation: **not executed**. Confirm the normal 48 kHz mono source
+  reports the unchanged 1920-byte callback and sustained capture behavior.
 
 ## Deferred, rejected, or blocked ideas
 

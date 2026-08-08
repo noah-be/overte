@@ -16,7 +16,10 @@ command -v javac >/dev/null || { echo "error: javac is required" >&2; exit 2; }
 command -v java >/dev/null || { echo "error: java is required" >&2; exit 2; }
 
 javac -d "$TEST_CLASSES" \
+    "$REPO_ROOT/android/apps/picoInterface/src/main/java/org/overte/pico/PicoAudioBufferSize.java" \
     "$REPO_ROOT/android/apps/picoInterface/src/main/java/org/overte/pico/PicoAudioCaptureState.java" \
-    "$SCRIPT_DIR/java/org/overte/pico/PicoAudioCaptureStateTest.java"
+    "$SCRIPT_DIR/java/org/overte/pico/PicoAudioCaptureStateTest.java" \
+    "$SCRIPT_DIR/java/org/overte/pico/PicoAudioBufferSizeTest.java"
 java -cp "$TEST_CLASSES" org.overte.pico.PicoAudioCaptureStateTest
+java -cp "$TEST_CLASSES" org.overte.pico.PicoAudioBufferSizeTest
 echo "PASS Pico AudioRecord capture-state regression"

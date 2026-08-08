@@ -15,6 +15,9 @@ source switch, or restart replaces the recorder while that read is pending, a
 final buffer from the old recorder is discarded instead of entering the new
 source's native FIFO. The device-free state regression is
 `android/tests/pico-audio-capture-state-test.sh`.
+The same test verifies overflow-safe PCM16 sizing. Only positive mono/stereo
+formats are accepted, and callback or double-buffer sizes that cannot fit a
+Java `int` fail before AudioRecord construction.
 
 ## Test controls
 

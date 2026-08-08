@@ -51,6 +51,13 @@ public final class AndroidAudioInput {
             return false;
         }
 
+        final int callbackBytes = PicoAudioBufferSize.callbackBytes(
+            sampleRate, channelCount, framesPerBuffer);
+        if (callbackBytes <= 0) {
+            Log.e(TAG, "Invalid or excessive capture callback configuration");
+            return false;
+        }
+
         final int channelConfig = channelCount == 2
             ? AudioFormat.CHANNEL_IN_STEREO
             : AudioFormat.CHANNEL_IN_MONO;
@@ -61,10 +68,12 @@ public final class AndroidAudioInput {
             return false;
         }
 
-        final int callbackBytes = Math.max(
-            framesPerBuffer * channelCount * Short.BYTES,
-            sampleRate * channelCount * Short.BYTES / 50);
-        final int recorderBytes = Math.max(minimumBytes, callbackBytes * 2);
+        final int recorderBytes = PicoAudioBufferSize.recorderBytes(
+            minimumBytes, callbackBytes);
+        if (recorderBytes <= 0) {
+            Log.e(TAG, "Invalid or excessive AudioRecord buffer configuration");
+            return false;
+        }
         final AudioRecord newRecorder;
         try {
             newRecorder = new AudioRecord(
