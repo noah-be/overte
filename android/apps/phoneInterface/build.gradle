@@ -440,6 +440,12 @@ android {
                 // otherwise dominates the compressed scripts payload.
                 exclude 'simplifiedUI/**'
                 exclude 'simplifiedUIBootstrapper.js'
+                // Developer tests, tutorial examples, and the desktop
+                // community-app bundle are not reachable from the dedicated
+                // phone startup set.
+                exclude 'developer/**'
+                exclude 'tutorials/**'
+                exclude 'communityScripts/**'
                 eachFile { details ->
                     youngestLastModified = Math.max(youngestLastModified, details.lastModified)
                     assetList.add("scripts/${details.path}")

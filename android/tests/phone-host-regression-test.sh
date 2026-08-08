@@ -121,6 +121,12 @@ require_text tests/check-phone-apk-16k.sh 'check-phone-apk-padding\.py' \
     'final APK gate rejects excessive incremental ZIP padding'
 require_text "$gradle" "exclude 'simplifiedUI/[*][*]'" \
     'phone packaging omits the unused desktop Simplified UI payload'
+require_text "$gradle" "exclude 'developer/[*][*]'" \
+    'phone packaging omits developer-only script fixtures'
+require_text "$gradle" "exclude 'tutorials/[*][*]'" \
+    'phone packaging omits tutorial-only script examples'
+require_text "$gradle" "exclude 'communityScripts/[*][*]'" \
+    'phone packaging omits the unreachable desktop community-app bundle'
 require_text "$gradle" "dependsOn tasks\.named\('verifyPhone16kDependencies'\)" \
     'Conan generator staging runs only after dependency verification'
 require_text "$gradle" 'outputs\.upToDateWhen[[:space:]]*\{[[:space:]]*false[[:space:]]*\}' \
