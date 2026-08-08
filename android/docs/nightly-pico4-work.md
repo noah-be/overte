@@ -68,8 +68,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 04 — OpenXR loader JNI lifecycle
 
 - Branch: `nightly/pico4-04-openxr-loader-lifecycle`
-- Commit: identified by subject `Harden Pico OpenXR loader lifecycle`; the
-  exact hash is recorded by the following stacked task or the final report.
+- Commit: `6fc87f06e6` (`Harden Pico OpenXR loader lifecycle`)
 - Change: construct Activity/application-context global references as a
   temporary set, publish them only after loader initialization succeeds, clean
   every early failure path, release the Activity-class local reference, and on
@@ -86,6 +85,24 @@ headset, ADB, Android device, external domain, or device setting is used.
   resume the app, trigger Activity recreation if supported, then confirm a
   single loader initialization, a refreshed Activity, no invalid JNI reference,
   and successful session creation after each lifecycle transition.
+
+### 05 — Unified device-free regression suite
+
+- Branch: `nightly/pico4-05-device-free-suite`
+- Commit: identified by subject `Add Pico device-free regression suite`; the
+  exact hash is recorded by the following stacked task or the final report.
+- Change: add one explicitly ADB-free entry point for shell syntax, WebView,
+  AudioRecord, OpenXR loader, microphone/unattended/device-lock mocks,
+  serverless fixture integrity, and power-analyzer coverage; document its
+  separation from configured native Qt/C++ host tests.
+- Passed: `android/tests/pico-device-free-test.sh` in full: WebView bridge (3),
+  WebView gesture state, AudioRecord state, OpenXR lifecycle (3), microphone
+  mocks (11), unattended mocks (9), device-lock mocks (5), serverless fixture,
+  power analyzer (4), and all selected Bash syntax checks.
+- Risk: this suite intentionally does not imply that native compilation,
+  Android packaging, or headset behavior passed.
+- Pico 4 validation: **not executed**. No additional device procedure is
+  introduced by this test-runner-only task; execute the cumulative checks below.
 
 ## Cumulative remaining device validation
 

@@ -118,6 +118,19 @@ The `setup` command runs the environment check before downloading anything.
 | `./build-pico.sh deps --download` | Download and install prebuilt dependencies only |
 | `./build-pico.sh --help` | Show commands and supported path overrides |
 
+Before building, or on a host without Pico/Android dependencies, run the
+device-free regression suite from the repository root:
+
+```bash
+./android/tests/pico-device-free-test.sh
+```
+
+It performs shell syntax checks and the WebView, microphone, OpenXR lifecycle,
+runner-mock, serverless-fixture, device-lock, and power-analyzer regressions. It
+does not invoke ADB, connect to a device, download dependencies, or modify
+device settings. Native Qt/C++ suites remain available separately through
+`android/tests/pico-host-regression-test.sh` when a CMake build is configured.
+
 ## Default Pico graphics profile
 
 The Pico Interface uses the measured Pico 4 quality/performance baseline by
