@@ -999,8 +999,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 54 — Microphone capture-thread startup
 
 - Branch: `nightly/pico4-54-audio-thread-startup`
-- Commit: identified by subject `Roll back Pico microphone thread startup`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `91e9c33ea1` (`Roll back Pico microphone thread startup`)
 - Change: construct and start the capture thread through guarded phases after
   AudioRecord startup. Thread allocation/start failure now clears only the same
   published recorder/thread state, stops/releases the recorder and returns false.
@@ -1014,6 +1013,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Inject thread construction/start and
   priority failures, verify no live recorder/thread remains, then restart normal
   capture and confirm audio delivery and source switching recover.
+
+### 55 — WebView asynchronous scroll lifetime
+
+- Branch: `nightly/pico4-55-webview-scroll-lifetime`
+- Commit: identified by subject `Bind Pico WebView scroll callbacks`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: before refreshing layout from an asynchronous JavaScript scroll
+  completion, require both an active instance and exact identity in the current
+  handle map. A destroyed or same-handle replacement WebView is never touched by
+  the old callback.
+- Regression: WebView bridge contracts enforce callback/activity/map-identity/
+  layout ordering inside the scroll path.
+- Passed: 14 WebView bridge contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: only stale callbacks skip layout; current scroll completions retain the
+  forced software-WebView layout needed for updated frame delivery.
+- Pico 4 validation: **not executed**. Scroll nested and document surfaces while
+  rapidly destroying/recreating and navigating the same Web entity; verify no
+  destroyed-view exception, cross-instance refresh or stale rendered frame.
 
 ## Deferred, rejected, or blocked ideas
 

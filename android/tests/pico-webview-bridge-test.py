@@ -155,6 +155,22 @@ class PicoWebViewBridgeTest(unittest.TestCase):
         self.assertIn("_webViewCreationRetryScheduled = true;", self.source)
         self.assertIn("_webViewCreationRetryScheduled = false;", self.source)
 
+    def test_scroll_completion_is_bound_to_current_instance(self):
+        scroll = re.search(
+            r"public static void scroll\(.*?\n    \}",
+            self.java_source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(scroll)
+        body = scroll.group(0)
+        callback = body.index("instance.view.evaluateJavascript")
+        active = body.index("instance.active", callback)
+        identity = body.index("INSTANCES.get(nativeHandle) == instance", active)
+        refresh = body.index("instance.refreshLayout()", identity)
+        self.assertLess(callback, active)
+        self.assertLess(active, identity)
+        self.assertLess(identity, refresh)
+
     def test_pending_properties_are_resynchronized_after_creation(self):
         result = re.search(
             r"void PicoWebViewItem::acceptCreationResult\(.*?\n\}",

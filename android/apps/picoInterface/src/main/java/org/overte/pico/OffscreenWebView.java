@@ -221,7 +221,11 @@ public final class OffscreenWebView {
                 // An unattached software WebView does not receive ViewRootImpl's
                 // normal invalidation/layout pass after compositor scrolling.
                 // Force that pass so draw(Canvas) cannot reuse stale page layers.
-                instance.refreshLayout();
+                // The callback can arrive after destroy or after a replacement
+                // WebView has reused the same native handle.
+                if (instance.active && INSTANCES.get(nativeHandle) == instance) {
+                    instance.refreshLayout();
+                }
             });
         });
     }
