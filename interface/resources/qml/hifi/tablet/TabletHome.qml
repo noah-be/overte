@@ -18,9 +18,15 @@ Item {
 
     focus: true
 
+    TabletTouchConfiguration {
+        id: presentation
+        availableWidth: tablet.width
+        availableHeight: tablet.height
+    }
+
     Rectangle {
         id: bgTopBar
-        height: 90
+        height: presentation.topBarHeight
 
         anchors {
             top: parent.top
@@ -45,7 +51,7 @@ Item {
 
             anchors {
                 left: parent.left
-                leftMargin: 30
+                leftMargin: presentation.horizontalMargin
                 verticalCenter: parent.verticalCenter
             }
         }
@@ -68,7 +74,7 @@ Item {
             anchors.top: parent.top
             anchors.topMargin: 15
             anchors.right: parent.right
-            anchors.rightMargin: 20
+            anchors.rightMargin: presentation.horizontalMargin
             anchors.bottom: parent.bottom
 
             function timeChanged() {
@@ -214,6 +220,8 @@ Item {
                         flickableDirection: Flickable.AutoFlickIfNeeded
                         keyNavigationEnabled: false
                         highlightFollowsCurrentItem: false
+                        // The containing SwipeView owns horizontal paging. The
+                        // grid itself must not steal touchscreen drags.
                         interactive: false
 
                         property int previousGridIndex: -1
@@ -223,9 +231,9 @@ Item {
 
                         anchors {
                             fill: parent
-                            topMargin: 20
-                            leftMargin: 30
-                            rightMargin: 30
+                            topMargin: presentation.verticalMargin
+                            leftMargin: presentation.horizontalMargin
+                            rightMargin: presentation.horizontalMargin
                             bottomMargin: 0
                         }
 
@@ -245,8 +253,12 @@ Item {
                             }
                         }
 
-                        cellWidth: width/3
-                        cellHeight: cellWidth
+                        property int rowCount: Math.ceil(TabletEnums.ButtonsOnPage / presentation.columns)
+                        property real buttonExtent: Math.min(presentation.maximumButtonExtent,
+                            Math.max(1, Math.min(cellWidth - 12, cellHeight - 12)))
+
+                        cellWidth: width / presentation.columns
+                        cellHeight: height / rowCount
                         flow: GridView.LeftToRight
                         model: page.proxyModel
 
@@ -255,7 +267,7 @@ Item {
                             width: gridView.cellWidth
                             height: gridView.cellHeight
 
-                            hoverEnabled: true
+                            hoverEnabled: !presentation.touchOptimized
 
                             property bool containsMouse: gridView.containsMouse
                             onHoveredChanged: {
@@ -276,6 +288,9 @@ Item {
                                 // Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.Linear } }
 
                                 anchors.centerIn: parent
+                                width: gridView.buttonExtent
+                                height: gridView.buttonExtent
+                                hoverEnabled: !presentation.touchOptimized
                                 gridView: wrapper.GridView.view
                                 buttonIndex: page.proxyModel.buttonIndex(uuid);
                                 flickable: swipeView.contentItem;
@@ -316,7 +331,7 @@ Item {
                 previousIndex = currentIndex;
             }
 
-            hoverEnabled: true
+            hoverEnabled: !presentation.touchOptimized
             anchors {
                 left: parent.left
                 right: parent.right
@@ -331,8 +346,8 @@ Item {
             visible: swipeView.count > 1
 
             delegate: Item {
-                width: 15
-                height: 15
+                width: presentation.minimumTouchTarget
+                height: presentation.minimumTouchTarget
 
                 Rectangle {
                     property bool isHovered: false
@@ -350,9 +365,9 @@ Item {
 
                     MouseArea {
                         anchors.centerIn: parent
-                        width: 20
-                        height: 30 // Make it easier to target with laser.
-                        hoverEnabled: true
+                        width: presentation.minimumTouchTarget
+                        height: presentation.minimumTouchTarget
+                        hoverEnabled: !presentation.touchOptimized
                         enabled: true
                         onEntered: parent.isHovered = true;
                         onExited: parent.isHovered = false;
@@ -362,6 +377,7 @@ Item {
             }
 
             interactive: false
+            height: presentation.pageIndicatorHeight
             anchors.bottom: parent.bottom
             anchors.horizontalCenter: parent.horizontalCenter
             count: swipeView.count

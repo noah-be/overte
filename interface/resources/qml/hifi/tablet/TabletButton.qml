@@ -23,6 +23,7 @@ Item {
     property bool isActive: false
     property bool inDebugMode: false  // tablet only
     property bool isEntered: false
+    property bool hoverEnabled: true  // tablet only; disabled for direct-touch presentation
     property double sortOrder: 100
     property int stableOrder: 0
     property var tabletRoot;  // tablet only
@@ -137,7 +138,7 @@ Item {
 
     MouseArea {
         anchors.fill: parent
-        hoverEnabled: true
+        hoverEnabled: tabletButton.hoverEnabled
         enabled: true
         preventStealing: false
         onClicked: {
@@ -263,5 +264,4 @@ Item {
         }
     ]
 }
-
 
