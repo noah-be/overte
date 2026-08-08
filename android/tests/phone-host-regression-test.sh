@@ -73,9 +73,11 @@ for source_file in \
         tests/phone-apk-padding-test.sh \
         tests/phone-actionbar-qml-lifetime-test.sh \
         tests/phone-audio-output-race-test.sh \
+        tests/phone-device-lock-test.sh \
         tests/phone-offscreen-ui-mip-test.sh \
         tests/phone-script-payload-test.sh \
         tests/verify-phone-16k-dependencies.sh \
+        phone-device-lock.sh \
         prepare-phone-16k-conan-deps.sh \
         "$gradle" \
         "$cmake" \
@@ -392,6 +394,8 @@ require_text build-phone.sh \
     'wrapper installs the documented APK path'
 require_text build-phone.sh 'select_phone_serial' \
     'wrapper explicitly selects a non-VR phone before installation'
+require_text build-phone.sh 'phone-device-lock[.]sh.*run' \
+    'wrapper serializes phone installation with the shared device lock'
 require_text build-phone.sh 'PHONE_ALLOW_LEGACY_4K_DEPS' \
     'legacy 4 KiB dependency use requires an explicit override'
 require_text apps/phoneInterface/build.gradle \
@@ -400,6 +404,14 @@ require_text apps/phoneInterface/build.gradle \
 require_file finalize-phone-16k-deps.sh
 require_file phone-build-resource-guard.sh
 require_file tests/phone-build-resource-guard-test.sh
+require_text phone-device-lock.sh 'git-common-dir' \
+    'phone device lock is shared across Git worktrees'
+require_text phone-device-lock.sh 'PHONE_DEVICE_LOCK_HELD=1' \
+    'phone device lock marks protected child operations'
+require_text tests/phone-device-test.sh 'phone-device-lock[.]sh.*run' \
+    'device smoke test automatically acquires the shared phone lock'
+require_text tests/phone-graphics-benchmark.sh 'phone-device-lock[.]sh.*run' \
+    'graphics benchmark automatically acquires the shared phone lock'
 require_text phone-build-resource-guard.sh 'OVERTE_PHONE_MIN_SWAP_BYTES=32000000000' \
     'dependency builds require at least 32 GB decimal swap'
 require_text phone-build-resource-guard.sh "OVERTE_PHONE_MEMORY_MAX_PROPERTY='20000000000'" \
