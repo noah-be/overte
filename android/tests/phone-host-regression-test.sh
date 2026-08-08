@@ -191,6 +191,10 @@ require_text tests/check-phone-apk-metadata.sh 'android[.]permission[.]VIBRATE' 
     'final APK metadata gate enforces the exact permission allowlist'
 require_text tests/check-phone-apk-metadata.sh 'min_sdk.*26.*target_sdk.*36' \
     'final APK metadata gate enforces current SDK bounds'
+require_text tests/check-phone-apk-metadata.sh 'PHONE_EXPECT_DEBUGGABLE' \
+    'final APK metadata gate can enforce the expected build mode'
+require_text "$gradle" "environment 'PHONE_EXPECT_DEBUGGABLE'" \
+    'Gradle final APK gate binds debuggable state to each variant'
 require_text "$gradle" "exclude 'simplifiedUI/[*][*]'" \
     'phone packaging omits the unused desktop Simplified UI payload'
 require_text "$gradle" "exclude 'developer/[*][*]'" \

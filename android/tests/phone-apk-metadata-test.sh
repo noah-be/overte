@@ -27,6 +27,17 @@ chmod +x "$fixture/apkanalyzer"
 
 PHONE_APK_ANALYZER="$fixture/apkanalyzer" "$script_dir/check-phone-apk-metadata.sh" \
     "$fixture/phone.apk" >/dev/null
+PHONE_EXPECT_DEBUGGABLE=0 PHONE_APK_ANALYZER="$fixture/apkanalyzer" \
+    "$script_dir/check-phone-apk-metadata.sh" "$fixture/phone.apk" >/dev/null
+PHONE_EXPECT_DEBUGGABLE=1 MOCK_DEBUGGABLE=true PHONE_APK_ANALYZER="$fixture/apkanalyzer" \
+    "$script_dir/check-phone-apk-metadata.sh" "$fixture/phone.apk" >/dev/null
+if PHONE_EXPECT_DEBUGGABLE=1 PHONE_APK_ANALYZER="$fixture/apkanalyzer" \
+        "$script_dir/check-phone-apk-metadata.sh" "$fixture/phone.apk" \
+        >"$fixture/mode.out" 2>&1; then
+    echo 'FAIL: release metadata was accepted for an expected debug variant' >&2
+    exit 1
+fi
+grep -Fq 'does not match the expected variant' "$fixture/mode.out"
 for scenario in wrong-id old-sdk permission debug-state; do
     case "$scenario" in
         wrong-id) env_args=(MOCK_ID=example.invalid) ;;

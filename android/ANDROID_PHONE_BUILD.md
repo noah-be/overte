@@ -509,6 +509,7 @@ also rejects partial APKs and verifies every entry named by `cache_assets.txt`.
 The combined gate uses SDK `apkanalyzer` on the merged binary manifest to
 require the Phone package ID, API 26/36 bounds, exact five-permission allowlist,
 and a valid boolean debuggable state before inspecting native/container data.
+Gradle additionally requires `true` for debug APKs and `false` for release APKs.
 
 A production release additionally needs a CI-managed upload key (never stored
 in this repository), a monotonically increasing `versionCode`, bundle-size

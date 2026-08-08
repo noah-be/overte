@@ -547,6 +547,8 @@ android {
                                 canonicalVariantApk)
                         }
                         exec {
+                            environment 'PHONE_EXPECT_DEBUGGABLE',
+                                variant.buildType.name == 'debug' ? '1' : '0'
                             commandLine phone16kApkCheck.absolutePath,
                                 canonicalVariantApk.absolutePath
                         }

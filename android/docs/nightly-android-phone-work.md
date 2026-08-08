@@ -4,6 +4,25 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 88 — Bind APK debug state to the Gradle variant
+
+- Branch: `nightly/android-phone-88-variant-debuggable-gate`
+- Commit: `Gate phone APK debuggable variant state` (this task's commit)
+- Change: Let the merged-manifest gate enforce an optional expected debug state,
+  and have Gradle pass `1` for debug variants and `0` for release variants. A
+  release APK accidentally marked debuggable now fails final packaging checks.
+- Tests:
+  - `android/tests/phone-apk-metadata-test.sh`: **passed**, covering matching
+    debug/release expectations and a release/debug mismatch failure.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 274/274 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 274/274 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Full Gradle packaging remains blocked by absent Phone dependencies;
+  executable checker fixtures and static task wiring cover this change.
+- Real-device validation still required: Release smoke must set
+  `PHONE_EXPECT_DEBUGGABLE=0` and use the same gated artifact digest.
+
 ## 87 — Gate merged metadata in every final APK
 
 - Branch: `nightly/android-phone-87-apk-metadata-gate`
