@@ -1055,14 +1055,25 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
     if (_context->_MNDX_xdevSpaceSupported) {
         _xdev.clear();
 
-        XrXDevListMNDX xdevList;
+        XrXDevListMNDX xdevList { XR_NULL_HANDLE };
         std::vector<XrXDevIdMNDX> xdevIDs(MAX_TRACKER_COUNT);
         uint32_t xdevIDsCount = 0;
 
         XrCreateXDevListInfoMNDX createInfo = {.type = XR_TYPE_CREATE_XDEV_LIST_INFO_MNDX};
 
-        _context->xrCreateXDevListMNDX(_context->_session, &createInfo, &xdevList);
-        _context->xrEnumerateXDevsMNDX(xdevList, MAX_TRACKER_COUNT, &xdevIDsCount, xdevIDs.data());
+        XrResult xdevResult = _context->xrCreateXDevListMNDX(
+            _context->_session, &createInfo, &xdevList);
+        if (!xrCheck(_context->_instance, xdevResult, "Failed to create XDev list")) {
+            xdevList = XR_NULL_HANDLE;
+        }
+        if (xdevList != XR_NULL_HANDLE) {
+            xdevResult = _context->xrEnumerateXDevsMNDX(
+                xdevList, MAX_TRACKER_COUNT, &xdevIDsCount, xdevIDs.data());
+            if (!xrCheck(_context->_instance, xdevResult, "Failed to enumerate XDevs") ||
+                    xdevIDsCount > MAX_TRACKER_COUNT) {
+                xdevIDsCount = 0;
+            }
+        }
 
         // shrink the list to the number of xdevs we actually received
         xdevIDs.resize(xdevIDsCount);
@@ -1072,7 +1083,11 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
             XrXDevPropertiesMNDX properties = {.type = XR_TYPE_XDEV_PROPERTIES_MNDX};
 
             info.id = id;
-            _context->xrGetXDevPropertiesMNDX(xdevList, &info, &properties);
+            xdevResult = _context->xrGetXDevPropertiesMNDX(xdevList, &info, &properties);
+            if (!xrCheck(_context->_instance, xdevResult, "Failed to get XDev properties") ||
+                    !properties.canCreateSpace) {
+                continue;
+            }
 
             qCDebug(xr_input_cat, "XDev %lx \"%s\"", id, properties.name);
 
@@ -1081,7 +1096,7 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
                 continue;
             }
 
-            XDevTracker tracker;
+            XDevTracker tracker {};
             tracker.properties = properties;
 
             tracker.pose_channel = {};
@@ -1094,9 +1109,19 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
                 .offset = { {0, 0, 0, 1}, {} },
             };
 
-            _context->xrCreateXDevSpaceMNDX(_context->_session, &createSpaceInfo, &tracker.space);
+            XrSpace candidateSpace { XR_NULL_HANDLE };
+            xdevResult = _context->xrCreateXDevSpaceMNDX(
+                _context->_session, &createSpaceInfo, &candidateSpace);
+            if (!xrCheck(_context->_instance, xdevResult, "Failed to create XDev space")) {
+                continue;
+            }
+            tracker.space = candidateSpace;
 
             _xdev.insert({id, tracker});
+        }
+        if (xdevList != XR_NULL_HANDLE) {
+            xrCheck(_context->_instance, _context->xrDestroyXDevListMNDX(xdevList),
+                    "Failed to destroy XDev list");
         }
     }
 

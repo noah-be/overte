@@ -298,6 +298,28 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertIn("_MNDX_xdevSpaceSupported = false", xdev[failure:])
         self.assertNotIn("xrGetInstanceProcAddr(", xdev)
 
+    def test_xdev_enumeration_and_space_publication_are_transactional(self):
+        start = SOURCE.index("if (_context->_MNDX_xdevSpaceSupported)")
+        end = SOURCE.index("_actionsInitialized = true", start)
+        xdev = SOURCE[start:end]
+        self.assertIn("XrXDevListMNDX xdevList { XR_NULL_HANDLE }", xdev)
+        self.assertIn('"Failed to create XDev list"', xdev)
+        self.assertIn('"Failed to enumerate XDevs"', xdev)
+        self.assertIn("xdevIDsCount > MAX_TRACKER_COUNT", xdev)
+        self.assertIn('"Failed to get XDev properties"', xdev)
+        self.assertIn("!properties.canCreateSpace", xdev)
+        candidate = xdev.index("XrSpace candidateSpace { XR_NULL_HANDLE }")
+        create = xdev.index("xrCreateXDevSpaceMNDX", candidate)
+        check = xdev.index('"Failed to create XDev space"', create)
+        publish = xdev.index("tracker.space = candidateSpace", check)
+        insert = xdev.index("_xdev.insert", publish)
+        destroy_list = xdev.index("xrDestroyXDevListMNDX", insert)
+        self.assertLess(candidate, create)
+        self.assertLess(create, check)
+        self.assertLess(check, publish)
+        self.assertLess(publish, insert)
+        self.assertLess(insert, destroy_list)
+
 
 if __name__ == "__main__":
     unittest.main()

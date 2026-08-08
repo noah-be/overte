@@ -1667,8 +1667,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 92 — Atomic XDev function capability
 
 - Branch: `nightly/pico4-92-openxr-xdev-functions`
-- Commit: identified by subject `Validate Pico OpenXR XDev functions`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `79d7c61006` (`Validate Pico OpenXR XDev functions`)
 - Change: require successful loading of every MNDX XDev entry point actually
   used by Pico's OpenXR input fork before enabling optional body-tracker setup.
   Missing functions disable the capability and clear all partial pointers; the
@@ -1681,6 +1680,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Inject each missing XDev entry point and
   verify clean capability disablement/no null dispatch; if a compatible tracker
   runtime is available, verify unchanged enumeration and tracking.
+
+### 93 — Transactional XDev enumeration
+
+- Branch: `nightly/pico4-93-openxr-xdev-enumeration`
+- Commit: identified by subject `Harden Pico OpenXR XDev enumeration`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: initialize/check the temporary XDev list, bound returned IDs to the
+  supplied capacity, require valid properties and space capability, and publish
+  each null-initialized candidate space only after successful creation. The
+  temporary list is explicitly destroyed after every successful list creation.
+- Regression: 18 input/context contracts cover list/enumeration/property checks,
+  count bound, candidate-before-publication and list cleanup ordering.
+- Passed: targeted 18-contract OpenXR input suite; `git diff --check`.
+- Risk: malformed or partially failing optional trackers are skipped instead of
+  entering the pose map with undefined handles; core Pico input is unchanged.
+- Pico 4 validation: **not executed**. Inject CreateList, overflow, property and
+  CreateSpace failures; verify no invalid calls/handles, one list destroy and
+  valid trackers still enumerate independently where supported.
 
 ## Deferred, rejected, or blocked ideas
 
