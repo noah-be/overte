@@ -354,27 +354,6 @@ void PhysicsEngine::stepSimulation() {
 
     int numSubsteps = _dynamicsWorld->stepSimulationWithSubstepCallback(timeStep, maxSubsteps,
                                                                         PHYSICS_ENGINE_FIXED_SUBSTEP, onSubStep);
-#if defined(Q_OS_ANDROID)
-    static uint64_t lastStepLog { 0 };
-    static uint32_t stepCalls { 0 };
-    static uint32_t accumulatedSubsteps { 0 };
-    static uint32_t maximumSubsteps { 0 };
-    ++stepCalls;
-    accumulatedSubsteps += numSubsteps;
-    maximumSubsteps = std::max(maximumSubsteps, static_cast<uint32_t>(numSubsteps));
-    const uint64_t stepLogNow = usecTimestampNow();
-    if (stepLogNow - lastStepLog >= USECS_PER_SECOND) {
-        qInfo() << "PICO_PHYSICS_STEP callsPerSec" << stepCalls
-                << "averageSubsteps" << (stepCalls ? static_cast<float>(accumulatedSubsteps) / stepCalls : 0.0f)
-                << "maximumSubsteps" << maximumSubsteps
-                << "collisionObjects" << getNumCollisionObjects()
-                << "fixedHz" << NUM_SUBSTEPS_PER_SECOND;
-        lastStepLog = stepLogNow;
-        stepCalls = 0;
-        accumulatedSubsteps = 0;
-        maximumSubsteps = 0;
-    }
-#endif
     if (numSubsteps > 0) {
         _hasOutgoingChanges = true;
         if (_physicsDebugDraw->getDebugMode()) {

@@ -479,8 +479,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 27 — Avatar hot-path logging cleanup
 
 - Branch: `nightly/pico4-27-avatar-hotpath-logging`
-- Commit: identified by subject `Remove always-on Pico avatar profiling`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `30d5be58b3` (`Remove always-on Pico avatar profiling`)
 - Change: remove three always-on Android avatar timing collectors and their
   periodic info logs from per-frame local-avatar update/simulation paths. The
   Pico local-body optimization, avatar update, render transaction, and network
@@ -495,6 +494,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Run normal navigation with log capture;
   confirm the three periodic profiler lines are absent and remote users still
   receive head/hand/avatar motion normally.
+
+### 28 — Physics hot-path logging cleanup
+
+- Branch: `nightly/pico4-28-physics-hotpath-logging`
+- Commit: identified by subject `Remove always-on Pico physics profiling`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: remove the release-build per-step counters, timestamp, and periodic
+  physics info log. Pico's existing late-frame substep cap and Bullet stepping,
+  contact processing, outgoing-change signaling, and debug drawing are intact.
+- Regression: source contracts reject the profiler state while requiring both
+  hitch thresholds and the substep callback path to remain.
+- Passed: hot-path source contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: the coarse once-per-second substep line is removed; Bullet profiling
+  and existing physics diagnostic facilities remain available for deliberate
+  captures.
+- Pico 4 validation: **not executed**. Exercise collision-heavy grabbing and
+  locomotion while capturing logs; verify normal physics behavior and absence
+  of the periodic `PICO_PHYSICS_STEP` line.
 
 ## Deferred, rejected, or blocked ideas
 
