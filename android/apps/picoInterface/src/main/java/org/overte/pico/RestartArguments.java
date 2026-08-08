@@ -8,7 +8,6 @@ import android.content.SharedPreferences;
 
 /** App-private handoff for arguments that must survive a process restart. */
 final class RestartArguments {
-    static final String EXTRA_INTERNAL_RESTART = "org.overte.pico.INTERNAL_RESTART";
     private static final String PREFERENCES = "pico_restart";
     private static final String KEY_ARGUMENTS = "arguments";
 

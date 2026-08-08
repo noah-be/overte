@@ -615,8 +615,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 34 — Visible serverless load failures
 
 - Branch: `nightly/pico4-34-serverless-load-error`
-- Commit: identified by subject `Expose Pico serverless load failures`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `1d4a2a0689` (`Expose Pico serverless load failures`)
 - Change: track file-open, request-creation, download, and parse failures for
   the current serverless destination and feed them into the Pico loading state
   as `WORLD_SERVER_UNAVAILABLE` instead of indefinitely reporting
@@ -632,6 +631,29 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Attempt missing files, malformed JSON,
   denied/404/timeout URLs, then navigate to valid local/remote and online
   destinations; verify immediate failure status and clean recovery.
+
+### 35 — Private restart entry point
+
+- Branch: `nightly/pico4-35-private-restart-entrypoint`
+- Commit: identified by subject `Protect Pico restart entry point`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: route scheduled restarts through a dedicated non-exported,
+  no-history Activity which alone consumes the app-private one-shot argument
+  handoff. The exported launcher no longer inspects any Intent extras or can be
+  induced to consume pending restart state.
+- Regression: manifest/source contracts require the restart Activity to be
+  non-exported, the public launcher to ignore its Intent, and the private path
+  to consume arguments and launch the internal Qt Activity.
+- Passed: Android entry-point contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: normal launcher and permission-denied startup behavior are unchanged;
+  scheduled restart now skips the permission trampoline because it originates
+  from an already running process where optional microphone permission was
+  already resolved.
+- Pico 4 validation: **not executed**. Trigger render-scale restart with audio
+  permission granted and denied, rotate/recreate around startup, launch the app
+  externally during the 1.5-second handoff, and verify exactly one Qt Activity
+  starts with the preserved arguments.
 
 ## Deferred, rejected, or blocked ideas
 

@@ -67,8 +67,7 @@ public final class PicoInterfaceActivity extends QtActivity {
         }
         Log.i(TAG, "Scheduling application restart");
 
-        Intent restartIntent = new Intent(activity, PermissionsActivity.class);
-        restartIntent.putExtra(RestartArguments.EXTRA_INTERNAL_RESTART, true);
+        Intent restartIntent = new Intent(activity, RestartActivity.class);
         restartIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
             | Intent.FLAG_ACTIVITY_CLEAR_TASK);
 

@@ -27,28 +27,36 @@ class AndroidEntrypointsTest(unittest.TestCase):
             activities[".PermissionsActivity"].attrib[ANDROID + "exported"],
             "true",
         )
+        self.assertEqual(
+            activities[".RestartActivity"].attrib[ANDROID + "exported"],
+            "false",
+        )
 
     def test_exported_launcher_does_not_accept_argument_strings(self):
         permissions = (JAVA / "PermissionsActivity.java").read_text(encoding="utf-8")
         self.assertNotIn('getStringExtra("args")', permissions)
-        self.assertIn("RestartArguments.consume(this)", permissions)
+        self.assertNotIn("RestartArguments", permissions)
+        self.assertNotIn("getIntent()", permissions)
 
-    def test_permission_activity_preserves_one_shot_restart_state(self):
+    def test_permission_activity_preserves_launch_state_only(self):
         permissions = (JAVA / "PermissionsActivity.java").read_text(encoding="utf-8")
         self.assertIn("onSaveInstanceState(Bundle outState)", permissions)
-        self.assertIn("outState.putString(STATE_ARGUMENTS, applicationArguments)", permissions)
-        self.assertIn("savedInstanceState.getString(STATE_ARGUMENTS)", permissions)
+        self.assertNotIn("applicationArguments", permissions)
         self.assertGreaterEqual(permissions.count("if (interfaceLaunched)"), 2)
         self.assertIn("interfaceLaunched = true", permissions)
 
     def test_restart_arguments_are_private_and_not_logged(self):
         activity = (JAVA / "PicoInterfaceActivity.java").read_text(encoding="utf-8")
         storage = (JAVA / "RestartArguments.java").read_text(encoding="utf-8")
+        restart = (JAVA / "RestartActivity.java").read_text(encoding="utf-8")
         self.assertIn("RestartArguments.store(activity, applicationArguments)", activity)
+        self.assertIn("new Intent(activity, RestartActivity.class)", activity)
         self.assertNotIn('putExtra("args", applicationArguments)', activity)
         self.assertNotIn('"Scheduling application restart with arguments:', activity)
         self.assertIn("Context.MODE_PRIVATE", storage)
         self.assertIn(".remove(KEY_ARGUMENTS)", storage)
+        self.assertIn("RestartArguments.consume(this)", restart)
+        self.assertIn("new Intent(this, PicoInterfaceActivity.class)", restart)
 
     def test_qt_activity_releases_static_android_resources(self):
         activity = (JAVA / "PicoInterfaceActivity.java").read_text(encoding="utf-8")
