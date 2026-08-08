@@ -12,12 +12,14 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 CPP = ROOT / "android/apps/picoInterface/src/PicoWebViewItem.cpp"
+JAVA = ROOT / "android/apps/picoInterface/src/main/java/org/overte/pico/OffscreenWebView.java"
 
 
 class PicoWebViewBridgeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.source = CPP.read_text(encoding="utf-8")
+        cls.java_source = JAVA.read_text(encoding="utf-8")
 
     def test_frame_readiness_does_not_sample_content_alpha(self):
         frame_source = re.search(
@@ -51,6 +53,18 @@ class PicoWebViewBridgeTest(unittest.TestCase):
             self.source,
             re.compile(r"mouseUngrabEvent\(\).*?sendPointer\(3,", re.DOTALL),
         )
+
+    def test_background_mode_reaches_android_webview(self):
+        self.assertIn('callStatic("setUseBackground", "(JZ)V"', self.source)
+        self.assertIn("useBackground ? Color.WHITE : Color.TRANSPARENT", self.java_source)
+
+    def test_navigation_clears_transient_input_state(self):
+        load = re.search(
+            r"public static void load\(.*?\n    \}", self.java_source, re.DOTALL
+        )
+        self.assertIsNotNone(load)
+        self.assertIn("instance.cancelActiveTouch()", load.group(0))
+        self.assertIn("instance.pendingScroll = 0.0f", load.group(0))
 
 
 if __name__ == "__main__":

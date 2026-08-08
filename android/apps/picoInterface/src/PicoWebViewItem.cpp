@@ -119,6 +119,18 @@ void PicoWebViewItem::setUserAgent(const QString& value) {
     if (_webViewCreated) { createWebView(); }
 }
 
+void PicoWebViewItem::setUseBackground(bool value) {
+    if (_useBackground == value) { return; }
+    _useBackground = value;
+    emit useBackgroundChanged();
+    if (_webViewCreated) {
+        jvalue args[2];
+        args[0].j = reinterpret_cast<jlong>(this);
+        args[1].z = _useBackground;
+        callStatic("setUseBackground", "(JZ)V", args);
+    }
+}
+
 void PicoWebViewItem::componentComplete() {
     QQuickItem::componentComplete();
     if (auto* engine = qmlEngine(this); engine && !engine->imageProvider("pico-web")) {
@@ -137,10 +149,10 @@ void PicoWebViewItem::createWebView() {
     if (!jni.env) { return; }
     jstring url = jni.env->NewString(reinterpret_cast<const jchar*>(_url.utf16()), _url.size());
     jstring agent = jni.env->NewString(reinterpret_cast<const jchar*>(_userAgent.utf16()), _userAgent.size());
-    jvalue args[5];
+    jvalue args[6];
     args[0].j = reinterpret_cast<jlong>(this); args[1].i = pixelWidth(); args[2].i = pixelHeight();
-    args[3].l = url; args[4].l = agent;
-    callStatic("create", "(JIILjava/lang/String;Ljava/lang/String;)V", args);
+    args[3].l = url; args[4].l = agent; args[5].z = _useBackground;
+    callStatic("create", "(JIILjava/lang/String;Ljava/lang/String;Z)V", args);
     _webViewCreated = true;
     jni.env->DeleteLocalRef(url); jni.env->DeleteLocalRef(agent);
 }

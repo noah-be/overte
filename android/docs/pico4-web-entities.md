@@ -47,6 +47,10 @@ or controller-ray thresholds were changed.
 Android touch events in one gesture retain the original down timestamp through
 move, release, or cancellation. Losing Qt's mouse grab and destroying a page
 cancel an active gesture, so the WebView cannot retain a pressed DOM target.
+Navigating the same surface also cancels an active touch and clears fractional
+scroll accumulation before loading the next document. The entity's
+`useBackground` value now selects an opaque white or transparent Android
+WebView background, matching the shared renderer's transparency contract.
 
 No Qt WebEngine library, Chromium resource bundle, Gradle browser dependency,
 or APK packaging rule is added. Rendering uses the WebView implementation
@@ -108,6 +112,7 @@ Test both hands separately:
 ## Device-free regression
 
 Run `python3 android/tests/pico-webview-bridge-test.py` to verify transparent
-frame readiness, JNI direct-buffer validation, and Qt action translation. Run
+frame readiness, JNI direct-buffer validation, Qt action translation,
+background forwarding, and navigation cleanup. Run
 `android/tests/pico-webview-input-test.sh` for the pure-Java Android gesture
 state regression without an SDK or device.

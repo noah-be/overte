@@ -89,8 +89,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 05 — Unified device-free regression suite
 
 - Branch: `nightly/pico4-05-device-free-suite`
-- Commit: identified by subject `Add Pico device-free regression suite`; the
-  exact hash is recorded by the following stacked task or the final report.
+- Commit: `cf8f38fbd3` (`Add Pico device-free regression suite`)
 - Change: add one explicitly ADB-free entry point for shell syntax, WebView,
   AudioRecord, OpenXR loader, microphone/unattended/device-lock mocks,
   serverless fixture integrity, and power-analyzer coverage; document its
@@ -103,6 +102,27 @@ headset, ADB, Android device, external domain, or device setting is used.
   Android packaging, or headset behavior passed.
 - Pico 4 validation: **not executed**. No additional device procedure is
   introduced by this test-runner-only task; execute the cumulative checks below.
+
+### 06 — WebView navigation and background state
+
+- Branch: `nightly/pico4-06-webview-navigation-state`
+- Commit: identified by subject `Reset Pico WebView navigation state`; the
+  exact hash is recorded by the following stacked task or the final report.
+- Change: apply `useBackground` to Android WebView as opaque white or
+  transparent, and cancel active touch plus fractional scroll state before
+  navigating an existing offscreen WebView to a new document.
+- Regression: WebView bridge source contracts now cover background forwarding
+  and navigation cleanup in addition to frame/JNI/input behavior.
+- Passed: full `pico-device-free-test.sh`; WebView bridge (5), gesture state,
+  AudioRecord state, OpenXR lifecycle (3), microphone mocks (11), unattended
+  mocks (9), device-lock mocks (5), fixture integrity, power analyzer (4), and
+  shell syntax; `git diff --check`.
+- Risk: host checks cannot visually prove alpha compositing or Android's page
+  transition behavior.
+- Pico 4 validation: **not executed**. Compare otherwise identical Web entities
+  with `useBackground` true/false over contrasting geometry; navigate while
+  pressed and after a sub-wheel scroll, then verify no click, drag, hover, or
+  fractional scroll leaks into the destination page.
 
 ## Cumulative remaining device validation
 

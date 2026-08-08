@@ -8,7 +8,7 @@ class PicoWebViewItem : public QQuickItem {
     Q_OBJECT
     Q_PROPERTY(QString url READ url WRITE setUrl NOTIFY urlChanged)
     Q_PROPERTY(QString scriptUrl MEMBER _scriptUrl)
-    Q_PROPERTY(bool useBackground MEMBER _useBackground)
+    Q_PROPERTY(bool useBackground READ useBackground WRITE setUseBackground NOTIFY useBackgroundChanged)
     Q_PROPERTY(QString userAgent READ userAgent WRITE setUserAgent)
     Q_PROPERTY(QString frameSource READ frameSource)
 
@@ -19,6 +19,8 @@ public:
     void setUrl(const QString& value);
     QString userAgent() const { return _userAgent; }
     void setUserAgent(const QString& value);
+    bool useBackground() const { return _useBackground; }
+    void setUseBackground(bool value);
     QString frameSource() const;
     QImage frameImage() const;
     void acceptFrame(const void* pixels, qsizetype byteCount, int width, int height);
@@ -26,6 +28,7 @@ public:
 
 signals:
     void urlChanged();
+    void useBackgroundChanged();
 
 protected:
     void geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry) override;

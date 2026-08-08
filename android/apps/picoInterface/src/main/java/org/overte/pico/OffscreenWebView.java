@@ -3,6 +3,7 @@ package org.overte.pico;
 import android.annotation.SuppressLint;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -34,7 +35,7 @@ public final class OffscreenWebView {
 
     @SuppressLint("SetJavaScriptEnabled")
     public static void create(long nativeHandle, int width, int height, String url,
-                              String userAgent) {
+                              String userAgent, boolean useBackground) {
         MAIN.post(() -> {
             destroyOnMain(nativeHandle);
             if (!wholeDocumentDrawEnabled) {
@@ -46,7 +47,7 @@ public final class OffscreenWebView {
                 wholeDocumentDrawEnabled = true;
             }
             WebView view = new WebView(PicoInterfaceActivity.getInstance());
-            view.setBackgroundColor(0x00000000);
+            view.setBackgroundColor(useBackground ? Color.WHITE : Color.TRANSPARENT);
             view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
             view.setWebViewClient(new WebViewClient() {
                 @Override public void onPageFinished(WebView finishedView, String finishedUrl) {
@@ -96,7 +97,20 @@ public final class OffscreenWebView {
         MAIN.post(() -> {
             Instance instance = INSTANCES.get(nativeHandle);
             if (instance != null) {
+                instance.cancelActiveTouch();
+                instance.pendingScroll = 0.0f;
                 instance.view.loadUrl(url == null || url.isEmpty() ? "about:blank" : url);
+            }
+        });
+    }
+
+    public static void setUseBackground(long nativeHandle, boolean useBackground) {
+        MAIN.post(() -> {
+            Instance instance = INSTANCES.get(nativeHandle);
+            if (instance != null) {
+                instance.view.setBackgroundColor(
+                    useBackground ? Color.WHITE : Color.TRANSPARENT);
+                instance.view.invalidate();
             }
         });
     }
