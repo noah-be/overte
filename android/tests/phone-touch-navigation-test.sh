@@ -59,6 +59,8 @@ require "$phone_action_bar" 'function toggleCameraMode\(\)' \
     'phone camera mode button handler is missing'
 require "$phone_action_bar" 'Menu[.]triggerOption\(isFirstPersonMode\(Camera[.]mode\) \? "Third Person" : "First Person"\)' \
     'phone camera button bypasses the safe native perspective actions'
+require "$phone_action_bar" 'Script[.]setTimeout\(function \(\)' \
+    'phone camera toggle can synchronously re-enter its QML click handler'
 require "$phone_action_bar" 'Camera[.]modeUpdated[.]connect\(updateCameraButton\)' \
     'phone camera button does not follow external camera mode changes'
 

@@ -211,7 +211,11 @@
         // They update camera mode and boom length atomically; assigning
         // Camera.mode directly can leave a first-person camera with a
         // third-person boom and trigger a recursive mode correction.
-        Menu.triggerOption(isFirstPersonMode(Camera.mode) ? "Third Person" : "First Person");
+        // Defer the native action until the QML clicked handler has unwound;
+        // modeUpdated edits this same button and must not re-enter that handler.
+        Script.setTimeout(function () {
+            Menu.triggerOption(isFirstPersonMode(Camera.mode) ? "Third Person" : "First Person");
+        }, 0);
     }
 
     currentButtonStyle = calculateLayout(Math.max(Window.innerWidth, 1), Math.max(Window.innerHeight, 1)).buttonStyle;
