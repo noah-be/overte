@@ -671,8 +671,10 @@ bool OpenXrDisplayPlugin::endFrame(bool submitLayer) {
         .layers = layers.data(),
     };
 
+    constexpr XrViewStateFlags REQUIRED_VIEW_FLAGS =
+        XR_VIEW_STATE_ORIENTATION_VALID_BIT | XR_VIEW_STATE_POSITION_VALID_BIT;
     if (!submitLayer ||
-            (_lastViewState.viewStateFlags & XR_VIEW_STATE_ORIENTATION_VALID_BIT) == 0) {
+            (_lastViewState.viewStateFlags & REQUIRED_VIEW_FLAGS) != REQUIRED_VIEW_FLAGS) {
         info.layerCount = 0;
     }
 
@@ -724,9 +726,16 @@ void OpenXrDisplayPlugin::updatePresentPose() {
 
     XrViewState eyeViewState = { .type = XR_TYPE_VIEW_STATE };
 
-    XrResult result = xrLocateViews(_context->_session, &eyeViewLocateInfo, &eyeViewState, _viewCount, &_viewCount, eye_views.data());
-    if (!xrCheck(_context->_instance, result, "Could not locate views"))
+    uint32_t eyeViewCount { 0 };
+    XrResult result = xrLocateViews(_context->_session, &eyeViewLocateInfo,
+        &eyeViewState, _viewCount, &eyeViewCount, eye_views.data());
+    constexpr XrViewStateFlags REQUIRED_VIEW_FLAGS =
+        XR_VIEW_STATE_ORIENTATION_VALID_BIT | XR_VIEW_STATE_POSITION_VALID_BIT;
+    if (!xrCheck(_context->_instance, result, "Could not locate eye views") ||
+            eyeViewCount != _viewCount || eyeViewCount < 2 ||
+            (eyeViewState.viewStateFlags & REQUIRED_VIEW_FLAGS) != REQUIRED_VIEW_FLAGS) {
         return;
+    }
 
     for (uint32_t i = 0; i < 2; i++) {
         vec3 eyePosition = xrVecToGlm(eye_views[i].pose.position);
@@ -743,24 +752,39 @@ void OpenXrDisplayPlugin::updatePresentPose() {
         .space = _context->_stageSpace,
     };
 
-    result = xrLocateViews(_context->_session, &viewLocateInfo, &_lastViewState, _viewCount, &_viewCount, _views.value().data());
-    if (!xrCheck(_context->_instance, result, "Could not locate views"))
+    if (!_views || _views->size() < _viewCount ||
+            _projectionLayerViews.size() < _viewCount) {
+        qCWarning(xr_display_cat) << "OpenXR projection view storage is incomplete";
         return;
+    }
+    uint32_t stageViewCount { 0 };
+    result = xrLocateViews(_context->_session, &viewLocateInfo, &_lastViewState,
+        _viewCount, &stageViewCount, _views->data());
+    if (!xrCheck(_context->_instance, result, "Could not locate stage views") ||
+            stageViewCount != _viewCount ||
+            (_lastViewState.viewStateFlags & REQUIRED_VIEW_FLAGS) != REQUIRED_VIEW_FLAGS) {
+        return;
+    }
 
     for (uint32_t i = 0; i < _viewCount; i++) {
-        _projectionLayerViews[i].pose = _views.value()[i].pose;
-        _projectionLayerViews[i].fov = _views.value()[i].fov;
+        _projectionLayerViews[i].pose = (*_views)[i].pose;
+        _projectionLayerViews[i].fov = (*_views)[i].fov;
     }
 
     XrSpaceLocation headLocation = {
         .type = XR_TYPE_SPACE_LOCATION,
         .pose = XR_INDENTITY_POSE,
     };
-    xrLocateSpace(_context->_viewSpace, _context->_stageSpace, predictedDisplayTime, &headLocation);
-
-    glm::vec3 headPosition = xrVecToGlm(headLocation.pose.position);
-    glm::quat headOrientation = xrQuatToGlm(headLocation.pose.orientation);
-    _context->_lastHeadPose = controller::Pose(headPosition, headOrientation);
+    result = xrLocateSpace(_context->_viewSpace, _context->_stageSpace,
+        predictedDisplayTime, &headLocation);
+    constexpr XrSpaceLocationFlags REQUIRED_HEAD_FLAGS =
+        XR_SPACE_LOCATION_ORIENTATION_VALID_BIT | XR_SPACE_LOCATION_POSITION_VALID_BIT;
+    if (xrCheck(_context->_instance, result, "Could not locate head space") &&
+            (headLocation.locationFlags & REQUIRED_HEAD_FLAGS) == REQUIRED_HEAD_FLAGS) {
+        glm::vec3 headPosition = xrVecToGlm(headLocation.pose.position);
+        glm::quat headOrientation = xrQuatToGlm(headLocation.pose.orientation);
+        _context->_lastHeadPose = controller::Pose(headPosition, headOrientation);
+    }
 
     _currentPresentFrameInfo.presentPose = _context->_lastHeadPose.getMatrix();
     _currentPresentFrameInfo.predictedDisplayTime = _lastFrameState.predictedDisplayTime / 1e9;

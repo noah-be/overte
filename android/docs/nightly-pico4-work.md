@@ -657,8 +657,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 36 — OpenXR frame failure cleanup
 
 - Branch: `nightly/pico4-36-openxr-frame-cleanup`
-- Commit: identified by subject `Complete failed Pico OpenXR frames`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `5ee4c778f7` (`Complete failed Pico OpenXR frames`)
 - Change: after a successful `xrBeginFrame`, all acquire/wait/backend/index/
   release failures now best-effort release every successfully waited eye image
   and call `xrEndFrame` with zero layers. Wait uses OpenXR's infinite duration
@@ -676,6 +675,27 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Inject/observe acquire, wait, release,
   context-loss and suspend/resume failures; verify no swapchain starvation,
   unmatched-frame validation errors, crash, or permanently frozen presentation.
+
+### 37 — Fail-closed OpenXR present poses
+
+- Branch: `nightly/pico4-37-openxr-present-pose`
+- Commit: identified by subject `Validate Pico OpenXR present poses`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: stop mutating the configured view count with `xrLocateViews` output;
+  require exact counts plus position/orientation validity before using eye or
+  stage views; validate optional projection storage; check `xrLocateSpace` and
+  both head flags before replacing the last valid present pose. Projection
+  submission now also requires both view position and orientation.
+- Regression: OpenXR display contracts cover view counts/flags, storage,
+  head-result/flag ordering, last-valid-pose preservation, and layer gating.
+- Passed: OpenXR display contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: frames with partial tracking validity now submit no projection layer
+  and retain the previous valid head pose instead of consuming undefined pose
+  fields; recovery resumes automatically on the next fully valid locate.
+- Pico 4 validation: **not executed**. Cover startup, guardian/tracking loss,
+  headset removal, suspend/resume and runtime recenter; verify no pose jump,
+  NaN view, stale rendered layer, crash, or failure to recover tracking.
 
 ## Deferred, rejected, or blocked ideas
 

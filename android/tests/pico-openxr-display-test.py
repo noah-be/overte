@@ -48,6 +48,28 @@ class PicoOpenXRDisplayTests(unittest.TestCase):
         self.assertLess(backend_check, index_check)
         self.assertLess(index_check, copy)
 
+    def test_view_counts_and_tracking_flags_are_fail_closed(self):
+        self.assertIn("uint32_t eyeViewCount { 0 };", SOURCE)
+        self.assertIn("eyeViewCount != _viewCount || eyeViewCount < 2", SOURCE)
+        self.assertIn("uint32_t stageViewCount { 0 };", SOURCE)
+        self.assertIn("stageViewCount != _viewCount", SOURCE)
+        self.assertIn("XR_VIEW_STATE_ORIENTATION_VALID_BIT | XR_VIEW_STATE_POSITION_VALID_BIT", SOURCE)
+        self.assertIn("(_lastViewState.viewStateFlags & REQUIRED_VIEW_FLAGS) != REQUIRED_VIEW_FLAGS", SOURCE)
+
+    def test_invalid_head_location_preserves_last_valid_pose(self):
+        locate = SOURCE.index("result = xrLocateSpace")
+        result_check = SOURCE.index('xrCheck(_context->_instance, result, "Could not locate head space")', locate)
+        flags_check = SOURCE.index("headLocation.locationFlags & REQUIRED_HEAD_FLAGS", result_check)
+        pose_write = SOURCE.index("_context->_lastHeadPose =", flags_check)
+        frame_write = SOURCE.index("_currentPresentFrameInfo.presentPose", pose_write)
+        self.assertLess(result_check, flags_check)
+        self.assertLess(flags_check, pose_write)
+        self.assertLess(pose_write, frame_write)
+        self.assertIn(
+            "XR_SPACE_LOCATION_ORIENTATION_VALID_BIT | XR_SPACE_LOCATION_POSITION_VALID_BIT",
+            SOURCE,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
