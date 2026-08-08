@@ -9,6 +9,10 @@ cat >"$fixture/apkanalyzer" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
 [[ "$1" == manifest ]] || exit 3
+if [[ "${MOCK_ANALYZER_FAILURE:-0}" == 1 && "$2" == target-sdk ]]; then
+    printf 'private analyzer failure: /private/sdk/tool\n' >&2
+    exit 9
+fi
 case "$2" in
     application-id) printf '%s\n' "${MOCK_ID:-org.overte.phone}" ;;
     min-sdk) printf '%s\n' "${MOCK_MIN_SDK:-26}" ;;
@@ -40,6 +44,14 @@ if PHONE_EXPECT_DEBUGGABLE=1 PHONE_APK_ANALYZER="$fixture/apkanalyzer" \
     exit 1
 fi
 grep -Fq 'does not match the expected variant' "$fixture/mode.out"
+if MOCK_ANALYZER_FAILURE=1 PHONE_APK_ANALYZER="$fixture/apkanalyzer" \
+        "$script_dir/check-phone-apk-metadata.sh" "$fixture/phone.apk" \
+        >"$fixture/analyzer-failure.out" 2>&1; then
+    echo 'FAIL: unavailable target-SDK analysis was accepted' >&2
+    exit 1
+fi
+grep -Fxq 'ERROR: could not read APK target SDK' "$fixture/analyzer-failure.out"
+! grep -Fq '/private/sdk/tool' "$fixture/analyzer-failure.out"
 for scenario in wrong-id old-sdk bad-code bad-name permission debug-state; do
     case "$scenario" in
         wrong-id) env_args=(MOCK_ID=example.invalid) ;;

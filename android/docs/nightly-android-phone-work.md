@@ -4,6 +4,25 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 90 — Label APK analyzer failures without private paths
+
+- Branch: `nightly/android-phone-90-apkanalyzer-errors`
+- Commit: `Report phone APK analyzer field failures` (this task's commit)
+- Change: Give every merged-manifest query a safe field-specific error while
+  retaining suppression of raw analyzer stderr. Java/SDK/tool failures no longer
+  exit silently or expose local command-line-tool paths in shared gates.
+- Tests:
+  - `android/tests/phone-apk-metadata-test.sh`: **passed**; a target-SDK analyzer
+    failure containing a synthetic private path becomes only the generic field
+    error, alongside all existing metadata fixtures.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 277/277 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 277/277 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Detailed analyzer debugging is intentionally a separate local
+  invocation outside shared build logs.
+- Real-device validation still required: None for host analyzer error handling.
+
 ## 89 — Verify version metadata in the final APK
 
 - Branch: `nightly/android-phone-89-apk-version-metadata`

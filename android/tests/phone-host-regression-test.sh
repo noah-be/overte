@@ -197,6 +197,8 @@ require_text tests/check-phone-apk-metadata.sh 'version_code.*2147483647' \
     'final APK metadata gate enforces Android version-code range'
 require_text tests/check-phone-apk-metadata.sh 'version_name.*A-Za-z0-9._+' \
     'final APK metadata gate enforces portable version-name form'
+require_text tests/check-phone-apk-metadata.sh 'metadata_error.*could not read APK' \
+    'final APK metadata gate reports analyzer failures without raw tool detail'
 require_text "$gradle" "environment 'PHONE_EXPECT_DEBUGGABLE'" \
     'Gradle final APK gate binds debuggable state to each variant'
 require_text "$gradle" "exclude 'simplifiedUI/[*][*]'" \

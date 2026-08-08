@@ -14,14 +14,16 @@ find_analyzer() {
 }
 analyzer="$(find_analyzer)" || { echo 'ERROR: apkanalyzer was not found' >&2; exit 2; }
 manifest_value() { "$analyzer" manifest "$1" "$apk" 2>/dev/null | tr -d '\r'; }
+metadata_error() { printf 'ERROR: could not read APK %s\n' "$1" >&2; exit 1; }
 
-application_id="$(manifest_value application-id)" || exit 1
-min_sdk="$(manifest_value min-sdk)" || exit 1
-target_sdk="$(manifest_value target-sdk)" || exit 1
-version_code="$(manifest_value version-code)" || exit 1
-version_name="$(manifest_value version-name)" || exit 1
-permissions="$(manifest_value permissions | sed '/^[[:space:]]*$/d' | LC_ALL=C sort -u)" || exit 1
-debuggable="$(manifest_value debuggable)" || exit 1
+application_id="$(manifest_value application-id)" || metadata_error 'application ID'
+min_sdk="$(manifest_value min-sdk)" || metadata_error 'minimum SDK'
+target_sdk="$(manifest_value target-sdk)" || metadata_error 'target SDK'
+version_code="$(manifest_value version-code)" || metadata_error 'version code'
+version_name="$(manifest_value version-name)" || metadata_error 'version name'
+permissions="$(manifest_value permissions | sed '/^[[:space:]]*$/d' | LC_ALL=C sort -u)" || \
+    metadata_error 'permissions'
+debuggable="$(manifest_value debuggable)" || metadata_error 'debuggable state'
 
 [[ "$application_id" == org.overte.phone ]] || { echo 'ERROR: unexpected APK application ID' >&2; exit 1; }
 [[ "$min_sdk" == 26 && "$target_sdk" == 36 ]] || { echo 'ERROR: unexpected APK SDK metadata' >&2; exit 1; }
