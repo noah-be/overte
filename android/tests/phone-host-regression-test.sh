@@ -297,8 +297,11 @@ else
     fail 'phone resource downloads default to two while the CLI remains the later override'
 fi
 require_text '../interface/src/Application.cpp' \
-    'PHONE_VIEWPORT_RESOLUTION_SCALE[[:space:]]*\{[[:space:]]*0\.5f[[:space:]]*\}' \
-    'phone profile deterministically applies a 0.5 viewport scale after the performance preset'
+    'PHONE_DEFAULT_VIEWPORT_RESOLUTION_SCALE[[:space:]]*\{[[:space:]]*0\.5f[[:space:]]*\}' \
+    'phone profile defaults to a 0.5 viewport scale after the performance preset'
+require_text '../interface/src/Application.cpp' \
+    'setViewportResolutionScale\(phoneViewportResolutionScale\)' \
+    'phone profile applies the bounded viewport-scale selection'
 require_text '../interface/src/Application.cpp' \
     'setCustomRefreshRate\(RefreshRateManager::RefreshRateRegime::FOCUS_ACTIVE,[[:space:]]*PHONE_TARGET_FPS\)' \
     'phone profile configures a real active 30 FPS refresh target'
