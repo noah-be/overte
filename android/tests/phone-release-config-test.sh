@@ -25,6 +25,12 @@ require_absent() {
 }
 
 require_text "$module_gradle" 'compileSdk 36' 'phone compileSdk must remain API 36'
+compile_sdk_line="$(grep -n -m1 'compileSdk 36' "$module_gradle" | cut -d: -f1)"
+dependency_gate_line="$(grep -n -m1 'if (!usePhone16kDependencies' "$module_gradle" | cut -d: -f1)"
+if (( compile_sdk_line >= dependency_gate_line )); then
+    echo 'FAIL: compileSdk must be declared before dependency preflight errors' >&2
+    exit 1
+fi
 require_text "$module_gradle" 'targetSdk 36' 'phone targetSdk must remain API 36'
 require_text "$module_gradle" "gradleProperty\('VERSION_CODE'\)" \
     'release configuration must require an explicit versionCode'

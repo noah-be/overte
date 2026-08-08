@@ -61,6 +61,9 @@ deep_link_normalizer='apps/phoneInterface/src/main/java/org/overte/phone/PhoneDe
 url_handler='apps/phoneInterface/src/PhoneUrlHandler.cpp'
 phone_defaults='../scripts/+android_phoneInterface/defaultScripts.js'
 
+require_text "$gradle" 'Declare the module identity before dependency preflight failures' \
+    'phone Gradle diagnostics initialize AGP identity before dependency preflight'
+
 for source_file in \
         build-phone.sh \
         build-phone.gradle \

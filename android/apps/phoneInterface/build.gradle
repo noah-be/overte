@@ -2,6 +2,15 @@ plugins {
     id 'com.android.application'
 }
 
+// Declare the module identity before dependency preflight failures. Otherwise
+// AGP adds a misleading "compileSdk is missing" error after the intentional,
+// actionable Phone dependency error.
+android {
+    namespace 'org.overte.phone'
+    compileSdk 36
+    ndkVersion '27.3.13750724'
+}
+
 def legacyConanDir = file('../../conan/pico4-debug')
 def phoneQtConanDir = file('../../conan/phone-16k-debug')
 def phoneNonQtConanDir = file('../../conan/phone-nonqt-16k-debug')
@@ -238,10 +247,6 @@ tasks.register('preparePhoneQtRuntime', Sync) {
 }
 
 android {
-    namespace 'org.overte.phone'
-    compileSdk 36
-    ndkVersion '27.3.13750724'
-
     defaultConfig {
         applicationId 'org.overte.phone'
         minSdk 26

@@ -4,6 +4,30 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 62 — Keep Gradle dependency failures actionable
+
+- Branch: `nightly/android-phone-62-gradle-release-contract`
+- Commit: `Clarify phone Gradle dependency failures` (this task's commit)
+- Change: Declare namespace, compile SDK, and NDK before Phone dependency
+  preflight. Missing 16-KiB or legacy dependencies now produce only their
+  intended actionable failure instead of an additional false AGP claim that
+  `compileSdk` was absent.
+- Tests:
+  - `./android/build-phone.sh doctor`: **passed**, all required host tools.
+  - Offline Gradle configuration without the 16-KiB sentinel: **expected
+    failure**, solely the documented sentinel error; no `compileSdk` error.
+  - Offline Gradle configuration with the legacy migration switch but absent
+    legacy dependencies: **expected failure**, solely the documented setup
+    error; no `compileSdk` error.
+  - `android/tests/phone-release-config-test.sh`: **passed**.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 225/225 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 225/225 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: Full task-graph configuration remains correctly blocked until
+  dedicated dependencies are prepared; no native/package build was attempted.
+- Real-device validation still required: None for diagnostic ordering.
+
 ## 61 — Prove device lifecycle failures fail closed
 
 - Branch: `nightly/android-phone-61-device-smoke-failures`
