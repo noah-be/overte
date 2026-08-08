@@ -131,6 +131,20 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertIn("discardUnattachedActionSet();", init[attach_failure:attach_failure + 180])
         self.assertIn("XrActionSet _actionSet { XR_NULL_HANDLE };", HEADER)
 
+    def test_binding_paths_are_checked_before_publication(self):
+        start = SOURCE.index("bool OpenXrInputPlugin::InputDevice::initBindings")
+        end = SOURCE.index("controller::Input::NamedVector", start)
+        bindings = SOURCE[start:end]
+        conversion = bindings.index("result = xrStringToPath", bindings.index("inputPathRaw"))
+        check = bindings.index("if (!xrCheck", conversion)
+        publish = bindings.index("suggestions.emplace", check)
+        self.assertLess(conversion, check)
+        self.assertLess(check, publish)
+        self.assertIn("XrPath bindingPath { XR_NULL_PATH };", bindings)
+        self.assertIn(".binding = bindingPath", bindings)
+        self.assertNotIn("getBindings()", SOURCE)
+        self.assertNotIn("getBindings();", HEADER)
+
 
 if __name__ == "__main__":
     unittest.main()

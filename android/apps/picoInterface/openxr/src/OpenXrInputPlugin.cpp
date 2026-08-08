@@ -392,19 +392,6 @@ bool OpenXrInputPlugin::Action::init(XrActionSet actionSet) {
     return true;
 }
 
-std::vector<XrActionSuggestedBinding> OpenXrInputPlugin::Action::getBindings() {
-    assert(_action != XR_NULL_HANDLE);
-
-    std::vector<XrActionSuggestedBinding> bindings;
-    for (uint32_t i = 0; i < HAND_COUNT; i++) {
-        XrPath path;
-        xrStringToPath(_context->_instance, _id.c_str(), &path);
-        XrActionSuggestedBinding binding = { .action = _action, .binding = path };
-        bindings.push_back(binding);
-    }
-    return bindings;
-}
-
 XrActionStateFloat OpenXrInputPlugin::Action::getFloat() {
     XrActionStateFloat state = {
         .type = XR_TYPE_ACTION_STATE_FLOAT,
@@ -557,10 +544,15 @@ bool OpenXrInputPlugin::InputDevice::initBindings(const std::string& profileName
             return false;
         }
 
+        XrPath bindingPath { XR_NULL_PATH };
+        result = xrStringToPath(_context->_instance, inputPathRaw.c_str(), &bindingPath);
+        if (!xrCheck(_context->_instance, result, "Failed to convert suggested binding path")) {
+            return false;
+        }
         XrActionSuggestedBinding bind = {
             .action = _actions[actionName]->_action,
+            .binding = bindingPath,
         };
-        xrStringToPath(_context->_instance, inputPathRaw.c_str(), &bind.binding);
         suggestions.emplace(suggestions.end(), bind);
     }
 

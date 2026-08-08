@@ -59,7 +59,6 @@ private:
         }
 
         bool init(XrActionSet actionSet);
-        std::vector<XrActionSuggestedBinding> getBindings();
         XrActionStateFloat getFloat();
         XrActionStateVector2f getVector2f();
         XrActionStateBoolean getBool();

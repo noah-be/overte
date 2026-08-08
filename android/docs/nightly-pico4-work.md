@@ -945,8 +945,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 51 — OpenXR haptic boundary validation
 
 - Branch: `nightly/pico4-51-openxr-haptic-validation`
-- Commit: identified by subject `Validate Pico OpenXR haptic pulses`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `d647c5164e` (`Validate Pico OpenXR haptic pulses`)
 - Change: reject non-finite/non-positive or `XrDuration`-overflow durations
   before conversion while preserving fractional milliseconds, reject non-finite
   strength, require an active session and complete
@@ -961,6 +960,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Pulse both controllers before/during/after
   session initialization, inject NaN/range/apply failures, and verify no crash,
   truthful results, bounded vibration and normal subsequent pulses.
+
+### 52 — OpenXR binding path validation
+
+- Branch: `nightly/pico4-52-openxr-binding-paths`
+- Commit: identified by subject `Validate Pico OpenXR binding paths`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: initialize and validate every suggested input-path conversion before
+  adding it to a profile binding list. Remove unused `Action::getBindings()`,
+  which ignored conversion results and incorrectly treated action IDs as paths.
+- Regression: input contracts enforce convert/check/publish ordering, null-path
+  initialization, explicit binding assignment and removal of the dead helper.
+- Passed: 9 OpenXR input contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: a malformed binding path now rejects that controller profile cleanly;
+  valid Pico interaction-profile paths and profile fallback remain unchanged.
+- Pico 4 validation: **not executed**. Start with the Pico interaction profile,
+  verify every mapped control and haptic output, then inject an invalid suggested
+  path and confirm only that profile is rejected without stale/partial bindings.
 
 ## Deferred, rejected, or blocked ideas
 
