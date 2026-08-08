@@ -310,8 +310,10 @@ HUD rays continue to handle the tablet and other 2D surfaces.
 - [x] While changing the depth of a left-hand far grab with the right
   thumbstick, no teleport target or play-area UI appeared, and normal teleport
   behavior became available again after releasing the object.
-- [x] Off-hand rotation during far grab is intentionally disabled for the Pico
-  interaction design, so no rotation gesture is expected or required.
+- [ ] Verify off-hand rotation during far grab. Pico inherits the desktop
+  mapping: pressing the other hand's trigger or secondary input applies that
+  controller's rotation delta. No Pico-specific threshold or rotation math was
+  added, and this behavior has not yet been confirmed on the headset.
 - [ ] Rapid trigger/grip and tracking-interruption stress testing is deferred
   until the known interaction performance problem is resolved; current frame
   delays make its timing and results unreliable.

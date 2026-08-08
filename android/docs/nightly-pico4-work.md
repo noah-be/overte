@@ -165,8 +165,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 09 — Fail-closed OpenXR action sync
 
 - Branch: `nightly/pico4-09-openxr-sync-fail-closed`
-- Commit: identified by subject `Fail closed on Pico OpenXR sync errors`; the
-  exact hash is recorded by the following stacked task or the final report.
+- Commit: `b1c7121e28` (`Fail closed on Pico OpenXR sync errors`)
 - Change: return immediately after a failed `xrSyncActions`, leaving the maps
   cleared by task 08 rather than querying potentially stale runtime action data.
 - Regression: OpenXR input contract now asserts the guarded early return.
@@ -178,12 +177,74 @@ headset, ADB, Android device, external domain, or device setting is used.
   reconnect paths that can interrupt action sync; verify no stale grab, click,
   locomotion, or scroll occurs and input resumes after the runtime recovers.
 
+### 10 — Final scope and documentation audit
+
+- Branch: `nightly/pico4-10-final-audit`
+- Commit: identified by subject `Document remaining Pico validation`; the exact
+  hash is reported in the final session summary.
+- Change: reconcile the contradictory off-hand-rotation documentation with the
+  inherited desktop implementation; record build blockers, deliberately
+  deferred work, remaining device-free limits, and the final headset order.
+- Passed: final device-free suite, syntax checks, repository scope review,
+  branch-chain review, clean-worktree and diff checks recorded after commit.
+- Pico 4 validation: **not executed**. This documentation-only task introduces
+  no new runtime behavior.
+
+## Deferred, rejected, or blocked ideas
+
+- Full `scriptURL`, Qt WebChannel, and bidirectional `EventBridge` emulation for
+  Android WebView was not implemented. It defines a page-to-native security
+  boundary and compatibility API that needs a reviewed protocol, origin/frame
+  policy, Android integration build, and real page acceptance tests. A partial
+  JavaScript interface would be less safe than the documented limitation.
+- Tablet/HUD Web surfaces remain separate from the Pico world-Web-entity
+  bridge, as established by the renderer audit. Replacing them would expand
+  scope and risk already working UI paths.
+- Grab-latency, ray offsets, visual alpha quality, audio quality/AEC, thermal
+  behavior, and render parameters were not tuned. Their effect cannot be
+  established without physical controllers, display/audio observation, or a
+  headset; diagnostics and exact checks are provided instead.
+- Off-hand rotation was not reimplemented because Pico already inherits the
+  desktop mapping. Only the inaccurate validation status was corrected.
+- Create/Entity List/import/native QML, avatar/mirror/secondary-camera, and
+  world/reconnect paths showed no additional narrow defect that could be
+  responsibly changed within the available device-free evidence. Existing
+  Pico code in these broad areas requires configured native builds and targeted
+  runtime scenarios before behavioral changes.
+- Native Qt/C++ host suites are blocked in this worktree: `build-tests` has no
+  `CMakeCache.txt`. The Pico Android build is also blocked before compilation by
+  missing `android/conan/pico4-debug/generators/Qt5-debug-armv8-data.cmake`.
+  Dependencies were not downloaded or installed during this session.
+
+## Remaining work
+
+1. Restore/bootstrap the documented Pico Conan/Qt dependencies, compile the
+   Android Java/JNI/C++ changes, package the APK, and run the configured native
+   host regression suites.
+2. Design and review the WebChannel/EventBridge security and compatibility
+   contract before implementing `scriptURL` or page-to-entity messaging.
+3. Execute the cumulative physical-headset checks below and use their traces to
+   decide whether grab/pointer performance work or pose correction is justified.
+4. Investigate the broad Create, avatar/camera, and reconnect areas only from a
+   reproducible failing scenario or a new device-free unit seam.
+
 ## Cumulative remaining device validation
 
-1. Web entity transparent-content, resize, destruction, and navigation checks
-   described above.
-2. Both-controller hover, click, drag, scroll, target-loss, and stuck-input
-   checks from `pico4-web-entities.md`.
-3. Microphone speech quality, AEC/echo, restart, source switching, and sustained
-   automatic-fan tests from `pico-microphone.md`.
-4. Grab latency and fast trigger/grip transitions with physical OpenXR input.
+1. OpenXR fail-closed behavior: hold trigger/grip/sticks, interrupt tracking,
+   suspend/resume, and reconnect; confirm immediate neutral state, safe release,
+   and recovery with no stale click, grab, locomotion, or scroll.
+2. Fast interaction transitions: compare the new per-frame diagnostic counts
+   with physical actions; cover target changes, alternating hands, tracking
+   loss/recovery, and inherited off-hand rotation.
+3. Web entities: opaque/transparent backgrounds, transparent-centre content,
+   repeated resize/navigation/destruction, both-hand hover/click/drag/scroll,
+   pressed target loss, multi-WebView isolation, and JNI/WebView error logs.
+4. Microphone: rapid source switching and restart isolation, FIFO transport and
+   backpressure, fixed-phrase speech quality, AEC/echo, and sustained capture
+   with automatic fan control. Audio quality remains unconfirmed.
+5. Loading/reconnect and UI regression: serverless and online world switches,
+   tablet/HUD/Create/Entity List/import, local avatar, mirror/secondary camera,
+   and Android Activity lifecycle.
+6. Only after the correctness checks, profile grab/pointer/physics latency and
+   measure ray alignment. Do not change thresholds, pose offsets, or performance
+   parameters without those results.
