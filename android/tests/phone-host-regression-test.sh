@@ -537,6 +537,10 @@ require_text tests/phone-device-test.sh 'logcat -d -T "\$logcat_start_epoch" -v 
     'device reports restrict logcat to the test window and phone app process'
 require_text tests/phone-device-test.sh 'date [+]%s[.]%3N' \
     'device smoke obtains a precise on-device logcat cursor before launch'
+require_text tests/phone-device-test.sh 'log_marker_counts="\$\(' \
+    'device smoke propagates process-log query failures from command substitution'
+reject_text tests/phone-device-test.sh 'exit-info "\$PACKAGE" \|\| true' \
+    'device smoke never masks unavailable package exit diagnostics'
 require_text tests/phone-device-test.sh 'require_stable_pid "launch" "\$pid" 30' \
     'device test requires one stable process for thirty seconds after launch'
 require_text tests/phone-device-test.sh '\(mResumedActivity\|topResumedActivity\).*PhoneInterfaceActivity' \

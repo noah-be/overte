@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 68 — Fail closed when device diagnostics are unavailable
+
+- Branch: `nightly/android-phone-68-device-diagnostic-failures`
+- Commit: `Propagate phone device diagnostic failures` (this task's commit)
+- Change: Replace status-masking logcat process substitution with checked
+  command substitution and stop ignoring `dumpsys activity exit-info` transport
+  failures. The smoke cannot report zero crashes when either diagnostic source
+  was unavailable or returned malformed counters.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, including new
+    logcat and exit-info failure fixtures that must abort before success fields.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 233/233 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 233/233 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Vendor builds that do not expose package exit info will now fail
+  the smoke explicitly instead of producing an unverifiable clean result.
+- Real-device validation still required: Run current-APK smoke normally, then
+  isolate ADB mid-diagnostic in a disposable test and confirm a nonzero result.
+
 ## 67 — Bound device log diagnostics to the test window
 
 - Branch: `nightly/android-phone-67-logcat-delta`

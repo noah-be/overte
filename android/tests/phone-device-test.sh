@@ -122,7 +122,7 @@ current_pid() {
 }
 
 crash_exit_count() {
-    { adb_for shell dumpsys activity exit-info "$PACKAGE" || true; } | awk '
+    adb_for shell dumpsys activity exit-info "$PACKAGE" | awk '
         {
             line = tolower($0)
             if (line ~ /reason=[[:space:]]*(4|5)[[:space:]]*\(/ ||
@@ -233,7 +233,7 @@ printf 'back_background_survived=1\nback_recovery_survived=1\n' | tee -a "$SUMMA
 
 # Inspect raw process logs only in memory. Persisting them could retain visited
 # locations, account identifiers, chat, or other user content.
-read -r crash_count page_mismatch_count < <(
+log_marker_counts="$(
     adb_for logcat -d -T "$logcat_start_epoch" -v threadtime --pid="$pid" | awk '
         BEGIN { crashes = 0; pages = 0 }
         {
@@ -243,7 +243,10 @@ read -r crash_count page_mismatch_count < <(
         }
         END { print crashes, pages }
     '
-)
+)" || die "could not read process-scoped log diagnostics"
+[[ "$log_marker_counts" =~ ^[0-9]+[[:space:]][0-9]+$ ]] || \
+    die "process-scoped log diagnostics returned invalid counters"
+read -r crash_count page_mismatch_count <<<"$log_marker_counts"
 final_exit_crash_count="$(crash_exit_count)"
 exit_crash_count=$((final_exit_crash_count - baseline_exit_crash_count))
 ((exit_crash_count >= 0)) || exit_crash_count=0

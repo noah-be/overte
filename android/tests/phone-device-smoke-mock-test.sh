@@ -66,8 +66,12 @@ case "$*" in
             printf 'mResumedActivity: com.android.launcher/.Launcher\n'
         fi
         ;;
-    'shell dumpsys activity exit-info org.overte.phone') ;;
-    logcat\ -d\ -T\ *\ -v\ threadtime\ --pid=4242) ;;
+    'shell dumpsys activity exit-info org.overte.phone')
+        [[ "${MOCK_EXIT_INFO_FAILURE:-0}" != 1 ]] || exit 8
+        ;;
+    logcat\ -d\ -T\ *\ -v\ threadtime\ --pid=4242)
+        [[ "${MOCK_LOGCAT_FAILURE:-0}" != 1 ]] || exit 9
+        ;;
     *) printf 'unexpected mock adb command: %s\n' "$*" >&2; exit 4 ;;
 esac
 MOCK_ADB
@@ -127,6 +131,23 @@ fi
 grep -Fq 'phone activity remained resumed in background' "$test_root/sticky.out"
 ! grep -Fq "$test_root" "$test_root/sticky.out"
 ! grep -Fq 'background_foreground_cycles=3' "$test_root/sticky-report/summary.txt"
+
+mkdir "$test_root/logcat-failure-report"
+if run_smoke "$test_root/logcat-failure-report" env MOCK_LOGCAT_FAILURE=1 \
+        >"$test_root/logcat-failure.out" 2>&1; then
+    echo 'FAIL: unavailable process log diagnostics were accepted' >&2
+    exit 1
+fi
+grep -Fq 'could not read process-scoped log diagnostics' "$test_root/logcat-failure.out"
+! grep -Fq 'crash_log_matches=' "$test_root/logcat-failure-report/summary.txt"
+
+mkdir "$test_root/exit-info-failure-report"
+if run_smoke "$test_root/exit-info-failure-report" env MOCK_EXIT_INFO_FAILURE=1 \
+        >"$test_root/exit-info-failure.out" 2>&1; then
+    echo 'FAIL: unavailable exit diagnostics were accepted' >&2
+    exit 1
+fi
+! grep -Fq 'launch_survived=1' "$test_root/exit-info-failure-report/summary.txt"
 
 mkdir "$test_root/existing-report"
 printf preserve >"$test_root/existing-report/summary.txt"
