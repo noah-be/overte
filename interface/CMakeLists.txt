@@ -45,7 +45,11 @@ if (HIFI_ANDROID AND HIFI_ANDROID_APP STREQUAL "phoneInterface")
   # uses a supported ETC2/BPTC entry or the original image fallback instead.
   # Avoid carrying two unused 32 MiB default-sky KTX files in the phone RCC.
   list(APPEND INTERFACE_QRC_EXCLUDES
-    "^images/Default-Sky-9-cubemap/Default-Sky-9-cubemap(-ambient)?[.]ktx$")
+    "^images/Default-Sky-9-cubemap/Default-Sky-9-cubemap(-ambient)?[.]ktx$"
+    # Phone uses a Basic2D display and its minimal default script set does not
+    # load the Vive/Oculus controller-model scripts. The touchscreen virtual
+    # pad is packaged under scripts/system assets instead.
+    "^meshes/controller/.*")
 endif()
 generate_qrc(
   OUTPUT ${RESOURCES_QRC}
