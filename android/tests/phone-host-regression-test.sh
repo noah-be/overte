@@ -485,6 +485,14 @@ require_text tests/phone-device-test.sh 'install -r -g "\$APK"' \
     'device smoke automatically grants runtime permissions without human input'
 require_text tests/phone-device-test.sh 'runtime_permissions_auto_granted=1' \
     'device smoke summary records its permission precondition'
+require_text tests/phone-device-test.sh 'shell pm path "\$PACKAGE"' \
+    'device smoke resolves the installed base APK after installation'
+require_text tests/phone-device-test.sh 'installed_apk_sha256.*== "\$APK_SHA256"' \
+    'device smoke verifies installed bytes against the requested APK digest'
+require_text tests/phone-device-test.sh 'installed_apk_verified=1' \
+    'device smoke records successful installed-package provenance verification'
+reject_text tests/phone-device-test.sh 'installed_base_apk.*tee|installed_base_apk.*SUMMARY' \
+    'device smoke never persists the private installed APK path'
 require_text tests/phone-graphics-benchmark.sh 'phone-device-lock[.]sh.*run' \
     'graphics benchmark automatically acquires the shared phone lock'
 require_text phone-build-resource-guard.sh 'OVERTE_PHONE_MIN_SWAP_BYTES=32000000000' \

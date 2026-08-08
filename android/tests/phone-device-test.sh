@@ -155,6 +155,23 @@ printf '\nInstalling APK on the selected phone...\n'
 # permissions at install time so it cannot wait on Android permission UI.
 adb_for install -r -g "$APK" >/dev/null
 
+# Verify the installed package itself, not merely the input passed to adb. Keep
+# its private on-device path out of output and reports.
+mapfile -t installed_base_apks < <(
+    adb_for shell pm path "$PACKAGE" 2>/dev/null \
+        | tr -d '\r' \
+        | sed -n 's/^package:\(\/.*\/base[.]apk\)$/\1/p'
+)
+((${#installed_base_apks[@]} == 1)) || \
+    die "installed package did not expose exactly one base APK"
+installed_base_apk="${installed_base_apks[0]}"
+[[ "$installed_base_apk" =~ ^/[A-Za-z0-9_./+=~-]+/base[.]apk$ ]] || \
+    die "installed package returned an unsafe base APK path"
+installed_apk_sha256="$(adb_for exec-out cat "$installed_base_apk" | sha256sum | awk '{ print $1 }')"
+[[ "$installed_apk_sha256" == "$APK_SHA256" ]] || \
+    die "installed APK content does not match the requested APK"
+printf 'installed_apk_verified=1\n' | tee -a "$SUMMARY"
+
 printf '\nLaunching %s...\n' "$LAUNCHER"
 adb_for shell am force-stop "$PACKAGE"
 baseline_exit_crash_count="$(crash_exit_count)"

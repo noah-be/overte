@@ -4,6 +4,28 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 54 — Verify the package actually installed on the phone
+
+- Branch: `nightly/android-phone-54-device-smoke-integrity`
+- Commit: `Verify installed phone APK provenance` (this task's commit)
+- Change: After unattended installation, the device smoke resolves exactly one
+  private `base.apk`, validates its path, streams it directly into the host
+  SHA-256 tool, and requires its digest to equal the requested APK. Reports only
+  record the digest and a boolean verification result, never the device path.
+- Tests:
+  - `bash -n android/tests/phone-device-test.sh`: **passed**.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 211/211 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 211/211 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: Some unusually restricted Android builds may deny streaming their
+  installed APK even though installation itself succeeds; this intentionally
+  fails closed because provenance would otherwise be unverified.
+- Real-device validation still required: Run the smoke with an APK built from
+  this exact commit and confirm `installed_apk_verified=1`; separately corrupt
+  or substitute the input in an isolated test setup and confirm a mismatch is
+  rejected without printing the private package path.
+
 ## 53 — Gate the final release App Bundle
 
 - Branch: `nightly/android-phone-53-release-bundle-gate`
