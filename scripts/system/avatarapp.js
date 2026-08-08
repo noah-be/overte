@@ -1,7 +1,7 @@
 "use strict";
 /*jslint vars:true, plusplus:true, forin:true*/
 /*global Tablet, Script, Entities, MyAvatar, Camera, Quat, HMD, Account, UserActivityLogger, Messages, print,
-  AvatarBookmarks, AddressManager
+  AvatarBookmarks, AddressManager, Window, ANDROID_PHONE_INTERFACE
 */
 /* eslint indent: ["error", 4, { "outerIIFEBody": 0 }] */
 //
@@ -17,6 +17,7 @@
 (function() { // BEGIN LOCAL_SCOPE
 
 var AVATARAPP_QML_SOURCE = "hifi/AvatarApp.qml";
+var isAndroidPhone = typeof ANDROID_PHONE_INTERFACE !== "undefined" && ANDROID_PHONE_INTERFACE;
 Script.include("/~/system/libraries/controllers.js");
 
 // constants from AvatarBookmarks.h
@@ -119,7 +120,7 @@ function onTargetScaleChanged() {
 }
 
 function onSkeletonModelURLChanged() {
-    if(currentAvatar || (currentAvatar.skeletonModelURL !== MyAvatar.skeletonModelURL)) {
+    if(!currentAvatar || currentAvatar.skeletonModelURL !== MyAvatar.skeletonModelURL) {
         fromQml({'method' : 'getAvatars'});
     }
 }
@@ -341,7 +342,11 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
         if(message.url.indexOf('hifi://') === 0) {
             AddressManager.handleLookupString(message.url, false);
         } else if(message.url.indexOf('https://') === 0 || message.url.indexOf('http://') === 0) {
-            tablet.gotoWebScreen(message.url, MARKETPLACES_INJECT_SCRIPT_URL);
+            if (isAndroidPhone) {
+                Window.displayAnnouncement("External avatar marketplace pages are not supported on Android yet.");
+            } else {
+                tablet.gotoWebScreen(message.url, MARKETPLACES_INJECT_SCRIPT_URL);
+            }
         }
 
         break;
@@ -618,7 +623,9 @@ function onTabletScreenChanged(type, url) {
     var onAvatarAppScreenNow = (type === "QML" && url === AVATARAPP_QML_SOURCE);
     wireEventBridge(onAvatarAppScreenNow);
     // for toolbar mode: change button to active when window is first openend, false otherwise.
-    button.editProperties({isActive: onAvatarAppScreenNow});
+    if (!isAndroidPhone) {
+        button.editProperties({isActive: onAvatarAppScreenNow});
+    }
 
     if (!onAvatarAppScreen && onAvatarAppScreenNow) {
         on();
@@ -642,6 +649,7 @@ function shutdown() {
     tablet.removeButton(button);
     tablet.screenChanged.disconnect(onTabletScreenChanged);
 
+    wireEventBridge(false);
     off();
 }
 
