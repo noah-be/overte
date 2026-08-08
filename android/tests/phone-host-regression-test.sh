@@ -67,7 +67,9 @@ for source_file in \
         settings-phone.gradle \
         tests/check-phone-elf-alignment.sh \
         tests/check-phone-apk-16k.sh \
+        tests/check-phone-apk-contents.py \
         tests/check-phone-apk-padding.py \
+        tests/phone-apk-contents-test.sh \
         tests/phone-apk-padding-test.sh \
         tests/phone-offscreen-ui-mip-test.sh \
         tests/phone-script-payload-test.sh \
@@ -120,8 +122,8 @@ require_text "$gradle" 'check-phone-apk-16k\.sh' \
     '16 KiB builds enforce the final APK alignment gate'
 require_text tests/check-phone-apk-16k.sh 'check-phone-apk-padding\.py' \
     'final APK gate rejects excessive incremental ZIP padding'
-require_text "$gradle" '!canonicalVariantApk\.delete\(\)' \
-    'out-of-date packaging removes the stale canonical APK before rebuilding'
+require_text tests/check-phone-apk-16k.sh 'check-phone-apk-contents\.py' \
+    'final APK gate rejects incomplete incremental package outputs'
 require_text "$gradle" "exclude 'simplifiedUI/[*][*]'" \
     'phone packaging omits the unused desktop Simplified UI payload'
 require_text "$gradle" "exclude 'developer/[*][*]'" \

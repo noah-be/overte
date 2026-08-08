@@ -480,16 +480,6 @@ android {
             variant.outputs.each { output ->
                 def canonicalVariantApk = output.outputFile
                 packageTask.configure {
-                    doFirst {
-                        // Zipflinger can preserve holes left by shrinking native
-                        // libraries or assets. Once packaging is out-of-date,
-                        // rebuild its single canonical output from scratch.
-                        if (canonicalVariantApk.exists() && !canonicalVariantApk.delete()) {
-                            throw new GradleException(
-                                "Could not remove stale ${variant.name} APK: " +
-                                canonicalVariantApk)
-                        }
-                    }
                     doLast {
                         if (!canonicalVariantApk.isFile()) {
                             throw new GradleException(
