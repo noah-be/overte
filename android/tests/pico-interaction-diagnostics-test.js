@@ -4,7 +4,16 @@
 "use strict";
 
 const assert = require("assert");
+const fs = require("fs");
 const path = require("path");
+
+const dispatcherSource = fs.readFileSync(path.resolve(__dirname,
+    "../../scripts/system/controllers/controllerDispatcher.js"), "utf8");
+assert.ok(dispatcherSource.includes(
+    "_this.activitySlots.hasOwnProperty(activitySlot)"),
+"dispatcher must test ownership on the slot table");
+assert.ok(!dispatcherSource.includes("activitySlot.hasOwnProperty(activitySlot)"),
+    "dispatcher must not test ownership on a slot-name string");
 
 let updateCallback;
 let endingCallback;

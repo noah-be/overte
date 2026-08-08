@@ -180,8 +180,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 10 — Final scope and documentation audit
 
 - Branch: `nightly/pico4-10-final-audit`
-- Commit: identified by subject `Document remaining Pico validation`; the exact
-  hash is reported in the final session summary.
+- Commit: `09154d977c` (`Document remaining Pico validation`)
 - Change: reconcile the contradictory off-hand-rotation documentation with the
   inherited desktop implementation; record build blockers, deliberately
   deferred work, remaining device-free limits, and the final headset order.
@@ -189,6 +188,24 @@ headset, ADB, Android device, external domain, or device setting is used.
   branch-chain review, clean-worktree and diff checks recorded after commit.
 - Pico 4 validation: **not executed**. This documentation-only task introduces
   no new runtime behavior.
+
+### 11 — Dispatcher slot release
+
+- Branch: `nightly/pico4-11-dispatcher-slot-release`
+- Commit: identified by subject `Release deactivated controller slots`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: when a running controller module disappears, test property ownership
+  on the dispatcher slot table rather than on the slot-name string. Matching
+  hand/trigger activity slots are now actually returned to the dispatcher.
+- Regression: the Node interaction test asserts the correct ownership target
+  and rejects the ineffective string ownership expression.
+- Passed: dispatcher and test JavaScript syntax; interaction Node test; full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: this fixes a shared dispatcher defect because Pico dynamically switches
+  several grab, Web, HUD, keyboard, and Create modules over the same hand slots.
+- Pico 4 validation: **not executed**. Disable or unload a module while it owns
+  each hand/trigger slot, then immediately start another module on that slot;
+  verify interaction resumes without restarting controller scripts.
 
 ## Deferred, rejected, or blocked ideas
 

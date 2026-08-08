@@ -29,6 +29,11 @@ free ordering contract is `python3 android/tests/pico-openxr-input-test.py`.
 If `xrSyncActions` fails, the update returns with those neutral maps instead of
 querying and republishing potentially stale action state.
 
+If a dispatcher module is disabled while running, its occupied activity slots
+are released by checking ownership on the slot table itself. This prevents a
+removed grab, Web, HUD, keyboard, or Create module from permanently blocking
+the next module that needs the same Pico hand or trigger slot.
+
 ## Static implementation audit
 
 The Android OpenXR plugin enables `XR_BD_controller_interaction` when the

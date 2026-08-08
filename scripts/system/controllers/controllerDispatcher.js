@@ -132,7 +132,8 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
         this.unmarkSlotsForPluginName = function (runningPluginName) {
             // this is used to free activity-slots when a plugin is deactivated while it's running.
             for (var activitySlot in _this.activitySlots) {
-                if (activitySlot.hasOwnProperty(activitySlot) && _this.activitySlots[activitySlot] === runningPluginName) {
+                if (_this.activitySlots.hasOwnProperty(activitySlot) &&
+                        _this.activitySlots[activitySlot] === runningPluginName) {
                     _this.activitySlots[activitySlot] = false;
                 }
             }
