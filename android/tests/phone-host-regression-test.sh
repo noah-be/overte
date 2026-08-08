@@ -517,6 +517,10 @@ require_text tests/phone-device-test.sh 'manifest min-sdk "\$APK"' \
     'device smoke reads the local APK minimum SDK before installation'
 require_text tests/phone-device-test.sh 'APK_MIN_SDK.*== 26.*APK_TARGET_SDK.*== 36' \
     'device smoke requires the current Phone APK SDK contract'
+require_text tests/phone-device-test.sh 'manifest permissions "\$APK"' \
+    'device smoke reads permissions from the final APK before installation'
+require_text tests/phone-device-test.sh 'APK_PERMISSIONS.*== "\$EXPECTED_APK_PERMISSIONS"' \
+    'device smoke rejects APK permission drift'
 require_text tests/phone-device-test.sh 'PHONE_APK_ANALYZER' \
     'device smoke supports a controlled apkanalyzer path for host testing'
 require_text tests/phone-device-test.sh 'apk_sha256=%s' \

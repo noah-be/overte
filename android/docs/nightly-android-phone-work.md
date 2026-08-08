@@ -4,6 +4,25 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 75 — Gate permissions in the actual APK
+
+- Branch: `nightly/android-phone-75-apk-permission-preflight`
+- Commit: `Verify phone APK permissions before install` (this task's commit)
+- Change: Read, normalize, and exactly compare permissions from the final APK
+  against the five required Phone permissions before ADB. Unexpected transitive
+  manifest contributions and missing required capabilities both fail closed.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, including an APK
+    with unexpected camera permission rejected before installation.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 248/248 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 248/248 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Future intentional permission changes require coordinated source,
+  data-protection, package-preflight, documentation, and device review.
+- Real-device validation still required: Run with a current built APK and
+  confirm its merged permission allowlist passes before installation.
+
 ## 74 — Reject stale Phone APK SDK metadata
 
 - Branch: `nightly/android-phone-74-apk-sdk-preflight`

@@ -5,6 +5,13 @@ readonly PACKAGE="org.overte.phone"
 readonly LAUNCHER="org.overte.phone/.PermissionsActivity"
 readonly QT_ACTIVITY="org.overte.phone/.PhoneInterfaceActivity"
 readonly DEFAULT_APK="apps/phoneInterface/build/outputs/apk/debug/phoneInterface-debug.apk"
+readonly -a EXPECTED_PERMISSIONS=(
+    android.permission.ACCESS_NETWORK_STATE
+    android.permission.INTERNET
+    android.permission.MODIFY_AUDIO_SETTINGS
+    android.permission.RECORD_AUDIO
+    android.permission.VIBRATE
+)
 
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
@@ -133,6 +140,12 @@ APK_TARGET_SDK="$("$APK_ANALYZER" manifest target-sdk "$APK" 2>/dev/null | tr -d
     die "could not read the APK target SDK"
 [[ "$APK_MIN_SDK" == 26 && "$APK_TARGET_SDK" == 36 ]] || \
     die "APK SDK metadata does not match the Phone build contract"
+APK_PERMISSIONS="$("$APK_ANALYZER" manifest permissions "$APK" 2>/dev/null \
+    | sed '/^[[:space:]]*$/d' | LC_ALL=C sort -u)" || \
+    die "could not read APK permissions"
+EXPECTED_APK_PERMISSIONS="$(printf '%s\n' "${EXPECTED_PERMISSIONS[@]}" | LC_ALL=C sort)"
+[[ "$APK_PERMISSIONS" == "$EXPECTED_APK_PERMISSIONS" ]] || \
+    die "APK permissions do not match the minimal Phone allowlist"
 
 if [[ -n "${PHONE_TEST_REPORT:-}" ]]; then
     REPORT_DIR="$(realpath "$PHONE_TEST_REPORT")"

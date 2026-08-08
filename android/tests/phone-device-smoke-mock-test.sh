@@ -98,6 +98,15 @@ case "$2" in
     application-id) printf '%s\n' "${MOCK_APK_ID:-org.overte.phone}" ;;
     min-sdk) printf '26\n' ;;
     target-sdk) printf '%s\n' "${MOCK_APK_TARGET_SDK:-36}" ;;
+    permissions)
+        printf '%s\n' android.permission.INTERNET \
+            android.permission.ACCESS_NETWORK_STATE \
+            android.permission.RECORD_AUDIO \
+            android.permission.MODIFY_AUDIO_SETTINGS \
+            android.permission.VIBRATE
+        [[ "${MOCK_EXTRA_PERMISSION:-0}" != 1 ]] || \
+            printf '%s\n' android.permission.CAMERA
+        ;;
     *) exit 3 ;;
 esac
 MOCK_ANALYZER
@@ -152,6 +161,17 @@ if run_smoke "$test_root/old-apk-report" env MOCK_APK_TARGET_SDK=35 \
     exit 1
 fi
 grep -Fq 'APK SDK metadata does not match the Phone build contract' "$test_root/old-apk.out"
+! grep -q '^install ' "$test_root/adb-commands"
+
+mkdir "$test_root/extra-permission-report"
+: >"$test_root/adb-commands"
+if run_smoke "$test_root/extra-permission-report" env MOCK_EXTRA_PERMISSION=1 \
+        >"$test_root/extra-permission.out" 2>&1; then
+    echo 'FAIL: APK with an unexpected dangerous permission was accepted' >&2
+    exit 1
+fi
+grep -Fq 'APK permissions do not match the minimal Phone allowlist' \
+    "$test_root/extra-permission.out"
 ! grep -q '^install ' "$test_root/adb-commands"
 
 mkdir "$test_root/emulator-report"
