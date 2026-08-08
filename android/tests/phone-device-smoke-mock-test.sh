@@ -90,13 +90,20 @@ cat >"$test_root/bin/sleep" <<'MOCK_SLEEP'
 #!/usr/bin/env bash
 exit 0
 MOCK_SLEEP
-chmod +x "$test_root/bin/adb" "$test_root/bin/sleep"
+cat >"$test_root/bin/apkanalyzer" <<'MOCK_ANALYZER'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$1" == manifest && "$2" == application-id ]] || exit 3
+printf '%s\n' "${MOCK_APK_ID:-org.overte.phone}"
+MOCK_ANALYZER
+chmod +x "$test_root/bin/adb" "$test_root/bin/sleep" "$test_root/bin/apkanalyzer"
 
 run_smoke() {
     local report_dir="$1"
     shift
     env PATH="$test_root/bin:$PATH" MOCK_ROOT="$test_root" \
         PHONE_DEVICE_LOCK_HELD=1 PHONE_ADB="$test_root/bin/adb" \
+        PHONE_APK_ANALYZER="$test_root/bin/apkanalyzer" \
         ANDROID_SERIAL=mock-phone PHONE_TEST_REPORT="$report_dir" "$@" \
         "$script_dir/phone-device-test.sh" "$test_root/phone.apk"
 }
@@ -121,6 +128,16 @@ fi
 grep -Fq 'installed APK content does not match' "$test_root/mismatch.out"
 ! grep -Fq '/data/app/' "$test_root/mismatch.out"
 ! grep -Fq "$test_root" "$test_root/mismatch.out"
+
+mkdir "$test_root/wrong-package-report"
+: >"$test_root/adb-commands"
+if run_smoke "$test_root/wrong-package-report" env MOCK_APK_ID=example.unrelated \
+        >"$test_root/wrong-package.out" 2>&1; then
+    echo 'FAIL: unrelated APK application ID was accepted' >&2
+    exit 1
+fi
+grep -Fq 'APK application ID does not match the Phone package' "$test_root/wrong-package.out"
+! grep -q '^install ' "$test_root/adb-commands"
 
 mkdir "$test_root/emulator-report"
 : >"$test_root/adb-commands"

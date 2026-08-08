@@ -363,7 +363,8 @@ management deserve explicit checks. Automated static validation cannot expose
 these device/runtime problems.
 
 Run the repeatable smoke test against an already built APK with an explicit
-device serial. It installs the app, verifies the installed bytes, exercises
+device serial. It first uses SDK `apkanalyzer` to require the dedicated Phone
+application ID, then installs the app, verifies the installed bytes, and exercises
 launch, a fixed local test deep link, three background/foreground cycles, and a
 process-preserving Back/background/recovery cycle. It records aggregate crash
 and 16 KiB compatibility diagnostics in a temporary report directory:

@@ -509,6 +509,12 @@ require_text tests/phone-device-test.sh '10#\$gles >= 196610' \
     'device smoke enforces the manifest OpenGL ES 3.2 requirement'
 require_text tests/phone-device-test.sh 'sha256sum -- "\$APK"' \
     'device smoke test identifies the exact installed APK by content'
+require_text tests/phone-device-test.sh 'manifest application-id "\$APK"' \
+    'device smoke reads the local APK application ID before installation'
+require_text tests/phone-device-test.sh 'APK_APPLICATION_ID.*== "\$PACKAGE"' \
+    'device smoke permits only the dedicated Phone package'
+require_text tests/phone-device-test.sh 'PHONE_APK_ANALYZER' \
+    'device smoke supports a controlled apkanalyzer path for host testing'
 require_text tests/phone-device-test.sh 'apk_sha256=%s' \
     'device smoke summary records APK provenance without a local path'
 require_text tests/phone-device-test.sh 'install -r -g "\$APK"' \

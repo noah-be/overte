@@ -42,7 +42,19 @@ find_adb() {
     command -v adb 2>/dev/null || die "ADB was not found"
 }
 
+find_apk_analyzer() {
+    local candidate sdk_root
+    sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-${HOME}/Android/Sdk}}"
+    for candidate in \
+        "${PHONE_APK_ANALYZER:-}" \
+        "$sdk_root/cmdline-tools/latest/bin/apkanalyzer"; do
+        [[ -n "$candidate" && -x "$candidate" ]] && { printf '%s\n' "$candidate"; return; }
+    done
+    command -v apkanalyzer 2>/dev/null || die "apkanalyzer was not found"
+}
+
 ADB="$(find_adb)"
+APK_ANALYZER="$(find_apk_analyzer)"
 
 adb_for() { "$ADB" -s "$SERIAL" "$@"; }
 
@@ -111,6 +123,10 @@ APK="$(realpath "$APK")"
 command -v sha256sum >/dev/null 2>&1 || die "sha256sum was not found"
 APK_SHA256="$(sha256sum -- "$APK" | awk '{ print $1 }')"
 [[ "$APK_SHA256" =~ ^[0-9a-f]{64}$ ]] || die "could not identify the APK by SHA-256"
+APK_APPLICATION_ID="$("$APK_ANALYZER" manifest application-id "$APK" 2>/dev/null \
+    | tr -d '\r')" || die "could not read the APK application ID"
+[[ "$APK_APPLICATION_ID" == "$PACKAGE" ]] || \
+    die "APK application ID does not match the Phone package"
 
 if [[ -n "${PHONE_TEST_REPORT:-}" ]]; then
     REPORT_DIR="$(realpath "$PHONE_TEST_REPORT")"

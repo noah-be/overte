@@ -4,6 +4,28 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 73 — Reject foreign APKs before device installation
+
+- Branch: `nightly/android-phone-73-apk-identity-preflight`
+- Commit: `Verify phone APK identity before install` (this task's commit)
+- Change: Resolve the SDK `apkanalyzer`, read the local artifact's application
+  ID, and require exactly `org.overte.phone` before creating reports or issuing
+  ADB install. A mistaken foreign APK can no longer alter the phone before the
+  post-install digest check notices a mismatch.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, including an
+    unrelated application ID rejected with no install command.
+  - Local tool capability: **passed**, SDK `apkanalyzer` is available.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 244/244 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 244/244 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: `apkanalyzer` requires Android command-line tools and a working
+  Java runtime; missing analysis capability intentionally blocks device changes.
+- Real-device validation still required: Run the current-APK smoke and confirm
+  identity preflight precedes installation; no foreign APK should be installed
+  merely to exercise the negative path.
+
 ## 72 — Enforce the Phone runtime device requirements
 
 - Branch: `nightly/android-phone-72-device-runtime-contract`
