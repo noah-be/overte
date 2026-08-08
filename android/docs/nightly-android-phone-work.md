@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 80 — Label privacy-reduced ADB phase failures
+
+- Branch: `nightly/android-phone-80-adb-phase-errors`
+- Commit: `Report phone smoke ADB phase failures` (this task's commit)
+- Change: Route install, force-stop, Activity starts, deep-link delivery, Home,
+  and Back through a checked phase wrapper. Raw ADB detail remains suppressed,
+  while failures now identify the exact safe phase and cannot continue.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; a launcher-start
+    error with a synthetic serial on stderr becomes only `launcher start failed`
+    and never records launch success.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 257/257 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 257/257 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Detailed transport diagnosis intentionally remains a separate,
+  local operator action after the safe phase has been identified.
+- Real-device validation still required: Interrupt one disposable current-APK
+  lifecycle phase and confirm the generic phase name with no identifier leakage.
+
 ## 79 — Keep ADB transport errors identifier-free
 
 - Branch: `nightly/android-phone-79-private-adb-errors`

@@ -74,6 +74,12 @@ adb_for() {
     "$ADB" -s "$SERIAL" "$@" 2>/dev/null
 }
 
+require_adb() {
+    local phase="$1"
+    shift
+    adb_for "$@" >/dev/null || die "$phase failed"
+}
+
 device_property() {
     "$ADB" -s "$1" shell getprop "$2" 2>/dev/null | tr -d '\r'
 }
@@ -256,7 +262,7 @@ printf '\nInstalling APK on the selected phone...\n'
 # Keep the smoke test entirely unattended. Permission denial/revocation is a
 # separate lifecycle matrix; this main launch path grants declared runtime
 # permissions at install time so it cannot wait on Android permission UI.
-adb_for install -r -g "$APK" >/dev/null || die "APK installation failed"
+require_adb "APK installation" install -r -g "$APK"
 
 # Verify the installed package itself, not merely the input passed to adb. Keep
 # its private on-device path out of output and reports.
@@ -279,9 +285,9 @@ printf '\nLaunching %s...\n' "$LAUNCHER"
 logcat_start_epoch="$(adb_for shell date +%s.%3N 2>/dev/null | tr -d '\r')"
 [[ "$logcat_start_epoch" =~ ^[0-9]+[.][0-9]{3}$ ]] || \
     die "device does not provide a precise logcat test cursor"
-adb_for shell am force-stop "$PACKAGE"
+require_adb "pre-launch force-stop" shell am force-stop "$PACKAGE"
 baseline_exit_crash_count="$(crash_exit_count)"
-adb_for shell am start -W -n "$LAUNCHER" >/dev/null
+require_adb "launcher start" shell am start -W -n "$LAUNCHER"
 pid="$(wait_for_pid || true)"
 [[ -n "$pid" ]] || die "app process did not start; inspect the private $REPORT_KIND report"
 require_stable_pid "launch" "$pid" 30
@@ -289,18 +295,18 @@ phone_activity_is_resumed || die "phone Qt activity is not resumed after launch;
 printf 'launch_survived=1\n' | tee -a "$SUMMARY"
 
 printf '\nOpening neutral local test deep link...\n'
-adb_for shell am start -W -a android.intent.action.VIEW \
-    -d "$TEST_DEEP_LINK" "$PACKAGE" >/dev/null
+require_adb "deep-link delivery" shell am start -W -a android.intent.action.VIEW \
+    -d "$TEST_DEEP_LINK" "$PACKAGE"
 require_stable_pid "deep link" "$pid" 5
 phone_activity_is_resumed || die "phone Qt activity is not resumed after deep link; inspect the private $REPORT_KIND report"
 
 printf '\nTesting repeated background/foreground transitions...\n'
 for lifecycle_cycle in 1 2 3; do
-    adb_for shell input keyevent KEYCODE_HOME
+    require_adb "Home cycle $lifecycle_cycle" shell input keyevent KEYCODE_HOME
     require_stable_pid "background cycle $lifecycle_cycle" "$pid" 2
     phone_activity_is_backgrounded || \
         die "cycle $lifecycle_cycle: phone activity remained resumed in background; inspect the private $REPORT_KIND report"
-    adb_for shell am start -W -n "$LAUNCHER" >/dev/null
+    require_adb "foreground cycle $lifecycle_cycle" shell am start -W -n "$LAUNCHER"
     require_stable_pid "foreground cycle $lifecycle_cycle" "$pid" 3
     phone_activity_is_resumed || \
         die "cycle $lifecycle_cycle: phone Qt activity is not resumed; inspect the private $REPORT_KIND report"
@@ -308,11 +314,11 @@ done
 printf 'background_foreground_cycles=3\n' | tee -a "$SUMMARY"
 
 printf '\nTesting unconsumed Back lifecycle...\n'
-adb_for shell input keyevent KEYCODE_BACK
+require_adb "Back delivery" shell input keyevent KEYCODE_BACK
 require_stable_pid "Back background" "$pid" 3
 phone_activity_is_backgrounded || \
     die "Back did not background the phone activity; inspect the private $REPORT_KIND report"
-adb_for shell am start -W -n "$LAUNCHER" >/dev/null
+require_adb "Back recovery start" shell am start -W -n "$LAUNCHER"
 require_stable_pid "Back recovery" "$pid" 5
 phone_activity_is_resumed || \
     die "phone Qt activity is not resumed after Back recovery; inspect the private $REPORT_KIND report"

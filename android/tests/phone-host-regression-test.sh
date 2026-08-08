@@ -539,8 +539,12 @@ require_text tests/phone-device-test.sh 'install -r -g "\$APK"' \
     'device smoke automatically grants runtime permissions without human input'
 require_text tests/phone-device-test.sh '"\$ADB" -s "\$SERIAL" "\$@" 2>/dev/null' \
     'device smoke suppresses ADB transport details that can contain identifiers'
-require_text tests/phone-device-test.sh 'APK installation failed' \
+require_text tests/phone-device-test.sh 'require_adb "APK installation"' \
     'device smoke replaces raw install errors with a generic failure'
+require_text tests/phone-device-test.sh 'require_adb\(\)' \
+    'device smoke labels every required mutating ADB phase'
+require_text tests/phone-device-test.sh 'require_adb "launcher start"' \
+    'device smoke reports Activity launch failure without raw ADB output'
 require_text tests/phone-device-test.sh 'runtime_permissions_auto_granted=1' \
     'device smoke summary records its permission precondition'
 require_text tests/phone-device-test.sh 'shell pm path "\$PACKAGE"' \

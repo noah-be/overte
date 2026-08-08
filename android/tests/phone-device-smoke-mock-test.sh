@@ -55,7 +55,13 @@ case "$*" in
         fi
         ;;
     'shell am force-stop org.overte.phone') ;;
-    shell\ am\ start\ *) printf resumed >"$MOCK_ROOT/activity-state" ;;
+    shell\ am\ start\ *)
+        if [[ "${MOCK_START_FAILURE:-0}" == 1 ]]; then
+            printf 'private start failure for mock-phone\n' >&2
+            exit 11
+        fi
+        printf resumed >"$MOCK_ROOT/activity-state"
+        ;;
     'shell pidof -s org.overte.phone')
         if [[ "${MOCK_PROCESS_RESTART:-0}" == 1 &&
                 "$(<"$MOCK_ROOT/activity-state")" == background ]]; then
@@ -249,6 +255,16 @@ if run_smoke "$test_root/install-failure-report" env MOCK_INSTALL_FAILURE=1 \
 fi
 grep -Fq 'APK installation failed' "$test_root/install-failure.out"
 ! grep -Eq 'mock-phone|private adb detail|phone[.]apk' "$test_root/install-failure.out"
+
+mkdir "$test_root/start-failure-report"
+if run_smoke "$test_root/start-failure-report" env MOCK_START_FAILURE=1 \
+        >"$test_root/start-failure.out" 2>&1; then
+    echo 'FAIL: failed Activity start was accepted' >&2
+    exit 1
+fi
+grep -Fq 'launcher start failed' "$test_root/start-failure.out"
+! grep -Fq 'private start failure for mock-phone' "$test_root/start-failure.out"
+! grep -Fq 'launch_survived=1' "$test_root/start-failure-report/summary.txt"
 
 mkdir "$test_root/sticky-report"
 if run_smoke "$test_root/sticky-report" env MOCK_STICKY_FOREGROUND=1 \
