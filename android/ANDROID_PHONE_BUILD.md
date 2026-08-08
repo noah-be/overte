@@ -211,16 +211,29 @@ the tablet Home screen, and finally closes the tablet. Desktop and VR tablet
 presentation remain unchanged.
 
 `TabletHome.qml` uses a selector-backed presentation configuration. Android
-uses a touch-oriented responsive grid with six columns in landscape, three in
+uses a touch-oriented responsive grid with five columns in landscape, three in
 portrait-sized lifecycle transitions, and 48-pixel page targets. The shared
 Tablet button model and `Tablet.addButton()` compatibility remain intact.
 
-The initial mobile-compatible application set is deliberately limited to
-Audio and Settings. GO TO and Login remain available through their existing
-screen-space dialogs. Places requires network and lifecycle validation before
-enablement. Create, Users, Avatar, Emote, More, and the VR tablet scripts are
-not part of the first touchscreen tablet because they depend on desktop
-windows, tracked controllers, external web content, or VR entities.
+Application support is intentionally explicit rather than inferred from an
+app having a tablet button:
+
+| Surface | Device-free status | Remaining device validation |
+| --- | --- | --- |
+| Login | Screen-space QML, native IME fields, touch-sized entry, cancellable pending request, idempotent focus cleanup | IME resize and real account/domain authentication |
+| Settings | Local QML with selector-backed 250% host scaling | Every subpage and numeric IME entry |
+| Audio | Local QML locked to the available non-HMD context | Device enumeration, sliders, mute and scrolling |
+| Menu | Local QML navigation | Each retained action and modal result |
+| Shield | Native privacy-radius action; closes the phone tablet after activation | Visible/audio feedback and repeated activation |
+| People | Local QML application | Live presence, touch selection and domain changes |
+| Avatar | Local QML bookmarks/settings; external marketplace web pages are explicitly unavailable | Bookmark changes, wearable editing and failure feedback |
+| Places | Local `PicoPlaces.qml`; guarded QML lifecycle | Network failure, federation data and destination loading |
+| Tutorial | Bundled serverless destination; closes the tablet before navigation | Loading and return behavior |
+| Home | Configured home bookmark with bundled Tutorial fallback | Valid, invalid and unreachable bookmark behavior |
+| Create | Disabled | Requires a dedicated touch design without desktop windows, controller mappings or entity-click capture |
+
+Users, Emote, More, VR tablet positioning, and other remote-web/VR-only tablet
+scripts remain disabled until they have an equally explicit phone contract.
 
 Run the device-free tablet contract checks with:
 
@@ -230,6 +243,12 @@ Run the device-free tablet contract checks with:
 ./tests/phone-tablet-routing-test.sh
 ./tests/phone-tablet-touch-qml-test.sh
 ./tests/phone-tablet-privacy-test.sh
+./tests/phone-tablet-audio-test.sh
+./tests/phone-tablet-avatar-test.sh
+./tests/phone-tablet-places-test.sh
+./tests/phone-tablet-quick-goto-test.sh
+./tests/phone-tablet-shield-test.sh
+./tests/phone-dialog-routing-test.sh
 ```
 
 ## Device validation checklist
