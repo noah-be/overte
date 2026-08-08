@@ -185,26 +185,50 @@ void PicoWebViewItem::createWebView() {
     if (!isComponentComplete() || _webViewCreated || _webViewCreationPending ||
             pixelWidth() <= 1 || pixelHeight() <= 1) { return; }
     JniScope jni;
-    if (!jni.env) { return; }
+    if (!jni.env) {
+        scheduleCreationRetry();
+        return;
+    }
     jstring url = jni.env->NewString(reinterpret_cast<const jchar*>(_url.utf16()), _url.size());
     jstring agent = jni.env->NewString(reinterpret_cast<const jchar*>(_userAgent.utf16()), _userAgent.size());
+    if (!url || !agent) {
+        if (jni.env->ExceptionCheck()) { jni.env->ExceptionClear(); }
+        if (url) { jni.env->DeleteLocalRef(url); }
+        if (agent) { jni.env->DeleteLocalRef(agent); }
+        scheduleCreationRetry();
+        return;
+    }
     jvalue args[6];
     args[0].j = reinterpret_cast<jlong>(this); args[1].i = pixelWidth(); args[2].i = pixelHeight();
     args[3].l = url; args[4].l = agent; args[5].z = _useBackground;
     _webViewCreationPending = callStatic(
         "create", "(JIILjava/lang/String;Ljava/lang/String;Z)V", args);
     jni.env->DeleteLocalRef(url); jni.env->DeleteLocalRef(agent);
+    if (!_webViewCreationPending) {
+        scheduleCreationRetry();
+    }
+}
+
+void PicoWebViewItem::scheduleCreationRetry() {
+    constexpr uint8_t MAX_CREATION_RETRIES { 3 };
+    _webViewCreationPending = false;
+    if (_webViewCreated || _webViewCreationRetryScheduled ||
+            _webViewCreationRetries >= MAX_CREATION_RETRIES) {
+        return;
+    }
+    ++_webViewCreationRetries;
+    _webViewCreationRetryScheduled = true;
+    QTimer::singleShot(1000, this, [this] {
+        _webViewCreationRetryScheduled = false;
+        createWebView();
+    });
 }
 
 void PicoWebViewItem::acceptCreationResult(bool created) {
     _webViewCreationPending = false;
     _webViewCreated = created;
     if (!created) {
-        constexpr uint8_t MAX_CREATION_RETRIES { 3 };
-        if (_webViewCreationRetries < MAX_CREATION_RETRIES) {
-            ++_webViewCreationRetries;
-            QTimer::singleShot(1000, this, [this] { createWebView(); });
-        }
+        scheduleCreationRetry();
         return;
     }
     _webViewCreationRetries = 0;

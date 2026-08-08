@@ -46,6 +46,7 @@ protected:
 
 private:
     void createWebView();
+    void scheduleCreationRetry();
     void sendPointer(int action, const QPointF& position);
     int pixelWidth() const;
     int pixelHeight() const;
@@ -56,6 +57,7 @@ private:
     bool _useBackground { true };
     bool _webViewCreated { false };
     bool _webViewCreationPending { false };
+    bool _webViewCreationRetryScheduled { false };
     uint8_t _webViewCreationRetries { 0 };
     bool _pointerPressed { false };
     mutable QMutex _imageMutex;

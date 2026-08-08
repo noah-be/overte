@@ -138,6 +138,23 @@ class PicoWebViewBridgeTest(unittest.TestCase):
         self.assertIn("MAX_CREATION_RETRIES { 3 }", self.source)
         self.assertIn("QTimer::singleShot(1000, this", self.source)
 
+    def test_synchronous_creation_failures_also_retry(self):
+        create = re.search(
+            r"void PicoWebViewItem::createWebView\(\) \{(.*?)\n\}",
+            self.source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(create)
+        body = create.group(1)
+        self.assertIn("if (!jni.env)", body)
+        self.assertIn("if (!url || !agent)", body)
+        self.assertIn("if (!_webViewCreationPending)", body)
+        self.assertGreaterEqual(body.count("scheduleCreationRetry();"), 3)
+        self.assertIn("void PicoWebViewItem::scheduleCreationRetry()", self.source)
+        self.assertIn("_webViewCreated || _webViewCreationRetryScheduled ||", self.source)
+        self.assertIn("_webViewCreationRetryScheduled = true;", self.source)
+        self.assertIn("_webViewCreationRetryScheduled = false;", self.source)
+
     def test_pending_properties_are_resynchronized_after_creation(self):
         result = re.search(
             r"void PicoWebViewItem::acceptCreationResult\(.*?\n\}",

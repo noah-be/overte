@@ -781,8 +781,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 42 — Create QML message boundary
 
 - Branch: `nightly/pico4-42-create-message-validation`
-- Commit: identified by subject `Validate Pico Create QML messages`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `e5830827b5` (`Validate Pico Create QML messages`)
 - Change: normalize the native Create page's QML messages before dispatch,
   reject missing/non-string methods and non-object parameters, and invoke only
   registered own button handlers. Invalid or stale UI messages can no longer
@@ -797,6 +796,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Open/close Create repeatedly, exercise
   every native creation button and numeric focus control, then inject malformed
   and unknown QML messages and verify Create remains responsive.
+
+### 43 — WebView startup retry coverage
+
+- Branch: `nightly/pico4-43-webview-startup-retry`
+- Commit: identified by subject `Retry Pico WebView startup failures`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: route missing JNI environments, Java-string allocation failures and
+  synchronous bridge-call failures through the same bounded creation retry used
+  for asynchronous Java failures. A Web entity completed before Activity bridge
+  initialization can therefore recover without a later geometry mutation.
+- Regression: WebView bridge contracts require all three synchronous failure
+  paths to schedule the shared, lifetime-bound, capped retry helper.
+- Passed: 13 WebView bridge tests; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: startup failures may emit up to three existing one-second retries; the
+  item lifetime cancels timers and successful creation suppresses queued work.
+- Pico 4 validation: **not executed**. Enter a world with Web entities during
+  cold Activity startup, delay bridge/provider initialization, and verify pages
+  appear after recovery without resizing or re-entering the world.
 
 ## Deferred, rejected, or blocked ideas
 
