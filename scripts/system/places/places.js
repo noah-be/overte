@@ -109,6 +109,13 @@
             value.length <= MAX_UI_ADDRESS_LENGTH &&
             !/[\u0000-\u001f\u007f]/.test(value);
     }
+
+    function validPortalPosition(value) {
+        return value && typeof value === "object" &&
+            typeof value.x === "number" && isFinite(value.x) &&
+            typeof value.y === "number" && isFinite(value.y) &&
+            typeof value.z === "number" && isFinite(value.z);
+    }
     
     function clicked(){
         if (appStatus === true) {
@@ -175,6 +182,9 @@
                 }
                 
             } else if (messageObj.action === "REQUEST_PORTAL" && (n - timestamp) > INTERCALL_DELAY) {
+                if (!validUiAddress(messageObj.address)) {
+                    return;
+                }
                 d = new Date();
                 timestamp = d.getTime();
                 var portalPosition = Vec3.sum(MyAvatar.feetPosition, Vec3.multiplyQbyV(MyAvatar.orientation, {"x": 0.0, "y": 0.0, "z": -2.0}));
@@ -876,7 +886,8 @@
             if (!instruction || typeof instruction !== "object") {
                 return;
             }
-            if (instruction.action === "REZ_PORTAL") {
+            if (instruction.action === "REZ_PORTAL" && validPortalPosition(instruction.position) &&
+                    validUiAddress(instruction.url)) {
                 generatePortal(instruction.position, instruction.url, instruction.name, instruction.placeID);
             }
         }

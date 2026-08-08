@@ -4,6 +4,28 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 28 — Validate Places portal contracts
+
+- Branch: `nightly/android-phone-28-places-portal-validation`
+- Commit: `Validate Places portal messages` (this task's commit)
+- Change: Reuse the bounded, control-character-free destination contract before
+  broadcasting a QML portal request and before creating a received portal.
+  Received portal positions must also be objects with finite numeric x/y/z
+  coordinates before any Vec3 operation or local entity creation.
+- Tests:
+  - `node --check scripts/system/places/places.js`: **passed**.
+  - `android/tests/phone-tablet-places-test.sh`: **passed**, including outgoing
+    destination and incoming address/finite-position contracts.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet suites and 181/181 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: Portal display names and place identifiers are serialized as
+  inert user data; their semantic trust remains a domain/application concern.
+- Real-device validation still required: **not executed for this task**. From
+  Phone Places request a valid portal, verify its local placement and expiry,
+  then use a test script to send missing, non-finite, and overlong portal data
+  and confirm no entity appears and the client remains responsive.
+
 ## 27 — Validate Avatar message boundaries
 
 - Branch: `nightly/android-phone-27-avatar-message-validation`

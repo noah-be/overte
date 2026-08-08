@@ -40,6 +40,8 @@ require "$places" '\\u0000-\\u001f\\u007f' \
     'Places rejects control characters in QML navigation destinations'
 require "$places" 'if[[:space:]]*\(validUiAddress\(messageObj[.]address\)\)' \
     'Places teleports only after validating the QML address'
+require "$places" 'if[[:space:]]*\(!validUiAddress\(messageObj[.]address\)\)' \
+    'Places refuses to broadcast portals with invalid destinations'
 if grep -Eq 'PICO_PLACES_TELEPORT|print\([^)]*(messageObj[.]address|messageObj[.]name)' "$places"; then
     printf 'FAIL: Places logs a user destination or place name\n' >&2
     exit 1
@@ -63,6 +65,14 @@ require "$places" '!places\[i\][[:space:]]*\|\|[[:space:]]*!places\[i\][.]domain
     'Places skips malformed individual directory entries'
 require "$places" '!instruction[[:space:]]*\|\|[[:space:]]*typeof instruction !== "object"' \
     'Places rejects malformed portal-channel payloads'
+require "$places" 'function validPortalPosition\(value\)' \
+    'Places centralizes portal position validation'
+require "$places" 'typeof value[.]x === "number" && isFinite\(value[.]x\)' \
+    'Places requires finite numeric portal coordinates'
+require "$places" 'validPortalPosition\(instruction[.]position\).*&&' \
+    'Places validates received portal positions before Vec3 operations'
+require "$places" 'validUiAddress\(instruction[.]url\)' \
+    'Places validates received portal destinations before entity creation'
 require "$places" 'if[[:space:]]*\(!isAndroidPhone\)' \
     'Phone Places avoids mutable tablet-button proxy updates'
 require "$qml" 'height:[[:space:]]*Math[.]max\(82,' \
