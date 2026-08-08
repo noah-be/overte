@@ -88,6 +88,7 @@ run_smoke() {
 
 mkdir "$test_root/success-report"
 run_smoke "$test_root/success-report" env >"$test_root/success.out"
+! grep -Fq "$test_root" "$test_root/success.out"
 summary="$test_root/success-report/summary.txt"
 grep -Fxq 'installed_apk_verified=1' "$summary"
 grep -Fxq 'background_foreground_cycles=3' "$summary"
@@ -104,6 +105,7 @@ if run_smoke "$test_root/mismatch-report" env MOCK_APK_MISMATCH=1 \
 fi
 grep -Fq 'installed APK content does not match' "$test_root/mismatch.out"
 ! grep -Fq '/data/app/' "$test_root/mismatch.out"
+! grep -Fq "$test_root" "$test_root/mismatch.out"
 
 mkdir "$test_root/restart-report"
 if run_smoke "$test_root/restart-report" env MOCK_PROCESS_RESTART=1 \
@@ -112,6 +114,7 @@ if run_smoke "$test_root/restart-report" env MOCK_PROCESS_RESTART=1 \
     exit 1
 fi
 grep -Fq 'app process restarted' "$test_root/restart.out"
+! grep -Fq "$test_root" "$test_root/restart.out"
 ! grep -Fq 'background_foreground_cycles=3' "$test_root/restart-report/summary.txt"
 
 mkdir "$test_root/sticky-report"
@@ -121,6 +124,7 @@ if run_smoke "$test_root/sticky-report" env MOCK_STICKY_FOREGROUND=1 \
     exit 1
 fi
 grep -Fq 'phone activity remained resumed in background' "$test_root/sticky.out"
+! grep -Fq "$test_root" "$test_root/sticky.out"
 ! grep -Fq 'background_foreground_cycles=3' "$test_root/sticky-report/summary.txt"
 
 mkdir "$test_root/existing-report"

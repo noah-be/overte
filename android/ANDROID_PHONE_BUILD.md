@@ -377,10 +377,15 @@ to an existing directory outside the Git worktree when reports should be
 retained at a known location. That directory must not already contain
 `summary.txt`; the test refuses to overwrite files or follow a summary symlink.
 Device diagnostics are refused inside the repository, and the summary is
-created with owner-only permissions. It contains only the app package, lifecycle status flags,
+created with owner-only permissions. It contains only the app package,
+lifecycle status flags,
 and aggregate test counts: it never records the device serial, model, deep-link
-URI, account data, process IDs, or raw Android output. Logcat is restricted to
-the tested app process and inspected only as a stream; package exit diagnostics
+URI, account data, process IDs, or raw Android output. Console output likewise
+identifies the report only as
+temporary or caller-provided; it never prints its absolute path. Set
+`PHONE_TEST_REPORT` when a known retained location is required.
+Logcat is restricted to the tested app process and inspected only as a stream;
+package exit diagnostics
 are likewise reduced immediately to a count. Neither raw source is written to
 the report.
 The script never uses ADB's implicit default device: without

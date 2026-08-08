@@ -552,6 +552,9 @@ require_text tests/phone-device-test.sh 'reason=\[\[:space:\]\]\*\(4\|5\)' \
 reject_text tests/phone-device-test.sh \
     'serial=%s|model=%s|dumpsys window|SurfaceFlinger' \
     'device reports omit serial, model, and global display diagnostics'
+reject_text tests/phone-device-test.sh \
+    'reports: \$REPORT_DIR|Device diagnostics complete: %s' \
+    'device process output omits absolute private report paths'
 require_text tests/phone-device-test.sh 'readonly TEST_DEEP_LINK="overte://localhost"' \
     'device test uses a fixed neutral local deep link'
 reject_text tests/phone-device-test.sh \

@@ -93,9 +93,11 @@ APK_SHA256="$(sha256sum -- "$APK" | awk '{ print $1 }')"
 
 if [[ -n "${PHONE_TEST_REPORT:-}" ]]; then
     REPORT_DIR="$(realpath "$PHONE_TEST_REPORT")"
+    REPORT_KIND="caller-provided"
     [[ -d "$REPORT_DIR" ]] || die "PHONE_TEST_REPORT must name an existing directory"
 else
     REPORT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/overte-phone-device-test.XXXXXX")"
+    REPORT_KIND="temporary"
 fi
 
 REPOSITORY_ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null || true)"
@@ -146,8 +148,8 @@ require_stable_pid() {
     for elapsed in $(seq 1 "$seconds"); do
         sleep 1
         observed="$(current_pid)"
-        [[ -n "$observed" ]] || die "$phase: app process exited; reports: $REPORT_DIR"
-        [[ "$observed" == "$expected" ]] || die "$phase: app process restarted; reports: $REPORT_DIR"
+        [[ -n "$observed" ]] || die "$phase: app process exited; inspect the private $REPORT_KIND report"
+        [[ "$observed" == "$expected" ]] || die "$phase: app process restarted; inspect the private $REPORT_KIND report"
     done
 }
 
@@ -191,27 +193,27 @@ adb_for shell am force-stop "$PACKAGE"
 baseline_exit_crash_count="$(crash_exit_count)"
 adb_for shell am start -W -n "$LAUNCHER" >/dev/null
 pid="$(wait_for_pid || true)"
-[[ -n "$pid" ]] || die "app process did not start; reports: $REPORT_DIR"
+[[ -n "$pid" ]] || die "app process did not start; inspect the private $REPORT_KIND report"
 require_stable_pid "launch" "$pid" 30
-phone_activity_is_resumed || die "phone Qt activity is not resumed after launch; reports: $REPORT_DIR"
+phone_activity_is_resumed || die "phone Qt activity is not resumed after launch; inspect the private $REPORT_KIND report"
 printf 'launch_survived=1\n' | tee -a "$SUMMARY"
 
 printf '\nOpening neutral local test deep link...\n'
 adb_for shell am start -W -a android.intent.action.VIEW \
     -d "$TEST_DEEP_LINK" "$PACKAGE" >/dev/null
 require_stable_pid "deep link" "$pid" 5
-phone_activity_is_resumed || die "phone Qt activity is not resumed after deep link; reports: $REPORT_DIR"
+phone_activity_is_resumed || die "phone Qt activity is not resumed after deep link; inspect the private $REPORT_KIND report"
 
 printf '\nTesting repeated background/foreground transitions...\n'
 for lifecycle_cycle in 1 2 3; do
     adb_for shell input keyevent KEYCODE_HOME
     require_stable_pid "background cycle $lifecycle_cycle" "$pid" 2
     phone_activity_is_backgrounded || \
-        die "cycle $lifecycle_cycle: phone activity remained resumed in background; reports: $REPORT_DIR"
+        die "cycle $lifecycle_cycle: phone activity remained resumed in background; inspect the private $REPORT_KIND report"
     adb_for shell am start -W -n "$LAUNCHER" >/dev/null
     require_stable_pid "foreground cycle $lifecycle_cycle" "$pid" 3
     phone_activity_is_resumed || \
-        die "cycle $lifecycle_cycle: phone Qt activity is not resumed; reports: $REPORT_DIR"
+        die "cycle $lifecycle_cycle: phone Qt activity is not resumed; inspect the private $REPORT_KIND report"
 done
 printf 'background_foreground_cycles=3\n' | tee -a "$SUMMARY"
 
@@ -219,11 +221,11 @@ printf '\nTesting unconsumed Back lifecycle...\n'
 adb_for shell input keyevent KEYCODE_BACK
 require_stable_pid "Back background" "$pid" 3
 phone_activity_is_backgrounded || \
-    die "Back did not background the phone activity; reports: $REPORT_DIR"
+    die "Back did not background the phone activity; inspect the private $REPORT_KIND report"
 adb_for shell am start -W -n "$LAUNCHER" >/dev/null
 require_stable_pid "Back recovery" "$pid" 5
 phone_activity_is_resumed || \
-    die "phone Qt activity is not resumed after Back recovery; reports: $REPORT_DIR"
+    die "phone Qt activity is not resumed after Back recovery; inspect the private $REPORT_KIND report"
 printf 'back_background_survived=1\nback_recovery_survived=1\n' | tee -a "$SUMMARY"
 
 # Inspect raw process logs only in memory. Persisting them could retain visited
@@ -245,7 +247,7 @@ exit_crash_count=$((final_exit_crash_count - baseline_exit_crash_count))
 printf 'crash_log_matches=%s\nexit_crash_matches=%s\npage_size_mismatch_matches=%s\n' \
     "$crash_count" "$exit_crash_count" "$page_mismatch_count" | tee -a "$SUMMARY"
 
-printf '\nDevice diagnostics complete: %s\n' "$REPORT_DIR"
+printf '\nDevice diagnostics complete (%s private report).\n' "$REPORT_KIND"
 if ((crash_count > 0 || exit_crash_count > 0 || page_mismatch_count > 0)); then
     printf 'Crash or page-size compatibility markers were detected.\n'
     exit 2

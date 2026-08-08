@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 66 — Keep device-test console output path-private
+
+- Branch: `nightly/android-phone-66-private-device-output`
+- Commit: `Hide private paths in phone device output` (this task's commit)
+- Change: Remove absolute report directories from all device-smoke success and
+  lifecycle failure messages. Output now says only `temporary` or
+  `caller-provided`; callers needing a known retained location select it via
+  `PHONE_TEST_REPORT` without exposing it to shared logs.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, asserting the
+    private fixture root is absent from success, digest-mismatch, PID-restart,
+    and sticky-foreground output.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 230/230 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 230/230 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Automatically created temporary report paths are intentionally
+  not printed; select `PHONE_TEST_REPORT` before running when retention matters.
+- Real-device validation still required: Run a current-APK smoke from a worktree
+  under a non-public path and confirm no absolute path appears in captured output.
+
 ## 65 — Keep shared doctor output path-private
 
 - Branch: `nightly/android-phone-65-private-doctor-status`
