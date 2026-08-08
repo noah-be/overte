@@ -2,7 +2,7 @@
 
 // A small, screen-space control surface for the phone client.  It deliberately
 // uses Interface's QML dialogs instead of the legacy Android Java activities.
-/* globals Audio, Camera, Controller, DialogsManager, print, QmlFragment, Script, Window */
+/* globals Audio, Camera, Controller, DialogsManager, Menu, print, QmlFragment, Script, Window */
 
 (function () {
     var navigationBar;
@@ -207,7 +207,11 @@
     }
 
     function toggleCameraMode() {
-        Camera.mode = isFirstPersonMode(Camera.mode) ? "look at" : "first person look at";
+        // Use the native menu actions even though the phone menu bar is hidden.
+        // They update camera mode and boom length atomically; assigning
+        // Camera.mode directly can leave a first-person camera with a
+        // third-person boom and trigger a recursive mode correction.
+        Menu.triggerOption(isFirstPersonMode(Camera.mode) ? "Third Person" : "First Person");
     }
 
     currentButtonStyle = calculateLayout(Math.max(Window.innerWidth, 1), Math.max(Window.innerHeight, 1)).buttonStyle;
