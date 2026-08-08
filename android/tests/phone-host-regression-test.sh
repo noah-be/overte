@@ -479,6 +479,8 @@ require_text build-phone.sh 'verify-phone-16k-dependencies[.]sh' \
     'doctor verifies dependency contents before reporting readiness'
 require_text build-phone.sh '\[STALE\].*contents do not match the marker' \
     'doctor rejects a stale Phone dependency marker'
+require_text build-phone.sh 'ready_marker.*>/dev/null 2>&1' \
+    'doctor reduces detailed dependency verifier paths to an aggregate status'
 require_text build-phone.sh 'phone-device-lock[.]sh.*run' \
     'wrapper serializes phone installation with the shared device lock'
 require_text build-phone.sh 'PHONE_ALLOW_LEGACY_4K_DEPS' \

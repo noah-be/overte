@@ -20,6 +20,7 @@ chmod +x "$fixture/build-phone.sh" "$fixture/build-pico.sh"
 mkdir -p "$fixture/tests"
 cat > "$fixture/tests/verify-phone-16k-dependencies.sh" <<'MOCK'
 #!/usr/bin/env bash
+printf 'private verifier path: /private/mock/package\n' >&2
 exit "${MOCK_VERIFIER_STATUS:-0}"
 MOCK
 chmod +x "$fixture/tests/verify-phone-16k-dependencies.sh"
@@ -61,5 +62,9 @@ set -e
     exit 1
 }
 grep -Fq '[STALE] 16 KiB dependency contents do not match the marker' <<< "$stale_output"
+if grep -Fq '/private/mock/package' <<< "$stale_output"; then
+    echo 'FAIL: Phone doctor leaked detailed verifier paths' >&2
+    exit 1
+fi
 
 printf 'Android phone doctor output checks passed.\n'

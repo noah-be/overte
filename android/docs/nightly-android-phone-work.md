@@ -4,6 +4,25 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 65 — Keep shared doctor output path-private
+
+- Branch: `nightly/android-phone-65-private-doctor-status`
+- Commit: `Minimize phone doctor dependency diagnostics` (this task's commit)
+- Change: Suppress detailed verifier stdout/stderr inside doctor and expose only
+  aggregate `[READY]`/`[STALE]` status. This prevents absolute Conan/home paths
+  from entering shared diagnostic logs; direct verifier runs retain detail for
+  deliberate local troubleshooting.
+- Tests:
+  - `android/tests/phone-doctor-output-test.sh`: **passed**, with a synthetic
+    private path that must not escape the verifier subprocess.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 229/229 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 229/229 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Shared doctor logs trade detailed stale-file diagnosis for
+  privacy; the documented direct verifier provides those details on demand.
+- Real-device validation still required: None for diagnostic privacy.
+
 ## 64 — Verify dependency contents in doctor
 
 - Branch: `nightly/android-phone-64-doctor-content-verification`

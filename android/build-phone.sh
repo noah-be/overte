@@ -71,7 +71,7 @@ doctor() {
     local ready_marker="$nonqt_dir/.phone-16k-dependencies.ready"
     if [[ -f "$ready_marker" ]]; then
         if "$script_dir/tests/verify-phone-16k-dependencies.sh" \
-                "$qt_dir" "$nonqt_dir" "$ready_marker" >/dev/null; then
+                "$qt_dir" "$nonqt_dir" "$ready_marker" >/dev/null 2>&1; then
             printf '  [READY] verified 16 KiB dependency contents match the marker\n'
         else
             printf '  [STALE] 16 KiB dependency contents do not match the marker\n' >&2

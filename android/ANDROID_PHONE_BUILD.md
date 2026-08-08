@@ -77,6 +77,9 @@ marker, so a complete host toolchain is not confused with a build-ready graph.
 When the marker exists, doctor runs the complete read-only content, symlink,
 and ELF-alignment verifier before reporting `[READY]`; mismatch reports
 `[STALE]` and fails. Gradle revalidates the same contract before compiling.
+Doctor intentionally reduces stale details to that aggregate status so shared
+logs do not expose host package paths; run the verifier directly for local
+path-specific diagnosis.
 
 ## First setup and required 16 KiB build order
 
