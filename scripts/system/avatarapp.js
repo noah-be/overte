@@ -223,6 +223,9 @@ function unfreezeWearables() {
 
 
 function fromQml(message) { // messages are {method, params}, like json-rpc. See also sendToQml.
+    if (!message || typeof message !== 'object' || typeof message.method !== 'string') {
+        return;
+    }
     switch (message.method) {
     case 'getAvatars':
         currentAvatar = getMyAvatar();
@@ -368,6 +371,10 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
         }
         break;
     case 'navigate':
+        if (typeof message.url !== 'string') {
+            sendToQml({ 'method': 'avatarError', 'reason': 'Invalid navigation URL' });
+            break;
+        }
         var tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
         if(message.url.indexOf('hifi://') === 0) {
             AddressManager.handleLookupString(message.url, false);
@@ -490,6 +497,10 @@ function handleWearableMessages(channel, message, sender) {
     try {
         parsedMessage = JSON.parse(message);
     } catch (e) {
+        return;
+    }
+
+    if (!parsedMessage || typeof parsedMessage !== 'object' || typeof parsedMessage.action !== 'string') {
         return;
     }
 

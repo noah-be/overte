@@ -76,8 +76,18 @@ require 'if[[:space:]]*\(isWired\)' \
     'Avatar suppresses delayed QML delivery after lifecycle teardown'
 require 'Bookmark not found' \
     'Avatar reports missing bookmark selections without changing wearables'
+require "!message[[:space:]]*\\|\\|[[:space:]]*typeof message !== 'object'" \
+    'Avatar ignores null and non-object QML messages'
+require "typeof message[.]method !== 'string'" \
+    'Avatar requires a string QML method'
+require "typeof message[.]url !== 'string'" \
+    'Avatar rejects navigation without a string URL'
+require 'Invalid navigation URL' \
+    'Avatar reports rejected navigation to its QML surface'
 require '!message[.]entityID[[:space:]]*\|\|[[:space:]]*!message[.]properties' \
     'Avatar rejects malformed wearable edits'
+require "!parsedMessage[[:space:]]*\\|\\|[[:space:]]*typeof parsedMessage !== 'object'" \
+    'Avatar ignores JSON null and scalar manipulation messages'
 require 'Array[.]isArray\(bookmark[.]avatarEntites\)' \
     'Avatar tolerates legacy bookmarks without wearable arrays'
 

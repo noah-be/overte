@@ -4,6 +4,29 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 27 — Validate Avatar message boundaries
+
+- Branch: `nightly/android-phone-27-avatar-message-validation`
+- Commit: `Validate Avatar app message boundaries` (this task's commit)
+- Change: Ignore null, scalar, method-less, and non-string-method QML messages;
+  reject navigation without a string URL with a bounded UI error; and ignore
+  valid JSON scalars/null at the object-manipulation channel before accessing
+  their fields. Valid local avatar, bookmark, wearable, and web behavior is
+  unchanged.
+- Tests:
+  - `node --check scripts/system/avatarapp.js`: **passed**.
+  - `android/tests/phone-tablet-avatar-test.sh`: **passed**, including explicit
+    QML, navigation, and manipulation-message boundary contracts.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet suites and 181/181 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: Source-contract tests do not instantiate the large shared Avatar
+  dependency graph. Individual operation schemas remain validated by their
+  existing action-specific checks.
+- Real-device validation still required: **not executed for this task**. Open
+  Avatar repeatedly, exercise packaged bookmarks and wearable adjustment, and
+  confirm malformed bridge probes neither navigate nor close/restart the app.
+
 ## 26 — Validate People message boundaries
 
 - Branch: `nightly/android-phone-26-people-message-validation`
