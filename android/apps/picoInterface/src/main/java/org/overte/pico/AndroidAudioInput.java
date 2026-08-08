@@ -230,21 +230,22 @@ public final class AndroidAudioInput {
         } catch (RuntimeException exception) {
             Log.e(TAG, "AudioRecord capture loop failed", exception);
         } finally {
-            boolean releaseRecorder = false;
+            boolean releasedRecorder = false;
             synchronized (LOCK) {
                 // stop() may already own this recorder. Only an unexpected loop
-                // exit while still current claims cleanup here.
+                // exit while still current claims cleanup here. Complete release
+                // before publishing an empty slot so start() cannot overlap it.
                 if (recorder == activeRecorder) {
                     running = false;
+                    stopAndRelease(activeRecorder);
                     recorder = null;
                     if (captureThread == Thread.currentThread()) {
                         captureThread = null;
                     }
-                    releaseRecorder = true;
+                    releasedRecorder = true;
                 }
             }
-            if (releaseRecorder) {
-                stopAndRelease(activeRecorder);
+            if (releasedRecorder) {
                 Log.w(TAG, "Released AudioRecord after capture-loop failure");
             }
         }

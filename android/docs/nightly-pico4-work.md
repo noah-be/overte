@@ -1126,8 +1126,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 61 — Microphone read-failure cleanup
 
 - Branch: `nightly/pico4-61-audio-read-failure-cleanup`
-- Commit: identified by subject `Clean up failed Pico microphone reads`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `30604a1f3c` (`Clean up failed Pico microphone reads`)
 - Change: contain runtime exceptions from the blocking capture loop and use a
   `finally` ownership check to clear `running`, recorder and current-thread state
   only when the failing loop still owns the active recorder. That owner then
@@ -1142,6 +1141,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Force negative reads and read exceptions
   while racing stop/source switch; verify exactly one release, neutral FIFO,
   watchdog restart and clean later capture without stale-source samples.
+
+### 62 — Serialized microphone failure cleanup
+
+- Branch: `nightly/pico4-62-audio-cleanup-serialization`
+- Commit: identified by subject `Serialize Pico microphone failure cleanup`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: when an unexpectedly exiting capture loop still owns the current
+  recorder, finish stop/release under the lifecycle lock before publishing the
+  empty recorder slot. Concurrent `start()->stop()` either owns cleanup first or
+  waits until release is complete, preventing old/new recorder overlap.
+- Regression: audio contracts enforce running-stop/release/recorder-clear/thread-
+  clear/claim ordering and verify release is inside the synchronized region.
+- Passed: 7 native/Java audio transport contracts; full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: only failure cleanup holds the lock during release, after blocking read
+  has already returned; normal explicit stop retains its existing join behavior.
+- Pico 4 validation: **not executed**. Race forced read failure against rapid
+  source restart; verify no simultaneous AudioRecord sessions, single release,
+  bounded start delay and clean first samples from the replacement source.
 
 ## Deferred, rejected, or blocked ideas
 
