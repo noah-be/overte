@@ -10,11 +10,16 @@
 #include <condition_variable>
 #include <queue>
 
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
 #include <algorithm>
 #include <array>
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
 #include <cstdint>
+#include <cstring>
 #include <limits>
+#include <malloc.h>
 #include <android/log.h>
 #endif
 
@@ -75,11 +80,80 @@ extern QThread* RENDER_THREAD;
 Setting::Handle<bool> OpenGLDisplayPlugin::_extraLinearToSRGBConversionSetting("extraLinearToSRGBConversion", false);
 bool OpenGLDisplayPlugin::_hasSetSRGBConversion = false;
 
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
 namespace {
 constexpr uint64_t PHONE_PRESENT_REPORT_INTERVAL_USEC { 10ULL * 1000ULL * 1000ULL };
 constexpr uint64_t PHONE_PRESENT_DISCONTINUITY_USEC { 1000ULL * 1000ULL };
 constexpr size_t PHONE_PRESENT_INTERVAL_CAPACITY { 2048 };
+constexpr int64_t PHONE_MEMORY_UNAVAILABLE_KIB { -1 };
+
+struct PhoneProcessMemory {
+    bool procValid { false };
+    bool allocatorValid { false };
+    int64_t residentKiB { PHONE_MEMORY_UNAVAILABLE_KIB };
+    int64_t dataKiB { PHONE_MEMORY_UNAVAILABLE_KIB };
+    int64_t swapKiB { PHONE_MEMORY_UNAVAILABLE_KIB };
+    int64_t allocatorUsedKiB { PHONE_MEMORY_UNAVAILABLE_KIB };
+    int64_t allocatorFreeKiB { PHONE_MEMORY_UNAVAILABLE_KIB };
+};
+
+bool parseStatusKiB(const char* line, const char* key, int64_t& value) {
+    const size_t keyLength = std::strlen(key);
+    if (std::strncmp(line, key, keyLength) != 0) {
+        return false;
+    }
+    const char* cursor = line + keyLength;
+    while (*cursor == ' ' || *cursor == '\t') {
+        ++cursor;
+    }
+    errno = 0;
+    char* end { nullptr };
+    const unsigned long long parsed = std::strtoull(cursor, &end, 10);
+    if (cursor == end || errno == ERANGE || parsed > static_cast<unsigned long long>(std::numeric_limits<int64_t>::max())) {
+        return false;
+    }
+    while (*end == ' ' || *end == '\t') {
+        ++end;
+    }
+    if (std::strncmp(end, "kB", 2) != 0) {
+        return false;
+    }
+    end += 2;
+    while (*end == ' ' || *end == '\t' || *end == '\r' || *end == '\n') {
+        ++end;
+    }
+    if (*end != '\0') {
+        return false;
+    }
+    value = static_cast<int64_t>(parsed);
+    return true;
+}
+
+PhoneProcessMemory samplePhoneProcessMemory() {
+    PhoneProcessMemory result;
+    if (FILE* status = std::fopen("/proc/self/status", "r")) {
+        bool hasResident { false };
+        bool hasData { false };
+        bool hasSwap { false };
+        std::array<char, 256> line {};
+        while (std::fgets(line.data(), static_cast<int>(line.size()), status)) {
+            hasResident = hasResident || parseStatusKiB(line.data(), "VmRSS:", result.residentKiB);
+            hasData = hasData || parseStatusKiB(line.data(), "VmData:", result.dataKiB);
+            hasSwap = hasSwap || parseStatusKiB(line.data(), "VmSwap:", result.swapKiB);
+        }
+        std::fclose(status);
+        result.procValid = hasResident && hasData && hasSwap;
+    }
+
+    const struct mallinfo2 allocator = ::mallinfo2();
+    if (allocator.uordblks <= static_cast<size_t>(std::numeric_limits<int64_t>::max()) &&
+            allocator.fordblks <= static_cast<size_t>(std::numeric_limits<int64_t>::max())) {
+        result.allocatorUsedKiB = static_cast<int64_t>(allocator.uordblks / 1024U);
+        result.allocatorFreeKiB = static_cast<int64_t>(allocator.fordblks / 1024U);
+        result.allocatorValid = true;
+    }
+    return result;
+}
 
 struct PhonePresentTelemetry {
     void record(bool hasNewFrame) {
@@ -120,11 +194,16 @@ struct PhonePresentTelemetry {
         const double textureResourceMiB = gpu::Context::getTextureResourceGPUMemSize() / BYTES_PER_MIB;
         const double texturePopulatedMiB = gpu::Context::getTextureResourcePopulatedGPUMemSize() / BYTES_PER_MIB;
         const double texturePendingTransferMiB = gpu::Context::getTexturePendingGPUTransferMemSize() / BYTES_PER_MIB;
+        const PhoneProcessMemory processMemory = samplePhoneProcessMemory();
 
         __android_log_print(ANDROID_LOG_INFO, "OvertePhoneGraphics",
-            "window_seconds=%.2f present_fps=%.2f new_frame_fps=%.2f inter_present_p50_ms=%.2f inter_present_p95_ms=%.2f inter_present_max_ms=%.2f texture_resource_mib=%.2f texture_populated_mib=%.2f texture_pending_transfer_mib=%.2f",
+            "window_seconds=%.2f present_fps=%.2f new_frame_fps=%.2f inter_present_p50_ms=%.2f inter_present_p95_ms=%.2f inter_present_max_ms=%.2f texture_resource_mib=%.2f texture_populated_mib=%.2f texture_pending_transfer_mib=%.2f memory_proc_valid=%d memory_rss_kib=%lld memory_data_kib=%lld memory_swap_kib=%lld memory_allocator_valid=%d memory_allocator_used_kib=%lld memory_allocator_free_kib=%lld",
             elapsedSeconds, _presentCount / elapsedSeconds, _newFrameCount / elapsedSeconds, p50, p95, maximum,
-            textureResourceMiB, texturePopulatedMiB, texturePendingTransferMiB);
+            textureResourceMiB, texturePopulatedMiB, texturePendingTransferMiB,
+            processMemory.procValid ? 1 : 0, static_cast<long long>(processMemory.residentKiB),
+            static_cast<long long>(processMemory.dataKiB), static_cast<long long>(processMemory.swapKiB),
+            processMemory.allocatorValid ? 1 : 0, static_cast<long long>(processMemory.allocatorUsedKiB),
+            static_cast<long long>(processMemory.allocatorFreeKiB));
 
         _windowStart = now;
         _presentCount = 0;

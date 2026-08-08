@@ -37,7 +37,13 @@ sed 's/^+//' >"$fixture/adb" <<'MOCK'
 +fi
 +if [[ $1 == logcat && ${2:-} == -d ]]; then
 +  printf 'I/OvertePhoneGraphics: profile_render_scale=0.5 profile_target_fps=30 profile_forward_msaa_samples=1 profile_haze=0 profile_local_lights=0\n'
-+  printf 'I/OvertePhoneGraphics: window_seconds=10.02 present_fps=30.00 new_frame_fps=29.50 inter_present_p50_ms=33.20 inter_present_p95_ms=34.10 inter_present_max_ms=40.00 texture_resource_mib=192.25 texture_populated_mib=190.75 texture_pending_transfer_mib=1.50\n'
++  case ${MOCK_MEMORY_MODE:-valid} in
++    valid) memory='memory_proc_valid=1 memory_rss_kib=123456 memory_data_kib=100000 memory_swap_kib=2345 memory_allocator_valid=1 memory_allocator_used_kib=77777 memory_allocator_free_kib=8888' ;;
++    malformed) memory='memory_proc_valid=1 memory_rss_kib=12x memory_data_kib=-1 memory_swap_kib=9223372036854775808 memory_allocator_valid=yes memory_allocator_used_kib=7.5 memory_allocator_free_kib=8' ;;
++    missing) memory='' ;;
++  esac
++  printf 'I/OvertePhoneGraphics: window_seconds=9.99 present_fps=1.00 new_frame_fps=1.00 inter_present_p50_ms=999.00 inter_present_p95_ms=999.00 inter_present_max_ms=999.00 memory_proc_valid=1 memory_rss_kib=1 memory_data_kib=1 memory_swap_kib=1 memory_allocator_valid=1 memory_allocator_used_kib=1 memory_allocator_free_kib=1\n'
++  printf 'I/OvertePhoneGraphics: window_seconds=10.02 present_fps=30.00 new_frame_fps=29.50 inter_present_p50_ms=33.20 inter_present_p95_ms=34.10 inter_present_max_ms=40.00 texture_resource_mib=192.25 texture_populated_mib=190.75 texture_pending_transfer_mib=1.50 %s\n' "$memory"
 +  exit
 +fi
 +exit 0
@@ -70,6 +76,13 @@ grep -q '^native_inter_present_p95_ms=34.10$' "$summary"
 grep -q '^texture_resource_mib=192.25$' "$summary"
 grep -q '^texture_populated_mib=190.75$' "$summary"
 grep -q '^texture_pending_transfer_mib=1.50$' "$summary"
+grep -q '^memory_proc_valid=1$' "$summary"
+grep -q '^memory_rss_kib=123456$' "$summary"
+grep -q '^memory_data_kib=100000$' "$summary"
+grep -q '^memory_swap_kib=2345$' "$summary"
+grep -q '^memory_allocator_valid=1$' "$summary"
+grep -q '^memory_allocator_used_kib=77777$' "$summary"
+grep -q '^memory_allocator_free_kib=8888$' "$summary"
 [[ $(stat -c '%a' "$report") == 700 ]]
 [[ $(stat -c '%a' "$summary") == 600 ]]
 grep -q '^profile_target_fps=30$' "$summary"
@@ -108,4 +121,27 @@ PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/invalid-exits" MOCK_INVA
     PHONE_BENCHMARK_INTERVAL=1 "$script_dir/phone-graphics-benchmark.sh" 1 >/dev/null
 grep -q '^framestats_valid=0$' "$invalid_report/summary.txt"
 grep -q '^exit_info_queries_valid=0$' "$invalid_report/summary.txt"
+
+malformed_report="$fixture/malformed-report"
+PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/malformed-exits" MOCK_MEMORY_MODE=malformed \
+    ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES PHONE_BENCHMARK_REPORT="$malformed_report" \
+    PHONE_BENCHMARK_INTERVAL=1 "$script_dir/phone-graphics-benchmark.sh" 1 >/dev/null
+grep -q '^memory_proc_valid=0$' "$malformed_report/summary.txt"
+grep -q '^memory_rss_kib=unknown$' "$malformed_report/summary.txt"
+grep -q '^memory_swap_kib=unknown$' "$malformed_report/summary.txt"
+grep -q '^memory_allocator_valid=0$' "$malformed_report/summary.txt"
+grep -q '^memory_allocator_used_kib=unknown$' "$malformed_report/summary.txt"
+
+missing_report="$fixture/missing-report"
+PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/missing-exits" MOCK_MEMORY_MODE=missing \
+    ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES PHONE_BENCHMARK_REPORT="$missing_report" \
+    PHONE_BENCHMARK_INTERVAL=1 "$script_dir/phone-graphics-benchmark.sh" 1 >/dev/null
+grep -q '^memory_proc_valid=0$' "$missing_report/summary.txt"
+grep -q '^memory_rss_kib=unknown$' "$missing_report/summary.txt"
+grep -q '^memory_allocator_valid=0$' "$missing_report/summary.txt"
+grep -q '^memory_allocator_used_kib=unknown$' "$missing_report/summary.txt"
+if grep -Eqi 'phone-secret|private|serial|account|url|manufacturer|model|fingerprint|android_id|domain|12x|9223372036854775808' \
+        "$malformed_report/summary.txt" "$missing_report/summary.txt"; then
+    echo 'FAIL: malformed or identifying data escaped into aggregate report' >&2; exit 1
+fi
 printf 'Phone graphics benchmark harness checks passed.\n'

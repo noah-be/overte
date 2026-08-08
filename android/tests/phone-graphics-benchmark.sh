@@ -143,6 +143,17 @@ profile_scale="$(sed -nE 's/.*(renderScale|profile_render_scale)[^0-9]*([0-9]+([
 profile_fps="$(sed -nE 's/.*(targetFps|profile_target_fps)[^0-9]*([0-9]+).*/\2/p' <<<"$profile_line")"
 profile_msaa="$(sed -nE 's/.*(forwardMsaaSamples|profile_forward_msaa_samples)[^0-9]*([0-9]+).*/\2/p' <<<"$profile_line")"
 present_line="$(grep 'OvertePhoneGraphics.*present_fps=' "$raw_dir/logcat.txt" | tail -n 1 || true)"
+extract_native_field() {
+    local field="$1"
+    grep -oE "(^|[[:space:]])${field}=[^[:space:]]+" <<<"$present_line" | tail -n 1 | cut -d= -f2-
+}
+valid_nonnegative_int64() {
+    local value="$1"
+    [[ "$value" =~ ^(0|[1-9][0-9]*)$ ]] || return 1
+    (( ${#value} < 19 )) || {
+        (( ${#value} == 19 )) && [[ "$value" < 9223372036854775807 || "$value" == 9223372036854775807 ]]
+    }
+}
 native_window_seconds="$(sed -nE 's/.*window_seconds=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
 native_present_fps="$(sed -nE 's/.*[[:space:]]present_fps=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
 native_new_frame_fps="$(sed -nE 's/.*new_frame_fps=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
@@ -152,6 +163,27 @@ native_present_max_ms="$(sed -nE 's/.*inter_present_max_ms=([0-9]+([.][0-9]+)?).
 texture_resource_mib="$(sed -nE 's/.*texture_resource_mib=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
 texture_populated_mib="$(sed -nE 's/.*texture_populated_mib=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
 texture_pending_transfer_mib="$(sed -nE 's/.*texture_pending_transfer_mib=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
+memory_proc_flag="$(extract_native_field memory_proc_valid || true)"
+memory_rss_kib="$(extract_native_field memory_rss_kib || true)"
+memory_data_kib="$(extract_native_field memory_data_kib || true)"
+memory_swap_kib="$(extract_native_field memory_swap_kib || true)"
+memory_allocator_flag="$(extract_native_field memory_allocator_valid || true)"
+memory_allocator_used_kib="$(extract_native_field memory_allocator_used_kib || true)"
+memory_allocator_free_kib="$(extract_native_field memory_allocator_free_kib || true)"
+memory_proc_valid=0
+if [[ "$memory_proc_flag" == 1 ]] && valid_nonnegative_int64 "$memory_rss_kib" && \
+        valid_nonnegative_int64 "$memory_data_kib" && valid_nonnegative_int64 "$memory_swap_kib"; then
+    memory_proc_valid=1
+else
+    memory_rss_kib=unknown; memory_data_kib=unknown; memory_swap_kib=unknown
+fi
+memory_allocator_valid=0
+if [[ "$memory_allocator_flag" == 1 ]] && valid_nonnegative_int64 "$memory_allocator_used_kib" && \
+        valid_nonnegative_int64 "$memory_allocator_free_kib"; then
+    memory_allocator_valid=1
+else
+    memory_allocator_used_kib=unknown; memory_allocator_free_kib=unknown
+fi
 native_present_metrics_available=0
 [[ -n "$native_present_fps" && -n "$native_new_frame_fps" && -n "$native_present_p95_ms" ]] && \
     native_present_metrics_available=1
@@ -178,6 +210,10 @@ chmod 600 "$summary_tmp"
         "${native_present_p50_ms:-unknown}" "${native_present_p95_ms:-unknown}" "${native_present_max_ms:-unknown}"
     printf 'texture_resource_mib=%s\ntexture_populated_mib=%s\ntexture_pending_transfer_mib=%s\n' \
         "${texture_resource_mib:-unknown}" "${texture_populated_mib:-unknown}" "${texture_pending_transfer_mib:-unknown}"
+    printf 'memory_proc_valid=%s\nmemory_rss_kib=%s\nmemory_data_kib=%s\nmemory_swap_kib=%s\n' \
+        "$memory_proc_valid" "$memory_rss_kib" "$memory_data_kib" "$memory_swap_kib"
+    printf 'memory_allocator_valid=%s\nmemory_allocator_used_kib=%s\nmemory_allocator_free_kib=%s\n' \
+        "$memory_allocator_valid" "$memory_allocator_used_kib" "$memory_allocator_free_kib"
 } >"$summary_tmp"
 mv -T -- "$summary_tmp" "$summary"
 printf 'Aggregate benchmark report: %s\n' "$summary"
