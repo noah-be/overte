@@ -1011,11 +1011,17 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
             .handJointSet = XR_HAND_JOINT_SET_DEFAULT_EXT,
         };
 
-        createInfo.hand = XR_HAND_LEFT_EXT;
-        xrCheck(_context->_instance, _context->xrCreateHandTrackerEXT(_context->_session, &createInfo, &_handTracker[0]), "Failed to create left hand tracker");
-
-        createInfo.hand = XR_HAND_RIGHT_EXT;
-        xrCheck(_context->_instance, _context->xrCreateHandTrackerEXT(_context->_session, &createInfo, &_handTracker[1]), "Failed to create right hand tracker");
+        const auto createHandTracker = [&](int index, XrHandEXT hand, const char* failure) {
+            createInfo.hand = hand;
+            XrHandTrackerEXT candidate { XR_NULL_HANDLE };
+            const XrResult trackerResult = _context->xrCreateHandTrackerEXT(
+                _context->_session, &createInfo, &candidate);
+            if (xrCheck(_context->_instance, trackerResult, failure)) {
+                _handTracker[index] = candidate;
+            }
+        };
+        createHandTracker(0, XR_HAND_LEFT_EXT, "Failed to create left hand tracker");
+        createHandTracker(1, XR_HAND_RIGHT_EXT, "Failed to create right hand tracker");
     }
 
     if (_context->_MNDX_xdevSpaceSupported) {

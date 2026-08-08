@@ -1273,8 +1273,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 69 — Atomic hand-tracking function capability
 
 - Branch: `nightly/pico4-69-openxr-hand-functions`
-- Commit: identified by subject `Validate Pico OpenXR hand functions`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `1d2265a8fc` (`Validate Pico OpenXR hand functions`)
 - Change: require successful loading of all `XR_EXT_hand_tracking` entry points
   before advertising hand tracking to Pico input code. A missing Create, Destroy
   or Locate function now disables the capability and clears every partially
@@ -1287,6 +1286,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Inject each missing entry point and verify
   controller input remains usable without a crash; with all functions present,
   verify both hand trackers still initialize and publish valid joints.
+
+### 70 — Transactional hand-tracker publication
+
+- Branch: `nightly/pico4-70-openxr-hand-publication`
+- Commit: identified by subject `Publish only valid Pico hand trackers`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: create each Pico hand tracker into a null-initialized candidate and
+  publish it to the input device only after `xrCreateHandTrackerEXT` succeeds.
+  A runtime failure can no longer leave a modified/invalid output handle that a
+  later joint-location update mistakes for a usable tracker.
+- Regression: input contracts require candidate creation, checked result before
+  publication, no direct writes through member handles and independent setup of
+  both hands.
+- Passed: 12 OpenXR input/fail-closed contracts; `git diff --check`.
+- Risk: one hand may remain available when the other tracker fails, matching the
+  existing per-hand null-handle checks; no tracking thresholds were changed.
+- Pico 4 validation: **not executed**. Inject left and right tracker creation
+  failures separately; verify the failed hand stays neutral with no invalid-
+  handle calls while the successful hand and controllers continue to work.
 
 ## Deferred, rejected, or blocked ideas
 

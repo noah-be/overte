@@ -183,6 +183,20 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertIn("xrLocateHandJointsEXT = nullptr", hand[failure:])
         self.assertNotIn("xrGetInstanceProcAddr(", hand)
 
+    def test_failed_hand_tracker_creation_is_not_published(self):
+        start = SOURCE.index("if (_context->_handTrackingSupported)")
+        end = SOURCE.index("if (_context->_MNDX_xdevSpaceSupported)", start)
+        creation = SOURCE[start:end]
+        self.assertIn("XrHandTrackerEXT candidate { XR_NULL_HANDLE }", creation)
+        call = creation.index("xrCreateHandTrackerEXT")
+        check = creation.index("if (xrCheck", call)
+        publish = creation.index("_handTracker[index] = candidate", check)
+        self.assertLess(call, check)
+        self.assertLess(check, publish)
+        self.assertNotIn("&_handTracker[", creation)
+        self.assertIn("createHandTracker(0, XR_HAND_LEFT_EXT", creation)
+        self.assertIn("createHandTracker(1, XR_HAND_RIGHT_EXT", creation)
+
 
 if __name__ == "__main__":
     unittest.main()
