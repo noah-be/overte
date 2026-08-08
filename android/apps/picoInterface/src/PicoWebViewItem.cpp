@@ -92,14 +92,17 @@ PicoWebViewItem::~PicoWebViewItem() {
         QMutexLocker locker(&itemRegistryMutex);
         itemRegistry.remove(reinterpret_cast<jlong>(this));
     }
-    jvalue args[1]; args[0].j = reinterpret_cast<jlong>(this);
-    callStatic("destroy", "(J)V", args);
+    if (_webViewCreated) {
+        jvalue args[1]; args[0].j = reinterpret_cast<jlong>(this);
+        callStatic("destroy", "(J)V", args);
+    }
 }
 
 void PicoWebViewItem::setUrl(const QString& value) {
     if (_url == value) { return; }
     _url = value;
     emit urlChanged();
+    if (!_webViewCreated) { return; }
     JniScope jni;
     if (!jni.env) { return; }
     jstring url = jni.env->NewString(reinterpret_cast<const jchar*>(_url.utf16()), _url.size());
@@ -111,7 +114,7 @@ void PicoWebViewItem::setUrl(const QString& value) {
 void PicoWebViewItem::setUserAgent(const QString& value) {
     if (_userAgent == value) { return; }
     _userAgent = value;
-    createWebView();
+    if (_webViewCreated) { createWebView(); }
 }
 
 void PicoWebViewItem::componentComplete() {
@@ -123,7 +126,11 @@ void PicoWebViewItem::componentComplete() {
 }
 
 void PicoWebViewItem::createWebView() {
-    if (!isComponentComplete()) { return; }
+    // QML completes Web3DOverlay items at 1x1 before the entity renderer
+    // assigns the real texture size. Loading a page into that provisional
+    // viewport makes Android WebView retain an incorrect mobile zoom even
+    // after resize, so defer creation until useful geometry exists.
+    if (!isComponentComplete() || pixelWidth() <= 1 || pixelHeight() <= 1) { return; }
     JniScope jni;
     if (!jni.env) { return; }
     jstring url = jni.env->NewString(reinterpret_cast<const jchar*>(_url.utf16()), _url.size());
@@ -132,6 +139,7 @@ void PicoWebViewItem::createWebView() {
     args[0].j = reinterpret_cast<jlong>(this); args[1].i = pixelWidth(); args[2].i = pixelHeight();
     args[3].l = url; args[4].l = agent;
     callStatic("create", "(JIILjava/lang/String;Ljava/lang/String;)V", args);
+    _webViewCreated = true;
     jni.env->DeleteLocalRef(url); jni.env->DeleteLocalRef(agent);
 }
 
@@ -168,6 +176,10 @@ int PicoWebViewItem::pixelHeight() const { return qMax(1, qRound(height())); }
 void PicoWebViewItem::geometryChanged(const QRectF& n, const QRectF& o) {
     QQuickItem::geometryChanged(n, o);
     if (n.size().toSize() != o.size().toSize()) {
+        if (!_webViewCreated) {
+            createWebView();
+            return;
+        }
         jvalue args[3]; args[0].j = reinterpret_cast<jlong>(this);
         args[1].i = pixelWidth(); args[2].i = pixelHeight();
         callStatic("resize", "(JII)V", args);

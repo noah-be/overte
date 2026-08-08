@@ -1,4 +1,5 @@
 // Local, dependency-free Web Entity acceptance panel for Pico controller input.
+/* global Camera, Entities, Quat, Script, Vec3, print */
 (function () {
     "use strict";
 
@@ -27,16 +28,18 @@
     ].join("");
 
     function createPanel() {
-        var position = Vec3.sum(Camera.position,
-            Vec3.multiply(Quat.getForward(Camera.orientation), 1.8));
+        var cameraOrientation = Camera.orientation;
+        var position = Vec3.sum(Vec3.sum(Camera.position,
+            Vec3.multiply(Quat.getForward(cameraOrientation), 2.2)),
+            { x: 0, y: 0.70, z: 0 });
         entityID = Entities.addEntity({
             type: "Web",
             name: "Pico Local Web Entity Test",
             sourceUrl: "data:text/html;charset=utf-8," + encodeURIComponent(html),
             position: position,
-            rotation: Camera.orientation,
+            rotation: cameraOrientation,
             drawInFront: true,
-            dimensions: { x: 1.6, y: 1.2, z: 0.02 },
+            dimensions: { x: 1.2, y: 0.9, z: 0.02 },
             dpi: 16,
             maxFPS: 10,
             locked: false,
@@ -53,6 +56,9 @@
         }
     }
 
-    createPanel();
+    var createTimer = Script.setTimeout(createPanel, 2500);
     Script.scriptEnding.connect(cleanup);
+    Script.scriptEnding.connect(function () {
+        Script.clearTimeout(createTimer);
+    });
 }());

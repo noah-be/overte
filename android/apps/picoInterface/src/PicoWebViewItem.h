@@ -47,6 +47,7 @@ private:
     QString _scriptUrl;
     QString _userAgent;
     bool _useBackground { true };
+    bool _webViewCreated { false };
     mutable QMutex _imageMutex;
     QImage _image;
     quint64 _frameSerial { 0 };

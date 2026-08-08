@@ -63,10 +63,11 @@ WebView memory delta.
 ## Local acceptance panel
 
 With `debug.overte.test_mode=1`, `pico4InteractionTestStation.js` loads
-`developer/tests/picoWebEntityTest.js`. The script creates one local,
-non-grabbable, dependency-free `data:text/html` Web entity in front of the
-current camera position. It contains a CSS hover target, a click counter, a range slider, and a
-scroll goal, and deletes the entity when the script ends.
+`developer/tests/picoWebEntityTest.js`. After a short pose-settling delay, the
+script creates one local, non-grabbable, dependency-free `data:text/html` Web
+entity centered 2.2 m in front of the settled HMD camera pose. It contains a
+CSS hover target, a click counter, a range slider, and a scroll goal, and deletes the entity when the
+script ends. The test script does not move the avatar after startup.
 
 Test both hands separately:
 

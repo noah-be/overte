@@ -47,12 +47,15 @@ public final class OffscreenWebView {
             WebSettings settings = view.getSettings();
             settings.setJavaScriptEnabled(true);
             settings.setDomStorageEnabled(true);
+            settings.setUseWideViewPort(true);
             settings.setAllowFileAccess(true);
             settings.setAllowContentAccess(true);
             if (userAgent != null && !userAgent.isEmpty()) {
                 settings.setUserAgentString(userAgent);
             }
-            Instance instance = new Instance(nativeHandle, view);
+            float displayDensity = PicoInterfaceActivity.getInstance()
+                .getResources().getDisplayMetrics().density;
+            Instance instance = new Instance(nativeHandle, view, displayDensity);
             INSTANCES.put(nativeHandle, instance);
             instance.resize(width, height);
             view.loadUrl(url == null || url.isEmpty() ? "about:blank" : url);
@@ -102,7 +105,8 @@ public final class OffscreenWebView {
                 return;
             }
             long now = android.os.SystemClock.uptimeMillis();
-            MotionEvent event = MotionEvent.obtain(now, now, action, x, y, 0);
+            MotionEvent event = MotionEvent.obtain(now, now, action,
+                x * instance.displayDensity, y * instance.displayDensity, 0);
             if (action == MotionEvent.ACTION_HOVER_ENTER
                     || action == MotionEvent.ACTION_HOVER_MOVE
                     || action == MotionEvent.ACTION_HOVER_EXIT) {
@@ -126,8 +130,8 @@ public final class OffscreenWebView {
             properties.id = 0;
             properties.toolType = MotionEvent.TOOL_TYPE_MOUSE;
             MotionEvent.PointerCoords coords = new MotionEvent.PointerCoords();
-            coords.x = x;
-            coords.y = y;
+            coords.x = x * instance.displayDensity;
+            coords.y = y * instance.displayDensity;
             coords.setAxisValue(MotionEvent.AXIS_VSCROLL, delta);
             long now = android.os.SystemClock.uptimeMillis();
             MotionEvent event = MotionEvent.obtain(now, now, MotionEvent.ACTION_SCROLL,
@@ -142,6 +146,7 @@ public final class OffscreenWebView {
     private static final class Instance {
         final long nativeHandle;
         final WebView view;
+        final float displayDensity;
         boolean active = true;
         Bitmap bitmap;
         Canvas canvas;
@@ -168,9 +173,10 @@ public final class OffscreenWebView {
             }
         };
 
-        Instance(long nativeHandle, WebView view) {
+        Instance(long nativeHandle, WebView view, float displayDensity) {
             this.nativeHandle = nativeHandle;
             this.view = view;
+            this.displayDensity = Math.max(1.0f, displayDensity);
         }
 
         void resize(int requestedWidth, int requestedHeight) {
@@ -187,11 +193,14 @@ public final class OffscreenWebView {
             }
             bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
             canvas = new Canvas(bitmap);
+            canvas.scale(1.0f / displayDensity, 1.0f / displayDensity);
             pixels = ByteBuffer.allocateDirect(width * height * 4);
-            int widthSpec = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY);
-            int heightSpec = View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY);
+            int layoutWidth = Math.max(1, Math.round(width * displayDensity));
+            int layoutHeight = Math.max(1, Math.round(height * displayDensity));
+            int widthSpec = View.MeasureSpec.makeMeasureSpec(layoutWidth, View.MeasureSpec.EXACTLY);
+            int heightSpec = View.MeasureSpec.makeMeasureSpec(layoutHeight, View.MeasureSpec.EXACTLY);
             view.measure(widthSpec, heightSpec);
-            view.layout(0, 0, width, height);
+            view.layout(0, 0, layoutWidth, layoutHeight);
         }
     }
 }
