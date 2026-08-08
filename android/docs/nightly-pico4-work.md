@@ -1237,8 +1237,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 67 — Fail-closed OpenXR session transitions
 
 - Branch: `nightly/pico4-67-openxr-transition-failclosed`
-- Commit: identified by subject `Fail closed on Pico OpenXR transition errors`;
-  the exact hash is recorded by the following stacked task or final report.
+- Commit: `4d1b052038` (`Fail closed on Pico OpenXR transition errors`)
 - Change: disable the frame cycle before beginning or ending a session, mark the
   context invalid when either runtime transition fails, and publish quit/
   non-rendering/invalid state before attempting loss-time destruction. Successful
@@ -1252,6 +1251,25 @@ headset, ADB, Android device, external domain, or device setting is used.
   resume, pause and runtime loss; verify rendering stops immediately, no further
   frame calls occur, application shutdown remains bounded and clean resume still
   works when transitions succeed.
+
+### 68 — Stale OpenXR session-event rejection
+
+- Branch: `nightly/pico4-68-openxr-session-event`
+- Commit: identified by subject `Reject stale Pico OpenXR session events`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: validate the embedded session handle on state, interaction-profile and
+  user-presence events before applying any state or querying the runtime. Events
+  queued for a destroyed/replaced session, or received with no current session,
+  are logged and ignored instead of mutating the current Pico session.
+- Regression: OpenXR context contracts cover null/current handle checks before
+  the first side effect of all three session-scoped event variants.
+- Passed: 17 OpenXR display/context contracts; `git diff --check`.
+- Risk: only events whose OpenXR session does not exactly match the current
+  handle are dropped; instance-scoped loss handling is unchanged.
+- Pico 4 validation: **not executed**. Rapidly pause/resume and recreate the
+  OpenXR session while changing controller profile and headset presence; verify
+  stale-event warnings cause no new-session teardown or incorrect mount/input
+  state and current-session events still apply.
 
 ## Deferred, rejected, or blocked ideas
 

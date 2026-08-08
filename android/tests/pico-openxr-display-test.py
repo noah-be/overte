@@ -215,6 +215,28 @@ class PicoOpenXRDisplayTests(unittest.TestCase):
         self.assertLess(loss.index("_isValid = false"), destroy)
         self.assertIn("_isSessionRunning = false", loss[destroy:])
 
+    def test_session_scoped_events_reject_stale_handles(self):
+        start = CONTEXT.index("bool OpenXrContext::pollEvents()")
+        end = CONTEXT.index("bool OpenXrContext::beginFrame()", start)
+        poll = CONTEXT[start:end]
+        cases = (
+            ("XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED", "sessionStateChanged.session", "updateSessionState"),
+            ("XR_TYPE_EVENT_DATA_INTERACTION_PROFILE_CHANGED", "interactionProfileChanged.session",
+             "xrGetCurrentInteractionProfile"),
+            ("XR_TYPE_EVENT_DATA_USER_PRESENCE_CHANGED_EXT", "eventdata.session", "_hmdMounted ="),
+        )
+        for event_type, session_field, first_side_effect in cases:
+            case = poll.index("case " + event_type)
+            next_case = poll.find("case ", case + 5)
+            body = poll[case:next_case if next_case >= 0 else len(poll)]
+            null_check = body.index("_session == XR_NULL_HANDLE")
+            identity_check = body.index(session_field + " != _session")
+            stale_break = body.index("break;", identity_check)
+            side_effect = body.index(first_side_effect, stale_break)
+            self.assertLess(null_check, stale_break)
+            self.assertLess(identity_check, stale_break)
+            self.assertLess(stale_break, side_effect)
+
 
 if __name__ == "__main__":
     unittest.main()

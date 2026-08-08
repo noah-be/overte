@@ -963,12 +963,22 @@ bool OpenXrContext::pollEvents() {
             }
             case XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED: {
                 const auto& sessionStateChanged = *reinterpret_cast<XrEventDataSessionStateChanged*>(&event);
+                if (_session == XR_NULL_HANDLE || sessionStateChanged.session != _session) {
+                    qCWarning(xr_context_cat, "Ignoring state event for a stale OpenXR session");
+                    break;
+                }
                 if (!updateSessionState(sessionStateChanged.state)) {
                     return false;
                 }
                 break;
             }
             case XR_TYPE_EVENT_DATA_INTERACTION_PROFILE_CHANGED: {
+                const auto& interactionProfileChanged =
+                    *reinterpret_cast<XrEventDataInteractionProfileChanged*>(&event);
+                if (_session == XR_NULL_HANDLE || interactionProfileChanged.session != _session) {
+                    qCWarning(xr_context_cat, "Ignoring interaction-profile event for a stale OpenXR session");
+                    break;
+                }
                 for (int i = 0; i < HAND_COUNT; i++) {
                     XrInteractionProfileState state = { .type = XR_TYPE_INTERACTION_PROFILE_STATE };
                     XrResult res = xrGetCurrentInteractionProfile(_session, _handPaths[i], &state);
@@ -990,6 +1000,10 @@ bool OpenXrContext::pollEvents() {
             }
             case XR_TYPE_EVENT_DATA_USER_PRESENCE_CHANGED_EXT: {
                 const auto& eventdata = *reinterpret_cast<XrEventDataUserPresenceChangedEXT*>(&event);
+                if (_session == XR_NULL_HANDLE || eventdata.session != _session) {
+                    qCWarning(xr_context_cat, "Ignoring presence event for a stale OpenXR session");
+                    break;
+                }
                 _hmdMounted = eventdata.isUserPresent;
                 break;
             }
