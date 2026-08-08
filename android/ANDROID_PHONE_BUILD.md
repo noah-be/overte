@@ -394,6 +394,9 @@ Set `PHONE_EXPECT_DEBUGGABLE=0` for a release smoke or `1` for a debug smoke;
 the validated state is recorded as a boolean in the summary.
 Always require the final `test_status=passed`; earlier lifecycle fields are
 incremental evidence and a failed run records `test_status=failed` on exit.
+Successful runs also require `cleanup_force_stopped=1`. The APK and its data
+remain installed, but the app is not left foregrounded or keeping the display
+awake; post-install failures attempt the same cleanup before returning.
 Logcat is restricted to the tested app process and inspected only as a stream;
 an on-device epoch cursor also excludes entries older than this test launch.
 Package exit diagnostics

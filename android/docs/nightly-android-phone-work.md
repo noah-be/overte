@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 83 — Stop the tested app after unattended smoke
+
+- Branch: `nightly/android-phone-83-device-smoke-cleanup`
+- Commit: `Clean up phone app after device smoke` (this task's commit)
+- Change: Require a final force-stop before a successful result and record
+  `cleanup_force_stopped=1`. Any failure after installation performs best-effort
+  force-stop in the EXIT finalizer, preventing a crashed test from leaving the
+  Phone app foregrounded, network-active, or holding its keep-screen-on flag.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; success and a
+    launcher failure both issue pre-launch plus finalizer/required cleanup, while
+    only success records the cleanup flag.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 262/262 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 262/262 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Force-stop preserves installed APK/data but ends active network
+  sessions; this is intentional test cleanup and is documented.
+- Real-device validation still required: Run the current-APK smoke and confirm
+  the app is stopped and display wake lock released after success and failure.
+
 ## 82 — Give device summaries an explicit final status
 
 - Branch: `nightly/android-phone-82-device-summary-status`

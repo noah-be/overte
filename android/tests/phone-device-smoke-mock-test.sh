@@ -155,6 +155,8 @@ grep -Fxq 'background_foreground_cycles=3' "$summary"
 grep -Fxq 'back_recovery_survived=1' "$summary"
 grep -Fxq 'crash_log_matches=0' "$summary"
 grep -Fxq 'test_status=passed' "$summary"
+grep -Fxq 'cleanup_force_stopped=1' "$summary"
+[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' "$test_root/adb-commands")" -eq 2 ]]
 [[ "$(stat -c %a "$summary")" == 600 ]]
 ! grep -Eq 'mock-phone|/data/app|4242' "$summary"
 
@@ -273,6 +275,7 @@ grep -Fq 'APK installation failed' "$test_root/install-failure.out"
 ! grep -Eq 'mock-phone|private adb detail|phone[.]apk' "$test_root/install-failure.out"
 
 mkdir "$test_root/start-failure-report"
+: >"$test_root/adb-commands"
 if run_smoke "$test_root/start-failure-report" env MOCK_START_FAILURE=1 \
         >"$test_root/start-failure.out" 2>&1; then
     echo 'FAIL: failed Activity start was accepted' >&2
@@ -282,6 +285,7 @@ grep -Fq 'launcher start failed' "$test_root/start-failure.out"
 ! grep -Fq 'private start failure for mock-phone' "$test_root/start-failure.out"
 ! grep -Fq 'launch_survived=1' "$test_root/start-failure-report/summary.txt"
 grep -Fxq 'test_status=failed' "$test_root/start-failure-report/summary.txt"
+[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' "$test_root/adb-commands")" -eq 2 ]]
 
 mkdir "$test_root/sticky-report"
 if run_smoke "$test_root/sticky-report" env MOCK_STICKY_FOREGROUND=1 \

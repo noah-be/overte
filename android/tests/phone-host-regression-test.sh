@@ -551,6 +551,10 @@ require_text tests/phone-device-test.sh 'test_status=%s' \
     'device smoke summary records one explicit final result'
 require_text tests/phone-device-test.sh 'trap write_final_status EXIT' \
     'device smoke records failure even on late checked exits'
+require_text tests/phone-device-test.sh 'require_adb "final app cleanup".*force-stop' \
+    'successful device smoke must force-stop the tested app before passing'
+require_text tests/phone-device-test.sh 'PACKAGE_INSTALLED == 1.*PACKAGE_CLEANED == 0' \
+    'failed device smoke performs best-effort app cleanup after installation'
 require_text tests/phone-device-test.sh 'shell pm path "\$PACKAGE"' \
     'device smoke resolves the installed base APK after installation'
 require_text tests/phone-device-test.sh 'installed_apk_sha256.*== "\$APK_SHA256"' \

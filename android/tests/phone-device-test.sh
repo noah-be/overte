@@ -203,8 +203,13 @@ readonly TEST_DEEP_LINK="overte://localhost"
 (set -o noclobber; umask 077; : >"$SUMMARY") || \
     die "could not create a fresh device-test summary"
 chmod 600 "$SUMMARY"
+PACKAGE_INSTALLED=0
+PACKAGE_CLEANED=0
 write_final_status() {
     local status=$? result=failed
+    if ((PACKAGE_INSTALLED == 1 && PACKAGE_CLEANED == 0)); then
+        adb_for shell am force-stop "$PACKAGE" >/dev/null || true
+    fi
     ((status == 0)) && result=passed
     printf 'test_status=%s\n' "$result" >>"$SUMMARY" || true
 }
@@ -269,6 +274,7 @@ printf '\nInstalling APK on the selected phone...\n'
 # separate lifecycle matrix; this main launch path grants declared runtime
 # permissions at install time so it cannot wait on Android permission UI.
 require_adb "APK installation" install -r -g "$APK"
+PACKAGE_INSTALLED=1
 
 # Verify the installed package itself, not merely the input passed to adb. Keep
 # its private on-device path out of output and reports.
@@ -363,3 +369,6 @@ if ((crash_count > 0 || exit_crash_count > 0 || page_mismatch_count > 0)); then
     printf 'Crash or page-size compatibility markers were detected.\n'
     exit 2
 fi
+require_adb "final app cleanup" shell am force-stop "$PACKAGE"
+PACKAGE_CLEANED=1
+printf 'cleanup_force_stopped=1\n' >>"$SUMMARY"
