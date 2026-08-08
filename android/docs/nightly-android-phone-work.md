@@ -4,6 +4,28 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 69 — Validate Android exit-info structure
+
+- Branch: `nightly/android-phone-69-exit-info-contract`
+- Commit: `Validate phone exit diagnostics structure` (this task's commit)
+- Change: Require the stable Android `PROCESS EXIT INFO` header before parsing
+  crash counts and reject a final count lower than the launch baseline. An
+  unknown dumpsys command, output-format drift, or mid-test reset can no longer
+  masquerade as zero package crashes.
+- Tests:
+  - Anonymous locked device structure probe: **passed**,
+    `exit_info_header=1 structured_fields=1`; no raw output was retained.
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed** with the
+    structural response contract and existing transport-failure fixture.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 235/235 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 235/235 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: OEMs that remove the standard header will now fail explicitly;
+  their output must be reviewed before any parser extension.
+- Real-device validation still required: Run the full current-APK smoke and
+  confirm before/after exit-info remains monotonic through all lifecycle phases.
+
 ## 68 — Fail closed when device diagnostics are unavailable
 
 - Branch: `nightly/android-phone-68-device-diagnostic-failures`

@@ -125,11 +125,15 @@ crash_exit_count() {
     adb_for shell dumpsys activity exit-info "$PACKAGE" | awk '
         {
             line = tolower($0)
+            if (line ~ /process exit info/) valid = 1
             if (line ~ /reason=[[:space:]]*(4|5)[[:space:]]*\(/ ||
                 line ~ /reason=[[:space:]]*(crash|native_crash)/ ||
                 line ~ /reason_(crash|crash_native)/) crashes++
         }
-        END { print crashes + 0 }
+        END {
+            if (!valid) exit 2
+            print crashes + 0
+        }
     '
 }
 
@@ -249,7 +253,8 @@ log_marker_counts="$(
 read -r crash_count page_mismatch_count <<<"$log_marker_counts"
 final_exit_crash_count="$(crash_exit_count)"
 exit_crash_count=$((final_exit_crash_count - baseline_exit_crash_count))
-((exit_crash_count >= 0)) || exit_crash_count=0
+((exit_crash_count >= 0)) || \
+    die "package exit diagnostics moved backwards during the test"
 printf 'crash_log_matches=%s\nexit_crash_matches=%s\npage_size_mismatch_matches=%s\n' \
     "$crash_count" "$exit_crash_count" "$page_mismatch_count" | tee -a "$SUMMARY"
 

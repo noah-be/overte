@@ -68,6 +68,7 @@ case "$*" in
         ;;
     'shell dumpsys activity exit-info org.overte.phone')
         [[ "${MOCK_EXIT_INFO_FAILURE:-0}" != 1 ]] || exit 8
+        printf 'ACTIVITY MANAGER PROCESS EXIT INFO\n'
         ;;
     logcat\ -d\ -T\ *\ -v\ threadtime\ --pid=4242)
         [[ "${MOCK_LOGCAT_FAILURE:-0}" != 1 ]] || exit 9

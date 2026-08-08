@@ -555,6 +555,10 @@ require_text tests/phone-device-test.sh 'back_recovery_survived=1' \
     'device test records successful process-preserving Back recovery'
 require_text tests/phone-device-test.sh 'reason=\[\[:space:\]\]\*\(4\|5\)' \
     'device test recognizes Android numeric Java and native crash exit reasons'
+require_text tests/phone-device-test.sh 'process exit info.*valid = 1' \
+    'device test validates the dumpsys exit-info response structure'
+require_text tests/phone-device-test.sh 'exit_crash_count >= 0' \
+    'device test rejects exit-info counters that move backwards'
 reject_text tests/phone-device-test.sh \
     'serial=%s|model=%s|dumpsys window|SurfaceFlinger' \
     'device reports omit serial, model, and global display diagnostics'
