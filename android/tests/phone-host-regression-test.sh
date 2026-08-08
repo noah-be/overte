@@ -297,8 +297,8 @@ else
     fail 'phone resource downloads default to two while the CLI remains the later override'
 fi
 require_text '../interface/src/Application.cpp' \
-    'PHONE_DEFAULT_VIEWPORT_RESOLUTION_SCALE[[:space:]]*\{[[:space:]]*0\.5f[[:space:]]*\}' \
-    'phone profile defaults to a 0.5 viewport scale after the performance preset'
+    'PHONE_DEFAULT_VIEWPORT_RESOLUTION_SCALE[[:space:]]*\{[[:space:]]*0\.65f[[:space:]]*\}' \
+    'phone profile defaults to the measured 0.65 viewport scale after the performance preset'
 require_text '../interface/src/Application.cpp' \
     'setViewportResolutionScale\(phoneViewportResolutionScale\)' \
     'phone profile applies the bounded viewport-scale selection'
@@ -309,13 +309,17 @@ require_text '../interface/src/Application_Plugins.cpp' \
     'refreshRateManager\.updateRefreshRateController\(\)' \
     'phone frame target is applied after the display present operator is installed'
 for disabled_phone_feature in \
-        'setHazeEnabled\(false\)' \
-        'setLocalLightingEnabled\(false\)' \
         'setProceduralMaterialsEnabled\(false\)' \
         'mirrorConfig->setProperty\("enabled",[[:space:]]*false\)'; do
     require_text '../interface/src/Application.cpp' "$disabled_phone_feature" \
         "phone MVP profile disables ${disabled_phone_feature}"
 done
+require_text '../interface/src/Application.cpp' \
+    'phoneBoolOverride\("debug\.overte\.phone_haze",[[:space:]]*false\)' \
+    'phone MVP profile keeps haze off unless a bounded A/B test enables it'
+require_text '../interface/src/Application.cpp' \
+    'phoneBoolOverride\("debug\.overte\.phone_local_lights",[[:space:]]*false\)' \
+    'phone MVP profile keeps local lights off unless a bounded A/B test enables them'
 if awk '
         /#if defined\(ANDROID_APP_PHONE_INTERFACE\)/ { phone_guard = NR }
         /qWarning\(\) << "Avatar bookmarks JSON parse error:"/ { phone_log = NR }

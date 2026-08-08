@@ -63,8 +63,8 @@ for source in "$application" "$plugins"; do
     fi
 done
 
-# The profile remains compile-time phone policy, with one bounded developer
-# property for controlled render-scale A/B comparisons.
+# The profile remains compile-time phone policy, with bounded developer
+# properties for controlled graphics A/B comparisons.
 if awk '
     /#if defined\(ANDROID_APP_PHONE_INTERFACE\)/ { phone = 1; next }
     phone && /^#endif/ { exit found ? 0 : 1 }
@@ -83,8 +83,8 @@ else
 fi
 
 require_pattern "$application" \
-    'PHONE_DEFAULT_VIEWPORT_RESOLUTION_SCALE[[:space:]]*\{[[:space:]]*0\.5f[[:space:]]*\}' \
-    'phone render-scale override defaults to half resolution'
+    'PHONE_DEFAULT_VIEWPORT_RESOLUTION_SCALE[[:space:]]*\{[[:space:]]*0\.65f[[:space:]]*\}' \
+    'phone render-scale override defaults to the measured balanced resolution'
 require_pattern "$application" \
     'PHONE_MIN_VIEWPORT_RESOLUTION_SCALE[[:space:]]*\{[[:space:]]*0\.5f[[:space:]]*\}' \
     'phone render-scale override has a 0.5 lower bound'
@@ -114,12 +114,44 @@ for disabled_pass in \
         'setShadowsEnabled\(false\)' \
         'setBloomEnabled\(false\)' \
         'setAmbientOcclusionEnabled\(false\)' \
-        'setHazeEnabled\(false\)' \
-        'setLocalLightingEnabled\(false\)' \
         'setProceduralMaterialsEnabled\(false\)'; do
     require_pattern "$application" "$disabled_pass" \
         "phone graphics baseline disables ${disabled_pass}"
 done
+
+require_pattern "$application" \
+    'phoneBoolOverride\("debug\.overte\.phone_haze",[[:space:]]*false\)' \
+    'phone haze A/B override uses its dedicated property and defaults off'
+require_pattern "$application" \
+    'phoneBoolOverride\("debug\.overte\.phone_local_lights",[[:space:]]*false\)' \
+    'phone local-lights A/B override uses its dedicated property and defaults off'
+require_pattern "$application" \
+    'requested[[:space:]]*==[[:space:]]*"1".*requested[[:space:]]*==[[:space:]]*"on".*requested[[:space:]]*==[[:space:]]*"true".*requested[[:space:]]*==[[:space:]]*"enabled"' \
+    'phone Boolean A/B parser accepts only the supported enabled spellings'
+require_pattern "$application" \
+    'requested[[:space:]]*==[[:space:]]*"0".*requested[[:space:]]*==[[:space:]]*"off".*requested[[:space:]]*==[[:space:]]*"false".*requested[[:space:]]*==[[:space:]]*"disabled"' \
+    'phone Boolean A/B parser accepts only the supported disabled spellings'
+require_pattern "$application" \
+    'QString::fromLatin1\(propertyValue\)\.trimmed\(\)\.toLower\(\)' \
+    'phone Boolean A/B parser normalizes case and surrounding whitespace'
+require_pattern "$application" \
+    'return fallback;' \
+    'phone Boolean A/B parser falls back safely for missing or invalid values'
+require_pattern "$application" \
+    'setHazeEnabled\(phoneHazeEnabled\)' \
+    'phone applies the effective haze A/B value'
+require_pattern "$application" \
+    'setLocalLightingEnabled\(phoneLocalLightsEnabled\)' \
+    'phone applies the effective local-lights A/B value'
+require_pattern "$application" \
+    '__android_log_print\(ANDROID_LOG_INFO,[[:space:]]*"OvertePhoneGraphics"' \
+    'phone emits its numeric graphics profile through the Android diagnostics tag'
+require_pattern "$application" \
+    'profile_render_scale=%\.2f profile_target_fps=%d profile_forward_msaa_samples=%d profile_haze=%d profile_local_lights=%d' \
+    'phone Android profile diagnostic is aggregate and allowlisted'
+reject_pattern "$application" \
+    '(qCInfo|qInfo|qDebug|qWarning).*propertyValue' \
+    'phone graphics diagnostics never log raw property values'
 
 if awk '
     /setupPerformancePresetSettings/ { preset = NR }
@@ -149,15 +181,15 @@ require_pattern "$application" \
     'setProperty\("numSamples",[[:space:]]*PHONE_FORWARD_MSAA_SAMPLES\)' \
     'phone applies the one-sample invariant to both forward framebuffers'
 require_pattern "$application" \
-    'PHONE_LIGHT_CLUSTER_GRID_DIMENSION[[:space:]]*\{[[:space:]]*1[[:space:]]*\}' \
-    'phone uses a minimal one-cell light-clustering grid'
+    'phoneLightClusterGridDimension[[:space:]]*=[[:space:]]*phoneLocalLightsEnabled[[:space:]]*\?[[:space:]]*14[[:space:]]*:[[:space:]]*1' \
+    'phone uses one cluster only while local lighting is disabled'
 require_pattern "$application" \
     'viewName[[:space:]]*\+[[:space:]]*"\.RenderForwardTask\.LightClustering"' \
     'phone resolves light clustering in both forward render graphs'
 for cluster_dimension in dimX dimY dimZ; do
     require_pattern "$application" \
-        "setProperty\(\"${cluster_dimension}\",[[:space:]]*PHONE_LIGHT_CLUSTER_GRID_DIMENSION\)" \
-        "phone constrains light-clustering ${cluster_dimension} to one cell"
+        "setProperty\(\"${cluster_dimension}\",[[:space:]]*phoneLightClusterGridDimension\)" \
+        "phone applies the safe light-clustering ${cluster_dimension} selection"
 done
 require_pattern "$application" \
     'MIRROR_VIEWS_PER_LEVEL[[:space:]]*\{[[:space:]]*3[[:space:]]*\}' \
@@ -169,7 +201,7 @@ require_pattern "$application" \
     '<<[[:space:]]*"configuredForwardBuffers"[[:space:]]*<<[[:space:]]*configuredForwardBuffers' \
     'phone diagnostic reports only the aggregate configured-buffer count'
 require_pattern "$application" \
-    '<<[[:space:]]*"lightClusterGridDimension"[[:space:]]*<<[[:space:]]*PHONE_LIGHT_CLUSTER_GRID_DIMENSION' \
+    '<<[[:space:]]*"lightClusterGridDimension"[[:space:]]*<<[[:space:]]*phoneLightClusterGridDimension' \
     'phone diagnostic reports only the aggregate light-cluster dimension'
 require_pattern "$application" \
     '<<[[:space:]]*"configuredLightClusterGrids"[[:space:]]*<<[[:space:]]*configuredLightClusterGrids' \

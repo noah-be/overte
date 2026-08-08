@@ -236,6 +236,24 @@ identifiable. It exits with status 2 when crash or page-size-mismatch log lines
 are detected. The test changes device state by installing and launching the
 APK, so it is intentionally not part of the host regression test.
 
+For repeatable graphics sampling of an already installed build, explicitly
+confirm the selected target is a non-VR phone and choose a duration:
+
+```bash
+ANDROID_SERIAL=<phone-serial> \
+PHONE_BENCHMARK_CONFIRM_NON_VR=YES \
+./tests/phone-graphics-benchmark.sh 60
+```
+
+The benchmark does not build or install. Raw app-scoped Logcat, thermal and
+frame-stat output exists only in a private `/tmp` directory and is deleted on
+exit. Its report is refused inside the Git worktree and contains only numeric
+aggregates. Native present FPS and p50/p95/max timings come from the latest
+complete ten-second window after a successful OpenGL buffer swap; the report
+marks Android HWUI frame statistics invalid when they do not cover the native
+Qt/OpenGL surface. Set `PHONE_BENCHMARK_REPORT` to retain the aggregate summary
+in a chosen directory outside the repository.
+
 ## Release gates
 
 Once both long dependency builds have completed successfully, validate their

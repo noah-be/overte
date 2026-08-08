@@ -1350,7 +1350,7 @@ void Application::loadSettings(const QCommandLineParser& parser) {
     // Phones are passively cooled and share system/GPU memory. Prefer a
     // predictable MVP baseline. Apply it after the performance preset so a
     // first-run preset cannot immediately restore the desktop values.
-    constexpr float PHONE_DEFAULT_VIEWPORT_RESOLUTION_SCALE { 0.5f };
+    constexpr float PHONE_DEFAULT_VIEWPORT_RESOLUTION_SCALE { 0.65f };
     constexpr float PHONE_MIN_VIEWPORT_RESOLUTION_SCALE { 0.5f };
     constexpr float PHONE_MAX_VIEWPORT_RESOLUTION_SCALE { 0.7f };
     float phoneViewportResolutionScale { PHONE_DEFAULT_VIEWPORT_RESOLUTION_SCALE };
@@ -1366,11 +1366,27 @@ void Application::loadSettings(const QCommandLineParser& parser) {
                     : requestedScale;
         }
     }
+    const auto phoneBoolOverride = [](const char* propertyName, bool fallback) {
+        char propertyValue[PROP_VALUE_MAX] {};
+        if (__system_property_get(propertyName, propertyValue) <= 0) {
+            return fallback;
+        }
+        const auto requested = QString::fromLatin1(propertyValue).trimmed().toLower();
+        if (requested == "1" || requested == "on" || requested == "true" || requested == "enabled") {
+            return true;
+        }
+        if (requested == "0" || requested == "off" || requested == "false" || requested == "disabled") {
+            return false;
+        }
+        return fallback;
+    };
+    const bool phoneHazeEnabled = phoneBoolOverride("debug.overte.phone_haze", false);
+    const bool phoneLocalLightsEnabled = phoneBoolOverride("debug.overte.phone_local_lights", false);
     constexpr int PHONE_TARGET_FPS { 30 };
     renderSettings->setRenderMethod(RenderScriptingInterface::RenderMethod::FORWARD);
     renderSettings->setAntialiasingMode(AntialiasingSetupConfig::Mode::NONE);
-    renderSettings->setHazeEnabled(false);
-    renderSettings->setLocalLightingEnabled(false);
+    renderSettings->setHazeEnabled(phoneHazeEnabled);
+    renderSettings->setLocalLightingEnabled(phoneLocalLightsEnabled);
     renderSettings->setProceduralMaterialsEnabled(false);
     renderSettings->setViewportResolutionScale(phoneViewportResolutionScale);
 
@@ -1394,18 +1410,21 @@ void Application::loadSettings(const QCommandLineParser& parser) {
         }
     }
 
-    constexpr int PHONE_LIGHT_CLUSTER_GRID_DIMENSION { 1 };
+    // A single cell avoids clustering work while local lighting is disabled.
+    // Restore the renderer's normal grid for the explicit local-light A/B path;
+    // packing every visible light into one uint8-counted cell is not correct.
+    const int phoneLightClusterGridDimension = phoneLocalLightsEnabled ? 14 : 1;
     int configuredLightClusterGrids { 0 };
     for (const auto& viewName : viewNames) {
         const QString lightClusteringName =
             viewName + ".RenderForwardTask.LightClustering";
         if (auto lightClusteringConfig = renderConfig->getConfig(lightClusteringName)) {
             const bool configuredX =
-                lightClusteringConfig->setProperty("dimX", PHONE_LIGHT_CLUSTER_GRID_DIMENSION);
+                lightClusteringConfig->setProperty("dimX", phoneLightClusterGridDimension);
             const bool configuredY =
-                lightClusteringConfig->setProperty("dimY", PHONE_LIGHT_CLUSTER_GRID_DIMENSION);
+                lightClusteringConfig->setProperty("dimY", phoneLightClusterGridDimension);
             const bool configuredZ =
-                lightClusteringConfig->setProperty("dimZ", PHONE_LIGHT_CLUSTER_GRID_DIMENSION);
+                lightClusteringConfig->setProperty("dimZ", phoneLightClusterGridDimension);
             if (configuredX && configuredY && configuredZ) {
                 ++configuredLightClusterGrids;
             }
@@ -1430,7 +1449,7 @@ void Application::loadSettings(const QCommandLineParser& parser) {
                          << "renderScale" << renderSettings->getViewportResolutionScale()
                          << "forwardMsaaSamples" << PHONE_FORWARD_MSAA_SAMPLES
                          << "configuredForwardBuffers" << configuredForwardBuffers
-                         << "lightClusterGridDimension" << PHONE_LIGHT_CLUSTER_GRID_DIMENSION
+                         << "lightClusterGridDimension" << phoneLightClusterGridDimension
                          << "configuredLightClusterGrids" << configuredLightClusterGrids
                          << "forward" << (renderSettings->getRenderMethod() == RenderScriptingInterface::RenderMethod::FORWARD)
                          << "antialiasing" << (renderSettings->getAntialiasingMode() != AntialiasingSetupConfig::Mode::NONE)
@@ -1443,6 +1462,10 @@ void Application::loadSettings(const QCommandLineParser& parser) {
                          << "disabledMirrorViews" << disabledMirrorViews
                          << "worldDetail" << WORLD_DETAIL_LOW
                          << "downloadLimit" << ResourceCache::getRequestLimit();
+    __android_log_print(ANDROID_LOG_INFO, "OvertePhoneGraphics",
+        "profile_render_scale=%.2f profile_target_fps=%d profile_forward_msaa_samples=%d profile_haze=%d profile_local_lights=%d",
+        static_cast<double>(renderSettings->getViewportResolutionScale()), PHONE_TARGET_FPS,
+        PHONE_FORWARD_MSAA_SAMPLES, phoneHazeEnabled ? 1 : 0, phoneLocalLightsEnabled ? 1 : 0);
 #endif
 
 #if defined(ANDROID_APP_PICO_INTERFACE)

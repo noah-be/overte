@@ -10,6 +10,14 @@
 #include <condition_variable>
 #include <queue>
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include <algorithm>
+#include <array>
+#include <cstdint>
+#include <limits>
+#include <android/log.h>
+#endif
+
 #include <gl/Config.h>
 
 #include <QtCore/QCoreApplication>
@@ -66,6 +74,91 @@ extern QThread* RENDER_THREAD;
 
 Setting::Handle<bool> OpenGLDisplayPlugin::_extraLinearToSRGBConversionSetting("extraLinearToSRGBConversion", false);
 bool OpenGLDisplayPlugin::_hasSetSRGBConversion = false;
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+namespace {
+constexpr uint64_t PHONE_PRESENT_REPORT_INTERVAL_USEC { 10ULL * 1000ULL * 1000ULL };
+constexpr uint64_t PHONE_PRESENT_DISCONTINUITY_USEC { 1000ULL * 1000ULL };
+constexpr size_t PHONE_PRESENT_INTERVAL_CAPACITY { 2048 };
+
+struct PhonePresentTelemetry {
+    void record(bool hasNewFrame) {
+        const auto now = Clock::now();
+        if (_windowStart == Clock::time_point {}) {
+            resetWindow(now);
+            return;
+        }
+
+        const auto intervalDuration = std::chrono::duration_cast<std::chrono::microseconds>(now - _lastPresent);
+        const uint64_t interval = static_cast<uint64_t>(intervalDuration.count());
+        if (interval > PHONE_PRESENT_DISCONTINUITY_USEC) {
+            resetWindow(now);
+            return;
+        }
+        if (_intervalCount < _intervals.size()) {
+            _intervals[_intervalCount++] = static_cast<uint32_t>(
+                std::min<uint64_t>(interval, std::numeric_limits<uint32_t>::max()));
+        }
+        _lastPresent = now;
+        ++_presentCount;
+        _newFrameCount += hasNewFrame ? 1U : 0U;
+
+        const uint64_t elapsed = static_cast<uint64_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(now - _windowStart).count());
+        if (elapsed < PHONE_PRESENT_REPORT_INTERVAL_USEC) {
+            return;
+        }
+
+        std::array<uint32_t, PHONE_PRESENT_INTERVAL_CAPACITY> sortedIntervals;
+        std::copy_n(_intervals.begin(), _intervalCount, sortedIntervals.begin());
+        std::sort(sortedIntervals.begin(), sortedIntervals.begin() + _intervalCount);
+        const double elapsedSeconds = static_cast<double>(elapsed) / 1000000.0;
+        const double p50 = percentileMilliseconds(sortedIntervals, _intervalCount, 50);
+        const double p95 = percentileMilliseconds(sortedIntervals, _intervalCount, 95);
+        const double maximum = _intervalCount == 0 ? 0.0 : sortedIntervals[_intervalCount - 1] / 1000.0;
+
+        __android_log_print(ANDROID_LOG_INFO, "OvertePhoneGraphics",
+            "window_seconds=%.2f present_fps=%.2f new_frame_fps=%.2f inter_present_p50_ms=%.2f inter_present_p95_ms=%.2f inter_present_max_ms=%.2f",
+            elapsedSeconds, _presentCount / elapsedSeconds, _newFrameCount / elapsedSeconds, p50, p95, maximum);
+
+        _windowStart = now;
+        _presentCount = 0;
+        _newFrameCount = 0;
+        _intervalCount = 0;
+    }
+
+private:
+    using Clock = std::chrono::steady_clock;
+
+    void resetWindow(Clock::time_point now) {
+        _windowStart = now;
+        _lastPresent = now;
+        _presentCount = 0;
+        _newFrameCount = 0;
+        _intervalCount = 0;
+    }
+
+    static double percentileMilliseconds(
+            const std::array<uint32_t, PHONE_PRESENT_INTERVAL_CAPACITY>& values,
+            size_t count, size_t percentile) {
+        if (count == 0) {
+            return 0.0;
+        }
+        const size_t rank = (percentile * count + 99) / 100;
+        return values[rank - 1] / 1000.0;
+    }
+
+    Clock::time_point _windowStart {};
+    Clock::time_point _lastPresent {};
+    uint32_t _presentCount { 0 };
+    uint32_t _newFrameCount { 0 };
+    size_t _intervalCount { 0 };
+    std::array<uint32_t, PHONE_PRESENT_INTERVAL_CAPACITY> _intervals {};
+};
+
+PhonePresentTelemetry phonePresentTelemetry;
+}
+#endif
 
 class OpenGLPresentThread : public QThread, public Dependency {
     using Mutex = std::mutex;
@@ -707,6 +800,9 @@ void OpenGLDisplayPlugin::internalPresent() {
 }
 
 void OpenGLDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& refreshRateController) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    _phonePresentHasNewFrame = false;
+#endif
     auto frameId = (uint64_t)presentCount();
     PROFILE_RANGE_EX(render, __FUNCTION__, 0xffffff00, frameId)
     uint64_t startPresent = usecTimestampNow();
@@ -725,6 +821,9 @@ void OpenGLDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                 _renderRate.increment();
                 if (_currentFrame.get() != _lastFrame) {
                     _newFrameRate.increment();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+                    _phonePresentHasNewFrame = true;
+#endif
                 }
                 _lastFrame = _currentFrame.get();
             });
@@ -758,11 +857,20 @@ void OpenGLDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
             PROFILE_RANGE_EX(render, "internalPresent", 0xff00ffff, frameId)
             internalPresent();
         }
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        // Phone swapBuffers can block on Android's compositor. Include that
+        // time in pacing so it is subtracted from the subsequent sleep rather
+        // than added on top of the requested frame period.
+        refreshRateController->clockEndTime();
+#endif
 
         gpu::Backend::freeGPUMemSize.set(gpu::gl::getFreeDedicatedMemory());
     } else if (alwaysPresent()) {
         refreshRateController->clockEndTime();
         internalPresent();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        refreshRateController->clockEndTime();
+#endif
     } else {
         refreshRateController->clockEndTime();
     }
@@ -800,6 +908,10 @@ float OpenGLDisplayPlugin::renderRate() const {
 void OpenGLDisplayPlugin::swapBuffers() {
     static auto context = _container->getPrimaryWidget()->context();
     context->swapBuffers();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    phonePresentTelemetry.record(_phonePresentHasNewFrame);
+    _phonePresentHasNewFrame = false;
+#endif
 }
 
 void OpenGLDisplayPlugin::withOtherThreadContext(std::function<void()> f) const {

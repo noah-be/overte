@@ -138,10 +138,20 @@ fi
 log_crashes="$(grep -Eic 'fatal exception|fatal signal|am_crash|crash_dump' "$raw_dir/logcat.txt" || true)"
 
 # Profile values are a fixed allowlist; arbitrary log text can never reach the report.
-profile_line="$(grep 'PHONE_GRAPHICS_PROFILE' "$raw_dir/logcat.txt" | tail -n 1 || true)"
-profile_scale="$(sed -nE 's/.*renderScale[^0-9]*([0-9]+([.][0-9]+)?).*/\1/p' <<<"$profile_line")"
-profile_fps="$(sed -nE 's/.*targetFps[^0-9]*([0-9]+).*/\1/p' <<<"$profile_line")"
-profile_msaa="$(sed -nE 's/.*forwardMsaaSamples[^0-9]*([0-9]+).*/\1/p' <<<"$profile_line")"
+profile_line="$(grep -E 'PHONE_GRAPHICS_PROFILE|OvertePhoneGraphics.*profile_render_scale=' "$raw_dir/logcat.txt" | tail -n 1 || true)"
+profile_scale="$(sed -nE 's/.*(renderScale|profile_render_scale)[^0-9]*([0-9]+([.][0-9]+)?).*/\2/p' <<<"$profile_line")"
+profile_fps="$(sed -nE 's/.*(targetFps|profile_target_fps)[^0-9]*([0-9]+).*/\2/p' <<<"$profile_line")"
+profile_msaa="$(sed -nE 's/.*(forwardMsaaSamples|profile_forward_msaa_samples)[^0-9]*([0-9]+).*/\2/p' <<<"$profile_line")"
+present_line="$(grep 'OvertePhoneGraphics.*present_fps=' "$raw_dir/logcat.txt" | tail -n 1 || true)"
+native_window_seconds="$(sed -nE 's/.*window_seconds=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
+native_present_fps="$(sed -nE 's/.*[[:space:]]present_fps=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
+native_new_frame_fps="$(sed -nE 's/.*new_frame_fps=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
+native_present_p50_ms="$(sed -nE 's/.*inter_present_p50_ms=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
+native_present_p95_ms="$(sed -nE 's/.*inter_present_p95_ms=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
+native_present_max_ms="$(sed -nE 's/.*inter_present_max_ms=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
+native_present_metrics_available=0
+[[ -n "$native_present_fps" && -n "$native_new_frame_fps" && -n "$native_present_p95_ms" ]] && \
+    native_present_metrics_available=1
 
 summary="$report_dir/summary.txt"
 [[ ! -L "$summary" ]] || die "refusing to overwrite a symlinked benchmark summary"
@@ -157,6 +167,12 @@ chmod 600 "$summary_tmp"
         "$crash_records_before" "$crash_records_after" "$crash_record_count_increased" "$log_crashes"
     printf 'profile_viewport_scale=%s\nprofile_target_fps=%s\nprofile_forward_msaa_samples=%s\n' \
         "${profile_scale:-unknown}" "${profile_fps:-unknown}" "${profile_msaa:-unknown}"
+    printf 'native_present_metrics_available=%s\nnative_present_fps=%s\nnative_new_frame_fps=%s\n' \
+        "$native_present_metrics_available" "${native_present_fps:-unknown}" "${native_new_frame_fps:-unknown}"
+    printf 'native_present_window_seconds=%s\nnative_present_window_scope=latest_complete\n' \
+        "${native_window_seconds:-unknown}"
+    printf 'native_inter_present_p50_ms=%s\nnative_inter_present_p95_ms=%s\nnative_inter_present_max_ms=%s\n' \
+        "${native_present_p50_ms:-unknown}" "${native_present_p95_ms:-unknown}" "${native_present_max_ms:-unknown}"
 } >"$summary_tmp"
 mv -T -- "$summary_tmp" "$summary"
 printf 'Aggregate benchmark report: %s\n' "$summary"

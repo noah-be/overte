@@ -35,7 +35,11 @@ sed 's/^+//' >"$fixture/adb" <<'MOCK'
 +  if (( count > 1 )); then printf 'reason=CRASH private-account@example.test\n'; fi
 +  exit
 +fi
-+if [[ $1 == logcat && ${2:-} == -d ]]; then printf 'PHONE_GRAPHICS_PROFILE renderScale 0.5 targetFps 30 forwardMsaaSamples 1 url=https://private.example\n'; exit; fi
++if [[ $1 == logcat && ${2:-} == -d ]]; then
++  printf 'I/OvertePhoneGraphics: profile_render_scale=0.5 profile_target_fps=30 profile_forward_msaa_samples=1 profile_haze=0 profile_local_lights=0\n'
++  printf 'I/OvertePhoneGraphics: window_seconds=10.02 present_fps=30.00 new_frame_fps=29.50 inter_present_p50_ms=33.20 inter_present_p95_ms=34.10 inter_present_max_ms=40.00\n'
++  exit
++fi
 +exit 0
 MOCK
 chmod +x "$fixture/adb"
@@ -58,6 +62,11 @@ grep -q '^crash_records_after=1$' "$summary"
 grep -q '^crash_record_count_increased=1$' "$summary"
 grep -q '^stable_process=1$' "$summary"
 grep -q '^profile_viewport_scale=0.5$' "$summary"
+grep -q '^native_present_metrics_available=1$' "$summary"
+grep -q '^native_present_fps=30.00$' "$summary"
+grep -q '^native_present_window_seconds=10.02$' "$summary"
+grep -q '^native_new_frame_fps=29.50$' "$summary"
+grep -q '^native_inter_present_p95_ms=34.10$' "$summary"
 [[ $(stat -c '%a' "$report") == 700 ]]
 [[ $(stat -c '%a' "$summary") == 600 ]]
 grep -q '^profile_target_fps=30$' "$summary"
