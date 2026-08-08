@@ -1255,8 +1255,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 68 — Stale OpenXR session-event rejection
 
 - Branch: `nightly/pico4-68-openxr-session-event`
-- Commit: identified by subject `Reject stale Pico OpenXR session events`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `27bdc7cbd8` (`Reject stale Pico OpenXR session events`)
 - Change: validate the embedded session handle on state, interaction-profile and
   user-presence events before applying any state or querying the runtime. Events
   queued for a destroyed/replaced session, or received with no current session,
@@ -1270,6 +1269,24 @@ headset, ADB, Android device, external domain, or device setting is used.
   OpenXR session while changing controller profile and headset presence; verify
   stale-event warnings cause no new-session teardown or incorrect mount/input
   state and current-session events still apply.
+
+### 69 — Atomic hand-tracking function capability
+
+- Branch: `nightly/pico4-69-openxr-hand-functions`
+- Commit: identified by subject `Validate Pico OpenXR hand functions`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: require successful loading of all `XR_EXT_hand_tracking` entry points
+  before advertising hand tracking to Pico input code. A missing Create, Destroy
+  or Locate function now disables the capability and clears every partially
+  loaded pointer instead of allowing a later null/partial dispatch.
+- Regression: input/context contracts cover checked loading of all three entry
+  points, atomic capability disablement and partial-pointer cleanup.
+- Passed: 11 OpenXR input/fail-closed contracts; `git diff --check`.
+- Risk: a runtime that advertises the system capability but omits an entry point
+  loses skeletal hand input while normal controller input remains available.
+- Pico 4 validation: **not executed**. Inject each missing entry point and verify
+  controller input remains usable without a crash; with all functions present,
+  verify both hand trackers still initialize and publish valid joints.
 
 ## Deferred, rejected, or blocked ideas
 

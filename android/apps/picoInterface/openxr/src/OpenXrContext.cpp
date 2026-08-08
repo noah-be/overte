@@ -459,23 +459,27 @@ bool OpenXrContext::initSystem() {
                 continue;
             }
 
-            xrGetInstanceProcAddr(
-                _instance,
-                "xrCreateHandTrackerEXT",
-                reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateHandTrackerEXT)
-            );
-
-            xrGetInstanceProcAddr(
-                _instance,
-                "xrDestroyHandTrackerEXT",
-                reinterpret_cast<PFN_xrVoidFunction*>(&xrDestroyHandTrackerEXT)
-            );
-
-            xrGetInstanceProcAddr(
-                _instance,
-                "xrLocateHandJointsEXT",
-                reinterpret_cast<PFN_xrVoidFunction*>(&xrLocateHandJointsEXT)
-            );
+            const bool handFunctionsLoaded =
+                loadXrFunction(
+                    _instance,
+                    "xrCreateHandTrackerEXT",
+                    reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateHandTrackerEXT)) &&
+                loadXrFunction(
+                    _instance,
+                    "xrDestroyHandTrackerEXT",
+                    reinterpret_cast<PFN_xrVoidFunction*>(&xrDestroyHandTrackerEXT)) &&
+                loadXrFunction(
+                    _instance,
+                    "xrLocateHandJointsEXT",
+                    reinterpret_cast<PFN_xrVoidFunction*>(&xrLocateHandJointsEXT));
+            if (!handFunctionsLoaded) {
+                qCWarning(xr_context_cat,
+                          "Disabling hand tracking because required OpenXR functions are unavailable");
+                _handTrackingSupported = false;
+                xrCreateHandTrackerEXT = nullptr;
+                xrDestroyHandTrackerEXT = nullptr;
+                xrLocateHandJointsEXT = nullptr;
+            }
         }
 
         if (next->type == XR_TYPE_SYSTEM_XDEV_SPACE_PROPERTIES_MNDX) {

@@ -14,6 +14,10 @@ HEADER = (
     Path(__file__).resolve().parents[2]
     / "android/apps/picoInterface/openxr/src/OpenXrInputPlugin.h"
 ).read_text(encoding="utf-8")
+CONTEXT = (
+    Path(__file__).resolve().parents[2]
+    / "android/apps/picoInterface/openxr/src/OpenXrContext.cpp"
+).read_text(encoding="utf-8")
 
 
 class OpenXrInputStateTest(unittest.TestCase):
@@ -162,6 +166,22 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertLess(flag_check, publish)
         self.assertIn("XR_SPACE_LOCATION_POSITION_VALID_BIT", hand)
         self.assertIn("XR_SPACE_LOCATION_ORIENTATION_VALID_BIT", hand)
+
+    def test_hand_tracking_capability_requires_every_function(self):
+        extension_walk = CONTEXT.index("auto next = reinterpret_cast<const XrExtensionProperties*>")
+        start = CONTEXT.index("XR_TYPE_SYSTEM_HAND_TRACKING_PROPERTIES_EXT", extension_walk)
+        end = CONTEXT.index("XR_TYPE_SYSTEM_XDEV_SPACE_PROPERTIES_MNDX", start)
+        hand = CONTEXT[start:end]
+        self.assertIn('loadXrFunction(', hand)
+        self.assertIn('"xrCreateHandTrackerEXT"', hand)
+        self.assertIn('"xrDestroyHandTrackerEXT"', hand)
+        self.assertIn('"xrLocateHandJointsEXT"', hand)
+        failure = hand.index("if (!handFunctionsLoaded)")
+        self.assertIn("_handTrackingSupported = false", hand[failure:])
+        self.assertIn("xrCreateHandTrackerEXT = nullptr", hand[failure:])
+        self.assertIn("xrDestroyHandTrackerEXT = nullptr", hand[failure:])
+        self.assertIn("xrLocateHandJointsEXT = nullptr", hand[failure:])
+        self.assertNotIn("xrGetInstanceProcAddr(", hand)
 
 
 if __name__ == "__main__":
