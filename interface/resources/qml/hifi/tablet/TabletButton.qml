@@ -23,11 +23,15 @@ Item {
     property bool isActive: false
     property bool inDebugMode: false  // tablet only
     property bool isEntered: false
+    property bool hoverEnabled: true  // tablet only; disabled for direct-touch presentation
     property double sortOrder: 100
     property int stableOrder: 0
     property var tabletRoot;  // tablet only
     property var flickable: null  // tablet only
     property var gridView: null  // tablet only
+    property real iconExtent: 50  // tablet only
+    property int captionPixelSize: 18  // tablet only
+    property int captionBottomMargin: 20  // tablet only
 
     property int buttonIndex: -1  // tablet only
 
@@ -114,8 +118,8 @@ Item {
 
     Image {
         id: icon
-        width: 50
-        height: 50
+        width: tabletButton.iconExtent
+        height: tabletButton.iconExtent
         anchors.bottom: text.top
         anchors.bottomMargin: 5
         anchors.horizontalCenter: parent.horizontalCenter
@@ -128,16 +132,16 @@ Item {
         color: captionColor
         text: tabletButton.text
         font.bold: true
-        font.pixelSize: 18
+        font.pixelSize: tabletButton.captionPixelSize
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 20
+        anchors.bottomMargin: tabletButton.captionBottomMargin
         anchors.horizontalCenter: parent.horizontalCenter
         horizontalAlignment: Text.AlignHCenter
     }
 
     MouseArea {
         anchors.fill: parent
-        hoverEnabled: true
+        hoverEnabled: tabletButton.hoverEnabled
         enabled: true
         preventStealing: false
         onClicked: {
@@ -263,5 +267,3 @@ Item {
         }
     ]
 }
-
-

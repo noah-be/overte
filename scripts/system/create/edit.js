@@ -178,7 +178,9 @@
      * @returns boolean
      */
     var shouldUseEditTabletApp = function() {
-        return HMD.active || (!HMD.active && !Settings.getValue("desktopTabletBecomesToolbar", true));
+        return HMD.active
+            || (typeof ANDROID_PHONE_INTERFACE !== "undefined" && ANDROID_PHONE_INTERFACE)
+            || (!HMD.active && !Settings.getValue("desktopTabletBecomesToolbar", true));
     };
 
 

@@ -24,9 +24,36 @@ Windows.ScrollingWindow {
 
     property var rootMenu;
     property string subMenu: ""
+    property bool screenSpaceMode: false
+    property real screenSpaceContentScale: 2.5
+    property int screenSpaceSafeInset: 25
 
     shown: false
     resizable: false
+    closable: !screenSpaceMode
+    pinnable: !screenSpaceMode
+    alwaysOnTop: screenSpaceMode
+
+    function setScreenSpaceMode(value) {
+        screenSpaceMode = value
+        frame.visible = !value
+        if (value) {
+            // Windows.Window repositions newly visible framed windows so their
+            // hidden title decoration remains on-screen. Reassert the real
+            // screen origin after that visibility pass for the frameless
+            // Android presenter.
+            Qt.callLater(alignScreenSpaceWindow)
+        }
+    }
+
+    function alignScreenSpaceWindow() {
+        if (screenSpaceMode) {
+            x = screenSpaceSafeInset
+            y = screenSpaceSafeInset
+        }
+    }
+
+    onVisibleChanged: if (visible && screenSpaceMode) Qt.callLater(alignScreenSpaceWindow)
 
     Settings {
         id: settings
@@ -36,6 +63,12 @@ Windows.ScrollingWindow {
     }
 
     onResizableChanged: {
+        // TabletProxy uses setResizable(false) when loading most tablet apps.
+        // In Android screen-space mode that must not restore the historical
+        // 480x706 desktop window over the full physical surface.
+        if (screenSpaceMode) {
+            return
+        }
         if (!resizable) {
             // restore default size
             settings.width = tabletRoot.width
@@ -129,9 +162,15 @@ Windows.ScrollingWindow {
         objectName: "loader";
         property string source: "";
         property var item: null;
+        // One host-level scale covers the status bar, launcher, close control,
+        // QML applications and web applications consistently on Android.
+        readonly property real contentScale: tabletRoot.screenSpaceMode
+            ? tabletRoot.screenSpaceContentScale : 1.0
 
-        height: pane.scrollHeight
-        width: pane.contentWidth
+        transformOrigin: Item.TopLeft
+        scale: contentScale
+        height: pane.scrollHeight / contentScale
+        width: pane.contentWidth / contentScale
 
         // this might be looking not clear from the first look
         // but loader.parent is not tabletRoot and it can be null!
@@ -150,15 +189,21 @@ Windows.ScrollingWindow {
         signal loaded;
         
         onWidthChanged: {
-            if (loader.item) {
-                loader.item.width = loader.width;
-            }
+            resizeLoadedItem();
         }
         
         onHeightChanged: {
-            if (loader.item) {
-                loader.item.height = loader.height;
+            resizeLoadedItem();
+        }
+
+        onContentScaleChanged: resizeLoadedItem()
+
+        function resizeLoadedItem() {
+            if (!loader.item) {
+                return;
             }
+            loader.item.width = loader.width;
+            loader.item.height = loader.height;
         }
         
         function load(newSource, callback) {
@@ -167,10 +212,10 @@ Windows.ScrollingWindow {
                 loader.item = null;
             }
             
+            loader.source = newSource;
             QmlSurface.load(newSource, loader, function(newItem) {
                 loader.item = newItem;
-                loader.item.width = loader.width;
-                loader.item.height = loader.height;
+                loader.resizeLoadedItem();
                 loader.loaded();
                 if (loader.item.hasOwnProperty("sendToScript")) {
                     loader.item.sendToScript.connect(tabletRoot.sendToScript);

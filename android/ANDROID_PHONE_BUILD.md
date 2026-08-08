@@ -196,6 +196,91 @@ and transfers control to `PhoneInterfaceActivity`. The latter hosts the native
 Qt client, unpacks its assets into the application cache, and keeps the display
 awake while the client is active.
 
+### Touchscreen system tablet
+
+The Android client reuses Overte's established `TabletScriptingInterface`,
+`TabletProxy`, and Tablet QML application API. It does not start the VR-only
+`WebTablet` entity, hand, laser, or HMD presentation. The mobile action bar
+presents the existing tablet window as a full-screen screen-space surface and
+resizes it with the Android viewport.
+
+While the tablet is visible, the virtual pad and mobile action/audio bars are
+hidden so world controls cannot receive touch-through input. Android Back first
+closes the phone login or address dialog, then returns a tablet application to
+the tablet Home screen, and finally closes the tablet. Desktop and VR tablet
+presentation remain unchanged.
+
+`TabletHome.qml` uses a selector-backed presentation configuration. Android
+uses a touch-oriented responsive grid with five columns in landscape, three in
+portrait-sized lifecycle transitions, and 48-pixel page targets. The shared
+Tablet button model and `Tablet.addButton()` compatibility remain intact.
+
+Application support is intentionally explicit rather than inferred from an
+app having a tablet button:
+
+| Surface | Device-free status | Remaining device validation |
+| --- | --- | --- |
+| Login | Screen-space QML, native IME fields, touch-sized entry, cancellable pending request, idempotent focus cleanup | IME resize and real account/domain authentication |
+| Settings | Local QML with selector-backed 250% host scaling | Every subpage and numeric IME entry |
+| Audio | Local QML locked to the available non-HMD context | Device enumeration, sliders, mute and scrolling |
+| Menu | Local QML navigation | Each retained action and modal result |
+| Shield | Native privacy-radius action; closes the phone tablet after activation | Visible/audio feedback and repeated activation |
+| People | Local QML application | Live presence, touch selection and domain changes |
+| Avatar | Local QML bookmarks/settings; external marketplace web pages are explicitly unavailable | Bookmark changes, wearable editing and failure feedback |
+| Places | Local `PicoPlaces.qml`; guarded QML lifecycle | Network failure, federation data and destination loading |
+| Tutorial | Bundled serverless destination; closes the tablet before navigation | Loading and return behavior |
+| Home | Configured home bookmark with bundled Tutorial fallback | Valid, invalid and unreachable bookmark behavior |
+| Create | Disabled | Requires a dedicated touch design without desktop windows, controller mappings or entity-click capture |
+
+Users, Emote, More, VR tablet positioning, and other remote-web/VR-only tablet
+scripts remain disabled until they have an equally explicit phone contract.
+
+### Tablet device-validation status
+
+A focused phone spot check on 2026-08-08 confirmed that the tablet launcher and
+the currently enabled applications open, and that the Audio and Avatar views
+render after the incremental QML resource-regeneration fix. This is an
+integration observation, not release coverage. The following checks remain
+required before the tablet application set and login workflow can be treated as
+fully validated:
+
+- Login success, invalid credentials, cancellation, Android Back, IME resize,
+  and focus release against a real account and online domain.
+- Audio device enumeration, microphone mute, push-to-talk, every slider,
+  scrolling, and repeated open/Back/reopen behavior with active audio.
+- Avatar list/header spacing at supported phone sizes, hidden phone-only HMD
+  and dominant-hand controls, Save/Cancel placement and behavior, bookmarks,
+  wearables, malformed content, and failure feedback.
+- Places directory loading, refresh, slow/offline/error responses, federation
+  selection, long-list scrolling, and navigation to multiple real online
+  destinations.
+- People presence and selection with multiple live avatars, audio levels,
+  domain changes, server-backed actions, and teardown after Back or disconnect.
+- Menu action coverage, including confirmation that the legacy General Settings
+  dialog stays unavailable while the dedicated tablet Settings app remains
+  usable.
+- Cross-app lifecycle coverage: repeated open, Android Back to tablet Home,
+  close, background/foreground, reconnect, IME teardown, and restoration of
+  world and mobile controls.
+- Broader hardware coverage on at least one Adreno and one Mali phone, including
+  unusual DPI/cutout layouts and sustained performance.
+
+Do not interpret a successful launch, one visual pass, or the static contract
+suite as completing any of these runtime checks. Record only aggregate,
+non-identifying results; keep screenshots and raw logs private and temporary.
+
+Run the device-free tablet contract checks with:
+
+```bash
+./tests/phone-tablet-static-test.sh
+```
+
+This aggregate gate runs every app contract, JavaScript syntax checks, the
+complete phone host regression suite, and `git diff --check`. Create remains
+disabled until `phone-tablet-create-contract-test.sh` can be replaced by tests
+for touch-owned entity selection, screen-space dialogs, camera/render state
+restoration, and repeated open/Back/reopen lifecycle behavior.
+
 ## Device validation checklist
 
 A successful build is only the first gate. Before calling a change usable,
@@ -205,8 +290,31 @@ exercise it on at least one Adreno and one Mali device and record:
 2. connection to a domain and visible 2D scene rendering;
 3. movement, camera look, jump/action controls, and multi-touch;
 4. audio input/output, Android keyboard, and login/navigation UI;
+   for tablet changes, also verify Tablet open/close, Audio and Settings,
+   app-to-Home-to-close Back navigation, page swipes, and no world-control
+   touch-through;
 5. background/foreground transitions, screen rotation policy, and reconnects;
 6. memory use, frame pacing, temperature, and battery drain over a long run.
+
+For a shared development phone, run the complete build/install/test capture in
+one invocation of the external phone-device-lock wrapper. Check its `status`
+first, wait when occupied, and pass a single `run -- bash -c '...'` transaction
+that contains the incremental build, 16 KiB APK gate, device selection,
+installation, launch, diagnostics, and test. Inside that transaction:
+
+- derive `ANDROID_SERIAL` silently from `adb devices -l`;
+- require exactly one authorized non-VR phone and reject Pico/Bytedance devices;
+- use `adb -s "$ANDROID_SERIAL"` for every command;
+- never uninstall or clear application data;
+- keep screenshots and raw logs under a temporary private directory;
+- retain only aggregate, non-identifying results after releasing the lock.
+
+The prepared manual sequence is: open Tablet; exercise Login cancel/failure/
+success and Back with the IME visible; open and Back/reopen Settings, Audio,
+Menu, People, Avatar, and Places; activate Shield; navigate through Tutorial
+and configured/unconfigured Home; confirm Create is absent; then verify that
+closing every surface restores world controls and focus. Do not start this
+sequence until the phone owner explicitly releases the device for testing.
 
 Cutouts, gesture navigation, unusual DPI values, and vendor-specific power
 management deserve explicit checks. Automated static validation cannot expose

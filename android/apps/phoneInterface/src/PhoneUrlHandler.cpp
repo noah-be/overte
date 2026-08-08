@@ -11,8 +11,10 @@
 #include <QObject>
 #include <QPointer>
 #include <QString>
+#include <QThread>
 
 #include "AndroidHelper.h"
+#include "ui/PhoneDialogRouter.h"
 
 namespace {
 
@@ -97,4 +99,27 @@ Java_org_overte_phone_PhoneInterfaceActivity_nativeProcessUrl(
         },
         Qt::QueuedConnection);
     return ownedByNative ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_org_overte_phone_PhoneInterfaceActivity_nativeHandleBack(
+        JNIEnv* /* env */, jclass /* activityClass */) {
+    auto* application = QCoreApplication::instance();
+    if (!application) {
+        return JNI_FALSE;
+    }
+
+    bool consumed { false };
+    const auto closePhoneUi = [&consumed]() {
+        consumed = phone::closeTopmostDialog();
+    };
+
+    bool invoked { true };
+    if (QThread::currentThread() == application->thread()) {
+        closePhoneUi();
+    } else {
+        invoked = QMetaObject::invokeMethod(
+            application, closePhoneUi, Qt::BlockingQueuedConnection);
+    }
+    return invoked && consumed ? JNI_TRUE : JNI_FALSE;
 }

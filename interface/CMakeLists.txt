@@ -12,7 +12,7 @@ endif()
 
 project(${TARGET_NAME})
 
-file(GLOB_RECURSE QML_SRC resources/qml/*.qml resources/qml/*.js)
+file(GLOB_RECURSE QML_SRC CONFIGURE_DEPENDS resources/qml/*.qml resources/qml/*.js)
 add_custom_target(qmls SOURCES ${QML_SRC})
 GroupSources("resources/qml")
 

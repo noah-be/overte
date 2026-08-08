@@ -9,6 +9,8 @@ import "../../controls" as HifiControls
 Rectangle {
     id: root
 
+    AvatarTouchConfiguration { id: touchConfiguration }
+
     color: 'white'
     visible: false;
 
@@ -98,9 +100,9 @@ Rectangle {
         anchors.top: parent.top
         anchors.topMargin: 25
         anchors.right: parent.right
-        anchors.rightMargin: 32
+        anchors.rightMargin: touchConfiguration.settingsRightMargin
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 57
+        anchors.bottomMargin: touchConfiguration.settingsBottomMargin
 
         RowLayout {
             id: avatarScaleRow
@@ -226,6 +228,7 @@ Rectangle {
                 size: 17;
                 Layout.row: 0
                 Layout.column: 0
+                visible: touchConfiguration.showDominantHand
 
                 text: "Dominant Hand"
             }
@@ -240,6 +243,7 @@ Rectangle {
                 Layout.row: 0
                 Layout.column: 1
                 Layout.leftMargin: -15
+                visible: touchConfiguration.showDominantHand
 
                 ButtonGroup.group: leftRight
                 checked: true
@@ -257,6 +261,7 @@ Rectangle {
                 Layout.row: 0
                 Layout.column: 2
                 Layout.rightMargin: -15
+                visible: touchConfiguration.showDominantHand
 
                 ButtonGroup.group: leftRight
 
@@ -364,6 +369,7 @@ Rectangle {
                 size: 17;
                 Layout.row: 3
                 Layout.column: 0
+                visible: touchConfiguration.showHmdAlignment
                 text: "HMD Alignment"
             }
 
@@ -377,6 +383,7 @@ Rectangle {
                 Layout.row: 3
                 Layout.column: 1
                 Layout.leftMargin: -15
+                visible: touchConfiguration.showHmdAlignment
 
                 ButtonGroup.group: headEyes
                 checked: true
@@ -394,6 +401,7 @@ Rectangle {
                 Layout.row: 3
                 Layout.column: 2
                 Layout.rightMargin: -15
+                visible: touchConfiguration.showHmdAlignment
 
                 ButtonGroup.group: headEyes
 

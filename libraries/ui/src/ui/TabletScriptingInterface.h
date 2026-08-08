@@ -273,6 +273,16 @@ public:
      */
     Q_INVOKABLE void gotoHomeScreen();
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Presents the established tablet window as a full-screen, screen-space
+    // surface. This keeps the Tablet scripting API intact while avoiding the
+    // VR-only WebTablet entity/overlay path.
+    Q_INVOKABLE void showAndroidTablet(int width, int height);
+    Q_INVOKABLE void resizeAndroidTablet(int width, int height);
+    Q_INVOKABLE void hideAndroidTablet();
+    Q_INVOKABLE bool handleAndroidTabletBack();
+#endif
+
     /*@jsdoc
      * Opens a web app or page in addition to any current app. In tablet mode, the app or page is displayed over the top of the
      * current app; in toolbar mode, the app is opened in a new window that replaces any current window open. If in tablet
@@ -573,6 +583,9 @@ protected:
     QPointer<QmlWindowClass> _desktopWindow;
     bool _toolbarMode { false };
     bool _tabletShown { false };
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    bool _androidScreenSpaceMode { false };
+#endif
 
     enum class State { Uninitialized, Home, Web, Menu, QML };
     State _state { State::Uninitialized };

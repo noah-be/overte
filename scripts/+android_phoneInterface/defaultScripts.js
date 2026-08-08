@@ -17,10 +17,16 @@
 // phone client does not provide.
 var ANDROID_PHONE_INTERFACE = true;
 var PHONE_DEFAULT_SCRIPTS = [
+    "system/request-service.js",
     "system/progress.js",
-    "system/settings/settings.js",
     "system/+android_interface/touchscreenvirtualpad.js",
-    "system/+android_phoneInterface/mobileActionBar.js"
+    "system/+android_phoneInterface/mobileActionBar.js",
+    "system/+android_phoneInterface/mobileTabletApps.js",
+    "system/bubble.js",
+    "system/pal.js",
+    "system/avatarapp.js",
+    "system/places/places.js",
+    "system/quickGoto.js"
 ];
 
 Script.require("/~/system/+android_interface/androidControls.js");

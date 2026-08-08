@@ -24,6 +24,8 @@
     var REQUEST_TIMEOUT = 10000; //10 seconds
 
     var httpRequest = null;
+    var requestGeneration = 0;
+    var shuttingDown = false;
     var placesData;
     var portalList = [];
 
@@ -34,9 +36,12 @@
     var APP_URL = ROOT + "places.html";
     var APP_QML_URL = ROOT + "PicoPlaces.qml";
     var useQmlApp = !PlatformInfo.has3DHTML();
+    var isAndroidPhone = typeof ANDROID_PHONE_INTERFACE !== "undefined" && ANDROID_PHONE_INTERFACE;
     var APP_ICON_INACTIVE = ROOT + "icons/appicon_i.png";
     var APP_ICON_ACTIVE = ROOT + "icons/appicon_a.png";
     var appStatus = false;
+    var qmlEventsConnected = false;
+    var webEventsConnected = false;
     var channel = "com.overte.places";
     
     var portalChannelName = "com.overte.places.portalRezzer";
@@ -50,6 +55,42 @@
     var tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
 
     tablet.screenChanged.connect(onScreenChanged);
+
+    function connectQmlEvents() {
+        if (!qmlEventsConnected) {
+            tablet.fromQml.connect(onAppQmlEventReceived);
+            qmlEventsConnected = true;
+        }
+    }
+
+    function disconnectQmlEvents() {
+        if (qmlEventsConnected) {
+            tablet.fromQml.disconnect(onAppQmlEventReceived);
+            qmlEventsConnected = false;
+        }
+    }
+
+    function connectWebEvents() {
+        if (!webEventsConnected) {
+            tablet.webEventReceived.connect(onAppWebEventReceived);
+            webEventsConnected = true;
+        }
+    }
+
+    function disconnectWebEvents() {
+        if (webEventsConnected) {
+            tablet.webEventReceived.disconnect(onAppWebEventReceived);
+            webEventsConnected = false;
+        }
+    }
+
+    function abortActiveRequest() {
+        requestGeneration++;
+        if (httpRequest !== null) {
+            httpRequest.abort();
+            httpRequest = null;
+        }
+    }
 
     var button = tablet.addButton({
         text: APP_NAME,
@@ -65,26 +106,28 @@
     function clicked(){
         if (appStatus === true) {
             if (useQmlApp) {
-                tablet.fromQml.disconnect(onAppQmlEventReceived);
+                disconnectQmlEvents();
             } else {
-                tablet.webEventReceived.disconnect(onAppWebEventReceived);
+                disconnectWebEvents();
             }
             tablet.gotoHomeScreen();
             appStatus = false;
         } else {
             if (useQmlApp) {
                 tablet.loadQMLSource(APP_QML_URL);
-                tablet.fromQml.connect(onAppQmlEventReceived);
+                connectQmlEvents();
             } else {
                 tablet.gotoWebScreen(APP_URL);
-                tablet.webEventReceived.connect(onAppWebEventReceived);
+                connectWebEvents();
             }
             appStatus = true;
         }
 
-        button.editProperties({
-            isActive: appStatus
-        });
+        if (!isAndroidPhone) {
+            button.editProperties({
+                isActive: appStatus
+            });
+        }
     }
 
     button.clicked.connect(clicked);
@@ -99,7 +142,15 @@
         var d = new Date();
         var n = d.getTime();
         
-        var messageObj = JSON.parse(message);
+        var messageObj;
+        try {
+            messageObj = typeof message === "string" ? JSON.parse(message) : message;
+        } catch (error) {
+            return;
+        }
+        if (!messageObj || typeof messageObj !== "object") {
+            return;
+        }
         if (messageObj.channel === channel) {
             if (messageObj.action === "READY_FOR_CONTENT" && (n - timestamp) > INTERCALL_DELAY) {
                 d = new Date();
@@ -255,14 +306,21 @@
             appStatus = true;
         } else {
             appStatus = false;
+            abortActiveRequest();
+            disconnectQmlEvents();
+            disconnectWebEvents();
         }
         
-        button.editProperties({
-            isActive: appStatus
-        });
+        if (!isAndroidPhone) {
+            button.editProperties({
+                isActive: appStatus
+            });
+        }
     }
 
     function transmitPortalList() {
+        abortActiveRequest();
+        var generation = ++requestGeneration;
         metaverseServers = [];
         buildMetaverseServerList();
         
@@ -270,6 +328,11 @@
         nbrPlacesNoProtocolMatch = 0;
         nbrPlaceProtocolKnown = 0;
         var extractedData;
+
+        if (isAndroidPhone) {
+            fetchPhoneMetaverse(0, generation);
+            return;
+        }
         
         for (var i = 0; i < metaverseServers.length; i++ ) {
             if (metaverseServers[i].fetch === true) {
@@ -281,7 +344,11 @@
                 }
                 try {
                     placesData = JSON.parse(extractedData);
-                    processData(metaverseServers[i]);
+                    if (placesData && placesData.data && Array.isArray(placesData.data.places)) {
+                        processData(metaverseServers[i]);
+                    } else {
+                        metaverseServers[i].error = true;
+                    }
                 } catch(e) {
                     placesData = {};
                 }
@@ -289,10 +356,13 @@
             }
         }
 
+        finishPortalList();
+    };
+
+    function finishPortalList() {
         addUtilityPortals();
-        
         portalList.sort(sortOrder);
-        
+
         var percentProtocolRejected = Math.floor((nbrPlacesNoProtocolMatch/nbrPlaceProtocolKnown) * 100);
         
         var warning = "";
@@ -310,9 +380,68 @@
 
         sendToPlacesUi(message);
         getLocationBookmarks();
-    };
+    }
+
+    function fetchPhoneMetaverse(index, generation) {
+        if (shuttingDown || !appStatus || generation !== requestGeneration) {
+            return;
+        }
+        while (index < metaverseServers.length && metaverseServers[index].fetch !== true) {
+            index++;
+        }
+        if (index >= metaverseServers.length) {
+            httpRequest = null;
+            finishPortalList();
+            return;
+        }
+
+        var metaverse = metaverseServers[index];
+        var request = new XMLHttpRequest();
+        httpRequest = request;
+        var completed = false;
+
+        function completeRequest(success) {
+            if (completed) {
+                return;
+            }
+            completed = true;
+            if (generation !== requestGeneration || shuttingDown || !appStatus) {
+                return;
+            }
+            httpRequest = null;
+            metaverse.error = !success;
+            if (success) {
+                try {
+                    placesData = JSON.parse(request.responseText || "");
+                    if (placesData && placesData.data && Array.isArray(placesData.data.places)) {
+                        processData(metaverse);
+                    } else {
+                        metaverse.error = true;
+                    }
+                } catch (error) {
+                    metaverse.error = true;
+                }
+            }
+            fetchPhoneMetaverse(index + 1, generation);
+        }
+
+        request.open("GET", metaverse.url + "/api/v1/places?status=online&per_page=1000", true);
+        request.setRequestHeader("Cache-Control", "no-cache");
+        request.timeout = REQUEST_TIMEOUT;
+        request.onreadystatechange = function () {
+            if (request.readyState === 4) {
+                completeRequest(request.status >= 200 && request.status < 300);
+            }
+        };
+        request.onerror = function () { completeRequest(false); };
+        request.ontimeout = function () { completeRequest(false); };
+        request.send(null);
+    }
 
     function sendToPlacesUi(message) {
+        if (shuttingDown || !appStatus) {
+            return;
+        }
         if (useQmlApp) {
             tablet.sendToQml(message);
         } else {
@@ -448,15 +577,21 @@
     }
 
     function getContent(url) {
-        httpRequest = new XMLHttpRequest();
-        httpRequest.open("GET", url, false); // false for synchronous request
-        httpRequest.setRequestHeader("Cache-Control", "no-cache");
-        httpRequest.timeout = REQUEST_TIMEOUT;
-        httpRequest.ontimeout=function(){ 
-            return ""; 
-        };        
-        httpRequest.send( null );
-        return httpRequest.responseText;
+        try {
+            httpRequest = new XMLHttpRequest();
+            httpRequest.open("GET", url, false); // false for synchronous request
+            httpRequest.setRequestHeader("Cache-Control", "no-cache");
+            httpRequest.timeout = REQUEST_TIMEOUT;
+            httpRequest.send(null);
+            if (httpRequest.status < 200 || httpRequest.status >= 300) {
+                return "";
+            }
+            return httpRequest.responseText || "";
+        } catch (error) {
+            return "";
+        } finally {
+            httpRequest = null;
+        }
     }
 
     function processData(metaverseInfo){
@@ -466,6 +601,10 @@
         var places = placesData.data.places;
         var i, j;
         for (i = 0;i < places.length; i++) {
+
+            if (!places[i] || !places[i].domain || !places[i].domain.protocol_version) {
+                continue;
+            }
 
             var region, category, accessStatus;
             
@@ -723,7 +862,15 @@
 
     function onMessageReceived(paramChannel, paramMessage, paramSender, paramLocalOnly) {
         if (paramChannel === portalChannelName) {
-            var instruction = JSON.parse(paramMessage);
+            var instruction;
+            try {
+                instruction = JSON.parse(paramMessage);
+            } catch (error) {
+                return;
+            }
+            if (!instruction || typeof instruction !== "object") {
+                return;
+            }
             if (instruction.action === "REZ_PORTAL") {
                 generatePortal(instruction.position, instruction.url, instruction.name, instruction.placeID);
             }
@@ -773,11 +920,14 @@
     }
 
     function cleanup() {
+        shuttingDown = true;
+        abortActiveRequest();
 
         if (appStatus) {
             tablet.gotoHomeScreen();
-            tablet.webEventReceived.disconnect(onAppWebEventReceived);
         }
+        disconnectQmlEvents();
+        disconnectWebEvents();
 
         Messages.messageReceived.disconnect(onMessageReceived);
         Messages.unsubscribe(portalChannelName);

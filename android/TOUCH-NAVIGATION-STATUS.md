@@ -26,23 +26,18 @@ content, padding, and 16 KiB packaging gates passed.
 - Recheck text entry in address, login, and settings fields after the dynamic
   IME gating change.
 
-## Integration required before merging
+## Phone/tablet integration
 
-The current Android phone and tablet feature branches contain a newer system
-tablet implementation that is not yet integrated here. In particular, they add
-the visible Tablet action-bar button and phone tablet-app registration while
-touch navigation adds the View button and related camera handling in the same
-files.
+The current `feature/android-phone-support` integration point is merged. The
+phone action bar now provides **Go To**, **Tablet**, and **View** controls; the
+former action-bar Login slot is used by View, while Login remains available
+from Tablet Home. Tablet visibility still captures touch input, hides the
+virtual pad and action bars, and restores world controls when closed.
 
-Before merging this branch into the current phone base:
+The dedicated phone tablet registrar owns the Settings button. The generic
+Settings startup script is deliberately not loaded as well, avoiding duplicate
+Settings buttons and mutable QML button-proxy updates.
 
-1. Merge or rebase onto the agreed current Android phone integration point.
-2. Resolve the phone action bar by retaining both the Tablet and View buttons.
-3. Retain the tablet visibility/touch-capture behavior from the tablet work.
-4. Retain the pinch preference, camera-boom synchronization, and static View
-   button behavior from this branch.
-5. Run host regressions, an incremental phone build, APK gates, and the open
-   manual verification above.
-
-Do not resolve this overlap by copying one complete action-bar version over the
-other; each branch currently owns distinct required behavior.
+The combined tablet and touch-navigation host regression suites pass. An
+incremental phone build, APK gates, and the open manual verification above are
+still required before merging into the phone branch.

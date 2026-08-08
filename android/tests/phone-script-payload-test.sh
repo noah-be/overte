@@ -70,12 +70,30 @@ for required in \
         system/progress.js \
         system/+android_interface/touchscreenvirtualpad.js \
         system/+android_phoneInterface/mobileActionBar.js \
+        system/+android_phoneInterface/mobileTabletApps.js \
         system/+android_interface/androidControls.js; do
     test -f "$repo_root/scripts/$required" || {
         echo "FAIL: required phone script is missing: $required" >&2
         exit 1
     }
 done
+
+for required_tablet_app in \
+        system/bubble.js \
+        system/pal.js \
+        system/avatarapp.js \
+        system/places/places.js \
+        system/quickGoto.js; do
+    grep -Fq "$required_tablet_app" "$defaults" || {
+        echo "FAIL: Pico-compatible tablet app is not enabled: $required_tablet_app" >&2
+        exit 1
+    }
+done
+
+if grep -Fq 'system/create/edit.js' "$defaults"; then
+    echo 'FAIL: unsupported Create app is enabled in the Android phone defaults' >&2
+    exit 1
+fi
 
 grep -Eq '^var ANDROID_PHONE_INTERFACE = true;' "$defaults"
 grep -Eq 'IS_ANDROID_PHONE = typeof ANDROID_PHONE_INTERFACE.*ANDROID_PHONE_INTERFACE' "$progress"

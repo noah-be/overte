@@ -379,11 +379,15 @@ reject_text "$phone_defaults" '\+android_interface/actionbar\.js|openAndroidActi
     'phone defaults avoid the unavailable legacy Home activity'
 if grep -Eq -- 'DialogsManager\.showAddressBar\(\)' \
         "$repo_root/scripts/system/+android_phoneInterface/mobileActionBar.js" && \
+        grep -Eq -- 'text:[[:space:]]*"TABLET"' \
+        "$repo_root/scripts/system/+android_phoneInterface/mobileActionBar.js" && \
+        grep -Eq -- 'text:[[:space:]]*"VIEW"' \
+        "$repo_root/scripts/system/+android_phoneInterface/mobileActionBar.js" && \
         grep -Eq -- 'DialogsManager\.showLoginDialog\(\)' \
-        "$repo_root/scripts/system/+android_phoneInterface/mobileActionBar.js"; then
-    pass 'phone action bar exposes address and login dialogs'
+        "$repo_root/interface/resources/qml/hifi/tablet/TabletHome.qml"; then
+    pass 'phone action bar exposes address, tablet, and view controls while Tablet Home exposes login'
 else
-    fail 'phone action bar exposes address and login dialogs'
+    fail 'phone navigation surfaces expose address, tablet, view, and login controls'
 fi
 
 require_text build-phone.sh \

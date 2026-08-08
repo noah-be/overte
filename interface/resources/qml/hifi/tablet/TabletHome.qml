@@ -18,9 +18,15 @@ Item {
 
     focus: true
 
+    TabletTouchConfiguration {
+        id: presentation
+        availableWidth: tablet.width
+        availableHeight: tablet.height
+    }
+
     Rectangle {
         id: bgTopBar
-        height: 90
+        height: presentation.topBarHeight
 
         anchors {
             top: parent.top
@@ -45,7 +51,7 @@ Item {
 
             anchors {
                 left: parent.left
-                leftMargin: 30
+                leftMargin: presentation.horizontalMargin
                 verticalCenter: parent.verticalCenter
             }
         }
@@ -68,7 +74,7 @@ Item {
             anchors.top: parent.top
             anchors.topMargin: 15
             anchors.right: parent.right
-            anchors.rightMargin: 20
+            anchors.rightMargin: presentation.horizontalMargin
             anchors.bottom: parent.bottom
 
             function timeChanged() {
@@ -135,8 +141,8 @@ Item {
 
             Item {
                 id: loginItem
-                width: loginTextMetrics.width
-                height: loginTextMetrics.height
+                width: Math.max(loginTextMetrics.width, touchConfiguration.minimumTouchTarget)
+                height: Math.max(loginTextMetrics.height, touchConfiguration.minimumTouchTarget)
                 anchors {
                     bottom: parent.bottom
                     bottomMargin: 10
@@ -146,6 +152,7 @@ Item {
                 Text {
                     id: loginText
                     anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
                     text: Account.loggedIn ? tabletRoot.usernameShort : qsTr("Log in")
                     horizontalAlignment: Text.AlignRight
                     Layout.alignment: Qt.AlignRight
@@ -168,6 +175,7 @@ Item {
                     }
                 }
             }
+
             Component.onCompleted: {
                 rightContainer.timeChanged();
             }
@@ -214,6 +222,8 @@ Item {
                         flickableDirection: Flickable.AutoFlickIfNeeded
                         keyNavigationEnabled: false
                         highlightFollowsCurrentItem: false
+                        // The containing SwipeView owns horizontal paging. The
+                        // grid itself must not steal touchscreen drags.
                         interactive: false
 
                         property int previousGridIndex: -1
@@ -222,12 +232,13 @@ Item {
                         property bool containsMouse: false
 
                         anchors {
-                            fill: parent
-                            topMargin: 20
-                            leftMargin: 30
-                            rightMargin: 30
-                            bottomMargin: 0
+                            verticalCenter: parent.verticalCenter
+                            horizontalCenter: parent.horizontalCenter
                         }
+                        width: Math.min(parent.width - 2 * presentation.horizontalMargin,
+                            presentation.columns * (presentation.maximumButtonExtent + presentation.buttonSpacing))
+                        height: Math.min(parent.height - 2 * presentation.verticalMargin,
+                            rowCount * (presentation.maximumButtonExtent + presentation.buttonSpacing))
 
                         onCurrentIndexChanged: {
                             previousGridIndex = currentIndex
@@ -245,8 +256,13 @@ Item {
                             }
                         }
 
-                        cellWidth: width/3
-                        cellHeight: cellWidth
+                        property int rowCount: Math.max(1, Math.ceil(count / presentation.columns))
+                        property real buttonExtent: Math.min(presentation.maximumButtonExtent,
+                            Math.max(1, Math.min(cellWidth - presentation.buttonSpacing,
+                                cellHeight - presentation.buttonSpacing)))
+
+                        cellWidth: width / presentation.columns
+                        cellHeight: height / rowCount
                         flow: GridView.LeftToRight
                         model: page.proxyModel
 
@@ -255,7 +271,7 @@ Item {
                             width: gridView.cellWidth
                             height: gridView.cellHeight
 
-                            hoverEnabled: true
+                            hoverEnabled: !presentation.touchOptimized
 
                             property bool containsMouse: gridView.containsMouse
                             onHoveredChanged: {
@@ -276,6 +292,9 @@ Item {
                                 // Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.Linear } }
 
                                 anchors.centerIn: parent
+                                width: gridView.buttonExtent
+                                height: gridView.buttonExtent
+                                hoverEnabled: !presentation.touchOptimized
                                 gridView: wrapper.GridView.view
                                 buttonIndex: page.proxyModel.buttonIndex(uuid);
                                 flickable: swipeView.contentItem;
@@ -316,7 +335,7 @@ Item {
                 previousIndex = currentIndex;
             }
 
-            hoverEnabled: true
+            hoverEnabled: !presentation.touchOptimized
             anchors {
                 left: parent.left
                 right: parent.right
@@ -331,8 +350,8 @@ Item {
             visible: swipeView.count > 1
 
             delegate: Item {
-                width: 15
-                height: 15
+                width: presentation.minimumTouchTarget
+                height: presentation.minimumTouchTarget
 
                 Rectangle {
                     property bool isHovered: false
@@ -350,9 +369,9 @@ Item {
 
                     MouseArea {
                         anchors.centerIn: parent
-                        width: 20
-                        height: 30 // Make it easier to target with laser.
-                        hoverEnabled: true
+                        width: presentation.minimumTouchTarget
+                        height: presentation.minimumTouchTarget
+                        hoverEnabled: !presentation.touchOptimized
                         enabled: true
                         onEntered: parent.isHovered = true;
                         onExited: parent.isHovered = false;
@@ -362,10 +381,43 @@ Item {
             }
 
             interactive: false
-            anchors.bottom: parent.bottom
+            height: presentation.pageIndicatorHeight
+            anchors.bottom: closeTabletButton.top
             anchors.horizontalCenter: parent.horizontalCenter
             count: swipeView.count
         }
+
+        Rectangle {
+            id: closeTabletButton
+            objectName: "androidTabletCloseButton"
+            visible: presentation.showCloseButton
+            enabled: visible
+            width: Math.min(240, parent.width * 0.30)
+            height: presentation.closeButtonHeight
+            radius: 10
+            color: closeTabletMouseArea.pressed ? "#169c86" : "#1fc6a6"
+            border.width: 2
+            border.color: "#75ead5"
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: presentation.closeButtonBottomMargin
+            anchors.horizontalCenter: parent.horizontalCenter
+
+            Text {
+                anchors.centerIn: parent
+                text: qsTr("CLOSE")
+                color: "#10252d"
+                font.family: "Rawline"
+                font.bold: true
+                font.pixelSize: 18
+            }
+
+            MouseArea {
+                id: closeTabletMouseArea
+                anchors.fill: parent
+                onClicked: tabletProxy.hideAndroidTablet()
+            }
+        }
+
     }
 
     Component.onCompleted: {

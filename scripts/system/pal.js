@@ -12,13 +12,15 @@
 /* jslint vars:true, plusplus:true, forin:true */
 /* global Tablet, Settings, Script, AvatarList, Users, Entities,
     MyAvatar, Camera, Overlays, Vec3, Quat, HMD, Controller, Account,
-    UserActivityLogger, Messages, Window, XMLHttpRequest, print, location, getControllerWorldLocation
+    UserActivityLogger, Messages, Window, XMLHttpRequest, print, location, getControllerWorldLocation,
+    ANDROID_PHONE_INTERFACE
 */
 /* eslint indent: ["error", 4, { "outerIIFEBody": 0 }] */
 //
 
 (function () { // BEGIN LOCAL_SCOPE
-var controllerStandard = Controller.Standard;
+var isAndroidPhone = typeof ANDROID_PHONE_INTERFACE !== "undefined" && ANDROID_PHONE_INTERFACE;
+var controllerStandard = isAndroidPhone ? null : Controller.Standard;
 
 var request = Script.require('request').request;
 var AppUi = Script.require('appUi');
@@ -225,6 +227,7 @@ HighlightedEntity.updateOverlays = function updateHighlightedEntities() {
 /* this contains current gain for a given node (by session id).  More efficient than
  * querying it, plus there isn't a getGain function so why write one */
 var sessionGains = {};
+var phoneAudioData = {};
 function convertDbToLinear(decibels) {
     // +20db = 10x, 0dB = 1x, -10dB = 0.1x, etc...
     // but, your perception is that something 2x as loud is +10db
@@ -237,6 +240,9 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
     switch (message.method) {
     case 'selected':
         selectedIds = message.params;
+        if (isAndroidPhone) {
+            break;
+        }
         ExtendedOverlay.some(function (overlay) {
             var id = overlay.key;
             var selected = ExtendedOverlay.isSelected(id);
@@ -504,11 +510,18 @@ function populateNearbyUserList(selectData, oldAudioData) {
         // Everyone needs to see admin status. Username and fingerprint returns default constructor output if the requesting user isn't an admin.
         Users.requestUsernameFromID(id);
         if (id !== "") {
-            addAvatarNode(id); // No overlay for ourselves
-            avatarsOfInterest[id] = true;
+            if (isAndroidPhone) {
+                phoneAudioData[id] = avatarPalDatum;
+            } else {
+                addAvatarNode(id); // No overlay for ourselves
+                avatarsOfInterest[id] = true;
+            }
         } else {
             // Return our username from the Account API
             avatarPalDatum.userName = Account.username;
+            if (isAndroidPhone) {
+                phoneAudioData[id] = avatarPalDatum;
+            }
         }
         data.push(avatarPalDatum);
         print('PAL data:', JSON.stringify(avatarPalDatum));
@@ -541,7 +554,9 @@ function updateAudioLevel(avatarData) {
     var audioLevel = 0.0;
     var avgAudioLevel = 0.0;
 
-    var data = avatarData.sessionUUID === "" ? myData : ExtendedOverlay.get(avatarData.sessionUUID);
+    var data = isAndroidPhone
+        ? phoneAudioData[avatarData.sessionUUID]
+        : avatarData.sessionUUID === "" ? myData : ExtendedOverlay.get(avatarData.sessionUUID);
 
     if (data) {
         // we will do exponential moving average by taking some the last loudness and averaging
@@ -624,6 +639,7 @@ function updateOverlays() {
 }
 function removeOverlays() {
     selectedIds = [];
+    phoneAudioData = {};
     lastHoveringId = 0;
     HighlightedEntity.clearOverlays();
     ExtendedOverlay.some(function (overlay) {
@@ -695,8 +711,8 @@ function handleTriggerPressed(hand, value) {
 
 // We get mouseMoveEvents from the handControllers, via handControllerPointer.
 // But we don't get mousePressEvents.
-var triggerMapping = Controller.newMapping(Script.resolvePath('') + '-click');
-var triggerPressMapping = Controller.newMapping(Script.resolvePath('') + '-press');
+var triggerMapping = isAndroidPhone ? null : Controller.newMapping(Script.resolvePath('') + '-click');
+var triggerPressMapping = isAndroidPhone ? null : Controller.newMapping(Script.resolvePath('') + '-press');
 function controllerComputePickRay(hand) {
     var controllerPose = getControllerWorldLocation(hand, true);
     if (controllerPose.valid) {
@@ -716,10 +732,12 @@ function makePressHandler(hand) {
         handleTriggerPressed(hand, value);
     };
 }
-triggerMapping.from(controllerStandard.RTClick).peek().to(makeClickHandler(controllerStandard.RightHand));
-triggerMapping.from(controllerStandard.LTClick).peek().to(makeClickHandler(controllerStandard.LeftHand));
-triggerPressMapping.from(controllerStandard.RT).peek().to(makePressHandler(controllerStandard.RightHand));
-triggerPressMapping.from(controllerStandard.LT).peek().to(makePressHandler(controllerStandard.LeftHand));
+if (!isAndroidPhone) {
+    triggerMapping.from(controllerStandard.RTClick).peek().to(makeClickHandler(controllerStandard.RightHand));
+    triggerMapping.from(controllerStandard.LTClick).peek().to(makeClickHandler(controllerStandard.LeftHand));
+    triggerPressMapping.from(controllerStandard.RT).peek().to(makePressHandler(controllerStandard.RightHand));
+    triggerPressMapping.from(controllerStandard.LT).peek().to(makePressHandler(controllerStandard.LeftHand));
+}
 
 var ui;
 // Most apps can have people toggle the tablet closed and open again, and the app should remain "open" even while
@@ -735,12 +753,21 @@ var UPDATE_INTERVAL_MS = 100;
 var updateInterval;
 function createUpdateInterval() {
     return Script.setInterval(function () {
-        updateOverlays();
+        if (isAndroidPhone) {
+            AvatarList.getPalData().data.forEach(updateAudioLevel);
+        } else {
+            updateOverlays();
+        }
     }, UPDATE_INTERVAL_MS);
 }
 
 var previousRequestsDomainListData = Users.requestsDomainListData;
+var palRuntimeActive = false;
 function palOpened() {
+    if (palRuntimeActive) {
+        return;
+    }
+    palRuntimeActive = true;
     ui.sendMessage({
         method: 'changeConnectionsDotStatus',
         shouldShowDot: shouldShowDot
@@ -751,11 +778,13 @@ function palOpened() {
 
     ui.tablet.tabletShownChanged.connect(tabletVisibilityChanged);
     updateInterval = createUpdateInterval();
-    Controller.mousePressEvent.connect(handleMouseEvent);
-    Controller.mouseMoveEvent.connect(handleMouseMoveEvent);
+    if (!isAndroidPhone) {
+        Controller.mousePressEvent.connect(handleMouseEvent);
+        Controller.mouseMoveEvent.connect(handleMouseMoveEvent);
+        triggerMapping.enable();
+        triggerPressMapping.enable();
+    }
     Users.usernameFromIDReply.connect(usernameFromIDReply);
-    triggerMapping.enable();
-    triggerPressMapping.enable();
     populateNearbyUserList();
 }
 
@@ -916,16 +945,20 @@ function startup() {
 startup();
 
 function off() {
-    if (ui.isOpen) { // i.e., only when connected
-        if (updateInterval) {
+    if (palRuntimeActive) {
+        palRuntimeActive = false;
+        if (updateInterval !== undefined) {
             Script.clearInterval(updateInterval);
+            updateInterval = undefined;
         }
-        Controller.mousePressEvent.disconnect(handleMouseEvent);
-        Controller.mouseMoveEvent.disconnect(handleMouseMoveEvent);
+        if (!isAndroidPhone) {
+            Controller.mousePressEvent.disconnect(handleMouseEvent);
+            Controller.mouseMoveEvent.disconnect(handleMouseMoveEvent);
+            triggerMapping.disable();
+            triggerPressMapping.disable();
+        }
         ui.tablet.tabletShownChanged.disconnect(tabletVisibilityChanged);
         Users.usernameFromIDReply.disconnect(usernameFromIDReply);
-        triggerMapping.disable();
-        triggerPressMapping.disable();
     }
 
     removeOverlays();
@@ -935,7 +968,7 @@ function off() {
 function shutdown() {
     Window.domainChanged.disconnect(clearLocalQMLDataAndClosePAL);
     Window.domainConnectionRefused.disconnect(clearLocalQMLDataAndClosePAL);
-    Messages.subscribe(CHANNEL);
+    Messages.unsubscribe(CHANNEL);
     Messages.messageReceived.disconnect(receiveMessage);
     Users.avatarDisconnected.disconnect(avatarDisconnected);
     AvatarList.avatarAddedEvent.disconnect(avatarAdded);

@@ -8,6 +8,7 @@ device_header="$repo_root/libraries/input-plugins/src/input-plugins/TouchscreenV
 phone_mapping="$repo_root/interface/resources/controllers/touchscreenvirtualpad-phone.json"
 phone_action_bar="$repo_root/scripts/system/+android_phoneInterface/mobileActionBar.js"
 phone_defaults="$repo_root/scripts/+android_phoneInterface/defaultScripts.js"
+phone_tablet_apps="$repo_root/scripts/system/+android_phoneInterface/mobileTabletApps.js"
 phone_preferences="$repo_root/interface/resources/qml/hifi/tablet/+android_phoneInterface/TabletGeneralPreferences.qml"
 preferences_cpp="$repo_root/interface/src/ui/PreferencesDialog.cpp"
 application_events="$repo_root/interface/src/Application_Events.cpp"
@@ -68,8 +69,12 @@ require "$preferences_cpp" 'Enable two-finger perspective zoom' \
     'phone pinch zoom preference is missing'
 require "$phone_preferences" 'showCategories: \["Navigation"' \
     'phone tablet settings do not expose Navigation'
-require "$phone_defaults" 'system/settings/settings[.]js' \
-    'phone defaults do not load the tablet settings app'
+require "$phone_defaults" 'system/\+android_phoneInterface/mobileTabletApps[.]js' \
+    'phone defaults do not load the phone tablet app registrar'
+require "$phone_tablet_apps" 'SETTINGS_SOURCE.*settings/Settings[.]qml' \
+    'phone tablet app registrar does not expose Settings'
+reject "$phone_defaults" 'system/settings/settings[.]js' \
+    'phone defaults register the Settings app twice'
 require "$phone_action_bar" 'function toggleCameraMode\(\)' \
     'phone camera mode button handler is missing'
 require "$phone_action_bar" 'MyAvatar[.]cameraBoomLength = 0[.]5;' \
@@ -78,6 +83,12 @@ require "$phone_action_bar" 'Camera[.]mode = "first person look at";' \
     'phone camera button cannot enter first-person view'
 require "$phone_action_bar" 'Camera[.]mode = "look at";' \
     'phone camera button cannot enter third-person view'
+require "$phone_action_bar" 'text: "TABLET"' \
+    'phone action bar lost the tablet launcher during integration'
+require "$phone_action_bar" 'text: "VIEW"' \
+    'phone action bar does not expose the view toggle'
+reject "$phone_action_bar" 'loginButton|text: "LOGIN"' \
+    'phone action bar still contains the replaced login button'
 reject "$phone_action_bar" 'Camera[.]modeUpdated.*cameraButton|updateCameraButton' \
     'phone camera mode changes synchronously mutate the triggering QML button'
 require "$gl_widget" '#if !defined\(ANDROID_APP_PHONE_INTERFACE\)' \
