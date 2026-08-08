@@ -1445,8 +1445,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 79 — Null interaction-profile handling
 
 - Branch: `nightly/pico4-79-openxr-profile-null`
-- Commit: identified by subject `Handle Pico controller profile loss`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `133ed05970` (`Handle Pico controller profile loss`)
 - Change: handle OpenXR's normal `XR_NULL_PATH` interaction-profile result as a
   disconnected/unbound controller after clearing the Vive pose compatibility
   flag, rather than passing the null path into `xrPathToString` and reporting a
@@ -1459,6 +1458,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Disconnect/reconnect and suspend/resume
   each controller; verify neutral input, no profile-path error flood, correct
   profile restoration and no stale Vive pose compatibility state.
+
+### 80 — Explicit hand-tracker cleanup
+
+- Branch: `nightly/pico4-80-openxr-hand-cleanup`
+- Commit: identified by subject `Release Pico OpenXR hand trackers`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: give the Pico OpenXR input device an explicit destructor that releases
+  every published hand tracker while its owning session and validated Destroy
+  entry point remain available, then clears each handle regardless of runtime
+  cleanup result. Null/implicitly session-destroyed handles remain safe no-ops.
+- Regression: input contracts cover destructor declaration, synchronization,
+  handle/session/function guards, destruction and unconditional invalidation.
+- Passed: 15 OpenXR input/lifecycle contracts; `git diff --check`.
+- Risk: failed runtime destruction is logged while local handles are retired to
+  prevent double cleanup; session/instance teardown remains the final fallback.
+- Pico 4 validation: **not executed**. Enable both hands, deactivate/quit during
+  active tracking and after runtime loss; verify exactly one Destroy per live
+  tracker, no validation warnings, no leak and clean next-process tracking.
 
 ## Deferred, rejected, or blocked ideas
 

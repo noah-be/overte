@@ -326,6 +326,18 @@ OpenXrInputPlugin::InputDevice::InputDevice(std::shared_ptr<OpenXrContext> c) : 
     qCInfo(xr_input_cat) << "Hand tracking supported:" << _context->_handTrackingSupported;
 }
 
+OpenXrInputPlugin::InputDevice::~InputDevice() {
+    std::unique_lock<std::recursive_mutex> locker(_lock);
+    for (auto& tracker : _handTracker) {
+        if (tracker != XR_NULL_HANDLE && _context->_session != XR_NULL_HANDLE &&
+                _context->xrDestroyHandTrackerEXT) {
+            xrCheck(_context->_instance, _context->xrDestroyHandTrackerEXT(tracker),
+                    "Failed to destroy hand tracker");
+        }
+        tracker = XR_NULL_HANDLE;
+    }
+}
+
 void OpenXrInputPlugin::InputDevice::focusOutEvent() {
     _axisStateMap.clear();
     _buttonPressedMap.clear();

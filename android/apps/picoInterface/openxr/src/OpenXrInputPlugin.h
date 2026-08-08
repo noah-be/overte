@@ -86,6 +86,7 @@ private:
     class InputDevice : public controller::InputDevice {
     public:
         InputDevice(std::shared_ptr<OpenXrContext> c);
+        ~InputDevice() override;
 
     private:
         controller::Input::NamedVector getAvailableInputs() const override;

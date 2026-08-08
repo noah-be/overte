@@ -243,6 +243,22 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertLess(null_check, null_continue)
         self.assertLess(null_continue, convert)
 
+    def test_published_hand_trackers_are_destroyed_idempotently(self):
+        start = SOURCE.index("OpenXrInputPlugin::InputDevice::~InputDevice()")
+        end = SOURCE.index("void OpenXrInputPlugin::InputDevice::focusOutEvent", start)
+        cleanup = SOURCE[start:end]
+        self.assertIn("std::unique_lock<std::recursive_mutex> locker(_lock)", cleanup)
+        self.assertIn("for (auto& tracker : _handTracker)", cleanup)
+        null_check = cleanup.index("tracker != XR_NULL_HANDLE")
+        session_check = cleanup.index("_context->_session != XR_NULL_HANDLE", null_check)
+        function_check = cleanup.index("_context->xrDestroyHandTrackerEXT", session_check)
+        destroy = cleanup.index("xrDestroyHandTrackerEXT(tracker)", function_check)
+        clear = cleanup.index("tracker = XR_NULL_HANDLE", destroy)
+        self.assertLess(null_check, session_check)
+        self.assertLess(session_check, destroy)
+        self.assertLess(destroy, clear)
+        self.assertIn("~InputDevice() override", HEADER)
+
 
 if __name__ == "__main__":
     unittest.main()
