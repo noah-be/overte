@@ -24,6 +24,7 @@ run "OpenXR input fail-closed state" python3 "$SCRIPT_DIR/pico-openxr-input-test
 run "Android entry-point security" python3 "$SCRIPT_DIR/pico-android-entrypoints-test.py"
 run "Interaction transition diagnostics" node "$SCRIPT_DIR/pico-interaction-diagnostics-test.js"
 run "Tablet lifecycle and messages" node "$SCRIPT_DIR/pico-tablet-lifecycle-test.js"
+run "Native Create properties" python3 "$SCRIPT_DIR/pico-create-qml-test.py"
 run "Microphone runner mocks" "$SCRIPT_DIR/pico-microphone-test-test.sh"
 run "Unattended runner mocks" "$SCRIPT_DIR/pico-unattended-test-test.sh"
 run "Device-lock mocks" "$SCRIPT_DIR/pico-device-lock-test.sh"

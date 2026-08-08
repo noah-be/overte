@@ -408,8 +408,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 23 — Tablet lifecycle and local messages
 
 - Branch: `nightly/pico4-23-tablet-lifecycle-messages`
-- Commit: identified by subject `Harden Pico tablet script lifecycle`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `a71e38a590` (`Harden Pico tablet script lifecycle`)
 - Change: accept tablet control channels only from self-authored local messages;
   guard and validate hand parsing; on script end clear the update interval,
   disconnect both message handlers, unsubscribe all four owned channels, and
@@ -424,6 +423,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Reload default scripts repeatedly while
   opening/closing/moving the tablet; verify one handler/mapping per action, then
   inject malformed and nonlocal channel messages and confirm they are ignored.
+
+### 24 — Finite native Create properties
+
+- Branch: `nightly/pico4-24-create-finite-properties`
+- Commit: identified by subject `Validate Pico Create numeric values`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: normalize displayed and submitted Pico property numbers to finite
+  values, require a positive finite focus step, and accept controller numeric
+  adjustments only as the discrete directions -1 or 1.
+- Regression: QML source contracts cover the shared finite-number helper,
+  field/display conversion, direction validation, and step lower bound.
+- Passed: native Create regression (3); Python syntax; full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: malformed/nonfinite text now resolves to zero (dimensions retain their
+  existing 0.001 minimum); ordinary finite editing behavior is unchanged.
+- Pico 4 validation: **not executed**. Enter/paste invalid, infinite, signed,
+  decimal, and extreme finite values into every native property field; confirm
+  no invalid transform reaches the entity and normal stick adjustment remains.
 
 ## Deferred, rejected, or blocked ideas
 
