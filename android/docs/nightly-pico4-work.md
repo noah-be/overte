@@ -1071,8 +1071,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 58 — WebView best-effort destruction
 
 - Branch: `nightly/pico4-58-webview-destroy-cleanup`
-- Commit: identified by subject `Complete Pico WebView destruction`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `299b66d696` (`Complete Pico WebView destruction`)
 - Change: isolate cancellation, frame-buffer disposal, load stop, blanking and
   final WebView destruction into individually guarded cleanup steps. A provider
   exception in one operation no longer skips later release work or aborts
@@ -1086,6 +1085,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Destroy several simultaneous Web entities
   while injecting failures at each cleanup stage; verify all instances disappear,
   later entities recreate, and no render/touch callback survives teardown.
+
+### 59 — WebView transactional layout resize
+
+- Branch: `nightly/pico4-59-webview-resize-layout`
+- Commit: identified by subject `Make Pico WebView resize transactional`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: perform density-scaled WebView measure/layout inside the guarded
+  allocation phase before publishing new Bitmap/Canvas/buffer resources or
+  recycling the working bitmap. Layout failure preserves the previous complete
+  frame configuration and returns false to the existing caller diagnostics.
+- Regression: WebView contracts require allocate/measure/layout ordering before
+  resource assignment and retain allocation/layout exception cleanup coverage.
+- Passed: 17 WebView bridge contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: main-thread resize remains atomic from the renderer's perspective;
+  successful dimensions and density scaling are unchanged.
+- Pico 4 validation: **not executed**. Resize active pages repeatedly while
+  injecting measure/layout exceptions and allocation pressure; verify the last
+  valid frame persists and a later valid resize recovers without corruption.
 
 ## Deferred, rejected, or blocked ideas
 

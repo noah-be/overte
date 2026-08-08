@@ -362,6 +362,14 @@ public final class OffscreenWebView {
                 newCanvas = new Canvas(newBitmap);
                 newCanvas.scale(1.0f / displayDensity, 1.0f / displayDensity);
                 newPixels = ByteBuffer.allocateDirect(width * height * 4);
+                int layoutWidth = Math.max(1, Math.round(width * displayDensity));
+                int layoutHeight = Math.max(1, Math.round(height * displayDensity));
+                int widthSpec = View.MeasureSpec.makeMeasureSpec(
+                    layoutWidth, View.MeasureSpec.EXACTLY);
+                int heightSpec = View.MeasureSpec.makeMeasureSpec(
+                    layoutHeight, View.MeasureSpec.EXACTLY);
+                view.measure(widthSpec, heightSpec);
+                view.layout(0, 0, layoutWidth, layoutHeight);
             } catch (RuntimeException | OutOfMemoryError exception) {
                 if (newBitmap != null && !newBitmap.isRecycled()) {
                     newBitmap.recycle();
@@ -377,12 +385,6 @@ public final class OffscreenWebView {
             if (oldBitmap != null && !oldBitmap.isRecycled()) {
                 oldBitmap.recycle();
             }
-            int layoutWidth = Math.max(1, Math.round(width * displayDensity));
-            int layoutHeight = Math.max(1, Math.round(height * displayDensity));
-            int widthSpec = View.MeasureSpec.makeMeasureSpec(layoutWidth, View.MeasureSpec.EXACTLY);
-            int heightSpec = View.MeasureSpec.makeMeasureSpec(layoutHeight, View.MeasureSpec.EXACTLY);
-            view.measure(widthSpec, heightSpec);
-            view.layout(0, 0, layoutWidth, layoutHeight);
             return true;
         }
 
