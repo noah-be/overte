@@ -391,8 +391,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 22 — Audio buffer configuration validation
 
 - Branch: `nightly/pico4-22-audio-buffer-validation`
-- Commit: identified by subject `Validate Pico audio buffer sizes`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `f53c813e10` (`Validate Pico audio buffer sizes`)
 - Change: calculate PCM16 callback and AudioRecord buffer sizes with `long`
   intermediates; reject nonpositive rates/frame counts, channel counts other
   than mono/stereo, and values that exceed Java `int` before calling AudioRecord.
@@ -405,6 +404,26 @@ headset, ADB, Android device, external domain, or device setting is used.
   fail startup with a diagnostic rather than wrap into an invalid allocation.
 - Pico 4 validation: **not executed**. Confirm the normal 48 kHz mono source
   reports the unchanged 1920-byte callback and sustained capture behavior.
+
+### 23 — Tablet lifecycle and local messages
+
+- Branch: `nightly/pico4-23-tablet-lifecycle-messages`
+- Commit: identified by subject `Harden Pico tablet script lifecycle`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: accept tablet control channels only from self-authored local messages;
+  guard and validate hand parsing; on script end clear the update interval,
+  disconnect both message handlers, unsubscribe all four owned channels, and
+  disable both controller mappings.
+- Regression: Node source contracts cover sender/locality checks, guarded hand
+  parsing, allowed hands, interval cleanup, handler disconnect, channel
+  unsubscribe, and mapping shutdown.
+- Passed: tablet lifecycle regression; tablet script and test syntax; full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: all known producers use `sendLocalMessage`; rejecting network copies
+  closes an unintended control surface without changing normal tablet input.
+- Pico 4 validation: **not executed**. Reload default scripts repeatedly while
+  opening/closing/moving the tablet; verify one handler/mapping per action, then
+  inject malformed and nonlocal channel messages and confirm they are ignored.
 
 ## Deferred, rejected, or blocked ideas
 

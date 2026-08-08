@@ -314,8 +314,21 @@
     }
 
     function handleMessage(channel, hand, senderUUID, localOnly) {
+        if (!localOnly || senderUUID !== MyAvatar.sessionUUID) {
+            return;
+        }
         if (channel === "toggleHand") {
-            activeHand = JSON.parse(hand);
+            var requestedHand;
+            try {
+                requestedHand = JSON.parse(hand);
+            } catch (error) {
+                return;
+            }
+            if (requestedHand !== controllerStandard.LeftHand &&
+                    requestedHand !== controllerStandard.RightHand) {
+                return;
+            }
+            activeHand = requestedHand;
         }
         if (channel === "home") {
             if (UIWebTablet) {
@@ -395,11 +408,17 @@
         picoBackMapping.enable();
     }
 
-    Script.setInterval(updateShowTablet, 100);
+    var updateShowTabletTimer = Script.setInterval(updateShowTablet, 100);
 
     Script.scriptEnding.connect(function () {
+        Script.clearInterval(updateShowTabletTimer);
         Messages.messageReceived.disconnect(onPicoTabletPositionMessage);
+        Messages.messageReceived.disconnect(handleMessage);
         Messages.unsubscribe(PICO_TABLET_POSITION_CHANNEL);
+        Messages.unsubscribe("toggleHand");
+        Messages.unsubscribe("home");
+        Messages.unsubscribe("Pico-Tablet-Move-Aside-For-Create");
+        clickMapping.disable();
         if (picoBackMapping) {
             picoBackMapping.disable();
         }
