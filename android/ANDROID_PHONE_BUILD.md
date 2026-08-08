@@ -196,6 +196,42 @@ and transfers control to `PhoneInterfaceActivity`. The latter hosts the native
 Qt client, unpacks its assets into the application cache, and keeps the display
 awake while the client is active.
 
+### Touchscreen system tablet
+
+The Android client reuses Overte's established `TabletScriptingInterface`,
+`TabletProxy`, and Tablet QML application API. It does not start the VR-only
+`WebTablet` entity, hand, laser, or HMD presentation. The mobile action bar
+presents the existing tablet window as a full-screen screen-space surface and
+resizes it with the Android viewport.
+
+While the tablet is visible, the virtual pad and mobile action/audio bars are
+hidden so world controls cannot receive touch-through input. Android Back first
+closes the phone login or address dialog, then returns a tablet application to
+the tablet Home screen, and finally closes the tablet. Desktop and VR tablet
+presentation remain unchanged.
+
+`TabletHome.qml` uses a selector-backed presentation configuration. Android
+uses a touch-oriented responsive grid with six columns in landscape, three in
+portrait-sized lifecycle transitions, and 48-pixel page targets. The shared
+Tablet button model and `Tablet.addButton()` compatibility remain intact.
+
+The initial mobile-compatible application set is deliberately limited to
+Audio and Settings. GO TO and Login remain available through their existing
+screen-space dialogs. Places requires network and lifecycle validation before
+enablement. Create, Users, Avatar, Emote, More, and the VR tablet scripts are
+not part of the first touchscreen tablet because they depend on desktop
+windows, tracked controllers, external web content, or VR entities.
+
+Run the device-free tablet contract checks with:
+
+```bash
+./tests/phone-tablet-core-contract-test.sh
+./tests/phone-tablet-presenter-test.sh
+./tests/phone-tablet-routing-test.sh
+./tests/phone-tablet-touch-qml-test.sh
+./tests/phone-tablet-privacy-test.sh
+```
+
 ## Device validation checklist
 
 A successful build is only the first gate. Before calling a change usable,
@@ -205,6 +241,9 @@ exercise it on at least one Adreno and one Mali device and record:
 2. connection to a domain and visible 2D scene rendering;
 3. movement, camera look, jump/action controls, and multi-touch;
 4. audio input/output, Android keyboard, and login/navigation UI;
+   for tablet changes, also verify Tablet open/close, Audio and Settings,
+   app-to-Home-to-close Back navigation, page swipes, and no world-control
+   touch-through;
 5. background/foreground transitions, screen rotation policy, and reconnects;
 6. memory use, frame pacing, temperature, and battery drain over a long run.
 
