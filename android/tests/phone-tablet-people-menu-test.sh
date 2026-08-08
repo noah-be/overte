@@ -6,6 +6,7 @@ pal="$repo_root/scripts/system/pal.js"
 menu_stack="$repo_root/interface/resources/qml/hifi/tablet/TabletMenuStack.qml"
 menu_view="$repo_root/interface/resources/qml/hifi/tablet/TabletMenuView.qml"
 menu_item="$repo_root/interface/resources/qml/hifi/tablet/TabletMenuItem.qml"
+lifecycle_mock="$repo_root/android/tests/phone-tablet-people-lifecycle-mock.js"
 
 require() {
     local file=$1
@@ -43,13 +44,17 @@ fi
 printf 'PASS: Menu filtering does not use the shared Android platform identity\n'
 require "$menu_stack" 'Unavailable on Android' \
     'Menu labels unsupported actions honestly'
-require "$menu_stack" 'unsupportedMenus = \["Edit", "Display", "Developer"\]' \
-    'Menu blocks desktop-only top-level menus'
+require "$menu_stack" 'supportedRootMenus = \["File", "View", "Navigate", "Settings"\]' \
+    'Menu uses an explicit reviewed root-menu allowlist'
+require "$menu_stack" 'topMenu === null.*item[.]type === MenuItemType[.]Menu' \
+    'Menu applies its fail-closed policy at the root'
 require "$menu_stack" '!selectedItem[.]platformEnabled' \
     'Menu refuses to trigger unsupported Android actions'
 require "$menu_view" 'item[.]enabled && phoneSupported' \
     'Menu touch targets honor Android availability'
 require "$menu_item" 'property bool platformEnabled: true' \
     'Menu items expose platform availability visually'
+
+node "$lifecycle_mock"
 
 printf 'Android phone People/Menu checks passed.\n'

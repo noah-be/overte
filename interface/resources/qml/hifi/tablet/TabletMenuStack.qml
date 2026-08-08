@@ -111,9 +111,12 @@ Item {
             }
 
             var label = item.type === MenuItemType.Menu ? item.title : item.text;
-            var unsupportedMenus = ["Edit", "Display", "Developer"];
+            // Fail closed at the root. New desktop menus must be reviewed before
+            // the phone tablet can trigger any of their actions.
+            var supportedRootMenus = ["File", "View", "Navigate", "Settings"];
             var unsupportedActions = ["Quit", "Running Scripts", "Asset Browser", "Controls..."];
-            if (item.type === MenuItemType.Menu && unsupportedMenus.indexOf(label) !== -1) {
+            if (topMenu === null && item.type === MenuItemType.Menu
+                    && supportedRootMenus.indexOf(label) === -1) {
                 return false;
             }
             if (item.type === MenuItemType.Item && unsupportedActions.indexOf(label) !== -1) {
