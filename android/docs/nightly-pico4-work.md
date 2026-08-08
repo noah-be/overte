@@ -1411,8 +1411,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 77 — Fail-closed OpenXR frame termination
 
 - Branch: `nightly/pico4-77-openxr-endframe-failclosed`
-- Commit: identified by subject `Fail closed after Pico xrEndFrame errors`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `8b85424339` (`Fail closed after Pico xrEndFrame errors`)
 - Change: when `xrEndFrame` fails after a successful begin, immediately disable
   the frame cycle and invalidate the OpenXR context. The next render tick can no
   longer enter another Wait/Begin sequence while runtime call-order state is
@@ -1425,6 +1424,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Inject `xrEndFrame` failures for rendered,
   zero-layer and cleanup frames; verify no subsequent frame calls, prompt clean
   deactivation and normal presentation after a fresh application/session start.
+
+### 78 — Fail-closed OpenXR frame start
+
+- Branch: `nightly/pico4-78-openxr-frame-start-failclosed`
+- Commit: identified by subject `Fail closed after Pico frame start errors`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: disable the render cycle and invalidate the context when either
+  `xrWaitFrame` or `xrBeginFrame` fails. Frame-start errors can no longer produce
+  an unbounded per-tick retry loop against a runtime with unknown call-order or
+  session state; successful/positive OpenXR results retain existing behavior.
+- Regression: display/context contracts require fail-closed state publication
+  before returning from both Wait and Begin failure paths.
+- Passed: 21 OpenXR display/frame contracts; `git diff --check`.
+- Risk: transient runtime errors require a fresh activation/session instead of
+  blind immediate retry, consistent with the existing poll/End fail-closed paths.
+- Pico 4 validation: **not executed**. Inject Wait and Begin failures during
+  focused, paused and resume transitions; verify no repeated frame calls/log
+  storm and confirm clean rendering after a fresh application/session start.
 
 ## Deferred, rejected, or blocked ideas
 

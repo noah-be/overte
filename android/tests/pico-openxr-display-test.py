@@ -292,6 +292,31 @@ class PicoOpenXRDisplayTests(unittest.TestCase):
         self.assertLess(disable, invalidate)
         self.assertLess(invalidate, failed_return)
 
+    def test_frame_wait_and_begin_failures_invalidate_render_cycle(self):
+        present_start = SOURCE.index("void OpenXrDisplayPlugin::hmdPresent()")
+        present_end = SOURCE.index("bool OpenXrDisplayPlugin::endFrame", present_start)
+        present = SOURCE[present_start:present_end]
+        wait = present.index("xrWaitFrame")
+        wait_failure = present.index('"xrWaitFrame failed"', wait)
+        wait_disable = present.index("_context->_shouldRunFrameCycle = false", wait_failure)
+        wait_invalidate = present.index("_context->_isValid = false", wait_disable)
+        wait_return = present.index("return;", wait_invalidate)
+        self.assertLess(wait_failure, wait_disable)
+        self.assertLess(wait_disable, wait_invalidate)
+        self.assertLess(wait_invalidate, wait_return)
+
+        begin_start = CONTEXT.index("bool OpenXrContext::beginFrame()")
+        begin_end = CONTEXT.index("bool OpenXrContext::initPreGraphics()", begin_start)
+        begin = CONTEXT[begin_start:begin_end]
+        call = begin.index("xrBeginFrame")
+        failure = begin.index('"failed to begin frame!"', call)
+        disable = begin.index("_shouldRunFrameCycle = false", failure)
+        invalidate = begin.index("_isValid = false", disable)
+        failed_return = begin.index("return false;", invalidate)
+        self.assertLess(failure, disable)
+        self.assertLess(disable, invalidate)
+        self.assertLess(invalidate, failed_return)
+
 
 if __name__ == "__main__":
     unittest.main()

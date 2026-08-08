@@ -1080,7 +1080,12 @@ bool OpenXrContext::pollEvents() {
 bool OpenXrContext::beginFrame() {
     XrFrameBeginInfo info = { .type = XR_TYPE_FRAME_BEGIN_INFO };
     XrResult result = xrBeginFrame(_session, &info);
-    return xrCheck(_instance, result, "failed to begin frame!");
+    if (!xrCheck(_instance, result, "failed to begin frame!")) {
+        _shouldRunFrameCycle = false;
+        _isValid = false;
+        return false;
+    }
+    return true;
 }
 
 bool OpenXrContext::initPreGraphics() {

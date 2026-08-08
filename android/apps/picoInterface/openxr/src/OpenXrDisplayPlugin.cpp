@@ -597,8 +597,11 @@ void OpenXrDisplayPlugin::hmdPresent() {
     _lastFrameState = { .type = XR_TYPE_FRAME_STATE };
     XrResult result = xrWaitFrame(_context->_session, nullptr, &_lastFrameState);
 
-    if (!xrCheck(_context->_instance, result, "xrWaitFrame failed"))
+    if (!xrCheck(_context->_instance, result, "xrWaitFrame failed")) {
+        _context->_shouldRunFrameCycle = false;
+        _context->_isValid = false;
         return;
+    }
 
     _context->_lastPredictedDisplayTime = _lastFrameState.predictedDisplayTime;
     _context->_lastPredictedDisplayPeriod = _lastFrameState.predictedDisplayPeriod;
