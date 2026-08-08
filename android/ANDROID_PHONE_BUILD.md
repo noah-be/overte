@@ -390,7 +390,8 @@ Package exit diagnostics
 are likewise reduced immediately to a count. Neither raw source is written to
 the report.
 The script never uses ADB's implicit default device: without
-`ANDROID_SERIAL`, it proceeds only if exactly one authorized non-Pico phone is
+`ANDROID_SERIAL`, it proceeds only if exactly one authorized physical ARM64
+touchscreen phone is
 identifiable. It exits with status 2 when crash or page-size-mismatch log lines
 are detected. The test changes device state by installing and launching the
 APK, so it is intentionally not part of the host regression test.

@@ -4,6 +4,29 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 71 — Restrict smoke tests to supported physical phones
+
+- Branch: `nightly/android-phone-71-device-target-contract`
+- Commit: `Validate phone smoke device capabilities` (this task's commit)
+- Change: Device selection now rejects qemu/emulators, VR, watches, TVs,
+  automotive targets, missing touchscreens, and ABI lists without ARM64. Both
+  implicit single-device selection and explicit `ANDROID_SERIAL` enforce the
+  same APK-supported physical Phone contract before installation.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, including a
+    qemu target rejected before any install command.
+  - Anonymous locked device capability probe: **passed**,
+    `supported_physical_phone_contract=1`; no property or identifier was logged.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 239/239 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 239/239 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Unusual physical Android devices that omit standard feature or
+  ABI properties fail closed and require local investigation.
+- Real-device validation still required: Separately verify an emulator/TV
+  target is refused without installation; the prepared phone's positive
+  capability preflight is complete.
+
 ## 70 — Avoid benign 16-KiB log false positives
 
 - Branch: `nightly/android-phone-70-page-size-markers`

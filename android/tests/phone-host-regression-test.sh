@@ -497,6 +497,12 @@ require_text phone-device-lock.sh 'PHONE_DEVICE_LOCK_HELD=1' \
     'phone device lock marks protected child operations'
 require_text tests/phone-device-test.sh 'phone-device-lock[.]sh.*run' \
     'device smoke test automatically acquires the shared phone lock'
+require_text tests/phone-device-test.sh 'ro[.]kernel[.]qemu' \
+    'device smoke rejects emulator targets'
+require_text tests/phone-device-test.sh 'ro[.]product[.]cpu[.]abilist' \
+    'device smoke requires the APK-supported ARM64 ABI'
+require_text tests/phone-device-test.sh 'android[.]hardware[.]touchscreen' \
+    'device smoke requires a touchscreen target'
 require_text tests/phone-device-test.sh 'sha256sum -- "\$APK"' \
     'device smoke test identifies the exact installed APK by content'
 require_text tests/phone-device-test.sh 'apk_sha256=%s' \

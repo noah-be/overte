@@ -32,6 +32,9 @@ case "$*" in
     'shell getprop ro.product.model') printf 'Phone\n' ;;
     'shell getprop ro.product.device') printf 'phone\n' ;;
     'shell getprop ro.build.characteristics') printf 'default\n' ;;
+    'shell getprop ro.kernel.qemu') printf '%s\n' "${MOCK_QEMU:-0}" ;;
+    'shell getprop ro.product.cpu.abilist') printf 'arm64-v8a,armeabi-v7a\n' ;;
+    'shell pm list features') printf 'feature:android.hardware.touchscreen\n' ;;
     install\ -r\ -g\ *) ;;
     'shell pm path org.overte.phone')
         printf 'package:/data/app/~~mock/org.overte.phone-mock/base.apk\n'
@@ -116,6 +119,16 @@ fi
 grep -Fq 'installed APK content does not match' "$test_root/mismatch.out"
 ! grep -Fq '/data/app/' "$test_root/mismatch.out"
 ! grep -Fq "$test_root" "$test_root/mismatch.out"
+
+mkdir "$test_root/emulator-report"
+: >"$test_root/adb-commands"
+if run_smoke "$test_root/emulator-report" env MOCK_QEMU=1 \
+        >"$test_root/emulator.out" 2>&1; then
+    echo 'FAIL: emulator was accepted as a physical phone target' >&2
+    exit 1
+fi
+grep -Fq 'not a physical ARM64 touchscreen phone target' "$test_root/emulator.out"
+! grep -q '^install ' "$test_root/adb-commands"
 
 mkdir "$test_root/restart-report"
 if run_smoke "$test_root/restart-report" env MOCK_PROCESS_RESTART=1 \

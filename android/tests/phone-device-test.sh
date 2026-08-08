@@ -57,6 +57,18 @@ is_pico_device() {
     [[ "${identity,,}" =~ pico|bytedance ]] || [[ "${characteristics,,}" =~ (^|,)vr(,|$) ]]
 }
 
+is_supported_phone_device() {
+    local serial="$1" qemu characteristics abis features
+    qemu="$(device_property "$serial" ro.kernel.qemu)"
+    characteristics="$(device_property "$serial" ro.build.characteristics)"
+    abis="$(device_property "$serial" ro.product.cpu.abilist)"
+    features="$("$ADB" -s "$serial" shell pm list features 2>/dev/null | tr -d '\r')"
+    [[ "$qemu" != 1 ]] &&
+        [[ ! "${characteristics,,}" =~ (^|,)(watch|tv|automotive|vr)(,|$) ]] &&
+        [[ ",$abis," == *,arm64-v8a,* ]] &&
+        grep -Fxq 'feature:android.hardware.touchscreen' <<<"$features"
+}
+
 select_serial() {
     local requested="${ANDROID_SERIAL:-}" serial state
     local -a authorized=() phones=()
@@ -69,6 +81,8 @@ select_serial() {
         for serial in "${authorized[@]}"; do
             if [[ "$serial" == "$requested" ]]; then
                 is_pico_device "$serial" && die "refusing to run the phone test on a Pico/VR device"
+                is_supported_phone_device "$serial" || \
+                    die "ANDROID_SERIAL is not a physical ARM64 touchscreen phone target"
                 printf '%s\n' "$serial"
                 return
             fi
@@ -77,9 +91,12 @@ select_serial() {
     fi
 
     for serial in "${authorized[@]}"; do
-        is_pico_device "$serial" || phones+=("$serial")
+        if ! is_pico_device "$serial" && is_supported_phone_device "$serial"; then
+            phones+=("$serial")
+        fi
     done
-    ((${#phones[@]} == 1)) || die "set ANDROID_SERIAL explicitly; found ${#phones[@]} unambiguous non-Pico phones"
+    ((${#phones[@]} == 1)) || \
+        die "set ANDROID_SERIAL explicitly; found ${#phones[@]} supported physical ARM64 touchscreen phones"
     printf '%s\n' "${phones[0]}"
 }
 
