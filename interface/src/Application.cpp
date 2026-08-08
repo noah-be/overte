@@ -1932,7 +1932,10 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
         // Apply the packaged world's fixed spawn exactly once. Encoding this
         // as an AddressManager location query replays it during later
         // serverless handoffs and teleports a moving avatar back to spawn.
-        getMyAvatar()->goToLocation(glm::vec3(0.0f, 1.0f, 0.0f),
+        // The bridge static mesh resolves y=1.0 to y=1.097 after it loads.
+        // Start just above that surface so physics never has to push the
+        // avatar visibly out of the deck on the first simulated frame.
+        getMyAvatar()->goToLocation(glm::vec3(0.0f, 1.10f, 0.0f),
             false, glm::quat(), false, false);
         qCInfo(interfaceapp) << "Pico startup: initialized avatar at deck spawn";
     }
