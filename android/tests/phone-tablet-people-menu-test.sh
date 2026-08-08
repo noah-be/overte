@@ -50,6 +50,12 @@ require "$pal" 'response && response[.]status' \
     'People tolerates missing server responses on error paths'
 require "$pal" "typeof html === 'string'" \
     'People validates profile HTML before matching it'
+require "$pal" 'function connectionUsers\(data\)' \
+    'People centralizes connection-directory payload validation'
+require "$pal" 'Array[.]isArray\(data[.]users\)' \
+    'People treats missing or malformed connection lists as empty'
+require "$pal" "typeof user[.]username !== 'string'" \
+    'People skips malformed individual connection records'
 require "$pal" 'function printPrivatePalData\(message\)' \
     'People centralizes diagnostics that may contain personal data'
 require "$pal" 'if \(!isAndroidPhone\)' \

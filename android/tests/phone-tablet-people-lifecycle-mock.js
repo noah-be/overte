@@ -139,6 +139,10 @@ assert.strictEqual(ui.sent.length, messagesBeforeClose, "cancelled selection is 
 ui.open();
 assert.strictEqual(activeIntervals, 1, "open starts one update interval");
 assert.strictEqual(tabletShownChanged.count(), 1, "open connects tablet visibility once");
+const directoryRequest = requests.find((entry) => entry.options.uri.includes("/api/v1/users?"));
+assert(directoryRequest, "open requests connection directory data");
+assert.doesNotThrow(() => directoryRequest.callback(null, { status: "success", data: null }),
+    "malformed successful directory payload fails closed");
 appConfig.onOpened();
 assert.strictEqual(activeIntervals, 1, "duplicate open is idempotent");
 

@@ -420,6 +420,9 @@ function getProfilePicture(username, callback) { // callback(url) if successfull
     });
 }
 var SAFETY_LIMIT = 400;
+function connectionUsers(data) {
+    return data && Array.isArray(data.users) ? data.users : [];
+}
 function getAvailableConnections(domain, callback, numResultsPerPage) { // callback([{usename, location}...]) if successfull. (Logs otherwise)
     var url = METAVERSE_BASE + '/api/v1/users?per_page=' + (numResultsPerPage || SAFETY_LIMIT) + '&';
     if (domain) {
@@ -428,7 +431,7 @@ function getAvailableConnections(domain, callback, numResultsPerPage) { // callb
         url += 'filter=connections'; // regardless of whether online
     }
     requestJSON(url, function (connectionsData) {
-        callback(connectionsData.users);
+        callback(connectionUsers(connectionsData));
     });
 }
 function getInfoAboutUser(specificUsername, callback) {
@@ -436,9 +439,10 @@ function getInfoAboutUser(specificUsername, callback) {
     requestJSON(url, function (connectionsData) {
         // You could have (up to SAFETY_LIMIT connections whose usernames contain the specificUsername.
         // Search returns all such matches.
-        for (user in connectionsData.users) {
-            if (connectionsData.users[user].username === specificUsername) {
-                callback(connectionsData.users[user]);
+        var users = connectionUsers(connectionsData);
+        for (var user = 0; user < users.length; user++) {
+            if (users[user] && users[user].username === specificUsername) {
+                callback(users[user]);
                 return;
             }
         }
@@ -447,7 +451,12 @@ function getInfoAboutUser(specificUsername, callback) {
 }
 function getConnectionData(specificUsername, domain) { // Update all the usernames that I am entitled to see, using my login but not dependent on canKick.
     function frob(user) { // get into the right format
-        var formattedSessionId = user.location.node_id || '';
+        if (!user || typeof user !== 'object' || typeof user.username !== 'string') {
+            return null;
+        }
+        var userLocation = user.location && typeof user.location === 'object' ? user.location : {};
+        var userImages = user.images && typeof user.images === 'object' ? user.images : {};
+        var formattedSessionId = userLocation.node_id || '';
         if (formattedSessionId !== '' && formattedSessionId.indexOf("{") != 0) {
             formattedSessionId = "{" + formattedSessionId + "}";
         }
@@ -455,14 +464,17 @@ function getConnectionData(specificUsername, domain) { // Update all the usernam
             sessionId: formattedSessionId,
             userName: user.username,
             connection: user.connection,
-            profileUrl: user.images.thumbnail,
-            placeName: (user.location.root || user.location.domain || {}).name || ''
+            profileUrl: userImages.thumbnail || '',
+            placeName: (userLocation.root || userLocation.domain || {}).name || ''
         };
     }
     if (specificUsername) {
         getInfoAboutUser(specificUsername, function (user) {
             if (user) {
-                updateUser(frob(user));
+                var formattedUser = frob(user);
+                if (formattedUser) {
+                    updateUser(formattedUser);
+                }
             } else {
                 printPrivatePalData('Error: Unable to find information about ' + specificUsername +
                     ' in connectionsData!');
@@ -471,7 +483,10 @@ function getConnectionData(specificUsername, domain) { // Update all the usernam
     } else if (domain) {
         getAvailableConnections(domain, function (users) {
             users.forEach(function (user) {
-                updateUser(frob(user));
+                var formattedUser = frob(user);
+                if (formattedUser) {
+                    updateUser(formattedUser);
+                }
             });
         });
     } else {

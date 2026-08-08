@@ -4,6 +4,28 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 45 — Validate People success payloads
+
+- Branch: `nightly/android-phone-45-people-payload-validation`
+- Commit: `Validate People directory payloads` (this task's commit)
+- Change: Treat absent/non-array connection lists as empty, iterate only actual
+  arrays, and skip individual records without an object/string username shape.
+  Missing location/images objects now produce empty optional fields rather than
+  property errors after a formally successful server response.
+- Tests:
+  - `android/tests/phone-tablet-people-menu-test.sh`: **passed**, including an
+    executable successful-response-with-null-data callback and directory/record
+    shape contracts.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/APK suites and 188/188 host checks.
+  - JavaScript syntax and `git diff --check`: **passed**.
+- Known risks: This intentionally degrades malformed directory records to absent
+  People metadata; server schema monitoring remains an operational concern.
+- Real-device validation still required: **not executed for this task**. With a
+  controlled test endpoint, return null/missing/mixed-invalid `users`, then a
+  valid response; verify People remains open, displays valid rows only, recovers
+  on refresh, and emits no private payload detail in logs.
+
 ## 44 — Validate People server responses
 
 - Branch: `nightly/android-phone-44-people-response-validation`
