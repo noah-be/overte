@@ -31,9 +31,18 @@
 #include "InterfaceLogging.h"
 #include <QQmlContext>
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include <android/log.h>
+#include <sys/system_properties.h>
+#endif
+
 const vec4 CONNECTION_STATUS_BORDER_COLOR{ 1.0f, 0.0f, 0.0f, 0.8f };
 static const float ORTHO_NEAR_CLIP = -1000.0f;
 static const float ORTHO_FAR_CLIP = 1000.0f;
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+static bool isPhoneOverlayDepthEnabled();
+#endif
 
 ApplicationOverlay::ApplicationOverlay()
 {
@@ -76,7 +85,13 @@ void ApplicationOverlay::renderOverlay(RenderArgs* renderArgs) {
         glm::vec4 color { 0.0f, 0.0f, 0.0f, 0.0f };
         float depth = 1.0f;
         int stencil = 0;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        const auto clearMask = gpu::Framebuffer::BUFFER_COLOR0 |
+            (isPhoneOverlayDepthEnabled() ? gpu::Framebuffer::BUFFER_DEPTH : 0);
+        batch.clearFramebuffer(clearMask, color, depth, stencil);
+#else
         batch.clearFramebuffer(gpu::Framebuffer::BUFFER_COLOR0 | gpu::Framebuffer::BUFFER_DEPTH, color, depth, stencil);
+#endif
 
         // Now render the overlay components together into a single texture
 #if !defined(ANDROID_APP_PHONE_INTERFACE)
@@ -178,6 +193,27 @@ static const auto COLOR_FORMAT = gpu::Element(gpu::VEC4, gpu::NUINT8, gpu::RGBA)
 static const auto DEFAULT_SAMPLER = Sampler(Sampler::FILTER_MIN_MAG_LINEAR);
 static const auto DEPTH_FORMAT = gpu::Element(gpu::SCALAR, gpu::FLOAT, gpu::DEPTH);
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+static bool isPhoneOverlayDepthEnabled() {
+    static const bool enabled = [] {
+        char propertyValue[PROP_VALUE_MAX] {};
+        if (__system_property_get("debug.overte.phone_overlay_depth", propertyValue) <= 0) {
+            return false;
+        }
+
+        const auto requested = QByteArray(propertyValue).trimmed().toLower();
+        if (requested == "1" || requested == "on" || requested == "true" || requested == "enabled") {
+            return true;
+        }
+        if (requested == "0" || requested == "off" || requested == "false" || requested == "disabled") {
+            return false;
+        }
+        return false;
+    }();
+    return enabled;
+}
+#endif
+
 void ApplicationOverlay::buildFramebufferObject() {
     PROFILE_RANGE(render, __FUNCTION__);
 
@@ -188,7 +224,22 @@ void ApplicationOverlay::buildFramebufferObject() {
 
     auto width = uiSize.x;
     auto height = uiSize.y;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    const bool overlayDepthEnabled = isPhoneOverlayDepthEnabled();
+    static std::once_flag phoneOverlayDepthMarker;
+    std::call_once(phoneOverlayDepthMarker, [overlayDepthEnabled, width, height] {
+        constexpr double BYTES_PER_MIB { 1024.0 * 1024.0 };
+        const double estimatedDepthMiB = overlayDepthEnabled
+            ? static_cast<double>(width) * static_cast<double>(height) * sizeof(float) / BYTES_PER_MIB
+            : 0.0;
+        __android_log_print(ANDROID_LOG_INFO, "OvertePhoneGraphics",
+            "overlay_depth_enabled=%d overlay_width=%u overlay_height=%u overlay_depth_estimated_mib=%.2f",
+            overlayDepthEnabled ? 1 : 0, width, height, estimatedDepthMiB);
+    });
+    if (overlayDepthEnabled && !_overlayFramebuffer->getDepthStencilBuffer()) {
+#else
     if (!_overlayFramebuffer->getDepthStencilBuffer()) {
+#endif
         auto overlayDepthTexture = gpu::Texture::createRenderBuffer(DEPTH_FORMAT, width, height, gpu::Texture::SINGLE_MIP, DEFAULT_SAMPLER);
         _overlayFramebuffer->setDepthStencilBuffer(overlayDepthTexture, DEPTH_FORMAT);
     }
