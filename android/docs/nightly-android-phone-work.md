@@ -4,6 +4,29 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 30 — Scope the Shield menu preference away from Phone
+
+- Branch: `nightly/android-phone-30-shield-menu-scope`
+- Commit: `Remove desktop Shield preference from phone` (this task's commit)
+- Change: Do not register, connect, disconnect, or remove the desktop `HUD
+  Shield Button` Settings preference on Android Phone. Phone retains its direct
+  SHIELD tablet action and world feedback; Desktop and Pico retain the HUD
+  preference and its established lifecycle.
+- Tests:
+  - `node --check scripts/system/bubble.js`: **passed**.
+  - `android/tests/phone-tablet-shield-test.sh`: **passed**, including guarded
+    setup/teardown and Desktop/Pico preservation contracts.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet suites, portal lifecycle suite, and 181/181 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: Phone has one intentional Shield entry point instead of the
+  desktop HUD visibility preference; Shield enabled state remains owned by the
+  existing Users interface.
+- Real-device validation still required: **not executed for this task**. Confirm
+  Settings contains no HUD Shield preference, SHIELD toggles the privacy radius
+  in both directions, closes the tablet, renders feedback, and survives rapid
+  taps plus app background/foreground.
+
 ## 29 — Own the Places portal entity lifecycle
 
 - Branch: `nightly/android-phone-29-portal-entity-lifecycle`

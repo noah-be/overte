@@ -28,6 +28,19 @@ require 'tablet[.]hideAndroidTablet\(\)' \
     'Phone Shield closes the tablet after its world action'
 require 'if[[:space:]]*\(!isAndroidPhone\)' \
     'Phone Shield avoids mutable tablet-button proxy updates'
+require 'if[[:space:]]*\(!isAndroidPhone\)[[:space:]]*\{[[:space:]]*$' \
+    'Shield scopes desktop-only setup and teardown away from Phone'
+require 'Menu[.]addMenuItem\(\{' \
+    'desktop and Pico retain the HUD Shield menu preference'
+if awk '
+    /Menu[.]addMenuItem/ { if (!guarded) exit 1 }
+    /if \(!isAndroidPhone\)/ { guarded = 1 }
+' "$shield"; then
+    printf 'PASS: Phone does not register the desktop HUD Shield menu preference\n'
+else
+    printf 'FAIL: Shield menu preference is not guarded from Phone\n' >&2
+    exit 1
+fi
 require 'button[.]clicked[.]disconnect\(toggleShield\)' \
     'Shield disconnects its exact click handler during teardown'
 require 'Entities[.]deleteEntity\(bubbleOverlay\)' \
