@@ -90,7 +90,7 @@ class PicoAudioTransportTests(unittest.TestCase):
     def test_unexpected_capture_exit_claims_cleanup_once(self):
         loop = JAVA.index("private static void captureLoop")
         loop_body = JAVA[loop:]
-        self.assertIn("catch (RuntimeException exception)", loop_body)
+        self.assertIn("catch (RuntimeException | OutOfMemoryError exception)", loop_body)
         finally_block = loop_body.index("finally {")
         identity = loop_body.index("if (recorder == activeRecorder)", finally_block)
         stop_running = loop_body.index("running = false", identity)
@@ -107,6 +107,19 @@ class PicoAudioTransportTests(unittest.TestCase):
         lock_end = loop_body.index("if (releasedRecorder)", claim)
         self.assertLess(lock_start, release)
         self.assertLess(release, lock_end)
+
+    def test_capture_buffer_allocation_is_inside_oom_cleanup_boundary(self):
+        loop = JAVA.index("private static void captureLoop")
+        loop_body = JAVA[loop:]
+        guarded = loop_body.index("try {")
+        allocation = loop_body.index("new byte[callbackBytes]", guarded)
+        catch = loop_body.index("catch (RuntimeException | OutOfMemoryError exception)", allocation)
+        finally_block = loop_body.index("finally {", catch)
+        release = loop_body.index("stopAndRelease(activeRecorder)", finally_block)
+        self.assertLess(guarded, allocation)
+        self.assertLess(allocation, catch)
+        self.assertLess(catch, finally_block)
+        self.assertLess(finally_block, release)
 
 
 if __name__ == "__main__":

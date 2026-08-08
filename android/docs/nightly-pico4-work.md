@@ -1548,8 +1548,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 85 — Display swapchain destructor fallback
 
 - Branch: `nightly/pico4-85-openxr-display-cleanup`
-- Commit: identified by subject `Add Pico OpenXR display cleanup fallback`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `95da4740b8` (`Add Pico OpenXR display cleanup fallback`)
 - Change: add an idempotent OpenXR display-plugin destructor that invokes the
   existing centralized foveation-profile/swapchain cleanup. Partial activation
   or shutdown paths that never reach `uncustomizeContext()` can no longer leave
@@ -1562,6 +1561,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Abort during view/swapchain/foveation and
   layer initialization, then quit after normal rendering; verify one destruction
   per published child, no validation leaks and Session destruction occurs last.
+
+### 86 — Capture-buffer allocation rollback
+
+- Branch: `nightly/pico4-86-audio-buffer-allocation`
+- Commit: identified by subject `Contain Pico audio buffer allocation failure`;
+  the exact hash is recorded by the following stacked task or final report.
+- Change: move the microphone callback-buffer allocation inside the capture
+  thread's protected `try/finally` and contain `OutOfMemoryError` alongside
+  runtime read errors. Allocation failure now claims and releases the current
+  AudioRecord exactly once and clears running/recorder/thread publication.
+- Regression: native-audio source contracts require allocation inside the OOM
+  catch/finally boundary and verify the existing ownership cleanup follows it.
+- Passed: 8 audio transport/lifecycle contracts; `git diff --check`.
+- Risk: severe allocation pressure now stops capture cleanly instead of leaving
+  a permanently published silent recorder; ordinary capture is unchanged.
+- Pico 4 validation: **not executed**. Inject callback-array OOM and restart
+  capture; verify one stop/release, cleared state, no silent-stuck microphone and
+  successful later source start after memory pressure is removed.
 
 ## Deferred, rejected, or blocked ideas
 

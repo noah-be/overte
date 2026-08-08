@@ -209,8 +209,8 @@ public final class AndroidAudioInput {
 
     private static void captureLoop(AudioRecord activeRecorder, int callbackBytes) {
         prioritizeCurrentThreadForAudio();
-        final byte[] audio = new byte[callbackBytes];
         try {
+            final byte[] audio = new byte[callbackBytes];
             while (running && recorder == activeRecorder) {
                 final int bytesRead = activeRecorder.read(
                     audio, 0, audio.length, AudioRecord.READ_BLOCKING);
@@ -227,7 +227,7 @@ public final class AndroidAudioInput {
                     break;
                 }
             }
-        } catch (RuntimeException exception) {
+        } catch (RuntimeException | OutOfMemoryError exception) {
             Log.e(TAG, "AudioRecord capture loop failed", exception);
         } finally {
             boolean releasedRecorder = false;
