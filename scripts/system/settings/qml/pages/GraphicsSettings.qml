@@ -4,6 +4,8 @@ import QtQuick.Layouts 1.3
 import "../"
 
 Flickable {
+    SettingsTouchConfiguration { id: touchConfiguration }
+
     property var verticalScrollBarWidth: 20;
     property bool hasPresetBeenModified: false;
     property bool isChangingPreset: false;
@@ -193,6 +195,7 @@ Flickable {
 
         SettingComboBox {
             id: picoResolutionScale
+            visible: touchConfiguration.showPicoResolutionSettings
             settingText: "Pico render resolution"
             options: ["50%", "60%", "70%", "75%", "80%", "85%", "100%"]
             property var scales: [0.50, 0.60, 0.70, 0.75, 0.80, 0.85, 1.00]
@@ -222,7 +225,6 @@ Flickable {
                     return
                 }
                 pendingIndex = index
-                picoResolutionConfirmation.visible = true
             }
         }
 
@@ -230,7 +232,7 @@ Flickable {
             id: picoResolutionConfirmation
             width: parent.width
             spacing: 8
-            visible: false
+            visible: touchConfiguration.showPicoResolutionSettings && picoResolutionScale.pendingIndex >= 0
 
             Text {
                 width: parent.width
@@ -262,7 +264,6 @@ Flickable {
                 Button {
                     text: "Cancel"
                     onClicked: {
-                        picoResolutionConfirmation.visible = false
                         picoResolutionScale.pendingIndex = -1
                         picoResolutionScale.initialized = false
                         picoResolutionScale.syncFromSettings()

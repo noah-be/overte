@@ -58,6 +58,14 @@ require "$tablet_home" 'SwipeView[[:space:]]*\{' \
 
 require "$phone_gradle" 'inputs.dir\(file\("[$]\{projectDir\}/../../../interface/resources"\)\)' \
     'tablet QML resources participate in Android package invalidation'
+require "$phone_gradle" 'inputs.dir\(file\("[$]\{projectDir\}/../../../scripts"\)\)' \
+    'tablet script QML and selectors participate in Android package invalidation'
+require "$phone_gradle" 'from new File\(projectDir, '\''../../../scripts'\''\)' \
+    'Settings QML and its Android selector are copied into phone assets'
+if grep -Eq "exclude .*android_phoneInterface|exclude .*settings" "$phone_gradle"; then
+    printf 'FAIL: Android selector or Settings assets are excluded from phone packaging\n' >&2
+    exit 1
+fi
 require "$phone_gradle" "include '[*][*]/android/apps/phoneInterface/libraries/interface/resources[.]rcc'" \
     'the phone package includes the native Interface resource collection'
 

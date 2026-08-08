@@ -21,6 +21,10 @@ require "$desktop_config" 'contentScale:[[:space:]]*1[.]0' \
     'desktop Settings retain their established scale'
 require "$phone_config" 'contentScale:[[:space:]]*1[.]0' \
     'phone Settings avoid compounding the shared tablet-app scale'
+require "$phone_config" 'showControllerSettings:[[:space:]]*false' \
+    'phone Settings hide the unavailable desktop and VR controller page'
+require "$phone_config" 'showPicoResolutionSettings:[[:space:]]*false' \
+    'phone Settings hide the Pico-only render scale restart control'
 require "$settings" 'SettingsTouchConfiguration[[:space:]]*\{' \
     'Settings resolve metrics through QFileSelector'
 require "$settings" 'width:[[:space:]]*parent[.]width / touchConfiguration[.]contentScale' \
@@ -31,5 +35,15 @@ require "$settings" 'transformOrigin:[[:space:]]*Item[.]TopLeft' \
     'touch scaling stays aligned with the screen origin'
 require "$settings" 'scale:[[:space:]]*touchConfiguration[.]contentScale' \
     'the complete Settings surface and its hit targets scale together'
+require "$settings" 'requiresControllerSettings:[[:space:]]*true' \
+    'Settings mark controller-dependent navigation explicitly'
+require "$settings" 'touchConfiguration[.]showControllerSettings' \
+    'Settings filter controller-dependent navigation through the selector'
+
+readonly graphics="$repo_root/scripts/system/settings/qml/pages/GraphicsSettings.qml"
+require "$graphics" 'SettingsTouchConfiguration[[:space:]]*\{[[:space:]]*id:[[:space:]]*touchConfiguration' \
+    'Graphics Settings resolves its own lexically scoped phone selector'
+require "$graphics" 'visible:[[:space:]]*touchConfiguration[.]showPicoResolutionSettings' \
+    'Graphics Settings selector-gates the Pico-only render scale control'
 
 printf 'Phone tablet Settings scale checks passed.\n'
