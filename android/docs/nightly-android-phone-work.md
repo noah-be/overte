@@ -7,7 +7,7 @@ of scope for this worktree and are called out explicitly where still needed.
 ## 01 — Host regression from any working directory
 
 - Branch: `nightly/android-phone-01-host-test-cwd`
-- Commit: `Fix phone host regression working directory` (this task's commit)
+- Commit: `96af2c70b4` — `Fix phone host regression working directory`
 - Change: Resolve the Gradle input of the inline `awk` contract check from the
   script's already-normalized Android root. The advertised root-level command
   now exercises all checks instead of producing a false failure.
@@ -29,7 +29,7 @@ of scope for this worktree and are called out explicitly where still needed.
 ## 09 — Phone-specific doctor hand-off
 
 - Branch: `nightly/android-phone-09-doctor-output`
-- Commit: `Fix Android phone doctor guidance` (this task's commit)
+- Commit: `86f4ad08cb` — `Fix Android phone doctor guidance`
 - Change: Keep reusing the shared Pico/Phone toolchain checker, but translate
   its heading and successful next step at the Phone wrapper boundary. Preserve
   the original checker exit status through the output filter.
@@ -51,7 +51,7 @@ of scope for this worktree and are called out explicitly where still needed.
 ## 11 — Remove inactive Phone Privacy controls
 
 - Branch: `nightly/android-phone-11-settings-privacy`
-- Commit: `Remove inactive phone privacy settings` (this task's commit)
+- Commit: `af9e84f984` — `Remove inactive phone privacy settings`
 - Change: Remove the shared Privacy category from Phone General Settings. Its
   crash toggle cannot work with the Phone target's `USE_BREAKPAD=OFF`, and its
   Discord toggle resolves to the Android no-op stub. Phone now exposes only
@@ -76,7 +76,7 @@ of scope for this worktree and are called out explicitly where still needed.
 ## 10 — Places navigation input and log privacy
 
 - Branch: `nightly/android-phone-10-deep-link-audit`
-- Commit: `Harden phone Places navigation messages` (this task's commit)
+- Commit: `c513546a1e` — `Harden phone Places navigation messages`
 - Change: Validate Phone Places QML teleport destinations before any property
   use or navigation: require a non-empty string, cap it at 4096 UTF-16 units,
   and reject raw control characters. Remove the diagnostic that logged the
@@ -100,7 +100,7 @@ of scope for this worktree and are called out explicitly where still needed.
 ## 08 — Complete required-runtime APK gate
 
 - Branch: `nightly/android-phone-08-error-path-audit`
-- Commit: `Require phone runtime libraries in APK gate` (this task's commit)
+- Commit: `5d62ce29de` — `Require phone runtime libraries in APK gate`
 - Change: Require all explicitly staged Phone runtime libraries in the final
   APK content checker: client, PositioningQuick, OpenSSL crypto/TLS, platform,
   bearer, JPEG/SVG image, and OpenSL ES audio. Generate and reject a fixture
@@ -127,7 +127,7 @@ of scope for this worktree and are called out explicitly where still needed.
 ## 07 — Fail-closed backup and device transfer
 
 - Branch: `nightly/android-phone-07-packaging-audit`
-- Commit: `Exclude all phone backup data domains` (this task's commit)
+- Commit: `890816d373` — `Exclude all phone backup data domains`
 - Change: Preserve `allowBackup=false` and explicitly exclude every supported
   credential- and device-protected domain from both the legacy full-backup
   format and Android 12+ cloud/device-transfer rules. Add an XML parser test
@@ -151,7 +151,7 @@ of scope for this worktree and are called out explicitly where still needed.
 ## 06 — Complete device-free regression gate
 
 - Branch: `nightly/android-phone-06-complete-static-gate`
-- Commit: `Add complete phone static regression gate` (this task's commit)
+- Commit: `ff856ab078` — `Add complete phone static regression gate`
 - Change: Add one explicit allowlist runner for all 32 proven device-free Phone
   suites. It covers source/static contracts, C++ fixtures, Java compilation,
   JavaScript syntax and mocks, packaging fixtures, release/16-KiB checks, and
@@ -182,7 +182,7 @@ of scope for this worktree and are called out explicitly where still needed.
 ## 05 — Native touch Emote
 
 - Branch: `nightly/android-phone-05-emote-audit`
-- Commit: `Add native Android phone Emote app` (this task's commit)
+- Commit: `c08094f66c` — `Add native Android phone Emote app`
 - Change: Add a Phone-only native QML Emote grid and lifecycle-owned script.
   Requests are namespaced and allowlisted, unavailable resources fail safely,
   timers and avatar overrides are cleaned up deterministically, and the app has
@@ -215,7 +215,7 @@ of scope for this worktree and are called out explicitly where still needed.
 ## 04 — Background, Back, and IME lifecycle
 
 - Branch: `nightly/android-phone-04-lifecycle-audit`
-- Commit: `Harden Android phone lifecycle state` (this task's commit)
+- Commit: `26bb47059b` — `Harden Android phone lifecycle state`
 - Change: Mark Qt Hidden/Suspended states as non-foreground, clear transient
   consumed-Back bookkeeping on Activity pause, and add an Address dialog
   destruction fallback that drops field focus and hides the IME. Existing
@@ -238,7 +238,7 @@ of scope for this worktree and are called out explicitly where still needed.
 ## 02 — Fail-closed Phone General Settings
 
 - Branch: `nightly/android-phone-02-settings-contract`
-- Commit: `Remove VR-only phone preferences` (this task's commit)
+- Commit: `d3752d70a8` — `Remove VR-only phone preferences`
 - Change: Replace the inherited broad General Settings list with an explicit
   phone allowlist: Phone Navigation, touch-look sensitivity, and Privacy. This
   removes categories whose complete shared contract still contains desktop
@@ -268,7 +268,7 @@ of scope for this worktree and are called out explicitly where still needed.
 ## 03 — Working-directory-independent static gate
 
 - Branch: `nightly/android-phone-03-static-gate-cwd`
-- Commit: `Fix modern Android test working directory` (this task's commit)
+- Commit: `e54fd21d48` — `Fix modern Android test working directory`
 - Change: Resolve all remaining Modern Android API test inputs from its
   normalized repository root. This makes the test itself and the aggregate
   tablet static gate independent of the caller's working directory.
@@ -282,3 +282,103 @@ of scope for this worktree and are called out explicitly where still needed.
 - Known risks: None in runtime code; this changes only source-test paths.
 - Real-device validation still required: **not required for this test-only
   change; not executed**.
+
+## 12 — Cumulative hand-off and remaining boundaries
+
+- Branch: `nightly/android-phone-12-nightly-handoff`
+- Commit: `Document Android phone nightly hand-off` (this task's commit)
+- Change: Record the exact chained history, consolidate the device-free audit,
+  and distinguish hardware/toolchain validation from product work that was
+  deliberately not guessed into the Phone client.
+- Tests:
+  - Every commit recorded below is verified as a descendant of
+    `origin/feature/android-phone-support`.
+  - `android/tests/phone-static-regression-test.sh`: **passed** on the parent
+    runtime commit, all 34 explicitly device-free suites; nested host
+    regression passed 174/174 checks.
+  - `./android/build-phone.sh doctor`: **passed** on this host, with all
+    required tools found and no warnings.
+  - Documentation consistency: **passed** (11 exact parent commits and 12 task
+    sections); `git diff --check`: **passed**.
+- Known risks: This section does not turn static contracts into runtime
+  evidence. No APK was produced because the dedicated Phone Qt/non-Qt 16-KiB
+  dependency outputs and their verified readiness sentinel are absent.
+- Real-device validation still required: **not executed**; use the prioritized
+  checklist below.
+
+### Exact branch and commit chain
+
+All branches form one linear chain starting at
+`origin/feature/android-phone-support` (`200b46bd60`):
+
+1. `nightly/android-phone-01-host-test-cwd` — `96af2c70b4`
+2. `nightly/android-phone-02-settings-contract` — `d3752d70a8`
+3. `nightly/android-phone-03-static-gate-cwd` — `e54fd21d48`
+4. `nightly/android-phone-04-lifecycle-audit` — `26bb47059b`
+5. `nightly/android-phone-05-emote-audit` — `c08094f66c`
+6. `nightly/android-phone-06-complete-static-gate` — `ff856ab078`
+7. `nightly/android-phone-07-packaging-audit` — `890816d373`
+8. `nightly/android-phone-08-error-path-audit` — `5d62ce29de`
+9. `nightly/android-phone-09-doctor-output` — `86f4ad08cb`
+10. `nightly/android-phone-10-deep-link-audit` — `c513546a1e`
+11. `nightly/android-phone-11-settings-privacy` — `af9e84f984`
+12. `nightly/android-phone-12-nightly-handoff` — this documentation commit
+
+### Device-free audit disposition
+
+- Settings is fail-closed to the two fully meaningful categories. The shared
+  Privacy page was ultimately removed because Phone disables Breakpad and uses
+  the Android Discord no-op; this supersedes task 02's provisional retention.
+- Login, Address, Back, IME, foreground/background, pending deep links, Audio,
+  Menu, Shield, People, Avatar, Places, Home, Tutorial, and Emote now have
+  explicit source contracts or lifecycle mocks in the aggregate gate.
+- Emote is implemented as packaged native QML with a local animation allowlist.
+  It no longer depends on the legacy Web or controller surface.
+- More/Community remains disabled. Its contract downloads remote metadata and
+  installs third-party scripts, so enabling it requires a product trust policy,
+  provenance/signature decisions, and a separately reviewable sandbox design.
+- Create remains disabled. Its current implementation owns desktop windows,
+  controller mappings, overlay windows, entity-click capture, camera state, and
+  renderer state. A safe port first needs a touch-owned selection model and
+  screen-space dialog lifecycle; wrapping the existing script would be a large
+  untestable integration.
+- The Pico WebView bridge was not generalized. Phone's enabled applications
+  are local QML and introducing a second embedded-Web lifecycle would add an
+  unused remote-content attack surface without a complete Phone consumer.
+- The symmetric 25-logical-pixel tablet safety inset remains. Accurate
+  asymmetric cutout and rounded-corner geometry requires Android WindowInsets
+  transport through Java/JNI into the Qt presenter and must be calibrated on
+  multiple display shapes; inferring it from resolution or DPI was rejected.
+- No disconnect-on-background policy was added. Android pause is transient and
+  forcibly disconnecting would change session semantics; the correct policy
+  needs product requirements plus device testing of audio, networking, process
+  eviction, and reconnect behavior.
+- Packaging is fail-closed for dependency readiness, required APK runtimes,
+  backup/transfer denial, ZIP padding, and 16-KiB ELF alignment. A real build is
+  still blocked by the absent dedicated dependency artifacts, not by a source
+  or host-tool failure.
+
+### Prioritized real-device checklist
+
+1. On one Adreno and one Mali phone, perform clean install/cold launch on an
+   API 26–29 device and an API 30+ device; cover microphone accept and deny,
+   native-library loading, TLS, and a neutral `overte:` deep link.
+2. Exercise login success, invalid credentials, cancellation, gesture/physical
+   Back, IME resize, background/foreground, and focus release against both a
+   metaverse account and a domain login.
+3. Verify landscape orientations on flat, notched, hole-punch, waterfall, and
+   rounded displays: tablet edges, close button, portrait-sized transition,
+   DPI scaling, system-bar reveal, keyboard, and all retained Settings fields.
+4. Connect to live domains and repeat tablet open/app/Home/close cycles for
+   Audio, Menu, Shield, People, Avatar, Places, Home, Tutorial, and Emote;
+   confirm no world-control touch-through and no stale signal/timer state.
+5. Stress Emote play/stop/switch, movement interruption, cache-cold animation
+   loading, and background/foreground; the avatar must always regain normal
+   locomotion.
+6. Validate Audio input/output devices, mute, push-to-talk, sliders, People
+   levels/actions, Places slow/offline/federated responses, Avatar bookmarks
+   and wearables, and reconnect after network loss or process backgrounding.
+7. Run the 16-KiB APK/ELF gate on the produced release artifact, inspect only
+   PID-filtered aggregate diagnostics, and sustain the graphics benchmark long
+   enough to assess frame pacing, memory, temperature, and battery without
+   retaining identifiers or raw logs.
