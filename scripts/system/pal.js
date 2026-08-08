@@ -249,6 +249,12 @@ function validAccountName(value) {
     return typeof value === 'string' && value.length > 0 && value.length <= 256 &&
         !/[\u0000-\u001f\u007f]/.test(value);
 }
+function responseSucceeded(response) {
+    return response && response.status === 'success';
+}
+function responseFailure(error, response) {
+    return error || (response && response.status) || 'missing response';
+}
 function fromQml(message) { // messages are {method, params}, like json-rpc. See also sendToQml.
     var data, connectionUserName, friendUserName;
     if (!message || typeof message !== 'object' || typeof message.method !== 'string') {
@@ -315,9 +321,9 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
             uri: METAVERSE_BASE + '/api/v1/user/connections/' + encodeURIComponent(connectionUserName),
             method: 'DELETE'
         }, function (error, response) {
-            if (error || (response.status !== 'success')) {
+            if (error || !responseSucceeded(response)) {
                 printPrivatePalData("Error: unable to remove connection " + connectionUserName +
-                    ": " + (error || response.status));
+                    ": " + responseFailure(error, response));
                 return;
             }
             sendToQml({ method: 'connectionRemoved', params: connectionUserName });
@@ -334,9 +340,9 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
             uri: METAVERSE_BASE + '/api/v1/user/friends/' + encodeURIComponent(friendUserName),
             method: 'DELETE'
         }, function (error, response) {
-            if (error || (response.status !== 'success')) {
+            if (error || !responseSucceeded(response)) {
                 printPrivatePalData("Error: unable to unfriend " + friendUserName +
-                    ": " + (error || response.status));
+                    ": " + responseFailure(error, response));
                 return;
             }
             getConnectionData(friendUserName);
@@ -356,9 +362,9 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
                 username: friendUserName,
             }
         }, function (error, response) {
-            if (error || (response.status !== 'success')) {
+            if (error || !responseSucceeded(response)) {
                 printPrivatePalData("Error: unable to friend " + friendUserName +
-                    ": " + (error || response.status));
+                    ": " + responseFailure(error, response));
                 return;
             }
             getConnectionData(friendUserName);
@@ -391,8 +397,8 @@ function requestJSON(url, callback) { // callback(data) if successfull. Logs oth
     request({
         uri: url
     }, function (error, response) {
-        if (error || (response.status !== 'success')) {
-            printPrivatePalData("Error: unable to get request: " + (error || response.status));
+        if (error || !responseSucceeded(response)) {
+            printPrivatePalData("Error: unable to get request: " + responseFailure(error, response));
             return;
         }
         callback(response.data);
@@ -403,7 +409,8 @@ function getProfilePicture(username, callback) { // callback(url) if successfull
     request({
         uri: METAVERSE_BASE + '/users/' + username
     }, function (error, html) {
-        var matched = !error && html.match(/img class="users-img" src="([^"]*)"/);
+        var matched = !error && typeof html === 'string' &&
+            html.match(/img class="users-img" src="([^"]*)"/);
         if (!matched) {
             printPrivatePalData('Error: Unable to get profile picture for ' + username + ': ' + error);
             callback('');

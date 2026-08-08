@@ -44,6 +44,12 @@ require "$pal" 'encodeURIComponent\(connectionUserName\)' \
     'People encodes connection names as REST path segments'
 require "$pal" 'encodeURIComponent\(friendUserName\)' \
     'People encodes friend names as REST path segments'
+require "$pal" 'function responseSucceeded\(response\)' \
+    'People centralizes successful server response validation'
+require "$pal" 'response && response[.]status' \
+    'People tolerates missing server responses on error paths'
+require "$pal" "typeof html === 'string'" \
+    'People validates profile HTML before matching it'
 require "$pal" 'function printPrivatePalData\(message\)' \
     'People centralizes diagnostics that may contain personal data'
 require "$pal" 'if \(!isAndroidPhone\)' \

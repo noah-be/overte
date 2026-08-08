@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 44 — Validate People server responses
+
+- Branch: `nightly/android-phone-44-people-response-validation`
+- Commit: `Validate People server responses` (this task's commit)
+- Change: Centralize success/failure extraction for friend, connection, and
+  directory requests so a missing response fails closed without dereferencing
+  `status`. Require profile-page content to be a string before regex matching.
+  Phone privacy suppression continues to prevent response details in logs.
+- Tests:
+  - `android/tests/phone-tablet-people-menu-test.sh`: **passed**, including an
+    executable missing-response callback and profile-content type contract.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/APK suites and 188/188 host checks.
+  - JavaScript syntax and `git diff --check`: **passed**.
+- Known risks: Backend payload schemas after a declared successful response
+  remain service contracts; this task covers absent/error response envelopes.
+- Real-device validation still required: **not executed for this task**. During
+  People refresh and relationship actions, interrupt networking and switch
+  metaverse availability; verify no script restart, bounded UI failure behavior,
+  retry success, and no response/user details in Phone logs.
+
 ## 43 — Own Places portal resources
 
 - Branch: `nightly/android-phone-43-places-portal-ownership`

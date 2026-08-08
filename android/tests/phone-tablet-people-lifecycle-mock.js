@@ -70,7 +70,7 @@ const context = {
         require(name) {
             if (name === "appUi") { return AppUi; }
             return { request(options, callback) {
-                requests.push(options);
+                requests.push({ options, callback });
                 callback(null, { status: "success", data: { users: [] } });
             } };
         },
@@ -120,8 +120,10 @@ const requestsBeforeValidation = requests.length;
 assert.strictEqual(requests.length, requestsBeforeValidation,
     "invalid account names produce no server requests");
 appConfig.onMessage({ method: "removeConnection", params: "user/name" });
-assert(requests.at(-1).uri.endsWith("/connections/user%2Fname"),
+assert(requests.at(-1).options.uri.endsWith("/connections/user%2Fname"),
     "account name is encoded as one REST path segment");
+assert.doesNotThrow(() => requests.at(-1).callback(null, undefined),
+    "missing server response fails closed");
 assert.doesNotThrow(() => messageReceived.emit("com.highfidelity.pal", "not-json", "{}"),
     "malformed local message is ignored");
 assert.strictEqual(ui.isOpen, false, "malformed messages do not open People");
