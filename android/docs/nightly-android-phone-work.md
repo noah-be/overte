@@ -1,8 +1,33 @@
 # Android phone nightly work
 
-This file records the cumulative, device-free Android phone work based on
-`origin/feature/android-phone-support`. Real-device and emulator tests are out
-of scope for this worktree and are called out explicitly where still needed.
+This file records the cumulative Android phone work based on
+`origin/feature/android-phone-support`. Most validation is device-free; any
+real-device test is identified explicitly and never implied by a host check.
+
+## 24 — Keep People diagnostics private on Phone
+
+- Branch: `nightly/android-phone-24-people-log-privacy`
+- Commit: `Suppress private People diagnostics on phone` (this task's commit)
+- Change: Route PAL diagnostics that may contain usernames, display names,
+  session UUIDs, profile URLs, relationship state, response text, or complete
+  nearby-person records through a Phone-aware privacy boundary. Desktop keeps
+  its established debug detail; Android Phone emits none of these values into
+  logs collected by automated tests or support tooling.
+- Tests:
+  - `node --check scripts/system/pal.js`: **passed**.
+  - `android/tests/phone-tablet-people-menu-test.sh`: **passed**, including
+    privacy-boundary and no-direct-personal-log contracts plus the executable
+    People lifecycle mock.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet suites and 181/181 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: This suppresses potentially private PAL diagnostics rather than
+  redesigning the shared logging API. Operational debugging on Phone must rely
+  on aggregate/state-only messages.
+- Real-device validation still required: **not executed for this task**. In a
+  test account and populated domain, exercise People refresh, friendship and
+  connection actions, profile pictures, and missing identities; verify only
+  aggregate diagnostics and no user/session/profile values reach captured logs.
 
 ## 23 — Preserve the bounded Phone graphics profile
 

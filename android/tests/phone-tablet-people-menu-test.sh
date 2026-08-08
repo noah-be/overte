@@ -34,6 +34,15 @@ require "$pal" 'updateInterval = undefined' \
     'People releases its update interval on close'
 require "$pal" 'Messages[.]unsubscribe\(CHANNEL\)' \
     'People releases its message subscription at shutdown'
+require "$pal" 'function printPrivatePalData\(message\)' \
+    'People centralizes diagnostics that may contain personal data'
+require "$pal" 'if \(!isAndroidPhone\)' \
+    'People suppresses private diagnostics on Android phone'
+if grep -Eq 'print\([^)]*(connectionUserName|friendUserName|specificUsername|sessionUUID|JSON[.]stringify)' "$pal"; then
+    printf 'FAIL: People writes personal user/session data directly to logs\n' >&2
+    exit 1
+fi
+printf 'PASS: People has no direct personal user/session log calls\n'
 
 require "$menu_stack" 'return tabletRoot[.]screenSpaceMode === true' \
     'Menu keeps filtering specific to the phone screen-space tablet'

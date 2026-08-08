@@ -22,6 +22,16 @@
 var isAndroidPhone = typeof ANDROID_PHONE_INTERFACE !== "undefined" && ANDROID_PHONE_INTERFACE;
 var controllerStandard = isAndroidPhone ? null : Controller.Standard;
 
+// PAL diagnostics can contain usernames, display names, session UUIDs,
+// profile URLs, relationship state, and server response text. Preserve the
+// established desktop debug output, but never place those values in Android
+// Phone logs collected by automated test and support tooling.
+function printPrivatePalData(message) {
+    if (!isAndroidPhone) {
+        print(message);
+    }
+}
+
 var request = Script.require('request').request;
 var AppUi = Script.require('appUi');
 
@@ -293,7 +303,8 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
             method: 'DELETE'
         }, function (error, response) {
             if (error || (response.status !== 'success')) {
-                print("Error: unable to remove connection", connectionUserName, error || response.status);
+                printPrivatePalData("Error: unable to remove connection " + connectionUserName +
+                    ": " + (error || response.status));
                 return;
             }
             sendToQml({ method: 'connectionRemoved', params: connectionUserName });
@@ -302,13 +313,14 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
 
     case 'removeFriend':
         friendUserName = message.params;
-        print("Removing " + friendUserName + " from friends.");
+        printPrivatePalData("Removing " + friendUserName + " from friends.");
         request({
             uri: METAVERSE_BASE + '/api/v1/user/friends/' + friendUserName,
             method: 'DELETE'
         }, function (error, response) {
             if (error || (response.status !== 'success')) {
-                print("Error: unable to unfriend " + friendUserName, error || response.status);
+                printPrivatePalData("Error: unable to unfriend " + friendUserName +
+                    ": " + (error || response.status));
                 return;
             }
             getConnectionData(friendUserName);
@@ -316,7 +328,7 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
         break;
     case 'addFriend':
         friendUserName = message.params;
-        print("Adding " + friendUserName + " to friends.");
+        printPrivatePalData("Adding " + friendUserName + " to friends.");
         request({
             uri: METAVERSE_BASE + '/api/v1/user/friends',
             method: 'POST',
@@ -326,7 +338,8 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
             }
         }, function (error, response) {
             if (error || (response.status !== 'success')) {
-                print("Error: unable to friend " + friendUserName, error || response.status);
+                printPrivatePalData("Error: unable to friend " + friendUserName +
+                    ": " + (error || response.status));
                 return;
             }
             getConnectionData(friendUserName);
@@ -347,7 +360,7 @@ function sendToQml(message) {
     ui.sendMessage(message);
 }
 function updateUser(data) {
-    print('PAL update:', JSON.stringify(data));
+    printPrivatePalData('PAL update: ' + JSON.stringify(data));
     sendToQml({ method: 'updateUsername', params: data });
 }
 //
@@ -360,7 +373,7 @@ function requestJSON(url, callback) { // callback(data) if successfull. Logs oth
         uri: url
     }, function (error, response) {
         if (error || (response.status !== 'success')) {
-            print("Error: unable to get request",  error || response.status);
+            printPrivatePalData("Error: unable to get request: " + (error || response.status));
             return;
         }
         callback(response.data);
@@ -373,7 +386,7 @@ function getProfilePicture(username, callback) { // callback(url) if successfull
     }, function (error, html) {
         var matched = !error && html.match(/img class="users-img" src="([^"]*)"/);
         if (!matched) {
-            print('Error: Unable to get profile picture for', username, error);
+            printPrivatePalData('Error: Unable to get profile picture for ' + username + ': ' + error);
             callback('');
             return;
         }
@@ -425,7 +438,8 @@ function getConnectionData(specificUsername, domain) { // Update all the usernam
             if (user) {
                 updateUser(frob(user));
             } else {
-                print('Error: Unable to find information about ' + specificUsername + ' in connectionsData!');
+                printPrivatePalData('Error: Unable to find information about ' + specificUsername +
+                    ' in connectionsData!');
             }
         });
     } else if (domain) {
@@ -480,7 +494,7 @@ function populateNearbyUserList(selectData, oldAudioData) {
             // we won't be able to do anything with this user, so don't include them.
             // In normal circumstances, a refresh will bring in the new user, but if we're very heavily loaded,
             // we could be losing and gaining people randomly.
-            print('No avatar identity data for', currentAvatarData.sessionUUID);
+            printPrivatePalData('No avatar identity data for ' + currentAvatarData.sessionUUID);
             return;
         }
         if (id && myPosition && (Vec3.distance(currentAvatarData.position, myPosition) > filter.distance)) {
@@ -524,7 +538,7 @@ function populateNearbyUserList(selectData, oldAudioData) {
             }
         }
         data.push(avatarPalDatum);
-        print('PAL data:', JSON.stringify(avatarPalDatum));
+        printPrivatePalData('PAL data: ' + JSON.stringify(avatarPalDatum));
     });
     getConnectionData(false, location.domainID); // Even admins don't get relationship data in requestUsernameFromID (which is still needed for admin status, which comes from domain).
     sendToQml({ method: 'nearbyUsers', params: data });
@@ -598,7 +612,7 @@ function updateOverlays() {
         updateAudioLevel(currentAvatarData);
         var overlay = ExtendedOverlay.get(currentAvatarData.sessionUUID);
         if (!overlay) { // For now, we're treating this as a temporary loss, as from the personal space bubble. Add it back.
-            print('Adding non-PAL avatar node', currentAvatarData.sessionUUID);
+            printPrivatePalData('Adding non-PAL avatar node ' + currentAvatarData.sessionUUID);
             overlay = addAvatarNode(currentAvatarData.sessionUUID);
         }
 
