@@ -1107,8 +1107,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 60 — WebView asynchronous command recovery
 
 - Branch: `nightly/pico4-60-webview-command-failures`
-- Commit: identified by subject `Recover Pico WebView command failures`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `c226fcf722` (`Recover Pico WebView command failures`)
 - Change: route navigation, background, User-Agent, resize, pointer and scroll
   UI-thread work through one Runtime/OOM boundary. Failures only invalidate the
   exact still-current instance, clean it up and report failed creation to enter
@@ -1123,6 +1122,26 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Inject failures into each command and a
   delayed scroll-layout callback while replacing the same handle; verify only
   the current instance retries, without UI-thread crash or cross-page teardown.
+
+### 61 — Microphone read-failure cleanup
+
+- Branch: `nightly/pico4-61-audio-read-failure-cleanup`
+- Commit: identified by subject `Clean up failed Pico microphone reads`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: contain runtime exceptions from the blocking capture loop and use a
+  `finally` ownership check to clear `running`, recorder and current-thread state
+  only when the failing loop still owns the active recorder. That owner then
+  stops/releases immediately; concurrent normal `stop()` remains the sole owner
+  when it has already detached the recorder.
+- Regression: audio transport contracts verify exception containment,
+  identity-before-state-clear, locked single-owner claim and release ordering.
+- Passed: 7 native/Java audio transport contracts; full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: unexpected reads no longer leave Java reporting a phantom active source;
+  the native zero-callback watchdog still performs the subsequent restart.
+- Pico 4 validation: **not executed**. Force negative reads and read exceptions
+  while racing stop/source switch; verify exactly one release, neutral FIFO,
+  watchdog restart and clean later capture without stale-source samples.
 
 ## Deferred, rejected, or blocked ideas
 

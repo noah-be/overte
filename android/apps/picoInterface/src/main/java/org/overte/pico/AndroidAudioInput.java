@@ -210,20 +210,42 @@ public final class AndroidAudioInput {
     private static void captureLoop(AudioRecord activeRecorder, int callbackBytes) {
         prioritizeCurrentThreadForAudio();
         final byte[] audio = new byte[callbackBytes];
-        while (running && recorder == activeRecorder) {
-            final int bytesRead = activeRecorder.read(
-                audio, 0, audio.length, AudioRecord.READ_BLOCKING);
-            // stop() can unblock a pending read with a final positive buffer.
-            // Re-check recorder identity after the blocking call so an old
-            // source cannot enter a newly started source's native FIFO.
-            if (PicoAudioCaptureState.shouldDeliver(
-                    running, recorder, activeRecorder, bytesRead)) {
-                nativeOnAudioData(audio, bytesRead);
-            } else if (!running || recorder != activeRecorder) {
-                break;
-            } else {
-                Log.e(TAG, "AudioRecord read failed: " + bytesRead);
-                break;
+        try {
+            while (running && recorder == activeRecorder) {
+                final int bytesRead = activeRecorder.read(
+                    audio, 0, audio.length, AudioRecord.READ_BLOCKING);
+                // stop() can unblock a pending read with a final positive buffer.
+                // Re-check recorder identity after the blocking call so an old
+                // source cannot enter a newly started source's native FIFO.
+                if (PicoAudioCaptureState.shouldDeliver(
+                        running, recorder, activeRecorder, bytesRead)) {
+                    nativeOnAudioData(audio, bytesRead);
+                } else if (!running || recorder != activeRecorder) {
+                    break;
+                } else {
+                    Log.e(TAG, "AudioRecord read failed: " + bytesRead);
+                    break;
+                }
+            }
+        } catch (RuntimeException exception) {
+            Log.e(TAG, "AudioRecord capture loop failed", exception);
+        } finally {
+            boolean releaseRecorder = false;
+            synchronized (LOCK) {
+                // stop() may already own this recorder. Only an unexpected loop
+                // exit while still current claims cleanup here.
+                if (recorder == activeRecorder) {
+                    running = false;
+                    recorder = null;
+                    if (captureThread == Thread.currentThread()) {
+                        captureThread = null;
+                    }
+                    releaseRecorder = true;
+                }
+            }
+            if (releaseRecorder) {
+                stopAndRelease(activeRecorder);
+                Log.w(TAG, "Released AudioRecord after capture-loop failure");
             }
         }
     }

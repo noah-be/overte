@@ -87,6 +87,24 @@ class PicoAudioTransportTests(unittest.TestCase):
         self.assertIn("prioritizeCurrentThreadForAudio();", loop_body)
         self.assertNotIn("Process.setThreadPriority", loop_body)
 
+    def test_unexpected_capture_exit_claims_cleanup_once(self):
+        loop = JAVA.index("private static void captureLoop")
+        loop_body = JAVA[loop:]
+        self.assertIn("catch (RuntimeException exception)", loop_body)
+        finally_block = loop_body.index("finally {")
+        identity = loop_body.index("if (recorder == activeRecorder)", finally_block)
+        stop_running = loop_body.index("running = false", identity)
+        clear_recorder = loop_body.index("recorder = null", stop_running)
+        thread_identity = loop_body.index("captureThread == Thread.currentThread()", clear_recorder)
+        claim = loop_body.index("releaseRecorder = true", thread_identity)
+        release = loop_body.index("stopAndRelease(activeRecorder)", claim)
+        self.assertLess(identity, stop_running)
+        self.assertLess(stop_running, clear_recorder)
+        self.assertLess(clear_recorder, thread_identity)
+        self.assertLess(thread_identity, claim)
+        self.assertLess(claim, release)
+        self.assertIn("synchronized (LOCK)", loop_body[finally_block:release])
+
 
 if __name__ == "__main__":
     unittest.main()
