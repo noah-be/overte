@@ -1035,8 +1035,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 56 — WebView creation exception handshake
 
 - Branch: `nightly/pico4-56-webview-create-exceptions`
-- Commit: identified by subject `Complete Pico WebView creation failures`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `60bece6ed9` (`Complete Pico WebView creation failures`)
 - Change: guard the complete main-thread WebView create/configure/settings/
   resize/register/load sequence, not only the constructor. Runtime or allocation
   failure cleans a registered/current view best-effort and always reports failed
@@ -1050,6 +1049,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Inject provider, settings, buffer and
   `loadUrl` exceptions, verify one failure handshake/cleanup per attempt, then
   remove the fault and confirm bounded retry renders the latest entity state.
+
+### 57 — WebView render-failure recovery
+
+- Branch: `nightly/pico4-57-webview-render-recovery`
+- Commit: identified by subject `Recover Pico WebView frame failures`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: restore Canvas state in a `finally` block, catch frame draw/copy
+  runtime/allocation failures, destroy the failed Java instance and report a
+  failed creation result so native code uses its bounded retry. Normal frame
+  scheduling now also requires the same active mapped instance.
+- Regression: WebView contracts verify draw/restore/catch/cleanup/failure
+  ordering and identity-guarded rescheduling.
+- Passed: 16 WebView bridge contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: an exceptional renderer is recreated instead of freezing its last frame;
+  repeated hard failures stop after the native three-retry cap.
+- Pico 4 validation: **not executed**. Inject Canvas draw and buffer-copy faults,
+  destroy/replace during delivery, and verify cleanup plus bounded recovery with
+  no frozen frame, callback storm or cross-instance scheduling.
 
 ## Deferred, rejected, or blocked ideas
 

@@ -255,21 +255,37 @@ public final class OffscreenWebView {
                 if (!active || bitmap == null) {
                     return;
                 }
-                bitmap.eraseColor(0x00000000);
-                int saveCount = canvas.save();
-                canvas.translate(-view.getScrollX(), -view.getScrollY());
-                view.draw(canvas);
-                canvas.restoreToCount(saveCount);
-                pixels.rewind();
-                bitmap.copyPixelsToBuffer(pixels);
-                pixels.rewind();
-                nativeFrame(nativeHandle, pixels, bitmap.getWidth(), bitmap.getHeight());
-                if (!reportedFirstFrame) {
-                    reportedFirstFrame = true;
-                    Log.i(TAG, "Delivered first WebView frame "
-                        + bitmap.getWidth() + "x" + bitmap.getHeight());
+                try {
+                    bitmap.eraseColor(0x00000000);
+                    int saveCount = canvas.save();
+                    try {
+                        canvas.translate(-view.getScrollX(), -view.getScrollY());
+                        view.draw(canvas);
+                    } finally {
+                        canvas.restoreToCount(saveCount);
+                    }
+                    pixels.rewind();
+                    bitmap.copyPixelsToBuffer(pixels);
+                    pixels.rewind();
+                    nativeFrame(nativeHandle, pixels, bitmap.getWidth(), bitmap.getHeight());
+                    if (!reportedFirstFrame) {
+                        reportedFirstFrame = true;
+                        Log.i(TAG, "Delivered first WebView frame "
+                            + bitmap.getWidth() + "x" + bitmap.getHeight());
+                    }
+                } catch (RuntimeException | OutOfMemoryError exception) {
+                    Log.e(TAG, "Offscreen WebView frame rendering failed", exception);
+                    try {
+                        destroyOnMain(nativeHandle);
+                    } catch (RuntimeException cleanupException) {
+                        Log.e(TAG, "Cannot clean up failed WebView renderer", cleanupException);
+                    }
+                    nativeCreationFinished(nativeHandle, false);
+                    return;
                 }
-                MAIN.postDelayed(this, FRAME_INTERVAL_MS);
+                if (active && INSTANCES.get(nativeHandle) == Instance.this) {
+                    MAIN.postDelayed(this, FRAME_INTERVAL_MS);
+                }
             }
         };
 

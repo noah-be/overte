@@ -197,6 +197,26 @@ class PicoWebViewBridgeTest(unittest.TestCase):
         self.assertLess(failure_catch, cleanup)
         self.assertLess(cleanup, failure)
 
+    def test_frame_failure_cleans_up_and_reenters_creation_handshake(self):
+        render_start = self.java_source.index("final Runnable renderFrame")
+        render_end = self.java_source.index("Instance(long nativeHandle", render_start)
+        render = self.java_source[render_start:render_end]
+        draw = render.index("view.draw(canvas)")
+        restore = render.index("finally {", draw)
+        restore_call = render.index("canvas.restoreToCount(saveCount)", restore)
+        failure_catch = render.index("catch (RuntimeException | OutOfMemoryError exception)", restore_call)
+        cleanup = render.index("destroyOnMain(nativeHandle)", failure_catch)
+        failure = render.index("nativeCreationFinished(nativeHandle, false)", cleanup)
+        reschedule_guard = render.index("active && INSTANCES.get(nativeHandle) == Instance.this", failure)
+        reschedule = render.index("MAIN.postDelayed(this, FRAME_INTERVAL_MS)", reschedule_guard)
+        self.assertLess(draw, restore)
+        self.assertLess(restore, restore_call)
+        self.assertLess(restore_call, failure_catch)
+        self.assertLess(failure_catch, cleanup)
+        self.assertLess(cleanup, failure)
+        self.assertLess(failure, reschedule_guard)
+        self.assertLess(reschedule_guard, reschedule)
+
     def test_pending_properties_are_resynchronized_after_creation(self):
         result = re.search(
             r"void PicoWebViewItem::acceptCreationResult\(.*?\n\}",
