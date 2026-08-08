@@ -310,8 +310,11 @@ void Application::activeChanged(Qt::ApplicationState state) {
             break;
 
         case Qt::ApplicationSuspended:
-            break;
         case Qt::ApplicationHidden:
+            // Mobile platforms reach these explicit background states after
+            // leaving the app. Do not keep reporting the client as foreground
+            // merely because neither state enters the switch default.
+            _isForeground = false;
             break;
         case Qt::ApplicationInactive:
             if (!_aboutToQuit && _startUpFinished) {

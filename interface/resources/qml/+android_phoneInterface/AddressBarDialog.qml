@@ -127,4 +127,9 @@ FocusScope {
         addressField.selectAll()
         addressField.forceActiveFocus()
     }
+
+    Component.onDestruction: {
+        addressField.focus = false
+        Qt.inputMethod.hide()
+    }
 }

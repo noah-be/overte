@@ -6,6 +6,7 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "$script_dir/../.." && pwd)"
 
 tests=(
+    phone-app-lifecycle-test.sh
     phone-tablet-core-contract-test.sh
     phone-tablet-presenter-test.sh
     phone-tablet-privacy-test.sh

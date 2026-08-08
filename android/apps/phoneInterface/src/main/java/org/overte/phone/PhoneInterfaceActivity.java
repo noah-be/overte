@@ -157,6 +157,10 @@ public final class PhoneInterfaceActivity extends QtActivity {
     @Override
     protected void onPause() {
         resumed = false;
+        // Android may pause the Activity before delivering the matching key-up
+        // (for example after Back backgrounds the task). Never carry that
+        // one-gesture bookkeeping into the next foreground session.
+        nativeBackConsumed = false;
         mainHandler.removeCallbacks(drainPendingUrlTask);
         super.onPause();
     }

@@ -194,7 +194,9 @@ that the phone APK requires Pico hardware or an OpenXR runtime.
 At startup, `PermissionsActivity` handles the optional microphone permission
 and transfers control to `PhoneInterfaceActivity`. The latter hosts the native
 Qt client, unpacks its assets into the application cache, and keeps the display
-awake while the client is active.
+awake while the client is active. Hidden and suspended Qt application states
+are treated as background states; transient Back-key and pending URL retry
+bookkeeping is stopped or reset on Activity pause and resumed safely later.
 
 ### Touchscreen system tablet
 

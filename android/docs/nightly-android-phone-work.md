@@ -26,6 +26,29 @@ of scope for this worktree and are called out explicitly where still needed.
 - Real-device validation still required: **not required for this test-only
   change; not executed**.
 
+## 04 — Background, Back, and IME lifecycle
+
+- Branch: `nightly/android-phone-04-lifecycle-audit`
+- Commit: `Harden Android phone lifecycle state` (this task's commit)
+- Change: Mark Qt Hidden/Suspended states as non-foreground, clear transient
+  consumed-Back bookkeeping on Activity pause, and add an Address dialog
+  destruction fallback that drops field focus and hides the IME. Existing
+  pending-deep-link callbacks remain pause-aware and are not discarded.
+- Tests:
+  - `android/tests/phone-app-lifecycle-test.sh`: **passed**, 5 lifecycle
+    contract checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet suites, JavaScript syntax checks, and 174/174 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: The shared foreground flag now reflects Qt's documented Hidden
+  and Suspended states on every platform. Inactive remains distinct so a
+  temporarily unfocused but visible desktop window is not treated as hidden.
+- Real-device validation still required: **not executed**. While Address and
+  Login dialogs respectively have the IME raised, background/foreground the
+  app, use physical and gesture Back, reopen each dialog, and verify no stale
+  key-up, keyboard, focus, or touch capture remains. Repeat while a deep link
+  arrives during cold startup and while the app is paused.
+
 ## 02 — Fail-closed Phone General Settings
 
 - Branch: `nightly/android-phone-02-settings-contract`
