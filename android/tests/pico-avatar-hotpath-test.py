@@ -11,6 +11,9 @@ AVATAR_MANAGER = (ROOT / "interface/src/avatar/AvatarManager.cpp").read_text(enc
 PHYSICS_ENGINE = (ROOT / "libraries/physics/src/PhysicsEngine.cpp").read_text(encoding="utf-8")
 ENTITY_SIMULATION = (ROOT / "libraries/entities/src/EntitySimulation.cpp").read_text(encoding="utf-8")
 ENTITY_RENDERER = (ROOT / "libraries/entities-renderer/src/EntityTreeRenderer.cpp").read_text(encoding="utf-8")
+PICK = (ROOT / "libraries/pointers/src/Pick.cpp").read_text(encoding="utf-8")
+PICK_MANAGER = (ROOT / "libraries/pointers/src/PickManager.cpp").read_text(encoding="utf-8")
+POINTER = (ROOT / "libraries/pointers/src/Pointer.cpp").read_text(encoding="utf-8")
 
 
 class PicoAvatarHotpathTests(unittest.TestCase):
@@ -68,6 +71,20 @@ class PicoAvatarHotpathTests(unittest.TestCase):
         self.assertIn("addPendingEntities(scene, transaction);", ENTITY_RENDERER)
         self.assertIn("updateChangedEntities(scene, transaction);", ENTITY_RENDERER)
         self.assertIn("checkEnterLeaveEntities();", ENTITY_RENDERER)
+
+    def test_pointer_profilers_are_not_always_on(self):
+        combined = PICK + PICK_MANAGER + POINTER
+        self.assertNotIn("PICO_LATENCY_POINTER_UPDATE", combined)
+        self.assertNotIn("PICO_LATENCY_PICK", combined)
+        self.assertNotIn("picoUpdatedUsec", combined)
+        self.assertNotIn("lastPickLog", combined)
+
+    def test_pointer_transition_and_pick_budget_paths_remain(self):
+        self.assertIn("PICO_POINTER_TRIGGER", POINTER)
+        self.assertIn("generatePointerEvents(pointerID, visualPickResult);", POINTER)
+        self.assertIn("usecTimestampNow() + _perFrameTimeBudget", PICK_MANAGER)
+        self.assertIn("if (updateRaysThisFrame)", PICK_MANAGER)
+        self.assertIn("_prevResult = pickResult;", PICK)
 
 
 if __name__ == "__main__":

@@ -516,8 +516,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 29 — Entity hot-path logging cleanup
 
 - Branch: `nightly/pico4-29-entity-hotpath-logging`
-- Commit: identified by subject `Remove always-on Pico entity profiling`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `7e0f4185c8` (`Remove always-on Pico entity profiling`)
 - Change: remove per-stage timestamps and periodic info logs from entity
   simulation and rendering, including two extra per-renderable timestamps and
   a once-per-second traversal of all pending renderables. Entity expiry,
@@ -533,6 +532,26 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Load a dense online and serverless world,
   exercise animated/web/particle entities and enter/leave events, and confirm
   behavior remains correct with the periodic entity profiler lines absent.
+
+### 30 — Pointer/pick hot-path logging cleanup
+
+- Branch: `nightly/pico4-30-pointer-hotpath-logging`
+- Commit: identified by subject `Remove always-on Pico pointer profiling`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: remove per-pointer maps/counters, per-pick result timestamp insertion,
+  five per-frame pick timestamps, periodic pick-cache scans, and their info
+  logs. The pick time budget, active-hand full-rate policy, pointer event
+  generation, and transition-only press/release diagnostic remain.
+- Regression: source contracts reject the continuous profiler state while
+  requiring the pick budget, active-ray path, result storage, event generation,
+  and `PICO_POINTER_TRIGGER` transition diagnostic.
+- Passed: hot-path source contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: continuous pick-age/stage logs are removed; discrete state transitions
+  and existing scoped profiling still support stuck-click/grab investigations.
+- Pico 4 validation: **not executed**. Exercise tablet/world rays, rapid target
+  changes, tracking loss, click/drag/scroll, and both hands; confirm interaction
+  plus transition traces without periodic latency log traffic.
 
 ## Deferred, rejected, or blocked ideas
 

@@ -103,26 +103,6 @@ void Pointer::update(unsigned int pointerID) {
     // This only needs to be a read lock because update won't change any of the properties that can be modified from scripts
     withReadLock([&] {
         auto pickResult = getPrevPickResult();
-#if defined(Q_OS_ANDROID)
-        static std::unordered_map<unsigned int, uint64_t> lastLog;
-        static std::unordered_map<unsigned int, uint32_t> updateCounts;
-        ++updateCounts[pointerID];
-        const uint64_t now = usecTimestampNow();
-        if (_enabled && now - lastLog[pointerID] >= 2 * USECS_PER_SECOND) {
-            const uint64_t updated = pickResult
-                ? pickResult->pickVariant.value("picoUpdatedUsec").toULongLong()
-                : 0;
-            qInfo() << "PICO_LATENCY_POINTER_UPDATE"
-                    << "pointer" << pointerID
-                    << "callsPerSec" << updateCounts[pointerID]
-                    << "pickAge(ms)" << (updated ? (now - updated) / 1000.0 : -1.0)
-                    << "enabled" << _enabled
-                    << "left" << isLeftHand()
-                    << "right" << isRightHand();
-            lastLog[pointerID] = now;
-            updateCounts[pointerID] = 0;
-        }
-#endif
         // Pointer needs its own PickResult object so it doesn't modify the cached pick result
         auto visualPickResult = getVisualPickResult(getPickResultCopy(pickResult));
         updateVisuals(visualPickResult);
