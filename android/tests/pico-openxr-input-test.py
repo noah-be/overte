@@ -281,6 +281,23 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertLess(destroy, clear)
         self.assertIn("~Action();", HEADER)
 
+    def test_xdev_capability_requires_every_used_function(self):
+        walk = CONTEXT.index("auto next = reinterpret_cast<const XrExtensionProperties*>")
+        start = CONTEXT.index("XR_TYPE_SYSTEM_XDEV_SPACE_PROPERTIES_MNDX", walk)
+        end = CONTEXT.index("// don't start up hand tracking stuff", start)
+        xdev = CONTEXT[start:end]
+        for name in (
+                "xrCreateXDevListMNDX",
+                "xrEnumerateXDevsMNDX",
+                "xrGetXDevPropertiesMNDX",
+                "xrDestroyXDevListMNDX",
+                "xrCreateXDevSpaceMNDX"):
+            self.assertIn('loadXrFunction(_instance, "' + name + '"', xdev)
+            self.assertIn(name + " = nullptr", xdev)
+        failure = xdev.index("if (!xdevFunctionsLoaded)")
+        self.assertIn("_MNDX_xdevSpaceSupported = false", xdev[failure:])
+        self.assertNotIn("xrGetInstanceProcAddr(", xdev)
+
 
 if __name__ == "__main__":
     unittest.main()

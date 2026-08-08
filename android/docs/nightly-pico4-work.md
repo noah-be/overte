@@ -1650,8 +1650,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 91 — Serialized microphone lifecycle transactions
 
 - Branch: `nightly/pico4-91-audio-lifecycle-serialization`
-- Commit: identified by subject `Serialize Pico microphone lifecycle`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `006c29c0cd` (`Serialize Pico microphone lifecycle`)
 - Change: serialize complete public AudioRecord start and stop transactions at
   the Java class monitor while retaining the short internal state lock for the
   capture thread. Concurrent source/lifecycle starts can no longer both create
@@ -1664,6 +1663,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Race multiple source starts, Activity stop
   and capture failure; verify at most one AudioRecord, one owner/release per
   generation, bounded callers and clean PCM from the final requested source.
+
+### 92 — Atomic XDev function capability
+
+- Branch: `nightly/pico4-92-openxr-xdev-functions`
+- Commit: identified by subject `Validate Pico OpenXR XDev functions`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: require successful loading of every MNDX XDev entry point actually
+  used by Pico's OpenXR input fork before enabling optional body-tracker setup.
+  Missing functions disable the capability and clear all partial pointers; the
+  unused generation function is no longer needlessly resolved.
+- Regression: 17 input/context contracts cover checked loading and cleanup for
+  CreateList, Enumerate, GetProperties, DestroyList and CreateSpace.
+- Passed: targeted 17-contract OpenXR input suite; `git diff --check`.
+- Risk: incomplete optional XDev runtimes lose body trackers while controller/
+  hand input remains available; normal Pico runtimes without MNDX are unchanged.
+- Pico 4 validation: **not executed**. Inject each missing XDev entry point and
+  verify clean capability disablement/no null dispatch; if a compatible tracker
+  runtime is available, verify unchanged enumeration and tracking.
 
 ## Deferred, rejected, or blocked ideas
 

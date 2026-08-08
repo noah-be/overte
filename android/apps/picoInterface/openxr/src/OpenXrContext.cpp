@@ -536,41 +536,28 @@ bool OpenXrContext::initSystem() {
                 continue;
             }
 
-            xrGetInstanceProcAddr(
-                _instance,
-                "xrCreateXDevListMNDX",
-                reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateXDevListMNDX)
-            );
-
-            xrGetInstanceProcAddr(
-                _instance,
-                "xrGetXDevListGenerationNumberMNDX",
-                reinterpret_cast<PFN_xrVoidFunction*>(&xrGetXDevListGenerationNumberMNDX)
-            );
-
-            xrGetInstanceProcAddr(
-                _instance,
-                "xrEnumerateXDevsMNDX",
-                reinterpret_cast<PFN_xrVoidFunction*>(&xrEnumerateXDevsMNDX)
-            );
-
-            xrGetInstanceProcAddr(
-                _instance,
-                "xrGetXDevPropertiesMNDX",
-                reinterpret_cast<PFN_xrVoidFunction*>(&xrGetXDevPropertiesMNDX)
-            );
-
-            xrGetInstanceProcAddr(
-                _instance,
-                "xrDestroyXDevListMNDX",
-                reinterpret_cast<PFN_xrVoidFunction*>(&xrDestroyXDevListMNDX)
-            );
-
-            xrGetInstanceProcAddr(
-                _instance,
-                "xrCreateXDevSpaceMNDX",
-                reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateXDevSpaceMNDX)
-            );
+            const bool xdevFunctionsLoaded =
+                loadXrFunction(_instance, "xrCreateXDevListMNDX",
+                    reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateXDevListMNDX)) &&
+                loadXrFunction(_instance, "xrEnumerateXDevsMNDX",
+                    reinterpret_cast<PFN_xrVoidFunction*>(&xrEnumerateXDevsMNDX)) &&
+                loadXrFunction(_instance, "xrGetXDevPropertiesMNDX",
+                    reinterpret_cast<PFN_xrVoidFunction*>(&xrGetXDevPropertiesMNDX)) &&
+                loadXrFunction(_instance, "xrDestroyXDevListMNDX",
+                    reinterpret_cast<PFN_xrVoidFunction*>(&xrDestroyXDevListMNDX)) &&
+                loadXrFunction(_instance, "xrCreateXDevSpaceMNDX",
+                    reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateXDevSpaceMNDX));
+            if (!xdevFunctionsLoaded) {
+                qCWarning(xr_context_cat,
+                          "Disabling XDev tracking because required OpenXR functions are unavailable");
+                _MNDX_xdevSpaceSupported = false;
+                xrCreateXDevListMNDX = nullptr;
+                xrGetXDevListGenerationNumberMNDX = nullptr;
+                xrEnumerateXDevsMNDX = nullptr;
+                xrGetXDevPropertiesMNDX = nullptr;
+                xrDestroyXDevListMNDX = nullptr;
+                xrCreateXDevSpaceMNDX = nullptr;
+            }
         }
 
         next = reinterpret_cast<const XrExtensionProperties*>(next->next);
