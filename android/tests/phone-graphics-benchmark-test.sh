@@ -37,6 +37,11 @@ sed 's/^+//' >"$fixture/adb" <<'MOCK'
 +fi
 +if [[ $1 == logcat && ${2:-} == -d ]]; then
 +  printf 'I/OvertePhoneGraphics: profile_render_scale=0.5 profile_target_fps=30 profile_forward_msaa_samples=1 profile_haze=0 profile_local_lights=0\n'
++  case ${MOCK_OVERLAY_CACHE_MODE:-valid} in
++    valid) printf 'I/OvertePhoneGraphics: overlay_cache_enabled=1 overlay_cache_samples=600 overlay_cache_hits=450 overlay_cache_misses=150 overlay_cache_new_textures=149 overlay_cache_resizes=1\n' ;;
++    malformed) printf 'I/OvertePhoneGraphics: overlay_cache_enabled=1 overlay_cache_samples=600 overlay_cache_hits=500 overlay_cache_misses=200 overlay_cache_new_textures=private overlay_cache_resizes=1\n' ;;
++    missing) ;;
++  esac
 +  case ${MOCK_MEMORY_MODE:-valid} in
 +    valid) memory='memory_proc_valid=1 memory_rss_kib=123456 memory_data_kib=100000 memory_swap_kib=2345 memory_allocator_valid=1 memory_allocator_used_kib=77777 memory_allocator_free_kib=8888' ;;
 +    malformed) memory='memory_proc_valid=1 memory_rss_kib=12x memory_data_kib=-1 memory_swap_kib=9223372036854775808 memory_allocator_valid=yes memory_allocator_used_kib=7.5 memory_allocator_free_kib=8' ;;
@@ -87,6 +92,14 @@ grep -q '^crash_records_after=1$' "$summary"
 grep -q '^crash_record_count_increased=1$' "$summary"
 grep -q '^stable_process=1$' "$summary"
 grep -q '^profile_viewport_scale=0.5$' "$summary"
+grep -q '^overlay_cache_metrics_valid=1$' "$summary"
+grep -q '^overlay_cache_enabled=1$' "$summary"
+grep -q '^overlay_cache_samples=600$' "$summary"
+grep -q '^overlay_cache_hits=450$' "$summary"
+grep -q '^overlay_cache_misses=150$' "$summary"
+grep -q '^overlay_cache_hit_percent=75.00$' "$summary"
+grep -q '^overlay_cache_new_textures=149$' "$summary"
+grep -q '^overlay_cache_resizes=1$' "$summary"
 grep -q '^native_present_metrics_available=1$' "$summary"
 grep -q '^native_present_fps=30.00$' "$summary"
 grep -q '^native_present_window_seconds=10.02$' "$summary"
@@ -246,11 +259,25 @@ PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/framebuffer-missing-exit
 grep -q '^framebuffer_metrics_valid=0$' "$framebuffer_missing_report/summary.txt"
 grep -q '^framebuffer_primary_width=unknown$' "$framebuffer_missing_report/summary.txt"
 grep -q '^framebuffer_resolve_samples=unknown$' "$framebuffer_missing_report/summary.txt"
+overlay_cache_malformed_report="$fixture/overlay-cache-malformed-report"
+PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/overlay-cache-malformed-exits" MOCK_OVERLAY_CACHE_MODE=malformed \
+    ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES PHONE_BENCHMARK_REPORT="$overlay_cache_malformed_report" \
+    PHONE_BENCHMARK_INTERVAL=1 "$script_dir/phone-graphics-benchmark.sh" 1 >/dev/null
+grep -q '^overlay_cache_metrics_valid=0$' "$overlay_cache_malformed_report/summary.txt"
+grep -q '^overlay_cache_hits=unknown$' "$overlay_cache_malformed_report/summary.txt"
+grep -q '^overlay_cache_new_textures=unknown$' "$overlay_cache_malformed_report/summary.txt"
+overlay_cache_missing_report="$fixture/overlay-cache-missing-report"
+PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/overlay-cache-missing-exits" MOCK_OVERLAY_CACHE_MODE=missing \
+    ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES PHONE_BENCHMARK_REPORT="$overlay_cache_missing_report" \
+    PHONE_BENCHMARK_INTERVAL=1 "$script_dir/phone-graphics-benchmark.sh" 1 >/dev/null
+grep -q '^overlay_cache_metrics_valid=0$' "$overlay_cache_missing_report/summary.txt"
+grep -q '^overlay_cache_enabled=unknown$' "$overlay_cache_missing_report/summary.txt"
 if grep -Eqi 'phone-secret|private|serial|account|url|manufacturer|model|fingerprint|android_id|domain|12x|9223372036854775808' \
         "$malformed_report/summary.txt" "$missing_report/summary.txt" \
         "$gpu_malformed_report/summary.txt" "$gpu_missing_report/summary.txt" \
         "$trash_malformed_report/summary.txt" "$trash_missing_report/summary.txt" "$trash_mismatch_report/summary.txt" \
-        "$framebuffer_malformed_report/summary.txt" "$framebuffer_missing_report/summary.txt"; then
+        "$framebuffer_malformed_report/summary.txt" "$framebuffer_missing_report/summary.txt" \
+        "$overlay_cache_malformed_report/summary.txt" "$overlay_cache_missing_report/summary.txt"; then
     echo 'FAIL: malformed or identifying data escaped into aggregate report' >&2; exit 1
 fi
 printf 'Phone graphics benchmark harness checks passed.\n'

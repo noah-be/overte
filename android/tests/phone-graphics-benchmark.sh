@@ -142,6 +142,7 @@ profile_line="$(grep -E 'PHONE_GRAPHICS_PROFILE|OvertePhoneGraphics.*profile_ren
 profile_scale="$(sed -nE 's/.*(renderScale|profile_render_scale)[^0-9]*([0-9]+([.][0-9]+)?).*/\2/p' <<<"$profile_line")"
 profile_fps="$(sed -nE 's/.*(targetFps|profile_target_fps)[^0-9]*([0-9]+).*/\2/p' <<<"$profile_line")"
 profile_msaa="$(sed -nE 's/.*(forwardMsaaSamples|profile_forward_msaa_samples)[^0-9]*([0-9]+).*/\2/p' <<<"$profile_line")"
+overlay_cache_line="$(grep 'OvertePhoneGraphics.*overlay_cache_enabled=' "$raw_dir/logcat.txt" | tail -n 1 || true)"
 present_line="$(grep 'OvertePhoneGraphics.*present_fps=' "$raw_dir/logcat.txt" | tail -n 1 || true)"
 present_window_id="$(grep -oE '(^|[[:space:]])window_id=(0|[1-9][0-9]*)' <<<"$present_line" | tail -n 1 | cut -d= -f2- || true)"
 if [[ "$present_window_id" =~ ^(0|[1-9][0-9]*)$ ]]; then
@@ -242,6 +243,27 @@ framebuffer_resolve_width="$(extract_native_field framebuffer_resolve_width "$st
 framebuffer_resolve_height="$(extract_native_field framebuffer_resolve_height "$state_line" || true)"
 framebuffer_resolve_samples="$(extract_native_field framebuffer_resolve_samples "$state_line" || true)"
 framebuffer_estimated_mib="$(extract_native_field framebuffer_estimated_mib "$state_line" || true)"
+overlay_cache_enabled="$(extract_native_field overlay_cache_enabled "$overlay_cache_line" || true)"
+overlay_cache_samples="$(extract_native_field overlay_cache_samples "$overlay_cache_line" || true)"
+overlay_cache_hits="$(extract_native_field overlay_cache_hits "$overlay_cache_line" || true)"
+overlay_cache_misses="$(extract_native_field overlay_cache_misses "$overlay_cache_line" || true)"
+overlay_cache_new_textures="$(extract_native_field overlay_cache_new_textures "$overlay_cache_line" || true)"
+overlay_cache_resizes="$(extract_native_field overlay_cache_resizes "$overlay_cache_line" || true)"
+overlay_cache_metrics_valid=0
+overlay_cache_hit_percent=unknown
+if [[ "$overlay_cache_enabled" =~ ^[01]$ ]] && valid_u32 "$overlay_cache_samples" &&
+        valid_u32 "$overlay_cache_hits" && valid_u32 "$overlay_cache_misses" &&
+        valid_u32 "$overlay_cache_new_textures" && valid_u32 "$overlay_cache_resizes" &&
+        (( 10#$overlay_cache_hits + 10#$overlay_cache_misses == 10#$overlay_cache_samples )) &&
+        (( 10#$overlay_cache_new_textures <= 10#$overlay_cache_misses )) &&
+        (( 10#$overlay_cache_resizes <= 10#$overlay_cache_misses )); then
+    overlay_cache_metrics_valid=1
+    overlay_cache_hit_percent="$(awk -v hits="$overlay_cache_hits" -v samples="$overlay_cache_samples" \
+        'BEGIN { printf "%.2f", samples ? 100 * hits / samples : 0 }')"
+else
+    overlay_cache_enabled=unknown; overlay_cache_samples=unknown; overlay_cache_hits=unknown
+    overlay_cache_misses=unknown; overlay_cache_new_textures=unknown; overlay_cache_resizes=unknown
+fi
 memory_proc_valid=0
 if [[ "$memory_proc_flag" == 1 ]] && valid_nonnegative_int64 "$memory_rss_kib" && \
         valid_nonnegative_int64 "$memory_data_kib" && valid_nonnegative_int64 "$memory_swap_kib"; then
@@ -331,6 +353,12 @@ chmod 600 "$summary_tmp"
         "$crash_records_before" "$crash_records_after" "$crash_record_count_increased" "$log_crashes"
     printf 'profile_viewport_scale=%s\nprofile_target_fps=%s\nprofile_forward_msaa_samples=%s\n' \
         "${profile_scale:-unknown}" "${profile_fps:-unknown}" "${profile_msaa:-unknown}"
+    printf 'overlay_cache_metrics_valid=%s\noverlay_cache_enabled=%s\noverlay_cache_samples=%s\n' \
+        "$overlay_cache_metrics_valid" "$overlay_cache_enabled" "$overlay_cache_samples"
+    printf 'overlay_cache_hits=%s\noverlay_cache_misses=%s\noverlay_cache_hit_percent=%s\n' \
+        "$overlay_cache_hits" "$overlay_cache_misses" "$overlay_cache_hit_percent"
+    printf 'overlay_cache_new_textures=%s\noverlay_cache_resizes=%s\n' \
+        "$overlay_cache_new_textures" "$overlay_cache_resizes"
     printf 'native_present_metrics_available=%s\nnative_present_fps=%s\nnative_new_frame_fps=%s\n' \
         "$native_present_metrics_available" "${native_present_fps:-unknown}" "${native_new_frame_fps:-unknown}"
     printf 'native_present_window_seconds=%s\nnative_present_window_scope=latest_complete\n' \
