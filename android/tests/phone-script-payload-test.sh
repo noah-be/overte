@@ -7,6 +7,7 @@ readonly repo_root="$(cd -- "$android_root/.." && pwd)"
 readonly gradle="$android_root/apps/phoneInterface/build.gradle"
 readonly defaults="$repo_root/scripts/+android_phoneInterface/defaultScripts.js"
 readonly progress="$repo_root/scripts/system/progress.js"
+readonly apk_checker="$android_root/tests/check-phone-apk-contents.py"
 
 grep -Fq "variant.mergeAssets.inputs.file(project.file('build.gradle'))" "$gradle"
 python3 - "$gradle" <<'PY'
@@ -106,6 +107,42 @@ if grep -Fq 'Script.setInterval(update, 1000 / 60);' "$progress"; then
     echo 'FAIL: phone progress indicator still unconditionally updates at 60 Hz' >&2
     exit 1
 fi
+
+python3 - "$defaults" "$apk_checker" "$repo_root/scripts" <<'PY'
+import importlib.util
+import pathlib
+import re
+import sys
+
+defaults_path = pathlib.Path(sys.argv[1])
+checker_path = pathlib.Path(sys.argv[2])
+scripts_root = pathlib.Path(sys.argv[3])
+source = defaults_path.read_text(encoding="utf-8")
+match = re.search(r"PHONE_DEFAULT_SCRIPTS\s*=\s*\[(.*?)\];", source, re.S)
+if not match:
+    raise SystemExit("FAIL: could not parse PHONE_DEFAULT_SCRIPTS")
+startup_scripts = set(re.findall(r'[\"\']([^\"\']+[.]js)[\"\']', match.group(1)))
+startup_scripts.add("+android_phoneInterface/defaultScripts.js")
+startup_scripts.add("system/+android_interface/androidControls.js")
+expected_cached = {"scripts/" + entry for entry in startup_scripts}
+
+spec = importlib.util.spec_from_file_location("phone_apk_contents_sync", checker_path)
+checker = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(checker)
+actual_cached = {
+    entry for entry in checker.REQUIRED_CACHED_ASSETS if entry.startswith("scripts/")
+}
+if actual_cached != expected_cached:
+    missing = sorted(expected_cached - actual_cached)
+    stale = sorted(actual_cached - expected_cached)
+    raise SystemExit(f"FAIL: APK/default startup script drift; missing={missing}, stale={stale}")
+missing_sources = sorted(
+    entry for entry in startup_scripts if not (scripts_root / entry).is_file()
+)
+if missing_sources:
+    raise SystemExit(f"FAIL: Phone default startup sources are missing: {missing_sources}")
+print(f"Phone APK/default startup scripts are synchronized ({len(startup_scripts)} scripts).")
+PY
 
 python3 - \
         "$repo_root/scripts/simplifiedUI" \

@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 50 — Synchronize Phone startup scripts and APK gate
+
+- Branch: `nightly/android-phone-50-default-script-sync`
+- Commit: `Keep phone startup APK contract synchronized` (this task's commit)
+- Change: Parse `PHONE_DEFAULT_SCRIPTS`, add the selector/default require entry,
+  compare the exact script set to `REQUIRED_CACHED_ASSETS`, and require every
+  corresponding source file. Future startup additions/removals cannot leave the
+  APK gate missing a script or carrying a stale mandatory entry.
+- Tests:
+  - `android/tests/phone-script-payload-test.sh`: **passed**, reporting 13/13
+    synchronized startup scripts and all payload exclusions.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 200/200 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/APK suites and 200/200 host checks.
+  - Python syntax and `git diff --check`: **passed**.
+- Known risks: Parsing deliberately targets the simple literal startup array;
+  making it dynamic will fail the test and require an explicit new contract.
+- Real-device validation still required: **none specific**; the synchronized
+  scripts remain covered by final APK startup and per-app smoke tests.
+
 ## 49 — Require the Phone default-script payload
 
 - Branch: `nightly/android-phone-49-apk-default-scripts`
