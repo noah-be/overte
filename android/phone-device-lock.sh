@@ -12,6 +12,7 @@ fi
 
 LOCK_FILE="${PHONE_DEVICE_LOCK_FILE:-$git_common_dir/phone-device.lock}"
 OWNER_FILE="${LOCK_FILE}.owner"
+readonly RELEASE_DELAY_SECONDS=5
 COMMAND="${1:-status}"
 shift || true
 
@@ -26,7 +27,15 @@ worktrees. The default lock lives in their shared Git common directory.
 
   status  Report whether the phone is available (exit 0) or in use (exit 1).
   wait    Wait until the current phone operation finishes, then return.
-  run     Wait for exclusive access and hold it while COMMAND runs.
+  run     Wait for exclusive access and hold it while COMMAND runs, then keep
+          the phone reserved for a five-second cooldown before releasing it.
+
+For a build that will be installed or tested on the phone, COMMAND must include
+the complete build, install, test, diagnostic, and cleanup sequence. Do not run
+the build outside the lock and acquire the phone only for the later ADB steps.
+
+Example:
+  ./phone-device-lock.sh run -- bash -c './build-phone.sh build && run-tests'
 EOF
 }
 
@@ -81,17 +90,28 @@ case "$COMMAND" in
             flock "$LOCK_FD"
         fi
 
-        branch="$(git -C "$SCRIPT_DIR" symbolic-ref --quiet --short HEAD 2>/dev/null || printf detached)"
+        caller_worktree="$PWD"
+        if ! git -C "$caller_worktree" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+            caller_worktree="$SCRIPT_DIR"
+        fi
+        branch="$(git -C "$caller_worktree" symbolic-ref --quiet --short HEAD 2>/dev/null || printf detached)"
         started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         owns_metadata=1
         release_lock_metadata() {
             if (( owns_metadata )); then
+                printf 'pid=%s since=%s branch=%s phase=cooldown\n' \
+                    "$$" "$started" "$branch" >"$OWNER_FILE"
+                sleep "$RELEASE_DELAY_SECONDS"
                 rm -f -- "$OWNER_FILE"
                 owns_metadata=0
             fi
         }
-        trap release_lock_metadata EXIT INT TERM HUP
-        printf 'pid=%s since=%s branch=%s\n' "$$" "$started" "$branch" >"$OWNER_FILE"
+        trap release_lock_metadata EXIT
+        trap 'exit 130' INT
+        trap 'exit 143' TERM
+        trap 'exit 129' HUP
+        printf 'pid=%s since=%s branch=%s phase=active\n' \
+            "$$" "$started" "$branch" >"$OWNER_FILE"
         export PHONE_DEVICE_LOCK_HELD=1
 
         set +e
