@@ -36,4 +36,21 @@ grep -Eq 'task\.addJob<RenderSimulateTask>\("RenderSimulation"' "$source_file" |
     exit 1
 }
 
+awk '
+    /void DrawForward::run/ { in_run = 1 }
+    in_run && /const auto& inItems = inputs.get0\(\)/ { items = NR }
+    in_run && /#if defined\(ANDROID_APP_PHONE_INTERFACE\)/ { phone_guard = NR }
+    in_run && /if \(inItems\.empty\(\)\)/ { empty_return = NR }
+    in_run && empty_return && /return;/ { returned = NR }
+    in_run && returned && /#endif/ { guard_end = NR }
+    in_run && /DependencyManager::get<DeferredLightingEffect>/ { lighting = NR; exit }
+    END {
+        exit !(items && phone_guard > items && empty_return > phone_guard && returned > empty_return &&
+            guard_end > returned && lighting > guard_end)
+    }
+' "$source_file" || {
+    echo 'FAIL: phone empty forward buckets still bind lighting resources' >&2
+    exit 1
+}
+
 echo 'Phone forward pass trim checks passed.'

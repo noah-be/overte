@@ -343,6 +343,11 @@ void DrawForward::run(const RenderContextPointer& renderContext, const Inputs& i
     RenderArgs* args = renderContext->args;
 
     const auto& inItems = inputs.get0();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (inItems.empty()) {
+        return;
+    }
+#endif
     const auto& lightingModel = inputs.get1();
     const auto& hazeFrame = inputs.get2();
     const auto& lightClusters = inputs.get3();
