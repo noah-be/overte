@@ -197,16 +197,6 @@
         return mode === "first person" || mode === "first person look at";
     }
 
-    function updateCameraButton(mode) {
-        var firstPerson = isFirstPersonMode(mode || Camera.mode);
-        if (cameraButton) {
-            cameraButton.editProperties({
-                isActive: !firstPerson,
-                text: firstPerson ? "1ST" : "3RD"
-            });
-        }
-    }
-
     function toggleCameraMode() {
         if (isFirstPersonMode(Camera.mode)) {
             Camera.mode = "look at";
@@ -237,8 +227,8 @@
     }));
     cameraButton = addButton(navigationBar, buttonProperties({
         icon: "icons/myview-i.svg",
-        activeIcon: "icons/myview-a.svg",
-        text: "1ST"
+        activeIcon: "icons/myview-i.svg",
+        text: "VIEW"
     }));
     microphoneButton = addButton(audioBar, buttonProperties({
         icon: "icons/tablet-icons/mic-unmute-i.svg",
@@ -256,8 +246,6 @@
     connectSignal(cameraButton, "entered", hapticFeedback);
     connectSignal(microphoneButton, "clicked", toggleMicrophone);
     connectSignal(microphoneButton, "entered", hapticFeedback);
-    Camera.modeUpdated.connect(updateCameraButton);
-    updateCameraButton(Camera.mode);
     Window.geometryChanged.connect(updateLayout);
     // QML fragments also perform their initial placement in Component.onCompleted;
     // defer once so the phone-specific adaptive placement wins deterministically.
@@ -273,7 +261,6 @@
         disconnectSignal(cameraButton, "entered", hapticFeedback);
         disconnectSignal(microphoneButton, "clicked", toggleMicrophone);
         disconnectSignal(microphoneButton, "entered", hapticFeedback);
-        Camera.modeUpdated.disconnect(updateCameraButton);
         closeFragment(navigationBar);
         closeFragment(audioBar);
     });

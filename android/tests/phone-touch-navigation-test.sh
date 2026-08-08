@@ -19,6 +19,14 @@ require() {
     }
 }
 
+reject() {
+    local file=$1 pattern=$2 message=$3
+    if grep -Eq -- "$pattern" "$file"; then
+        printf 'FAIL: %s\n' "$message" >&2
+        exit 1
+    fi
+}
+
 python3 -m json.tool "$phone_mapping" >/dev/null
 python3 - "$phone_mapping" <<'PY'
 import json
@@ -63,8 +71,8 @@ require "$phone_action_bar" 'Camera[.]mode = "first person look at";' \
     'phone camera button cannot enter first-person view'
 require "$phone_action_bar" 'Camera[.]mode = "look at";' \
     'phone camera button cannot enter third-person view'
-require "$phone_action_bar" 'Camera[.]modeUpdated[.]connect\(updateCameraButton\)' \
-    'phone camera button does not follow external camera mode changes'
+reject "$phone_action_bar" 'Camera[.]modeUpdated.*cameraButton|updateCameraButton' \
+    'phone camera mode changes synchronously mutate the triggering QML button'
 
 require "$phone_mapping" 'TouchscreenVirtualPad[.]LX.*Actions[.]TranslateX' \
     'virtual joystick lateral movement mapping is missing'
