@@ -142,6 +142,7 @@
 
     var CreateWindow = Script.require('./modules/createWindow.js');
     var validatePicoProperties = Script.require('./modules/picoPropertiesValidation.js');
+    var validatePicoQmlMessage = Script.require('./modules/picoQmlMessageValidation.js');
 
     var TITLE_OFFSET = 60;
     var CREATE_TOOLS_WIDTH = 750;
@@ -1112,6 +1113,11 @@
         }
 
         function fromQml(message) { // messages are {method, params}, like json-rpc. See also sendToQml.
+            message = validatePicoQmlMessage(message);
+            if (!message) {
+                print("Ignoring malformed Create QML message");
+                return;
+            }
             var tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
             if (message.method.indexOf("Dialog") !== -1) {
                 tablet.popFromStack();
@@ -1125,7 +1131,11 @@
                     closeExistingDialogWindow();
                     break;
                 case "newEntityButtonClicked":
-                    buttonHandlers[message.params.buttonName]();
+                    if (typeof message.params.buttonName === "string" &&
+                            Object.prototype.hasOwnProperty.call(buttonHandlers, message.params.buttonName) &&
+                            typeof buttonHandlers[message.params.buttonName] === "function") {
+                        buttonHandlers[message.params.buttonName]();
+                    }
                     break;
                 case "picoRequestSelection":
                     sendPicoPropertiesSelection();

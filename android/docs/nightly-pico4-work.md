@@ -761,8 +761,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 41 — Native microphone frame alignment
 
 - Branch: `nightly/pico4-41-audio-frame-alignment`
-- Commit: identified by subject `Validate Pico microphone frame alignment`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `14cd847f55` (`Validate Pico microphone frame alignment`)
 - Change: reject JNI PCM callbacks unless transport is configured and byte
   count is aligned to the current channel frame, before allocating/copying the
   Java array; recheck under enqueue lock; exclude invalid callbacks from the
@@ -778,6 +777,26 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Capture mono/stereo sources while forcing
   partial/error reads and rapid restart; verify invalid callbacks are dropped,
   watchdog recovery occurs, and later speech retains channel/sample alignment.
+
+### 42 — Create QML message boundary
+
+- Branch: `nightly/pico4-42-create-message-validation`
+- Commit: identified by subject `Validate Pico Create QML messages`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: normalize the native Create page's QML messages before dispatch,
+  reject missing/non-string methods and non-object parameters, and invoke only
+  registered own button handlers. Invalid or stale UI messages can no longer
+  terminate the long-running Create script through unchecked dereferences.
+- Regression: executable Node tests cover malformed values, default parameters,
+  valid Pico focus messages, validation-before-dispatch, and the registered
+  handler guard.
+- Passed: Create QML boundary tests; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: malformed messages are ignored with one diagnostic; all existing
+  object-shaped QML messages and registered Create buttons retain their behavior.
+- Pico 4 validation: **not executed**. Open/close Create repeatedly, exercise
+  every native creation button and numeric focus control, then inject malformed
+  and unknown QML messages and verify Create remains responsive.
 
 ## Deferred, rejected, or blocked ideas
 
@@ -795,11 +814,11 @@ headset, ADB, Android device, external domain, or device setting is used.
   headset; diagnostics and exact checks are provided instead.
 - Off-hand rotation was not reimplemented because Pico already inherits the
   desktop mapping. Only the inaccurate validation status was corrected.
-- Create/Entity List/import/native QML, mirror/secondary-camera, and
-  world/reconnect paths showed no additional narrow defect that could be
-  responsibly changed within the available device-free evidence. Existing
-  Pico code in these broad areas requires configured native builds and targeted
-  runtime scenarios before behavioral changes.
+- Entity List/import, mirror/secondary-camera, and remaining Create paths showed
+  no additional narrow defect yet that could be responsibly changed within the
+  available device-free evidence. Existing Pico code in these broad areas
+  requires configured native builds and targeted runtime scenarios before
+  behavioral changes.
 - Native Qt/C++ host suites are blocked in this worktree: `build-tests` has no
   `CMakeCache.txt`. The Pico Android build is also blocked before compilation by
   missing `android/conan/pico4-debug/generators/Qt5-debug-armv8-data.cmake`.

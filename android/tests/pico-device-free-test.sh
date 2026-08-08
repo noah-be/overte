@@ -29,6 +29,7 @@ run "Tablet lifecycle and messages" node "$SCRIPT_DIR/pico-tablet-lifecycle-test
 run "Tablet setting sanitization" node "$SCRIPT_DIR/pico-tablet-settings-test.js"
 run "Native Create properties" python3 "$SCRIPT_DIR/pico-create-qml-test.py"
 run "Create property message validation" node "$SCRIPT_DIR/pico-create-properties-validation-test.js"
+run "Create QML boundary validation" node "$SCRIPT_DIR/pico-create-message-validation-test.js"
 run "Avatar hot-path contracts" python3 "$SCRIPT_DIR/pico-avatar-hotpath-test.py"
 run "World-loading failure paths" python3 "$SCRIPT_DIR/pico-world-state-test.py"
 run "Microphone runner mocks" "$SCRIPT_DIR/pico-microphone-test-test.sh"
