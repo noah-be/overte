@@ -435,6 +435,11 @@ android {
                 // behavior.
                 exclude '**/*.map'
                 exclude '**/web-types.json'
+                // Phone starts its dedicated minimal touch UI and never loads
+                // the desktop Simplified UI bootstrapper. Its emoji image set
+                // otherwise dominates the compressed scripts payload.
+                exclude 'simplifiedUI/**'
+                exclude 'simplifiedUIBootstrapper.js'
                 eachFile { details ->
                     youngestLastModified = Math.max(youngestLastModified, details.lastModified)
                     assetList.add("scripts/${details.path}")

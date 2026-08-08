@@ -69,6 +69,7 @@ for source_file in \
         tests/check-phone-apk-16k.sh \
         tests/check-phone-apk-padding.py \
         tests/phone-apk-padding-test.sh \
+        tests/phone-script-payload-test.sh \
         tests/verify-phone-16k-dependencies.sh \
         prepare-phone-16k-conan-deps.sh \
         "$gradle" \
@@ -118,6 +119,8 @@ require_text "$gradle" 'check-phone-apk-16k\.sh' \
     '16 KiB builds enforce the final APK alignment gate'
 require_text tests/check-phone-apk-16k.sh 'check-phone-apk-padding\.py' \
     'final APK gate rejects excessive incremental ZIP padding'
+require_text "$gradle" "exclude 'simplifiedUI/[*][*]'" \
+    'phone packaging omits the unused desktop Simplified UI payload'
 require_text "$gradle" "dependsOn tasks\.named\('verifyPhone16kDependencies'\)" \
     'Conan generator staging runs only after dependency verification'
 require_text "$gradle" 'outputs\.upToDateWhen[[:space:]]*\{[[:space:]]*false[[:space:]]*\}' \
