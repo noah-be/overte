@@ -32,7 +32,7 @@ Rectangle {
     // leave as blank, this is user's volume for the avatar mixer
     property var myAvatarUuid: ""
     property string title: "Audio Settings"
-    property int switchHeight: 16
+    property int switchHeight: touchConfiguration.minimumControlHeight
     property int switchWidth: 40
     property bool pushToTalk: (bar.currentIndex === 0) ? AudioScriptingInterface.pushToTalkDesktop : AudioScriptingInterface.pushToTalkHMD;
     property bool muted: (bar.currentIndex === 0) ? AudioScriptingInterface.mutedDesktop : AudioScriptingInterface.mutedHMD;
@@ -82,14 +82,18 @@ Rectangle {
     }
 
     property bool showPeaks: true;
+    property bool peakValuesWereEnabled: false;
 
     function enablePeakValues() {
+        peakValuesWereEnabled = AudioScriptingInterface.devices.input.peakValuesEnabled;
         AudioScriptingInterface.devices.input.peakValuesEnabled = true;
-        AudioScriptingInterface.devices.input.peakValuesEnabledChanged.connect(function(enabled) {
-            if (!enabled && root.showPeaks) {
-                AudioScriptingInterface.devices.input.peakValuesEnabled = true;
-            }
-        });
+        AudioScriptingInterface.devices.input.peakValuesEnabledChanged.connect(onPeakValuesEnabledChanged);
+    }
+
+    function onPeakValuesEnabledChanged(enabled) {
+        if (!enabled && root.showPeaks) {
+            AudioScriptingInterface.devices.input.peakValuesEnabled = true;
+        }
     }
 
     function updateMyAvatarGainFromQML(sliderValue, isReleased) {
@@ -116,6 +120,12 @@ Rectangle {
 
     Component.onCompleted: {
         enablePeakValues();
+    }
+
+    Component.onDestruction: {
+        root.showPeaks = false;
+        AudioScriptingInterface.devices.input.peakValuesEnabledChanged.disconnect(onPeakValuesEnabledChanged);
+        AudioScriptingInterface.devices.input.peakValuesEnabled = root.peakValuesWereEnabled;
     }
 
     Flickable {

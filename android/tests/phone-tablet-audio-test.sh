@@ -30,9 +30,19 @@ require "$phone_config" 'showModeTabs:[[:space:]]*false' \
     'phone Audio removes its redundant mode selector'
 require "$phone_config" 'showVrMode:[[:space:]]*false' \
     'phone Audio does not offer unavailable HMD configuration'
+require "$phone_config" 'minimumControlHeight:[[:space:]]*20' \
+    'phone Audio exposes physically touchable switches after host scaling'
 require "$audio" 'currentIndex:[[:space:]]*touchConfiguration[.]showVrMode[[:space:]]*&&[[:space:]]*isVR[[:space:]]*[?][[:space:]]*1[[:space:]]*:[[:space:]]*0' \
     'phone Audio remains on the native desktop audio context'
 require "$audio" 'anchors[.]top:[[:space:]]*bar[.]visible[[:space:]]*[?][[:space:]]*bar[.]bottom[[:space:]]*:[[:space:]]*parent[.]top' \
     'phone Audio reclaims the hidden mode selector space'
+require "$audio" 'peakValuesEnabledChanged[.]connect\(onPeakValuesEnabledChanged\)' \
+    'Audio uses a named peak-level listener'
+require "$audio" 'peakValuesEnabledChanged[.]disconnect\(onPeakValuesEnabledChanged\)' \
+    'Audio releases its peak-level listener when the tablet app closes'
+require "$audio" 'Component[.]onDestruction' \
+    'Audio tears down transient metering state during app lifecycle changes'
+require "$audio" 'peakValuesEnabled[[:space:]]*=[[:space:]]*root[.]peakValuesWereEnabled' \
+    'Audio restores the pre-existing peak-meter state on close'
 
 printf 'Phone tablet Audio checks passed.\n'

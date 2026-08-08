@@ -5,4 +5,6 @@ import QtQuick 2.7
 QtObject {
     property bool showModeTabs: false
     property bool showVrMode: false
+    // WindowRoot scales this to a 50 px physical touch target.
+    property int minimumControlHeight: 20
 }
