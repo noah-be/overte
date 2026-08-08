@@ -70,6 +70,8 @@ for required in \
         system/progress.js \
         system/+android_interface/touchscreenvirtualpad.js \
         system/+android_phoneInterface/mobileActionBar.js \
+        system/audio.js \
+        system/settings/settings.js \
         system/+android_interface/androidControls.js; do
     test -f "$repo_root/scripts/$required" || {
         echo "FAIL: required phone script is missing: $required" >&2

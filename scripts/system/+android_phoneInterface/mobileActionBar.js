@@ -2,14 +2,16 @@
 
 // A small, screen-space control surface for the phone client.  It deliberately
 // uses Interface's QML dialogs instead of the legacy Android Java activities.
-/* globals Audio, Controller, DialogsManager, print, QmlFragment, Script, Window */
+/* globals Audio, Controller, DialogsManager, print, QmlFragment, Script, Tablet, Window */
 
 (function () {
     var navigationBar;
     var audioBar;
     var gotoButton;
+    var tabletButton;
     var loginButton;
     var microphoneButton;
+    var systemTablet;
     var currentButtonStyle;
 
     var BASE_BUTTON_STYLE = {
@@ -48,7 +50,7 @@
             navigationPosition: { x: edgeMargin, y: edgeMargin },
             navigationSize: {
                 x: buttonSize + 2 * flowPadding,
-                y: 2 * buttonSize + flowSpacing + 2 * flowPadding
+                y: 3 * buttonSize + 2 * flowSpacing + 2 * flowPadding
             },
             audioPosition: {
                 x: Math.max(edgeMargin, width - edgeMargin - buttonSize - 2 * flowPadding),
@@ -146,6 +148,7 @@
             audioBar.setSize(layout.audioSize.x, layout.audioSize.y);
         }
         applyButtonStyle(gotoButton, currentButtonStyle);
+        applyButtonStyle(tabletButton, currentButtonStyle);
         applyButtonStyle(loginButton, currentButtonStyle);
         applyButtonStyle(microphoneButton, currentButtonStyle);
     }
@@ -182,6 +185,26 @@
         DialogsManager.showAddressBar();
     }
 
+    function showTablet() {
+        var tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
+        tablet.showAndroidTablet(Window.innerWidth, Window.innerHeight);
+    }
+
+    function resizeTablet() {
+        systemTablet.resizeAndroidTablet(Window.innerWidth, Window.innerHeight);
+    }
+
+    function tabletVisibilityChanged() {
+        var tabletShown = systemTablet.tabletShown;
+        Controller.setVPadHidden(tabletShown);
+        if (navigationBar) {
+            navigationBar.visible = !tabletShown;
+        }
+        if (audioBar) {
+            audioBar.visible = !tabletShown;
+        }
+    }
+
     function showLoginDialog() {
         DialogsManager.showLoginDialog();
     }
@@ -191,6 +214,7 @@
     }
 
     currentButtonStyle = calculateLayout(Math.max(Window.innerWidth, 1), Math.max(Window.innerHeight, 1)).buttonStyle;
+    systemTablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
 
     navigationBar = createFragment("hifi/ActionBar.qml");
     audioBar = createFragment("hifi/AudioBar.qml");
@@ -199,6 +223,11 @@
         icon: "icons/tablet-icons/goto-i.svg",
         activeIcon: "icons/tablet-icons/goto-a.svg",
         text: "GO TO"
+    }));
+    tabletButton = addButton(navigationBar, buttonProperties({
+        icon: "icons/tablet-icons/menu-i.svg",
+        activeIcon: "icons/tablet-icons/menu-a.svg",
+        text: "TABLET"
     }));
     loginButton = addButton(navigationBar, buttonProperties({
         icon: "images/login.svg",
@@ -215,19 +244,28 @@
 
     connectSignal(gotoButton, "clicked", showAddressBar);
     connectSignal(gotoButton, "entered", hapticFeedback);
+    connectSignal(tabletButton, "clicked", showTablet);
+    connectSignal(tabletButton, "entered", hapticFeedback);
     connectSignal(loginButton, "clicked", showLoginDialog);
     connectSignal(loginButton, "entered", hapticFeedback);
     connectSignal(microphoneButton, "clicked", toggleMicrophone);
     connectSignal(microphoneButton, "entered", hapticFeedback);
     Window.geometryChanged.connect(updateLayout);
+    Window.geometryChanged.connect(resizeTablet);
+    systemTablet.tabletShownChanged.connect(tabletVisibilityChanged);
     // QML fragments also perform their initial placement in Component.onCompleted;
     // defer once so the phone-specific adaptive placement wins deterministically.
     Script.setTimeout(updateLayout, 0);
 
     Script.scriptEnding.connect(function () {
         Window.geometryChanged.disconnect(updateLayout);
+        Window.geometryChanged.disconnect(resizeTablet);
+        systemTablet.tabletShownChanged.disconnect(tabletVisibilityChanged);
+        Controller.setVPadHidden(false);
         disconnectSignal(gotoButton, "clicked", showAddressBar);
         disconnectSignal(gotoButton, "entered", hapticFeedback);
+        disconnectSignal(tabletButton, "clicked", showTablet);
+        disconnectSignal(tabletButton, "entered", hapticFeedback);
         disconnectSignal(loginButton, "clicked", showLoginDialog);
         disconnectSignal(loginButton, "entered", hapticFeedback);
         disconnectSignal(microphoneButton, "clicked", toggleMicrophone);

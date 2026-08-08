@@ -582,6 +582,79 @@ void TabletProxy::gotoHomeScreen() {
     loadHomeScreen(false);
 }
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+void TabletProxy::showAndroidTablet(int width, int height) {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, "showAndroidTablet", Q_ARG(int, width), Q_ARG(int, height));
+        return;
+    }
+
+    _androidScreenSpaceMode = true;
+    if (!_toolbarMode) {
+        setToolbarMode(true);
+    }
+    resizeAndroidTablet(width, height);
+
+    if (_desktopWindow && _desktopWindow->asQuickItem()) {
+        auto root = _desktopWindow->asQuickItem();
+        QMetaObject::invokeMethod(root, "setScreenSpaceMode", Q_ARG(const QVariant&, QVariant(true)));
+        QMetaObject::invokeMethod(root, "loadSource", Q_ARG(const QVariant&, QVariant(TABLET_HOME_SOURCE_URL)));
+        QMetaObject::invokeMethod(root, "setShown", Q_ARG(const QVariant&, QVariant(true)));
+        _state = State::Home;
+        _currentPathLoaded = TABLET_HOME_SOURCE_URL;
+        if (!_tabletShown) {
+            _tabletShown = true;
+            emit tabletShownChanged();
+        }
+    }
+}
+
+void TabletProxy::resizeAndroidTablet(int width, int height) {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, "resizeAndroidTablet", Q_ARG(int, width), Q_ARG(int, height));
+        return;
+    }
+    if (!_androidScreenSpaceMode || !_desktopWindow || width <= 0 || height <= 0) {
+        return;
+    }
+    _desktopWindow->setPosition(0, 0);
+    _desktopWindow->setSize(width, height);
+}
+
+void TabletProxy::hideAndroidTablet() {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, "hideAndroidTablet");
+        return;
+    }
+    if (_desktopWindow && _desktopWindow->asQuickItem()) {
+        QMetaObject::invokeMethod(_desktopWindow->asQuickItem(), "setShown", Q_ARG(const QVariant&, QVariant(false)));
+    }
+    if (_tabletShown) {
+        _tabletShown = false;
+        emit tabletShownChanged();
+    }
+}
+
+bool TabletProxy::handleAndroidTabletBack() {
+    if (QThread::currentThread() != thread()) {
+        bool result { false };
+        BLOCKING_INVOKE_METHOD(this, "handleAndroidTabletBack", Q_RETURN_ARG(bool, result));
+        return result;
+    }
+    if (!_androidScreenSpaceMode || !_tabletShown) {
+        return false;
+    }
+    if (isMessageDialogOpen()) {
+        closeDialog();
+    } else if (_state != State::Home) {
+        showAndroidTablet(_desktopWindow->asQuickItem()->width(), _desktopWindow->asQuickItem()->height());
+    } else {
+        hideAndroidTablet();
+    }
+    return true;
+}
+#endif
+
 void TabletProxy::gotoMenuScreen(const QString& submenu) {
     if (QThread::currentThread() != thread()) {
         QMetaObject::invokeMethod(this, "gotoMenuScreen", Q_ARG(QString, submenu));
@@ -830,10 +903,21 @@ void TabletProxy::loadHomeScreen(bool forceOntoHomeScreen) {
             QMetaObject::invokeMethod(_qmlTabletRoot, "loadSource", Q_ARG(const QVariant&, QVariant(TABLET_HOME_SOURCE_URL)));
             QMetaObject::invokeMethod(_qmlTabletRoot, "playButtonClickSound");
         } else if (_toolbarMode && _desktopWindow) {
-            // close desktop window
-            if (_desktopWindow->asQuickItem()) {
-                QMetaObject::invokeMethod(_desktopWindow->asQuickItem(), "setShown", Q_ARG(const QVariant&, QVariant(false)));
-                stopQMLSource();  // Stop the currently loaded QML running.
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+            if (_androidScreenSpaceMode) {
+                auto root = _desktopWindow->asQuickItem();
+                if (root) {
+                    QMetaObject::invokeMethod(root, "loadSource", Q_ARG(const QVariant&, QVariant(TABLET_HOME_SOURCE_URL)));
+                    QMetaObject::invokeMethod(root, "setShown", Q_ARG(const QVariant&, QVariant(true)));
+                }
+            } else
+#endif
+            {
+                // close desktop window
+                if (_desktopWindow->asQuickItem()) {
+                    QMetaObject::invokeMethod(_desktopWindow->asQuickItem(), "setShown", Q_ARG(const QVariant&, QVariant(false)));
+                    stopQMLSource();  // Stop the currently loaded QML running.
+                }
             }
         }
         _state = State::Home;

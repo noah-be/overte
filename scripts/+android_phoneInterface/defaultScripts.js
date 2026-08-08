@@ -19,7 +19,11 @@ var ANDROID_PHONE_INTERFACE = true;
 var PHONE_DEFAULT_SCRIPTS = [
     "system/progress.js",
     "system/+android_interface/touchscreenvirtualpad.js",
-    "system/+android_phoneInterface/mobileActionBar.js"
+    "system/+android_phoneInterface/mobileActionBar.js",
+    // Curated Tablet apps that use the existing TabletProxy/QML path without
+    // desktop windows, VR controllers, or remote web-only presentation.
+    "system/audio.js",
+    "system/settings/settings.js"
 ];
 
 Script.require("/~/system/+android_interface/androidControls.js");

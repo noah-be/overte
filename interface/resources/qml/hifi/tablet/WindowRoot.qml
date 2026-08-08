@@ -24,9 +24,18 @@ Windows.ScrollingWindow {
 
     property var rootMenu;
     property string subMenu: ""
+    property bool screenSpaceMode: false
 
     shown: false
     resizable: false
+    closable: !screenSpaceMode
+    pinnable: !screenSpaceMode
+    alwaysOnTop: screenSpaceMode
+
+    function setScreenSpaceMode(value) {
+        screenSpaceMode = value
+        frame.visible = !value
+    }
 
     Settings {
         id: settings
@@ -36,6 +45,12 @@ Windows.ScrollingWindow {
     }
 
     onResizableChanged: {
+        // TabletProxy uses setResizable(false) when loading most tablet apps.
+        // In Android screen-space mode that must not restore the historical
+        // 480x706 desktop window over the full physical surface.
+        if (screenSpaceMode) {
+            return
+        }
         if (!resizable) {
             // restore default size
             settings.width = tabletRoot.width

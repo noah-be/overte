@@ -182,6 +182,12 @@ bool DialogsManager::closePhoneDialog() {
         hideAddressBar();
         return true;
     }
+    auto tabletScriptingInterface = DependencyManager::get<TabletScriptingInterface>();
+    auto tablet = dynamic_cast<TabletProxy*>(tabletScriptingInterface->getTablet("com.highfidelity.interface.tablet.system"));
+    if (tablet && tablet->handleAndroidTabletBack()) {
+        QGuiApplication::inputMethod()->hide();
+        return true;
+    }
 #endif
     return false;
 }
