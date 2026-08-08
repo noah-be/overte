@@ -10,6 +10,7 @@ login="$repo_root/interface/src/ui/LoginDialog.cpp"
 events="$repo_root/interface/src/Application_Events.cpp"
 body="$repo_root/interface/resources/qml/LoginDialog/+android_phoneInterface/LinkAccountBody.qml"
 address_body="$repo_root/interface/resources/qml/+android_phoneInterface/AddressBarDialog.qml"
+tablet_home="$repo_root/interface/resources/qml/hifi/tablet/TabletHome.qml"
 
 require() {
     local file="$1"
@@ -81,6 +82,21 @@ require "$body" 'loginDialog\.login\(' \
     'metaverse credentials use AccountManager through LoginDialog'
 require "$body" 'androidClickAction:' \
     'phone login actions use the Android-compatible button callback'
+require "$tablet_home" 'Math[.]max\(loginTextMetrics[.]width,[[:space:]]*touchConfiguration[.]minimumTouchTarget\)' \
+    'tablet login entry exposes a touch-sized width'
+require "$tablet_home" 'Math[.]max\(loginTextMetrics[.]height,[[:space:]]*touchConfiguration[.]minimumTouchTarget\)' \
+    'tablet login entry exposes a touch-sized height'
+if awk '
+        /text:[[:space:]]*qsTr\("Cancel"\)/ { in_cancel = 1 }
+        in_cancel && /enabled:[[:space:]]*!phoneLogin[.]waiting/ { disabled_while_waiting = 1 }
+        in_cancel && /androidClickAction:/ { exit disabled_while_waiting }
+        END { if (in_cancel) exit disabled_while_waiting }
+    ' "$body"; then
+    printf 'PASS: phone login can be cancelled while authentication is pending\n'
+else
+    printf 'FAIL: phone login disables cancellation while authentication is pending\n' >&2
+    exit 1
+fi
 require "$body" 'event\.key[[:space:]]*===[[:space:]]*Qt\.Key_Back' \
     'phone login handles Android Back inside QML before the generic overlay handler'
 require "$body" 'event\.key[[:space:]]*===[[:space:]]*Qt\.Key_Escape' \

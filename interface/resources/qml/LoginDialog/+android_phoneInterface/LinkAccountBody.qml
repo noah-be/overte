@@ -114,7 +114,6 @@ Item {
 
             HifiControls.Button {
                 text: qsTr("Cancel")
-                enabled: !phoneLogin.waiting
                 androidClickAction: function () {
                     phoneLogin.dismiss()
                 }
