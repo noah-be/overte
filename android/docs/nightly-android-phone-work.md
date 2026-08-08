@@ -4,6 +4,26 @@ This file records the cumulative, device-free Android phone work based on
 `origin/feature/android-phone-support`. Real-device and emulator tests are out
 of scope for this worktree and are called out explicitly where still needed.
 
+## 14 — Avatar bookmark log privacy
+
+- Branch: `nightly/android-phone-14-bookmark-log-privacy`
+- Commit: `Redact phone bookmark parse diagnostics` (this task's commit)
+- Change: Stop writing the raw `AvatarBookmarks` parser error to Android logs.
+  Phone now emits one fixed aggregate warning; the desktop recovery dialog
+  retains its detailed local error because this change is Phone-scoped.
+- Tests:
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 175/175 checks,
+    including a regression rejection for raw parser details in `qWarning`.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet contracts and 175/175 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: The aggregate warning intentionally sacrifices parser detail in
+  persistent Android logs. Debugging malformed bookmark JSON requires a private
+  reproduction or an explicitly consented transient diagnostic channel.
+- Real-device validation still required: **not required for correctness; not
+  executed**. An automated device fixture may corrupt only synthetic bookmark
+  data and confirm that logcat contains the fixed warning but not fixture text.
+
 ## 13 — Fail-closed Phone Settings routes
 
 - Branch: `nightly/android-phone-13-tablet-route-allowlist`

@@ -350,7 +350,7 @@ require_text '../interface/src/Application.cpp' \
     'phone MVP profile keeps local lights off unless a bounded A/B test enables them'
 if awk '
         /#if defined\(ANDROID_APP_PHONE_INTERFACE\)/ { phone_guard = NR }
-        /qWarning\(\) << "Avatar bookmarks JSON parse error:"/ { phone_log = NR }
+        /qWarning\(\) << "Avatar bookmarks JSON could not be loaded"/ { phone_log = NR }
         /#else/ && phone_log && !desktop_branch { desktop_branch = NR }
         /OffscreenUi::asyncWarning\("Avatar Bookmarks Error"/ { desktop_dialog = NR }
         END {
@@ -358,10 +358,13 @@ if awk '
                    phone_log < desktop_branch && desktop_branch < desktop_dialog)
         }
     ' "$repo_root/interface/src/Application.cpp"; then
-    pass 'phone startup logs avatar bookmark parse errors without opening the desktop warning dialog'
+    pass 'phone startup reports bookmark parse failure without logging its details or opening a desktop dialog'
 else
-    fail 'phone startup logs avatar bookmark parse errors without opening the desktop warning dialog'
+    fail 'phone startup reports bookmark parse failure without logging its details or opening a desktop dialog'
 fi
+reject_text '../interface/src/Application.cpp' \
+    'qWarning\(\).*bookmarksError' \
+    'phone Android logs cannot include raw avatar bookmark parser details'
 require_text "$phone_defaults" 'touchscreenvirtualpad\.js' \
     'phone defaults load the touchscreen virtual pad'
 require_text "$phone_defaults" 'mobileActionBar\.js' \

@@ -2269,7 +2269,10 @@ void Application::idle() {
             const QString& bookmarksError = DependencyManager::get<AvatarBookmarks>()->getBookmarkError();
             if (!bookmarksError.isEmpty()) {
 #if defined(ANDROID_APP_PHONE_INTERFACE)
-                qWarning() << "Avatar bookmarks JSON parse error:" << bookmarksError;
+                // Parser diagnostics can contain file paths or fragments of
+                // personal bookmark data. Android logs are routinely captured
+                // by automated tooling, so report only the aggregate failure.
+                qWarning() << "Avatar bookmarks JSON could not be loaded";
 #else
                 OffscreenUi::asyncWarning("Avatar Bookmarks Error", "JSON parse error: " + bookmarksError, QMessageBox::Ok, QMessageBox::Ok);
 #endif
