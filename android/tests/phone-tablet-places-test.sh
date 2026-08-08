@@ -30,6 +30,21 @@ require "$places" 'disconnectWebEvents\(\);' \
     'Places also releases its desktop web bridge on external navigation'
 require "$places" 'try[[:space:]]*\{[[:space:]]*$' \
     'Places guards untrusted JSON and network operations'
+require "$places" 'function validUiAddress\(value\)' \
+    'Places validates local QML navigation payloads before dereferencing them'
+require "$places" 'typeof value === "string" && value[.]length > 0' \
+    'Places rejects missing and non-string QML navigation destinations'
+require "$places" 'value[.]length <= MAX_UI_ADDRESS_LENGTH' \
+    'Places bounds QML navigation destination length'
+require "$places" '\\u0000-\\u001f\\u007f' \
+    'Places rejects control characters in QML navigation destinations'
+require "$places" 'if[[:space:]]*\(validUiAddress\(messageObj[.]address\)\)' \
+    'Places teleports only after validating the QML address'
+if grep -Eq 'PICO_PLACES_TELEPORT|print\([^)]*(messageObj[.]address|messageObj[.]name)' "$places"; then
+    printf 'FAIL: Places logs a user destination or place name\n' >&2
+    exit 1
+fi
+printf 'PASS: Places does not log user destinations or place names\n'
 require "$places" 'httpRequest[.]status[[:space:]]*<[[:space:]]*200' \
     'Places rejects unsuccessful HTTP responses'
 require "$places" 'finally[[:space:]]*\{' \

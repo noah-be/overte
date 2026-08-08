@@ -101,7 +101,14 @@
     
     var timestamp = 0;
     var INTERCALL_DELAY = 200; //0.3 sec
+    var MAX_UI_ADDRESS_LENGTH = 4096;
     var PERSISTENCE_ORDERING_CYCLE = 5 * 24 * 3600 * 1000; //5 days
+
+    function validUiAddress(value) {
+        return typeof value === "string" && value.length > 0 &&
+            value.length <= MAX_UI_ADDRESS_LENGTH &&
+            !/[\u0000-\u001f\u007f]/.test(value);
+    }
     
     function clicked(){
         if (appStatus === true) {
@@ -163,9 +170,7 @@
                 d = new Date();
                 timestamp = d.getTime();
 
-                if (messageObj.address.length > 0) {
-                    print("PICO_PLACES_TELEPORT name=" + (messageObj.name || "")
-                        + " address=" + messageObj.address);
+                if (validUiAddress(messageObj.address)) {
                     Window.location = messageObj.address;
                 }
                 

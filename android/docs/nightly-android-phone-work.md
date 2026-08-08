@@ -48,6 +48,30 @@ of scope for this worktree and are called out explicitly where still needed.
 - Real-device validation still required: **not required for this wrapper-only
   change; not executed**.
 
+## 10 — Places navigation input and log privacy
+
+- Branch: `nightly/android-phone-10-deep-link-audit`
+- Commit: `Harden phone Places navigation messages` (this task's commit)
+- Change: Validate Phone Places QML teleport destinations before any property
+  use or navigation: require a non-empty string, cap it at 4096 UTF-16 units,
+  and reject raw control characters. Remove the diagnostic that logged the
+  destination and user-visible place name. The exported Android deep-link
+  normalizer was audited and already has equivalent scheme/size/raw-character
+  boundaries, so it was not changed.
+- Tests:
+  - `android/tests/phone-tablet-places-test.sh`: **passed**, 24 checks.
+  - `node --check scripts/system/places/places.js`: **passed**.
+  - `android/tests/phone-deep-link-test.sh`: **passed**, 20 Java assertions.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 34 suites;
+    nested host regression passed 174/174 checks.
+  - `git diff --check`: **passed**.
+- Known risks: Static contracts cannot execute a real destination transition;
+  the QML surface only emits entries obtained from the guarded directory path.
+- Real-device validation still required: **not executed**. Open Places with
+  normal, maximum-length, Unicode, offline, and malformed federation results;
+  tap destinations repeatedly and confirm valid navigation, invalid-message
+  no-op behavior, and absence of destination/name text in app diagnostics.
+
 ## 08 — Complete required-runtime APK gate
 
 - Branch: `nightly/android-phone-08-error-path-audit`

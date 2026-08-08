@@ -248,7 +248,7 @@ app having a tablet button:
 | People | Local QML application | Live presence, touch selection and domain changes |
 | Emote | Local touch QML with validated animation allowlist and lifecycle-owned playback | Animation loading, all actions, repeated stop/switch, movement interruption and avatar restoration |
 | Avatar | Local QML bookmarks/settings; external marketplace web pages are explicitly unavailable | Bookmark changes, wearable editing and failure feedback |
-| Places | Local `PicoPlaces.qml`; guarded QML lifecycle | Network failure, federation data and destination loading |
+| Places | Local `PicoPlaces.qml`; guarded QML lifecycle and bounded navigation messages without destination logging | Network failure, federation data and destination loading |
 | Tutorial | Bundled serverless destination; closes the tablet before navigation | Loading and return behavior |
 | Home | Configured home bookmark with bundled Tutorial fallback | Valid, invalid and unreachable bookmark behavior |
 | Create | Disabled | Requires a dedicated touch design without desktop windows, controller mappings or entity-click capture |
