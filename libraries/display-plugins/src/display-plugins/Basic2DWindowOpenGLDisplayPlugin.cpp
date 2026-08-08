@@ -26,6 +26,16 @@ const QString Basic2DWindowOpenGLDisplayPlugin::NAME("Desktop");
 
 static const QString FULLSCREEN = "Fullscreen";
 
+#if defined(Q_OS_ANDROID)
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+constexpr uint16_t VIRTUAL_PAD_MIP_COUNT { gpu::Texture::SINGLE_MIP };
+constexpr Sampler::Filter VIRTUAL_PAD_FILTER { Sampler::FILTER_MIN_MAG_LINEAR };
+#else
+constexpr uint16_t VIRTUAL_PAD_MIP_COUNT { gpu::Texture::MAX_NUM_MIPS };
+constexpr Sampler::Filter VIRTUAL_PAD_FILTER { Sampler::FILTER_MIN_MAG_MIP_LINEAR };
+#endif
+#endif
+
 void Basic2DWindowOpenGLDisplayPlugin::customizeContext() {
 #if defined(Q_OS_ANDROID)
     qreal dpi = getFullscreenTarget()->physicalDotsPerInch();
@@ -43,14 +53,16 @@ void Basic2DWindowOpenGLDisplayPlugin::customizeContext() {
             _virtualPadStickTexture = gpu::Texture::createStrict(
                     gpu::Element(gpu::VEC4, gpu::NUINT8, gpu::RGBA),
                     image.width(), image.height(),
-                    gpu::Texture::MAX_NUM_MIPS,
-                    Sampler(Sampler::FILTER_MIN_MAG_MIP_LINEAR));
+                    VIRTUAL_PAD_MIP_COUNT,
+                    Sampler(VIRTUAL_PAD_FILTER));
             _virtualPadStickTexture->setSource("virtualPad stick");
             auto usage = gpu::Texture::Usage::Builder().withColor().withAlpha();
             _virtualPadStickTexture->setUsage(usage.build());
             _virtualPadStickTexture->setStoredMipFormat(gpu::Element(gpu::VEC4, gpu::NUINT8, gpu::RGBA));
             _virtualPadStickTexture->assignStoredMip(0, image.byteCount(), image.constBits());
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
             _virtualPadStickTexture->setAutoGenerateMips(true);
+#endif
         }
     }
 
@@ -66,14 +78,16 @@ void Basic2DWindowOpenGLDisplayPlugin::customizeContext() {
             _virtualPadStickBaseTexture = gpu::Texture::createStrict(
                     gpu::Element(gpu::VEC4, gpu::NUINT8, gpu::RGBA),
                     image.width(), image.height(),
-                    gpu::Texture::MAX_NUM_MIPS,
-                    Sampler(Sampler::FILTER_MIN_MAG_MIP_LINEAR));
+                    VIRTUAL_PAD_MIP_COUNT,
+                    Sampler(VIRTUAL_PAD_FILTER));
             _virtualPadStickBaseTexture->setSource("virtualPad base");
             auto usage = gpu::Texture::Usage::Builder().withColor().withAlpha();
             _virtualPadStickBaseTexture->setUsage(usage.build());
             _virtualPadStickBaseTexture->setStoredMipFormat(gpu::Element(gpu::VEC4, gpu::NUINT8, gpu::RGBA));
             _virtualPadStickBaseTexture->assignStoredMip(0, image.byteCount(), image.constBits());
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
             _virtualPadStickBaseTexture->setAutoGenerateMips(true);
+#endif
         }
     }
 
@@ -195,14 +209,16 @@ Basic2DWindowOpenGLDisplayPlugin::VirtualPadButton::VirtualPadButton(qreal pixel
             _texture = gpu::Texture::createStrict(
                     gpu::Element(gpu::VEC4, gpu::NUINT8, gpu::RGBA),
                     image.width(), image.height(),
-                    gpu::Texture::MAX_NUM_MIPS,
-                    Sampler(Sampler::FILTER_MIN_MAG_MIP_LINEAR));
+                    VIRTUAL_PAD_MIP_COUNT,
+                    Sampler(VIRTUAL_PAD_FILTER));
             _texture->setSource(iconPath.toStdString());
             auto usage = gpu::Texture::Usage::Builder().withColor().withAlpha();
             _texture->setUsage(usage.build());
             _texture->setStoredMipFormat(gpu::Element(gpu::VEC4, gpu::NUINT8, gpu::RGBA));
             _texture->assignStoredMip(0, image.byteCount(), image.constBits());
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
             _texture->setAutoGenerateMips(true);
+#endif
         }
     }
 }

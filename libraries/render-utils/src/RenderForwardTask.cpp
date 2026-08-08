@@ -142,8 +142,11 @@ void RenderForwardTask::build(JobModel& task, const render::Varying& input, rend
         task.addJob<RenderSimulateTask>("RenderSimulation", simulateInputs);
     }
 
-    // draw a stencil mask in hidden regions of the framebuffer.
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
+    // Draw a stencil mask in hidden regions of the framebuffer. The phone
+    // client only exposes the 2D display plugin whose mask mode is NONE.
     task.addJob<PrepareStencil>("PrepareStencil", scaledPrimaryFramebuffer);
+#endif
 
     // Draw opaques forward
     const auto opaqueInputs = DrawForward::Inputs(opaques, lightingModel, hazeFrame, lightClusters, deferredFrameTransform).asVarying();
@@ -172,6 +175,7 @@ void RenderForwardTask::build(JobModel& task, const render::Varying& input, rend
     task.addJob<DrawLayered3D>("DrawInFrontOpaque", inFrontOpaquesInputs, shapePlumber, true, false, mainViewTransformSlot);
     task.addJob<DrawLayered3D>("DrawInFrontTransparent", inFrontTransparentsInputs, shapePlumber, false, false, mainViewTransformSlot);
 
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
     if (depth == 0) {  // Debug the bounds of the rendered items, still look at the zbuffer
         task.addJob<DrawBounds>("DrawMetaBounds", metas, mainViewTransformSlot);
         task.addJob<DrawBounds>("DrawBounds", opaques, mainViewTransformSlot);
@@ -181,6 +185,7 @@ void RenderForwardTask::build(JobModel& task, const render::Varying& input, rend
         const auto debugZoneInputs = DebugZoneLighting::Inputs(deferredFrameTransform, lightFrame, backgroundFrame).asVarying();
         task.addJob<DebugZoneLighting>("DrawZoneStack", debugZoneInputs);
     }
+#endif
 
     const auto newResolvedFramebuffer = task.addJob<NewFramebuffer>("MakeResolvingFramebuffer", gpu::Element(gpu::SCALAR, gpu::FLOAT, gpu::R11G11B10));
 
