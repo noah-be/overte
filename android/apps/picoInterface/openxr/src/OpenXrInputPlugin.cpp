@@ -1072,7 +1072,9 @@ void OpenXrInputPlugin::InputDevice::update(float deltaTime, const controller::I
     XrSession session = _context->_session;
 
     XrResult result = xrSyncActions(session, &syncInfo);
-    xrCheck(instance, result, "failed to sync actions!");
+    if (!xrCheck(instance, result, "failed to sync actions!")) {
+        return;
+    }
 
 #if defined(Q_OS_ANDROID)
     static uint64_t lastInputLog { 0 };

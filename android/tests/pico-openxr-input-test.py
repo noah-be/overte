@@ -31,6 +31,14 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertLess(axis_clear, no_session)
         self.assertLess(axis_clear, sync)
 
+    def test_failed_action_sync_returns_with_neutral_maps(self):
+        sync_guard = re.search(
+            r"if \(!xrCheck\(instance, result, \"failed to sync actions!\"\)\) \{"
+            r"\s*return;\s*\}",
+            SOURCE,
+        )
+        self.assertIsNotNone(sync_guard)
+
     def test_inactive_float_actions_do_not_repopulate_axes(self):
         float_loop = re.search(
             r"for \(const auto& \[name, channel\] : floatsToUpdate\) \{(.*?)\n    \}",

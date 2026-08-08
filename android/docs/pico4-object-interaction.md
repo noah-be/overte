@@ -26,6 +26,8 @@ The Pico OpenXR device clears pose, button, and axis state at the start of each
 input update. An inactive action after tracking loss therefore reads as neutral
 instead of retaining the previous trigger, grip, or stick value. The device-
 free ordering contract is `python3 android/tests/pico-openxr-input-test.py`.
+If `xrSyncActions` fails, the update returns with those neutral maps instead of
+querying and republishing potentially stale action state.
 
 ## Static implementation audit
 

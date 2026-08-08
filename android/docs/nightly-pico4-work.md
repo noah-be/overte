@@ -146,8 +146,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 08 — Fail-closed OpenXR axis state
 
 - Branch: `nightly/pico4-08-openxr-stale-axis-state`
-- Commit: identified by subject `Clear stale Pico OpenXR axis state`; the exact
-  hash is recorded by the following stacked task or the final report.
+- Commit: `2ce1e7f72d` (`Clear stale Pico OpenXR axis state`)
 - Change: clear Pico OpenXR axis state at the start of every input update,
   alongside pose and button state. Inactive actions after tracking/profile loss
   now resolve to neutral rather than retaining trigger, grip, or stick values.
@@ -162,6 +161,22 @@ headset, ADB, Android device, external domain, or device setting is used.
   from neutral while hiding or powering down one controller; verify all axes
   immediately return to neutral, active grabs/clicks release safely, locomotion
   stops, and values recover normally when tracking returns.
+
+### 09 — Fail-closed OpenXR action sync
+
+- Branch: `nightly/pico4-09-openxr-sync-fail-closed`
+- Commit: identified by subject `Fail closed on Pico OpenXR sync errors`; the
+  exact hash is recorded by the following stacked task or the final report.
+- Change: return immediately after a failed `xrSyncActions`, leaving the maps
+  cleared by task 08 rather than querying potentially stale runtime action data.
+- Regression: OpenXR input contract now asserts the guarded early return.
+- Passed: OpenXR input regression (3); full `pico-device-free-test.sh` including
+  all prior suites; `git diff --check`.
+- Risk: this deliberately drops one failed input frame; continued runtime
+  failure remains visible through the existing critical OpenXR error log.
+- Pico 4 validation: **not executed**. Exercise suspend/resume and controller
+  reconnect paths that can interrupt action sync; verify no stale grab, click,
+  locomotion, or scroll occurs and input resumes after the runtime recovers.
 
 ## Cumulative remaining device validation
 
