@@ -57,6 +57,7 @@ private:
             _friendlyName = friendlyName;
             _type = type;
         }
+        ~Action();
 
         bool init(XrActionSet actionSet);
         XrActionStateFloat getFloat();

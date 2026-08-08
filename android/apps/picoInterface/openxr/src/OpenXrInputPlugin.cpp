@@ -404,6 +404,14 @@ bool OpenXrInputPlugin::Action::init(XrActionSet actionSet) {
     return true;
 }
 
+OpenXrInputPlugin::Action::~Action() {
+    if (_poseSpace != XR_NULL_HANDLE && _context->_session != XR_NULL_HANDLE) {
+        xrCheck(_context->_instance, xrDestroySpace(_poseSpace),
+                "Failed to destroy action pose space");
+    }
+    _poseSpace = XR_NULL_HANDLE;
+}
+
 XrActionStateFloat OpenXrInputPlugin::Action::getFloat() {
     XrActionStateFloat state = {
         .type = XR_TYPE_ACTION_STATE_FLOAT,

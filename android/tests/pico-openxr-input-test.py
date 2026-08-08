@@ -259,6 +259,19 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertLess(destroy, clear)
         self.assertIn("~InputDevice() override", HEADER)
 
+    def test_action_pose_spaces_follow_action_lifetime(self):
+        start = SOURCE.index("OpenXrInputPlugin::Action::~Action()")
+        end = SOURCE.index("XrActionStateFloat OpenXrInputPlugin::Action::getFloat", start)
+        cleanup = SOURCE[start:end]
+        null_check = cleanup.index("_poseSpace != XR_NULL_HANDLE")
+        session_check = cleanup.index("_context->_session != XR_NULL_HANDLE", null_check)
+        destroy = cleanup.index("xrDestroySpace(_poseSpace)", session_check)
+        clear = cleanup.index("_poseSpace = XR_NULL_HANDLE", destroy)
+        self.assertLess(null_check, session_check)
+        self.assertLess(session_check, destroy)
+        self.assertLess(destroy, clear)
+        self.assertIn("~Action();", HEADER)
+
 
 if __name__ == "__main__":
     unittest.main()

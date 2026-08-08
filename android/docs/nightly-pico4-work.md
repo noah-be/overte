@@ -1462,8 +1462,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 80 — Explicit hand-tracker cleanup
 
 - Branch: `nightly/pico4-80-openxr-hand-cleanup`
-- Commit: identified by subject `Release Pico OpenXR hand trackers`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `ef137567a8` (`Release Pico OpenXR hand trackers`)
 - Change: give the Pico OpenXR input device an explicit destructor that releases
   every published hand tracker while its owning session and validated Destroy
   entry point remain available, then clears each handle regardless of runtime
@@ -1476,6 +1475,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Enable both hands, deactivate/quit during
   active tracking and after runtime loss; verify exactly one Destroy per live
   tracker, no validation warnings, no leak and clean next-process tracking.
+
+### 81 — Action pose-space ownership
+
+- Branch: `nightly/pico4-81-openxr-action-space-cleanup`
+- Commit: identified by subject `Release Pico OpenXR action spaces`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: tie each controller action's optional OpenXR pose-space handle to its
+  C++ lifetime. Destruction now releases a live space while its session remains
+  available and always clears the local handle, covering both normal teardown
+  and partially completed action initialization.
+- Regression: input contracts require null/session guards, `xrDestroySpace`
+  before unconditional handle invalidation, and the declared Action destructor.
+- Passed: 16 OpenXR input/lifecycle contracts; `git diff --check`.
+- Risk: after session loss, implicitly invalidated spaces skip runtime calls and
+  are still cleared locally; active-session cleanup is explicit and logged.
+- Pico 4 validation: **not executed**. Fail required action creation after one or
+  more pose actions, then quit normally; verify each created pose space is
+  released once, no validation leak/error and clean controller setup on restart.
 
 ## Deferred, rejected, or blocked ideas
 
