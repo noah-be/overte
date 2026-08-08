@@ -74,6 +74,7 @@ for source_file in \
         tests/phone-actionbar-qml-lifetime-test.sh \
         tests/phone-audio-output-race-test.sh \
         tests/phone-device-lock-test.sh \
+        tests/phone-device-smoke-mock-test.sh \
         tests/phone-offscreen-ui-mip-test.sh \
         tests/phone-script-payload-test.sh \
         tests/verify-phone-16k-dependencies.sh \

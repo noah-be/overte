@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly test_root="$(mktemp -d "${TMPDIR:-/tmp}/phone-device-smoke-mock.XXXXXX")"
+cleanup() {
+    [[ "$(basename -- "$test_root")" == phone-device-smoke-mock.* ]] && rm -rf -- "$test_root"
+}
+trap cleanup EXIT
+
+mkdir -p "$test_root/bin"
+printf 'mock phone APK bytes\n' >"$test_root/phone.apk"
+printf resumed >"$test_root/activity-state"
+: >"$test_root/adb-commands"
+
+cat >"$test_root/bin/adb" <<'MOCK_ADB'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%q ' "$@" >>"$MOCK_ROOT/adb-commands"
+printf '\n' >>"$MOCK_ROOT/adb-commands"
+
+if [[ "${1:-}" == devices ]]; then
+    printf 'List of devices attached\nmock-phone device product:mock\n'
+    exit 0
+fi
+[[ "${1:-}" == -s && "${2:-}" == mock-phone ]] || exit 3
+shift 2
+
+case "$*" in
+    'shell getprop ro.product.manufacturer') printf 'Example\n' ;;
+    'shell getprop ro.product.brand') printf 'Example\n' ;;
+    'shell getprop ro.product.model') printf 'Phone\n' ;;
+    'shell getprop ro.product.device') printf 'phone\n' ;;
+    'shell getprop ro.build.characteristics') printf 'default\n' ;;
+    install\ -r\ -g\ *) ;;
+    'shell pm path org.overte.phone')
+        printf 'package:/data/app/~~mock/org.overte.phone-mock/base.apk\n'
+        ;;
+    'exec-out cat /data/app/~~mock/org.overte.phone-mock/base.apk')
+        if [[ "${MOCK_APK_MISMATCH:-0}" == 1 ]]; then
+            printf 'different installed bytes\n'
+        else
+            cat "$MOCK_ROOT/phone.apk"
+        fi
+        ;;
+    'shell am force-stop org.overte.phone') ;;
+    shell\ am\ start\ *) printf resumed >"$MOCK_ROOT/activity-state" ;;
+    'shell pidof -s org.overte.phone') printf '4242\n' ;;
+    'shell input keyevent KEYCODE_HOME'|'shell input keyevent KEYCODE_BACK')
+        printf background >"$MOCK_ROOT/activity-state"
+        ;;
+    'shell dumpsys activity activities')
+        if [[ "$(<"$MOCK_ROOT/activity-state")" == resumed ]]; then
+            printf 'mResumedActivity: org.overte.phone/.PhoneInterfaceActivity\n'
+        else
+            printf 'mResumedActivity: com.android.launcher/.Launcher\n'
+        fi
+        ;;
+    'shell dumpsys activity exit-info org.overte.phone') ;;
+    'logcat -d -v threadtime --pid=4242') ;;
+    *) printf 'unexpected mock adb command: %s\n' "$*" >&2; exit 4 ;;
+esac
+MOCK_ADB
+
+cat >"$test_root/bin/sleep" <<'MOCK_SLEEP'
+#!/usr/bin/env bash
+exit 0
+MOCK_SLEEP
+chmod +x "$test_root/bin/adb" "$test_root/bin/sleep"
+
+run_smoke() {
+    local report_dir="$1"
+    shift
+    env PATH="$test_root/bin:$PATH" MOCK_ROOT="$test_root" \
+        PHONE_DEVICE_LOCK_HELD=1 PHONE_ADB="$test_root/bin/adb" \
+        ANDROID_SERIAL=mock-phone PHONE_TEST_REPORT="$report_dir" "$@" \
+        "$script_dir/phone-device-test.sh" "$test_root/phone.apk"
+}
+
+mkdir "$test_root/success-report"
+run_smoke "$test_root/success-report" env >"$test_root/success.out"
+summary="$test_root/success-report/summary.txt"
+grep -Fxq 'installed_apk_verified=1' "$summary"
+grep -Fxq 'background_foreground_cycles=3' "$summary"
+grep -Fxq 'back_recovery_survived=1' "$summary"
+grep -Fxq 'crash_log_matches=0' "$summary"
+[[ "$(stat -c %a "$summary")" == 600 ]]
+! grep -Eq 'mock-phone|/data/app|4242' "$summary"
+
+mkdir "$test_root/mismatch-report"
+if run_smoke "$test_root/mismatch-report" env MOCK_APK_MISMATCH=1 \
+        >"$test_root/mismatch.out" 2>&1; then
+    echo 'FAIL: installed APK digest mismatch was accepted' >&2
+    exit 1
+fi
+grep -Fq 'installed APK content does not match' "$test_root/mismatch.out"
+! grep -Fq '/data/app/' "$test_root/mismatch.out"
+
+mkdir "$test_root/existing-report"
+printf preserve >"$test_root/existing-report/summary.txt"
+: >"$test_root/adb-commands"
+if run_smoke "$test_root/existing-report" env >"$test_root/existing.out" 2>&1; then
+    echo 'FAIL: existing summary was overwritten' >&2
+    exit 1
+fi
+[[ "$(<"$test_root/existing-report/summary.txt")" == preserve ]]
+! grep -q '^install ' "$test_root/adb-commands"
+
+printf 'PASS: unattended phone device smoke mock\n'

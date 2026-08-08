@@ -19,6 +19,7 @@ readonly tests=(
     phone-default-sky-payload-test.sh
     phone-deploy-safety-test.sh
     phone-device-lock-test.sh
+    phone-device-smoke-mock-test.sh
     phone-doctor-output-test.sh
     phone-focus-debugger-animation-test.sh
     phone-forward-pass-trim-test.sh

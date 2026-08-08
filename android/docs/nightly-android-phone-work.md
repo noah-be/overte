@@ -4,6 +4,25 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 57 — Mock the complete unattended device smoke
+
+- Branch: `nightly/android-phone-57-device-smoke-mock`
+- Commit: `Test unattended phone smoke with mock ADB` (this task's commit)
+- Change: Add a stateful fake-ADB regression suite that executes the real device
+  smoke without hardware or delays. It covers installation provenance, launch,
+  deep link, three Home cycles, Back recovery, private aggregate output, digest
+  mismatch rejection, and refusal to overwrite an existing summary.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, 35 device-free
+    suites including the new end-to-end smoke mock.
+  - `git diff --check`: **passed**.
+- Known risks: The mock proves orchestration and fail-closed contracts, not
+  vendor-specific ADB/dumpsys formatting or real Android lifecycle timing.
+- Real-device validation still required: Run the same smoke using a current,
+  provenance-verified Phone APK and compare its aggregate flags with the mock's
+  expected success contract; retain no raw device output.
+
 ## 56 — Keep device smoke reports private
 
 - Branch: `nightly/android-phone-56-private-device-reports`
