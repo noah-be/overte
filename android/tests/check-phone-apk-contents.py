@@ -11,6 +11,13 @@ REQUIRED_ENTRIES = {
     "assets/resources.rcc",
     "assets/android_rcc_bundle.rcc",
     "lib/arm64-v8a/libphoneInterface.so",
+    "lib/arm64-v8a/libQt5PositioningQuick_arm64-v8a.so",
+    "lib/arm64-v8a/libcrypto_1_1.so",
+    "lib/arm64-v8a/libssl_1_1.so",
+    "lib/arm64-v8a/libplugins_audio_qtaudio_opensles_arm64-v8a.so",
+    "lib/arm64-v8a/libplugins_bearer_qandroidbearer_arm64-v8a.so",
+    "lib/arm64-v8a/libplugins_imageformats_qjpeg_arm64-v8a.so",
+    "lib/arm64-v8a/libplugins_imageformats_qsvg_arm64-v8a.so",
     "lib/arm64-v8a/libplugins_platforms_qtforandroid_arm64-v8a.so",
 }
 

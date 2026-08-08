@@ -36,6 +36,10 @@ broad phone/GPU compatibility are outside this first milestone.
 > since verification, or still contain a 4 KiB-aligned ELF segment. Do not use
 > the shared legacy Pico dependency graph for a distributable phone APK.
 
+The final APK content gate also requires every explicitly staged startup,
+network, image, audio, and positioning runtime. This catches incomplete
+incremental packages before an APK can fail later at launch or first use.
+
 ## Requirements
 
 The phone build currently shares the Pico Android dependency set and therefore
