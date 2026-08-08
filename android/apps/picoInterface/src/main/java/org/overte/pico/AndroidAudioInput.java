@@ -101,13 +101,36 @@ public final class AndroidAudioInput {
             return false;
         }
 
-        synchronized (LOCK) {
-            recorder = newRecorder;
-            running = true;
-            captureThread = new Thread(
+        final Thread newCaptureThread;
+        try {
+            newCaptureThread = new Thread(
                 () -> captureLoop(newRecorder, callbackBytes),
                 "Overte Android microphone");
-            captureThread.start();
+        } catch (RuntimeException | OutOfMemoryError exception) {
+            Log.e(TAG, "Could not create microphone capture thread", exception);
+            stopAndRelease(newRecorder);
+            return false;
+        }
+        try {
+            synchronized (LOCK) {
+                recorder = newRecorder;
+                running = true;
+                captureThread = newCaptureThread;
+                newCaptureThread.start();
+            }
+        } catch (RuntimeException | OutOfMemoryError exception) {
+            Log.e(TAG, "Could not start microphone capture thread", exception);
+            synchronized (LOCK) {
+                if (recorder == newRecorder) {
+                    running = false;
+                    recorder = null;
+                }
+                if (captureThread == newCaptureThread) {
+                    captureThread = null;
+                }
+            }
+            stopAndRelease(newRecorder);
+            return false;
         }
         Log.i(TAG, "Started AudioRecord source=" + audioSourceName(audioSource)
             + "(" + audioSource + ") at " + sampleRate + " Hz, channels="
@@ -162,6 +185,15 @@ public final class AndroidAudioInput {
         return -1;
     }
 
+    private static void stopAndRelease(AudioRecord activeRecorder) {
+        try {
+            activeRecorder.stop();
+        } catch (IllegalStateException exception) {
+            Log.w(TAG, "AudioRecord was already stopped during startup rollback", exception);
+        }
+        activeRecorder.release();
+    }
+
     private static String audioSourceName(int audioSource) {
         if (audioSource == MediaRecorder.AudioSource.VOICE_COMMUNICATION) {
             return "VOICE_COMMUNICATION";
@@ -176,7 +208,7 @@ public final class AndroidAudioInput {
     }
 
     private static void captureLoop(AudioRecord activeRecorder, int callbackBytes) {
-        Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
+        prioritizeCurrentThreadForAudio();
         final byte[] audio = new byte[callbackBytes];
         while (running && recorder == activeRecorder) {
             final int bytesRead = activeRecorder.read(

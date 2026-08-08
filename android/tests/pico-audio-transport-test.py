@@ -8,6 +8,10 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = (ROOT / "libraries/audio-client/src/AudioClient.cpp").read_text(encoding="utf-8")
+JAVA = (
+    ROOT
+    / "android/apps/picoInterface/src/main/java/org/overte/pico/AndroidAudioInput.java"
+).read_text(encoding="utf-8")
 
 
 class PicoAudioTransportTests(unittest.TestCase):
@@ -55,6 +59,33 @@ class PicoAudioTransportTests(unittest.TestCase):
         body = drain.group(0)
         self.assertIn("boundedBytes % androidAudioBytesPerFrame", body)
         self.assertIn("if (bytes <= 0)", body)
+
+    def test_capture_thread_startup_rolls_back_recorder_state(self):
+        start = JAVA.index("public static boolean start(")
+        end = JAVA.index("public static void stop()", start)
+        body = JAVA[start:end]
+        create = body.index("newCaptureThread = new Thread")
+        publish = body.index("recorder = newRecorder", create)
+        thread_start = body.index("newCaptureThread.start()", publish)
+        catch = body.index('Log.e(TAG, "Could not start microphone capture thread"', thread_start)
+        clear_running = body.index("running = false", catch)
+        clear_recorder = body.index("recorder = null", clear_running)
+        clear_thread = body.index("captureThread = null", clear_recorder)
+        release = body.index("stopAndRelease(newRecorder)", clear_thread)
+        self.assertLess(create, publish)
+        self.assertLess(publish, thread_start)
+        self.assertLess(thread_start, catch)
+        self.assertLess(catch, clear_running)
+        self.assertLess(clear_running, clear_recorder)
+        self.assertLess(clear_recorder, clear_thread)
+        self.assertLess(clear_thread, release)
+        self.assertIn("catch (RuntimeException | OutOfMemoryError exception)", body)
+
+    def test_capture_priority_failure_is_contained(self):
+        loop = JAVA.index("private static void captureLoop")
+        loop_body = JAVA[loop:]
+        self.assertIn("prioritizeCurrentThreadForAudio();", loop_body)
+        self.assertNotIn("Process.setThreadPriority", loop_body)
 
 
 if __name__ == "__main__":

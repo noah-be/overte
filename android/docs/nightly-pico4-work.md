@@ -981,8 +981,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 53 — OpenXR hand-joint validity
 
 - Branch: `nightly/pico4-53-openxr-hand-joints`
-- Commit: identified by subject `Validate Pico OpenXR hand joints`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `bc277f1d18` (`Validate Pico OpenXR hand joints`)
 - Change: zero-initialize the hand-joint buffer, check the extension call and
   active state, and require valid position plus orientation on every joint before
   publishing any skeleton pose. Invalid samples leave the freshly cleared pose
@@ -996,6 +995,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. With hand tracking available, cover full
   hands, partial occlusion, tracking loss/recovery and controller fallback;
   verify no exploding joints, stale hand pose or interruption of touch hints.
+
+### 54 — Microphone capture-thread startup
+
+- Branch: `nightly/pico4-54-audio-thread-startup`
+- Commit: identified by subject `Roll back Pico microphone thread startup`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: construct and start the capture thread through guarded phases after
+  AudioRecord startup. Thread allocation/start failure now clears only the same
+  published recorder/thread state, stops/releases the recorder and returns false.
+  Capture priority uses the existing exception-contained priority helper.
+- Regression: audio transport contracts verify create/publish/start/rollback/
+  release ordering and prohibit an unguarded priority call in the capture loop.
+- Passed: 6 native/Java audio transport contracts; full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: normal capture startup is unchanged; rare VM thread failures now unwind
+  the already-started recorder rather than leaking a running phantom source.
+- Pico 4 validation: **not executed**. Inject thread construction/start and
+  priority failures, verify no live recorder/thread remains, then restart normal
+  capture and confirm audio delivery and source switching recover.
 
 ## Deferred, rejected, or blocked ideas
 
