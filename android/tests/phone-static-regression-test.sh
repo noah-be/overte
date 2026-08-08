@@ -14,6 +14,7 @@ readonly tests=(
     phone-apk-padding-test.sh
     phone-audio-output-race-test.sh
     phone-build-resource-guard-test.sh
+    phone-data-protection-test.sh
     phone-deep-link-test.sh
     phone-default-sky-payload-test.sh
     phone-deploy-safety-test.sh
