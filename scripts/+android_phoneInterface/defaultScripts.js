@@ -18,6 +18,7 @@
 var ANDROID_PHONE_INTERFACE = true;
 var PHONE_DEFAULT_SCRIPTS = [
     "system/progress.js",
+    "system/settings/settings.js",
     "system/+android_interface/touchscreenvirtualpad.js",
     "system/+android_phoneInterface/mobileActionBar.js"
 ];

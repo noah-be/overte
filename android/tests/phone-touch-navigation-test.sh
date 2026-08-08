@@ -6,6 +6,10 @@ repo_root="$(cd -- "$android_dir/.." && pwd)"
 device_cpp="$repo_root/libraries/input-plugins/src/input-plugins/TouchscreenVirtualPadDevice.cpp"
 device_header="$repo_root/libraries/input-plugins/src/input-plugins/TouchscreenVirtualPadDevice.h"
 phone_mapping="$repo_root/interface/resources/controllers/touchscreenvirtualpad-phone.json"
+phone_action_bar="$repo_root/scripts/system/+android_phoneInterface/mobileActionBar.js"
+phone_defaults="$repo_root/scripts/+android_phoneInterface/defaultScripts.js"
+phone_preferences="$repo_root/interface/resources/qml/hifi/tablet/+android_phoneInterface/TabletGeneralPreferences.qml"
+preferences_cpp="$repo_root/interface/src/ui/PreferencesDialog.cpp"
 
 require() {
     local file=$1 pattern=$2 message=$3
@@ -39,6 +43,24 @@ require "$device_cpp" 'touchscreenvirtualpad-phone[.]json' \
 require "$device_header" 'PINCH_OUT' 'pinch-out input channel is missing'
 require "$device_header" 'PINCH_IN' 'pinch-in input channel is missing'
 require "$device_cpp" 'totalScaleFactor\(\)' 'pinch scale is not consumed'
+require "$device_cpp" 'phonePinchZoomEnabled.*android/phone/pinchZoomEnabled.*false' \
+    'phone pinch zoom is not disabled by default'
+require "$device_cpp" 'if \(!phonePinchZoomEnabled[.]get\(\)\)' \
+    'phone pinch gestures do not honor the navigation preference'
+require "$preferences_cpp" '"Navigation"' \
+    'phone navigation preference category is missing'
+require "$preferences_cpp" 'Enable two-finger perspective zoom' \
+    'phone pinch zoom preference is missing'
+require "$phone_preferences" 'showCategories: \["Navigation"' \
+    'phone tablet settings do not expose Navigation'
+require "$phone_defaults" 'system/settings/settings[.]js' \
+    'phone defaults do not load the tablet settings app'
+require "$phone_action_bar" 'function toggleCameraMode\(\)' \
+    'phone camera mode button handler is missing'
+require "$phone_action_bar" '"look at" : "first person look at"' \
+    'phone camera button does not toggle first- and third-person views'
+require "$phone_action_bar" 'Camera[.]modeUpdated[.]connect\(updateCameraButton\)' \
+    'phone camera button does not follow external camera mode changes'
 
 require "$phone_mapping" 'TouchscreenVirtualPad[.]LX.*Actions[.]TranslateX' \
     'virtual joystick lateral movement mapping is missing'

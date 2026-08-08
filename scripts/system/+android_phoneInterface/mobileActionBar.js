@@ -2,13 +2,14 @@
 
 // A small, screen-space control surface for the phone client.  It deliberately
 // uses Interface's QML dialogs instead of the legacy Android Java activities.
-/* globals Audio, Controller, DialogsManager, print, QmlFragment, Script, Window */
+/* globals Audio, Camera, Controller, DialogsManager, print, QmlFragment, Script, Window */
 
 (function () {
     var navigationBar;
     var audioBar;
     var gotoButton;
     var loginButton;
+    var cameraButton;
     var microphoneButton;
     var currentButtonStyle;
 
@@ -48,7 +49,7 @@
             navigationPosition: { x: edgeMargin, y: edgeMargin },
             navigationSize: {
                 x: buttonSize + 2 * flowPadding,
-                y: 2 * buttonSize + flowSpacing + 2 * flowPadding
+                y: 3 * buttonSize + 2 * flowSpacing + 2 * flowPadding
             },
             audioPosition: {
                 x: Math.max(edgeMargin, width - edgeMargin - buttonSize - 2 * flowPadding),
@@ -147,6 +148,7 @@
         }
         applyButtonStyle(gotoButton, currentButtonStyle);
         applyButtonStyle(loginButton, currentButtonStyle);
+        applyButtonStyle(cameraButton, currentButtonStyle);
         applyButtonStyle(microphoneButton, currentButtonStyle);
     }
 
@@ -190,6 +192,24 @@
         Audio.muted = !Audio.muted;
     }
 
+    function isFirstPersonMode(mode) {
+        return mode === "first person" || mode === "first person look at";
+    }
+
+    function updateCameraButton(mode) {
+        var firstPerson = isFirstPersonMode(mode || Camera.mode);
+        if (cameraButton) {
+            cameraButton.editProperties({
+                isActive: !firstPerson,
+                text: firstPerson ? "1ST" : "3RD"
+            });
+        }
+    }
+
+    function toggleCameraMode() {
+        Camera.mode = isFirstPersonMode(Camera.mode) ? "look at" : "first person look at";
+    }
+
     currentButtonStyle = calculateLayout(Math.max(Window.innerWidth, 1), Math.max(Window.innerHeight, 1)).buttonStyle;
 
     navigationBar = createFragment("hifi/ActionBar.qml");
@@ -205,6 +225,11 @@
         activeIcon: "images/login.svg",
         text: "LOGIN"
     }));
+    cameraButton = addButton(navigationBar, buttonProperties({
+        icon: "icons/myview-i.svg",
+        activeIcon: "icons/myview-a.svg",
+        text: "1ST"
+    }));
     microphoneButton = addButton(audioBar, buttonProperties({
         icon: "icons/tablet-icons/mic-unmute-i.svg",
         activeIcon: "icons/tablet-icons/mic-mute-a.svg",
@@ -217,8 +242,12 @@
     connectSignal(gotoButton, "entered", hapticFeedback);
     connectSignal(loginButton, "clicked", showLoginDialog);
     connectSignal(loginButton, "entered", hapticFeedback);
+    connectSignal(cameraButton, "clicked", toggleCameraMode);
+    connectSignal(cameraButton, "entered", hapticFeedback);
     connectSignal(microphoneButton, "clicked", toggleMicrophone);
     connectSignal(microphoneButton, "entered", hapticFeedback);
+    Camera.modeUpdated.connect(updateCameraButton);
+    updateCameraButton(Camera.mode);
     Window.geometryChanged.connect(updateLayout);
     // QML fragments also perform their initial placement in Component.onCompleted;
     // defer once so the phone-specific adaptive placement wins deterministically.
@@ -230,8 +259,11 @@
         disconnectSignal(gotoButton, "entered", hapticFeedback);
         disconnectSignal(loginButton, "clicked", showLoginDialog);
         disconnectSignal(loginButton, "entered", hapticFeedback);
+        disconnectSignal(cameraButton, "clicked", toggleCameraMode);
+        disconnectSignal(cameraButton, "entered", hapticFeedback);
         disconnectSignal(microphoneButton, "clicked", toggleMicrophone);
         disconnectSignal(microphoneButton, "entered", hapticFeedback);
+        Camera.modeUpdated.disconnect(updateCameraButton);
         closeFragment(navigationBar);
         closeFragment(audioBar);
     });

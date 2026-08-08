@@ -20,11 +20,16 @@
 #include <controllers/UserInputMapper.h>
 #include <PathUtils.h>
 #include <NumericalConstants.h>
+#include <SettingHandle.h>
 #include "VirtualPadManager.h"
 
 #include <cmath>
 
 const char* TouchscreenVirtualPadDevice::NAME = "TouchscreenVirtualPad";
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+static Setting::Handle<bool> phonePinchZoomEnabled { "android/phone/pinchZoomEnabled", false };
+#endif
 
 bool TouchscreenVirtualPadDevice::isSupported() const {
     for (auto touchDevice : QTouchDevice::devices()) {
@@ -446,6 +451,12 @@ void TouchscreenVirtualPadDevice::touchGestureEvent(const QGestureEvent* event) 
         QPinchGesture* pinch = static_cast<QPinchGesture*>(gesture);
         _pinchScale = pinch->totalScaleFactor();
 #if defined(ANDROID_APP_PHONE_INTERFACE)
+        if (!phonePinchZoomEnabled.get()) {
+            _lastPinchScale = 0.0f;
+            _pinchOut = 0.0f;
+            _pinchIn = 0.0f;
+            return;
+        }
         if (pinch->state() == Qt::GestureStarted || _lastPinchScale <= 0.0f) {
             _lastPinchScale = _pinchScale;
             return;
