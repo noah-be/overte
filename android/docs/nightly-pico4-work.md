@@ -1290,8 +1290,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 70 — Transactional hand-tracker publication
 
 - Branch: `nightly/pico4-70-openxr-hand-publication`
-- Commit: identified by subject `Publish only valid Pico hand trackers`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `e4555d0b34` (`Publish only valid Pico hand trackers`)
 - Change: create each Pico hand tracker into a null-initialized candidate and
   publish it to the input device only after `xrCreateHandTrackerEXT` succeeds.
   A runtime failure can no longer leave a modified/invalid output handle that a
@@ -1305,6 +1304,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Inject left and right tracker creation
   failures separately; verify the failed hand stays neutral with no invalid-
   handle calls while the successful hand and controllers continue to work.
+
+### 71 — Checked OpenXR debug-messenger lifecycle
+
+- Branch: `nightly/pico4-71-openxr-debug-messenger`
+- Commit: identified by subject `Harden Pico OpenXR debug messenger`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: require both debug-utils Create and Destroy entry points before using
+  the optional extension, publish a null-initialized messenger only after
+  successful creation, and explicitly destroy it before its parent OpenXR
+  instance. Missing optional functions now disable diagnostics without crashing.
+- Regression: context contracts cover checked function loading, transactional
+  handle publication and debug-messenger-before-instance destruction ordering.
+- Passed: 18 OpenXR display/context contracts; `git diff --check`.
+- Risk: validation diagnostics are unavailable when a runtime advertises an
+  incomplete debug-utils extension; core rendering remains unaffected.
+- Pico 4 validation: **not executed**. Run with validation/debug-utils enabled,
+  inject missing/create-failing entry points, and verify bounded shutdown, no
+  null dispatch, no leaked messenger and unchanged rendering without diagnostics.
 
 ## Deferred, rejected, or blocked ideas
 

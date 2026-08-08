@@ -237,6 +237,28 @@ class PicoOpenXRDisplayTests(unittest.TestCase):
             self.assertLess(identity_check, stale_break)
             self.assertLess(stale_break, side_effect)
 
+    def test_optional_debug_messenger_is_checked_and_destroyed(self):
+        system_start = CONTEXT.index("bool OpenXrContext::initSystem()")
+        extension_walk = CONTEXT.index(
+            "auto next = reinterpret_cast<const XrExtensionProperties*>", system_start)
+        system = CONTEXT[system_start:extension_walk]
+        self.assertIn('loadXrFunction(', system)
+        self.assertIn('"xrCreateDebugUtilsMessengerEXT"', system)
+        self.assertIn('"xrDestroyDebugUtilsMessengerEXT"', system)
+        self.assertIn("XrDebugUtilsMessengerEXT candidate { XR_NULL_HANDLE }", system)
+        create = system.index("xrCreateDebugUtilsMessengerEXT(", system.index("if (debugFunctionsLoaded)"))
+        check = system.index('"Failed to create OpenXR debug messenger"', create)
+        publish = system.index("_debugMessenger = candidate", check)
+        self.assertLess(create, check)
+        self.assertLess(check, publish)
+
+        destructor = CONTEXT[CONTEXT.index("OpenXrContext::~OpenXrContext()"):
+                             CONTEXT.index("bool OpenXrContext::initInstance()")]
+        destroy = destructor.index("xrDestroyDebugUtilsMessengerEXT(_debugMessenger)")
+        instance = destructor.index("xrDestroyInstance(_instance)")
+        self.assertLess(destroy, instance)
+        self.assertIn("_debugMessenger = XR_NULL_HANDLE", destructor[destroy:instance])
+
 
 if __name__ == "__main__":
     unittest.main()

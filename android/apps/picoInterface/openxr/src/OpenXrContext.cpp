@@ -117,6 +117,11 @@ OpenXrContext::~OpenXrContext() {
     if (_instance == XR_NULL_HANDLE) {
         return;
     }
+    if (_debugMessenger != XR_NULL_HANDLE && xrDestroyDebugUtilsMessengerEXT) {
+        xrCheck(_instance, xrDestroyDebugUtilsMessengerEXT(_debugMessenger),
+                "Failed to destroy OpenXR debug messenger");
+        _debugMessenger = XR_NULL_HANDLE;
+    }
     XrResult res = xrDestroyInstance(_instance);
     if (res != XR_SUCCESS) {
         qCCritical(xr_context_cat, "Failed to destroy OpenXR instance");
@@ -426,11 +431,15 @@ bool OpenXrContext::initSystem() {
     qCInfo(xr_context_cat, "Position Tracking   : %d", props.trackingProperties.positionTracking);
 
     if (_EXT_debugUtilsSupported) {
-        xrGetInstanceProcAddr(
-            _instance,
-            "xrCreateDebugUtilsMessengerEXT",
-            reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateDebugUtilsMessengerEXT)
-        );
+        const bool debugFunctionsLoaded =
+            loadXrFunction(
+                _instance,
+                "xrCreateDebugUtilsMessengerEXT",
+                reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateDebugUtilsMessengerEXT)) &&
+            loadXrFunction(
+                _instance,
+                "xrDestroyDebugUtilsMessengerEXT",
+                reinterpret_cast<PFN_xrVoidFunction*>(&xrDestroyDebugUtilsMessengerEXT));
 
         XrDebugUtilsMessengerCreateInfoEXT createInfo = {
             .type = XR_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
@@ -441,11 +450,18 @@ bool OpenXrContext::initSystem() {
             .userData = nullptr,
         };
 
-        xrCreateDebugUtilsMessengerEXT(
-            _instance,
-            &createInfo,
-            &_debugMessenger
-        );
+        XrDebugUtilsMessengerEXT candidate { XR_NULL_HANDLE };
+        if (debugFunctionsLoaded) {
+            const XrResult debugResult = xrCreateDebugUtilsMessengerEXT(
+                _instance, &createInfo, &candidate);
+            if (xrCheck(_instance, debugResult, "Failed to create OpenXR debug messenger")) {
+                _debugMessenger = candidate;
+            }
+        } else {
+            _EXT_debugUtilsSupported = false;
+            xrCreateDebugUtilsMessengerEXT = nullptr;
+            xrDestroyDebugUtilsMessengerEXT = nullptr;
+        }
     }
 
     auto next = reinterpret_cast<const XrExtensionProperties*>(props.next);
