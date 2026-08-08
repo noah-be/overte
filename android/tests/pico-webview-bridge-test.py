@@ -86,7 +86,7 @@ class PicoWebViewBridgeTest(unittest.TestCase):
         self.assertIn("PicoInterfaceActivity activity = PicoInterfaceActivity.getInstance()", body)
         self.assertIn("if (activity == null)", body)
         self.assertIn("view = new WebView(activity)", body)
-        self.assertIn("catch (RuntimeException exception)", body)
+        self.assertIn("catch (RuntimeException | OutOfMemoryError exception)", body)
         self.assertNotIn("new WebView(PicoInterfaceActivity.getInstance())", body)
 
     def test_jni_bridge_uses_java_initialized_global_class(self):
@@ -170,6 +170,32 @@ class PicoWebViewBridgeTest(unittest.TestCase):
         self.assertLess(callback, active)
         self.assertLess(active, identity)
         self.assertLess(identity, refresh)
+
+    def test_all_creation_configuration_failures_report_and_cleanup(self):
+        create = re.search(
+            r"public static void create\(.*?\n    \}",
+            self.java_source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(create)
+        body = create.group(0)
+        guarded = body.index("try {")
+        constructor = body.index("view = new WebView(activity)", guarded)
+        settings = body.index("view.getSettings()", constructor)
+        resize = body.index("instance.resize(width, height)", settings)
+        load = body.index("view.loadUrl", resize)
+        success = body.index("nativeCreationFinished(nativeHandle, true)", load)
+        failure_catch = body.index("catch (RuntimeException | OutOfMemoryError exception)", success)
+        cleanup = body.index("destroyOnMain(nativeHandle)", failure_catch)
+        failure = body.index("nativeCreationFinished(nativeHandle, false)", cleanup)
+        self.assertLess(guarded, constructor)
+        self.assertLess(constructor, settings)
+        self.assertLess(settings, resize)
+        self.assertLess(resize, load)
+        self.assertLess(load, success)
+        self.assertLess(success, failure_catch)
+        self.assertLess(failure_catch, cleanup)
+        self.assertLess(cleanup, failure)
 
     def test_pending_properties_are_resynchronized_after_creation(self):
         result = re.search(

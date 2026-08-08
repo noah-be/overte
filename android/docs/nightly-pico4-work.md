@@ -1017,8 +1017,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 55 — WebView asynchronous scroll lifetime
 
 - Branch: `nightly/pico4-55-webview-scroll-lifetime`
-- Commit: identified by subject `Bind Pico WebView scroll callbacks`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `7b19467441` (`Bind Pico WebView scroll callbacks`)
 - Change: before refreshing layout from an asynchronous JavaScript scroll
   completion, require both an active instance and exact identity in the current
   handle map. A destroyed or same-handle replacement WebView is never touched by
@@ -1032,6 +1031,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Scroll nested and document surfaces while
   rapidly destroying/recreating and navigating the same Web entity; verify no
   destroyed-view exception, cross-instance refresh or stale rendered frame.
+
+### 56 — WebView creation exception handshake
+
+- Branch: `nightly/pico4-56-webview-create-exceptions`
+- Commit: identified by subject `Complete Pico WebView creation failures`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: guard the complete main-thread WebView create/configure/settings/
+  resize/register/load sequence, not only the constructor. Runtime or allocation
+  failure cleans a registered/current view best-effort and always reports failed
+  creation so the native bounded retry cannot remain permanently pending.
+- Regression: WebView contracts verify constructor-through-navigation coverage,
+  success-last ordering, broad exception handling, cleanup and failure callback.
+- Passed: 15 WebView bridge contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: successful creation behavior is unchanged; exceptional configuration or
+  navigation now tears the partial view down and may enter the existing retries.
+- Pico 4 validation: **not executed**. Inject provider, settings, buffer and
+  `loadUrl` exceptions, verify one failure handshake/cleanup per attempt, then
+  remove the fault and confirm bounded retry renders the latest entity state.
 
 ## Deferred, rejected, or blocked ideas
 

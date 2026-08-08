@@ -44,15 +44,15 @@ public final class OffscreenWebView {
     public static void create(long nativeHandle, int width, int height, String url,
                               String userAgent, boolean useBackground) {
         MAIN.post(() -> {
-            destroyOnMain(nativeHandle);
-            PicoInterfaceActivity activity = PicoInterfaceActivity.getInstance();
-            if (activity == null) {
-                Log.e(TAG, "Cannot create offscreen WebView: Activity is unavailable");
-                nativeCreationFinished(nativeHandle, false);
-                return;
-            }
-            final WebView view;
+            WebView view = null;
             try {
+                destroyOnMain(nativeHandle);
+                PicoInterfaceActivity activity = PicoInterfaceActivity.getInstance();
+                if (activity == null) {
+                    Log.e(TAG, "Cannot create offscreen WebView: Activity is unavailable");
+                    nativeCreationFinished(nativeHandle, false);
+                    return;
+                }
                 boolean enableWholeDocumentDraw = !wholeDocumentDrawEnabled;
                 if (enableWholeDocumentDraw) {
                     // This WebView has no ViewRoot and is rendered exclusively through
@@ -65,42 +65,50 @@ public final class OffscreenWebView {
                 if (enableWholeDocumentDraw) {
                     wholeDocumentDrawEnabled = true;
                 }
-            } catch (RuntimeException exception) {
-                Log.e(TAG, "Cannot create offscreen WebView", exception);
-                nativeCreationFinished(nativeHandle, false);
-                return;
-            }
-            view.setBackgroundColor(useBackground ? Color.WHITE : Color.TRANSPARENT);
-            view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
-            view.setWebViewClient(new WebViewClient() {
-                @Override public void onPageFinished(WebView finishedView, String finishedUrl) {
-                    finishedView.scrollTo(0, 0);
-                    Log.i(TAG, "Finished WebView page (URL length "
-                        + (finishedUrl == null ? 0 : finishedUrl.length()) + ")");
+                view.setBackgroundColor(useBackground ? Color.WHITE : Color.TRANSPARENT);
+                view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+                view.setWebViewClient(new WebViewClient() {
+                    @Override public void onPageFinished(WebView finishedView, String finishedUrl) {
+                        finishedView.scrollTo(0, 0);
+                        Log.i(TAG, "Finished WebView page (URL length "
+                            + (finishedUrl == null ? 0 : finishedUrl.length()) + ")");
+                    }
+                });
+                WebSettings settings = view.getSettings();
+                settings.setJavaScriptEnabled(true);
+                settings.setDomStorageEnabled(true);
+                settings.setUseWideViewPort(true);
+                settings.setAllowFileAccess(true);
+                settings.setAllowContentAccess(true);
+                if (userAgent != null && !userAgent.isEmpty()) {
+                    settings.setUserAgentString(userAgent);
                 }
-            });
-            WebSettings settings = view.getSettings();
-            settings.setJavaScriptEnabled(true);
-            settings.setDomStorageEnabled(true);
-            settings.setUseWideViewPort(true);
-            settings.setAllowFileAccess(true);
-            settings.setAllowContentAccess(true);
-            if (userAgent != null && !userAgent.isEmpty()) {
-                settings.setUserAgentString(userAgent);
-            }
-            float displayDensity = activity.getResources().getDisplayMetrics().density;
-            Instance instance = new Instance(nativeHandle, view, displayDensity);
-            if (!instance.resize(width, height)) {
-                view.destroy();
-                Log.e(TAG, "Cannot allocate offscreen WebView frame buffer");
+                float displayDensity = activity.getResources().getDisplayMetrics().density;
+                Instance instance = new Instance(nativeHandle, view, displayDensity);
+                if (!instance.resize(width, height)) {
+                    view.destroy();
+                    Log.e(TAG, "Cannot allocate offscreen WebView frame buffer");
+                    nativeCreationFinished(nativeHandle, false);
+                    return;
+                }
+                INSTANCES.put(nativeHandle, instance);
+                view.loadUrl(url == null || url.isEmpty() ? "about:blank" : url);
+                Log.i(TAG, "Created offscreen WebView " + width + "x" + height);
+                MAIN.post(instance.renderFrame);
+                nativeCreationFinished(nativeHandle, true);
+            } catch (RuntimeException | OutOfMemoryError exception) {
+                Log.e(TAG, "Cannot configure offscreen WebView", exception);
+                try {
+                    if (INSTANCES.containsKey(nativeHandle)) {
+                        destroyOnMain(nativeHandle);
+                    } else if (view != null) {
+                        view.destroy();
+                    }
+                } catch (RuntimeException cleanupException) {
+                    Log.e(TAG, "Cannot clean up failed offscreen WebView", cleanupException);
+                }
                 nativeCreationFinished(nativeHandle, false);
-                return;
             }
-            INSTANCES.put(nativeHandle, instance);
-            view.loadUrl(url == null || url.isEmpty() ? "about:blank" : url);
-            nativeCreationFinished(nativeHandle, true);
-            Log.i(TAG, "Created offscreen WebView " + width + "x" + height);
-            MAIN.post(instance.renderFrame);
         });
     }
 
