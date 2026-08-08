@@ -193,6 +193,10 @@ require_text tests/check-phone-apk-metadata.sh 'min_sdk.*26.*target_sdk.*36' \
     'final APK metadata gate enforces current SDK bounds'
 require_text tests/check-phone-apk-metadata.sh 'PHONE_EXPECT_DEBUGGABLE' \
     'final APK metadata gate can enforce the expected build mode'
+require_text tests/check-phone-apk-metadata.sh 'version_code.*2147483647' \
+    'final APK metadata gate enforces Android version-code range'
+require_text tests/check-phone-apk-metadata.sh 'version_name.*A-Za-z0-9._+' \
+    'final APK metadata gate enforces portable version-name form'
 require_text "$gradle" "environment 'PHONE_EXPECT_DEBUGGABLE'" \
     'Gradle final APK gate binds debuggable state to each variant'
 require_text "$gradle" "exclude 'simplifiedUI/[*][*]'" \

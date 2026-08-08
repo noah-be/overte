@@ -13,6 +13,8 @@ case "$2" in
     application-id) printf '%s\n' "${MOCK_ID:-org.overte.phone}" ;;
     min-sdk) printf '%s\n' "${MOCK_MIN_SDK:-26}" ;;
     target-sdk) printf '%s\n' "${MOCK_TARGET_SDK:-36}" ;;
+    version-code) printf '%s\n' "${MOCK_VERSION_CODE:-1}" ;;
+    version-name) printf '%s\n' "${MOCK_VERSION_NAME:-2026.08.1-rc1}" ;;
     permissions)
         printf '%s\n' android.permission.ACCESS_NETWORK_STATE android.permission.INTERNET \
             android.permission.MODIFY_AUDIO_SETTINGS android.permission.RECORD_AUDIO \
@@ -38,10 +40,12 @@ if PHONE_EXPECT_DEBUGGABLE=1 PHONE_APK_ANALYZER="$fixture/apkanalyzer" \
     exit 1
 fi
 grep -Fq 'does not match the expected variant' "$fixture/mode.out"
-for scenario in wrong-id old-sdk permission debug-state; do
+for scenario in wrong-id old-sdk bad-code bad-name permission debug-state; do
     case "$scenario" in
         wrong-id) env_args=(MOCK_ID=example.invalid) ;;
         old-sdk) env_args=(MOCK_TARGET_SDK=35) ;;
+        bad-code) env_args=(MOCK_VERSION_CODE=2147483648) ;;
+        bad-name) env_args=('MOCK_VERSION_NAME=unsafe branch/name') ;;
         permission) env_args=(MOCK_EXTRA_PERMISSION=1) ;;
         debug-state) env_args=(MOCK_DEBUGGABLE=unknown) ;;
     esac

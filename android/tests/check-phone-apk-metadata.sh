@@ -18,11 +18,22 @@ manifest_value() { "$analyzer" manifest "$1" "$apk" 2>/dev/null | tr -d '\r'; }
 application_id="$(manifest_value application-id)" || exit 1
 min_sdk="$(manifest_value min-sdk)" || exit 1
 target_sdk="$(manifest_value target-sdk)" || exit 1
+version_code="$(manifest_value version-code)" || exit 1
+version_name="$(manifest_value version-name)" || exit 1
 permissions="$(manifest_value permissions | sed '/^[[:space:]]*$/d' | LC_ALL=C sort -u)" || exit 1
 debuggable="$(manifest_value debuggable)" || exit 1
 
 [[ "$application_id" == org.overte.phone ]] || { echo 'ERROR: unexpected APK application ID' >&2; exit 1; }
 [[ "$min_sdk" == 26 && "$target_sdk" == 36 ]] || { echo 'ERROR: unexpected APK SDK metadata' >&2; exit 1; }
+[[ "$version_code" =~ ^[1-9][0-9]{0,9}$ ]] &&
+    ((10#$version_code <= 2147483647)) || {
+        echo 'ERROR: invalid APK version code' >&2
+        exit 1
+    }
+[[ "$version_name" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]{0,99}$ ]] || {
+    echo 'ERROR: invalid APK version name' >&2
+    exit 1
+}
 [[ "$permissions" == "$expected_permissions" ]] || { echo 'ERROR: unexpected APK permissions' >&2; exit 1; }
 [[ "$debuggable" == true || "$debuggable" == false ]] || { echo 'ERROR: invalid APK debuggable state' >&2; exit 1; }
 if [[ -n "${PHONE_EXPECT_DEBUGGABLE:-}" ]]; then

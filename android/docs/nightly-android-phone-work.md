@@ -4,6 +4,25 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 89 — Verify version metadata in the final APK
+
+- Branch: `nightly/android-phone-89-apk-version-metadata`
+- Commit: `Gate phone APK version metadata` (this task's commit)
+- Change: Read final binary-manifest version fields and require a positive
+  signed-32-bit `versionCode` plus the same portable 1–100-character
+  `versionName` form as the Gradle release gate. Version names are never echoed.
+- Tests:
+  - `android/tests/phone-apk-metadata-test.sh`: **passed**, adding overflow code
+    and unsafe whitespace/slash name failures to existing metadata fixtures.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 276/276 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 276/276 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Play monotonicity remains external state and cannot be inferred
+  from one artifact; the gate verifies only safe range and representation.
+- Real-device validation still required: None specific to version parsing; tie
+  later device results to artifact digest and release records.
+
 ## 88 — Bind APK debug state to the Gradle variant
 
 - Branch: `nightly/android-phone-88-variant-debuggable-gate`
