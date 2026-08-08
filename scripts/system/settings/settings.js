@@ -78,6 +78,10 @@
 
 		if (event.type === "switchApp") {
 			if (event.appUrl == "hifi/dialogs/GeneralPreferencesDialog.qml") {
+				if (typeof ANDROID_PHONE_INTERFACE !== "undefined" && ANDROID_PHONE_INTERFACE) {
+					tablet.loadQMLSource("hifi/tablet/TabletGeneralPreferences.qml");
+					return;
+				}
 				// This page needs to be opened like this just because.
 				Desktop.show("hifi/dialogs/GeneralPreferencesDialog.qml", "GeneralPreferencesDialog");
 				return;

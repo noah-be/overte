@@ -9,6 +9,7 @@ readonly tablet_source="$repo_root/libraries/ui/src/ui/TabletScriptingInterface.
 readonly dialogs="$repo_root/interface/src/ui/DialogsManager.cpp"
 readonly action_bar="$repo_root/scripts/system/+android_phoneInterface/mobileActionBar.js"
 readonly phone_defaults="$repo_root/scripts/+android_phoneInterface/defaultScripts.js"
+readonly settings_app="$repo_root/scripts/system/settings/settings.js"
 
 require() {
     local file="$1"
@@ -92,5 +93,9 @@ for unsupported in \
     fi
 done
 printf 'PASS: unvalidated VR, desktop, and remote-web tablet apps remain disabled\n'
+require "$settings_app" 'typeof ANDROID_PHONE_INTERFACE !== "undefined" && ANDROID_PHONE_INTERFACE' \
+    'Settings recognizes the Android screen-space tablet'
+require "$settings_app" 'tablet[.]loadQMLSource\("hifi/tablet/TabletGeneralPreferences[.]qml"\)' \
+    'General Settings stays inside the Android tablet instead of opening a desktop window'
 
 printf 'Android tablet routing checks passed.\n'
