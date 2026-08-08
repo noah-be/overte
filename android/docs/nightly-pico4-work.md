@@ -462,8 +462,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 26 — Tablet setting sanitization
 
 - Branch: `nightly/pico4-26-tablet-setting-sanitization`
-- Commit: identified by subject `Sanitize Pico tablet settings`; the exact hash
-  is recorded by the following stacked task or final report.
+- Commit: `e834c23162` (`Sanitize Pico tablet settings`)
 - Change: centralize Pico tablet distance, height, and tilt normalization;
   replace nonfinite persisted values with defaults and clamp finite values to
   the UI-supported ranges before spawn math or QML display.
@@ -476,6 +475,26 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Seed corrupt and out-of-range settings,
   launch/open the tablet and position page, and verify finite bounded placement
   plus recovery through Apply/Reset.
+
+### 27 — Avatar hot-path logging cleanup
+
+- Branch: `nightly/pico4-27-avatar-hotpath-logging`
+- Commit: identified by subject `Remove always-on Pico avatar profiling`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: remove three always-on Android avatar timing collectors and their
+  periodic info logs from per-frame local-avatar update/simulation paths. The
+  Pico local-body optimization, avatar update, render transaction, and network
+  send behavior remain unchanged.
+- Regression: source contracts reject the removed profiler markers and verify
+  that the Android-only local-body guard plus core update/send calls remain.
+- Passed: avatar hot-path source contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: the coarse legacy periodic timing lines are no longer emitted. Existing
+  `PerformanceTimer` scopes and opt-in detailed avatar diagnostics remain
+  available without permanent release-build timestamp/log overhead.
+- Pico 4 validation: **not executed**. Run normal navigation with log capture;
+  confirm the three periodic profiler lines are absent and remote users still
+  receive head/hand/avatar motion normally.
 
 ## Deferred, rejected, or blocked ideas
 
@@ -493,7 +512,7 @@ headset, ADB, Android device, external domain, or device setting is used.
   headset; diagnostics and exact checks are provided instead.
 - Off-hand rotation was not reimplemented because Pico already inherits the
   desktop mapping. Only the inaccurate validation status was corrected.
-- Create/Entity List/import/native QML, avatar/mirror/secondary-camera, and
+- Create/Entity List/import/native QML, mirror/secondary-camera, and
   world/reconnect paths showed no additional narrow defect that could be
   responsibly changed within the available device-free evidence. Existing
   Pico code in these broad areas requires configured native builds and targeted
