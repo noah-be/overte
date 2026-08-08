@@ -49,6 +49,12 @@ require_qml "$desktop_config" 'showDominantHand:[[:space:]]*true' \
     'desktop Avatar retains dominant-hand settings'
 require_qml "$desktop_config" 'showHmdAlignment:[[:space:]]*true' \
     'desktop Avatar retains HMD alignment settings'
+require_qml "$desktop_config" 'showGetMoreAvatars:[[:space:]]*true' \
+    'desktop and Pico retain the Community avatar entry point'
+require_qml "$phone_config" 'showGetMoreAvatars:[[:space:]]*false' \
+    'phone Avatar omits the unavailable Community avatar entry point'
+require_qml "$qml" 'touchConfiguration[.]showGetMoreAvatars' \
+    'Avatar gates construction of the Community tile through its selector'
 require_qml "$settings_qml" 'visible:[[:space:]]*touchConfiguration[.]showDominantHand' \
     'Avatar Settings selector-gates the complete dominant-hand row'
 require_qml "$settings_qml" 'visible:[[:space:]]*touchConfiguration[.]showHmdAlignment' \

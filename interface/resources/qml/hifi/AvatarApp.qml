@@ -645,7 +645,8 @@ Rectangle {
                         pageOfAvatars.append(avatarItem);
                     }
 
-                    if (pageOfAvatars.count !== itemsPerPage) {
+                    if (pageOfAvatars.count !== itemsPerPage &&
+                            touchConfiguration.showGetMoreAvatars) {
                         pageOfAvatars.appendGetAvatars();
                     }
 

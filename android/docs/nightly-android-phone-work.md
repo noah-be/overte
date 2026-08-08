@@ -4,6 +4,28 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 41 — Remove the dead Phone Community avatar action
+
+- Branch: `nightly/android-phone-41-avatar-community-boundary`
+- Commit: `Hide unavailable Community avatars on phone` (this task's commit)
+- Change: Add a QFileSelector presentation contract that prevents construction
+  of the `Get More Avatars` Community tile on Phone, where it only opened a
+  coming-soon dialog and external marketplace navigation is intentionally
+  unavailable. Desktop and Pico retain the tile; Phone favorites/pagination and
+  custom avatar/wearable URLs remain available.
+- Tests:
+  - `android/tests/phone-tablet-avatar-test.sh`: **passed**, covering Phone
+    omission, shared construction gate, and Desktop/Pico preservation.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/APK suites and 188/188 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: The hidden tile should return only after Phone has an approved,
+  native touch marketplace/community surface and a tested external-navigation
+  policy.
+- Real-device validation still required: **not executed for this task**. Check
+  empty, partial, and full favorite pages; verify no Community tile or blank
+  phantom cell, pagination remains correct, and Desktop/Pico still show it.
+
 ## 40 — Shorten Phone credential lifetime
 
 - Branch: `nightly/android-phone-40-login-credential-lifetime`
