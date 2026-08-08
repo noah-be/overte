@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 63 — Report Phone dependency readiness in doctor
+
+- Branch: `nightly/android-phone-63-doctor-dependency-status`
+- Commit: `Report phone dependency readiness separately` (this task's commit)
+- Change: Keep the shared toolchain diagnosis, then explicitly report `[SETUP]`
+  or `[READY]` for the dedicated atomic 16-KiB dependency marker. A green host
+  toolchain can no longer be mistaken for an immediately buildable Phone graph.
+- Tests:
+  - `android/tests/phone-doctor-output-test.sh`: **passed**, covering missing and
+    present marker states plus preservation of shared checker failures.
+  - `./android/build-phone.sh doctor`: **passed**, reports `[SETUP]` in this
+    worktree because dedicated dependencies are absent.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 227/227 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 227/227 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Marker presence is a fast status hint; Gradle's content-bound
+  verifier remains authoritative and can still reject a stale marker.
+- Real-device validation still required: None for doctor output.
+
 ## 62 — Keep Gradle dependency failures actionable
 
 - Branch: `nightly/android-phone-62-gradle-release-contract`

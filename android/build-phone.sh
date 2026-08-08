@@ -65,6 +65,12 @@ doctor() {
     "$script_dir/build-pico.sh" doctor | sed \
         -e 's/^Pico 4 build environment$/Android phone build environment (shared toolchain)/' \
         -e 's|^Next: ./build-pico.sh setup --download$|Next: follow ANDROID_PHONE_BUILD.md 16 KiB setup order; then ./build-phone.sh build|'
+    printf '\nPhone dependency graph:\n'
+    if [[ -f "$script_dir/conan/phone-nonqt-16k-debug/.phone-16k-dependencies.ready" ]]; then
+        printf '  [READY] verified 16 KiB dependency marker is present\n'
+    else
+        printf '  [SETUP] verified 16 KiB dependencies are not prepared yet\n'
+    fi
 }
 
 build() {

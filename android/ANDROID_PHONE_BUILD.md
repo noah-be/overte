@@ -72,6 +72,9 @@ Inspect the environment without downloading dependencies or changing it:
 The doctor command uses the established shared environment checker because both
 applications intentionally use the same toolchain versions. Its Phone wrapper
 prints the Phone-specific 16-KiB setup hand-off rather than Pico build steps.
+It separately reports `[SETUP]` or `[READY]` for the atomic Phone dependency
+marker, so a complete host toolchain is not confused with a build-ready graph.
+Gradle still revalidates marker contents before compiling.
 
 ## First setup and required 16 KiB build order
 
