@@ -1428,8 +1428,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 78 — Fail-closed OpenXR frame start
 
 - Branch: `nightly/pico4-78-openxr-frame-start-failclosed`
-- Commit: identified by subject `Fail closed after Pico frame start errors`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `806666d112` (`Fail closed after Pico frame start errors`)
 - Change: disable the render cycle and invalidate the context when either
   `xrWaitFrame` or `xrBeginFrame` fails. Frame-start errors can no longer produce
   an unbounded per-tick retry loop against a runtime with unknown call-order or
@@ -1442,6 +1441,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Inject Wait and Begin failures during
   focused, paused and resume transitions; verify no repeated frame calls/log
   storm and confirm clean rendering after a fresh application/session start.
+
+### 79 — Null interaction-profile handling
+
+- Branch: `nightly/pico4-79-openxr-profile-null`
+- Commit: identified by subject `Handle Pico controller profile loss`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: handle OpenXR's normal `XR_NULL_PATH` interaction-profile result as a
+  disconnected/unbound controller after clearing the Vive pose compatibility
+  flag, rather than passing the null path into `xrPathToString` and reporting a
+  false critical runtime error.
+- Regression: input/context contracts verify query, compatibility-state update,
+  null check/continue and path conversion ordering.
+- Passed: 14 OpenXR input/fail-closed contracts; `git diff --check`.
+- Risk: profile loss is now an informational state rather than a conversion
+  error; valid non-null profile diagnostics and mappings are unchanged.
+- Pico 4 validation: **not executed**. Disconnect/reconnect and suspend/resume
+  each controller; verify neutral input, no profile-path error flood, correct
+  profile restoration and no stale Vive pose compatibility state.
 
 ## Deferred, rejected, or blocked ideas
 

@@ -227,6 +227,22 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertLess(optional, optional_check)
         self.assertLess(optional_check, optional_publish)
 
+    def test_null_interaction_profile_clears_hack_without_path_conversion(self):
+        poll_start = CONTEXT.index("bool OpenXrContext::pollEvents()")
+        profile_case = CONTEXT.index(
+            "case XR_TYPE_EVENT_DATA_INTERACTION_PROFILE_CHANGED", poll_start)
+        next_case = CONTEXT.index("case XR_TYPE_EVENT_DATA_USER_PRESENCE_CHANGED_EXT", profile_case)
+        profile = CONTEXT[profile_case:next_case]
+        query = profile.index("xrGetCurrentInteractionProfile")
+        hack = profile.index("_vivePoseHack[i] =", query)
+        null_check = profile.index("state.interactionProfile == XR_NULL_PATH", hack)
+        null_continue = profile.index("continue;", null_check)
+        convert = profile.index("xrPathToString", null_continue)
+        self.assertLess(query, hack)
+        self.assertLess(hack, null_check)
+        self.assertLess(null_check, null_continue)
+        self.assertLess(null_continue, convert)
+
 
 if __name__ == "__main__":
     unittest.main()
