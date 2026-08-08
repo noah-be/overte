@@ -49,6 +49,22 @@ def is_safe_relative_path(value):
     return value not in ("", ".") and not path.is_absolute() and ".." not in path.parts
 
 
+def logical_package_names(archive_names):
+    is_bundle = "base/manifest/AndroidManifest.xml" in archive_names
+    if not is_bundle:
+        return archive_names, "assets/cache_assets.txt"
+
+    logical = []
+    for name in archive_names:
+        if name == "base/manifest/AndroidManifest.xml":
+            logical.append("AndroidManifest.xml")
+        elif name.startswith("base/dex/"):
+            logical.append(name[len("base/dex/"):])
+        elif name.startswith("base/assets/") or name.startswith("base/lib/"):
+            logical.append(name[len("base/"):])
+    return logical, "base/assets/cache_assets.txt"
+
+
 def declared_native_entries():
     root = ElementTree.parse(DEPENDENCY_XML).getroot()
     bundled = root.find("./string-array[@name='bundled_in_lib']")
@@ -121,10 +137,13 @@ def main():
             | declared_asset_markers()
         )
         with zipfile.ZipFile(sys.argv[1]) as archive:
-            archive_names = archive.namelist()
+            raw_archive_names = archive.namelist()
+            if len(raw_archive_names) != len(set(raw_archive_names)):
+                raise ValueError("package contains duplicate ZIP entry names")
+            archive_names, cache_manifest_entry = logical_package_names(raw_archive_names)
             names = set(archive_names)
             if len(archive_names) != len(names):
-                raise ValueError("APK contains duplicate ZIP entry names")
+                raise ValueError("package contains duplicate logical entry names")
             unexpected_native_abis = sorted(
                 name for name in names
                 if name.startswith("lib/") and not name.startswith("lib/arm64-v8a/")
@@ -138,7 +157,7 @@ def main():
             if missing:
                 raise ValueError("missing required entries: " + ", ".join(sorted(missing)))
 
-            cache_lines = archive.read("assets/cache_assets.txt").decode("utf-8").splitlines()
+            cache_lines = archive.read(cache_manifest_entry).decode("utf-8").splitlines()
             if (
                 len(cache_lines) < 2
                 or not cache_lines[0].isascii()
@@ -177,10 +196,10 @@ def main():
         ValueError,
         zipfile.BadZipFile,
     ) as error:
-        print(f"ERROR: incomplete Android phone APK: {error}", file=sys.stderr)
+        print(f"ERROR: incomplete Android phone package: {error}", file=sys.stderr)
         return 1
 
-    print(f"APK contents are complete ({len(declared_assets)} declared assets present).")
+    print(f"Android package contents are complete ({len(declared_assets)} declared assets present).")
     return 0
 
 

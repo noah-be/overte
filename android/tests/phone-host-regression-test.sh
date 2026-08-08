@@ -217,6 +217,12 @@ require_text "$gradle" 'requirePhone16kReleaseDependencies' \
     'release packaging requires a valid 16 KiB dependency sentinel'
 require_text "$gradle" 'canonicalVariantApk[[:space:]]*=[[:space:]]*output\.outputFile' \
     'the final gate checks the canonical APK output of each variant'
+require_text "$gradle" "include '[*][*]/[*][.]aab'" \
+    'release bundle gate resolves the canonical task-produced AAB'
+require_text "$gradle" 'phonePackageContentsCheck[.]absolutePath' \
+    'release bundle output runs through the package completeness gate'
+require_text tests/check-phone-apk-contents.py 'base/manifest/AndroidManifest[.]xml' \
+    'package completeness gate recognizes Android App Bundle layout'
 reject_text "$gradle" "fileTree\(\"\$buildDir/outputs/apk/" \
     'the final gate never scans stale APKs with a wildcard'
 require_text "$cmake" 'set\(TARGET_NAME[[:space:]]+phoneInterface\)' \

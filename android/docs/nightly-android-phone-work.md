@@ -4,6 +4,29 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 53 — Gate the final release App Bundle
+
+- Branch: `nightly/android-phone-53-release-bundle-gate`
+- Commit: `Gate phone release bundle contents` (this task's commit)
+- Change: Normalize AAB `base/manifest`, `base/dex`, `base/assets`, and `base/lib`
+  paths into the same strict package contract as APKs. `bundleRelease` now
+  requires exactly one task-produced AAB and checks its manifest, dex, ARM64
+  runtimes, QML declarations, cache bundles, and synchronized default scripts.
+  ZIP alignment remains correctly limited to final APK outputs.
+- Tests:
+  - `android/tests/phone-apk-contents-test.sh`: **passed**, including a complete
+    synthetic AAB and a missing-runtime AAB failure alongside all APK fixtures.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 207/207 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 207/207 host checks.
+  - Python syntax and `git diff --check`: **passed**.
+- Known risks: A full `bundleRelease` remains blocked by absent dedicated Phone
+  dependencies and signing/version inputs; bundletool-generated split APKs need
+  their own pipeline install test.
+- Real-device validation still required: Generate/install a universal or device
+  split APK set from the gated AAB with bundletool, record its digest(s), and run
+  the complete unattended smoke on representative API/ABI devices.
+
 ## 52 — Make the device smoke test unattended
 
 - Branch: `nightly/android-phone-52-device-permission-automation`

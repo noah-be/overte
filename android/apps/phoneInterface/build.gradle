@@ -45,6 +45,7 @@ def runtimeOverrides = file('../picoInterface/src/main/runtime-overrides/arm64-v
 def phoneElfAlignmentCheck = file('../../tests/check-phone-elf-alignment.sh')
 def phone16kDependencyCheck = file('../../tests/verify-phone-16k-dependencies.sh')
 def phone16kApkCheck = file('../../tests/check-phone-apk-16k.sh')
+def phonePackageContentsCheck = file('../../tests/check-phone-apk-contents.py')
 def androidOpenSslDir = new File(
     usePhone16kDependencies ? phoneNonQtConanDir : legacyConanDir,
     'conanlibs/Debug')
@@ -506,6 +507,21 @@ android {
             tasks.matching { it.name == bundleTaskName }.configureEach {
                 dependsOn requirePhoneReleaseVersionCode
                 dependsOn tasks.named('requirePhone16kReleaseDependencies')
+                if (usePhone16kDependencies) {
+                    doLast {
+                        def bundleFiles = outputs.files.asFileTree.matching {
+                            include '**/*.aab'
+                        }.files
+                        if (bundleFiles.size() != 1) {
+                            throw new GradleException(
+                                "Expected one canonical ${variant.name} AAB, found ${bundleFiles.size()}")
+                        }
+                        exec {
+                            commandLine phonePackageContentsCheck.absolutePath,
+                                bundleFiles.first().absolutePath
+                        }
+                    }
+                }
             }
         }
         if (usePhone16kDependencies) {

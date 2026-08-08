@@ -106,6 +106,30 @@ with zipfile.ZipFile(root / 'content-digest.apk', 'w') as archive:
     for entry, data in required.items():
         archive.writestr(entry, data)
 
+with zipfile.ZipFile(root / 'complete.aab', 'w') as archive:
+    archive.writestr('base/assets/cache_assets.txt', cache_manifest)
+    for entry, data in required.items():
+        if entry == 'AndroidManifest.xml':
+            bundle_entry = 'base/manifest/AndroidManifest.xml'
+        elif entry == 'classes.dex':
+            bundle_entry = 'base/dex/classes.dex'
+        else:
+            bundle_entry = 'base/' + entry
+        archive.writestr(bundle_entry, data)
+
+with zipfile.ZipFile(root / 'missing-runtime.aab', 'w') as archive:
+    archive.writestr('base/assets/cache_assets.txt', cache_manifest)
+    for entry, data in required.items():
+        if entry == 'lib/arm64-v8a/libQt5Core_arm64-v8a.so':
+            continue
+        if entry == 'AndroidManifest.xml':
+            bundle_entry = 'base/manifest/AndroidManifest.xml'
+        elif entry == 'classes.dex':
+            bundle_entry = 'base/dex/classes.dex'
+        else:
+            bundle_entry = 'base/' + entry
+        archive.writestr(bundle_entry, data)
+
 with zipfile.ZipFile(root / 'unexpected-abi.apk', 'w') as archive:
     archive.writestr('assets/cache_assets.txt', cache_manifest)
     for entry, data in required.items():
@@ -167,6 +191,12 @@ PY
 
 "$checker" "$fixture_dir/complete.apk" >/dev/null
 "$checker" "$fixture_dir/content-digest.apk" >/dev/null
+"$checker" "$fixture_dir/complete.aab" >/dev/null
+if "$checker" "$fixture_dir/missing-runtime.aab" >"$fixture_dir/aab-out" 2>&1; then
+    echo 'FAIL: AAB missing a required runtime was accepted' >&2
+    exit 1
+fi
+grep -q 'libQt5Core_arm64-v8a.so' "$fixture_dir/aab-out"
 if "$checker" "$fixture_dir/missing-required-cache-entry.apk" \
         >"$fixture_dir/required-cache-out" 2>&1; then
     echo 'FAIL: APK with an unextractable required resource bundle was accepted' >&2
