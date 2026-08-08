@@ -21,7 +21,7 @@ public:
     void setUserAgent(const QString& value);
     QString frameSource() const;
     QImage frameImage() const;
-    void acceptFrame(const void* pixels, int width, int height);
+    void acceptFrame(const void* pixels, qsizetype byteCount, int width, int height);
     void componentComplete() override;
 
 signals:

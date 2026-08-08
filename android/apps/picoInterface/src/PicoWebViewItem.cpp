@@ -11,6 +11,8 @@
 #include <jni.h>
 #include <android/log.h>
 
+#include <limits>
+
 extern "C" JavaVM* overtePicoOpenXRJavaVm();
 
 namespace {
@@ -152,7 +154,11 @@ QString PicoWebViewItem::frameSource() const {
     quint64 frameSerial { 0 };
     {
         QMutexLocker locker(&_imageMutex);
-        if (_image.isNull() || !qAlpha(_image.pixel(_image.width() / 2, _image.height() / 2))) {
+        // Transparency is valid Web content. In particular, a page may use a
+        // transparent background or leave its centre empty while still drawing
+        // controls elsewhere. The presence of a copied frame, rather than one
+        // arbitrarily sampled pixel, is the readiness signal.
+        if (_image.isNull()) {
             return {};
         }
         frameSerial = _frameSerial;
@@ -161,7 +167,13 @@ QString PicoWebViewItem::frameSource() const {
         .arg(reinterpret_cast<quintptr>(this), 0, 16).arg(frameSerial);
 }
 
-void PicoWebViewItem::acceptFrame(const void* pixels, int width, int height) {
+void PicoWebViewItem::acceptFrame(const void* pixels, qsizetype byteCount, int width, int height) {
+    constexpr qsizetype BYTES_PER_PIXEL { 4 };
+    if (!pixels || width <= 0 || height <= 0 ||
+            width > std::numeric_limits<qsizetype>::max() / height / BYTES_PER_PIXEL ||
+            byteCount < static_cast<qsizetype>(width) * height * BYTES_PER_PIXEL) {
+        return;
+    }
     {
         QMutexLocker locker(&_imageMutex);
         _image = QImage(static_cast<const uchar*>(pixels), width, height,
@@ -226,5 +238,8 @@ Java_org_overte_pico_OffscreenWebView_nativeFrame(JNIEnv* env, jclass, jlong han
                                                    jobject buffer, jint width, jint height) {
     QMutexLocker locker(&itemRegistryMutex);
     auto* item = itemRegistry.value(handle, nullptr);
-    if (item && buffer) { item->acceptFrame(env->GetDirectBufferAddress(buffer), width, height); }
+    if (item && buffer) {
+        item->acceptFrame(env->GetDirectBufferAddress(buffer),
+                          env->GetDirectBufferCapacity(buffer), width, height);
+    }
 }

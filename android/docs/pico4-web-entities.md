@@ -33,6 +33,12 @@ image provider and Canvas copy those frames into the existing
 normal `WebEntityRenderer`, entity texture, spatial hit conversion, and
 `webSurfaceLaserInput.js` paths remain shared.
 
+Frame readiness is based on receiving a valid image, not on the alpha value of
+an arbitrary pixel. This is important for transparent Web content and pages
+whose centre is intentionally empty. The JNI receiver also verifies positive
+dimensions, multiplication bounds, and direct-buffer capacity before copying a
+frame into `QImage`.
+
 Qt hover, mouse press/move/release, and wheel events are translated to Android
 mouse-hover, touch, and generic scroll events. A Web entity remains explicitly
 non-grabbable in the acceptance fixture, and no near-grab, far-grab, teleport,
@@ -94,3 +100,8 @@ Test both hands separately:
   operating each controller; ADB can prove page creation, frame delivery,
   stability, and captured headset output but cannot synthesize OpenXR hand
   input faithfully.
+
+## Device-free regression
+
+Run `python3 android/tests/pico-webview-bridge-test.py` to verify the transparent
+frame-readiness rule and JNI direct-buffer validation without Android or Qt.
