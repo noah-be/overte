@@ -1089,8 +1089,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 59 — WebView transactional layout resize
 
 - Branch: `nightly/pico4-59-webview-resize-layout`
-- Commit: identified by subject `Make Pico WebView resize transactional`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `9e9cd02ae1` (`Make Pico WebView resize transactional`)
 - Change: perform density-scaled WebView measure/layout inside the guarded
   allocation phase before publishing new Bitmap/Canvas/buffer resources or
   recycling the working bitmap. Layout failure preserves the previous complete
@@ -1104,6 +1103,26 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Resize active pages repeatedly while
   injecting measure/layout exceptions and allocation pressure; verify the last
   valid frame persists and a later valid resize recovers without corruption.
+
+### 60 — WebView asynchronous command recovery
+
+- Branch: `nightly/pico4-60-webview-command-failures`
+- Commit: identified by subject `Recover Pico WebView command failures`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: route navigation, background, User-Agent, resize, pointer and scroll
+  UI-thread work through one Runtime/OOM boundary. Failures only invalidate the
+  exact still-current instance, clean it up and report failed creation to enter
+  the existing bounded native retry. Async scroll-layout completion uses the
+  same identity-bound recovery.
+- Regression: WebView contracts verify shared exception handling, identity
+  checks, cleanup-before-retry, all six command call sites and scroll completion.
+- Passed: 18 WebView bridge contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: exceptional commands recreate the page instead of escaping through the
+  Android main looper; valid queued commands retain ordering on the same Handler.
+- Pico 4 validation: **not executed**. Inject failures into each command and a
+  delayed scroll-layout callback while replacing the same handle; verify only
+  the current instance retries, without UI-thread crash or cross-page teardown.
 
 ## Deferred, rejected, or blocked ideas
 

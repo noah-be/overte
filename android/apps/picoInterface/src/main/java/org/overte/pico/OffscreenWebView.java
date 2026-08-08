@@ -40,6 +40,34 @@ public final class OffscreenWebView {
     private static native void nativeFrame(
         long nativeHandle, ByteBuffer pixels, int width, int height);
 
+    private interface InstanceCommand {
+        void run(Instance instance);
+    }
+
+    private static void postCommand(long nativeHandle, String name, InstanceCommand command) {
+        MAIN.post(() -> {
+            Instance instance = INSTANCES.get(nativeHandle);
+            if (instance == null) {
+                return;
+            }
+            try {
+                command.run(instance);
+            } catch (RuntimeException | OutOfMemoryError exception) {
+                failCurrentInstance(nativeHandle, instance, name, exception);
+            }
+        });
+    }
+
+    private static void failCurrentInstance(
+            long nativeHandle, Instance instance, String operation, Throwable failure) {
+        Log.e(TAG, "Offscreen WebView " + operation + " failed", failure);
+        if (!instance.active || INSTANCES.get(nativeHandle) != instance) {
+            return;
+        }
+        destroyOnMain(nativeHandle);
+        nativeCreationFinished(nativeHandle, false);
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     public static void create(long nativeHandle, int width, int height, String url,
                               String userAgent, boolean useBackground) {
@@ -152,64 +180,44 @@ public final class OffscreenWebView {
     }
 
     public static void load(long nativeHandle, String url) {
-        MAIN.post(() -> {
-            Instance instance = INSTANCES.get(nativeHandle);
-            if (instance != null) {
-                instance.cancelActiveTouch();
-                instance.pendingScroll = 0.0f;
-                instance.view.loadUrl(url == null || url.isEmpty() ? "about:blank" : url);
-            }
+        postCommand(nativeHandle, "navigation", instance -> {
+            instance.cancelActiveTouch();
+            instance.pendingScroll = 0.0f;
+            instance.view.loadUrl(url == null || url.isEmpty() ? "about:blank" : url);
         });
     }
 
     public static void setUseBackground(long nativeHandle, boolean useBackground) {
-        MAIN.post(() -> {
-            Instance instance = INSTANCES.get(nativeHandle);
-            if (instance != null) {
-                instance.view.setBackgroundColor(
-                    useBackground ? Color.WHITE : Color.TRANSPARENT);
-                instance.view.invalidate();
-            }
+        postCommand(nativeHandle, "background update", instance -> {
+            instance.view.setBackgroundColor(
+                useBackground ? Color.WHITE : Color.TRANSPARENT);
+            instance.view.invalidate();
         });
     }
 
     public static void setUserAgent(long nativeHandle, String userAgent) {
-        MAIN.post(() -> {
-            Instance instance = INSTANCES.get(nativeHandle);
-            if (instance != null) {
-                instance.view.getSettings().setUserAgentString(
-                    userAgent == null || userAgent.isEmpty() ? null : userAgent);
-            }
+        postCommand(nativeHandle, "User-Agent update", instance -> {
+            instance.view.getSettings().setUserAgentString(
+                userAgent == null || userAgent.isEmpty() ? null : userAgent);
         });
     }
 
     public static void resize(long nativeHandle, int width, int height) {
-        MAIN.post(() -> {
-            Instance instance = INSTANCES.get(nativeHandle);
-            if (instance != null) {
-                if (!instance.resize(width, height)) {
-                    Log.e(TAG, "Cannot resize offscreen WebView frame buffer");
-                }
+        postCommand(nativeHandle, "resize", instance -> {
+            if (!instance.resize(width, height)) {
+                Log.e(TAG, "Cannot resize offscreen WebView frame buffer");
             }
         });
     }
 
     public static void pointer(long nativeHandle, int action, float x, float y) {
-        MAIN.post(() -> {
-            Instance instance = INSTANCES.get(nativeHandle);
-            if (instance == null) {
-                return;
-            }
+        postCommand(nativeHandle, "pointer dispatch", instance -> {
             instance.dispatchPointer(action, x, y);
         });
     }
 
     public static void scroll(long nativeHandle, float x, float y, float delta) {
-        MAIN.post(() -> {
-            Instance instance = INSTANCES.get(nativeHandle);
-            if (instance == null) {
-                return;
-            }
+        postCommand(nativeHandle, "scroll dispatch", instance -> {
             // Pico's analogue thumbstick supplies small wheel fractions every input
             // frame. Android WebView ignores those fractions individually, while
             // forwarding a full wheel unit every frame scrolls far too quickly.
@@ -240,7 +248,12 @@ public final class OffscreenWebView {
                 // The callback can arrive after destroy or after a replacement
                 // WebView has reused the same native handle.
                 if (instance.active && INSTANCES.get(nativeHandle) == instance) {
-                    instance.refreshLayout();
+                    try {
+                        instance.refreshLayout();
+                    } catch (RuntimeException | OutOfMemoryError exception) {
+                        failCurrentInstance(
+                            nativeHandle, instance, "scroll layout", exception);
+                    }
                 }
             });
         });

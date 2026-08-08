@@ -234,6 +234,27 @@ class PicoWebViewBridgeTest(unittest.TestCase):
         helper = destroy.index("private static void runCleanupStep")
         self.assertIn("catch (RuntimeException exception)", destroy[helper:])
 
+    def test_async_commands_share_instance_bound_failure_recovery(self):
+        helper_start = self.java_source.index("private static void postCommand")
+        helper_end = self.java_source.index("@SuppressLint", helper_start)
+        helpers = self.java_source[helper_start:helper_end]
+        self.assertIn("catch (RuntimeException | OutOfMemoryError exception)", helpers)
+        self.assertIn("failCurrentInstance(nativeHandle, instance, name, exception)", helpers)
+        self.assertIn("INSTANCES.get(nativeHandle) != instance", helpers)
+        cleanup = helpers.index("destroyOnMain(nativeHandle)")
+        retry = helpers.index("nativeCreationFinished(nativeHandle, false)", cleanup)
+        self.assertLess(cleanup, retry)
+        for operation in [
+            'postCommand(nativeHandle, "navigation"',
+            'postCommand(nativeHandle, "background update"',
+            'postCommand(nativeHandle, "User-Agent update"',
+            'postCommand(nativeHandle, "resize"',
+            'postCommand(nativeHandle, "pointer dispatch"',
+            'postCommand(nativeHandle, "scroll dispatch"',
+        ]:
+            self.assertIn(operation, self.java_source)
+        self.assertIn('nativeHandle, instance, "scroll layout", exception', self.java_source)
+
     def test_pending_properties_are_resynchronized_after_creation(self):
         result = re.search(
             r"void PicoWebViewItem::acceptCreationResult\(.*?\n\}",
