@@ -14,6 +14,8 @@
 
 #include "Application.h"
 
+#include <cmath>
+
 #include <QDesktopWidget>
 #include <QDesktopServices>
 #include <QDir>
@@ -1348,14 +1350,29 @@ void Application::loadSettings(const QCommandLineParser& parser) {
     // Phones are passively cooled and share system/GPU memory. Prefer a
     // predictable MVP baseline. Apply it after the performance preset so a
     // first-run preset cannot immediately restore the desktop values.
-    constexpr float PHONE_VIEWPORT_RESOLUTION_SCALE { 0.5f };
+    constexpr float PHONE_DEFAULT_VIEWPORT_RESOLUTION_SCALE { 0.5f };
+    constexpr float PHONE_MIN_VIEWPORT_RESOLUTION_SCALE { 0.5f };
+    constexpr float PHONE_MAX_VIEWPORT_RESOLUTION_SCALE { 0.7f };
+    float phoneViewportResolutionScale { PHONE_DEFAULT_VIEWPORT_RESOLUTION_SCALE };
+    char phoneRenderScaleValue[PROP_VALUE_MAX] {};
+    if (__system_property_get("debug.overte.phone_render_scale", phoneRenderScaleValue) > 0) {
+        bool validScale { false };
+        const float requestedScale = QString::fromLatin1(phoneRenderScaleValue).trimmed().toFloat(&validScale);
+        if (validScale && std::isfinite(requestedScale)) {
+            phoneViewportResolutionScale = requestedScale < PHONE_MIN_VIEWPORT_RESOLUTION_SCALE
+                ? PHONE_MIN_VIEWPORT_RESOLUTION_SCALE
+                : requestedScale > PHONE_MAX_VIEWPORT_RESOLUTION_SCALE
+                    ? PHONE_MAX_VIEWPORT_RESOLUTION_SCALE
+                    : requestedScale;
+        }
+    }
     constexpr int PHONE_TARGET_FPS { 30 };
     renderSettings->setRenderMethod(RenderScriptingInterface::RenderMethod::FORWARD);
     renderSettings->setAntialiasingMode(AntialiasingSetupConfig::Mode::NONE);
     renderSettings->setHazeEnabled(false);
     renderSettings->setLocalLightingEnabled(false);
     renderSettings->setProceduralMaterialsEnabled(false);
-    renderSettings->setViewportResolutionScale(PHONE_VIEWPORT_RESOLUTION_SCALE);
+    renderSettings->setViewportResolutionScale(phoneViewportResolutionScale);
 
     auto& phoneRefreshRateManager = getRefreshRateManager();
     phoneRefreshRateManager.setCustomRefreshRate(RefreshRateManager::RefreshRateRegime::FOCUS_ACTIVE, PHONE_TARGET_FPS);
@@ -1363,9 +1380,39 @@ void Application::loadSettings(const QCommandLineParser& parser) {
     phoneRefreshRateManager.setCustomRefreshRate(RefreshRateManager::RefreshRateRegime::STARTUP, PHONE_TARGET_FPS);
     phoneRefreshRateManager.setRefreshRateProfile(RefreshRateManager::RefreshRateProfile::CUSTOM);
 
-    int disabledMirrorViews { 0 };
     auto renderConfig = qApp->getRenderEngine()->getConfiguration();
+    constexpr int PHONE_FORWARD_MSAA_SAMPLES { 1 };
+    int configuredForwardBuffers { 0 };
     const QStringList viewNames { "RenderMainView", "RenderSecondView" };
+    for (const auto& viewName : viewNames) {
+        const QString forwardBufferName =
+            viewName + ".RenderForwardTask.PreparePrimaryBufferForward";
+        if (auto forwardBufferConfig = renderConfig->getConfig(forwardBufferName)) {
+            if (forwardBufferConfig->setProperty("numSamples", PHONE_FORWARD_MSAA_SAMPLES)) {
+                ++configuredForwardBuffers;
+            }
+        }
+    }
+
+    constexpr int PHONE_LIGHT_CLUSTER_GRID_DIMENSION { 1 };
+    int configuredLightClusterGrids { 0 };
+    for (const auto& viewName : viewNames) {
+        const QString lightClusteringName =
+            viewName + ".RenderForwardTask.LightClustering";
+        if (auto lightClusteringConfig = renderConfig->getConfig(lightClusteringName)) {
+            const bool configuredX =
+                lightClusteringConfig->setProperty("dimX", PHONE_LIGHT_CLUSTER_GRID_DIMENSION);
+            const bool configuredY =
+                lightClusteringConfig->setProperty("dimY", PHONE_LIGHT_CLUSTER_GRID_DIMENSION);
+            const bool configuredZ =
+                lightClusteringConfig->setProperty("dimZ", PHONE_LIGHT_CLUSTER_GRID_DIMENSION);
+            if (configuredX && configuredY && configuredZ) {
+                ++configuredLightClusterGrids;
+            }
+        }
+    }
+
+    int disabledMirrorViews { 0 };
     for (const auto& viewName : viewNames) {
         constexpr size_t MIRROR_VIEWS_PER_LEVEL { 3 };
         for (size_t mirrorIndex = 0; mirrorIndex < MIRROR_VIEWS_PER_LEVEL; ++mirrorIndex) {
@@ -1381,6 +1428,10 @@ void Application::loadSettings(const QCommandLineParser& parser) {
     qCInfo(interfaceapp) << "PHONE_GRAPHICS_PROFILE"
                          << "targetFps" << PHONE_TARGET_FPS
                          << "renderScale" << renderSettings->getViewportResolutionScale()
+                         << "forwardMsaaSamples" << PHONE_FORWARD_MSAA_SAMPLES
+                         << "configuredForwardBuffers" << configuredForwardBuffers
+                         << "lightClusterGridDimension" << PHONE_LIGHT_CLUSTER_GRID_DIMENSION
+                         << "configuredLightClusterGrids" << configuredLightClusterGrids
                          << "forward" << (renderSettings->getRenderMethod() == RenderScriptingInterface::RenderMethod::FORWARD)
                          << "antialiasing" << (renderSettings->getAntialiasingMode() != AntialiasingSetupConfig::Mode::NONE)
                          << "shadows" << renderSettings->getShadowsEnabled()
