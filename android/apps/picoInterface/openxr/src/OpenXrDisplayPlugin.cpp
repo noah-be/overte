@@ -749,6 +749,10 @@ bool OpenXrDisplayPlugin::endFrame(bool submitLayer) {
 
     XrResult result = xrEndFrame(_context->_session, &info);
     if (!xrCheck(_context->_instance, result, "failed to end frame!")) {
+        // xrBeginFrame already succeeded. The runtime's frame call-order state
+        // is unknown after a failed end, so do not start another frame cycle.
+        _context->_shouldRunFrameCycle = false;
+        _context->_isValid = false;
         return false;
     }
 

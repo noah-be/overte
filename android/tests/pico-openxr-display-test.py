@@ -278,6 +278,20 @@ class PicoOpenXRDisplayTests(unittest.TestCase):
         self.assertLess(finite, positive)
         self.assertLess(positive, request)
 
+    def test_end_frame_failure_invalidates_render_cycle(self):
+        start = SOURCE.index("bool OpenXrDisplayPlugin::endFrame")
+        end = SOURCE.index("void OpenXrDisplayPlugin::postPreview", start)
+        body = SOURCE[start:end]
+        call = body.index("xrEndFrame")
+        failure = body.index('"failed to end frame!"', call)
+        disable = body.index("_context->_shouldRunFrameCycle = false", failure)
+        invalidate = body.index("_context->_isValid = false", disable)
+        failed_return = body.index("return false;", invalidate)
+        self.assertLess(call, failure)
+        self.assertLess(failure, disable)
+        self.assertLess(disable, invalidate)
+        self.assertLess(invalidate, failed_return)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1393,8 +1393,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 76 — Restart URL argument isolation
 
 - Branch: `nightly/pico4-76-restart-url-encoding`
-- Commit: identified by subject `Encode Pico restart URL arguments`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `3b5f8925c4` (`Encode Pico restart URL arguments`)
 - Change: serialize a requested restart location through `QUrl`'s fully encoded
   form before appending it to Android's whitespace-delimited Qt application
   parameters. Spaces, tabs and other separators inside a URL can no longer split
@@ -1408,6 +1407,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Restart into locations containing spaces,
   Unicode, percent escapes, query/fragment data and option-like substrings;
   verify one destination argument, no injected flag and correct navigation.
+
+### 77 — Fail-closed OpenXR frame termination
+
+- Branch: `nightly/pico4-77-openxr-endframe-failclosed`
+- Commit: identified by subject `Fail closed after Pico xrEndFrame errors`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: when `xrEndFrame` fails after a successful begin, immediately disable
+  the frame cycle and invalidate the OpenXR context. The next render tick can no
+  longer enter another Wait/Begin sequence while runtime call-order state is
+  unknown.
+- Regression: display contracts require render disablement and context
+  invalidation between the failed End result and return.
+- Passed: 20 OpenXR display/frame contracts; `git diff --check`.
+- Risk: an End failure now deactivates rendering instead of attempting an
+  unsupported in-place recovery; normal successful presentation is unchanged.
+- Pico 4 validation: **not executed**. Inject `xrEndFrame` failures for rendered,
+  zero-layer and cleanup frames; verify no subsequent frame calls, prompt clean
+  deactivation and normal presentation after a fresh application/session start.
 
 ## Deferred, rejected, or blocked ideas
 
