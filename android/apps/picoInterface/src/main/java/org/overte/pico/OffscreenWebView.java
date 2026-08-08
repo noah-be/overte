@@ -15,6 +15,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -78,6 +79,19 @@ public final class OffscreenWebView {
 
     public static void destroy(long nativeHandle) {
         MAIN.post(() -> destroyOnMain(nativeHandle));
+    }
+
+    public static void destroyAll() {
+        Runnable destroy = () -> {
+            for (long nativeHandle : new ArrayList<>(INSTANCES.keySet())) {
+                destroyOnMain(nativeHandle);
+            }
+        };
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            destroy.run();
+        } else {
+            MAIN.post(destroy);
+        }
     }
 
     private static void destroyOnMain(long nativeHandle) {

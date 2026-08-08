@@ -51,6 +51,9 @@ Navigating the same surface also cancels an active touch and clears fractional
 scroll accumulation before loading the next document. The entity's
 `useBackground` value now selects an opaque white or transparent Android
 WebView background, matching the shared renderer's transparency contract.
+Destroying the Pico Qt Activity bulk-destroys all registered offscreen WebViews
+on Android's UI thread so an Activity recreation cannot retain old Contexts,
+render callbacks, or page state.
 
 No Qt WebEngine library, Chromium resource bundle, Gradle browser dependency,
 or APK packaging rule is added. Rendering uses the WebView implementation

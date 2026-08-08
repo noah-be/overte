@@ -267,8 +267,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 15 — Permission Activity recreation
 
 - Branch: `nightly/pico4-15-permission-activity-recreation`
-- Commit: identified by subject `Preserve Pico restart permission state`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `e83e049e32` (`Preserve Pico restart permission state`)
 - Change: preserve consumed restart arguments across Android Activity
   recreation and make Interface launch idempotent across lifecycle and
   permission callbacks.
@@ -283,6 +282,24 @@ headset, ADB, Android device, external domain, or device setting is used.
   microphone permission prompt and during a render-scale restart; verify one
   Interface Activity starts with the intended arguments in both grant and deny
   cases.
+
+### 16 — Activity shutdown cleanup
+
+- Branch: `nightly/pico4-16-activity-shutdown-cleanup`
+- Commit: identified by subject `Clean up Pico Activity resources`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: on Qt Activity destruction, synchronously destroy every offscreen
+  WebView when already on Android's main thread, stop AudioRecord, and clear the
+  static Activity reference. Off-thread bulk WebView cleanup is safely posted.
+- Regression: Android lifecycle contracts require all three cleanup actions and
+  snapshot iteration over the WebView registry.
+- Passed: Android entry-point/lifecycle regression (5); full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: native Web entity destructors may subsequently request individual
+  destruction, which is intentionally idempotent against the emptied registry.
+- Pico 4 validation: **not executed**. Recreate, finish, and restart the
+  Activity with active Web entities and microphone capture; verify old frame
+  callbacks/audio reads stop and the new Activity starts with fresh resources.
 
 ## Deferred, rejected, or blocked ideas
 

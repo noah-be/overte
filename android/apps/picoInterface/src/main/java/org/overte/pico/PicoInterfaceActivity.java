@@ -98,6 +98,16 @@ public final class PicoInterfaceActivity extends QtActivity {
         }, 750);
     }
 
+    @Override
+    protected void onDestroy() {
+        OffscreenWebView.destroyAll();
+        AndroidAudioInput.stop();
+        if (instance == this) {
+            instance = null;
+        }
+        super.onDestroy();
+    }
+
     @SuppressLint("MissingPermission")
     private static void scheduleExactRestart(
             AlarmManager alarmManager, long restartAt,

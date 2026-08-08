@@ -50,6 +50,16 @@ class AndroidEntrypointsTest(unittest.TestCase):
         self.assertIn("Context.MODE_PRIVATE", storage)
         self.assertIn(".remove(KEY_ARGUMENTS)", storage)
 
+    def test_qt_activity_releases_static_android_resources(self):
+        activity = (JAVA / "PicoInterfaceActivity.java").read_text(encoding="utf-8")
+        webview = (JAVA / "OffscreenWebView.java").read_text(encoding="utf-8")
+        self.assertIn("protected void onDestroy()", activity)
+        self.assertIn("OffscreenWebView.destroyAll()", activity)
+        self.assertIn("AndroidAudioInput.stop()", activity)
+        self.assertIn("instance = null", activity)
+        self.assertIn("public static void destroyAll()", webview)
+        self.assertIn("new ArrayList<>(INSTANCES.keySet())", webview)
+
 
 if __name__ == "__main__":
     unittest.main()
