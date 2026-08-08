@@ -26,6 +26,9 @@ EOF
 }
 
 [[ "${1:-}" != --help && "${1:-}" != -h ]] || { usage; exit 0; }
+if [[ "${PHONE_DEVICE_LOCK_HELD:-0}" != 1 ]]; then
+    exec "$script_dir/../phone-device-lock.sh" run -- "$0" "$@"
+fi
 duration="${1:-30}"
 interval="${PHONE_BENCHMARK_INTERVAL:-5}"
 [[ "$duration" =~ ^[1-9][0-9]*$ ]] || die "duration must be a positive integer"

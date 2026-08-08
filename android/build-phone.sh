@@ -118,6 +118,9 @@ adb_command() {
 
 install_apk() {
     local adb apk serial
+    if [[ "${PHONE_DEVICE_LOCK_HELD:-0}" != 1 ]]; then
+        exec "$script_dir/phone-device-lock.sh" run -- "$0" install
+    fi
     adb="$(adb_command)"
     apk="${PHONE_APK:-$script_dir/apps/phoneInterface/build/outputs/apk/debug/phoneInterface-debug.apk}"
     [[ -f "$apk" ]] || fail "APK does not exist; run ./build-phone.sh build first"

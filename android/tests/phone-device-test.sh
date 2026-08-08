@@ -25,6 +25,11 @@ EOF
 
 [[ "${1:-}" != "--help" && "${1:-}" != "-h" ]] || { usage; exit 0; }
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "${PHONE_DEVICE_LOCK_HELD:-0}" != 1 ]]; then
+    exec "$SCRIPT_DIR/../phone-device-lock.sh" run -- "$0" "$@"
+fi
+
 find_adb() {
     local candidate
     for candidate in \
