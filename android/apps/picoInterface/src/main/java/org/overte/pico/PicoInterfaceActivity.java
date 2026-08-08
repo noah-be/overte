@@ -115,10 +115,21 @@ public final class PicoInterfaceActivity extends QtActivity {
         if (instance == this) {
             instance = null;
         }
-        OffscreenWebView.destroyAll();
-        AndroidAudioInput.stop();
-        releaseOpenXRActivity();
-        super.onDestroy();
+        try {
+            runShutdownStep("WebViews", OffscreenWebView::destroyAll);
+            runShutdownStep("microphone", AndroidAudioInput::stop);
+            runShutdownStep("OpenXR Activity", this::releaseOpenXRActivity);
+        } finally {
+            super.onDestroy();
+        }
+    }
+
+    private static void runShutdownStep(String name, Runnable cleanup) {
+        try {
+            cleanup.run();
+        } catch (RuntimeException | OutOfMemoryError exception) {
+            Log.e(TAG, "Failed to clean up " + name, exception);
+        }
     }
 
     @SuppressLint("MissingPermission")

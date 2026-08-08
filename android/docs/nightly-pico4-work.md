@@ -1582,8 +1582,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 87 — Contained AudioRecord cleanup errors
 
 - Branch: `nightly/pico4-87-audio-release-errors`
-- Commit: identified by subject `Contain Pico AudioRecord cleanup errors`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `219aa543e7` (`Contain Pico AudioRecord cleanup errors`)
 - Change: independently contain RuntimeExceptions from AudioRecord stop and
   release during explicit shutdown and startup/capture-loop rollback. A vendor
   driver failure can no longer skip thread joining, subsequent release attempts,
@@ -1596,6 +1595,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Inject stop and release exceptions during
   source switch, read failure and Activity destruction; verify state clears,
   remaining cleanup runs, restart stays bounded and later capture can recover.
+
+### 88 — Isolated Activity resource teardown
+
+- Branch: `nightly/pico4-88-activity-cleanup-isolation`
+- Commit: identified by subject `Isolate Pico Activity cleanup failures`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: run WebView, microphone and OpenXR-Activity cleanup as independently
+  contained shutdown steps after retiring the global Activity instance, and put
+  Android's superclass destruction in `finally`. One component's Runtime/OOM
+  failure can no longer prevent the remaining resource owners from cleaning up.
+- Regression: Android lifecycle contracts cover owner order, shared exception
+  containment and guaranteed `super.onDestroy()` execution.
+- Passed: 9 Android entry-point/lifecycle contracts; `git diff --check`.
+- Risk: severe cleanup failures are logged and teardown proceeds; resources a
+  failing owner cannot release still fall back to process destruction.
+- Pico 4 validation: **not executed**. Inject failure independently in WebView,
+  AudioRecord and OpenXR Activity cleanup; verify later owners and superclass
+  always execute, no stale Activity publication and bounded finish/restart.
 
 ## Deferred, rejected, or blocked ideas
 
