@@ -19,7 +19,7 @@ require() {
 
 require "$desktop_config" 'contentScale:[[:space:]]*1[.]0' \
     'desktop Settings retain their established scale'
-require "$phone_config" 'contentScale:[[:space:]]*1[.]5' \
+require "$phone_config" 'contentScale:[[:space:]]*1[.]65' \
     'phone Settings use touch-sized content and hit targets'
 require "$settings" 'SettingsTouchConfiguration[[:space:]]*\{' \
     'Settings resolve metrics through QFileSelector'
