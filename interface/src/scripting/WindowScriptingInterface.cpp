@@ -15,6 +15,7 @@
 
 #include <QClipboard>
 #include <QtCore/QDir>
+#include <QtCore/QUrl>
 #include <QMessageBox>
 #include <ScriptValue.h>
 #include <QtGui/QDesktopServices>
@@ -88,9 +89,10 @@ WindowScriptingInterface::~WindowScriptingInterface() {
 
 void WindowScriptingInterface::restartApplication(const QString& url) {
 #if defined(Q_OS_ANDROID)
+    const QString encodedUrl = QString::fromUtf8(QUrl(url).toEncoded(QUrl::FullyEncoded));
     const QString arguments = url.isEmpty()
         ? QStringLiteral("--display=OpenXR")
-        : QStringLiteral("--display=OpenXR --url ") + url;
+        : QStringLiteral("--display=OpenXR --url ") + encodedUrl;
     using JavaVmFunction = JavaVM* (*)();
     using AcquireActivityFunction = jobject (*)(JNIEnv*);
     void* openXrLibrary = dlopen("libpicoOpenXR.so", RTLD_NOW);

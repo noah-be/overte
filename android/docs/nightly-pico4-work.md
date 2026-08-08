@@ -1377,8 +1377,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 75 — Empty serverless navigation invalidation
 
 - Branch: `nightly/pico4-75-world-load-generation`
-- Commit: identified by subject `Invalidate Pico world loads on empty navigation`;
-  the exact hash is recorded by the following stacked task or final report.
+- Commit: `8f9bdacaf1` (`Invalidate Pico world loads on empty navigation`)
 - Change: treat an empty serverless destination as a request-generation boundary
   before returning. A pending HTTP/ATP scene load can no longer finish later and
   commit entities, permissions or session state after a reset/empty navigation.
@@ -1390,6 +1389,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Start a throttled remote serverless load,
   issue an empty/reset navigation before completion, and verify the late request
   is logged as stale with no entity/session/permission commit; retry normally.
+
+### 76 — Restart URL argument isolation
+
+- Branch: `nightly/pico4-76-restart-url-encoding`
+- Commit: identified by subject `Encode Pico restart URL arguments`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: serialize a requested restart location through `QUrl`'s fully encoded
+  form before appending it to Android's whitespace-delimited Qt application
+  parameters. Spaces, tabs and other separators inside a URL can no longer split
+  into additional command-line options during the private restart handoff.
+- Regression: Android entry-point contracts require encoding before argument
+  construction/handoff and forbid concatenating the raw URL.
+- Passed: 9 Android entry-point/restart contracts; `git diff --check`.
+- Risk: restart destinations are normalized to their percent-encoded form; URL
+  semantics are preserved while malformed separator-bearing strings fail to
+  become independent options.
+- Pico 4 validation: **not executed**. Restart into locations containing spaces,
+  Unicode, percent escapes, query/fragment data and option-like substrings;
+  verify one destination argument, no injected flag and correct navigation.
 
 ## Deferred, rejected, or blocked ideas
 

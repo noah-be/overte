@@ -120,6 +120,18 @@ class AndroidEntrypointsTest(unittest.TestCase):
         self.assertNotIn("event.getKeyCode()", body)
         self.assertNotIn("event.getAction()", body)
 
+    def test_restart_url_cannot_split_into_additional_arguments(self):
+        source = WINDOW.read_text(encoding="utf-8")
+        restart = source.index("void WindowScriptingInterface::restartApplication")
+        android_end = source.index("#else", restart)
+        body = source[restart:android_end]
+        encode = body.index("QUrl(url).toEncoded(QUrl::FullyEncoded)")
+        arguments = body.index('QStringLiteral("--display=OpenXR --url ") + encodedUrl')
+        handoff = body.index("CallStaticVoidMethod", arguments)
+        self.assertLess(encode, arguments)
+        self.assertLess(arguments, handoff)
+        self.assertNotIn('QStringLiteral("--display=OpenXR --url ") + url', body)
+
 
 if __name__ == "__main__":
     unittest.main()
