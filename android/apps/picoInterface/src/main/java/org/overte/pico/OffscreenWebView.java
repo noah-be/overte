@@ -134,12 +134,20 @@ public final class OffscreenWebView {
         if (old != null) {
             old.active = false;
             MAIN.removeCallbacks(old.renderFrame);
-            old.cancelActiveTouch();
-            old.disposeGraphics();
-            old.view.stopLoading();
-            old.view.loadUrl("about:blank");
-            old.view.destroy();
+            runCleanupStep("cancel touch", old::cancelActiveTouch);
+            runCleanupStep("dispose frame buffer", old::disposeGraphics);
+            runCleanupStep("stop loading", old.view::stopLoading);
+            runCleanupStep("clear page", () -> old.view.loadUrl("about:blank"));
+            runCleanupStep("destroy view", old.view::destroy);
             Log.i(TAG, "Destroyed offscreen WebView");
+        }
+    }
+
+    private static void runCleanupStep(String step, Runnable cleanup) {
+        try {
+            cleanup.run();
+        } catch (RuntimeException exception) {
+            Log.w(TAG, "Offscreen WebView cleanup failed during " + step, exception);
         }
     }
 

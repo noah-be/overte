@@ -122,7 +122,7 @@ class PicoWebViewBridgeTest(unittest.TestCase):
             self.java_source.index("if (!instance.resize(width, height))"),
             self.java_source.index("INSTANCES.put(nativeHandle, instance)"),
         )
-        self.assertIn("old.disposeGraphics();", self.java_source)
+        self.assertIn('runCleanupStep("dispose frame buffer", old::disposeGraphics)', self.java_source)
         self.assertIn("void disposeGraphics()", self.java_source)
 
     def test_creation_status_is_confirmed_asynchronously(self):
@@ -216,6 +216,18 @@ class PicoWebViewBridgeTest(unittest.TestCase):
         self.assertLess(cleanup, failure)
         self.assertLess(failure, reschedule_guard)
         self.assertLess(reschedule_guard, reschedule)
+
+    def test_destroy_cleanup_steps_are_exception_isolated(self):
+        destroy_start = self.java_source.index("private static void destroyOnMain")
+        destroy_end = self.java_source.index("public static void load", destroy_start)
+        destroy = self.java_source[destroy_start:destroy_end]
+        self.assertIn('runCleanupStep("cancel touch", old::cancelActiveTouch)', destroy)
+        self.assertIn('runCleanupStep("dispose frame buffer", old::disposeGraphics)', destroy)
+        self.assertIn('runCleanupStep("stop loading", old.view::stopLoading)', destroy)
+        self.assertIn('runCleanupStep("clear page", () -> old.view.loadUrl("about:blank"))', destroy)
+        self.assertIn('runCleanupStep("destroy view", old.view::destroy)', destroy)
+        helper = destroy.index("private static void runCleanupStep")
+        self.assertIn("catch (RuntimeException exception)", destroy[helper:])
 
     def test_pending_properties_are_resynchronized_after_creation(self):
         result = re.search(

@@ -1053,8 +1053,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 57 — WebView render-failure recovery
 
 - Branch: `nightly/pico4-57-webview-render-recovery`
-- Commit: identified by subject `Recover Pico WebView frame failures`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `41b561140a` (`Recover Pico WebView frame failures`)
 - Change: restore Canvas state in a `finally` block, catch frame draw/copy
   runtime/allocation failures, destroy the failed Java instance and report a
   failed creation result so native code uses its bounded retry. Normal frame
@@ -1068,6 +1067,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Inject Canvas draw and buffer-copy faults,
   destroy/replace during delivery, and verify cleanup plus bounded recovery with
   no frozen frame, callback storm or cross-instance scheduling.
+
+### 58 — WebView best-effort destruction
+
+- Branch: `nightly/pico4-58-webview-destroy-cleanup`
+- Commit: identified by subject `Complete Pico WebView destruction`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: isolate cancellation, frame-buffer disposal, load stop, blanking and
+  final WebView destruction into individually guarded cleanup steps. A provider
+  exception in one operation no longer skips later release work or aborts
+  `destroyAll()` before other instances are processed.
+- Regression: WebView contracts require every teardown operation to use the
+  exception-contained helper and verify its RuntimeException boundary.
+- Passed: 17 WebView bridge contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: teardown exceptions remain logged, while cleanup continues best-effort;
+  normal destruction order and active/map invalidation are unchanged.
+- Pico 4 validation: **not executed**. Destroy several simultaneous Web entities
+  while injecting failures at each cleanup stage; verify all instances disappear,
+  later entities recreate, and no render/touch callback survives teardown.
 
 ## Deferred, rejected, or blocked ideas
 
