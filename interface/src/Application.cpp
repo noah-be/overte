@@ -1072,12 +1072,16 @@ void Application::loadServerlessDomain(QUrl domainURL) {
     // quickly. Only the newest requested destination may mutate the entity
     // tree, session, permissions, or DomainHandler state.
     const quint64 requestGeneration = ++_serverlessDomainRequestGeneration;
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    _picoServerlessLoadFailed = false;
+#endif
 
 #if defined(ANDROID_APP_PICO_INTERFACE)
     const QUrl localDomainURL = PathUtils::expandToLocalDataAbsolutePath(domainURL);
     if (localDomainURL.isLocalFile()) {
         QFile domainFile(localDomainURL.toLocalFile());
         if (!domainFile.open(QIODevice::ReadOnly)) {
+            _picoServerlessLoadFailed = true;
             qCWarning(interfaceapp) << "PICO_SERVERLESS_TRACE localOpenFailed"
                 << localDomainURL << domainFile.errorString();
             return;
@@ -1087,6 +1091,7 @@ void Application::loadServerlessDomain(QUrl domainURL) {
             << localDomainURL << "bytes" << domainData.size();
         std::map<QString, QString> namedPaths;
         if (!prepareServerlessDomainContents(domainURL, domainData, namedPaths)) {
+            _picoServerlessLoadFailed = true;
             qCWarning(interfaceapp) << "PICO_SERVERLESS_TRACE localParseFailed"
                 << localDomainURL;
             return;
@@ -1114,6 +1119,9 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         this, trimmedUrl, DEFAULT_IS_OBSERVABLE, DEFAULT_CALLER_ID, "Application::loadServerlessDomain");
 
     if (!request) {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+        _picoServerlessLoadFailed = true;
+#endif
         return;
     }
 
@@ -1130,6 +1138,9 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         if (request->getResult() == ResourceRequest::Success) {
             std::map<QString, QString> namedPaths;
             if (!prepareServerlessDomainContents(domainURL, request->getData(), namedPaths)) {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+                _picoServerlessLoadFailed = true;
+#endif
                 qCWarning(interfaceapp) << "PICO_SERVERLESS_TRACE requestParseFailed"
                     << domainURL;
                 request->deleteLater();
@@ -1153,6 +1164,10 @@ void Application::loadServerlessDomain(QUrl domainURL) {
                 << "domainServerless" << nodeList->getDomainHandler().isServerless()
                 << "wait" << _waitForServerlessToBeSet
                 << "fullScene" << _octreeProcessor->getFullSceneReceivedCounter().load();
+#endif
+        } else {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+            _picoServerlessLoadFailed = true;
 #endif
         }
         request->deleteLater();
@@ -1626,6 +1641,9 @@ void Application::domainURLChanged(QUrl domainURL) {
     // explicitly invalidate any older local/HTTP/ATP scene request.
     if (domainURL.scheme() == URL_SCHEME_OVERTE) {
         ++_serverlessDomainRequestGeneration;
+#if defined(ANDROID_APP_PICO_INTERFACE)
+        _picoServerlessLoadFailed = false;
+#endif
     }
 #if defined(ANDROID_APP_PICO_INTERFACE)
     if (_picoServerlessSceneImportCommitted) {
@@ -2905,7 +2923,7 @@ void Application::update(float deltaTime) {
                         progress = 0.05f + 0.13f * connectionProgress;
                     }
                 }
-            } else if (_failedToConnectToEntityServer) {
+            } else if (_picoServerlessLoadFailed || _failedToConnectToEntityServer) {
                 phase = GraphicsEngine::LoadingPhase::WORLD_SERVER_UNAVAILABLE;
                 progress = 0.0f;
             } else {

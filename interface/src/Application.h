@@ -990,6 +990,9 @@ private:
     // It's set to true by Application::clearDomainOctreeData and is cleared by Application::setIsServerlessMode
     bool _waitForServerlessToBeSet { true };
     quint64 _serverlessDomainRequestGeneration { 0 };
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    bool _picoServerlessLoadFailed { false };
+#endif
 
     bool _showTrackedObjects { false };
     bool _prevShowTrackedObjects { false };

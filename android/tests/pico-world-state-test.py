@@ -79,6 +79,31 @@ class PicoWorldStateTests(unittest.TestCase):
         self.assertIn("if (domainURL.scheme() == URL_SCHEME_OVERTE)", body)
         self.assertIn("++_serverlessDomainRequestGeneration;", body)
 
+    def test_current_serverless_failures_reach_loading_state(self):
+        load_body = function_body(
+            "void Application::loadServerlessDomain",
+            "void Application::loadErrorDomain",
+        )
+        self.assertIn("_picoServerlessLoadFailed = false;", load_body)
+        self.assertGreaterEqual(load_body.count("_picoServerlessLoadFailed = true;"), 4)
+        stale_check = load_body.index("requestGeneration != _serverlessDomainRequestGeneration")
+        first_async_failure = load_body.index("_picoServerlessLoadFailed = true;", stale_check)
+        self.assertGreater(first_async_failure, stale_check)
+        self.assertIn(
+            "_picoServerlessLoadFailed || _failedToConnectToEntityServer",
+            APPLICATION,
+        )
+        self.assertIn("phase = GraphicsEngine::LoadingPhase::WORLD_SERVER_UNAVAILABLE;", APPLICATION)
+
+    def test_online_navigation_clears_serverless_failure(self):
+        body = function_body(
+            "void Application::domainURLChanged",
+            "void Application::domainConnectionRefused",
+        )
+        online = body.index("if (domainURL.scheme() == URL_SCHEME_OVERTE)")
+        clear = body.index("_picoServerlessLoadFailed = false;", online)
+        self.assertGreater(clear, online)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -596,8 +596,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 33 — Serverless request generation ownership
 
 - Branch: `nightly/pico4-33-serverless-request-generation`
-- Commit: identified by subject `Ignore stale Pico serverless requests`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `2954fc6c49` (`Ignore stale Pico serverless requests`)
 - Change: assign a monotonically increasing generation to serverless loads and
   reject an asynchronous completion unless it still owns the newest request.
   Online-domain navigation explicitly invalidates outstanding serverless
@@ -612,6 +611,27 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Rapidly alternate slow HTTP/ATP/local
   serverless targets and an online place; force completions out of order and
   verify only the final destination becomes visible/READY.
+
+### 34 — Visible serverless load failures
+
+- Branch: `nightly/pico4-34-serverless-load-error`
+- Commit: identified by subject `Expose Pico serverless load failures`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: track file-open, request-creation, download, and parse failures for
+  the current serverless destination and feed them into the Pico loading state
+  as `WORLD_SERVER_UNAVAILABLE` instead of indefinitely reporting
+  `RECEIVING_WORLD`. New serverless and online navigations clear the failure;
+  stale requests cannot set it because generation rejection happens first.
+- Regression: source contracts cover all failure classes, ordering behind the
+  stale-generation guard, loading-state consumption, and navigation reset.
+- Passed: world-loading failure/race contracts; full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: this changes only failure presentation and keeps the interstitial/input
+  safety lock active; it does not guess a fallback destination or dismiss an
+  invalid world automatically.
+- Pico 4 validation: **not executed**. Attempt missing files, malformed JSON,
+  denied/404/timeout URLs, then navigate to valid local/remote and online
+  destinations; verify immediate failure status and clean recovery.
 
 ## Deferred, rejected, or blocked ideas
 
