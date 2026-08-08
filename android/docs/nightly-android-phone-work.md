@@ -26,6 +26,37 @@ of scope for this worktree and are called out explicitly where still needed.
 - Real-device validation still required: **not required for this test-only
   change; not executed**.
 
+## 06 — Complete device-free regression gate
+
+- Branch: `nightly/android-phone-06-complete-static-gate`
+- Commit: `Add complete phone static regression gate` (this task's commit)
+- Change: Add one explicit allowlist runner for all 32 proven device-free Phone
+  suites. It covers source/static contracts, C++ fixtures, Java compilation,
+  JavaScript syntax and mocks, packaging fixtures, release/16-KiB checks, and
+  the mock-ADB deployment/benchmark harnesses. The real device and real
+  graphics-benchmark scripts are intentionally absent and cannot be discovered
+  by wildcard.
+- Tests:
+  - Pre-integration run of every `phone-*-test.sh` and contract script except
+    the two real device runners: **passed**.
+  - `android/tests/serverless-hub-fixture-test.sh`: **passed** (136 entities,
+    schema and referenced scripts valid).
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 32
+    allowlisted suites; nested host regression passed 174/174 checks.
+  - `git diff --check`: **passed**, both directly and as the final aggregate
+    gate step.
+- Known risks and deferred audit: The tablet still uses a symmetric 25 Qt
+  logical-pixel safety inset. Real asymmetric Android cutout/rounded-corner
+  insets are not transported from Java to the Qt tablet presenter. Guessing
+  them from display size was rejected; a future Java→JNI→presenter contract
+  needs device validation. Current resize, portrait-transition fallback, and
+  minimum-size guards remain covered.
+- Real-device validation still required: **not executed**. Besides the full
+  device checklist below, exercise left/right landscape rotations on flat,
+  notched, hole-punch, waterfall, and rounded-corner displays; verify all
+  tablet edges and close controls remain reachable and no content lies under a
+  cutout or transient system bar.
+
 ## 05 — Native touch Emote
 
 - Branch: `nightly/android-phone-05-emote-audit`

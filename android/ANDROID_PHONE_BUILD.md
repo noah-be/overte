@@ -165,7 +165,17 @@ apps/phoneInterface/build/outputs/apk/debug/phoneInterface-debug.apk
 
 ## Static regression check
 
-Run the lightweight host check after changing the module, manifest, or wrapper:
+Run the complete device-free gate before handing off a Phone branch. It uses
+source checks, unit/contract fixtures, JavaScript syntax, Java compilation, and
+mock ADB only; it never invokes the real device or graphics benchmark runners:
+
+```bash
+./tests/phone-static-regression-test.sh
+```
+
+The mock graphics-benchmark harness deliberately exercises real timeout
+windows, so the complete gate takes longer than the focused checks. Run the
+lightweight module check after changing only the manifest, wrapper, or module:
 
 ```bash
 ./tests/phone-host-regression-test.sh
