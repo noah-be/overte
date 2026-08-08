@@ -143,6 +143,26 @@ class PicoWebViewBridgeTest(unittest.TestCase):
         self.assertIn("MAX_CREATION_RETRIES { 3 }", self.source)
         self.assertIn("QTimer::singleShot(1000, this", self.source)
 
+    def test_creation_queue_rejection_completes_native_handshake(self):
+        create = re.search(
+            r"public static void create\(.*?\n    \}",
+            self.java_source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(create)
+        body = create.group(0)
+        outer_post = body.index("boolean posted = MAIN.post")
+        first_frame = body.index("if (!MAIN.post(instance.renderFrame))", outer_post)
+        first_cleanup = body.index("destroyOnMain(nativeHandle)", first_frame)
+        first_failure = body.index("nativeCreationFinished(nativeHandle, false)", first_cleanup)
+        outer_failure = body.index("if (!posted)", first_failure)
+        outer_callback = body.index("nativeCreationFinished(nativeHandle, false)", outer_failure)
+        self.assertLess(outer_post, first_frame)
+        self.assertLess(first_frame, first_cleanup)
+        self.assertLess(first_cleanup, first_failure)
+        self.assertLess(first_failure, outer_failure)
+        self.assertLess(outer_failure, outer_callback)
+
     def test_synchronous_creation_failures_also_retry(self):
         create = re.search(
             r"void PicoWebViewItem::createWebView\(\) \{(.*?)\n\}",

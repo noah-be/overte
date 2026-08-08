@@ -71,7 +71,7 @@ public final class OffscreenWebView {
     @SuppressLint("SetJavaScriptEnabled")
     public static void create(long nativeHandle, int width, int height, String url,
                               String userAgent, boolean useBackground) {
-        MAIN.post(() -> {
+        boolean posted = MAIN.post(() -> {
             WebView view = null;
             try {
                 destroyOnMain(nativeHandle);
@@ -122,7 +122,12 @@ public final class OffscreenWebView {
                 INSTANCES.put(nativeHandle, instance);
                 view.loadUrl(url == null || url.isEmpty() ? "about:blank" : url);
                 Log.i(TAG, "Created offscreen WebView " + width + "x" + height);
-                MAIN.post(instance.renderFrame);
+                if (!MAIN.post(instance.renderFrame)) {
+                    Log.e(TAG, "Cannot schedule first offscreen WebView frame");
+                    destroyOnMain(nativeHandle);
+                    nativeCreationFinished(nativeHandle, false);
+                    return;
+                }
                 nativeCreationFinished(nativeHandle, true);
             } catch (RuntimeException | OutOfMemoryError exception) {
                 Log.e(TAG, "Cannot configure offscreen WebView", exception);
@@ -138,6 +143,10 @@ public final class OffscreenWebView {
                 nativeCreationFinished(nativeHandle, false);
             }
         });
+        if (!posted) {
+            Log.e(TAG, "Cannot schedule offscreen WebView creation");
+            nativeCreationFinished(nativeHandle, false);
+        }
     }
 
     public static void destroy(long nativeHandle) {

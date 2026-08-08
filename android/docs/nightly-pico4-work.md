@@ -1599,8 +1599,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 88 — Isolated Activity resource teardown
 
 - Branch: `nightly/pico4-88-activity-cleanup-isolation`
-- Commit: identified by subject `Isolate Pico Activity cleanup failures`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `a39d1667c1` (`Isolate Pico Activity cleanup failures`)
 - Change: run WebView, microphone and OpenXR-Activity cleanup as independently
   contained shutdown steps after retiring the global Activity instance, and put
   Android's superclass destruction in `finally`. One component's Runtime/OOM
@@ -1613,6 +1612,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Inject failure independently in WebView,
   AudioRecord and OpenXR Activity cleanup; verify later owners and superclass
   always execute, no stale Activity publication and bounded finish/restart.
+
+### 89 — WebView creation queue rejection
+
+- Branch: `nightly/pico4-89-webview-post-failure`
+- Commit: identified by subject `Report Pico WebView queue rejection`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: check Android main-Handler acceptance for both the WebView creation
+  job and its first frame. A quitting/dead Looper now completes the native
+  creation handshake with failure, and a rejected first frame destroys the
+  partially published Java instance before reporting failure.
+- Regression: 19 WebView bridge/lifecycle contracts require checked outer/first-
+  frame posts, cleanup and failure callbacks in their exact ordering.
+- Passed: targeted 19-contract WebView suite; `git diff --check`.
+- Risk: Looper shutdown now consumes one bounded native creation retry instead
+  of leaving `_webViewCreationPending` stuck indefinitely.
+- Pico 4 validation: **not executed**. Create Web entities while finishing/
+  recreating the Activity and shutting down the Looper; verify bounded failure,
+  no pending-stuck item, no Java instance leak and normal retry after recreation.
 
 ## Deferred, rejected, or blocked ideas
 
