@@ -26,6 +26,7 @@ Rectangle {
     id: root;
 
     HifiConstants { id: hifi; }
+    AudioTouchConfiguration { id: touchConfiguration }
 
     property var eventBridge;
     // leave as blank, this is user's volume for the avatar mixer
@@ -65,8 +66,9 @@ Rectangle {
         id: bar
         spacing: 0
         width: parent.width
-        height: 28;
-        currentIndex: isVR ? 1 : 0;
+        height: visible ? 28 : 0;
+        visible: touchConfiguration.showModeTabs
+        currentIndex: touchConfiguration.showVrMode && isVR ? 1 : 0;
 
         AudioControls.AudioTabButton {
             height: parent.height
@@ -75,6 +77,7 @@ Rectangle {
         AudioControls.AudioTabButton {
             height: parent.height
             text: qsTr("VR")
+            visible: touchConfiguration.showVrMode
         }
     }
 
@@ -117,7 +120,7 @@ Rectangle {
 
     Flickable {
         id: flickView;
-        anchors.top: bar.bottom;
+        anchors.top: bar.visible ? bar.bottom : parent.top;
         anchors.left: parent.left;
         anchors.bottom: parent.bottom;
         width: parent.width;
