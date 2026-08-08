@@ -70,7 +70,8 @@
     }
 
     function fromQml(message) {
-        if (!message || message.type !== "switchApp" ||
+        if (currentSource !== SETTINGS_SOURCE ||
+                !message || message.type !== "switchApp" ||
                 typeof message.appUrl !== "string" ||
                 !Object.prototype.hasOwnProperty.call(SETTINGS_ROUTES, message.appUrl)) {
             return;

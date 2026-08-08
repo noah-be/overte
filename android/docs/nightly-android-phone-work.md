@@ -4,6 +4,29 @@ This file records the cumulative, device-free Android phone work based on
 `origin/feature/android-phone-support`. Real-device and emulator tests are out
 of scope for this worktree and are called out explicitly where still needed.
 
+## 20 — Settings message source scope
+
+- Branch: `nightly/android-phone-20-settings-message-scope`
+- Commit: `Scope phone Settings navigation messages` (this task's commit)
+- Change: Require the selector-resolved Settings surface to be the active
+  tablet source before accepting even an allowlisted `switchApp` message. Home,
+  unrelated QML apps, and a Settings page that has already navigated away can
+  no longer reuse the Settings router.
+- Tests:
+  - `android/tests/phone-tablet-app-router-test.sh`: **passed**, including
+    executable Home, unrelated-app, active-Settings, post-navigation, malformed,
+    inherited-property, local-file, and remote-URL cases.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet suites and 181/181 host checks.
+  - JavaScript syntax and `git diff --check`: **passed**.
+- Known risks: Source equality depends on the established Tablet `screenChanged`
+  contract, which is already used for button and app lifecycle state throughout
+  the client. The route fails closed if that contract changes.
+- Real-device validation still required: **not executed**. Navigate rapidly
+  among Settings, General, Audio, Security, Home, and Emote; verify Settings
+  rows work only while Settings is visible and delayed/crafted messages from a
+  previous surface cannot change the current app.
+
 ## 19 — Action-bar teardown race
 
 - Branch: `nightly/android-phone-19-actionbar-lifecycle`

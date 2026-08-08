@@ -42,6 +42,8 @@ global.Script = {
 require(path.resolve(__dirname,
     "../../scripts/system/+android_phoneInterface/mobileTabletApps.js"));
 
+const settingsSource = "resolved:../settings/Settings.qml";
+
 const acceptedRoutes = [
     ["hifi/tablet/TabletGeneralPreferences.qml", "hifi/tablet/TabletGeneralPreferences.qml"],
     ["hifi/dialogs/GeneralPreferencesDialog.qml", "hifi/tablet/TabletGeneralPreferences.qml"],
@@ -52,7 +54,14 @@ const acceptedRoutes = [
     ["hifi/dialogs/security/ScriptSecurity.qml", "hifi/dialogs/security/ScriptSecurity.qml"]
 ];
 
+// Even allowlisted messages from Home or an unrelated QML app are ignored.
+fromQml.emit({ type: "switchApp", appUrl: "hifi/audio/Audio.qml" });
+screenChanged.emit("QML", "unrelated.qml");
+fromQml.emit({ type: "switchApp", appUrl: "hifi/audio/Audio.qml" });
+assert.strictEqual(loadedSources.length, 0);
+
 acceptedRoutes.forEach(([request, expected]) => {
+    screenChanged.emit("QML", settingsSource);
     fromQml.emit({ type: "switchApp", appUrl: request });
     assert.strictEqual(loadedSources.at(-1), expected);
 });
@@ -70,6 +79,10 @@ assert.strictEqual(loadedSources.length, acceptedRoutes.length);
     { type: "switchApp", appUrl: "__proto__" },
     { type: "switchApp", appUrl: "constructor" }
 ].forEach((message) => fromQml.emit(message));
+assert.strictEqual(loadedSources.length, acceptedRoutes.length);
+
+screenChanged.emit("Home", "");
+fromQml.emit({ type: "switchApp", appUrl: "hifi/audio/Audio.qml" });
 assert.strictEqual(loadedSources.length, acceptedRoutes.length);
 
 scriptEnding.emit();

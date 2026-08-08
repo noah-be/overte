@@ -21,6 +21,8 @@ require 'Object[.]prototype[.]hasOwnProperty[.]call\(SETTINGS_ROUTES,[[:space:]]
     'route lookup rejects inherited and unknown properties'
 require 'typeof message[.]appUrl !== "string"' \
     'route lookup rejects non-string QML payloads'
+require 'currentSource !== SETTINGS_SOURCE' \
+    'route messages are accepted only from the active Settings surface'
 require 'tablet[.]loadQMLSource\(SETTINGS_ROUTES\[message[.]appUrl\]\)' \
     'only an allowlisted resolved route reaches the tablet loader'
 
