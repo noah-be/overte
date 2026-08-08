@@ -45,7 +45,7 @@ public final class OffscreenWebView {
     }
 
     private static void postCommand(long nativeHandle, String name, InstanceCommand command) {
-        MAIN.post(() -> {
+        boolean posted = MAIN.post(() -> {
             Instance instance = INSTANCES.get(nativeHandle);
             if (instance == null) {
                 return;
@@ -56,6 +56,10 @@ public final class OffscreenWebView {
                 failCurrentInstance(nativeHandle, instance, name, exception);
             }
         });
+        if (!posted) {
+            Log.e(TAG, "Cannot schedule offscreen WebView " + name);
+            nativeCreationFinished(nativeHandle, false);
+        }
     }
 
     private static void failCurrentInstance(
@@ -314,7 +318,11 @@ public final class OffscreenWebView {
                     return;
                 }
                 if (active && INSTANCES.get(nativeHandle) == Instance.this) {
-                    MAIN.postDelayed(this, FRAME_INTERVAL_MS);
+                    if (!MAIN.postDelayed(this, FRAME_INTERVAL_MS)) {
+                        Log.e(TAG, "Cannot schedule next offscreen WebView frame");
+                        destroyOnMain(nativeHandle);
+                        nativeCreationFinished(nativeHandle, false);
+                    }
                 }
             }
         };

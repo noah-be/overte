@@ -163,6 +163,24 @@ class PicoWebViewBridgeTest(unittest.TestCase):
         self.assertLess(first_failure, outer_failure)
         self.assertLess(outer_failure, outer_callback)
 
+    def test_command_and_render_queue_rejection_retire_instance(self):
+        command_start = self.java_source.index("private static void postCommand")
+        command_end = self.java_source.index("private static void failCurrentInstance", command_start)
+        command = self.java_source[command_start:command_end]
+        self.assertIn("boolean posted = MAIN.post", command)
+        rejection = command.index("if (!posted)")
+        callback = command.index("nativeCreationFinished(nativeHandle, false)", rejection)
+        self.assertLess(rejection, callback)
+
+        render_start = self.java_source.index("final Runnable renderFrame")
+        render_end = self.java_source.index("Instance(long nativeHandle", render_start)
+        render = self.java_source[render_start:render_end]
+        post = render.index("if (!MAIN.postDelayed(this, FRAME_INTERVAL_MS))")
+        cleanup = render.index("destroyOnMain(nativeHandle)", post)
+        failure = render.index("nativeCreationFinished(nativeHandle, false)", cleanup)
+        self.assertLess(post, cleanup)
+        self.assertLess(cleanup, failure)
+
     def test_synchronous_creation_failures_also_retry(self):
         create = re.search(
             r"void PicoWebViewItem::createWebView\(\) \{(.*?)\n\}",

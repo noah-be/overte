@@ -1616,8 +1616,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 89 — WebView creation queue rejection
 
 - Branch: `nightly/pico4-89-webview-post-failure`
-- Commit: identified by subject `Report Pico WebView queue rejection`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `a61adfa3a1` (`Report Pico WebView queue rejection`)
 - Change: check Android main-Handler acceptance for both the WebView creation
   job and its first frame. A quitting/dead Looper now completes the native
   creation handshake with failure, and a rejected first frame destroys the
@@ -1630,6 +1629,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Create Web entities while finishing/
   recreating the Activity and shutting down the Looper; verify bounded failure,
   no pending-stuck item, no Java instance leak and normal retry after recreation.
+
+### 90 — WebView command/render queue rejection
+
+- Branch: `nightly/pico4-90-webview-queue-lifecycle`
+- Commit: identified by subject `Retire Pico WebViews on queue shutdown`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: check main-Handler acceptance for all post-creation commands and each
+  delayed render tick. A dead/quitting Looper now reports native failure; rejected
+  render rescheduling additionally removes and destroys the current Java instance
+  instead of leaving C++ with a permanently created but frozen surface.
+- Regression: 20 WebView bridge/lifecycle contracts cover command-post rejection
+  and render-post rejection cleanup/callback ordering.
+- Passed: targeted 20-contract WebView suite; `git diff --check`.
+- Risk: queue shutdown triggers bounded native retry/retirement; commands for a
+  handle already absent from the live map remain no-ops when successfully queued.
+- Pico 4 validation: **not executed**. Navigate, resize, scroll and render while
+  terminating/recreating the Activity Looper; verify no frozen created surface,
+  bounded retries, cleanup of the old instance and recovery on the new Activity.
 
 ## Deferred, rejected, or blocked ideas
 
