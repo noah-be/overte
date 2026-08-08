@@ -87,8 +87,12 @@ public final class OffscreenWebView {
             }
             float displayDensity = activity.getResources().getDisplayMetrics().density;
             Instance instance = new Instance(nativeHandle, view, displayDensity);
+            if (!instance.resize(width, height)) {
+                view.destroy();
+                Log.e(TAG, "Cannot allocate offscreen WebView frame buffer");
+                return;
+            }
             INSTANCES.put(nativeHandle, instance);
-            instance.resize(width, height);
             view.loadUrl(url == null || url.isEmpty() ? "about:blank" : url);
             Log.i(TAG, "Created offscreen WebView " + width + "x" + height);
             MAIN.post(instance.renderFrame);
@@ -118,6 +122,7 @@ public final class OffscreenWebView {
             old.active = false;
             MAIN.removeCallbacks(old.renderFrame);
             old.cancelActiveTouch();
+            old.disposeGraphics();
             old.view.stopLoading();
             old.view.loadUrl("about:blank");
             old.view.destroy();
@@ -151,7 +156,9 @@ public final class OffscreenWebView {
         MAIN.post(() -> {
             Instance instance = INSTANCES.get(nativeHandle);
             if (instance != null) {
-                instance.resize(width, height);
+                if (!instance.resize(width, height)) {
+                    Log.e(TAG, "Cannot resize offscreen WebView frame buffer");
+                }
             }
         });
     }
@@ -284,7 +291,7 @@ public final class OffscreenWebView {
             view.invalidate();
         }
 
-        void resize(int requestedWidth, int requestedHeight) {
+        boolean resize(int requestedWidth, int requestedHeight) {
             int width = Math.max(1, requestedWidth);
             int height = Math.max(1, requestedHeight);
             int longestEdge = Math.max(width, height);
@@ -294,18 +301,48 @@ public final class OffscreenWebView {
                 height = Math.max(1, Math.round(height * scale));
             }
             if (bitmap != null && bitmap.getWidth() == width && bitmap.getHeight() == height) {
-                return;
+                return true;
             }
-            bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-            canvas = new Canvas(bitmap);
-            canvas.scale(1.0f / displayDensity, 1.0f / displayDensity);
-            pixels = ByteBuffer.allocateDirect(width * height * 4);
+            Bitmap newBitmap = null;
+            Canvas newCanvas;
+            ByteBuffer newPixels;
+            try {
+                newBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+                newCanvas = new Canvas(newBitmap);
+                newCanvas.scale(1.0f / displayDensity, 1.0f / displayDensity);
+                newPixels = ByteBuffer.allocateDirect(width * height * 4);
+            } catch (RuntimeException | OutOfMemoryError exception) {
+                if (newBitmap != null && !newBitmap.isRecycled()) {
+                    newBitmap.recycle();
+                }
+                Log.e(TAG, "Could not allocate WebView frame buffer "
+                    + width + "x" + height, exception);
+                return false;
+            }
+            Bitmap oldBitmap = bitmap;
+            bitmap = newBitmap;
+            canvas = newCanvas;
+            pixels = newPixels;
+            if (oldBitmap != null && !oldBitmap.isRecycled()) {
+                oldBitmap.recycle();
+            }
             int layoutWidth = Math.max(1, Math.round(width * displayDensity));
             int layoutHeight = Math.max(1, Math.round(height * displayDensity));
             int widthSpec = View.MeasureSpec.makeMeasureSpec(layoutWidth, View.MeasureSpec.EXACTLY);
             int heightSpec = View.MeasureSpec.makeMeasureSpec(layoutHeight, View.MeasureSpec.EXACTLY);
             view.measure(widthSpec, heightSpec);
             view.layout(0, 0, layoutWidth, layoutHeight);
+            return true;
+        }
+
+        void disposeGraphics() {
+            Bitmap oldBitmap = bitmap;
+            bitmap = null;
+            canvas = null;
+            pixels = null;
+            if (oldBitmap != null && !oldBitmap.isRecycled()) {
+                oldBitmap.recycle();
+            }
         }
     }
 }

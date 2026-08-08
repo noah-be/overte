@@ -102,6 +102,29 @@ class PicoWebViewBridgeTest(unittest.TestCase):
         self.assertNotIn("FindClass(", self.source)
         self.assertNotIn("overtePicoOpenXRJavaVm", self.source)
 
+    def test_resize_is_transactional_and_releases_old_bitmap(self):
+        resize = re.search(
+            r"boolean resize\(.*?\n        \}", self.java_source, re.DOTALL
+        )
+        self.assertIsNotNone(resize)
+        body = resize.group(0)
+        allocation = body.index("newBitmap = Bitmap.createBitmap")
+        assignment = body.index("bitmap = newBitmap")
+        self.assertLess(allocation, assignment)
+        self.assertIn("catch (RuntimeException | OutOfMemoryError exception)", body)
+        self.assertIn("return false;", body)
+        self.assertIn("oldBitmap.recycle();", body)
+        self.assertIn("return true;", body)
+
+    def test_creation_and_destruction_handle_frame_resources(self):
+        self.assertIn("if (!instance.resize(width, height))", self.java_source)
+        self.assertLess(
+            self.java_source.index("if (!instance.resize(width, height))"),
+            self.java_source.index("INSTANCES.put(nativeHandle, instance)"),
+        )
+        self.assertIn("old.disposeGraphics();", self.java_source)
+        self.assertIn("void disposeGraphics()", self.java_source)
+
 
 if __name__ == "__main__":
     unittest.main()

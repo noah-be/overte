@@ -699,8 +699,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 38 — WebView JNI class-loader isolation
 
 - Branch: `nightly/pico4-38-webview-jni-classloader`
-- Commit: identified by subject `Initialize Pico WebView JNI bridge`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `5f973baace` (`Initialize Pico WebView JNI bridge`)
 - Change: initialize the WebView native bridge from its Java class and retain a
   process-lifetime global class reference plus its own `JavaVM`. Qt-originated
   calls no longer depend on `FindClass` from a natively attached thread or on
@@ -716,6 +715,27 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Cold-start, recreate and restart the
   Activity, then create/destroy multiple Web entities from Qt worker/main
   contexts; verify bridge methods resolve without class-loader exceptions.
+
+### 39 — Transactional WebView resize memory
+
+- Branch: `nightly/pico4-39-webview-resize-memory`
+- Commit: identified by subject `Harden Pico WebView frame allocation`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: allocate replacement Bitmap/Canvas/direct-buffer state before
+  publishing it, retain the working old frame on allocation failure, explicitly
+  recycle replaced/destroyed Bitmaps, and do not register a newly created
+  WebView unless its initial frame allocation succeeds.
+- Regression: bridge contracts verify allocation-before-publication, exception/
+  OOM handling, old-bitmap recycling, pre-registration initial resize, and
+  destruction cleanup.
+- Passed: WebView/JNI bridge contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: Canvas/direct-buffer objects remain GC-managed, while the large native
+  Bitmap allocation is released deterministically; a failed live resize keeps
+  rendering its previous valid dimensions until a later resize succeeds.
+- Pico 4 validation: **not executed**. Rapidly resize and destroy multiple Web
+  entities near the 2048-edge cap under memory pressure; confirm stable frames,
+  bounded memory, no phantom instances, and recovery after allocation failure.
 
 ## Deferred, rejected, or blocked ideas
 
