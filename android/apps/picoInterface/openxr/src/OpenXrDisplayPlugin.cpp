@@ -18,6 +18,7 @@
 #include <glm/gtx/transform.hpp>
 #include <thread>
 #include <sstream>
+#include <utility>
 
 #if defined(Q_OS_ANDROID)
 #include <sys/system_properties.h>
@@ -175,39 +176,52 @@ float OpenXrDisplayPlugin::getTargetFrameRate() const {
 }
 
 bool OpenXrDisplayPlugin::initViews() {
+    constexpr uint32_t REQUIRED_STEREO_VIEW_COUNT { 2 };
     XrInstance instance = _context->_instance;
     XrSystemId systemId = _context->_systemId;
 
-    XrResult result = xrEnumerateViewConfigurationViews(instance, systemId, XR_VIEW_CONFIG_TYPE, 0, &_viewCount, nullptr);
+    uint32_t viewCount { 0 };
+    XrResult result = xrEnumerateViewConfigurationViews(
+        instance, systemId, XR_VIEW_CONFIG_TYPE, 0, &viewCount, nullptr);
     if (!xrCheck(instance, result, "Failed to get view configuration view count!")) {
         qCCritical(xr_display_cat, "Failed to get view configuration view count!");
         return false;
     }
-
-    assert(_viewCount != 0);
-
-    _views = std::vector<XrView>();
-
-    for (uint32_t i = 0; i < _viewCount; i++) {
-        XrView view = { .type = XR_TYPE_VIEW };
-        _views.value().push_back(view);
-
-        XrViewConfigurationView viewConfig = { .type = XR_TYPE_VIEW_CONFIGURATION_VIEW };
-        _viewConfigs.push_back(viewConfig);
-    }
-
-    _swapChains.resize(_viewCount);
-    _swapChainLengths.resize(_viewCount);
-    _swapChainIndices.resize(_viewCount);
-    _images.resize(_viewCount);
-
-    result = xrEnumerateViewConfigurationViews(instance, systemId, XR_VIEW_CONFIG_TYPE, _viewCount, &_viewCount,
-                                               _viewConfigs.data());
-    if (!xrCheck(instance, result, "Failed to enumerate view configuration views!")) {
-        qCCritical(xr_display_cat, "Failed to enumerate view configuration views!");
+    if (viewCount != REQUIRED_STEREO_VIEW_COUNT) {
+        qCCritical(xr_display_cat, "OpenXR primary stereo requires exactly two views; runtime returned %u", viewCount);
         return false;
     }
 
+    std::vector<XrViewConfigurationView> viewConfigs(
+        viewCount, XrViewConfigurationView { .type = XR_TYPE_VIEW_CONFIGURATION_VIEW });
+    uint32_t populatedViewCount { 0 };
+    result = xrEnumerateViewConfigurationViews(
+        instance, systemId, XR_VIEW_CONFIG_TYPE, viewCount, &populatedViewCount, viewConfigs.data());
+    if (!xrCheck(instance, result, "Failed to enumerate view configuration views!") ||
+            populatedViewCount != viewCount) {
+        qCCritical(xr_display_cat,
+                   "Failed to enumerate exactly %u view configuration views; runtime returned %u",
+                   viewCount, populatedViewCount);
+        return false;
+    }
+
+    for (const auto& config : viewConfigs) {
+        if (config.recommendedImageRectWidth == 0 || config.recommendedImageRectHeight == 0 ||
+                config.recommendedSwapchainSampleCount == 0) {
+            qCCritical(xr_display_cat, "OpenXR runtime returned an invalid recommended stereo view configuration");
+            return false;
+        }
+    }
+
+    std::vector<XrView> views(viewCount, XrView { .type = XR_TYPE_VIEW });
+    _viewCount = viewCount;
+    _views = std::move(views);
+    _viewConfigs = std::move(viewConfigs);
+    _swapChains.assign(viewCount, XR_NULL_HANDLE);
+    _swapChainLengths.assign(viewCount, 0);
+    _swapChainIndices.assign(viewCount, 0);
+    _images.clear();
+    _images.resize(viewCount);
     return true;
 }
 
@@ -385,7 +399,6 @@ void OpenXrDisplayPlugin::init() {
     }
 
     for (const XrViewConfigurationView& view : _viewConfigs) {
-        assert(view.recommendedImageRectWidth != 0);
         qCDebug(xr_display_cat, "Swapchain dimensions: %dx%d", view.recommendedImageRectWidth, view.recommendedImageRectHeight);
         // TODO: Don't render side-by-side but use multiview (texture arrays). This probably won't work with GL.
         _renderTargetSize.x = scaledEyeDimension(view.recommendedImageRectWidth) * 2;

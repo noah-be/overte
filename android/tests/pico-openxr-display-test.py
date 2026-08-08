@@ -70,6 +70,20 @@ class PicoOpenXRDisplayTests(unittest.TestCase):
             SOURCE,
         )
 
+    def test_view_initialization_is_stereo_and_transactional(self):
+        start = SOURCE.index("bool OpenXrDisplayPlugin::initViews()")
+        end = SOURCE.index("#define ENUM_TO_STR", start)
+        body = SOURCE[start:end]
+        self.assertIn("viewCount != REQUIRED_STEREO_VIEW_COUNT", body)
+        self.assertIn("uint32_t populatedViewCount { 0 };", body)
+        self.assertIn("populatedViewCount != viewCount", body)
+        self.assertIn("recommendedImageRectWidth == 0", body)
+        self.assertIn("recommendedImageRectHeight == 0", body)
+        self.assertIn("recommendedSwapchainSampleCount == 0", body)
+        self.assertLess(body.index("populatedViewCount != viewCount"), body.index("_viewCount = viewCount"))
+        self.assertLess(body.index("recommendedImageRectWidth == 0"), body.index("_viewCount = viewCount"))
+        self.assertNotIn("assert(_viewCount", body)
+
 
 if __name__ == "__main__":
     unittest.main()

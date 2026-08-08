@@ -800,8 +800,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 43 — WebView startup retry coverage
 
 - Branch: `nightly/pico4-43-webview-startup-retry`
-- Commit: identified by subject `Retry Pico WebView startup failures`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `32c97be53e` (`Retry Pico WebView startup failures`)
 - Change: route missing JNI environments, Java-string allocation failures and
   synchronous bridge-call failures through the same bounded creation retry used
   for asynchronous Java failures. A Web entity completed before Activity bridge
@@ -815,6 +814,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Enter a world with Web entities during
   cold Activity startup, delay bridge/provider initialization, and verify pages
   appear after recovery without resizing or re-entering the world.
+
+### 44 — OpenXR stereo view initialization
+
+- Branch: `nightly/pico4-44-openxr-view-init`
+- Commit: identified by subject `Validate Pico OpenXR view initialization`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: require the Pico primary-stereo runtime to report exactly two views,
+  reject a changed populated count and zero recommended dimensions/sample count,
+  and publish view/swapchain storage only after all enumeration checks pass.
+  Release builds no longer rely on an assertion before later fixed stereo access.
+- Regression: OpenXR display contracts verify exact counts, configuration
+  validation, publication ordering, and removal of the count assertion.
+- Passed: 7 OpenXR display contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: an invalid/non-stereo OpenXR runtime now fails display initialization
+  explicitly instead of continuing into out-of-bounds or zero-sized resources.
+- Pico 4 validation: **not executed**. Cold-start on the Pico runtime, verify two
+  valid eye views and normal rendering, then exercise runtime initialization
+  failure/restart and confirm the client fails closed without a native crash.
 
 ## Deferred, rejected, or blocked ideas
 
