@@ -9,6 +9,7 @@ readonly tablet_source="$repo_root/libraries/ui/src/ui/TabletScriptingInterface.
 readonly tablet_root="$repo_root/interface/resources/qml/hifi/tablet/TabletRoot.qml"
 readonly tablet_home="$repo_root/interface/resources/qml/hifi/tablet/TabletHome.qml"
 readonly application="$repo_root/interface/src/Application.cpp"
+readonly interface_cmake="$repo_root/interface/CMakeLists.txt"
 readonly phone_gradle="$repo_root/android/apps/phoneInterface/build.gradle"
 
 require() {
@@ -58,6 +59,8 @@ require "$tablet_home" 'SwipeView[[:space:]]*\{' \
 
 require "$phone_gradle" 'inputs.dir\(file\("[$]\{projectDir\}/../../../interface/resources"\)\)' \
     'tablet QML resources participate in Android package invalidation'
+require "$interface_cmake" 'file\(GLOB_RECURSE QML_SRC CONFIGURE_DEPENDS' \
+    'new tablet QML selector files trigger incremental CMake regeneration'
 require "$phone_gradle" 'inputs.dir\(file\("[$]\{projectDir\}/../../../scripts"\)\)' \
     'tablet script QML and selectors participate in Android package invalidation'
 require "$phone_gradle" 'from new File\(projectDir, '\''../../../scripts'\''\)' \
