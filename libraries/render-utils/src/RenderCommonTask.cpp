@@ -20,6 +20,9 @@
 #include "RenderUtilsLogging.h"
 #include "RenderViewTask.h"
 #include "StencilMaskPass.h"
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include "PhoneFramebufferTelemetry.h"
+#endif
 
 namespace ru {
     using render_utils::slot::texture::Texture;
@@ -165,8 +168,12 @@ void Blit::run(const RenderContextPointer& renderContext, const gpu::Framebuffer
     });
 }
 
-NewFramebuffer::NewFramebuffer(gpu::Element pixelFormat) {
-    _pixelFormat = pixelFormat;
+NewFramebuffer::NewFramebuffer(gpu::Element pixelFormat) : NewFramebuffer(pixelFormat, false) {
+}
+
+NewFramebuffer::NewFramebuffer(gpu::Element pixelFormat, bool trackPhoneResolveRecreates) :
+    _pixelFormat(pixelFormat),
+    _trackPhoneResolveRecreates(trackPhoneResolveRecreates) {
 }
 
 void NewFramebuffer::run(const render::RenderContextPointer& renderContext, Output& output) {
@@ -184,6 +191,11 @@ void NewFramebuffer::run(const render::RenderContextPointer& renderContext, Outp
         auto defaultSampler = Sampler(Sampler::FILTER_MIN_MAG_LINEAR);
         auto colorTexture = gpu::Texture::createRenderBuffer(colorFormat, frameSize.x, frameSize.y, gpu::Texture::SINGLE_MIP, defaultSampler);
         _outputFramebuffer->setRenderBuffer(0, colorTexture);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        if (_trackPhoneResolveRecreates) {
+            phone_framebuffer_telemetry::recordResolveRecreate(frameSize.x, frameSize.y);
+        }
+#endif
     }
 
     output = _outputFramebuffer;

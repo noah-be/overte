@@ -154,6 +154,26 @@ valid_nonnegative_int64() {
         (( ${#value} == 19 )) && [[ "$value" < 9223372036854775807 || "$value" == 9223372036854775807 ]]
     }
 }
+valid_u64() {
+    local value="$1"
+    [[ "$value" =~ ^(0|[1-9][0-9]*)$ ]] || return 1
+    (( ${#value} < 20 )) || {
+        (( ${#value} == 20 )) && [[ "$value" < 18446744073709551615 || "$value" == 18446744073709551615 ]]
+    }
+}
+u64_lte() {
+    local left="$1" right="$2"
+    (( ${#left} < ${#right} )) || { (( ${#left} == ${#right} )) && [[ "$left" < "$right" || "$left" == "$right" ]]; }
+}
+valid_bounded_uint() {
+    local value="$1" maximum="$2"
+    [[ "$value" =~ ^[1-9][0-9]*$ ]] && (( 10#$value <= maximum ))
+}
+valid_finite_decimal() {
+    local value="$1"
+    [[ "$value" =~ ^(0|[1-9][0-9]*)([.][0-9]+)?$ ]] &&
+        awk -v value="$value" 'BEGIN { exit !(value + 0 <= 1048576) }'
+}
 native_window_seconds="$(sed -nE 's/.*window_seconds=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
 native_present_fps="$(sed -nE 's/.*[[:space:]]present_fps=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
 native_new_frame_fps="$(sed -nE 's/.*new_frame_fps=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
@@ -170,6 +190,17 @@ memory_swap_kib="$(extract_native_field memory_swap_kib || true)"
 memory_allocator_flag="$(extract_native_field memory_allocator_valid || true)"
 memory_allocator_used_kib="$(extract_native_field memory_allocator_used_kib || true)"
 memory_allocator_free_kib="$(extract_native_field memory_allocator_free_kib || true)"
+framebuffer_primary_recreate_delta="$(extract_native_field framebuffer_primary_recreate_delta || true)"
+framebuffer_primary_recreate_total="$(extract_native_field framebuffer_primary_recreate_total || true)"
+framebuffer_resolve_recreate_delta="$(extract_native_field framebuffer_resolve_recreate_delta || true)"
+framebuffer_resolve_recreate_total="$(extract_native_field framebuffer_resolve_recreate_total || true)"
+framebuffer_primary_width="$(extract_native_field framebuffer_primary_width || true)"
+framebuffer_primary_height="$(extract_native_field framebuffer_primary_height || true)"
+framebuffer_primary_samples="$(extract_native_field framebuffer_primary_samples || true)"
+framebuffer_resolve_width="$(extract_native_field framebuffer_resolve_width || true)"
+framebuffer_resolve_height="$(extract_native_field framebuffer_resolve_height || true)"
+framebuffer_resolve_samples="$(extract_native_field framebuffer_resolve_samples || true)"
+framebuffer_estimated_mib="$(extract_native_field framebuffer_estimated_mib || true)"
 memory_proc_valid=0
 if [[ "$memory_proc_flag" == 1 ]] && valid_nonnegative_int64 "$memory_rss_kib" && \
         valid_nonnegative_int64 "$memory_data_kib" && valid_nonnegative_int64 "$memory_swap_kib"; then
@@ -183,6 +214,26 @@ if [[ "$memory_allocator_flag" == 1 ]] && valid_nonnegative_int64 "$memory_alloc
     memory_allocator_valid=1
 else
     memory_allocator_used_kib=unknown; memory_allocator_free_kib=unknown
+fi
+framebuffer_metrics_valid=0
+if valid_u64 "$framebuffer_primary_recreate_delta" && valid_u64 "$framebuffer_primary_recreate_total" &&
+        valid_u64 "$framebuffer_resolve_recreate_delta" && valid_u64 "$framebuffer_resolve_recreate_total" &&
+        u64_lte "$framebuffer_primary_recreate_delta" "$framebuffer_primary_recreate_total" &&
+        u64_lte "$framebuffer_resolve_recreate_delta" "$framebuffer_resolve_recreate_total" &&
+        valid_bounded_uint "$framebuffer_primary_width" 32768 &&
+        valid_bounded_uint "$framebuffer_primary_height" 32768 &&
+        valid_bounded_uint "$framebuffer_primary_samples" 64 &&
+        valid_bounded_uint "$framebuffer_resolve_width" 32768 &&
+        valid_bounded_uint "$framebuffer_resolve_height" 32768 &&
+        valid_bounded_uint "$framebuffer_resolve_samples" 64 &&
+        valid_finite_decimal "$framebuffer_estimated_mib"; then
+    framebuffer_metrics_valid=1
+else
+    framebuffer_primary_recreate_delta=unknown; framebuffer_primary_recreate_total=unknown
+    framebuffer_resolve_recreate_delta=unknown; framebuffer_resolve_recreate_total=unknown
+    framebuffer_primary_width=unknown; framebuffer_primary_height=unknown; framebuffer_primary_samples=unknown
+    framebuffer_resolve_width=unknown; framebuffer_resolve_height=unknown; framebuffer_resolve_samples=unknown
+    framebuffer_estimated_mib=unknown
 fi
 native_present_metrics_available=0
 [[ -n "$native_present_fps" && -n "$native_new_frame_fps" && -n "$native_present_p95_ms" ]] && \
@@ -214,6 +265,16 @@ chmod 600 "$summary_tmp"
         "$memory_proc_valid" "$memory_rss_kib" "$memory_data_kib" "$memory_swap_kib"
     printf 'memory_allocator_valid=%s\nmemory_allocator_used_kib=%s\nmemory_allocator_free_kib=%s\n' \
         "$memory_allocator_valid" "$memory_allocator_used_kib" "$memory_allocator_free_kib"
+    printf 'framebuffer_metrics_valid=%s\n' "$framebuffer_metrics_valid"
+    printf 'framebuffer_primary_recreate_delta=%s\nframebuffer_primary_recreate_total=%s\n' \
+        "$framebuffer_primary_recreate_delta" "$framebuffer_primary_recreate_total"
+    printf 'framebuffer_resolve_recreate_delta=%s\nframebuffer_resolve_recreate_total=%s\n' \
+        "$framebuffer_resolve_recreate_delta" "$framebuffer_resolve_recreate_total"
+    printf 'framebuffer_primary_width=%s\nframebuffer_primary_height=%s\nframebuffer_primary_samples=%s\n' \
+        "$framebuffer_primary_width" "$framebuffer_primary_height" "$framebuffer_primary_samples"
+    printf 'framebuffer_resolve_width=%s\nframebuffer_resolve_height=%s\nframebuffer_resolve_samples=%s\n' \
+        "$framebuffer_resolve_width" "$framebuffer_resolve_height" "$framebuffer_resolve_samples"
+    printf 'framebuffer_estimated_mib=%s\n' "$framebuffer_estimated_mib"
 } >"$summary_tmp"
 mv -T -- "$summary_tmp" "$summary"
 printf 'Aggregate benchmark report: %s\n' "$summary"

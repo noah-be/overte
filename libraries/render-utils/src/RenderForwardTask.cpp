@@ -34,6 +34,10 @@
 #include "TextureCache.h"
 #include "RenderCommonTask.h"
 #include "RenderHUDLayerTask.h"
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include <mutex>
+#include "PhoneFramebufferTelemetry.h"
+#endif
 
 #include "BloomEffect.h"
 
@@ -50,6 +54,42 @@ namespace gr {
 }
 
 using namespace render;
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+namespace {
+std::mutex phoneFramebufferTelemetryMutex;
+uint64_t phonePrimaryRecreateCount { 0 };
+uint64_t phoneResolveRecreateCount { 0 };
+uint64_t phonePrimarySizeSamples { 0 };
+uint64_t phoneResolveSizeSamples { 0 };
+}
+
+namespace phone_framebuffer_telemetry {
+
+void recordPrimaryRecreate(uint32_t width, uint32_t height, uint32_t samples) {
+    const std::lock_guard<std::mutex> guard(phoneFramebufferTelemetryMutex);
+    phonePrimarySizeSamples = packSizeSamples(width, height, samples);
+    ++phonePrimaryRecreateCount;
+}
+
+void recordResolveRecreate(uint32_t width, uint32_t height) {
+    const std::lock_guard<std::mutex> guard(phoneFramebufferTelemetryMutex);
+    phoneResolveSizeSamples = packSizeSamples(width, height, 1);
+    ++phoneResolveRecreateCount;
+}
+
+Snapshot snapshot() {
+    const std::lock_guard<std::mutex> guard(phoneFramebufferTelemetryMutex);
+    Snapshot result;
+    result.primaryRecreateCount = phonePrimaryRecreateCount;
+    result.resolveRecreateCount = phoneResolveRecreateCount;
+    result.primarySizeSamples = phonePrimarySizeSamples;
+    result.resolveSizeSamples = phoneResolveSizeSamples;
+    return result;
+}
+
+} // namespace phone_framebuffer_telemetry
+#endif
 
 extern void initForwardPipelines(ShapePlumber& plumber);
 
@@ -187,7 +227,14 @@ void RenderForwardTask::build(JobModel& task, const render::Varying& input, rend
     }
 #endif
 
-    const auto newResolvedFramebuffer = task.addJob<NewFramebuffer>("MakeResolvingFramebuffer", gpu::Element(gpu::SCALAR, gpu::FLOAT, gpu::R11G11B10));
+    const auto newResolvedFramebuffer = task.addJob<NewFramebuffer>("MakeResolvingFramebuffer",
+        gpu::Element(gpu::SCALAR, gpu::FLOAT, gpu::R11G11B10),
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        true
+#else
+        false
+#endif
+    );
 
     const auto resolveInputs = ResolveFramebuffer::Inputs(scaledPrimaryFramebuffer, newResolvedFramebuffer).asVarying();
     const auto resolvedFramebuffer = task.addJob<ResolveFramebuffer>("Resolve", resolveInputs);
@@ -237,6 +284,9 @@ void PreparePrimaryFramebufferMSAA::run(const RenderContextPointer& renderContex
     // Resizing framebuffers instead of re-building them seems to cause issues with threaded rendering
     if (!_framebuffer || (_framebuffer->getSize() != scaledFrameSize) || (_framebuffer->getNumSamples() != _numSamples)) {
         _framebuffer = createFramebuffer("forward", scaledFrameSize, _numSamples);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        phone_framebuffer_telemetry::recordPrimaryRecreate(scaledFrameSize.x, scaledFrameSize.y, _numSamples);
+#endif
     }
 
     framebuffer = _framebuffer;

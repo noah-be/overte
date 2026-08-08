@@ -68,6 +68,9 @@
 #include <ui/Menu.h>
 #include <CursorManager.h>
 #include <TextureCache.h>
+#if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
+#include <PhoneFramebufferTelemetry.h>
+#endif
 #include "CompositorHelper.h"
 #include "Logging.h"
 #include "RefreshRateController.h"
@@ -195,11 +198,30 @@ struct PhonePresentTelemetry {
         const double texturePopulatedMiB = gpu::Context::getTextureResourcePopulatedGPUMemSize() / BYTES_PER_MIB;
         const double texturePendingTransferMiB = gpu::Context::getTexturePendingGPUTransferMemSize() / BYTES_PER_MIB;
         const PhoneProcessMemory processMemory = samplePhoneProcessMemory();
+        const auto framebuffer = phone_framebuffer_telemetry::snapshot();
+        const uint64_t primaryRecreateDelta = framebuffer.primaryRecreateCount - _lastPrimaryRecreateCount;
+        const uint64_t resolveRecreateDelta = framebuffer.resolveRecreateCount - _lastResolveRecreateCount;
+        _lastPrimaryRecreateCount = framebuffer.primaryRecreateCount;
+        _lastResolveRecreateCount = framebuffer.resolveRecreateCount;
+        const uint32_t primaryWidth = phone_framebuffer_telemetry::unpackWidth(framebuffer.primarySizeSamples);
+        const uint32_t primaryHeight = phone_framebuffer_telemetry::unpackHeight(framebuffer.primarySizeSamples);
+        const uint32_t primarySamples = phone_framebuffer_telemetry::unpackSamples(framebuffer.primarySizeSamples);
+        const uint32_t resolveWidth = phone_framebuffer_telemetry::unpackWidth(framebuffer.resolveSizeSamples);
+        const uint32_t resolveHeight = phone_framebuffer_telemetry::unpackHeight(framebuffer.resolveSizeSamples);
+        const uint32_t resolveSamples = phone_framebuffer_telemetry::unpackSamples(framebuffer.resolveSizeSamples);
+        const double framebufferMiB =
+            (static_cast<double>(primaryWidth) * primaryHeight * primarySamples * 8.0 +
+                static_cast<double>(resolveWidth) * resolveHeight * 4.0) / BYTES_PER_MIB;
 
         __android_log_print(ANDROID_LOG_INFO, "OvertePhoneGraphics",
-            "window_seconds=%.2f present_fps=%.2f new_frame_fps=%.2f inter_present_p50_ms=%.2f inter_present_p95_ms=%.2f inter_present_max_ms=%.2f texture_resource_mib=%.2f texture_populated_mib=%.2f texture_pending_transfer_mib=%.2f memory_proc_valid=%d memory_rss_kib=%lld memory_data_kib=%lld memory_swap_kib=%lld memory_allocator_valid=%d memory_allocator_used_kib=%lld memory_allocator_free_kib=%lld",
+            "window_seconds=%.2f present_fps=%.2f new_frame_fps=%.2f inter_present_p50_ms=%.2f inter_present_p95_ms=%.2f inter_present_max_ms=%.2f texture_resource_mib=%.2f texture_populated_mib=%.2f texture_pending_transfer_mib=%.2f framebuffer_primary_recreate_delta=%llu framebuffer_primary_recreate_total=%llu framebuffer_resolve_recreate_delta=%llu framebuffer_resolve_recreate_total=%llu framebuffer_primary_width=%u framebuffer_primary_height=%u framebuffer_primary_samples=%u framebuffer_resolve_width=%u framebuffer_resolve_height=%u framebuffer_resolve_samples=%u framebuffer_estimated_mib=%.2f memory_proc_valid=%d memory_rss_kib=%lld memory_data_kib=%lld memory_swap_kib=%lld memory_allocator_valid=%d memory_allocator_used_kib=%lld memory_allocator_free_kib=%lld",
             elapsedSeconds, _presentCount / elapsedSeconds, _newFrameCount / elapsedSeconds, p50, p95, maximum,
             textureResourceMiB, texturePopulatedMiB, texturePendingTransferMiB,
+            static_cast<unsigned long long>(primaryRecreateDelta),
+            static_cast<unsigned long long>(framebuffer.primaryRecreateCount),
+            static_cast<unsigned long long>(resolveRecreateDelta),
+            static_cast<unsigned long long>(framebuffer.resolveRecreateCount),
+            primaryWidth, primaryHeight, primarySamples, resolveWidth, resolveHeight, resolveSamples, framebufferMiB,
             processMemory.procValid ? 1 : 0, static_cast<long long>(processMemory.residentKiB),
             static_cast<long long>(processMemory.dataKiB), static_cast<long long>(processMemory.swapKiB),
             processMemory.allocatorValid ? 1 : 0, static_cast<long long>(processMemory.allocatorUsedKiB),
@@ -238,6 +260,8 @@ private:
     uint32_t _newFrameCount { 0 };
     size_t _intervalCount { 0 };
     std::array<uint32_t, PHONE_PRESENT_INTERVAL_CAPACITY> _intervals {};
+    uint64_t _lastPrimaryRecreateCount { 0 };
+    uint64_t _lastResolveRecreateCount { 0 };
 };
 
 PhonePresentTelemetry phonePresentTelemetry;
