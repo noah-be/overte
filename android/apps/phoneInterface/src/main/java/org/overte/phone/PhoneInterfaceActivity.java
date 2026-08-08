@@ -90,8 +90,12 @@ public final class PhoneInterfaceActivity extends QtActivity {
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
-            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
-                nativeBackConsumed = tryHandleNativeBack();
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                if (event.getRepeatCount() == 0) {
+                    nativeBackConsumed = tryHandleNativeBack();
+                }
+                // Once the first Down belongs to native/QML navigation, keep
+                // the complete long-press gesture away from Qt until Key Up.
                 if (nativeBackConsumed) {
                     return true;
                 }

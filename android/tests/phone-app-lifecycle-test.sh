@@ -45,6 +45,22 @@ else
     exit 1
 fi
 
+if awk '
+        /public boolean dispatchKeyEvent\(KeyEvent event\)/ { in_dispatch = 1 }
+        in_dispatch && /event[.]getAction\(\) == KeyEvent[.]ACTION_DOWN/ { down = NR }
+        in_dispatch && /event[.]getRepeatCount\(\) == 0/ { initial = NR }
+        in_dispatch && /nativeBackConsumed = tryHandleNativeBack\(\)/ { native = NR }
+        in_dispatch && /if \(nativeBackConsumed\)/ { consume = NR }
+        in_dispatch && /event[.]getAction\(\) == KeyEvent[.]ACTION_UP/ { up = NR; exit }
+        END { exit !(down && initial && native && consume && up &&
+                     down < initial && initial < native && native < consume && consume < up) }
+    ' "$activity"; then
+    printf 'PASS: consumed Back owns initial, repeat, and release events\n'
+else
+    printf 'FAIL: consumed Back can leak repeat events into Qt\n' >&2
+    exit 1
+fi
+
 require "$address_dialog" 'Component[.]onDestruction:[[:space:]]*\{' \
     'address dialog has an external teardown fallback'
 require "$address_dialog" 'addressField[.]focus[[:space:]]*=[[:space:]]*false' \

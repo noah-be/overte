@@ -108,8 +108,12 @@ require "$activity" 'private void handleSystemBack\(\)' \
     'all Android Back delivery paths share one routing function'
 require "$activity" 'moveTaskToBack\(true\)' \
     'Back backgrounds Overte instead of destroying native state when no UI consumes it'
-require "$activity" 'event\.getAction\(\) == KeyEvent\.ACTION_DOWN && event\.getRepeatCount\(\) == 0' \
+require "$activity" 'event\.getAction\(\) == KeyEvent\.ACTION_DOWN' \
+    'the Activity owns the complete Back key-down sequence'
+require "$activity" 'event\.getRepeatCount\(\) == 0' \
     'only the first Back key-down invokes native routing'
+require "$activity" 'if \(nativeBackConsumed\)' \
+    'handled Back repeat events stay out of Qt'
 require "$activity" 'event\.getAction\(\) == KeyEvent\.ACTION_UP && nativeBackConsumed' \
     'the matching Back key-up is consumed with its handled key-down'
 require "$native_handler" 'PhoneInterfaceActivity_nativeHandleBack' \

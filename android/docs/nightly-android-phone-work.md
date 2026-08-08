@@ -4,6 +4,28 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 32 — Own the complete Android Back gesture
+
+- Branch: `nightly/android-phone-32-back-repeat-lifecycle`
+- Commit: `Keep consumed Back repeats out of Qt` (this task's commit)
+- Change: When native/QML navigation consumes the initial Android Back Down,
+  consume every long-press repeat until the matching Up. A single physical
+  gesture can no longer leak repeat events into Qt and close additional layers
+  or background the task. Unconsumed Back gestures retain legacy handling.
+- Tests:
+  - `android/tests/phone-app-lifecycle-test.sh`: **passed**, including an
+    ordered source contract for initial Down, native decision, repeat ownership,
+    matching Up, and pause-state reset.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle suites and 181/181 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: Host tests cannot synthesize Android framework KeyEvent dispatch;
+  the change follows the Activity's existing per-gesture boolean state.
+- Real-device validation still required: **not executed for this task**. Use
+  short and long Back presses in Address, Login, Settings subpages, tablet Home,
+  and world view; verify each gesture closes at most one layer and an unhandled
+  gesture backgrounds rather than terminates the native process.
+
 ## 31 — Bound the Quick Goto Home contract
 
 - Branch: `nightly/android-phone-31-quick-goto-contract`
