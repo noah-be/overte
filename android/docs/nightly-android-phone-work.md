@@ -4,6 +4,25 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 61 — Prove device lifecycle failures fail closed
+
+- Branch: `nightly/android-phone-61-device-smoke-failures`
+- Commit: `Test phone device lifecycle failure paths` (this task's commit)
+- Change: Extend the stateful Fake-ADB suite with a PID change during Home and
+  a launcher that leaves Phone falsely resumed. The real smoke must reject both
+  before recording lifecycle success, complementing its successful-flow test.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, including both
+    new lifecycle failure fixtures.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 35
+    explicitly device-free suites.
+  - `git diff --check`: **passed**.
+- Known risks: Mock timing is deliberately instant; vendor scheduling and
+  process-management behavior still require real-device coverage.
+- Real-device validation still required: Run repeated Home/Back cycles on the
+  current APK under normal use and aggressive battery management; any PID
+  change or incorrectly resumed activity must fail the smoke.
+
 ## 60 — Gate the Android manifest attack surface
 
 - Branch: `nightly/android-phone-60-scope-audit`

@@ -45,9 +45,18 @@ case "$*" in
         ;;
     'shell am force-stop org.overte.phone') ;;
     shell\ am\ start\ *) printf resumed >"$MOCK_ROOT/activity-state" ;;
-    'shell pidof -s org.overte.phone') printf '4242\n' ;;
+    'shell pidof -s org.overte.phone')
+        if [[ "${MOCK_PROCESS_RESTART:-0}" == 1 &&
+                "$(<"$MOCK_ROOT/activity-state")" == background ]]; then
+            printf '4343\n'
+        else
+            printf '4242\n'
+        fi
+        ;;
     'shell input keyevent KEYCODE_HOME'|'shell input keyevent KEYCODE_BACK')
-        printf background >"$MOCK_ROOT/activity-state"
+        if [[ "${MOCK_STICKY_FOREGROUND:-0}" != 1 ]]; then
+            printf background >"$MOCK_ROOT/activity-state"
+        fi
         ;;
     'shell dumpsys activity activities')
         if [[ "$(<"$MOCK_ROOT/activity-state")" == resumed ]]; then
@@ -95,6 +104,24 @@ if run_smoke "$test_root/mismatch-report" env MOCK_APK_MISMATCH=1 \
 fi
 grep -Fq 'installed APK content does not match' "$test_root/mismatch.out"
 ! grep -Fq '/data/app/' "$test_root/mismatch.out"
+
+mkdir "$test_root/restart-report"
+if run_smoke "$test_root/restart-report" env MOCK_PROCESS_RESTART=1 \
+        >"$test_root/restart.out" 2>&1; then
+    echo 'FAIL: background process restart was accepted' >&2
+    exit 1
+fi
+grep -Fq 'app process restarted' "$test_root/restart.out"
+! grep -Fq 'background_foreground_cycles=3' "$test_root/restart-report/summary.txt"
+
+mkdir "$test_root/sticky-report"
+if run_smoke "$test_root/sticky-report" env MOCK_STICKY_FOREGROUND=1 \
+        >"$test_root/sticky.out" 2>&1; then
+    echo 'FAIL: activity remaining resumed after Home was accepted' >&2
+    exit 1
+fi
+grep -Fq 'phone activity remained resumed in background' "$test_root/sticky.out"
+! grep -Fq 'background_foreground_cycles=3' "$test_root/sticky-report/summary.txt"
 
 mkdir "$test_root/existing-report"
 printf preserve >"$test_root/existing-report/summary.txt"
