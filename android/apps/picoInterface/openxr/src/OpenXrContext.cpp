@@ -885,8 +885,9 @@ bool OpenXrContext::pollEvents() {
                 const auto& instanceLossPending = *reinterpret_cast<XrEventDataInstanceLossPending*>(&event);
                 qCCritical(xr_context_cat, "Instance loss pending at %lu! Destroying instance.", instanceLossPending.lossTime);
                 _shouldQuit = true;
+                _shouldRunFrameCycle = false;
                 _isValid = false;
-                continue;
+                break;
             }
             case XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED: {
                 const auto& sessionStateChanged = *reinterpret_cast<XrEventDataSessionStateChanged*>(&event);
@@ -924,12 +925,13 @@ bool OpenXrContext::pollEvents() {
                 qCWarning(xr_context_cat, "Unhandled event type %d", event.type);
         }
 
-        event.type = XR_TYPE_EVENT_DATA_BUFFER;
+        event = { .type = XR_TYPE_EVENT_DATA_BUFFER };
         result = xrPollEvent(_instance, &event);
     }
 
     if (result != XR_EVENT_UNAVAILABLE) {
         qCCritical(xr_context_cat, "Failed to poll events!");
+        _shouldRunFrameCycle = false;
         _isValid = false;
         return false;
     }

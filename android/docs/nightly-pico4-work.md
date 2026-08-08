@@ -855,8 +855,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 46 — Opt-in OpenXR latency tracing
 
 - Branch: `nightly/pico4-46-openxr-latency-trace`
-- Commit: identified by subject `Gate Pico OpenXR latency tracing`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `d3144dcef5` (`Gate Pico OpenXR latency tracing`)
 - Change: read `debug.overte.latency_trace` once when creating the OpenXR context
   and run the per-second input/present clocks and info logs only for explicit
   `1`, `true`, or `on`. The trace format remains available for controlled tests.
@@ -869,6 +868,26 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Compare normal and opt-in log capture;
   verify zero `PICO_LATENCY_*` lines by default and paired input/frame samples
   approximately once per second when the property is enabled before launch.
+
+### 47 — OpenXR event-loss termination
+
+- Branch: `nightly/pico4-47-openxr-event-loss`
+- Commit: identified by subject `Stop Pico OpenXR event loss loops`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: stop the frame cycle and finish the current event iteration when the
+  runtime reports instance loss, then reset and poll a fresh event buffer. The
+  previous `continue` reprocessed the same successful buffer indefinitely.
+  Render startup now also deactivates immediately when event polling fails.
+- Regression: OpenXR contracts reject `continue` in the instance-loss case,
+  require complete buffer reset/new polling, and verify render-loop propagation
+  of a failed `pollEvents()` result.
+- Passed: 12 OpenXR display/lifecycle contracts; full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: runtime/instance loss now exits or deactivates instead of spinning or
+  allowing one more frame; normal event and render processing is unchanged.
+- Pico 4 validation: **not executed**. Force Activity/runtime loss during active
+  rendering and suspend/resume; verify prompt exit/deactivation, no frozen CPU
+  loop, and a clean subsequent cold start.
 
 ## Deferred, rejected, or blocked ideas
 

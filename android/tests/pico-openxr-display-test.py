@@ -131,6 +131,26 @@ class PicoOpenXRDisplayTests(unittest.TestCase):
         self.assertLess(input_guard, input_clock)
         self.assertLess(input_clock, input_log)
 
+    def test_instance_loss_does_not_reprocess_the_same_event(self):
+        start = CONTEXT.index("bool OpenXrContext::pollEvents()")
+        end = CONTEXT.index("bool OpenXrContext::beginFrame()", start)
+        poll = CONTEXT[start:end]
+        loss_start = poll.index("XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING")
+        loss_end = poll.index("case XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED", loss_start)
+        loss = poll[loss_start:loss_end]
+        self.assertIn("_shouldRunFrameCycle = false;", loss)
+        self.assertIn("break;", loss)
+        self.assertNotIn("continue;", loss)
+        self.assertIn("event = { .type = XR_TYPE_EVENT_DATA_BUFFER };", poll)
+
+    def test_render_loop_honors_event_poll_failure(self):
+        start = SOURCE.index("bool OpenXrDisplayPlugin::beginFrameRender")
+        end = SOURCE.index("void OpenXrDisplayPlugin::submitFrame", start)
+        render = SOURCE[start:end]
+        self.assertIn("if (!_context->pollEvents())", render)
+        self.assertIn("deactivate();", render)
+        self.assertIn("return false;", render)
+
 
 if __name__ == "__main__":
     unittest.main()
