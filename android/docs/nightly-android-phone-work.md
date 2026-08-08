@@ -4,6 +4,28 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 37 — Validate People account actions
+
+- Branch: `nightly/android-phone-37-people-request-validation`
+- Commit: `Validate People account action inputs` (this task's commit)
+- Change: Require non-empty, bounded, control-character-free string account
+  names before add/remove-friend or remove-connection requests. Encode names
+  inserted into REST paths as one URI segment so reserved characters cannot
+  alter the endpoint; valid request bodies and response handling are unchanged.
+- Tests:
+  - `android/tests/phone-tablet-people-menu-test.sh`: **passed**, including an
+    executable mock proving invalid names issue no request and `user/name`
+    reaches the connection endpoint as `user%2Fname`.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/APK suites and 188/188 host checks.
+  - JavaScript syntax and `git diff --check`: **passed**.
+- Known risks: Backend username semantics may be narrower than the transport
+  safety contract; the server remains authoritative for valid names.
+- Real-device validation still required: **not executed for this task**. With
+  disposable test accounts, add/remove friends and remove a connection whose
+  valid name contains every backend-supported punctuation character; verify one
+  request/action, correct UI update, and no private values in Phone logs.
+
 ## 36 — Own deferred Phone menu actions
 
 - Branch: `nightly/android-phone-36-menu-deferred-action`

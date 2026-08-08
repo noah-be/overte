@@ -31,6 +31,7 @@ const domainConnectionRefused = signal();
 const scriptEnding = signal();
 const messageReceived = signal();
 let activeIntervals = 0;
+const requests = [];
 let nextTimeout = 1;
 const pendingTimeouts = new Map();
 let appConfig;
@@ -68,7 +69,10 @@ const context = {
     Script: {
         require(name) {
             if (name === "appUi") { return AppUi; }
-            return { request(options, callback) { callback(null, { status: "success", data: { users: [] } }); } };
+            return { request(options, callback) {
+                requests.push(options);
+                callback(null, { status: "success", data: { users: [] } });
+            } };
         },
         include() {}, resolvePath(value) { return value; },
         setInterval() { activeIntervals += 1; return activeIntervals; },
@@ -107,6 +111,17 @@ assert.doesNotThrow(() => appConfig.onMessage(null), "null QML message is ignore
 assert.doesNotThrow(() => appConfig.onMessage({}), "method-less QML message is ignored");
 assert.doesNotThrow(() => appConfig.onMessage({ method: "refreshNearby" }),
     "refresh without params is ignored");
+const requestsBeforeValidation = requests.length;
+[null, {}, "", "bad\nname"].forEach((name) => {
+    appConfig.onMessage({ method: "removeConnection", params: name });
+    appConfig.onMessage({ method: "removeFriend", params: name });
+    appConfig.onMessage({ method: "addFriend", params: name });
+});
+assert.strictEqual(requests.length, requestsBeforeValidation,
+    "invalid account names produce no server requests");
+appConfig.onMessage({ method: "removeConnection", params: "user/name" });
+assert(requests.at(-1).uri.endsWith("/connections/user%2Fname"),
+    "account name is encoded as one REST path segment");
 assert.doesNotThrow(() => messageReceived.emit("com.highfidelity.pal", "not-json", "{}"),
     "malformed local message is ignored");
 assert.strictEqual(ui.isOpen, false, "malformed messages do not open People");

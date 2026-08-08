@@ -38,6 +38,12 @@ require "$pal" 'try \{' \
     'People catches malformed local-message JSON'
 require "$pal" 'cancelPendingSelect\(\)' \
     'People owns and cancels deferred local selection delivery'
+require "$pal" 'function validAccountName\(value\)' \
+    'People centralizes account-action input validation'
+require "$pal" 'encodeURIComponent\(connectionUserName\)' \
+    'People encodes connection names as REST path segments'
+require "$pal" 'encodeURIComponent\(friendUserName\)' \
+    'People encodes friend names as REST path segments'
 require "$pal" 'function printPrivatePalData\(message\)' \
     'People centralizes diagnostics that may contain personal data'
 require "$pal" 'if \(!isAndroidPhone\)' \

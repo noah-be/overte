@@ -245,6 +245,10 @@ function convertDbToLinear(decibels) {
     // maybe scale the signal this way??
     return Math.pow(2, decibels / 10.0);
 }
+function validAccountName(value) {
+    return typeof value === 'string' && value.length > 0 && value.length <= 256 &&
+        !/[\u0000-\u001f\u007f]/.test(value);
+}
 function fromQml(message) { // messages are {method, params}, like json-rpc. See also sendToQml.
     var data, connectionUserName, friendUserName;
     if (!message || typeof message !== 'object' || typeof message.method !== 'string') {
@@ -304,8 +308,11 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
         break;
     case 'removeConnection':
         connectionUserName = message.params;
+        if (!validAccountName(connectionUserName)) {
+            return;
+        }
         request({
-            uri: METAVERSE_BASE + '/api/v1/user/connections/' + connectionUserName,
+            uri: METAVERSE_BASE + '/api/v1/user/connections/' + encodeURIComponent(connectionUserName),
             method: 'DELETE'
         }, function (error, response) {
             if (error || (response.status !== 'success')) {
@@ -319,9 +326,12 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
 
     case 'removeFriend':
         friendUserName = message.params;
+        if (!validAccountName(friendUserName)) {
+            return;
+        }
         printPrivatePalData("Removing " + friendUserName + " from friends.");
         request({
-            uri: METAVERSE_BASE + '/api/v1/user/friends/' + friendUserName,
+            uri: METAVERSE_BASE + '/api/v1/user/friends/' + encodeURIComponent(friendUserName),
             method: 'DELETE'
         }, function (error, response) {
             if (error || (response.status !== 'success')) {
@@ -334,6 +344,9 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
         break;
     case 'addFriend':
         friendUserName = message.params;
+        if (!validAccountName(friendUserName)) {
+            return;
+        }
         printPrivatePalData("Adding " + friendUserName + " to friends.");
         request({
             uri: METAVERSE_BASE + '/api/v1/user/friends',
