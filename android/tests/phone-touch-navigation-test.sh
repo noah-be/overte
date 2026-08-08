@@ -55,10 +55,10 @@ require "$device_cpp" 'touchscreenvirtualpad-phone[.]json' \
 require "$device_header" 'PINCH_OUT' 'pinch-out input channel is missing'
 require "$device_header" 'PINCH_IN' 'pinch-in input channel is missing'
 require "$device_cpp" 'totalScaleFactor\(\)' 'pinch scale is not consumed'
-require "$device_cpp" 'phonePinchZoomEnabled.*android/phone/pinchZoomEnabled.*false' \
-    'phone pinch zoom is not disabled by default'
-require "$device_cpp" 'if \(!phonePinchZoomEnabled[.]get\(\)\)' \
-    'phone pinch gestures do not honor the navigation preference'
+require "$device_cpp" 'settings[.]value\("android/phone/pinchZoomEnabled", false\)[.]toBool\(\)' \
+    'phone pinch zoom is not read live with a disabled default'
+reject "$device_cpp" 'static Setting::Handle<bool> phonePinchZoomEnabled' \
+    'phone pinch gestures retain a stale startup setting cache'
 require "$application_events" '#if !defined\(ANDROID_APP_PHONE_INTERFACE\)' \
     'phone gesture routing does not isolate the legacy keyboard pinch path'
 require "$application_events" '_keyboardMouseDevice->touchGestureEvent\(event\)' \

@@ -9,6 +9,9 @@ home="$repo_root/interface/resources/qml/hifi/tablet/TabletHome.qml"
 button="$repo_root/interface/resources/qml/hifi/tablet/TabletButton.qml"
 shared_config="$repo_root/interface/resources/qml/hifi/tablet/TabletTouchConfiguration.qml"
 phone_config="$repo_root/interface/resources/qml/hifi/tablet/+android_phoneInterface/TabletTouchConfiguration.qml"
+preferences_dialog="$repo_root/interface/resources/qml/hifi/tablet/tabletWindows/TabletPreferencesDialog.qml"
+shared_preferences_layout="$repo_root/interface/resources/qml/hifi/tablet/tabletWindows/TabletPreferencesLayout.qml"
+phone_preferences_layout="$repo_root/interface/resources/qml/hifi/tablet/tabletWindows/+android_phoneInterface/TabletPreferencesLayout.qml"
 
 require() {
     local file="$1"
@@ -31,6 +34,16 @@ require "$phone_config" 'property int maximumButtonExtent:[[:space:]]*120' \
     'launcher cards use compact logical units before host scaling'
 require "$phone_config" 'property int buttonSpacing:[[:space:]]*5' \
     'the compact app grid retains a clear gap between touch targets'
+require "$shared_preferences_layout" 'property bool compactFooter:[[:space:]]*false' \
+    'desktop and VR retain their established General Settings footer'
+require "$phone_preferences_layout" 'property bool compactFooter:[[:space:]]*true' \
+    'phone General Settings select compact footer controls'
+require "$phone_preferences_layout" 'property int buttonWidth:[[:space:]]*120' \
+    'phone preference buttons use unscaled logical width before host scaling'
+require "$phone_preferences_layout" 'property int buttonHeight:[[:space:]]*28' \
+    'phone preference buttons use unscaled logical height before host scaling'
+require "$preferences_dialog" 'preferencesLayout[.]compactFooter' \
+    'General Settings consumes the selector-backed footer layout'
 require "$shared_config" 'property bool showCloseButton:[[:space:]]*false' \
     'desktop and VR do not gain Android-specific tablet chrome'
 require "$phone_config" 'property bool showCloseButton:[[:space:]]*true' \

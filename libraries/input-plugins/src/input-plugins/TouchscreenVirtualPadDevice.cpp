@@ -27,10 +27,6 @@
 
 const char* TouchscreenVirtualPadDevice::NAME = "TouchscreenVirtualPad";
 
-#if defined(ANDROID_APP_PHONE_INTERFACE)
-static Setting::Handle<bool> phonePinchZoomEnabled { "android/phone/pinchZoomEnabled", false };
-#endif
-
 bool TouchscreenVirtualPadDevice::isSupported() const {
     for (auto touchDevice : QTouchDevice::devices()) {
         if (touchDevice->type() == QTouchDevice::TouchScreen) {
@@ -451,7 +447,11 @@ void TouchscreenVirtualPadDevice::touchGestureEvent(const QGestureEvent* event) 
         QPinchGesture* pinch = static_cast<QPinchGesture*>(gesture);
         _pinchScale = pinch->totalScaleFactor();
 #if defined(ANDROID_APP_PHONE_INTERFACE)
-        if (!phonePinchZoomEnabled.get()) {
+        // Preferences may update this key through a different Setting::Handle.
+        // Read the manager-backed value so a saved change takes effect without
+        // restarting instead of retaining this device's startup cache.
+        Settings settings;
+        if (!settings.value("android/phone/pinchZoomEnabled", false).toBool()) {
             _lastPinchScale = 0.0f;
             _pinchOut = 0.0f;
             _pinchIn = 0.0f;
