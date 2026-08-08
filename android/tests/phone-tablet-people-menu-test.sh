@@ -73,6 +73,14 @@ require "$menu_stack" 'phone.s dedicated SETTINGS app remains available separate
     'Menu policy preserves the dedicated tablet Settings route'
 require "$menu_stack" '!selectedItem[.]platformEnabled' \
     'Menu refuses to trigger unsupported Android actions'
+require "$menu_stack" 'function cancelPending\(\)' \
+    'Menu owns its deferred action lifecycle'
+require "$menu_stack" 'delay[.]cancelPending\(\)' \
+    'Menu replacement cancels a pending action'
+require "$menu_stack" 'd[.]isAndroidPhoneTablet\(\) && !d[.]isPhoneMenuItemSupported\(pendingItem\)' \
+    'Menu revalidates Phone policy at deferred execution time'
+require "$menu_stack" 'pendingItem = menuItem' \
+    'Menu detaches the pending reference before triggering an action'
 require "$menu_view" 'item[.]enabled && phoneSupported' \
     'Menu touch targets honor Android availability'
 require "$menu_item" 'property bool platformEnabled: true' \

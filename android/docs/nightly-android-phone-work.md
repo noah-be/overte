@@ -4,6 +4,29 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 36 — Own deferred Phone menu actions
+
+- Branch: `nightly/android-phone-36-menu-deferred-action`
+- Commit: `Harden deferred phone menu actions` (this task's commit)
+- Change: Give the zero-delay menu action timer explicit cancel/replace
+  semantics, clear it whenever the menu stack is replaced, detach its item
+  reference before execution, and revalidate the Phone allow/deny policy at
+  callback time. A stale touch can no longer trigger an action after Home/menu
+  replacement or after the action becomes unsupported.
+- Tests:
+  - `android/tests/phone-tablet-people-menu-test.sh`: **passed**, including timer
+    ownership, replacement cancellation, reference detachment, and execution-
+    time Phone-policy contracts.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/APK suites and 188/188 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: QML Timer scheduling is source-contract tested; actual event-loop
+  ordering during rapid multi-touch remains device-specific.
+- Real-device validation still required: **not executed for this task**. Tap
+  allowed and unavailable menu rows while immediately pressing Home/Back or
+  reopening Menu; confirm allowed actions fire once only while still current,
+  unavailable/stale actions never fire, and the menu remains responsive.
+
 ## 35 — Invalidate the Phone asset cache by content
 
 - Branch: `nightly/android-phone-35-content-cache-stamp`

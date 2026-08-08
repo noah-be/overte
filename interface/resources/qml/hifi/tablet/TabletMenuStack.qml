@@ -40,11 +40,24 @@ Item {
             repeat: false
             running: false
             function trigger(item) { // Capture item and schedule asynchronous Timer.
+                cancelPending();
                 menuItem = item;
                 start();
             }
+            function cancelPending() {
+                stop();
+                menuItem = null;
+            }
             onTriggered: {
-                menuItem.trigger(); // Now trigger the item.
+                var pendingItem = menuItem;
+                menuItem = null;
+                // The menu or platform policy may have changed between touch
+                // release and this deferred callback. Revalidate fail-closed.
+                if (pendingItem === null ||
+                        (d.isAndroidPhoneTablet() && !d.isPhoneMenuItemSupported(pendingItem))) {
+                    return;
+                }
+                pendingItem.trigger();
             }
         }
 
@@ -172,6 +185,7 @@ Item {
         }
 
         function clearMenus() {
+            delay.cancelPending()
             topMenu = null
             d.clear()
         }
