@@ -26,8 +26,8 @@ require "$desktop_config" 'showModeTabs:[[:space:]]*true' \
     'desktop and VR retain the established audio mode tabs'
 require "$desktop_config" 'showVrMode:[[:space:]]*true' \
     'VR clients retain their audio controls'
-require "$phone_config" 'showModeTabs:[[:space:]]*false' \
-    'phone Audio removes its redundant mode selector'
+require "$phone_config" 'showModeTabs:[[:space:]]*true' \
+    'phone Audio keeps the legacy form layout anchored to its native context tab'
 require "$phone_config" 'showVrMode:[[:space:]]*false' \
     'phone Audio does not offer unavailable HMD configuration'
 require "$phone_config" 'minimumControlHeight:[[:space:]]*20' \
