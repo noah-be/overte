@@ -1565,8 +1565,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 86 — Capture-buffer allocation rollback
 
 - Branch: `nightly/pico4-86-audio-buffer-allocation`
-- Commit: identified by subject `Contain Pico audio buffer allocation failure`;
-  the exact hash is recorded by the following stacked task or final report.
+- Commit: `6d88c2a223` (`Contain Pico audio buffer allocation failure`)
 - Change: move the microphone callback-buffer allocation inside the capture
   thread's protected `try/finally` and contain `OutOfMemoryError` alongside
   runtime read errors. Allocation failure now claims and releases the current
@@ -1579,6 +1578,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Inject callback-array OOM and restart
   capture; verify one stop/release, cleared state, no silent-stuck microphone and
   successful later source start after memory pressure is removed.
+
+### 87 — Contained AudioRecord cleanup errors
+
+- Branch: `nightly/pico4-87-audio-release-errors`
+- Commit: identified by subject `Contain Pico AudioRecord cleanup errors`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: independently contain RuntimeExceptions from AudioRecord stop and
+  release during explicit shutdown and startup/capture-loop rollback. A vendor
+  driver failure can no longer skip thread joining, subsequent release attempts,
+  capture-state retirement or the rest of Activity resource teardown.
+- Regression: audio lifecycle contracts require guarded stop, join and guarded
+  release ordering in both public stop and shared rollback helper.
+- Passed: 9 audio transport/lifecycle contracts; `git diff --check`.
+- Risk: driver cleanup failures are logged and shutdown continues; hardware that
+  actually refuses release still relies on Android process cleanup.
+- Pico 4 validation: **not executed**. Inject stop and release exceptions during
+  source switch, read failure and Activity destruction; verify state clears,
+  remaining cleanup runs, restart stays bounded and later capture can recover.
 
 ## Deferred, rejected, or blocked ideas
 

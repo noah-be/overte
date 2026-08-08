@@ -121,6 +121,31 @@ class PicoAudioTransportTests(unittest.TestCase):
         self.assertLess(catch, finally_block)
         self.assertLess(finally_block, release)
 
+    def test_audio_stop_and_release_driver_errors_are_contained(self):
+        stop_start = JAVA.index("public static void stop()")
+        stop_end = JAVA.index("private static int resolveAudioSource", stop_start)
+        stop = JAVA[stop_start:stop_end]
+        stop_call = stop.index("oldRecorder.stop()")
+        stop_catch = stop.index("catch (RuntimeException exception)", stop_call)
+        join = stop.index("oldThread.join(1000)", stop_catch)
+        release_call = stop.index("oldRecorder.release()", join)
+        release_catch = stop.index("catch (RuntimeException exception)", release_call)
+        self.assertLess(stop_call, stop_catch)
+        self.assertLess(stop_catch, join)
+        self.assertLess(join, release_call)
+        self.assertLess(release_call, release_catch)
+
+        helper_start = JAVA.index("private static void stopAndRelease")
+        helper_end = JAVA.index("private static String audioSourceName", helper_start)
+        helper = JAVA[helper_start:helper_end]
+        helper_stop = helper.index("activeRecorder.stop()")
+        helper_stop_catch = helper.index("catch (RuntimeException exception)", helper_stop)
+        helper_release = helper.index("activeRecorder.release()", helper_stop_catch)
+        helper_release_catch = helper.index("catch (RuntimeException exception)", helper_release)
+        self.assertLess(helper_stop, helper_stop_catch)
+        self.assertLess(helper_stop_catch, helper_release)
+        self.assertLess(helper_release, helper_release_catch)
+
 
 if __name__ == "__main__":
     unittest.main()

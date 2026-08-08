@@ -154,7 +154,7 @@ public final class AndroidAudioInput {
         }
         try {
             oldRecorder.stop();
-        } catch (IllegalStateException exception) {
+        } catch (RuntimeException exception) {
             Log.w(TAG, "AudioRecord was already stopped", exception);
         }
         if (oldThread != null && oldThread != Thread.currentThread()) {
@@ -164,7 +164,11 @@ public final class AndroidAudioInput {
                 Thread.currentThread().interrupt();
             }
         }
-        oldRecorder.release();
+        try {
+            oldRecorder.release();
+        } catch (RuntimeException exception) {
+            Log.w(TAG, "Could not release AudioRecord", exception);
+        }
         Log.i(TAG, "Stopped AudioRecord");
     }
 
@@ -188,10 +192,14 @@ public final class AndroidAudioInput {
     private static void stopAndRelease(AudioRecord activeRecorder) {
         try {
             activeRecorder.stop();
-        } catch (IllegalStateException exception) {
+        } catch (RuntimeException exception) {
             Log.w(TAG, "AudioRecord was already stopped during startup rollback", exception);
         }
-        activeRecorder.release();
+        try {
+            activeRecorder.release();
+        } catch (RuntimeException exception) {
+            Log.w(TAG, "Could not release AudioRecord during cleanup", exception);
+        }
     }
 
     private static String audioSourceName(int audioSource) {
