@@ -296,10 +296,9 @@ HUD rays continue to handle the tablet and other 2D surfaces.
 - [ ] Rapid trigger/grip and tracking-interruption stress testing is deferred
   until the known interaction performance problem is resolved; current frame
   delays make its timing and results unreliable.
-- [ ] Web-entity interaction is deferred to a dedicated Pico Web-entity branch.
-  A local Web test panel currently renders `This feature is not supported` on
-  the Pico client, so hover, press, drag, release, and scrolling cannot yet be
-  evaluated in this object-interaction branch.
+- [ ] Web-entity interaction is implemented and tracked separately in
+  `android/docs/pico4-web-entities.md`. Keep the controller acceptance results
+  there independent from the already confirmed object-grab behavior.
 
 ## Deferred performance investigation
 

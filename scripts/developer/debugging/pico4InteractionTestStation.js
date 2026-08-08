@@ -140,6 +140,7 @@ addFixture({
 
 console.info("PICO4_INTERACTION_TEST_STATION ready fixtures=" + JSON.stringify(fixtureIDs));
 Script.load(Script.resolvePath("pico4ObjectInteraction.js"));
+Script.load(Script.resolvePath("../tests/picoWebEntityTest.js"));
 
 Script.scriptEnding.connect(function () {
     Script.clearInterval(highlightTraceTimer);
