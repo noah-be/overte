@@ -138,8 +138,6 @@ public final class PicoInterfaceActivity extends QtActivity {
         // Pico controller input is handled through OpenXR. Pico OS also sends
         // some controller buttons through Android, which can otherwise queue
         // indefinitely behind Qt's native event loop and trigger an input ANR.
-        Log.d(TAG, "Consuming Android key event " + event.getKeyCode()
-            + " action=" + event.getAction());
         return true;
     }
 }

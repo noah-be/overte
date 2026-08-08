@@ -1343,8 +1343,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 73 — Validated Pico display-refresh capability
 
 - Branch: `nightly/pico4-73-openxr-refresh-capability`
-- Commit: identified by subject `Validate Pico OpenXR refresh rates`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `93c2ff47d3` (`Validate Pico OpenXR refresh rates`)
 - Change: atomically disable and clear the FB display-refresh capability when
   any required entry point is missing, reject empty or count-changing runtime
   enumerations, and select the existing lowest-rate policy only from finite,
@@ -1357,6 +1356,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Inject missing FB functions and malformed/
   changing rate lists; verify startup/rendering continues at runtime defaults.
   With Pico's normal 72/90 Hz list, verify the logged/requested mode remains 72 Hz.
+
+### 74 — Quiet Android controller-key hot path
+
+- Branch: `nightly/pico4-74-controller-key-logging`
+- Commit: identified by subject `Remove Pico controller key hot-path logging`;
+  the exact hash is recorded by the following stacked task or final report.
+- Change: retain the deliberate consume-all behavior for Pico OS controller key
+  duplicates, but remove per-event debug string construction/logging from the
+  Android dispatch hot path. OpenXR remains the authoritative controller source
+  and the existing opt-in transition/latency diagnostics remain available.
+- Regression: Android entry-point contracts require immediate consumption while
+  forbidding logging and key/action extraction within `dispatchKeyEvent`.
+- Passed: 8 Android entry-point/lifecycle contracts; `git diff --check`.
+- Risk: individual duplicate Android key codes are no longer visible in logcat;
+  this path intentionally does not drive Overte input.
+- Pico 4 validation: **not executed**. Hold/repeat every controller button while
+  watching input latency and ANR behavior; verify OpenXR button transitions are
+  unchanged and no `Consuming Android key event` log flood remains.
 
 ## Deferred, rejected, or blocked ideas
 

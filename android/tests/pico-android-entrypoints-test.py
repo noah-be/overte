@@ -111,6 +111,15 @@ class AndroidEntrypointsTest(unittest.TestCase):
         self.assertLess(release, detach)
         self.assertNotIn("overtePicoOpenXRActivity\"", source)
 
+    def test_controller_key_hot_path_is_consumed_without_logging(self):
+        activity = (JAVA / "PicoInterfaceActivity.java").read_text(encoding="utf-8")
+        start = activity.index("public boolean dispatchKeyEvent(KeyEvent event)")
+        body = activity[start:activity.index("\n    }", start)]
+        self.assertIn("return true;", body)
+        self.assertNotIn("Log.", body)
+        self.assertNotIn("event.getKeyCode()", body)
+        self.assertNotIn("event.getAction()", body)
+
 
 if __name__ == "__main__":
     unittest.main()
