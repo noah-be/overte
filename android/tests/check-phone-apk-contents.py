@@ -25,6 +25,7 @@ DEPENDENCY_XML = (
     Path(__file__).resolve().parents[1]
     / "apps/phoneInterface/src/main/res/values/qt_dependencies.xml"
 )
+REQUIRED_CACHED_ASSETS = {"resources.rcc", "android_rcc_bundle.rcc"}
 
 
 def is_safe_relative_path(value):
@@ -139,6 +140,12 @@ def main():
                 raise ValueError("cache_assets.txt contains an unsafe asset path")
             if len(cache_paths) != len(set(cache_paths)):
                 raise ValueError("cache_assets.txt contains a duplicate asset path")
+            missing_cached_assets = REQUIRED_CACHED_ASSETS - set(cache_paths)
+            if missing_cached_assets:
+                raise ValueError(
+                    "cache_assets.txt omits required extracted assets: "
+                    + ", ".join(sorted(missing_cached_assets))
+                )
             declared_assets = {"assets/" + path for path in cache_paths}
             missing_assets = declared_assets - names
             if missing_assets:

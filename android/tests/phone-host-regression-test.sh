@@ -108,6 +108,10 @@ require_text tests/check-phone-apk-contents.py 'duplicate ZIP entry names' \
     'APK completeness gate rejects ambiguous duplicate archive entries'
 require_text tests/check-phone-apk-contents.py 'outside arm64-v8a' \
     'APK completeness gate rejects native payload for unexpected ABIs'
+require_text tests/check-phone-apk-contents.py 'REQUIRED_CACHED_ASSETS' \
+    'APK completeness gate identifies start-critical extracted bundles'
+require_text tests/check-phone-apk-contents.py 'omits required extracted assets' \
+    'APK completeness gate rejects bundles absent from the cache manifest'
 require_text tests/check-phone-apk-contents.py '"[.][.]" not in path[.]parts' \
     'APK completeness gate rejects traversing Qt extraction declarations'
 require_text libraries/qt/src/main/java/io/highfidelity/utils/HifiUtils.java \

@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 48 — Require extraction of packaged resource bundles
+
+- Branch: `nightly/android-phone-48-apk-cache-contract`
+- Commit: `Require phone resource bundle extraction` (this task's commit)
+- Change: Require `resources.rcc` and `android_rcc_bundle.rcc` not only to exist
+  in the APK but also to appear in `cache_assets.txt`. A package whose bundles
+  cannot reach the application cache now fails before install rather than
+  passing content checks and failing during native/QML startup.
+- Tests:
+  - `android/tests/phone-apk-contents-test.sh`: **passed**, with corrected
+    complete fixtures and an explicit present-in-APK/but-omitted-from-cache case.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 196/196 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/APK suites and 196/196 host checks.
+  - Python syntax and `git diff --check`: **passed**.
+- Known risks: Raw QML module files are consumed through the generated RCC and
+  therefore intentionally need not all be extracted individually.
+- Real-device validation still required: Covered by the cumulative cold-start
+  and QML-module smoke test on the final gated APK; no separate hardware-only
+  behavior is introduced.
+
 ## 47 — Reject ambiguous or multi-ABI Phone APKs
 
 - Branch: `nightly/android-phone-47-apk-archive-uniqueness`

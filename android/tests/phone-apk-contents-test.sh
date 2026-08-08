@@ -83,20 +83,22 @@ assert len(declared_asset_markers) == 12
 assert 'assets/qml/QtQuick.2/qmldir' in declared_asset_markers
 required.update({entry: b'declared-runtime' for entry in declared_libraries})
 required.update({entry: b'qmldir' for entry in declared_asset_markers})
+cache_manifest = '123\nresources.rcc\nandroid_rcc_bundle.rcc\nkept.txt\n'
 for name, omit in [('complete.apk', None), ('partial.apk', 'assets/kept.txt')]:
     with zipfile.ZipFile(root / name, 'w') as archive:
-        archive.writestr('assets/cache_assets.txt', '123\nkept.txt\n')
+        archive.writestr('assets/cache_assets.txt', cache_manifest)
         for entry, data in required.items():
             if entry != omit:
                 archive.writestr(entry, data)
 
 with zipfile.ZipFile(root / 'content-digest.apk', 'w') as archive:
-    archive.writestr('assets/cache_assets.txt', ('a' * 64) + '\nkept.txt\n')
+    archive.writestr('assets/cache_assets.txt',
+                     ('a' * 64) + '\nresources.rcc\nandroid_rcc_bundle.rcc\nkept.txt\n')
     for entry, data in required.items():
         archive.writestr(entry, data)
 
 with zipfile.ZipFile(root / 'unexpected-abi.apk', 'w') as archive:
-    archive.writestr('assets/cache_assets.txt', '123\nkept.txt\n')
+    archive.writestr('assets/cache_assets.txt', cache_manifest)
     for entry, data in required.items():
         archive.writestr(entry, data)
     archive.writestr('lib/x86_64/libstale.so', b'stale')
@@ -104,10 +106,15 @@ with zipfile.ZipFile(root / 'unexpected-abi.apk', 'w') as archive:
 with warnings.catch_warnings():
     warnings.simplefilter('ignore', UserWarning)
     with zipfile.ZipFile(root / 'duplicate-entry.apk', 'w') as archive:
-        archive.writestr('assets/cache_assets.txt', '123\nkept.txt\n')
+        archive.writestr('assets/cache_assets.txt', cache_manifest)
         for entry, data in required.items():
             archive.writestr(entry, data)
         archive.writestr('assets/kept.txt', b'duplicate')
+
+with zipfile.ZipFile(root / 'missing-required-cache-entry.apk', 'w') as archive:
+    archive.writestr('assets/cache_assets.txt', '123\nresources.rcc\nkept.txt\n')
+    for entry, data in required.items():
+        archive.writestr(entry, data)
 
 invalid_manifests = {
     'cache-traversal.apk': '123\n../escape\n',
@@ -129,7 +136,7 @@ with (root / 'native-fixtures.txt').open('w', encoding='utf-8') as fixture_list:
     for index, omitted in enumerate(native_entries):
         fixture = root / f'missing-native-{index}.apk'
         with zipfile.ZipFile(fixture, 'w') as archive:
-            archive.writestr('assets/cache_assets.txt', '123\nkept.txt\n')
+            archive.writestr('assets/cache_assets.txt', cache_manifest)
             for entry, data in required.items():
                 if entry != omitted:
                     archive.writestr(entry, data)
@@ -139,7 +146,7 @@ with (root / 'qml-asset-fixtures.txt').open('w', encoding='utf-8') as fixture_li
     for index, omitted in enumerate(sorted(declared_asset_markers)):
         fixture = root / f'missing-qml-asset-{index}.apk'
         with zipfile.ZipFile(fixture, 'w') as archive:
-            archive.writestr('assets/cache_assets.txt', '123\nkept.txt\n')
+            archive.writestr('assets/cache_assets.txt', cache_manifest)
             for entry, data in required.items():
                 if entry != omitted:
                     archive.writestr(entry, data)
@@ -148,6 +155,13 @@ PY
 
 "$checker" "$fixture_dir/complete.apk" >/dev/null
 "$checker" "$fixture_dir/content-digest.apk" >/dev/null
+if "$checker" "$fixture_dir/missing-required-cache-entry.apk" \
+        >"$fixture_dir/required-cache-out" 2>&1; then
+    echo 'FAIL: APK with an unextractable required resource bundle was accepted' >&2
+    exit 1
+fi
+grep -Fq 'omits required extracted assets: android_rcc_bundle.rcc' \
+    "$fixture_dir/required-cache-out"
 for fixture in unexpected-abi.apk duplicate-entry.apk; do
     if "$checker" "$fixture_dir/$fixture" >"$fixture_dir/archive-out" 2>&1; then
         printf 'FAIL: invalid APK archive structure was accepted: %s\n' "$fixture" >&2
