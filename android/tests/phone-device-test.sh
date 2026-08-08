@@ -137,7 +137,7 @@ require_stable_pid() {
 
 phone_activity_is_resumed() {
     adb_for shell dumpsys activity activities 2>/dev/null | \
-        grep -Eq 'mResumedActivity.*org\.overte\.phone/(\.PhoneInterfaceActivity|org\.overte\.phone\.PhoneInterfaceActivity)'
+        grep -Eq '(mResumedActivity|topResumedActivity).*org\.overte\.phone/(\.PhoneInterfaceActivity|org\.overte\.phone\.PhoneInterfaceActivity)'
 }
 
 printf '\nInstalling APK on the selected phone...\n'

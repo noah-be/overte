@@ -388,7 +388,7 @@ require_text tests/phone-device-test.sh 'logcat -d -v threadtime --pid=' \
     'device reports restrict logcat to the phone app process'
 require_text tests/phone-device-test.sh 'require_stable_pid "launch" "\$pid" 30' \
     'device test requires one stable process for thirty seconds after launch'
-require_text tests/phone-device-test.sh 'mResumedActivity.*PhoneInterfaceActivity' \
+require_text tests/phone-device-test.sh '\(mResumedActivity\|topResumedActivity\).*PhoneInterfaceActivity' \
     'device test requires the Qt phone activity to be visibly resumed'
 require_text tests/phone-device-test.sh 'reason=\[\[:space:\]\]\*\(4\|5\)' \
     'device test recognizes Android numeric Java and native crash exit reasons'
