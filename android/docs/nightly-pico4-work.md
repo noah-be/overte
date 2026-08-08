@@ -444,8 +444,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 25 — Create message property allowlist
 
 - Branch: `nightly/pico4-25-create-message-validation`
-- Commit: identified by subject `Validate Pico Create property messages`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `92ca2ba9bd` (`Validate Pico Create property messages`)
 - Change: validate QML Preview/Apply payloads again in `edit.js` through a
   shared allowlist module; require finite vectors/colors and strict booleans,
   clamp dimensions/colors, copy only supported properties, and reject missing
@@ -459,6 +458,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Preview/apply every exposed property and
   undo it; inject malformed QML messages and confirm no entity edit or script
   failure occurs.
+
+### 26 — Tablet setting sanitization
+
+- Branch: `nightly/pico4-26-tablet-setting-sanitization`
+- Commit: identified by subject `Sanitize Pico tablet settings`; the exact hash
+  is recorded by the following stacked task or final report.
+- Change: centralize Pico tablet distance, height, and tilt normalization;
+  replace nonfinite persisted values with defaults and clamp finite values to
+  the UI-supported ranges before spawn math or QML display.
+- Regression: Node behavior tests cover defaults, numeric strings, NaN/
+  infinities, and both range boundaries.
+- Passed: tablet setting behavior test; affected JavaScript syntax; full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: only the Pico-centered setting keys use the new helper; desktop/HMD
+  legacy placement remains unchanged.
+- Pico 4 validation: **not executed**. Seed corrupt and out-of-range settings,
+  launch/open the tablet and position page, and verify finite bounded placement
+  plus recovery through Apply/Reset.
 
 ## Deferred, rejected, or blocked ideas
 

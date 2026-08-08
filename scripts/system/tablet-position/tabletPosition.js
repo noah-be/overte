@@ -5,6 +5,8 @@
 (function () {
     var CHANNEL = "Pico-Tablet-Position";
     var QML_URL = Script.resolvePath("TabletPosition.qml");
+    var sanitizeSettings = Script.require(
+        Script.resolvePath("../libraries/picoTabletSettings.js"));
     var tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
     var active = false;
     var button = tablet.addButton({
@@ -15,11 +17,16 @@
     });
 
     function currentValues() {
+        var values = sanitizeSettings(
+            Settings.getValue("picoTabletForwardOffset", 1.25),
+            Settings.getValue("picoTabletUpOffset", -0.52),
+            Settings.getValue("picoTabletTiltDegrees", -18)
+        );
         return {
             type: "values",
-            forward: Number(Settings.getValue("picoTabletForwardOffset", 1.25)),
-            up: Number(Settings.getValue("picoTabletUpOffset", -0.52)),
-            tilt: Number(Settings.getValue("picoTabletTiltDegrees", -18))
+            forward: values.forward,
+            up: values.up,
+            tilt: values.tilt
         };
     }
 
