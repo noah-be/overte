@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 55 — Exercise repeatable device lifecycle stress
+
+- Branch: `nightly/android-phone-55-device-lifecycle-stress`
+- Commit: `Extend unattended phone lifecycle smoke` (this task's commit)
+- Change: Expand the deterministic device smoke from one Home transition to
+  three background/foreground cycles and one unconsumed Back/background/reopen
+  cycle. Every phase requires the original native process, and dumpsys state
+  must prove that the Phone activity really left and regained the foreground.
+- Tests:
+  - `bash -n android/tests/phone-device-test.sh`: **passed**.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 215/215 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 215/215 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: Vendor launchers and power managers can expose lifecycle timing
+  differences; bounded waits deliberately turn those differences into a clear
+  device-test failure rather than a silent pass.
+- Real-device validation still required: Run this exact smoke against a
+  provenance-verified current APK on gesture- and three-button-navigation
+  phones; confirm all three Home cycles and Back recovery retain one PID.
+
 ## 54 — Verify the package actually installed on the phone
 
 - Branch: `nightly/android-phone-54-device-smoke-integrity`

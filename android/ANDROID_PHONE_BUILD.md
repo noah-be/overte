@@ -352,9 +352,10 @@ management deserve explicit checks. Automated static validation cannot expose
 these device/runtime problems.
 
 Run the repeatable smoke test against an already built APK with an explicit
-device serial. It installs the app, exercises launch, a fixed local test deep
-link, and a background/foreground transition, and records aggregate crash and
-16 KiB compatibility diagnostics in a temporary report directory:
+device serial. It installs the app, verifies the installed bytes, exercises
+launch, a fixed local test deep link, three background/foreground cycles, and a
+process-preserving Back/background/recovery cycle. It records aggregate crash
+and 16 KiB compatibility diagnostics in a temporary report directory:
 
 ```bash
 ANDROID_SERIAL=<phone-serial> ./tests/phone-device-test.sh

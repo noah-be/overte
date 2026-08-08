@@ -511,6 +511,14 @@ require_text tests/phone-device-test.sh 'require_stable_pid "launch" "\$pid" 30'
     'device test requires one stable process for thirty seconds after launch'
 require_text tests/phone-device-test.sh '\(mResumedActivity\|topResumedActivity\).*PhoneInterfaceActivity' \
     'device test requires the Qt phone activity to be visibly resumed'
+require_text tests/phone-device-test.sh 'for lifecycle_cycle in 1 2 3' \
+    'device test repeats the unattended background and foreground lifecycle'
+require_text tests/phone-device-test.sh 'KEYCODE_BACK' \
+    'device test exercises the phone Back-to-background lifecycle'
+require_text tests/phone-device-test.sh 'phone_activity_is_backgrounded' \
+    'device test verifies that Home and Back actually leave the activity backgrounded'
+require_text tests/phone-device-test.sh 'back_recovery_survived=1' \
+    'device test records successful process-preserving Back recovery'
 require_text tests/phone-device-test.sh 'reason=\[\[:space:\]\]\*\(4\|5\)' \
     'device test recognizes Android numeric Java and native crash exit reasons'
 reject_text tests/phone-device-test.sh \
