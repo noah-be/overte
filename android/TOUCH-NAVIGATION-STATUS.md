@@ -23,9 +23,6 @@ process remained running with no fatal entries in the PID-filtered diagnostic.
 
 ## Next steps
 
-- Remove the remaining VR-only preferences from Android phone Tablet General
-  Settings. Keep that filtering phone-specific so desktop, Pico, and other VR
-  clients retain their established settings.
 - Recheck text entry in address, login, and settings fields after the dynamic
   IME gating change.
 
@@ -40,6 +37,12 @@ virtual pad and action bars, and restores world controls when closed.
 The dedicated phone tablet registrar owns the Settings button. The generic
 Settings startup script is deliberately not loaded as well, avoiding duplicate
 Settings buttons and mutable QML button-proxy updates.
+
+Phone General Settings now uses a fail-closed category allowlist. It retains
+phone pinch navigation, touch-look X/Y sensitivity, and privacy controls while
+excluding the shared categories that still contain desktop toolbar/tablet,
+desktop filesystem, HMD, VR laser/keyboard, and Oculus-only controls. Desktop,
+Pico, and other VR clients retain their established categories.
 
 The combined tablet and touch-navigation host regression suites pass. The
 incremental phone build, APK gates, and focused manual integration checks are

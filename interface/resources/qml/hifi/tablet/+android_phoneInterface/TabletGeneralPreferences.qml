@@ -30,6 +30,12 @@ StackView {
     TabletPreferencesDialog {
         id: root
         objectName: "TabletGeneralPreferences"
-        showCategories: ["Navigation", "User Interface", "Mouse Sensitivity", "HMD", "Snapshots", "Privacy", "Plugins"]
+        // Keep this fail-closed. The shared User Interface category still
+        // contains desktop toolbar/tablet and VR laser/keyboard controls;
+        // Snapshots exposes a desktop directory picker; HMD and Plugins are
+        // VR-only. Hidden individual preferences are still loaded and saved by
+        // TabletPreferencesDialog, so only admit categories whose complete
+        // contract is meaningful on the phone.
+        showCategories: ["Navigation", "Mouse Sensitivity", "Privacy"]
     }
 }
