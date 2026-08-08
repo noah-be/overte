@@ -49,8 +49,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 03 — Microphone stale-capture isolation
 
 - Branch: `nightly/pico4-03-microphone-stale-capture`
-- Commit: identified by subject `Discard stale Pico microphone reads`; the
-  exact hash is recorded by the following stacked task or the final report.
+- Commit: `423221f3ed` (`Discard stale Pico microphone reads`)
 - Change: after each blocking `AudioRecord.read()`, deliver bytes only if
   capture is still running and the reader is still the current recorder. This
   prevents a final old-source buffer from entering the FIFO after stop, source
@@ -65,6 +64,28 @@ headset, ADB, Android device, external domain, or device setting is used.
   sources while speaking distinct markers, stop/restart capture during input,
   and verify the first buffer after each switch belongs only to the new source;
   then run the documented transport/backpressure and long-duration checks.
+
+### 04 — OpenXR loader JNI lifecycle
+
+- Branch: `nightly/pico4-04-openxr-loader-lifecycle`
+- Commit: identified by subject `Harden Pico OpenXR loader lifecycle`; the
+  exact hash is recorded by the following stacked task or the final report.
+- Change: construct Activity/application-context global references as a
+  temporary set, publish them only after loader initialization succeeds, clean
+  every early failure path, release the Activity-class local reference, and on
+  Activity recreation reuse the process-global loader while replacing only the
+  Activity reference.
+- Regression: `python3 android/tests/pico-openxr-loader-test.py` checks the
+  recreation, transactional-publication, and local-reference contracts.
+- Passed: OpenXR loader lifecycle regression (3 tests); `git diff --check`.
+- Build not run: the Pico Conan/Qt generator metadata needed by the Android
+  build is absent in this worktree, as documented in task 02.
+- Risk: the source-level test cannot create a real Pico OpenXR loader or force
+  Android Activity recreation during an active XR session.
+- Pico 4 validation: **not executed**. Cold-start repeatedly, background and
+  resume the app, trigger Activity recreation if supported, then confirm a
+  single loader initialization, a refreshed Activity, no invalid JNI reference,
+  and successful session creation after each lifecycle transition.
 
 ## Cumulative remaining device validation
 
