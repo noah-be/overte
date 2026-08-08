@@ -309,10 +309,12 @@ Script.include("/~/system/libraries/controllers.js");
             var newTargetPosLocal = MyAvatar.worldToJointPoint(newTargetPosition);
 
             // This block handles the user's ability to rotate the object they're FarGrabbing
+            var manipulationPose = null;
             if (this.shouldManipulateTarget(controllerData)) {
                 // Get the pose of the controller that is not grabbing.
-                var pose = Controller.getPoseValue((this.getOffhand() ? controllerStandard.RightHand : controllerStandard.LeftHand));
-                if (pose.valid) {
+                manipulationPose = Controller.getPoseValue(
+                    this.getOffhand() ? controllerStandard.RightHand : controllerStandard.LeftHand);
+                if (manipulationPose.valid) {
                     // If we weren't manipulating the object yet, initialize the entity's original position.
                     if (!this.manipulating) {
                         // This will only be triggered if we've let go of the off-hand trigger and pulled it again without ending a grab.
@@ -322,12 +324,15 @@ Script.include("/~/system/libraries/controllers.js");
                         }
                         // Save the original controller orientation, we only care about the delta between this rotation and wherever
                         // the controller rotates, so that we can apply it to the entity's rotation.
-                        this.initialControllerRotation = Quat.multiply(pose.rotation, MyAvatar.orientation);
+                        this.initialControllerRotation = Quat.multiply(
+                            manipulationPose.rotation, MyAvatar.orientation);
                         this.manipulating = true;
                     }
                 }
+            }
 
-                var rot = Quat.multiply(pose.rotation, MyAvatar.orientation);
+            if (manipulationPose && manipulationPose.valid) {
+                var rot = Quat.multiply(manipulationPose.rotation, MyAvatar.orientation);
                 var rotBetween = this.calculateEntityRotationManipulation(rot);
                 var doubleRot = Quat.multiply(rotBetween, rotBetween);
                 this.lastJointRotation = Quat.multiply(doubleRot, this.initialEntityRotation);

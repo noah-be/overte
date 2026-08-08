@@ -192,8 +192,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 11 — Dispatcher slot release
 
 - Branch: `nightly/pico4-11-dispatcher-slot-release`
-- Commit: identified by subject `Release deactivated controller slots`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `85209bedc1` (`Release deactivated controller slots`)
 - Change: when a running controller module disappears, test property ownership
   on the dispatcher slot table rather than on the slot-name string. Matching
   hand/trigger activity slots are now actually returned to the dispatcher.
@@ -206,6 +205,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Disable or unload a module while it owns
   each hand/trigger slot, then immediately start another module on that slot;
   verify interaction resumes without restarting controller scripts.
+
+### 12 — Off-hand tracking-loss rotation guard
+
+- Branch: `nightly/pico4-12-offhand-tracking-loss`
+- Commit: identified by subject `Guard Pico off-hand rotation tracking`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: far-grab rotation consumes the other controller's quaternion only
+  while its current pose is valid. Tracking loss ends manipulation through the
+  existing preservation path, retaining the last valid entity rotation.
+- Regression: the Node interaction contract requires the current valid-pose
+  guard and rejects the former unguarded `pose.rotation` expression.
+- Passed: far-grab and test JavaScript syntax; interaction Node test; full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: this changes shared far-grab code to fail closed, matching the Pico
+  tracking-loss requirement without changing manipulation thresholds or math.
+- Pico 4 validation: **not executed**. Rotate a far-grabbed object with the
+  other hand, interrupt only that hand's tracking, and verify the object keeps
+  its last valid rotation, translation continues with the grabbing hand, and
+  rotation resumes smoothly after a fresh manipulation press.
 
 ## Deferred, rejected, or blocked ideas
 

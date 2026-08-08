@@ -9,11 +9,17 @@ const path = require("path");
 
 const dispatcherSource = fs.readFileSync(path.resolve(__dirname,
     "../../scripts/system/controllers/controllerDispatcher.js"), "utf8");
+const farGrabSource = fs.readFileSync(path.resolve(__dirname,
+    "../../scripts/system/controllers/controllerModules/farGrabEntity.js"), "utf8");
 assert.ok(dispatcherSource.includes(
     "_this.activitySlots.hasOwnProperty(activitySlot)"),
 "dispatcher must test ownership on the slot table");
 assert.ok(!dispatcherSource.includes("activitySlot.hasOwnProperty(activitySlot)"),
     "dispatcher must not test ownership on a slot-name string");
+assert.ok(farGrabSource.includes("if (manipulationPose && manipulationPose.valid)"),
+    "off-hand rotation must be guarded by a current valid pose");
+assert.ok(!farGrabSource.includes("Quat.multiply(pose.rotation"),
+    "far grab must not consume the old unguarded pose variable");
 
 let updateCallback;
 let endingCallback;

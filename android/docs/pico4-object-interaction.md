@@ -34,6 +34,11 @@ are released by checking ownership on the slot table itself. This prevents a
 removed grab, Web, HUD, keyboard, or Create module from permanently blocking
 the next module that needs the same Pico hand or trigger slot.
 
+Off-hand far-grab rotation now reads the other controller's quaternion only
+when that pose is currently valid. Losing tracking on the manipulating hand
+preserves the last valid rotation and exits manipulation without interrupting
+translation from the hand that still owns the grab.
+
 ## Static implementation audit
 
 The Android OpenXR plugin enables `XR_BD_controller_interaction` when the
