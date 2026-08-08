@@ -1163,8 +1163,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 63 — Activity instance lifecycle publication
 
 - Branch: `nightly/pico4-63-activity-instance-lifecycle`
-- Commit: identified by subject `Retire Pico Activity before cleanup`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `bd35077dd5` (`Retire Pico Activity before cleanup`)
 - Change: publish the static Pico Activity reference as `volatile` for native/
   Java cross-thread restart access and clear the exact dying instance at the
   beginning of `onDestroy`, before WebView, microphone and OpenXR cleanup. New
@@ -1178,6 +1177,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Race restart/Web entity creation against
   finish, recreation and process shutdown; verify no stale Activity use, leaked
   resource, missed normal restart or crash during cleanup.
+
+### 64 — Transactional restart scheduling
+
+- Branch: `nightly/pico4-64-restart-scheduling-failure`
+- Commit: identified by subject `Roll back failed Pico restart scheduling`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: guard PendingIntent/AlarmManager scheduling, fail closed when the
+  service is absent, and synchronously clear private restart arguments on every
+  scheduling exception before leaving the current Activity running. Consuming
+  arguments now returns them only when their one-time removal commits.
+- Regression: Android entry-point contracts cover null service, runtime failure,
+  cleanup-before-return, explicit clear support and committed one-time consume.
+- Passed: 6 Android entry-point/restart contracts; full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: a scheduling failure no longer kills the current process or leaves a
+  later replayable handoff; normal successfully scheduled restarts are unchanged.
+- Pico 4 validation: **not executed**. Deny exact alarms/remove AlarmManager and
+  inject PendingIntent/set failures; verify the current session survives with no
+  stale restart, then restore scheduling and confirm one successful relaunch.
 
 ## Deferred, rejected, or blocked ideas
 

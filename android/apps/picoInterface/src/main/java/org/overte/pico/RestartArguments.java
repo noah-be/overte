@@ -23,8 +23,11 @@ final class RestartArguments {
     static String consume(Context context) {
         SharedPreferences preferences = preferences(context);
         String arguments = preferences.getString(KEY_ARGUMENTS, null);
-        preferences.edit().remove(KEY_ARGUMENTS).apply();
-        return arguments;
+        return preferences.edit().remove(KEY_ARGUMENTS).commit() ? arguments : null;
+    }
+
+    static boolean clear(Context context) {
+        return preferences(context).edit().remove(KEY_ARGUMENTS).commit();
     }
 
     private static SharedPreferences preferences(Context context) {

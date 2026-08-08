@@ -68,28 +68,39 @@ public final class PicoInterfaceActivity extends QtActivity {
         }
         Log.i(TAG, "Scheduling application restart");
 
-        Intent restartIntent = new Intent(activity, RestartActivity.class);
-        restartIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-            | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        try {
+            Intent restartIntent = new Intent(activity, RestartActivity.class);
+            restartIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                | Intent.FLAG_ACTIVITY_CLEAR_TASK);
 
-        PendingIntent pendingIntent = PendingIntent.getActivity(
-            activity,
-            1001,
-            restartIntent,
-            PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        AlarmManager alarmManager =
-            (AlarmManager) activity.getSystemService(Context.ALARM_SERVICE);
-        // Pico OS may batch inexact alarms as soon as the activity closes,
-        // which leaves the application stopped instead of relaunching it.
-        long restartAt = SystemClock.elapsedRealtime() + 1500;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                && !alarmManager.canScheduleExactAlarms()) {
-            alarmManager.setAndAllowWhileIdle(
-                AlarmManager.ELAPSED_REALTIME,
-                restartAt,
-                pendingIntent);
-        } else {
-            scheduleExactRestart(alarmManager, restartAt, pendingIntent);
+            PendingIntent pendingIntent = PendingIntent.getActivity(
+                activity,
+                1001,
+                restartIntent,
+                PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            AlarmManager alarmManager =
+                (AlarmManager) activity.getSystemService(Context.ALARM_SERVICE);
+            if (alarmManager == null) {
+                Log.e(TAG, "Cannot restart: AlarmManager is unavailable");
+                RestartArguments.clear(activity);
+                return;
+            }
+            // Pico OS may batch inexact alarms as soon as the activity closes,
+            // which leaves the application stopped instead of relaunching it.
+            long restartAt = SystemClock.elapsedRealtime() + 1500;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                    && !alarmManager.canScheduleExactAlarms()) {
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.ELAPSED_REALTIME,
+                    restartAt,
+                    pendingIntent);
+            } else {
+                scheduleExactRestart(alarmManager, restartAt, pendingIntent);
+            }
+        } catch (RuntimeException exception) {
+            Log.e(TAG, "Cannot restart: scheduling failed", exception);
+            RestartArguments.clear(activity);
+            return;
         }
 
         activity.finishAffinity();

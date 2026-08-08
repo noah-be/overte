@@ -55,8 +55,24 @@ class AndroidEntrypointsTest(unittest.TestCase):
         self.assertNotIn('"Scheduling application restart with arguments:', activity)
         self.assertIn("Context.MODE_PRIVATE", storage)
         self.assertIn(".remove(KEY_ARGUMENTS)", storage)
+        self.assertIn(".remove(KEY_ARGUMENTS).commit() ? arguments : null", storage)
+        self.assertIn("static boolean clear(Context context)", storage)
         self.assertIn("RestartArguments.consume(this)", restart)
         self.assertIn("new Intent(this, PicoInterfaceActivity.class)", restart)
+
+    def test_restart_scheduling_failure_clears_private_handoff(self):
+        activity = (JAVA / "PicoInterfaceActivity.java").read_text(encoding="utf-8")
+        schedule = activity.index("public static void scheduleRestart")
+        finish = activity.index("activity.finishAffinity()", schedule)
+        body = activity[schedule:finish]
+        self.assertIn("if (alarmManager == null)", body)
+        self.assertIn("catch (RuntimeException exception)", body)
+        self.assertGreaterEqual(body.count("RestartArguments.clear(activity)"), 2)
+        catch = body.index("catch (RuntimeException exception)")
+        clear = body.index("RestartArguments.clear(activity)", catch)
+        failed_return = body.index("return;", clear)
+        self.assertLess(catch, clear)
+        self.assertLess(clear, failed_return)
 
     def test_qt_activity_releases_static_android_resources(self):
         activity = (JAVA / "PicoInterfaceActivity.java").read_text(encoding="utf-8")
