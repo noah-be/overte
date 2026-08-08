@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 87 — Gate merged metadata in every final APK
+
+- Branch: `nightly/android-phone-87-apk-metadata-gate`
+- Commit: `Gate phone APK manifest metadata` (this task's commit)
+- Change: Add an `apkanalyzer`-based final APK gate for package ID, min/target
+  SDK, exact permissions, and boolean debug state, and invoke it from the
+  combined contents/ELF/zipalign/padding gate used by Gradle and device smoke.
+- Tests:
+  - `android/tests/phone-apk-metadata-test.sh`: **passed**, with good metadata
+    plus wrong-ID, stale-SDK, extra-permission, and invalid-debug fixtures.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 272/272 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 272/272 host checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 36 explicit
+    device-free suites.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: AAB metadata remains protobuf/bundletool-specific; its content
+  gate is covered separately, while release CI must inspect generated splits.
+- Real-device validation still required: None specific to host metadata parsing;
+  a current APK must pass this gate before the existing device smoke can run.
+
 ## 86 — Guard device package-gate test overrides
 
 - Branch: `nightly/android-phone-86-preflight-override-guard`

@@ -11,6 +11,7 @@ readonly repo_root="$(cd -- "$script_dir/../.." && pwd)"
 readonly tests=(
     phone-16k-dependency-sentinel-test.sh
     phone-apk-contents-test.sh
+    phone-apk-metadata-test.sh
     phone-apk-padding-test.sh
     phone-audio-output-race-test.sh
     phone-build-resource-guard-test.sh

@@ -9,6 +9,7 @@ fi
 
 readonly apk=$1
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+"$script_dir/check-phone-apk-metadata.sh" "$apk"
 "$script_dir/check-phone-apk-contents.py" "$apk"
 "$script_dir/check-phone-elf-alignment.sh" "$apk"
 "$script_dir/check-phone-apk-padding.py" "$apk"

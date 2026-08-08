@@ -71,8 +71,10 @@ for source_file in \
         tests/check-phone-elf-alignment.sh \
         tests/check-phone-apk-16k.sh \
         tests/check-phone-apk-contents.py \
+        tests/check-phone-apk-metadata.sh \
         tests/check-phone-apk-padding.py \
         tests/phone-apk-contents-test.sh \
+        tests/phone-apk-metadata-test.sh \
         tests/phone-apk-padding-test.sh \
         tests/phone-actionbar-qml-lifetime-test.sh \
         tests/phone-audio-output-race-test.sh \
@@ -183,6 +185,12 @@ require_text tests/check-phone-apk-16k.sh 'check-phone-apk-padding\.py' \
     'final APK gate rejects excessive incremental ZIP padding'
 require_text tests/check-phone-apk-16k.sh 'check-phone-apk-contents\.py' \
     'final APK gate rejects incomplete incremental package outputs'
+require_text tests/check-phone-apk-16k.sh 'check-phone-apk-metadata[.]sh' \
+    'final APK gate checks merged manifest metadata'
+require_text tests/check-phone-apk-metadata.sh 'android[.]permission[.]VIBRATE' \
+    'final APK metadata gate enforces the exact permission allowlist'
+require_text tests/check-phone-apk-metadata.sh 'min_sdk.*26.*target_sdk.*36' \
+    'final APK metadata gate enforces current SDK bounds'
 require_text "$gradle" "exclude 'simplifiedUI/[*][*]'" \
     'phone packaging omits the unused desktop Simplified UI payload'
 require_text "$gradle" "exclude 'developer/[*][*]'" \
