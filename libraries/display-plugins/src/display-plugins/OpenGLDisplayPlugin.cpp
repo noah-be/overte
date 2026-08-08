@@ -208,6 +208,24 @@ struct PhonePresentTelemetry {
         const uint32_t texturePendingTransferCount = gpu::Context::getTexturePendingGPUTransferCount();
         const double texturePendingTransferMiB = gpu::Context::getTexturePendingGPUTransferMemSize() / BYTES_PER_MIB;
         const PhoneProcessMemory processMemory = samplePhoneProcessMemory();
+        const auto trash = gpu::gl::GLBackend::getPhoneTrashMetrics();
+        const auto delta = [](uint64_t current, uint64_t previous) {
+            return current >= previous ? current - previous : 0;
+        };
+        const auto backlog = [](uint64_t enqueued, uint64_t cleaned) {
+            return enqueued >= cleaned ? enqueued - cleaned : 0;
+        };
+        const uint64_t bufferEnqueuedDelta = delta(trash.buffersEnqueued, _lastTrash.buffersEnqueued);
+        const uint64_t bufferCleanedDelta = delta(trash.buffersCleaned, _lastTrash.buffersCleaned);
+        const uint64_t textureEnqueuedDelta = delta(trash.texturesEnqueued, _lastTrash.texturesEnqueued);
+        const uint64_t textureCleanedDelta = delta(trash.texturesCleaned, _lastTrash.texturesCleaned);
+        const uint64_t externalTextureEnqueuedDelta = delta(trash.externalTexturesEnqueued, _lastTrash.externalTexturesEnqueued);
+        const uint64_t externalTextureCleanedDelta = delta(trash.externalTexturesCleaned, _lastTrash.externalTexturesCleaned);
+        const uint64_t framebufferEnqueuedDelta = delta(trash.framebuffersEnqueued, _lastTrash.framebuffersEnqueued);
+        const uint64_t framebufferCleanedDelta = delta(trash.framebuffersCleaned, _lastTrash.framebuffersCleaned);
+        const uint64_t bufferBytesEnqueuedDelta = delta(trash.bufferBytesEnqueued, _lastTrash.bufferBytesEnqueued);
+        const uint64_t bufferBytesCleanedDelta = delta(trash.bufferBytesCleaned, _lastTrash.bufferBytesCleaned);
+        _lastTrash = trash;
         const auto framebuffer = phone_framebuffer_telemetry::snapshot();
         const uint64_t primaryRecreateDelta = framebuffer.primaryRecreateCount - _lastPrimaryRecreateCount;
         const uint64_t resolveRecreateDelta = framebuffer.resolveRecreateCount - _lastResolveRecreateCount;
@@ -222,15 +240,32 @@ struct PhonePresentTelemetry {
         const double framebufferMiB =
             (static_cast<double>(primaryWidth) * primaryHeight * primarySamples * 8.0 +
                 static_cast<double>(resolveWidth) * resolveHeight * 4.0) / BYTES_PER_MIB;
+        const uint64_t reportWindowId = ++_reportWindowId;
 
         __android_log_print(ANDROID_LOG_INFO, "OvertePhoneGraphics",
-            "window_seconds=%.2f present_fps=%.2f new_frame_fps=%.2f inter_present_p50_ms=%.2f inter_present_p95_ms=%.2f inter_present_max_ms=%.2f gpu_buffer_count=%u gpu_buffer_mib=%.2f gpu_texture_resident_count=%u gpu_texture_resident_mib=%.2f gpu_texture_framebuffer_count=%u gpu_texture_framebuffer_mib=%.2f gpu_texture_resource_count=%u texture_resource_mib=%.2f gpu_texture_external_count=%u gpu_texture_external_mib=%.2f texture_populated_mib=%.2f gpu_texture_pending_transfer_count=%u texture_pending_transfer_mib=%.2f framebuffer_primary_recreate_delta=%llu framebuffer_primary_recreate_total=%llu framebuffer_resolve_recreate_delta=%llu framebuffer_resolve_recreate_total=%llu framebuffer_primary_width=%u framebuffer_primary_height=%u framebuffer_primary_samples=%u framebuffer_resolve_width=%u framebuffer_resolve_height=%u framebuffer_resolve_samples=%u framebuffer_estimated_mib=%.2f memory_proc_valid=%d memory_rss_kib=%lld memory_data_kib=%lld memory_swap_kib=%lld memory_allocator_valid=%d memory_allocator_used_kib=%lld memory_allocator_free_kib=%lld",
-            elapsedSeconds, _presentCount / elapsedSeconds, _newFrameCount / elapsedSeconds, p50, p95, maximum,
+            "record=present window_id=%llu window_seconds=%.2f present_fps=%.2f new_frame_fps=%.2f inter_present_p50_ms=%.2f inter_present_p95_ms=%.2f inter_present_max_ms=%.2f gpu_buffer_count=%u gpu_buffer_mib=%.2f gpu_texture_resident_count=%u gpu_texture_resident_mib=%.2f gpu_texture_framebuffer_count=%u gpu_texture_framebuffer_mib=%.2f gpu_texture_resource_count=%u texture_resource_mib=%.2f gpu_texture_external_count=%u gpu_texture_external_mib=%.2f texture_populated_mib=%.2f gpu_texture_pending_transfer_count=%u texture_pending_transfer_mib=%.2f",
+            static_cast<unsigned long long>(reportWindowId), elapsedSeconds,
+            _presentCount / elapsedSeconds, _newFrameCount / elapsedSeconds, p50, p95, maximum,
             bufferCount, bufferMiB, textureResidentCount, textureResidentMiB,
             textureFramebufferCount, textureFramebufferMiB, textureResourceCount, textureResourceMiB,
             textureExternalCount, textureExternalMiB, texturePopulatedMiB,
-            texturePendingTransferCount, texturePendingTransferMiB,
-            static_cast<unsigned long long>(primaryRecreateDelta),
+            texturePendingTransferCount, texturePendingTransferMiB);
+        __android_log_print(ANDROID_LOG_INFO, "OvertePhoneGraphics",
+            "record=trash window_id=%llu gl_trash_buffer_enqueued_delta=%llu gl_trash_buffer_cleaned_delta=%llu gl_trash_buffer_backlog=%llu gl_trash_texture_enqueued_delta=%llu gl_trash_texture_cleaned_delta=%llu gl_trash_texture_backlog=%llu gl_trash_external_texture_enqueued_delta=%llu gl_trash_external_texture_cleaned_delta=%llu gl_trash_external_texture_backlog=%llu gl_trash_framebuffer_enqueued_delta=%llu gl_trash_framebuffer_cleaned_delta=%llu gl_trash_framebuffer_backlog=%llu gl_trash_buffer_bytes_enqueued_delta=%llu gl_trash_buffer_bytes_cleaned_delta=%llu gl_trash_buffer_pending_mib=%.2f",
+            static_cast<unsigned long long>(reportWindowId),
+            static_cast<unsigned long long>(bufferEnqueuedDelta), static_cast<unsigned long long>(bufferCleanedDelta),
+            static_cast<unsigned long long>(backlog(trash.buffersEnqueued, trash.buffersCleaned)),
+            static_cast<unsigned long long>(textureEnqueuedDelta), static_cast<unsigned long long>(textureCleanedDelta),
+            static_cast<unsigned long long>(backlog(trash.texturesEnqueued, trash.texturesCleaned)),
+            static_cast<unsigned long long>(externalTextureEnqueuedDelta), static_cast<unsigned long long>(externalTextureCleanedDelta),
+            static_cast<unsigned long long>(backlog(trash.externalTexturesEnqueued, trash.externalTexturesCleaned)),
+            static_cast<unsigned long long>(framebufferEnqueuedDelta), static_cast<unsigned long long>(framebufferCleanedDelta),
+            static_cast<unsigned long long>(backlog(trash.framebuffersEnqueued, trash.framebuffersCleaned)),
+            static_cast<unsigned long long>(bufferBytesEnqueuedDelta), static_cast<unsigned long long>(bufferBytesCleanedDelta),
+            backlog(trash.bufferBytesEnqueued, trash.bufferBytesCleaned) / BYTES_PER_MIB);
+        __android_log_print(ANDROID_LOG_INFO, "OvertePhoneGraphics",
+            "record=state window_id=%llu framebuffer_primary_recreate_delta=%llu framebuffer_primary_recreate_total=%llu framebuffer_resolve_recreate_delta=%llu framebuffer_resolve_recreate_total=%llu framebuffer_primary_width=%u framebuffer_primary_height=%u framebuffer_primary_samples=%u framebuffer_resolve_width=%u framebuffer_resolve_height=%u framebuffer_resolve_samples=%u framebuffer_estimated_mib=%.2f memory_proc_valid=%d memory_rss_kib=%lld memory_data_kib=%lld memory_swap_kib=%lld memory_allocator_valid=%d memory_allocator_used_kib=%lld memory_allocator_free_kib=%lld",
+            static_cast<unsigned long long>(reportWindowId), static_cast<unsigned long long>(primaryRecreateDelta),
             static_cast<unsigned long long>(framebuffer.primaryRecreateCount),
             static_cast<unsigned long long>(resolveRecreateDelta),
             static_cast<unsigned long long>(framebuffer.resolveRecreateCount),
@@ -275,6 +310,8 @@ private:
     std::array<uint32_t, PHONE_PRESENT_INTERVAL_CAPACITY> _intervals {};
     uint64_t _lastPrimaryRecreateCount { 0 };
     uint64_t _lastResolveRecreateCount { 0 };
+    gpu::gl::GLBackend::PhoneTrashMetrics _lastTrash {};
+    uint64_t _reportWindowId { 0 };
 };
 
 PhonePresentTelemetry phonePresentTelemetry;

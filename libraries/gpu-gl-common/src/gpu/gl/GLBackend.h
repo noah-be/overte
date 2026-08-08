@@ -13,6 +13,7 @@
 #define hifi_gpu_gl_GLBackend_h
 
 #include <assert.h>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <bitset>
@@ -69,6 +70,24 @@ protected:
     GLBackend();
 
 public:
+#if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
+    struct PhoneTrashMetrics {
+        uint64_t buffersEnqueued;
+        uint64_t buffersCleaned;
+        uint64_t texturesEnqueued;
+        uint64_t texturesCleaned;
+        uint64_t externalTexturesEnqueued;
+        uint64_t externalTexturesCleaned;
+        uint64_t framebuffersEnqueued;
+        uint64_t framebuffersCleaned;
+        uint64_t bufferBytesEnqueued;
+        uint64_t bufferBytesCleaned;
+    };
+
+    // Lock-free aggregate snapshot: reporting must never walk the trash lists.
+    static PhoneTrashMetrics getPhoneTrashMetrics();
+#endif
+
     enum VideoCardType {
         ATI,
         NVIDIA,

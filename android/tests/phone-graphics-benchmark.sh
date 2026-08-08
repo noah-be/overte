@@ -143,9 +143,18 @@ profile_scale="$(sed -nE 's/.*(renderScale|profile_render_scale)[^0-9]*([0-9]+([
 profile_fps="$(sed -nE 's/.*(targetFps|profile_target_fps)[^0-9]*([0-9]+).*/\2/p' <<<"$profile_line")"
 profile_msaa="$(sed -nE 's/.*(forwardMsaaSamples|profile_forward_msaa_samples)[^0-9]*([0-9]+).*/\2/p' <<<"$profile_line")"
 present_line="$(grep 'OvertePhoneGraphics.*present_fps=' "$raw_dir/logcat.txt" | tail -n 1 || true)"
+present_window_id="$(grep -oE '(^|[[:space:]])window_id=(0|[1-9][0-9]*)' <<<"$present_line" | tail -n 1 | cut -d= -f2- || true)"
+if [[ "$present_window_id" =~ ^(0|[1-9][0-9]*)$ ]]; then
+    trash_line="$(grep -E "OvertePhoneGraphics.*record=trash.*window_id=${present_window_id}([[:space:]]|$)" "$raw_dir/logcat.txt" | tail -n 1 || true)"
+    state_line="$(grep -E "OvertePhoneGraphics.*record=state.*window_id=${present_window_id}([[:space:]]|$)" "$raw_dir/logcat.txt" | tail -n 1 || true)"
+else
+    trash_line=''
+    state_line=''
+fi
 extract_native_field() {
     local field="$1"
-    grep -oE "(^|[[:space:]])${field}=[^[:space:]]+" <<<"$present_line" | tail -n 1 | cut -d= -f2-
+    local source_line="${2:-$present_line}"
+    grep -oE "(^|[[:space:]])${field}=[^[:space:]]+" <<<"$source_line" | tail -n 1 | cut -d= -f2-
 }
 valid_nonnegative_int64() {
     local value="$1"
@@ -200,24 +209,39 @@ gpu_texture_resource_count="$(extract_native_field gpu_texture_resource_count ||
 gpu_texture_external_count="$(extract_native_field gpu_texture_external_count || true)"
 gpu_texture_external_mib="$(extract_native_field gpu_texture_external_mib || true)"
 gpu_texture_pending_transfer_count="$(extract_native_field gpu_texture_pending_transfer_count || true)"
-memory_proc_flag="$(extract_native_field memory_proc_valid || true)"
-memory_rss_kib="$(extract_native_field memory_rss_kib || true)"
-memory_data_kib="$(extract_native_field memory_data_kib || true)"
-memory_swap_kib="$(extract_native_field memory_swap_kib || true)"
-memory_allocator_flag="$(extract_native_field memory_allocator_valid || true)"
-memory_allocator_used_kib="$(extract_native_field memory_allocator_used_kib || true)"
-memory_allocator_free_kib="$(extract_native_field memory_allocator_free_kib || true)"
-framebuffer_primary_recreate_delta="$(extract_native_field framebuffer_primary_recreate_delta || true)"
-framebuffer_primary_recreate_total="$(extract_native_field framebuffer_primary_recreate_total || true)"
-framebuffer_resolve_recreate_delta="$(extract_native_field framebuffer_resolve_recreate_delta || true)"
-framebuffer_resolve_recreate_total="$(extract_native_field framebuffer_resolve_recreate_total || true)"
-framebuffer_primary_width="$(extract_native_field framebuffer_primary_width || true)"
-framebuffer_primary_height="$(extract_native_field framebuffer_primary_height || true)"
-framebuffer_primary_samples="$(extract_native_field framebuffer_primary_samples || true)"
-framebuffer_resolve_width="$(extract_native_field framebuffer_resolve_width || true)"
-framebuffer_resolve_height="$(extract_native_field framebuffer_resolve_height || true)"
-framebuffer_resolve_samples="$(extract_native_field framebuffer_resolve_samples || true)"
-framebuffer_estimated_mib="$(extract_native_field framebuffer_estimated_mib || true)"
+gl_trash_buffer_enqueued_delta="$(extract_native_field gl_trash_buffer_enqueued_delta "$trash_line" || true)"
+gl_trash_buffer_cleaned_delta="$(extract_native_field gl_trash_buffer_cleaned_delta "$trash_line" || true)"
+gl_trash_buffer_backlog="$(extract_native_field gl_trash_buffer_backlog "$trash_line" || true)"
+gl_trash_texture_enqueued_delta="$(extract_native_field gl_trash_texture_enqueued_delta "$trash_line" || true)"
+gl_trash_texture_cleaned_delta="$(extract_native_field gl_trash_texture_cleaned_delta "$trash_line" || true)"
+gl_trash_texture_backlog="$(extract_native_field gl_trash_texture_backlog "$trash_line" || true)"
+gl_trash_external_texture_enqueued_delta="$(extract_native_field gl_trash_external_texture_enqueued_delta "$trash_line" || true)"
+gl_trash_external_texture_cleaned_delta="$(extract_native_field gl_trash_external_texture_cleaned_delta "$trash_line" || true)"
+gl_trash_external_texture_backlog="$(extract_native_field gl_trash_external_texture_backlog "$trash_line" || true)"
+gl_trash_framebuffer_enqueued_delta="$(extract_native_field gl_trash_framebuffer_enqueued_delta "$trash_line" || true)"
+gl_trash_framebuffer_cleaned_delta="$(extract_native_field gl_trash_framebuffer_cleaned_delta "$trash_line" || true)"
+gl_trash_framebuffer_backlog="$(extract_native_field gl_trash_framebuffer_backlog "$trash_line" || true)"
+gl_trash_buffer_bytes_enqueued_delta="$(extract_native_field gl_trash_buffer_bytes_enqueued_delta "$trash_line" || true)"
+gl_trash_buffer_bytes_cleaned_delta="$(extract_native_field gl_trash_buffer_bytes_cleaned_delta "$trash_line" || true)"
+gl_trash_buffer_pending_mib="$(extract_native_field gl_trash_buffer_pending_mib "$trash_line" || true)"
+memory_proc_flag="$(extract_native_field memory_proc_valid "$state_line" || true)"
+memory_rss_kib="$(extract_native_field memory_rss_kib "$state_line" || true)"
+memory_data_kib="$(extract_native_field memory_data_kib "$state_line" || true)"
+memory_swap_kib="$(extract_native_field memory_swap_kib "$state_line" || true)"
+memory_allocator_flag="$(extract_native_field memory_allocator_valid "$state_line" || true)"
+memory_allocator_used_kib="$(extract_native_field memory_allocator_used_kib "$state_line" || true)"
+memory_allocator_free_kib="$(extract_native_field memory_allocator_free_kib "$state_line" || true)"
+framebuffer_primary_recreate_delta="$(extract_native_field framebuffer_primary_recreate_delta "$state_line" || true)"
+framebuffer_primary_recreate_total="$(extract_native_field framebuffer_primary_recreate_total "$state_line" || true)"
+framebuffer_resolve_recreate_delta="$(extract_native_field framebuffer_resolve_recreate_delta "$state_line" || true)"
+framebuffer_resolve_recreate_total="$(extract_native_field framebuffer_resolve_recreate_total "$state_line" || true)"
+framebuffer_primary_width="$(extract_native_field framebuffer_primary_width "$state_line" || true)"
+framebuffer_primary_height="$(extract_native_field framebuffer_primary_height "$state_line" || true)"
+framebuffer_primary_samples="$(extract_native_field framebuffer_primary_samples "$state_line" || true)"
+framebuffer_resolve_width="$(extract_native_field framebuffer_resolve_width "$state_line" || true)"
+framebuffer_resolve_height="$(extract_native_field framebuffer_resolve_height "$state_line" || true)"
+framebuffer_resolve_samples="$(extract_native_field framebuffer_resolve_samples "$state_line" || true)"
+framebuffer_estimated_mib="$(extract_native_field framebuffer_estimated_mib "$state_line" || true)"
 memory_proc_valid=0
 if [[ "$memory_proc_flag" == 1 ]] && valid_nonnegative_int64 "$memory_rss_kib" && \
         valid_nonnegative_int64 "$memory_data_kib" && valid_nonnegative_int64 "$memory_swap_kib"; then
@@ -270,6 +294,25 @@ else
     texture_populated_mib=unknown
     gpu_texture_pending_transfer_count=unknown; texture_pending_transfer_mib=unknown
 fi
+gl_trash_metrics_valid=0
+if valid_u64 "$gl_trash_buffer_enqueued_delta" && valid_u64 "$gl_trash_buffer_cleaned_delta" &&
+        valid_u64 "$gl_trash_buffer_backlog" && valid_u64 "$gl_trash_texture_enqueued_delta" &&
+        valid_u64 "$gl_trash_texture_cleaned_delta" && valid_u64 "$gl_trash_texture_backlog" &&
+        valid_u64 "$gl_trash_external_texture_enqueued_delta" &&
+        valid_u64 "$gl_trash_external_texture_cleaned_delta" && valid_u64 "$gl_trash_external_texture_backlog" &&
+        valid_u64 "$gl_trash_framebuffer_enqueued_delta" && valid_u64 "$gl_trash_framebuffer_cleaned_delta" &&
+        valid_u64 "$gl_trash_framebuffer_backlog" && valid_u64 "$gl_trash_buffer_bytes_enqueued_delta" &&
+        valid_u64 "$gl_trash_buffer_bytes_cleaned_delta" && valid_finite_decimal "$gl_trash_buffer_pending_mib"; then
+    gl_trash_metrics_valid=1
+else
+    gl_trash_buffer_enqueued_delta=unknown; gl_trash_buffer_cleaned_delta=unknown; gl_trash_buffer_backlog=unknown
+    gl_trash_texture_enqueued_delta=unknown; gl_trash_texture_cleaned_delta=unknown; gl_trash_texture_backlog=unknown
+    gl_trash_external_texture_enqueued_delta=unknown; gl_trash_external_texture_cleaned_delta=unknown
+    gl_trash_external_texture_backlog=unknown
+    gl_trash_framebuffer_enqueued_delta=unknown; gl_trash_framebuffer_cleaned_delta=unknown
+    gl_trash_framebuffer_backlog=unknown; gl_trash_buffer_bytes_enqueued_delta=unknown
+    gl_trash_buffer_bytes_cleaned_delta=unknown; gl_trash_buffer_pending_mib=unknown
+fi
 native_present_metrics_available=0
 [[ -n "$native_present_fps" && -n "$native_new_frame_fps" && -n "$native_present_p95_ms" ]] && \
     native_present_metrics_available=1
@@ -306,6 +349,17 @@ chmod 600 "$summary_tmp"
         "$gpu_texture_external_count" "$gpu_texture_external_mib"
     printf 'texture_populated_mib=%s\ngpu_texture_pending_transfer_count=%s\ntexture_pending_transfer_mib=%s\n' \
         "$texture_populated_mib" "$gpu_texture_pending_transfer_count" "$texture_pending_transfer_mib"
+    printf 'gl_trash_metrics_valid=%s\n' "$gl_trash_metrics_valid"
+    printf 'gl_trash_buffer_enqueued_delta=%s\ngl_trash_buffer_cleaned_delta=%s\ngl_trash_buffer_backlog=%s\n' \
+        "$gl_trash_buffer_enqueued_delta" "$gl_trash_buffer_cleaned_delta" "$gl_trash_buffer_backlog"
+    printf 'gl_trash_texture_enqueued_delta=%s\ngl_trash_texture_cleaned_delta=%s\ngl_trash_texture_backlog=%s\n' \
+        "$gl_trash_texture_enqueued_delta" "$gl_trash_texture_cleaned_delta" "$gl_trash_texture_backlog"
+    printf 'gl_trash_external_texture_enqueued_delta=%s\ngl_trash_external_texture_cleaned_delta=%s\ngl_trash_external_texture_backlog=%s\n' \
+        "$gl_trash_external_texture_enqueued_delta" "$gl_trash_external_texture_cleaned_delta" "$gl_trash_external_texture_backlog"
+    printf 'gl_trash_framebuffer_enqueued_delta=%s\ngl_trash_framebuffer_cleaned_delta=%s\ngl_trash_framebuffer_backlog=%s\n' \
+        "$gl_trash_framebuffer_enqueued_delta" "$gl_trash_framebuffer_cleaned_delta" "$gl_trash_framebuffer_backlog"
+    printf 'gl_trash_buffer_bytes_enqueued_delta=%s\ngl_trash_buffer_bytes_cleaned_delta=%s\ngl_trash_buffer_pending_mib=%s\n' \
+        "$gl_trash_buffer_bytes_enqueued_delta" "$gl_trash_buffer_bytes_cleaned_delta" "$gl_trash_buffer_pending_mib"
     printf 'memory_proc_valid=%s\nmemory_rss_kib=%s\nmemory_data_kib=%s\nmemory_swap_kib=%s\n' \
         "$memory_proc_valid" "$memory_rss_kib" "$memory_data_kib" "$memory_swap_kib"
     printf 'memory_allocator_valid=%s\nmemory_allocator_used_kib=%s\nmemory_allocator_free_kib=%s\n' \
