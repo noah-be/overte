@@ -365,7 +365,8 @@ these device/runtime problems.
 Run the repeatable smoke test against an already built APK with an explicit
 device serial. It first uses SDK `apkanalyzer` to require the dedicated Phone
 application ID, API 26/36 SDK contract, and exact five-permission allowlist.
-It then installs the app, verifies the installed bytes, and exercises
+It also runs the full contents, ELF, 16-KiB alignment, and padding gate. It then
+installs the app, verifies the installed bytes, and exercises
 launch, a fixed local test deep link, three background/foreground cycles, and a
 process-preserving Back/background/recovery cycle. It records aggregate crash
 and 16 KiB compatibility diagnostics in a temporary report directory:

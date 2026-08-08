@@ -111,7 +111,14 @@ case "$2" in
     *) exit 3 ;;
 esac
 MOCK_ANALYZER
-chmod +x "$test_root/bin/adb" "$test_root/bin/sleep" "$test_root/bin/apkanalyzer"
+cat >"$test_root/bin/apk-preflight" <<'MOCK_PREFLIGHT'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ -f "$1" ]] || exit 3
+[[ "${MOCK_PREFLIGHT_FAILURE:-0}" != 1 ]]
+MOCK_PREFLIGHT
+chmod +x "$test_root/bin/adb" "$test_root/bin/sleep" \
+    "$test_root/bin/apkanalyzer" "$test_root/bin/apk-preflight"
 
 run_smoke() {
     local report_dir="$1"
@@ -119,6 +126,7 @@ run_smoke() {
     env PATH="$test_root/bin:$PATH" MOCK_ROOT="$test_root" \
         PHONE_DEVICE_LOCK_HELD=1 PHONE_ADB="$test_root/bin/adb" \
         PHONE_APK_ANALYZER="$test_root/bin/apkanalyzer" \
+        PHONE_APK_PREFLIGHT="$test_root/bin/apk-preflight" \
         ANDROID_SERIAL=mock-phone PHONE_TEST_REPORT="$report_dir" "$@" \
         "$script_dir/phone-device-test.sh" "$test_root/phone.apk"
 }
@@ -185,6 +193,17 @@ if run_smoke "$test_root/debug-mode-report" env PHONE_EXPECT_DEBUGGABLE=0 \
 fi
 grep -Fq 'APK debuggable state does not match the requested test mode' \
     "$test_root/debug-mode.out"
+! grep -q '^install ' "$test_root/adb-commands"
+
+mkdir "$test_root/package-preflight-report"
+: >"$test_root/adb-commands"
+if run_smoke "$test_root/package-preflight-report" env MOCK_PREFLIGHT_FAILURE=1 \
+        >"$test_root/package-preflight.out" 2>&1; then
+    echo 'FAIL: APK rejected by the package gate was accepted for installation' >&2
+    exit 1
+fi
+grep -Fq 'APK failed the Phone content, ELF, alignment, or padding preflight' \
+    "$test_root/package-preflight.out"
 ! grep -q '^install ' "$test_root/adb-commands"
 
 mkdir "$test_root/emulator-report"

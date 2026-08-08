@@ -26,6 +26,8 @@ exactly one authorized, non-Pico phone can be identified.
 Environment:
   ANDROID_SERIAL       Exact ADB serial to use (recommended).
   PHONE_ADB            ADB executable (otherwise resolved automatically).
+  PHONE_APK_ANALYZER   apkanalyzer executable (otherwise SDK-resolved).
+  PHONE_APK_PREFLIGHT  Package gate executable (otherwise repository gate).
   PHONE_EXPECT_DEBUGGABLE  Optional expected APK state: 0 or 1.
   PHONE_TEST_REPORT    Existing report directory (otherwise mktemp -d).
 EOF
@@ -63,6 +65,8 @@ find_apk_analyzer() {
 
 ADB="$(find_adb)"
 APK_ANALYZER="$(find_apk_analyzer)"
+APK_PREFLIGHT="${PHONE_APK_PREFLIGHT:-$SCRIPT_DIR/check-phone-apk-16k.sh}"
+[[ -x "$APK_PREFLIGHT" ]] || die "Phone APK package preflight was not found"
 
 adb_for() { "$ADB" -s "$SERIAL" "$@"; }
 
@@ -160,6 +164,8 @@ if [[ -n "${PHONE_EXPECT_DEBUGGABLE:-}" ]]; then
     [[ "$APK_DEBUGGABLE" == "$PHONE_EXPECT_DEBUGGABLE" ]] || \
         die "APK debuggable state does not match the requested test mode"
 fi
+"$APK_PREFLIGHT" "$APK" >/dev/null 2>&1 || \
+    die "APK failed the Phone content, ELF, alignment, or padding preflight"
 
 if [[ -n "${PHONE_TEST_REPORT:-}" ]]; then
     REPORT_DIR="$(realpath "$PHONE_TEST_REPORT")"

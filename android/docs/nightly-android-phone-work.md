@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 77 — Gate complete APK packaging before device changes
+
+- Branch: `nightly/android-phone-77-apk-package-preflight`
+- Commit: `Run phone package gate before device install` (this task's commit)
+- Change: Make the combined Phone APK contents, native ELF, 16-KiB zipalign,
+  and padding checker a mandatory smoke-test preflight before report creation or
+  ADB installation. External artifacts no longer rely on having come through a
+  correctly configured Gradle task.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, including a
+    package-gate failure rejected before any install command.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 252/252 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 252/252 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Device smoke now requires Build-Tools 36 `zipalign`, Python, and
+  ELF inspection tools, intentionally matching the documented host toolchain.
+- Real-device validation still required: Produce a current APK that passes the
+  package gate, record its digest, and run the full unattended smoke.
+
 ## 76 — Distinguish debug and release device tests
 
 - Branch: `nightly/android-phone-76-apk-debug-contract`
