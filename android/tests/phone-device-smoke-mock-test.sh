@@ -48,7 +48,10 @@ case "$*" in
         ;;
     'shell date +%s.%3N') printf '1786212000.123\n' ;;
     'exec-out cat /data/app/~~mock/org.overte.phone-mock/base.apk')
-        if [[ "${MOCK_APK_MISMATCH:-0}" == 1 ]]; then
+        if [[ "${MOCK_INSTALLED_READ_FAILURE:-0}" == 1 ]]; then
+            printf 'private installed path read failure for mock-phone\n' >&2
+            exit 12
+        elif [[ "${MOCK_APK_MISMATCH:-0}" == 1 ]]; then
             printf 'different installed bytes\n'
         else
             cat "$MOCK_ROOT/phone.apk"
@@ -163,6 +166,17 @@ fi
 grep -Fq 'installed APK content does not match' "$test_root/mismatch.out"
 ! grep -Fq '/data/app/' "$test_root/mismatch.out"
 ! grep -Fq "$test_root" "$test_root/mismatch.out"
+
+mkdir "$test_root/read-failure-report"
+if run_smoke "$test_root/read-failure-report" env MOCK_INSTALLED_READ_FAILURE=1 \
+        >"$test_root/read-failure.out" 2>&1; then
+    echo 'FAIL: unavailable installed APK content was accepted' >&2
+    exit 1
+fi
+grep -Fq 'could not read the installed APK for provenance verification' \
+    "$test_root/read-failure.out"
+! grep -Eq 'mock-phone|private installed path' "$test_root/read-failure.out"
+! grep -Fq 'installed_apk_verified=1' "$test_root/read-failure-report/summary.txt"
 
 mkdir "$test_root/wrong-package-report"
 : >"$test_root/adb-commands"

@@ -551,6 +551,8 @@ require_text tests/phone-device-test.sh 'shell pm path "\$PACKAGE"' \
     'device smoke resolves the installed base APK after installation'
 require_text tests/phone-device-test.sh 'installed_apk_sha256.*== "\$APK_SHA256"' \
     'device smoke verifies installed bytes against the requested APK digest'
+require_text tests/phone-device-test.sh 'could not read the installed APK for provenance verification' \
+    'device smoke reports installed-package read failure without raw ADB detail'
 require_text tests/phone-device-test.sh 'installed_apk_verified=1' \
     'device smoke records successful installed-package provenance verification'
 reject_text tests/phone-device-test.sh 'installed_base_apk.*tee|installed_base_apk.*SUMMARY' \

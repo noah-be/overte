@@ -276,7 +276,9 @@ mapfile -t installed_base_apks < <(
 installed_base_apk="${installed_base_apks[0]}"
 [[ "$installed_base_apk" =~ ^/[A-Za-z0-9_./+=~-]+/base[.]apk$ ]] || \
     die "installed package returned an unsafe base APK path"
-installed_apk_sha256="$(adb_for exec-out cat "$installed_base_apk" | sha256sum | awk '{ print $1 }')"
+installed_apk_sha256="$(adb_for exec-out cat "$installed_base_apk" \
+    | sha256sum | awk '{ print $1 }')" || \
+    die "could not read the installed APK for provenance verification"
 [[ "$installed_apk_sha256" == "$APK_SHA256" ]] || \
     die "installed APK content does not match the requested APK"
 printf 'installed_apk_verified=1\n' | tee -a "$SUMMARY"

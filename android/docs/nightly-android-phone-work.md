@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 81 — Report installed-APK read failures safely
+
+- Branch: `nightly/android-phone-81-installed-apk-read-failure`
+- Commit: `Handle phone installed APK read failures` (this task's commit)
+- Change: Check the complete `exec-out cat | sha256sum` provenance pipeline and
+  replace transport/path detail with a generic failure. Unreadable installed
+  bytes cannot terminate ambiguously or set `installed_apk_verified=1`.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; a synthetic
+    private installed path/serial on stderr is suppressed, the safe phase error
+    remains, and provenance success is absent.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 258/258 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 258/258 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Restricted OEM package storage now causes an explicit smoke
+  failure; provenance is never weakened to accommodate it.
+- Real-device validation still required: Run the current-APK smoke and confirm
+  installed bytes remain readable and hash-identical on the prepared phone.
+
 ## 80 — Label privacy-reduced ADB phase failures
 
 - Branch: `nightly/android-phone-80-adb-phase-errors`
