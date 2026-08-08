@@ -20,6 +20,7 @@ import "qrc:////qml//controls" as HifiControls
 
 Rectangle {
     HifiStylesUit.HifiConstants { id: hifi; }
+    SecurityTouchConfiguration { id: touchConfiguration }
 
     id: root;
     color: hifi.colors.baseGray;
@@ -52,7 +53,7 @@ Rectangle {
         anchors.leftMargin: 20;
         anchors.right: parent.right;
         anchors.rightMargin: 20;
-        height: 60;
+        height: touchConfiguration.titleHeight;
     }
 
     Item {
@@ -112,7 +113,7 @@ Rectangle {
                 anchors.top: parent.top;
                 anchors.left: parent.left;
                 anchors.right: parent.right;
-                height: 55;
+                height: touchConfiguration.headerHeight;
                 color: hifi.colors.baseGrayHighlight;
 
                 HifiStylesUit.RalewaySemiBold {
@@ -129,7 +130,7 @@ Rectangle {
                 anchors.top: accountHeaderContainer.bottom;
                 anchors.left: parent.left;
                 anchors.right: parent.right;
-                height: 80;            
+                height: touchConfiguration.rowHeight;
 
                 HifiControlsUit.CheckBox {
                     id: autoLogoutCheckbox;
@@ -194,17 +195,18 @@ Rectangle {
         // -- Plugin Permissions --
         Item {
             id: kpiContainer;
+            visible: touchConfiguration.showScriptingPlugins;
             anchors.top: accountContainer.bottom;
             anchors.left: parent.left;
             anchors.right: parent.right;
-            height: childrenRect.height;
+            height: visible ? childrenRect.height : 0;
 
             Rectangle {
                 id: kpiHeaderContainer;
                 anchors.top: parent.top;
                 anchors.left: parent.left;
                 anchors.right: parent.right;
-                height: 55;
+                height: touchConfiguration.headerHeight;
                 color: hifi.colors.baseGrayHighlight;
 
                 HifiStylesUit.RalewaySemiBold {
@@ -221,7 +223,7 @@ Rectangle {
                 anchors.top: kpiHeaderContainer.bottom;
                 anchors.left: parent.left;
                 anchors.right: parent.right;
-                height: 80;
+                height: touchConfiguration.rowHeight;
 
                 HifiControlsUit.CheckBox {
                     id: kpiScriptCheckbox;
@@ -237,7 +239,11 @@ Rectangle {
                     colorScheme: hifi.colorSchemes.dark
                     color: hifi.colors.white;
                     width: 300;
-                    onCheckedChanged: Settings.setValue(kpiSettingsKey, checked);
+                    onCheckedChanged: {
+                        if (touchConfiguration.showScriptingPlugins) {
+                            Settings.setValue(kpiSettingsKey, checked);
+                        }
+                    }
                 }
 
                 HifiStylesUit.RalewaySemiBold {

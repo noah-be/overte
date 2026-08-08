@@ -4,6 +4,30 @@ This file records the cumulative, device-free Android phone work based on
 `origin/feature/android-phone-support`. Real-device and emulator tests are out
 of scope for this worktree and are called out explicitly where still needed.
 
+## 18 — Touch-safe Phone Security Settings
+
+- Branch: `nightly/android-phone-18-security-settings`
+- Commit: `Harden phone Security Settings` (this task's commit)
+- Change: Add selector-backed compact Security metrics, omit and write-guard
+  the incomplete user-managed scripting-plugin control on Phone, and make both
+  allowlist editors null-safe, deterministically normalized, duplicate-free,
+  responsive above their Save controls, and explicit about IME focus teardown.
+  Desktop retains its existing plugin control and dimensions.
+- Tests:
+  - `android/tests/phone-tablet-security-test.sh`: **passed**, ten source
+    contracts plus an executable Node normalization suite covering empty,
+    malformed, mixed-separator, duplicate, and prototype-named entries.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet suites and 181/181 host checks.
+  - JavaScript syntax and `git diff --check`: **passed**.
+- Known risks: Static layout checks cannot prove keyboard resize or font metrics
+  on OEM Qt surfaces. Normalization deliberately treats commas and all
+  whitespace as entry separators, matching the C++ allowlist consumers.
+- Real-device validation still required: **not executed**. With an entirely
+  synthetic allowlist, exercise empty/cancel/edit/save/reopen, multiline input,
+  IME show/hide, Back, background/foreground, and both protection switches;
+  confirm the scripting-plugin control is absent and no text is clipped.
+
 ## 17 — Safe cached-asset extraction
 
 - Branch: `nightly/android-phone-17-cache-manifest-gate`

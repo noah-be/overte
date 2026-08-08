@@ -14,6 +14,7 @@ tests=(
     phone-tablet-app-router-test.sh
     phone-tablet-general-preferences-test.sh
     phone-tablet-settings-scale-test.sh
+    phone-tablet-security-test.sh
     phone-tablet-touch-qml-test.sh
     phone-tablet-audio-test.sh
     phone-tablet-emote-test.sh

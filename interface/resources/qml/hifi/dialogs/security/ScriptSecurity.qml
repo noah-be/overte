@@ -22,25 +22,24 @@ import stylesUit 1.0 as HifiStylesUit
 import controlsUit 1.0 as HiFiControls
 import PerformanceEnums 1.0
 import "../../../windows"
+import "SecuritySettings.js" as SecuritySettings
 
 
 Rectangle {
     id: parentBody;
+    SecurityTouchConfiguration { id: touchConfiguration }
 
     function getAllowlistAsText() {
-        var allowlist = [
-            Settings.getValue("private/scriptPermissionGetAvatarURLSafeURLs"),
-            Settings.getValue("private/scriptPermissionBookmarksSafeURLs"),
-        ].join();
-
-        // trimEnd so blank permissions lists will show the placeholder text
-        var arrayAllowlist = allowlist.replace(",", "\n").trimEnd();
-        return arrayAllowlist;
+        return SecuritySettings.normalizeAllowlist([
+            Settings.getValue("private/scriptPermissionGetAvatarURLSafeURLs", ""),
+            Settings.getValue("private/scriptPermissionBookmarksSafeURLs", "")
+        ].join("\n"));
     }
 
     function setAllowlistAsText(allowlistText) {
-        Settings.setValue("private/scriptPermissionGetAvatarURLSafeURLs", allowlistText.text);
-        Settings.setValue("private/scriptPermissionBookmarksSafeURLs", allowlistText.text);
+        var normalized = SecuritySettings.normalizeAllowlist(allowlistText);
+        Settings.setValue("private/scriptPermissionGetAvatarURLSafeURLs", normalized);
+        Settings.setValue("private/scriptPermissionBookmarksSafeURLs", normalized);
         notificationText.text = "Allowlist saved.";
     }
 
@@ -73,7 +72,7 @@ Rectangle {
         anchors.leftMargin: 20;
         anchors.right: parent.right;
         anchors.rightMargin: 20;
-        height: 60;
+        height: touchConfiguration.titleHeight;
 
         CheckBox {
             id: avatarsAllowlistEnabled;
@@ -112,7 +111,7 @@ Rectangle {
         anchors.leftMargin: 20;
         anchors.right: parent.right;
         anchors.rightMargin: 20;
-        height: 60;
+        height: touchConfiguration.titleHeight;
 
         CheckBox {
             id: bookmarksAllowlistEnabled;
@@ -151,7 +150,7 @@ Rectangle {
         anchors.leftMargin: 20;
         anchors.right: parent.right;
         anchors.rightMargin: 20;
-        height: 60;
+        height: touchConfiguration.titleHeight;
     }
 
     Rectangle {
@@ -203,7 +202,8 @@ Rectangle {
             elide: Text.ElideRight
         }
         text: "Save Changes"
-        onClicked: setAllowlistAsText(allowlistTextArea)
+        height: touchConfiguration.buttonHeight;
+        onClicked: setAllowlistAsText(allowlistTextArea.text)
 
         HifiStylesUit.RalewayRegular {
             id: notificationText;
@@ -217,5 +217,10 @@ Rectangle {
             anchors.right: parent.left;
             anchors.rightMargin: 10;
         }
+    }
+
+    Component.onDestruction: {
+        allowlistTextArea.focus = false;
+        Qt.inputMethod.hide();
     }
 }
