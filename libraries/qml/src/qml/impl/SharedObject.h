@@ -53,6 +53,8 @@ public:
     QSize getSize() const;
     void setSize(const QSize& size);
     void setMaxFps(uint8_t maxFps);
+    void setGenerateMips(bool generateMips);
+    bool getGenerateMips() const;
 
     QQuickWindow* getWindow() { return _quickWindow; }
     QQuickItem* getRootItem() { return _rootItem; }
@@ -110,6 +112,7 @@ private:
     uint64_t _lastRenderTime { 0 };
     QSize _size { 100, 100 };
     uint8_t _maxFps { 60 };
+    bool _generateMips { true };
 
     bool _renderRequested { false };
     bool _syncRequested { false };

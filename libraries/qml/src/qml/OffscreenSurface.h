@@ -64,6 +64,7 @@ public:
     void clearCache();
 
     void setMaxFps(uint8_t maxFps);
+    void setGenerateMips(bool generateMips);
     // Optional values for event handling
     void setProxyWindow(QWindow* window);
     void setMouseTranslator(const MouseTranslator& mouseTranslator) { _mouseTranslator = mouseTranslator; }

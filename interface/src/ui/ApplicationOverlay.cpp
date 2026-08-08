@@ -189,7 +189,9 @@ void ApplicationOverlay::renderQmlUi(RenderArgs* renderArgs) {
 #if defined(ANDROID_APP_PHONE_INTERFACE)
 bool ApplicationOverlay::updatePhoneQmlTexture() {
     if (!_uiTexture) {
-        _uiTexture = gpu::Texture::createExternal(OffscreenQmlSurface::getDiscardLambda());
+        _uiTexture = gpu::Texture::createExternal(
+            OffscreenQmlSurface::getDiscardLambda(),
+            Sampler(Sampler::FILTER_MIN_MAG_LINEAR, Sampler::WRAP_CLAMP));
         _uiTexture->setSource(__FUNCTION__);
     }
 

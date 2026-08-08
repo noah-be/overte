@@ -69,6 +69,7 @@ for source_file in \
         tests/check-phone-apk-16k.sh \
         tests/check-phone-apk-padding.py \
         tests/phone-apk-padding-test.sh \
+        tests/phone-offscreen-ui-mip-test.sh \
         tests/phone-script-payload-test.sh \
         tests/verify-phone-16k-dependencies.sh \
         prepare-phone-16k-conan-deps.sh \
@@ -131,6 +132,8 @@ reject_text "$phone_defaults" 'makeUserConnection' \
     'touchscreen phone defaults do not start the VR handshake service'
 require_text "$gradle" "exclude 'system/assets/sounds/4beat_sweep[.]wav'" \
     'phone packaging omits the unreachable VR handshake sound payload'
+require_text ../interface/src/Application_Graphics.cpp 'offscreenUi->setGenerateMips\(false\)' \
+    'phone desktop UI disables its unused mip chain'
 require_text "$gradle" "dependsOn tasks\.named\('verifyPhone16kDependencies'\)" \
     'Conan generator staging runs only after dependency verification'
 require_text "$gradle" 'outputs\.upToDateWhen[[:space:]]*\{[[:space:]]*false[[:space:]]*\}' \
