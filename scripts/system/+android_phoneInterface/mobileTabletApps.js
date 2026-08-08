@@ -10,6 +10,19 @@
     var AUDIO_SOURCE = "hifi/audio/Audio.qml";
     var SETTINGS_SOURCE = Script.resolvePath("../settings/Settings.qml");
     var GENERAL_SETTINGS_SOURCE = "hifi/tablet/TabletGeneralPreferences.qml";
+    // Settings QML is packaged first-party content, but keep its navigation
+    // boundary fail-closed as well. Never turn an arbitrary QML message into a
+    // local or remote component load.
+    var SETTINGS_ROUTES = {
+        "hifi/tablet/TabletGeneralPreferences.qml": GENERAL_SETTINGS_SOURCE,
+        "hifi/dialogs/GeneralPreferencesDialog.qml": GENERAL_SETTINGS_SOURCE,
+        "hifi/audio/Audio.qml": AUDIO_SOURCE,
+        "hifi/dialogs/security/Security.qml": "hifi/dialogs/security/Security.qml",
+        "hifi/dialogs/security/EntityScriptQMLAllowlist.qml":
+            "hifi/dialogs/security/EntityScriptQMLAllowlist.qml",
+        "hifi/dialogs/security/ScriptSecurity.qml":
+            "hifi/dialogs/security/ScriptSecurity.qml"
+    };
     var tablet = Tablet.getTablet(SYSTEM_TABLET);
     var currentSource = "";
 
@@ -57,14 +70,12 @@
     }
 
     function fromQml(message) {
-        if (!message || message.type !== "switchApp" || !message.appUrl) {
+        if (!message || message.type !== "switchApp" ||
+                typeof message.appUrl !== "string" ||
+                !Object.prototype.hasOwnProperty.call(SETTINGS_ROUTES, message.appUrl)) {
             return;
         }
-        if (message.appUrl === "hifi/dialogs/GeneralPreferencesDialog.qml") {
-            tablet.loadQMLSource(GENERAL_SETTINGS_SOURCE);
-        } else {
-            tablet.loadQMLSource(message.appUrl);
-        }
+        tablet.loadQMLSource(SETTINGS_ROUTES[message.appUrl]);
     }
 
     audioButton.clicked.connect(openAudio);

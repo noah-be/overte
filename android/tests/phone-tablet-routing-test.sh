@@ -201,7 +201,7 @@ if grep -Fq -- 'system/emote.js' "$phone_defaults"; then
     exit 1
 fi
 printf 'PASS: legacy Web/controller Emote remains disabled\n'
-require "$tablet_apps" 'tablet[.]loadQMLSource\(GENERAL_SETTINGS_SOURCE\)' \
+require "$tablet_apps" '"hifi/dialogs/GeneralPreferencesDialog[.]qml":[[:space:]]*GENERAL_SETTINGS_SOURCE' \
     'General Settings stays inside the Android tablet instead of opening a desktop window'
 
 printf 'Android tablet routing checks passed.\n'

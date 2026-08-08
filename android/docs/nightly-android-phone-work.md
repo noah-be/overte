@@ -4,6 +4,31 @@ This file records the cumulative, device-free Android phone work based on
 `origin/feature/android-phone-support`. Real-device and emulator tests are out
 of scope for this worktree and are called out explicitly where still needed.
 
+## 13 — Fail-closed Phone Settings routes
+
+- Branch: `nightly/android-phone-13-tablet-route-allowlist`
+- Commit: `Restrict phone tablet app navigation` (this task's commit)
+- Change: Replace the generic `switchApp.appUrl` loader in the Phone tablet
+  registrar with an exact allowlist for the packaged General, Audio, and three
+  Security settings surfaces. Both legacy and current General Settings requests
+  resolve to the selector-aware tablet page. Unknown local paths, remote URLs,
+  inherited object properties, and non-string payloads are ignored.
+- Tests:
+  - `android/tests/phone-tablet-app-router-test.sh`: **passed**, including the
+    executable Node lifecycle mock and ten rejected payload classes.
+  - `android/tests/phone-tablet-routing-test.sh`: **passed**.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet contracts and 174/174 host checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 34
+    explicitly device-free suites.
+  - `git diff --check`: **passed**.
+- Known risks: The allowlist intentionally mirrors the Settings QML page list;
+  a future first-party page must update both contracts or it will fail closed.
+- Real-device validation still required: **not executed**. Open General, Audio,
+  Security, QML Allowlist, and Script Security from Settings; verify each opens
+  inside the tablet and Back returns safely. Confirm no external URI or desktop
+  window can be opened through a crafted `switchApp` message.
+
 ## 01 — Host regression from any working directory
 
 - Branch: `nightly/android-phone-01-host-test-cwd`
