@@ -13,8 +13,19 @@ require '#if defined\(ANDROID_APP_PHONE_INTERFACE\)' 'overlay depth A/B path is 
 require 'debug\.overte\.phone_overlay_depth' 'overlay depth property is missing'
 require 'requested == "1".*requested == "on".*requested == "true".*requested == "enabled"' 'strict true parser is missing'
 require 'requested == "0".*requested == "off".*requested == "false".*requested == "disabled"' 'strict false parser is missing'
-default_false_count=$(grep -Ec '^[[:space:]]*return false;' "$source_file")
-(( default_false_count >= 2 )) || { printf 'FAIL: invalid or absent properties do not disable depth by default\n' >&2; exit 1; }
+parser_body=$(awk '
+    /^static bool isPhoneOverlayDepthEnabled\(\) \{/ { capture=1 }
+    capture { print }
+    capture && /^}/ { exit }
+' "$source_file")
+[[ $(grep -Ec '^[[:space:]]*return false;' <<<"$parser_body") -eq 3 ]] || {
+    printf 'FAIL: false, invalid, and absent properties must all disable depth\n' >&2
+    exit 1
+}
+[[ $(grep -Ec '^[[:space:]]*return true;' <<<"$parser_body") -eq 1 ]] || {
+    printf 'FAIL: only an explicitly enabled property may restore depth\n' >&2
+    exit 1
+}
 require 'overlayDepthEnabled && !_overlayFramebuffer->getDepthStencilBuffer\(\)' 'phone depth attachment is not conditional'
 require 'isPhoneOverlayDepthEnabled\(\) \? gpu::Framebuffer::BUFFER_DEPTH : 0' 'phone depth clear is not conditional'
 require 'overlay_depth_enabled=%d overlay_width=%u overlay_height=%u overlay_depth_estimated_mib=%\.2f' 'numeric one-time telemetry is incomplete'
