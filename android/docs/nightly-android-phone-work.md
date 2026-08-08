@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 31 — Bound the Quick Goto Home contract
+
+- Branch: `nightly/android-phone-31-quick-goto-contract`
+- Commit: `Bound phone Quick Goto destinations` (this task's commit)
+- Change: Limit the persisted Home destination to 4096 characters before it
+  crosses into address lookup. Missing, non-string, blank, control-character,
+  and overlong values all fail closed to packaged tutorial content; valid Home
+  navigation and the direct Tutorial action are unchanged.
+- Tests:
+  - `android/tests/phone-tablet-quick-goto-test.sh`: **passed**, including an
+    executable mock for button registration, valid Home lookup, packaged
+    Tutorial, malformed/overlong fallback, and tablet close on every action.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle suites and 181/181 host checks.
+  - JavaScript syntax and `git diff --check`: **passed**.
+- Known risks: Address scheme/domain policy remains owned by the established
+  AddressManager lookup path rather than duplicated in this small launcher.
+- Real-device validation still required: **not executed for this task**. Test
+  valid and unset Home bookmarks plus Tutorial, confirm each closes the tablet,
+  navigates once, and repeated taps do not leave an unresponsive surface.
+
 ## 30 — Scope the Shield menu preference away from Phone
 
 - Branch: `nightly/android-phone-30-shield-menu-scope`

@@ -35,6 +35,10 @@ require 'typeof candidate !== "string"' \
     'Home rejects non-string persisted bookmark data'
 require 'candidate[[:space:]]*=[[:space:]]*candidate[.]trim\(\)' \
     'Home normalizes surrounding bookmark whitespace'
+require 'MAX_HOME_DESTINATION_LENGTH = 4096' \
+    'Home establishes a bounded script/C++ address contract'
+require 'candidate[.]length > MAX_HOME_DESTINATION_LENGTH' \
+    'Home rejects overlong persisted bookmark data'
 require '\\u0000-\\u001f\\u007f' \
     'Home rejects bookmark values containing control characters'
 
@@ -43,5 +47,7 @@ if grep -Fq 'pico-debug.json' "$quick_goto"; then
     exit 1
 fi
 printf 'PASS: Home does not expose a development-only destination\n'
+
+node "$script_dir/phone-tablet-quick-goto-mock.js"
 
 printf 'Phone tablet quick navigation checks passed.\n'

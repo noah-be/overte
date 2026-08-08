@@ -15,6 +15,7 @@
 (function() { // BEGIN LOCAL_SCOPE
 
     var FALLBACK_DESTINATION = "file:///~/serverless/tutorial.json";
+    var MAX_HOME_DESTINATION_LENGTH = 4096;
 
     function validHomeDestination(candidate) {
         if (typeof candidate !== "string") {
@@ -24,7 +25,8 @@
         // Do not pass malformed persisted data to AddressManager. In
         // particular, embedded control characters can turn one bookmark into
         // a different lookup when it crosses the script/C++ boundary.
-        if (!candidate || /[\u0000-\u001f\u007f]/.test(candidate)) {
+        if (!candidate || candidate.length > MAX_HOME_DESTINATION_LENGTH ||
+                /[\u0000-\u001f\u007f]/.test(candidate)) {
             return "";
         }
         return candidate;
