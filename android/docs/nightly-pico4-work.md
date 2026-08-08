@@ -574,8 +574,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 32 — Fail-closed serverless parsing
 
 - Branch: `nightly/pico4-32-serverless-parse-failure`
-- Commit: identified by subject `Reject invalid Pico serverless scenes`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `314278d8b1` (`Reject invalid Pico serverless scenes`)
 - Change: make serverless scene preparation report parse success separately
   from its potentially empty named-path map. Local and requested malformed
   scenes now return before changing session UUID/permissions, announcing a
@@ -593,6 +592,26 @@ headset, ADB, Android device, external domain, or device setting is used.
   scene to malformed, empty-valid, and normal serverless files; verify malformed
   input never reports READY or replaces session/permissions, then recover by
   navigating to a valid scene.
+
+### 33 — Serverless request generation ownership
+
+- Branch: `nightly/pico4-33-serverless-request-generation`
+- Commit: identified by subject `Ignore stale Pico serverless requests`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: assign a monotonically increasing generation to serverless loads and
+  reject an asynchronous completion unless it still owns the newest request.
+  Online-domain navigation explicitly invalidates outstanding serverless
+  requests, which otherwise had no replacement load call to advance ownership.
+- Regression: source contracts require generation capture before send, stale
+  rejection before parsing/state mutation, and online-navigation invalidation.
+- Passed: world-loading failure/race contracts; full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: an obsolete download can still consume network/cache resources because
+  the common request base has no cancellation API, but it can no longer import
+  entities or replace session, permissions, connection, or commit state.
+- Pico 4 validation: **not executed**. Rapidly alternate slow HTTP/ATP/local
+  serverless targets and an online place; force completions out of order and
+  verify only the final destination becomes visible/READY.
 
 ## Deferred, rejected, or blocked ideas
 

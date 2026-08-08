@@ -989,6 +989,7 @@ private:
     // serverless to domain server.
     // It's set to true by Application::clearDomainOctreeData and is cleared by Application::setIsServerlessMode
     bool _waitForServerlessToBeSet { true };
+    quint64 _serverlessDomainRequestGeneration { 0 };
 
     bool _showTrackedObjects { false };
     bool _prevShowTrackedObjects { false };

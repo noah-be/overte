@@ -1068,6 +1068,11 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         return;
     }
 
+    // Resource requests may complete out of order when navigation changes
+    // quickly. Only the newest requested destination may mutate the entity
+    // tree, session, permissions, or DomainHandler state.
+    const quint64 requestGeneration = ++_serverlessDomainRequestGeneration;
+
 #if defined(ANDROID_APP_PICO_INTERFACE)
     const QUrl localDomainURL = PathUtils::expandToLocalDataAbsolutePath(domainURL);
     if (localDomainURL.isLocalFile()) {
@@ -1113,6 +1118,12 @@ void Application::loadServerlessDomain(QUrl domainURL) {
     }
 
     connect(request, &ResourceRequest::finished, this, [=, this]() {
+        if (requestGeneration != _serverlessDomainRequestGeneration) {
+            qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE staleRequestIgnored"
+                << domainURL;
+            request->deleteLater();
+            return;
+        }
         qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE requestFinished"
             << domainURL << "result" << static_cast<int>(request->getResult())
             << "bytes" << request->getData().size();
@@ -1611,6 +1622,11 @@ void Application::setSessionUUID(const QUuid& sessionUUID) const {
 }
 
 void Application::domainURLChanged(QUrl domainURL) {
+    // An online navigation does not call loadServerlessDomain(), so it must
+    // explicitly invalidate any older local/HTTP/ATP scene request.
+    if (domainURL.scheme() == URL_SCHEME_OVERTE) {
+        ++_serverlessDomainRequestGeneration;
+    }
 #if defined(ANDROID_APP_PICO_INTERFACE)
     if (_picoServerlessSceneImportCommitted) {
         qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE domainURLAfterCommit"

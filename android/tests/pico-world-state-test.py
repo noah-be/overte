@@ -58,6 +58,27 @@ class PicoWorldStateTests(unittest.TestCase):
         self.assertLess(failure_return, connect)
         self.assertLess(failure_return, commit)
 
+    def test_stale_serverless_request_is_rejected_before_parsing(self):
+        body = function_body(
+            "void Application::loadServerlessDomain",
+            "void Application::loadErrorDomain",
+        )
+        generation = body.index("const quint64 requestGeneration = ++_serverlessDomainRequestGeneration")
+        send = body.index("request->send();")
+        stale_check = body.index("requestGeneration != _serverlessDomainRequestGeneration")
+        parse = body.index("prepareServerlessDomainContents(domainURL, request->getData()", stale_check)
+        self.assertLess(generation, send)
+        self.assertLess(stale_check, parse)
+        self.assertIn("staleRequestIgnored", body)
+
+    def test_online_navigation_invalidates_serverless_request(self):
+        body = function_body(
+            "void Application::domainURLChanged",
+            "void Application::domainConnectionRefused",
+        )
+        self.assertIn("if (domainURL.scheme() == URL_SCHEME_OVERTE)", body)
+        self.assertIn("++_serverlessDomainRequestGeneration;", body)
+
 
 if __name__ == "__main__":
     unittest.main()
