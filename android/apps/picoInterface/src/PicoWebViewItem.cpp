@@ -216,7 +216,8 @@ void PicoWebViewItem::wheelEvent(QWheelEvent* e) {
         }
     }
     jvalue args[4]; args[0].j = reinterpret_cast<jlong>(this);
-    args[1].f = webPosition.x(); args[2].f = webPosition.y(); args[3].f = e->angleDelta().y() / 120.0f;
+    args[1].f = webPosition.x(); args[2].f = webPosition.y();
+    args[3].f = e->angleDelta().y() / 120.0f;
     callStatic("scroll", "(JFFF)V", args); e->accept();
 }
 

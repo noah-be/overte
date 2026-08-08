@@ -15,6 +15,7 @@ import android.webkit.WebViewClient;
 
 import java.nio.ByteBuffer;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /** Renders Android WebViews into buffers consumed by PicoWebViewItem. */
@@ -24,6 +25,7 @@ public final class OffscreenWebView {
     private static final Map<Long, Instance> INSTANCES = new HashMap<>();
     private static final int FRAME_INTERVAL_MS = 100;
     private static final int MAX_TEXTURE_EDGE = 2048;
+    private static boolean wholeDocumentDrawEnabled;
 
     private OffscreenWebView() { }
 
@@ -35,11 +37,20 @@ public final class OffscreenWebView {
                               String userAgent) {
         MAIN.post(() -> {
             destroyOnMain(nativeHandle);
+            if (!wholeDocumentDrawEnabled) {
+                // This WebView has no ViewRoot and is rendered exclusively through
+                // draw(Canvas). Chromium otherwise retains only compositor tiles for
+                // its assumed on-screen viewport, leaving stale/blank areas after a
+                // scroll. Android requires enabling this before creating WebViews.
+                WebView.enableSlowWholeDocumentDraw();
+                wholeDocumentDrawEnabled = true;
+            }
             WebView view = new WebView(PicoInterfaceActivity.getInstance());
             view.setBackgroundColor(0x00000000);
             view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
             view.setWebViewClient(new WebViewClient() {
                 @Override public void onPageFinished(WebView finishedView, String finishedUrl) {
+                    finishedView.scrollTo(0, 0);
                     Log.i(TAG, "Finished WebView page (URL length "
                         + (finishedUrl == null ? 0 : finishedUrl.length()) + ")");
                 }
@@ -126,20 +137,35 @@ public final class OffscreenWebView {
             if (instance == null) {
                 return;
             }
-            MotionEvent.PointerProperties properties = new MotionEvent.PointerProperties();
-            properties.id = 0;
-            properties.toolType = MotionEvent.TOOL_TYPE_MOUSE;
-            MotionEvent.PointerCoords coords = new MotionEvent.PointerCoords();
-            coords.x = x * instance.displayDensity;
-            coords.y = y * instance.displayDensity;
-            coords.setAxisValue(MotionEvent.AXIS_VSCROLL, delta);
-            long now = android.os.SystemClock.uptimeMillis();
-            MotionEvent event = MotionEvent.obtain(now, now, MotionEvent.ACTION_SCROLL,
-                1, new MotionEvent.PointerProperties[] { properties },
-                new MotionEvent.PointerCoords[] { coords }, 0, 0, 1.0f, 1.0f,
-                0, 0, InputDevice.SOURCE_MOUSE, 0);
-            instance.view.dispatchGenericMotionEvent(event);
-            event.recycle();
+            // Pico's analogue thumbstick supplies small wheel fractions every input
+            // frame. Android WebView ignores those fractions individually, while
+            // forwarding a full wheel unit every frame scrolls far too quickly.
+            instance.pendingScroll += delta;
+            if (Math.abs(instance.pendingScroll) < 1.0f) {
+                return;
+            }
+            float wheelStep = Math.signum(instance.pendingScroll);
+            instance.pendingScroll -= wheelStep;
+            // Programmatic DOM scrolling preserves CSS clipping and fixed elements
+            // when this unattached WebView is rendered into a software Canvas.
+            // Native WebView.scrollBy() moves the entire offscreen layer, does not
+            // clamp it, and exposes blank background at either end.
+            String script = String.format(Locale.US,
+                "(function(x,y,d){var e=document.elementFromPoint(x,y),s;"
+                + "while(e&&e!==document.body&&e!==document.documentElement){"
+                + "s=getComputedStyle(e);if(e.scrollHeight>e.clientHeight&&"
+                + "(s.overflowY==='auto'||s.overflowY==='scroll')){"
+                + "e.scrollTop+=d;return;}e=e.parentElement;}"
+                + "e=document.scrollingElement||document.documentElement;"
+                + "e.scrollTop+=d;"
+                + "})(%.3f,%.3f,%.3f)",
+                x, y, -wheelStep * 120.0f);
+            instance.view.evaluateJavascript(script, result -> {
+                // An unattached software WebView does not receive ViewRootImpl's
+                // normal invalidation/layout pass after compositor scrolling.
+                // Force that pass so draw(Canvas) cannot reuse stale page layers.
+                instance.refreshLayout();
+            });
         });
     }
 
@@ -152,6 +178,7 @@ public final class OffscreenWebView {
         Canvas canvas;
         ByteBuffer pixels;
         boolean reportedFirstFrame;
+        float pendingScroll;
 
         final Runnable renderFrame = new Runnable() {
             @Override public void run() {
@@ -159,7 +186,10 @@ public final class OffscreenWebView {
                     return;
                 }
                 bitmap.eraseColor(0x00000000);
+                int saveCount = canvas.save();
+                canvas.translate(-view.getScrollX(), -view.getScrollY());
                 view.draw(canvas);
+                canvas.restoreToCount(saveCount);
                 pixels.rewind();
                 bitmap.copyPixelsToBuffer(pixels);
                 pixels.rewind();
@@ -177,6 +207,16 @@ public final class OffscreenWebView {
             this.nativeHandle = nativeHandle;
             this.view = view;
             this.displayDensity = Math.max(1.0f, displayDensity);
+        }
+
+        void refreshLayout() {
+            int width = Math.max(1, view.getWidth());
+            int height = Math.max(1, view.getHeight());
+            view.forceLayout();
+            view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
+            view.layout(0, 0, width, height);
+            view.invalidate();
         }
 
         void resize(int requestedWidth, int requestedHeight) {
