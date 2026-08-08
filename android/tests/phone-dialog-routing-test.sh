@@ -33,6 +33,16 @@ require "$address_body" 'objectName:[[:space:]]*"AddressBarDialog"' \
     'phone selector provides the QML object expected by OffscreenUi'
 require "$address_body" 'addressDialog\.loadAddress\(' \
     'phone Go To delegates lookup to the existing AddressBarDialog model'
+require "$address_body" 'maximumAddressLength:[[:space:]]*4096' \
+    'phone Go To bounds text before the QML/C++ boundary'
+require "$address_body" 'candidate[[:space:]]*=[[:space:]]*addressField[.]text[.]trim\(\)' \
+    'phone Go To normalizes surrounding address whitespace'
+require "$address_body" '\\u0000-\\u001f\\u007f' \
+    'phone Go To rejects address control characters'
+require "$address_body" 'addressError[.]text[[:space:]]*=[[:space:]]*qsTr' \
+    'phone Go To keeps invalid input visible with a local error'
+require "$address_body" 'addressDialog[.]loadAddress\(candidate\)' \
+    'phone Go To passes only the validated candidate to C++'
 require "$address_body" 'androidClickAction:' \
     'phone address actions use the Android-compatible button callback'
 require "$login" 'LoginDialog::show\(\)' \

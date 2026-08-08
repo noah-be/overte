@@ -4,6 +4,28 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 39 — Validate Phone address input
+
+- Branch: `nightly/android-phone-39-address-input-contract`
+- Commit: `Validate phone address input` (this task's commit)
+- Change: Bound the screen-space address field to 4096 characters, trim only
+  surrounding whitespace, and reject blank/control-character input before the
+  QML/C++ lookup boundary. Invalid input keeps the dialog and keyboard focus
+  with a bounded local error; valid place names containing spaces remain valid.
+- Tests:
+  - `android/tests/phone-dialog-routing-test.sh`: **passed**, including maximum
+    length, normalization, control-character, local-error, and validated-value
+    delegation contracts.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/APK suites and 188/188 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: QML source contracts cannot reproduce every Android IME action;
+  final lookup semantics remain owned by AddressManager.
+- Real-device validation still required: **not executed for this task**. Test
+  placenames with spaces, hifi/overte URLs, paths and network addresses; verify
+  blank/overlong/control input stays open with an error, Return and Go navigate
+  once, and Back/Cancel/external teardown always hides the IME.
+
 ## 38 — Validate Avatar scale/settings state
 
 - Branch: `nightly/android-phone-38-avatar-scale-contract`

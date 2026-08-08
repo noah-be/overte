@@ -8,6 +8,7 @@ FocusScope {
     id: root
     objectName: "AddressBarDialog"
     property bool shown: true
+    readonly property int maximumAddressLength: 4096
     visible: shown
     anchors.fill: parent
 
@@ -17,10 +18,15 @@ FocusScope {
     }
 
     function goToAddress() {
-        if (addressField.text.length === 0) {
+        var candidate = addressField.text.trim()
+        if (candidate.length === 0 || candidate.length > maximumAddressLength ||
+                /[\u0000-\u001f\u007f]/.test(candidate)) {
+            addressError.text = qsTr("Enter a valid address.")
+            addressField.forceActiveFocus()
             return
         }
-        addressDialog.loadAddress(addressField.text)
+        addressError.text = ""
+        addressDialog.loadAddress(candidate)
         closeDialog()
     }
 
@@ -69,9 +75,20 @@ FocusScope {
                 width: parent.width
                 height: 52
                 placeholderText: qsTr("Address")
+                maximumLength: root.maximumAddressLength
                 activeFocusOnPress: true
                 font.pixelSize: 20
                 Keys.onReturnPressed: root.goToAddress()
+            }
+
+            Text {
+                id: addressError
+                width: parent.width
+                visible: text.length > 0
+                color: "#ff7777"
+                font.pixelSize: 18
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
             }
 
             Row {
@@ -113,6 +130,7 @@ FocusScope {
     onShownChanged: {
         addressDialog.observeShownChanged(shown)
         if (shown) {
+            addressError.text = ""
             addressField.text = AddressManager.href
             addressField.selectAll()
             addressField.forceActiveFocus()
@@ -123,6 +141,7 @@ FocusScope {
 
     Component.onCompleted: {
         addressDialog.observeShownChanged(shown)
+        addressError.text = ""
         addressField.text = AddressManager.href
         addressField.selectAll()
         addressField.forceActiveFocus()
