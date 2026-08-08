@@ -159,6 +159,23 @@ class PicoOpenXRDisplayTests(unittest.TestCase):
         self.assertEqual(session.count("EGL_GREEN_SIZE, 8"), 2)
         self.assertEqual(session.count("EGL_BLUE_SIZE, 8"), 2)
 
+    def test_reference_spaces_are_capability_checked_and_transactional(self):
+        start = CONTEXT.index("bool OpenXrContext::initSpaces()")
+        end = CONTEXT.index("#define ENUM_TO_STR", start)
+        spaces = CONTEXT[start:end]
+        self.assertIn("spaceTypeCount == 0", spaces)
+        self.assertIn("populatedSpaceTypeCount != spaceTypeCount", spaces)
+        self.assertIn("XR_REFERENCE_SPACE_TYPE_STAGE", spaces)
+        self.assertIn("XR_REFERENCE_SPACE_TYPE_VIEW", spaces)
+        self.assertIn("XrSpace stageSpace { XR_NULL_HANDLE };", spaces)
+        self.assertIn("XrSpace viewSpace { XR_NULL_HANDLE };", spaces)
+        rollback = spaces.index("xrDestroySpace(stageSpace)")
+        publish_stage = spaces.index("_stageSpace = stageSpace;")
+        publish_view = spaces.index("_viewSpace = viewSpace;")
+        self.assertLess(rollback, publish_stage)
+        self.assertLess(publish_stage, publish_view)
+        self.assertIn("_stageSpace != XR_NULL_HANDLE && _viewSpace != XR_NULL_HANDLE", spaces)
+
 
 if __name__ == "__main__":
     unittest.main()

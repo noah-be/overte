@@ -891,8 +891,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 48 — OpenXR EGL color configuration
 
 - Branch: `nightly/pico4-48-openxr-egl-blue`
-- Commit: identified by subject `Require Pico OpenXR EGL blue channel`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `4073b102ba` (`Require Pico OpenXR EGL blue channel`)
 - Change: request an 8-bit blue channel in both generic EGL and Android GLES
   OpenXR config selection. Both lists previously requested red twice and placed
   no constraint on blue, allowing a color-incompatible EGL config.
@@ -906,6 +905,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Cold-start OpenXR through both available
   EGL binding paths where possible and verify normal full-color rendering with
   no config-selection or graphics-device error.
+
+### 49 — OpenXR reference-space initialization
+
+- Branch: `nightly/pico4-49-openxr-reference-spaces`
+- Commit: identified by subject `Harden Pico OpenXR reference spaces`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: enumerate an exact, stable reference-space capability list before
+  requiring Stage and View, reuse an already complete pair during graphics
+  re-customization, and create both through local handles. View creation failure
+  now destroys the unpublished Stage handle instead of leaving partial state.
+- Regression: OpenXR contracts cover zero/changed capability counts, required
+  types, local handles, rollback-before-publication and complete-pair reuse.
+- Passed: 14 OpenXR display/lifecycle contracts; full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: runtimes without Stage space now fail explicitly; Pico supplies Stage
+  and View. Existing complete spaces are retained across graphics customization.
+- Pico 4 validation: **not executed**. Re-customize graphics and suspend/resume
+  repeatedly; inject View-space creation failure and verify Stage rollback,
+  clean recovery, stable tracking origin and no reference-space handle growth.
 
 ## Deferred, rejected, or blocked ideas
 

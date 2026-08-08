@@ -26,6 +26,7 @@
 #include <QMessageBox>
 #endif
 
+#include <algorithm>
 #include <cmath>
 #include <sstream>
 #include <vector>
@@ -755,14 +756,40 @@ bool OpenXrContext::initSession() {
 }
 
 bool OpenXrContext::initSpaces() {
-    // TODO: Do xrEnumerateReferenceSpaces before assuming stage space is available.
+    if (_stageSpace != XR_NULL_HANDLE && _viewSpace != XR_NULL_HANDLE) {
+        return true;
+    }
+
+    uint32_t spaceTypeCount { 0 };
+    XrResult result = xrEnumerateReferenceSpaces(_session, 0, &spaceTypeCount, nullptr);
+    if (!xrCheck(_instance, result, "Failed to get reference space count") || spaceTypeCount == 0) {
+        return false;
+    }
+    std::vector<XrReferenceSpaceType> spaceTypes(spaceTypeCount);
+    uint32_t populatedSpaceTypeCount { 0 };
+    result = xrEnumerateReferenceSpaces(
+        _session, spaceTypeCount, &populatedSpaceTypeCount, spaceTypes.data());
+    if (!xrCheck(_instance, result, "Failed to enumerate reference spaces") ||
+            populatedSpaceTypeCount != spaceTypeCount) {
+        return false;
+    }
+    const auto supportsSpace = [&](XrReferenceSpaceType type) {
+        return std::find(spaceTypes.cbegin(), spaceTypes.cend(), type) != spaceTypes.cend();
+    };
+    if (!supportsSpace(XR_REFERENCE_SPACE_TYPE_STAGE) ||
+            !supportsSpace(XR_REFERENCE_SPACE_TYPE_VIEW)) {
+        qCCritical(xr_context_cat, "OpenXR runtime does not provide required stage and view reference spaces");
+        return false;
+    }
+
     XrReferenceSpaceCreateInfo stageSpaceInfo = {
         .type = XR_TYPE_REFERENCE_SPACE_CREATE_INFO,
         .referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE,
         .poseInReferenceSpace = XR_INDENTITY_POSE,
     };
 
-    XrResult result = xrCreateReferenceSpace(_session, &stageSpaceInfo, &_stageSpace);
+    XrSpace stageSpace { XR_NULL_HANDLE };
+    result = xrCreateReferenceSpace(_session, &stageSpaceInfo, &stageSpace);
     if (!xrCheck(_instance, result, "Failed to create stage space!"))
         return false;
 
@@ -772,8 +799,16 @@ bool OpenXrContext::initSpaces() {
         .poseInReferenceSpace = XR_INDENTITY_POSE,
     };
 
-    result = xrCreateReferenceSpace(_session, &viewSpaceInfo, &_viewSpace);
-    return xrCheck(_instance, result, "Failed to create view space!");
+    XrSpace viewSpace { XR_NULL_HANDLE };
+    result = xrCreateReferenceSpace(_session, &viewSpaceInfo, &viewSpace);
+    if (!xrCheck(_instance, result, "Failed to create view space!")) {
+        xrCheck(_instance, xrDestroySpace(stageSpace), "Failed to roll back stage space");
+        return false;
+    }
+
+    _stageSpace = stageSpace;
+    _viewSpace = viewSpace;
+    return true;
 }
 
 #define ENUM_TO_STR(r) \
