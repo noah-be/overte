@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 34 — Escape generated Phone QML resource XML
+
+- Branch: `nightly/android-phone-34-qml-qrc-escaping`
+- Commit: `Escape generated phone QML resource paths` (this task's commit)
+- Change: XML-escape both QRC aliases and absolute source paths when Gradle
+  generates the Phone QML resource manifest. Worktrees or dependency paths
+  containing XML metacharacters can no longer corrupt `phone-qml.qrc` before
+  `rcc` runs; packaged modules and runtime paths are unchanged.
+- Tests:
+  - `android/tests/phone-host-regression-test.sh`: **passed**, including escape
+    helper, metacharacter, and absolute-path-use contracts.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle suites and 185/185 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: A full Gradle merge-assets run is blocked by the absent Phone
+  dependency graph. Groovy interpolation and standard XML entities are covered
+  statically rather than by invoking `rcc` in this worktree.
+- Real-device validation still required: **none specific**. The resulting APK
+  still requires the cumulative install/start/Qt-QML-module smoke tests; this
+  build-path fix itself is host-verifiable.
+
 ## 33 — Defer deep links received in the background
 
 - Branch: `nightly/android-phone-33-background-deep-link`

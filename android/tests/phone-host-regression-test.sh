@@ -139,6 +139,12 @@ reject_text "$gradle" 'useLegacyPackaging[[:space:]]+!usePhone16kDependencies' \
     'verified dependencies do not disable extraction required by the Qt 5 loader'
 require_text "$gradle" 'check-phone-apk-16k\.sh' \
     '16 KiB builds enforce the final APK alignment gate'
+require_text "$gradle" 'def escapeQrcXml = ' \
+    'generated Phone QML resources centralize XML escaping'
+require_text "$gradle" "[.]replace\\('&', '&amp;'\\)" \
+    'generated Phone QML resources escape path metacharacters'
+require_text "$gradle" 'escapeQrcXml\(qmlFile[.]absolutePath\)' \
+    'generated Phone QML resources escape absolute source paths'
 require_text tests/check-phone-apk-16k.sh 'check-phone-apk-padding\.py' \
     'final APK gate rejects excessive incremental ZIP padding'
 require_text tests/check-phone-apk-16k.sh 'check-phone-apk-contents\.py' \

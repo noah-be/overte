@@ -411,11 +411,20 @@ android {
             // this bundle, so the custom phone build must do so explicitly.
             def qmlQrcFile = new File(buildDir, 'generated/phone-qml.qrc')
             qmlQrcFile.parentFile.mkdirs()
+            def escapeQrcXml = { Object value ->
+                value.toString()
+                    .replace('&', '&amp;')
+                    .replace('<', '&lt;')
+                    .replace('>', '&gt;')
+                    .replace('"', '&quot;')
+                    .replace("'", '&apos;')
+            }
             qmlQrcFile.withWriter { out ->
                 out.println('<RCC><qresource>')
                 fileTree(new File(mergedAssetsDir, 'qml')).files.sort().each { qmlFile ->
                     def relativePath = mergedAssetsDir.toPath().relativize(qmlFile.toPath()).toString()
-                    out.println("<file alias=\"${relativePath}\">${qmlFile.absolutePath}</file>")
+                    out.println("<file alias=\"${escapeQrcXml(relativePath)}\">" +
+                        "${escapeQrcXml(qmlFile.absolutePath)}</file>")
                 }
                 out.println('</qresource></RCC>')
             }
