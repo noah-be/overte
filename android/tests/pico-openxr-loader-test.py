@@ -37,6 +37,18 @@ class OpenXrLoaderLifecycleTest(unittest.TestCase):
     def test_activity_class_local_reference_is_released(self):
         self.assertIn("DeleteLocalRef(activityClass)", SOURCE)
 
+    def test_destroy_releases_only_the_matching_activity(self):
+        release = re.search(
+            r"PicoInterfaceActivity_releaseOpenXRActivity\((.*?)\n\}",
+            SOURCE,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(release)
+        body = release.group(1)
+        self.assertIn("IsSameObject(loaderActivity, activity)", body)
+        self.assertIn("DeleteGlobalRef(loaderActivity)", body)
+        self.assertIn("loaderActivity = nullptr", body)
+
 
 if __name__ == "__main__":
     unittest.main()

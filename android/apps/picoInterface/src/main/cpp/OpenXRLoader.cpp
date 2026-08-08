@@ -140,3 +140,14 @@ Java_org_overte_pico_PicoInterfaceActivity_initializeOpenXRLoader(
 
     return JNI_TRUE;
 }
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_overte_pico_PicoInterfaceActivity_releaseOpenXRActivity(
+        JNIEnv* env, jobject activity) {
+    // A superseded Activity can finish after its replacement has initialized.
+    // Release only the global reference that represents this exact instance.
+    if (loaderActivity && env->IsSameObject(loaderActivity, activity)) {
+        env->DeleteGlobalRef(loaderActivity);
+        loaderActivity = nullptr;
+    }
+}

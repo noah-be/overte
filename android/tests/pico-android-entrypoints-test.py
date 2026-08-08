@@ -56,6 +56,7 @@ class AndroidEntrypointsTest(unittest.TestCase):
         self.assertIn("protected void onDestroy()", activity)
         self.assertIn("OffscreenWebView.destroyAll()", activity)
         self.assertIn("AndroidAudioInput.stop()", activity)
+        self.assertIn("releaseOpenXRActivity()", activity)
         self.assertIn("instance = null", activity)
         self.assertIn("public static void destroyAll()", webview)
         self.assertIn("new ArrayList<>(INSTANCES.keySet())", webview)

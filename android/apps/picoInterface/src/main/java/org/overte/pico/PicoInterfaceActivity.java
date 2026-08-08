@@ -34,6 +34,7 @@ public final class PicoInterfaceActivity extends QtActivity {
     }
 
     private native boolean initializeOpenXRLoader();
+    private native void releaseOpenXRActivity();
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -102,6 +103,7 @@ public final class PicoInterfaceActivity extends QtActivity {
     protected void onDestroy() {
         OffscreenWebView.destroyAll();
         AndroidAudioInput.stop();
+        releaseOpenXRActivity();
         if (instance == this) {
             instance = null;
         }

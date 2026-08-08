@@ -286,8 +286,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 16 — Activity shutdown cleanup
 
 - Branch: `nightly/pico4-16-activity-shutdown-cleanup`
-- Commit: identified by subject `Clean up Pico Activity resources`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `8c031d0ca1` (`Clean up Pico Activity resources`)
 - Change: on Qt Activity destruction, synchronously destroy every offscreen
   WebView when already on Android's main thread, stop AudioRecord, and clear the
   static Activity reference. Off-thread bulk WebView cleanup is safely posted.
@@ -300,6 +299,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Recreate, finish, and restart the
   Activity with active Web entities and microphone capture; verify old frame
   callbacks/audio reads stop and the new Activity starts with fresh resources.
+
+### 17 — Native OpenXR Activity release
+
+- Branch: `nightly/pico4-17-openxr-activity-release`
+- Commit: identified by subject `Release Pico OpenXR Activity reference`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: release the native OpenXR loader's global Activity JNI reference from
+  `onDestroy()`, but only when `IsSameObject` proves the destroying Activity is
+  still the published instance. The process-global application Context remains
+  available for loader reuse.
+- Regression: loader tests verify identity guarding, global-ref deletion, and
+  nulling; Android lifecycle tests require the release hook.
+- Passed: OpenXR loader regression (4), Android lifecycle regression (5), full
+  `pico-device-free-test.sh`; `git diff --check`.
+- Risk: JNI publication remains confined to Android lifecycle calls; the
+  identity guard protects a newer Activity from a late old-instance destroy.
+- Pico 4 validation: **not executed**. Recreate Activities rapidly and inspect
+  logcat/native behavior for stale or prematurely cleared Activity references
+  while OpenXR sessions stop and restart.
 
 ## Deferred, rejected, or blocked ideas
 
