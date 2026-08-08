@@ -1410,7 +1410,7 @@ void OpenXrInputPlugin::InputDevice::getHandTrackingInputs(int i, const mat4& se
     if (_handTracker[i] == XR_NULL_HANDLE) { return; }
     if (!_context->_lastPredictedDisplayTime.has_value()) { return; }
 
-    XrHandJointLocationEXT joints[XR_HAND_JOINT_COUNT_EXT];
+    XrHandJointLocationEXT joints[XR_HAND_JOINT_COUNT_EXT] {};
     XrHandJointLocationsEXT locations = {
         .type = XR_TYPE_HAND_JOINT_LOCATIONS_EXT,
         .jointCount = XR_HAND_JOINT_COUNT_EXT,
@@ -1423,9 +1423,20 @@ void OpenXrInputPlugin::InputDevice::getHandTrackingInputs(int i, const mat4& se
         .time = _context->inputPredictionTime(),
     };
 
-    _context->xrLocateHandJointsEXT(_handTracker[i], &locateInfo, &locations);
+    XrResult result = _context->xrLocateHandJointsEXT(
+        _handTracker[i], &locateInfo, &locations);
+    if (!xrCheck(_context->_instance, result, "Failed to locate hand joints") ||
+            !locations.isActive) {
+        return;
+    }
 
-    if (!locations.isActive) { return; }
+    constexpr XrSpaceLocationFlags REQUIRED_JOINT_FLAGS =
+        XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+    for (const auto& joint : joints) {
+        if ((joint.locationFlags & REQUIRED_JOINT_FLAGS) != REQUIRED_JOINT_FLAGS) {
+            return;
+        }
+    }
 
     // Handles coordinate space conversion:
     //

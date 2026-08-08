@@ -145,6 +145,24 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertNotIn("getBindings()", SOURCE)
         self.assertNotIn("getBindings();", HEADER)
 
+    def test_hand_joints_fail_closed_before_pose_publication(self):
+        start = SOURCE.index("void OpenXrInputPlugin::InputDevice::getHandTrackingInputs")
+        end = SOURCE.index("void OpenXrInputPlugin::InputDevice::calibratePucks", start)
+        hand = SOURCE[start:end]
+        self.assertIn("XrHandJointLocationEXT joints[XR_HAND_JOINT_COUNT_EXT] {};", hand)
+        locate = hand.index("xrLocateHandJointsEXT")
+        check = hand.index('xrCheck(_context->_instance, result, "Failed to locate hand joints")', locate)
+        active = hand.index("!locations.isActive", check)
+        flags = hand.index("REQUIRED_JOINT_FLAGS", active)
+        flag_check = hand.index("joint.locationFlags & REQUIRED_JOINT_FLAGS", flags)
+        publish = hand.index("_poseStateMap[", flag_check)
+        self.assertLess(locate, check)
+        self.assertLess(check, active)
+        self.assertLess(active, flag_check)
+        self.assertLess(flag_check, publish)
+        self.assertIn("XR_SPACE_LOCATION_POSITION_VALID_BIT", hand)
+        self.assertIn("XR_SPACE_LOCATION_ORIENTATION_VALID_BIT", hand)
+
 
 if __name__ == "__main__":
     unittest.main()

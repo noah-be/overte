@@ -964,8 +964,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 52 — OpenXR binding path validation
 
 - Branch: `nightly/pico4-52-openxr-binding-paths`
-- Commit: identified by subject `Validate Pico OpenXR binding paths`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `b4bd85c376` (`Validate Pico OpenXR binding paths`)
 - Change: initialize and validate every suggested input-path conversion before
   adding it to a profile binding list. Remove unused `Action::getBindings()`,
   which ignored conversion results and incorrectly treated action IDs as paths.
@@ -978,6 +977,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Start with the Pico interaction profile,
   verify every mapped control and haptic output, then inject an invalid suggested
   path and confirm only that profile is rejected without stale/partial bindings.
+
+### 53 — OpenXR hand-joint validity
+
+- Branch: `nightly/pico4-53-openxr-hand-joints`
+- Commit: identified by subject `Validate Pico OpenXR hand joints`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: zero-initialize the hand-joint buffer, check the extension call and
+  active state, and require valid position plus orientation on every joint before
+  publishing any skeleton pose. Invalid samples leave the freshly cleared pose
+  map neutral while capacitive controller finger hints remain available.
+- Regression: input contracts enforce initialization and locate/result/active/
+  flag validation ordering before the first hand pose-map write.
+- Passed: 10 OpenXR input contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: partial hand skeletons are dropped as a unit rather than mixing stale or
+  undefined joints; normal fully tracked Pico controller input is unaffected.
+- Pico 4 validation: **not executed**. With hand tracking available, cover full
+  hands, partial occlusion, tracking loss/recovery and controller fallback;
+  verify no exploding joints, stale hand pose or interruption of touch hints.
 
 ## Deferred, rejected, or blocked ideas
 
