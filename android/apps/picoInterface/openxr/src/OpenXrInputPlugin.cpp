@@ -329,7 +329,7 @@ void OpenXrInputPlugin::InputDevice::focusOutEvent() {
 };
 
 bool OpenXrInputPlugin::InputDevice::triggerHapticPulse(float strength, float duration, uint16_t index) {
-    if (index > 2 || !_hapticsEnabled) {
+    if (index >= HAND_COUNT || !_hapticsEnabled) {
         return false;
     }
 

@@ -86,6 +86,17 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertIn("return xrCheck", active.group(1))
         self.assertIn("&&\n        state.isActive", active.group(1))
 
+    def test_haptics_reject_non_hand_indices(self):
+        haptics = re.search(
+            r"bool OpenXrInputPlugin::InputDevice::triggerHapticPulse\(.*?\n\}",
+            SOURCE,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(haptics)
+        body = haptics.group(0)
+        self.assertIn("index >= HAND_COUNT", body)
+        self.assertNotIn("index > 2", body)
+
 
 if __name__ == "__main__":
     unittest.main()

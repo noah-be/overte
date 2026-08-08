@@ -321,8 +321,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 18 — OpenXR action query failures
 
 - Branch: `nightly/pico4-18-openxr-action-errors`
-- Commit: identified by subject `Fail closed on Pico OpenXR action errors`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `4f591968d9` (`Fail closed on Pico OpenXR action errors`)
 - Change: Float, vector, boolean, pose-state, and pose-location queries return
   deterministic inactive/neutral values when OpenXR reports an error. Pose
   spaces are located only for active actions, and a failed locate returns an
@@ -336,6 +335,22 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Exercise controller sleep/reconnect and
   Activity/session transitions; verify failed queries cannot revive old poses,
   buttons, axes, grabs, rays, or locomotion.
+
+### 19 — OpenXR haptic device bounds
+
+- Branch: `nightly/pico4-19-openxr-haptic-index`
+- Commit: identified by subject `Reject invalid Pico haptic indices`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: reject haptic device indices greater than or equal to the two-hand
+  OpenXR count. Index 2 can no longer be silently redirected to the right hand.
+- Regression: OpenXR input test requires the `HAND_COUNT` bound and rejects the
+  former `index > 2` condition.
+- Passed: OpenXR input regression (7); full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: valid left/right indices remain unchanged; non-hand devices now fail
+  explicitly instead of producing misleading right-controller feedback.
+- Pico 4 validation: **not executed**. Trigger left/right haptics separately and
+  submit an invalid test index; verify only indices 0 and 1 vibrate.
 
 ## Deferred, rejected, or blocked ideas
 
