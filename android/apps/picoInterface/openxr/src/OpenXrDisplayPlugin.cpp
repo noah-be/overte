@@ -244,17 +244,28 @@ static std::string glFormatStr(GLenum source) {
 }
 
 static int64_t chooseSwapChainFormat(XrInstance instance, XrSession session, int64_t preferred) {
-    uint32_t formatCount;
+    uint32_t formatCount { 0 };
     XrResult result = xrEnumerateSwapchainFormats(session, 0, &formatCount, nullptr);
     if (!xrCheck(instance, result, "Failed to get number of supported swapchain formats"))
         return -1;
+    if (formatCount == 0) {
+        qCCritical(xr_display_cat, "OpenXR runtime returned no supported swapchain formats");
+        return -1;
+    }
 
     qCInfo(xr_display_cat, "Runtime supports %d swapchain formats", formatCount);
     std::vector<int64_t> formats(formatCount);
 
-    result = xrEnumerateSwapchainFormats(session, formatCount, &formatCount, formats.data());
-    if (!xrCheck(instance, result, "Failed to enumerate swapchain formats"))
+    uint32_t populatedFormatCount { 0 };
+    result = xrEnumerateSwapchainFormats(
+        session, formatCount, &populatedFormatCount, formats.data());
+    if (!xrCheck(instance, result, "Failed to enumerate swapchain formats") ||
+            populatedFormatCount != formatCount) {
+        qCCritical(xr_display_cat,
+                   "Failed to enumerate exactly %u swapchain formats; runtime returned %u",
+                   formatCount, populatedFormatCount);
         return -1;
+    }
 
     int64_t chosen = formats[0];
 
@@ -278,6 +289,15 @@ bool OpenXrDisplayPlugin::initSwapChains() {
     XrSession session = _context->_session;
 
     int64_t format = chooseSwapChainFormat(instance, session, XR_PREFERRED_COLOR_FORMAT);
+    if (format == -1) {
+        return false;
+    }
+
+    destroySwapChains();
+    auto failInitialization = [&] {
+        destroySwapChains();
+        return false;
+    };
 
 #if defined(Q_OS_ANDROID)
     const XrFoveationLevelFB foveationLevel = picoFoveationLevel();
@@ -310,20 +330,34 @@ bool OpenXrDisplayPlugin::initSwapChains() {
 
         XrResult result = xrCreateSwapchain(session, &info, &_swapChains[i]);
         if (!xrCheck(instance, result, "Failed to create swapchain!"))
-            return false;
+            return failInitialization();
 
-        result = xrEnumerateSwapchainImages(_swapChains[i], 0, &_swapChainLengths[i], nullptr);
-        if (!xrCheck(instance, result, "Failed to enumerate swapchains"))
-            return false;
-
-        for (uint32_t j = 0; j < _swapChainLengths[i]; j++) {
-            XrSwapchainImageOpenGLKHR image = { .type = XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_KHR };
-            _images[i].push_back(image);
+        uint32_t imageCount { 0 };
+        result = xrEnumerateSwapchainImages(_swapChains[i], 0, &imageCount, nullptr);
+        if (!xrCheck(instance, result, "Failed to enumerate swapchain image count") || imageCount == 0) {
+            qCCritical(xr_display_cat, "OpenXR swapchain %u has no images", i);
+            return failInitialization();
         }
-        result = xrEnumerateSwapchainImages(_swapChains[i], _swapChainLengths[i], &_swapChainLengths[i],
-                                            (XrSwapchainImageBaseHeader*)_images[i].data());
-        if (!xrCheck(instance, result, "Failed to enumerate swapchain images"))
-            return false;
+
+        std::vector<XrSwapchainImageOpenGLKHR> images;
+        images.reserve(imageCount);
+        for (uint32_t j = 0; j < imageCount; j++) {
+            XrSwapchainImageOpenGLKHR image = { .type = XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_KHR };
+            images.push_back(image);
+        }
+        uint32_t populatedImageCount { 0 };
+        result = xrEnumerateSwapchainImages(
+            _swapChains[i], imageCount, &populatedImageCount,
+            reinterpret_cast<XrSwapchainImageBaseHeader*>(images.data()));
+        if (!xrCheck(instance, result, "Failed to enumerate swapchain images") ||
+                populatedImageCount != imageCount) {
+            qCCritical(xr_display_cat,
+                       "Failed to enumerate exactly %u images for swapchain %u; runtime returned %u",
+                       imageCount, i, populatedImageCount);
+            return failInitialization();
+        }
+        _swapChainLengths[i] = imageCount;
+        _images[i] = std::move(images);
     }
 
 #if defined(Q_OS_ANDROID)
@@ -341,7 +375,7 @@ bool OpenXrDisplayPlugin::initSwapChains() {
         };
         XrResult result = _context->xrCreateFoveationProfileFB(session, &profileInfo, &_foveationProfile);
         if (!xrCheck(instance, result, "Failed to create foveation profile")) {
-            return false;
+            return failInitialization();
         }
 
         XrSwapchainStateFoveationFB state = {
@@ -354,7 +388,7 @@ bool OpenXrDisplayPlugin::initSwapChains() {
             result = _context->xrUpdateSwapchainFB(
                 swapchain, reinterpret_cast<const XrSwapchainStateBaseHeaderFB*>(&state));
             if (!xrCheck(instance, result, "Failed to apply foveation profile")) {
-                return false;
+                return failInitialization();
             }
         }
     }
@@ -363,6 +397,27 @@ bool OpenXrDisplayPlugin::initSwapChains() {
 #endif
 
     return true;
+}
+
+void OpenXrDisplayPlugin::destroySwapChains() {
+#if defined(Q_OS_ANDROID)
+    if (_foveationProfile != XR_NULL_HANDLE && _context->xrDestroyFoveationProfileFB) {
+        xrCheck(_context->_instance, _context->xrDestroyFoveationProfileFB(_foveationProfile),
+                "Failed to destroy foveation profile");
+        _foveationProfile = XR_NULL_HANDLE;
+    }
+#endif
+    for (auto& swapchain : _swapChains) {
+        if (swapchain != XR_NULL_HANDLE) {
+            xrCheck(_context->_instance, xrDestroySwapchain(swapchain), "Failed to destroy swapchain");
+            swapchain = XR_NULL_HANDLE;
+        }
+    }
+    std::fill(_swapChainLengths.begin(), _swapChainLengths.end(), 0);
+    std::fill(_swapChainIndices.begin(), _swapChainIndices.end(), 0);
+    for (auto& images : _images) {
+        images.clear();
+    }
 }
 
 bool OpenXrDisplayPlugin::initLayers() {
@@ -463,18 +518,9 @@ void OpenXrDisplayPlugin::customizeContext() {
 }
 
 void OpenXrDisplayPlugin::uncustomizeContext() {
-#if defined(Q_OS_ANDROID)
-    if (_foveationProfile != XR_NULL_HANDLE && _context->xrDestroyFoveationProfileFB) {
-        xrCheck(_context->_instance, _context->xrDestroyFoveationProfileFB(_foveationProfile),
-                "Failed to destroy foveation profile");
-        _foveationProfile = XR_NULL_HANDLE;
-    }
-#endif
     _compositeSwapChain.clear();
     _projectionLayerViews.clear();
-    for (uint32_t i = 0; i < _viewCount; i++) {
-        _images[i].clear();
-    }
+    destroySwapChains();
     HmdDisplayPlugin::uncustomizeContext();
 }
 

@@ -84,6 +84,33 @@ class PicoOpenXRDisplayTests(unittest.TestCase):
         self.assertLess(body.index("recommendedImageRectWidth == 0"), body.index("_viewCount = viewCount"))
         self.assertNotIn("assert(_viewCount", body)
 
+    def test_swapchain_enumeration_rejects_empty_or_changed_counts(self):
+        choose_start = SOURCE.index("static int64_t chooseSwapChainFormat")
+        choose_end = SOURCE.index("bool OpenXrDisplayPlugin::initSwapChains", choose_start)
+        choose = SOURCE[choose_start:choose_end]
+        self.assertIn("formatCount == 0", choose)
+        self.assertIn("uint32_t populatedFormatCount { 0 };", choose)
+        self.assertIn("populatedFormatCount != formatCount", choose)
+        init_end = SOURCE.index("void OpenXrDisplayPlugin::destroySwapChains", choose_end)
+        init = SOURCE[choose_end:init_end]
+        self.assertIn("if (format == -1)", init)
+        self.assertIn("imageCount == 0", init)
+        self.assertIn("populatedImageCount != imageCount", init)
+        self.assertLess(init.index("populatedImageCount != imageCount"), init.index("_images[i] = std::move(images)"))
+
+    def test_partial_swapchain_initialization_is_cleaned_up(self):
+        self.assertIn("void destroySwapChains();", HEADER)
+        self.assertIn("auto failInitialization = [&]", SOURCE)
+        self.assertGreaterEqual(SOURCE.count("return failInitialization();"), 5)
+        destroy_start = SOURCE.index("void OpenXrDisplayPlugin::destroySwapChains()")
+        destroy_end = SOURCE.index("bool OpenXrDisplayPlugin::initLayers", destroy_start)
+        destroy = SOURCE[destroy_start:destroy_end]
+        self.assertIn("xrDestroyFoveationProfileFB", destroy)
+        self.assertIn("xrDestroySwapchain(swapchain)", destroy)
+        self.assertIn("swapchain = XR_NULL_HANDLE", destroy)
+        uncustomize = SOURCE.index("void OpenXrDisplayPlugin::uncustomizeContext()")
+        self.assertIn("destroySwapChains();", SOURCE[uncustomize:uncustomize + 300])
+
 
 if __name__ == "__main__":
     unittest.main()

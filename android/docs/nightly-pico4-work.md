@@ -818,8 +818,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 44 — OpenXR stereo view initialization
 
 - Branch: `nightly/pico4-44-openxr-view-init`
-- Commit: identified by subject `Validate Pico OpenXR view initialization`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `6eb3b5a67c` (`Validate Pico OpenXR view initialization`)
 - Change: require the Pico primary-stereo runtime to report exactly two views,
   reject a changed populated count and zero recommended dimensions/sample count,
   and publish view/swapchain storage only after all enumeration checks pass.
@@ -833,6 +832,26 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Cold-start on the Pico runtime, verify two
   valid eye views and normal rendering, then exercise runtime initialization
   failure/restart and confirm the client fails closed without a native crash.
+
+### 45 — OpenXR swapchain initialization
+
+- Branch: `nightly/pico4-45-openxr-swapchain-init`
+- Commit: identified by subject `Harden Pico OpenXR swapchain initialization`;
+  the exact hash is recorded by the following stacked task or final report.
+- Change: reject empty or changing swapchain-format/image enumerations before
+  indexing storage, reject a missing chosen format, publish image arrays only
+  after exact enumeration, and destroy all partial swapchains/foveation state on
+  every later initialization failure and normal graphics uncustomization.
+- Regression: OpenXR display contracts cover empty and changed counts,
+  publication ordering, failure cleanup, handle nulling and teardown reuse.
+- Passed: 9 OpenXR display contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: malformed/runtime-loss enumeration now aborts graphics initialization;
+  valid Pico runtime counts are unchanged. Explicit swapchain teardown replaces
+  relying on eventual parent-session destruction.
+- Pico 4 validation: **not executed**. Repeatedly activate/deactivate and restart
+  the OpenXR session; inject format/image enumeration and foveation failures and
+  verify clean recovery without stale textures, handle growth or native crashes.
 
 ## Deferred, rejected, or blocked ideas
 
