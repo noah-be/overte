@@ -251,8 +251,16 @@ exit. Its report is refused inside the Git worktree and contains only numeric
 aggregates. Native present FPS and p50/p95/max timings come from the latest
 complete ten-second window after a successful OpenGL buffer swap; the report
 marks Android HWUI frame statistics invalid when they do not cover the native
-Qt/OpenGL surface. Set `PHONE_BENCHMARK_REPORT` to retain the aggregate summary
-in a chosen directory outside the repository.
+Qt/OpenGL surface. The same window reports aggregate variable-texture
+allocation, populated texture memory, and pending GPU transfers in MiB. Set
+`PHONE_BENCHMARK_REPORT` to retain the aggregate summary in a chosen directory
+outside the repository.
+
+For a controlled texture-residency A/B run, set
+`debug.overte.phone_texture_budget_mb` before starting the process. Values are
+bounded to 128–384 MiB and the default remains 256 MiB; 192 MiB is the first
+lower-memory candidate to compare. Clear the property after the run. Do not
+change the budget while the process is running.
 
 ## Release gates
 

@@ -15,6 +15,8 @@
 
 #include "Application.h"
 
+#include <algorithm>
+#include <cstdint>
 #include <functional>
 
 #include <QDesktopServices>
@@ -23,6 +25,11 @@
 #include <QtCore/QResource>
 #include <QtQml/QQmlContext>
 #include <QtQuick/QQuickWindow>
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include <android/log.h>
+#include <sys/system_properties.h>
+#endif
 
 #include <AccountManager.h>
 #include <AddressManager.h>
@@ -851,10 +858,26 @@ void Application::initialize(const QCommandLineParser &parser) {
     // Android GPUs use shared memory and do not expose a reliable dedicated
     // texture budget. Bound residency to reduce low-memory kills in complex
     // desktop-authored domains while retaining useful texture detail.
-    constexpr gpu::Texture::Size PHONE_TEXTURE_BUDGET = 256 * 1024 * 1024;
-    gpu::Texture::setAllowedGPUMemoryUsage(PHONE_TEXTURE_BUDGET);
+    constexpr uint32_t PHONE_DEFAULT_TEXTURE_BUDGET_MB { 256 };
+    constexpr uint32_t PHONE_MIN_TEXTURE_BUDGET_MB { 128 };
+    constexpr uint32_t PHONE_MAX_TEXTURE_BUDGET_MB { 384 };
+    uint32_t phoneTextureBudgetMB { PHONE_DEFAULT_TEXTURE_BUDGET_MB };
+    char phoneTextureBudgetValue[PROP_VALUE_MAX] {};
+    if (__system_property_get("debug.overte.phone_texture_budget_mb", phoneTextureBudgetValue) > 0) {
+        bool validBudget { false };
+        const auto requestedBudget = QString::fromLatin1(phoneTextureBudgetValue).trimmed().toUInt(&validBudget);
+        if (validBudget) {
+            phoneTextureBudgetMB = std::max(PHONE_MIN_TEXTURE_BUDGET_MB,
+                std::min(PHONE_MAX_TEXTURE_BUDGET_MB, requestedBudget));
+        }
+    }
+    const gpu::Texture::Size phoneTextureBudget =
+        static_cast<gpu::Texture::Size>(phoneTextureBudgetMB) * 1024 * 1024;
+    gpu::Texture::setAllowedGPUMemoryUsage(phoneTextureBudget);
     qCInfo(interfaceapp) << "PHONE_RESOURCE_LIMIT textureBudgetMB"
-                         << (PHONE_TEXTURE_BUDGET / (1024 * 1024));
+                         << phoneTextureBudgetMB;
+    __android_log_print(ANDROID_LOG_INFO, "OvertePhoneGraphics",
+        "texture_budget_mb=%u", phoneTextureBudgetMB);
 #endif
 
     // Initialize the display plugin architecture

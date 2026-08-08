@@ -540,7 +540,10 @@ void LightClusteringPass::configure(const Config& config) {
         _lightClusters->setRangeNearFar(config.rangeNear, config.rangeFar);
         _lightClusters->setDimensions(glm::uvec3(config.dimX, config.dimY, config.dimZ));
     }
-    
+
+    // Configuration may have changed the shape or allocation of the cached
+    // empty clusters. Rebuild them the next time local lighting is disabled.
+    _disabledClustersInitialized = false;
     _freeze = config.freeze;
 }
 
@@ -553,29 +556,56 @@ void LightClusteringPass::run(const render::RenderContextPointer& renderContext,
     auto surfaceGeometryFramebuffer = inputs.get3();
     auto localLightingEnabled = lightingModel->isLocalLightingEnabled();
 
+    // Keep the stage current even when local lights are disabled. Other
+    // lighting jobs consume it for the key, ambient, and sun lights.
+    auto lightStage = renderContext->_scene->getStage<LightStage>();
+    assert(lightStage);
+    _lightClusters->updateLightStage(lightStage);
+
+    auto config = std::static_pointer_cast<Config>(renderContext->jobConfig);
+    config->numSceneLights = lightStage->getNumElements();
+    config->numFreeSceneLights = lightStage->getNumFreeElements();
+    config->numAllocatedSceneLights = lightStage->getNumAllocatedElements();
+
+    if (!localLightingEnabled) {
+        // Initialize an empty frame/grid once on entry. Subsequent disabled
+        // frames reuse the GPU resources without rebuilding the frustum,
+        // scanning the grid, or uploading identical empty buffers.
+        if (!_disabledClustersInitialized) {
+            if (!_freeze) {
+                _lightClusters->updateFrustum(args->getViewFrustum());
+            }
+            _lightClusters->updateLightFrame(_emptyLightFrame, false, false);
+            _lightClusters->updateClusters();
+            _disabledClustersInitialized = true;
+        }
+
+        output = _lightClusters;
+        config->setNumInputLights(0);
+        config->setNumClusteredLights(0);
+        config->setNumClusteredLightReferences(0);
+        return;
+    }
+
+    // A later disabled frame must clear anything generated below.
+    _disabledClustersInitialized = false;
+
     // first update the Grid with the new frustum
     if (!_freeze) {
         _lightClusters->updateFrustum(args->getViewFrustum());
     }
     
     // From the LightStage and the current frame, update the light cluster Grid
-    auto lightStage = renderContext->_scene->getStage<LightStage>();
-    assert(lightStage);
-    _lightClusters->updateLightStage(lightStage);
     _lightClusters->updateLightFrame(
         lightFrame,
-        lightingModel->isPointLightEnabled() && localLightingEnabled,
-        lightingModel->isSpotLightEnabled() && localLightingEnabled
+        lightingModel->isPointLightEnabled(),
+        lightingModel->isSpotLightEnabled()
     );
     
     auto clusteringStats = _lightClusters->updateClusters();
 
     output = _lightClusters;
 
-    auto config = std::static_pointer_cast<Config>(renderContext->jobConfig);
-    config->numSceneLights = lightStage->getNumElements();
-    config->numFreeSceneLights = lightStage->getNumFreeElements();
-    config->numAllocatedSceneLights = lightStage->getNumAllocatedElements();
     config->setNumInputLights(clusteringStats.x);
     config->setNumClusteredLights(clusteringStats.y);
     config->setNumClusteredLightReferences(clusteringStats.z);

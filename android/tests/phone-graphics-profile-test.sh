@@ -4,7 +4,9 @@ set -euo pipefail
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly repo_root="$(cd -- "$script_dir/../.." && pwd)"
 readonly application="$repo_root/interface/src/Application.cpp"
+readonly application_setup="$repo_root/interface/src/Application_Setup.cpp"
 readonly plugins="$repo_root/interface/src/Application_Plugins.cpp"
+readonly offscreen_ui="$repo_root/libraries/ui/src/OffscreenUi.cpp"
 
 failures=0
 checks=0
@@ -225,6 +227,28 @@ reject_diagnostic_fields "$application" 'PHONE_GRAPHICS_PROFILE' \
     'phone graphics diagnostic contains no device or user identifier'
 reject_diagnostic_fields "$plugins" 'PHONE_FRAME_PACING' \
     'phone frame-pacing diagnostic contains no device or user identifier'
+require_pattern "$application_setup" 'PHONE_DEFAULT_TEXTURE_BUDGET_MB[[:space:]]*\{[[:space:]]*256[[:space:]]*\}' \
+    'phone texture residency defaults to 256 MiB'
+require_pattern "$application_setup" 'debug\.overte\.phone_texture_budget_mb' \
+    'phone texture residency A/B uses its dedicated property'
+require_pattern "$application_setup" 'PHONE_MIN_TEXTURE_BUDGET_MB[[:space:]]*\{[[:space:]]*128[[:space:]]*\}' \
+    'phone texture residency A/B has a safe lower bound'
+require_pattern "$application_setup" 'PHONE_MAX_TEXTURE_BUDGET_MB[[:space:]]*\{[[:space:]]*384[[:space:]]*\}' \
+    'phone texture residency A/B has a safe upper bound'
+require_pattern "$application_setup" 'texture_budget_mb=%u' \
+    'phone reports only the effective numeric texture budget'
+
+if awk '
+    /#if defined\(DEBUG\) && !defined\(ANDROID_APP_PHONE_INTERFACE\)/ { guarded = 1 }
+    guarded && /setContextProperty\("DebugQML", QVariant\(true\)\)/ { debug_true = 1 }
+    guarded && /#else/ { fallback = 1 }
+    fallback && /setContextProperty\("DebugQML", QVariant\(false\)\)/ { phone_false = 1 }
+    END { exit !(guarded && debug_true && fallback && phone_false) }
+' "$offscreen_ui"; then
+    pass 'phone debug builds suppress desktop QML debug decorations'
+else
+    fail 'phone debug builds suppress desktop QML debug decorations'
+fi
 
 printf 'Checks: %s total, %s failed\n' "$checks" "$failures"
 (( failures == 0 ))

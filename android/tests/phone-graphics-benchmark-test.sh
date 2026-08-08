@@ -37,7 +37,7 @@ sed 's/^+//' >"$fixture/adb" <<'MOCK'
 +fi
 +if [[ $1 == logcat && ${2:-} == -d ]]; then
 +  printf 'I/OvertePhoneGraphics: profile_render_scale=0.5 profile_target_fps=30 profile_forward_msaa_samples=1 profile_haze=0 profile_local_lights=0\n'
-+  printf 'I/OvertePhoneGraphics: window_seconds=10.02 present_fps=30.00 new_frame_fps=29.50 inter_present_p50_ms=33.20 inter_present_p95_ms=34.10 inter_present_max_ms=40.00\n'
++  printf 'I/OvertePhoneGraphics: window_seconds=10.02 present_fps=30.00 new_frame_fps=29.50 inter_present_p50_ms=33.20 inter_present_p95_ms=34.10 inter_present_max_ms=40.00 texture_resource_mib=192.25 texture_populated_mib=190.75 texture_pending_transfer_mib=1.50\n'
 +  exit
 +fi
 +exit 0
@@ -67,6 +67,9 @@ grep -q '^native_present_fps=30.00$' "$summary"
 grep -q '^native_present_window_seconds=10.02$' "$summary"
 grep -q '^native_new_frame_fps=29.50$' "$summary"
 grep -q '^native_inter_present_p95_ms=34.10$' "$summary"
+grep -q '^texture_resource_mib=192.25$' "$summary"
+grep -q '^texture_populated_mib=190.75$' "$summary"
+grep -q '^texture_pending_transfer_mib=1.50$' "$summary"
 [[ $(stat -c '%a' "$report") == 700 ]]
 [[ $(stat -c '%a' "$summary") == 600 ]]
 grep -q '^profile_target_fps=30$' "$summary"

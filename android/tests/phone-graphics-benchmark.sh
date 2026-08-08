@@ -149,6 +149,9 @@ native_new_frame_fps="$(sed -nE 's/.*new_frame_fps=([0-9]+([.][0-9]+)?).*/\1/p' 
 native_present_p50_ms="$(sed -nE 's/.*inter_present_p50_ms=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
 native_present_p95_ms="$(sed -nE 's/.*inter_present_p95_ms=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
 native_present_max_ms="$(sed -nE 's/.*inter_present_max_ms=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
+texture_resource_mib="$(sed -nE 's/.*texture_resource_mib=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
+texture_populated_mib="$(sed -nE 's/.*texture_populated_mib=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
+texture_pending_transfer_mib="$(sed -nE 's/.*texture_pending_transfer_mib=([0-9]+([.][0-9]+)?).*/\1/p' <<<"$present_line")"
 native_present_metrics_available=0
 [[ -n "$native_present_fps" && -n "$native_new_frame_fps" && -n "$native_present_p95_ms" ]] && \
     native_present_metrics_available=1
@@ -173,6 +176,8 @@ chmod 600 "$summary_tmp"
         "${native_window_seconds:-unknown}"
     printf 'native_inter_present_p50_ms=%s\nnative_inter_present_p95_ms=%s\nnative_inter_present_max_ms=%s\n' \
         "${native_present_p50_ms:-unknown}" "${native_present_p95_ms:-unknown}" "${native_present_max_ms:-unknown}"
+    printf 'texture_resource_mib=%s\ntexture_populated_mib=%s\ntexture_pending_transfer_mib=%s\n' \
+        "${texture_resource_mib:-unknown}" "${texture_populated_mib:-unknown}" "${texture_pending_transfer_mib:-unknown}"
 } >"$summary_tmp"
 mv -T -- "$summary_tmp" "$summary"
 printf 'Aggregate benchmark report: %s\n' "$summary"

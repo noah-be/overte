@@ -116,10 +116,15 @@ struct PhonePresentTelemetry {
         const double p50 = percentileMilliseconds(sortedIntervals, _intervalCount, 50);
         const double p95 = percentileMilliseconds(sortedIntervals, _intervalCount, 95);
         const double maximum = _intervalCount == 0 ? 0.0 : sortedIntervals[_intervalCount - 1] / 1000.0;
+        constexpr double BYTES_PER_MIB { 1024.0 * 1024.0 };
+        const double textureResourceMiB = gpu::Context::getTextureResourceGPUMemSize() / BYTES_PER_MIB;
+        const double texturePopulatedMiB = gpu::Context::getTextureResourcePopulatedGPUMemSize() / BYTES_PER_MIB;
+        const double texturePendingTransferMiB = gpu::Context::getTexturePendingGPUTransferMemSize() / BYTES_PER_MIB;
 
         __android_log_print(ANDROID_LOG_INFO, "OvertePhoneGraphics",
-            "window_seconds=%.2f present_fps=%.2f new_frame_fps=%.2f inter_present_p50_ms=%.2f inter_present_p95_ms=%.2f inter_present_max_ms=%.2f",
-            elapsedSeconds, _presentCount / elapsedSeconds, _newFrameCount / elapsedSeconds, p50, p95, maximum);
+            "window_seconds=%.2f present_fps=%.2f new_frame_fps=%.2f inter_present_p50_ms=%.2f inter_present_p95_ms=%.2f inter_present_max_ms=%.2f texture_resource_mib=%.2f texture_populated_mib=%.2f texture_pending_transfer_mib=%.2f",
+            elapsedSeconds, _presentCount / elapsedSeconds, _newFrameCount / elapsedSeconds, p50, p95, maximum,
+            textureResourceMiB, texturePopulatedMiB, texturePendingTransferMiB);
 
         _windowStart = now;
         _presentCount = 0;
