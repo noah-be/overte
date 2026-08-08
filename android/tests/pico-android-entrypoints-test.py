@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parents[2]
 JAVA = ROOT / "android/apps/picoInterface/src/main/java/org/overte/pico"
 MANIFEST = ROOT / "android/apps/picoInterface/src/main/AndroidManifest.xml"
+WINDOW = ROOT / "interface/src/scripting/WindowScriptingInterface.cpp"
 ANDROID = "{http://schemas.android.com/apk/res/android}"
 
 
@@ -93,6 +94,22 @@ class AndroidEntrypointsTest(unittest.TestCase):
         self.assertLess(clear, xr_cleanup)
         self.assertIn("public static void destroyAll()", webview)
         self.assertIn("new ArrayList<>(INSTANCES.keySet())", webview)
+
+    def test_native_restart_owns_activity_across_jni_call(self):
+        source = WINDOW.read_text(encoding="utf-8")
+        restart = source.index("void WindowScriptingInterface::restartApplication")
+        acquire_symbol = source.index("overtePicoOpenXRAcquireActivity", restart)
+        attach = source.index("AttachCurrentThread", acquire_symbol)
+        acquire = source.index("acquireActivityFunction(env)", attach)
+        call = source.index("CallStaticVoidMethod", acquire)
+        release = source.index("DeleteGlobalRef(activity)", call)
+        detach = source.index("DetachCurrentThread", release)
+        self.assertLess(acquire_symbol, attach)
+        self.assertLess(attach, acquire)
+        self.assertLess(acquire, call)
+        self.assertLess(call, release)
+        self.assertLess(release, detach)
+        self.assertNotIn("overtePicoOpenXRActivity\"", source)
 
 
 if __name__ == "__main__":

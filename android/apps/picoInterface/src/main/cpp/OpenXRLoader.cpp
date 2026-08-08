@@ -5,23 +5,24 @@
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
 
+#include <mutex>
+
 namespace {
 constexpr const char* LOG_TAG = "OvertePico";
 JavaVM* loaderJavaVm = nullptr;
 jobject loaderApplicationContext = nullptr;
 jobject loaderActivity = nullptr;
+std::mutex loaderMutex;
 }
 
 extern "C" JavaVM* overtePicoOpenXRJavaVm() {
+    std::lock_guard<std::mutex> guard(loaderMutex);
     return loaderJavaVm;
 }
 
-extern "C" jobject overtePicoOpenXRApplicationContext() {
-    return loaderApplicationContext;
-}
-
-extern "C" jobject overtePicoOpenXRActivity() {
-    return loaderActivity;
+extern "C" jobject overtePicoOpenXRAcquireActivity(JNIEnv* env) {
+    std::lock_guard<std::mutex> guard(loaderMutex);
+    return loaderActivity ? env->NewGlobalRef(loaderActivity) : nullptr;
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
@@ -38,6 +39,10 @@ Java_org_overte_pico_PicoInterfaceActivity_initializeOpenXRLoader(
                 ANDROID_LOG_ERROR, LOG_TAG, "Could not retain Android Activity");
         return JNI_FALSE;
     }
+
+    // Serialize process-global loader publication with Activity teardown. Any
+    // native consumer obtains its own global reference while holding this lock.
+    std::lock_guard<std::mutex> guard(loaderMutex);
 
     // The loader is process-global while Android may recreate the Activity.
     // Keep the initialized application context and only refresh the Activity
@@ -144,6 +149,7 @@ Java_org_overte_pico_PicoInterfaceActivity_initializeOpenXRLoader(
 extern "C" JNIEXPORT void JNICALL
 Java_org_overte_pico_PicoInterfaceActivity_releaseOpenXRActivity(
         JNIEnv* env, jobject activity) {
+    std::lock_guard<std::mutex> guard(loaderMutex);
     // A superseded Activity can finish after its replacement has initialized.
     // Release only the global reference that represents this exact instance.
     if (loaderActivity && env->IsSameObject(loaderActivity, activity)) {

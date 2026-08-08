@@ -10,6 +10,10 @@ SOURCE = (
     Path(__file__).resolve().parents[2]
     / "android/apps/picoInterface/src/main/cpp/OpenXRLoader.cpp"
 ).read_text(encoding="utf-8")
+CONTEXT_SOURCE = (
+    Path(__file__).resolve().parents[2]
+    / "android/apps/picoInterface/openxr/src/OpenXrContext.cpp"
+).read_text(encoding="utf-8")
 
 
 class OpenXrLoaderLifecycleTest(unittest.TestCase):
@@ -48,6 +52,27 @@ class OpenXrLoaderLifecycleTest(unittest.TestCase):
         self.assertIn("IsSameObject(loaderActivity, activity)", body)
         self.assertIn("DeleteGlobalRef(loaderActivity)", body)
         self.assertIn("loaderActivity = nullptr", body)
+
+    def test_activity_consumers_receive_owned_global_references(self):
+        self.assertIn("std::mutex loaderMutex", SOURCE)
+        self.assertIn("std::lock_guard<std::mutex> guard(loaderMutex)", SOURCE)
+        acquire = re.search(
+            r'overtePicoOpenXRAcquireActivity\(JNIEnv\* env\) \{(.*?)\n\}',
+            SOURCE,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(acquire)
+        self.assertIn("env->NewGlobalRef(loaderActivity)", acquire.group(1))
+        self.assertNotIn('overtePicoOpenXRActivity()', SOURCE)
+
+    def test_instance_creation_holds_activity_reference_until_call_returns(self):
+        acquire = CONTEXT_SOURCE.index("overtePicoOpenXRAcquireActivity(androidEnvironment)")
+        create = CONTEXT_SOURCE.index("xrCreateInstance(&info, &_instance)", acquire)
+        release = CONTEXT_SOURCE.index("DeleteGlobalRef(androidActivity)", create)
+        self.assertLess(acquire, create)
+        self.assertLess(create, release)
+        self.assertIn("AttachCurrentThread", CONTEXT_SOURCE[acquire - 1200:create])
+        self.assertIn("DetachCurrentThread", CONTEXT_SOURCE[release:release + 300])
 
 
 if __name__ == "__main__":

@@ -1181,8 +1181,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 64 — Transactional restart scheduling
 
 - Branch: `nightly/pico4-64-restart-scheduling-failure`
-- Commit: identified by subject `Roll back failed Pico restart scheduling`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `22aeb6d2b4` (`Roll back failed Pico restart scheduling`)
 - Change: guard PendingIntent/AlarmManager scheduling, fail closed when the
   service is absent, and synchronously clear private restart arguments on every
   scheduling exception before leaving the current Activity running. Consuming
@@ -1196,6 +1195,28 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Deny exact alarms/remove AlarmManager and
   inject PendingIntent/set failures; verify the current session survives with no
   stale restart, then restore scheduling and confirm one successful relaunch.
+
+### 65 — Owned OpenXR Activity references
+
+- Branch: `nightly/pico4-65-openxr-activity-ref`
+- Commit: identified by subject `Own Pico OpenXR Activity JNI references`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: serialize publication and teardown of the process-wide OpenXR loader
+  state, replace the borrowed raw Activity accessor with an acquire operation
+  that returns a caller-owned JNI global reference, and retain that reference
+  across both `xrCreateInstance` and native restart scheduling. Activity
+  destruction can no longer invalidate either consumer mid-call.
+- Regression: loader contracts require mutex protection, owned global-reference
+  acquisition and create-call lifetime; Android entry-point contracts verify
+  acquire-after-attach and release-before-detach ordering for restart.
+- Passed: 6 OpenXR loader/lifetime contracts; 7 Android entry-point/lifecycle
+  contracts; full `pico-device-free-test.sh`; `git diff --check`.
+- Risk: loader initialization is serialized with Activity teardown and may hold
+  the small loader-state mutex during runtime initialization. Consumers now
+  explicitly attach to JNI when necessary and release every acquired reference.
+- Pico 4 validation: **not executed**. Recreate/finish the Activity while OpenXR
+  instance creation and restart requests are in flight; verify no stale jobject,
+  JNI warning, deadlock, missed normal restart, or leaked Activity reference.
 
 ## Deferred, rejected, or blocked ideas
 

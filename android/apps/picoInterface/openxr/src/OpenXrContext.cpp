@@ -36,7 +36,7 @@ Q_LOGGING_CATEGORY(xr_context_cat, "openxr.context")
 
 #if defined(Q_OS_ANDROID)
 extern "C" JavaVM* overtePicoOpenXRJavaVm();
-extern "C" jobject overtePicoOpenXRActivity();
+extern "C" jobject overtePicoOpenXRAcquireActivity(JNIEnv* env);
 #endif
 
 // Checks XrResult, returns false on errors and logs the error as qCritical.
@@ -296,20 +296,51 @@ bool OpenXrContext::initInstance() {
     };
 
 #if defined(Q_OS_ANDROID)
+    JavaVM* androidJavaVm = overtePicoOpenXRJavaVm();
+    JNIEnv* androidEnvironment { nullptr };
+    bool detachAndroidThread { false };
+    if (!androidJavaVm) {
+        qCCritical(xr_context_cat, "Android OpenXR Java VM is unavailable.");
+        return false;
+    }
+    jint environmentResult = androidJavaVm->GetEnv(
+        reinterpret_cast<void**>(&androidEnvironment), JNI_VERSION_1_6);
+    if (environmentResult == JNI_EDETACHED) {
+        if (androidJavaVm->AttachCurrentThread(&androidEnvironment, nullptr) != JNI_OK) {
+            qCCritical(xr_context_cat, "Could not attach the OpenXR instance thread to Java.");
+            return false;
+        }
+        detachAndroidThread = true;
+    } else if (environmentResult != JNI_OK) {
+        qCCritical(xr_context_cat, "Could not obtain the OpenXR JNI environment.");
+        return false;
+    }
+
+    jobject androidActivity = overtePicoOpenXRAcquireActivity(androidEnvironment);
+    if (!androidActivity) {
+        if (detachAndroidThread) {
+            androidJavaVm->DetachCurrentThread();
+        }
+        qCCritical(xr_context_cat, "Android OpenXR Activity is unavailable.");
+        return false;
+    }
     XrInstanceCreateInfoAndroidKHR androidInfo {
         XR_TYPE_INSTANCE_CREATE_INFO_ANDROID_KHR,
         nullptr,
-        overtePicoOpenXRJavaVm(),
-        overtePicoOpenXRActivity()
+        androidJavaVm,
+        androidActivity
     };
-    if (!androidInfo.applicationVM || !androidInfo.applicationActivity) {
-        qCCritical(xr_context_cat, "Android OpenXR loader context is unavailable.");
-        return false;
-    }
     info.next = &androidInfo;
 #endif
 
     result = xrCreateInstance(&info, &_instance);
+
+#if defined(Q_OS_ANDROID)
+    androidEnvironment->DeleteGlobalRef(androidActivity);
+    if (detachAndroidThread) {
+        androidJavaVm->DetachCurrentThread();
+    }
+#endif
 
     if (result == XR_ERROR_RUNTIME_FAILURE) {
         qCCritical(xr_context_cat, "XR_ERROR_RUNTIME_FAILURE: Is the OpenXR runtime up and running?");

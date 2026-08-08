@@ -92,7 +92,7 @@ void WindowScriptingInterface::restartApplication(const QString& url) {
         ? QStringLiteral("--display=OpenXR")
         : QStringLiteral("--display=OpenXR --url ") + url;
     using JavaVmFunction = JavaVM* (*)();
-    using ActivityFunction = jobject (*)();
+    using AcquireActivityFunction = jobject (*)(JNIEnv*);
     void* openXrLibrary = dlopen("libpicoOpenXR.so", RTLD_NOW);
     if (!openXrLibrary) {
         qWarning() << "PICO_RESTART unable to open libpicoOpenXR.so:" << dlerror();
@@ -100,12 +100,11 @@ void WindowScriptingInterface::restartApplication(const QString& url) {
     }
     auto javaVmFunction = reinterpret_cast<JavaVmFunction>(
         dlsym(openXrLibrary, "overtePicoOpenXRJavaVm"));
-    auto activityFunction = reinterpret_cast<ActivityFunction>(
-        dlsym(openXrLibrary, "overtePicoOpenXRActivity"));
+    auto acquireActivityFunction = reinterpret_cast<AcquireActivityFunction>(
+        dlsym(openXrLibrary, "overtePicoOpenXRAcquireActivity"));
     JavaVM* vm = javaVmFunction ? javaVmFunction() : nullptr;
-    jobject activity = activityFunction ? activityFunction() : nullptr;
-    if (!vm || !activity) {
-        qWarning() << "PICO_RESTART Java VM or Activity unavailable";
+    if (!vm || !acquireActivityFunction) {
+        qWarning() << "PICO_RESTART Java VM or Activity accessor unavailable";
         dlclose(openXrLibrary);
         return;
     }
@@ -118,6 +117,16 @@ void WindowScriptingInterface::restartApplication(const QString& url) {
             return;
         }
         detachThread = true;
+    }
+
+    jobject activity = acquireActivityFunction(env);
+    if (!activity) {
+        qWarning() << "PICO_RESTART Activity unavailable";
+        if (detachThread) {
+            vm->DetachCurrentThread();
+        }
+        dlclose(openXrLibrary);
+        return;
     }
 
     jclass activityClass = env->GetObjectClass(activity);
@@ -137,6 +146,7 @@ void WindowScriptingInterface::restartApplication(const QString& url) {
     if (activityClass) {
         env->DeleteLocalRef(activityClass);
     }
+    env->DeleteGlobalRef(activity);
     if (detachThread) {
         vm->DetachCurrentThread();
     }
