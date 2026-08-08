@@ -39,7 +39,20 @@ endif()
 
 set(RESOURCES_QRC ${CMAKE_CURRENT_BINARY_DIR}/resources.qrc)
 set(RESOURCES_RCC ${CMAKE_CURRENT_BINARY_DIR}/resources.rcc)
-generate_qrc(OUTPUT ${RESOURCES_QRC} PATH ${CMAKE_CURRENT_SOURCE_DIR}/resources CUSTOM_PATHS ${CUSTOM_INTERFACE_QRC_PATHS} GLOBS *)
+set(INTERFACE_QRC_EXCLUDES "")
+if (HIFI_ANDROID AND HIFI_ANDROID_APP STREQUAL "phoneInterface")
+  # Android's NetworkTexture path never selects TextureMeta::uncompressed; it
+  # uses a supported ETC2/BPTC entry or the original image fallback instead.
+  # Avoid carrying two unused 32 MiB default-sky KTX files in the phone RCC.
+  list(APPEND INTERFACE_QRC_EXCLUDES
+    "^images/Default-Sky-9-cubemap/Default-Sky-9-cubemap(-ambient)?[.]ktx$")
+endif()
+generate_qrc(
+  OUTPUT ${RESOURCES_QRC}
+  PATH ${CMAKE_CURRENT_SOURCE_DIR}/resources
+  CUSTOM_PATHS ${CUSTOM_INTERFACE_QRC_PATHS}
+  GLOBS *
+  EXCLUDES ${INTERFACE_QRC_EXCLUDES})
 
 if (ANDROID)
   # on Android, don't compress the rcc binary
