@@ -24,6 +24,7 @@
     var REQUEST_TIMEOUT = 10000; //10 seconds
 
     var httpRequest = null;
+    var requestGeneration = 0;
     var shuttingDown = false;
     var placesData;
     var portalList = [];
@@ -84,6 +85,7 @@
     }
 
     function abortActiveRequest() {
+        requestGeneration++;
         if (httpRequest !== null) {
             httpRequest.abort();
             httpRequest = null;
@@ -317,6 +319,8 @@
     }
 
     function transmitPortalList() {
+        abortActiveRequest();
+        var generation = ++requestGeneration;
         metaverseServers = [];
         buildMetaverseServerList();
         
@@ -324,6 +328,11 @@
         nbrPlacesNoProtocolMatch = 0;
         nbrPlaceProtocolKnown = 0;
         var extractedData;
+
+        if (isAndroidPhone) {
+            fetchPhoneMetaverse(0, generation);
+            return;
+        }
         
         for (var i = 0; i < metaverseServers.length; i++ ) {
             if (metaverseServers[i].fetch === true) {
@@ -347,10 +356,13 @@
             }
         }
 
+        finishPortalList();
+    };
+
+    function finishPortalList() {
         addUtilityPortals();
-        
         portalList.sort(sortOrder);
-        
+
         var percentProtocolRejected = Math.floor((nbrPlacesNoProtocolMatch/nbrPlaceProtocolKnown) * 100);
         
         var warning = "";
@@ -368,7 +380,63 @@
 
         sendToPlacesUi(message);
         getLocationBookmarks();
-    };
+    }
+
+    function fetchPhoneMetaverse(index, generation) {
+        if (shuttingDown || !appStatus || generation !== requestGeneration) {
+            return;
+        }
+        while (index < metaverseServers.length && metaverseServers[index].fetch !== true) {
+            index++;
+        }
+        if (index >= metaverseServers.length) {
+            httpRequest = null;
+            finishPortalList();
+            return;
+        }
+
+        var metaverse = metaverseServers[index];
+        var request = new XMLHttpRequest();
+        httpRequest = request;
+        var completed = false;
+
+        function completeRequest(success) {
+            if (completed) {
+                return;
+            }
+            completed = true;
+            if (generation !== requestGeneration || shuttingDown || !appStatus) {
+                return;
+            }
+            httpRequest = null;
+            metaverse.error = !success;
+            if (success) {
+                try {
+                    placesData = JSON.parse(request.responseText || "");
+                    if (placesData && placesData.data && Array.isArray(placesData.data.places)) {
+                        processData(metaverse);
+                    } else {
+                        metaverse.error = true;
+                    }
+                } catch (error) {
+                    metaverse.error = true;
+                }
+            }
+            fetchPhoneMetaverse(index + 1, generation);
+        }
+
+        request.open("GET", metaverse.url + "/api/v1/places?status=online&per_page=1000", true);
+        request.setRequestHeader("Cache-Control", "no-cache");
+        request.timeout = REQUEST_TIMEOUT;
+        request.onreadystatechange = function () {
+            if (request.readyState === 4) {
+                completeRequest(request.status >= 200 && request.status < 300);
+            }
+        };
+        request.onerror = function () { completeRequest(false); };
+        request.ontimeout = function () { completeRequest(false); };
+        request.send(null);
+    }
 
     function sendToPlacesUi(message) {
         if (shuttingDown || !appStatus) {
