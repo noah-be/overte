@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 86 — Guard device package-gate test overrides
+
+- Branch: `nightly/android-phone-86-preflight-override-guard`
+- Commit: `Guard phone package preflight overrides` (this task's commit)
+- Change: A nonstandard `PHONE_APK_PREFLIGHT` executable now requires explicit
+  `PHONE_ALLOW_TEST_OVERRIDES=1`. The device-free Fake-ADB harness opts in;
+  normal device runs cannot accidentally inherit a bypassing package checker.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; an unguarded
+    override is rejected before every ADB command, then the explicitly guarded
+    mock executes all positive and negative flows.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 267/267 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 267/267 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: The explicit override remains powerful by design for isolated
+  host tests; release/device automation must never set it.
+- Real-device validation still required: Confirm a normal current-APK smoke uses
+  the repository gate with no override variables present.
+
 ## 85 — Label package exit-diagnostic phases
 
 - Branch: `nightly/android-phone-85-exit-info-phase-errors`

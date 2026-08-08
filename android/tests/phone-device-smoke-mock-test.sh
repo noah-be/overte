@@ -151,6 +151,22 @@ MOCK_PREFLIGHT
 chmod +x "$test_root/bin/adb" "$test_root/bin/sleep" \
     "$test_root/bin/apkanalyzer" "$test_root/bin/apk-preflight"
 
+mkdir "$test_root/unguarded-override-report"
+: >"$test_root/adb-commands"
+if env PATH="$test_root/bin:$PATH" MOCK_ROOT="$test_root" \
+        PHONE_DEVICE_LOCK_HELD=1 PHONE_ADB="$test_root/bin/adb" \
+        PHONE_APK_ANALYZER="$test_root/bin/apkanalyzer" \
+        PHONE_APK_PREFLIGHT="$test_root/bin/apk-preflight" \
+        ANDROID_SERIAL=mock-phone PHONE_TEST_REPORT="$test_root/unguarded-override-report" \
+        "$script_dir/phone-device-test.sh" "$test_root/phone.apk" \
+        >"$test_root/unguarded-override.out" 2>&1; then
+    echo 'FAIL: nonstandard package gate was accepted without test override' >&2
+    exit 1
+fi
+grep -Fq 'nonstandard APK preflight requires explicit host-test override' \
+    "$test_root/unguarded-override.out"
+[[ ! -s "$test_root/adb-commands" ]]
+
 run_smoke() {
     local report_dir="$1"
     shift
@@ -158,6 +174,7 @@ run_smoke() {
         PHONE_DEVICE_LOCK_HELD=1 PHONE_ADB="$test_root/bin/adb" \
         PHONE_APK_ANALYZER="$test_root/bin/apkanalyzer" \
         PHONE_APK_PREFLIGHT="$test_root/bin/apk-preflight" \
+        PHONE_ALLOW_TEST_OVERRIDES=1 \
         ANDROID_SERIAL=mock-phone PHONE_TEST_REPORT="$report_dir" "$@" \
         "$script_dir/phone-device-test.sh" "$test_root/phone.apk"
 }

@@ -28,6 +28,7 @@ Environment:
   PHONE_ADB            ADB executable (otherwise resolved automatically).
   PHONE_APK_ANALYZER   apkanalyzer executable (otherwise SDK-resolved).
   PHONE_APK_PREFLIGHT  Package gate executable (otherwise repository gate).
+  PHONE_ALLOW_TEST_OVERRIDES  Must be 1 for a nonstandard package gate.
   PHONE_EXPECT_DEBUGGABLE  Optional expected APK state: 0 or 1.
   PHONE_TEST_REPORT    Existing report directory (otherwise mktemp -d).
 EOF
@@ -65,8 +66,13 @@ find_apk_analyzer() {
 
 ADB="$(find_adb)"
 APK_ANALYZER="$(find_apk_analyzer)"
-APK_PREFLIGHT="${PHONE_APK_PREFLIGHT:-$SCRIPT_DIR/check-phone-apk-16k.sh}"
+DEFAULT_APK_PREFLIGHT="$SCRIPT_DIR/check-phone-apk-16k.sh"
+APK_PREFLIGHT="${PHONE_APK_PREFLIGHT:-$DEFAULT_APK_PREFLIGHT}"
 [[ -x "$APK_PREFLIGHT" ]] || die "Phone APK package preflight was not found"
+if [[ "$APK_PREFLIGHT" != "$DEFAULT_APK_PREFLIGHT" &&
+        "${PHONE_ALLOW_TEST_OVERRIDES:-0}" != 1 ]]; then
+    die "nonstandard APK preflight requires explicit host-test override"
+fi
 
 adb_for() {
     # ADB transport errors may embed serials and host paths. Callers receive the
