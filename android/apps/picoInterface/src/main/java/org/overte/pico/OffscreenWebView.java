@@ -84,6 +84,7 @@ public final class OffscreenWebView {
         if (old != null) {
             old.active = false;
             MAIN.removeCallbacks(old.renderFrame);
+            old.cancelActiveTouch();
             old.view.stopLoading();
             old.view.loadUrl("about:blank");
             old.view.destroy();
@@ -115,19 +116,7 @@ public final class OffscreenWebView {
             if (instance == null) {
                 return;
             }
-            long now = android.os.SystemClock.uptimeMillis();
-            MotionEvent event = MotionEvent.obtain(now, now, action,
-                x * instance.displayDensity, y * instance.displayDensity, 0);
-            if (action == MotionEvent.ACTION_HOVER_ENTER
-                    || action == MotionEvent.ACTION_HOVER_MOVE
-                    || action == MotionEvent.ACTION_HOVER_EXIT) {
-                event.setSource(InputDevice.SOURCE_MOUSE);
-                instance.view.dispatchGenericMotionEvent(event);
-            } else {
-                event.setSource(InputDevice.SOURCE_TOUCHSCREEN);
-                instance.view.dispatchTouchEvent(event);
-            }
-            event.recycle();
+            instance.dispatchPointer(action, x, y);
         });
     }
 
@@ -179,6 +168,7 @@ public final class OffscreenWebView {
         ByteBuffer pixels;
         boolean reportedFirstFrame;
         float pendingScroll;
+        final PicoTouchState touchState = new PicoTouchState();
 
         final Runnable renderFrame = new Runnable() {
             @Override public void run() {
@@ -207,6 +197,30 @@ public final class OffscreenWebView {
             this.nativeHandle = nativeHandle;
             this.view = view;
             this.displayDensity = Math.max(1.0f, displayDensity);
+        }
+
+        void dispatchPointer(int action, float x, float y) {
+            long now = android.os.SystemClock.uptimeMillis();
+            boolean hover = action == MotionEvent.ACTION_HOVER_ENTER
+                || action == MotionEvent.ACTION_HOVER_MOVE
+                || action == MotionEvent.ACTION_HOVER_EXIT;
+            long downTime = hover ? now : touchState.downTimeFor(action, now);
+            MotionEvent event = MotionEvent.obtain(downTime, now, action,
+                x * displayDensity, y * displayDensity, 0);
+            event.setSource(hover
+                ? InputDevice.SOURCE_MOUSE : InputDevice.SOURCE_TOUCHSCREEN);
+            if (hover) {
+                view.dispatchGenericMotionEvent(event);
+            } else {
+                view.dispatchTouchEvent(event);
+            }
+            event.recycle();
+        }
+
+        void cancelActiveTouch() {
+            if (touchState.isActive()) {
+                dispatchPointer(MotionEvent.ACTION_CANCEL, 0.0f, 0.0f);
+            }
         }
 
         void refreshLayout() {

@@ -9,7 +9,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 01 — WebView frame lifecycle
 
 - Branch: `nightly/pico4-01-webview-frame-lifecycle`
-- Commit: recorded after commit creation below
+- Commit: `3352e35674` (`Harden Pico WebView frame delivery`)
 - Change: accept valid transparent WebView frames instead of treating a
   transparent centre pixel as an unready surface; reject invalid dimensions,
   multiplication overflow, null direct-buffer addresses, and undersized JNI
@@ -25,6 +25,27 @@ headset, ADB, Android device, external domain, or device setting is used.
   a transparent centre/background, verify content away from the centre renders,
   resize each entity repeatedly, then delete it during active rendering and
   check logcat for JNI/WebView errors or stale frames.
+
+### 02 — WebView input gesture state
+
+- Branch: `nightly/pico4-02-webview-input-state`
+- Commit: identified by subject `Preserve Pico WebView input gestures`; the
+  exact hash is recorded by the following stacked task or the final report.
+- Change: preserve Android's original `downTime` across down/move/up/cancel,
+  send the correct hover-enter action, cancel an active touch when Qt revokes
+  the mouse grab, and cancel before an offscreen WebView is destroyed.
+- Regressions: pure-Java touch-state test plus source-level Qt/JNI bridge test.
+- Passed: `pico-webview-input-test.sh`; WebView bridge regression (3 tests);
+  Bash syntax for the new runner; `git diff --check`.
+- Build not run: offline Gradle configuration stops before Java compilation
+  because `android/conan/pico4-debug/generators/Qt5-debug-armv8-data.cmake` is
+  absent. No dependency installation or network fetch was attempted.
+- Risk: Android dispatch and physical ray behavior remain outside a host JVM.
+  The extracted state machine itself has no Android dependency and covers
+  normal completion, cancellation, consecutive gestures, and orphan moves.
+- Pico 4 validation: **not executed**. Rapidly press, drag off target, release,
+  alternate targets and hands, delete a pressed Web entity, and confirm there
+  is exactly one click/release with no stuck pressed or hover state.
 
 ## Cumulative remaining device validation
 

@@ -44,6 +44,10 @@ mouse-hover, touch, and generic scroll events. A Web entity remains explicitly
 non-grabbable in the acceptance fixture, and no near-grab, far-grab, teleport,
 or controller-ray thresholds were changed.
 
+Android touch events in one gesture retain the original down timestamp through
+move, release, or cancellation. Losing Qt's mouse grab and destroying a page
+cancel an active gesture, so the WebView cannot retain a pressed DOM target.
+
 No Qt WebEngine library, Chromium resource bundle, Gradle browser dependency,
 or APK packaging rule is added. Rendering uses the WebView implementation
 already supplied by Pico OS. This keeps APK growth to the small Java/C++ bridge
@@ -103,5 +107,7 @@ Test both hands separately:
 
 ## Device-free regression
 
-Run `python3 android/tests/pico-webview-bridge-test.py` to verify the transparent
-frame-readiness rule and JNI direct-buffer validation without Android or Qt.
+Run `python3 android/tests/pico-webview-bridge-test.py` to verify transparent
+frame readiness, JNI direct-buffer validation, and Qt action translation. Run
+`android/tests/pico-webview-input-test.sh` for the pure-Java Android gesture
+state regression without an SDK or device.

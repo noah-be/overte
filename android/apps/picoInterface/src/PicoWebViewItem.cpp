@@ -212,12 +212,26 @@ void PicoWebViewItem::sendPointer(int action, const QPointF& p) {
     callStatic("pointer", "(JIFF)V", args);
 }
 
-void PicoWebViewItem::hoverEnterEvent(QHoverEvent* e) { sendPointer(7, e->posF()); e->accept(); }
+void PicoWebViewItem::hoverEnterEvent(QHoverEvent* e) { sendPointer(9, e->posF()); e->accept(); }
 void PicoWebViewItem::hoverMoveEvent(QHoverEvent* e) { sendPointer(7, e->posF()); e->accept(); }
 void PicoWebViewItem::hoverLeaveEvent(QHoverEvent* e) { sendPointer(10, e->posF()); e->accept(); }
-void PicoWebViewItem::mousePressEvent(QMouseEvent* e) { sendPointer(0, e->localPos()); e->accept(); }
+void PicoWebViewItem::mousePressEvent(QMouseEvent* e) {
+    _pointerPressed = true;
+    sendPointer(0, e->localPos());
+    e->accept();
+}
 void PicoWebViewItem::mouseMoveEvent(QMouseEvent* e) { sendPointer(2, e->localPos()); e->accept(); }
-void PicoWebViewItem::mouseReleaseEvent(QMouseEvent* e) { sendPointer(1, e->localPos()); e->accept(); }
+void PicoWebViewItem::mouseReleaseEvent(QMouseEvent* e) {
+    sendPointer(1, e->localPos());
+    _pointerPressed = false;
+    e->accept();
+}
+void PicoWebViewItem::mouseUngrabEvent() {
+    if (_pointerPressed) {
+        sendPointer(3, QPointF());
+        _pointerPressed = false;
+    }
+}
 void PicoWebViewItem::wheelEvent(QWheelEvent* e) {
     QPointF webPosition = e->position();
     {

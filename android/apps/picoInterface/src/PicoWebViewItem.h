@@ -35,6 +35,7 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
+    void mouseUngrabEvent() override;
     void wheelEvent(QWheelEvent* event) override;
 
 private:
@@ -48,6 +49,7 @@ private:
     QString _userAgent;
     bool _useBackground { true };
     bool _webViewCreated { false };
+    bool _pointerPressed { false };
     mutable QMutex _imageMutex;
     QImage _image;
     quint64 _frameSerial { 0 };

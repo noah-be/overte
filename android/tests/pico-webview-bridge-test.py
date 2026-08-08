@@ -45,6 +45,13 @@ class PicoWebViewBridgeTest(unittest.TestCase):
         self.assertIn("height <= 0", body)
         self.assertIn("numeric_limits", body)
 
+    def test_qt_pointer_translation_uses_enter_and_cancel_actions(self):
+        self.assertRegex(self.source, r"hoverEnterEvent\([^)]*\) \{ sendPointer\(9,")
+        self.assertRegex(
+            self.source,
+            re.compile(r"mouseUngrabEvent\(\).*?sendPointer\(3,", re.DOTALL),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
