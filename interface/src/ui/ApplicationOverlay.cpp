@@ -45,6 +45,7 @@ static const float ORTHO_FAR_CLIP = 1000.0f;
 
 #if defined(ANDROID_APP_PHONE_INTERFACE)
 static bool isPhoneOverlayDepthEnabled();
+static bool isPhoneOverlayCacheEnabled();
 static float getPhoneOverlayScale();
 #endif
 
@@ -68,11 +69,48 @@ ApplicationOverlay::~ApplicationOverlay() {
 // Renders the overlays either to a texture or to the screen
 void ApplicationOverlay::renderOverlay(RenderArgs* renderArgs) {
     PROFILE_RANGE(render, __FUNCTION__);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    const auto previousFramebuffer = _overlayFramebuffer;
+    const auto previousFramebufferSize = previousFramebuffer ? previousFramebuffer->getSize() : glm::uvec2 {};
+#endif
     buildFramebufferObject();
     
     if (!_overlayFramebuffer) {
         return; // we can't do anything without our frame buffer.
     }
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    const bool framebufferChanged = !previousFramebuffer || previousFramebuffer != _overlayFramebuffer ||
+        previousFramebufferSize != _overlayFramebuffer->getSize();
+#if !defined(DISABLE_QML)
+    const bool newQmlTexture = updatePhoneQmlTexture();
+#else
+    const bool newQmlTexture = false;
+#endif
+    const bool cacheEnabled = isPhoneOverlayCacheEnabled();
+    // Phone 2D overlays currently derive from QmlOverlay, whose render() is empty;
+    // their pixels arrive in the QML texture above. If a future phone overlay draws
+    // directly into this batch, it must invalidate this cache before cache-by-default
+    // can be considered safe.
+    const bool reuseComposite = cacheEnabled && _phoneOverlayCompositeValid &&
+        !framebufferChanged && !newQmlTexture;
+    ++_phoneOverlayCacheSamples;
+    _phoneOverlayCacheHits += reuseComposite ? 1 : 0;
+    _phoneOverlayCacheMisses += reuseComposite ? 0 : 1;
+    _phoneOverlayCacheNewTextures += newQmlTexture ? 1 : 0;
+    _phoneOverlayCacheResizes += framebufferChanged ? 1 : 0;
+    if ((_phoneOverlayCacheSamples % 300) == 0) {
+        __android_log_print(ANDROID_LOG_INFO, "OvertePhoneGraphics",
+            "overlay_cache_enabled=%d overlay_cache_samples=%u overlay_cache_hits=%u "
+            "overlay_cache_misses=%u overlay_cache_new_textures=%u overlay_cache_resizes=%u",
+            cacheEnabled ? 1 : 0, _phoneOverlayCacheSamples, _phoneOverlayCacheHits,
+            _phoneOverlayCacheMisses, _phoneOverlayCacheNewTextures, _phoneOverlayCacheResizes);
+    }
+    if (reuseComposite) {
+        renderArgs->_batch = nullptr;
+        return;
+    }
+#endif
 
     // Execute the batch into our framebuffer
     doInBatch("ApplicationOverlay::render", renderArgs->_context, [&](gpu::Batch& batch) {
@@ -108,11 +146,18 @@ void ApplicationOverlay::renderOverlay(RenderArgs* renderArgs) {
     });
 
     renderArgs->_batch = nullptr; // so future users of renderArgs don't try to use our batch
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    _phoneOverlayCompositeValid = true;
+#endif
 }
 
 void ApplicationOverlay::renderQmlUi(RenderArgs* renderArgs) {
     PROFILE_RANGE(render, __FUNCTION__);
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // The phone path fetched and published any new texture before deciding
+    // whether this composite batch can be skipped.
+#else
     if (!_uiTexture) {
         _uiTexture = gpu::Texture::createExternal(OffscreenQmlSurface::getDiscardLambda());
         _uiTexture->setSource(__FUNCTION__);
@@ -129,6 +174,7 @@ void ApplicationOverlay::renderQmlUi(RenderArgs* renderArgs) {
         _uiTexture->setExternalTexture(newTextureAndFence.first, newTextureAndFence.second);
         _uiTexture->setSize(offscreenUI->size().width(), offscreenUI->size().height());
     }
+#endif
     auto geometryCache = DependencyManager::get<GeometryCache>();
     gpu::Batch& batch = *renderArgs->_batch;
     geometryCache->useSimpleDrawPipeline(batch);
@@ -139,6 +185,24 @@ void ApplicationOverlay::renderQmlUi(RenderArgs* renderArgs) {
     geometryCache->renderUnitQuad(batch, glm::vec4(1), _qmlGeometryId);
     batch.setResourceTexture(0, nullptr);
 }
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+bool ApplicationOverlay::updatePhoneQmlTexture() {
+    if (!_uiTexture) {
+        _uiTexture = gpu::Texture::createExternal(OffscreenQmlSurface::getDiscardLambda());
+        _uiTexture->setSource(__FUNCTION__);
+    }
+
+    auto offscreenUI = DependencyManager::get<OffscreenUi>();
+    OffscreenQmlSurface::TextureAndFence newTextureAndFence;
+    const bool newTextureAvailable = offscreenUI ? offscreenUI->fetchTexture(newTextureAndFence) : false;
+    if (newTextureAvailable) {
+        _uiTexture->setExternalTexture(newTextureAndFence.first, newTextureAndFence.second);
+        _uiTexture->setSize(offscreenUI->size().width(), offscreenUI->size().height());
+    }
+    return newTextureAvailable;
+}
+#endif
 
 void ApplicationOverlay::renderOverlays(RenderArgs* renderArgs) {
     PROFILE_RANGE(render, __FUNCTION__);
@@ -203,6 +267,25 @@ static bool isPhoneOverlayDepthEnabled() {
         char propertyValue[PROP_VALUE_MAX] {};
         if (__system_property_get("debug.overte.phone_overlay_depth", propertyValue) <= 0) {
             return false;
+        }
+
+        const auto requested = QByteArray(propertyValue).trimmed().toLower();
+        if (requested == "1" || requested == "on" || requested == "true" || requested == "enabled") {
+            return true;
+        }
+        if (requested == "0" || requested == "off" || requested == "false" || requested == "disabled") {
+            return false;
+        }
+        return false;
+    }();
+    return enabled;
+}
+
+static bool isPhoneOverlayCacheEnabled() {
+    static const bool enabled = [] {
+        char propertyValue[PROP_VALUE_MAX] {};
+        if (__system_property_get("debug.overte.phone_overlay_cache", propertyValue) <= 0) {
+            return true;
         }
 
         const auto requested = QByteArray(propertyValue).trimmed().toLower();
