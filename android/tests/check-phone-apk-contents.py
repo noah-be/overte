@@ -2,9 +2,11 @@
 
 import sys
 import zipfile
+from pathlib import Path
+from xml.etree import ElementTree
 
 
-REQUIRED_ENTRIES = {
+BASE_REQUIRED_ENTRIES = {
     "AndroidManifest.xml",
     "classes.dex",
     "assets/cache_assets.txt",
@@ -14,12 +16,41 @@ REQUIRED_ENTRIES = {
     "lib/arm64-v8a/libQt5PositioningQuick_arm64-v8a.so",
     "lib/arm64-v8a/libcrypto_1_1.so",
     "lib/arm64-v8a/libssl_1_1.so",
-    "lib/arm64-v8a/libplugins_audio_qtaudio_opensles_arm64-v8a.so",
-    "lib/arm64-v8a/libplugins_bearer_qandroidbearer_arm64-v8a.so",
-    "lib/arm64-v8a/libplugins_imageformats_qjpeg_arm64-v8a.so",
-    "lib/arm64-v8a/libplugins_imageformats_qsvg_arm64-v8a.so",
-    "lib/arm64-v8a/libplugins_platforms_qtforandroid_arm64-v8a.so",
 }
+DEPENDENCY_XML = (
+    Path(__file__).resolve().parents[1]
+    / "apps/phoneInterface/src/main/res/values/qt_dependencies.xml"
+)
+
+
+def declared_native_entries():
+    root = ElementTree.parse(DEPENDENCY_XML).getroot()
+    bundled = root.find("./string-array[@name='bundled_in_lib']")
+    if bundled is None:
+        raise ValueError("qt_dependencies.xml has no bundled_in_lib array")
+
+    entries = set()
+    for item in bundled.findall("item"):
+        declaration = (item.text or "").strip()
+        packaged_name, separator, runtime_path = declaration.partition(":")
+        if (
+            not separator
+            or not runtime_path
+            or packaged_name != Path(packaged_name).name
+            or not packaged_name.endswith("_arm64-v8a.so")
+        ):
+            raise ValueError(
+                "invalid bundled native dependency declaration: " + declaration
+            )
+        archive_entry = "lib/arm64-v8a/" + packaged_name
+        if archive_entry in entries:
+            raise ValueError(
+                "duplicate bundled native dependency declaration: " + packaged_name
+            )
+        entries.add(archive_entry)
+    if not entries:
+        raise ValueError("qt_dependencies.xml declares no bundled native libraries")
+    return entries
 
 
 def main():
@@ -27,9 +58,10 @@ def main():
         print("Usage: check-phone-apk-contents.py <apk>", file=sys.stderr)
         return 2
     try:
+        required_entries = BASE_REQUIRED_ENTRIES | declared_native_entries()
         with zipfile.ZipFile(sys.argv[1]) as archive:
             names = set(archive.namelist())
-            missing = REQUIRED_ENTRIES - names
+            missing = required_entries - names
             if missing:
                 raise ValueError("missing required entries: " + ", ".join(sorted(missing)))
 
@@ -44,7 +76,13 @@ def main():
                     f"{len(missing_assets)} cache assets are absent" +
                     (f" (first: {preview})" if preview else "")
                 )
-    except (OSError, UnicodeError, ValueError, zipfile.BadZipFile) as error:
+    except (
+        ElementTree.ParseError,
+        OSError,
+        UnicodeError,
+        ValueError,
+        zipfile.BadZipFile,
+    ) as error:
         print(f"ERROR: incomplete Android phone APK: {error}", file=sys.stderr)
         return 1
 

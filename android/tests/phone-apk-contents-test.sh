@@ -6,12 +6,14 @@ readonly checker="$script_dir/check-phone-apk-contents.py"
 readonly fixture_dir="$(mktemp -d --tmpdir phone-apk-contents-test.XXXXXX)"
 trap 'rm -rf -- "$fixture_dir"' EXIT
 
-python3 - "$fixture_dir" <<'PY'
+python3 - "$fixture_dir" "$script_dir/../apps/phoneInterface/src/main/res/values/qt_dependencies.xml" <<'PY'
 import pathlib
 import sys
 import zipfile
+from xml.etree import ElementTree
 
 root = pathlib.Path(sys.argv[1])
+dependency_xml = pathlib.Path(sys.argv[2])
 required = {
     'AndroidManifest.xml': b'manifest',
     'classes.dex': b'dex',
@@ -22,12 +24,16 @@ required = {
     'lib/arm64-v8a/libQt5PositioningQuick_arm64-v8a.so': b'positioning',
     'lib/arm64-v8a/libcrypto_1_1.so': b'crypto',
     'lib/arm64-v8a/libssl_1_1.so': b'ssl',
-    'lib/arm64-v8a/libplugins_audio_qtaudio_opensles_arm64-v8a.so': b'audio',
-    'lib/arm64-v8a/libplugins_bearer_qandroidbearer_arm64-v8a.so': b'bearer',
-    'lib/arm64-v8a/libplugins_imageformats_qjpeg_arm64-v8a.so': b'jpeg',
-    'lib/arm64-v8a/libplugins_imageformats_qsvg_arm64-v8a.so': b'svg',
-    'lib/arm64-v8a/libplugins_platforms_qtforandroid_arm64-v8a.so': b'platform',
 }
+declared_libraries = {
+    'lib/arm64-v8a/' + item.text.split(':', 1)[0]
+    for item in ElementTree.parse(dependency_xml).findall(
+        "./string-array[@name='bundled_in_lib']/item"
+    )
+}
+assert len(declared_libraries) == 21
+assert 'lib/arm64-v8a/libqml_QtQuick.2_qtquick2plugin_arm64-v8a.so' in declared_libraries
+required.update({entry: b'declared-runtime' for entry in declared_libraries})
 for name, omit in [('complete.apk', None), ('partial.apk', 'assets/kept.txt')]:
     with zipfile.ZipFile(root / name, 'w') as archive:
         archive.writestr('assets/cache_assets.txt', '123\nkept.txt\n')

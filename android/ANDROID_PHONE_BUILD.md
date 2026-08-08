@@ -37,8 +37,10 @@ broad phone/GPU compatibility are outside this first milestone.
 > the shared legacy Pico dependency graph for a distributable phone APK.
 
 The final APK content gate also requires every explicitly staged startup,
-network, image, audio, and positioning runtime. This catches incomplete
-incremental packages before an APK can fail later at launch or first use.
+network, image, audio, positioning, and QML plugin runtime. The QML/plugin set
+is read from `qt_dependencies.xml`, so adding a loader declaration cannot drift
+away from the archive gate. This catches incomplete incremental packages before
+an APK can fail later at launch or first use.
 
 ## Requirements
 

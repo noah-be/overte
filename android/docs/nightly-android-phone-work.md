@@ -4,6 +4,30 @@ This file records the cumulative, device-free Android phone work based on
 `origin/feature/android-phone-support`. Real-device and emulator tests are out
 of scope for this worktree and are called out explicitly where still needed.
 
+## 15 — Declared QML runtime APK gate
+
+- Branch: `nightly/android-phone-15-qml-runtime-gate`
+- Commit: `Require declared phone QML runtimes in APK gate` (this task's commit)
+- Change: Make the final APK completeness checker consume the Phone
+  `qt_dependencies.xml` `bundled_in_lib` array and require every declared
+  native Qt/QML plugin. Declarations are validated as ARM64 library basenames;
+  malformed, empty, or duplicate entries fail closed. This expands omission
+  coverage from nine native runtimes to all 25 current required libraries.
+- Tests:
+  - `android/tests/phone-apk-contents-test.sh`: **passed**, including a fixture
+    omitting each of the 25 native entries independently.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 177/177 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 34
+    explicitly device-free suites.
+  - Python source execution through the fixture test: **passed**.
+  - `git diff --check`: **passed**.
+- Known risks: Archive presence does not prove ABI compatibility or loadability;
+  the existing ELF alignment, dependency sentinel, and real launch gates remain
+  independently required.
+- Real-device validation still required: **not executed**. Build and install a
+  clean 16-KiB APK, open every QML-backed Phone surface, and verify that no Qt
+  module/plugin loader error appears in PID-filtered diagnostics.
+
 ## 14 — Avatar bookmark log privacy
 
 - Branch: `nightly/android-phone-14-bookmark-log-privacy`

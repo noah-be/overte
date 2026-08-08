@@ -90,6 +90,11 @@ for source_file in \
     require_file "$source_file"
 done
 
+require_text tests/check-phone-apk-contents.py 'qt_dependencies[.]xml' \
+    'APK completeness gate consumes the Qt runtime declaration'
+require_text tests/check-phone-apk-contents.py 'bundled_in_lib' \
+    'APK completeness gate covers every declared native QML/plugin runtime'
+
 require_text settings-phone.gradle \
     "include[[:space:]]+['\"]:phoneInterface['\"]" \
     'settings include the independent phoneInterface module'
