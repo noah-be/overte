@@ -4,6 +4,29 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 26 — Validate People message boundaries
+
+- Branch: `nightly/android-phone-26-people-message-validation`
+- Commit: `Validate People messages and deferred delivery` (this task's commit)
+- Change: Ignore null, method-less, malformed-JSON, and incomplete refresh
+  messages at both QML and same-avatar local-message boundaries. People now owns
+  the deferred delivery used when a selection opens the app, cancels it on
+  close/shutdown, and verifies the surface is still open before delivery.
+- Tests:
+  - JavaScript syntax checks for PAL and its mock: **passed**.
+  - `android/tests/phone-tablet-people-menu-test.sh`: **passed**, including an
+    executable mock for malformed messages, valid open, timer ownership,
+    cancellation, repeated lifecycle transitions, and shutdown.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet suites and 181/181 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: Server response schemas and valid user-operation parameters are
+  outside this local-message boundary and still depend on backend contracts.
+- Real-device validation still required: **not executed for this task**. Send a
+  valid entity selection into a closed People app, immediately Back/Home it,
+  and confirm no delayed selection arrives; repeat with rapid reopen and domain
+  transitions. Do not use production account data for malformed-input probes.
+
 ## 25 — Fail closed for desktop-only Settings menu actions
 
 - Branch: `nightly/android-phone-25-menu-settings-policy`

@@ -34,6 +34,10 @@ require "$pal" 'updateInterval = undefined' \
     'People releases its update interval on close'
 require "$pal" 'Messages[.]unsubscribe\(CHANNEL\)' \
     'People releases its message subscription at shutdown'
+require "$pal" 'try \{' \
+    'People catches malformed local-message JSON'
+require "$pal" 'cancelPendingSelect\(\)' \
+    'People owns and cancels deferred local selection delivery'
 require "$pal" 'function printPrivatePalData\(message\)' \
     'People centralizes diagnostics that may contain personal data'
 require "$pal" 'if \(!isAndroidPhone\)' \

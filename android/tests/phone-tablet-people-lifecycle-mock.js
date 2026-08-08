@@ -29,7 +29,10 @@ const tabletShownChanged = signal();
 const domainChanged = signal();
 const domainConnectionRefused = signal();
 const scriptEnding = signal();
+const messageReceived = signal();
 let activeIntervals = 0;
+let nextTimeout = 1;
+const pendingTimeouts = new Map();
 let appConfig;
 let ui;
 
@@ -70,11 +73,17 @@ const context = {
         include() {}, resolvePath(value) { return value; },
         setInterval() { activeIntervals += 1; return activeIntervals; },
         clearInterval() { assert(activeIntervals > 0); activeIntervals -= 1; },
-        setTimeout(callback) { callback(); }, scriptEnding
+        setTimeout(callback) {
+            const id = nextTimeout++;
+            pendingTimeouts.set(id, callback);
+            return id;
+        },
+        clearTimeout(id) { assert(pendingTimeouts.delete(id), "clear of an inactive timeout"); },
+        scriptEnding
     },
     Controller: { mousePressEvent: emptySignal(), mouseMoveEvent: emptySignal() },
     Window: { domainChanged, domainConnectionRefused },
-    Messages: { subscribe() {}, unsubscribe() {}, messageReceived: emptySignal() },
+    Messages: { subscribe() {}, unsubscribe() {}, messageReceived },
     Users: {
         requestsDomainListData: false, usernameFromIDReply: emptySignal(), avatarDisconnected: emptySignal(),
         requestUsernameFromID() {}, getPersonalMuteStatus() { return false; }, getIgnoreStatus() { return false; }
@@ -93,6 +102,22 @@ const context = {
 const palPath = path.resolve(__dirname, "../../scripts/system/pal.js");
 vm.runInNewContext(fs.readFileSync(palPath, "utf8"), context, { filename: palPath });
 assert(appConfig, "People AppUi was not created");
+
+assert.doesNotThrow(() => appConfig.onMessage(null), "null QML message is ignored");
+assert.doesNotThrow(() => appConfig.onMessage({}), "method-less QML message is ignored");
+assert.doesNotThrow(() => appConfig.onMessage({ method: "refreshNearby" }),
+    "refresh without params is ignored");
+assert.doesNotThrow(() => messageReceived.emit("com.highfidelity.pal", "not-json", "{}"),
+    "malformed local message is ignored");
+assert.strictEqual(ui.isOpen, false, "malformed messages do not open People");
+
+messageReceived.emit("com.highfidelity.pal", JSON.stringify({ method: "select", params: [] }), "{}");
+assert.strictEqual(ui.isOpen, true, "valid local selection opens People");
+assert.strictEqual(pendingTimeouts.size, 1, "valid selection owns one deferred delivery");
+const messagesBeforeClose = ui.sent.length;
+ui.close();
+assert.strictEqual(pendingTimeouts.size, 0, "close cancels deferred local selection");
+assert.strictEqual(ui.sent.length, messagesBeforeClose, "cancelled selection is not delivered after close");
 
 ui.open();
 assert.strictEqual(activeIntervals, 1, "open starts one update interval");

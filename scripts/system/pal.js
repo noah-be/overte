@@ -247,6 +247,9 @@ function convertDbToLinear(decibels) {
 }
 function fromQml(message) { // messages are {method, params}, like json-rpc. See also sendToQml.
     var data, connectionUserName, friendUserName;
+    if (!message || typeof message !== 'object' || typeof message.method !== 'string') {
+        return;
+    }
     switch (message.method) {
     case 'selected':
         selectedIds = message.params;
@@ -280,6 +283,9 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
         break;
     case 'refresh': // old name for refreshNearby
     case 'refreshNearby':
+        if (!message.params || typeof message.params !== 'object') {
+            return;
+        }
         data = {};
         ExtendedOverlay.some(function (overlay) { // capture the audio data
             data[overlay.key] = overlay;
@@ -806,16 +812,39 @@ function palOpened() {
 // Message from other scripts, such as edit.js
 //
 var CHANNEL = 'com.highfidelity.pal';
+var pendingSelectTimer = null;
+
+function cancelPendingSelect() {
+    if (pendingSelectTimer !== null) {
+        Script.clearTimeout(pendingSelectTimer);
+        pendingSelectTimer = null;
+    }
+}
+
 function receiveMessage(channel, messageString, senderID) {
     if ((channel !== CHANNEL) || (senderID !== MyAvatar.sessionUUID)) {
         return;
     }
-    var message = JSON.parse(messageString);
+    var message;
+    try {
+        message = JSON.parse(messageString);
+    } catch (error) {
+        return;
+    }
+    if (!message || typeof message !== 'object' || message.method !== 'select') {
+        return;
+    }
     switch (message.method) {
     case 'select':
         if (!ui.isOpen) {
             ui.open();
-            Script.setTimeout(function () { sendToQml(message); }, 1000);
+            cancelPendingSelect();
+            pendingSelectTimer = Script.setTimeout(function () {
+                pendingSelectTimer = null;
+                if (ui.isOpen) {
+                    sendToQml(message);
+                }
+            }, 1000);
         } else {
             sendToQml(message); // Accepts objects, not just strings.
         }
@@ -959,6 +988,7 @@ function startup() {
 startup();
 
 function off() {
+    cancelPendingSelect();
     if (palRuntimeActive) {
         palRuntimeActive = false;
         if (updateInterval !== undefined) {
