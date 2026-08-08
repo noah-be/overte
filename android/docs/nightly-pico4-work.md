@@ -1479,8 +1479,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 81 — Action pose-space ownership
 
 - Branch: `nightly/pico4-81-openxr-action-space-cleanup`
-- Commit: identified by subject `Release Pico OpenXR action spaces`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `6bd48e9a67` (`Release Pico OpenXR action spaces`)
 - Change: tie each controller action's optional OpenXR pose-space handle to its
   C++ lifetime. Destruction now releases a live space while its session remains
   available and always clears the local handle, covering both normal teardown
@@ -1493,6 +1492,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Fail required action creation after one or
   more pose actions, then quit normally; verify each created pose space is
   released once, no validation leak/error and clean controller setup on restart.
+
+### 82 — Complete OpenXR action-set cleanup
+
+- Branch: `nightly/pico4-82-openxr-actionset-cleanup`
+- Commit: identified by subject `Release Pico OpenXR action sets`; the exact hash
+  is recorded by the following stacked task or final report.
+- Change: complete normal input teardown by clearing Action objects (and their
+  pose spaces) before destroying the parent ActionSet, clearing its handle and
+  retiring the initialized flag. Hand trackers remain the first session children
+  released under the same device lock.
+- Regression: input lifecycle contracts verify child collection cleanup before
+  guarded ActionSet destruction, handle invalidation and state reset.
+- Passed: 16 OpenXR input/lifecycle contracts; `git diff --check`.
+- Risk: ActionSet destruction errors are logged while the local handle is still
+  invalidated to prevent a second destroy; instance teardown remains fallback.
+- Pico 4 validation: **not executed**. Quit/deactivate after actions attach and
+  after partial initialization/runtime loss; verify child-before-parent destroy
+  ordering, no validation warning/leak and clean mappings after restart.
 
 ## Deferred, rejected, or blocked ideas
 

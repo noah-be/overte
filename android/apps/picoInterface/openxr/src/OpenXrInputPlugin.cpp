@@ -336,6 +336,14 @@ OpenXrInputPlugin::InputDevice::~InputDevice() {
         }
         tracker = XR_NULL_HANDLE;
     }
+    // Action destructors release their pose spaces before the parent set.
+    _actions.clear();
+    if (_actionSet != XR_NULL_HANDLE) {
+        xrCheck(_context->_instance, xrDestroyActionSet(_actionSet),
+                "Failed to destroy action set");
+        _actionSet = XR_NULL_HANDLE;
+    }
+    _actionsInitialized = false;
 }
 
 void OpenXrInputPlugin::InputDevice::focusOutEvent() {
