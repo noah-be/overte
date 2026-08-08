@@ -16,6 +16,21 @@ require() {
 }
 
 python3 -m json.tool "$phone_mapping" >/dev/null
+python3 - "$phone_mapping" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as mapping_file:
+    channels = json.load(mapping_file)["channels"]
+
+for axis in ("RX", "RY"):
+    source = "TouchscreenVirtualPad." + axis
+    channel = next((item for item in channels if item.get("from") == source), None)
+    if channel is None:
+        raise SystemExit("FAIL: missing phone view axis " + source)
+    if "invert" in channel.get("filters", []):
+        raise SystemExit("FAIL: phone view axis remains mirrored: " + source)
+PY
 
 require "$device_cpp" '#if defined\(ANDROID_APP_PHONE_INTERFACE\)' \
     'phone touch navigation is not compile-time isolated'

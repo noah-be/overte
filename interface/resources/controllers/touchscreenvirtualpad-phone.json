@@ -8,16 +8,14 @@
         { "from": "TouchscreenVirtualPad.RX", "when": "!Application.CameraIndependent",
             "filters": [
                 { "type": "deadZone", "min": 0.000 },
-                { "type": "scale", "scale": 0.06 },
-                "invert"
+                { "type": "scale", "scale": 0.06 }
             ],
             "to": "Actions.Yaw"
         },
         { "from": "TouchscreenVirtualPad.RY", "when": "!Application.CameraIndependent",
             "filters": [
                 { "type": "deadZone", "min": 0.000 },
-                { "type": "scale", "scale": 0.06 },
-                "invert"
+                { "type": "scale", "scale": 0.06 }
             ],
             "to": "Actions.Pitch"
         },
