@@ -31,6 +31,9 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertLess(axis_clear, no_session)
         self.assertLess(axis_clear, sync)
 
+        tracked_reset = body.index("_trackedControllers = 0")
+        self.assertLess(tracked_reset, no_session)
+
     def test_failed_action_sync_returns_with_neutral_maps(self):
         sync_guard = re.search(
             r"if \(!xrCheck\(instance, result, \"failed to sync actions!\"\)\) \{"
@@ -49,6 +52,14 @@ class OpenXrInputStateTest(unittest.TestCase):
         body = float_loop.group(1)
         self.assertIn("if (action.isActive)", body)
         self.assertIn("_axisStateMap[channel].value = action.currentState", body)
+
+    def test_only_valid_controller_poses_are_counted(self):
+        valid_pose = re.search(
+            r"if \(locationValid\) \{(.*?)\n        \}", SOURCE, re.DOTALL
+        )
+        self.assertIsNotNone(valid_pose)
+        self.assertIn("++_trackedControllers", valid_pose.group(1))
+        self.assertNotIn("_trackedControllers = 2", SOURCE)
 
 
 if __name__ == "__main__":

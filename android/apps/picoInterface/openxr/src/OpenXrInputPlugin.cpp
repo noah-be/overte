@@ -1047,7 +1047,7 @@ void OpenXrInputPlugin::InputDevice::update(float deltaTime, const controller::I
     // or its interaction profile is no longer bound. Fail closed instead of
     // retaining the previous trigger, grip, or stick value indefinitely.
     _axisStateMap.clear();
-    _trackedControllers = 2;
+    _trackedControllers = 0;
 
     if (_context->_session == XR_NULL_HANDLE) {
         return;
@@ -1121,6 +1121,7 @@ void OpenXrInputPlugin::InputDevice::update(float deltaTime, const controller::I
 
         bool locationValid = (handLocation.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0;
         if (locationValid) {
+            ++_trackedControllers;
             vec3 translation = xrVecToGlm(handLocation.pose.position);
             quat rotation = xrQuatToGlm(handLocation.pose.orientation);
             auto pose = Pose(translation, rotation);

@@ -28,6 +28,9 @@ instead of retaining the previous trigger, grip, or stick value. The device-
 free ordering contract is `python3 android/tests/pico-openxr-input-test.py`.
 If `xrSyncActions` fails, the update returns with those neutral maps instead of
 querying and republishing potentially stale action state.
+Its tracked-controller count also starts at zero each update and increases only
+for controller locations with valid orientation, so availability no longer
+remains hard-coded to two during session or tracking loss.
 
 If a dispatcher module is disabled while running, its occupied activity slots
 are released by checking ownership on the slot table itself. This prevents a

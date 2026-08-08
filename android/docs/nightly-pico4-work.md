@@ -209,8 +209,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 12 — Off-hand tracking-loss rotation guard
 
 - Branch: `nightly/pico4-12-offhand-tracking-loss`
-- Commit: identified by subject `Guard Pico off-hand rotation tracking`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `48ba7b20b3` (`Guard Pico off-hand rotation tracking`)
 - Change: far-grab rotation consumes the other controller's quaternion only
   while its current pose is valid. Tracking loss ends manipulation through the
   existing preservation path, retaining the last valid entity rotation.
@@ -224,6 +223,26 @@ headset, ADB, Android device, external domain, or device setting is used.
   other hand, interrupt only that hand's tracking, and verify the object keeps
   its last valid rotation, translation continues with the grabbing hand, and
   rotation resumes smoothly after a fresh manipulation press.
+
+### 13 — Tracked-controller availability
+
+- Branch: `nightly/pico4-13-openxr-tracked-controller-count`
+- Commit: identified by subject `Count valid Pico controller poses`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: reset the OpenXR tracked-controller count to zero each input update
+  and increment it only for controller locations with a valid orientation.
+  Missing sessions, sync failures, and total tracking loss no longer report two
+  permanently available controllers.
+- Regression: OpenXR input tests assert the pre-return zero reset, valid-pose
+  increment, and absence of the former constant-two assignment.
+- Passed: OpenXR input regression (4); full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: availability now reflects current pose validity, as downstream
+  dispatcher diagnostics expect; runtime-specific transient validity still
+  needs headset observation.
+- Pico 4 validation: **not executed**. Test zero, one, and two visible
+  controllers, full tracking loss, session suspend/resume, and recovery; compare
+  `HMD.isHandControllerAvailable()` and diagnostic poses with physical state.
 
 ## Deferred, rejected, or blocked ideas
 
