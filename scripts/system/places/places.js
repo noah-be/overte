@@ -34,9 +34,12 @@
     var APP_URL = ROOT + "places.html";
     var APP_QML_URL = ROOT + "PicoPlaces.qml";
     var useQmlApp = !PlatformInfo.has3DHTML();
+    var isAndroidPhone = typeof ANDROID_PHONE_INTERFACE !== "undefined" && ANDROID_PHONE_INTERFACE;
     var APP_ICON_INACTIVE = ROOT + "icons/appicon_i.png";
     var APP_ICON_ACTIVE = ROOT + "icons/appicon_a.png";
     var appStatus = false;
+    var qmlEventsConnected = false;
+    var webEventsConnected = false;
     var channel = "com.overte.places";
     
     var portalChannelName = "com.overte.places.portalRezzer";
@@ -50,6 +53,34 @@
     var tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
 
     tablet.screenChanged.connect(onScreenChanged);
+
+    function connectQmlEvents() {
+        if (!qmlEventsConnected) {
+            tablet.fromQml.connect(onAppQmlEventReceived);
+            qmlEventsConnected = true;
+        }
+    }
+
+    function disconnectQmlEvents() {
+        if (qmlEventsConnected) {
+            tablet.fromQml.disconnect(onAppQmlEventReceived);
+            qmlEventsConnected = false;
+        }
+    }
+
+    function connectWebEvents() {
+        if (!webEventsConnected) {
+            tablet.webEventReceived.connect(onAppWebEventReceived);
+            webEventsConnected = true;
+        }
+    }
+
+    function disconnectWebEvents() {
+        if (webEventsConnected) {
+            tablet.webEventReceived.disconnect(onAppWebEventReceived);
+            webEventsConnected = false;
+        }
+    }
 
     var button = tablet.addButton({
         text: APP_NAME,
@@ -65,26 +96,28 @@
     function clicked(){
         if (appStatus === true) {
             if (useQmlApp) {
-                tablet.fromQml.disconnect(onAppQmlEventReceived);
+                disconnectQmlEvents();
             } else {
-                tablet.webEventReceived.disconnect(onAppWebEventReceived);
+                disconnectWebEvents();
             }
             tablet.gotoHomeScreen();
             appStatus = false;
         } else {
             if (useQmlApp) {
                 tablet.loadQMLSource(APP_QML_URL);
-                tablet.fromQml.connect(onAppQmlEventReceived);
+                connectQmlEvents();
             } else {
                 tablet.gotoWebScreen(APP_URL);
-                tablet.webEventReceived.connect(onAppWebEventReceived);
+                connectWebEvents();
             }
             appStatus = true;
         }
 
-        button.editProperties({
-            isActive: appStatus
-        });
+        if (!isAndroidPhone) {
+            button.editProperties({
+                isActive: appStatus
+            });
+        }
     }
 
     button.clicked.connect(clicked);
@@ -255,11 +288,15 @@
             appStatus = true;
         } else {
             appStatus = false;
+            disconnectQmlEvents();
+            disconnectWebEvents();
         }
         
-        button.editProperties({
-            isActive: appStatus
-        });
+        if (!isAndroidPhone) {
+            button.editProperties({
+                isActive: appStatus
+            });
+        }
     }
 
     function transmitPortalList() {
@@ -776,8 +813,9 @@
 
         if (appStatus) {
             tablet.gotoHomeScreen();
-            tablet.webEventReceived.disconnect(onAppWebEventReceived);
         }
+        disconnectQmlEvents();
+        disconnectWebEvents();
 
         Messages.messageReceived.disconnect(onMessageReceived);
         Messages.unsubscribe(portalChannelName);
