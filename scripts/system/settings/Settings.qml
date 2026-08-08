@@ -22,10 +22,17 @@ Rectangle {
 	];
 	property string currentPage: "Settings"
 
+	SettingsTouchConfiguration {
+		id: touchConfiguration
+	}
+
 	ColumnLayout {
-		width: parent.width
-		height: parent.height
-		anchors.horizontalCenter: parent.horizontalCenter
+		width: parent.width / touchConfiguration.contentScale
+		height: parent.height / touchConfiguration.contentScale
+		transformOrigin: Item.TopLeft
+		scale: touchConfiguration.contentScale
+		x: 0
+		y: 0
 		id: root
 
 		// Navigation Header
