@@ -36,6 +36,7 @@ public final class OffscreenWebView {
     }
 
     private static native void nativeInitialize();
+    private static native void nativeCreationFinished(long nativeHandle, boolean created);
     private static native void nativeFrame(
         long nativeHandle, ByteBuffer pixels, int width, int height);
 
@@ -47,6 +48,7 @@ public final class OffscreenWebView {
             PicoInterfaceActivity activity = PicoInterfaceActivity.getInstance();
             if (activity == null) {
                 Log.e(TAG, "Cannot create offscreen WebView: Activity is unavailable");
+                nativeCreationFinished(nativeHandle, false);
                 return;
             }
             final WebView view;
@@ -65,6 +67,7 @@ public final class OffscreenWebView {
                 }
             } catch (RuntimeException exception) {
                 Log.e(TAG, "Cannot create offscreen WebView", exception);
+                nativeCreationFinished(nativeHandle, false);
                 return;
             }
             view.setBackgroundColor(useBackground ? Color.WHITE : Color.TRANSPARENT);
@@ -90,10 +93,12 @@ public final class OffscreenWebView {
             if (!instance.resize(width, height)) {
                 view.destroy();
                 Log.e(TAG, "Cannot allocate offscreen WebView frame buffer");
+                nativeCreationFinished(nativeHandle, false);
                 return;
             }
             INSTANCES.put(nativeHandle, instance);
             view.loadUrl(url == null || url.isEmpty() ? "about:blank" : url);
+            nativeCreationFinished(nativeHandle, true);
             Log.i(TAG, "Created offscreen WebView " + width + "x" + height);
             MAIN.post(instance.renderFrame);
         });
@@ -148,6 +153,16 @@ public final class OffscreenWebView {
                 instance.view.setBackgroundColor(
                     useBackground ? Color.WHITE : Color.TRANSPARENT);
                 instance.view.invalidate();
+            }
+        });
+    }
+
+    public static void setUserAgent(long nativeHandle, String userAgent) {
+        MAIN.post(() -> {
+            Instance instance = INSTANCES.get(nativeHandle);
+            if (instance != null) {
+                instance.view.getSettings().setUserAgentString(
+                    userAgent == null || userAgent.isEmpty() ? null : userAgent);
             }
         });
     }

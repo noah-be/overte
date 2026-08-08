@@ -719,8 +719,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 39 — Transactional WebView resize memory
 
 - Branch: `nightly/pico4-39-webview-resize-memory`
-- Commit: identified by subject `Harden Pico WebView frame allocation`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `26d2e2c70c` (`Harden Pico WebView frame allocation`)
 - Change: allocate replacement Bitmap/Canvas/direct-buffer state before
   publishing it, retain the working old frame on allocation failure, explicitly
   recycle replaced/destroyed Bitmaps, and do not register a newly created
@@ -736,6 +735,29 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Rapidly resize and destroy multiple Web
   entities near the 2048-edge cap under memory pressure; confirm stable frames,
   bounded memory, no phantom instances, and recovery after allocation failure.
+
+### 40 — WebView creation handshake
+
+- Branch: `nightly/pico4-40-webview-creation-handshake`
+- Commit: identified by subject `Confirm Pico WebView creation`; the exact hash
+  is recorded by the following stacked task or final report.
+- Change: distinguish native creation-pending from Java-confirmed creation;
+  report Activity/provider/frame-allocation failures back through JNI; marshal
+  results to the owning Qt thread with lifetime protection; and reapply current
+  URL, User-Agent, background and dimensions after success so updates made
+  during asynchronous creation cannot be lost. Transient failures receive up
+  to three lifetime-bound delayed retries without an unbounded retry loop.
+- Regression: bridge contracts reject eager-created state, require all Java
+  completion paths and queued lifetime-safe native delivery, and verify full
+  post-create property synchronization.
+- Passed: WebView/JNI bridge contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: failed creation remains uncreated rather than accepting input into a
+  phantom Java instance; a later geometry/component attempt can retry. Normal
+  creation adds one idempotent state synchronization round-trip.
+- Pico 4 validation: **not executed**. Create entities during Activity startup,
+  change URL/User-Agent/size/background before first frame, inject provider or
+  allocation failure, then retry and verify the latest state is rendered.
 
 ## Deferred, rejected, or blocked ideas
 

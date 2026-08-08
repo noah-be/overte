@@ -125,6 +125,33 @@ class PicoWebViewBridgeTest(unittest.TestCase):
         self.assertIn("old.disposeGraphics();", self.java_source)
         self.assertIn("void disposeGraphics()", self.java_source)
 
+    def test_creation_status_is_confirmed_asynchronously(self):
+        self.assertIn("_webViewCreationPending", self.source)
+        self.assertIn("_webViewCreationPending = callStatic(", self.source)
+        self.assertNotIn("_webViewCreated = true;", self.source)
+        self.assertIn("OffscreenWebView_nativeCreationFinished", self.source)
+        self.assertIn("Qt::QueuedConnection", self.source)
+        self.assertIn("nativeCreationFinished(nativeHandle, true);", self.java_source)
+        self.assertGreaterEqual(
+            self.java_source.count("nativeCreationFinished(nativeHandle, false);"), 3
+        )
+        self.assertIn("MAX_CREATION_RETRIES { 3 }", self.source)
+        self.assertIn("QTimer::singleShot(1000, this", self.source)
+
+    def test_pending_properties_are_resynchronized_after_creation(self):
+        result = re.search(
+            r"void PicoWebViewItem::acceptCreationResult\(.*?\n\}",
+            self.source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(result)
+        body = result.group(0)
+        self.assertIn('callStatic("load"', body)
+        self.assertIn('callStatic("setUserAgent"', body)
+        self.assertIn('callStatic("setUseBackground"', body)
+        self.assertIn('callStatic("resize"', body)
+        self.assertIn("public static void setUserAgent", self.java_source)
+
 
 if __name__ == "__main__":
     unittest.main()

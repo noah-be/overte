@@ -4,8 +4,10 @@
 #include <QHash>
 #include <QMouseEvent>
 #include <QMutexLocker>
+#include <QPointer>
 #include <QQmlEngine>
 #include <QQuickImageProvider>
+#include <QTimer>
 #include <QWheelEvent>
 #include <QtQml/qqml.h>
 #include <jni.h>
@@ -54,25 +56,31 @@ struct JniScope {
     }
 };
 
-void callStatic(const char* name, const char* signature, jvalue* args) {
+bool callStatic(const char* name, const char* signature, jvalue* args) {
     JniScope jni;
-    if (!jni.env) { return; }
+    if (!jni.env) { return false; }
     jclass clazz = webViewClass.load(std::memory_order_acquire);
     if (!clazz) {
         __android_log_print(ANDROID_LOG_ERROR, "OverteWebEntity", "Java WebView bridge is not initialized");
-        return;
+        return false;
     }
     jmethodID method = jni.env->GetStaticMethodID(clazz, name, signature);
     if (method) {
         jni.env->CallStaticVoidMethodA(clazz, method, args);
     } else {
         __android_log_print(ANDROID_LOG_ERROR, "OverteWebEntity", "Cannot find Java WebView bridge method %s", name);
+        if (jni.env->ExceptionCheck()) {
+            jni.env->ExceptionClear();
+        }
+        return false;
     }
     if (jni.env->ExceptionCheck()) {
         __android_log_print(ANDROID_LOG_ERROR, "OverteWebEntity", "Java WebView bridge method %s failed", name);
         jni.env->ExceptionDescribe();
         jni.env->ExceptionClear();
+        return false;
     }
+    return true;
 }
 
 void registerPicoWebViewType() {
@@ -134,7 +142,19 @@ void PicoWebViewItem::setUrl(const QString& value) {
 void PicoWebViewItem::setUserAgent(const QString& value) {
     if (_userAgent == value) { return; }
     _userAgent = value;
-    if (_webViewCreated) { createWebView(); }
+    if (_webViewCreated) {
+        JniScope jni;
+        if (!jni.env) { return; }
+        jstring agent = jni.env->NewString(
+            reinterpret_cast<const jchar*>(_userAgent.utf16()), _userAgent.size());
+        if (!agent) {
+            if (jni.env->ExceptionCheck()) { jni.env->ExceptionClear(); }
+            return;
+        }
+        jvalue args[2]; args[0].j = reinterpret_cast<jlong>(this); args[1].l = agent;
+        callStatic("setUserAgent", "(JLjava/lang/String;)V", args);
+        jni.env->DeleteLocalRef(agent);
+    }
 }
 
 void PicoWebViewItem::setUseBackground(bool value) {
@@ -162,7 +182,8 @@ void PicoWebViewItem::createWebView() {
     // assigns the real texture size. Loading a page into that provisional
     // viewport makes Android WebView retain an incorrect mobile zoom even
     // after resize, so defer creation until useful geometry exists.
-    if (!isComponentComplete() || pixelWidth() <= 1 || pixelHeight() <= 1) { return; }
+    if (!isComponentComplete() || _webViewCreated || _webViewCreationPending ||
+            pixelWidth() <= 1 || pixelHeight() <= 1) { return; }
     JniScope jni;
     if (!jni.env) { return; }
     jstring url = jni.env->NewString(reinterpret_cast<const jchar*>(_url.utf16()), _url.size());
@@ -170,9 +191,51 @@ void PicoWebViewItem::createWebView() {
     jvalue args[6];
     args[0].j = reinterpret_cast<jlong>(this); args[1].i = pixelWidth(); args[2].i = pixelHeight();
     args[3].l = url; args[4].l = agent; args[5].z = _useBackground;
-    callStatic("create", "(JIILjava/lang/String;Ljava/lang/String;Z)V", args);
-    _webViewCreated = true;
+    _webViewCreationPending = callStatic(
+        "create", "(JIILjava/lang/String;Ljava/lang/String;Z)V", args);
     jni.env->DeleteLocalRef(url); jni.env->DeleteLocalRef(agent);
+}
+
+void PicoWebViewItem::acceptCreationResult(bool created) {
+    _webViewCreationPending = false;
+    _webViewCreated = created;
+    if (!created) {
+        constexpr uint8_t MAX_CREATION_RETRIES { 3 };
+        if (_webViewCreationRetries < MAX_CREATION_RETRIES) {
+            ++_webViewCreationRetries;
+            QTimer::singleShot(1000, this, [this] { createWebView(); });
+        }
+        return;
+    }
+    _webViewCreationRetries = 0;
+
+    // URL and properties may have changed while Java was creating the WebView.
+    // Reapply the current state after registration so no pending update is lost.
+    setUseBackground(_useBackground);
+    JniScope jni;
+    if (!jni.env) { return; }
+    jstring url = jni.env->NewString(
+        reinterpret_cast<const jchar*>(_url.utf16()), _url.size());
+    jstring agent = jni.env->NewString(
+        reinterpret_cast<const jchar*>(_userAgent.utf16()), _userAgent.size());
+    if (!url || !agent) {
+        if (jni.env->ExceptionCheck()) { jni.env->ExceptionClear(); }
+        if (url) { jni.env->DeleteLocalRef(url); }
+        if (agent) { jni.env->DeleteLocalRef(agent); }
+        return;
+    }
+    jvalue loadArgs[2]; loadArgs[0].j = reinterpret_cast<jlong>(this); loadArgs[1].l = url;
+    callStatic("load", "(JLjava/lang/String;)V", loadArgs);
+    jvalue agentArgs[2]; agentArgs[0].j = reinterpret_cast<jlong>(this); agentArgs[1].l = agent;
+    callStatic("setUserAgent", "(JLjava/lang/String;)V", agentArgs);
+    jvalue backgroundArgs[2]; backgroundArgs[0].j = reinterpret_cast<jlong>(this);
+    backgroundArgs[1].z = _useBackground;
+    callStatic("setUseBackground", "(JZ)V", backgroundArgs);
+    jvalue resizeArgs[3]; resizeArgs[0].j = reinterpret_cast<jlong>(this);
+    resizeArgs[1].i = pixelWidth(); resizeArgs[2].i = pixelHeight();
+    callStatic("resize", "(JII)V", resizeArgs);
+    jni.env->DeleteLocalRef(url);
+    jni.env->DeleteLocalRef(agent);
 }
 
 QImage PicoWebViewItem::frameImage() const {
@@ -285,5 +348,17 @@ Java_org_overte_pico_OffscreenWebView_nativeFrame(JNIEnv* env, jclass, jlong han
     if (item && buffer) {
         item->acceptFrame(env->GetDirectBufferAddress(buffer),
                           env->GetDirectBufferCapacity(buffer), width, height);
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_overte_pico_OffscreenWebView_nativeCreationFinished(
+        JNIEnv*, jclass, jlong handle, jboolean created) {
+    QMutexLocker locker(&itemRegistryMutex);
+    QPointer<PicoWebViewItem> item(itemRegistry.value(handle, nullptr));
+    if (item) {
+        QMetaObject::invokeMethod(item, [item, created] {
+            if (item) { item->acceptCreationResult(created); }
+        }, Qt::QueuedConnection);
     }
 }

@@ -4,6 +4,8 @@
 #include <QMutex>
 #include <QQuickItem>
 
+#include <cstdint>
+
 class PicoWebViewItem : public QQuickItem {
     Q_OBJECT
     Q_PROPERTY(QString url READ url WRITE setUrl NOTIFY urlChanged)
@@ -24,6 +26,7 @@ public:
     QString frameSource() const;
     QImage frameImage() const;
     void acceptFrame(const void* pixels, qsizetype byteCount, int width, int height);
+    void acceptCreationResult(bool created);
     void componentComplete() override;
 
 signals:
@@ -52,6 +55,8 @@ private:
     QString _userAgent;
     bool _useBackground { true };
     bool _webViewCreated { false };
+    bool _webViewCreationPending { false };
+    uint8_t _webViewCreationRetries { 0 };
     bool _pointerPressed { false };
     mutable QMutex _imageMutex;
     QImage _image;
