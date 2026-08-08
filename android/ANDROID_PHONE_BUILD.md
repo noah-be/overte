@@ -238,19 +238,14 @@ scripts remain disabled until they have an equally explicit phone contract.
 Run the device-free tablet contract checks with:
 
 ```bash
-./tests/phone-tablet-core-contract-test.sh
-./tests/phone-tablet-presenter-test.sh
-./tests/phone-tablet-routing-test.sh
-./tests/phone-tablet-touch-qml-test.sh
-./tests/phone-tablet-privacy-test.sh
-./tests/phone-tablet-audio-test.sh
-./tests/phone-tablet-avatar-test.sh
-./tests/phone-tablet-places-test.sh
-./tests/phone-tablet-people-menu-test.sh
-./tests/phone-tablet-quick-goto-test.sh
-./tests/phone-tablet-shield-test.sh
-./tests/phone-dialog-routing-test.sh
+./tests/phone-tablet-static-test.sh
 ```
+
+This aggregate gate runs every app contract, JavaScript syntax checks, the
+complete phone host regression suite, and `git diff --check`. Create remains
+disabled until `phone-tablet-create-contract-test.sh` can be replaced by tests
+for touch-owned entity selection, screen-space dialogs, camera/render state
+restoration, and repeated open/Back/reopen lifecycle behavior.
 
 ## Device validation checklist
 
@@ -266,6 +261,26 @@ exercise it on at least one Adreno and one Mali device and record:
    touch-through;
 5. background/foreground transitions, screen rotation policy, and reconnects;
 6. memory use, frame pacing, temperature, and battery drain over a long run.
+
+For a shared development phone, run the complete build/install/test capture in
+one invocation of the external phone-device-lock wrapper. Check its `status`
+first, wait when occupied, and pass a single `run -- bash -c '...'` transaction
+that contains the incremental build, 16 KiB APK gate, device selection,
+installation, launch, diagnostics, and test. Inside that transaction:
+
+- derive `ANDROID_SERIAL` silently from `adb devices -l`;
+- require exactly one authorized non-VR phone and reject Pico/Bytedance devices;
+- use `adb -s "$ANDROID_SERIAL"` for every command;
+- never uninstall or clear application data;
+- keep screenshots and raw logs under a temporary private directory;
+- retain only aggregate, non-identifying results after releasing the lock.
+
+The prepared manual sequence is: open Tablet; exercise Login cancel/failure/
+success and Back with the IME visible; open and Back/reopen Settings, Audio,
+Menu, People, Avatar, and Places; activate Shield; navigate through Tutorial
+and configured/unconfigured Home; confirm Create is absent; then verify that
+closing every surface restores world controls and focus. Do not start this
+sequence until the phone owner explicitly releases the device for testing.
 
 Cutouts, gesture navigation, unusual DPI values, and vendor-specific power
 management deserve explicit checks. Automated static validation cannot expose
