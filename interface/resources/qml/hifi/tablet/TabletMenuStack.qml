@@ -119,6 +119,10 @@ Item {
                 "Running Scripts",
                 "Asset Browser",
                 "Controls...",
+                // These desktop settings expose developer-only menus or alter
+                // the next-start recovery flow without a Phone confirmation UI.
+                "Developer Menu",
+                "Ask To Reset Settings on Start",
                 // This native menu action opens the legacy preferences dialog.
                 // The phone's dedicated SETTINGS app remains available separately.
                 "General..."

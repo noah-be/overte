@@ -4,6 +4,28 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 25 — Fail closed for desktop-only Settings menu actions
+
+- Branch: `nightly/android-phone-25-menu-settings-policy`
+- Commit: `Block desktop-only Settings actions on phone` (this task's commit)
+- Change: Mark `Developer Menu` and `Ask To Reset Settings on Start` unavailable
+  in the screen-space Phone tablet. This prevents a touch from exposing a large
+  unreviewed desktop developer tree or silently changing the next-start crash
+  recovery policy without a Phone-native confirmation flow. Desktop and Pico
+  menu behavior is unchanged.
+- Tests:
+  - `android/tests/phone-tablet-people-menu-test.sh`: **passed**, including
+    explicit contracts for both blocked Settings actions.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet suites and 181/181 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: The Settings subtree still uses a reviewed denylist after its
+  allowlisted root. Newly added desktop actions therefore require continuing
+  review; root-level menu additions remain fail-closed automatically.
+- Real-device validation still required: **not executed for this task**. Open
+  Menu > Settings and confirm both rows are visibly unavailable, cannot toggle,
+  and remain inert under rapid taps while General/Audio/Security routes work.
+
 ## 24 — Keep People diagnostics private on Phone
 
 - Branch: `nightly/android-phone-24-people-log-privacy`

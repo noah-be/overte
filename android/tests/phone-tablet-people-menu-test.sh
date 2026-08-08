@@ -59,6 +59,12 @@ require "$menu_stack" 'topMenu === null.*item[.]type === MenuItemType[.]Menu' \
     'Menu applies its fail-closed policy at the root'
 require "$menu_stack" '"General[.][.][.]"' \
     'Menu blocks the legacy General Settings dialog on phone screen-space'
+require "$menu_stack" '"Developer Menu"' \
+    'Menu blocks developer-menu activation on phone screen-space'
+require "$menu_stack" '"Ask To Reset Settings on Start"' \
+    'Menu blocks next-start reset prompts on phone screen-space'
+require "$menu_stack" 'without a Phone confirmation UI' \
+    'Menu documents why recovery-policy changes fail closed on Phone'
 require "$menu_stack" 'phone.s dedicated SETTINGS app remains available separately' \
     'Menu policy preserves the dedicated tablet Settings route'
 require "$menu_stack" '!selectedItem[.]platformEnabled' \
