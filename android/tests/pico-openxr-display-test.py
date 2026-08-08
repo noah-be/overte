@@ -191,6 +191,30 @@ class PicoOpenXRDisplayTests(unittest.TestCase):
         self.assertLess(clear, failed_return)
         self.assertLess(failed_return, success)
 
+    def test_session_transition_failures_disable_rendering(self):
+        start = CONTEXT.index("bool OpenXrContext::updateSessionState")
+        end = CONTEXT.index("bool OpenXrContext::pollEvents", start)
+        transitions = CONTEXT[start:end]
+
+        ready = transitions[transitions.index("XR_SESSION_STATE_READY"):
+                            transitions.index("XR_SESSION_STATE_STOPPING")]
+        self.assertLess(ready.index("_shouldRunFrameCycle = false"), ready.index("xrBeginSession"))
+        begin_failure = ready.index('"Failed to begin session!"')
+        self.assertIn("_isValid = false", ready[begin_failure:begin_failure + 180])
+
+        stopping = transitions[transitions.index("XR_SESSION_STATE_STOPPING"):
+                               transitions.index("XR_SESSION_STATE_LOSS_PENDING")]
+        self.assertLess(stopping.index("_shouldRunFrameCycle = false"), stopping.index("xrEndSession"))
+        end_failure = stopping.index('"Failed to end session!"')
+        self.assertIn("_isValid = false", stopping[end_failure:end_failure + 180])
+
+        loss = transitions[transitions.index("XR_SESSION_STATE_LOSS_PENDING"):]
+        destroy = loss.index("xrDestroySession")
+        self.assertLess(loss.index("_shouldQuit = true"), destroy)
+        self.assertLess(loss.index("_shouldRunFrameCycle = false"), destroy)
+        self.assertLess(loss.index("_isValid = false"), destroy)
+        self.assertIn("_isSessionRunning = false", loss[destroy:])
+
 
 if __name__ == "__main__":
     unittest.main()

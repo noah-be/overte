@@ -1220,8 +1220,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 66 — OpenXR post-graphics session rollback
 
 - Branch: `nightly/pico4-66-openxr-session-rollback`
-- Commit: identified by subject `Roll back incomplete Pico OpenXR sessions`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `9e55e20f30` (`Roll back incomplete Pico OpenXR sessions`)
 - Change: make post-graphics OpenXR initialization transactional across session
   and required reference-space creation. If Stage/View space setup fails, the
   newly created session is destroyed and its published handle cleared before
@@ -1234,6 +1233,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Inject unsupported/failing Stage or View
   space creation, then retry activation; verify one session teardown, clean
   subsequent creation, no stale space use and normal successful rendering.
+
+### 67 — Fail-closed OpenXR session transitions
+
+- Branch: `nightly/pico4-67-openxr-transition-failclosed`
+- Commit: identified by subject `Fail closed on Pico OpenXR transition errors`;
+  the exact hash is recorded by the following stacked task or final report.
+- Change: disable the frame cycle before beginning or ending a session, mark the
+  context invalid when either runtime transition fails, and publish quit/
+  non-rendering/invalid state before attempting loss-time destruction. Successful
+  destruction now also clears the running-session flag.
+- Regression: OpenXR context contracts verify state publication precedes begin,
+  end and destroy calls and that each failure path invalidates rendering.
+- Passed: 16 OpenXR display/context contracts; `git diff --check`.
+- Risk: transition errors deliberately deactivate rendering instead of trying
+  further frame calls against a runtime in an unknown state.
+- Pico 4 validation: **not executed**. Inject begin/end/destroy failures during
+  resume, pause and runtime loss; verify rendering stops immediately, no further
+  frame calls occur, application shutdown remains bounded and clean resume still
+  works when transitions succeed.
 
 ## Deferred, rejected, or blocked ideas
 

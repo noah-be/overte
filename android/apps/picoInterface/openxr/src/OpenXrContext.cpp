@@ -894,14 +894,17 @@ bool OpenXrContext::updateSessionState(XrSessionState newState) {
 
         // Begin the session
         case XR_SESSION_STATE_READY: {
+            _shouldRunFrameCycle = false;
             if (!_isSessionRunning) {
                 XrSessionBeginInfo session_begin_info = {
                     .type = XR_TYPE_SESSION_BEGIN_INFO,
                     .primaryViewConfigurationType = XR_VIEW_CONFIG_TYPE,
                 };
                 XrResult result = xrBeginSession(_session, &session_begin_info);
-                if (!xrCheck(_instance, result, "Failed to begin session!"))
+                if (!xrCheck(_instance, result, "Failed to begin session!")) {
+                    _isValid = false;
                     return false;
+                }
                 qCDebug(xr_context_cat, "Session started!");
                 _isSessionRunning = true;
             }
@@ -912,26 +915,29 @@ bool OpenXrContext::updateSessionState(XrSessionState newState) {
 
         // End the session, don't render, but keep polling for events
         case XR_SESSION_STATE_STOPPING: {
+            _shouldRunFrameCycle = false;
             if (_isSessionRunning) {
                 XrResult result = xrEndSession(_session);
-                if (!xrCheck(_instance, result, "Failed to end session!"))
+                if (!xrCheck(_instance, result, "Failed to end session!")) {
+                    _isValid = false;
                     return false;
+                }
                 _isSessionRunning = false;
             }
-            _shouldRunFrameCycle = false;
             break;
         }
 
         // Destroy session, skip run frame cycle, quit
         case XR_SESSION_STATE_LOSS_PENDING:
         case XR_SESSION_STATE_EXITING: {
+            _shouldQuit = true;
+            _shouldRunFrameCycle = false;
+            _isValid = false;
             XrResult result = xrDestroySession(_session);
             if (!xrCheck(_instance, result, "Failed to destroy session!"))
                 return false;
-            _shouldQuit = true;
-            _shouldRunFrameCycle = false;
             _session = XR_NULL_HANDLE;
-            _isValid = false;
+            _isSessionRunning = false;
             qCDebug(xr_context_cat, "Destroyed session");
             break;
         }
