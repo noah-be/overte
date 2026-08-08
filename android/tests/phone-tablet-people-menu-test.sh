@@ -48,6 +48,10 @@ require "$menu_stack" 'supportedRootMenus = \["File", "View", "Navigate", "Setti
     'Menu uses an explicit reviewed root-menu allowlist'
 require "$menu_stack" 'topMenu === null.*item[.]type === MenuItemType[.]Menu' \
     'Menu applies its fail-closed policy at the root'
+require "$menu_stack" '"General[.][.][.]"' \
+    'Menu blocks the legacy General Settings dialog on phone screen-space'
+require "$menu_stack" 'phone.s dedicated SETTINGS app remains available separately' \
+    'Menu policy preserves the dedicated tablet Settings route'
 require "$menu_stack" '!selectedItem[.]platformEnabled' \
     'Menu refuses to trigger unsupported Android actions'
 require "$menu_view" 'item[.]enabled && phoneSupported' \
@@ -56,5 +60,10 @@ require "$menu_item" 'property bool platformEnabled: true' \
     'Menu items expose platform availability visually'
 
 node "$lifecycle_mock"
+
+# Static mocks cover the People script lifecycle, but cannot validate live
+# avatar/world data, actual entity overlay suppression, or server-backed user
+# operations. Keep this explicit until a phone is released for the bundled run.
+printf 'PENDING: People live-world/device validation (avatar data, world overlays, server actions)\n'
 
 printf 'Android phone People/Menu checks passed.\n'

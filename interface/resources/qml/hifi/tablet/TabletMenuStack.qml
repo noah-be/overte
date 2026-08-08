@@ -114,7 +114,15 @@ Item {
             // Fail closed at the root. New desktop menus must be reviewed before
             // the phone tablet can trigger any of their actions.
             var supportedRootMenus = ["File", "View", "Navigate", "Settings"];
-            var unsupportedActions = ["Quit", "Running Scripts", "Asset Browser", "Controls..."];
+            var unsupportedActions = [
+                "Quit",
+                "Running Scripts",
+                "Asset Browser",
+                "Controls...",
+                // This native menu action opens the legacy preferences dialog.
+                // The phone's dedicated SETTINGS app remains available separately.
+                "General..."
+            ];
             if (topMenu === null && item.type === MenuItemType.Menu
                     && supportedRootMenus.indexOf(label) === -1) {
                 return false;
