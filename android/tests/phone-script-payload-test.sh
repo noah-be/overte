@@ -46,10 +46,12 @@ for required in \
 done
 
 grep -Eq '^var ANDROID_PHONE_INTERFACE = true;' "$defaults"
-grep -Eq 'typeof ANDROID_PHONE_INTERFACE.*ANDROID_PHONE_INTERFACE' "$progress"
-grep -Eq '[?][[:space:]]*1000 / 30' "$progress"
-grep -Eq ':[[:space:]]*1000 / 60' "$progress"
-grep -Fq 'Script.setInterval(update, UPDATE_INTERVAL);' "$progress"
+grep -Eq 'IS_ANDROID_PHONE = typeof ANDROID_PHONE_INTERFACE.*ANDROID_PHONE_INTERFACE' "$progress"
+grep -Eq 'ACTIVE_UPDATE_INTERVAL = IS_ANDROID_PHONE [?] 1000 / 30 : 1000 / 60' "$progress"
+grep -Eq 'IDLE_PHONE_UPDATE_INTERVAL = 250' "$progress"
+grep -Fq 'setUpdateInterval(ACTIVE_UPDATE_INTERVAL);' "$progress"
+grep -Fq 'setUpdateInterval(IS_ANDROID_PHONE ? IDLE_PHONE_UPDATE_INTERVAL : ACTIVE_UPDATE_INTERVAL);' "$progress"
+grep -Fq ': IDLE_PHONE_UPDATE_INTERVAL);' "$progress"
 if grep -Fq 'Script.setInterval(update, 1000 / 60);' "$progress"; then
     echo 'FAIL: phone progress indicator still unconditionally updates at 60 Hz' >&2
     exit 1
