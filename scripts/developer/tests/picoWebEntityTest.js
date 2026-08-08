@@ -31,7 +31,7 @@
         var cameraOrientation = Camera.orientation;
         var position = Vec3.sum(Vec3.sum(Camera.position,
             Vec3.multiply(Quat.getForward(cameraOrientation), 2.2)),
-            { x: 0, y: 0.70, z: 0 });
+            { x: 0, y: 1.15, z: 0 });
         entityID = Entities.addEntity({
             type: "Web",
             name: "Pico Local Web Entity Test",
@@ -39,7 +39,7 @@
             position: position,
             rotation: cameraOrientation,
             drawInFront: true,
-            dimensions: { x: 1.2, y: 0.9, z: 0.02 },
+            dimensions: { x: 2.4, y: 1.8, z: 0.02 },
             dpi: 16,
             maxFPS: 10,
             locked: false,
