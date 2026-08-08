@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 84 — Prove cleanup failure cannot pass
+
+- Branch: `nightly/android-phone-84-cleanup-failure-contract`
+- Commit: `Test phone device cleanup failure contract` (this task's commit)
+- Change: Extend Fake-ADB with a final-force-stop failure. The real smoke must
+  report `test_status=failed`, omit `cleanup_force_stopped=1`, and issue one
+  best-effort finalizer retry rather than accepting incomplete cleanup.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, proving two
+    failed cleanup attempts after the successful pre-launch force-stop and no
+    false success field.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 263/263 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 263/263 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: A disconnected device can prevent both cleanup attempts; the
+  failed status then correctly requires operator cleanup after reconnect.
+- Real-device validation still required: Simulate a late disconnect only in a
+  disposable run and confirm failed status, then manually force-stop on reconnect.
+
 ## 83 — Stop the tested app after unattended smoke
 
 - Branch: `nightly/android-phone-83-device-smoke-cleanup`

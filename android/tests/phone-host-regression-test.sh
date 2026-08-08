@@ -555,6 +555,8 @@ require_text tests/phone-device-test.sh 'require_adb "final app cleanup".*force-
     'successful device smoke must force-stop the tested app before passing'
 require_text tests/phone-device-test.sh 'PACKAGE_INSTALLED == 1.*PACKAGE_CLEANED == 0' \
     'failed device smoke performs best-effort app cleanup after installation'
+require_text tests/phone-device-test.sh 'cleanup_force_stopped=1' \
+    'device summary records cleanup only after its required command succeeds'
 require_text tests/phone-device-test.sh 'shell pm path "\$PACKAGE"' \
     'device smoke resolves the installed base APK after installation'
 require_text tests/phone-device-test.sh 'installed_apk_sha256.*== "\$APK_SHA256"' \

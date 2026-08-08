@@ -57,7 +57,16 @@ case "$*" in
             cat "$MOCK_ROOT/phone.apk"
         fi
         ;;
-    'shell am force-stop org.overte.phone') ;;
+    'shell am force-stop org.overte.phone')
+        if [[ "${MOCK_FINAL_CLEANUP_FAILURE:-0}" == 1 ]]; then
+            force_stop_count=0
+            [[ ! -f "$MOCK_ROOT/force-stop-count" ]] || \
+                force_stop_count="$(<"$MOCK_ROOT/force-stop-count")"
+            force_stop_count=$((force_stop_count + 1))
+            printf '%s' "$force_stop_count" >"$MOCK_ROOT/force-stop-count"
+            ((force_stop_count < 2)) || exit 13
+        fi
+        ;;
     shell\ am\ start\ *)
         if [[ "${MOCK_START_FAILURE:-0}" == 1 ]]; then
             printf 'private start failure for mock-phone\n' >&2
@@ -159,6 +168,19 @@ grep -Fxq 'cleanup_force_stopped=1' "$summary"
 [[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' "$test_root/adb-commands")" -eq 2 ]]
 [[ "$(stat -c %a "$summary")" == 600 ]]
 ! grep -Eq 'mock-phone|/data/app|4242' "$summary"
+
+mkdir "$test_root/cleanup-failure-report"
+rm -f -- "$test_root/force-stop-count"
+: >"$test_root/adb-commands"
+if run_smoke "$test_root/cleanup-failure-report" env MOCK_FINAL_CLEANUP_FAILURE=1 \
+        >"$test_root/cleanup-failure.out" 2>&1; then
+    echo 'FAIL: failed final app cleanup was accepted' >&2
+    exit 1
+fi
+grep -Fq 'final app cleanup failed' "$test_root/cleanup-failure.out"
+grep -Fxq 'test_status=failed' "$test_root/cleanup-failure-report/summary.txt"
+! grep -Fq 'cleanup_force_stopped=1' "$test_root/cleanup-failure-report/summary.txt"
+[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' "$test_root/adb-commands")" -eq 3 ]]
 
 mkdir "$test_root/mismatch-report"
 if run_smoke "$test_root/mismatch-report" env MOCK_APK_MISMATCH=1 \
