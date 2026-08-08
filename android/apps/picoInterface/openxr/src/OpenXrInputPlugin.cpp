@@ -9,6 +9,9 @@
 
 #include <glm/ext.hpp>
 #include <QJsonArray>
+#include <algorithm>
+#include <cmath>
+#include <limits>
 #include <tuple>
 
 #include "OpenXrInputPlugin.h"
@@ -329,23 +332,35 @@ void OpenXrInputPlugin::InputDevice::focusOutEvent() {
 };
 
 bool OpenXrInputPlugin::InputDevice::triggerHapticPulse(float strength, float duration, uint16_t index) {
-    if (index >= HAND_COUNT || !_hapticsEnabled) {
+    constexpr double NANOSECONDS_PER_MILLISECOND { 1000000.0 };
+    const double durationNanoseconds = static_cast<double>(duration) * NANOSECONDS_PER_MILLISECOND;
+    if (index >= HAND_COUNT || !_hapticsEnabled || !std::isfinite(strength) ||
+            !std::isfinite(duration) || duration <= 0.0f ||
+            durationNanoseconds > static_cast<double>(std::numeric_limits<XrDuration>::max())) {
         return false;
     }
 
     std::unique_lock<std::recursive_mutex> locker(_lock);
 
-    using namespace std::chrono;
-    nanoseconds durationNs = duration_cast<nanoseconds>(milliseconds(static_cast<int>(duration)));
-    XrDuration xrDuration = durationNs.count();
+    if (!_actionsInitialized || _context->_session == XR_NULL_HANDLE) {
+        return false;
+    }
 
     auto path = (index == 0) ? "left_haptic" : "right_haptic";
+    auto action = _actions.find(path);
+    if (action == _actions.end()) {
+        return false;
+    }
+
+    XrDuration xrDuration = static_cast<XrDuration>(durationNanoseconds);
+    const float amplitude = std::clamp(0.5f * strength, 0.0f, 1.0f);
 
     // FIXME: sometimes something bugs out and hammers this,
     // and the controller vibrates really loudly until another
     // haptic pulse is triggered
-    if (!_actions.at(path)->applyHaptic(xrDuration, 50, 0.5f * strength)) {
+    if (!action->second->applyHaptic(xrDuration, 50, amplitude)) {
         qCCritical(xr_input_cat) << "Failed to apply haptic feedback!";
+        return false;
     }
 
     return true;

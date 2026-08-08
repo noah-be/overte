@@ -927,8 +927,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 50 — Atomic OpenXR action initialization
 
 - Branch: `nightly/pico4-50-openxr-action-init`
-- Commit: identified by subject `Initialize Pico OpenXR actions atomically`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `d37b52f47d` (`Initialize Pico OpenXR actions atomically`)
 - Change: initialize the action-set handle to null and treat every declared
   action as required by the keyed update path. Any action/pose-space or attach
   failure now clears unpublished wrappers, destroys the unattached action set,
@@ -942,6 +941,26 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Inject action, pose-space and attach
   failures during controller startup; verify neutral input/no crash, then remove
   the fault and confirm both controllers initialize normally on retry.
+
+### 51 — OpenXR haptic boundary validation
+
+- Branch: `nightly/pico4-51-openxr-haptic-validation`
+- Commit: identified by subject `Validate Pico OpenXR haptic pulses`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: reject non-finite/non-positive or `XrDuration`-overflow durations
+  before conversion while preserving fractional milliseconds, reject non-finite
+  strength, require an active session and complete
+  action map, use lookup instead of throwing `at()`, clamp the existing scaled
+  amplitude to OpenXR's valid range, and return the actual apply result.
+- Regression: input contracts cover every numeric/session/action guard,
+  amplitude range and false propagation from failed haptic application.
+- Passed: 8 OpenXR input contracts; full `pico-device-free-test.sh`;
+  `git diff --check`.
+- Risk: malformed or premature script pulses now return false; normal left/right
+  finite positive pulses retain the prior `0.5 * strength` response until capped.
+- Pico 4 validation: **not executed**. Pulse both controllers before/during/after
+  session initialization, inject NaN/range/apply failures, and verify no crash,
+  truthful results, bounded vibration and normal subsequent pulses.
 
 ## Deferred, rejected, or blocked ideas
 
