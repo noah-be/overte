@@ -22,6 +22,11 @@ is no separate Pico grab implementation. Pico-specific correctness therefore
 depends on the Android OpenXR plugin supplying the same standard inputs as the
 desktop OpenXR plugin expects.
 
+The Pico OpenXR device clears pose, button, and axis state at the start of each
+input update. An inactive action after tracking loss therefore reads as neutral
+instead of retaining the previous trigger, grip, or stick value. The device-
+free ordering contract is `python3 android/tests/pico-openxr-input-test.py`.
+
 ## Static implementation audit
 
 The Android OpenXR plugin enables `XR_BD_controller_interaction` when the

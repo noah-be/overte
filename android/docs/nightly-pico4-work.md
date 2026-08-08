@@ -126,8 +126,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 07 — Fast interaction transition diagnostics
 
 - Branch: `nightly/pico4-07-interaction-transition-diagnostics`
-- Commit: identified by subject `Capture fast Pico input transitions`; the
-  exact hash is recorded by the following stacked task or the final report.
+- Commit: `887cfd93e7` (`Capture fast Pico input transitions`)
 - Change: sample the opt-in Pico controller diagnostic on `Script.update`
   instead of every 100 ms, separately count trigger-click and tracking-validity
   transitions, and keep verbose snapshots throttled to one second.
@@ -143,6 +142,26 @@ headset, ADB, Android device, external domain, or device setting is used.
   near the runtime threshold, alternate hands/targets, cover and uncover each
   controller, and verify transition counts and recovery logs against a video or
   independent input trace; confirm the diagnostic itself does not alter grabs.
+
+### 08 — Fail-closed OpenXR axis state
+
+- Branch: `nightly/pico4-08-openxr-stale-axis-state`
+- Commit: identified by subject `Clear stale Pico OpenXR axis state`; the exact
+  hash is recorded by the following stacked task or the final report.
+- Change: clear Pico OpenXR axis state at the start of every input update,
+  alongside pose and button state. Inactive actions after tracking/profile loss
+  now resolve to neutral rather than retaining trigger, grip, or stick values.
+- Regression: source-level OpenXR input contract verifies all transient maps
+  clear before no-session returns and action sync, while only active float
+  actions repopulate axes.
+- Passed: OpenXR input regression (2); full `pico-device-free-test.sh` including
+  all prior suites; `git diff --check`.
+- Risk: neutral-on-inactive follows OpenXR's action-state contract and existing
+  button behavior, but physical runtime transition timing remains unobserved.
+- Pico 4 validation: **not executed**. Hold trigger, grip, and each stick away
+  from neutral while hiding or powering down one controller; verify all axes
+  immediately return to neutral, active grabs/clicks release safely, locomotion
+  stops, and values recover normally when tracking returns.
 
 ## Cumulative remaining device validation
 

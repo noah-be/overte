@@ -1043,6 +1043,10 @@ void OpenXrInputPlugin::InputDevice::update(float deltaTime, const controller::I
 
     _poseStateMap.clear();
     _buttonPressedMap.clear();
+    // OpenXR reports an action as inactive when its controller loses tracking
+    // or its interaction profile is no longer bound. Fail closed instead of
+    // retaining the previous trigger, grip, or stick value indefinitely.
+    _axisStateMap.clear();
     _trackedControllers = 2;
 
     if (_context->_session == XR_NULL_HANDLE) {
