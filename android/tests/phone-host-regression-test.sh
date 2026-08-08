@@ -120,6 +120,8 @@ require_text "$gradle" 'check-phone-apk-16k\.sh' \
     '16 KiB builds enforce the final APK alignment gate'
 require_text tests/check-phone-apk-16k.sh 'check-phone-apk-padding\.py' \
     'final APK gate rejects excessive incremental ZIP padding'
+require_text "$gradle" '!canonicalVariantApk\.delete\(\)' \
+    'out-of-date packaging removes the stale canonical APK before rebuilding'
 require_text "$gradle" "exclude 'simplifiedUI/[*][*]'" \
     'phone packaging omits the unused desktop Simplified UI payload'
 require_text "$gradle" "exclude 'developer/[*][*]'" \
@@ -132,6 +134,8 @@ reject_text "$phone_defaults" 'makeUserConnection' \
     'touchscreen phone defaults do not start the VR handshake service'
 require_text "$gradle" "exclude 'system/assets/sounds/4beat_sweep[.]wav'" \
     'phone packaging omits the unreachable VR handshake sound payload'
+require_text ../interface/src/Application.cpp 'debug\.overte\.phone_procedurals' \
+    'phone exposes a bounded process-start procedural-material A/B switch'
 require_text ../interface/src/Application_Graphics.cpp 'offscreenUi->setGenerateMips\(false\)' \
     'phone desktop UI disables its unused mip chain'
 require_text "$gradle" "dependsOn tasks\.named\('verifyPhone16kDependencies'\)" \
@@ -328,12 +332,12 @@ require_text '../interface/src/Application.cpp' \
 require_text '../interface/src/Application_Plugins.cpp' \
     'refreshRateManager\.updateRefreshRateController\(\)' \
     'phone frame target is applied after the display present operator is installed'
-for disabled_phone_feature in \
-        'setProceduralMaterialsEnabled\(false\)' \
-        'mirrorConfig->setProperty\("enabled",[[:space:]]*false\)'; do
-    require_text '../interface/src/Application.cpp' "$disabled_phone_feature" \
-        "phone MVP profile disables ${disabled_phone_feature}"
-done
+require_text '../interface/src/Application.cpp' \
+    'mirrorConfig->setProperty\("enabled",[[:space:]]*false\)' \
+    'phone MVP profile disables every configured mirror view'
+require_text '../interface/src/Application.cpp' \
+    'setProceduralMaterialsEnabled\(phoneProceduralMaterialsEnabled\)' \
+    'phone profile applies the bounded procedural-material selection'
 require_text '../interface/src/Application.cpp' \
     'phoneBoolOverride\("debug\.overte\.phone_haze",[[:space:]]*false\)' \
     'phone MVP profile keeps haze off unless a bounded A/B test enables it'

@@ -325,9 +325,10 @@ The lower-level ELF check also accepts an unpacked APK or staged library
 directory. It is read-only and checks every `.so` and versioned `.so.*` below
 that directory. The combined APK gate additionally executes Build-Tools 36
 `zipalign -c -P 16 -v 4` and rejects excessive padding between ZIP entries.
-If the padding check fails after removing large packaged resources, delete only
-the generated APK output and rerun the same Gradle packaging task; do not clean
-the native build tree.
+When packaging inputs change, the Phone Gradle task removes its stale canonical
+APK before rebuilding so shrinkage cannot leave large incremental ZIP holes. If
+an APK produced outside that task fails the padding check, delete only that
+generated APK output and rerun packaging; do not clean the native build tree.
 
 A production release additionally needs a CI-managed upload key (never stored
 in this repository), a monotonically increasing `versionCode`, bundle-size
