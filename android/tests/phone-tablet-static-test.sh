@@ -15,6 +15,7 @@ tests=(
     phone-tablet-audio-test.sh
     phone-tablet-avatar-test.sh
     phone-tablet-places-test.sh
+    phone-tablet-places-directory-test.sh
     phone-tablet-people-menu-test.sh
     phone-tablet-quick-goto-test.sh
     phone-tablet-shield-test.sh
