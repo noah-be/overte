@@ -1,12 +1,4 @@
 import QtQuick 2.5
-import QtQuick.Controls 1.4
-import QtQuick.Controls.Styles 1.4
-import QtQuick.Layouts 1.3
-import Qt.labs.settings 1.0
-import stylesUit 1.0
-import controlsUit 1.0 as HifiControlsUit
-import "../../controls" as HifiControls
-import ".."
 
 Item {
     id: actionBar
@@ -25,17 +17,13 @@ Item {
         actionBar.visible = shown;
     }
 
-	Rectangle {
-        anchors.fill : parent
-        color: "transparent"
-        Flow {
-            id: flowMain
-            spacing: 10
-            flow: Flow.TopToBottom
-            layoutDirection: Flow.TopToBottom
-            anchors.fill: parent
-            anchors.margins: 4
-        }
+    Flow {
+        id: flowMain
+        spacing: 10
+        flow: Flow.TopToBottom
+        layoutDirection: Flow.TopToBottom
+        anchors.fill: parent
+        anchors.margins: 4
     }
 
     Component.onCompleted: {
