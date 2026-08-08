@@ -13,7 +13,8 @@ Rectangle {
 	anchors.horizontalCenter: parent.horizontalCenter
 	property var allPages: [
 		{name: "General", icon: "../img/overte.svg", targetPage: "hifi/tablet/TabletGeneralPreferences.qml" },
-		{name: "Graphics", icon: "../img/computer.svg", targetPage: "" }, 
+		{name: "Graphics", icon: "../img/computer.svg", targetPage: "",
+			requiresGraphicsSettings: true },
 		{name: "Audio", icon: "../img/volume.svg", targetPage: "hifi/audio/Audio.qml" }, 
 		{name: "Controls", icon: "../img/dpad.svg", targetPage: "hifi/tablet/ControllerSettings.qml",
 			requiresControllerSettings: true },
@@ -27,7 +28,8 @@ Rectangle {
 		id: touchConfiguration
 	}
 	property var pages: allPages.filter(function (page) {
-		return !page.requiresControllerSettings || touchConfiguration.showControllerSettings;
+		return (!page.requiresControllerSettings || touchConfiguration.showControllerSettings)
+			&& (!page.requiresGraphicsSettings || touchConfiguration.showGraphicsSettings);
 	})
 
 	ColumnLayout {
@@ -61,7 +63,12 @@ Rectangle {
 		}
 
 		// Graphics 
-		GraphicsSettings {}
+		Loader {
+			active: touchConfiguration.showGraphicsSettings
+			Layout.fillWidth: true
+			Layout.fillHeight: true
+			sourceComponent: Component { GraphicsSettings {} }
+		}
 
 		// Templates
 	}

@@ -23,6 +23,8 @@ require "$phone_config" 'contentScale:[[:space:]]*1[.]0' \
     'phone Settings avoid compounding the shared tablet-app scale'
 require "$phone_config" 'showControllerSettings:[[:space:]]*false' \
     'phone Settings hide the unavailable desktop and VR controller page'
+require "$phone_config" 'showGraphicsSettings:[[:space:]]*false' \
+    'phone Settings hide the unbounded desktop graphics page'
 require "$phone_config" 'showPicoResolutionSettings:[[:space:]]*false' \
     'phone Settings hide the Pico-only render scale restart control'
 require "$settings" 'SettingsTouchConfiguration[[:space:]]*\{' \
@@ -39,6 +41,12 @@ require "$settings" 'requiresControllerSettings:[[:space:]]*true' \
     'Settings mark controller-dependent navigation explicitly'
 require "$settings" 'touchConfiguration[.]showControllerSettings' \
     'Settings filter controller-dependent navigation through the selector'
+require "$settings" 'requiresGraphicsSettings:[[:space:]]*true' \
+    'Settings mark the unbounded graphics page explicitly'
+require "$settings" 'touchConfiguration[.]showGraphicsSettings' \
+    'Settings filter graphics navigation through the selector'
+require "$settings" 'active:[[:space:]]*touchConfiguration[.]showGraphicsSettings' \
+    'Phone does not construct hidden desktop graphics controls'
 
 readonly graphics="$repo_root/scripts/system/settings/qml/pages/GraphicsSettings.qml"
 require "$graphics" 'SettingsTouchConfiguration[[:space:]]*\{[[:space:]]*id:[[:space:]]*touchConfiguration' \

@@ -4,6 +4,30 @@ This file records the cumulative, device-free Android phone work based on
 `origin/feature/android-phone-support`. Real-device and emulator tests are out
 of scope for this worktree and are called out explicitly where still needed.
 
+## 23 — Preserve the bounded Phone graphics profile
+
+- Branch: `nightly/android-phone-23-graphics-settings`
+- Commit: `Hide unbounded Graphics Settings on phone` (this task's commit)
+- Change: Selector-gate the desktop Graphics page out of Phone Settings and
+  put its component behind an inactive Loader, preventing both navigation and
+  hidden construction writes. This preserves Phone's bounded native render
+  scale, 30-FPS target, forward path, and disabled expensive effects. Desktop
+  and Pico retain the complete page and existing layout.
+- Tests:
+  - `android/tests/phone-tablet-settings-scale-test.sh`: **passed**, 17
+    selector, layout, non-construction, and desktop/Pico preservation checks.
+  - `android/tests/phone-tablet-app-router-test.sh`: **passed**.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet suites and 181/181 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: Runtime graphics experimentation remains available through the
+  bounded Android debug properties and benchmark harness, not end-user UI. A
+  future Phone graphics page needs device-derived bounds and transactional
+  reset behavior before this gate should be reopened.
+- Real-device validation still required: **not executed**. Confirm Settings has
+  no Graphics row, startup diagnostics retain scale/FPS/effect bounds across
+  Settings visits and restarts, and Desktop/Pico builds still show Graphics.
+
 ## 22 — Complete Phone Audio controls
 
 - Branch: `nightly/android-phone-22-audio-controls`
