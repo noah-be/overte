@@ -93,8 +93,13 @@ MOCK_SLEEP
 cat >"$test_root/bin/apkanalyzer" <<'MOCK_ANALYZER'
 #!/usr/bin/env bash
 set -euo pipefail
-[[ "$1" == manifest && "$2" == application-id ]] || exit 3
-printf '%s\n' "${MOCK_APK_ID:-org.overte.phone}"
+[[ "$1" == manifest ]] || exit 3
+case "$2" in
+    application-id) printf '%s\n' "${MOCK_APK_ID:-org.overte.phone}" ;;
+    min-sdk) printf '26\n' ;;
+    target-sdk) printf '%s\n' "${MOCK_APK_TARGET_SDK:-36}" ;;
+    *) exit 3 ;;
+esac
 MOCK_ANALYZER
 chmod +x "$test_root/bin/adb" "$test_root/bin/sleep" "$test_root/bin/apkanalyzer"
 
@@ -137,6 +142,16 @@ if run_smoke "$test_root/wrong-package-report" env MOCK_APK_ID=example.unrelated
     exit 1
 fi
 grep -Fq 'APK application ID does not match the Phone package' "$test_root/wrong-package.out"
+! grep -q '^install ' "$test_root/adb-commands"
+
+mkdir "$test_root/old-apk-report"
+: >"$test_root/adb-commands"
+if run_smoke "$test_root/old-apk-report" env MOCK_APK_TARGET_SDK=35 \
+        >"$test_root/old-apk.out" 2>&1; then
+    echo 'FAIL: APK with stale target SDK was accepted' >&2
+    exit 1
+fi
+grep -Fq 'APK SDK metadata does not match the Phone build contract' "$test_root/old-apk.out"
 ! grep -q '^install ' "$test_root/adb-commands"
 
 mkdir "$test_root/emulator-report"

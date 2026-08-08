@@ -4,6 +4,25 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 74 — Reject stale Phone APK SDK metadata
+
+- Branch: `nightly/android-phone-74-apk-sdk-preflight`
+- Commit: `Verify phone APK SDK metadata before install` (this task's commit)
+- Change: Extend local `apkanalyzer` preflight to require the current Phone
+  artifact's exact minSdk 26 and targetSdk 36 before ADB. An old APK sharing the
+  package ID can no longer alter the device before being identified as stale.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, including a
+    targetSdk 35 APK rejected before any install command.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 246/246 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 246/246 host checks.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Intentional future SDK changes must update Gradle, manifest
+  contracts, and this device preflight together.
+- Real-device validation still required: Run the smoke with a current built APK;
+  do not install an older APK merely to test the negative fixture already mocked.
+
 ## 73 — Reject foreign APKs before device installation
 
 - Branch: `nightly/android-phone-73-apk-identity-preflight`

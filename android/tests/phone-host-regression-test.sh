@@ -513,6 +513,10 @@ require_text tests/phone-device-test.sh 'manifest application-id "\$APK"' \
     'device smoke reads the local APK application ID before installation'
 require_text tests/phone-device-test.sh 'APK_APPLICATION_ID.*== "\$PACKAGE"' \
     'device smoke permits only the dedicated Phone package'
+require_text tests/phone-device-test.sh 'manifest min-sdk "\$APK"' \
+    'device smoke reads the local APK minimum SDK before installation'
+require_text tests/phone-device-test.sh 'APK_MIN_SDK.*== 26.*APK_TARGET_SDK.*== 36' \
+    'device smoke requires the current Phone APK SDK contract'
 require_text tests/phone-device-test.sh 'PHONE_APK_ANALYZER' \
     'device smoke supports a controlled apkanalyzer path for host testing'
 require_text tests/phone-device-test.sh 'apk_sha256=%s' \

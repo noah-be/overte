@@ -127,6 +127,12 @@ APK_APPLICATION_ID="$("$APK_ANALYZER" manifest application-id "$APK" 2>/dev/null
     | tr -d '\r')" || die "could not read the APK application ID"
 [[ "$APK_APPLICATION_ID" == "$PACKAGE" ]] || \
     die "APK application ID does not match the Phone package"
+APK_MIN_SDK="$("$APK_ANALYZER" manifest min-sdk "$APK" 2>/dev/null | tr -d '\r')" || \
+    die "could not read the APK minimum SDK"
+APK_TARGET_SDK="$("$APK_ANALYZER" manifest target-sdk "$APK" 2>/dev/null | tr -d '\r')" || \
+    die "could not read the APK target SDK"
+[[ "$APK_MIN_SDK" == 26 && "$APK_TARGET_SDK" == 36 ]] || \
+    die "APK SDK metadata does not match the Phone build contract"
 
 if [[ -n "${PHONE_TEST_REPORT:-}" ]]; then
     REPORT_DIR="$(realpath "$PHONE_TEST_REPORT")"
