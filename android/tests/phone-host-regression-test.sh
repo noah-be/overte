@@ -216,6 +216,8 @@ require_text "$gradle" 'inputs\.file\(phone16kReadySentinel\)' \
     'the dependency sentinel participates in Gradle task invalidation'
 require_text "$gradle" 'requirePhone16kReleaseDependencies' \
     'release packaging requires a valid 16 KiB dependency sentinel'
+require_text "$gradle" "gradleProperty\('RELEASE_NUMBER'\)[.]orNull" \
+    'release packaging requires an explicit bounded version name'
 require_text "$gradle" 'canonicalVariantApk[[:space:]]*=[[:space:]]*output\.outputFile' \
     'the final gate checks the canonical APK output of each variant'
 require_text "$gradle" "include '[*][*]/[*][.]aab'" \

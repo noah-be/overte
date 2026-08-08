@@ -481,8 +481,8 @@ Play pre-launch testing on both 4 KiB and 16 KiB ARM64 devices.
 ### Signed Play bundle
 
 Gradle creates an Android App Bundle with `:phoneInterface:bundleRelease`.
-Every release invocation requires an explicit positive `VERSION_CODE`; select
-a value greater than every version code previously uploaded for
+Every release invocation requires an explicit positive `VERSION_CODE` and an
+explicit `RELEASE_NUMBER`; select a code greater than every code previously uploaded for
 `org.overte.phone`. This local check cannot query Play, so CI or the release
 operator remains responsible for monotonicity. The value must also fit
 Android's signed 32-bit version-code field (`1` through `2147483647`). The gate
@@ -490,6 +490,11 @@ is attached to the release APK and bundle tasks themselves, so it also runs
 when they are reached transitively through `build`, publishing, or CI wrapper
 tasks. Debug builds default to version code `1` only when `VERSION_CODE` is
 entirely absent.
+
+`RELEASE_NUMBER` becomes Android's `versionName` and must contain 1–100
+portable characters: letters, digits, `.`, `_`, `+`, or `-`, beginning with a
+letter or digit. This prevents an inspection default or unsafe branch text from
+silently becoming public release metadata.
 
 Phone release signing has no default key or password and never falls back to a
 keystore from one of the repository's legacy Android clients. If no signing

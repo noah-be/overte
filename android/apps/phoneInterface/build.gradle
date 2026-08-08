@@ -90,6 +90,13 @@ def requirePhoneReleaseVersionCode = tasks.register('requirePhoneReleaseVersionC
             throw new GradleException(
                 "VERSION_CODE must not exceed ${Integer.MAX_VALUE}.")
         }
+        def releaseNumber = providers.gradleProperty('RELEASE_NUMBER').orNull
+        if (releaseNumber == null ||
+                !(releaseNumber ==~ /[A-Za-z0-9][A-Za-z0-9._+-]{0,99}/)) {
+            throw new GradleException(
+                'Release builds require an explicit RELEASE_NUMBER of 1-100 ' +
+                'portable version-name characters (letters, digits, dot, underscore, plus, hyphen).')
+        }
     }
 }
 

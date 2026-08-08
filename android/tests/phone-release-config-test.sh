@@ -38,6 +38,12 @@ require_absent "$root_gradle" 'VERSION_CODE.*toInteger\(|getOrElse\(.1.\)\.toInt
     'versionCode parsing must not throw an unhelpful NumberFormatException'
 require_text "$module_gradle" "tasks\.register\('requirePhoneReleaseVersionCode'\)" \
     'release versionCode validation must be represented by a task-graph gate'
+require_text "$module_gradle" "gradleProperty\('RELEASE_NUMBER'\)" \
+    'release configuration must require an explicit version name'
+require_text "$module_gradle" 'portable version-name characters' \
+    'release version names must use a portable character set'
+require_text "$module_gradle" '\{0,99\}' \
+    'release version names must be bounded to 100 characters'
 require_text "$module_gradle" 'packageTask\.configure' \
     'release APK packaging must depend on the versionCode gate'
 require_text "$module_gradle" 'tasks\.matching.*bundleTaskName.*configureEach' \

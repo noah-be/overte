@@ -4,6 +4,25 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 59 — Require explicit release version names
+
+- Branch: `nightly/android-phone-59-release-metadata-gate`
+- Commit: `Validate phone release version names` (this task's commit)
+- Change: Extend the task-graph release gate so APK and AAB outputs require an
+  explicit `RELEASE_NUMBER`, bounded to 1–100 portable Android version-name
+  characters and beginning alphanumerically. Debug builds retain their local
+  default, while release artifacts can no longer silently ship as `0.1.0`.
+- Tests:
+  - `android/tests/phone-release-config-test.sh`: **passed**.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 221/221 checks.
+  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+    tablet/lifecycle/package suites and 221/221 host checks.
+  - `git diff --check`: **passed**.
+- Known risks: Play version-code monotonicity still requires external release
+  state; this local gate can validate only form and presence.
+- Real-device validation still required: None specific to version metadata;
+  inspect the signed artifact and Play internal-test listing before promotion.
+
 ## 58 — Create the device summary atomically
 
 - Branch: `nightly/android-phone-58-atomic-device-summary`
