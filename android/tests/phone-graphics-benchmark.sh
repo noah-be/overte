@@ -96,12 +96,10 @@ summary="$report_dir/summary.txt"
 [[ ! -e "$summary" || -f "$summary" ]] || \
     die "refusing to overwrite a non-regular benchmark summary"
 
-# Deliberately ignore TMPDIR: raw device text must have a short-lived /tmp home.
-raw_dir="$(mktemp -d /tmp/overte-phone-graphics-raw.XXXXXXXX 2>/dev/null)" || \
-    die "could not create private raw benchmark directory"
-chmod 700 "$raw_dir" 2>/dev/null || die "could not secure private raw benchmark directory"
-package_started=0
+raw_dir=''
 summary_tmp=''
+package_started=0
+report_published=0
 cleanup() {
     local status=$?
     trap - EXIT
@@ -109,12 +107,20 @@ cleanup() {
         adb_for shell am force-stop "$PACKAGE" >/dev/null || true
     fi
     [[ -z "$summary_tmp" ]] || rm -f -- "$summary_tmp" 2>/dev/null || true
-    rm -rf -- "$raw_dir"
+    [[ -z "$raw_dir" ]] || rm -rf -- "$raw_dir"
+    if ((report_is_temporary == 1 && report_published == 0)); then
+        rm -rf -- "$report_dir" 2>/dev/null || true
+    fi
     return "$status"
 }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+
+# Deliberately ignore TMPDIR: raw device text must have a short-lived /tmp home.
+raw_dir="$(mktemp -d /tmp/overte-phone-graphics-raw.XXXXXXXX 2>/dev/null)" || \
+    die "could not create private raw benchmark directory"
+chmod 700 "$raw_dir" 2>/dev/null || die "could not secure private raw benchmark directory"
 
 require_adb "graphics counter reset" shell dumpsys gfxinfo "$PACKAGE" reset >/dev/null
 adb_for logcat -c >/dev/null 2>&1 || true
@@ -474,6 +480,7 @@ if ! mv -T -- "$summary_tmp" "$summary" 2>/dev/null; then
     die "could not publish aggregate benchmark summary"
 fi
 summary_tmp=''
+report_published=1
 if ((report_is_temporary == 1)); then
     printf 'Aggregate benchmark report: %s\n' "$summary"
 else

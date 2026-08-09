@@ -207,6 +207,17 @@ grep -Fxq 'ERROR: Phone Activity start failed' "$fixture/start-failure.out"
 [[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' \
     "$start_failure_commands" || true)" -eq 0 ]]
 
+touch "$fixture/automatic-failure-marker"
+if PHONE_ADB="$fixture/adb" MOCK_START_FAILURE=1 ANDROID_SERIAL=phone-secret \
+    PHONE_BENCHMARK_CONFIRM_NON_VR=YES "$script_dir/phone-graphics-benchmark.sh" 1 \
+    >"$fixture/automatic-failure.out" 2>&1; then
+    echo 'FAIL: automatic-report benchmark accepted failed Activity start' >&2; exit 1
+fi
+if find /tmp -maxdepth 1 -type d -name 'overte-phone-graphics-report.*' \
+        -newer "$fixture/automatic-failure-marker" | grep -q .; then
+    echo 'FAIL: failed benchmark retained an automatic report directory' >&2; exit 1
+fi
+
 framestats_failure_report="$fixture/framestats-failure-report"
 framestats_failure_commands="$fixture/framestats-failure-commands"
 : >"$framestats_failure_commands"

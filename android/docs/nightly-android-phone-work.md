@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 126 — Remove failed automatic report directories
+
+- Branch: `nightly/android-phone-126-failed-temp-report-cleanup`
+- Commit: `Clean up failed temporary phone reports` (this task's commit)
+- Change: Install exit cleanup before raw-report allocation and retain an
+  automatically allocated aggregate directory only after its summary was
+  atomically published. Explicit caller-owned report directories are preserved.
+- Tests:
+  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; an automatic
+    report followed by forced Activity-start failure leaves no newly created
+    report directory, while successful automatic reports remain discoverable.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 317/317.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: SIGKILL during the very short setup/publish window can bypass
+  cleanup; no complete `summary.txt` is published before atomic rename.
+- Real-device validation still required: None for local ownership semantics;
+  ordinary automatic-report collection remains outstanding.
+
 ## 125 — Keep automatic benchmark reports discoverable
 
 - Branch: `nightly/android-phone-125-discoverable-temp-report`
@@ -2854,7 +2874,8 @@ All branches form one linear chain starting at
 122. `nightly/android-phone-122-benchmark-interrupt-test` — `e9a7736cc3`
 123. `nightly/android-phone-123-benchmark-framestats-error` — `14ac38f578`
 124. `nightly/android-phone-124-partial-summary-cleanup` — `f1f68c096f`
-125. `nightly/android-phone-125-discoverable-temp-report` — this task's commit
+125. `nightly/android-phone-125-discoverable-temp-report` — `34b3e36628`
+126. `nightly/android-phone-126-failed-temp-report-cleanup` — this task's commit
 
 ### Device-free audit disposition
 
