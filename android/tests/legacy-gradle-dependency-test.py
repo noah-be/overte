@@ -17,6 +17,9 @@ DEPENDENCY = re.compile(
 LEGACY_DOWNLOAD_PLUGIN = re.compile(
     r"de\.undercouch\.download|de\.undercouch\.gradle\.tasks\.download\.Download|"
     r"\btype\s*:\s*Download\b")
+DEAD_LEGACY_BUILD_PROTOTYPE = re.compile(
+    r"\b(?:setupDependencies|cleanDependencies|testElf|EXEC_SUFFIX|baseUrl)\b|"
+    r"build time binary dependency resolution")
 
 
 def duplicates(source: str) -> list[tuple[str, str]]:
@@ -79,6 +82,10 @@ def legacy_toolchain_contract_errors(
 
 
 class LegacyGradleDependencyTest(unittest.TestCase):
+    def test_legacy_root_has_no_retired_dependency_setup_prototype(self):
+        source = (ANDROID_ROOT / "build.gradle").read_text(encoding="utf-8")
+        self.assertEqual([], DEAD_LEGACY_BUILD_PROTOTYPE.findall(source))
+
     def test_legacy_toolchain_split_is_explicit_and_consistent(self):
         sources = [path.read_text(encoding="utf-8") for path in (
             ANDROID_ROOT / "settings.gradle",
@@ -136,6 +143,17 @@ class LegacyGradleDependencyTest(unittest.TestCase):
                 "task fetch(type: Download) {}"):
             with self.subTest(source=source):
                 self.assertTrue(legacy_download_plugin_references(source))
+
+    def test_validator_recognizes_retired_dependency_setup_artifacts(self):
+        for source in (
+                "task setupDependencies() {}",
+                "task cleanDependencies(type: Delete) {}",
+                "def baseUrl = 'https://example.test/'",
+                "def readelf = tool + EXEC_SUFFIX",
+                "task testElf {}",
+                "// build time binary dependency resolution"):
+            with self.subTest(source=source):
+                self.assertTrue(DEAD_LEGACY_BUILD_PROTOTYPE.search(source))
 
     def test_top_level_block_parser_distinguishes_nested_or_missing_authority(self):
         source = """
