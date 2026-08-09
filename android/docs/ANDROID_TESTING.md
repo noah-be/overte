@@ -179,6 +179,12 @@ tests/run-tests.sh coverage
 tests/run-tests.sh robolectric
 ```
 
+The mandatory static-quality entry in `fast` uses ShellCheck 0.11.0 and Ruff
+0.15.22 from a verified repository-managed tool directory. On a clean Linux
+x86_64 host, run `tests/quality/install-tools.sh` before the tier. The installer
+checks the ShellCheck archive digest and uses pip hash-checking for Ruff; the
+lint runner rejects missing or version-drifted executables.
+
 List a tier without executing it:
 
 ```bash

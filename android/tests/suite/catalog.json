@@ -37,6 +37,13 @@
       "description": "Honest JUnit, coverage and mutation result aggregation"
     },
     {
+      "id": "android-static-quality",
+      "kind": "infrastructure",
+      "tiers": ["fast"],
+      "command": ["tests/quality/run-static-quality.sh"],
+      "description": "Pinned ShellCheck and Ruff gates for critical test infrastructure"
+    },
+    {
       "id": "test-documentation-contract",
       "kind": "infrastructure",
       "tiers": ["fast", "contracts"],

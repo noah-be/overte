@@ -11,7 +11,7 @@ from unittest import mock
 
 TESTS_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TESTS_ROOT))
-import process_control
+import process_control  # noqa: E402 -- controlled tests path
 
 
 class ProcessControlTest(unittest.TestCase):

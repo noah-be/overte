@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Validate stable test-documentation facts against executable sources."""
 from __future__ import annotations
-import ast, json, re, sys
+import ast
+import json
+import re
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -83,7 +86,8 @@ def validate(testing: str, coverage: str, facts: dict[str, object]) -> list[str]
               (coverage, rf"kills {facts['mutation_quick']}/{facts['mutation_quick']} curated mutants", "quick mutation count"),
               (coverage, rf"kills\s+{facts['mutation_extended']}/{facts['mutation_extended']}", "extended mutation count")]
     for text, pattern, label in claims:
-        if not re.search(pattern, text, re.DOTALL): errors.append(f"stale or missing {label} documentation")
+        if not re.search(pattern, text, re.DOTALL):
+            errors.append(f"stale or missing {label} documentation")
     combined_docs = testing + "\n" + coverage
     for application, sdks in facts.get("robo_matrices", {}).items():
         matrix = "/".join(str(sdk) for sdk in sdks)
@@ -92,7 +96,8 @@ def validate(testing: str, coverage: str, facts: dict[str, object]) -> list[str]
     names = {"places-main":"places.js", "portal":"portal.js", "action-bar":"mobileActionBar.js",
              "phone-emote":"phoneEmote.js"}
     for key, filename in names.items():
-        if key not in facts.get("js_thresholds", {}): continue
+        if key not in facts.get("js_thresholds", {}):
+            continue
         line, branch, function = facts["js_thresholds"][key]
         pattern = rf"`?{re.escape(filename)}`?.{{0,40}}{line}%\s*(?:lines|/)\s*/?\s*{branch}%\s*(?:branches|/)\s*/?\s*{function}%"
         if not re.search(pattern, testing, re.DOTALL):
@@ -114,4 +119,5 @@ def main() -> int:
     print("Test documentation contract passed")
     return 0
 
-if __name__ == "__main__": raise SystemExit(main())
+if __name__ == "__main__":
+    raise SystemExit(main())

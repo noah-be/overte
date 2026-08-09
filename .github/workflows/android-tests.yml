@@ -65,6 +65,8 @@ jobs:
             qml-module-qtquick-controls qml-module-qtquick-controls2 \
             qml-module-qtquick-layouts \
             qml-module-qtquick-window2
+      - name: Install pinned static quality tools
+        run: tests/quality/install-tools.sh
       - name: Run fast tier
         run: tests/run-tests.sh fast
         env:

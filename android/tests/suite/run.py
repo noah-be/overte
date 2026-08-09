@@ -17,7 +17,7 @@ import xml.etree.ElementTree as ET
 ANDROID_ROOT = Path(__file__).resolve().parents[2]
 TESTS_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TESTS_ROOT))
-from process_control import communicate_with_timeout, popen_session_kwargs
+from process_control import communicate_with_timeout, popen_session_kwargs  # noqa: E402 -- controlled tests path
 
 DEFAULT_CATALOG = Path(__file__).with_name("catalog.json")
 KNOWN_TIERS = {"fast", "host", "prepared-host", "contracts", "regression", "device", "instrumentation", "coverage", "mutation", "mutation-extended", "robolectric", "endurance", "stability"}

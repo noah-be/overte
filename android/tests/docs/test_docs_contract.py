@@ -1,5 +1,6 @@
 from pathlib import Path
-import sys, unittest
+import sys
+import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import validate_test_docs as contract
 
@@ -31,4 +32,5 @@ class DocsContractTest(unittest.TestCase):
                                    self.coverage, facts)
         self.assertTrue(any("places.js" in error for error in errors))
 
-if __name__ == "__main__": unittest.main()
+if __name__ == "__main__":
+    unittest.main()

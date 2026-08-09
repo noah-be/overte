@@ -15,7 +15,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 ROOT = Path(__file__).resolve().parents[2]
 TESTS_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TESTS_ROOT))
-from process_control import communicate_with_timeout, kill_process_group, popen_session_kwargs
+from process_control import (  # noqa: E402 -- controlled tests path
+    communicate_with_timeout,
+    kill_process_group,  # noqa: F401 -- retained compatibility alias for callers and tests
+    popen_session_kwargs,
+)
 
 BASE_CASES = [
     ("deep-links", ["tests/phone-deep-link-test.sh"]),
