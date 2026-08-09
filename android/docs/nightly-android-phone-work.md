@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 97 — Keep ELF-gate failures path-private
+
+- Branch: `nightly/android-phone-97-private-elf-errors`
+- Commit: `Keep phone ELF errors path-private` (this task's commit)
+- Change: Replace ELF input, extraction, scan-root, and empty-package errors
+  with phase-specific path-neutral messages, and suppress raw failing
+  `readelf` output that can contain SDK/worktree locations. Relative packaged
+  library names remain available for actionable artifact diagnosis.
+- Tests:
+  - `android/tests/phone-elf-alignment-test.sh`: **passed**, covering a fake
+    `readelf` private-path failure plus missing, invalid, and empty package
+    inputs without retaining their private paths.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 290/290 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 290/290.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Detailed tool troubleshooting deliberately requires a separate
+  intentional local invocation; shared release logs retain safe phase context.
+- Real-device validation still required: None for host diagnostic privacy.
+
 ## 96 — Enforce the Phone package layout boundary
 
 - Branch: `nightly/android-phone-96-package-layout-boundary`
@@ -2228,7 +2248,8 @@ All branches form one linear chain starting at
 93. `nightly/android-phone-93-cache-manifest-limits` — `305ce9f3b4`
 94. `nightly/android-phone-94-native-library-allowlist` — `4cf23fc7a6`
 95. `nightly/android-phone-95-package-entry-integrity` — `1134b9092b`
-96. `nightly/android-phone-96-package-layout-boundary` — this task's commit
+96. `nightly/android-phone-96-package-layout-boundary` — `46a1cf115c`
+97. `nightly/android-phone-97-private-elf-errors` — this task's commit
 
 ### Device-free audit disposition
 

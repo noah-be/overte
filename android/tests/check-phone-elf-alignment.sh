@@ -41,18 +41,18 @@ elif [[ -f "$input_path" ]]; then
         exit 2
     }
     if ! unzip -qq "$input_path" -d "$temp_dir"; then
-        echo "ERROR: could not extract APK: $input_path" >&2
+        echo "ERROR: could not extract Android package" >&2
         exit 2
     fi
     scan_root=$temp_dir
 else
-    echo "ERROR: input is neither an APK file nor a directory: $input_path" >&2
+    echo "ERROR: input is neither an Android package nor a directory" >&2
     usage >&2
     exit 2
 fi
 
 scan_root_canonical=$(realpath -e -- "$scan_root") || {
-    echo "ERROR: could not resolve scan root: $scan_root" >&2
+    echo "ERROR: could not resolve package scan root" >&2
     exit 2
 }
 
@@ -102,7 +102,6 @@ while IFS= read -r -d '' library; do
     readelf_status=$?
     if (( readelf_status != 0 )); then
         echo "ERROR  $display_path: readelf failed" >&2
-        echo "$program_headers" >&2
         ((inspection_error_count += 1))
         continue
     fi
@@ -142,7 +141,7 @@ done < <(find "$scan_root" \( -type f -o -type l \) \
     -print0 | sort -z)
 
 if (( library_count == 0 )); then
-    echo "ERROR: no .so or .so.* files found below $input_path" >&2
+    echo "ERROR: package contains no inspectable shared libraries" >&2
     exit 2
 fi
 
