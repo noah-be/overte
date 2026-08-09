@@ -30,6 +30,17 @@ public final class HifiUtilsTest {
         assertEquals("atp:/hash", subject.absoluteHifiAssetUrl("atp:/hash", "https://base.test"));
     }
 
+    @Test public void relativeAssetNormalizesExactlyOnePathSeparator() {
+        assertEquals("https://base.test/assets/image.png",
+                subject.absoluteHifiAssetUrl("assets/image.png", "https://base.test"));
+        assertEquals("https://base.test/assets/image.png",
+                subject.absoluteHifiAssetUrl("/assets/image.png", "https://base.test/"));
+        assertEquals("assets/image.png",
+                subject.absoluteHifiAssetUrl("assets/image.png", null));
+        assertEquals("assets/image.png",
+                subject.absoluteHifiAssetUrl("assets/image.png", "  "));
+    }
+
     @Test public void defaultAssetBaseAndWhitespaceAreDeterministic() {
         assertEquals(HifiUtils.METAVERSE_BASE_URL + "/asset",
                 subject.absoluteHifiAssetUrl("  /asset  "));

@@ -62,7 +62,17 @@ public class HifiUtils {
                 return urlString;
             }
             if (uri.getScheme() == null) {
-                urlString = baseUrl + urlString;
+                if (baseUrl == null || baseUrl.trim().isEmpty()) {
+                    return urlString;
+                }
+                String normalizedBase = baseUrl.trim();
+                if (normalizedBase.endsWith("/") && urlString.startsWith("/")) {
+                    urlString = normalizedBase + urlString.substring(1);
+                } else if (normalizedBase.endsWith("/") || urlString.startsWith("/")) {
+                    urlString = normalizedBase + urlString;
+                } else {
+                    urlString = normalizedBase + "/" + urlString;
+                }
             }
         }
         return urlString;

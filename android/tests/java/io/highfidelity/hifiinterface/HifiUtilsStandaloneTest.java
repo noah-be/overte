@@ -16,6 +16,12 @@ public final class HifiUtilsStandaloneTest {
         expect("", subject.absoluteHifiAssetUrl(null));
         expect("", subject.absoluteHifiAssetUrl(" \t "));
         expect(HifiUtils.METAVERSE_BASE_URL + "/asset", subject.absoluteHifiAssetUrl(" /asset "));
+        expect("https://base/assets/image.png",
+                subject.absoluteHifiAssetUrl("assets/image.png", "https://base"));
+        expect("https://base/assets/image.png",
+                subject.absoluteHifiAssetUrl("/assets/image.png", "https://base/"));
+        expect("assets/image.png", subject.absoluteHifiAssetUrl("assets/image.png", null));
+        expect("assets/image.png", subject.absoluteHifiAssetUrl("assets/image.png", " \t "));
         expect("https://base.test/avatar.png",
                 subject.absoluteHifiAssetUrl(" avatar.png ", "https://base.test/"));
         expect("atp:/hash", subject.absoluteHifiAssetUrl("atp:/hash", "https://base.test/"));
