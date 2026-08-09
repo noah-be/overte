@@ -624,19 +624,20 @@ install_dependencies() {
     echo "Installing native shader tools"
     run_conan install "$script_dir/conan/conanfile-pico-host-tools.py" \
         -of "$script_dir/conan/pico4-host" \
-        -pr:h default -pr:b default --build=missing
+        -pr:h default -pr:b default -c "tools.build:jobs=$jobs" --build=missing
 
     echo "Installing Android ARM64 dependencies"
     run_conan install "$script_dir/conan/conanfile-pico.py" \
         -of "$script_dir/conan/pico4-debug" \
         -pr:h "$script_dir/conan/profiles/pico4-arm64" \
-        -pr:b default --build=missing
+        -pr:b default -c "tools.build:jobs=$jobs" --build=missing
 
     echo "Installing the Android ARM64 release TBB runtime"
     run_conan install --requires=onetbb/2021.10.0 \
         -of "$script_dir/conan/pico4-tbb-release" \
         -pr:h "$script_dir/conan/profiles/pico4-arm64" \
-        -pr:b default -s:h build_type=Release --build=missing
+        -pr:b default -c "tools.build:jobs=$jobs" \
+        -s:h build_type=Release --build=missing
 
     if [[ ! -f "$script_dir/apps/picoInterface/src/main/runtime-overrides/arm64-v8a/.prebuilt-runtime" \
         && -z "$(newest_match '*/qt*/b/build_folder/qtbase/lib/libQt5Core_arm64-v8a.so')" ]]; then
@@ -644,7 +645,8 @@ install_dependencies() {
         run_conan install "$script_dir/conan/conanfile-pico.py" \
             -of "$script_dir/conan/pico4-debug" \
             -pr:h "$script_dir/conan/profiles/pico4-arm64" \
-            -pr:b default --build=missing --build='qt/*'
+            -pr:b default -c "tools.build:jobs=$jobs" \
+            --build=missing --build='qt/*'
     fi
 
     echo "Installed Pico dependencies"
