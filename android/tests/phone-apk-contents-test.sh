@@ -140,6 +140,33 @@ with zipfile.ZipFile(root / 'complete.aab', 'w') as archive:
             bundle_entry = 'base/' + entry
         archive.writestr(bundle_entry, data)
 
+with zipfile.ZipFile(root / 'mixed-layout.aab', 'w') as archive:
+    archive.writestr('base/assets/cache_assets.txt', cache_manifest)
+    for entry, data in required.items():
+        if entry == 'AndroidManifest.xml':
+            bundle_entry = 'base/manifest/AndroidManifest.xml'
+        elif entry == 'classes.dex':
+            bundle_entry = 'base/dex/classes.dex'
+        else:
+            bundle_entry = 'base/' + entry
+        archive.writestr(bundle_entry, data)
+    archive.writestr('AndroidManifest.xml', b'stale-apk-manifest')
+
+with zipfile.ZipFile(root / 'unexpected-feature.aab', 'w') as archive:
+    archive.writestr('base/assets/cache_assets.txt', cache_manifest)
+    for entry, data in required.items():
+        if entry == 'AndroidManifest.xml':
+            bundle_entry = 'base/manifest/AndroidManifest.xml'
+        elif entry == 'classes.dex':
+            bundle_entry = 'base/dex/classes.dex'
+        else:
+            bundle_entry = 'base/' + entry
+        archive.writestr(bundle_entry, data)
+    archive.writestr('staleFeature/manifest/AndroidManifest.xml', b'stale-feature')
+
+with zipfile.ZipFile(root / 'missing-base-module.aab', 'w') as archive:
+    archive.writestr('staleFeature/manifest/AndroidManifest.xml', b'stale-feature')
+
 with zipfile.ZipFile(root / 'cache-digest-mismatch.aab', 'w') as archive:
     archive.writestr('base/assets/cache_assets.txt', cache_manifest)
     for entry, data in required.items():
@@ -307,6 +334,9 @@ unexpected-abi.apk	outside arm64-v8a
 unexpected-arm64-runtime.apk	unexpected ARM64 native entries
 unexpected-arm64-runtime.aab	unexpected ARM64 native entries
 duplicate-entry.apk	duplicate ZIP entry names
+mixed-layout.aab	mixes APK and Android App Bundle entry layouts
+unexpected-feature.aab	contains unexpected feature modules
+missing-base-module.aab	has no base manifest module
 ARCHIVE_CASES
 
 for fixture in corrupt-required-entry.apk corrupt-required-entry.aab; do

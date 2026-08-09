@@ -53,6 +53,34 @@ def is_safe_relative_path(value):
     return value not in ("", ".") and not path.is_absolute() and ".." not in path.parts
 
 
+def validate_package_layout(archive_names):
+    module_manifests = {
+        PurePosixPath(name).parts[0]
+        for name in archive_names
+        if len(PurePosixPath(name).parts) == 3
+        and PurePosixPath(name).parts[1:] == ("manifest", "AndroidManifest.xml")
+    }
+    if "base" not in module_manifests:
+        if module_manifests:
+            raise ValueError("Android App Bundle has no base manifest module")
+        return
+    unexpected_modules = module_manifests - {"base"}
+    if unexpected_modules:
+        raise ValueError(
+            "Android App Bundle contains unexpected feature modules: "
+            + ", ".join(sorted(unexpected_modules)[:5])
+        )
+    mixed_root_entries = {
+        name for name in archive_names
+        if name == "AndroidManifest.xml"
+        or ("/" not in name and name.startswith("classes") and name.endswith(".dex"))
+        or name.startswith("assets/")
+        or name.startswith("lib/")
+    }
+    if mixed_root_entries:
+        raise ValueError("package mixes APK and Android App Bundle entry layouts")
+
+
 def logical_package_names(archive_names):
     is_bundle = "base/manifest/AndroidManifest.xml" in archive_names
     if not is_bundle:
@@ -176,6 +204,7 @@ def main():
             raw_archive_names = archive.namelist()
             if len(raw_archive_names) != len(set(raw_archive_names)):
                 raise ValueError("package contains duplicate ZIP entry names")
+            validate_package_layout(raw_archive_names)
             archive_names, cache_manifest_entry = logical_package_names(raw_archive_names)
             names = set(archive_names)
             if len(archive_names) != len(names):

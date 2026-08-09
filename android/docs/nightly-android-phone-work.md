@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 96 — Enforce the Phone package layout boundary
+
+- Branch: `nightly/android-phone-96-package-layout-boundary`
+- Commit: `Gate phone package archive layout` (this task's commit)
+- Change: Reject AABs that mix root-level APK payload with the `base` module,
+  contain any unreviewed feature-module manifest, or contain module manifests
+  without the required `base` module. Phone defines no dynamic features, so
+  ignored module payload can no longer hide outside logical package checks.
+- Tests:
+  - `android/tests/phone-apk-contents-test.sh`: **passed**, including explicit
+    mixed-layout, unexpected-feature, and missing-base fixtures.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 286/286 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 36
+    explicitly device-free suites; nested host regression passed 286/286.
+  - Python/shell syntax and `git diff --check`: **passed**.
+- Known risks: If Phone intentionally gains a dynamic feature, its module must
+  receive its own reviewed contents, manifest, code, and native-payload policy
+  before the archive boundary can be expanded.
+- Real-device validation still required: None for archive classification;
+  install the final gated base-only APK through the standard device checklist.
+
 ## 95 — Verify required ZIP entry integrity
 
 - Branch: `nightly/android-phone-95-package-entry-integrity`
@@ -2206,7 +2227,8 @@ All branches form one linear chain starting at
 92. `nightly/android-phone-92-cache-digest-gate` — `4d6c434d63`
 93. `nightly/android-phone-93-cache-manifest-limits` — `305ce9f3b4`
 94. `nightly/android-phone-94-native-library-allowlist` — `4cf23fc7a6`
-95. `nightly/android-phone-95-package-entry-integrity` — this task's commit
+95. `nightly/android-phone-95-package-entry-integrity` — `1134b9092b`
+96. `nightly/android-phone-96-package-layout-boundary` — this task's commit
 
 ### Device-free audit disposition
 
