@@ -386,6 +386,26 @@ class OpenXrInputStateTest(unittest.TestCase):
             serializer = source[end:source.index("QString OpenXrInputPlugin::configurationLayout", end)]
             self.assertIn("QJsonArray { rotation.x, rotation.y, rotation.z, rotation.w }", serializer)
 
+    def test_calibration_request_waits_for_a_valid_tracker_sample(self):
+        for source in (SOURCE, DESKTOP_SOURCE):
+            start = source.index("void OpenXrInputPlugin::InputDevice::calibratePucks")
+            end = source.index("void OpenXrInputPlugin::InputDevice::updateBodyFromViveTrackers", start)
+            calibrate = source[start:end]
+            pending = calibrate.index("bool calibratedAny = false")
+            lookup = calibrate.index("_poseStateMap.find(channel)", pending)
+            missing = calibrate.index("pose == _poseStateMap.end()", lookup)
+            validity = calibrate.index("!pose->second.isValid()", missing)
+            publish = calibrate.index("_trackerCalibrations[channel]", validity)
+            success = calibrate.index("calibratedAny = true", publish)
+            retain = calibrate.index("_wantsCalibrate = !calibratedAny", success)
+            self.assertLess(pending, lookup)
+            self.assertLess(lookup, missing)
+            self.assertLess(missing, validity)
+            self.assertLess(validity, publish)
+            self.assertLess(publish, success)
+            self.assertLess(success, retain)
+            self.assertNotIn("_poseStateMap[channel]", calibrate)
+
     def test_xdev_enumeration_and_space_publication_are_transactional(self):
         start = SOURCE.index("if (_context->_MNDX_xdevSpaceSupported)")
         end = SOURCE.index("_actionsInitialized = true", start)

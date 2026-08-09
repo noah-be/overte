@@ -1768,8 +1768,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 98 — OpenXR calibration setting validation
 
 - Branch: `nightly/pico4-98-openxr-calibration-settings`
-- Commit: identified by subject `Validate Pico OpenXR calibration settings`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `8d664ed520` (`Validate Pico OpenXR calibration settings`)
 - Change: deserialize persisted `[x,y,z,w]` quaternions in GLM's required
   `(w,x,y,z)` constructor order, reject wrong-size/non-numeric/non-finite arrays
   and zero-length rotations, then normalize accepted rotations. The shared
@@ -1782,6 +1781,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Save a non-identity tracker calibration,
   restart and compare pose alignment; inject truncated, string, non-finite and
   zero-quaternion settings and verify they are ignored without corrupting poses.
+
+### 99 — Pending body-tracker calibration
+
+- Branch: `nightly/pico4-99-openxr-calibration-pending`
+- Commit: identified by subject `Retain Pico tracker calibration until valid`;
+  the exact hash is recorded by the following stacked task or final report.
+- Change: retain a requested tracker calibration until at least one valid body
+  pose is available, rather than consuming it unconditionally after one frame.
+  Lookups no longer insert empty poses into the transient map. The shared desktop
+  OpenXR implementation follows the same calibration-state contract.
+- Regression: Pico/desktop input contracts verify non-inserting lookup, missing
+  and invalid sample guards, publication-before-success and pending-state logic.
+- Passed: targeted OpenXR input/lifecycle contracts; `git diff --check`.
+- Risk: a request made with no active body tracker remains pending and will apply
+  once a valid tracker appears; explicit uncalibration still cancels it.
+- Pico 4 validation: **not executed**. Request calibration before tracking begins
+  and during tracking loss, then restore a valid tracker; verify exactly the first
+  valid update completes calibration and uncalibrate cancels a pending request.
 
 ## Deferred, rejected, or blocked ideas
 

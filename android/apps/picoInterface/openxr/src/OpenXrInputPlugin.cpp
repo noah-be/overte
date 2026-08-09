@@ -1621,25 +1621,29 @@ void OpenXrInputPlugin::InputDevice::calibratePucks(const controller::InputCalib
         LEFT_FOOT, RIGHT_FOOT, HIPS, SPINE2,
     };
 
+    bool calibratedAny = false;
+
     for (auto channel : posesToCalibrate) {
         // not connected, don't calibrate
-        if (!_poseStateMap[channel].isValid()) { continue; }
+        const auto pose = _poseStateMap.find(channel);
+        if (pose == _poseStateMap.end() || !pose->second.isValid()) { continue; }
 
         // get the heading of the headset for the forward direction
         auto heading = glm::eulerAngles(_context->_lastHeadPose.getRotation()).y;
         auto headAngle = glm::inverse(quat(vec3(0.0f, heading, 0.0f)));
 
-        //auto position = headAngle * _poseStateMap[channel].getTranslation();
-        auto rotation = headAngle * _poseStateMap[channel].getRotation();
+        //auto position = headAngle * pose->second.getTranslation();
+        auto rotation = headAngle * pose->second.getRotation();
         auto offset = defaultPoseOffset(data, channel);
 
         _trackerCalibrations[channel] = Pose(
             glm::inverse(rotation) * vec3(0.0f, 0.0f, channel == HIPS || channel == SPINE2 ? 0.2f : 0.1f),
             glm::inverse(rotation) * quat(offset)
         );
+        calibratedAny = true;
     }
 
-    _wantsCalibrate = false;
+    _wantsCalibrate = !calibratedAny;
 }
 
 void OpenXrInputPlugin::InputDevice::updateBodyFromViveTrackers(const mat4& sensorToAvatar) {
