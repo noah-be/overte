@@ -87,6 +87,10 @@ def safe_zip_extract(archive: Path, destination: Path) -> None:
             if (member.external_attr >> 16) & 0o170000 == 0o120000:
                 raise HarnessError("symlinked Gradle distribution member")
         source.extractall(destination)
+        for member in source.infolist():
+            mode = (member.external_attr >> 16) & 0o777
+            if mode:
+                (destination / member.filename).chmod(mode)
 
 
 def ensure_distribution(cache: Path, network: bool, downloader=download) -> Path:
@@ -108,8 +112,9 @@ def ensure_distribution(cache: Path, network: bool, downloader=download) -> Path
                 os.replace(temporary, archive)
             finally:
                 temporary.unlink(missing_ok=True)
+        gradle_executable = installation / "bin/gradle"
         if sentinel.is_file() and sentinel.read_text(encoding="ascii").strip() == GRADLE_SHA256 \
-                and (installation / "bin/gradle").is_file():
+                and gradle_executable.is_file() and os.access(gradle_executable, os.X_OK):
             return installation
         staging = Path(tempfile.mkdtemp(prefix=".gradle-extract-", dir=cache))
         try:

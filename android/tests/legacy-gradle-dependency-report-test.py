@@ -51,6 +51,20 @@ class LegacyGradleReportTest(unittest.TestCase):
                 with self.assertRaises(report.HarnessError):
                     report.safe_zip_extract(archive, Path(directory) / "out")
 
+    def test_zip_preserves_executable_mode(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / "gradle.zip"
+            with zipfile.ZipFile(archive, "w") as output:
+                item = zipfile.ZipInfo("gradle-4.10.1/bin/gradle")
+                item.create_system = 3
+                item.external_attr = (0o100755 << 16)
+                output.writestr(item, "#!/bin/sh\n")
+            destination = Path(directory) / "out"
+            report.safe_zip_extract(archive, destination)
+            executable = destination / "gradle-4.10.1/bin/gradle"
+            self.assertTrue(executable.is_file())
+            self.assertTrue(executable.stat().st_mode & 0o111)
+
     def test_tar_rejects_links_and_parent_escape(self):
         for name, link in (("../escape", False), ("source/link", True)):
             with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
