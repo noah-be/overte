@@ -16,6 +16,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import io.highfidelity.hifiinterface.R;
+import io.highfidelity.hifiinterface.LegacyAdapterPositionPolicy;
 import io.highfidelity.hifiinterface.provider.DomainProvider;
 import io.highfidelity.hifiinterface.provider.UserStoryDomainProvider;
 
@@ -165,7 +166,10 @@ public class DomainAdapter extends RecyclerView.Adapter<DomainAdapter.ViewHolder
         @Override
         public void onClick(View view) {
             int position = getAdapterPosition();
-            if (mClickListener != null) mClickListener.onItemClick(view, position, mDomains[position]);
+            if (mClickListener != null &&
+                    LegacyAdapterPositionPolicy.isValid(position, mDomains.length)) {
+                mClickListener.onItemClick(view, position, mDomains[position]);
+            }
         }
     }
 

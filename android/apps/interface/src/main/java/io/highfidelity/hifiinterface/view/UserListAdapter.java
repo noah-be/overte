@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import io.highfidelity.hifiinterface.R;
+import io.highfidelity.hifiinterface.LegacyAdapterPositionPolicy;
 import io.highfidelity.hifiinterface.provider.UsersProvider;
 
 /**
@@ -242,7 +243,8 @@ public class UserListAdapter extends RecyclerView.Adapter<UserListAdapter.ViewHo
         @Override
         public void onClick(View view) {
             int position = getAdapterPosition();
-            if (mClickListener != null) {
+            if (mClickListener != null &&
+                    LegacyAdapterPositionPolicy.isValid(position, mUsers.size())) {
                 mClickListener.onItemClick(view, position, mUsers.get(position));
             }
         }
