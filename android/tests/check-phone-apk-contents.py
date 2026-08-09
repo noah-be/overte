@@ -102,16 +102,6 @@ def cached_asset_entry(cache_manifest_entry, path):
     return prefix + path
 
 
-def physical_package_entry(cache_manifest_entry, logical_path):
-    if not cache_manifest_entry.startswith("base/"):
-        return logical_path
-    if logical_path == "AndroidManifest.xml":
-        return "base/manifest/AndroidManifest.xml"
-    if logical_path == "classes.dex":
-        return "base/dex/classes.dex"
-    return "base/" + logical_path
-
-
 def verify_entry_integrity(archive, entry):
     with archive.open(entry) as packaged_file:
         while packaged_file.read(64 * 1024):
@@ -271,11 +261,17 @@ def main():
                 )
             if cache_content_digest(archive, cache_manifest_entry, cache_paths) != cache_lines[0]:
                 raise ValueError("cache_assets.txt content digest does not match packaged assets")
-            for logical_path in sorted(required_entries - declared_assets):
-                verify_entry_integrity(
-                    archive,
-                    physical_package_entry(cache_manifest_entry, logical_path),
-                )
+            digest_verified_entries = {cache_manifest_entry} | {
+                cached_asset_entry(cache_manifest_entry, path) for path in cache_paths
+            }
+            for entry in sorted(raw_archive_names):
+                entry_info = archive.getinfo(entry)
+                if entry_info.is_dir():
+                    if entry_info.file_size != 0:
+                        raise ValueError("package directory entry contains file data")
+                    continue
+                if entry not in digest_verified_entries:
+                    verify_entry_integrity(archive, entry)
     except ElementTree.ParseError:
         print("ERROR: Phone package dependency declaration is invalid", file=sys.stderr)
         return 1

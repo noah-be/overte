@@ -118,7 +118,9 @@ require_text tests/check-phone-apk-contents.py 'outside arm64-v8a' \
 require_text tests/check-phone-apk-contents.py 'unexpected ARM64 native entries' \
     'package completeness gate rejects undeclared ARM64 runtimes'
 require_text tests/check-phone-apk-contents.py 'verify_entry_integrity' \
-    'package completeness gate reads required entries to verify ZIP integrity'
+    'package completeness gate streams ZIP entries to verify integrity'
+require_text tests/check-phone-apk-contents.py 'sorted\(raw_archive_names\)' \
+    'package completeness gate verifies every packaged ZIP entry'
 require_text tests/check-phone-apk-contents.py 'mixes APK and Android App Bundle' \
     'package completeness gate rejects mixed archive layouts'
 require_text tests/check-phone-apk-contents.py 'unexpected feature modules' \

@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 101 — Verify every packaged ZIP entry
+
+- Branch: `nightly/android-phone-101-complete-zip-integrity`
+- Commit: `Verify every phone package ZIP entry` (this task's commit)
+- Change: Extend streamed ZIP/CRC verification from required files to every
+  non-directory APK/AAB entry, including optional Qt assets and bundle
+  metadata. Cache-digest inputs are recognized as already verified to avoid a
+  second pass; directory entries carrying file data are rejected.
+- Tests:
+  - `android/tests/phone-apk-contents-test.sh`: **passed**, adding corrupt
+    optional APK asset, corrupt AAB `BUNDLE-METADATA`, and data-bearing
+    directory fixtures to the required-entry corruption cases.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 295/295 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 295/295.
+  - Python/shell syntax and `git diff --check`: **passed**.
+- Known risks: Full streaming adds I/O proportional to package size but keeps
+  memory bounded and is appropriate for the final release gate.
+- Real-device validation still required: Install and launch the exact package
+  digest that passed this complete archive-integrity check.
+
 ## 100 — Reject data after the ZIP end record
 
 - Branch: `nightly/android-phone-100-trailing-zip-data`
@@ -2317,7 +2338,8 @@ All branches form one linear chain starting at
 97. `nightly/android-phone-97-private-elf-errors` — `c44a29b7dc`
 98. `nightly/android-phone-98-private-package-errors` — `1d7f13300d`
 99. `nightly/android-phone-99-central-directory-padding` — `13db75b136`
-100. `nightly/android-phone-100-trailing-zip-data` — this task's commit
+100. `nightly/android-phone-100-trailing-zip-data` — `bf5ca533b6`
+101. `nightly/android-phone-101-complete-zip-integrity` — this task's commit
 
 ### Device-free audit disposition
 

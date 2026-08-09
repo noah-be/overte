@@ -236,6 +236,31 @@ with zipfile.ZipFile(corrupt_aab, 'w') as archive:
         archive.writestr(bundle_entry, data)
 corrupt_stored_entry(corrupt_aab, 'base/lib/arm64-v8a/libphoneInterface.so')
 
+corrupt_extra_apk = root / 'corrupt-extra-entry.apk'
+with zipfile.ZipFile(corrupt_extra_apk, 'w') as archive:
+    archive.writestr('assets/cache_assets.txt', cache_manifest)
+    for entry, data in required.items():
+        archive.writestr(entry, data)
+    archive.writestr('assets/optional-qt-metadata.dat', b'optional')
+corrupt_stored_entry(corrupt_extra_apk, 'assets/optional-qt-metadata.dat')
+
+corrupt_extra_aab = root / 'corrupt-extra-entry.aab'
+with zipfile.ZipFile(corrupt_extra_aab, 'w') as archive:
+    archive.writestr('base/assets/cache_assets.txt', cache_manifest)
+    for entry, data in required.items():
+        if entry == 'AndroidManifest.xml':
+            bundle_entry = 'base/manifest/AndroidManifest.xml'
+        elif entry == 'classes.dex':
+            bundle_entry = 'base/dex/classes.dex'
+        else:
+            bundle_entry = 'base/' + entry
+        archive.writestr(bundle_entry, data)
+    archive.writestr('BUNDLE-METADATA/com.android.tools.build/metadata.pb', b'metadata')
+corrupt_stored_entry(
+    corrupt_extra_aab,
+    'BUNDLE-METADATA/com.android.tools.build/metadata.pb',
+)
+
 with warnings.catch_warnings():
     warnings.simplefilter('ignore', UserWarning)
     with zipfile.ZipFile(root / 'duplicate-entry.apk', 'w') as archive:
@@ -243,6 +268,12 @@ with warnings.catch_warnings():
         for entry, data in required.items():
             archive.writestr(entry, data)
         archive.writestr('assets/kept.txt', b'duplicate')
+
+with zipfile.ZipFile(root / 'directory-with-data.apk', 'w') as archive:
+    archive.writestr('assets/cache_assets.txt', cache_manifest)
+    for entry, data in required.items():
+        archive.writestr(entry, data)
+    archive.writestr('assets/optional-directory/', b'unexpected data')
 
 with zipfile.ZipFile(root / 'missing-required-cache-entry.apk', 'w') as archive:
     incomplete_cache_paths = [entry for entry in cache_paths
@@ -334,12 +365,17 @@ unexpected-abi.apk	outside arm64-v8a
 unexpected-arm64-runtime.apk	unexpected ARM64 native entries
 unexpected-arm64-runtime.aab	unexpected ARM64 native entries
 duplicate-entry.apk	duplicate ZIP entry names
+directory-with-data.apk	directory entry contains file data
 mixed-layout.aab	mixes APK and Android App Bundle entry layouts
 unexpected-feature.aab	contains unexpected feature modules
 missing-base-module.aab	has no base manifest module
 ARCHIVE_CASES
 
-for fixture in corrupt-required-entry.apk corrupt-required-entry.aab; do
+for fixture in \
+        corrupt-required-entry.apk \
+        corrupt-required-entry.aab \
+        corrupt-extra-entry.apk \
+        corrupt-extra-entry.aab; do
     if "$checker" "$fixture_dir/$fixture" >"$fixture_dir/integrity-out" 2>&1; then
         printf 'FAIL: package with a corrupt required entry was accepted: %s\n' \
             "$fixture" >&2
