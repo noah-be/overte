@@ -584,8 +584,10 @@ require_file phone-build-resource-guard.sh
 require_file tests/phone-build-resource-guard-test.sh
 require_text phone-device-lock.sh 'git-common-dir' \
     'phone device lock is shared across Git worktrees'
-require_text phone-device-lock.sh 'PHONE_DEVICE_LOCK_HELD=1' \
-    'phone device lock marks protected child operations'
+require_text phone-device-lock.sh 'DEVICE_LOCK_HELD_VARIABLE="PHONE_DEVICE_LOCK_HELD"' \
+    'phone device lock configures its protected-operation marker'
+require_text device-lock-core.sh 'export "\$DEVICE_LOCK_HELD_VARIABLE=1"' \
+    'shared device lock core marks protected child operations'
 require_text tests/phone-device-test.sh 'phone-device-lock[.]sh.*run' \
     'device smoke test automatically acquires the shared phone lock'
 require_text tests/phone-device-test.sh 'ro[.]kernel[.]qemu' \
