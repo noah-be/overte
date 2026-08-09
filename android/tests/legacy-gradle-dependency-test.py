@@ -35,6 +35,13 @@ def coordinates_in_multiple_configurations(source: str) -> list[str]:
                   if len(names) > 1)
 
 
+def application_api_dependencies(source: str) -> list[str]:
+    if "apply plugin: 'com.android.application'" not in source:
+        return []
+    return sorted(coordinate for configuration, coordinate in DEPENDENCY.findall(source)
+                  if configuration == "api")
+
+
 def legacy_download_plugin_references(source: str) -> list[str]:
     return LEGACY_DOWNLOAD_PLUGIN.findall(source)
 
@@ -136,6 +143,7 @@ class LegacyGradleDependencyTest(unittest.TestCase):
         source = (ANDROID_ROOT / "apps/interface/build.gradle").read_text(encoding="utf-8")
         self.assertEqual([], duplicates(source))
         self.assertEqual([], coordinates_in_multiple_configurations(source))
+        self.assertEqual([], application_api_dependencies(source))
 
     def test_validator_distinguishes_duplicates_from_configuration_choices(self):
         source = """
@@ -155,6 +163,21 @@ class LegacyGradleDependencyTest(unittest.TestCase):
         self.assertEqual(
             ["example:library:1"],
             coordinates_in_multiple_configurations(source))
+
+    def test_validator_restricts_api_only_for_application_modules(self):
+        application = """
+            apply plugin: 'com.android.application'
+            api 'example:library:1'
+            implementation 'example:internal:1'
+        """
+        library = application.replace(
+            "com.android.application", "com.android.library")
+        self.assertEqual(
+            ["example:library:1"], application_api_dependencies(application))
+        self.assertEqual([], application_api_dependencies(library))
+        self.assertEqual([], application_api_dependencies(
+            "apply plugin: 'com.android.application'\n"
+            "implementation 'example:library:1'"))
 
     def test_validator_recognizes_legacy_download_plugin_apis(self):
         for source in (
