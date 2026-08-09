@@ -24,6 +24,11 @@ KNOWN_TIERS = {"fast", "host", "prepared-host", "contracts", "regression", "devi
 MAX_REPORT_OUTPUT_BYTES = 256 * 1024
 TERMINATION_GRACE_SECONDS = 1.0
 DEFAULT_SUITE_TIMEOUT_SECONDS = 480
+DEFAULT_SUITE_TEMP_PARENT = (
+    Path("/dev/shm") if Path("/dev/shm").is_dir() and os.access("/dev/shm", os.W_OK)
+    else Path(tempfile.gettempdir())
+)
+SUITE_TEMP_PARENT = Path(os.environ.get("OVERTE_SUITE_TEMP_ROOT", DEFAULT_SUITE_TEMP_PARENT))
 
 
 def xml_safe(value: object) -> str:
@@ -160,14 +165,17 @@ def main() -> int:
         return 2
 
     results = []
-    suite_temp_parent = ANDROID_ROOT / "build" / "tmp" / "suite"
+    # Some privacy-sensitive device harnesses deliberately reject report paths
+    # inside the source worktree. Keep runner-owned scratch space external.
+    suite_temp_parent = SUITE_TEMP_PARENT
     suite_temp_parent.mkdir(parents=True, exist_ok=True)
     for suite in suites:
         print(f"\n[{suite['id']}] {suite['description']}", flush=True)
         started = time.monotonic()
         command = suite["command"]
         try:
-            with tempfile.TemporaryDirectory(prefix="suite-", dir=suite_temp_parent) as temporary:
+            with tempfile.TemporaryDirectory(
+                    prefix="overte-android-suite-", dir=suite_temp_parent) as temporary:
                 child_env = os.environ.copy()
                 child_env["TMPDIR"] = temporary
                 completed = run_command(
