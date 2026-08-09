@@ -52,6 +52,8 @@ local.properties
 /android/conan/phone-16k-debug/
 /android/conan/phone-nonqt-16k-debug/
 /android/conan/phone-nonqt-16k-*/
+/android/conan/phone-emulator-host/
+/android/conan/phone-emulator-x86_64-debug/
 /android/pico-host-tools/
 /android/pico-precompiled-compat/
 /android/power-results/
