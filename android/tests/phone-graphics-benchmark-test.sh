@@ -89,6 +89,10 @@ sed 's/^+//' >"$fixture/adb" <<'MOCK'
 +if [[ $1 == shell && $2 == am && $3 == start && ${MOCK_START_FAILURE:-0} == 1 ]]; then
 +  printf 'private Activity failure for phone-secret\n' >&2; exit 12
 +fi
++if [[ $1 == shell && $2 == am && $3 == force-stop &&
++      ${MOCK_FINAL_CLEANUP_FAILURE:-0} == 1 ]]; then
++  printf 'private cleanup failure for phone-secret\n' >&2; exit 14
++fi
 +if [[ $1 == shell && $2 == getprop ]]; then
 +  case $3 in
 +    ro.build.characteristics) printf '%s\n' "${MOCK_CHARACTERISTICS:-phone}" ;;
@@ -324,6 +328,7 @@ grep -q '^crash_records_before=0$' "$summary"
 grep -q '^crash_records_after=1$' "$summary"
 grep -q '^crash_record_count_increased=1$' "$summary"
 grep -q '^stable_process=1$' "$summary"
+grep -q '^cleanup_force_stopped=1$' "$summary"
 grep -q '^profile_viewport_scale=0.5$' "$summary"
 grep -q '^overlay_cache_metrics_valid=1$' "$summary"
 grep -q '^overlay_cache_enabled=1$' "$summary"
@@ -377,6 +382,22 @@ grep -Fxq 'Aggregate benchmark report written.' "$fixture/cleanup-failure.out"
     "$fixture/cleanup-failure.out"
 grep -q '^schema=overte-phone-graphics-aggregate-v1$' \
     "$cleanup_failure_report/summary.txt"
+
+final_cleanup_report="$fixture/final-cleanup-report"
+final_cleanup_commands="$fixture/final-cleanup-commands"
+: >"$final_cleanup_commands"
+if PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/final-cleanup-exits" \
+    MOCK_FINAL_CLEANUP_FAILURE=1 ANDROID_SERIAL=phone-secret \
+    PHONE_BENCHMARK_CONFIRM_NON_VR=YES PHONE_BENCHMARK_REPORT="$final_cleanup_report" \
+    PHONE_BENCHMARK_INTERVAL=1 MOCK_ADB_COMMAND_LOG="$final_cleanup_commands" \
+    "$script_dir/phone-graphics-benchmark.sh" 1 >"$fixture/final-cleanup.out" 2>&1; then
+    echo 'FAIL: benchmark accepted failed final Phone cleanup' >&2; exit 1
+fi
+grep -Fxq 'ERROR: final Phone cleanup failed' "$fixture/final-cleanup.out"
+! grep -Eq 'phone-secret|private cleanup failure' "$fixture/final-cleanup.out"
+[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' \
+    "$final_cleanup_commands")" -eq 2 ]]
+[[ ! -e "$final_cleanup_report/summary.txt" ]]
 
 PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/temporary-report-exits" \
     ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES \

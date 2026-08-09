@@ -404,6 +404,8 @@ native_present_metrics_available=0
 [[ -n "$native_present_fps" && -n "$native_new_frame_fps" && -n "$native_present_p95_ms" ]] && \
     native_present_metrics_available=1
 
+require_adb "final Phone cleanup" shell am force-stop "$PACKAGE" >/dev/null
+package_started=0
 summary_tmp="$(mktemp "$report_dir/.summary.txt.XXXXXXXX" 2>/dev/null)" || \
     die "could not create aggregate benchmark summary"
 if ! chmod 600 "$summary_tmp" 2>/dev/null; then
@@ -412,6 +414,7 @@ if ! chmod 600 "$summary_tmp" 2>/dev/null; then
 fi
 {
     printf 'schema=overte-phone-graphics-aggregate-v1\n'
+    printf 'cleanup_force_stopped=1\n'
     cat "$raw_dir/graphics.aggregate"
     printf 'stable_process=%s\n' "$stable_process"
     printf 'thermal_samples=%s\nmax_thermal_status=%s\nexit_info_queries_valid=%s\n' \

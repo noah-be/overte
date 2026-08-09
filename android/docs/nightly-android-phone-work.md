@@ -4,6 +4,29 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 133 — Require final benchmark app cleanup
+
+- Branch: `nightly/android-phone-133-required-benchmark-cleanup`
+- Commit: `Require final phone benchmark cleanup` (this task's commit)
+- Change: Force-stop the measured Phone app as a required checked phase before
+  publishing success, clear exit-cleanup ownership only after it succeeds, and
+  record `cleanup_force_stopped=1` in every successful aggregate summary.
+- Tests:
+  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; forced final
+    cleanup failure emits only the fixed phase error, triggers one best-effort
+    retry, and publishes no summary; successful summaries contain the cleanup
+    marker and still stop exactly once.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 319/319 checks,
+    including required cleanup and summary-marker contracts.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 319/319.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: If both required stop and best-effort retry fail, Android may keep
+  the process until transport returns; the run is unambiguously failed and has
+  no successful aggregate report.
+- Real-device validation still required: Confirm success contains the marker
+  and `pidof org.overte.phone` is empty after an unattended current-chain pass.
+
 ## 132 — Keep raw-cleanup errors private and best-effort
 
 - Branch: `nightly/android-phone-132-private-raw-cleanup-error`
@@ -3003,7 +3026,8 @@ All branches form one linear chain starting at
 129. `nightly/android-phone-129-device-contract-fixtures` — `961b5537ec`
 130. `nightly/android-phone-130-pico-benchmark-rejection` — `779f197b29`
 131. `nightly/android-phone-131-three-hour-handoff` — `e69448dbd6`
-132. `nightly/android-phone-132-private-raw-cleanup-error` — this task's commit
+132. `nightly/android-phone-132-private-raw-cleanup-error` — `974767aa7b`
+133. `nightly/android-phone-133-required-benchmark-cleanup` — this task's commit
 
 ### Device-free audit disposition
 

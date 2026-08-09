@@ -660,6 +660,10 @@ require_text tests/phone-graphics-benchmark.sh 'phone-device-lock[.]sh.*run' \
     'graphics benchmark automatically acquires the shared phone lock'
 require_text tests/phone-graphics-benchmark.sh 'adb_for shell am force-stop "\$PACKAGE"' \
     'graphics benchmark force-stops the app during exit cleanup'
+require_text tests/phone-graphics-benchmark.sh 'require_adb "final Phone cleanup" shell am force-stop' \
+    'successful graphics benchmark requires final app cleanup'
+require_text tests/phone-graphics-benchmark.sh "printf 'cleanup_force_stopped=1" \
+    'graphics benchmark records required final cleanup'
 require_text tests/phone-graphics-benchmark.sh "trap 'exit 130' INT" \
     'graphics benchmark converts interruption into a terminating exit'
 require_text tests/phone-graphics-benchmark.sh "trap 'exit 143' TERM" \
