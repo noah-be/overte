@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cmath>
 
 constexpr float OPENXR_VIRTUAL_TRIGGER_CLICK_THRESHOLD = 0.95f;
 
@@ -59,6 +60,53 @@ constexpr bool openXrXDevRoleSamplingReady(
         bool predictionAvailable,
         bool hasTrackers) {
     return xdevCapabilityReady && predictionAvailable && hasTrackers;
+}
+
+constexpr bool openXrXDevRoleLocationsUsable(
+        bool stageLocateSucceeded,
+        unsigned long long stageFlags,
+        bool localLocateSucceeded,
+        unsigned long long localFlags,
+        bool headLocateSucceeded,
+        unsigned long long headFlags,
+        unsigned long long positionValidBit) {
+    return stageLocateSucceeded && localLocateSucceeded && headLocateSucceeded &&
+        (stageFlags & positionValidBit) != 0 &&
+        (localFlags & positionValidBit) != 0 &&
+        (headFlags & positionValidBit) != 0;
+}
+
+inline bool openXrXDevRoleDimensionsUsable(
+        float localX, float stageHeight, float headHeight) {
+    return std::isfinite(localX) && std::isfinite(stageHeight) &&
+        std::isfinite(headHeight) && headHeight > 0.0f &&
+        std::isfinite(stageHeight / headHeight);
+}
+
+enum class OpenXrXDevRole {
+    None,
+    LeftFoot,
+    RightFoot,
+    Hips,
+    Chest,
+};
+
+inline OpenXrXDevRole classifyOpenXrXDevRole(
+        float localX, float normalizedHeight) {
+    if (!std::isfinite(localX) || !std::isfinite(normalizedHeight)) {
+        return OpenXrXDevRole::None;
+    }
+    if (normalizedHeight < 0.2f) {
+        return localX < 0.0f ? OpenXrXDevRole::LeftFoot
+                             : OpenXrXDevRole::RightFoot;
+    }
+    if (normalizedHeight > 0.4f && normalizedHeight < 0.65f) {
+        return OpenXrXDevRole::Hips;
+    }
+    if (normalizedHeight > 0.65f && normalizedHeight < 0.9f) {
+        return OpenXrXDevRole::Chest;
+    }
+    return OpenXrXDevRole::None;
 }
 
 constexpr bool openXrBoundedEnumerationUsable(

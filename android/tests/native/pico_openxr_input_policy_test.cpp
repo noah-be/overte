@@ -74,6 +74,56 @@ int main() {
                    (mask & 4U) != 0) == (mask == 7U));
     }
 
+    constexpr unsigned long long positionValid = 1ULL << 4;
+    constexpr unsigned long long otherFlag = 1ULL << 5;
+    OVERTE_EXPECT(openXrXDevRoleLocationsUsable(
+        true, positionValid, true, positionValid, true, positionValid,
+        positionValid));
+    OVERTE_EXPECT(openXrXDevRoleLocationsUsable(
+        true, positionValid | otherFlag, true, positionValid | otherFlag,
+        true, positionValid | otherFlag, positionValid));
+    for (unsigned int missing = 0; missing < 6; ++missing) {
+        OVERTE_EXPECT(!openXrXDevRoleLocationsUsable(
+            missing != 0, missing == 1 ? 0 : positionValid,
+            missing != 2, missing == 3 ? 0 : positionValid,
+            missing != 4, missing == 5 ? 0 : positionValid,
+            positionValid));
+    }
+
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    const float infinity = std::numeric_limits<float>::infinity();
+    OVERTE_EXPECT(openXrXDevRoleDimensionsUsable(-0.2f, 0.1f, 1.7f));
+    OVERTE_EXPECT(openXrXDevRoleDimensionsUsable(0.0f, 0.0f, 1.7f));
+    OVERTE_EXPECT(!openXrXDevRoleDimensionsUsable(0.0f, 1.0f, 0.0f));
+    OVERTE_EXPECT(!openXrXDevRoleDimensionsUsable(0.0f, 1.0f, -1.0f));
+    OVERTE_EXPECT(!openXrXDevRoleDimensionsUsable(nan, 1.0f, 1.0f));
+    OVERTE_EXPECT(!openXrXDevRoleDimensionsUsable(0.0f, nan, 1.0f));
+    OVERTE_EXPECT(!openXrXDevRoleDimensionsUsable(0.0f, 1.0f, nan));
+    OVERTE_EXPECT(!openXrXDevRoleDimensionsUsable(infinity, 1.0f, 1.0f));
+    OVERTE_EXPECT(!openXrXDevRoleDimensionsUsable(0.0f, infinity, 1.0f));
+    OVERTE_EXPECT(!openXrXDevRoleDimensionsUsable(0.0f, 1.0f, infinity));
+    OVERTE_EXPECT(!openXrXDevRoleDimensionsUsable(
+        0.0f, 1.0f, std::numeric_limits<float>::denorm_min()));
+
+    OVERTE_EXPECT(classifyOpenXrXDevRole(-0.1f, 0.19f) ==
+                  OpenXrXDevRole::LeftFoot);
+    OVERTE_EXPECT(classifyOpenXrXDevRole(0.0f, 0.19f) ==
+                  OpenXrXDevRole::RightFoot);
+    OVERTE_EXPECT(classifyOpenXrXDevRole(0.1f, 0.19f) ==
+                  OpenXrXDevRole::RightFoot);
+    OVERTE_EXPECT(classifyOpenXrXDevRole(0.0f, 0.2f) == OpenXrXDevRole::None);
+    OVERTE_EXPECT(classifyOpenXrXDevRole(0.0f, 0.4f) == OpenXrXDevRole::None);
+    OVERTE_EXPECT(classifyOpenXrXDevRole(0.0f, 0.4001f) == OpenXrXDevRole::Hips);
+    OVERTE_EXPECT(classifyOpenXrXDevRole(0.0f, 0.6499f) == OpenXrXDevRole::Hips);
+    OVERTE_EXPECT(classifyOpenXrXDevRole(0.0f, 0.65f) == OpenXrXDevRole::None);
+    OVERTE_EXPECT(classifyOpenXrXDevRole(0.0f, 0.6501f) == OpenXrXDevRole::Chest);
+    OVERTE_EXPECT(classifyOpenXrXDevRole(0.0f, 0.8999f) == OpenXrXDevRole::Chest);
+    OVERTE_EXPECT(classifyOpenXrXDevRole(0.0f, 0.9f) == OpenXrXDevRole::None);
+    OVERTE_EXPECT(classifyOpenXrXDevRole(nan, 0.1f) == OpenXrXDevRole::None);
+    OVERTE_EXPECT(classifyOpenXrXDevRole(0.0f, nan) == OpenXrXDevRole::None);
+    OVERTE_EXPECT(classifyOpenXrXDevRole(infinity, 0.1f) == OpenXrXDevRole::None);
+    OVERTE_EXPECT(classifyOpenXrXDevRole(0.0f, infinity) == OpenXrXDevRole::None);
+
     OVERTE_EXPECT(!openXrBoundedEnumerationUsable(false, 0, 16));
     OVERTE_EXPECT(openXrBoundedEnumerationUsable(true, 0, 16));
     OVERTE_EXPECT(openXrBoundedEnumerationUsable(true, 1, 16));

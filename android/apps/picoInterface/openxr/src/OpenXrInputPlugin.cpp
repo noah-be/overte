@@ -9,7 +9,6 @@
 
 #include <glm/ext.hpp>
 #include <QJsonArray>
-#include <tuple>
 
 #include "OpenXrInputPlugin.h"
 #include "OpenXrExtensionPolicy.h"
@@ -112,60 +111,71 @@ static glm::mat4 defaultPoseOffset(const controller::InputCalibrationData& data,
 void OpenXrInputPlugin::guessXDevRoles(
         std::unordered_map<XrXDevIdMNDX, XDevTracker>& tracker_map,
         XrTime sampleTime) {
-    std::vector<std::tuple<XrXDevIdMNDX, glm::vec3, controller::Pose>> tracker_list;
-
-    for (auto [id, tracker] : tracker_map) {
-        XrResult result = XR_SUCCESS;
+    for (auto& [id, tracker] : tracker_map) {
         XrSpaceLocation stageSpace = { XR_TYPE_SPACE_LOCATION };
         XrSpaceLocation localSpace = { XR_TYPE_SPACE_LOCATION };
         XrSpaceLocation headSpace = { XR_TYPE_SPACE_LOCATION };
-        result = xrLocateSpace(tracker.space, _context->_stageSpace, sampleTime, &stageSpace);
-        xrCheck(_context->_instance, result, "guessXDevRoles: tracker stage space fail");
-        result = xrLocateSpace(tracker.space, _context->_viewSpace, sampleTime, &localSpace);
-        xrCheck(_context->_instance, result, "guessXDevRoles: tracker local space fail");
-        result = xrLocateSpace(_context->_viewSpace, _context->_stageSpace, sampleTime, &headSpace);
-        xrCheck(_context->_instance, result, "guessXDevRoles: head space fail");
+        const bool stageLocated = xrCheck(
+            _context->_instance,
+            xrLocateSpace(tracker.space, _context->_stageSpace, sampleTime, &stageSpace),
+            "guessXDevRoles: tracker stage space fail");
+        const bool localLocated = xrCheck(
+            _context->_instance,
+            xrLocateSpace(tracker.space, _context->_viewSpace, sampleTime, &localSpace),
+            "guessXDevRoles: tracker local space fail");
+        const bool headLocated = xrCheck(
+            _context->_instance,
+            xrLocateSpace(_context->_viewSpace, _context->_stageSpace, sampleTime, &headSpace),
+            "guessXDevRoles: head space fail");
+
+        if (!openXrXDevRoleLocationsUsable(
+                stageLocated, stageSpace.locationFlags,
+                localLocated, localSpace.locationFlags,
+                headLocated, headSpace.locationFlags,
+                XR_SPACE_LOCATION_POSITION_VALID_BIT)) {
+            continue;
+        }
 
         // the tracker's position, relative horizontally to the headset
         // and vertically to the floor, normalized by the headset height
         // so we can check relative height rather than absolute meters
-        auto position = xrVecToGlm(localSpace.pose.position);
-        position.y = stageSpace.pose.position.y / headSpace.pose.position.y;
-        tracker_list.push_back({
-            id,
-            position,
-            controller::Pose(xrVecToGlm(stageSpace.pose.position), xrQuatToGlm(stageSpace.pose.orientation)),
-        });
-    }
-
-    for (auto& tracker : tracker_list) {
-        using namespace controller;
-
-        auto position = std::get<1>(tracker);
-        auto id = std::get<0>(tracker);
-        auto& state = tracker_map[id];
+        const float localX = localSpace.pose.position.x;
+        const float stageHeight = stageSpace.pose.position.y;
+        const float headHeight = headSpace.pose.position.y;
+        if (!openXrXDevRoleDimensionsUsable(localX, stageHeight, headHeight)) {
+            continue;
+        }
+        const float normalizedHeight = stageHeight / headHeight;
 
         // TODO: our input system only really expects 7-point tracking,
         // (i.e. head, hands, chest, hips, and feet), but we can expand
         // it later to support more joints if there's demand for it
 
-        if (position.y < 0.2f) {
-            state.pose_channel = position.x < 0.0f ? LEFT_FOOT : RIGHT_FOOT;
-        }
-
-        if (position.y > 0.4f && position.y < 0.65f) {
-            state.pose_channel = HIPS;
-        }
-
-        if (position.y > 0.65f && position.y < 0.9f) {
-            state.pose_channel = SPINE2;
+        switch (classifyOpenXrXDevRole(localX, normalizedHeight)) {
+            case OpenXrXDevRole::LeftFoot:
+                tracker.pose_channel = controller::LEFT_FOOT;
+                break;
+            case OpenXrXDevRole::RightFoot:
+                tracker.pose_channel = controller::RIGHT_FOOT;
+                break;
+            case OpenXrXDevRole::Hips:
+                tracker.pose_channel = controller::HIPS;
+                break;
+            case OpenXrXDevRole::Chest:
+                tracker.pose_channel = controller::SPINE2;
+                break;
+            case OpenXrXDevRole::None:
+                tracker.pose_channel.reset();
+                break;
         }
 
         qCDebug(xr_input_cat) <<
             id <<
             ":" <<
-            position.y <<
-            (state.pose_channel.has_value() ? poseChannelToString.at(state.pose_channel.value()) : "None");
+            normalizedHeight <<
+            (tracker.pose_channel.has_value()
+                 ? poseChannelToString.at(tracker.pose_channel.value())
+                 : "None");
     }
 }
 
