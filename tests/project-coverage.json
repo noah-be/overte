@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "areas": [
+    {"id": "android-pico", "roots": ["android"], "automated": ["pico4-device-free"], "native": [], "hardware": ["pico4-headset-acceptance"]},
+    {"id": "animation", "roots": ["libraries/animation"], "automated": ["repository-health"], "native": ["animation"], "hardware": []},
+    {"id": "audio", "roots": ["libraries/audio", "libraries/audio-client"], "automated": ["pico4-device-free"], "native": ["audio"], "hardware": ["audio-device-acceptance"]},
+    {"id": "avatars", "roots": ["libraries/avatars", "libraries/avatars-renderer"], "automated": ["pico4-device-free"], "native": ["avatars"], "hardware": []},
+    {"id": "baking-and-model-serialization", "roots": ["libraries/baking", "libraries/model-baker", "libraries/model-serializers"], "automated": ["repository-health"], "native": ["baking", "model-serializers"], "hardware": []},
+    {"id": "gpu-and-rendering", "roots": ["interface", "libraries/gl", "libraries/gpu", "libraries/graphics", "libraries/render", "libraries/render-utils"], "automated": ["pico4-device-free"], "native": ["gpu", "ktx"], "hardware": ["gpu-driver-acceptance"]},
+    {"id": "networking-and-octree", "roots": ["assignment-client", "domain-server", "ice-server", "libraries/networking", "libraries/octree"], "automated": ["repository-health"], "native": ["networking", "jitter", "octree"], "hardware": []},
+    {"id": "physics-and-workload", "roots": ["libraries/physics", "libraries/workload"], "automated": ["pico4-device-free"], "native": ["physics", "workload"], "hardware": []},
+    {"id": "script-engine-and-javascript", "roots": ["libraries/script-engine", "script-archive", "scripts", "unpublishedScripts"], "automated": ["repository-health", "javascript-behavior"], "native": ["script-engine"], "hardware": []},
+    {"id": "shared-core", "roots": ["libraries/shared"], "automated": ["repository-health"], "native": ["shared"], "hardware": []},
+    {"id": "build-packaging-and-resources", "roots": ["cmake"], "automated": ["repository-health", "pico4-device-free"], "native": [], "hardware": []},
+    {"id": "server-and-tools", "roots": ["launchers", "plugins", "server-console", "tools"], "automated": ["repository-health"], "native": [], "hardware": ["distributed-system-acceptance"]}
+  ]
+}
