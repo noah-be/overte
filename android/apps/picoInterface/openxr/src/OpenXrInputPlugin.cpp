@@ -401,6 +401,11 @@ bool OpenXrInputPlugin::InputDevice::triggerHapticPulse(float strength, float du
     if (targets == OpenXrHapticNone) {
         return false;
     }
+    if (!isOpenXrHapticRequestUsable(strength, duration)) {
+        qCWarning(xr_input_cat)
+            << "Invalid OpenXR haptic request";
+        return false;
+    }
 
     std::unique_lock<std::recursive_mutex> locker(_lock);
     const auto leftHaptic = _actions.find("left_haptic");

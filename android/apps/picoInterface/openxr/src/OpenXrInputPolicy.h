@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cmath>
+#include <limits>
 
 constexpr float OPENXR_VIRTUAL_TRIGGER_CLICK_THRESHOLD = 0.95f;
 
@@ -51,6 +52,16 @@ constexpr unsigned int openXrHapticTargets(bool enabled, unsigned int index) {
             : (index == 0 ? OpenXrHapticLeft
                           : (index == 1 ? OpenXrHapticRight
                                         : OpenXrHapticLeft | OpenXrHapticRight));
+}
+
+inline bool isOpenXrHapticRequestUsable(
+        float strength, float durationMilliseconds) {
+    return std::isfinite(strength) &&
+        strength >= 0.0f && strength <= 1.0f &&
+        std::isfinite(durationMilliseconds) &&
+        durationMilliseconds >= 1.0f &&
+        static_cast<double>(durationMilliseconds) <=
+            std::numeric_limits<int>::max();
 }
 
 constexpr bool openXrHapticActionsReady(

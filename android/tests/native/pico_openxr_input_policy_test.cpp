@@ -54,6 +54,40 @@ int main() {
             == openXrHapticTargets(true, 2));
     OVERTE_EXPECT(OpenXrHapticNone == openXrHapticTargets(true, 3));
     OVERTE_EXPECT(OpenXrHapticNone == openXrHapticTargets(true, 65535));
+    OVERTE_EXPECT(isOpenXrHapticRequestUsable(0.0f, 1.0f));
+    OVERTE_EXPECT(isOpenXrHapticRequestUsable(0.5f, 250.0f));
+    OVERTE_EXPECT(isOpenXrHapticRequestUsable(1.0f, 1.0f));
+    OVERTE_EXPECT(!isOpenXrHapticRequestUsable(-0.001f, 1.0f));
+    OVERTE_EXPECT(!isOpenXrHapticRequestUsable(1.001f, 1.0f));
+    OVERTE_EXPECT(!isOpenXrHapticRequestUsable(
+        std::numeric_limits<float>::quiet_NaN(), 1.0f));
+    OVERTE_EXPECT(!isOpenXrHapticRequestUsable(
+        std::numeric_limits<float>::infinity(), 1.0f));
+    OVERTE_EXPECT(!isOpenXrHapticRequestUsable(
+        -std::numeric_limits<float>::infinity(), 1.0f));
+    OVERTE_EXPECT(!isOpenXrHapticRequestUsable(0.5f, 0.0f));
+    OVERTE_EXPECT(!isOpenXrHapticRequestUsable(0.5f, -1.0f));
+    OVERTE_EXPECT(!isOpenXrHapticRequestUsable(0.5f, 0.999f));
+    OVERTE_EXPECT(!isOpenXrHapticRequestUsable(
+        0.5f, std::numeric_limits<float>::quiet_NaN()));
+    OVERTE_EXPECT(!isOpenXrHapticRequestUsable(
+        0.5f, std::numeric_limits<float>::infinity()));
+    OVERTE_EXPECT(!isOpenXrHapticRequestUsable(
+        0.5f, -std::numeric_limits<float>::infinity()));
+    const float roundedIntegerMaximum =
+        static_cast<float>(std::numeric_limits<int>::max());
+    OVERTE_EXPECT(isOpenXrHapticRequestUsable(
+        0.5f, roundedIntegerMaximum) ==
+        (static_cast<double>(roundedIntegerMaximum) <=
+         std::numeric_limits<int>::max()));
+    const float safeLargeDuration =
+        std::nextafter(roundedIntegerMaximum, 0.0f);
+    OVERTE_EXPECT(isOpenXrHapticRequestUsable(
+        0.5f, safeLargeDuration));
+    const float oversizedDuration = std::nextafter(
+        roundedIntegerMaximum, std::numeric_limits<float>::infinity());
+    OVERTE_EXPECT(!isOpenXrHapticRequestUsable(
+        0.5f, oversizedDuration));
     OVERTE_EXPECT(!openXrHapticActionsReady(
         OpenXrHapticNone, true, true, true, true));
     OVERTE_EXPECT(openXrHapticActionsReady(
