@@ -12,7 +12,6 @@
 var LIFETIME_SECONDS = 60 * 60;
 var fixtureIDs = [];
 var avatarYaw = Quat.fromPitchYawRollDegrees(0, Quat.safeEulerAngles(MyAvatar.orientation).y, 0);
-var previousHighlightSnapshot = "";
 
 // Developer render tools use these global selection names and can leave a
 // head-directed outline in VR. They are unrelated to controller grab feedback
@@ -23,40 +22,6 @@ var previousHighlightSnapshot = "";
     Selection.removeListFromMap(selectionName);
 });
 console.info("PICO4_INTERACTION_TEST_STATION cleared developer hover highlights");
-
-function traceHighlights() {
-    var highlightedNames = Selection.getHighlightedListNames();
-    var listNames = Selection.getListNames();
-    var snapshot = {};
-    listNames.forEach(function (listName) {
-        snapshot[listName] = {
-            highlighted: highlightedNames.indexOf(listName) !== -1,
-            items: Selection.getSelectedItemsList(listName)
-        };
-    });
-    var serialized = JSON.stringify(snapshot);
-    if (serialized !== previousHighlightSnapshot) {
-        previousHighlightSnapshot = serialized;
-        console.info("PICO4_INTERACTION highlights " + serialized);
-    }
-}
-
-var highlightTraceTimer = Script.setInterval(traceHighlights, 1000);
-traceHighlights();
-
-Script.setTimeout(function () {
-    var renderHelpers = [];
-    Entities.findEntities(MyAvatar.position, 100).forEach(function (id) {
-        var properties = Entities.getEntityProperties(id, [
-            "type", "name", "visible", "alpha", "primitiveMode", "dimensions", "position"
-        ]);
-        if (properties.type === "PolyLine" || properties.primitiveMode === "lines") {
-            properties.id = id;
-            renderHelpers.push(properties);
-        }
-    });
-    console.info("PICO4_INTERACTION render helpers " + JSON.stringify(renderHelpers));
-}, 3000);
 
 function worldOffset(offset) {
     return Vec3.sum(MyAvatar.position, Vec3.multiplyQbyV(avatarYaw, offset));
@@ -139,11 +104,8 @@ addFixture({
 });
 
 console.info("PICO4_INTERACTION_TEST_STATION ready fixtures=" + JSON.stringify(fixtureIDs));
-Script.load(Script.resolvePath("pico4ObjectInteraction.js"));
-Script.load(Script.resolvePath("../tests/picoWebEntityTest.js"));
 
 Script.scriptEnding.connect(function () {
-    Script.clearInterval(highlightTraceTimer);
     fixtureIDs.forEach(function (id) {
         Entities.deleteEntity(id);
     });

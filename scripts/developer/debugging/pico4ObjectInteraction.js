@@ -5,7 +5,7 @@
 //  SPDX-License-Identifier: Apache-2.0
 //
 
-/* global Controller, HMD, MyAvatar, Script, console */
+/* global Controller, HMD, MyAvatar, Script, Messages, console */
 
 "use strict";
 
@@ -16,6 +16,7 @@ var handNames = ["left", "right"];
 var standard = Controller.Standard;
 var lastSummary = 0;
 var previous = [{}, {}];
+var MANIPULATION_CHANNEL = "Hifi-Object-Manipulation";
 var counters = {
     samples: 0,
     invalidPose: [0, 0],
@@ -86,7 +87,8 @@ function recordTransitions(hand, state) {
     }
     if (old.grip !== undefined && changedAcrossThreshold(old.grip, state.grip, 0.15)) {
         counters.gripTransitions[hand] += 1;
-        console.info("PICO4_INTERACTION grip " + handNames[hand] + " value=" + rounded(state.grip));
+        console.info("PICO4_INTERACTION grip " + handNames[hand] + " value=" + rounded(state.grip) +
+            " time=" + Date.now());
     }
     if (old.target !== undefined && old.target !== state.target) {
         counters.targetTransitions[hand] += 1;
@@ -94,6 +96,28 @@ function recordTransitions(hand, state) {
             " distance=" + state.distance);
     }
     previous[hand] = state;
+}
+
+function recordManipulation(channel, message, senderID, localOnly) {
+    if (channel !== MANIPULATION_CHANNEL || !localOnly) {
+        return;
+    }
+    var payload;
+    try {
+        payload = JSON.parse(message);
+    } catch (error) {
+        return;
+    }
+    if (payload.action !== "grab" && payload.action !== "release") {
+        return;
+    }
+    counters.manipulationEvents += 1;
+    console.info("PICO4_INTERACTION manipulation " + JSON.stringify({
+        time: Date.now(),
+        action: payload.action,
+        entity: payload.grabbedEntity,
+        joint: payload.joint
+    }));
 }
 
 function sample() {
@@ -123,10 +147,14 @@ function sample() {
 }
 
 Script.update.connect(sample);
+Messages.subscribe(MANIPULATION_CHANNEL);
+Messages.messageReceived.connect(recordManipulation);
 
 console.info("PICO4_INTERACTION started; exercise near/far grab, trigger, release and both hands.");
 
 Script.scriptEnding.connect(function () {
     Script.update.disconnect(sample);
+    Messages.messageReceived.disconnect(recordManipulation);
+    Messages.unsubscribe(MANIPULATION_CHANNEL);
     console.info("PICO4_INTERACTION summary " + JSON.stringify(counters));
 });

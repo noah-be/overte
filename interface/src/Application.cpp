@@ -3357,11 +3357,11 @@ void Application::update(float deltaTime) {
         }
     }
 
-    // Keep interaction fixtures opt-in to ADB/debug sessions. Start them only
-    // after the local scene is playable so their avatar-relative positions are
-    // not invalidated by the startup spawn handoff.
+    // These lightweight local fixtures are part of the Pico acceptance world,
+    // not instrumentation. Start them after the local scene is playable so
+    // their avatar-relative positions survive the startup spawn handoff.
     static bool picoInteractionTestStationRequested { false };
-    if (picoTestMode && !picoInteractionTestStationRequested &&
+    if (!picoInteractionTestStationRequested &&
             _picoServerlessSceneImportCommitted && _physicsEnabled) {
         picoInteractionTestStationRequested = true;
         QUrl testStationURL = PathUtils::defaultScriptsLocation();

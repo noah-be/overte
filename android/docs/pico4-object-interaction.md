@@ -94,6 +94,13 @@ mocked device-free regression is
 The script is diagnostic only. It does not create or modify test entities and
 does not replace the normal controller dispatcher.
 
+For dispatcher, laser, Near Grab and Far Grab edge records, explicitly load
+`scripts/developer/debugging/pico4InteractionTraceControl.js`. Stop that script
+after the capture. It is never loaded by the fixture station and normal Pico
+sessions therefore do not pay its logging cost. Earlier high-rate diagnostic
+captures measurably reduced whole-client responsiveness; timings captured with
+verbose diagnostics must not be treated as production latency.
+
 ## Hardware test matrix
 
 The Pico development client starts in the bundled, spawn-aligned test world
@@ -202,35 +209,30 @@ entities, so merely pointing at Hub scenery is not a valid grab test. Run
 `scripts/developer/debugging/pico4InteractionTestStation.js` to place a red
 near-grab cube, a blue far-grab cube, and a yellow non-grabbable control cube
 in front of the avatar. The fixtures are local, expire after one hour, and are
-removed when the script stops. The station also starts
-`pico4ObjectInteraction.js` so fixture interaction and controller state share
-the same Logcat capture. It removes the global `DebugWorkloadSelection` and
+removed when the script stops. The station does not start any diagnostic
+script. It removes the global
+`DebugWorkloadSelection` and
 `Hovering` developer-render selections at startup, because their
 mouse/gaze-directed pale-red outlines would invalidate the visual test.
 Controller grab highlighting is intentionally left unchanged.
-During a test run, changes to every remaining selection, its selected IDs, and
-whether highlighting is enabled are emitted as `PICO4_INTERACTION highlights`
-Logcat records. This includes scene-only lists used by legacy render-debug
-jobs.
-Nearby polyline and line-primitive render helpers are also recorded once after
-startup so unintended Create/Edit handles can be distinguished from selection
-highlights and controller rays.
-Far grabs emit `PICO4_FAR_GRAB` start, throttled update, and end records. These
-compare the physical entity position with the computed target and virtual
-far-grab joint, exposing failures between pointer acquisition, joint motion,
-and `MyAvatar.grab()` propagation.
+When the optional trace controller is running, grab and laser transition
+records can be correlated in Logcat without enabling the former continuous
+fixture sampling.
 
-Serverless imports and the interaction fixtures use `local` entities. Their
-far-grab target is updated directly from the already computed controller target
-because the avatar-relative physics action does not propagate motion for this
-host type. Domain and avatar entities continue to use the standard
-`MyAvatar.grab()` path. Entity-script callbacks and manipulation messages are
-preserved in both paths.
+Serverless imports and the interaction fixtures use `local` entities. A simple,
+unparented local Far Grab is parented directly to the actual avatar controller
+joint after a fail-closed eligibility check. This avoids the delayed local
+physics-action presentation path while preserving the initial world transform
+and restoring the previous parent on release. Domain and avatar entities retain
+the standard `MyAvatar.grab()` and entity-script paths.
 
 While either hand holds a far-grab, the Pico right thumbstick adjusts target
 depth: forward moves the object farther away and backward brings it closer.
 The input uses a `0.2` deadzone, scales speed with the current distance, and is
-clamped to a `0.25`–`20 m` range. The existing lateral controller motion and
+clamped to a `0.25`–`20 m` range. A separate 60 Hz script engine performs this
+local-only update through `Entities.setLocalEntityPosition()`, which rejects
+domain/avatar entities and invalid coordinates and avoids edit packets,
+ownership bids and octree traversal. The existing lateral controller motion and
 off-hand rotation behavior remain available. Pico disables the legacy radial
 hand-velocity depth adjustment because small controller motion while squeezing
 the trigger was amplified and pulled a newly selected object toward the hand.
@@ -246,11 +248,19 @@ connection, so this produced a permanent red head-relative rectangle despite a
 successfully loaded world. The border now treats both application and domain-
 handler serverless modes as valid; genuine failed online connections still show
 the warning.
-When the Android property `debug.overte.test_mode` is `1`, the Pico client
-starts the station once automatically after the local scene is committed and
-physics is enabled. It does not depend on the loading overlay's script state.
-Normal launches remain unchanged, and the fixtures are placed relative to the
-serverless avatar spawn.
+The Pico client starts the lightweight fixture station on every launch after
+the local acceptance scene is committed and physics is enabled. The fixtures
+are placed relative to the serverless avatar spawn. This does not enable edge,
+dispatcher, controller-sampling, or other interaction diagnostics; those
+remain explicit developer actions.
+
+Pico interaction thresholds are centralized under `pico/interaction/*` and are
+available on the Pico-only Settings page. Invalid or non-monotonic trigger
+threshold combinations fall back to the tested defaults: release `0.05`, white
+laser `0.10`, green selection `0.50`, and purple Far Grab `0.90`; Grip uses
+release `0.10` and grab `0.50`. The independent world-laser worker reads the
+same shared values, so a fast full press does not remain green while entity
+lookup and grab initialization complete.
 
 1. Point each controller at the same visible landmark. Confirm the logged
    target changes where the rendered ray crosses the landmark.

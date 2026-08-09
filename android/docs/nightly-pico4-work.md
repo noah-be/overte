@@ -1956,6 +1956,51 @@ headset, ADB, Android device, external domain, or device setting is used.
   headset**. Physical controller, visual and subjective audio checks remain
   **not executed**.
 
+### 107 — Local object-interaction latency and controls
+
+- Branch: `nightly/pico4-107-near-grab-timeline`
+- Commit: identified by subject `Optimize Pico local object interaction`; the
+  exact hash is recorded in the final session report.
+- Change: add opt-in transition tracing for trigger/Grip, dispatcher, pointer,
+  Near Grab and Far Grab edges, then use the captures to separate diagnostic
+  overhead from the production interaction path. Simple unparented local Far
+  Grab fixtures now follow the real controller joint directly through a
+  fail-closed local fast path and restore their original parent and transform on
+  release. A separate 60 Hz worker performs bounded thumbstick depth updates
+  through a new local-entity-only native position API. Release edges terminate
+  active Near/Far grabs immediately. Central validated Pico thresholds drive
+  both grab decisions and the white/green/purple world-ray states and are
+  exposed on a Pico-only Settings page. The lightweight fixture station loads
+  for the local acceptance world without enabling diagnostics.
+- Passed: JavaScript syntax for every changed runtime script; expanded Pico
+  interaction regression; complete `android/tests/pico-device-free-test.sh`;
+  full ARM64 debug APK build (`41` Gradle tasks, `BUILD SUCCESSFUL`); update APK
+  installation and unattended cold start on Pico 4. The packaged app reached
+  the local scene, created all four fixtures, started the independent Far Grab
+  worker, stabilized at the requested `72/72` runtime FPS, and emitted no
+  matching fatal, JavaScript, JNI or OpenXR startup error. Final diff checks are
+  recorded in the session report.
+- Measured result: verbose 20 Hz fixture/dispatcher instrumentation caused
+  whole-client locomotion, tablet and interaction stutter and was removed from
+  automatic startup. With production diagnostics disabled, the tester confirmed
+  smooth global behavior, immediate Near Grab release, near-real-time local Far
+  Grab controller following, and smooth continuous thumbstick depth adjustment.
+  White at `0.10`, green at `0.50`, and purple at the shared `0.90` grab
+  threshold were distinguishable; a fast press now advances to purple without
+  waiting for entity initialization.
+- Risk: the native fast update is deliberately limited to local entities.
+  Domain/avatar entities retain their established network/physics paths. The
+  worker's render-state update applies only to world pointers, not tablet/HUD
+  pointers. Optional tracing can still perturb timing and must be stopped for
+  production comparisons.
+- Pico 4 validation: **executed manually** for the bundled red local Near Grab
+  fixture and blue local Far Grab fixture: acquisition/release, lateral
+  following, rapid controller movement, depth adjustment and three laser states
+  passed to the tester's stated acceptance level. Tracking loss, off-hand
+  rotation, both hands, domain-hosted entities and long-duration interaction
+  were **not executed**. No thermal or quantitative motion-to-photon claim is
+  made.
+
 ## Deferred, rejected, or blocked ideas
 
 - Full `scriptURL`, Qt WebChannel, and bidirectional `EventBridge` emulation for
@@ -1966,10 +2011,10 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Tablet/HUD Web surfaces remain separate from the Pico world-Web-entity
   bridge, as established by the renderer audit. Replacing them would expand
   scope and risk already working UI paths.
-- Grab-latency, ray offsets, visual alpha quality, audio quality/AEC, thermal
-  behavior, and render parameters were not tuned. Their effect cannot be
-  established without physical controllers, display/audio observation, or a
-  headset; diagnostics and exact checks are provided instead.
+- Remaining ray offsets, visual alpha quality, audio quality/AEC, thermal
+  behavior, and render parameters were not tuned without corresponding
+  measurements. Local fixture interaction latency was improved and manually
+  accepted in Task 107, but no quantitative motion-to-photon result is claimed.
 - Off-hand rotation was not reimplemented because Pico already inherits the
   desktop mapping. Only the inaccurate validation status was corrected.
 - Entity List/import, mirror/secondary-camera, and remaining Create paths showed
@@ -1982,16 +2027,23 @@ headset, ADB, Android device, external domain, or device setting is used.
   restored through the documented setup path and full/incremental ARM64 builds
   passed; Android compilation is no longer blocked.
 
-## Remaining work
+## Possible next steps
+
+These are follow-up candidates, not known merge-blocking regressions:
 
 1. Configure a separate native host-test build tree and run its Qt/C++ suites;
    the Android Java/JNI/C++ client already builds and packages successfully.
 2. Design and review the WebChannel/EventBridge security and compatibility
    contract before implementing `scriptURL` or page-to-entity messaging.
-3. Execute the remaining worn/manual headset checks below and use their traces
-   to decide whether grab/pointer performance work or pose correction is justified.
+3. Execute the remaining worn/manual headset checks below and use opt-in edge
+   traces only when needed; measure before changing pose offsets or performance
+   parameters.
 4. Investigate the broad Create, avatar/camera, and reconnect areas only from a
    reproducible failing scenario or a new device-free unit seam.
+5. Run unattended lifecycle follow-ups: repeated cold starts, serverless/online
+   navigation, Activity suspend/resume where ADB can exercise it, sustained
+   microphone telemetry, WebView/JNI error-log checks, and clean-production CPU
+   profiling.
 
 ## Cumulative remaining device validation
 
