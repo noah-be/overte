@@ -33,6 +33,14 @@ int main() {
     assert(isOpenXrSwapchainImageWaitComplete(true, false));
     assert(!isOpenXrFramePresentationComplete(false));
     assert(isOpenXrFramePresentationComplete(true));
+    assert(openXrSessionChildCleanup(false, false) ==
+           OpenXrSessionChildCleanup::Noop);
+    assert(openXrSessionChildCleanup(false, true) ==
+           OpenXrSessionChildCleanup::Noop);
+    assert(openXrSessionChildCleanup(true, false) ==
+           OpenXrSessionChildCleanup::ClearOnly);
+    assert(openXrSessionChildCleanup(true, true) ==
+           OpenXrSessionChildCleanup::DestroyAndClear);
     assert(!isOpenXrFoveationProfileUsable(false, false));
     assert(!isOpenXrFoveationProfileUsable(false, true));
     assert(!isOpenXrFoveationProfileUsable(true, false));

@@ -399,18 +399,31 @@ bool OpenXrDisplayPlugin::initSwapChains() {
 }
 
 void OpenXrDisplayPlugin::destroySwapChains() {
+    const bool sessionAlive = _context &&
+        _context->_session != XR_NULL_HANDLE;
 #if defined(Q_OS_ANDROID)
-    if (_foveationProfile != XR_NULL_HANDLE && _context->xrDestroyFoveationProfileFB) {
+    const auto foveationCleanup = openXrSessionChildCleanup(
+        _foveationProfile != XR_NULL_HANDLE, sessionAlive);
+    if (foveationCleanup == OpenXrSessionChildCleanup::DestroyAndClear &&
+            _context->xrDestroyFoveationProfileFB) {
         xrCheck(_context->_instance, _context->xrDestroyFoveationProfileFB(_foveationProfile),
                 "Failed to destroy foveation profile");
+    }
+    if (foveationCleanup != OpenXrSessionChildCleanup::Noop) {
         _foveationProfile = XR_NULL_HANDLE;
     }
 #endif
-    destroyOpenXrHandles(_swapChains, static_cast<XrSwapchain>(XR_NULL_HANDLE),
-                         [this](XrSwapchain swapchain) {
-        return xrCheck(_context->_instance, xrDestroySwapchain(swapchain),
-                       "Failed to destroy swapchain");
-    });
+    for (XrSwapchain& swapchain : _swapChains) {
+        const auto cleanup = openXrSessionChildCleanup(
+            swapchain != XR_NULL_HANDLE, sessionAlive);
+        if (cleanup == OpenXrSessionChildCleanup::DestroyAndClear) {
+            xrCheck(_context->_instance, xrDestroySwapchain(swapchain),
+                    "Failed to destroy swapchain");
+        }
+        if (cleanup != OpenXrSessionChildCleanup::Noop) {
+            swapchain = XR_NULL_HANDLE;
+        }
+    }
     for (auto& images : _images) {
         images.clear();
     }

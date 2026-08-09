@@ -31,6 +31,19 @@ constexpr bool isOpenXrFramePresentationComplete(bool endFrameSucceeded) {
     return endFrameSucceeded;
 }
 
+enum class OpenXrSessionChildCleanup {
+    Noop,
+    ClearOnly,
+    DestroyAndClear,
+};
+
+constexpr OpenXrSessionChildCleanup openXrSessionChildCleanup(
+        bool handleIsNonNull, bool sessionIsAlive) {
+    return !handleIsNonNull ? OpenXrSessionChildCleanup::Noop
+        : (sessionIsAlive ? OpenXrSessionChildCleanup::DestroyAndClear
+                          : OpenXrSessionChildCleanup::ClearOnly);
+}
+
 inline bool isOpenXrFoveationProfileUsable(
         bool createSucceeded, bool handleIsNonNull) {
     return createSucceeded && handleIsNonNull;
