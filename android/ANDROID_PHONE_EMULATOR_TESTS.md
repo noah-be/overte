@@ -77,6 +77,27 @@ The complete workflow is:
 command, which makes repeated local test runs faster. Build parallelism can be
 limited with `PHONE_BUILD_JOBS=<count>`.
 
+To reproduce an intermittent instrumentation failure without repeatedly running
+the complete device suite, select one fully-qualified test class (or one
+`Class#method`) and a bounded repetition count:
+
+```bash
+PHONE_EMULATOR_TEST_CLASS=org.overte.phone.PhoneColdLaunchInstrumentedTest \
+PHONE_EMULATOR_TEST_REPETITIONS=10 \
+    ./phone-emulator-test.sh test
+```
+
+The repetition count must be between 1 and 25. Counts above one require a class
+filter, preventing an accidental expensive repetition of the complete suite.
+Every attempt is forced through Gradle even when its inputs are unchanged.
+
+If instrumentation fails, the runner stops at that attempt and prints the path
+to a diagnostic directory below `build/phone-emulator/diagnostics/`. It contains
+the complete Gradle/instrumentation output, general and crash-buffer logcat,
+Activity state, Android native-crash DropBox output, and the available tombstone
+listing. Diagnostic collection is best-effort and never hides the original test
+exit status.
+
 ## Validated baseline
 
 The initial implementation was validated locally with the `overte_api35` API
@@ -112,13 +133,13 @@ is retained as the evidence for the initial emulator implementation.
 
 ## Recommended next steps
 
-1. Extend the cold-launch test with bounded failure diagnostics and repeat it
-   ten times to establish its flake-free emulator baseline.
+1. Run the cold-launch instrumentation class repeatedly to establish its
+   flake-free emulator baseline.
 2. Cover the first high-value UI flows: permission denial and Settings recovery,
    login or serverless entry,
    opening and closing the Tablet, settings, deep links, and Activity restart.
-3. Capture filtered logcat, a screenshot, Activity/window state, and native
-   crash or tombstone hints automatically whenever a device test fails.
+3. Add a screenshot and narrower package-specific log filtering to the automatic
+   failure diagnostics where they improve investigations.
 4. Record cold and warm build times. Evaluate `ccache`, persistent Conan and
    Gradle caches, AVD snapshots, and the cost of the generated render-pipeline
    translation unit.
