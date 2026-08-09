@@ -59,41 +59,47 @@ public class UserStoryDomainProvider implements DomainProvider {
 
     private void fillDestinations(String filterText, DomainCallback domainCallback) {
         StoriesFilter filter = new StoriesFilter(filterText);
-
-        List<UserStory> taggedStories = new ArrayList<>();
-        Set<String> taggedStoriesIds = new HashSet<>();
-        getUserStoryPage(1, taggedStories, TAGS_TO_SEARCH,
-                e -> {
-                    if (e != null) {
-                        notifyRetrieveError(domainCallback, e);
-                        return;
-                    }
-                    taggedStories.forEach(userStory -> {
-                        taggedStoriesIds.add(userStory.id);
-                    });
-
-                    allStories.clear();
-                    getUserStoryPage(1, allStories, null,
-                            ex -> {
-                                if (ex != null) {
-                                    notifyRetrieveError(domainCallback, ex);
-                                    return;
-                                }
-                                suggestions.clear();
-                                allStories.forEach(userStory -> {
-                                    if (taggedStoriesIds.contains(userStory.id)) {
-                                        userStory.tagFound = true;
-                                    }
-                                    filter.filterOrAdd(userStory);
-                                });
-                                if (domainCallback != null) {
-                                    domainCallback.retrieveOk(suggestions); //ended
-                                }
-                            }
-                    );
-
+        UserStoryRetrievalCoordinator.retrieve((tagsFilter, callback) -> {
+            List<UserStory> destination = new ArrayList<>();
+            getUserStoryPage(1, destination, tagsFilter, error -> {
+                if (error == null) {
+                    callback.success(destination);
+                } else {
+                    callback.failure(error);
                 }
-        );
+            });
+        }, TAGS_TO_SEARCH, new UserStoryRetrievalCoordinator.Completion<UserStory>() {
+            @Override
+            public void success(List<UserStory> taggedStories, List<UserStory> retrievedStories) {
+                Set<String> taggedStoriesIds = new HashSet<>();
+                taggedStories.forEach(userStory -> {
+                    if (userStory != null) {
+                        taggedStoriesIds.add(userStory.id);
+                    }
+                });
+                allStories.clear();
+                retrievedStories.forEach(userStory -> {
+                    if (userStory != null) {
+                        allStories.add(userStory);
+                    }
+                });
+                suggestions.clear();
+                allStories.forEach(userStory -> {
+                    if (taggedStoriesIds.contains(userStory.id)) {
+                        userStory.tagFound = true;
+                    }
+                    filter.filterOrAdd(userStory);
+                });
+                if (domainCallback != null) {
+                    domainCallback.retrieveOk(suggestions);
+                }
+            }
+
+            @Override
+            public void failure(Exception error) {
+                notifyRetrieveError(domainCallback, error);
+            }
+        });
     }
 
     private synchronized void notifyRetrieveError(

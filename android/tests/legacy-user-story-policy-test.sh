@@ -13,7 +13,9 @@ javac -d "$output" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/LegacyUserPolicy.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/LegacyCrashDumpPolicy.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/provider/UserStoryDomainPolicy.java" \
+    "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/provider/UserStoryRetrievalCoordinator.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/provider/UserStoryDomainPolicyStandaloneTest.java" \
+    "$android_root/tests/java/io/highfidelity/hifiinterface/provider/UserStoryRetrievalCoordinatorStandaloneTest.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyAssetTextPolicyStandaloneTest.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyAdapterPositionPolicyStandaloneTest.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyDomainLocationPolicyStandaloneTest.java" \
@@ -21,6 +23,8 @@ javac -d "$output" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyCrashDumpPolicyStandaloneTest.java"
 java -Djava.io.tmpdir="$output" -cp "$output" \
     io.highfidelity.hifiinterface.provider.UserStoryDomainPolicyStandaloneTest
+java -Djava.io.tmpdir="$output" -cp "$output" \
+    io.highfidelity.hifiinterface.provider.UserStoryRetrievalCoordinatorStandaloneTest
 java -Djava.io.tmpdir="$output" -cp "$output" \
     io.highfidelity.hifiinterface.LegacyAssetTextPolicyStandaloneTest
 java -Djava.io.tmpdir="$output" -cp "$output" \
