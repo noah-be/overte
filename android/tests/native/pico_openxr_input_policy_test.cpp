@@ -43,6 +43,19 @@ int main() {
     OVERTE_EXPECT(openXrHandJointFlagsSatisfy(orientation, orientation));
     OVERTE_EXPECT(!openXrHandJointFlagsSatisfy(position, orientation));
     OVERTE_EXPECT(openXrHandJointFlagsSatisfy(0, 0));
+    OVERTE_EXPECT(!openXrPoseFlagsSatisfy(0, pose));
+    OVERTE_EXPECT(!openXrPoseFlagsSatisfy(position, pose));
+    OVERTE_EXPECT(!openXrPoseFlagsSatisfy(orientation, pose));
+    OVERTE_EXPECT(openXrPoseFlagsSatisfy(pose, pose));
+    OVERTE_EXPECT(openXrPoseFlagsSatisfy(pose | tracked, pose));
+
+    for (unsigned int mask = 0; mask < 16; ++mask) {
+        OVERTE_EXPECT(openXrPoseActionCanLocate(
+                   (mask & 1U) != 0,
+                   (mask & 2U) != 0,
+                   (mask & 4U) != 0,
+                   (mask & 8U) != 0) == (mask == 15U));
+    }
 
     OVERTE_EXPECT(!openXrBoundedEnumerationUsable(false, 0, 16));
     OVERTE_EXPECT(openXrBoundedEnumerationUsable(true, 0, 16));

@@ -26,9 +26,23 @@ constexpr bool openXrHandJointOutputUsable(
     return locateSucceeded && isActive;
 }
 
-constexpr bool openXrHandJointFlagsSatisfy(
+constexpr bool openXrPoseFlagsSatisfy(
         unsigned long long actualFlags, unsigned long long requiredFlags) {
     return (actualFlags & requiredFlags) == requiredFlags;
+}
+
+constexpr bool openXrHandJointFlagsSatisfy(
+        unsigned long long actualFlags, unsigned long long requiredFlags) {
+    return openXrPoseFlagsSatisfy(actualFlags, requiredFlags);
+}
+
+constexpr bool openXrPoseActionCanLocate(
+        bool actionStateSucceeded,
+        bool actionIsActive,
+        bool poseSpaceIsNonNull,
+        bool predictionAvailable) {
+    return actionStateSucceeded && actionIsActive && poseSpaceIsNonNull &&
+        predictionAvailable;
 }
 
 constexpr bool openXrBoundedEnumerationUsable(
@@ -48,7 +62,7 @@ constexpr bool openXrLocatedPoseUsable(
         unsigned long long actualFlags,
         unsigned long long requiredFlags) {
     return spaceIsNonNull && predictionAvailable && locateSucceeded &&
-        openXrHandJointFlagsSatisfy(actualFlags, requiredFlags);
+        openXrPoseFlagsSatisfy(actualFlags, requiredFlags);
 }
 
 enum class OpenXrOwnedHandleCleanup {

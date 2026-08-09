@@ -481,6 +481,9 @@ XrActionStateBoolean OpenXrInputPlugin::Action::getBool() {
 }
 
 XrSpaceLocation OpenXrInputPlugin::Action::getPose() {
+    XrSpaceLocation location = {
+        .type = XR_TYPE_SPACE_LOCATION,
+    };
     XrActionStatePose state = {
         .type = XR_TYPE_ACTION_STATE_POSE,
     };
@@ -489,16 +492,22 @@ XrSpaceLocation OpenXrInputPlugin::Action::getPose() {
         .action = _action,
     };
 
-    XrResult result = xrGetActionStatePose(_context->_session, &info, &state);
-    xrCheck(_context->_instance, result, "failed to get pose value!");
-
-    XrSpaceLocation location = {
-        .type = XR_TYPE_SPACE_LOCATION,
-    };
-
-    if (_context->_lastPredictedDisplayTime.has_value()) {
-        result = xrLocateSpace(_poseSpace, _context->_stageSpace, _context->inputPredictionTime(), &location);
-        xrCheck(_context->_instance, result, "Failed to locate hand space!");
+    const bool stateSucceeded = xrCheck(
+        _context->_instance,
+        xrGetActionStatePose(_context->_session, &info, &state),
+        "failed to get pose value!");
+    if (!openXrPoseActionCanLocate(
+            stateSucceeded, state.isActive, _poseSpace != XR_NULL_HANDLE,
+            _context->_lastPredictedDisplayTime.has_value())) {
+        return location;
+    }
+    const bool locateSucceeded = xrCheck(
+        _context->_instance,
+        xrLocateSpace(_poseSpace, _context->_stageSpace,
+                      _context->inputPredictionTime(), &location),
+        "Failed to locate hand space!");
+    if (!locateSucceeded) {
+        location.locationFlags = 0;
     }
 
     return location;
@@ -513,10 +522,10 @@ bool OpenXrInputPlugin::Action::isPoseActive() {
         .action = _action,
     };
 
-    XrResult result = xrGetActionStatePose(_context->_session, &info, &state);
-    xrCheck(_context->_instance, result, "failed to get pose value!");
-
-    return state.isActive;
+    return xrCheck(
+        _context->_instance,
+        xrGetActionStatePose(_context->_session, &info, &state),
+        "failed to get pose value!") && state.isActive;
 }
 
 bool OpenXrInputPlugin::Action::applyHaptic(XrDuration duration, float frequency, float amplitude) {
@@ -1621,7 +1630,11 @@ void OpenXrInputPlugin::InputDevice::updateBodyFromViveTrackers(const mat4& sens
 
     auto handlePose = [&](std::string action, StandardPoseChannel channel) {
         XrSpaceLocation location = _actions.at(action)->getPose();
-        bool locationValid = (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0;
+        constexpr XrSpaceLocationFlags requiredFlags =
+            XR_SPACE_LOCATION_POSITION_VALID_BIT |
+            XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+        bool locationValid = openXrPoseFlagsSatisfy(
+            location.locationFlags, requiredFlags);
         if (locationValid) {
             vec3 translation = xrVecToGlm(location.pose.position);
             quat rotation = xrQuatToGlm(location.pose.orientation);
