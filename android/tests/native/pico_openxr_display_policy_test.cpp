@@ -47,6 +47,22 @@ int main() {
     assert(isOpenXrEnumerationCountWithinCapacity(maximum, maximum));
     assert(!isOpenXrEnumerationCountWithinCapacity(maximum - 1, maximum));
 
+    constexpr std::uint64_t positionValid = 1ULL << 0;
+    constexpr std::uint64_t orientationValid = 1ULL << 1;
+    constexpr std::uint64_t tracked = 1ULL << 2;
+    constexpr std::uint64_t requiredPose = positionValid | orientationValid;
+    assert(!isOpenXrLocatedPoseUsable(false, 0, requiredPose));
+    assert(!isOpenXrLocatedPoseUsable(false, requiredPose, requiredPose));
+    assert(!isOpenXrLocatedPoseUsable(true, 0, requiredPose));
+    assert(!isOpenXrLocatedPoseUsable(true, positionValid, requiredPose));
+    assert(!isOpenXrLocatedPoseUsable(true, orientationValid, requiredPose));
+    assert(isOpenXrLocatedPoseUsable(true, requiredPose, requiredPose));
+    assert(isOpenXrLocatedPoseUsable(
+        true, requiredPose | tracked, requiredPose));
+    assert(!isOpenXrLocatedPoseUsable(true, tracked, requiredPose));
+    assert(isOpenXrLocatedPoseUsable(true, 0, 0));
+    assert(!isOpenXrLocatedPoseUsable(false, 0, 0));
+
     assert(selectLowestUsableOpenXrRefreshRate(nullptr, 0) == 0.0f);
     assert(selectLowestUsableOpenXrRefreshRate(nullptr, 2) == 0.0f);
     const float oneRate[] = { 72.0f };

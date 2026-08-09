@@ -32,6 +32,14 @@ inline bool isOpenXrEnumerationCountWithinCapacity(
     return returnedCount <= capacity;
 }
 
+constexpr bool isOpenXrLocatedPoseUsable(
+        bool locateSucceeded,
+        std::uint64_t actualFlags,
+        std::uint64_t requiredFlags) {
+    return locateSucceeded &&
+        (actualFlags & requiredFlags) == requiredFlags;
+}
+
 inline float selectLowestUsableOpenXrRefreshRate(
         const float* rates, std::size_t count) {
     if (rates == nullptr || count == 0) {

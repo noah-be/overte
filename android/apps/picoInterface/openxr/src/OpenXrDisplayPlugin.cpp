@@ -798,7 +798,19 @@ void OpenXrDisplayPlugin::updatePresentPose() {
         .type = XR_TYPE_SPACE_LOCATION,
         .pose = XR_INDENTITY_POSE,
     };
-    xrLocateSpace(_context->_viewSpace, _context->_stageSpace, predictedDisplayTime, &headLocation);
+    const bool headLocated = xrCheck(
+        _context->_instance,
+        xrLocateSpace(
+            _context->_viewSpace, _context->_stageSpace,
+            predictedDisplayTime, &headLocation),
+        "Could not locate head pose");
+    constexpr XrSpaceLocationFlags requiredHeadFlags =
+        XR_SPACE_LOCATION_POSITION_VALID_BIT |
+        XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+    if (!isOpenXrLocatedPoseUsable(
+            headLocated, headLocation.locationFlags, requiredHeadFlags)) {
+        return;
+    }
 
     glm::vec3 headPosition = xrVecToGlm(headLocation.pose.position);
     glm::quat headOrientation = xrQuatToGlm(headLocation.pose.orientation);
