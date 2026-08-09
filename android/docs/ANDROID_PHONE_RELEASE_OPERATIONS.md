@@ -59,6 +59,15 @@ events at runner-group level. Restrict the runner group to this repository and
 the protected RC workflow; use outbound network allowlisting where practical.
 Destroy or scrub the workspace, process environment and Gradle state after every job.
 
+A standard GitHub-hosted Ubuntu runner is not currently a supported substitute:
+its 14 GB workspace is smaller than the observed combined Phone Conan and
+Gradle output before checkout and download staging are included. Re-evaluate a
+hosted runner only after the dependency/package footprint is proven below its
+ephemeral disk limit, or use an appropriately sized GitHub-hosted larger runner
+when the repository is owned by an eligible organization. No signing-secret
+argument remains for self-hosting; the current requirement is resource capacity
+only.
+
 The acceptance runner is separate and labeled
 `self-hosted, linux, x64, overte-android-phone-emulator`. Give it one disposable
 ARM64/API-26-or-newer touchscreen emulator, ADB, `gh`, Build Tools 36.0.0, and
