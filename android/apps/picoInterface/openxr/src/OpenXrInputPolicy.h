@@ -58,6 +58,14 @@ constexpr bool openXrPoseFlagsSatisfy(
     return (actualFlags & requiredFlags) == requiredFlags;
 }
 
+constexpr bool openXrControllerPoseUsable(
+        unsigned long long actualFlags,
+        unsigned long long positionValidBit,
+        unsigned long long orientationValidBit) {
+    return openXrPoseFlagsSatisfy(
+        actualFlags, positionValidBit | orientationValidBit);
+}
+
 constexpr bool openXrHandJointFlagsSatisfy(
         unsigned long long actualFlags, unsigned long long requiredFlags) {
     return openXrPoseFlagsSatisfy(actualFlags, requiredFlags);

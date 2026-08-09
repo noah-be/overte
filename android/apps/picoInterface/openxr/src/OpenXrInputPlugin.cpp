@@ -1289,7 +1289,10 @@ void OpenXrInputPlugin::InputDevice::update(float deltaTime, const controller::I
             handLocation = _actions.at(grip_path)->getPose();
         }
 
-        bool locationValid = (handLocation.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0;
+        bool locationValid = openXrControllerPoseUsable(
+            handLocation.locationFlags,
+            XR_SPACE_LOCATION_POSITION_VALID_BIT,
+            XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
         if (locationValid) {
             vec3 translation = xrVecToGlm(handLocation.pose.position);
             quat rotation = xrQuatToGlm(handLocation.pose.orientation);

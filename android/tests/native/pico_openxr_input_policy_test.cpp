@@ -70,6 +70,20 @@ int main() {
     OVERTE_EXPECT(!openXrPoseFlagsSatisfy(orientation, pose));
     OVERTE_EXPECT(openXrPoseFlagsSatisfy(pose, pose));
     OVERTE_EXPECT(openXrPoseFlagsSatisfy(pose | tracked, pose));
+    OVERTE_EXPECT(!openXrControllerPoseUsable(
+        0, position, orientation));
+    OVERTE_EXPECT(!openXrControllerPoseUsable(
+        position, position, orientation));
+    OVERTE_EXPECT(!openXrControllerPoseUsable(
+        orientation, position, orientation));
+    OVERTE_EXPECT(openXrControllerPoseUsable(
+        pose, position, orientation));
+    OVERTE_EXPECT(openXrControllerPoseUsable(
+        pose | tracked, position, orientation));
+    OVERTE_EXPECT(!openXrControllerPoseUsable(
+        position | tracked, position, orientation));
+    OVERTE_EXPECT(!openXrControllerPoseUsable(
+        orientation | tracked, position, orientation));
 
     for (unsigned int mask = 0; mask < 16; ++mask) {
         OVERTE_EXPECT(openXrPoseActionCanLocate(
