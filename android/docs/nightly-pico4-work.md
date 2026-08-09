@@ -1752,8 +1752,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 97 — XDev uncalibration state reset
 
 - Branch: `nightly/pico4-97-openxr-tracker-uncalibrate`
-- Commit: identified by subject `Reset Pico XDev roles on uncalibrate`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `90b2a71f1c` (`Reset Pico XDev roles on uncalibrate`)
 - Change: mutate stored XDev trackers by reference when clearing inferred pose
   channels. Previously `uncalibrate()` reset only temporary copies, leaving stale
   foot/hip/chest roles active after calibration data was cleared.
@@ -1765,6 +1764,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Calibrate XDev trackers, uncalibrate, move
   each tracker and verify no old body channel updates until calibration is run
   again; then verify roles are assigned from the new placement.
+
+### 98 — OpenXR calibration setting validation
+
+- Branch: `nightly/pico4-98-openxr-calibration-settings`
+- Commit: identified by subject `Validate Pico OpenXR calibration settings`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: deserialize persisted `[x,y,z,w]` quaternions in GLM's required
+  `(w,x,y,z)` constructor order, reject wrong-size/non-numeric/non-finite arrays
+  and zero-length rotations, then normalize accepted rotations. The shared
+  desktop OpenXR copy is kept format-compatible with Pico settings.
+- Regression: input contracts enforce identical Pico/desktop array validation,
+  constructor order, norm guard, normalization and serializer order.
+- Passed: targeted OpenXR input/lifecycle contracts; `git diff --check`.
+- Risk: malformed or historically misread calibration entries are skipped; valid
+  stored settings now round-trip to the rotation that was originally serialized.
+- Pico 4 validation: **not executed**. Save a non-identity tracker calibration,
+  restart and compare pose alignment; inject truncated, string, non-finite and
+  zero-quaternion settings and verify they are ignored without corrupting poses.
 
 ## Deferred, rejected, or blocked ideas
 

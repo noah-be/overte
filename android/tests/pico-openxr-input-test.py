@@ -22,6 +22,10 @@ CONTEXT_HEADER = (
     Path(__file__).resolve().parents[2]
     / "android/apps/picoInterface/openxr/src/OpenXrContext.h"
 ).read_text(encoding="utf-8")
+DESKTOP_SOURCE = (
+    Path(__file__).resolve().parents[2]
+    / "plugins/openxr/src/OpenXrInputPlugin.cpp"
+).read_text(encoding="utf-8")
 
 
 class OpenXrInputStateTest(unittest.TestCase):
@@ -359,6 +363,28 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertLess(role_clear, calibration_clear)
         self.assertLess(calibration_clear, pending_clear)
         self.assertNotIn("for (auto [_, tracker]", uncalibrate)
+
+    def test_calibration_settings_validate_and_preserve_quaternion_order(self):
+        for source in (SOURCE, DESKTOP_SOURCE):
+            start = source.index("void OpenXrInputPlugin::setConfigurationSettings")
+            end = source.index("QJsonObject OpenXrInputPlugin::configurationSettings()", start)
+            settings = source[start:end]
+            sizes = settings.index("values.size() != expectedSize")
+            numeric = settings.index("!value.isDouble()", sizes)
+            finite = settings.index("!std::isfinite(value.toDouble())", numeric)
+            construct = settings.index("quat(rotationArray[3].toDouble()", finite)
+            norm_guard = settings.index("rotationLength <= std::numeric_limits<float>::epsilon()", construct)
+            publish = settings.index("rotation / rotationLength", norm_guard)
+            self.assertLess(sizes, numeric)
+            self.assertLess(numeric, finite)
+            self.assertLess(finite, construct)
+            self.assertLess(construct, norm_guard)
+            self.assertLess(norm_guard, publish)
+            self.assertIn("finiteNumbers(translationArray, 3)", settings)
+            self.assertIn("finiteNumbers(rotationArray, 4)", settings)
+
+            serializer = source[end:source.index("QString OpenXrInputPlugin::configurationLayout", end)]
+            self.assertIn("QJsonArray { rotation.x, rotation.y, rotation.z, rotation.w }", serializer)
 
     def test_xdev_enumeration_and_space_publication_are_transactional(self):
         start = SOURCE.index("if (_context->_MNDX_xdevSpaceSupported)")

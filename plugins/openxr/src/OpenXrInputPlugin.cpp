@@ -9,6 +9,8 @@
 
 #include <glm/ext.hpp>
 #include <QJsonArray>
+#include <cmath>
+#include <limits>
 #include <tuple>
 
 #include "OpenXrInputPlugin.h"
@@ -209,11 +211,32 @@ void OpenXrInputPlugin::setConfigurationSettings(const QJsonObject configuration
         auto translationArray = value.value("translation").toArray();
         auto rotationArray = value.value("rotation").toArray();
 
+        const auto finiteNumbers = [](const QJsonArray& values, int expectedSize) {
+            if (values.size() != expectedSize) {
+                return false;
+            }
+            for (const auto& value : values) {
+                if (!value.isDouble() || !std::isfinite(value.toDouble())) {
+                    return false;
+                }
+            }
+            return true;
+        };
+        if (!finiteNumbers(translationArray, 3) || !finiteNumbers(rotationArray, 4)) {
+            continue;
+        }
+
         auto channel = stringToPoseChannel.at(key);
         auto translation = vec3(translationArray[0].toDouble(), translationArray[1].toDouble(), translationArray[2].toDouble());
-        auto rotation = quat(rotationArray[0].toDouble(), rotationArray[1].toDouble(), rotationArray[2].toDouble(), rotationArray[3].toDouble());
+        // Settings serialize quaternion components as x, y, z, w; GLM constructs them as w, x, y, z.
+        auto rotation = quat(rotationArray[3].toDouble(), rotationArray[0].toDouble(),
+            rotationArray[1].toDouble(), rotationArray[2].toDouble());
+        const auto rotationLength = glm::length(rotation);
+        if (!std::isfinite(rotationLength) || rotationLength <= std::numeric_limits<float>::epsilon()) {
+            continue;
+        }
 
-        _inputDevice->_trackerCalibrations[channel] = controller::Pose(translation, rotation);
+        _inputDevice->_trackerCalibrations[channel] = controller::Pose(translation, rotation / rotationLength);
     }
 }
 
