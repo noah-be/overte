@@ -16,6 +16,15 @@ int main() {
     assert(!isOpenXrOptionalFunctionReady(true, false));
     assert(isOpenXrOptionalFunctionReady(true, true));
 
+    for (unsigned int mask = 0; mask < 32; ++mask) {
+        assert(areOpenXrXDevFunctionsReady(
+                   (mask & 1U) != 0,
+                   (mask & 2U) != 0,
+                   (mask & 4U) != 0,
+                   (mask & 8U) != 0,
+                   (mask & 16U) != 0) == (mask == 31U));
+    }
+
     assert(openXrHandTrackerPairState(false, false) ==
            OpenXrHandTrackerPairState::None);
     assert(openXrHandTrackerPairState(true, false) ==

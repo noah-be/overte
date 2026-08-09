@@ -468,41 +468,64 @@ bool OpenXrContext::initSystem() {
                 continue;
             }
 
-            xrGetInstanceProcAddr(
+            const bool createListLoaded = loadXrFunction(
                 _instance,
                 "xrCreateXDevListMNDX",
                 reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateXDevListMNDX)
             );
 
-            xrGetInstanceProcAddr(
+            const bool generationLoaded = loadXrFunction(
                 _instance,
                 "xrGetXDevListGenerationNumberMNDX",
                 reinterpret_cast<PFN_xrVoidFunction*>(&xrGetXDevListGenerationNumberMNDX)
             );
 
-            xrGetInstanceProcAddr(
+            const bool enumerateLoaded = loadXrFunction(
                 _instance,
                 "xrEnumerateXDevsMNDX",
                 reinterpret_cast<PFN_xrVoidFunction*>(&xrEnumerateXDevsMNDX)
             );
 
-            xrGetInstanceProcAddr(
+            const bool propertiesLoaded = loadXrFunction(
                 _instance,
                 "xrGetXDevPropertiesMNDX",
                 reinterpret_cast<PFN_xrVoidFunction*>(&xrGetXDevPropertiesMNDX)
             );
 
-            xrGetInstanceProcAddr(
+            const bool destroyListLoaded = loadXrFunction(
                 _instance,
                 "xrDestroyXDevListMNDX",
                 reinterpret_cast<PFN_xrVoidFunction*>(&xrDestroyXDevListMNDX)
             );
 
-            xrGetInstanceProcAddr(
+            const bool createSpaceLoaded = loadXrFunction(
                 _instance,
                 "xrCreateXDevSpaceMNDX",
                 reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateXDevSpaceMNDX)
             );
+            const bool functionsReady = areOpenXrXDevFunctionsReady(
+                createListLoaded && xrCreateXDevListMNDX != nullptr,
+                enumerateLoaded && xrEnumerateXDevsMNDX != nullptr,
+                propertiesLoaded && xrGetXDevPropertiesMNDX != nullptr,
+                destroyListLoaded && xrDestroyXDevListMNDX != nullptr,
+                createSpaceLoaded && xrCreateXDevSpaceMNDX != nullptr);
+            if (!functionsReady) {
+                qCWarning(xr_context_cat,
+                          "Disabling XDev tracking because its OpenXR API is incomplete");
+                _MNDX_xdevSpaceSupported = false;
+                xrCreateXDevListMNDX = nullptr;
+                xrGetXDevListGenerationNumberMNDX = nullptr;
+                xrEnumerateXDevsMNDX = nullptr;
+                xrGetXDevPropertiesMNDX = nullptr;
+                xrDestroyXDevListMNDX = nullptr;
+                xrCreateXDevSpaceMNDX = nullptr;
+            } else if (!isOpenXrOptionalFunctionReady(
+                    generationLoaded,
+                    xrGetXDevListGenerationNumberMNDX != nullptr)) {
+                qCWarning(xr_context_cat,
+                          "Dynamic XDev generation tracking is unavailable");
+                xrGetXDevListGenerationNumberMNDX = nullptr;
+            }
         }
 
         next = reinterpret_cast<const XrExtensionProperties*>(next->next);
