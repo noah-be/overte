@@ -1,0 +1,159 @@
+name: Pico 4 device acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      execute_device_install:
+        description: Install the verified RC on the protected Pico device
+        required: true
+        default: false
+        type: boolean
+      confirmation:
+        description: For execution, enter INSTALL followed by the selected tag
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pico4-device-acceptance
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  verify-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out selected immutable tag without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Reject mutable refs
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_TYPE" == tag ]] || { echo "Select an existing Pico RC tag" >&2; exit 2; }
+          [[ "$(git rev-list -n 1 "$GITHUB_REF")" == "$GITHUB_SHA" ]] || exit 2
+          android/ci/pico4-release.py --tag "$GITHUB_REF_NAME" \
+            --github-ref "$GITHUB_REF" --revision "$GITHUB_SHA"
+
+      - name: Download exact draft release candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/pico4-device
+          [[ "$(gh release view "$GITHUB_REF_NAME" --json isDraft,tagName \
+            --jq '.isDraft and (.tagName == env.GITHUB_REF_NAME)')" == true ]] || {
+              echo "The selected tag has no matching draft release" >&2
+              exit 2
+            }
+          gh release download "$GITHUB_REF_NAME" --dir build/pico4-device \
+            --pattern picoInterface-release.apk --pattern apk-manifest.json \
+            --pattern pico4-release-manifest.json --pattern pico4-sbom.cdx.json \
+            --pattern SHA256SUMS
+
+      - name: Verify without accessing ADB
+        run: |
+          set -euo pipefail
+          android/ci/pico4-device-acceptance.sh \
+            --tag "$GITHUB_REF_NAME" --revision "$GITHUB_SHA" \
+            --apk build/pico4-device/picoInterface-release.apk \
+            --checksums build/pico4-device/SHA256SUMS \
+            --apk-manifest build/pico4-device/apk-manifest.json \
+            --output build/pico4-device/device-acceptance-plan.json
+
+      - name: Upload inspection report
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: pico4-device-acceptance-plan-${{ github.run_id }}
+          path: build/pico4-device/device-acceptance-plan.json
+          if-no-files-found: error
+          retention-days: 14
+
+  device-acceptance:
+    if: inputs.execute_device_install
+    needs: verify-candidate
+    environment: pico4-device-acceptance
+    runs-on: [self-hosted, linux, x64, overte-pico4-device]
+    timeout-minutes: 30
+    steps:
+      - name: Check out selected immutable tag without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Enforce explicit device-write confirmation
+        id: release
+        env:
+          DEVICE_CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_TYPE" == tag ]]
+          [[ "$(git rev-list -n 1 "$GITHUB_REF")" == "$GITHUB_SHA" ]]
+          [[ "$DEVICE_CONFIRMATION" == "INSTALL $GITHUB_REF_NAME" ]] || {
+            echo "Confirmation must be exactly: INSTALL $GITHUB_REF_NAME" >&2
+            exit 2
+          }
+          android/ci/pico4-release.py --tag "$GITHUB_REF_NAME" \
+            --github-ref "$GITHUB_REF" --revision "$GITHUB_SHA" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Download exact draft release candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/pico4-device
+          [[ "$(gh release view "$GITHUB_REF_NAME" --json isDraft,tagName \
+            --jq '.isDraft and (.tagName == env.GITHUB_REF_NAME)')" == true ]]
+          gh release download "$GITHUB_REF_NAME" --dir build/pico4-device \
+            --pattern picoInterface-release.apk --pattern apk-manifest.json \
+            --pattern SHA256SUMS
+
+      - name: Reverify APK identity and release certificate before ADB
+        env:
+          PICO_RELEASE_CERT_SHA256: ${{ secrets.PICO_RELEASE_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          android/ci/verify-pico-apk.py build/pico4-device/picoInterface-release.apk \
+            --aapt "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt" \
+            --apksigner "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" \
+            --source-revision "$GITHUB_SHA" \
+            --expected-version-code "${{ steps.release.outputs.version_code }}" \
+            --expected-version-name "${{ steps.release.outputs.version_name }}" \
+            --expected-signer-sha256 "$PICO_RELEASE_CERT_SHA256" \
+            --output build/pico4-device/apk-manifest-reverified.json
+          cmp build/pico4-device/apk-manifest.json \
+            build/pico4-device/apk-manifest-reverified.json
+
+      - name: Install and smoke-test under exclusive device lock
+        env:
+          DEVICE_CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          android/pico-device-lock.sh run -- \
+            android/ci/pico4-device-acceptance.sh --execute \
+              --confirmation "$DEVICE_CONFIRMATION" \
+              --tag "$GITHUB_REF_NAME" --revision "$GITHUB_SHA" \
+              --apk build/pico4-device/picoInterface-release.apk \
+              --checksums build/pico4-device/SHA256SUMS \
+              --apk-manifest build/pico4-device/apk-manifest.json \
+              --adb "$ANDROID_SDK_ROOT/platform-tools/adb" \
+              --output build/pico4-device/device-acceptance.json
+
+      - name: Upload device report
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: pico4-device-acceptance-${{ github.run_id }}
+          path: build/pico4-device/device-acceptance.json
+          if-no-files-found: warn
+          retention-days: 30

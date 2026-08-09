@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/project-tests.yml"
 BUILD_WORKFLOW = ROOT / ".github/workflows/pico4-build.yml"
 RELEASE_WORKFLOW = ROOT / ".github/workflows/pico4-release-candidate.yml"
+DEVICE_WORKFLOW = ROOT / ".github/workflows/pico4-device-acceptance.yml"
 ACTION_USE = re.compile(r"^\s*uses:\s*([^\s#]+)", re.MULTILINE)
 FULL_SHA_ACTION = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 
@@ -131,6 +132,41 @@ class PicoReleaseWorkflowContracts(unittest.TestCase):
         for output in ("pico4-release-manifest.json", "pico4-sbom.cdx.json", "SHA256SUMS"):
             self.assertIn(output, self.source)
         self.assertNotRegex(self.source, r"(?m)^\s+run:.*\badb\b")
+
+
+class PicoDeviceAcceptanceWorkflowContracts(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.source = DEVICE_WORKFLOW.read_text(encoding="utf-8")
+
+    def test_device_stage_is_manual_only_and_immutable_tag_only(self):
+        self.assertRegex(self.source, r"(?m)^  workflow_dispatch:$")
+        self.assertNotRegex(self.source, r"(?m)^  (pull_request|pull_request_target|push):$")
+        self.assertIn('[[ "$GITHUB_REF_TYPE" == tag ]]', self.source)
+        self.assertIn("pico4-release.py", self.source)
+
+    def test_default_verification_job_cannot_invoke_adb(self):
+        verify = self.source.split("  verify-candidate:", 1)[1].split("  device-acceptance:", 1)[0]
+        self.assertNotRegex(verify, r"(?m)^\s+run:.*\badb\b")
+        self.assertNotIn("--execute", verify)
+        self.assertIn("runs-on: ubuntu-latest", verify)
+
+    def test_device_write_requires_boolean_confirmation_environment_and_lock(self):
+        self.assertIn("if: inputs.execute_device_install", self.source)
+        self.assertIn("environment: pico4-device-acceptance", self.source)
+        self.assertIn("runs-on: [self-hosted, linux, x64, overte-pico4-device]", self.source)
+        self.assertIn('INSTALL $GITHUB_REF_NAME', self.source)
+        self.assertIn("pico-device-lock.sh run", self.source)
+        self.assertIn("--execute", self.source)
+        self.assertIn("--expected-signer-sha256", self.source)
+        self.assertIn("PICO_RELEASE_CERT_SHA256", self.source)
+        self.assertNotIn('"${{ inputs.confirmation }}"', self.source)
+
+    def test_actions_are_pinned_and_checkout_is_credential_free(self):
+        actions = ACTION_USE.findall(self.source)
+        self.assertGreaterEqual(len(actions), 4)
+        self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
+        self.assertEqual(self.source.count("persist-credentials: false"), 2)
 
 
 if __name__ == "__main__":
