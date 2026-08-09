@@ -11,7 +11,6 @@
 
 #include "HMDToolsDialog.h"
 
-#include <QDesktopWidget>
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QGuiApplication>
@@ -304,5 +303,4 @@ void HMDWindowWatcher::windowScreenChanged(QScreen* screen) {
         }
     }
 }
-
 

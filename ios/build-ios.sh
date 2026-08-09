@@ -38,6 +38,8 @@ Options:
   --bundle-id IDENTIFIER        Override org.overte.interface.dev.
   --development-team TEAM       Enable device signing with this Apple team ID.
   --require-qt                  Make doctor fail unless Qt 6 for iOS is configured.
+  --graphics-toolchain          Include Vulkan and host shader tools in deps.
+  --require-moltenvk            Make doctor validate the MoltenVK XCFramework.
   --confirm                     Confirm clean removal of the resolved build directory.
   -h, --help                    Show this help.
 
@@ -63,6 +65,8 @@ bundle_id="org.overte.interface.dev"
 development_team=""
 confirm_clean=0
 require_qt=0
+with_graphics_toolchain=False
+require_moltenvk=0
 
 while (($#)); do
     case "$1" in
@@ -97,6 +101,14 @@ while (($#)); do
             ;;
         --require-qt)
             require_qt=1
+            shift
+            ;;
+        --graphics-toolchain)
+            with_graphics_toolchain=True
+            shift
+            ;;
+        --require-moltenvk)
+            require_moltenvk=1
             shift
             ;;
         -h|--help)
@@ -190,6 +202,21 @@ run_doctor() {
     else
         note "Qt for iOS: not configured (native bootstrap only)"
     fi
+
+    local moltenvk_root="${OVERTE_IOS_MOLTENVK_ROOT:-}"
+    if [[ -n "$moltenvk_root" ]]; then
+        local moltenvk_slice="ios-arm64"
+        [[ "$platform" == "simulator" ]] && moltenvk_slice="ios-arm64_x86_64-simulator"
+        [[ -f "$moltenvk_root/MoltenVK/include/vulkan/vulkan.h" ]] \
+            || fail "MoltenVK headers not found below OVERTE_IOS_MOLTENVK_ROOT"
+        [[ -f "$moltenvk_root/MoltenVK/MoltenVK.xcframework/$moltenvk_slice/libMoltenVK.a" ]] \
+            || fail "MoltenVK static slice not found: $moltenvk_slice"
+        note "MoltenVK: $moltenvk_root ($moltenvk_slice)"
+    elif ((require_moltenvk)); then
+        fail "set OVERTE_IOS_MOLTENVK_ROOT to an unpacked MoltenVK distribution"
+    else
+        note "MoltenVK: not configured (native Metal bootstrap only)"
+    fi
     note "iOS build environment is ready for the $platform bootstrap target."
 }
 
@@ -222,6 +249,7 @@ resolve_dependencies() {
         --profile:host="$conan_profile" \
         --profile:build=default \
         --build=missing \
+        --options="overte-ios-dependencies/*:with_graphics_toolchain=$with_graphics_toolchain" \
         --output-folder="$conan_output"
     note "Resolved staged dependency graph at $conan_output"
 }
@@ -275,7 +303,34 @@ run_package() {
     if [[ "$platform" == "simulator" ]]; then
         local archive="$artifact_dir/OverteIOSBootstrap-${configuration}-simulator.zip"
         ditto -c -k --sequesterRsrc --keepParent "$app_path" "$archive"
+        local archive_sha source_revision manifest
+        archive_sha="$(shasum -a 256 "$archive" | awk '{print $1}')"
+        source_revision="$(git -C "$source_root" rev-parse HEAD)"
+        manifest="$artifact_dir/OverteIOSBootstrap-${configuration}-simulator.json"
+        python3 - "$manifest" "$archive" "$archive_sha" "$source_revision" \
+            "$configuration" "$(xcodebuild -version | tr '\n' ' ')" \
+            "$(xcrun --sdk iphonesimulator --show-sdk-version)" <<'PY'
+import json
+import pathlib
+import sys
+
+output, archive, digest, revision, configuration, xcode, sdk = sys.argv[1:]
+payload = {
+    "schemaVersion": 1,
+    "artifact": pathlib.Path(archive).name,
+    "sha256": digest,
+    "sourceRevision": revision,
+    "platform": "iphonesimulator",
+    "architecture": "arm64",
+    "configuration": configuration,
+    "xcode": xcode.strip(),
+    "sdk": sdk,
+    "signed": False,
+}
+pathlib.Path(output).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PY
         note "Created unsigned simulator artifact: $archive"
+        note "Created artifact manifest: $manifest"
     else
         note "Device application ready at: $app_path"
     fi

@@ -16,7 +16,9 @@
 
 #include <cmath>
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 #include <QDesktopWidget>
+#endif
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>
@@ -231,7 +233,11 @@ Application::Application(
 ) :
     QApplication(argc, argv),
 #ifdef USE_GL
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     _window(new MainWindow(desktop())),
+#else
+    _window(new MainWindow()),
+#endif
 #else
     _vkWindow(new VKWindow()),
     _vkWindowWrapper(QWidget::createWindowContainer(_vkWindow)),

@@ -61,6 +61,8 @@ def test_profiles() -> None:
     for forbidden in ("steamworks", "discord-rpc", "openvr", "openxr", "sdl"):
         if re.search(rf'self\.requires\("{re.escape(forbidden)}/', recipe.read_text(encoding="utf-8")):
             raise AssertionError(f"desktop-only dependency entered iOS graph: {forbidden}")
+    require_text(recipe, r'self\.tool_requires\("scribe/', "shader generator must run in the build context")
+    require_text(recipe, r'self\.tool_requires\("spirv-cross/', "SPIR-V conversion must run in the build context")
 
 
 def test_dependency_inventory() -> None:
@@ -97,7 +99,10 @@ def test_plists() -> None:
     assert info["LSRequiresIPhoneOS"] is True
     assert info["NSMicrophoneUsageDescription"]
     assert info["NSLocalNetworkUsageDescription"]
+    assert info["NSAppTransportSecurity"] == {"NSAllowsLocalNetworking": True}
     assert info["UIApplicationSceneManifest"]["UIApplicationSupportsMultipleScenes"] is False
+    url_schemes = info["CFBundleURLTypes"][0]["CFBundleURLSchemes"]
+    assert set(url_schemes) == {"overte", "hifi"}
     assert set(info["UISupportedInterfaceOrientations~ipad"]) >= {
         "UIInterfaceOrientationPortrait",
         "UIInterfaceOrientationLandscapeLeft",
@@ -109,7 +114,16 @@ def test_plists() -> None:
         privacy = plistlib.load(stream)
     assert privacy["NSPrivacyTracking"] is False
     assert privacy["NSPrivacyTrackingDomains"] == []
-    assert isinstance(privacy["NSPrivacyAccessedAPITypes"], list)
+    accessed = {
+        entry["NSPrivacyAccessedAPIType"]: entry["NSPrivacyAccessedAPITypeReasons"]
+        for entry in privacy["NSPrivacyAccessedAPITypes"]
+    }
+    assert accessed == {
+        "NSPrivacyAccessedAPICategoryFileTimestamp": ["C617.1"],
+        "NSPrivacyAccessedAPICategorySystemBootTime": ["35F9.1"],
+        "NSPrivacyAccessedAPICategoryDiskSpace": ["E174.1"],
+        "NSPrivacyAccessedAPICategoryUserDefaults": ["CA92.1"],
+    }
 
     entitlements_path = IOS_ROOT / "resources" / "Overte.entitlements"
     with entitlements_path.open("rb") as stream:
@@ -149,10 +163,11 @@ def test_cmake_boundary() -> None:
 
     root_cmake = SOURCE_ROOT / "CMakeLists.txt"
     require_text(root_cmake, r"ANDROID OR UWP OR IOS", "iOS must use the mobile build policy")
-    require_text(root_cmake, r"set\(PLATFORM_QT_COMPONENTS WebView Xml\)", "iOS must select WebView instead of WebEngine")
+    require_text(root_cmake, r"set\(PLATFORM_QT_COMPONENTS WebView Xml Core5Compat\)", "iOS must select WebView and transitional Core5Compat")
 
     file_utils = SOURCE_ROOT / "libraries" / "shared" / "src" / "shared" / "FileUtils.cpp"
-    require_text(file_utils, r'extraSelectors << "ios" << "mobile" << "touch" << "webview"', "iOS selectors must include WebView and touch")
+    require_text(file_utils, r'extraSelectors << "ios" << "mobile" << "touch"', "iOS selectors must include mobile touch variants")
+    require_text(file_utils, r'<< "android_phoneInterface" << "android_interface"', "iOS must inherit the tested Phone presentation")
 
     ios_webview = SOURCE_ROOT / "interface" / "resources" / "qml" / "controls" / "+ios" / "FlickableWebViewCore.qml"
     require_text(ios_webview, r"import QtWebView 1\.1", "iOS web surfaces must use Qt WebView")
@@ -163,6 +178,29 @@ def test_cmake_boundary() -> None:
     require_text(moltenvk, r"ios-arm64_x86_64-simulator", "MoltenVK lookup must support arm64 simulator")
     require_text(moltenvk, r"ios-arm64", "MoltenVK lookup must support arm64 devices")
     require_text(moltenvk, r"NO_DEFAULT_PATH", "MoltenVK must not be found incidentally")
+
+    metal_shader = IOS_ROOT / "src" / "BootstrapShaders.metal"
+    require_text(metal_shader, r"overteBootstrapVertex", "Metal probe needs a compiled vertex function")
+    require_text(metal_shader, r"overteBootstrapFragment", "Metal probe needs a compiled fragment function")
+    bootstrap_view = IOS_ROOT / "src" / "BootstrapViewController.mm"
+    require_text(bootstrap_view, r"UIPanGestureRecognizer", "bootstrap must exercise continuous touch input")
+    require_text(bootstrap_view, r"UIUserInterfaceIdiomPad", "bootstrap must distinguish iPad layout")
+    require_text(bootstrap_view, r"safeAreaLayoutGuide", "bootstrap controls must respect safe areas")
+    platform_probe = IOS_ROOT / "src" / "PlatformProbe.mm"
+    require_text(platform_probe, r"nw_path_monitor_create", "bootstrap must exercise network reachability")
+    require_text(platform_probe, r"CMMotionManager", "bootstrap must detect motion capability")
+    require_text(platform_probe, r"NSApplicationSupportDirectory", "bootstrap must use an app container path")
+    app_delegate = IOS_ROOT / "src" / "AppDelegate.mm"
+    require_text(app_delegate, r"AVAudioSessionInterruptionNotification", "audio must observe interruptions")
+    require_text(app_delegate, r"AVAudioSessionRouteChangeNotification", "audio must observe route changes")
+    require_text(app_delegate, r"applicationDidReceiveMemoryWarning", "lifecycle must observe memory pressure")
+    scene_delegate = IOS_ROOT / "src" / "SceneDelegate.mm"
+    require_text(scene_delegate, r"allowedSchemes", "deep links must use an explicit scheme allowlist")
+    if "Accepted deep link with scheme %{public}@\", url" in scene_delegate.read_text(encoding="utf-8"):
+        raise AssertionError("deep-link logs must not expose the complete URL")
+    rendering_spike = SOURCE_ROOT / "docs" / "ios" / "RENDERING_SPIKE.md"
+    require_text(rendering_spike, r"15 percent", "rendering decision needs a performance threshold")
+    require_text(rendering_spike, r"30-minute", "rendering decision needs a stability threshold")
 
 
 def test_scope_contract() -> None:
@@ -183,6 +221,9 @@ def test_scope_contract() -> None:
 
     script_engine = SOURCE_ROOT / "libraries" / "script-engine" / "src" / "v8" / "ScriptEngineV8.cpp"
     require_text(script_engine, r'--stack-size=256 --jitless --no-expose-wasm', "iOS V8 flags must fail closed")
+    qt6_migration = SOURCE_ROOT / "docs" / "ios" / "QT6_MIGRATION.md"
+    require_text(qt6_migration, r"QAudioDeviceInfo/QAudioInput/QAudioOutput", "Qt 6 audio boundary must be explicit")
+    require_text(qt6_migration, r"must not enter the iOS target", "desktop-only Qt paths must be excluded")
 
 
 def test_ci_contract() -> None:
@@ -200,6 +241,29 @@ def test_ci_contract() -> None:
     require_text(smoke, r"for family in iphone ipad", "smoke tier must cover iPhone and iPad")
 
 
+def test_device_acceptance_contract() -> None:
+    matrix_path = IOS_ROOT / "tests" / "device-acceptance.json"
+    matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
+    assert matrix["schemaVersion"] == 1
+    assert set(matrix["requiredFormFactors"]) == {"iphone", "ipad"}
+    cases = matrix["cases"]
+    ids = [case["id"] for case in cases]
+    assert len(ids) == len(set(ids)), "device acceptance IDs must be unique"
+    assert all(case["deviceOnly"] is True for case in cases)
+    required_categories = {
+        "lifecycle", "network", "graphics", "input", "audio", "layout",
+        "performance", "scripting", "privacy",
+    }
+    assert required_categories <= {case["category"] for case in cases}
+
+    signing = SOURCE_ROOT / "docs" / "ios" / "SIGNING_AND_DEVICE_TESTS.md"
+    require_text(signing, r"script never\s+installs", "device installation must require a separate action")
+    require_text(signing, r"separate externally approved release action", "App Store upload must stay external")
+    privacy_doc = SOURCE_ROOT / "docs" / "ios" / "PRIVACY.md"
+    require_text(privacy_doc, r"Xcode's\s+privacy report", "release gate must include Xcode privacy aggregation")
+    require_text(privacy_doc, r"runtime network\s+trace", "collected-data review must use runtime evidence")
+
+
 def main() -> None:
     tests = (
         test_versions,
@@ -210,6 +274,7 @@ def main() -> None:
         test_cmake_boundary,
         test_scope_contract,
         test_ci_contract,
+        test_device_acceptance_contract,
     )
     for test in tests:
         test()

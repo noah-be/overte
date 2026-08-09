@@ -11,7 +11,6 @@
 #include <QtGui/QScreen>
 #include <QtWidgets/QAction>
 #include <QtWidgets/QApplication>
-#include <QtWidgets/QDesktopWidget>
 
 #include <ViewFrustum.h>
 #include <MatrixStack.h>
@@ -93,4 +92,3 @@ void StereoDisplayPlugin::internalDeactivate() {
 float StereoDisplayPlugin::getRecommendedAspectRatio() const {
     return aspect(Parent::getRecommendedRenderSize());
 }
-

@@ -38,14 +38,19 @@ class OverteIOSDependencies(ConanFile):
 
     def requirements(self):
         # Baseline libraries used by networking, entities, physics and assets.
+        self.requires("artery-font-format/1.0.1")
         self.requires("bullet3/3.25")
         self.requires("cgltf/1.14@overte/stable")
         self.requires("draco/1.3.5")
         self.requires("glm/0.9.9.5", force=True)
+        self.requires("gli/cci.20210515")
         self.requires("jsoncpp/1.9.6", force=True)
         self.requires("nlohmann_json/3.11.2")
+        self.requires("onetbb/2021.10.0")
+        self.requires("openexr/3.1.9")
         self.requires("openssl/1.1.1q", force=True)
         self.requires("quazip/1.4")
+        self.requires("v-hacd/4.1.0")
         self.requires("zlib/1.3.1")
 
         if self.options.with_audio:
@@ -53,10 +58,16 @@ class OverteIOSDependencies(ConanFile):
             self.requires("webrtc-audio-processing/2.1@overte/stable")
 
         if self.options.with_graphics_toolchain:
-            self.requires("glslang/1.4.350.0")
-            self.requires("spirv-cross/1.4.350.0")
-            self.requires("spirv-tools/1.4.350.0")
             self.requires("vulkan-memory-allocator/3.0.1")
+
+    def build_requirements(self):
+        if self.options.with_graphics_toolchain:
+            # These executables run on the macOS build host; target-architecture
+            # copies must never be selected as shader generators.
+            self.tool_requires("glslang/1.4.350.0")
+            self.tool_requires("scribe/2019.02@overte/stable")
+            self.tool_requires("spirv-cross/1.4.350.0")
+            self.tool_requires("spirv-tools/1.4.350.0")
 
     def generate(self):
         toolchain = CMakeToolchain(self)

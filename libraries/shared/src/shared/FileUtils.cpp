@@ -49,7 +49,12 @@ const QStringList& FileUtils::getFileSelectors() {
 #if defined(Q_OS_IOS)
         // Qt's built-in platform selector is supplemented explicitly because
         // Overte also uses this list for resources selected outside QML.
-        extraSelectors << "ios" << "mobile" << "touch" << "webview";
+        extraSelectors << "ios" << "mobile" << "touch"
+                       // Reuse the tested Phone presentation until a component
+                       // needs an iOS-specific override. The iOS selector has
+                       // higher priority and remains the migration boundary.
+                       << "android_phoneInterface" << "android_interface"
+                       << "webview";
 #endif
 
     auto backendApi = hifi::properties::getGraphicsAPI();

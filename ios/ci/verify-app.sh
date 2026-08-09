@@ -15,6 +15,7 @@ plist="$app_path/Info.plist"
 privacy="$app_path/PrivacyInfo.xcprivacy"
 [[ -f "$plist" ]] || { echo "missing Info.plist" >&2; exit 1; }
 [[ -f "$privacy" ]] || { echo "missing PrivacyInfo.xcprivacy" >&2; exit 1; }
+plutil -lint "$plist" "$privacy" >/dev/null
 
 bundle_id="$(plutil -extract CFBundleIdentifier raw -o - "$plist")"
 [[ "$bundle_id" == "$expected_bundle_id" ]] || {
@@ -33,7 +34,7 @@ target_family="$(plutil -extract UIDeviceFamily json -o - "$plist")"
     exit 1
 }
 
-if find "$app_path" -type f \( -name '*.so' -o -name '*.dll' \) -print -quit | grep -q .; then
+if find "$app_path" -type f \( -name '*.so' -o -name '*.dll' -o -name '*.dylib' \) -print -quit | grep -q .; then
     echo "bundle contains a forbidden desktop shared library" >&2
     exit 1
 fi

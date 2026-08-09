@@ -30,8 +30,11 @@ add_executable(OverteIOSBootstrap MACOSX_BUNDLE
     src/AppDelegate.mm
     src/SceneDelegate.h
     src/SceneDelegate.mm
+    src/PlatformProbe.h
+    src/PlatformProbe.mm
     src/BootstrapViewController.h
     src/BootstrapViewController.mm
+    src/BootstrapShaders.metal
     ${OVERTE_IOS_RESOURCES}
 )
 

@@ -4,11 +4,26 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
+      - 'CMakeLists.txt'
       - '.github/workflows/ios-bootstrap.yml'
       - 'cmake/QtCompat.cmake'
       - 'cmake/init.cmake'
       - 'cmake/compiler.cmake'
+      - 'cmake/macros/SetupHifiLibrary.cmake'
+      - 'cmake/macros/SetupHifiProject.cmake'
+      - 'cmake/macros/SetupHifiTestCase.cmake'
+      - 'cmake/macros/TargetV8.cmake'
+      - 'cmake/macros/TargetVulkan.cmake'
+      - 'cmake/modules/FindMoltenVK.cmake'
       - 'docs/ios/**'
+      - 'interface/CMakeLists.txt'
+      - 'interface/resources/qml/controls/+ios/**'
+      - 'interface/src/AboutUtil.cpp'
+      - 'interface/src/main.cpp'
+      - 'libraries/script-engine/src/v8/ScriptEngineV8.cpp'
+      - 'libraries/shared/src/shared/FileUtils.cpp'
+      - 'libraries/ui/src/**'
+      - 'libraries/vk/**'
       - 'ios/**'
 
 permissions:
@@ -54,7 +69,8 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: overte-ios-bootstrap-simulator-${{ github.run_id }}
-          path: build-ios/artifacts/OverteIOSBootstrap-Debug-simulator.zip
+          path: |
+            build-ios/artifacts/OverteIOSBootstrap-Debug-simulator.zip
+            build-ios/artifacts/OverteIOSBootstrap-Debug-simulator.json
           if-no-files-found: error
           retention-days: 7
-

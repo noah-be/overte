@@ -5,9 +5,10 @@
 
 #import <UIKit/UIKit.h>
 
+FOUNDATION_EXPORT NSNotificationName const OverteOpenURLNotification;
+
 @interface SceneDelegate : UIResponder <UIWindowSceneDelegate>
 
 @property(nonatomic, strong) UIWindow* window;
 
 @end
-
