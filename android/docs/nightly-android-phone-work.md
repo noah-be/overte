@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 108 — Keep device preflight paths private
+
+- Branch: `nightly/android-phone-108-private-preflight-paths`
+- Commit: `Keep phone device preflight paths private` (this task's commit)
+- Change: Replace missing/unresolvable APK and report-directory errors with
+  fixed path-neutral messages, suppress `realpath` stderr, and validate the
+  report destination before device selection. Invalid local inputs now cause
+  zero ADB reads as well as zero device mutations.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, adding missing
+    private APK and report path cases, no retained path, and empty ADB command
+    logs for both.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 305/305 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 305/305.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Detailed local path diagnosis remains intentionally separate
+  from shared unattended test logs.
+- Real-device validation still required: None for preflight privacy; normal
+  current-APK device smoke remains pending on a buildable artifact.
+
 ## 107 — Bound loose QML to declared modules
 
 - Branch: `nightly/android-phone-107-qml-module-boundary`
@@ -2472,7 +2493,8 @@ All branches form one linear chain starting at
 104. `nightly/android-phone-104-canonical-archive-paths` — `036af84614`
 105. `nightly/android-phone-105-package-resource-limits` — `0e93b71623`
 106. `nightly/android-phone-106-cache-asset-coverage` — `95a6c850c8`
-107. `nightly/android-phone-107-qml-module-boundary` — this task's commit
+107. `nightly/android-phone-107-qml-module-boundary` — `a37b4e3ac7`
+108. `nightly/android-phone-108-private-preflight-paths` — this task's commit
 
 ### Device-free audit disposition
 

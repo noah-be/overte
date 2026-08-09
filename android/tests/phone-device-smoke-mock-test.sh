@@ -179,6 +179,40 @@ run_smoke() {
         "$script_dir/phone-device-test.sh" "$test_root/phone.apk"
 }
 
+mkdir "$test_root/missing-apk-report"
+: >"$test_root/adb-commands"
+if env PATH="$test_root/bin:$PATH" MOCK_ROOT="$test_root" \
+        PHONE_DEVICE_LOCK_HELD=1 PHONE_ADB="$test_root/bin/adb" \
+        PHONE_APK_ANALYZER="$test_root/bin/apkanalyzer" \
+        PHONE_APK_PREFLIGHT="$test_root/bin/apk-preflight" \
+        PHONE_ALLOW_TEST_OVERRIDES=1 ANDROID_SERIAL=mock-phone \
+        PHONE_TEST_REPORT="$test_root/missing-apk-report" \
+        "$script_dir/phone-device-test.sh" "$test_root/private/missing.apk" \
+        >"$test_root/missing-apk.out" 2>&1; then
+    echo 'FAIL: missing APK input was accepted by device smoke' >&2
+    exit 1
+fi
+grep -Fxq 'ERROR: APK was not found' "$test_root/missing-apk.out"
+! grep -Fq "$test_root" "$test_root/missing-apk.out"
+[[ ! -s "$test_root/adb-commands" ]]
+
+: >"$test_root/adb-commands"
+if env PATH="$test_root/bin:$PATH" MOCK_ROOT="$test_root" \
+        PHONE_DEVICE_LOCK_HELD=1 PHONE_ADB="$test_root/bin/adb" \
+        PHONE_APK_ANALYZER="$test_root/bin/apkanalyzer" \
+        PHONE_APK_PREFLIGHT="$test_root/bin/apk-preflight" \
+        PHONE_ALLOW_TEST_OVERRIDES=1 ANDROID_SERIAL=mock-phone \
+        PHONE_TEST_REPORT="$test_root/private/missing-report" \
+        "$script_dir/phone-device-test.sh" "$test_root/phone.apk" \
+        >"$test_root/missing-report.out" 2>&1; then
+    echo 'FAIL: missing device-report directory was accepted' >&2
+    exit 1
+fi
+grep -Fxq 'ERROR: could not resolve device-test report directory' \
+    "$test_root/missing-report.out"
+! grep -Fq "$test_root" "$test_root/missing-report.out"
+[[ ! -s "$test_root/adb-commands" ]]
+
 mkdir "$test_root/success-report"
 run_smoke "$test_root/success-report" env >"$test_root/success.out"
 ! grep -Fq "$test_root" "$test_root/success.out"

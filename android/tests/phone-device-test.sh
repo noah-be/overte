@@ -145,8 +145,8 @@ select_serial() {
 }
 
 APK="${1:-$DEFAULT_APK}"
-[[ -f "$APK" ]] || die "APK not found: $APK"
-APK="$(realpath "$APK")"
+[[ -f "$APK" ]] || die "APK was not found"
+APK="$(realpath "$APK" 2>/dev/null)" || die "could not resolve APK input"
 command -v sha256sum >/dev/null 2>&1 || die "sha256sum was not found"
 APK_SHA256="$(sha256sum -- "$APK" | awk '{ print $1 }')"
 [[ "$APK_SHA256" =~ ^[0-9a-f]{64}$ ]] || die "could not identify the APK by SHA-256"
@@ -182,12 +182,9 @@ fi
 "$APK_PREFLIGHT" "$APK" >/dev/null 2>&1 || \
     die "APK failed the Phone content, ELF, alignment, or padding preflight"
 
-# Do not query a connected device until every host-only artifact contract has
-# passed. Invalid input must be side-effect free even at the ADB read level.
-SERIAL="$(select_serial)"
-
 if [[ -n "${PHONE_TEST_REPORT:-}" ]]; then
-    REPORT_DIR="$(realpath "$PHONE_TEST_REPORT")"
+    REPORT_DIR="$(realpath "$PHONE_TEST_REPORT" 2>/dev/null)" || \
+        die "could not resolve device-test report directory"
     REPORT_KIND="caller-provided"
     [[ -d "$REPORT_DIR" ]] || die "PHONE_TEST_REPORT must name an existing directory"
 else
@@ -199,6 +196,11 @@ REPOSITORY_ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/nul
 if [[ -n "$REPOSITORY_ROOT" && ( "$REPORT_DIR" == "$REPOSITORY_ROOT" || "$REPORT_DIR" == "$REPOSITORY_ROOT/"* ) ]]; then
     die "refusing to store device diagnostics inside the Git worktree"
 fi
+
+# Do not query a connected device until every host-only artifact contract and
+# report contract has passed. Invalid input must be side-effect free even at
+# the ADB read level.
+SERIAL="$(select_serial)"
 
 readonly SUMMARY="$REPORT_DIR/summary.txt"
 readonly TEST_DEEP_LINK="overte://localhost"
