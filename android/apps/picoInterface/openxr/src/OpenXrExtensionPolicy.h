@@ -1,5 +1,12 @@
 #pragma once
 
+#include <cstddef>
+
+constexpr bool isOpenXrExtensionEnumerationCountWithinCapacity(
+        std::size_t capacity, std::size_t returnedCount) {
+    return returnedCount <= capacity;
+}
+
 inline bool areOpenXrHandTrackingFunctionsReady(
         bool createLoaded, bool destroyLoaded, bool locateLoaded) {
     return createLoaded && destroyLoaded && locateLoaded;

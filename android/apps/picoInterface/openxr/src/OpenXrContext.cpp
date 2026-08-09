@@ -132,8 +132,9 @@ bool OpenXrContext::initInstance() {
     // VKTODO
     return false;
 #else
-    uint32_t count = 0;
-    XrResult result = xrEnumerateInstanceExtensionProperties(nullptr, 0, &count, nullptr);
+    uint32_t extensionCapacity = 0;
+    XrResult result = xrEnumerateInstanceExtensionProperties(
+        nullptr, 0, &extensionCapacity, nullptr);
 
     // Since this is the first OpenXR call we do, check here if RUNTIME_UNAVAILABLE is returned.
     if (result == XR_ERROR_RUNTIME_UNAVAILABLE) {
@@ -145,14 +146,28 @@ bool OpenXrContext::initInstance() {
         return false;
 
     std::vector<XrExtensionProperties> properties;
-    for (uint32_t i = 0; i < count; i++) {
+    for (uint32_t i = 0; i < extensionCapacity; i++) {
         XrExtensionProperties props = { .type = XR_TYPE_EXTENSION_PROPERTIES };
         properties.push_back(props);
     }
 
-    result = xrEnumerateInstanceExtensionProperties(nullptr, count, &count, properties.data());
-    if (!xrCheck(XR_NULL_HANDLE, result, "Failed to enumerate extensions."))
+    uint32_t returnedExtensionCount = 0;
+    if (extensionCapacity > 0) {
+        result = xrEnumerateInstanceExtensionProperties(
+            nullptr, extensionCapacity, &returnedExtensionCount,
+            properties.data());
+    }
+    if (extensionCapacity > 0 &&
+            !xrCheck(XR_NULL_HANDLE, result, "Failed to enumerate extensions."))
         return false;
+    if (!isOpenXrExtensionEnumerationCountWithinCapacity(
+            extensionCapacity, returnedExtensionCount)) {
+        qCCritical(xr_context_cat,
+                   "Runtime returned inconsistent extension count: %u of %u",
+                   returnedExtensionCount, extensionCapacity);
+        return false;
+    }
+    properties.resize(returnedExtensionCount);
 
     bool openglSupported = false;
     bool userPresenceSupported = false;
@@ -172,42 +187,42 @@ bool OpenXrContext::initInstance() {
     bool foveationConfigurationSupported = false;
 #endif
 
-    qCInfo(xr_context_cat, "Runtime supports %d extensions:", count);
-    for (uint32_t i = 0; i < count; i++) {
-        qCInfo(xr_context_cat, "%s v%d", properties[i].extensionName, properties[i].extensionVersion);
-        if (strcmp(XR_KHR_OPENGL_ENABLE_EXTENSION_NAME, properties[i].extensionName) == 0) {
+    qCInfo(xr_context_cat, "Runtime supports %zu extensions:", properties.size());
+    for (const auto& property : properties) {
+        qCInfo(xr_context_cat, "%s v%d", property.extensionName, property.extensionVersion);
+        if (strcmp(XR_KHR_OPENGL_ENABLE_EXTENSION_NAME, property.extensionName) == 0) {
             openglSupported = true;
 #if defined(Q_OS_ANDROID)
-        } else if (strcmp(XR_KHR_ANDROID_CREATE_INSTANCE_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_KHR_ANDROID_CREATE_INSTANCE_EXTENSION_NAME, property.extensionName) == 0) {
             androidCreateInstanceSupported = true;
-        } else if (strcmp(XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME, property.extensionName) == 0) {
             displayRefreshRateSupported = true;
-        } else if (strcmp(XR_FB_SWAPCHAIN_UPDATE_STATE_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_FB_SWAPCHAIN_UPDATE_STATE_EXTENSION_NAME, property.extensionName) == 0) {
             swapchainUpdateStateSupported = true;
-        } else if (strcmp(XR_FB_FOVEATION_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_FB_FOVEATION_EXTENSION_NAME, property.extensionName) == 0) {
             foveationSupported = true;
-        } else if (strcmp(XR_FB_FOVEATION_CONFIGURATION_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_FB_FOVEATION_CONFIGURATION_EXTENSION_NAME, property.extensionName) == 0) {
             foveationConfigurationSupported = true;
 #endif
-        } else if (strcmp(XR_EXT_USER_PRESENCE_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_EXT_USER_PRESENCE_EXTENSION_NAME, property.extensionName) == 0) {
             userPresenceSupported = true;
-        } else if (strcmp(XR_EXT_SAMSUNG_ODYSSEY_CONTROLLER_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_EXT_SAMSUNG_ODYSSEY_CONTROLLER_EXTENSION_NAME, property.extensionName) == 0) {
             odysseyControllerSupported = true;
-        } else if (strcmp(XR_EXT_HAND_TRACKING_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_EXT_HAND_TRACKING_EXTENSION_NAME, property.extensionName) == 0) {
             handTrackingSupported = true;
-        } else if (strcmp(XR_MNDX_XDEV_SPACE_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_MNDX_XDEV_SPACE_EXTENSION_NAME, property.extensionName) == 0) {
             MNDX_xdevSpaceSupported = true;
-        } else if (strcmp(XR_HTCX_VIVE_TRACKER_INTERACTION_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_HTCX_VIVE_TRACKER_INTERACTION_EXTENSION_NAME, property.extensionName) == 0) {
             HTCX_viveTrackerInteractionSupported = true;
-        } else if (strcmp(XR_EXT_PALM_POSE_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_EXT_PALM_POSE_EXTENSION_NAME, property.extensionName) == 0) {
             palmPoseSupported = true;
-        } else if (strcmp(XR_BD_CONTROLLER_INTERACTION_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_BD_CONTROLLER_INTERACTION_EXTENSION_NAME, property.extensionName) == 0) {
             BD_controllerInteractionSupported = true;
 #if defined(XR_USE_PLATFORM_EGL)
-        } else if (strcmp(XR_MNDX_EGL_ENABLE_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_MNDX_EGL_ENABLE_EXTENSION_NAME, property.extensionName) == 0) {
             MNDX_eglEnableSupported = true;
 #endif
-        } else if (strcmp(XR_EXT_DEBUG_UTILS_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_EXT_DEBUG_UTILS_EXTENSION_NAME, property.extensionName) == 0) {
             EXT_debugUtilsSupported = true;
         }
     }
