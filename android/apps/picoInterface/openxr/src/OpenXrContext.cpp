@@ -110,10 +110,18 @@ OpenXrContext::~OpenXrContext() {
     if (_instance == XR_NULL_HANDLE) {
         return;
     }
+    if (_debugMessenger != XR_NULL_HANDLE && xrDestroyDebugUtilsMessengerEXT) {
+        xrCheck(
+            _instance,
+            xrDestroyDebugUtilsMessengerEXT(_debugMessenger),
+            "Failed to destroy OpenXR debug messenger");
+    }
+    _debugMessenger = XR_NULL_HANDLE;
     XrResult res = xrDestroyInstance(_instance);
     if (res != XR_SUCCESS) {
         qCCritical(xr_context_cat, "Failed to destroy OpenXR instance");
     }
+    _instance = XR_NULL_HANDLE;
     qCDebug(xr_context_cat, "Destroyed instance.");
 }
 
@@ -393,6 +401,11 @@ bool OpenXrContext::initSystem() {
             "xrCreateDebugUtilsMessengerEXT",
             reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateDebugUtilsMessengerEXT)
         );
+        const bool destroyFunctionLoaded = loadXrFunction(
+            _instance,
+            "xrDestroyDebugUtilsMessengerEXT",
+            reinterpret_cast<PFN_xrVoidFunction*>(&xrDestroyDebugUtilsMessengerEXT)
+        );
 
         XrDebugUtilsMessengerCreateInfoEXT createInfo = {
             .type = XR_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
@@ -403,9 +416,14 @@ bool OpenXrContext::initSystem() {
             .userData = nullptr,
         };
 
-        const bool functionReady = isOpenXrOptionalFunctionReady(
-            createFunctionLoaded, xrCreateDebugUtilsMessengerEXT != nullptr);
-        const bool messengerCreated = functionReady && xrCheck(
+        const bool functionsReady = areOpenXrDebugMessengerFunctionsReady(
+            isOpenXrOptionalFunctionReady(
+                createFunctionLoaded,
+                xrCreateDebugUtilsMessengerEXT != nullptr),
+            isOpenXrOptionalFunctionReady(
+                destroyFunctionLoaded,
+                xrDestroyDebugUtilsMessengerEXT != nullptr));
+        const bool messengerCreated = functionsReady && xrCheck(
             _instance,
             xrCreateDebugUtilsMessengerEXT(_instance, &createInfo, &_debugMessenger),
             "Failed to create OpenXR debug messenger");
@@ -414,6 +432,7 @@ bool OpenXrContext::initSystem() {
                       "Disabling unavailable OpenXR debug messenger");
             _debugMessenger = XR_NULL_HANDLE;
             xrCreateDebugUtilsMessengerEXT = nullptr;
+            xrDestroyDebugUtilsMessengerEXT = nullptr;
             _EXT_debugUtilsSupported = false;
         }
     }

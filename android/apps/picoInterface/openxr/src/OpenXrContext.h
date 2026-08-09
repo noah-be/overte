@@ -167,6 +167,7 @@ public:
     bool _EXT_debugUtilsSupported = false;
     XrDebugUtilsMessengerEXT _debugMessenger = {};
     PFN_xrCreateDebugUtilsMessengerEXT xrCreateDebugUtilsMessengerEXT = nullptr;
+    PFN_xrDestroyDebugUtilsMessengerEXT xrDestroyDebugUtilsMessengerEXT = nullptr;
 
 private:
     XrSessionState _lastSessionState = XR_SESSION_STATE_UNKNOWN;

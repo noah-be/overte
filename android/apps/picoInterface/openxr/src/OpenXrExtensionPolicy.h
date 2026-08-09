@@ -10,6 +10,11 @@ inline bool isOpenXrOptionalFunctionReady(
     return loadSucceeded && pointerIsNonNull;
 }
 
+inline bool areOpenXrDebugMessengerFunctionsReady(
+        bool createReady, bool destroyReady) {
+    return createReady && destroyReady;
+}
+
 inline bool areOpenXrXDevFunctionsReady(
         bool createListReady,
         bool enumerateReady,

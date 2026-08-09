@@ -16,6 +16,12 @@ int main() {
     assert(!isOpenXrOptionalFunctionReady(true, false));
     assert(isOpenXrOptionalFunctionReady(true, true));
 
+    for (unsigned int mask = 0; mask < 4; ++mask) {
+        assert(areOpenXrDebugMessengerFunctionsReady(
+                   (mask & 1U) != 0,
+                   (mask & 2U) != 0) == (mask == 3U));
+    }
+
     for (unsigned int mask = 0; mask < 32; ++mask) {
         assert(areOpenXrXDevFunctionsReady(
                    (mask & 1U) != 0,
