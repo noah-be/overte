@@ -23,6 +23,7 @@ import java.util.List;
 
 import io.highfidelity.hifiinterface.R;
 import io.highfidelity.hifiinterface.LegacyAdapterPositionPolicy;
+import io.highfidelity.hifiinterface.LegacyUserPolicy;
 import io.highfidelity.hifiinterface.provider.UsersProvider;
 
 /**
@@ -112,14 +113,18 @@ public class UserListAdapter extends RecyclerView.Adapter<UserListAdapter.ViewHo
     @Override
     public void onBindViewHolder(UserListAdapter.ViewHolder holder, int position) {
         User aUser = mUsers.get(position);
-        holder.mUsername.setText(aUser.name);
+        holder.mUsername.setText(LegacyUserPolicy.safeText(aUser.name));
 
         holder.mOnlineInfo.setVisibility(aUser.online? View.VISIBLE : View.GONE);
-        holder.mLocation.setText("- " + aUser.locationName); // Bring info from the API and use it here
+        holder.mLocation.setText("- " + LegacyUserPolicy.safeText(aUser.locationName));
 
-        holder.mFriendStar.onBindSet(aUser.name, aUser.connection.equals(UsersProvider.CONNECTION_TYPE_FRIEND));
-        Uri uri = Uri.parse(aUser.imageUrl);
-        Picasso.get().load(uri).into(holder.mImage, new RoundProfilePictureCallback(holder.mImage));
+        holder.mFriendStar.onBindSet(aUser.name, LegacyUserPolicy.isFriend(aUser.connection));
+        if (LegacyUserPolicy.hasText(aUser.imageUrl)) {
+            Uri uri = Uri.parse(aUser.imageUrl);
+            Picasso.get().load(uri).into(holder.mImage, new RoundProfilePictureCallback(holder.mImage));
+        } else {
+            holder.mImage.setImageResource(R.drawable.default_profile_avatar);
+        }
     }
 
     private class RoundProfilePictureCallback implements Callback {

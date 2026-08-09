@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import io.highfidelity.hifiinterface.view.UserListAdapter;
+import io.highfidelity.hifiinterface.LegacyUserPolicy;
 import okhttp3.Interceptor;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -73,22 +74,32 @@ public class EndpointUsersProvider implements UsersProvider {
         friendsCall.enqueue(new Callback<UsersResponse>() {
             @Override
             public void onResponse(Call<UsersResponse> call, retrofit2.Response<UsersResponse> response) {
-                if (!response.isSuccessful()) {
+                UsersResponse usersResponse = response.body();
+                boolean dataPresent = usersResponse != null && usersResponse.data != null;
+                boolean usersPresent = dataPresent && usersResponse.data.users != null;
+                int totalEntries = usersResponse == null ? -1 : usersResponse.total_entries;
+                if (!LegacyUserPolicy.isUsablePage(response.isSuccessful(), usersResponse != null,
+                        dataPresent, usersPresent, totalEntries)) {
                     usersCallback.retrieveError(new Exception("Error calling Users API"), "Error calling Users API");
                     return;
                 }
-                UsersResponse usersResponse = response.body();
-                List<UserListAdapter.User> adapterUsers = new ArrayList<>(usersResponse.total_entries);
+                List<UserListAdapter.User> adapterUsers =
+                        new ArrayList<>(usersResponse.data.users.size());
                 for (User user : usersResponse.data.users) {
+                    if (user == null) {
+                        continue;
+                    }
                     UserListAdapter.User adapterUser = new UserListAdapter.User();
-                    adapterUser.connection = user.connection;
-                    adapterUser.imageUrl = user.images.thumbnail;
-                    adapterUser.name = user.username;
+                    adapterUser.connection = LegacyUserPolicy.safeText(user.connection);
+                    adapterUser.imageUrl = user.images == null ? "" :
+                            LegacyUserPolicy.safeText(user.images.thumbnail);
+                    adapterUser.name = LegacyUserPolicy.safeText(user.username);
                     adapterUser.online = user.online;
-                    adapterUser.locationName = (user.location != null ?
-                            (user.location.root != null ? user.location.root.name :
-                                    (user.location.domain != null ? user.location.domain.name : ""))
-                            : "");
+                    String rootName = user.location != null && user.location.root != null ?
+                            user.location.root.name : null;
+                    String domainName = user.location != null && user.location.domain != null ?
+                            user.location.domain.name : null;
+                    adapterUser.locationName = LegacyUserPolicy.locationName(rootName, domainName);
                     adapterUsers.add(adapterUser);
                 }
                 usersCallback.retrieveOk(adapterUsers);
