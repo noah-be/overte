@@ -14,6 +14,9 @@ application ID (`org.overte.phone`) and does not package the Pico OpenXR
 runtime. The port currently targets landscape-oriented, ARM64 devices running
 Android 8 (API 26) or newer and targets Android 16 (API 36).
 
+For the device-free Actions checks and trusted build-runner architecture, see
+[Android Phone CI/CD](docs/ANDROID_PHONE_CI_CD.md).
+
 Run the commands in this document from the repository's `android/` directory.
 
 ## Current scope
