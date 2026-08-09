@@ -54,7 +54,9 @@ Node.js 18 or newer, Android SDK/NDK and Build Tools 36.0.0, CMake 3.31.6,
 Ninja, Conan and the tools required by `build-phone.sh doctor`. Node.js is an
 explicit runner prerequisite because the mandatory device-free JavaScript host
 tests run before dependency restoration. Give it adequate non-tmpfs workspace for
-dependencies, packaging, and APK verification. Do not attach Android devices,
+dependencies, packaging, and APK verification. Allocate at least four logical
+CPU cores and 8 GiB RAM to the release workload; the workflow caps CMake,
+Pico/Ninja, and shader generation at four workers. Do not attach Android devices,
 signing keys, general deployment credentials, persistent user Gradle properties, or a shared
 Pico/Phone Conan home. Deny workflow execution from forks and pull-request
 events at runner-group level. Restrict the runner group to this repository and
