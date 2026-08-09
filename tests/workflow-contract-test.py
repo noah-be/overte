@@ -9,6 +9,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/project-tests.yml"
 BUILD_WORKFLOW = ROOT / ".github/workflows/pico4-build.yml"
+RELEASE_WORKFLOW = ROOT / ".github/workflows/pico4-release-candidate.yml"
 ACTION_USE = re.compile(r"^\s*uses:\s*([^\s#]+)", re.MULTILINE)
 FULL_SHA_ACTION = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 
@@ -91,6 +92,45 @@ class PicoBuildWorkflowContracts(unittest.TestCase):
         self.assertNotRegex(upload, r"(?i)\.apk(?:\s|$)")
         self.assertIn("apk-manifest.json", upload)
         self.assertIn("retention-days: 7", upload)
+
+
+class PicoReleaseWorkflowContracts(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.source = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+
+    def test_release_is_manual_only_and_tag_fail_closed(self):
+        self.assertRegex(self.source, r"(?m)^  workflow_dispatch:$")
+        self.assertNotRegex(self.source, r"(?m)^  (pull_request|pull_request_target|push):$")
+        self.assertIn('[[ "$GITHUB_REF_TYPE" == tag ]]', self.source)
+        self.assertIn("pico4-release.py", self.source)
+        self.assertNotIn("refs/heads/feature/pico4-support", self.source)
+
+    def test_release_has_protected_boundary_and_dedicated_runner(self):
+        self.assertIn("environment: pico4-release-candidate", self.source)
+        self.assertIn("runs-on: [self-hosted, linux, x64, overte-android-release]", self.source)
+        self.assertRegex(self.source, r"(?m)^permissions:\n  contents: read$")
+        self.assertIn("contents: write", self.source)
+
+    def test_release_actions_are_pinned_and_checkout_has_no_credentials(self):
+        actions = ACTION_USE.findall(self.source)
+        self.assertGreaterEqual(len(actions), 2)
+        self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
+        self.assertIn("persist-credentials: false", self.source)
+
+    def test_release_reuses_gates_and_only_creates_a_draft(self):
+        for contract in ("tests/run-project-tests.py", "./build-pico.sh deps --download",
+                         "android/ci/verify-pico-apk.py", "--expected-version-code",
+                         "--expected-version-name", "--expected-signer-sha256"):
+            self.assertIn(contract, self.source)
+        self.assertIn("gh release create", self.source)
+        self.assertIn("--draft --verify-tag", self.source)
+        self.assertNotIn("gh release edit", self.source)
+
+    def test_release_prepares_auditable_outputs_without_device_access(self):
+        for output in ("pico4-release-manifest.json", "pico4-sbom.cdx.json", "SHA256SUMS"):
+            self.assertIn(output, self.source)
+        self.assertNotRegex(self.source, r"(?m)^\s+run:.*\badb\b")
 
 
 if __name__ == "__main__":
