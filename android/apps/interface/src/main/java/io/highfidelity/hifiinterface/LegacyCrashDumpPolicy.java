@@ -19,7 +19,7 @@ public final class LegacyCrashDumpPolicy {
     }
 
     public static boolean isAcceptedLength(long length) {
-        return length >= 0 && length <= MAX_DUMP_BYTES;
+        return length > 0 && length <= MAX_DUMP_BYTES;
     }
 
     public static boolean isSuccessfulUploadStatus(int status) {

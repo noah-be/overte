@@ -39,7 +39,8 @@ public final class LegacyCrashDumpPolicyStandaloneTest {
 
     public static void main(String[] args) throws Exception {
         check(!LegacyCrashDumpPolicy.isAcceptedLength(-1), "negative lengths must fail");
-        check(LegacyCrashDumpPolicy.isAcceptedLength(0), "empty dumps are bounded");
+        check(!LegacyCrashDumpPolicy.isAcceptedLength(0), "empty dumps cannot contain diagnostics");
+        check(LegacyCrashDumpPolicy.isAcceptedLength(1), "the smallest non-empty dump is bounded");
         check(LegacyCrashDumpPolicy.isAcceptedLength(LegacyCrashDumpPolicy.MAX_DUMP_BYTES),
                 "the exact maximum must pass");
         check(!LegacyCrashDumpPolicy.isAcceptedLength(LegacyCrashDumpPolicy.MAX_DUMP_BYTES + 1),
