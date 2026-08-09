@@ -332,10 +332,28 @@ bool OpenXrContext::initInstance() {
 
 #if defined(Q_OS_ANDROID)
     if (_foveationSupported) {
-        _foveationSupported =
-            loadXrFunction(_instance, "xrCreateFoveationProfileFB", (PFN_xrVoidFunction*)&xrCreateFoveationProfileFB) &&
-            loadXrFunction(_instance, "xrDestroyFoveationProfileFB", (PFN_xrVoidFunction*)&xrDestroyFoveationProfileFB) &&
-            loadXrFunction(_instance, "xrUpdateSwapchainFB", (PFN_xrVoidFunction*)&xrUpdateSwapchainFB);
+        const bool createLoaded = loadXrFunction(
+            _instance, "xrCreateFoveationProfileFB",
+            (PFN_xrVoidFunction*)&xrCreateFoveationProfileFB);
+        const bool destroyLoaded = loadXrFunction(
+            _instance, "xrDestroyFoveationProfileFB",
+            (PFN_xrVoidFunction*)&xrDestroyFoveationProfileFB);
+        const bool updateLoaded = loadXrFunction(
+            _instance, "xrUpdateSwapchainFB",
+            (PFN_xrVoidFunction*)&xrUpdateSwapchainFB);
+        _foveationSupported = areOpenXrFoveationFunctionsReady(
+            isOpenXrOptionalFunctionReady(
+                createLoaded, xrCreateFoveationProfileFB != nullptr),
+            isOpenXrOptionalFunctionReady(
+                destroyLoaded, xrDestroyFoveationProfileFB != nullptr),
+            isOpenXrOptionalFunctionReady(
+                updateLoaded, xrUpdateSwapchainFB != nullptr));
+        if (!_foveationSupported) {
+            xrCreateFoveationProfileFB = nullptr;
+            xrDestroyFoveationProfileFB = nullptr;
+            xrUpdateSwapchainFB = nullptr;
+            qCWarning(xr_context_cat) << "OpenXR foveation API is incomplete; disabling foveation.";
+        }
         qCInfo(xr_context_cat) << "PICO_FOVEATION_SUPPORTED" << _foveationSupported;
     }
 #endif

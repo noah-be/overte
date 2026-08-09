@@ -42,6 +42,13 @@ int main() {
                    (mask & 4U) != 0) == (mask == 7U));
     }
 
+    for (unsigned int mask = 0; mask < 8; ++mask) {
+        assert(areOpenXrFoveationFunctionsReady(
+                   (mask & 1U) != 0,
+                   (mask & 2U) != 0,
+                   (mask & 4U) != 0) == (mask == 7U));
+    }
+
     for (unsigned int mask = 0; mask < 32; ++mask) {
         assert(areOpenXrXDevFunctionsReady(
                    (mask & 1U) != 0,

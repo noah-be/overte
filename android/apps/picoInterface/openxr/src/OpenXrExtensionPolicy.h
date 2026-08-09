@@ -36,6 +36,11 @@ inline bool areOpenXrRefreshRateFunctionsReady(
     return enumerateReady && getReady && requestReady;
 }
 
+inline bool areOpenXrFoveationFunctionsReady(
+        bool createReady, bool destroyReady, bool updateReady) {
+    return createReady && destroyReady && updateReady;
+}
+
 inline bool areOpenXrXDevFunctionsReady(
         bool createListReady,
         bool enumerateReady,
