@@ -14,6 +14,7 @@ SHADERGEN = ROOT / "tools/shadergen.py"
 BUILD_SCRIPT = (ROOT / "android/build-pico.sh").read_text(encoding="utf-8")
 CMAKE_BOOTSTRAP = (ROOT / "android/cmake-pico-bootstrap.cmake").read_text(encoding="utf-8")
 PICO_CONAN_PROFILE = (ROOT / "android/conan/profiles/pico4-arm64").read_text(encoding="utf-8")
+PICO_CONAN_RECIPE = (ROOT / "android/conan/conanfile-pico.py").read_text(encoding="utf-8")
 
 
 class ShadergenJobTests(unittest.TestCase):
@@ -56,6 +57,10 @@ class ShadergenJobTests(unittest.TestCase):
 
     def test_legacy_mapbox_gl_native_provider_is_disabled(self):
         self.assertIn("-no-feature-geoservices_mapboxgl", PICO_CONAN_PROFILE)
+
+    def test_qt_recipe_uses_reproducible_remote_revision(self):
+        self.assertIn("#4fc772a2dbcd84731eb6ff9904e6e358", PICO_CONAN_RECIPE)
+        self.assertNotIn("#d59ba2a04fe9ede772b05b0bb0865eb0", PICO_CONAN_RECIPE)
 
     def test_native_compile_and_link_use_bounded_cmake_pools(self):
         self.assertIn('PROPERTY JOB_POOLS "pico_compile=$ENV{PICO_BUILD_JOBS}" pico_link=1', CMAKE_BOOTSTRAP)
