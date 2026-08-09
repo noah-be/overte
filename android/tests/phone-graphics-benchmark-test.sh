@@ -35,7 +35,18 @@ sed 's/^+//' >"$fixture/adb" <<'MOCK'
 +shift 2
 +if [[ -n ${MOCK_ADB_COMMAND_LOG:-} ]]; then printf '%s\n' "$*" >>"$MOCK_ADB_COMMAND_LOG"; fi
 +if [[ $1 == shell && $2 == getprop ]]; then
-+  [[ $3 == ro.build.characteristics ]] && printf 'phone\n' || printf 'Generic\n'; exit
++  case $3 in
++    ro.build.characteristics) printf 'phone\n' ;;
++    ro.kernel.qemu) printf '%s\n' "${MOCK_QEMU:-0}" ;;
++    ro.product.cpu.abilist) printf 'arm64-v8a\n' ;;
++    ro.build.version.sdk) printf '36\n' ;;
++    ro.opengles.version) printf '196610\n' ;;
++    *) printf 'Generic\n' ;;
++  esac
++  exit
++fi
++if [[ $1 == shell && $2 == pm && $3 == list && $4 == features ]]; then
++  printf 'feature:android.hardware.touchscreen\n'; exit
 +fi
 +if [[ $1 == shell && $2 == pidof ]]; then
 +  if [[ -n ${MOCK_PID_DELAY_FILE:-} ]]; then
@@ -109,6 +120,16 @@ chmod +x "$fixture/adb"
 if PHONE_ADB="$fixture/adb" ANDROID_SERIAL=phone-secret "$script_dir/phone-graphics-benchmark.sh" 1 >/dev/null 2>&1; then
     echo 'FAIL: benchmark ran without explicit non-VR confirmation' >&2; exit 1
 fi
+rejected_commands="$fixture/rejected-device-commands"
+: >"$rejected_commands"
+if PHONE_ADB="$fixture/adb" MOCK_QEMU=1 ANDROID_SERIAL=phone-secret \
+    PHONE_BENCHMARK_CONFIRM_NON_VR=YES MOCK_ADB_COMMAND_LOG="$rejected_commands" \
+    "$script_dir/phone-graphics-benchmark.sh" 1 >"$fixture/rejected-device.out" 2>&1; then
+    echo 'FAIL: benchmark accepted an emulator target' >&2; exit 1
+fi
+grep -Fxq 'ERROR: ANDROID_SERIAL does not meet the physical Phone runtime contract' \
+    "$fixture/rejected-device.out"
+! grep -Eq 'dumpsys gfxinfo|logcat -c|am start' "$rejected_commands"
 command_log="$fixture/commands"
 : >"$command_log"
 PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/exit-count" ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES \

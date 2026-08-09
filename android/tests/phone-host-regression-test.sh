@@ -664,6 +664,16 @@ require_text tests/phone-graphics-benchmark.sh "trap 'exit 130' INT" \
     'graphics benchmark converts interruption into a terminating exit'
 require_text tests/phone-graphics-benchmark.sh "trap 'exit 143' TERM" \
     'graphics benchmark converts termination into a terminating exit'
+require_text tests/phone-graphics-benchmark.sh 'ro[.]kernel[.]qemu' \
+    'graphics benchmark rejects emulator targets'
+require_text tests/phone-graphics-benchmark.sh 'arm64-v8a' \
+    'graphics benchmark requires the Phone ARM64 ABI'
+require_text tests/phone-graphics-benchmark.sh 'android[.]hardware[.]touchscreen' \
+    'graphics benchmark requires a touchscreen target'
+require_text tests/phone-graphics-benchmark.sh '10#\$sdk >= 26' \
+    'graphics benchmark enforces the Phone minimum Android API'
+require_text tests/phone-graphics-benchmark.sh '10#\$gles >= 196610' \
+    'graphics benchmark enforces the Phone OpenGL ES contract'
 require_text phone-build-resource-guard.sh 'OVERTE_PHONE_MIN_SWAP_BYTES=32000000000' \
     'dependency builds require at least 32 GB decimal swap'
 require_text phone-build-resource-guard.sh "OVERTE_PHONE_MEMORY_MAX_PROPERTY='20000000000'" \

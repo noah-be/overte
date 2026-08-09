@@ -59,7 +59,18 @@ property() { adb_for shell getprop "$1" 2>/dev/null | tr -d '\r'; }
 identity="$(property ro.product.manufacturer) $(property ro.product.brand) $(property ro.product.model) $(property ro.product.device)"
 characteristics="$(property ro.build.characteristics)"
 [[ ! "${identity,,}" =~ pico|bytedance ]] || die "refusing to benchmark a Pico/VR device"
-[[ ! "${characteristics,,}" =~ (^|,)vr(,|$) ]] || die "refusing to benchmark a VR-class device"
+qemu="$(property ro.kernel.qemu)"
+abis="$(property ro.product.cpu.abilist)"
+sdk="$(property ro.build.version.sdk)"
+gles="$(property ro.opengles.version)"
+features="$(adb_for shell pm list features | tr -d '\r')"
+[[ "$qemu" != 1 ]] &&
+    [[ ! "${characteristics,,}" =~ (^|,)(watch|tv|automotive|vr)(,|$) ]] &&
+    [[ ",$abis," == *,arm64-v8a,* ]] &&
+    [[ "$sdk" =~ ^[0-9]+$ ]] && ((10#$sdk >= 26)) &&
+    [[ "$gles" =~ ^[0-9]+$ ]] && ((10#$gles >= 196610)) &&
+    grep -Fxq 'feature:android.hardware.touchscreen' <<<"$features" ||
+    die "ANDROID_SERIAL does not meet the physical Phone runtime contract"
 
 if [[ -n "${PHONE_BENCHMARK_REPORT:-}" ]]; then
     report_dir="$(realpath -m -- "$PHONE_BENCHMARK_REPORT" 2>/dev/null)" || \

@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 118 — Gate benchmark targets to physical Phones
+
+- Branch: `nightly/android-phone-118-benchmark-device-contract`
+- Commit: `Gate phone benchmark device contract` (this task's commit)
+- Change: Require the explicitly selected benchmark target to be a physical,
+  non-Watch/TV/Automotive/VR ARM64 touchscreen with Android API 26+ and OpenGL
+  ES 3.2+, matching the packaged Phone runtime contract.
+- Tests:
+  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; a fake emulator
+    is rejected with the fixed contract error before graphics reset, log clear,
+    or Activity start, while the valid physical-Phone fixture remains green.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 315/315 checks,
+    including explicit emulator, ABI, touchscreen, SDK, and GLES contracts.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 315/315.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Manufacturer/brand checks remain as an additional conservative
+  Pico defense; no identity value is persisted or printed.
+- Real-device validation still required: Confirm the intended device passes all
+  queried properties and features without retaining their values.
+
 ## 117 — Always clean up the benchmarked app
 
 - Branch: `nightly/android-phone-117-benchmark-cleanup`
@@ -2689,7 +2710,8 @@ All branches form one linear chain starting at
 114. `nightly/android-phone-114-benchmark-report-preflight` — `6d95343897`
 115. `nightly/android-phone-115-private-benchmark-setup` — `48d8101544`
 116. `nightly/android-phone-116-private-benchmark-publish` — `45408ac063`
-117. `nightly/android-phone-117-benchmark-cleanup` — this task's commit
+117. `nightly/android-phone-117-benchmark-cleanup` — `f579bcfb7e`
+118. `nightly/android-phone-118-benchmark-device-contract` — this task's commit
 
 ### Device-free audit disposition
 
