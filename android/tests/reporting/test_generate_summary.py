@@ -225,6 +225,26 @@ class SummaryTest(unittest.TestCase):
             self.assertEqual("owned", output.read_text(encoding="utf-8"))
             self.assertEqual("existing\n", step_summary.read_text(encoding="utf-8"))
 
+    def test_step_summary_symlink_is_rejected_without_touching_its_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "summary.md"
+            victim = root / "victim.md"
+            victim.write_text("private", encoding="utf-8")
+            step_summary = root / "step-summary.md"
+            try:
+                step_summary.symlink_to(victim)
+            except OSError:
+                self.skipTest("symlinks unavailable")
+            argv = ["generate_summary.py", "--output", str(output)]
+            with mock.patch.object(sys, "argv", argv), mock.patch.dict(
+                    os.environ, {"GITHUB_STEP_SUMMARY": str(step_summary)},
+                    clear=True):
+                self.assertEqual(1, summary.main())
+            self.assertTrue(output.is_file())
+            self.assertEqual("private", victim.read_text(encoding="utf-8"))
+            self.assertTrue(step_summary.is_symlink())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import sys
 import tempfile
 import time
@@ -60,6 +61,24 @@ def summary_lifecycle_lock(output: Path, timeout: float):
             yield
         finally:
             fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+def append_step_summary(path: Path, markdown: str) -> None:
+    flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NONBLOCK
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    elif path.is_symlink():
+        raise OSError("step summary cannot be a symlink")
+    descriptor = os.open(path, flags, 0o600)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise OSError("step summary is not a regular file")
+        with os.fdopen(descriptor, "a", encoding="utf-8") as destination:
+            descriptor = -1
+            destination.write(markdown)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
 
 
 def report_bytes(path: Path) -> bytes:
@@ -293,8 +312,7 @@ def main() -> int:
                     pass
             step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
             if step_summary:
-                with Path(step_summary).open("a", encoding="utf-8") as destination:
-                    destination.write(markdown)
+                append_step_summary(Path(step_summary), markdown)
             return 1 if args.strict and issue_count else 0
     except TimeoutError:
         print("error: timed out waiting for summary output lock", file=sys.stderr)
