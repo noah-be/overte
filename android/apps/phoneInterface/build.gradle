@@ -14,6 +14,12 @@ android {
 def legacyConanDir = file('../../conan/pico4-debug')
 def phoneQtConanDir = file('../../conan/phone-16k-debug')
 def phoneNonQtConanDir = file('../../conan/phone-nonqt-16k-debug')
+def phoneEmulatorConanDir = file('../../conan/phone-emulator-x86_64-debug')
+def phoneEmulatorReadySentinel = new File(phoneEmulatorConanDir,
+    '.phone-emulator-dependencies.ready')
+def isPhoneEmulatorBuild = System.getenv('PHONE_EMULATOR_BUILD') == '1'
+def phoneTargetAbi = isPhoneEmulatorBuild ? 'x86_64' : 'arm64-v8a'
+def qtAbiSuffix = isPhoneEmulatorBuild ? 'x86_64' : 'arm64-v8a'
 def phone16kReadySentinel = new File(phoneNonQtConanDir,
     '.phone-16k-dependencies.ready')
 def phoneConanGeneratorsDir = layout.buildDirectory.dir('generated/phone16kConanGenerators')
@@ -22,22 +28,46 @@ def phoneQtConanData = new File(phoneQtConanDir,
 // Generator files can survive an interrupted Conan rebuild. Only the atomic
 // sentinel written after checking every relevant package enables this graph.
 def usePhone16kDependencies = phone16kReadySentinel.isFile()
+def usePhoneEmulatorDependencies = isPhoneEmulatorBuild &&
+    phoneEmulatorReadySentinel.isFile()
 def allowLegacy4kDependencies = System.getenv('PHONE_ALLOW_LEGACY_4K_DEPS') == '1'
-if (!usePhone16kDependencies && !allowLegacy4kDependencies) {
+if (isPhoneEmulatorBuild && !usePhoneEmulatorDependencies) {
     throw new GradleException(
-        'Phone builds require verified 16 KiB dependencies. Run ' +
-        './finalize-phone-16k-deps.sh after both dependency builds finish. ' +
-        'For temporary local migration work only, set ' +
-        'PHONE_ALLOW_LEGACY_4K_DEPS=1.')
+        'Phone emulator builds require x86_64 dependencies. Run ' +
+        './prepare-phone-emulator-deps.sh first.')
+}
+if (!isPhoneEmulatorBuild) {
+    if (!usePhone16kDependencies && !allowLegacy4kDependencies) {
+        throw new GradleException(
+            'Phone builds require verified 16 KiB dependencies. Run ' +
+            './finalize-phone-16k-deps.sh after both dependency builds finish. ' +
+            'For temporary local migration work only, set ' +
+            'PHONE_ALLOW_LEGACY_4K_DEPS=1.')
+    }
 }
 def usePhone16kQt = usePhone16kDependencies
-def androidConanDir = usePhone16kDependencies
+def androidConanDir = usePhoneEmulatorDependencies
+    ? phoneEmulatorConanDir
+    : usePhone16kDependencies
     ? file(phoneConanGeneratorsDir.get().asFile)
     : legacyConanDir
-def androidConanGeneratorsDir = usePhone16kDependencies
+def androidConanGeneratorsDir = usePhoneEmulatorDependencies
+    ? new File(androidConanDir, 'generators')
+    : usePhone16kDependencies
     ? androidConanDir
     : new File(androidConanDir, 'generators')
-def qtConanData = usePhone16kDependencies
+def emulatorQtConanFiles = usePhoneEmulatorDependencies
+    ? fileTree(new File(phoneEmulatorConanDir, 'generators')).matching {
+        include 'Qt5-debug-*-data.cmake'
+    }.files
+    : []
+if (usePhoneEmulatorDependencies && emulatorQtConanFiles.size() != 1) {
+    throw new GradleException(
+        "Expected one x86_64 Qt generator file, found ${emulatorQtConanFiles.size()}.")
+}
+def qtConanData = usePhoneEmulatorDependencies
+    ? emulatorQtConanFiles.first()
+    : usePhone16kDependencies
     ? phoneQtConanData
     : new File(legacyConanDir, 'generators/Qt5-debug-armv8-data.cmake')
 if (!qtConanData.isFile()) {
@@ -56,7 +86,8 @@ def phone16kDependencyCheck = file('../../tests/verify-phone-16k-dependencies.sh
 def phone16kApkCheck = file('../../tests/check-phone-apk-16k.sh')
 def phonePackageContentsCheck = file('../../tests/check-phone-apk-contents.py')
 def androidOpenSslDir = new File(
-    usePhone16kDependencies ? phoneNonQtConanDir : legacyConanDir,
+    usePhoneEmulatorDependencies ? phoneEmulatorConanDir :
+        (usePhone16kDependencies ? phoneNonQtConanDir : legacyConanDir),
     'conanlibs/Debug')
 
 // Release credentials are deliberately optional and never have repository
@@ -115,14 +146,9 @@ def requirePhoneReleaseVersionCode = tasks.register('requirePhoneReleaseVersionC
 // currently DT_NEEDED by the native client, and Qt5PositioningQuick is needed
 // by Qt5Location, so those cannot be removed at packaging time.
 def unusedPhoneQtRuntimeLibraries = [
-    'libQt5Contacts_arm64-v8a.so',
-    'libQt5DocGallery_arm64-v8a.so',
-    'libQt5Feedback_arm64-v8a.so',
-    'libQt5Organizer_arm64-v8a.so',
-    'libQt5QuickParticles_arm64-v8a.so',
-    'libQt5Versit_arm64-v8a.so',
-    'libQt5VersitOrganizer_arm64-v8a.so'
-]
+    'Qt5Contacts', 'Qt5DocGallery', 'Qt5Feedback', 'Qt5Organizer',
+    'Qt5QuickParticles', 'Qt5Versit', 'Qt5VersitOrganizer'
+].collect { "lib${it}_${qtAbiSuffix}.so" }
 
 // Conan's non-Qt install intentionally resolves against the legacy Qt package.
 // Start with the rebuilt Qt graph and replace only the four rebuilt non-Qt
@@ -196,31 +222,31 @@ tasks.register('requirePhone16kReleaseDependencies') {
 
 tasks.register('preparePhoneQtRuntime', Sync) {
     dependsOn tasks.named('verifyPhone16kDependencies')
-    into phoneQtRuntimeDir.map { it.dir('arm64-v8a') }
+    into phoneQtRuntimeDir.map { it.dir(phoneTargetAbi) }
     // Qt5Location has a direct DT_NEEDED edge to PositioningQuick. Stage it
     // explicitly from the verified Qt package; Sync also removes stale runtime
     // files left behind by older Pico/legacy staging rules.
     from(new File(qtPackageDir, 'lib')) {
-        include 'libQt5PositioningQuick_arm64-v8a.so'
+        include "libQt5PositioningQuick_${qtAbiSuffix}.so"
     }
     from(new File(qtPackageDir, 'plugins/platforms')) {
-        include 'libplugins_platforms_qtforandroid_arm64-v8a.so'
+        include "libplugins_platforms_qtforandroid_${qtAbiSuffix}.so"
         exclude { !usePhone16kQt && new File(runtimeOverrides,
             'libplugins_platforms_qtforandroid_arm64-v8a.so').exists() }
     }
     from(runtimeOverrides) {
         include 'libplugins_platforms_qtforandroid_arm64-v8a.so'
-        exclude { usePhone16kQt }
+        exclude { usePhone16kQt || isPhoneEmulatorBuild }
     }
     from(new File(qtPackageDir, 'plugins/bearer')) {
-        include 'libplugins_bearer_qandroidbearer_arm64-v8a.so'
+        include "libplugins_bearer_qandroidbearer_${qtAbiSuffix}.so"
     }
     from(new File(qtPackageDir, 'plugins/imageformats')) {
-        include 'libplugins_imageformats_qjpeg_arm64-v8a.so'
-        include 'libplugins_imageformats_qsvg_arm64-v8a.so'
+        include "libplugins_imageformats_qjpeg_${qtAbiSuffix}.so"
+        include "libplugins_imageformats_qsvg_${qtAbiSuffix}.so"
     }
     from(new File(qtPackageDir, 'plugins/audio')) {
-        include 'libplugins_audio_qtaudio_opensles_arm64-v8a.so'
+        include "libplugins_audio_qtaudio_opensles_${qtAbiSuffix}.so"
     }
     // QtActivity preloads these Android-safe names before libphoneInterface.
     from(androidOpenSslDir) {
@@ -247,6 +273,7 @@ tasks.register('preparePhoneQtRuntime', Sync) {
 }
 
 android {
+    testBuildType isPhoneEmulatorBuild ? 'emulator' : 'debug'
     defaultConfig {
         applicationId 'org.overte.phone'
         minSdk 26
@@ -255,7 +282,7 @@ android {
         versionName rootProject.ext.appVersionName
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
 
-        ndk { abiFilters 'arm64-v8a' }
+        ndk { abiFilters phoneTargetAbi }
         externalNativeBuild {
             cmake {
                 arguments '-DHIFI_ANDROID=1',
@@ -314,6 +341,15 @@ android {
             buildConfigField 'String', 'OAUTH_CLIENT_SECRET', '""'
             buildConfigField 'String', 'OAUTH_REDIRECT_URI', '""'
         }
+        emulator {
+            initWith debug
+            // The x86_64 smoke APK does not package JaCoCo's offline runtime.
+            // Inheriting debug coverage instruments QtApplication and crashes
+            // the process before AndroidJUnitRunner can start.
+            enableUnitTestCoverage false
+            enableAndroidTestCoverage false
+            matchingFallbacks = ['debug']
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
@@ -349,7 +385,7 @@ android {
         jniLibs {
             useLegacyPackaging true
             unusedPhoneQtRuntimeLibraries.each { libraryName ->
-                excludes += "lib/arm64-v8a/${libraryName}"
+                excludes += "lib/${phoneTargetAbi}/${libraryName}"
             }
         }
     }
@@ -605,11 +641,13 @@ tasks.configureEach { task ->
     if (task.name.startsWith('merge') && task.name.endsWith('NativeLibs')) {
         task.doLast {
             task.outputs.files.asFileTree.matching { include '**/*.so' }.files.each { library ->
-                if (!usePhone16kDependencies && library.name == 'libtbb_debug.so') {
+                if (!isPhoneEmulatorBuild && !usePhone16kDependencies &&
+                        library.name == 'libtbb_debug.so') {
                     ant.copy(file: new File(runtimeOverrides, 'libtbb.so'),
                         tofile: library, overwrite: true)
                 }
-                if (!usePhone16kQt && library.name == 'libQt5Core_arm64-v8a.so') {
+                if (!isPhoneEmulatorBuild && !usePhone16kQt &&
+                        library.name == 'libQt5Core_arm64-v8a.so') {
                     ant.copy(file: new File(runtimeOverrides, 'libQt5Core_arm64-v8a.so'),
                         tofile: library, overwrite: true)
                 }
