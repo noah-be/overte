@@ -9,6 +9,7 @@
 
 #include "OpenXrContext.h"
 #include "OpenXrDebugPolicy.h"
+#include "OpenXrExtensionPolicy.h"
 #include "OpenXrSpacePolicy.h"
 #include <QLoggingCategory>
 #include <QString>
@@ -420,23 +421,34 @@ bool OpenXrContext::initSystem() {
                 continue;
             }
 
-            xrGetInstanceProcAddr(
+            const bool createLoaded = loadXrFunction(
                 _instance,
                 "xrCreateHandTrackerEXT",
                 reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateHandTrackerEXT)
             );
 
-            xrGetInstanceProcAddr(
+            const bool destroyLoaded = loadXrFunction(
                 _instance,
                 "xrDestroyHandTrackerEXT",
                 reinterpret_cast<PFN_xrVoidFunction*>(&xrDestroyHandTrackerEXT)
             );
 
-            xrGetInstanceProcAddr(
+            const bool locateLoaded = loadXrFunction(
                 _instance,
                 "xrLocateHandJointsEXT",
                 reinterpret_cast<PFN_xrVoidFunction*>(&xrLocateHandJointsEXT)
             );
+            if (!areOpenXrHandTrackingFunctionsReady(
+                    createLoaded && xrCreateHandTrackerEXT != nullptr,
+                    destroyLoaded && xrDestroyHandTrackerEXT != nullptr,
+                    locateLoaded && xrLocateHandJointsEXT != nullptr)) {
+                qCWarning(xr_context_cat,
+                          "Disabling hand tracking because its OpenXR API is incomplete");
+                _handTrackingSupported = false;
+                xrCreateHandTrackerEXT = nullptr;
+                xrDestroyHandTrackerEXT = nullptr;
+                xrLocateHandJointsEXT = nullptr;
+            }
         }
 
         if (next->type == XR_TYPE_SYSTEM_XDEV_SPACE_PROPERTIES_MNDX) {
