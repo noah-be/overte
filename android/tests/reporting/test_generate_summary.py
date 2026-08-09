@@ -166,6 +166,65 @@ class SummaryTest(unittest.TestCase):
                         "existing step summary\n", step_summary.read_text(encoding="utf-8"))
                     self.assertEqual([], list(root.glob(".summary.md.*.tmp")))
 
+    def test_staging_failure_invalidates_stale_output_without_step_append(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "summary.md"
+            output.write_text("stale green", encoding="utf-8")
+            step_summary = root / "step-summary.md"
+            step_summary.write_text("existing\n", encoding="utf-8")
+            argv = ["generate_summary.py", "--output", str(output)]
+            with mock.patch.object(sys, "argv", argv), mock.patch.dict(
+                    os.environ, {"GITHUB_STEP_SUMMARY": str(step_summary)},
+                    clear=True), mock.patch.object(
+                    summary.tempfile, "mkstemp", side_effect=OSError("full")):
+                self.assertEqual(1, summary.main())
+            self.assertFalse(output.exists())
+            self.assertEqual("existing\n", step_summary.read_text(encoding="utf-8"))
+            self.assertTrue((root / ".summary.md.lock").is_file())
+
+    def test_invalid_lock_timeout_preserves_existing_outputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "summary.md"
+            output.write_text("owned", encoding="utf-8")
+            step_summary = root / "step-summary.md"
+            step_summary.write_text("existing\n", encoding="utf-8")
+            argv = ["generate_summary.py", "--output", str(output)]
+            environment = {
+                "GITHUB_STEP_SUMMARY": str(step_summary),
+                "OVERTE_SUMMARY_LOCK_TIMEOUT_SECONDS": "invalid",
+            }
+            with mock.patch.object(sys, "argv", argv), mock.patch.dict(
+                    os.environ, environment, clear=True):
+                self.assertEqual(2, summary.main())
+            self.assertEqual("owned", output.read_text(encoding="utf-8"))
+            self.assertEqual("existing\n", step_summary.read_text(encoding="utf-8"))
+
+    @unittest.skipUnless(os.name == "posix", "flock fixture is POSIX-specific")
+    def test_lock_timeout_preserves_owner_outputs(self):
+        import fcntl
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "summary.md"
+            output.write_text("owned", encoding="utf-8")
+            step_summary = root / "step-summary.md"
+            step_summary.write_text("existing\n", encoding="utf-8")
+            lock_path = root / ".summary.md.lock"
+            argv = ["generate_summary.py", "--output", str(output)]
+            environment = {
+                "GITHUB_STEP_SUMMARY": str(step_summary),
+                "OVERTE_SUMMARY_LOCK_TIMEOUT_SECONDS": "0.01",
+            }
+            with lock_path.open("a+b") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                with mock.patch.object(sys, "argv", argv), mock.patch.dict(
+                        os.environ, environment, clear=True):
+                    self.assertEqual(1, summary.main())
+            self.assertEqual("owned", output.read_text(encoding="utf-8"))
+            self.assertEqual("existing\n", step_summary.read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()
