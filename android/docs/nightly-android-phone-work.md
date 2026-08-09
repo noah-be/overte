@@ -4,6 +4,40 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 140 — Enable bounded Android archive extraction for future Create work
+
+- Branch: `nightly/android-phone-140-safe-android-archive-extraction`
+- Commit: `Enable safe Android archive extraction` (this task's commit)
+- Change: Remove the obsolete Android empty-result stub now that QuaZip is in
+  the proven Android dependency graph. Validate ZIP entries before extraction
+  using the same read-only file handle; reject absolute, non-canonical,
+  backslash, duplicate, overlong, and symbolic-link paths and cap entries,
+  individual size, and aggregate expanded size. Remove partial output after a
+  failed extraction. This supplies one safe Create/model-import prerequisite
+  without enabling the desktop-oriented Create surface.
+- Tests:
+  - Incremental real j16 Phone APK build: **passed**; Android compilation and
+    link prove the QuaZip headers/library are available, then all 106 native
+    libraries/378 LOAD segments and APK content/metadata/ZIP gates passed.
+  - `android/tests/phone-archive-extraction-test.sh`: **passed** for the
+    fail-closed source contract and removal of the obsolete Android stub.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 40
+    explicitly device-free suites; nested host regression passed 330/330.
+  - Physical Phone post-link smoke: **passed**; installed-byte verification,
+    launch, deep link, three lifecycle cycles, Back recovery, and all crash/page
+    mismatch counters passed. A follow-up non-mutating 60-second observation
+    kept the process alive for 12/12 samples with zero fatal signatures and
+    deliberately left the app running.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: The extraction API has no dedicated interactive Phone UI yet;
+  archive limits intentionally reject unusually large model bundles. QuaZip's
+  actual Android extraction path is compiled and linked but not invoked by the
+  current disabled Create surface.
+- Real-device validation still required: Once a touch-owned import UI exists,
+  import a small valid model archive and confirm malformed, oversized,
+  traversal, duplicate, and symlink archives fail without output escaping the
+  app's temporary directory.
+
 ## 139 — Complete an unattended physical-Phone thermal soak
 
 - Branch: `nightly/android-phone-139-device-thermal-soak`

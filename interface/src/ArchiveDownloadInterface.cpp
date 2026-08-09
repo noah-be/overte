@@ -23,15 +23,81 @@
 #include <QtCore/QByteArray>
 #include <QtCore/QString>
 #include <QtCore/QFileInfo>
+#include <QtCore/QSet>
 
-// FIXME quazip hasn't been built on the android toolchain
-#if !defined(Q_OS_ANDROID)
 #include <quazip/quazip.h>
 #include <quazip/JlCompress.h>
-#endif
 
 #include "ResourceManager.h"
 #include "ScriptEngineLogging.h"
+
+namespace {
+
+constexpr int MAX_ARCHIVE_ENTRIES = 4096;
+constexpr qint64 MAX_ARCHIVE_FILE_BYTES = 256LL * 1024 * 1024;
+constexpr qint64 MAX_ARCHIVE_TOTAL_BYTES = 512LL * 1024 * 1024;
+constexpr int MAX_ARCHIVE_PATH_BYTES = 1024;
+
+bool validateArchive(QuaZip& archive) {
+    if (!archive.open(QuaZip::mdUnzip)) {
+        return false;
+    }
+
+    QSet<QString> paths;
+    qint64 totalBytes { 0 };
+    int entryCount { 0 };
+    bool valid { true };
+    if (archive.goToFirstFile()) {
+        do {
+            QuaZipFileInfo64 info;
+            if (!archive.getCurrentFileInfo(&info)) {
+                valid = false;
+                break;
+            }
+            QString path = archive.getCurrentFileName();
+            const bool directory = path.endsWith('/');
+            if (directory) {
+                path.chop(1);
+            }
+            const QString cleanPath = QDir::cleanPath(path);
+            if (path.isEmpty() || path.contains('\\') || QDir::isAbsolutePath(path) ||
+                    cleanPath != path || cleanPath == ".." || cleanPath.startsWith("../") ||
+                    path.toUtf8().size() > MAX_ARCHIVE_PATH_BYTES ||
+                    info.isSymbolicLink() || paths.contains(cleanPath) ||
+                    ++entryCount > MAX_ARCHIVE_ENTRIES ||
+                    info.uncompressedSize > static_cast<quint64>(MAX_ARCHIVE_FILE_BYTES) ||
+                    info.uncompressedSize > static_cast<quint64>(MAX_ARCHIVE_TOTAL_BYTES - totalBytes)) {
+                valid = false;
+                break;
+            }
+            paths.insert(cleanPath);
+            totalBytes += static_cast<qint64>(info.uncompressedSize);
+        } while (archive.goToNextFile());
+    }
+
+    archive.close();
+    return valid && archive.getZipError() == UNZ_OK;
+}
+
+QStringList extractArchiveSafely(const QString& archivePath, const QString& target) {
+    QFile archiveFile(archivePath);
+    if (!archiveFile.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+
+    QuaZip archive(&archiveFile);
+    if (!validateArchive(archive)) {
+        return {};
+    }
+
+    QStringList extracted = JlCompress::extractDir(archive, target);
+    if (extracted.isEmpty()) {
+        QDir(target).removeRecursively();
+    }
+    return extracted;
+}
+
+} // namespace
 
 
 ArchiveDownloadInterface::ArchiveDownloadInterface(QObject* parent) : QObject(parent) {
@@ -73,15 +139,11 @@ void ArchiveDownloadInterface::runUnzip(QString path, QUrl url, bool autoAdd, bo
 }
 
 QStringList ArchiveDownloadInterface::unzipFile(QString path, QString tempDir) {
-#if defined(Q_OS_ANDROID)
-    // FIXME quazip hasn't been built on the android toolchain
-    return QStringList();
-#else
     QDir dir(path);
     QString dirName = dir.path();
     qCDebug(scriptengine) << "Directory to unzip: " << dirName;
     QString target = tempDir + "/model_repo";
-    QStringList list = JlCompress::extractDir(dirName, target);
+    QStringList list = extractArchiveSafely(dirName, target);
 
     qCDebug(scriptengine) << list;
 
@@ -91,7 +153,6 @@ QStringList ArchiveDownloadInterface::unzipFile(QString path, QString tempDir) {
         qCDebug(scriptengine) << "Extraction failed";
         return list;
     }
-#endif
 }
 
 // fix to check that we are only referring to a temporary directory
@@ -147,12 +208,9 @@ void ArchiveDownloadInterface::recursiveFileScan(QFileInfo file, QString* dirNam
         return;
     }*/
     QFileInfoList files;
-    // FIXME quazip hasn't been built on the android toolchain
-#if !defined(Q_OS_ANDROID)
     if (file.fileName().contains(".zip")) {
-        JlCompress::extractDir(file.fileName());
+        extractArchiveSafely(file.fileName(), file.dir().path());
     }
-#endif
     files = file.dir().entryInfoList();
 
     /*if (files.empty()) {

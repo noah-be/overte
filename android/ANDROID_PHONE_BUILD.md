@@ -310,6 +310,13 @@ app having a tablet button:
 | Home | Configured home bookmark with bundled Tutorial fallback | Valid, invalid and unreachable bookmark behavior |
 | Create | Disabled | Requires a dedicated touch design without desktop windows, controller mappings or entity-click capture |
 
+One Create prerequisite is now available independently of its UI: Android can
+use the QuaZip package already present in the shared Conan graph for ZIP-backed
+model imports. Before extraction, the client rejects absolute, non-canonical,
+duplicate, overlong, and symbolic-link entries and enforces per-file,
+total-expanded-size, and entry-count limits. Validation and extraction share a
+single read-only file handle. This does not enable Create or its desktop UI.
+
 Users, More, VR tablet positioning, and other remote-web/VR-only tablet scripts
 remain disabled until they have an equally explicit phone contract. The legacy
 Web/controller Emote script also remains disabled; Phone uses its dedicated
