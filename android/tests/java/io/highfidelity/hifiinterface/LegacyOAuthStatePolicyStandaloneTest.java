@@ -56,6 +56,25 @@ public final class LegacyOAuthStatePolicyStandaloneTest {
         } catch (NullPointerException expected) {
             assertions++;
         }
+        String expectedState = "steam-0123456789abcdef";
+        check(LegacyOAuthStatePolicy.isValidCallback(
+                        expectedState, expectedState, "code+/=_-"),
+                "matching state and non-empty authorization code must pass");
+        String[][] invalidCallbacks = {
+                { null, expectedState, "code" }, { "", expectedState, "code" },
+                { " ", expectedState, "code" }, { expectedState, null, "code" },
+                { expectedState, "", "code" }, { expectedState, " ", "code" },
+                { expectedState, expectedState, null }, { expectedState, expectedState, "" },
+                { expectedState, expectedState, " \t" },
+                { expectedState, "steam-0123456789abcde", "code" },
+                { expectedState, expectedState + "0", "code" },
+                { expectedState, "Steam-0123456789abcdef", "code" }
+        };
+        for (String[] callback : invalidCallbacks) {
+            check(!LegacyOAuthStatePolicy.isValidCallback(
+                            callback[0], callback[1], callback[2]),
+                    "OAuth callback state and code must be present and exact");
+        }
         System.out.println("LegacyOAuthStatePolicyStandaloneTest: " + assertions
                 + " assertions passed");
     }

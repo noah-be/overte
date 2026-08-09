@@ -157,13 +157,19 @@ public class LoginFragment extends Fragment
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == OAUTH_AUTHORIZE_REQUEST) {
             if (resultCode == Activity.RESULT_OK) {
-                String authCode = data.getStringExtra(WebViewActivity.RESULT_OAUTH_CODE);
-                String state = data.getStringExtra(WebViewActivity.RESULT_OAUTH_STATE);
-                if (state != null && state.equals(mOauthState) && mListener != null) {
-                    mOauthState = null;
+                String expectedState = mOauthState;
+                mOauthState = null;
+                String authCode = data == null ? null
+                        : data.getStringExtra(WebViewActivity.RESULT_OAUTH_CODE);
+                String state = data == null ? null
+                        : data.getStringExtra(WebViewActivity.RESULT_OAUTH_STATE);
+                if (LegacyOAuthStatePolicy.isValidCallback(
+                        expectedState, state, authCode) && mListener != null) {
                     showActivityIndicator();
                     mLoginInProgress = true;
                     retrieveAccessToken(authCode, BuildConfig.OAUTH_CLIENT_ID, BuildConfig.OAUTH_CLIENT_SECRET, BuildConfig.OAUTH_REDIRECT_URI);
+                } else {
+                    onCancelLogin();
                 }
             } else {
                 onCancelLogin();

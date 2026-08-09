@@ -1,5 +1,7 @@
 package io.highfidelity.hifiinterface;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Objects;
 
@@ -22,5 +24,20 @@ public final class LegacyOAuthStatePolicy {
             state.append(HEX[unsigned & 0x0f]);
         }
         return state.toString();
+    }
+
+    public static boolean isValidCallback(
+            String expectedState, String returnedState, String authorizationCode) {
+        if (!hasText(expectedState) || !hasText(returnedState)
+                || !hasText(authorizationCode)) {
+            return false;
+        }
+        return MessageDigest.isEqual(
+                expectedState.getBytes(StandardCharsets.UTF_8),
+                returnedState.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 }

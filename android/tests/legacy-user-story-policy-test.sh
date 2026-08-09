@@ -132,6 +132,23 @@ if grep -Eq 'java\.util\.Random|nextLong\(' "$login_fragment"; then
     printf 'FAIL: legacy OAuth state retains a predictable random source\n' >&2
     exit 1
 fi
+python3 - "$login_fragment" <<'PY'
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+callback = source.index("public void onActivityResult")
+save = source.index("String expectedState = mOauthState", callback)
+consume = source.index("mOauthState = null", save)
+null_guard = source.index("data == null ? null", consume)
+policy = source.index("LegacyOAuthStatePolicy.isValidCallback", null_guard)
+exchange = source.index("retrieveAccessToken(authCode", policy)
+cancel = source.index("onCancelLogin()", exchange)
+if not callback < save < consume < null_guard < policy < exchange < cancel:
+    raise SystemExit("FAIL: OAuth callback validation or single-use ordering regressed")
+if "state.equals(mOauthState)" in source:
+    raise SystemExit("FAIL: OAuth callbacks bypass the centralized state policy")
+PY
 
 profile_task="$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/task/DownloadProfileImageTask.java"
 grep -Fq 'LegacyProfilePagePolicy.read(userPage.openConnection())' "$profile_task" || {
