@@ -31,6 +31,8 @@ sourceSets {
             include 'io/highfidelity/hifiinterface/HifiUtils.java'
             include 'io/highfidelity/hifiinterface/PermissionChecker.java'
             include 'org/overte/pico/PermissionsActivity.java'
+            include 'org/overte/pico/AndroidAudioInput.java'
+            include 'org/overte/pico/AndroidAudioInputPolicy.java'
             include 'io/highfidelity/questInterface/PermissionsChecker.java'
         }
         compileClasspath += sourceSets.boundary.output

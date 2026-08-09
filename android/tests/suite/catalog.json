@@ -66,6 +66,20 @@
       "description": "Canonical asset-extraction containment behavior"
     },
     {
+      "id": "pico-audio-input-policy",
+      "kind": "jvm",
+      "tiers": ["fast", "host", "contracts"],
+      "command": ["tests/pico-audio-input-policy-test.sh"],
+      "description": "Framework-free Pico microphone source, channel and buffer policy"
+    },
+    {
+      "id": "pico-interface-activity-policy",
+      "kind": "jvm",
+      "tiers": ["fast", "host", "contracts"],
+      "command": ["tests/pico-interface-activity-policy-test.sh"],
+      "description": "Pico launch arguments, restart-alarm policy and sensitive-log contract"
+    },
+    {
       "id": "native-host-tests",
       "kind": "native",
       "tiers": ["fast", "host"],
@@ -165,6 +179,13 @@
       "description": "Complete source, architecture, privacy and tablet contracts"
     },
     {
+      "id": "pico-audio-jni-boundary",
+      "kind": "contract",
+      "tiers": ["fast", "contracts", "host"],
+      "command": ["tests/pico-audio-jni-boundary-test.py"],
+      "description": "Pico C++/Java microphone source, format and JNI transport contracts"
+    },
+    {
       "id": "phone-device-free-regression",
       "kind": "integration",
       "tiers": ["regression"],
@@ -176,7 +197,7 @@
       "kind": "coverage",
       "tiers": ["coverage"],
       "command": ["tests/coverage/run-standalone-jvm-coverage.sh"],
-      "description": "Clean-host JaCoCo report for framework-independent Phone production classes"
+      "description": "Clean-host JaCoCo report for framework-independent Phone, Pico and utility production classes"
     },
     {
       "id": "phone-javascript-coverage",
@@ -198,7 +219,7 @@
       "kind": "mutation",
       "tiers": ["mutation"],
       "command": ["tests/mutation/run-critical-policy-mutations.sh"],
-      "description": "Fast mutation gate across seven pure Java policies plus native login, parsers, handoff and production scripts"
+      "description": "Fast mutation gate across ten pure Java policies plus native login, parsers, handoff and production scripts"
     },
     {
       "id": "critical-policy-mutations-extended",

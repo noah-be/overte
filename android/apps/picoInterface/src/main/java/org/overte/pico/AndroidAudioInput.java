@@ -45,13 +45,19 @@ public final class AndroidAudioInput {
             String requestedSource, int sampleRate, int channelCount, int framesPerBuffer) {
         stop();
 
-        final int audioSource = resolveAudioSource(requestedSource);
-        if (audioSource < 0) {
-            Log.e(TAG, "Unsupported diagnostic audio source: " + requestedSource);
+        final AndroidAudioInputPolicy.Source source =
+            AndroidAudioInputPolicy.resolveSource(requestedSource);
+        final AndroidAudioInputPolicy.Channel channel =
+            AndroidAudioInputPolicy.resolveChannel(channelCount);
+        final Integer requestedCallbackBytes = AndroidAudioInputPolicy.calculateCallbackBytes(
+            sampleRate, channelCount, framesPerBuffer);
+        if (source == null || channel == null || requestedCallbackBytes == null) {
+            Log.e(TAG, "Invalid audio source, channel count, sample rate, or frame buffer size");
             return false;
         }
 
-        final int channelConfig = channelCount == 2
+        final int audioSource = androidAudioSource(source);
+        final int channelConfig = channel == AndroidAudioInputPolicy.Channel.STEREO
             ? AudioFormat.CHANNEL_IN_STEREO
             : AudioFormat.CHANNEL_IN_MONO;
         final int minimumBytes = AudioRecord.getMinBufferSize(
@@ -61,10 +67,14 @@ public final class AndroidAudioInput {
             return false;
         }
 
-        final int callbackBytes = Math.max(
-            framesPerBuffer * channelCount * Short.BYTES,
-            sampleRate * channelCount * Short.BYTES / 50);
-        final int recorderBytes = Math.max(minimumBytes, callbackBytes * 2);
+        final AndroidAudioInputPolicy.BufferPlan bufferPlan =
+            AndroidAudioInputPolicy.calculateBufferPlan(requestedCallbackBytes, minimumBytes);
+        if (bufferPlan == null) {
+            Log.e(TAG, "Capture buffer size is invalid or overflows");
+            return false;
+        }
+        final int callbackBytes = bufferPlan.callbackBytes;
+        final int recorderBytes = bufferPlan.recorderBytes;
         final AudioRecord newRecorder;
         try {
             newRecorder = new AudioRecord(
@@ -100,7 +110,7 @@ public final class AndroidAudioInput {
                 "Overte Android microphone");
             captureThread.start();
         }
-        Log.i(TAG, "Started AudioRecord source=" + audioSourceName(audioSource)
+        Log.i(TAG, "Started AudioRecord source=" + source.name()
             + "(" + audioSource + ") at " + sampleRate + " Hz, channels="
             + channelCount + ", callbackBytes=" + callbackBytes);
         return true;
@@ -136,34 +146,13 @@ public final class AndroidAudioInput {
         Log.i(TAG, "Stopped AudioRecord");
     }
 
-    private static int resolveAudioSource(String requestedSource) {
-        if (requestedSource == null || requestedSource.isEmpty()
-                || requestedSource.equals("mic")) {
-            return MediaRecorder.AudioSource.MIC;
+    private static int androidAudioSource(AndroidAudioInputPolicy.Source source) {
+        switch (source) {
+            case VOICE_COMMUNICATION: return MediaRecorder.AudioSource.VOICE_COMMUNICATION;
+            case VOICE_RECOGNITION: return MediaRecorder.AudioSource.VOICE_RECOGNITION;
+            case CAMCORDER: return MediaRecorder.AudioSource.CAMCORDER;
+            default: return MediaRecorder.AudioSource.MIC;
         }
-        if (requestedSource.equals("voicecommunication")) {
-            return MediaRecorder.AudioSource.VOICE_COMMUNICATION;
-        }
-        if (requestedSource.equals("voicerecognition")) {
-            return MediaRecorder.AudioSource.VOICE_RECOGNITION;
-        }
-        if (requestedSource.equals("camcorder")) {
-            return MediaRecorder.AudioSource.CAMCORDER;
-        }
-        return -1;
-    }
-
-    private static String audioSourceName(int audioSource) {
-        if (audioSource == MediaRecorder.AudioSource.VOICE_COMMUNICATION) {
-            return "VOICE_COMMUNICATION";
-        }
-        if (audioSource == MediaRecorder.AudioSource.VOICE_RECOGNITION) {
-            return "VOICE_RECOGNITION";
-        }
-        if (audioSource == MediaRecorder.AudioSource.CAMCORDER) {
-            return "CAMCORDER";
-        }
-        return "MIC";
     }
 
     private static void captureLoop(AudioRecord activeRecorder, int callbackBytes) {
@@ -172,9 +161,10 @@ public final class AndroidAudioInput {
         while (running && recorder == activeRecorder) {
             final int bytesRead = activeRecorder.read(
                 audio, 0, audio.length, AudioRecord.READ_BLOCKING);
-            if (bytesRead > 0) {
+            final boolean ownsRecorder = recorder == activeRecorder;
+            if (AndroidAudioInputPolicy.shouldDeliverRead(bytesRead, running, ownsRecorder)) {
                 nativeOnAudioData(audio, bytesRead);
-            } else if (!running || recorder != activeRecorder) {
+            } else if (!running || !ownsRecorder) {
                 break;
             } else {
                 Log.e(TAG, "AudioRecord read failed: " + bytesRead);

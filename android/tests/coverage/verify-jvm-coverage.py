@@ -7,6 +7,9 @@ import xml.etree.ElementTree as ET
 
 CRITICAL_CLASSES = {
     "io/highfidelity/hifiinterface/HifiUtils",
+    "org/overte/pico/AndroidAudioInputPolicy",
+    "org/overte/pico/PicoInterfaceActivityPolicy",
+    "org/overte/pico/PicoActivityInstancePolicy",
     "io/highfidelity/utils/AssetCacheExtractor",
     "io/highfidelity/utils/SafeAssetPath",
     "org/overte/phone/PhoneDeepLinkNormalizer",

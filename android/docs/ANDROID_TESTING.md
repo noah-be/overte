@@ -58,6 +58,14 @@ paths, remove their bounded temporary state on success or failure, and are
 represented honestly in the catalog JUnit report. The prepared tier is not a
 CI pull-request gate and does not contact ADB or a headset.
 
+The same three device-free tiers compile and execute the production
+`AndroidAudioInputPolicy` directly. The Robolectric harness additionally
+compiles its real `AndroidAudioInput` caller against Android API classes, which
+guards the caller and policy API from drifting apart. It does not behavior-test
+the enum-to-`MediaRecorder` mapping or start `AudioRecord`: mapping, allocation,
+blocking reads, capture-thread/JNI delivery and device-supported formats remain
+Android/Pico runtime boundaries.
+
 Contract tests are not a replacement for behavior tests. When logic can be
 called directly, prefer an executable unit or component test. Keep text-based
 checks for stable architectural, packaging, security and privacy guarantees.
@@ -99,8 +107,8 @@ historical intent-filter-implied exports while modern Pico components must be
 explicit. This makes an added permission or externally reachable component a
 reviewed inventory change; it does not describe the legacy targets or storage
 permissions as modern security practice.
-Quest's launcher record also treats forwarded application arguments as
-sensitive: the contract rejects direct `System.out`, `System.err`, or Android
+The Pico and Quest launcher records also treat forwarded application arguments
+as sensitive: the contract rejects direct `System.out`, `System.err`, or Android
 `Log` calls that include the argument field. Robolectric verifies transport to
 the explicit internal Activity without requiring or printing its contents.
 
@@ -218,10 +226,10 @@ executions. Seven framework-independent legacy `HifiUtils` checks bring the
 harness report to 78 granular JUnit cases. This harness is mandatory in the CI
 coverage job and publishes JUnit XML.
 
-The default `coverage` tier uses a dependency-free JaCoCo harness for seven
-framework-independent Phone, Qt utility, and legacy Interface production classes and writes its report below
+The default `coverage` tier uses a dependency-free JaCoCo harness for ten
+framework-independent Phone, Pico audio, Qt utility, and legacy Interface production classes and writes its report below
 `build/reports/coverage/jvm-standalone`. It enforces 100% line coverage for all
-seven classes and 100% branch coverage for six. `AssetCacheExtractor` has a
+ten classes and 100% branch coverage for nine. `AssetCacheExtractor` has a
 95% branch gate because its final uncovered mkdirs/isDirectory branch represents
 a filesystem race; its measured result is 25/26 (96.15%). The full Gradle
 Android unit-test report remains available through

@@ -23,7 +23,8 @@ if ! command -v "$java_command" >/dev/null 2>&1; then
     printf 'error: Java 21 is required for the Robolectric harness.\n' >&2
     exit 2
 fi
-readonly java_major="$("$java_command" -version 2>&1 | sed -n '1s/.*version "\([0-9][0-9]*\).*/\1/p')"
+readonly java_major="$("$java_command" -version 2>&1 |
+    sed -n 's/.*version "\([0-9][0-9]*\).*/\1/p' | head -n 1)"
 if [[ "$java_major" != 21 ]]; then
     printf 'error: Java 21 is required for reproducible Robolectric tests; found Java %s.\n' \
         "${java_major:-unknown}" >&2

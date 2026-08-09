@@ -17,6 +17,9 @@ ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = ROOT.parent / "scripts/system"
 JAVA_PRODUCTION = {
     "legacy-url": ROOT / "apps/interface/src/main/java/io/highfidelity/hifiinterface/HifiUtils.java",
+    "pico-audio": ROOT / "apps/picoInterface/src/main/java/org/overte/pico/AndroidAudioInputPolicy.java",
+    "pico-activity": ROOT / "apps/picoInterface/src/main/java/org/overte/pico/PicoInterfaceActivityPolicy.java",
+    "pico-instance": ROOT / "apps/picoInterface/src/main/java/org/overte/pico/PicoActivityInstancePolicy.java",
     "deep": ROOT / "apps/phoneInterface/src/main/java/org/overte/phone/PhoneDeepLinkNormalizer.java",
     "launch": ROOT / "apps/phoneInterface/src/main/java/org/overte/phone/PhoneLaunchState.java",
     "permission": ROOT / "apps/phoneInterface/src/main/java/org/overte/phone/PhonePermissionFlow.java",
@@ -26,11 +29,15 @@ JAVA_PRODUCTION = {
 }
 JAVA_TESTS = sorted((ROOT / "tests/java/org/overte/phone").glob("*Test.java")) + [
     ROOT / "tests/java/io/highfidelity/hifiinterface/HifiUtilsStandaloneTest.java",
+    ROOT / "tests/java/org/overte/pico/AndroidAudioInputPolicyStandaloneTest.java",
+    ROOT / "tests/java/org/overte/pico/PicoInterfaceActivityPolicyStandaloneTest.java",
     ROOT / "tests/java/io/highfidelity/utils/SafeAssetPathStandaloneTest.java",
     ROOT / "tests/java/io/highfidelity/utils/AssetCacheExtractorStandaloneTest.java",
 ]
 JAVA_MAINS = [
     "io.highfidelity.hifiinterface.HifiUtilsStandaloneTest",
+    "org.overte.pico.AndroidAudioInputPolicyStandaloneTest",
+    "org.overte.pico.PicoInterfaceActivityPolicyStandaloneTest",
     "org.overte.phone.PhoneDeepLinkNormalizerTest",
     "org.overte.phone.PhoneLaunchStateStandaloneTest",
     "org.overte.phone.PhonePermissionFlowStandaloneTest",
@@ -68,6 +75,13 @@ class Mutant:
 MUTANTS = [
     Mutant("legacy-url-skip-hifi-prefix", "java", JAVA_PRODUCTION["legacy-url"], 'urlString = "hifi://" + urlString;', "urlString = urlString;"),
     Mutant("legacy-asset-skip-base-prefix", "java", JAVA_PRODUCTION["legacy-url"], "urlString = baseUrl + urlString;", "urlString = urlString;"),
+    Mutant("pico-audio-accept-unknown-source", "java", JAVA_PRODUCTION["pico-audio"], "return Source.CAMCORDER;\n        }\n        return null;", "return Source.CAMCORDER;\n        }\n        return Source.MIC;"),
+    Mutant("pico-audio-disable-callback-overflow", "java", JAVA_PRODUCTION["pico-audio"], "return callbackBytes > MAX_CALLBACK_BYTES ? null : (int) callbackBytes;", "return (int) callbackBytes;"),
+    Mutant("pico-audio-deliver-stale-read", "java", JAVA_PRODUCTION["pico-audio"], "return bytesRead > 0 && running && ownsRecorder;", "return bytesRead > 0;"),
+    Mutant("pico-activity-null-extra-literal", "java", JAVA_PRODUCTION["pico-activity"], "hasApplicationArguments && applicationArguments != null", "hasApplicationArguments"),
+    Mutant("pico-activity-pre-s-exact-alarm", "java", JAVA_PRODUCTION["pico-activity"], "sdkInt < 31 || canScheduleExactAlarms", "sdkInt < 31 && canScheduleExactAlarms"),
+    Mutant("pico-instance-ignore-registration", "java", JAVA_PRODUCTION["pico-instance"], "current = instance;", "current = null;"),
+    Mutant("pico-instance-retain-destroyed", "java", JAVA_PRODUCTION["pico-instance"], "if (current == instance)", "if (false)"),
     Mutant("deep-link-length-boundary", "java", JAVA_PRODUCTION["deep"], "> MAX_URL_LENGTH", ">= MAX_URL_LENGTH"),
     Mutant("deep-link-allow-unsafe", "java", JAVA_PRODUCTION["deep"], "|| containsUnsafeCharacter(value)", "|| false"),
     Mutant("deep-link-accept-any-scheme", "java", JAVA_PRODUCTION["deep"], 'if (!"overte".equalsIgnoreCase(scheme) && !"hifi".equalsIgnoreCase(scheme))', "if (false)", True),
@@ -110,8 +124,13 @@ MUTANTS = [
 
 
 def command(args: list[str], cwd: Path, timeout: int = 30, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    environment = dict(os.environ) if env is None else dict(env)
+    # javac/c++ may create compiler intermediates outside their output tree.
+    # Keep those in the already unique mutation work directory as well.
+    environment["TMPDIR"] = str(cwd)
     try:
-        return subprocess.run(args, cwd=cwd, text=True, capture_output=True, timeout=timeout, check=False, env=env)
+        return subprocess.run(args, cwd=cwd, text=True, capture_output=True,
+                              timeout=timeout, check=False, env=environment)
     except subprocess.TimeoutExpired as error:
         return subprocess.CompletedProcess(args, 124, error.stdout or "", "mutation command timed out")
     except FileNotFoundError as error:
@@ -139,11 +158,14 @@ def java_run(work: Path, mutant: Mutant | None) -> tuple[str, str]:
         else:
             shutil.copy2(source, destination)
         sources.append(destination)
-    compile_result = command(["javac", "-d", str(classes), *map(str, sources), *map(str, JAVA_TESTS)], work)
+    compile_result = command([
+        "javac", "-d", str(classes), *map(str, sources),
+        *map(str, JAVA_TESTS),
+    ], work)
     if compile_result.returncode:
         return "error", "javac failed:\n" + compile_result.stderr
     for main in JAVA_MAINS:
-        result = command(["java", "-cp", str(classes), main], work)
+        result = command(["java", f"-Djava.io.tmpdir={work}", "-cp", str(classes), main], work)
         if result.returncode:
             output = result.stdout + result.stderr
             return ("killed", output) if "AssertionError" in output else ("error", f"harness crashed ({main}):\n{output}")

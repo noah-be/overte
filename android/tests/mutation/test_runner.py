@@ -18,6 +18,9 @@ runner = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 sys.modules[SPEC.name] = runner
 SPEC.loader.exec_module(runner)
+SELF_TEST_TMP = runner.ROOT / "build/tmp/mutation-selftests"
+SELF_TEST_TMP.mkdir(parents=True, exist_ok=True)
+tempfile.tempdir = str(SELF_TEST_TMP)
 
 
 class MutationClassificationTest(unittest.TestCase):
@@ -109,6 +112,10 @@ class MutationClassificationTest(unittest.TestCase):
         quick = [mutant.name for mutant in runner.MUTANTS if not mutant.extended]
         self.assertEqual([
             "legacy-url-skip-hifi-prefix", "legacy-asset-skip-base-prefix",
+            "pico-audio-accept-unknown-source", "pico-audio-disable-callback-overflow",
+            "pico-audio-deliver-stale-read",
+            "pico-activity-null-extra-literal", "pico-activity-pre-s-exact-alarm",
+            "pico-instance-ignore-registration", "pico-instance-retain-destroyed",
             "deep-link-length-boundary", "deep-link-allow-unsafe",
             "launch-skip-restored-validation", "permission-accept-unrelated",
             "pending-attempt-while-paused", "asset-disable-containment",

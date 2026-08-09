@@ -42,6 +42,8 @@ separate aggregate Phone-core run remains informational.
 | Deep-link normalization | Standalone Java/JUnit tests cover schemes, controls, Unicode whitespace, encoded payloads and length bounds; Robolectric executes the real Android `Intent`/`Uri` boundary on API 26 and 35 for exported views and internal extras | AndroidX intent-boundary and launcher transport tests compile; no automated device lane | **Covered** for device-free parsing and transport; run instrumentation for platform delivery |
 | Launcher state | CI-required Robolectric execution of the real Activity on API 26 and 35 covers saved-state recreation, replacement/clearing and exactly-once launch; only generated resources and the Qt-native destination are boundary stubs | AndroidX launcher tests cover canonical and absent extras; device smoke covers launch survival | **Covered** for device-free launcher behavior; configuration-driven rotation and OS process killing still belong in an emulator lane |
 | Runtime microphone permission | Pure callback-policy tests and Robolectric cover already-granted, denial, repeated request after recreation, unrelated callbacks and duplicate results | Device smoke grants automatically | **Partial**; system-dialog UI, “don't ask again”, and Settings recovery require emulator/device automation |
+| Pico microphone capture policy | Framework-free production policy tests cover the exact diagnostic-source allowlist, mono/stereo mapping, callback/recorder buffer arithmetic, fixed-seed formats, fail-closed invalid/overflow inputs and post-read running/recorder ownership; allocations are capped at 1 MiB callback / 2 MiB recorder with exact boundary tests | No automated headset capture | **Partial**; actual `AudioRecord`, JNI delivery, thread priority, blocking-read cancellation and real device formats require Android/Pico runtime |
+| Pico Qt activity startup/restart | Framework-free production policy tests cover default/custom/null application arguments, lifecycle instance replacement/cleanup and the Android 12 exact-alarm boundary; a source contract verifies the real activity wiring and forbids logging restart arguments | No automated OpenXR/Qt process restart | **Partial**; library loading, native OpenXR initialization, AlarmManager delivery, process termination and controller events require Android/Pico runtime |
 | Activity lifecycle and Back | Robolectric executes launcher save/restore/recreation on API 26 and 35; pure pending-URL policies cover readiness, replacement, retry exhaustion and clearing; source contracts cover Qt glue | Physical smoke exercises Home, repeated resume and Back recovery | **Partial**; `PhoneInterfaceActivity` inherits Qt 5's native loader, so configuration-driven rotation, real Qt surface recreation, predictive Back registration and JNI retry timing require an Android runtime |
 | Login state machine | CTest covers native state transitions; Qt Quick loads the real Phone login body with bounded host/login fakes and exercises validation, account/domain routing, pending state, success/failure, duplicate suppression and teardown | No automated real authentication/backend test | **Partial**; real credential exchange and domain authentication require a controlled integration backend |
 | Phone deep-link JNI handoff | Source contracts | Neutral deep link in device smoke | **Partial**; cold/warm/background delivery assertions remain indirect |
@@ -117,10 +119,10 @@ the registered application preferences backend. These checks validate the Qt
 accessibility properties only; they do not claim Android TalkBack traversal,
 spoken output, contrast, font scaling or touch-exploration coverage.
 
-The clean-host CI coverage job executes JaCoCo directly against seven
-framework-independent Phone, Qt utility, and legacy Interface Java production
-classes. It requires 100% line coverage for all seven, 100% branch coverage for
-six, and 95% branches for
+The clean-host CI coverage job executes JaCoCo directly against ten
+framework-independent Phone, Pico audio, Qt utility, and legacy Interface Java
+production classes. It requires 100% line coverage for all ten, 100% branch
+coverage for nine, and 95% branches for
 `AssetCacheExtractor` (currently 25/26, 96.15%) because the final branch is the
 mkdirs/isDirectory concurrent-creator race. It also installs pinned `gcovr` 8.4 in a repository
 build-directory virtual environment and enforces 95% line / 90% branch coverage
@@ -191,8 +193,8 @@ tests/run-tests.sh mutation
 ```
 
 Every listed mutant must be detected by the production-facing tests. The quick
-gate kills 24/24 curated mutants; `tests/run-tests.sh mutation-extended` kills
-40/40 and adds deeper boundary/operator mutations. Before mutation, each
+gate kills 31/31 curated mutants; `tests/run-tests.sh mutation-extended` kills
+47/47 and adds deeper boundary/operator mutations. Before mutation, each
 language harness must pass unchanged. Only its explicit assertion-failure
 signature counts as a kill; compilation errors, timeouts, signals, and JVM or
 harness crashes fail as infrastructure errors, preventing false mutation
