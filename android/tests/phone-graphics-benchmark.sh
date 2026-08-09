@@ -144,7 +144,8 @@ while (( elapsed < duration )); do
     thermal_poll_count=$((thermal_poll_count + 1))
 done
 
-adb_for shell dumpsys gfxinfo "$PACKAGE" framestats >"$raw_dir/framestats.txt"
+require_adb "graphics frame statistics" shell dumpsys gfxinfo "$PACKAGE" framestats \
+    >"$raw_dir/framestats.txt"
 final_pid="$(adb_for shell pidof -s "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 [[ "$final_pid" == "$expected_pid" ]] || stable_process=0
 exit_info_after_valid=1

@@ -4,6 +4,25 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 123 — Label frame-statistics transport failure
+
+- Branch: `nightly/android-phone-123-benchmark-framestats-error`
+- Commit: `Label phone benchmark framestats failure` (this task's commit)
+- Change: Treat the required `gfxinfo framestats` capture as a named checked
+  ADB phase instead of allowing an unlabeled shell exit.
+- Tests:
+  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; forced private
+    framestats transport failure exposes only the fixed phase error, performs
+    exactly one app cleanup, and publishes no aggregate summary.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 317/317.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Structurally unsupported but successfully returned framestats
+  remain represented by `framestats_valid=0`, not a transport failure.
+- Real-device validation still required: Confirm the current Android version's
+  `gfxinfo framestats` command succeeds for the current-chain package.
+
 ## 122 — Exercise benchmark interrupt cleanup
 
 - Branch: `nightly/android-phone-122-benchmark-interrupt-test`
@@ -2793,7 +2812,8 @@ All branches form one linear chain starting at
 119. `nightly/android-phone-119-benchmark-phase-errors` — `7fa608d3ab`
 120. `nightly/android-phone-120-bounded-benchmark-runtime` — `6ad488c062`
 121. `nightly/android-phone-121-benchmark-signal-test` — `30af183d87`
-122. `nightly/android-phone-122-benchmark-interrupt-test` — this task's commit
+122. `nightly/android-phone-122-benchmark-interrupt-test` — `e9a7736cc3`
+123. `nightly/android-phone-123-benchmark-framestats-error` — this task's commit
 
 ### Device-free audit disposition
 

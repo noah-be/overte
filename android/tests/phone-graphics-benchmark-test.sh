@@ -50,6 +50,10 @@ sed 's/^+//' >"$fixture/adb" <<'MOCK'
 +      ${MOCK_GFX_RESET_FAILURE:-0} == 1 ]]; then
 +  printf 'private reset failure for phone-secret\n' >&2; exit 11
 +fi
++if [[ $1 == shell && $2 == dumpsys && $3 == gfxinfo && ${5:-} == framestats &&
++      ${MOCK_FRAMESTATS_ADB_FAILURE:-0} == 1 ]]; then
++  printf 'private framestats failure for phone-secret\n' >&2; exit 13
++fi
 +if [[ $1 == shell && $2 == am && $3 == start && ${MOCK_START_FAILURE:-0} == 1 ]]; then
 +  printf 'private Activity failure for phone-secret\n' >&2; exit 12
 +fi
@@ -191,6 +195,21 @@ grep -Fxq 'ERROR: Phone Activity start failed' "$fixture/start-failure.out"
 ! grep -Eq 'phone-secret|private Activity failure' "$fixture/start-failure.out"
 [[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' \
     "$start_failure_commands" || true)" -eq 0 ]]
+
+framestats_failure_report="$fixture/framestats-failure-report"
+framestats_failure_commands="$fixture/framestats-failure-commands"
+: >"$framestats_failure_commands"
+if PHONE_ADB="$fixture/adb" MOCK_FRAMESTATS_ADB_FAILURE=1 ANDROID_SERIAL=phone-secret \
+    PHONE_BENCHMARK_CONFIRM_NON_VR=YES PHONE_BENCHMARK_REPORT="$framestats_failure_report" \
+    PHONE_BENCHMARK_INTERVAL=1 MOCK_ADB_COMMAND_LOG="$framestats_failure_commands" \
+    "$script_dir/phone-graphics-benchmark.sh" 1 >"$fixture/framestats-failure.out" 2>&1; then
+    echo 'FAIL: benchmark accepted unavailable frame statistics' >&2; exit 1
+fi
+grep -Fxq 'ERROR: graphics frame statistics failed' "$fixture/framestats-failure.out"
+! grep -Eq 'phone-secret|private framestats failure' "$fixture/framestats-failure.out"
+[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' \
+    "$framestats_failure_commands")" -eq 1 ]]
+[[ ! -e "$framestats_failure_report/summary.txt" ]]
 
 PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/exit-count" ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES \
     PHONE_BENCHMARK_REPORT="$report" PHONE_BENCHMARK_INTERVAL=1 MOCK_ADB_COMMAND_LOG="$command_log" \
