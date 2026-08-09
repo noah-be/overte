@@ -31,6 +31,9 @@ require_text "$gradle" "testBuildType isPhoneEmulatorBuild \? 'emulator' : 'debu
 require_text "$gradle" "PHONE_EMULATOR_BUILD" 'emulator dependency gate is missing'
 require_text "$gradle" 'testInstrumentationRunner.*AndroidJUnitRunner' \
     'Android instrumentation runner is missing'
+require_text "$gradle" \
+    "testInstrumentationRunnerArguments waitForActivitiesToComplete: 'false'" \
+    'Android instrumentation must not stop the Qt Activity before reporting'
 require_text "$instrumentation_test" 'lib/x86_64/libphoneInterface\.so' \
     'emulator instrumentation test must verify the native x86_64 package'
 require_text "$cold_launch_test" 'ActivityLifecycleMonitorRegistry' \
@@ -48,6 +51,27 @@ if grep -q 'arm64-v8a' "$resources"; then
 fi
 require_text "$android_dir/ANDROID_PHONE_BUILD.md" 'phone-emulator-test\.sh all' \
     'emulator workflow is not documented'
+require_text "$android_dir/apps/phoneInterface/CMakeLists.txt" \
+    'ANDROID_ABI STREQUAL "x86_64"' \
+    'Phone emulator graphics compatibility must be scoped to x86_64'
+require_text "$android_dir/apps/phoneInterface/CMakeLists.txt" \
+    'OVERTE_ANDROID_GLES31=1' \
+    'Phone emulator build must enable GLES 3.1 compatibility'
+require_text "$root_dir/libraries/gl/src/gl/GLHelpers.cpp" \
+    'format\.setVersion\(3, 1\)' \
+    'Android emulator build must apply GLES 3.1 to the shared surface format'
+require_text "$root_dir/libraries/gpu-gl-common/src/gpu/gl/GLBackend.cpp" \
+    'glad_glPushDebugGroup != nullptr && glad_glPopDebugGroup != nullptr' \
+    'Android GLES 3.1 must guard optional core debug-group functions'
+require_text "$root_dir/libraries/gpu-gl-common/src/gpu/gl/GLBackendQuery.cpp" \
+    'glad_glQueryCounterEXT != nullptr' \
+    'Android GLES 3.1 must guard optional timer-query functions'
+require_text "$root_dir/libraries/gpu-gl/src/gpu/gles/GLESBackend.h" \
+    'glad_glTexBufferEXT != nullptr' \
+    'Android GLES 3.1 must use the texture-buffer extension fallback'
+require_text "$root_dir/libraries/qml/src/qml/impl/RenderEventHandler.cpp" \
+    'glFramebufferTexture2D' \
+    'QML offscreen rendering must use the GLES 3.1 framebuffer API'
 require_text "$root_dir/cmake/macros/TargetBreakpad.cmake" \
     'if \(ANDROID AND USE_BREAKPAD\)' \
     'Android targets must not link Breakpad when USE_BREAKPAD is disabled'

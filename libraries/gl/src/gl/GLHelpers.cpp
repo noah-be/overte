@@ -292,6 +292,9 @@ const QSurfaceFormat& getDefaultOpenGLSurfaceFormat() {
         auto glversion = ::gl::getTargetVersion();
         format.setMajorVersion(GL_GET_MAJOR_VERSION(glversion));
         format.setMinorVersion(GL_GET_MINOR_VERSION(glversion));
+#ifdef OVERTE_ANDROID_GLES31
+        format.setVersion(3, 1);
+#endif
     });
     return format;
 }

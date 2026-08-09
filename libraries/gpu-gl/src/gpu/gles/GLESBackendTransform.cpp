@@ -65,7 +65,9 @@ void GLESBackend::transferTransformState(const Batch& batch) const {
     glActiveTexture(GL_TEXTURE0 +  slot::texture::ObjectTransforms);
     glBindTexture(GL_TEXTURE_BUFFER, _transform._objectBufferTexture);
     if (!batch._objects.empty()) {
-        glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, _transform._objectBuffer);
+        if (!setTextureBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, _transform._objectBuffer)) {
+            qFatal("GLES texture buffers are unavailable");
+        }
     }
     CHECK_GL_ERROR();
 

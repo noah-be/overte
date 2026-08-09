@@ -42,6 +42,10 @@ the emulator profile because its bundled Boost/Mapbox sources do not compile
 with the selected NDK and C++17 toolchain. The OSM/Qt Location API path remains
 available.
 
+The x86_64 product requests GLES 3.1 because the Android Emulator does not
+expose GLES 3.2. Optional 3.2 entry points use their GLES extension equivalents
+or are skipped when unavailable; ARM64 Phone builds keep the GLES 3.2 path.
+
 ## Requirements
 
 - the same SDK, NDK, CMake, Conan, Python, Perl, and JDK requirements as the
