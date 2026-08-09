@@ -1785,8 +1785,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 99 — Pending body-tracker calibration
 
 - Branch: `nightly/pico4-99-openxr-calibration-pending`
-- Commit: identified by subject `Retain Pico tracker calibration until valid`;
-  the exact hash is recorded by the following stacked task or final report.
+- Commit: `199afc9a06` (`Retain Pico tracker calibration until valid`)
 - Change: retain a requested tracker calibration until at least one valid body
   pose is available, rather than consuming it unconditionally after one frame.
   Lookups no longer insert empty poses into the transient map. The shared desktop
@@ -1799,6 +1798,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Request calibration before tracking begins
   and during tracking loss, then restore a valid tracker; verify exactly the first
   valid update completes calibration and uncalibrate cancels a pending request.
+
+### 100 — Pending XDev role-inference retry
+
+- Branch: `nightly/pico4-100-openxr-role-retry`
+- Commit: identified by subject `Retry Pico XDev roles while calibration waits`;
+  the exact hash is recorded by the following stacked task or final report.
+- Change: move XDev role inference from the one-shot calibration request into the
+  input-mapper-locked update path and retry it only while calibration is pending.
+  A request made before predicted frame time or valid tracker locations can now
+  complete when those inputs arrive. The shared desktop path remains equivalent.
+- Regression: Pico/desktop contracts require the request to be side-effect-free
+  beyond state setup and enforce pending/backend guards plus inference-before-
+  pose-update ordering inside the input mapper lock.
+- Passed: targeted OpenXR input/lifecycle contracts; `git diff --check`.
+- Risk: pending XDev calibration performs three extra locate calls per tracker per
+  frame until one valid mapped pose completes it; uncalibrate cancels the retry.
+- Pico 4 validation: **not executed**. Request before session readiness and across
+  tracking loss, then restore tracker/head locations; verify automatic completion,
+  stable inferred roles and no retry calls after completion or cancellation.
 
 ## Deferred, rejected, or blocked ideas
 

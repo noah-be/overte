@@ -406,6 +406,28 @@ class OpenXrInputStateTest(unittest.TestCase):
             self.assertLess(success, retain)
             self.assertNotIn("_poseStateMap[channel]", calibrate)
 
+    def test_pending_xdev_calibration_retries_role_inference_under_lock(self):
+        for source in (SOURCE, DESKTOP_SOURCE):
+            calibrate_start = source.index("void OpenXrInputPlugin::calibrate()")
+            calibrate_end = source.index("bool OpenXrInputPlugin::uncalibrate()", calibrate_start)
+            request = source[calibrate_start:calibrate_end]
+            self.assertIn("_trackerCalibrations.clear()", request)
+            self.assertIn("_wantsCalibrate = true", request)
+            self.assertNotIn("guessXDevRoles", request)
+
+            update_start = source.index("void OpenXrInputPlugin::pluginUpdate")
+            update_end = source.index("void OpenXrInputPlugin::loadSettings()", update_start)
+            update = source[update_start:update_end]
+            locked = update.index("userInputMapper->withLock")
+            pending = update.index("_inputDevice->_wantsCalibrate", locked)
+            backend = update.index("_context->_MNDX_xdevSpaceSupported", pending)
+            guess = update.index("guessXDevRoles(_inputDevice->_xdev)", backend)
+            device_update = update.index("_inputDevice->update(deltaTime, inputCalibrationData)", guess)
+            self.assertLess(locked, pending)
+            self.assertLess(pending, backend)
+            self.assertLess(backend, guess)
+            self.assertLess(guess, device_update)
+
     def test_xdev_enumeration_and_space_publication_are_transactional(self):
         start = SOURCE.index("if (_context->_MNDX_xdevSpaceSupported)")
         end = SOURCE.index("_actionsInitialized = true", start)

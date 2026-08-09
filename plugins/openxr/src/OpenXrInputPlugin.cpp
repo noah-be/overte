@@ -170,9 +170,6 @@ void OpenXrInputPlugin::guessXDevRoles(std::unordered_map<XrXDevIdMNDX, XDevTrac
 void OpenXrInputPlugin::calibrate() {
     qCDebug(xr_input_cat) << "OpenXrInputPlugin::calibrate";
 
-    if (_context->_MNDX_xdevSpaceSupported) {
-        guessXDevRoles(_inputDevice->_xdev);
-    }
     _inputDevice->_trackerCalibrations.clear();
     _inputDevice->_wantsCalibrate = true;
 }
@@ -312,7 +309,12 @@ void OpenXrInputPlugin::pluginUpdate(float deltaTime, const controller::InputCal
 
     if (!_registeredWithInputMapper) { return; }
 
-    userInputMapper->withLock([&, this]() { _inputDevice->update(deltaTime, inputCalibrationData); });
+    userInputMapper->withLock([&, this]() {
+        if (_inputDevice->_wantsCalibrate && _context->_MNDX_xdevSpaceSupported) {
+            guessXDevRoles(_inputDevice->_xdev);
+        }
+        _inputDevice->update(deltaTime, inputCalibrationData);
+    });
 
     if (_inputDevice->_trackedControllers == 0 && _registeredWithInputMapper) {
         userInputMapper->removeDevice(_inputDevice->_deviceID);
