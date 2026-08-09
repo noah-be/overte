@@ -47,19 +47,67 @@ is verified before compatibility staging and again by Gradle.
 Only the small JUnit and JSON reports are retained for seven days. The APK is
 not uploaded to general Actions artifact storage.
 
-## Release boundary
+## Release-candidate stage
 
-This stage verifies debug builds but does not publish them. Release automation
-should be added only after the upload-key owner, protected GitHub environment,
-version-code authority, and recovery procedure are agreed. A future job should:
+`.github/workflows/android-phone-release-candidate.yml` is the manual-only
+second stage. It does not create a tag, GitHub Release, Play upload, attestation,
+or any other publication. A GitHub-hosted preflight first validates the tag and
+runs contracts. Only then can the protected `android-phone-release-candidate`
+environment approve execution on the isolated
+`overte-android-phone-release` runner.
 
-1. build only an existing immutable Phone release tag;
-2. require explicit `VERSION_CODE` and `RELEASE_NUMBER` values that match the
-   tag and exceed the latest published code;
-3. obtain signing credentials only after protected-environment approval;
-4. rebuild and run the same 16 KiB, contents, permission, and signature gates;
-5. create a draft release and publish only after human review;
-6. attach the APK digest, signer digest, source revision, and test report.
+The only accepted release identity is:
+
+```text
+android-phone-vM.m.p-alpha.N
+```
+
+Every numeric field is canonical decimal without leading zeroes; `N` starts at
+one. Minor and patch are at most 999 and alpha is at most 99. `versionName` is
+exactly `M.m.p-alpha.N`. `versionCode` is derived, never chosen independently:
+
+```text
+M * 100000000 + m * 100000 + p * 100 + N
+```
+
+The gate requires the tag to exist, resolve exactly to checked-out `HEAD`, be
+newer than every matching repository tag, fit Android's signed 32-bit field,
+and exceed the repository variable `ANDROID_PHONE_PUBLISHED_VERSION_CODE`.
+That variable is the fail-closed floor for builds already uploaded outside Git;
+the release custodian must update it after every upload, including abandoned
+Play tracks. A missing, empty, stale, or equal floor rejects the candidate.
+
+The protected environment supplies four secrets only to the signing step:
+
+```text
+ANDROID_PHONE_UPLOAD_KEYSTORE_BASE64
+ANDROID_PHONE_UPLOAD_KEYSTORE_PASSWORD
+ANDROID_PHONE_UPLOAD_KEY_ALIAS
+ANDROID_PHONE_UPLOAD_KEY_PASSWORD
+```
+
+It also supplies `ANDROID_PHONE_UPLOAD_CERT_SHA256` as a non-secret environment
+variable. Store the lowercase SHA-256 of the upload certificate (colons are
+also accepted). The build writes the decoded key under the worktree with mode
+`0600`, uses it in one step, and removes it on exit. It then independently
+requires one signer and the approved certificate digest.
+
+The resulting 14-day Actions artifact is a locally inspectable draft candidate:
+signed release APK, verified APK and version manifests, SHA-256 list,
+CycloneDX 1.6 inventory of packaged ARM64 native libraries, source-archive
+digest, and an unsigned in-toto/SLSA provenance statement. `published` remains
+`false`. The same complete dependency, host, 16 KiB ELF/ZIP, APK contents,
+permissions, metadata, signature, signer, and provenance gates apply.
+
+Artifact Attestations are deliberately only prepared. After policy approval,
+add a separately reviewed attestation step with `id-token: write` and
+`attestations: write` scoped to that job, pin the official action by full commit
+SHA, and attest the already verified APK digest. Do not broaden the current
+workflow permissions merely to prepare for that later step.
+
+See [ANDROID_PHONE_RELEASE_OPERATIONS.md](ANDROID_PHONE_RELEASE_OPERATIONS.md)
+for tag protection, runner provisioning, key recovery, rollback, acceptance,
+and post-push repository settings.
 
 ## Local checks
 
@@ -68,6 +116,8 @@ The CI/CD contracts require neither an Android SDK nor a device:
 ```bash
 python3 android/tests/android-workflow-contract-test.py
 python3 android/tests/phone-apk-provenance-test.py
+python3 android/tests/phone-release-version-test.py
+python3 android/tests/phone-release-metadata-test.py
 ```
 
 Verify a locally built debug APK with the actual Android tools and package gate:
