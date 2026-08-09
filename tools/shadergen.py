@@ -252,8 +252,9 @@ def main():
         for command in commands:
             processCommand(command)
     else:
-        workers = max(1, os.cpu_count() - 2)
-        with ThreadPoolExecutor(max_workers=workers) as executor:
+        if args.verbose:
+            print('Using {} shader worker(s)'.format(args.jobs))
+        with ThreadPoolExecutor(max_workers=args.jobs) as executor:
             for result in executor.map(processCommand, commands):
                 if not result:
                     raise RuntimeError("Failed to execute all subprocesses")
@@ -274,6 +275,20 @@ parser.add_argument('--force', action='store_true', help='Ignore timestamps and 
 parser.add_argument('--dry-run', action='store_true', help='Report the files that would be process, but do not output')
 parser.add_argument('--verbose', action='store_true', help="Report what's being done")
 
+def positiveJobs(value):
+    try:
+        jobs = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError('jobs must be an integer') from error
+    if jobs < 1:
+        raise argparse.ArgumentTypeError('jobs must be positive')
+    return jobs
+
+parser.add_argument(
+    '--jobs', type=positiveJobs,
+    default=os.getenv('SHADERGEN_JOBS', str(max(1, (os.cpu_count() or 1) - 2))),
+    help='Maximum concurrent shader jobs (default: SHADERGEN_JOBS or CPU count minus two)')
+
 args = None
 args = parser.parse_args()
 
@@ -286,4 +301,3 @@ scribeDepCache = ScribeDependenciesCache(args.build_dir + '/shaderDeps.json')
 scribeDepCache.load()
 main()
 scribeDepCache.save()
-

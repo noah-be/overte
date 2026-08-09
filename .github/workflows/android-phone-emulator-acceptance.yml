@@ -1,0 +1,85 @@
+name: Android Phone emulator acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: Successful release-candidate workflow run ID
+        required: true
+        type: string
+      release_tag:
+        description: Exact candidate tag used in the artifact name
+        required: true
+        type: string
+      apk_sha256:
+        description: Approved SHA-256 from the release manifest
+        required: true
+        type: string
+      approve_installation:
+        description: Explicitly authorize APK installation and ADB tests
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: android-phone-emulator-acceptance
+  cancel-in-progress: false
+
+jobs:
+  acceptance:
+    if: inputs.approve_installation
+    environment: android-phone-emulator-acceptance
+    runs-on: [self-hosted, linux, x64, overte-android-phone-emulator]
+    timeout-minutes: 60
+    steps:
+      - name: Check out exact candidate without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          ref: refs/tags/${{ inputs.release_tag }}
+          persist-credentials: false
+      - name: Validate immutable inputs before artifact download
+        run: |
+          set -euo pipefail
+          [[ '${{ inputs.candidate_run_id }}' =~ ^[1-9][0-9]*$ ]]
+          [[ '${{ inputs.apk_sha256 }}' =~ ^[0-9a-f]{64}$ ]]
+          [[ '${{ inputs.release_tag }}' =~ ^android-phone-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-alpha\.[1-9][0-9]*$ ]]
+      - name: Download exact release-candidate artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p android/build/emulator-candidate
+          gh run download '${{ inputs.candidate_run_id }}' \
+            --name 'android-phone-rc-${{ inputs.release_tag }}' \
+            --dir android/build/emulator-candidate
+      - name: Verify artifact before querying ADB
+        run: |
+          set -euo pipefail
+          apk="android/build/emulator-candidate/phoneInterface-release.apk"
+          test -f "$apk" && test ! -L "$apk"
+          printf '%s  %s\n' '${{ inputs.apk_sha256 }}' "$apk" | sha256sum --check --strict
+          sdk_root="${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}"
+          PHONE_EXPECT_DEBUGGABLE=0 PHONE_APK_ANALYZER="$sdk_root/cmdline-tools/latest/bin/apkanalyzer" \
+            android/tests/check-phone-apk-16k.sh "$apk"
+      - name: Run explicitly approved emulator acceptance
+        env:
+          PHONE_ALLOW_EMULATOR: "1"
+          PHONE_EXPECT_DEBUGGABLE: "0"
+          PHONE_TEST_REPORT: ${{ github.workspace }}/android/build/phone-device-report
+        run: |
+          set -euo pipefail
+          apk="android/build/emulator-candidate/phoneInterface-release.apk"
+          mkdir -p "$PHONE_TEST_REPORT"
+          android/tests/phone-device-test.sh "$apk"
+      - name: Upload acceptance report
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: android-phone-emulator-acceptance-${{ github.run_id }}
+          path: android/build/phone-device-report/
+          if-no-files-found: warn
+          retention-days: 14

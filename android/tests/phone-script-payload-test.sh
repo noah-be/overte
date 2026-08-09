@@ -61,7 +61,7 @@ for excluded in \
 done
 grep -Fq 'assets/images/textures/dirt.jpeg' "$repo_root/scripts/system/voxels.js"
 grep -Fq 'assets/images/textures/grass.png' "$repo_root/scripts/system/voxels.js"
-if rg -l --glob '*.js' 'assets/images/textures/(dirt[.]jpeg|grass[.]png)' \
+if grep -REl --include='*.js' 'assets/images/textures/(dirt[.]jpeg|grass[.]png)' \
         "$repo_root/scripts" | grep -Fvqx "$repo_root/scripts/system/voxels.js"; then
     echo 'FAIL: excluded voxel texture gained another script consumer' >&2
     exit 1

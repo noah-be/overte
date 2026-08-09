@@ -56,13 +56,18 @@ generate_outputs() {
 }
 
 download_artifact() {
-    local conan_bin curl_bin download_dir
+    local conan_bin curl_bin download_dir temp_root
     conan_bin="$(find_conan)" || fail "Conan 2 was not found"
     curl_bin="${PHONE_CURL:-$(command -v curl 2>/dev/null || true)}"
     [[ -n "$curl_bin" && -x "$curl_bin" ]] || fail "curl was not found"
     validate_manifest
-    download_dir="$(mktemp -d "${TMPDIR:-/tmp}/overte-phone-16k-download.XXXXXXXX")"
-    trap 'rm -rf -- "$download_dir"' RETURN
+    temp_root="${PHONE_PREBUILT_TMPDIR:-$script_dir/build/prebuilt-tmp}"
+    [[ ! -L "$temp_root" ]] || fail "Phone prebuilt temporary directory must not be a symlink"
+    mkdir -p -- "$temp_root"
+    [[ -d "$temp_root" && -w "$temp_root" ]] \
+        || fail "Phone prebuilt temporary directory is not writable"
+    download_dir="$(mktemp -d "$temp_root/overte-phone-16k-download.XXXXXXXX")"
+    trap 'rm -rf -- "${download_dir:-}"' EXIT RETURN
     echo "Downloading checksum-verified Phone 16 KiB dependency graph"
     "$curl_bin" --fail --location --retry 3 \
         --output "$download_dir/$asset" "$base_url/$asset"
@@ -72,7 +77,7 @@ download_artifact() {
     generate_outputs "$conan_bin"
     echo "Restored and verified Phone 16 KiB dependencies"
     rm -rf -- "$download_dir"
-    trap - RETURN
+    trap - EXIT RETURN
 }
 
 export_artifact() {

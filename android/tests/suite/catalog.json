@@ -179,6 +179,41 @@
       "description": "Complete source, architecture, privacy and tablet contracts"
     },
     {
+      "id": "android-workflow-contracts",
+      "kind": "contract",
+      "tiers": ["contracts"],
+      "command": ["tests/android-workflow-contract-test.py"],
+      "description": "GitHub Actions permission, pinning, retention and isolation contracts"
+    },
+    {
+      "id": "phone-apk-provenance",
+      "kind": "contract",
+      "tiers": ["contracts"],
+      "command": ["tests/phone-apk-provenance-test.py"],
+      "description": "Signed 16 KiB APK provenance verifier behavior"
+    },
+    {
+      "id": "phone-release-version",
+      "kind": "contract",
+      "tiers": ["contracts"],
+      "command": ["tests/phone-release-version-test.py"],
+      "description": "Immutable Phone alpha tag and monotonic Android version policy"
+    },
+    {
+      "id": "phone-release-metadata",
+      "kind": "contract",
+      "tiers": ["contracts"],
+      "command": ["tests/phone-release-metadata-test.py"],
+      "description": "Local release manifest, SBOM, digest and provenance generation"
+    },
+    {
+      "id": "phone-build-parallelism",
+      "kind": "contract",
+      "tiers": ["contracts"],
+      "command": ["tests/phone-build-parallelism-test.py"],
+      "description": "Bounded Gradle, Ninja, link and shader host concurrency"
+    },
+    {
       "id": "pico-audio-jni-boundary",
       "kind": "contract",
       "tiers": ["fast", "contracts", "host"],

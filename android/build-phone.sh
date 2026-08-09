@@ -3,11 +3,15 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 command_name="${1:-all}"
+command_option="${2:-}"
+jobs="${PHONE_BUILD_JOBS:-$(nproc)}"
 
 fail() {
     echo "error: $*" >&2
     exit 2
 }
+
+[[ "$jobs" =~ ^[1-9][0-9]*$ ]] || fail "PHONE_BUILD_JOBS must be a positive integer"
 
 java_major() {
     "$1/bin/java" -version 2>&1 \
@@ -39,7 +43,8 @@ Usage: ./build-phone.sh [doctor|deps|prepare|build|install|all|deploy|setup] [op
   doctor   Check the shared Android/Pico development environment
   deps     Install Phone dependencies; use --download for prebuilt artifacts
   prepare  Stage the existing Android Conan and Qt dependencies
-  build    Build the phoneInterface debug APK
+  build [--stacktrace]
+           Build the phoneInterface debug APK with optional Gradle diagnostics
   install  Install and start the existing APK on one connected Android device
   all      Prepare dependencies and build the APK (default)
   deploy   Prepare, build, install, and start the client
@@ -57,8 +62,16 @@ EOF
 }
 
 download_prebuilt_dependencies() {
+    local temp_root="${PHONE_PREBUILT_TMPDIR:-$script_dir/build/prebuilt-tmp}"
+    local shared_conan_home="${PHONE_SHARED_CONAN_HOME:-${HOME}/.conan2}"
     # Phone dependency transport is deliberately independent from Pico release
     # assets. The versioned archive contains the complete pinned Phone graph.
+    [[ ! -L "$temp_root" ]] || fail "Phone prebuilt temporary directory must not be a symlink"
+    mkdir -p -- "$temp_root"
+    [[ -d "$temp_root" && -w "$temp_root" ]] \
+        || fail "Phone prebuilt temporary directory is not writable"
+    CONAN_HOME="$shared_conan_home" TMPDIR="$temp_root" \
+        "$script_dir/build-pico.sh" deps --download
     "$script_dir/phone-prebuilt-16k-deps.sh" download
 }
 
@@ -95,22 +108,30 @@ find_phone_draco_package() {
             printf '%s\n' "$package_dir"
             return
         fi
-    done < <(find "${HOME}/.conan2/p" -path '*/p/lib/libdraco.a' -type f -print0 2>/dev/null | sort -z)
+    done < <(find "${CONAN_HOME:-${HOME}/.conan2}/p" \
+        -path '*/p/lib/libdraco.a' -type f -print0 2>/dev/null | sort -z)
     fail "an Android ARM64 Draco Conan package was not found"
 }
 
 prepare() {
+    local qt_dir="$script_dir/conan/phone-16k-debug"
+    local nonqt_dir="$script_dir/conan/phone-nonqt-16k-debug"
+    local ready_marker="$nonqt_dir/.phone-16k-dependencies.ready"
+    "$script_dir/tests/verify-phone-16k-dependencies.sh" \
+        "$qt_dir" "$nonqt_dir" "$ready_marker"
     local draco_package
     draco_package="$(find_phone_draco_package)"
-    PICO_DRACO_PACKAGE_DIR="$draco_package" \
-        PICO_BUILD_JOBS="${PHONE_BUILD_JOBS:-$(nproc)}" \
+    CONAN_HOME="${PHONE_SHARED_CONAN_HOME:-${HOME}/.conan2}" \
+        PICO_DRACO_PACKAGE_DIR="$draco_package" \
+        PICO_BUILD_JOBS="$jobs" \
         "$script_dir/build-pico.sh" prepare
 }
 
 doctor() {
     # Reuse the shared checker without leaking Pico-specific hand-off text into
     # the Phone entry point. pipefail preserves the checker's failure status.
-    "$script_dir/build-pico.sh" doctor | sed \
+    CONAN_HOME="${PHONE_SHARED_CONAN_HOME:-${HOME}/.conan2}" \
+        "$script_dir/build-pico.sh" doctor | sed \
         -e 's/^Pico 4 build environment$/Android phone build environment (shared toolchain)/' \
         -e 's|^Next: ./build-pico.sh setup --download$|Next: follow ANDROID_PHONE_BUILD.md 16 KiB setup order; then ./build-phone.sh build|'
     printf '\nPhone dependency graph:\n'
@@ -131,16 +152,29 @@ doctor() {
 }
 
 build() {
-    local jdk sdk
+    local option="${1:-}" jdk sdk
+    local build_tmp="${PHONE_BUILD_TMPDIR:-$script_dir/build/package-tmp}"
+    local -a gradle_diagnostics=()
+    if [[ "$option" == "--stacktrace" ]]; then
+        gradle_diagnostics+=(--stacktrace)
+    elif [[ -n "$option" ]]; then
+        fail "unsupported build option: $option"
+    fi
     jdk="$(find_compatible_jdk)" \
         || fail "a JDK between versions 17 and 21 was not found"
     sdk="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-${HOME}/Android/Sdk}}"
     [[ -d "$sdk" ]] || fail "Android SDK was not found"
-    JAVA_HOME="$jdk" ANDROID_SDK_ROOT="$sdk" \
-        CMAKE_BUILD_PARALLEL_LEVEL="${PHONE_BUILD_JOBS:-$(nproc)}" \
+    [[ ! -L "$build_tmp" ]] || fail "Phone build temporary directory must not be a symlink"
+    mkdir -p -- "$build_tmp"
+    [[ -d "$build_tmp" && -w "$build_tmp" ]] \
+        || fail "Phone build temporary directory is not writable"
+    JAVA_HOME="$jdk" ANDROID_SDK_ROOT="$sdk" TMPDIR="$build_tmp" \
+        JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:+${JAVA_TOOL_OPTIONS} }-Djava.io.tmpdir=$build_tmp" \
+        PICO_BUILD_JOBS="$jobs" CMAKE_BUILD_PARALLEL_LEVEL="$jobs" \
+        SHADERGEN_JOBS="$jobs" \
         "$script_dir/gradlew" \
         --settings-file "$script_dir/settings-phone.gradle" \
-        :phoneInterface:assembleDebug
+        :phoneInterface:assembleDebug --max-workers="$jobs" "${gradle_diagnostics[@]}"
 }
 
 device_property() {
@@ -213,7 +247,7 @@ case "$command_name" in
         fi
         ;;
     prepare) prepare ;;
-    build) build ;;
+    build) build "$command_option" ;;
     install) install_apk ;;
     all) prepare; build ;;
     deploy) prepare; build; install_apk ;;

@@ -14,6 +14,9 @@ application ID (`org.overte.phone`) and does not package the Pico OpenXR
 runtime. The port currently targets landscape-oriented, ARM64 devices running
 Android 8 (API 26) or newer and targets Android 16 (API 36).
 
+For the device-free Actions checks and trusted build-runner architecture, see
+[Android Phone CI/CD](docs/ANDROID_PHONE_CI_CD.md).
+
 Run the commands in this document from the repository's `android/` directory.
 
 ## Current scope
@@ -110,6 +113,20 @@ before the dependency build; there is intentionally no unbounded fallback.
    can be finalized. A missing artifact, checksum mismatch, missing package, or
    failed ELF inspection stops closed.
 
+   The large download is staged under `android/build/prebuilt-tmp` rather than
+   the system temporary directory, avoiding small or memory-backed `/tmp`
+   limits on CI runners. `PHONE_PREBUILT_TMPDIR` can select another large local
+   filesystem; temporary content is removed on success and failure. Dependency
+   verification similarly uses `android/build/verification-tmp` and can be
+   redirected with `PHONE_VERIFY_TMPDIR`.
+
+   `PHONE_SHARED_CONAN_HOME` selects the cache used only for shared Pico runtime
+   and host tools. Keep `CONAN_HOME` separate for the verified Phone dependency
+   graph; the trusted workflow does this automatically.
+
+   Gradle/APK packaging uses `android/build/package-tmp` instead of a potentially
+   memory-backed system `/tmp`; override it with `PHONE_BUILD_TMPDIR` if needed.
+
    To restore only the dependency graph without preparing or building the APK,
    use the Phone entry point just as with Pico:
 
@@ -201,9 +218,13 @@ PHONE_BUILD_JOBS=4 ./build-phone.sh
 ```
 
 This setting is forwarded to the wrapper's prepare and CMake build phases. It
-does not override the fixed 16-job count in the dedicated Conan 16 KiB
-profiles. The long dependency helpers additionally enforce their documented
+also bounds Gradle, Ninja, and shader generation; native linking remains
+serial to avoid memory spikes. It does not override the fixed 16-job count in
+the dedicated Conan 16 KiB profiles. The long dependency helpers additionally enforce their documented
 32 GB swap prerequisite and 20 GB decimal cgroup memory ceiling.
+
+Use `./build-phone.sh build --stacktrace` to include Gradle failure details in
+CI or local build diagnostics.
 
 ## Install on a phone
 

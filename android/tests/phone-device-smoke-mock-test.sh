@@ -453,7 +453,13 @@ if run_smoke "$test_root/emulator-report" env MOCK_QEMU=1 \
     exit 1
 fi
 grep -Fq 'does not meet the physical Phone runtime contract' "$test_root/emulator.out"
-! grep -q '^install ' "$test_root/adb-commands"
+! grep -q ' install -r ' "$test_root/adb-commands"
+
+mkdir "$test_root/approved-emulator-report"
+: >"$test_root/adb-commands"
+run_smoke "$test_root/approved-emulator-report" env MOCK_QEMU=1 \
+    PHONE_ALLOW_EMULATOR=1 >"$test_root/approved-emulator.out" 2>&1
+grep -q ' install -r ' "$test_root/adb-commands"
 
 mkdir "$test_root/old-sdk-report"
 : >"$test_root/adb-commands"
@@ -463,7 +469,7 @@ if run_smoke "$test_root/old-sdk-report" env MOCK_SDK=25 \
     exit 1
 fi
 grep -Fq 'does not meet the physical Phone runtime contract' "$test_root/old-sdk.out"
-! grep -q '^install ' "$test_root/adb-commands"
+! grep -q ' install -r ' "$test_root/adb-commands"
 
 mkdir "$test_root/restart-report"
 if run_smoke "$test_root/restart-report" env MOCK_PROCESS_RESTART=1 \
@@ -564,7 +570,7 @@ if run_smoke "$test_root/existing-report" env >"$test_root/existing.out" 2>&1; t
     exit 1
 fi
 [[ "$(<"$test_root/existing-report/summary.txt")" == preserve ]]
-! grep -q '^install ' "$test_root/adb-commands"
+! grep -q ' install -r ' "$test_root/adb-commands"
 ! grep -Fq "$test_root" "$test_root/existing.out"
 
 mkdir "$test_root/symlink-report"
@@ -577,7 +583,7 @@ if run_smoke "$test_root/symlink-report" env >"$test_root/symlink.out" 2>&1; the
 fi
 [[ "$(<"$test_root/protected-target")" == protected ]]
 [[ -L "$test_root/symlink-report/summary.txt" ]]
-! grep -q '^install ' "$test_root/adb-commands"
+! grep -q ' install -r ' "$test_root/adb-commands"
 ! grep -Fq "$test_root" "$test_root/symlink.out"
 
 printf 'PASS: unattended phone device smoke mock\n'
