@@ -21,8 +21,10 @@ The setup consists of:
 - `phone-emulator-test.sh`, which checks the host, builds, starts an existing
   x86_64 AVD headlessly with KVM, disables animations, runs instrumentation,
   and stops the AVD on request;
-- an AndroidX instrumentation smoke test that verifies the target package,
-  the emulator ABI, and the packaged x86_64 `libphoneInterface.so`;
+- AndroidX instrumentation smoke tests that verify the target package, the
+  emulator ABI, the packaged x86_64 `libphoneInterface.so`, and a real cold
+  transition from `PermissionsActivity` into the Qt/native Activity without
+  intercepting its Intent;
 - static configuration checks in `tests/phone-emulator-config-test.sh`, also
   included in the Phone static regression suite.
 
@@ -98,12 +100,22 @@ syntax checks, and Git whitespace checks also passed. Some older regression
 helpers create temporary files directly in `/tmp`; those require free host
 quota independently of this emulator runner.
 
+The subsequent cold-launch instrumentation test grants the optional microphone
+permission, starts the real launcher with a cleared task, waits up to 30 seconds
+for `PhoneInterfaceActivity` to reach `RESUMED`, and requires it to remain
+resumed through a short stability window. Unlike the intent-policy tests it
+does not stub the destination Activity, so a loader, packaged-library, asset
+extraction, Qt initialization, or immediate native-startup failure fails the
+instrumentation process. Run the emulator suite again to establish the updated
+device count after this test is merged; the historical nine-test baseline above
+is retained as the evidence for the initial emulator implementation.
+
 ## Recommended next steps
 
-1. Add an application launch test for `PermissionsActivity`. It should detect
-   an immediate crash, confirm the expected startup UI, and verify navigation
-   to `PhoneInterfaceActivity`.
-2. Cover the first high-value UI flows: permissions, login or serverless entry,
+1. Extend the cold-launch test with bounded failure diagnostics and repeat it
+   ten times to establish its flake-free emulator baseline.
+2. Cover the first high-value UI flows: permission denial and Settings recovery,
+   login or serverless entry,
    opening and closing the Tablet, settings, deep links, and Activity restart.
 3. Capture filtered logcat, a screenshot, Activity/window state, and native
    crash or tombstone hints automatically whenever a device test fails.

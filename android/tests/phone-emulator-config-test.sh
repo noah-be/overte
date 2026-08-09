@@ -7,6 +7,7 @@ gradle="$android_dir/apps/phoneInterface/build.gradle"
 profile="$android_dir/conan/profiles/phone-emulator-x86_64"
 resources="$android_dir/apps/phoneInterface/src/emulator/res/values/qt_dependencies.xml"
 instrumentation_test="$android_dir/apps/phoneInterface/src/androidTest/java/org/overte/phone/EmulatorPackagingTest.java"
+cold_launch_test="$android_dir/apps/phoneInterface/src/androidTest/java/org/overte/phone/PhoneColdLaunchInstrumentedTest.java"
 root_dir="$(cd -- "$android_dir/.." && pwd)"
 
 require_text() {
@@ -32,6 +33,14 @@ require_text "$gradle" 'testInstrumentationRunner.*AndroidJUnitRunner' \
     'Android instrumentation runner is missing'
 require_text "$instrumentation_test" 'lib/x86_64/libphoneInterface\.so' \
     'emulator instrumentation test must verify the native x86_64 package'
+require_text "$cold_launch_test" 'ActivityLifecycleMonitorRegistry' \
+    'emulator instrumentation must observe the real Activity lifecycle'
+require_text "$cold_launch_test" 'PhoneInterfaceActivity did not survive the stability window' \
+    'emulator instrumentation must detect an immediate native startup crash'
+if grep -Eq 'espresso\.intent|Intents\.(init|intending)' "$cold_launch_test"; then
+    echo 'FAIL: cold-launch instrumentation intercepts the real native Activity' >&2
+    exit 1
+fi
 require_text "$resources" '_x86_64\.so' 'Qt emulator resource mapping is missing'
 if grep -q 'arm64-v8a' "$resources"; then
     echo 'FAIL: emulator Qt resource mapping contains ARM64 libraries' >&2
