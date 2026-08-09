@@ -4,6 +4,35 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 131 — Seal the three-hour continuation handoff
+
+- Branch: `nightly/android-phone-131-three-hour-handoff`
+- Commit: `Document three-hour phone continuation` (this task's commit)
+- Change: Audit and seal the cumulative continuation from task 92 through 130:
+  19 package/device-smoke hardenings followed by 20 unattended benchmark and
+  report-lifecycle improvements, each on its own stacked branch. The exact
+  chain below is contiguous from task 1 through this handoff.
+- Tests:
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 317/317.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**.
+  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**.
+  - `android/build-phone.sh doctor`: **passed** for host/Android toolchain;
+    dependency graph reports **SETUP required** because verified 16-KiB
+    dependencies are not prepared.
+  - Shell syntax, `git diff --check`, branch ancestry, 1–130 chain continuity,
+    and `git fsck --no-dangling --no-reflogs`: **passed**.
+  - Real Android device tests: **not executed** for this chain because no APK,
+    AAB, or verified 16-KiB dependency sentinel exists in this worktree; an
+    installed artifact of unknown provenance would not validate these commits.
+- Known risks: Runtime rendering, thermal behavior, vendor property responses,
+  IME/touch ergonomics, audio routing, and process lifecycle still require the
+  prioritized physical-device matrix below with freshly built artifacts.
+- Real-device validation still required: Build current debug/release artifacts,
+  pass package gates, then run unattended smoke and benchmark before the manual
+  UI/audio matrix. Never treat an older installed APK as current-chain evidence.
+
 ## 130 — Exercise explicit Pico benchmark rejection
 
 - Branch: `nightly/android-phone-130-pico-benchmark-rejection`
@@ -2954,7 +2983,8 @@ All branches form one linear chain starting at
 127. `nightly/android-phone-127-report-mode-cleanup` — `bfa652240e`
 128. `nightly/android-phone-128-raw-mode-cleanup` — `2e2c58a547`
 129. `nightly/android-phone-129-device-contract-fixtures` — `961b5537ec`
-130. `nightly/android-phone-130-pico-benchmark-rejection` — this task's commit
+130. `nightly/android-phone-130-pico-benchmark-rejection` — `779f197b29`
+131. `nightly/android-phone-131-three-hour-handoff` — this task's commit
 
 ### Device-free audit disposition
 
