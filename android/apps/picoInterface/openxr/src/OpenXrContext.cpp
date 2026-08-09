@@ -1183,6 +1183,28 @@ bool OpenXrContext::initPostGraphics() {
     }
 
     if (!initSpaces()) {
+        const unsigned int cleanupTargets =
+            openXrPostGraphicsCleanupTargets(
+                _viewSpace != XR_NULL_HANDLE,
+                _stageSpace != XR_NULL_HANDLE,
+                _session != XR_NULL_HANDLE);
+        if ((cleanupTargets & OpenXrPostGraphicsCleanupViewSpace) != 0) {
+            xrCheck(_instance, xrDestroySpace(_viewSpace),
+                    "Failed to roll back OpenXR view space");
+        }
+        _viewSpace = XR_NULL_HANDLE;
+        if ((cleanupTargets & OpenXrPostGraphicsCleanupWorldSpace) != 0) {
+            xrCheck(_instance, xrDestroySpace(_stageSpace),
+                    "Failed to roll back OpenXR world space");
+        }
+        _stageSpace = XR_NULL_HANDLE;
+        if ((cleanupTargets & OpenXrPostGraphicsCleanupSession) != 0) {
+            xrCheck(_instance, xrDestroySession(_session),
+                    "Failed to roll back OpenXR session");
+        }
+        _session = XR_NULL_HANDLE;
+        _isSessionRunning = false;
+        _shouldRunFrameCycle = false;
         return false;
     }
 
