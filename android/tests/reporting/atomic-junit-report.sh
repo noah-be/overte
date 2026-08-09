@@ -15,7 +15,25 @@ overte_junit_prepare() {
     fi
     mkdir -p -- "$junit_report_dir"
     OVERTE_JUNIT_FINAL_REPORT="$junit_report_dir/$junit_report_name"
-    OVERTE_JUNIT_TEMP_REPORT="$(mktemp "$junit_report_dir/.${junit_report_name%.xml}.XXXXXX.xml")"
+    OVERTE_JUNIT_LOCK_FILE="$junit_report_dir/.${junit_report_name}.lock"
+    local lock_timeout="${OVERTE_JUNIT_LOCK_TIMEOUT_SECONDS:-600}"
+    if [[ ! "$lock_timeout" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+        printf 'FAIL: invalid JUnit report lock timeout: %s\n' "$lock_timeout" >&2
+        return 2
+    fi
+    exec {OVERTE_JUNIT_LOCK_FD}>>"$OVERTE_JUNIT_LOCK_FILE"
+    if ! flock -x -w "$lock_timeout" "$OVERTE_JUNIT_LOCK_FD"; then
+        printf 'FAIL: timed out waiting for JUnit report lock: %s\n' \
+            "$OVERTE_JUNIT_LOCK_FILE" >&2
+        exec {OVERTE_JUNIT_LOCK_FD}>&-
+        return 1
+    fi
+    if ! OVERTE_JUNIT_TEMP_REPORT="$(
+            mktemp "$junit_report_dir/.${junit_report_name%.xml}.XXXXXX.xml")"; then
+        flock -u "$OVERTE_JUNIT_LOCK_FD"
+        exec {OVERTE_JUNIT_LOCK_FD}>&-
+        return 1
+    fi
 }
 
 overte_junit_publish() {
@@ -38,5 +56,9 @@ overte_junit_publish() {
 overte_junit_cleanup() {
     if [[ -n "${OVERTE_JUNIT_TEMP_REPORT:-}" ]]; then
         rm -f -- "$OVERTE_JUNIT_TEMP_REPORT"
+    fi
+    if [[ -n "${OVERTE_JUNIT_LOCK_FD:-}" ]]; then
+        flock -u "$OVERTE_JUNIT_LOCK_FD" 2>/dev/null || true
+        exec {OVERTE_JUNIT_LOCK_FD}>&-
     fi
 }

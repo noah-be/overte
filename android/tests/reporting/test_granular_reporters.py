@@ -3,6 +3,7 @@ from pathlib import Path
 import stat
 import subprocess
 import tempfile
+import time
 import unittest
 import xml.etree.ElementTree as ET
 
@@ -153,6 +154,48 @@ exit 7
                                       "OVERTE_TEST_REPORT_DIR": str(root / "reports")},
                 text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             self.assert_failure_report(result, root / "reports/native/TEST-native.xml")
+
+    def test_same_report_path_serializes_the_complete_runner_lifecycle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runner = root / "runner"
+            executable(runner, f'''
+source {str(ANDROID_ROOT / "tests/reporting/atomic-junit-report.sh")!r}
+overte_junit_prepare "$REPORT_DIR" TEST-shared.xml
+trap overte_junit_cleanup EXIT
+touch "$ROOT/entered-$ROLE"
+if [[ "$ROLE" == first ]]; then
+  while [[ ! -e "$ROOT/release-first" ]]; do sleep 0.02; done
+fi
+printf '<testsuite tests="1"><testcase name="%s"/></testsuite>' "$ROLE" >"$OVERTE_JUNIT_TEMP_REPORT"
+overte_junit_publish
+''')
+            report_dir = root / "reports"
+            common = {**os.environ, "ROOT": str(root), "REPORT_DIR": str(report_dir)}
+            first = subprocess.Popen([runner], env={**common, "ROLE": "first"})
+            deadline = time.monotonic() + 3
+            while not (root / "entered-first").exists() and time.monotonic() < deadline:
+                time.sleep(0.02)
+            self.assertTrue((root / "entered-first").exists())
+
+            timed_out = subprocess.run(
+                [runner], env={**common, "ROLE": "timeout",
+                               "OVERTE_JUNIT_LOCK_TIMEOUT_SECONDS": "0.05"},
+                text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            self.assertEqual(1, timed_out.returncode)
+            self.assertIn("timed out waiting for JUnit report lock", timed_out.stdout)
+            self.assertFalse((root / "entered-timeout").exists())
+
+            second = subprocess.Popen([runner], env={**common, "ROLE": "second"})
+            time.sleep(0.2)
+            self.assertFalse((root / "entered-second").exists())
+            (root / "release-first").touch()
+            self.assertEqual(0, first.wait(timeout=3))
+            self.assertEqual(0, second.wait(timeout=3))
+
+            report = report_dir / "TEST-shared.xml"
+            self.assertEqual("second", ET.parse(report).find("testcase").attrib["name"])
+            self.assertEqual([], list(report_dir.glob(".TEST-*.xml")))
 
 
 if __name__ == "__main__":
