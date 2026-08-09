@@ -1,3 +1,12 @@
+import org.gradle.util.GradleVersion
+
+def legacyGradleVersion = GradleVersion.version('4.10.1')
+if (GradleVersion.current() != legacyGradleVersion) {
+    throw new GradleException(
+        'Legacy Interface/Quest requires Gradle 4.10.1 with AGP 3.2.1. ' +
+        'The shared Gradle 8.13 wrapper is for Phone/Pico; use a Gradle 4.10.1 installation.')
+}
+
 //
 // Libraries
 //
