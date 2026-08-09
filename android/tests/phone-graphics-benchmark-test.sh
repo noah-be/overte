@@ -7,8 +7,10 @@ trap 'rm -rf -- "$fixture"' EXIT INT TERM
 report="$fixture/report"
 readonly real_mktemp="$(command -v mktemp)"
 readonly real_sleep="$(command -v sleep)"
+readonly real_chmod="$(command -v chmod)"
 export PHONE_BENCHMARK_TEST_REAL_MKTEMP="$real_mktemp"
 export PHONE_BENCHMARK_TEST_REAL_SLEEP="$real_sleep"
+export PHONE_BENCHMARK_TEST_REAL_CHMOD="$real_chmod"
 # The fixture supplies fake ADB and must never contend for the real shared
 # device lock or its post-device cooldown.
 export PHONE_DEVICE_LOCK_HELD=1
@@ -34,6 +36,15 @@ fi
 exec "$PHONE_BENCHMARK_TEST_REAL_SLEEP" "$@"
 MOCK_SLEEP
 chmod +x "$fixture/bin/sleep"
+cat >"$fixture/bin/chmod" <<'MOCK_CHMOD'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${MOCK_SUMMARY_CHMOD_SIGNAL_TERM:-0}" == 1 && "$*" == *'.summary.txt.'* ]]; then
+    kill -TERM "$PPID"
+fi
+exec "$PHONE_BENCHMARK_TEST_REAL_CHMOD" "$@"
+MOCK_CHMOD
+chmod +x "$fixture/bin/chmod"
 export PATH="$fixture/bin:$PATH"
 
 sed 's/^+//' >"$fixture/adb" <<'MOCK'
@@ -359,6 +370,23 @@ set -e
 [[ "$interrupt_status" -eq 130 ]]
 [[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' "$interrupt_commands")" -eq 1 ]]
 [[ ! -e "$interrupt_report/summary.txt" ]]
+
+publish_signal_report="$fixture/publish-signal-report"
+publish_signal_commands="$fixture/publish-signal-commands"
+: >"$publish_signal_commands"
+set +e
+PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/publish-signal-exits" \
+    MOCK_SUMMARY_CHMOD_SIGNAL_TERM=1 ANDROID_SERIAL=phone-secret \
+    PHONE_BENCHMARK_CONFIRM_NON_VR=YES PHONE_BENCHMARK_REPORT="$publish_signal_report" \
+    PHONE_BENCHMARK_INTERVAL=1 MOCK_ADB_COMMAND_LOG="$publish_signal_commands" \
+    "$script_dir/phone-graphics-benchmark.sh" 1 >"$fixture/publish-signal.out" 2>&1
+publish_signal_status=$?
+set -e
+[[ "$publish_signal_status" -eq 143 ]]
+[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' \
+    "$publish_signal_commands")" -eq 1 ]]
+[[ ! -e "$publish_signal_report/summary.txt" ]]
+[[ -z "$(find "$publish_signal_report" -maxdepth 1 -name '.summary.txt.*' -print -quit)" ]]
 if grep -Eqi 'phone-secret|private|serial|account|url|manufacturer|model|fingerprint|android_id|domain' "$summary"; then
     echo 'FAIL: identifying/raw data escaped into aggregate report' >&2; exit 1
 fi

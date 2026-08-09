@@ -4,6 +4,25 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 124 — Remove interrupted summary temporaries
+
+- Branch: `nightly/android-phone-124-partial-summary-cleanup`
+- Commit: `Clean up partial phone benchmark summaries` (this task's commit)
+- Change: Track the hidden aggregate-summary temporary in the central exit
+  cleanup until its atomic rename succeeds.
+- Tests:
+  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; TERM injected
+    during temporary-summary permission hardening returns 143, force-stops the
+    app exactly once, publishes no summary, and leaves no hidden partial file.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 317/317.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: SIGKILL can bypass shell cleanup, but any remnant remains a
+  private hidden temporary and is never mistaken for `summary.txt`.
+- Real-device validation still required: None for local temporary cleanup;
+  current-chain aggregate collection remains outstanding.
+
 ## 123 — Label frame-statistics transport failure
 
 - Branch: `nightly/android-phone-123-benchmark-framestats-error`
@@ -2813,7 +2832,8 @@ All branches form one linear chain starting at
 120. `nightly/android-phone-120-bounded-benchmark-runtime` — `6ad488c062`
 121. `nightly/android-phone-121-benchmark-signal-test` — `30af183d87`
 122. `nightly/android-phone-122-benchmark-interrupt-test` — `e9a7736cc3`
-123. `nightly/android-phone-123-benchmark-framestats-error` — this task's commit
+123. `nightly/android-phone-123-benchmark-framestats-error` — `14ac38f578`
+124. `nightly/android-phone-124-partial-summary-cleanup` — this task's commit
 
 ### Device-free audit disposition
 

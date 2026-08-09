@@ -99,12 +99,14 @@ raw_dir="$(mktemp -d /tmp/overte-phone-graphics-raw.XXXXXXXX 2>/dev/null)" || \
     die "could not create private raw benchmark directory"
 chmod 700 "$raw_dir" 2>/dev/null || die "could not secure private raw benchmark directory"
 package_started=0
+summary_tmp=''
 cleanup() {
     local status=$?
     trap - EXIT
     if ((package_started == 1)); then
         adb_for shell am force-stop "$PACKAGE" >/dev/null || true
     fi
+    [[ -z "$summary_tmp" ]] || rm -f -- "$summary_tmp" 2>/dev/null || true
     rm -rf -- "$raw_dir"
     return "$status"
 }
@@ -469,4 +471,5 @@ if ! mv -T -- "$summary_tmp" "$summary" 2>/dev/null; then
     rm -f -- "$summary_tmp" 2>/dev/null || true
     die "could not publish aggregate benchmark summary"
 fi
+summary_tmp=''
 printf 'Aggregate benchmark report written.\n'
