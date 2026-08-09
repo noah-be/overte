@@ -112,6 +112,27 @@ printf '%s\n' "$1" >"$VERIFIED_PATH"
         self.assertFalse((reports / "html").exists())
         self.assertEqual([], list(reports.glob(".jvm-coverage.*")))
 
+    @unittest.skipUnless(os.name == "posix", "flock fixture is POSIX-specific")
+    def test_staging_failure_invalidates_reports_without_starting_tools(self):
+        import fcntl
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.seed_stale_reports(root)
+            failing_mktemp = root / "failing-mktemp"
+            executable(failing_mktemp, "exit 8\n")
+            environment = self.fixture(root)
+            environment["OVERTE_JVM_COVERAGE_MKTEMP_COMMAND"] = str(failing_mktemp)
+
+            result = self.run_fixture(environment)
+
+            self.assertEqual(8, result.returncode, result.stdout)
+            self.assert_no_published_or_staged_report(root)
+            self.assertFalse((root / "tool-started").exists())
+            lock_path = Path(environment["OVERTE_JVM_COVERAGE_BUILD_DIR"] + ".lock")
+            with lock_path.open("a", encoding="utf-8") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
     def test_early_failure_invalidates_old_report_and_cleans_staging(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

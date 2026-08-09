@@ -17,6 +17,7 @@ readonly java_command="${OVERTE_JAVA_COMMAND:-java}"
 readonly curl_command="${OVERTE_CURL_COMMAND:-curl}"
 readonly sha256sum_command="${OVERTE_SHA256SUM_COMMAND:-sha256sum}"
 readonly verify_command="${OVERTE_JVM_COVERAGE_VERIFY_COMMAND:-}"
+readonly mktemp_command="${OVERTE_JVM_COVERAGE_MKTEMP_COMMAND:-mktemp}"
 
 download_verified() {
     local url="$1"
@@ -63,7 +64,7 @@ trap 'exit 143' TERM
 
 rm -f -- "$report_dir/report.xml"
 rm -rf -- "$report_dir/html"
-staging_dir="$(mktemp -d "$report_dir/.jvm-coverage.XXXXXXXX")"
+staging_dir="$("$mktemp_command" -d "$report_dir/.jvm-coverage.XXXXXXXX")"
 mkdir -p "$classes_dir" "$tests_dir" "$java_tmp_dir"
 find "$classes_dir" "$tests_dir" -type f -delete
 find "$build_dir" -maxdepth 1 -type f -name 'jacoco.exec' -delete
