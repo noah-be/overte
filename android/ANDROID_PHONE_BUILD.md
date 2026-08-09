@@ -110,16 +110,36 @@ before the dependency build; there is intentionally no unbounded fallback.
    can be finalized. A missing artifact, checksum mismatch, missing package, or
    failed ELF inspection stops closed.
 
+   To restore only the dependency graph without preparing or building the APK,
+   use the Phone entry point just as with Pico:
+
+   ```bash
+   ./build-phone.sh deps --download
+   ```
+
+   This command deliberately reuses the published, checksum-verified shared
+   Android base from `pico4-deps-v1`, then overlays
+   `android-phone-16k-deps-v1`. The shared archive name is historical; its Qt,
+   Node, host tools, and runtime packages are common Android inputs and do not
+   make the Phone APK depend on Pico hardware or OpenXR.
+
 The remaining steps are the one-time artifact-producer path. They are not
 needed after the current Phone delta has been published:
 
-2. Populate the dependency/source cache:
+2. Artifact maintainers can build the complete dependency graph locally with
+   the matching Phone command. This is the slow producer fallback and is not
+   part of normal developer setup:
 
    ```bash
-   ./build-pico.sh deps --download
+   ./build-phone.sh deps
    ```
 
-3. Rebuild Qt for 16 KiB pages. This is the longest dependency build:
+   It installs the shared Android graph, rebuilds Qt for 16 KiB pages, rebuilds
+   the non-Qt Phone dependencies, and finalizes the verified sentinel. The
+   equivalent explicit producer phases are shown below for diagnosis only.
+
+3. Explicitly rebuild Qt for 16 KiB pages. This is the longest dependency
+   phase:
 
    ```bash
    ./build-phone-qt-16k.sh
@@ -163,6 +183,8 @@ outputs and readiness marker exist.
 | Command | Purpose |
 | --- | --- |
 | `./build-phone.sh doctor` | Inspect the shared Android build environment |
+| `./build-phone.sh deps --download` | Restore all published shared and Phone-specific dependencies without source builds |
+| `./build-phone.sh deps` | Slow artifact-producer fallback: build and verify missing dependencies locally |
 | `./build-phone.sh prepare` | Restage already available Qt/Conan dependencies |
 | `./build-phone.sh build` | Build the debug APK from verified 16 KiB dependencies |
 | `./build-phone.sh` | Prepare dependencies and build the debug APK |

@@ -34,9 +34,10 @@ find_compatible_jdk() {
 
 usage() {
     cat <<'EOF'
-Usage: ./build-phone.sh [doctor|prepare|build|install|all|deploy|setup] [option]
+Usage: ./build-phone.sh [doctor|deps|prepare|build|install|all|deploy|setup] [option]
 
   doctor   Check the shared Android/Pico development environment
+  deps     Install Phone dependencies; use --download for prebuilt artifacts
   prepare  Stage the existing Android Conan and Qt dependencies
   build    Build the phoneInterface debug APK
   install  Install and start the existing APK on one connected Android device
@@ -53,6 +54,20 @@ The phone port intentionally shares the proven Qt/Conan Android toolchain with
 the Pico build. `setup --download` restores the shared artifacts followed by
 the smaller Phone-specific 16 KiB delta on a new development machine.
 EOF
+}
+
+download_prebuilt_dependencies() {
+    # The published Pico archive is the shared Android base, not a VR runtime
+    # dependency. Reuse its exact checksum/cache-restore implementation, then
+    # overlay the smaller pinned Phone 16 KiB Qt package.
+    "$script_dir/build-pico.sh" deps --download
+    "$script_dir/phone-prebuilt-16k-deps.sh" download
+}
+
+install_dependencies() {
+    "$script_dir/build-pico.sh" deps
+    "$script_dir/build-phone-qt-16k.sh"
+    "$script_dir/prepare-phone-16k-conan-deps.sh"
 }
 
 is_android_arm64_draco_package() {
@@ -190,15 +205,29 @@ install_apk() {
 
 case "$command_name" in
     doctor) doctor ;;
+    deps)
+        if [[ "${2:-}" == "--download" ]]; then
+            download_prebuilt_dependencies
+        elif [[ -z "${2:-}" ]]; then
+            install_dependencies
+        else
+            fail "unsupported deps option: ${2:-}"
+        fi
+        ;;
     prepare) prepare ;;
     build) build ;;
     install) install_apk ;;
     all) prepare; build ;;
     deploy) prepare; build; install_apk ;;
     setup)
+        doctor
+        printf '\n'
         if [[ "${2:-}" == "--download" ]]; then
-            "$script_dir/build-pico.sh" deps --download
-            "$script_dir/phone-prebuilt-16k-deps.sh" download
+            download_prebuilt_dependencies
+        elif [[ -z "${2:-}" ]]; then
+            install_dependencies
+        else
+            fail "unsupported setup option: ${2:-}"
         fi
         prepare
         build

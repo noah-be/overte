@@ -4,6 +4,35 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 141 — Give Phone the Pico-style prebuilt dependency commands
+
+- Branch: `nightly/android-phone-141-prebuilt-download-parity`
+- Commit: `Add Pico-style Phone dependency commands` (this task's commit)
+- Change: Add `build-phone.sh deps --download` as the normal source-free path,
+  restoring the exact published/checksummed shared Android assets first and the
+  pinned Phone 16-KiB Qt delta second. Add the matching slow `deps` producer
+  fallback, make `setup` mirror Pico's doctor/dependency/prepare/build flow,
+  reject unknown dependency/setup options, and document why the historically
+  named Pico release is a reusable Android base rather than a VR dependency.
+- Tests:
+  - `android/tests/phone-build-download-parity-test.sh`: **passed**; verified
+    exact shared-then-Phone download ordering, exact slow producer ordering,
+    and fail-closed unsupported option handling with local mocks.
+  - Existing source-free Phone artifact export and local download/restore from
+    task 137 remain **passed** for the exact committed checksum. Network release
+    download was **not executed** because this session may not create a release
+    and the Phone asset has not yet been published by an authorized maintainer.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 332/332 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 41
+    explicitly device-free suites; nested host regression passed 332/332.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: `pico4-deps-v1` is an existing public release, but
+  `android-phone-16k-deps-v1/android-phone-16k-conan.tgz` still needs its one
+  authorized GitHub release upload. Until then the normal command intentionally
+  fails closed rather than compiling Qt silently.
+- Real-device validation still required: None for dependency transport; rebuild
+  and smoke an APK on hardware after restoring on a clean development machine.
+
 ## 140 — Enable bounded Android archive extraction for future Create work
 
 - Branch: `nightly/android-phone-140-safe-android-archive-extraction`

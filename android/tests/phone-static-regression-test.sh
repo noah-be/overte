@@ -16,6 +16,7 @@ readonly tests=(
     phone-archive-extraction-test.sh
     phone-audio-output-race-test.sh
     phone-build-resource-guard-test.sh
+    phone-build-download-parity-test.sh
     phone-data-protection-test.sh
     phone-deep-link-test.sh
     phone-default-sky-payload-test.sh

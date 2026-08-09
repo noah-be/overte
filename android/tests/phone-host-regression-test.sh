@@ -85,6 +85,7 @@ for source_file in \
         tests/phone-elf-alignment-test.sh \
         tests/phone-offscreen-ui-mip-test.sh \
         tests/phone-prebuilt-16k-deps-test.sh \
+        tests/phone-build-download-parity-test.sh \
         tests/phone-prepare-architecture-test.sh \
         tests/phone-script-payload-test.sh \
         tests/verify-phone-16k-dependencies.sh \
@@ -751,7 +752,7 @@ require_text tests/phone-device-test.sh 'crash_log_matches=%s\\nexit_crash_match
     'device reports retain only aggregate crash and page-size counters'
 require_text tests/phone-device-test.sh 'has_16k_size.*has_failure_context' \
     'device smoke requires error context before treating generic 16 KiB text as failure'
-for command_name in doctor prepare build install all deploy setup; do
+for command_name in doctor deps prepare build install all deploy setup; do
     require_text build-phone.sh \
         "(^|[[:space:]])${command_name}\)" \
         "wrapper exposes the ${command_name} command"
