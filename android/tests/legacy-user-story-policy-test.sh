@@ -41,3 +41,13 @@ if grep -Eq 'Log\.[A-Za-z]+\([^;]*accessToken|accessToken[^;]*Log\.' \
     printf 'FAIL: legacy Friends UI must not log its access token\n' >&2
     exit 1
 fi
+
+main_activity="$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/MainActivity.java"
+grep -Fq 'if (LegacyUserPolicy.hasText(username))' "$main_activity" || {
+    printf 'FAIL: legacy profile header must validate nullable usernames\n' >&2
+    exit 1
+}
+if grep -Fq 'username.isEmpty()' "$main_activity"; then
+    printf 'FAIL: legacy profile header directly dereferences a nullable username\n' >&2
+    exit 1
+fi

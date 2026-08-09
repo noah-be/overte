@@ -235,7 +235,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         updateProfileHeader(getUsername());
     }
     private void updateProfileHeader(String username) {
-        if (!username.isEmpty()) {
+        if (LegacyUserPolicy.hasText(username)) {
             mDisplayName.setText(username);
             updateProfilePicture(username);
         }
