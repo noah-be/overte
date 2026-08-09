@@ -165,26 +165,6 @@ def legacy_direct_dependency_inventory() -> dict:
             "directDependencies": direct_dependencies(source),
         })
 
-    gvr_maven = sorted(
-        dependency["coordinate"]
-        for module in modules
-        for dependency in module["directDependencies"]
-        if dependency["kind"] == "external"
-        and dependency["coordinate"].startswith("com.google.vr:")
-    )
-    prebuilt_references = [
-        "build.gradle",
-        "setupGVR.gradle",
-        "apps/interface/CMakeLists.txt",
-        "../cmake/macros/TargetGoogleVR.cmake",
-    ]
-    prebuilt_versions = set()
-    for relative_path in prebuilt_references:
-        source = (ANDROID_ROOT / relative_path).read_text(encoding="utf-8")
-        prebuilt_versions.update(re.findall(r"gvr-android-sdk-([0-9.]+)", source))
-    if len(prebuilt_versions) != 1:
-        raise ValueError(f"ambiguous GVR prebuilt versions: {sorted(prebuilt_versions)}")
-
     return {
         "schemaVersion": 1,
         "scope": "direct declarations only",
@@ -196,14 +176,6 @@ def legacy_direct_dependency_inventory() -> dict:
             "androidGradlePlugin": "3.2.1",
         },
         "modules": modules,
-        "gvrVersionBoundary": {
-            "versionAlignment": "unverified",
-            "mavenArtifacts": gvr_maven,
-            "prebuilt": {
-                "version": next(iter(prebuilt_versions)),
-                "references": prebuilt_references,
-            },
-        },
     }
 
 
@@ -326,16 +298,24 @@ class LegacyGradleDependencyTest(unittest.TestCase):
             {"gradle": "4.10.1", "androidGradlePlugin": "3.2.1"},
             inventory["toolchain"])
 
-    def test_direct_dependency_inventory_exposes_unverified_gvr_version_split(self):
+    def test_legacy_gvr_dependency_chain_is_absent(self):
         inventory = json.loads(LEGACY_DIRECT_DEPENDENCY_INVENTORY.read_text(
             encoding="utf-8"))
-        boundary = inventory["gvrVersionBoundary"]
-        self.assertEqual("unverified", boundary["versionAlignment"])
-        self.assertEqual([
-            "com.google.vr:sdk-audio:1.80.0",
-            "com.google.vr:sdk-base:1.80.0",
-        ], boundary["mavenArtifacts"])
-        self.assertEqual("1.101.0", boundary["prebuilt"]["version"])
+        coordinates = {
+            dependency["coordinate"]
+            for module in inventory["modules"]
+            for dependency in module["directDependencies"]
+            if dependency["kind"] == "external"
+        }
+        self.assertFalse(any(value.startswith("com.google.vr:")
+                             for value in coordinates))
+        self.assertFalse((ANDROID_ROOT / "setupGVR.gradle").exists())
+        self.assertFalse(
+            (ANDROID_ROOT.parent / "cmake/macros/TargetGoogleVR.cmake").exists())
+        for relative_path in ("build.gradle", "apps/interface/build.gradle",
+                              "apps/interface/CMakeLists.txt"):
+            source = (ANDROID_ROOT / relative_path).read_text(encoding="utf-8")
+            self.assertNotRegex(source, r"(?i)(?:google[.]vr|gvr-android-sdk|libgvr)")
 
     def test_gvr_evidence_reports_packaging_and_elf_dependencies(self):
         with tempfile.TemporaryDirectory() as directory:

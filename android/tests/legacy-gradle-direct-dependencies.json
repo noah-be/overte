@@ -32,16 +32,6 @@
         {
           "configuration": "implementation",
           "kind": "external",
-          "coordinate": "com.google.vr:sdk-audio:1.80.0"
-        },
-        {
-          "configuration": "implementation",
-          "kind": "external",
-          "coordinate": "com.google.vr:sdk-base:1.80.0"
-        },
-        {
-          "configuration": "implementation",
-          "kind": "external",
           "coordinate": "com.android.support.constraint:constraint-layout:1.0.2"
         },
         {
@@ -191,21 +181,5 @@
         }
       ]
     }
-  ],
-  "gvrVersionBoundary": {
-    "versionAlignment": "unverified",
-    "mavenArtifacts": [
-      "com.google.vr:sdk-audio:1.80.0",
-      "com.google.vr:sdk-base:1.80.0"
-    ],
-    "prebuilt": {
-      "version": "1.101.0",
-      "references": [
-        "build.gradle",
-        "setupGVR.gradle",
-        "apps/interface/CMakeLists.txt",
-        "../cmake/macros/TargetGoogleVR.cmake"
-      ]
-    }
-  }
+  ]
 }

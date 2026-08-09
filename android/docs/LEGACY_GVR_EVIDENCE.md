@@ -1,6 +1,10 @@
-# Legacy GVR evidence
+# Legacy GVR removal evidence
 
-Before changing the legacy Interface GVR dependencies, inspect a real arm64 APK:
+The legacy Interface no longer declares or links Google VR. The previous build
+mixed unresolved Maven artifacts at version 1.80.0 with an unused prebuilt
+acquisition path at version 1.101.0. No active source references GVR symbols.
+
+After producing a real arm64 Interface APK, verify the packaged result with:
 
 ```bash
 python3 tests/legacy-gvr-evidence.py path/to/interface.apk \
@@ -8,7 +12,12 @@ python3 tests/legacy-gvr-evidence.py path/to/interface.apk \
 ```
 
 The JSON report records packaged GVR library hashes, `DT_NEEDED` entries and
-undefined `gvr_*` symbols from `libnative-lib.so`. `supportsRemoval` is evidence
-only for that APK and ABI. It is not a build, runtime smoke test, SBOM or proof
-for other ABIs. GVR removal still requires a rebuilt APK and a device- or
-emulator-level smoke test.
+undefined `gvr_*` symbols from `libnative-lib.so`. A successful post-removal
+check must report no packaged GVR libraries, no GVR dependency and no undefined
+GVR symbol.
+
+This evidence applies only to the inspected APK and ABI. It is not a runtime
+smoke test, SBOM or proof for other ABIs. If the remaining legacy dependencies
+cannot be resolved, the static dependency contract still proves that the dead
+GVR acquisition, Gradle declarations and native link have been removed, but a
+rebuilt-APK check remains pending.

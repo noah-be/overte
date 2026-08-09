@@ -52,31 +52,7 @@ ext {
 }
 
 def appDir = new File(projectDir, 'apps/interface')
-def jniFolder = new File(appDir, 'src/main/jniLibs/arm64-v8a')
 def breakpadDumpSymsDir = new File("${appDir}/build/tmp/breakpadDumpSyms")
-
-task extractGvrBinaries() {
-    doLast {
-        def gvrLibFolder = new File(HIFI_ANDROID_PRECOMPILED, 'gvr/gvr-android-sdk-1.101.0/libraries');
-        zipTree(new File(HIFI_ANDROID_PRECOMPILED, 'gvr/gvr-android-sdk-1.101.0/libraries/sdk-audio-1.101.0.aar')).visit { element ->
-            def fileName = element.file.toString();
-            if (fileName.endsWith('libgvr_audio.so') && fileName.contains('arm64-v8a')) {
-                copy {  from element.file; into gvrLibFolder }
-            }
-        }
-        zipTree(new File(HIFI_ANDROID_PRECOMPILED, 'gvr/gvr-android-sdk-1.101.0/libraries/sdk-base-1.101.0.aar')).visit { element ->
-            def fileName = element.file.toString();
-            if (fileName.endsWith('libgvr.so') && fileName.contains('arm64-v8a')) {
-                copy {  from element.file; into gvrLibFolder }
-            }
-        }
-        fileTree(gvrLibFolder).visit { element ->
-            if (element.file.toString().endsWith('.so')) {
-                copy { from element.file; into jniFolder }
-            }
-        }
-    }
-}
 
 def generateAssetsFileList = {
     def assetsPath = "${appDir}/src/main/assets/"
