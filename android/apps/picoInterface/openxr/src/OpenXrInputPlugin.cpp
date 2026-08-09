@@ -1404,7 +1404,7 @@ void OpenXrInputPlugin::InputDevice::getHandTrackingInputs(int i, const mat4& se
     if (_handTracker[i] == XR_NULL_HANDLE) { return; }
     if (!_context->_lastPredictedDisplayTime.has_value()) { return; }
 
-    XrHandJointLocationEXT joints[XR_HAND_JOINT_COUNT_EXT];
+    XrHandJointLocationEXT joints[XR_HAND_JOINT_COUNT_EXT] {};
     XrHandJointLocationsEXT locations = {
         .type = XR_TYPE_HAND_JOINT_LOCATIONS_EXT,
         .jointCount = XR_HAND_JOINT_COUNT_EXT,
@@ -1417,9 +1417,50 @@ void OpenXrInputPlugin::InputDevice::getHandTrackingInputs(int i, const mat4& se
         .time = _context->inputPredictionTime(),
     };
 
-    _context->xrLocateHandJointsEXT(_handTracker[i], &locateInfo, &locations);
+    const bool locateSucceeded = xrCheck(
+        _context->_instance,
+        _context->xrLocateHandJointsEXT(_handTracker[i], &locateInfo, &locations),
+        "Failed to locate hand joints");
+    if (!openXrHandJointOutputUsable(locateSucceeded, locations.isActive)) {
+        return;
+    }
 
-    if (!locations.isActive) { return; }
+    constexpr XrSpaceLocationFlags poseFlags =
+        XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+    constexpr XrSpaceLocationFlags orientationFlag =
+        XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+    struct RequiredJoint {
+        XrHandJointEXT joint;
+        XrSpaceLocationFlags flags;
+    };
+    constexpr RequiredJoint requiredJoints[] = {
+        { XR_HAND_JOINT_WRIST_EXT, poseFlags },
+        { XR_HAND_JOINT_THUMB_METACARPAL_EXT, poseFlags },
+        { XR_HAND_JOINT_THUMB_PROXIMAL_EXT, poseFlags },
+        { XR_HAND_JOINT_THUMB_DISTAL_EXT, poseFlags },
+        { XR_HAND_JOINT_INDEX_METACARPAL_EXT, orientationFlag },
+        { XR_HAND_JOINT_INDEX_PROXIMAL_EXT, poseFlags },
+        { XR_HAND_JOINT_INDEX_INTERMEDIATE_EXT, poseFlags },
+        { XR_HAND_JOINT_INDEX_DISTAL_EXT, poseFlags },
+        { XR_HAND_JOINT_MIDDLE_METACARPAL_EXT, orientationFlag },
+        { XR_HAND_JOINT_MIDDLE_PROXIMAL_EXT, poseFlags },
+        { XR_HAND_JOINT_MIDDLE_INTERMEDIATE_EXT, poseFlags },
+        { XR_HAND_JOINT_MIDDLE_DISTAL_EXT, poseFlags },
+        { XR_HAND_JOINT_RING_METACARPAL_EXT, orientationFlag },
+        { XR_HAND_JOINT_RING_PROXIMAL_EXT, poseFlags },
+        { XR_HAND_JOINT_RING_INTERMEDIATE_EXT, poseFlags },
+        { XR_HAND_JOINT_RING_DISTAL_EXT, poseFlags },
+        { XR_HAND_JOINT_LITTLE_METACARPAL_EXT, orientationFlag },
+        { XR_HAND_JOINT_LITTLE_PROXIMAL_EXT, poseFlags },
+        { XR_HAND_JOINT_LITTLE_INTERMEDIATE_EXT, poseFlags },
+        { XR_HAND_JOINT_LITTLE_DISTAL_EXT, poseFlags },
+    };
+    for (const auto& required : requiredJoints) {
+        if (!openXrHandJointFlagsSatisfy(
+                joints[required.joint].locationFlags, required.flags)) {
+            return;
+        }
+    }
 
     // Handles coordinate space conversion:
     //

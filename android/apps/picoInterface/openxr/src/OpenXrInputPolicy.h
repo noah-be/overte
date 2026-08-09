@@ -18,3 +18,13 @@ constexpr unsigned int openXrHapticTargets(bool enabled, unsigned int index) {
                           : (index == 1 ? OpenXrHapticRight
                                         : OpenXrHapticLeft | OpenXrHapticRight));
 }
+
+constexpr bool openXrHandJointOutputUsable(
+        bool locateSucceeded, bool isActive) {
+    return locateSucceeded && isActive;
+}
+
+constexpr bool openXrHandJointFlagsSatisfy(
+        unsigned long long actualFlags, unsigned long long requiredFlags) {
+    return (actualFlags & requiredFlags) == requiredFlags;
+}
