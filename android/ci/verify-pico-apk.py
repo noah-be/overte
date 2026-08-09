@@ -102,8 +102,12 @@ def main():
     parser.add_argument("apk", type=Path)
     parser.add_argument("--aapt", help="path to Android aapt")
     parser.add_argument("--apksigner", help="path to Android apksigner")
+    parser.add_argument("--source-revision", help="40-character Git commit built into the APK")
     parser.add_argument("--output", type=Path, help="write verification manifest as JSON")
     args = parser.parse_args()
+
+    if args.source_revision and not re.fullmatch(r"[0-9a-f]{40}", args.source_revision):
+        fail("source revision must be a lowercase 40-character Git commit")
 
     if not args.apk.is_file() or args.apk.is_symlink():
         fail(f"APK is not a regular non-symlink file: {args.apk}")
@@ -128,6 +132,8 @@ def main():
         "native_libraries": native_libraries,
         "signature_verified": True,
     }
+    if args.source_revision:
+        manifest["source_revision"] = args.source_revision
     rendered = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

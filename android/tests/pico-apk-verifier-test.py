@@ -52,12 +52,12 @@ class PicoApkVerifierTests(unittest.TestCase):
                 archive.writestr(extra, b"unexpected")
         return apk
 
-    def _run(self, apk, env=None):
+    def _run(self, apk, env=None, extra_args=()):
         import os
         variables = os.environ.copy()
         variables.update(env or {})
         return subprocess.run(
-            [str(VERIFIER), str(apk), "--aapt", str(self.aapt), "--apksigner", str(self.apksigner)],
+            [str(VERIFIER), str(apk), "--aapt", str(self.aapt), "--apksigner", str(self.apksigner), *extra_args],
             text=True, capture_output=True, env=variables, check=False,
         )
 
@@ -69,6 +69,17 @@ class PicoApkVerifierTests(unittest.TestCase):
         self.assertEqual(manifest["abi"], "arm64-v8a")
         self.assertTrue(manifest["signature_verified"])
         self.assertRegex(manifest["sha256"], r"^[0-9a-f]{64}$")
+
+    def test_records_valid_source_revision(self):
+        revision = "a" * 40
+        result = self._run(self._apk(), extra_args=("--source-revision", revision))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["source_revision"], revision)
+
+    def test_rejects_ambiguous_source_revision(self):
+        result = self._run(self._apk(), extra_args=("--source-revision", "main"))
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("40-character Git commit", result.stderr)
 
     def test_rejects_wrong_package(self):
         result = self._run(self._apk(), {"MOCK_PACKAGE": "example.wrong"})
