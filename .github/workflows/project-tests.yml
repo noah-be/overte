@@ -1,23 +1,17 @@
-name: Pico 4 device-free tests
+name: Hardware-independent project tests
 
 on:
   pull_request:
-    paths:
-      - "android/**"
-      - "interface/**"
-      - "libraries/**"
-      - "scripts/system/**"
-      - ".github/workflows/pico4-device-free-tests.yml"
   push:
     branches:
       - feature/pico4-support
-      - "test/pico4-*"
+      - "test/*"
 
 permissions:
   contents: read
 
 jobs:
-  pico4-device-free:
+  project-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -26,15 +20,15 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes jq nodejs openjdk-17-jdk-headless python3
-      - name: Run Pico 4 suite
+      - name: Run project suite
         run: |
-          android/tests/pico-device-free-test.sh \
-            --timeout 120 \
-            --junit build/test-results/pico4-device-free.xml
+          tests/run-project-tests.py \
+            --timeout 180 \
+            --junit build/test-results/project-tests.xml
       - name: Upload test report
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: pico4-device-free-results
-          path: build/test-results/pico4-device-free.xml
+          name: project-test-results
+          path: build/test-results/project-tests.xml
           if-no-files-found: error
