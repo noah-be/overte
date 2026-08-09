@@ -12,6 +12,7 @@
 #include <tuple>
 
 #include "OpenXrInputPlugin.h"
+#include "OpenXrInputPolicy.h"
 
 #include "AvatarConstants.h"
 #include "PathUtils.h"
@@ -1188,12 +1189,11 @@ void OpenXrInputPlugin::InputDevice::update(float deltaTime, const controller::I
         auto left_trigger = _actions.at("left_trigger_value")->getFloat();
         auto right_trigger = _actions.at("right_trigger_value")->getFloat();
 
-        // TODO: Customisable click threshold?
-        if (left_trigger.isActive && left_trigger.currentState >= 0.95f) {
+        if (openXrVirtualTriggerPressed(left_trigger.isActive, left_trigger.currentState)) {
             _buttonPressedMap.insert(LT_VIRTUAL_CLICK);
         }
 
-        if (right_trigger.isActive && right_trigger.currentState >= 0.95f) {
+        if (openXrVirtualTriggerPressed(right_trigger.isActive, right_trigger.currentState)) {
             _buttonPressedMap.insert(RT_VIRTUAL_CLICK);
         }
     }
