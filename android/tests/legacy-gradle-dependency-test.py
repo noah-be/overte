@@ -27,6 +27,14 @@ def duplicates(source: str) -> list[tuple[str, str]]:
     return sorted(declaration for declaration, count in counts.items() if count > 1)
 
 
+def coordinates_in_multiple_configurations(source: str) -> list[str]:
+    configurations: dict[str, set[str]] = {}
+    for configuration, coordinate in DEPENDENCY.findall(source):
+        configurations.setdefault(coordinate, set()).add(configuration)
+    return sorted(coordinate for coordinate, names in configurations.items()
+                  if len(names) > 1)
+
+
 def legacy_download_plugin_references(source: str) -> list[str]:
     return LEGACY_DOWNLOAD_PLUGIN.findall(source)
 
@@ -127,6 +135,7 @@ class LegacyGradleDependencyTest(unittest.TestCase):
     def test_legacy_interface_has_no_exact_duplicate_dependencies(self):
         source = (ANDROID_ROOT / "apps/interface/build.gradle").read_text(encoding="utf-8")
         self.assertEqual([], duplicates(source))
+        self.assertEqual([], coordinates_in_multiple_configurations(source))
 
     def test_validator_distinguishes_duplicates_from_configuration_choices(self):
         source = """
@@ -135,6 +144,17 @@ class LegacyGradleDependencyTest(unittest.TestCase):
             api 'example:library:1'
         """
         self.assertEqual([("api", "example:library:1")], duplicates(source))
+
+    def test_validator_recognizes_cross_configuration_duplicates(self):
+        source = """
+            api 'example:library:1'
+            implementation 'example:library:1'
+            implementation 'example:other:1'
+            api 'example:library:2'
+        """
+        self.assertEqual(
+            ["example:library:1"],
+            coordinates_in_multiple_configurations(source))
 
     def test_validator_recognizes_legacy_download_plugin_apis(self):
         for source in (
