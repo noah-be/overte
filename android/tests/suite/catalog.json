@@ -72,6 +72,13 @@
       "description": "Legacy direct-dependency inventory and Gradle declarations remain explicit"
     },
     {
+      "id": "legacy-gradle-report-harness",
+      "kind": "contract",
+      "tiers": ["fast", "host", "contracts"],
+      "command": ["tests/legacy-gradle-dependency-report-test.py"],
+      "description": "Legacy Gradle report bootstrap, isolation and publication remain hermetic"
+    },
+    {
       "id": "phone-test-inventory",
       "kind": "contract",
       "tiers": ["fast", "host", "contracts"],
