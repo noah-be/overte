@@ -4,6 +4,28 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 100 — Reject data after the ZIP end record
+
+- Branch: `nightly/android-phone-100-trailing-zip-data`
+- Commit: `Reject trailing phone APK ZIP data` (this task's commit)
+- Change: Parse and cross-check the classic APK ZIP end record against the
+  central-directory offset, size, entry count, and legal comment, then reject
+  any bytes after its declared end. A package can no longer carry ignored stale
+  payload after an otherwise valid archive.
+- Tests:
+  - `android/tests/phone-apk-padding-test.sh`: **passed**, accepting a legal ZIP
+    comment and rejecting a 20-byte post-EOCD payload in addition to both
+    internal-padding fixtures.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 294/294 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 294/294.
+  - Python/shell syntax and `git diff --check`: **passed**.
+- Known risks: Phone APKs remain classic non-ZIP64 archives by contract; a
+  future intentional ZIP64 migration needs explicit end-record support and
+  Android tooling validation rather than implicit acceptance.
+- Real-device validation still required: Run the final gate after signing and
+  install that exact digest, confirming signing did not leave trailing data.
+
 ## 99 — Bound padding before the ZIP central directory
 
 - Branch: `nightly/android-phone-99-central-directory-padding`
@@ -2294,7 +2316,8 @@ All branches form one linear chain starting at
 96. `nightly/android-phone-96-package-layout-boundary` — `46a1cf115c`
 97. `nightly/android-phone-97-private-elf-errors` — `c44a29b7dc`
 98. `nightly/android-phone-98-private-package-errors` — `1d7f13300d`
-99. `nightly/android-phone-99-central-directory-padding` — this task's commit
+99. `nightly/android-phone-99-central-directory-padding` — `13db75b136`
+100. `nightly/android-phone-100-trailing-zip-data` — this task's commit
 
 ### Device-free audit disposition
 

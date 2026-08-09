@@ -135,6 +135,8 @@ require_text tests/check-phone-apk-padding.py 'could not read APK input' \
     'APK padding gate suppresses private input paths'
 require_text tests/check-phone-apk-padding.py 'archive[.]start_dir[[:space:]]*-[[:space:]]*previous_end' \
     'APK padding gate covers the gap before the central directory'
+require_text tests/check-phone-apk-padding.py 'trailing_data_size' \
+    'APK padding gate rejects bytes after the ZIP end record'
 require_text tests/check-phone-apk-contents.py 'REQUIRED_CACHED_ASSETS' \
     'APK completeness gate identifies start-critical extracted bundles'
 require_text tests/check-phone-apk-contents.py 'cache_content_digest' \

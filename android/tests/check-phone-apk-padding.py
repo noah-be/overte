@@ -8,6 +8,7 @@ import zipfile
 
 MAX_PADDING_BYTES = 64 * 1024
 LOCAL_HEADER = struct.Struct("<IHHHHHIIIHH")
+END_OF_CENTRAL_DIRECTORY = struct.Struct("<4sHHHHIIH")
 
 
 def entry_data_end(apk_file, entry):
@@ -43,6 +44,37 @@ def largest_internal_gap(apk_path):
         return largest_gap, largest_location
 
 
+def trailing_data_size(apk_path):
+    with zipfile.ZipFile(apk_path) as archive, open(apk_path, "rb") as apk_file:
+        apk_file.seek(0, 2)
+        file_size = apk_file.tell()
+        search_size = min(file_size, END_OF_CENTRAL_DIRECTORY.size + 65535)
+        apk_file.seek(file_size - search_size)
+        tail = apk_file.read(search_size)
+        signature = b"PK\x05\x06"
+        candidate = tail.rfind(signature)
+        while candidate >= 0:
+            if candidate + END_OF_CENTRAL_DIRECTORY.size <= len(tail):
+                fields = END_OF_CENTRAL_DIRECTORY.unpack_from(tail, candidate)
+                disk, central_disk, disk_entries, total_entries = fields[1:5]
+                central_size, central_offset, comment_length = fields[5:]
+                end = candidate + END_OF_CENTRAL_DIRECTORY.size + comment_length
+                absolute_candidate = file_size - search_size + candidate
+                if (
+                    disk == 0
+                    and central_disk == 0
+                    and disk_entries == total_entries == len(archive.infolist())
+                    and central_offset == archive.start_dir
+                    and central_size == absolute_candidate - archive.start_dir
+                    and end <= len(tail)
+                    and tail[candidate + END_OF_CENTRAL_DIRECTORY.size:end]
+                    == archive.comment
+                ):
+                    return file_size - (file_size - search_size + end)
+            candidate = tail.rfind(signature, 0, candidate)
+    raise ValueError("valid ZIP end record was not found")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Reject excessive padding between APK ZIP entries")
     parser.add_argument("apk")
@@ -51,6 +83,7 @@ def main():
 
     try:
         gap, location = largest_internal_gap(args.apk)
+        trailing_bytes = trailing_data_size(args.apk)
     except zipfile.BadZipFile:
         print("ERROR: APK ZIP data is invalid", file=sys.stderr)
         return 2
@@ -65,6 +98,13 @@ def main():
         print(
             f"ERROR: APK contains {gap} bytes of internal padding {location}; "
             f"maximum is {args.max_padding} bytes. Repackage from a fresh APK output.",
+            file=sys.stderr,
+        )
+        return 1
+    if trailing_bytes:
+        print(
+            f"ERROR: APK contains {trailing_bytes} bytes after the ZIP end record; "
+            "repackage from a canonical APK output.",
             file=sys.stderr,
         )
         return 1

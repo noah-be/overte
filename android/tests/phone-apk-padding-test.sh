@@ -18,6 +18,11 @@ with zipfile.ZipFile(normal, "w", zipfile.ZIP_DEFLATED) as archive:
     archive.writestr("first", b"first payload")
     archive.writestr("second", b"second payload")
 
+commented = root / "commented.apk"
+with zipfile.ZipFile(commented, "w", zipfile.ZIP_DEFLATED) as archive:
+    archive.writestr("first", b"first payload")
+    archive.comment = b"reviewed ZIP comment"
+
 data = bytearray(normal.read_bytes())
 with zipfile.ZipFile(normal) as archive:
     second_offset = archive.getinfo("second").header_offset
@@ -52,11 +57,13 @@ if data[cursor:cursor + 4] != b"PK\x05\x06":
     raise RuntimeError("central-padding fixture EOCD not found")
 struct.pack_into("<I", data, cursor + 16, central_offset + len(padding))
 (root / "central-padded.apk").write_bytes(data)
+(root / "trailing-data.apk").write_bytes(normal.read_bytes() + b"stale trailing bytes")
 
 (root / "invalid.apk").write_bytes(b"not a ZIP\n")
 PY
 
 "$checker" "$fixture_dir/normal.apk" >/dev/null
+"$checker" "$fixture_dir/commented.apk" >/dev/null
 if "$checker" "$fixture_dir/padded.apk" >"$fixture_dir/out" 2>&1; then
     echo "FAIL: excessive internal padding was accepted" >&2
     exit 1
@@ -69,6 +76,12 @@ if "$checker" "$fixture_dir/central-padded.apk" \
 fi
 grep -Fq '131072 bytes of internal padding' "$fixture_dir/central-padding-out"
 grep -Fq 'before the central directory' "$fixture_dir/central-padding-out"
+if "$checker" "$fixture_dir/trailing-data.apk" \
+        >"$fixture_dir/trailing-out" 2>&1; then
+    echo 'FAIL: bytes after the ZIP end record were accepted' >&2
+    exit 1
+fi
+grep -Fq '20 bytes after the ZIP end record' "$fixture_dir/trailing-out"
 
 if "$checker" "$fixture_dir/private/missing.apk" >"$fixture_dir/missing-out" 2>&1; then
     echo 'FAIL: missing APK input was accepted' >&2
