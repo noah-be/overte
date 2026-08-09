@@ -1631,16 +1631,23 @@ void OpenXrInputPlugin::InputDevice::updateBodyFromViveTrackers(const mat4& sens
 void OpenXrInputPlugin::InputDevice::updateBodyFromXDevSpaces(const mat4& sensorToAvatar) {
     using namespace controller;
 
-    for (const auto& [id, xdev] : _xdev) {
-        XrSpaceLocation location = {.type = XR_TYPE_SPACE_LOCATION};
-        if (_context->_lastPredictedDisplayTime.has_value()) {
-            XrResult result = xrLocateSpace(xdev.space, _context->_stageSpace, _context->inputPredictionTime(), &location);
-            xrCheck(_context->_instance, result, "Failed to locate xdev space!");
+    for (const auto& entry : _xdev) {
+        const auto& xdev = entry.second;
+        if (!xdev.pose_channel.has_value() || xdev.space == XR_NULL_HANDLE ||
+                !_context->_lastPredictedDisplayTime.has_value()) {
+            continue;
         }
-
-        bool locationValid = (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0;
-
-        if (locationValid && xdev.pose_channel.has_value()) {
+        XrSpaceLocation location = {.type = XR_TYPE_SPACE_LOCATION};
+        const bool locateSucceeded = xrCheck(
+            _context->_instance,
+            xrLocateSpace(xdev.space, _context->_stageSpace,
+                          _context->inputPredictionTime(), &location),
+            "Failed to locate xdev space!");
+        constexpr XrSpaceLocationFlags requiredFlags =
+            XR_SPACE_LOCATION_POSITION_VALID_BIT |
+            XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+        if (openXrLocatedPoseUsable(
+                true, true, locateSucceeded, location.locationFlags, requiredFlags)) {
             vec3 translation = xrVecToGlm(location.pose.position);
             quat rotation = xrQuatToGlm(location.pose.orientation);
             auto pose = controller::Pose(translation, rotation);

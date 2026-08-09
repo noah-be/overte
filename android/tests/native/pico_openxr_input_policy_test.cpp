@@ -59,5 +59,17 @@ int main() {
     OVERTE_EXPECT(!openXrCreatedHandleUsable(false, true));
     OVERTE_EXPECT(!openXrCreatedHandleUsable(true, false));
     OVERTE_EXPECT(openXrCreatedHandleUsable(true, true));
+
+    OVERTE_EXPECT(openXrLocatedPoseUsable(true, true, true, pose, pose));
+    OVERTE_EXPECT(!openXrLocatedPoseUsable(false, true, true, pose, pose));
+    OVERTE_EXPECT(!openXrLocatedPoseUsable(true, false, true, pose, pose));
+    OVERTE_EXPECT(!openXrLocatedPoseUsable(true, true, false, pose, pose));
+    OVERTE_EXPECT(!openXrLocatedPoseUsable(true, true, true, 0, pose));
+    OVERTE_EXPECT(!openXrLocatedPoseUsable(true, true, true, position, pose));
+    OVERTE_EXPECT(!openXrLocatedPoseUsable(true, true, true, orientation, pose));
+    OVERTE_EXPECT(openXrLocatedPoseUsable(
+        true, true, true, pose | tracked, pose));
+    OVERTE_EXPECT(openXrLocatedPoseUsable(
+        true, true, true, std::numeric_limits<unsigned long long>::max(), pose));
     return 0;
 }

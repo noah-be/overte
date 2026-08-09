@@ -40,3 +40,13 @@ constexpr bool openXrCreatedHandleUsable(
         bool callSucceeded, bool handleIsNonNull) {
     return callSucceeded && handleIsNonNull;
 }
+
+constexpr bool openXrLocatedPoseUsable(
+        bool spaceIsNonNull,
+        bool predictionAvailable,
+        bool locateSucceeded,
+        unsigned long long actualFlags,
+        unsigned long long requiredFlags) {
+    return spaceIsNonNull && predictionAvailable && locateSucceeded &&
+        openXrHandJointFlagsSatisfy(actualFlags, requiredFlags);
+}
