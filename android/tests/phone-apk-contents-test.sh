@@ -182,6 +182,11 @@ invalid_manifests = {
     'cache-oversized-stamp.apk': '12345678901234567890\nkept.txt\n',
     'cache-short-digest.apk': ('a' * 63) + '\nkept.txt\n',
     'cache-nonhex-digest.apk': ('g' * 64) + '\nkept.txt\n',
+    'cache-oversized-manifest.apk': 'a' * (checker.MAX_CACHE_MANIFEST_BYTES + 1),
+    'cache-too-many-assets.apk': ('a' * 64) + '\n' +
+        '\n'.join(f'asset-{index}' for index in range(checker.MAX_CACHE_ASSET_COUNT + 1)) + '\n',
+    'cache-overlong-path.apk': ('a' * 64) + '\n' +
+        ('a' * (checker.MAX_CACHE_PATH_BYTES + 1)) + '\n',
 }
 for name, manifest in invalid_manifests.items():
     with zipfile.ZipFile(root / name, 'w') as archive:
@@ -267,6 +272,18 @@ for fixture in \
         exit 1
     fi
 done
+
+while IFS=$'\t' read -r fixture expected_error; do
+    if "$checker" "$fixture_dir/$fixture" >"$fixture_dir/limit-out" 2>&1; then
+        printf 'FAIL: over-limit cache manifest was accepted: %s\n' "$fixture" >&2
+        exit 1
+    fi
+    grep -Fq "$expected_error" "$fixture_dir/limit-out"
+done <<'LIMIT_CASES'
+cache-oversized-manifest.apk	exceeds the size limit
+cache-too-many-assets.apk	exceeds the asset-count limit
+cache-overlong-path.apk	contains an overlong asset path
+LIMIT_CASES
 
 while IFS=$'\t' read -r fixture omitted; do
     if "$checker" "$fixture" >"$fixture_dir/native-out" 2>&1; then

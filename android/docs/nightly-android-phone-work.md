@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 93 — Bound cache-manifest resource use
+
+- Branch: `nightly/android-phone-93-cache-manifest-limits`
+- Commit: `Bound phone package cache manifest` (this task's commit)
+- Change: Reject package cache manifests larger than 4 MiB, containing more
+  than 32,768 asset entries, or containing a UTF-8 path longer than 1,024
+  bytes before doing archive-wide presence and digest work. Pathological APK
+  or AAB inputs can no longer drive unbounded manifest allocation or iteration.
+- Tests:
+  - `android/tests/phone-apk-contents-test.sh`: **passed**, with independent
+    fixtures proving each limit reports its intended fail-closed error.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 282/282 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 36
+    explicitly device-free suites; nested host regression passed 282/282.
+  - Python/shell syntax and `git diff --check`: **passed**.
+- Known risks: Limits deliberately leave ample growth above the current Phone
+  payload. The content-digest pass remains proportional to legitimate packaged
+  asset bytes; archive size policy belongs in release infrastructure.
+- Real-device validation still required: None for parser resource limits; the
+  produced artifacts still require the final package gate and device checklist.
+
 ## 92 — Verify packaged cache contents against their digest
 
 - Branch: `nightly/android-phone-92-cache-digest-gate`
@@ -2142,7 +2163,8 @@ All branches form one linear chain starting at
 89. `nightly/android-phone-89-apk-version-metadata` — `ecfec1c1b3`
 90. `nightly/android-phone-90-apkanalyzer-errors` — `488fb4bf47`
 91. `nightly/android-phone-91-nightly-handoff` — `a2672c4ae7`
-92. `nightly/android-phone-92-cache-digest-gate` — this task's commit
+92. `nightly/android-phone-92-cache-digest-gate` — `4d6c434d63`
+93. `nightly/android-phone-93-cache-manifest-limits` — this task's commit
 
 ### Device-free audit disposition
 

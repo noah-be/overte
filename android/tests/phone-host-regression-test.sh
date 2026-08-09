@@ -120,6 +120,12 @@ require_text tests/check-phone-apk-contents.py 'cache_content_digest' \
     'package completeness gate verifies the cache content digest'
 require_text tests/check-phone-apk-contents.py 'asset paths are not sorted' \
     'package completeness gate requires deterministic cache ordering'
+require_text tests/check-phone-apk-contents.py 'MAX_CACHE_MANIFEST_BYTES' \
+    'package completeness gate bounds the cache manifest size'
+require_text tests/check-phone-apk-contents.py 'MAX_CACHE_ASSET_COUNT' \
+    'package completeness gate bounds the cached asset count'
+require_text tests/check-phone-apk-contents.py 'MAX_CACHE_PATH_BYTES' \
+    'package completeness gate bounds cached asset path lengths'
 require_text tests/check-phone-apk-contents.py 'omits required extracted assets' \
     'APK completeness gate rejects bundles absent from the cache manifest'
 require_text tests/check-phone-apk-contents.py 'scripts/[+]android_phoneInterface/defaultScripts[.]js' \

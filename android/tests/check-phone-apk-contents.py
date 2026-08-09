@@ -43,6 +43,9 @@ REQUIRED_CACHED_ASSETS = {
     "scripts/system/places/places.js",
     "scripts/system/quickGoto.js",
 }
+MAX_CACHE_MANIFEST_BYTES = 4 * 1024 * 1024
+MAX_CACHE_ASSET_COUNT = 32 * 1024
+MAX_CACHE_PATH_BYTES = 1024
 
 
 def is_safe_relative_path(value):
@@ -174,7 +177,10 @@ def main():
             if missing:
                 raise ValueError("missing required entries: " + ", ".join(sorted(missing)))
 
-            cache_lines = archive.read(cache_manifest_entry).decode("utf-8").splitlines()
+            cache_manifest_info = archive.getinfo(cache_manifest_entry)
+            if cache_manifest_info.file_size > MAX_CACHE_MANIFEST_BYTES:
+                raise ValueError("cache_assets.txt exceeds the size limit")
+            cache_lines = archive.read(cache_manifest_info).decode("utf-8").splitlines()
             if (
                 len(cache_lines) < 2
                 or len(cache_lines[0]) != 64
@@ -182,8 +188,12 @@ def main():
             ):
                 raise ValueError("invalid cache_assets.txt header")
             cache_paths = cache_lines[1:]
+            if len(cache_paths) > MAX_CACHE_ASSET_COUNT:
+                raise ValueError("cache_assets.txt exceeds the asset-count limit")
             if any(not is_safe_relative_path(path) for path in cache_paths):
                 raise ValueError("cache_assets.txt contains an unsafe asset path")
+            if any(len(path.encode("utf-8")) > MAX_CACHE_PATH_BYTES for path in cache_paths):
+                raise ValueError("cache_assets.txt contains an overlong asset path")
             if len(cache_paths) != len(set(cache_paths)):
                 raise ValueError("cache_assets.txt contains a duplicate asset path")
             if cache_paths != sorted(cache_paths):
