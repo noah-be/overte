@@ -129,6 +129,10 @@ require_text tests/check-phone-apk-contents.py 'value[[:space:]]*==[[:space:]]*c
     'package completeness gate requires canonical archive paths'
 require_text tests/check-phone-apk-contents.py 'character[.]isprintable' \
     'package completeness gate rejects log-unsafe archive characters'
+require_text tests/check-phone-apk-contents.py 'MAX_PACKAGE_BYTES' \
+    'package completeness gate bounds the package file size'
+require_text tests/check-phone-apk-contents.py 'MAX_PACKAGE_ENTRIES' \
+    'package completeness gate bounds the ZIP entry count'
 require_text tests/check-phone-apk-contents.py 'mixes APK and Android App Bundle' \
     'package completeness gate rejects mixed archive layouts'
 require_text tests/check-phone-apk-contents.py 'unexpected feature modules' \

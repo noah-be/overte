@@ -326,6 +326,13 @@ with zipfile.ZipFile(root / 'traversing-extra-entry.aab', 'w') as archive:
         archive.writestr(bundle_entry, data)
     archive.writestr('base/../../outside', b'unsafe')
 
+with (root / 'oversized-package.apk').open('wb') as package:
+    package.truncate(checker.MAX_PACKAGE_BYTES + 1)
+
+with zipfile.ZipFile(root / 'too-many-entries.apk', 'w') as archive:
+    for index in range(checker.MAX_PACKAGE_ENTRIES + 1):
+        archive.writestr(f'extra/{index}', b'')
+
 with zipfile.ZipFile(root / 'missing-required-cache-entry.apk', 'w') as archive:
     incomplete_cache_paths = [entry for entry in cache_paths
                               if entry != 'android_rcc_bundle.rcc']
@@ -486,6 +493,17 @@ cache-oversized-manifest.apk	exceeds the size limit
 cache-too-many-assets.apk	exceeds the asset-count limit
 cache-overlong-path.apk	contains an overlong asset path
 LIMIT_CASES
+
+while IFS=$'\t' read -r fixture expected_error; do
+    if "$checker" "$fixture_dir/$fixture" >"$fixture_dir/package-limit-out" 2>&1; then
+        printf 'FAIL: over-limit package was accepted: %s\n' "$fixture" >&2
+        exit 1
+    fi
+    grep -Fq "$expected_error" "$fixture_dir/package-limit-out"
+done <<'PACKAGE_LIMIT_CASES'
+oversized-package.apk	package exceeds the size limit
+too-many-entries.apk	package exceeds the ZIP entry-count limit
+PACKAGE_LIMIT_CASES
 
 while IFS=$'\t' read -r fixture omitted; do
     if "$checker" "$fixture" >"$fixture_dir/native-out" 2>&1; then

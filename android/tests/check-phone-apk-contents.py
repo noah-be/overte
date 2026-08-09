@@ -47,6 +47,8 @@ REQUIRED_CACHED_ASSETS = {
 MAX_CACHE_MANIFEST_BYTES = 4 * 1024 * 1024
 MAX_CACHE_ASSET_COUNT = 32 * 1024
 MAX_CACHE_PATH_BYTES = 1024
+MAX_PACKAGE_BYTES = 4 * 1024 * 1024 * 1024 - 1
+MAX_PACKAGE_ENTRIES = 32 * 1024
 
 
 def is_safe_relative_path(value):
@@ -199,7 +201,11 @@ def main():
             | declared_native_entries()
             | declared_asset_markers()
         )
+        if Path(sys.argv[1]).stat().st_size > MAX_PACKAGE_BYTES:
+            raise ValueError("package exceeds the size limit")
         with zipfile.ZipFile(sys.argv[1]) as archive:
+            if len(archive.infolist()) > MAX_PACKAGE_ENTRIES:
+                raise ValueError("package exceeds the ZIP entry-count limit")
             raw_archive_names = archive.namelist()
             if len(raw_archive_names) != len(set(raw_archive_names)):
                 raise ValueError("package contains duplicate ZIP entry names")
