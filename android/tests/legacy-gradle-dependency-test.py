@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from collections import Counter
+import json
 from pathlib import Path
 import re
 import unittest
@@ -20,6 +21,25 @@ LEGACY_DOWNLOAD_PLUGIN = re.compile(
 DEAD_LEGACY_BUILD_PROTOTYPE = re.compile(
     r"\b(?:setupDependencies|cleanDependencies|testElf|EXEC_SUFFIX|baseUrl)\b|"
     r"build time binary dependency resolution")
+LEGACY_DIRECT_DEPENDENCY_INVENTORY = (
+    ANDROID_ROOT / "tests/legacy-gradle-direct-dependencies.json")
+LEGACY_MODULES = {
+    "framePlayer": "apps/framePlayer/build.gradle",
+    "interface": "apps/interface/build.gradle",
+    "oculus": "libraries/oculus/build.gradle",
+    "picoInterface": "apps/picoInterface/build.gradle",
+    "qt": "libraries/qt/build.gradle",
+    "questFramePlayer": "apps/questFramePlayer/build.gradle",
+    "questInterface": "apps/questInterface/build.gradle",
+}
+CONFIGURATION = r"api|implementation|compileOnly|runtimeOnly|testImplementation"
+EXTERNAL_DECLARATION = re.compile(
+    rf"^\s*({CONFIGURATION})\s+['\"]([^'\"]+)['\"]\s*$")
+PROJECT_DECLARATION = re.compile(
+    rf"^\s*({CONFIGURATION})\s+project\(\s*(?:path\s*:\s*)?"
+    r"['\"]([^'\"]+)['\"]\s*\)\s*$")
+FILE_TREE_DECLARATION = re.compile(
+    rf"^\s*({CONFIGURATION})\s+(fileTree\(.*\))\s*$")
 
 
 def duplicates(source: str) -> list[tuple[str, str]]:
@@ -75,6 +95,95 @@ def top_level_block(source: str, name: str) -> str | None:
     raise ValueError(f"unterminated top-level {name} block")
 
 
+def direct_dependencies(source: str) -> list[dict[str, str]]:
+    block = top_level_block(source, "dependencies")
+    if block is None:
+        return []
+    dependencies = []
+    for raw_line in block.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("//"):
+            continue
+        external = EXTERNAL_DECLARATION.fullmatch(line)
+        if external:
+            dependencies.append({
+                "configuration": external.group(1),
+                "kind": "external",
+                "coordinate": external.group(2),
+            })
+            continue
+        project = PROJECT_DECLARATION.fullmatch(line)
+        if project:
+            dependencies.append({
+                "configuration": project.group(1),
+                "kind": "project",
+                "project": project.group(2),
+            })
+            continue
+        file_tree = FILE_TREE_DECLARATION.fullmatch(line)
+        if file_tree:
+            dependencies.append({
+                "configuration": file_tree.group(1),
+                "kind": "fileTree",
+                "notation": re.sub(r"\s+", " ", file_tree.group(2)),
+            })
+            continue
+        raise ValueError(f"unsupported direct dependency declaration: {line}")
+    return dependencies
+
+
+def legacy_direct_dependency_inventory() -> dict:
+    modules = []
+    for name, relative_path in LEGACY_MODULES.items():
+        source = (ANDROID_ROOT / relative_path).read_text(encoding="utf-8")
+        modules.append({
+            "name": name,
+            "buildFile": relative_path,
+            "directDependencies": direct_dependencies(source),
+        })
+
+    gvr_maven = sorted(
+        dependency["coordinate"]
+        for module in modules
+        for dependency in module["directDependencies"]
+        if dependency["kind"] == "external"
+        and dependency["coordinate"].startswith("com.google.vr:")
+    )
+    prebuilt_references = [
+        "build.gradle",
+        "setupGVR.gradle",
+        "apps/interface/CMakeLists.txt",
+        "../cmake/macros/TargetGoogleVR.cmake",
+    ]
+    prebuilt_versions = set()
+    for relative_path in prebuilt_references:
+        source = (ANDROID_ROOT / relative_path).read_text(encoding="utf-8")
+        prebuilt_versions.update(re.findall(r"gvr-android-sdk-([0-9.]+)", source))
+    if len(prebuilt_versions) != 1:
+        raise ValueError(f"ambiguous GVR prebuilt versions: {sorted(prebuilt_versions)}")
+
+    return {
+        "schemaVersion": 1,
+        "scope": "direct declarations only",
+        "resolution": "unverified",
+        "artifactType": "source declaration inventory",
+        "sbom": False,
+        "toolchain": {
+            "gradle": "4.10.1",
+            "androidGradlePlugin": "3.2.1",
+        },
+        "modules": modules,
+        "gvrVersionBoundary": {
+            "versionAlignment": "unverified",
+            "mavenArtifacts": gvr_maven,
+            "prebuilt": {
+                "version": next(iter(prebuilt_versions)),
+                "references": prebuilt_references,
+            },
+        },
+    }
+
+
 def legacy_toolchain_contract_errors(
         settings: str, root_build: str, documentation: str, wrapper: str,
         phone_settings: str, pico_settings: str) -> list[str]:
@@ -97,6 +206,64 @@ def legacy_toolchain_contract_errors(
 
 
 class LegacyGradleDependencyTest(unittest.TestCase):
+    def test_direct_dependency_inventory_matches_legacy_gradle_sources(self):
+        expected = json.loads(LEGACY_DIRECT_DEPENDENCY_INVENTORY.read_text(
+            encoding="utf-8"))
+        self.assertEqual(expected, legacy_direct_dependency_inventory())
+
+    def test_direct_dependency_inventory_has_honest_scope_and_module_set(self):
+        inventory = json.loads(LEGACY_DIRECT_DEPENDENCY_INVENTORY.read_text(
+            encoding="utf-8"))
+        settings = (ANDROID_ROOT / "settings.gradle").read_text(encoding="utf-8")
+        settings_modules = set(re.findall(r"include ':([^']+)'", settings))
+        inventory_modules = {module["name"] for module in inventory["modules"]}
+        self.assertEqual(set(LEGACY_MODULES), settings_modules)
+        self.assertEqual(settings_modules, inventory_modules)
+        self.assertEqual("direct declarations only", inventory["scope"])
+        self.assertEqual("unverified", inventory["resolution"])
+        self.assertEqual("source declaration inventory", inventory["artifactType"])
+        self.assertIs(inventory["sbom"], False)
+        self.assertEqual(
+            {"gradle": "4.10.1", "androidGradlePlugin": "3.2.1"},
+            inventory["toolchain"])
+
+    def test_direct_dependency_inventory_exposes_unverified_gvr_version_split(self):
+        inventory = json.loads(LEGACY_DIRECT_DEPENDENCY_INVENTORY.read_text(
+            encoding="utf-8"))
+        boundary = inventory["gvrVersionBoundary"]
+        self.assertEqual("unverified", boundary["versionAlignment"])
+        self.assertEqual([
+            "com.google.vr:sdk-audio:1.80.0",
+            "com.google.vr:sdk-base:1.80.0",
+        ], boundary["mavenArtifacts"])
+        self.assertEqual("1.101.0", boundary["prebuilt"]["version"])
+
+    def test_direct_dependency_parser_classifies_supported_declarations(self):
+        source = """
+dependencies {
+    implementation 'example:library:1.2.3'
+    api project(':plain')
+    implementation project(path: ':named')
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation fileTree(dir: new File(toolRoot, 'jar'), include: ['*.jar'])
+}
+"""
+        self.assertEqual([
+            {"configuration": "implementation", "kind": "external",
+             "coordinate": "example:library:1.2.3"},
+            {"configuration": "api", "kind": "project", "project": ":plain"},
+            {"configuration": "implementation", "kind": "project",
+             "project": ":named"},
+            {"configuration": "implementation", "kind": "fileTree",
+             "notation": "fileTree(include: ['*.jar'], dir: 'libs')"},
+            {"configuration": "implementation", "kind": "fileTree",
+             "notation": "fileTree(dir: new File(toolRoot, 'jar'), include: ['*.jar'])"},
+        ], direct_dependencies(source))
+
+    def test_direct_dependency_parser_rejects_unclassified_declarations(self):
+        with self.assertRaisesRegex(ValueError, "unsupported direct dependency"):
+            direct_dependencies("dependencies {\n    custom files('opaque.jar')\n}\n")
+
     def test_legacy_root_has_no_retired_dependency_setup_prototype(self):
         source = (ANDROID_ROOT / "build.gradle").read_text(encoding="utf-8")
         self.assertEqual([], DEAD_LEGACY_BUILD_PROTOTYPE.findall(source))

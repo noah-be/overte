@@ -69,7 +69,7 @@
       "kind": "contract",
       "tiers": ["fast", "host", "contracts"],
       "command": ["tests/legacy-gradle-dependency-test.py"],
-      "description": "Legacy Gradle dependency declarations remain unambiguous"
+      "description": "Legacy direct-dependency inventory and Gradle declarations remain explicit"
     },
     {
       "id": "phone-test-inventory",
