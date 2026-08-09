@@ -59,7 +59,7 @@ jobs:
       - name: Verify artifact before querying ADB
         run: |
           set -euo pipefail
-          apk="android/build/emulator-candidate/android/apps/phoneInterface/build/outputs/apk/release/phoneInterface-release.apk"
+          apk="android/build/emulator-candidate/phoneInterface-release.apk"
           test -f "$apk" && test ! -L "$apk"
           printf '%s  %s\n' '${{ inputs.apk_sha256 }}' "$apk" | sha256sum --check --strict
           sdk_root="${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}"
@@ -72,7 +72,7 @@ jobs:
           PHONE_TEST_REPORT: ${{ github.workspace }}/android/build/phone-device-report
         run: |
           set -euo pipefail
-          apk="android/build/emulator-candidate/android/apps/phoneInterface/build/outputs/apk/release/phoneInterface-release.apk"
+          apk="android/build/emulator-candidate/phoneInterface-release.apk"
           mkdir -p "$PHONE_TEST_REPORT"
           android/tests/phone-device-test.sh "$apk"
       - name: Upload acceptance report

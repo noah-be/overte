@@ -137,15 +137,13 @@ jobs:
             --apk-manifest android/build/release/apk-manifest.json \
             --version-manifest android/build/release/version-manifest.json \
             --output-dir android/build/release/draft
-          cp -- android/build/release/apk-manifest.json \
+          cp -- "$PHONE_APK" android/build/release/apk-manifest.json \
             android/build/release/version-manifest.json android/build/release/draft/
       - name: Upload locally verifiable candidate (not a release)
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: android-phone-rc-${{ inputs.release_tag }}
-          path: |
-            android/apps/phoneInterface/build/outputs/apk/release/phoneInterface-release.apk
-            android/build/release/draft/
+          path: android/build/release/draft/
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
