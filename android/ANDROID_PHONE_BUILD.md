@@ -89,9 +89,11 @@ outputs. Run these phases in order:
 
 The two long dependency helpers require at least 32 GB (decimal) of configured
 swap before they change build outputs. They always use 16 build jobs and
-restart themselves in a systemd user scope with `MemoryMax=20000000000`
+restart themselves in a transient systemd user service with
+`MemoryMax=20000000000`
 (exactly 20 GB decimal). The active
-cgroup limit is verified after restart. A host without systemd user scopes, a
+cgroup limit is verified after restart. A host without transient systemd user
+services, a
 smaller swap allocation, or an unverifiable memory limit therefore stops
 before the dependency build; there is intentionally no unbounded fallback.
 

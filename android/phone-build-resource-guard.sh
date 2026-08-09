@@ -29,17 +29,26 @@ phone_build_require_swap() {
 phone_build_verify_memory_cgroup() {
     local proc_cgroup_path="${1:-/proc/self/cgroup}"
     local cgroup_root="${2:-/sys/fs/cgroup}"
-    local cgroup_path current_path memory_max effective_max=''
+    local cgroup_path current_path memory_max memory_max_path effective_max=''
     cgroup_path="$(awk -F: '$1 == "0" && $2 == "" { print $3; found=1; exit } END { if (!found) exit 1 }' "$proc_cgroup_path")" \
         || { phone_build_resource_guard_fail 'cannot determine the unified cgroup path'; return; }
     [[ "$cgroup_path" == /* && "$cgroup_path" != *'..'* ]] \
         || { phone_build_resource_guard_fail 'the active cgroup path is invalid'; return; }
 
     # cgroup v2 applies the smallest finite limit in the hierarchy. A nested
-    # scope may itself report "max" while its parent still enforces MemoryMax.
+    # service may itself report "max" while its parent still enforces MemoryMax.
     current_path="${cgroup_path%/}"
     while :; do
-        memory_max="$(<"${cgroup_root%/}${current_path}/memory.max")" \
+        memory_max_path="${cgroup_root%/}${current_path}/memory.max"
+        if [[ ! -r "$memory_max_path" ]]; then
+            # A delegated cgroup namespace may not expose host ancestors above
+            # the user manager. Once a finite descendant limit was verified,
+            # inaccessible outer levels cannot weaken that descendant limit.
+            [[ -n "$effective_max" ]] && break
+            phone_build_resource_guard_fail 'cannot read the cgroup memory-limit hierarchy'
+            return
+        fi
+        memory_max="$(<"$memory_max_path")" \
             || { phone_build_resource_guard_fail 'cannot read the cgroup memory-limit hierarchy'; return; }
         if [[ "$memory_max" != max ]]; then
             [[ "$memory_max" =~ ^[0-9]+$ ]] \
@@ -74,9 +83,10 @@ phone_build_resource_guard() {
     [[ "$script_path" == /* ]] \
         || { phone_build_resource_guard_fail 'the guarded script path must be absolute'; return; }
 
-    echo 'Restarting build in a systemd user scope (jobs=16, MemoryMax=20 GB decimal)'
-    exec systemd-run --user --scope --collect --wait --quiet \
+    echo 'Restarting build in a systemd user service (jobs=16, MemoryMax=20 GB decimal)'
+    exec systemd-run --user --collect --wait --pipe --quiet --same-dir \
         --property="MemoryMax=${OVERTE_PHONE_MEMORY_MAX_PROPERTY}" \
+        --setenv="PATH=${PATH}" \
         --setenv="${OVERTE_PHONE_RESOURCE_GUARD_MARKER}=1" \
         -- "$script_path" "$@"
 }

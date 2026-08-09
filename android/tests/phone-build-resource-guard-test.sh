@@ -30,6 +30,13 @@ fi
 # enforcing the scope is mandatory and that the requested limit is exact.
 mock_dir="$(mktemp -d "${TMPDIR:-/tmp}/overte-resource-guard-test.XXXXXXXX")"
 trap 'rm -rf -- "$mock_dir"' EXIT
+if grep -Fq 'MAKEFLAGS= {self._make_program()} -j1 install' \
+        "$script_dir/conan/patches/qt-phone-serial-install.patch" \
+        && grep -Fq 'qt-phone-serial-install.patch' "$script_dir/build-phone-qt-16k.sh"; then
+    pass 'Qt recipe patch serializes package installation'
+else
+    fail 'Qt recipe patch serializes package installation'
+fi
 printf 'SwapTotal: 31250000 kB\n' >"$mock_dir/swap-at-limit"
 printf 'SwapTotal: 31249999 kB\n' >"$mock_dir/swap-under-limit"
 if bash -c 'source "$1"; phone_build_require_swap "$2"' \
@@ -56,6 +63,14 @@ if bash -c 'source "$1"; phone_build_verify_memory_cgroup "$2" "$3"' \
 else
     fail 'finite ancestor limit governs an unlimited nested cgroup'
 fi
+rm "$mock_dir/cgroup/memory.max"
+if bash -c 'source "$1"; phone_build_verify_memory_cgroup "$2" "$3"' \
+        _ "$guard" "$mock_dir/proc-cgroup" "$mock_dir/cgroup"; then
+    pass 'finite delegated limit permits inaccessible host ancestors'
+else
+    fail 'finite delegated limit permits inaccessible host ancestors'
+fi
+printf 'max\n' >"$mock_dir/cgroup/memory.max"
 printf '20000000001\n' >"$mock_dir/cgroup/user.slice/memory.max"
 if bash -c 'source "$1"; ! phone_build_verify_memory_cgroup "$2" "$3"' \
         _ "$guard" "$mock_dir/proc-cgroup" "$mock_dir/cgroup"; then
@@ -74,8 +89,8 @@ fi
 cat >"$mock_dir/systemd-run" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
-expected=(--user --scope --collect --wait --quiet --property=MemoryMax=20000000000
-    --setenv=OVERTE_PHONE_RESOURCE_GUARD_ACTIVE=1 -- /absolute/mock-build
+expected=(--user --collect --wait --pipe --quiet --same-dir --property=MemoryMax=20000000000
+    "--setenv=PATH=$PATH" --setenv=OVERTE_PHONE_RESOURCE_GUARD_ACTIVE=1 -- /absolute/mock-build
     'argument with spaces' '*' '')
 actual=("$@")
 [[ "$#" -eq "${#expected[@]}" ]]
@@ -91,9 +106,9 @@ if PATH="$mock_dir:$PATH" bash -c '
     phone_build_require_swap() { return 0; }
     phone_build_resource_guard /absolute/mock-build "argument with spaces" "*" ""
 ' _ "$guard"; then
-    pass 'systemd scope dispatch preserves arguments and requests 20 GB decimal'
+    pass 'systemd service dispatch preserves arguments and requests 20 GB decimal'
 else
-    fail 'systemd scope dispatch preserves arguments and requests 20 GB decimal'
+    fail 'systemd service dispatch preserves arguments and requests 20 GB decimal'
 fi
 
 if bash -c '

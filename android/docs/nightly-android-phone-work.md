@@ -4,6 +4,31 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 136 — Make the guarded 16-KiB Qt build portable and complete
+
+- Branch: `nightly/android-phone-136-systemd-service-guard`
+- Commit: `Harden guarded Phone Qt packaging` (this task's commit)
+- Change: Replace the unsupported systemd scope/wait combination with a
+  transient user service, verify finite limits through delegated cgroup
+  boundaries, preserve the caller working directory and tool path, and patch
+  the pinned Qt Conan recipe only for the duration of a build so compilation
+  remains at j16 while its racy package install is serialized.
+- Tests:
+  - `android/tests/phone-build-resource-guard-test.sh`: **passed**, including
+    exact swap/memory boundaries, delegated-cgroup handling, service dispatch,
+    j16 profile retention, and the serial-install recipe contract.
+  - Real transient systemd service caller-`PATH` check: **passed**.
+  - `android/build-phone-qt-16k.sh`: **passed** with j16 compilation and
+    serialized install; all 130 packaged libraries and 520 ELF LOAD segments
+    passed 0x4000 alignment with zero failures or inspection errors.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: The local pinned recipe contains a historical temporary-package
+  source that the guarded patch deliberately replaces only during this build;
+  publishing a canonical Phone cache artifact remains a separate task.
+- Real-device validation still required: None for the dependency build itself;
+  the resulting dependencies must still produce a package-gated APK that is
+  installed and exercised on a physical Phone.
+
 ## 135 — Synchronize the public benchmark contract
 
 - Branch: `nightly/android-phone-135-benchmark-documentation`
@@ -3073,7 +3098,8 @@ All branches form one linear chain starting at
 132. `nightly/android-phone-132-private-raw-cleanup-error` — `974767aa7b`
 133. `nightly/android-phone-133-required-benchmark-cleanup` — `489a1c238e`
 134. `nightly/android-phone-134-device-preflight-handoff` — `01310b6cfe`
-135. `nightly/android-phone-135-benchmark-documentation` — this task's commit
+135. `nightly/android-phone-135-benchmark-documentation` — `9675ab2a75`
+136. `nightly/android-phone-136-systemd-service-guard` — this task's commit
 
 ### Device-free audit disposition
 

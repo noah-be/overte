@@ -11,8 +11,11 @@ profile="$script_dir/conan/profiles/phone-arm64-16k"
 qt_reference='qt/5.15.18-2026.01.04@overte/stable#d59ba2a04fe9ede772b05b0bb0865eb0'
 perl_module_dir="$script_dir/pico-host-tools/perl"
 qt_page_patch="$script_dir/conan/patches/qt-phone-16k-pages.patch"
+qt_recipe_patch="$script_dir/conan/patches/qt-phone-serial-install.patch"
 qt_source_dir=""
+qt_recipe_dir=""
 patch_owned=0
+recipe_patch_owned=0
 
 fail() {
     echo "error: $*" >&2
@@ -43,10 +46,14 @@ verify_alignment() {
     echo "Qt package is 16 KiB compatible: $package_dir"
 }
 
-cleanup_source() {
+cleanup_cache() {
     if (( patch_owned == 1 )); then
         git -C "$qt_source_dir" apply --reverse "$qt_page_patch"
         patch_owned=0
+    fi
+    if (( recipe_patch_owned == 1 )); then
+        git -C "$qt_recipe_dir" apply --reverse "$qt_recipe_patch"
+        recipe_patch_owned=0
     fi
 }
 
@@ -78,7 +85,18 @@ main() {
     git -C "$qt_source_dir" apply --check "$qt_page_patch"
     git -C "$qt_source_dir" apply "$qt_page_patch"
     patch_owned=1
-    trap cleanup_source EXIT
+
+    qt_recipe_dir="$($conan_path cache path "$qt_reference" 2>/dev/null || true)"
+    [[ -f "$qt_recipe_dir/conanfile.py" ]] \
+        || fail "the pinned Qt recipe is not in the local Conan cache"
+    if git -C "$qt_recipe_dir" apply --reverse --check "$qt_recipe_patch" >/dev/null 2>&1; then
+        echo "Removing a serial-install patch left by an interrupted earlier run"
+        git -C "$qt_recipe_dir" apply --reverse "$qt_recipe_patch"
+    fi
+    git -C "$qt_recipe_dir" apply --check "$qt_recipe_patch"
+    git -C "$qt_recipe_dir" apply "$qt_recipe_patch"
+    recipe_patch_owned=1
+    trap cleanup_cache EXIT
 
     echo "Rebuilding Qt locally with 16 KiB ELF alignment"
     echo "Source cache: $source_dir"
@@ -90,7 +108,7 @@ main() {
         -nr \
         --build='qt/*'
     verify_alignment
-    cleanup_source
+    cleanup_cache
     trap - EXIT
 }
 
