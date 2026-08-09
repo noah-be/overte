@@ -59,6 +59,7 @@ TESTS = (
     test("microphone-runner", "tooling", "bash", "pico-microphone-test-test.sh"),
     test("unattended-runner", "tooling", "bash", "pico-unattended-test-test.sh"),
     test("device-lock", "tooling", "bash", "pico-device-lock-test.sh"),
+    test("device-acceptance", "tooling", "bash", "pico-device-acceptance-test.sh"),
     test("serverless-fixtures", "world", "bash", "serverless-hub-fixture-test.sh", requires=("jq",)),
     test("power-analyzer", "performance", PYTHON, "../tools/tests/test_analyze_pico4_power.py"),
 )
