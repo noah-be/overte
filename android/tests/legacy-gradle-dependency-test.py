@@ -21,6 +21,8 @@ LEGACY_DOWNLOAD_PLUGIN = re.compile(
 DEAD_LEGACY_BUILD_PROTOTYPE = re.compile(
     r"\b(?:setupDependencies|cleanDependencies|testElf|EXEC_SUFFIX|baseUrl)\b|"
     r"build time binary dependency resolution")
+INCOMPATIBLE_LEGACY_GRADLE_API = re.compile(
+    r"\b(?:archiveFileName|destinationDirectory)\b")
 LEGACY_DIRECT_DEPENDENCY_INVENTORY = (
     ANDROID_ROOT / "tests/legacy-gradle-direct-dependencies.json")
 LEGACY_MODULES = {
@@ -206,6 +208,19 @@ def legacy_toolchain_contract_errors(
 
 
 class LegacyGradleDependencyTest(unittest.TestCase):
+    def test_legacy_root_uses_gradle_4_10_archive_apis(self):
+        source = (ANDROID_ROOT / "build.gradle").read_text(encoding="utf-8")
+        self.assertEqual([], INCOMPATIBLE_LEGACY_GRADLE_API.findall(source))
+        self.assertEqual(2, len(re.findall(r"(?m)^\s*archiveName\s*=", source)))
+        self.assertEqual(2, len(re.findall(r"(?m)^\s*destinationDir\s*=", source)))
+
+    def test_validator_recognizes_incompatible_archive_apis(self):
+        for source in (
+                "archiveFileName.set('symbols.zip')",
+                "destinationDirectory.set(layout.buildDirectory.dir('tmp'))"):
+            with self.subTest(source=source):
+                self.assertTrue(INCOMPATIBLE_LEGACY_GRADLE_API.search(source))
+
     def test_direct_dependency_inventory_matches_legacy_gradle_sources(self):
         expected = json.loads(LEGACY_DIRECT_DEPENDENCY_INVENTORY.read_text(
             encoding="utf-8"))
