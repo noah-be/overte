@@ -39,6 +39,11 @@ correctly preserves an existing package and would leave the wrong variant in a
 shared cache. The final dependency verifier still fails closed if any package
 does not match the Phone sentinel.
 
+Shared Pico runtime and host-tool preparation uses
+`PHONE_SHARED_CONAN_HOME` (the normal user cache by default), while the
+checksum-pinned Phone graph stays in the private `CONAN_HOME`. The Phone graph
+is verified before compatibility staging and again by Gradle.
+
 Only the small JUnit and JSON reports are retained for seven days. The APK is
 not uploaded to general Actions artifact storage.
 

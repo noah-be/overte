@@ -62,8 +62,16 @@ EOF
 }
 
 download_prebuilt_dependencies() {
+    local temp_root="${PHONE_PREBUILT_TMPDIR:-$script_dir/build/prebuilt-tmp}"
+    local shared_conan_home="${PHONE_SHARED_CONAN_HOME:-${HOME}/.conan2}"
     # Phone dependency transport is deliberately independent from Pico release
     # assets. The versioned archive contains the complete pinned Phone graph.
+    [[ ! -L "$temp_root" ]] || fail "Phone prebuilt temporary directory must not be a symlink"
+    mkdir -p -- "$temp_root"
+    [[ -d "$temp_root" && -w "$temp_root" ]] \
+        || fail "Phone prebuilt temporary directory is not writable"
+    CONAN_HOME="$shared_conan_home" TMPDIR="$temp_root" \
+        "$script_dir/build-pico.sh" deps --download
     "$script_dir/phone-prebuilt-16k-deps.sh" download
 }
 
@@ -106,9 +114,15 @@ find_phone_draco_package() {
 }
 
 prepare() {
+    local qt_dir="$script_dir/conan/phone-16k-debug"
+    local nonqt_dir="$script_dir/conan/phone-nonqt-16k-debug"
+    local ready_marker="$nonqt_dir/.phone-16k-dependencies.ready"
+    "$script_dir/tests/verify-phone-16k-dependencies.sh" \
+        "$qt_dir" "$nonqt_dir" "$ready_marker"
     local draco_package
     draco_package="$(find_phone_draco_package)"
-    PICO_DRACO_PACKAGE_DIR="$draco_package" \
+    CONAN_HOME="${PHONE_SHARED_CONAN_HOME:-${HOME}/.conan2}" \
+        PICO_DRACO_PACKAGE_DIR="$draco_package" \
         PICO_BUILD_JOBS="$jobs" \
         "$script_dir/build-pico.sh" prepare
 }
@@ -116,7 +130,8 @@ prepare() {
 doctor() {
     # Reuse the shared checker without leaking Pico-specific hand-off text into
     # the Phone entry point. pipefail preserves the checker's failure status.
-    "$script_dir/build-pico.sh" doctor | sed \
+    CONAN_HOME="${PHONE_SHARED_CONAN_HOME:-${HOME}/.conan2}" \
+        "$script_dir/build-pico.sh" doctor | sed \
         -e 's/^Pico 4 build environment$/Android phone build environment (shared toolchain)/' \
         -e 's|^Next: ./build-pico.sh setup --download$|Next: follow ANDROID_PHONE_BUILD.md 16 KiB setup order; then ./build-phone.sh build|'
     printf '\nPhone dependency graph:\n'

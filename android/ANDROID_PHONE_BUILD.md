@@ -120,6 +120,10 @@ before the dependency build; there is intentionally no unbounded fallback.
    verification similarly uses `android/build/verification-tmp` and can be
    redirected with `PHONE_VERIFY_TMPDIR`.
 
+   `PHONE_SHARED_CONAN_HOME` selects the cache used only for shared Pico runtime
+   and host tools. Keep `CONAN_HOME` separate for the verified Phone dependency
+   graph; the trusted workflow does this automatically.
+
    To restore only the dependency graph without preparing or building the APK,
    use the Phone entry point just as with Pico:
 
