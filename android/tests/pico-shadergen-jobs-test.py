@@ -52,6 +52,11 @@ class ShadergenJobTests(unittest.TestCase):
         self.assertIn("set(CMAKE_JOB_POOL_COMPILE pico_compile)", CMAKE_BOOTSTRAP)
         self.assertIn("set(CMAKE_JOB_POOL_LINK pico_link)", CMAKE_BOOTSTRAP)
 
+    def test_release_variant_reuses_checksum_pinned_dependency_configuration(self):
+        gradle = (ROOT / "android/apps/picoInterface/build.gradle").read_text(encoding="utf-8")
+        self.assertIn("-DCMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO=Debug", gradle)
+        self.assertIn("RelWithDebInfo/plugins/libopenxr.so", gradle)
+
     def test_pico_build_rejects_invalid_worker_limit_before_building(self):
         variables = os.environ.copy()
         variables["PICO_BUILD_JOBS"] = "0"
