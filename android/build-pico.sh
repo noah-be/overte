@@ -66,7 +66,8 @@ Usage: ./build-pico.sh [doctor|bootstrap|deps|prepare|build|install|all|deploy|s
            Install as many missing build requirements as possible
   deps     Install dependencies; use --download for prebuilt Qt and Node
   prepare  Locate and stage the existing Conan/Qt dependencies
-  build    Build the Pico debug APK
+  build [--stacktrace]
+           Build the Pico debug APK; optionally include Gradle failure details
   install  Install the existing APK on a connected Pico via ADB
   all      Prepare dependencies and build the APK (default)
   deploy   Prepare, build, and install the APK
@@ -682,6 +683,13 @@ prepare() {
 }
 
 build() {
+    local option="${1:-}"
+    local -a gradle_diagnostics=()
+    if [[ "$option" == "--stacktrace" ]]; then
+        gradle_diagnostics+=(--stacktrace)
+    elif [[ -n "$option" ]]; then
+        fail "unsupported build option: $option"
+    fi
     detect_sdk
     detect_jdk
     echo "Android SDK: $ANDROID_SDK_ROOT"
@@ -690,7 +698,7 @@ build() {
         SHADERGEN_JOBS="${PICO_SHADER_JOBS:-$jobs}" \
         "$script_dir/gradlew" \
         --settings-file "$script_dir/settings-pico.gradle" \
-        :picoInterface:assembleDebug --max-workers="$jobs"
+        :picoInterface:assembleDebug --max-workers="$jobs" "${gradle_diagnostics[@]}"
     echo "APK: $script_dir/apps/picoInterface/build/outputs/apk/debug/picoInterface-debug.apk"
 }
 
@@ -761,7 +769,7 @@ case "$command_name" in
         fi
         ;;
     prepare) prepare ;;
-    build) build ;;
+    build) build "$command_option" ;;
     install) install_apk ;;
     all) prepare; build ;;
     deploy) prepare; build; install_apk ;;

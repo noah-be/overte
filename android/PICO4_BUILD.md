@@ -123,7 +123,9 @@ The `setup` command runs the environment check before downloading anything.
 
 `PICO_BUILD_JOBS` bounds Gradle, native compilation, and shader generation to
 the same host-worker count. `PICO_SHADER_JOBS` can override only shader
-generation when memory or shared-runner load requires a lower limit.
+generation when memory or shared-runner load requires a lower limit. Use
+`./build-pico.sh build --stacktrace` to include Gradle failure details when
+diagnosing an unsuccessful CI or local build.
 
 Before building, or on a host without Pico/Android dependencies, run the
 device-free regression suite from the repository root:
