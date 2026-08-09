@@ -34,14 +34,10 @@ public class DownloadProfileImageTask extends AsyncTask<String, Void, String> {
             try {
                 userPage = new URL(BASE_PROFILE_URL + "/users/" + username);
                 String profilePage = LegacyProfilePagePolicy.read(userPage.openConnection());
-                String substr = "img class=\"users-img\" src=\"";
-                int indexBegin = profilePage.indexOf(substr) + substr.length();
-                if (indexBegin >= substr.length()) {
-                    int indexEnd = profilePage.indexOf("\"", indexBegin);
-                    if (indexEnd > 0) {
-                        String url = profilePage.substring(indexBegin, indexEnd);
-                        return HifiUtils.getInstance().absoluteHifiAssetUrl(url, BASE_PROFILE_URL);
-                    }
+                String profileImageUrl = LegacyProfilePagePolicy.extractProfileImageUrl(profilePage);
+                if (profileImageUrl != null) {
+                    return HifiUtils.getInstance().absoluteHifiAssetUrl(
+                            profileImageUrl, BASE_PROFILE_URL);
                 }
             } catch (IOException e) {
                 Log.e(TAG, "Error getting profile picture for username " + username);

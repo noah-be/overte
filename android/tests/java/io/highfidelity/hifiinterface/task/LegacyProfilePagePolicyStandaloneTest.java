@@ -114,6 +114,27 @@ public final class LegacyProfilePagePolicyStandaloneTest {
         } catch (NullPointerException expected) {
             assertions++;
         }
+
+        check("/a.png".equals(LegacyProfilePagePolicy.extractProfileImageUrl(
+                        "<img class=\"users-img\" src=\"/a.png\">")),
+                "the legacy attribute order must remain supported");
+        check("/b.png".equals(LegacyProfilePagePolicy.extractProfileImageUrl(
+                        "<img src='/b.png' class='avatar users-img rounded'>")),
+                "attribute order, quotes and additional class tokens must be irrelevant");
+        check("/c.png".equals(LegacyProfilePagePolicy.extractProfileImageUrl(
+                        "<IMG data-x='1' CLASS = \"users-img\" SRC = '/c.png'>")),
+                "tag and attribute names must be case-insensitive with flexible whitespace");
+        String[] rejectedHtml = {
+                null, "", "users-img /text.png", "<div class='users-img' src='/d.png'>",
+                "<img data-class='users-img' src='/e.png'>",
+                "<img class='not-users-img' src='/f.png'>",
+                "<img class='users-img' src=>", "<img class='users-img' src=''>",
+                "<img class='users-img'>", "<img class=users-img src='/g.png'>"
+        };
+        for (String html : rejectedHtml) {
+            check(LegacyProfilePagePolicy.extractProfileImageUrl(html) == null,
+                    "non-matching or unsafe profile HTML must fail closed");
+        }
         System.out.println("LegacyProfilePagePolicyStandaloneTest: " + assertions
                 + " assertions passed");
     }

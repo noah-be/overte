@@ -106,7 +106,11 @@ grep -Fq 'LegacyProfilePagePolicy.read(userPage.openConnection())' "$profile_tas
     printf 'FAIL: legacy profile downloads bypass the bounded URLConnection policy\n' >&2
     exit 1
 }
-if grep -Eq 'openStream|BufferedReader|InputStreamReader|StringBuffer' "$profile_task"; then
+grep -Fq 'LegacyProfilePagePolicy.extractProfileImageUrl(profilePage)' "$profile_task" || {
+    printf 'FAIL: legacy profile image extraction bypasses the HTML policy\n' >&2
+    exit 1
+}
+if grep -Eq 'openStream|BufferedReader|InputStreamReader|StringBuffer|img class=|indexOf\(substr\)' "$profile_task"; then
     printf 'FAIL: legacy profile downloads retain an unbounded/default-charset reader\n' >&2
     exit 1
 fi
