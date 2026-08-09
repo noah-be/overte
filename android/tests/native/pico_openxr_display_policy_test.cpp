@@ -17,6 +17,26 @@ int main() {
     assert(!isCompleteOpenXrStereoViewResult(2, 1));
     assert(!isCompleteOpenXrStereoViewResult(2, 3));
     assert(!isCompleteOpenXrStereoViewResult(1, 1));
+    assert(openXrContextValidAfterRequiredInitialization(true, true));
+    assert(!openXrContextValidAfterRequiredInitialization(true, false));
+    assert(!openXrContextValidAfterRequiredInitialization(false, true));
+    assert(!openXrContextValidAfterRequiredInitialization(false, false));
+    bool initializationValid = true;
+    initializationValid = openXrContextValidAfterRequiredInitialization(
+        initializationValid, true);
+    initializationValid = openXrContextValidAfterRequiredInitialization(
+        initializationValid, true);
+    initializationValid = openXrContextValidAfterRequiredInitialization(
+        initializationValid, false);
+    initializationValid = openXrContextValidAfterRequiredInitialization(
+        initializationValid, true);
+    assert(!initializationValid);
+    initializationValid = true;
+    for (int step = 0; step < 4; ++step) {
+        initializationValid = openXrContextValidAfterRequiredInitialization(
+            initializationValid, true);
+    }
+    assert(initializationValid);
     assert(areOpenXrStereoViewDimensionsCompatible(1024, 1024, 1024, 1024));
     assert(!areOpenXrStereoViewDimensionsCompatible(1024, 1024, 2048, 1024));
     assert(!areOpenXrStereoViewDimensionsCompatible(1024, 1024, 1024, 2048));

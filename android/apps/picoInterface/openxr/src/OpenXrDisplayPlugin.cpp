@@ -473,7 +473,10 @@ bool OpenXrDisplayPlugin::initLayers() {
 void OpenXrDisplayPlugin::init() {
     Plugin::init();
 
-    if (!initViews()) {
+    const bool viewsInitialized = initViews();
+    _context->_isValid = openXrContextValidAfterRequiredInitialization(
+        _context->_isValid, viewsInitialized);
+    if (!viewsInitialized) {
         qCCritical(xr_display_cat, "View init failed.");
         return;
     }
@@ -519,17 +522,26 @@ void OpenXrDisplayPlugin::customizeContext() {
     gl::initModuleGl();
     HmdDisplayPlugin::customizeContext();
 
-    if (!_context->initPostGraphics()) {
+    const bool postGraphicsInitialized = _context->initPostGraphics();
+    _context->_isValid = openXrContextValidAfterRequiredInitialization(
+        _context->_isValid, postGraphicsInitialized);
+    if (!postGraphicsInitialized) {
         qCCritical(xr_display_cat, "Post graphics init failed.");
         return;
     }
 
-    if (!initSwapChains()) {
+    const bool swapChainsInitialized = initSwapChains();
+    _context->_isValid = openXrContextValidAfterRequiredInitialization(
+        _context->_isValid, swapChainsInitialized);
+    if (!swapChainsInitialized) {
         qCCritical(xr_display_cat, "Swap chain init failed.");
         return;
     }
 
-    if (!initLayers()) {
+    const bool layersInitialized = initLayers();
+    _context->_isValid = openXrContextValidAfterRequiredInitialization(
+        _context->_isValid, layersInitialized);
+    if (!layersInitialized) {
         qCCritical(xr_display_cat, "Layer init failed.");
         return;
     }

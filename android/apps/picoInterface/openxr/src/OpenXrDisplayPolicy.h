@@ -17,6 +17,11 @@ inline bool isCompleteOpenXrStereoViewResult(
     return isSupportedOpenXrViewCount(capacity) && returnedCount == capacity;
 }
 
+constexpr bool openXrContextValidAfterRequiredInitialization(
+        bool wasValid, bool requiredStepSucceeded) {
+    return wasValid && requiredStepSucceeded;
+}
+
 constexpr bool areOpenXrStereoViewDimensionsCompatible(
         std::size_t leftWidth, std::size_t leftHeight,
         std::size_t rightWidth, std::size_t rightHeight) {
