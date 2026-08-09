@@ -640,7 +640,8 @@ install_dependencies() {
         -s:h build_type=Release --build=missing
 
     if [[ ! -f "$script_dir/apps/picoInterface/src/main/runtime-overrides/arm64-v8a/.prebuilt-runtime" \
-        && -z "$(newest_match '*/qt*/b/build_folder/qtbase/lib/libQt5Core_arm64-v8a.so')" ]]; then
+        && -z "$(newest_match '*/qt*/b/build_folder/qtbase/lib/libQt5Core_arm64-v8a.so')" \
+        && -z "$(newest_match '*/qt*/p/lib/libQt5Core_arm64-v8a.so')" ]]; then
         echo "No local Qt build tree found; building Qt from source (this can take a long time)"
         run_conan install "$script_dir/conan/conanfile-pico.py" \
             -of "$script_dir/conan/pico4-debug" \
