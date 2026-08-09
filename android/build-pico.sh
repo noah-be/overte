@@ -25,6 +25,8 @@ fail() {
     exit 2
 }
 
+[[ "$jobs" =~ ^[1-9][0-9]*$ ]] || fail "PICO_BUILD_JOBS must be a positive integer"
+
 find_conan() {
     local candidate
 
@@ -684,7 +686,8 @@ build() {
     detect_jdk
     echo "Android SDK: $ANDROID_SDK_ROOT"
     echo "Java: $JAVA_HOME"
-    CMAKE_BUILD_PARALLEL_LEVEL="$jobs" SHADERGEN_JOBS="${PICO_SHADER_JOBS:-$jobs}" \
+    PICO_BUILD_JOBS="$jobs" CMAKE_BUILD_PARALLEL_LEVEL="$jobs" \
+        SHADERGEN_JOBS="${PICO_SHADER_JOBS:-$jobs}" \
         "$script_dir/gradlew" \
         --settings-file "$script_dir/settings-pico.gradle" \
         :picoInterface:assembleDebug --max-workers="$jobs"
