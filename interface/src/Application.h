@@ -983,7 +983,10 @@ private:
     bool _picoLoadingDismissButtonWasPressed { false };
     bool _picoStatsThumbChordLatched { false };
     bool _picoServerlessSceneImportCommitted { false };
+    bool _picoServerlessSceneImportInProgress { false };
+    bool _picoInitialServerlessHandoffComplete { false };
     QUrl _picoServerlessSceneURL;
+    QUrl _picoDeferredServerlessSceneURL;
 #endif
     // This is needed so that physics do not get re-enabled before safe landing starts when moving from
     // serverless to domain server.

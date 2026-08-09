@@ -46,6 +46,43 @@ class PicoWorldStateTests(unittest.TestCase):
         self.assertLess(failure_return, connect)
         self.assertLess(failure_return, commit)
 
+    def test_reentrant_serverless_url_does_not_restart_active_import(self):
+        load_body = function_body(
+            "void Application::loadServerlessDomain",
+            "void Application::loadErrorDomain",
+        )
+        local_read = load_body.index("PICO_SERVERLESS_TRACE localRead")
+        local_prepare = load_body.index(
+            "prepareServerlessDomainContents(domainURL, domainData, namedPaths)"
+        )
+        self.assertLess(
+            load_body.index("_picoServerlessSceneImportInProgress = true", local_read),
+            local_prepare,
+        )
+
+        changed_body = function_body(
+            "void Application::domainURLChanged",
+            "void Application::domainConnectionRefused",
+        )
+        guard = changed_body.index("if (_picoServerlessSceneImportInProgress)")
+        recursive_load = changed_body.rindex("loadServerlessDomain(domainURL)")
+        self.assertLess(guard, recursive_load)
+        self.assertIn("normalizedDomainURL == normalizedImportURL", changed_body[guard:recursive_load])
+        self.assertIn("return;", changed_body[guard:recursive_load])
+        self.assertIn("if (domainURL.isEmpty())", changed_body[guard:recursive_load])
+        self.assertIn("if (normalizedDomainURL.isLocalFile())", changed_body[guard:recursive_load])
+        self.assertIn(
+            "_picoDeferredServerlessSceneURL = domainURL;",
+            changed_body[guard:recursive_load],
+        )
+        finish = load_body.index("const auto finishPicoServerlessImport")
+        self.assertIn("Qt::QueuedConnection", load_body[finish:local_read])
+        self.assertIn("loadServerlessDomain(deferredURL);", load_body[finish:local_read])
+        self.assertEqual(APPLICATION.count('cache/serverless-status'), 3)
+        self.assertGreaterEqual(APPLICATION.count("QDateTime::currentMSecsSinceEpoch()"), 3)
+        self.assertIn("_picoInitialServerlessHandoffComplete = true;", APPLICATION)
+        self.assertIn("if (!_picoInitialServerlessHandoffComplete)", changed_body)
+
     def test_remote_parse_failure_cannot_commit_or_connect(self):
         body = function_body(
             "void Application::loadServerlessDomain",

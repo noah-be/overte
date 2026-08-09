@@ -1073,6 +1073,21 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         return;
     }
 #if defined(ANDROID_APP_PICO_INTERFACE)
+    const auto finishPicoServerlessImport = [this] {
+        _picoServerlessSceneImportInProgress = false;
+        if (!_picoDeferredServerlessSceneURL.isEmpty()) {
+            const QUrl deferredURL = _picoDeferredServerlessSceneURL;
+            _picoDeferredServerlessSceneURL = QUrl();
+            QMetaObject::invokeMethod(this, [this, deferredURL] {
+                _picoServerlessSceneImportCommitted = false;
+                _picoServerlessSceneURL = QUrl();
+                clearDomainOctreeDetails(false);
+                setIsServerlessMode(true);
+                loadServerlessDomain(deferredURL);
+                updateWindowTitle();
+            }, Qt::QueuedConnection);
+        }
+    };
     _picoServerlessLoadFailed = false;
 #endif
 
@@ -1089,8 +1104,12 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         const QByteArray domainData = domainFile.readAll();
         qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE localRead"
             << localDomainURL << "bytes" << domainData.size();
+        _picoServerlessSceneURL = domainURL;
+        _picoServerlessSceneImportInProgress = true;
         std::map<QString, QString> namedPaths;
         if (!prepareServerlessDomainContents(domainURL, domainData, namedPaths)) {
+            _picoServerlessSceneURL = QUrl();
+            finishPicoServerlessImport();
             _picoServerlessLoadFailed = true;
             qCWarning(interfaceapp) << "PICO_SERVERLESS_TRACE localParseFailed"
                 << localDomainURL;
@@ -1108,6 +1127,14 @@ void Application::loadServerlessDomain(QUrl domainURL) {
             << "domainServerless" << nodeList->getDomainHandler().isServerless()
             << "wait" << _waitForServerlessToBeSet
             << "fullScene" << _octreeProcessor->getFullSceneReceivedCounter().load();
+        QSaveFile serverlessStatusFile("/data/user/0/org.overte.pico/cache/serverless-status");
+        if (serverlessStatusFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            serverlessStatusFile.write(QStringLiteral("%1|%2|0")
+                .arg(QDateTime::currentMSecsSinceEpoch())
+                .arg(domainURL.toString()).toUtf8());
+            serverlessStatusFile.commit();
+        }
+        finishPicoServerlessImport();
         return;
     }
 #endif
@@ -1137,8 +1164,14 @@ void Application::loadServerlessDomain(QUrl domainURL) {
             << "bytes" << request->getData().size();
         if (request->getResult() == ResourceRequest::Success) {
             std::map<QString, QString> namedPaths;
+#if defined(ANDROID_APP_PICO_INTERFACE)
+            _picoServerlessSceneURL = domainURL;
+            _picoServerlessSceneImportInProgress = true;
+#endif
             if (!prepareServerlessDomainContents(domainURL, request->getData(), namedPaths)) {
 #if defined(ANDROID_APP_PICO_INTERFACE)
+                _picoServerlessSceneURL = QUrl();
+                finishPicoServerlessImport();
                 _picoServerlessLoadFailed = true;
 #endif
                 qCWarning(interfaceapp) << "PICO_SERVERLESS_TRACE requestParseFailed"
@@ -1164,6 +1197,14 @@ void Application::loadServerlessDomain(QUrl domainURL) {
                 << "domainServerless" << nodeList->getDomainHandler().isServerless()
                 << "wait" << _waitForServerlessToBeSet
                 << "fullScene" << _octreeProcessor->getFullSceneReceivedCounter().load();
+            QSaveFile serverlessStatusFile("/data/user/0/org.overte.pico/cache/serverless-status");
+            if (serverlessStatusFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                serverlessStatusFile.write(QStringLiteral("%1|%2|0")
+                    .arg(QDateTime::currentMSecsSinceEpoch())
+                    .arg(domainURL.toString()).toUtf8());
+                serverlessStatusFile.commit();
+            }
+            finishPicoServerlessImport();
 #endif
         } else {
 #if defined(ANDROID_APP_PICO_INTERFACE)
@@ -1646,6 +1687,31 @@ void Application::domainURLChanged(QUrl domainURL) {
 #endif
     }
 #if defined(ANDROID_APP_PICO_INTERFACE)
+    if (_picoServerlessSceneImportInProgress) {
+        const QUrl normalizedDomainURL = PathUtils::expandToLocalDataAbsolutePath(domainURL);
+        const QUrl normalizedImportURL =
+            PathUtils::expandToLocalDataAbsolutePath(_picoServerlessSceneURL);
+        if (domainURL.isEmpty()) {
+            // connectedToServerless() can emit its teardown boundary while
+            // the synchronous entity insertion is still on this call stack.
+            return;
+        }
+        if (domainURL == _picoServerlessSceneURL ||
+                normalizedDomainURL == normalizedImportURL) {
+            // Entity insertion can synchronously re-emit the destination URL.
+            // Let the active import finish instead of recursively restarting it.
+            setIsServerlessMode(true);
+            updateWindowTitle();
+            return;
+        }
+        if (normalizedDomainURL.isLocalFile()) {
+            // A real local navigation may arrive while sendEntities() is
+            // pumping nested events. Replace the scene after the current
+            // synchronous import unwinds so two trees never mutate together.
+            _picoDeferredServerlessSceneURL = domainURL;
+        }
+        return;
+    }
     if (_picoServerlessSceneImportCommitted) {
         qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE domainURLAfterCommit"
             << domainURL << "committedURL" << _picoServerlessSceneURL;
@@ -1670,7 +1736,7 @@ void Application::domainURLChanged(QUrl domainURL) {
             updateWindowTitle();
             return;
         }
-        if (_picoLoadingReadyAt == 0) {
+        if (!_picoInitialServerlessHandoffComplete) {
             // Startup always belongs to the bundled serverless test scene.
             // Ignore a remembered/late online destination until that scene's
             // render handoff is complete; later user navigation remains valid.
@@ -3270,6 +3336,19 @@ void Application::update(float deltaTime) {
                     loadingStatusFile.write(loadingStatus.toUtf8());
                     loadingStatusFile.commit();
                 }
+#if defined(ANDROID_APP_PICO_INTERFACE)
+                if (_picoServerlessSceneImportCommitted) {
+                    _picoInitialServerlessHandoffComplete = true;
+                    QSaveFile serverlessStatusFile(
+                        "/data/user/0/org.overte.pico/cache/serverless-status");
+                    if (serverlessStatusFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                        serverlessStatusFile.write(QStringLiteral("%1|%2|1")
+                            .arg(QDateTime::currentMSecsSinceEpoch())
+                            .arg(_picoServerlessSceneURL.toString()).toUtf8());
+                        serverlessStatusFile.commit();
+                    }
+                }
+#endif
                 qCInfo(interfaceapp) << "Pico world ready; releasing loading screen"
                     << "presentedFrames"
                     << (presentFrame - _picoLoadingPhysicsPresentFrame);
