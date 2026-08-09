@@ -12,6 +12,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 SHADERGEN = ROOT / "tools/shadergen.py"
 BUILD_SCRIPT = (ROOT / "android/build-pico.sh").read_text(encoding="utf-8")
+CMAKE_BOOTSTRAP = (ROOT / "android/cmake-pico-bootstrap.cmake").read_text(encoding="utf-8")
 
 
 class ShadergenJobTests(unittest.TestCase):
@@ -43,7 +44,23 @@ class ShadergenJobTests(unittest.TestCase):
         self.assertIn("jobs must be positive", result.stderr)
 
     def test_pico_build_forwards_its_job_limit(self):
+        self.assertIn('PICO_BUILD_JOBS="$jobs" CMAKE_BUILD_PARALLEL_LEVEL="$jobs"', BUILD_SCRIPT)
         self.assertIn('SHADERGEN_JOBS="${PICO_SHADER_JOBS:-$jobs}"', BUILD_SCRIPT)
+
+    def test_native_compile_and_link_use_bounded_cmake_pools(self):
+        self.assertIn('PROPERTY JOB_POOLS "pico_compile=$ENV{PICO_BUILD_JOBS}" pico_link=1', CMAKE_BOOTSTRAP)
+        self.assertIn("set(CMAKE_JOB_POOL_COMPILE pico_compile)", CMAKE_BOOTSTRAP)
+        self.assertIn("set(CMAKE_JOB_POOL_LINK pico_link)", CMAKE_BOOTSTRAP)
+
+    def test_pico_build_rejects_invalid_worker_limit_before_building(self):
+        variables = os.environ.copy()
+        variables["PICO_BUILD_JOBS"] = "0"
+        result = subprocess.run(
+            [str(ROOT / "android/build-pico.sh"), "--help"],
+            text=True, capture_output=True, env=variables, check=False,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("PICO_BUILD_JOBS must be a positive integer", result.stderr)
 
 
 if __name__ == "__main__":
