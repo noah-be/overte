@@ -684,7 +684,8 @@ build() {
     detect_jdk
     echo "Android SDK: $ANDROID_SDK_ROOT"
     echo "Java: $JAVA_HOME"
-    CMAKE_BUILD_PARALLEL_LEVEL="$jobs" "$script_dir/gradlew" \
+    CMAKE_BUILD_PARALLEL_LEVEL="$jobs" SHADERGEN_JOBS="${PICO_SHADER_JOBS:-$jobs}" \
+        "$script_dir/gradlew" \
         --settings-file "$script_dir/settings-pico.gradle" \
         :picoInterface:assembleDebug --max-workers="$jobs"
     echo "APK: $script_dir/apps/picoInterface/build/outputs/apk/debug/picoInterface-debug.apk"
