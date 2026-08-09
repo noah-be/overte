@@ -46,6 +46,7 @@ python3 - "$fixture_dir" "$script_dir/../apps/phoneInterface/src/main/res/values
 import importlib.util
 import hashlib
 import pathlib
+import stat
 import sys
 import warnings
 import zipfile
@@ -275,6 +276,30 @@ with zipfile.ZipFile(root / 'directory-with-data.apk', 'w') as archive:
         archive.writestr(entry, data)
     archive.writestr('assets/optional-directory/', b'unexpected data')
 
+with zipfile.ZipFile(root / 'symlink-entry.apk', 'w') as archive:
+    archive.writestr('assets/cache_assets.txt', cache_manifest)
+    for entry, data in required.items():
+        archive.writestr(entry, data)
+    link = zipfile.ZipInfo('assets/optional-link')
+    link.create_system = 3
+    link.external_attr = (stat.S_IFLNK | 0o777) << 16
+    archive.writestr(link, b'kept.txt')
+
+with zipfile.ZipFile(root / 'symlink-entry.aab', 'w') as archive:
+    archive.writestr('base/assets/cache_assets.txt', cache_manifest)
+    for entry, data in required.items():
+        if entry == 'AndroidManifest.xml':
+            bundle_entry = 'base/manifest/AndroidManifest.xml'
+        elif entry == 'classes.dex':
+            bundle_entry = 'base/dex/classes.dex'
+        else:
+            bundle_entry = 'base/' + entry
+        archive.writestr(bundle_entry, data)
+    link = zipfile.ZipInfo('BUNDLE-METADATA/optional-link')
+    link.create_system = 3
+    link.external_attr = (stat.S_IFLNK | 0o777) << 16
+    archive.writestr(link, b'metadata.pb')
+
 with zipfile.ZipFile(root / 'missing-required-cache-entry.apk', 'w') as archive:
     incomplete_cache_paths = [entry for entry in cache_paths
                               if entry != 'android_rcc_bundle.rcc']
@@ -366,6 +391,8 @@ unexpected-arm64-runtime.apk	unexpected ARM64 native entries
 unexpected-arm64-runtime.aab	unexpected ARM64 native entries
 duplicate-entry.apk	duplicate ZIP entry names
 directory-with-data.apk	directory entry contains file data
+symlink-entry.apk	contains symbolic link entries
+symlink-entry.aab	contains symbolic link entries
 mixed-layout.aab	mixes APK and Android App Bundle entry layouts
 unexpected-feature.aab	contains unexpected feature modules
 missing-base-module.aab	has no base manifest module

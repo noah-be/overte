@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 102 — Reject ZIP symbolic links
+
+- Branch: `nightly/android-phone-102-zip-symlink-rejection`
+- Commit: `Reject phone package ZIP symlinks` (this task's commit)
+- Change: Inspect Unix file-type bits in every APK/AAB central-directory entry
+  and reject symbolic links. Phone packaging defines only ordinary files and
+  empty directories, so host-dependent link extraction cannot redirect or
+  reinterpret an otherwise allowlisted asset or bundle-metadata path.
+- Tests:
+  - `android/tests/phone-apk-contents-test.sh`: **passed**, with independent APK
+    asset and AAB metadata symlink fixtures.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 296/296 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 296/296.
+  - Python/shell syntax and `git diff --check`: **passed**.
+- Known risks: A future intentional link-like resource must use an explicit
+  Android-supported representation instead of ZIP host filesystem metadata.
+- Real-device validation still required: None for archive type parsing; run
+  the normal final artifact install and loader smoke.
+
 ## 101 — Verify every packaged ZIP entry
 
 - Branch: `nightly/android-phone-101-complete-zip-integrity`
@@ -2339,7 +2359,8 @@ All branches form one linear chain starting at
 98. `nightly/android-phone-98-private-package-errors` — `1d7f13300d`
 99. `nightly/android-phone-99-central-directory-padding` — `13db75b136`
 100. `nightly/android-phone-100-trailing-zip-data` — `bf5ca533b6`
-101. `nightly/android-phone-101-complete-zip-integrity` — this task's commit
+101. `nightly/android-phone-101-complete-zip-integrity` — `133f4c3873`
+102. `nightly/android-phone-102-zip-symlink-rejection` — this task's commit
 
 ### Device-free audit disposition
 

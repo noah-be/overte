@@ -121,6 +121,8 @@ require_text tests/check-phone-apk-contents.py 'verify_entry_integrity' \
     'package completeness gate streams ZIP entries to verify integrity'
 require_text tests/check-phone-apk-contents.py 'sorted\(raw_archive_names\)' \
     'package completeness gate verifies every packaged ZIP entry'
+require_text tests/check-phone-apk-contents.py 'S_ISLNK' \
+    'package completeness gate rejects ZIP symbolic links'
 require_text tests/check-phone-apk-contents.py 'mixes APK and Android App Bundle' \
     'package completeness gate rejects mixed archive layouts'
 require_text tests/check-phone-apk-contents.py 'unexpected feature modules' \

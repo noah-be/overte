@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import hashlib
+import stat
 import sys
 import zipfile
 from pathlib import Path, PurePosixPath
@@ -194,6 +195,11 @@ def main():
             raw_archive_names = archive.namelist()
             if len(raw_archive_names) != len(set(raw_archive_names)):
                 raise ValueError("package contains duplicate ZIP entry names")
+            if any(
+                stat.S_ISLNK(entry.external_attr >> 16)
+                for entry in archive.infolist()
+            ):
+                raise ValueError("package contains symbolic link entries")
             validate_package_layout(raw_archive_names)
             archive_names, cache_manifest_entry = logical_package_names(raw_archive_names)
             names = set(archive_names)
