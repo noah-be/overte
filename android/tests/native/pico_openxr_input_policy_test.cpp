@@ -16,5 +16,14 @@ int main() {
             true, std::numeric_limits<float>::quiet_NaN()));
     OVERTE_EXPECT(openXrVirtualTriggerPressed(
             true, std::numeric_limits<float>::infinity()));
+
+    OVERTE_EXPECT(OpenXrHapticNone == openXrHapticTargets(false, 0));
+    OVERTE_EXPECT(OpenXrHapticNone == openXrHapticTargets(false, 2));
+    OVERTE_EXPECT(OpenXrHapticLeft == openXrHapticTargets(true, 0));
+    OVERTE_EXPECT(OpenXrHapticRight == openXrHapticTargets(true, 1));
+    OVERTE_EXPECT((OpenXrHapticLeft | OpenXrHapticRight)
+            == openXrHapticTargets(true, 2));
+    OVERTE_EXPECT(OpenXrHapticNone == openXrHapticTargets(true, 3));
+    OVERTE_EXPECT(OpenXrHapticNone == openXrHapticTargets(true, 65535));
     return 0;
 }

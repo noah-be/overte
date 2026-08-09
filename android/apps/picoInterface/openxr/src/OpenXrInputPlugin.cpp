@@ -330,7 +330,8 @@ void OpenXrInputPlugin::InputDevice::focusOutEvent() {
 };
 
 bool OpenXrInputPlugin::InputDevice::triggerHapticPulse(float strength, float duration, uint16_t index) {
-    if (index > 2 || !_hapticsEnabled) {
+    auto targets = openXrHapticTargets(_hapticsEnabled, index);
+    if (targets == OpenXrHapticNone) {
         return false;
     }
 
@@ -340,16 +341,22 @@ bool OpenXrInputPlugin::InputDevice::triggerHapticPulse(float strength, float du
     nanoseconds durationNs = duration_cast<nanoseconds>(milliseconds(static_cast<int>(duration)));
     XrDuration xrDuration = durationNs.count();
 
-    auto path = (index == 0) ? "left_haptic" : "right_haptic";
-
     // FIXME: sometimes something bugs out and hammers this,
     // and the controller vibrates really loudly until another
     // haptic pulse is triggered
-    if (!_actions.at(path)->applyHaptic(xrDuration, 50, 0.5f * strength)) {
-        qCCritical(xr_input_cat) << "Failed to apply haptic feedback!";
+    bool applied = true;
+    if ((targets & OpenXrHapticLeft) != 0
+            && !_actions.at("left_haptic")->applyHaptic(xrDuration, 50, 0.5f * strength)) {
+        qCCritical(xr_input_cat) << "Failed to apply left-hand haptic feedback!";
+        applied = false;
+    }
+    if ((targets & OpenXrHapticRight) != 0
+            && !_actions.at("right_haptic")->applyHaptic(xrDuration, 50, 0.5f * strength)) {
+        qCCritical(xr_input_cat) << "Failed to apply right-hand haptic feedback!";
+        applied = false;
     }
 
-    return true;
+    return applied;
 }
 
 bool OpenXrInputPlugin::Action::init(XrActionSet actionSet) {
