@@ -403,6 +403,16 @@ bool OpenXrInputPlugin::InputDevice::triggerHapticPulse(float strength, float du
     }
 
     std::unique_lock<std::recursive_mutex> locker(_lock);
+    const auto leftHaptic = _actions.find("left_haptic");
+    const auto rightHaptic = _actions.find("right_haptic");
+    if (!openXrHapticActionsReady(
+            targets, _actionsInitialized,
+            _context && _context->_session != XR_NULL_HANDLE,
+            leftHaptic != _actions.end(), rightHaptic != _actions.end())) {
+        qCWarning(xr_input_cat)
+            << "OpenXR haptic actions are not ready";
+        return false;
+    }
 
     using namespace std::chrono;
     nanoseconds durationNs = duration_cast<nanoseconds>(milliseconds(static_cast<int>(duration)));
@@ -413,12 +423,12 @@ bool OpenXrInputPlugin::InputDevice::triggerHapticPulse(float strength, float du
     // haptic pulse is triggered
     bool applied = true;
     if ((targets & OpenXrHapticLeft) != 0
-            && !_actions.at("left_haptic")->applyHaptic(xrDuration, 50, 0.5f * strength)) {
+            && !leftHaptic->second->applyHaptic(xrDuration, 50, 0.5f * strength)) {
         qCCritical(xr_input_cat) << "Failed to apply left-hand haptic feedback!";
         applied = false;
     }
     if ((targets & OpenXrHapticRight) != 0
-            && !_actions.at("right_haptic")->applyHaptic(xrDuration, 50, 0.5f * strength)) {
+            && !rightHaptic->second->applyHaptic(xrDuration, 50, 0.5f * strength)) {
         qCCritical(xr_input_cat) << "Failed to apply right-hand haptic feedback!";
         applied = false;
     }

@@ -53,6 +53,21 @@ constexpr unsigned int openXrHapticTargets(bool enabled, unsigned int index) {
                                         : OpenXrHapticLeft | OpenXrHapticRight));
 }
 
+constexpr bool openXrHapticActionsReady(
+        unsigned int targets,
+        bool actionsInitialized,
+        bool sessionAlive,
+        bool leftActionPresent,
+        bool rightActionPresent) {
+    constexpr unsigned int knownTargets =
+        OpenXrHapticLeft | OpenXrHapticRight;
+    return targets != OpenXrHapticNone &&
+        (targets & ~knownTargets) == 0 &&
+        actionsInitialized && sessionAlive &&
+        ((targets & OpenXrHapticLeft) == 0 || leftActionPresent) &&
+        ((targets & OpenXrHapticRight) == 0 || rightActionPresent);
+}
+
 constexpr bool openXrHandJointOutputUsable(
         bool locateSucceeded, bool isActive) {
     return locateSucceeded && isActive;

@@ -54,6 +54,28 @@ int main() {
             == openXrHapticTargets(true, 2));
     OVERTE_EXPECT(OpenXrHapticNone == openXrHapticTargets(true, 3));
     OVERTE_EXPECT(OpenXrHapticNone == openXrHapticTargets(true, 65535));
+    OVERTE_EXPECT(!openXrHapticActionsReady(
+        OpenXrHapticNone, true, true, true, true));
+    OVERTE_EXPECT(openXrHapticActionsReady(
+        OpenXrHapticLeft, true, true, true, false));
+    OVERTE_EXPECT(!openXrHapticActionsReady(
+        OpenXrHapticLeft, true, true, false, true));
+    OVERTE_EXPECT(openXrHapticActionsReady(
+        OpenXrHapticRight, true, true, false, true));
+    OVERTE_EXPECT(!openXrHapticActionsReady(
+        OpenXrHapticRight, true, true, true, false));
+    OVERTE_EXPECT(openXrHapticActionsReady(
+        OpenXrHapticLeft | OpenXrHapticRight,
+        true, true, true, true));
+    OVERTE_EXPECT(!openXrHapticActionsReady(
+        OpenXrHapticLeft | OpenXrHapticRight,
+        true, true, true, false));
+    OVERTE_EXPECT(!openXrHapticActionsReady(
+        OpenXrHapticLeft, false, true, true, true));
+    OVERTE_EXPECT(!openXrHapticActionsReady(
+        OpenXrHapticLeft, true, false, true, true));
+    OVERTE_EXPECT(!openXrHapticActionsReady(
+        1U << 3, true, true, true, true));
 
     for (unsigned int mask = 0; mask < 16; ++mask) {
         const bool hasSpace = (mask & 1U) != 0;
