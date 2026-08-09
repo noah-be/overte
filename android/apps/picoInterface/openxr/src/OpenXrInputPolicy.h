@@ -145,6 +145,10 @@ constexpr bool openXrActionStateOutputUsable(bool callSucceeded) {
     return callSucceeded;
 }
 
+constexpr bool openXrActionFrameUsable(bool syncSucceeded) {
+    return syncSucceeded;
+}
+
 constexpr bool openXrLocatedPoseUsable(
         bool spaceIsNonNull,
         bool predictionAvailable,

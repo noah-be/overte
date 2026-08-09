@@ -159,6 +159,8 @@ int main() {
     }
     OVERTE_EXPECT(!openXrActionStateOutputUsable(false));
     OVERTE_EXPECT(openXrActionStateOutputUsable(true));
+    OVERTE_EXPECT(!openXrActionFrameUsable(false));
+    OVERTE_EXPECT(openXrActionFrameUsable(true));
 
     OVERTE_EXPECT(openXrLocatedPoseUsable(true, true, true, pose, pose));
     OVERTE_EXPECT(!openXrLocatedPoseUsable(false, true, true, pose, pose));

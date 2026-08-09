@@ -1213,6 +1213,7 @@ void OpenXrInputPlugin::InputDevice::update(float deltaTime, const controller::I
     using namespace controller;
 
     _poseStateMap.clear();
+    _axisStateMap.clear();
     _buttonPressedMap.clear();
     _trackedControllers = 2;
 
@@ -1239,7 +1240,11 @@ void OpenXrInputPlugin::InputDevice::update(float deltaTime, const controller::I
     XrSession session = _context->_session;
 
     XrResult result = xrSyncActions(session, &syncInfo);
-    xrCheck(instance, result, "failed to sync actions!");
+    const bool actionsSynchronized = xrCheck(
+        instance, result, "Failed to sync OpenXR actions");
+    if (!openXrActionFrameUsable(actionsSynchronized)) {
+        return;
+    }
 
 #if defined(Q_OS_ANDROID)
     static uint64_t lastInputLog { 0 };
