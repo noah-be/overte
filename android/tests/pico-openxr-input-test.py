@@ -308,6 +308,19 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertIn("_MNDX_xdevSpaceSupported = false", xdev[failure:])
         self.assertNotIn("xrGetInstanceProcAddr(", xdev)
 
+    def test_vive_tracker_capability_requires_its_runtime_function(self):
+        start = CONTEXT.index("// disable the MNDX tracker extension")
+        end = CONTEXT.index("if (_userPresenceAvailable)", start)
+        vive = CONTEXT[start:end]
+        load = vive.index('loadXrFunction(_instance, "xrEnumerateViveTrackerPathsHTCX"')
+        select = vive.index("_MNDX_xdevSpaceSupported = false", load)
+        failure = vive.index("_HTCX_viveTrackerInteractionSupported = false", select)
+        clear = vive.index("xrEnumerateViveTrackerPathsHTCX = nullptr", failure)
+        self.assertLess(load, select)
+        self.assertLess(select, failure)
+        self.assertLess(failure, clear)
+        self.assertNotIn("xrGetInstanceProcAddr(", vive)
+
     def test_xdev_enumeration_and_space_publication_are_transactional(self):
         start = SOURCE.index("if (_context->_MNDX_xdevSpaceSupported)")
         end = SOURCE.index("_actionsInitialized = true", start)

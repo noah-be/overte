@@ -579,13 +579,15 @@ bool OpenXrContext::initSystem() {
 
     // disable the MNDX tracker extension if they're both available
     if (_HTCX_viveTrackerInteractionSupported) {
-        _MNDX_xdevSpaceSupported = false;
-
-        xrGetInstanceProcAddr(
-            _instance,
-            "xrEnumerateViveTrackerPathsHTCX",
-            reinterpret_cast<PFN_xrVoidFunction*>(&xrEnumerateViveTrackerPathsHTCX)
-        );
+        if (loadXrFunction(_instance, "xrEnumerateViveTrackerPathsHTCX",
+                reinterpret_cast<PFN_xrVoidFunction*>(&xrEnumerateViveTrackerPathsHTCX))) {
+            _MNDX_xdevSpaceSupported = false;
+        } else {
+            qCWarning(xr_context_cat,
+                      "Disabling Vive Tracker interaction because its OpenXR function is unavailable");
+            _HTCX_viveTrackerInteractionSupported = false;
+            xrEnumerateViveTrackerPathsHTCX = nullptr;
+        }
     }
 
     if (_userPresenceAvailable) {

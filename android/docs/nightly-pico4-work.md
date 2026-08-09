@@ -1701,8 +1701,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 94 — XDev space ownership cleanup
 
 - Branch: `nightly/pico4-94-openxr-xdev-cleanup`
-- Commit: identified by subject `Release Pico OpenXR XDev spaces`; the exact hash
-  is recorded by the following stacked task or final report.
+- Commit: `25b9082158` (`Release Pico OpenXR XDev spaces`)
 - Change: explicitly destroy every published optional XDev tracker space while
   its Session remains live, invalidate each handle and clear the tracker map
   before Action pose spaces and their parent ActionSet are released.
@@ -1714,6 +1713,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. With compatible optional body trackers,
   quit during active tracking and after runtime loss; verify one destroy per
   space, no validation leaks and clean enumeration after restart.
+
+### 95 — Vive Tracker function capability validation
+
+- Branch: `nightly/pico4-95-openxr-vive-functions`
+- Commit: identified by subject `Validate Pico OpenXR Vive Tracker function`;
+  the exact hash is recorded by the following stacked task or final report.
+- Change: enable HTC Vive Tracker interaction only when its required enumeration
+  function resolves successfully. A loader/runtime mismatch now disables that
+  optional path, clears its pointer and retains the XDev fallback instead of
+  exposing a later null call and suppressing the usable tracker backend.
+- Regression: the input/context contract verifies checked symbol loading,
+  fallback selection ordering, capability disablement and pointer clearing.
+- Passed: targeted OpenXR input/lifecycle contracts; `git diff --check`.
+- Risk: affects only optional body-tracker backend selection when an advertised
+  extension is incomplete; Pico controller and hand input remain unchanged.
+- Pico 4 validation: **not executed**. On a runtime with HTCX and/or MNDX tracker
+  extensions, test complete and deliberately missing HTCX function exposure;
+  verify HTCX wins only when callable and MNDX remains available otherwise.
 
 ## Deferred, rejected, or blocked ideas
 
