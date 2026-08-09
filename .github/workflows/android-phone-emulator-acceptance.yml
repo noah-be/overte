@@ -69,7 +69,7 @@ jobs:
         env:
           PHONE_ALLOW_EMULATOR: "1"
           PHONE_EXPECT_DEBUGGABLE: "0"
-          PHONE_TEST_REPORT: ${{ github.workspace }}/android/build/phone-device-report
+          PHONE_TEST_REPORT: ${{ runner.temp }}/android-phone-device-report-${{ github.run_id }}
         run: |
           set -euo pipefail
           apk="android/build/emulator-candidate/phoneInterface-release.apk"
@@ -80,6 +80,6 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: android-phone-emulator-acceptance-${{ github.run_id }}
-          path: android/build/phone-device-report/
+          path: ${{ runner.temp }}/android-phone-device-report-${{ github.run_id }}/
           if-no-files-found: warn
           retention-days: 14

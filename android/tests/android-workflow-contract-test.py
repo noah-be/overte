@@ -192,6 +192,16 @@ class AndroidPhoneEmulatorAcceptanceWorkflowContracts(unittest.TestCase):
         self.assertLess(package, device)
         self.assertIn('PHONE_ALLOW_EMULATOR: "1"', self.source)
 
+    def test_device_report_is_run_scoped_and_outside_the_worktree(self):
+        report_path = (
+            "${{ runner.temp }}/android-phone-device-report-${{ github.run_id }}"
+        )
+        self.assertEqual(2, self.source.count(report_path))
+        self.assertIn(f"PHONE_TEST_REPORT: {report_path}", self.source)
+        self.assertIn(f"path: {report_path}/", self.source)
+        self.assertNotIn("android/build/phone-device-report", self.source)
+        self.assertNotIn("${{ github.workspace }}/android-phone-device-report", self.source)
+
     def test_actions_are_pinned_and_checkout_is_credential_free(self):
         actions = ACTION_USE.findall(self.source)
         self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
