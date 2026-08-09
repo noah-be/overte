@@ -14,6 +14,7 @@ javac -d "$output" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/LegacyCrashDumpPolicy.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/LegacyCrashAnnotationPolicy.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/LegacyOAuthRedirectPolicy.java" \
+    "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/LegacyOAuthStatePolicy.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/provider/UserStoryDomainPolicy.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/provider/LegacyLatestRequestGate.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/provider/UserStoryRetrievalCoordinator.java" \
@@ -29,6 +30,7 @@ javac -d "$output" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyCrashDumpPolicyStandaloneTest.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyCrashAnnotationPolicyStandaloneTest.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyOAuthRedirectPolicyStandaloneTest.java" \
+    "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyOAuthStatePolicyStandaloneTest.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/task/LegacyProfilePagePolicyStandaloneTest.java"
 java -Djava.io.tmpdir="$output" -cp "$output" \
     io.highfidelity.hifiinterface.provider.UserStoryDomainPolicyStandaloneTest
@@ -52,6 +54,8 @@ java -Djava.io.tmpdir="$output" -cp "$output" \
     io.highfidelity.hifiinterface.LegacyCrashAnnotationPolicyStandaloneTest
 java -Djava.io.tmpdir="$output" -cp "$output" \
     io.highfidelity.hifiinterface.LegacyOAuthRedirectPolicyStandaloneTest
+java -Djava.io.tmpdir="$output" -cp "$output" \
+    io.highfidelity.hifiinterface.LegacyOAuthStatePolicyStandaloneTest
 java -Djava.io.tmpdir="$output" -cp "$output" \
     io.highfidelity.hifiinterface.task.LegacyProfilePagePolicyStandaloneTest
 
@@ -116,6 +120,16 @@ grep -Fq 'LegacyOAuthRedirectPolicy.matches(' "$web_view_fragment" || {
 }
 if grep -Fq 'startsWith(BuildConfig.OAUTH_REDIRECT_URI)' "$web_view_fragment"; then
     printf 'FAIL: legacy OAuth redirects retain unsafe prefix matching\n' >&2
+    exit 1
+fi
+
+login_fragment="$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/fragment/LoginFragment.java"
+grep -Fq 'LegacyOAuthStatePolicy.generate(mOauthRandom)' "$login_fragment" || {
+    printf 'FAIL: legacy OAuth state bypasses the cryptographic generator\n' >&2
+    exit 1
+}
+if grep -Eq 'java\.util\.Random|nextLong\(' "$login_fragment"; then
+    printf 'FAIL: legacy OAuth state retains a predictable random source\n' >&2
     exit 1
 fi
 

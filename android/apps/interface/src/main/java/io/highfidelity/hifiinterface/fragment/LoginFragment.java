@@ -23,10 +23,11 @@ import org.qtproject.qt5.android.QtNative;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
-import java.util.Random;
+import java.security.SecureRandom;
 
 import io.highfidelity.hifiinterface.BuildConfig;
 import io.highfidelity.hifiinterface.HifiUtils;
+import io.highfidelity.hifiinterface.LegacyOAuthStatePolicy;
 import io.highfidelity.hifiinterface.R;
 import io.highfidelity.hifiinterface.WebViewActivity;
 
@@ -56,6 +57,7 @@ public class LoginFragment extends Fragment
     private boolean mLoginSuccess;
     private boolean mUseOauth;
     private String mOauthState;
+    private final SecureRandom mOauthRandom = new SecureRandom();
 
     public native void login(String username, String password, boolean keepLoggedIn);
     private native void retrieveAccessToken(String authCode, String clientId, String clientSecret, String redirectUri);
@@ -292,8 +294,7 @@ public class LoginFragment extends Fragment
     }
 
     private void updateOauthState() {
-        // as we only use oauth for steam that's ok for now
-        mOauthState = "steam-" + Long.toString(new Random().nextLong());
+        mOauthState = LegacyOAuthStatePolicy.generate(mOauthRandom);
     }
 
     private String buildAuthorizeUrl() {
