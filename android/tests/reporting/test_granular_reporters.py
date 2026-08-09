@@ -80,6 +80,59 @@ exit 7
             self.assertFalse((report_dir / "TEST-javascript.xml").exists())
             self.assertEqual([], list(report_dir.glob(".TEST-*.xml")))
 
+    def test_successful_tool_with_invalid_junit_fails_closed(self):
+        for contents in ("not xml", '<testsuite tests="0"/>'):
+            with self.subTest(contents=contents), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                node = root / "node"
+                executable(node, r'''
+report=""
+for argument in "$@"; do
+  case "$argument" in --test-reporter-destination=/*) report="${argument#*=}" ;; esac
+done
+printf '%s' "$FIXTURE_JUNIT" >"$report"
+''')
+                report_dir = root / "reports/javascript"
+                report_dir.mkdir(parents=True)
+                report = report_dir / "TEST-javascript.xml"
+                report.write_text(
+                    '<testsuite tests="1"><testcase name="stale"/></testsuite>',
+                    encoding="utf-8")
+                result = subprocess.run(
+                    [ANDROID_ROOT / "tests/javascript/run-tests.sh"],
+                    cwd=ANDROID_ROOT,
+                    env={**os.environ, "OVERTE_NODE_COMMAND": str(node),
+                         "OVERTE_TEST_REPORT_DIR": str(root / "reports"),
+                         "FIXTURE_JUNIT": contents},
+                    text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                self.assertEqual(1, result.returncode, result.stdout)
+                self.assertIn("JUnit reporter produced an invalid report", result.stdout)
+                self.assertFalse(report.exists())
+                self.assertEqual([], list(report_dir.glob(".TEST-*.xml")))
+
+    def test_successful_tool_publishes_positive_testsuites_aggregate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            node = root / "node"
+            executable(node, r'''
+report=""
+for argument in "$@"; do
+  case "$argument" in --test-reporter-destination=/*) report="${argument#*=}" ;; esac
+done
+printf '%s' "$FIXTURE_JUNIT" >"$report"
+''')
+            aggregate = ('<testsuites><testsuite tests="1">'
+                         '<testcase name="current"/></testsuite></testsuites>')
+            report = root / "reports/javascript/TEST-javascript.xml"
+            result = subprocess.run(
+                [ANDROID_ROOT / "tests/javascript/run-tests.sh"], cwd=ANDROID_ROOT,
+                env={**os.environ, "OVERTE_NODE_COMMAND": str(node),
+                     "OVERTE_TEST_REPORT_DIR": str(root / "reports"),
+                     "FIXTURE_JUNIT": aggregate},
+                text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            self.assertEqual(0, result.returncode, result.stdout)
+            self.assertEqual("current", ET.parse(report).find(".//testcase").get("name"))
+
     def test_javascript_refuses_symlinked_report_destination(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

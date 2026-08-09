@@ -53,6 +53,29 @@ overte_junit_publish() {
         printf 'FAIL: JUnit reporter produced no report\n' >&2
         return 1
     fi
+    if ! python3 - "$OVERTE_JUNIT_TEMP_REPORT" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+
+try:
+    root = ET.parse(sys.argv[1]).getroot()
+    if root.tag == "testsuite":
+        tests = int(root.get("tests", "0"))
+    elif root.tag == "testsuites":
+        suites = root.findall("testsuite")
+        tests = (sum(int(suite.get("tests", "0")) for suite in suites)
+                 if suites else len(root.findall("testcase")))
+    else:
+        raise ValueError("invalid JUnit root")
+    if tests <= 0:
+        raise ValueError("JUnit report contains no tests")
+except (ET.ParseError, OSError, TypeError, ValueError):
+    raise SystemExit(1)
+PY
+    then
+        printf 'FAIL: JUnit reporter produced an invalid report\n' >&2
+        return 1
+    fi
     mv -f -- "$OVERTE_JUNIT_TEMP_REPORT" "$OVERTE_JUNIT_FINAL_REPORT"
     OVERTE_JUNIT_TEMP_REPORT=""
 }
