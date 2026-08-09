@@ -1820,8 +1820,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 101 — XDev role-inference stale-state reset
 
 - Branch: `nightly/pico4-101-openxr-role-reset`
-- Commit: identified by subject `Clear stale Pico XDev roles before inference`;
-  the exact hash is recorded by the following stacked task or final report.
+- Commit: `29cd9ffc59` (`Clear stale Pico XDev roles before inference`)
 - Change: clear every prior XDev pose-channel assignment before a new role-
   inference pass, after confirming frame time is available. Failed/incomplete
   locations and trackers outside defined role bands can no longer retain an old
@@ -1836,6 +1835,24 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Calibrate, move trackers between role bands,
   trigger recalibration and inject one failed locate; verify old channels go
   neutral and only currently classified trackers resume publication.
+
+### 102 — Controller pose completeness
+
+- Branch: `nightly/pico4-102-openxr-controller-pose-validity`
+- Commit: identified by subject `Reject incomplete Pico controller poses`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: require both valid position and orientation before counting or
+  publishing an OpenXR controller pose, matching the data actually consumed.
+  The common controller/body pose flag is applied identically in the Pico and
+  shared desktop OpenXR implementations.
+- Regression: Pico/desktop contracts enforce complete flags before tracked-count
+  increment and before reading the controller translation.
+- Passed: targeted OpenXR input/lifecycle contracts; `git diff --check`.
+- Risk: orientation-only samples now produce a neutral controller pose for that
+  frame rather than a pose containing an invalid position.
+- Pico 4 validation: **not executed**. Inject orientation-only and position-only
+  grip/palm samples during tracking loss; verify controller count and hand pose go
+  neutral, then recover on the first complete sample without stale interaction.
 
 ## Deferred, rejected, or blocked ideas
 

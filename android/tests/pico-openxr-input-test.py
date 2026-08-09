@@ -335,7 +335,7 @@ class OpenXrInputStateTest(unittest.TestCase):
         guess = SOURCE[guess_start:guess_end]
         time_guard = guess.index("if (!_context->_lastPredictedDisplayTime.has_value())")
         first_locate = guess.index("xrLocateSpace(")
-        validity = guess.index("REQUIRED_BODY_LOCATION_FLAGS", first_locate)
+        validity = guess.index("REQUIRED_POSE_LOCATION_FLAGS", first_locate)
         height_guard = guess.index("std::numeric_limits<float>::epsilon()", validity)
         division = guess.index("stageSpace.pose.position.y / headSpace.pose.position.y", height_guard)
         self.assertLess(time_guard, first_locate)
@@ -348,8 +348,8 @@ class OpenXrInputStateTest(unittest.TestCase):
         xdev_start = SOURCE.index("void OpenXrInputPlugin::InputDevice::updateBodyFromXDevSpaces")
         vive = SOURCE[vive_start:xdev_start]
         xdev = SOURCE[xdev_start:]
-        self.assertIn("REQUIRED_BODY_LOCATION_FLAGS) == REQUIRED_BODY_LOCATION_FLAGS", vive)
-        self.assertIn("REQUIRED_BODY_LOCATION_FLAGS) == REQUIRED_BODY_LOCATION_FLAGS", xdev)
+        self.assertIn("REQUIRED_POSE_LOCATION_FLAGS) == REQUIRED_POSE_LOCATION_FLAGS", vive)
+        self.assertIn("REQUIRED_POSE_LOCATION_FLAGS) == REQUIRED_POSE_LOCATION_FLAGS", xdev)
 
     def test_uncalibrate_clears_published_xdev_roles_by_reference(self):
         start = SOURCE.index("bool OpenXrInputPlugin::uncalibrate()")
@@ -438,7 +438,7 @@ class OpenXrInputStateTest(unittest.TestCase):
             role_clear = guess.index("tracker.pose_channel.reset()", role_loop)
             locate_loop = guess.index("for (auto [id, tracker] : tracker_map)", role_clear)
             first_locate = guess.index("xrLocateSpace(", locate_loop)
-            validity = guess.index("REQUIRED_BODY_LOCATION_FLAGS", first_locate)
+            validity = guess.index("REQUIRED_POSE_LOCATION_FLAGS", first_locate)
             height_guard = guess.index("std::numeric_limits<float>::epsilon()", validity)
             assign = guess.index("state.pose_channel =", height_guard)
             self.assertLess(time_guard, role_loop)
@@ -448,6 +448,25 @@ class OpenXrInputStateTest(unittest.TestCase):
             self.assertLess(first_locate, validity)
             self.assertLess(validity, height_guard)
             self.assertLess(height_guard, assign)
+
+    def test_controller_pose_requires_position_and_orientation(self):
+        for source in (SOURCE, DESKTOP_SOURCE):
+            start = source.index("void OpenXrInputPlugin::InputDevice::update(")
+            end = source.index("void OpenXrInputPlugin::InputDevice::setupControllerFlags", start)
+            update = source[start:end]
+            location = update.index("XrSpaceLocation handLocation")
+            validity = update.index(
+                "handLocation.locationFlags & REQUIRED_POSE_LOCATION_FLAGS", location
+            )
+            complete = update.index("== REQUIRED_POSE_LOCATION_FLAGS", validity)
+            translation = update.index("handLocation.pose.position", complete)
+            self.assertLess(location, validity)
+            self.assertLess(validity, complete)
+            self.assertLess(complete, translation)
+            if source is SOURCE:
+                tracked = update.index("++_trackedControllers", complete)
+                self.assertLess(complete, tracked)
+                self.assertLess(tracked, translation)
 
     def test_xdev_enumeration_and_space_publication_are_transactional(self):
         start = SOURCE.index("if (_context->_MNDX_xdevSpaceSupported)")

@@ -25,7 +25,7 @@
 Q_DECLARE_LOGGING_CATEGORY(xr_input_cat)
 Q_LOGGING_CATEGORY(xr_input_cat, "openxr.input")
 
-static constexpr XrSpaceLocationFlags REQUIRED_BODY_LOCATION_FLAGS =
+static constexpr XrSpaceLocationFlags REQUIRED_POSE_LOCATION_FLAGS =
     XR_SPACE_LOCATION_ORIENTATION_VALID_BIT | XR_SPACE_LOCATION_POSITION_VALID_BIT;
 
 enum ExtraButtonChannel {
@@ -139,9 +139,9 @@ void OpenXrInputPlugin::guessXDevRoles(std::unordered_map<XrXDevIdMNDX, XDevTrac
             xrLocateSpace(_context->_viewSpace, _context->_stageSpace, displayTime, &headSpace),
             "guessXDevRoles: head space fail");
         const bool locationsValid =
-            (stageSpace.locationFlags & REQUIRED_BODY_LOCATION_FLAGS) == REQUIRED_BODY_LOCATION_FLAGS &&
-            (localSpace.locationFlags & REQUIRED_BODY_LOCATION_FLAGS) == REQUIRED_BODY_LOCATION_FLAGS &&
-            (headSpace.locationFlags & REQUIRED_BODY_LOCATION_FLAGS) == REQUIRED_BODY_LOCATION_FLAGS;
+            (stageSpace.locationFlags & REQUIRED_POSE_LOCATION_FLAGS) == REQUIRED_POSE_LOCATION_FLAGS &&
+            (localSpace.locationFlags & REQUIRED_POSE_LOCATION_FLAGS) == REQUIRED_POSE_LOCATION_FLAGS &&
+            (headSpace.locationFlags & REQUIRED_POSE_LOCATION_FLAGS) == REQUIRED_POSE_LOCATION_FLAGS;
         if (!stageLocated || !localLocated || !headLocated || !locationsValid ||
                 std::abs(headSpace.pose.position.y) <= std::numeric_limits<float>::epsilon()) {
             continue;
@@ -1268,7 +1268,8 @@ void OpenXrInputPlugin::InputDevice::update(float deltaTime, const controller::I
             handLocation = _actions.at(grip_path)->getPose();
         }
 
-        bool locationValid = (handLocation.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0;
+        bool locationValid =
+            (handLocation.locationFlags & REQUIRED_POSE_LOCATION_FLAGS) == REQUIRED_POSE_LOCATION_FLAGS;
         if (locationValid) {
             ++_trackedControllers;
             vec3 translation = xrVecToGlm(handLocation.pose.position);
@@ -1658,7 +1659,7 @@ void OpenXrInputPlugin::InputDevice::updateBodyFromViveTrackers(const mat4& sens
     auto handlePose = [&](std::string action, StandardPoseChannel channel) {
         XrSpaceLocation location = _actions.at(action)->getPose();
         bool locationValid =
-            (location.locationFlags & REQUIRED_BODY_LOCATION_FLAGS) == REQUIRED_BODY_LOCATION_FLAGS;
+            (location.locationFlags & REQUIRED_POSE_LOCATION_FLAGS) == REQUIRED_POSE_LOCATION_FLAGS;
         if (locationValid) {
             vec3 translation = xrVecToGlm(location.pose.position);
             quat rotation = xrQuatToGlm(location.pose.orientation);
@@ -1694,7 +1695,7 @@ void OpenXrInputPlugin::InputDevice::updateBodyFromXDevSpaces(const mat4& sensor
         }
 
         bool locationValid =
-            (location.locationFlags & REQUIRED_BODY_LOCATION_FLAGS) == REQUIRED_BODY_LOCATION_FLAGS;
+            (location.locationFlags & REQUIRED_POSE_LOCATION_FLAGS) == REQUIRED_POSE_LOCATION_FLAGS;
 
         if (locationValid && xdev.pose_channel.has_value()) {
             vec3 translation = xrVecToGlm(location.pose.position);
