@@ -8,7 +8,20 @@ public final class UserStoryDomainPolicy {
     }
 
     public static String destinationUrl(String placeName, String path) {
-        return HifiUtils.getInstance().sanitizeHifiUrl(placeName) + "/" + path;
+        String destination = HifiUtils.getInstance().sanitizeHifiUrl(placeName);
+        if (destination.isEmpty()) {
+            return "";
+        }
+        if (path == null || path.isEmpty()) {
+            return destination;
+        }
+        if (destination.endsWith("/") && path.startsWith("/")) {
+            return destination + path.substring(1);
+        }
+        if (destination.endsWith("/") || path.startsWith("/")) {
+            return destination + path;
+        }
+        return destination + "/" + path;
     }
 
     public static String thumbnailUrl(String thumbnail) {
@@ -16,6 +29,7 @@ public final class UserStoryDomainPolicy {
     }
 
     public static boolean shouldRequestNextPage(int currentPage, int totalPages, int maxPages) {
-        return currentPage < totalPages && currentPage <= maxPages;
+        return currentPage > 0 && totalPages > 0 && maxPages > 0
+                && currentPage < totalPages && currentPage < maxPages;
     }
 }
