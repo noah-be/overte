@@ -95,6 +95,15 @@ printf 'Signer #1 certificate SHA-256 digest: %064d\n' 0
         self.assertEqual(result.returncode, 2)
         self.assertIn("exactly one APK signer", result.stderr)
 
+    def test_accepts_pinned_upload_signer(self):
+        result = self.run_verifier(None, "--expect-signer", "00:" * 31 + "00")
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_rejects_unapproved_upload_signer(self):
+        result = self.run_verifier(None, "--expect-signer", "a" * 64)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("approved upload key", result.stderr)
+
     def test_rejects_ambiguous_source_revision(self):
         result = self.run_verifier(None, "--source-revision", "main")
         self.assertEqual(result.returncode, 2)
