@@ -152,6 +152,12 @@ int main() {
     OVERTE_EXPECT(!openXrCreatedHandleUsable(true, false));
     OVERTE_EXPECT(openXrCreatedHandleUsable(true, true));
 
+    for (unsigned int mask = 0; mask < 4; ++mask) {
+        OVERTE_EXPECT(openXrPathConversionUsable(
+                   (mask & 1U) != 0,
+                   (mask & 2U) != 0) == (mask == 3U));
+    }
+
     OVERTE_EXPECT(openXrLocatedPoseUsable(true, true, true, pose, pose));
     OVERTE_EXPECT(!openXrLocatedPoseUsable(false, true, true, pose, pose));
     OVERTE_EXPECT(!openXrLocatedPoseUsable(true, false, true, pose, pose));

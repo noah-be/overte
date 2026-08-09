@@ -136,6 +136,11 @@ constexpr bool openXrCreatedHandleUsable(
     return callSucceeded && handleIsNonNull;
 }
 
+constexpr bool openXrPathConversionUsable(
+        bool callSucceeded, bool pathIsNonNull) {
+    return callSucceeded && pathIsNonNull;
+}
+
 constexpr bool openXrLocatedPoseUsable(
         bool spaceIsNonNull,
         bool predictionAvailable,

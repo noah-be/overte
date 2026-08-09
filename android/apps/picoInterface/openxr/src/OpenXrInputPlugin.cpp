@@ -613,10 +613,16 @@ bool OpenXrInputPlugin::Action::createPoseSpaces() {
 
 bool OpenXrInputPlugin::InputDevice::initBindings(const std::string& profileName,
                                                   const std::map<std::string, std::string>& actionsToBind) {
-    XrPath profilePath;
-    XrResult result = xrStringToPath(_context->_instance, profileName.c_str(), &profilePath);
-    if (!xrCheck(_context->_instance, result, "Failed to get interaction profile"))
+    XrPath profilePath = XR_NULL_PATH;
+    XrResult result = xrStringToPath(
+        _context->_instance, profileName.c_str(), &profilePath);
+    const bool profileConverted = xrCheck(
+        _context->_instance, result,
+        "Failed to convert interaction profile path");
+    if (!openXrPathConversionUsable(
+            profileConverted, profilePath != XR_NULL_PATH)) {
         return false;
+    }
 
     std::vector<XrActionSuggestedBinding> suggestions;
     for (const auto& [actionName, inputPathRaw] : actionsToBind) {
@@ -635,8 +641,17 @@ bool OpenXrInputPlugin::InputDevice::initBindings(const std::string& profileName
 
         XrActionSuggestedBinding bind = {
             .action = _actions[actionName]->_action,
+            .binding = XR_NULL_PATH,
         };
-        xrStringToPath(_context->_instance, inputPathRaw.c_str(), &bind.binding);
+        const bool bindingConverted = xrCheck(
+            _context->_instance,
+            xrStringToPath(
+                _context->_instance, inputPathRaw.c_str(), &bind.binding),
+            "Failed to convert interaction binding path");
+        if (!openXrPathConversionUsable(
+                bindingConverted, bind.binding != XR_NULL_PATH)) {
+            return false;
+        }
         suggestions.emplace(suggestions.end(), bind);
     }
 
