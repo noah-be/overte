@@ -81,6 +81,13 @@
       "description": "Complete source, architecture, privacy and tablet contracts"
     },
     {
+      "id": "android-workflow-contracts",
+      "kind": "contract",
+      "tiers": ["contracts"],
+      "command": ["tests/android-workflow-contract-test.py"],
+      "description": "GitHub Actions permission, pinning, retention and isolation contracts"
+    },
+    {
       "id": "phone-device-free-regression",
       "kind": "integration",
       "tiers": ["regression"],
