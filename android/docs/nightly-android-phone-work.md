@@ -4,6 +4,25 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 130 — Exercise explicit Pico benchmark rejection
+
+- Branch: `nightly/android-phone-130-pico-benchmark-rejection`
+- Commit: `Test phone benchmark Pico rejection` (this task's commit)
+- Change: Parameterize the fake product identity and exercise the conservative
+  Pico/ByteDance identity defense independently of generic VR characteristics.
+- Tests:
+  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; a Pico identity
+    receives the dedicated refusal before graphics reset, log clear, or Activity
+    start, while all physical-Phone boundary fixtures remain green.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 317/317.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: The identity check is intentionally conservative to prevent
+  accidental use of this Phone-only harness on known VR product families.
+- Real-device validation still required: None on Pico hardware; do not run this
+  Phone benchmark on Pico/VR devices.
+
 ## 129 — Exercise every benchmark device boundary
 
 - Branch: `nightly/android-phone-129-device-contract-fixtures`
@@ -2934,7 +2953,8 @@ All branches form one linear chain starting at
 126. `nightly/android-phone-126-failed-temp-report-cleanup` — `8af0cc8bd1`
 127. `nightly/android-phone-127-report-mode-cleanup` — `bfa652240e`
 128. `nightly/android-phone-128-raw-mode-cleanup` — `2e2c58a547`
-129. `nightly/android-phone-129-device-contract-fixtures` — this task's commit
+129. `nightly/android-phone-129-device-contract-fixtures` — `961b5537ec`
+130. `nightly/android-phone-130-pico-benchmark-rejection` — this task's commit
 
 ### Device-free audit disposition
 

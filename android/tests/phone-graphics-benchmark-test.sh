@@ -83,7 +83,7 @@ sed 's/^+//' >"$fixture/adb" <<'MOCK'
 +    ro.product.cpu.abilist) printf '%s\n' "${MOCK_ABIS:-arm64-v8a}" ;;
 +    ro.build.version.sdk) printf '%s\n' "${MOCK_SDK:-36}" ;;
 +    ro.opengles.version) printf '%s\n' "${MOCK_GLES:-196610}" ;;
-+    *) printf 'Generic\n' ;;
++    *) printf '%s\n' "${MOCK_PRODUCT_IDENTITY:-Generic}" ;;
 +  esac
 +  exit
 +fi
@@ -212,6 +212,15 @@ fi
 grep -Fxq 'ERROR: ANDROID_SERIAL does not meet the physical Phone runtime contract' \
     "$fixture/rejected-device.out"
 ! grep -Eq 'dumpsys gfxinfo|logcat -c|am start' "$rejected_commands"
+pico_commands="$fixture/rejected-pico-commands"
+: >"$pico_commands"
+if PHONE_ADB="$fixture/adb" MOCK_PRODUCT_IDENTITY=Pico ANDROID_SERIAL=phone-secret \
+    PHONE_BENCHMARK_CONFIRM_NON_VR=YES MOCK_ADB_COMMAND_LOG="$pico_commands" \
+    "$script_dir/phone-graphics-benchmark.sh" 1 >"$fixture/rejected-pico.out" 2>&1; then
+    echo 'FAIL: benchmark accepted a Pico identity' >&2; exit 1
+fi
+grep -Fxq 'ERROR: refusing to benchmark a Pico/VR device' "$fixture/rejected-pico.out"
+! grep -Eq 'dumpsys gfxinfo|logcat -c|am start' "$pico_commands"
 for contract_fixture in \
         'watch:MOCK_CHARACTERISTICS=watch' \
         'abi:MOCK_ABIS=x86_64' \
