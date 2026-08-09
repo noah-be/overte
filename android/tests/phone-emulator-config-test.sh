@@ -105,6 +105,10 @@ count=0
 count=$((count + 1))
 printf '%s\n' "$count" >"$FAKE_GRADLE_COUNT"
 printf '%s\n' "$*" >>"$FAKE_GRADLE_ARGUMENTS"
+[[ -z "${FAKE_GRADLE_MARKER:-}" ]] || printf 'started\n' >"$FAKE_GRADLE_MARKER"
+if [[ -n "${FAKE_GRADLE_RELEASE:-}" ]]; then
+    while [[ ! -f "$FAKE_GRADLE_RELEASE" ]]; do sleep 0.01; done
+fi
 echo "instrumentation output attempt $count"
 [[ "${FAKE_GRADLE_FAIL_ATTEMPT:-}" != "$count" ]]
 EOF
@@ -166,5 +170,74 @@ if PHONE_EMULATOR_TEST_REPETITIONS=2 "$fixture_android/phone-emulator-test.sh" t
     exit 1
 fi
 grep -Fq 'PHONE_EMULATOR_TEST_CLASS is required' "$fixture/missing-class.out"
+
+lock_file="$fixture_android/build/phone-emulator.lock"
+exec {held_lock_fd}>>"$lock_file"
+flock -x "$held_lock_fd"
+rm -f "$fixture/gradle-count" "$fixture/gradle-arguments"
+set +e
+env "${common_environment[@]}" PHONE_EMULATOR_LOCK_TIMEOUT_SECONDS=0.05 \
+    "$fixture_android/phone-emulator-test.sh" test \
+    >"$fixture/lock-timeout.out" 2>&1
+lock_timeout_status=$?
+set -e
+[[ "$lock_timeout_status" == 2 ]] || {
+    echo 'FAIL: emulator lifecycle lock timeout did not fail closed' >&2
+    exit 1
+}
+grep -Fq 'timed out waiting for phone emulator lifecycle lock' \
+    "$fixture/lock-timeout.out"
+[[ ! -f "$fixture/gradle-count" ]] || {
+    echo 'FAIL: emulator Gradle ran before lifecycle lock acquisition' >&2
+    exit 1
+}
+env "${common_environment[@]}" "$fixture_android/phone-emulator-test.sh" doctor \
+    >"$fixture/doctor-while-locked.out"
+flock -u "$held_lock_fd"
+exec {held_lock_fd}>&-
+
+set +e
+env "${common_environment[@]}" PHONE_EMULATOR_LOCK_TIMEOUT_SECONDS=invalid \
+    "$fixture_android/phone-emulator-test.sh" test \
+    >"$fixture/invalid-lock-timeout.out" 2>&1
+invalid_lock_timeout_status=$?
+set -e
+[[ "$invalid_lock_timeout_status" == 2 && ! -f "$fixture/gradle-count" ]] || {
+    echo 'FAIL: invalid emulator lock timeout reached the tool lifecycle' >&2
+    exit 1
+}
+grep -Fq 'must be a non-negative number' "$fixture/invalid-lock-timeout.out"
+
+first_marker="$fixture/first-gradle-started"
+second_marker="$fixture/second-gradle-started"
+release_first="$fixture/release-first-gradle"
+env "${common_environment[@]}" FAKE_GRADLE_MARKER="$first_marker" \
+    FAKE_GRADLE_RELEASE="$release_first" \
+    "$fixture_android/phone-emulator-test.sh" test >"$fixture/first-run.out" 2>&1 &
+first_pid=$!
+for _ in $(seq 1 200); do
+    [[ -f "$first_marker" ]] && break
+    kill -0 "$first_pid" 2>/dev/null || break
+    sleep 0.01
+done
+[[ -f "$first_marker" ]] || {
+    echo 'FAIL: first emulator lifecycle never reached Gradle' >&2
+    exit 1
+}
+env "${common_environment[@]}" FAKE_GRADLE_MARKER="$second_marker" \
+    "$fixture_android/phone-emulator-test.sh" test >"$fixture/second-run.out" 2>&1 &
+second_pid=$!
+sleep 0.1
+[[ ! -f "$second_marker" ]] || {
+    echo 'FAIL: parallel emulator lifecycle bypassed the lock' >&2
+    exit 1
+}
+touch "$release_first"
+wait "$first_pid"
+wait "$second_pid"
+[[ -f "$second_marker" ]] || {
+    echo 'FAIL: waiting emulator lifecycle did not resume after release' >&2
+    exit 1
+}
 
 echo 'Phone x86_64 emulator configuration checks passed.'

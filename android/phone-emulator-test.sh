@@ -14,6 +14,8 @@ log_file="$state_dir/emulator.log"
 gradle_tmp="$state_dir/gradle-tmp"
 test_class="${PHONE_EMULATOR_TEST_CLASS:-}"
 test_repetitions="${PHONE_EMULATOR_TEST_REPETITIONS:-1}"
+lock_file="${PHONE_EMULATOR_LOCK_FILE:-${state_dir}.lock}"
+lock_timeout="${PHONE_EMULATOR_LOCK_TIMEOUT_SECONDS:-600}"
 
 fail() { echo "error: $*" >&2; exit 2; }
 
@@ -175,6 +177,22 @@ stop() {
     rm -f -- "$serial_file" "$pid_file"
 }
 
+acquire_lifecycle_lock() {
+    [[ "$lock_timeout" =~ ^[0-9]+([.][0-9]+)?$ ]] \
+        || fail "PHONE_EMULATOR_LOCK_TIMEOUT_SECONDS must be a non-negative number"
+    mkdir -p -- "$(dirname -- "$lock_file")"
+    exec {emulator_lock_fd}>>"$lock_file"
+    if ! flock -x -w "$lock_timeout" "$emulator_lock_fd"; then
+        fail "timed out waiting for phone emulator lifecycle lock"
+    fi
+}
+
+case "$command_name" in
+    doctor) ;;
+    deps|start|build|test|stop|all) acquire_lifecycle_lock ;;
+    *) fail "usage: $0 [doctor|deps|start|build|test|stop|all]" ;;
+esac
+
 case "$command_name" in
     doctor) doctor ;;
     deps) "$script_dir/prepare-phone-emulator-deps.sh" ;;
@@ -183,5 +201,4 @@ case "$command_name" in
     test) test_emulator ;;
     stop) stop ;;
     all) build; test_emulator ;;
-    *) fail "usage: $0 [doctor|deps|start|build|test|stop|all]" ;;
 esac
