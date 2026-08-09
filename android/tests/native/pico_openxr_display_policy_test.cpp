@@ -1,6 +1,7 @@
 #include "OpenXrDisplayPolicy.h"
 
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <vector>
@@ -36,6 +37,38 @@ int main() {
     const std::size_t maximum = std::numeric_limits<std::size_t>::max();
     assert(isConsistentOpenXrEnumerationCount(maximum, maximum));
     assert(!isConsistentOpenXrEnumerationCount(maximum - 1, maximum));
+    assert(isOpenXrEnumerationCountWithinCapacity(0, 0));
+    assert(!isOpenXrEnumerationCountWithinCapacity(0, 1));
+    assert(isOpenXrEnumerationCountWithinCapacity(1, 0));
+    assert(isOpenXrEnumerationCountWithinCapacity(1, 1));
+    assert(isOpenXrEnumerationCountWithinCapacity(3, 1));
+    assert(isOpenXrEnumerationCountWithinCapacity(3, 3));
+    assert(!isOpenXrEnumerationCountWithinCapacity(3, 4));
+    assert(isOpenXrEnumerationCountWithinCapacity(maximum, maximum));
+    assert(!isOpenXrEnumerationCountWithinCapacity(maximum - 1, maximum));
+
+    assert(selectLowestUsableOpenXrRefreshRate(nullptr, 0) == 0.0f);
+    assert(selectLowestUsableOpenXrRefreshRate(nullptr, 2) == 0.0f);
+    const float oneRate[] = { 72.0f };
+    assert(selectLowestUsableOpenXrRefreshRate(oneRate, 1) == 72.0f);
+    const float rates[] = { 90.0f, 72.0f, 72.0f, 120.0f };
+    assert(selectLowestUsableOpenXrRefreshRate(rates, 4) == 72.0f);
+    const float invalidRates[] = {
+        0.0f, -72.0f, std::numeric_limits<float>::quiet_NaN(),
+        std::numeric_limits<float>::infinity(),
+        -std::numeric_limits<float>::infinity()
+    };
+    assert(selectLowestUsableOpenXrRefreshRate(invalidRates, 5) == 0.0f);
+    const float mixedRates[] = {
+        std::numeric_limits<float>::quiet_NaN(), 90.0f, 72.0f,
+        std::numeric_limits<float>::infinity()
+    };
+    assert(selectLowestUsableOpenXrRefreshRate(mixedRates, 4) == 72.0f);
+    const float smallestPositive[] = {
+        90.0f, std::numeric_limits<float>::min(), 72.0f
+    };
+    assert(selectLowestUsableOpenXrRefreshRate(smallestPositive, 3) ==
+           std::numeric_limits<float>::min());
 
     std::vector<int> handles = { 11, 0, 22, 33 };
     std::vector<int> destroyed;

@@ -784,23 +784,35 @@ bool OpenXrContext::initSession() {
                            reinterpret_cast<PFN_xrVoidFunction*>(&xrRequestDisplayRefreshRateFB));
 
         if (functionsLoaded) {
-            uint32_t rateCount = 0;
-            result = xrEnumerateDisplayRefreshRatesFB(_session, 0, &rateCount, nullptr);
+            uint32_t rateCapacity = 0;
+            result = xrEnumerateDisplayRefreshRatesFB(_session, 0, &rateCapacity, nullptr);
             if (xrCheck(_instance, result, "Failed to enumerate display refresh-rate count")) {
-                std::vector<float> rates(rateCount);
-                result = xrEnumerateDisplayRefreshRatesFB(_session, rateCount, &rateCount, rates.data());
-                if (xrCheck(_instance, result, "Failed to enumerate display refresh rates")) {
+                std::vector<float> rates(rateCapacity);
+                uint32_t returnedRateCount = 0;
+                if (rateCapacity > 0) {
+                    result = xrEnumerateDisplayRefreshRatesFB(
+                        _session, rateCapacity, &returnedRateCount, rates.data());
+                }
+                if (rateCapacity == 0 ||
+                        xrCheck(_instance, result, "Failed to enumerate display refresh rates")) {
+                    if (!isOpenXrEnumerationCountWithinCapacity(
+                            rateCapacity, returnedRateCount)) {
+                        qCWarning(xr_context_cat,
+                                  "The OpenXR runtime returned an invalid display refresh-rate count.");
+                        rates.clear();
+                    } else {
+                        rates.resize(returnedRateCount);
+                    }
                     QStringList rateNames;
-                    float lowestRate = rates.empty() ? 0.0f : rates.front();
                     for (float rate : rates) {
                         rateNames << QString::number(rate, 'f', 1);
-                        lowestRate = std::min(lowestRate, rate);
                     }
                     qCInfo(xr_context_cat) << "Supported display refresh rates:" << rateNames.join(", ") << "Hz";
 
                     // Use the lowest native mode and keep rendering synchronized
                     // to it. Pico 4 currently advertises 72 and 90 Hz.
-                    float requestedRate = lowestRate;
+                    float requestedRate = selectLowestUsableOpenXrRefreshRate(
+                        rates.data(), rates.size());
                     if (requestedRate > 0.0f) {
                         result = xrRequestDisplayRefreshRateFB(_session, requestedRate);
                         if (xrCheck(_instance, result, "Failed to request the lowest Pico display refresh rate")) {

@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cmath>
 #include <vector>
 
 constexpr int64_t OPENXR_NO_SWAPCHAIN_FORMAT = -1;
@@ -24,6 +25,29 @@ inline bool isOpenXrSwapchainImageIndexValid(
 inline bool isConsistentOpenXrEnumerationCount(
         std::size_t capacity, std::size_t returnedCount) {
     return capacity > 0 && returnedCount > 0 && returnedCount <= capacity;
+}
+
+inline bool isOpenXrEnumerationCountWithinCapacity(
+        std::size_t capacity, std::size_t returnedCount) {
+    return returnedCount <= capacity;
+}
+
+inline float selectLowestUsableOpenXrRefreshRate(
+        const float* rates, std::size_t count) {
+    if (rates == nullptr || count == 0) {
+        return 0.0f;
+    }
+    float selected = 0.0f;
+    for (std::size_t i = 0; i < count; ++i) {
+        const float rate = rates[i];
+        if (!std::isfinite(rate) || rate <= 0.0f) {
+            continue;
+        }
+        if (selected == 0.0f || rate < selected) {
+            selected = rate;
+        }
+    }
+    return selected;
 }
 
 template<typename Handle, typename Destroy>
