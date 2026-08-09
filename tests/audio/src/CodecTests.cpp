@@ -20,26 +20,10 @@ void CodecTests::initTestCase() {
     DependencyManager::set<PluginManager>();
 
     QDir testPath (QCoreApplication::applicationDirPath());
-    QDir interfacePluginPath = testPath;
-
-
-
     qDebug() << "Our directory is" << testPath;
-
-    interfacePluginPath.cdUp();
-    interfacePluginPath.cdUp();
-    interfacePluginPath.cd("interface");
-    interfacePluginPath.cd("plugins");
-    interfacePluginPath.makeAbsolute();
-
     QString ourPluginPath = testPath.filePath("plugins");
-
-
-    qDebug() << "Interface plugins are at" << interfacePluginPath;
     qDebug() << "Our plugins are at" << ourPluginPath;
-
-
-    QFile::link(interfacePluginPath.path(), ourPluginPath);
+    QVERIFY2(QDir(ourPluginPath).exists(), qPrintable("Missing packaged test plugins: " + ourPluginPath));
 
 }
 

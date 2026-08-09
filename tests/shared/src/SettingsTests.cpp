@@ -43,13 +43,13 @@ void SettingsTestsWorker::saveSettings() {
 void SettingsTests::initTestCase() {
     QCoreApplication::setOrganizationName("OverteTest");
 
-    DependencyManager::set<Setting::Manager>();
-
+    // Setting::init() owns creation and shutdown registration for the single
+    // manager. Creating one here as well leaked its writer thread at exit.
     Setting::init();
 }
 
 void SettingsTests::cleanupTestCase() {
-  //  Setting::cleanupSettingsSaveThread();
+    // The post routine registered by Setting::init() flushes and joins it.
 }
 
 void SettingsTests::loadSettings() {
@@ -181,7 +181,7 @@ void SettingsTests::benchmarkSetValue() {
     auto sm = DependencyManager::get<Setting::Manager>();
     int i = 0;
 
-    QBENCHMARK {
+    QBENCHMARK_ONCE {
         sm->setValue("BenchmarkSetValue", ++i);
     }
 
@@ -192,7 +192,7 @@ void SettingsTests::benchmarkSaveSettings() {
     auto sm = DependencyManager::get<Setting::Manager>();
     int i = 0;
 
-    QBENCHMARK {
+    QBENCHMARK_ONCE {
         sm->setValue("BenchmarkSave", ++i);
         sm->forceSave();
     }
@@ -213,7 +213,7 @@ void SettingsTests::benchmarkSetValueConcurrent() {
     QObject::connect(_settingsThread, &QThread::started, _testWorker, &SettingsTestsWorker::saveSettings, Qt::QueuedConnection );
 
     _settingsThread->start();
-    QBENCHMARK {
+    QBENCHMARK_ONCE {
         sm->setValue("BenchmarkSetValueConcurrent", ++i);
     }
 
@@ -223,4 +223,3 @@ void SettingsTests::benchmarkSetValueConcurrent() {
     delete _testWorker;
     delete _settingsThread;
 }
-

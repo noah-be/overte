@@ -7,7 +7,6 @@ BUILD_CONFIG="${OVERTE_TEST_BUILD_CONFIG:-Debug}"
 JOBS="${OVERTE_TEST_JOBS:-$(nproc)}"
 TIMEOUT="${OVERTE_TEST_TIMEOUT:-300}"
 INCLUDE_BENCHMARKS="${OVERTE_TEST_INCLUDE_BENCHMARKS:-0}"
-INCLUDE_INTEGRATION="${OVERTE_TEST_INCLUDE_INTEGRATION:-0}"
 
 usage() {
     cat <<'EOF'
@@ -16,9 +15,8 @@ Usage: tests/project-native-test.sh [BUILD_DIR]
 Build and execute every CTest-registered automated native test in an already
 configured Overte build. Environment: OVERTE_TEST_BUILD_CONFIG,
 OVERTE_TEST_JOBS, OVERTE_TEST_TIMEOUT, OVERTE_TEST_INCLUDE_BENCHMARKS,
-OVERTE_TEST_INCLUDE_INTEGRATION, CTEST_OUTPUT_ON_FAILURE. Benchmarks and tests
-requiring audio devices, packaged plugins, GPU drivers, or legacy fixtures are
-excluded unless explicitly enabled.
+CTEST_OUTPUT_ON_FAILURE. Benchmarks are excluded unless explicitly enabled;
+hardware-dependent tests report precise skips when their backend is absent.
 EOF
 }
 
@@ -50,9 +48,6 @@ CTEST_ARGS=(--test-dir "$BUILD_DIR" -C "$BUILD_CONFIG" --output-on-failure
 EXCLUDES=()
 if [[ "$INCLUDE_BENCHMARKS" != "1" ]]; then
     EXCLUDES+=('BenchmarkTests-test$')
-fi
-if [[ "$INCLUDE_INTEGRATION" != "1" ]]; then
-    EXCLUDES+=('^(audio-AudioTests|audio-CodecTests|gpu-ShaderLoadTest|gpu-TextureTest|model-serializers-ModelSerializersTests|shared-SettingsTests)-test$')
 fi
 if (( ${#EXCLUDES[@]} )); then
     EXCLUDE_REGEX="$(IFS='|'; echo "${EXCLUDES[*]}")"

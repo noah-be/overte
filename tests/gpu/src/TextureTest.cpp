@@ -78,6 +78,9 @@ void messageHandler(QtMsgType type, const QMessageLogContext& context, const QSt
 
 void TextureTest::initTestCase() {
     originalHandler = qInstallMessageHandler(messageHandler);
+    if (QGuiApplication::platformName() == "offscreen") {
+        QSKIP("Texture rendering requires a real or virtual OpenGL display");
+    }
     _resourcesPath = getTestResource("interface/resources");
     getDefaultOpenGLSurfaceFormat();
     _canvas.create();
@@ -140,7 +143,9 @@ void TextureTest::initTestCase() {
 void TextureTest::cleanupTestCase() {
     _framebuffer.reset();
     _pipeline.reset();
-    _gpuContext->recycle();
+    if (_gpuContext) {
+        _gpuContext->recycle();
+    }
     _gpuContext.reset();
 }
 

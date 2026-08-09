@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "capabilities": [
-    {"id": "apk-platform-contract", "risk": "high", "tests": ["package-contract", "android-entrypoints", "platform-glue"]},
+    {"id": "apk-platform-contract", "risk": "high", "tests": ["package-contract", "android-entrypoints", "platform-glue", "android-jvm"]},
     {"id": "openxr-lifecycle-and-rendering", "risk": "critical", "tests": ["openxr-loader", "openxr-display", "platform-glue"]},
-    {"id": "openxr-input-and-tracking", "risk": "critical", "tests": ["openxr-input", "interaction-diagnostics"]},
+    {"id": "openxr-input-and-tracking", "risk": "critical", "tests": ["openxr-input", "interaction-diagnostics", "runtime-state-simulation"]},
     {"id": "webview-rendering-and-input", "risk": "high", "tests": ["webview-bridge", "webview-touch-state"]},
     {"id": "microphone-lifecycle-and-transport", "risk": "critical", "tests": ["audio-capture-state", "audio-native-transport", "microphone-runner"]},
     {"id": "tablet-and-create-ui", "risk": "high", "tests": ["tablet-lifecycle", "tablet-settings", "create-qml", "create-properties", "create-message"]},

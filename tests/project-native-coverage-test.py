@@ -51,6 +51,21 @@ class NativeCoverageTests(unittest.TestCase):
         self.assertEqual(report["summary"]["lines"], {"covered": 2, "total": 2, "percent": 100.0})
         self.assertEqual(report["summary"]["functions"]["covered"], 1)
         self.assertEqual(report["summary"]["branches"]["covered"], 1)
+        self.assertEqual(report["components"][0]["path"], "libraries/shared")
+        self.assertEqual(report["files"][0]["line_hits"], {"10": 3, "11": 2})
+
+    def test_changed_line_parser_and_diff_summary(self):
+        diff = """+++ b/libraries/shared/src/Value.cpp
+@@ -9,0 +10,2 @@
++one
++two
+"""
+        changed = MODULE.parse_changed_lines(diff)
+        self.assertEqual(changed["libraries/shared/src/Value.cpp"], {10, 11})
+        report = {"files": [{"path": "libraries/shared/src/Value.cpp",
+                             "line_hits": {"10": 0, "11": 4}}]}
+        self.assertEqual(MODULE.diff_summary(report, changed),
+                         {"covered": 1, "total": 2, "percent": 50.0})
 
     def test_zero_total_percentage_is_well_defined(self):
         report = MODULE.merge_documents([], Path("/tmp/not-used"))

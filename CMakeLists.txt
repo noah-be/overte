@@ -287,8 +287,11 @@ if (OVERTE_BUILD_CLIENT)
   endif()
 endif()
 
-if (OVERTE_BUILD_CLIENT OR OVERTE_BUILD_SERVER)
+if (OVERTE_BUILD_CLIENT OR OVERTE_BUILD_SERVER OR OVERTE_BUILD_TESTS)
   add_subdirectory(plugins)
+endif()
+
+if (OVERTE_BUILD_CLIENT OR OVERTE_BUILD_SERVER)
   add_subdirectory(server-console)
 endif()
 

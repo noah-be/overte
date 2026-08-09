@@ -156,7 +156,9 @@ public:
 
     const std::unordered_map<NodePermissionsKey, NodePermissionsPointer, NodePermissionsKeyHash>& get() { return _data; }
     void clear() { _data.clear(); }
-    void remove(const NodePermissionsKey& key) { _data.erase(key); }
+    void remove(const NodePermissionsKey& key) {
+        _data.erase(NodePermissionsKey(key.first.toLower(), key.second));
+    }
 
 private:
     std::unordered_map<NodePermissionsKey, NodePermissionsPointer, NodePermissionsKeyHash> _data;

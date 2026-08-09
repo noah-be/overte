@@ -8,8 +8,8 @@ The project test runner provides three layers from one entry point.
 tests/run-project-tests.py --junit build/test-results/project-tests.xml
 ```
 
-This profile needs Bash, Python 3, Node.js, Java/Javac, and `jq`, but no Android
-SDK, Qt build, emulator, headset, display, or audio device. It runs:
+This profile needs Bash, Python 3, Node.js, JDK 17, Android SDK platform 36, and
+`jq`, but no NDK/Qt build, emulator, headset, display, or audio device. It runs:
 
 - repository-wide Python, Shell, JavaScript, JSON, XML, symlink, Gradle-wrapper,
   and CMake-test integrity checks;
@@ -33,13 +33,11 @@ tests/run-project-tests.py --profile full \
   --timeout 1800
 ```
 
-The native layer builds the `all-tests` target and runs 42 CTest tests in
+The native layer builds the `all-tests` target and runs 50 CTest tests in
 parallel with failure output and a per-test timeout. Benchmarks are not
-correctness tests and are excluded by default. Six environment-dependent tests
-(physical audio devices, packaged codecs, GPU drivers, legacy model fixtures,
-and a settings shutdown issue) are also separated from the headless gate. Use
-`OVERTE_TEST_INCLUDE_BENCHMARKS=1` and/or
-`OVERTE_TEST_INCLUDE_INTEGRATION=1` for diagnostic runs. Configuration, jobs,
+correctness tests and are excluded by default. Codec plugins are packaged with
+their test, audio supports dummy input, and GPU tests report a skip when no GL
+display exists. Use `OVERTE_TEST_INCLUDE_BENCHMARKS=1` for diagnostic runs. Configuration, jobs,
 and timeout are controlled by `OVERTE_TEST_BUILD_CONFIG`,
 `OVERTE_TEST_JOBS`, and `OVERTE_TEST_TIMEOUT`.
 
@@ -61,11 +59,16 @@ tests/run-project-tests.py --profile coverage \
 
 The report defaults to `build/coverage/native/coverage.json` and `index.html`.
 The wrapper rejects non-instrumented builds instead of producing a misleading
-empty report. The verified deterministic run in this worktree reached 14.66%
-lines, 19.49% functions, and 7.74% branches across all linked production
+empty report. The expanded deterministic run in this worktree reached 15.22%
+lines, 20.42% functions, and 7.98% branches across all linked production
 sources. Percentages are low because test executables link many libraries whose
 features are outside each test's scope; file-level results are the useful guide
 for choosing the next tests.
+
+Reports contain per-component summaries and executable-line hit counts. Set
+`OVERTE_COVERAGE_CHANGED_SINCE=origin/feature/pico4-support` for changed-line
+coverage. Set `OVERTE_COVERAGE_BASELINE=path/to/coverage.json` to make the run
+fail on a line, function, or branch percentage regression.
 
 ## Coverage interpretation
 

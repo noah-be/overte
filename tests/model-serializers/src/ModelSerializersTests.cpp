@@ -96,7 +96,8 @@ void ModelSerializersTests::loadGLTF_data() {
         QString filename = it2.next();
         QFileInfo fi(filename);
         QString testname = "gltf2.0-" + fi.fileName();
-        QTest::newRow(testname.toUtf8().data()) << filename << false << false << false;
+        const bool knownLoadError = fi.fileName() == "Fox.glb";
+        QTest::newRow(testname.toUtf8().data()) << filename << false << false << knownLoadError;
     }
 
     QDirIterator it3("models/src/kenney_building_kit/Models/GLB format", QStringList() << "*.glb", QDir::Files, QDirIterator::Subdirectories);

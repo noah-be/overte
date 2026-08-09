@@ -5,8 +5,8 @@ For the repository-wide runner that includes this suite, see
 
 The Pico 4 suite protects Android packaging, OpenXR, WebView, audio, controller
 interaction, tablet/Create UI, serverless worlds, performance tooling, and the
-headset automation scripts without requiring an Android SDK, emulator, or
-headset.
+headset automation scripts without requiring an emulator or headset. The
+Robolectric layer requires Android SDK platform 36 but no NDK or Pico/Qt build.
 
 ## Quick start
 
@@ -16,8 +16,8 @@ Run the complete suite from the repository root:
 android/tests/pico-device-free-test.sh
 ```
 
-The standard run requires Python 3, Bash, Node.js, a JDK (`java` and `javac`),
-and `jq`. See everything the runner knows about or run a focused subset:
+The standard run requires Python 3, Bash, Node.js, JDK 17, Android SDK platform
+36, and `jq`. See everything the runner knows about or run a focused subset:
 
 ```bash
 android/tests/pico-device-free-test.sh --list
@@ -76,3 +76,17 @@ it to one or more capabilities in `pico4-coverage.json`. Prefer behavior tests
 for extracted platform-independent logic. Use source contracts only for JNI,
 Android, Qt, or OpenXR paths that cannot execute on the host, and assert safety
 invariants rather than formatting details.
+## Android JVM tests
+
+Pico lifecycle and persistence behavior can be tested without an emulator,
+headset, Qt package, or native build:
+
+```bash
+android/tests/pico-android-jvm-test.sh
+```
+
+The task uses JDK 17 and Robolectric to cover permission grant/denial,
+configuration-state restoration, private restart argument consumption, and the
+restart intent handoff. `PICO_JAVA_HOME` and `ANDROID_SDK_ROOT` override local
+toolchain discovery. Gradle's JVM-only path deliberately avoids configuring the
+large Pico CMake/Conan graph.

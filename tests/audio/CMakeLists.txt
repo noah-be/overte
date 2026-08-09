@@ -8,6 +8,16 @@ macro (SETUP_TESTCASE_DEPENDENCIES)
   link_hifi_libraries(shared audio audio-client plugins networking script-engine)
 
   package_libraries_for_deployment()
+
+  if("${TARGET_NAME}" STREQUAL "audio-CodecTests")
+    add_dependencies(${TARGET_NAME} pcmCodec opusCodec)
+    add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${TARGET_NAME}>/plugins"
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:pcmCodec>" "$<TARGET_FILE:opusCodec>"
+        "$<TARGET_FILE_DIR:${TARGET_NAME}>/plugins"
+    )
+  endif()
 endmacro ()
 
 setup_hifi_testcase()
