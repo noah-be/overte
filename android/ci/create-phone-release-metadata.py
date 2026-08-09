@@ -66,7 +66,7 @@ def release_metadata_lock_timeout():
     value = os.environ.get("OVERTE_RELEASE_METADATA_LOCK_TIMEOUT_SECONDS", "600")
     try:
         timeout = float(value)
-    except ValueError as error:
+    except ValueError:
         fail("release metadata lock timeout must be a non-negative number")
     if timeout < 0 or not timeout < float("inf"):
         fail("release metadata lock timeout must be a non-negative number")

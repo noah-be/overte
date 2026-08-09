@@ -92,7 +92,7 @@ def manifest_lock_timeout():
     )
     try:
         timeout = float(value)
-    except ValueError as error:
+    except ValueError:
         fail("APK manifest lock timeout must be a non-negative number")
     if timeout < 0 or not math.isfinite(timeout):
         fail("APK manifest lock timeout must be a non-negative number")
