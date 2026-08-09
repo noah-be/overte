@@ -9,6 +9,7 @@
 
 #include "OpenXrContext.h"
 #include "OpenXrDebugPolicy.h"
+#include "OpenXrSpacePolicy.h"
 #include <QLoggingCategory>
 #include <QString>
 #include <QStringList>
@@ -747,15 +748,43 @@ bool OpenXrContext::initSession() {
 }
 
 bool OpenXrContext::initSpaces() {
-    // TODO: Do xrEnumerateReferenceSpaces before assuming stage space is available.
+    uint32_t spaceCount = 0;
+    XrResult result = xrEnumerateReferenceSpaces(_session, 0, &spaceCount, nullptr);
+    if (!xrCheck(_instance, result, "Failed to enumerate reference-space count"))
+        return false;
+
+    std::vector<XrReferenceSpaceType> supportedSpaces(spaceCount);
+    result = xrEnumerateReferenceSpaces(
+        _session, spaceCount, &spaceCount, supportedSpaces.data());
+    if (!xrCheck(_instance, result, "Failed to enumerate reference spaces"))
+        return false;
+
+    bool stageAvailable = false;
+    bool localAvailable = false;
+    bool viewAvailable = false;
+    for (auto space : supportedSpaces) {
+        stageAvailable |= space == XR_REFERENCE_SPACE_TYPE_STAGE;
+        localAvailable |= space == XR_REFERENCE_SPACE_TYPE_LOCAL;
+        viewAvailable |= space == XR_REFERENCE_SPACE_TYPE_VIEW;
+    }
+    auto worldChoice = openXrWorldSpaceChoice(stageAvailable, localAvailable);
+    if (worldChoice == OpenXrWorldSpaceChoice::Unavailable || !viewAvailable) {
+        qCCritical(xr_context_cat) << "OpenXR runtime lacks required world or view reference space";
+        return false;
+    }
+    if (worldChoice == OpenXrWorldSpaceChoice::Local) {
+        qCWarning(xr_context_cat) << "OpenXR stage space unavailable; using local world space";
+    }
+
     XrReferenceSpaceCreateInfo stageSpaceInfo = {
         .type = XR_TYPE_REFERENCE_SPACE_CREATE_INFO,
-        .referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE,
+        .referenceSpaceType = worldChoice == OpenXrWorldSpaceChoice::Stage
+                ? XR_REFERENCE_SPACE_TYPE_STAGE : XR_REFERENCE_SPACE_TYPE_LOCAL,
         .poseInReferenceSpace = XR_INDENTITY_POSE,
     };
 
-    XrResult result = xrCreateReferenceSpace(_session, &stageSpaceInfo, &_stageSpace);
-    if (!xrCheck(_instance, result, "Failed to create stage space!"))
+    result = xrCreateReferenceSpace(_session, &stageSpaceInfo, &_stageSpace);
+    if (!xrCheck(_instance, result, "Failed to create world space!"))
         return false;
 
     XrReferenceSpaceCreateInfo viewSpaceInfo = {

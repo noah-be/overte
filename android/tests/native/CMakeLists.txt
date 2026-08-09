@@ -155,3 +155,7 @@ add_overte_native_test(
 add_overte_native_test(
     pico_openxr_input_policy
     "${CMAKE_CURRENT_LIST_DIR}/pico_openxr_input_policy_test.cpp")
+
+add_overte_native_test(
+    pico_openxr_space_policy
+    "${CMAKE_CURRENT_LIST_DIR}/pico_openxr_space_policy_test.cpp")
