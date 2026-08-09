@@ -122,6 +122,17 @@ class AndroidPhoneBuildWorkflowContracts(unittest.TestCase):
         self.assertIn("apk-manifest.json", upload)
         self.assertIn("retention-days: 7", upload)
 
+    def test_build_diagnostics_are_scoped_to_the_workflow_attempt(self):
+        self.assertIn(
+            "name: android-phone-build-reports-${{ github.run_id }}-"
+            "${{ github.run_attempt }}",
+            self.source,
+        )
+        self.assertNotIn(
+            "name: android-phone-build-reports-${{ github.run_id }}\n",
+            self.source,
+        )
+
 
 class AndroidPhoneReleaseCandidateWorkflowContracts(unittest.TestCase):
     @classmethod
