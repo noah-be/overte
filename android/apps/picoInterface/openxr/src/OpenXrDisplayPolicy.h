@@ -17,6 +17,14 @@ inline bool isCompleteOpenXrStereoViewResult(
     return isSupportedOpenXrViewCount(capacity) && returnedCount == capacity;
 }
 
+constexpr bool areOpenXrStereoViewDimensionsCompatible(
+        std::size_t leftWidth, std::size_t leftHeight,
+        std::size_t rightWidth, std::size_t rightHeight) {
+    return leftWidth > 0 && leftHeight > 0 &&
+        rightWidth > 0 && rightHeight > 0 &&
+        leftWidth == rightWidth && leftHeight == rightHeight;
+}
+
 inline bool isOpenXrSwapchainImageIndexValid(
         std::size_t index, std::size_t imageCount) {
     return index < imageCount;

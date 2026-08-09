@@ -215,6 +215,19 @@ bool OpenXrDisplayPlugin::initViews() {
         qCCritical(xr_display_cat, "Runtime enumerated unsupported view count: %u", enumeratedViewCount);
         return false;
     }
+    if (!areOpenXrStereoViewDimensionsCompatible(
+            viewConfigs[0].recommendedImageRectWidth,
+            viewConfigs[0].recommendedImageRectHeight,
+            viewConfigs[1].recommendedImageRectWidth,
+            viewConfigs[1].recommendedImageRectHeight)) {
+        qCCritical(xr_display_cat,
+                   "Runtime returned incompatible stereo view dimensions: %ux%u and %ux%u",
+                   viewConfigs[0].recommendedImageRectWidth,
+                   viewConfigs[0].recommendedImageRectHeight,
+                   viewConfigs[1].recommendedImageRectWidth,
+                   viewConfigs[1].recommendedImageRectHeight);
+        return false;
+    }
 
     _viewCount = enumeratedViewCount;
     _views = std::move(views);

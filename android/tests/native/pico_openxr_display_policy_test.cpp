@@ -17,6 +17,17 @@ int main() {
     assert(!isCompleteOpenXrStereoViewResult(2, 1));
     assert(!isCompleteOpenXrStereoViewResult(2, 3));
     assert(!isCompleteOpenXrStereoViewResult(1, 1));
+    assert(areOpenXrStereoViewDimensionsCompatible(1024, 1024, 1024, 1024));
+    assert(!areOpenXrStereoViewDimensionsCompatible(1024, 1024, 2048, 1024));
+    assert(!areOpenXrStereoViewDimensionsCompatible(1024, 1024, 1024, 2048));
+    assert(!areOpenXrStereoViewDimensionsCompatible(0, 1024, 1024, 1024));
+    assert(!areOpenXrStereoViewDimensionsCompatible(1024, 0, 1024, 1024));
+    assert(!areOpenXrStereoViewDimensionsCompatible(1024, 1024, 0, 1024));
+    assert(!areOpenXrStereoViewDimensionsCompatible(1024, 1024, 1024, 0));
+    const auto maximumDimension = std::numeric_limits<std::size_t>::max();
+    assert(areOpenXrStereoViewDimensionsCompatible(
+        maximumDimension, maximumDimension,
+        maximumDimension, maximumDimension));
     assert(!isOpenXrSwapchainImageIndexValid(0, 0));
     assert(isOpenXrSwapchainImageIndexValid(0, 1));
     assert(!isOpenXrSwapchainImageIndexValid(1, 1));
