@@ -36,6 +36,7 @@ class RobolectricRunnerHarnessTest(unittest.TestCase):
             "OVERTE_GRADLEW_COMMAND": str(gradle),
             "JAVA_MARKER": str(root / "java-started"),
             "GRADLE_MARKER": str(root / "gradle-started"),
+            "REPORT_DIR": str(root / "reports"),
         }
 
     def run_runner(self, environment):
@@ -75,6 +76,47 @@ class RobolectricRunnerHarnessTest(unittest.TestCase):
             self.assertEqual(7, result.returncode, result.stdout)
             self.assertFalse(stale.exists())
             self.assertTrue((root / "gradle-started").exists())
+
+    def test_success_without_fresh_reports_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            environment = self.fixture(
+                root, 21, 'printf gradle >"$GRADLE_MARKER"\n')
+            result = self.run_runner(environment)
+
+            self.assertEqual(1, result.returncode, result.stdout)
+            self.assertIn("no fresh JUnit reports", result.stdout)
+
+    def test_malformed_and_zero_test_reports_are_rejected(self):
+        fixtures = (
+            ("malformed", "<testsuite", "invalid Robolectric JUnit output"),
+            ("zero", '<testsuite tests="0" failures="0" errors="0" skipped="0"/>',
+             "contain no tests"),
+        )
+        for label, report, message in fixtures:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                environment = self.fixture(
+                    root, 21,
+                    f'printf \'%s\\n\' \'{report}\' >"$REPORT_DIR/TEST-result.xml"\n')
+                result = self.run_runner(environment)
+
+                self.assertEqual(1, result.returncode, result.stdout)
+                self.assertIn(message, result.stdout)
+
+    def test_positive_reports_are_accepted_including_testsuites_aggregate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            environment = self.fixture(
+                root, 21,
+                "printf '%s\\n' '<testsuite tests=\"2\" failures=\"0\" "
+                "errors=\"0\" skipped=\"0\"/>' >\"$REPORT_DIR/TEST-one.xml\"\n"
+                "printf '%s\\n' '<testsuites><testsuite tests=\"3\" failures=\"1\" "
+                "errors=\"0\" skipped=\"1\"/></testsuites>' "
+                ">\"$REPORT_DIR/TEST-two.xml\"\n")
+            result = self.run_runner(environment)
+
+            self.assertEqual(0, result.returncode, result.stdout)
 
     @unittest.skipUnless(os.name == "posix", "flock fixture is POSIX-specific")
     def test_lock_timeout_preserves_stale_report_and_starts_no_tools(self):

@@ -41,6 +41,57 @@ if [[ "$java_major" != 21 ]]; then
     exit 2
 fi
 
-exec "$gradlew_command" --no-daemon \
+"$gradlew_command" --no-daemon \
     -c "$android_root/tests/robolectric/settings.gradle" \
     -b "$android_root/tests/robolectric/build.gradle" test
+
+python3 - "$report_dir" <<'PY'
+from pathlib import Path
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+MAX_COUNTER = 1_000_000_000
+
+
+def number(value, label):
+    if value is None or not re.fullmatch(r"[0-9]+", value):
+        raise ValueError(f"invalid {label} counter")
+    result = int(value)
+    if result > MAX_COUNTER:
+        raise ValueError(f"invalid {label} counter")
+    return result
+
+
+def report_tests(path):
+    root = ET.parse(path).getroot()
+    if root.tag == "testsuite":
+        suites = [root]
+    elif root.tag == "testsuites":
+        suites = list(root.findall("testsuite"))
+        if not suites:
+            cases = list(root.findall("testcase"))
+            if cases:
+                return len(cases)
+            raise ValueError("testsuites report has no suites or cases")
+    else:
+        raise ValueError("unsupported JUnit root")
+    totals = {
+        key: sum(number(suite.get(key), key) for suite in suites)
+        for key in ("tests", "failures", "errors", "skipped")
+    }
+    if totals["failures"] + totals["errors"] + totals["skipped"] > totals["tests"]:
+        raise ValueError("inconsistent JUnit counters")
+    return totals["tests"]
+
+
+try:
+    reports = sorted(Path(sys.argv[1]).glob("TEST-*.xml"))
+    if not reports:
+        raise ValueError("no fresh JUnit reports")
+    if sum(report_tests(path) for path in reports) <= 0:
+        raise ValueError("JUnit reports contain no tests")
+except (ET.ParseError, OSError, TypeError, ValueError) as error:
+    print(f"error: invalid Robolectric JUnit output: {error}", file=sys.stderr)
+    raise SystemExit(1)
+PY
