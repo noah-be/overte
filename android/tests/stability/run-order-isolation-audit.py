@@ -37,6 +37,9 @@ def serial_order(round_index: int) -> list[tuple[str, list[str]]]:
 def case_invocation(case: tuple[str, list[str]], workspace: Path, replica: str):
     name, command = case
     environment = dict(os.environ)
+    temporary = workspace / f"tmp-{replica}-{name}"
+    temporary.mkdir(parents=True, exist_ok=True)
+    environment["TMPDIR"] = str(temporary)
     environment["OVERTE_NATIVE_TEST_BUILD_DIR"] = str(workspace / f"native-{replica}-{name}")
     environment["OVERTE_TEST_REPORT_DIR"] = str(workspace / f"reports-{replica}-{name}")
     actual = list(command)
@@ -69,7 +72,9 @@ def run_case(case: tuple[str, list[str]], workspace: Path, replica: str) -> tupl
 
 
 def main() -> int:
-    with tempfile.TemporaryDirectory(prefix="overte-stability-") as temporary:
+    workspace_parent = ROOT / "build" / "tmp" / "stability"
+    workspace_parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="audit-", dir=workspace_parent) as temporary:
         workspace = Path(temporary)
         if os.environ.get("OVERTE_STABILITY_FIXTURE_FAIL") == "1":
             run_case(("intentional-failure", ["python3", "-c", "raise SystemExit(23)"]), workspace, "fixture")

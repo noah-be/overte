@@ -38,8 +38,13 @@ class StabilityRunnerTest(unittest.TestCase):
             _, second = audit.case_invocation(("native", ["true"]), workspace, "two")
             mutation_one, _ = audit.case_invocation(("mutations", ["true"]), workspace, "one")
             mutation_two, _ = audit.case_invocation(("mutations", ["true"]), workspace, "two")
+            self.assertTrue(Path(first["TMPDIR"]).is_dir())
+            self.assertTrue(Path(second["TMPDIR"]).is_dir())
         self.assertNotEqual(first["OVERTE_NATIVE_TEST_BUILD_DIR"], second["OVERTE_NATIVE_TEST_BUILD_DIR"])
         self.assertNotEqual(first["OVERTE_TEST_REPORT_DIR"], second["OVERTE_TEST_REPORT_DIR"])
+        self.assertNotEqual(first["TMPDIR"], second["TMPDIR"])
+        self.assertTrue(Path(first["TMPDIR"]).is_relative_to(workspace))
+        self.assertTrue(Path(second["TMPDIR"]).is_relative_to(workspace))
         self.assertNotEqual(mutation_one[-1], mutation_two[-1])
 
     def test_parallel_cases_really_overlap(self):
