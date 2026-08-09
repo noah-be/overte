@@ -66,6 +66,7 @@ require_text "$gradle" 'Declare the module identity before dependency preflight 
 
 for source_file in \
         build-phone.sh \
+        phone-prebuilt-16k-deps.sh \
         build-phone.gradle \
         settings-phone.gradle \
         tests/check-phone-elf-alignment.sh \
@@ -82,6 +83,7 @@ for source_file in \
         tests/phone-device-smoke-mock-test.sh \
         tests/phone-elf-alignment-test.sh \
         tests/phone-offscreen-ui-mip-test.sh \
+        tests/phone-prebuilt-16k-deps-test.sh \
         tests/phone-script-payload-test.sh \
         tests/verify-phone-16k-dependencies.sh \
         phone-device-lock.sh \
@@ -554,6 +556,16 @@ require_text build-phone.sh 'phone-device-lock[.]sh.*run' \
     'wrapper serializes phone installation with the shared device lock'
 require_text build-phone.sh 'PHONE_ALLOW_LEGACY_4K_DEPS' \
     'legacy 4 KiB dependency use requires an explicit override'
+require_text build-phone.sh 'phone-prebuilt-16k-deps[.]sh.*download' \
+    'download setup restores the Phone-specific 16 KiB delta'
+require_text phone-prebuilt-16k-deps.sh 'sha256sum --check' \
+    'Phone prebuilt restore verifies its versioned checksum'
+require_text phone-prebuilt-16k-deps.sh '--build=never' \
+    'Phone prebuilt restore cannot silently rebuild missing packages'
+require_text phone-prebuilt-16k-deps.sh 'finalize-phone-16k-deps[.]sh' \
+    'Phone prebuilt restore republishes readiness only through the full verifier'
+require_text phone-prebuilt-16k-deps.sh 'cache save.*--no-source' \
+    'Phone prebuilt export excludes dependency sources'
 require_text apps/phoneInterface/build.gradle \
     "System\.getenv\('PHONE_ALLOW_LEGACY_4K_DEPS'\) == '1'" \
     'Gradle phone builds fail closed without a verified sentinel'
@@ -686,8 +698,8 @@ require_text phone-build-resource-guard.sh 'OVERTE_PHONE_MIN_SWAP_BYTES=32000000
     'dependency builds require at least 32 GB decimal swap'
 require_text phone-build-resource-guard.sh "OVERTE_PHONE_MEMORY_MAX_PROPERTY='20000000000'" \
     'dependency builds request an exact 20 GB decimal systemd memory ceiling'
-require_text phone-build-resource-guard.sh 'systemd-run --user --scope' \
-    'dependency resource limit uses a systemd user scope'
+require_text phone-build-resource-guard.sh 'systemd-run --user --collect --wait --pipe' \
+    'dependency resource limit uses a waited systemd user service'
 reject_text phone-build-resource-guard.sh 'ulimit' \
     'dependency resource guard has no unenforceable ulimit fallback'
 require_text finalize-phone-16k-deps.sh '--write-sentinel' \

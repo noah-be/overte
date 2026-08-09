@@ -42,7 +42,7 @@ Usage: ./build-phone.sh [doctor|prepare|build|install|all|deploy|setup] [option]
   install  Install and start the existing APK on one connected Android device
   all      Prepare dependencies and build the APK (default)
   deploy   Prepare, build, install, and start the client
-  setup    Download dependencies when requested, prepare, and build
+  setup    Download shared and Phone 16 KiB dependencies, prepare, and build
 
 Phone builds require the verified 16 KiB dependency sentinel. For temporary
 local migration work only, PHONE_ALLOW_LEGACY_4K_DEPS=1 enables the old graph.
@@ -50,7 +50,8 @@ Installation never uses ADB's implicit device. Set ANDROID_SERIAL, or connect
 exactly one authorized non-Pico phone.
 
 The phone port intentionally shares the proven Qt/Conan Android toolchain with
-the Pico build. Use `setup --download` on a new development machine.
+the Pico build. `setup --download` restores the shared artifacts followed by
+the smaller Phone-specific 16 KiB delta on a new development machine.
 EOF
 }
 
@@ -163,6 +164,7 @@ case "$command_name" in
     setup)
         if [[ "${2:-}" == "--download" ]]; then
             "$script_dir/build-pico.sh" deps --download
+            "$script_dir/phone-prebuilt-16k-deps.sh" download
         fi
         prepare
         build

@@ -4,6 +4,36 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 137 — Add the downloadable Phone 16-KiB dependency delta
+
+- Branch: `nightly/android-phone-137-prebuilt-16k-delta`
+- Commit: `Add prebuilt Phone 16 KiB dependency flow` (this task's commit)
+- Change: Add a source-free pinned-Qt delta exporter, strict one-asset SHA-256
+  manifest, download/restore command, offline `--build=never` regeneration,
+  full sentinel finalization, `build-phone.sh setup --download` integration,
+  public producer/consumer documentation, and device-free failure fixtures.
+  The existing shared Pico download supplies Node and the other native packages;
+  the Phone archive carries only the different 16-KiB Qt package.
+- Tests:
+  - `android/tests/phone-prebuilt-16k-deps-test.sh`: **passed** for valid
+    restore sequencing, malformed manifests, and checksum mismatch rejection.
+  - Real artifact export: **passed**; produced an approximately 743-MiB
+    source-free Conan Qt archive plus a versioned SHA-256 manifest.
+  - Local end-to-end download/restore using that exact archive: **passed**;
+    checksum, Conan restore, both offline generator installs, all dependency
+    ELF gates, and content-bound sentinel publication succeeded without a
+    source rebuild.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 326/326 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 38
+    explicitly device-free suites; nested host regression passed 326/326.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: The archive exists only as a local release-ready output because
+  this session is prohibited from pushing or creating a GitHub release. The
+  default public URL will fail closed until an authorized maintainer publishes
+  the exact checksum-matching asset under `android-phone-16k-deps-v1`.
+- Real-device validation still required: None for archive transport; build the
+  current APK from the restored graph and run the unattended Phone smoke.
+
 ## 136 — Make the guarded 16-KiB Qt build portable and complete
 
 - Branch: `nightly/android-phone-136-systemd-service-guard`
@@ -3099,7 +3129,8 @@ All branches form one linear chain starting at
 133. `nightly/android-phone-133-required-benchmark-cleanup` — `489a1c238e`
 134. `nightly/android-phone-134-device-preflight-handoff` — `01310b6cfe`
 135. `nightly/android-phone-135-benchmark-documentation` — `9675ab2a75`
-136. `nightly/android-phone-136-systemd-service-guard` — this task's commit
+136. `nightly/android-phone-136-systemd-service-guard` — `37d5435496`
+137. `nightly/android-phone-137-prebuilt-16k-delta` — this task's commit
 
 ### Device-free audit disposition
 

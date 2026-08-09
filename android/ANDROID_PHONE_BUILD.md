@@ -97,20 +97,35 @@ services, a
 smaller swap allocation, or an unverifiable memory limit therefore stops
 before the dependency build; there is intentionally no unbounded fallback.
 
-1. Populate the dependency/source cache. On a new machine, explicitly allow
-   the large download:
+1. On a normal development machine, restore both the shared Pico/Phone cache
+   and the smaller Phone-specific 16 KiB delta, then build:
+
+   ```bash
+   ./build-phone.sh setup --download
+   ```
+
+   Both archives are SHA-256 verified before Conan sees them. The Phone delta
+   is restored with `--build=never`, regenerated into the two dedicated output
+   directories, and accepted only if the complete content-bound 16 KiB marker
+   can be finalized. A missing artifact, checksum mismatch, missing package, or
+   failed ELF inspection stops closed.
+
+The remaining steps are the one-time artifact-producer path. They are not
+needed after the current Phone delta has been published:
+
+2. Populate the dependency/source cache:
 
    ```bash
    ./build-pico.sh deps --download
    ```
 
-2. Rebuild Qt for 16 KiB pages. This is the longest dependency build:
+3. Rebuild Qt for 16 KiB pages. This is the longest dependency build:
 
    ```bash
    ./build-phone-qt-16k.sh
    ```
 
-3. Rebuild the non-Qt dependencies. The script verifies the complete Qt and
+4. Rebuild the non-Qt dependencies. The script verifies the complete Qt and
    non-Qt graph and publishes the content-bound readiness marker only after
    successful verification:
 
@@ -118,17 +133,30 @@ before the dependency build; there is intentionally no unbounded fallback.
    ./prepare-phone-16k-conan-deps.sh
    ```
 
-4. Build the APK from the verified graph:
+5. Export the exact source-free 16 KiB Qt delta to a release-ready archive and
+   checksum manifest (the destination must be absolute):
+
+   ```bash
+   ./phone-prebuilt-16k-deps.sh export /absolute/output/directory
+   ```
+
+   Publish the generated `android-phone-16k-conan.tgz` under the
+   `android-phone-16k-deps-v1` release tag, then review and commit the generated
+   `android-phone-16k-deps-v1.sha256`.
+
+6. Build the APK from the verified graph:
 
    ```bash
    ./build-phone.sh build
    ```
 
-Do not use `./build-phone.sh setup --download` as a substitute for this first
-16 KiB setup sequence: that convenience command prepares the shared dependency
-cache and then proceeds directly to the fail-closed APK build. Once the
-dedicated outputs and readiness marker exist, normal `build`, `install`, and
-`deploy` commands can be used as described below.
+The prebuilt archive contains only the pinned Phone Qt binary package and no
+sources. The preceding shared download already supplies Node and the remaining
+native graph; the offline installs and final verifier prove that this shared
+base is complete and 16 KiB compatible. Regenerate the delta whenever the Qt
+recipe revision, profile, NDK, options, or Qt dependency set changes. Normal
+`build`, `install`, and `deploy` commands can be used once the dedicated
+outputs and readiness marker exist.
 
 ## Development commands
 
@@ -140,7 +168,8 @@ dedicated outputs and readiness marker exist, normal `build`, `install`, and
 | `./build-phone.sh` | Prepare dependencies and build the debug APK |
 | `./build-phone.sh install` | Install and start an already built APK |
 | `./build-phone.sh deploy` | Prepare, build, install, and start the app |
-| `./build-phone.sh setup --download` | Populate the shared cache, prepare, and attempt a build |
+| `./build-phone.sh setup --download` | Restore shared plus Phone 16 KiB artifacts, verify, and build |
+| `./phone-prebuilt-16k-deps.sh export /absolute/path` | Produce the release-ready Phone cache delta and checksum |
 | `./build-phone.sh --help` | Show the command summary |
 
 Limit native compilation parallelism performed through `build-phone.sh` when
