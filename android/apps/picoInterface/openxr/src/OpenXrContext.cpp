@@ -340,10 +340,35 @@ bool OpenXrContext::initInstance() {
     }
 #endif
 
-    xrStringToPath(_instance, "/user/hand/left", &_handPaths[0]);
-    xrStringToPath(_instance, "/user/hand/right", &_handPaths[1]);
+    const bool leftHandPathConverted = xrCheck(
+        _instance,
+        xrStringToPath(_instance, "/user/hand/left", &_handPaths[0]),
+        "Failed to create left-hand OpenXR path");
+    const bool rightHandPathConverted = xrCheck(
+        _instance,
+        xrStringToPath(_instance, "/user/hand/right", &_handPaths[1]),
+        "Failed to create right-hand OpenXR path");
+    if (!areOpenXrRequiredHandPathsReady(
+            leftHandPathConverted, _handPaths[0] != XR_NULL_PATH,
+            rightHandPathConverted, _handPaths[1] != XR_NULL_PATH)) {
+        _handPaths[0] = XR_NULL_PATH;
+        _handPaths[1] = XR_NULL_PATH;
+        qCCritical(xr_context_cat,
+                   "Required OpenXR hand paths are unavailable");
+        return false;
+    }
 
-    xrStringToPath(_instance, "/interaction_profiles/htc/vive_controller", &_viveControllerPath);
+    const bool viveControllerPathConverted = xrCheck(
+        _instance,
+        xrStringToPath(
+            _instance, "/interaction_profiles/htc/vive_controller",
+            &_viveControllerPath),
+        "Failed to create optional Vive controller path");
+    if (!isOpenXrPathReady(
+            viveControllerPathConverted,
+            _viveControllerPath != XR_NULL_PATH)) {
+        _viveControllerPath = XR_NULL_PATH;
+    }
 
     return true;
 #endif

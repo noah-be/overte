@@ -10,6 +10,22 @@ inline bool isOpenXrOptionalFunctionReady(
     return loadSucceeded && pointerIsNonNull;
 }
 
+inline bool isOpenXrPathReady(
+        bool conversionSucceeded, bool pathIsNonNull) {
+    return conversionSucceeded && pathIsNonNull;
+}
+
+inline bool areOpenXrRequiredHandPathsReady(
+        bool leftConversionSucceeded,
+        bool leftPathIsNonNull,
+        bool rightConversionSucceeded,
+        bool rightPathIsNonNull) {
+    return isOpenXrPathReady(
+               leftConversionSucceeded, leftPathIsNonNull) &&
+        isOpenXrPathReady(
+               rightConversionSucceeded, rightPathIsNonNull);
+}
+
 inline bool areOpenXrDebugMessengerFunctionsReady(
         bool createReady, bool destroyReady) {
     return createReady && destroyReady;
