@@ -4,6 +4,15 @@
 
 constexpr float OPENXR_VIRTUAL_TRIGGER_CLICK_THRESHOLD = 0.95f;
 
+constexpr const char OPENXR_VIVE_TRACKER_WAIST_POSE_PATH[] =
+    "/user/vive_tracker_htcx/role/waist/input/grip/pose";
+constexpr const char OPENXR_VIVE_TRACKER_CHEST_POSE_PATH[] =
+    "/user/vive_tracker_htcx/role/chest/input/grip/pose";
+constexpr const char OPENXR_VIVE_TRACKER_LEFT_FOOT_POSE_PATH[] =
+    "/user/vive_tracker_htcx/role/left_foot/input/grip/pose";
+constexpr const char OPENXR_VIVE_TRACKER_RIGHT_FOOT_POSE_PATH[] =
+    "/user/vive_tracker_htcx/role/right_foot/input/grip/pose";
+
 constexpr bool openXrVirtualTriggerPressed(bool active, float value) {
     return active && value >= OPENXR_VIRTUAL_TRIGGER_CLICK_THRESHOLD;
 }

@@ -988,10 +988,10 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
     if (_context->_HTCX_viveTrackerInteractionSupported) {
         actionSuggestions.insert(
             {"/interaction_profiles/htc/vive_tracker_htcx", {
-                {"hips_pose",       "/usr/vive_tracker_htcx/role/waist/input/grip/pose"},
-                {"chest_pose",      "/usr/vive_tracker_htcx/role/chest/input/grip/pose"},
-                {"left_foot_pose",  "/usr/vive_tracker_htcx/role/left_foot/input/grip/pose"},
-                {"right_foot_pose", "/usr/vive_tracker_htcx/role/right_foot/input/grip/pose"},
+                {"hips_pose",       OPENXR_VIVE_TRACKER_WAIST_POSE_PATH},
+                {"chest_pose",      OPENXR_VIVE_TRACKER_CHEST_POSE_PATH},
+                {"left_foot_pose",  OPENXR_VIVE_TRACKER_LEFT_FOOT_POSE_PATH},
+                {"right_foot_pose", OPENXR_VIVE_TRACKER_RIGHT_FOOT_POSE_PATH},
             }}
         );
     }

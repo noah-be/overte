@@ -1,10 +1,20 @@
 #include "OpenXrInputPolicy.h"
 
 #include <limits>
+#include <string>
 
 #include "test_assertions.h"
 
 int main() {
+    OVERTE_EXPECT(std::string(OPENXR_VIVE_TRACKER_WAIST_POSE_PATH) ==
+                  "/user/vive_tracker_htcx/role/waist/input/grip/pose");
+    OVERTE_EXPECT(std::string(OPENXR_VIVE_TRACKER_CHEST_POSE_PATH) ==
+                  "/user/vive_tracker_htcx/role/chest/input/grip/pose");
+    OVERTE_EXPECT(std::string(OPENXR_VIVE_TRACKER_LEFT_FOOT_POSE_PATH) ==
+                  "/user/vive_tracker_htcx/role/left_foot/input/grip/pose");
+    OVERTE_EXPECT(std::string(OPENXR_VIVE_TRACKER_RIGHT_FOOT_POSE_PATH) ==
+                  "/user/vive_tracker_htcx/role/right_foot/input/grip/pose");
+
     OVERTE_EXPECT(!openXrVirtualTriggerPressed(false, 1.0f));
     OVERTE_EXPECT(!openXrVirtualTriggerPressed(true, 0.0f));
     OVERTE_EXPECT(!openXrVirtualTriggerPressed(true,
