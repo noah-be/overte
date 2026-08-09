@@ -47,13 +47,13 @@ is verified before compatibility staging and again by Gradle.
 Only the small JUnit and JSON reports are retained for seven days. The APK is
 not uploaded to general Actions artifact storage.
 
-## Release-candidate stage
+## Store-neutral release-candidate stage
 
 `.github/workflows/android-phone-release-candidate.yml` is the manual-only
-second stage. It does not create a tag, GitHub Release, Play upload, attestation,
-or any other publication. A GitHub-hosted preflight first validates the tag and
-runs contracts. Only then can the protected `android-phone-release-candidate`
-environment approve execution on the isolated
+second stage. It produces an unsigned release APK and does not create a tag,
+GitHub Release, store upload, attestation, signature, or any other publication.
+A GitHub-hosted preflight first validates the tag and runs contracts. Only then
+can the protected `android-phone-release-candidate` environment approve execution on the isolated
 `overte-android-phone-release` runner.
 
 The only accepted release identity is:
@@ -74,31 +74,37 @@ The gate requires the tag to exist, resolve exactly to checked-out `HEAD`, be
 newer than every matching repository tag, fit Android's signed 32-bit field,
 and exceed the repository variable `ANDROID_PHONE_PUBLISHED_VERSION_CODE`.
 That non-secret variable must be repository-scoped because the unprivileged
-preflight runs before protected-environment approval. It is the fail-closed floor for builds already uploaded outside Git;
-the release custodian must update it after every upload, including abandoned
-Play tracks. A missing, empty, stale, or equal floor rejects the candidate.
+preflight runs before protected-environment approval. It is the fail-closed
+floor for builds already distributed or reserved by any channel. The release
+custodian must update it after every external publication or rejected store
+submission. A missing, empty, stale, or equal floor rejects the candidate.
 
-The protected environment supplies four secrets only to the signing step:
-
-```text
-ANDROID_PHONE_UPLOAD_KEYSTORE_BASE64
-ANDROID_PHONE_UPLOAD_KEYSTORE_PASSWORD
-ANDROID_PHONE_UPLOAD_KEY_ALIAS
-ANDROID_PHONE_UPLOAD_KEY_PASSWORD
-```
-
-It also supplies `ANDROID_PHONE_UPLOAD_CERT_SHA256` as a non-secret environment
-variable. Store the lowercase SHA-256 of the upload certificate (colons are
-also accepted). The build writes the decoded key under the worktree with mode
-`0600`, uses it in one step, and removes it on exit. It then independently
-requires one signer and the approved certificate digest.
+The protected environment contains no signing secrets. The build passes no
+keystore properties and the verifier requires `apksigner` to report that the
+candidate is unsigned. An accidentally or implicitly signed artifact fails the
+gate. This unsigned APK is a reproducibility and store-handoff artifact; Android
+cannot install it until a separately authorized channel signs it.
 
 The resulting 14-day Actions artifact is a locally inspectable draft candidate:
-signed release APK, verified APK and version manifests, SHA-256 list,
+unsigned release APK, verified APK and version manifests, SHA-256 list,
 CycloneDX 1.6 inventory of packaged ARM64 native libraries, source-archive
 digest, and an unsigned in-toto/SLSA provenance statement. `published` remains
-`false`. The same complete dependency, host, 16 KiB ELF/ZIP, APK contents,
-permissions, metadata, signature, signer, and provenance gates apply.
+`false`, and the release manifest records `store-neutral` and `unsigned`. The
+same complete dependency, host, 16 KiB ELF/ZIP, APK contents, permissions,
+metadata, unsigned-state, digest, and provenance gates apply.
+
+## F-Droid-first distribution
+
+The primary publication path is an F-Droid build recipe tied to the immutable
+release tag. F-Droid builds from source in its own controlled environment and
+signs the published APK with its repository key. The CI candidate supplies the
+reviewable version/source mapping, dependency checks, SBOM, provenance and a
+reference APK for reproducibility work; it is not submitted as a signed binary.
+
+A future direct-download, private F-Droid repository, or Play channel must be a
+separate protected workflow that consumes the already verified candidate digest
+and applies that channel's signing policy. It must not silently rebuild or add
+key material to this store-neutral workflow.
 
 Artifact Attestations are deliberately only prepared. After policy approval,
 add a separately reviewed attestation step with `id-token: write` and

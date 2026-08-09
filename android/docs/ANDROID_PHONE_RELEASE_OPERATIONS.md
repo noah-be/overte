@@ -1,9 +1,9 @@
 # Android Phone release operations
 
-This runbook covers release candidates only. No workflow in this stage creates
-or publishes a GitHub Release, uploads to Play, promotes a track, creates a tag,
-or installs an APK unless a human explicitly dispatches and approves the
-separate acceptance workflow.
+This runbook covers store-neutral release candidates only. No workflow in this
+stage signs an APK, creates or publishes a GitHub Release, uploads to a store,
+creates a tag, or installs an APK. The separate acceptance workflow is reserved
+for a future signed channel artifact.
 
 ## Immutable tags and version authority
 
@@ -29,17 +29,15 @@ administrator. Require signed tags when the organization has an enforceable
 signing identity and recovery process; the local gate intentionally does not
 pretend that a Git object signature replaces server-side immutability.
 
-## Protected environments and secrets
+## Protected environments
 
 Create `android-phone-release-candidate` with required reviewers who do not
 author the candidate change. Disable administrator bypass if operationally
-possible. Put the four upload-key values and approved certificate digest listed
-in `ANDROID_PHONE_CI_CD.md` only in that environment, not at repository or
-organization scope. Set `ANDROID_PHONE_UPLOAD_CERT_SHA256` as an environment
-variable. Set the non-secret `ANDROID_PHONE_PUBLISHED_VERSION_CODE` as a
-repository variable so the preflight can read it before environment approval,
-and update it after every external upload. Restrict repository-settings changes
-to the release administrators and audit every change to this floor.
+possible. This environment must contain no signing secrets. Set the non-secret
+`ANDROID_PHONE_PUBLISHED_VERSION_CODE` as a repository variable so the preflight
+can read it before environment approval, and update it after every publication
+or store-reserved code. Restrict repository-settings changes to the release
+administrators and audit every change to this floor.
 
 Create a distinct `android-phone-emulator-acceptance` environment with required
 reviewers. It holds no signing key. Dispatching its workflow requires the exact
@@ -55,12 +53,11 @@ The release runner must be isolated and preferably ephemeral, with labels
 Android SDK/NDK and Build Tools 36.0.0, CMake 3.31.6, Ninja, Conan and the tools
 required by `build-phone.sh doctor`. Give it adequate non-tmpfs workspace for
 dependencies, packaging, and APK verification. Do not attach Android devices,
-general deployment credentials, persistent user Gradle properties, or a shared
+signing keys, general deployment credentials, persistent user Gradle properties, or a shared
 Pico/Phone Conan home. Deny workflow execution from forks and pull-request
 events at runner-group level. Restrict the runner group to this repository and
 the protected RC workflow; use outbound network allowlisting where practical.
-Destroy or scrub the workspace, process environment, Gradle state and decoded
-keystore after every job.
+Destroy or scrub the workspace, process environment and Gradle state after every job.
 
 The acceptance runner is separate and labeled
 `self-hosted, linux, x64, overte-android-phone-emulator`. Give it one disposable
@@ -71,33 +68,30 @@ concurrency group and reset the emulator snapshot after every approved run.
 ## Candidate review and later publication
 
 Download the candidate artifact, run `sha256sum --check SHA256SUMS` from its
-unpacked root (paths are basenames), and compare the APK, source, signer and
-manifest digests with the workflow summary and approved tag. Review the SBOM,
-known vulnerabilities, permissions, size change, host reports and separately
-approved emulator results. A later publication workflow must consume this exact
-digest; it must not rebuild under the same tag and silently substitute bytes.
+unpacked root (paths are basenames), and compare the APK, source and manifest
+digests with the workflow summary and approved tag. Confirm that the APK
+manifest says `signing_state: unsigned`. Review the SBOM, known vulnerabilities,
+permissions, size change and host reports. Do not send this unsigned APK to an
+emulator or users. F-Droid should build the tagged source through its reviewed
+recipe; the candidate APK is a reference for reproducibility analysis.
 
-When real GitHub draft releases are authorized, create drafts only, retain
-manual approval, use the verified artifact rather than rebuilding, and keep
-final publication as a distinct protected action. Play promotion likewise
-requires review of pre-launch results on 4 KiB and 16 KiB ARM64 devices.
+When a signed distribution channel is authorized, keep signing and final
+publication as distinct protected actions. A signed downstream candidate must
+repeat the signer, APK-content and 16 KiB gates before any approved emulator
+installation.
 
 ## Rollback and key recovery
 
-Android/Play version codes cannot be rolled back. To recover from a bad
-candidate, revoke the candidate operationally, retain its manifests for audit,
-fix forward under a new alpha tag/code, and never move the old tag. For an
-already distributed build, halt promotion, use Play track controls as allowed,
-publish a higher-code corrected build, and document affected digests and tracks.
+Android version codes cannot be rolled back. To recover from a bad candidate,
+revoke the candidate operationally, retain its manifests for audit, fix forward
+under a new alpha tag/code, and never move the old tag. For an already
+distributed build, halt publication, publish a higher-code corrected build, and
+document the affected channel and digests.
 
-Keep the upload key encrypted in an organizational secrets vault with two-person
-recovery, offline backup, named custodians, rotation date, certificate digest,
-and tested restore instructions. Do not back up passwords beside the key. If
-the upload key is suspected compromised, disable RC approvals, remove the four
-environment secrets, record the last trusted signer/APK digests, follow the Play
-upload-key reset process, install the replacement only after independent digest
-verification, and update `ANDROID_PHONE_UPLOAD_CERT_SHA256`. Loss of an upload
-key must not lead to copying the Play app-signing key into CI.
+The store-neutral stage has no key to recover. If a future channel adds an
+Overte signing key, document its vault, two-person recovery, offline backup,
+named custodians, rotation policy and certificate digest in that channel's
+separate runbook. Never place such a key in the store-neutral environment.
 
 ## Recommended GitHub settings after push
 
