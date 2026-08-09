@@ -4,6 +4,31 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 139 — Complete an unattended physical-Phone thermal soak
+
+- Branch: `nightly/android-phone-139-device-thermal-soak`
+- Commit: `Document Phone thermal soak validation` (this task's commit)
+- Change: Record the first extended current-chain physical-Phone run and the
+  accompanying native-runtime closure audit. The audit found every one of the
+  106 packaged native libraries reachable from the client or an explicitly
+  loaded Qt plugin/QML root, so no speculative packaging removal was made.
+- Tests:
+  - Physical Phone five-minute graphics/thermal benchmark: **passed** with a
+    stable process and required final force-stop; 30 thermal samples peaked at
+    status 1 and no crash record or crash-log match was added.
+  - Native telemetry: **passed** at 29.74 FPS against a 30-FPS target, 10.89 ms
+    GPU time, and 6.12 ms batch time. Framebuffer recreation deltas were zero,
+    GL buffer enqueue/cleanup deltas matched, and pending transfer memory was
+    zero. Overlay-cache hit rate reached 97.64% after warm-up.
+  - Native `DT_NEEDED`/explicit-runtime closure audit: **passed**, 106/106
+    packaged libraries reachable and zero orphan candidates.
+- Known risks: Five minutes is sufficient for a short stability regression but
+  not a battery, sustained-load, network-roaming, or multi-hour thermal test.
+  Android `gfxinfo` framestats remained unavailable, as in task 138.
+- Real-device validation still required: Repeat for 30–60 minutes in an actual
+  populated domain while observing battery drain, thermal throttling, audio,
+  network transitions, and interactive visual/touch correctness.
+
 ## 138 — Validate the current Phone APK on physical hardware
 
 - Branch: `nightly/android-phone-138-device-smoke-validation`
