@@ -350,6 +350,13 @@ OpenXrInputPlugin::InputDevice::~InputDevice() {
     const bool runtimeHandlesValid = _context && _context->_session != XR_NULL_HANDLE;
     destroyHandTrackers(runtimeHandlesValid);
     destroyXDevSpaces(runtimeHandlesValid);
+    _actions.clear();
+    if (_actionSet != XR_NULL_HANDLE && _context &&
+            _context->_instance != XR_NULL_HANDLE) {
+        xrCheck(_context->_instance, xrDestroyActionSet(_actionSet),
+                "Failed to destroy action set");
+    }
+    _actionSet = XR_NULL_HANDLE;
 }
 
 void OpenXrInputPlugin::InputDevice::destroyHandTrackers(bool runtimeHandlesValid) {
@@ -412,6 +419,28 @@ bool OpenXrInputPlugin::InputDevice::triggerHapticPulse(float strength, float du
     }
 
     return applied;
+}
+
+OpenXrInputPlugin::Action::~Action() {
+    const bool sessionIsAlive = _context &&
+        _context->_session != XR_NULL_HANDLE;
+    const bool instanceIsAlive = _context &&
+        _context->_instance != XR_NULL_HANDLE;
+    const auto targets = openXrActionCleanupTargets(
+        _poseSpace != XR_NULL_HANDLE,
+        _action != XR_NULL_HANDLE,
+        sessionIsAlive,
+        instanceIsAlive);
+    if ((targets & OpenXrActionCleanupSpace) != 0) {
+        xrCheck(_context->_instance, xrDestroySpace(_poseSpace),
+                "Failed to destroy action pose space");
+    }
+    _poseSpace = XR_NULL_HANDLE;
+    if ((targets & OpenXrActionCleanupAction) != 0) {
+        xrCheck(_context->_instance, xrDestroyAction(_action),
+                "Failed to destroy action");
+    }
+    _action = XR_NULL_HANDLE;
 }
 
 bool OpenXrInputPlugin::Action::init(XrActionSet actionSet) {

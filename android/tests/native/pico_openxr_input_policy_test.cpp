@@ -36,6 +36,18 @@ int main() {
     OVERTE_EXPECT(OpenXrHapticNone == openXrHapticTargets(true, 3));
     OVERTE_EXPECT(OpenXrHapticNone == openXrHapticTargets(true, 65535));
 
+    for (unsigned int mask = 0; mask < 16; ++mask) {
+        const bool hasSpace = (mask & 1U) != 0;
+        const bool hasAction = (mask & 2U) != 0;
+        const bool sessionAlive = (mask & 4U) != 0;
+        const bool instanceAlive = (mask & 8U) != 0;
+        const unsigned int expected =
+            (hasSpace && sessionAlive ? OpenXrActionCleanupSpace : 0U) |
+            (hasAction && instanceAlive ? OpenXrActionCleanupAction : 0U);
+        OVERTE_EXPECT(openXrActionCleanupTargets(
+            hasSpace, hasAction, sessionAlive, instanceAlive) == expected);
+    }
+
     OVERTE_EXPECT(!openXrHandJointOutputUsable(false, false));
     OVERTE_EXPECT(!openXrHandJointOutputUsable(false, true));
     OVERTE_EXPECT(!openXrHandJointOutputUsable(true, false));

@@ -24,6 +24,23 @@ enum OpenXrHapticTarget : unsigned int {
     OpenXrHapticRight = 2,
 };
 
+enum OpenXrActionCleanupTarget : unsigned int {
+    OpenXrActionCleanupNone = 0,
+    OpenXrActionCleanupSpace = 1,
+    OpenXrActionCleanupAction = 2,
+};
+
+constexpr unsigned int openXrActionCleanupTargets(
+        bool poseSpaceIsNonNull,
+        bool actionIsNonNull,
+        bool sessionIsAlive,
+        bool instanceIsAlive) {
+    return (poseSpaceIsNonNull && sessionIsAlive
+                ? OpenXrActionCleanupSpace : OpenXrActionCleanupNone) |
+        (actionIsNonNull && instanceIsAlive
+                ? OpenXrActionCleanupAction : OpenXrActionCleanupNone);
+}
+
 constexpr unsigned int openXrHapticTargets(bool enabled, unsigned int index) {
     return !enabled || index > 2 ? OpenXrHapticNone
             : (index == 0 ? OpenXrHapticLeft
