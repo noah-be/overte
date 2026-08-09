@@ -46,6 +46,10 @@ if [[ "${MOCK_REPORT_CHMOD_FAILURE:-0}" == 1 && "$*" == *'overte-phone-graphics-
     printf 'private report chmod failure: %s\n' "$*" >&2
     exit 8
 fi
+if [[ "${MOCK_RAW_CHMOD_FAILURE:-0}" == 1 && "$*" == *'overte-phone-graphics-raw.'* ]]; then
+    printf 'private raw chmod failure: %s\n' "$*" >&2
+    exit 9
+fi
 exec "$PHONE_BENCHMARK_TEST_REAL_CHMOD" "$@"
 MOCK_CHMOD
 chmod +x "$fixture/bin/chmod"
@@ -183,6 +187,20 @@ grep -Fxq 'ERROR: could not secure benchmark report directory' "$fixture/report-
 if find /tmp -maxdepth 1 -type d -name 'overte-phone-graphics-report.*' \
         -newer "$fixture/report-chmod-marker" | grep -q .; then
     echo 'FAIL: report chmod failure retained an automatic report directory' >&2; exit 1
+fi
+touch "$fixture/raw-chmod-marker"
+if PHONE_ADB="$fixture/adb" MOCK_RAW_CHMOD_FAILURE=1 ANDROID_SERIAL=phone-secret \
+    PHONE_BENCHMARK_CONFIRM_NON_VR=YES "$script_dir/phone-graphics-benchmark.sh" 1 \
+    >"$fixture/raw-chmod.out" 2>&1; then
+    echo 'FAIL: benchmark accepted insecure raw-report permissions' >&2; exit 1
+fi
+grep -Fxq 'ERROR: could not secure private raw benchmark directory' "$fixture/raw-chmod.out"
+! grep -Eq 'private raw chmod failure|overte-phone-graphics-(raw|report)[.]' \
+    "$fixture/raw-chmod.out"
+if find /tmp -maxdepth 1 -type d \
+        \( -name 'overte-phone-graphics-report.*' -o -name 'overte-phone-graphics-raw.*' \) \
+        -newer "$fixture/raw-chmod-marker" | grep -q .; then
+    echo 'FAIL: raw chmod failure retained a private directory' >&2; exit 1
 fi
 rejected_commands="$fixture/rejected-device-commands"
 : >"$rejected_commands"

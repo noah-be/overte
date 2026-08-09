@@ -4,6 +4,24 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 128 — Prove insecure raw setup is removed
+
+- Branch: `nightly/android-phone-128-raw-mode-cleanup`
+- Commit: `Test phone raw report cleanup` (this task's commit)
+- Change: Add deterministic coverage for permission-hardening failure on the
+  private raw-data directory after automatic aggregate allocation.
+- Tests:
+  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; forced raw
+    chmod failure exposes only the fixed security error and leaves neither a raw
+    directory nor an unpublished automatic aggregate directory.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 317/317.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: SIGKILL remains outside shell cleanup guarantees.
+- Real-device validation still required: None for deterministic filesystem
+  failure behavior.
+
 ## 127 — Clean up insecure automatic report setup
 
 - Branch: `nightly/android-phone-127-report-mode-cleanup`
@@ -2894,7 +2912,8 @@ All branches form one linear chain starting at
 124. `nightly/android-phone-124-partial-summary-cleanup` — `f1f68c096f`
 125. `nightly/android-phone-125-discoverable-temp-report` — `34b3e36628`
 126. `nightly/android-phone-126-failed-temp-report-cleanup` — `8af0cc8bd1`
-127. `nightly/android-phone-127-report-mode-cleanup` — this task's commit
+127. `nightly/android-phone-127-report-mode-cleanup` — `bfa652240e`
+128. `nightly/android-phone-128-raw-mode-cleanup` — this task's commit
 
 ### Device-free audit disposition
 
