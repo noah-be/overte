@@ -92,16 +92,6 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertIn("return location", body)
         self.assertRegex(body, r"if \(!xrCheck\(.*Failed to locate hand space!")
 
-    def test_pose_activity_failure_returns_false(self):
-        active = re.search(
-            r"bool OpenXrInputPlugin::Action::isPoseActive\(\) \{(.*?)\n\}",
-            SOURCE,
-            re.DOTALL,
-        )
-        self.assertIsNotNone(active)
-        self.assertIn("return xrCheck", active.group(1))
-        self.assertIn("&&\n        state.isActive", active.group(1))
-
     def test_haptics_reject_non_hand_indices(self):
         haptics = re.search(
             r"bool OpenXrInputPlugin::InputDevice::triggerHapticPulse\(.*?\n\}",
@@ -493,6 +483,16 @@ class OpenXrInputStateTest(unittest.TestCase):
             self.assertLess(fallback, grip_get)
             self.assertLess(grip_get, final_flags)
             self.assertNotIn("isPoseActive()", update[initialized:final_flags])
+
+    def test_removed_split_pose_activity_query_stays_removed(self):
+        desktop_header = (
+            Path(__file__).resolve().parents[2]
+            / "plugins/openxr/src/OpenXrInputPlugin.h"
+        ).read_text(encoding="utf-8")
+        for source, header in ((SOURCE, HEADER), (DESKTOP_SOURCE, desktop_header)):
+            self.assertNotIn("isPoseActive()", source)
+            self.assertNotIn("isPoseActive()", header)
+            self.assertIn("XrSpaceLocation getPose()", header)
 
     def test_xdev_enumeration_and_space_publication_are_transactional(self):
         start = SOURCE.index("if (_context->_MNDX_xdevSpaceSupported)")

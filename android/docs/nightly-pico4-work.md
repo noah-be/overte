@@ -1856,8 +1856,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 103 — Palm-to-grip pose fallback
 
 - Branch: `nightly/pico4-103-openxr-palm-fallback`
-- Commit: identified by subject `Fall back from incomplete Pico palm poses`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `37f60563cd` (`Fall back from incomplete Pico palm poses`)
 - Change: choose palm input only from the complete pose sample actually consumed,
   rather than a separate action-active query, and fall back to grip within the
   same frame when palm is inactive or incomplete. Initialize the candidate pose
@@ -1871,6 +1870,22 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Alternate palm support/active state and
   inject incomplete palm samples while grip stays valid; verify continuous pose,
   correct offset selection, then clean return to palm on a complete sample.
+
+### 104 — Dead split pose-activity query removal
+
+- Branch: `nightly/pico4-104-openxr-dead-pose-query`
+- Commit: identified by subject `Remove dead Pico OpenXR pose query`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: remove the now-unreferenced `Action::isPoseActive()` declaration and
+  implementation from Pico and shared desktop OpenXR. Palm/grip selection has one
+  checked `getPose()` source instead of retaining a divergent second state query.
+- Regression: the input contract requires the dead API to remain absent from
+  both sources/headers while retaining the pose-location API.
+- Passed: targeted OpenXR input/lifecycle contracts; `git diff --check`.
+- Risk: none for callers; repository-wide search confirmed no references after
+  the Task 103 selection rewrite.
+- Pico 4 validation: **not executed**. Covered by Task 103 palm/grip transition
+  validation; confirm no additional action-state query appears in an API trace.
 
 ## Deferred, rejected, or blocked ideas
 

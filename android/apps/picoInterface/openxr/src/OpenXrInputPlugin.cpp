@@ -557,20 +557,6 @@ XrSpaceLocation OpenXrInputPlugin::Action::getPose() {
     return location;
 }
 
-bool OpenXrInputPlugin::Action::isPoseActive() {
-    XrActionStatePose state = {
-        .type = XR_TYPE_ACTION_STATE_POSE,
-    };
-    XrActionStateGetInfo info = {
-        .type = XR_TYPE_ACTION_STATE_GET_INFO,
-        .action = _action,
-    };
-
-    XrResult result = xrGetActionStatePose(_context->_session, &info, &state);
-    return xrCheck(_context->_instance, result, "failed to get pose value!") &&
-        state.isActive;
-}
-
 bool OpenXrInputPlugin::Action::applyHaptic(XrDuration duration, float frequency, float amplitude) {
     XrHapticVibration vibration = {
         .type = XR_TYPE_HAPTIC_VIBRATION,
