@@ -4,6 +4,29 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 106 — Require cache coverage for managed assets
+
+- Branch: `nightly/android-phone-106-cache-asset-coverage`
+- Commit: `Gate phone package cache asset coverage` (this task's commit)
+- Change: Require every non-QML APK/AAB asset except `cache_assets.txt` itself
+  to appear in the content-bound extraction manifest. Stale or unreachable
+  scripts, RCC bundles, and serverless resources can no longer ride alongside
+  the reviewed cache payload; loose Qt QML remains an explicit separate class.
+- Tests:
+  - Gradle/source audit: **passed**, all non-QML Phone staging paths add their
+    output through `assetList`; Phone contributes no independent source asset
+    directory.
+  - `android/tests/phone-apk-contents-test.sh`: **passed**, adding undeclared
+    APK script, APK RCC, and AAB script fixtures.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 302/302 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 302/302.
+  - Python/shell syntax and `git diff --check`: **passed**.
+- Known risks: Loose `assets/qml/` modules are governed separately by
+  `qt_dependencies.xml` and the generated RCC; they are not cache-extracted.
+- Real-device validation still required: Cold-launch the final APK after
+  clearing app cache to prove every managed asset extracts successfully.
+
 ## 105 — Bound package parser resources
 
 - Branch: `nightly/android-phone-105-package-resource-limits`
@@ -2426,7 +2449,8 @@ All branches form one linear chain starting at
 102. `nightly/android-phone-102-zip-symlink-rejection` — `891449215f`
 103. `nightly/android-phone-103-safe-archive-paths` — `bbc18b3420`
 104. `nightly/android-phone-104-canonical-archive-paths` — `036af84614`
-105. `nightly/android-phone-105-package-resource-limits` — this task's commit
+105. `nightly/android-phone-105-package-resource-limits` — `0e93b71623`
+106. `nightly/android-phone-106-cache-asset-coverage` — this task's commit
 
 ### Device-free audit disposition
 

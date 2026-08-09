@@ -281,6 +281,19 @@ def main():
                     f"{len(missing_assets)} cache assets are absent" +
                     (f" (first: {preview})" if preview else "")
                 )
+            undeclared_managed_assets = {
+                name for name in names
+                if name.startswith("assets/")
+                and name != "assets/cache_assets.txt"
+                and not name.startswith("assets/qml/")
+                and not name.endswith("/")
+                and name not in declared_assets
+            }
+            if undeclared_managed_assets:
+                raise ValueError(
+                    "package contains assets outside cache_assets.txt: "
+                    + ", ".join(sorted(undeclared_managed_assets)[:5])
+                )
             if cache_content_digest(archive, cache_manifest_entry, cache_paths) != cache_lines[0]:
                 raise ValueError("cache_assets.txt content digest does not match packaged assets")
             digest_verified_entries = {cache_manifest_entry} | {

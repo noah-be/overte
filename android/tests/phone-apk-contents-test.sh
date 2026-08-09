@@ -242,8 +242,8 @@ with zipfile.ZipFile(corrupt_extra_apk, 'w') as archive:
     archive.writestr('assets/cache_assets.txt', cache_manifest)
     for entry, data in required.items():
         archive.writestr(entry, data)
-    archive.writestr('assets/optional-qt-metadata.dat', b'optional')
-corrupt_stored_entry(corrupt_extra_apk, 'assets/optional-qt-metadata.dat')
+    archive.writestr('assets/qml/optional-qt-metadata.dat', b'optional')
+corrupt_stored_entry(corrupt_extra_apk, 'assets/qml/optional-qt-metadata.dat')
 
 corrupt_extra_aab = root / 'corrupt-extra-entry.aab'
 with zipfile.ZipFile(corrupt_extra_aab, 'w') as archive:
@@ -332,6 +332,28 @@ with (root / 'oversized-package.apk').open('wb') as package:
 with zipfile.ZipFile(root / 'too-many-entries.apk', 'w') as archive:
     for index in range(checker.MAX_PACKAGE_ENTRIES + 1):
         archive.writestr(f'extra/{index}', b'')
+
+for fixture_name, undeclared_asset in (
+    ('undeclared-script.apk', 'assets/scripts/stale.js'),
+    ('undeclared-rcc.apk', 'assets/stale.rcc'),
+):
+    with zipfile.ZipFile(root / fixture_name, 'w') as archive:
+        archive.writestr('assets/cache_assets.txt', cache_manifest)
+        for entry, data in required.items():
+            archive.writestr(entry, data)
+        archive.writestr(undeclared_asset, b'stale')
+
+with zipfile.ZipFile(root / 'undeclared-script.aab', 'w') as archive:
+    archive.writestr('base/assets/cache_assets.txt', cache_manifest)
+    for entry, data in required.items():
+        if entry == 'AndroidManifest.xml':
+            bundle_entry = 'base/manifest/AndroidManifest.xml'
+        elif entry == 'classes.dex':
+            bundle_entry = 'base/dex/classes.dex'
+        else:
+            bundle_entry = 'base/' + entry
+        archive.writestr(bundle_entry, data)
+    archive.writestr('base/assets/scripts/stale.js', b'stale')
 
 with zipfile.ZipFile(root / 'missing-required-cache-entry.apk', 'w') as archive:
     incomplete_cache_paths = [entry for entry in cache_paths
@@ -504,6 +526,15 @@ done <<'PACKAGE_LIMIT_CASES'
 oversized-package.apk	package exceeds the size limit
 too-many-entries.apk	package exceeds the ZIP entry-count limit
 PACKAGE_LIMIT_CASES
+
+for fixture in undeclared-script.apk undeclared-rcc.apk undeclared-script.aab; do
+    if "$checker" "$fixture_dir/$fixture" >"$fixture_dir/asset-coverage-out" 2>&1; then
+        printf 'FAIL: package with an undeclared managed asset was accepted: %s\n' \
+            "$fixture" >&2
+        exit 1
+    fi
+    grep -Fq 'assets outside cache_assets.txt' "$fixture_dir/asset-coverage-out"
+done
 
 while IFS=$'\t' read -r fixture omitted; do
     if "$checker" "$fixture" >"$fixture_dir/native-out" 2>&1; then
