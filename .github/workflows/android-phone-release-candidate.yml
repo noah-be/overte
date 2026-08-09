@@ -1,0 +1,32 @@
+name: Android Phone release candidate
+
+# GitHub only registers workflow_dispatch workflows that exist on the default
+# branch. The executable Phone workflow lives on feature/android-phone-support
+# and immutable android-phone-v* tags. Selecting this default branch is always
+# an error; dispatch the workflow with the reviewed Phone ref instead.
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing immutable android-phone-vM.m.p-alpha.N tag
+        required: true
+        type: string
+      version_code:
+        description: Deterministic Android version code for the tag
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  reject-default-branch:
+    name: Select the Android Phone release ref
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Reject the non-Phone default branch
+        run: |
+          echo "This branch only registers the manual workflow." >&2
+          echo "Dispatch it with feature/android-phone-support or an approved Android Phone tag." >&2
+          exit 2
