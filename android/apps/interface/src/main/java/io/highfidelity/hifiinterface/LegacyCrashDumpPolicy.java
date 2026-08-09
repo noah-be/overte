@@ -6,17 +6,26 @@ import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.URLConnection;
 import java.net.URLEncoder;
 import java.util.Objects;
 
 public final class LegacyCrashDumpPolicy {
     public static final long MAX_DUMP_BYTES = 256L * 1024L * 1024L;
+    public static final int CONNECT_TIMEOUT_MILLIS = 10_000;
+    public static final int READ_TIMEOUT_MILLIS = 15_000;
 
     private LegacyCrashDumpPolicy() {
     }
 
     public static boolean isAcceptedLength(long length) {
         return length >= 0 && length <= MAX_DUMP_BYTES;
+    }
+
+    public static void configureUploadConnection(URLConnection connection) {
+        Objects.requireNonNull(connection, "connection");
+        connection.setConnectTimeout(CONNECT_TIMEOUT_MILLIS);
+        connection.setReadTimeout(READ_TIMEOUT_MILLIS);
     }
 
     public static URL buildUploadUrl(String baseUrl, String token, String encodedAnnotations)

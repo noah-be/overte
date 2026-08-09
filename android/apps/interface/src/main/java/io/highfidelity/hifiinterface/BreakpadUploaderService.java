@@ -102,6 +102,7 @@ public class BreakpadUploaderService extends Service {
         HttpsURLConnection urlConnection = null;
         try (InputStream input = new BufferedInputStream(new FileInputStream(file))) {
             urlConnection = (HttpsURLConnection) url.openConnection();
+            LegacyCrashDumpPolicy.configureUploadConnection(urlConnection);
             urlConnection.setRequestMethod("POST");
             urlConnection.setDoOutput(true);
             urlConnection.setChunkedStreamingMode(0);

@@ -117,6 +117,17 @@ if grep -Fq 'token=" + BuildConfig.BACKTRACE_TOKEN' "$breakpad_service"; then
     printf 'FAIL: Breakpad tokens are concatenated into the query without encoding\n' >&2
     exit 1
 fi
+python3 - "$breakpad_service" <<'PY'
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+opened = source.index("url.openConnection()")
+configured = source.index("LegacyCrashDumpPolicy.configureUploadConnection", opened)
+stream = source.index("urlConnection.getOutputStream()", configured)
+if not opened < configured < stream:
+    raise SystemExit("FAIL: Breakpad timeouts are configured after stream access")
+PY
 
 python3 - "$main_activity" <<'PY'
 import pathlib

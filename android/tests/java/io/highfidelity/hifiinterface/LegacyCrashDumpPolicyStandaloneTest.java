@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLDecoder;
+import java.net.URLConnection;
 import java.util.Arrays;
 
 public final class LegacyCrashDumpPolicyStandaloneTest {
@@ -19,6 +20,23 @@ public final class LegacyCrashDumpPolicyStandaloneTest {
         }
     }
 
+    private static final class Connection extends URLConnection {
+        private boolean opened;
+        private boolean configuredBeforeOpen;
+
+        Connection() throws Exception {
+            super(new URL("https://crash.example.test/post"));
+        }
+
+        @Override
+        public void connect() {
+            opened = true;
+            configuredBeforeOpen = getConnectTimeout()
+                    == LegacyCrashDumpPolicy.CONNECT_TIMEOUT_MILLIS
+                    && getReadTimeout() == LegacyCrashDumpPolicy.READ_TIMEOUT_MILLIS;
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         check(!LegacyCrashDumpPolicy.isAcceptedLength(-1), "negative lengths must fail");
         check(LegacyCrashDumpPolicy.isAcceptedLength(0), "empty dumps are bounded");
@@ -26,6 +44,21 @@ public final class LegacyCrashDumpPolicyStandaloneTest {
                 "the exact maximum must pass");
         check(!LegacyCrashDumpPolicy.isAcceptedLength(LegacyCrashDumpPolicy.MAX_DUMP_BYTES + 1),
                 "lengths above the maximum must fail");
+
+        Connection uploadConnection = new Connection();
+        LegacyCrashDumpPolicy.configureUploadConnection(uploadConnection);
+        check(LegacyCrashDumpPolicy.CONNECT_TIMEOUT_MILLIS > 0
+                        && LegacyCrashDumpPolicy.READ_TIMEOUT_MILLIS > 0,
+                "upload timeouts must be positive");
+        uploadConnection.connect();
+        check(uploadConnection.opened && uploadConnection.configuredBeforeOpen,
+                "upload timeouts must be installed before connection or stream access");
+        try {
+            LegacyCrashDumpPolicy.configureUploadConnection(null);
+            throw new AssertionError("null upload connections must fail");
+        } catch (NullPointerException expected) {
+            assertions++;
+        }
 
         byte[] payload = new byte[50000];
         for (int i = 0; i < payload.length; i++) {
