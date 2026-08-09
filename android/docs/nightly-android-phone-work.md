@@ -4,6 +4,33 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 134 — Record fail-closed connected-device preflight
+
+- Branch: `nightly/android-phone-134-device-preflight-handoff`
+- Commit: `Document phone device preflight blockade` (this task's commit)
+- Change: Record the read-only, identifier-free preflight performed after the
+  user made connected hardware available; no production code changed.
+- Tests:
+  - Connected-device enumeration: **blocked as intended**; two authorized
+    Android targets were present, so implicit single-target selection failed.
+  - Aggregate physical-Phone contract preflight: **0 matching Phones**. Both
+    targets triggered the conservative Pico/ByteDance identity rejection; no
+    serial, property value, model, or device identifier was printed or stored.
+    Emulator, excluded-class, ABI, SDK, GLES, and touchscreen failure counts
+    were zero.
+  - Installation, Activity start, app smoke, and graphics benchmark on connected
+    hardware: **not executed**. Running Phone tests on either rejected target
+    would violate the Phone-only/Pico-exclusion contract.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    device-free suites; nested host regression passed 319/319.
+  - Shell syntax, `git diff --check`, and clean-worktree check: **passed**.
+- Known risks: A supported physical Phone was not available despite connected
+  Android hardware, and no current-chain APK exists due absent verified 16-KiB
+  dependencies.
+- Real-device validation still required: Connect exactly one non-Pico physical
+  ARM64 touchscreen Phone meeting API 26+/GLES 3.2+, build current-chain APKs,
+  then run the prioritized checklist below without weakening target checks.
+
 ## 133 — Require final benchmark app cleanup
 
 - Branch: `nightly/android-phone-133-required-benchmark-cleanup`
@@ -3027,7 +3054,8 @@ All branches form one linear chain starting at
 130. `nightly/android-phone-130-pico-benchmark-rejection` — `779f197b29`
 131. `nightly/android-phone-131-three-hour-handoff` — `e69448dbd6`
 132. `nightly/android-phone-132-private-raw-cleanup-error` — `974767aa7b`
-133. `nightly/android-phone-133-required-benchmark-cleanup` — this task's commit
+133. `nightly/android-phone-133-required-benchmark-cleanup` — `489a1c238e`
+134. `nightly/android-phone-134-device-preflight-handoff` — this task's commit
 
 ### Device-free audit disposition
 
