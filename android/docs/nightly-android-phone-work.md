@@ -4,6 +4,24 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 122 — Exercise benchmark interrupt cleanup
+
+- Branch: `nightly/android-phone-122-benchmark-interrupt-test`
+- Commit: `Test phone benchmark interrupt cleanup` (this task's commit)
+- Change: Generalize the signal-injecting fake sleeper and exercise INT during
+  active sampling in addition to the existing TERM case.
+- Tests:
+  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; INT produces
+    status 130, exactly one Phone force-stop, and no partial summary; TERM still
+    produces status 143 with the same cleanup guarantees.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 317/317.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: SIGKILL remains inherently untrappable.
+- Real-device validation still required: Interrupt a current-chain benchmark
+  from its controlling process and confirm the app is no longer running.
+
 ## 121 — Exercise benchmark signal cleanup
 
 - Branch: `nightly/android-phone-121-benchmark-signal-test`
@@ -2774,7 +2792,8 @@ All branches form one linear chain starting at
 118. `nightly/android-phone-118-benchmark-device-contract` — `ffcc39e6fa`
 119. `nightly/android-phone-119-benchmark-phase-errors` — `7fa608d3ab`
 120. `nightly/android-phone-120-bounded-benchmark-runtime` — `6ad488c062`
-121. `nightly/android-phone-121-benchmark-signal-test` — this task's commit
+121. `nightly/android-phone-121-benchmark-signal-test` — `30af183d87`
+122. `nightly/android-phone-122-benchmark-interrupt-test` — this task's commit
 
 ### Device-free audit disposition
 

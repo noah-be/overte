@@ -27,8 +27,8 @@ chmod +x "$fixture/bin/mktemp"
 cat >"$fixture/bin/sleep" <<'MOCK_SLEEP'
 #!/usr/bin/env bash
 set -euo pipefail
-if [[ "${MOCK_SLEEP_SIGNAL_TERM:-0}" == 1 ]]; then
-    kill -TERM "$PPID"
+if [[ -n "${MOCK_SLEEP_SIGNAL:-}" ]]; then
+    kill -s "$MOCK_SLEEP_SIGNAL" "$PPID"
     exec "$PHONE_BENCHMARK_TEST_REAL_SLEEP" 0.1
 fi
 exec "$PHONE_BENCHMARK_TEST_REAL_SLEEP" "$@"
@@ -316,7 +316,7 @@ signal_commands="$fixture/signal-commands"
 : >"$signal_commands"
 set +e
 PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/signal-exits" \
-    MOCK_SLEEP_SIGNAL_TERM=1 ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES \
+    MOCK_SLEEP_SIGNAL=TERM ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES \
     PHONE_BENCHMARK_REPORT="$signal_report" PHONE_BENCHMARK_INTERVAL=1 \
     MOCK_ADB_COMMAND_LOG="$signal_commands" \
     "$script_dir/phone-graphics-benchmark.sh" 30 >"$fixture/signal.out" 2>&1
@@ -325,6 +325,21 @@ set -e
 [[ "$signal_status" -eq 143 ]]
 [[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' "$signal_commands")" -eq 1 ]]
 [[ ! -e "$signal_report/summary.txt" ]]
+
+interrupt_report="$fixture/interrupt-report"
+interrupt_commands="$fixture/interrupt-commands"
+: >"$interrupt_commands"
+set +e
+PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/interrupt-exits" \
+    MOCK_SLEEP_SIGNAL=INT ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES \
+    PHONE_BENCHMARK_REPORT="$interrupt_report" PHONE_BENCHMARK_INTERVAL=1 \
+    MOCK_ADB_COMMAND_LOG="$interrupt_commands" \
+    "$script_dir/phone-graphics-benchmark.sh" 30 >"$fixture/interrupt.out" 2>&1
+interrupt_status=$?
+set -e
+[[ "$interrupt_status" -eq 130 ]]
+[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' "$interrupt_commands")" -eq 1 ]]
+[[ ! -e "$interrupt_report/summary.txt" ]]
 if grep -Eqi 'phone-secret|private|serial|account|url|manufacturer|model|fingerprint|android_id|domain' "$summary"; then
     echo 'FAIL: identifying/raw data escaped into aggregate report' >&2; exit 1
 fi
