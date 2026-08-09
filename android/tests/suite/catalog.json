@@ -65,6 +65,13 @@
       "description": "Legacy place, user, asset, adapter and crash-dump policies"
     },
     {
+      "id": "legacy-gradle-dependencies",
+      "kind": "contract",
+      "tiers": ["fast", "host", "contracts"],
+      "command": ["tests/legacy-gradle-dependency-test.py"],
+      "description": "Legacy Gradle dependency declarations remain unambiguous"
+    },
+    {
       "id": "phone-test-inventory",
       "kind": "contract",
       "tiers": ["fast", "host", "contracts"],
