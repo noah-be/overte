@@ -1,22 +1,5 @@
 import org.apache.tools.ant.taskdefs.condition.Os
 
-buildscript {
-    repositories {
-        jcenter()
-        google()
-    }
-    dependencies {
-        classpath 'com.android.tools.build:gradle:3.2.1'
-    }
-}
-
-allprojects {
-    repositories {
-        jcenter()
-        google()
-    }
-}
-
 apply plugin: 'com.android.application'
 
 android {
