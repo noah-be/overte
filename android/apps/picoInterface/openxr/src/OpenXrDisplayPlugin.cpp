@@ -259,22 +259,36 @@ static std::string glFormatStr(GLenum source) {
 }
 
 static int64_t chooseSwapChainFormat(XrInstance instance, XrSession session, int64_t preferred) {
-    uint32_t formatCount;
-    XrResult result = xrEnumerateSwapchainFormats(session, 0, &formatCount, nullptr);
+    uint32_t formatCapacity = 0;
+    XrResult result = xrEnumerateSwapchainFormats(
+        session, 0, &formatCapacity, nullptr);
     if (!xrCheck(instance, result, "Failed to get number of supported swapchain formats"))
-        return -1;
+        return OPENXR_NO_SWAPCHAIN_FORMAT;
 
-    qCInfo(xr_display_cat, "Runtime supports %d swapchain formats", formatCount);
-    std::vector<int64_t> formats(formatCount);
+    qCInfo(xr_display_cat, "Runtime supports %d swapchain formats", formatCapacity);
+    std::vector<int64_t> formats(formatCapacity);
 
-    result = xrEnumerateSwapchainFormats(session, formatCount, &formatCount, formats.data());
-    if (!xrCheck(instance, result, "Failed to enumerate swapchain formats"))
-        return -1;
-
-    for (uint32_t i = 0; i < formatCount; i++) {
-        qCInfo(xr_display_cat, "Supported GL format: %s", glFormatStr(formats[i]).c_str());
+    uint32_t returnedFormatCount = 0;
+    if (formatCapacity > 0) {
+        result = xrEnumerateSwapchainFormats(
+            session, formatCapacity, &returnedFormatCount, formats.data());
+        if (!xrCheck(instance, result, "Failed to enumerate swapchain formats"))
+            return OPENXR_NO_SWAPCHAIN_FORMAT;
     }
-    const int64_t chosen = selectOpenXrSwapchainFormat(formats.data(), formatCount, preferred);
+    if (!isOpenXrEnumerationCountWithinCapacity(
+            formatCapacity, returnedFormatCount)) {
+        qCCritical(xr_display_cat,
+                   "Runtime returned inconsistent swapchain format count: %u of %u",
+                   returnedFormatCount, formatCapacity);
+        return OPENXR_NO_SWAPCHAIN_FORMAT;
+    }
+    formats.resize(returnedFormatCount);
+
+    for (int64_t format : formats) {
+        qCInfo(xr_display_cat, "Supported GL format: %s", glFormatStr(format).c_str());
+    }
+    const int64_t chosen = selectOpenXrSwapchainFormat(
+        formats.data(), formats.size(), preferred);
     if (chosen == OPENXR_NO_SWAPCHAIN_FORMAT) {
         qCCritical(xr_display_cat, "Runtime returned no usable swapchain formats");
         return OPENXR_NO_SWAPCHAIN_FORMAT;

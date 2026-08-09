@@ -174,6 +174,10 @@ int main() {
     assert(selectOpenXrSwapchainFormat(formats, 3, 22) == 22);
     assert(selectOpenXrSwapchainFormat(formats, 3, 33) == 33);
     assert(selectOpenXrSwapchainFormat(formats, 3, 44) == 11);
+    assert(selectOpenXrSwapchainFormat(formats, 2, 22) == 22);
+    assert(selectOpenXrSwapchainFormat(formats, 2, 33) == 11);
+    assert(selectOpenXrSwapchainFormat(formats, 0, 11) ==
+           OPENXR_NO_SWAPCHAIN_FORMAT);
 
     const int64_t single[] = { 55 };
     assert(selectOpenXrSwapchainFormat(single, 1, 44) == 55);
