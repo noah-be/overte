@@ -118,7 +118,8 @@ before the dependency build; there is intentionally no unbounded fallback.
    ```
 
    This command downloads only the complete pinned Phone Conan graph from
-   `android-phone-16k-deps-v2`. Phone dependency transport is independent from
+   [`android-phone-16k-deps-v2`](https://github.com/noah-be/overte/releases/tag/android-phone-16k-deps-v2).
+   Phone dependency transport is independent from
    Pico release assets and cannot silently enter Pico's `--build=missing`
    producer phase.
 

@@ -27,12 +27,19 @@ real-device test is identified explicitly and never implied by a host check.
     SHA-256, complete cache restore, both offline `--build=never` installs, 16
     KiB checks, and the content-bound sentinel ended with
     `CONTAINER_DOWNLOAD_RESTORE_OK`, with no Pico download or source build.
-  - Public v2 download: **pending publication and final clean-container run**.
+  - Public v2 download in a new empty Ubuntu 24.04 container: **passed**. The
+    1,476,660,963-byte release asset matched SHA-256
+    `32067b3c16296c77ddd4a84aa91b1e06807511469e3c45e121ca1d53cee67554`;
+    the complete restore, both offline installs, all ELF gates, and the sentinel
+    ended with `PUBLIC_CONTAINER_DOWNLOAD_RESTORE_OK`. The log contains no Pico
+    release URL, `--build=missing`, or source-build phase.
   - Complete device-free regression gate: **passed**, all 41 suites; nested
     host regression passed 332/332. Shell syntax and `git diff --check` passed.
+- Release: [`android-phone-16k-deps-v2`](https://github.com/noah-be/overte/releases/tag/android-phone-16k-deps-v2)
+  is tied to tag commit `9d24893a73d1d6e9a79e6a0961477e47f111af14` and contains only the
+  Phone graph plus its checksum manifest.
 - Known risks: The v1 release remains immutable historical evidence but is not
-  a complete clean-machine dependency set. Developers must use v2 once its
-  checksum-matching asset is published and verified.
+  a complete clean-machine dependency set. Developers must use v2.
 - Real-device validation still required: None for archive transport. Build an
   APK from a clean restored graph and rerun unattended hardware smoke when the
   dependency recipe/profile set changes.
