@@ -1,8 +1,17 @@
 "use strict";
 /*jslint nomen: true, plusplus: true, vars: true */
 var assert = require('assert');
-var mocha = require('mocha'), describe = mocha.describe, it = mocha.it, after = mocha.after;
-var virtualBaton = require('../../../examples/libraries/virtualBaton.js');
+var registeredTests = [], afterFunctions = [];
+function describe(name, suiteFunction) {
+    suiteFunction();
+}
+function it(name, testFunction) {
+    registeredTests.push({name: name, testFunction: testFunction});
+}
+function after(afterFunction) {
+    afterFunctions.push(afterFunction);
+}
+var virtualBaton = require('../../../scripts/developer/libraries/virtualBaton.js');
 
 describe('temp', function () {
     var messageCount = 0, testStart = Date.now();
@@ -246,3 +255,40 @@ describe('temp', function () {
         console.log(messageCount, 'messages sent over', (Date.now() - testStart), 'ms.');
     });
 });
+
+async function runRegisteredTests() {
+    var passed = 0, failed = 0;
+    for (const testCase of registeredTests) {
+        try {
+            await new Promise(function (resolve, reject) {
+                var finished = false,
+                    timeout = setTimeout(function () {
+                        reject(new Error('timeout'));
+                    }, 15000);
+                function done(error) {
+                    if (finished) {
+                        return;
+                    }
+                    finished = true;
+                    clearTimeout(timeout);
+                    error ? reject(error) : resolve();
+                }
+                try {
+                    testCase.testFunction.call({timeout: function () {}}, done);
+                } catch (error) {
+                    done(error);
+                }
+            });
+            passed++;
+            console.log('PASS', testCase.name);
+        } catch (error) {
+            failed++;
+            console.error('FAIL', testCase.name, error && error.stack || error);
+        }
+    }
+    afterFunctions.forEach(function (afterFunction) { afterFunction(); });
+    console.log('Totals:', passed, 'passed,', failed, 'failed');
+    process.exit(failed ? 1 : 0);
+}
+
+setImmediate(runRegisteredTests);
