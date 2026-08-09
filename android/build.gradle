@@ -3,6 +3,7 @@ import groovy.io.FileType
 buildscript {
     repositories {
         google()
+        mavenCentral()
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:3.2.1'

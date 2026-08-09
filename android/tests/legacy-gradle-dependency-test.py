@@ -288,8 +288,8 @@ dependencies {
         self.assertEqual(1, buildscript.count(
             "classpath 'com.android.tools.build:gradle:3.2.1'"))
         self.assertIn("google()", buildscript)
+        self.assertIn("mavenCentral()", buildscript)
         self.assertNotIn("jcenter()", buildscript)
-        self.assertNotIn("mavenCentral()", buildscript)
         for repository in ("google()", "jcenter()", "mavenCentral()"):
             self.assertIn(repository, allprojects)
 
