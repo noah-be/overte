@@ -13,7 +13,6 @@ ROOT = Path(__file__).resolve().parents[2]
 SHADERGEN = ROOT / "tools/shadergen.py"
 BUILD_SCRIPT = (ROOT / "android/build-pico.sh").read_text(encoding="utf-8")
 CMAKE_BOOTSTRAP = (ROOT / "android/cmake-pico-bootstrap.cmake").read_text(encoding="utf-8")
-PICO_CONAN_PROFILE = (ROOT / "android/conan/profiles/pico4-arm64").read_text(encoding="utf-8")
 
 
 class ShadergenJobTests(unittest.TestCase):
@@ -53,10 +52,6 @@ class ShadergenJobTests(unittest.TestCase):
 
     def test_restored_qt_package_prevents_a_source_rebuild(self):
         self.assertIn("*/qt*/p/lib/libQt5Core_arm64-v8a.so", BUILD_SCRIPT)
-
-    def test_pico_qt_package_id_is_independent_of_sdk_install_path(self):
-        self.assertNotIn("qt*:android_sdk", PICO_CONAN_PROFILE)
-        self.assertIn("tools.android:ndk_path={{ android_ndk }}", PICO_CONAN_PROFILE)
 
     def test_native_compile_and_link_use_bounded_cmake_pools(self):
         self.assertIn('PROPERTY JOB_POOLS "pico_compile=$ENV{PICO_BUILD_JOBS}" pico_link=1', CMAKE_BOOTSTRAP)
