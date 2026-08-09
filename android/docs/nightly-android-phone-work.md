@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 120 — Bound unattended benchmark runtime
+
+- Branch: `nightly/android-phone-120-bounded-benchmark-runtime`
+- Commit: `Bound phone benchmark runtime` (this task's commit)
+- Change: Limit a single unattended graphics benchmark to 1–3600 seconds and
+  its thermal sampling interval to 1–300 seconds, with digit-length checks that
+  prevent shell arithmetic overflow before device access.
+- Tests:
+  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; 3601-second
+    duration and 301-second interval fixtures fail immediately with exact errors
+    while all valid aggregate scenarios remain green.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks,
+    including explicit duration and sampling bounds.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 317/317.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Longer endurance studies require multiple explicitly scheduled
+  bounded passes and appropriate human thermal supervision.
+- Real-device validation still required: Verify selected durations and sample
+  cadence on the current-chain build; no input is required during a pass.
+
 ## 119 — Label benchmark start-phase failures
 
 - Branch: `nightly/android-phone-119-benchmark-phase-errors`
@@ -2732,7 +2753,8 @@ All branches form one linear chain starting at
 116. `nightly/android-phone-116-private-benchmark-publish` — `45408ac063`
 117. `nightly/android-phone-117-benchmark-cleanup` — `f579bcfb7e`
 118. `nightly/android-phone-118-benchmark-device-contract` — `ffcc39e6fa`
-119. `nightly/android-phone-119-benchmark-phase-errors` — this task's commit
+119. `nightly/android-phone-119-benchmark-phase-errors` — `7fa608d3ab`
+120. `nightly/android-phone-120-bounded-benchmark-runtime` — this task's commit
 
 ### Device-free audit disposition
 

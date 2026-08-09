@@ -31,8 +31,10 @@ if [[ "${PHONE_DEVICE_LOCK_HELD:-0}" != 1 ]]; then
 fi
 duration="${1:-30}"
 interval="${PHONE_BENCHMARK_INTERVAL:-5}"
-[[ "$duration" =~ ^[1-9][0-9]*$ ]] || die "duration must be a positive integer"
-[[ "$interval" =~ ^[1-9][0-9]*$ ]] || die "PHONE_BENCHMARK_INTERVAL must be a positive integer"
+[[ "$duration" =~ ^[1-9][0-9]{0,3}$ ]] && ((10#$duration <= 3600)) || \
+    die "duration must be an integer from 1 through 3600 seconds"
+[[ "$interval" =~ ^[1-9][0-9]{0,2}$ ]] && ((10#$interval <= 300)) || \
+    die "PHONE_BENCHMARK_INTERVAL must be an integer from 1 through 300 seconds"
 [[ -n "${ANDROID_SERIAL:-}" ]] || die "ANDROID_SERIAL must explicitly name the test phone"
 [[ "${PHONE_BENCHMARK_CONFIRM_NON_VR:-}" == YES ]] || \
     die "set PHONE_BENCHMARK_CONFIRM_NON_VR=YES after confirming the target is a non-VR phone"

@@ -674,6 +674,10 @@ require_text tests/phone-graphics-benchmark.sh '10#\$sdk >= 26' \
     'graphics benchmark enforces the Phone minimum Android API'
 require_text tests/phone-graphics-benchmark.sh '10#\$gles >= 196610' \
     'graphics benchmark enforces the Phone OpenGL ES contract'
+require_text tests/phone-graphics-benchmark.sh '10#\$duration <= 3600' \
+    'graphics benchmark bounds unattended runtime to one hour'
+require_text tests/phone-graphics-benchmark.sh '10#\$interval <= 300' \
+    'graphics benchmark bounds the thermal sampling interval'
 require_text phone-build-resource-guard.sh 'OVERTE_PHONE_MIN_SWAP_BYTES=32000000000' \
     'dependency builds require at least 32 GB decimal swap'
 require_text phone-build-resource-guard.sh "OVERTE_PHONE_MEMORY_MAX_PROPERTY='20000000000'" \

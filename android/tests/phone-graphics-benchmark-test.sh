@@ -127,6 +127,19 @@ chmod +x "$fixture/adb"
 if PHONE_ADB="$fixture/adb" ANDROID_SERIAL=phone-secret "$script_dir/phone-graphics-benchmark.sh" 1 >/dev/null 2>&1; then
     echo 'FAIL: benchmark ran without explicit non-VR confirmation' >&2; exit 1
 fi
+if PHONE_ADB="$fixture/adb" ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES \
+    "$script_dir/phone-graphics-benchmark.sh" 3601 >"$fixture/long-duration.out" 2>&1; then
+    echo 'FAIL: benchmark accepted an excessive duration' >&2; exit 1
+fi
+grep -Fxq 'ERROR: duration must be an integer from 1 through 3600 seconds' \
+    "$fixture/long-duration.out"
+if PHONE_ADB="$fixture/adb" ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES \
+    PHONE_BENCHMARK_INTERVAL=301 "$script_dir/phone-graphics-benchmark.sh" 1 \
+    >"$fixture/long-interval.out" 2>&1; then
+    echo 'FAIL: benchmark accepted an excessive sampling interval' >&2; exit 1
+fi
+grep -Fxq 'ERROR: PHONE_BENCHMARK_INTERVAL must be an integer from 1 through 300 seconds' \
+    "$fixture/long-interval.out"
 rejected_commands="$fixture/rejected-device-commands"
 : >"$rejected_commands"
 if PHONE_ADB="$fixture/adb" MOCK_QEMU=1 ANDROID_SERIAL=phone-secret \
