@@ -347,6 +347,19 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertIn("REQUIRED_BODY_LOCATION_FLAGS) == REQUIRED_BODY_LOCATION_FLAGS", vive)
         self.assertIn("REQUIRED_BODY_LOCATION_FLAGS) == REQUIRED_BODY_LOCATION_FLAGS", xdev)
 
+    def test_uncalibrate_clears_published_xdev_roles_by_reference(self):
+        start = SOURCE.index("bool OpenXrInputPlugin::uncalibrate()")
+        end = SOURCE.index("bool OpenXrInputPlugin::isSupported()", start)
+        uncalibrate = SOURCE[start:end]
+        role_loop = uncalibrate.index("for (auto& [_, tracker] : _inputDevice->_xdev)")
+        role_clear = uncalibrate.index("tracker.pose_channel = {}", role_loop)
+        calibration_clear = uncalibrate.index("_trackerCalibrations.clear()", role_clear)
+        pending_clear = uncalibrate.index("_wantsCalibrate = false", calibration_clear)
+        self.assertLess(role_loop, role_clear)
+        self.assertLess(role_clear, calibration_clear)
+        self.assertLess(calibration_clear, pending_clear)
+        self.assertNotIn("for (auto [_, tracker]", uncalibrate)
+
     def test_xdev_enumeration_and_space_publication_are_transactional(self):
         start = SOURCE.index("if (_context->_MNDX_xdevSpaceSupported)")
         end = SOURCE.index("_actionsInitialized = true", start)

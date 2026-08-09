@@ -199,7 +199,7 @@ void OpenXrInputPlugin::calibrate() {
 bool OpenXrInputPlugin::uncalibrate() {
     qCDebug(xr_input_cat) << "OpenXrInputPlugin::uncalibrate";
 
-    for (auto [_, tracker] : _inputDevice->_xdev) {
+    for (auto& [_, tracker] : _inputDevice->_xdev) {
         tracker.pose_channel = {};
     }
 

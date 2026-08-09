@@ -1734,8 +1734,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 96 — Body-tracker pose validity
 
 - Branch: `nightly/pico4-96-openxr-tracker-poses`
-- Commit: identified by subject `Reject invalid Pico body tracker poses`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `a9ccd41fce` (`Reject invalid Pico body tracker poses`)
 - Change: refuse XDev role inference before a predicted frame time exists, skip
   failed or incompletely tracked stage/local/head locations, and guard the head-
   height normalization denominator. Both HTCX and XDev publication now require
@@ -1749,6 +1748,23 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. During body-tracker calibration and use,
   inject no-frame-time, locate failure, orientation-only, position-only and zero-
   height samples; verify no role/pose publication until a complete sample arrives.
+
+### 97 — XDev uncalibration state reset
+
+- Branch: `nightly/pico4-97-openxr-tracker-uncalibrate`
+- Commit: identified by subject `Reset Pico XDev roles on uncalibrate`; the exact
+  hash is recorded by the following stacked task or final report.
+- Change: mutate stored XDev trackers by reference when clearing inferred pose
+  channels. Previously `uncalibrate()` reset only temporary copies, leaving stale
+  foot/hip/chest roles active after calibration data was cleared.
+- Regression: the input lifecycle contract requires reference iteration and
+  verifies role, calibration-map and pending-calibration reset ordering.
+- Passed: targeted OpenXR input/lifecycle contracts; `git diff --check`.
+- Risk: deliberately removes stale optional body-tracker role assignments when
+  the user requests uncalibration; controller and hand mappings are untouched.
+- Pico 4 validation: **not executed**. Calibrate XDev trackers, uncalibrate, move
+  each tracker and verify no old body channel updates until calibration is run
+  again; then verify roles are assigned from the new placement.
 
 ## Deferred, rejected, or blocked ideas
 
