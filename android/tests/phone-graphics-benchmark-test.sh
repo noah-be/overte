@@ -2,9 +2,10 @@
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-fixture="$(mktemp -d /tmp/overte-phone-graphics-harness-test.XXXXXXXX)"
+fixture="$(mktemp -d "${TMPDIR:-/tmp}/overte-phone-graphics-harness-test.XXXXXXXX")"
 trap 'rm -rf -- "$fixture"' EXIT INT TERM
 report="$fixture/report"
+mkdir "$fixture/private-tmp"
 readonly real_mktemp="$(command -v mktemp)"
 readonly real_sleep="$(command -v sleep)"
 readonly real_chmod="$(command -v chmod)"
@@ -13,6 +14,7 @@ export PHONE_BENCHMARK_TEST_REAL_MKTEMP="$real_mktemp"
 export PHONE_BENCHMARK_TEST_REAL_SLEEP="$real_sleep"
 export PHONE_BENCHMARK_TEST_REAL_CHMOD="$real_chmod"
 export PHONE_BENCHMARK_TEST_REAL_RM="$real_rm"
+export PHONE_BENCHMARK_TEST_TMPDIR="$fixture/private-tmp"
 # The fixture supplies fake ADB and must never contend for the real shared
 # device lock or its post-device cooldown.
 export PHONE_DEVICE_LOCK_HELD=1
@@ -25,7 +27,14 @@ if [[ "${MOCK_SUMMARY_MKTEMP_FAILURE:-0}" == 1 && "$*" == *'.summary.txt.'* ]]; 
     printf 'private summary allocation failure: %s\n' "$*" >&2
     exit 7
 fi
-exec "$PHONE_BENCHMARK_TEST_REAL_MKTEMP" "$@"
+args=()
+for arg in "$@"; do
+    if [[ "$arg" == /tmp/overte-phone-graphics-*.XXXXXXXX ]]; then
+        arg="$PHONE_BENCHMARK_TEST_TMPDIR/${arg##*/}"
+    fi
+    args+=("$arg")
+done
+exec "$PHONE_BENCHMARK_TEST_REAL_MKTEMP" "${args[@]}"
 MOCK_MKTEMP
 chmod +x "$fixture/bin/mktemp"
 cat >"$fixture/bin/sleep" <<'MOCK_SLEEP'
