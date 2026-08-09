@@ -4,6 +4,25 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 121 — Exercise benchmark signal cleanup
+
+- Branch: `nightly/android-phone-121-benchmark-signal-test`
+- Commit: `Test phone benchmark signal cleanup` (this task's commit)
+- Change: Add a deterministic fake sleeper that delivers TERM during the
+  sampling window and exercises the real benchmark traps end to end.
+- Tests:
+  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; TERM produces
+    status 143, performs exactly one Phone force-stop, and publishes no partial
+    aggregate summary, while every prior benchmark fixture remains green.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 317/317.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: SIGKILL cannot run process cleanup by operating-system design;
+  the shared device-lock cooldown still protects immediately following work.
+- Real-device validation still required: Interrupt one current-chain benchmark
+  with TERM and confirm the package is stopped without retaining raw output.
+
 ## 120 — Bound unattended benchmark runtime
 
 - Branch: `nightly/android-phone-120-bounded-benchmark-runtime`
@@ -2754,7 +2773,8 @@ All branches form one linear chain starting at
 117. `nightly/android-phone-117-benchmark-cleanup` — `f579bcfb7e`
 118. `nightly/android-phone-118-benchmark-device-contract` — `ffcc39e6fa`
 119. `nightly/android-phone-119-benchmark-phase-errors` — `7fa608d3ab`
-120. `nightly/android-phone-120-bounded-benchmark-runtime` — this task's commit
+120. `nightly/android-phone-120-bounded-benchmark-runtime` — `6ad488c062`
+121. `nightly/android-phone-121-benchmark-signal-test` — this task's commit
 
 ### Device-free audit disposition
 

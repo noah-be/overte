@@ -6,7 +6,9 @@ fixture="$(mktemp -d /tmp/overte-phone-graphics-harness-test.XXXXXXXX)"
 trap 'rm -rf -- "$fixture"' EXIT INT TERM
 report="$fixture/report"
 readonly real_mktemp="$(command -v mktemp)"
+readonly real_sleep="$(command -v sleep)"
 export PHONE_BENCHMARK_TEST_REAL_MKTEMP="$real_mktemp"
+export PHONE_BENCHMARK_TEST_REAL_SLEEP="$real_sleep"
 # The fixture supplies fake ADB and must never contend for the real shared
 # device lock or its post-device cooldown.
 export PHONE_DEVICE_LOCK_HELD=1
@@ -22,6 +24,16 @@ fi
 exec "$PHONE_BENCHMARK_TEST_REAL_MKTEMP" "$@"
 MOCK_MKTEMP
 chmod +x "$fixture/bin/mktemp"
+cat >"$fixture/bin/sleep" <<'MOCK_SLEEP'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${MOCK_SLEEP_SIGNAL_TERM:-0}" == 1 ]]; then
+    kill -TERM "$PPID"
+    exec "$PHONE_BENCHMARK_TEST_REAL_SLEEP" 0.1
+fi
+exec "$PHONE_BENCHMARK_TEST_REAL_SLEEP" "$@"
+MOCK_SLEEP
+chmod +x "$fixture/bin/sleep"
 export PATH="$fixture/bin:$PATH"
 
 sed 's/^+//' >"$fixture/adb" <<'MOCK'
@@ -298,6 +310,21 @@ grep -q '^framebuffer_estimated_mib=10.93$' "$summary"
 [[ $(stat -c '%a' "$summary") == 600 ]]
 grep -q '^profile_target_fps=30$' "$summary"
 [[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' "$command_log")" -eq 1 ]]
+
+signal_report="$fixture/signal-report"
+signal_commands="$fixture/signal-commands"
+: >"$signal_commands"
+set +e
+PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/signal-exits" \
+    MOCK_SLEEP_SIGNAL_TERM=1 ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES \
+    PHONE_BENCHMARK_REPORT="$signal_report" PHONE_BENCHMARK_INTERVAL=1 \
+    MOCK_ADB_COMMAND_LOG="$signal_commands" \
+    "$script_dir/phone-graphics-benchmark.sh" 30 >"$fixture/signal.out" 2>&1
+signal_status=$?
+set -e
+[[ "$signal_status" -eq 143 ]]
+[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' "$signal_commands")" -eq 1 ]]
+[[ ! -e "$signal_report/summary.txt" ]]
 if grep -Eqi 'phone-secret|private|serial|account|url|manufacturer|model|fingerprint|android_id|domain' "$summary"; then
     echo 'FAIL: identifying/raw data escaped into aggregate report' >&2; exit 1
 fi
