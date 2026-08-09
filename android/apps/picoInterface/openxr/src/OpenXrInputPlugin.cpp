@@ -12,6 +12,7 @@
 #include <tuple>
 
 #include "OpenXrInputPlugin.h"
+#include "OpenXrExtensionPolicy.h"
 #include "OpenXrInputPolicy.h"
 
 #include "AvatarConstants.h"
@@ -322,6 +323,21 @@ OpenXrInputPlugin::InputDevice::InputDevice(std::shared_ptr<OpenXrContext> c) : 
     _context = c;
 
     qCInfo(xr_input_cat) << "Hand tracking supported:" << _context->_handTrackingSupported;
+}
+
+OpenXrInputPlugin::InputDevice::~InputDevice() {
+    destroyHandTrackers(_context && _context->_session != XR_NULL_HANDLE);
+}
+
+void OpenXrInputPlugin::InputDevice::destroyHandTrackers(bool runtimeHandlesValid) {
+    for (auto& tracker : _handTracker) {
+        if (tracker != XR_NULL_HANDLE && runtimeHandlesValid && _context &&
+                _context->xrDestroyHandTrackerEXT != nullptr) {
+            xrCheck(_context->_instance, _context->xrDestroyHandTrackerEXT(tracker),
+                    "Failed to destroy hand tracker");
+        }
+        tracker = XR_NULL_HANDLE;
+    }
 }
 
 void OpenXrInputPlugin::InputDevice::focusOutEvent() {
@@ -987,10 +1003,24 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
         };
 
         createInfo.hand = XR_HAND_LEFT_EXT;
-        xrCheck(_context->_instance, _context->xrCreateHandTrackerEXT(_context->_session, &createInfo, &_handTracker[0]), "Failed to create left hand tracker");
+        const bool leftCreated = xrCheck(
+            _context->_instance,
+            _context->xrCreateHandTrackerEXT(_context->_session, &createInfo, &_handTracker[0]),
+            "Failed to create left hand tracker") && _handTracker[0] != XR_NULL_HANDLE;
 
         createInfo.hand = XR_HAND_RIGHT_EXT;
-        xrCheck(_context->_instance, _context->xrCreateHandTrackerEXT(_context->_session, &createInfo, &_handTracker[1]), "Failed to create right hand tracker");
+        const bool rightCreated = xrCheck(
+            _context->_instance,
+            _context->xrCreateHandTrackerEXT(_context->_session, &createInfo, &_handTracker[1]),
+            "Failed to create right hand tracker") && _handTracker[1] != XR_NULL_HANDLE;
+        const auto pairState = openXrHandTrackerPairState(leftCreated, rightCreated);
+        if (pairState != OpenXrHandTrackerPairState::Complete) {
+            if (pairState == OpenXrHandTrackerPairState::Partial) {
+                qCWarning(xr_input_cat,
+                          "Rolling back incomplete OpenXR hand-tracker pair");
+            }
+            destroyHandTrackers(true);
+        }
     }
 
     if (_context->_MNDX_xdevSpaceSupported) {

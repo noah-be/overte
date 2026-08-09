@@ -10,5 +10,14 @@ int main() {
         assert(areOpenXrHandTrackingFunctionsReady(
                    createLoaded, destroyLoaded, locateLoaded) == (mask == 7U));
     }
+
+    assert(openXrHandTrackerPairState(false, false) ==
+           OpenXrHandTrackerPairState::None);
+    assert(openXrHandTrackerPairState(true, false) ==
+           OpenXrHandTrackerPairState::Partial);
+    assert(openXrHandTrackerPairState(false, true) ==
+           OpenXrHandTrackerPairState::Partial);
+    assert(openXrHandTrackerPairState(true, true) ==
+           OpenXrHandTrackerPairState::Complete);
     return 0;
 }

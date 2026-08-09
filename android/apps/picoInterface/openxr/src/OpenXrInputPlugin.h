@@ -87,6 +87,7 @@ private:
     class InputDevice : public controller::InputDevice {
     public:
         InputDevice(std::shared_ptr<OpenXrContext> c);
+        ~InputDevice() override;
 
     private:
         controller::Input::NamedVector getAvailableInputs() const override;
@@ -126,6 +127,7 @@ private:
         bool _hapticsEnabled = true;
 
         bool initActions();
+        void destroyHandTrackers(bool runtimeHandlesValid);
         bool initBindings(const std::string& profileName, const std::map<std::string, std::string>& actionsToBind);
     };
 
