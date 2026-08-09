@@ -42,26 +42,34 @@ jobs:
           ref: refs/tags/${{ inputs.release_tag }}
           persist-credentials: false
       - name: Validate immutable inputs before artifact download
+        env:
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          APPROVED_APK_SHA256: ${{ inputs.apk_sha256 }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
-          [[ '${{ inputs.candidate_run_id }}' =~ ^[1-9][0-9]*$ ]]
-          [[ '${{ inputs.apk_sha256 }}' =~ ^[0-9a-f]{64}$ ]]
-          [[ '${{ inputs.release_tag }}' =~ ^android-phone-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-alpha\.[1-9][0-9]*$ ]]
+          [[ "$CANDIDATE_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$APPROVED_APK_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$RELEASE_TAG" =~ ^android-phone-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-alpha\.[1-9][0-9]*$ ]]
       - name: Download exact release-candidate artifact
         env:
           GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
           mkdir -p android/build/emulator-candidate
-          gh run download '${{ inputs.candidate_run_id }}' \
-            --name 'android-phone-rc-${{ inputs.release_tag }}' \
+          gh run download "$CANDIDATE_RUN_ID" \
+            --name "android-phone-rc-$RELEASE_TAG" \
             --dir android/build/emulator-candidate
       - name: Verify artifact before querying ADB
+        env:
+          APPROVED_APK_SHA256: ${{ inputs.apk_sha256 }}
         run: |
           set -euo pipefail
           apk="android/build/emulator-candidate/phoneInterface-release.apk"
           test -f "$apk" && test ! -L "$apk"
-          printf '%s  %s\n' '${{ inputs.apk_sha256 }}' "$apk" | sha256sum --check --strict
+          printf '%s  %s\n' "$APPROVED_APK_SHA256" "$apk" | sha256sum --check --strict
           sdk_root="${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}"
           PHONE_EXPECT_DEBUGGABLE=0 PHONE_APK_ANALYZER="$sdk_root/cmdline-tools/latest/bin/apkanalyzer" \
             android/tests/check-phone-apk-16k.sh "$apk"

@@ -214,6 +214,33 @@ class AndroidPhoneEmulatorAcceptanceWorkflowContracts(unittest.TestCase):
         self.assertLess(package, device)
         self.assertIn('PHONE_ALLOW_EMULATOR: "1"', self.source)
 
+    def test_manual_inputs_are_not_interpolated_into_shell_programs(self):
+        lines = self.source.splitlines()
+        run_blocks = []
+        for index, line in enumerate(lines):
+            if line != "        run: |":
+                continue
+            body = []
+            for candidate in lines[index + 1:]:
+                if candidate and not candidate.startswith("          "):
+                    break
+                body.append(candidate)
+            run_blocks.append("\n".join(body))
+        self.assertGreaterEqual(len(run_blocks), 4)
+        self.assertNotIn("${{ inputs.", "".join(run_blocks))
+        for mapping in (
+            "CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}",
+            "APPROVED_APK_SHA256: ${{ inputs.apk_sha256 }}",
+            "RELEASE_TAG: ${{ inputs.release_tag }}",
+        ):
+            self.assertIn(mapping, self.source)
+        self.assertIn('gh run download "$CANDIDATE_RUN_ID"', self.source)
+        self.assertIn('--name "android-phone-rc-$RELEASE_TAG"', self.source)
+        self.assertIn(
+            "printf '%s  %s\\n' \"$APPROVED_APK_SHA256\" \"$apk\"",
+            self.source,
+        )
+
     def test_device_report_is_run_attempt_scoped_and_outside_the_worktree(self):
         report_path = (
             "${{ runner.temp }}/android-phone-device-report-${{ github.run_id }}-"
