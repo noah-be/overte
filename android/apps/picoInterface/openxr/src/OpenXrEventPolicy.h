@@ -22,3 +22,8 @@ constexpr bool isOpenXrPathStringUsable(
     return conversionSucceeded && returnedCount > 0 &&
         returnedCount <= capacity && terminatedWithinReturnedCount;
 }
+
+constexpr bool openXrSessionRunningAfterTermination(
+        bool currentlyRunning, bool terminationSucceeded) {
+    return terminationSucceeded ? false : currentlyRunning;
+}

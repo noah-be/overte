@@ -1018,7 +1018,8 @@ bool OpenXrContext::updateSessionState(XrSessionState newState) {
                 XrResult result = xrEndSession(_session);
                 if (!xrCheck(_instance, result, "Failed to end session!"))
                     return false;
-                _isSessionRunning = false;
+                _isSessionRunning = openXrSessionRunningAfterTermination(
+                    _isSessionRunning, true);
             }
             _shouldRunFrameCycle = false;
             break;
@@ -1033,6 +1034,8 @@ bool OpenXrContext::updateSessionState(XrSessionState newState) {
             _shouldQuit = true;
             _shouldRunFrameCycle = false;
             _session = XR_NULL_HANDLE;
+            _isSessionRunning = openXrSessionRunningAfterTermination(
+                _isSessionRunning, true);
             _isValid = false;
             qCDebug(xr_context_cat, "Destroyed session");
             break;
