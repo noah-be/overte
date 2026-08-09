@@ -318,18 +318,33 @@ bool OpenXrDisplayPlugin::initSwapChains() {
         if (!xrCheck(instance, result, "Failed to create swapchain!"))
             return false;
 
-        result = xrEnumerateSwapchainImages(_swapChains[i], 0, &_swapChainLengths[i], nullptr);
+        uint32_t imageCapacity = 0;
+        result = xrEnumerateSwapchainImages(_swapChains[i], 0, &imageCapacity, nullptr);
         if (!xrCheck(instance, result, "Failed to enumerate swapchains"))
             return false;
+        if (!isConsistentOpenXrEnumerationCount(imageCapacity, imageCapacity)) {
+            qCCritical(xr_display_cat, "Runtime returned no swapchain images for eye %u", i);
+            return false;
+        }
 
-        for (uint32_t j = 0; j < _swapChainLengths[i]; j++) {
+        for (uint32_t j = 0; j < imageCapacity; j++) {
             XrSwapchainImageOpenGLKHR image = { .type = XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_KHR };
             _images[i].push_back(image);
         }
-        result = xrEnumerateSwapchainImages(_swapChains[i], _swapChainLengths[i], &_swapChainLengths[i],
-                                            (XrSwapchainImageBaseHeader*)_images[i].data());
+        uint32_t returnedImageCount = imageCapacity;
+        result = xrEnumerateSwapchainImages(
+            _swapChains[i], imageCapacity, &returnedImageCount,
+            (XrSwapchainImageBaseHeader*)_images[i].data());
         if (!xrCheck(instance, result, "Failed to enumerate swapchain images"))
             return false;
+        if (!isConsistentOpenXrEnumerationCount(imageCapacity, returnedImageCount)) {
+            qCCritical(xr_display_cat,
+                       "Runtime returned inconsistent swapchain image count for eye %u: %u of %u",
+                       i, returnedImageCount, imageCapacity);
+            return false;
+        }
+        _images[i].resize(returnedImageCount);
+        _swapChainLengths[i] = returnedImageCount;
     }
 
 #if defined(Q_OS_ANDROID)

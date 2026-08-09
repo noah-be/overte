@@ -20,6 +20,11 @@ inline bool isOpenXrSwapchainImageIndexValid(
     return index < imageCount;
 }
 
+inline bool isConsistentOpenXrEnumerationCount(
+        std::size_t capacity, std::size_t returnedCount) {
+    return capacity > 0 && returnedCount > 0 && returnedCount <= capacity;
+}
+
 inline int64_t selectOpenXrSwapchainFormat(
         const int64_t* formats, std::size_t count, int64_t preferred) {
     if (formats == nullptr || count == 0) {

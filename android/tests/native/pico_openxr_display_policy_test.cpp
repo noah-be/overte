@@ -25,6 +25,16 @@ int main() {
         std::numeric_limits<std::size_t>::max(), 8));
     assert(isOpenXrSwapchainImageIndexValid(
         0, std::numeric_limits<std::size_t>::max()));
+    assert(!isConsistentOpenXrEnumerationCount(0, 0));
+    assert(!isConsistentOpenXrEnumerationCount(0, 1));
+    assert(!isConsistentOpenXrEnumerationCount(1, 0));
+    assert(isConsistentOpenXrEnumerationCount(1, 1));
+    assert(isConsistentOpenXrEnumerationCount(3, 1));
+    assert(isConsistentOpenXrEnumerationCount(3, 3));
+    assert(!isConsistentOpenXrEnumerationCount(3, 4));
+    const std::size_t maximum = std::numeric_limits<std::size_t>::max();
+    assert(isConsistentOpenXrEnumerationCount(maximum, maximum));
+    assert(!isConsistentOpenXrEnumerationCount(maximum - 1, maximum));
 
     assert(selectOpenXrSwapchainFormat(nullptr, 0, 7) == OPENXR_NO_SWAPCHAIN_FORMAT);
     assert(selectOpenXrSwapchainFormat(nullptr, 2, 7) == OPENXR_NO_SWAPCHAIN_FORMAT);
