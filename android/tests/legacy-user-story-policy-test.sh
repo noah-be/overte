@@ -93,3 +93,31 @@ failure_mutation = source.index("mAdapterListener.onError", failure)
 if not success < success_guard < success_mutation < failure < failure_guard < failure_mutation:
     raise SystemExit("FAIL: legacy People completion guards run after observable mutation")
 PY
+
+python3 - "$main_activity" <<'PY'
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+header = source.index("private void updateProfileHeader(String username)")
+ticket = source.index("profileImageRequestGate.begin()", header)
+cancel = source.index("Picasso.get().cancelRequest(mProfilePicture)", header)
+validity = source.index("LegacyUserPolicy.hasText(username)", header)
+execute = source.index("updateProfilePicture(username, requestTicket)", header)
+download = source.index("private void updateProfilePicture(String username, long requestTicket)")
+download_guard = source.index("profileImageRequestGate.isCurrent(requestTicket)", download)
+picasso_load = source.index("Picasso.get().load(url)", download)
+callback = source.index("private class RoundProfilePictureCallback")
+success = source.index("public void onSuccess()", callback)
+success_guard = source.index("profileImageRequestGate.isCurrent(requestTicket)", success)
+success_mutation = source.index("mProfilePicture.getDrawable()", success)
+failure = source.index("public void onError(Exception e)", callback)
+failure_guard = source.index("profileImageRequestGate.isCurrent(requestTicket)", failure)
+failure_mutation = source.index("mProfilePicture.setImageResource", failure)
+if not header < ticket < cancel < validity < execute < download < download_guard < picasso_load:
+    raise SystemExit("FAIL: legacy profile lookup can outlive a newer username")
+if "new RoundProfilePictureCallback(requestTicket)" not in source:
+    raise SystemExit("FAIL: the profile image callback does not retain its request ticket")
+if not callback < success < success_guard < success_mutation < failure < failure_guard < failure_mutation:
+    raise SystemExit("FAIL: stale profile image callbacks can still mutate the ImageView")
+PY

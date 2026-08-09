@@ -36,6 +36,7 @@ import io.highfidelity.hifiinterface.fragment.PolicyFragment;
 import io.highfidelity.hifiinterface.fragment.ProfileFragment;
 import io.highfidelity.hifiinterface.fragment.SettingsFragment;
 import io.highfidelity.hifiinterface.fragment.SignupFragment;
+import io.highfidelity.hifiinterface.provider.LegacyLatestRequestGate;
 import io.highfidelity.hifiinterface.task.DownloadProfileImageTask;
 
 public class MainActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener,
@@ -63,6 +64,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private View mProfilePanel;
     private TextView mLogoutOption;
     private MenuItem mPeopleMenuItem;
+    private final LegacyLatestRequestGate profileImageRequestGate =
+            new LegacyLatestRequestGate();
     private MenuItem mProfileMenuItem;
 
     private boolean backToScene;
@@ -235,9 +238,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         updateProfileHeader(getUsername());
     }
     private void updateProfileHeader(String username) {
+        long requestTicket = profileImageRequestGate.begin();
+        Picasso.get().cancelRequest(mProfilePicture);
         if (LegacyUserPolicy.hasText(username)) {
             mDisplayName.setText(username);
-            updateProfilePicture(username);
+            updateProfilePicture(username, requestTicket);
         }
     }
 
@@ -349,10 +354,13 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
      * This is a temporary way to get the profile picture URL
      * TODO: this should be get from an API (at the moment there is no one for this)
      */
-    private void updateProfilePicture(String username) {
+    private void updateProfilePicture(String username, long requestTicket) {
         mProfilePicture.setImageResource(PROFILE_PICTURE_PLACEHOLDER);
-        new DownloadProfileImageTask(url ->  { if (url != null && !url.isEmpty()) {
-                Picasso.get().load(url).into(mProfilePicture, new RoundProfilePictureCallback());
+        new DownloadProfileImageTask(url ->  {
+            if (profileImageRequestGate.isCurrent(requestTicket)
+                    && LegacyUserPolicy.hasText(url)) {
+                Picasso.get().load(url).into(mProfilePicture,
+                        new RoundProfilePictureCallback(requestTicket));
             } } ).execute(username);
     }
 
@@ -381,8 +389,17 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     }
 
     private class RoundProfilePictureCallback implements Callback {
+        private final long requestTicket;
+
+        RoundProfilePictureCallback(long requestTicket) {
+            this.requestTicket = requestTicket;
+        }
+
         @Override
         public void onSuccess() {
+            if (!profileImageRequestGate.isCurrent(requestTicket)) {
+                return;
+            }
             Bitmap imageBitmap = ((BitmapDrawable) mProfilePicture.getDrawable()).getBitmap();
             RoundedBitmapDrawable imageDrawable = RoundedBitmapDrawableFactory.create(getResources(), imageBitmap);
             imageDrawable.setCircular(true);
@@ -392,6 +409,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
         @Override
         public void onError(Exception e) {
+            if (!profileImageRequestGate.isCurrent(requestTicket)) {
+                return;
+            }
             mProfilePicture.setImageResource(PROFILE_PICTURE_PLACEHOLDER);
         }
     }
