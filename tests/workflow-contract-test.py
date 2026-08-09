@@ -81,6 +81,7 @@ class PicoBuildWorkflowContracts(unittest.TestCase):
         self.assertIn("refs/tags/pico4-preview-[0-9]+", self.source)
         self.assertIn("tests/run-project-tests.py", self.source)
         self.assertIn("./build-pico.sh doctor", self.source)
+        self.assertIn("./build-pico.sh deps --download", self.source)
         self.assertIn("./build-pico.sh build", self.source)
         self.assertIn("android/ci/verify-pico-apk.py", self.source)
         self.assertIn('--source-revision "$GITHUB_SHA"', self.source)
