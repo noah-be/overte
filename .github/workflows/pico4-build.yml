@@ -1,0 +1,80 @@
+name: Pico 4 trusted build
+
+on:
+  workflow_dispatch:
+    inputs:
+      refresh_dependencies:
+        description: Restore the checksum-verified Pico dependency bundle before building
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pico4-build-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    # This label must only be assigned to an isolated, trusted runner. Never add
+    # pull_request as a trigger while repository code runs on this host.
+    runs-on: [self-hosted, linux, x64, overte-android-build]
+    timeout-minutes: 240
+    steps:
+      - name: Check out requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Run device-free regression suite
+        run: |
+          set -euo pipefail
+          tests/run-project-tests.py \
+            --timeout 240 \
+            --junit build/test-results/project-tests.xml
+
+      - name: Verify build environment
+        working-directory: android
+        run: ./build-pico.sh doctor
+
+      - name: Restore checksum-verified dependencies
+        if: inputs.refresh_dependencies
+        working-directory: android
+        run: ./build-pico.sh deps --download
+
+      - name: Prepare dependencies
+        working-directory: android
+        run: ./build-pico.sh prepare
+
+      - name: Build Pico debug APK
+        working-directory: android
+        run: ./build-pico.sh build
+
+      - name: Verify Pico APK
+        env:
+          PICO_APK: android/apps/picoInterface/build/outputs/apk/debug/picoInterface-debug.apk
+        run: |
+          set -euo pipefail
+          android/ci/verify-pico-apk.py "$PICO_APK" \
+            --aapt "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt" \
+            --apksigner "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" \
+            --source-revision "$GITHUB_SHA" \
+            --output build/pico4/apk-manifest.json
+          cat build/pico4/apk-manifest.json >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload small verification reports
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: pico4-build-reports-${{ github.run_id }}
+          path: |
+            build/test-results/project-tests.xml
+            build/pico4/apk-manifest.json
+          if-no-files-found: warn
+          retention-days: 7
