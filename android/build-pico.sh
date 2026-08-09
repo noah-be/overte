@@ -68,6 +68,8 @@ Usage: ./build-pico.sh [doctor|bootstrap|deps|prepare|build|install|all|deploy|s
   prepare  Locate and stage the existing Conan/Qt dependencies
   build [--stacktrace]
            Build the Pico debug APK; optionally include Gradle failure details
+  release [--stacktrace]
+           Build a signed Pico release APK (requires protected Gradle properties)
   install  Install the existing APK on a connected Pico via ADB
   all      Prepare dependencies and build the APK (default)
   deploy   Prepare, build, and install the APK
@@ -684,6 +686,7 @@ prepare() {
 
 build() {
     local option="${1:-}"
+    local variant="${2:-debug}" task output
     local -a gradle_diagnostics=()
     if [[ "$option" == "--stacktrace" ]]; then
         gradle_diagnostics+=(--stacktrace)
@@ -692,14 +695,21 @@ build() {
     fi
     detect_sdk
     detect_jdk
+    if [[ "$variant" == "release" ]]; then
+        task=assembleRelease
+        output="$script_dir/apps/picoInterface/build/outputs/apk/release/picoInterface-release.apk"
+    else
+        task=assembleDebug
+        output="$script_dir/apps/picoInterface/build/outputs/apk/debug/picoInterface-debug.apk"
+    fi
     echo "Android SDK: $ANDROID_SDK_ROOT"
     echo "Java: $JAVA_HOME"
     PICO_BUILD_JOBS="$jobs" CMAKE_BUILD_PARALLEL_LEVEL="$jobs" \
         SHADERGEN_JOBS="${PICO_SHADER_JOBS:-$jobs}" \
         "$script_dir/gradlew" \
         --settings-file "$script_dir/settings-pico.gradle" \
-        :picoInterface:assembleDebug --max-workers="$jobs" "${gradle_diagnostics[@]}"
-    echo "APK: $script_dir/apps/picoInterface/build/outputs/apk/debug/picoInterface-debug.apk"
+        ":picoInterface:$task" --max-workers="$jobs" "${gradle_diagnostics[@]}"
+    echo "APK: $output"
 }
 
 install_apk() {
@@ -769,7 +779,8 @@ case "$command_name" in
         fi
         ;;
     prepare) prepare ;;
-    build) build "$command_option" ;;
+    build) build "$command_option" debug ;;
+    release) build "$command_option" release ;;
     install) install_apk ;;
     all) prepare; build ;;
     deploy) prepare; build; install_apk ;;

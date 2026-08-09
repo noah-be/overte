@@ -117,7 +117,8 @@ tasks.register('preparePicoQtRuntime', Copy) {
     }
     from({
         def plugins = fileTree(new File(projectDir, '.cxx')) {
-            include '**/interface/Debug/plugins/libopenxr.so'
+            include '**/interface/Debug/plugins/libopenxr.so',
+                '**/interface/Release/plugins/libopenxr.so'
         }.files
         def newestPlugin = plugins ? plugins.max { it.lastModified() } : null
         newestPlugin ?: []
@@ -165,6 +166,33 @@ android {
                     '-DUSE_BREAKPAD=OFF'
                 targets 'picoInterface'
             }
+        }
+    }
+
+    signingConfigs {
+        release {
+            def required = ['PICO_RELEASE_STORE_FILE', 'PICO_RELEASE_STORE_PASSWORD',
+                            'PICO_RELEASE_KEY_ALIAS', 'PICO_RELEASE_KEY_PASSWORD']
+            if (gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') }) {
+                required.each { name ->
+                    if (!providers.gradleProperty(name).isPresent()) {
+                        throw new GradleException("Missing protected Pico signing property: ${name}")
+                    }
+                }
+                storeFile file(providers.gradleProperty('PICO_RELEASE_STORE_FILE').get())
+                storePassword providers.gradleProperty('PICO_RELEASE_STORE_PASSWORD').get()
+                keyAlias providers.gradleProperty('PICO_RELEASE_KEY_ALIAS').get()
+                keyPassword providers.gradleProperty('PICO_RELEASE_KEY_PASSWORD').get()
+                enableV1Signing false
+                enableV2Signing true
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
         }
     }
 
