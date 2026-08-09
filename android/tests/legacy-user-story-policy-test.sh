@@ -15,6 +15,7 @@ javac -d "$output" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/provider/UserStoryDomainPolicy.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/provider/LegacyLatestRequestGate.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/provider/UserStoryRetrievalCoordinator.java" \
+    "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/task/LegacyProfilePagePolicy.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/provider/UserStoryDomainPolicyStandaloneTest.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/provider/LegacyLatestRequestGateStandaloneTest.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/provider/UserStoryRetrievalCoordinatorStandaloneTest.java" \
@@ -22,7 +23,8 @@ javac -d "$output" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyAdapterPositionPolicyStandaloneTest.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyDomainLocationPolicyStandaloneTest.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyUserPolicyStandaloneTest.java" \
-    "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyCrashDumpPolicyStandaloneTest.java"
+    "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyCrashDumpPolicyStandaloneTest.java" \
+    "$android_root/tests/java/io/highfidelity/hifiinterface/task/LegacyProfilePagePolicyStandaloneTest.java"
 java -Djava.io.tmpdir="$output" -cp "$output" \
     io.highfidelity.hifiinterface.provider.UserStoryDomainPolicyStandaloneTest
 java -Djava.io.tmpdir="$output" -cp "$output" \
@@ -39,6 +41,8 @@ java -Djava.io.tmpdir="$output" -cp "$output" \
     io.highfidelity.hifiinterface.LegacyUserPolicyStandaloneTest
 java -Djava.io.tmpdir="$output" -cp "$output" \
     io.highfidelity.hifiinterface.LegacyCrashDumpPolicyStandaloneTest
+java -Djava.io.tmpdir="$output" -cp "$output" \
+    io.highfidelity.hifiinterface.task.LegacyProfilePagePolicyStandaloneTest
 
 if grep -Eq 'Log\.[A-Za-z]+\([^;]*accessToken|accessToken[^;]*Log\.' \
         "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/fragment/FriendsFragment.java"; then
@@ -93,6 +97,16 @@ failure_mutation = source.index("mAdapterListener.onError", failure)
 if not success < success_guard < success_mutation < failure < failure_guard < failure_mutation:
     raise SystemExit("FAIL: legacy People completion guards run after observable mutation")
 PY
+
+profile_task="$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/task/DownloadProfileImageTask.java"
+grep -Fq 'LegacyProfilePagePolicy.read(userPage.openConnection())' "$profile_task" || {
+    printf 'FAIL: legacy profile downloads bypass the bounded URLConnection policy\n' >&2
+    exit 1
+}
+if grep -Eq 'openStream|BufferedReader|InputStreamReader|StringBuffer' "$profile_task"; then
+    printf 'FAIL: legacy profile downloads retain an unbounded/default-charset reader\n' >&2
+    exit 1
+fi
 
 python3 - "$main_activity" <<'PY'
 import pathlib

@@ -3,9 +3,7 @@ package io.highfidelity.hifiinterface.task;
 import android.os.AsyncTask;
 import android.util.Log;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.URL;
 
 import io.highfidelity.hifiinterface.HifiUtils;
@@ -35,22 +33,13 @@ public class DownloadProfileImageTask extends AsyncTask<String, Void, String> {
         for (String username: usernames) {
             try {
                 userPage = new URL(BASE_PROFILE_URL + "/users/" + username);
-                BufferedReader in = new BufferedReader(
-                        new InputStreamReader(
-                                userPage.openStream()));
-
-                StringBuffer strBuff = new StringBuffer();
-                String inputLine;
-                while ((inputLine = in.readLine()) != null) {
-                    strBuff.append(inputLine);
-                }
-                in.close();
+                String profilePage = LegacyProfilePagePolicy.read(userPage.openConnection());
                 String substr = "img class=\"users-img\" src=\"";
-                int indexBegin = strBuff.indexOf(substr) + substr.length();
+                int indexBegin = profilePage.indexOf(substr) + substr.length();
                 if (indexBegin >= substr.length()) {
-                    int indexEnd = strBuff.indexOf("\"", indexBegin);
+                    int indexEnd = profilePage.indexOf("\"", indexBegin);
                     if (indexEnd > 0) {
-                        String url = strBuff.substring(indexBegin, indexEnd);
+                        String url = profilePage.substring(indexBegin, indexEnd);
                         return HifiUtils.getInstance().absoluteHifiAssetUrl(url, BASE_PROFILE_URL);
                     }
                 }
