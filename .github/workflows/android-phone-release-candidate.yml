@@ -36,12 +36,16 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Verify tag and monotonic version
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          PUBLISHED_CODE_FLOOR: ${{ vars.ANDROID_PHONE_PUBLISHED_VERSION_CODE }}
         run: |
           set -euo pipefail
           android/ci/verify-phone-release.py \
-            --tag '${{ inputs.release_tag }}' \
-            --version-code '${{ inputs.version_code }}' \
-            --published-code-floor '${{ vars.ANDROID_PHONE_PUBLISHED_VERSION_CODE }}' \
+            --tag "$RELEASE_TAG" \
+            --version-code "$VERSION_CODE" \
+            --published-code-floor "$PUBLISHED_CODE_FLOOR" \
             --source-revision "$GITHUB_SHA" \
             --output android/build/release/version-manifest.json
       - name: Run release contracts
@@ -66,12 +70,16 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Reverify approved source and version
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          PUBLISHED_CODE_FLOOR: ${{ vars.ANDROID_PHONE_PUBLISHED_VERSION_CODE }}
         run: |
           set -euo pipefail
           android/ci/verify-phone-release.py \
-            --tag '${{ inputs.release_tag }}' \
-            --version-code '${{ inputs.version_code }}' \
-            --published-code-floor '${{ vars.ANDROID_PHONE_PUBLISHED_VERSION_CODE }}' \
+            --tag "$RELEASE_TAG" \
+            --version-code "$VERSION_CODE" \
+            --published-code-floor "$PUBLISHED_CODE_FLOOR" \
             --source-revision "$GITHUB_SHA" \
             --output android/build/release/version-manifest.json
       - name: Verify mandatory host-test runtime

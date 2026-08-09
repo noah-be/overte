@@ -154,6 +154,35 @@ class AndroidPhoneReleaseCandidateWorkflowContracts(unittest.TestCase):
         self.assertIn("refs/tags/${{ inputs.release_tag }}", self.source)
         self.assertIn("persist-credentials: false", self.source)
 
+    def test_release_values_are_not_interpolated_into_shell_programs(self):
+        lines = self.source.splitlines()
+        run_blocks = []
+        for index, line in enumerate(lines):
+            if line != "        run: |":
+                continue
+            body = []
+            for candidate in lines[index + 1:]:
+                if candidate and not candidate.startswith("          "):
+                    break
+                body.append(candidate)
+            run_blocks.append("\n".join(body))
+        self.assertGreaterEqual(len(run_blocks), 4)
+        shell_programs = "".join(run_blocks)
+        self.assertNotIn("${{ inputs.", shell_programs)
+        self.assertNotIn("${{ vars.", shell_programs)
+        for mapping in (
+            "RELEASE_TAG: ${{ inputs.release_tag }}",
+            "VERSION_CODE: ${{ inputs.version_code }}",
+            "PUBLISHED_CODE_FLOOR: ${{ vars.ANDROID_PHONE_PUBLISHED_VERSION_CODE }}",
+        ):
+            self.assertGreaterEqual(self.source.count(mapping), 2)
+        for argument in (
+            '--tag "$RELEASE_TAG"',
+            '--version-code "$VERSION_CODE"',
+            '--published-code-floor "$PUBLISHED_CODE_FLOOR"',
+        ):
+            self.assertEqual(2, self.source.count(argument))
+
     def test_complete_gates_and_local_metadata_are_retained(self):
         for required in (
             "tests/run-tests.sh host", "./build-phone.sh deps --download",
