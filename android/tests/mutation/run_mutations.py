@@ -299,7 +299,7 @@ def run_mutations(args: argparse.Namespace) -> int:
                 write_report(args.report, {
                     "mode": "extended" if args.extended else "quick",
                     "seedPolicy": "fixed deterministic inputs in production-facing harnesses",
-                    "baseline": baselines, "killed": 0, "survived": 0, "errors": 1, "mutants": [],
+                    "baseline": baselines, "killed": 0, "survived": 0, "errors": 1,
                 })
                 return 2
         for mutant in selected:

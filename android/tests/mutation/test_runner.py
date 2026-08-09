@@ -104,9 +104,22 @@ class MutationClassificationTest(unittest.TestCase):
                 text=True, capture_output=True, env=environment, check=False)
             import json
             payload = json.loads(report.read_text(encoding="utf-8"))
+            summary_output = Path(temporary) / "summary.md"
+            summary_result = subprocess.run([
+                sys.executable,
+                str(runner.ROOT / "tests/reporting/generate_summary.py"),
+                "--mutation", f"baseline={report}",
+                "--output", str(summary_output),
+                "--strict",
+            ], text=True, capture_output=True, check=False)
         self.assertEqual(2, result.returncode)
-        self.assertEqual([], payload["mutants"])
+        self.assertNotIn("mutants", payload)
         self.assertEqual("error", payload["baseline"][0]["status"])
+        self.assertEqual(1, payload["errors"])
+        self.assertEqual(0, summary_result.returncode, summary_result.stderr)
+        self.assertIn("0/1 killed, 0 survived, 1 errors (quick)", summary_result.stdout)
+        self.assertNotIn("MALFORMED", summary_result.stdout)
+        self.assertNotIn("Report issues", summary_result.stdout)
 
     def test_interrupted_run_invalidates_stale_report(self):
         with tempfile.TemporaryDirectory() as temporary:
