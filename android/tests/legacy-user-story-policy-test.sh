@@ -69,3 +69,27 @@ grep -Fq 'forceRefresh || requestInFlight' "$provider" || {
     printf 'FAIL: legacy Places completions are not gated before mutation\n' >&2
     exit 1
 }
+
+user_list_adapter="$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/view/UserListAdapter.java"
+grep -Fq 'long requestTicket = requestGate.begin();' "$user_list_adapter" || {
+    printf 'FAIL: legacy People requests do not establish a latest-request ticket\n' >&2
+    exit 1
+}
+[[ "$(grep -Fc 'requestGate.isCurrent(requestTicket)' "$user_list_adapter")" -eq 2 ]] || {
+    printf 'FAIL: legacy People completion guards are incomplete\n' >&2
+    exit 1
+}
+python3 - "$user_list_adapter" <<'PY'
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+success = source.index("public void retrieveOk(List<User> users)")
+success_guard = source.index("requestGate.isCurrent(requestTicket)", success)
+success_mutation = source.index("mUsers = new ArrayList<>(users)", success)
+failure = source.index("public void retrieveError(Exception e, String message)")
+failure_guard = source.index("requestGate.isCurrent(requestTicket)", failure)
+failure_mutation = source.index("mAdapterListener.onError", failure)
+if not success < success_guard < success_mutation < failure < failure_guard < failure_mutation:
+    raise SystemExit("FAIL: legacy People completion guards run after observable mutation")
+PY

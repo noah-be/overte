@@ -24,6 +24,7 @@ import java.util.List;
 import io.highfidelity.hifiinterface.R;
 import io.highfidelity.hifiinterface.LegacyAdapterPositionPolicy;
 import io.highfidelity.hifiinterface.LegacyUserPolicy;
+import io.highfidelity.hifiinterface.provider.LegacyLatestRequestGate;
 import io.highfidelity.hifiinterface.provider.UsersProvider;
 
 /**
@@ -38,6 +39,7 @@ public class UserListAdapter extends RecyclerView.Adapter<UserListAdapter.ViewHo
     private List<User> mUsers = new ArrayList<>();
     private ItemClickListener mClickListener;
     private AdapterListener mAdapterListener;
+    private final LegacyLatestRequestGate requestGate = new LegacyLatestRequestGate();
 
     private static List<User> USERS_TMP_CACHE;
 
@@ -74,9 +76,13 @@ public class UserListAdapter extends RecyclerView.Adapter<UserListAdapter.ViewHo
     }
 
     public void loadUsers() {
+        long requestTicket = requestGate.begin();
         mProvider.retrieve(new UsersProvider.UsersCallback() {
             @Override
             public void retrieveOk(List<User> users) {
+                if (!requestGate.isCurrent(requestTicket)) {
+                    return;
+                }
                 mUsers = new ArrayList<>(users);
                 notifyDataSetChanged();
 
@@ -96,6 +102,9 @@ public class UserListAdapter extends RecyclerView.Adapter<UserListAdapter.ViewHo
 
             @Override
             public void retrieveError(Exception e, String message) {
+                if (!requestGate.isCurrent(requestTicket)) {
+                    return;
+                }
                 Log.e("[USERS]", message, e);
                 if (mAdapterListener != null) {
                     mAdapterListener.onError(e, message);
