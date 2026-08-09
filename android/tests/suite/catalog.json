@@ -88,6 +88,13 @@
       "description": "GitHub Actions permission, pinning, retention and isolation contracts"
     },
     {
+      "id": "phone-apk-provenance",
+      "kind": "contract",
+      "tiers": ["contracts"],
+      "command": ["tests/phone-apk-provenance-test.py"],
+      "description": "Signed 16 KiB APK provenance verifier behavior"
+    },
+    {
       "id": "phone-device-free-regression",
       "kind": "integration",
       "tiers": ["regression"],
