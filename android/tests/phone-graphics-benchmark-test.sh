@@ -5,9 +5,24 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 fixture="$(mktemp -d /tmp/overte-phone-graphics-harness-test.XXXXXXXX)"
 trap 'rm -rf -- "$fixture"' EXIT INT TERM
 report="$fixture/report"
+readonly real_mktemp="$(command -v mktemp)"
+export PHONE_BENCHMARK_TEST_REAL_MKTEMP="$real_mktemp"
 # The fixture supplies fake ADB and must never contend for the real shared
 # device lock or its post-device cooldown.
 export PHONE_DEVICE_LOCK_HELD=1
+
+mkdir "$fixture/bin"
+cat >"$fixture/bin/mktemp" <<'MOCK_MKTEMP'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${MOCK_SUMMARY_MKTEMP_FAILURE:-0}" == 1 && "$*" == *'.summary.txt.'* ]]; then
+    printf 'private summary allocation failure: %s\n' "$*" >&2
+    exit 7
+fi
+exec "$PHONE_BENCHMARK_TEST_REAL_MKTEMP" "$@"
+MOCK_MKTEMP
+chmod +x "$fixture/bin/mktemp"
+export PATH="$fixture/bin:$PATH"
 
 sed 's/^+//' >"$fixture/adb" <<'MOCK'
 +#!/usr/bin/env bash
@@ -145,7 +160,23 @@ if grep -Eq 'phone-secret|private@example[.]test|private adb transport' \
         "$fixture/private-stderr.out"; then
     echo 'FAIL: raw ADB stderr escaped from benchmark' >&2; exit 1
 fi
+grep -Fxq 'Aggregate benchmark report written.' "$fixture/private-stderr.out"
+! grep -Fq "$fixture" "$fixture/private-stderr.out"
 grep -q '^stable_process=1$' "$private_stderr_report/summary.txt"
+
+summary_failure_report="$fixture/summary-failure-report"
+if PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/summary-failure-exits" \
+    MOCK_SUMMARY_MKTEMP_FAILURE=1 ANDROID_SERIAL=phone-secret \
+    PHONE_BENCHMARK_CONFIRM_NON_VR=YES PHONE_BENCHMARK_REPORT="$summary_failure_report" \
+    PHONE_BENCHMARK_INTERVAL=1 "$script_dir/phone-graphics-benchmark.sh" 1 \
+    >"$fixture/summary-failure.out" 2>&1; then
+    echo 'FAIL: benchmark accepted aggregate-summary allocation failure' >&2; exit 1
+fi
+grep -Fxq 'ERROR: could not create aggregate benchmark summary' \
+    "$fixture/summary-failure.out"
+! grep -Fq 'private summary allocation failure' "$fixture/summary-failure.out"
+! grep -Fq "$fixture" "$fixture/summary-failure.out"
+[[ ! -e "$summary_failure_report/summary.txt" ]]
 grep -q '^gpu_live_metrics_valid=1$' "$summary"
 grep -q '^gpu_buffer_count=123$' "$summary"
 grep -q '^gpu_buffer_mib=45.50$' "$summary"

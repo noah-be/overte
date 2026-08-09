@@ -363,8 +363,12 @@ native_present_metrics_available=0
 [[ -n "$native_present_fps" && -n "$native_new_frame_fps" && -n "$native_present_p95_ms" ]] && \
     native_present_metrics_available=1
 
-summary_tmp="$(mktemp "$report_dir/.summary.txt.XXXXXXXX")"
-chmod 600 "$summary_tmp"
+summary_tmp="$(mktemp "$report_dir/.summary.txt.XXXXXXXX" 2>/dev/null)" || \
+    die "could not create aggregate benchmark summary"
+if ! chmod 600 "$summary_tmp" 2>/dev/null; then
+    rm -f -- "$summary_tmp" 2>/dev/null || true
+    die "could not secure aggregate benchmark summary"
+fi
 {
     printf 'schema=overte-phone-graphics-aggregate-v1\n'
     cat "$raw_dir/graphics.aggregate"
@@ -426,6 +430,12 @@ chmod 600 "$summary_tmp"
     printf 'framebuffer_resolve_width=%s\nframebuffer_resolve_height=%s\nframebuffer_resolve_samples=%s\n' \
         "$framebuffer_resolve_width" "$framebuffer_resolve_height" "$framebuffer_resolve_samples"
     printf 'framebuffer_estimated_mib=%s\n' "$framebuffer_estimated_mib"
-} >"$summary_tmp"
-mv -T -- "$summary_tmp" "$summary"
-printf 'Aggregate benchmark report: %s\n' "$summary"
+} >"$summary_tmp" 2>/dev/null || {
+    rm -f -- "$summary_tmp" 2>/dev/null || true
+    die "could not write aggregate benchmark summary"
+}
+if ! mv -T -- "$summary_tmp" "$summary" 2>/dev/null; then
+    rm -f -- "$summary_tmp" 2>/dev/null || true
+    die "could not publish aggregate benchmark summary"
+fi
+printf 'Aggregate benchmark report written.\n'

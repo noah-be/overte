@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 116 — Keep benchmark publication private and atomic
+
+- Branch: `nightly/android-phone-116-private-benchmark-publish`
+- Commit: `Harden phone benchmark summary publication` (this task's commit)
+- Change: Give final summary allocation, permission, write, and atomic-publish
+  failures fixed errors; remove partial temporary summaries; and stop printing
+  the caller's report path on successful completion.
+- Tests:
+  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; forced summary
+    allocation failure exposes neither fake-tool diagnostics nor the private
+    report path and leaves no published summary, while success emits only the
+    fixed completion message.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 307/307 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 307/307.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: The final filesystem can still fail between phases; each checked
+  phase now fails closed and performs best-effort temporary cleanup.
+- Real-device validation still required: Run aggregate collection for a
+  current-chain APK and confirm the fixed completion message and private report.
+
 ## 115 — Keep benchmark setup failures private
 
 - Branch: `nightly/android-phone-115-private-benchmark-setup`
@@ -2645,7 +2666,8 @@ All branches form one linear chain starting at
 112. `nightly/android-phone-112-late-summary-failure` — `b12135379e`
 113. `nightly/android-phone-113-private-benchmark-adb` — `3012eeec08`
 114. `nightly/android-phone-114-benchmark-report-preflight` — `6d95343897`
-115. `nightly/android-phone-115-private-benchmark-setup` — this task's commit
+115. `nightly/android-phone-115-private-benchmark-setup` — `48d8101544`
+116. `nightly/android-phone-116-private-benchmark-publish` — this task's commit
 
 ### Device-free audit disposition
 
