@@ -31,6 +31,8 @@ int main() {
     assert(!isOpenXrSwapchainImageWaitComplete(false, true));
     assert(!isOpenXrSwapchainImageWaitComplete(true, true));
     assert(isOpenXrSwapchainImageWaitComplete(true, false));
+    assert(!isOpenXrFramePresentationComplete(false));
+    assert(isOpenXrFramePresentationComplete(true));
     assert(!isOpenXrFoveationProfileUsable(false, false));
     assert(!isOpenXrFoveationProfileUsable(false, true));
     assert(!isOpenXrFoveationProfileUsable(true, false));

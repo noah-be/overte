@@ -27,6 +27,10 @@ constexpr bool isOpenXrSwapchainImageWaitComplete(
     return resultSucceeded && !timeoutExpired;
 }
 
+constexpr bool isOpenXrFramePresentationComplete(bool endFrameSucceeded) {
+    return endFrameSucceeded;
+}
+
 inline bool isOpenXrFoveationProfileUsable(
         bool createSucceeded, bool handleIsNonNull) {
     return createSucceeded && handleIsNonNull;

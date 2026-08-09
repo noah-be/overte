@@ -692,7 +692,9 @@ void OpenXrDisplayPlugin::hmdPresent() {
         releaseAcquiredImages();
     }
 
-    endFrame();
+    if (!isOpenXrFramePresentationComplete(endFrame())) {
+        return;
+    }
 
     _presentRate.increment();
 }
