@@ -20,9 +20,10 @@ class NativeCoverageHarnessTest(unittest.TestCase):
         cmake = root / "cmake"
         ctest = root / "ctest"
         gcovr = root / "gcovr"
-        executable(cmake, "exit 0\n")
-        executable(ctest, "exit 0\n")
+        executable(cmake, "printf 'cmake\\n' >>\"$TOOL_LOG\"\n")
+        executable(ctest, "printf 'ctest\\n' >>\"$TOOL_LOG\"\n")
         executable(gcovr, r'''
+printf 'gcovr\n' >>"$TOOL_LOG"
 count=0
 [[ -f "$GCOVR_COUNT" ]] && read -r count <"$GCOVR_COUNT"
 count=$((count + 1))
@@ -48,7 +49,39 @@ printf '<html>coverage</html>\n' >"$html"
             "OVERTE_NATIVE_COVERAGE_REPORT_DIR": str(root / "reports"),
             "GCOVR_COUNT": str(root / "gcovr-count"),
             "GCOVR_FAIL_CALL": str(fail_call),
+            "TOOL_LOG": str(root / "tool-log"),
         }
+
+    @unittest.skipUnless(os.name == "posix", "flock fixture is POSIX-specific")
+    def test_staging_failure_invalidates_old_reports_without_starting_tools(self):
+        import fcntl
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            reports = root / "reports"
+            reports.mkdir()
+            for name in (
+                    "interface.xml", "login-state.xml", "pending-handoff.xml",
+                    "interface.html", "interface.details.html",
+                    "login-state.html", "pending-handoff.html"):
+                (reports / name).write_text("stale", encoding="utf-8")
+            failing_mktemp = root / "mktemp"
+            executable(failing_mktemp, "exit 8\n")
+            environment = self.fixture(root)
+            environment["OVERTE_NATIVE_COVERAGE_MKTEMP_COMMAND"] = str(failing_mktemp)
+
+            result = subprocess.run(
+                [RUNNER], env=environment, text=True,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+            self.assertEqual(8, result.returncode, result.stdout)
+            self.assertEqual([], list(reports.glob("*.xml")))
+            self.assertEqual([], list(reports.glob("*.html")))
+            self.assertEqual([], list(reports.glob(".native-coverage.*")))
+            self.assertFalse((root / "tool-log").exists())
+            lock_path = Path(environment["OVERTE_NATIVE_COVERAGE_BUILD_DIR"] + ".lock")
+            with lock_path.open("a", encoding="utf-8") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
     def test_failure_invalidates_old_reports_and_cleans_staging(self):
         with tempfile.TemporaryDirectory() as directory:

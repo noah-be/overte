@@ -7,6 +7,7 @@ readonly report_dir="${OVERTE_NATIVE_COVERAGE_REPORT_DIR:-$android_root/build/re
 readonly managed_gcovr="$android_root/build/tools/native-coverage-venv/bin/gcovr"
 readonly cmake_command="${OVERTE_CMAKE_COMMAND:-cmake}"
 readonly ctest_command="${OVERTE_CTEST_COMMAND:-ctest}"
+readonly mktemp_command="${OVERTE_NATIVE_COVERAGE_MKTEMP_COMMAND:-mktemp}"
 
 gcovr_command="${OVERTE_GCOVR_COMMAND:-$(command -v gcovr 2>/dev/null || true)}"
 if [[ -z "$gcovr_command" && -x "$managed_gcovr" ]]; then
@@ -29,9 +30,11 @@ if ! flock -x -w "$lock_timeout" "$coverage_lock_fd"; then
     printf 'FAIL: timed out waiting for native coverage lock: %s\n' "${build_dir}.lock" >&2
     exit 1
 fi
-staging_dir="$(mktemp -d "$report_dir/.native-coverage.XXXXXXXX")"
+staging_dir=''
 cleanup() {
-    rm -rf -- "$staging_dir"
+    if [[ -n "$staging_dir" ]]; then
+        rm -rf -- "$staging_dir"
+    fi
     flock -u "$coverage_lock_fd" 2>/dev/null || true
     exec {coverage_lock_fd}>&-
 }
@@ -42,6 +45,8 @@ trap 'exit 143' TERM
 rm -f -- "$report_dir"/interface.xml "$report_dir"/login-state.xml \
     "$report_dir"/pending-handoff.xml "$report_dir"/interface*.html \
     "$report_dir"/login-state*.html "$report_dir"/pending-handoff*.html
+
+staging_dir="$("$mktemp_command" -d "$report_dir/.native-coverage.XXXXXXXX")"
 
 "$cmake_command" -S "$android_root/tests/native" -B "$build_dir" \
     -DCMAKE_BUILD_TYPE=Debug \
