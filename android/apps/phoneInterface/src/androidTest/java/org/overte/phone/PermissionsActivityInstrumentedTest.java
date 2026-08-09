@@ -4,8 +4,9 @@ import static androidx.test.espresso.intent.Intents.intended;
 import static androidx.test.espresso.intent.Intents.intending;
 import static androidx.test.espresso.intent.matcher.IntentMatchers.hasComponent;
 import static androidx.test.espresso.intent.matcher.IntentMatchers.hasExtra;
-import static androidx.test.espresso.intent.matcher.IntentMatchers.doesNotHaveExtraWithKey;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anything;
+import static org.hamcrest.Matchers.not;
 
 import android.Manifest;
 import android.app.Activity;
@@ -60,7 +61,7 @@ public final class PermissionsActivityInstrumentedTest {
                 new Intent(Intent.ACTION_MAIN))) {
             intended(allOf(
                     hasComponent(PhoneInterfaceActivity.class.getName()),
-                    doesNotHaveExtraWithKey(PhoneDeepLink.EXTRA_URL)));
+                    not(hasExtra(PhoneDeepLink.EXTRA_URL, anything()))));
         }
     }
 
@@ -70,7 +71,7 @@ public final class PermissionsActivityInstrumentedTest {
                 new Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com")))) {
             intended(allOf(
                     hasComponent(PhoneInterfaceActivity.class.getName()),
-                    doesNotHaveExtraWithKey(PhoneDeepLink.EXTRA_URL)));
+                    not(hasExtra(PhoneDeepLink.EXTRA_URL, anything()))));
         }
     }
 

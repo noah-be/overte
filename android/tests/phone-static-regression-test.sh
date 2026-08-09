@@ -25,6 +25,7 @@ readonly tests=(
     phone-device-smoke-mock-test.sh
     phone-doctor-output-test.sh
     phone-elf-alignment-test.sh
+    phone-emulator-config-test.sh
     phone-focus-debugger-animation-test.sh
     phone-forward-pass-trim-test.sh
     phone-framebuffer-telemetry-test.sh

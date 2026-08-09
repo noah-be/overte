@@ -19,6 +19,40 @@ For the device-free Actions checks and trusted build-runner architecture, see
 
 Run the commands in this document from the repository's `android/` directory.
 
+## Fast x86_64 emulator tests
+
+The production Phone APK remains ARM64-only. For local instrumentation tests,
+the separate `emulator` build type compiles the complete application and its
+native dependency graph for x86_64 so a matching AVD can use KVM acceleration.
+It cannot be selected accidentally by the normal debug or release commands.
+
+The local default is the `overte_api35` AVD. Select another existing x86_64
+AVD with `PHONE_EMULATOR_AVD=<name>`. Check the host without starting it:
+
+```bash
+./phone-emulator-test.sh doctor
+```
+
+Build the x86_64 dependencies and app, boot the headless emulator, disable
+system animations, and run the AndroidX instrumentation suite:
+
+```bash
+./phone-emulator-test.sh all
+```
+
+The included smoke test runs inside Android and verifies that the installed
+Phone package is executing on an x86_64 device and contains the native
+`libphoneInterface.so` for that ABI. Add further device tests below
+`apps/phoneInterface/src/androidTest/`.
+
+The first dependency build compiles Qt and the other Android native packages
+and is substantially slower than later incremental runs. Individual phases
+are available as `deps`, `build`, `start`, `test`, and `stop`. The runner only
+stops an AVD when explicitly invoked with `stop`.
+
+See [ANDROID_PHONE_EMULATOR_TESTS.md](ANDROID_PHONE_EMULATOR_TESTS.md) for the
+implementation details, validated baseline, limitations, and test roadmap.
+
 ## Current scope
 
 The first development milestone provides:
