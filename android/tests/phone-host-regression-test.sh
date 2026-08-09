@@ -125,6 +125,10 @@ require_text tests/check-phone-apk-contents.py 'S_ISLNK' \
     'package completeness gate rejects ZIP symbolic links'
 require_text tests/check-phone-apk-contents.py 'unsafe ZIP entry path' \
     'package completeness gate rejects unsafe paths before host extraction'
+require_text tests/check-phone-apk-contents.py 'value[[:space:]]*==[[:space:]]*canonical' \
+    'package completeness gate requires canonical archive paths'
+require_text tests/check-phone-apk-contents.py 'character[.]isprintable' \
+    'package completeness gate rejects log-unsafe archive characters'
 require_text tests/check-phone-apk-contents.py 'mixes APK and Android App Bundle' \
     'package completeness gate rejects mixed archive layouts'
 require_text tests/check-phone-apk-contents.py 'unexpected feature modules' \

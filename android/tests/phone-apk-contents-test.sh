@@ -303,6 +303,10 @@ with zipfile.ZipFile(root / 'symlink-entry.aab', 'w') as archive:
 for fixture_name, unsafe_entry in (
     ('traversing-extra-entry.apk', '../outside'),
     ('absolute-extra-entry.apk', '/absolute'),
+    ('dot-segment-extra-entry.apk', 'assets/./alias'),
+    ('repeated-separator-extra-entry.apk', 'assets//alias'),
+    ('backslash-extra-entry.apk', r'assets\alias'),
+    ('control-extra-entry.apk', 'assets/unsafe\nname'),
 ):
     with zipfile.ZipFile(root / fixture_name, 'w') as archive:
         archive.writestr('assets/cache_assets.txt', cache_manifest)
@@ -417,6 +421,10 @@ symlink-entry.apk	contains symbolic link entries
 symlink-entry.aab	contains symbolic link entries
 traversing-extra-entry.apk	contains an unsafe ZIP entry path
 absolute-extra-entry.apk	contains an unsafe ZIP entry path
+dot-segment-extra-entry.apk	contains an unsafe ZIP entry path
+repeated-separator-extra-entry.apk	contains an unsafe ZIP entry path
+backslash-extra-entry.apk	contains an unsafe ZIP entry path
+control-extra-entry.apk	contains an unsafe ZIP entry path
 traversing-extra-entry.aab	contains an unsafe ZIP entry path
 mixed-layout.aab	mixes APK and Android App Bundle entry layouts
 unexpected-feature.aab	contains unexpected feature modules

@@ -4,6 +4,28 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 104 — Require canonical archive paths
+
+- Branch: `nightly/android-phone-104-canonical-archive-paths`
+- Commit: `Require canonical phone package paths` (this task's commit)
+- Change: Extend safe relative-path validation to require the exact canonical
+  POSIX spelling and printable non-whitespace characters. Dot aliases, repeated
+  separators, backslashes, and control/whitespace names can no longer create
+  extractor-dependent aliases or unsafe diagnostics.
+- Tests:
+  - Source inventory: **passed**, 1,957 relevant Phone/asset paths contain no
+    newly forbidden name.
+  - `android/tests/phone-apk-contents-test.sh`: **passed**, adding dot-segment,
+    repeated-separator, backslash, and control-character fixtures.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 299/299 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 299/299.
+  - Python/shell syntax and `git diff --check`: **passed**.
+- Known risks: Printable Unicode remains valid and case-sensitive, matching
+  Android assets; any future cross-platform normalization policy needs review.
+- Real-device validation still required: None specific to archive names; run
+  the final package/install smoke.
+
 ## 103 — Reject unsafe archive entry paths
 
 - Branch: `nightly/android-phone-103-safe-archive-paths`
@@ -2381,7 +2403,8 @@ All branches form one linear chain starting at
 100. `nightly/android-phone-100-trailing-zip-data` — `bf5ca533b6`
 101. `nightly/android-phone-101-complete-zip-integrity` — `133f4c3873`
 102. `nightly/android-phone-102-zip-symlink-rejection` — `891449215f`
-103. `nightly/android-phone-103-safe-archive-paths` — this task's commit
+103. `nightly/android-phone-103-safe-archive-paths` — `bbc18b3420`
+104. `nightly/android-phone-104-canonical-archive-paths` — this task's commit
 
 ### Device-free audit disposition
 

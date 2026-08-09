@@ -51,7 +51,15 @@ MAX_CACHE_PATH_BYTES = 1024
 
 def is_safe_relative_path(value):
     path = PurePosixPath(value)
-    return value not in ("", ".") and not path.is_absolute() and ".." not in path.parts
+    canonical = path.as_posix() + ("/" if value.endswith("/") else "")
+    return (
+        value not in ("", ".")
+        and value == canonical
+        and not path.is_absolute()
+        and ".." not in path.parts
+        and "\\" not in value
+        and all(character.isprintable() and not character.isspace() for character in value)
+    )
 
 
 def validate_package_layout(archive_names):
