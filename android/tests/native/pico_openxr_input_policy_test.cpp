@@ -43,5 +43,21 @@ int main() {
     OVERTE_EXPECT(openXrHandJointFlagsSatisfy(orientation, orientation));
     OVERTE_EXPECT(!openXrHandJointFlagsSatisfy(position, orientation));
     OVERTE_EXPECT(openXrHandJointFlagsSatisfy(0, 0));
+
+    OVERTE_EXPECT(!openXrBoundedEnumerationUsable(false, 0, 16));
+    OVERTE_EXPECT(openXrBoundedEnumerationUsable(true, 0, 16));
+    OVERTE_EXPECT(openXrBoundedEnumerationUsable(true, 1, 16));
+    OVERTE_EXPECT(openXrBoundedEnumerationUsable(true, 16, 16));
+    OVERTE_EXPECT(!openXrBoundedEnumerationUsable(true, 17, 16));
+    OVERTE_EXPECT(!openXrBoundedEnumerationUsable(false, 1, 16));
+    OVERTE_EXPECT(openXrBoundedEnumerationUsable(true, 0, 0));
+    const auto maximum = std::numeric_limits<std::size_t>::max();
+    OVERTE_EXPECT(openXrBoundedEnumerationUsable(true, maximum, maximum));
+    OVERTE_EXPECT(!openXrBoundedEnumerationUsable(true, maximum, maximum - 1));
+
+    OVERTE_EXPECT(!openXrCreatedHandleUsable(false, false));
+    OVERTE_EXPECT(!openXrCreatedHandleUsable(false, true));
+    OVERTE_EXPECT(!openXrCreatedHandleUsable(true, false));
+    OVERTE_EXPECT(openXrCreatedHandleUsable(true, true));
     return 0;
 }

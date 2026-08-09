@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+
 constexpr float OPENXR_VIRTUAL_TRIGGER_CLICK_THRESHOLD = 0.95f;
 
 constexpr bool openXrVirtualTriggerPressed(bool active, float value) {
@@ -27,4 +29,14 @@ constexpr bool openXrHandJointOutputUsable(
 constexpr bool openXrHandJointFlagsSatisfy(
         unsigned long long actualFlags, unsigned long long requiredFlags) {
     return (actualFlags & requiredFlags) == requiredFlags;
+}
+
+constexpr bool openXrBoundedEnumerationUsable(
+        bool callSucceeded, std::size_t returnedCount, std::size_t capacity) {
+    return callSucceeded && returnedCount <= capacity;
+}
+
+constexpr bool openXrCreatedHandleUsable(
+        bool callSucceeded, bool handleIsNonNull) {
+    return callSucceeded && handleIsNonNull;
 }

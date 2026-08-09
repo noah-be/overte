@@ -1026,24 +1026,52 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
     if (_context->_MNDX_xdevSpaceSupported) {
         _xdev.clear();
 
-        XrXDevListMNDX xdevList;
+        XrXDevListMNDX xdevList = XR_NULL_HANDLE;
         std::vector<XrXDevIdMNDX> xdevIDs(MAX_TRACKER_COUNT);
         uint32_t xdevIDsCount = 0;
 
         XrCreateXDevListInfoMNDX createInfo = {.type = XR_TYPE_CREATE_XDEV_LIST_INFO_MNDX};
 
-        _context->xrCreateXDevListMNDX(_context->_session, &createInfo, &xdevList);
-        _context->xrEnumerateXDevsMNDX(xdevList, MAX_TRACKER_COUNT, &xdevIDsCount, xdevIDs.data());
-
-        // shrink the list to the number of xdevs we actually received
-        xdevIDs.resize(xdevIDsCount);
+        const bool functionsReady = _context->xrCreateXDevListMNDX != nullptr &&
+            _context->xrEnumerateXDevsMNDX != nullptr &&
+            _context->xrGetXDevPropertiesMNDX != nullptr &&
+            _context->xrDestroyXDevListMNDX != nullptr &&
+            _context->xrCreateXDevSpaceMNDX != nullptr;
+        const bool listCreated = functionsReady && xrCheck(
+            _context->_instance,
+            _context->xrCreateXDevListMNDX(_context->_session, &createInfo, &xdevList),
+            "Failed to create XDev list");
+        if (!openXrCreatedHandleUsable(
+                listCreated, xdevList != XR_NULL_HANDLE)) {
+            qCWarning(xr_input_cat, "XDev discovery is unavailable");
+            xdevIDs.clear();
+        } else {
+            const bool enumerationSucceeded = xrCheck(
+                _context->_instance,
+                _context->xrEnumerateXDevsMNDX(
+                    xdevList, static_cast<uint32_t>(xdevIDs.size()),
+                    &xdevIDsCount, xdevIDs.data()),
+                "Failed to enumerate XDevs");
+            if (openXrBoundedEnumerationUsable(
+                    enumerationSucceeded, xdevIDsCount, xdevIDs.size())) {
+                xdevIDs.resize(xdevIDsCount);
+            } else {
+                qCWarning(xr_input_cat, "Discarding invalid XDev enumeration");
+                xdevIDs.clear();
+            }
+        }
 
         for (const auto id : xdevIDs) {
             XrGetXDevInfoMNDX info = {.type = XR_TYPE_GET_XDEV_INFO_MNDX};
             XrXDevPropertiesMNDX properties = {.type = XR_TYPE_XDEV_PROPERTIES_MNDX};
 
             info.id = id;
-            _context->xrGetXDevPropertiesMNDX(xdevList, &info, &properties);
+            if (!xrCheck(
+                    _context->_instance,
+                    _context->xrGetXDevPropertiesMNDX(xdevList, &info, &properties),
+                    "Failed to get XDev properties")) {
+                continue;
+            }
 
             qCDebug(xr_input_cat, "XDev %lx \"%s\"", id, properties.name);
 
@@ -1052,7 +1080,8 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
                 continue;
             }
 
-            XDevTracker tracker;
+            XDevTracker tracker {};
+            tracker.space = XR_NULL_HANDLE;
             tracker.properties = properties;
 
             tracker.pose_channel = {};
@@ -1065,9 +1094,19 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
                 .offset = { {0, 0, 0, 1}, {} },
             };
 
-            _context->xrCreateXDevSpaceMNDX(_context->_session, &createSpaceInfo, &tracker.space);
-
-            _xdev.insert({id, tracker});
+            const bool spaceCreated = xrCheck(
+                _context->_instance,
+                _context->xrCreateXDevSpaceMNDX(
+                    _context->_session, &createSpaceInfo, &tracker.space),
+                "Failed to create XDev space");
+            if (openXrCreatedHandleUsable(
+                    spaceCreated, tracker.space != XR_NULL_HANDLE)) {
+                _xdev.insert({id, tracker});
+            }
+        }
+        if (xdevList != XR_NULL_HANDLE && _context->xrDestroyXDevListMNDX != nullptr) {
+            xrCheck(_context->_instance, _context->xrDestroyXDevListMNDX(xdevList),
+                    "Failed to destroy XDev list");
         }
     }
 
