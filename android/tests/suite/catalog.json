@@ -62,7 +62,7 @@
       "kind": "jvm",
       "tiers": ["fast", "host"],
       "command": ["tests/legacy-user-story-policy-test.sh"],
-      "description": "Legacy place, asset text and adapter position policies"
+      "description": "Legacy place, location, asset text and adapter policies"
     },
     {
       "id": "phone-test-inventory",
