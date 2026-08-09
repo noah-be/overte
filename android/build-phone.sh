@@ -71,6 +71,7 @@ download_prebuilt_dependencies() {
     [[ -d "$temp_root" && -w "$temp_root" ]] \
         || fail "Phone prebuilt temporary directory is not writable"
     CONAN_HOME="$shared_conan_home" TMPDIR="$temp_root" \
+        PICO_QT_FALLBACK_PATCH="$script_dir/conan/patches/qt-phone-16k-pages.patch" \
         "$script_dir/build-pico.sh" deps --download
     "$script_dir/phone-prebuilt-16k-deps.sh" download
 }
