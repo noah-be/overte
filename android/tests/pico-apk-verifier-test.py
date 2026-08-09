@@ -30,7 +30,12 @@ class PicoApkVerifierTests(unittest.TestCase):
             "printf \"package: name='${MOCK_PACKAGE:-org.overte.pico}' versionCode='7' versionName='0.4.0'\\n\"\n"
             "printf \"sdkVersion:'26'\\ntargetSdkVersion:'35'\\n\"\n",
         )
-        self.apksigner = self._tool("apksigner", "test \"${MOCK_SIGNED:-1}\" = 1\n")
+        self.apksigner = self._tool(
+            "apksigner",
+            "test \"${MOCK_SIGNED:-1}\" = 1\n"
+            "printf 'Number of signers: %s\\n' \"${MOCK_SIGNERS:-1}\"\n"
+            "printf 'Signer #1 certificate SHA-256 digest: %064d\\n' 0\n",
+        )
 
     def tearDown(self):
         self.temporary.cleanup()
@@ -69,6 +74,7 @@ class PicoApkVerifierTests(unittest.TestCase):
         self.assertEqual(manifest["abi"], "arm64-v8a")
         self.assertTrue(manifest["signature_verified"])
         self.assertRegex(manifest["sha256"], r"^[0-9a-f]{64}$")
+        self.assertRegex(manifest["signer_certificate_sha256"], r"^[0-9a-f]{64}$")
 
     def test_records_valid_source_revision(self):
         revision = "a" * 40
@@ -100,6 +106,11 @@ class PicoApkVerifierTests(unittest.TestCase):
         result = self._run(self._apk(), {"MOCK_SIGNED": "0"})
         self.assertEqual(result.returncode, 2)
         self.assertIn("command failed", result.stderr)
+
+    def test_rejects_unexpected_signer_count(self):
+        result = self._run(self._apk(), {"MOCK_SIGNERS": "2"})
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("exactly one APK signer", result.stderr)
 
 
 if __name__ == "__main__":
