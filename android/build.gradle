@@ -22,12 +22,29 @@ task clean(type: Delete) {
     delete rootProject.buildDir
 }
 
+def parseLegacyVersionCode = { boolean propertyPresent, Object rawValue ->
+    if (!propertyPresent) {
+        return 1
+    }
+    def value = rawValue == null ? '' : rawValue.toString()
+    if (!(value ==~ /[0-9]+/)) {
+        throw new GradleException(
+            'VERSION_CODE must be an explicit positive decimal integer.')
+    }
+    def parsed = new BigInteger(value)
+    if (parsed < BigInteger.ONE || parsed > BigInteger.valueOf(Integer.MAX_VALUE)) {
+        throw new GradleException(
+            "VERSION_CODE must be between 1 and ${Integer.MAX_VALUE}.")
+    }
+    return parsed.intValue()
+}
+
 ext {
     RELEASE_NUMBER = project.hasProperty('RELEASE_NUMBER') ? project.getProperty('RELEASE_NUMBER') : '0'
-    VERSION_CODE = project.hasProperty('VERSION_CODE') ? project.getProperty('VERSION_CODE') : '0'
+    VERSION_CODE = project.hasProperty('VERSION_CODE') ? project.getProperty('VERSION_CODE') : null
     RELEASE_TYPE = project.hasProperty('RELEASE_TYPE') ? project.getProperty('RELEASE_TYPE') : 'DEV'
     STABLE_BUILD = project.hasProperty('STABLE_BUILD') ? project.getProperty('STABLE_BUILD') : '0'
-    appVersionCode = Integer.valueOf(VERSION_CODE ?: 1)
+    appVersionCode = parseLegacyVersionCode(project.hasProperty('VERSION_CODE'), VERSION_CODE)
     appVersionName = RELEASE_NUMBER ?: "1.0"
 }
 

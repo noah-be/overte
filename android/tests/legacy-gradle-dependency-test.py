@@ -44,6 +44,18 @@ FILE_TREE_DECLARATION = re.compile(
     rf"^\s*({CONFIGURATION})\s+(fileTree\(.*\))\s*$")
 
 
+def parse_legacy_version_code(property_present: bool, raw_value) -> int:
+    if not property_present:
+        return 1
+    value = "" if raw_value is None else str(raw_value)
+    if re.fullmatch(r"[0-9]+", value) is None:
+        raise ValueError("invalid legacy VERSION_CODE")
+    parsed = int(value)
+    if not 1 <= parsed <= 2_147_483_647:
+        raise ValueError("invalid legacy VERSION_CODE")
+    return parsed
+
+
 def duplicates(source: str) -> list[tuple[str, str]]:
     counts = Counter(DEPENDENCY.findall(source))
     return sorted(declaration for declaration, count in counts.items() if count > 1)
@@ -208,6 +220,34 @@ def legacy_toolchain_contract_errors(
 
 
 class LegacyGradleDependencyTest(unittest.TestCase):
+    def test_legacy_version_code_policy_is_positive_and_bounded(self):
+        source = (ANDROID_ROOT / "build.gradle").read_text(encoding="utf-8")
+        self.assertIn("def parseLegacyVersionCode", source)
+        self.assertIn("if (!propertyPresent)", source)
+        self.assertIn("return 1", source)
+        self.assertIn("value ==~ /[0-9]+/", source)
+        self.assertIn("new BigInteger(value)", source)
+        self.assertIn("parsed < BigInteger.ONE", source)
+        self.assertIn("parsed > BigInteger.valueOf(Integer.MAX_VALUE)", source)
+        self.assertIn("throw new GradleException", source)
+        self.assertIn(
+            "parseLegacyVersionCode(project.hasProperty('VERSION_CODE'), VERSION_CODE)",
+            source)
+        self.assertNotIn("Integer.valueOf(VERSION_CODE ?: 1)", source)
+
+    def test_legacy_version_code_behavior_matrix(self):
+        self.assertEqual(1, parse_legacy_version_code(False, None))
+        self.assertEqual(1, parse_legacy_version_code(False, "unread"))
+        self.assertEqual(1, parse_legacy_version_code(True, "1"))
+        self.assertEqual(2_147_483_647,
+                         parse_legacy_version_code(True, "2147483647"))
+        for invalid in (
+                None, "", "0", "-1", "+1", " 1", "1 ", "1.0", "one",
+                "2147483648", "9" * 1000):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(ValueError):
+                    parse_legacy_version_code(True, invalid)
+
     def test_legacy_root_uses_gradle_4_10_archive_apis(self):
         source = (ANDROID_ROOT / "build.gradle").read_text(encoding="utf-8")
         self.assertEqual([], INCOMPATIBLE_LEGACY_GRADLE_API.findall(source))
