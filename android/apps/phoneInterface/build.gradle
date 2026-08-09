@@ -92,7 +92,7 @@ def requirePhoneReleaseVersionCode = tasks.register('requirePhoneReleaseVersionC
         if (versionCodeProperty == null || !(versionCodeProperty ==~ /[1-9][0-9]*/)) {
             throw new GradleException(
                 'Release builds require an explicit positive integer VERSION_CODE. ' +
-                'It must be greater than the latest code uploaded to Play.')
+                'It must be greater than every previously distributed build code.')
         }
         if (new BigInteger(versionCodeProperty) >
                 BigInteger.valueOf(Integer.MAX_VALUE)) {

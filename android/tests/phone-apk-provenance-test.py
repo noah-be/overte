@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Host tests for signed Phone APK build provenance."""
+"""Host tests for signed and unsigned Phone APK build provenance."""
 
 import json
 import os
@@ -40,7 +40,11 @@ case "$2" in
 esac
 """)
         self.signer = self.tool("apksigner", """
-test "${MOCK_SIGNED:-1}" = 1
+if [ "${MOCK_SIGNED:-1}" = 0 ]; then
+  printf 'DOES NOT VERIFY\n' >&2
+  printf 'ERROR: Missing META-INF/MANIFEST.MF\n' >&2
+  exit 1
+fi
 printf 'Number of signers: %s\n' "${MOCK_SIGNERS:-1}"
 printf 'Signer #1 certificate SHA-256 digest: %064d\n' 0
 """)
@@ -74,6 +78,7 @@ printf 'Signer #1 certificate SHA-256 digest: %064d\n' 0
         self.assertEqual(manifest["source_revision"], revision)
         self.assertRegex(manifest["sha256"], r"^[0-9a-f]{64}$")
         self.assertRegex(manifest["signer_certificate_sha256"], r"^[0-9a-f]{64}$")
+        self.assertEqual(manifest["signing_state"], "signed")
 
     def test_rejects_failed_complete_package_gate(self):
         result = self.run_verifier({"MOCK_GATE": "0"})
@@ -89,6 +94,26 @@ printf 'Signer #1 certificate SHA-256 digest: %064d\n' 0
         result = self.run_verifier({"MOCK_SIGNED": "0"})
         self.assertEqual(result.returncode, 2)
         self.assertIn("command failed", result.stderr)
+
+    def test_accepts_explicitly_unsigned_store_neutral_apk(self):
+        result = self.run_verifier({"MOCK_SIGNED": "0"}, "--expect-unsigned")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest = json.loads(result.stdout)
+        self.assertEqual(manifest["signing_state"], "unsigned")
+        self.assertFalse(manifest["signature_verified"])
+        self.assertIsNone(manifest["signer_certificate_sha256"])
+
+    def test_rejects_signed_apk_when_unsigned_is_required(self):
+        result = self.run_verifier(None, "--expect-unsigned")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("expected to be unsigned", result.stderr)
+
+    def test_rejects_ambiguous_unsigned_and_signer_expectations(self):
+        result = self.run_verifier(
+            {"MOCK_SIGNED": "0"}, "--expect-unsigned", "--expect-signer", "0" * 64,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("mutually exclusive", result.stderr)
 
     def test_rejects_multiple_signers(self):
         result = self.run_verifier({"MOCK_SIGNERS": "2"})

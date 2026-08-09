@@ -190,7 +190,7 @@
       "kind": "contract",
       "tiers": ["contracts"],
       "command": ["tests/phone-apk-provenance-test.py"],
-      "description": "Signed 16 KiB APK provenance verifier behavior"
+      "description": "Signed and store-neutral unsigned APK provenance behavior"
     },
     {
       "id": "phone-release-version",

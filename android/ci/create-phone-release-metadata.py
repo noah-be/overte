@@ -64,7 +64,7 @@ def main():
     apk_manifest = load_json(args.apk_manifest, "APK manifest")
     version = load_json(args.version_manifest, "version manifest")
     required = {
-        "sha256", "signer_certificate_sha256", "source_revision",
+        "sha256", "signer_certificate_sha256", "signing_state", "source_revision",
         "version_code", "version_name", "signature_verified", "package_gate",
     }
     if required - apk_manifest.keys():
@@ -74,8 +74,13 @@ def main():
     for field in ("source_revision", "version_code", "version_name"):
         if apk_manifest[field] != version[field]:
             fail(f"APK and version manifests disagree on {field}")
-    if apk_manifest["signature_verified"] is not True or apk_manifest["package_gate"] != "phone-16k":
-        fail("APK manifest does not prove the required signature and 16 KiB gate")
+    if apk_manifest["package_gate"] != "phone-16k":
+        fail("APK manifest does not prove the required 16 KiB gate")
+    signing_state = apk_manifest["signing_state"]
+    if signing_state != "unsigned":
+        fail("store-neutral candidate must be explicitly unsigned")
+    if apk_manifest["signature_verified"] is not False or apk_manifest["signer_certificate_sha256"] is not None:
+        fail("unsigned APK manifest contains contradictory signature evidence")
 
     components = []
     with zipfile.ZipFile(apk) as archive:
@@ -130,7 +135,8 @@ def main():
     provenance_path.write_text(json.dumps(provenance, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     release = {
-        "schema_version": 1, "status": "draft-candidate", "published": False,
+        "schema_version": 2, "status": "draft-candidate", "published": False,
+        "distribution": {"kind": "store-neutral", "signing_state": signing_state},
         "tag": version["tag"], "source_revision": version["source_revision"],
         "source_archive_sha256": source_digest,
         "version_code": version["version_code"], "version_name": version["version_name"],

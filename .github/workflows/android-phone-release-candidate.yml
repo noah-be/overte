@@ -49,7 +49,7 @@ jobs:
         run: tests/run-tests.sh contracts
 
   build:
-    name: Build signed local candidate
+    name: Build store-neutral candidate
     needs: preflight
     environment: android-phone-release-candidate
     runs-on: [self-hosted, linux, x64, overte-android-phone-release]
@@ -86,50 +86,36 @@ jobs:
       - name: Prepare verified dependencies
         working-directory: android
         run: ./build-phone.sh prepare
-      - name: Build signed release APK
+      - name: Build unsigned release APK
         working-directory: android
         env:
-          OVERTE_ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_PHONE_UPLOAD_KEYSTORE_BASE64 }}
-          OVERTE_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_PHONE_UPLOAD_KEYSTORE_PASSWORD }}
-          OVERTE_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_PHONE_UPLOAD_KEY_ALIAS }}
-          OVERTE_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_PHONE_UPLOAD_KEY_PASSWORD }}
           VERSION_CODE: ${{ inputs.version_code }}
           RELEASE_NUMBER: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
           release_number="${RELEASE_NUMBER#android-phone-v}"
-          secret_dir="$PWD/build/release-secrets"
-          key_path="$secret_dir/upload-key.jks"
-          cleanup() { rm -f -- "$key_path"; rmdir -- "$secret_dir" 2>/dev/null || true; }
-          trap cleanup EXIT
-          umask 077
-          mkdir -p -- "$secret_dir" "$PHONE_BUILD_TMPDIR"
-          test -n "$OVERTE_ANDROID_KEYSTORE_BASE64"
-          printf '%s' "$OVERTE_ANDROID_KEYSTORE_BASE64" | base64 --decode >"$key_path"
-          test -s "$key_path"
-          OVERTE_ANDROID_KEYSTORE="$key_path" \
+          mkdir -p -- "$PHONE_BUILD_TMPDIR"
           TMPDIR="$PHONE_BUILD_TMPDIR" \
           JAVA_TOOL_OPTIONS="-Djava.io.tmpdir=$PHONE_BUILD_TMPDIR" \
           CMAKE_BUILD_PARALLEL_LEVEL=8 PICO_BUILD_JOBS=8 SHADERGEN_JOBS=8 \
           ./gradlew --no-daemon --settings-file settings-phone.gradle \
             -PVERSION_CODE="$VERSION_CODE" -PRELEASE_NUMBER="$release_number" \
             :phoneInterface:assembleRelease --max-workers=8 --stacktrace
-      - name: Verify signer, contents, alignment and provenance
+      - name: Verify unsigned state, contents, alignment and provenance
         env:
-          PHONE_APK: android/apps/phoneInterface/build/outputs/apk/release/phoneInterface-release.apk
-          APPROVED_SIGNER: ${{ vars.ANDROID_PHONE_UPLOAD_CERT_SHA256 }}
+          PHONE_APK: android/apps/phoneInterface/build/outputs/apk/release/phoneInterface-release-unsigned.apk
         run: |
           set -euo pipefail
           sdk_root="${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}"
           android/ci/verify-phone-apk.py "$PHONE_APK" \
             --apkanalyzer "$sdk_root/cmdline-tools/latest/bin/apkanalyzer" \
             --apksigner "$sdk_root/build-tools/36.0.0/apksigner" \
-            --expect-debuggable 0 --expect-signer "$APPROVED_SIGNER" \
+            --expect-debuggable 0 --expect-unsigned \
             --source-revision "$GITHUB_SHA" \
             --output android/build/release/apk-manifest.json
       - name: Create local draft metadata and SBOM
         env:
-          PHONE_APK: android/apps/phoneInterface/build/outputs/apk/release/phoneInterface-release.apk
+          PHONE_APK: android/apps/phoneInterface/build/outputs/apk/release/phoneInterface-release-unsigned.apk
         run: |
           set -euo pipefail
           android/ci/create-phone-release-metadata.py \
