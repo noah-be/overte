@@ -9,6 +9,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/android-tests.yml"
 BUILD_WORKFLOW = ROOT / ".github/workflows/android-phone-build.yml"
+RC_WORKFLOW = ROOT / ".github/workflows/android-phone-release-candidate.yml"
+ACCEPTANCE_WORKFLOW = ROOT / ".github/workflows/android-phone-emulator-acceptance.yml"
 ACTION_USE = re.compile(r"^\s*(?:-\s+)?uses:\s*([^\s#]+)", re.MULTILINE)
 FULL_SHA_ACTION = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 
@@ -98,6 +100,69 @@ class AndroidPhoneBuildWorkflowContracts(unittest.TestCase):
         self.assertNotRegex(upload, r"(?i)\.apk(?:\s|$)")
         self.assertIn("apk-manifest.json", upload)
         self.assertIn("retention-days: 7", upload)
+
+
+class AndroidPhoneReleaseCandidateWorkflowContracts(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.source = RC_WORKFLOW.read_text(encoding="utf-8")
+
+    def test_is_manual_read_only_and_protected(self):
+        self.assertRegex(self.source, r"(?m)^  workflow_dispatch:$")
+        self.assertNotRegex(self.source, r"(?m)^  (?:pull_request|pull_request_target|push):$")
+        self.assertRegex(self.source, r"(?m)^permissions:\n  contents: read$")
+        self.assertIn("environment: android-phone-release-candidate", self.source)
+        self.assertIn("overte-android-phone-release", self.source)
+
+    def test_source_version_and_signer_fail_closed(self):
+        self.assertGreaterEqual(self.source.count("verify-phone-release.py"), 2)
+        self.assertIn("ANDROID_PHONE_PUBLISHED_VERSION_CODE", self.source)
+        self.assertIn("--expect-signer", self.source)
+        self.assertIn("ANDROID_PHONE_UPLOAD_CERT_SHA256", self.source)
+        self.assertIn("refs/tags/${{ inputs.release_tag }}", self.source)
+        self.assertIn("persist-credentials: false", self.source)
+
+    def test_complete_gates_and_local_metadata_are_retained(self):
+        for required in (
+            "tests/run-tests.sh host", "./build-phone.sh deps --download",
+            "./build-phone.sh prepare", "--expect-debuggable 0",
+            "create-phone-release-metadata.py", "android/build/release/draft/",
+        ):
+            self.assertIn(required, self.source)
+        self.assertNotIn("gh release create", self.source)
+        self.assertNotIn("actions/attest-build-provenance", self.source)
+
+    def test_actions_are_pinned_and_secrets_only_reach_signing_step(self):
+        actions = ACTION_USE.findall(self.source)
+        self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
+        self.assertEqual(self.source.count("ANDROID_PHONE_UPLOAD_KEYSTORE_BASE64"), 1)
+        self.assertNotRegex(self.source, r"(?m)^env:\n(?:  .+\n)*  OVERTE_ANDROID_KEYSTORE_BASE64")
+
+
+class AndroidPhoneEmulatorAcceptanceWorkflowContracts(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.source = ACCEPTANCE_WORKFLOW.read_text(encoding="utf-8")
+
+    def test_requires_manual_install_approval_and_separate_environment(self):
+        self.assertRegex(self.source, r"(?m)^  workflow_dispatch:$")
+        self.assertNotRegex(self.source, r"(?m)^  (?:pull_request|pull_request_target|push):$")
+        self.assertIn("if: inputs.approve_installation", self.source)
+        self.assertIn("environment: android-phone-emulator-acceptance", self.source)
+        self.assertIn("overte-android-phone-emulator", self.source)
+
+    def test_verifies_digest_and_package_before_adb_installation(self):
+        digest = self.source.index("sha256sum --check --strict")
+        package = self.source.index("check-phone-apk-16k.sh")
+        device = self.source.index("phone-device-test.sh")
+        self.assertLess(digest, package)
+        self.assertLess(package, device)
+        self.assertIn('PHONE_ALLOW_EMULATOR: "1"', self.source)
+
+    def test_actions_are_pinned_and_checkout_is_credential_free(self):
+        actions = ACTION_USE.findall(self.source)
+        self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
+        self.assertIn("persist-credentials: false", self.source)
 
 
 if __name__ == "__main__":

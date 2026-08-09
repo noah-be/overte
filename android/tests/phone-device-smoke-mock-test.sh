@@ -455,6 +455,12 @@ fi
 grep -Fq 'does not meet the physical Phone runtime contract' "$test_root/emulator.out"
 ! grep -q '^install ' "$test_root/adb-commands"
 
+mkdir "$test_root/approved-emulator-report"
+: >"$test_root/adb-commands"
+run_smoke "$test_root/approved-emulator-report" env MOCK_QEMU=1 \
+    PHONE_ALLOW_EMULATOR=1 >"$test_root/approved-emulator.out" 2>&1
+grep -q '^install ' "$test_root/adb-commands"
+
 mkdir "$test_root/old-sdk-report"
 : >"$test_root/adb-commands"
 if run_smoke "$test_root/old-sdk-report" env MOCK_SDK=25 \

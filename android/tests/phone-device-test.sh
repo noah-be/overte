@@ -30,6 +30,7 @@ Environment:
   PHONE_APK_PREFLIGHT  Package gate executable (otherwise repository gate).
   PHONE_ALLOW_TEST_OVERRIDES  Must be 1 for a nonstandard package gate.
   PHONE_EXPECT_DEBUGGABLE  Optional expected APK state: 0 or 1.
+  PHONE_ALLOW_EMULATOR     Must be 1 to opt into an emulator target.
   PHONE_TEST_REPORT    Existing report directory (otherwise mktemp -d).
 EOF
 }
@@ -105,7 +106,7 @@ is_supported_phone_device() {
     sdk="$(device_property "$serial" ro.build.version.sdk)"
     gles="$(device_property "$serial" ro.opengles.version)"
     features="$("$ADB" -s "$serial" shell pm list features 2>/dev/null | tr -d '\r')"
-    [[ "$qemu" != 1 ]] &&
+    [[ "$qemu" != 1 || "${PHONE_ALLOW_EMULATOR:-0}" == 1 ]] &&
         [[ ! "${characteristics,,}" =~ (^|,)(watch|tv|automotive|vr)(,|$) ]] &&
         [[ ",$abis," == *,arm64-v8a,* ]] &&
         [[ "$sdk" =~ ^[0-9]+$ ]] && ((10#$sdk >= 26)) &&
