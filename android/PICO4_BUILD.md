@@ -131,6 +131,21 @@ does not invoke ADB, connect to a device, download dependencies, or modify
 device settings. Native Qt/C++ suites remain available separately through
 `android/tests/pico-host-regression-test.sh` when a CMake build is configured.
 
+After a build, verify that the output is a signed, structurally valid Pico APK:
+
+```bash
+./ci/verify-pico-apk.py \
+  apps/picoInterface/build/outputs/apk/debug/picoInterface-debug.apk \
+  --output ../build/pico4/apk-manifest.json
+```
+
+The verifier fails closed if the package identity, SDK levels, signature,
+ARM64-only ABI set, ZIP integrity, or required Pico/OpenXR native libraries do
+not match the application contract. It writes the version, size, and SHA-256
+digest to a small JSON manifest suitable for CI retention. `aapt` and
+`apksigner` must be on `PATH`, or their exact Build-Tools paths can be provided
+with `--aapt` and `--apksigner`.
+
 ## Default Pico graphics profile
 
 The Pico Interface uses the measured Pico 4 quality/performance baseline by
