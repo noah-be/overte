@@ -32,6 +32,11 @@ GRADLE_SHA256 = "e53ce3a01cf016b5d294eef20977ad4e3c13e761ac1e475f1ffad4c6141a92b
 REPORTED_MODULES = ("qt", "oculus", "interface", "questInterface", "framePlayer", "questFramePlayer")
 EXCLUDED_MODULES = ({"name": "picoInterface", "reason": "dedicated Gradle 8.13 graph; outside Gradle 4.10.1 harness"},)
 FAILURE_MARKERS = ("Could not resolve", " FAILED", "-> FAILED")
+REPORT_VERSION_CODE = "1"
+REPORT_RELEASE_NUMBER = "1.0"
+TASK_HEADER = re.compile(r"^> Task :([^:]+):dependencies$")
+CONFIGURATION_HEADER = re.compile(r"^([^\s]+) - .+$")
+FAILED_DEPENDENCY = re.compile(r"^[+\\| ]*--- (project :[^ ]+|[^\s]+:[^\s]+:[^\s]+) FAILED$")
 
 
 class HarnessError(RuntimeError):
@@ -187,6 +192,30 @@ def sanitize(value: str, replacements: dict[Path, str]) -> str:
     return value
 
 
+def unresolved_dependencies(output: str) -> list[dict[str, str]]:
+    """Return only Gradle dependency-tree failures with known task/configuration context."""
+    module = None
+    configuration = None
+    unresolved = set()
+    for line in output.splitlines():
+        task_match = TASK_HEADER.fullmatch(line)
+        if task_match:
+            module = task_match.group(1)
+            configuration = None
+            continue
+        configuration_match = CONFIGURATION_HEADER.fullmatch(line)
+        if configuration_match:
+            configuration = configuration_match.group(1)
+            continue
+        dependency_match = FAILED_DEPENDENCY.fullmatch(line)
+        if module is not None and configuration is not None and dependency_match:
+            unresolved.add((module, configuration, dependency_match.group(1)))
+    return [
+        {"module": module, "configuration": configuration, "dependency": dependency}
+        for module, configuration, dependency in sorted(unresolved)
+    ]
+
+
 def resolve(cache: Path, installation: Path, java_home: Path, report_root: Path,
             network: bool, runner=run) -> bool:
     with lock(report_root / ".report.lock"):
@@ -241,7 +270,10 @@ def resolve(cache: Path, installation: Path, java_home: Path, report_root: Path,
                    "HIFI_ANDROID_PRECOMPILED": str(staging / "precompiled")}
             command = [str(installation / "bin/gradle"), "--no-daemon", "--no-build-cache", "--no-scan", "--stacktrace",
                        "--console", "plain", "--project-cache-dir", str(staging / "project-cache"),
-                       "-Djava.io.tmpdir=" + str(staging / "tmp"), "-PSUPPRESS_PICO_INTERFACE"]
+                       "-Djava.io.tmpdir=" + str(staging / "tmp"),
+                       "-PVERSION_CODE=" + REPORT_VERSION_CODE,
+                       "-PRELEASE_NUMBER=" + REPORT_RELEASE_NUMBER,
+                       "-PSUPPRESS_PICO_INTERFACE"]
             if not network:
                 command.append("--offline")
             command.extend(f":{module}:dependencies" for module in REPORTED_MODULES)
@@ -250,7 +282,10 @@ def resolve(cache: Path, installation: Path, java_home: Path, report_root: Path,
             stdout, stderr = sanitize(result.stdout, replacements), sanitize(result.stderr, replacements)
             (staging / "stdout.txt").write_text(stdout, encoding="utf-8")
             (staging / "stderr.txt").write_text(stderr, encoding="utf-8")
-            success = result.returncode == 0 and not any(marker in stdout + stderr for marker in FAILURE_MARKERS)
+            gradle_succeeded = result.returncode == 0
+            unresolved = unresolved_dependencies(stdout)
+            success = gradle_succeeded and not unresolved \
+                and not any(marker in stdout + stderr for marker in FAILURE_MARKERS)
             raw_hash = hashlib.sha256((stdout + stderr).encode()).hexdigest()
             manifest = {"schemaVersion": 1, "status": "passed" if success else "failed",
                         "sourceRevision": revision, "reportedModules": list(REPORTED_MODULES),
@@ -258,6 +293,8 @@ def resolve(cache: Path, installation: Path, java_home: Path, report_root: Path,
                         "distributionUrl": GRADLE_URL, "distributionSha256": GRADLE_SHA256,
                         "mode": "network" if network else "offline", "networkAllowed": network,
                         "gradleOffline": not network, "dependencyResolutionAttempted": True,
+                        "gradleCommandSucceeded": gradle_succeeded,
+                        "unresolvedDependencies": unresolved,
                         "resolutionSucceeded": success, "resolvedGraph": success,
                         "artifactsVerified": False, "apkBuilt": False, "sbom": False,
                         "rawReportSha256": raw_hash}

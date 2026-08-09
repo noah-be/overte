@@ -114,6 +114,26 @@ class LegacyGradleReportTest(unittest.TestCase):
                          report.REPORTED_MODULES)
         self.assertEqual("picoInterface", report.EXCLUDED_MODULES[0]["name"])
 
+    def test_unresolved_dependencies_are_structured_and_deduplicated(self):
+        output = """> Task :interface:dependencies
+debugCompileClasspath - Resolved configuration for compilation
++--- com.google.vr:sdk-base:1.80.0 FAILED
++--- com.google.vr:sdk-base:1.80.0 FAILED
+releaseCompileClasspath - Resolved configuration for compilation
+\\--- project :qt FAILED
+"""
+        self.assertEqual([
+            {"module": "interface", "configuration": "debugCompileClasspath",
+             "dependency": "com.google.vr:sdk-base:1.80.0"},
+            {"module": "interface", "configuration": "releaseCompileClasspath",
+             "dependency": "project :qt"},
+        ], report.unresolved_dependencies(output))
+
+    def test_unresolved_dependencies_ignore_failure_prose_without_tree_context(self):
+        self.assertEqual([], report.unresolved_dependencies(
+            "Could not resolve com.example:missing:1\nBUILD FAILED\n"
+            "> Task :interface:dependencies\ncom.example:missing:1 FAILED\n"))
+
     def test_resolve_uses_isolated_offline_command_and_transactional_output(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -150,6 +170,8 @@ class LegacyGradleReportTest(unittest.TestCase):
             self.assertIn("--no-daemon", gradle)
             self.assertIn("--stacktrace", gradle)
             self.assertIn("--project-cache-dir", gradle)
+            self.assertIn("-PVERSION_CODE=1", gradle)
+            self.assertIn("-PRELEASE_NUMBER=1.0", gradle)
             self.assertIn("-PSUPPRESS_PICO_INTERFACE", gradle)
             self.assertEqual([f":{name}:dependencies" for name in report.REPORTED_MODULES], gradle[-6:])
             self.assertEqual(1, len(isolated_configuration))
@@ -162,6 +184,8 @@ class LegacyGradleReportTest(unittest.TestCase):
             self.assertTrue((current / ".complete").is_file())
             result = __import__("json").loads((current / "result.json").read_text())
             self.assertTrue(result["resolutionSucceeded"])
+            self.assertTrue(result["gradleCommandSucceeded"])
+            self.assertEqual([], result["unresolvedDependencies"])
             self.assertFalse(result["artifactsVerified"])
             self.assertFalse(result["sbom"])
 
@@ -194,6 +218,36 @@ class LegacyGradleReportTest(unittest.TestCase):
                     mock.patch.object(report, "source_snapshot", fake_snapshot):
                 self.assertFalse(report.resolve(root / "cache", installation, java, output, True, fake_runner))
             self.assertFalse((output / "current/.complete").exists())
+            result = __import__("json").loads((output / "current/result.json").read_text())
+            self.assertTrue(result["gradleCommandSucceeded"])
+
+    def test_nonzero_gradle_command_is_distinct_from_unresolved_graph(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            installation, java = root / "gradle", root / "java"
+            (installation / "bin").mkdir(parents=True)
+            (installation / "bin/gradle").write_text("", encoding="utf-8")
+            output = root / "reports"
+            def fake_runner(command, _env, _cwd, _timeout):
+                if command[:3] == ["git", "rev-parse", "HEAD"]:
+                    return subprocess.CompletedProcess(command, 0, "c" * 40 + "\n", "")
+                return subprocess.CompletedProcess(command, 7, "", "BUILD FAILED\n")
+            def fake_snapshot(staging, _revision, _runner):
+                source = staging / "source"
+                (source / "android").mkdir(parents=True)
+                return source
+            sdk, ndk = root / "sdk", root / "ndk"
+            sdk.mkdir()
+            ndk.mkdir()
+            with mock.patch.dict("os.environ", {
+                    "ANDROID_HOME": str(sdk),
+                    "OVERTE_LEGACY_NDK_HOME": str(ndk)}, clear=False), \
+                    mock.patch.object(report, "source_snapshot", fake_snapshot):
+                self.assertFalse(report.resolve(
+                    root / "cache", installation, java, output, True, fake_runner))
+            result = __import__("json").loads((output / "current/result.json").read_text())
+            self.assertFalse(result["gradleCommandSucceeded"])
+            self.assertEqual([], result["unresolvedDependencies"])
 
     def test_report_refuses_foreign_and_symlinked_current(self):
         for symlink in (False, True):

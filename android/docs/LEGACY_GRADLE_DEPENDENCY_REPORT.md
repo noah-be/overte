@@ -25,6 +25,16 @@ python3 tests/legacy-gradle/run_dependency_report.py resolve --offline
 python3 tests/legacy-gradle/run_dependency_report.py resolve --network
 ```
 
+The isolated report uses fixed development metadata (`VERSION_CODE=1` and
+`RELEASE_NUMBER=1.0`) only to configure the legacy application projects. These
+values are not release evidence and the harness does not build an APK.
+
+`result.json` distinguishes a successful Gradle command from a fully resolved
+graph with `gradleCommandSucceeded` and `resolutionSucceeded`. Dependency-tree
+entries that Gradle marks `FAILED` are listed in `unresolvedDependencies` with
+their module and configuration. A failed or incomplete graph never receives a
+`.complete` marker.
+
 `toolchain` never resolves project dependencies. `--offline` never downloads
 the distribution and passes Gradle's offline flag during a report. `--network`
 is the only mode that permits network access.
