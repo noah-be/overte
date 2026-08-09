@@ -2,8 +2,19 @@ plugins {
     id 'java'
 }
 
+dependencyLocking {
+    lockAllConfigurations()
+    lockMode = LockMode.STRICT
+}
+
 def phoneJava = file('../../apps/phoneInterface/src/main/java')
 def phoneTests = file('../../apps/phoneInterface/src/test/java')
+def interfaceJava = file('../../apps/interface/src/main/java')
+def interfaceTests = file('../../apps/interface/src/test/java')
+def picoJava = file('../../apps/picoInterface/src/main/java')
+def picoTests = file('../../apps/picoInterface/src/test/java')
+def questJava = file('../../apps/questInterface/src/main/java')
+def questTests = file('../../apps/questInterface/src/test/java')
 
 sourceSets {
     boundary {
@@ -11,20 +22,31 @@ sourceSets {
     }
     main {
         java {
-            srcDirs phoneJava
+            srcDirs phoneJava, interfaceJava, picoJava, questJava
             include 'org/overte/phone/PermissionsActivity.java'
             include 'org/overte/phone/PhoneDeepLink.java'
             include 'org/overte/phone/PhoneDeepLinkNormalizer.java'
             include 'org/overte/phone/PhoneLaunchState.java'
             include 'org/overte/phone/PhonePermissionFlow.java'
+            include 'io/highfidelity/hifiinterface/HifiUtils.java'
+            include 'io/highfidelity/hifiinterface/PermissionChecker.java'
+            include 'org/overte/pico/PermissionsActivity.java'
+            include 'org/overte/pico/AndroidAudioInput.java'
+            include 'org/overte/pico/AndroidAudioInputPolicy.java'
+            include 'io/highfidelity/questInterface/PermissionsChecker.java'
         }
         compileClasspath += sourceSets.boundary.output
         runtimeClasspath += sourceSets.boundary.output
     }
     test {
         java {
-            srcDirs phoneTests
+            srcDirs phoneTests, interfaceTests, picoTests, questTests
             include 'org/overte/phone/PermissionsActivityRobolectricTest.java'
+            include 'org/overte/phone/PhoneDeepLinkRobolectricTest.java'
+            include 'io/highfidelity/hifiinterface/HifiUtilsTest.java'
+            include 'io/highfidelity/hifiinterface/PermissionCheckerRobolectricTest.java'
+            include 'org/overte/pico/PermissionsActivityRobolectricTest.java'
+            include 'io/highfidelity/questInterface/PermissionsCheckerRobolectricTest.java'
         }
         compileClasspath += sourceSets.boundary.output
         runtimeClasspath += sourceSets.boundary.output
@@ -68,6 +90,12 @@ test {
     dependsOn extractTestAars
     classpath += fileTree(extractedTestAars) { include '*.jar' }
     useJUnit()
+    // Avoid host-wide /tmp cleanup and extraction collisions for Conscrypt's JNI helper.
+    def conscryptWorkDir = layout.buildDirectory.dir('tmp/conscrypt-native')
+    doFirst {
+        conscryptWorkDir.get().asFile.mkdirs()
+    }
+    systemProperty 'org.conscrypt.native.workdir', conscryptWorkDir.get().asFile.absolutePath
     reports.junitXml.required = true
     reports.html.required = true
 }

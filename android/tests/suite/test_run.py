@@ -1,5 +1,11 @@
+import json
+import os
+import subprocess
+import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import time
 import unittest
 from unittest import mock
 import xml.etree.ElementTree as ET
@@ -14,7 +20,6 @@ class SuiteRunnerTest(unittest.TestCase):
         self.assertEqual(len(fast), len({suite["id"] for suite in fast}))
 
     def test_catalog_rejects_unknown_tier(self):
-        import json
         with tempfile.TemporaryDirectory() as directory:
             catalog = Path(directory) / "catalog.json"
             catalog.write_text(json.dumps({"schemaVersion": 1, "suites": [{
@@ -24,13 +29,30 @@ class SuiteRunnerTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "invalid tiers"):
                 run.load_suites(catalog, "fast")
 
+    def test_catalog_rejects_invalid_execution_controls(self):
+        base = {"schemaVersion": 1, "suites": [{
+            "id": "bad", "kind": "jvm", "description": "invalid execution control",
+            "command": ["true"], "tiers": ["fast"]
+        }]}
+        with tempfile.TemporaryDirectory() as directory:
+            catalog = Path(directory) / "catalog.json"
+            base["suites"][0]["timeoutSeconds"] = 0
+            catalog.write_text(json.dumps(base), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "invalid timeoutSeconds"):
+                run.load_suites(catalog, "fast")
+            base["suites"][0]["timeoutSeconds"] = 10
+            base["suites"][0]["optionalWhenToolMissing"] = "yes"
+            catalog.write_text(json.dumps(base), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "invalid optionalWhenToolMissing"):
+                run.load_suites(catalog, "fast")
+
     def test_junit_report_records_failure_skip_and_output_safely(self):
         results = [
             {"id": "pass", "kind": "jvm", "status": "passed", "reason": "",
              "returncode": 0, "duration": 0.1, "output": "ok <safe>"},
             {"id": "fail", "kind": "native", "status": "failed", "reason": "",
-             "returncode": 3, "duration": 0.2, "output": "bad & bounded"},
-            {"id": "skip", "kind": "qml", "status": "skipped", "reason": "no tool",
+             "returncode": 3, "duration": 0.2, "output": "bad & bounded\x00control"},
+            {"id": "skip", "kind": "qml", "status": "skipped", "reason": "no\x01tool",
              "returncode": 127, "duration": 0.0, "output": ""},
         ]
         with tempfile.TemporaryDirectory() as directory:
@@ -40,12 +62,123 @@ class SuiteRunnerTest(unittest.TestCase):
         self.assertEqual("3", root.attrib["tests"])
         self.assertEqual("1", root.attrib["failures"])
         self.assertEqual("1", root.attrib["skipped"])
-        self.assertEqual("bad & bounded", root.find("testcase[@name='fail']/failure").text)
+        self.assertEqual("bad & bounded\ufffdcontrol",
+                         root.find("testcase[@name='fail']/failure").text)
+        self.assertEqual("no\ufffdtool", root.find("testcase[@name='skip']/skipped").attrib["message"])
+
+    def test_junit_output_is_bounded_and_preserves_head_and_tail(self):
+        output = "HEAD" + ("x" * (run.MAX_REPORT_OUTPUT_BYTES * 2)) + "TAIL"
+        bounded = run.bounded_report_output(output)
+        self.assertLessEqual(len(bounded.encode("utf-8")), run.MAX_REPORT_OUTPUT_BYTES)
+        self.assertTrue(bounded.startswith("HEAD"))
+        self.assertTrue(bounded.endswith("TAIL"))
+        self.assertIn("output truncated", bounded)
+
+    def test_parallel_junit_writers_publish_one_complete_report_without_temp_leaks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / "TEST-parallel.xml"
+
+            def publish(index):
+                run.write_report([{
+                    "id": f"writer-{index}", "kind": "infrastructure",
+                    "status": "passed", "reason": "", "returncode": 0,
+                    "duration": 0.01, "output": f"output-{index}",
+                }], destination, "fast")
+
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                list(executor.map(publish, range(32)))
+
+            root = ET.parse(destination).getroot()
+            self.assertEqual("1", root.attrib["tests"])
+            self.assertRegex(root.find("testcase").attrib["name"], r"^writer-\d+$")
+            self.assertEqual([], list(Path(directory).glob("*.tmp")))
+            self.assertEqual([], list(Path(directory).glob(".*.tmp")))
+
+    @unittest.skipUnless(os.name == "posix", "process-group cleanup is POSIX-specific")
+    def test_timeout_kills_parent_and_term_resistant_child_and_keeps_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            child_pid_file = Path(directory) / "child.pid"
+            child = (
+                "import os,signal,time;"
+                f"open({str(child_pid_file)!r},'w').write(str(os.getpid()));"
+                "signal.signal(signal.SIGTERM,signal.SIG_IGN);"
+                "print('child-ready',flush=True);"
+                "os.close(1);os.close(2);"
+                "time.sleep(60)"
+            )
+            parent = (
+                "import subprocess,sys,time;"
+                f"subprocess.Popen([sys.executable,'-c',{child!r}]);"
+                "print('parent-ready',flush=True);"
+                "time.sleep(60)"
+            )
+            with self.assertRaises(subprocess.TimeoutExpired) as raised:
+                run.run_command([sys.executable, "-c", parent], 1, cwd=Path(directory))
+            output = raised.exception.output
+            if isinstance(output, bytes):
+                output = output.decode("utf-8", errors="replace")
+            self.assertIn("parent-ready", output)
+            self.assertIn("child-ready", output)
+            child_pid = int(child_pid_file.read_text(encoding="utf-8"))
+            deadline = time.monotonic() + 3
+            while Path(f"/proc/{child_pid}").exists() and time.monotonic() < deadline:
+                time.sleep(0.05)
+            self.assertFalse(Path(f"/proc/{child_pid}").exists(),
+                             f"timed-out child process {child_pid} leaked")
+
+    def test_timeout_bytes_are_xml_safe_and_written_atomically(self):
+        timeout = subprocess.TimeoutExpired(["fixture"], 1, output=b"partial\x00bytes")
+        with tempfile.TemporaryDirectory() as directory:
+            root_dir = Path(directory)
+            catalog = root_dir / "catalog.json"
+            report_dir = root_dir / "reports"
+            catalog.write_text(json.dumps({"schemaVersion": 1, "suites": [{
+                "id": "timeout", "kind": "infrastructure", "description": "hang",
+                "command": ["fixture"], "tiers": ["fast"], "timeoutSeconds": 1,
+            }]}), encoding="utf-8")
+            argv = ["run.py", "fast", "--catalog", str(catalog),
+                    "--report-dir", str(report_dir)]
+            with mock.patch("sys.argv", argv), mock.patch.object(
+                    run, "run_command", side_effect=timeout):
+                self.assertEqual(1, run.main())
+            report = report_dir / "TEST-android-fast.xml"
+            self.assertFalse(report.with_suffix(".xml.tmp").exists())
+            root = ET.parse(report).getroot()
+        failure = root.find("testcase[@name='timeout']/failure")
+        self.assertIn("partial\ufffdbytes", failure.text)
+        self.assertIn("timed out", failure.text)
 
     def test_qml_suite_declares_missing_tool_as_optional(self):
         qml = next(suite for suite in run.load_suites(run.DEFAULT_CATALOG, "fast")
                    if suite["id"] == "qml-components")
         self.assertTrue(qml["optionalWhenToolMissing"])
+
+    def test_mutation_tiers_publish_distinct_json_reports(self):
+        quick = run.load_suites(run.DEFAULT_CATALOG, "mutation")[0]["command"]
+        extended = run.load_suites(run.DEFAULT_CATALOG, "mutation-extended")[0]["command"]
+        self.assertNotIn("--report", quick)
+        self.assertIn("--report", extended)
+        self.assertTrue(any(part.endswith("critical-policies-extended.json")
+                            for part in extended))
+
+    def test_optional_suite_spawn_error_is_not_misreported_as_skip(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            catalog = root / "catalog.json"
+            report_dir = root / "reports"
+            catalog.write_text(json.dumps({"schemaVersion": 1, "suites": [{
+                "id": "optional", "kind": "qml", "description": "fixture",
+                "command": ["missing-wrapper"], "tiers": ["fast"],
+                "optionalWhenToolMissing": True,
+            }]}), encoding="utf-8")
+            argv = ["run.py", "fast", "--catalog", str(catalog),
+                    "--report-dir", str(report_dir)]
+            with mock.patch("sys.argv", argv), mock.patch.object(
+                    run, "run_command", side_effect=OSError("not executable")):
+                self.assertEqual(1, run.main())
+            suite = ET.parse(report_dir / "TEST-android-fast.xml").getroot()
+        self.assertEqual("1", suite.attrib["failures"])
+        self.assertEqual("0", suite.attrib["skipped"])
 
     def test_invalid_catalog_always_produces_a_junit_failure(self):
         with tempfile.TemporaryDirectory() as directory:

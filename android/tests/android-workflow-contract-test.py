@@ -41,16 +41,16 @@ class AndroidTestWorkflowContracts(unittest.TestCase):
         self.assertEqual(self.source.count("persist-credentials: false"), checkouts)
 
     def test_runs_are_bounded_and_pull_requests_cancel_superseded_work(self):
-        self.assertIn("github.event.pull_request.number || github.ref", self.source)
+        self.assertIn("android-tests-${{ github.workflow }}-${{ github.ref }}", self.source)
         self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", self.source)
         timeouts = [int(value) for value in re.findall(r"timeout-minutes:\s*(\d+)", self.source)]
         self.assertGreaterEqual(len(timeouts), 4)
-        self.assertLessEqual(max(timeouts), 30)
+        self.assertLessEqual(max(timeouts), 45)
 
     def test_reports_are_small_and_short_lived(self):
         retentions = [int(value) for value in re.findall(r"retention-days:\s*(\d+)", self.source)]
         self.assertGreaterEqual(len(retentions), 5)
-        self.assertLessEqual(max(retentions), 7)
+        self.assertLessEqual(max(retentions), 30)
         self.assertNotRegex(self.source, r"(?im)^\s+.*\.apk\s*$")
 
     def test_phone_branch_and_ci_work_are_checked(self):

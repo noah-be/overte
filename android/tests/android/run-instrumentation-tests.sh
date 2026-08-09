@@ -7,6 +7,9 @@ readonly bundled_jdk="$android_root/pico-host-tools/jdk-21"
 if [[ -z "${JAVA_HOME:-}" && -x "$bundled_jdk/bin/java" ]]; then
     export JAVA_HOME="$bundled_jdk"
 fi
+if [[ -n "${JAVA_HOME:-}" ]]; then
+    export PATH="$JAVA_HOME/bin:$PATH"
+fi
 
 exec "$android_root/gradlew" --no-daemon -c "$android_root/settings-phone.gradle" \
     :phoneInterface:connectedDebugAndroidTest

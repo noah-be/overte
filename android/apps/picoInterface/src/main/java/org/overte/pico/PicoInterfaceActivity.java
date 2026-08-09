@@ -18,7 +18,8 @@ import io.highfidelity.utils.HifiUtils;
 
 public final class PicoInterfaceActivity extends QtActivity {
     private static final String TAG = "OvertePico";
-    private static PicoInterfaceActivity instance;
+    private static final PicoActivityInstancePolicy<PicoInterfaceActivity> INSTANCE =
+        new PicoActivityInstancePolicy<>();
 
     static {
         // Qt 5 resolves OpenSSL dynamically.  Android packages the libraries
@@ -33,12 +34,11 @@ public final class PicoInterfaceActivity extends QtActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        instance = this;
-        String requestedParameters = getIntent().hasExtra("applicationArguments")
-            ? getIntent().getStringExtra("applicationArguments")
-            : "--display=OpenXR";
-        APPLICATION_PARAMETERS = requestedParameters + " --cache "
-            + getCacheDir().getAbsolutePath();
+        INSTANCE.register(this);
+        APPLICATION_PARAMETERS = PicoInterfaceActivityPolicy.applicationParameters(
+            getIntent().hasExtra("applicationArguments"),
+            getIntent().getStringExtra("applicationArguments"),
+            getCacheDir().getAbsolutePath());
 
         HifiUtils.upackAssets(getAssets(), getCacheDir().getAbsolutePath());
 
@@ -50,14 +50,19 @@ public final class PicoInterfaceActivity extends QtActivity {
         AndroidAudioInput.initializeNativeBridge();
     }
 
+    @Override
+    protected void onDestroy() {
+        INSTANCE.clear(this);
+        super.onDestroy();
+    }
+
     public static void scheduleRestart(String applicationArguments) {
-        final PicoInterfaceActivity activity = instance;
+        final PicoInterfaceActivity activity = INSTANCE.current();
         if (activity == null) {
             Log.e(TAG, "Cannot restart: activity is unavailable");
             return;
         }
-        Log.i(TAG, "Scheduling application restart with arguments: "
-            + applicationArguments);
+        Log.i(TAG, "Scheduling application restart");
 
         Intent restartIntent = new Intent(activity, PermissionsActivity.class);
         restartIntent.putExtra("args", applicationArguments);
@@ -74,14 +79,16 @@ public final class PicoInterfaceActivity extends QtActivity {
         // Pico OS may batch inexact alarms as soon as the activity closes,
         // which leaves the application stopped instead of relaunching it.
         long restartAt = SystemClock.elapsedRealtime() + 1500;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                && !alarmManager.canScheduleExactAlarms()) {
+        boolean canScheduleExactAlarms = Build.VERSION.SDK_INT < Build.VERSION_CODES.S
+                || alarmManager.canScheduleExactAlarms();
+        if (PicoInterfaceActivityPolicy.canUseExactRestart(
+                Build.VERSION.SDK_INT, canScheduleExactAlarms)) {
+            scheduleExactRestart(alarmManager, restartAt, pendingIntent);
+        } else {
             alarmManager.setAndAllowWhileIdle(
                 AlarmManager.ELAPSED_REALTIME,
                 restartAt,
                 pendingIntent);
-        } else {
-            scheduleExactRestart(alarmManager, restartAt, pendingIntent);
         }
 
         activity.finishAffinity();

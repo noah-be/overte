@@ -10,19 +10,28 @@ readonly tools_dir="$android_root/build/tools/jacoco-0.8.13"
 readonly agent_jar="$tools_dir/jacocoagent.jar"
 readonly cli_jar="$tools_dir/jacococli.jar"
 readonly execution_data="$build_dir/jacoco.exec"
+readonly java_tmp_dir="$build_dir/tmp"
 readonly jacoco_base_url="https://repo.maven.apache.org/maven2/org/jacoco"
 
 download_verified() {
     local url="$1"
     local destination="$2"
     local expected_sha256="$3"
-    if [[ ! -f "$destination" ]]; then
-        curl --fail --silent --show-error --location "$url" --output "$destination"
+    if [[ -f "$destination" ]] &&
+            printf '%s  %s\n' "$expected_sha256" "$destination" | sha256sum --check --status; then
+        return
     fi
-    printf '%s  %s\n' "$expected_sha256" "$destination" | sha256sum --check --status
+    local temporary="${destination}.download.$$"
+    trap 'rm -f -- "$temporary"' RETURN
+    curl --fail --silent --show-error --location \
+        --retry 4 --retry-all-errors --connect-timeout 20 --max-time 300 \
+        "$url" --output "$temporary"
+    printf '%s  %s\n' "$expected_sha256" "$temporary" | sha256sum --check --status
+    mv -f -- "$temporary" "$destination"
+    trap - RETURN
 }
 
-mkdir -p "$classes_dir" "$tests_dir" "$report_dir" "$tools_dir"
+mkdir -p "$classes_dir" "$tests_dir" "$report_dir" "$tools_dir" "$java_tmp_dir"
 find "$classes_dir" "$tests_dir" -type f -delete
 find "$build_dir" -maxdepth 1 -type f -name 'jacoco.exec' -delete
 
@@ -40,30 +49,46 @@ javac -d "$classes_dir" \
     "$android_root/apps/phoneInterface/src/main/java/org/overte/phone/PhoneLaunchState.java" \
     "$android_root/apps/phoneInterface/src/main/java/org/overte/phone/PhonePermissionFlow.java" \
     "$android_root/apps/phoneInterface/src/main/java/org/overte/phone/PhonePendingUrlPolicy.java" \
-    "$android_root/libraries/qt/src/main/java/io/highfidelity/utils/SafeAssetPath.java"
+    "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/HifiUtils.java" \
+    "$android_root/apps/picoInterface/src/main/java/org/overte/pico/AndroidAudioInputPolicy.java" \
+    "$android_root/apps/picoInterface/src/main/java/org/overte/pico/PicoInterfaceActivityPolicy.java" \
+    "$android_root/apps/picoInterface/src/main/java/org/overte/pico/PicoActivityInstancePolicy.java" \
+    "$android_root/libraries/qt/src/main/java/io/highfidelity/utils/SafeAssetPath.java" \
+    "$android_root/libraries/qt/src/main/java/io/highfidelity/utils/AssetCacheExtractor.java"
 
 javac -cp "$classes_dir" -d "$tests_dir" \
     "$android_root/tests/java/org/overte/phone/PhoneDeepLinkNormalizerTest.java" \
     "$android_root/tests/java/org/overte/phone/PhoneLaunchStateStandaloneTest.java" \
     "$android_root/tests/java/org/overte/phone/PhonePermissionFlowStandaloneTest.java" \
     "$android_root/tests/java/org/overte/phone/PhonePendingUrlPolicyStandaloneTest.java" \
-    "$android_root/tests/java/io/highfidelity/utils/SafeAssetPathStandaloneTest.java"
+    "$android_root/tests/java/io/highfidelity/hifiinterface/HifiUtilsStandaloneTest.java" \
+    "$android_root/tests/java/org/overte/pico/AndroidAudioInputPolicyStandaloneTest.java" \
+    "$android_root/tests/java/org/overte/pico/PicoInterfaceActivityPolicyStandaloneTest.java" \
+    "$android_root/tests/java/io/highfidelity/utils/SafeAssetPathStandaloneTest.java" \
+    "$android_root/tests/java/io/highfidelity/utils/AssetCacheExtractorStandaloneTest.java"
 
 for test_class in \
     org.overte.phone.PhoneDeepLinkNormalizerTest \
     org.overte.phone.PhoneLaunchStateStandaloneTest \
     org.overte.phone.PhonePermissionFlowStandaloneTest \
     org.overte.phone.PhonePendingUrlPolicyStandaloneTest \
-    io.highfidelity.utils.SafeAssetPathStandaloneTest; do
-    java -javaagent:"$agent_jar=destfile=$execution_data,append=true" \
+    io.highfidelity.hifiinterface.HifiUtilsStandaloneTest \
+    org.overte.pico.AndroidAudioInputPolicyStandaloneTest \
+    org.overte.pico.PicoInterfaceActivityPolicyStandaloneTest \
+    io.highfidelity.utils.SafeAssetPathStandaloneTest \
+    io.highfidelity.utils.AssetCacheExtractorStandaloneTest; do
+    java -Djava.io.tmpdir="$java_tmp_dir" \
+        -javaagent:"$agent_jar=destfile=$execution_data,append=true" \
         -cp "$classes_dir:$tests_dir" "$test_class"
 done
 
 java -jar "$cli_jar" report "$execution_data" \
     --classfiles "$classes_dir" \
     --sourcefiles "$android_root/apps/phoneInterface/src/main/java" \
+    --sourcefiles "$android_root/apps/interface/src/main/java" \
+    --sourcefiles "$android_root/apps/picoInterface/src/main/java" \
     --sourcefiles "$android_root/libraries/qt/src/main/java" \
-    --name "Overte dependency-free Phone JVM coverage" \
+    --name "Overte dependency-free Phone and legacy Interface JVM coverage" \
     --xml "$report_dir/report.xml" \
     --html "$report_dir/html"
 

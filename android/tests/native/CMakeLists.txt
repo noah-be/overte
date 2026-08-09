@@ -66,6 +66,10 @@ add_overte_native_test(
     "${CMAKE_CURRENT_LIST_DIR}/phone_login_state_instances_test.cpp")
 
 add_overte_native_test(
+    phone_login_state_deterministic_properties
+    "${CMAKE_CURRENT_LIST_DIR}/phone_login_state_property_test.cpp")
+
+add_overte_native_test(
     phone_graphics_bool_policy
     "${CMAKE_CURRENT_LIST_DIR}/phone_graphics_bool_policy_test.cpp")
 
@@ -78,6 +82,10 @@ add_overte_native_test(
     "${CMAKE_CURRENT_LIST_DIR}/phone_graphics_unsigned_policy_test.cpp")
 
 add_overte_native_test(
+    phone_graphics_deterministic_properties
+    "${CMAKE_CURRENT_LIST_DIR}/phone_graphics_property_test.cpp")
+
+add_overte_native_test(
     phone_pending_handoff_lifecycle
     "${CMAKE_CURRENT_LIST_DIR}/phone_pending_handoff_lifecycle_test.cpp")
 
@@ -88,3 +96,52 @@ add_overte_native_test(
 add_overte_native_test(
     phone_pending_handoff_move
     "${CMAKE_CURRENT_LIST_DIR}/phone_pending_handoff_move_test.cpp")
+
+set(OVERTE_BUNDLED_JDK_ROOT
+    "${CMAKE_CURRENT_LIST_DIR}/../../pico-host-tools/jdk-21"
+    CACHE PATH "Optional repository-local JDK used for JNI test headers")
+set(OVERTE_JNI_HINTS
+    "$ENV{JAVA_HOME}/include"
+    "${OVERTE_BUNDLED_JDK_ROOT}/include")
+find_program(OVERTE_JAVAC_EXECUTABLE javac)
+if(OVERTE_JAVAC_EXECUTABLE)
+    execute_process(
+        COMMAND "${OVERTE_JAVAC_EXECUTABLE}" -J-XshowSettings:properties -version
+        OUTPUT_VARIABLE OVERTE_JAVA_PROPERTIES
+        ERROR_VARIABLE OVERTE_JAVA_PROPERTIES
+        RESULT_VARIABLE OVERTE_JAVAC_PROPERTIES_STATUS)
+    if(OVERTE_JAVAC_PROPERTIES_STATUS EQUAL 0 AND
+            OVERTE_JAVA_PROPERTIES MATCHES "java.home = ([^\r\n]+)")
+        string(STRIP "${CMAKE_MATCH_1}" OVERTE_DISCOVERED_JAVA_HOME)
+        list(APPEND OVERTE_JNI_HINTS "${OVERTE_DISCOVERED_JAVA_HOME}/include")
+        # Java 8 reports the nested JRE as java.home, while newer JDKs report
+        # the JDK root itself.
+        list(APPEND OVERTE_JNI_HINTS "${OVERTE_DISCOVERED_JAVA_HOME}/../include")
+    endif()
+endif()
+find_path(OVERTE_JNI_INCLUDE_DIR jni.h HINTS ${OVERTE_JNI_HINTS})
+if(NOT OVERTE_JNI_INCLUDE_DIR)
+    message(FATAL_ERROR
+        "jni.h is required for the production JNI compatibility test. "
+        "Install a JDK, export JAVA_HOME, or pass -DOVERTE_JNI_INCLUDE_DIR=<jdk>/include.")
+endif()
+if(WIN32)
+    set(OVERTE_JNI_PLATFORM_SUBDIR win32)
+elseif(APPLE)
+    set(OVERTE_JNI_PLATFORM_SUBDIR darwin)
+else()
+    set(OVERTE_JNI_PLATFORM_SUBDIR linux)
+endif()
+
+add_overte_native_test(
+    qt_input_connection_compat
+    "${CMAKE_CURRENT_LIST_DIR}/qt_input_connection_compat_test.cpp")
+target_sources(qt_input_connection_compat PRIVATE
+    "${CMAKE_CURRENT_LIST_DIR}/../../apps/phoneInterface/src/QtInputConnectionCompat.cpp")
+target_include_directories(qt_input_connection_compat PRIVATE
+    "${OVERTE_JNI_INCLUDE_DIR}"
+    "${OVERTE_JNI_INCLUDE_DIR}/${OVERTE_JNI_PLATFORM_SUBDIR}")
+
+add_overte_native_test(
+    phone_pending_handoff_deterministic_properties
+    "${CMAKE_CURRENT_LIST_DIR}/phone_pending_handoff_property_test.cpp")

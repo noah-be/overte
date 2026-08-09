@@ -27,17 +27,27 @@ public class PermissionChecker extends Activity {
 
     private static final boolean CHOOSE_AVATAR_ON_STARTUP = false;
     private static final String TAG = "Interface";
+    // Mirrors libraries/shared/SettingHandle.cpp for the dormant avatar picker.
+    private static final String SETTINGS_FULL_PRIVATE_GROUP_NAME = "fullPrivate";
 
     private static final String EXTRA_ARGS = "args";
+    private static final String STATE_INTERFACE_LAUNCHED = "interfaceLaunched";
     private String mArgs;
+    private boolean interfaceLaunched;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mArgs =(getIntent().getStringExtra(EXTRA_ARGS));
+        interfaceLaunched = savedInstanceState != null
+                && savedInstanceState.getBoolean(STATE_INTERFACE_LAUNCHED);
 
         Intent myIntent = new Intent(this, BreakpadUploaderService.class);
         startService(myIntent);
+        if (interfaceLaunched) {
+            finish();
+            return;
+        }
         if (CHOOSE_AVATAR_ON_STARTUP) {
             showMenu();
         }
@@ -53,10 +63,15 @@ public class PermissionChecker extends Activity {
                         String[]{
                         Manifest.permission.READ_EXTERNAL_STORAGE,
                         Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                        Manifest.permission.RECORD_AUDIO,
-                        Manifest.permission.CAMERA}
+                        Manifest.permission.RECORD_AUDIO}
                 ,2,REQUEST_PERMISSIONS);
 
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        outState.putBoolean(STATE_INTERFACE_LAUNCHED, interfaceLaunched);
+        super.onSaveInstanceState(outState);
     }
 
     public void requestAppPermissions(final String[] requestedPermissions,
@@ -81,6 +96,10 @@ public class PermissionChecker extends Activity {
     }
 
     private void launchActivityWithPermissions(){
+        if (interfaceLaunched) {
+            return;
+        }
+        interfaceLaunched = true;
         Intent i = new Intent(this, InterfaceActivity.class);
         
         if (!TextUtils.isEmpty(mArgs)) {
@@ -136,16 +155,13 @@ public class PermissionChecker extends Activity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        int permissionCheck = PackageManager.PERMISSION_GRANTED;
-        for (int permission : grantResults) {
-            permissionCheck = permissionCheck + permission;
+        if (requestCode != REQUEST_PERMISSIONS) {
+            return;
         }
-        if ((grantResults.length > 0) && permissionCheck == PackageManager.PERMISSION_GRANTED) {
-            launchActivityWithPermissions();
-        } else if (grantResults.length > 0) {
-            System.out.println("User has deliberately denied Permissions. Launching anyways");
-            launchActivityWithPermissions();
-        }
+        // These permissions affect optional input/storage features. Android may
+        // also return an empty result when a request is interrupted; neither an
+        // interruption nor a denial should strand the launcher Activity.
+        launchActivityWithPermissions();
     }
 
     @Override

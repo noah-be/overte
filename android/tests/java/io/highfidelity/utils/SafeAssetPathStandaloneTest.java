@@ -19,6 +19,7 @@ public final class SafeAssetPathStandaloneTest {
         reject(root, "../escape");
         reject(root, new File(parent, "absolute-escape").getAbsolutePath());
         reject(root, "../cache-evil/payload");
+        reject(root, "control-\u0001-path");
         File outside = new File(parent, "outside");
         outside.mkdirs();
         Files.createSymbolicLink(new File(root, "link").toPath(), outside.toPath());

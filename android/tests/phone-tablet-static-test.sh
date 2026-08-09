@@ -30,6 +30,7 @@ tests=(
     phone-actionbar-qml-lifetime-test.sh
     phone-script-payload-test.sh
     phone-modern-android-api-test.sh
+    phone-jni-boundary-test.sh
 )
 
 for test_name in "${tests[@]}"; do
