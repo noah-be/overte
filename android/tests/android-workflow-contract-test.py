@@ -132,6 +132,18 @@ class AndroidPhoneReleaseCandidateWorkflowContracts(unittest.TestCase):
         self.assertNotIn("gh release create", self.source)
         self.assertNotIn("actions/attest-build-provenance", self.source)
 
+    def test_candidate_build_respects_runner_cpu_budget(self):
+        self.assertIn(
+            "CMAKE_BUILD_PARALLEL_LEVEL=4 PICO_BUILD_JOBS=4 SHADERGEN_JOBS=4",
+            self.source,
+        )
+
+    def test_mandatory_node_runtime_is_checked_before_host_tests(self):
+        runtime_check = self.source.index("Verify mandatory host-test runtime")
+        host_tests = self.source.index("Run complete device-free host tier")
+        self.assertLess(runtime_check, host_tests)
+        self.assertIn("android/ci/check-phone-host-runtime.sh", self.source)
+
     def test_actions_are_pinned_and_candidate_has_no_signing_secrets(self):
         actions = ACTION_USE.findall(self.source)
         self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])

@@ -74,6 +74,8 @@ jobs:
             --published-code-floor '${{ vars.ANDROID_PHONE_PUBLISHED_VERSION_CODE }}' \
             --source-revision "$GITHUB_SHA" \
             --output android/build/release/version-manifest.json
+      - name: Verify mandatory host-test runtime
+        run: android/ci/check-phone-host-runtime.sh
       - name: Run complete device-free host tier
         working-directory: android
         run: tests/run-tests.sh host --report-dir build/test-results/android-phone-release-host
@@ -97,7 +99,7 @@ jobs:
           mkdir -p -- "$PHONE_BUILD_TMPDIR"
           TMPDIR="$PHONE_BUILD_TMPDIR" \
           JAVA_TOOL_OPTIONS="-Djava.io.tmpdir=$PHONE_BUILD_TMPDIR" \
-          CMAKE_BUILD_PARALLEL_LEVEL=8 PICO_BUILD_JOBS=8 SHADERGEN_JOBS=8 \
+          CMAKE_BUILD_PARALLEL_LEVEL=4 PICO_BUILD_JOBS=4 SHADERGEN_JOBS=4 \
           ./gradlew --no-daemon --settings-file settings-phone.gradle \
             -PVERSION_CODE="$VERSION_CODE" -PRELEASE_NUMBER="$release_number" \
             :phoneInterface:assembleRelease --max-workers=8 --stacktrace
