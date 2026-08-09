@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -24,11 +26,48 @@ KNOWN_TIERS = {"fast", "host", "prepared-host", "contracts", "regression", "devi
 MAX_REPORT_OUTPUT_BYTES = 256 * 1024
 TERMINATION_GRACE_SECONDS = 1.0
 DEFAULT_SUITE_TIMEOUT_SECONDS = 480
+DEFAULT_REPORT_LOCK_TIMEOUT_SECONDS = 600.0
 DEFAULT_SUITE_TEMP_PARENT = (
     Path("/dev/shm") if Path("/dev/shm").is_dir() and os.access("/dev/shm", os.W_OK)
     else Path(tempfile.gettempdir())
 )
 SUITE_TEMP_PARENT = Path(os.environ.get("OVERTE_SUITE_TEMP_ROOT", DEFAULT_SUITE_TEMP_PARENT))
+
+
+def report_lock_timeout() -> float:
+    value = os.environ.get(
+        "OVERTE_SUITE_REPORT_LOCK_TIMEOUT_SECONDS",
+        str(DEFAULT_REPORT_LOCK_TIMEOUT_SECONDS),
+    )
+    try:
+        timeout = float(value)
+    except ValueError as error:
+        raise ValueError("suite report lock timeout must be a non-negative number") from error
+    if timeout < 0 or not timeout < float("inf"):
+        raise ValueError("suite report lock timeout must be a non-negative number")
+    return timeout
+
+
+@contextmanager
+def report_lifecycle_lock(report: Path, timeout: float):
+    """Serialize complete runs publishing the same report without unlink races."""
+    report.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = report.parent / f".{report.name}.lock"
+    with lock_path.open("a+b") as lock:
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(
+                        f"timed out waiting for suite report lock after {timeout:g} seconds")
+                time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
 
 
 def xml_safe(value: object) -> str:
@@ -142,29 +181,25 @@ def write_report(results: list[dict], destination: Path, tier: str) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def main() -> int:
-    args = parse_args()
-    report = args.report_dir.resolve() / f"TEST-android-{args.tier}.xml"
-    try:
-        suites = load_suites(args.catalog.resolve(), args.tier)
-    except (OSError, ValueError, json.JSONDecodeError) as error:
-        output = f"Unable to load test catalog: {error}\n"
-        print(output, end="", file=sys.stderr)
-        write_report([{
-            "id": "catalog-validation", "kind": "infrastructure", "status": "failed",
-            "reason": "", "returncode": 2, "duration": 0.0, "output": output,
-        }], report, args.tier)
-        print(f"JUnit report: {report}", file=sys.stderr)
-        return 2
-    if args.list:
-        for suite in suites:
-            print(f"{suite['id']}\t{suite['kind']}\t{suite['description']}")
-        return 0
+def failure_result(identifier: str, output: str) -> dict:
+    return {
+        "id": identifier, "kind": "infrastructure", "status": "failed",
+        "reason": "", "returncode": 2, "duration": 0.0, "output": output,
+    }
+
+
+def run_suites(args: argparse.Namespace, report: Path, suites: list[dict]) -> int:
     if not suites:
-        print(f"No suites selected for tier {args.tier}", file=sys.stderr)
+        output = f"No suites selected for tier {args.tier}\n"
+        print(output, end="", file=sys.stderr)
+        write_report([failure_result("empty-tier", output)], report, args.tier)
+        print(f"JUnit report: {report}", file=sys.stderr)
         return 2
 
     results = []
+    incomplete_output = "Suite run started, but no suite has completed.\n"
+    write_report(
+        [failure_result("suite-run-incomplete", incomplete_output)], report, args.tier)
     # Some privacy-sensitive device harnesses deliberately reject report paths
     # inside the source worktree. Keep runner-owned scratch space external.
     suite_temp_parent = SUITE_TEMP_PARENT
@@ -209,6 +244,36 @@ def main() -> int:
     write_report(results, report, args.tier)
     print(f"\nJUnit report: {report}")
     return 1 if any(result["status"] == "failed" for result in results) else 0
+
+
+def main() -> int:
+    args = parse_args()
+    report = args.report_dir.resolve() / f"TEST-android-{args.tier}.xml"
+    if args.list:
+        try:
+            suites = load_suites(args.catalog.resolve(), args.tier)
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            print(f"Unable to load test catalog: {error}", file=sys.stderr)
+            return 2
+        for suite in suites:
+            print(f"{suite['id']}\t{suite['kind']}\t{suite['description']}")
+        return 0
+    try:
+        timeout = report_lock_timeout()
+        with report_lifecycle_lock(report, timeout):
+            try:
+                suites = load_suites(args.catalog.resolve(), args.tier)
+            except (OSError, ValueError, json.JSONDecodeError) as error:
+                output = f"Unable to load test catalog: {error}\n"
+                print(output, end="", file=sys.stderr)
+                write_report(
+                    [failure_result("catalog-validation", output)], report, args.tier)
+                print(f"JUnit report: {report}", file=sys.stderr)
+                return 2
+            return run_suites(args, report, suites)
+    except (TimeoutError, ValueError) as error:
+        print(f"Unable to acquire suite report lock: {error}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

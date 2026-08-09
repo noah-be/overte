@@ -212,6 +212,130 @@ class SuiteRunnerTest(unittest.TestCase):
                 self.assertEqual(0, run.main())
 
             self.assertFalse(observed["temporary"].exists())
+
+    def test_incomplete_report_replaces_stale_success_before_first_suite(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            catalog = root / "catalog.json"
+            report_dir = root / "reports"
+            report = report_dir / "TEST-android-fast.xml"
+            catalog.write_text(json.dumps({"schemaVersion": 1, "suites": [{
+                "id": "fixture", "kind": "infrastructure", "description": "fixture",
+                "command": ["fixture"], "tiers": ["fast"],
+            }]}), encoding="utf-8")
+            report_dir.mkdir()
+            report.write_text('<testsuite tests="1" failures="0"/>', encoding="utf-8")
+
+            def execute(command, timeout, *, cwd, env):
+                pending = ET.parse(report).getroot()
+                self.assertEqual("1", pending.attrib["failures"])
+                self.assertIsNotNone(
+                    pending.find("testcase[@name='suite-run-incomplete']/failure"))
+                return subprocess.CompletedProcess(command, 0, "ok\n")
+
+            argv = ["run.py", "fast", "--catalog", str(catalog),
+                    "--report-dir", str(report_dir)]
+            with mock.patch("sys.argv", argv), mock.patch.object(
+                    run, "run_command", side_effect=execute):
+                self.assertEqual(0, run.main())
+            final = ET.parse(report).getroot()
+            self.assertEqual("0", final.attrib["failures"])
+            self.assertIsNotNone(final.find("testcase[@name='fixture']"))
+
+    def test_interrupted_first_suite_leaves_red_incomplete_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            catalog = root / "catalog.json"
+            report_dir = root / "reports"
+            catalog.write_text(json.dumps({"schemaVersion": 1, "suites": [{
+                "id": "fixture", "kind": "infrastructure", "description": "fixture",
+                "command": ["fixture"], "tiers": ["fast"],
+            }]}), encoding="utf-8")
+            argv = ["run.py", "fast", "--catalog", str(catalog),
+                    "--report-dir", str(report_dir)]
+            with mock.patch("sys.argv", argv), mock.patch.object(
+                    run, "run_command", side_effect=KeyboardInterrupt):
+                with self.assertRaises(KeyboardInterrupt):
+                    run.main()
+            pending = ET.parse(report_dir / "TEST-android-fast.xml").getroot()
+            self.assertEqual("1", pending.attrib["failures"])
+            self.assertIsNotNone(
+                pending.find("testcase[@name='suite-run-incomplete']/failure"))
+
+    def test_empty_tier_replaces_stale_report_with_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            catalog = root / "catalog.json"
+            report_dir = root / "reports"
+            report_dir.mkdir()
+            report = report_dir / "TEST-android-fast.xml"
+            report.write_text('<testsuite tests="1" failures="0"/>', encoding="utf-8")
+            catalog.write_text(json.dumps({"schemaVersion": 1, "suites": []}),
+                               encoding="utf-8")
+            argv = ["run.py", "fast", "--catalog", str(catalog),
+                    "--report-dir", str(report_dir)]
+            with mock.patch("sys.argv", argv):
+                self.assertEqual(2, run.main())
+            failed = ET.parse(report).getroot()
+            self.assertEqual("1", failed.attrib["failures"])
+            self.assertIsNotNone(failed.find("testcase[@name='empty-tier']/failure"))
+
+    def test_list_is_read_only_even_with_existing_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            catalog = root / "catalog.json"
+            report_dir = root / "reports"
+            report_dir.mkdir()
+            report = report_dir / "TEST-android-fast.xml"
+            previous = b'<testsuite name="previous" tests="1" failures="0"/>'
+            report.write_bytes(previous)
+            catalog.write_text(json.dumps({"schemaVersion": 1, "suites": [{
+                "id": "fixture", "kind": "infrastructure", "description": "fixture",
+                "command": ["fixture"], "tiers": ["fast"],
+            }]}), encoding="utf-8")
+            argv = ["run.py", "fast", "--list", "--catalog", str(catalog),
+                    "--report-dir", str(report_dir)]
+            with mock.patch("sys.argv", argv):
+                self.assertEqual(0, run.main())
+            self.assertEqual(previous, report.read_bytes())
+            self.assertFalse((report_dir / ".TEST-android-fast.xml.lock").exists())
+
+    @unittest.skipUnless(os.name == "posix", "flock fixture is POSIX-specific")
+    def test_report_lifecycle_lock_has_bounded_contention_and_persists_inode(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "TEST-android-fast.xml"
+            lock_path = report.parent / f".{report.name}.lock"
+            with run.report_lifecycle_lock(report, 1):
+                started = time.monotonic()
+                with self.assertRaisesRegex(TimeoutError, "after 0.05 seconds"):
+                    with run.report_lifecycle_lock(report, 0.05):
+                        self.fail("contending report writer acquired the lock")
+                self.assertLess(time.monotonic() - started, 0.5)
+            self.assertTrue(lock_path.is_file())
+            with run.report_lifecycle_lock(report, 0):
+                pass
+
+    @unittest.skipUnless(os.name == "posix", "flock fixture is POSIX-specific")
+    def test_main_lock_timeout_is_configurable_and_starts_no_suite(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            catalog = root / "catalog.json"
+            report_dir = root / "reports"
+            report = report_dir / "TEST-android-fast.xml"
+            catalog.write_text(json.dumps({"schemaVersion": 1, "suites": [{
+                "id": "fixture", "kind": "infrastructure", "description": "fixture",
+                "command": ["fixture"], "tiers": ["fast"],
+            }]}), encoding="utf-8")
+            argv = ["run.py", "fast", "--catalog", str(catalog),
+                    "--report-dir", str(report_dir)]
+            with run.report_lifecycle_lock(report, 1):
+                with mock.patch("sys.argv", argv), mock.patch.object(
+                        run, "run_command") as execute, mock.patch.dict(
+                            os.environ,
+                            {"OVERTE_SUITE_REPORT_LOCK_TIMEOUT_SECONDS": "0.01"}):
+                    self.assertEqual(2, run.main())
+            execute.assert_not_called()
+
     def test_invalid_catalog_always_produces_a_junit_failure(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
