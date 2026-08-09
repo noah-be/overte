@@ -36,6 +36,10 @@ def largest_internal_gap(apk_path):
                 largest_location = f"after {previous_name}, before {entry.filename}"
             previous_end = max(previous_end, entry_data_end(apk_file, entry))
             previous_name = entry.filename
+        central_directory_gap = archive.start_dir - previous_end
+        if central_directory_gap > largest_gap:
+            largest_gap = central_directory_gap
+            largest_location = f"after {previous_name}, before the central directory"
         return largest_gap, largest_location
 
 

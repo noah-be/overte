@@ -39,6 +39,20 @@ if data[cursor:cursor + 4] != b"PK\x05\x06":
     raise RuntimeError("fixture EOCD not found")
 struct.pack_into("<I", data, cursor + 16, central_offset)
 (root / "padded.apk").write_bytes(data)
+
+data = bytearray(normal.read_bytes())
+with zipfile.ZipFile(normal) as archive:
+    central_offset = archive.start_dir
+data[central_offset:central_offset] = padding
+cursor = central_offset + len(padding)
+while data[cursor:cursor + 4] == b"PK\x01\x02":
+    name_length, extra_length, comment_length = struct.unpack_from("<HHH", data, cursor + 28)
+    cursor += 46 + name_length + extra_length + comment_length
+if data[cursor:cursor + 4] != b"PK\x05\x06":
+    raise RuntimeError("central-padding fixture EOCD not found")
+struct.pack_into("<I", data, cursor + 16, central_offset + len(padding))
+(root / "central-padded.apk").write_bytes(data)
+
 (root / "invalid.apk").write_bytes(b"not a ZIP\n")
 PY
 
@@ -48,6 +62,13 @@ if "$checker" "$fixture_dir/padded.apk" >"$fixture_dir/out" 2>&1; then
     exit 1
 fi
 grep -q '131072 bytes of internal padding' "$fixture_dir/out"
+if "$checker" "$fixture_dir/central-padded.apk" \
+        >"$fixture_dir/central-padding-out" 2>&1; then
+    echo 'FAIL: excessive padding before the central directory was accepted' >&2
+    exit 1
+fi
+grep -Fq '131072 bytes of internal padding' "$fixture_dir/central-padding-out"
+grep -Fq 'before the central directory' "$fixture_dir/central-padding-out"
 
 if "$checker" "$fixture_dir/private/missing.apk" >"$fixture_dir/missing-out" 2>&1; then
     echo 'FAIL: missing APK input was accepted' >&2

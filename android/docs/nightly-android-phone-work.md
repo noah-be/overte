@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 99 — Bound padding before the ZIP central directory
+
+- Branch: `nightly/android-phone-99-central-directory-padding`
+- Commit: `Gate phone APK central directory padding` (this task's commit)
+- Change: Include the gap between the final local file payload and the ZIP
+  central directory in the APK's 64-KiB internal-padding limit. Incremental or
+  stale bytes can no longer bypass the gate by occupying that final internal
+  region rather than a gap between two entries.
+- Tests:
+  - `android/tests/phone-apk-padding-test.sh`: **passed**, adding an APK with
+    128 KiB inserted immediately before its relocated central directory.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 293/293 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 293/293.
+  - Python/shell syntax and `git diff --check`: **passed**.
+- Known risks: Bytes after the ZIP end record are outside the internal-entry
+  alignment model; signing and distribution tooling should reject such
+  non-canonical release artifacts independently.
+- Real-device validation still required: Run `zipalign` and install the final
+  gated APK; no device test is specific to the central-directory calculation.
+
 ## 98 — Keep Python package-gate errors path-private
 
 - Branch: `nightly/android-phone-98-private-package-errors`
@@ -2272,7 +2293,8 @@ All branches form one linear chain starting at
 95. `nightly/android-phone-95-package-entry-integrity` — `1134b9092b`
 96. `nightly/android-phone-96-package-layout-boundary` — `46a1cf115c`
 97. `nightly/android-phone-97-private-elf-errors` — `c44a29b7dc`
-98. `nightly/android-phone-98-private-package-errors` — this task's commit
+98. `nightly/android-phone-98-private-package-errors` — `1d7f13300d`
+99. `nightly/android-phone-99-central-directory-padding` — this task's commit
 
 ### Device-free audit disposition
 
