@@ -7,7 +7,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import io.highfidelity.hifiinterface.HifiUtils;
 import io.highfidelity.hifiinterface.view.DomainAdapter;
 import retrofit2.Call;
 import retrofit2.Response;
@@ -107,7 +106,8 @@ public class UserStoryDomainProvider implements DomainProvider {
             public void onResponse(Call<UserStories> call, Response<UserStories> response) {
                 UserStories data = response.body();
                 userStoriesList.addAll(data.user_stories);
-                if (data.current_page < data.total_pages && data.current_page <= MAX_PAGES_TO_GET) {
+                if (UserStoryDomainPolicy.shouldRequestNextPage(
+                        data.current_page, data.total_pages, MAX_PAGES_TO_GET)) {
                     getUserStoryPage(pageNumber + 1, userStoriesList, tagsFilter, restOfPagesCallback);
                     return;
                 }
@@ -200,10 +200,10 @@ public class UserStoryDomainProvider implements DomainProvider {
         DomainAdapter.Domain toDomain() {
             // TODO Proper url creation (it can or can't have hifi
             // TODO Or use host value from api?
-            String absoluteThumbnailUrl = HifiUtils.getInstance().absoluteHifiAssetUrl(thumbnail_url);
+            String absoluteThumbnailUrl = UserStoryDomainPolicy.thumbnailUrl(thumbnail_url);
             DomainAdapter.Domain domain = new DomainAdapter.Domain(
                     place_name,
-                    HifiUtils.getInstance().sanitizeHifiUrl(place_name) + "/" + path,
+                    UserStoryDomainPolicy.destinationUrl(place_name, path),
                     absoluteThumbnailUrl
             );
             return domain;

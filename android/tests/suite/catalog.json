@@ -58,6 +58,13 @@
       "description": "Pure JVM deep-link normalization tests"
     },
     {
+      "id": "legacy-user-story-policy",
+      "kind": "jvm",
+      "tiers": ["fast", "host"],
+      "command": ["tests/legacy-user-story-policy-test.sh"],
+      "description": "Legacy place URL and pagination characterization"
+    },
+    {
       "id": "phone-test-inventory",
       "kind": "contract",
       "tiers": ["fast", "host", "contracts"],
