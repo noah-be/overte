@@ -23,6 +23,13 @@
       "description": "Parse every tracked Android Bash entry point before execution"
     },
     {
+      "id": "python-syntax-contract",
+      "kind": "infrastructure",
+      "tiers": ["fast", "host", "contracts"],
+      "command": ["tests/python-syntax-test.py"],
+      "description": "Parse every tracked Android Python source without writing bytecode"
+    },
+    {
       "id": "result-summary-self-test",
       "kind": "infrastructure",
       "tiers": ["fast"],

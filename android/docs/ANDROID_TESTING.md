@@ -6,9 +6,12 @@ build. `tests/suite/catalog.json` is the source of truth. The runner never
 discovers tests by filename glob.
 
 The fast and contract tiers parse every tracked Android `*.sh` entry point with
-`bash -n`. This catches syntax regressions even in hardware-only scripts that
-cannot execute on a pull-request host. It is a syntax contract, not a substitute
-for behavior tests or a general-purpose shell linter.
+`bash -n` and every tracked Python source through the standard-library AST
+parser. Executable Python entry points must retain the repository's Python 3
+shebang. These checks catch syntax regressions even in hardware-only scripts
+that cannot execute on a pull-request host, without creating bytecode or cache
+files. They are syntax contracts, not substitutes for behavior tests or
+general-purpose linters.
 
 ## Test architecture
 
