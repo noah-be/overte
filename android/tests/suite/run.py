@@ -188,6 +188,13 @@ def failure_result(identifier: str, output: str) -> dict:
     }
 
 
+def incomplete_result(completed: int, total: int) -> dict:
+    return failure_result(
+        "suite-run-incomplete",
+        f"Suite run incomplete: {completed} of {total} suites completed.\n",
+    )
+
+
 def run_suites(args: argparse.Namespace, report: Path, suites: list[dict]) -> int:
     if not suites:
         output = f"No suites selected for tier {args.tier}\n"
@@ -197,9 +204,7 @@ def run_suites(args: argparse.Namespace, report: Path, suites: list[dict]) -> in
         return 2
 
     results = []
-    incomplete_output = "Suite run started, but no suite has completed.\n"
-    write_report(
-        [failure_result("suite-run-incomplete", incomplete_output)], report, args.tier)
+    write_report([incomplete_result(0, len(suites))], report, args.tier)
     # Some privacy-sensitive device harnesses deliberately reject report paths
     # inside the source worktree. Keep runner-owned scratch space external.
     suite_temp_parent = SUITE_TEMP_PARENT
@@ -239,7 +244,8 @@ def run_suites(args: argparse.Namespace, report: Path, suites: list[dict]) -> in
         print(output, end="")
         results.append({**suite, "status": status, "reason": reason,
                         "returncode": returncode, "duration": duration, "output": output})
-        write_report(results, report, args.tier)
+        write_report(
+            [*results, incomplete_result(len(results), len(suites))], report, args.tier)
 
     write_report(results, report, args.tier)
     print(f"\nJUnit report: {report}")

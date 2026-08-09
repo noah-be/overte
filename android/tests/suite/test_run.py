@@ -229,8 +229,9 @@ class SuiteRunnerTest(unittest.TestCase):
             def execute(command, timeout, *, cwd, env):
                 pending = ET.parse(report).getroot()
                 self.assertEqual("1", pending.attrib["failures"])
-                self.assertIsNotNone(
-                    pending.find("testcase[@name='suite-run-incomplete']/failure"))
+                failure = pending.find("testcase[@name='suite-run-incomplete']/failure")
+                self.assertIsNotNone(failure)
+                self.assertIn("0 of 1 suites completed", failure.text)
                 return subprocess.CompletedProcess(command, 0, "ok\n")
 
             argv = ["run.py", "fast", "--catalog", str(catalog),
@@ -261,6 +262,80 @@ class SuiteRunnerTest(unittest.TestCase):
             self.assertEqual("1", pending.attrib["failures"])
             self.assertIsNotNone(
                 pending.find("testcase[@name='suite-run-incomplete']/failure"))
+
+    def test_intermediate_report_stays_red_until_two_suites_finish(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            catalog = root / "catalog.json"
+            report_dir = root / "reports"
+            report = report_dir / "TEST-android-fast.xml"
+            catalog.write_text(json.dumps({"schemaVersion": 1, "suites": [
+                {"id": "first", "kind": "infrastructure", "description": "first",
+                 "command": ["first"], "tiers": ["fast"]},
+                {"id": "second", "kind": "infrastructure", "description": "second",
+                 "command": ["second"], "tiers": ["fast"]},
+            ]}), encoding="utf-8")
+            calls = 0
+
+            def execute(command, timeout, *, cwd, env):
+                nonlocal calls
+                pending = ET.parse(report).getroot()
+                sentinel = pending.find("testcase[@name='suite-run-incomplete']/failure")
+                self.assertIsNotNone(sentinel)
+                self.assertEqual("1", pending.attrib["failures"])
+                self.assertIn(f"{calls} of 2 suites completed", sentinel.text)
+                if calls == 1:
+                    self.assertIsNotNone(pending.find("testcase[@name='first']"))
+                    self.assertEqual("2", pending.attrib["tests"])
+                calls += 1
+                return subprocess.CompletedProcess(command, 0, "ok\n")
+
+            argv = ["run.py", "fast", "--catalog", str(catalog),
+                    "--report-dir", str(report_dir)]
+            with mock.patch("sys.argv", argv), mock.patch.object(
+                    run, "run_command", side_effect=execute):
+                self.assertEqual(0, run.main())
+            self.assertEqual(2, calls)
+            final = ET.parse(report).getroot()
+            self.assertEqual("2", final.attrib["tests"])
+            self.assertEqual("0", final.attrib["failures"])
+            self.assertIsNone(final.find("testcase[@name='suite-run-incomplete']"))
+            self.assertIsNotNone(final.find("testcase[@name='first']"))
+            self.assertIsNotNone(final.find("testcase[@name='second']"))
+
+    def test_interrupt_after_partial_success_leaves_progress_sentinel(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            catalog = root / "catalog.json"
+            report_dir = root / "reports"
+            report = report_dir / "TEST-android-fast.xml"
+            catalog.write_text(json.dumps({"schemaVersion": 1, "suites": [
+                {"id": "first", "kind": "infrastructure", "description": "first",
+                 "command": ["first"], "tiers": ["fast"]},
+                {"id": "second", "kind": "infrastructure", "description": "second",
+                 "command": ["second"], "tiers": ["fast"]},
+            ]}), encoding="utf-8")
+            calls = 0
+
+            def execute(command, timeout, *, cwd, env):
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    raise KeyboardInterrupt
+                return subprocess.CompletedProcess(command, 0, "first passed\n")
+
+            argv = ["run.py", "fast", "--catalog", str(catalog),
+                    "--report-dir", str(report_dir)]
+            with mock.patch("sys.argv", argv), mock.patch.object(
+                    run, "run_command", side_effect=execute):
+                with self.assertRaises(KeyboardInterrupt):
+                    run.main()
+            pending = ET.parse(report).getroot()
+            self.assertEqual("2", pending.attrib["tests"])
+            self.assertEqual("1", pending.attrib["failures"])
+            self.assertIsNotNone(pending.find("testcase[@name='first']"))
+            sentinel = pending.find("testcase[@name='suite-run-incomplete']/failure")
+            self.assertIn("1 of 2 suites completed", sentinel.text)
 
     def test_empty_tier_replaces_stale_report_with_failure(self):
         with tempfile.TemporaryDirectory() as directory:
