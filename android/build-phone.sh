@@ -57,10 +57,8 @@ EOF
 }
 
 download_prebuilt_dependencies() {
-    # The published Pico archive is the shared Android base, not a VR runtime
-    # dependency. Reuse its exact checksum/cache-restore implementation, then
-    # overlay the smaller pinned Phone 16 KiB Qt package.
-    "$script_dir/build-pico.sh" deps --download
+    # Phone dependency transport is deliberately independent from Pico release
+    # assets. The versioned archive contains the complete pinned Phone graph.
     "$script_dir/phone-prebuilt-16k-deps.sh" download
 }
 

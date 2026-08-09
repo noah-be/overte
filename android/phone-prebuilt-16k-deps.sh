@@ -2,12 +2,13 @@
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-tag='android-phone-16k-deps-v1'
+tag='android-phone-16k-deps-v2'
 asset='android-phone-16k-conan.tgz'
 manifest="${PHONE_PREBUILT_MANIFEST:-$script_dir/conan/prebuilt/${tag}.sha256}"
 base_url="${PHONE_PREBUILT_BASE_URL:-https://github.com/noah-be/overte/releases/download/$tag}"
 qt_profile="$script_dir/conan/profiles/phone-arm64-16k"
 nonqt_profile="$script_dir/conan/profiles/phone-nonqt-arm64-16k"
+build_profile="$script_dir/conan/profiles/phone-prebuilt-linux-x86_64"
 conanfile="$script_dir/conan/conanfile-pico.py"
 qt_output="$script_dir/conan/phone-16k-debug"
 nonqt_output="$script_dir/conan/phone-nonqt-16k-debug"
@@ -47,9 +48,9 @@ validate_manifest() {
 generate_outputs() {
     local conan_bin="$1"
     "$conan_bin" install "$conanfile" -of "$qt_output" \
-        -pr:h "$qt_profile" -pr:b default --no-remote --build=never
+        -pr:h "$qt_profile" -pr:b "$build_profile" --no-remote --build=never
     "$conan_bin" install "$conanfile" -of "$nonqt_output" \
-        -pr:h "$nonqt_profile" -pr:b default --no-remote --build=never
+        -pr:h "$nonqt_profile" -pr:b "$build_profile" --no-remote --build=never
     "$finalizer"
     [[ -f "$ready_marker" ]] || fail "Phone dependency finalizer did not publish readiness"
 }
@@ -62,7 +63,7 @@ download_artifact() {
     validate_manifest
     download_dir="$(mktemp -d "${TMPDIR:-/tmp}/overte-phone-16k-download.XXXXXXXX")"
     trap 'rm -rf -- "$download_dir"' RETURN
-    echo "Downloading checksum-verified Phone 16 KiB dependency delta"
+    echo "Downloading checksum-verified Phone 16 KiB dependency graph"
     "$curl_bin" --fail --location --retry 3 \
         --output "$download_dir/$asset" "$base_url/$asset"
     (cd "$download_dir" && sha256sum --check "$manifest") \
@@ -75,7 +76,7 @@ download_artifact() {
 }
 
 export_artifact() {
-    local output_dir="${1:-}" conan_bin archive qt_package_dir
+    local output_dir="${1:-}" conan_bin archive qt_package_dir temp_dir
     [[ -n "$output_dir" && "$output_dir" == /* ]] \
         || fail "export requires an absolute output directory"
     conan_bin="$(find_conan)" || fail "Conan 2 was not found"
@@ -88,9 +89,18 @@ export_artifact() {
     qt_package_dir="$($conan_bin cache path "$qt_package")"
     [[ -d "$qt_package_dir" ]] || fail "verified Phone Qt package is missing"
     "$script_dir/tests/check-phone-elf-alignment.sh" "$qt_package_dir"
-    "$conan_bin" cache save "$qt_package" --no-source --file="$archive"
+    temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/overte-phone-16k-export.XXXXXXXX")"
+    trap 'rm -rf -- "$temp_dir"' RETURN
+    "$conan_bin" graph info "$conanfile" -pr:h "$qt_profile" \
+        -pr:b "$build_profile" --no-remote --format=json \
+        >"$temp_dir/graph.json"
+    "$conan_bin" list --graph="$temp_dir/graph.json" --graph-binaries='*' \
+        --graph-recipes='*' --format=json >"$temp_dir/packages.json"
+    "$conan_bin" cache save --list="$temp_dir/packages.json" --no-source --file="$archive"
     (cd "$output_dir" && sha256sum "$asset") \
         >"$output_dir/${tag}.sha256"
+    rm -rf -- "$temp_dir"
+    trap - RETURN
     echo "Created $archive and ${tag}.sha256"
 }
 

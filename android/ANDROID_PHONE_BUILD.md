@@ -117,11 +117,10 @@ before the dependency build; there is intentionally no unbounded fallback.
    ./build-phone.sh deps --download
    ```
 
-   This command deliberately reuses the published, checksum-verified shared
-   Android base from `pico4-deps-v1`, then overlays
-   `android-phone-16k-deps-v1`. The shared archive name is historical; its Qt,
-   Node, host tools, and runtime packages are common Android inputs and do not
-   make the Phone APK depend on Pico hardware or OpenXR.
+   This command downloads only the complete pinned Phone Conan graph from
+   `android-phone-16k-deps-v2`. Phone dependency transport is independent from
+   Pico release assets and cannot silently enter Pico's `--build=missing`
+   producer phase.
 
 The remaining steps are the one-time artifact-producer path. They are not
 needed after the current Phone delta has been published:
@@ -153,7 +152,7 @@ needed after the current Phone delta has been published:
    ./prepare-phone-16k-conan-deps.sh
    ```
 
-5. Export the exact source-free 16 KiB Qt delta to a release-ready archive and
+5. Export the exact source-free 16 KiB dependency graph to a release-ready archive and
    checksum manifest (the destination must be absolute):
 
    ```bash
@@ -161,8 +160,8 @@ needed after the current Phone delta has been published:
    ```
 
    Publish the generated `android-phone-16k-conan.tgz` under the
-   `android-phone-16k-deps-v1` release tag, then review and commit the generated
-   `android-phone-16k-deps-v1.sha256`.
+   `android-phone-16k-deps-v2` release tag, then review and commit the generated
+   `android-phone-16k-deps-v2.sha256`.
 
 6. Build the APK from the verified graph:
 
@@ -170,11 +169,10 @@ needed after the current Phone delta has been published:
    ./build-phone.sh build
    ```
 
-The prebuilt archive contains only the pinned Phone Qt binary package and no
-sources. The preceding shared download already supplies Node and the remaining
-native graph; the offline installs and final verifier prove that this shared
-base is complete and 16 KiB compatible. Regenerate the delta whenever the Qt
-recipe revision, profile, NDK, options, or Qt dependency set changes. Normal
+The prebuilt archive contains the exact pinned Phone target and build-context
+binary graph and no sources. The offline installs and final verifier prove that
+the archive is complete and 16 KiB compatible. Regenerate it whenever a recipe
+revision, profile, NDK, option, dependency, or pinned build profile changes. Normal
 `build`, `install`, and `deploy` commands can be used once the dedicated
 outputs and readiness marker exist.
 

@@ -21,9 +21,8 @@ chmod +x "$fixture/build-phone.sh"
 log="$fixture/calls.log"
 PHONE_PARITY_LOG="$log" "$fixture/build-phone.sh" deps --download
 mapfile -t calls < "$log"
-[[ "${calls[0]}" == 'build-pico.sh <deps --download>' ]]
-[[ "${calls[1]}" == 'phone-prebuilt-16k-deps.sh <download>' ]]
-[[ ${#calls[@]} -eq 2 ]]
+[[ "${calls[0]}" == 'phone-prebuilt-16k-deps.sh <download>' ]]
+[[ ${#calls[@]} -eq 1 ]]
 
 : > "$log"
 PHONE_PARITY_LOG="$log" "$fixture/build-phone.sh" deps

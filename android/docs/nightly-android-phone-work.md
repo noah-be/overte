@@ -4,6 +4,61 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 142 — Publish and clean-room-test the complete dependency restore
+
+- Branch: `nightly/android-phone-142-published-dependency-release`
+- Commit: `Complete Phone prebuilt dependency restore` (this task's commit)
+- Change: Publish the first Phone archive, then test it from an empty Conan
+  cache in an Ubuntu 24.04 OCI container. That test exposed two hidden host
+  cache dependencies: Pico's download helper entered its source-producing
+  `--build=missing` phase, and the v1 Phone archive contained Qt rather than the
+  complete Conan graph. Remove the Pico release download from the Phone path,
+  pin the build-context profile used by source-free consumers, and export the
+  exact complete Phone graph for the corrected v2 release. Pico's own download
+  behavior and artifacts remain unchanged.
+- Tests:
+  - Public v1 asset and checksum download: **passed**.
+  - Initial empty-cache container restore: **failed as designed by the audit**;
+    source compilation began after the Pico restore and was stopped.
+  - Restore-only empty-cache container retry: **failed closed** after checksum
+    and cache restore because v1 lacked the remaining binary graph; no source
+    fallback occurred.
+  - Corrected v2 local artifact in an empty Ubuntu 24.04 container: **passed**;
+    SHA-256, complete cache restore, both offline `--build=never` installs, 16
+    KiB checks, and the content-bound sentinel ended with
+    `CONTAINER_DOWNLOAD_RESTORE_OK`, with no Pico download or source build.
+  - Public v2 download: **pending publication and final clean-container run**.
+  - Complete device-free regression gate: **passed**, all 41 suites; nested
+    host regression passed 332/332. Shell syntax and `git diff --check` passed.
+- Known risks: The v1 release remains immutable historical evidence but is not
+  a complete clean-machine dependency set. Developers must use v2 once its
+  checksum-matching asset is published and verified.
+- Real-device validation still required: None for archive transport. Build an
+  APK from a clean restored graph and rerun unattended hardware smoke when the
+  dependency recipe/profile set changes.
+
+## Next possible improvements
+
+These are intentionally handed to later sessions; download/restore completion
+is tracked in task 142 rather than repeated here.
+
+1. Add touch-owned Create selection/editing and import UI in small closed
+   increments, building on the safe Android archive extraction prerequisite.
+2. Exercise login/IME/dialog focus, Back, audio and microphone routing, People,
+   Places, Avatar, Emote, Menu, and Shield interactively across success and
+   error paths.
+3. Validate portrait, rotation, cutouts, safe insets, DPI, and more GPU/device
+   families; correct only reproducible layout or rendering defects.
+4. Test offline/online recovery, Wi-Fi/mobile switching, disconnect/reconnect,
+   and long background/foreground transitions.
+5. Run a 30–60 minute populated-domain soak covering thermal behavior, battery,
+   audio, networking, and touch responsiveness.
+6. Complete release APK/AAB signing and Play upload validation, including the
+   final 16-KiB packaging path.
+7. Investigate a narrow shared Phone/Pico WebView bridge abstraction for More
+   and Community without importing Pico-specific UI or creating an untested
+   large integration.
+
 ## 141 — Give Phone the Pico-style prebuilt dependency commands
 
 - Branch: `nightly/android-phone-141-prebuilt-download-parity`
