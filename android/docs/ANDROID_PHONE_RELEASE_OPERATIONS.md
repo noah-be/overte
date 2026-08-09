@@ -35,8 +35,11 @@ Create `android-phone-release-candidate` with required reviewers who do not
 author the candidate change. Disable administrator bypass if operationally
 possible. Put the four upload-key values and approved certificate digest listed
 in `ANDROID_PHONE_CI_CD.md` only in that environment, not at repository or
-organization scope. Set `ANDROID_PHONE_PUBLISHED_VERSION_CODE` there and update
-it after every external upload.
+organization scope. Set `ANDROID_PHONE_UPLOAD_CERT_SHA256` as an environment
+variable. Set the non-secret `ANDROID_PHONE_PUBLISHED_VERSION_CODE` as a
+repository variable so the preflight can read it before environment approval,
+and update it after every external upload. Restrict repository-settings changes
+to the release administrators and audit every change to this floor.
 
 Create a distinct `android-phone-emulator-acceptance` environment with required
 reviewers. It holds no signing key. Dispatching its workflow requires the exact

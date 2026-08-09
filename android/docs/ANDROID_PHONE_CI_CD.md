@@ -73,7 +73,8 @@ M * 100000000 + m * 100000 + p * 100 + N
 The gate requires the tag to exist, resolve exactly to checked-out `HEAD`, be
 newer than every matching repository tag, fit Android's signed 32-bit field,
 and exceed the repository variable `ANDROID_PHONE_PUBLISHED_VERSION_CODE`.
-That variable is the fail-closed floor for builds already uploaded outside Git;
+That non-secret variable must be repository-scoped because the unprivileged
+preflight runs before protected-environment approval. It is the fail-closed floor for builds already uploaded outside Git;
 the release custodian must update it after every upload, including abandoned
 Play tracks. A missing, empty, stale, or equal floor rejects the candidate.
 
