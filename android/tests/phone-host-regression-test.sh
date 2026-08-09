@@ -782,6 +782,27 @@ require_text prepare-phone-16k-conan-deps.sh \
 require_text prepare-phone-16k-conan-deps.sh \
     "--build='~qt/\\*'" \
     'non-Qt dependency rebuild explicitly excludes Qt source builds'
+require_text conan/conanfile-pico.py \
+    'from conan\.tools\.cmake import CMakeDeps' \
+    'Phone Conan graph uses the supported CMakeDeps generator API'
+require_text conan/conanfile-pico.py \
+    'release_deps\.configuration = "RelWithDebInfo"' \
+    'Phone Conan graph emits native release configuration metadata'
+require_text conan/conanfile-pico.py \
+    'super\(\)\.generate\(\)' \
+    'Phone Conan graph retains the original Debug generator metadata'
+require_text conan/conanfile-pico.py \
+    'release_deps\.generate\(\)' \
+    'Phone Conan graph publishes the additional RelWithDebInfo metadata'
+require_text docs/ANDROID_PHONE_RELEASE_OPERATIONS.md \
+    'require glibc 2\.38 or newer' \
+    'release runner documents the cached Qt host-tool ABI floor'
+require_text docs/ANDROID_PHONE_RELEASE_OPERATIONS.md \
+    'digest-pinned Ubuntu' \
+    'release runner requires a pinned compatible runtime image'
+require_text docs/ANDROID_PHONE_RELEASE_OPERATIONS.md \
+    'container-engine socket nor host' \
+    'release runner container excludes control sockets and devices'
 require_text conan/profiles/phone-nonqt-arm64-16k \
     '^tools\.build:jobs=16$' \
     'non-Qt dependency rebuild uses 16 parallel build jobs'

@@ -53,9 +53,16 @@ The release runner must be isolated and preferably ephemeral, with labels
 Node.js 18 or newer, Android SDK/NDK and Build Tools 36.0.0, CMake 3.31.6,
 Ninja, Conan and the tools required by `build-phone.sh doctor`. Node.js is an
 explicit runner prerequisite because the mandatory device-free JavaScript host
-tests run before dependency restoration. Give it adequate non-tmpfs workspace for
-dependencies, packaging, and APK verification. Allocate at least four logical
-CPU cores and 8 GiB RAM to the release workload; the workflow caps CMake,
+tests run before dependency restoration. The cached Qt host tools currently
+require glibc 2.38 or newer; run the worker in an immutable, digest-pinned Ubuntu
+24.04 (or equivalently compatible) image rather than directly on a Debian 12
+host. Run that image as a non-root user, drop all Linux capabilities, enable
+`no-new-privileges`, and expose neither the container-engine socket nor host
+devices. Record and review every image-digest update.
+
+Give the runner adequate non-tmpfs workspace for dependencies, packaging, and
+APK verification. Allocate at least four logical CPU cores and 8 GiB RAM to the
+release workload; the workflow caps CMake,
 Pico/Ninja, and shader generation at four workers. Do not attach Android devices,
 signing keys, general deployment credentials, persistent user Gradle properties, or a shared
 Pico/Phone Conan home. Deny workflow execution from forks and pull-request
