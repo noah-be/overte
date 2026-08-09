@@ -85,6 +85,7 @@ private:
 
     bool initViews();
     bool initSwapChains();
+    void destroySwapChains();
     bool initLayers();
     bool endFrame();
 

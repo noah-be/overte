@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 constexpr int64_t OPENXR_NO_SWAPCHAIN_FORMAT = -1;
 constexpr std::size_t OPENXR_STEREO_VIEW_COUNT = 2;
@@ -23,6 +24,22 @@ inline bool isOpenXrSwapchainImageIndexValid(
 inline bool isConsistentOpenXrEnumerationCount(
         std::size_t capacity, std::size_t returnedCount) {
     return capacity > 0 && returnedCount > 0 && returnedCount <= capacity;
+}
+
+template<typename Handle, typename Destroy>
+inline bool destroyOpenXrHandles(
+        std::vector<Handle>& handles, Handle nullHandle, Destroy destroy) {
+    bool succeeded = true;
+    for (Handle& handle : handles) {
+        if (handle == nullHandle) {
+            continue;
+        }
+        if (!destroy(handle)) {
+            succeeded = false;
+        }
+        handle = nullHandle;
+    }
+    return succeeded;
 }
 
 inline int64_t selectOpenXrSwapchainFormat(

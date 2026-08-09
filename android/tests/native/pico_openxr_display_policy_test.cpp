@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstdint>
 #include <limits>
+#include <vector>
 
 int main() {
     assert(!isSupportedOpenXrViewCount(0));
@@ -35,6 +36,22 @@ int main() {
     const std::size_t maximum = std::numeric_limits<std::size_t>::max();
     assert(isConsistentOpenXrEnumerationCount(maximum, maximum));
     assert(!isConsistentOpenXrEnumerationCount(maximum - 1, maximum));
+
+    std::vector<int> handles = { 11, 0, 22, 33 };
+    std::vector<int> destroyed;
+    bool cleanupSucceeded = destroyOpenXrHandles(handles, 0, [&](int handle) {
+        destroyed.push_back(handle);
+        return handle != 22;
+    });
+    assert(!cleanupSucceeded);
+    assert((destroyed == std::vector<int> { 11, 22, 33 }));
+    assert((handles == std::vector<int> { 0, 0, 0, 0 }));
+    destroyed.clear();
+    assert(destroyOpenXrHandles(handles, 0, [&](int handle) {
+        destroyed.push_back(handle);
+        return true;
+    }));
+    assert(destroyed.empty());
 
     assert(selectOpenXrSwapchainFormat(nullptr, 0, 7) == OPENXR_NO_SWAPCHAIN_FORMAT);
     assert(selectOpenXrSwapchainFormat(nullptr, 2, 7) == OPENXR_NO_SWAPCHAIN_FORMAT);
