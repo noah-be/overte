@@ -86,7 +86,8 @@ public class BreakpadUploaderService extends Service {
     private URL getUrl() {
         String parameters = getAnnotationsAsUrlEncodedParameters();
         try {
-            return new URL(BuildConfig.BACKTRACE_URL+ "/post?format=minidump&token=" + BuildConfig.BACKTRACE_TOKEN + (parameters.isEmpty() ? "" : ("&" + parameters)));
+            return LegacyCrashDumpPolicy.buildUploadUrl(
+                    BuildConfig.BACKTRACE_URL, BuildConfig.BACKTRACE_TOKEN, parameters);
         } catch (MalformedURLException e) {
             Log.e(TAG, "Could not initialize Breakpad URL", e);
         }

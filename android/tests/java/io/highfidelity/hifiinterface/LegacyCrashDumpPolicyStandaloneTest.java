@@ -4,6 +4,9 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLDecoder;
 import java.util.Arrays;
 
 public final class LegacyCrashDumpPolicyStandaloneTest {
@@ -52,6 +55,40 @@ public final class LegacyCrashDumpPolicyStandaloneTest {
             throw new AssertionError("negative copy bounds must fail");
         } catch (IllegalArgumentException expected) {
             assertions++;
+        }
+
+        URL basic = LegacyCrashDumpPolicy.buildUploadUrl(
+                "https://crash.example.test/", "token", "build=1&platform=android");
+        check("https://crash.example.test/post".equals(
+                        basic.getProtocol() + "://" + basic.getAuthority() + basic.getPath()),
+                "the upload path must contain exactly one slash before post");
+        check(basic.getQuery().startsWith("format=minidump&token=token&build=1"),
+                "encoded annotations must follow fixed parameters");
+
+        String adversarialToken = "a+b&c=d /ü%#";
+        URL encoded = LegacyCrashDumpPolicy.buildUploadUrl(
+                "https://crash.example.test:8443/api///", adversarialToken, "");
+        check("/api/post".equals(encoded.getPath()) && encoded.getPort() == 8443,
+                "ports and base paths must be preserved while trailing slashes normalize");
+        String encodedToken = encoded.getQuery().substring(
+                encoded.getQuery().indexOf("token=") + "token=".length());
+        check(adversarialToken.equals(URLDecoder.decode(encodedToken, "UTF-8")),
+                "reserved token characters must round-trip as one query value");
+        check(!encoded.getQuery().substring(encoded.getQuery().indexOf("token=")).contains("&"),
+                "tokens must not inject additional query parameters");
+
+        String[] unsafeBases = {
+                null, "", "  ", "http://crash.example.test", "file:///tmp/dump",
+                "https:///post", "https://crash.example.test?old=1",
+                "https://crash.example.test#fragment", "https://user@crash.example.test"
+        };
+        for (String unsafe : unsafeBases) {
+            try {
+                LegacyCrashDumpPolicy.buildUploadUrl(unsafe, "token", "");
+                throw new AssertionError("unsafe upload bases must fail");
+            } catch (MalformedURLException expected) {
+                assertions++;
+            }
         }
 
         System.out.println("LegacyCrashDumpPolicyStandaloneTest: " + assertions

@@ -108,6 +108,16 @@ if grep -Eq 'openStream|BufferedReader|InputStreamReader|StringBuffer' "$profile
     exit 1
 fi
 
+breakpad_service="$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/BreakpadUploaderService.java"
+grep -Fq 'LegacyCrashDumpPolicy.buildUploadUrl(' "$breakpad_service" || {
+    printf 'FAIL: Breakpad uploads bypass the validated URL policy\n' >&2
+    exit 1
+}
+if grep -Fq 'token=" + BuildConfig.BACKTRACE_TOKEN' "$breakpad_service"; then
+    printf 'FAIL: Breakpad tokens are concatenated into the query without encoding\n' >&2
+    exit 1
+fi
+
 python3 - "$main_activity" <<'PY'
 import pathlib
 import sys

@@ -3,6 +3,10 @@ package io.highfidelity.hifiinterface;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLEncoder;
 import java.util.Objects;
 
 public final class LegacyCrashDumpPolicy {
@@ -13,6 +17,35 @@ public final class LegacyCrashDumpPolicy {
 
     public static boolean isAcceptedLength(long length) {
         return length >= 0 && length <= MAX_DUMP_BYTES;
+    }
+
+    public static URL buildUploadUrl(String baseUrl, String token, String encodedAnnotations)
+            throws MalformedURLException {
+        if (baseUrl == null || baseUrl.trim().isEmpty()) {
+            throw new MalformedURLException("crash upload base URL is missing");
+        }
+        URL parsed = new URL(baseUrl.trim());
+        if (!"https".equalsIgnoreCase(parsed.getProtocol())
+                || parsed.getHost() == null || parsed.getHost().isEmpty()
+                || parsed.getQuery() != null || parsed.getRef() != null
+                || parsed.getUserInfo() != null) {
+            throw new MalformedURLException("crash upload base URL is unsafe");
+        }
+        String path = parsed.getPath() == null ? "" : parsed.getPath();
+        while (path.endsWith("/")) {
+            path = path.substring(0, path.length() - 1);
+        }
+        String encodedToken;
+        try {
+            encodedToken = URLEncoder.encode(token == null ? "" : token, "UTF-8");
+        } catch (UnsupportedEncodingException impossible) {
+            throw new AssertionError("UTF-8 is unavailable", impossible);
+        }
+        String query = "format=minidump&token=" + encodedToken;
+        if (encodedAnnotations != null && !encodedAnnotations.isEmpty()) {
+            query += "&" + encodedAnnotations;
+        }
+        return new URL("https", parsed.getHost(), parsed.getPort(), path + "/post?" + query);
     }
 
     public static long copyBounded(InputStream input, OutputStream output, long maxBytes)
