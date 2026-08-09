@@ -44,8 +44,23 @@ int main() {
     assert(!areOpenXrStereoViewDimensionsCompatible(1024, 0, 1024, 1024));
     assert(!areOpenXrStereoViewDimensionsCompatible(1024, 1024, 0, 1024));
     assert(!areOpenXrStereoViewDimensionsCompatible(1024, 1024, 1024, 0));
-    const auto maximumDimension = std::numeric_limits<std::size_t>::max();
+    const auto maximumEyeDimension = static_cast<std::size_t>(
+        std::numeric_limits<std::int32_t>::max());
     assert(areOpenXrStereoViewDimensionsCompatible(
+        maximumEyeDimension, maximumEyeDimension,
+        maximumEyeDimension, maximumEyeDimension));
+    const auto oversizedEyeDimension = maximumEyeDimension + 1;
+    assert(!areOpenXrStereoViewDimensionsCompatible(
+        oversizedEyeDimension, maximumEyeDimension,
+        oversizedEyeDimension, maximumEyeDimension));
+    assert(!areOpenXrStereoViewDimensionsCompatible(
+        maximumEyeDimension, oversizedEyeDimension,
+        maximumEyeDimension, oversizedEyeDimension));
+    assert(!areOpenXrStereoViewDimensionsCompatible(
+        oversizedEyeDimension, maximumEyeDimension,
+        maximumEyeDimension, maximumEyeDimension));
+    const auto maximumDimension = std::numeric_limits<std::size_t>::max();
+    assert(!areOpenXrStereoViewDimensionsCompatible(
         maximumDimension, maximumDimension,
         maximumDimension, maximumDimension));
     assert(!isOpenXrSwapchainImageIndexValid(0, 0));

@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cmath>
+#include <limits>
 #include <vector>
 
 constexpr int64_t OPENXR_NO_SWAPCHAIN_FORMAT = -1;
@@ -25,8 +26,15 @@ constexpr bool openXrContextValidAfterRequiredInitialization(
 constexpr bool areOpenXrStereoViewDimensionsCompatible(
         std::size_t leftWidth, std::size_t leftHeight,
         std::size_t rightWidth, std::size_t rightHeight) {
+    constexpr std::size_t maximumEyeDimension =
+        static_cast<std::size_t>(
+            std::numeric_limits<std::int32_t>::max());
     return leftWidth > 0 && leftHeight > 0 &&
         rightWidth > 0 && rightHeight > 0 &&
+        leftWidth <= maximumEyeDimension &&
+        leftHeight <= maximumEyeDimension &&
+        rightWidth <= maximumEyeDimension &&
+        rightHeight <= maximumEyeDimension &&
         leftWidth == rightWidth && leftHeight == rightHeight;
 }
 
