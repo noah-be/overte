@@ -4,6 +4,31 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 92 — Verify packaged cache contents against their digest
+
+- Branch: `nightly/android-phone-92-cache-digest-gate`
+- Commit: `Verify phone package cache content digest` (this task's commit)
+- Change: Recompute the `cache_assets.txt` SHA-256 from every declared packaged
+  asset's sorted UTF-8 path, NUL separator, and streamed bytes for both APK and
+  AAB layouts. Reject legacy numeric stamps, unsorted manifests, and packages
+  whose assets changed after the manifest was generated.
+- Tests:
+  - `android/tests/phone-apk-contents-test.sh`: **passed**, including valid APK
+    and AAB fixtures plus tampered-asset, legacy-stamp, unsorted, malformed,
+    incomplete, duplicate, traversal, ABI, native-runtime, and QML cases.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 279/279 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 36
+    explicitly device-free suites; nested host regression passed 279/279.
+  - Python/shell syntax and `git diff --check`: **passed**.
+- Known risks: This proves package/cache consistency, not publisher identity;
+  signing trust and the loader's extraction behavior still need release and
+  device validation. Digest verification streams assets to keep memory bounded
+  but adds package-gate I/O proportional to the declared cached payload.
+- Real-device validation still required: Build the current debug and signed
+  release artifacts, record their SHA-256, run the combined package gate, then
+  execute the unattended device smoke. No device test is needed for the fixture
+  parser itself.
+
 ## 91 — Final cumulative hand-off
 
 - Branch: `nightly/android-phone-91-nightly-handoff`
@@ -2116,7 +2141,8 @@ All branches form one linear chain starting at
 88. `nightly/android-phone-88-variant-debuggable-gate` — `bcef8b1c81`
 89. `nightly/android-phone-89-apk-version-metadata` — `ecfec1c1b3`
 90. `nightly/android-phone-90-apkanalyzer-errors` — `488fb4bf47`
-91. `nightly/android-phone-91-nightly-handoff` — this documentation commit
+91. `nightly/android-phone-91-nightly-handoff` — `a2672c4ae7`
+92. `nightly/android-phone-92-cache-digest-gate` — this task's commit
 
 ### Device-free audit disposition
 

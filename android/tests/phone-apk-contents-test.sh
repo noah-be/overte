@@ -44,6 +44,7 @@ PY
 python3 - "$fixture_dir" "$script_dir/../apps/phoneInterface/src/main/res/values/qt_dependencies.xml" \
         "$checker" <<'PY'
 import importlib.util
+import hashlib
 import pathlib
 import sys
 import warnings
@@ -92,7 +93,15 @@ required.update({entry: b'qmldir' for entry in declared_asset_markers})
 required.update({'assets/' + entry: b'required-cache-asset'
                  for entry in checker.REQUIRED_CACHED_ASSETS})
 cache_paths = sorted(checker.REQUIRED_CACHED_ASSETS | {'kept.txt'})
-cache_manifest = '123\n' + '\n'.join(cache_paths) + '\n'
+def cache_manifest_for(paths, contents=required):
+    digest = hashlib.sha256()
+    for path in paths:
+        digest.update(path.encode('utf-8'))
+        digest.update(b'\0')
+        digest.update(contents['assets/' + path])
+    return digest.hexdigest() + '\n' + '\n'.join(paths) + '\n'
+
+cache_manifest = cache_manifest_for(cache_paths)
 for name, omit in [('complete.apk', None), ('partial.apk', 'assets/kept.txt')]:
     with zipfile.ZipFile(root / name, 'w') as archive:
         archive.writestr('assets/cache_assets.txt', cache_manifest)
@@ -100,11 +109,10 @@ for name, omit in [('complete.apk', None), ('partial.apk', 'assets/kept.txt')]:
             if entry != omit:
                 archive.writestr(entry, data)
 
-with zipfile.ZipFile(root / 'content-digest.apk', 'w') as archive:
-    archive.writestr('assets/cache_assets.txt', ('a' * 64) + '\n' +
-                     '\n'.join(cache_paths) + '\n')
+with zipfile.ZipFile(root / 'cache-digest-mismatch.apk', 'w') as archive:
+    archive.writestr('assets/cache_assets.txt', cache_manifest)
     for entry, data in required.items():
-        archive.writestr(entry, data)
+        archive.writestr(entry, b'tampered' if entry == 'assets/kept.txt' else data)
 
 with zipfile.ZipFile(root / 'complete.aab', 'w') as archive:
     archive.writestr('base/assets/cache_assets.txt', cache_manifest)
@@ -116,6 +124,18 @@ with zipfile.ZipFile(root / 'complete.aab', 'w') as archive:
         else:
             bundle_entry = 'base/' + entry
         archive.writestr(bundle_entry, data)
+
+with zipfile.ZipFile(root / 'cache-digest-mismatch.aab', 'w') as archive:
+    archive.writestr('base/assets/cache_assets.txt', cache_manifest)
+    for entry, data in required.items():
+        if entry == 'AndroidManifest.xml':
+            bundle_entry = 'base/manifest/AndroidManifest.xml'
+        elif entry == 'classes.dex':
+            bundle_entry = 'base/dex/classes.dex'
+        else:
+            bundle_entry = 'base/' + entry
+        archive.writestr(bundle_entry,
+                         b'tampered' if entry == 'assets/kept.txt' else data)
 
 with zipfile.ZipFile(root / 'missing-runtime.aab', 'w') as archive:
     archive.writestr('base/assets/cache_assets.txt', cache_manifest)
@@ -147,15 +167,17 @@ with warnings.catch_warnings():
 with zipfile.ZipFile(root / 'missing-required-cache-entry.apk', 'w') as archive:
     incomplete_cache_paths = [entry for entry in cache_paths
                               if entry != 'android_rcc_bundle.rcc']
-    archive.writestr('assets/cache_assets.txt', '123\n' +
-                     '\n'.join(incomplete_cache_paths) + '\n')
+    archive.writestr('assets/cache_assets.txt',
+                     cache_manifest_for(incomplete_cache_paths))
     for entry, data in required.items():
         archive.writestr(entry, data)
 
 invalid_manifests = {
-    'cache-traversal.apk': '123\n../escape\n',
-    'cache-absolute.apk': '123\n/escape\n',
-    'cache-duplicate.apk': '123\nkept.txt\nkept.txt\n',
+    'cache-legacy-timestamp.apk': '123\nkept.txt\n',
+    'cache-traversal.apk': ('a' * 64) + '\n../escape\n',
+    'cache-absolute.apk': ('a' * 64) + '\n/escape\n',
+    'cache-duplicate.apk': ('a' * 64) + '\nkept.txt\nkept.txt\n',
+    'cache-unsorted.apk': ('a' * 64) + '\nkept.txt\nandroid_rcc_bundle.rcc\n',
     'cache-nonascii-stamp.apk': '\u0661\nkept.txt\n',
     'cache-oversized-stamp.apk': '12345678901234567890\nkept.txt\n',
     'cache-short-digest.apk': ('a' * 63) + '\nkept.txt\n',
@@ -190,8 +212,20 @@ with (root / 'qml-asset-fixtures.txt').open('w', encoding='utf-8') as fixture_li
 PY
 
 "$checker" "$fixture_dir/complete.apk" >/dev/null
-"$checker" "$fixture_dir/content-digest.apk" >/dev/null
 "$checker" "$fixture_dir/complete.aab" >/dev/null
+if "$checker" "$fixture_dir/cache-digest-mismatch.apk" \
+        >"$fixture_dir/digest-out" 2>&1; then
+    echo 'FAIL: APK with mismatched cache content digest was accepted' >&2
+    exit 1
+fi
+grep -Fq 'content digest does not match packaged assets' "$fixture_dir/digest-out"
+if "$checker" "$fixture_dir/cache-digest-mismatch.aab" \
+        >"$fixture_dir/aab-digest-out" 2>&1; then
+    echo 'FAIL: AAB with mismatched cache content digest was accepted' >&2
+    exit 1
+fi
+grep -Fq 'content digest does not match packaged assets' \
+    "$fixture_dir/aab-digest-out"
 if "$checker" "$fixture_dir/missing-runtime.aab" >"$fixture_dir/aab-out" 2>&1; then
     echo 'FAIL: AAB missing a required runtime was accepted' >&2
     exit 1
@@ -219,9 +253,11 @@ fi
 grep -q '1 cache assets are absent' "$fixture_dir/out"
 
 for fixture in \
+        cache-legacy-timestamp.apk \
         cache-traversal.apk \
         cache-absolute.apk \
         cache-duplicate.apk \
+        cache-unsorted.apk \
         cache-nonascii-stamp.apk \
         cache-oversized-stamp.apk \
         cache-short-digest.apk \

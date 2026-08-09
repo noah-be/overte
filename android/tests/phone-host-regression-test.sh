@@ -116,6 +116,10 @@ require_text tests/check-phone-apk-contents.py 'outside arm64-v8a' \
     'APK completeness gate rejects native payload for unexpected ABIs'
 require_text tests/check-phone-apk-contents.py 'REQUIRED_CACHED_ASSETS' \
     'APK completeness gate identifies start-critical extracted bundles'
+require_text tests/check-phone-apk-contents.py 'cache_content_digest' \
+    'package completeness gate verifies the cache content digest'
+require_text tests/check-phone-apk-contents.py 'asset paths are not sorted' \
+    'package completeness gate requires deterministic cache ordering'
 require_text tests/check-phone-apk-contents.py 'omits required extracted assets' \
     'APK completeness gate rejects bundles absent from the cache manifest'
 require_text tests/check-phone-apk-contents.py 'scripts/[+]android_phoneInterface/defaultScripts[.]js' \

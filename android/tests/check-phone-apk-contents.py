@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import hashlib
 import sys
 import zipfile
 from pathlib import Path, PurePosixPath
@@ -63,6 +64,22 @@ def logical_package_names(archive_names):
         elif name.startswith("base/assets/") or name.startswith("base/lib/"):
             logical.append(name[len("base/"):])
     return logical, "base/assets/cache_assets.txt"
+
+
+def cached_asset_entry(cache_manifest_entry, path):
+    prefix = cache_manifest_entry.removesuffix("cache_assets.txt")
+    return prefix + path
+
+
+def cache_content_digest(archive, cache_manifest_entry, cache_paths):
+    digest = hashlib.sha256()
+    for path in cache_paths:
+        digest.update(path.encode("utf-8"))
+        digest.update(b"\0")
+        with archive.open(cached_asset_entry(cache_manifest_entry, path)) as asset:
+            while chunk := asset.read(64 * 1024):
+                digest.update(chunk)
+    return digest.hexdigest()
 
 
 def declared_native_entries():
@@ -160,14 +177,8 @@ def main():
             cache_lines = archive.read(cache_manifest_entry).decode("utf-8").splitlines()
             if (
                 len(cache_lines) < 2
-                or not cache_lines[0].isascii()
-                or not (
-                    (cache_lines[0].isdigit() and len(cache_lines[0]) <= 19)
-                    or (
-                        len(cache_lines[0]) == 64
-                        and all(character in "0123456789abcdef" for character in cache_lines[0])
-                    )
-                )
+                or len(cache_lines[0]) != 64
+                or any(character not in "0123456789abcdef" for character in cache_lines[0])
             ):
                 raise ValueError("invalid cache_assets.txt header")
             cache_paths = cache_lines[1:]
@@ -175,6 +186,8 @@ def main():
                 raise ValueError("cache_assets.txt contains an unsafe asset path")
             if len(cache_paths) != len(set(cache_paths)):
                 raise ValueError("cache_assets.txt contains a duplicate asset path")
+            if cache_paths != sorted(cache_paths):
+                raise ValueError("cache_assets.txt asset paths are not sorted")
             missing_cached_assets = REQUIRED_CACHED_ASSETS - set(cache_paths)
             if missing_cached_assets:
                 raise ValueError(
@@ -189,6 +202,8 @@ def main():
                     f"{len(missing_assets)} cache assets are absent" +
                     (f" (first: {preview})" if preview else "")
                 )
+            if cache_content_digest(archive, cache_manifest_entry, cache_paths) != cache_lines[0]:
+                raise ValueError("cache_assets.txt content digest does not match packaged assets")
     except (
         ElementTree.ParseError,
         OSError,
