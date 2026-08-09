@@ -41,6 +41,20 @@ public final class HifiUtilsTest {
                 subject.absoluteHifiAssetUrl("assets/image.png", "  "));
     }
 
+    @Test public void networkPathAssetsInheritOnlyHttpOrHttpsSchemes() {
+        assertEquals("https://cdn.example.test/avatar.png?size=2#image",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png?size=2#image",
+                        "https://base.test/server"));
+        assertEquals("http://cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "http://base.test"));
+        assertEquals("//cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", null));
+        assertEquals("//cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "atp:/base"));
+        assertEquals("//cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "bad uri ["));
+    }
+
     @Test public void defaultAssetBaseAndWhitespaceAreDeterministic() {
         assertEquals(HifiUtils.METAVERSE_BASE_URL + "/asset",
                 subject.absoluteHifiAssetUrl("  /asset  "));

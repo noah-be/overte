@@ -30,6 +30,17 @@ public final class HifiUtilsStandaloneTest {
         expect("https://base.test/avatar.png",
                 subject.absoluteHifiAssetUrl(" avatar.png ", "https://base.test/"));
         expect("atp:/hash", subject.absoluteHifiAssetUrl("atp:/hash", "https://base.test/"));
+        expect("https://cdn.example.test/avatar.png?size=2#image",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png?size=2#image",
+                        "https://base.test/server"));
+        expect("http://cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "http://base.test"));
+        expect("//cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", null));
+        expect("//cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "atp:/base"));
+        expect("//cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "bad uri ["));
         expect("bad uri [", subject.absoluteHifiAssetUrl(" bad uri [ ", "https://base.test/"));
         fixedSeedBareAddresses(subject);
         System.out.println("HifiUtilsStandaloneTest: " + assertions + " assertions passed");
