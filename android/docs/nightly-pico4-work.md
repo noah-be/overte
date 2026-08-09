@@ -1874,8 +1874,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 104 — Dead split pose-activity query removal
 
 - Branch: `nightly/pico4-104-openxr-dead-pose-query`
-- Commit: identified by subject `Remove dead Pico OpenXR pose query`; the exact
-  hash is recorded by the following stacked task or final report.
+- Commit: `baf7be9538` (`Remove dead Pico OpenXR pose query`)
 - Change: remove the now-unreferenced `Action::isPoseActive()` declaration and
   implementation from Pico and shared desktop OpenXR. Palm/grip selection has one
   checked `getPose()` source instead of retaining a divergent second state query.
@@ -1886,6 +1885,76 @@ headset, ADB, Android device, external domain, or device setting is used.
   the Task 103 selection rewrite.
 - Pico 4 validation: **not executed**. Covered by Task 103 palm/grip transition
   validation; confirm no additional action-state query appears in an API trace.
+
+### 105 — Serialized serverless world transitions
+
+- Branch: `nightly/pico4-105-serverless-reentrant-load`
+- Commit: `96cac3b01d` (`Serialize Pico serverless world transitions`)
+- Change: prevent local serverless imports from recursively restarting while
+  `sendEntities()` processes nested Qt events; defer a genuinely different local
+  destination until the current synchronous import unwinds. Replace the resettable
+  loading timestamp used as a startup guard with a monotonic initial-handoff flag.
+  Atomically publish commit/ready state for deterministic tests. The world-loading
+  runner now waits for the initial handoff, proves the requested local filename
+  committed, accepts legitimate missing serverless domain/world milestones, and
+  retains navigation diagnostics on failure.
+- Regression: nine world-state source contracts cover in-progress ordering,
+  same-target suppression, deferred target storage, queued completion, atomic
+  status publication and the monotonic handoff guard. The complete device-free
+  Pico suite passes.
+- Passed: full ARM64 debug APK build; update install; USB cold-start handoff;
+  USB default-to-original local navigation (commit after 7 s, process alive);
+  WLAN world-loading run to the aggressive fixture (playable 4,825 ms, overlay
+  release 5,428 ms, zero domain resets); `git diff --check`.
+- Known result: the original fixture committed but did not complete its full
+  measured handoff within 60 s under its resource/script load. The aggressive
+  fixture completed, but did not reach five uninterrupted quiet seconds during
+  the configured 20 s post-load observation.
+- Risk: multiple different local navigations arriving during one synchronous
+  import collapse to the last deferred URL. This is intentional newest-target
+  behavior, but rapid physical navigation still needs observation.
+- Pico 4 validation: **executed without wearing or operating the headset** for
+  startup, local navigation, process survival, milestone ordering and state
+  restoration. Visual correctness and physical controller behavior were
+  **not executed**.
+
+### 106 — Unattended Pico 4 device validation record
+
+- Branch: `nightly/pico4-106-device-validation-report`
+- Commit: identified by subject `Document unattended Pico device validation`;
+  the exact hash is recorded in the final report.
+- Change: record the device-backed validation completed after Tasks 95–105 and
+  replace the obsolete dependency/build blocker notes with measured results.
+- Passed: Pico toolchain doctor; checksum-verified dependency setup; complete
+  ARM64 debug build (41 Gradle tasks); repeated incremental builds; update APK
+  installation; OpenXR instance/session startup; Pico 4 controller interaction
+  profile detection; 72 Hz local-scene rendering; local avatar template toggle;
+  replica target 0→5→0; five consecutive force-stop/cold-start lifecycle cycles
+  with no matching fatal event; AudioRecord `VOICE_COMMUNICATION`,
+  `VOICE_RECOGNITION`, `MIC` and `CAMCORDER` source selection at 48 kHz mono with
+  continuous capture/processing, zero dropped frames and zero final backlog;
+  automatic fan and brightness restoration; USB ADB restoration after WLAN tests.
+- Additional passed tests after the navigation fix: online `overte_hub` connect
+  and exact spawn verification; a 10 s conservative unattended locomotion run
+  with automatic spawn/collision preflight and return; a 30 s Simpleperf capture
+  after 10 s warm-up; received-avatar matrix stages 0→5→0, including five loaded
+  replicas and return to one received avatar.
+- Failed/limited: online `overte_hub` navigation initially remained disconnected
+  and locomotion was safely cancelled before motion while the resettable startup
+  guard still rejected navigation; both paths passed after Task 105. In the
+  serverless scene, replica targets were
+  accepted but replicas were not populated until the online Hub navigation was
+  repaired. Initial short microphone runs exposed startup-dependent missing gate
+  telemetry; 15 s retries passed all four sources. The avatar matrix's final
+  repeated five-replica stage missed its warm-up status after the prior three
+  stages passed; cleanup and explicit zero-replica restoration passed. The
+  graphics matrix remained fail-closed because its required Hub reference PNG is
+  absent. No audio sample was retained and no subjective quality claim is made.
+- Risk: device execution confirms state transitions and telemetry, not perceived
+  image quality, comfort, controller alignment, microphone quality, AEC or echo.
+- Pico 4 validation: **executed without wearing or manually operating the
+  headset**. Physical controller, visual and subjective audio checks remain
+  **not executed**.
 
 ## Deferred, rejected, or blocked ideas
 
@@ -1908,20 +1977,19 @@ headset, ADB, Android device, external domain, or device setting is used.
   available device-free evidence. Existing Pico code in these broad areas
   requires configured native builds and targeted runtime scenarios before
   behavioral changes.
-- Native Qt/C++ host suites are blocked in this worktree: `build-tests` has no
-  `CMakeCache.txt`. The Pico Android build is also blocked before compilation by
-  missing `android/conan/pico4-debug/generators/Qt5-debug-armv8-data.cmake`.
-  Dependencies were not downloaded or installed during this session.
+- Native Qt/C++ host suites remain unavailable because `build-tests` has no
+  configured `CMakeCache.txt`. Pico Android dependencies were subsequently
+  restored through the documented setup path and full/incremental ARM64 builds
+  passed; Android compilation is no longer blocked.
 
 ## Remaining work
 
-1. Restore/bootstrap the documented Pico Conan/Qt dependencies, compile the
-   Android Java/JNI/C++ changes, package the APK, and run the configured native
-   host regression suites.
+1. Configure a separate native host-test build tree and run its Qt/C++ suites;
+   the Android Java/JNI/C++ client already builds and packages successfully.
 2. Design and review the WebChannel/EventBridge security and compatibility
    contract before implementing `scriptURL` or page-to-entity messaging.
-3. Execute the cumulative physical-headset checks below and use their traces to
-   decide whether grab/pointer performance work or pose correction is justified.
+3. Execute the remaining worn/manual headset checks below and use their traces
+   to decide whether grab/pointer performance work or pose correction is justified.
 4. Investigate the broad Create, avatar/camera, and reconnect areas only from a
    reproducible failing scenario or a new device-free unit seam.
 
