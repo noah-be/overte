@@ -15,6 +15,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_GATE = ROOT / "android/tests/check-phone-apk-16k.sh"
 EXPECTED_PACKAGE = "org.overte.phone"
+DEFAULT_TEMP_ROOT = ROOT / "android/build/apk-verification-tmp"
 
 
 def fail(message):
@@ -86,8 +87,15 @@ def main():
 
     analyzer = executable(args.apkanalyzer, "apkanalyzer")
     signer = executable(args.apksigner, "apksigner")
+    temp_root = Path(os.environ.get("PHONE_APK_VERIFY_TMPDIR", DEFAULT_TEMP_ROOT))
+    if temp_root.is_symlink():
+        fail(f"APK verification temporary directory must not be a symlink: {temp_root}")
+    temp_root.mkdir(parents=True, exist_ok=True)
+    if not temp_root.is_dir() or not os.access(temp_root, os.W_OK):
+        fail(f"APK verification temporary directory is not writable: {temp_root}")
     gate_env = os.environ.copy()
     gate_env["PHONE_APK_ANALYZER"] = analyzer
+    gate_env["TMPDIR"] = str(temp_root.resolve())
     if args.expect_debuggable is not None:
         gate_env["PHONE_EXPECT_DEBUGGABLE"] = args.expect_debuggable
     run([str(args.package_gate), str(args.apk)], env=gate_env)

@@ -22,7 +22,12 @@ class PhoneApkProvenanceTests(unittest.TestCase):
         self.apk = self.directory / "phone.apk"
         with zipfile.ZipFile(self.apk, "w") as archive:
             archive.writestr("AndroidManifest.xml", b"synthetic")
-        self.gate = self.tool("gate", "test \"${MOCK_GATE:-1}\" = 1\n")
+        self.gate = self.tool("gate", """
+test "${MOCK_GATE:-1}" = 1
+if [ -n "${MOCK_EXPECT_TMPDIR:-}" ]; then
+  test "$TMPDIR" = "$MOCK_EXPECT_TMPDIR"
+fi
+""")
         self.analyzer = self.tool("apkanalyzer", """
 case "$2" in
   application-id) printf '%s\n' "${MOCK_PACKAGE:-org.overte.phone}" ;;
@@ -94,6 +99,15 @@ printf 'Signer #1 certificate SHA-256 digest: %064d\n' 0
         result = self.run_verifier(None, "--source-revision", "main")
         self.assertEqual(result.returncode, 2)
         self.assertIn("40-character Git commit", result.stderr)
+
+    def test_keeps_package_gate_off_system_tmpfs(self):
+        temp_root = self.directory / "large-build-volume"
+        result = self.run_verifier({
+            "PHONE_APK_VERIFY_TMPDIR": str(temp_root),
+            "MOCK_EXPECT_TMPDIR": str(temp_root),
+        })
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(temp_root.is_dir())
 
 
 if __name__ == "__main__":

@@ -79,3 +79,7 @@ android/ci/verify-phone-apk.py \
   --source-revision "$(git rev-parse HEAD)" \
   --output build/android-phone/apk-manifest.json
 ```
+
+The verifier extracts large APK contents below
+`android/build/apk-verification-tmp`, not a potentially memory-backed `/tmp`.
+Set `PHONE_APK_VERIFY_TMPDIR` to select another build volume.
