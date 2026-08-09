@@ -12,6 +12,7 @@ javac -d "$output" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/LegacyDomainLocationPolicy.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/LegacyUserPolicy.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/LegacyCrashDumpPolicy.java" \
+    "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/LegacyCrashAnnotationPolicy.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/provider/UserStoryDomainPolicy.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/provider/LegacyLatestRequestGate.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/provider/UserStoryRetrievalCoordinator.java" \
@@ -25,6 +26,7 @@ javac -d "$output" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyDomainLocationPolicyStandaloneTest.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyUserPolicyStandaloneTest.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyCrashDumpPolicyStandaloneTest.java" \
+    "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyCrashAnnotationPolicyStandaloneTest.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/task/LegacyProfilePagePolicyStandaloneTest.java"
 java -Djava.io.tmpdir="$output" -cp "$output" \
     io.highfidelity.hifiinterface.provider.UserStoryDomainPolicyStandaloneTest
@@ -44,6 +46,8 @@ java -Djava.io.tmpdir="$output" -cp "$output" \
     io.highfidelity.hifiinterface.LegacyUserPolicyStandaloneTest
 java -Djava.io.tmpdir="$output" -cp "$output" \
     io.highfidelity.hifiinterface.LegacyCrashDumpPolicyStandaloneTest
+java -Djava.io.tmpdir="$output" -cp "$output" \
+    io.highfidelity.hifiinterface.LegacyCrashAnnotationPolicyStandaloneTest
 java -Djava.io.tmpdir="$output" -cp "$output" \
     io.highfidelity.hifiinterface.task.LegacyProfilePagePolicyStandaloneTest
 
@@ -120,6 +124,18 @@ grep -Fq 'LegacyCrashDumpPolicy.buildUploadUrl(' "$breakpad_service" || {
     printf 'FAIL: Breakpad uploads bypass the validated URL policy\n' >&2
     exit 1
 }
+grep -Fq 'LegacyCrashAnnotationPolicy.encodeFailClosed(' "$breakpad_service" || {
+    printf 'FAIL: Breakpad annotations bypass the fail-closed parser boundary\n' >&2
+    exit 1
+}
+grep -Fq 'try (FileReader reader = new FileReader(annotationsFile))' "$breakpad_service" || {
+    printf 'FAIL: Breakpad annotation readers are not closed deterministically\n' >&2
+    exit 1
+}
+if grep -Fq '(JsonObject) parser.parse' "$breakpad_service"; then
+    printf 'FAIL: Breakpad annotations retain an unchecked JSON root cast\n' >&2
+    exit 1
+fi
 if grep -Fq 'token=" + BuildConfig.BACKTRACE_TOKEN' "$breakpad_service"; then
     printf 'FAIL: Breakpad tokens are concatenated into the query without encoding\n' >&2
     exit 1

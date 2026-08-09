@@ -7,6 +7,7 @@ import android.os.IBinder;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -14,15 +15,14 @@ import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLEncoder;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -158,28 +158,24 @@ public class BreakpadUploaderService extends Service {
 
 
     public String getAnnotationsAsUrlEncodedParameters() {
-        String parameters = "";
         File annotationsFile = new File(getObbDir(), ANNOTATIONS_JSON);
-        if (annotationsFile.exists()) {
-            JsonParser parser = new JsonParser();
-            try {
-                JsonObject json = (JsonObject) parser.parse(new FileReader(annotationsFile));
-                for (String k: json.keySet()) {
-                    if (!json.get(k).getAsString().isEmpty()) {
-                        String key = k.contains("/") ? k.substring(k.indexOf("/") + 1) : k;
-                        if (!parameters.isEmpty()) {
-                            parameters += "&";
-                        }
-                        parameters += URLEncoder.encode(key, "UTF-8") + "=" + URLEncoder.encode(json.get(k).getAsString(), "UTF-8");
+        return LegacyCrashAnnotationPolicy.encodeFailClosed(() -> {
+            try (FileReader reader = new FileReader(annotationsFile)) {
+                JsonElement root = new JsonParser().parse(reader);
+                if (root == null || !root.isJsonObject()) {
+                    return null;
+                }
+                JsonObject json = root.getAsJsonObject();
+                Map<String, String> annotations = new LinkedHashMap<>();
+                for (String key : json.keySet()) {
+                    JsonElement value = json.get(key);
+                    if (value != null && !value.isJsonNull() && value.isJsonPrimitive()) {
+                        annotations.put(key, value.getAsString());
                     }
                 }
-            } catch (FileNotFoundException e) {
-                Log.e(TAG, "Error reading annotations file", e);
-            } catch (UnsupportedEncodingException e) {
-                Log.e(TAG, "Error reading annotations file", e);
+                return annotations;
             }
-        }
-        return parameters;
+        });
     }
 
 }
