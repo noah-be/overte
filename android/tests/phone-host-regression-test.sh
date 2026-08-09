@@ -658,6 +658,12 @@ require_text tests/phone-device-test.sh 'chmod 600 "\$SUMMARY"' \
     'device smoke enforces a private report summary mode'
 require_text tests/phone-graphics-benchmark.sh 'phone-device-lock[.]sh.*run' \
     'graphics benchmark automatically acquires the shared phone lock'
+require_text tests/phone-graphics-benchmark.sh 'adb_for shell am force-stop "\$PACKAGE"' \
+    'graphics benchmark force-stops the app during exit cleanup'
+require_text tests/phone-graphics-benchmark.sh "trap 'exit 130' INT" \
+    'graphics benchmark converts interruption into a terminating exit'
+require_text tests/phone-graphics-benchmark.sh "trap 'exit 143' TERM" \
+    'graphics benchmark converts termination into a terminating exit'
 require_text phone-build-resource-guard.sh 'OVERTE_PHONE_MIN_SWAP_BYTES=32000000000' \
     'dependency builds require at least 32 GB decimal swap'
 require_text phone-build-resource-guard.sh "OVERTE_PHONE_MEMORY_MAX_PROPERTY='20000000000'" \

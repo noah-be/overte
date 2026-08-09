@@ -109,8 +109,10 @@ chmod +x "$fixture/adb"
 if PHONE_ADB="$fixture/adb" ANDROID_SERIAL=phone-secret "$script_dir/phone-graphics-benchmark.sh" 1 >/dev/null 2>&1; then
     echo 'FAIL: benchmark ran without explicit non-VR confirmation' >&2; exit 1
 fi
+command_log="$fixture/commands"
+: >"$command_log"
 PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/exit-count" ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES \
-    PHONE_BENCHMARK_REPORT="$report" PHONE_BENCHMARK_INTERVAL=1 \
+    PHONE_BENCHMARK_REPORT="$report" PHONE_BENCHMARK_INTERVAL=1 MOCK_ADB_COMMAND_LOG="$command_log" \
     "$script_dir/phone-graphics-benchmark.sh" 1 >/dev/null
 summary="$report/summary.txt"
 grep -q '^frames=2$' "$summary"
@@ -168,7 +170,8 @@ summary_failure_report="$fixture/summary-failure-report"
 if PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/summary-failure-exits" \
     MOCK_SUMMARY_MKTEMP_FAILURE=1 ANDROID_SERIAL=phone-secret \
     PHONE_BENCHMARK_CONFIRM_NON_VR=YES PHONE_BENCHMARK_REPORT="$summary_failure_report" \
-    PHONE_BENCHMARK_INTERVAL=1 "$script_dir/phone-graphics-benchmark.sh" 1 \
+    PHONE_BENCHMARK_INTERVAL=1 MOCK_ADB_COMMAND_LOG="$fixture/summary-failure-commands" \
+    "$script_dir/phone-graphics-benchmark.sh" 1 \
     >"$fixture/summary-failure.out" 2>&1; then
     echo 'FAIL: benchmark accepted aggregate-summary allocation failure' >&2; exit 1
 fi
@@ -177,6 +180,8 @@ grep -Fxq 'ERROR: could not create aggregate benchmark summary' \
 ! grep -Fq 'private summary allocation failure' "$fixture/summary-failure.out"
 ! grep -Fq "$fixture" "$fixture/summary-failure.out"
 [[ ! -e "$summary_failure_report/summary.txt" ]]
+[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' \
+    "$fixture/summary-failure-commands")" -eq 1 ]]
 grep -q '^gpu_live_metrics_valid=1$' "$summary"
 grep -q '^gpu_buffer_count=123$' "$summary"
 grep -q '^gpu_buffer_mib=45.50$' "$summary"
@@ -223,6 +228,7 @@ grep -q '^framebuffer_estimated_mib=10.93$' "$summary"
 [[ $(stat -c '%a' "$report") == 700 ]]
 [[ $(stat -c '%a' "$summary") == 600 ]]
 grep -q '^profile_target_fps=30$' "$summary"
+[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' "$command_log")" -eq 1 ]]
 if grep -Eqi 'phone-secret|private|serial|account|url|manufacturer|model|fingerprint|android_id|domain' "$summary"; then
     echo 'FAIL: identifying/raw data escaped into aggregate report' >&2; exit 1
 fi

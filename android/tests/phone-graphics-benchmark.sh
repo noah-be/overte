@@ -80,14 +80,26 @@ summary="$report_dir/summary.txt"
 raw_dir="$(mktemp -d /tmp/overte-phone-graphics-raw.XXXXXXXX 2>/dev/null)" || \
     die "could not create private raw benchmark directory"
 chmod 700 "$raw_dir" 2>/dev/null || die "could not secure private raw benchmark directory"
-cleanup() { rm -rf -- "$raw_dir"; }
-trap cleanup EXIT INT TERM
+package_started=0
+cleanup() {
+    local status=$?
+    trap - EXIT
+    if ((package_started == 1)); then
+        adb_for shell am force-stop "$PACKAGE" >/dev/null || true
+    fi
+    rm -rf -- "$raw_dir"
+    return "$status"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 adb_for shell dumpsys gfxinfo "$PACKAGE" reset >/dev/null
 adb_for logcat -c >/dev/null 2>&1 || true
 exit_info_before_valid=1
 adb_for shell dumpsys activity exit-info "$PACKAGE" >"$raw_dir/exits-before.txt" || exit_info_before_valid=0
 adb_for shell am start -W -n "$ACTIVITY" >"$raw_dir/start.txt"
+package_started=1
 expected_pid=''
 for _ in {1..10}; do
     expected_pid="$(adb_for shell pidof -s "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"

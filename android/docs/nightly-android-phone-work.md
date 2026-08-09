@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 117 — Always clean up the benchmarked app
+
+- Branch: `nightly/android-phone-117-benchmark-cleanup`
+- Commit: `Clean up phone benchmark lifecycle` (this task's commit)
+- Change: Track a successfully started Phone package and force-stop it from a
+  best-effort exit cleanup on success and every later error. INT and TERM now
+  convert to terminating status codes while still passing through cleanup.
+- Tests:
+  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; fake-ADB logs
+    prove exactly one cleanup force-stop after a successful benchmark and after
+    a deliberately late summary-publication failure.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 310/310 checks,
+    including source contracts for cleanup plus INT/TERM termination.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 310/310.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Cleanup is deliberately best-effort so an unavailable transport
+  cannot replace the benchmark's actual result.
+- Real-device validation still required: Confirm the current-chain Phone
+  process is absent after both a successful run and an interrupted run.
+
 ## 116 — Keep benchmark publication private and atomic
 
 - Branch: `nightly/android-phone-116-private-benchmark-publish`
@@ -2667,7 +2688,8 @@ All branches form one linear chain starting at
 113. `nightly/android-phone-113-private-benchmark-adb` — `3012eeec08`
 114. `nightly/android-phone-114-benchmark-report-preflight` — `6d95343897`
 115. `nightly/android-phone-115-private-benchmark-setup` — `48d8101544`
-116. `nightly/android-phone-116-private-benchmark-publish` — this task's commit
+116. `nightly/android-phone-116-private-benchmark-publish` — `45408ac063`
+117. `nightly/android-phone-117-benchmark-cleanup` — this task's commit
 
 ### Device-free audit disposition
 
