@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 109 — Keep APK hash failures private
+
+- Branch: `nightly/android-phone-109-private-apk-hash-errors`
+- Commit: `Keep phone APK hash errors private` (this task's commit)
+- Change: Suppress raw local `sha256sum` stderr and convert an APK read/race
+  failure after path resolution into a fixed phase error. Artifact hashing still
+  completes before any ADB query or device mutation.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, with a fake
+    hasher that emits a private APK path and fails; output retains neither the
+    raw detail nor path, and the ADB command log remains empty.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 306/306 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 306/306.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Local filesystem instability remains a hard preflight failure;
+  detailed diagnosis requires a separate intentional local hash invocation.
+- Real-device validation still required: None for local hashing; record and
+  install the exact digest only after a successful preflight.
+
 ## 108 — Keep device preflight paths private
 
 - Branch: `nightly/android-phone-108-private-preflight-paths`
@@ -2494,7 +2514,8 @@ All branches form one linear chain starting at
 105. `nightly/android-phone-105-package-resource-limits` — `0e93b71623`
 106. `nightly/android-phone-106-cache-asset-coverage` — `95a6c850c8`
 107. `nightly/android-phone-107-qml-module-boundary` — `a37b4e3ac7`
-108. `nightly/android-phone-108-private-preflight-paths` — this task's commit
+108. `nightly/android-phone-108-private-preflight-paths` — `4fa4eace60`
+109. `nightly/android-phone-109-private-apk-hash-errors` — this task's commit
 
 ### Device-free audit disposition
 

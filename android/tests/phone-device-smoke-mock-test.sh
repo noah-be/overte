@@ -3,6 +3,8 @@ set -euo pipefail
 
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly test_root="$(mktemp -d "${TMPDIR:-/tmp}/phone-device-smoke-mock.XXXXXX")"
+readonly real_sha256sum="$(command -v sha256sum)"
+export PHONE_MOCK_REAL_SHA256SUM="$real_sha256sum"
 cleanup() {
     [[ "$(basename -- "$test_root")" == phone-device-smoke-mock.* ]] && rm -rf -- "$test_root"
 }
@@ -121,6 +123,15 @@ cat >"$test_root/bin/sleep" <<'MOCK_SLEEP'
 #!/usr/bin/env bash
 exit 0
 MOCK_SLEEP
+cat >"$test_root/bin/sha256sum" <<'MOCK_SHA256'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${MOCK_SHA256_FAILURE:-0}" == 1 ]]; then
+    printf 'private hash failure: %s\n' "${2:-unknown}" >&2
+    exit 7
+fi
+exec "$PHONE_MOCK_REAL_SHA256SUM" "$@"
+MOCK_SHA256
 cat >"$test_root/bin/apkanalyzer" <<'MOCK_ANALYZER'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -148,7 +159,7 @@ set -euo pipefail
 [[ -f "$1" ]] || exit 3
 [[ "${MOCK_PREFLIGHT_FAILURE:-0}" != 1 ]]
 MOCK_PREFLIGHT
-chmod +x "$test_root/bin/adb" "$test_root/bin/sleep" \
+chmod +x "$test_root/bin/adb" "$test_root/bin/sleep" "$test_root/bin/sha256sum" \
     "$test_root/bin/apkanalyzer" "$test_root/bin/apk-preflight"
 
 mkdir "$test_root/unguarded-override-report"
@@ -194,6 +205,18 @@ if env PATH="$test_root/bin:$PATH" MOCK_ROOT="$test_root" \
 fi
 grep -Fxq 'ERROR: APK was not found' "$test_root/missing-apk.out"
 ! grep -Fq "$test_root" "$test_root/missing-apk.out"
+[[ ! -s "$test_root/adb-commands" ]]
+
+mkdir "$test_root/hash-failure-report"
+: >"$test_root/adb-commands"
+if run_smoke "$test_root/hash-failure-report" env MOCK_SHA256_FAILURE=1 \
+        >"$test_root/hash-failure.out" 2>&1; then
+    echo 'FAIL: unreadable APK content was accepted by device smoke' >&2
+    exit 1
+fi
+grep -Fxq 'ERROR: could not read APK for SHA-256' "$test_root/hash-failure.out"
+! grep -Fq 'private hash failure' "$test_root/hash-failure.out"
+! grep -Fq "$test_root" "$test_root/hash-failure.out"
 [[ ! -s "$test_root/adb-commands" ]]
 
 : >"$test_root/adb-commands"

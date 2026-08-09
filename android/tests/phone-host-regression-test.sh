@@ -580,6 +580,8 @@ require_text tests/phone-device-test.sh 'sha256sum -- "\$APK"' \
     'device smoke test identifies the exact installed APK by content'
 require_text tests/phone-device-test.sh 'APK was not found' \
     'device smoke suppresses missing APK input paths'
+require_text tests/phone-device-test.sh 'could not read APK for SHA-256' \
+    'device smoke suppresses local APK hashing errors'
 require_text tests/phone-device-test.sh 'could not resolve device-test report directory' \
     'device smoke suppresses invalid report paths'
 require_text tests/phone-device-test.sh 'manifest application-id "\$APK"' \

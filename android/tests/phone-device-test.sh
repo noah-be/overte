@@ -148,7 +148,8 @@ APK="${1:-$DEFAULT_APK}"
 [[ -f "$APK" ]] || die "APK was not found"
 APK="$(realpath "$APK" 2>/dev/null)" || die "could not resolve APK input"
 command -v sha256sum >/dev/null 2>&1 || die "sha256sum was not found"
-APK_SHA256="$(sha256sum -- "$APK" | awk '{ print $1 }')"
+APK_SHA256="$(sha256sum -- "$APK" 2>/dev/null | awk '{ print $1 }')" || \
+    die "could not read APK for SHA-256"
 [[ "$APK_SHA256" =~ ^[0-9a-f]{64}$ ]] || die "could not identify the APK by SHA-256"
 APK_APPLICATION_ID="$("$APK_ANALYZER" manifest application-id "$APK" 2>/dev/null \
     | tr -d '\r')" || die "could not read the APK application ID"
