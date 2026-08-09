@@ -84,6 +84,40 @@ staging_dir="$("$mktemp_command" -d "$report_dir/.native-coverage.XXXXXXXX")"
     --fail-under-line 95 \
     --fail-under-branch 90
 
+readonly required_artifacts=(
+    interface.xml interface.html
+    login-state.xml login-state.html
+    pending-handoff.xml pending-handoff.html
+)
+for artifact in "${required_artifacts[@]}"; do
+    if [[ ! -s "$staging_dir/$artifact" ]]; then
+        printf 'FAIL: native coverage tool produced no %s report\n' "$artifact" >&2
+        exit 1
+    fi
+done
+
+python3 - "$staging_dir/interface.xml" "$staging_dir/login-state.xml" \
+    "$staging_dir/pending-handoff.xml" <<'PY'
+import math
+from pathlib import Path
+import sys
+import xml.etree.ElementTree as ET
+
+try:
+    for argument in sys.argv[1:]:
+        path = Path(argument)
+        root = ET.parse(path).getroot()
+        if root.tag != "coverage":
+            raise ValueError(f"{path.name} has unsupported root {root.tag!r}")
+        for name in ("line-rate", "branch-rate"):
+            value = float(root.get(name, ""))
+            if not math.isfinite(value) or not 0.0 <= value <= 1.0:
+                raise ValueError(f"{path.name} has invalid {name}")
+except (ET.ParseError, OSError, TypeError, ValueError) as error:
+    print(f"FAIL: invalid native coverage XML: {error}", file=sys.stderr)
+    raise SystemExit(1)
+PY
+
 for artifact in "$staging_dir"/*; do
     [[ -f "$artifact" ]] || continue
     mv -f -- "$artifact" "$report_dir/${artifact##*/}"

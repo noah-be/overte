@@ -37,6 +37,12 @@ for argument in "$@"; do
   [[ "$previous" == --html-details ]] && html="$argument"
   previous="$argument"
 done
+if [[ "${GCOVR_MISSING_CALL:-0}" == "$count" ]]; then exit 0; fi
+if [[ "${GCOVR_MALFORMED_CALL:-0}" == "$count" ]]; then
+  printf '<broken\n' >"$xml"
+  printf '<html>coverage</html>\n' >"$html"
+  exit 0
+fi
 printf '<coverage line-rate="1" branch-rate="1"/>\n' >"$xml"
 printf '<html>coverage</html>\n' >"$html"
 ''')
@@ -108,6 +114,41 @@ printf '<html>coverage</html>\n' >"$html"
                 {path.name for path in reports.glob("*.xml")})
             self.assertEqual(3, len(list(reports.glob("*.html"))))
             self.assertEqual([], list(reports.glob(".native-coverage.*")))
+
+    @unittest.skipUnless(os.name == "posix", "flock fixture is POSIX-specific")
+    def test_success_status_without_a_required_output_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            environment = self.fixture(root)
+            environment["GCOVR_MISSING_CALL"] = "2"
+            result = subprocess.run(
+                [RUNNER], env=environment, text=True,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+            self.assertEqual(1, result.returncode, result.stdout)
+            self.assertIn("produced no login-state.xml report", result.stdout)
+            self.assertEqual([], list((root / "reports").glob("*.xml")))
+            self.assertEqual([], list((root / "reports").glob("*.html")))
+            self.assertEqual([], list((root / "reports").glob(".native-coverage.*")))
+            lock_path = Path(environment["OVERTE_NATIVE_COVERAGE_BUILD_DIR"] + ".lock")
+            import fcntl
+            with lock_path.open("a", encoding="utf-8") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def test_malformed_coverage_xml_is_rejected_before_publication(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            environment = self.fixture(root)
+            environment["GCOVR_MALFORMED_CALL"] = "2"
+            result = subprocess.run(
+                [RUNNER], env=environment, text=True,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+            self.assertEqual(1, result.returncode, result.stdout)
+            self.assertIn("invalid native coverage XML", result.stdout)
+            self.assertEqual([], list((root / "reports").glob("*.xml")))
+            self.assertEqual([], list((root / "reports").glob("*.html")))
+            self.assertEqual([], list((root / "reports").glob(".native-coverage.*")))
 
     @unittest.skipUnless(os.name == "posix", "flock fixture is POSIX-specific")
     def test_parallel_build_tree_contention_times_out_cleanly(self):
