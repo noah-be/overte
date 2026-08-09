@@ -4,6 +4,23 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 135 — Synchronize the public benchmark contract
+
+- Branch: `nightly/android-phone-135-benchmark-documentation`
+- Commit: `Document hardened phone benchmark contract` (this task's commit)
+- Change: Update the public Phone build guide for strict physical-device
+  selection, bounded runtime, signal/error cleanup, the required successful
+  cleanup marker, atomic private reports, and discoverable automatic reports.
+- Tests:
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 319/319 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    device-free suites; nested host regression passed 319/319.
+  - Markdown scope review and `git diff --check`: **passed**.
+- Known risks: Documentation cannot substitute for a current-chain physical
+  Phone run; the connected targets in task 134 remain rejected VR identities.
+- Real-device validation still required: Follow the updated section only after
+  a supported Phone and current gated artifact are available.
+
 ## 134 — Record fail-closed connected-device preflight
 
 - Branch: `nightly/android-phone-134-device-preflight-handoff`
@@ -3055,7 +3072,8 @@ All branches form one linear chain starting at
 131. `nightly/android-phone-131-three-hour-handoff` — `e69448dbd6`
 132. `nightly/android-phone-132-private-raw-cleanup-error` — `974767aa7b`
 133. `nightly/android-phone-133-required-benchmark-cleanup` — `489a1c238e`
-134. `nightly/android-phone-134-device-preflight-handoff` — this task's commit
+134. `nightly/android-phone-134-device-preflight-handoff` — `01310b6cfe`
+135. `nightly/android-phone-135-benchmark-documentation` — this task's commit
 
 ### Device-free audit disposition
 

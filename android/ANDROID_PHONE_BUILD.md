@@ -412,8 +412,8 @@ identifiable. It exits with status 2 when crash or page-size-mismatch log lines
 are detected. The test changes device state by installing and launching the
 APK, so it is intentionally not part of the host regression test.
 
-For repeatable graphics sampling of an already installed build, explicitly
-confirm the selected target is a non-VR phone and choose a duration:
+For repeatable graphics sampling of an already installed current build,
+explicitly confirm the selected target and choose a duration:
 
 ```bash
 ANDROID_SERIAL=<phone-serial> \
@@ -421,20 +421,33 @@ PHONE_BENCHMARK_CONFIRM_NON_VR=YES \
 ./tests/phone-graphics-benchmark.sh 60
 ```
 
-The benchmark does not build or install. Raw app-scoped Logcat, thermal and
-frame-stat output exists only in a private `/tmp` directory and is deleted on
-exit. Its report is refused inside the Git worktree and contains only numeric
-aggregates. Native present FPS and p50/p95/max timings come from the latest
-complete ten-second window after a successful OpenGL buffer swap; the report
+The benchmark does not build or install. It accepts only the explicitly named,
+authorized physical non-Pico ARM64 touchscreen Phone meeting API 26 and OpenGL
+ES 3.2 requirements; emulator, Watch, TV, Automotive and VR targets fail before
+the app is touched. Duration is bounded to 1–3600 seconds and
+`PHONE_BENCHMARK_INTERVAL` to 1–300 seconds.
+
+Raw app-scoped Logcat, thermal and frame-stat output exists only in a private
+`/tmp` directory and is deleted on exit. INT, TERM, successful collection and
+every late failure force-stop an app that the harness started. A successful
+summary is published only after the required final stop succeeds and contains
+`cleanup_force_stopped=1`; cleanup failure leaves no successful summary.
+
+The aggregate report is refused inside the Git worktree and contains only
+validated numeric aggregates. Native present FPS and p50/p95/max timings come
+from the latest complete ten-second window after a successful OpenGL buffer
+swap; the report
 marks Android HWUI frame statistics invalid when they do not cover the native
 Qt/OpenGL surface. The same window reports aggregate GPU buffer and texture
 memory, deferred GL cleanup, process/allocator memory, framebuffer recreation,
 pending GPU transfers, and the latest GPU-frame and batch timings already
 maintained by the render context. The latest complete overlay-cache sample adds
 its validated hit ratio; missing or inconsistent counters are reported as
-unknown. Set
-`PHONE_BENCHMARK_REPORT` to retain the aggregate summary in a chosen directory
-outside the repository.
+unknown. Set `PHONE_BENCHMARK_REPORT` to atomically replace `summary.txt` in a
+chosen private directory outside the repository without printing that caller
+path. If it is unset, the harness prints the generated non-personal
+`/tmp/overte-phone-graphics-report.*/summary.txt` path; that aggregate directory
+persists until the caller removes it.
 
 The process-start Android properties below support controlled A/B runs:
 
