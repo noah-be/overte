@@ -81,7 +81,7 @@ class AndroidPhoneBuildWorkflowContracts(unittest.TestCase):
         self.assertIn("tests/run-tests.sh host", self.source)
         self.assertIn("./build-phone.sh deps --download", self.source)
         self.assertIn("./build-phone.sh prepare", self.source)
-        self.assertIn("./build-phone.sh build", self.source)
+        self.assertIn("./build-phone.sh build --stacktrace", self.source)
         self.assertIn("verify-phone-apk.py", self.source)
         self.assertIn('--source-revision "$GITHUB_SHA"', self.source)
         self.assertIn("--expect-debuggable 1", self.source)

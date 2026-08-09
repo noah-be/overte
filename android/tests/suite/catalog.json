@@ -95,6 +95,13 @@
       "description": "Signed 16 KiB APK provenance verifier behavior"
     },
     {
+      "id": "phone-build-parallelism",
+      "kind": "contract",
+      "tiers": ["contracts"],
+      "command": ["tests/phone-build-parallelism-test.py"],
+      "description": "Bounded Gradle, Ninja, link and shader host concurrency"
+    },
+    {
       "id": "phone-device-free-regression",
       "kind": "integration",
       "tiers": ["regression"],

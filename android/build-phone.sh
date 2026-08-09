@@ -3,11 +3,15 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 command_name="${1:-all}"
+command_option="${2:-}"
+jobs="${PHONE_BUILD_JOBS:-$(nproc)}"
 
 fail() {
     echo "error: $*" >&2
     exit 2
 }
+
+[[ "$jobs" =~ ^[1-9][0-9]*$ ]] || fail "PHONE_BUILD_JOBS must be a positive integer"
 
 java_major() {
     "$1/bin/java" -version 2>&1 \
@@ -39,7 +43,8 @@ Usage: ./build-phone.sh [doctor|deps|prepare|build|install|all|deploy|setup] [op
   doctor   Check the shared Android/Pico development environment
   deps     Install Phone dependencies; use --download for prebuilt artifacts
   prepare  Stage the existing Android Conan and Qt dependencies
-  build    Build the phoneInterface debug APK
+  build [--stacktrace]
+           Build the phoneInterface debug APK with optional Gradle diagnostics
   install  Install and start the existing APK on one connected Android device
   all      Prepare dependencies and build the APK (default)
   deploy   Prepare, build, install, and start the client
@@ -103,7 +108,7 @@ prepare() {
     local draco_package
     draco_package="$(find_phone_draco_package)"
     PICO_DRACO_PACKAGE_DIR="$draco_package" \
-        PICO_BUILD_JOBS="${PHONE_BUILD_JOBS:-$(nproc)}" \
+        PICO_BUILD_JOBS="$jobs" \
         "$script_dir/build-pico.sh" prepare
 }
 
@@ -131,16 +136,23 @@ doctor() {
 }
 
 build() {
-    local jdk sdk
+    local option="${1:-}" jdk sdk
+    local -a gradle_diagnostics=()
+    if [[ "$option" == "--stacktrace" ]]; then
+        gradle_diagnostics+=(--stacktrace)
+    elif [[ -n "$option" ]]; then
+        fail "unsupported build option: $option"
+    fi
     jdk="$(find_compatible_jdk)" \
         || fail "a JDK between versions 17 and 21 was not found"
     sdk="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-${HOME}/Android/Sdk}}"
     [[ -d "$sdk" ]] || fail "Android SDK was not found"
     JAVA_HOME="$jdk" ANDROID_SDK_ROOT="$sdk" \
-        CMAKE_BUILD_PARALLEL_LEVEL="${PHONE_BUILD_JOBS:-$(nproc)}" \
+        PICO_BUILD_JOBS="$jobs" CMAKE_BUILD_PARALLEL_LEVEL="$jobs" \
+        SHADERGEN_JOBS="$jobs" \
         "$script_dir/gradlew" \
         --settings-file "$script_dir/settings-phone.gradle" \
-        :phoneInterface:assembleDebug
+        :phoneInterface:assembleDebug --max-workers="$jobs" "${gradle_diagnostics[@]}"
 }
 
 device_property() {
@@ -213,7 +225,7 @@ case "$command_name" in
         fi
         ;;
     prepare) prepare ;;
-    build) build ;;
+    build) build "$command_option" ;;
     install) install_apk ;;
     all) prepare; build ;;
     deploy) prepare; build; install_apk ;;

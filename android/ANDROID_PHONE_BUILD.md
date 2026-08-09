@@ -204,9 +204,13 @@ PHONE_BUILD_JOBS=4 ./build-phone.sh
 ```
 
 This setting is forwarded to the wrapper's prepare and CMake build phases. It
-does not override the fixed 16-job count in the dedicated Conan 16 KiB
-profiles. The long dependency helpers additionally enforce their documented
+also bounds Gradle, Ninja, and shader generation; native linking remains
+serial to avoid memory spikes. It does not override the fixed 16-job count in
+the dedicated Conan 16 KiB profiles. The long dependency helpers additionally enforce their documented
 32 GB swap prerequisite and 20 GB decimal cgroup memory ceiling.
+
+Use `./build-phone.sh build --stacktrace` to include Gradle failure details in
+CI or local build diagnostics.
 
 ## Install on a phone
 

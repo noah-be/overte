@@ -55,7 +55,7 @@ jobs:
       - name: Build Phone debug APK
         env:
           PHONE_BUILD_JOBS: "8"
-        run: ./build-phone.sh build
+        run: ./build-phone.sh build --stacktrace
 
       - name: Verify signed 16 KiB Phone APK
         working-directory: .
