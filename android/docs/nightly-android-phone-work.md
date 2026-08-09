@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 103 — Reject unsafe archive entry paths
+
+- Branch: `nightly/android-phone-103-safe-archive-paths`
+- Commit: `Gate phone package archive paths` (this task's commit)
+- Change: Require every APK/AAB ZIP entry, including optional and metadata
+  payload, to be a nonempty relative POSIX path without `..` components before
+  any later host extraction. Safety is no longer limited to cache-manifest and
+  Qt dependency declarations.
+- Tests:
+  - `android/tests/phone-apk-contents-test.sh`: **passed**, adding APK relative
+    traversal, APK absolute path, and AAB base-module traversal fixtures.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 297/297 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 297/297.
+  - Python/shell syntax and `git diff --check`: **passed**.
+- Known risks: Archive names remain case-sensitive as required by Android's
+  Linux/ZIP runtime; intentional future normalization needs an explicit policy.
+- Real-device validation still required: None for host extraction safety; use
+  the standard final artifact smoke.
+
 ## 102 — Reject ZIP symbolic links
 
 - Branch: `nightly/android-phone-102-zip-symlink-rejection`
@@ -2360,7 +2380,8 @@ All branches form one linear chain starting at
 99. `nightly/android-phone-99-central-directory-padding` — `13db75b136`
 100. `nightly/android-phone-100-trailing-zip-data` — `bf5ca533b6`
 101. `nightly/android-phone-101-complete-zip-integrity` — `133f4c3873`
-102. `nightly/android-phone-102-zip-symlink-rejection` — this task's commit
+102. `nightly/android-phone-102-zip-symlink-rejection` — `891449215f`
+103. `nightly/android-phone-103-safe-archive-paths` — this task's commit
 
 ### Device-free audit disposition
 

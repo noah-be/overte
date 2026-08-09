@@ -195,6 +195,8 @@ def main():
             raw_archive_names = archive.namelist()
             if len(raw_archive_names) != len(set(raw_archive_names)):
                 raise ValueError("package contains duplicate ZIP entry names")
+            if any(not is_safe_relative_path(name) for name in raw_archive_names):
+                raise ValueError("package contains an unsafe ZIP entry path")
             if any(
                 stat.S_ISLNK(entry.external_attr >> 16)
                 for entry in archive.infolist()
