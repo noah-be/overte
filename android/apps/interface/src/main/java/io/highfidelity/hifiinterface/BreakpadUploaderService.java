@@ -120,7 +120,7 @@ public class BreakpadUploaderService extends Service {
                     response.read();
                 }
             }
-            if (responseCode == HttpsURLConnection.HTTP_OK && !file.delete()) {
+            if (LegacyCrashDumpPolicy.isSuccessfulUploadStatus(responseCode) && !file.delete()) {
                 Log.w(TAG, "Uploaded crash dump could not be deleted");
             }
         } catch (IOException e) {

@@ -44,6 +44,16 @@ public final class LegacyCrashDumpPolicyStandaloneTest {
                 "the exact maximum must pass");
         check(!LegacyCrashDumpPolicy.isAcceptedLength(LegacyCrashDumpPolicy.MAX_DUMP_BYTES + 1),
                 "lengths above the maximum must fail");
+        int[] successfulStatuses = { 200, 201, 202, 204, 299 };
+        for (int status : successfulStatuses) {
+            check(LegacyCrashDumpPolicy.isSuccessfulUploadStatus(status),
+                    "every HTTP 2xx response must confirm the upload");
+        }
+        int[] failedStatuses = { -1, 0, 199, 300, 400, 500 };
+        for (int status : failedStatuses) {
+            check(!LegacyCrashDumpPolicy.isSuccessfulUploadStatus(status),
+                    "non-2xx responses must retain the crash dump");
+        }
 
         Connection uploadConnection = new Connection();
         LegacyCrashDumpPolicy.configureUploadConnection(uploadConnection);

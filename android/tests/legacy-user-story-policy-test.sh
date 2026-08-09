@@ -117,6 +117,14 @@ if grep -Fq 'token=" + BuildConfig.BACKTRACE_TOKEN' "$breakpad_service"; then
     printf 'FAIL: Breakpad tokens are concatenated into the query without encoding\n' >&2
     exit 1
 fi
+grep -Fq 'LegacyCrashDumpPolicy.isSuccessfulUploadStatus(responseCode)' "$breakpad_service" || {
+    printf 'FAIL: Breakpad upload completion does not accept the complete HTTP 2xx class\n' >&2
+    exit 1
+}
+if grep -Fq 'responseCode == HttpsURLConnection.HTTP_OK' "$breakpad_service"; then
+    printf 'FAIL: Breakpad upload completion remains restricted to HTTP 200\n' >&2
+    exit 1
+fi
 python3 - "$breakpad_service" <<'PY'
 import pathlib
 import sys

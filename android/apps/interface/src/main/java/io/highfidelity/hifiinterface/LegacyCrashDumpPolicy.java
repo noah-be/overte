@@ -22,6 +22,10 @@ public final class LegacyCrashDumpPolicy {
         return length >= 0 && length <= MAX_DUMP_BYTES;
     }
 
+    public static boolean isSuccessfulUploadStatus(int status) {
+        return status >= 200 && status < 300;
+    }
+
     public static void configureUploadConnection(URLConnection connection) {
         Objects.requireNonNull(connection, "connection");
         connection.setConnectTimeout(CONNECT_TIMEOUT_MILLIS);
