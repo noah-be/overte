@@ -167,6 +167,7 @@ printf 'ruff:%s\n' "$*" >>"$QUALITY_CALL_LOG"
                 text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             self.assertEqual(0, result.returncode, result.stdout)
             calls = log.read_text(encoding="utf-8")
+            self.assertIn("device-lock-core.sh", calls)
             self.assertIn("phone-device-lock.sh", calls)
             self.assertIn("tests/quality/install-tools.sh", calls)
             self.assertIn("tests/suite", calls)

@@ -36,6 +36,7 @@ fi
 
 mapfile -t relative_shell_files < <(git -C "$repo_root" ls-files \
     'android/ci/*.sh' \
+    'android/device-lock-core.sh' \
     'android/phone-device-lock.sh' \
     'android/phone-build-resource-guard.sh' \
     'android/phone-emulator-test.sh' \
