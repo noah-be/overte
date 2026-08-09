@@ -135,6 +135,8 @@ require_text tests/check-phone-apk-contents.py 'MAX_PACKAGE_ENTRIES' \
     'package completeness gate bounds the ZIP entry count'
 require_text tests/check-phone-apk-contents.py 'assets outside cache_assets[.]txt' \
     'package completeness gate rejects undeclared managed assets'
+require_text tests/check-phone-apk-contents.py 'QML outside declared module roots' \
+    'package completeness gate rejects undeclared QML modules'
 require_text tests/check-phone-apk-contents.py 'mixes APK and Android App Bundle' \
     'package completeness gate rejects mixed archive layouts'
 require_text tests/check-phone-apk-contents.py 'unexpected feature modules' \

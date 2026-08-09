@@ -160,13 +160,13 @@ def declared_native_entries():
     return entries
 
 
-def declared_asset_markers():
+def declared_asset_roots():
     root = ElementTree.parse(DEPENDENCY_XML).getroot()
     bundled = root.find("./string-array[@name='bundled_in_assets']")
     if bundled is None:
         raise ValueError("qt_dependencies.xml has no bundled_in_assets array")
 
-    entries = set()
+    roots = set()
     for item in bundled.findall("item"):
         declaration = (item.text or "").strip()
         packaged_path, separator, runtime_path = declaration.partition(":")
@@ -179,16 +179,27 @@ def declared_asset_markers():
             raise ValueError(
                 "invalid bundled asset dependency declaration: " + declaration
             )
-        marker = path if path.name == "qmldir" else path / "qmldir"
-        archive_entry = "assets/" + marker.as_posix()
-        if archive_entry in entries:
+        root_path = path.parent if path.name == "qmldir" else path
+        if len(root_path.parts) < 2 or root_path.parts[0] != "qml":
+            raise ValueError(
+                "bundled asset dependency is outside the QML module root: "
+                + declaration
+            )
+        if root_path in roots:
             raise ValueError(
                 "duplicate bundled asset dependency declaration: " + packaged_path
             )
-        entries.add(archive_entry)
-    if not entries:
+        roots.add(root_path)
+    if not roots:
         raise ValueError("qt_dependencies.xml declares no bundled QML assets")
-    return entries
+    return roots
+
+
+def declared_asset_markers():
+    return {
+        "assets/" + (root / "qmldir").as_posix()
+        for root in declared_asset_roots()
+    }
 
 
 def main():
@@ -201,6 +212,7 @@ def main():
             | declared_native_entries()
             | declared_asset_markers()
         )
+        qml_asset_roots = declared_asset_roots()
         if Path(sys.argv[1]).stat().st_size > MAX_PACKAGE_BYTES:
             raise ValueError("package exceeds the size limit")
         with zipfile.ZipFile(sys.argv[1]) as archive:
@@ -293,6 +305,20 @@ def main():
                 raise ValueError(
                     "package contains assets outside cache_assets.txt: "
                     + ", ".join(sorted(undeclared_managed_assets)[:5])
+                )
+            unexpected_qml_assets = {
+                name for name in names
+                if name.startswith("assets/qml/")
+                and not name.endswith("/")
+                and not any(
+                    PurePosixPath(name[len("assets/"):]).is_relative_to(root)
+                    for root in qml_asset_roots
+                )
+            }
+            if unexpected_qml_assets:
+                raise ValueError(
+                    "package contains QML outside declared module roots: "
+                    + ", ".join(sorted(unexpected_qml_assets)[:5])
                 )
             if cache_content_digest(archive, cache_manifest_entry, cache_paths) != cache_lines[0]:
                 raise ValueError("cache_assets.txt content digest does not match packaged assets")

@@ -29,6 +29,9 @@ cases = [
      '<resources><string-array name="bundled_in_assets">'
      '<item>qml/Same:qml/One</item><item>qml/Same:qml/Two</item>'
      '</string-array></resources>'),
+    (checker.declared_asset_markers,
+     '<resources><string-array name="bundled_in_assets"><item>'
+     'other/Module:other/Module</item></string-array></resources>'),
 ]
 for index, (function, contents) in enumerate(cases):
     declaration = fixture / f'invalid-declaration-{index}.xml'
@@ -242,8 +245,8 @@ with zipfile.ZipFile(corrupt_extra_apk, 'w') as archive:
     archive.writestr('assets/cache_assets.txt', cache_manifest)
     for entry, data in required.items():
         archive.writestr(entry, data)
-    archive.writestr('assets/qml/optional-qt-metadata.dat', b'optional')
-corrupt_stored_entry(corrupt_extra_apk, 'assets/qml/optional-qt-metadata.dat')
+    archive.writestr('assets/qml/QtQml/optional-qt-metadata.dat', b'optional')
+corrupt_stored_entry(corrupt_extra_apk, 'assets/qml/QtQml/optional-qt-metadata.dat')
 
 corrupt_extra_aab = root / 'corrupt-extra-entry.aab'
 with zipfile.ZipFile(corrupt_extra_aab, 'w') as archive:
@@ -354,6 +357,22 @@ with zipfile.ZipFile(root / 'undeclared-script.aab', 'w') as archive:
             bundle_entry = 'base/' + entry
         archive.writestr(bundle_entry, data)
     archive.writestr('base/assets/scripts/stale.js', b'stale')
+
+for fixture_name, prefix in (
+    ('undeclared-qml-module.apk', ''),
+    ('undeclared-qml-module.aab', 'base/'),
+):
+    with zipfile.ZipFile(root / fixture_name, 'w') as archive:
+        archive.writestr(prefix + 'assets/cache_assets.txt', cache_manifest)
+        for entry, data in required.items():
+            if prefix and entry == 'AndroidManifest.xml':
+                package_entry = 'base/manifest/AndroidManifest.xml'
+            elif prefix and entry == 'classes.dex':
+                package_entry = 'base/dex/classes.dex'
+            else:
+                package_entry = prefix + entry
+            archive.writestr(package_entry, data)
+        archive.writestr(prefix + 'assets/qml/Unreviewed/qmldir', b'module Unreviewed')
 
 with zipfile.ZipFile(root / 'missing-required-cache-entry.apk', 'w') as archive:
     incomplete_cache_paths = [entry for entry in cache_paths
@@ -534,6 +553,15 @@ for fixture in undeclared-script.apk undeclared-rcc.apk undeclared-script.aab; d
         exit 1
     fi
     grep -Fq 'assets outside cache_assets.txt' "$fixture_dir/asset-coverage-out"
+done
+
+for fixture in undeclared-qml-module.apk undeclared-qml-module.aab; do
+    if "$checker" "$fixture_dir/$fixture" >"$fixture_dir/qml-boundary-out" 2>&1; then
+        printf 'FAIL: package with an undeclared QML module was accepted: %s\n' \
+            "$fixture" >&2
+        exit 1
+    fi
+    grep -Fq 'QML outside declared module roots' "$fixture_dir/qml-boundary-out"
 done
 
 while IFS=$'\t' read -r fixture omitted; do

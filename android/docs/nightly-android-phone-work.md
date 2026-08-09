@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 107 — Bound loose QML to declared modules
+
+- Branch: `nightly/android-phone-107-qml-module-boundary`
+- Commit: `Gate phone package QML module roots` (this task's commit)
+- Change: Derive the reviewed loose-QML roots from `qt_dependencies.xml`,
+  require declarations to remain below `qml/`, and reject APK/AAB QML files
+  outside those roots. Qt may retain flexible files within a declared module,
+  but a new or stale module cannot silently expand the package surface.
+- Tests:
+  - `android/tests/phone-apk-contents-test.sh`: **passed**, adding undeclared
+    QML module fixtures for APK and AAB plus an out-of-root dependency fixture.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 303/303 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 303/303.
+  - Python/shell syntax and `git diff --check`: **passed**.
+- Known risks: Files inside an approved module are content-verified and CRC
+  checked but not individually enumerated; Qt module revisions need that
+  flexibility while `qmldir` remains mandatory.
+- Real-device validation still required: Cold-launch and open every native QML
+  tablet app from a clean cache to exercise runtime module resolution.
+
 ## 106 — Require cache coverage for managed assets
 
 - Branch: `nightly/android-phone-106-cache-asset-coverage`
@@ -2450,7 +2471,8 @@ All branches form one linear chain starting at
 103. `nightly/android-phone-103-safe-archive-paths` — `bbc18b3420`
 104. `nightly/android-phone-104-canonical-archive-paths` — `036af84614`
 105. `nightly/android-phone-105-package-resource-limits` — `0e93b71623`
-106. `nightly/android-phone-106-cache-asset-coverage` — this task's commit
+106. `nightly/android-phone-106-cache-asset-coverage` — `95a6c850c8`
+107. `nightly/android-phone-107-qml-module-boundary` — this task's commit
 
 ### Device-free audit disposition
 
