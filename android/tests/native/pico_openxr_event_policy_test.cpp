@@ -8,6 +8,13 @@ int main() {
     assert(openXrEventDrainAction(true) ==
            OpenXrEventDrainAction::Stop);
 
+    assert(!isOpenXrPathStringUsable(false, 1, 8, true));
+    assert(!isOpenXrPathStringUsable(true, 0, 8, true));
+    assert(!isOpenXrPathStringUsable(true, 9, 8, true));
+    assert(!isOpenXrPathStringUsable(true, 1, 8, false));
+    assert(isOpenXrPathStringUsable(true, 1, 8, true));
+    assert(isOpenXrPathStringUsable(true, 8, 8, true));
+
     const bool events[] = { false, false, true, false };
     unsigned int processed = 0;
     unsigned int nextPolls = 0;

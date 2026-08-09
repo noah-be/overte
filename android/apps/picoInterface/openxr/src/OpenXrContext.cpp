@@ -1076,12 +1076,24 @@ bool OpenXrContext::pollEvents() {
 
                     _vivePoseHack[i] = _viveControllerPath != XR_NULL_PATH && state.interactionProfile == _viveControllerPath;
 
-                    uint32_t bufferCountOutput;
-                    char profilePath[XR_MAX_PATH_LENGTH];
+                    uint32_t bufferCountOutput { 0 };
+                    char profilePath[XR_MAX_PATH_LENGTH] {};
                     res = xrPathToString(_instance, state.interactionProfile, XR_MAX_PATH_LENGTH, &bufferCountOutput,
                                          profilePath);
-                    if (!xrCheck(_instance, res, "Failed to get interaction profile path."))
+                    const bool pathConverted = xrCheck(
+                        _instance, res, "Failed to get interaction profile path.");
+                    const bool pathTerminated = bufferCountOutput > 0 &&
+                        bufferCountOutput <= XR_MAX_PATH_LENGTH &&
+                        profilePath[bufferCountOutput - 1] == '\0';
+                    if (!isOpenXrPathStringUsable(
+                            pathConverted, bufferCountOutput,
+                            XR_MAX_PATH_LENGTH, pathTerminated)) {
+                        if (pathConverted) {
+                            qCWarning(xr_context_cat,
+                                      "OpenXR runtime returned an invalid interaction profile path.");
+                        }
                         continue;
+                    }
 
                     qCInfo(xr_context_cat, "Controller %d: Interaction profile changed to '%s'", i, profilePath);
                 }
