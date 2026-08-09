@@ -153,6 +153,7 @@ doctor() {
 
 build() {
     local option="${1:-}" jdk sdk
+    local build_tmp="${PHONE_BUILD_TMPDIR:-$script_dir/build/package-tmp}"
     local -a gradle_diagnostics=()
     if [[ "$option" == "--stacktrace" ]]; then
         gradle_diagnostics+=(--stacktrace)
@@ -163,7 +164,12 @@ build() {
         || fail "a JDK between versions 17 and 21 was not found"
     sdk="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-${HOME}/Android/Sdk}}"
     [[ -d "$sdk" ]] || fail "Android SDK was not found"
-    JAVA_HOME="$jdk" ANDROID_SDK_ROOT="$sdk" \
+    [[ ! -L "$build_tmp" ]] || fail "Phone build temporary directory must not be a symlink"
+    mkdir -p -- "$build_tmp"
+    [[ -d "$build_tmp" && -w "$build_tmp" ]] \
+        || fail "Phone build temporary directory is not writable"
+    JAVA_HOME="$jdk" ANDROID_SDK_ROOT="$sdk" TMPDIR="$build_tmp" \
+        JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:+${JAVA_TOOL_OPTIONS} }-Djava.io.tmpdir=$build_tmp" \
         PICO_BUILD_JOBS="$jobs" CMAKE_BUILD_PARALLEL_LEVEL="$jobs" \
         SHADERGEN_JOBS="$jobs" \
         "$script_dir/gradlew" \

@@ -124,6 +124,9 @@ before the dependency build; there is intentionally no unbounded fallback.
    and host tools. Keep `CONAN_HOME` separate for the verified Phone dependency
    graph; the trusted workflow does this automatically.
 
+   Gradle/APK packaging uses `android/build/package-tmp` instead of a potentially
+   memory-backed system `/tmp`; override it with `PHONE_BUILD_TMPDIR` if needed.
+
    To restore only the dependency graph without preparing or building the APK,
    use the Phone entry point just as with Pico:
 

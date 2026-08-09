@@ -44,6 +44,8 @@ class PhoneBuildParallelismTests(unittest.TestCase):
     def test_phone_limit_reaches_gradle_cmake_ninja_and_shaders(self):
         self.assertIn('PICO_BUILD_JOBS="$jobs" CMAKE_BUILD_PARALLEL_LEVEL="$jobs"', BUILD)
         self.assertIn('SHADERGEN_JOBS="$jobs"', BUILD)
+        self.assertIn('TMPDIR="$build_tmp"', BUILD)
+        self.assertIn('-Djava.io.tmpdir=$build_tmp', BUILD)
         self.assertIn('--max-workers="$jobs"', BUILD)
         self.assertIn('PROPERTY JOB_POOLS "android_compile=$ENV{PICO_BUILD_JOBS}" android_link=1', BOOTSTRAP)
         self.assertIn("set(CMAKE_JOB_POOL_COMPILE android_compile)", BOOTSTRAP)
