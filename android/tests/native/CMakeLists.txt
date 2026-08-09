@@ -167,3 +167,7 @@ add_overte_native_test(
 add_overte_native_test(
     pico_openxr_extension_policy
     "${CMAKE_CURRENT_LIST_DIR}/pico_openxr_extension_policy_test.cpp")
+
+add_overte_native_test(
+    pico_openxr_event_policy
+    "${CMAKE_CURRENT_LIST_DIR}/pico_openxr_event_policy_test.cpp")

@@ -9,6 +9,7 @@
 
 #include "OpenXrContext.h"
 #include "OpenXrDebugPolicy.h"
+#include "OpenXrEventPolicy.h"
 #include "OpenXrExtensionPolicy.h"
 #include "OpenXrSpacePolicy.h"
 #include <QLoggingCategory>
@@ -1047,13 +1048,17 @@ bool OpenXrContext::pollEvents() {
     XrEventDataBuffer event = { .type = XR_TYPE_EVENT_DATA_BUFFER };
     XrResult result = xrPollEvent(_instance, &event);
     while (result == XR_SUCCESS) {
+        const OpenXrEventDrainAction drainAction = openXrEventDrainAction(
+            event.type == XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING);
         switch (event.type) {
             case XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING: {
                 const auto& instanceLossPending = *reinterpret_cast<XrEventDataInstanceLossPending*>(&event);
-                qCCritical(xr_context_cat, "Instance loss pending at %lu! Destroying instance.", instanceLossPending.lossTime);
+                qCCritical(xr_context_cat,
+                           "OpenXR instance loss pending at %lu; requesting shutdown.",
+                           instanceLossPending.lossTime);
                 _shouldQuit = true;
                 _isValid = false;
-                continue;
+                break;
             }
             case XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED: {
                 const auto& sessionStateChanged = *reinterpret_cast<XrEventDataSessionStateChanged*>(&event);
@@ -1091,7 +1096,10 @@ bool OpenXrContext::pollEvents() {
                 qCWarning(xr_context_cat, "Unhandled event type %d", event.type);
         }
 
-        event.type = XR_TYPE_EVENT_DATA_BUFFER;
+        if (drainAction == OpenXrEventDrainAction::Stop) {
+            return true;
+        }
+        event = { .type = XR_TYPE_EVENT_DATA_BUFFER };
         result = xrPollEvent(_instance, &event);
     }
 
