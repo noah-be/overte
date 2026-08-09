@@ -4,6 +4,8 @@ import io.highfidelity.hifiinterface.HifiUtils;
 
 /** Framework-free URL and pagination rules for the legacy place provider. */
 public final class UserStoryDomainPolicy {
+    public enum PageDecision { INVALID, STOP, CONTINUE }
+
     private UserStoryDomainPolicy() {
     }
 
@@ -31,5 +33,15 @@ public final class UserStoryDomainPolicy {
     public static boolean shouldRequestNextPage(int currentPage, int totalPages, int maxPages) {
         return currentPage > 0 && totalPages > 0 && maxPages > 0
                 && currentPage < totalPages && currentPage < maxPages;
+    }
+
+    public static PageDecision classifyPage(boolean successfulResponse, boolean bodyPresent,
+            boolean storiesPresent, int currentPage, int totalPages, int maxPages) {
+        if (!successfulResponse || !bodyPresent || !storiesPresent
+                || currentPage <= 0 || totalPages <= 0 || currentPage > totalPages) {
+            return PageDecision.INVALID;
+        }
+        return shouldRequestNextPage(currentPage, totalPages, maxPages)
+                ? PageDecision.CONTINUE : PageDecision.STOP;
     }
 }

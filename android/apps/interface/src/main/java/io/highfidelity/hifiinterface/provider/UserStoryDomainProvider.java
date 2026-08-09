@@ -64,6 +64,10 @@ public class UserStoryDomainProvider implements DomainProvider {
         Set<String> taggedStoriesIds = new HashSet<>();
         getUserStoryPage(1, taggedStories, TAGS_TO_SEARCH,
                 e -> {
+                    if (e != null) {
+                        notifyRetrieveError(domainCallback, e);
+                        return;
+                    }
                     taggedStories.forEach(userStory -> {
                         taggedStoriesIds.add(userStory.id);
                     });
@@ -71,6 +75,10 @@ public class UserStoryDomainProvider implements DomainProvider {
                     allStories.clear();
                     getUserStoryPage(1, allStories, null,
                             ex -> {
+                                if (ex != null) {
+                                    notifyRetrieveError(domainCallback, ex);
+                                    return;
+                                }
                                 suggestions.clear();
                                 allStories.forEach(userStory -> {
                                     if (taggedStoriesIds.contains(userStory.id)) {
@@ -86,6 +94,16 @@ public class UserStoryDomainProvider implements DomainProvider {
 
                 }
         );
+    }
+
+    private synchronized void notifyRetrieveError(
+            DomainCallback domainCallback, Exception error) {
+        startedToGetFromAPI = false;
+        allStories.clear();
+        suggestions.clear();
+        if (domainCallback != null) {
+            domainCallback.retrieveError(error, "Failed retrieving places");
+        }
     }
 
     private void handleError(String url, Throwable t, Callback<Exception> restOfPagesCallback) {
@@ -105,9 +123,20 @@ public class UserStoryDomainProvider implements DomainProvider {
             @Override
             public void onResponse(Call<UserStories> call, Response<UserStories> response) {
                 UserStories data = response.body();
+                UserStoryDomainPolicy.PageDecision decision =
+                        UserStoryDomainPolicy.classifyPage(
+                                response.isSuccessful(), data != null,
+                                data != null && data.user_stories != null,
+                                data == null ? 0 : data.current_page,
+                                data == null ? 0 : data.total_pages,
+                                MAX_PAGES_TO_GET);
+                if (decision == UserStoryDomainPolicy.PageDecision.INVALID) {
+                    restOfPagesCallback.callback(new Exception(
+                            "Invalid user stories response (HTTP " + response.code() + ")"));
+                    return;
+                }
                 userStoriesList.addAll(data.user_stories);
-                if (UserStoryDomainPolicy.shouldRequestNextPage(
-                        data.current_page, data.total_pages, MAX_PAGES_TO_GET)) {
+                if (decision == UserStoryDomainPolicy.PageDecision.CONTINUE) {
                     getUserStoryPage(pageNumber + 1, userStoriesList, tagsFilter, restOfPagesCallback);
                     return;
                 }

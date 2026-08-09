@@ -26,11 +26,32 @@ public final class UserStoryDomainPolicyStandaloneTest {
         check(!UserStoryDomainPolicy.shouldRequestNextPage(0, 2, 10));
         check(!UserStoryDomainPolicy.shouldRequestNextPage(1, 0, 10));
         check(!UserStoryDomainPolicy.shouldRequestNextPage(1, 2, 0));
+        expect(UserStoryDomainPolicy.PageDecision.CONTINUE,
+                UserStoryDomainPolicy.classifyPage(true, true, true, 1, 2, 10));
+        expect(UserStoryDomainPolicy.PageDecision.STOP,
+                UserStoryDomainPolicy.classifyPage(true, true, true, 2, 2, 10));
+        expect(UserStoryDomainPolicy.PageDecision.STOP,
+                UserStoryDomainPolicy.classifyPage(true, true, true, 10, 11, 10));
+        expect(UserStoryDomainPolicy.PageDecision.INVALID,
+                UserStoryDomainPolicy.classifyPage(false, true, true, 1, 2, 10));
+        expect(UserStoryDomainPolicy.PageDecision.INVALID,
+                UserStoryDomainPolicy.classifyPage(true, false, false, 0, 0, 10));
+        expect(UserStoryDomainPolicy.PageDecision.INVALID,
+                UserStoryDomainPolicy.classifyPage(true, true, false, 1, 2, 10));
+        expect(UserStoryDomainPolicy.PageDecision.INVALID,
+                UserStoryDomainPolicy.classifyPage(true, true, true, 3, 2, 10));
         System.out.println("UserStoryDomainPolicyStandaloneTest: " + assertions
                 + " assertions passed");
     }
 
     private static void expect(String expected, String actual) {
+        assertions++;
+        if (!expected.equals(actual)) {
+            throw new AssertionError("expected " + expected + " but got " + actual);
+        }
+    }
+
+    private static void expect(Object expected, Object actual) {
         assertions++;
         if (!expected.equals(actual)) {
             throw new AssertionError("expected " + expected + " but got " + actual);
