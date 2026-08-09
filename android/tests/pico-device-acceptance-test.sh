@@ -63,9 +63,9 @@ printf 'verified fixture\n' >"$apk"
 MOCK_ADB_LOG="$adb_log" PICO_DEVICE_LOCK_HELD=1 \
     "$SCRIPT_DIR/../ci/pico4-device-acceptance.sh" --execute \
     --confirmation "INSTALL $tag" "${common[@]}"
-rg -q '^devices$' "$adb_log"
-rg -q 'install -r' "$adb_log"
-rg -q 'monkey -p org.overte.pico' "$adb_log"
+grep -q '^devices$' "$adb_log"
+grep -q 'install -r' "$adb_log"
+grep -q 'monkey -p org.overte.pico' "$adb_log"
 python3 - "$report" <<'PY'
 import json, sys
 data = json.load(open(sys.argv[1], encoding="utf-8"))
