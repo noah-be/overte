@@ -22,6 +22,11 @@ inline bool isOpenXrSwapchainImageIndexValid(
     return index < imageCount;
 }
 
+inline bool isOpenXrFoveationProfileUsable(
+        bool createSucceeded, bool handleIsNonNull) {
+    return createSucceeded && handleIsNonNull;
+}
+
 inline bool isConsistentOpenXrEnumerationCount(
         std::size_t capacity, std::size_t returnedCount) {
     return capacity > 0 && returnedCount > 0 && returnedCount <= capacity;

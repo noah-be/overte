@@ -366,7 +366,14 @@ bool OpenXrDisplayPlugin::initSwapChains() {
             .next = &levelInfo,
         };
         XrResult result = _context->xrCreateFoveationProfileFB(session, &profileInfo, &_foveationProfile);
-        if (!xrCheck(instance, result, "Failed to create foveation profile")) {
+        const bool profileCreated = xrCheck(
+            instance, result, "Failed to create foveation profile");
+        if (!isOpenXrFoveationProfileUsable(
+                profileCreated, _foveationProfile != XR_NULL_HANDLE)) {
+            if (profileCreated) {
+                qCCritical(xr_display_cat,
+                           "OpenXR runtime returned a null foveation profile.");
+            }
             return failInitialization();
         }
 
