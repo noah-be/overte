@@ -5,8 +5,12 @@ readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly test_root="$(mktemp -d "${TMPDIR:-/tmp}/phone-device-smoke-mock.XXXXXX")"
 readonly real_sha256sum="$(command -v sha256sum)"
 readonly real_tee="$(command -v tee)"
+readonly real_chmod="$(command -v chmod)"
+readonly real_mktemp="$(command -v mktemp)"
 export PHONE_MOCK_REAL_SHA256SUM="$real_sha256sum"
 export PHONE_MOCK_REAL_TEE="$real_tee"
+export PHONE_MOCK_REAL_CHMOD="$real_chmod"
+export PHONE_MOCK_REAL_MKTEMP="$real_mktemp"
 cleanup() {
     [[ "$(basename -- "$test_root")" == phone-device-smoke-mock.* ]] && rm -rf -- "$test_root"
 }
@@ -143,6 +147,24 @@ if [[ "${MOCK_TEE_FAILURE:-0}" == 1 ]]; then
 fi
 exec "$PHONE_MOCK_REAL_TEE" "$@"
 MOCK_TEE
+cat >"$test_root/bin/chmod" <<'MOCK_CHMOD'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${MOCK_CHMOD_FAILURE:-0}" == 1 ]]; then
+    printf 'private chmod failure: %s\n' "${*: -1}" >&2
+    exit 9
+fi
+exec "$PHONE_MOCK_REAL_CHMOD" "$@"
+MOCK_CHMOD
+cat >"$test_root/bin/mktemp" <<'MOCK_MKTEMP'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${MOCK_MKTEMP_FAILURE:-0}" == 1 ]]; then
+    printf 'private mktemp failure: %s\n' "${*: -1}" >&2
+    exit 10
+fi
+exec "$PHONE_MOCK_REAL_MKTEMP" "$@"
+MOCK_MKTEMP
 cat >"$test_root/bin/apkanalyzer" <<'MOCK_ANALYZER'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -171,7 +193,7 @@ set -euo pipefail
 [[ "${MOCK_PREFLIGHT_FAILURE:-0}" != 1 ]]
 MOCK_PREFLIGHT
 chmod +x "$test_root/bin/adb" "$test_root/bin/sleep" "$test_root/bin/sha256sum" \
-    "$test_root/bin/tee" \
+    "$test_root/bin/tee" "$test_root/bin/chmod" "$test_root/bin/mktemp" \
     "$test_root/bin/apkanalyzer" "$test_root/bin/apk-preflight"
 
 mkdir "$test_root/unguarded-override-report"
@@ -245,6 +267,31 @@ grep -Fxq 'ERROR: could not update device-test summary' \
 [[ ! -s "$test_root/adb-commands" ]]
 grep -Fxq 'test_status=failed' \
     "$test_root/summary-write-failure-report/summary.txt"
+
+mkdir "$test_root/chmod-failure-report"
+: >"$test_root/adb-commands"
+if run_smoke "$test_root/chmod-failure-report" env MOCK_CHMOD_FAILURE=1 \
+        >"$test_root/chmod-failure.out" 2>&1; then
+    echo 'FAIL: failed summary permission hardening was accepted' >&2
+    exit 1
+fi
+grep -Fxq 'ERROR: could not secure device-test summary' \
+    "$test_root/chmod-failure.out"
+! grep -Fq 'private chmod failure' "$test_root/chmod-failure.out"
+! grep -Fq "$test_root" "$test_root/chmod-failure.out"
+[[ ! -s "$test_root/adb-commands" ]]
+
+: >"$test_root/adb-commands"
+if run_smoke "" env MOCK_MKTEMP_FAILURE=1 \
+        >"$test_root/mktemp-failure.out" 2>&1; then
+    echo 'FAIL: failed temporary report creation was accepted' >&2
+    exit 1
+fi
+grep -Fxq 'ERROR: could not create device-test report directory' \
+    "$test_root/mktemp-failure.out"
+! grep -Fq 'private mktemp failure' "$test_root/mktemp-failure.out"
+! grep -Fq "$test_root" "$test_root/mktemp-failure.out"
+[[ ! -s "$test_root/adb-commands" ]]
 
 : >"$test_root/adb-commands"
 if env PATH="$test_root/bin:$PATH" MOCK_ROOT="$test_root" \

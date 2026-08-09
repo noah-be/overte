@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 111 — Prove report setup fails privately
+
+- Branch: `nightly/android-phone-111-report-setup-failures`
+- Commit: `Test phone report setup failures` (this task's commit)
+- Change: Add stateful fake `mktemp` and `chmod` tools to exercise temporary
+  report allocation and summary-permission failures independently, including
+  deliberately private raw error text.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; both setup
+    failures reduce to their fixed phase messages, retain no private path, and
+    issue zero ADB commands, while all prior success/failure scenarios remain
+    green.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 307/307 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 307/307.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Filesystem disappearance after successful setup is covered by
+  checked appends from task 110; an exit-trap write remains best-effort.
+- Real-device validation still required: None for Fake-tool failure handling.
+
 ## 110 — Keep summary write failures private
 
 - Branch: `nightly/android-phone-110-private-summary-write-errors`
@@ -2538,7 +2558,8 @@ All branches form one linear chain starting at
 107. `nightly/android-phone-107-qml-module-boundary` — `a37b4e3ac7`
 108. `nightly/android-phone-108-private-preflight-paths` — `4fa4eace60`
 109. `nightly/android-phone-109-private-apk-hash-errors` — `a44dc0efb1`
-110. `nightly/android-phone-110-private-summary-write-errors` — this task's commit
+110. `nightly/android-phone-110-private-summary-write-errors` — `e39b0c7897`
+111. `nightly/android-phone-111-report-setup-failures` — this task's commit
 
 ### Device-free audit disposition
 
