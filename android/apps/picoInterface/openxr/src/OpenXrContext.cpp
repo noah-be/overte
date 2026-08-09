@@ -388,7 +388,7 @@ bool OpenXrContext::initSystem() {
     qCInfo(xr_context_cat, "Position Tracking   : %d", props.trackingProperties.positionTracking);
 
     if (_EXT_debugUtilsSupported) {
-        xrGetInstanceProcAddr(
+        const bool createFunctionLoaded = loadXrFunction(
             _instance,
             "xrCreateDebugUtilsMessengerEXT",
             reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateDebugUtilsMessengerEXT)
@@ -403,11 +403,19 @@ bool OpenXrContext::initSystem() {
             .userData = nullptr,
         };
 
-        xrCreateDebugUtilsMessengerEXT(
+        const bool functionReady = isOpenXrOptionalFunctionReady(
+            createFunctionLoaded, xrCreateDebugUtilsMessengerEXT != nullptr);
+        const bool messengerCreated = functionReady && xrCheck(
             _instance,
-            &createInfo,
-            &_debugMessenger
-        );
+            xrCreateDebugUtilsMessengerEXT(_instance, &createInfo, &_debugMessenger),
+            "Failed to create OpenXR debug messenger");
+        if (!messengerCreated || _debugMessenger == XR_NULL_HANDLE) {
+            qCWarning(xr_context_cat,
+                      "Disabling unavailable OpenXR debug messenger");
+            _debugMessenger = XR_NULL_HANDLE;
+            xrCreateDebugUtilsMessengerEXT = nullptr;
+            _EXT_debugUtilsSupported = false;
+        }
     }
 
     auto next = reinterpret_cast<const XrExtensionProperties*>(props.next);

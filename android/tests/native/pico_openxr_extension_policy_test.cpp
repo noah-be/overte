@@ -11,6 +11,11 @@ int main() {
                    createLoaded, destroyLoaded, locateLoaded) == (mask == 7U));
     }
 
+    assert(!isOpenXrOptionalFunctionReady(false, false));
+    assert(!isOpenXrOptionalFunctionReady(false, true));
+    assert(!isOpenXrOptionalFunctionReady(true, false));
+    assert(isOpenXrOptionalFunctionReady(true, true));
+
     assert(openXrHandTrackerPairState(false, false) ==
            OpenXrHandTrackerPairState::None);
     assert(openXrHandTrackerPairState(true, false) ==

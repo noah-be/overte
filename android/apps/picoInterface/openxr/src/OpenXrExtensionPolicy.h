@@ -5,6 +5,11 @@ inline bool areOpenXrHandTrackingFunctionsReady(
     return createLoaded && destroyLoaded && locateLoaded;
 }
 
+inline bool isOpenXrOptionalFunctionReady(
+        bool loadSucceeded, bool pointerIsNonNull) {
+    return loadSucceeded && pointerIsNonNull;
+}
+
 enum class OpenXrHandTrackerPairState {
     None,
     Partial,
