@@ -76,6 +76,9 @@ class PicoBuildWorkflowContracts(unittest.TestCase):
         self.assertIn("persist-credentials: false", self.source)
 
     def test_build_runs_tests_and_fail_closed_apk_verification(self):
+        self.assertIn("Reject untrusted build refs", self.source)
+        self.assertIn("refs/heads/feature/pico4-support", self.source)
+        self.assertIn("refs/tags/pico4-preview-[0-9]+", self.source)
         self.assertIn("tests/run-project-tests.py", self.source)
         self.assertIn("./build-pico.sh doctor", self.source)
         self.assertIn("./build-pico.sh build", self.source)

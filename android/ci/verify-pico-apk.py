@@ -97,6 +97,16 @@ def parse_badging(output):
     }
 
 
+def parse_signature(output):
+    count = re.search(r"^Number of signers: (\d+)$", output, re.MULTILINE)
+    digest = re.search(r"^Signer #1 certificate SHA-256 digest: ([0-9a-f]{64})$", output, re.MULTILINE)
+    if not count or not digest:
+        fail("apksigner output is missing signer count or certificate SHA-256 digest")
+    if int(count.group(1)) != 1:
+        fail(f"expected exactly one APK signer, found {count.group(1)}")
+    return digest.group(1)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("apk", type=Path)
@@ -115,7 +125,9 @@ def main():
     apksigner = resolve_tool(args.apksigner, "apksigner")
     entries, native_libraries = inspect_zip(args.apk)
     metadata = parse_badging(run_tool([aapt, "dump", "badging", str(args.apk)]))
-    run_tool([apksigner, "verify", "--verbose", str(args.apk)])
+    signer_digest = parse_signature(
+        run_tool([apksigner, "verify", "--verbose", "--print-certs", str(args.apk)])
+    )
 
     checksum = hashlib.sha256()
     with args.apk.open("rb") as stream:
@@ -131,6 +143,7 @@ def main():
         "zip_entries": entries,
         "native_libraries": native_libraries,
         "signature_verified": True,
+        "signer_certificate_sha256": signer_digest,
     }
     if args.source_revision:
         manifest["source_revision"] = args.source_revision
