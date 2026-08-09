@@ -248,11 +248,28 @@ class AndroidPhoneEmulatorAcceptanceWorkflowContracts(unittest.TestCase):
 
     def test_verifies_digest_and_package_before_adb_installation(self):
         digest = self.source.index("sha256sum --check --strict")
-        package = self.source.index("check-phone-apk-16k.sh")
+        unsigned = self.source.index("--expect-unsigned")
+        signing = self.source.index("apksigner sign")
         device = self.source.index("phone-device-test.sh")
-        self.assertLess(digest, package)
-        self.assertLess(package, device)
+        self.assertLess(digest, unsigned)
+        self.assertLess(unsigned, signing)
+        self.assertLess(signing, device)
         self.assertIn('PHONE_ALLOW_EMULATOR: "1"', self.source)
+
+    def test_runtime_signature_is_ephemeral_and_never_published(self):
+        self.assertEqual(2, self.source.count(
+            "${{ runner.temp }}/android-phone-acceptance-${{ github.run_id }}-"
+            "${{ github.run_attempt }}.apk"))
+        self.assertIn("phoneInterface-release-unsigned.apk", self.source)
+        self.assertNotIn('apk="android/build/emulator-candidate/phoneInterface-release.apk"', self.source)
+        self.assertIn("openssl req -x509 -newkey rsa:2048 -nodes -days 1", self.source)
+        self.assertIn("openssl pkcs8 -topk8 -nocrypt", self.source)
+        self.assertIn('apksigner sign --key "$signing_dir/key.pk8"', self.source)
+        self.assertIn("apksigner verify --verbose --print-certs", self.source)
+        self.assertIn("trap 'rm -f -- \"$ACCEPTANCE_APK\"' EXIT", self.source)
+        upload = self.source.split("uses: actions/upload-artifact@", 1)[1]
+        self.assertNotIn("ACCEPTANCE_APK", upload)
+        self.assertNotIn("android-phone-acceptance-", upload)
 
     def test_manual_inputs_are_not_interpolated_into_shell_programs(self):
         lines = self.source.splitlines()

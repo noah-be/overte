@@ -74,22 +74,42 @@ jobs:
           APPROVED_APK_SHA256: ${{ inputs.apk_sha256 }}
         run: |
           set -euo pipefail
-          apk="android/build/emulator-candidate/phoneInterface-release.apk"
+          apk="android/build/emulator-candidate/phoneInterface-release-unsigned.apk"
           test -f "$apk" && test ! -L "$apk"
           printf '%s  %s\n' "$APPROVED_APK_SHA256" "$apk" | sha256sum --check --strict
           sdk_root="${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}"
-          PHONE_EXPECT_DEBUGGABLE=0 PHONE_APK_ANALYZER="$sdk_root/cmdline-tools/latest/bin/apkanalyzer" \
-            android/tests/check-phone-apk-16k.sh "$apk"
+          android/ci/verify-phone-apk.py "$apk" --expect-unsigned --expect-debuggable 0 \
+            --apkanalyzer "$sdk_root/cmdline-tools/latest/bin/apkanalyzer" \
+            --source-revision "$GITHUB_SHA" >/dev/null
+      - name: Create ephemeral signed APK for runtime acceptance
+        env:
+          ACCEPTANCE_APK: ${{ runner.temp }}/android-phone-acceptance-${{ github.run_id }}-${{ github.run_attempt }}.apk
+        run: |
+          set -euo pipefail
+          umask 077
+          unsigned_apk="android/build/emulator-candidate/phoneInterface-release-unsigned.apk"
+          test ! -e "$ACCEPTANCE_APK" && test ! -L "$ACCEPTANCE_APK"
+          signing_dir="$(mktemp -d "$RUNNER_TEMP/overte-phone-signing.XXXXXXXX")"
+          trap 'rm -rf -- "$signing_dir"' EXIT
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -subj '/CN=Overte ephemeral acceptance/' \
+            -keyout "$signing_dir/key.pem" -out "$signing_dir/cert.pem"
+          openssl pkcs8 -topk8 -nocrypt -in "$signing_dir/key.pem" \
+            -outform DER -out "$signing_dir/key.pk8"
+          apksigner sign --key "$signing_dir/key.pk8" --cert "$signing_dir/cert.pem" \
+            --out "$ACCEPTANCE_APK" "$unsigned_apk"
+          apksigner verify --verbose --print-certs "$ACCEPTANCE_APK" >/dev/null
       - name: Run explicitly approved emulator acceptance
         env:
+          ACCEPTANCE_APK: ${{ runner.temp }}/android-phone-acceptance-${{ github.run_id }}-${{ github.run_attempt }}.apk
           PHONE_ALLOW_EMULATOR: "1"
           PHONE_EXPECT_DEBUGGABLE: "0"
           PHONE_TEST_REPORT: ${{ runner.temp }}/android-phone-device-report-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
-          apk="android/build/emulator-candidate/phoneInterface-release.apk"
+          trap 'rm -f -- "$ACCEPTANCE_APK"' EXIT
           mkdir -p "$PHONE_TEST_REPORT"
-          android/tests/phone-device-test.sh "$apk"
+          android/tests/phone-device-test.sh "$ACCEPTANCE_APK"
       - name: Upload acceptance report
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
