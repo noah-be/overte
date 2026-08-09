@@ -11,6 +11,7 @@ tests/run-project-tests.py --junit build/test-results/project-tests.xml
 This profile needs Bash, Python 3, Node.js, Java/Javac, and `jq`, but no Android
 SDK, Qt build, emulator, headset, display, or audio device. It runs:
 
+- security and reproducibility contracts for the Pico GitHub Actions workflow;
 - repository-wide Python, Shell, JavaScript, JSON, XML, symlink, Gradle-wrapper,
   and CMake-test integrity checks;
 - dependency-free Node.js behavior tests for shared JavaScript libraries;
