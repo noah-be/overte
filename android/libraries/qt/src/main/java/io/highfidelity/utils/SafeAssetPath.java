@@ -15,6 +15,11 @@ final class SafeAssetPath {
         if (relativePath == null || relativePath.isEmpty()) {
             throw new IOException("Empty packaged asset destination");
         }
+        for (int index = 0; index < relativePath.length(); ++index) {
+            if (Character.isISOControl(relativePath.charAt(index))) {
+                throw new IOException("Control character in packaged asset destination");
+            }
+        }
         if (new File(relativePath).isAbsolute()) {
             throw new IOException("Absolute packaged asset destination");
         }

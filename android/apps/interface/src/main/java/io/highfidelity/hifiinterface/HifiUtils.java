@@ -24,6 +24,9 @@ public class HifiUtils {
     }
 
     public String sanitizeHifiUrl(String urlString) {
+        if (urlString == null) {
+            return "";
+        }
         urlString = urlString.trim();
         if (!urlString.isEmpty()) {
             URI uri;
@@ -32,7 +35,9 @@ public class HifiUtils {
             } catch (URISyntaxException e) {
                 return urlString;
             }
-            if (uri.getScheme() == null || uri.getScheme().isEmpty()) {
+            // java.net.URI represents an absent scheme as null; an empty scheme
+            // is rejected by its parser, so a second empty-string check is dead.
+            if (uri.getScheme() == null) {
                 urlString = "hifi://" + urlString;
             }
         }
@@ -45,6 +50,9 @@ public class HifiUtils {
     }
 
     public String absoluteHifiAssetUrl(String urlString, String baseUrl) {
+        if (urlString == null) {
+            return "";
+        }
         urlString = urlString.trim();
         if (!urlString.isEmpty()) {
             URI uri;
@@ -53,7 +61,7 @@ public class HifiUtils {
             } catch (URISyntaxException e) {
                 return urlString;
             }
-            if (uri.getScheme() == null || uri.getScheme().isEmpty()) {
+            if (uri.getScheme() == null) {
                 urlString = baseUrl + urlString;
             }
         }

@@ -35,6 +35,15 @@ mkdir -p "$report_dir"
     --fail-under-line 95 \
     --fail-under-branch 90
 
+"$gcovr_command" --root "$android_root/.." \
+    --filter '.*/interface/src/ui/PhoneLoginState\.h$' \
+    --exclude-throw-branches \
+    --xml-pretty --xml "$report_dir/login-state.xml" \
+    --html-details "$report_dir/login-state.html" \
+    --print-summary \
+    --fail-under-line 100 \
+    --fail-under-branch 100
+
 exec "$gcovr_command" --root "$android_root/.." \
     --filter '.*PhonePendingHandoff\.h$' \
     --exclude-throw-branches \

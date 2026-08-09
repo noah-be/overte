@@ -28,6 +28,7 @@ EXPECTED_ACTIVITIES = {
     ".PermissionsActivity": "true",
     ".PhoneInterfaceActivity": "false",
 }
+EXPECTED_DEEP_LINK_SCHEMES = {"overte", "hifi"}
 
 
 def exclusions(element):
@@ -95,6 +96,54 @@ def main():
     for component_type in ("activity-alias", "provider", "receiver", "service"):
         if application.findall(component_type):
             raise ValueError(f"phone manifest unexpectedly declares {component_type}")
+
+    activity_elements = {
+        element.get(ANDROID_NS + "name"): element
+        for element in application.findall("activity")
+    }
+    launcher = activity_elements[".PermissionsActivity"]
+    interface = activity_elements[".PhoneInterfaceActivity"]
+    if launcher.get(ANDROID_NS + "launchMode") != "singleTop":
+        raise ValueError("exported permission launcher must remain singleTop")
+    if interface.get(ANDROID_NS + "launchMode") != "singleTask":
+        raise ValueError("internal Qt activity must remain singleTask")
+
+    filters = launcher.findall("intent-filter")
+    view_filters = []
+    launcher_filters = []
+    for intent_filter in filters:
+        actions = {
+            item.get(ANDROID_NS + "name") for item in intent_filter.findall("action")
+        }
+        categories = {
+            item.get(ANDROID_NS + "name") for item in intent_filter.findall("category")
+        }
+        if "android.intent.action.VIEW" in actions:
+            view_filters.append((intent_filter, actions, categories))
+        if "android.intent.action.MAIN" in actions:
+            launcher_filters.append((actions, categories))
+    if len(view_filters) != 1 or len(launcher_filters) != 1:
+        raise ValueError("permission launcher needs exactly one MAIN and one VIEW filter")
+    main_actions, main_categories = launcher_filters[0]
+    if main_actions != {"android.intent.action.MAIN"} or main_categories != {
+        "android.intent.category.LAUNCHER"
+    }:
+        raise ValueError("launcher filter actions/categories are not minimal")
+    _, actions, categories = view_filters[0]
+    if actions != {"android.intent.action.VIEW"} or categories != {
+        "android.intent.category.DEFAULT", "android.intent.category.BROWSABLE"
+    }:
+        raise ValueError("deep-link filter actions/categories are not fail-closed")
+    schemes = {
+        item.get(ANDROID_NS + "scheme")
+        for item in view_filters[0][0].findall("data")
+    }
+    if schemes != EXPECTED_DEEP_LINK_SCHEMES:
+        raise ValueError(
+            f"deep-link schemes differ from allowlist: actual={sorted(schemes)}"
+        )
+    if interface.findall("intent-filter"):
+        raise ValueError("internal Qt activity must not expose intent filters")
 
     legacy = ET.parse(resource_root / "backup_rules.xml").getroot()
     if legacy.tag != "full-backup-content":
