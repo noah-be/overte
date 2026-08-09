@@ -10,6 +10,7 @@ public final class PhoneDeepLinkNormalizerTest {
         rejectsUnsupportedOrMalformedSchemes();
         rejectsRawWhitespaceAndControlCharacters();
         enforcesLengthLimit();
+        deterministicPropertyChecks();
         System.out.println("PhoneDeepLinkNormalizerTest: " + assertions + " assertions passed");
     }
 
@@ -49,6 +50,27 @@ public final class PhoneDeepLinkNormalizerTest {
         String maximum = prefix + repeat('a', PhoneDeepLinkNormalizer.MAX_URL_LENGTH - prefix.length());
         expect("hifi:" + maximum.substring(prefix.length()), maximum);
         reject(maximum + "a");
+    }
+
+    /** Fixed-seed generated cases catch boundary regressions without flaky random input. */
+    private static void deterministicPropertyChecks() {
+        long state = 0x4f56455254454cL;
+        String alphabet = "abcdefghijklmnopqrstuvwxyz0123456789-._~/%?=&+#";
+        for (int caseIndex = 0; caseIndex < 512; ++caseIndex) {
+            StringBuilder payload = new StringBuilder();
+            int length = 1 + (int) (state & 63);
+            for (int index = 0; index < length; ++index) {
+                state = state * 6364136223846793005L + 1442695040888963407L;
+                payload.append(alphabet.charAt((int) ((state >>> 1) % alphabet.length())));
+            }
+            String scheme = (caseIndex & 1) == 0 ? "overte:" : "hifi:";
+            String input = scheme + payload;
+            expect("hifi:" + payload, input);
+
+            int insertion = (int) ((state >>> 1) % (input.length() + 1));
+            char unsafe = (caseIndex & 1) == 0 ? '\n' : '\u00a0';
+            reject(input.substring(0, insertion) + unsafe + input.substring(insertion));
+        }
     }
 
     private static String repeat(char value, int count) {

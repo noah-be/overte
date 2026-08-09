@@ -98,13 +98,13 @@ require_pattern "$application" \
     '__system_property_get\("debug\.overte\.phone_render_scale",[[:space:]]*phoneRenderScaleValue\)' \
     'phone render-scale A/B override uses the dedicated Android debug property'
 require_pattern "$application" \
-    'std::isfinite\(requestedScale\)' \
+    'phone::graphics::parseClampedFloat\(' \
     'phone render-scale A/B override rejects non-finite values'
 require_pattern "$application" \
-    'requestedScale[[:space:]]*<[[:space:]]*PHONE_MIN_VIEWPORT_RESOLUTION_SCALE' \
+    'PHONE_MIN_VIEWPORT_RESOLUTION_SCALE,[[:space:]]*PHONE_MAX_VIEWPORT_RESOLUTION_SCALE' \
     'phone render-scale A/B override clamps its lower bound'
 require_pattern "$application" \
-    'requestedScale[[:space:]]*>[[:space:]]*PHONE_MAX_VIEWPORT_RESOLUTION_SCALE' \
+    'PHONE_MIN_VIEWPORT_RESOLUTION_SCALE,[[:space:]]*PHONE_MAX_VIEWPORT_RESOLUTION_SCALE' \
     'phone render-scale A/B override clamps its upper bound'
 require_pattern "$application" \
     'PHONE_TARGET_FPS[[:space:]]*\{[[:space:]]*30[[:space:]]*\}' \
@@ -135,7 +135,7 @@ require_pattern "$application" \
     'requested[[:space:]]*==[[:space:]]*"0".*requested[[:space:]]*==[[:space:]]*"off".*requested[[:space:]]*==[[:space:]]*"false".*requested[[:space:]]*==[[:space:]]*"disabled"' \
     'phone Boolean A/B parser accepts only the supported disabled spellings'
 require_pattern "$application" \
-    'QString::fromLatin1\(propertyValue\)\.trimmed\(\)\.toLower\(\)' \
+    'phone::graphics::parseBoolOverride\(propertyValue,[[:space:]]*fallback\)' \
     'phone Boolean A/B parser normalizes case and surrounding whitespace'
 require_pattern "$application" \
     'return fallback;' \

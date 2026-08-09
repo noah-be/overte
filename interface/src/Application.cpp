@@ -166,6 +166,7 @@ static AppNapDisabler appNapDisabler;   // disabled, while in scope
 #endif
 
 #if defined(Q_OS_ANDROID)
+#include "ui/PhoneGraphicsPolicy.h"
 #include <android/log.h>
 #endif
 
@@ -1356,29 +1357,16 @@ void Application::loadSettings(const QCommandLineParser& parser) {
     float phoneViewportResolutionScale { PHONE_DEFAULT_VIEWPORT_RESOLUTION_SCALE };
     char phoneRenderScaleValue[PROP_VALUE_MAX] {};
     if (__system_property_get("debug.overte.phone_render_scale", phoneRenderScaleValue) > 0) {
-        bool validScale { false };
-        const float requestedScale = QString::fromLatin1(phoneRenderScaleValue).trimmed().toFloat(&validScale);
-        if (validScale && std::isfinite(requestedScale)) {
-            phoneViewportResolutionScale = requestedScale < PHONE_MIN_VIEWPORT_RESOLUTION_SCALE
-                ? PHONE_MIN_VIEWPORT_RESOLUTION_SCALE
-                : requestedScale > PHONE_MAX_VIEWPORT_RESOLUTION_SCALE
-                    ? PHONE_MAX_VIEWPORT_RESOLUTION_SCALE
-                    : requestedScale;
-        }
+        phoneViewportResolutionScale = phone::graphics::parseClampedFloat(
+            phoneRenderScaleValue, PHONE_DEFAULT_VIEWPORT_RESOLUTION_SCALE,
+            PHONE_MIN_VIEWPORT_RESOLUTION_SCALE, PHONE_MAX_VIEWPORT_RESOLUTION_SCALE);
     }
     const auto phoneBoolOverride = [](const char* propertyName, bool fallback) {
         char propertyValue[PROP_VALUE_MAX] {};
         if (__system_property_get(propertyName, propertyValue) <= 0) {
             return fallback;
         }
-        const auto requested = QString::fromLatin1(propertyValue).trimmed().toLower();
-        if (requested == "1" || requested == "on" || requested == "true" || requested == "enabled") {
-            return true;
-        }
-        if (requested == "0" || requested == "off" || requested == "false" || requested == "disabled") {
-            return false;
-        }
-        return fallback;
+        return phone::graphics::parseBoolOverride(propertyValue, fallback);
     };
     const bool phoneHazeEnabled = phoneBoolOverride("debug.overte.phone_haze", false);
     const bool phoneLocalLightsEnabled = phoneBoolOverride("debug.overte.phone_local_lights", false);

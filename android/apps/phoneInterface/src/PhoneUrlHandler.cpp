@@ -14,6 +14,7 @@
 #include <QThread>
 
 #include "AndroidHelper.h"
+#include "PhonePendingHandoff.h"
 #include "ui/PhoneDialogRouter.h"
 
 namespace {
@@ -50,24 +51,24 @@ public:
     }
 
     void submit(QString url) {
-        _url = std::move(url);
+        const bool valid = !url.isEmpty();
+        _pending.replace(std::move(url), valid);
         deliverIfReady();
     }
 
 private:
     void deliverIfReady() {
-        if (_url.isEmpty() || !AndroidHelper::instance().isLoadComplete()) {
+        QString url;
+        if (!_pending.takeIfReady(AndroidHelper::instance().isLoadComplete(), url)) {
             return;
         }
-        const QString url = std::move(_url);
-        _url.clear();
         // Keep the established Application canAcceptURL/acceptURL policy as
         // the sole navigation boundary. Supported phone links have already
         // been normalized to the native hifi scheme by Java.
         AndroidHelper::instance().processURL(url);
     }
 
-    QString _url;
+    phone::PendingHandoff<QString> _pending;
 };
 
 PendingUrlDelivery* urlDelivery(QCoreApplication* application) {

@@ -27,6 +27,7 @@
 #include <QtQuick/QQuickWindow>
 
 #if defined(ANDROID_APP_PHONE_INTERFACE)
+#include "ui/PhoneGraphicsPolicy.h"
 #include <android/log.h>
 #include <sys/system_properties.h>
 #endif
@@ -864,12 +865,9 @@ void Application::initialize(const QCommandLineParser &parser) {
     uint32_t phoneTextureBudgetMB { PHONE_DEFAULT_TEXTURE_BUDGET_MB };
     char phoneTextureBudgetValue[PROP_VALUE_MAX] {};
     if (__system_property_get("debug.overte.phone_texture_budget_mb", phoneTextureBudgetValue) > 0) {
-        bool validBudget { false };
-        const auto requestedBudget = QString::fromLatin1(phoneTextureBudgetValue).trimmed().toUInt(&validBudget);
-        if (validBudget) {
-            phoneTextureBudgetMB = std::max(PHONE_MIN_TEXTURE_BUDGET_MB,
-                std::min(PHONE_MAX_TEXTURE_BUDGET_MB, requestedBudget));
-        }
+        phoneTextureBudgetMB = phone::graphics::parseClampedUnsigned(
+            phoneTextureBudgetValue, PHONE_DEFAULT_TEXTURE_BUDGET_MB,
+            PHONE_MIN_TEXTURE_BUDGET_MB, PHONE_MAX_TEXTURE_BUDGET_MB);
     }
     const gpu::Texture::Size phoneTextureBudget =
         static_cast<gpu::Texture::Size>(phoneTextureBudgetMB) * 1024 * 1024;

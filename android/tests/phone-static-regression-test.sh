@@ -44,6 +44,7 @@ readonly tests=(
     phone-release-config-test.sh
     phone-render-timing-telemetry-test.sh
     phone-script-debug-assets-trim-test.sh
+    safe-asset-path-test.sh
     phone-serverless-packaging-test.sh
     phone-shader-payload-test.sh
     phone-tablet-static-test.sh

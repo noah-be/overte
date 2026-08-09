@@ -56,6 +56,7 @@ gradle='apps/phoneInterface/build.gradle'
 cmake='apps/phoneInterface/CMakeLists.txt'
 permissions_activity='apps/phoneInterface/src/main/java/org/overte/phone/PermissionsActivity.java'
 interface_activity='apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java'
+pending_url_policy='apps/phoneInterface/src/main/java/org/overte/phone/PhonePendingUrlPolicy.java'
 deep_link='apps/phoneInterface/src/main/java/org/overte/phone/PhoneDeepLink.java'
 deep_link_normalizer='apps/phoneInterface/src/main/java/org/overte/phone/PhoneDeepLinkNormalizer.java'
 url_handler='apps/phoneInterface/src/PhoneUrlHandler.cpp'
@@ -184,10 +185,10 @@ require_text tests/phone-script-payload-test.sh 'APK/default startup script drif
     'Phone payload tests keep default scripts synchronized with the APK gate'
 require_text tests/check-phone-apk-contents.py '"[.][.]" not in path[.]parts' \
     'APK completeness gate rejects traversing Qt extraction declarations'
-require_text libraries/qt/src/main/java/io/highfidelity/utils/HifiUtils.java \
+require_text libraries/qt/src/main/java/io/highfidelity/utils/SafeAssetPath.java \
     'getCanonicalFile\(\)' \
     'Android cached-asset extraction canonicalizes its destination root and files'
-require_text libraries/qt/src/main/java/io/highfidelity/utils/HifiUtils.java \
+require_text libraries/qt/src/main/java/io/highfidelity/utils/SafeAssetPath.java \
     'destination[.]getPath\(\)[.]startsWith\(rootPrefix\)' \
     'Android cached-asset extraction rejects destinations outside app cache'
 
@@ -364,13 +365,13 @@ require_text "$permissions_activity" \
     'new Intent\(this,[[:space:]]*PhoneInterfaceActivity\.class\)' \
     'launcher transfers control to the Qt activity'
 require_text "$permissions_activity" \
-    'pendingUrl[[:space:]]*=[[:space:]]*PhoneDeepLink\.fromIntent\(intent\)' \
+    'launchState[.]replacePendingUrl\(PhoneDeepLink[.]fromIntent\(intent\)\)' \
     'every new launcher intent replaces or clears the pending URL'
 reject_text "$permissions_activity" \
     'applicationArguments.*pendingUrl|--url.*pendingUrl|intent\.setData\(' \
     'external deep links are never copied into Qt argv or duplicated as intent data'
 require_text "$permissions_activity" \
-    'putExtra\(PhoneDeepLink\.EXTRA_URL,[[:space:]]*pendingUrl\)' \
+    'putExtra\(PhoneDeepLink\.EXTRA_URL,[[:space:]]*launchState[.]pendingUrl\(\)\)' \
     'validated cold and warm deep links use the dedicated internal transport'
 reject_text "$permissions_activity" \
     'getStringExtra\([^)]*args' \
@@ -403,8 +404,11 @@ require_text "$interface_activity" \
     'postDelayed\(drainPendingUrlTask,[[:space:]]*URL_RETRY_DELAY_MS\)' \
     'an early warm deep link remains pending until Qt is initialized'
 require_text "$interface_activity" \
-    'pendingUrl == null[[:space:]]*\|\|[[:space:]]*!resumed' \
+    'PhonePendingUrlPolicy[.]canAttempt\(pendingUrl,[[:space:]]*resumed\)' \
     'background deep links remain pending until the phone Activity resumes'
+require_text "$pending_url_policy" \
+    'pendingUrl != null && resumed' \
+    'pending URL delivery requires both a destination and a resumed Activity'
 require_text "$interface_activity" \
     'MAX_URL_RETRY_ATTEMPTS[[:space:]]*=[[:space:]]*300' \
     'native startup retries have a finite retry budget'

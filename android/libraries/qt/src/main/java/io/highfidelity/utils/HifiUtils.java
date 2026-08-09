@@ -36,20 +36,6 @@ public class HifiUtils {
         }
     }
 
-    private static File resolveDestination(File destinationRoot, String relativePath)
-            throws IOException {
-        if (relativePath == null || relativePath.isEmpty()) {
-            throw new IOException("Empty packaged asset destination");
-        }
-        File canonicalRoot = destinationRoot.getCanonicalFile();
-        File destination = new File(canonicalRoot, relativePath).getCanonicalFile();
-        String rootPrefix = canonicalRoot.getPath() + File.separator;
-        if (!destination.getPath().startsWith(rootPrefix)) {
-            throw new IOException("Packaged asset destination escapes the application cache");
-        }
-        return destination;
-    }
-
     public static void upackAssets(AssetManager assetManager, String destDir) {
         try {
             File destinationRoot = new File(destDir).getCanonicalFile();
@@ -59,12 +45,12 @@ public class HifiUtils {
                     !cacheStamp.matches("(?:[0-9]{1,19}|[0-9a-f]{64})")) {
                 throw new IOException("Invalid packaged asset cache marker");
             }
-            File cacheStampFile = resolveDestination(destinationRoot, cacheStamp);
+            File cacheStampFile = SafeAssetPath.resolve(destinationRoot, cacheStamp);
             if (cacheStampFile.exists()) {
                 return;
             }
             for (String fileToCopy : assets) {
-                File destFile = resolveDestination(destinationRoot, fileToCopy);
+                File destFile = SafeAssetPath.resolve(destinationRoot, fileToCopy);
                 {
                     File destFolder = destFile.getParentFile();
                     if (!destFolder.exists()) {

@@ -27,3 +27,9 @@ ext {
 tasks.register('clean', Delete) {
     delete rootProject.layout.buildDirectory
 }
+
+tasks.register('testPhone') {
+    group = 'verification'
+    description = 'Runs Phone JVM unit tests after native dependencies are prepared.'
+    dependsOn ':phoneInterface:testDebugUnitTest'
+}

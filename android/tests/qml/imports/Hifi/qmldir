@@ -1,0 +1,4 @@
+module Hifi
+singleton DialogsManager 1.0 DialogsManager.qml
+singleton AddressManager 1.0 AddressManager.qml
+AddressBarDialog 1.0 AddressBarDialog.qml

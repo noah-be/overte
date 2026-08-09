@@ -36,6 +36,7 @@ FocusScope {
 
         MouseArea {
             anchors.fill: parent
+            Accessible.ignored: true
             onClicked: root.closeDialog()
         }
     }
@@ -51,6 +52,7 @@ FocusScope {
 
         MouseArea {
             anchors.fill: parent
+            Accessible.ignored: true
             onClicked: mouse.accepted = true
         }
 
@@ -72,23 +74,31 @@ FocusScope {
 
             HifiControls.TextField {
                 id: addressField
+                objectName: "PhoneAddressField"
                 width: parent.width
                 height: 52
                 placeholderText: qsTr("Address")
                 maximumLength: root.maximumAddressLength
                 activeFocusOnPress: true
+                activeFocusOnTab: true
+                Accessible.role: Accessible.EditableText
+                Accessible.name: qsTr("Destination address")
+                Accessible.description: qsTr("Place, user, path, or network address")
                 font.pixelSize: 20
                 Keys.onReturnPressed: root.goToAddress()
             }
 
             Text {
                 id: addressError
+                objectName: "PhoneAddressError"
                 width: parent.width
                 visible: text.length > 0
                 color: "#ff7777"
                 font.pixelSize: 18
                 wrapMode: Text.WordWrap
                 horizontalAlignment: Text.AlignHCenter
+                Accessible.role: Accessible.StaticText
+                Accessible.name: text
             }
 
             Row {
@@ -96,24 +106,44 @@ FocusScope {
                 spacing: 12
 
                 HifiControls.Button {
+                    objectName: "PhoneAddressBackButton"
                     width: Math.min(140, (content.width - 36) / 4)
                     text: qsTr("Back")
                     enabled: addressDialog.backEnabled
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: text
+                    Accessible.description: qsTr("Go to the previous destination")
                     androidClickAction: function () { addressDialog.loadBack(); root.closeDialog() }
                 }
                 HifiControls.Button {
+                    objectName: "PhoneAddressHomeButton"
                     width: Math.min(140, (content.width - 36) / 4)
                     text: qsTr("Home")
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: text
+                    Accessible.description: qsTr("Go to the home destination")
                     androidClickAction: function () { addressDialog.loadHome(); root.closeDialog() }
                 }
                 HifiControls.Button {
+                    objectName: "PhoneAddressGoButton"
                     width: Math.min(140, (content.width - 36) / 4)
                     text: qsTr("Go")
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: text
+                    Accessible.description: qsTr("Open the entered destination")
                     androidClickAction: function () { root.goToAddress() }
                 }
                 HifiControls.Button {
+                    objectName: "PhoneAddressCancelButton"
                     width: Math.min(140, (content.width - 36) / 4)
                     text: qsTr("Cancel")
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: text
+                    Accessible.description: qsTr("Close without changing destination")
                     androidClickAction: function () { root.closeDialog() }
                 }
             }

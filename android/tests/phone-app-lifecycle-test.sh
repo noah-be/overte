@@ -64,7 +64,7 @@ fi
 if awk '
         /private void drainPendingUrl\(\)/ { in_drain = 1 }
         in_drain && /removeCallbacks\(drainPendingUrlTask\)/ { removed = NR }
-        in_drain && /pendingUrl == null \|\| !resumed/ { foreground = NR }
+        in_drain && /!PhonePendingUrlPolicy[.]canAttempt\(pendingUrl, resumed\)/ { foreground = NR }
         in_drain && /nativeProcessUrl\(pendingUrl\)/ { native = NR; exit }
         END { exit !(removed && foreground && native && removed < foreground && foreground < native) }
     ' "$activity"; then

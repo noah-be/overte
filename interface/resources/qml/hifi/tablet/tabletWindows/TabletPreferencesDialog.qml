@@ -281,7 +281,12 @@ Item {
             spacing: preferencesLayout.compactFooter
                 ? preferencesLayout.buttonSpacing : hifi.dimensions.contentSpacing.x
             HifiControls.Button {
+                objectName: "GeneralPreferencesSave"
                 text: "Save changes"
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Button
+                Accessible.name: text
+                Accessible.description: qsTr("Save all changed preferences")
                 color: hifi.buttons.blue
                 width: preferencesLayout.compactFooter
                     ? preferencesLayout.buttonWidth : hifi.dimensions.buttonWidth
@@ -297,7 +302,12 @@ Item {
             }
 
             HifiControls.Button {
+                objectName: "GeneralPreferencesCancel"
                 text: "Cancel"
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Button
+                Accessible.name: text
+                Accessible.description: qsTr("Discard changed preferences")
                 color: hifi.buttons.white
                 width: preferencesLayout.compactFooter
                     ? preferencesLayout.buttonWidth : hifi.dimensions.buttonWidth

@@ -7,6 +7,7 @@ import "../../dialogs"
 
 StackView {
     id: profileRoot
+    PhoneGeneralPreferencesPolicy { id: phonePolicy }
     initialItem: root
     objectName: "stack"
     property string title: "General Settings"
@@ -37,6 +38,6 @@ StackView {
         // are compiled as no-ops in the phone target. Hidden individual
         // preferences are still loaded and saved by TabletPreferencesDialog,
         // so only admit categories whose complete contract is meaningful.
-        showCategories: ["Navigation", "Mouse Sensitivity"]
+        showCategories: phonePolicy.allowedCategories
     }
 }

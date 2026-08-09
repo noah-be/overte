@@ -67,7 +67,7 @@ require "$preferences_cpp" '"Navigation"' \
     'phone navigation preference category is missing'
 require "$preferences_cpp" 'Enable two-finger perspective zoom' \
     'phone pinch zoom preference is missing'
-require "$phone_preferences" 'showCategories: \["Navigation"' \
+require "$phone_preferences" 'showCategories: phonePolicy[.]allowedCategories' \
     'phone tablet settings do not expose Navigation'
 require "$phone_defaults" 'system/\+android_phoneInterface/mobileTabletApps[.]js' \
     'phone defaults do not load the phone tablet app registrar'

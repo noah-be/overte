@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly android_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly output="$(mktemp -d "${TMPDIR:-/tmp}/overte-safe-assets.XXXXXXXX")"
+trap 'rm -rf -- "$output"' EXIT
+
+javac -d "$output" \
+    "$android_root/libraries/qt/src/main/java/io/highfidelity/utils/SafeAssetPath.java" \
+    "$android_root/tests/java/io/highfidelity/utils/SafeAssetPathStandaloneTest.java"
+java -cp "$output" io.highfidelity.utils.SafeAssetPathStandaloneTest

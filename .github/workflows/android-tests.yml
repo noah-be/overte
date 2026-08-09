@@ -1,0 +1,152 @@
+name: Android tests
+
+on:
+  pull_request:
+    paths:
+      - "android/**"
+      - "interface/**"
+      - "libraries/**"
+      - "scripts/**"
+      - ".github/workflows/android-tests.yml"
+  push:
+    branches: [master, main]
+    paths:
+      - "android/**"
+      - "interface/**"
+      - "libraries/**"
+      - "scripts/**"
+      - ".github/workflows/android-tests.yml"
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+    inputs:
+      run_regression:
+        description: Run the complete device-free regression tier
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+    working-directory: android
+
+jobs:
+  fast:
+    name: Fast host tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Qt Quick test runtime
+        run: >-
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends
+          qtdeclarative5-dev-tools qml-module-qttest qml-module-qtquick2
+          qml-module-qtquick-controls2 qml-module-qtquick-layouts
+          qml-module-qtquick-window2
+      - name: Run fast tier
+        run: tests/run-tests.sh fast
+        env:
+          OVERTE_REQUIRE_QML_TESTS: 1
+          QT_QPA_PLATFORM: offscreen
+      - name: Enforce production JavaScript coverage
+        run: tests/coverage/run-javascript-coverage.sh
+      - name: Publish JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-fast-results
+          path: android/build/test-results/suite/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Publish coverage summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-fast-coverage
+          path: android/build/reports/coverage/
+          if-no-files-found: warn
+          retention-days: 14
+
+  contracts:
+    name: Architecture and security contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run contract tier
+        run: tests/run-tests.sh contracts
+      - name: Publish JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-contract-results
+          path: android/build/test-results/suite/
+          if-no-files-found: warn
+          retention-days: 14
+
+  coverage:
+    name: JVM and native host coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Create isolated native coverage environment
+        run: |
+          python3 -m venv build/tools/native-coverage-venv
+          build/tools/native-coverage-venv/bin/pip install --disable-pip-version-check gcovr==8.4
+      - name: Enforce dependency-free JVM coverage
+        run: tests/coverage/run-standalone-jvm-coverage.sh
+      - name: Run launcher Activity on Robolectric API 26 and 35
+        run: tests/robolectric/run-tests.sh
+      - name: Enforce native policy coverage
+        run: tests/coverage/run-native-coverage.sh
+      - name: Reject surviving critical policy mutations
+        run: tests/run-tests.sh mutation
+      - name: Publish coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-host-coverage
+          path: |
+            android/build/reports/coverage/
+            android/build/test-results/suite/TEST-android-mutation.xml
+            android/tests/robolectric/build/test-results/test/
+          if-no-files-found: error
+          retention-days: 14
+
+  regression:
+    name: Complete device-free regression
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.run_regression)
+    needs: [fast, contracts, coverage]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run regression tier
+        run: tests/run-tests.sh regression
+      - name: Publish JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-regression-results
+          path: android/build/test-results/suite/
+          if-no-files-found: warn
+          retention-days: 30

@@ -7,6 +7,7 @@ import controlsUit 1.0 as HifiControls
 
 Item {
     id: phoneLogin
+    objectName: "PhoneLoginBody"
     anchors.fill: parent
 
     readonly property bool domainLogin: loginDialog.getDomainLoginRequested()
@@ -88,32 +89,45 @@ Item {
                 font.pixelSize: 28
                 font.bold: true
                 horizontalAlignment: Text.AlignHCenter
+                Accessible.role: Accessible.StaticText
+                Accessible.name: text
             }
 
             Text {
                 id: errorText
+                objectName: "PhoneLoginError"
                 width: parent.width
                 visible: text.length > 0
                 color: "#ff7777"
                 font.pixelSize: 18
                 wrapMode: Text.WordWrap
                 horizontalAlignment: Text.AlignHCenter
+                Accessible.role: Accessible.StaticText
+                Accessible.name: text
             }
 
             HifiControls.TextField {
                 id: username
+                objectName: "PhoneLoginUsername"
                 width: parent.width
                 height: 52
                 placeholderText: qsTr("Username or email")
                 maximumLength: phoneLogin.maximumCredentialLength
                 enabled: !phoneLogin.waiting
                 activeFocusOnPress: true
+                activeFocusOnTab: true
+                Accessible.role: Accessible.EditableText
+                Accessible.name: qsTr("Username or email")
+                Accessible.description: phoneLogin.domainLogin
+                    ? qsTr("Domain account username or email")
+                    : qsTr("Overte account username or email")
                 font.pixelSize: 20
                 Keys.onReturnPressed: password.forceActiveFocus()
             }
 
             HifiControls.TextField {
                 id: password
+                objectName: "PhoneLoginPassword"
                 width: parent.width
                 height: 52
                 placeholderText: qsTr("Password")
@@ -121,6 +135,11 @@ Item {
                 echoMode: TextInput.Password
                 enabled: !phoneLogin.waiting
                 activeFocusOnPress: true
+                activeFocusOnTab: true
+                Accessible.role: Accessible.EditableText
+                Accessible.name: qsTr("Password")
+                Accessible.description: qsTr("Account password")
+                Accessible.passwordEdit: true
                 font.pixelSize: 20
                 Keys.onReturnPressed: phoneLogin.submit()
             }
@@ -130,13 +149,25 @@ Item {
                 spacing: 16
 
                 HifiControls.Button {
+                    objectName: "PhoneLoginSubmit"
                     text: phoneLogin.waiting ? qsTr("Logging in…") : qsTr("Log in")
                     enabled: !phoneLogin.waiting
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: text
+                    Accessible.description: phoneLogin.domainLogin
+                        ? qsTr("Submit domain login")
+                        : qsTr("Submit Overte login")
                     androidClickAction: function () { phoneLogin.submit() }
                 }
 
                 HifiControls.Button {
+                    objectName: "PhoneLoginCancel"
                     text: qsTr("Cancel")
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: text
+                    Accessible.description: qsTr("Close login without signing in")
                     androidClickAction: function () {
                         phoneLogin.dismiss()
                     }

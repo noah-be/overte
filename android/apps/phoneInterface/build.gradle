@@ -253,6 +253,7 @@ android {
         targetSdk 36
         versionCode rootProject.ext.appVersionCode
         versionName rootProject.ext.appVersionName
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
 
         ndk { abiFilters 'arm64-v8a' }
         externalNativeBuild {
@@ -305,6 +306,8 @@ android {
     }
     buildTypes {
         debug {
+            enableUnitTestCoverage true
+            enableAndroidTestCoverage true
             buildConfigField 'String', 'BACKTRACE_URL', '""'
             buildConfigField 'String', 'BACKTRACE_TOKEN', '""'
             buildConfigField 'String', 'OAUTH_CLIENT_ID', '""'
@@ -328,6 +331,11 @@ android {
         }
     }
     buildFeatures { buildConfig true }
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+        }
+    }
     externalNativeBuild {
         cmake {
             path file('../../../CMakeLists.txt')
@@ -575,6 +583,14 @@ dependencies {
     implementation fileTree(dir: new File(qtPackageDir, 'jar'),
             include: ['*.jar'], exclude: ['QtAndroid.jar'])
     implementation 'com.google.guava:guava:23.0'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.16.1'
+    testImplementation 'androidx.test:core:1.6.1'
+    androidTestImplementation 'androidx.test:runner:1.6.1'
+    androidTestImplementation 'androidx.test:rules:1.6.1'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-intents:3.6.1'
 }
 
 tasks.configureEach { task ->

@@ -1,0 +1,15 @@
+{
+  "name": "overte-android-script-tests",
+  "private": true,
+  "scripts": {
+    "test": "node --test",
+    "coverage": "npm run coverage:core && npm run coverage:places",
+    "coverage:core": "node --experimental-test-coverage --test-coverage-include='../../../scripts/system/+android_phoneInterface/*.js' --test-coverage-include='../../../scripts/system/quickGoto.js' --test-coverage-lines=90 --test-coverage-branches=85 --test-coverage-functions=95 --test",
+    "coverage:places": "npm run coverage:places-main && npm run coverage:portal",
+    "coverage:places-main": "node --experimental-test-coverage --test-coverage-include='../../../scripts/system/places/places.js' --test-coverage-lines=98 --test-coverage-branches=94 --test-coverage-functions=97 --test",
+    "coverage:portal": "node --experimental-test-coverage --test-coverage-include='../../../scripts/system/places/portal.js' --test-coverage-lines=98 --test-coverage-branches=84 --test-coverage-functions=100 --test"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

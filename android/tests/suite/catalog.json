@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "suites": [
+    {
+      "id": "suite-runner-self-test",
+      "kind": "infrastructure",
+      "tiers": ["fast", "host"],
+      "command": ["tests/suite/run-self-tests.sh"],
+      "description": "Catalog validation and JUnit report behavior"
+    },
+    {
+      "id": "java-deep-links",
+      "kind": "jvm",
+      "tiers": ["fast", "host"],
+      "command": ["tests/phone-deep-link-test.sh"],
+      "description": "Pure JVM deep-link normalization tests"
+    },
+    {
+      "id": "java-safe-asset-paths",
+      "kind": "jvm",
+      "tiers": ["fast", "host"],
+      "command": ["tests/safe-asset-path-test.sh"],
+      "description": "Canonical asset-extraction containment behavior"
+    },
+    {
+      "id": "native-host-tests",
+      "kind": "native",
+      "tiers": ["fast", "host"],
+      "command": ["tests/native/run-native-tests.sh"],
+      "description": "CTest-based native login, graphics-policy and pending-handoff tests"
+    },
+    {
+      "id": "javascript-test-support",
+      "kind": "javascript",
+      "tiers": ["fast", "host"],
+      "command": ["tests/javascript/run-tests.sh"],
+      "description": "Reusable Signal, Tablet, Script and Messages fake behavior"
+    },
+    {
+      "id": "script-app-router",
+      "kind": "javascript",
+      "tiers": ["fast", "host"],
+      "command": ["tests/phone-tablet-app-router-test.sh"],
+      "description": "Tablet application routing behavior"
+    },
+    {
+      "id": "script-security",
+      "kind": "javascript",
+      "tiers": ["fast", "host"],
+      "command": ["tests/phone-tablet-security-test.sh"],
+      "description": "Tablet payload validation and normalization"
+    },
+    {
+      "id": "script-portal-lifecycle",
+      "kind": "javascript",
+      "tiers": ["fast", "host"],
+      "command": ["tests/phone-tablet-portal-lifecycle-test.sh"],
+      "description": "Places portal lifecycle behavior"
+    },
+    {
+      "id": "qml-components",
+      "kind": "qml",
+      "tiers": ["fast", "host"],
+      "command": ["tests/qml/run-qml-tests.sh"],
+      "optionalWhenToolMissing": true,
+      "description": "Isolated Qt Quick component tests"
+    },
+    {
+      "id": "phone-robolectric-launcher",
+      "kind": "jvm",
+      "tiers": ["robolectric", "host"],
+      "command": ["tests/robolectric/run-tests.sh"],
+      "timeoutSeconds": 600,
+      "description": "Real launcher Activity behavior on Robolectric API 26 and 35"
+    },
+    {
+      "id": "phone-contracts",
+      "kind": "contract",
+      "tiers": ["contracts"],
+      "command": ["tests/phone-tablet-static-test.sh"],
+      "description": "Complete source, architecture, privacy and tablet contracts"
+    },
+    {
+      "id": "phone-device-free-regression",
+      "kind": "integration",
+      "tiers": ["regression"],
+      "command": ["tests/phone-static-regression-test.sh"],
+      "description": "Complete device-free Android phone regression gate"
+    },
+    {
+      "id": "phone-jvm-coverage",
+      "kind": "coverage",
+      "tiers": ["coverage"],
+      "command": ["tests/coverage/run-standalone-jvm-coverage.sh"],
+      "description": "Clean-host JaCoCo report for framework-independent Phone production classes"
+    },
+    {
+      "id": "phone-javascript-coverage",
+      "kind": "coverage",
+      "tiers": ["coverage"],
+      "command": ["tests/coverage/run-javascript-coverage.sh"],
+      "description": "Node production-script coverage with explicit thresholds"
+    },
+    {
+      "id": "phone-native-coverage",
+      "kind": "coverage",
+      "tiers": ["coverage"],
+      "command": ["tests/coverage/run-native-coverage.sh"],
+      "optionalWhenToolMissing": true,
+      "description": "gcovr coverage gates for native Phone policies and pending handoff"
+    },
+    {
+      "id": "critical-policy-mutations",
+      "kind": "mutation",
+      "tiers": ["mutation"],
+      "command": ["tests/mutation/run-critical-policy-mutations.sh"],
+      "description": "Focused mutation score for deep-link and asset-containment security policies"
+    },
+    {
+      "id": "phone-android-instrumentation",
+      "kind": "instrumentation",
+      "tiers": ["instrumentation"],
+      "command": ["tests/android/run-instrumentation-tests.sh"],
+      "timeoutSeconds": 1800,
+      "description": "AndroidX intent-boundary tests on a connected Android target"
+    },
+    {
+      "id": "phone-device-smoke",
+      "kind": "device",
+      "tiers": ["device"],
+      "command": ["tests/phone-device-test.sh"],
+      "timeoutSeconds": 1800,
+      "description": "Physical ARM64 phone smoke and lifecycle test"
+    }
+  ]
+}

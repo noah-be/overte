@@ -8,27 +8,23 @@ import android.os.Bundle;
 
 /** Requests optional voice permission before starting the native client. */
 public final class PermissionsActivity extends Activity {
-    private static final int RECORD_AUDIO_REQUEST = 20;
     private static final String STATE_PENDING_URL = "pendingUrl";
     private static final String STATE_INTERFACE_LAUNCHED = "interfaceLaunched";
-    private String pendingUrl;
-    private boolean interfaceLaunched;
+    private PhoneLaunchState launchState;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_startup);
         if (savedInstanceState == null) {
-            pendingUrl = PhoneDeepLink.fromIntent(getIntent());
+            launchState = new PhoneLaunchState(PhoneDeepLink.fromIntent(getIntent()), false);
         } else {
-            String savedUrl = savedInstanceState.getString(STATE_PENDING_URL);
-            pendingUrl = savedUrl == null
-                    ? null
-                    : PhoneDeepLinkNormalizer.normalize(savedUrl);
-            interfaceLaunched = savedInstanceState.getBoolean(STATE_INTERFACE_LAUNCHED);
+            launchState = new PhoneLaunchState(
+                    savedInstanceState.getString(STATE_PENDING_URL),
+                    savedInstanceState.getBoolean(STATE_INTERFACE_LAUNCHED));
         }
 
-        if (interfaceLaunched) {
+        if (launchState.interfaceLaunched()) {
             // A recreated launcher must not start a second native activity.
             finish();
             return;
@@ -43,7 +39,7 @@ public final class PermissionsActivity extends Activity {
             // that could strand this launcher after process restoration.
             requestPermissions(
                     new String[] { Manifest.permission.RECORD_AUDIO },
-                    RECORD_AUDIO_REQUEST);
+                    PhonePermissionFlow.RECORD_AUDIO_REQUEST);
         }
     }
 
@@ -53,36 +49,35 @@ public final class PermissionsActivity extends Activity {
         setIntent(intent);
         // A newer intent supersedes any URL that arrived while permission UI
         // was active. Invalid and non-VIEW intents deliberately clear it.
-        pendingUrl = PhoneDeepLink.fromIntent(intent);
+        launchState.replacePendingUrl(PhoneDeepLink.fromIntent(intent));
     }
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
-        outState.putString(STATE_PENDING_URL, pendingUrl);
-        outState.putBoolean(STATE_INTERFACE_LAUNCHED, interfaceLaunched);
+        outState.putString(STATE_PENDING_URL, launchState.pendingUrl());
+        outState.putBoolean(STATE_INTERFACE_LAUNCHED, launchState.interfaceLaunched());
     }
 
     @Override
     public void onRequestPermissionsResult(
             int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == RECORD_AUDIO_REQUEST) {
+        if (PhonePermissionFlow.shouldLaunchInterfaceAfterResult(requestCode)) {
             // Voice remains optional; denying it must not block world access.
             launchInterface();
         }
     }
 
     private void launchInterface() {
-        if (interfaceLaunched) {
+        if (!launchState.beginInterfaceLaunch()) {
             return;
         }
-        interfaceLaunched = true;
         Intent intent = new Intent(this, PhoneInterfaceActivity.class);
-        if (pendingUrl != null) {
+        if (launchState.pendingUrl() != null) {
             // PhoneInterfaceActivity is not exported and validates this value
             // again. Never place externally supplied text in Qt's argv.
-            intent.putExtra(PhoneDeepLink.EXTRA_URL, pendingUrl);
+            intent.putExtra(PhoneDeepLink.EXTRA_URL, launchState.pendingUrl());
         }
         startActivity(intent);
         finish();

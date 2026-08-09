@@ -267,7 +267,7 @@ public final class PhoneInterfaceActivity extends QtActivity {
         // onNewIntent may run while this singleTask Activity is backgrounded.
         // Retain the latest destination until onResume instead of navigating a
         // world behind another foreground application.
-        if (pendingUrl == null || !resumed) {
+        if (!PhonePendingUrlPolicy.canAttempt(pendingUrl, resumed)) {
             return;
         }
         boolean handedOff = false;
@@ -280,15 +280,20 @@ public final class PhoneInterfaceActivity extends QtActivity {
         if (handedOff) {
             pendingUrl = null;
             pendingUrlRetryAttempts = 0;
-        } else if (resumed && ++pendingUrlRetryAttempts < MAX_URL_RETRY_ATTEMPTS) {
-            // Qt's application object is created asynchronously by QtActivity.
-            // Retain the latest URL and retry instead of losing an early intent.
-            mainHandler.postDelayed(drainPendingUrlTask, URL_RETRY_DELAY_MS);
-        } else if (pendingUrlRetryAttempts >= MAX_URL_RETRY_ATTEMPTS) {
-            // Avoid an unbounded main-thread wakeup loop if native startup
-            // fails permanently. A newer intent starts a fresh retry budget.
-            pendingUrl = null;
-            pendingUrlRetryAttempts = 0;
+        } else {
+            ++pendingUrlRetryAttempts;
+            if (PhonePendingUrlPolicy.afterFailedAttempt(
+                    resumed, pendingUrlRetryAttempts, MAX_URL_RETRY_ATTEMPTS)
+                    == PhonePendingUrlPolicy.FailedAttemptAction.RETRY) {
+                // Qt's application object is created asynchronously by QtActivity.
+                // Retain the latest URL and retry instead of losing an early intent.
+                mainHandler.postDelayed(drainPendingUrlTask, URL_RETRY_DELAY_MS);
+            } else {
+                // Avoid an unbounded main-thread wakeup loop if native startup
+                // fails permanently. A newer intent starts a fresh retry budget.
+                pendingUrl = null;
+                pendingUrlRetryAttempts = 0;
+            }
         }
     }
 

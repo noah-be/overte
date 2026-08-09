@@ -30,9 +30,12 @@ Item {
             font.pixelSize: 24
             font.bold: true
             horizontalAlignment: Text.AlignHCenter
+            Accessible.role: Accessible.StaticText
+            Accessible.name: text
         }
 
         Text {
+            objectName: "PhoneEmoteStatus"
             width: parent.width
             height: 24
             text: root.statusText
@@ -40,6 +43,8 @@ Item {
             font.pixelSize: 14
             elide: Text.ElideRight
             horizontalAlignment: Text.AlignHCenter
+            Accessible.role: Accessible.StaticText
+            Accessible.name: text
         }
 
         GridView {
@@ -57,11 +62,18 @@ Item {
                 height: emoteGrid.cellHeight
 
                 Button {
+                    objectName: "PhoneEmoteButton_" + modelData
                     anchors.fill: parent
                     anchors.margins: 4
                     text: modelData
                     font.pixelSize: 15
                     highlighted: root.activeEmote === modelData
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: modelData
+                    Accessible.description: root.activeEmote === modelData
+                        ? qsTr("Currently playing emote")
+                        : qsTr("Play emote")
                     onClicked: root.sendToScript({
                         method: "phoneEmote.play",
                         name: modelData
