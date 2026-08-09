@@ -169,7 +169,7 @@ Menu::Menu() {
     }
 
     // Edit > Avatar Packager
-#ifndef Q_OS_ANDROID
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
     action = addActionToQMenuAndActionHash(editMenu, MenuOption::AvatarPackager);
     connect(action, &QAction::triggered, [] {
         DependencyManager::get<AvatarPackager>()->open();

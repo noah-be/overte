@@ -24,12 +24,15 @@ endfunction()
 
 set(CUSTOM_INTERFACE_QRC_PATHS "")
 
-find_package(
-  Qt5 COMPONENTS
-  Gui Widgets Multimedia Network Qml Quick Svg WebEngineCore WebEngineWidgets
+set(INTERFACE_QT_COMPONENTS
+  Gui Widgets Multimedia Network Qml Quick Svg
   ${PLATFORM_QT_COMPONENTS}
-  WebChannel WebSockets QUIET REQUIRED
+  WebChannel WebSockets
 )
+if(NOT IOS)
+  list(APPEND INTERFACE_QT_COMPONENTS WebEngineCore WebEngineWidgets)
+endif()
+overte_find_qt(COMPONENTS ${INTERFACE_QT_COMPONENTS} QUIET REQUIRED)
 
 
 if (OVERTE_BUILD_TOOLS AND JSDOC_ENABLED)
@@ -60,9 +63,9 @@ generate_qrc(
 
 if (ANDROID)
   # on Android, don't compress the rcc binary
-  qt5_add_binary_resources(resources "${RESOURCES_QRC}" DESTINATION "${RESOURCES_RCC}" OPTIONS -no-compress)
+  overte_qt_add_binary_resources(resources "${RESOURCES_QRC}" DESTINATION "${RESOURCES_RCC}" OPTIONS -no-compress)
 else ()
-  qt5_add_binary_resources(resources "${RESOURCES_QRC}" DESTINATION "${RESOURCES_RCC}")
+  overte_qt_add_binary_resources(resources "${RESOURCES_QRC}" DESTINATION "${RESOURCES_RCC}")
 endif()
 
 if (OVERTE_BUILD_TOOLS AND JSDOC_ENABLED)
@@ -122,7 +125,7 @@ endif ()
 file (GLOB_RECURSE QT_UI_FILES ui/*.ui)
 source_group("UI Files" FILES ${QT_UI_FILES})
 # have qt5 wrap them and generate the appropriate header files
-qt5_wrap_ui(QT_UI_HEADERS "${QT_UI_FILES}")
+overte_qt_wrap_ui(QT_UI_HEADERS "${QT_UI_FILES}")
 
 # add them to the interface source files
 set(INTERFACE_SRCS ${INTERFACE_SRCS} "${QT_UI_HEADERS}" "${QT_RESOURCES}")
@@ -164,7 +167,7 @@ if (APPLE)
   list(APPEND INTERFACE_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/icon/${INTERFACE_ICON_FILENAME})
 endif()
 
-if (UNIX)
+if (UNIX AND NOT IOS)
   set(BUILD_SHARED_LIBS ON)
 endif ()
 
@@ -258,12 +261,16 @@ target_openssl()
 target_bullet()
 
 set(OpenGL_GL_PREFERENCE "GLVND")
-target_opengl()
+if(NOT IOS)
+  target_opengl()
+endif()
 add_crashpad()
 target_breakpad()
 target_json()
 target_glm()
-target_discord_rpc()
+if(NOT IOS)
+  target_discord_rpc()
+endif()
 target_quazip()
 
 # perform standard include and linking for found externals
@@ -312,13 +319,12 @@ if (ANDROID)
   target_link_libraries(${TARGET_NAME} ${ANDROID_LOG_LIB})
 endif ()
 
-target_link_libraries(
-  ${TARGET_NAME}
-  Qt5::Gui Qt5::Network Qt5::Multimedia Qt5::Widgets
-  Qt5::Qml Qt5::Quick Qt5::Svg
-  Qt5::WebChannel Qt5::WebEngineCore Qt5::WebEngineWidgets
-  ${PLATFORM_QT_LIBRARIES}
-)
+overte_link_qt_modules(${TARGET_NAME}
+  Gui Network Multimedia Widgets Qml Quick Svg WebChannel WebSockets)
+if(NOT IOS)
+  overte_link_qt_modules(${TARGET_NAME} WebEngineCore WebEngineWidgets)
+endif()
+target_link_libraries(${TARGET_NAME} ${PLATFORM_QT_LIBRARIES})
 
 if (UNIX AND NOT ANDROID AND NOT OVERTE_THREAD_DEBUGGING)
     if (CMAKE_SYSTEM_NAME MATCHES "Linux")

@@ -291,7 +291,7 @@ InteractiveWindow::InteractiveWindow(const QString& sourceUrl, const QVariantMap
         auto contextInitLambda = [&](QQmlContext* context) {
             // If the restricted flag is on, the web content will not be able to access local files
             ContextAwareProfile::restrictContext(context, restricted);
-#if !defined(Q_OS_ANDROID)
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
             FileTypeProfile::registerWithContext(context);
             HFWebEngineProfile::registerWithContext(context);
 #endif

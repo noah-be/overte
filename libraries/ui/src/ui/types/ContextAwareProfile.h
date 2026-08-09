@@ -16,7 +16,7 @@
 #include <QtCore/QReadWriteLock>
 #include <QtCore/QSet>
 
-#if !defined(Q_OS_ANDROID)
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
 #include <QtWebEngine/QQuickWebEngineProfile>
 #include <QtWebEngineCore/QWebEngineUrlRequestInterceptor>
 

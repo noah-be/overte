@@ -58,7 +58,7 @@ if (NOT ANDROID_LIB_DIR)
   set(ANDROID_LIB_DIR $ENV{ANDROID_LIB_DIR})
 endif ()
 
-if (APPLE)
+if (APPLE AND NOT IOS)
   exec_program(sw_vers ARGS -productVersion  OUTPUT_VARIABLE OSX_VERSION)
   string(REGEX MATCH "^[0-9]+\\.[0-9]+" OSX_VERSION ${OSX_VERSION})
   message(STATUS "Detected OS X version = ${OSX_VERSION}")

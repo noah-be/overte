@@ -32,6 +32,10 @@
 #include <plugins/CodecPlugin.h>
 #include <shared/GlobalAppProperties.h>
 
+#ifdef Q_OS_IOS
+#include <QtWebView/QtWebView>
+#endif
+
 #include "AddressManager.h"
 #include "Application.h"
 #include "crash-handler/CrashHandler.h"
@@ -50,6 +54,10 @@ extern "C" {
 #endif
 
 int main(int argc, const char* argv[]) {
+#ifdef Q_OS_IOS
+    // Qt WebView must select WKWebView before the application object exists.
+    QtWebView::initialize();
+#endif
 #ifdef Q_OS_MAC
     auto format = getDefaultOpenGLSurfaceFormat();
     // Deal with some weirdness in the chromium context sharing on Mac.
@@ -79,12 +87,16 @@ int main(int argc, const char* argv[]) {
             hifi::properties::setGraphicsAPI(hifi::properties::GraphicsAPI::GL41);
         } else if (apiString == "gles32") {
             hifi::properties::setGraphicsAPI(hifi::properties::GraphicsAPI::GLES32);
+        } else if (apiString == "vulkan") {
+            hifi::properties::setGraphicsAPI(hifi::properties::GraphicsAPI::Vulkan);
         } else {
             qWarning() << "Unknown graphics API specified, defaulting to GL4.5:" << QString::fromStdString(apiString);
             hifi::properties::setGraphicsAPI(hifi::properties::GraphicsAPI::GL45);
         }
     } else {
-#ifdef Q_OS_MAC
+#ifdef Q_OS_IOS
+        hifi::properties::setGraphicsAPI(hifi::properties::GraphicsAPI::Vulkan);
+#elif defined(Q_OS_MAC)
         hifi::properties::setGraphicsAPI(hifi::properties::GraphicsAPI::GL41);
 #elif defined(Q_OS_ANDROID) || (defined(Q_OS_LINUX) && defined(__aarch64__))
         // Use GLES on Android and aarch64 Linux

@@ -46,12 +46,18 @@ const QStringList& FileUtils::getFileSelectors() {
         }
 #endif
 
+#if defined(Q_OS_IOS)
+        // Qt's built-in platform selector is supplemented explicitly because
+        // Overte also uses this list for resources selected outside QML.
+        extraSelectors << "ios" << "mobile" << "touch" << "webview";
+#endif
+
     auto backendApi = hifi::properties::getGraphicsAPI();
     if (backendApi == hifi::properties::GraphicsAPI::GLES32) {
         extraSelectors << "gles";
     }
 
-#ifndef Q_OS_ANDROID
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
         extraSelectors << "webengine";
 #endif
     });

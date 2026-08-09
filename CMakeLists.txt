@@ -21,7 +21,11 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
 # set our OS X deployment target
-if (APPLE)
+if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    # Current App Store submissions use the iOS 26 SDK, while Qt 6.11 supports
+    # deploying the resulting application to iOS 17 and newer.
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "17.0" CACHE STRING "Minimum iOS version")
+elseif (APPLE)
     # Needs to be set before the first project() call.
     set(CMAKE_OSX_DEPLOYMENT_TARGET "10.11" CACHE STRING "Specifies the minimum version of the target platform (e.g. macOS or iOS) on which the target binaries are to be deployed.")
 endif()
@@ -30,6 +34,7 @@ endif()
 project(overte)
 include("cmake/init.cmake")
 include("cmake/compiler.cmake")
+include("cmake/QtCompat.cmake")
 
 # Guard against missing `-falign-functions`.
 if( NOT WIN32 )
@@ -100,7 +105,7 @@ set(OVERTE_USE_SYSTEM_LIBS OFF CACHE BOOL "Build with system dependencies.")
 set(OVERTE_BACKTRACE_URL "" CACHE STRING "URL to an endpoint for uploading crash-dumps. For example Sentry.")
 set(OVERTE_BACKTRACE_TOKEN "" CACHE STRING "Token used to identify this build, for use in uploading crash-dumps.")
 
-if (ANDROID OR UWP)
+if (ANDROID OR UWP OR IOS)
     set(OVERTE_BUILD_SERVER OFF CACHE BOOL FORCE "Overwritten (mobile build)")
     set(OVERTE_BUILD_TOOLS OFF CACHE BOOL FORCE "Overwritten (mobile build)")
     set(OVERTE_BUILD_INSTALLER OFF CACHE BOOL FORCE "Overwritten (mobile build)")
@@ -139,6 +144,9 @@ if (ANDROID)
   elseif(${HIFI_ANDROID_APP} STREQUAL "phoneInterface")
     add_definitions(-DANDROID_APP_PHONE_INTERFACE)
   endif()
+elseif(IOS)
+  set(PLATFORM_QT_COMPONENTS WebView Xml)
+  add_definitions(-DOVERTE_IOS)
 else ()
   set(PLATFORM_QT_COMPONENTS WebEngine Xml)
   add_definitions(-DHAVE_EXT_clip_cull_distance)
@@ -164,7 +172,7 @@ else()
 endif()
 
 foreach(PLATFORM_QT_COMPONENT ${PLATFORM_QT_COMPONENTS})
-  list(APPEND PLATFORM_QT_LIBRARIES "Qt5::${PLATFORM_QT_COMPONENT}")
+  list(APPEND PLATFORM_QT_LIBRARIES "${OVERTE_QT_TARGET_PREFIX}${PLATFORM_QT_COMPONENT}")
 endforeach()
 
 message(STATUS "Use optimized IK:      " ${OVERTE_USE_OPTIMIZED_IK})
