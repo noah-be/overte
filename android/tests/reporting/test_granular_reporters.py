@@ -25,7 +25,7 @@ class GranularReporterTest(unittest.TestCase):
         self.assertEqual([], list(report.parent.glob(".TEST-*.xml")))
 
     def test_javascript_preserves_failure_and_atomically_publishes_junit(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with tempfile.TemporaryDirectory(prefix="report path with spaces ") as directory:
             root = Path(directory)
             node = root / "node"
             executable(node, r'''
@@ -42,6 +42,49 @@ exit 7
                                       "OVERTE_TEST_REPORT_DIR": str(root / "reports")},
                 text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             self.assert_failure_report(result, root / "reports/javascript/TEST-javascript.xml")
+
+    def test_empty_javascript_report_preserves_previous_result(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            node = root / "node"
+            executable(node, "echo fixture-console-failure\nexit 7\n")
+            report_dir = root / "reports/javascript"
+            report_dir.mkdir(parents=True)
+            report = report_dir / "TEST-javascript.xml"
+            previous = '<testsuite tests="1"><testcase name="previous"/></testsuite>'
+            report.write_text(previous, encoding="utf-8")
+            result = subprocess.run([ANDROID_ROOT / "tests/javascript/run-tests.sh"],
+                cwd=ANDROID_ROOT, env={**os.environ, "OVERTE_NODE_COMMAND": str(node),
+                                      "OVERTE_TEST_REPORT_DIR": str(root / "reports")},
+                text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            self.assertEqual(7, result.returncode)
+            self.assertEqual(previous, report.read_text(encoding="utf-8"))
+            self.assertEqual([], list(report_dir.glob(".TEST-*.xml")))
+
+    def test_javascript_refuses_symlinked_report_destination(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            node = root / "node"
+            executable(node, r'''
+report=""
+for argument in "$@"; do
+  case "$argument" in --test-reporter-destination=/*) report="${argument#*=}" ;; esac
+done
+printf '<testsuite tests="0"/>' >"$report"
+''')
+            report_dir = root / "reports/javascript"
+            report_dir.mkdir(parents=True)
+            victim = root / "victim.xml"
+            victim.write_text("private", encoding="utf-8")
+            (report_dir / "TEST-javascript.xml").symlink_to(victim)
+            result = subprocess.run([ANDROID_ROOT / "tests/javascript/run-tests.sh"],
+                cwd=ANDROID_ROOT, env={**os.environ, "OVERTE_NODE_COMMAND": str(node),
+                                      "OVERTE_TEST_REPORT_DIR": str(root / "reports")},
+                text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            self.assertEqual(1, result.returncode)
+            self.assertIn("refusing to replace symlinked JUnit report", result.stdout)
+            self.assertEqual("private", victim.read_text(encoding="utf-8"))
+            self.assertEqual([], list(report_dir.glob(".TEST-*.xml")))
 
     def test_qml_preserves_failure_and_atomically_publishes_junit(self):
         with tempfile.TemporaryDirectory() as directory:
