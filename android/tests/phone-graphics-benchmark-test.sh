@@ -8,9 +8,11 @@ report="$fixture/report"
 readonly real_mktemp="$(command -v mktemp)"
 readonly real_sleep="$(command -v sleep)"
 readonly real_chmod="$(command -v chmod)"
+readonly real_rm="$(command -v rm)"
 export PHONE_BENCHMARK_TEST_REAL_MKTEMP="$real_mktemp"
 export PHONE_BENCHMARK_TEST_REAL_SLEEP="$real_sleep"
 export PHONE_BENCHMARK_TEST_REAL_CHMOD="$real_chmod"
+export PHONE_BENCHMARK_TEST_REAL_RM="$real_rm"
 # The fixture supplies fake ADB and must never contend for the real shared
 # device lock or its post-device cooldown.
 export PHONE_DEVICE_LOCK_HELD=1
@@ -53,6 +55,17 @@ fi
 exec "$PHONE_BENCHMARK_TEST_REAL_CHMOD" "$@"
 MOCK_CHMOD
 chmod +x "$fixture/bin/chmod"
+cat >"$fixture/bin/rm" <<'MOCK_RM'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${MOCK_RAW_RM_FAILURE:-0}" == 1 && "$*" == *'overte-phone-graphics-raw.'* ]]; then
+    "$PHONE_BENCHMARK_TEST_REAL_RM" "$@"
+    printf 'private raw cleanup failure: %s\n' "$*" >&2
+    exit 10
+fi
+exec "$PHONE_BENCHMARK_TEST_REAL_RM" "$@"
+MOCK_RM
+chmod +x "$fixture/bin/rm"
 export PATH="$fixture/bin:$PATH"
 
 sed 's/^+//' >"$fixture/adb" <<'MOCK'
@@ -351,6 +364,19 @@ fi
 grep -Fxq 'Aggregate benchmark report written.' "$fixture/private-stderr.out"
 ! grep -Fq "$fixture" "$fixture/private-stderr.out"
 grep -q '^stable_process=1$' "$private_stderr_report/summary.txt"
+
+cleanup_failure_report="$fixture/cleanup-failure-report"
+if ! PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/cleanup-failure-exits" \
+    MOCK_RAW_RM_FAILURE=1 ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES \
+    PHONE_BENCHMARK_REPORT="$cleanup_failure_report" PHONE_BENCHMARK_INTERVAL=1 \
+    "$script_dir/phone-graphics-benchmark.sh" 1 >"$fixture/cleanup-failure.out" 2>&1; then
+    echo 'FAIL: best-effort raw cleanup replaced successful benchmark status' >&2; exit 1
+fi
+grep -Fxq 'Aggregate benchmark report written.' "$fixture/cleanup-failure.out"
+! grep -Eq 'private raw cleanup failure|overte-phone-graphics-raw[.]' \
+    "$fixture/cleanup-failure.out"
+grep -q '^schema=overte-phone-graphics-aggregate-v1$' \
+    "$cleanup_failure_report/summary.txt"
 
 PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/temporary-report-exits" \
     ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES \

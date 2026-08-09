@@ -4,6 +4,24 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 132 — Keep raw-cleanup errors private and best-effort
+
+- Branch: `nightly/android-phone-132-private-raw-cleanup-error`
+- Commit: `Keep phone raw cleanup errors private` (this task's commit)
+- Change: Suppress raw filesystem diagnostics during exit-time raw-directory
+  removal and prevent a cleanup error from replacing the benchmark result.
+- Tests:
+  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; a fake remover
+    deletes the raw directory but returns a private error, while the benchmark
+    remains successful, emits no raw path/detail, and publishes a valid summary.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 317/317.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: A genuine removal failure can leave mode-0700 raw data in `/tmp`;
+  cleanup remains best-effort so it cannot falsify the benchmark result.
+- Real-device validation still required: None for injected local cleanup error.
+
 ## 131 — Seal the three-hour continuation handoff
 
 - Branch: `nightly/android-phone-131-three-hour-handoff`
@@ -2984,7 +3002,8 @@ All branches form one linear chain starting at
 128. `nightly/android-phone-128-raw-mode-cleanup` — `2e2c58a547`
 129. `nightly/android-phone-129-device-contract-fixtures` — `961b5537ec`
 130. `nightly/android-phone-130-pico-benchmark-rejection` — `779f197b29`
-131. `nightly/android-phone-131-three-hour-handoff` — this task's commit
+131. `nightly/android-phone-131-three-hour-handoff` — `e69448dbd6`
+132. `nightly/android-phone-132-private-raw-cleanup-error` — this task's commit
 
 ### Device-free audit disposition
 

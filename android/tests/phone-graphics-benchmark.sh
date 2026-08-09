@@ -100,7 +100,7 @@ cleanup() {
         adb_for shell am force-stop "$PACKAGE" >/dev/null || true
     fi
     [[ -z "$summary_tmp" ]] || rm -f -- "$summary_tmp" 2>/dev/null || true
-    [[ -z "$raw_dir" ]] || rm -rf -- "$raw_dir"
+    [[ -z "$raw_dir" ]] || rm -rf -- "$raw_dir" 2>/dev/null || true
     if ((report_is_temporary == 1 && report_published == 0)); then
         rm -rf -- "$report_dir" 2>/dev/null || true
     fi
