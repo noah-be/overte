@@ -148,6 +148,7 @@ class LegacyGradleReportTest(unittest.TestCase):
             gradle = commands[-1]
             self.assertIn("--offline", gradle)
             self.assertIn("--no-daemon", gradle)
+            self.assertIn("--stacktrace", gradle)
             self.assertIn("--project-cache-dir", gradle)
             self.assertIn("-PSUPPRESS_PICO_INTERFACE", gradle)
             self.assertEqual([f":{name}:dependencies" for name in report.REPORTED_MODULES], gradle[-6:])

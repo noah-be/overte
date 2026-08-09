@@ -239,7 +239,7 @@ def resolve(cache: Path, installation: Path, java_home: Path, report_root: Path,
                    "ANDROID_HOME": str(sdk_root),
                    "ANDROID_NDK_HOME": str(ndk_root),
                    "HIFI_ANDROID_PRECOMPILED": str(staging / "precompiled")}
-            command = [str(installation / "bin/gradle"), "--no-daemon", "--no-build-cache", "--no-scan",
+            command = [str(installation / "bin/gradle"), "--no-daemon", "--no-build-cache", "--no-scan", "--stacktrace",
                        "--console", "plain", "--project-cache-dir", str(staging / "project-cache"),
                        "-Djava.io.tmpdir=" + str(staging / "tmp"), "-PSUPPRESS_PICO_INTERFACE"]
             if not network:
