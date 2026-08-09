@@ -326,7 +326,9 @@ OpenXrInputPlugin::InputDevice::InputDevice(std::shared_ptr<OpenXrContext> c) : 
 }
 
 OpenXrInputPlugin::InputDevice::~InputDevice() {
-    destroyHandTrackers(_context && _context->_session != XR_NULL_HANDLE);
+    const bool runtimeHandlesValid = _context && _context->_session != XR_NULL_HANDLE;
+    destroyHandTrackers(runtimeHandlesValid);
+    destroyXDevSpaces(runtimeHandlesValid);
 }
 
 void OpenXrInputPlugin::InputDevice::destroyHandTrackers(bool runtimeHandlesValid) {
@@ -338,6 +340,22 @@ void OpenXrInputPlugin::InputDevice::destroyHandTrackers(bool runtimeHandlesVali
         }
         tracker = XR_NULL_HANDLE;
     }
+}
+
+void OpenXrInputPlugin::InputDevice::destroyXDevSpaces(bool runtimeHandlesValid) {
+    for (auto& entry : _xdev) {
+        auto& space = entry.second.space;
+        const auto cleanup = openXrOwnedHandleCleanup(
+            space != XR_NULL_HANDLE, runtimeHandlesValid);
+        if (cleanup == OpenXrOwnedHandleCleanup::DestroyAndClear) {
+            xrCheck(_context->_instance, xrDestroySpace(space),
+                    "Failed to destroy XDev space");
+        }
+        if (cleanup != OpenXrOwnedHandleCleanup::Noop) {
+            space = XR_NULL_HANDLE;
+        }
+    }
+    _xdev.clear();
 }
 
 void OpenXrInputPlugin::InputDevice::focusOutEvent() {
@@ -1024,7 +1042,7 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
     }
 
     if (_context->_MNDX_xdevSpaceSupported) {
-        _xdev.clear();
+        destroyXDevSpaces(_context->_session != XR_NULL_HANDLE);
 
         XrXDevListMNDX xdevList = XR_NULL_HANDLE;
         std::vector<XrXDevIdMNDX> xdevIDs(MAX_TRACKER_COUNT);

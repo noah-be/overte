@@ -71,5 +71,14 @@ int main() {
         true, true, true, pose | tracked, pose));
     OVERTE_EXPECT(openXrLocatedPoseUsable(
         true, true, true, std::numeric_limits<unsigned long long>::max(), pose));
+
+    OVERTE_EXPECT(openXrOwnedHandleCleanup(false, false) ==
+                  OpenXrOwnedHandleCleanup::Noop);
+    OVERTE_EXPECT(openXrOwnedHandleCleanup(false, true) ==
+                  OpenXrOwnedHandleCleanup::Noop);
+    OVERTE_EXPECT(openXrOwnedHandleCleanup(true, false) ==
+                  OpenXrOwnedHandleCleanup::ClearOnly);
+    OVERTE_EXPECT(openXrOwnedHandleCleanup(true, true) ==
+                  OpenXrOwnedHandleCleanup::DestroyAndClear);
     return 0;
 }

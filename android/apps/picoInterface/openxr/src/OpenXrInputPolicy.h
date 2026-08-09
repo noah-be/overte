@@ -50,3 +50,16 @@ constexpr bool openXrLocatedPoseUsable(
     return spaceIsNonNull && predictionAvailable && locateSucceeded &&
         openXrHandJointFlagsSatisfy(actualFlags, requiredFlags);
 }
+
+enum class OpenXrOwnedHandleCleanup {
+    Noop,
+    ClearOnly,
+    DestroyAndClear,
+};
+
+constexpr OpenXrOwnedHandleCleanup openXrOwnedHandleCleanup(
+        bool handleIsNonNull, bool owningSessionIsAlive) {
+    return !handleIsNonNull ? OpenXrOwnedHandleCleanup::Noop
+        : (owningSessionIsAlive ? OpenXrOwnedHandleCleanup::DestroyAndClear
+                               : OpenXrOwnedHandleCleanup::ClearOnly);
+}

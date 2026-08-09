@@ -128,6 +128,7 @@ private:
 
         bool initActions();
         void destroyHandTrackers(bool runtimeHandlesValid);
+        void destroyXDevSpaces(bool runtimeHandlesValid);
         bool initBindings(const std::string& profileName, const std::map<std::string, std::string>& actionsToBind);
     };
 
