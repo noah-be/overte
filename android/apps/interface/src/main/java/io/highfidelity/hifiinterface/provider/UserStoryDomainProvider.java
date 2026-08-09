@@ -153,7 +153,7 @@ public class UserStoryDomainProvider implements DomainProvider {
     private class StoriesFilter {
         String[] mWords = new String[]{};
         public StoriesFilter(String filterText) {
-            mWords = filterText.trim().toUpperCase().split("\\s+");
+            mWords = UserStoryDomainPolicy.normalizedSearchText(filterText).trim().split("\\s+");
             if (mWords.length == 1 && (mWords[0] == null || mWords[0].length() <= 0 ) ) {
                 mWords = null;
             }
@@ -222,7 +222,7 @@ public class UserStoryDomainProvider implements DomainProvider {
 
         String searchText() {
             if (searchText == null) {
-                searchText = place_name == null? "" : place_name.toUpperCase();
+                searchText = UserStoryDomainPolicy.normalizedSearchText(place_name);
             }
             return searchText;
         }

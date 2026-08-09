@@ -1,6 +1,7 @@
 package io.highfidelity.hifiinterface.provider;
 
 import io.highfidelity.hifiinterface.HifiUtils;
+import java.util.Locale;
 
 /** Framework-free URL and pagination rules for the legacy place provider. */
 public final class UserStoryDomainPolicy {
@@ -28,6 +29,10 @@ public final class UserStoryDomainPolicy {
 
     public static String thumbnailUrl(String thumbnail) {
         return HifiUtils.getInstance().absoluteHifiAssetUrl(thumbnail);
+    }
+
+    public static String normalizedSearchText(String value) {
+        return value == null ? "" : value.toUpperCase(Locale.ROOT);
     }
 
     public static boolean shouldRequestNextPage(int currentPage, int totalPages, int maxPages) {

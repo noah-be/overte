@@ -1,5 +1,7 @@
 package io.highfidelity.hifiinterface.provider;
 
+import java.util.Locale;
+
 public final class UserStoryDomainPolicyStandaloneTest {
     private static int assertions;
 
@@ -18,6 +20,14 @@ public final class UserStoryDomainPolicyStandaloneTest {
                 UserStoryDomainPolicy.thumbnailUrl("/assets/place.jpg"));
         expect("https://cdn.example/place.jpg",
                 UserStoryDomainPolicy.thumbnailUrl("https://cdn.example/place.jpg"));
+        expect("", UserStoryDomainPolicy.normalizedSearchText(null));
+        Locale previousLocale = Locale.getDefault();
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+            expect("INDIGO", UserStoryDomainPolicy.normalizedSearchText("indigo"));
+        } finally {
+            Locale.setDefault(previousLocale);
+        }
 
         check(UserStoryDomainPolicy.shouldRequestNextPage(1, 2, 10));
         check(!UserStoryDomainPolicy.shouldRequestNextPage(2, 2, 10));
