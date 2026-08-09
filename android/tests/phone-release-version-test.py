@@ -2,6 +2,7 @@
 """Device-free tests for the Phone release tag/version gate."""
 
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -38,7 +39,7 @@ class PhoneReleaseVersionTests(unittest.TestCase):
             stdout=subprocess.PIPE, check=True,
         ).stdout.strip()
 
-    def run_gate(self, **overrides):
+    def run_gate(self, environment=None, **overrides):
         values = {
             "tag": "android-phone-v0.1.0-alpha.5", "version_code": "100005",
             "published_code_floor": "100004", "source_revision": self.revision,
@@ -47,7 +48,9 @@ class PhoneReleaseVersionTests(unittest.TestCase):
         command = [str(GATE), "--repository", str(self.repository)]
         for key, value in values.items():
             command.extend(["--" + key.replace("_", "-"), value])
-        return subprocess.run(command, text=True, capture_output=True, check=False)
+        return subprocess.run(
+            command, text=True, capture_output=True, check=False,
+            env={**os.environ, **(environment or {})})
 
     def test_accepts_consistent_newest_tag(self):
         result = self.run_gate()
@@ -55,6 +58,71 @@ class PhoneReleaseVersionTests(unittest.TestCase):
         manifest = json.loads(result.stdout)
         self.assertEqual(manifest["version_name"], "0.1.0-alpha.5")
         self.assertEqual(manifest["version_code"], 100005)
+
+    def test_success_atomically_replaces_stale_output(self):
+        output = self.repository / "reports/version-manifest.json"
+        output.parent.mkdir()
+        output.write_text("stale", encoding="utf-8")
+
+        result = self.run_gate(output=str(output))
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(100005, json.loads(output.read_text())["version_code"])
+        self.assertEqual([], list(output.parent.glob(".version-manifest.json.*.tmp")))
+
+    def test_validation_failure_invalidates_stale_output(self):
+        output = self.repository / "reports/version-manifest.json"
+        output.parent.mkdir()
+        output.write_text("stale", encoding="utf-8")
+
+        result = self.run_gate(output=str(output), version_code="100006")
+
+        self.assertEqual(2, result.returncode)
+        self.assertFalse(output.exists())
+        self.assertEqual([], list(output.parent.glob(".version-manifest.json.*.tmp")))
+
+    def test_symlinked_output_preserves_victim(self):
+        output = self.repository / "reports/version-manifest.json"
+        output.parent.mkdir()
+        victim = self.repository / "victim.json"
+        victim.write_text("private", encoding="utf-8")
+        output.symlink_to(victim)
+
+        result = self.run_gate(output=str(output))
+
+        self.assertEqual(2, result.returncode)
+        self.assertEqual("private", victim.read_text(encoding="utf-8"))
+        self.assertTrue(output.is_symlink())
+
+    @unittest.skipUnless(os.name == "posix", "flock fixture is POSIX-specific")
+    def test_lock_timeout_preserves_owner_output(self):
+        import fcntl
+
+        output = self.repository / "reports/version-manifest.json"
+        output.parent.mkdir()
+        output.write_text("owner", encoding="utf-8")
+        lock_path = output.parent / ".version-manifest.json.lock"
+        with lock_path.open("a", encoding="utf-8") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            result = self.run_gate(
+                {"OVERTE_RELEASE_VERSION_LOCK_TIMEOUT_SECONDS": "0.05"},
+                output=str(output))
+
+        self.assertEqual(2, result.returncode)
+        self.assertIn("timed out waiting for release version lock", result.stderr)
+        self.assertEqual("owner", output.read_text(encoding="utf-8"))
+
+    def test_invalid_lock_timeout_preserves_stale_output(self):
+        output = self.repository / "reports/version-manifest.json"
+        output.parent.mkdir()
+        output.write_text("stale", encoding="utf-8")
+
+        result = self.run_gate(
+            {"OVERTE_RELEASE_VERSION_LOCK_TIMEOUT_SECONDS": "never"},
+            output=str(output))
+
+        self.assertEqual(2, result.returncode)
+        self.assertEqual("stale", output.read_text(encoding="utf-8"))
 
     def test_rejects_noncanonical_tag(self):
         result = self.run_gate(tag="android-phone-v0.01.0-alpha.5")
