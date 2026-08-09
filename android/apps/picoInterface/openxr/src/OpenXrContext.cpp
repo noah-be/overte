@@ -8,6 +8,7 @@
 //
 
 #include "OpenXrContext.h"
+#include "OpenXrDebugPolicy.h"
 #include <QLoggingCategory>
 #include <QString>
 #include <QStringList>
@@ -57,16 +58,19 @@ XRAPI_ATTR static XrBool32 XRAPI_CALL debugMessageCallback(
     const XrDebugUtilsMessengerCallbackDataEXT* data,
     void*
 ) {
-    // bitflags, so can't use a switch
-    // TODO: does any runtime actually set multiple of these bits at once?
-    if (severity <= XR_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) {
+    auto level = openXrDebugLogLevel(
+        severity,
+        XR_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT,
+        XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT,
+        XR_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT,
+        XR_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT);
+    if (level == OpenXrDebugLogLevel::Debug) {
         qCDebug(xr_context_cat, "%s: %s", data->functionName, data->message);
-    } else if (severity <= XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
+    } else if (level == OpenXrDebugLogLevel::Info) {
         qCInfo(xr_context_cat, "%s: %s", data->functionName, data->message);
-    } else if (severity <= XR_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
+    } else if (level == OpenXrDebugLogLevel::Warning) {
         qCWarning(xr_context_cat, "%s: %s", data->functionName, data->message);
     } else {
-        // XR_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT
         qCCritical(xr_context_cat, "%s: %s", data->functionName, data->message);
     }
 
