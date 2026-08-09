@@ -7,7 +7,6 @@ import argparse
 import json
 import os
 from pathlib import Path
-import signal
 import subprocess
 import sys
 import tempfile
@@ -16,6 +15,10 @@ import xml.etree.ElementTree as ET
 
 
 ANDROID_ROOT = Path(__file__).resolve().parents[2]
+TESTS_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(TESTS_ROOT))
+from process_control import communicate_with_timeout, popen_session_kwargs
+
 DEFAULT_CATALOG = Path(__file__).with_name("catalog.json")
 KNOWN_TIERS = {"fast", "host", "prepared-host", "contracts", "regression", "device", "instrumentation", "coverage", "mutation", "mutation-extended", "robolectric", "endurance", "stability"}
 MAX_REPORT_OUTPUT_BYTES = 256 * 1024
@@ -48,40 +51,10 @@ def run_command(command: list[str], timeout: int, *, cwd: Path = ANDROID_ROOT,
     """Run one suite and guarantee timeout cleanup of its complete POSIX process group."""
     process = subprocess.Popen(
         command, cwd=cwd, env=env, text=True, stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT, start_new_session=(os.name == "posix"),
+        stderr=subprocess.STDOUT, **popen_session_kwargs(),
     )
-    try:
-        output, _ = process.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired as timeout_error:
-        termination_started = time.monotonic()
-        if os.name == "posix":
-            try:
-                os.killpg(process.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-        else:
-            process.terminate()
-        try:
-            output, _ = process.communicate(timeout=TERMINATION_GRACE_SECONDS)
-        except subprocess.TimeoutExpired:
-            output = None
-        remaining_grace = TERMINATION_GRACE_SECONDS - (time.monotonic() - termination_started)
-        if remaining_grace > 0:
-            time.sleep(remaining_grace)
-        if os.name == "posix":
-            # Sweep the group even when the leader exited and all descendants
-            # closed inherited output pipes during the grace period.
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-        elif process.poll() is None:
-            process.kill()
-        if output is None:
-            output, _ = process.communicate()
-        # communicate() after a timeout returns all captured output, not only
-        # the suffix, so reusing it avoids duplicated partial diagnostics.
-        raise subprocess.TimeoutExpired(command, timeout_error.timeout, output=output)
+    output, _ = communicate_with_timeout(
+        process, timeout, termination_grace=TERMINATION_GRACE_SECONDS)
     return subprocess.CompletedProcess(command, process.returncode, output)
 
 

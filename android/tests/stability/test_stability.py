@@ -2,6 +2,7 @@
 import importlib.util
 import os
 from pathlib import Path
+import signal
 import sys
 import tempfile
 import time
@@ -21,7 +22,7 @@ SPEC.loader.exec_module(audit)
 class StabilityRunnerTest(unittest.TestCase):
     def test_exit_vs_kill_race_is_already_terminated(self):
         with mock.patch.object(audit.os, "killpg", side_effect=ProcessLookupError):
-            self.assertFalse(audit.kill_process_group(12345, audit.signal.SIGTERM))
+            self.assertFalse(audit.kill_process_group(12345, signal.SIGTERM))
 
     def test_seeded_orders_are_stable_and_distinct(self):
         first = [name for name, _ in audit.serial_order(0)]
@@ -77,6 +78,18 @@ class StabilityRunnerTest(unittest.TestCase):
             while time.monotonic() < deadline and Path(f"/proc/{child_pid}").exists():
                 time.sleep(0.02)
             self.assertFalse(Path(f"/proc/{child_pid}").exists(), "timed-out child survived process-group kill")
+
+    def test_timeout_preserves_separate_stdout_and_stderr(self):
+        program = (
+            "import sys,time; "
+            "print('stdout-before-timeout', flush=True); "
+            "print('stderr-before-timeout', file=sys.stderr, flush=True); "
+            "time.sleep(60)"
+        )
+        with self.assertRaises(RuntimeError) as raised:
+            audit.run_process(["python3", "-c", program], dict(os.environ), timeout=0.1)
+        self.assertIn("stdout-before-timeout", str(raised.exception))
+        self.assertIn("stderr-before-timeout", str(raised.exception))
 
 
 if __name__ == "__main__":

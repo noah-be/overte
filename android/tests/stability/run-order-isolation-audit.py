@@ -6,13 +6,17 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import random
-import signal
 import subprocess
+import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 ROOT = Path(__file__).resolve().parents[2]
+TESTS_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(TESTS_ROOT))
+from process_control import communicate_with_timeout, kill_process_group, popen_session_kwargs
+
 BASE_CASES = [
     ("deep-links", ["tests/phone-deep-link-test.sh"]),
     ("asset-cache", ["tests/safe-asset-path-test.sh"]),
@@ -44,28 +48,14 @@ def case_invocation(case: tuple[str, list[str]], workspace: Path, replica: str):
 def run_process(actual: list[str], environment: dict[str, str], timeout: float = 900):
     process = subprocess.Popen(
         actual, cwd=ROOT, env=environment, text=True, stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE, start_new_session=True)
+        stderr=subprocess.PIPE, **popen_session_kwargs())
     try:
-        stdout, stderr = process.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        kill_process_group(process.pid, signal.SIGTERM)
-        try:
-            stdout, stderr = process.communicate(timeout=2)
-        except subprocess.TimeoutExpired:
-            kill_process_group(process.pid, signal.SIGKILL)
-            stdout, stderr = process.communicate()
+        stdout, stderr = communicate_with_timeout(process, timeout, termination_grace=2)
+    except subprocess.TimeoutExpired as error:
+        stdout = error.output or ""
+        stderr = error.stderr or ""
         raise RuntimeError(f"timed out after {timeout}s\n{stdout[-8000:]}\n{stderr[-8000:]}")
     return subprocess.CompletedProcess(actual, process.returncode, stdout, stderr)
-
-
-def kill_process_group(pid: int, requested_signal: signal.Signals) -> bool:
-    """Return false when the group won the exit-vs-kill race."""
-    try:
-        os.killpg(pid, requested_signal)
-        return True
-    except ProcessLookupError:
-        return False
-
 
 def run_case(case: tuple[str, list[str]], workspace: Path, replica: str) -> tuple[str, int]:
     name, _ = case
