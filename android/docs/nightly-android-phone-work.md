@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 113 — Keep benchmark ADB diagnostics private
+
+- Branch: `nightly/android-phone-113-private-benchmark-adb`
+- Commit: `Keep phone benchmark ADB errors private` (this task's commit)
+- Change: Suppress raw ADB stderr centrally in the unattended graphics
+  benchmark, including device enumeration, so transport failures cannot expose
+  a serial, account, private endpoint, or other device detail in console logs.
+  Keep the fake-ADB regression isolated from the real shared device lock.
+- Tests:
+  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; a complete
+    benchmark whose fake ADB emits identifying text on every invocation still
+    produces a valid aggregate report and exposes none of that text.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 307/307 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 307/307.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Phase-specific benchmark failures are still intentionally terse;
+  debugging must occur locally without copying raw device output into reports.
+- Real-device validation still required: Run the benchmark against an installed
+  current-chain build and confirm aggregate collection still completes.
+
 ## 112 — Prove late summary failures clean up the app
 
 - Branch: `nightly/android-phone-112-late-summary-failure`
@@ -2581,7 +2602,8 @@ All branches form one linear chain starting at
 109. `nightly/android-phone-109-private-apk-hash-errors` — `a44dc0efb1`
 110. `nightly/android-phone-110-private-summary-write-errors` — `e39b0c7897`
 111. `nightly/android-phone-111-report-setup-failures` — `2f38c788ca`
-112. `nightly/android-phone-112-late-summary-failure` — this task's commit
+112. `nightly/android-phone-112-late-summary-failure` — `b12135379e`
+113. `nightly/android-phone-113-private-benchmark-adb` — this task's commit
 
 ### Device-free audit disposition
 

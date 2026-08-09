@@ -5,10 +5,16 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 fixture="$(mktemp -d /tmp/overte-phone-graphics-harness-test.XXXXXXXX)"
 trap 'rm -rf -- "$fixture"' EXIT INT TERM
 report="$fixture/report"
+# The fixture supplies fake ADB and must never contend for the real shared
+# device lock or its post-device cooldown.
+export PHONE_DEVICE_LOCK_HELD=1
 
 sed 's/^+//' >"$fixture/adb" <<'MOCK'
 +#!/usr/bin/env bash
 +set -euo pipefail
++if [[ ${MOCK_PRIVATE_ADB_STDERR:-0} == 1 ]]; then
++  printf 'private adb transport: serial=phone-secret account=private@example.test\n' >&2
++fi
 +if [[ ${1:-} == devices ]]; then printf 'List of devices attached\nphone-secret device product:private\n'; exit; fi
 +[[ ${1:-} == -s && ${2:-} == phone-secret ]] || exit 90
 +shift 2
@@ -125,6 +131,20 @@ grep -q '^native_present_fps=30.00$' "$summary"
 grep -q '^native_present_window_seconds=10.02$' "$summary"
 grep -q '^native_new_frame_fps=29.50$' "$summary"
 grep -q '^native_inter_present_p95_ms=34.10$' "$summary"
+
+private_stderr_report="$fixture/private-stderr-report"
+if ! PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/private-stderr-exits" \
+    MOCK_PRIVATE_ADB_STDERR=1 ANDROID_SERIAL=phone-secret \
+    PHONE_BENCHMARK_CONFIRM_NON_VR=YES PHONE_BENCHMARK_REPORT="$private_stderr_report" \
+    PHONE_BENCHMARK_INTERVAL=1 "$script_dir/phone-graphics-benchmark.sh" 1 \
+    >"$fixture/private-stderr.out" 2>&1; then
+    echo 'FAIL: private-stderr benchmark fixture failed' >&2; exit 1
+fi
+if grep -Eq 'phone-secret|private@example[.]test|private adb transport' \
+        "$fixture/private-stderr.out"; then
+    echo 'FAIL: raw ADB stderr escaped from benchmark' >&2; exit 1
+fi
+grep -q '^stable_process=1$' "$private_stderr_report/summary.txt"
 grep -q '^gpu_live_metrics_valid=1$' "$summary"
 grep -q '^gpu_buffer_count=123$' "$summary"
 grep -q '^gpu_buffer_mib=45.50$' "$summary"

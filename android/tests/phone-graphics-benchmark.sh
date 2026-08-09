@@ -47,12 +47,12 @@ find_adb() {
 }
 ADB="$(find_adb)"
 readonly ADB
-adb_for() { "$ADB" -s "$ANDROID_SERIAL" "$@"; }
+adb_for() { "$ADB" -s "$ANDROID_SERIAL" "$@" 2>/dev/null; }
 
 authorized=0
 while read -r serial state _; do
     [[ "$serial" == "$ANDROID_SERIAL" && "$state" == device ]] && authorized=$((authorized + 1))
-done < <("$ADB" devices -l)
+done < <("$ADB" devices -l 2>/dev/null)
 (( authorized == 1 )) || die "ANDROID_SERIAL must identify exactly one authorized device"
 
 property() { adb_for shell getprop "$1" 2>/dev/null | tr -d '\r'; }
