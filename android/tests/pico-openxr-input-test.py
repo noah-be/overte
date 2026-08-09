@@ -428,6 +428,27 @@ class OpenXrInputStateTest(unittest.TestCase):
             self.assertLess(backend, guess)
             self.assertLess(guess, device_update)
 
+    def test_xdev_role_inference_clears_stale_assignments_after_time_guard(self):
+        for source in (SOURCE, DESKTOP_SOURCE):
+            start = source.index("void OpenXrInputPlugin::guessXDevRoles")
+            end = source.index("void OpenXrInputPlugin::calibrate()", start)
+            guess = source[start:end]
+            time_guard = guess.index("if (!_context->_lastPredictedDisplayTime.has_value())")
+            role_loop = guess.index("for (auto& [_, tracker] : tracker_map)", time_guard)
+            role_clear = guess.index("tracker.pose_channel.reset()", role_loop)
+            locate_loop = guess.index("for (auto [id, tracker] : tracker_map)", role_clear)
+            first_locate = guess.index("xrLocateSpace(", locate_loop)
+            validity = guess.index("REQUIRED_BODY_LOCATION_FLAGS", first_locate)
+            height_guard = guess.index("std::numeric_limits<float>::epsilon()", validity)
+            assign = guess.index("state.pose_channel =", height_guard)
+            self.assertLess(time_guard, role_loop)
+            self.assertLess(role_loop, role_clear)
+            self.assertLess(role_clear, locate_loop)
+            self.assertLess(locate_loop, first_locate)
+            self.assertLess(first_locate, validity)
+            self.assertLess(validity, height_guard)
+            self.assertLess(height_guard, assign)
+
     def test_xdev_enumeration_and_space_publication_are_transactional(self):
         start = SOURCE.index("if (_context->_MNDX_xdevSpaceSupported)")
         end = SOURCE.index("_actionsInitialized = true", start)

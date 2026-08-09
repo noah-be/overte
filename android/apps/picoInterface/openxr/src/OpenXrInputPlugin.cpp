@@ -120,6 +120,10 @@ void OpenXrInputPlugin::guessXDevRoles(std::unordered_map<XrXDevIdMNDX, XDevTrac
         return;
     }
 
+    for (auto& [_, tracker] : tracker_map) {
+        tracker.pose_channel.reset();
+    }
+
     for (auto [id, tracker] : tracker_map) {
         XrSpaceLocation stageSpace = { XR_TYPE_SPACE_LOCATION };
         XrSpaceLocation localSpace = { XR_TYPE_SPACE_LOCATION };

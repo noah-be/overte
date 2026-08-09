@@ -1802,8 +1802,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 100 — Pending XDev role-inference retry
 
 - Branch: `nightly/pico4-100-openxr-role-retry`
-- Commit: identified by subject `Retry Pico XDev roles while calibration waits`;
-  the exact hash is recorded by the following stacked task or final report.
+- Commit: `d846fc65ba` (`Retry Pico XDev roles while calibration waits`)
 - Change: move XDev role inference from the one-shot calibration request into the
   input-mapper-locked update path and retry it only while calibration is pending.
   A request made before predicted frame time or valid tracker locations can now
@@ -1817,6 +1816,26 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Request before session readiness and across
   tracking loss, then restore tracker/head locations; verify automatic completion,
   stable inferred roles and no retry calls after completion or cancellation.
+
+### 101 — XDev role-inference stale-state reset
+
+- Branch: `nightly/pico4-101-openxr-role-reset`
+- Commit: identified by subject `Clear stale Pico XDev roles before inference`;
+  the exact hash is recorded by the following stacked task or final report.
+- Change: clear every prior XDev pose-channel assignment before a new role-
+  inference pass, after confirming frame time is available. Failed/incomplete
+  locations and trackers outside defined role bands can no longer retain an old
+  foot/hip/chest role and prematurely complete recalibration. The shared desktop
+  path receives the same result/location/height guards because Task 100 made its
+  inference retry from the common update contract as well.
+- Regression: Pico/desktop input contracts enforce time guard, reference-based
+  role clearing, complete location checks, height guard and assignment ordering.
+- Passed: targeted OpenXR input/lifecycle contracts; `git diff --check`.
+- Risk: a failed inference pass temporarily leaves optional XDev trackers
+  unmapped, which is safer than publishing them through stale body channels.
+- Pico 4 validation: **not executed**. Calibrate, move trackers between role bands,
+  trigger recalibration and inject one failed locate; verify old channels go
+  neutral and only currently classified trackers resume publication.
 
 ## Deferred, rejected, or blocked ideas
 

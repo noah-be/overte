@@ -24,6 +24,9 @@
 Q_DECLARE_LOGGING_CATEGORY(xr_input_cat)
 Q_LOGGING_CATEGORY(xr_input_cat, "openxr.input")
 
+static constexpr XrSpaceLocationFlags REQUIRED_BODY_LOCATION_FLAGS =
+    XR_SPACE_LOCATION_ORIENTATION_VALID_BIT | XR_SPACE_LOCATION_POSITION_VALID_BIT;
+
 enum ExtraButtonChannel {
     LEFT_HAS_PRIMARY = controller::StandardButtonChannel::NUM_STANDARD_BUTTONS,
     LEFT_HAS_TRACKPAD,
@@ -112,17 +115,36 @@ static glm::mat4 defaultPoseOffset(const controller::InputCalibrationData& data,
 void OpenXrInputPlugin::guessXDevRoles(std::unordered_map<XrXDevIdMNDX, XDevTracker>& tracker_map) {
     std::vector<std::tuple<XrXDevIdMNDX, glm::vec3, controller::Pose>> tracker_list;
 
+    if (!_context->_lastPredictedDisplayTime.has_value()) {
+        return;
+    }
+
+    for (auto& [_, tracker] : tracker_map) {
+        tracker.pose_channel.reset();
+    }
+
     for (auto [id, tracker] : tracker_map) {
-        XrResult result = XR_SUCCESS;
         XrSpaceLocation stageSpace = { XR_TYPE_SPACE_LOCATION };
         XrSpaceLocation localSpace = { XR_TYPE_SPACE_LOCATION };
         XrSpaceLocation headSpace = { XR_TYPE_SPACE_LOCATION };
-        result = xrLocateSpace(tracker.space, _context->_stageSpace, _context->_lastPredictedDisplayTime.value(), &stageSpace);
-        xrCheck(_context->_instance, result, "guessXDevRoles: tracker stage space fail");
-        result = xrLocateSpace(tracker.space, _context->_viewSpace, _context->_lastPredictedDisplayTime.value(), &localSpace);
-        xrCheck(_context->_instance, result, "guessXDevRoles: tracker local space fail");
-        result = xrLocateSpace(_context->_viewSpace, _context->_stageSpace, _context->_lastPredictedDisplayTime.value(), &headSpace);
-        xrCheck(_context->_instance, result, "guessXDevRoles: head space fail");
+        const auto displayTime = _context->_lastPredictedDisplayTime.value();
+        const bool stageLocated = xrCheck(_context->_instance,
+            xrLocateSpace(tracker.space, _context->_stageSpace, displayTime, &stageSpace),
+            "guessXDevRoles: tracker stage space fail");
+        const bool localLocated = xrCheck(_context->_instance,
+            xrLocateSpace(tracker.space, _context->_viewSpace, displayTime, &localSpace),
+            "guessXDevRoles: tracker local space fail");
+        const bool headLocated = xrCheck(_context->_instance,
+            xrLocateSpace(_context->_viewSpace, _context->_stageSpace, displayTime, &headSpace),
+            "guessXDevRoles: head space fail");
+        const bool locationsValid =
+            (stageSpace.locationFlags & REQUIRED_BODY_LOCATION_FLAGS) == REQUIRED_BODY_LOCATION_FLAGS &&
+            (localSpace.locationFlags & REQUIRED_BODY_LOCATION_FLAGS) == REQUIRED_BODY_LOCATION_FLAGS &&
+            (headSpace.locationFlags & REQUIRED_BODY_LOCATION_FLAGS) == REQUIRED_BODY_LOCATION_FLAGS;
+        if (!stageLocated || !localLocated || !headLocated || !locationsValid ||
+                std::abs(headSpace.pose.position.y) <= std::numeric_limits<float>::epsilon()) {
+            continue;
+        }
 
         // the tracker's position, relative horizontally to the headset
         // and vertically to the floor, normalized by the headset height
@@ -1440,7 +1462,8 @@ void OpenXrInputPlugin::InputDevice::updateBodyFromViveTrackers(const mat4& sens
 
     auto handlePose = [&](std::string action, StandardPoseChannel channel) {
         XrSpaceLocation location = _actions.at(action)->getPose();
-        bool locationValid = (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0;
+        bool locationValid =
+            (location.locationFlags & REQUIRED_BODY_LOCATION_FLAGS) == REQUIRED_BODY_LOCATION_FLAGS;
         if (locationValid) {
             vec3 translation = xrVecToGlm(location.pose.position);
             quat rotation = xrQuatToGlm(location.pose.orientation);
@@ -1475,7 +1498,8 @@ void OpenXrInputPlugin::InputDevice::updateBodyFromXDevSpaces(const mat4& sensor
             xrCheck(_context->_instance, result, "Failed to locate xdev space!");
         }
 
-        bool locationValid = (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0;
+        bool locationValid =
+            (location.locationFlags & REQUIRED_BODY_LOCATION_FLAGS) == REQUIRED_BODY_LOCATION_FLAGS;
 
         if (locationValid && xdev.pose_channel.has_value()) {
             vec3 translation = xrVecToGlm(location.pose.position);
