@@ -9,7 +9,11 @@ macro (SETUP_TESTCASE_DEPENDENCIES)
 
   if("${TARGET_NAME}" STREQUAL "ktx-KtxTests")
     # The test wants the cube_texture.png for testing.
-    file(INSTALL "${CMAKE_SOURCE_DIR}/scripts/developer/tests/cube_texture.png" DESTINATION "${CMAKE_BINARY_DIR}/tests/ktx")
+    add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/scripts/developer/tests/cube_texture.png"
+        "$<TARGET_FILE_DIR:${TARGET_NAME}>/cube_texture.png"
+    )
 
   endif()
 endmacro ()

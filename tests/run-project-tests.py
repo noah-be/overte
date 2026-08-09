@@ -28,16 +28,18 @@ SUITES = (
     Suite("project-runner", "quick", (sys.executable, "tests/project-suite-self-test.py")),
     Suite("repository-health", "quick", (sys.executable, "tests/project-health-test.py")),
     Suite("project-coverage", "quick", (sys.executable, "tests/project-coverage-test.py")),
+    Suite("native-coverage-tools", "quick", (sys.executable, "tests/project-native-coverage-test.py")),
     Suite("javascript-behavior", "quick", ("node", "tests/mocha/test/testVirtualBaton.js")),
     Suite("pico4-device-free", "quick", ("bash", "android/tests/pico-device-free-test.sh")),
     Suite("native-ctest", "native", ("bash", "tests/project-native-test.sh")),
+    Suite("native-coverage", "coverage", ("bash", "tests/project-native-coverage.sh")),
 )
 
 
 def arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profile", choices=("quick", "full"), default="quick",
-                        help="quick is dependency-light; full also requires a configured native build")
+    parser.add_argument("--profile", choices=("quick", "full", "coverage"), default="quick",
+                        help="quick is dependency-light; full adds native tests; coverage runs native tests and reports gcov data")
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--suite", action="append", default=[])
     parser.add_argument("--timeout", type=int, default=180)
@@ -58,7 +60,11 @@ def select(args: argparse.Namespace) -> list[Suite]:
         raise ValueError("unknown suites: " + ", ".join(unknown))
     if names:
         return [suite for suite in SUITES if suite.name in names]
-    layers = {"quick"} if args.profile == "quick" else {"quick", "native"}
+    layers = {
+        "quick": {"quick"},
+        "full": {"quick", "native"},
+        "coverage": {"quick", "coverage"},
+    }[args.profile]
     return [suite for suite in SUITES if suite.layer in layers]
 
 
@@ -93,7 +99,7 @@ def main() -> int:
     overall_started = time.monotonic()
     for suite in suites:
         command = list(suite.command)
-        if suite.name == "native-ctest" and args.native_build_dir:
+        if suite.name in {"native-ctest", "native-coverage"} and args.native_build_dir:
             command.append(str(args.native_build_dir))
         started = time.monotonic()
         process = subprocess.Popen(command, cwd=ROOT, text=True,

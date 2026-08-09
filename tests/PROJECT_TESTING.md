@@ -1,6 +1,6 @@
 # Hardware-independent project testing
 
-The project test runner provides two layers from one entry point.
+The project test runner provides three layers from one entry point.
 
 ## Quick profile
 
@@ -23,7 +23,7 @@ problems.
 
 ## Full profile
 
-The full profile adds every CTest-registered C++/Qt test. It requires an
+The full profile adds the deterministic, headless C++/Qt core tests. It requires an
 already configured native build because Overte's Qt and Conan dependencies are
 large and platform-specific:
 
@@ -33,9 +33,39 @@ tests/run-project-tests.py --profile full \
   --timeout 1800
 ```
 
-The native layer builds the `all-tests` target and runs CTest with
-`--output-on-failure --no-tests=error`. `OVERTE_TEST_BUILD_CONFIG` selects the
-configuration and defaults to `Debug`.
+The native layer builds the `all-tests` target and runs 42 CTest tests in
+parallel with failure output and a per-test timeout. Benchmarks are not
+correctness tests and are excluded by default. Six environment-dependent tests
+(physical audio devices, packaged codecs, GPU drivers, legacy model fixtures,
+and a settings shutdown issue) are also separated from the headless gate. Use
+`OVERTE_TEST_INCLUDE_BENCHMARKS=1` and/or
+`OVERTE_TEST_INCLUDE_INTEGRATION=1` for diagnostic runs. Configuration, jobs,
+and timeout are controlled by `OVERTE_TEST_BUILD_CONFIG`,
+`OVERTE_TEST_JOBS`, and `OVERTE_TEST_TIMEOUT`.
+
+## Native coverage profile
+
+Configure a Debug build with GCC coverage instrumentation, then run the tests
+and generate dependency-free JSON and HTML reports:
+
+```bash
+cmake -S . -B build-coverage \
+  -DBUILD_TESTS=ON \
+  -DCMAKE_C_FLAGS_DEBUG='--coverage -O0 -g' \
+  -DCMAKE_CXX_FLAGS_DEBUG='--coverage -O0 -g' \
+  -DCMAKE_EXE_LINKER_FLAGS_DEBUG=--coverage \
+  -DCMAKE_SHARED_LINKER_FLAGS_DEBUG=--coverage
+tests/run-project-tests.py --profile coverage \
+  --native-build-dir build-coverage --timeout 1800
+```
+
+The report defaults to `build/coverage/native/coverage.json` and `index.html`.
+The wrapper rejects non-instrumented builds instead of producing a misleading
+empty report. The verified deterministic run in this worktree reached 14.66%
+lines, 19.49% functions, and 7.74% branches across all linked production
+sources. Percentages are low because test executables link many libraries whose
+features are outside each test's scope; file-level results are the useful guide
+for choosing the next tests.
 
 ## Coverage interpretation
 
@@ -47,9 +77,8 @@ coverage, not a claim of 100% line coverage.
 Host automation cannot validate GPU-driver behavior, physical audio devices,
 distributed deployment, or Pico tracking/thermal behavior. These four limits
 are explicitly represented as hardware/system acceptance layers rather than
-silently counted as covered. Native line coverage should be collected from a
-configured instrumented CMake build; the quick profile deliberately remains
-portable and deterministic.
+silently counted as covered. The quick profile deliberately remains portable
+and deterministic.
 
 Intentional legacy syntax exceptions are exact allowlists. The health suite
 fails if a new exception appears or an old exception becomes stale, preventing

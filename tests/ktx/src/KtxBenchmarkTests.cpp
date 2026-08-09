@@ -24,29 +24,34 @@
 QTEST_GUILESS_MAIN(KtxBenchmarks)
 
 QStringList png_images{
-    "/interface/scripts/developer/tests/cube_texture.png",
-    "/interface/scripts/system/assets/images/materials/GridPattern.png",
-    "/interface/scripts/simplifiedUI/simplifiedEmote/emojiApp/resources/images/emojis/512px/1f92c.png",
-    "/interface/scripts/system/assets/images/Particle-Sprite-Smoke-1.png",
-    "/interface/scripts/system/assets/images/grabsprite-3.png",
-    "/interface/scripts/system/html/img/snapshotIcon.png",
+    "/scripts/developer/tests/cube_texture.png",
+    "/scripts/system/assets/images/materials/GridPattern.png",
+    "/scripts/simplifiedUI/simplifiedEmote/emojiApp/resources/images/emojis/512px/1f92c.png",
+    "/scripts/system/assets/images/Particle-Sprite-Smoke-1.png",
+    "/scripts/system/assets/images/grabsprite-3.png",
+    "/scripts/system/html/img/snapshotIcon.png",
 };
 
 QStringList jpg_images{
-    "/interface/scripts/system/appreciate/appreciate.jpg",
-    "/interface/scripts/system/assets/images/textures/dirt.jpeg",
+    "/scripts/system/appreciate/appreciate.jpg",
+    "/scripts/system/assets/images/textures/dirt.jpeg",
 };
 
 
-QString test_texture = "/interface/scripts/developer/tests/cube_texture.png";
+QString test_texture = "/scripts/developer/tests/cube_texture.png";
 
 QString getRootPath() {
     static std::once_flag once;
     static QString result;
     std::call_once(once, [&] {
         QFileInfo file(__FILE__);
-        QDir parent = file.absolutePath();
-        result = QDir::cleanPath(parent.currentPath() + "/../..");
+        QDir parent = file.absoluteDir();
+        // tests/ktx/src -> repository root. currentPath() accidentally used
+        // the process working directory and made this test build-tree-specific.
+        parent.cdUp();
+        parent.cdUp();
+        parent.cdUp();
+        result = parent.absolutePath();
     });
     return result;
 }
@@ -208,4 +213,3 @@ void KtxBenchmarks::benchmarkWriteKTX() {
         }
     }
 }
-

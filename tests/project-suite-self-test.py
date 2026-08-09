@@ -32,6 +32,12 @@ class ProjectSuiteCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.split()[0], "native-ctest")
 
+    def test_coverage_profile_selects_coverage_not_duplicate_native_run(self):
+        result = self.run_cli("--list", "--profile", "coverage")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("native-coverage", result.stdout)
+        self.assertNotIn("native-ctest", result.stdout)
+
     def test_unknown_suite_and_invalid_timeout_fail(self):
         unknown = self.run_cli("--list", "--suite", "missing")
         self.assertEqual(unknown.returncode, 2)
