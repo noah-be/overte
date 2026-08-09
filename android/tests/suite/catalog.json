@@ -62,7 +62,7 @@
       "kind": "jvm",
       "tiers": ["fast", "host"],
       "command": ["tests/legacy-user-story-policy-test.sh"],
-      "description": "Legacy place URL and pagination characterization"
+      "description": "Legacy place and bounded asset text policies"
     },
     {
       "id": "phone-test-inventory",

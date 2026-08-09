@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import io.highfidelity.hifiinterface.view.AvatarAdapter;
+import io.highfidelity.hifiinterface.LegacyAssetTextPolicy;
 
 /**
  * Created by gcalero on 1/21/19
@@ -58,13 +59,9 @@ public class AvatarProvider {
     }
 
     private String loadJSONFromAssets() throws IOException {
-        String json = null;
-        InputStream is = mContext.getAssets().open(AVATARS_JSON);
-        int size = is.available();
-        byte[] buffer = new byte[size];
-        is.read(buffer);
-        is.close();
-        json = new String(buffer, "UTF-8");
-        return json;
+        try (InputStream input = mContext.getAssets().open(AVATARS_JSON)) {
+            return LegacyAssetTextPolicy.readUtf8(
+                    input, LegacyAssetTextPolicy.MAX_ASSET_TEXT_BYTES);
+        }
     }
 }

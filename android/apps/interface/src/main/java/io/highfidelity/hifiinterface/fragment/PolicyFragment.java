@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 
 import io.highfidelity.hifiinterface.R;
+import io.highfidelity.hifiinterface.LegacyAssetTextPolicy;
 
 public class PolicyFragment extends Fragment {
 
@@ -47,14 +48,10 @@ public class PolicyFragment extends Fragment {
     }
     
     public String loadHTMLFromAsset() throws IOException {
-        String html = null;
-        InputStream is = getContext().getAssets().open(POLICY_FILE);
-        int size = is.available();
-        byte[] buffer = new byte[size];
-        is.read(buffer);
-        is.close();
-        html = new String(buffer, "UTF-8");
-        return html;
+        try (InputStream input = getContext().getAssets().open(POLICY_FILE)) {
+            return LegacyAssetTextPolicy.readUtf8(
+                    input, LegacyAssetTextPolicy.MAX_ASSET_TEXT_BYTES);
+        }
     }
 
 }
