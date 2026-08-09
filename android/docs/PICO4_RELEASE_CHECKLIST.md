@@ -11,7 +11,11 @@ human release owner must complete every item before any later publication.
 - [ ] `SHA256SUMS`, provenance manifest and CycloneDX SBOM were reviewed.
 - [ ] Dependency checksum manifest and runner image/toolchain inventory were
   reviewed; known non-determinism was recorded.
-- [ ] Separate approved Pico 4 ADB/device acceptance completed and its report
+- [ ] Default ADB-free device-acceptance inspection completed.
+- [ ] Separate approved Pico 4 USB-ADB acceptance completed and its report
+      matches this tag, commit, APK digest and release certificate.
+- [ ] `PICO4_DISTRIBUTION_READINESS.md` portal-only requirements were rechecked
+      for the selected channel and the submitted artifact digest was recorded.
   was attached. The release workflow itself never accesses a device.
 - [ ] Release notes, upgrade behavior and rollback plan were reviewed.
 - [ ] A release owner explicitly approved publication. Draft creation is not
