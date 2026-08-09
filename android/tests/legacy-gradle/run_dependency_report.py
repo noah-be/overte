@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare Gradle 4.10.1 or report the committed legacy dependency graph."""
+"""Prepare Gradle 6.5 or report the committed legacy dependency graph."""
 
 from __future__ import annotations
 
@@ -26,11 +26,11 @@ import process_control  # noqa: E402
 
 ANDROID_ROOT = Path(__file__).resolve().parents[2]
 REPOSITORY_ROOT = ANDROID_ROOT.parent
-GRADLE_VERSION = "4.10.1"
-GRADLE_URL = "https://services.gradle.org/distributions/gradle-4.10.1-bin.zip"
-GRADLE_SHA256 = "e53ce3a01cf016b5d294eef20977ad4e3c13e761ac1e475f1ffad4c6141a92bd"
+GRADLE_VERSION = "6.5"
+GRADLE_URL = "https://services.gradle.org/distributions/gradle-6.5-bin.zip"
+GRADLE_SHA256 = "23e7d37e9bb4f8dabb8a3ea7fdee9dd0428b9b1a71d298aefd65b11dccea220f"
 REPORTED_MODULES = ("qt", "oculus", "interface", "questInterface", "framePlayer", "questFramePlayer")
-EXCLUDED_MODULES = ({"name": "picoInterface", "reason": "dedicated Gradle 8.13 graph; outside Gradle 4.10.1 harness"},)
+EXCLUDED_MODULES = ({"name": "picoInterface", "reason": "dedicated Gradle 8.13 graph; outside Gradle 6.5 harness"},)
 FAILURE_MARKERS = ("Could not resolve", " FAILED", "-> FAILED")
 REPORT_VERSION_CODE = "1"
 REPORT_RELEASE_NUMBER = "1.0"
@@ -315,7 +315,7 @@ def main(argv=None) -> int:
     modes.add_argument("--offline", action="store_true")
     modes.add_argument("--network", action="store_true")
     args = parser.parse_args(argv)
-    cache = Path(os.environ.get("OVERTE_LEGACY_GRADLE_CACHE_DIR", ANDROID_ROOT / "build/tools/legacy-gradle-4.10.1"))
+    cache = Path(os.environ.get("OVERTE_LEGACY_GRADLE_CACHE_DIR", ANDROID_ROOT / "build/tools/legacy-gradle-6.5"))
     report = Path(os.environ.get("OVERTE_LEGACY_DEPENDENCY_REPORT_DIR", ANDROID_ROOT / "build/reports/legacy-gradle-dependencies"))
     java_home = Path(os.environ.get("OVERTE_LEGACY_JAVA_HOME", "/usr/lib/jvm/java-8-temurin-jdk"))
     try:

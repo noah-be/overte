@@ -3,8 +3,8 @@ set -euo pipefail
 
 android_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 python_command="${OVERTE_LEGACY_PYTHON_COMMAND:-python3}"
-cache_root="${OVERTE_LEGACY_GRADLE_CACHE_DIR:-$android_root/build/tools/legacy-gradle-4.10.1}"
-gradle_command="${OVERTE_LEGACY_GRADLE_COMMAND:-$cache_root/gradle-4.10.1/bin/gradle}"
+cache_root="${OVERTE_LEGACY_GRADLE_CACHE_DIR:-$android_root/build/tools/legacy-gradle-6.5}"
+gradle_command="${OVERTE_LEGACY_GRADLE_COMMAND:-$cache_root/gradle-6.5/bin/gradle}"
 export JAVA_HOME="${OVERTE_LEGACY_JAVA_HOME:-/usr/lib/jvm/java-8-temurin-jdk}"
 
 "$python_command" \

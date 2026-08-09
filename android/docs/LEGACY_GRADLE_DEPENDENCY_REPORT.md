@@ -6,7 +6,7 @@ obsolete GVR inputs have been removed from the legacy graph.
 
 It requires the explicit JDK 8 installation at
 `/usr/lib/jvm/java-8-temurin-jdk` by default. Override it only with
-`OVERTE_LEGACY_JAVA_HOME`. Gradle 4.10.1 is downloaded from the official Gradle
+`OVERTE_LEGACY_JAVA_HOME`. Gradle 6.5 is downloaded from the official Gradle
 distribution service and checked against the reviewed SHA-256 literal before
 installation.
 
@@ -18,7 +18,7 @@ python3 tests/legacy-gradle/run_dependency_report.py toolchain --network
 ./legacy-gradlew tasks
 ```
 
-The wrapper always verifies the cached Gradle 4.10.1 distribution offline
+The wrapper always verifies the cached Gradle 6.5 distribution offline
 before use. It never invokes the shared Gradle 8.13 Phone/Pico wrapper and never
 downloads implicitly.
 

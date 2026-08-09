@@ -8,10 +8,18 @@
 
 # This should allow using long paths on Windows
 SET(CMAKE_NINJA_FORCE_RESPONSE_FILE 1 CACHE INTERNAL "")
-# 3.24 is the minimum version that supports CMAKE_COMPILE_WARNING_AS_ERROR
-cmake_minimum_required(VERSION 3.24)
-# Avoid CMP0177 policy warning introduced in CMake 3.31.
-cmake_policy(VERSION 3.24...3.31)
+# The legacy Android Gradle graph still uses CMake's server protocol, which was
+# removed in CMake 3.20. Keep this explicit compatibility boundary isolated from
+# every modern Overte build.
+if (OVERTE_LEGACY_ANDROID_CMAKE AND CMAKE_VERSION VERSION_LESS 3.24)
+    cmake_minimum_required(VERSION 3.18)
+    cmake_policy(VERSION 3.18)
+else()
+    # 3.24 is the minimum version that supports CMAKE_COMPILE_WARNING_AS_ERROR.
+    cmake_minimum_required(VERSION 3.24)
+    # Avoid CMP0177 policy warning introduced in CMake 3.31.
+    cmake_policy(VERSION 3.24...3.31)
+endif()
 include(SelectLibraryConfigurations)
 
 # Instruct CMake to run moc automatically when needed.

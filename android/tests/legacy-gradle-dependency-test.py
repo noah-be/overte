@@ -173,8 +173,8 @@ def legacy_direct_dependency_inventory() -> dict:
         "artifactType": "source declaration inventory",
         "sbom": False,
         "toolchain": {
-            "gradle": "4.10.1",
-            "androidGradlePlugin": "3.2.1",
+            "gradle": "6.5",
+            "androidGradlePlugin": "4.1.3",
         },
         "modules": modules,
     }
@@ -184,13 +184,13 @@ def legacy_toolchain_contract_errors(
         settings: str, root_build: str, documentation: str, wrapper: str,
         phone_settings: str, pico_settings: str) -> list[str]:
     errors = []
-    guard = "GradleVersion.version('4.10.1')"
+    guard = "GradleVersion.version('6.5')"
     if guard not in settings or settings.index(guard) > settings.index("include ':oculus'"):
-        errors.append("legacy Gradle 4.10.1 guard must precede project inclusion")
-    if "classpath 'com.android.tools.build:gradle:3.2.1'" not in root_build:
-        errors.append("legacy AGP 3.2.1 pin is missing")
-    if "Gradle Version to `4.10.1`" not in documentation or \
-            "Plugin Version to `3.2.1`" not in documentation:
+        errors.append("legacy Gradle 6.5 guard must precede project inclusion")
+    if "classpath 'com.android.tools.build:gradle:4.1.3'" not in root_build:
+        errors.append("legacy AGP 4.1.3 pin is missing")
+    if "Gradle `6.5`" not in documentation or \
+            "Plugin `4.1.3`" not in documentation:
         errors.append("legacy toolchain documentation drifted")
     if "gradle-8.13-bin.zip" not in wrapper or "distributionSha256Sum=" not in wrapper:
         errors.append("shared Phone/Pico wrapper pin drifted")
@@ -202,6 +202,24 @@ def legacy_toolchain_contract_errors(
 
 
 class LegacyGradleDependencyTest(unittest.TestCase):
+    def test_legacy_native_modules_opt_into_the_isolated_cmake_boundary(self):
+        root = (REPOSITORY_ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
+        self.assertIn("if (OVERTE_LEGACY_ANDROID_CMAKE AND CMAKE_VERSION VERSION_LESS 3.24)", root)
+        self.assertIn("cmake_minimum_required(VERSION 3.18)", root)
+        self.assertIn("cmake_minimum_required(VERSION 3.24)", root)
+        for relative_path in (
+                "apps/interface/build.gradle",
+                "apps/questInterface/build.gradle",
+                "apps/framePlayer/build.gradle",
+                "apps/questFramePlayer/build.gradle"):
+            source = (ANDROID_ROOT / relative_path).read_text(encoding="utf-8")
+            self.assertEqual(1, source.count("-DOVERTE_LEGACY_ANDROID_CMAKE=ON"),
+                             relative_path)
+            self.assertEqual(1, source.count("-DCMAKE_C_FLAGS=-O2 -falign-functions=32 -fPIC"),
+                             relative_path)
+            self.assertEqual(1, source.count("-DCMAKE_CXX_FLAGS=-O2 -falign-functions=32 -fPIC"),
+                             relative_path)
+
     def test_dedicated_legacy_wrapper_gates_toolchain_and_forwards_arguments(self):
         wrapper = ANDROID_ROOT / "legacy-gradlew"
         self.assertTrue(os.access(wrapper, os.X_OK))
@@ -356,7 +374,7 @@ class LegacyGradleDependencyTest(unittest.TestCase):
         self.assertEqual("source declaration inventory", inventory["artifactType"])
         self.assertIs(inventory["sbom"], False)
         self.assertEqual(
-            {"gradle": "4.10.1", "androidGradlePlugin": "3.2.1"},
+            {"gradle": "6.5", "androidGradlePlugin": "4.1.3"},
             inventory["toolchain"])
 
     def test_legacy_gvr_dependency_chain_is_absent(self):
@@ -470,7 +488,7 @@ dependencies {
         self.assertIsNotNone(buildscript)
         self.assertIsNotNone(allprojects)
         self.assertEqual(1, buildscript.count(
-            "classpath 'com.android.tools.build:gradle:3.2.1'"))
+            "classpath 'com.android.tools.build:gradle:4.1.3'"))
         self.assertIn("google()", buildscript)
         self.assertIn("mavenCentral()", buildscript)
         self.assertNotIn("jcenter()", buildscript)
@@ -578,18 +596,18 @@ allprojects { repositories { google(); jcenter(); mavenCentral() } }
 
     def test_legacy_toolchain_contract_rejects_version_and_topology_drift(self):
         valid = [
-            "GradleVersion.version('4.10.1')\ninclude ':oculus'",
-            "classpath 'com.android.tools.build:gradle:3.2.1'",
-            "Plugin Version to `3.2.1` and Gradle Version to `4.10.1`",
+            "GradleVersion.version('6.5')\ninclude ':oculus'",
+            "classpath 'com.android.tools.build:gradle:4.1.3'",
+            "Plugin `4.1.3` and Gradle `6.5`",
             "distributionUrl=gradle-8.13-bin.zip\ndistributionSha256Sum=abc",
             "buildFileName = 'build-phone.gradle'",
             "buildFileName = 'build-pico.gradle'",
         ]
         self.assertEqual([], legacy_toolchain_contract_errors(*valid))
         for index, replacement in (
-                (0, "include ':oculus'\nGradleVersion.version('4.10.1')"),
+                (0, "include ':oculus'\nGradleVersion.version('6.5')"),
                 (1, "classpath 'com.android.tools.build:gradle:3.3.0'"),
-                (2, "Plugin Version to `3.2.1` and Gradle Version to `8.13`"),
+                (2, "Plugin `4.1.3` and Gradle `8.13`"),
                 (3, "distributionUrl=gradle-8.13-bin.zip"),
                 (4, "buildFileName = 'build.gradle'"),
                 (5, "buildFileName = 'build.gradle'")):

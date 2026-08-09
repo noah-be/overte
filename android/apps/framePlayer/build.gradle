@@ -12,9 +12,12 @@ android {
         externalNativeBuild {
             cmake {
                 arguments '-DHIFI_ANDROID=1',
+                    '-DOVERTE_LEGACY_ANDROID_CMAKE=ON',
                     '-DHIFI_ANDROID_APP=framePlayer',
                     '-DANDROID_TOOLCHAIN=clang',
                     '-DANDROID_STL=c++_shared',
+                    '-DCMAKE_C_FLAGS=-O2 -falign-functions=32 -fPIC',
+                    '-DCMAKE_CXX_FLAGS=-O2 -falign-functions=32 -fPIC',
                     '-DCMAKE_VERBOSE_MAKEFILE=ON'
                 targets = ['framePlayer']
             }

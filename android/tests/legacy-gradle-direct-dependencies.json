@@ -5,8 +5,8 @@
   "artifactType": "source declaration inventory",
   "sbom": false,
   "toolchain": {
-    "gradle": "4.10.1",
-    "androidGradlePlugin": "3.2.1"
+    "gradle": "6.5",
+    "androidGradlePlugin": "4.1.3"
   },
   "modules": [
     {

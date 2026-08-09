@@ -21,8 +21,8 @@ SPEC.loader.exec_module(report)
 
 class LegacyGradleReportTest(unittest.TestCase):
     def test_official_distribution_identity_is_immutable(self):
-        self.assertEqual("https://services.gradle.org/distributions/gradle-4.10.1-bin.zip", report.GRADLE_URL)
-        self.assertEqual("e53ce3a01cf016b5d294eef20977ad4e3c13e761ac1e475f1ffad4c6141a92bd", report.GRADLE_SHA256)
+        self.assertEqual("https://services.gradle.org/distributions/gradle-6.5-bin.zip", report.GRADLE_URL)
+        self.assertEqual("23e7d37e9bb4f8dabb8a3ea7fdee9dd0428b9b1a71d298aefd65b11dccea220f", report.GRADLE_SHA256)
 
     def test_offline_missing_distribution_never_downloads(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -38,10 +38,10 @@ class LegacyGradleReportTest(unittest.TestCase):
                 destination.write_bytes(b"wrong")
             with self.assertRaisesRegex(report.HarnessError, "checksum mismatch"):
                 report.ensure_distribution(cache, True, bad_download)
-            self.assertFalse((cache / "downloads/gradle-4.10.1-bin.zip").exists())
+            self.assertFalse((cache / "downloads/gradle-6.5-bin.zip").exists())
 
     def test_zip_rejects_escape_and_symlink(self):
-        for name, attributes in (("../escape", 0), ("gradle-4.10.1/link", 0o120777 << 16)):
+        for name, attributes in (("../escape", 0), ("gradle-6.5/link", 0o120777 << 16)):
             with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
                 archive = Path(directory) / "bad.zip"
                 with zipfile.ZipFile(archive, "w") as output:
@@ -55,13 +55,13 @@ class LegacyGradleReportTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             archive = Path(directory) / "gradle.zip"
             with zipfile.ZipFile(archive, "w") as output:
-                item = zipfile.ZipInfo("gradle-4.10.1/bin/gradle")
+                item = zipfile.ZipInfo("gradle-6.5/bin/gradle")
                 item.create_system = 3
                 item.external_attr = (0o100755 << 16)
                 output.writestr(item, "#!/bin/sh\n")
             destination = Path(directory) / "out"
             report.safe_zip_extract(archive, destination)
-            executable = destination / "gradle-4.10.1/bin/gradle"
+            executable = destination / "gradle-6.5/bin/gradle"
             self.assertTrue(executable.is_file())
             self.assertTrue(executable.stat().st_mode & 0o111)
 
