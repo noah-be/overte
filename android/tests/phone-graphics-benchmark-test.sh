@@ -18,6 +18,7 @@ sed 's/^+//' >"$fixture/adb" <<'MOCK'
 +if [[ ${1:-} == devices ]]; then printf 'List of devices attached\nphone-secret device product:private\n'; exit; fi
 +[[ ${1:-} == -s && ${2:-} == phone-secret ]] || exit 90
 +shift 2
++if [[ -n ${MOCK_ADB_COMMAND_LOG:-} ]]; then printf '%s\n' "$*" >>"$MOCK_ADB_COMMAND_LOG"; fi
 +if [[ $1 == shell && $2 == getprop ]]; then
 +  [[ $3 == ro.build.characteristics ]] && printf 'phone\n' || printf 'Generic\n'; exit
 +fi
@@ -207,12 +208,27 @@ mkdir -p "$symlink_report"
 protected="$fixture/protected"
 printf 'do-not-overwrite\n' >"$protected"
 ln -s "$protected" "$symlink_report/summary.txt"
+symlink_commands="$fixture/symlink-commands"
+: >"$symlink_commands"
 if PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/exit-count" ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES \
-    PHONE_BENCHMARK_REPORT="$symlink_report" PHONE_BENCHMARK_INTERVAL=1 \
+    PHONE_BENCHMARK_REPORT="$symlink_report" PHONE_BENCHMARK_INTERVAL=1 MOCK_ADB_COMMAND_LOG="$symlink_commands" \
     "$script_dir/phone-graphics-benchmark.sh" 1 >/dev/null 2>&1; then
     echo 'FAIL: benchmark overwrote a symlinked summary' >&2; exit 1
 fi
 grep -q '^do-not-overwrite$' "$protected"
+! grep -Eq 'dumpsys gfxinfo|logcat -c|am start' "$symlink_commands"
+
+nonregular_report="$fixture/nonregular-report"
+mkdir -p "$nonregular_report/summary.txt"
+nonregular_commands="$fixture/nonregular-commands"
+: >"$nonregular_commands"
+if PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/exit-count" ANDROID_SERIAL=phone-secret \
+    PHONE_BENCHMARK_CONFIRM_NON_VR=YES PHONE_BENCHMARK_REPORT="$nonregular_report" \
+    PHONE_BENCHMARK_INTERVAL=1 MOCK_ADB_COMMAND_LOG="$nonregular_commands" \
+    "$script_dir/phone-graphics-benchmark.sh" 1 >/dev/null 2>&1; then
+    echo 'FAIL: benchmark accepted a non-regular summary target' >&2; exit 1
+fi
+! grep -Eq 'dumpsys gfxinfo|logcat -c|am start' "$nonregular_commands"
 
 unstable_report="$fixture/unstable-report"
 PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/unstable-exits" MOCK_PID_CHANGE_FILE="$fixture/pid-count" \

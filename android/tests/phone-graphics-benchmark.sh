@@ -69,6 +69,10 @@ fi
 case "$report_dir/" in "$worktree_root/"*) die "refusing to write benchmark output inside the worktree" ;; esac
 mkdir -p -- "$report_dir"
 chmod 700 "$report_dir"
+summary="$report_dir/summary.txt"
+[[ ! -L "$summary" ]] || die "refusing to overwrite a symlinked benchmark summary"
+[[ ! -e "$summary" || -f "$summary" ]] || \
+    die "refusing to overwrite a non-regular benchmark summary"
 
 # Deliberately ignore TMPDIR: raw device text must have a short-lived /tmp home.
 raw_dir="$(mktemp -d /tmp/overte-phone-graphics-raw.XXXXXXXX)"
@@ -356,8 +360,6 @@ native_present_metrics_available=0
 [[ -n "$native_present_fps" && -n "$native_new_frame_fps" && -n "$native_present_p95_ms" ]] && \
     native_present_metrics_available=1
 
-summary="$report_dir/summary.txt"
-[[ ! -L "$summary" ]] || die "refusing to overwrite a symlinked benchmark summary"
 summary_tmp="$(mktemp "$report_dir/.summary.txt.XXXXXXXX")"
 chmod 600 "$summary_tmp"
 {

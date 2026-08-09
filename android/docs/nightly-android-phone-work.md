@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 114 — Preflight benchmark report targets
+
+- Branch: `nightly/android-phone-114-benchmark-report-preflight`
+- Commit: `Preflight phone benchmark report targets` (this task's commit)
+- Change: Reject symlinked and other non-regular aggregate-summary targets
+  before resetting graphics counters, clearing logs, or starting the Phone app.
+  Existing regular summaries remain supported through atomic replacement.
+- Tests:
+  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; fake-ADB
+    command capture proves both a symlink and a directory at `summary.txt` fail
+    before any `gfxinfo` reset, log clear, or Activity start.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 307/307 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 307/307.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: A privileged local process could still race filesystem entries;
+  the final same-directory rename does not follow a destination symlink.
+- Real-device validation still required: None for local report preflight; normal
+  benchmark validation remains required for the current-chain APK.
+
 ## 113 — Keep benchmark ADB diagnostics private
 
 - Branch: `nightly/android-phone-113-private-benchmark-adb`
@@ -2603,7 +2623,8 @@ All branches form one linear chain starting at
 110. `nightly/android-phone-110-private-summary-write-errors` — `e39b0c7897`
 111. `nightly/android-phone-111-report-setup-failures` — `2f38c788ca`
 112. `nightly/android-phone-112-late-summary-failure` — `b12135379e`
-113. `nightly/android-phone-113-private-benchmark-adb` — this task's commit
+113. `nightly/android-phone-113-private-benchmark-adb` — `3012eeec08`
+114. `nightly/android-phone-114-benchmark-report-preflight` — this task's commit
 
 ### Device-free audit disposition
 
