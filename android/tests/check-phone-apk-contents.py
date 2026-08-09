@@ -173,6 +173,18 @@ def main():
                     "APK contains native entries outside arm64-v8a: "
                     + ", ".join(unexpected_native_abis[:5])
                 )
+            packaged_native_entries = {
+                name for name in names if name.startswith("lib/arm64-v8a/")
+            }
+            expected_native_entries = {
+                name for name in required_entries if name.startswith("lib/arm64-v8a/")
+            }
+            unexpected_native_entries = packaged_native_entries - expected_native_entries
+            if unexpected_native_entries:
+                raise ValueError(
+                    "package contains unexpected ARM64 native entries: "
+                    + ", ".join(sorted(unexpected_native_entries)[:5])
+                )
             missing = required_entries - names
             if missing:
                 raise ValueError("missing required entries: " + ", ".join(sorted(missing)))

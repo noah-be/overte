@@ -114,6 +114,8 @@ require_text tests/check-phone-apk-contents.py 'duplicate ZIP entry names' \
     'APK completeness gate rejects ambiguous duplicate archive entries'
 require_text tests/check-phone-apk-contents.py 'outside arm64-v8a' \
     'APK completeness gate rejects native payload for unexpected ABIs'
+require_text tests/check-phone-apk-contents.py 'unexpected ARM64 native entries' \
+    'package completeness gate rejects undeclared ARM64 runtimes'
 require_text tests/check-phone-apk-contents.py 'REQUIRED_CACHED_ASSETS' \
     'APK completeness gate identifies start-critical extracted bundles'
 require_text tests/check-phone-apk-contents.py 'cache_content_digest' \

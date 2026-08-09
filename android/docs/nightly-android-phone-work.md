@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 94 — Reject undeclared ARM64 native libraries
+
+- Branch: `nightly/android-phone-94-native-library-allowlist`
+- Commit: `Gate phone package native library allowlist` (this task's commit)
+- Change: Treat the core Phone runtimes plus the native plugins declared by
+  `qt_dependencies.xml` as an exact ARM64 package allowlist. APKs and AABs with
+  stale or otherwise undeclared same-ABI `.so` payloads now fail alongside the
+  existing foreign-ABI rejection.
+- Tests:
+  - `android/tests/phone-apk-contents-test.sh`: **passed**, including distinct
+    APK and AAB fixtures containing an undeclared ARM64 runtime.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 283/283 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 36
+    explicitly device-free suites; nested host regression passed 283/283.
+  - Python/shell syntax and `git diff --check`: **passed**.
+- Known risks: Every intentional future native runtime must be reviewed and
+  added to the staging/dependency declaration and package contract together.
+- Real-device validation still required: Run loader and startup smoke on the
+  final APK to prove the exact allowlist retains every runtime-selected plugin.
+
 ## 93 — Bound cache-manifest resource use
 
 - Branch: `nightly/android-phone-93-cache-manifest-limits`
@@ -2164,7 +2184,8 @@ All branches form one linear chain starting at
 90. `nightly/android-phone-90-apkanalyzer-errors` — `488fb4bf47`
 91. `nightly/android-phone-91-nightly-handoff` — `a2672c4ae7`
 92. `nightly/android-phone-92-cache-digest-gate` — `4d6c434d63`
-93. `nightly/android-phone-93-cache-manifest-limits` — this task's commit
+93. `nightly/android-phone-93-cache-manifest-limits` — `305ce9f3b4`
+94. `nightly/android-phone-94-native-library-allowlist` — this task's commit
 
 ### Device-free audit disposition
 

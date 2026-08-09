@@ -156,6 +156,24 @@ with zipfile.ZipFile(root / 'unexpected-abi.apk', 'w') as archive:
         archive.writestr(entry, data)
     archive.writestr('lib/x86_64/libstale.so', b'stale')
 
+with zipfile.ZipFile(root / 'unexpected-arm64-runtime.apk', 'w') as archive:
+    archive.writestr('assets/cache_assets.txt', cache_manifest)
+    for entry, data in required.items():
+        archive.writestr(entry, data)
+    archive.writestr('lib/arm64-v8a/libstale.so', b'stale')
+
+with zipfile.ZipFile(root / 'unexpected-arm64-runtime.aab', 'w') as archive:
+    archive.writestr('base/assets/cache_assets.txt', cache_manifest)
+    for entry, data in required.items():
+        if entry == 'AndroidManifest.xml':
+            bundle_entry = 'base/manifest/AndroidManifest.xml'
+        elif entry == 'classes.dex':
+            bundle_entry = 'base/dex/classes.dex'
+        else:
+            bundle_entry = 'base/' + entry
+        archive.writestr(bundle_entry, data)
+    archive.writestr('base/lib/arm64-v8a/libstale.so', b'stale')
+
 with warnings.catch_warnings():
     warnings.simplefilter('ignore', UserWarning)
     with zipfile.ZipFile(root / 'duplicate-entry.apk', 'w') as archive:
@@ -243,14 +261,18 @@ if "$checker" "$fixture_dir/missing-required-cache-entry.apk" \
 fi
 grep -Fq 'omits required extracted assets: android_rcc_bundle.rcc' \
     "$fixture_dir/required-cache-out"
-for fixture in unexpected-abi.apk duplicate-entry.apk; do
+while IFS=$'\t' read -r fixture expected_error; do
     if "$checker" "$fixture_dir/$fixture" >"$fixture_dir/archive-out" 2>&1; then
         printf 'FAIL: invalid APK archive structure was accepted: %s\n' "$fixture" >&2
         exit 1
     fi
-done
-grep -Fq 'outside arm64-v8a' "$fixture_dir/archive-out" || \
-    grep -Fq 'duplicate ZIP entry names' "$fixture_dir/archive-out"
+    grep -Fq "$expected_error" "$fixture_dir/archive-out"
+done <<'ARCHIVE_CASES'
+unexpected-abi.apk	outside arm64-v8a
+unexpected-arm64-runtime.apk	unexpected ARM64 native entries
+unexpected-arm64-runtime.aab	unexpected ARM64 native entries
+duplicate-entry.apk	duplicate ZIP entry names
+ARCHIVE_CASES
 if "$checker" "$fixture_dir/partial.apk" >"$fixture_dir/out" 2>&1; then
     echo 'FAIL: incomplete APK fixture was accepted' >&2
     exit 1
