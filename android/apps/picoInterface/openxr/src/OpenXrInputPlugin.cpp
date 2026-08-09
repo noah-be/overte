@@ -109,7 +109,9 @@ static glm::mat4 defaultPoseOffset(const controller::InputCalibrationData& data,
     }
 }
 
-void OpenXrInputPlugin::guessXDevRoles(std::unordered_map<XrXDevIdMNDX, XDevTracker>& tracker_map) {
+void OpenXrInputPlugin::guessXDevRoles(
+        std::unordered_map<XrXDevIdMNDX, XDevTracker>& tracker_map,
+        XrTime sampleTime) {
     std::vector<std::tuple<XrXDevIdMNDX, glm::vec3, controller::Pose>> tracker_list;
 
     for (auto [id, tracker] : tracker_map) {
@@ -117,11 +119,11 @@ void OpenXrInputPlugin::guessXDevRoles(std::unordered_map<XrXDevIdMNDX, XDevTrac
         XrSpaceLocation stageSpace = { XR_TYPE_SPACE_LOCATION };
         XrSpaceLocation localSpace = { XR_TYPE_SPACE_LOCATION };
         XrSpaceLocation headSpace = { XR_TYPE_SPACE_LOCATION };
-        result = xrLocateSpace(tracker.space, _context->_stageSpace, _context->_lastPredictedDisplayTime.value(), &stageSpace);
+        result = xrLocateSpace(tracker.space, _context->_stageSpace, sampleTime, &stageSpace);
         xrCheck(_context->_instance, result, "guessXDevRoles: tracker stage space fail");
-        result = xrLocateSpace(tracker.space, _context->_viewSpace, _context->_lastPredictedDisplayTime.value(), &localSpace);
+        result = xrLocateSpace(tracker.space, _context->_viewSpace, sampleTime, &localSpace);
         xrCheck(_context->_instance, result, "guessXDevRoles: tracker local space fail");
-        result = xrLocateSpace(_context->_viewSpace, _context->_stageSpace, _context->_lastPredictedDisplayTime.value(), &headSpace);
+        result = xrLocateSpace(_context->_viewSpace, _context->_stageSpace, sampleTime, &headSpace);
         xrCheck(_context->_instance, result, "guessXDevRoles: head space fail");
 
         // the tracker's position, relative horizontally to the headset
@@ -170,8 +172,17 @@ void OpenXrInputPlugin::guessXDevRoles(std::unordered_map<XrXDevIdMNDX, XDevTrac
 void OpenXrInputPlugin::calibrate() {
     qCDebug(xr_input_cat) << "OpenXrInputPlugin::calibrate";
 
-    if (_context->_MNDX_xdevSpaceSupported) {
-        guessXDevRoles(_inputDevice->_xdev);
+    const auto sampleTime = _context->_lastPredictedDisplayTime;
+    const bool xdevSamplingReady = openXrXDevRoleSamplingReady(
+        _context->_MNDX_xdevSpaceSupported,
+        sampleTime.has_value(),
+        !_inputDevice->_xdev.empty());
+    if (xdevSamplingReady) {
+        guessXDevRoles(_inputDevice->_xdev, sampleTime.value());
+    } else if (_context->_MNDX_xdevSpaceSupported &&
+               !_inputDevice->_xdev.empty()) {
+        qCWarning(xr_input_cat,
+                  "Skipping XDev role sampling until a predicted display time is available");
     }
     _inputDevice->_trackerCalibrations.clear();
     _inputDevice->_wantsCalibrate = true;

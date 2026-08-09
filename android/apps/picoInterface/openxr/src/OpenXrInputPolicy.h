@@ -54,6 +54,13 @@ constexpr bool openXrPoseActionCanLocate(
         predictionAvailable;
 }
 
+constexpr bool openXrXDevRoleSamplingReady(
+        bool xdevCapabilityReady,
+        bool predictionAvailable,
+        bool hasTrackers) {
+    return xdevCapabilityReady && predictionAvailable && hasTrackers;
+}
+
 constexpr bool openXrBoundedEnumerationUsable(
         bool callSucceeded, std::size_t returnedCount, std::size_t capacity) {
     return callSucceeded && returnedCount <= capacity;

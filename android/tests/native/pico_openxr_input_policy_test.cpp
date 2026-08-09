@@ -67,6 +67,13 @@ int main() {
                    (mask & 8U) != 0) == (mask == 15U));
     }
 
+    for (unsigned int mask = 0; mask < 8; ++mask) {
+        OVERTE_EXPECT(openXrXDevRoleSamplingReady(
+                   (mask & 1U) != 0,
+                   (mask & 2U) != 0,
+                   (mask & 4U) != 0) == (mask == 7U));
+    }
+
     OVERTE_EXPECT(!openXrBoundedEnumerationUsable(false, 0, 16));
     OVERTE_EXPECT(openXrBoundedEnumerationUsable(true, 0, 16));
     OVERTE_EXPECT(openXrBoundedEnumerationUsable(true, 1, 16));

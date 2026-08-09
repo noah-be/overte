@@ -82,7 +82,9 @@ private:
         std::optional<controller::StandardPoseChannel> pose_channel;
         XrXDevPropertiesMNDX properties;
     };
-    void guessXDevRoles(std::unordered_map<XrXDevIdMNDX, XDevTracker>& trackers);
+    void guessXDevRoles(
+        std::unordered_map<XrXDevIdMNDX, XDevTracker>& trackers,
+        XrTime sampleTime);
 
     class InputDevice : public controller::InputDevice {
     public:
