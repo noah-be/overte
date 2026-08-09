@@ -5,6 +5,11 @@ fast feedback without accidentally starting a device test or an expensive
 build. `tests/suite/catalog.json` is the source of truth. The runner never
 discovers tests by filename glob.
 
+The fast and contract tiers parse every tracked Android `*.sh` entry point with
+`bash -n`. This catches syntax regressions even in hardware-only scripts that
+cannot execute on a pull-request host. It is a syntax contract, not a substitute
+for behavior tests or a general-purpose shell linter.
+
 ## Test architecture
 
 | Tier | Purpose | Expected use |

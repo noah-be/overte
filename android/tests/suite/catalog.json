@@ -16,6 +16,13 @@
       "description": "Pinned CI actions, toolchains, dependency locks, packages and artifacts"
     },
     {
+      "id": "shell-syntax-contract",
+      "kind": "infrastructure",
+      "tiers": ["fast", "host", "contracts"],
+      "command": ["tests/shell-syntax-test.sh"],
+      "description": "Parse every tracked Android Bash entry point before execution"
+    },
+    {
       "id": "result-summary-self-test",
       "kind": "infrastructure",
       "tiers": ["fast"],
