@@ -160,13 +160,19 @@ def main() -> int:
         return 2
 
     results = []
+    suite_temp_parent = ANDROID_ROOT / "build" / "tmp" / "suite"
+    suite_temp_parent.mkdir(parents=True, exist_ok=True)
     for suite in suites:
         print(f"\n[{suite['id']}] {suite['description']}", flush=True)
         started = time.monotonic()
         command = suite["command"]
         try:
-            completed = run_command(command, suite.get("timeoutSeconds", DEFAULT_SUITE_TIMEOUT_SECONDS),
-                                    cwd=ANDROID_ROOT, env=os.environ.copy())
+            with tempfile.TemporaryDirectory(prefix="suite-", dir=suite_temp_parent) as temporary:
+                child_env = os.environ.copy()
+                child_env["TMPDIR"] = temporary
+                completed = run_command(
+                    command, suite.get("timeoutSeconds", DEFAULT_SUITE_TIMEOUT_SECONDS),
+                    cwd=ANDROID_ROOT, env=child_env)
             output = completed.stdout
             if completed.returncode == 77 and suite.get("optionalWhenToolMissing"):
                 status, reason = "skipped", "required optional host tool is unavailable"

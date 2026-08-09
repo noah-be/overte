@@ -180,6 +180,35 @@ class SuiteRunnerTest(unittest.TestCase):
         self.assertEqual("1", suite.attrib["failures"])
         self.assertEqual("0", suite.attrib["skipped"])
 
+    def test_main_gives_each_suite_a_build_local_temporary_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            android_root = root / "android"
+            android_root.mkdir()
+            catalog = root / "catalog.json"
+            report_dir = root / "reports"
+            catalog.write_text(json.dumps({"schemaVersion": 1, "suites": [{
+                "id": "fixture", "kind": "infrastructure", "description": "fixture",
+                "command": ["fixture"], "tiers": ["fast"],
+            }]}), encoding="utf-8")
+            observed = {}
+
+            def execute(command, timeout, *, cwd, env):
+                temporary = Path(env["TMPDIR"])
+                self.assertTrue(temporary.is_dir())
+                self.assertTrue(temporary.is_relative_to(android_root / "build" / "tmp" / "suite"))
+                observed["temporary"] = temporary
+                return subprocess.CompletedProcess(command, 0, "ok\n")
+
+            argv = ["run.py", "fast", "--catalog", str(catalog),
+                    "--report-dir", str(report_dir)]
+            with mock.patch("sys.argv", argv), mock.patch.object(
+                    run, "ANDROID_ROOT", android_root), mock.patch.object(
+                    run, "run_command", side_effect=execute), mock.patch.dict(
+                    os.environ, {"TMPDIR": "/tmp"}):
+                self.assertEqual(0, run.main())
+
+            self.assertFalse(observed["temporary"].exists())
     def test_invalid_catalog_always_produces_a_junit_failure(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
