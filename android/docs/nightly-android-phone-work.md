@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 129 — Exercise every benchmark device boundary
+
+- Branch: `nightly/android-phone-129-device-contract-fixtures`
+- Commit: `Test phone benchmark device boundaries` (this task's commit)
+- Change: Parameterize the fake Android properties/features and dynamically
+  exercise all physical Phone target predicates.
+- Tests:
+  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; emulator,
+    Watch, x86-only ABI, API 25, GLES below 3.2, and missing touchscreen each
+    fail with the fixed contract error before reset, log clear, or Activity
+    start; the valid ARM64 Phone fixture remains green.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 317/317.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Vendor property variations on a valid physical device still need
+  observation, though the contract uses standard Android properties/features.
+- Real-device validation still required: Confirm the intended device passes the
+  full predicate and a known non-Phone target is refused.
+
 ## 128 — Prove insecure raw setup is removed
 
 - Branch: `nightly/android-phone-128-raw-mode-cleanup`
@@ -2913,7 +2933,8 @@ All branches form one linear chain starting at
 125. `nightly/android-phone-125-discoverable-temp-report` — `34b3e36628`
 126. `nightly/android-phone-126-failed-temp-report-cleanup` — `8af0cc8bd1`
 127. `nightly/android-phone-127-report-mode-cleanup` — `bfa652240e`
-128. `nightly/android-phone-128-raw-mode-cleanup` — this task's commit
+128. `nightly/android-phone-128-raw-mode-cleanup` — `2e2c58a547`
+129. `nightly/android-phone-129-device-contract-fixtures` — this task's commit
 
 ### Device-free audit disposition
 

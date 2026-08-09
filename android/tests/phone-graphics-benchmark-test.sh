@@ -78,17 +78,17 @@ sed 's/^+//' >"$fixture/adb" <<'MOCK'
 +fi
 +if [[ $1 == shell && $2 == getprop ]]; then
 +  case $3 in
-+    ro.build.characteristics) printf 'phone\n' ;;
++    ro.build.characteristics) printf '%s\n' "${MOCK_CHARACTERISTICS:-phone}" ;;
 +    ro.kernel.qemu) printf '%s\n' "${MOCK_QEMU:-0}" ;;
-+    ro.product.cpu.abilist) printf 'arm64-v8a\n' ;;
-+    ro.build.version.sdk) printf '36\n' ;;
-+    ro.opengles.version) printf '196610\n' ;;
++    ro.product.cpu.abilist) printf '%s\n' "${MOCK_ABIS:-arm64-v8a}" ;;
++    ro.build.version.sdk) printf '%s\n' "${MOCK_SDK:-36}" ;;
++    ro.opengles.version) printf '%s\n' "${MOCK_GLES:-196610}" ;;
 +    *) printf 'Generic\n' ;;
 +  esac
 +  exit
 +fi
 +if [[ $1 == shell && $2 == pm && $3 == list && $4 == features ]]; then
-+  printf 'feature:android.hardware.touchscreen\n'; exit
++  printf '%s\n' "${MOCK_FEATURES-feature:android.hardware.touchscreen}"; exit
 +fi
 +if [[ $1 == shell && $2 == pidof ]]; then
 +  if [[ -n ${MOCK_PID_DELAY_FILE:-} ]]; then
@@ -212,6 +212,26 @@ fi
 grep -Fxq 'ERROR: ANDROID_SERIAL does not meet the physical Phone runtime contract' \
     "$fixture/rejected-device.out"
 ! grep -Eq 'dumpsys gfxinfo|logcat -c|am start' "$rejected_commands"
+for contract_fixture in \
+        'watch:MOCK_CHARACTERISTICS=watch' \
+        'abi:MOCK_ABIS=x86_64' \
+        'sdk:MOCK_SDK=25' \
+        'gles:MOCK_GLES=196609' \
+        'touch:MOCK_FEATURES='; do
+    contract_name="${contract_fixture%%:*}"
+    contract_override="${contract_fixture#*:}"
+    contract_commands="$fixture/rejected-$contract_name-commands"
+    : >"$contract_commands"
+    if env "$contract_override" PHONE_ADB="$fixture/adb" ANDROID_SERIAL=phone-secret \
+        PHONE_BENCHMARK_CONFIRM_NON_VR=YES MOCK_ADB_COMMAND_LOG="$contract_commands" \
+        "$script_dir/phone-graphics-benchmark.sh" 1 \
+        >"$fixture/rejected-$contract_name.out" 2>&1; then
+        echo "FAIL: benchmark accepted invalid $contract_name device contract" >&2; exit 1
+    fi
+    grep -Fxq 'ERROR: ANDROID_SERIAL does not meet the physical Phone runtime contract' \
+        "$fixture/rejected-$contract_name.out"
+    ! grep -Eq 'dumpsys gfxinfo|logcat -c|am start' "$contract_commands"
+done
 command_log="$fixture/commands"
 : >"$command_log"
 
