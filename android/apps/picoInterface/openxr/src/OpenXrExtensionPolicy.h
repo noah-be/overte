@@ -15,6 +15,11 @@ inline bool areOpenXrDebugMessengerFunctionsReady(
     return createReady && destroyReady;
 }
 
+inline bool areOpenXrRefreshRateFunctionsReady(
+        bool enumerateReady, bool getReady, bool requestReady) {
+    return enumerateReady && getReady && requestReady;
+}
+
 inline bool areOpenXrXDevFunctionsReady(
         bool createListReady,
         bool enumerateReady,

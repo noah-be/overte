@@ -775,13 +775,31 @@ bool OpenXrContext::initSession() {
 
 #if defined(Q_OS_ANDROID)
     if (_displayRefreshRateSupported) {
-        bool functionsLoaded =
-            loadXrFunction(_instance, "xrEnumerateDisplayRefreshRatesFB",
-                           reinterpret_cast<PFN_xrVoidFunction*>(&xrEnumerateDisplayRefreshRatesFB)) &&
-            loadXrFunction(_instance, "xrGetDisplayRefreshRateFB",
-                           reinterpret_cast<PFN_xrVoidFunction*>(&xrGetDisplayRefreshRateFB)) &&
-            loadXrFunction(_instance, "xrRequestDisplayRefreshRateFB",
-                           reinterpret_cast<PFN_xrVoidFunction*>(&xrRequestDisplayRefreshRateFB));
+        const bool enumerateLoaded = loadXrFunction(
+            _instance, "xrEnumerateDisplayRefreshRatesFB",
+            reinterpret_cast<PFN_xrVoidFunction*>(&xrEnumerateDisplayRefreshRatesFB));
+        const bool getLoaded = loadXrFunction(
+            _instance, "xrGetDisplayRefreshRateFB",
+            reinterpret_cast<PFN_xrVoidFunction*>(&xrGetDisplayRefreshRateFB));
+        const bool requestLoaded = loadXrFunction(
+            _instance, "xrRequestDisplayRefreshRateFB",
+            reinterpret_cast<PFN_xrVoidFunction*>(&xrRequestDisplayRefreshRateFB));
+        const bool functionsLoaded = areOpenXrRefreshRateFunctionsReady(
+            isOpenXrOptionalFunctionReady(
+                enumerateLoaded, xrEnumerateDisplayRefreshRatesFB != nullptr),
+            isOpenXrOptionalFunctionReady(
+                getLoaded, xrGetDisplayRefreshRateFB != nullptr),
+            isOpenXrOptionalFunctionReady(
+                requestLoaded, xrRequestDisplayRefreshRateFB != nullptr));
+
+        if (!functionsLoaded) {
+            qCWarning(xr_context_cat,
+                      "Disabling incomplete OpenXR display refresh-rate API");
+            xrEnumerateDisplayRefreshRatesFB = nullptr;
+            xrGetDisplayRefreshRateFB = nullptr;
+            xrRequestDisplayRefreshRateFB = nullptr;
+            _displayRefreshRateSupported = false;
+        }
 
         if (functionsLoaded) {
             uint32_t rateCapacity = 0;
