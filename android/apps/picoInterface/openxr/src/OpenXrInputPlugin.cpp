@@ -350,6 +350,10 @@ OpenXrInputPlugin::InputDevice::~InputDevice() {
     const bool runtimeHandlesValid = _context && _context->_session != XR_NULL_HANDLE;
     destroyHandTrackers(runtimeHandlesValid);
     destroyXDevSpaces(runtimeHandlesValid);
+    destroyActions();
+}
+
+void OpenXrInputPlugin::InputDevice::destroyActions() {
     _actions.clear();
     if (_actionSet != XR_NULL_HANDLE && _context &&
             _context->_instance != XR_NULL_HANDLE) {
@@ -357,6 +361,7 @@ OpenXrInputPlugin::InputDevice::~InputDevice() {
                 "Failed to destroy action set");
     }
     _actionSet = XR_NULL_HANDLE;
+    _actionsInitialized = false;
 }
 
 void OpenXrInputPlugin::InputDevice::destroyHandTrackers(bool runtimeHandlesValid) {
@@ -801,6 +806,7 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
         return true;
 
     assert(_context->_session != XR_NULL_HANDLE);
+    destroyActions();
 
     XrInstance instance = _context->_instance;
 
@@ -811,8 +817,10 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
         .priority = 0,
     };
     XrResult result = xrCreateActionSet(instance, &actionSetInfo, &_actionSet);
-    if (!xrCheck(instance, result, "Failed to create action set."))
+    if (!xrCheck(instance, result, "Failed to create action set.")) {
+        destroyActions();
         return false;
+    }
 
     std::map<std::string, std::pair<std::string, XrActionType>> actionTypes = {
         {"left_primary_click",     {"Left Primary",           XR_ACTION_TYPE_BOOLEAN_INPUT}},
@@ -1073,6 +1081,14 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
             _actions.emplace(id, action);
         }
     }
+    if (!isCompleteOpenXrRequiredActionSet(
+            actionTypes.size(), _actions.size())) {
+        qCCritical(xr_input_cat)
+            << "OpenXR required action set is incomplete:"
+            << _actions.size() << "of" << actionTypes.size();
+        destroyActions();
+        return false;
+    }
 
     for (const auto& [profile, input] : actionSuggestions) {
         if (!initBindings(profile, input)) {
@@ -1086,8 +1102,10 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
         .actionSets = &_actionSet,
     };
     result = xrAttachSessionActionSets(_context->_session, &attachInfo);
-    if (!xrCheck(_context->_instance, result, "Failed to attach action set"))
+    if (!xrCheck(_context->_instance, result, "Failed to attach action set")) {
+        destroyActions();
         return false;
+    }
 
     if (_context->_handTrackingSupported) {
         XrHandTrackerCreateInfoEXT createInfo = {

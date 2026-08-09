@@ -5,6 +5,11 @@
 
 constexpr float OPENXR_VIRTUAL_TRIGGER_CLICK_THRESHOLD = 0.95f;
 
+constexpr bool isCompleteOpenXrRequiredActionSet(
+        std::size_t expectedCount, std::size_t createdCount) {
+    return expectedCount > 0 && createdCount == expectedCount;
+}
+
 constexpr const char OPENXR_VIVE_TRACKER_WAIST_POSE_PATH[] =
     "/user/vive_tracker_htcx/role/waist/input/grip/pose";
 constexpr const char OPENXR_VIVE_TRACKER_CHEST_POSE_PATH[] =

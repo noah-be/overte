@@ -129,6 +129,7 @@ private:
         bool _hapticsEnabled = true;
 
         bool initActions();
+        void destroyActions();
         void destroyHandTrackers(bool runtimeHandlesValid);
         void destroyXDevSpaces(bool runtimeHandlesValid);
         bool initBindings(const std::string& profileName, const std::map<std::string, std::string>& actionsToBind);

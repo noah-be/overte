@@ -6,6 +6,25 @@
 #include "test_assertions.h"
 
 int main() {
+    OVERTE_EXPECT(!isCompleteOpenXrRequiredActionSet(0, 0));
+    OVERTE_EXPECT(!isCompleteOpenXrRequiredActionSet(0, 1));
+    OVERTE_EXPECT(isCompleteOpenXrRequiredActionSet(1, 1));
+    OVERTE_EXPECT(!isCompleteOpenXrRequiredActionSet(2, 1));
+    OVERTE_EXPECT(isCompleteOpenXrRequiredActionSet(2, 2));
+    OVERTE_EXPECT(!isCompleteOpenXrRequiredActionSet(2, 3));
+    const auto maximumCount = std::numeric_limits<std::size_t>::max();
+    OVERTE_EXPECT(isCompleteOpenXrRequiredActionSet(
+        maximumCount, maximumCount));
+    std::size_t createdActions = 0;
+    const bool creationResults[] = { true, true, false, true };
+    for (bool created : creationResults) {
+        createdActions += created ? 1 : 0;
+    }
+    OVERTE_EXPECT(!isCompleteOpenXrRequiredActionSet(
+        sizeof(creationResults) / sizeof(creationResults[0]),
+        createdActions));
+    OVERTE_EXPECT(isCompleteOpenXrRequiredActionSet(4, 4));
+
     OVERTE_EXPECT(std::string(OPENXR_VIVE_TRACKER_WAIST_POSE_PATH) ==
                   "/user/vive_tracker_htcx/role/waist/input/grip/pose");
     OVERTE_EXPECT(std::string(OPENXR_VIVE_TRACKER_CHEST_POSE_PATH) ==
