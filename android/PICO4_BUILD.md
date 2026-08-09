@@ -63,6 +63,9 @@ Without a connected headset, only build the APK:
 To measure the completed client's battery and power use on the headset, see
 [Measure Overte power use on Pico 4](PICO4_POWER_TEST.md).
 
+For the device-free pull-request checks and trusted build-runner design, see
+[Pico 4 CI/CD](docs/pico4-ci-cd.md).
+
 For world-entry and post-loading optimization measurements, see the
 [Pico 4 world-loading guide](docs/world-loading/pico4-optimization-guide.md).
 
@@ -117,6 +120,10 @@ The `setup` command runs the environment check before downloading anything.
 | `./build-pico.sh prepare` | Restage existing Conan and runtime dependencies |
 | `./build-pico.sh deps --download` | Download and install prebuilt dependencies only |
 | `./build-pico.sh --help` | Show commands and supported path overrides |
+
+`PICO_BUILD_JOBS` bounds Gradle, native compilation, and shader generation to
+the same host-worker count. `PICO_SHADER_JOBS` can override only shader
+generation when memory or shared-runner load requires a lower limit.
 
 Before building, or on a host without Pico/Android dependencies, run the
 device-free regression suite from the repository root:

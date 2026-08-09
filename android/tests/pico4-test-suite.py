@@ -53,6 +53,7 @@ TESTS = (
     test("create-properties", "interaction", "node", "pico-create-properties-validation-test.js", requires=("node",)),
     test("create-message", "interaction", "node", "pico-create-message-validation-test.js", requires=("node",)),
     test("avatar-hotpath", "performance", PYTHON, "pico-avatar-hotpath-test.py"),
+    test("shadergen-jobs", "performance", PYTHON, "pico-shadergen-jobs-test.py"),
     test("world-state", "world", PYTHON, "pico-world-state-test.py"),
     test("microphone-runner", "tooling", "bash", "pico-microphone-test-test.sh"),
     test("unattended-runner", "tooling", "bash", "pico-unattended-test-test.sh"),
