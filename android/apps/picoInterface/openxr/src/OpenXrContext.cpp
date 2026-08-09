@@ -11,6 +11,7 @@
 #include "OpenXrDebugPolicy.h"
 #include "OpenXrEventPolicy.h"
 #include "OpenXrExtensionPolicy.h"
+#include "OpenXrGraphicsPolicy.h"
 #include "OpenXrSpacePolicy.h"
 #include <QLoggingCategory>
 #include <QString>
@@ -694,7 +695,7 @@ bool OpenXrContext::initSession() {
         auto attribs = std::to_array<EGLint>({
             EGL_RED_SIZE, 8,
             EGL_GREEN_SIZE, 8,
-            EGL_RED_SIZE, 8,
+            EGL_BLUE_SIZE, 8,
             EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
 #if defined(Q_OS_ANDROID)
             EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
@@ -703,6 +704,12 @@ bool OpenXrContext::initSession() {
 #endif
             EGL_NONE // terminator
         });
+        if (!hasRequiredOpenXrEglColorAttributes(
+                attribs.data(), attribs.size(), EGL_NONE,
+                EGL_RED_SIZE, EGL_GREEN_SIZE, EGL_BLUE_SIZE)) {
+            qCWarning(xr_context_cat, "Invalid EGL color attributes");
+            break;
+        }
 
         EGLConfig eglConfig;
         EGLint configCount = 0;
@@ -739,11 +746,17 @@ bool OpenXrContext::initSession() {
         auto attribs = std::to_array<EGLint>({
             EGL_RED_SIZE, 8,
             EGL_GREEN_SIZE, 8,
-            EGL_RED_SIZE, 8,
+            EGL_BLUE_SIZE, 8,
             EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
             EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
             EGL_NONE // terminator
         });
+        if (!hasRequiredOpenXrEglColorAttributes(
+                attribs.data(), attribs.size(), EGL_NONE,
+                EGL_RED_SIZE, EGL_GREEN_SIZE, EGL_BLUE_SIZE)) {
+            qCWarning(xr_context_cat, "Invalid EGL color attributes");
+            return false;
+        }
 
         EGLConfig eglConfig;
         EGLint configCount = 0;
