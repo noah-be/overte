@@ -10,6 +10,8 @@ can be used by the standalone Android target.
 import importlib.util
 from pathlib import Path
 
+from conan.tools.cmake import CMakeDeps
+
 
 _upstream_path = Path(__file__).resolve().parents[2] / "conanfile.py"
 _spec = importlib.util.spec_from_file_location("overte_upstream_conanfile", _upstream_path)
@@ -19,6 +21,17 @@ _spec.loader.exec_module(_module)
 
 class PicoOverte(_module.Overte):
     name = "OvertePico"
+
+    def generate(self):
+        # The dependency packages intentionally remain Debug packages, but an
+        # Android release variant configures the native build as
+        # RelWithDebInfo.  Emit metadata for both consumer configurations so
+        # CMake does not discard every Conan include/library property behind a
+        # $<CONFIG:Debug> expression during an unsigned release build.
+        super().generate()
+        release_deps = CMakeDeps(self)
+        release_deps.configuration = "RelWithDebInfo"
+        release_deps.generate()
 
     def requirements(self):
         self.requires("artery-font-format/1.0.1")
