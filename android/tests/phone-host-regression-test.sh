@@ -210,8 +210,11 @@ require_text "$gradle" 'minSdk[[:space:]]+26([^0-9]|$)' \
     'minimum Android API is 26'
 require_text "$gradle" 'targetSdk[[:space:]]+36([^0-9]|$)' \
     'target Android API is 36'
-require_text "$gradle" "abiFilters[[:space:]]+['\"]arm64-v8a['\"]" \
-    'APK is restricted to ARM64'
+require_text "$gradle" \
+    "phoneTargetAbi = isPhoneEmulatorBuild \? ['\"]x86_64['\"] : ['\"]arm64-v8a['\"]" \
+    'normal Phone APK remains restricted to ARM64'
+require_text "$gradle" 'abiFilters[[:space:]]+phoneTargetAbi' \
+    'selected Phone ABI controls APK packaging'
 require_text "$gradle" "HIFI_ANDROID_APP=phoneInterface" \
     'native configure selects the phone application'
 require_text "$gradle" "targets[[:space:]]+['\"]phoneInterface['\"]" \
@@ -288,7 +291,7 @@ if awk '
 else
     fail 'Qt runtime staging runs only after dependency verification'
 fi
-require_text "$gradle" "include 'libQt5PositioningQuick_arm64-v8a\.so'" \
+require_text "$gradle" 'include "libQt5PositioningQuick_\$\{qtAbiSuffix\}\.so"' \
     'phone stages the verified PositioningQuick dependency required by QtLocation'
 require_text "$gradle" 'inputs\.file\(phone16kReadySentinel\)' \
     'the dependency sentinel participates in Gradle task invalidation'
