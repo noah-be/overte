@@ -16,9 +16,9 @@ safe_to_trim=(
 )
 
 must_keep=(
-    libQt5Test_arm64-v8a.so
-    libQt5QuickTest_arm64-v8a.so
-    libQt5PositioningQuick_arm64-v8a.so
+    Qt5Test
+    Qt5QuickTest
+    Qt5PositioningQuick
 )
 
 trim_block="$(sed -n '/def unusedPhoneQtRuntimeLibraries = \[/,/^\].collect/p' "${gradle_file}")"
@@ -40,15 +40,14 @@ for module in "${safe_to_trim[@]}"; do
     fi
 done
 
-for library in "${must_keep[@]}"; do
-    if sed -n '/def unusedPhoneQtRuntimeLibraries = \[/,/^\]/p' "${gradle_file}" |
-            grep -Fq "${library}"; then
-        echo "transitively required Qt library must not be trimmed: ${library}" >&2
+for module in "${must_keep[@]}"; do
+    if grep -Fq "'${module}'" <<<"${trim_block}"; then
+        echo "transitively required Qt module must not be trimmed: ${module}" >&2
         exit 1
     fi
 done
 
-grep -Fq "include 'libQt5PositioningQuick_arm64-v8a.so'" "${gradle_file}" || {
+grep -Fq 'include "libQt5PositioningQuick_${qtAbiSuffix}.so"' "${gradle_file}" || {
     echo "required PositioningQuick library is not staged from verified Qt" >&2
     exit 1
 }
