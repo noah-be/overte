@@ -4,6 +4,28 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 98 — Keep Python package-gate errors path-private
+
+- Branch: `nightly/android-phone-98-private-package-errors`
+- Commit: `Keep phone package errors path-private` (this task's commit)
+- Change: Classify missing input, invalid ZIP/CRC, invalid UTF-8, dependency
+  declaration, and ordinary package-contract failures without rendering raw
+  Python exceptions that can contain worktree or artifact paths. Apply the same
+  input privacy rule to the ZIP-padding gate while preserving safe padding and
+  package-content diagnostics.
+- Tests:
+  - `android/tests/phone-apk-contents-test.sh`: **passed**, including missing
+    private-path input and corrupt required-entry cases.
+  - `android/tests/phone-apk-padding-test.sh`: **passed**, including missing
+    private-path and invalid-ZIP cases plus the existing excessive-gap fixture.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 292/292 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 292/292.
+  - Python/shell syntax and `git diff --check`: **passed**.
+- Known risks: Detailed local exception text is intentionally outside shared
+  package logs; safe contract errors still identify archive-relative entries.
+- Real-device validation still required: None for host diagnostic privacy.
+
 ## 97 — Keep ELF-gate failures path-private
 
 - Branch: `nightly/android-phone-97-private-elf-errors`
@@ -2249,7 +2271,8 @@ All branches form one linear chain starting at
 94. `nightly/android-phone-94-native-library-allowlist` — `4cf23fc7a6`
 95. `nightly/android-phone-95-package-entry-integrity` — `1134b9092b`
 96. `nightly/android-phone-96-package-layout-boundary` — `46a1cf115c`
-97. `nightly/android-phone-97-private-elf-errors` — this task's commit
+97. `nightly/android-phone-97-private-elf-errors` — `c44a29b7dc`
+98. `nightly/android-phone-98-private-package-errors` — this task's commit
 
 ### Device-free audit disposition
 

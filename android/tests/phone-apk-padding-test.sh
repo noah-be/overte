@@ -39,6 +39,7 @@ if data[cursor:cursor + 4] != b"PK\x05\x06":
     raise RuntimeError("fixture EOCD not found")
 struct.pack_into("<I", data, cursor + 16, central_offset)
 (root / "padded.apk").write_bytes(data)
+(root / "invalid.apk").write_bytes(b"not a ZIP\n")
 PY
 
 "$checker" "$fixture_dir/normal.apk" >/dev/null
@@ -47,5 +48,19 @@ if "$checker" "$fixture_dir/padded.apk" >"$fixture_dir/out" 2>&1; then
     exit 1
 fi
 grep -q '131072 bytes of internal padding' "$fixture_dir/out"
+
+if "$checker" "$fixture_dir/private/missing.apk" >"$fixture_dir/missing-out" 2>&1; then
+    echo 'FAIL: missing APK input was accepted' >&2
+    exit 1
+fi
+grep -Fxq 'ERROR: could not read APK input' "$fixture_dir/missing-out"
+! grep -Fq "$fixture_dir" "$fixture_dir/missing-out"
+
+if "$checker" "$fixture_dir/invalid.apk" >"$fixture_dir/invalid-out" 2>&1; then
+    echo 'FAIL: invalid APK ZIP was accepted' >&2
+    exit 1
+fi
+grep -Fxq 'ERROR: APK ZIP data is invalid' "$fixture_dir/invalid-out"
+! grep -Fq "$fixture_dir" "$fixture_dir/invalid-out"
 
 echo "Phone APK padding checks passed."

@@ -123,12 +123,16 @@ require_text tests/check-phone-apk-contents.py 'mixes APK and Android App Bundle
     'package completeness gate rejects mixed archive layouts'
 require_text tests/check-phone-apk-contents.py 'unexpected feature modules' \
     'package completeness gate rejects unreviewed AAB modules'
+require_text tests/check-phone-apk-contents.py 'could not read Android phone package input' \
+    'package completeness gate suppresses private input paths'
 require_text tests/check-phone-elf-alignment.sh 'could not extract Android package' \
     'ELF gate reports archive failures without the private input path'
 require_text tests/check-phone-elf-alignment.sh 'package contains no inspectable shared libraries' \
     'ELF gate reports empty inputs without the private input path'
 reject_text tests/check-phone-elf-alignment.sh 'echo[[:space:]]+"\$program_headers"' \
     'ELF gate suppresses raw readelf diagnostics'
+require_text tests/check-phone-apk-padding.py 'could not read APK input' \
+    'APK padding gate suppresses private input paths'
 require_text tests/check-phone-apk-contents.py 'REQUIRED_CACHED_ASSETS' \
     'APK completeness gate identifies start-critical extracted bundles'
 require_text tests/check-phone-apk-contents.py 'cache_content_digest' \

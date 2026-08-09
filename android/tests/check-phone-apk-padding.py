@@ -47,7 +47,13 @@ def main():
 
     try:
         gap, location = largest_internal_gap(args.apk)
-    except (OSError, ValueError, zipfile.BadZipFile) as error:
+    except zipfile.BadZipFile:
+        print("ERROR: APK ZIP data is invalid", file=sys.stderr)
+        return 2
+    except OSError:
+        print("ERROR: could not read APK input", file=sys.stderr)
+        return 2
+    except ValueError as error:
         print(f"ERROR: could not inspect APK ZIP layout: {error}", file=sys.stderr)
         return 2
 

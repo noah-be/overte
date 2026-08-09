@@ -345,8 +345,18 @@ for fixture in corrupt-required-entry.apk corrupt-required-entry.aab; do
             "$fixture" >&2
         exit 1
     fi
-    grep -Fq 'Bad CRC-32' "$fixture_dir/integrity-out"
+    grep -Fxq 'ERROR: Android phone package ZIP data is invalid' \
+        "$fixture_dir/integrity-out"
 done
+
+if "$checker" "$fixture_dir/private/missing.apk" \
+        >"$fixture_dir/missing-input-out" 2>&1; then
+    echo 'FAIL: missing package input was accepted' >&2
+    exit 1
+fi
+grep -Fxq 'ERROR: could not read Android phone package input' \
+    "$fixture_dir/missing-input-out"
+! grep -Fq "$fixture_dir" "$fixture_dir/missing-input-out"
 if "$checker" "$fixture_dir/partial.apk" >"$fixture_dir/out" 2>&1; then
     echo 'FAIL: incomplete APK fixture was accepted' >&2
     exit 1

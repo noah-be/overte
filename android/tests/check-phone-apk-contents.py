@@ -276,13 +276,19 @@ def main():
                     archive,
                     physical_package_entry(cache_manifest_entry, logical_path),
                 )
-    except (
-        ElementTree.ParseError,
-        OSError,
-        UnicodeError,
-        ValueError,
-        zipfile.BadZipFile,
-    ) as error:
+    except ElementTree.ParseError:
+        print("ERROR: Phone package dependency declaration is invalid", file=sys.stderr)
+        return 1
+    except UnicodeError:
+        print("ERROR: Phone package cache manifest is not valid UTF-8", file=sys.stderr)
+        return 1
+    except zipfile.BadZipFile:
+        print("ERROR: Android phone package ZIP data is invalid", file=sys.stderr)
+        return 1
+    except OSError:
+        print("ERROR: could not read Android phone package input", file=sys.stderr)
+        return 1
+    except ValueError as error:
         print(f"ERROR: incomplete Android phone package: {error}", file=sys.stderr)
         return 1
 
