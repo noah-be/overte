@@ -277,6 +277,18 @@ grep -Fxq 'Aggregate benchmark report written.' "$fixture/private-stderr.out"
 ! grep -Fq "$fixture" "$fixture/private-stderr.out"
 grep -q '^stable_process=1$' "$private_stderr_report/summary.txt"
 
+PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/temporary-report-exits" \
+    ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES \
+    PHONE_BENCHMARK_INTERVAL=1 "$script_dir/phone-graphics-benchmark.sh" 1 \
+    >"$fixture/temporary-report.out"
+temporary_summary="$(sed -n 's|^Aggregate benchmark report: \(/tmp/overte-phone-graphics-report\.[^/]*/summary[.]txt\)$|\1|p' \
+    "$fixture/temporary-report.out")"
+[[ -n "$temporary_summary" && -f "$temporary_summary" ]]
+grep -q '^schema=overte-phone-graphics-aggregate-v1$' "$temporary_summary"
+temporary_report_dir="${temporary_summary%/summary.txt}"
+[[ "$temporary_report_dir" == /tmp/overte-phone-graphics-report.* ]]
+rm -rf -- "$temporary_report_dir"
+
 summary_failure_report="$fixture/summary-failure-report"
 if PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/summary-failure-exits" \
     MOCK_SUMMARY_MKTEMP_FAILURE=1 ANDROID_SERIAL=phone-secret \

@@ -80,9 +80,11 @@ features="$(adb_for shell pm list features | tr -d '\r')"
     die "ANDROID_SERIAL does not meet the physical Phone runtime contract"
 
 if [[ -n "${PHONE_BENCHMARK_REPORT:-}" ]]; then
+    report_is_temporary=0
     report_dir="$(realpath -m -- "$PHONE_BENCHMARK_REPORT" 2>/dev/null)" || \
         die "could not resolve benchmark report directory"
 else
+    report_is_temporary=1
     report_dir="$(mktemp -d /tmp/overte-phone-graphics-report.XXXXXXXX 2>/dev/null)" || \
         die "could not create temporary benchmark report directory"
 fi
@@ -472,4 +474,8 @@ if ! mv -T -- "$summary_tmp" "$summary" 2>/dev/null; then
     die "could not publish aggregate benchmark summary"
 fi
 summary_tmp=''
-printf 'Aggregate benchmark report written.\n'
+if ((report_is_temporary == 1)); then
+    printf 'Aggregate benchmark report: %s\n' "$summary"
+else
+    printf 'Aggregate benchmark report written.\n'
+fi

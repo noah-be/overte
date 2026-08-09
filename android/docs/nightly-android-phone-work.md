@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 125 — Keep automatic benchmark reports discoverable
+
+- Branch: `nightly/android-phone-125-discoverable-temp-report`
+- Commit: `Keep temporary phone reports discoverable` (this task's commit)
+- Change: Continue hiding caller-selected report paths, but print the generated
+  non-personal `/tmp/overte-phone-graphics-report.*` summary location when no
+  report directory was requested, so the successful result is usable.
+- Tests:
+  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; an automatic
+    report prints a strictly shaped `/tmp` summary path whose schema is valid,
+    while an explicit private directory still emits only the fixed message.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 317/317.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Automatically generated aggregate reports persist until the
+  caller removes them; they contain aggregate metrics only and mode 0600.
+- Real-device validation still required: Run once with and once without an
+  explicit report directory and confirm both completion messages.
+
 ## 124 — Remove interrupted summary temporaries
 
 - Branch: `nightly/android-phone-124-partial-summary-cleanup`
@@ -2833,7 +2853,8 @@ All branches form one linear chain starting at
 121. `nightly/android-phone-121-benchmark-signal-test` — `30af183d87`
 122. `nightly/android-phone-122-benchmark-interrupt-test` — `e9a7736cc3`
 123. `nightly/android-phone-123-benchmark-framestats-error` — `14ac38f578`
-124. `nightly/android-phone-124-partial-summary-cleanup` — this task's commit
+124. `nightly/android-phone-124-partial-summary-cleanup` — `f1f68c096f`
+125. `nightly/android-phone-125-discoverable-temp-report` — this task's commit
 
 ### Device-free audit disposition
 
