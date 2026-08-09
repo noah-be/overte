@@ -4,10 +4,14 @@
 from __future__ import annotations
 
 from collections import Counter
+import importlib.util
 import json
 from pathlib import Path
 import re
+import subprocess
+import tempfile
 import unittest
+import zipfile
 
 
 ANDROID_ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +29,11 @@ INCOMPATIBLE_LEGACY_GRADLE_API = re.compile(
     r"\b(?:archiveFileName|destinationDirectory)\b")
 LEGACY_DIRECT_DEPENDENCY_INVENTORY = (
     ANDROID_ROOT / "tests/legacy-gradle-direct-dependencies.json")
+GVR_EVIDENCE_SCRIPT = ANDROID_ROOT / "tests/legacy-gvr-evidence.py"
+GVR_EVIDENCE_SPEC = importlib.util.spec_from_file_location(
+    "legacy_gvr_evidence", GVR_EVIDENCE_SCRIPT)
+gvr_evidence = importlib.util.module_from_spec(GVR_EVIDENCE_SPEC)
+GVR_EVIDENCE_SPEC.loader.exec_module(gvr_evidence)
 LEGACY_MODULES = {
     "framePlayer": "apps/framePlayer/build.gradle",
     "interface": "apps/interface/build.gradle",
@@ -327,6 +336,50 @@ class LegacyGradleDependencyTest(unittest.TestCase):
             "com.google.vr:sdk-base:1.80.0",
         ], boundary["mavenArtifacts"])
         self.assertEqual("1.101.0", boundary["prebuilt"]["version"])
+
+    def test_gvr_evidence_reports_packaging_and_elf_dependencies(self):
+        with tempfile.TemporaryDirectory() as directory:
+            apk = Path(directory) / "legacy.apk"
+            with zipfile.ZipFile(apk, "w") as archive:
+                archive.writestr(gvr_evidence.NATIVE_LIBRARY, b"native")
+                archive.writestr("lib/arm64-v8a/libgvr.so", b"gvr")
+                archive.writestr("lib/arm64-v8a/libgvr_audio.so", b"audio")
+            def fake_runner(command, **_kwargs):
+                output = " 0x1 (NEEDED) Shared library: [libgvr.so]\n" \
+                    if "-dW" in command else " 1: 0 NOTYPE GLOBAL DEFAULT UND gvr_initialize\n"
+                return subprocess.CompletedProcess(command, 0, output, "")
+            result = gvr_evidence.analyze(apk, "readelf", fake_runner)
+            self.assertIn("libgvr.so", result["neededLibraries"])
+            self.assertEqual(["gvr_initialize"], result["undefinedGvrSymbols"])
+            self.assertEqual(2, len(result["packagedGvrLibraries"]))
+            self.assertFalse(result["removalEvidence"]["supportsRemoval"])
+
+    def test_gvr_evidence_supports_removal_only_without_elf_references(self):
+        with tempfile.TemporaryDirectory() as directory:
+            apk = Path(directory) / "legacy.apk"
+            with zipfile.ZipFile(apk, "w") as archive:
+                archive.writestr(gvr_evidence.NATIVE_LIBRARY, b"native")
+            def fake_runner(command, **_kwargs):
+                output = " 0x1 (NEEDED) Shared library: [liblog.so]\n" \
+                    if "-dW" in command else " 1: 0 NOTYPE GLOBAL DEFAULT UND malloc\n"
+                return subprocess.CompletedProcess(command, 0, output, "")
+            result = gvr_evidence.analyze(apk, "readelf", fake_runner)
+            self.assertTrue(result["removalEvidence"]["supportsRemoval"])
+            self.assertEqual([], result["undefinedGvrSymbols"])
+
+    def test_gvr_evidence_fails_closed_on_missing_native_library_or_readelf_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            apk = Path(directory) / "legacy.apk"
+            with zipfile.ZipFile(apk, "w") as archive:
+                archive.writestr("fixture", b"x")
+            with self.assertRaisesRegex(gvr_evidence.EvidenceError, "exactly one"):
+                gvr_evidence.analyze(apk, "readelf")
+            with zipfile.ZipFile(apk, "w") as archive:
+                archive.writestr(gvr_evidence.NATIVE_LIBRARY, b"native")
+            def failed(command, **_kwargs):
+                return subprocess.CompletedProcess(command, 2, "", "private detail")
+            with self.assertRaisesRegex(gvr_evidence.EvidenceError, "could not inspect"):
+                gvr_evidence.analyze(apk, "readelf", failed)
 
     def test_direct_dependency_parser_classifies_supported_declarations(self):
         source = """
