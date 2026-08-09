@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 115 — Keep benchmark setup failures private
+
+- Branch: `nightly/android-phone-115-private-benchmark-setup`
+- Commit: `Keep phone benchmark setup errors private` (this task's commit)
+- Change: Replace raw `realpath`, `mktemp`, `mkdir`, and `chmod` diagnostics
+  during aggregate/raw report setup with fixed phase messages.
+- Tests:
+  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; using a
+    deliberately private regular file as the requested report directory emits
+    only the fixed creation error, leaks no fixture path, and performs no
+    mutating ADB operation.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 307/307 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 307/307.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Failures while publishing the final aggregate summary are
+  hardened separately from setup failures.
+- Real-device validation still required: None for deterministic filesystem
+  errors; ordinary current-chain benchmark validation remains outstanding.
+
 ## 114 — Preflight benchmark report targets
 
 - Branch: `nightly/android-phone-114-benchmark-report-preflight`
@@ -2624,7 +2644,8 @@ All branches form one linear chain starting at
 111. `nightly/android-phone-111-report-setup-failures` — `2f38c788ca`
 112. `nightly/android-phone-112-late-summary-failure` — `b12135379e`
 113. `nightly/android-phone-113-private-benchmark-adb` — `3012eeec08`
-114. `nightly/android-phone-114-benchmark-report-preflight` — this task's commit
+114. `nightly/android-phone-114-benchmark-report-preflight` — `6d95343897`
+115. `nightly/android-phone-115-private-benchmark-setup` — this task's commit
 
 ### Device-free audit disposition
 

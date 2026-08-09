@@ -203,6 +203,19 @@ if PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/exit-count" ANDROID_S
     echo 'FAIL: benchmark report was accepted inside worktree' >&2; exit 1
 fi
 [[ ! -e "$script_dir/forbidden-report" ]] || { echo 'FAIL: rejected report path was created' >&2; exit 1; }
+private_report_file="$fixture/private-report-file"
+printf 'not a directory\n' >"$private_report_file"
+private_report_commands="$fixture/private-report-commands"
+: >"$private_report_commands"
+if PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/exit-count" ANDROID_SERIAL=phone-secret \
+    PHONE_BENCHMARK_CONFIRM_NON_VR=YES PHONE_BENCHMARK_REPORT="$private_report_file" \
+    PHONE_BENCHMARK_INTERVAL=1 MOCK_ADB_COMMAND_LOG="$private_report_commands" \
+    "$script_dir/phone-graphics-benchmark.sh" 1 >"$fixture/private-report.out" 2>&1; then
+    echo 'FAIL: benchmark accepted a file as report directory' >&2; exit 1
+fi
+grep -Fxq 'ERROR: could not create benchmark report directory' "$fixture/private-report.out"
+! grep -Fq "$fixture" "$fixture/private-report.out"
+! grep -Eq 'dumpsys gfxinfo|logcat -c|am start' "$private_report_commands"
 symlink_report="$fixture/symlink-report"
 mkdir -p "$symlink_report"
 protected="$fixture/protected"

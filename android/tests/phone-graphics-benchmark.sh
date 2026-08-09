@@ -62,21 +62,24 @@ characteristics="$(property ro.build.characteristics)"
 [[ ! "${characteristics,,}" =~ (^|,)vr(,|$) ]] || die "refusing to benchmark a VR-class device"
 
 if [[ -n "${PHONE_BENCHMARK_REPORT:-}" ]]; then
-    report_dir="$(realpath -m -- "$PHONE_BENCHMARK_REPORT")"
+    report_dir="$(realpath -m -- "$PHONE_BENCHMARK_REPORT" 2>/dev/null)" || \
+        die "could not resolve benchmark report directory"
 else
-    report_dir="$(mktemp -d /tmp/overte-phone-graphics-report.XXXXXXXX)"
+    report_dir="$(mktemp -d /tmp/overte-phone-graphics-report.XXXXXXXX 2>/dev/null)" || \
+        die "could not create temporary benchmark report directory"
 fi
 case "$report_dir/" in "$worktree_root/"*) die "refusing to write benchmark output inside the worktree" ;; esac
-mkdir -p -- "$report_dir"
-chmod 700 "$report_dir"
+mkdir -p -- "$report_dir" 2>/dev/null || die "could not create benchmark report directory"
+chmod 700 "$report_dir" 2>/dev/null || die "could not secure benchmark report directory"
 summary="$report_dir/summary.txt"
 [[ ! -L "$summary" ]] || die "refusing to overwrite a symlinked benchmark summary"
 [[ ! -e "$summary" || -f "$summary" ]] || \
     die "refusing to overwrite a non-regular benchmark summary"
 
 # Deliberately ignore TMPDIR: raw device text must have a short-lived /tmp home.
-raw_dir="$(mktemp -d /tmp/overte-phone-graphics-raw.XXXXXXXX)"
-chmod 700 "$raw_dir"
+raw_dir="$(mktemp -d /tmp/overte-phone-graphics-raw.XXXXXXXX 2>/dev/null)" || \
+    die "could not create private raw benchmark directory"
+chmod 700 "$raw_dir" 2>/dev/null || die "could not secure private raw benchmark directory"
 cleanup() { rm -rf -- "$raw_dir"; }
 trap cleanup EXIT INT TERM
 
