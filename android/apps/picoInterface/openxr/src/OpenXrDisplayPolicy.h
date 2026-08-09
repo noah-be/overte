@@ -40,6 +40,12 @@ constexpr bool isOpenXrLocatedPoseUsable(
         (actualFlags & requiredFlags) == requiredFlags;
 }
 
+constexpr bool isOpenXrViewStateUsable(
+        std::uint64_t actualFlags,
+        std::uint64_t requiredFlags) {
+    return (actualFlags & requiredFlags) == requiredFlags;
+}
+
 inline float selectLowestUsableOpenXrRefreshRate(
         const float* rates, std::size_t count) {
     if (rates == nullptr || count == 0) {

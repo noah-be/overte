@@ -700,7 +700,11 @@ bool OpenXrDisplayPlugin::endFrame() {
         .layers = layers.data(),
     };
 
-    if ((_lastViewState.viewStateFlags & XR_VIEW_STATE_ORIENTATION_VALID_BIT) == 0) {
+    constexpr XrViewStateFlags requiredViewFlags =
+        XR_VIEW_STATE_POSITION_VALID_BIT |
+        XR_VIEW_STATE_ORIENTATION_VALID_BIT;
+    if (!isOpenXrViewStateUsable(
+            _lastViewState.viewStateFlags, requiredViewFlags)) {
         info.layerCount = 0;
     }
 
@@ -762,14 +766,20 @@ void OpenXrDisplayPlugin::updatePresentPose() {
         qCWarning(xr_display_cat, "Runtime returned incomplete eye views: %u", locatedEyeViewCount);
         return;
     }
-
-    for (uint32_t i = 0; i < 2; i++) {
-        vec3 eyePosition = xrVecToGlm(eye_views[i].pose.position);
-        quat eyeOrientation = xrQuatToGlm(eye_views[i].pose.orientation);
-        _eyeOffsets[i] = controller::Pose(eyePosition, eyeOrientation).getMatrix();
+    constexpr XrViewStateFlags requiredViewFlags =
+        XR_VIEW_STATE_POSITION_VALID_BIT |
+        XR_VIEW_STATE_ORIENTATION_VALID_BIT;
+    if (!isOpenXrViewStateUsable(
+            eyeViewState.viewStateFlags, requiredViewFlags)) {
+        qCWarning(xr_display_cat, "Runtime returned invalid eye-view poses");
+        return;
     }
 
-    _lastViewState = { .type = XR_TYPE_VIEW_STATE };
+    XrViewState worldViewState = { .type = XR_TYPE_VIEW_STATE };
+    std::vector<XrView> worldViews(_viewCount);
+    for (auto& view : worldViews) {
+        view.type = XR_TYPE_VIEW;
+    }
 
     XrViewLocateInfo viewLocateInfo = {
         .type = XR_TYPE_VIEW_LOCATE_INFO,
@@ -780,18 +790,33 @@ void OpenXrDisplayPlugin::updatePresentPose() {
 
     uint32_t locatedWorldViewCount = 0;
     result = xrLocateViews(
-        _context->_session, &viewLocateInfo, &_lastViewState, _viewCount,
-        &locatedWorldViewCount, _views.value().data());
+        _context->_session, &viewLocateInfo, &worldViewState, _viewCount,
+        &locatedWorldViewCount, worldViews.data());
     if (!xrCheck(_context->_instance, result, "Could not locate views"))
         return;
     if (!isCompleteOpenXrStereoViewResult(_viewCount, locatedWorldViewCount)) {
         qCWarning(xr_display_cat, "Runtime returned incomplete world views: %u", locatedWorldViewCount);
         return;
     }
+    if (!isOpenXrViewStateUsable(
+            worldViewState.viewStateFlags, requiredViewFlags)) {
+        qCWarning(xr_display_cat, "Runtime returned invalid world-view poses");
+        return;
+    }
+
+    for (uint32_t i = 0; i < 2; i++) {
+        vec3 eyePosition = xrVecToGlm(eye_views[i].pose.position);
+        quat eyeOrientation = xrQuatToGlm(eye_views[i].pose.orientation);
+        _eyeOffsets[i] = controller::Pose(
+            eyePosition, eyeOrientation).getMatrix();
+    }
+
+    _lastViewState = worldViewState;
+    _views.value() = worldViews;
 
     for (uint32_t i = 0; i < _viewCount; i++) {
-        _projectionLayerViews[i].pose = _views.value()[i].pose;
-        _projectionLayerViews[i].fov = _views.value()[i].fov;
+        _projectionLayerViews[i].pose = worldViews[i].pose;
+        _projectionLayerViews[i].fov = worldViews[i].fov;
     }
 
     XrSpaceLocation headLocation = {

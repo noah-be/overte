@@ -62,6 +62,14 @@ int main() {
     assert(!isOpenXrLocatedPoseUsable(true, tracked, requiredPose));
     assert(isOpenXrLocatedPoseUsable(true, 0, 0));
     assert(!isOpenXrLocatedPoseUsable(false, 0, 0));
+    assert(!isOpenXrViewStateUsable(0, requiredPose));
+    assert(!isOpenXrViewStateUsable(positionValid, requiredPose));
+    assert(!isOpenXrViewStateUsable(orientationValid, requiredPose));
+    assert(isOpenXrViewStateUsable(requiredPose, requiredPose));
+    assert(isOpenXrViewStateUsable(
+        requiredPose | tracked, requiredPose));
+    assert(!isOpenXrViewStateUsable(tracked, requiredPose));
+    assert(isOpenXrViewStateUsable(0, 0));
 
     assert(selectLowestUsableOpenXrRefreshRate(nullptr, 0) == 0.0f);
     assert(selectLowestUsableOpenXrRefreshRate(nullptr, 2) == 0.0f);
