@@ -94,30 +94,39 @@ public class BreakpadUploaderService extends Service {
     }
 
     private void uploadDumpAndDelete(File file, URL url) {
-        int size = (int) file.length();
-        byte[] bytes = new byte[size];
-        try {
-            BufferedInputStream buf = new BufferedInputStream(new FileInputStream(file));
-                buf.read(bytes, 0, bytes.length);
-            buf.close();
-            HttpsURLConnection urlConnection = (HttpsURLConnection) url.openConnection();
+        if (!LegacyCrashDumpPolicy.isAcceptedLength(file.length())) {
+            Log.e(TAG, "Crash dump is outside the upload size limit");
+            return;
+        }
+        HttpsURLConnection urlConnection = null;
+        try (InputStream input = new BufferedInputStream(new FileInputStream(file))) {
+            urlConnection = (HttpsURLConnection) url.openConnection();
             urlConnection.setRequestMethod("POST");
             urlConnection.setDoOutput(true);
             urlConnection.setChunkedStreamingMode(0);
 
-            OutputStream ostream = urlConnection.getOutputStream();
-
-            OutputStream out = new BufferedOutputStream(ostream);
-            out.write(bytes, 0, size);
-
-            InputStream in = new BufferedInputStream(urlConnection.getInputStream());
-            in.read();
-            if (urlConnection.getResponseCode() == 200) {
-                file.delete();
+            try (OutputStream output = new BufferedOutputStream(urlConnection.getOutputStream())) {
+                LegacyCrashDumpPolicy.copyBounded(
+                        input, output, LegacyCrashDumpPolicy.MAX_DUMP_BYTES);
             }
-            urlConnection.disconnect();
+
+            int responseCode = urlConnection.getResponseCode();
+            InputStream responseStream = responseCode >= 400 ?
+                    urlConnection.getErrorStream() : urlConnection.getInputStream();
+            if (responseStream != null) {
+                try (InputStream response = new BufferedInputStream(responseStream)) {
+                    response.read();
+                }
+            }
+            if (responseCode == HttpsURLConnection.HTTP_OK && !file.delete()) {
+                Log.w(TAG, "Uploaded crash dump could not be deleted");
+            }
         } catch (IOException e) {
-            Log.e(TAG, "Error uploading file " + file.getAbsolutePath(), e);
+            Log.e(TAG, "Error uploading crash dump", e);
+        } finally {
+            if (urlConnection != null) {
+                urlConnection.disconnect();
+            }
         }
     }
 
@@ -128,7 +137,8 @@ public class BreakpadUploaderService extends Service {
     }
 
     private File[] getFilesByExtension(File dir, final String extension) {
-        return dir.listFiles(pathName -> getExtension(pathName.getName()).equals(extension));
+        File[] files = dir.listFiles(pathName -> getExtension(pathName.getName()).equals(extension));
+        return files == null ? new File[0] : files;
     }
 
     private String getExtension(String fileName) {
