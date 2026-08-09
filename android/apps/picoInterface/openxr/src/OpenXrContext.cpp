@@ -545,15 +545,26 @@ bool OpenXrContext::initSystem() {
         _palmPoseSupported = false;
     }
 
-    // disable the MNDX tracker extension if they're both available
+    bool viveEnumerationFunctionReady = false;
     if (_HTCX_viveTrackerInteractionSupported) {
-        _MNDX_xdevSpaceSupported = false;
-
-        xrGetInstanceProcAddr(
+        const bool viveEnumerationLoaded = loadXrFunction(
             _instance,
             "xrEnumerateViveTrackerPathsHTCX",
             reinterpret_cast<PFN_xrVoidFunction*>(&xrEnumerateViveTrackerPathsHTCX)
         );
+        viveEnumerationFunctionReady = isOpenXrOptionalFunctionReady(
+            viveEnumerationLoaded, xrEnumerateViveTrackerPathsHTCX != nullptr);
+    }
+    const auto bodyTrackingBackend = selectOpenXrBodyTrackingBackend(
+        _HTCX_viveTrackerInteractionSupported,
+        viveEnumerationFunctionReady,
+        _MNDX_xdevSpaceSupported);
+    _HTCX_viveTrackerInteractionSupported =
+        bodyTrackingBackend == OpenXrBodyTrackingBackend::Vive;
+    _MNDX_xdevSpaceSupported =
+        bodyTrackingBackend == OpenXrBodyTrackingBackend::Mndx;
+    if (!_HTCX_viveTrackerInteractionSupported) {
+        xrEnumerateViveTrackerPathsHTCX = nullptr;
     }
 
     if (_userPresenceAvailable) {

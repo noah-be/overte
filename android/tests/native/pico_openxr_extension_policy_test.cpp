@@ -25,6 +25,18 @@ int main() {
                    (mask & 16U) != 0) == (mask == 31U));
     }
 
+    for (unsigned int mask = 0; mask < 8; ++mask) {
+        const bool viveSupported = (mask & 1U) != 0;
+        const bool viveFunctionReady = (mask & 2U) != 0;
+        const bool mndxReady = (mask & 4U) != 0;
+        const auto expected = viveSupported && viveFunctionReady
+            ? OpenXrBodyTrackingBackend::Vive
+            : (mndxReady ? OpenXrBodyTrackingBackend::Mndx
+                         : OpenXrBodyTrackingBackend::None);
+        assert(selectOpenXrBodyTrackingBackend(
+                   viveSupported, viveFunctionReady, mndxReady) == expected);
+    }
+
     assert(openXrHandTrackerPairState(false, false) ==
            OpenXrHandTrackerPairState::None);
     assert(openXrHandTrackerPairState(true, false) ==

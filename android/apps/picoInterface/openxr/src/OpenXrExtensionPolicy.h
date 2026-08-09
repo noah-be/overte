@@ -20,6 +20,23 @@ inline bool areOpenXrXDevFunctionsReady(
         destroyListReady && createSpaceReady;
 }
 
+enum class OpenXrBodyTrackingBackend {
+    None,
+    Mndx,
+    Vive,
+};
+
+inline OpenXrBodyTrackingBackend selectOpenXrBodyTrackingBackend(
+        bool viveExtensionSupported,
+        bool viveEnumerationFunctionReady,
+        bool mndxCapabilityReady) {
+    if (viveExtensionSupported && viveEnumerationFunctionReady) {
+        return OpenXrBodyTrackingBackend::Vive;
+    }
+    return mndxCapabilityReady ? OpenXrBodyTrackingBackend::Mndx
+                               : OpenXrBodyTrackingBackend::None;
+}
+
 enum class OpenXrHandTrackerPairState {
     None,
     Partial,
