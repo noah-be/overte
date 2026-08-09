@@ -37,6 +37,7 @@ TESTS = (
     test("shell-syntax", "infrastructure", "bash", "pico-shell-syntax-test.sh"),
     test("package-contract", "android", PYTHON, "pico-package-contract-test.py"),
     test("apk-verifier", "android", PYTHON, "pico-apk-verifier-test.py"),
+    test("release-contract", "android", PYTHON, "pico-release-contract-test.py"),
     test("platform-glue", "android", PYTHON, "pico-platform-glue-test.py"),
     test("android-entrypoints", "android", PYTHON, "pico-android-entrypoints-test.py"),
     test("webview-bridge", "webview", PYTHON, "pico-webview-bridge-test.py"),

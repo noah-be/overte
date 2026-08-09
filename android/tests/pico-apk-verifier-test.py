@@ -112,6 +112,17 @@ class PicoApkVerifierTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("exactly one APK signer", result.stderr)
 
+    def test_enforces_release_version_and_signer(self):
+        good = self._run(self._apk(), extra_args=(
+            "--expected-version-code", "7", "--expected-version-name", "0.4.0",
+            "--expected-signer-sha256", "0" * 64,
+        ))
+        self.assertEqual(good.returncode, 0, good.stderr)
+        bad_version = self._run(self._apk(), extra_args=("--expected-version-code", "8"))
+        self.assertEqual(bad_version.returncode, 2)
+        bad_signer = self._run(self._apk(), extra_args=("--expected-signer-sha256", "f" * 64))
+        self.assertEqual(bad_signer.returncode, 2)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

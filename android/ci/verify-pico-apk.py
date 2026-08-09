@@ -113,6 +113,9 @@ def main():
     parser.add_argument("--aapt", help="path to Android aapt")
     parser.add_argument("--apksigner", help="path to Android apksigner")
     parser.add_argument("--source-revision", help="40-character Git commit used for the APK build")
+    parser.add_argument("--expected-version-code")
+    parser.add_argument("--expected-version-name")
+    parser.add_argument("--expected-signer-sha256")
     parser.add_argument("--output", type=Path, help="write verification manifest as JSON")
     args = parser.parse_args()
 
@@ -125,9 +128,19 @@ def main():
     apksigner = resolve_tool(args.apksigner, "apksigner")
     entries, native_libraries = inspect_zip(args.apk)
     metadata = parse_badging(run_tool([aapt, "dump", "badging", str(args.apk)]))
+    if args.expected_version_code and metadata["version_code"] != args.expected_version_code:
+        fail("APK version code does not match the release tag")
+    if args.expected_version_name and metadata["version_name"] != args.expected_version_name:
+        fail("APK version name does not match the release tag")
     signer_digest = parse_signature(
         run_tool([apksigner, "verify", "--verbose", "--print-certs", str(args.apk)])
     )
+    if args.expected_signer_sha256:
+        expected_signer = args.expected_signer_sha256.lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", expected_signer):
+            fail("expected signer digest must be 64 hexadecimal characters")
+        if signer_digest != expected_signer:
+            fail("APK signer certificate does not match the protected release signer")
 
     checksum = hashlib.sha256()
     with args.apk.open("rb") as stream:
