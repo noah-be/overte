@@ -139,7 +139,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: android-phone-rc-reports-${{ github.run_id }}
+          name: android-phone-rc-reports-${{ github.run_id }}-${{ github.run_attempt }}
           path: android/build/test-results/android-phone-release-host/
           if-no-files-found: warn
           retention-days: 14

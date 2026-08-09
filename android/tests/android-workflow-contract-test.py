@@ -176,6 +176,17 @@ class AndroidPhoneReleaseCandidateWorkflowContracts(unittest.TestCase):
         self.assertLess(runtime_check, host_tests)
         self.assertIn("android/ci/check-phone-host-runtime.sh", self.source)
 
+    def test_candidate_diagnostics_are_scoped_to_the_workflow_attempt(self):
+        self.assertIn(
+            "name: android-phone-rc-reports-${{ github.run_id }}-"
+            "${{ github.run_attempt }}",
+            self.source,
+        )
+        self.assertNotIn(
+            "name: android-phone-rc-reports-${{ github.run_id }}\n",
+            self.source,
+        )
+
     def test_actions_are_pinned_and_candidate_has_no_signing_secrets(self):
         actions = ACTION_USE.findall(self.source)
         self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
