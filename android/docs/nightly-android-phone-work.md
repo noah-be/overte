@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 119 — Label benchmark start-phase failures
+
+- Branch: `nightly/android-phone-119-benchmark-phase-errors`
+- Commit: `Label phone benchmark start failures` (this task's commit)
+- Change: Route required graphics-counter reset and Phone Activity start calls
+  through a checked ADB helper with fixed, phase-specific errors.
+- Tests:
+  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; deliberately
+    private reset/start failures expose only their fixed phase messages, reset
+    failure never starts the app, and failed start never triggers cleanup for an
+    app the harness did not successfully start.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 315/315 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 315/315.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: Optional log clearing remains best-effort by design; required
+  collection phases are evaluated separately.
+- Real-device validation still required: Observe fixed errors only if either
+  required phase fails on the intended current-chain Phone test.
+
 ## 118 — Gate benchmark targets to physical Phones
 
 - Branch: `nightly/android-phone-118-benchmark-device-contract`
@@ -2711,7 +2731,8 @@ All branches form one linear chain starting at
 115. `nightly/android-phone-115-private-benchmark-setup` — `48d8101544`
 116. `nightly/android-phone-116-private-benchmark-publish` — `45408ac063`
 117. `nightly/android-phone-117-benchmark-cleanup` — `f579bcfb7e`
-118. `nightly/android-phone-118-benchmark-device-contract` — this task's commit
+118. `nightly/android-phone-118-benchmark-device-contract` — `ffcc39e6fa`
+119. `nightly/android-phone-119-benchmark-phase-errors` — this task's commit
 
 ### Device-free audit disposition
 

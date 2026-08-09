@@ -34,6 +34,13 @@ sed 's/^+//' >"$fixture/adb" <<'MOCK'
 +[[ ${1:-} == -s && ${2:-} == phone-secret ]] || exit 90
 +shift 2
 +if [[ -n ${MOCK_ADB_COMMAND_LOG:-} ]]; then printf '%s\n' "$*" >>"$MOCK_ADB_COMMAND_LOG"; fi
++if [[ $1 == shell && $2 == dumpsys && $3 == gfxinfo && ${5:-} == reset &&
++      ${MOCK_GFX_RESET_FAILURE:-0} == 1 ]]; then
++  printf 'private reset failure for phone-secret\n' >&2; exit 11
++fi
++if [[ $1 == shell && $2 == am && $3 == start && ${MOCK_START_FAILURE:-0} == 1 ]]; then
++  printf 'private Activity failure for phone-secret\n' >&2; exit 12
++fi
 +if [[ $1 == shell && $2 == getprop ]]; then
 +  case $3 in
 +    ro.build.characteristics) printf 'phone\n' ;;
@@ -132,6 +139,34 @@ grep -Fxq 'ERROR: ANDROID_SERIAL does not meet the physical Phone runtime contra
 ! grep -Eq 'dumpsys gfxinfo|logcat -c|am start' "$rejected_commands"
 command_log="$fixture/commands"
 : >"$command_log"
+
+reset_failure_report="$fixture/reset-failure-report"
+reset_failure_commands="$fixture/reset-failure-commands"
+: >"$reset_failure_commands"
+if PHONE_ADB="$fixture/adb" MOCK_GFX_RESET_FAILURE=1 ANDROID_SERIAL=phone-secret \
+    PHONE_BENCHMARK_CONFIRM_NON_VR=YES PHONE_BENCHMARK_REPORT="$reset_failure_report" \
+    MOCK_ADB_COMMAND_LOG="$reset_failure_commands" \
+    "$script_dir/phone-graphics-benchmark.sh" 1 >"$fixture/reset-failure.out" 2>&1; then
+    echo 'FAIL: benchmark accepted a failed graphics reset' >&2; exit 1
+fi
+grep -Fxq 'ERROR: graphics counter reset failed' "$fixture/reset-failure.out"
+! grep -Eq 'phone-secret|private reset failure' "$fixture/reset-failure.out"
+! grep -Fq 'shell am start' "$reset_failure_commands"
+
+start_failure_report="$fixture/start-failure-report"
+start_failure_commands="$fixture/start-failure-commands"
+: >"$start_failure_commands"
+if PHONE_ADB="$fixture/adb" MOCK_START_FAILURE=1 ANDROID_SERIAL=phone-secret \
+    PHONE_BENCHMARK_CONFIRM_NON_VR=YES PHONE_BENCHMARK_REPORT="$start_failure_report" \
+    MOCK_ADB_COMMAND_LOG="$start_failure_commands" \
+    "$script_dir/phone-graphics-benchmark.sh" 1 >"$fixture/start-failure.out" 2>&1; then
+    echo 'FAIL: benchmark accepted a failed Activity start' >&2; exit 1
+fi
+grep -Fxq 'ERROR: Phone Activity start failed' "$fixture/start-failure.out"
+! grep -Eq 'phone-secret|private Activity failure' "$fixture/start-failure.out"
+[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' \
+    "$start_failure_commands" || true)" -eq 0 ]]
+
 PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/exit-count" ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES \
     PHONE_BENCHMARK_REPORT="$report" PHONE_BENCHMARK_INTERVAL=1 MOCK_ADB_COMMAND_LOG="$command_log" \
     "$script_dir/phone-graphics-benchmark.sh" 1 >/dev/null

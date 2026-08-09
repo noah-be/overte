@@ -48,6 +48,11 @@ find_adb() {
 ADB="$(find_adb)"
 readonly ADB
 adb_for() { "$ADB" -s "$ANDROID_SERIAL" "$@" 2>/dev/null; }
+require_adb() {
+    local phase="$1"
+    shift
+    adb_for "$@" || die "$phase failed"
+}
 
 authorized=0
 while read -r serial state _; do
@@ -105,11 +110,11 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-adb_for shell dumpsys gfxinfo "$PACKAGE" reset >/dev/null
+require_adb "graphics counter reset" shell dumpsys gfxinfo "$PACKAGE" reset >/dev/null
 adb_for logcat -c >/dev/null 2>&1 || true
 exit_info_before_valid=1
 adb_for shell dumpsys activity exit-info "$PACKAGE" >"$raw_dir/exits-before.txt" || exit_info_before_valid=0
-adb_for shell am start -W -n "$ACTIVITY" >"$raw_dir/start.txt"
+require_adb "Phone Activity start" shell am start -W -n "$ACTIVITY" >"$raw_dir/start.txt"
 package_started=1
 expected_pid=''
 for _ in {1..10}; do
