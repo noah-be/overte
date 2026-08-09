@@ -28,6 +28,14 @@ overte_junit_prepare() {
         exec {OVERTE_JUNIT_LOCK_FD}>&-
         return 1
     fi
+    if [[ -L "$OVERTE_JUNIT_FINAL_REPORT" ]]; then
+        printf 'FAIL: refusing to replace symlinked JUnit report: %s\n' \
+            "$OVERTE_JUNIT_FINAL_REPORT" >&2
+        flock -u "$OVERTE_JUNIT_LOCK_FD"
+        exec {OVERTE_JUNIT_LOCK_FD}>&-
+        return 1
+    fi
+    rm -f -- "$OVERTE_JUNIT_FINAL_REPORT"
     if ! OVERTE_JUNIT_TEMP_REPORT="$(
             mktemp "$junit_report_dir/.${junit_report_name%.xml}.XXXXXX.xml")"; then
         flock -u "$OVERTE_JUNIT_LOCK_FD"
@@ -42,11 +50,7 @@ overte_junit_publish() {
         return 2
     fi
     if [[ ! -s "$OVERTE_JUNIT_TEMP_REPORT" ]]; then
-        return 0
-    fi
-    if [[ -L "$OVERTE_JUNIT_FINAL_REPORT" ]]; then
-        printf 'FAIL: refusing to replace symlinked JUnit report: %s\n' \
-            "$OVERTE_JUNIT_FINAL_REPORT" >&2
+        printf 'FAIL: JUnit reporter produced no report\n' >&2
         return 1
     fi
     mv -f -- "$OVERTE_JUNIT_TEMP_REPORT" "$OVERTE_JUNIT_FINAL_REPORT"

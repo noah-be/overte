@@ -44,7 +44,7 @@ exit 7
                 text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             self.assert_failure_report(result, root / "reports/javascript/TEST-javascript.xml")
 
-    def test_empty_javascript_report_preserves_previous_result(self):
+    def test_empty_javascript_report_invalidates_previous_result(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             node = root / "node"
@@ -52,14 +52,32 @@ exit 7
             report_dir = root / "reports/javascript"
             report_dir.mkdir(parents=True)
             report = report_dir / "TEST-javascript.xml"
-            previous = '<testsuite tests="1"><testcase name="previous"/></testsuite>'
-            report.write_text(previous, encoding="utf-8")
+            report.write_text(
+                '<testsuite tests="1"><testcase name="previous"/></testsuite>',
+                encoding="utf-8")
             result = subprocess.run([ANDROID_ROOT / "tests/javascript/run-tests.sh"],
                 cwd=ANDROID_ROOT, env={**os.environ, "OVERTE_NODE_COMMAND": str(node),
                                       "OVERTE_TEST_REPORT_DIR": str(root / "reports")},
                 text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             self.assertEqual(7, result.returncode)
-            self.assertEqual(previous, report.read_text(encoding="utf-8"))
+            self.assertFalse(report.exists())
+            self.assertIn("JUnit reporter produced no report", result.stdout)
+            self.assertEqual([], list(report_dir.glob(".TEST-*.xml")))
+
+    def test_successful_tool_without_junit_report_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            node = root / "node"
+            executable(node, "echo fixture-console-success\n")
+            report_dir = root / "reports/javascript"
+            result = subprocess.run([ANDROID_ROOT / "tests/javascript/run-tests.sh"],
+                cwd=ANDROID_ROOT, env={**os.environ, "OVERTE_NODE_COMMAND": str(node),
+                                      "OVERTE_TEST_REPORT_DIR": str(root / "reports")},
+                text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            self.assertEqual(1, result.returncode)
+            self.assertIn("fixture-console-success", result.stdout)
+            self.assertIn("JUnit reporter produced no report", result.stdout)
+            self.assertFalse((report_dir / "TEST-javascript.xml").exists())
             self.assertEqual([], list(report_dir.glob(".TEST-*.xml")))
 
     def test_javascript_refuses_symlinked_report_destination(self):
@@ -67,6 +85,7 @@ exit 7
             root = Path(directory)
             node = root / "node"
             executable(node, r'''
+touch "$TOOL_MARKER"
 report=""
 for argument in "$@"; do
   case "$argument" in --test-reporter-destination=/*) report="${argument#*=}" ;; esac
@@ -80,11 +99,13 @@ printf '<testsuite tests="0"/>' >"$report"
             (report_dir / "TEST-javascript.xml").symlink_to(victim)
             result = subprocess.run([ANDROID_ROOT / "tests/javascript/run-tests.sh"],
                 cwd=ANDROID_ROOT, env={**os.environ, "OVERTE_NODE_COMMAND": str(node),
-                                      "OVERTE_TEST_REPORT_DIR": str(root / "reports")},
+                                      "OVERTE_TEST_REPORT_DIR": str(root / "reports"),
+                                      "TOOL_MARKER": str(root / "tool-entered")},
                 text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             self.assertEqual(1, result.returncode)
             self.assertIn("refusing to replace symlinked JUnit report", result.stdout)
             self.assertEqual("private", victim.read_text(encoding="utf-8"))
+            self.assertFalse((root / "tool-entered").exists())
             self.assertEqual([], list(report_dir.glob(".TEST-*.xml")))
 
     def test_qml_preserves_failure_and_atomically_publishes_junit(self):
@@ -171,12 +192,18 @@ printf '<testsuite tests="1"><testcase name="%s"/></testsuite>' "$ROLE" >"$OVERT
 overte_junit_publish
 ''')
             report_dir = root / "reports"
+            report_dir.mkdir()
+            report = report_dir / "TEST-shared.xml"
+            report.write_text(
+                '<testsuite tests="1"><testcase name="stale"/></testsuite>',
+                encoding="utf-8")
             common = {**os.environ, "ROOT": str(root), "REPORT_DIR": str(report_dir)}
             first = subprocess.Popen([runner], env={**common, "ROLE": "first"})
             deadline = time.monotonic() + 3
             while not (root / "entered-first").exists() and time.monotonic() < deadline:
                 time.sleep(0.02)
             self.assertTrue((root / "entered-first").exists())
+            self.assertFalse(report.exists())
 
             timed_out = subprocess.run(
                 [runner], env={**common, "ROLE": "timeout",
@@ -193,7 +220,6 @@ overte_junit_publish
             self.assertEqual(0, first.wait(timeout=3))
             self.assertEqual(0, second.wait(timeout=3))
 
-            report = report_dir / "TEST-shared.xml"
             self.assertEqual("second", ET.parse(report).find("testcase").attrib["name"])
             self.assertEqual([], list(report_dir.glob(".TEST-*.xml")))
 
