@@ -7,4 +7,5 @@ set -euo pipefail
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 python3 "$script_dir/port-contract-test.py"
 bash -n "$script_dir/../build-ios.sh"
-
+cmake -P "$script_dir/qt-compat-test.cmake"
+cmake -P "$script_dir/find-moltenvk-test.cmake"
