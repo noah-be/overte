@@ -2,12 +2,6 @@ name: Pico 4 trusted build
 
 on:
   workflow_dispatch:
-    inputs:
-      refresh_dependencies:
-        description: Restore the checksum-verified Pico dependency bundle before building
-        required: true
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -56,7 +50,6 @@ jobs:
         run: ./build-pico.sh doctor
 
       - name: Restore checksum-verified dependencies
-        if: inputs.refresh_dependencies
         working-directory: android
         run: ./build-pico.sh deps --download
 

@@ -112,7 +112,7 @@ def main():
     parser.add_argument("apk", type=Path)
     parser.add_argument("--aapt", help="path to Android aapt")
     parser.add_argument("--apksigner", help="path to Android apksigner")
-    parser.add_argument("--source-revision", help="40-character Git commit built into the APK")
+    parser.add_argument("--source-revision", help="40-character Git commit used for the APK build")
     parser.add_argument("--output", type=Path, help="write verification manifest as JSON")
     args = parser.parse_args()
 
