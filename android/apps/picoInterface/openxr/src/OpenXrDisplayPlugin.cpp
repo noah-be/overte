@@ -8,6 +8,7 @@
 //
 
 #include "OpenXrDisplayPlugin.h"
+#include "OpenXrDisplayPolicy.h"
 #include <qloggingcategory.h>
 #include <SettingHandle.h>
 
@@ -242,15 +243,16 @@ static int64_t chooseSwapChainFormat(XrInstance instance, XrSession session, int
     if (!xrCheck(instance, result, "Failed to enumerate swapchain formats"))
         return -1;
 
-    int64_t chosen = formats[0];
-
     for (uint32_t i = 0; i < formatCount; i++) {
         qCInfo(xr_display_cat, "Supported GL format: %s", glFormatStr(formats[i]).c_str());
-        if (formats[i] == preferred) {
-            chosen = formats[i];
-            qCInfo(xr_display_cat, "Using preferred swapchain format %s", glFormatStr(chosen).c_str());
-            break;
-        }
+    }
+    const int64_t chosen = selectOpenXrSwapchainFormat(formats.data(), formatCount, preferred);
+    if (chosen == OPENXR_NO_SWAPCHAIN_FORMAT) {
+        qCCritical(xr_display_cat, "Runtime returned no usable swapchain formats");
+        return OPENXR_NO_SWAPCHAIN_FORMAT;
+    }
+    if (chosen == preferred) {
+        qCInfo(xr_display_cat, "Using preferred swapchain format %s", glFormatStr(chosen).c_str());
     }
     if (chosen != preferred) {
         qCWarning(xr_display_cat, "Falling back to non preferred swapchain format %s", glFormatStr(chosen).c_str());
@@ -264,6 +266,9 @@ bool OpenXrDisplayPlugin::initSwapChains() {
     XrSession session = _context->_session;
 
     int64_t format = chooseSwapChainFormat(instance, session, XR_PREFERRED_COLOR_FORMAT);
+    if (format == OPENXR_NO_SWAPCHAIN_FORMAT) {
+        return false;
+    }
 
 #if defined(Q_OS_ANDROID)
     const XrFoveationLevelFB foveationLevel = picoFoveationLevel();
