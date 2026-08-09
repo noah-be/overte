@@ -469,19 +469,6 @@ bool OpenXrInputPlugin::Action::init(XrActionSet actionSet) {
     return true;
 }
 
-std::vector<XrActionSuggestedBinding> OpenXrInputPlugin::Action::getBindings() {
-    assert(_action != XR_NULL_HANDLE);
-
-    std::vector<XrActionSuggestedBinding> bindings;
-    for (uint32_t i = 0; i < HAND_COUNT; i++) {
-        XrPath path;
-        xrStringToPath(_context->_instance, _id.c_str(), &path);
-        XrActionSuggestedBinding binding = { .action = _action, .binding = path };
-        bindings.push_back(binding);
-    }
-    return bindings;
-}
-
 XrActionStateFloat OpenXrInputPlugin::Action::getFloat() {
     XrActionStateFloat state = {
         .type = XR_TYPE_ACTION_STATE_FLOAT,
