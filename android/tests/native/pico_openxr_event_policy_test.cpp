@@ -20,6 +20,17 @@ int main() {
                    processingSucceeded, contextValid,
                    frameCycleRequested) == (mask == 7U));
     }
+    for (unsigned int mask = 0; mask < 8; ++mask) {
+        const bool stateContextValid = (mask & 1U) != 0;
+        const bool sessionRunning = (mask & 2U) != 0;
+        const bool stateAllowsFrames = (mask & 4U) != 0;
+        assert(openXrFrameCycleAllowedForSessionState(
+                   stateContextValid, sessionRunning,
+                   stateAllowsFrames) == (mask == 7U));
+    }
+    assert(openXrFrameCycleAllowedForSessionState(true, true, true));
+    assert(!openXrFrameCycleAllowedForSessionState(true, false, true));
+    assert(!openXrFrameCycleAllowedForSessionState(false, true, true));
     bool contextValid = true;
     bool frameCycleRequested = true;
     contextValid = openXrContextValidAfterEventProcessing(
@@ -31,6 +42,12 @@ int main() {
     contextValid = openXrContextValidAfterEventProcessing(
         contextValid, true);
     assert(!contextValid);
+    assert(!openXrFrameCycleAllowedForSessionState(
+        contextValid, true, true));
+    contextValid = true;
+    const bool sessionRunning = true;
+    assert(openXrFrameCycleAllowedForSessionState(
+        contextValid, sessionRunning, true));
 
     assert(!isOpenXrPathStringUsable(false, 1, 8, true));
     assert(!isOpenXrPathStringUsable(true, 0, 8, true));

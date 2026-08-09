@@ -1018,7 +1018,9 @@ bool OpenXrContext::updateSessionState(XrSessionState newState) {
         case XR_SESSION_STATE_FOCUSED:
         case XR_SESSION_STATE_SYNCHRONIZED:
         case XR_SESSION_STATE_VISIBLE: {
-            _shouldRunFrameCycle = true;
+            _shouldRunFrameCycle =
+                openXrFrameCycleAllowedForSessionState(
+                    _isValid, _isSessionRunning, true);
             break;
         }
 
@@ -1035,8 +1037,11 @@ bool OpenXrContext::updateSessionState(XrSessionState newState) {
                 qCDebug(xr_context_cat, "Session started!");
                 _isSessionRunning = true;
             }
-            _shouldRunFrameCycle = true;
-            _isValid = true;
+            _isValid = openXrContextValidAfterEventProcessing(
+                _isValid, true);
+            _shouldRunFrameCycle =
+                openXrFrameCycleAllowedForSessionState(
+                    _isValid, _isSessionRunning, true);
             break;
         }
 

@@ -26,6 +26,13 @@ constexpr bool openXrFrameCycleAllowedAfterEventProcessing(
     return processingSucceeded && contextValid && frameCycleRequested;
 }
 
+constexpr bool openXrFrameCycleAllowedForSessionState(
+        bool contextValid,
+        bool sessionRunning,
+        bool stateAllowsFrames) {
+    return contextValid && sessionRunning && stateAllowsFrames;
+}
+
 constexpr bool isOpenXrPathStringUsable(
         bool conversionSucceeded,
         std::size_t returnedCount,
