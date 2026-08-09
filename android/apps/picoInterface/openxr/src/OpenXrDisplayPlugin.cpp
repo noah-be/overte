@@ -19,6 +19,7 @@
 #include <glm/gtx/transform.hpp>
 #include <thread>
 #include <sstream>
+#include <utility>
 
 #if defined(Q_OS_ANDROID)
 #include <sys/system_properties.h>
@@ -179,35 +180,49 @@ bool OpenXrDisplayPlugin::initViews() {
     XrInstance instance = _context->_instance;
     XrSystemId systemId = _context->_systemId;
 
-    XrResult result = xrEnumerateViewConfigurationViews(instance, systemId, XR_VIEW_CONFIG_TYPE, 0, &_viewCount, nullptr);
+    uint32_t reportedViewCount = 0;
+    XrResult result = xrEnumerateViewConfigurationViews(
+        instance, systemId, XR_VIEW_CONFIG_TYPE, 0, &reportedViewCount, nullptr);
     if (!xrCheck(instance, result, "Failed to get view configuration view count!")) {
         qCCritical(xr_display_cat, "Failed to get view configuration view count!");
         return false;
     }
 
-    assert(_viewCount != 0);
-
-    _views = std::vector<XrView>();
-
-    for (uint32_t i = 0; i < _viewCount; i++) {
-        XrView view = { .type = XR_TYPE_VIEW };
-        _views.value().push_back(view);
-
-        XrViewConfigurationView viewConfig = { .type = XR_TYPE_VIEW_CONFIGURATION_VIEW };
-        _viewConfigs.push_back(viewConfig);
+    if (!isSupportedOpenXrViewCount(reportedViewCount)) {
+        qCCritical(xr_display_cat, "Runtime reported unsupported view count: %u", reportedViewCount);
+        return false;
     }
 
-    _swapChains.resize(_viewCount);
-    _swapChainLengths.resize(_viewCount);
-    _swapChainIndices.resize(_viewCount);
-    _images.resize(_viewCount);
+    std::vector<XrView> views;
+    std::vector<XrViewConfigurationView> viewConfigs;
+    for (uint32_t i = 0; i < reportedViewCount; i++) {
+        XrView view = { .type = XR_TYPE_VIEW };
+        views.push_back(view);
 
-    result = xrEnumerateViewConfigurationViews(instance, systemId, XR_VIEW_CONFIG_TYPE, _viewCount, &_viewCount,
-                                               _viewConfigs.data());
+        XrViewConfigurationView viewConfig = { .type = XR_TYPE_VIEW_CONFIGURATION_VIEW };
+        viewConfigs.push_back(viewConfig);
+    }
+
+    uint32_t enumeratedViewCount = reportedViewCount;
+    result = xrEnumerateViewConfigurationViews(
+        instance, systemId, XR_VIEW_CONFIG_TYPE, reportedViewCount,
+        &enumeratedViewCount, viewConfigs.data());
     if (!xrCheck(instance, result, "Failed to enumerate view configuration views!")) {
         qCCritical(xr_display_cat, "Failed to enumerate view configuration views!");
         return false;
     }
+    if (!isSupportedOpenXrViewCount(enumeratedViewCount)) {
+        qCCritical(xr_display_cat, "Runtime enumerated unsupported view count: %u", enumeratedViewCount);
+        return false;
+    }
+
+    _viewCount = enumeratedViewCount;
+    _views = std::move(views);
+    _viewConfigs = std::move(viewConfigs);
+    _swapChains.resize(_viewCount);
+    _swapChainLengths.resize(_viewCount);
+    _swapChainIndices.resize(_viewCount);
+    _images.resize(_viewCount);
 
     return true;
 }

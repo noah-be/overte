@@ -2,8 +2,15 @@
 
 #include <cassert>
 #include <cstdint>
+#include <limits>
 
 int main() {
+    assert(!isSupportedOpenXrViewCount(0));
+    assert(!isSupportedOpenXrViewCount(1));
+    assert(isSupportedOpenXrViewCount(2));
+    assert(!isSupportedOpenXrViewCount(3));
+    assert(!isSupportedOpenXrViewCount(std::numeric_limits<std::size_t>::max()));
+
     assert(selectOpenXrSwapchainFormat(nullptr, 0, 7) == OPENXR_NO_SWAPCHAIN_FORMAT);
     assert(selectOpenXrSwapchainFormat(nullptr, 2, 7) == OPENXR_NO_SWAPCHAIN_FORMAT);
 
