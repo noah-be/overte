@@ -116,6 +116,8 @@ require_text tests/check-phone-apk-contents.py 'outside arm64-v8a' \
     'APK completeness gate rejects native payload for unexpected ABIs'
 require_text tests/check-phone-apk-contents.py 'unexpected ARM64 native entries' \
     'package completeness gate rejects undeclared ARM64 runtimes'
+require_text tests/check-phone-apk-contents.py 'verify_entry_integrity' \
+    'package completeness gate reads required entries to verify ZIP integrity'
 require_text tests/check-phone-apk-contents.py 'REQUIRED_CACHED_ASSETS' \
     'APK completeness gate identifies start-critical extracted bundles'
 require_text tests/check-phone-apk-contents.py 'cache_content_digest' \

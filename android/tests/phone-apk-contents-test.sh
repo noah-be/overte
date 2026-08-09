@@ -101,6 +101,21 @@ def cache_manifest_for(paths, contents=required):
         digest.update(contents['assets/' + path])
     return digest.hexdigest() + '\n' + '\n'.join(paths) + '\n'
 
+def corrupt_stored_entry(package, entry):
+    with zipfile.ZipFile(package) as archive:
+        info = archive.getinfo(entry)
+    with package.open('r+b') as output:
+        output.seek(info.header_offset)
+        local_header = output.read(30)
+        assert local_header[:4] == b'PK\x03\x04'
+        name_length = int.from_bytes(local_header[26:28], 'little')
+        extra_length = int.from_bytes(local_header[28:30], 'little')
+        output.seek(info.header_offset + 30 + name_length + extra_length)
+        original = output.read(1)
+        assert original
+        output.seek(-1, 1)
+        output.write(bytes([original[0] ^ 1]))
+
 cache_manifest = cache_manifest_for(cache_paths)
 for name, omit in [('complete.apk', None), ('partial.apk', 'assets/kept.txt')]:
     with zipfile.ZipFile(root / name, 'w') as archive:
@@ -173,6 +188,26 @@ with zipfile.ZipFile(root / 'unexpected-arm64-runtime.aab', 'w') as archive:
             bundle_entry = 'base/' + entry
         archive.writestr(bundle_entry, data)
     archive.writestr('base/lib/arm64-v8a/libstale.so', b'stale')
+
+corrupt_apk = root / 'corrupt-required-entry.apk'
+with zipfile.ZipFile(corrupt_apk, 'w') as archive:
+    archive.writestr('assets/cache_assets.txt', cache_manifest)
+    for entry, data in required.items():
+        archive.writestr(entry, data)
+corrupt_stored_entry(corrupt_apk, 'classes.dex')
+
+corrupt_aab = root / 'corrupt-required-entry.aab'
+with zipfile.ZipFile(corrupt_aab, 'w') as archive:
+    archive.writestr('base/assets/cache_assets.txt', cache_manifest)
+    for entry, data in required.items():
+        if entry == 'AndroidManifest.xml':
+            bundle_entry = 'base/manifest/AndroidManifest.xml'
+        elif entry == 'classes.dex':
+            bundle_entry = 'base/dex/classes.dex'
+        else:
+            bundle_entry = 'base/' + entry
+        archive.writestr(bundle_entry, data)
+corrupt_stored_entry(corrupt_aab, 'base/lib/arm64-v8a/libphoneInterface.so')
 
 with warnings.catch_warnings():
     warnings.simplefilter('ignore', UserWarning)
@@ -273,6 +308,15 @@ unexpected-arm64-runtime.apk	unexpected ARM64 native entries
 unexpected-arm64-runtime.aab	unexpected ARM64 native entries
 duplicate-entry.apk	duplicate ZIP entry names
 ARCHIVE_CASES
+
+for fixture in corrupt-required-entry.apk corrupt-required-entry.aab; do
+    if "$checker" "$fixture_dir/$fixture" >"$fixture_dir/integrity-out" 2>&1; then
+        printf 'FAIL: package with a corrupt required entry was accepted: %s\n' \
+            "$fixture" >&2
+        exit 1
+    fi
+    grep -Fq 'Bad CRC-32' "$fixture_dir/integrity-out"
+done
 if "$checker" "$fixture_dir/partial.apk" >"$fixture_dir/out" 2>&1; then
     echo 'FAIL: incomplete APK fixture was accepted' >&2
     exit 1

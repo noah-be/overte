@@ -4,6 +4,26 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 95 — Verify required ZIP entry integrity
+
+- Branch: `nightly/android-phone-95-package-entry-integrity`
+- Commit: `Verify phone package entry integrity` (this task's commit)
+- Change: Stream every required APK/AAB entry not already read by the cache
+  digest, forcing ZIP decompression and CRC validation for the manifest, DEX,
+  native runtimes, cache manifest, and required loose QML markers. Presence in
+  the central directory alone no longer satisfies the package gate.
+- Tests:
+  - `android/tests/phone-apk-contents-test.sh`: **passed**, including APK DEX
+    and AAB native-library fixtures corrupted after ZIP creation.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 284/284 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 36
+    explicitly device-free suites; nested host regression passed 284/284.
+  - Python/shell syntax and `git diff --check`: **passed**.
+- Known risks: Integrity is checked for required and cache-declared payloads;
+  signing still establishes publisher trust and must be validated separately.
+- Real-device validation still required: Install and launch a package that
+  passed the gate to validate Android/Qt loader behavior on its final bytes.
+
 ## 94 — Reject undeclared ARM64 native libraries
 
 - Branch: `nightly/android-phone-94-native-library-allowlist`
@@ -2185,7 +2205,8 @@ All branches form one linear chain starting at
 91. `nightly/android-phone-91-nightly-handoff` — `a2672c4ae7`
 92. `nightly/android-phone-92-cache-digest-gate` — `4d6c434d63`
 93. `nightly/android-phone-93-cache-manifest-limits` — `305ce9f3b4`
-94. `nightly/android-phone-94-native-library-allowlist` — this task's commit
+94. `nightly/android-phone-94-native-library-allowlist` — `4cf23fc7a6`
+95. `nightly/android-phone-95-package-entry-integrity` — this task's commit
 
 ### Device-free audit disposition
 
