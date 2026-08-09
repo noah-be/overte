@@ -201,8 +201,17 @@ def resolve(cache: Path, installation: Path, java_home: Path, report_root: Path,
             (staging / ".overte-legacy-gradle-report").write_text("1\n", encoding="ascii")
             sdk_value = os.environ.get("ANDROID_HOME", os.environ.get("ANDROID_SDK_ROOT", ""))
             sdk_root = Path(sdk_value) if sdk_value else None
+            ndk_value = os.environ.get("OVERTE_LEGACY_NDK_HOME", "")
+            ndk_root = Path(ndk_value) if ndk_value else (
+                sdk_root / "ndk-bundle" if sdk_root is not None else None)
+            missing_precondition = None
             if sdk_root is None or not sdk_root.is_dir():
+                missing_precondition = "android_sdk"
+            elif ndk_root is None or not ndk_root.is_dir():
+                missing_precondition = "android_ndk"
+            if missing_precondition is not None:
                 manifest = {"schemaVersion": 1, "status": "precondition_failed",
+                            "precondition": missing_precondition,
                             "reportedModules": list(REPORTED_MODULES),
                             "excludedModules": list(EXCLUDED_MODULES), "gradle": GRADLE_VERSION,
                             "java": "8", "distributionUrl": GRADLE_URL,
@@ -221,11 +230,14 @@ def resolve(cache: Path, installation: Path, java_home: Path, report_root: Path,
                 raise HarnessError("could not determine source revision")
             revision = revision_result.stdout.strip()
             source = source_snapshot(staging, revision, runner)
+            (source / "android/local.properties").write_text(
+                f"sdk.dir={sdk_root}\nndk.dir={ndk_root}\n", encoding="utf-8")
             for name in ("home", "tmp", "project-cache", "precompiled"):
                 (staging / name).mkdir()
             env = {"JAVA_HOME": str(java_home), "PATH": "/usr/bin:/bin", "HOME": str(staging / "home"),
                    "GRADLE_USER_HOME": str(cache / "gradle-user-home"),
                    "ANDROID_HOME": str(sdk_root),
+                   "ANDROID_NDK_HOME": str(ndk_root),
                    "HIFI_ANDROID_PRECOMPILED": str(staging / "precompiled")}
             command = [str(installation / "bin/gradle"), "--no-daemon", "--no-build-cache", "--no-scan",
                        "--console", "plain", "--project-cache-dir", str(staging / "project-cache"),

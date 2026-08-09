@@ -10,6 +10,12 @@ It requires the explicit JDK 8 installation at
 distribution service and checked against the reviewed SHA-256 literal before
 installation.
 
+A resolve additionally requires an Android SDK through `ANDROID_HOME` or
+`ANDROID_SDK_ROOT`, plus a legacy-compatible NDK directory. The harness uses
+`$ANDROID_HOME/ndk-bundle` by default; set `OVERTE_LEGACY_NDK_HOME` for a
+side-by-side NDK. It writes the resulting `sdk.dir` and `ndk.dir` only to the
+disposable source snapshot, never to the checkout.
+
 The four explicit modes are:
 
 ```bash
@@ -35,4 +41,3 @@ and `questFramePlayer`. `picoInterface` is explicitly excluded because it owns
 a dedicated Gradle 8.13 graph. A successful report proves only that Gradle
 produced the requested dependency graph metadata. It does not verify every
 artifact's bytes, build an APK, or produce a resolved SBOM.
-

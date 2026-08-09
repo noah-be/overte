@@ -122,10 +122,15 @@ class LegacyGradleReportTest(unittest.TestCase):
             (installation / "bin/gradle").write_text("", encoding="utf-8")
             cache, output = root / "cache", root / "reports"
             commands = []
-            def fake_runner(command, _env, _cwd, _timeout):
+            isolated_configuration = []
+            def fake_runner(command, env, cwd, _timeout):
                 commands.append(command)
                 if command[:3] == ["git", "rev-parse", "HEAD"]:
                     return subprocess.CompletedProcess(command, 0, "a" * 40 + "\n", "")
+                isolated_configuration.append((
+                    cwd,
+                    (cwd / "local.properties").read_text(encoding="utf-8"),
+                    env["ANDROID_NDK_HOME"]))
                 return subprocess.CompletedProcess(command, 0, "dependency graph\n", "")
             def fake_snapshot(staging, _revision, _runner):
                 source = staging / "source"
@@ -133,7 +138,11 @@ class LegacyGradleReportTest(unittest.TestCase):
                 return source
             sdk = root / "sdk"
             sdk.mkdir()
-            with mock.patch.dict("os.environ", {"ANDROID_HOME": str(sdk)}, clear=False), \
+            ndk = root / "ndk"
+            ndk.mkdir()
+            with mock.patch.dict("os.environ", {
+                    "ANDROID_HOME": str(sdk),
+                    "OVERTE_LEGACY_NDK_HOME": str(ndk)}, clear=False), \
                     mock.patch.object(report, "source_snapshot", fake_snapshot):
                 self.assertTrue(report.resolve(cache, installation, java, output, False, fake_runner))
             gradle = commands[-1]
@@ -142,6 +151,12 @@ class LegacyGradleReportTest(unittest.TestCase):
             self.assertIn("--project-cache-dir", gradle)
             self.assertIn("-PSUPPRESS_PICO_INTERFACE", gradle)
             self.assertEqual([f":{name}:dependencies" for name in report.REPORTED_MODULES], gradle[-6:])
+            self.assertEqual(1, len(isolated_configuration))
+            isolated_cwd, local_properties, configured_ndk = isolated_configuration[0]
+            self.assertNotEqual(report.ANDROID_ROOT, isolated_cwd)
+            self.assertIn(f"sdk.dir={sdk}", local_properties)
+            self.assertIn(f"ndk.dir={ndk}", local_properties)
+            self.assertEqual(str(ndk), configured_ndk)
             current = output / "current"
             self.assertTrue((current / ".complete").is_file())
             result = __import__("json").loads((current / "result.json").read_text())
@@ -170,7 +185,11 @@ class LegacyGradleReportTest(unittest.TestCase):
                 return source
             sdk = root / "sdk"
             sdk.mkdir()
-            with mock.patch.dict("os.environ", {"ANDROID_HOME": str(sdk)}, clear=False), \
+            ndk = root / "ndk"
+            ndk.mkdir()
+            with mock.patch.dict("os.environ", {
+                    "ANDROID_HOME": str(sdk),
+                    "OVERTE_LEGACY_NDK_HOME": str(ndk)}, clear=False), \
                     mock.patch.object(report, "source_snapshot", fake_snapshot):
                 self.assertFalse(report.resolve(root / "cache", installation, java, output, True, fake_runner))
             self.assertFalse((output / "current/.complete").exists())
@@ -206,6 +225,25 @@ class LegacyGradleReportTest(unittest.TestCase):
             self.assertFalse(result["dependencyResolutionAttempted"])
             self.assertFalse(result["resolvedGraph"])
             self.assertFalse((current / ".complete").exists())
+
+    def test_missing_ndk_publishes_red_precondition(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sdk = root / "sdk"
+            sdk.mkdir()
+            output = root / "reports"
+            with mock.patch.dict("os.environ", {
+                    "ANDROID_HOME": str(sdk),
+                    "ANDROID_SDK_ROOT": "",
+                    "OVERTE_LEGACY_NDK_HOME": ""}):
+                self.assertFalse(report.resolve(
+                    root / "cache", root / "gradle", root / "java",
+                    output, False, mock.Mock()))
+            result = __import__("json").loads(
+                (output / "current/result.json").read_text())
+            self.assertEqual("precondition_failed", result["status"])
+            self.assertEqual("android_ndk", result["precondition"])
+            self.assertFalse(result["dependencyResolutionAttempted"])
 
 
 if __name__ == "__main__":
