@@ -189,7 +189,8 @@ if [[ -n "${PHONE_TEST_REPORT:-}" ]]; then
     REPORT_KIND="caller-provided"
     [[ -d "$REPORT_DIR" ]] || die "PHONE_TEST_REPORT must name an existing directory"
 else
-    REPORT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/overte-phone-device-test.XXXXXX")"
+    REPORT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/overte-phone-device-test.XXXXXX" \
+        2>/dev/null)" || die "could not create device-test report directory"
     REPORT_KIND="temporary"
 fi
 
@@ -198,20 +199,18 @@ if [[ -n "$REPOSITORY_ROOT" && ( "$REPORT_DIR" == "$REPOSITORY_ROOT" || "$REPORT
     die "refusing to store device diagnostics inside the Git worktree"
 fi
 
-# Do not query a connected device until every host-only artifact contract and
-# report contract has passed. Invalid input must be side-effect free even at
-# the ADB read level.
-SERIAL="$(select_serial)"
-
 readonly SUMMARY="$REPORT_DIR/summary.txt"
 readonly TEST_DEEP_LINK="overte://localhost"
 [[ -w "$REPORT_DIR" && -x "$REPORT_DIR" ]] || \
     die "PHONE_TEST_REPORT must be writable and searchable"
 [[ ! -e "$SUMMARY" && ! -L "$SUMMARY" ]] || \
     die "refusing to overwrite an existing device-test summary"
-(set -o noclobber; umask 077; : >"$SUMMARY") || \
+(set -o noclobber; umask 077; : >"$SUMMARY") 2>/dev/null || \
     die "could not create a fresh device-test summary"
-chmod 600 "$SUMMARY"
+chmod 600 "$SUMMARY" 2>/dev/null || die "could not secure device-test summary"
+append_summary() {
+    tee -a "$SUMMARY" 2>/dev/null || die "could not update device-test summary"
+}
 PACKAGE_INSTALLED=0
 PACKAGE_CLEANED=0
 write_final_status() {
@@ -220,11 +219,16 @@ write_final_status() {
         adb_for shell am force-stop "$PACKAGE" >/dev/null || true
     fi
     ((status == 0)) && result=passed
-    printf 'test_status=%s\n' "$result" >>"$SUMMARY" || true
+    (printf 'test_status=%s\n' "$result" >>"$SUMMARY") 2>/dev/null || true
 }
 trap write_final_status EXIT
 printf 'package=%s\napk_sha256=%s\napk_debuggable=%s\nruntime_permissions_auto_granted=1\n' \
-    "$PACKAGE" "$APK_SHA256" "$APK_DEBUGGABLE" | tee -a "$SUMMARY"
+    "$PACKAGE" "$APK_SHA256" "$APK_DEBUGGABLE" | append_summary
+
+# Do not query a connected device until every host-only artifact contract and
+# report creation/write contract has passed. Invalid input must be side-effect
+# free even at the ADB read level.
+SERIAL="$(select_serial)"
 
 current_pid() {
     adb_for shell pidof -s "$PACKAGE" 2>/dev/null | tr -d '\r' || true
@@ -302,7 +306,7 @@ installed_apk_sha256="$(adb_for exec-out cat "$installed_base_apk" \
     die "could not read the installed APK for provenance verification"
 [[ "$installed_apk_sha256" == "$APK_SHA256" ]] || \
     die "installed APK content does not match the requested APK"
-printf 'installed_apk_verified=1\n' | tee -a "$SUMMARY"
+printf 'installed_apk_verified=1\n' | append_summary
 
 printf '\nLaunching %s...\n' "$LAUNCHER"
 logcat_start_epoch="$(adb_for shell date +%s.%3N 2>/dev/null | tr -d '\r')"
@@ -316,7 +320,7 @@ pid="$(wait_for_pid || true)"
 [[ -n "$pid" ]] || die "app process did not start; inspect the private $REPORT_KIND report"
 require_stable_pid "launch" "$pid" 30
 phone_activity_is_resumed || die "phone Qt activity is not resumed after launch; inspect the private $REPORT_KIND report"
-printf 'launch_survived=1\n' | tee -a "$SUMMARY"
+printf 'launch_survived=1\n' | append_summary
 
 printf '\nOpening neutral local test deep link...\n'
 require_adb "deep-link delivery" shell am start -W -a android.intent.action.VIEW \
@@ -335,7 +339,7 @@ for lifecycle_cycle in 1 2 3; do
     phone_activity_is_resumed || \
         die "cycle $lifecycle_cycle: phone Qt activity is not resumed; inspect the private $REPORT_KIND report"
 done
-printf 'background_foreground_cycles=3\n' | tee -a "$SUMMARY"
+printf 'background_foreground_cycles=3\n' | append_summary
 
 printf '\nTesting unconsumed Back lifecycle...\n'
 require_adb "Back delivery" shell input keyevent KEYCODE_BACK
@@ -346,7 +350,7 @@ require_adb "Back recovery start" shell am start -W -n "$LAUNCHER"
 require_stable_pid "Back recovery" "$pid" 5
 phone_activity_is_resumed || \
     die "phone Qt activity is not resumed after Back recovery; inspect the private $REPORT_KIND report"
-printf 'back_background_survived=1\nback_recovery_survived=1\n' | tee -a "$SUMMARY"
+printf 'back_background_survived=1\nback_recovery_survived=1\n' | append_summary
 
 # Inspect raw process logs only in memory. Persisting them could retain visited
 # locations, account identifiers, chat, or other user content.
@@ -373,7 +377,7 @@ exit_crash_count=$((final_exit_crash_count - baseline_exit_crash_count))
 ((exit_crash_count >= 0)) || \
     die "package exit diagnostics moved backwards during the test"
 printf 'crash_log_matches=%s\nexit_crash_matches=%s\npage_size_mismatch_matches=%s\n' \
-    "$crash_count" "$exit_crash_count" "$page_mismatch_count" | tee -a "$SUMMARY"
+    "$crash_count" "$exit_crash_count" "$page_mismatch_count" | append_summary
 
 printf '\nDevice diagnostics complete (%s private report).\n' "$REPORT_KIND"
 if ((crash_count > 0 || exit_crash_count > 0 || page_mismatch_count > 0)); then
@@ -382,4 +386,4 @@ if ((crash_count > 0 || exit_crash_count > 0 || page_mismatch_count > 0)); then
 fi
 require_adb "final app cleanup" shell am force-stop "$PACKAGE"
 PACKAGE_CLEANED=1
-printf 'cleanup_force_stopped=1\n' >>"$SUMMARY"
+printf 'cleanup_force_stopped=1\n' | append_summary >/dev/null

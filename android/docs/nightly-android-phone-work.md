@@ -4,6 +4,28 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 110 — Keep summary write failures private
+
+- Branch: `nightly/android-phone-110-private-summary-write-errors`
+- Commit: `Keep phone summary write errors private` (this task's commit)
+- Change: Suppress raw `mktemp`, shell-redirection, `chmod`, and `tee` errors;
+  give report creation, security, and update failures fixed phase messages; and
+  create/write the initial private summary before selecting a device. Later
+  appends share one checked helper, while the exit trap remains best-effort.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, forcing a fake
+    `tee` private-path failure before ADB, preserving `test_status=failed`, and
+    proving existing/symlink summary rejection is also path-private.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 307/307 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 307/307.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: If the report filesystem fails again while the exit trap writes
+  final status, no reliable local channel remains; the trap intentionally avoids
+  masking the original failure or exposing the path.
+- Real-device validation still required: Run the unattended smoke with a fresh
+  private report and accept only summaries ending in `test_status=passed`.
+
 ## 109 — Keep APK hash failures private
 
 - Branch: `nightly/android-phone-109-private-apk-hash-errors`
@@ -2515,7 +2537,8 @@ All branches form one linear chain starting at
 106. `nightly/android-phone-106-cache-asset-coverage` — `95a6c850c8`
 107. `nightly/android-phone-107-qml-module-boundary` — `a37b4e3ac7`
 108. `nightly/android-phone-108-private-preflight-paths` — `4fa4eace60`
-109. `nightly/android-phone-109-private-apk-hash-errors` — this task's commit
+109. `nightly/android-phone-109-private-apk-hash-errors` — `a44dc0efb1`
+110. `nightly/android-phone-110-private-summary-write-errors` — this task's commit
 
 ### Device-free audit disposition
 

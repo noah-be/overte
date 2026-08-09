@@ -4,7 +4,9 @@ set -euo pipefail
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly test_root="$(mktemp -d "${TMPDIR:-/tmp}/phone-device-smoke-mock.XXXXXX")"
 readonly real_sha256sum="$(command -v sha256sum)"
+readonly real_tee="$(command -v tee)"
 export PHONE_MOCK_REAL_SHA256SUM="$real_sha256sum"
+export PHONE_MOCK_REAL_TEE="$real_tee"
 cleanup() {
     [[ "$(basename -- "$test_root")" == phone-device-smoke-mock.* ]] && rm -rf -- "$test_root"
 }
@@ -132,6 +134,15 @@ if [[ "${MOCK_SHA256_FAILURE:-0}" == 1 ]]; then
 fi
 exec "$PHONE_MOCK_REAL_SHA256SUM" "$@"
 MOCK_SHA256
+cat >"$test_root/bin/tee" <<'MOCK_TEE'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${MOCK_TEE_FAILURE:-0}" == 1 ]]; then
+    printf 'private summary write failure: %s\n' "${*: -1}" >&2
+    exit 8
+fi
+exec "$PHONE_MOCK_REAL_TEE" "$@"
+MOCK_TEE
 cat >"$test_root/bin/apkanalyzer" <<'MOCK_ANALYZER'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -160,6 +171,7 @@ set -euo pipefail
 [[ "${MOCK_PREFLIGHT_FAILURE:-0}" != 1 ]]
 MOCK_PREFLIGHT
 chmod +x "$test_root/bin/adb" "$test_root/bin/sleep" "$test_root/bin/sha256sum" \
+    "$test_root/bin/tee" \
     "$test_root/bin/apkanalyzer" "$test_root/bin/apk-preflight"
 
 mkdir "$test_root/unguarded-override-report"
@@ -218,6 +230,21 @@ grep -Fxq 'ERROR: could not read APK for SHA-256' "$test_root/hash-failure.out"
 ! grep -Fq 'private hash failure' "$test_root/hash-failure.out"
 ! grep -Fq "$test_root" "$test_root/hash-failure.out"
 [[ ! -s "$test_root/adb-commands" ]]
+
+mkdir "$test_root/summary-write-failure-report"
+: >"$test_root/adb-commands"
+if run_smoke "$test_root/summary-write-failure-report" env MOCK_TEE_FAILURE=1 \
+        >"$test_root/summary-write-failure.out" 2>&1; then
+    echo 'FAIL: failed initial summary write was accepted' >&2
+    exit 1
+fi
+grep -Fxq 'ERROR: could not update device-test summary' \
+    "$test_root/summary-write-failure.out"
+! grep -Fq 'private summary write failure' "$test_root/summary-write-failure.out"
+! grep -Fq "$test_root" "$test_root/summary-write-failure.out"
+[[ ! -s "$test_root/adb-commands" ]]
+grep -Fxq 'test_status=failed' \
+    "$test_root/summary-write-failure-report/summary.txt"
 
 : >"$test_root/adb-commands"
 if env PATH="$test_root/bin:$PATH" MOCK_ROOT="$test_root" \
@@ -459,6 +486,7 @@ if run_smoke "$test_root/existing-report" env >"$test_root/existing.out" 2>&1; t
 fi
 [[ "$(<"$test_root/existing-report/summary.txt")" == preserve ]]
 ! grep -q '^install ' "$test_root/adb-commands"
+! grep -Fq "$test_root" "$test_root/existing.out"
 
 mkdir "$test_root/symlink-report"
 printf protected >"$test_root/protected-target"
@@ -471,5 +499,6 @@ fi
 [[ "$(<"$test_root/protected-target")" == protected ]]
 [[ -L "$test_root/symlink-report/summary.txt" ]]
 ! grep -q '^install ' "$test_root/adb-commands"
+! grep -Fq "$test_root" "$test_root/symlink.out"
 
 printf 'PASS: unattended phone device smoke mock\n'
