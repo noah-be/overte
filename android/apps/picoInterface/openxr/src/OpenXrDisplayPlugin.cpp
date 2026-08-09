@@ -528,6 +528,12 @@ void OpenXrDisplayPlugin::compositeLayers() {
     }
 
     if (_lastFrameState.shouldRender) {
+        if (!isOpenXrSwapchainImageIndexValid(
+                _swapChainIndices[0], _compositeSwapChain.size())) {
+            qCCritical(xr_display_cat, "Invalid composite swapchain image index: %u (count %zu)",
+                       _swapChainIndices[0], _compositeSwapChain.size());
+            return;
+        }
         _compositeFramebuffer->setRenderBuffer(0, _compositeSwapChain[_swapChainIndices[0]]);
         HmdDisplayPlugin::compositeLayers();
     }
@@ -580,17 +586,46 @@ void OpenXrDisplayPlugin::hmdPresent() {
 
     if (_lastFrameState.shouldRender) {
         // TODO: Use multiview swapchain
+        uint32_t acquiredCount = 0;
+        auto releaseAcquiredImages = [&] {
+            for (uint32_t acquired = 0; acquired < acquiredCount; ++acquired) {
+                XrSwapchainImageReleaseInfo releaseInfo = { .type = XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
+                xrCheck(_context->_instance,
+                        xrReleaseSwapchainImage(_swapChains[acquired], &releaseInfo),
+                        "failed to release swapchain image!");
+            }
+            acquiredCount = 0;
+        };
         for (uint32_t i = 0; i < 2; i++) {
             XrSwapchainImageAcquireInfo acquireInfo = { .type = XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO };
 
             XrResult result = xrAcquireSwapchainImage(_swapChains[i], &acquireInfo, &_swapChainIndices[i]);
-            if (!xrCheck(_context->_instance, result, "failed to acquire swapchain image!"))
+            if (!xrCheck(_context->_instance, result, "failed to acquire swapchain image!")) {
+                releaseAcquiredImages();
+                endFrame();
                 return;
+            }
+            ++acquiredCount;
+            const bool validRuntimeImage = isOpenXrSwapchainImageIndexValid(
+                _swapChainIndices[i], _images[i].size());
+            const bool validCompositeImage = i != 0 || isOpenXrSwapchainImageIndexValid(
+                _swapChainIndices[i], _compositeSwapChain.size());
+            if (!validRuntimeImage || !validCompositeImage) {
+                qCCritical(xr_display_cat,
+                           "Runtime returned invalid swapchain image index for eye %u: %u",
+                           i, _swapChainIndices[i]);
+                releaseAcquiredImages();
+                endFrame();
+                return;
+            }
 
             XrSwapchainImageWaitInfo waitInfo = { .type = XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO, .timeout = 1000 };
             result = xrWaitSwapchainImage(_swapChains[i], &waitInfo);
-            if (!xrCheck(_context->_instance, result, "failed to wait for swapchain image!"))
+            if (!xrCheck(_context->_instance, result, "failed to wait for swapchain image!")) {
+                releaseAcquiredImages();
+                endFrame();
                 return;
+            }
         }
 
         auto backend = getBackend();
@@ -604,14 +639,7 @@ void OpenXrDisplayPlugin::hmdPresent() {
         glCopyImageSubData(glTexId, GL_TEXTURE_2D, 0, _renderTargetSize.x / 2, 0, 0, _images[1][_swapChainIndices[1]].image,
                            GL_TEXTURE_2D, 0, 0, 0, 0, _renderTargetSize.x / 2, _renderTargetSize.y, 1);
 
-        for (uint32_t i = 0; i < 2; i++) {
-            XrSwapchainImageReleaseInfo releaseInfo = { .type = XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
-            XrResult result = xrReleaseSwapchainImage(_swapChains[i], &releaseInfo);
-            if (!xrCheck(_context->_instance, result, "failed to release swapchain image!")) {
-                assert(false);
-                return;
-            }
-        }
+        releaseAcquiredImages();
     }
 
     endFrame();

@@ -15,6 +15,11 @@ inline bool isCompleteOpenXrStereoViewResult(
     return isSupportedOpenXrViewCount(capacity) && returnedCount == capacity;
 }
 
+inline bool isOpenXrSwapchainImageIndexValid(
+        std::size_t index, std::size_t imageCount) {
+    return index < imageCount;
+}
+
 inline int64_t selectOpenXrSwapchainFormat(
         const int64_t* formats, std::size_t count, int64_t preferred) {
     if (formats == nullptr || count == 0) {

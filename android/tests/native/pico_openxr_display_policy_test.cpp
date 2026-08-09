@@ -15,6 +15,16 @@ int main() {
     assert(!isCompleteOpenXrStereoViewResult(2, 1));
     assert(!isCompleteOpenXrStereoViewResult(2, 3));
     assert(!isCompleteOpenXrStereoViewResult(1, 1));
+    assert(!isOpenXrSwapchainImageIndexValid(0, 0));
+    assert(isOpenXrSwapchainImageIndexValid(0, 1));
+    assert(!isOpenXrSwapchainImageIndexValid(1, 1));
+    assert(isOpenXrSwapchainImageIndexValid(7, 8));
+    assert(!isOpenXrSwapchainImageIndexValid(8, 8));
+    assert(!isOpenXrSwapchainImageIndexValid(9, 8));
+    assert(!isOpenXrSwapchainImageIndexValid(
+        std::numeric_limits<std::size_t>::max(), 8));
+    assert(isOpenXrSwapchainImageIndexValid(
+        0, std::numeric_limits<std::size_t>::max()));
 
     assert(selectOpenXrSwapchainFormat(nullptr, 0, 7) == OPENXR_NO_SWAPCHAIN_FORMAT);
     assert(selectOpenXrSwapchainFormat(nullptr, 2, 7) == OPENXR_NO_SWAPCHAIN_FORMAT);
