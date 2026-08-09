@@ -59,6 +59,18 @@ events at runner-group level. Restrict the runner group to this repository and
 the protected RC workflow; use outbound network allowlisting where practical.
 Destroy or scrub the workspace, process environment and Gradle state after every job.
 
+For a repository-scoped runner where workflow-level runner groups are not
+available, require approval for workflows from **all external contributors** in
+the repository Actions settings. Install a root-owned copy of
+`android/ci/authorize-phone-release-runner.sh` outside the runner application
+directory and set `ACTIONS_RUNNER_HOOK_JOB_STARTED` to its absolute path in the
+runner `.env`. The hook independently permits only `noah-be/overte`, the manual
+`Android Phone release candidate` workflow, and the named release custodian as
+both actor and triggering actor. Keep the hook and its parent directory
+non-writable by the runner service account. This local check is required even
+when GitHub's fork approval policy is enabled: labels alone are not an access
+control because pull-request code can request any repository runner label.
+
 A standard GitHub-hosted Ubuntu runner is not currently a supported substitute:
 its 14 GB workspace is smaller than the observed combined Phone Conan and
 Gradle output before checkout and download staging are included. Re-evaluate a

@@ -207,6 +207,13 @@
       "description": "Local release manifest, SBOM, digest and provenance generation"
     },
     {
+      "id": "phone-release-runner-authorization",
+      "kind": "contract",
+      "tiers": ["contracts"],
+      "command": ["tests/phone-release-runner-authorization-test.sh"],
+      "description": "Self-hosted release runner rejects pull requests and unauthorized actors"
+    },
+    {
       "id": "phone-build-parallelism",
       "kind": "contract",
       "tiers": ["contracts"],
