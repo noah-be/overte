@@ -62,6 +62,10 @@ class ShadergenJobTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("PICO_BUILD_JOBS must be a positive integer", result.stderr)
 
+    def test_pico_build_exposes_gradle_stacktraces_for_ci_diagnosis(self):
+        self.assertIn('if [[ "$option" == "--stacktrace" ]]', BUILD_SCRIPT)
+        self.assertIn('build) build "$command_option" ;;', BUILD_SCRIPT)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

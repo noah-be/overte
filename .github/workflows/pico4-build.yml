@@ -59,7 +59,7 @@ jobs:
 
       - name: Build Pico debug APK
         working-directory: android
-        run: ./build-pico.sh build
+        run: ./build-pico.sh build --stacktrace
 
       - name: Verify Pico APK
         env:
