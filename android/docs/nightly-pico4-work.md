@@ -1839,8 +1839,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 102 — Controller pose completeness
 
 - Branch: `nightly/pico4-102-openxr-controller-pose-validity`
-- Commit: identified by subject `Reject incomplete Pico controller poses`; the
-  exact hash is recorded by the following stacked task or final report.
+- Commit: `b13fa0e0b2` (`Reject incomplete Pico controller poses`)
 - Change: require both valid position and orientation before counting or
   publishing an OpenXR controller pose, matching the data actually consumed.
   The common controller/body pose flag is applied identically in the Pico and
@@ -1853,6 +1852,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. Inject orientation-only and position-only
   grip/palm samples during tracking loss; verify controller count and hand pose go
   neutral, then recover on the first complete sample without stale interaction.
+
+### 103 — Palm-to-grip pose fallback
+
+- Branch: `nightly/pico4-103-openxr-palm-fallback`
+- Commit: identified by subject `Fall back from incomplete Pico palm poses`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: choose palm input only from the complete pose sample actually consumed,
+  rather than a separate action-active query, and fall back to grip within the
+  same frame when palm is inactive or incomplete. Initialize the candidate pose
+  fail-closed. Pico and shared desktop OpenXR selection remain equivalent.
+- Regression: Pico/desktop contracts verify initialization, palm completeness,
+  selection, fallback grip lookup and final validity ordering without the split
+  `isPoseActive()` decision.
+- Passed: targeted OpenXR input/lifecycle contracts; `git diff --check`.
+- Risk: a transiently incomplete palm pose now uses the valid grip pose and its
+  existing grip offset instead of dropping the controller for that frame.
+- Pico 4 validation: **not executed**. Alternate palm support/active state and
+  inject incomplete palm samples while grip stays valid; verify continuous pose,
+  correct offset selection, then clean return to palm on a complete sample.
 
 ## Deferred, rejected, or blocked ideas
 

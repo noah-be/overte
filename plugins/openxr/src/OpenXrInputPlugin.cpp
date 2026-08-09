@@ -1090,13 +1090,19 @@ void OpenXrInputPlugin::InputDevice::update(float deltaTime, const controller::I
         auto grip_path = (i == 0) ? "left_grip_pose" : "right_grip_pose";
 
         bool usingPalm = false;
-        XrSpaceLocation handLocation;
+        XrSpaceLocation handLocation { .type = XR_TYPE_SPACE_LOCATION };
 
-        // use the palm pose if it's supported
-        if (_context->_palmPoseSupported && _actions.at(palm_path)->isPoseActive()) {
-            handLocation = _actions.at(palm_path)->getPose();
-            usingPalm = true;
-        } else {
+        // Prefer a complete palm pose, but retain the grip fallback if the palm
+        // action becomes inactive or loses either position or orientation.
+        if (_context->_palmPoseSupported) {
+            const auto palmLocation = _actions.at(palm_path)->getPose();
+            if ((palmLocation.locationFlags & REQUIRED_POSE_LOCATION_FLAGS) ==
+                    REQUIRED_POSE_LOCATION_FLAGS) {
+                handLocation = palmLocation;
+                usingPalm = true;
+            }
+        }
+        if (!usingPalm) {
             handLocation = _actions.at(grip_path)->getPose();
         }
 

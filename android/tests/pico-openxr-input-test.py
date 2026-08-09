@@ -468,6 +468,32 @@ class OpenXrInputStateTest(unittest.TestCase):
                 self.assertLess(complete, tracked)
                 self.assertLess(tracked, translation)
 
+    def test_incomplete_palm_pose_falls_back_to_grip_pose(self):
+        for source in (SOURCE, DESKTOP_SOURCE):
+            start = source.index("void OpenXrInputPlugin::InputDevice::update(")
+            end = source.index("void OpenXrInputPlugin::InputDevice::setupControllerFlags", start)
+            update = source[start:end]
+            initialized = update.index("XrSpaceLocation handLocation { .type = XR_TYPE_SPACE_LOCATION }")
+            palm_get = update.index("const auto palmLocation", initialized)
+            palm_flags = update.index(
+                "palmLocation.locationFlags & REQUIRED_POSE_LOCATION_FLAGS", palm_get
+            )
+            select = update.index("handLocation = palmLocation", palm_flags)
+            palm_selected = update.index("usingPalm = true", select)
+            fallback = update.index("if (!usingPalm)", palm_selected)
+            grip_get = update.index("_actions.at(grip_path)->getPose()", fallback)
+            final_flags = update.index(
+                "handLocation.locationFlags & REQUIRED_POSE_LOCATION_FLAGS", grip_get
+            )
+            self.assertLess(initialized, palm_get)
+            self.assertLess(palm_get, palm_flags)
+            self.assertLess(palm_flags, select)
+            self.assertLess(select, palm_selected)
+            self.assertLess(palm_selected, fallback)
+            self.assertLess(fallback, grip_get)
+            self.assertLess(grip_get, final_flags)
+            self.assertNotIn("isPoseActive()", update[initialized:final_flags])
+
     def test_xdev_enumeration_and_space_publication_are_transactional(self):
         start = SOURCE.index("if (_context->_MNDX_xdevSpaceSupported)")
         end = SOURCE.index("_actionsInitialized = true", start)
