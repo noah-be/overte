@@ -1717,8 +1717,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 ### 95 — Vive Tracker function capability validation
 
 - Branch: `nightly/pico4-95-openxr-vive-functions`
-- Commit: identified by subject `Validate Pico OpenXR Vive Tracker function`;
-  the exact hash is recorded by the following stacked task or final report.
+- Commit: `b2ee6792ff` (`Validate Pico OpenXR Vive Tracker function`)
 - Change: enable HTC Vive Tracker interaction only when its required enumeration
   function resolves successfully. A loader/runtime mismatch now disables that
   optional path, clears its pointer and retains the XDev fallback instead of
@@ -1731,6 +1730,25 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Pico 4 validation: **not executed**. On a runtime with HTCX and/or MNDX tracker
   extensions, test complete and deliberately missing HTCX function exposure;
   verify HTCX wins only when callable and MNDX remains available otherwise.
+
+### 96 — Body-tracker pose validity
+
+- Branch: `nightly/pico4-96-openxr-tracker-poses`
+- Commit: identified by subject `Reject invalid Pico body tracker poses`; the
+  exact hash is recorded by the following stacked task or final report.
+- Change: refuse XDev role inference before a predicted frame time exists, skip
+  failed or incompletely tracked stage/local/head locations, and guard the head-
+  height normalization denominator. Both HTCX and XDev publication now require
+  valid position as well as orientation because both values feed each pose.
+- Regression: input contracts cover time-before-locate ordering, all result and
+  location-validity guards, division-after-height-check, and complete pose flags
+  for both optional body-tracker backends.
+- Passed: targeted OpenXR input/lifecycle contracts; `git diff --check`.
+- Risk: partially valid tracker samples are omitted for that update instead of
+  emitting undefined translations; no calibration thresholds were changed.
+- Pico 4 validation: **not executed**. During body-tracker calibration and use,
+  inject no-frame-time, locate failure, orientation-only, position-only and zero-
+  height samples; verify no role/pose publication until a complete sample arrives.
 
 ## Deferred, rejected, or blocked ideas
 

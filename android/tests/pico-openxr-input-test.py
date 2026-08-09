@@ -321,6 +321,32 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertLess(failure, clear)
         self.assertNotIn("xrGetInstanceProcAddr(", vive)
 
+    def test_body_tracker_poses_require_complete_valid_locations(self):
+        self.assertIn(
+            "XR_SPACE_LOCATION_ORIENTATION_VALID_BIT | XR_SPACE_LOCATION_POSITION_VALID_BIT",
+            SOURCE,
+        )
+        guess_start = SOURCE.index("void OpenXrInputPlugin::guessXDevRoles")
+        guess_end = SOURCE.index("void OpenXrInputPlugin::calibrate()", guess_start)
+        guess = SOURCE[guess_start:guess_end]
+        time_guard = guess.index("if (!_context->_lastPredictedDisplayTime.has_value())")
+        first_locate = guess.index("xrLocateSpace(")
+        validity = guess.index("REQUIRED_BODY_LOCATION_FLAGS", first_locate)
+        height_guard = guess.index("std::numeric_limits<float>::epsilon()", validity)
+        division = guess.index("stageSpace.pose.position.y / headSpace.pose.position.y", height_guard)
+        self.assertLess(time_guard, first_locate)
+        self.assertLess(first_locate, validity)
+        self.assertLess(validity, height_guard)
+        self.assertLess(height_guard, division)
+        self.assertIn("!stageLocated || !localLocated || !headLocated", guess)
+
+        vive_start = SOURCE.index("void OpenXrInputPlugin::InputDevice::updateBodyFromViveTrackers")
+        xdev_start = SOURCE.index("void OpenXrInputPlugin::InputDevice::updateBodyFromXDevSpaces")
+        vive = SOURCE[vive_start:xdev_start]
+        xdev = SOURCE[xdev_start:]
+        self.assertIn("REQUIRED_BODY_LOCATION_FLAGS) == REQUIRED_BODY_LOCATION_FLAGS", vive)
+        self.assertIn("REQUIRED_BODY_LOCATION_FLAGS) == REQUIRED_BODY_LOCATION_FLAGS", xdev)
+
     def test_xdev_enumeration_and_space_publication_are_transactional(self):
         start = SOURCE.index("if (_context->_MNDX_xdevSpaceSupported)")
         end = SOURCE.index("_actionsInitialized = true", start)
