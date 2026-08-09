@@ -6,9 +6,12 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import plistlib
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 
@@ -35,12 +38,44 @@ def parse_versions() -> dict[str, str]:
     return values
 
 
+def load_python_module(path: Path, name: str):
+    specification = importlib.util.spec_from_file_location(name, path)
+    assert specification is not None and specification.loader is not None
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
+
+
 def test_versions() -> None:
     versions = parse_versions()
     assert versions["OVERTE_IOS_MIN_VERSION"] == "17.0"
     assert int(versions["OVERTE_IOS_REQUIRED_SDK_MAJOR"]) >= 26
     assert int(versions["OVERTE_IOS_REQUIRED_XCODE_MAJOR"]) >= 26
     assert tuple(map(int, versions["OVERTE_IOS_QT_MIN_VERSION"].split("."))) >= (6, 11, 0)
+
+    comparator = IOS_ROOT / "tools" / "version-at-least.py"
+    cases = (
+        ("26", "26.0", True),
+        ("26.0.1", "26", True),
+        ("25.9", "26", False),
+        ("3.24.0", "3.24", True),
+        ("3.23.99", "3.24.0", False),
+    )
+    for actual, required, expected in cases:
+        result = subprocess.run(
+            [sys.executable, str(comparator), actual, required],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert (result.returncode == 0) is expected, (actual, required, result)
+    invalid = subprocess.run(
+        [sys.executable, str(comparator), "26-beta", "26"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert invalid.returncode == 2 and "invalid numeric version" in invalid.stderr
 
 
 def test_profiles() -> None:
@@ -239,6 +274,26 @@ def test_ci_contract() -> None:
 
     smoke = IOS_ROOT / "ci" / "simulator-smoke.sh"
     require_text(smoke, r"for family in iphone ipad", "smoke tier must cover iPhone and iPad")
+    require_text(smoke, r"select-simulator\.py", "simulator choice must use the tested selector")
+
+    selector = load_python_module(IOS_ROOT / "tools" / "select-simulator.py", "select_simulator")
+    fixture = {
+        "devices": {
+            "com.apple.CoreSimulator.SimRuntime.iOS-9-3": [
+                {"name": "iPhone Legacy", "udid": "old-phone", "isAvailable": True},
+            ],
+            "com.apple.CoreSimulator.SimRuntime.iOS-26-0": [
+                {"name": "iPhone Z", "udid": "new-phone-z", "isAvailable": True},
+                {"name": "iPhone A", "udid": "new-phone-a", "isAvailable": True},
+                {"name": "iPad Pro", "udid": "new-tablet", "isAvailable": True},
+            ],
+            "com.apple.CoreSimulator.SimRuntime.tvOS-26-0": [
+                {"name": "iPhone impostor", "udid": "wrong-platform", "isAvailable": True},
+            ],
+        }
+    }
+    assert selector.select_device(fixture, "iphone") == "new-phone-a"
+    assert selector.select_device(fixture, "ipad") == "new-tablet"
 
 
 def test_device_acceptance_contract() -> None:

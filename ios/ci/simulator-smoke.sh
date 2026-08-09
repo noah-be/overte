@@ -4,6 +4,7 @@
 
 set -euo pipefail
 
+readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 app_path="${1:-}"
 bundle_id="${2:-org.overte.interface.dev}"
 [[ -d "$app_path" && "$app_path" == *.app ]] || {
@@ -13,19 +14,8 @@ bundle_id="${2:-org.overte.interface.dev}"
 
 select_device() {
     local family="$1"
-    xcrun simctl list devices available --json | python3 -c '
-import json, sys
-family = sys.argv[1].lower()
-payload = json.load(sys.stdin)
-for runtime, devices in sorted(payload["devices"].items(), reverse=True):
-    if "iOS" not in runtime:
-        continue
-    for device in devices:
-        if device.get("isAvailable") and family in device["name"].lower():
-            print(device["udid"])
-            raise SystemExit(0)
-raise SystemExit(f"no available {family} simulator")
-' "$family"
+    xcrun simctl list devices available --json \
+        | python3 "$script_dir/../tools/select-simulator.py" "$family"
 }
 
 active_udid=""
@@ -52,4 +42,3 @@ for family in iphone ipad; do
     active_udid=""
     echo "PASS $family simulator launch"
 done
-

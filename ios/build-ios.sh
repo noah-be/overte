@@ -144,7 +144,7 @@ fi
 version_at_least() {
     local actual="$1"
     local required="$2"
-    [[ "$(printf '%s\n%s\n' "$required" "$actual" | sort -V | head -n 1)" == "$required" ]]
+    python3 "$script_dir/tools/version-at-least.py" "$actual" "$required"
 }
 
 require_command() {
