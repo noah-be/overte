@@ -287,6 +287,9 @@ dependencies {
         self.assertIsNotNone(allprojects)
         self.assertEqual(1, buildscript.count(
             "classpath 'com.android.tools.build:gradle:3.2.1'"))
+        self.assertIn("google()", buildscript)
+        self.assertNotIn("jcenter()", buildscript)
+        self.assertNotIn("mavenCentral()", buildscript)
         for repository in ("google()", "jcenter()", "mavenCentral()"):
             self.assertIn(repository, allprojects)
 
@@ -379,6 +382,14 @@ android {
         self.assertIsNone(top_level_block(source, "allprojects"))
         with self.assertRaises(ValueError):
             top_level_block("buildscript { repositories { google() }", "buildscript")
+
+    def test_repository_contract_uses_the_requested_top_level_scope(self):
+        source = """
+buildscript { repositories { google() } }
+allprojects { repositories { google(); jcenter(); mavenCentral() } }
+"""
+        self.assertNotIn("jcenter()", top_level_block(source, "buildscript"))
+        self.assertIn("jcenter()", top_level_block(source, "allprojects"))
 
     def test_legacy_toolchain_contract_rejects_version_and_topology_drift(self):
         valid = [
