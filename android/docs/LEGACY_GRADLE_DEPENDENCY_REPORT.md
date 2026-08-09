@@ -1,14 +1,26 @@
 # Legacy Gradle dependency report
 
 This harness reports Gradle's dependency graph for the committed legacy Android
-source snapshot. It is not an APK build, SBOM, artifact checksum audit, or proof
-that the Maven GVR 1.80.0 and native GVR 1.101.0 inputs are compatible.
+source snapshot. It is not an APK build, SBOM or artifact checksum audit. The
+obsolete GVR inputs have been removed from the legacy graph.
 
 It requires the explicit JDK 8 installation at
 `/usr/lib/jvm/java-8-temurin-jdk` by default. Override it only with
 `OVERTE_LEGACY_JAVA_HOME`. Gradle 4.10.1 is downloaded from the official Gradle
 distribution service and checked against the reviewed SHA-256 literal before
 installation.
+
+After bootstrapping the toolchain once with the explicit network mode, use the
+dedicated wrapper for legacy Gradle commands:
+
+```bash
+python3 tests/legacy-gradle/run_dependency_report.py toolchain --network
+./legacy-gradlew tasks
+```
+
+The wrapper always verifies the cached Gradle 4.10.1 distribution offline
+before use. It never invokes the shared Gradle 8.13 Phone/Pico wrapper and never
+downloads implicitly.
 
 A resolve additionally requires an Android SDK through `ANDROID_HOME` or
 `ANDROID_SDK_ROOT`, plus a legacy-compatible NDK directory. The harness uses

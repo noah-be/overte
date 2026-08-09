@@ -6,6 +6,7 @@ from __future__ import annotations
 from collections import Counter
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -201,6 +202,66 @@ def legacy_toolchain_contract_errors(
 
 
 class LegacyGradleDependencyTest(unittest.TestCase):
+    def test_dedicated_legacy_wrapper_gates_toolchain_and_forwards_arguments(self):
+        wrapper = ANDROID_ROOT / "legacy-gradlew"
+        self.assertTrue(os.access(wrapper, os.X_OK))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            python_log = root / "python.log"
+            gradle_log = root / "gradle.log"
+            fake_python = root / "python"
+            fake_gradle = root / "gradle"
+            fake_python.write_text(
+                "#!/bin/sh\nprintf '%s\\n' \"$*\" > \"$PYTHON_LOG\"\n",
+                encoding="utf-8")
+            fake_gradle.write_text(
+                "#!/bin/sh\nprintf 'cwd=%s\\nargs=%s\\njava=%s\\n' \"$PWD\" \"$*\" \"$JAVA_HOME\" > \"$GRADLE_LOG\"\nexit 23\n",
+                encoding="utf-8")
+            fake_python.chmod(0o755)
+            fake_gradle.chmod(0o755)
+            environment = os.environ.copy()
+            environment.update({
+                "OVERTE_LEGACY_PYTHON_COMMAND": str(fake_python),
+                "OVERTE_LEGACY_GRADLE_COMMAND": str(fake_gradle),
+                "OVERTE_LEGACY_JAVA_HOME": str(root / "jdk8"),
+                "PYTHON_LOG": str(python_log),
+                "GRADLE_LOG": str(gradle_log),
+            })
+            result = subprocess.run(
+                [str(wrapper), "tasks", "--offline"], cwd=root,
+                env=environment, text=True, capture_output=True, check=False)
+            self.assertEqual(23, result.returncode)
+            self.assertIn("run_dependency_report.py toolchain --offline",
+                          python_log.read_text(encoding="utf-8"))
+            gradle_invocation = gradle_log.read_text(encoding="utf-8")
+            self.assertIn(f"cwd={ANDROID_ROOT}", gradle_invocation)
+            self.assertIn("args=--no-daemon tasks --offline", gradle_invocation)
+            self.assertIn(f"java={root / 'jdk8'}", gradle_invocation)
+
+    def test_dedicated_legacy_wrapper_stops_when_toolchain_gate_fails(self):
+        wrapper = ANDROID_ROOT / "legacy-gradlew"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fake_python = root / "python"
+            marker = root / "gradle-started"
+            fake_gradle = root / "gradle"
+            fake_python.write_text("#!/bin/sh\nexit 17\n", encoding="utf-8")
+            fake_gradle.write_text(
+                "#!/bin/sh\ntouch \"$GRADLE_MARKER\"\n", encoding="utf-8")
+            fake_python.chmod(0o755)
+            fake_gradle.chmod(0o755)
+            environment = os.environ.copy()
+            environment.update({
+                "OVERTE_LEGACY_PYTHON_COMMAND": str(fake_python),
+                "OVERTE_LEGACY_GRADLE_COMMAND": str(fake_gradle),
+                "GRADLE_MARKER": str(marker),
+            })
+            result = subprocess.run(
+                [str(wrapper), "tasks"], env=environment,
+                text=True, capture_output=True, check=False)
+            self.assertEqual(17, result.returncode)
+            self.assertFalse(marker.exists())
+
     def test_legacy_build_config_strings_use_the_root_escaper(self):
         root_source = (ANDROID_ROOT / "build.gradle").read_text(encoding="utf-8")
         self.assertIn("legacyBuildConfigString", root_source)
