@@ -55,8 +55,42 @@ the smaller Phone-specific 16 KiB delta on a new development machine.
 EOF
 }
 
+is_android_arm64_draco_package() {
+    local package_dir="$1" archive member
+    archive="$package_dir/lib/libdraco.a"
+    [[ -f "$archive" && -f "$package_dir/conaninfo.txt" ]] || return 1
+    grep -Eq '^os=Android$' "$package_dir/conaninfo.txt" || return 1
+    grep -Eq '^arch=armv8$' "$package_dir/conaninfo.txt" || return 1
+    member="$(ar t "$archive" 2>/dev/null | sed -n '1p')"
+    [[ -n "$member" ]] || return 1
+    ar p "$archive" "$member" 2>/dev/null | file - 2>/dev/null \
+        | grep -Eq 'ARM aarch64|ARM64'
+}
+
+find_phone_draco_package() {
+    local requested="${PICO_DRACO_PACKAGE_DIR:-}" package_dir archive
+    if [[ -n "$requested" ]]; then
+        is_android_arm64_draco_package "$requested" \
+            || fail "PICO_DRACO_PACKAGE_DIR is not an Android ARM64 Draco package"
+        printf '%s\n' "$requested"
+        return
+    fi
+
+    while IFS= read -r -d '' archive; do
+        package_dir="${archive%/lib/libdraco.a}"
+        if is_android_arm64_draco_package "$package_dir"; then
+            printf '%s\n' "$package_dir"
+            return
+        fi
+    done < <(find "${HOME}/.conan2/p" -path '*/p/lib/libdraco.a' -type f -print0 2>/dev/null | sort -z)
+    fail "an Android ARM64 Draco Conan package was not found"
+}
+
 prepare() {
-    PICO_BUILD_JOBS="${PHONE_BUILD_JOBS:-$(nproc)}" \
+    local draco_package
+    draco_package="$(find_phone_draco_package)"
+    PICO_DRACO_PACKAGE_DIR="$draco_package" \
+        PICO_BUILD_JOBS="${PHONE_BUILD_JOBS:-$(nproc)}" \
         "$script_dir/build-pico.sh" prepare
 }
 

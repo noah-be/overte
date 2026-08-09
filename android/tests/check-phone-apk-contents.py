@@ -23,6 +23,93 @@ BASE_REQUIRED_ENTRIES = {
     "lib/arm64-v8a/libcrypto_1_1.so",
     "lib/arm64-v8a/libssl_1_1.so",
 }
+# Native libraries linked into the modular phoneInterface build. Qt's
+# bundled_in_lib declaration only describes libraries copied into Qt's runtime
+# tree; it deliberately does not enumerate ELF dependencies loaded by Android's
+# native linker. Keep this exact allowlist fail-closed so a newly introduced
+# native payload must be reviewed before it can enter an APK or App Bundle.
+LINKED_NATIVE_LIBRARY_NAMES = {
+    "libQt5Concurrent_arm64-v8a.so",
+    "libQt5Gui_arm64-v8a.so",
+    "libQt5Help_arm64-v8a.so",
+    "libQt5Location_arm64-v8a.so",
+    "libQt5MultimediaQuick_arm64-v8a.so",
+    "libQt5MultimediaWidgets_arm64-v8a.so",
+    "libQt5Multimedia_arm64-v8a.so",
+    "libQt5Network_arm64-v8a.so",
+    "libQt5OpenGL_arm64-v8a.so",
+    "libQt5Positioning_arm64-v8a.so",
+    "libQt5PrintSupport_arm64-v8a.so",
+    "libQt5QmlModels_arm64-v8a.so",
+    "libQt5QmlWorkerScript_arm64-v8a.so",
+    "libQt5QuickControls2_arm64-v8a.so",
+    "libQt5QuickShapes_arm64-v8a.so",
+    "libQt5QuickTemplates2_arm64-v8a.so",
+    "libQt5QuickTest_arm64-v8a.so",
+    "libQt5QuickWidgets_arm64-v8a.so",
+    "libQt5Scxml_arm64-v8a.so",
+    "libQt5Sql_arm64-v8a.so",
+    "libQt5Svg_arm64-v8a.so",
+    "libQt5Test_arm64-v8a.so",
+    "libQt5WebChannel_arm64-v8a.so",
+    "libQt5WebSockets_arm64-v8a.so",
+    "libQt5WebView_arm64-v8a.so",
+    "libQt5Widgets_arm64-v8a.so",
+    "libQt5XmlPatterns_arm64-v8a.so",
+    "libQt5Xml_arm64-v8a.so",
+    "libanimation.so",
+    "libaudio-client.so",
+    "libaudio.so",
+    "libauto-updater.so",
+    "libavatars-renderer.so",
+    "libavatars.so",
+    "libcontrollers.so",
+    "libcrypto.so",
+    "libdisplay-plugins.so",
+    "libentities-renderer.so",
+    "libentities.so",
+    "libgl.so",
+    "libgpu-gl-common.so",
+    "libgpu-gl.so",
+    "libgpu.so",
+    "libgraphics-scripting.so",
+    "libgraphics.so",
+    "libhfm.so",
+    "libimage.so",
+    "libinput-plugins.so",
+    "libinterface.so",
+    "libktx.so",
+    "libmaterial-networking.so",
+    "libmidi.so",
+    "libmodel-baker.so",
+    "libmodel-networking.so",
+    "libmodel-serializers.so",
+    "libnetworking.so",
+    "libnode.so",
+    "liboctree.so",
+    "libphysics.so",
+    "libplatform.so",
+    "libplugins.so",
+    "libpointers.so",
+    "libprocedural.so",
+    "libqml.so",
+    "librecording.so",
+    "librender-utils.so",
+    "librender.so",
+    "libscript-engine.so",
+    "libshaders.so",
+    "libshared.so",
+    "libssl.so",
+    "libtask.so",
+    "libtbb_debug.so",
+    "libui-plugins.so",
+    "libui.so",
+    "libwebrtc-audio-processing-2.so",
+    "libworkload.so",
+}
+LINKED_NATIVE_ENTRIES = {
+    "lib/arm64-v8a/" + name for name in LINKED_NATIVE_LIBRARY_NAMES
+}
 DEPENDENCY_XML = (
     Path(__file__).resolve().parents[1]
     / "apps/phoneInterface/src/main/res/values/qt_dependencies.xml"
@@ -209,6 +296,7 @@ def main():
     try:
         required_entries = (
             BASE_REQUIRED_ENTRIES
+            | LINKED_NATIVE_ENTRIES
             | declared_native_entries()
             | declared_asset_markers()
         )

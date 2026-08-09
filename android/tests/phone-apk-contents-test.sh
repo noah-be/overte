@@ -93,6 +93,7 @@ assert 'lib/arm64-v8a/libqml_QtQuick.2_qtquick2plugin_arm64-v8a.so' in declared_
 assert len(declared_asset_markers) == 12
 assert 'assets/qml/QtQuick.2/qmldir' in declared_asset_markers
 required.update({entry: b'declared-runtime' for entry in declared_libraries})
+required.update({entry: b'linked-runtime' for entry in checker.LINKED_NATIVE_ENTRIES})
 required.update({entry: b'qmldir' for entry in declared_asset_markers})
 required.update({'assets/' + entry: b'required-cache-asset'
                  for entry in checker.REQUIRED_CACHED_ASSETS})

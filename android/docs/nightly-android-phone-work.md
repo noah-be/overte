@@ -4,6 +4,44 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 138 — Validate the current Phone APK on physical hardware
+
+- Branch: `nightly/android-phone-138-device-smoke-validation`
+- Commit: `Validate Phone APK build and device smoke` (this task's commit)
+- Change: Make Phone preparation select Draco only when its Conan metadata and
+  first archive object both prove an Android ARM64 target, reject explicit host
+  packages before staging, and extend the APK's fail-closed native payload
+  contract to cover the linked Overte and Qt shared-library graph that
+  `bundled_in_lib` does not describe. Add architecture and package fixtures.
+- Tests:
+  - Real j16 debug APK build: **passed**. All dependency gates passed; the APK
+    contains 106 inspected native libraries with 378 ELF LOAD segments, all
+    aligned to 0x4000, followed by successful manifest, content, ZIP-alignment,
+    and package-integrity gates.
+  - Physical Phone unattended smoke: **passed**. Installed bytes matched the
+    requested APK; automatic permission grant, launch, neutral local deep link,
+    three background/foreground cycles, Back-to-background, and recovery all
+    completed with zero crash-log, exit-crash, or page-size mismatch matches.
+  - Physical Phone 30-second graphics benchmark: **passed** with required final
+    force-stop. The process remained stable, no crash record was added, six
+    thermal samples peaked at status 1, and native telemetry measured 29.82 FPS
+    against the 30-FPS target. Android `gfxinfo` framestats were unavailable;
+    native render telemetry remained valid (13.16 ms GPU, 6.69 ms batch).
+  - `android/tests/phone-prepare-architecture-test.sh`: **passed**, including
+    selection of Android ARM64 over a host package and explicit-host rejection.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 329/329 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 39
+    explicitly device-free suites; nested host regression passed 329/329.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: The physical run provides no human assessment of touch feel,
+  visual correctness, audio quality, IME behavior, or login flows. Android's
+  generic `gfxinfo` path reported no valid frames for this Qt/OpenGL workload,
+  so the benchmark relies on the client's purpose-built native telemetry.
+- Real-device validation still required: Interactive portrait/landscape and
+  cutout inspection, touch/IME dialogs, login and account errors, microphone
+  and output-route changes, People/Places/Avatar/Emote/Menu/Shield workflows,
+  prolonged background/disconnect recovery, and a longer thermal soak.
+
 ## 137 — Add the downloadable Phone 16-KiB dependency delta
 
 - Branch: `nightly/android-phone-137-prebuilt-16k-delta`

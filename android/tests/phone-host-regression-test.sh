@@ -84,6 +84,7 @@ for source_file in \
         tests/phone-elf-alignment-test.sh \
         tests/phone-offscreen-ui-mip-test.sh \
         tests/phone-prebuilt-16k-deps-test.sh \
+        tests/phone-prepare-architecture-test.sh \
         tests/phone-script-payload-test.sh \
         tests/verify-phone-16k-dependencies.sh \
         phone-device-lock.sh \
@@ -757,6 +758,12 @@ done
 reject_text build-phone.sh \
     'curl|wget|git[[:space:]]+(clone|fetch|pull)' \
     'normal phone wrapper contains no implicit network or Git command'
+require_text build-phone.sh \
+    'is_android_arm64_draco_package' \
+    'phone preparation validates the staged Draco target architecture'
+require_text build-phone.sh \
+    'os=Android' \
+    'phone preparation rejects host Draco packages before staging'
 require_text prepare-phone-16k-conan-deps.sh \
     'rm -f -- "\$ready_sentinel"' \
     'dependency rebuild invalidates any stale ready sentinel first'

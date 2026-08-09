@@ -253,6 +253,13 @@ the proven Pico packaging. Android-specific Qt and TBB runtime overrides are
 also shared for now. These are implementation dependencies, not an indication
 that the phone APK requires Pico hardware or an OpenXR runtime.
 
+Phone preparation validates that the shared Draco compatibility archive is an
+Android `armv8` Conan package containing AArch64 objects before staging it. This
+prevents a newer host-side Conan package from being selected merely because its
+cache timestamp is newer. The package gate separately maintains an exact
+allowlist for linked native modules because Qt's `bundled_in_lib` resource lists
+runtime-tree plugins, not the normal ELF dependency graph.
+
 At startup, `PermissionsActivity` handles the optional microphone permission
 and transfers control to `PhoneInterfaceActivity`. The latter hosts the native
 Qt client, unpacks its assets into the application cache, and keeps the display

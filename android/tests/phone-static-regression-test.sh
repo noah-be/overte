@@ -36,6 +36,7 @@ readonly tests=(
     phone-overlay-depth-test.sh
     phone-overlay-scale-test.sh
     phone-prebuilt-16k-deps-test.sh
+    phone-prepare-architecture-test.sh
     phone-qml-scenegraph-trim-test.sh
     phone-qt-runtime-trim-test.sh
     phone-release-config-test.sh
