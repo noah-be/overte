@@ -37,11 +37,15 @@ public class HifiUtils {
             }
             // java.net.URI represents an absent scheme as null; an empty scheme
             // is rejected by its parser, so a second empty-string check is dead.
-            if (uri.getScheme() == null) {
+            if (uri.getScheme() == null || isLocalhostWithPort(urlString)) {
                 urlString = "hifi://" + urlString;
             }
         }
         return urlString;
+    }
+
+    private boolean isLocalhostWithPort(String value) {
+        return value.matches("(?i)^localhost:[0-9]+(?:[/?#].*)?$");
     }
 
 

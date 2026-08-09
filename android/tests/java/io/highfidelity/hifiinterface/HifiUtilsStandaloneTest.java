@@ -11,6 +11,11 @@ public final class HifiUtilsStandaloneTest {
         expect("", subject.sanitizeHifiUrl(" \n\t "));
         expect("hifi://welcome.overte.org/path", subject.sanitizeHifiUrl(" welcome.overte.org/path "));
         expect("https://example.test/a", subject.sanitizeHifiUrl("https://example.test/a"));
+        expect("hifi://localhost:40102", subject.sanitizeHifiUrl(" localhost:40102 "));
+        expect("hifi://LOCALHOST:40102/path?x=1#place",
+                subject.sanitizeHifiUrl("LOCALHOST:40102/path?x=1#place"));
+        expect("mailto:123", subject.sanitizeHifiUrl("mailto:123"));
+        expect("hifi:40102", subject.sanitizeHifiUrl("hifi:40102"));
         expect("bad uri [", subject.sanitizeHifiUrl(" bad uri [ "));
 
         expect("", subject.absoluteHifiAssetUrl(null));
