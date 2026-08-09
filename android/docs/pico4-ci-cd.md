@@ -105,10 +105,40 @@ candidate. Never assign `overte-android-release` to a general build host.
 
 ### Later device-acceptance handoff
 
-Device acceptance is a separate, approval-gated stage that consumes the APK
-digest from `SHA256SUMS`, verifies it before any ADB action, takes the shared
-device lock, and uploads a signed test report referring to tag, commit and APK
-digest. It must never rebuild or publish. No release workflow here invokes ADB.
+`.github/workflows/pico4-device-acceptance.yml` implements the separate,
+manual approval-gated handoff. Its default inspection job runs on a
+GitHub-hosted runner, consumes the APK digest from `SHA256SUMS`, validates the
+draft release, tag, commit and APK manifest, and cannot invoke ADB. It neither
+rebuilds nor publishes the candidate.
+
+Device access is skipped unless `execute_device_install` is explicitly enabled
+and `confirmation` exactly equals `INSTALL <selected-tag>`. That job requires
+the protected `pico4-device-acceptance` environment and runner labels
+`self-hosted, linux, x64, overte-pico4-device`. On the device runner it
+redownloads the draft assets, re-verifies package identity, versions and the
+certificate fingerprint with `PICO_RELEASE_CERT_SHA256`, verifies the digest,
+takes the repository-wide device lock, requires exactly one authorized USB
+Pico, installs with `adb install -r`, and performs a minimal launch smoke test.
+The report binds the result to tag, commit and APK digest. It never rebuilds or
+publishes. The RC workflow itself remains ADB-free.
+
+Create the `pico4-device-acceptance` environment separately from signing. Add
+required reviewers, prevent self-review, restrict deployment to protected Pico
+RC tags, and expose only `PICO_RELEASE_CERT_SHA256`; the device runner does not
+need the keystore or its passwords. Keep the runner physically isolated, with
+one USB-connected Pico and no ambient repository or cloud credentials.
+
+Running only the non-mutating local contract is safe without a headset:
+
+```bash
+android/ci/pico4-device-acceptance.sh \
+  --tag pico4-v1.2.3-rc.4 --revision <40-hex-commit> \
+  --apk picoInterface-release.apk --checksums SHA256SUMS \
+  --apk-manifest apk-manifest.json --output device-acceptance-plan.json
+```
+
+Never pass `--execute` outside the protected workflow unless device mutation
+has been separately authorized.
 
 ### Required checks and repository administration
 
@@ -125,6 +155,11 @@ required branch check because ordinary pull requests cannot trigger it.
 Android Phone CI should reuse the same separation and contract-testing pattern
 on its own product branch. It must define its own package, ABI, native-library,
 version, signing, and artifact-size contracts rather than importing Pico values.
+
+Store, third-party distribution and direct-install readiness are tracked in
+`android/docs/PICO4_DISTRIBUTION_READINESS.md`. Those requirements are partly
+portal- and policy-dependent and are deliberately not represented as a passed
+CI gate.
 
 ## Local contract checks
 
