@@ -31,8 +31,15 @@ int main() {
     assert(!isOpenXrSwapchainImageWaitComplete(false, true));
     assert(!isOpenXrSwapchainImageWaitComplete(true, true));
     assert(isOpenXrSwapchainImageWaitComplete(true, false));
-    assert(!isOpenXrFramePresentationComplete(false));
-    assert(isOpenXrFramePresentationComplete(true));
+    assert(!isOpenXrFramePresentationComplete(false, false));
+    assert(!isOpenXrFramePresentationComplete(false, true));
+    assert(!isOpenXrFramePresentationComplete(true, false));
+    assert(isOpenXrFramePresentationComplete(true, true));
+    assert(!shouldSubmitOpenXrProjectionLayer(false, false, false));
+    assert(!shouldSubmitOpenXrProjectionLayer(false, true, true));
+    assert(!shouldSubmitOpenXrProjectionLayer(true, false, true));
+    assert(!shouldSubmitOpenXrProjectionLayer(true, true, false));
+    assert(shouldSubmitOpenXrProjectionLayer(true, true, true));
     assert(openXrSessionChildCleanup(false, false) ==
            OpenXrSessionChildCleanup::Noop);
     assert(openXrSessionChildCleanup(false, true) ==

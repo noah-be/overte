@@ -640,21 +640,33 @@ void OpenXrDisplayPlugin::hmdPresent() {
         // TODO: Use multiview swapchain
         uint32_t acquiredCount = 0;
         auto releaseAcquiredImages = [&] {
+            bool released = true;
             for (uint32_t acquired = 0; acquired < acquiredCount; ++acquired) {
                 XrSwapchainImageReleaseInfo releaseInfo = { .type = XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
-                xrCheck(_context->_instance,
-                        xrReleaseSwapchainImage(_swapChains[acquired], &releaseInfo),
-                        "failed to release swapchain image!");
+                if (!xrCheck(_context->_instance,
+                             xrReleaseSwapchainImage(_swapChains[acquired], &releaseInfo),
+                             "failed to release swapchain image!")) {
+                    released = false;
+                }
             }
             acquiredCount = 0;
+            return released;
+        };
+        auto abortFrame = [&] {
+            const bool imagesReleased = releaseAcquiredImages();
+            endFrame(false);
+            if (!imagesReleased) {
+                qCCritical(xr_display_cat,
+                           "OpenXR swapchain image release failed; disabling the context.");
+                _context->_isValid = false;
+            }
         };
         for (uint32_t i = 0; i < 2; i++) {
             XrSwapchainImageAcquireInfo acquireInfo = { .type = XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO };
 
             XrResult result = xrAcquireSwapchainImage(_swapChains[i], &acquireInfo, &_swapChainIndices[i]);
             if (!xrCheck(_context->_instance, result, "failed to acquire swapchain image!")) {
-                releaseAcquiredImages();
-                endFrame();
+                abortFrame();
                 return;
             }
             ++acquiredCount;
@@ -666,8 +678,7 @@ void OpenXrDisplayPlugin::hmdPresent() {
                 qCCritical(xr_display_cat,
                            "Runtime returned invalid swapchain image index for eye %u: %u",
                            i, _swapChainIndices[i]);
-                releaseAcquiredImages();
-                endFrame();
+                abortFrame();
                 return;
             }
 
@@ -685,8 +696,7 @@ void OpenXrDisplayPlugin::hmdPresent() {
                     qCWarning(xr_display_cat,
                               "OpenXR swapchain image wait timed out unexpectedly.");
                 }
-                releaseAcquiredImages();
-                endFrame();
+                abortFrame();
                 return;
             }
         }
@@ -702,17 +712,24 @@ void OpenXrDisplayPlugin::hmdPresent() {
         glCopyImageSubData(glTexId, GL_TEXTURE_2D, 0, _renderTargetSize.x / 2, 0, 0, _images[1][_swapChainIndices[1]].image,
                            GL_TEXTURE_2D, 0, 0, 0, 0, _renderTargetSize.x / 2, _renderTargetSize.y, 1);
 
-        releaseAcquiredImages();
-    }
-
-    if (!isOpenXrFramePresentationComplete(endFrame())) {
+        const bool imagesReleased = releaseAcquiredImages();
+        const bool frameEnded = endFrame(imagesReleased);
+        if (!imagesReleased) {
+            qCCritical(xr_display_cat,
+                       "OpenXR swapchain image release failed; disabling the context.");
+            _context->_isValid = false;
+        }
+        if (!isOpenXrFramePresentationComplete(imagesReleased, frameEnded)) {
+            return;
+        }
+    } else if (!isOpenXrFramePresentationComplete(true, endFrame())) {
         return;
     }
 
     _presentRate.increment();
 }
 
-bool OpenXrDisplayPlugin::endFrame() {
+bool OpenXrDisplayPlugin::endFrame(bool imagesReleased) {
     XrCompositionLayerProjection projectionLayer = {
         .type = XR_TYPE_COMPOSITION_LAYER_PROJECTION,
         .layerFlags = 0,
@@ -736,12 +753,10 @@ bool OpenXrDisplayPlugin::endFrame() {
     constexpr XrViewStateFlags requiredViewFlags =
         XR_VIEW_STATE_POSITION_VALID_BIT |
         XR_VIEW_STATE_ORIENTATION_VALID_BIT;
-    if (!isOpenXrViewStateUsable(
-            _lastViewState.viewStateFlags, requiredViewFlags)) {
-        info.layerCount = 0;
-    }
-
-    if (!_lastFrameState.shouldRender) {
+    const bool viewsUsable = isOpenXrViewStateUsable(
+        _lastViewState.viewStateFlags, requiredViewFlags);
+    if (!shouldSubmitOpenXrProjectionLayer(
+            _lastFrameState.shouldRender, viewsUsable, imagesReleased)) {
         info.layerCount = 0;
     }
 

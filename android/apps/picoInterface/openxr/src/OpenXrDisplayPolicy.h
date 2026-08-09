@@ -27,8 +27,14 @@ constexpr bool isOpenXrSwapchainImageWaitComplete(
     return resultSucceeded && !timeoutExpired;
 }
 
-constexpr bool isOpenXrFramePresentationComplete(bool endFrameSucceeded) {
-    return endFrameSucceeded;
+constexpr bool isOpenXrFramePresentationComplete(
+        bool imagesReleased, bool endFrameSucceeded) {
+    return imagesReleased && endFrameSucceeded;
+}
+
+constexpr bool shouldSubmitOpenXrProjectionLayer(
+        bool shouldRender, bool viewsUsable, bool imagesReleased) {
+    return shouldRender && viewsUsable && imagesReleased;
 }
 
 enum class OpenXrSessionChildCleanup {
