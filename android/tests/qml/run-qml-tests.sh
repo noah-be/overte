@@ -2,8 +2,10 @@
 set -euo pipefail
 
 qml_runner="${OVERTE_QML_TEST_RUNNER:-$(command -v qmltestrunner 2>/dev/null || true)}"
-if [[ -z "$qml_runner" && -x /usr/lib/qt5/bin/qmltestrunner ]]; then
-    qml_runner=/usr/lib/qt5/bin/qmltestrunner
+if [[ -z "$qml_runner" ]]; then
+    for candidate in /usr/lib64/qt5/bin/qmltestrunner /usr/lib/qt5/bin/qmltestrunner; do
+        [[ -x "$candidate" ]] && { qml_runner="$candidate"; break; }
+    done
 fi
 if [[ -z "$qml_runner" ]]; then
     printf 'SKIP: qmltestrunner is not installed; QML tests require the project Qt host tools.\n'

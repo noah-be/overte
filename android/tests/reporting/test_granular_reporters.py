@@ -17,6 +17,12 @@ def executable(path: Path, content: str) -> None:
 
 
 class GranularReporterTest(unittest.TestCase):
+    def test_qml_runners_discover_common_qt5_host_tool_paths(self):
+        for relative in ("tests/qml/run-qml-tests.sh", "tests/qml/run-endurance-tests.sh"):
+            source = (ANDROID_ROOT / relative).read_text(encoding="utf-8")
+            self.assertIn("/usr/lib64/qt5/bin/qmltestrunner", source)
+            self.assertIn("/usr/lib/qt5/bin/qmltestrunner", source)
+
     def assert_failure_report(self, result, report: Path):
         self.assertEqual(7, result.returncode)
         self.assertIn("fixture-console-failure", result.stdout)
