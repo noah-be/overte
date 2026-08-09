@@ -74,6 +74,8 @@ def junit(path: Path) -> dict:
     totals["passed"] = totals["tests"] - totals["failures"] - totals["errors"] - totals["skipped"]
     if totals["passed"] < 0:
         raise ValueError("JUnit counters are inconsistent")
+    if totals["tests"] == 0:
+        raise ValueError("JUnit report contains no tests")
     return totals
 
 

@@ -55,6 +55,29 @@ class SummaryTest(unittest.TestCase):
         self.assertEqual(0, issues)
         self.assertIn("3 passed, 1 failed, 1 skipped / 5", console)
 
+    def test_zero_test_junit_is_a_malformed_report_issue(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "empty.xml"
+            report.write_text(
+                '<testsuite tests="0" failures="0" errors="0" skipped="0"/>',
+                encoding="utf-8")
+            console, markdown, issues = summary.generate([f"empty={report}"], [], [])
+        self.assertEqual(1, issues)
+        self.assertIn("JUnit empty: MALFORMED", console)
+        self.assertIn("JUnit report contains no tests", console)
+        self.assertIn("MALFORMED", markdown)
+
+    def test_positive_junit_and_inconsistent_zero_counter_remain_distinct(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            normal = root / "normal.xml"
+            normal.write_text('<testsuite tests="1" failures="0"/>', encoding="utf-8")
+            inconsistent = root / "inconsistent.xml"
+            inconsistent.write_text('<testsuite tests="0" failures="1"/>', encoding="utf-8")
+            self.assertEqual(1, summary.junit(normal)["passed"])
+            with self.assertRaisesRegex(ValueError, "counters are inconsistent"):
+                summary.junit(inconsistent)
+
     def test_node_native_direct_testcases_are_counted(self):
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "node.xml"
