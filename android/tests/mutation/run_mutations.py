@@ -80,7 +80,7 @@ class Mutant:
 
 MUTANTS = [
     Mutant("legacy-url-skip-hifi-prefix", "java", JAVA_PRODUCTION["legacy-url"], 'urlString = "hifi://" + urlString;', "urlString = urlString;"),
-    Mutant("legacy-asset-skip-base-prefix", "java", JAVA_PRODUCTION["legacy-url"], "urlString = baseUrl + urlString;", "urlString = urlString;"),
+    Mutant("legacy-asset-skip-base-prefix", "java", JAVA_PRODUCTION["legacy-url"], "String normalizedBase = baseUrl.trim();", 'String normalizedBase = "";'),
     Mutant("pico-audio-accept-unknown-source", "java", JAVA_PRODUCTION["pico-audio"], "return Source.CAMCORDER;\n        }\n        return null;", "return Source.CAMCORDER;\n        }\n        return Source.MIC;"),
     Mutant("pico-audio-disable-callback-overflow", "java", JAVA_PRODUCTION["pico-audio"], "return callbackBytes > MAX_CALLBACK_BYTES ? null : (int) callbackBytes;", "return (int) callbackBytes;"),
     Mutant("pico-audio-deliver-stale-read", "java", JAVA_PRODUCTION["pico-audio"], "return bytesRead > 0 && running && ownsRecorder;", "return bytesRead > 0;"),
