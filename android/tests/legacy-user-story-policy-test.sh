@@ -15,3 +15,9 @@ java -Djava.io.tmpdir="$output" -cp "$output" \
     io.highfidelity.hifiinterface.provider.UserStoryDomainPolicyStandaloneTest
 java -Djava.io.tmpdir="$output" -cp "$output" \
     io.highfidelity.hifiinterface.LegacyAssetTextPolicyStandaloneTest
+
+if grep -Eq 'Log\.[A-Za-z]+\([^;]*accessToken|accessToken[^;]*Log\.' \
+        "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/fragment/FriendsFragment.java"; then
+    printf 'FAIL: legacy Friends UI must not log its access token\n' >&2
+    exit 1
+fi

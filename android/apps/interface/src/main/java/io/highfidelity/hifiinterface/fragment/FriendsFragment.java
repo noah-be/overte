@@ -9,7 +9,6 @@ import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -51,8 +50,6 @@ public class FriendsFragment extends Fragment {
 
         String accessToken = nativeGetAccessToken();
         mUsersProvider = new EndpointUsersProvider(accessToken);
-
-        Log.d("[USERS]", "token : [" + accessToken + "]");
 
         mSwipeRefreshLayout = rootView.findViewById(R.id.swipeRefreshLayout);
 
