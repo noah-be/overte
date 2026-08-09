@@ -192,13 +192,23 @@ class AndroidPhoneEmulatorAcceptanceWorkflowContracts(unittest.TestCase):
         self.assertLess(package, device)
         self.assertIn('PHONE_ALLOW_EMULATOR: "1"', self.source)
 
-    def test_device_report_is_run_scoped_and_outside_the_worktree(self):
+    def test_device_report_is_run_attempt_scoped_and_outside_the_worktree(self):
         report_path = (
-            "${{ runner.temp }}/android-phone-device-report-${{ github.run_id }}"
+            "${{ runner.temp }}/android-phone-device-report-${{ github.run_id }}-"
+            "${{ github.run_attempt }}"
         )
         self.assertEqual(2, self.source.count(report_path))
         self.assertIn(f"PHONE_TEST_REPORT: {report_path}", self.source)
         self.assertIn(f"path: {report_path}/", self.source)
+        self.assertIn(
+            "name: android-phone-emulator-acceptance-${{ github.run_id }}-"
+            "${{ github.run_attempt }}",
+            self.source,
+        )
+        self.assertNotIn(
+            "name: android-phone-emulator-acceptance-${{ github.run_id }}\n",
+            self.source,
+        )
         self.assertNotIn("android/build/phone-device-report", self.source)
         self.assertNotIn("${{ github.workspace }}/android-phone-device-report", self.source)
 
