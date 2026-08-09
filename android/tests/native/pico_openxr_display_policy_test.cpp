@@ -27,6 +27,10 @@ int main() {
         std::numeric_limits<std::size_t>::max(), 8));
     assert(isOpenXrSwapchainImageIndexValid(
         0, std::numeric_limits<std::size_t>::max()));
+    assert(!isOpenXrSwapchainImageWaitComplete(false, false));
+    assert(!isOpenXrSwapchainImageWaitComplete(false, true));
+    assert(!isOpenXrSwapchainImageWaitComplete(true, true));
+    assert(isOpenXrSwapchainImageWaitComplete(true, false));
     assert(!isOpenXrFoveationProfileUsable(false, false));
     assert(!isOpenXrFoveationProfileUsable(false, true));
     assert(!isOpenXrFoveationProfileUsable(true, false));

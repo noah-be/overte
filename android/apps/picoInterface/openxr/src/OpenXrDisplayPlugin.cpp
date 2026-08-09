@@ -658,9 +658,20 @@ void OpenXrDisplayPlugin::hmdPresent() {
                 return;
             }
 
-            XrSwapchainImageWaitInfo waitInfo = { .type = XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO, .timeout = 1000 };
+            XrSwapchainImageWaitInfo waitInfo = {
+                .type = XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO,
+                .timeout = XR_INFINITE_DURATION,
+            };
             result = xrWaitSwapchainImage(_swapChains[i], &waitInfo);
-            if (!xrCheck(_context->_instance, result, "failed to wait for swapchain image!")) {
+            const bool waitSucceeded = xrCheck(
+                _context->_instance, result, "failed to wait for swapchain image!");
+            const bool timeoutExpired = result == XR_TIMEOUT_EXPIRED;
+            if (!isOpenXrSwapchainImageWaitComplete(
+                    waitSucceeded, timeoutExpired)) {
+                if (timeoutExpired) {
+                    qCWarning(xr_display_cat,
+                              "OpenXR swapchain image wait timed out unexpectedly.");
+                }
                 releaseAcquiredImages();
                 endFrame();
                 return;

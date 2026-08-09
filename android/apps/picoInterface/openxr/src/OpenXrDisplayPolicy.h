@@ -22,6 +22,11 @@ inline bool isOpenXrSwapchainImageIndexValid(
     return index < imageCount;
 }
 
+constexpr bool isOpenXrSwapchainImageWaitComplete(
+        bool resultSucceeded, bool timeoutExpired) {
+    return resultSucceeded && !timeoutExpired;
+}
+
 inline bool isOpenXrFoveationProfileUsable(
         bool createSucceeded, bool handleIsNonNull) {
     return createSucceeded && handleIsNonNull;
