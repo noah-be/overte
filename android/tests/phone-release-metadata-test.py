@@ -30,9 +30,10 @@ class PhoneReleaseMetadataTests(unittest.TestCase):
             "version_code": 100005, "source_revision": self.revision,
         }
         self.apk_data = {
-            "sha256": self.digest(self.apk), "signer_certificate_sha256": "a" * 64,
+            "sha256": self.digest(self.apk), "signer_certificate_sha256": None,
             "source_revision": self.revision, "version_code": 100005,
-            "version_name": "0.1.0-alpha.5", "signature_verified": True,
+            "version_name": "0.1.0-alpha.5", "signature_verified": False,
+            "signing_state": "unsigned",
             "package_gate": "phone-16k",
         }
         self.version_path = self.write("version.json", self.version)
@@ -65,6 +66,9 @@ class PhoneReleaseMetadataTests(unittest.TestCase):
         sbom = json.loads((self.output / "android-phone-sbom.cdx.json").read_text())
         provenance = json.loads((self.output / "android-phone-provenance.intoto.json").read_text())
         self.assertFalse(release["published"])
+        self.assertEqual(release["distribution"], {
+            "kind": "store-neutral", "signing_state": "unsigned",
+        })
         self.assertRegex(release["source_archive_sha256"], r"^[0-9a-f]{64}$")
         self.assertEqual(sbom["bomFormat"], "CycloneDX")
         self.assertEqual(sbom["components"][0]["name"], "lib/arm64-v8a/libphone.so")
@@ -84,6 +88,23 @@ class PhoneReleaseMetadataTests(unittest.TestCase):
         result = self.run_tool()
         self.assertEqual(result.returncode, 2)
         self.assertIn("version_code", result.stderr)
+
+    def test_rejects_contradictory_unsigned_signature_evidence(self):
+        self.apk_data["signature_verified"] = True
+        self.apk_data["signer_certificate_sha256"] = "a" * 64
+        self.apk_path = self.write("apk.json", self.apk_data)
+        result = self.run_tool()
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("contradictory", result.stderr)
+
+    def test_rejects_signed_input_for_store_neutral_candidate(self):
+        self.apk_data["signing_state"] = "signed"
+        self.apk_data["signature_verified"] = True
+        self.apk_data["signer_certificate_sha256"] = "a" * 64
+        self.apk_path = self.write("apk.json", self.apk_data)
+        result = self.run_tool()
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("must be explicitly unsigned", result.stderr)
 
 
 if __name__ == "__main__":

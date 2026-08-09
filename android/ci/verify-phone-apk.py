@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the complete Phone APK gate and emit signed build provenance."""
+"""Run the complete Phone APK gate and emit build provenance."""
 
 import argparse
 import hashlib
@@ -59,6 +59,18 @@ def signature_digest(output):
     return digest.group(1)
 
 
+def verify_unsigned(signer, apk):
+    result = subprocess.run(
+        [signer, "verify", "--verbose", "--print-certs", str(apk)],
+        text=True, capture_output=True, check=False,
+    )
+    if result.returncode == 0:
+        fail("APK was expected to be unsigned but has a valid signature")
+    detail = f"{result.stdout}\n{result.stderr}"
+    if not re.search(r"DOES NOT VERIFY|not signed|Missing META-INF", detail, re.IGNORECASE):
+        fail("apksigner did not provide recognized evidence that the APK is unsigned")
+
+
 def sha256(path):
     checksum = hashlib.sha256()
     with path.open("rb") as stream:
@@ -76,6 +88,8 @@ def main():
     parser.add_argument("--expect-debuggable", choices=("0", "1"))
     parser.add_argument("--source-revision")
     parser.add_argument("--expect-signer", help="required signer certificate SHA-256")
+    parser.add_argument("--expect-unsigned", action="store_true",
+                        help="require an unsigned APK for store-neutral handoff")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
 
@@ -85,6 +99,8 @@ def main():
         fail(f"Phone package gate is not executable: {args.package_gate}")
     if args.source_revision and not re.fullmatch(r"[0-9a-f]{40}", args.source_revision):
         fail("source revision must be a lowercase 40-character Git commit")
+    if args.expect_unsigned and args.expect_signer:
+        fail("--expect-unsigned and --expect-signer are mutually exclusive")
 
     analyzer = executable(args.apkanalyzer, "apkanalyzer")
     signer = executable(args.apksigner, "apksigner")
@@ -104,14 +120,18 @@ def main():
     package = analyzer_value(analyzer, args.apk, "application-id")
     if package != EXPECTED_PACKAGE:
         fail(f"expected package {EXPECTED_PACKAGE}, found {package}")
-    signed = run([signer, "verify", "--verbose", "--print-certs", str(args.apk)])
-    signer_digest = signature_digest(signed)
-    if args.expect_signer:
-        expected_signer = args.expect_signer.lower().replace(":", "")
-        if not re.fullmatch(r"[0-9a-f]{64}", expected_signer):
-            fail("expected signer must be a SHA-256 certificate digest")
-        if signer_digest != expected_signer:
-            fail("APK signer certificate does not match the approved upload key")
+    signer_digest = None
+    if args.expect_unsigned:
+        verify_unsigned(signer, args.apk)
+    else:
+        signed = run([signer, "verify", "--verbose", "--print-certs", str(args.apk)])
+        signer_digest = signature_digest(signed)
+        if args.expect_signer:
+            expected_signer = args.expect_signer.lower().replace(":", "")
+            if not re.fullmatch(r"[0-9a-f]{64}", expected_signer):
+                fail("expected signer must be a SHA-256 certificate digest")
+            if signer_digest != expected_signer:
+                fail("APK signer certificate does not match the approved upload key")
     version_code_value = analyzer_value(analyzer, args.apk, "version-code")
     if not re.fullmatch(r"[1-9][0-9]*", version_code_value):
         fail("APK version code is not a positive canonical decimal integer")
@@ -127,7 +147,8 @@ def main():
         "page_size_bytes": 16384,
         "size_bytes": args.apk.stat().st_size,
         "sha256": sha256(args.apk),
-        "signature_verified": True,
+        "signing_state": "unsigned" if args.expect_unsigned else "signed",
+        "signature_verified": not args.expect_unsigned,
         "signer_certificate_sha256": signer_digest,
         "package_gate": "phone-16k",
     }

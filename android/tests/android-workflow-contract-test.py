@@ -114,11 +114,11 @@ class AndroidPhoneReleaseCandidateWorkflowContracts(unittest.TestCase):
         self.assertIn("environment: android-phone-release-candidate", self.source)
         self.assertIn("overte-android-phone-release", self.source)
 
-    def test_source_version_and_signer_fail_closed(self):
+    def test_source_version_and_unsigned_state_fail_closed(self):
         self.assertGreaterEqual(self.source.count("verify-phone-release.py"), 2)
         self.assertIn("ANDROID_PHONE_PUBLISHED_VERSION_CODE", self.source)
-        self.assertIn("--expect-signer", self.source)
-        self.assertIn("ANDROID_PHONE_UPLOAD_CERT_SHA256", self.source)
+        self.assertIn("--expect-unsigned", self.source)
+        self.assertIn("phoneInterface-release-unsigned.apk", self.source)
         self.assertIn("refs/tags/${{ inputs.release_tag }}", self.source)
         self.assertIn("persist-credentials: false", self.source)
 
@@ -132,11 +132,11 @@ class AndroidPhoneReleaseCandidateWorkflowContracts(unittest.TestCase):
         self.assertNotIn("gh release create", self.source)
         self.assertNotIn("actions/attest-build-provenance", self.source)
 
-    def test_actions_are_pinned_and_secrets_only_reach_signing_step(self):
+    def test_actions_are_pinned_and_candidate_has_no_signing_secrets(self):
         actions = ACTION_USE.findall(self.source)
         self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
-        self.assertEqual(self.source.count("ANDROID_PHONE_UPLOAD_KEYSTORE_BASE64"), 1)
-        self.assertNotRegex(self.source, r"(?m)^env:\n(?:  .+\n)*  OVERTE_ANDROID_KEYSTORE_BASE64")
+        self.assertNotIn("secrets.", self.source)
+        self.assertNotIn("OVERTE_ANDROID_KEYSTORE", self.source)
 
 
 class AndroidPhoneEmulatorAcceptanceWorkflowContracts(unittest.TestCase):
