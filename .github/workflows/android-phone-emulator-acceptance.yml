@@ -7,6 +7,10 @@ on:
         description: Successful release-candidate workflow run ID
         required: true
         type: string
+      candidate_run_attempt:
+        description: Successful release-candidate workflow run attempt
+        required: true
+        type: string
       release_tag:
         description: Exact candidate tag used in the artifact name
         required: true
@@ -44,23 +48,26 @@ jobs:
       - name: Validate immutable inputs before artifact download
         env:
           CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          CANDIDATE_RUN_ATTEMPT: ${{ inputs.candidate_run_attempt }}
           APPROVED_APK_SHA256: ${{ inputs.apk_sha256 }}
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
           [[ "$CANDIDATE_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$CANDIDATE_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]
           [[ "$APPROVED_APK_SHA256" =~ ^[0-9a-f]{64}$ ]]
           [[ "$RELEASE_TAG" =~ ^android-phone-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-alpha\.[1-9][0-9]*$ ]]
       - name: Download exact release-candidate artifact
         env:
           GH_TOKEN: ${{ github.token }}
           CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          CANDIDATE_RUN_ATTEMPT: ${{ inputs.candidate_run_attempt }}
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
           mkdir -p android/build/emulator-candidate
           gh run download "$CANDIDATE_RUN_ID" \
-            --name "android-phone-rc-$RELEASE_TAG" \
+            --name "android-phone-rc-$RELEASE_TAG-$CANDIDATE_RUN_ATTEMPT" \
             --dir android/build/emulator-candidate
       - name: Verify artifact before querying ADB
         env:

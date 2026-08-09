@@ -193,6 +193,17 @@ class AndroidPhoneReleaseCandidateWorkflowContracts(unittest.TestCase):
         self.assertNotIn("gh release create", self.source)
         self.assertNotIn("actions/attest-build-provenance", self.source)
 
+    def test_candidate_artifact_is_scoped_to_the_workflow_attempt(self):
+        self.assertIn(
+            "name: android-phone-rc-${{ inputs.release_tag }}-"
+            "${{ github.run_attempt }}",
+            self.source,
+        )
+        self.assertNotIn(
+            "name: android-phone-rc-${{ inputs.release_tag }}\n",
+            self.source,
+        )
+
     def test_candidate_build_respects_runner_cpu_budget(self):
         self.assertIn(
             "CMAKE_BUILD_PARALLEL_LEVEL=4 PICO_BUILD_JOBS=4 SHADERGEN_JOBS=4",
@@ -259,15 +270,33 @@ class AndroidPhoneEmulatorAcceptanceWorkflowContracts(unittest.TestCase):
         self.assertNotIn("${{ inputs.", "".join(run_blocks))
         for mapping in (
             "CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}",
+            "CANDIDATE_RUN_ATTEMPT: ${{ inputs.candidate_run_attempt }}",
             "APPROVED_APK_SHA256: ${{ inputs.apk_sha256 }}",
             "RELEASE_TAG: ${{ inputs.release_tag }}",
         ):
             self.assertIn(mapping, self.source)
         self.assertIn('gh run download "$CANDIDATE_RUN_ID"', self.source)
-        self.assertIn('--name "android-phone-rc-$RELEASE_TAG"', self.source)
+        self.assertIn(
+            '[[ "$CANDIDATE_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]',
+            self.source,
+        )
+        self.assertIn(
+            '--name "android-phone-rc-$RELEASE_TAG-$CANDIDATE_RUN_ATTEMPT"',
+            self.source,
+        )
+        self.assertNotIn('--name "android-phone-rc-$RELEASE_TAG"\n', self.source)
         self.assertIn(
             "printf '%s  %s\\n' \"$APPROVED_APK_SHA256\" \"$apk\"",
             self.source,
+        )
+
+    def test_candidate_attempt_is_a_required_manual_input(self):
+        self.assertRegex(
+            self.source,
+            r"(?m)^      candidate_run_attempt:\n"
+            r"        description: Successful release-candidate workflow run attempt\n"
+            r"        required: true\n"
+            r"        type: string$",
         )
 
     def test_device_report_is_run_attempt_scoped_and_outside_the_worktree(self):

@@ -138,7 +138,7 @@ jobs:
       - name: Upload locally verifiable candidate (not a release)
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: android-phone-rc-${{ inputs.release_tag }}
+          name: android-phone-rc-${{ inputs.release_tag }}-${{ github.run_attempt }}
           path: android/build/release/draft/
           if-no-files-found: error
           retention-days: 14
