@@ -50,8 +50,10 @@ Do not approve it merely because the RC build succeeded.
 
 The release runner must be isolated and preferably ephemeral, with labels
 `self-hosted, linux, x64, overte-android-phone-release`. Provision JDK 17–21,
-Android SDK/NDK and Build Tools 36.0.0, CMake 3.31.6, Ninja, Conan and the tools
-required by `build-phone.sh doctor`. Give it adequate non-tmpfs workspace for
+Node.js 18 or newer, Android SDK/NDK and Build Tools 36.0.0, CMake 3.31.6,
+Ninja, Conan and the tools required by `build-phone.sh doctor`. Node.js is an
+explicit runner prerequisite because the mandatory device-free JavaScript host
+tests run before dependency restoration. Give it adequate non-tmpfs workspace for
 dependencies, packaging, and APK verification. Do not attach Android devices,
 signing keys, general deployment credentials, persistent user Gradle properties, or a shared
 Pico/Phone Conan home. Deny workflow execution from forks and pull-request

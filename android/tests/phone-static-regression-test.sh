@@ -32,6 +32,7 @@ readonly tests=(
     phone-gl-trash-telemetry-test.sh
     phone-graphics-benchmark-test.sh
     phone-graphics-profile-test.sh
+    phone-host-runtime-test.sh
     phone-light-clustering-fastpath-test.sh
     phone-native-present-telemetry-test.sh
     phone-offscreen-ui-mip-test.sh

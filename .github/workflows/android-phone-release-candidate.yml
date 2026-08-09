@@ -74,6 +74,8 @@ jobs:
             --published-code-floor '${{ vars.ANDROID_PHONE_PUBLISHED_VERSION_CODE }}' \
             --source-revision "$GITHUB_SHA" \
             --output android/build/release/version-manifest.json
+      - name: Verify mandatory host-test runtime
+        run: android/ci/check-phone-host-runtime.sh
       - name: Run complete device-free host tier
         working-directory: android
         run: tests/run-tests.sh host --report-dir build/test-results/android-phone-release-host
