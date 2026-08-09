@@ -13,6 +13,7 @@ javac -d "$output" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/LegacyUserPolicy.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/LegacyCrashDumpPolicy.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/LegacyCrashAnnotationPolicy.java" \
+    "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/LegacyOAuthRedirectPolicy.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/provider/UserStoryDomainPolicy.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/provider/LegacyLatestRequestGate.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/provider/UserStoryRetrievalCoordinator.java" \
@@ -27,6 +28,7 @@ javac -d "$output" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyUserPolicyStandaloneTest.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyCrashDumpPolicyStandaloneTest.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyCrashAnnotationPolicyStandaloneTest.java" \
+    "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyOAuthRedirectPolicyStandaloneTest.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/task/LegacyProfilePagePolicyStandaloneTest.java"
 java -Djava.io.tmpdir="$output" -cp "$output" \
     io.highfidelity.hifiinterface.provider.UserStoryDomainPolicyStandaloneTest
@@ -48,6 +50,8 @@ java -Djava.io.tmpdir="$output" -cp "$output" \
     io.highfidelity.hifiinterface.LegacyCrashDumpPolicyStandaloneTest
 java -Djava.io.tmpdir="$output" -cp "$output" \
     io.highfidelity.hifiinterface.LegacyCrashAnnotationPolicyStandaloneTest
+java -Djava.io.tmpdir="$output" -cp "$output" \
+    io.highfidelity.hifiinterface.LegacyOAuthRedirectPolicyStandaloneTest
 java -Djava.io.tmpdir="$output" -cp "$output" \
     io.highfidelity.hifiinterface.task.LegacyProfilePagePolicyStandaloneTest
 
@@ -104,6 +108,16 @@ failure_mutation = source.index("mAdapterListener.onError", failure)
 if not success < success_guard < success_mutation < failure < failure_guard < failure_mutation:
     raise SystemExit("FAIL: legacy People completion guards run after observable mutation")
 PY
+
+web_view_fragment="$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/fragment/WebViewFragment.java"
+grep -Fq 'LegacyOAuthRedirectPolicy.matches(' "$web_view_fragment" || {
+    printf 'FAIL: legacy OAuth redirects bypass exact URI matching\n' >&2
+    exit 1
+}
+if grep -Fq 'startsWith(BuildConfig.OAUTH_REDIRECT_URI)' "$web_view_fragment"; then
+    printf 'FAIL: legacy OAuth redirects retain unsafe prefix matching\n' >&2
+    exit 1
+fi
 
 profile_task="$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/task/DownloadProfileImageTask.java"
 grep -Fq 'LegacyProfilePagePolicy.read(userPage.openConnection())' "$profile_task" || {
