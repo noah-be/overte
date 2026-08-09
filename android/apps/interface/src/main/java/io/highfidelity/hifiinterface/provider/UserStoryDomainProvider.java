@@ -33,6 +33,8 @@ public class UserStoryDomainProvider implements DomainProvider {
     private UserStoryDomainProviderService mUserStoryDomainProviderService;
 
     private boolean startedToGetFromAPI = false;
+    private boolean requestInFlight = false;
+    private final LegacyLatestRequestGate requestGate = new LegacyLatestRequestGate();
     private List<UserStory> allStories; // All retrieved stories from the API
     private List<DomainAdapter.Domain> suggestions; // Filtered places to show
 
@@ -49,15 +51,18 @@ public class UserStoryDomainProvider implements DomainProvider {
 
     @Override
     public synchronized void retrieve(String filterText, DomainCallback domainCallback, boolean forceRefresh) {
-        if (!startedToGetFromAPI || forceRefresh) {
+        long requestTicket = requestGate.begin();
+        if (!startedToGetFromAPI || forceRefresh || requestInFlight) {
             startedToGetFromAPI = true;
-            fillDestinations(filterText, domainCallback);
+            requestInFlight = true;
+            fillDestinations(filterText, domainCallback, requestTicket);
         } else {
-            filterChoicesByText(filterText, domainCallback);
+            filterChoicesByText(filterText, domainCallback, requestTicket);
         }
     }
 
-    private void fillDestinations(String filterText, DomainCallback domainCallback) {
+    private void fillDestinations(String filterText, DomainCallback domainCallback,
+            long requestTicket) {
         StoriesFilter filter = new StoriesFilter(filterText);
         UserStoryRetrievalCoordinator.retrieve((tagsFilter, callback) -> {
             List<UserStory> destination = new ArrayList<>();
@@ -71,39 +76,49 @@ public class UserStoryDomainProvider implements DomainProvider {
         }, TAGS_TO_SEARCH, new UserStoryRetrievalCoordinator.Completion<UserStory>() {
             @Override
             public void success(List<UserStory> taggedStories, List<UserStory> retrievedStories) {
-                Set<String> taggedStoriesIds = new HashSet<>();
-                taggedStories.forEach(userStory -> {
-                    if (userStory != null) {
-                        taggedStoriesIds.add(userStory.id);
+                synchronized (UserStoryDomainProvider.this) {
+                    if (!requestGate.isCurrent(requestTicket)) {
+                        return;
                     }
-                });
-                allStories.clear();
-                retrievedStories.forEach(userStory -> {
-                    if (userStory != null) {
-                        allStories.add(userStory);
+                    requestInFlight = false;
+                    Set<String> taggedStoriesIds = new HashSet<>();
+                    taggedStories.forEach(userStory -> {
+                        if (userStory != null) {
+                            taggedStoriesIds.add(userStory.id);
+                        }
+                    });
+                    allStories.clear();
+                    retrievedStories.forEach(userStory -> {
+                        if (userStory != null) {
+                            allStories.add(userStory);
+                        }
+                    });
+                    suggestions.clear();
+                    allStories.forEach(userStory -> {
+                        if (taggedStoriesIds.contains(userStory.id)) {
+                            userStory.tagFound = true;
+                        }
+                        filter.filterOrAdd(userStory);
+                    });
+                    if (domainCallback != null) {
+                        domainCallback.retrieveOk(suggestions);
                     }
-                });
-                suggestions.clear();
-                allStories.forEach(userStory -> {
-                    if (taggedStoriesIds.contains(userStory.id)) {
-                        userStory.tagFound = true;
-                    }
-                    filter.filterOrAdd(userStory);
-                });
-                if (domainCallback != null) {
-                    domainCallback.retrieveOk(suggestions);
                 }
             }
 
             @Override
             public void failure(Exception error) {
-                notifyRetrieveError(domainCallback, error);
+                notifyRetrieveError(domainCallback, error, requestTicket);
             }
         });
     }
 
     private synchronized void notifyRetrieveError(
-            DomainCallback domainCallback, Exception error) {
+            DomainCallback domainCallback, Exception error, long requestTicket) {
+        if (!requestGate.isCurrent(requestTicket)) {
+            return;
+        }
+        requestInFlight = false;
         startedToGetFromAPI = false;
         allStories.clear();
         suggestions.clear();
@@ -194,13 +209,19 @@ public class UserStoryDomainProvider implements DomainProvider {
         }
     }
 
-    private void filterChoicesByText(String filterText, DomainCallback domainCallback) {
+    private void filterChoicesByText(String filterText, DomainCallback domainCallback,
+            long requestTicket) {
+        if (!requestGate.isCurrent(requestTicket)) {
+            return;
+        }
         suggestions.clear();
         StoriesFilter storiesFilter = new StoriesFilter(filterText);
         allStories.forEach(story -> {
             storiesFilter.filterOrAdd(story);
         });
-        domainCallback.retrieveOk(suggestions);
+        if (domainCallback != null) {
+            domainCallback.retrieveOk(suggestions);
+        }
     }
 
     public interface UserStoryDomainProviderService {

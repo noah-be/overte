@@ -13,8 +13,10 @@ javac -d "$output" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/LegacyUserPolicy.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/LegacyCrashDumpPolicy.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/provider/UserStoryDomainPolicy.java" \
+    "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/provider/LegacyLatestRequestGate.java" \
     "$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/provider/UserStoryRetrievalCoordinator.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/provider/UserStoryDomainPolicyStandaloneTest.java" \
+    "$android_root/tests/java/io/highfidelity/hifiinterface/provider/LegacyLatestRequestGateStandaloneTest.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/provider/UserStoryRetrievalCoordinatorStandaloneTest.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyAssetTextPolicyStandaloneTest.java" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyAdapterPositionPolicyStandaloneTest.java" \
@@ -23,6 +25,8 @@ javac -d "$output" \
     "$android_root/tests/java/io/highfidelity/hifiinterface/LegacyCrashDumpPolicyStandaloneTest.java"
 java -Djava.io.tmpdir="$output" -cp "$output" \
     io.highfidelity.hifiinterface.provider.UserStoryDomainPolicyStandaloneTest
+java -Djava.io.tmpdir="$output" -cp "$output" \
+    io.highfidelity.hifiinterface.provider.LegacyLatestRequestGateStandaloneTest
 java -Djava.io.tmpdir="$output" -cp "$output" \
     io.highfidelity.hifiinterface.provider.UserStoryRetrievalCoordinatorStandaloneTest
 java -Djava.io.tmpdir="$output" -cp "$output" \
@@ -51,3 +55,17 @@ if grep -Fq 'username.isEmpty()' "$main_activity"; then
     printf 'FAIL: legacy profile header directly dereferences a nullable username\n' >&2
     exit 1
 fi
+
+provider="$android_root/apps/interface/src/main/java/io/highfidelity/hifiinterface/provider/UserStoryDomainProvider.java"
+grep -Fq 'long requestTicket = requestGate.begin();' "$provider" || {
+    printf 'FAIL: legacy Places requests do not establish a latest-request ticket\n' >&2
+    exit 1
+}
+grep -Fq 'forceRefresh || requestInFlight' "$provider" || {
+    printf 'FAIL: the latest Places request can be starved behind an older request\n' >&2
+    exit 1
+}
+[[ "$(grep -Fc 'requestGate.isCurrent(requestTicket)' "$provider")" -ge 3 ]] || {
+    printf 'FAIL: legacy Places completions are not gated before mutation\n' >&2
+    exit 1
+}
