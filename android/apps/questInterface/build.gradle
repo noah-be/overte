@@ -45,21 +45,21 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField "String", "BACKTRACE_URL", "\"" + (System.getenv("CMAKE_BACKTRACE_URL") ? System.getenv("CMAKE_BACKTRACE_URL") : '') + "\""
-            buildConfigField "String", "BACKTRACE_TOKEN", "\"" + (System.getenv("CMAKE_BACKTRACE_TOKEN") ? System.getenv("CMAKE_BACKTRACE_TOKEN") : '') + "\""
-            buildConfigField "String", "OAUTH_CLIENT_ID", "\"" + (System.getenv("OAUTH_CLIENT_ID") ? System.getenv("OAUTH_CLIENT_ID") : '') + "\""
-            buildConfigField "String", "OAUTH_CLIENT_SECRET", "\"" + (System.getenv("OAUTH_CLIENT_SECRET") ? System.getenv("OAUTH_CLIENT_SECRET") : '') + "\""
-            buildConfigField "String", "OAUTH_REDIRECT_URI", "\"" + (System.getenv("OAUTH_REDIRECT_URI") ? System.getenv("OAUTH_REDIRECT_URI") : '') + "\""
+            buildConfigField "String", "BACKTRACE_URL", rootProject.ext.legacyBuildConfigString(System.getenv("CMAKE_BACKTRACE_URL"))
+            buildConfigField "String", "BACKTRACE_TOKEN", rootProject.ext.legacyBuildConfigString(System.getenv("CMAKE_BACKTRACE_TOKEN"))
+            buildConfigField "String", "OAUTH_CLIENT_ID", rootProject.ext.legacyBuildConfigString(System.getenv("OAUTH_CLIENT_ID"))
+            buildConfigField "String", "OAUTH_CLIENT_SECRET", rootProject.ext.legacyBuildConfigString(System.getenv("OAUTH_CLIENT_SECRET"))
+            buildConfigField "String", "OAUTH_REDIRECT_URI", rootProject.ext.legacyBuildConfigString(System.getenv("OAUTH_REDIRECT_URI"))
         }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
-            buildConfigField "String", "BACKTRACE_URL", "\"" + (System.getenv("CMAKE_BACKTRACE_URL") ? System.getenv("CMAKE_BACKTRACE_URL") : '') + "\""
-            buildConfigField "String", "BACKTRACE_TOKEN", "\"" + (System.getenv("CMAKE_BACKTRACE_TOKEN") ? System.getenv("CMAKE_BACKTRACE_TOKEN") : '') + "\""
-            buildConfigField "String", "OAUTH_CLIENT_ID", "\"" + (System.getenv("OAUTH_CLIENT_ID") ? System.getenv("OAUTH_CLIENT_ID") : '') + "\""
-            buildConfigField "String", "OAUTH_CLIENT_SECRET", "\"" + (System.getenv("OAUTH_CLIENT_SECRET") ? System.getenv("OAUTH_CLIENT_SECRET") : '') + "\""
-            buildConfigField "String", "OAUTH_REDIRECT_URI", "\"" + (System.getenv("OAUTH_REDIRECT_URI") ? System.getenv("OAUTH_REDIRECT_URI") : '') + "\""
+            buildConfigField "String", "BACKTRACE_URL", rootProject.ext.legacyBuildConfigString(System.getenv("CMAKE_BACKTRACE_URL"))
+            buildConfigField "String", "BACKTRACE_TOKEN", rootProject.ext.legacyBuildConfigString(System.getenv("CMAKE_BACKTRACE_TOKEN"))
+            buildConfigField "String", "OAUTH_CLIENT_ID", rootProject.ext.legacyBuildConfigString(System.getenv("OAUTH_CLIENT_ID"))
+            buildConfigField "String", "OAUTH_CLIENT_SECRET", rootProject.ext.legacyBuildConfigString(System.getenv("OAUTH_CLIENT_SECRET"))
+            buildConfigField "String", "OAUTH_REDIRECT_URI", rootProject.ext.legacyBuildConfigString(System.getenv("OAUTH_REDIRECT_URI"))
         }
     }
 

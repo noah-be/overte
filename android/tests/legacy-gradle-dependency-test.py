@@ -220,6 +220,41 @@ def legacy_toolchain_contract_errors(
 
 
 class LegacyGradleDependencyTest(unittest.TestCase):
+    def test_legacy_build_config_strings_use_the_root_escaper(self):
+        root_source = (ANDROID_ROOT / "build.gradle").read_text(encoding="utf-8")
+        self.assertIn("legacyBuildConfigString", root_source)
+        self.assertIn("groovy.json.JsonOutput.toJson", root_source)
+        environment_fields = {
+            "BACKTRACE_URL": "CMAKE_BACKTRACE_URL",
+            "BACKTRACE_TOKEN": "CMAKE_BACKTRACE_TOKEN",
+            "OAUTH_CLIENT_ID": "OAUTH_CLIENT_ID",
+            "OAUTH_CLIENT_SECRET": "OAUTH_CLIENT_SECRET",
+            "OAUTH_REDIRECT_URI": "OAUTH_REDIRECT_URI",
+        }
+        for relative_path in (
+                "apps/interface/build.gradle",
+                "apps/questInterface/build.gradle"):
+            source = (ANDROID_ROOT / relative_path).read_text(encoding="utf-8")
+            self.assertNotIn('"\\\"" + (System.getenv(', source)
+            for field, environment_name in environment_fields.items():
+                expected = (
+                    f'buildConfigField "String", "{field}", '
+                    'rootProject.ext.legacyBuildConfigString('
+                    f'System.getenv("{environment_name}"))')
+                self.assertEqual(2, source.count(expected),
+                                 f"{relative_path}: {field}")
+
+    def test_json_string_literals_round_trip_adversarial_values(self):
+        for value in (
+                "", "ordinary", 'quote"value', "backslash\\value",
+                "carriage\rreturn", "line\nfeed", "tab\tvalue",
+                "snowman \u2603", "separator \u2028 value", "control \x01"):
+            with self.subTest(value=repr(value)):
+                literal = json.dumps(value, ensure_ascii=True)
+                self.assertEqual(value, json.loads(literal))
+                self.assertTrue(literal.startswith('"'))
+                self.assertTrue(literal.endswith('"'))
+
     def test_legacy_version_code_policy_is_positive_and_bounded(self):
         source = (ANDROID_ROOT / "build.gradle").read_text(encoding="utf-8")
         self.assertIn("def parseLegacyVersionCode", source)

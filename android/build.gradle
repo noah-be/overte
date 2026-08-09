@@ -40,6 +40,9 @@ def parseLegacyVersionCode = { boolean propertyPresent, Object rawValue ->
 }
 
 ext {
+    legacyBuildConfigString = { Object rawValue ->
+        groovy.json.JsonOutput.toJson(rawValue == null ? '' : rawValue.toString())
+    }
     RELEASE_NUMBER = project.hasProperty('RELEASE_NUMBER') ? project.getProperty('RELEASE_NUMBER') : '0'
     VERSION_CODE = project.hasProperty('VERSION_CODE') ? project.getProperty('VERSION_CODE') : null
     RELEASE_TYPE = project.hasProperty('RELEASE_TYPE') ? project.getProperty('RELEASE_TYPE') : 'DEV'
