@@ -141,6 +141,10 @@ constexpr bool openXrPathConversionUsable(
     return callSucceeded && pathIsNonNull;
 }
 
+constexpr bool openXrActionStateOutputUsable(bool callSucceeded) {
+    return callSucceeded;
+}
+
 constexpr bool openXrLocatedPoseUsable(
         bool spaceIsNonNull,
         bool predictionAvailable,

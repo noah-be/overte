@@ -492,8 +492,13 @@ XrActionStateFloat OpenXrInputPlugin::Action::getFloat() {
         .action = _action,
     };
 
-    XrResult result = xrGetActionStateFloat(_context->_session, &info, &state);
-    xrCheck(_context->_instance, result, "Failed to get float state!");
+    const bool stateRead = xrCheck(
+        _context->_instance,
+        xrGetActionStateFloat(_context->_session, &info, &state),
+        "Failed to get float state!");
+    if (!openXrActionStateOutputUsable(stateRead)) {
+        return { .type = XR_TYPE_ACTION_STATE_FLOAT };
+    }
 
     return state;
 }
@@ -508,8 +513,13 @@ XrActionStateVector2f OpenXrInputPlugin::Action::getVector2f() {
         .action = _action,
     };
 
-    XrResult result = xrGetActionStateVector2f(_context->_session, &info, &state);
-    xrCheck(_context->_instance, result, "Failed to get vector2 state!");
+    const bool stateRead = xrCheck(
+        _context->_instance,
+        xrGetActionStateVector2f(_context->_session, &info, &state),
+        "Failed to get vector2 state!");
+    if (!openXrActionStateOutputUsable(stateRead)) {
+        return { .type = XR_TYPE_ACTION_STATE_VECTOR2F };
+    }
 
     return state;
 }
@@ -524,8 +534,13 @@ XrActionStateBoolean OpenXrInputPlugin::Action::getBool() {
         .action = _action,
     };
 
-    XrResult result = xrGetActionStateBoolean(_context->_session, &info, &state);
-    xrCheck(_context->_instance, result, "Failed to get float state!");
+    const bool stateRead = xrCheck(
+        _context->_instance,
+        xrGetActionStateBoolean(_context->_session, &info, &state),
+        "Failed to get boolean state!");
+    if (!openXrActionStateOutputUsable(stateRead)) {
+        return { .type = XR_TYPE_ACTION_STATE_BOOLEAN };
+    }
 
     return state;
 }

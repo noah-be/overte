@@ -157,6 +157,8 @@ int main() {
                    (mask & 1U) != 0,
                    (mask & 2U) != 0) == (mask == 3U));
     }
+    OVERTE_EXPECT(!openXrActionStateOutputUsable(false));
+    OVERTE_EXPECT(openXrActionStateOutputUsable(true));
 
     OVERTE_EXPECT(openXrLocatedPoseUsable(true, true, true, pose, pose));
     OVERTE_EXPECT(!openXrLocatedPoseUsable(false, true, true, pose, pose));
