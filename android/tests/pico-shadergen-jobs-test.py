@@ -64,7 +64,8 @@ class ShadergenJobTests(unittest.TestCase):
 
     def test_pico_build_exposes_gradle_stacktraces_for_ci_diagnosis(self):
         self.assertIn('if [[ "$option" == "--stacktrace" ]]', BUILD_SCRIPT)
-        self.assertIn('build) build "$command_option" ;;', BUILD_SCRIPT)
+        self.assertIn('build) build "$command_option" debug ;;', BUILD_SCRIPT)
+        self.assertIn('release) build "$command_option" release ;;', BUILD_SCRIPT)
 
 
 if __name__ == "__main__":
