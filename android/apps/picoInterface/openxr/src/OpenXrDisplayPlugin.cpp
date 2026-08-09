@@ -585,7 +585,10 @@ bool OpenXrDisplayPlugin::beginFrameRender(uint32_t frameIndex) {
         return false;
     }
 
-    _context->pollEvents();
+    if (!_context->pollEvents()) {
+        deactivate();
+        return false;
+    }
 
     if (_context->_shouldQuit) {
         QMetaObject::invokeMethod(qApp, "quit");

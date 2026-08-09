@@ -14,6 +14,18 @@ constexpr OpenXrEventDrainAction openXrEventDrainAction(
         : OpenXrEventDrainAction::PollNext;
 }
 
+constexpr bool openXrContextValidAfterEventProcessing(
+        bool currentlyValid, bool processingSucceeded) {
+    return currentlyValid && processingSucceeded;
+}
+
+constexpr bool openXrFrameCycleAllowedAfterEventProcessing(
+        bool processingSucceeded,
+        bool contextValid,
+        bool frameCycleRequested) {
+    return processingSucceeded && contextValid && frameCycleRequested;
+}
+
 constexpr bool isOpenXrPathStringUsable(
         bool conversionSucceeded,
         std::size_t returnedCount,

@@ -1094,6 +1094,11 @@ bool OpenXrContext::pollEvents() {
             case XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED: {
                 const auto& sessionStateChanged = *reinterpret_cast<XrEventDataSessionStateChanged*>(&event);
                 if (!updateSessionState(sessionStateChanged.state)) {
+                    _isValid = openXrContextValidAfterEventProcessing(
+                        _isValid, false);
+                    _shouldRunFrameCycle =
+                        openXrFrameCycleAllowedAfterEventProcessing(
+                            false, _isValid, _shouldRunFrameCycle);
                     return false;
                 }
                 break;
@@ -1148,7 +1153,11 @@ bool OpenXrContext::pollEvents() {
 
     if (result != XR_EVENT_UNAVAILABLE) {
         qCCritical(xr_context_cat, "Failed to poll events!");
-        _isValid = false;
+        _isValid = openXrContextValidAfterEventProcessing(
+            _isValid, false);
+        _shouldRunFrameCycle =
+            openXrFrameCycleAllowedAfterEventProcessing(
+                false, _isValid, _shouldRunFrameCycle);
         return false;
     }
 
