@@ -4,6 +4,27 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 112 — Prove late summary failures clean up the app
+
+- Branch: `nightly/android-phone-112-late-summary-failure`
+- Commit: `Test late phone summary failure cleanup` (this task's commit)
+- Change: Make the fake summary writer fail on a selected invocation and prove
+  that a post-install write failure remains private, marks the run failed, and
+  force-stops the already installed Phone app before exiting.
+- Tests:
+  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; the second
+    summary append fails after installation, emits only the fixed phase error,
+    retains no private path, records failure, and performs exactly one cleanup
+    force-stop.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 307/307 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 307/307.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: The exit trap's final status append is intentionally best-effort
+  when the report filesystem itself has become unwritable.
+- Real-device validation still required: None for deterministic writer-failure
+  handling; ordinary device smoke validates cleanup against Android.
+
 ## 111 — Prove report setup fails privately
 
 - Branch: `nightly/android-phone-111-report-setup-failures`
@@ -2559,7 +2580,8 @@ All branches form one linear chain starting at
 108. `nightly/android-phone-108-private-preflight-paths` — `4fa4eace60`
 109. `nightly/android-phone-109-private-apk-hash-errors` — `a44dc0efb1`
 110. `nightly/android-phone-110-private-summary-write-errors` — `e39b0c7897`
-111. `nightly/android-phone-111-report-setup-failures` — this task's commit
+111. `nightly/android-phone-111-report-setup-failures` — `2f38c788ca`
+112. `nightly/android-phone-112-late-summary-failure` — this task's commit
 
 ### Device-free audit disposition
 

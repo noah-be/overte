@@ -141,8 +141,19 @@ MOCK_SHA256
 cat >"$test_root/bin/tee" <<'MOCK_TEE'
 #!/usr/bin/env bash
 set -euo pipefail
+tee_count=0
+if [[ -f "$MOCK_ROOT/tee-count" ]]; then
+    tee_count="$(<"$MOCK_ROOT/tee-count")"
+fi
+tee_count=$((tee_count + 1))
+printf '%s' "$tee_count" >"$MOCK_ROOT/tee-count"
 if [[ "${MOCK_TEE_FAILURE:-0}" == 1 ]]; then
     printf 'private summary write failure: %s\n' "${*: -1}" >&2
+    exit 8
+fi
+if [[ -n "${MOCK_TEE_FAIL_ON_CALL:-}" &&
+        "$tee_count" == "$MOCK_TEE_FAIL_ON_CALL" ]]; then
+    printf 'private late summary failure: %s\n' "${*: -1}" >&2
     exit 8
 fi
 exec "$PHONE_MOCK_REAL_TEE" "$@"
@@ -267,6 +278,27 @@ grep -Fxq 'ERROR: could not update device-test summary' \
 [[ ! -s "$test_root/adb-commands" ]]
 grep -Fxq 'test_status=failed' \
     "$test_root/summary-write-failure-report/summary.txt"
+
+mkdir "$test_root/late-summary-failure-report"
+rm -f -- "$test_root/tee-count" "$test_root/force-stop-count"
+: >"$test_root/adb-commands"
+if run_smoke "$test_root/late-summary-failure-report" \
+        env MOCK_TEE_FAIL_ON_CALL=2 \
+        >"$test_root/late-summary-failure.out" 2>&1; then
+    echo 'FAIL: failed post-install summary write was accepted' >&2
+    exit 1
+fi
+grep -Fxq 'ERROR: could not update device-test summary' \
+    "$test_root/late-summary-failure.out"
+! grep -Fq 'private late summary failure' "$test_root/late-summary-failure.out"
+! grep -Fq "$test_root" "$test_root/late-summary-failure.out"
+grep -Fxq 'test_status=failed' \
+    "$test_root/late-summary-failure-report/summary.txt"
+! grep -Fq 'installed_apk_verified=1' \
+    "$test_root/late-summary-failure-report/summary.txt"
+[[ "$(grep -c ' install -r ' "$test_root/adb-commands")" -eq 1 ]]
+[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' \
+    "$test_root/adb-commands")" -eq 1 ]]
 
 mkdir "$test_root/chmod-failure-report"
 : >"$test_root/adb-commands"
