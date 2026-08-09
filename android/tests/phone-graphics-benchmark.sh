@@ -89,13 +89,6 @@ else
         die "could not create temporary benchmark report directory"
 fi
 case "$report_dir/" in "$worktree_root/"*) die "refusing to write benchmark output inside the worktree" ;; esac
-mkdir -p -- "$report_dir" 2>/dev/null || die "could not create benchmark report directory"
-chmod 700 "$report_dir" 2>/dev/null || die "could not secure benchmark report directory"
-summary="$report_dir/summary.txt"
-[[ ! -L "$summary" ]] || die "refusing to overwrite a symlinked benchmark summary"
-[[ ! -e "$summary" || -f "$summary" ]] || \
-    die "refusing to overwrite a non-regular benchmark summary"
-
 raw_dir=''
 summary_tmp=''
 package_started=0
@@ -116,6 +109,13 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+
+mkdir -p -- "$report_dir" 2>/dev/null || die "could not create benchmark report directory"
+chmod 700 "$report_dir" 2>/dev/null || die "could not secure benchmark report directory"
+summary="$report_dir/summary.txt"
+[[ ! -L "$summary" ]] || die "refusing to overwrite a symlinked benchmark summary"
+[[ ! -e "$summary" || -f "$summary" ]] || \
+    die "refusing to overwrite a non-regular benchmark summary"
 
 # Deliberately ignore TMPDIR: raw device text must have a short-lived /tmp home.
 raw_dir="$(mktemp -d /tmp/overte-phone-graphics-raw.XXXXXXXX 2>/dev/null)" || \

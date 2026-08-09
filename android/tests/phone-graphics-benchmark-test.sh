@@ -42,6 +42,10 @@ set -euo pipefail
 if [[ "${MOCK_SUMMARY_CHMOD_SIGNAL_TERM:-0}" == 1 && "$*" == *'.summary.txt.'* ]]; then
     kill -TERM "$PPID"
 fi
+if [[ "${MOCK_REPORT_CHMOD_FAILURE:-0}" == 1 && "$*" == *'overte-phone-graphics-report.'* ]]; then
+    printf 'private report chmod failure: %s\n' "$*" >&2
+    exit 8
+fi
 exec "$PHONE_BENCHMARK_TEST_REAL_CHMOD" "$@"
 MOCK_CHMOD
 chmod +x "$fixture/bin/chmod"
@@ -167,6 +171,19 @@ if PHONE_ADB="$fixture/adb" ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_
 fi
 grep -Fxq 'ERROR: PHONE_BENCHMARK_INTERVAL must be an integer from 1 through 300 seconds' \
     "$fixture/long-interval.out"
+touch "$fixture/report-chmod-marker"
+if PHONE_ADB="$fixture/adb" MOCK_REPORT_CHMOD_FAILURE=1 ANDROID_SERIAL=phone-secret \
+    PHONE_BENCHMARK_CONFIRM_NON_VR=YES "$script_dir/phone-graphics-benchmark.sh" 1 \
+    >"$fixture/report-chmod.out" 2>&1; then
+    echo 'FAIL: benchmark accepted insecure automatic report permissions' >&2; exit 1
+fi
+grep -Fxq 'ERROR: could not secure benchmark report directory' "$fixture/report-chmod.out"
+! grep -Eq 'private report chmod failure|overte-phone-graphics-report[.]' \
+    "$fixture/report-chmod.out"
+if find /tmp -maxdepth 1 -type d -name 'overte-phone-graphics-report.*' \
+        -newer "$fixture/report-chmod-marker" | grep -q .; then
+    echo 'FAIL: report chmod failure retained an automatic report directory' >&2; exit 1
+fi
 rejected_commands="$fixture/rejected-device-commands"
 : >"$rejected_commands"
 if PHONE_ADB="$fixture/adb" MOCK_QEMU=1 ANDROID_SERIAL=phone-secret \

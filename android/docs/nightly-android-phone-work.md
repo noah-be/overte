@@ -4,6 +4,24 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 127 — Clean up insecure automatic report setup
+
+- Branch: `nightly/android-phone-127-report-mode-cleanup`
+- Commit: `Clean up phone report mode failures` (this task's commit)
+- Change: Install aggregate-report ownership cleanup immediately after path
+  allocation, before directory creation and mode hardening.
+- Tests:
+  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; forced chmod
+    failure on an automatic report emits only the fixed security error, exposes
+    no generated path, and leaves no new report directory.
+  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+    explicitly device-free suites; nested host regression passed 317/317.
+  - Shell syntax and `git diff --check`: **passed**.
+- Known risks: A hostile privileged process can always interfere with `/tmp`;
+  allocation is private and every normal shell exit now removes failed setup.
+- Real-device validation still required: None for local chmod failure handling.
+
 ## 126 — Remove failed automatic report directories
 
 - Branch: `nightly/android-phone-126-failed-temp-report-cleanup`
@@ -2875,7 +2893,8 @@ All branches form one linear chain starting at
 123. `nightly/android-phone-123-benchmark-framestats-error` — `14ac38f578`
 124. `nightly/android-phone-124-partial-summary-cleanup` — `f1f68c096f`
 125. `nightly/android-phone-125-discoverable-temp-report` — `34b3e36628`
-126. `nightly/android-phone-126-failed-temp-report-cleanup` — this task's commit
+126. `nightly/android-phone-126-failed-temp-report-cleanup` — `8af0cc8bd1`
+127. `nightly/android-phone-127-report-mode-cleanup` — this task's commit
 
 ### Device-free audit disposition
 
