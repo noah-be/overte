@@ -32,6 +32,13 @@ content/alignment gate. It additionally verifies the APK signature and records
 the source revision, APK digest, signer-certificate digest, package, version,
 SDK levels, debug state, ABI, and required 16 KiB page-size contract.
 
+The trusted build uses a private Conan home inside its clean workspace. This is
+required because Pico and Phone can otherwise share a Conan reference and
+package ID despite different 4 KiB versus 16 KiB ELF alignment; Conan restore
+correctly preserves an existing package and would leave the wrong variant in a
+shared cache. The final dependency verifier still fails closed if any package
+does not match the Phone sentinel.
+
 Only the small JUnit and JSON reports are retained for seven days. The APK is
 not uploaded to general Actions artifact storage.
 

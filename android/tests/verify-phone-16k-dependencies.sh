@@ -28,6 +28,7 @@ readonly sentinel=$3
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly alignment_check="$script_dir/check-phone-elf-alignment.sh"
 readonly sentinel_version='overte-phone-16k-dependencies-v3'
+readonly temp_root="${PHONE_VERIFY_TMPDIR:-$script_dir/../build/verification-tmp}"
 
 declare -a generator_specs=(
     "$qt_conan_dir/generators/Qt5-debug-armv8-data.cmake:qt"
@@ -52,7 +53,16 @@ declare -a staged_nonqt_libraries=(
     'libssl.so.1.1'
 )
 
-temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/overte-phone-16k-ready.XXXXXXXX")
+[[ ! -L "$temp_root" ]] || {
+    echo "ERROR: Phone verification temporary directory must not be a symlink" >&2
+    exit 2
+}
+mkdir -p -- "$temp_root"
+[[ -d "$temp_root" && -w "$temp_root" ]] || {
+    echo "ERROR: Phone verification temporary directory is not writable" >&2
+    exit 2
+}
+temp_dir=$(mktemp -d "$temp_root/overte-phone-16k-ready.XXXXXXXX")
 trap 'rm -rf -- "$temp_dir"' EXIT INT TERM
 manifest="$temp_dir/manifest"
 staged_alignment_dir="$temp_dir/staged-nonqt"
@@ -153,7 +163,7 @@ for spec in "${generator_specs[@]}"; do
     fi
 
     verify_package_symlinks "$label" "$package_dir"
-    "$alignment_check" "$package_dir"
+    TMPDIR="$temp_dir" "$alignment_check" "$package_dir"
     while IFS= read -r -d '' library; do
         append_manifest_entry library "$label" "$package_dir" "$library"
     done < <(find "$package_dir" \( -type f -o -type l \) \
@@ -179,7 +189,7 @@ for library_name in "${staged_nonqt_libraries[@]}"; do
     cp -- "$staged_library" "$staged_snapshot"
     append_manifest_entry staged-library nonqt "$staged_alignment_dir" "$staged_snapshot"
 done
-"$alignment_check" "$staged_alignment_dir"
+TMPDIR="$temp_dir" "$alignment_check" "$staged_alignment_dir"
 
 digest=$(LC_ALL=C sort "$manifest" | sha256sum | cut -d' ' -f1)
 expected="$sentinel_version

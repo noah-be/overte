@@ -78,6 +78,7 @@ class AndroidPhoneBuildWorkflowContracts(unittest.TestCase):
         self.assertIn("refs/tags/android-phone-v[0-9]+", self.source)
 
     def test_build_is_clean_reproducible_and_fail_closed(self):
+        self.assertIn("CONAN_HOME: ${{ github.workspace }}/build/ci-phone-conan2", self.source)
         self.assertIn("tests/run-tests.sh host", self.source)
         self.assertIn("./build-phone.sh deps --download", self.source)
         self.assertIn("./build-phone.sh prepare", self.source)

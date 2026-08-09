@@ -113,6 +113,13 @@ before the dependency build; there is intentionally no unbounded fallback.
    can be finalized. A missing artifact, checksum mismatch, missing package, or
    failed ELF inspection stops closed.
 
+   The large download is staged under `android/build/prebuilt-tmp` rather than
+   the system temporary directory, avoiding small or memory-backed `/tmp`
+   limits on CI runners. `PHONE_PREBUILT_TMPDIR` can select another large local
+   filesystem; temporary content is removed on success and failure. Dependency
+   verification similarly uses `android/build/verification-tmp` and can be
+   redirected with `PHONE_VERIFY_TMPDIR`.
+
    To restore only the dependency graph without preparing or building the APK,
    use the Phone entry point just as with Pico:
 

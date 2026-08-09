@@ -15,6 +15,11 @@ defaults:
     shell: bash
     working-directory: android
 
+env:
+  # A private cache prevents same-reference Pico/Phone binaries with different
+  # page-size alignment from shadowing the verified Phone archive.
+  CONAN_HOME: ${{ github.workspace }}/build/ci-phone-conan2
+
 jobs:
   build:
     # Keep this label exclusive to an isolated trusted build runner. Never run

@@ -100,7 +100,8 @@ find_phone_draco_package() {
             printf '%s\n' "$package_dir"
             return
         fi
-    done < <(find "${HOME}/.conan2/p" -path '*/p/lib/libdraco.a' -type f -print0 2>/dev/null | sort -z)
+    done < <(find "${CONAN_HOME:-${HOME}/.conan2}/p" \
+        -path '*/p/lib/libdraco.a' -type f -print0 2>/dev/null | sort -z)
     fail "an Android ARM64 Draco Conan package was not found"
 }
 

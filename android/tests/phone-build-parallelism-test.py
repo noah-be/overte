@@ -49,6 +49,9 @@ class PhoneBuildParallelismTests(unittest.TestCase):
         self.assertIn("set(CMAKE_JOB_POOL_COMPILE android_compile)", BOOTSTRAP)
         self.assertIn("set(CMAKE_JOB_POOL_LINK android_link)", BOOTSTRAP)
 
+    def test_phone_dependency_lookup_honors_isolated_conan_home(self):
+        self.assertIn('${CONAN_HOME:-${HOME}/.conan2}/p', BUILD)
+
     def test_invalid_phone_limit_fails_before_building(self):
         variables = os.environ.copy()
         variables["PHONE_BUILD_JOBS"] = "0"
