@@ -1278,22 +1278,36 @@ void OpenXrInputPlugin::InputDevice::update(float deltaTime, const controller::I
         auto palm_path = (i == 0) ? "left_palm_pose" : "right_palm_pose";
         auto grip_path = (i == 0) ? "left_grip_pose" : "right_grip_pose";
 
-        bool usingPalm = false;
-        XrSpaceLocation handLocation;
-
-        // use the palm pose if it's supported
-        if (_context->_palmPoseSupported && _actions.at(palm_path)->isPoseActive()) {
-            handLocation = _actions.at(palm_path)->getPose();
-            usingPalm = true;
-        } else {
-            handLocation = _actions.at(grip_path)->getPose();
+        const bool palmRequested = _context->_palmPoseSupported &&
+            _actions.at(palm_path)->isPoseActive();
+        XrSpaceLocation palmLocation {};
+        bool palmUsable = false;
+        if (palmRequested) {
+            palmLocation = _actions.at(palm_path)->getPose();
+            palmUsable = openXrControllerPoseUsable(
+                palmLocation.locationFlags,
+                XR_SPACE_LOCATION_POSITION_VALID_BIT,
+                XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
         }
 
-        bool locationValid = openXrControllerPoseUsable(
-            handLocation.locationFlags,
-            XR_SPACE_LOCATION_POSITION_VALID_BIT,
-            XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
-        if (locationValid) {
+        XrSpaceLocation gripLocation {};
+        bool gripUsable = false;
+        auto poseSource = selectOpenXrControllerPoseSource(
+            palmRequested, palmUsable, gripUsable);
+        if (poseSource != OpenXrControllerPoseSource::Palm) {
+            gripLocation = _actions.at(grip_path)->getPose();
+            gripUsable = openXrControllerPoseUsable(
+                gripLocation.locationFlags,
+                XR_SPACE_LOCATION_POSITION_VALID_BIT,
+                XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
+            poseSource = selectOpenXrControllerPoseSource(
+                palmRequested, palmUsable, gripUsable);
+        }
+        if (poseSource != OpenXrControllerPoseSource::None) {
+            const bool usingPalm =
+                poseSource == OpenXrControllerPoseSource::Palm;
+            const XrSpaceLocation& handLocation =
+                usingPalm ? palmLocation : gripLocation;
             vec3 translation = xrVecToGlm(handLocation.pose.position);
             quat rotation = xrQuatToGlm(handLocation.pose.orientation);
             auto pose = Pose(translation, rotation);

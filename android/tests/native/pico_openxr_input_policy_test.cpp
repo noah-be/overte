@@ -84,6 +84,17 @@ int main() {
         position | tracked, position, orientation));
     OVERTE_EXPECT(!openXrControllerPoseUsable(
         orientation | tracked, position, orientation));
+    for (unsigned int mask = 0; mask < 8; ++mask) {
+        const bool palmRequested = (mask & 1U) != 0;
+        const bool palmUsable = (mask & 2U) != 0;
+        const bool gripUsable = (mask & 4U) != 0;
+        const auto expected = palmRequested && palmUsable
+            ? OpenXrControllerPoseSource::Palm
+            : (gripUsable ? OpenXrControllerPoseSource::Grip
+                          : OpenXrControllerPoseSource::None);
+        OVERTE_EXPECT(selectOpenXrControllerPoseSource(
+            palmRequested, palmUsable, gripUsable) == expected);
+    }
 
     for (unsigned int mask = 0; mask < 16; ++mask) {
         OVERTE_EXPECT(openXrPoseActionCanLocate(

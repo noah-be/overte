@@ -66,6 +66,20 @@ constexpr bool openXrControllerPoseUsable(
         actualFlags, positionValidBit | orientationValidBit);
 }
 
+enum class OpenXrControllerPoseSource {
+    None,
+    Palm,
+    Grip,
+};
+
+constexpr OpenXrControllerPoseSource selectOpenXrControllerPoseSource(
+        bool palmRequested, bool palmUsable, bool gripUsable) {
+    return palmRequested && palmUsable
+        ? OpenXrControllerPoseSource::Palm
+        : (gripUsable ? OpenXrControllerPoseSource::Grip
+                      : OpenXrControllerPoseSource::None);
+}
+
 constexpr bool openXrHandJointFlagsSatisfy(
         unsigned long long actualFlags, unsigned long long requiredFlags) {
     return openXrPoseFlagsSatisfy(actualFlags, requiredFlags);
