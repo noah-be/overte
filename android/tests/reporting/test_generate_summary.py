@@ -140,21 +140,31 @@ class SummaryTest(unittest.TestCase):
         self.assertEqual(1, too_many_issues)
         self.assertIn("TOO MANY", too_many_markdown)
 
-    def test_atomic_output_refuses_preexisting_symlink(self):
+    def test_symlinked_output_fails_without_partial_publication_in_both_modes(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             target = root / "target.md"
             target.write_text("unchanged", encoding="utf-8")
             output = root / "summary.md"
+            step_summary = root / "step-summary.md"
+            step_summary.write_text("existing step summary\n", encoding="utf-8")
             try:
                 output.symlink_to(target)
             except OSError:
                 self.skipTest("symlinks unavailable")
-            argv = ["generate_summary.py", "--output", str(output)]
-            with mock.patch.object(sys, "argv", argv), mock.patch.dict(os.environ, {}, clear=True):
-                self.assertEqual(0, summary.main())
-            self.assertEqual("unchanged", target.read_text(encoding="utf-8"))
-            self.assertTrue(output.is_symlink())
+            for strict in (False, True):
+                with self.subTest(strict=strict):
+                    argv = ["generate_summary.py", "--output", str(output)]
+                    if strict:
+                        argv.append("--strict")
+                    with mock.patch.object(sys, "argv", argv), mock.patch.dict(
+                            os.environ, {"GITHUB_STEP_SUMMARY": str(step_summary)}, clear=True):
+                        self.assertEqual(1, summary.main())
+                    self.assertEqual("unchanged", target.read_text(encoding="utf-8"))
+                    self.assertTrue(output.is_symlink())
+                    self.assertEqual(
+                        "existing step summary\n", step_summary.read_text(encoding="utf-8"))
+                    self.assertEqual([], list(root.glob(".summary.md.*.tmp")))
 
 
 if __name__ == "__main__":

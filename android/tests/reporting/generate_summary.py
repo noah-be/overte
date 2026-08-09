@@ -230,7 +230,7 @@ def main() -> int:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     if args.output.is_symlink():
         print("error: summary output cannot be a symlink", file=sys.stderr)
-        return 1 if args.strict else 0
+        return 1
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=f".{args.output.name}.", suffix=".tmp", dir=args.output.parent)
     temporary = Path(temporary_name)
