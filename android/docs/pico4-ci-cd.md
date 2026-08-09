@@ -38,10 +38,11 @@ android/build-pico.sh deps --download
 android/build-pico.sh prepare
 ```
 
-The dependency restore verifies the committed SHA-256 manifest before changing
-the Conan/runtime cache. Normal builds can reuse the provisioned dependencies.
-Select `refresh_dependencies` when the bundle version changes or when a shared
-cache contains an incompatible host package.
+Every trusted build restores the dependency bundle after checkout because the
+checkout's clean operation removes generated runtime files inside the worktree.
+The restore verifies the committed SHA-256 manifest before changing the
+Conan/runtime cache. This deliberately favors reproducibility over avoiding the
+roughly 1.1 GB download in a manually triggered build.
 
 The build runs all device-free tests before compiling, builds the debug APK,
 and rejects output with an unexpected package, SDK contract, ABI, native
