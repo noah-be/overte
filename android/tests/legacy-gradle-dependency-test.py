@@ -413,8 +413,9 @@ dependencies {
         self.assertIn("google()", buildscript)
         self.assertIn("mavenCentral()", buildscript)
         self.assertNotIn("jcenter()", buildscript)
-        for repository in ("google()", "jcenter()", "mavenCentral()"):
+        for repository in ("google()", "mavenCentral()"):
             self.assertIn(repository, allprojects)
+        self.assertNotIn("jcenter()", allprojects)
 
     def test_interface_uses_root_build_authority_and_project_topology(self):
         interface = (ANDROID_ROOT / "apps/interface/build.gradle").read_text(
