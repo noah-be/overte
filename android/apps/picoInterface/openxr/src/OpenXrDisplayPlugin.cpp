@@ -692,9 +692,16 @@ void OpenXrDisplayPlugin::updatePresentPose() {
 
     XrViewState eyeViewState = { .type = XR_TYPE_VIEW_STATE };
 
-    XrResult result = xrLocateViews(_context->_session, &eyeViewLocateInfo, &eyeViewState, _viewCount, &_viewCount, eye_views.data());
+    uint32_t locatedEyeViewCount = 0;
+    XrResult result = xrLocateViews(
+        _context->_session, &eyeViewLocateInfo, &eyeViewState, _viewCount,
+        &locatedEyeViewCount, eye_views.data());
     if (!xrCheck(_context->_instance, result, "Could not locate views"))
         return;
+    if (!isCompleteOpenXrStereoViewResult(_viewCount, locatedEyeViewCount)) {
+        qCWarning(xr_display_cat, "Runtime returned incomplete eye views: %u", locatedEyeViewCount);
+        return;
+    }
 
     for (uint32_t i = 0; i < 2; i++) {
         vec3 eyePosition = xrVecToGlm(eye_views[i].pose.position);
@@ -711,9 +718,16 @@ void OpenXrDisplayPlugin::updatePresentPose() {
         .space = _context->_stageSpace,
     };
 
-    result = xrLocateViews(_context->_session, &viewLocateInfo, &_lastViewState, _viewCount, &_viewCount, _views.value().data());
+    uint32_t locatedWorldViewCount = 0;
+    result = xrLocateViews(
+        _context->_session, &viewLocateInfo, &_lastViewState, _viewCount,
+        &locatedWorldViewCount, _views.value().data());
     if (!xrCheck(_context->_instance, result, "Could not locate views"))
         return;
+    if (!isCompleteOpenXrStereoViewResult(_viewCount, locatedWorldViewCount)) {
+        qCWarning(xr_display_cat, "Runtime returned incomplete world views: %u", locatedWorldViewCount);
+        return;
+    }
 
     for (uint32_t i = 0; i < _viewCount; i++) {
         _projectionLayerViews[i].pose = _views.value()[i].pose;

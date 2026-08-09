@@ -10,6 +10,11 @@ int main() {
     assert(isSupportedOpenXrViewCount(2));
     assert(!isSupportedOpenXrViewCount(3));
     assert(!isSupportedOpenXrViewCount(std::numeric_limits<std::size_t>::max()));
+    assert(isCompleteOpenXrStereoViewResult(2, 2));
+    assert(!isCompleteOpenXrStereoViewResult(2, 0));
+    assert(!isCompleteOpenXrStereoViewResult(2, 1));
+    assert(!isCompleteOpenXrStereoViewResult(2, 3));
+    assert(!isCompleteOpenXrStereoViewResult(1, 1));
 
     assert(selectOpenXrSwapchainFormat(nullptr, 0, 7) == OPENXR_NO_SWAPCHAIN_FORMAT);
     assert(selectOpenXrSwapchainFormat(nullptr, 2, 7) == OPENXR_NO_SWAPCHAIN_FORMAT);

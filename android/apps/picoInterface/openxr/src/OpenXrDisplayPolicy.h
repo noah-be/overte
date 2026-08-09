@@ -10,6 +10,11 @@ inline bool isSupportedOpenXrViewCount(std::size_t count) {
     return count == OPENXR_STEREO_VIEW_COUNT;
 }
 
+inline bool isCompleteOpenXrStereoViewResult(
+        std::size_t capacity, std::size_t returnedCount) {
+    return isSupportedOpenXrViewCount(capacity) && returnedCount == capacity;
+}
+
 inline int64_t selectOpenXrSwapchainFormat(
         const int64_t* formats, std::size_t count, int64_t preferred) {
     if (formats == nullptr || count == 0) {
