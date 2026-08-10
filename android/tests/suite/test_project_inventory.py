@@ -88,6 +88,33 @@ class ProjectInventoryTest(unittest.TestCase):
                 inventory_validator.validate_sensitive_argument_logging(
                     "fixture", policy, Path(temporary))
 
+    def test_phone_build_cannot_compile_a_sibling_product_source(self):
+        sources = {
+            "CMakeLists.txt": (
+                'target_sources(phone PRIVATE '
+                '"${CMAKE_CURRENT_SOURCE_DIR}/../picoInterface/override.cpp")'
+            ),
+            "build.gradle": "plugins { id 'com.android.application' }",
+        }
+        with self.assertRaisesRegex(
+                ValueError, "directly references sibling product picoInterface"):
+            inventory_validator.validate_product_path_boundaries(
+                "phoneInterface", sources)
+
+    def test_phone_build_accepts_shared_android_sources(self):
+        sources = {
+            "CMakeLists.txt": (
+                'target_sources(phone PRIVATE '
+                '"${CMAKE_CURRENT_SOURCE_DIR}/../../shared/src/override.cpp")'
+            ),
+            "build.gradle": (
+                "def runtimeOverrides = "
+                "file('../../shared/runtime-overrides/arm64-v8a')"
+            ),
+        }
+        inventory_validator.validate_product_path_boundaries(
+            "phoneInterface", sources)
+
 
 if __name__ == "__main__":
     unittest.main()

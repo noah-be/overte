@@ -14,6 +14,7 @@ EXPECTED_MODULES = {
     "questFramePlayer", "qt", "oculus",
 }
 COMPONENT_TAGS = ("activity", "activity-alias", "service", "receiver", "provider")
+PRODUCT_BUILD_FILES = ("CMakeLists.txt", "build.gradle")
 
 
 def fail(message):
@@ -88,9 +89,34 @@ def validate_sensitive_argument_logging(name, policy, root):
             fail(f"{name} logs sensitive launch argument {identifier}")
 
 
+def validate_product_path_boundaries(product, sources):
+    """Reject build-time source ownership that crosses sibling products."""
+    forbidden_products = {
+        "phoneInterface": ("picoInterface", "questInterface"),
+    }
+    for sibling in forbidden_products.get(product, ()):
+        pattern = re.compile(
+            rf"(?:\.\.[/\\]|apps[/\\]){re.escape(sibling)}[/\\]"
+        )
+        for source_name, source in sources.items():
+            if pattern.search(source):
+                fail(
+                    f"{product} build file {source_name} directly references "
+                    f"sibling product {sibling}"
+                )
+
+
 def main(repository):
     root = Path(repository).resolve()
     inventory = json.loads((root / "android/tests/project-module-inventory.json").read_text())
+    phone_root = root / "android/apps/phoneInterface"
+    validate_product_path_boundaries(
+        "phoneInterface",
+        {
+            name: (phone_root / name).read_text(encoding="utf-8")
+            for name in PRODUCT_BUILD_FILES
+        },
+    )
     modules = inventory.get("modules")
     if not isinstance(modules, list):
         fail("module inventory requires a modules list")

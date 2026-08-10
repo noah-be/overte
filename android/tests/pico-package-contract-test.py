@@ -54,7 +54,7 @@ class PicoPackageContractTests(unittest.TestCase):
         self.assertIn("set(TARGET_NAME openxr)", PLUGIN_CMAKE)
         self.assertIn("setup_hifi_plugin(", PLUGIN_CMAKE)
         self.assertIn("libplugins_libopenxr.so", GRADLE)
-        self.assertIn("exclude { picoPatchedQtPlatform.exists() }", GRADLE)
+        self.assertIn("exclude { androidPatchedQtPlatform.exists() }", GRADLE)
         self.assertIn("delete picoQtRuntimeDir.map { it.file('arm64-v8a/libopenxr.so') }", GRADLE)
 
     def test_native_build_uses_pico_bootstrap_and_disables_breakpad(self):
@@ -62,6 +62,13 @@ class PicoPackageContractTests(unittest.TestCase):
         self.assertIn("-DCMAKE_PROJECT_INCLUDE_BEFORE=", GRADLE)
         self.assertIn("cmake-pico-bootstrap.cmake", GRADLE)
         self.assertIn("-DUSE_BREAKPAD=OFF", GRADLE)
+
+    def test_runtime_overrides_are_owned_by_shared_android(self):
+        build_script = (ANDROID / "build-pico.sh").read_text(encoding="utf-8")
+        self.assertIn("../../shared/runtime-overrides/arm64-v8a", GRADLE)
+        self.assertIn('shared/runtime-overrides/arm64-v8a', build_script)
+        self.assertIn('legacy_runtime_dir', build_script)
+        self.assertIn('cp -a "$legacy_runtime_dir/." "$shared_runtime_dir/"', build_script)
 
 
 if __name__ == "__main__":

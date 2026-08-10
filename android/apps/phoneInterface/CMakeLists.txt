@@ -37,7 +37,7 @@ get_target_property(PHONE_GL_SOURCES gl SOURCES)
 list(FILTER PHONE_GL_SOURCES EXCLUDE REGEX "OffscreenGLCanvas\\.cpp$")
 set_property(TARGET gl PROPERTY SOURCES "${PHONE_GL_SOURCES}")
 target_sources(gl PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/../picoInterface/overrides/OffscreenGLCanvas.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../shared/src/OffscreenGLCanvas.cpp"
 )
 target_include_directories(gl PRIVATE
     "${CMAKE_SOURCE_DIR}/libraries/gl/src/gl"
