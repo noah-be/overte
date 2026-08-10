@@ -1,6 +1,8 @@
 # Copyright 2026 Overte e.V.
 # SPDX-License-Identifier: Apache-2.0
 
+cmake_minimum_required(VERSION 3.24)
+
 set(CMAKE_SYSTEM_NAME iOS)
 include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/QtCompat.cmake")
 
