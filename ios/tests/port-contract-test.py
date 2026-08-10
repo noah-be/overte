@@ -102,6 +102,8 @@ def test_profiles() -> None:
 
     build_cli = IOS_ROOT / "build-ios.sh"
     require_text(build_cli, r'--profile:build="\$script_dir/conan/profiles/macos-arm64"', "dependency resolution must use the audited native build profile")
+    require_text(build_cli, r'readonly overte_conan_remote_url="https://artifactory\.overte\.org/artifactory/api/conan/overte"', "custom recipes must come from the canonical Overte Conan remote")
+    require_text(build_cli, r"conan remote (?:add|update) overte", "dependency resolution must configure the Overte Conan remote")
     assert "--profile:build=default" not in build_cli.read_text(encoding="utf-8"), \
         "dependency resolution must not rely on a mutable Conan default profile"
 

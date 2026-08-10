@@ -336,6 +336,10 @@ def main() -> None:
         )
         assert dependencies.returncode == 0, dependencies.stderr
         invocation = log.read_text(encoding="utf-8")
+        assert (
+            "conan <remote> <add> <overte> "
+            "<https://artifactory.overte.org/artifactory/api/conan/overte>"
+        ) in invocation
         assert "conan <install>" in invocation
         assert f"<--profile:build={IOS_ROOT}/conan/profiles/macos-arm64>" in invocation
         assert "sdk-simulator=<" + str(sdk) + ">" in invocation

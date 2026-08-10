@@ -7,6 +7,7 @@ set -euo pipefail
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly source_root="$(cd -- "$script_dir/.." && pwd)"
 readonly versions_file="$script_dir/versions.env"
+readonly overte_conan_remote_url="https://artifactory.overte.org/artifactory/api/conan/overte"
 
 fail() {
     printf 'error: %s\n' "$*" >&2
@@ -317,6 +318,11 @@ run_bootstrap() {
 resolve_dependencies() {
     run_doctor
     require_command conan
+    if conan remote list | grep -q '^overte:'; then
+        conan remote update overte --url "$overte_conan_remote_url"
+    else
+        conan remote add overte "$overte_conan_remote_url"
+    fi
     local sdk_path conan_output="$build_dir/conan"
     sdk_path="$(xcrun --sdk "$sdk_name" --show-sdk-path)"
     if [[ "$platform" == "simulator" ]]; then
