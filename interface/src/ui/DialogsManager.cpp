@@ -276,6 +276,7 @@ void DialogsManager::setAddressBarVisible(bool addressBarVisible) {
 }
 
 void DialogsManager::showDomainConnectionDialog() {
+#if !defined(Q_OS_IOS)
     // if the dialog already exists we delete it so the connection data is refreshed
     if (_domainConnectionDialog) {
         _domainConnectionDialog->close();
@@ -287,4 +288,5 @@ void DialogsManager::showDomainConnectionDialog() {
 
     _domainConnectionDialog->show();
     _domainConnectionDialog->raise();
+#endif
 }

@@ -10,6 +10,8 @@ LOG_DIALOG = (ROOT / "interface/src/ui/LogDialog.cpp").read_text()
 BASE_LOG_DIALOG = (ROOT / "interface/src/ui/BaseLogDialog.cpp").read_text()
 MENU = (ROOT / "interface/src/Menu.cpp").read_text()
 JS_CONSOLE = (ROOT / "interface/src/ui/StandAloneJSConsole.cpp").read_text()
+DIALOGS_MANAGER = (ROOT / "interface/src/ui/DialogsManager.cpp").read_text()
+DOMAIN_DIALOG = (ROOT / "interface/src/ui/DomainConnectionDialog.cpp").read_text()
 
 
 def require(condition: bool, message: str) -> None:
@@ -45,5 +47,12 @@ require("// Developer > Scripting > Console...\n#if !defined(Q_OS_IOS)" in MENU,
 require("new QDialog(mainWindow, Qt::WindowStaysOnTopHint)" in JS_CONSOLE and
         "dialog->resize(QSize(CONSOLE_WIDTH, CONSOLE_HEIGHT));" in JS_CONSOLE,
         "stand-alone JavaScript console is no longer demonstrably a desktop utility window")
+require("void DialogsManager::showDomainConnectionDialog() {\n#if !defined(Q_OS_IOS)" in DIALOGS_MANAGER,
+        "desktop Domain Connection table dialog remains reachable on iOS")
+require("QDialog(parent, Qt::Window | Qt::WindowCloseButtonHint)" in DOMAIN_DIALOG and
+        "timeTable->setMinimumSize(tableWidth, tableHeight);" in DOMAIN_DIALOG,
+        "Domain Connection dialog is no longer demonstrably a desktop utility window")
+require('tablet->pushOntoStack("hifi/dialogs/TabletDCDialog.qml");' in APPLICATION_UI,
+        "mobile-friendly Domain Connection timing surface changed")
 
 print("iOS window platform contract valid: desktop log/console windows preserved and mobile-excluded")

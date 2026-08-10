@@ -109,6 +109,9 @@ HMD-friendly/in-app script log remains available.
 The stand-alone JavaScript console follows that rule too: its fixed-size,
 always-on-top `QDialog` and desktop keyboard-shortcut menu action are omitted on
 iOS. Script execution and embedded debugging/logging services remain intact.
+The legacy QWidget `DomainConnectionDialog` fallback is also desktop-only. The
+iOS action uses the existing tablet timing surface when available and otherwise
+does not create a dynamically sized top-level table window.
 
 ## ADR-007: secret-free automation
 
