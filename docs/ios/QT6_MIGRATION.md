@@ -225,6 +225,13 @@ output assembly remain unchanged. Its UI license and warning-message callers
 therefore receive the same wrapping behavior. `StringHelpers.cpp` leaves the
 Core5Compat inventory.
 
+Command-line configuration keys are now scanned with an explicitly anchored
+`QRegularExpression`. Whole arguments must still consist of one or two leading
+dashes followed by the same word-or-dash key characters; map keys still come
+from capture group two. Initial lookup, next-key boundaries, `--config`
+skipping, switch values, and multi-token value joining are unchanged.
+`HifiConfigVariantMap.cpp` therefore leaves the Core5Compat inventory.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant

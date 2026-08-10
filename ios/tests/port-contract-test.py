@@ -742,6 +742,24 @@ def test_scope_contract() -> None:
     if "QRegExp" in string_helpers.read_text(encoding="utf-8"):
         raise AssertionError("StringHelpers retained removed QRegExp API")
 
+    config_variant_map = SOURCE_ROOT / "libraries" / "shared" / "src" / "HifiConfigVariantMap.cpp"
+    require_text(config_variant_map, r'#include <QtCore/QRegularExpression>', "CLI keys must use the Qt 6 regex API")
+    require_text(
+        config_variant_map,
+        r'QRegularExpression::anchoredPattern\(DASHED_KEY_REGEX_STRING\)',
+        "CLI key scanning must preserve whole-argument matching",
+    )
+    require_text(
+        config_variant_map,
+        r'dashedKeyRegex\.match\(argumentList\[keyIndex\]\)\.captured\(2\)',
+        "CLI map keys must still come from capture group two of the matched argument",
+    )
+    assert config_variant_map.read_text(encoding="utf-8").count("argumentList.indexOf(dashedKeyRegex") == 3, (
+        "CLI key scanning must retain initial, next-key, and post-config searches"
+    )
+    if "QRegExp" in config_variant_map.read_text(encoding="utf-8"):
+        raise AssertionError("HifiConfigVariantMap retained removed QRegExp API")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,
