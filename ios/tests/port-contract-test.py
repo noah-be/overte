@@ -760,6 +760,21 @@ def test_scope_contract() -> None:
     if "QRegExp" in config_variant_map.read_text(encoding="utf-8"):
         raise AssertionError("HifiConfigVariantMap retained removed QRegExp API")
 
+    anim_expression = SOURCE_ROOT / "libraries" / "animation" / "src" / "AnimExpression.cpp"
+    anim_expression_text = anim_expression.read_text(encoding="utf-8")
+    assert "QRegExp" not in anim_expression_text, (
+        "the animation expression parser must not retain an unused Core5Compat include"
+    )
+    assert "parseExpr(_expression, iter);" in anim_expression_text, (
+        "removing the unused regex include must preserve expression parsing"
+    )
+    assert "if (iter->isSpace())" in anim_expression_text and "else if (iter->isLetter())" in anim_expression_text, (
+        "the animation expression tokenizer must remain the production character-driven implementation"
+    )
+    assert "AnimExpression::OpCode AnimExpression::evaluate" in anim_expression_text, (
+        "removing the unused regex include must preserve expression evaluation"
+    )
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,

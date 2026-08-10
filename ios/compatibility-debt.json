@@ -40,7 +40,6 @@
         "interface/src/ui/BaseLogDialog.cpp",
         "interface/src/ui/JSConsole.cpp",
         "interface/src/ui/ModelsBrowser.cpp",
-        "libraries/animation/src/AnimExpression.cpp",
         "libraries/script-engine/src/ScriptManager.cpp",
         "libraries/shared/src/ApplicationVersion.cpp",
         "libraries/shared/src/GPUIdent.cpp",

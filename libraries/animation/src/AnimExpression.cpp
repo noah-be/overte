@@ -10,8 +10,6 @@
 
 #include "AnimExpression.h"
 
-#include <QRegExp>
-
 #include <StreamUtils.h>
 
 #include "AnimationLogging.h"

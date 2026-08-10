@@ -232,6 +232,12 @@ from capture group two. Initial lookup, next-key boundaries, `--config`
 skipping, switch values, and multi-token value joining are unchanged.
 `HifiConfigVariantMap.cpp` therefore leaves the Core5Compat inventory.
 
+`AnimExpression.cpp` no longer includes the removed `QRegExp` header. The
+animation expression implementation never used regular expressions: its
+tokenizer remains character-driven, and parsing plus opcode evaluation are
+unchanged. This removes an unnecessary Core5Compat compile dependency without
+altering animation graph expressions.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant
