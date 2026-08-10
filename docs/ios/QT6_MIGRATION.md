@@ -160,6 +160,13 @@ digits, hyphen, and underscore with `_`. Vertex, normal, part, topology, and
 index serialization are unchanged. This removes `OBJWriter.cpp` from the
 Core5Compat debt inventory without broadening accepted OBJ identifiers.
 
+The entity hyperlink tooltip's place-name gate now uses an explicitly anchored
+`QRegularExpression`. The legacy expression was already bounded with `^` and
+`$`; wrapping it with `anchoredPattern` makes the former `QRegExp::indexIn`
+whole-string intent explicit before `match().hasMatch()`. Valid place previews,
+rejected punctuation/underscore cases, and the subsequent account request are
+unchanged. `Tooltip.cpp` therefore leaves the Core5Compat inventory.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant

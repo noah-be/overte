@@ -639,6 +639,13 @@ def test_scope_contract() -> None:
     if "QRegExp" in obj_writer.read_text(encoding="utf-8"):
         raise AssertionError("OBJWriter retained removed QRegExp API")
 
+    tooltip = SOURCE_ROOT / "libraries" / "ui" / "src" / "Tooltip.cpp"
+    require_text(tooltip, r'#include <QtCore/QRegularExpression>', "place-name previews must use the Qt 6 regex API")
+    require_text(tooltip, r"QRegularExpression::anchoredPattern\(PLACE_NAME_REGEX_STRING\)", "place-name matching must remain exact")
+    require_text(tooltip, r"placeNameRegex\.match\(_title\)\.hasMatch\(\)", "place-name previews must retain their match gate")
+    if "QRegExp" in tooltip.read_text(encoding="utf-8"):
+        raise AssertionError("Tooltip retained removed QRegExp API")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,
