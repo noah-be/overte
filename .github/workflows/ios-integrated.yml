@@ -35,7 +35,8 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 45
     env:
-      OVERTE_IOS_QT_ROOT: ${{ github.workspace }}/build-ios/external/qt-ios
+      OVERTE_IOS_QT_ROOT: ${{ github.workspace }}/build-ios/external/qt/ios
+      OVERTE_IOS_QT_HOST_ROOT: ${{ github.workspace }}/build-ios/external/qt/macos
     steps:
       - name: Check out requested revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
@@ -55,15 +56,14 @@ jobs:
         id: qt-cache
         uses: actions/cache/restore@v5
         with:
-          path: build-ios/external/qt-ios
+          path: build-ios/external/qt
           key: ${{ inputs.qt_cache_key }}
           fail-on-cache-miss: true
 
       - name: Toolchain preflight
         run: |
           test "${{ steps.qt-cache.outputs.cache-hit }}" = true
-          test -f "$OVERTE_IOS_QT_ROOT/lib/cmake/Qt6/Qt6Config.cmake"
-          test -x "$OVERTE_IOS_QT_ROOT/bin/qt-cmake"
+          ios/tools/prepare-qt-ios.sh validate
           ios/build-ios.sh doctor --platform device --require-qt
 
       - name: Bootstrap pinned Conan tooling
