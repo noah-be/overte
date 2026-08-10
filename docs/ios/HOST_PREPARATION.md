@@ -28,8 +28,9 @@ physical hardware. The authoritative gate inventory is
 - explicit MoltenVK and non-JIT V8 package boundaries;
 - PrivacyInfo, entitlements, bundle metadata and arm64 requirements;
 - host-testable bundle and device-result validators;
-- independent Linux CI contracts plus unsigned macOS simulator CI with failure
-  screenshots and console logs; and
+- independent Linux CI contracts, unsigned macOS simulator CI with failure
+  screenshots and console logs, and an unsigned arm64 physical-device SDK
+  compile gate; and
 - signing, privacy, rendering and device acceptance handoff gates.
 
 The extended pass also adds a regression-checked full-client compatibility-debt

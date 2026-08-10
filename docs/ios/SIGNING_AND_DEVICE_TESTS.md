@@ -9,6 +9,12 @@ Simulator builds are unsigned and need no Apple credentials. Physical-device
 work is intentionally separate so pull-request code cannot access a developer
 keychain or provisioning profile.
 
+The `unsigned-device-sdk` CI job already compiles and inspects an `iphoneos`
+bundle without Apple credentials. This catches SDK-only compiler, linker, plist,
+architecture, and forbidden-dependency failures, but its app cannot be installed
+on an iPad. Signing remains the boundary between autonomous cloud preparation
+and a real-device test.
+
 ## External inputs
 
 A device build needs:
@@ -63,3 +69,5 @@ The validator requires the exact case order, immutable source and bundle
 digests, evidence for every pass or failure, an explanation for every blocked
 case, and repository-relative evidence paths. This prevents a partial or mixed
 build run from being mistaken for device acceptance.
+
+For an iPad-only, no-Mac workflow, continue with `IPAD_REMOTE_TESTING.md`.

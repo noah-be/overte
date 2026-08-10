@@ -101,3 +101,26 @@ jobs:
             build-ios/artifacts/OverteIOSBootstrap-Debug-simulator.json
           if-no-files-found: error
           retention-days: 7
+
+  unsigned-device-sdk:
+    needs: host-contracts
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - name: Check out requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Verify device SDK environment
+        run: ios/build-ios.sh doctor --platform device
+
+      - name: Compile unsigned arm64 device app
+        run: ios/build-ios.sh build --platform device --configuration Debug
+
+      - name: Verify unsigned device app bundle
+        run: |
+          ios/ci/verify-app.sh \
+            build-ios/device/ios/Debug-iphoneos/OverteIOSBootstrap.app \
+            org.overte.interface.dev \
+            iphoneos

@@ -331,6 +331,9 @@ def test_ci_contract() -> None:
     require_text(workflow, r"persist-credentials: false", "checkout credentials must not persist")
     require_text(workflow, r"simulator-smoke\.sh", "CI must launch both form factors")
     require_text(workflow, r"verify-app\.sh", "CI must inspect the produced bundle")
+    require_text(workflow, r"unsigned-device-sdk:", "CI must compile against the physical-device SDK")
+    require_text(workflow, r"build --platform device", "device SDK CI must build the arm64 device target")
+    require_text(workflow, r"org\.overte\.interface\.dev\s+\\\s+iphoneos", "device SDK CI must verify its platform metadata")
 
     verifier = IOS_ROOT / "ci" / "verify-app.sh"
     require_text(verifier, r'lipo "\$executable" -verify_arch arm64', "bundle verification must enforce arm64")
