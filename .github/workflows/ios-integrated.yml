@@ -7,6 +7,12 @@ on:
         description: Existing GitHub Actions cache key containing an audited Qt 6 iOS tree
         required: true
         type: string
+  workflow_call:
+    inputs:
+      qt_cache_key:
+        description: Existing GitHub Actions cache key containing an audited Qt 6 iOS tree
+        required: true
+        type: string
 
 permissions:
   contents: read

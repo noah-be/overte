@@ -41,6 +41,13 @@ jobs:
     if: github.event_name == 'push' && contains(github.event.head_commit.message, '[qt-source]')
     uses: ./.github/workflows/ios-qt-source.yml
 
+  integrated-ios-after-qt:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[qt-source]')
+    needs: provision-qt-ios
+    uses: ./.github/workflows/ios-integrated.yml
+    with:
+      qt_cache_key: ${{ needs.provision-qt-ios.outputs.qt_cache_key }}
+
   host-contracts:
     runs-on: ubuntu-24.04
     timeout-minutes: 5

@@ -296,6 +296,14 @@ def test_cmake_boundary() -> None:
         r"!defined\(Q_OS_ANDROID\) && !defined\(Q_OS_IOS\)",
         "Qt WebEngine request filters must be excluded from iOS",
     )
+    for asset_source in (
+        SOURCE_ROOT / "libraries" / "networking" / "src" / "AssetResourceRequest.cpp",
+        SOURCE_ROOT / "libraries" / "networking" / "src" / "AssetUtils.cpp",
+    ):
+        require_text(asset_source, r"QRegularExpression", "ATP validation must use the Qt 6 regular-expression API")
+        require_text(asset_source, r"QRegularExpression::anchoredPattern", "ATP validation must preserve exact-match semantics")
+        if "QRegExp" in asset_source.read_text(encoding="utf-8"):
+            raise AssertionError(f"ATP validation retained removed QRegExp API: {asset_source}")
     render_utils = SOURCE_ROOT / "libraries" / "render-utils" / "CMakeLists.txt"
     require_text(
         render_utils,
@@ -375,6 +383,7 @@ def test_ci_contract() -> None:
     integrated = SOURCE_ROOT / ".github" / "workflows" / "ios-integrated.yml"
     integrated_text = integrated.read_text(encoding="utf-8")
     require_text(integrated, r"^\s*workflow_dispatch:", "integrated CI must be manually dispatched")
+    require_text(integrated, r"^\s*workflow_call:", "integrated CI must be callable after Qt provisioning")
     if re.search(r"^\s*(push|pull_request|schedule):", integrated_text, re.MULTILINE):
         raise AssertionError("experimental integrated CI must not run automatically")
     require_text(integrated, r"qt_cache_key:", "integrated CI must require an explicit Qt cache")
@@ -394,6 +403,9 @@ def test_ci_contract() -> None:
     qt_source_text = qt_source.read_text(encoding="utf-8")
     require_text(qt_source, r"^\s*workflow_dispatch:", "Qt source provisioning must be manually dispatched")
     require_text(qt_source, r"^\s*workflow_call:", "Qt source provisioning must be reusable from the branch workflow")
+    require_text(qt_source, r"outputs:\s+qt_cache_key:", "Qt provisioning must expose its deterministic cache key")
+    require_text(qt_source, r"value:.*jobs\.qt-ios-source\.outputs\.qt_cache_key", "reusable Qt output must come from the successful provision job")
+    require_text(qt_source, r"qt_cache_key:.*steps\.cache-key\.outputs\.value", "Qt job output must use the deterministic key step")
     if re.search(r"^\s*(push|pull_request|schedule):", qt_source_text, re.MULTILINE):
         raise AssertionError("expensive Qt source provisioning must not run automatically")
     require_text(qt_source, r"runs-on: macos-26", "Qt iOS must be built on the Xcode runner")
@@ -404,6 +416,9 @@ def test_ci_contract() -> None:
             raise AssertionError(f"Qt source workflow contains forbidden acquisition behavior: {forbidden}")
     require_text(workflow, r"contains\(github\.event\.head_commit\.message, '\[qt-source\]'\)", "branch CI must require an explicit Qt source opt-in")
     require_text(workflow, r"uses: \./\.github/workflows/ios-qt-source\.yml", "branch CI must call the audited Qt provisioner")
+    require_text(workflow, r"needs: provision-qt-ios", "integrated configure must wait for successful Qt provisioning")
+    require_text(workflow, r"uses: \./\.github/workflows/ios-integrated\.yml", "opt-in branch CI must call the integrated configure gate")
+    require_text(workflow, r"qt_cache_key:.*needs\.provision-qt-ios\.outputs\.qt_cache_key", "the provisioned cache key must feed the integrated gate")
     require_text(verifier, r"default\.metallib", "bundle verification must require compiled Metal shaders")
 
     ios_cmake = IOS_ROOT / "CMakeLists.txt"

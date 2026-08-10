@@ -6,6 +6,10 @@ name: Provision Qt iOS source cache
 on:
   workflow_dispatch:
   workflow_call:
+    outputs:
+      qt_cache_key:
+        description: Deterministic cache key containing the validated Qt macOS and iOS trees
+        value: ${{ jobs.qt-ios-source.outputs.qt_cache_key }}
 
 permissions:
   contents: read
@@ -14,6 +18,8 @@ jobs:
   qt-ios-source:
     runs-on: macos-26
     timeout-minutes: 360
+    outputs:
+      qt_cache_key: ${{ steps.cache-key.outputs.value }}
     env:
       QT_WORK_ROOT: ${{ github.workspace }}/build-ios/qt-work
       QT_INSTALL_ROOT: ${{ github.workspace }}/build-ios/qt-install/qt
