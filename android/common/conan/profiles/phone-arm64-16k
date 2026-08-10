@@ -26,7 +26,7 @@ hwloc/*:shared=True
 [conf]
 tools.android:ndk_path={{ android_ndk }}
 tools.cmake.cmaketoolchain:generator=Ninja
-tools.build:jobs=16
+tools.build:jobs=4
 tools.build:cflags=["-D__BIONIC_NO_PAGE_SIZE_MACRO"]
 tools.build:cxxflags=["-D__BIONIC_NO_PAGE_SIZE_MACRO"]
 tools.build:sharedlinkflags=["-Wl,-z,max-page-size=16384", "-Wl,-z,common-page-size=16384"]

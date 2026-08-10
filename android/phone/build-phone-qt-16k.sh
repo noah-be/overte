@@ -9,7 +9,7 @@ conan_home="${CONAN_HOME:-${HOME}/.conan2}"
 output_dir="$android_root/common/conan/phone-16k-debug"
 ready_sentinel="$android_root/common/conan/phone-nonqt-16k-debug/.phone-16k-dependencies.ready"
 profile="$android_root/common/conan/profiles/phone-arm64-16k"
-qt_reference='qt/5.15.18-2026.01.04@overte/stable#d59ba2a04fe9ede772b05b0bb0865eb0'
+qt_reference='qt/5.15.18-2026.01.04@overte/stable#4fc772a2dbcd84731eb6ff9904e6e358'
 perl_module_dir="$script_dir/pico-host-tools/perl"
 qt_page_patch="$android_root/common/conan/patches/qt-phone-16k-pages.patch"
 qt_recipe_patch="$android_root/common/conan/patches/qt-phone-serial-install.patch"
@@ -48,14 +48,23 @@ verify_alignment() {
 }
 
 cleanup_cache() {
+    local cleanup_status=0
     if (( patch_owned == 1 )); then
-        git -C "$qt_source_dir" apply --reverse "$qt_page_patch"
-        patch_owned=0
+        if git -C "$qt_source_dir" apply --reverse "$qt_page_patch"; then
+            patch_owned=0
+        else
+            cleanup_status=1
+        fi
     fi
     if (( recipe_patch_owned == 1 )); then
-        git -C "$qt_recipe_dir" apply --reverse "$qt_recipe_patch"
-        recipe_patch_owned=0
+        if patch --reverse --force --batch -p1 -d "$qt_recipe_dir" \
+                <"$qt_recipe_patch"; then
+            recipe_patch_owned=0
+        else
+            cleanup_status=1
+        fi
     fi
+    return "$cleanup_status"
 }
 
 main() {
@@ -90,12 +99,13 @@ main() {
     qt_recipe_dir="$($conan_path cache path "$qt_reference" 2>/dev/null || true)"
     [[ -f "$qt_recipe_dir/conanfile.py" ]] \
         || fail "the pinned Qt recipe is not in the local Conan cache"
-    if git -C "$qt_recipe_dir" apply --reverse --check "$qt_recipe_patch" >/dev/null 2>&1; then
+    if grep -Fq 'self.run(f"MAKEFLAGS= {self._make_program()} -j1 install")' \
+            "$qt_recipe_dir/conanfile.py"; then
         echo "Removing a serial-install patch left by an interrupted earlier run"
-        git -C "$qt_recipe_dir" apply --reverse "$qt_recipe_patch"
+        patch --reverse --force --batch -p1 -d "$qt_recipe_dir" <"$qt_recipe_patch"
     fi
-    git -C "$qt_recipe_dir" apply --check "$qt_recipe_patch"
-    git -C "$qt_recipe_dir" apply "$qt_recipe_patch"
+    patch --dry-run --batch -p1 -d "$qt_recipe_dir" <"$qt_recipe_patch"
+    patch --batch -p1 -d "$qt_recipe_dir" <"$qt_recipe_patch"
     recipe_patch_owned=1
     trap cleanup_cache EXIT
 

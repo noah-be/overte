@@ -5,8 +5,8 @@
 # build output or cached sources.
 
 readonly OVERTE_PHONE_MIN_SWAP_BYTES=32000000000
-readonly OVERTE_PHONE_MEMORY_MAX_PROPERTY='20000000000'
-readonly OVERTE_PHONE_MEMORY_MAX_BYTES=20000000000
+readonly OVERTE_PHONE_MEMORY_MAX_PROPERTY='16000000000'
+readonly OVERTE_PHONE_MEMORY_MAX_BYTES=16000000000
 readonly OVERTE_PHONE_RESOURCE_GUARD_MARKER='OVERTE_PHONE_RESOURCE_GUARD_ACTIVE'
 
 phone_build_resource_guard_fail() {
@@ -65,7 +65,7 @@ phone_build_verify_memory_cgroup() {
         || { phone_build_resource_guard_fail 'the build cgroup hierarchy has no finite memory limit'; return; }
     (( effective_max <= OVERTE_PHONE_MEMORY_MAX_BYTES )) \
         || phone_build_resource_guard_fail \
-            'the effective cgroup memory limit exceeds 20 GB decimal'
+            'the effective cgroup memory limit exceeds 16 GB decimal'
 }
 
 phone_build_resource_guard() {
@@ -83,7 +83,7 @@ phone_build_resource_guard() {
     [[ "$script_path" == /* ]] \
         || { phone_build_resource_guard_fail 'the guarded script path must be absolute'; return; }
 
-    echo 'Restarting build in a systemd user service (jobs=16, MemoryMax=20 GB decimal)'
+    echo 'Restarting build in a systemd user service (jobs=4, MemoryMax=16 GB decimal)'
     exec systemd-run --user --collect --wait --pipe --quiet --same-dir \
         --property="MemoryMax=${OVERTE_PHONE_MEMORY_MAX_PROPERTY}" \
         --setenv="PATH=${PATH}" \
