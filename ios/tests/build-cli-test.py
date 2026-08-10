@@ -190,6 +190,51 @@ def main() -> None:
         assert "<-DOVERTE_IOS_DEVELOPMENT_TEAM=ABCDE12345>" in invocation
         assert "<-DOVERTE_IOS_BUNDLE_IDENTIFIER=org.overte.interface.devtest>" in invocation
 
+        client_build = root / "client-build"
+        (client_build / "conan").mkdir(parents=True)
+        (client_build / "conan/conan_toolchain.cmake").touch()
+        log.write_text("", encoding="utf-8")
+        client_graph = run_cli(
+            environment,
+            "configure",
+            "--platform",
+            "device",
+            "--build-dir",
+            str(client_build),
+            "--client-graph",
+        )
+        assert client_graph.returncode == 0, client_graph.stderr
+        invocation = log.read_text(encoding="utf-8")
+        assert "<-DOVERTE_IOS_BOOTSTRAP_ONLY=OFF>" in invocation
+        assert f"<-DCMAKE_PREFIX_PATH={qt_root}>" in invocation
+        assert f"<-DCMAKE_TOOLCHAIN_FILE={client_build}/conan/conan_toolchain.cmake>" in invocation
+
+        missing_client_toolchain = run_cli(
+            environment,
+            "configure",
+            "--build-dir",
+            str(root / "missing-client-build"),
+            "--client-graph",
+        )
+        assert missing_client_toolchain.returncode == 1
+        assert "run deps first" in missing_client_toolchain.stderr
+
+        invalid_client_command = run_cli(environment, "build", "--client-graph")
+        assert invalid_client_command.returncode == 1
+        assert "only valid with the configure command" in invalid_client_command.stderr
+
+        log.write_text("", encoding="utf-8")
+        bootstrap_build = run_cli(
+            environment,
+            "build",
+            "--build-dir",
+            str(root / "bootstrap-build"),
+        )
+        assert bootstrap_build.returncode == 0, bootstrap_build.stderr
+        invocation = log.read_text(encoding="utf-8")
+        assert "<-DOVERTE_IOS_BOOTSTRAP_ONLY=ON>" in invocation
+        assert "<--target> <OverteIOSBootstrap>" in invocation
+
         log.write_text("", encoding="utf-8")
         dependencies = run_cli(
             environment,
