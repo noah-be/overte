@@ -697,6 +697,16 @@ def test_scope_contract() -> None:
     if "QRegExp" in snapshot.read_text(encoding="utf-8"):
         raise AssertionError("Snapshot retained removed QRegExp API")
 
+    update_dialog = SOURCE_ROOT / "interface" / "src" / "ui" / "UpdateDialog.cpp"
+    require_text(update_dialog, r'#include <QtCore/QRegularExpression>', "release notes must use the Qt 6 regex API")
+    require_text(
+        update_dialog,
+        r'releaseNotes\.remove\(QRegularExpression\(QStringLiteral\("\^\\n\+"\)\)\)',
+        "release notes must still remove only leading newline runs",
+    )
+    if "QRegExp" in update_dialog.read_text(encoding="utf-8"):
+        raise AssertionError("UpdateDialog retained removed QRegExp API")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,

@@ -41,7 +41,6 @@
         "interface/src/ui/BaseLogDialog.cpp",
         "interface/src/ui/JSConsole.cpp",
         "interface/src/ui/ModelsBrowser.cpp",
-        "interface/src/ui/UpdateDialog.cpp",
         "libraries/animation/src/AnimExpression.cpp",
         "libraries/script-engine/src/ScriptManager.cpp",
         "libraries/script-engine/src/ScriptsModel.cpp",

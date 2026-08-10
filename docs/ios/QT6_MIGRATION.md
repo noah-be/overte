@@ -200,6 +200,12 @@ replaced by `-`. Snapshot metadata, timestamps, image formats, paths, and
 upload behavior are unchanged. `Snapshot.cpp` therefore leaves the
 Core5Compat inventory.
 
+The update dialog now removes leading release-note newlines with
+`QRegularExpression`. The expression remains anchored at the beginning and
+matches only one or more LF characters; embedded line breaks, HTML break
+removal, version ordering, and release-note concatenation are unchanged.
+`UpdateDialog.cpp` therefore leaves the Core5Compat inventory.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant
