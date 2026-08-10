@@ -6,9 +6,33 @@
 >
 > **Detailed evidence:** [Android Phone and Pico 4 Status Report](ANDROID_PHONE_PICO4_STATUS_REPORT.md)
 
+> [!IMPORTANT]
+> This is a personal roadmap for an unofficial, AI-assisted fork. The maintainer is
+> currently a solo hobby developer, is not part of the official Overte development
+> team, and is not presenting Android Phone or Pico 4 as official Overte interfaces.
+> The upstream project has a no-AI policy; this fork exists so AI-assisted work stays
+> clearly separate. The goal here is not a perfect commercial product. It is to build
+> something useful and fun that works well enough for more people to experience
+> Overte on more devices.
+
+## 🎯 Project compass
+
+1. **Working beats perfect.** Prioritize joining a domain, moving, interacting,
+   communicating, and returning for another session.
+2. **One maintainer means one focus.** Reduce branch drift and maintenance burden
+   before expanding the feature surface.
+3. **Test what can hurt the experience.** Crashes, broken input, data loss, unusable
+   frame rate, overheating, and misleading controls matter more than process polish.
+4. **Parity means the same useful outcome, not the same Desktop UI.** A Phone or Pico
+   workflow may be smaller and platform-native.
+5. **Sharing is optional and incremental.** A sideloadable APK for interested testers
+   is already a meaningful success; stores and formal release automation can wait.
+6. **Upstream boundaries stay explicit.** Fork branding and documentation should
+   prevent users from mistaking these builds for officially supported Overte clients.
+
 ## 🧭 At a glance
 
-| Product area | Android Phone | Pico 4 | Release gate |
+| Product area | Android Phone | Pico 4 | Practical next proof |
 |---|---|---|---|
 | Core runtime | 🟡 Functional alpha | 🟡 Functional prototype | Representative hardware acceptance |
 | Build hardening | 🟢 Strong | 🟡 Good local evidence | Clean trusted-build execution |
@@ -16,15 +40,15 @@
 | Automated tests | 🟢 Broad device-free suite | 🟡 Good source-contract suite | Runtime/emulator coverage |
 | Performance | 🟡 30 FPS short-run evidence | 🔴 About 20 new FPS | Agreed sustained performance target |
 | Thermal stability | 🟡 Short run only | 🔴 Safety cutoff reached | 30–60 minute automatic-fan soak |
-| Release automation | 🔴 Blocked/inconsistent | 🟡 Designed, never completed | End-to-end candidate run |
-| Distribution | 🟡 F-Droid-first concept | 🔴 No channel approved | Signing, ownership, portal approval |
+| Build sharing | 🔴 Blocked/inconsistent | 🟡 Designed, never completed | Produce and sideload a known APK |
+| Distribution | 🟡 F-Droid-first idea | 🔴 Not selected | Optional later; direct APK is enough initially |
 
-### Current release verdict
+### Current usability verdict
 
 | Product | Verdict | Why |
 |---|---|---|
-| 📱 Android Phone | **No-go for public alpha** | Installable RC acceptance is broken; interactive device matrix is incomplete |
-| 🥽 Pico 4 | **No-go for release candidate** | Frame rate, thermal behavior, production UI, and release-chain blockers |
+| 📱 Android Phone | **Promising personal alpha** | Fix APK handoff, then test the core journey on a few real phones |
+| 🥽 Pico 4 | **Useful prototype** | Improve frame rate/thermal behavior and remove dangerous or irrelevant UI |
 
 ## Legend
 
@@ -33,11 +57,11 @@
 | 🟢 | Complete or strong evidence exists |
 | 🟡 | Partially complete; important validation remains |
 | 🔴 | Blocking defect or missing gate |
-| 🤖 | Can be completed autonomously without product input or physical hardware |
-| 👤 | Requires maintainer/product input or repository administration |
+| 🤖 | Can be completed by the solo maintainer with code, CI, or an emulator |
+| 👤 | Requires a personal scope choice or repository configuration |
 | 📱 | Requires physical Android phone hardware |
 | 🥽 | Requires physical Pico 4 hardware |
-| 🔐 | Requires signing, protected environments, or distribution ownership |
+| 🔐 | Optional publishing work: signing, protected environments, or a store |
 
 ## 🚦 Critical path
 
@@ -49,39 +73,40 @@ flowchart LR
     A1 --> A4["A4 🤖 Repair workflow code"]
     A2 --> A5["A5 🤖 Automated parity gates"]
     A3 --> A5
-    A4 --> B1["B1 👤🔐 Configure GitHub and signing"]
-    B0["B0 👤 Define product parity"] --> A3
-    B0 --> F1["F1 🤖 Implement approved optional features"]
+    A4 --> S1["S1 👤 Share a test APK"]
+    B0["B0 👤 Choose personal scope"] --> A3
+    B0 --> F1["F1 🤖 Add chosen optional features"]
     A5 --> H1["H1 📱 Phone acceptance"]
     A5 --> H2["H2 🥽 Pico correctness acceptance"]
     H2 --> H3["H3 🥽 Pico performance and thermal gate"]
-    B1 --> H1
-    B1 --> H2
-    H1 --> R1["R1 🔐 Signed Phone candidate"]
-    H3 --> R2["R2 🔐 Signed Pico candidate"]
+    S1 --> H1
+    S1 --> H2
+    H1 --> R1["R1 🔐 Optional Phone publishing"]
+    H3 --> R2["R2 🔐 Optional Pico publishing"]
     F1 --> H1
     F1 --> H2
 ```
 
-The critical rule is simple: **do not add major product features to both divergent
-branches. Converge first, then implement against one shared mobile baseline.**
+The critical rule is simple: **avoid maintaining the same major feature twice.
+Converge first, then build the fun parts against one shared mobile baseline.**
 
 ## 🔥 P0 — Do next
 
-These actions should start before new Phone or Pico feature work.
+These are the highest-value next actions for one maintainer. They are ordered to
+produce a usable result early, not to satisfy a formal release process.
 
 | Order | Action | Mode | Exit condition |
 |---:|---|---|---|
 | 1 | Preserve the two local-only Pico coverage commits | 🤖 | No local test work can be lost during branch synchronization |
-| 2 | Freeze feature work on the two divergent branches | 👤 | New work targets the integration branch only |
+| 2 | Choose one integration branch for all new work | 👤 | The old feature branches become reference points |
 | 3 | Create a shared integration baseline from current Pico | 🤖 | Both products are represented in one branch |
 | 4 | Resolve shared Interface/audio/settings/build ownership | 🤖 | Both device-free suites pass from the same tree |
-| 5 | Repair Phone tag dispatch and artifact handoff | 🤖 + 👤 | Workflow code is valid and environment permits protected tags |
+| 5 | Repair Phone artifact naming/signing/install handoff | 🤖 | A locally or CI-built APK can actually be installed |
 | 6 | Disable Pico production developer/crash actions | 🤖 | Actions are not constructible or triggerable in production |
 | 7 | Replace Pico's timestamp/path asset extraction | 🤖 | Both clients use one safe content-addressed contract |
-| 8 | Agree Phone/Pico parity and performance targets | 👤 | Must-have, optional, and non-goal lists are approved |
-| 9 | Execute representative hardware correctness gates | 📱 + 🥽 | Core flows pass on the required device matrix |
-| 10 | Resolve Pico frame-rate and thermal blockers | 🤖 + 🥽 | Sustained hardware targets pass |
+| 8 | Pick the next personally valuable Phone/Pico outcomes | 👤 | A short Now / Later / Maybe list prevents scope drift |
+| 9 | Try the core journey on available and volunteer hardware | 📱 + 🥽 | Major blockers are recorded with simple reproduction steps |
+| 10 | Improve Pico frame rate and thermal behavior iteratively | 🤖 + 🥽 | Sessions are comfortable and stable enough to enjoy |
 
 ## Workstreams
 
@@ -89,18 +114,18 @@ These actions should start before new Phone or Pico feature work.
 |---|---|---|
 | 🌿 Convergence | One authoritative mobile code line | A0, A1 |
 | 🧱 Platform architecture | Shared safe Android foundations | A2 |
-| 🎛️ Product UI | Only meaningful and safe controls are exposed | A3, B0 |
-| 🧪 Quality | Automated contracts plus honest hardware gates | A5, H1, H2, H3 |
-| ⚙️ CI/CD | Reproducible, installable, signed candidates | A4, B1, R1, R2 |
+| 🎛️ Device UI | Only meaningful and safe controls are exposed | A3, B0 |
+| 🧪 Quality | Cheap automated checks plus focused device sessions | A5, H1, H2, H3 |
+| ⚙️ Builds | Repeatable, installable APKs; publishing is optional | A4, S1, R1, R2 |
 | 📦 Footprint | Smaller packages and review surface | A6 |
-| ✨ Feature parity | Approved platform-appropriate features | F1 |
+| ✨ Useful parity | Chosen platform-appropriate outcomes | F1 |
 
 ---
 
 ## Autonomous milestones
 
 The milestones in this section can be completed without physical hardware or a new
-product decision. Builds and host/emulator tests are part of their definition of
+scope choice. Builds and host/emulator tests are part of their definition of
 done where the existing toolchain is available.
 
 ### A0 🤖 — Preserve and baseline
@@ -118,8 +143,8 @@ done where the existing toolchain is available.
 
 #### Exit gate
 
-> All unique work is recoverable, source ownership is explicit, and no developer
-> needs to commit new product work to either old feature branch.
+> All unique work is recoverable, source ownership is explicit, and the maintainer
+> no longer needs to commit new work to either old feature branch.
 
 ### A1 🤖 — Converge into one mobile integration branch
 
@@ -299,26 +324,27 @@ silently returning.
 
 ---
 
-## Input, administration, and hardware milestones
+## Personal choices and hardware milestones
 
-These milestones cannot be completed autonomously because they require a product
-decision, privileged repository configuration, signing authority, or physical
-hardware.
+These milestones need either a quick choice by the maintainer or time with real
+hardware. They are not external approvals. Choose the smallest scope that sounds
+fun and useful now; everything else can remain in Later or Maybe.
 
-### B0 👤 — Approve the platform product contracts
+### B0 👤 — Choose the next useful outcomes
 
-**Decisions required from maintainers/product owners:**
+This is a personal scope exercise, not a permanent product contract. Revisit it
+whenever priorities or available hardware change.
 
 #### Android Phone
 
 - [ ] Explore/social client only, or creator client as well?
-- [ ] Is touch-owned Create a release requirement?
+- [ ] Would touch-owned Create add more value now than polishing Explore/social use?
 - [ ] Is portrait orientation required?
 - [ ] Is the sustained target 30 FPS, 60 FPS, or device-tiered?
 - [ ] Are snapshots required, and which Android storage flow should own them?
 - [ ] May More/Community download or install third-party scripts?
 - [ ] Is an external avatar marketplace allowed?
-- [ ] Which crash reporting, telemetry, and privacy policy is approved?
+- [ ] Keep diagnostics local, or deliberately opt into a privacy-respecting crash flow?
 - [ ] F-Droid, Play, direct download, or multiple channels?
 
 #### Pico 4
@@ -327,46 +353,48 @@ hardware.
 - [ ] Which sustained temperature and battery limits are acceptable?
 - [ ] Is WebChannel/EventBridge required for release?
 - [ ] Which origins may call native/entity APIs?
-- [ ] Which external controllers and trackers are officially supported?
+- [ ] Which external controllers or trackers are worth personal experiment time?
 - [ ] Are mirror, secondary camera, and full Create import mandatory?
 - [ ] Consumer Store, Business Store, direct APK, or multiple channels?
 
 #### Exit gate
 
-> Each product has an approved **Must have / Optional / Non-goal** list and explicit
-> performance, privacy, and distribution criteria.
+> Each client has a one-page **Now / Later / Maybe / Not planned** list. “Now” stays
+> small enough for one person to finish and test.
 
-### B1 👤🔐 — Configure repository and release authority
+### S1 👤 — Make builds easy to share with testers
 
-#### GitHub administration
+This is intentionally lightweight. It is enough to hand a known APK to a willing
+tester and understand which source produced it.
 
-- [ ] Protect Phone and Pico integration/release branches.
-- [ ] Protect immutable Phone and Pico release tag patterns.
-- [ ] Configure required checks and independent review.
-- [ ] Configure `android-phone-release-candidate` for protected Phone tags.
-- [ ] Configure Phone emulator/signed-artifact acceptance environments.
-- [ ] Configure Pico release and device-acceptance environments.
-- [ ] Isolate trusted build, release, and hardware runner groups.
-- [ ] Prevent mutable/untrusted code from reaching privileged runners.
+- [ ] Produce clearly named Phone and Pico APKs from a recorded commit.
+- [ ] Document the Android version, ABI, install command, and known limitations.
+- [ ] Include “unofficial fork” and “not supported by the Overte team” in the build
+  description and About/help surface where practical.
+- [ ] Keep a tiny feedback template: device, OS, build SHA, steps, expected, actual.
+- [ ] Never put signing keys or device credentials into the repository.
+- [ ] Prefer local/debug or disposable test signing until a real distribution channel
+  is worth the maintenance cost.
 
-#### Signing and version authority
+#### Optional automation
 
-- [ ] Assign Phone distribution/signing ownership.
-- [ ] Assign Pico keystore ownership and recovery custodians.
-- [ ] Record certificate fingerprints.
-- [ ] Configure the Phone published-version floor.
-- [ ] Define package-name ownership and cross-channel update policy.
+- [ ] Upload CI artifacts when this saves time compared with local builds.
+- [ ] Add checksums and a short changelog for externally shared APKs.
+- [ ] Use immutable tags only when calling a build a versioned public release.
 
 #### Exit gate
 
-> Trusted workflows can run only from approved refs, signing material has named
-> ownership and recovery, and no general-purpose runner can access devices or keys.
+> Another person can install the intended APK, identify its exact source revision,
+> understand that it is unofficial, and return a useful bug report.
 
 ### H1 📱 — Android Phone hardware acceptance
 
-#### Required matrix
+#### Suggested coverage over time
 
-| Dimension | Minimum coverage |
+Do not buy a device matrix just to satisfy this table. Start with available hardware,
+then use volunteer reports to broaden coverage when possible.
+
+| Dimension | Useful eventual coverage |
 |---|---|
 | GPU | One Adreno and one Mali device |
 | Android | One API 26–29 and one API 30+ device |
@@ -374,7 +402,7 @@ hardware.
 | Network | Wi-Fi, mobile data, transition, loss, and reconnect |
 | Session | Cold start, background/foreground, process recreation, 30–60 minute soak |
 
-#### Required journeys
+#### Core journeys
 
 - [ ] Clean install and cold launch.
 - [ ] Microphone allow and deny.
@@ -392,8 +420,9 @@ hardware.
 
 #### Exit gate
 
-> No reproducible critical UI, lifecycle, audio, networking, or rendering defect;
-> agreed performance and thermal targets pass on both GPU families.
+> The core journey is enjoyable on available hardware, with no known critical UI,
+> lifecycle, audio, networking, or rendering defect. Cross-GPU evidence is a bonus
+> gained through volunteer testing, not a prerequisite for continued development.
 
 ### H2 🥽 — Pico correctness acceptance
 
@@ -439,7 +468,8 @@ hardware.
 
 ### H3 🥽 — Pico performance and thermal gate
 
-**This milestone is a release blocker.**
+**This is the highest-value Pico quality milestone:** poor frame pacing or thermal
+cutoffs directly prevent enjoyable sessions, even for a personal build.
 
 #### Test scenes
 
@@ -476,58 +506,65 @@ flowchart LR
 
 #### Exit gate
 
-> The approved native-frame or reprojection target is sustained for 30–60 minutes,
+> The personally chosen native-frame or reprojection target is sustained for 30–60 minutes,
 > interaction latency is acceptable, and no thermal safety cutoff or progressive
 > throttling occurs under automatic fan control.
 
-### R1 🔐📱 — Signed Android Phone candidate
+### R1 🔐📱 — Optional Android Phone publishing
+
+Skip this milestone until direct test APKs are useful and maintaining a public
+distribution channel sounds worthwhile.
 
 #### Deliverables
 
 - [ ] All autonomous milestones complete.
-- [ ] B0 and B1 decisions/configuration complete.
+- [ ] B0 scope chosen and S1 sharing flow proven.
 - [ ] H1 hardware acceptance complete.
 - [ ] Immutable release tag and monotonic version code.
 - [ ] Store-neutral reproducibility candidate generated.
-- [ ] Actual channel artifact signed by the approved authority.
+- [ ] Actual channel artifact signed with a securely retained key.
 - [ ] Exact signed artifact passes package, 16 KiB, digest, signer, and device gates.
 - [ ] F-Droid recipe or other selected distribution flow reviewed.
-- [ ] Rollback/fix-forward and key-recovery procedure approved.
+- [ ] A simple rollback/fix-forward and key-backup procedure exists.
 
 #### Exit gate
 
 > The exact bytes intended for users are signed, traceable to the reviewed source,
-> hardware-accepted, and owned by an approved distribution process.
+> hardware-tested, clearly unofficial, and distributed through a deliberately chosen
+> channel that remains manageable for one maintainer.
 
-### R2 🔐🥽 — Signed Pico 4 candidate
+### R2 🔐🥽 — Optional Pico 4 publishing
+
+Skip this milestone until sideloaded builds are stable enough that store or wider
+distribution would genuinely help users.
 
 #### Deliverables
 
 - [ ] All autonomous milestones complete.
-- [ ] B0 and B1 decisions/configuration complete.
+- [ ] B0 scope chosen and S1 sharing flow proven.
 - [ ] H2 and H3 hardware gates complete.
 - [ ] Trusted build succeeds from a clean checkout.
 - [ ] Signed RC workflow succeeds from an immutable tag.
 - [ ] Draft release metadata, SBOM, checksums, and provenance reviewed.
 - [ ] Exact signed APK passes protected device acceptance.
 - [ ] PICO portal confirms package ownership and current APK-size limit.
-- [ ] Regions, OS versions, controller declarations, permissions, UGC, age rating,
-  privacy, licenses, and store-signing behavior are approved.
+- [ ] If using a store, its regions, OS versions, controller declarations,
+  permissions, UGC, age rating, privacy, licenses, and signing rules are understood.
 
 #### Exit gate
 
-> A signed Pico artifact is reproducible, hardware-accepted, portal-compatible, and
-> explicitly approved by the release owner. Draft creation alone is not release
-> approval.
+> A signed Pico artifact is reproducible, hardware-tested, clearly unofficial, and
+> compatible with the chosen distribution path. A direct sideload remains a valid
+> endpoint for this hobby project.
 
 ---
 
 ## Optional feature milestone
 
-### F1 🤖 after B0 — Implement approved platform parity
+### F1 🤖 after B0 — Implement chosen useful parity
 
-This milestone begins only after product scope is approved. Individual code changes
-can then be implemented autonomously, while final acceptance remains part of H1/H2.
+Start an item only after choosing it for “Now.” Useful outcomes matter more than
+matching every Desktop feature, while final confidence still comes from H1/H2.
 
 #### Candidate Phone features
 
@@ -550,23 +587,23 @@ can then be implemented autonomously, while final acceptance remains part of H1/
 
 #### Exit gate
 
-> Every approved feature has a platform-owned UX, explicit security boundary,
+> Every chosen feature has a platform-owned UX, explicit security boundary,
 > automated contracts, and the appropriate Phone or Pico hardware acceptance.
 
 ## Suggested execution waves
 
 | Wave | Milestones | Outcome |
 |---|---|---|
-| 0 — Stabilize | A0, B0 kickoff | Work preserved; scope questions visible |
+| 0 — Stabilize | A0, B0 kickoff | Work preserved; a small personal scope is visible |
 | 1 — Converge | A1 | One mobile source line |
 | 2 — Harden | A2, A3, A4 | Safe shared core, clean UI, coherent workflows |
-| 3 — Prove | A5, A6, B1 | Automated gates, smaller packages, configured CI |
+| 3 — Prove | A5, A6, S1 | Automated checks, smaller packages, shareable APKs |
 | 4 — Validate | H1, H2 | Phone and Pico correctness evidence |
-| 5 — Optimize | H3 | Pico performance and thermal release gate |
-| 6 — Complete scope | F1 where approved | Platform-appropriate parity |
-| 7 — Release | R1, R2 | Signed, traceable, accepted candidates |
+| 5 — Optimize | H3 | Pico becomes comfortable enough for longer sessions |
+| 6 — Add value | F1 where chosen | Platform-appropriate useful parity |
+| 7 — Publish, optionally | R1, R2 | Signed and traceable public builds if worthwhile |
 
-## Release gate dashboard
+## Progress dashboard
 
 ### Shared gates
 
@@ -585,7 +622,7 @@ can then be implemented autonomously, while final acceptance remains part of H1/
 - [ ] Signed-channel artifact acceptance passing.
 - [ ] Adreno and Mali hardware matrix passing.
 - [ ] 30–60 minute interactive soak passing.
-- [ ] Distribution channel and signing owner approved.
+- [ ] A shareable APK and installation notes exist.
 
 ### Pico 4 gates
 
@@ -595,11 +632,30 @@ can then be implemented autonomously, while final acceptance remains part of H1/
 - [ ] Both-hand/tracking-loss/Create/Web/audio correctness passing.
 - [ ] Sustained performance target passing.
 - [ ] Automatic-fan thermal soak passing.
-- [ ] PICO portal and package ownership approved.
+- [ ] A shareable APK and installation notes exist.
 
-## Definition of release-ready
+## Three sensible finish lines
 
-A client is release-ready only when all of the following are true:
+This project does not need one heavyweight definition of done. Use the finish line
+that matches the current goal:
+
+### 1. Works for me
+
+- The core journey works on the maintainer's available hardware.
+- No known crash, dangerous control, overheating loop, or data-loss issue blocks a
+  normal session.
+- Known limitations are written down.
+
+### 2. Shareable community build
+
+- Another person can install a revision-identifiable APK and complete the core
+  journey.
+- The build is clearly labeled as an unofficial fork with no official Overte support.
+- Feedback is reproducible enough to guide the next hobby session.
+
+### 3. Distribution-ready, only if desired
+
+If wider publishing becomes worthwhile, then apply the stricter checks below:
 
 1. **Source:** The exact source is immutable, reviewed, and built from the shared
    integration line.
@@ -612,8 +668,9 @@ A client is release-ready only when all of the following are true:
 5. **Performance:** Sustained hardware targets pass without unacceptable latency,
    thermal cutoff, or battery behavior.
 6. **Artifact:** The exact signed bytes intended for users pass final acceptance.
-7. **Operations:** Signing ownership, rollback/fix-forward, recovery, support,
-   privacy, and distribution approval are documented.
+7. **Operations:** Signing, rollback/fix-forward, key recovery, privacy, and the
+   chosen distribution process are documented at a maintainable level.
 
-Until all seven conditions are met, a green device-free CI run should be treated as
-engineering evidence—not as release approval.
+A green device-free CI run is useful evidence, not a substitute for trying the build.
+Conversely, a fun and stable sideloaded build can be a success without satisfying
+store-grade process requirements.

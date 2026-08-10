@@ -8,6 +8,14 @@
 >
 > **Companion document:** [Android Phone and Pico 4 Roadmap](ANDROID_PHONE_PICO4_ROADMAP.md)
 
+> [!NOTE]
+> This report assesses an unofficial, personal, AI-assisted fork maintained as a
+> solo hobby project. The maintainer is not part of the official Overte development
+> team, the Android Phone and Pico 4 interfaces are not official Overte products,
+> and the upstream project's no-AI policy is the reason this work remains clearly
+> separated in a fork. References to release readiness describe technical maturity,
+> not an obligation or commitment to ship or support a product.
+
 ## Executive summary
 
 Neither branch is release-ready today.
