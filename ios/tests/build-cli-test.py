@@ -287,6 +287,11 @@ def main() -> None:
         )
         assert integrated_manifest["buildNumber"] == 42
         assert integrated_manifest["product"] == "overte-ios-integrated-client"
+        assert integrated_manifest["signing"] == {
+            "embeddedProvisioningProfile": False,
+            "applicationIdentifier": None,
+            "getTaskAllow": None,
+        }
         assert integrated_manifest["artifact"].startswith("0042-")
         assert integrated_manifest["windowsVm"]["sharedFolderRelativePath"] == integrated_manifest["artifact"]
         latest = json.loads(

@@ -154,6 +154,9 @@ if (APPLE)
 
   # configure CMake to use a custom Info.plist
   if (IOS)
+    if (NOT DEFINED OVERTE_IOS_BUNDLE_IDENTIFIER OR OVERTE_IOS_BUNDLE_IDENTIFIER STREQUAL "")
+      message(FATAL_ERROR "The integrated iOS client requires OVERTE_IOS_BUNDLE_IDENTIFIER")
+    endif()
     set_target_properties(${this_target} PROPERTIES
       MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/ios/resources/InterfaceInfo.plist.in"
       XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE "NO"
@@ -163,7 +166,24 @@ if (APPLE)
       XCODE_ATTRIBUTE_SUPPORTED_PLATFORMS "iphoneos iphonesimulator"
       XCODE_ATTRIBUTE_SUPPORTS_MACCATALYST "NO"
       XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
+      XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${OVERTE_IOS_BUNDLE_IDENTIFIER}"
     )
+    if (OVERTE_IOS_ENABLE_SIGNING)
+      if (NOT DEFINED OVERTE_IOS_DEVELOPMENT_TEAM OR OVERTE_IOS_DEVELOPMENT_TEAM STREQUAL "")
+        message(FATAL_ERROR "Integrated iOS signing requires OVERTE_IOS_DEVELOPMENT_TEAM")
+      endif()
+      set_target_properties(${this_target} PROPERTIES
+        XCODE_ATTRIBUTE_CODE_SIGN_STYLE "Automatic"
+        XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "YES"
+        XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "YES"
+        XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "${OVERTE_IOS_DEVELOPMENT_TEAM}"
+      )
+    else()
+      set_target_properties(${this_target} PROPERTIES
+        XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
+        XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "NO"
+      )
+    endif()
   else()
     set_target_properties(${this_target} PROPERTIES MACOSX_BUNDLE_INFO_PLIST MacOSXBundleInfo.plist.in)
   endif()

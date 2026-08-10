@@ -532,13 +532,58 @@ run_package_client() {
     local artifact_dir="$source_root/build-ios/artifacts"
     mkdir -p "$artifact_dir"
     local signing_label="unsigned" signed_state="false"
+    local provisioned_state="false" application_identifier="" get_task_allow="null"
     if [[ -n "$development_team" ]]; then
         [[ "$platform" == "device" ]] || fail "--development-team is only valid with --platform device"
         require_command codesign
+        require_command security
+        [[ -f "$app_path/embedded.mobileprovision" ]] \
+            || fail "signed integrated client has no embedded.mobileprovision"
         codesign --verify --deep --strict "$app_path" \
             || fail "integrated client bundle did not pass code-signature verification"
+        local signing_audit_dir profile_plist signature_plist signing_audit
+        signing_audit_dir="$(mktemp -d "${TMPDIR:-/tmp}/overte-ios-signing-audit.XXXXXX")"
+        profile_plist="$signing_audit_dir/profile.plist"
+        signature_plist="$signing_audit_dir/signature.plist"
+        security cms -D -i "$app_path/embedded.mobileprovision" > "$profile_plist" \
+            || fail "could not decode integrated client provisioning profile"
+        codesign -d --entitlements :- "$app_path" > "$signature_plist" 2>/dev/null \
+            || fail "could not extract integrated client signing entitlements"
+        signing_audit="$(python3 - "$profile_plist" "$signature_plist" "$bundle_identifier" "$development_team" <<'PY'
+import plistlib
+import sys
+
+profile_path, signature_path, bundle_id, expected_team = sys.argv[1:]
+with open(profile_path, "rb") as stream:
+    profile = plistlib.load(stream)
+with open(signature_path, "rb") as stream:
+    signature = plistlib.load(stream)
+profile_entitlements = profile.get("Entitlements", {})
+application_identifier = signature.get("application-identifier")
+team_identifier = signature.get("com.apple.developer.team-identifier")
+expected_identifier = f"{expected_team}.{bundle_id}"
+if application_identifier != expected_identifier:
+    raise SystemExit(f"application-identifier mismatch: expected {expected_identifier}")
+if team_identifier != expected_team or expected_team not in profile.get("TeamIdentifier", []):
+    raise SystemExit("signing team does not match the provisioning profile")
+if profile_entitlements.get("application-identifier") != expected_identifier:
+    raise SystemExit("provisioning profile application-identifier mismatch")
+get_task_allow = signature.get("get-task-allow", False)
+if get_task_allow != profile_entitlements.get("get-task-allow", False):
+    raise SystemExit("get-task-allow differs between signature and provisioning profile")
+print(f"{application_identifier}\t{str(bool(get_task_allow)).lower()}")
+PY
+)" || fail "integrated client signing metadata failed validation"
+        cmake -E remove_directory "$signing_audit_dir"
+        IFS=$'\t' read -r application_identifier get_task_allow <<< "$signing_audit"
         signing_label="signed"
         signed_state="true"
+        provisioned_state="true"
+    elif [[ "$platform" == "device" ]]; then
+        [[ ! -e "$app_path/embedded.mobileprovision" ]] \
+            || fail "unsigned integrated client unexpectedly contains embedded.mobileprovision"
+        [[ ! -d "$app_path/_CodeSignature" ]] \
+            || fail "unsigned integrated client unexpectedly contains _CodeSignature"
     fi
     local stem="${artifact_prefix}-OverteIOSClient-${configuration}-${archive_suffix}"
     [[ "$platform" == "simulator" ]] || stem="${stem}-${signing_label}"
@@ -565,12 +610,13 @@ run_package_client() {
     latest_text="$artifact_dir/LATEST-OverteIOSClient.txt"
     python3 - "$manifest" "$latest_json" "$latest_text" "$archive" "$archive_sha" \
         "$source_revision" "$configuration" "$sdk_suffix" "$signed_state" "$artifact_sequence" \
-        "$(xcodebuild -version | tr '\n' ' ')" "$(xcrun --sdk "$sdk_name" --show-sdk-version)" <<'PY'
+        "$(xcodebuild -version | tr '\n' ' ')" "$(xcrun --sdk "$sdk_name" --show-sdk-version)" \
+        "$provisioned_state" "$application_identifier" "$get_task_allow" <<'PY'
 import json
 import pathlib
 import sys
 
-manifest_name, latest_name, latest_text_name, archive_name, digest, revision, configuration, platform, signed, sequence, xcode, sdk = sys.argv[1:]
+manifest_name, latest_name, latest_text_name, archive_name, digest, revision, configuration, platform, signed, sequence, xcode, sdk, provisioned, application_identifier, get_task_allow = sys.argv[1:]
 archive = pathlib.Path(archive_name)
 manifest = pathlib.Path(manifest_name)
 payload = {
@@ -588,6 +634,11 @@ payload = {
     "sdk": sdk,
     "signed": signed == "true",
     "requiresSigning": platform == "iphoneos" and signed != "true",
+    "signing": {
+        "embeddedProvisioningProfile": provisioned == "true",
+        "applicationIdentifier": application_identifier or None,
+        "getTaskAllow": None if get_task_allow == "null" else get_task_allow == "true",
+    },
     "windowsVm": {
         "sharedFolderRelativePath": archive.name,
         "verifyCommand": f"certutil -hashfile {archive.name} SHA256",

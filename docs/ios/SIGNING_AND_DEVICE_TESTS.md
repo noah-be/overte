@@ -44,6 +44,19 @@ VirtualBox shared folder; the Windows VM should select the filename from
 `LATEST-OverteIOSClient.txt` and verify it against the JSON digest before
 passing an unsigned IPA to the separately authorized signing tool.
 
+For an unsigned device artifact, `package-client` rejects a stale
+`_CodeSignature` directory or embedded provisioning profile. Its JSON records
+that no profile, application identifier, or `get-task-allow` value was observed;
+Sideloadly remains responsible for applying its own authorized signature.
+
+If a development team is explicitly selected, packaging additionally requires
+a valid `codesign --verify --deep --strict` result and an
+`embedded.mobileprovision`. The signature and decoded profile must agree on the
+team, exact `TEAMID.bundle.identifier`, and `get-task-allow` value. The latter is
+reported, not forced: development and distribution profiles legitimately use
+different values. Certificates, profiles, and private keys are never copied to
+artifact metadata.
+
 ## External inputs
 
 A device build needs:
