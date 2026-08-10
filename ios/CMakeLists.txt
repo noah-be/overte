@@ -62,6 +62,8 @@ endif()
 set(OVERTE_IOS_METAL_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/metal/$<CONFIG>")
 set(OVERTE_IOS_METAL_AIR "${OVERTE_IOS_METAL_OUTPUT_DIR}/BootstrapShaders.air")
 set(OVERTE_IOS_METALLIB "${OVERTE_IOS_METAL_OUTPUT_DIR}/default.metallib")
+set(OVERTE_IOS_APP_BUNDLE
+    "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>-${OVERTE_IOS_SDK_NAME}/OverteIOSBootstrap.app")
 
 add_custom_command(TARGET OverteIOSBootstrap POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${OVERTE_IOS_METAL_OUTPUT_DIR}"
@@ -75,7 +77,7 @@ add_custom_command(TARGET OverteIOSBootstrap POST_BUILD
         -o "${OVERTE_IOS_METALLIB}"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
         "${OVERTE_IOS_METALLIB}"
-        "$<TARGET_BUNDLE_DIR:OverteIOSBootstrap>/default.metallib"
+        "${OVERTE_IOS_APP_BUNDLE}/default.metallib"
     COMMENT "Compiling and embedding iOS Metal shader library"
     VERBATIM
 )

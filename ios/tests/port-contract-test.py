@@ -345,7 +345,7 @@ def test_ci_contract() -> None:
     ios_cmake = IOS_ROOT / "CMakeLists.txt"
     require_text(ios_cmake, r"air64-apple-ios", "Metal compilation must target iOS AIR")
     require_text(ios_cmake, r"--sdk.*OVERTE_IOS_SDK_NAME", "Metal compilation must use the selected Xcode SDK")
-    require_text(ios_cmake, r"TARGET_BUNDLE_DIR", "compiled Metal shaders must be embedded in the app")
+    require_text(ios_cmake, r"\$<CONFIG>-\$\{OVERTE_IOS_SDK_NAME\}/OverteIOSBootstrap\.app", "compiled Metal shaders must use the flat iOS app path")
 
     smoke = IOS_ROOT / "ci" / "simulator-smoke.sh"
     require_text(smoke, r"for family in iphone ipad", "smoke tier must cover iPhone and iPad")
