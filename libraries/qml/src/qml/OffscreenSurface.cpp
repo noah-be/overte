@@ -21,7 +21,6 @@
 
 #include <GLMHelpers.h>
 
-#include <gl/OffscreenGLCanvas.h>
 #include <shared/ReadWriteLockable.h>
 #include <NetworkingConstants.h>
 #include <MetaverseAPI.h>

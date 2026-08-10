@@ -26,6 +26,31 @@ def main():
         if required not in path:
             errors.append(f"required path omits {required}")
 
+    compatibility = data.get("target_owned_compatibility_dependencies", [])
+    if {item.get("target") for item in compatibility} != {"qml", "vk"}:
+        errors.append("target-owned compatibility inventory must contain exactly qml and vk")
+    for item in compatibility:
+        source = ROOT / item.get("source", "")
+        if not source.is_file():
+            errors.append(f"compatibility/{item.get('target')}: missing source")
+        elif item.get("anchor") not in source.read_text(encoding="utf-8", errors="replace"):
+            errors.append(f"compatibility/{item.get('target')}: missing source anchor")
+        if item.get("dependency") != "gl" or not item.get("reason"):
+            errors.append(f"compatibility/{item.get('target')}: dependency ownership is incomplete")
+
+    gates = {gate.get("id"): gate for gate in data.get("acceptance_gates", [])}
+    expected_gates = {
+        "source-contracts": "implemented",
+        "iphoneos-full-graph-link": "unverified",
+        "ipad-entity-render-handoff": "unverified",
+    }
+    for gate_id, expected_status in expected_gates.items():
+        gate = gates.get(gate_id)
+        if not gate:
+            errors.append(f"missing acceptance gate {gate_id}")
+        elif gate.get("status") != expected_status or not gate.get("evidence"):
+            errors.append(f"{gate_id}: expected {expected_status} with evidence")
+
     ids = set()
     blockers = set()
     for check in data.get("checks", []):

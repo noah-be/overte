@@ -15,6 +15,41 @@
     "MoltenVK::MoltenVK",
     "CAMetalLayer"
   ],
+  "target_owned_compatibility_dependencies": [
+    {
+      "target": "qml",
+      "dependency": "gl",
+      "status": "blocked",
+      "source": "libraries/qml/src/qml/impl/RenderEventHandler.cpp",
+      "anchor": "glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0)",
+      "reason": "The existing Offscreen QML producer still owns an OpenGL context, FBO, texture ID, and GLsync fence contract."
+    },
+    {
+      "target": "vk",
+      "dependency": "gl",
+      "status": "implemented",
+      "source": "libraries/vk/src/vk/VKWidget.cpp",
+      "anchor": "_context = new gl::OffscreenContext()",
+      "reason": "VKWidget owns a compatibility context used by the current Vulkan backend initialization; Interface no longer links gl directly."
+    }
+  ],
+  "acceptance_gates": [
+    {
+      "id": "source-contracts",
+      "status": "implemented",
+      "evidence": "ios/tests/rendering-integration-inventory-test.py"
+    },
+    {
+      "id": "iphoneos-full-graph-link",
+      "status": "unverified",
+      "evidence": "A real Apple toolchain must configure and link the full Overte target for iphoneos with Vulkan."
+    },
+    {
+      "id": "ipad-entity-render-handoff",
+      "status": "unverified",
+      "evidence": "Device logs must reach OVERTE_IOS_ENTITY_GATE stage=render_handoff after a Metal-backed present."
+    }
+  ],
   "checks": [
     {
       "id": "backend-selection",
@@ -139,8 +174,8 @@
       "status": "blocked",
       "source": "libraries/plugins/src/plugins/DisplayPlugin.h",
       "anchors": ["struct QuickTextureCopyTarget", "void* framebuffer", "void** completionToken"],
-      "barrier": "The public display-plugin ABI, Qt Quick ResourceImageItem, Vulkan display implementation, and Interface sources still compile against GL types/helpers; removing the two explicit gl links would fail before native Vulkan presentation.",
-      "acceptance": "A non-GL texture-to-Quick API replaces the GL-typed virtual method, iOS excludes OpenGL display source families and direct Interface GL helpers, and both explicit gl links can then be removed under iOS Vulkan.",
+      "barrier": "Both direct iOS Vulkan gl links are removed. Offscreen QML remains fail-closed until a native-RHI producer replaces its GL context/texture/fence implementation; vk and qml still own their internal compatibility GL dependencies.",
+      "acceptance": "A native-RHI Offscreen QML producer replaces the GL context/texture/fence contract and the iOS full graph compiles, links, presents, and renders entities on device.",
       "subtasks": [
         {
           "id": "replace-display-plugin-quick-copy-abi",
@@ -150,27 +185,111 @@
         },
         {
           "id": "replace-resource-image-item-gl-renderer",
-          "status": "pending",
+          "status": "implemented",
           "source": "interface/src/ui/ResourceImageItem.h",
-          "anchor": "GLsync _fenceSync"
+          "anchor": "using ResourceImageItemBase = QQuickItem"
         },
         {
           "id": "exclude-opengl-display-source-family",
-          "status": "pending",
-          "source": "libraries/display-plugins/src/display-plugins/OpenGLDisplayPlugin.cpp",
-          "anchor": "OpenGLDisplayPlugin::activate"
+          "status": "implemented",
+          "source": "libraries/display-plugins/CMakeLists.txt",
+          "anchor": "OVERTE_IOS_EXCLUDED_OPENGL_DISPLAY_SOURCES"
         },
         {
-          "id": "separate-interface-gl-helpers",
+          "id": "separate-interface-bootstrap-gl-probes",
+          "status": "implemented",
+          "source": "interface/src/main.cpp",
+          "anchor": "#if (defined(Q_OS_MAC) && !defined(Q_OS_IOS)) || defined(Q_OS_WIN)"
+        },
+        {
+          "id": "separate-interface-gl-stats",
+          "status": "implemented",
+          "source": "interface/src/ui/Stats.cpp",
+          "anchor": "STAT_UPDATE(glContextSwapchainMemory, 0)"
+        },
+        {
+          "id": "separate-interface-gl-context-diagnostics",
+          "status": "implemented",
+          "source": "interface/src/Application_Graphics.cpp",
+          "anchor": "MoltenVK has no GL context to describe on iOS"
+        },
+        {
+          "id": "separate-graphics-engine-backend-includes",
+          "status": "implemented",
+          "source": "interface/src/graphics/GraphicsEngine.cpp",
+          "anchor": "#ifdef USE_GL"
+        },
+        {
+          "id": "exclude-ios-vulkan-gl-canvas",
+          "status": "implemented",
+          "source": "interface/CMakeLists.txt",
+          "anchor": "Do not parse or moc the legacy OpenGL widget in the iOS Vulkan graph"
+        },
+        {
+          "id": "remove-render-event-handler-offscreen-gl-include",
+          "status": "implemented",
+          "source": "interface/src/graphics/RenderEventHandler.h",
+          "anchor": "#include <QElapsedTimer>"
+        },
+        {
+          "id": "separate-ios-gl-driver-telemetry",
+          "status": "implemented",
+          "source": "interface/src/Application_Setup.cpp",
+          "anchor": "\"graphics_backend\""
+        },
+        {
+          "id": "exclude-ios-chromium-gl-share-context",
+          "status": "implemented",
+          "source": "interface/src/Application_Graphics.cpp",
+          "anchor": "iOS does not link Qt WebEngine"
+        },
+        {
+          "id": "migrate-offscreen-qml-to-native-rhi",
+          "status": "pending",
+          "source": "libraries/qml/src/qml/impl/SharedObject.cpp",
+          "anchor": "void SharedObject::initializeRenderControl(QOpenGLContext* context)"
+        },
+        {
+          "id": "add-offscreen-qml-backend-neutral-context-contract",
+          "status": "implemented",
+          "source": "libraries/qml/src/qml/OffscreenSurface.h",
+          "anchor": "struct SharedGraphicsContext"
+        },
+        {
+          "id": "separate-vulkan-display-gl-memory-diagnostic",
+          "status": "implemented",
+          "source": "libraries/display-plugins/src/display-plugins/VulkanDisplayPlugin.cpp",
+          "anchor": "GL driver memory queries do not describe Metal allocations on iOS"
+        },
+        {
+          "id": "gate-ios-vulkan-ktx1-frame-capture",
+          "status": "implemented",
+          "source": "libraries/display-plugins/src/display-plugins/VulkanDisplayPlugin.cpp",
+          "anchor": "KTX1 requires the legacy GL format mapping"
+        },
+        {
+          "id": "exclude-ios-vulkan-display-offscreen-context-restore",
+          "status": "implemented",
+          "source": "libraries/display-plugins/src/display-plugins/VulkanDisplayPlugin.cpp",
+          "anchor": "#if !defined(Q_OS_IOS)"
+        },
+        {
+          "id": "separate-interface-core-gl-helpers",
           "status": "pending",
           "source": "interface/src/Application_Graphics.cpp",
           "anchor": "#include <gl/GLHelpers.h>"
         },
         {
-          "id": "remove-explicit-interface-display-gl-links",
-          "status": "pending",
+          "id": "remove-explicit-ios-display-gl-link",
+          "status": "implemented",
           "source": "libraries/display-plugins/CMakeLists.txt",
-          "anchor": "link_hifi_libraries(shared shaders plugins ui-plugins gl ui"
+          "anchor": "set(DISPLAY_PLUGINS_GL_LIBRARY \"\")"
+        },
+        {
+          "id": "remove-explicit-ios-interface-gl-link",
+          "status": "implemented",
+          "source": "interface/CMakeLists.txt",
+          "anchor": "set(INTERFACE_GL_LIBRARY \"\")"
         }
       ]
     }
