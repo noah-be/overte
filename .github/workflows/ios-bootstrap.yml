@@ -71,12 +71,12 @@ jobs:
       - name: Verify app bundle
         run: |
           ios/ci/verify-app.sh \
-            build-ios/simulator/Debug-iphonesimulator/OverteIOSBootstrap.app
+            build-ios/simulator/ios/Debug-iphonesimulator/OverteIOSBootstrap.app
 
       - name: Launch on iPhone and iPad simulators
         run: |
           ios/ci/simulator-smoke.sh \
-            build-ios/simulator/Debug-iphonesimulator/OverteIOSBootstrap.app \
+            build-ios/simulator/ios/Debug-iphonesimulator/OverteIOSBootstrap.app \
             org.overte.interface.dev \
             build-ios/diagnostics
 

@@ -107,6 +107,7 @@ def test_profiles() -> None:
     build_script = IOS_ROOT / "build-ios.sh"
     require_text(build_script, r"audit-conan-graph\.py", "resolved Conan graphs must be audited")
     require_text(build_script, r"generate-sbom\.py", "resolved Conan graphs must emit an SBOM")
+    require_text(build_script, r'\$build_dir/ios/\$configuration-iphone', "package must use the subdirectory target output")
 
 
 def test_dependency_inventory() -> None:

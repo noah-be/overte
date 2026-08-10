@@ -33,8 +33,8 @@ roots at audited iOS packages and add `--require-qt`, `--require-moltenvk`, and
 ./ios/build-ios.sh deps --platform simulator
 ./ios/build-ios.sh configure --platform simulator
 cmake --build build-ios/simulator --config Debug --target OverteIOSBootstrap
-./ios/ci/verify-app.sh build-ios/simulator/Debug-iphonesimulator/OverteIOSBootstrap.app
-./ios/ci/simulator-smoke.sh build-ios/simulator/Debug-iphonesimulator/OverteIOSBootstrap.app
+./ios/ci/verify-app.sh build-ios/simulator/ios/Debug-iphonesimulator/OverteIOSBootstrap.app
+./ios/ci/simulator-smoke.sh build-ios/simulator/ios/Debug-iphonesimulator/OverteIOSBootstrap.app
 ```
 
 Preserve `build-ios/simulator/conan/graph.json` and `sbom.cdx.json`. After the

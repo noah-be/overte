@@ -360,9 +360,9 @@ run_tests() {
 
 run_package() {
     build_project
-    local app_path="$build_dir/$configuration-iphoneos/OverteIOSBootstrap.app"
+    local app_path="$build_dir/ios/$configuration-iphoneos/OverteIOSBootstrap.app"
     if [[ "$platform" == "simulator" ]]; then
-        app_path="$build_dir/$configuration-iphonesimulator/OverteIOSBootstrap.app"
+        app_path="$build_dir/ios/$configuration-iphonesimulator/OverteIOSBootstrap.app"
     fi
     [[ -d "$app_path" ]] || fail "built application not found: $app_path"
 
