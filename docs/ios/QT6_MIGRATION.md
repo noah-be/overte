@@ -206,6 +206,12 @@ matches only one or more LF characters; embedded line breaks, HTML break
 removal, version ordering, and release-note concatenation are unchanged.
 `UpdateDialog.cpp` therefore leaves the Core5Compat inventory.
 
+The desktop model chooser now checks `QFileInfo::completeSuffix()` with
+`QRegularExpression`. Its existing substring alternatives (`fst`, `fbx`,
+`FST`, and `FBX`) and the preceding `isFile()` gate are unchanged, as are the
+selected model, button label, and remembered browse location.
+`ModelSelector.cpp` therefore leaves the Core5Compat inventory.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant

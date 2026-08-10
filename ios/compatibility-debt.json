@@ -35,7 +35,6 @@
       "extensions": [".cpp", ".h", ".hpp", ".mm"],
       "files": [
         "interface/src/Application_Graphics.cpp",
-        "interface/src/ModelSelector.cpp",
         "interface/src/ScriptHighlighting.cpp",
         "interface/src/ScriptHighlighting.h",
         "interface/src/ui/BaseLogDialog.cpp",

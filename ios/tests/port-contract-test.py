@@ -707,6 +707,16 @@ def test_scope_contract() -> None:
     if "QRegExp" in update_dialog.read_text(encoding="utf-8"):
         raise AssertionError("UpdateDialog retained removed QRegExp API")
 
+    model_selector = SOURCE_ROOT / "interface" / "src" / "ModelSelector.cpp"
+    require_text(model_selector, r'#include <QRegularExpression>', "model selection must use the Qt 6 regex API")
+    require_text(
+        model_selector,
+        r'fileInfo\.isFile\(\) && fileInfo\.completeSuffix\(\)\.contains\(\s*QRegularExpression\(QStringLiteral\("fst\|fbx\|FST\|FBX"\)\)\)',
+        "model selection must retain its file gate and complete-suffix substring alternatives",
+    )
+    if "QRegExp" in model_selector.read_text(encoding="utf-8"):
+        raise AssertionError("ModelSelector retained removed QRegExp API")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,
