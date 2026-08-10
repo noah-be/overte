@@ -9,7 +9,6 @@
       "extensions": [".cmake", ".txt"],
       "files": [
         "cmake/QtCompat.cmake",
-        "interface/CMakeLists.txt",
         "launchers/qt/CMakeLists.txt"
       ],
       "exitCriterion": "Only cmake/QtCompat.cmake may retain Qt 5 symbols; desktop-only callers must be unreachable from iOS."
@@ -26,10 +25,14 @@
     },
     {
       "id": "core5compat-api",
-      "pattern": "\\b(?:QRegExp|QTextCodec)\\b",
+      "pattern": "\\b(?:QRegExp|QTextCodec|QStringRef)\\b",
       "roots": ["interface", "libraries"],
       "extensions": [".cpp", ".h", ".hpp", ".mm"],
-      "files": [],
+      "files": [
+        "libraries/animation/src/AnimExpression.cpp",
+        "libraries/animation/src/AnimExpression.h",
+        "libraries/animation/src/Flow.cpp"
+      ],
       "exitCriterion": "All listed uses move to current Qt 6 APIs and Core5Compat leaves the iOS component set."
     },
     {

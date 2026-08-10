@@ -30,9 +30,9 @@ def main() -> None:
     inventory = json.loads((IOS_ROOT / "compatibility-debt.json").read_text(encoding="utf-8"))
     counts = auditor.audit_inventory(SOURCE_ROOT, inventory)
     assert counts == {
-        "qt5-cmake-api": 3,
+        "qt5-cmake-api": 2,
         "qt6-removed-audio-api": 1,
-        "core5compat-api": 0,
+        "core5compat-api": 3,
         "webengine-cpp-boundary": 12,
         "qt6-audio-runtime-semantics": 2,
         "apple-desktop-framework": 4,

@@ -1008,6 +1008,19 @@ def test_scope_contract() -> None:
     if "find_package(Qt5" in installers_text or "Qt5::qmake" in installers_text:
         raise AssertionError("installer generation retained direct Qt 5 qmake discovery")
 
+    interface_cmake = SOURCE_ROOT / "interface" / "CMakeLists.txt"
+    interface_cmake_text = interface_cmake.read_text(encoding="utf-8")
+    assert "# overte_find_qt(COMPONENTS LinguistTools QUIET REQUIRED)" in interface_cmake_text
+    assert "# OVERTE_CREATE_TRANSLATION_CUSTOM(${QM} ${INTERFACE_SRCS} ${QT_UI_FILES} ${TS})" in interface_cmake_text
+    for legacy_cmake_api in ("find_package(Qt5", "qt5_create_translation_custom"):
+        if legacy_cmake_api in interface_cmake_text:
+            raise AssertionError(f"Interface translation recipe retained direct Qt 5 API: {legacy_cmake_api}")
+    require_text(
+        linguist_macros,
+        r'function\(OVERTE_CREATE_TRANSLATION_CUSTOM _qm_files\)',
+        "the dormant Interface translation recipe must name a Qt-major-neutral custom wrapper",
+    )
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,

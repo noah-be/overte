@@ -10,8 +10,11 @@ desktop and Android targets remain on Qt 5 while shared source is migrated.
 
 ## Transitional compatibility
 
-Qt Core5Compat is linked to Qt 6 targets as a temporary bridge for QRegExp and
-QTextCodec. New iOS code must use QRegularExpression and current text APIs.
+Qt Core5Compat is linked to Qt 6 targets as a temporary bridge for QRegExp,
+QTextCodec, and QStringRef. The iOS-reachable animation library still uses
+QStringRef in `AnimExpression.cpp/.h` and `Flow.cpp`, so the module cannot yet
+leave the iOS graph. New iOS code must use QRegularExpression, QStringView, and
+current text APIs.
 Core5Compat is not a reason to add new Qt 5 API use.
 
 The shared library macro treats iOS as an ARM target before applying optional
@@ -341,6 +344,14 @@ its selected package/target, while desktop Qt 5 still resolves `Qt5::qmake`.
 The executable `LOCATION`, `CPACK_QMAKE_EXECUTABLE` handoff, fail-closed
 availability check, linuxdeploy integration, and packaging flags are
 unchanged. `GenerateInstallers.cmake` no longer hard-codes Qt 5.
+
+The disabled Interface translation recipe is now Qt-major-neutral: its
+commented discovery example uses `overte_find_qt`, and the custom wrapper is
+named `OVERTE_CREATE_TRANSLATION_CUSTOM`. The recipe remains disabled, so
+neither iOS nor desktop builds gain translation-generation work. If it is
+re-enabled later, its QM/TS inputs route through the central translation
+dispatcher instead of a direct Qt 5 command. `interface/CMakeLists.txt` leaves
+the Qt-5-CMake debt inventory without changing generated targets.
 
 ## Model and texture upload audit
 
