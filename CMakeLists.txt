@@ -107,7 +107,22 @@ set(OVERTE_BUILD_TOOLS ON CACHE BOOL "Build tools. Includes Oven, which is used 
 set(OVERTE_BUILD_INSTALLER ON CACHE BOOL "Build installer.")
 set(OVERTE_DISABLE_QML OFF CACHE BOOL "Build without QML. (For graphics debugging.)")
 set(OVERTE_DOWNLOAD_SERVERLESS_CONTENT OFF CACHE BOOL "Download and setup default serverless content beside Interface.")
-set(OVERTE_RENDERING_BACKEND "OpenGL" CACHE STRING "Which rendering backend to compile with. Valid options are: 'OpenGL' and 'Vulkan'.")
+if(IOS)
+    set(_overte_default_rendering_backend "Vulkan")
+else()
+    set(_overte_default_rendering_backend "OpenGL")
+endif()
+set(OVERTE_RENDERING_BACKEND "${_overte_default_rendering_backend}" CACHE STRING
+    "Which rendering backend to compile with. Valid options are: 'OpenGL' and 'Vulkan'.")
+unset(_overte_default_rendering_backend)
+
+# The full iOS client has no supported OpenGL presentation path. This check is
+# below the bootstrap-only early return, so the native bootstrap is unaffected.
+if(IOS AND NOT OVERTE_RENDERING_BACKEND STREQUAL "Vulkan")
+    message(FATAL_ERROR
+        "The iOS full-client graph requires OVERTE_RENDERING_BACKEND=Vulkan "
+        "and MoltenVK; OpenGL is not a supported iOS renderer.")
+endif()
 set(OVERTE_EXTERNAL_BUILD_ASSETS "https://build-deps.overte.org" CACHE INTERNAL "")
 set(OVERTE_TIMESERVER_URL "http://timestamp.comodoca.com?td=sha256" CACHE STRING "URL to timeserver used for signing executables.")
 set(OVERTE_USE_OPTIMIZED_IK OFF CACHE BOOL "Use optimized IK.")
@@ -178,7 +193,19 @@ if (OVERTE_RENDERING_BACKEND STREQUAL "OpenGL")
 elseif (OVERTE_RENDERING_BACKEND STREQUAL "Vulkan")
     add_definitions(-DGPU_POINTER_STORAGE_RAW)
     # TODO: remove dependencies on gl libraries for Vulkan builds.
-    set(PLATFORM_GL_BACKEND gpu-gl-common gpu-gl gpu-vk vk)
+    if(IOS)
+        # The selected iOS backend implementations are Vulkan-only. Interface
+        # and display-plugins retain their separate, explicit `gl` links for
+        # shared GL-typed APIs; do not re-add the GL backend implementations
+        # to this platform backend list.
+        set(OVERTE_IOS_VULKAN_NATIVE_TARGETS gpu-vk vk)
+        set(OVERTE_IOS_VULKAN_LEGACY_GL_BRIDGE_TARGETS "")
+        set(PLATFORM_GL_BACKEND
+            ${OVERTE_IOS_VULKAN_LEGACY_GL_BRIDGE_TARGETS}
+            ${OVERTE_IOS_VULKAN_NATIVE_TARGETS})
+    else()
+        set(PLATFORM_GL_BACKEND gpu-gl-common gpu-gl gpu-vk vk)
+    endif()
     # Vulkan is the default rendering backend, no need to set any flags.
 else()
     message(FATAL_ERROR "Invalid OVERTE_RENDERING_BACKEND set. Expected 'OpenGL', or 'Vulkan'. Got '${OVERTE_RENDERING_BACKEND}'")

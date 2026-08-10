@@ -9,7 +9,19 @@
 
 set(TARGET_NAME gpu-vk)
 setup_hifi_library()
-link_hifi_libraries(shared shaders vk gl gpu render-utils)
+if(IOS)
+    link_hifi_libraries(shared shaders vk gpu render-utils)
+else()
+    link_hifi_libraries(shared shaders vk gl gpu render-utils)
+endif()
 GroupSources("src")
+
+if(IOS)
+    # MoltenVK cannot import desktop OpenGL memory objects or GLsync fences.
+    # Keep external textures fail-closed until a native IOSurface/Metal import
+    # implementation replaces that desktop-only interoperability path.
+    target_compile_definitions(${TARGET_NAME} PUBLIC
+        OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP=1)
+endif()
 
 target_vulkan()

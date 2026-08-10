@@ -1563,6 +1563,16 @@ VKTexture* VKBackend::syncGPUObject(const std::shared_ptr<Texture> &texture) {
     VKTexture* object = Backend::getGPUObject<VKTexture>(*texture);
 
     if (TextureUsageType::EXTERNAL == texture->getUsageType()) {
+#if defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
+        static bool loggedUnsupportedExternalTexture { false };
+        if (!loggedUnsupportedExternalTexture) {
+            loggedUnsupportedExternalTexture = true;
+            qCCritical(gpu_vk_logging)
+                << "External GL textures are disabled on iOS Vulkan; "
+                   "a native IOSurface/Metal import path is required";
+        }
+        return nullptr;
+#else
         if (_isFramePlayer) {
             return nullptr; // Frame player does not support external textures
         }
@@ -1613,6 +1623,7 @@ VKTexture* VKBackend::syncGPUObject(const std::shared_ptr<Texture> &texture) {
         //return Backend::getGPUObject<GLTexture>(texture);*/
 
         //return Parent::syncGPUObject(texturePointer);
+#endif
     }
 
     if (!texture->isDefined()) {
@@ -1628,11 +1639,17 @@ VKTexture* VKBackend::syncGPUObject(const std::shared_ptr<Texture> &texture) {
                 break;
 
             case TextureUsageType::EXTERNAL:
+#if defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
+                qCCritical(gpu_vk_logging)
+                    << "Refusing to create a desktop GL external texture on iOS Vulkan";
+                return nullptr;
+#else
                 if (_isFramePlayer) {
                     return nullptr; // Frame player does not support external textures
                 }
                 object = new VKExternalTexture(shared_from_this(), *texture);
                 break;
+#endif
 
 #if FORCE_STRICT_TEXTURE
             case TextureUsageType::RESOURCE:
@@ -2396,6 +2413,7 @@ void VKBackend::perFrameCleanup() {
     recycler.vmaAllocations.clear();
     recycler.vmaAllocations.reserve(capacityBeforeClear);
 
+#if !defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
     {
         Lock lock(_externalTexturesMutex);
         if (!_externalTexturesTrash.empty()) {
@@ -2414,6 +2432,7 @@ void VKBackend::perFrameCleanup() {
             _externalTexturesTrash.clear();
         }
     }
+#endif
 }
 
 void VKBackend::beforeShutdownCleanup() {
@@ -2467,10 +2486,12 @@ void VKBackend::dumpVmaMemoryStats() {
     vmaFreeStatsString(vks::Allocation::getAllocator(), stats);
 }
 
+#if !defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
 void VKBackend::releaseExternalTexture(GLuint id, const Texture::ExternalRecycler& recycler) {
     Lock lock(_externalTexturesMutex);
     _externalTexturesTrash.emplace_back(id, recycler);
 }
+#endif
 
 void VKBackend::initBeforeFirstFrame() {
     initTransform();
