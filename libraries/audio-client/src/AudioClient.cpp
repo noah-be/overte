@@ -1163,6 +1163,9 @@ void AudioClient::start() {
 #endif
 #if defined(Q_OS_IOS)
     overteIOSRequestMicrophonePermission();
+    if (!overteIOSActivateAudioSession()) {
+        qCWarning(audioclient) << "iOS audio session activation failed; Qt audio startup remains unverified";
+    }
 #endif
 
     // set up the desired audio format
@@ -1217,6 +1220,11 @@ void AudioClient::stop() {
 #if defined(Q_OS_ANDROID)
     _checkInputTimer.stop();
     disconnect(&_checkInputTimer, &QTimer::timeout, 0, 0);
+#endif
+#if defined(Q_OS_IOS)
+    if (!overteIOSDeactivateAudioSession()) {
+        qCWarning(audioclient) << "iOS audio session deactivation failed";
+    }
 #endif
 }
 

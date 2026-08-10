@@ -437,7 +437,14 @@ def test_cmake_boundary() -> None:
     require_text(permission_bridge, r"requestRecordPermission", "full client must be able to request microphone permission")
     require_text(permission_bridge, r"dispatch_get_main_queue", "permission UI must be requested on the main queue")
     require_text(permission_bridge, r"dispatch_once", "permission requests must be coalesced per process")
+    require_text(permission_bridge, r"pthread_main_np[\s\S]*dispatch_sync\(dispatch_get_main_queue", "full-client AVAudioSession mutations must run on the main queue")
+    require_text(permission_bridge, r"AVAudioSessionCategoryPlayAndRecord", "full client must configure a duplex audio session")
+    require_text(permission_bridge, r"AVAudioSessionModeGameChat", "full client must select game-chat audio processing")
+    require_text(permission_bridge, r"AVAudioSessionInterruptionOptionShouldResume", "interruption recovery must obey ShouldResume")
+    require_text(permission_bridge, r"AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation", "full-client shutdown must release the audio session")
     require_text(audio_client_source, r"overteIOSMicrophonePermissionGranted", "AudioClient input must enforce iOS permission")
+    require_text(audio_client_source, r"void AudioClient::start\(\)[\s\S]*overteIOSActivateAudioSession", "AudioClient start must activate the native session")
+    require_text(audio_client_source, r"void AudioClient::stop\(\)[\s\S]*overteIOSDeactivateAudioSession", "AudioClient stop must deactivate the native session")
     interface_cmake = SOURCE_ROOT / "interface" / "CMakeLists.txt"
     require_text(interface_cmake, r"MACOSX_BUNDLE_INFO_PLIST.*ios/resources/InterfaceInfo\.plist\.in", "full client must package its audited iOS plist")
     integrated_info = IOS_ROOT / "resources" / "InterfaceInfo.plist.in"

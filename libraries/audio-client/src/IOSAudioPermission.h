@@ -6,3 +6,5 @@
 // Undetermined and denied record-permission states both fail closed.
 bool overteIOSMicrophonePermissionGranted();
 void overteIOSRequestMicrophonePermission();
+bool overteIOSActivateAudioSession();
+bool overteIOSDeactivateAudioSession();

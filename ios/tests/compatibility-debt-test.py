@@ -47,8 +47,8 @@ def main() -> None:
     rules = {rule["id"]: rule for rule in inventory["rules"]}
     assert "Qt 5-only names remain isolated" in rules["qt6-removed-audio-api"]["exitCriterion"]
     audio_session_exit = rules["ios-audio-session-device-validation"]["exitCriterion"]
-    assert "separately covers the bootstrap" in audio_session_exit
-    assert "must not be treated as full-client implementation evidence" in audio_session_exit
+    assert "separately covers bootstrap and full-client activation" in audio_session_exit
+    assert "compile-time bridge coverage is not device success" in audio_session_exit
 
     stale = deepcopy(inventory)
     stale["rules"][0]["files"].append("invented/Qt5Debt.cpp")

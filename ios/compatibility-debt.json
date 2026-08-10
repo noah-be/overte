@@ -138,7 +138,7 @@
     },
     {
       "id": "ios-audio-session-device-validation",
-      "pattern": "setAudioSessionActive|APPLE AND NOT IOS|Q_OS_MACOS.*Q_OS_IOS|overteIOSMicrophonePermission|NSMicrophoneUsageDescription|MACOSX_BUNDLE_INFO_PLIST.*ios/resources",
+      "pattern": "setAudioSessionActive|overteIOSActivateAudioSession|APPLE AND NOT IOS|Q_OS_MACOS.*Q_OS_IOS|overteIOSMicrophonePermission|NSMicrophoneUsageDescription|MACOSX_BUNDLE_INFO_PLIST.*ios/resources",
       "roots": ["ios/resources/Info.plist.in", "ios/resources/InterfaceInfo.plist.in", "ios/src/AppDelegate.mm", "interface/CMakeLists.txt", "libraries/audio-client/CMakeLists.txt", "libraries/audio-client/src/AudioClient.cpp", "libraries/audio-client/src/IOSAudioPermission.h", "libraries/audio-client/src/IOSAudioPermission.mm"],
       "extensions": [".cpp", ".h", ".mm", ".txt", ".in"],
       "files": [
@@ -151,7 +151,7 @@
         "libraries/audio-client/src/IOSAudioPermission.h",
         "libraries/audio-client/src/IOSAudioPermission.mm"
       ],
-      "exitCriterion": "Physical-device evidence separately covers the bootstrap AppDelegate interruption/session policy and the Qt full client's background restart, route behavior, and microphone denial; the bootstrap AppDelegate must not be treated as full-client implementation evidence."
+      "exitCriterion": "Physical-device evidence separately covers bootstrap and full-client activation, interruption begin/end with ShouldResume, background deactivation, speaker and Bluetooth-HFP routes, and microphone denial; compile-time bridge coverage is not device success."
     },
     {
       "id": "ios-local-network-device-validation",

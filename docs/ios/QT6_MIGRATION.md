@@ -41,12 +41,13 @@ as success. This AppDelegate is not linked into the Qt full-client target.
 
 Apple's desktop `AudioHardware.h` fallback and explicit CoreAudio linkage are
 excluded from iOS. The full-client path uses Qt Multimedia's `QAudioDevice`,
-`QAudioSource`, and `QAudioSink`; its productive application lifecycle stops and
-restarts `AudioClient`, but does not claim the bootstrap AppDelegate's native
-session policy. Full-client interruption recovery, Bluetooth routing, microphone
-permission, and background behavior still require physical-device evidence and,
-where Qt does not supply the required session behavior, a separately reviewed
-native integration.
+`QAudioSource`, and `QAudioSink`. Its permission bridge now configures and
+activates PlayAndRecord/game-chat on AudioClient start and deactivates with
+NotifyOthersOnDeactivation after AudioClient stop. All AVAudioSession mutations
+are synchronously marshalled to the main queue; interruption telemetry records
+only begin/end, ShouldResume, reactivation outcome, and numeric error code.
+Full-client interruption recovery, Bluetooth routing, microphone permission,
+and background behavior still require physical-device evidence.
 
 Both the bootstrap and integrated Interface bundle use the audited iOS plist,
 including `NSMicrophoneUsageDescription`. The UIKit host requests record
