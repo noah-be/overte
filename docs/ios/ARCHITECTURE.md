@@ -86,6 +86,9 @@ implementations remain unchanged.
 The deprecated `PlatformInfo` compatibility API identifies iOS explicitly and
 returns conservative unavailable/unknown hardware values there. It must not
 fall through to the macOS branches that launch `sysctl` or `system_profiler`.
+The two macOS native-window mouse workarounds in `Application_Events.cpp`
+(Cmd-click rewriting and right-drag focus recovery) are also explicitly
+excluded from iOS, where touch/pointer events must retain Qt's mobile semantics.
 
 ## ADR-007: secret-free automation
 

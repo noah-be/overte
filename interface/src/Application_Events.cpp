@@ -199,7 +199,7 @@ bool Application::eventFilter(QObject* object, QEvent* event) {
         return true;
     }
 
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     // On Mac OS, Cmd+LeftClick is treated as a RightClick (more specifically, it seems to
     // be Cmd+RightClick without the modifier being dropped). Starting in Qt 5.12, only
     // on Mac, the MouseButtonRelease event for these mouse presses is sent to the top
@@ -750,7 +750,7 @@ void Application::mousePressEvent(QMouseEvent* event) {
         return;
     }
 
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     // Fix for OSX right click dragging on window when coming from a native window
     bool isFocussed = hasFocus();
     if (!isFocussed && event->button() == Qt::MouseButton::RightButton) {
