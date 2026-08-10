@@ -76,6 +76,11 @@ The Interface web-suggestion JSON parser now checks its required top-level
 closed before indexing, and suggestion ordering and network behavior are
 unchanged.
 
+AvatarDoctor's duplicate-joint diagnostic now recognizes the optional FST
+joint-name hash with `QVariant::metaType()` on Qt 6 and retains the legacy type
+check on Qt 5. It still ignores absent or non-hash mappings and iterates the
+same hash values, so avatar acceptance and diagnostic messages are unchanged.
+
 ## iOS audio-session lifecycle
 
 The bootstrap UIKit host configures `AVAudioSessionCategoryPlayAndRecord` with
@@ -406,6 +411,12 @@ the leading slash, this avoids the invalid `://…` path that previously made
 embedded models, textures, or other resources appear missing in the iOS
 sandbox. File URLs and network resource handling are unchanged.
 
+The controller application-state device no longer reports
+`STATE_PLATFORM_MAC` on iOS merely because Qt exposes its Apple/Darwin alias.
+Until a dedicated iOS controller-state channel is introduced, all existing
+desktop platform flags remain false on iPad; macOS, Windows, and Android
+mappings keep their previous values.
+
 The script editor highlighter's complete eight-expression set now uses
 `QRegularExpression`. Keyword, quote, number, boolean, single-line comment,
 and multi-line comment scans retain their prior match starts, full match
@@ -548,6 +559,9 @@ remain unchanged.
 The physical touchscreen input plug-in follows the same guarded point and
 position boundary; its first/current touch tracking, point count, DPI scaling,
 and gesture channels are unchanged on both Qt generations.
+FST mapping serialization copies preserved metadata entries explicitly into
+its multi-hash. This replaces Qt 6's removed `unite()` API while retaining all
+keys and values on both Qt generations.
 Platform-native AVAudioSession policy remains in the iOS shell and must not be
 duplicated by desktop code.
 

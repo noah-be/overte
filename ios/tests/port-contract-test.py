@@ -483,6 +483,10 @@ def test_cmake_boundary() -> None:
     require_text(touchscreen_source, r"using OverteTouchscreenPoint = QEventPoint;", "Qt 6 touchscreen input must use QEventPoint")
     require_text(touchscreen_source, r"return event->points\(\);[\s\S]*#else[\s\S]*return event->touchPoints\(\);", "touchscreen enumeration must preserve Qt 5 and Qt 6 paths")
     require_text(touchscreen_source, r"return point\.position\(\);[\s\S]*#else[\s\S]*return point\.pos\(\);", "touchscreen positions must preserve Qt 5 and Qt 6 semantics")
+    fst_source = SOURCE_ROOT / "libraries" / "model-serializers" / "src" / "FST.cpp"
+    require_text(fst_source, r"_other\.cbegin\(\)[\s\S]*mapping\.insert\(it\.key\(\), it\.value\(\)\)", "FST mappings must use Qt 5/6-compatible explicit insertion")
+    if ".unite(" in fst_source.read_text(encoding="utf-8"):
+        raise AssertionError("iOS-reachable FST serialization retained removed Qt 6 QHash::unite")
     require_text(audio_client_source, r"hifiAudioDeviceSupportsChannelCount\([^,]+, 2\)", "stereo-input availability must use the Qt 5/6 capability adapter")
     require_text(audio_client_source, r"Q_OS_MACOS.*!defined\(Q_OS_IOS\)", "desktop AudioHardware must be excluded from iOS")
     audio_client_cmake = SOURCE_ROOT / "libraries" / "audio-client" / "CMakeLists.txt"
@@ -722,6 +726,18 @@ def test_scope_contract() -> None:
         suggestions_engine,
         r"#else\s+const bool isSuggestionList = res\.type\(\) == QVariant::List;\s+#endif\s+if \(err\.error != QJsonParseError::NoError \|\| !isSuggestionList\)",
         "Qt 5 compatibility and JSON top-level-list validation must remain",
+    )
+
+    avatar_doctor = SOURCE_ROOT / "interface" / "src" / "avatar" / "AvatarDoctor.cpp"
+    require_text(
+        avatar_doctor,
+        r"#if QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)\s+const bool hasJointNameHash = jointNameMapping\.metaType\(\)\.id\(\) == QMetaType::QVariantHash;",
+        "avatar joint-map diagnostics must use the Qt 6 metatype API",
+    )
+    require_text(
+        avatar_doctor,
+        r"#else\s+const bool hasJointNameHash = jointNameMapping\.type\(\) == QVariant::Hash;\s+#endif\s+if \(mapping\.contains\(JOINT_NAME_MAPPING_FIELD\) && hasJointNameHash\)",
+        "Qt 5 compatibility and strict joint-hash validation must remain",
     )
 
     octree_persist = SOURCE_ROOT / "libraries" / "octree" / "src" / "OctreePersistThread.cpp"
