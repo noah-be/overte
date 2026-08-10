@@ -47,7 +47,11 @@ namespace buffer_helpers {
 
     template <typename T>
     const T glmVecFromVariant(const QVariant& v) {
-        auto isMap = v.type() == (QVariant::Type)QMetaType::QVariantMap;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        const bool isMap = v.metaType().id() == QMetaType::QVariantMap;
+#else
+        const bool isMap = v.type() == QVariant::Map;
+#endif
         static const auto len = T().length();
         const auto& components = isMap ? XYZW : ZERO123;
         T result;

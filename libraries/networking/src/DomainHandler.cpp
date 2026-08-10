@@ -233,7 +233,7 @@ void DomainHandler::setURLAndID(QUrl domainURL, QUuid domainID) {
                 if (domainURL.scheme() == URL_SCHEME_OVERTE) {
                     // re-set the sock addr to null and fire off a lookup of the IP address for this domain-server's hostname
                     qCDebug(networking, "Looking up DS hostname %s.", domainURL.host().toLocal8Bit().constData());
-                    QHostInfo::lookupHost(domainURL.host(), this, SLOT(completedHostnameLookup(const QHostInfo&)));
+                    QHostInfo::lookupHost(domainURL.host(), this, &DomainHandler::completedHostnameLookup);
                 }
 
                 DependencyManager::get<NodeList>()->flagTimeForConnectionStep(

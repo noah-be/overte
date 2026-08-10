@@ -27,9 +27,32 @@
 
 const char* TouchscreenVirtualPadDevice::NAME = "TouchscreenVirtualPad";
 
+namespace {
+const QList<OverteTouchPoint>& touchPoints(const QTouchEvent* event) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return event->points();
+#else
+    return event->touchPoints();
+#endif
+}
+
+QPointF touchPosition(const OverteTouchPoint& point) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return point.position();
+#else
+    return point.pos();
+#endif
+}
+}
+
 bool TouchscreenVirtualPadDevice::isSupported() const {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    for (const auto* touchDevice : QInputDevice::devices()) {
+        if (touchDevice->type() == QInputDevice::DeviceType::TouchScreen) {
+#else
     for (auto touchDevice : QTouchDevice::devices()) {
         if (touchDevice->type() == QTouchDevice::TouchScreen) {
+#endif
             return true;
         }
     }
@@ -283,9 +306,9 @@ void TouchscreenVirtualPadDevice::touchUpdateEvent(const QTouchEvent* event) {
         viewTouchEnd();
         return;
     }
-    _touchPointCount = event->touchPoints().count();
+    const auto& tPoints = touchPoints(event);
+    _touchPointCount = tPoints.count();
 
-    const QList<QTouchEvent::TouchPoint>& tPoints = event->touchPoints();
     bool moveTouchFound = false;
     bool viewTouchFound = false;
 
@@ -299,8 +322,9 @@ void TouchscreenVirtualPadDevice::touchUpdateEvent(const QTouchEvent* event) {
     std::map<int, TouchType> unusedTouchesInEvent;
 
     for (int i = 0; i < _touchPointCount; ++i) {
-        thisPoint.x = tPoints[i].pos().x();
-        thisPoint.y = tPoints[i].pos().y();
+        const auto position = touchPosition(tPoints[i]);
+        thisPoint.x = position.x();
+        thisPoint.y = position.y();
         thisPointId = tPoints[i].id();
 
         if (!moveTouchFound && _moveHasValidTouch && _moveCurrentTouchId == thisPointId) {
@@ -353,8 +377,9 @@ void TouchscreenVirtualPadDevice::touchUpdateEvent(const QTouchEvent* event) {
         if (idxMoveStartingPointCandidate != -1) {
             _moveCurrentTouchId = tPoints[idxMoveStartingPointCandidate].id();
             _unusedTouches.erase(_moveCurrentTouchId);
-            thisPoint.x = tPoints[idxMoveStartingPointCandidate].pos().x();
-            thisPoint.y = tPoints[idxMoveStartingPointCandidate].pos().y();
+            const auto position = touchPosition(tPoints[idxMoveStartingPointCandidate]);
+            thisPoint.x = position.x();
+            thisPoint.y = position.y();
             moveTouchBegin(thisPoint);
         } else {
             moveTouchEnd();
@@ -364,8 +389,9 @@ void TouchscreenVirtualPadDevice::touchUpdateEvent(const QTouchEvent* event) {
         if (idxViewStartingPointCandidate != -1) {
             _viewCurrentTouchId = tPoints[idxViewStartingPointCandidate].id();
             _unusedTouches.erase(_viewCurrentTouchId);
-            thisPoint.x = tPoints[idxViewStartingPointCandidate].pos().x();
-            thisPoint.y = tPoints[idxViewStartingPointCandidate].pos().y();
+            const auto position = touchPosition(tPoints[idxViewStartingPointCandidate]);
+            thisPoint.x = position.x();
+            thisPoint.y = position.y();
             viewTouchBegin(thisPoint);
         } else {
             viewTouchEnd();
@@ -616,15 +642,16 @@ void TouchscreenVirtualPadDevice::TouchscreenButtonsManager::saveUnusedTouches(
 }
 
 void TouchscreenVirtualPadDevice::TouchscreenButtonsManager::processBeginOrEnd(
-        glm::vec2 thisPoint, const QList<QTouchEvent::TouchPoint> &tPoints, std::map<int, TouchType> globalUnusedTouches) {
+        glm::vec2 thisPoint, const QList<OverteTouchPoint>& tPoints, std::map<int, TouchType> globalUnusedTouches) {
     for(int i = 0; i < buttons.size(); i++) {
         TouchscreenButton &button = buttons[i];
         if (!button._found) {
             if (button._candidatePointIdx != -1) {
                 button.currentTouchId = tPoints[button._candidatePointIdx].id();
                 globalUnusedTouches.erase(button.currentTouchId);
-                thisPoint.x = tPoints[button._candidatePointIdx].pos().x();
-                thisPoint.y = tPoints[button._candidatePointIdx].pos().y();
+                const auto position = touchPosition(tPoints[button._candidatePointIdx]);
+                thisPoint.x = position.x();
+                thisPoint.y = position.y();
                 button.touchBegin(thisPoint);
             } else {
                 if (button.hasValidTouch) {

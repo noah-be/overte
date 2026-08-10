@@ -14,13 +14,17 @@
 
 #include <controllers/InputDevice.h>
 #include "InputPlugin.h"
-#include <QtGui/qtouchdevice.h>
-#if (QT_VERSION < QT_VERSION_CHECK(5, 14, 0))
-#include <QtGui/QList>
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QtGui/QEventPoint>
+#include <QtGui/QInputDevice>
+#include <QtGui/QTouchEvent>
+using OverteTouchPoint = QEventPoint;
 #else
-#include <QTouchEvent>
-#include <QtCore/QList>
+#include <QtGui/qtouchdevice.h>
+#include <QtGui/QTouchEvent>
+using OverteTouchPoint = QTouchEvent::TouchPoint;
 #endif
+#include <QtCore/QList>
 #include "VirtualPadManager.h"
 
 class QTouchEvent;
@@ -141,7 +145,7 @@ protected:
         bool processOngoingTouch(glm::vec2 thisPoint, int thisPointId);
         bool findStartingTouchPointCandidate(glm::vec2 thisPoint, int thisPointId, int thisPointIdx, std::map<int, TouchType> &globalUnusedTouches);
         void saveUnusedTouches(std::map<int, TouchType> &unusedTouchesInEvent, glm::vec2 thisPoint, int thisPointId);
-        void processBeginOrEnd(glm::vec2 thisPoint, const QList<QTouchEvent::TouchPoint>& tPoints, std::map<int, TouchType> globalUnusedTouches);
+        void processBeginOrEnd(glm::vec2 thisPoint, const QList<OverteTouchPoint>& tPoints, std::map<int, TouchType> globalUnusedTouches);
 
         void endTouchForAll();
         bool touchBeginInvalidForAllButtons(glm::vec2 touchPoint);

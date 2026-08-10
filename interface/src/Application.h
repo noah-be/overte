@@ -367,11 +367,13 @@ public:
     void shareSnapshot(const QString& filename, const QUrl& href = QUrl(""));
 
 
-#if defined(Q_OS_ANDROID)
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS) || defined(OVERTE_IOS)
     void beforeEnterBackground();
     void enterBackground();
     void enterForeground();
+#if defined(Q_OS_ANDROID)
     void toggleAwayMode();
+#endif
 #endif
 
 signals:

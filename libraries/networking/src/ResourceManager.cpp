@@ -73,7 +73,7 @@ QString ResourceManager::normalizeURL(const QString& urlString) {
         copy = _prefixMap;
     }
 
-    foreach (const auto& entry, copy) {
+    for (const auto& entry : copy) {
         const auto& prefix = entry.first;
         const auto& replacement = entry.second;
         if (result.startsWith(prefix)) {

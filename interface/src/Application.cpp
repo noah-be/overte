@@ -803,7 +803,7 @@ void Application::shareSnapshot(const QString& path, const QUrl& href) {
     });
 }
 
-#if defined(Q_OS_ANDROID)
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS) || defined(OVERTE_IOS)
 void Application::beforeEnterBackground() {
     auto nodeList = DependencyManager::get<NodeList>();
     nodeList->setSendDomainServerCheckInEnabled(false);
@@ -816,8 +816,9 @@ void Application::enterBackground() {
                               "stop", Qt::BlockingQueuedConnection);
 // Quest only supports one plugin which can't be deactivated currently
 #if !defined(ANDROID_APP_QUEST_INTERFACE)
-    if (getActiveDisplayPlugin()->isActive()) {
-        getActiveDisplayPlugin()->deactivate();
+    auto displayPlugin = getActiveDisplayPlugin();
+    if (displayPlugin && displayPlugin->isActive()) {
+        displayPlugin->deactivate();
     }
 #endif
 }
@@ -835,10 +836,12 @@ void Application::enterForeground() {
     nodeList->setSendDomainServerCheckInEnabled(true);
 }
 
+#if defined(Q_OS_ANDROID)
 void Application::toggleAwayMode(){
     QKeyEvent event = QKeyEvent (QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
     QCoreApplication::sendEvent (this, &event);
 }
+#endif
 #endif
 
 // FIXME?  perhaps two, one for the main thread and one for the offscreen UI rendering thread?

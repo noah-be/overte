@@ -303,6 +303,11 @@ void Application::onPresent(quint32 frameCount) {
 void Application::activeChanged(Qt::ApplicationState state) {
     switch (state) {
         case Qt::ApplicationActive:
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+            if (!_isForeground && !_aboutToQuit && _startUpFinished) {
+                enterForeground();
+            }
+#endif
             _isForeground = true;
             if (!_aboutToQuit && _startUpFinished) {
                 getRefreshRateManager().setRefreshRateRegime(RefreshRateManager::RefreshRateRegime::FOCUS_ACTIVE);
@@ -314,6 +319,12 @@ void Application::activeChanged(Qt::ApplicationState state) {
             // Mobile platforms reach these explicit background states after
             // leaving the app. Do not keep reporting the client as foreground
             // merely because neither state enters the switch default.
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+            if (_isForeground && !_aboutToQuit && _startUpFinished) {
+                beforeEnterBackground();
+                enterBackground();
+            }
+#endif
             _isForeground = false;
             break;
         case Qt::ApplicationInactive:

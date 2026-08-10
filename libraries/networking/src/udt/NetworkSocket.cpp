@@ -22,9 +22,14 @@ NetworkSocket::NetworkSocket(QObject* parent) :
 {
     connect(&_udpSocket, &QUdpSocket::readyRead, this, &NetworkSocket::readyRead);
     connect(&_udpSocket, &QAbstractSocket::stateChanged, this, &NetworkSocket::onUDPStateChanged);
-    // Use old SIGNAL/SLOT mechanism for Android builds.
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+    connect(&_udpSocket, &QAbstractSocket::errorOccurred,
+        this, &NetworkSocket::onUDPSocketError);
+#else
+    // Preserve compatibility with Android builds that still use Qt before 5.15.
     connect(&_udpSocket, SIGNAL(error(QAbstractSocket::SocketError)),
         this, SLOT(onUDPSocketError(QAbstractSocket::SocketError)));
+#endif
 
 #if defined(WEBRTC_DATA_CHANNELS)
     connect(&_webrtcSocket, &WebRTCSocket::readyRead, this, &NetworkSocket::readyRead);
