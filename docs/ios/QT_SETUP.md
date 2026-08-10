@@ -164,3 +164,15 @@ target. The build must not locate a Homebrew desktop Qt through an incidental
 
 Qt WebEngine is intentionally excluded from the iOS component set. Embedded
 web content uses Qt WebView/WKWebView through the platform web-surface adapter.
+
+The reusable Qt source workflow exposes only its deterministic cache key. Its
+job output is forwarded explicitly through the workflow output to the integrated
+caller. A per-ref concurrency group serializes cache writers and does not cancel
+an in-progress multi-hour build. The bootstrap and integrated workflows retain
+separate concurrency groups, so invoking the reusable workflows cannot collide
+with the caller's group.
+
+The macOS shell entry points remain compatible with the system Bash 3.2 baseline;
+host contracts reject associative arrays, `mapfile`/`readarray`, and Bash 4 case
+conversion in those paths. Workflow YAML is additionally suitable for an
+`actionlint` audit without requiring that temporary audit binary in the repo.

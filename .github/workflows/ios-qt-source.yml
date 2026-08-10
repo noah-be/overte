@@ -14,6 +14,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ios-qt-source-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   qt-ios-source:
     runs-on: macos-26
