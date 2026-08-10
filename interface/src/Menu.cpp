@@ -340,11 +340,13 @@ Menu::Menu() {
     MenuWrapper* scriptingOptionsMenu = developerMenu->addMenu("Scripting");
 
     // Developer > Scripting > Console...
+#if !defined(Q_OS_IOS)
     addActionToQMenuAndActionHash(scriptingOptionsMenu, MenuOption::Console, static_cast<int>(Qt::CTRL | Qt::ALT) | static_cast<int>(Qt::Key_J),
                                   DependencyManager::get<StandAloneJSConsole>().data(),
                                   SLOT(toggleConsole()),
                                   QAction::NoRole,
                                   UNSPECIFIED_POSITION);
+#endif
 
      // Developer > Scripting > API Debugger
     action = addActionToQMenuAndActionHash(scriptingOptionsMenu, "API Debugger");

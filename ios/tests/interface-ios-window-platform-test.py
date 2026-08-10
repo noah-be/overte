@@ -9,6 +9,7 @@ APPLICATION_UI = (ROOT / "interface/src/Application_UI.cpp").read_text()
 LOG_DIALOG = (ROOT / "interface/src/ui/LogDialog.cpp").read_text()
 BASE_LOG_DIALOG = (ROOT / "interface/src/ui/BaseLogDialog.cpp").read_text()
 MENU = (ROOT / "interface/src/Menu.cpp").read_text()
+JS_CONSOLE = (ROOT / "interface/src/ui/StandAloneJSConsole.cpp").read_text()
 
 
 def require(condition: bool, message: str) -> None:
@@ -34,5 +35,12 @@ require("// Developer > Scripting > Entity Script Server Log\n"
 require("BaseLogDialog::BaseLogDialog(QWidget* parent) : QDialog(parent, Qt::Window)" in BASE_LOG_DIALOG and
         "setMinimumWidth(MINIMAL_WIDTH);" in BASE_LOG_DIALOG,
         "Entity Script Server log is no longer demonstrably a desktop utility window")
+require("void StandAloneJSConsole::toggleConsole()  {\n#if !defined(Q_OS_IOS)" in JS_CONSOLE,
+        "stand-alone desktop JavaScript console remains reachable on iOS")
+require("// Developer > Scripting > Console...\n#if !defined(Q_OS_IOS)" in MENU,
+        "stand-alone JavaScript console action remains in the iOS menu")
+require("new QDialog(mainWindow, Qt::WindowStaysOnTopHint)" in JS_CONSOLE and
+        "dialog->resize(QSize(CONSOLE_WIDTH, CONSOLE_HEIGHT));" in JS_CONSOLE,
+        "stand-alone JavaScript console is no longer demonstrably a desktop utility window")
 
-print("iOS window platform contract valid: desktop log dialogs preserved and mobile-excluded")
+print("iOS window platform contract valid: desktop log/console windows preserved and mobile-excluded")
