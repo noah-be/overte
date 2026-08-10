@@ -14,7 +14,6 @@ from pathlib import Path
 
 FORBIDDEN_PACKAGES = {
     "discord-rpc",
-    "glad",
     "libovr",
     "openvr",
     "openxr",
@@ -52,6 +51,12 @@ def audit_graph(payload: dict) -> int:
         name, version = split_reference(reference)
         if name in FORBIDDEN_PACKAGES:
             raise ValueError(f"desktop-only package entered iOS graph: {reference}")
+        if name == "glad":
+            options = node.get("options", {})
+            if context != "host" or settings.get("os") != "iOS":
+                raise ValueError(f"glad entered the wrong iOS graph context: {reference}")
+            if str(options.get("spec")) != "gl" or str(options.get("gles2_version")) != "3.2":
+                raise ValueError(f"glad lacks the audited GLES 3.2 dispatch contract: {reference}")
         if name == "qt" and not version.startswith("6."):
             raise ValueError(f"non-Qt-6 package entered iOS graph: {reference}")
         if name == "quazip" and tuple(map(int, version.split("."))) < (1, 7):

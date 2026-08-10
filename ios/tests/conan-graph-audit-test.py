@@ -51,13 +51,19 @@ def main() -> None:
             "options": {"shared": False},
         },
         {
+            "ref": "glad/0.1.36@overte/experimental",
+            "context": "host",
+            "settings": {"os": "iOS"},
+            "options": {"shared": False, "spec": "gl", "gles2_version": "3.2"},
+        },
+        {
             "ref": "spirv-cross/1.4.350.0",
             "context": "build",
             "settings": {"os": "Macos"},
             "options": {},
         },
     )
-    assert auditor.audit_graph(valid) == 3
+    assert auditor.audit_graph(valid) == 4
 
     expect_rejected(
         auditor,
@@ -85,6 +91,18 @@ def main() -> None:
             }
         ),
         "shared target",
+    )
+    expect_rejected(
+        auditor,
+        graph(
+            {
+                "ref": "glad/0.1.36@overte/experimental",
+                "context": "host",
+                "settings": {"os": "iOS"},
+                "options": {"shared": False, "spec": "gl", "gles2_version": "None"},
+            }
+        ),
+        "GLES 3.2",
     )
     print("PASS iOS Conan graph audit tests")
 

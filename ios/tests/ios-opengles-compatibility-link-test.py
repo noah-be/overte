@@ -7,6 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 TARGET_GLAD = (ROOT / "cmake/macros/TargetGlad.cmake").read_text()
 CONFIG = (ROOT / "libraries/gl/src/gl/Config.cpp").read_text()
+CONAN_RECIPE = (ROOT / "ios/conanfile.py").read_text()
 
 
 def require(condition: bool, message: str) -> None:
@@ -36,5 +37,10 @@ require("#if defined(Q_OS_IOS)\n        gladLoadGLES2Loader(getGlProcessAddress)
         "iOS compatibility dispatch does not select the GLES loader")
 require(CONFIG.count("#elif defined(Q_OS_IOS)") >= 4,
         "iOS GL loading/swap paths can still fall into desktop CGL branches")
+require('self.requires("glad/0.1.36@overte/experimental#' in CONAN_RECIPE,
+        "the iOS graph does not provide the pinned glad package")
+require('"glad*:gles2_version": "3.2"' in CONAN_RECIPE and
+        '"glad*:gl_version": "4.5"' in CONAN_RECIPE,
+        "the iOS glad package does not generate the required GL/GLES declarations")
 
 print("iOS GL compatibility valid: OpenGLES+glad owned without desktop FindOpenGL")

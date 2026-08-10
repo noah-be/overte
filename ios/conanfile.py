@@ -28,6 +28,10 @@ class OverteIOSDependencies(ConanFile):
         "*:shared": False,
         "*:fPIC": True,
         "openssl*:shared": False,
+        "glad*:spec": "gl",
+        "glad*:gl_profile": "core",
+        "glad*:gl_version": "4.5",
+        "glad*:gles2_version": "3.2",
     }
 
     def validate(self):
@@ -42,6 +46,9 @@ class OverteIOSDependencies(ConanFile):
         self.requires("bullet3/3.25")
         self.requires("cgltf/1.14@overte/stable")
         self.requires("draco/1.3.5")
+        # The remaining target-owned QML/VK compatibility contexts dispatch
+        # through GLES on iOS. Keep this pinned until native RHI replaces them.
+        self.requires("glad/0.1.36@overte/experimental#9612a3032fecdd1d8781dfb1b2bd6dc6")
         self.requires("glm/0.9.9.5", force=True)
         self.requires("gli/cci.20210515")
         self.requires("jsoncpp/1.9.6", force=True)

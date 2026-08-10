@@ -11,7 +11,7 @@
     "etc2comp": { "class": "host-tool", "ship": false },
     "fcitx5-qt": { "class": "disabled", "ship": false },
     "gifcreator": { "class": "deferred", "ship": false },
-    "glad": { "class": "disabled", "ship": false },
+    "glad": { "class": "graphics-runtime", "ship": true },
     "glib": { "class": "disabled", "ship": false },
     "glm": { "class": "required", "ship": true },
     "gli": { "class": "required-audit", "ship": true },
