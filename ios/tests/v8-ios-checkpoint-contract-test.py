@@ -32,6 +32,13 @@ class V8IOSCheckpointContractTest(unittest.TestCase):
             "target_os = ['ios']",
         ):
             self.assertIn(contract, script)
+        self.assertNotIn("gclient runhooks", script)
+        for required_build_hook in (
+            "build/landmines.py",
+            "tools/clang/scripts/update.py",
+            "build/util/lastchange.py",
+        ):
+            self.assertIn(required_build_hook, script)
 
     def test_integrated_job_restores_validates_and_saves_checkpoint(self):
         workflow = (ROOT / ".github/workflows/ios-integrated.yml").read_text(encoding="utf-8")

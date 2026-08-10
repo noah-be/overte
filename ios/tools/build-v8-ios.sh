@@ -83,7 +83,18 @@ solutions = [
 target_os = ['ios']
 EOF
 (cd "$work_root" && gclient sync --revision "v8@$OVERTE_IOS_V8_REVISION" --no-history --nohooks)
-(cd "$source_root" && gclient runhooks)
+
+# V8 12.4's general-purpose runhooks list installs its historical test Python
+# environment.  The pinned numpy wheel for that environment was never
+# published for macOS arm64 and is unrelated to compiling v8_monolith.  Run
+# only the build hooks required by GN/Ninja instead: freeze depot_tools,
+# process landmines, install the DEPS-pinned clang toolchain and generate the
+# revision metadata consumed by the build.
+(cd "$source_root" && \
+    python3 third_party/depot_tools/update_depot_tools_toggle.py --disable && \
+    python3 build/landmines.py --landmine-scripts tools/get_landmines.py && \
+    python3 tools/clang/scripts/update.py && \
+    python3 build/util/lastchange.py -o build/util/LASTCHANGE)
 
 mkdir -p "$output_dir"
 cat > "$output_dir/args.gn" <<EOF

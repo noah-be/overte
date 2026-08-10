@@ -35,6 +35,11 @@ device `arm64` ABI, statically links `v8_monolith`, embeds startup data, and
 disables JIT and WebAssembly generation. `ios/tools/build-v8-ios.sh validate`
 checks those invariants and the Mach-O architecture before CMake runs.
 
+The builder deliberately skips V8's unrelated test-Python hook: V8 12.4 pins
+a historical NumPy test wheel that was not published for macOS arm64. It still
+runs the DEPS-pinned Clang, landmine and revision-metadata hooks required by the
+GN/Ninja production build.
+
 V8 derives its internal `v8_jitless` setting for an iOS device build. The
 recipe additionally enables V8 lite mode, which fail-closes the optimizing
 compilers and is asserted by V8 to be incompatible with WebAssembly.
