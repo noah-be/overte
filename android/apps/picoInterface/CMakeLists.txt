@@ -50,7 +50,7 @@ get_target_property(PICO_INTERFACE_SOURCES picoInterface SOURCES)
 list(FILTER PICO_INTERFACE_SOURCES EXCLUDE REGEX "PicoWebViewItem\\.(cpp|h)$")
 set_property(TARGET picoInterface PROPERTY SOURCES "${PICO_INTERFACE_SOURCES}")
 target_sources(picoInterface PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/QtInputConnectionCompat.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../shared/src/QtInputConnectionCompat.cpp"
 )
 # setup_hifi_library() keeps the directory's native library target while this
 # standalone Android CMake file switches TARGET_NAME.  The Pico-specific QML

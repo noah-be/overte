@@ -1,7 +1,7 @@
 set(TARGET_NAME phoneInterface)
 setup_hifi_library()
 target_sources(${TARGET_NAME} PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/QtInputConnectionCompat.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../shared/src/QtInputConnectionCompat.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/PhoneUrlHandler.cpp"
 )
 link_hifi_libraries(
