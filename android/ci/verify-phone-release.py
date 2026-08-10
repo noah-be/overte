@@ -2,11 +2,17 @@
 """Validate an immutable Android Phone alpha tag and its Android version."""
 
 import argparse
+from contextlib import contextmanager
+import fcntl
 import json
+import math
+import os
 from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
+import time
 
 
 TAG_RE = re.compile(
@@ -14,6 +20,7 @@ TAG_RE = re.compile(
     r"(0|[1-9][0-9]*)-alpha\.([1-9][0-9]*)"
 )
 MAX_VERSION_CODE = 2_147_483_647
+DEFAULT_VERSION_LOCK_TIMEOUT_SECONDS = 600.0
 
 
 def fail(message):
@@ -44,16 +51,54 @@ def parse_tag(tag):
     return parts, code, tag.removeprefix("android-phone-v")
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--repository", type=Path, default=Path.cwd())
-    parser.add_argument("--tag", required=True)
-    parser.add_argument("--version-code", required=True)
-    parser.add_argument("--published-code-floor", required=True)
-    parser.add_argument("--source-revision", required=True)
-    parser.add_argument("--output", type=Path)
-    args = parser.parse_args()
+def version_lock_timeout():
+    value = os.environ.get(
+        "OVERTE_RELEASE_VERSION_LOCK_TIMEOUT_SECONDS",
+        str(DEFAULT_VERSION_LOCK_TIMEOUT_SECONDS),
+    )
+    try:
+        timeout = float(value)
+    except ValueError:
+        fail("release version lock timeout must be a non-negative number")
+    if timeout < 0 or not math.isfinite(timeout):
+        fail("release version lock timeout must be a non-negative number")
+    return timeout
 
+
+@contextmanager
+def version_lifecycle(output, timeout):
+    output.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = output.parent / f".{output.name}.lock"
+    with lock_path.open("a+b") as lock:
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    fail(f"timed out waiting for release version lock after {timeout:g} seconds")
+                time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+def atomic_write(path, rendered):
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as destination:
+            destination.write(rendered)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def verified_version(args):
+    """Validate the candidate and return its complete version manifest."""
     if not re.fullmatch(r"[0-9a-f]{40}", args.source_revision):
         fail("source revision must be a lowercase 40-character Git commit")
     if not re.fullmatch(r"[1-9][0-9]*", args.version_code):
@@ -97,10 +142,30 @@ def main():
         "tag_commit": tag_commit,
         "tag_order": list(candidate_parts),
     }
-    rendered = json.dumps(result, indent=2, sort_keys=True) + "\n"
+    return json.dumps(result, indent=2, sort_keys=True) + "\n"
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repository", type=Path, default=Path.cwd())
+    parser.add_argument("--tag", required=True)
+    parser.add_argument("--version-code", required=True)
+    parser.add_argument("--published-code-floor", required=True)
+    parser.add_argument("--source-revision", required=True)
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args()
+
     if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(rendered, encoding="utf-8")
+        timeout = version_lock_timeout()
+        with version_lifecycle(args.output, timeout):
+            if args.output.is_symlink() or (
+                    args.output.exists() and not args.output.is_file()):
+                fail("release version output must be a regular non-symlink file")
+            args.output.unlink(missing_ok=True)
+            rendered = verified_version(args)
+            atomic_write(args.output, rendered)
+    else:
+        rendered = verified_version(args)
     print(rendered, end="")
 
 

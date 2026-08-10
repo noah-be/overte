@@ -542,14 +542,21 @@ void GLBackend::renderPassDraw(const Batch& batch) {
 class GlDuration {
 public:
 #ifdef Q_OS_ANDROID
-    GlDuration(const char* name) {
+    GlDuration(const char* name) :
+        _enabled(glad_glPushDebugGroup != nullptr && glad_glPopDebugGroup != nullptr) {
         // We need to use strlen here instead of -1, because the Snapdragon profiler
-        // will crash otherwise 
-        glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, strlen(name), name);
+        // will crash otherwise.
+        if (_enabled) {
+            glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, strlen(name), name);
+        }
     }
     ~GlDuration() {
-        glPopDebugGroup();
+        if (_enabled) {
+            glPopDebugGroup();
+        }
     }
+private:
+    bool _enabled { false };
 #else
     GlDuration(const char* name) {
         if (::gl::khrDebugEnabled()) {

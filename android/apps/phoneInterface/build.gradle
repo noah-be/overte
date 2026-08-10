@@ -281,6 +281,10 @@ android {
         versionCode rootProject.ext.appVersionCode
         versionName rootProject.ext.appVersionName
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        // MonitoringInstrumentation normally finishes every open Activity
+        // before reporting. Qt exits the process when its Activity is stopped,
+        // which prevents the otherwise successful result from being reported.
+        testInstrumentationRunnerArguments waitForActivitiesToComplete: 'false'
 
         ndk { abiFilters phoneTargetAbi }
         externalNativeBuild {

@@ -67,7 +67,9 @@ namespace gpu {
                     glGenTextures(1, &_texBuffer);
                     glActiveTexture(GL_TEXTURE0 + GLESBackend::RESOURCE_BUFFER_TEXBUF_TEX_UNIT);
                     glBindTexture(GL_TEXTURE_BUFFER, _texBuffer);
-                    glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, _buffer);
+                    if (!GLESBackend::setTextureBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, _buffer)) {
+                        qFatal("GLES texture buffers are unavailable");
+                    }
                     glBindTexture(GL_TEXTURE_BUFFER, 0);
                     (void)CHECK_GL_ERROR();
                 }

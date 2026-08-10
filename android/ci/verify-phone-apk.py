@@ -2,20 +2,26 @@
 """Run the complete Phone APK gate and emit build provenance."""
 
 import argparse
+from contextlib import contextmanager
+import fcntl
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
+import time
 
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_GATE = ROOT / "android/tests/check-phone-apk-16k.sh"
 EXPECTED_PACKAGE = "org.overte.phone"
 DEFAULT_TEMP_ROOT = ROOT / "android/build/apk-verification-tmp"
+DEFAULT_MANIFEST_LOCK_TIMEOUT_SECONDS = 600.0
 
 
 def fail(message):
@@ -79,20 +85,54 @@ def sha256(path):
     return checksum.hexdigest()
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("apk", type=Path)
-    parser.add_argument("--package-gate", type=Path, default=DEFAULT_GATE)
-    parser.add_argument("--apkanalyzer")
-    parser.add_argument("--apksigner")
-    parser.add_argument("--expect-debuggable", choices=("0", "1"))
-    parser.add_argument("--source-revision")
-    parser.add_argument("--expect-signer", help="required signer certificate SHA-256")
-    parser.add_argument("--expect-unsigned", action="store_true",
-                        help="require an unsigned APK for store-neutral handoff")
-    parser.add_argument("--output", type=Path)
-    args = parser.parse_args()
+def manifest_lock_timeout():
+    value = os.environ.get(
+        "OVERTE_APK_MANIFEST_LOCK_TIMEOUT_SECONDS",
+        str(DEFAULT_MANIFEST_LOCK_TIMEOUT_SECONDS),
+    )
+    try:
+        timeout = float(value)
+    except ValueError:
+        fail("APK manifest lock timeout must be a non-negative number")
+    if timeout < 0 or not math.isfinite(timeout):
+        fail("APK manifest lock timeout must be a non-negative number")
+    return timeout
 
+
+@contextmanager
+def manifest_lifecycle(output, timeout):
+    output.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = output.parent / f".{output.name}.lock"
+    with lock_path.open("a+b") as lock:
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    fail(f"timed out waiting for APK manifest lock after {timeout:g} seconds")
+                time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+def atomic_write(path, rendered):
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as destination:
+            destination.write(rendered)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def verified_manifest(args):
+    """Run all gates and return a manifest only after complete verification."""
     if not args.apk.is_file() or args.apk.is_symlink():
         fail(f"APK is not a regular non-symlink file: {args.apk}")
     if not args.package_gate.is_file() or not args.package_gate.stat().st_mode & 0o111:
@@ -154,10 +194,33 @@ def main():
     }
     if args.source_revision:
         manifest["source_revision"] = args.source_revision
-    rendered = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+    return json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("apk", type=Path)
+    parser.add_argument("--package-gate", type=Path, default=DEFAULT_GATE)
+    parser.add_argument("--apkanalyzer")
+    parser.add_argument("--apksigner")
+    parser.add_argument("--expect-debuggable", choices=("0", "1"))
+    parser.add_argument("--source-revision")
+    parser.add_argument("--expect-signer", help="required signer certificate SHA-256")
+    parser.add_argument("--expect-unsigned", action="store_true",
+                        help="require an unsigned APK for store-neutral handoff")
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args()
     if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(rendered, encoding="utf-8")
+        timeout = manifest_lock_timeout()
+        with manifest_lifecycle(args.output, timeout):
+            if args.output.is_symlink() or (
+                    args.output.exists() and not args.output.is_file()):
+                fail("APK manifest output must be a regular non-symlink file")
+            args.output.unlink(missing_ok=True)
+            rendered = verified_manifest(args)
+            atomic_write(args.output, rendered)
+    else:
+        rendered = verified_manifest(args)
     print(rendered, end="")
     return 0
 

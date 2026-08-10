@@ -30,6 +30,37 @@ readonly alignment_check="$script_dir/check-phone-elf-alignment.sh"
 readonly sentinel_version='overte-phone-16k-dependencies-v3'
 readonly temp_root="${PHONE_VERIFY_TMPDIR:-$script_dir/../build/verification-tmp}"
 
+lock_timeout="${OVERTE_PHONE_16K_SENTINEL_LOCK_TIMEOUT_SECONDS:-600}"
+if [[ ! "$lock_timeout" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+    echo "ERROR: invalid Phone dependency sentinel lock timeout: $lock_timeout" >&2
+    exit 2
+fi
+mkdir -p -- "$(dirname -- "$sentinel")"
+exec {sentinel_lock_fd}>>"${sentinel}.lock"
+lock_mode=-s
+$write_sentinel && lock_mode=-x
+if ! flock "$lock_mode" -w "$lock_timeout" "$sentinel_lock_fd"; then
+    echo "ERROR: timed out waiting for Phone dependency sentinel lock" >&2
+    exit 1
+fi
+if [[ -L "$sentinel" || ( -e "$sentinel" && ! -f "$sentinel" ) ]]; then
+    echo "ERROR: Phone dependency sentinel must be a regular non-symlink file" >&2
+    exit 2
+fi
+if $write_sentinel; then
+    rm -f -- "$sentinel"
+fi
+
+temp_dir=''
+sentinel_tmp=''
+cleanup() {
+    [[ -z "$sentinel_tmp" ]] || rm -f -- "$sentinel_tmp"
+    [[ -z "$temp_dir" ]] || rm -rf -- "$temp_dir"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 declare -a generator_specs=(
     "$qt_conan_dir/generators/Qt5-debug-armv8-data.cmake:qt"
     "$nonqt_conan_dir/generators/OpenSSL-debug-armv8-data.cmake:openssl"
@@ -63,7 +94,6 @@ mkdir -p -- "$temp_root"
     exit 2
 }
 temp_dir=$(mktemp -d "$temp_root/overte-phone-16k-ready.XXXXXXXX")
-trap 'rm -rf -- "$temp_dir"' EXIT INT TERM
 manifest="$temp_dir/manifest"
 staged_alignment_dir="$temp_dir/staged-nonqt"
 : > "$manifest"
@@ -196,10 +226,10 @@ expected="$sentinel_version
 $digest"
 
 if $write_sentinel; then
-    mkdir -p -- "$(dirname -- "$sentinel")"
-    sentinel_tmp="$sentinel.tmp.$$"
+    sentinel_tmp=$(mktemp "$(dirname -- "$sentinel")/.${sentinel##*/}.staging.XXXXXXXX")
     printf '%s\n' "$expected" > "$sentinel_tmp"
     mv -f -- "$sentinel_tmp" "$sentinel"
+    sentinel_tmp=''
     echo "Wrote verified 16 KiB dependency sentinel: $sentinel"
 elif [[ ! -f "$sentinel" ]] || [[ $(cat -- "$sentinel") != "$expected" ]]; then
     echo "ERROR: 16 KiB dependency sentinel is missing or stale: $sentinel" >&2

@@ -42,6 +42,12 @@ target_sources(gl PRIVATE
 target_include_directories(gl PRIVATE
     "${CMAKE_SOURCE_DIR}/libraries/gl/src/gl"
 )
+if (ANDROID_ABI STREQUAL "x86_64")
+    # The Android Emulator exposes GLES 3.1 while the shared Android graphics
+    # backend requests 3.2. The generated mobile shaders target GLSL ES 3.10,
+    # so use the supported context version for the emulator-only ABI.
+    target_compile_definitions(gl PRIVATE OVERTE_ANDROID_GLES31=1)
+endif()
 
 add_subdirectory("${CMAKE_SOURCE_DIR}/interface" "libraries/interface")
 target_compile_options(audio-client PRIVATE -include jni.h)

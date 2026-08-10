@@ -12,6 +12,10 @@ serial_file="$state_dir/serial"
 pid_file="$state_dir/pid"
 log_file="$state_dir/emulator.log"
 gradle_tmp="$state_dir/gradle-tmp"
+test_class="${PHONE_EMULATOR_TEST_CLASS:-}"
+test_repetitions="${PHONE_EMULATOR_TEST_REPETITIONS:-1}"
+lock_file="${PHONE_EMULATOR_LOCK_FILE:-${state_dir}.lock}"
+lock_timeout="${PHONE_EMULATOR_LOCK_TIMEOUT_SECONDS:-600}"
 
 fail() { echo "error: $*" >&2; exit 2; }
 
@@ -102,17 +106,64 @@ build() {
         :phoneInterface:assembleEmulator :phoneInterface:assembleEmulatorAndroidTest
 }
 
+collect_test_diagnostics() {
+    local serial="$1" attempt="$2" instrumentation_log="$3"
+    local diagnostic_dir
+    diagnostic_dir="$state_dir/diagnostics/run-$(date -u +%Y%m%dT%H%M%SZ)-$$/attempt-$attempt"
+    mkdir -p -- "$diagnostic_dir"
+    cp -- "$instrumentation_log" "$diagnostic_dir/instrumentation.log"
+    "$adb" -s "$serial" logcat -d -v threadtime >"$diagnostic_dir/logcat.txt" 2>&1 || true
+    "$adb" -s "$serial" logcat -b crash -d -v threadtime \
+        >"$diagnostic_dir/native-crash-logcat.txt" 2>&1 || true
+    "$adb" -s "$serial" shell dumpsys activity activities \
+        >"$diagnostic_dir/activity.txt" 2>&1 || true
+    "$adb" -s "$serial" shell dumpsys dropbox --print data_app_native_crash \
+        >"$diagnostic_dir/native-crash-dropbox.txt" 2>&1 || true
+    "$adb" -s "$serial" shell ls -la /data/tombstones \
+        >"$diagnostic_dir/tombstones.txt" 2>&1 || true
+    printf 'Phone emulator diagnostics: %s\n' "$diagnostic_dir" >&2
+}
+
 test_emulator() {
-    local jdk serial
+    local jdk serial attempt instrumentation_log
+    local -a gradle_arguments
+    [[ "$test_repetitions" =~ ^[0-9]+$ ]] && \
+        (( 10#$test_repetitions >= 1 && 10#$test_repetitions <= 25 )) \
+        || fail "PHONE_EMULATOR_TEST_REPETITIONS must be an integer from 1 through 25"
+    if (( 10#$test_repetitions > 1 )) && [[ -z "$test_class" ]]; then
+        fail "PHONE_EMULATOR_TEST_CLASS is required when repeating instrumentation"
+    fi
+    if [[ -n "$test_class" && ! "$test_class" =~ ^[A-Za-z_][A-Za-z0-9_.$]*(#[A-Za-z_][A-Za-z0-9_]*)?$ ]]; then
+        fail "PHONE_EMULATOR_TEST_CLASS must be a fully-qualified class with an optional #method"
+    fi
     start
     serial="$(<"$serial_file")"
     jdk="$(find_jdk)" || fail "JDK 17-21 was not found"
     mkdir -p -- "$gradle_tmp"
-    PHONE_EMULATOR_BUILD=1 JAVA_HOME="$jdk" ANDROID_SDK_ROOT="$sdk" \
-        TMPDIR="$gradle_tmp" JAVA_TOOL_OPTIONS="-Djava.io.tmpdir=$gradle_tmp ${JAVA_TOOL_OPTIONS:-}" \
-        ANDROID_SERIAL="$serial" \
-        "$script_dir/gradlew" --settings-file "$script_dir/settings-phone.gradle" \
-        :phoneInterface:connectedEmulatorAndroidTest
+    gradle_arguments=(--settings-file "$script_dir/settings-phone.gradle")
+    if [[ -n "$test_class" ]]; then
+        gradle_arguments+=("-Pandroid.testInstrumentationRunnerArguments.class=$test_class")
+    fi
+    gradle_arguments+=(--rerun-tasks :phoneInterface:connectedEmulatorAndroidTest)
+    for (( attempt = 1; attempt <= 10#$test_repetitions; ++attempt )); do
+        instrumentation_log="$state_dir/instrumentation-attempt-$attempt.log"
+        "$adb" -s "$serial" logcat -c >/dev/null 2>&1 || true
+        printf 'Phone emulator instrumentation attempt %d/%d%s\n' \
+            "$attempt" "$test_repetitions" "${test_class:+: $test_class}"
+        if PHONE_EMULATOR_BUILD=1 JAVA_HOME="$jdk" ANDROID_SDK_ROOT="$sdk" \
+                TMPDIR="$gradle_tmp" \
+                JAVA_TOOL_OPTIONS="-Djava.io.tmpdir=$gradle_tmp ${JAVA_TOOL_OPTIONS:-}" \
+                ANDROID_SERIAL="$serial" \
+                "$script_dir/gradlew" "${gradle_arguments[@]}" \
+                >"$instrumentation_log" 2>&1; then
+            cat -- "$instrumentation_log"
+        else
+            local status=$?
+            cat -- "$instrumentation_log" >&2
+            collect_test_diagnostics "$serial" "$attempt" "$instrumentation_log"
+            return "$status"
+        fi
+    done
 }
 
 stop() {
@@ -126,6 +177,22 @@ stop() {
     rm -f -- "$serial_file" "$pid_file"
 }
 
+acquire_lifecycle_lock() {
+    [[ "$lock_timeout" =~ ^[0-9]+([.][0-9]+)?$ ]] \
+        || fail "PHONE_EMULATOR_LOCK_TIMEOUT_SECONDS must be a non-negative number"
+    mkdir -p -- "$(dirname -- "$lock_file")"
+    exec {emulator_lock_fd}>>"$lock_file"
+    if ! flock -x -w "$lock_timeout" "$emulator_lock_fd"; then
+        fail "timed out waiting for phone emulator lifecycle lock"
+    fi
+}
+
+case "$command_name" in
+    doctor) ;;
+    deps|start|build|test|stop|all) acquire_lifecycle_lock ;;
+    *) fail "usage: $0 [doctor|deps|start|build|test|stop|all]" ;;
+esac
+
 case "$command_name" in
     doctor) doctor ;;
     deps) "$script_dir/prepare-phone-emulator-deps.sh" ;;
@@ -134,5 +201,4 @@ case "$command_name" in
     test) test_emulator ;;
     stop) stop ;;
     all) build; test_emulator ;;
-    *) fail "usage: $0 [doctor|deps|start|build|test|stop|all]" ;;
 esac

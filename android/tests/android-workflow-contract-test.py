@@ -122,6 +122,17 @@ class AndroidPhoneBuildWorkflowContracts(unittest.TestCase):
         self.assertIn("apk-manifest.json", upload)
         self.assertIn("retention-days: 7", upload)
 
+    def test_build_diagnostics_are_scoped_to_the_workflow_attempt(self):
+        self.assertIn(
+            "name: android-phone-build-reports-${{ github.run_id }}-"
+            "${{ github.run_attempt }}",
+            self.source,
+        )
+        self.assertNotIn(
+            "name: android-phone-build-reports-${{ github.run_id }}\n",
+            self.source,
+        )
+
 
 class AndroidPhoneReleaseCandidateWorkflowContracts(unittest.TestCase):
     @classmethod
@@ -143,6 +154,35 @@ class AndroidPhoneReleaseCandidateWorkflowContracts(unittest.TestCase):
         self.assertIn("refs/tags/${{ inputs.release_tag }}", self.source)
         self.assertIn("persist-credentials: false", self.source)
 
+    def test_release_values_are_not_interpolated_into_shell_programs(self):
+        lines = self.source.splitlines()
+        run_blocks = []
+        for index, line in enumerate(lines):
+            if line != "        run: |":
+                continue
+            body = []
+            for candidate in lines[index + 1:]:
+                if candidate and not candidate.startswith("          "):
+                    break
+                body.append(candidate)
+            run_blocks.append("\n".join(body))
+        self.assertGreaterEqual(len(run_blocks), 4)
+        shell_programs = "".join(run_blocks)
+        self.assertNotIn("${{ inputs.", shell_programs)
+        self.assertNotIn("${{ vars.", shell_programs)
+        for mapping in (
+            "RELEASE_TAG: ${{ inputs.release_tag }}",
+            "VERSION_CODE: ${{ inputs.version_code }}",
+            "PUBLISHED_CODE_FLOOR: ${{ vars.ANDROID_PHONE_PUBLISHED_VERSION_CODE }}",
+        ):
+            self.assertGreaterEqual(self.source.count(mapping), 2)
+        for argument in (
+            '--tag "$RELEASE_TAG"',
+            '--version-code "$VERSION_CODE"',
+            '--published-code-floor "$PUBLISHED_CODE_FLOOR"',
+        ):
+            self.assertEqual(2, self.source.count(argument))
+
     def test_complete_gates_and_local_metadata_are_retained(self):
         for required in (
             "tests/run-tests.sh host", "./build-phone.sh deps --download",
@@ -152,6 +192,17 @@ class AndroidPhoneReleaseCandidateWorkflowContracts(unittest.TestCase):
             self.assertIn(required, self.source)
         self.assertNotIn("gh release create", self.source)
         self.assertNotIn("actions/attest-build-provenance", self.source)
+
+    def test_candidate_artifact_is_scoped_to_the_workflow_attempt(self):
+        self.assertIn(
+            "name: android-phone-rc-${{ inputs.release_tag }}-"
+            "${{ github.run_attempt }}",
+            self.source,
+        )
+        self.assertNotIn(
+            "name: android-phone-rc-${{ inputs.release_tag }}\n",
+            self.source,
+        )
 
     def test_candidate_build_respects_runner_cpu_budget(self):
         self.assertIn(
@@ -164,6 +215,17 @@ class AndroidPhoneReleaseCandidateWorkflowContracts(unittest.TestCase):
         host_tests = self.source.index("Run complete device-free host tier")
         self.assertLess(runtime_check, host_tests)
         self.assertIn("android/ci/check-phone-host-runtime.sh", self.source)
+
+    def test_candidate_diagnostics_are_scoped_to_the_workflow_attempt(self):
+        self.assertIn(
+            "name: android-phone-rc-reports-${{ github.run_id }}-"
+            "${{ github.run_attempt }}",
+            self.source,
+        )
+        self.assertNotIn(
+            "name: android-phone-rc-reports-${{ github.run_id }}\n",
+            self.source,
+        )
 
     def test_actions_are_pinned_and_candidate_has_no_signing_secrets(self):
         actions = ACTION_USE.findall(self.source)
@@ -184,13 +246,80 @@ class AndroidPhoneEmulatorAcceptanceWorkflowContracts(unittest.TestCase):
         self.assertIn("environment: android-phone-emulator-acceptance", self.source)
         self.assertIn("overte-android-phone-emulator", self.source)
 
-    def test_verifies_digest_and_package_before_adb_installation(self):
+    def test_verifies_digest_and_package_before_emulator_acceptance(self):
         digest = self.source.index("sha256sum --check --strict")
-        package = self.source.index("check-phone-apk-16k.sh")
-        device = self.source.index("phone-device-test.sh")
-        self.assertLess(digest, package)
-        self.assertLess(package, device)
-        self.assertIn('PHONE_ALLOW_EMULATOR: "1"', self.source)
+        unsigned = self.source.index("--expect-unsigned")
+        emulator = self.source.index("phone-emulator-test.sh all")
+        self.assertLess(digest, unsigned)
+        self.assertLess(unsigned, emulator)
+
+    def test_unsigned_arm64_candidate_is_not_installed(self):
+        self.assertIn("phoneInterface-release-unsigned.apk", self.source)
+        self.assertNotIn("apksigner sign", self.source)
+        self.assertNotIn("phone-device-test.sh", self.source)
+        self.assertIn("android/phone-emulator-test.sh all", self.source)
+
+    def test_manual_inputs_are_not_interpolated_into_shell_programs(self):
+        lines = self.source.splitlines()
+        run_blocks = []
+        for index, line in enumerate(lines):
+            if line != "        run: |":
+                continue
+            body = []
+            for candidate in lines[index + 1:]:
+                if candidate and not candidate.startswith("          "):
+                    break
+                body.append(candidate)
+            run_blocks.append("\n".join(body))
+        self.assertGreaterEqual(len(run_blocks), 3)
+        self.assertNotIn("${{ inputs.", "".join(run_blocks))
+        for mapping in (
+            "CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}",
+            "CANDIDATE_RUN_ATTEMPT: ${{ inputs.candidate_run_attempt }}",
+            "APPROVED_APK_SHA256: ${{ inputs.apk_sha256 }}",
+            "RELEASE_TAG: ${{ inputs.release_tag }}",
+        ):
+            self.assertIn(mapping, self.source)
+        self.assertIn('gh run download "$CANDIDATE_RUN_ID"', self.source)
+        self.assertIn(
+            '[[ "$CANDIDATE_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]',
+            self.source,
+        )
+        self.assertIn(
+            '--name "android-phone-rc-$RELEASE_TAG-$CANDIDATE_RUN_ATTEMPT"',
+            self.source,
+        )
+        self.assertNotIn('--name "android-phone-rc-$RELEASE_TAG"\n', self.source)
+        self.assertIn(
+            "printf '%s  %s\\n' \"$APPROVED_APK_SHA256\" \"$apk\"",
+            self.source,
+        )
+
+    def test_candidate_attempt_is_a_required_manual_input(self):
+        self.assertRegex(
+            self.source,
+            r"(?m)^      candidate_run_attempt:\n"
+            r"        description: Successful release-candidate workflow run attempt\n"
+            r"        required: true\n"
+            r"        type: string$",
+        )
+
+    def test_emulator_reports_are_attempt_scoped(self):
+        self.assertIn(
+            "name: android-phone-emulator-acceptance-${{ github.run_id }}-"
+            "${{ github.run_attempt }}",
+            self.source,
+        )
+        self.assertNotIn(
+            "name: android-phone-emulator-acceptance-${{ github.run_id }}\n",
+            self.source,
+        )
+        for report_path in (
+            "android/apps/phoneInterface/build/outputs/androidTest-results/connected/",
+            "android/apps/phoneInterface/build/reports/androidTests/connected/",
+            "android/build/phone-emulator/diagnostics/",
+        ):
+            self.assertIn(report_path, self.source)
 
     def test_actions_are_pinned_and_checkout_is_credential_free(self):
         actions = ACTION_USE.findall(self.source)

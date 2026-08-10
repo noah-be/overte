@@ -32,6 +32,22 @@ public:
     static const GLint RESOURCE_BUFFER_TEXBUF_TEX_UNIT { 34 };
     static const GLint RESOURCE_BUFFER_SLOT0_TEX_UNIT { 35 };
 
+    static bool setTextureBuffer(GLenum target, GLenum internalFormat, GLuint buffer) {
+        if (glad_glTexBuffer != nullptr) {
+            glad_glTexBuffer(target, internalFormat, buffer);
+            return true;
+        }
+        if (glad_glTexBufferEXT != nullptr) {
+            glad_glTexBufferEXT(target, internalFormat, buffer);
+            return true;
+        }
+        if (glad_glTexBufferOES != nullptr) {
+            glad_glTexBufferOES(target, internalFormat, buffer);
+            return true;
+        }
+        return false;
+    }
+
     explicit GLESBackend(bool syncCache) : Parent(syncCache) {}
     GLESBackend() : Parent() {}
     virtual ~GLESBackend() {

@@ -13,6 +13,7 @@ cp -- "$verifier" "$test_root/tests/verify-phone-16k-dependencies.sh"
 cat > "$test_root/tests/check-phone-elf-alignment.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+[[ -z "${PHONE_TEST_ALIGNMENT_MARKER:-}" ]] || touch "$PHONE_TEST_ALIGNMENT_MARKER"
 if [[ $(basename -- "$1") == staged-nonqt \
     && -n ${PHONE_TEST_MUTATE_STAGED:-} && -f $PHONE_TEST_MUTATE_STAGED ]]; then
     printf 'mutated-after-snapshot\n' > "$PHONE_TEST_MUTATE_STAGED"
@@ -61,6 +62,59 @@ expect_failure() {
 "$test_root/tests/verify-phone-16k-dependencies.sh" --write-sentinel \
     "$qt" "$nonqt" "$sentinel"
 verify
+[[ -z "$(find "$nonqt" -maxdepth 1 -name '.*.staging.*' -print -quit)" ]]
+
+# A failed refresh must invalidate the previously verified readiness result.
+mv -- "$nonqt/generators/TBB-debug-armv8-data.cmake" \
+    "$nonqt/generators/TBB-debug-armv8-data.cmake.missing"
+expect_failure 'failed refresh' \
+    "$test_root/tests/verify-phone-16k-dependencies.sh" --write-sentinel \
+    "$qt" "$nonqt" "$sentinel"
+[[ ! -e "$sentinel" ]]
+mv -- "$nonqt/generators/TBB-debug-armv8-data.cmake.missing" \
+    "$nonqt/generators/TBB-debug-armv8-data.cmake"
+"$test_root/tests/verify-phone-16k-dependencies.sh" --write-sentinel \
+    "$qt" "$nonqt" "$sentinel"
+
+# A final symlink is rejected before the expensive alignment checks and never
+# exposes its target to truncation.
+victim="$fixture/victim"
+printf private > "$victim"
+rm -- "$sentinel"
+ln -s -- "$victim" "$sentinel"
+alignment_marker="$fixture/alignment-started"
+expect_failure 'symlinked sentinel' env PHONE_TEST_ALIGNMENT_MARKER="$alignment_marker" \
+    "$test_root/tests/verify-phone-16k-dependencies.sh" --write-sentinel \
+    "$qt" "$nonqt" "$sentinel"
+[[ "$(<"$victim")" == private && ! -e "$alignment_marker" && -L "$sentinel" ]]
+rm -- "$sentinel"
+"$test_root/tests/verify-phone-16k-dependencies.sh" --write-sentinel \
+    "$qt" "$nonqt" "$sentinel"
+
+# Contention and invalid configuration belong to the current owner and must
+# not invalidate its published readiness evidence or start verification.
+alignment_marker="$fixture/lock-alignment-started"
+exec {held_lock_fd}>>"${sentinel}.lock"
+flock -x "$held_lock_fd"
+expect_failure 'sentinel read lock timeout' env \
+    OVERTE_PHONE_16K_SENTINEL_LOCK_TIMEOUT_SECONDS=0.05 \
+    PHONE_TEST_ALIGNMENT_MARKER="$alignment_marker" \
+    "$test_root/tests/verify-phone-16k-dependencies.sh" \
+    "$qt" "$nonqt" "$sentinel"
+expect_failure 'sentinel lock timeout' env \
+    OVERTE_PHONE_16K_SENTINEL_LOCK_TIMEOUT_SECONDS=0.05 \
+    PHONE_TEST_ALIGNMENT_MARKER="$alignment_marker" \
+    "$test_root/tests/verify-phone-16k-dependencies.sh" --write-sentinel \
+    "$qt" "$nonqt" "$sentinel"
+flock -u "$held_lock_fd"
+exec {held_lock_fd}>&-
+[[ -s "$sentinel" && ! -e "$alignment_marker" ]]
+expect_failure 'invalid sentinel lock timeout' env \
+    OVERTE_PHONE_16K_SENTINEL_LOCK_TIMEOUT_SECONDS=never \
+    PHONE_TEST_ALIGNMENT_MARKER="$alignment_marker" \
+    "$test_root/tests/verify-phone-16k-dependencies.sh" --write-sentinel \
+    "$qt" "$nonqt" "$sentinel"
+[[ -s "$sentinel" && ! -e "$alignment_marker" ]]
 
 printf tampered > "$sentinel"
 expect_failure 'tampered sentinel' verify

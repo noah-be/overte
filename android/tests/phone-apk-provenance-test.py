@@ -23,6 +23,7 @@ class PhoneApkProvenanceTests(unittest.TestCase):
         with zipfile.ZipFile(self.apk, "w") as archive:
             archive.writestr("AndroidManifest.xml", b"synthetic")
         self.gate = self.tool("gate", """
+if [ -n "${MOCK_GATE_MARKER:-}" ]; then printf started >"$MOCK_GATE_MARKER"; fi
 test "${MOCK_GATE:-1}" = 1
 if [ -n "${MOCK_EXPECT_TMPDIR:-}" ]; then
   test "$TMPDIR" = "$MOCK_EXPECT_TMPDIR"
@@ -84,6 +85,81 @@ printf 'Signer #1 certificate SHA-256 digest: %064d\n' 0
         result = self.run_verifier({"MOCK_GATE": "0"})
         self.assertEqual(result.returncode, 2)
         self.assertIn("command failed", result.stderr)
+
+    def test_failed_gate_invalidates_stale_output_and_cleans_staging(self):
+        output = self.directory / "reports/apk-manifest.json"
+        output.parent.mkdir()
+        output.write_text("stale", encoding="utf-8")
+
+        result = self.run_verifier(
+            {"MOCK_GATE": "0"}, "--output", str(output))
+
+        self.assertEqual(2, result.returncode)
+        self.assertFalse(output.exists())
+        self.assertEqual([], list(output.parent.glob(".apk-manifest.json.*.tmp")))
+
+    def test_success_atomically_replaces_stale_output(self):
+        output = self.directory / "reports/apk-manifest.json"
+        output.parent.mkdir()
+        output.write_text("stale", encoding="utf-8")
+
+        result = self.run_verifier(None, "--output", str(output))
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("org.overte.phone", json.loads(output.read_text())["package"])
+        self.assertEqual([], list(output.parent.glob(".apk-manifest.json.*.tmp")))
+
+    def test_symlinked_output_is_rejected_before_gate(self):
+        output = self.directory / "reports/apk-manifest.json"
+        output.parent.mkdir()
+        victim = self.directory / "victim.json"
+        victim.write_text("private", encoding="utf-8")
+        output.symlink_to(victim)
+        marker = self.directory / "gate-started"
+
+        result = self.run_verifier(
+            {"MOCK_GATE_MARKER": str(marker)}, "--output", str(output))
+
+        self.assertEqual(2, result.returncode)
+        self.assertEqual("private", victim.read_text(encoding="utf-8"))
+        self.assertTrue(output.is_symlink())
+        self.assertFalse(marker.exists())
+
+    @unittest.skipUnless(os.name == "posix", "flock fixture is POSIX-specific")
+    def test_lock_timeout_preserves_stale_output_without_starting_gate(self):
+        import fcntl
+
+        output = self.directory / "reports/apk-manifest.json"
+        output.parent.mkdir()
+        output.write_text("stale", encoding="utf-8")
+        marker = self.directory / "gate-started"
+        lock_path = output.parent / ".apk-manifest.json.lock"
+        with lock_path.open("a", encoding="utf-8") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            result = self.run_verifier({
+                "MOCK_GATE_MARKER": str(marker),
+                "OVERTE_APK_MANIFEST_LOCK_TIMEOUT_SECONDS": "0.05",
+            }, "--output", str(output))
+
+        self.assertEqual(2, result.returncode)
+        self.assertIn("timed out waiting for APK manifest lock", result.stderr)
+        self.assertEqual("stale", output.read_text(encoding="utf-8"))
+        self.assertFalse(marker.exists())
+
+    def test_invalid_lock_timeout_preserves_stale_output(self):
+        output = self.directory / "reports/apk-manifest.json"
+        output.parent.mkdir()
+        output.write_text("stale", encoding="utf-8")
+        marker = self.directory / "gate-started"
+
+        result = self.run_verifier({
+            "MOCK_GATE_MARKER": str(marker),
+            "OVERTE_APK_MANIFEST_LOCK_TIMEOUT_SECONDS": "never",
+        }, "--output", str(output))
+
+        self.assertEqual(2, result.returncode)
+        self.assertEqual("stale", output.read_text(encoding="utf-8"))
+        self.assertFalse(marker.exists())
 
     def test_rejects_wrong_package_even_after_mock_gate(self):
         result = self.run_verifier({"MOCK_PACKAGE": "example.wrong"})

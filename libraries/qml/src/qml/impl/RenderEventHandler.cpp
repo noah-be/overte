@@ -141,7 +141,8 @@ void RenderEventHandler::qmlRender(bool sceneGraphSync) {
         const bool generateMips = _shared->getGenerateMips();
         GLuint texture = SharedObject::getTextureCache().acquireTexture(_currentSize, generateMips);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _fbo);
-        glFramebufferTexture(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, texture, 0);
+        glFramebufferTexture2D(
+            GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
         if (nsightActive()) {
             glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
             glClear(GL_COLOR_BUFFER_BIT);
