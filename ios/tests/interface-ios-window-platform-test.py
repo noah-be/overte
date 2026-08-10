@@ -7,6 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 APPLICATION_UI = (ROOT / "interface/src/Application_UI.cpp").read_text()
 APPLICATION_SETUP = (ROOT / "interface/src/Application_Setup.cpp").read_text()
+APPLICATION_GRAPHICS = (ROOT / "interface/src/Application_Graphics.cpp").read_text()
 LOG_DIALOG = (ROOT / "interface/src/ui/LogDialog.cpp").read_text()
 BASE_LOG_DIALOG = (ROOT / "interface/src/ui/BaseLogDialog.cpp").read_text()
 MENU = (ROOT / "interface/src/Menu.cpp").read_text()
@@ -77,5 +78,12 @@ require("#if !defined(ANDROID_APP_PHONE_INTERFACE) && !defined(Q_OS_IOS)\n"
 require("DependencyManager::set<AutoUpdater>()" in APPLICATION_SETUP and
         "&AutoUpdater::newVersionIsAvailable" in APPLICATION_SETUP,
         "desktop updater behavior changed on supported platforms")
+require("#if !defined(Q_OS_IOS)\n#include <ui/UpdateDialog.h>\n#endif" in APPLICATION_GRAPHICS and
+        "#if !defined(Q_OS_IOS)\n    UpdateDialog::registerType();\n#endif" in APPLICATION_GRAPHICS,
+        "unavailable desktop UpdateDialog remains registered on iOS")
+require("#if !defined(Q_OS_IOS)\n#include \"UpdateDialog.h\"\n#endif" in DIALOGS_MANAGER and
+        "void DialogsManager::showUpdateDialog() {\n#if !defined(Q_OS_IOS)\n"
+        "    UpdateDialog::show();" in DIALOGS_MANAGER,
+        "desktop UpdateDialog manager entry remains reachable on iOS")
 
 print("iOS window platform contract valid: desktop log/console windows preserved and mobile-excluded")

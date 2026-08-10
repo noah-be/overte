@@ -19,6 +19,7 @@
 #include <MainWindow.h>
 
 void StandAloneJSConsole::toggleConsole()  {
+#if !defined(Q_OS_IOS)
     QMainWindow* mainWindow = qApp->getWindow();
     if (!_jsConsole && !qApp->getLoginDialogPoppedUp()) {
         QDialog* dialog = new QDialog(mainWindow, Qt::WindowStaysOnTopHint);
@@ -35,5 +36,5 @@ void StandAloneJSConsole::toggleConsole()  {
         _jsConsole = dialog;
     }
     _jsConsole->setVisible(!_jsConsole->isVisible());
+#endif
 }
-

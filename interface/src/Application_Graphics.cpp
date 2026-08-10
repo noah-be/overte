@@ -48,7 +48,9 @@
 #include <ui/ResourceImageItem.h>
 #include <ui/TabletScriptingInterface.h>
 #include <ui/types/ContextAwareProfile.h>
+#if !defined(Q_OS_IOS)
 #include <ui/UpdateDialog.h>
+#endif
 #ifndef USE_GL
 #include <vk/VKWindow.h>
 #endif
@@ -307,7 +309,9 @@ void Application::initializeUi() {
     ErrorDialog::registerType();
     LoginDialog::registerType();
     Tooltip::registerType();
+#if !defined(Q_OS_IOS)
     UpdateDialog::registerType();
+#endif
 
     QmlContextCallback platformInfoCallback = [](QQmlContext* context) {
         context->setContextProperty("PlatformInfo", new PlatformInfoScriptingInterface());

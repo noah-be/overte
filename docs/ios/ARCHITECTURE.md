@@ -120,6 +120,9 @@ the fixed-width, always-on-top QWidget fallback is desktop-only.
 The desktop `AutoUpdater` is not created on iOS. iPad builds are installed and
 updated through their signing/distribution channel, so startup must not query
 desktop installer metadata or offer a direct-download upgrade dialog.
+Its `UpdateDialog` QML type registration and dialog-manager entry point are
+excluded as well, keeping the unavailable desktop updater UI out of the iOS
+runtime registry without changing desktop builds.
 
 ## ADR-007: secret-free automation
 

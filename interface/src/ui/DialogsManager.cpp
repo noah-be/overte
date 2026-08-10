@@ -31,7 +31,9 @@
 #include "LoginDialog.h"
 #include "OctreeStatsDialog.h"
 #include "PreferencesDialog.h"
+#if !defined(Q_OS_IOS)
 #include "UpdateDialog.h"
+#endif
 
 #include "scripting/HMDScriptingInterface.h"
 
@@ -208,7 +210,9 @@ bool phone::closeTopmostDialog() {
 
 
 void DialogsManager::showUpdateDialog() {
+#if !defined(Q_OS_IOS)
     UpdateDialog::show();
+#endif
 }
 
 
