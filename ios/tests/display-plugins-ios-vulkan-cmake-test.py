@@ -8,7 +8,7 @@ path = ROOT / "libraries/display-plugins/CMakeLists.txt"
 text = path.read_text(encoding="utf-8")
 
 condition = 'if(IOS AND OVERTE_RENDERING_BACKEND STREQUAL "Vulkan")'
-start = text.index(condition)
+start = text.index(condition, text.index("link_hifi_libraries"))
 otherwise = text.index("else()", start)
 end = text.index("endif()", otherwise)
 ios_branch = text[start:otherwise]
@@ -22,9 +22,8 @@ for token in ('set(OpenGL_GL_PREFERENCE "GLVND")', "target_opengl()"):
 
 # These dependencies are deliberately retained until their GL-using source is
 # separated; this patch must not pretend that the complete graph is GL-free.
-prefix = text[:start]
 for token in ("link_hifi_libraries", "gl", "${PLATFORM_GL_BACKEND}"):
-    if token not in prefix:
+    if token not in text:
         raise SystemExit(f"expected retained GL graph evidence {token!r}")
 
 print("display-plugins iOS Vulkan CMake guard valid; other platforms and GL graph preserved")

@@ -1,5 +1,27 @@
 set(TARGET_NAME display-plugins)
 setup_hifi_library(Gui)
+
+if(IOS AND OVERTE_RENDERING_BACKEND STREQUAL "Vulkan")
+    set(OVERTE_IOS_EXCLUDED_OPENGL_DISPLAY_SOURCES
+        src/display-plugins/Basic2DWindowOpenGLDisplayPlugin.cpp
+        src/display-plugins/Basic2DWindowOpenGLDisplayPlugin.h
+        src/display-plugins/OpenGLDisplayPlugin.cpp
+        src/display-plugins/OpenGLDisplayPlugin.h
+        src/display-plugins/hmd/DebugHmdDisplayPlugin.cpp
+        src/display-plugins/hmd/DebugHmdDisplayPlugin.h
+        src/display-plugins/hmd/HmdDisplayPlugin.cpp
+        src/display-plugins/hmd/HmdDisplayPlugin.h
+        src/display-plugins/stereo/InterleavedStereoDisplayPlugin.cpp
+        src/display-plugins/stereo/InterleavedStereoDisplayPlugin.h
+        src/display-plugins/stereo/SideBySideStereoDisplayPlugin.cpp
+        src/display-plugins/stereo/SideBySideStereoDisplayPlugin.h
+        src/display-plugins/stereo/StereoDisplayPlugin.cpp
+        src/display-plugins/stereo/StereoDisplayPlugin.h
+    )
+    set_source_files_properties(${OVERTE_IOS_EXCLUDED_OPENGL_DISPLAY_SOURCES}
+        PROPERTIES HEADER_FILE_ONLY TRUE SKIP_AUTOMOC TRUE)
+endif()
+
 link_hifi_libraries(shared shaders plugins ui-plugins gl ui render-utils ${PLATFORM_GL_BACKEND})
 include_hifi_library_headers(gpu)
 include_hifi_library_headers(material-networking)

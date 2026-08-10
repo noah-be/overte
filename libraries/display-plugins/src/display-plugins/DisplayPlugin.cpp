@@ -10,10 +10,12 @@
 #include <plugins/PluginManager.h>
 
 #include "NullDisplayPlugin.h"
+#if !defined(Q_OS_IOS)
 #include "stereo/SideBySideStereoDisplayPlugin.h"
 #include "stereo/InterleavedStereoDisplayPlugin.h"
 #include "hmd/DebugHmdDisplayPlugin.h"
 #include "Basic2DWindowOpenGLDisplayPlugin.h"
+#endif
 #include "VulkanDisplayPlugin.h"
 
 const QString& DisplayPlugin::MENU_PATH() {
@@ -30,7 +32,9 @@ DisplayPluginList getDisplayPlugins() {
 #else
         new VulkanDisplayPlugin(),
 #endif
+#if !defined(Q_OS_IOS)
         new DebugHmdDisplayPlugin(),
+#endif
 #ifdef DEBUG
         new NullDisplayPlugin(),
 #endif
