@@ -306,6 +306,14 @@ selection and driver reporting are unchanged. `GPUIdent.cpp` therefore leaves
 the shared Core5Compat inventory; the platform-specific branch remains
 unreachable on iOS.
 
+The script editor highlighter's complete eight-expression set now uses
+`QRegularExpression`. Keyword, quote, number, boolean, single-line comment,
+and multi-line comment scans retain their prior match starts, full match
+lengths, and resume offsets. Multi-line block state, quoted `//` rejection,
+and the preceding-alpha guard for numbers are unchanged. With
+`ScriptHighlighting.cpp` and `.h` migrated, the audited `QRegExp`/`QTextCodec`
+Core5Compat source inventory is empty.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant

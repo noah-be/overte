@@ -33,10 +33,7 @@
       "pattern": "\\b(?:QRegExp|QTextCodec)\\b",
       "roots": ["interface", "libraries"],
       "extensions": [".cpp", ".h", ".hpp", ".mm"],
-      "files": [
-        "interface/src/ScriptHighlighting.cpp",
-        "interface/src/ScriptHighlighting.h"
-      ],
+      "files": [],
       "exitCriterion": "All listed uses move to current Qt 6 APIs and Core5Compat leaves the iOS component set."
     },
     {

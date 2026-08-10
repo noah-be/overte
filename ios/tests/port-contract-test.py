@@ -914,6 +914,31 @@ def test_scope_contract() -> None:
     if "QRegExp" in gpu_ident_text:
         raise AssertionError("GPUIdent retained removed QRegExp API")
 
+    script_highlighting_header = SOURCE_ROOT / "interface" / "src" / "ScriptHighlighting.h"
+    script_highlighting_source = SOURCE_ROOT / "interface" / "src" / "ScriptHighlighting.cpp"
+    highlighting_header_text = script_highlighting_header.read_text(encoding="utf-8")
+    highlighting_source_text = script_highlighting_source.read_text(encoding="utf-8")
+    assert "#include <QRegularExpression>" in highlighting_header_text
+    assert highlighting_header_text.count("QRegularExpression _") == 8, (
+        "all eight script-highlighting expressions must use the Qt 6 regex type"
+    )
+    for legacy_api in ("QRegExp", "indexIn(", "matchedLength()"):
+        if legacy_api in highlighting_header_text or legacy_api in highlighting_source_text:
+            raise AssertionError(f"ScriptHighlighting retained removed regex API: {legacy_api}")
+    assert highlighting_source_text.count("while (match.hasMatch())") == 4, (
+        "keyword, quote, number, and boolean scanners must retain iterative matches"
+    )
+    assert "while (commentMatch.hasMatch())" in highlighting_source_text
+    assert "const int length = match.capturedLength();" in highlighting_source_text
+    assert "match = _keywordRegex.match(text, index + length);" in highlighting_source_text
+    assert "match = _quotedTextRegex.match(text, index + length);" in highlighting_source_text
+    assert "match = _numberRegex.match(text, index + length);" in highlighting_source_text
+    assert "match = _truefalseRegex.match(text, index + length);" in highlighting_source_text
+    assert "_alphacharRegex.match(text, index - 1).capturedStart() != (index - 1)" in highlighting_source_text
+    assert "previousBlockState() != BlockStateInMultiComment" in highlighting_source_text
+    assert "setCurrentBlockState(BlockStateInMultiComment);" in highlighting_source_text
+    assert "quoted_index <= index && index <= (quoted_index + quoted_length)" in highlighting_source_text
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,
