@@ -51,6 +51,12 @@ jobs:
     env:
       OVERTE_IOS_QT_ROOT: ${{ github.workspace }}/build-ios/qt-install/qt/ios
       OVERTE_IOS_QT_HOST_ROOT: ${{ github.workspace }}/build-ios/qt-install/qt/macos
+      CONAN_HOME: ${{ github.workspace }}/build-ios/conan-home
+    defaults:
+      run:
+        # GitHub's implicit bash invocation omits pipefail. Diagnostics use
+        # tee, so every run step must preserve the producer's exit status.
+        shell: bash
     steps:
       - name: Check out requested revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
@@ -95,10 +101,37 @@ jobs:
       - name: Bootstrap pinned Conan tooling
         run: ios/build-ios.sh bootstrap
 
+      - name: Select deterministic Conan package cache key
+        id: conan-cache-key
+        run: |
+          xcode_build="$(xcodebuild -version | awk '/Build version/{print $3}')"
+          sdk_version="$(xcrun --sdk iphoneos --show-sdk-version)"
+          graph_hash="$(shasum -a 256 \
+            ios/conanfile.py \
+            ios/dependencies.json \
+            ios/versions.env \
+            ios/conan/profiles/ios-arm64 \
+            ios/conan/profiles/macos-arm64 | shasum -a 256 | awk '{print $1}')"
+          echo "key=overte-ios-conan-v1-${RUNNER_ARCH}-xcode-${xcode_build}-iphoneos-${sdk_version}-${graph_hash}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore validated Conan package cache
+        id: conan-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.CONAN_HOME }}
+          key: ${{ steps.conan-cache-key.outputs.key }}
+
       - name: Resolve audited device dependencies
         run: |
           source build-ios/tooling-venv/bin/activate
           ios/build-ios.sh deps --platform device --graphics-toolchain
+
+      - name: Save validated Conan package cache
+        if: steps.conan-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.CONAN_HOME }}
+          key: ${{ steps.conan-cache-key.outputs.key }}
 
       - name: Configure experimental full client graph
         run: |

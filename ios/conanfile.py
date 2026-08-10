@@ -76,5 +76,9 @@ class OverteIOSDependencies(ConanFile):
         toolchain = CMakeToolchain(self)
         toolchain.cache_variables["CMAKE_OSX_DEPLOYMENT_TARGET"] = "17.0"
         toolchain.cache_variables["CMAKE_OSX_ARCHITECTURES"] = "arm64"
+        # Keep the full-client V8 pointer-alignment invariant from the main
+        # Overte recipe when this staged toolchain is chainloaded by Qt.
+        toolchain.cache_variables["CMAKE_CXX_FLAGS_INIT"] = "-falign-functions=32 -fPIC"
+        toolchain.cache_variables["CMAKE_C_FLAGS_INIT"] = "-falign-functions=32 -fPIC"
         toolchain.generate()
         CMakeDeps(self).generate()

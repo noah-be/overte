@@ -113,6 +113,8 @@ def test_profiles() -> None:
 
     recipe = IOS_ROOT / "conanfile.py"
     require_text(recipe, r'package_type = "application"', "staged graph must not publish a library")
+    require_text(recipe, r'toolchain\.cache_variables\["CMAKE_CXX_FLAGS_INIT"\] = "-falign-functions=32 -fPIC"', "staged toolchain must preserve the V8 function-alignment invariant")
+    require_text(recipe, r'toolchain\.cache_variables\["CMAKE_C_FLAGS_INIT"\] = "-falign-functions=32 -fPIC"', "staged toolchain must align C and C++ compilation consistently")
     require_text(recipe, r'str\(self\.settings\.os\) != "iOS"', "staged graph must reject non-iOS hosts")
     for forbidden in ("steamworks", "discord-rpc", "openvr", "openxr", "sdl"):
         if re.search(rf'self\.requires\("{re.escape(forbidden)}/', recipe.read_text(encoding="utf-8")):
@@ -1401,6 +1403,11 @@ def test_ci_contract() -> None:
     require_text(integrated, r"fail-on-cache-miss: true", "Qt restoration must fail closed")
     require_text(integrated, r"runs-on: ubuntu-24\.04", "integrated CI needs Linux host contracts")
     require_text(integrated, r"runs-on: macos-26", "integrated CI must use an Xcode 26 host")
+    require_text(integrated, r"defaults:\n\s+run:\n(?:\s+#.*\n){0,3}\s+shell: bash", "integrated diagnostics pipelines must run with pipefail")
+    require_text(integrated, r"CONAN_HOME: \$\{\{ github\.workspace \}\}/build-ios/conan-home", "Conan state must be isolated inside the workspace")
+    require_text(integrated, r"Select deterministic Conan package cache key", "integrated CI must key its validated dependency checkpoint")
+    require_text(integrated, r"Restore validated Conan package cache", "integrated CI must reuse validated dependency packages")
+    require_text(integrated, r"Save validated Conan package cache", "integrated CI must save dependencies immediately after graph validation")
     require_text(integrated, r"timeout-minutes: 180", "the first full-client Xcode build needs a non-truncating timeout")
     require_text(integrated, r"needs: host-contracts", "macOS integration must wait for host contracts")
     require_text(integrated, r"persist-credentials: false", "checkout credentials must not persist")

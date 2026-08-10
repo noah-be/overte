@@ -43,6 +43,11 @@ The target profiles use Ninja for their single-architecture static dependency
 packages. This prevents Xcode from applying iOS application-bundle validation
 to incidental upstream command-line tools such as Draco's encoder and decoder.
 The final `Overte.app` remains an explicit Xcode-generator build.
+After the graph audit succeeds, CI stores the isolated, anonymous Conan home
+under a key derived from Xcode, the iPhoneOS SDK, both profiles, the staged
+recipe, dependency policy, and tool versions. Failed or partial graph
+resolutions are never saved. This checkpoint lets later configure/compile
+retries reuse all successfully validated native packages.
 Before graph resolution, the CLI idempotently adds or resets the public
 `overte` Artifactory remote to its canonical URL. Custom recipe references such
 as `cgltf/1.14@overte/stable` must never fall through to Conan Center alone.
