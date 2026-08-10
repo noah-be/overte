@@ -35,5 +35,12 @@ require("#else\n        // On windows and linux" in UI_SOURCE and
 require(MAC_DESKTOP_GUARD in UI_UTIL_SOURCE and
         "// The height on OSX is 4 pixels too tall\n    titleBarHeight -= 4;" in UI_UTIL_SOURCE,
         "macOS title-bar metric workaround is not explicitly excluded on iOS")
+require("#if defined(Q_OS_MAC) || defined(Q_OS_IOS)\n"
+        "    // macOS and iOS both expose point-sized UI fonts." in UI_UTIL_SOURCE,
+        "iOS point-sized fonts fall through to desktop 96-DPI scaling")
+require("const float BASE_DPI = 72.0f;" in UI_UTIL_SOURCE and
+        "const float NATIVE_DPI = 72.0f;" in UI_UTIL_SOURCE and
+        "float fontScale = BASE_DPI / NATIVE_DPI;" in UI_UTIL_SOURCE,
+        "iOS font scaling no longer resolves to the documented 1.0 factor")
 
-print("iOS input platform contract valid: macOS mouse/cursor/title-bar workarounds preserved and mobile-excluded")
+print("iOS input platform contract valid: desktop workarounds excluded; iOS point-font scale preserved")

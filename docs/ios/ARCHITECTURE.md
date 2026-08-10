@@ -94,6 +94,9 @@ the top-level window to compensate for a GL-widget limitation, while iOS uses
 the normal primary Vulkan surface target.
 The legacy `UIUtil` four-pixel title-bar correction is similarly restricted to
 macOS: iPad windows do not use the affected desktop `QStyle` title-bar metric.
+`UIUtil::scaleWidgetFontSizes()` treats iOS as a point-based UI platform and
+therefore keeps a 1.0 scale. The legacy 0.75 compatibility scale remains
+limited to the Windows/Linux 96-DPI branch.
 
 ## ADR-007: secret-free automation
 
