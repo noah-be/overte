@@ -14,6 +14,13 @@ close = main.find("#endif", position)
 if guard < 0 or close < 0 or main.find("#endif", guard, position) >= 0:
     raise SystemExit("main GLHelpers include is not restricted to macOS/Windows")
 
+startup_probe = "auto format = getDefaultOpenGLSurfaceFormat();"
+position = main.index(startup_probe)
+guard = main.rfind("#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)", 0, position)
+close = main.find("#endif", position)
+if guard < 0 or close < 0 or main.find("#endif", guard, position) >= 0:
+    raise SystemExit("macOS Chromium/OpenGL startup probe is not excluded on iOS")
+
 context_include = "#include <gl/Context.h>"
 position = stats.index(context_include)
 guard = stats.rfind("#if !defined(Q_OS_IOS)", 0, position)

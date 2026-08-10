@@ -60,7 +60,7 @@ int main(int argc, const char* argv[]) {
     // Qt WebView must select WKWebView before the application object exists.
     QtWebView::initialize();
 #endif
-#ifdef Q_OS_MAC
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     auto format = getDefaultOpenGLSurfaceFormat();
     // Deal with some weirdness in the chromium context sharing on Mac.
     // The primary share context needs to be 3.2, so that the Chromium will
