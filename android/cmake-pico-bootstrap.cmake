@@ -66,4 +66,28 @@ if(ANDROID)
     endif()
     include("${_android_conan_generators}/conandeps_legacy.cmake")
     unset(_android_conan_generators)
+
+    if(TARGET Qt5::AndroidExtras)
+        file(GLOB _qt_jni_private_headers
+            "${qt_PACKAGE_FOLDER_DEBUG}/include/QtCore/*/QtCore/private/qjni_p.h")
+        list(LENGTH _qt_jni_private_headers _qt_jni_private_header_count)
+        if(NOT _qt_jni_private_header_count EQUAL 1)
+            message(FATAL_ERROR "Expected exactly one Qt Core private JNI header")
+        endif()
+        list(GET _qt_jni_private_headers 0 _qt_jni_private_header)
+        get_filename_component(_qt_jni_private_dir "${_qt_jni_private_header}" DIRECTORY)
+        get_filename_component(_qt_jni_qtcore_dir "${_qt_jni_private_dir}" DIRECTORY)
+        get_filename_component(_qt_jni_version_dir "${_qt_jni_qtcore_dir}" DIRECTORY)
+        set_property(
+            TARGET Qt5::AndroidExtras APPEND PROPERTY INTERFACE_INCLUDE_DIRECTORIES
+            "${_qt_jni_qtcore_dir}"
+            "${_qt_jni_version_dir}"
+        )
+        unset(_qt_jni_private_headers)
+        unset(_qt_jni_private_header_count)
+        unset(_qt_jni_private_header)
+        unset(_qt_jni_private_dir)
+        unset(_qt_jni_qtcore_dir)
+        unset(_qt_jni_version_dir)
+    endif()
 endif()

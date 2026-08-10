@@ -297,7 +297,9 @@ Java_io_highfidelity_hifiinterface_HifiUtils_getHifiSettingBoolean(JNIEnv *env,
     env->ReleaseStringUTFChars(group_, c_group);
     env->ReleaseStringUTFChars(key_, c_key);
 
-    Setting::Handle<bool> setting { QStringList() << group << key , defaultValue};
+    Setting::Handle<bool> setting {
+        QStringList() << group << key, static_cast<bool>(defaultValue)
+    };
     return setting.get();
 }
 

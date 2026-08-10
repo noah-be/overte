@@ -63,6 +63,7 @@
 #include "AudioHelpers.h"
 
 #if defined(Q_OS_ANDROID)
+#include <jni.h>
 #include <QtAndroidExtras/QAndroidJniObject>
 #include <sys/system_properties.h>
 #endif

@@ -7,7 +7,7 @@
     android:layout_marginEnd="@dimen/domainMarginEnd"
     android:layout_marginTop="@dimen/domainMarginTop"
     android:layout_marginBottom="@dimen/domainMarginBottom"
-    android:foreground="@drawable/rippleable"
+    android:foreground="?android:attr/selectableItemBackground"
     android:clickable="true"
     android:focusable="true"
     android:elevation="0dp"
