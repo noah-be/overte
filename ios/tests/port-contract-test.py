@@ -805,6 +805,21 @@ def test_scope_contract() -> None:
     if "QRegExp" in file_logger.read_text(encoding="utf-8"):
         raise AssertionError("FileLogger retained removed QRegExp API")
 
+    application_graphics = SOURCE_ROOT / "interface" / "src" / "Application_Graphics.cpp"
+    require_text(application_graphics, r'#include <QtCore/QRegularExpression>', "script allowlists must use the Qt 6 regex API")
+    require_text(
+        application_graphics,
+        r'qEnvironmentVariable\("EXTRA_ALLOWLIST"\)\.trimmed\(\)\.split\(\s*QRegularExpression\(QStringLiteral\("\\\\s\*,\\\\s\*"\)\), Qt::SkipEmptyParts\)',
+        "environment script allowlists must retain comma splitting and empty-entry rejection",
+    )
+    require_text(
+        application_graphics,
+        r'raw\.toString\(\)\.trimmed\(\)\.split\(\s*QRegularExpression\(QStringLiteral\("\\\\s\*\[,\\r\\n\]\+\\\\s\*"\)\), Qt::SkipEmptyParts\)',
+        "settings script allowlists must retain comma/newline splitting and empty-entry rejection",
+    )
+    if "QRegExp" in application_graphics.read_text(encoding="utf-8"):
+        raise AssertionError("Application_Graphics retained removed QRegExp API")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,

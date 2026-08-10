@@ -251,6 +251,14 @@ Directory size accounting, oldest-file deletion, rolling thresholds, and log
 output are unchanged. `FileLogger.cpp` therefore leaves the Core5Compat
 inventory.
 
+The entity-script URL validator now parses both allowlist sources with
+`QRegularExpression`. The environment value still splits on whitespace-padded
+commas; the settings value still splits on runs of commas, CR, or LF with
+surrounding whitespace. Both retain `Qt::SkipEmptyParts`, and URL validation,
+the built-in empty entry, settings retrieval, and validator installation are
+unchanged. `Application_Graphics.cpp` therefore leaves the Core5Compat
+inventory.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant

@@ -17,6 +17,7 @@
 
 #include <memory>
 
+#include <QtCore/QRegularExpression>
 #include <QtQml/QQmlContext>
 
 #include <AudioScriptingInterface.h>
@@ -272,12 +273,14 @@ void Application::initializeUi() {
         auto newValidator = [=](const QUrl& url) -> bool {
             QString allowlistPrefix = "[ALLOWLIST ENTITY SCRIPTS]";
             QList<QString> safeURLS = { "" };
-            safeURLS += qEnvironmentVariable("EXTRA_ALLOWLIST").trimmed().split(QRegExp("\\s*,\\s*"), Qt::SkipEmptyParts);
+            safeURLS += qEnvironmentVariable("EXTRA_ALLOWLIST").trimmed().split(
+                QRegularExpression(QStringLiteral("\\s*,\\s*")), Qt::SkipEmptyParts);
 
             // PULL SAFEURLS FROM INTERFACE.JSON Settings
 
             QVariant raw = Setting::Handle<QVariant>("private/settingsSafeURLS").get();
-            QStringList settingsSafeURLS = raw.toString().trimmed().split(QRegExp("\\s*[,\r\n]+\\s*"), Qt::SkipEmptyParts);
+            QStringList settingsSafeURLS = raw.toString().trimmed().split(
+                QRegularExpression(QStringLiteral("\\s*[,\r\n]+\\s*")), Qt::SkipEmptyParts);
             safeURLS += settingsSafeURLS;
 
             // END PULL SAFEURLS FROM INTERFACE.JSON Settings
