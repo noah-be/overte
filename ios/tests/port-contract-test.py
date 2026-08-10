@@ -243,6 +243,12 @@ def test_cmake_boundary() -> None:
     require_text(bootstrap_view, r"UIPanGestureRecognizer", "bootstrap must exercise continuous touch input")
     require_text(bootstrap_view, r"UIUserInterfaceIdiomPad", "bootstrap must distinguish iPad layout")
     require_text(bootstrap_view, r"safeAreaLayoutGuide", "bootstrap controls must respect safe areas")
+    require_text(bootstrap_view, r"parseOverteAddress", "preview must use the tested Overte address parser")
+    require_text(bootstrap_view, r"mv\.overte\.org/server/api/v1/places", "preview must resolve real Overte places")
+    require_text(bootstrap_view, r"OverteOpenURLNotification", "preview must consume incoming Overte deep links")
+    address_parser = IOS_ROOT / "src" / "OverteAddress.cpp"
+    require_text(address_parser, r"40102", "address parser must share Overtes default domain port")
+    require_text(address_parser, r'"hifi".*"overte"', "address parser must accept both registered schemes")
     platform_probe = IOS_ROOT / "src" / "PlatformProbe.mm"
     require_text(platform_probe, r"nw_path_monitor_create", "bootstrap must exercise network reachability")
     require_text(platform_probe, r"CMMotionManager", "bootstrap must detect motion capability")
@@ -357,6 +363,7 @@ def test_ci_contract() -> None:
     require_text(smoke, r"select-simulator\.py", "simulator choice must use the tested selector")
     require_text(smoke, r"simctl io.*screenshot", "simulator failures must preserve a screenshot")
     require_text(smoke, r"log show", "simulator failures must preserve app logs")
+    require_text(smoke, r'simctl openurl.*hifi://overte_hub', "simulator smoke must exercise Overte deep links")
     require_text(smoke, r"sleep 5", "simulator smoke must allow startup failures to surface")
     require_text(
         smoke,

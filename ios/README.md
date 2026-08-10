@@ -25,3 +25,9 @@ The full integrated client may only be explored explicitly with
 
 The scripts deliberately refuse to perform signing or installation unless the
 caller selects a device operation and supplies the documented external inputs.
+
+Version 0.2 is an interactive connection preview. It accepts an Overte place,
+`hifi://` address, or incoming deep link and resolves named places through the
+real Overte directory service. It deliberately reports direct domain targets
+without sending protocol packets until the audited domain networking core is
+linked in the next integration stage.

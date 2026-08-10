@@ -56,6 +56,7 @@ for family in iphone ipad; do
         echo "launch did not return a process ID for $family: $launch_output" >&2
         exit 1
     }
+    xcrun simctl openurl "$active_udid" "hifi://overte_hub"
     sleep 5
     # A successful terminate after the grace period proves that the launched
     # application is still registered and running. Minimal simulator runtimes

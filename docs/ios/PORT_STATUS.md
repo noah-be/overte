@@ -10,6 +10,9 @@ SPDX-License-Identifier: Apache-2.0
 - iOS 17 deployment and Xcode/iOS SDK 26 version contract;
 - separate arm64 device and arm64 simulator Conan profiles;
 - static native iPhone/iPad bootstrap app with modern scene lifecycle;
+- interactive connection preview with a tested Overte address parser, saved
+  destination, text input, deep-link consumption, and live place resolution
+  through the Overte directory API;
 - Info.plist, App Icon, launch configuration, entitlements, ATS policy, deep
   links, and PrivacyInfo.xcprivacy;
 - Metal reference pipeline, touch probe, safe-area layout, network reachability,
@@ -65,6 +68,11 @@ in this worktree.
 - build and validate the static non-JIT V8 archive;
 - compare MoltenVK with the Metal reference workload; and
 - generate Xcode's aggregated privacy report.
+
+The next implementation sequence is maintained in `ITERATION_PLAN.md`. The
+connection preview intentionally exposes the boundary between working place
+resolution and the not-yet-linked domain UDP protocol instead of presenting a
+false successful connection.
 
 ## Requires explicitly approved physical-device access
 

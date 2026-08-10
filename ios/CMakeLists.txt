@@ -7,7 +7,7 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     message(FATAL_ERROR "The iOS bootstrap target requires -DCMAKE_SYSTEM_NAME=iOS")
 endif()
 
-project(OverteIOSBootstrap VERSION 0.1.0 LANGUAGES C CXX OBJC OBJCXX)
+project(OverteIOSBootstrap VERSION 0.2.0 LANGUAGES C CXX OBJC OBJCXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -39,6 +39,8 @@ add_executable(OverteIOSBootstrap MACOSX_BUNDLE
     src/PlatformProbe.mm
     src/PendingDeepLinkStore.h
     src/PendingDeepLinkStore.cpp
+    src/OverteAddress.h
+    src/OverteAddress.cpp
     src/LifecycleStateMachine.h
     src/LifecycleStateMachine.cpp
     src/BootstrapViewController.h
