@@ -355,6 +355,7 @@ Menu::Menu() {
     });
 
     // Developer > Scripting > Entity Script Server Log
+#if !defined(Q_OS_IOS)
     auto essLogAction = addActionToQMenuAndActionHash(scriptingOptionsMenu, MenuOption::EntityScriptServerLog, 0,
                                                       qApp, SLOT(toggleEntityScriptServerLogDialog()));
     {
@@ -365,6 +366,7 @@ Menu::Menu() {
         });
         essLogAction->setEnabled(nodeList->getThisNodeCanRez());
     }
+#endif
 
     // Developer > Scripting > Script Log (HMD friendly)...
     addActionToQMenuAndActionHash(scriptingOptionsMenu, "Script Log (HMD friendly)...", Qt::NoButton,

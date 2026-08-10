@@ -7,6 +7,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 APPLICATION_UI = (ROOT / "interface/src/Application_UI.cpp").read_text()
 LOG_DIALOG = (ROOT / "interface/src/ui/LogDialog.cpp").read_text()
+BASE_LOG_DIALOG = (ROOT / "interface/src/ui/BaseLogDialog.cpp").read_text()
+MENU = (ROOT / "interface/src/Menu.cpp").read_text()
 
 
 def require(condition: bool, message: str) -> None:
@@ -23,5 +25,14 @@ require('new QPushButton(QIcon(":/styles/txt-file.svg"), "Reveal log file", this
         "LogDialog is no longer demonstrably a desktop file/window utility")
 require("Qt::WindowFlags flags = _logDialog->windowFlags() | Qt::Tool;" in APPLICATION_UI,
         "desktop window-on-top behavior changed")
+require("void Application::toggleEntityScriptServerLogDialog() {\n"
+        "#if !defined(Q_OS_IOS)" in APPLICATION_UI,
+        "desktop Entity Script Server log dialog remains reachable on iOS")
+require("// Developer > Scripting > Entity Script Server Log\n"
+        "#if !defined(Q_OS_IOS)" in MENU,
+        "nonfunctional desktop log action remains in the iOS developer menu")
+require("BaseLogDialog::BaseLogDialog(QWidget* parent) : QDialog(parent, Qt::Window)" in BASE_LOG_DIALOG and
+        "setMinimumWidth(MINIMAL_WIDTH);" in BASE_LOG_DIALOG,
+        "Entity Script Server log is no longer demonstrably a desktop utility window")
 
-print("iOS window platform contract valid: desktop LogDialog preserved and mobile-excluded")
+print("iOS window platform contract valid: desktop log dialogs preserved and mobile-excluded")

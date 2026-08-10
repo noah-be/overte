@@ -570,6 +570,7 @@ void Application::recreateLogWindow(int keepOnTop) {
 }
 
 void Application::toggleEntityScriptServerLogDialog() {
+#if !defined(Q_OS_IOS)
     if (! _entityScriptServerLogDialog) {
         _entityScriptServerLogDialog = new EntityScriptServerLogDialog(nullptr);
     }
@@ -579,6 +580,7 @@ void Application::toggleEntityScriptServerLogDialog() {
     } else {
         _entityScriptServerLogDialog->show();
     }
+#endif
 }
 
 void Application::showAssetServerWidget(QString filePath) {

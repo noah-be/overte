@@ -101,6 +101,9 @@ The desktop `LogDialog` is a separate fixed-layout `QDialog` with window-on-top
 and reveal-in-file-manager controls. Its toggle entry point is a no-op on iOS;
 on-device diagnostics use the existing in-app/tablet log surfaces and exported
 device logs instead of creating a desktop utility window.
+The separate 780-pixel-minimum Entity Script Server `QDialog` follows the same
+boundary: its toggle and developer-menu action are omitted on iOS, while the
+HMD-friendly/in-app script log remains available.
 
 ## ADR-007: secret-free automation
 
