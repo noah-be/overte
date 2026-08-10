@@ -30,6 +30,35 @@ public final class HifiUtilsTest {
         assertEquals("atp:/hash", subject.absoluteHifiAssetUrl("atp:/hash", "https://base.test"));
     }
 
+    @Test public void relativeAssetNormalizesExactlyOnePathSeparator() {
+        assertEquals("https://base.test/assets/image.png",
+                subject.absoluteHifiAssetUrl("assets/image.png", "https://base.test"));
+        assertEquals("https://base.test/assets/image.png",
+                subject.absoluteHifiAssetUrl("/assets/image.png", "https://base.test/"));
+        assertEquals("assets/image.png",
+                subject.absoluteHifiAssetUrl("assets/image.png", null));
+        assertEquals("assets/image.png",
+                subject.absoluteHifiAssetUrl("assets/image.png", "  "));
+    }
+
+    @Test public void networkPathAssetsInheritOnlyHttpOrHttpsSchemes() {
+        assertEquals("https://cdn.example.test/avatar.png?size=2#image",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png?size=2#image",
+                        "https://base.test/server"));
+        assertEquals("http://cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "http://base.test"));
+        assertEquals("//cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", null));
+        assertEquals("//cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "atp:/base"));
+        assertEquals("//cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "//base.test/path"));
+        assertEquals("//cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "ftp://base.test/path"));
+        assertEquals("//cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "bad uri ["));
+    }
+
     @Test public void defaultAssetBaseAndWhitespaceAreDeterministic() {
         assertEquals(HifiUtils.METAVERSE_BASE_URL + "/asset",
                 subject.absoluteHifiAssetUrl("  /asset  "));

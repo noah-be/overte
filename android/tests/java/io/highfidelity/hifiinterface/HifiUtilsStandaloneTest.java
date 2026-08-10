@@ -11,14 +11,40 @@ public final class HifiUtilsStandaloneTest {
         expect("", subject.sanitizeHifiUrl(" \n\t "));
         expect("hifi://welcome.overte.org/path", subject.sanitizeHifiUrl(" welcome.overte.org/path "));
         expect("https://example.test/a", subject.sanitizeHifiUrl("https://example.test/a"));
+        expect("hifi://localhost:40102", subject.sanitizeHifiUrl(" localhost:40102 "));
+        expect("hifi://LOCALHOST:40102/path?x=1#place",
+                subject.sanitizeHifiUrl("LOCALHOST:40102/path?x=1#place"));
+        expect("mailto:123", subject.sanitizeHifiUrl("mailto:123"));
+        expect("hifi:40102", subject.sanitizeHifiUrl("hifi:40102"));
         expect("bad uri [", subject.sanitizeHifiUrl(" bad uri [ "));
 
         expect("", subject.absoluteHifiAssetUrl(null));
         expect("", subject.absoluteHifiAssetUrl(" \t "));
         expect(HifiUtils.METAVERSE_BASE_URL + "/asset", subject.absoluteHifiAssetUrl(" /asset "));
+        expect("https://base/assets/image.png",
+                subject.absoluteHifiAssetUrl("assets/image.png", "https://base"));
+        expect("https://base/assets/image.png",
+                subject.absoluteHifiAssetUrl("/assets/image.png", "https://base/"));
+        expect("assets/image.png", subject.absoluteHifiAssetUrl("assets/image.png", null));
+        expect("assets/image.png", subject.absoluteHifiAssetUrl("assets/image.png", " \t "));
         expect("https://base.test/avatar.png",
                 subject.absoluteHifiAssetUrl(" avatar.png ", "https://base.test/"));
         expect("atp:/hash", subject.absoluteHifiAssetUrl("atp:/hash", "https://base.test/"));
+        expect("https://cdn.example.test/avatar.png?size=2#image",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png?size=2#image",
+                        "https://base.test/server"));
+        expect("http://cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "http://base.test"));
+        expect("//cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", null));
+        expect("//cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "atp:/base"));
+        expect("//cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "//base.test/path"));
+        expect("//cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "ftp://base.test/path"));
+        expect("//cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "bad uri ["));
         expect("bad uri [", subject.absoluteHifiAssetUrl(" bad uri [ ", "https://base.test/"));
         fixedSeedBareAddresses(subject);
         System.out.println("HifiUtilsStandaloneTest: " + assertions + " assertions passed");

@@ -7,6 +7,7 @@ import android.os.IBinder;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -14,15 +15,14 @@ import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLEncoder;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -86,7 +86,8 @@ public class BreakpadUploaderService extends Service {
     private URL getUrl() {
         String parameters = getAnnotationsAsUrlEncodedParameters();
         try {
-            return new URL(BuildConfig.BACKTRACE_URL+ "/post?format=minidump&token=" + BuildConfig.BACKTRACE_TOKEN + (parameters.isEmpty() ? "" : ("&" + parameters)));
+            return LegacyCrashDumpPolicy.buildUploadUrl(
+                    BuildConfig.BACKTRACE_URL, BuildConfig.BACKTRACE_TOKEN, parameters);
         } catch (MalformedURLException e) {
             Log.e(TAG, "Could not initialize Breakpad URL", e);
         }
@@ -94,30 +95,40 @@ public class BreakpadUploaderService extends Service {
     }
 
     private void uploadDumpAndDelete(File file, URL url) {
-        int size = (int) file.length();
-        byte[] bytes = new byte[size];
-        try {
-            BufferedInputStream buf = new BufferedInputStream(new FileInputStream(file));
-                buf.read(bytes, 0, bytes.length);
-            buf.close();
-            HttpsURLConnection urlConnection = (HttpsURLConnection) url.openConnection();
+        if (!LegacyCrashDumpPolicy.isAcceptedLength(file.length())) {
+            Log.e(TAG, "Crash dump is outside the upload size limit");
+            return;
+        }
+        HttpsURLConnection urlConnection = null;
+        try (InputStream input = new BufferedInputStream(new FileInputStream(file))) {
+            urlConnection = (HttpsURLConnection) url.openConnection();
+            LegacyCrashDumpPolicy.configureUploadConnection(urlConnection);
             urlConnection.setRequestMethod("POST");
             urlConnection.setDoOutput(true);
             urlConnection.setChunkedStreamingMode(0);
 
-            OutputStream ostream = urlConnection.getOutputStream();
-
-            OutputStream out = new BufferedOutputStream(ostream);
-            out.write(bytes, 0, size);
-
-            InputStream in = new BufferedInputStream(urlConnection.getInputStream());
-            in.read();
-            if (urlConnection.getResponseCode() == 200) {
-                file.delete();
+            try (OutputStream output = new BufferedOutputStream(urlConnection.getOutputStream())) {
+                LegacyCrashDumpPolicy.copyBounded(
+                        input, output, LegacyCrashDumpPolicy.MAX_DUMP_BYTES);
             }
-            urlConnection.disconnect();
+
+            int responseCode = urlConnection.getResponseCode();
+            InputStream responseStream = responseCode >= 400 ?
+                    urlConnection.getErrorStream() : urlConnection.getInputStream();
+            if (responseStream != null) {
+                try (InputStream response = new BufferedInputStream(responseStream)) {
+                    response.read();
+                }
+            }
+            if (LegacyCrashDumpPolicy.isSuccessfulUploadStatus(responseCode) && !file.delete()) {
+                Log.w(TAG, "Uploaded crash dump could not be deleted");
+            }
         } catch (IOException e) {
-            Log.e(TAG, "Error uploading file " + file.getAbsolutePath(), e);
+            Log.e(TAG, "Error uploading crash dump", e);
+        } finally {
+            if (urlConnection != null) {
+                urlConnection.disconnect();
+            }
         }
     }
 
@@ -128,7 +139,8 @@ public class BreakpadUploaderService extends Service {
     }
 
     private File[] getFilesByExtension(File dir, final String extension) {
-        return dir.listFiles(pathName -> getExtension(pathName.getName()).equals(extension));
+        File[] files = dir.listFiles(pathName -> getExtension(pathName.getName()).equals(extension));
+        return files == null ? new File[0] : files;
     }
 
     private String getExtension(String fileName) {
@@ -146,28 +158,24 @@ public class BreakpadUploaderService extends Service {
 
 
     public String getAnnotationsAsUrlEncodedParameters() {
-        String parameters = "";
         File annotationsFile = new File(getObbDir(), ANNOTATIONS_JSON);
-        if (annotationsFile.exists()) {
-            JsonParser parser = new JsonParser();
-            try {
-                JsonObject json = (JsonObject) parser.parse(new FileReader(annotationsFile));
-                for (String k: json.keySet()) {
-                    if (!json.get(k).getAsString().isEmpty()) {
-                        String key = k.contains("/") ? k.substring(k.indexOf("/") + 1) : k;
-                        if (!parameters.isEmpty()) {
-                            parameters += "&";
-                        }
-                        parameters += URLEncoder.encode(key, "UTF-8") + "=" + URLEncoder.encode(json.get(k).getAsString(), "UTF-8");
+        return LegacyCrashAnnotationPolicy.encodeFailClosed(() -> {
+            try (FileReader reader = new FileReader(annotationsFile)) {
+                JsonElement root = new JsonParser().parse(reader);
+                if (root == null || !root.isJsonObject()) {
+                    return null;
+                }
+                JsonObject json = root.getAsJsonObject();
+                Map<String, String> annotations = new LinkedHashMap<>();
+                for (String key : json.keySet()) {
+                    JsonElement value = json.get(key);
+                    if (value != null && !value.isJsonNull() && value.isJsonPrimitive()) {
+                        annotations.put(key, value.getAsString());
                     }
                 }
-            } catch (FileNotFoundException e) {
-                Log.e(TAG, "Error reading annotations file", e);
-            } catch (UnsupportedEncodingException e) {
-                Log.e(TAG, "Error reading annotations file", e);
+                return annotations;
             }
-        }
-        return parameters;
+        });
     }
 
 }

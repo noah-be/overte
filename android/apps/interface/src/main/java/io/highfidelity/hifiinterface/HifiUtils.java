@@ -37,11 +37,15 @@ public class HifiUtils {
             }
             // java.net.URI represents an absent scheme as null; an empty scheme
             // is rejected by its parser, so a second empty-string check is dead.
-            if (uri.getScheme() == null) {
+            if (uri.getScheme() == null || isLocalhostWithPort(urlString)) {
                 urlString = "hifi://" + urlString;
             }
         }
         return urlString;
+    }
+
+    private boolean isLocalhostWithPort(String value) {
+        return value.matches("(?i)^localhost:[0-9]+(?:[/?#].*)?$");
     }
 
 
@@ -62,7 +66,32 @@ public class HifiUtils {
                 return urlString;
             }
             if (uri.getScheme() == null) {
-                urlString = baseUrl + urlString;
+                if (baseUrl == null || baseUrl.trim().isEmpty()) {
+                    return urlString;
+                }
+                String normalizedBase = baseUrl.trim();
+                if (uri.getRawAuthority() != null) {
+                    try {
+                        URI base = new URI(normalizedBase);
+                        String scheme = base.getScheme();
+                        if (base.getRawAuthority() == null || scheme == null
+                                || !("http".equalsIgnoreCase(scheme)
+                                || "https".equalsIgnoreCase(scheme))) {
+                            return urlString;
+                        }
+                        return ("https".equalsIgnoreCase(scheme) ? "https" : "http")
+                                + ":" + urlString;
+                    } catch (URISyntaxException e) {
+                        return urlString;
+                    }
+                }
+                if (normalizedBase.endsWith("/") && urlString.startsWith("/")) {
+                    urlString = normalizedBase + urlString.substring(1);
+                } else if (normalizedBase.endsWith("/") || urlString.startsWith("/")) {
+                    urlString = normalizedBase + urlString;
+                } else {
+                    urlString = normalizedBase + "/" + urlString;
+                }
             }
         }
         return urlString;

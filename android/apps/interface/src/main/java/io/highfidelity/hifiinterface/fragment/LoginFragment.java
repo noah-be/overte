@@ -23,10 +23,11 @@ import org.qtproject.qt5.android.QtNative;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
-import java.util.Random;
+import java.security.SecureRandom;
 
 import io.highfidelity.hifiinterface.BuildConfig;
 import io.highfidelity.hifiinterface.HifiUtils;
+import io.highfidelity.hifiinterface.LegacyOAuthStatePolicy;
 import io.highfidelity.hifiinterface.R;
 import io.highfidelity.hifiinterface.WebViewActivity;
 
@@ -56,6 +57,7 @@ public class LoginFragment extends Fragment
     private boolean mLoginSuccess;
     private boolean mUseOauth;
     private String mOauthState;
+    private final SecureRandom mOauthRandom = new SecureRandom();
 
     public native void login(String username, String password, boolean keepLoggedIn);
     private native void retrieveAccessToken(String authCode, String clientId, String clientSecret, String redirectUri);
@@ -155,13 +157,19 @@ public class LoginFragment extends Fragment
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == OAUTH_AUTHORIZE_REQUEST) {
             if (resultCode == Activity.RESULT_OK) {
-                String authCode = data.getStringExtra(WebViewActivity.RESULT_OAUTH_CODE);
-                String state = data.getStringExtra(WebViewActivity.RESULT_OAUTH_STATE);
-                if (state != null && state.equals(mOauthState) && mListener != null) {
-                    mOauthState = null;
+                String expectedState = mOauthState;
+                mOauthState = null;
+                String authCode = data == null ? null
+                        : data.getStringExtra(WebViewActivity.RESULT_OAUTH_CODE);
+                String state = data == null ? null
+                        : data.getStringExtra(WebViewActivity.RESULT_OAUTH_STATE);
+                if (LegacyOAuthStatePolicy.isValidCallback(
+                        expectedState, state, authCode) && mListener != null) {
                     showActivityIndicator();
                     mLoginInProgress = true;
                     retrieveAccessToken(authCode, BuildConfig.OAUTH_CLIENT_ID, BuildConfig.OAUTH_CLIENT_SECRET, BuildConfig.OAUTH_REDIRECT_URI);
+                } else {
+                    onCancelLogin();
                 }
             } else {
                 onCancelLogin();
@@ -292,8 +300,7 @@ public class LoginFragment extends Fragment
     }
 
     private void updateOauthState() {
-        // as we only use oauth for steam that's ok for now
-        mOauthState = "steam-" + Long.toString(new Random().nextLong());
+        mOauthState = LegacyOAuthStatePolicy.generate(mOauthRandom);
     }
 
     private String buildAuthorizeUrl() {
