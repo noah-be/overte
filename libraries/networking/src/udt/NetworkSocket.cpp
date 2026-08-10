@@ -8,6 +8,8 @@
 
 #include "NetworkSocket.h"
 
+#include <atomic>
+
 #include "../NetworkLogging.h"
 
 
@@ -288,6 +290,18 @@ void NetworkSocket::onWebRTCStateChanged(QAbstractSocket::SocketState socketStat
 }
 
 void NetworkSocket::onUDPSocketError(QAbstractSocket::SocketError socketError) {
+#if defined(Q_OS_IOS)
+    // Do not include the peer address or Qt's free-form error string: either
+    // may disclose a private LAN endpoint. The numeric category and socket
+    // state are sufficient to distinguish a denied/unavailable UDP path.
+    static std::atomic<int> lastReportedCategory { -1 };
+    const int category = static_cast<int>(socketError);
+    if (lastReportedCategory.exchange(category) != category) {
+        qCWarning(networking) << "IOS_LOCAL_NETWORK_UDP_ERROR"
+                              << "category" << category
+                              << "state" << static_cast<int>(_udpSocket.state());
+    }
+#endif
     emit NetworkSocket::socketError(SocketType::UDP, socketError);
 }
 

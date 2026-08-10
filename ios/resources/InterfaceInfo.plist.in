@@ -14,6 +14,8 @@
     <key>LSRequiresIPhoneOS</key><true/>
     <key>NSLocalNetworkUsageDescription</key>
     <string>Overte uses the local network when connecting to nearby virtual-world services.</string>
+    <key>NSAppTransportSecurity</key>
+    <dict><key>NSAllowsLocalNetworking</key><true/></dict>
     <key>NSMicrophoneUsageDescription</key>
     <string>Overte uses the microphone for spatial voice communication after you grant permission.</string>
     <key>UIRequiredDeviceCapabilities</key><array><string>arm64</string></array>
