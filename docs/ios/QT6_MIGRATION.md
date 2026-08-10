@@ -332,8 +332,16 @@ The Windows GPU adapter scorer now splits uppercased vendor and renderer text
 with a `QRegularExpression` using the same `\\W` pattern. It still removes
 empty and duplicate words before counting adapter-name matches, so adapter
 selection and driver reporting are unchanged. `GPUIdent.cpp` therefore leaves
-the shared Core5Compat inventory; the platform-specific branch remains
-unreachable on iOS.
+the shared Core5Compat inventory. Its macOS CGL renderer query and
+`system_profiler` process are explicitly excluded from iOS; iOS keeps the
+existing invalid/unknown GPU-identification result rather than inventing a
+Metal adapter probe.
+
+The shared macOS platform helper's IOKit system-power observer is likewise
+excluded from iOS. The iOS graph still installs a conservative
+`PlatformHelper` dependency, but lifecycle ownership remains with the
+application delegate and the helper emits no fabricated desktop sleep/wake
+events.
 
 The script editor highlighter's complete eight-expression set now uses
 `QRegularExpression`. Keyword, quote, number, boolean, single-line comment,
@@ -462,6 +470,10 @@ boundary and rejects unknown sample formats instead of calling Qt 5's removed
 `QAudioFormat::sampleSize()` API or emitting an invalid header.
 The iOS-reachable script cache uses `QNetworkAccessManager` directly and must
 not reintroduce the removed, unused Qt 5 `QNetworkConfiguration` header.
+Machine identity on iOS never probes the macOS IOKit platform UUID. It selects
+the existing random application-local fallback, persists it through Settings
+when available, and uses a session UUID when persistence is unavailable. This
+is a stability token, not a hardware identifier.
 Platform-native AVAudioSession policy remains in the iOS shell and must not be
 duplicated by desktop code.
 
