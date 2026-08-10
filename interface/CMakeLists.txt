@@ -296,8 +296,14 @@ if (WIN32)
 endif()
 
 # link required hifi libraries
+set(INTERFACE_GL_LIBRARY gl)
+if(IOS AND OVERTE_RENDERING_BACKEND STREQUAL "Vulkan")
+  # Interface has no direct GL consumer after the iOS source gates. VKWidget's
+  # compatibility context remains an implementation detail of the vk target.
+  set(INTERFACE_GL_LIBRARY "")
+endif()
 link_hifi_libraries(
-  shared workload task octree ktx gpu gl procedural graphics graphics-scripting render
+  shared workload task octree ktx gpu ${INTERFACE_GL_LIBRARY} procedural graphics graphics-scripting render
   pointers recording hfm model-serializers networking material-networking
   model-networking model-baker entities avatars
   audio audio-client animation physics

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed audit for the remaining explicit Interface gl dependency."""
+"""Audit migrated Interface GL consumers after direct-link removal."""
 
 from pathlib import Path
 
@@ -15,16 +15,17 @@ def require(condition: bool, message: str) -> None:
         raise SystemExit(message)
 
 
-link_block = CMAKE.split("link_hifi_libraries(", 1)[1].split(")", 1)[0]
-require(" gpu gl procedural " in link_block.replace("\n", " "),
-        "Interface gl link changed before the remaining consumers were migrated")
+require('set(INTERFACE_GL_LIBRARY "")' in CMAKE,
+        "Interface iOS Vulkan GL library is not cleared")
 require("OffscreenGLCanvas" not in HANDLER and '"gl/' not in HANDLER,
         "RenderEventHandler still carries an unused GL canvas dependency")
 
-# These are source-anchored reasons why deleting the link is not yet honest.
+# Desktop compatibility remains source-guarded while iOS fails QML closed.
 require("OffscreenGLCanvas* qmlShareContext" in GRAPHICS,
-        "QML shared-context consumer moved; update this audit")
+        "desktop QML shared-context compatibility changed")
 require("glClear(GL_COLOR_BUFFER_BIT);" in GRAPHICS,
-        "legacy clear consumer moved; update this audit")
+        "desktop legacy clear compatibility changed")
+require("#if !defined(Q_OS_IOS)\n    glClearColor" in GRAPHICS,
+        "legacy clear consumer is not iOS-gated")
 
-print("Interface GL link audit valid: telemetry isolated; active QML/clear consumers remain fail-closed")
+print("Interface GL link audit valid: direct link removed; desktop compatibility remains guarded")

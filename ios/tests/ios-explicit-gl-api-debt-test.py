@@ -18,11 +18,13 @@ for relative, anchors in sources.items():
 
 interface_cmake = (ROOT / "interface/CMakeLists.txt").read_text(encoding="utf-8")
 display_cmake = (ROOT / "libraries/display-plugins/CMakeLists.txt").read_text(encoding="utf-8")
-if " shared workload task octree ktx gpu gl procedural" not in interface_cmake:
-    raise SystemExit("Interface gl link removed while source-level GL debt remains")
+if 'set(INTERFACE_GL_LIBRARY "")' not in interface_cmake:
+    raise SystemExit("Interface iOS Vulkan gl link is not explicitly cleared")
+if "${INTERFACE_GL_LIBRARY}" not in interface_cmake:
+    raise SystemExit("Interface link list bypasses the gated GL library variable")
 if 'set(DISPLAY_PLUGINS_GL_LIBRARY "")' not in display_cmake:
     raise SystemExit("display-plugins iOS Vulkan gl link is not explicitly cleared")
 if "${DISPLAY_PLUGINS_GL_LIBRARY}" not in display_cmake:
     raise SystemExit("display-plugins link list bypasses the gated GL library variable")
 
-print("iOS explicit GL API debt valid: display-plugins link removed; 3 QML/Interface boundaries keep 1 link fail-closed")
+print("iOS explicit GL API debt valid: both direct links removed; target-owned QML/vk compatibility debt remains")

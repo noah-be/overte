@@ -23,7 +23,9 @@
 #include <display-plugins/CompositorHelper.h>
 #include <ErrorDialog.h>
 #include <FramebufferCache.h>
+#if !defined(Q_OS_IOS)
 #include <gl/GLHelpers.h>
+#endif
 #include <input-plugins/KeyboardMouseDevice.h>
 #include <input-plugins/TouchscreenDevice.h>
 #include <input-plugins/TouchscreenVirtualPadDevice.h>
@@ -63,8 +65,10 @@
 #include "AndroidHelper.h"
 #endif
 
+#if !defined(Q_OS_IOS)
 Q_GUI_EXPORT void qt_gl_set_global_share_context(QOpenGLContext *context);
 Q_GUI_EXPORT QOpenGLContext *qt_gl_global_share_context();
+#endif
 
 static const QString SYSTEM_TABLET = "com.highfidelity.interface.tablet.system";
 
@@ -91,7 +95,10 @@ void Application::initializeGL() {
     // When loading QtWebEngineWidgets, it creates a global share context on startup.
     // We have to account for this possibility by checking here for an existing
     // global share context
-    auto globalShareContext = qt_gl_global_share_context();
+    QOpenGLContext* globalShareContext { nullptr };
+#if !defined(Q_OS_IOS)
+    globalShareContext = qt_gl_global_share_context();
+#endif
 
 #if !defined(DISABLE_QML) && !defined(Q_OS_IOS)
     // Build a shared canvas / context for the Chromium processes
@@ -161,10 +168,12 @@ void Application::initializeGL() {
     }
 #endif
 
+#if !defined(Q_OS_IOS)
     if (!globalShareContext) {
         globalShareContext = _primaryWidget->qglContext();
         qt_gl_set_global_share_context(globalShareContext);
     }
+#endif
 
     // Build a shared canvas / context for the QML rendering
 #if !defined(DISABLE_QML)
@@ -195,9 +204,11 @@ void Application::initializeGL() {
 
     // Build an offscreen GL context for the main thread.
     _primaryWidget->makeCurrent();
+#if !defined(Q_OS_IOS)
     glClearColor(0.2f, 0.2f, 0.2f, 1);
     glClear(GL_COLOR_BUFFER_BIT);
     _primaryWidget->swapBuffers(); //VKTODO
+#endif
 
     _graphicsEngine->initializeGPU(_primaryWidget);
 }
