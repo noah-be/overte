@@ -8,6 +8,12 @@ SPDX-License-Identifier: Apache-2.0
 The iOS target selects Qt 6 centrally through `cmake/QtCompat.cmake`. Existing
 desktop and Android targets remain on Qt 5 while shared source is migrated.
 
+The iOS web surface uses Qt WebView/WKWebView rather than Qt WebEngine.
+WebEngine profile registration in offscreen contexts and WebEngine profile
+cache clearing in the menu are excluded on both Android and iOS, matching the
+existing profile declaration guards. Desktop WebEngine behavior and the iOS
+QtWebView QML implementation are unchanged.
+
 ## Transitional compatibility
 
 Qt Core5Compat is no longer selected by the iOS Qt component graph. The audited

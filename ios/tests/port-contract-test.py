@@ -319,6 +319,18 @@ def test_cmake_boundary() -> None:
 
     ios_webview = SOURCE_ROOT / "interface" / "resources" / "qml" / "controls" / "+ios" / "FlickableWebViewCore.qml"
     require_text(ios_webview, r"import QtWebView 1\.1", "iOS web surfaces must use Qt WebView")
+    offscreen_qml_surface = SOURCE_ROOT / "libraries" / "ui" / "src" / "ui" / "OffscreenQmlSurface.cpp"
+    require_text(
+        offscreen_qml_surface,
+        r'#if !defined\(Q_OS_ANDROID\) && !defined\(Q_OS_IOS\)\s+FileTypeProfile::registerWithContext\(context\);\s+HFWebEngineProfile::registerWithContext\(context\);',
+        "iOS must not compile WebEngine profile registration in offscreen contexts",
+    )
+    menu_source = SOURCE_ROOT / "interface" / "src" / "Menu.cpp"
+    require_text(
+        menu_source,
+        r'#if !defined\(Q_OS_ANDROID\) && !defined\(Q_OS_IOS\)\s+FileTypeProfile::clearCache\(\);\s+HFWebEngineProfile::clearCache\(\);',
+        "iOS must not compile WebEngine profile cache operations",
+    )
     if "QtWebEngine" in ios_webview.read_text(encoding="utf-8"):
         raise AssertionError("iOS web surface must not import Qt WebEngine")
 

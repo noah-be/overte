@@ -835,7 +835,7 @@ void OffscreenQmlSurface::loadFromQml(const QUrl& qmlSource, QQuickItem* parent,
         // If this is a
         auto contextCallback = [callback](QQmlContext* context) {
             ContextAwareProfile::restrictContext(context, false);
-#if !defined(Q_OS_ANDROID)
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
             FileTypeProfile::registerWithContext(context);
             HFWebEngineProfile::registerWithContext(context);
 #endif

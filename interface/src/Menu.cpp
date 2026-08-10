@@ -669,7 +669,7 @@ Menu::Menu() {
     connect(action, &QAction::triggered, [] {
         // The following caches are cleared immediately
         DependencyManager::get<AssetClient>()->clearCache();
-#ifndef Q_OS_ANDROID
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
         FileTypeProfile::clearCache();
         HFWebEngineProfile::clearCache();
 #endif
