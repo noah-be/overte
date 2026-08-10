@@ -82,16 +82,17 @@ jobs:
 
       - name: Configure experimental full client graph
         run: |
+          mkdir -p build-ios/ci-raw-diagnostics
           source build-ios/tooling-venv/bin/activate
-          ios/build-ios.sh configure --platform device --client-graph
+          ios/build-ios.sh configure --platform device --client-graph 2>&1 | tee build-ios/ci-raw-diagnostics/configure.log
 
       - name: Build experimental full client
-        run: cmake --build build-ios/device --config Debug --target Overte
+        run: cmake --build build-ios/device --config Debug --target Overte 2>&1 | tee build-ios/ci-raw-diagnostics/xcode-build.log
 
       - name: Package numbered unsigned client IPA
         env:
           OVERTE_IOS_ARTIFACT_SEQUENCE: ${{ github.run_number }}
-        run: ios/build-ios.sh package-client --platform device --configuration Debug
+        run: ios/build-ios.sh package-client --platform device --configuration Debug 2>&1 | tee build-ios/ci-raw-diagnostics/package.log
 
       - name: Verify build-ready release boundary
         shell: bash
@@ -129,15 +130,22 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Upload configure diagnostics
+      - name: Sanitize failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p build-ios/ci-upload-diagnostics
+          for source in build-ios/ci-raw-diagnostics/*.log build-ios/device/CMakeFiles/CMakeConfigureLog.yaml; do
+            if [[ -f "$source" ]]; then
+              python3 ios/tools/sanitize-ci-log.py "$source" "build-ios/ci-upload-diagnostics/$(basename "$source")"
+            fi
+          done
+
+      - name: Upload sanitized failure diagnostics
         if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: ios-integrated-configure-diagnostics-${{ github.run_id }}
-          path: |
-            build-ios/device/CMakeCache.txt
-            build-ios/device/CMakeFiles/CMakeConfigureLog.yaml
-            build-ios/device/conan/graph.json
-            build-ios/device/conan/sbom.cdx.json
+          name: ${{ github.run_number }}-ios-integrated-failure-diagnostics-${{ github.run_id }}
+          path: build-ios/ci-upload-diagnostics/
           if-no-files-found: ignore
           retention-days: 7

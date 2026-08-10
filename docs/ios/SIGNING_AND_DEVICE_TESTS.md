@@ -151,4 +151,15 @@ packaging and before artifact upload. It fails unless the report is exactly
 `*-device-unsigned-readiness.json` beside the IPA and transfer metadata. CI does
 not manufacture or infer physical-device acceptance.
 
+## Failure diagnostics
+
+On configure, Xcode build, or packaging failure, integrated CI retains raw logs
+only inside the ephemeral runner workspace. Before upload it keeps at most the
+last 2 MiB per log and redacts credential-shaped assignments, authenticated
+URLs, and private-key blocks. Only files in `ci-upload-diagnostics` are uploaded;
+`CMakeCache.txt`, raw logs, credentials, profiles, and keychains are excluded.
+The failure artifact name begins with the workflow run number and expires after
+seven days. Redaction is defense in depth: build commands must still never print
+credentials in the first place.
+
 For an iPad-only, no-Mac workflow, continue with `IPAD_REMOTE_TESTING.md`.
