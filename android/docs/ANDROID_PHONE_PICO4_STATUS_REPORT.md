@@ -1,24 +1,26 @@
-# Android Phone and Pico 4 Status Report
+# Android Phone, Pico 4, and iOS Status Report
 
 > **Assessment date:** 2026-08-10
 >
-> **Scope:** `feature/android-phone-support` and `feature/pico4-support`
+> **Scope:** `feature/android-phone-support`, `feature/pico4-support`, and the local
+> `feature/ios-support` worktree
 >
 > **Method:** Read-only source, history, documentation, workflow, and recorded test-result review
 >
-> **Companion document:** [Android Phone and Pico 4 Roadmap](ANDROID_PHONE_PICO4_ROADMAP.md)
+> **Companion document:** [Mobile Client Roadmap](ANDROID_PHONE_PICO4_ROADMAP.md)
 
 > [!NOTE]
 > This report assesses an unofficial, personal, AI-assisted fork maintained as a
 > solo hobby project. The maintainer is not part of the official Overte development
-> team, the Android Phone and Pico 4 interfaces are not official Overte products,
+> team, the Android Phone, Pico 4, and iOS interfaces are not official Overte products,
 > and the upstream project's no-AI policy is the reason this work remains clearly
 > separated in a fork. References to release readiness describe technical maturity,
 > not an obligation or commitment to ship or support a product.
 
 ## Executive summary
 
-Neither branch is release-ready today.
+None of the three clients is a finished public product today. That is context, not
+a project failure: the practical target is a useful personal or community-test build.
 
 - **Android Phone** is a late engineering alpha. It has the stronger build hardening,
   test structure, platform-specific settings cleanup, and package validation. Its
@@ -31,26 +33,36 @@ Neither branch is release-ready today.
   the measured Hub scene, thermal cutoffs, unfiltered desktop/developer UI, a weaker
   asset-cache extraction contract, and release workflows that have never completed
   end to end on GitHub.
-- The branches must be **converged before more large features are added**. They now
+- **iOS** is an advanced port-preparation/bootstrap stage, not yet an Overte client.
+  A native UIKit/Metal shell builds, launches on iPhone and iPad simulators, and has
+  also compiled as an unsigned arm64 device bundle. The actual shared client graph
+  is deliberately disabled by default. Qt 6 migration, dependency cross-builds,
+  static plug-ins, non-JIT scripting, full audio, WebView integration, and a usable
+  world-rendering path remain ahead.
+- The Phone and Pico branches should be **converged before more duplicated Android
+  features are added**. They now
   carry overlapping changes in shared Interface, audio, settings, scripts, build,
   and CI code. Continuing independent work increases both merge risk and the chance
   that one client ships stale code from the other.
 
 Recommended release classification:
 
-| Product | Current classification | Release decision |
+| Product | Current classification | Practical verdict |
 |---|---|---|
 | Android Phone | Late engineering alpha | **No-go for a public alpha** |
 | Pico 4 | Functional prototype / early beta | **No-go for a release candidate** |
+| iOS | Native bootstrap / port preparation | **Not yet usable as an Overte client** |
 
 ## 1. Assessment basis
 
-The current remote branch heads were used as the authoritative source:
+The current branch heads were used as the assessment source. The iOS row is a
+point-in-time snapshot because active work continues in its separate worktree.
 
 | Branch | Assessed commit | Relation to `upstream/master` |
 |---|---|---:|
 | `feature/android-phone-support` | [`2845c3e0b4`](https://github.com/noah-be/overte/commit/2845c3e0b48810382d21cfd0b8064c0e138e5730) | 535 additional commits |
 | `feature/pico4-support` | [`cc9ef96b31`](https://github.com/noah-be/overte/commit/cc9ef96b310fd12d3741b026738ba8a1f908c08d) | 397 additional commits |
+| `feature/ios-support` | [`c695f46323`](https://github.com/noah-be/overte/commit/c695f4632325f7da3d294ac86cc74e769c763b95) | 554 additional commits; 20 iOS-focused commits at the tip |
 | `upstream/master` | `b556c57243` | Common upstream ancestor |
 
 No build or test was executed locally as part of this review because the assessment
@@ -60,6 +72,14 @@ tests therefore distinguish between:
 1. current GitHub Actions results;
 2. evidence recorded in committed branch documentation; and
 3. validation that remains unperformed.
+
+commit. GitHub Actions run
+[31363636498](https://github.com/noah-be/overte/actions/runs/31363636498) completed
+successfully at `a0fb187efe`: Linux contracts passed; an unsigned arm64 `iphoneos`
+bundle compiled and verified; and an unsigned simulator app built, launched on both
+iPhone and iPad simulators, packaged, and uploaded. The two following commits only
+parallelize simulator boot and record that evidence. These results validate the
+bootstrap shell only; they do not validate the integrated Overte client.
 
 ### Local branch state
 
@@ -117,6 +137,7 @@ it does not remove the genuine shared-code integration risk.
 | Shared Interface, audio, settings, and scripts | Manual reconciliation |
 | Pico subtree embedded in the Phone branch | Do not use as the Pico baseline |
 | Local-only Pico coverage commits | Preserve, review, then reapply intentionally |
+| Active iOS port | Keep its current branch authoritative until a deliberate shared-client reconciliation point |
 
 ## 3. Android Phone status
 
@@ -342,7 +363,7 @@ still contain residue.
 - unrestricted plugin management;
 - unbounded rendering and resolution controls.
 
-### 4.5 Potential Phone parity features requiring product decisions
+### 4.5 Potential Phone parity features requiring personal scope choices
 
 - touch-owned Create;
 - snapshots implemented through Android storage/media APIs;
@@ -556,27 +577,164 @@ Some generic OpenXR and external-controller code may be intentionally portable. 
 should still be governed by an explicit supported-capability list rather than by
 accidental inheritance from Desktop or Quest.
 
-## 7. Platform-appropriate feature parity
+## 7. iOS status
+
+### 7.1 Current implementation stage
+
+The iOS branch is correctly structured as a **fail-closed bootstrap first**. Root
+CMake defaults to `OVERTE_IOS_BOOTSTRAP_ONLY=ON`, which builds a small native app
+instead of letting the unfinished Desktop client graph appear to work accidentally.
+The experimental full client requires an explicit opt-out and is not an acceptance
+target yet.
+
+The iOS-specific tip currently consists of 20 commits changing 110 files with about
+5,700 insertions and 80 deletions. Most of that work is preparation, policy, build
+plumbing, tests, and documentation rather than user-facing client functionality.
+
+The native bootstrap currently provides:
+
+- modern `UIApplication` and scene lifecycle handling;
+- a MetalKit view with a compiled and embedded Metal triangle pipeline;
+- iPhone/iPad safe-area constraints, rotation, Dynamic Type, Reduce Motion, touch,
+  drag, and pointer-hover probes;
+- lossless bounded deep-link queuing without logging sensitive URL contents;
+- network reachability, motion capability, and sandbox-path probes;
+- an `AVAudioSession` configured for game chat, with interruption and route-change
+  observation;
+- Info.plist, icons, entitlements, ATS declarations, and a privacy manifest; and
+- separate unsigned arm64 simulator and device-SDK build paths.
+
+What it does **not** yet provide is more important: no account or domain login, no
+world connection, no avatar, no Overte rendering, no movement controls, no spatial
+audio playback/capture integration, no tablet application surface, and no system
+script execution. The visible UI is a bootstrap status label, a Metal triangle, and
+touch diagnostics—not the Overte Interface.
+
+### 7.2 Build, CI, and test maturity
+
+The preparation layer is unusually strong for such an early port:
+
+- centralized iOS/iPadOS 17 deployment and Xcode/iOS SDK 26 contracts;
+- separate arm64 device and Apple-silicon simulator Conan profiles;
+- a staged 25-reference dependency graph demonstrated by isolated Linux recipe
+  resolution;
+- dependency classification, graph auditing, compatibility-debt tracking, and a
+  deterministic CycloneDX SBOM generator;
+- host tests for CLI behavior, bundle metadata, lifecycle, deep links, header
+  boundaries, Qt compatibility, MoltenVK discovery, and device-result validation;
+- macOS 26 CI that builds and launches unsigned iPhone and iPad simulator bundles;
+  and
+- an unsigned `iphoneos` arm64 compile/verification job that needs no signing key.
+
+This evidence proves the native shell and its contracts. It does not prove that the
+full dependency graph resolves on macOS or that Interface links and runs with Qt 6.
+The successful credential-free run includes the latest Metal-bundle changes and is
+recorded in the branch documentation with its artifact digest.
+
+### 7.3 Main integration blockers
+
+1. **Qt 6 migration.** Desktop and Android remain on Qt 5. The audit still lists
+   Qt-5-specific CMake calls, removed Qt Multimedia types, and widespread
+   `QRegExp`/`QTextCodec` compatibility debt.
+2. **Cross-compiled dependency closure.** Several packages are only classified or
+   marked `required-audit`. Host shader tools must be separated from target code,
+   and every device/simulator recipe still needs macOS/Xcode proof.
+3. **Static plug-in closure.** Overte assumes runtime-loaded plug-ins. iOS needs a
+   selected, statically linked and explicitly registered set.
+4. **Scripting.** The build intentionally stops without an audited static arm64 V8
+   or libnode package. It must run with `--jitless`, without WebAssembly code
+   generation, executable-memory permission, native modules, or child processes.
+5. **Rendering.** The Metal triangle validates presentation plumbing only. The
+   branch has not rendered an Overte world. MoltenVK must be measured against the
+   native reference; failure of correctness can force a much larger native Metal
+   backend effort.
+6. **Audio.** Native session policy exists, but the Qt 5 audio-client boundary still
+   needs migration to Qt 6 and real output, microphone, Bluetooth, interruption,
+   resampling, and echo behavior need device tests.
+7. **Web surfaces.** An iOS `FlickableWebViewCore.qml` adapter exists, but WKWebView
+   authentication, permissions, origin boundaries, and compatibility with existing
+   tablet/world content are untested.
+8. **Integrated lifecycle and memory.** The shell has lifecycle state machines, but
+   the resource-heavy client has not survived backgrounding, memory warnings,
+   reconnects, or long sessions on an Apple device.
+
+### 7.4 Best next technical milestone
+
+The next meaningful goal is not more bootstrap polish or App Store preparation. It
+is an **integrated simulator proof** that links the smallest useful shared-client
+slice and reaches a deterministic screen without Desktop-only targets. A productive
+sequence is:
+
+1. finish the current bootstrap CI loop and keep it green;
+2. resolve the simulator dependency graph on macOS;
+3. compile the experimental full-client graph and burn down the first concrete Qt 6
+   and static-link failures;
+4. establish one renderer path that draws a small Overte-controlled scene;
+5. start the non-JIT script runtime and minimum system scripts; then
+6. reach login/domain connection before broad UI or store work.
+
+## 8. Desktop and mobile residue risks in iOS
+
+No Desktop interface is exposed by the bootstrap because the full client is not yet
+running. The residue risk is therefore **latent build and design debt**, not a set of
+currently visible bad settings.
+
+Known inherited areas that must be excluded or replaced before the full client is
+usable include:
+
+- Qt WebEngine profiles and Chromium-specific assumptions;
+- Desktop window management, system tray, launchers, auto-update, installers, and
+  server processes;
+- macOS-only AppKit, OpenGL, IOKit, and Carbon detection that historically sits
+  behind broad `APPLE` conditions;
+- Desktop/HMD display paths and OpenGL presentation;
+- dynamic plug-in discovery and post-build shared-library copying;
+- VR/OpenXR/OpenVR/Oculus, Steam, Sixense, Kinect, Leap Motion, Neuron, and Desktop
+  input/settings surfaces;
+- desktop file dialogs, unrestricted filesystem paths, snapshots, and import/export
+  flows that do not use Apple containers and document pickers;
+- Desktop audio-device assumptions and Qt 5 multimedia controls;
+- crash reporting, camera, haptics, background audio, and updater UI whose iOS
+  capability and privacy contracts are intentionally deferred; and
+- the Android Phone UI cannot simply be reused wholesale: its touch concepts are a
+  useful design reference, but Android lifecycle, Back, intents, permissions,
+  WebView, storage, and packaging behavior are not iOS implementations.
+
+The bootstrap also currently presents itself as `Overte`, defaults to the bundle ID
+`org.overte.interface.dev`, displays “Overte iOS Bootstrap,” and registers the
+`overte` and `hifi` URL schemes. Its port documents often use formal language such as
+“supported,” “approved,” and “first Overte client.” That is reasonable engineering
+scaffolding, but it does not reflect this fork's unofficial status or solo-hobby
+workflow. Before a build is shared, choose fork-specific visible branding and a
+bundle identifier, state that no official Overte support is implied, and decide
+carefully whether claiming global URL schemes could conflict with another client.
+
+The existing `ios`, `mobile`, and `touch` QML selectors are a good start. Before the
+tablet/settings surface is enabled, iOS needs the same fail-closed capability policy
+recommended for Android: only show actions that have an iOS implementation and a
+real user journey.
+
+## 9. Platform-appropriate feature parity
 
 Feature parity should not mean copying every Desktop function to every Android
 client. The appropriate goal is equivalent completion of the platform's intended
 user journeys.
 
-| Capability | Android Phone | Pico 4 | Remaining gate |
-|---|---|---|---|
-| World loading and rendering | Present | Present | Live-domain, failure, reconnect testing |
-| Navigation | Touch pad, Places, deep links | Locomotion, teleport, Places | Long-session hardware testing |
-| Account and domain login | Present | Present | Real accounts, errors, IME/domain flow |
-| Audio and voice | Present, reduced UI | AudioRecord with AEC/NS | Routing, speech quality, echo, duration |
-| People and Avatar | Present | Present | Multiavatar and live-domain acceptance |
-| Core tablet apps | Deliberately reduced | Broad inherited set | Capability inventory and cleanup |
-| Settings | Mostly Phone-specific | Desktop-heavy | Pico fail-closed policy |
-| Create | Deliberately disabled | Present, partly tested | Phone redesign; Pico hardware acceptance |
-| World Web content | Deliberately absent | Partial Android WebView bridge | WebChannel/origin policy decision |
-| Lifecycle | Deep-link/Back/background code | XR and Activity lifecycle code | Real suspend/resume/eviction tests |
-| Performance | Short 30 FPS target passed | About 20 new FPS | Product target and Pico optimization |
-| Release automation | Advanced but blocked/inconsistent | Designed but never run | End-to-end workflow execution |
-| Distribution | F-Droid-first concept | Several possible channels | Ownership, signing, portal decisions |
+| Capability | Android Phone | Pico 4 | iOS | Remaining practical proof |
+|---|---|---|---|---|
+| World loading/rendering | Present | Present | Not integrated | Live domain, failure, reconnect |
+| Navigation | Touch pad, Places, deep links | Locomotion, teleport, Places | Touch probe only | Enjoyable device controls |
+| Account/domain login | Present | Present | Absent | Real account, error, IME flow |
+| Audio and voice | Present, reduced UI | AudioRecord with AEC/NS | Session policy only | Routing, speech, interruption, duration |
+| People and Avatar | Present | Present | Absent | Multiavatar live-domain session |
+| Core tablet apps | Deliberately reduced | Broad inherited set | Absent | Platform-specific useful subset |
+| Settings | Mostly Phone-specific | Desktop-heavy | Absent | Fail-closed capability policy |
+| Create | Deliberately disabled | Present, partly tested | Deferred | Platform-owned interaction design |
+| World Web content | Deliberately absent | Partial WebView bridge | Adapter only | Origin/auth/permission policy |
+| Lifecycle | Android paths implemented | XR/Activity paths implemented | Shell only | Integrated suspend/resume/eviction |
+| Performance | Short 30 FPS evidence | About 20 new FPS | Triangle only | Representative world measurement |
+| Shareable build | Handoff inconsistent | Workflow designed | Unsigned simulator artifact | Installable tester artifact |
+| Distribution | F-Droid-first idea | Several possibilities | Explicitly deferred | Optional personal choice later |
 
 ### Recommended mandatory Phone parity
 
@@ -619,7 +777,28 @@ user journeys.
 - external OpenXR controllers;
 - Community/script marketplace.
 
-## 8. Prioritized findings
+### Recommended first usable iOS scope
+
+- launch on iPhone and iPad and survive normal lifecycle transitions;
+- account/domain login and reconnect;
+- render one representative world and avatars;
+- touch movement, camera control, and text entry;
+- spatial audio output and microphone capture after consent;
+- a small, capability-filtered tablet/settings surface;
+- non-JIT system and world scripts needed by the core journey; and
+- container-safe storage and deep links.
+
+### Recommended deferred iOS scope
+
+- Create and complex content-authoring flows;
+- App Store submission and production signing;
+- OpenXR/VR and external tracking devices;
+- camera capture, haptics, and background audio;
+- arbitrary native plug-ins and Desktop utilities;
+- snapshots or imports before document/media storage UX exists; and
+- full Desktop feature or settings parity.
+
+## 10. Prioritized findings
 
 | Priority | Finding | Product impact | Primary resolution |
 |---|---|---|---|
@@ -629,33 +808,46 @@ user journeys.
 | P0 | Pico produces about 20 new FPS | Comfort and interaction risk | CPU profiling and hardware optimization loop |
 | P0 | Pico reaches thermal cutoff | Long-session safety/stability risk | Reduce CPU/load and validate automatic fan behavior |
 | P0 | Pico developer/crash actions potentially reachable | Intentional production crashes | Native capability/compile guard |
+| P0 | iOS is a bootstrap, not an integrated client | No Overte user journey exists yet | Smallest full-client simulator integration |
+| P0 | iOS Qt 6 and dependency closure is unproven | Full client cannot currently link | Resolve graph on macOS and burn down concrete failures |
+| P0 | iOS has no proven world renderer | Port viability and effort remain uncertain | MoltenVK correctness spike before native Metal expansion |
 | P1 | Pico asset extraction is timestamp/path based | Update and integrity risk | Shared content-addressed safe extractor |
 | P1 | Pico settings expose Desktop and legacy controllers | Confusing/no-op or harmful UX | Fail-closed capability model |
 | P1 | Pico trusted/release/device workflows never ran | Release chain unproven | Configure runners/secrets and execute gates |
 | P1 | Phone interactive device coverage is incomplete | User-facing regressions remain likely | Adreno/Mali and UI-flow matrix |
 | P1 | Full-file `Application_Setup` fork | Ongoing drift and merge cost | Extract platform hooks |
+| P1 | iOS static plug-in and non-JIT V8 packages are absent | Input/display/scripts cannot form a closed app | Build minimal static closure and run script suite |
+| P1 | iOS native audio policy is not connected to client audio | Voice journey absent | Qt 6 audio migration plus device loop |
+| P1 | iOS CI proves only the bootstrap | Green status can be misread as client maturity | Keep bootstrap and integrated-client gates distinct |
+| P1 | iOS defaults look like an official Overte app | User confusion and future bundle/URL-scheme conflict | Fork-specific branding, identifier, About text, and scheme policy |
 | P2 | Large unused script/QML/library payloads | APK size, review, attack surface | Reachability allowlists and package trimming |
 | P2 | Large committed nightly logs and duplicate fixtures | Review and maintenance cost | Move evidence to artifacts/compact reports |
 | P2 | Startup microphone permission | Onboarding friction | Just-in-time voice permission |
 
-## 9. Immediate next actions
+## 11. Immediate next actions
 
 Before adding large features:
 
 1. Preserve the two local-only Pico coverage commits.
-2. Freeze feature development on the two divergent product branches.
+2. Direct new Android work toward one integration branch instead of both divergent
+   product branches.
 3. Create a common integration branch from the current Pico remote head.
 4. Import Phone changes by owned area rather than using the stale Phone-side Pico
    subtree.
 5. Repair Phone workflow registration, tag dispatch, and artifact handoff.
 6. Make Pico developer/crash actions fail closed.
 7. replace Pico's asset-cache extraction with a shared safe implementation.
-8. Establish explicit Phone and Pico product-parity contracts.
+8. Choose a small Now / Later / Maybe scope for each client.
 9. Run device correctness gates before tuning behavior from assumptions.
-10. Do not create a Pico RC until frame generation and thermal stability meet agreed
-    hardware criteria.
+10. For iOS, prioritize the smallest integrated simulator client over more bootstrap
+    polish: dependencies, Qt 6, static plug-ins, renderer, non-JIT scripts, then
+    login/domain connection.
+11. Keep iOS work isolated until its rapidly moving branch is ready to converge;
+    periodically rebase or reconcile it with the chosen mobile integration baseline.
+12. Treat store publication as optional; a stable, clearly unofficial sideload or
+    development build is already a valid hobby-project result.
 
-## 10. Release-readiness conclusion
+## 12. Practical maturity conclusion
 
 ### Android Phone
 
@@ -671,12 +863,22 @@ device matrix.
 measured application frame rate, thermal cutoff, potentially reachable crash menu,
 desktop-heavy settings, and unexecuted release chain are hard blockers.
 
+### iOS
+
+**Strong preparation, but not yet a usable client.** The bootstrap architecture,
+contracts, CI, and platform probes reduce risk substantially. The decisive work is
+still ahead: compile and link the shared client with Qt 6, render a real world, run
+scripts without JIT, connect audio, and complete the basic login/navigation journey.
+Until then, simulator screenshots of the Metal bootstrap must not be interpreted as
+feature parity.
+
 ### Overall
 
-The next phase should prioritize convergence, capability-driven product surfaces,
-workflow correctness, and hardware evidence. New large features such as Phone
-Create or Pico WebChannel should begin only after those foundations are stable.
+The next phase should prioritize Android convergence, capability-driven interfaces,
+Pico performance, and one thin end-to-end iOS integration path. New large features
+such as Phone Create, Pico WebChannel, or iOS content creation should wait until the
+respective core journey works well enough to be fun and testable.
 
 The actionable milestone sequence, dependency graph, ownership split, and release
 gates are maintained in the companion
-[Android Phone and Pico 4 Roadmap](ANDROID_PHONE_PICO4_ROADMAP.md).
+[Mobile Client Roadmap](ANDROID_PHONE_PICO4_ROADMAP.md).
