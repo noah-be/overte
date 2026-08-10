@@ -93,13 +93,37 @@ jobs:
           OVERTE_IOS_ARTIFACT_SEQUENCE: ${{ github.run_number }}
         run: ios/build-ios.sh package-client --platform device --configuration Debug
 
-      - name: Upload numbered client IPA and VM metadata
+      - name: Verify build-ready release boundary
+        shell: bash
+        run: |
+          shopt -s nullglob
+          manifests=(build-ios/artifacts/*-OverteIOSClient-Debug-device-unsigned.json)
+          if (( ${#manifests[@]} != 1 )); then
+            echo "expected exactly one numbered integrated-client manifest" >&2
+            exit 1
+          fi
+          report="${manifests[0]%.json}-readiness.json"
+          python3 ios/tools/check-release-readiness.py build-ios/artifacts > "$report"
+          python3 - "$report" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          report = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if report.get("buildReady") is not True:
+              raise SystemExit("integrated artifact is not build-ready")
+          if report.get("deviceAccepted") is not False or report.get("status") != "build-ready":
+              raise SystemExit("device acceptance must not be claimed without device evidence")
+          PY
+
+      - name: Upload numbered client IPA, readiness report and VM metadata
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: ${{ github.run_number }}-overte-ios-integrated-device-${{ github.run_id }}
           path: |
             build-ios/artifacts/*-OverteIOSClient-Debug-device-unsigned.ipa
             build-ios/artifacts/*-OverteIOSClient-Debug-device-unsigned.json
+            build-ios/artifacts/*-OverteIOSClient-Debug-device-unsigned-readiness.json
             build-ios/artifacts/LATEST-OverteIOSClient.json
             build-ios/artifacts/LATEST-OverteIOSClient.txt
           if-no-files-found: error

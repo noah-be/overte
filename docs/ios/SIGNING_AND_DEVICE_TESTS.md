@@ -145,4 +145,10 @@ and bound to the exact source revision and artifact SHA. Invalid supplied
 evidence blocks readiness rather than being silently ignored. The aggregator is
 read-only and performs no upload, signing, VM, or device operation.
 
+The opt-in integrated GitHub workflow runs this same no-evidence form after
+packaging and before artifact upload. It fails unless the report is exactly
+`build-ready` with `deviceAccepted: false`, then uploads a numbered
+`*-device-unsigned-readiness.json` beside the IPA and transfer metadata. CI does
+not manufacture or infer physical-device acceptance.
+
 For an iPad-only, no-Mac workflow, continue with `IPAD_REMOTE_TESTING.md`.
