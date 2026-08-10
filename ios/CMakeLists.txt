@@ -43,6 +43,9 @@ add_executable(OverteIOSBootstrap MACOSX_BUNDLE
 set_source_files_properties(${OVERTE_IOS_RESOURCES} PROPERTIES
     MACOSX_PACKAGE_LOCATION Resources
 )
+set_source_files_properties(src/BootstrapShaders.metal PROPERTIES
+    XCODE_EXPLICIT_FILE_TYPE "sourcecode.metal"
+)
 
 target_compile_definitions(OverteIOSBootstrap PRIVATE
     OVERTE_IOS_BOOTSTRAP=1

@@ -42,12 +42,20 @@
     id<MTLLibrary> library = [device newDefaultLibrary];
     id<MTLFunction> vertexFunction = [library newFunctionWithName:@"overteBootstrapVertex"];
     id<MTLFunction> fragmentFunction = [library newFunctionWithName:@"overteBootstrapFragment"];
-    MTLRenderPipelineDescriptor* pipelineDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
-    pipelineDescriptor.vertexFunction = vertexFunction;
-    pipelineDescriptor.fragmentFunction = fragmentFunction;
-    pipelineDescriptor.colorAttachments[0].pixelFormat = self.metalView.colorPixelFormat;
-    self.pipelineState = [device newRenderPipelineStateWithDescriptor:pipelineDescriptor
-                                                                 error:&pipelineError];
+    if (device == nil || library == nil || vertexFunction == nil || fragmentFunction == nil) {
+        pipelineError = [NSError errorWithDomain:@"org.overte.interface.metal"
+                                             code:1
+                                         userInfo:@{
+            NSLocalizedDescriptionKey: @"default Metal shader library is unavailable"
+        }];
+    } else {
+        MTLRenderPipelineDescriptor* pipelineDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
+        pipelineDescriptor.vertexFunction = vertexFunction;
+        pipelineDescriptor.fragmentFunction = fragmentFunction;
+        pipelineDescriptor.colorAttachments[0].pixelFormat = self.metalView.colorPixelFormat;
+        self.pipelineState = [device newRenderPipelineStateWithDescriptor:pipelineDescriptor
+                                                                     error:&pipelineError];
+    }
     [self.view addSubview:self.metalView];
 
     self.statusLabel = [[UILabel alloc] initWithFrame:CGRectZero];

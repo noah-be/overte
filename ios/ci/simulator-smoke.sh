@@ -51,6 +51,16 @@ for family in iphone ipad; do
         echo "unexpected launch result for $family: $launch_output" >&2
         exit 1
     }
+    launch_pid="${launch_output##*: }"
+    [[ "$launch_pid" =~ ^[0-9]+$ ]] || {
+        echo "launch did not return a process ID for $family: $launch_output" >&2
+        exit 1
+    }
+    sleep 5
+    xcrun simctl spawn "$active_udid" kill -0 "$launch_pid" || {
+        echo "application process did not survive launch on $family" >&2
+        exit 1
+    }
     xcrun simctl terminate "$active_udid" "$bundle_id"
     xcrun simctl shutdown "$active_udid"
     active_udid=""

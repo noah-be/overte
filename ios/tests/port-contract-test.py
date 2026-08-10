@@ -202,6 +202,7 @@ def test_cmake_boundary() -> None:
     require_text(cmake, r'XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC "YES"', "Objective-C ARC must be target-local")
     require_text(cmake, r"AUTOMOC OFF", "native bootstrap must not inherit Qt AUTOGEN")
     require_text(cmake, r'"-framework CoreGraphics"', "UIKit geometry symbols need an explicit framework")
+    require_text(cmake, r'XCODE_EXPLICIT_FILE_TYPE "sourcecode\.metal"', "Xcode must compile the Metal shader source")
     require_text(cmake, r'"-framework Metal"', "bootstrap must link Metal")
     require_text(cmake, r'"-framework AVFoundation"', "bootstrap must link AVFoundation")
 
@@ -341,6 +342,7 @@ def test_ci_contract() -> None:
     require_text(smoke, r"select-simulator\.py", "simulator choice must use the tested selector")
     require_text(smoke, r"simctl io.*screenshot", "simulator failures must preserve a screenshot")
     require_text(smoke, r"log show", "simulator failures must preserve app logs")
+    require_text(smoke, r'simctl spawn "\$active_udid" kill -0', "simulator smoke must prove launch survival")
 
     selector = load_python_module(IOS_ROOT / "tools" / "select-simulator.py", "select_simulator")
     fixture = {
