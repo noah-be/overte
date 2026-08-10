@@ -42,6 +42,12 @@ For measured world-entry and post-loading optimization guidance, see the
 The consolidated platform entry point is
 [`docs/interfaces/pico4/README.md`](docs/interfaces/pico4/README.md).
 
+### Interfaces in development
+
+The four ports use a shared documentation layout described in
+[`docs/interfaces/`](docs/interfaces/README.md). The platform documentation is
+maintained on its corresponding development branch.
+
 ### What is this?
 
 Overte is a free and open source 3D social virtual worlds software.
