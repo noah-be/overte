@@ -5,6 +5,7 @@ name: Provision Qt iOS source cache
 
 on:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read

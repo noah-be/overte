@@ -37,6 +37,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  provision-qt-ios:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[qt-source]')
+    uses: ./.github/workflows/ios-qt-source.yml
+
   host-contracts:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
