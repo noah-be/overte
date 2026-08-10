@@ -135,6 +135,14 @@ case "$platform" in
         ;;
 esac
 
+[[ "$configuration" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] \
+    || fail "invalid Xcode configuration name: $configuration"
+[[ "$bundle_id" =~ ^[A-Za-z0-9][A-Za-z0-9-]*(\.[A-Za-z0-9][A-Za-z0-9-]*)+$ ]] \
+    || fail "invalid bundle identifier: $bundle_id"
+if [[ -n "$development_team" && ! "$development_team" =~ ^[A-Z0-9]{10}$ ]]; then
+    fail "Apple development team IDs must contain exactly 10 uppercase letters or digits"
+fi
+
 if [[ -z "$build_dir" ]]; then
     build_dir="$source_root/build-ios/$platform"
 elif [[ "$build_dir" != /* ]]; then
@@ -162,7 +170,7 @@ run_doctor() {
     require_command cmake
     require_command python3
 
-    local xcode_version sdk_version cmake_version conan_version
+    local xcode_version sdk_version cmake_version conan_version python_version
     xcode_version="$(xcodebuild -version | sed -n '1s/^Xcode //p')"
     [[ -n "$xcode_version" ]] || fail "could not determine the Xcode version"
     version_at_least "$xcode_version" "$OVERTE_IOS_REQUIRED_XCODE_MAJOR" \
@@ -176,10 +184,14 @@ run_doctor() {
     version_at_least "$cmake_version" "$OVERTE_IOS_CMAKE_MIN_VERSION" \
         || fail "CMake $OVERTE_IOS_CMAKE_MIN_VERSION or newer is required; found $cmake_version"
 
+    python_version="$(python3 -c 'import platform; print(platform.python_version())')"
+    version_at_least "$python_version" "$OVERTE_IOS_PYTHON_MIN_VERSION" \
+        || fail "Python $OVERTE_IOS_PYTHON_MIN_VERSION or newer is required; found $python_version"
+
     if command -v conan >/dev/null 2>&1; then
         conan_version="$(conan --version | awk '{print $3}')"
-        version_at_least "$conan_version" "$OVERTE_IOS_CONAN_MIN_VERSION" \
-            || fail "Conan $OVERTE_IOS_CONAN_MIN_VERSION or newer is required; found $conan_version"
+        [[ "$conan_version" == "$OVERTE_IOS_CONAN_VERSION" ]] \
+            || fail "Conan $OVERTE_IOS_CONAN_VERSION is required for the audited graph; found $conan_version"
     else
         conan_version="not installed (run bootstrap before dependency resolution)"
     fi
@@ -187,6 +199,7 @@ run_doctor() {
     note "Xcode: $xcode_version"
     note "$sdk_name SDK: $sdk_version"
     note "CMake: $cmake_version"
+    note "Python: $python_version"
     note "Conan: $conan_version"
     note "Conan host profile: $conan_profile"
 
@@ -194,9 +207,17 @@ run_doctor() {
     if [[ -n "$qt_root" ]]; then
         [[ -f "$qt_root/lib/cmake/Qt6/Qt6Config.cmake" ]] \
             || fail "OVERTE_IOS_QT_ROOT does not contain lib/cmake/Qt6/Qt6Config.cmake"
+        local qt_version_file="$qt_root/lib/cmake/Qt6/Qt6ConfigVersionImpl.cmake"
+        [[ -f "$qt_version_file" ]] \
+            || fail "OVERTE_IOS_QT_ROOT does not contain Qt6ConfigVersionImpl.cmake"
         [[ -x "$qt_root/bin/qt-cmake" ]] \
             || fail "OVERTE_IOS_QT_ROOT does not contain bin/qt-cmake"
-        note "Qt for iOS: $qt_root"
+        local qt_version
+        qt_version="$(sed -n 's/^set(PACKAGE_VERSION "\([0-9.]*\)")$/\1/p' "$qt_version_file" | head -n 1)"
+        [[ -n "$qt_version" ]] || fail "could not determine Qt version below OVERTE_IOS_QT_ROOT"
+        version_at_least "$qt_version" "$OVERTE_IOS_QT_MIN_VERSION" \
+            || fail "Qt $OVERTE_IOS_QT_MIN_VERSION or newer is required; found $qt_version"
+        note "Qt for iOS: $qt_root ($qt_version)"
     elif ((require_qt)); then
         fail "set OVERTE_IOS_QT_ROOT to a Qt 6 iOS installation"
     else
@@ -227,11 +248,18 @@ run_bootstrap() {
     require_command xcodebuild
     require_command xcrun
 
+    local python_version
+    python_version="$(python3 -c 'import platform; print(platform.python_version())')"
+    version_at_least "$python_version" "$OVERTE_IOS_PYTHON_MIN_VERSION" \
+        || fail "Python $OVERTE_IOS_PYTHON_MIN_VERSION or newer is required; found $python_version"
+
     local venv_dir="$source_root/build-ios/tooling-venv"
     python3 -m venv "$venv_dir"
     "$venv_dir/bin/python" -m pip install --upgrade pip
-    "$venv_dir/bin/python" -m pip install "conan>=${OVERTE_IOS_CONAN_MIN_VERSION}"
+    "$venv_dir/bin/python" -m pip install "conan==${OVERTE_IOS_CONAN_VERSION}"
+    "$venv_dir/bin/python" -m pip freeze --all > "$venv_dir/tooling-versions.txt"
     note "Tool environment created at $venv_dir"
+    note "Resolved Python tooling recorded at $venv_dir/tooling-versions.txt"
     note "Activate it with: source $venv_dir/bin/activate"
 }
 
@@ -245,12 +273,15 @@ resolve_dependencies() {
     else
         export OVERTE_IOS_DEVICE_SDK_PATH="$sdk_path"
     fi
+    mkdir -p "$conan_output"
     conan install "$script_dir" \
         --profile:host="$conan_profile" \
         --profile:build=default \
         --build=missing \
         --options="overte-ios-dependencies/*:with_graphics_toolchain=$with_graphics_toolchain" \
-        --output-folder="$conan_output"
+        --output-folder="$conan_output" \
+        --format=json > "$conan_output/graph.json"
+    python3 "$script_dir/tools/audit-conan-graph.py" "$conan_output/graph.json"
     note "Resolved staged dependency graph at $conan_output"
 }
 
@@ -264,14 +295,15 @@ configure_project() {
         signing=ON
     fi
 
-    cmake -S "$script_dir" -B "$build_dir" -G Xcode \
+    cmake -S "$source_root" -B "$build_dir" -G Xcode \
         -DCMAKE_SYSTEM_NAME=iOS \
         -DCMAKE_OSX_ARCHITECTURES=arm64 \
         -DCMAKE_OSX_DEPLOYMENT_TARGET="$OVERTE_IOS_MIN_VERSION" \
         -DCMAKE_OSX_SYSROOT="$sdk_path" \
         -DOVERTE_IOS_BUNDLE_IDENTIFIER="$bundle_id" \
         -DOVERTE_IOS_DEVELOPMENT_TEAM="$development_team" \
-        -DOVERTE_IOS_ENABLE_SIGNING="$signing"
+        -DOVERTE_IOS_ENABLE_SIGNING="$signing" \
+        -DOVERTE_IOS_BOOTSTRAP_ONLY=ON
 }
 
 build_project() {

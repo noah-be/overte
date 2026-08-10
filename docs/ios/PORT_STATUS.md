@@ -23,6 +23,18 @@ SPDX-License-Identifier: Apache-2.0
 - unsigned macOS 26 simulator CI for iPhone and iPad launch tests; and
 - machine-readable host and physical-device acceptance contracts.
 
+The second host-preparation pass additionally provides a fail-closed root
+CMake entry, shim-tested build CLI, deterministic simulator selection, strict
+bundle metadata validation, cold-start deep-link routing, Linux CI gating,
+simulator failure diagnostics, and an offline-verifiable device evidence
+format. See `HOST_PREPARATION.md` and `ios/integration-readiness.json`.
+
+An isolated Conan recipe resolution on Linux produced a 25-reference arm64
+simulator graph after replacing the staged OpenSSL 1.1 dependency with 3.5.7
+and moving legacy QuaZIP 1.4 behind the Qt 6 integration gate. The graph audit
+now fails on Qt 5, legacy QuaZIP, desktop packages, shared target libraries, or
+shader tools placed in the target context.
+
 ## Verified without Apple hardware
 
 The iOS host contracts, plist parsing, dependency classification, shell syntax,
@@ -47,4 +59,3 @@ blocked by the host providing Java 25 instead of its required Java 21.
 - the device-only acceptance matrix.
 
 App Store submission remains outside the autonomous preparation workflow.
-

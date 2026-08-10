@@ -76,3 +76,14 @@ the CI environment or local keychain.
 No team ID, certificate, provisioning profile, keychain password, or App Store
 credential may be committed.
 
+## ADR-008: fail-closed integration graph
+
+**Decision:** A root iOS configuration defaults to
+`OVERTE_IOS_BOOTSTRAP_ONLY=ON` and returns after adding the audited native app
+shell. Enabling the legacy full-client graph requires an explicit opt-out.
+
+**Reason:** The desktop graph still contains build-host tools, dynamic plug-in
+packaging, macOS bundle rules, OpenGL presentation code, and Qt 5 compatibility
+paths. Allowing those into the default iOS graph would make incidental progress
+look like a supported build and hide the first unsupported dependency behind a
+large, nondeterministic failure surface.

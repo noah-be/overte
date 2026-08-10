@@ -50,3 +50,16 @@ A simulator result cannot satisfy a `deviceOnly` case. An App Store upload is a
 separate externally approved release action and is not performed by the build
 or acceptance scripts.
 
+Each device result must follow `ios/tests/device-result.schema.json`. Once one
+complete result exists for each form factor, validate the pair without network
+access or Apple credentials:
+
+```bash
+python3 ios/tools/validate-device-results.py \
+  ios/tests/device-acceptance.json iphone-result.json ipad-result.json
+```
+
+The validator requires the exact case order, immutable source and bundle
+digests, evidence for every pass or failure, an explanation for every blocked
+case, and repository-relative evidence paths. This prevents a partial or mixed
+build run from being mistaken for device acceptance.

@@ -31,3 +31,9 @@ An iOS dependency must:
 
 The build must fail, rather than silently enable a disabled desktop dependency.
 
+QuaZIP is intentionally absent from the staged Conan graph. The repository's
+legacy `quazip/1.4` recipe requires Qt 5 and expands into desktop OpenGL and
+database dependencies. The integrated Qt 6 target must use QuaZIP 1.7 or newer,
+built against the exact same audited Qt 6 iOS package; it may not resolve its
+own Qt major independently. The staged TLS graph uses OpenSSL 3.5.7 so the iOS
+port does not establish a new dependency on the legacy 1.1 ABI.

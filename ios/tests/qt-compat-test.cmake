@@ -13,6 +13,8 @@ endif()
 if(NOT OVERTE_QT_TARGET_PREFIX STREQUAL "Qt6::")
     message(FATAL_ERROR "iOS selected the wrong Qt target prefix")
 endif()
+if(NOT COMMAND overte_qt_add_resources)
+    message(FATAL_ERROR "Qt resource compatibility helper is missing")
+endif()
 
 message(STATUS "Qt compatibility contract passed")
-

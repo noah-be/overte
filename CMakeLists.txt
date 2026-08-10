@@ -32,6 +32,19 @@ endif()
 
 
 project(overte)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    option(OVERTE_IOS_BOOTSTRAP_ONLY
+        "Build only the audited native iOS bootstrap boundary" ON)
+    if(OVERTE_IOS_BOOTSTRAP_ONLY)
+        add_subdirectory(ios)
+        return()
+    endif()
+    message(WARNING
+        "The integrated Overte iOS client graph is experimental. The supported "
+        "preparation target is OVERTE_IOS_BOOTSTRAP_ONLY=ON.")
+endif()
+
 include("cmake/init.cmake")
 include("cmake/compiler.cmake")
 include("cmake/QtCompat.cmake")

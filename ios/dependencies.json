@@ -31,7 +31,7 @@
     "ovr-platform-skd": { "class": "disabled", "ship": false },
     "ovr-skd": { "class": "disabled", "ship": false },
     "qt": { "class": "replace-with-qt6-ios", "ship": true },
-    "quazip": { "class": "required", "ship": true },
+    "quazip": { "class": "replace-with-qt6-ios", "ship": true },
     "scribe": { "class": "host-tool", "ship": false },
     "sdl": { "class": "disabled", "ship": false },
     "spirv-cross": { "class": "graphics-toolchain", "ship": false },

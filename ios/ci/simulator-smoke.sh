@@ -7,8 +7,9 @@ set -euo pipefail
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 app_path="${1:-}"
 bundle_id="${2:-org.overte.interface.dev}"
+diagnostics_dir="${3:-}"
 [[ -d "$app_path" && "$app_path" == *.app ]] || {
-    printf 'usage: %s APP_PATH [BUNDLE_ID]\n' "$0" >&2
+    printf 'usage: %s APP_PATH [BUNDLE_ID] [DIAGNOSTICS_DIR]\n' "$0" >&2
     exit 2
 }
 
@@ -19,15 +20,28 @@ select_device() {
 }
 
 active_udid=""
-cleanup() {
+active_family=""
+finish() {
+    local status=$?
+    trap - EXIT
+    if ((status != 0)) && [[ -n "$active_udid" && -n "$diagnostics_dir" ]]; then
+        mkdir -p "$diagnostics_dir"
+        xcrun simctl io "$active_udid" screenshot \
+            "$diagnostics_dir/${active_family:-simulator}-failure.png" >/dev/null 2>&1 || true
+        xcrun simctl spawn "$active_udid" log show --style compact --last 5m \
+            --predicate "process == 'OverteIOSBootstrap'" \
+            >"$diagnostics_dir/${active_family:-simulator}-console.log" 2>&1 || true
+    fi
     if [[ -n "$active_udid" ]]; then
         xcrun simctl terminate "$active_udid" "$bundle_id" >/dev/null 2>&1 || true
         xcrun simctl shutdown "$active_udid" >/dev/null 2>&1 || true
     fi
+    exit "$status"
 }
-trap cleanup EXIT
+trap finish EXIT
 
 for family in iphone ipad; do
+    active_family="$family"
     active_udid="$(select_device "$family")"
     xcrun simctl boot "$active_udid" >/dev/null 2>&1 || true
     xcrun simctl bootstatus "$active_udid" -b
@@ -40,5 +54,6 @@ for family in iphone ipad; do
     xcrun simctl terminate "$active_udid" "$bundle_id"
     xcrun simctl shutdown "$active_udid"
     active_udid=""
+    active_family=""
     echo "PASS $family simulator launch"
 done

@@ -52,6 +52,8 @@ def test_versions() -> None:
     assert int(versions["OVERTE_IOS_REQUIRED_SDK_MAJOR"]) >= 26
     assert int(versions["OVERTE_IOS_REQUIRED_XCODE_MAJOR"]) >= 26
     assert tuple(map(int, versions["OVERTE_IOS_QT_MIN_VERSION"].split("."))) >= (6, 11, 0)
+    assert versions["OVERTE_IOS_CONAN_VERSION"] == "2.25.2"
+    assert tuple(map(int, versions["OVERTE_IOS_PYTHON_MIN_VERSION"].split("."))) >= (3, 11, 0)
 
     comparator = IOS_ROOT / "tools" / "version-at-least.py"
     cases = (
@@ -96,8 +98,14 @@ def test_profiles() -> None:
     for forbidden in ("steamworks", "discord-rpc", "openvr", "openxr", "sdl"):
         if re.search(rf'self\.requires\("{re.escape(forbidden)}/', recipe.read_text(encoding="utf-8")):
             raise AssertionError(f"desktop-only dependency entered iOS graph: {forbidden}")
+    recipe_text = recipe.read_text(encoding="utf-8")
+    if re.search(r'self\.requires\("quazip/', recipe_text):
+        raise AssertionError("legacy QuaZIP must remain behind the Qt 6 iOS integration gate")
+    require_text(recipe, r'self\.requires\("openssl/3\.5\.7"', "staged TLS must not use OpenSSL 1.1")
     require_text(recipe, r'self\.tool_requires\("scribe/', "shader generator must run in the build context")
     require_text(recipe, r'self\.tool_requires\("spirv-cross/', "SPIR-V conversion must run in the build context")
+    build_script = IOS_ROOT / "build-ios.sh"
+    require_text(build_script, r"audit-conan-graph\.py", "resolved Conan graphs must be audited")
 
 
 def test_dependency_inventory() -> None:
@@ -136,6 +144,7 @@ def test_plists() -> None:
     assert info["NSLocalNetworkUsageDescription"]
     assert info["NSAppTransportSecurity"] == {"NSAllowsLocalNetworking": True}
     assert info["UIApplicationSceneManifest"]["UIApplicationSupportsMultipleScenes"] is False
+    assert info["UIRequiredDeviceCapabilities"] == ["arm64"]
     url_schemes = info["CFBundleURLTypes"][0]["CFBundleURLSchemes"]
     assert set(url_schemes) == {"overte", "hifi"}
     assert set(info["UISupportedInterfaceOrientations~ipad"]) >= {
@@ -195,9 +204,12 @@ def test_cmake_boundary() -> None:
     require_text(qt_compat, r"OVERTE_QT_MAJOR", "Qt major selection must be centralized")
     require_text(qt_compat, r"overte_find_qt", "Qt package lookup needs a version-neutral helper")
     require_text(qt_compat, r"overte_link_qt_modules", "Qt target linking needs a version-neutral helper")
+    require_text(qt_compat, r"overte_qt_add_resources", "Qt resources need a version-neutral helper")
 
     root_cmake = SOURCE_ROOT / "CMakeLists.txt"
     require_text(root_cmake, r"ANDROID OR UWP OR IOS", "iOS must use the mobile build policy")
+    require_text(root_cmake, r"OVERTE_IOS_BOOTSTRAP_ONLY", "root CMake must default to the audited iOS graph")
+    require_text(root_cmake, r"add_subdirectory\(ios\)", "root CMake must expose the iOS bootstrap")
     require_text(root_cmake, r"set\(PLATFORM_QT_COMPONENTS WebView Xml Core5Compat\)", "iOS must select WebView and transitional Core5Compat")
 
     file_utils = SOURCE_ROOT / "libraries" / "shared" / "src" / "shared" / "FileUtils.cpp"
@@ -225,14 +237,29 @@ def test_cmake_boundary() -> None:
     require_text(platform_probe, r"nw_path_monitor_create", "bootstrap must exercise network reachability")
     require_text(platform_probe, r"CMMotionManager", "bootstrap must detect motion capability")
     require_text(platform_probe, r"NSApplicationSupportDirectory", "bootstrap must use an app container path")
+    require_text(platform_probe, r"create:YES", "bootstrap must create its application support directory")
     app_delegate = IOS_ROOT / "src" / "AppDelegate.mm"
     require_text(app_delegate, r"AVAudioSessionInterruptionNotification", "audio must observe interruptions")
     require_text(app_delegate, r"AVAudioSessionRouteChangeNotification", "audio must observe route changes")
     require_text(app_delegate, r"applicationDidReceiveMemoryWarning", "lifecycle must observe memory pressure")
     scene_delegate = IOS_ROOT / "src" / "SceneDelegate.mm"
     require_text(scene_delegate, r"allowedSchemes", "deep links must use an explicit scheme allowlist")
+    require_text(scene_delegate, r"connectionOptions\.URLContexts", "cold-start deep links must be routed")
     if "Accepted deep link with scheme %{public}@\", url" in scene_delegate.read_text(encoding="utf-8"):
         raise AssertionError("deep-link logs must not expose the complete URL")
+
+    request_filters = SOURCE_ROOT / "libraries" / "ui" / "src" / "ui" / "types" / "RequestFilters.h"
+    require_text(
+        request_filters,
+        r"!defined\(Q_OS_ANDROID\) && !defined\(Q_OS_IOS\)",
+        "Qt WebEngine request filters must be excluded from iOS",
+    )
+    render_utils = SOURCE_ROOT / "libraries" / "render-utils" / "CMakeLists.txt"
+    require_text(
+        render_utils,
+        r"overte_qt_add_resources",
+        "render-utils resources must use the Qt 5/6 compatibility helper",
+    )
     rendering_spike = SOURCE_ROOT / "docs" / "ios" / "RENDERING_SPIKE.md"
     require_text(rendering_spike, r"15 percent", "rendering decision needs a performance threshold")
     require_text(rendering_spike, r"30-minute", "rendering decision needs a stability threshold")
@@ -243,12 +270,19 @@ def test_scope_contract() -> None:
     architecture = SOURCE_ROOT / "docs" / "ios" / "ARCHITECTURE.md"
     dependency_policy = SOURCE_ROOT / "docs" / "ios" / "DEPENDENCY_POLICY.md"
     qt_setup = SOURCE_ROOT / "docs" / "ios" / "QT_SETUP.md"
-    for path in (scope, architecture, dependency_policy, qt_setup):
+    host_preparation = SOURCE_ROOT / "docs" / "ios" / "HOST_PREPARATION.md"
+    for path in (scope, architecture, dependency_policy, qt_setup, host_preparation):
         assert path.is_file() and path.stat().st_size > 500, path
     require_text(scope, r"First usable client", "scope needs a product acceptance target")
     require_text(architecture, r"non-JIT", "architecture must address executable-memory policy")
     require_text(dependency_policy, r"Steamworks.*disabled|disabled.*Steamworks", "desktop-only dependencies must be classified")
     require_text(qt_setup, r"OVERTE_IOS_QT_ROOT", "Qt setup must define its explicit target root")
+    require_text(
+        IOS_ROOT / "build-ios.sh",
+        r"Qt6ConfigVersionImpl\.cmake",
+        "doctor must validate the configured Qt 6 version",
+    )
+    require_text(host_preparation, r"cannot be closed here", "external validation limits must be explicit")
 
     scripting = SOURCE_ROOT / "docs" / "ios" / "SCRIPTING.md"
     require_text(scripting, r"--jitless", "iOS scripting must enforce non-JIT execution")
@@ -264,6 +298,8 @@ def test_scope_contract() -> None:
 def test_ci_contract() -> None:
     workflow = SOURCE_ROOT / ".github" / "workflows" / "ios-bootstrap.yml"
     require_text(workflow, r"runs-on: macos-26", "CI must use an Xcode 26 capable host")
+    require_text(workflow, r"runs-on: ubuntu-24\.04", "host contracts need an independent Linux gate")
+    require_text(workflow, r"needs: host-contracts", "macOS CI must wait for host contracts")
     require_text(workflow, r"persist-credentials: false", "checkout credentials must not persist")
     require_text(workflow, r"simulator-smoke\.sh", "CI must launch both form factors")
     require_text(workflow, r"verify-app\.sh", "CI must inspect the produced bundle")
@@ -271,10 +307,13 @@ def test_ci_contract() -> None:
     verifier = IOS_ROOT / "ci" / "verify-app.sh"
     require_text(verifier, r"lipo -verify_arch arm64", "bundle verification must enforce arm64")
     require_text(verifier, r"QtWebEngine", "bundle verification must reject desktop WebEngine")
+    require_text(verifier, r"verify-bundle-metadata\.py", "bundle metadata must be host-testable")
 
     smoke = IOS_ROOT / "ci" / "simulator-smoke.sh"
     require_text(smoke, r"for family in iphone ipad", "smoke tier must cover iPhone and iPad")
     require_text(smoke, r"select-simulator\.py", "simulator choice must use the tested selector")
+    require_text(smoke, r"simctl io.*screenshot", "simulator failures must preserve a screenshot")
+    require_text(smoke, r"log show", "simulator failures must preserve app logs")
 
     selector = load_python_module(IOS_ROOT / "tools" / "select-simulator.py", "select_simulator")
     fixture = {
@@ -314,9 +353,39 @@ def test_device_acceptance_contract() -> None:
     signing = SOURCE_ROOT / "docs" / "ios" / "SIGNING_AND_DEVICE_TESTS.md"
     require_text(signing, r"script never\s+installs", "device installation must require a separate action")
     require_text(signing, r"separate externally approved release action", "App Store upload must stay external")
+    result_schema = IOS_ROOT / "tests" / "device-result.schema.json"
+    schema = json.loads(result_schema.read_text(encoding="utf-8"))
+    assert schema["$schema"].endswith("2020-12/schema")
+    assert set(schema["properties"]["formFactor"]["enum"]) == {"iphone", "ipad"}
+    require_text(signing, r"validate-device-results\.py", "device evidence needs an offline validator")
     privacy_doc = SOURCE_ROOT / "docs" / "ios" / "PRIVACY.md"
     require_text(privacy_doc, r"Xcode's\s+privacy report", "release gate must include Xcode privacy aggregation")
     require_text(privacy_doc, r"runtime network\s+trace", "collected-data review must use runtime evidence")
+
+
+def test_integration_readiness_contract() -> None:
+    path = IOS_ROOT / "integration-readiness.json"
+    readiness = json.loads(path.read_text(encoding="utf-8"))
+    assert readiness["schemaVersion"] == 1
+    assert readiness["supportedDefaultGraph"] == "bootstrap"
+    gates = readiness["gates"]
+    gate_ids = [gate["id"] for gate in gates]
+    assert len(gate_ids) == len(set(gate_ids)) and len(gates) >= 10
+    required_areas = {
+        "audio", "automation", "build-system", "dependencies", "distribution",
+        "plugins", "rendering", "scripting", "shared-client", "user-interface", "web",
+    }
+    assert required_areas <= {gate["area"] for gate in gates}
+    for gate in gates:
+        assert gate["status"] in {"complete", "prepared", "external-validation"}
+        assert isinstance(gate["requiresMac"], bool)
+        assert isinstance(gate["requiresDevice"], bool)
+        assert gate["evidence"]
+        for evidence in gate["evidence"]:
+            assert not evidence.startswith("/") and ".." not in Path(evidence).parts
+            assert (SOURCE_ROOT / evidence).exists(), (gate["id"], evidence)
+        if gate["status"] != "complete":
+            assert gate["remainingAction"] != "none"
 
 
 def main() -> None:
@@ -330,6 +399,7 @@ def main() -> None:
         test_scope_contract,
         test_ci_contract,
         test_device_acceptance_contract,
+        test_integration_readiness_contract,
     )
     for test in tests:
         test()

@@ -7,6 +7,14 @@
 
 #import <CoreMotion/CoreMotion.h>
 #import <Network/Network.h>
+#import <os/log.h>
+
+namespace {
+os_log_t platformLog() {
+    static os_log_t log = os_log_create("org.overte.interface", "platform");
+    return log;
+}
+}
 
 @interface PlatformProbe ()
 @property(nonatomic, strong) CMMotionManager* motionManager;
@@ -30,11 +38,15 @@
 }
 
 - (NSString*)applicationSupportPath {
+    NSError* error = nil;
     NSURL* url = [NSFileManager.defaultManager URLForDirectory:NSApplicationSupportDirectory
                                                       inDomain:NSUserDomainMask
                                              appropriateForURL:nil
-                                                        create:NO
-                                                         error:nil];
+                                                        create:YES
+                                                         error:&error];
+    if (url == nil) {
+        os_log_error(platformLog(), "Could not create application support directory: %{public}@", error);
+    }
     return url.path ?: @"";
 }
 

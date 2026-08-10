@@ -34,7 +34,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  host-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Run Linux preparation contracts
+        run: ios/tests/run-tests.sh
+
   simulator:
+    needs: host-contracts
     runs-on: macos-26
     timeout-minutes: 30
     steps:
@@ -60,7 +73,18 @@ jobs:
       - name: Launch on iPhone and iPad simulators
         run: |
           ios/ci/simulator-smoke.sh \
-            build-ios/simulator/Debug-iphonesimulator/OverteIOSBootstrap.app
+            build-ios/simulator/Debug-iphonesimulator/OverteIOSBootstrap.app \
+            org.overte.interface.dev \
+            build-ios/diagnostics
+
+      - name: Upload simulator failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: overte-ios-simulator-diagnostics-${{ github.run_id }}
+          path: build-ios/diagnostics
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Package unsigned simulator app
         run: ios/build-ios.sh package --platform simulator --configuration Debug

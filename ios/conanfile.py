@@ -48,10 +48,13 @@ class OverteIOSDependencies(ConanFile):
         self.requires("nlohmann_json/3.11.2")
         self.requires("onetbb/2021.10.0")
         self.requires("openexr/3.1.9")
-        self.requires("openssl/1.1.1q", force=True)
-        self.requires("quazip/1.4")
+        self.requires("openssl/3.5.7", force=True)
         self.requires("v-hacd/4.1.0")
         self.requires("zlib/1.3.1")
+
+        # QuaZIP 1.4 hard-depends on Qt 5 and must never enter this graph.
+        # The Qt 6 iOS integration owns a QuaZIP 1.7+ build against the same
+        # audited Qt target package selected by OVERTE_IOS_QT_ROOT.
 
         if self.options.with_audio:
             self.requires("opus/1.5.2")
