@@ -13,8 +13,7 @@
         "cmake/macros/PackageLibrariesForDeployment.cmake",
         "cmake/modules/FindQt5LinguistToolsMacros.cmake",
         "interface/CMakeLists.txt",
-        "launchers/qt/CMakeLists.txt",
-        "tools/nitpick/CMakeLists.txt"
+        "launchers/qt/CMakeLists.txt"
       ],
       "exitCriterion": "Only cmake/QtCompat.cmake may retain Qt 5 symbols; desktop-only callers must be unreachable from iOS."
     },

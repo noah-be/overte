@@ -939,6 +939,15 @@ def test_scope_contract() -> None:
     assert "setCurrentBlockState(BlockStateInMultiComment);" in highlighting_source_text
     assert "quoted_index <= index && index <= (quoted_index + quoted_length)" in highlighting_source_text
 
+    nitpick_cmake = SOURCE_ROOT / "tools" / "nitpick" / "CMakeLists.txt"
+    nitpick_cmake_text = nitpick_cmake.read_text(encoding="utf-8")
+    assert "overte_find_qt(COMPONENTS Widgets QUIET REQUIRED)" in nitpick_cmake_text
+    assert "overte_qt_add_binary_resources(" in nitpick_cmake_text
+    assert "overte_qt_wrap_ui(QT_UI_HEADERS" in nitpick_cmake_text
+    for legacy_cmake_api in ("find_package(Qt5", "qt5_add_binary_resources", "qt5_wrap_ui"):
+        if legacy_cmake_api in nitpick_cmake_text:
+            raise AssertionError(f"nitpick retained direct Qt 5 CMake API: {legacy_cmake_api}")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,

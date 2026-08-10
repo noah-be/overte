@@ -314,6 +314,13 @@ and the preceding-alpha guard for numbers are unchanged. With
 `ScriptHighlighting.cpp` and `.h` migrated, the audited `QRegExp`/`QTextCodec`
 Core5Compat source inventory is empty.
 
+The optional `nitpick` tool now discovers Widgets, compiles its binary resource
+bundle, and wraps Designer UI files through the central Qt compatibility
+functions. Those functions dispatch to Qt 6 for the iOS/full-client graph and
+to the original Qt 5 commands on existing desktop builds. Resource paths,
+no-compression options, generated headers, and target dependencies are
+unchanged; `tools/nitpick/CMakeLists.txt` leaves the Qt-5-CMake debt inventory.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant
