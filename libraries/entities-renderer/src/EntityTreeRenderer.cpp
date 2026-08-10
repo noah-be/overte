@@ -569,6 +569,14 @@ void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, r
             if (renderable) {
                 _entitiesInScene.insert({ entityID, renderable });
                 processedIds.insert(entityID);
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+                static bool loggedFirstMacOSRenderHandoff { false };
+                if (!loggedFirstMacOSRenderHandoff) {
+                    loggedFirstMacOSRenderHandoff = true;
+                    qInfo().noquote() << "OVERTE_MACOS_ENTITY_GATE render_handoff"
+                                      << "entity=" << entityID.toString();
+                }
+#endif
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
                 static bool loggedFirstRenderHandoff { false };
                 if (!loggedFirstRenderHandoff) {
@@ -1263,6 +1271,14 @@ void EntityTreeRenderer::deletingEntity(const EntityItemID& entityID) {
 void EntityTreeRenderer::addingEntity(const EntityItemID& entityID) {
     auto entity = std::static_pointer_cast<EntityTree>(_tree)->findEntityByID(entityID);
     if (entity) {
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+        static bool loggedFirstMacOSTreeEntity { false };
+        if (!loggedFirstMacOSTreeEntity) {
+            loggedFirstMacOSTreeEntity = true;
+            qInfo().noquote() << "OVERTE_MACOS_ENTITY_GATE entity_tree_nonempty"
+                              << "entity=" << entityID.toString();
+        }
+#endif
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
         static bool loggedFirstTreeEntity { false };
         if (!loggedFirstTreeEntity) {

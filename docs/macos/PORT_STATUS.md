@@ -29,7 +29,7 @@ planned.
 | Reproducible client-only configure | In progress | `macos/build-macos.sh` |
 | Compile `Overte.app` on current Xcode | Not run | macOS CI required |
 | Launch and first rendered frame | Not run | macOS runtime required |
-| Load and render packaged serverless scene | Not run | Runtime smoke required |
+| Load and render packaged serverless scene | In progress | `macos/ci/serverless-smoke.sh` |
 | Connect to and render an online domain | Not run | Runtime smoke required |
 | Switch serverless to online and back | Not run | Runtime smoke required |
 | Native Apple Silicon build | Not run | Dependency audit required |

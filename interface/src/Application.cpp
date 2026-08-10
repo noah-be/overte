@@ -1215,6 +1215,10 @@ void Application::loadServerlessDomain(QUrl domainURL) {
             // RECEIVING_WORLD indefinitely.
             setIsServerlessMode(true);
             _octreeProcessor->getFullSceneReceivedCounter()++;
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+            qInfo().noquote() << "OVERTE_MACOS_ENTITY_GATE serverless_import_committed"
+                              << "url=" << domainURL.toString();
+#endif
 #if defined(ANDROID_APP_PICO_INTERFACE)
             _picoServerlessSceneURL = domainURL;
             _picoServerlessSceneImportCommitted = true;
