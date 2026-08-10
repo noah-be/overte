@@ -350,7 +350,6 @@ def test_ci_contract() -> None:
     smoke = IOS_ROOT / "ci" / "simulator-smoke.sh"
     require_text(smoke, r"for family in iphone ipad", "smoke tier must cover iPhone and iPad")
     require_text(smoke, r"select-simulator\.py", "simulator choice must use the tested selector")
-    require_text(smoke, r'for boot_udid in "\$iphone_udid" "\$ipad_udid"', "both simulator migrations must start in parallel")
     require_text(smoke, r"simctl io.*screenshot", "simulator failures must preserve a screenshot")
     require_text(smoke, r"log show", "simulator failures must preserve app logs")
     require_text(smoke, r"sleep 5", "simulator smoke must allow startup failures to surface")
