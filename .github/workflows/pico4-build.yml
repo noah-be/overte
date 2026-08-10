@@ -29,7 +29,7 @@ jobs:
       - name: Reject untrusted build refs
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_REF" == refs/heads/feature/pico4-support ]]; then
+          if [[ "$GITHUB_REF" == refs/heads/android-vr-pico ]]; then
             exit 0
           fi
           if [[ "$GITHUB_REF" =~ ^refs/tags/pico4-preview-[0-9]+$ ]]; then

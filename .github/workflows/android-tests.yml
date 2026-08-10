@@ -10,7 +10,7 @@ on:
       - ".github/workflows/android-tests.yml"
   push:
     branches:
-      - feature/android-phone-support
+      - android-phone
       - "ci/android-phone-**"
       - "test/android-**"
     paths:
