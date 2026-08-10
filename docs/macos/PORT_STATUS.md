@@ -52,8 +52,9 @@ planned.
   obsolete and are intentionally not reproduced.
 - Apple exposes deprecated OpenGL only up to 4.1. It is the shortest bootstrap
   path; MoltenVK is the intended fallback if it cannot run reliably.
-- Desktop requires Qt WebEngine. The Qt 5 Conan graph may lack native arm64
-  binaries for some dependencies.
+- Desktop requires Qt WebEngine. The published Qt 5 aqt recipe incorrectly
+  selects a Windows archive on macOS; `macos/conan/qt-aqt` repairs its Intel
+  package locally. Native arm64 still requires a different Qt strategy.
 - MoltenVK lookup, Vulkan surfaces and linker rules are currently iOS-only.
 
 ## Build

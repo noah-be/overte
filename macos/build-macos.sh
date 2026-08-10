@@ -43,6 +43,12 @@ deps() {
     doctor
     ensure_conan_profile
     configure_remotes
+    if [[ "$qt_source" == aqt ]]; then
+        # The published aqt recipe selects a Windows archive on macOS and does
+        # not preserve the installer's executable bit. Export our macOS-only
+        # repair under the same reference before resolving the graph.
+        conan export "$source_root/macos/conan/qt-aqt" --user overte --channel aqt
+    fi
     mkdir -p "$build_dir"
     local args=("$source_root" -s "arch=$(conan_architecture)" -s compiler.cppstd=20
         -s "build_type=$build_type" -o "Overte/*:qt_source=$qt_source" -b missing -of "$build_dir")
