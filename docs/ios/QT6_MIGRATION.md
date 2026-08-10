@@ -299,6 +299,13 @@ comma/CR/LF runs with surrounding whitespace. All four calls keep
 schemes, and URL decisions are unchanged. `ScriptManager.cpp` therefore leaves
 the Core5Compat inventory.
 
+The Windows GPU adapter scorer now splits uppercased vendor and renderer text
+with a `QRegularExpression` using the same `\\W` pattern. It still removes
+empty and duplicate words before counting adapter-name matches, so adapter
+selection and driver reporting are unchanged. `GPUIdent.cpp` therefore leaves
+the shared Core5Compat inventory; the platform-specific branch remains
+unreachable on iOS.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant

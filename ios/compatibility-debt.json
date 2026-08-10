@@ -35,8 +35,7 @@
       "extensions": [".cpp", ".h", ".hpp", ".mm"],
       "files": [
         "interface/src/ScriptHighlighting.cpp",
-        "interface/src/ScriptHighlighting.h",
-        "libraries/shared/src/GPUIdent.cpp"
+        "interface/src/ScriptHighlighting.h"
       ],
       "exitCriterion": "All listed uses move to current Qt 6 APIs and Core5Compat leaves the iOS component set."
     },

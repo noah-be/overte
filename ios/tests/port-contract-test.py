@@ -900,6 +900,20 @@ def test_scope_contract() -> None:
     if "QRegExp" in script_manager_text:
         raise AssertionError("ScriptManager retained removed QRegExp API")
 
+    gpu_ident = SOURCE_ROOT / "libraries" / "shared" / "src" / "GPUIdent.cpp"
+    require_text(gpu_ident, r'#include <QtCore/QRegularExpression>', "GPU adapter matching must use the Qt 6 regex API")
+    require_text(
+        gpu_ident,
+        r'QRegularExpression wordMatcher \{ QStringLiteral\("\\\\W"\) \};',
+        "GPU adapter matching must retain its non-word-character split expression",
+    )
+    gpu_ident_text = gpu_ident.read_text(encoding="utf-8")
+    assert "vendor.toUpper().split(wordMatcher)" in gpu_ident_text
+    assert "renderer.toUpper().split(wordMatcher)" in gpu_ident_text
+    assert 'words.removeAll("");' in gpu_ident_text and "words.removeDuplicates();" in gpu_ident_text
+    if "QRegExp" in gpu_ident_text:
+        raise AssertionError("GPUIdent retained removed QRegExp API")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,
