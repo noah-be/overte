@@ -31,6 +31,23 @@ An iOS dependency must:
 
 The build must fail, rather than silently enable a disabled desktop dependency.
 
+## Entity pipeline direct-requirement audit
+
+`ios/tools/audit-entity-conan-contract.py` scans the CMake dependency macros
+and external header families used directly by `networking`, `octree`,
+`entities`, and `entities-renderer`. Every discovered Conan package must be an
+enabled, shipping entry in `dependencies.json` and an explicit requirement of
+the staged iOS recipe. This complements the resolved-graph audit: it catches a
+missing recipe edge before Conan can produce an apparently valid but incomplete
+graph.
+
+The current direct set is OpenSSL, oneTBB, GLM, and Bullet. Qt modules are
+provided by the separately validated Qt iOS cache, while internal Overte target
+edges remain CMake targets and are not duplicated as Conan packages. The audit
+uses an explicit header/macro mapping so a newly introduced external family
+must be reviewed and added deliberately rather than guessed from transitive
+includes.
+
 QuaZIP is intentionally absent from the staged Conan graph. The repository's
 legacy `quazip/1.4` recipe requires Qt 5 and expands into desktop OpenGL and
 database dependencies. The integrated Qt 6 target must use QuaZIP 1.7 or newer,
