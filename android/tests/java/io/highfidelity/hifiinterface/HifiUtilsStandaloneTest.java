@@ -40,6 +40,10 @@ public final class HifiUtilsStandaloneTest {
         expect("//cdn.example.test/avatar.png",
                 subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "atp:/base"));
         expect("//cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "//base.test/path"));
+        expect("//cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "ftp://base.test/path"));
+        expect("//cdn.example.test/avatar.png",
                 subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "bad uri ["));
         expect("bad uri [", subject.absoluteHifiAssetUrl(" bad uri [ ", "https://base.test/"));
         fixedSeedBareAddresses(subject);

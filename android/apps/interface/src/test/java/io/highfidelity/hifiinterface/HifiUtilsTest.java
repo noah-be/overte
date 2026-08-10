@@ -52,6 +52,10 @@ public final class HifiUtilsTest {
         assertEquals("//cdn.example.test/avatar.png",
                 subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "atp:/base"));
         assertEquals("//cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "//base.test/path"));
+        assertEquals("//cdn.example.test/avatar.png",
+                subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "ftp://base.test/path"));
+        assertEquals("//cdn.example.test/avatar.png",
                 subject.absoluteHifiAssetUrl("//cdn.example.test/avatar.png", "bad uri ["));
     }
 
