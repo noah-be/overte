@@ -57,6 +57,12 @@ The FST model reader now identifies its optional `joint` value with
 branches recognize the same `QVariantHash` and feed the unchanged joint/body/
 head classification, so FST bytes and model-type prediction are unaffected.
 
+The two full-client QML/web event bridges now use `QVariant::metaType()` on
+Qt 6 when recognizing virtual-keyboard control strings. Their Qt 5 branches
+retain `QVariant::type()`, and neither branch treats convertible numeric or
+object values as strings. Keyboard commands and all forwarded event payloads
+therefore keep their existing semantics.
+
 ## iOS audio-session lifecycle
 
 The bootstrap UIKit host configures `AVAudioSessionCategoryPlayAndRecord` with
@@ -368,6 +374,12 @@ existing fail-closed Vulkan selection without an undeclared desktop GL helper
 call or a legacy OpenGL surface-format override; desktop macOS behavior is
 unchanged.
 
+Entity dynamic vector and quaternion argument parsing now performs its strict
+`QVariantMap` check through `QVariant::metaType()` on Qt 6 while retaining
+`QVariant::type()` only inside the Qt 5 compatibility branch. The parser still
+rejects merely convertible values, so action/constraint validation semantics
+and malformed-argument fallbacks are unchanged.
+
 The script editor highlighter's complete eight-expression set now uses
 `QRegularExpression`. Keyword, quote, number, boolean, single-line comment,
 and multi-line comment scans retain their prior match starts, full match
@@ -503,6 +515,10 @@ Network reply failures use the typed `QNetworkReply::errorOccurred` signal on
 Qt 5.15 and Qt 6, including symmetric XMLHttpRequest disconnects. The removed
 `error` signal remains only in explicit pre-5.15 compatibility branches, so
 account retry/error handling cannot silently lose its connection on Qt 6.
+Script-facing touch events use `QEventPoint` with `points()` and `position()`
+on Qt 6 while retaining the Qt 5 `QTouchEvent::TouchPoint`, `touchPoints()`, and
+`pos()` path. Gesture averaging, radius, rotation, and script payload semantics
+remain unchanged.
 Platform-native AVAudioSession policy remains in the iOS shell and must not be
 duplicated by desktop code.
 

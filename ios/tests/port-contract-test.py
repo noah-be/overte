@@ -475,6 +475,10 @@ def test_cmake_boundary() -> None:
         for match in legacy_errors:
             prefix = source[max(0, match.start() - 300):match.start()]
             assert prefix.rfind("#else") > prefix.rfind("#endif"), "legacy QNetworkReply::error must remain below a version fallback"
+    touch_event_source = SOURCE_ROOT / "libraries" / "script-engine" / "src" / "TouchEvent.cpp"
+    require_text(touch_event_source, r"using OverteScriptTouchPoint = QEventPoint;", "Qt 6 script touch events must use QEventPoint")
+    require_text(touch_event_source, r"return event\.points\(\);[\s\S]*#else[\s\S]*return event\.touchPoints\(\);", "script touch-point enumeration must preserve Qt 5 and Qt 6 paths")
+    require_text(touch_event_source, r"return point\.position\(\);[\s\S]*#else[\s\S]*return point\.pos\(\);", "script touch positions must preserve Qt 5 and Qt 6 semantics")
     require_text(audio_client_source, r"hifiAudioDeviceSupportsChannelCount\([^,]+, 2\)", "stereo-input availability must use the Qt 5/6 capability adapter")
     require_text(audio_client_source, r"Q_OS_MACOS.*!defined\(Q_OS_IOS\)", "desktop AudioHardware must be excluded from iOS")
     audio_client_cmake = SOURCE_ROOT / "libraries" / "audio-client" / "CMakeLists.txt"
@@ -671,6 +675,21 @@ def test_scope_contract() -> None:
         r"if \(mapping\.contains\(\"joint\"\) && hasJointHash\) \{\s+joints = mapping\.value\(\"joint\"\)\.toHash\(\);",
         "the Qt 6 port must preserve FST joint-map extraction",
     )
+
+    for qml_message_source, argument in (
+        (SOURCE_ROOT / "libraries" / "ui" / "src" / "QmlWindowClass.cpp", "webMessage"),
+        (SOURCE_ROOT / "libraries" / "ui" / "src" / "ui" / "OffscreenQmlSurface.cpp", "message"),
+    ):
+        require_text(
+            qml_message_source,
+            rf"#if QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)\s+const bool isStringMessage = {argument}\.metaType\(\)\.id\(\) == QMetaType::QString;",
+            "QML/web keyboard messages must use the Qt 6 metatype API",
+        )
+        require_text(
+            qml_message_source,
+            rf"#else\s+const bool isStringMessage = {argument}\.type\(\) == QVariant::String;\s+#endif\s+QString messageString = isStringMessage \? {argument}\.toString\(\) : \"\";",
+            "Qt 5 compatibility and exact string-only keyboard handling must remain",
+        )
 
     octree_persist = SOURCE_ROOT / "libraries" / "octree" / "src" / "OctreePersistThread.cpp"
     require_text(octree_persist, r"#include <QRegularExpression>", "octree backup cleanup must use the Qt 6 regex API")
