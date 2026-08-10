@@ -36,7 +36,7 @@ jobs:
         working-directory: .
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_REF" == refs/heads/feature/android-phone-support ]]; then
+          if [[ "$GITHUB_REF" == refs/heads/android-phone ]]; then
             exit 0
           fi
           if [[ "$GITHUB_REF" =~ ^refs/tags/android-phone-v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$ ]]; then

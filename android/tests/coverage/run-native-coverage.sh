@@ -49,6 +49,16 @@ rm -f -- "$report_dir"/interface.xml "$report_dir"/login-state.xml \
 
 staging_dir="$("$mktemp_command" -d "$report_dir/.native-coverage.XXXXXXXX")"
 
+run_gcovr() {
+    # gcovr 8 resolves GCC's absolute source paths relative to both its root and
+    # the process working directory. Running from android/ silently produced an
+    # empty report even though matching .gcda files existed one level above.
+    (
+        cd "$repository_root"
+        "$gcovr_command" "$build_dir" "$@"
+    )
+}
+
 "$cmake_command" -S "$android_root/tests/native" -B "$build_dir" \
     -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_CXX_FLAGS=--coverage \
@@ -58,7 +68,7 @@ staging_dir="$("$mktemp_command" -d "$report_dir/.native-coverage.XXXXXXXX")"
 # gcovr resolves the parent repository and the nested Android tree as two
 # source roots. Report them separately so neither root can silently disappear
 # during path normalization/merging.
-"$gcovr_command" "$build_dir" --root "$repository_root" \
+run_gcovr --root "$repository_root" \
     --filter 'interface/src/ui/Phone(LoginState|GraphicsPolicy)\.h$' \
     --exclude-throw-branches \
     --xml-pretty --xml "$staging_dir/interface.xml" \
@@ -67,7 +77,7 @@ staging_dir="$("$mktemp_command" -d "$report_dir/.native-coverage.XXXXXXXX")"
     --fail-under-line 95 \
     --fail-under-branch 90
 
-"$gcovr_command" "$build_dir" --root "$repository_root" \
+run_gcovr --root "$repository_root" \
     --filter 'interface/src/ui/PhoneLoginState\.h$' \
     --exclude-throw-branches \
     --xml-pretty --xml "$staging_dir/login-state.xml" \
@@ -76,7 +86,7 @@ staging_dir="$("$mktemp_command" -d "$report_dir/.native-coverage.XXXXXXXX")"
     --fail-under-line 100 \
     --fail-under-branch 100
 
-"$gcovr_command" "$build_dir" --root "$repository_root" \
+run_gcovr --root "$repository_root" \
     --filter '.*PhonePendingHandoff\.h$' \
     --exclude-throw-branches \
     --xml-pretty --xml "$staging_dir/pending-handoff.xml" \
