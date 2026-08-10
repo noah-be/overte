@@ -113,8 +113,10 @@ def test_profiles() -> None:
 
     recipe = IOS_ROOT / "conanfile.py"
     require_text(recipe, r'package_type = "application"', "staged graph must not publish a library")
-    require_text(recipe, r'toolchain\.cache_variables\["CMAKE_CXX_FLAGS_INIT"\] = "-falign-functions=32 -fPIC"', "staged toolchain must preserve the V8 function-alignment invariant")
-    require_text(recipe, r'toolchain\.cache_variables\["CMAKE_C_FLAGS_INIT"\] = "-falign-functions=32 -fPIC"', "staged toolchain must align C and C++ compilation consistently")
+    require_text(recipe, r'toolchain\.variables\["CMAKE_CXX_FLAGS_INIT"\] = "-falign-functions=32 -fPIC"', "chainloaded toolchain must preserve the V8 function-alignment invariant")
+    require_text(recipe, r'toolchain\.variables\["CMAKE_C_FLAGS_INIT"\] = "-falign-functions=32 -fPIC"', "chainloaded toolchain must align C and C++ compilation consistently")
+    assert 'toolchain.cache_variables["CMAKE_CXX_FLAGS_INIT"]' not in recipe.read_text(encoding="utf-8"), \
+        "function-alignment flags must not be confined to CMakePresets.json"
     require_text(recipe, r'str\(self\.settings\.os\) != "iOS"', "staged graph must reject non-iOS hosts")
     for forbidden in ("steamworks", "discord-rpc", "openvr", "openxr", "sdl"):
         if re.search(rf'self\.requires\("{re.escape(forbidden)}/', recipe.read_text(encoding="utf-8")):
