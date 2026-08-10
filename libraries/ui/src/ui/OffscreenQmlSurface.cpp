@@ -28,9 +28,11 @@
 #include <QtCore/QMutex>
 #include <QtCore/QSharedPointer>
 #include <QtCore/QWaitCondition>
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 #include <QtMultimedia/QMediaService>
 #include <QtMultimedia/QAudioOutputSelectorControl>
 #include <QtMultimedia/QMediaPlayer>
+#endif
 #include <QtGui/QInputMethodEvent>
 #include <shared/NsightHelpers.h>
 #include <shared/GlobalAppProperties.h>
@@ -102,6 +104,7 @@ QSharedPointer<OffscreenQmlAllowlist> getQmlAllowlist() {
 }
 
 // Class to handle changing QML audio output device using another thread
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 class AudioHandler : public QObject, QRunnable {
     Q_OBJECT
 public:
@@ -116,6 +119,7 @@ private:
     QSharedPointer<OffscreenQmlSurface> _surface;
     std::vector<QMediaPlayer*> _players;
 };
+#endif
 
 class UrlHandler : public QObject {
     Q_OBJECT
@@ -176,6 +180,7 @@ private:
 
 using namespace hifi::qml::offscreen;
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 AudioHandler::AudioHandler(OffscreenQmlSurface* surface, const QString& deviceName, QObject* parent)
     : QObject(parent) {
     setAutoDelete(true);
@@ -228,6 +233,7 @@ void AudioHandler::run() {
     }
     qDebug() << "QML Audio changed to " << _newTargetDevice;
 }
+#endif
 
 OffscreenQmlSurface::~OffscreenQmlSurface() {
     clearFocusItem();
@@ -307,7 +313,7 @@ void OffscreenQmlSurface::onRootContextCreated(QQmlContext* qmlContext) {
     // FIXME Compatibility mechanism for existing HTML and JS that uses eventBridgeWrapper
     // Find a way to flag older scripts using this mechanism and wanr that this is deprecated
     qmlContext->setContextProperty("eventBridgeWrapper", new EventBridgeWrapper(this, qmlContext));
-#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0) && !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
     {
         PROFILE_RANGE(startup, "FileTypeProfile");
         FileTypeProfile::registerWithContext(qmlContext);
