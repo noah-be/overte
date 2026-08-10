@@ -10,9 +10,17 @@
 
 set(TARGET_NAME vk)
 setup_hifi_library(Gui)
+if(IOS)
+    enable_language(OBJCXX)
+    target_sources(${TARGET_NAME} PRIVATE
+        src/vk/VulkanIOSSurface.h
+        src/vk/VulkanIOSSurface.mm
+    )
+endif()
 GroupSources(src)
 link_hifi_libraries(shared shaders gl)
 overte_find_qt(COMPONENTS Core Gui QUIET REQUIRED)
-target_link_libraries(${TARGET_NAME} "${OVERTE_QT_TARGET_PREFIX}GuiPrivate")
+# vk uses public Qt Core/Gui APIs only. A private GUI target would require
+# version-matched private headers that Qt's iOS binary packages need not ship.
 
 target_vulkan()

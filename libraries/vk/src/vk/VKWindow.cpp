@@ -15,15 +15,18 @@
 #include <QtGui/qevent.h>
 #include <QtCore/QTimer>
 #include <QtCore/QDebug>
-#include <QtPlatformHeaders/QXcbWindowFunctions>
-#include <qpa/qplatformnativeinterface.h>
+#if !defined(WIN32) && !defined(Q_OS_IOS)
 #include <QtX11Extras/QX11Info>
+#endif
 #include <QWidget>
 
 #include "VKWindow.h"
 #include "VKWidget.h"
 #include "Config.h"
 #include "VulkanSwapChain.h"
+#ifdef Q_OS_IOS
+#include "VulkanIOSSurface.h"
+#endif
 #include "Context.h"
 
 VKWindow::VKWindow(QScreen* screen) : QWindow(screen) {
@@ -52,13 +55,17 @@ void VKWindow::createSurface() {
 #ifdef WIN32
     // TODO
     _surface = _context.instance.createWin32SurfaceKHR({ {}, GetModuleHandle(NULL), (HWND)winId() });
+#elif defined(Q_OS_IOS)
+    setSurfaceType(QSurface::VulkanSurface);
+    create();
+    auto* metalLayer = reinterpret_cast<CAMetalLayer*>(overteIOSMetalLayerForWindow(this));
+    if (!metalLayer) {
+        throw std::runtime_error("Qt iOS Vulkan window did not provide a CAMetalLayer");
+    }
+    _swapchain.initSurface(metalLayer);
 #else
     setSurfaceType(QSurface::VulkanSurface);
     //VkXcbSurfaceCreateInfoKHR surfaceCreateInfo{};
-    //dynamic_cast<QGuiApplication*>(QGuiApplication::instance())->platformNativeInterface()->connection();
-
-    //auto* platformInterface = QGuiApplication::platformNativeInterface();
-    //auto* handle = platformInterface->nativeResourceForWindow("handle", this);
     Q_ASSERT(winId());
     qDebug() << "VKWindow::createSurface winId:" << winId();
     _swapchain.initSurface(QX11Info::connection(), winId());
