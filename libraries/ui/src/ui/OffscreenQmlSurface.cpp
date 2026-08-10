@@ -24,6 +24,7 @@
 #include <QtQuick/QQuickWindow>
 #include <QtQuick/QQuickRenderControl>
 #include <QtCore/QThread>
+#include <QtCore/QMetaType>
 #include <QtCore/QMutex>
 #include <QtCore/QSharedPointer>
 #include <QtCore/QWaitCondition>
@@ -772,7 +773,12 @@ void OffscreenQmlSurface::emitWebEvent(const QVariant& message) {
         const QString LOWER_KEYBOARD = "_LOWER_KEYBOARD";
         const QString RAISE_KEYBOARD_NUMERIC_PASSWORD = "_RAISE_KEYBOARD_NUMERIC_PASSWORD";
         const QString RAISE_KEYBOARD_PASSWORD = "_RAISE_KEYBOARD_PASSWORD";
-        QString messageString = message.type() == QVariant::String ? message.toString() : "";
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        const bool isStringMessage = message.metaType().id() == QMetaType::QString;
+#else
+        const bool isStringMessage = message.type() == QVariant::String;
+#endif
+        QString messageString = isStringMessage ? message.toString() : "";
         if (messageString.left(RAISE_KEYBOARD.length()) == RAISE_KEYBOARD) {
             bool numeric = (messageString == RAISE_KEYBOARD_NUMERIC || messageString == RAISE_KEYBOARD_NUMERIC_PASSWORD);
             bool passwordField = (messageString == RAISE_KEYBOARD_PASSWORD || messageString == RAISE_KEYBOARD_NUMERIC_PASSWORD);
