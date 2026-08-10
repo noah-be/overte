@@ -95,10 +95,10 @@ jobs:
       - name: Upload simulator artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: overte-ios-bootstrap-simulator-${{ github.run_id }}
+          name: ${{ github.run_number }}-overte-ios-bootstrap-simulator-${{ github.run_id }}
           path: |
-            build-ios/artifacts/OverteIOSBootstrap-Debug-simulator.zip
-            build-ios/artifacts/OverteIOSBootstrap-Debug-simulator.json
+            build-ios/artifacts/*-OverteIOSBootstrap-Debug-simulator.zip
+            build-ios/artifacts/*-OverteIOSBootstrap-Debug-simulator.json
           if-no-files-found: error
           retention-days: 7
 
@@ -134,13 +134,16 @@ jobs:
           import zipfile
 
           root = pathlib.Path("build-ios/artifacts")
-          manifest_path = root / "OverteIOSBootstrap-Debug-device-unsigned.json"
+          manifests = list(root.glob("*-OverteIOSBootstrap-Debug-device-unsigned.json"))
+          assert len(manifests) == 1, manifests
+          manifest_path = manifests[0]
           manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
           ipa = root / manifest["artifact"]
           assert manifest["platform"] == "iphoneos"
           assert manifest["architecture"] == "arm64"
           assert manifest["signed"] is False
           assert manifest["requiresSigning"] is True
+          assert manifest["buildNumber"] == ${{ github.run_number }}
           assert hashlib.sha256(ipa.read_bytes()).hexdigest() == manifest["sha256"]
           required = {
               "Payload/OverteIOSBootstrap.app/Info.plist",
@@ -158,9 +161,9 @@ jobs:
       - name: Upload unsigned device IPA
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: overte-ios-device-unsigned-${{ github.run_id }}
+          name: ${{ github.run_number }}-overte-ios-device-unsigned-${{ github.run_id }}
           path: |
-            build-ios/artifacts/OverteIOSBootstrap-Debug-device-unsigned.ipa
-            build-ios/artifacts/OverteIOSBootstrap-Debug-device-unsigned.json
+            build-ios/artifacts/*-OverteIOSBootstrap-Debug-device-unsigned.ipa
+            build-ios/artifacts/*-OverteIOSBootstrap-Debug-device-unsigned.json
           if-no-files-found: error
           retention-days: 7

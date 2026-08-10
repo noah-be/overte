@@ -25,7 +25,7 @@ install it until it is re-signed with a provisioning profile.
 ## Free personal sideloading
 
 For development on one personal iPad, download the
-`overte-ios-device-unsigned-<run-id>` workflow artifact and verify the SHA-256
+`<build-number>-overte-ios-device-unsigned-<run-id>` workflow artifact and verify the SHA-256
 value in its JSON manifest. On a trusted Windows or macOS computer, a tool such
 as Sideloadly can apply a free Apple Personal Team signature and install the IPA
 over USB. Keep this manual operation outside CI:

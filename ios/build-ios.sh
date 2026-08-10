@@ -361,6 +361,11 @@ run_tests() {
 
 run_package() {
     build_project
+    local artifact_sequence="${OVERTE_IOS_ARTIFACT_SEQUENCE:-${GITHUB_RUN_NUMBER:-0}}"
+    [[ "$artifact_sequence" =~ ^[0-9]+$ ]] \
+        || fail "artifact sequence must contain digits only: $artifact_sequence"
+    local artifact_prefix
+    printf -v artifact_prefix '%04d' "$((10#$artifact_sequence))"
     local app_path="$build_dir/ios/$configuration-iphoneos/OverteIOSBootstrap.app"
     if [[ "$platform" == "simulator" ]]; then
         app_path="$build_dir/ios/$configuration-iphonesimulator/OverteIOSBootstrap.app"
@@ -370,22 +375,23 @@ run_package() {
     local artifact_dir="$source_root/build-ios/artifacts"
     mkdir -p "$artifact_dir"
     if [[ "$platform" == "simulator" ]]; then
-        local archive="$artifact_dir/OverteIOSBootstrap-${configuration}-simulator.zip"
+        local archive="$artifact_dir/${artifact_prefix}-OverteIOSBootstrap-${configuration}-simulator.zip"
         ditto -c -k --sequesterRsrc --keepParent "$app_path" "$archive"
         local archive_sha source_revision manifest
         archive_sha="$(shasum -a 256 "$archive" | awk '{print $1}')"
         source_revision="$(git -C "$source_root" rev-parse HEAD)"
-        manifest="$artifact_dir/OverteIOSBootstrap-${configuration}-simulator.json"
+        manifest="$artifact_dir/${artifact_prefix}-OverteIOSBootstrap-${configuration}-simulator.json"
         python3 - "$manifest" "$archive" "$archive_sha" "$source_revision" \
             "$configuration" "$(xcodebuild -version | tr '\n' ' ')" \
-            "$(xcrun --sdk iphonesimulator --show-sdk-version)" <<'PY'
+            "$(xcrun --sdk iphonesimulator --show-sdk-version)" "$artifact_sequence" <<'PY'
 import json
 import pathlib
 import sys
 
-output, archive, digest, revision, configuration, xcode, sdk = sys.argv[1:]
+output, archive, digest, revision, configuration, xcode, sdk, build_number = sys.argv[1:]
 payload = {
     "schemaVersion": 1,
+    "buildNumber": int(build_number),
     "artifact": pathlib.Path(archive).name,
     "sha256": digest,
     "sourceRevision": revision,
@@ -407,7 +413,7 @@ PY
             signed_state="true"
         fi
 
-        local ipa="$artifact_dir/OverteIOSBootstrap-${configuration}-device-${signing_label}.ipa"
+        local ipa="$artifact_dir/${artifact_prefix}-OverteIOSBootstrap-${configuration}-device-${signing_label}.ipa"
         local payload_root
         payload_root="$(mktemp -d "${TMPDIR:-/tmp}/overte-ios-device-package.XXXXXX")"
         [[ -d "$payload_root" && "$payload_root" == */overte-ios-device-package.* ]] \
@@ -420,18 +426,19 @@ PY
         local ipa_sha source_revision manifest
         ipa_sha="$(shasum -a 256 "$ipa" | awk '{print $1}')"
         source_revision="$(git -C "$source_root" rev-parse HEAD)"
-        manifest="$artifact_dir/OverteIOSBootstrap-${configuration}-device-${signing_label}.json"
+        manifest="$artifact_dir/${artifact_prefix}-OverteIOSBootstrap-${configuration}-device-${signing_label}.json"
         python3 - "$manifest" "$ipa" "$ipa_sha" "$source_revision" \
             "$configuration" "$(xcodebuild -version | tr '\n' ' ')" \
-            "$(xcrun --sdk iphoneos --show-sdk-version)" "$signed_state" <<'PY'
+            "$(xcrun --sdk iphoneos --show-sdk-version)" "$signed_state" "$artifact_sequence" <<'PY'
 import json
 import pathlib
 import sys
 
-output, archive, digest, revision, configuration, xcode, sdk, signed = sys.argv[1:]
+output, archive, digest, revision, configuration, xcode, sdk, signed, build_number = sys.argv[1:]
 is_signed = signed == "true"
 payload = {
     "schemaVersion": 1,
+    "buildNumber": int(build_number),
     "artifact": pathlib.Path(archive).name,
     "sha256": digest,
     "sourceRevision": revision,
