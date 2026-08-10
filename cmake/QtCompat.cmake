@@ -21,12 +21,30 @@ endif()
 set(OVERTE_QT_PACKAGE "Qt${OVERTE_QT_MAJOR}")
 set(OVERTE_QT_TARGET_PREFIX "Qt${OVERTE_QT_MAJOR}::")
 
+# Qt 6 does not ship XmlPatterns, and its iOS distribution does not expose the
+# desktop OpenGL module. Keep this policy here so individual libraries cannot
+# accidentally reintroduce unavailable package components.
+set(OVERTE_QT_UNAVAILABLE_COMPONENTS "")
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS" AND OVERTE_QT_MAJOR EQUAL 6)
+    set(OVERTE_QT_UNAVAILABLE_COMPONENTS OpenGL XmlPatterns)
+endif()
+
+function(overte_filter_qt_components output_variable)
+    set(_overte_qt_components ${ARGN})
+    foreach(_overte_unavailable IN LISTS OVERTE_QT_UNAVAILABLE_COMPONENTS)
+        list(REMOVE_ITEM _overte_qt_components "${_overte_unavailable}")
+    endforeach()
+    set(${output_variable} "${_overte_qt_components}" PARENT_SCOPE)
+endfunction()
+
 function(overte_find_qt)
-    find_package(${OVERTE_QT_PACKAGE} ${ARGN})
+    overte_filter_qt_components(_overte_find_arguments ${ARGN})
+    find_package(${OVERTE_QT_PACKAGE} ${_overte_find_arguments})
 endfunction()
 
 function(overte_link_qt_modules target)
-    foreach(_overte_qt_module IN ITEMS ${ARGN})
+    overte_filter_qt_components(_overte_link_modules ${ARGN})
+    foreach(_overte_qt_module IN LISTS _overte_link_modules)
         target_link_libraries(${target} "${OVERTE_QT_TARGET_PREFIX}${_overte_qt_module}")
     endforeach()
 endfunction()

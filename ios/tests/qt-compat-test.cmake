@@ -17,4 +17,17 @@ if(NOT COMMAND overte_qt_add_resources)
     message(FATAL_ERROR "Qt resource compatibility helper is missing")
 endif()
 
+overte_filter_qt_components(
+    FILTERED_IOS_COMPONENTS
+    COMPONENTS Core Gui OpenGL XmlPatterns WebView REQUIRED
+)
+if("OpenGL" IN_LIST FILTERED_IOS_COMPONENTS OR "XmlPatterns" IN_LIST FILTERED_IOS_COMPONENTS)
+    message(FATAL_ERROR "unavailable Qt 6 iOS modules survived component filtering")
+endif()
+foreach(REQUIRED_ITEM COMPONENTS Core Gui WebView REQUIRED)
+    if(NOT REQUIRED_ITEM IN_LIST FILTERED_IOS_COMPONENTS)
+        message(FATAL_ERROR "Qt component filtering removed ${REQUIRED_ITEM}")
+    endif()
+endforeach()
+
 message(STATUS "Qt compatibility contract passed")

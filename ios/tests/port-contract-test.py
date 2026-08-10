@@ -217,12 +217,17 @@ def test_cmake_boundary() -> None:
     require_text(qt_compat, r"overte_find_qt", "Qt package lookup needs a version-neutral helper")
     require_text(qt_compat, r"overte_link_qt_modules", "Qt target linking needs a version-neutral helper")
     require_text(qt_compat, r"overte_qt_add_resources", "Qt resources need a version-neutral helper")
+    require_text(qt_compat, r"OVERTE_QT_UNAVAILABLE_COMPONENTS OpenGL XmlPatterns", "Qt 6 iOS must centrally reject unavailable modules")
+    require_text(qt_compat, r"overte_filter_qt_components", "Qt package lookup must filter unavailable iOS modules")
 
     root_cmake = SOURCE_ROOT / "CMakeLists.txt"
     require_text(root_cmake, r"ANDROID OR UWP OR IOS", "iOS must use the mobile build policy")
     require_text(root_cmake, r"OVERTE_IOS_BOOTSTRAP_ONLY", "root CMake must default to the audited iOS graph")
     require_text(root_cmake, r"add_subdirectory\(ios\)", "root CMake must expose the iOS bootstrap")
     require_text(root_cmake, r"set\(PLATFORM_QT_COMPONENTS WebView Xml Core5Compat\)", "iOS must select WebView and transitional Core5Compat")
+
+    ui_cmake = SOURCE_ROOT / "libraries" / "ui" / "CMakeLists.txt"
+    require_text(ui_cmake, r"NOT \(IOS AND OVERTE_QT_MAJOR EQUAL 6\)", "UI must exclude legacy Qt modules from iOS")
 
     file_utils = SOURCE_ROOT / "libraries" / "shared" / "src" / "shared" / "FileUtils.cpp"
     require_text(file_utils, r'extraSelectors << "ios" << "mobile" << "touch"', "iOS selectors must include mobile touch variants")
