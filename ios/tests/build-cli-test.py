@@ -36,6 +36,11 @@ def run_cli(environment: dict[str, str], *arguments: str) -> subprocess.Complete
 
 
 def main() -> None:
+    build_script_text = BUILD_SCRIPT.read_text(encoding="utf-8")
+    assert '"${client_graph_arguments[@]}"' not in build_script_text
+    assert '"${configure_arguments[@]}"' in build_script_text
+    assert "Keep this array unconditionally non-empty" in build_script_text
+
     with tempfile.TemporaryDirectory(prefix="overte-ios-cli-") as temporary:
         root = Path(temporary)
         shims = root / "bin"
@@ -98,11 +103,17 @@ def main() -> None:
         qt_root = root / "qt-ios"
         (qt_root / "lib/cmake/Qt6").mkdir(parents=True)
         (qt_root / "lib/cmake/Qt6/Qt6Config.cmake").touch()
+        (qt_root / "lib/cmake/Qt6/qt.toolchain.cmake").touch()
         (qt_root / "lib/cmake/Qt6/Qt6ConfigVersionImpl.cmake").write_text(
             'set(PACKAGE_VERSION "6.11.1")\n', encoding="utf-8"
         )
         (qt_root / "bin").mkdir()
-        make_executable(qt_root / "bin/qt-cmake", "exit 0\n")
+        make_executable(
+            qt_root / "bin/qt-cmake",
+            'printf "qt-cmake" >> "$FAKE_TOOL_LOG"\n'
+            'printf " <%s>" "$@" >> "$FAKE_TOOL_LOG"\n'
+            'printf "\\n" >> "$FAKE_TOOL_LOG"\n',
+        )
         environment["OVERTE_IOS_QT_ROOT"] = str(qt_root)
 
         moltenvk_root = root / "MoltenVK"
@@ -158,6 +169,13 @@ def main() -> None:
         assert "Qt 6.11.1 or newer is required" in outdated_qt.stderr
         qt_version_file.write_text('set(PACKAGE_VERSION "6.11.1")\n', encoding="utf-8")
 
+        qt_toolchain_file = qt_root / "lib/cmake/Qt6/qt.toolchain.cmake"
+        qt_toolchain_file.unlink()
+        missing_qt_toolchain = run_cli(environment, "doctor", "--require-qt")
+        assert missing_qt_toolchain.returncode == 1
+        assert "Qt6/qt.toolchain.cmake" in missing_qt_toolchain.stderr
+        qt_toolchain_file.touch()
+
         invalid_bundle = run_cli(environment, "doctor", "--bundle-id", "not valid")
         assert invalid_bundle.returncode == 1
         assert "invalid bundle identifier" in invalid_bundle.stderr
@@ -205,9 +223,12 @@ def main() -> None:
         )
         assert client_graph.returncode == 0, client_graph.stderr
         invocation = log.read_text(encoding="utf-8")
+        assert invocation.startswith("qt-cmake "), invocation
         assert "<-DOVERTE_IOS_BOOTSTRAP_ONLY=OFF>" in invocation
-        assert f"<-DCMAKE_PREFIX_PATH={qt_root}>" in invocation
-        assert f"<-DCMAKE_TOOLCHAIN_FILE={client_build}/conan/conan_toolchain.cmake>" in invocation
+        assert f"<-DQT_CHAINLOAD_TOOLCHAIN_FILE={client_build}/conan/conan_toolchain.cmake>" in invocation
+        assert "<-DCMAKE_TOOLCHAIN_FILE=" not in invocation
+        assert "<-DCMAKE_PREFIX_PATH=" not in invocation
+        assert invocation.count("TOOLCHAIN_FILE=") == 1, invocation
 
         missing_client_toolchain = run_cli(
             environment,

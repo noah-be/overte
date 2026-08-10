@@ -230,6 +230,8 @@ run_doctor() {
             || fail "OVERTE_IOS_QT_ROOT does not contain Qt6ConfigVersionImpl.cmake"
         [[ -x "$qt_root/bin/qt-cmake" ]] \
             || fail "OVERTE_IOS_QT_ROOT does not contain bin/qt-cmake"
+        [[ -f "$qt_root/lib/cmake/Qt6/qt.toolchain.cmake" ]] \
+            || fail "OVERTE_IOS_QT_ROOT does not contain lib/cmake/Qt6/qt.toolchain.cmake"
         local qt_version
         qt_version="$(sed -n 's/^set(PACKAGE_VERSION "\([0-9.]*\)")$/\1/p' "$qt_version_file" | head -n 1)"
         [[ -n "$qt_version" ]] || fail "could not determine Qt version below OVERTE_IOS_QT_ROOT"
@@ -336,6 +338,7 @@ resolve_dependencies() {
 configure_project() {
     run_doctor
     local sdk_path signing=OFF
+    local cmake_frontend="cmake"
     sdk_path="$(xcrun --sdk "$sdk_name" --show-sdk-path)"
     if [[ -n "$development_team" ]]; then
         [[ "$platform" == "device" ]] \
@@ -344,7 +347,7 @@ configure_project() {
     fi
 
     local bootstrap_only=ON
-    local -a client_graph_arguments=()
+    local -a configure_arguments=()
     if ((client_graph)); then
         local qt_root="${OVERTE_IOS_QT_ROOT:-}"
         local conan_toolchain="$build_dir/conan/conan_toolchain.cmake"
@@ -355,24 +358,30 @@ configure_project() {
         [[ -f "$conan_toolchain" ]] \
             || fail "--client-graph requires $conan_toolchain; run deps first"
         bootstrap_only=OFF
-        client_graph_arguments+=(
-            "-DCMAKE_PREFIX_PATH=$qt_root"
-            "-DCMAKE_TOOLCHAIN_FILE=$conan_toolchain"
+        cmake_frontend="$qt_root/bin/qt-cmake"
+        configure_arguments+=(
+            "-DQT_CHAINLOAD_TOOLCHAIN_FILE=$conan_toolchain"
         )
-        note "Configuring the experimental full iOS client graph."
+        note "Configuring the experimental full iOS client graph through Qt with Conan chainloaded."
     fi
 
-    cmake -S "$source_root" -B "$build_dir" -G Xcode \
-        -DCMAKE_SYSTEM_NAME=iOS \
-        -DCMAKE_OSX_ARCHITECTURES=arm64 \
-        -DCMAKE_OSX_DEPLOYMENT_TARGET="$OVERTE_IOS_MIN_VERSION" \
-        -DCMAKE_OSX_SYSROOT="$sdk_path" \
-        -DOVERTE_IOS_SDK_NAME="$sdk_name" \
-        -DOVERTE_IOS_BUNDLE_IDENTIFIER="$bundle_id" \
-        -DOVERTE_IOS_DEVELOPMENT_TEAM="$development_team" \
-        -DOVERTE_IOS_ENABLE_SIGNING="$signing" \
-        -DOVERTE_IOS_BOOTSTRAP_ONLY="$bootstrap_only" \
-        "${client_graph_arguments[@]}"
+    # Keep this array unconditionally non-empty. Bash 3.2 with `set -u` treats
+    # expansion of a declared but empty array as an unbound variable.
+    configure_arguments+=(
+        -S "$source_root"
+        -B "$build_dir"
+        -G Xcode
+        -DCMAKE_SYSTEM_NAME=iOS
+        -DCMAKE_OSX_ARCHITECTURES=arm64
+        "-DCMAKE_OSX_DEPLOYMENT_TARGET=$OVERTE_IOS_MIN_VERSION"
+        "-DCMAKE_OSX_SYSROOT=$sdk_path"
+        "-DOVERTE_IOS_SDK_NAME=$sdk_name"
+        "-DOVERTE_IOS_BUNDLE_IDENTIFIER=$bundle_id"
+        "-DOVERTE_IOS_DEVELOPMENT_TEAM=$development_team"
+        "-DOVERTE_IOS_ENABLE_SIGNING=$signing"
+        "-DOVERTE_IOS_BOOTSTRAP_ONLY=$bootstrap_only"
+    )
+    "$cmake_frontend" "${configure_arguments[@]}"
 }
 
 build_project() {

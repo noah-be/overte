@@ -29,7 +29,27 @@ The directory must contain:
 ```text
 bin/qt-cmake
 lib/cmake/Qt6/Qt6Config.cmake
+lib/cmake/Qt6/qt.toolchain.cmake
 ```
+
+## Conan chainloading
+
+The integrated client has two cross-compilation inputs, but only Qt's iOS
+toolchain may be the primary `CMAKE_TOOLCHAIN_FILE`. `configure --client-graph`
+therefore invokes the target installation's `bin/qt-cmake` and passes Conans
+generated file through:
+
+```text
+-DQT_CHAINLOAD_TOOLCHAIN_FILE=<build>/conan/conan_toolchain.cmake
+```
+
+`qt-cmake` selects `lib/cmake/Qt6/qt.toolchain.cmake`; that file then includes
+the Conan toolchain through Qt's supported chainload hook. The CLI must never
+also pass `-DCMAKE_TOOLCHAIN_FILE=...conan_toolchain.cmake`, because doing so
+would bypass Qt's iOS platform initialization. Conan continues to provide the
+audited dependency paths, architecture, SDK, deployment target, and build
+configuration. Run `deps` for the same platform and build directory before
+`configure --client-graph`; a missing Conan file fails closed.
 
 ## Reproducible preparation on a macOS runner
 
