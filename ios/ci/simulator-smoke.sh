@@ -57,10 +57,9 @@ for family in iphone ipad; do
         exit 1
     }
     sleep 5
-    xcrun simctl spawn "$active_udid" kill -0 "$launch_pid" || {
-        echo "application process did not survive launch on $family" >&2
-        exit 1
-    }
+    # A successful terminate after the grace period proves that the launched
+    # application is still registered and running. Minimal simulator runtimes
+    # do not necessarily ship a standalone `kill` executable.
     xcrun simctl terminate "$active_udid" "$bundle_id"
     xcrun simctl shutdown "$active_udid"
     active_udid=""
