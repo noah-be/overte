@@ -878,6 +878,15 @@ def test_scope_contract() -> None:
     if "QRegExp" in application_version.read_text(encoding="utf-8"):
         raise AssertionError("ApplicationVersion retained removed QRegExp API")
 
+    script_manager = SOURCE_ROOT / "libraries" / "script-engine" / "src" / "ScriptManager.cpp"
+    require_text(
+        script_manager,
+        r'QString\(modulePath\)\.replace\(\s*QRegularExpression\(QStringLiteral\("/\[\^/\]\*\$"\)\), QString\(\)\)',
+        "CommonJS __dirname must still remove the final slash-delimited path component",
+    )
+    if 'QRegExp("/[^/]*$")' in script_manager.read_text(encoding="utf-8"):
+        raise AssertionError("ScriptManager retained QRegExp in CommonJS __dirname derivation")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,

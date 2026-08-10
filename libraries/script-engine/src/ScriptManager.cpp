@@ -1633,7 +1633,8 @@ ScriptValue ScriptManager::instantiateModule(const ScriptValue& module, const QS
         // scoped vars for consistency with Node.js
         closure.setProperty("require", module.property("require"));
         closure.setProperty("__filename", modulePath, READONLY_HIDDEN_PROP_FLAGS);
-        closure.setProperty("__dirname", QString(modulePath).replace(QRegExp("/[^/]*$"), ""), READONLY_HIDDEN_PROP_FLAGS);
+        closure.setProperty("__dirname", QString(modulePath).replace(
+            QRegularExpression(QStringLiteral("/[^/]*$")), QString()), READONLY_HIDDEN_PROP_FLAGS);
         //_engine->scriptValueDebugDetails(module);
         result = _engine->evaluateInClosure(closure, _engine->newProgram( sourceCode, modulePath ));
     }

@@ -285,6 +285,14 @@ implicit zero patch retain their prior behavior. Numeric-build fallback and
 all equality/order comparisons are unchanged. `ApplicationVersion.cpp`
 therefore leaves the Core5Compat inventory.
 
+CommonJS module evaluation now derives `__dirname` with
+`QRegularExpression`. The same `/[^/]*$` suffix is removed from `modulePath`,
+so the final slash-delimited filename component and only that component is
+dropped before the read-only closure property is installed. Source evaluation,
+`__filename`, and module resolution are unchanged. `ScriptManager.cpp` remains
+in the Core5Compat inventory for its separate entity-script allowlist split
+unit.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant
