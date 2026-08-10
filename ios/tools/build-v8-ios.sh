@@ -64,8 +64,6 @@ esac
 command -v xcrun >/dev/null || die "Xcode command-line tools are required"
 host_python="$(command -v python3)"
 xcode_clang="$(xcrun --sdk iphoneos --find clang)"
-test -x /usr/bin/clang++ || die "Xcode command-line clang++ shim is missing"
-test -x /usr/bin/llvm-ar || die "Xcode command-line llvm-ar shim is missing"
 mkdir -p "$work_root"
 
 if [[ ! -d "$depot_root/.git" ]]; then
@@ -107,6 +105,19 @@ EOF
     "$host_python" build/landmines.py --landmine-scripts tools/get_landmines.py && \
     "$host_python" build/util/lastchange.py -o build/util/LASTCHANGE)
 
+# Chromium's Apple GN toolchain rebases clang_base_path from nested output
+# directories.  A long absolute Xcode path is consequently unsafe, while
+# /usr/bin does not expose every LLVM tool on current Xcode runners.  Give GN
+# a source-relative directory containing only links to the selected Xcode
+# tools so compiler, archiver and inspection commands share one stable base.
+xcode_toolchain_dir="$source_root/buildtools/overte-xcode-toolchain/bin"
+mkdir -p "$xcode_toolchain_dir"
+for tool in clang clang++ llvm-ar llvm-nm llvm-otool install_name_tool; do
+    tool_path="$(xcrun --sdk iphoneos --find "$tool")"
+    test -x "$tool_path" || die "Xcode tool is not executable: $tool_path"
+    ln -sfn "$tool_path" "$xcode_toolchain_dir/$tool"
+done
+
 mkdir -p "$output_dir"
 cat > "$output_dir/args.gn" <<EOF
 target_os = "ios"
@@ -117,7 +128,7 @@ ios_enable_code_signing = false
 is_debug = false
 is_component_build = false
 use_custom_libcxx = false
-clang_base_path = "/usr"
+clang_base_path = "//buildtools/overte-xcode-toolchain"
 clang_use_chrome_plugins = false
 use_lld = false
 symbol_level = 0
