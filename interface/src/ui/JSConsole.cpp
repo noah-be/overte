@@ -15,6 +15,7 @@
 
 #include <QFuture>
 #include <QLabel>
+#include <QRegularExpression>
 #include <QScrollBar>
 #include <QtConcurrent/QtConcurrentRun>
 #include <QStandardPaths>
@@ -512,9 +513,9 @@ bool JSConsole::eventFilter(QObject* sender, QEvent* event) {
             const int MODULE_INDEX = 3;
             const int PROPERTY_INDEX = 4;
             // TODO: disallow invalid characters on left of property
-            QRegExp regExp("((([A-Za-z0-9_\\.]+)\\.)|(?!\\.))([a-zA-Z0-9_]*)$");
-            regExp.indexIn(leftOfCursor);
-            auto rexExpCapturedTexts = regExp.capturedTexts();
+            const QRegularExpression regExp(
+                QStringLiteral("((([A-Za-z0-9_\\.]+)\\.)|(?!\\.))([a-zA-Z0-9_]*)$"));
+            auto rexExpCapturedTexts = regExp.match(leftOfCursor).capturedTexts();
             auto memberOf = rexExpCapturedTexts[MODULE_INDEX];
             completionPrefix = rexExpCapturedTexts[PROPERTY_INDEX];
             bool switchedModule = false;

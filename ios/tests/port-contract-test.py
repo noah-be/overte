@@ -848,6 +848,23 @@ def test_scope_contract() -> None:
     if "QRegExp" in models_browser.read_text(encoding="utf-8"):
         raise AssertionError("ModelsBrowser retained removed QRegExp API")
 
+    js_console = SOURCE_ROOT / "interface" / "src" / "ui" / "JSConsole.cpp"
+    require_text(js_console, r'#include <QRegularExpression>', "console completion must use the Qt 6 regex API")
+    require_text(
+        js_console,
+        r'QStringLiteral\("\(\(\(\[A-Za-z0-9_\\\\\.\]\+\)\\\\\.\)\|\(\?!\\\\\.\)\)\(\[a-zA-Z0-9_\]\*\)\$"\)',
+        "console completion must retain module/property groups and its cursor suffix anchor",
+    )
+    require_text(
+        js_console,
+        r'regExp\.match\(leftOfCursor\)\.capturedTexts\(\)',
+        "console completion captures must come from the left-of-cursor suffix match",
+    )
+    assert "const int MODULE_INDEX = 3;" in js_console.read_text(encoding="utf-8")
+    assert "const int PROPERTY_INDEX = 4;" in js_console.read_text(encoding="utf-8")
+    if "QRegExp" in js_console.read_text(encoding="utf-8"):
+        raise AssertionError("JSConsole retained removed QRegExp API")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,

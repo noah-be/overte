@@ -271,6 +271,13 @@ entire key before a row is added, preserving the former `exactMatch` boundary.
 XML pagination, truncation handling, locking, model rows, and download URLs
 are unchanged. `ModelsBrowser.cpp` therefore leaves the Core5Compat inventory.
 
+The JavaScript console's completion parser now captures module and property
+suffixes with `QRegularExpression`. The same four-group expression remains
+anchored at the cursor-side end of the input; module and property values still
+come from capture groups three and four. Completer model switching, prefixes,
+popup behavior, and keyboard handling are unchanged. `JSConsole.cpp`
+therefore leaves the Core5Compat inventory.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant
