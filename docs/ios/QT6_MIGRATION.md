@@ -174,6 +174,12 @@ offset and advances by the original directive length after replacement. File
 resolution, missing-file handling, and inserted content are unchanged.
 `HTTPManager.cpp` therefore leaves the Core5Compat inventory.
 
+`ArchiveDownloadInterface.cpp` no longer includes the removed `QTextCodec`
+header. The translation unit never used that API: archive entry validation,
+QuaZip extraction, temporary-directory checks, and emitted results are
+unchanged. Removing the dead include therefore removes an unnecessary
+Core5Compat compile dependency without changing archive decoding behavior.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant

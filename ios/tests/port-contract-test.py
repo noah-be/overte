@@ -655,6 +655,18 @@ def test_scope_contract() -> None:
     if "QRegExp" in http_manager.read_text(encoding="utf-8"):
         raise AssertionError("HTTPManager retained removed QRegExp API")
 
+    archive_download = SOURCE_ROOT / "interface" / "src" / "ArchiveDownloadInterface.cpp"
+    archive_download_text = archive_download.read_text(encoding="utf-8")
+    assert "QTextCodec" not in archive_download_text, (
+        "archive extraction must not retain an unused Qt Core5Compat dependency"
+    )
+    assert "QStringList extracted = JlCompress::extractDir(archive, target);" in archive_download_text, (
+        "removing the unused codec include must not replace the production archive extractor"
+    )
+    assert "if (!validateArchive(archive))" in archive_download_text, (
+        "removing the unused codec include must preserve fail-closed archive validation"
+    )
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,
