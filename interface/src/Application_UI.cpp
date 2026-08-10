@@ -82,7 +82,9 @@
 #include <ui/LogDialog.h>
 #endif
 #include <ui/LoginDialog.h>
+#if !defined(Q_OS_IOS)
 #include <ui/OctreeStatsDialog.h>
+#endif
 #include <ui/OctreeStatsProvider.h>
 #include <ui/Snapshot.h>
 #include <ui/Stats.h>
@@ -1341,10 +1343,12 @@ void Application::updateDialogs(float deltaTime) const {
     PerformanceWarning warn(showWarnings, "Application::updateDialogs()");
     auto dialogsManager = DependencyManager::get<DialogsManager>();
 
+#if !defined(Q_OS_IOS)
     QPointer<OctreeStatsDialog> octreeStatsDialog = dialogsManager->getOctreeStatsDialog();
     if (octreeStatsDialog) {
         octreeStatsDialog->update();
     }
+#endif
 }
 
 void Application::maybeToggleMenuVisible(QMouseEvent* event) const {

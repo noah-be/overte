@@ -124,6 +124,8 @@ if(IOS)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/LogDialog.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/LodToolsDialog.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/LodToolsDialog.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/OctreeStatsDialog.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/OctreeStatsDialog.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/StandAloneJSConsole.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/StandAloneJSConsole.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/UpdateDialog.cpp"

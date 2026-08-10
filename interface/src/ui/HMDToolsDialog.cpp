@@ -30,7 +30,9 @@
 #if !defined(Q_OS_IOS)
 #include "LodToolsDialog.h"
 #endif
+#if !defined(Q_OS_IOS)
 #include "OctreeStatsDialog.h"
+#endif
 
 static const int WIDTH = 350;
 static const int HEIGHT = 100;
@@ -85,9 +87,11 @@ HMDToolsDialog::HMDToolsDialog(QWidget* parent) :
     // what screens we're allowed on
     watchWindow(windowHandle());
     auto dialogsManager = DependencyManager::get<DialogsManager>();
+#if !defined(Q_OS_IOS)
     if (dialogsManager->getOctreeStatsDialog()) {
         watchWindow(dialogsManager->getOctreeStatsDialog()->windowHandle());
     }
+#endif
 #if !defined(Q_OS_IOS)
     if (dialogsManager->getLodToolsDialog()) {
         watchWindow(dialogsManager->getLodToolsDialog()->windowHandle());

@@ -125,6 +125,9 @@ used by `TabletDCDialog.qml` remains active.
 Entity/Octree statistics use the same boundary: the fixed-width,
 always-on-top QWidget fallback is disabled on iOS, while the existing
 `TabletEntityStatistics.qml` view remains the mobile presentation.
+The `OctreeStatsDialog.cpp/.h` pair and its per-frame desktop-window update/HMD
+watcher consumers are omitted on iOS. Entity processing and statistics models
+remain available to the tablet view and telemetry.
 LOD controls likewise retain their `TabletLODTools.qml` presentation on iOS;
 the fixed-width, always-on-top QWidget fallback is desktop-only.
 Its `LodToolsDialog.cpp/.h` pair and the desktop-only refresh/window-watcher

@@ -33,7 +33,9 @@
 #include "LodToolsDialog.h"
 #endif
 #include "LoginDialog.h"
+#if !defined(Q_OS_IOS)
 #include "OctreeStatsDialog.h"
+#endif
 #include "PreferencesDialog.h"
 #if !defined(Q_OS_IOS)
 #include "UpdateDialog.h"

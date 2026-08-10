@@ -97,6 +97,17 @@ require("QDialog(parent, Qt::Window | Qt::WindowCloseButtonHint | Qt::WindowStay
         "Octree statistics dialog is no longer demonstrably a desktop utility window")
 require('tablet->pushOntoStack("hifi/dialogs/TabletEntityStatistics.qml");' in APPLICATION_UI,
         "mobile-friendly Entity statistics surface changed")
+for octree_dialog_source in ("OctreeStatsDialog.cpp", "OctreeStatsDialog.h"):
+    require(f'"${{CMAKE_CURRENT_SOURCE_DIR}}/src/ui/{octree_dialog_source}"' in INTERFACE_CMAKE,
+            f"{octree_dialog_source} remains in the iOS compile/MOC graph")
+require("#if !defined(Q_OS_IOS)\n#include <ui/OctreeStatsDialog.h>\n#endif" in APPLICATION_UI and
+        "#if !defined(Q_OS_IOS)\n    QPointer<OctreeStatsDialog>" in APPLICATION_UI,
+        "desktop Octree dialog per-frame update remains in the iOS UI graph")
+require("#if !defined(Q_OS_IOS)\n#include \"OctreeStatsDialog.h\"\n#endif" in DIALOGS_MANAGER,
+        "desktop Octree dialog header remains in the iOS manager graph")
+require("#if !defined(Q_OS_IOS)\n#include \"OctreeStatsDialog.h\"\n#endif" in HMD_TOOLS and
+        "#if !defined(Q_OS_IOS)\n    if (dialogsManager->getOctreeStatsDialog())" in HMD_TOOLS,
+        "desktop HMD window watcher retains Octree dialog on iOS")
 require("void DialogsManager::lodTools() {\n#if !defined(Q_OS_IOS)" in DIALOGS_MANAGER,
         "desktop LOD tools dialog remains reachable on iOS")
 require("QDialog(parent, Qt::Window | Qt::WindowCloseButtonHint | Qt::WindowStaysOnTopHint)" in LOD_DIALOG and
