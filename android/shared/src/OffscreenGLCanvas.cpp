@@ -1,6 +1,6 @@
 //
 //  OffscreenGLCanvas.cpp
-//  interface/src/renderer
+//  Shared modern Android renderer override
 //
 //  Created by Bradley Austin Davis on 2014/04/09.
 //  Copyright 2015 High Fidelity, Inc.

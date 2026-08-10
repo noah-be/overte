@@ -80,7 +80,7 @@ if (!qtPackageMatch.find()) {
 }
 def qtPackageDir = file(qtPackageMatch.group(1))
 def phoneQtRuntimeDir = layout.buildDirectory.dir('generated/phoneQtRuntime')
-def runtimeOverrides = file('../picoInterface/src/main/runtime-overrides/arm64-v8a')
+def runtimeOverrides = file('../../shared/runtime-overrides/arm64-v8a')
 def phoneElfAlignmentCheck = file('../../tests/check-phone-elf-alignment.sh')
 def phone16kDependencyCheck = file('../../tests/verify-phone-16k-dependencies.sh')
 def phone16kApkCheck = file('../../tests/check-phone-apk-16k.sh')

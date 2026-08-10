@@ -15,6 +15,8 @@ BUILD_SCRIPT = (ROOT / "android/build-pico.sh").read_text(encoding="utf-8")
 CMAKE_BOOTSTRAP = (ROOT / "android/cmake-pico-bootstrap.cmake").read_text(encoding="utf-8")
 PICO_CONAN_PROFILE = (ROOT / "android/conan/profiles/pico4-arm64").read_text(encoding="utf-8")
 PICO_CONAN_RECIPE = (ROOT / "android/conan/conanfile-pico.py").read_text(encoding="utf-8")
+PHONE_QT_BUILD = (ROOT / "android/build-phone-qt-16k.sh").read_text(encoding="utf-8")
+PHONE_PREBUILT = (ROOT / "android/phone-prebuilt-16k-deps.sh").read_text(encoding="utf-8")
 
 
 class ShadergenJobTests(unittest.TestCase):
@@ -61,6 +63,22 @@ class ShadergenJobTests(unittest.TestCase):
     def test_qt_recipe_uses_reproducible_remote_revision(self):
         self.assertIn("#4fc772a2dbcd84731eb6ff9904e6e358", PICO_CONAN_RECIPE)
         self.assertNotIn("#d59ba2a04fe9ede772b05b0bb0865eb0", PICO_CONAN_RECIPE)
+
+    def test_phone_qt_paths_use_the_same_reproducible_revision(self):
+        revision = "#4fc772a2dbcd84731eb6ff9904e6e358"
+        legacy = "#d59ba2a04fe9ede772b05b0bb0865eb0"
+        for subject in (PHONE_QT_BUILD, PHONE_PREBUILT):
+            self.assertIn(revision, subject)
+            self.assertNotIn(legacy, subject)
+
+    def test_pico_dependencies_always_provision_pinned_perl_module(self):
+        self.assertNotIn("if ! perl -MEnglish -e 1", BUILD_SCRIPT)
+        self.assertIn("pico-host-tools/perl", BUILD_SCRIPT)
+        self.assertIn("f857b95e26385272525a7519267c8c63648d692608b7633b46d267c38092ccb3", BUILD_SCRIPT)
+
+    def test_host_tool_detection_rejects_android_x86_64_binaries(self):
+        self.assertIn('[[ "$description" == *GNU/Linux* ]]', BUILD_SCRIPT)
+        self.assertIn("require /system/bin/linker64", BUILD_SCRIPT)
 
     def test_native_compile_and_link_use_bounded_cmake_pools(self):
         self.assertIn('PROPERTY JOB_POOLS "android_compile=$ENV{PICO_BUILD_JOBS}" android_link=1', CMAKE_BOOTSTRAP)

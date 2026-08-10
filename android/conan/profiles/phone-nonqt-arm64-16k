@@ -29,7 +29,7 @@ hwloc/*:shared=True
 [conf]
 tools.android:ndk_path={{ android_ndk }}
 tools.cmake.cmaketoolchain:generator=Ninja
-tools.build:jobs=16
+tools.build:jobs=4
 tools.build:sharedlinkflags=["-Wl,-z,max-page-size=16384", "-Wl,-z,common-page-size=16384"]
 tools.system.package_manager:mode=install
 tools.system.package_manager:sudo=True

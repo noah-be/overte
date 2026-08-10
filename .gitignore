@@ -58,6 +58,7 @@ local.properties
 /android/pico-precompiled-compat/
 /android/power-results/
 /android/apps/picoInterface/src/main/runtime-overrides/
+/android/shared/runtime-overrides/
 /android/gradle*
 /android/.gradle
 /android/**/src/main/jniLibs

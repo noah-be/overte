@@ -4,6 +4,7 @@
       "android/apps/phoneInterface/src/main/java/org/overte/phone/*.java",
       "android/apps/phoneInterface/src/*.cpp",
       "android/apps/phoneInterface/src/*.h",
+      "android/shared/src/*.cpp",
       "scripts/+android_phoneInterface/defaultScripts.js",
       "scripts/system/+android_phoneInterface/*.js",
       "scripts/system/+android_phoneInterface/*.qml",
@@ -54,7 +55,8 @@
     "android/libraries/qt/src/main/java/io/highfidelity/utils/SafeAssetPath.java": ["android/apps/phoneInterface/src/test/java/io/highfidelity/utils/SafeAssetPathTest.java"],
     "android/libraries/qt/src/main/java/io/highfidelity/utils/AssetCacheExtractor.java": ["android/apps/phoneInterface/src/test/java/io/highfidelity/utils/AssetCacheExtractorTest.java", "android/tests/java/io/highfidelity/utils/AssetCacheExtractorStandaloneTest.java"],
     "android/libraries/qt/src/main/java/io/highfidelity/utils/HifiUtils.java": ["android/tests/safe-asset-path-test.sh"],
-    "android/apps/phoneInterface/src/QtInputConnectionCompat.cpp": ["android/tests/native/CMakeLists.txt", "android/tests/native/qt_input_connection_compat_test.cpp", "android/tests/phone-jni-boundary-test.sh"]
+    "android/shared/src/QtInputConnectionCompat.cpp": ["android/tests/native/CMakeLists.txt", "android/tests/native/qt_input_connection_compat_test.cpp", "android/tests/phone-jni-boundary-test.sh", "android/tests/pico-platform-glue-test.py"],
+    "android/shared/src/OffscreenGLCanvas.cpp": ["android/tests/pico-platform-glue-test.py", "android/tests/phone-host-regression-test.sh"]
   },
   "runtime_boundaries": {
     "android/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java": "QtActivity/native loader, WindowInsets, predictive Back and real lifecycle require Android; pure URL retry policy is separately tested",

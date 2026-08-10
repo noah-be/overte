@@ -22,7 +22,7 @@ sys.path.insert(0, str(TESTS_ROOT))
 from process_control import communicate_with_timeout, popen_session_kwargs  # noqa: E402 -- controlled tests path
 
 DEFAULT_CATALOG = Path(__file__).with_name("catalog.json")
-KNOWN_TIERS = {"fast", "host", "prepared-host", "contracts", "regression", "device", "instrumentation", "coverage", "mutation", "mutation-extended", "robolectric", "endurance", "stability"}
+KNOWN_TIERS = {"fast", "host", "prepared-host", "contracts", "android-vr", "regression", "device", "instrumentation", "coverage", "mutation", "mutation-extended", "robolectric", "endurance", "stability"}
 MAX_REPORT_OUTPUT_BYTES = 256 * 1024
 TERMINATION_GRACE_SECONDS = 1.0
 DEFAULT_SUITE_TIMEOUT_SECONDS = 480
@@ -104,7 +104,7 @@ def run_command(command: list[str], timeout: int, *, cwd: Path = ANDROID_ROOT,
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("tier", choices=("fast", "host", "prepared-host", "contracts", "regression",
+    parser.add_argument("tier", choices=("fast", "host", "prepared-host", "contracts", "android-vr", "regression",
                                          "device", "instrumentation", "coverage", "mutation", "mutation-extended",
                                          "robolectric", "endurance", "stability", "all"))
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)

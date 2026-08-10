@@ -476,9 +476,15 @@ newest_match() {
 }
 
 newest_host_tool() {
-    local pattern="$1" candidate
+    local pattern="$1" candidate description
     while IFS= read -r candidate; do
-        if file "$candidate" | grep -Eq 'x86-64|x86_64'; then
+        description="$(file "$candidate")"
+        # Conan's shared cache can also contain Android x86_64 packages. They
+        # have the right CPU architecture but require /system/bin/linker64 and
+        # fail on the build host with a misleading ENOENT. Require a GNU/Linux
+        # executable rather than matching the architecture alone.
+        if [[ "$description" =~ x86-64|x86_64 ]] \
+                && [[ "$description" == *GNU/Linux* ]]; then
             echo "$candidate"
             return
         fi
@@ -556,7 +562,7 @@ detect_dependencies() {
         || fail "Draco library is not Android ARM64: $draco_package/lib/libdraco.a"
 
     export PICO_DRACO_PACKAGE_DIR="$draco_package"
-    if [[ ! -f "$script_dir/apps/picoInterface/src/main/runtime-overrides/arm64-v8a/.prebuilt-runtime" ]]; then
+    if [[ ! -f "$script_dir/shared/runtime-overrides/arm64-v8a/.prebuilt-runtime" ]]; then
         qt_build="${PICO_QT_BUILD_DIR:-$(newest_match '*/qt*/b/build_folder/qtbase/lib/libQt5Core_arm64-v8a.so')}"
         [[ -n "$qt_build" ]] || fail "patched Qt build not found; set PICO_QT_BUILD_DIR"
         [[ "$qt_build" != *.so ]] || qt_build="${qt_build%/qtbase/lib/libQt5Core_arm64-v8a.so}"
@@ -583,7 +589,7 @@ detect_dependencies() {
         [[ -x "${!tool:-}" ]] || fail "host tool $tool not found; set it explicitly"
     done
 
-    if [[ -f "$script_dir/apps/picoInterface/src/main/runtime-overrides/arm64-v8a/.prebuilt-runtime" ]]; then
+    if [[ -f "$script_dir/shared/runtime-overrides/arm64-v8a/.prebuilt-runtime" ]]; then
         echo "Runtime: downloaded prebuilt artifacts"
     else
         echo "Qt build: $PICO_QT_BUILD_DIR"
@@ -602,21 +608,22 @@ install_dependencies() {
     echo "Configuring the official Overte Conan repository"
     run_conan remote add overte "$overte_conan_url" --force
 
-    if ! perl -MEnglish -e 1 >/dev/null 2>&1; then
-        local perl_module_dir="$script_dir/pico-host-tools/perl"
-        local perl_module="$perl_module_dir/English.pm"
-        command -v curl >/dev/null || fail "curl is required to install the Perl English module"
-        install -d "$perl_module_dir"
-        if [[ ! -f "$perl_module" ]]; then
-            echo "Downloading the Perl English module required by Qt"
-            curl --fail --location --retry 3 --output "$perl_module" \
-                https://raw.githubusercontent.com/Perl/perl5/v5.42.0/lib/English.pm
-        fi
-        echo "f857b95e26385272525a7519267c8c63648d692608b7633b46d267c38092ccb3  $perl_module" \
-            | sha256sum --check --status \
-            || fail "invalid checksum for downloaded Perl English module"
-        export PERL5LIB="$perl_module_dir${PERL5LIB:+:$PERL5LIB}"
+    # Phone Qt rebuilds share this pinned module. Always provision it even when
+    # the host Perl happens to provide English.pm globally; otherwise Pico deps
+    # can succeed while the immediately following Phone producer fails.
+    local perl_module_dir="$script_dir/pico-host-tools/perl"
+    local perl_module="$perl_module_dir/English.pm"
+    command -v curl >/dev/null || fail "curl is required to install the Perl English module"
+    install -d "$perl_module_dir"
+    if [[ ! -f "$perl_module" ]]; then
+        echo "Downloading the Perl English module required by Qt"
+        curl --fail --location --retry 3 --output "$perl_module" \
+            https://raw.githubusercontent.com/Perl/perl5/v5.42.0/lib/English.pm
     fi
+    echo "f857b95e26385272525a7519267c8c63648d692608b7633b46d267c38092ccb3  $perl_module" \
+        | sha256sum --check --status \
+        || fail "invalid checksum for downloaded Perl English module"
+    export PERL5LIB="$perl_module_dir${PERL5LIB:+:$PERL5LIB}"
 
     echo "Exporting local Pico recipes"
     run_conan export "$script_dir/conan/recipes/libnode"
@@ -641,7 +648,7 @@ install_dependencies() {
         -pr:b default -c "tools.build:jobs=$jobs" \
         -s:h build_type=Release --build=missing
 
-    if [[ ! -f "$script_dir/apps/picoInterface/src/main/runtime-overrides/arm64-v8a/.prebuilt-runtime" \
+    if [[ ! -f "$script_dir/shared/runtime-overrides/arm64-v8a/.prebuilt-runtime" \
         && -z "$(newest_match '*/qt*/b/build_folder/qtbase/lib/libQt5Core_arm64-v8a.so')" \
         && -z "$(newest_match '*/qt*/p/lib/libQt5Core_arm64-v8a.so')" ]]; then
         echo "No local Qt build tree found; building Qt from source (this can take a long time)"
@@ -659,6 +666,8 @@ download_prebuilt_dependencies() {
     local checksums="$script_dir/conan/prebuilt/${prebuilt_tag}.sha256"
     local base_url="https://github.com/noah-be/overte/releases/download/${prebuilt_tag}"
     local download_dir asset qt_source_dir
+    local legacy_runtime_dir="$script_dir/apps/picoInterface/src/main/runtime-overrides/arm64-v8a"
+    local shared_runtime_dir="$script_dir/shared/runtime-overrides/arm64-v8a"
 
     find_conan >/dev/null || fail "Conan 2 was not found (install: $conan_install_url)"
     command -v curl >/dev/null || fail "curl is not installed or not in PATH"
@@ -677,6 +686,13 @@ download_prebuilt_dependencies() {
     run_conan cache restore "$download_dir/pico4-qt-conan.tgz"
     run_conan cache restore "$download_dir/pico4-node-conan.tgz"
     tar -xzf "$download_dir/pico4-runtime.tgz" -C "$script_dir"
+    # pico4-deps-v1 predates the shared Android runtime directory. Keep that
+    # immutable release usable while new archives adopt the shared layout.
+    if [[ -f "$legacy_runtime_dir/.prebuilt-runtime" ]]; then
+        install -d "$shared_runtime_dir"
+        cp -a "$legacy_runtime_dir/." "$shared_runtime_dir/"
+        echo "Published Pico runtime copied into the shared Android runtime directory"
+    fi
     echo "Restored prebuilt Pico Qt, Node, and runtime artifacts"
     rm -rf -- "$download_dir"
     trap - RETURN
