@@ -213,6 +213,7 @@ void DialogsManager::showUpdateDialog() {
 
 
 void DialogsManager::octreeStatsDetails() {
+#if !defined(Q_OS_IOS)
     if (!_octreeStatsDialog) {
         _octreeStatsDialog = new OctreeStatsDialog(qApp->getWindow(), qApp->getOcteeSceneStats());
 
@@ -223,6 +224,7 @@ void DialogsManager::octreeStatsDetails() {
         _octreeStatsDialog->show();
     }
     _octreeStatsDialog->raise();
+#endif
 }
 
 void DialogsManager::lodTools() {

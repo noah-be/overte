@@ -112,6 +112,9 @@ iOS. Script execution and embedded debugging/logging services remain intact.
 The legacy QWidget `DomainConnectionDialog` fallback is also desktop-only. The
 iOS action uses the existing tablet timing surface when available and otherwise
 does not create a dynamically sized top-level table window.
+Entity/Octree statistics use the same boundary: the fixed-width,
+always-on-top QWidget fallback is disabled on iOS, while the existing
+`TabletEntityStatistics.qml` view remains the mobile presentation.
 
 ## ADR-007: secret-free automation
 
