@@ -34,10 +34,9 @@ main
 
 ### Interfaces in development
 
-- **Pico 4 VR headset:** [Build and installation guide](android/PICO4_BUILD.md)
-- **Android phones:** [Build and installation guide](android/ANDROID_PHONE_BUILD.md)
-- **iPhone and iPad:** [iOS README](https://github.com/noah-be/overte/blob/apple-main/ios/README.md)
-- **Mac computers:** A dedicated README is not available yet.
+The four ports use a shared documentation layout described in
+[`docs/interfaces/`](docs/interfaces/README.md). The platform documentation is
+maintained on its corresponding development branch.
 
 > [!NOTE]
 > The information below comes from the original Overte project. For the latest official information, see the [README in the original Overte repository](https://github.com/overte-org/overte#readme). This fork is an experimental personal hobby project and is not an official version of Overte.
