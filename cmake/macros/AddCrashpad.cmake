@@ -29,6 +29,11 @@ macro(add_crashpad)
     set(USE_CRASHPAD FALSE)
   endif()
 
+  if (IOS)
+    message(STATUS "Checking crashpad config - desktop handler packaging is not supported on iOS, disabled.")
+    set(USE_CRASHPAD FALSE)
+  endif()
+
   if (USE_CRASHPAD)
     message(STATUS "Checking crashpad config - enabled.")
     get_property(CRASHPAD_CHECKED GLOBAL PROPERTY CHECKED_FOR_CRASHPAD_ONCE)
