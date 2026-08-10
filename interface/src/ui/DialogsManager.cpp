@@ -228,6 +228,7 @@ void DialogsManager::octreeStatsDetails() {
 }
 
 void DialogsManager::lodTools() {
+#if !defined(Q_OS_IOS)
     if (!_lodToolsDialog) {
         maybeCreateDialog(_lodToolsDialog);
 
@@ -235,6 +236,7 @@ void DialogsManager::lodTools() {
         _lodToolsDialog->show();
     }
     _lodToolsDialog->raise();
+#endif
 }
 
 void DialogsManager::hmdTools(bool showTools) {

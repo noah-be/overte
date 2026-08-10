@@ -115,6 +115,8 @@ does not create a dynamically sized top-level table window.
 Entity/Octree statistics use the same boundary: the fixed-width,
 always-on-top QWidget fallback is disabled on iOS, while the existing
 `TabletEntityStatistics.qml` view remains the mobile presentation.
+LOD controls likewise retain their `TabletLODTools.qml` presentation on iOS;
+the fixed-width, always-on-top QWidget fallback is desktop-only.
 
 ## ADR-007: secret-free automation
 

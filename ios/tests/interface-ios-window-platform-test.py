@@ -13,6 +13,7 @@ JS_CONSOLE = (ROOT / "interface/src/ui/StandAloneJSConsole.cpp").read_text()
 DIALOGS_MANAGER = (ROOT / "interface/src/ui/DialogsManager.cpp").read_text()
 DOMAIN_DIALOG = (ROOT / "interface/src/ui/DomainConnectionDialog.cpp").read_text()
 OCTREE_DIALOG = (ROOT / "interface/src/ui/OctreeStatsDialog.cpp").read_text()
+LOD_DIALOG = (ROOT / "interface/src/ui/LodToolsDialog.cpp").read_text()
 
 
 def require(condition: bool, message: str) -> None:
@@ -62,5 +63,12 @@ require("QDialog(parent, Qt::Window | Qt::WindowCloseButtonHint | Qt::WindowStay
         "Octree statistics dialog is no longer demonstrably a desktop utility window")
 require('tablet->pushOntoStack("hifi/dialogs/TabletEntityStatistics.qml");' in APPLICATION_UI,
         "mobile-friendly Entity statistics surface changed")
+require("void DialogsManager::lodTools() {\n#if !defined(Q_OS_IOS)" in DIALOGS_MANAGER,
+        "desktop LOD tools dialog remains reachable on iOS")
+require("QDialog(parent, Qt::Window | Qt::WindowCloseButtonHint | Qt::WindowStaysOnTopHint)" in LOD_DIALOG and
+        "const int SLIDER_WIDTH = 300;" in LOD_DIALOG,
+        "LOD tools dialog is no longer demonstrably a desktop utility window")
+require('tablet->pushOntoStack("hifi/dialogs/TabletLODTools.qml");' in APPLICATION_UI,
+        "mobile-friendly LOD tools surface changed")
 
 print("iOS window platform contract valid: desktop log/console windows preserved and mobile-excluded")
