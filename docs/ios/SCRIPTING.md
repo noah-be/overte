@@ -34,6 +34,9 @@ The build records its complete GN arguments beside the package. It targets the
 device `arm64` ABI, statically links `v8_monolith`, embeds startup data, and
 disables JIT and WebAssembly generation. `ios/tools/build-v8-ios.sh validate`
 checks those invariants and the Mach-O architecture before CMake runs.
+Because the output is a static archive rather than an installable app, its GN
+configuration disables code signing; signing remains owned by the final Overte
+bundle packaging step.
 
 The builder deliberately skips V8's unrelated test-Python hook: V8 12.4 pins
 a historical NumPy test wheel that was not published for macOS arm64. It still

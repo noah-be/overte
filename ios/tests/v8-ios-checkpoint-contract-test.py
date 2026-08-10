@@ -21,6 +21,7 @@ class V8IOSCheckpointContractTest(unittest.TestCase):
             'target_os = "ios"',
             'target_cpu = "arm64"',
             'target_environment = "device"',
+            "ios_enable_code_signing = false",
             "v8_monolithic = true",
             "is_component_build = false",
             "v8_enable_lite_mode = true",
