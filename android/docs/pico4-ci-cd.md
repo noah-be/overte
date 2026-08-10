@@ -26,7 +26,7 @@ dedicated to trusted Overte Android builds. Do not add a pull-request trigger:
 unreviewed code must never execute on this host. Prefer an ephemeral runner;
 otherwise remove the checkout and build directories after each job and do not
 place unrelated credentials, signing material, or device access on the host.
-The workflow also rejects every source ref except `feature/pico4-support` and
+The workflow also rejects every source ref except `android-vr-pico` and
 immutable `pico4-preview-N` tags.
 
 Provision the runner by following `android/PICO4_BUILD.md`, then verify it from
@@ -142,7 +142,7 @@ has been separately authorized.
 
 ### Required checks and repository administration
 
-After pushing, protect `feature/pico4-support` and Pico CI branches with the
+After pushing, protect `android-vr-pico` and Pico CI branches with the
 `Pico 4 device-free CI / project-tests` check, required review, conversation
 resolution, and blocked force-push/deletion. Configure a tag ruleset for
 `pico4-v*-rc.*` that restricts creation to release maintainers and blocks update

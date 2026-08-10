@@ -79,7 +79,7 @@ class PicoBuildWorkflowContracts(unittest.TestCase):
 
     def test_build_runs_tests_and_fail_closed_apk_verification(self):
         self.assertIn("Reject untrusted build refs", self.source)
-        self.assertIn("refs/heads/feature/pico4-support", self.source)
+        self.assertIn("refs/heads/android-vr-pico", self.source)
         self.assertIn("refs/tags/pico4-preview-[0-9]+", self.source)
         self.assertIn("tests/run-project-tests.py", self.source)
         self.assertIn("./build-pico.sh doctor", self.source)
@@ -105,7 +105,7 @@ class PicoReleaseWorkflowContracts(unittest.TestCase):
         self.assertNotRegex(self.source, r"(?m)^  (pull_request|pull_request_target|push):$")
         self.assertIn('[[ "$GITHUB_REF_TYPE" == tag ]]', self.source)
         self.assertIn("pico4-release.py", self.source)
-        self.assertNotIn("refs/heads/feature/pico4-support", self.source)
+        self.assertNotIn("refs/heads/android-vr-pico", self.source)
 
     def test_release_has_protected_boundary_and_dedicated_runner(self):
         self.assertIn("environment: pico4-release-candidate", self.source)
