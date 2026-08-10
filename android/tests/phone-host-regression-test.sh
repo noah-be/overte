@@ -716,8 +716,8 @@ require_text tests/phone-graphics-benchmark.sh '10#\$interval <= 300' \
     'graphics benchmark bounds the thermal sampling interval'
 require_text phone-build-resource-guard.sh 'OVERTE_PHONE_MIN_SWAP_BYTES=32000000000' \
     'dependency builds require at least 32 GB decimal swap'
-require_text phone-build-resource-guard.sh "OVERTE_PHONE_MEMORY_MAX_PROPERTY='20000000000'" \
-    'dependency builds request an exact 20 GB decimal systemd memory ceiling'
+require_text phone-build-resource-guard.sh "OVERTE_PHONE_MEMORY_MAX_PROPERTY='16000000000'" \
+    'dependency builds request an exact 16 GB decimal systemd memory ceiling'
 require_text phone-build-resource-guard.sh 'systemd-run --user --collect --wait --pipe' \
     'dependency resource limit uses a waited systemd user service'
 reject_text phone-build-resource-guard.sh 'ulimit' \
@@ -814,8 +814,8 @@ require_text docs/ANDROID_PHONE_RELEASE_OPERATIONS.md \
     'container-engine socket nor host' \
     'release runner container excludes control sockets and devices'
 require_text conan/profiles/phone-nonqt-arm64-16k \
-    '^tools\.build:jobs=16$' \
-    'non-Qt dependency rebuild uses 16 parallel build jobs'
+    '^tools\.build:jobs=4$' \
+    'non-Qt dependency rebuild uses four parallel build jobs'
 require_text tests/verify-phone-16k-dependencies.sh \
     'mv -f -- "\$sentinel_tmp" "\$sentinel"' \
     'dependency ready sentinel is published atomically'

@@ -19,11 +19,11 @@ for script in build-phone-qt-16k.sh prepare-phone-16k-conan-deps.sh; do
     fi
 done
 
-if grep -Fq 'tools.build:jobs=16' "$script_dir/conan/profiles/phone-arm64-16k" \
-        && grep -Fq 'tools.build:jobs=16' "$script_dir/conan/profiles/phone-nonqt-arm64-16k"; then
-    pass 'both profiles cap build parallelism at j16'
+if grep -Fq 'tools.build:jobs=4' "$script_dir/conan/profiles/phone-arm64-16k" \
+        && grep -Fq 'tools.build:jobs=4' "$script_dir/conan/profiles/phone-nonqt-arm64-16k"; then
+    pass 'both profiles cap build parallelism at j4'
 else
-    fail 'both profiles cap build parallelism at j16'
+    fail 'both profiles cap build parallelism at j4'
 fi
 
 # Exercise the dispatch path without starting a build. The mock verifies that
@@ -55,7 +55,7 @@ fi
 mkdir -p "$mock_dir/cgroup/user.slice/build.scope"
 printf '0::/user.slice/build.scope\n' >"$mock_dir/proc-cgroup"
 printf 'max\n' >"$mock_dir/cgroup/user.slice/build.scope/memory.max"
-printf '20000000000\n' >"$mock_dir/cgroup/user.slice/memory.max"
+printf '16000000000\n' >"$mock_dir/cgroup/user.slice/memory.max"
 printf 'max\n' >"$mock_dir/cgroup/memory.max"
 if bash -c 'source "$1"; phone_build_verify_memory_cgroup "$2" "$3"' \
         _ "$guard" "$mock_dir/proc-cgroup" "$mock_dir/cgroup"; then
@@ -71,12 +71,12 @@ else
     fail 'finite delegated limit permits inaccessible host ancestors'
 fi
 printf 'max\n' >"$mock_dir/cgroup/memory.max"
-printf '20000000001\n' >"$mock_dir/cgroup/user.slice/memory.max"
+printf '16000000001\n' >"$mock_dir/cgroup/user.slice/memory.max"
 if bash -c 'source "$1"; ! phone_build_verify_memory_cgroup "$2" "$3"' \
         _ "$guard" "$mock_dir/proc-cgroup" "$mock_dir/cgroup"; then
-    pass 'effective cgroup limit above 20 GB decimal is rejected'
+    pass 'effective cgroup limit above 16 GB decimal is rejected'
 else
-    fail 'effective cgroup limit above 20 GB decimal is rejected'
+    fail 'effective cgroup limit above 16 GB decimal is rejected'
 fi
 printf 'max\n' >"$mock_dir/cgroup/user.slice/memory.max"
 if bash -c 'source "$1"; ! phone_build_verify_memory_cgroup "$2" "$3"' \
@@ -89,7 +89,7 @@ fi
 cat >"$mock_dir/systemd-run" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
-expected=(--user --collect --wait --pipe --quiet --same-dir --property=MemoryMax=20000000000
+expected=(--user --collect --wait --pipe --quiet --same-dir --property=MemoryMax=16000000000
     "--setenv=PATH=$PATH" --setenv=OVERTE_PHONE_RESOURCE_GUARD_ACTIVE=1 -- /absolute/mock-build
     'argument with spaces' '*' '')
 actual=("$@")
@@ -106,9 +106,9 @@ if PATH="$mock_dir:$PATH" bash -c '
     phone_build_require_swap() { return 0; }
     phone_build_resource_guard /absolute/mock-build "argument with spaces" "*" ""
 ' _ "$guard"; then
-    pass 'systemd service dispatch preserves arguments and requests 20 GB decimal'
+    pass 'systemd service dispatch preserves arguments and requests 16 GB decimal'
 else
-    fail 'systemd service dispatch preserves arguments and requests 20 GB decimal'
+    fail 'systemd service dispatch preserves arguments and requests 16 GB decimal'
 fi
 
 if bash -c '

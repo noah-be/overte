@@ -14,12 +14,14 @@ qt_output="$script_dir/conan/phone-16k-debug"
 nonqt_output="$script_dir/conan/phone-nonqt-16k-debug"
 ready_marker="${PHONE_PREBUILT_READY_MARKER:-$nonqt_output/.phone-16k-dependencies.ready}"
 finalizer="${PHONE_PREBUILT_FINALIZER:-$script_dir/finalize-phone-16k-deps.sh}"
-qt_package='qt/5.15.18-2026.01.04@overte/stable#d59ba2a04fe9ede772b05b0bb0865eb0:ecaa689b690ceb46b802551d031b4fd0b54cf970'
+qt_package='qt/5.15.18-2026.01.04@overte/stable#4fc772a2dbcd84731eb6ff9904e6e358:ecaa689b690ceb46b802551d031b4fd0b54cf970'
 # The v2 Phone delta accidentally includes a newer libnode recipe revision
 # containing only the build-machine package. Remove that revision after restore
 # so Conan selects the complete Android recipe supplied by the shared Pico
 # artifact downloaded immediately beforehand.
 incomplete_v2_libnode_recipe='libnode/22.22.3@overte/stable#261cd4344c058c7f08a0fb892519880a'
+incomplete_v2_libnode_reference='libnode/22.22.3@overte/stable'
+incomplete_v2_libnode_revision='261cd4344c058c7f08a0fb892519880a'
 
 fail() {
     echo "error: $*" >&2
@@ -60,6 +62,19 @@ generate_outputs() {
     [[ -f "$ready_marker" ]] || fail "Phone dependency finalizer did not publish readiness"
 }
 
+has_incomplete_v2_libnode_recipe() {
+    local conan_bin="$1"
+    "$conan_bin" list "$incomplete_v2_libnode_recipe" --format=json | \
+        python3 -c '
+import json
+import sys
+
+payload = json.load(sys.stdin).get("Local Cache", {})
+reference = payload.get(sys.argv[1], {})
+raise SystemExit(0 if sys.argv[2] in reference.get("revisions", {}) else 1)
+' "$incomplete_v2_libnode_reference" "$incomplete_v2_libnode_revision"
+}
+
 download_artifact() {
     local conan_bin curl_bin download_dir temp_root
     conan_bin="$(find_conan)" || fail "Conan 2 was not found"
@@ -79,7 +94,9 @@ download_artifact() {
     (cd "$download_dir" && sha256sum --check "$manifest") \
         || fail "Phone prebuilt dependency checksum does not match"
     "$conan_bin" cache restore "$download_dir/$asset"
-    "$conan_bin" remove "$incomplete_v2_libnode_recipe" --confirm >/dev/null
+    if has_incomplete_v2_libnode_recipe "$conan_bin"; then
+        "$conan_bin" remove "$incomplete_v2_libnode_recipe" --confirm >/dev/null
+    fi
     generate_outputs "$conan_bin"
     echo "Restored and verified Phone 16 KiB dependencies"
     rm -rf -- "$download_dir"

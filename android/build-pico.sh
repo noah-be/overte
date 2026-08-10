@@ -602,21 +602,22 @@ install_dependencies() {
     echo "Configuring the official Overte Conan repository"
     run_conan remote add overte "$overte_conan_url" --force
 
-    if ! perl -MEnglish -e 1 >/dev/null 2>&1; then
-        local perl_module_dir="$script_dir/pico-host-tools/perl"
-        local perl_module="$perl_module_dir/English.pm"
-        command -v curl >/dev/null || fail "curl is required to install the Perl English module"
-        install -d "$perl_module_dir"
-        if [[ ! -f "$perl_module" ]]; then
-            echo "Downloading the Perl English module required by Qt"
-            curl --fail --location --retry 3 --output "$perl_module" \
-                https://raw.githubusercontent.com/Perl/perl5/v5.42.0/lib/English.pm
-        fi
-        echo "f857b95e26385272525a7519267c8c63648d692608b7633b46d267c38092ccb3  $perl_module" \
-            | sha256sum --check --status \
-            || fail "invalid checksum for downloaded Perl English module"
-        export PERL5LIB="$perl_module_dir${PERL5LIB:+:$PERL5LIB}"
+    # Phone Qt rebuilds share this pinned module. Always provision it even when
+    # the host Perl happens to provide English.pm globally; otherwise Pico deps
+    # can succeed while the immediately following Phone producer fails.
+    local perl_module_dir="$script_dir/pico-host-tools/perl"
+    local perl_module="$perl_module_dir/English.pm"
+    command -v curl >/dev/null || fail "curl is required to install the Perl English module"
+    install -d "$perl_module_dir"
+    if [[ ! -f "$perl_module" ]]; then
+        echo "Downloading the Perl English module required by Qt"
+        curl --fail --location --retry 3 --output "$perl_module" \
+            https://raw.githubusercontent.com/Perl/perl5/v5.42.0/lib/English.pm
     fi
+    echo "f857b95e26385272525a7519267c8c63648d692608b7633b46d267c38092ccb3  $perl_module" \
+        | sha256sum --check --status \
+        || fail "invalid checksum for downloaded Perl English module"
+    export PERL5LIB="$perl_module_dir${PERL5LIB:+:$PERL5LIB}"
 
     echo "Exporting local Pico recipes"
     run_conan export "$script_dir/conan/recipes/libnode"
