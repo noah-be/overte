@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "scope": "existing entities-renderer to Vulkan/MoltenVK presentation path on iOS",
+  "policy": {
+    "reuse_existing_renderer": true,
+    "renderer_reimplementation_allowed": false,
+    "bootstrap_geometry_is_evidence": false
+  },
+  "required_path": [
+    "entities-renderer",
+    "render",
+    "gpu",
+    "gpu-vk",
+    "vk",
+    "MoltenVK::MoltenVK",
+    "CAMetalLayer"
+  ],
+  "checks": [
+    {
+      "id": "backend-selection",
+      "status": "implemented",
+      "source": "CMakeLists.txt",
+      "anchors": ["set(_overte_default_rendering_backend \"Vulkan\")", "if(IOS AND NOT OVERTE_RENDERING_BACKEND STREQUAL \"Vulkan\")", "OpenGL is not a supported iOS renderer"],
+      "barrier": "",
+      "acceptance": "The iOS full-client cache defaults to Vulkan and configuration fails closed if another backend is requested."
+    },
+    {
+      "id": "renderer-link-root",
+      "status": "implemented",
+      "source": "libraries/entities-renderer/CMakeLists.txt",
+      "anchors": ["set(TARGET_NAME entities-renderer)", "link_hifi_libraries(shared workload gpu"],
+      "barrier": "",
+      "acceptance": "entities-renderer continues to consume the stock gpu/render graph."
+    },
+    {
+      "id": "vulkan-backend-targets",
+      "status": "implemented",
+      "source": "CMakeLists.txt",
+      "anchors": ["set(PLATFORM_GL_BACKEND gpu-gl-common gpu-gl gpu-vk vk)"],
+      "barrier": "",
+      "acceptance": "Vulkan selection adds gpu-vk and vk to the Interface graph."
+    },
+    {
+      "id": "hybrid-opengl-dependency",
+      "status": "implemented",
+      "source": "CMakeLists.txt",
+      "anchors": ["OVERTE_IOS_VULKAN_NATIVE_TARGETS gpu-vk vk", "OVERTE_IOS_VULKAN_LEGACY_GL_BRIDGE_TARGETS \"\"", "display-plugins retain their separate, explicit `gl` links"],
+      "barrier": "",
+      "acceptance": "The full iphoneos and iphonesimulator graphs configure/link with only gpu-vk and vk in the platform backend list, then the device renderer passes.",
+      "subtasks": [
+        {
+          "id": "classify-cmake-targets",
+          "status": "implemented",
+          "source": "CMakeLists.txt",
+          "anchor": "OVERTE_IOS_VULKAN_LEGACY_GL_BRIDGE_TARGETS"
+        },
+        {
+          "id": "separate-gpu-vk-external-texture-gl-interop",
+          "status": "implemented",
+          "source": "libraries/gpu-vk/src/gpu/vk/VKBackend.cpp",
+          "anchor": "External GL textures are disabled on iOS Vulkan"
+        },
+        {
+          "id": "separate-gpu-vk-gl-fence-interop",
+          "status": "implemented",
+          "source": "libraries/gpu-vk/src/gpu/vk/VKBackend.cpp",
+          "anchor": "#if !defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)"
+        },
+        {
+          "id": "separate-vulkan-display-quick-gl-copy",
+          "status": "implemented",
+          "source": "libraries/display-plugins/src/display-plugins/VulkanDisplayPlugin.cpp",
+          "anchor": "Qt Quick OpenGL framebuffer copy is disabled on iOS Vulkan"
+        },
+        {
+          "id": "remove-gpu-vk-gl-link",
+          "status": "implemented",
+          "source": "libraries/gpu-vk/CMakeLists.txt",
+          "anchor": "link_hifi_libraries(shared shaders vk gpu render-utils)"
+        },
+        {
+          "id": "empty-ios-legacy-gl-bridge",
+          "status": "implemented",
+          "source": "CMakeLists.txt",
+          "anchor": "OVERTE_IOS_VULKAN_LEGACY_GL_BRIDGE_TARGETS \"\""
+        }
+      ]
+    },
+    {
+      "id": "moltenvk-discovery",
+      "status": "implemented",
+      "source": "cmake/modules/FindMoltenVK.cmake",
+      "anchors": ["MoltenVK/MoltenVK.xcframework", "MoltenVK::MoltenVK", "ios-arm64_x86_64-simulator"],
+      "barrier": "",
+      "acceptance": "The selected device/simulator XCFramework slice and Vulkan headers exist."
+    },
+    {
+      "id": "moltenvk-link",
+      "status": "implemented",
+      "source": "cmake/macros/TargetVulkan.cmake",
+      "anchors": ["if(IOS)", "find_package(MoltenVK QUIET REQUIRED)", "VK_USE_PLATFORM_METAL_EXT", "MoltenVK::MoltenVK", "-framework QuartzCore"],
+      "barrier": "",
+      "acceptance": "Both vk and gpu-vk resolve MoltenVK and Metal framework linkage through target_vulkan()."
+    },
+    {
+      "id": "metal-surface-api",
+      "status": "implemented",
+      "source": "libraries/vk/src/vk/VulkanSwapChain.cpp",
+      "anchors": ["defined(VK_USE_PLATFORM_METAL_EXT)", "VkMetalSurfaceCreateInfoEXT", "vkCreateMetalSurfaceEXT"],
+      "barrier": "",
+      "acceptance": "The swapchain implementation contains the VK_EXT_metal_surface path."
+    },
+    {
+      "id": "ios-window-surface-handoff",
+      "status": "implemented",
+      "source": "libraries/vk/src/vk/VKWindow.cpp",
+      "anchors": ["defined(Q_OS_IOS)", "overteIOSMetalLayerForWindow(this)", "_swapchain.initSurface(metalLayer)"],
+      "barrier": "",
+      "acceptance": "An iOS-specific createSurface branch obtains the Qt native CAMetalLayer and calls initSurface(CAMetalLayer*)."
+    },
+    {
+      "id": "display-plugin-opengl-tail",
+      "status": "implemented",
+      "source": "libraries/display-plugins/CMakeLists.txt",
+      "anchors": ["if(IOS AND OVERTE_RENDERING_BACKEND STREQUAL \"Vulkan\")", "skipping direct OpenGL setup for iOS Vulkan", "target_opengl()"],
+      "barrier": "",
+      "acceptance": "display-plugins does not directly invoke target_opengl for iOS Vulkan; all other platform/backend combinations preserve it."
+    },
+    {
+      "id": "qt-private-gui",
+      "status": "implemented",
+      "source": "libraries/vk/CMakeLists.txt",
+      "anchors": ["vk uses public Qt Core/Gui APIs only", "overte_find_qt(COMPONENTS Core Gui QUIET REQUIRED)", "target_vulkan()"],
+      "barrier": "",
+      "acceptance": "The vk target compiles for iphoneos and iphonesimulator without Qt GuiPrivate or qpa headers."
+    },
+    {
+      "id": "interface-display-gl-api-boundary",
+      "status": "blocked",
+      "source": "libraries/plugins/src/plugins/DisplayPlugin.h",
+      "anchors": ["struct QuickTextureCopyTarget", "void* framebuffer", "void** completionToken"],
+      "barrier": "The public display-plugin ABI, Qt Quick ResourceImageItem, Vulkan display implementation, and Interface sources still compile against GL types/helpers; removing the two explicit gl links would fail before native Vulkan presentation.",
+      "acceptance": "A non-GL texture-to-Quick API replaces the GL-typed virtual method, iOS excludes OpenGL display source families and direct Interface GL helpers, and both explicit gl links can then be removed under iOS Vulkan.",
+      "subtasks": [
+        {
+          "id": "replace-display-plugin-quick-copy-abi",
+          "status": "implemented",
+          "source": "libraries/plugins/src/plugins/DisplayPlugin.h",
+          "anchor": "const QuickTextureCopyTarget& target"
+        },
+        {
+          "id": "replace-resource-image-item-gl-renderer",
+          "status": "pending",
+          "source": "interface/src/ui/ResourceImageItem.h",
+          "anchor": "GLsync _fenceSync"
+        },
+        {
+          "id": "exclude-opengl-display-source-family",
+          "status": "pending",
+          "source": "libraries/display-plugins/src/display-plugins/OpenGLDisplayPlugin.cpp",
+          "anchor": "OpenGLDisplayPlugin::activate"
+        },
+        {
+          "id": "separate-interface-gl-helpers",
+          "status": "pending",
+          "source": "interface/src/Application_Graphics.cpp",
+          "anchor": "#include <gl/GLHelpers.h>"
+        },
+        {
+          "id": "remove-explicit-interface-display-gl-links",
+          "status": "pending",
+          "source": "libraries/display-plugins/CMakeLists.txt",
+          "anchor": "link_hifi_libraries(shared shaders plugins ui-plugins gl ui"
+        }
+      ]
+    }
+  ]
+}
