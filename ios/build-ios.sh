@@ -29,6 +29,8 @@ Commands:
   build --platform TARGET       Configure and build the bootstrap application.
   test [--platform TARGET]      Run host contracts, optionally build for TARGET.
   package --platform TARGET     Produce a simulator archive or device IPA plus manifest.
+  package-client --platform TARGET
+                                 Package an already-built experimental Overte client.
   clean --platform TARGET       Print the build directory; use --confirm to remove it.
 
 Options:
@@ -443,6 +445,7 @@ payload = {
     "sdk": sdk,
     "signed": False,
 }
+
 pathlib.Path(output).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 PY
         note "Created unsigned simulator artifact: $archive"
@@ -498,6 +501,103 @@ PY
     fi
 }
 
+run_package_client() {
+    require_macos
+    require_command ditto
+    require_command shasum
+
+    local artifact_sequence="${OVERTE_IOS_ARTIFACT_SEQUENCE:-${GITHUB_RUN_NUMBER:-}}"
+    [[ "$artifact_sequence" =~ ^[1-9][0-9]*$ ]] \
+        || fail "package-client requires a positive OVERTE_IOS_ARTIFACT_SEQUENCE or GITHUB_RUN_NUMBER"
+    local artifact_prefix
+    printf -v artifact_prefix '%04d' "$((10#$artifact_sequence))"
+
+    local sdk_suffix="iphoneos" archive_suffix="device" extension="ipa"
+    local app_path="$build_dir/interface/${configuration}-iphoneos/Overte.app"
+    if [[ "$platform" == "simulator" ]]; then
+        sdk_suffix="iphonesimulator"
+        archive_suffix="simulator"
+        extension="zip"
+        app_path="$build_dir/interface/${configuration}-iphonesimulator/Overte.app"
+    fi
+    [[ -d "$app_path" ]] || fail "integrated client app not found: $app_path; build target Overte first"
+    [[ -f "$app_path/Info.plist" ]] || fail "integrated client app has no Info.plist: $app_path"
+    [[ -x "$app_path/Overte" ]] || fail "integrated client executable is missing or not executable: $app_path/Overte"
+    [[ -f "$app_path/PrivacyInfo.xcprivacy" ]] \
+        || fail "integrated client privacy manifest not found: $app_path/PrivacyInfo.xcprivacy"
+
+    local artifact_dir="$source_root/build-ios/artifacts"
+    mkdir -p "$artifact_dir"
+    local signing_label="unsigned" signed_state="false"
+    if [[ -n "$development_team" ]]; then
+        [[ "$platform" == "device" ]] || fail "--development-team is only valid with --platform device"
+        require_command codesign
+        codesign --verify --deep --strict "$app_path" \
+            || fail "integrated client bundle did not pass code-signature verification"
+        signing_label="signed"
+        signed_state="true"
+    fi
+    local stem="${artifact_prefix}-OverteIOSClient-${configuration}-${archive_suffix}"
+    [[ "$platform" == "simulator" ]] || stem="${stem}-${signing_label}"
+    local archive="$artifact_dir/${stem}.${extension}"
+
+    if [[ "$platform" == "simulator" ]]; then
+        ditto -c -k --sequesterRsrc --keepParent "$app_path" "$archive"
+    else
+        local payload_root
+        payload_root="$(mktemp -d "${TMPDIR:-/tmp}/overte-ios-client-package.XXXXXX")"
+        [[ -d "$payload_root" && "$payload_root" == */overte-ios-client-package.* ]] \
+            || fail "could not create a bounded integrated-client packaging directory"
+        mkdir -p "$payload_root/Payload"
+        ditto "$app_path" "$payload_root/Payload/Overte.app"
+        ditto -c -k --sequesterRsrc --keepParent "$payload_root/Payload" "$archive"
+        cmake -E remove_directory "$payload_root"
+    fi
+
+    local archive_sha source_revision manifest latest_json latest_text
+    archive_sha="$(shasum -a 256 "$archive" | awk '{print $1}')"
+    source_revision="$(git -C "$source_root" rev-parse HEAD)"
+    manifest="$artifact_dir/${stem}.json"
+    latest_json="$artifact_dir/LATEST-OverteIOSClient.json"
+    latest_text="$artifact_dir/LATEST-OverteIOSClient.txt"
+    python3 - "$manifest" "$latest_json" "$latest_text" "$archive" "$archive_sha" \
+        "$source_revision" "$configuration" "$sdk_suffix" "$signed_state" "$artifact_sequence" \
+        "$(xcodebuild -version | tr '\n' ' ')" "$(xcrun --sdk "$sdk_name" --show-sdk-version)" <<'PY'
+import json
+import pathlib
+import sys
+
+manifest_name, latest_name, latest_text_name, archive_name, digest, revision, configuration, platform, signed, sequence, xcode, sdk = sys.argv[1:]
+archive = pathlib.Path(archive_name)
+manifest = pathlib.Path(manifest_name)
+payload = {
+    "schemaVersion": 1,
+    "product": "overte-ios-integrated-client",
+    "buildNumber": int(sequence),
+    "artifact": archive.name,
+    "manifest": manifest.name,
+    "sha256": digest,
+    "sourceRevision": revision,
+    "platform": platform,
+    "architecture": "arm64",
+    "configuration": configuration,
+    "xcode": xcode.strip(),
+    "sdk": sdk,
+    "signed": signed == "true",
+    "requiresSigning": platform == "iphoneos" and signed != "true",
+    "windowsVm": {
+        "sharedFolderRelativePath": archive.name,
+        "verifyCommand": f"certutil -hashfile {archive.name} SHA256",
+    },
+}
+manifest.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+pathlib.Path(latest_name).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+pathlib.Path(latest_text_name).write_text(archive.name + "\n", encoding="utf-8")
+PY
+    note "Created numbered integrated client artifact: $archive"
+    note "Created manifest and Windows VM transfer metadata: $manifest, $latest_json, $latest_text"
+}
+
 run_clean() {
     case "$build_dir" in
         "$source_root"/build-ios/simulator|"$source_root"/build-ios/device|"$source_root"/build-ios/custom-*) ;;
@@ -524,6 +624,7 @@ case "$command_name" in
     build) build_project ;;
     test) run_tests ;;
     package) run_package ;;
+    package-client) run_package_client ;;
     clean) run_clean ;;
     help|-h|--help) usage ;;
     *)

@@ -36,7 +36,7 @@ jobs:
         run: ios/tests/run-tests.sh
 
   integrated-configure:
-    name: Toolchain, dependencies and full-client configure
+    name: Toolchain, dependencies, build and package
     needs: host-contracts
     runs-on: macos-26
     timeout-minutes: 45
@@ -84,6 +84,26 @@ jobs:
         run: |
           source build-ios/tooling-venv/bin/activate
           ios/build-ios.sh configure --platform device --client-graph
+
+      - name: Build experimental full client
+        run: cmake --build build-ios/device --config Debug --target Overte
+
+      - name: Package numbered unsigned client IPA
+        env:
+          OVERTE_IOS_ARTIFACT_SEQUENCE: ${{ github.run_number }}
+        run: ios/build-ios.sh package-client --platform device --configuration Debug
+
+      - name: Upload numbered client IPA and VM metadata
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ github.run_number }}-overte-ios-integrated-device-${{ github.run_id }}
+          path: |
+            build-ios/artifacts/*-OverteIOSClient-Debug-device-unsigned.ipa
+            build-ios/artifacts/*-OverteIOSClient-Debug-device-unsigned.json
+            build-ios/artifacts/LATEST-OverteIOSClient.json
+            build-ios/artifacts/LATEST-OverteIOSClient.txt
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload configure diagnostics
         if: failure()

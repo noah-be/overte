@@ -181,6 +181,13 @@ endif ()
 # create the executable, make it a bundle on OS X
 if (APPLE)
   add_executable(${TARGET_NAME} MACOSX_BUNDLE ${INTERFACE_SRCS} ${QM})
+  if (IOS)
+    set(OVERTE_IOS_PRIVACY_MANIFEST "${CMAKE_SOURCE_DIR}/ios/resources/PrivacyInfo.xcprivacy")
+    target_sources(${TARGET_NAME} PRIVATE "${OVERTE_IOS_PRIVACY_MANIFEST}")
+    set_source_files_properties("${OVERTE_IOS_PRIVACY_MANIFEST}" PROPERTIES
+      MACOSX_PACKAGE_LOCATION Resources
+    )
+  endif()
 
   # make sure the output name for the .app bundle is correct
   # Fix up the rpath so macdeployqt works

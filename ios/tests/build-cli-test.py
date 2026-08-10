@@ -90,6 +90,10 @@ def main() -> None:
             shims / "lipo",
             '[[ "${FAKE_LIPO_FAIL:-0}" == "0" ]]\n',
         )
+        make_executable(
+            shims / "ditto",
+            'destination="${@: -1}"\nmkdir -p "$(dirname "$destination")"\ntouch "$destination"\n',
+        )
 
         environment = os.environ.copy()
         environment.update(
@@ -255,6 +259,48 @@ def main() -> None:
         invocation = log.read_text(encoding="utf-8")
         assert "<-DOVERTE_IOS_BOOTSTRAP_ONLY=ON>" in invocation
         assert "<--target> <OverteIOSBootstrap>" in invocation
+
+        integrated_build = root / "integrated-package"
+        integrated_app = integrated_build / "interface/Debug-iphonesimulator/Overte.app"
+        integrated_app.mkdir(parents=True)
+        (integrated_app / "Info.plist").touch()
+        (integrated_app / "Overte").touch()
+        (integrated_app / "Overte").chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+        (integrated_app / "PrivacyInfo.xcprivacy").touch()
+        integrated_package = run_cli(
+            environment | {"OVERTE_IOS_ARTIFACT_SEQUENCE": "42"},
+            "package-client",
+            "--platform",
+            "simulator",
+            "--build-dir",
+            str(integrated_build),
+        )
+        assert integrated_package.returncode == 0, integrated_package.stderr
+        artifact_root = SOURCE_ROOT / "build-ios/artifacts"
+        integrated_manifest = json.loads(
+            (artifact_root / "0042-OverteIOSClient-Debug-simulator.json").read_text(encoding="utf-8")
+        )
+        assert integrated_manifest["buildNumber"] == 42
+        assert integrated_manifest["product"] == "overte-ios-integrated-client"
+        assert integrated_manifest["artifact"].startswith("0042-")
+        assert integrated_manifest["windowsVm"]["sharedFolderRelativePath"] == integrated_manifest["artifact"]
+        latest = json.loads(
+            (artifact_root / "LATEST-OverteIOSClient.json").read_text(encoding="utf-8")
+        )
+        assert latest == integrated_manifest
+        for generated in artifact_root.glob("0042-OverteIOSClient-*"):
+            generated.unlink()
+        (artifact_root / "LATEST-OverteIOSClient.json").unlink()
+        (artifact_root / "LATEST-OverteIOSClient.txt").unlink()
+
+        unnumbered_client = run_cli(
+            environment | {"OVERTE_IOS_ARTIFACT_SEQUENCE": "0"},
+            "package-client",
+            "--build-dir",
+            str(integrated_build),
+        )
+        assert unnumbered_client.returncode == 1
+        assert "positive OVERTE_IOS_ARTIFACT_SEQUENCE" in unnumbered_client.stderr
 
         log.write_text("", encoding="utf-8")
         dependencies = run_cli(

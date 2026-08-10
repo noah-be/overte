@@ -17,6 +17,33 @@ on an iPad until a trusted local tool applies a personal or paid-team signature.
 Signing remains the boundary between autonomous cloud preparation and a
 real-device test.
 
+## Experimental integrated-client artifact
+
+After the explicit full-client graph has configured and target `Overte` has
+built successfully, package that existing bundle without rebuilding the
+bootstrap application:
+
+```bash
+cmake --build build-ios/device --config Debug --target Overte
+OVERTE_IOS_ARTIFACT_SEQUENCE=123 \
+  ios/build-ios.sh package-client --platform device --configuration Debug
+```
+
+`package-client` rejects zero or missing sequence numbers, missing executables,
+Info.plists, and privacy manifests. It never silently falls back to the
+bootstrap bundle. Device output is named like
+`0123-OverteIOSClient-Debug-device-unsigned.ipa`; the existing bootstrap names
+and numbering remain unchanged.
+
+Each package has a same-stem JSON manifest plus
+`LATEST-OverteIOSClient.json` and `LATEST-OverteIOSClient.txt`. The JSON records
+the exact artifact name, source revision, SHA-256, platform, signing state, and
+a Windows `certutil` verification command. GitHub Actions uploads all four files
+in one numbered artifact. Download or copy that complete artifact into the
+VirtualBox shared folder; the Windows VM should select the filename from
+`LATEST-OverteIOSClient.txt` and verify it against the JSON digest before
+passing an unsigned IPA to the separately authorized signing tool.
+
 ## External inputs
 
 A device build needs:
