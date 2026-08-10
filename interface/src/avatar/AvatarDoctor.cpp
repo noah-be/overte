@@ -15,6 +15,7 @@
 #include <Rig.h>
 #include <ResourceManager.h>
 #include <QDir>
+#include <QMetaType>
 #include <FSTReader.h>
 
 const int NETWORKED_JOINTS_LIMIT = 256;
@@ -230,8 +231,14 @@ void AvatarDoctor::startDiagnosing() {
 
             auto mapping = resource->getMapping();
 
-            if (mapping.contains(JOINT_NAME_MAPPING_FIELD) && mapping[JOINT_NAME_MAPPING_FIELD].type() == QVariant::Hash) {
-                const auto& jointNameMappings = mapping[JOINT_NAME_MAPPING_FIELD].toHash();
+            const auto jointNameMapping = mapping.value(JOINT_NAME_MAPPING_FIELD);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+            const bool hasJointNameHash = jointNameMapping.metaType().id() == QMetaType::QVariantHash;
+#else
+            const bool hasJointNameHash = jointNameMapping.type() == QVariant::Hash;
+#endif
+            if (mapping.contains(JOINT_NAME_MAPPING_FIELD) && hasJointNameHash) {
+                const auto jointNameMappings = jointNameMapping.toHash();
                 QStringList jointValues;
                 for (const auto& jointVariant: jointNameMappings.values()) {
                     jointValues << jointVariant.toString();
