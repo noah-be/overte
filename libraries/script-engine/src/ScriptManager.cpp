@@ -16,6 +16,9 @@
 #include <chrono>
 #include <memory>
 #include <thread>
+#ifdef Q_OS_ANDROID
+#include <sys/system_properties.h>
+#endif
 
 #include <QtCore/QCoreApplication>
 #include <QtCore/QEventLoop>
@@ -1026,6 +1029,9 @@ void ScriptManager::run() {
     _lastUpdate = usecTimestampNow();
 
     std::chrono::microseconds totalUpdates(0);
+#ifdef Q_OS_ANDROID
+    qint64 lastPhoneMemoryReport { 0 };
+#endif
 
     qCDebug(scriptengine) << "Waiting for finish";
 
@@ -1120,6 +1126,28 @@ void ScriptManager::run() {
         }
 
         qint64 now = usecTimestampNow();
+
+#ifdef Q_OS_ANDROID
+        if (now - lastPhoneMemoryReport >= 5 * USECS_PER_SECOND) {
+            lastPhoneMemoryReport = now;
+            char testModeValue[PROP_VALUE_MAX] {};
+            const bool phoneTestMode = __system_property_get("debug.overte.test_mode", testModeValue) > 0 &&
+                (qstrcmp(testModeValue, "1") == 0 || qstricmp(testModeValue, "on") == 0 ||
+                    qstricmp(testModeValue, "true") == 0);
+            if (phoneTestMode) {
+                const auto statistics = _engine->getMemoryUsageStatistics();
+                const auto encodedURL = QUrl::toPercentEncoding(_fileNameString, "", " ,\n\r\t");
+                qCWarning(scriptengine).noquote()
+                    << QStringLiteral("PHONE_PERF record=script_heap epoch_ms=")
+                        + QString::number(QDateTime::currentMSecsSinceEpoch())
+                        + QStringLiteral(" script=") + QString::fromLatin1(encodedURL)
+                        + QStringLiteral(" total_heap_bytes=") + QString::number(statistics.totalHeapSize)
+                        + QStringLiteral(" used_heap_bytes=") + QString::number(statistics.usedHeapSize)
+                        + QStringLiteral(" available_bytes=") + QString::number(statistics.totalAvailableSize)
+                        + QStringLiteral(" used_global_handles_bytes=") + QString::number(statistics.usedGlobalHandlesSize);
+            }
+        }
+#endif
 
         // we check for 'now' in the past in case people set their clock back
         if (_emitScriptUpdates() && _lastUpdate < now) {

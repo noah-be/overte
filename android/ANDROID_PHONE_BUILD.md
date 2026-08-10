@@ -145,7 +145,9 @@ before the dependency build; there is intentionally no unbounded fallback.
    is restored with `--build=never`, regenerated into the two dedicated output
    directories, and accepted only if the complete content-bound 16 KiB marker
    can be finalized. A missing artifact, checksum mismatch, missing package, or
-   failed ELF inspection stops closed.
+   failed ELF inspection stops closed. Restoring the shared Pico artifacts does
+   not resolve or compile their source graph in this workflow; in particular,
+   it must not trigger a local Node/V8 build.
 
    The large download is staged under `android/build/prebuilt-tmp` rather than
    the system temporary directory, avoiding small or memory-backed `/tmp`
@@ -160,6 +162,9 @@ before the dependency build; there is intentionally no unbounded fallback.
 
    Gradle/APK packaging uses `android/build/package-tmp` instead of a potentially
    memory-backed system `/tmp`; override it with `PHONE_BUILD_TMPDIR` if needed.
+   The Phone entry point assigns Gradle a 6 GB heap so packaging the large
+   native debug libraries does not exhaust the default JVM heap. Override it
+   with `PHONE_GRADLE_JVM_ARGS` on hosts with different memory limits.
 
    To restore only the dependency graph without preparing or building the APK,
    use the Phone entry point just as with Pico:
@@ -547,6 +552,12 @@ authorized physical non-Pico ARM64 touchscreen Phone meeting API 26 and OpenGL
 ES 3.2 requirements; emulator, Watch, TV, Automotive and VR targets fail before
 the app is touched. Duration is bounded to 1–3600 seconds and
 `PHONE_BENCHMARK_INTERVAL` to 1–300 seconds.
+
+For repeated online-world loading measurements, including CPU, memory,
+per-UID network traffic, frame jank, thermals, battery and optional Perfetto
+traces, use `tests/phone-world-loading-test.sh`. The complete invocation and
+interpretation guide is in
+[`docs/ANDROID_PHONE_PERFORMANCE_TESTING.md`](docs/ANDROID_PHONE_PERFORMANCE_TESTING.md).
 
 Raw app-scoped Logcat, thermal and frame-stat output exists only in a private
 `/tmp` directory and is deleted on exit. INT, TERM, successful collection and

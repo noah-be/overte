@@ -71,7 +71,7 @@ download_prebuilt_dependencies() {
     [[ -d "$temp_root" && -w "$temp_root" ]] \
         || fail "Phone prebuilt temporary directory is not writable"
     CONAN_HOME="$shared_conan_home" TMPDIR="$temp_root" \
-        PICO_QT_FALLBACK_PATCH="$script_dir/conan/patches/qt-phone-16k-pages.patch" \
+        PICO_PREBUILT_RESTORE_ONLY=1 \
         "$script_dir/build-pico.sh" deps --download
     "$script_dir/phone-prebuilt-16k-deps.sh" download
 }
@@ -153,7 +153,7 @@ doctor() {
 }
 
 build() {
-    local option="${1:-}" jdk sdk
+    local option="${1:-}" jdk sdk gradle_jvm_args
     local build_tmp="${PHONE_BUILD_TMPDIR:-$script_dir/build/package-tmp}"
     local -a gradle_diagnostics=()
     if [[ "$option" == "--stacktrace" ]]; then
@@ -164,16 +164,31 @@ build() {
     jdk="$(find_compatible_jdk)" \
         || fail "a JDK between versions 17 and 21 was not found"
     sdk="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-${HOME}/Android/Sdk}}"
+    gradle_jvm_args="${PHONE_GRADLE_JVM_ARGS:--Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8}"
     [[ -d "$sdk" ]] || fail "Android SDK was not found"
     [[ ! -L "$build_tmp" ]] || fail "Phone build temporary directory must not be a symlink"
     mkdir -p -- "$build_tmp"
     [[ -d "$build_tmp" && -w "$build_tmp" ]] \
         || fail "Phone build temporary directory is not writable"
+    # AGP's incremental Zipflinger can retain multi-megabyte holes after a
+    # native library changes. Recreate only generated APK packaging state;
+    # keep the expensive CMake/Ninja object tree intact.
+    local packaging_path
+    for packaging_path in \
+        "$script_dir/apps/phoneInterface/build/outputs/apk/debug" \
+        "$script_dir/apps/phoneInterface/build/intermediates/apk/debug" \
+        "$script_dir/apps/phoneInterface/build/intermediates/incremental/packageDebug"; do
+        [[ ! -L "$packaging_path" ]] || fail "Phone packaging output must not be a symlink"
+        if [[ -d "$packaging_path" ]]; then
+            find "$packaging_path" -depth -delete
+        fi
+    done
     JAVA_HOME="$jdk" ANDROID_SDK_ROOT="$sdk" TMPDIR="$build_tmp" \
         JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:+${JAVA_TOOL_OPTIONS} }-Djava.io.tmpdir=$build_tmp" \
         PICO_BUILD_JOBS="$jobs" CMAKE_BUILD_PARALLEL_LEVEL="$jobs" \
         SHADERGEN_JOBS="$jobs" \
         "$script_dir/gradlew" \
+        "-Dorg.gradle.jvmargs=$gradle_jvm_args" \
         --settings-file "$script_dir/settings-phone.gradle" \
         :phoneInterface:assembleDebug --max-workers="$jobs" "${gradle_diagnostics[@]}"
 }

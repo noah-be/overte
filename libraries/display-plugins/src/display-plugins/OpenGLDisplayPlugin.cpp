@@ -8,6 +8,7 @@
 #include "OpenGLDisplayPlugin.h"
 
 #include <condition_variable>
+#include <mutex>
 #include <queue>
 
 #if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
@@ -1065,6 +1066,18 @@ float OpenGLDisplayPlugin::renderRate() const {
 
 void OpenGLDisplayPlugin::swapBuffers() {
     static auto context = _container->getPrimaryWidget()->context();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // On Android the Qt context can lose its current-surface association after
+    // composition even though the dedicated present thread retains ownership.
+    // Rebind it before swapping; otherwise Qt rejects every swap and emits one
+    // warning per frame.
+    if (!context->makeCurrent()) {
+        static std::once_flag warningOnce;
+        std::call_once(warningOnce, [] {
+            qWarning("Phone display could not make its OpenGL context current before swap");
+        });
+    }
+#endif
     context->swapBuffers();
 #if defined(ANDROID_APP_PHONE_INTERFACE)
     phonePresentTelemetry.record(_phonePresentHasNewFrame);
