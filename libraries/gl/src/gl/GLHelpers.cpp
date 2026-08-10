@@ -28,7 +28,7 @@ size_t evalGLFormatSwapchainPixelSize(const QSurfaceFormat& format) {
     return pixelSize;
 }
 
-#ifdef Q_OS_MAC
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
 #define SERIALIZE_GL_RENDERING
 #endif
 
@@ -391,7 +391,7 @@ namespace gl {
     }
 
     bool debugContextEnabled() {
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
         // OSX does not support GL_KHR_debug or GL_ARB_debug_output
         static bool enableDebugLogger = false;
 #elif defined(DEBUG)

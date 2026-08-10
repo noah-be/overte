@@ -40,6 +40,8 @@ The iOS platform-backend list now contains only `gpu-vk;vk`; its legacy `gpu-gl-
 
 The inventory now distinguishes these target-owned compatibility dependencies explicitly. `qml -> gl` remains blocked on a native-RHI producer because its render handler creates FBOs/textures and emits `GLsync`; `vk -> gl` remains implemented compatibility infrastructure because `VKWidget` constructs `gl::OffscreenContext` before initializing the Vulkan GPU backend. A transitive link is therefore not by itself evidence that Interface regressed to an OpenGL renderer. `OffscreenSurface.cpp` no longer includes `OffscreenGLCanvas.h` merely to forward the new opaque lease; the actual GL producer still includes and owns its concrete canvas.
 
+Those compatibility targets do not use CMake's desktop `FindOpenGL` path on iOS. They retain glad dispatch and link the SDK's deprecated OpenGLES framework explicitly and fail closed if it is unavailable. This is a narrow bridge for the already inventoried QML/VK context ownership, not an OpenGL rendering-backend selection or a substitute for the pending native-RHI migration.
+
 Acceptance is deliberately split into three gates:
 
 1. Source contracts and host validators must pass locally.

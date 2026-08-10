@@ -64,7 +64,7 @@
     },
     {
       "id": "apple-desktop-framework",
-      "pattern": "find_library\\s*\\([^\\n]*(?:AppKit|OpenGL|IOKit|Carbon)",
+      "pattern": "find_library\\s*\\([^\\n]*(?:AppKit|OpenGL(?!ES)|IOKit|Carbon)",
       "roots": ["CMakeLists.txt", "cmake", "interface", "libraries"],
       "extensions": [".cmake", ".txt"],
       "files": [
