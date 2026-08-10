@@ -11,11 +11,10 @@ desktop and Android targets remain on Qt 5 while shared source is migrated.
 ## Transitional compatibility
 
 Qt Core5Compat remains a temporary build bridge while the wider Qt 6 graph is
-validated. The audited `QRegExp`/`QTextCodec` inventory is empty, while the
-generated EntityItemProperties source template retains the final inventoried
-`QStringRef` boundary. New iOS code must use `QRegularExpression`,
-`QStringView`, and current text APIs. Core5Compat is not a reason to add new
-Qt 5 API use.
+validated. The audited `QRegExp`, `QTextCodec`, and `QStringRef` production
+source/template inventory is empty. New iOS code must use
+`QRegularExpression`, `QStringView`, and current text APIs. Core5Compat is not
+a reason to add new Qt 5 API use.
 
 The shared library macro treats iOS as an ARM target before applying optional
 x86 SIMD flags. Although CMake reports iOS as both `APPLE` and `UNIX`, its
@@ -247,8 +246,14 @@ outlives the constructor input. `Flow` uses equivalent `left`/`mid` views for
 the three-character joint prefix, trailing numeric probe, and simulation group
 slice. Offsets, lengths, uppercase comparisons, float detection, and resulting
 group names are unchanged. The animation library therefore leaves the
-Core5Compat inventory; the separately generated EntityItemProperties template
-remains explicitly tracked.
+Core5Compat inventory.
+
+The generated `EntityItemProperties.cpp` template now accepts collision group
+names as `QStringView`. Collision masks still split on commas with the legacy
+`KeepEmptyParts` behavior made explicit; each owned split string is viewed only
+for the duration of the case-sensitive group lookup. Group names, bit values,
+unknown/empty handling, mask accumulation, and the `configure_file` production
+path are unchanged. This removes the final inventoried `QStringRef` use.
 
 The public `LogHandler.h` header no longer includes `QRegExp`, which was not
 used by any declaration or inline macro in that interface. Logging option

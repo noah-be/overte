@@ -790,6 +790,20 @@ def test_scope_contract() -> None:
     for animation_text in (anim_expression_header_text, anim_expression_text, flow_text):
         if "QStringRef" in animation_text:
             raise AssertionError("iOS-reachable animation code retained removed QStringRef API")
+    entity_properties_template = SOURCE_ROOT / "libraries" / "entities" / "src" / "EntityItemProperties.cpp.in"
+    entity_properties_template_text = entity_properties_template.read_text(encoding="utf-8")
+    assert "#include <QtCore/QStringView>" in entity_properties_template_text
+    assert "uint16_t getCollisionGroupAsBitMask(QStringView name)" in entity_properties_template_text
+    assert "maskString.split(QLatin1Char(','), Qt::KeepEmptyParts)" in entity_properties_template_text
+    assert "getCollisionGroupAsBitMask(QStringView(groupName))" in entity_properties_template_text
+    if "QStringRef" in entity_properties_template_text or "splitRef(" in entity_properties_template_text:
+        raise AssertionError("generated EntityItemProperties source retained removed QStringRef API")
+    entity_generator = SOURCE_ROOT / "cmake" / "macros" / "GenerateEntityProperties.cmake"
+    require_text(
+        entity_generator,
+        r'configure_file\(\s*\$\{CMAKE_CURRENT_SOURCE_DIR\}/src/EntityItemProperties\.cpp\.in\s*\$\{CMAKE_CURRENT_BINARY_DIR\}/src/EntityItemProperties\.cpp\)',
+        "the migrated EntityItemProperties template must remain the generated production source",
+    )
 
     log_handler = SOURCE_ROOT / "libraries" / "shared" / "src" / "LogHandler.h"
     log_handler_text = log_handler.read_text(encoding="utf-8")

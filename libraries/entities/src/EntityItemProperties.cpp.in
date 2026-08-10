@@ -23,6 +23,7 @@
 #include <QHash>
 #include <QObject>
 #include <QtCore/QJsonDocument>
+#include <QtCore/QStringView>
 #include <QtNetwork/QNetworkReply>
 #include <QtNetwork/QNetworkRequest>
 
@@ -441,16 +442,16 @@ QString getCollisionGroupAsString(uint16_t group) {
     return "";
 }
 
-uint16_t getCollisionGroupAsBitMask(const QStringRef& name) {
-    if (0 == name.compare(QString("dynamic"))) {
+uint16_t getCollisionGroupAsBitMask(QStringView name) {
+    if (0 == name.compare(QLatin1String("dynamic"))) {
         return USER_COLLISION_GROUP_DYNAMIC;
-    } else if (0 == name.compare(QString("static"))) {
+    } else if (0 == name.compare(QLatin1String("static"))) {
         return USER_COLLISION_GROUP_STATIC;
-    } else if (0 == name.compare(QString("kinematic"))) {
+    } else if (0 == name.compare(QLatin1String("kinematic"))) {
         return USER_COLLISION_GROUP_KINEMATIC;
-    } else if (0 == name.compare(QString("myAvatar"))) {
+    } else if (0 == name.compare(QLatin1String("myAvatar"))) {
         return USER_COLLISION_GROUP_MY_AVATAR;
-    } else if (0 == name.compare(QString("otherAvatar"))) {
+    } else if (0 == name.compare(QLatin1String("otherAvatar"))) {
         return USER_COLLISION_GROUP_OTHER_AVATAR;
     }
     return 0;
@@ -469,10 +470,10 @@ QString EntityItemProperties::getCollisionMaskAsString() const {
 }
 
 void EntityItemProperties::setCollisionMaskFromString(const QString& maskString) {
-    QVector<QStringRef> groups = maskString.splitRef(',');
+    const auto groups = maskString.split(QLatin1Char(','), Qt::KeepEmptyParts);
     uint16_t mask = 0x0000;
-    for (auto groupName : groups) {
-        mask |= getCollisionGroupAsBitMask(groupName);
+    for (const auto& groupName : groups) {
+        mask |= getCollisionGroupAsBitMask(QStringView(groupName));
     }
     _collisionMask = mask;
     _collisionMaskChanged = true;
