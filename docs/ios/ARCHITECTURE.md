@@ -106,6 +106,10 @@ shortcut are omitted from the iOS menu as part of the same boundary.
 The separate 780-pixel-minimum Entity Script Server `QDialog` follows the same
 boundary: its toggle and developer-menu action are omitted on iOS, while the
 HMD-friendly/in-app script log remains available.
+The `BaseLogDialog`, `LogDialog`, and `EntityScriptServerLogDialog` source/header
+pairs are omitted from the iOS compile/MOC graph after those entry points are
+disabled. `EntityScriptServerLogClient` remains active for embedded script-log
+consumers and protocol behavior.
 The stand-alone JavaScript console follows that rule too: its fixed-size,
 always-on-top `QDialog` and desktop keyboard-shortcut menu action are omitted on
 iOS. Script execution and embedded debugging/logging services remain intact.

@@ -46,6 +46,17 @@ require("// Developer > Scripting > Entity Script Server Log\n"
 require("BaseLogDialog::BaseLogDialog(QWidget* parent) : QDialog(parent, Qt::Window)" in BASE_LOG_DIALOG and
         "setMinimumWidth(MINIMAL_WIDTH);" in BASE_LOG_DIALOG,
         "Entity Script Server log is no longer demonstrably a desktop utility window")
+for desktop_log_source in (
+        "BaseLogDialog.cpp", "BaseLogDialog.h",
+        "EntityScriptServerLogDialog.cpp", "EntityScriptServerLogDialog.h",
+        "LogDialog.cpp", "LogDialog.h"):
+    require(f'"${{CMAKE_CURRENT_SOURCE_DIR}}/src/ui/{desktop_log_source}"' in INTERFACE_CMAKE,
+            f"{desktop_log_source} remains in the iOS compile/MOC graph")
+require("#if !defined(Q_OS_IOS)\n#include <ui/EntityScriptServerLogDialog.h>\n#endif" in APPLICATION_UI and
+        "#if !defined(Q_OS_IOS)\n#include <ui/LogDialog.h>\n#endif" in APPLICATION_UI,
+        "desktop log dialog headers remain in the iOS Application UI graph")
+require("DependencyManager::set<EntityScriptServerLogClient>();" in APPLICATION_SETUP,
+        "backend Entity Script Server log client was incorrectly removed with desktop dialogs")
 require("void StandAloneJSConsole::toggleConsole()  {\n#if !defined(Q_OS_IOS)" in JS_CONSOLE,
         "stand-alone desktop JavaScript console remains reachable on iOS")
 require("// Developer > Scripting > Console...\n#if !defined(Q_OS_IOS)" in MENU,

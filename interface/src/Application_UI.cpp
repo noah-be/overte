@@ -74,9 +74,13 @@
 #include <ui/AvatarInputs.h>
 #include <ui/DialogsManager.h>
 #include <ui/DomainConnectionModel.h>
+#if !defined(Q_OS_IOS)
 #include <ui/EntityScriptServerLogDialog.h>
+#endif
 #include <ui/Keyboard.h>
+#if !defined(Q_OS_IOS)
 #include <ui/LogDialog.h>
+#endif
 #include <ui/LoginDialog.h>
 #include <ui/OctreeStatsDialog.h>
 #include <ui/OctreeStatsProvider.h>
