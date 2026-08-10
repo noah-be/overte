@@ -9,8 +9,14 @@ CONTRACT = {
     "entity_tree_nonempty": "libraries/entities-renderer/src/EntityTreeRenderer.cpp",
     "render_handoff": "libraries/entities-renderer/src/EntityTreeRenderer.cpp",
 }
+ONLINE_CONTRACT = {
+    "domain_list_connected": "libraries/networking/src/NodeList.cpp",
+    "entity_server_active": "interface/src/Application.cpp",
+    "entity_query_sent": "interface/src/Application_Entities.cpp",
+    "entity_data_received": "interface/src/octree/OctreePacketProcessor.cpp",
+}
 
-for marker, relative in CONTRACT.items():
+for marker, relative in (CONTRACT | ONLINE_CONTRACT).items():
     source = (ROOT / relative).read_text(encoding="utf-8")
     token = f'"OVERTE_MACOS_ENTITY_GATE {marker}"'
     if source.count(token) != 1:
@@ -25,5 +31,10 @@ smoke = (ROOT / "macos/ci/serverless-smoke.sh").read_text(encoding="utf-8")
 for marker in CONTRACT:
     if marker not in smoke:
         raise SystemExit(f"smoke runner does not require {marker}")
+
+online_smoke = (ROOT / "macos/ci/online-smoke.sh").read_text(encoding="utf-8")
+for marker in ONLINE_CONTRACT | {"render_handoff": ""}:
+    if marker not in online_smoke:
+        raise SystemExit(f"online smoke runner does not require {marker}")
 
 print("macOS runtime evidence contract valid")

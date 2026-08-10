@@ -91,12 +91,19 @@ jobs:
           app="$(find build -type d -name Overte.app -print -quit)"
           macos/ci/serverless-smoke.sh "$app" build/macos-smoke
 
+      - name: Run online entity smoke
+        run: |
+          app="$(find build -type d -name Overte.app -print -quit)"
+          macos/ci/online-smoke.sh "$app" build/macos-online-smoke
+
       - name: Upload smoke diagnostics
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: overte-macos-smoke-${{ github.run_id }}
-          path: build/macos-smoke
+          path: |
+            build/macos-smoke
+            build/macos-online-smoke
           if-no-files-found: ignore
           retention-days: 7
 

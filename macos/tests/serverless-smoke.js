@@ -4,7 +4,7 @@
 (function () {
     "use strict";
 
-    var deadline = Date.now() + 30000;
+    var deadline = Date.now() + 60000;
     var snapshotRequested = false;
     var completed = false;
 

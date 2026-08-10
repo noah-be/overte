@@ -2043,6 +2043,10 @@ void Application::nodeActivated(SharedNodePointer node) {
     if (node->getType() == NodeType::EntityServer) {
         _queryExpiry = SteadyClock::now();
         _octreeQuery.incrementConnectionID();
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+        qInfo().noquote() << "OVERTE_MACOS_ENTITY_GATE entity_server_active"
+                          << "node=" << node->getUUID().toString(QUuid::WithoutBraces);
+#endif
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
         qInfo().noquote() << "OVERTE_IOS_ENTITY_GATE entity_server_active"
                           << "node=" << node->getUUID().toString(QUuid::WithoutBraces);
