@@ -19,8 +19,6 @@
 #include <QtCore/QUrl>
 #include <QtCore/QCoreApplication>
 #include <QGuiApplication>
-#include <qpa/qplatformnativeinterface.h>
-#include <QtX11Extras/QX11Info>
 
 #include <QtGui/QKeyEvent>
 #include <QtGui/QPaintEngine>

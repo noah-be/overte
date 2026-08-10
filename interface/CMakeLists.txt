@@ -24,12 +24,15 @@ endfunction()
 
 set(CUSTOM_INTERFACE_QRC_PATHS "")
 
-find_package(
-  Qt5 COMPONENTS
-  Gui Widgets Multimedia Network Qml Quick Svg WebEngineCore WebEngineWidgets
+set(INTERFACE_QT_COMPONENTS
+  Gui Widgets Multimedia Network Qml Quick Svg
   ${PLATFORM_QT_COMPONENTS}
-  WebChannel WebSockets QUIET REQUIRED
+  WebChannel WebSockets
 )
+if(NOT IOS)
+  list(APPEND INTERFACE_QT_COMPONENTS WebEngineCore WebEngineWidgets)
+endif()
+overte_find_qt(COMPONENTS ${INTERFACE_QT_COMPONENTS} QUIET REQUIRED)
 
 
 if (OVERTE_BUILD_TOOLS AND JSDOC_ENABLED)
@@ -60,9 +63,9 @@ generate_qrc(
 
 if (ANDROID)
   # on Android, don't compress the rcc binary
-  qt5_add_binary_resources(resources "${RESOURCES_QRC}" DESTINATION "${RESOURCES_RCC}" OPTIONS -no-compress)
+  overte_qt_add_binary_resources(resources "${RESOURCES_QRC}" DESTINATION "${RESOURCES_RCC}" OPTIONS -no-compress)
 else ()
-  qt5_add_binary_resources(resources "${RESOURCES_QRC}" DESTINATION "${RESOURCES_RCC}")
+  overte_qt_add_binary_resources(resources "${RESOURCES_QRC}" DESTINATION "${RESOURCES_RCC}")
 endif()
 
 if (OVERTE_BUILD_TOOLS AND JSDOC_ENABLED)
@@ -85,8 +88,8 @@ foreach(EXTERNAL ${OPTIONAL_EXTERNALS})
   endif ()
 endforeach()
 
-# find_package(Qt5LinguistTools QUIET REQUIRED)
-# find_package(Qt5LinguistToolsMacros)
+# overte_find_qt(COMPONENTS LinguistTools QUIET REQUIRED)
+# include(FindQt5LinguistToolsMacros)
 
 if (WIN32)
   set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS_DEBUG} -bigobj")
@@ -96,19 +99,69 @@ endif()
 
 # grab the implementation and header files from src dirs
 file(GLOB_RECURSE INTERFACE_SRCS "src/*.cpp" "src/*.h")
+
+# The Vulkan application constructs VKCanvas and never references GLCanvas.
+# Do not parse or moc the legacy OpenGL widget in the iOS Vulkan graph.
+if(IOS AND OVERTE_RENDERING_BACKEND STREQUAL "Vulkan")
+  list(REMOVE_ITEM INTERFACE_SRCS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/GLCanvas.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/GLCanvas.h")
+endif()
+
+# iOS packages update through their signing/distribution channel. The runtime
+# entry points are guarded in source, so do not moc/compile the desktop update
+# dialog or retain its otherwise unused updater library at link time.
+set(INTERFACE_AUTO_UPDATER_LIBRARY auto-updater)
+if(IOS)
+  list(REMOVE_ITEM INTERFACE_SRCS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/BaseLogDialog.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/BaseLogDialog.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/DomainConnectionDialog.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/DomainConnectionDialog.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/EntityScriptServerLogDialog.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/EntityScriptServerLogDialog.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/HMDToolsDialog.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/HMDToolsDialog.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/JSConsole.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/JSConsole.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/LogDialog.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/LogDialog.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/LodToolsDialog.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/LodToolsDialog.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/OctreeStatsDialog.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/OctreeStatsDialog.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/StandAloneJSConsole.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/StandAloneJSConsole.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/TestingDialog.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/TestingDialog.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/UpdateDialog.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/UpdateDialog.h")
+  set(INTERFACE_AUTO_UPDATER_LIBRARY "")
+endif()
+
 GroupSources("src")
 list(APPEND INTERFACE_SRCS ${RESOURCES_RCC})
 
 # grab the Objective-C sources on OS X
 if (APPLE)
   file(GLOB_RECURSE INTERFACE_OBJCPP_SRCS "src/*.m" "src/*.mm")
+  if (IOS)
+    # App Nap is a macOS process policy and has no iOS implementation. Keep
+    # the desktop Objective-C++ source out of the iphoneos compile graph.
+    get_filename_component(APP_NAP_DISABLER_MM "src/AppNapDisabler.mm" ABSOLUTE)
+    list(REMOVE_ITEM INTERFACE_OBJCPP_SRCS ${APP_NAP_DISABLER_MM})
+    # NSSpeechRecognizer is an AppKit service. iOS has no implementation and
+    # its consumers are excluded below at the source level.
+    get_filename_component(SPEECH_RECOGNIZER_MM "src/SpeechRecognizer.mm" ABSOLUTE)
+    list(REMOVE_ITEM INTERFACE_OBJCPP_SRCS ${SPEECH_RECOGNIZER_MM})
+  endif()
   list(APPEND INTERFACE_SRCS ${INTERFACE_OBJCPP_SRCS})
 endif ()
 
 # Add SpeechRecognizer if on Windows or OS X, otherwise remove
 if (WIN32)
   # Use .cpp and .h files as is.
-elseif (APPLE)
+elseif (APPLE AND NOT IOS)
   get_filename_component(SPEECHRECOGNIZER_CPP "src/SpeechRecognizer.cpp" ABSOLUTE)
   list(REMOVE_ITEM INTERFACE_SRCS ${SPEECHRECOGNIZER_CPP})
 else ()
@@ -120,9 +173,12 @@ endif ()
 
 # grab the ui files in resources/ui
 file (GLOB_RECURSE QT_UI_FILES ui/*.ui)
+if(IOS)
+  list(REMOVE_ITEM QT_UI_FILES "${CMAKE_CURRENT_SOURCE_DIR}/ui/console.ui")
+endif()
 source_group("UI Files" FILES ${QT_UI_FILES})
-# have qt5 wrap them and generate the appropriate header files
-qt5_wrap_ui(QT_UI_HEADERS "${QT_UI_FILES}")
+# Have the selected Qt version wrap them and generate the appropriate header files.
+overte_qt_wrap_ui(QT_UI_HEADERS "${QT_UI_FILES}")
 
 # add them to the interface source files
 set(INTERFACE_SRCS ${INTERFACE_SRCS} "${QT_UI_HEADERS}" "${QT_RESOURCES}")
@@ -130,7 +186,7 @@ set(INTERFACE_SRCS ${INTERFACE_SRCS} "${QT_UI_HEADERS}" "${QT_RESOURCES}")
 # translation disabled until we strip out the line numbers
 # set(QM ${TARGET_NAME}_en.qm)
 # set(TS ${TARGET_NAME}_en.ts)
-# qt5_create_translation_custom(${QM} ${INTERFACE_SRCS} ${QT_UI_FILES} ${TS})
+# OVERTE_CREATE_TRANSLATION_CUSTOM(${QM} ${INTERFACE_SRCS} ${QT_UI_FILES} ${TS})
 
 # setup the android parameters that will help us produce an APK
 if (ANDROID)
@@ -141,7 +197,16 @@ endif ()
 if (APPLE)
 
   # configure CMake to use a custom Info.plist
-  set_target_properties(${this_target} PROPERTIES MACOSX_BUNDLE_INFO_PLIST MacOSXBundleInfo.plist.in)
+  if (IOS)
+    if (NOT DEFINED OVERTE_IOS_BUNDLE_IDENTIFIER OR OVERTE_IOS_BUNDLE_IDENTIFIER STREQUAL "")
+      message(FATAL_ERROR "The integrated iOS client requires OVERTE_IOS_BUNDLE_IDENTIFIER")
+    endif()
+    if (OVERTE_IOS_ENABLE_SIGNING)
+      if (NOT DEFINED OVERTE_IOS_DEVELOPMENT_TEAM OR OVERTE_IOS_DEVELOPMENT_TEAM STREQUAL "")
+        message(FATAL_ERROR "Integrated iOS signing requires OVERTE_IOS_DEVELOPMENT_TEAM")
+      endif()
+    endif()
+  endif()
 
   set(MACOSX_BUNDLE_BUNDLE_NAME "Overte")
   if (PRODUCTION_BUILD)
@@ -164,13 +229,61 @@ if (APPLE)
   list(APPEND INTERFACE_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/icon/${INTERFACE_ICON_FILENAME})
 endif()
 
-if (UNIX)
+if (UNIX AND NOT IOS)
   set(BUILD_SHARED_LIBS ON)
 endif ()
 
 # create the executable, make it a bundle on OS X
 if (APPLE)
   add_executable(${TARGET_NAME} MACOSX_BUNDLE ${INTERFACE_SRCS} ${QM})
+  if (IOS)
+    set_target_properties(${TARGET_NAME} PROPERTIES
+      MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/ios/resources/InterfaceInfo.plist.in"
+      XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE "NO"
+      XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS "${CMAKE_SOURCE_DIR}/ios/resources/Overte.entitlements"
+      XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon"
+      XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET "${CMAKE_OSX_DEPLOYMENT_TARGET}"
+      XCODE_ATTRIBUTE_SUPPORTED_PLATFORMS "iphoneos iphonesimulator"
+      XCODE_ATTRIBUTE_SUPPORTS_MACCATALYST "NO"
+      XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
+      XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${OVERTE_IOS_BUNDLE_IDENTIFIER}"
+    )
+    if (OVERTE_IOS_ENABLE_SIGNING)
+      set_target_properties(${TARGET_NAME} PROPERTIES
+        XCODE_ATTRIBUTE_CODE_SIGN_STYLE "Automatic"
+        XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "YES"
+        XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "YES"
+        XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "${OVERTE_IOS_DEVELOPMENT_TEAM}"
+      )
+    else()
+      set_target_properties(${TARGET_NAME} PROPERTIES
+        XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
+        XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "NO"
+      )
+    endif()
+    set(OVERTE_IOS_PRIVACY_MANIFEST "${CMAKE_SOURCE_DIR}/ios/resources/PrivacyInfo.xcprivacy")
+    set(OVERTE_IOS_ASSET_CATALOG "${CMAKE_SOURCE_DIR}/ios/resources/Assets.xcassets")
+    if (NOT EXISTS "${OVERTE_IOS_PRIVACY_MANIFEST}")
+      message(FATAL_ERROR "The audited iOS PrivacyInfo.xcprivacy is required")
+    endif()
+    if (NOT EXISTS "${OVERTE_IOS_ASSET_CATALOG}/AppIcon.appiconset/Contents.json")
+      message(FATAL_ERROR "The audited iOS AppIcon asset catalog is required")
+    endif()
+    target_sources(${TARGET_NAME} PRIVATE
+      "${OVERTE_IOS_PRIVACY_MANIFEST}"
+      "${OVERTE_IOS_ASSET_CATALOG}"
+    )
+    set_source_files_properties(
+      "${OVERTE_IOS_PRIVACY_MANIFEST}"
+      "${OVERTE_IOS_ASSET_CATALOG}"
+      PROPERTIES
+      MACOSX_PACKAGE_LOCATION Resources
+    )
+  else()
+    set_target_properties(${TARGET_NAME} PROPERTIES
+      MACOSX_BUNDLE_INFO_PLIST MacOSXBundleInfo.plist.in
+    )
+  endif()
 
   # make sure the output name for the .app bundle is correct
   # Fix up the rpath so macdeployqt works
@@ -231,12 +344,18 @@ if (WIN32)
 endif()
 
 # link required hifi libraries
+set(INTERFACE_GL_LIBRARY gl)
+if(IOS AND OVERTE_RENDERING_BACKEND STREQUAL "Vulkan")
+  # Interface has no direct GL consumer after the iOS source gates. VKWidget's
+  # compatibility context remains an implementation detail of the vk target.
+  set(INTERFACE_GL_LIBRARY "")
+endif()
 link_hifi_libraries(
-  shared workload task octree ktx gpu gl procedural graphics graphics-scripting render
+  shared workload task octree ktx gpu ${INTERFACE_GL_LIBRARY} procedural graphics graphics-scripting render
   pointers recording hfm model-serializers networking material-networking
   model-networking model-baker entities avatars
   audio audio-client animation physics
-  render-utils entities-renderer avatars-renderer ui qml auto-updater midi
+  render-utils entities-renderer avatars-renderer ui qml ${INTERFACE_AUTO_UPDATER_LIBRARY} midi
   controllers plugins image platform
   ui-plugins display-plugins input-plugins
   # Platform specific GL libraries
@@ -258,12 +377,16 @@ target_openssl()
 target_bullet()
 
 set(OpenGL_GL_PREFERENCE "GLVND")
-target_opengl()
+if(NOT IOS)
+  target_opengl()
+endif()
 add_crashpad()
 target_breakpad()
 target_json()
 target_glm()
-target_discord_rpc()
+if(NOT IOS)
+  target_discord_rpc()
+endif()
 target_quazip()
 
 # perform standard include and linking for found externals
@@ -312,13 +435,12 @@ if (ANDROID)
   target_link_libraries(${TARGET_NAME} ${ANDROID_LOG_LIB})
 endif ()
 
-target_link_libraries(
-  ${TARGET_NAME}
-  Qt5::Gui Qt5::Network Qt5::Multimedia Qt5::Widgets
-  Qt5::Qml Qt5::Quick Qt5::Svg
-  Qt5::WebChannel Qt5::WebEngineCore Qt5::WebEngineWidgets
-  ${PLATFORM_QT_LIBRARIES}
-)
+overte_link_qt_modules(${TARGET_NAME}
+  Gui Network Multimedia Widgets Qml Quick Svg WebChannel WebSockets)
+if(NOT IOS)
+  overte_link_qt_modules(${TARGET_NAME} WebEngineCore WebEngineWidgets)
+endif()
+target_link_libraries(${TARGET_NAME} ${PLATFORM_QT_LIBRARIES})
 
 if (UNIX AND NOT ANDROID AND NOT OVERTE_THREAD_DEBUGGING)
     if (CMAKE_SYSTEM_NAME MATCHES "Linux")
@@ -333,7 +455,7 @@ endif()
 # assume we are using a Qt build without bearer management
 add_definitions(-DQT_NO_BEARERMANAGEMENT)
 
-if (APPLE)
+if (APPLE AND NOT IOS)
   # link in required OS X frameworks and include the right GL headers
   find_library(OpenGL OpenGL)
   find_library(AppKit AppKit)

@@ -12,6 +12,8 @@
 #include "Rig.h"
 #include "AnimSkeleton.h"
 
+#include <QStringView>
+
 const std::map<QString, FlowPhysicsSettings> PRESET_FLOW_DATA = { { "hair", FlowPhysicsSettings() },
 { "skirt", FlowPhysicsSettings(true, 1.0f, DEFAULT_GRAVITY, 0.65f, 0.8f, 0.45f, 0.01f) },
 { "breast", FlowPhysicsSettings(true, 1.0f, DEFAULT_GRAVITY, 0.65f, 0.8f, 0.45f, 0.01f) } };
@@ -506,7 +508,7 @@ void Flow::calculateConstraints(const std::shared_ptr<AnimSkeleton>& skeleton,
         }
         auto jointChildren = skeleton->getChildrenOfJoint(i);
         // auto childIndex = jointChildren.size() > 0 ? jointChildren[0] : -1;
-        auto group = QStringRef(&name, 0, 3).toString().toUpper();
+        auto group = QStringView(name).left(3).toString().toUpper();
         auto split = name.split("_");
         bool isSimJoint = (group == simPrefix);
         bool isFlowJoint = split.size() > 2 && split[0].toUpper() == flowPrefix;
@@ -515,14 +517,14 @@ void Flow::calculateConstraints(const std::shared_ptr<AnimSkeleton>& skeleton,
             if (isSimJoint) {
                 for (int j = 1; j < name.size() - 1; j++) {
                     bool toFloatSuccess;
-                    QStringRef(&name, (int)(name.size() - j), 1).toString().toFloat(&toFloatSuccess);
+                    QStringView(name).mid(name.size() - j, 1).toString().toFloat(&toFloatSuccess);
                     if (!toFloatSuccess && (name.size() - j) > (int)simPrefix.size()) {
-                        group = QStringRef(&name, (int)simPrefix.size(), (int)(name.size() - j + 1) - (int)simPrefix.size()).toString();
+                        group = QStringView(name).mid(simPrefix.size(), name.size() - j + 1 - simPrefix.size()).toString();
                         break;
                     }
                 }
                 if (group.isEmpty()) {
-                    group = QStringRef(&name, (int)simPrefix.size(), name.size() - (int)simPrefix.size()).toString();
+                    group = QStringView(name).mid(simPrefix.size(), name.size() - simPrefix.size()).toString();
                 }
                 qCDebug(animation) << "Sim joint added to flow: " << name;
             } else {

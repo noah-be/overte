@@ -33,7 +33,9 @@
 #include <ui/DialogsManager.h>
 
 #include "AudioClient.h"
+#ifdef USE_GL
 #include "GLCanvas.h"
+#endif
 #include "Menu.h"
 
 #if defined(Q_OS_ANDROID)
@@ -197,7 +199,7 @@ bool Application::eventFilter(QObject* object, QEvent* event) {
         return true;
     }
 
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     // On Mac OS, Cmd+LeftClick is treated as a RightClick (more specifically, it seems to
     // be Cmd+RightClick without the modifier being dropped). Starting in Qt 5.12, only
     // on Mac, the MouseButtonRelease event for these mouse presses is sent to the top
@@ -303,6 +305,11 @@ void Application::onPresent(quint32 frameCount) {
 void Application::activeChanged(Qt::ApplicationState state) {
     switch (state) {
         case Qt::ApplicationActive:
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+            if (!_isForeground && !_aboutToQuit && _startUpFinished) {
+                enterForeground();
+            }
+#endif
             _isForeground = true;
             if (!_aboutToQuit && _startUpFinished) {
                 getRefreshRateManager().setRefreshRateRegime(RefreshRateManager::RefreshRateRegime::FOCUS_ACTIVE);
@@ -314,6 +321,12 @@ void Application::activeChanged(Qt::ApplicationState state) {
             // Mobile platforms reach these explicit background states after
             // leaving the app. Do not keep reporting the client as foreground
             // merely because neither state enters the switch default.
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+            if (_isForeground && !_aboutToQuit && _startUpFinished) {
+                beforeEnterBackground();
+                enterBackground();
+            }
+#endif
             _isForeground = false;
             break;
         case Qt::ApplicationInactive:
@@ -737,7 +750,7 @@ void Application::mousePressEvent(QMouseEvent* event) {
         return;
     }
 
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     // Fix for OSX right click dragging on window when coming from a native window
     bool isFocussed = hasFocus();
     if (!isFocussed && event->button() == Qt::MouseButton::RightButton) {

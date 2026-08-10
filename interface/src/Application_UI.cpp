@@ -74,11 +74,17 @@
 #include <ui/AvatarInputs.h>
 #include <ui/DialogsManager.h>
 #include <ui/DomainConnectionModel.h>
+#if !defined(Q_OS_IOS)
 #include <ui/EntityScriptServerLogDialog.h>
+#endif
 #include <ui/Keyboard.h>
+#if !defined(Q_OS_IOS)
 #include <ui/LogDialog.h>
+#endif
 #include <ui/LoginDialog.h>
+#if !defined(Q_OS_IOS)
 #include <ui/OctreeStatsDialog.h>
+#endif
 #include <ui/OctreeStatsProvider.h>
 #include <ui/Snapshot.h>
 #include <ui/Stats.h>
@@ -91,11 +97,13 @@
 #include "AboutUtil.h"
 #include "ArchiveDownloadInterface.h"
 #include "AudioClient.h"
+#ifdef USE_GL
 #include "GLCanvas.h"
+#endif
 #include "LocationBookmarks.h"
 #include "LODManager.h"
 #include "ResourceRequestObserver.h"
-#if defined(Q_OS_MAC) || defined(Q_OS_WIN)
+#if (defined(Q_OS_MAC) && !defined(Q_OS_IOS)) || defined(Q_OS_WIN)
 #include "SpeechRecognizer.h"
 #endif
 
@@ -525,7 +533,7 @@ void Application::loadScriptURLDialog() const {
 }
 
 void Application::toggleLogDialog() {
-#ifndef ANDROID_APP_QUEST_INTERFACE
+#if !defined(ANDROID_APP_QUEST_INTERFACE) && !defined(Q_OS_IOS)
     if (getLoginDialogPoppedUp()) {
         return;
     }
@@ -568,6 +576,7 @@ void Application::recreateLogWindow(int keepOnTop) {
 }
 
 void Application::toggleEntityScriptServerLogDialog() {
+#if !defined(Q_OS_IOS)
     if (! _entityScriptServerLogDialog) {
         _entityScriptServerLogDialog = new EntityScriptServerLogDialog(nullptr);
     }
@@ -577,6 +586,7 @@ void Application::toggleEntityScriptServerLogDialog() {
     } else {
         _entityScriptServerLogDialog->show();
     }
+#endif
 }
 
 void Application::showAssetServerWidget(QString filePath) {
@@ -916,7 +926,7 @@ void Application::onDesktopRootContextCreated(QQmlContext* surfaceContext) {
     surfaceContext->setContextProperty("UserActivityLogger", DependencyManager::get<UserActivityLoggerScriptingInterface>().data());
     surfaceContext->setContextProperty("Camera", &_myCamera);
 
-#if defined(Q_OS_MAC) || defined(Q_OS_WIN)
+#if (defined(Q_OS_MAC) && !defined(Q_OS_IOS)) || defined(Q_OS_WIN)
     surfaceContext->setContextProperty("SpeechRecognizer", DependencyManager::get<SpeechRecognizer>().data());
 #endif
 
@@ -1338,10 +1348,12 @@ void Application::updateDialogs(float deltaTime) const {
     PerformanceWarning warn(showWarnings, "Application::updateDialogs()");
     auto dialogsManager = DependencyManager::get<DialogsManager>();
 
+#if !defined(Q_OS_IOS)
     QPointer<OctreeStatsDialog> octreeStatsDialog = dialogsManager->getOctreeStatsDialog();
     if (octreeStatsDialog) {
         octreeStatsDialog->update();
     }
+#endif
 }
 
 void Application::maybeToggleMenuVisible(QMouseEvent* event) const {
@@ -1390,7 +1402,7 @@ bool Application::shouldCaptureMouse() const {
 void Application::checkChangeCursor() {
     QMutexLocker locker(&_changeCursorLock);
     if (_cursorNeedsChanging) {
-#ifdef Q_OS_MAC
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
         auto cursorTarget = _window; // OSX doesn't seem to provide for hiding the cursor only on the GL widget
 #else
         // On windows and linux, hiding the top level cursor also means it's invisible when hovering over the

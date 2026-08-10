@@ -1198,7 +1198,13 @@ void OpenGLDisplayPlugin::updateCompositeFramebuffer() {
     }
 }
 
-void OpenGLDisplayPlugin::copyTextureToQuickFramebuffer(NetworkTexturePointer networkTexture, QOpenGLFramebufferObject* target, GLsync* fenceSync) {
+bool OpenGLDisplayPlugin::copyTextureToQuickFramebuffer(NetworkTexturePointer networkTexture,
+                                                        const QuickTextureCopyTarget& quickTarget) {
+    auto* target = static_cast<QOpenGLFramebufferObject*>(quickTarget.framebuffer);
+    GLsync fenceSync { nullptr };
+    if (!target || !networkTexture || !networkTexture->getGPUTexture()) {
+        return false;
+    }
     auto backendApi = hifi::properties::getGraphicsAPI();
     if (backendApi != hifi::properties::GraphicsAPI::GLES32) {
         auto backend = const_cast<OpenGLDisplayPlugin&>(*this).getBackend();
@@ -1248,9 +1254,14 @@ void OpenGLDisplayPlugin::copyTextureToQuickFramebuffer(NetworkTexturePointer ne
 
             // don't delete the textures!
             glDeleteFramebuffers(2, fbo);
-            *fenceSync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+            fenceSync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
         });
+        if (quickTarget.completionToken) {
+            *quickTarget.completionToken = fenceSync;
+        }
+        return true;
     }
+    return false;
 }
 
 gpu::PipelinePointer OpenGLDisplayPlugin::getRenderTexturePipeline() {

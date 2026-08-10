@@ -21,7 +21,9 @@
 
 #include "Application.h"
 #include "ui/DialogsManager.h"
+#if !defined(Q_OS_IOS)
 #include "ui/LodToolsDialog.h"
+#endif
 #include "InterfaceLogging.h"
 
 STATIC_SCRIPT_TYPES_INITIALIZER((+[](ScriptManager* manager){
@@ -177,10 +179,12 @@ void LODManager::autoAdjustLOD(float realTimeDelta) {
     setLODAngleDeg(newLODAngle);
 
     if (oldLODAngle != getLODAngleDeg()) {
+#if !defined(Q_OS_IOS)
         auto lodToolsDialog = DependencyManager::get<DialogsManager>()->getLodToolsDialog();
         if (lodToolsDialog) {
             lodToolsDialog->reloadSliders();
         }
+#endif
     }
 
 }

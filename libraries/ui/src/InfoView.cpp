@@ -13,8 +13,9 @@
 
 #include <SettingHandle.h>
 #include <PathUtils.h>
-#include <QXmlQuery>
 #include <QDir>
+#include <QFile>
+#include <QXmlStreamReader>
 const QUrl InfoView::QML{ "InfoView.qml" };
 const QString InfoView::NAME{ "InfoView" };
 
@@ -34,12 +35,32 @@ void InfoView::registerType() {
 }
 
 QString fetchVersion(const QUrl& url) {
-    QXmlQuery query;
-    query.bindVariable("file", QVariant(url));
-    query.setQuery("string((doc($file)//input[@id='version'])[1]/@value)");
-    QString r;
-    query.evaluateTo(&r);
-    return r.trimmed();
+    QString fileName;
+    if (url.isLocalFile()) {
+        fileName = url.toLocalFile();
+    } else if (url.scheme() == QStringLiteral("qrc")) {
+        fileName = QStringLiteral(":") + url.path();
+    } else {
+        return {};
+    }
+
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+
+    QXmlStreamReader reader(&file);
+    while (!reader.atEnd()) {
+        reader.readNext();
+        if (!reader.isStartElement() || reader.name() != QStringLiteral("input")) {
+            continue;
+        }
+        const auto attributes = reader.attributes();
+        if (attributes.value(QStringLiteral("id")) == QStringLiteral("version")) {
+            return attributes.value(QStringLiteral("value")).toString().trimmed();
+        }
+    }
+    return {};
 }
 
 void InfoView::show(const QString& path, bool firstOrChangedOnly, QString urlQuery) {

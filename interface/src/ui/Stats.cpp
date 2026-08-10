@@ -28,7 +28,9 @@
 #include <plugins/DisplayPlugin.h>
 #include <PickManager.h>
 
+#if !defined(Q_OS_IOS)
 #include <gl/Context.h>
+#endif
 
 #include "Menu.h"
 #include "Util.h"
@@ -415,7 +417,11 @@ void Stats::updateStats(bool force) {
         STAT_UPDATE(gpuBufferMemory, (int)BYTES_TO_MB(gpu::Context::getBufferGPUMemSize()));
         STAT_UPDATE(gpuTextures, (int)gpu::Context::getTextureGPUCount());
 
+#if defined(Q_OS_IOS)
+        STAT_UPDATE(glContextSwapchainMemory, 0);
+#else
         STAT_UPDATE(glContextSwapchainMemory, (int)BYTES_TO_MB(gl::Context::getSwapchainMemoryUsage()));
+#endif
 
         STAT_UPDATE(qmlTextureMemory, (int)BYTES_TO_MB(OffscreenQmlSurface::getUsedTextureMemory()));
         STAT_UPDATE(texturePendingTransfers, (int)BYTES_TO_MB(gpu::Context::getTexturePendingGPUTransferMemSize()));

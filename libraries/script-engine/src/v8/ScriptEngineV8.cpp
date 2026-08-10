@@ -208,7 +208,12 @@ ScriptEngineV8::ScriptEngineV8(ScriptManager *manager) : ScriptEngine(manager), 
         // --assert-types
 
         v8::V8::InitializeICU();
-#ifdef OVERTE_V8_MEMORY_DEBUG
+#ifdef Q_OS_IOS
+        // iOS applications cannot rely on writable executable memory. Keep
+        // this runtime gate even when the supplied V8 archive was built with
+        // JIT support disabled, so a packaging mistake fails closed.
+        v8::V8::SetFlagsFromString("--stack-size=256 --jitless --no-expose-wasm");
+#elif defined(OVERTE_V8_MEMORY_DEBUG)
         v8::V8::SetFlagsFromString("--stack-size=256 --track_gc_object_stats --assert-types");
 #else
         v8::V8::SetFlagsFromString("--stack-size=256");

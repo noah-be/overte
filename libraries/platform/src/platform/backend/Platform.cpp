@@ -235,6 +235,7 @@ namespace platform { namespace keys {
         const char*  OS_MACOS = "MACOS";
         const char*  OS_LINUX = "LINUX";
         const char*  OS_ANDROID = "ANDROID";
+        const char*  OS_IOS = "IOS";
 
         const char*  OSVersion = "OSVersion";
 
@@ -257,7 +258,9 @@ namespace platform { namespace keys {
 
 #include <qglobal.h>
 
-#if defined(Q_OS_WIN)
+#if defined(Q_OS_IOS)
+#include "IOSPlatform.h"
+#elif defined(Q_OS_WIN)
 #include "WINPlatform.h"
 #elif defined(Q_OS_MAC)
 #include "MACOSPlatform.h"
@@ -272,7 +275,9 @@ using namespace platform;
 Instance *_instance;
 
 void platform::create() {
-#if defined(Q_OS_WIN)
+#if defined(Q_OS_IOS)
+    _instance = new IOSInstance();
+#elif defined(Q_OS_WIN)
     _instance =new WINInstance();
 #elif defined(Q_OS_MAC)
     _instance = new MACOSInstance();

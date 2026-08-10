@@ -22,6 +22,7 @@
 #include <QMessageBox>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QRegularExpression>
 #include <QThread>
 #include <QUrl>
 #include <QUrlQuery>
@@ -295,7 +296,7 @@ bool ModelHandler::parseXML(QByteArray xmlFile) {
     }
     
     QXmlStreamReader xml(xmlFile);
-    QRegExp rx(_nameFilter);
+    const QRegularExpression rx(QRegularExpression::anchoredPattern(_nameFilter));
     bool truncated = false;
     QString lastKey;
     
@@ -326,7 +327,7 @@ bool ModelHandler::parseXML(QByteArray xmlFile) {
                 if(xml.tokenType() == QXmlStreamReader::StartElement && xml.name() == KEY_NAME) {
                     xml.readNext();
                     lastKey = xml.text().toString();
-                    if (rx.exactMatch(xml.text().toString())) {
+                    if (rx.match(xml.text().toString()).hasMatch()) {
                         // Add the found file to the list
                         QList<QStandardItem*> model;
                         model << new QStandardItem(QFileInfo(xml.text().toString()).baseName());
@@ -397,4 +398,3 @@ bool ModelHandler::parseHeaders(QNetworkReply* reply) {
     emit updated();
     return true;
 }
-

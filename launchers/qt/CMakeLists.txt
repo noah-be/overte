@@ -4,6 +4,12 @@ if (APPLE)
 endif()
 project(HQLauncher)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+  message(FATAL_ERROR "The legacy qtlite launcher is desktop-only and cannot be configured for iOS")
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/QtCompat.cmake")
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake/Modules")
 include("cmake/macros/SetPackagingParameters.cmake")
 set(CMAKE_CXX_STANDARD 14)
@@ -108,7 +114,7 @@ if (APPLE)
   find_package(OpenSSL 1.1.0 REQUIRED)
 endif()
 
-find_package(Qt5 COMPONENTS Core Gui Qml Quick QuickControls2 Network REQUIRED)
+overte_find_qt(COMPONENTS Core Gui Qml Quick QuickControls2 Network REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(QtStaticDeps REQUIRED)
 
@@ -123,7 +129,7 @@ add_custom_command(
   COMMAND "${_qt5Core_install_prefix}/bin/rcc"
   ARGS ${RESOURCES_QRC} -binary -o ${RESOURCES_RCC})
 
-QT5_ADD_RESOURCES(RES_SOURCES ${RESOURCES_QRC})
+overte_qt_add_resources(RES_SOURCES ${RESOURCES_QRC})
 
 list(APPEND GENERATE_QRC_DEPENDS ${RESOURCES_RCC})
 add_custom_target(resources ALL DEPENDS ${GENERATE_QRC_DEPENDS})
@@ -209,17 +215,12 @@ elseif (APPLE)
 endif()
 
 target_link_libraries(${PROJECT_NAME}
-  Qt5::Core
-  Qt5::Quick
-  Qt5::QuickControls2
-  Qt5::Qml
-  Qt5::Gui
-  Qt5::Network
   ${Qt_LIBRARIES}
   ${OPENGL_LIBRARIES}
   ${plugin_libs}
   ${QT_STATIC_LIBS}
   )
+overte_link_qt_modules(${PROJECT_NAME} Core Quick QuickControls2 Qml Gui Network)
 
 if (WIN32)
   target_link_libraries(${PROJECT_NAME}

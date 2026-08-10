@@ -24,12 +24,15 @@
 #include <QtQuick/QQuickWindow>
 #include <QtQuick/QQuickRenderControl>
 #include <QtCore/QThread>
+#include <QtCore/QMetaType>
 #include <QtCore/QMutex>
 #include <QtCore/QSharedPointer>
 #include <QtCore/QWaitCondition>
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 #include <QtMultimedia/QMediaService>
 #include <QtMultimedia/QAudioOutputSelectorControl>
 #include <QtMultimedia/QMediaPlayer>
+#endif
 #include <QtGui/QInputMethodEvent>
 #include <shared/NsightHelpers.h>
 #include <shared/GlobalAppProperties.h>
@@ -101,6 +104,7 @@ QSharedPointer<OffscreenQmlAllowlist> getQmlAllowlist() {
 }
 
 // Class to handle changing QML audio output device using another thread
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 class AudioHandler : public QObject, QRunnable {
     Q_OBJECT
 public:
@@ -115,6 +119,7 @@ private:
     QSharedPointer<OffscreenQmlSurface> _surface;
     std::vector<QMediaPlayer*> _players;
 };
+#endif
 
 class UrlHandler : public QObject {
     Q_OBJECT
@@ -175,6 +180,7 @@ private:
 
 using namespace hifi::qml::offscreen;
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 AudioHandler::AudioHandler(OffscreenQmlSurface* surface, const QString& deviceName, QObject* parent)
     : QObject(parent) {
     setAutoDelete(true);
@@ -227,6 +233,7 @@ void AudioHandler::run() {
     }
     qDebug() << "QML Audio changed to " << _newTargetDevice;
 }
+#endif
 
 OffscreenQmlSurface::~OffscreenQmlSurface() {
     clearFocusItem();
@@ -306,7 +313,7 @@ void OffscreenQmlSurface::onRootContextCreated(QQmlContext* qmlContext) {
     // FIXME Compatibility mechanism for existing HTML and JS that uses eventBridgeWrapper
     // Find a way to flag older scripts using this mechanism and wanr that this is deprecated
     qmlContext->setContextProperty("eventBridgeWrapper", new EventBridgeWrapper(this, qmlContext));
-#if !defined(Q_OS_ANDROID)
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0) && !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
     {
         PROFILE_RANGE(startup, "FileTypeProfile");
         FileTypeProfile::registerWithContext(qmlContext);
@@ -355,13 +362,13 @@ void OffscreenQmlSurface::onRootCreated() {
     getSurfaceContext()->setContextProperty("offscreenWindow", QVariant::fromValue(getWindow()));
 
     // Connect with the audio client and listen for audio device changes
-    connect(DependencyManager::get<AudioClient>().data(), &AudioClient::deviceChanged, this, [this](QAudio::Mode mode, const HifiAudioDeviceInfo& device) {
-        if (mode == QAudio::Mode::AudioOutput) {
+    connect(DependencyManager::get<AudioClient>().data(), &AudioClient::deviceChanged, this, [this](HifiAudioDeviceMode mode, const HifiAudioDeviceInfo& device) {
+        if (mode == HifiAudioDeviceMode::Output) {
             QMetaObject::invokeMethod(this, "changeAudioOutputDevice", Qt::QueuedConnection, Q_ARG(QString, device.deviceName()));
         }
     });
 
-#if !defined(Q_OS_ANDROID)
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
     // Setup the update of the QML media components with the current audio output device
     QObject::connect(&_audioOutputUpdateTimer, &QTimer::timeout, this, [this]() {
         if (_currentAudioOutputDevice.size() > 0) {
@@ -772,7 +779,12 @@ void OffscreenQmlSurface::emitWebEvent(const QVariant& message) {
         const QString LOWER_KEYBOARD = "_LOWER_KEYBOARD";
         const QString RAISE_KEYBOARD_NUMERIC_PASSWORD = "_RAISE_KEYBOARD_NUMERIC_PASSWORD";
         const QString RAISE_KEYBOARD_PASSWORD = "_RAISE_KEYBOARD_PASSWORD";
-        QString messageString = message.type() == QVariant::String ? message.toString() : "";
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        const bool isStringMessage = message.metaType().id() == QMetaType::QString;
+#else
+        const bool isStringMessage = message.type() == QVariant::String;
+#endif
+        QString messageString = isStringMessage ? message.toString() : "";
         if (messageString.left(RAISE_KEYBOARD.length()) == RAISE_KEYBOARD) {
             bool numeric = (messageString == RAISE_KEYBOARD_NUMERIC || messageString == RAISE_KEYBOARD_NUMERIC_PASSWORD);
             bool passwordField = (messageString == RAISE_KEYBOARD_PASSWORD || messageString == RAISE_KEYBOARD_NUMERIC_PASSWORD);
@@ -835,7 +847,7 @@ void OffscreenQmlSurface::loadFromQml(const QUrl& qmlSource, QQuickItem* parent,
         // If this is a
         auto contextCallback = [callback](QQmlContext* context) {
             ContextAwareProfile::restrictContext(context, false);
-#if !defined(Q_OS_ANDROID)
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
             FileTypeProfile::registerWithContext(context);
             HFWebEngineProfile::registerWithContext(context);
 #endif

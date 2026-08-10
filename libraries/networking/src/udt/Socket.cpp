@@ -251,7 +251,11 @@ qint64 Socket::writeDatagram(const QByteArray& datagram, const SockAddr& sockAdd
     // _networkSocket.writeDatagram will return an error anyway, but there are
     // potential crashes in Qt when that happens.
     if (_networkSocket.state(socketType) != QAbstractSocket::BoundState) {
+#if defined(Q_OS_IOS)
+        qCDebug(networking) << "iOS UDP datagram dropped because the socket is unbound";
+#else
         qCDebug(networking) << "Attempt to writeDatagram when in unbound state to" << sockAddr;
+#endif
         return -1;
     }
     qint64 bytesWritten = _networkSocket.writeDatagram(datagram, sockAddr);
@@ -264,15 +268,26 @@ qint64 Socket::writeDatagram(const QByteArray& datagram, const SockAddr& sockAdd
         wsaError = WSAGetLastError();
 #endif
         QString errorString;
+#if defined(Q_OS_IOS)
+        QDebug(&errorString) << "iOS udt::writeDatagram error category"
+            << static_cast<int>(_networkSocket.error(socketType))
+            << "state" << static_cast<int>(_networkSocket.state(socketType))
+            << "pending" << (pending != 0);
+#else
         QDebug(&errorString) << "udt::writeDatagram (" << _networkSocket.state(socketType) << sockAddr << ") error - "
             << wsaError << _networkSocket.error(socketType) << "(" << _networkSocket.errorString(socketType) << ")"
             << (pending ? "pending bytes:" : "pending:") << pending;
+#endif
 
         if (previousWsaError.exchange(wsaError) != wsaError) {
             qCDebug(networking).noquote() << errorString;
 #ifdef DEBUG_EVENT_QUEUE
             int nodeListQueueSize = ::hifi::qt::getEventQueueSize(thread());
+#if defined(Q_OS_IOS)
+            qCDebug(networking) << "Networking queue size - " << nodeListQueueSize;
+#else
             qCDebug(networking) << "Networking queue size - " << nodeListQueueSize << "writing datagram to" << sockAddr;
+#endif
 #endif  // DEBUG_EVENT_QUEUE
         } else {
             HIFI_FCDEBUG(networking(), errorString.toLatin1().constData());
@@ -559,9 +574,16 @@ void Socket::handleSocketError(SocketType socketType, QAbstractSocket::SocketErr
 #endif
     int pending = _networkSocket.bytesToWrite(socketType);
     QString errorString;
+#if defined(Q_OS_IOS)
+    QDebug(&errorString) << "iOS udt::Socket error category" << static_cast<int>(socketError)
+        << "type" << SocketTypeToString::socketTypeToString(socketType)
+        << "state" << static_cast<int>(_networkSocket.state(socketType))
+        << "pending" << (pending != 0);
+#else
     QDebug(&errorString) << "udt::Socket (" << SocketTypeToString::socketTypeToString(socketType) << _networkSocket.state(socketType)
         << ") error - " << wsaError << socketError << "(" << _networkSocket.errorString(socketType) << ")"
         << (pending ? "pending bytes:" : "pending:") << pending;
+#endif
 
     if (previousWsaError.exchange(wsaError) != wsaError) {
         qCDebug(networking).noquote() << errorString;

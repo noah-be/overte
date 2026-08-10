@@ -8,6 +8,8 @@
 
 #include "NetworkSocket.h"
 
+#include <atomic>
+
 #include "../NetworkLogging.h"
 
 
@@ -22,9 +24,14 @@ NetworkSocket::NetworkSocket(QObject* parent) :
 {
     connect(&_udpSocket, &QUdpSocket::readyRead, this, &NetworkSocket::readyRead);
     connect(&_udpSocket, &QAbstractSocket::stateChanged, this, &NetworkSocket::onUDPStateChanged);
-    // Use old SIGNAL/SLOT mechanism for Android builds.
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+    connect(&_udpSocket, &QAbstractSocket::errorOccurred,
+        this, &NetworkSocket::onUDPSocketError);
+#else
+    // Preserve compatibility with Android builds that still use Qt before 5.15.
     connect(&_udpSocket, SIGNAL(error(QAbstractSocket::SocketError)),
         this, SLOT(onUDPSocketError(QAbstractSocket::SocketError)));
+#endif
 
 #if defined(WEBRTC_DATA_CHANNELS)
     connect(&_webrtcSocket, &WebRTCSocket::readyRead, this, &NetworkSocket::readyRead);
@@ -283,6 +290,18 @@ void NetworkSocket::onWebRTCStateChanged(QAbstractSocket::SocketState socketStat
 }
 
 void NetworkSocket::onUDPSocketError(QAbstractSocket::SocketError socketError) {
+#if defined(Q_OS_IOS)
+    // Do not include the peer address or Qt's free-form error string: either
+    // may disclose a private LAN endpoint. The numeric category and socket
+    // state are sufficient to distinguish a denied/unavailable UDP path.
+    static std::atomic<int> lastReportedCategory { -1 };
+    const int category = static_cast<int>(socketError);
+    if (lastReportedCategory.exchange(category) != category) {
+        qCWarning(networking) << "IOS_LOCAL_NETWORK_UDP_ERROR"
+                              << "category" << category
+                              << "state" << static_cast<int>(_udpSocket.state());
+    }
+#endif
     emit NetworkSocket::socketError(SocketType::UDP, socketError);
 }
 

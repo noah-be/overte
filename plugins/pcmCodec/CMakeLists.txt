@@ -8,6 +8,7 @@
 #
 
 set(TARGET_NAME pcmCodec)
+set(OVERTE_IOS_STATIC_PLUGIN_CLASS PCMCodecProvider)
 setup_hifi_client_server_plugin()
 link_hifi_libraries(shared audio plugins)
 

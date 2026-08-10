@@ -14,6 +14,7 @@
 
 #include <QBuffer>
 #include <QEventLoop>
+#include <QMetaType>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 
@@ -202,7 +203,13 @@ FSTReader::ModelType FSTReader::predictModelType(const hifi::VariantMultiHash& m
 
     QVariantHash joints;
 
-    if (mapping.contains("joint") && mapping.value("joint").type() == QVariant::Hash) {
+    const auto jointMapping = mapping.value("joint");
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    const bool hasJointHash = jointMapping.metaType().id() == QMetaType::QVariantHash;
+#else
+    const bool hasJointHash = jointMapping.type() == QVariant::Hash;
+#endif
+    if (mapping.contains("joint") && hasJointHash) {
         joints = mapping.value("joint").toHash();
     }
 

@@ -10,6 +10,7 @@
 //
 
 #include <QLoggingCategory>
+#include <QMetaType>
 #include <QRegularExpression>
 #include <QNetworkDatagram>
 
@@ -148,6 +149,18 @@ readUTF8NullTerminated(QByteArray& ba, int& offset) {
 
 Q_LOGGING_CATEGORY(osc_cat, "overte.osc")
 
+namespace {
+
+int oscVariantTypeId(const QVariant& value) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return value.metaType().id();
+#else
+    return value.userType();
+#endif
+}
+
+} // namespace
+
 enum OSCTag: char {
     // standard types
     Int = 'i',
@@ -162,14 +175,14 @@ enum OSCTag: char {
 };
 
 static const QRegularExpression invalidCharacters = QRegularExpression("([ #*,?\\[\\]{}])");
-static const QMap<QChar, QVariant::Type> typeNameMap = {
-    { OSCTag::Int, QVariant::Int },
-    { OSCTag::Float, QVariant::Double },
-    { OSCTag::String, QVariant::String },
-    { OSCTag::Blob, QVariant::ByteArray },
-    { OSCTag::False, QVariant::Bool },
-    { OSCTag::True, QVariant::Bool },
-    { OSCTag::Null, QVariant::Invalid },
+static const QMap<QChar, int> typeNameMap = {
+    { OSCTag::Int, QMetaType::Int },
+    { OSCTag::Float, QMetaType::Double },
+    { OSCTag::String, QMetaType::QString },
+    { OSCTag::Blob, QMetaType::QByteArray },
+    { OSCTag::False, QMetaType::Bool },
+    { OSCTag::True, QMetaType::Bool },
+    { OSCTag::Null, QMetaType::UnknownType },
 };
 
 
@@ -397,10 +410,10 @@ ScriptValue OSCScriptingInterface::sendPacket(ScriptContext* context, ScriptEngi
     for (int i = 0; i < arguments.length(); i++) {
         auto arg = arguments[i];
 
-        QVariant::Type expectedType;
+        int expectedType;
         QVariant value;
 
-        if (arg.type() == QVariant::Map) {
+        if (oscVariantTypeId(arg) == QMetaType::QVariantMap) {
             auto map = arg.toMap();
             auto typeName = map.value("type").toString();
             if (!typeNameMap.contains(typeName[0])) {
@@ -410,7 +423,7 @@ ScriptValue OSCScriptingInterface::sendPacket(ScriptContext* context, ScriptEngi
             expectedType = typeNameMap[typeName[0]];
             value = map.value("value");
         } else {
-            expectedType = arg.type();
+            expectedType = oscVariantTypeId(arg);
             value = arg;
         }
 
@@ -420,17 +433,17 @@ ScriptValue OSCScriptingInterface::sendPacket(ScriptContext* context, ScriptEngi
         }
 
         switch (expectedType) {
-            case QVariant::Int: {
+            case QMetaType::Int: {
                 bytes.append(OSCTag::Int);
                 DataHelpers::write(bodyBytes, static_cast<qint32>(value.toDouble()));
             } break;
 
-            case QVariant::Double: {
+            case QMetaType::Double: {
                 bytes.append(OSCTag::Float);
                 DataHelpers::write(bodyBytes, static_cast<float>(value.toDouble()));
             } break;
 
-            case QVariant::String: {
+            case QMetaType::QString: {
                 bytes.append(OSCTag::String);
 
                 auto stringArg = value.toString();
@@ -444,7 +457,7 @@ ScriptValue OSCScriptingInterface::sendPacket(ScriptContext* context, ScriptEngi
                 pad4(bodyBytes);
             } break;
 
-            case QVariant::ByteArray: {
+            case QMetaType::QByteArray: {
                 bytes.append(OSCTag::Blob);
 
                 auto bytesArg = value.toByteArray();
@@ -456,7 +469,7 @@ ScriptValue OSCScriptingInterface::sendPacket(ScriptContext* context, ScriptEngi
                 pad4(bodyBytes);
             } break;
 
-            case QVariant::Bool:
+            case QMetaType::Bool:
                 bytes.append(value.toBool() ? OSCTag::True : OSCTag::False);
                 break;
 

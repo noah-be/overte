@@ -124,14 +124,18 @@ void FBXWriter::encodeNode(QDataStream& out, const FBXNode& node) {
 }
 
 void FBXWriter::encodeFBXProperty(QDataStream& out, const QVariant& prop) {
-    auto type = prop.userType();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    const int type = prop.metaType().id();
+#else
+    const int type = prop.userType();
+#endif
     switch (type) {
         case QMetaType::Short:
             out.device()->write("Y", 1);
             out << prop.value<int16_t>();
             break;
 
-        case QVariant::Type::Bool:
+        case QMetaType::Bool:
             out.device()->write("C", 1);
             out << prop.toBool();
             break;

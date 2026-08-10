@@ -29,15 +29,33 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
 # set our OS X deployment target
-if (APPLE)
+if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    # Current App Store submissions use the iOS 26 SDK, while Qt 6.11 supports
+    # deploying the resulting application to iOS 17 and newer.
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "17.0" CACHE STRING "Minimum iOS version")
+elseif (APPLE)
     # Needs to be set before the first project() call.
     set(CMAKE_OSX_DEPLOYMENT_TARGET "10.11" CACHE STRING "Specifies the minimum version of the target platform (e.g. macOS or iOS) on which the target binaries are to be deployed.")
 endif()
 
 
 project(overte)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    option(OVERTE_IOS_BOOTSTRAP_ONLY
+        "Build only the audited native iOS bootstrap boundary" ON)
+    if(OVERTE_IOS_BOOTSTRAP_ONLY)
+        add_subdirectory(ios)
+        return()
+    endif()
+    message(WARNING
+        "The integrated Overte iOS client graph is experimental. The supported "
+        "preparation target is OVERTE_IOS_BOOTSTRAP_ONLY=ON.")
+endif()
+
 include("cmake/init.cmake")
 include("cmake/compiler.cmake")
+include("cmake/QtCompat.cmake")
 
 # Guard against missing `-falign-functions`.
 if( NOT WIN32 )
@@ -97,7 +115,22 @@ set(OVERTE_BUILD_TOOLS ON CACHE BOOL "Build tools. Includes Oven, which is used 
 set(OVERTE_BUILD_INSTALLER ON CACHE BOOL "Build installer.")
 set(OVERTE_DISABLE_QML OFF CACHE BOOL "Build without QML. (For graphics debugging.)")
 set(OVERTE_DOWNLOAD_SERVERLESS_CONTENT OFF CACHE BOOL "Download and setup default serverless content beside Interface.")
-set(OVERTE_RENDERING_BACKEND "OpenGL" CACHE STRING "Which rendering backend to compile with. Valid options are: 'OpenGL' and 'Vulkan'.")
+if(IOS)
+    set(_overte_default_rendering_backend "Vulkan")
+else()
+    set(_overte_default_rendering_backend "OpenGL")
+endif()
+set(OVERTE_RENDERING_BACKEND "${_overte_default_rendering_backend}" CACHE STRING
+    "Which rendering backend to compile with. Valid options are: 'OpenGL' and 'Vulkan'.")
+unset(_overte_default_rendering_backend)
+
+# The full iOS client has no supported OpenGL presentation path. This check is
+# below the bootstrap-only early return, so the native bootstrap is unaffected.
+if(IOS AND NOT OVERTE_RENDERING_BACKEND STREQUAL "Vulkan")
+    message(FATAL_ERROR
+        "The iOS full-client graph requires OVERTE_RENDERING_BACKEND=Vulkan "
+        "and MoltenVK; OpenGL is not a supported iOS renderer.")
+endif()
 set(OVERTE_EXTERNAL_BUILD_ASSETS "https://build-deps.overte.org" CACHE INTERNAL "")
 set(OVERTE_TIMESERVER_URL "http://timestamp.comodoca.com?td=sha256" CACHE STRING "URL to timeserver used for signing executables.")
 set(OVERTE_USE_OPTIMIZED_IK OFF CACHE BOOL "Use optimized IK.")
@@ -108,7 +141,7 @@ set(OVERTE_USE_SYSTEM_LIBS OFF CACHE BOOL "Build with system dependencies.")
 set(OVERTE_BACKTRACE_URL "" CACHE STRING "URL to an endpoint for uploading crash-dumps. For example Sentry.")
 set(OVERTE_BACKTRACE_TOKEN "" CACHE STRING "Token used to identify this build, for use in uploading crash-dumps.")
 
-if (ANDROID OR UWP)
+if (ANDROID OR UWP OR IOS)
     set(OVERTE_BUILD_SERVER OFF CACHE BOOL FORCE "Overwritten (mobile build)")
     set(OVERTE_BUILD_TOOLS OFF CACHE BOOL FORCE "Overwritten (mobile build)")
     set(OVERTE_BUILD_INSTALLER OFF CACHE BOOL FORCE "Overwritten (mobile build)")
@@ -147,6 +180,9 @@ if (ANDROID)
   elseif(${HIFI_ANDROID_APP} STREQUAL "phoneInterface")
     add_definitions(-DANDROID_APP_PHONE_INTERFACE)
   endif()
+elseif(IOS)
+  set(PLATFORM_QT_COMPONENTS WebView Xml)
+  add_definitions(-DOVERTE_IOS)
 else ()
   set(PLATFORM_QT_COMPONENTS WebEngine Xml)
   add_definitions(-DHAVE_EXT_clip_cull_distance)
@@ -165,14 +201,26 @@ if (OVERTE_RENDERING_BACKEND STREQUAL "OpenGL")
 elseif (OVERTE_RENDERING_BACKEND STREQUAL "Vulkan")
     add_definitions(-DGPU_POINTER_STORAGE_RAW)
     # TODO: remove dependencies on gl libraries for Vulkan builds.
-    set(PLATFORM_GL_BACKEND gpu-gl-common gpu-gl gpu-vk vk)
+    if(IOS)
+        # The selected iOS backend implementations are Vulkan-only. Interface
+        # and display-plugins retain their separate, explicit `gl` links for
+        # shared GL-typed APIs; do not re-add the GL backend implementations
+        # to this platform backend list.
+        set(OVERTE_IOS_VULKAN_NATIVE_TARGETS gpu-vk vk)
+        set(OVERTE_IOS_VULKAN_LEGACY_GL_BRIDGE_TARGETS "")
+        set(PLATFORM_GL_BACKEND
+            ${OVERTE_IOS_VULKAN_LEGACY_GL_BRIDGE_TARGETS}
+            ${OVERTE_IOS_VULKAN_NATIVE_TARGETS})
+    else()
+        set(PLATFORM_GL_BACKEND gpu-gl-common gpu-gl gpu-vk vk)
+    endif()
     # Vulkan is the default rendering backend, no need to set any flags.
 else()
     message(FATAL_ERROR "Invalid OVERTE_RENDERING_BACKEND set. Expected 'OpenGL', or 'Vulkan'. Got '${OVERTE_RENDERING_BACKEND}'")
 endif()
 
 foreach(PLATFORM_QT_COMPONENT ${PLATFORM_QT_COMPONENTS})
-  list(APPEND PLATFORM_QT_LIBRARIES "Qt5::${PLATFORM_QT_COMPONENT}")
+  list(APPEND PLATFORM_QT_LIBRARIES "${OVERTE_QT_TARGET_PREFIX}${PLATFORM_QT_COMPONENT}")
 endforeach()
 
 message(STATUS "Use optimized IK:      " ${OVERTE_USE_OPTIMIZED_IK})
@@ -281,6 +329,12 @@ endif()
 
 if (OVERTE_BUILD_CLIENT)
   add_subdirectory(interface)
+  if (IOS)
+    # This is intentionally configured after Interface: its library macros have
+    # materialized the native networking/entity targets that the iOS client must
+    # reuse rather than replacing with a bootstrap protocol implementation.
+    add_subdirectory(ios/integration)
+  endif()
   if (APPLE)
     set_target_properties(Overte PROPERTIES FOLDER "Apps")
   else()

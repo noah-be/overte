@@ -16,7 +16,9 @@
 #include <condition_variable>
 #include <queue>
 
+#if !defined(OVERTE_IOS_VULKAN_DISABLE_QUICK_GL_COPY)
 #include <gl/Config.h>
+#endif
 
 #include <QtCore/QCoreApplication>
 #include <QtCore/QBuffer>
@@ -27,17 +29,19 @@
 
 #include <QtGui/QImage>
 #include <QtGui/QImageWriter>
+#if !defined(OVERTE_IOS_VULKAN_DISABLE_QUICK_GL_COPY)
 #include <QtGui/QOpenGLFramebufferObject>
+#endif
 
 #include <NumericalConstants.h>
 #include <DependencyManager.h>
 #include <GLMHelpers.h>
 
-#include <gl/QOpenGLContextWrapper.h>
 #include <vk/VKWidget.h>
-#include <gl/GLEscrow.h>
+#if !defined(Q_OS_IOS)
 #include <gl/Context.h>
 #include <gl/OffscreenGLCanvas.h>
+#endif
 
 #include <gpu/Texture.h>
 #include <gpu/FrameIO.h>
@@ -45,7 +49,9 @@
 #include <gpu/vk/VKShared.h>
 #include <gpu/vk/VKBackend.h>
 #include <gpu/vk/VKFramebuffer.h>
+#if !defined(Q_OS_IOS)
 #include <gpu/gl/GLTexelFormat.h>
+#endif
 #include <GeometryCache.h>
 
 #include <CursorManager.h>
@@ -517,7 +523,8 @@ void VulkanDisplayPlugin::submitFrame(const gpu::FramePointer& newFrame) {
     });
 }
 
-ktx::StoragePointer textureToKtxVulkan(const gpu::Texture& texture) {
+#if !defined(Q_OS_IOS)
+static ktx::StoragePointer textureToKtxVulkan(const gpu::Texture& texture) {
     ktx::Header header;
     {
         auto gpuDims = texture.getDimensions();
@@ -554,8 +561,17 @@ ktx::StoragePointer textureToKtxVulkan(const gpu::Texture& texture) {
     }
     return storage;
 }
+#endif
 
 void VulkanDisplayPlugin::captureFrame(const std::string& filename) const {
+#if defined(Q_OS_IOS)
+    Q_UNUSED(filename)
+    static bool loggedUnsupportedCapture { false };
+    if (!loggedUnsupportedCapture) {
+        loggedUnsupportedCapture = true;
+        qWarning() << "Vulkan frame-file capture is disabled on iOS: KTX1 requires the legacy GL format mapping";
+    }
+#else
     withOtherThreadContext([&] {
         using namespace gpu;
         TextureCapturer captureLambda = [&](const gpu::TexturePointer& texture)->storage::StoragePointer {
@@ -566,6 +582,7 @@ void VulkanDisplayPlugin::captureFrame(const std::string& filename) const {
             gpu::writeFrame(filename, _currentFrame, captureLambda);
         }
     });
+#endif
 }
 
 void VulkanDisplayPlugin::renderFromTexture(gpu::Batch& batch,
@@ -948,8 +965,13 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
         _vkWindow->_acquireCompleteSemaphore = VK_NULL_HANDLE;
         _vkWindow->_renderCompleteSemaphore = VK_NULL_HANDLE;
 
+        // GL driver memory queries do not describe Metal allocations on iOS.
+#if defined(Q_OS_IOS)
+        gpu::Backend::freeGPUMemSize.set(0);
+#else
         // VKTODO
         gpu::Backend::freeGPUMemSize.set(gpu::gl::getFreeDedicatedMemory());
+#endif
     } else if (alwaysPresent()) {
         refreshRateController->clockEndTime();
         internalPresent();
@@ -995,9 +1017,11 @@ void VulkanDisplayPlugin::swapBuffers() {
 void VulkanDisplayPlugin::withOtherThreadContext(std::function<void()> f) const {
     static auto presentThread = DependencyManager::get<VulkanPresentThread>();
     presentThread->withOtherThreadContext(f);
+#if !defined(Q_OS_IOS)
     if (!OffscreenGLCanvas::restoreThreadContext()) {
         qWarning("Unable to restore original OpenGL context");
     }
+#endif
 }
 
 bool VulkanDisplayPlugin::setDisplayTexture(const QString& name) {
@@ -1109,7 +1133,24 @@ void VulkanDisplayPlugin::updateCompositeFramebuffer() {
     }
 }
 
-void VulkanDisplayPlugin::copyTextureToQuickFramebuffer(NetworkTexturePointer networkTexture, QOpenGLFramebufferObject* target, GLsync* fenceSync) {
+bool VulkanDisplayPlugin::copyTextureToQuickFramebuffer(NetworkTexturePointer networkTexture,
+                                                        const QuickTextureCopyTarget& quickTarget) {
+#if defined(OVERTE_IOS_VULKAN_DISABLE_QUICK_GL_COPY)
+    Q_UNUSED(networkTexture);
+    Q_UNUSED(quickTarget.framebuffer);
+    if (quickTarget.completionToken) {
+        *quickTarget.completionToken = nullptr;
+    }
+    static bool loggedUnsupportedQuickCopy { false };
+    if (!loggedUnsupportedQuickCopy) {
+        loggedUnsupportedQuickCopy = true;
+        qCritical() << "Qt Quick OpenGL framebuffer copy is disabled on iOS Vulkan; "
+                       "a QRhi/Metal-native bridge is required";
+    }
+    return false;
+#else
+    auto* target = static_cast<QOpenGLFramebufferObject*>(quickTarget.framebuffer);
+    GLsync fenceSync { nullptr };
     // VKTODO
 #if 0
     auto glBackend = const_cast<VulkanDisplayPlugin&>(*this).getBackend();
@@ -1156,8 +1197,13 @@ void VulkanDisplayPlugin::copyTextureToQuickFramebuffer(NetworkTexturePointer ne
 
         // don't delete the textures!
         glDeleteFramebuffers(2, fbo);
-        *fenceSync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        fenceSync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     });
+#endif
+    if (quickTarget.completionToken) {
+        *quickTarget.completionToken = fenceSync;
+    }
+    return false;
 #endif
 }
 

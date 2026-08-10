@@ -263,14 +263,22 @@ void XMLHttpRequestClass::abortRequest() {
 
 void XMLHttpRequestClass::connectToReply(QNetworkReply* reply) {
     connect(reply, SIGNAL(finished()), this, SLOT(requestFinished()));
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+    connect(reply, &QNetworkReply::errorOccurred, this, &XMLHttpRequestClass::requestError);
+#else
     connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(requestError(QNetworkReply::NetworkError)));
+#endif
     connect(reply, SIGNAL(downloadProgress(qint64, qint64)), this, SLOT(requestDownloadProgress(qint64, qint64)));
     connect(reply, SIGNAL(metaDataChanged()), this, SLOT(requestMetaDataChanged()));
 }
 
 void XMLHttpRequestClass::disconnectFromReply(QNetworkReply* reply) {
     disconnect(reply, SIGNAL(finished()), this, SLOT(requestFinished()));
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+    disconnect(reply, &QNetworkReply::errorOccurred, this, &XMLHttpRequestClass::requestError);
+#else
     disconnect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(requestError(QNetworkReply::NetworkError)));
+#endif
     disconnect(reply, SIGNAL(downloadProgress(qint64, qint64)), this, SLOT(requestDownloadProgress(qint64, qint64)));
     disconnect(reply, SIGNAL(metaDataChanged()), this, SLOT(requestMetaDataChanged()));
 }

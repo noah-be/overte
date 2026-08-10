@@ -16,7 +16,9 @@
 
 #include <cmath>
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 #include <QDesktopWidget>
+#endif
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>
@@ -56,7 +58,9 @@
 #include <DomainAccountManager.h>
 #include <EntityScriptServerLogClient.h>
 #include <FramebufferCache.h>
+#if !defined(Q_OS_IOS)
 #include <gl/GLHelpers.h>
+#endif
 #include <GPUIdent.h>
 #include <graphics-scripting/GraphicsScriptingInterface.h>
 #include <hfm/ModelFormatRegistry.h>
@@ -127,7 +131,9 @@
 #include <ui/OffscreenQmlSurfaceCache.h>
 #include <ui/Snapshot.h>
 #include <ui/SnapshotAnimated.h>
+#if !defined(Q_OS_IOS)
 #include <ui/StandAloneJSConsole.h>
+#endif
 #include <ui/Stats.h>
 #include <ui/ToolbarScriptingInterface.h>
 #include <UserActivityLogger.h>
@@ -138,12 +144,14 @@
 #include "ApplicationEventHandler.h"
 #include "AudioClient.h"
 #include "DeadlockWatchdog.h"
+#ifdef USE_GL
 #include "GLCanvas.h"
+#endif
 #include "LocationBookmarks.h"
 #include "LODManager.h"
 #include "Menu.h"
 #include "ResourceRequestObserver.h"
-#if defined(Q_OS_MAC) || defined(Q_OS_WIN)
+#if (defined(Q_OS_MAC) && !defined(Q_OS_IOS)) || defined(Q_OS_WIN)
 #include "SpeechRecognizer.h"
 #endif
 #include "Util.h"
@@ -161,7 +169,7 @@ extern "C" {
 }
 #endif
 
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
 // On Mac OS, disable App Nap to prevent audio glitches while running in the background
 #include "AppNapDisabler.h"
 static AppNapDisabler appNapDisabler;   // disabled, while in scope
@@ -236,7 +244,11 @@ Application::Application(
 ) :
     QApplication(argc, argv),
 #ifdef USE_GL
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     _window(new MainWindow(desktop())),
+#else
+    _window(new MainWindow()),
+#endif
 #else
     _vkWindow(new VKWindow()),
     _vkWindowWrapper(QWidget::createWindowContainer(_vkWindow)),
@@ -604,7 +616,7 @@ void Application::registerScriptEngineWithApplicationServices(ScriptManagerPoint
 
     scriptEngine->registerGlobalObject(sgp, "Camera", &_myCamera);
 
-#if defined(Q_OS_MAC) || defined(Q_OS_WIN)
+#if (defined(Q_OS_MAC) && !defined(Q_OS_IOS)) || defined(Q_OS_WIN)
     scriptEngine->registerGlobalObject(sgp, "SpeechRecognizer", DependencyManager::get<SpeechRecognizer>().data());
 #endif
 
@@ -806,7 +818,7 @@ void Application::shareSnapshot(const QString& path, const QUrl& href) {
     });
 }
 
-#if defined(Q_OS_ANDROID)
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS) || defined(OVERTE_IOS)
 void Application::beforeEnterBackground() {
 #if defined(ANDROID_APP_PICO_INTERFACE)
     qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE beforeEnterBackground"
@@ -824,8 +836,9 @@ void Application::enterBackground() {
                               "stop", Qt::BlockingQueuedConnection);
 // Quest only supports one plugin which can't be deactivated currently
 #if !defined(ANDROID_APP_QUEST_INTERFACE)
-    if (getActiveDisplayPlugin()->isActive()) {
-        getActiveDisplayPlugin()->deactivate();
+    auto displayPlugin = getActiveDisplayPlugin();
+    if (displayPlugin && displayPlugin->isActive()) {
+        displayPlugin->deactivate();
     }
 #endif
 }
@@ -843,10 +856,12 @@ void Application::enterForeground() {
     nodeList->setSendDomainServerCheckInEnabled(true);
 }
 
+#if defined(Q_OS_ANDROID)
 void Application::toggleAwayMode(){
     QKeyEvent event = QKeyEvent (QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
     QCoreApplication::sendEvent (this, &event);
 }
+#endif
 #endif
 
 // FIXME?  perhaps two, one for the main thread and one for the offscreen UI rendering thread?
@@ -2024,6 +2039,10 @@ void Application::nodeActivated(SharedNodePointer node) {
     if (node->getType() == NodeType::EntityServer) {
         _queryExpiry = SteadyClock::now();
         _octreeQuery.incrementConnectionID();
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+        qInfo().noquote() << "OVERTE_IOS_ENTITY_GATE entity_server_active"
+                          << "node=" << node->getUUID().toString(QUuid::WithoutBraces);
+#endif
 
         if  (!_failedToConnectToEntityServer) {
             _entityServerConnectionTimer.stop();
@@ -2317,7 +2336,9 @@ void Application::cleanupBeforeQuit() {
     // These classes hold ScriptEnginePointers, so they must be destroyed before ScriptEngines
     // Must be done after shutdownScripting in case any scripts try to access these things
     {
+#if !defined(Q_OS_IOS)
         DependencyManager::destroy<StandAloneJSConsole>();
+#endif
         EntityTreePointer tree = getEntities()->getTree();
         tree->setSimulation(nullptr);
         DependencyManager::destroy<EntityTreeRenderer>();
@@ -2541,11 +2562,11 @@ void Application::idle() {
 #endif
             }
 
-#if !defined(ANDROID_APP_PHONE_INTERFACE)
+#if !defined(ANDROID_APP_PHONE_INTERFACE) && !defined(Q_OS_IOS)
             // Desktop GPU drivers can be replaced or rolled back by the user,
-            // so the blocklist warning is actionable there. Android GPU
+            // so the blocklist warning is actionable there. Mobile GPU
             // drivers are delivered with the OS and the desktop warning is
-            // misleading (and poorly sized) in the phone activity.
+            // not actionable there.
             QString os = platform::getComputer()[platform::keys::computer::OS].dump().c_str();
             os = os.replace("\"", "");
             GPUIdent* gpuIdent = GPUIdent::getInstance();

@@ -56,7 +56,9 @@
 #include "scripting/MenuScriptingInterface.h"
 #include "scripting/HMDScriptingInterface.h"
 #include "ui/DialogsManager.h"
+#if !defined(Q_OS_IOS)
 #include "ui/StandAloneJSConsole.h"
+#endif
 #include "InterfaceLogging.h"
 #include "LocationBookmarks.h"
 #include "DeferredLightingEffect.h"
@@ -64,7 +66,7 @@
 #include "crash-handler/CrashHandler.h"
 
 #include "scripting/SettingsScriptingInterface.h"
-#if defined(Q_OS_MAC) || defined(Q_OS_WIN)
+#if (defined(Q_OS_MAC) && !defined(Q_OS_IOS)) || defined(Q_OS_WIN)
 #include "SpeechRecognizer.h"
 #endif
 
@@ -169,7 +171,7 @@ Menu::Menu() {
     }
 
     // Edit > Avatar Packager
-#ifndef Q_OS_ANDROID
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
     action = addActionToQMenuAndActionHash(editMenu, MenuOption::AvatarPackager);
     connect(action, &QAction::triggered, [] {
         DependencyManager::get<AvatarPackager>()->open();
@@ -340,11 +342,13 @@ Menu::Menu() {
     MenuWrapper* scriptingOptionsMenu = developerMenu->addMenu("Scripting");
 
     // Developer > Scripting > Console...
+#if !defined(Q_OS_IOS)
     addActionToQMenuAndActionHash(scriptingOptionsMenu, MenuOption::Console, static_cast<int>(Qt::CTRL | Qt::ALT) | static_cast<int>(Qt::Key_J),
                                   DependencyManager::get<StandAloneJSConsole>().data(),
                                   SLOT(toggleConsole()),
                                   QAction::NoRole,
                                   UNSPECIFIED_POSITION);
+#endif
 
      // Developer > Scripting > API Debugger
     action = addActionToQMenuAndActionHash(scriptingOptionsMenu, "API Debugger");
@@ -355,6 +359,7 @@ Menu::Menu() {
     });
 
     // Developer > Scripting > Entity Script Server Log
+#if !defined(Q_OS_IOS)
     auto essLogAction = addActionToQMenuAndActionHash(scriptingOptionsMenu, MenuOption::EntityScriptServerLog, 0,
                                                       qApp, SLOT(toggleEntityScriptServerLogDialog()));
     {
@@ -365,6 +370,7 @@ Menu::Menu() {
         });
         essLogAction->setEnabled(nodeList->getThisNodeCanRez());
     }
+#endif
 
     // Developer > Scripting > Script Log (HMD friendly)...
     addActionToQMenuAndActionHash(scriptingOptionsMenu, "Script Log (HMD friendly)...", Qt::NoButton,
@@ -379,7 +385,7 @@ Menu::Menu() {
                                           qApp, SLOT(setCachebustRequire()));
 
     // Developer > Scripting > Enable Speech Control API
-#if defined(Q_OS_MAC) || defined(Q_OS_WIN)
+#if (defined(Q_OS_MAC) && !defined(Q_OS_IOS)) || defined(Q_OS_WIN)
     auto speechRecognizer = DependencyManager::get<SpeechRecognizer>();
     QAction* speechRecognizerAction = addCheckableActionToQMenuAndActionHash(scriptingOptionsMenu, MenuOption::ControlWithSpeech,
         static_cast<int>(Qt::CTRL | Qt::SHIFT) | static_cast<int>(Qt::Key_C),
@@ -633,7 +639,9 @@ Menu::Menu() {
 
     addCheckableActionToQMenuAndActionHash(avatarDebugMenu, MenuOption::ShowTrackedObjects, 0, false, qApp, SLOT(setShowTrackedObjects(bool)));
 
+#if !defined(Q_OS_IOS)
     addActionToQMenuAndActionHash(avatarDebugMenu, MenuOption::PackageModel, 0, qApp, SLOT(packageModel()));
+#endif
 
     // Developer > Hands >>>
     MenuWrapper* handOptionsMenu = developerMenu->addMenu("Hands");
@@ -661,7 +669,7 @@ Menu::Menu() {
     connect(action, &QAction::triggered, [] {
         // The following caches are cleared immediately
         DependencyManager::get<AssetClient>()->clearCache();
-#ifndef Q_OS_ANDROID
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
         FileTypeProfile::clearCache();
         HFWebEngineProfile::clearCache();
 #endif
@@ -825,8 +833,10 @@ Menu::Menu() {
     addCheckableActionToQMenuAndActionHash(developerMenu, MenuOption::AnimStats);
 
     // Developer > Log
+#if !defined(Q_OS_IOS)
     addActionToQMenuAndActionHash(developerMenu, MenuOption::Log, static_cast<int>(Qt::CTRL | Qt::SHIFT) | static_cast<int>(Qt::Key_L),
                                   qApp, SLOT(toggleLogDialog()));
+#endif
 
 #if 0 ///  -------------- REMOVED FOR NOW --------------
     addDisabledActionAndSeparator(navigateMenu, "History");

@@ -10,7 +10,6 @@
 #ifndef hifi_GraphicsEngine_h
 #define hifi_GraphicsEngine_h
 
-#include <gl/OffscreenGLCanvas.h>
 #ifdef USE_GL
 #include <gl/GLWidget.h>
 #else

@@ -14,6 +14,9 @@
 #include <QtGui/QKeyEvent>
 #include <QtGui/QMouseEvent>
 #include <QtGui/QTouchEvent>
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QtGui/QEventPoint>
+#endif
 #include <QGesture>
 
 #include <controllers/UserInputMapper.h>
@@ -200,11 +203,42 @@ void KeyboardMouseDevice::wheelEvent(QWheelEvent* event) {
     }
 }
 
-glm::vec2 evalAverageTouchPoints(const QList<QTouchEvent::TouchPoint>& points) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+using HifiTouchPoint = QEventPoint;
+
+const QList<QEventPoint>& hifiTouchPoints(const QTouchEvent* event) {
+    return event->points();
+}
+
+bool hifiTouchHasPressedPoint(const QTouchEvent* event) {
+    return event->touchPointStates().testFlag(QEventPoint::State::Pressed);
+}
+
+QPointF hifiTouchPointPosition(const QEventPoint& point) {
+    return point.position();
+}
+#else
+using HifiTouchPoint = QTouchEvent::TouchPoint;
+
+const QList<QTouchEvent::TouchPoint>& hifiTouchPoints(const QTouchEvent* event) {
+    return event->touchPoints();
+}
+
+bool hifiTouchHasPressedPoint(const QTouchEvent* event) {
+    return event->touchPointStates().testFlag(Qt::TouchPointPressed);
+}
+
+QPointF hifiTouchPointPosition(const QTouchEvent::TouchPoint& point) {
+    return point.pos();
+}
+#endif
+
+glm::vec2 evalAverageTouchPoints(const QList<HifiTouchPoint>& points) {
     glm::vec2 averagePoint(0.0f);
     if (points.count() > 0) {
-        for (auto& point : points) {
-            averagePoint += glm::vec2(point.pos().x(), point.pos().y()); 
+        for (const auto& point : points) {
+            const auto position = hifiTouchPointPosition(point);
+            averagePoint += glm::vec2(position.x(), position.y());
         }
         averagePoint /= (float)(points.count());
     }
@@ -244,8 +278,8 @@ void KeyboardMouseDevice::touchGestureEvent(const QGestureEvent* event) {
 
 void KeyboardMouseDevice::touchBeginEvent(const QTouchEvent* event) {
     if (_enableTouch) {
-        _isTouching = event->touchPointStates().testFlag(Qt::TouchPointPressed);
-        _lastTouch = evalAverageTouchPoints(event->touchPoints());
+        _isTouching = hifiTouchHasPressedPoint(event);
+        _lastTouch = evalAverageTouchPoints(hifiTouchPoints(event));
         _lastTouchTime = _clock.now();
     }
 }
@@ -253,14 +287,14 @@ void KeyboardMouseDevice::touchBeginEvent(const QTouchEvent* event) {
 void KeyboardMouseDevice::touchEndEvent(const QTouchEvent* event) {
     if (_enableTouch) {
         _isTouching = false;
-        _lastTouch = evalAverageTouchPoints(event->touchPoints());
+        _lastTouch = evalAverageTouchPoints(hifiTouchPoints(event));
         _lastTouchTime = _clock.now();
     }
 }
 
 void KeyboardMouseDevice::touchUpdateEvent(const QTouchEvent* event) {
     if (_enableTouch) {
-        auto currentPos = evalAverageTouchPoints(event->touchPoints());
+        auto currentPos = evalAverageTouchPoints(hifiTouchPoints(event));
         _lastTouchTime = _clock.now();
 
         if (!_isTouching) {

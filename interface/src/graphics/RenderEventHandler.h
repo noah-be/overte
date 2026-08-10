@@ -13,7 +13,6 @@
 #include <functional>
 #include <QEvent>
 #include <QElapsedTimer>
-#include "gl/OffscreenGLCanvas.h"
 
 enum ApplicationEvent {
     // Execute a lambda function

@@ -15,8 +15,10 @@
 
 #include <ui/TabletScriptingInterface.h>
 #include <OffscreenQmlDialog.h>
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
 #include <qtwebenginecoreversion.h>
 #include <QWebEngineProfile>
+#endif
 
 #include "BuildInfo.h"
 #include "DependencyManager.h"
@@ -43,10 +45,17 @@ QString AboutUtil::getQtVersion() const {
 }
 
 QString AboutUtil::getQtWebEngineVersion() const {
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
+    return QStringLiteral("Not available");
+#else
     return QTWEBENGINECORE_VERSION_STR;
+#endif
 }
 
 QString AboutUtil::getQtChromiumVersion() const {
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
+    return QStringLiteral("Not available");
+#else
     // Qt unfortunately doesn't provide a conventient way of getting the Chromium version,
     // and it seems internally it gets it from a constant specified on the compiler's command-line.
     //
@@ -60,6 +69,7 @@ QString AboutUtil::getQtChromiumVersion() const {
     }
 
     return version;
+#endif
 }
 
 void AboutUtil::openUrl(const QString& url) const {

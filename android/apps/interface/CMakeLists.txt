@@ -1,5 +1,5 @@
 set(TARGET_NAME native-lib)
-setup_hifi_library()
+setup_hifi_library(Core5Compat)
 link_hifi_libraries(shared task networking gl gpu qml image model-serializers hfm render-utils physics entities octree ${PLATFORM_GL_BACKEND})
 target_opengl()
 target_bullet()

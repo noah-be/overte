@@ -159,7 +159,9 @@ void FST::setModelPath(const QString& modelPath) {
 
 QMultiHash<QString, QVariant> FST::getMapping() const {
     QMultiHash<QString, QVariant> mapping;
-    mapping.unite(_other);
+    for (auto it = _other.cbegin(); it != _other.cend(); ++it) {
+        mapping.insert(it.key(), it.value());
+    }
     mapping.insert(NAME_FIELD, _name);
     mapping.insert(FILENAME_FIELD, _modelPath);
     for (const auto& scriptPath : _scriptPaths) {

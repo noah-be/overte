@@ -13,6 +13,7 @@
 
 #include <QFile>
 #include <QFileInfo>
+#include <QRegularExpression>
 #include <graphics/BufferViewHelpers.h>
 #include <graphics/Geometry.h>
 #include <hfm/ModelFormatLogging.h>
@@ -110,7 +111,7 @@ bool writeOBJToTextStream(QTextStream& out, QList<MeshPointer> meshes) {
 
         graphics::Index partCount = (graphics::Index)mesh->getNumParts();
         QString name = (!mesh->displayName.size() ? QString("mesh-%1-part").arg(nth) : QString::fromStdString(mesh->displayName))
-            .replace(QRegExp("[^-_a-zA-Z0-9]"), "_");
+            .replace(QRegularExpression(QStringLiteral("[^-_a-zA-Z0-9]")), QStringLiteral("_"));
         for (int partIndex = 0; partIndex < partCount; partIndex++) {
             const graphics::Mesh::Part& part = partBuffer.get<graphics::Mesh::Part>(partIndex);
 

@@ -1,0 +1,151 @@
+name: iOS experimental integrated client gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      qt_cache_key:
+        description: Existing GitHub Actions cache key containing an audited Qt 6 iOS tree
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      qt_cache_key:
+        description: Existing GitHub Actions cache key containing an audited Qt 6 iOS tree
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-integrated-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  host-contracts:
+    name: Host contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Run device-free contracts
+        run: ios/tests/run-tests.sh
+
+  integrated-configure:
+    name: Toolchain, dependencies, build and package
+    needs: host-contracts
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      OVERTE_IOS_QT_ROOT: ${{ github.workspace }}/build-ios/external/qt/ios
+      OVERTE_IOS_QT_HOST_ROOT: ${{ github.workspace }}/build-ios/external/qt/macos
+    steps:
+      - name: Check out requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Fail closed without an explicit Qt cache key
+        env:
+          QT_CACHE_KEY: ${{ inputs.qt_cache_key }}
+        run: |
+          if [[ -z "$QT_CACHE_KEY" ]]; then
+            echo "qt_cache_key must name a pre-populated, licensed Qt 6 iOS cache." >&2
+            exit 1
+          fi
+
+      - name: Restore externally provisioned Qt for iOS
+        id: qt-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: build-ios/external/qt
+          key: ${{ inputs.qt_cache_key }}
+          fail-on-cache-miss: true
+
+      - name: Toolchain preflight
+        run: |
+          test "${{ steps.qt-cache.outputs.cache-hit }}" = true
+          ios/tools/prepare-qt-ios.sh validate
+          ios/build-ios.sh doctor --platform device --require-qt
+
+      - name: Bootstrap pinned Conan tooling
+        run: ios/build-ios.sh bootstrap
+
+      - name: Resolve audited device dependencies
+        run: |
+          source build-ios/tooling-venv/bin/activate
+          ios/build-ios.sh deps --platform device --graphics-toolchain
+
+      - name: Configure experimental full client graph
+        run: |
+          mkdir -p build-ios/ci-raw-diagnostics
+          source build-ios/tooling-venv/bin/activate
+          ios/build-ios.sh configure --platform device --client-graph 2>&1 | tee build-ios/ci-raw-diagnostics/configure.log
+
+      - name: Build experimental full client
+        run: cmake --build build-ios/device --config Debug --target Overte 2>&1 | tee build-ios/ci-raw-diagnostics/xcode-build.log
+
+      - name: Package numbered unsigned client IPA
+        env:
+          OVERTE_IOS_ARTIFACT_SEQUENCE: ${{ github.run_number }}
+        run: ios/build-ios.sh package-client --platform device --configuration Debug 2>&1 | tee build-ios/ci-raw-diagnostics/package.log
+
+      - name: Verify build-ready release boundary
+        shell: bash
+        run: |
+          shopt -s nullglob
+          manifests=(build-ios/artifacts/*-OverteIOSClient-Debug-device-unsigned.json)
+          if (( ${#manifests[@]} != 1 )); then
+            echo "expected exactly one numbered integrated-client manifest" >&2
+            exit 1
+          fi
+          report="${manifests[0]%.json}-readiness.json"
+          python3 ios/tools/check-release-readiness.py build-ios/artifacts > "$report"
+          python3 - "$report" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          report = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if report.get("buildReady") is not True:
+              raise SystemExit("integrated artifact is not build-ready")
+          if report.get("deviceAccepted") is not False or report.get("status") != "build-ready":
+              raise SystemExit("device acceptance must not be claimed without device evidence")
+          PY
+
+      - name: Upload numbered client IPA, readiness report and VM metadata
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ github.run_number }}-overte-ios-integrated-device-${{ github.run_id }}
+          path: |
+            build-ios/artifacts/*-OverteIOSClient-Debug-device-unsigned.ipa
+            build-ios/artifacts/*-OverteIOSClient-Debug-device-unsigned.json
+            build-ios/artifacts/*-OverteIOSClient-Debug-device-unsigned-readiness.json
+            build-ios/artifacts/LATEST-OverteIOSClient.json
+            build-ios/artifacts/LATEST-OverteIOSClient.txt
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Sanitize failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p build-ios/ci-upload-diagnostics
+          for source in build-ios/ci-raw-diagnostics/*.log build-ios/device/CMakeFiles/CMakeConfigureLog.yaml; do
+            if [[ -f "$source" ]]; then
+              python3 ios/tools/sanitize-ci-log.py "$source" "build-ios/ci-upload-diagnostics/$(basename "$source")"
+            fi
+          done
+
+      - name: Upload sanitized failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ github.run_number }}-ios-integrated-failure-diagnostics-${{ github.run_id }}
+          path: build-ios/ci-upload-diagnostics/
+          if-no-files-found: ignore
+          retention-days: 7

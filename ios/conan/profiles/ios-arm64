@@ -1,0 +1,24 @@
+# Copyright 2026 Overte e.V.
+# SPDX-License-Identifier: Apache-2.0
+
+[settings]
+os=iOS
+os.version=17.0
+os.sdk=iphoneos
+arch=armv8
+compiler=apple-clang
+compiler.version=17
+compiler.libcxx=libc++
+compiler.cppstd=20
+build_type=Release
+
+[conf]
+tools.cmake.cmaketoolchain:generator=Xcode
+{% set sdk_path = os.getenv("OVERTE_IOS_DEVICE_SDK_PATH", "") %}
+{% if sdk_path %}
+tools.apple:sdk_path={{ sdk_path }}
+{% endif %}
+
+[options]
+*:shared=False
+*:fPIC=True

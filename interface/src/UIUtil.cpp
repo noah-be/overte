@@ -20,7 +20,7 @@ int UIUtil::getWindowTitleBarHeight(const QWidget* window) {
     options.titleBarFlags = Qt::Window;
     int titleBarHeight = window->style()->pixelMetric(QStyle::PM_TitleBarHeight, &options, window);
 
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     // The height on OSX is 4 pixels too tall
     titleBarHeight -= 4;
 #endif
@@ -45,7 +45,9 @@ void UIUtil::scaleWidgetFontSizes(QWidget* widget) {
     // and is the basis for all font sizes.
     const float BASE_DPI = 72.0f;
 
-#ifdef Q_OS_MAC
+#if defined(Q_OS_MAC) || defined(Q_OS_IOS)
+    // macOS and iOS both expose point-sized UI fonts. Do not apply the
+    // Windows/Linux 96-DPI compatibility shrink to iPad/iPhone text.
     const float NATIVE_DPI = 72.0f;
 #else
     const float NATIVE_DPI = 96.0f;

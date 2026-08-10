@@ -55,7 +55,9 @@
 #include <EntityScriptServerLogClient.h>
 #include <FingerprintUtils.h>
 #include <FramebufferCache.h>
+#if !defined(Q_OS_IOS)
 #include <gl/GLHelpers.h>
+#endif
 #include <GPUIdent.h>
 #include <graphics-scripting/GraphicsScriptingInterface.h>
 #include <gpu/Texture.h>
@@ -124,7 +126,9 @@
 #include <ui/OctreeStatsProvider.h>
 #include <ui/OffscreenQmlSurfaceCache.h>
 #include <ui/Snapshot.h>
+#if !defined(Q_OS_IOS)
 #include <ui/StandAloneJSConsole.h>
+#endif
 #include <ui/TabletScriptingInterface.h>
 #include <ui/ToolbarScriptingInterface.h>
 #include <UserActivityLogger.h>
@@ -140,7 +144,9 @@
 #include "DiscordRichPresence.h"
 #include "DiscoverabilityManager.h"
 #include "FileDialogHelper.h"
+#ifdef USE_GL
 #include "GLCanvas.h"
+#endif
 #include "InterfaceDynamicFactory.h"
 #include "InterfaceLogging.h"
 #include "InterfaceParentFinder.h"
@@ -151,7 +157,7 @@
 #ifndef USE_GL
 #include "vk/VKWindow.h"
 #endif
-#if defined(Q_OS_MAC) || defined(Q_OS_WIN)
+#if (defined(Q_OS_MAC) && !defined(Q_OS_IOS)) || defined(Q_OS_WIN)
 #include "SpeechRecognizer.h"
 #endif
 #include "Util.h"
@@ -389,7 +395,9 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     DependencyManager::set<UsersScriptingInterface>();
     DependencyManager::set<AvatarManager>();
     DependencyManager::set<LODManager>();
+#if !defined(Q_OS_IOS)
     DependencyManager::set<StandAloneJSConsole>();
+#endif
     DependencyManager::set<DialogsManager>();
     DependencyManager::set<ResourceCacheSharedItems>();
     DependencyManager::set<DesktopScriptingInterface>();
@@ -409,7 +417,7 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     DependencyManager::set<AssetMappingsScriptingInterface>();
     DependencyManager::set<DomainConnectionModel>();
 
-#if defined(Q_OS_MAC) || defined(Q_OS_WIN)
+#if (defined(Q_OS_MAC) && !defined(Q_OS_IOS)) || defined(Q_OS_WIN)
     DependencyManager::set<SpeechRecognizer>();
 #endif
     DependencyManager::set<DiscoverabilityManager>();
@@ -633,10 +641,10 @@ void Application::initialize(const QCommandLineParser &parser) {
             _overrideDefaultScriptsLocation = false;
         }
 
-        // If launched from Steam, let it handle updates. Android packages are
-        // updated by their installer/store and must not launch the desktop
-        // updater UI during startup.
-#if !defined(ANDROID_APP_PHONE_INTERFACE)
+        // If launched from Steam, let it handle updates. Android and iOS
+        // packages are updated by their installer/store and must not launch
+        // the desktop updater UI during startup.
+#if !defined(ANDROID_APP_PHONE_INTERFACE) && !defined(Q_OS_IOS)
         bool buildCanUpdate = BuildInfo::BUILD_TYPE == BuildInfo::BuildType::Stable
             || BuildInfo::BUILD_TYPE == BuildInfo::BuildType::Nightly;
         if (!parser.isSet("no-updater") && buildCanUpdate) {
@@ -930,7 +938,9 @@ void Application::initialize(const QCommandLineParser &parser) {
         // The value will be 0 if the user blew away settings this session, which is both a feature and a bug.
         static const QString TESTER = "HIFI_TESTER";
         auto gpuIdent = GPUIdent::getInstance();
+#if !defined(Q_OS_IOS)
         auto glContextData = gl::ContextInfo::get();
+#endif
         QJsonObject properties = {
             { "version", applicationVersion() },
             { "tester", QProcessEnvironment::systemEnvironment().contains(TESTER) || isTester },
@@ -947,11 +957,20 @@ void Application::initialize(const QCommandLineParser &parser) {
             { "gpu_name", gpuIdent->getName() },
             { "gpu_driver", gpuIdent->getDriver() },
             { "gpu_memory", static_cast<qint64>(gpuIdent->getMemory()) },
+#if defined(Q_OS_IOS)
+            { "graphics_backend", _graphicsEngine->getGPUContext()->getBackendVersion().c_str() },
+            { "gl_version_int", 0 },
+            { "gl_version", "" },
+            { "gl_vender", "" },
+            { "gl_sl_version", "" },
+            { "gl_renderer", "" },
+#else
             { "gl_version_int", glVersionToInteger(glContextData.version.c_str()) },
             { "gl_version", glContextData.version.c_str() },
             { "gl_vender", glContextData.vendor.c_str() },
             { "gl_sl_version", glContextData.shadingLanguageVersion.c_str() },
             { "gl_renderer", glContextData.renderer.c_str() },
+#endif
             { "ideal_thread_count", QThread::idealThreadCount() }
         };
         auto macVersion = QSysInfo::macVersion();
@@ -1059,7 +1078,7 @@ void Application::initialize(const QCommandLineParser &parser) {
 #endif
     });
     _applicationStateDevice->setInputVariant(STATE_PLATFORM_MAC, []() -> float {
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
         return 1;
 #else
         return 0;
@@ -1284,6 +1303,15 @@ void Application::initialize(const QCommandLineParser &parser) {
         properties["active_display_plugin"] = getActiveDisplayPlugin()->getName();
         properties["using_hmd"] = isHMDMode();
 
+#if defined(Q_OS_IOS)
+        properties["gl_info"] = QJsonObject{
+            { "version", "" },
+            { "sl_version", "" },
+            { "vendor", "" },
+            { "renderer", "" },
+            { "graphics_backend", qApp->getGPUContext()->getBackendVersion().c_str() },
+        };
+#else
         auto contextInfo = gl::ContextInfo::get();
         properties["gl_info"] = QJsonObject{
             { "version", contextInfo.version.c_str() },
@@ -1291,6 +1319,7 @@ void Application::initialize(const QCommandLineParser &parser) {
             { "vendor", contextInfo.vendor.c_str() },
             { "renderer", contextInfo.renderer.c_str() },
         };
+#endif
         properties["gpu_used_memory"] = (int)BYTES_TO_MB(gpu::Context::getUsedGPUMemSize());
         properties["gpu_free_memory"] = (int)BYTES_TO_MB(gpu::Context::getFreeGPUMemSize());
         const float gpuFrameTime = (float)(qApp->getGPUContext()->getFrameTimerGPUAverage());

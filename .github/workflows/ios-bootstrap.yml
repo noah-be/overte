@@ -1,0 +1,180 @@
+name: iOS bootstrap
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/ios-support
+  pull_request:
+    paths:
+      - 'CMakeLists.txt'
+      - '.github/workflows/ios-bootstrap.yml'
+      - 'cmake/QtCompat.cmake'
+      - 'cmake/init.cmake'
+      - 'cmake/compiler.cmake'
+      - 'cmake/macros/SetupHifiLibrary.cmake'
+      - 'cmake/macros/SetupHifiProject.cmake'
+      - 'cmake/macros/SetupHifiTestCase.cmake'
+      - 'cmake/macros/TargetV8.cmake'
+      - 'cmake/macros/TargetVulkan.cmake'
+      - 'cmake/modules/FindMoltenVK.cmake'
+      - 'docs/ios/**'
+      - 'interface/CMakeLists.txt'
+      - 'interface/resources/qml/controls/+ios/**'
+      - 'interface/src/AboutUtil.cpp'
+      - 'interface/src/main.cpp'
+      - 'libraries/script-engine/src/v8/ScriptEngineV8.cpp'
+      - 'libraries/shared/src/shared/FileUtils.cpp'
+      - 'libraries/ui/src/**'
+      - 'libraries/vk/**'
+      - 'ios/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-bootstrap-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  provision-qt-ios:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[qt-source]')
+    uses: ./.github/workflows/ios-qt-source.yml
+
+  integrated-ios-after-qt:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[qt-source]')
+    needs: provision-qt-ios
+    uses: ./.github/workflows/ios-integrated.yml
+    with:
+      qt_cache_key: ${{ needs.provision-qt-ios.outputs.qt_cache_key }}
+
+  host-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Run Linux preparation contracts
+        run: ios/tests/run-tests.sh
+
+  simulator:
+    needs: host-contracts
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Check out requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Run device-free contracts
+        run: ios/tests/run-tests.sh
+
+      - name: Verify Xcode environment
+        run: ios/build-ios.sh doctor --platform simulator
+
+      - name: Build unsigned simulator app
+        run: ios/build-ios.sh build --platform simulator --configuration Debug
+
+      - name: Verify app bundle
+        run: |
+          ios/ci/verify-app.sh \
+            build-ios/simulator/ios/Debug-iphonesimulator/OverteIOSBootstrap.app
+
+      - name: Launch on iPhone and iPad simulators
+        run: |
+          ios/ci/simulator-smoke.sh \
+            build-ios/simulator/ios/Debug-iphonesimulator/OverteIOSBootstrap.app \
+            org.overte.interface.dev \
+            build-ios/diagnostics
+
+      - name: Upload simulator failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: overte-ios-simulator-diagnostics-${{ github.run_id }}
+          path: build-ios/diagnostics
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Package unsigned simulator app
+        run: ios/build-ios.sh package --platform simulator --configuration Debug
+
+      - name: Upload simulator artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ github.run_number }}-overte-ios-bootstrap-simulator-${{ github.run_id }}
+          path: |
+            build-ios/artifacts/*-OverteIOSBootstrap-Debug-simulator.zip
+            build-ios/artifacts/*-OverteIOSBootstrap-Debug-simulator.json
+          if-no-files-found: error
+          retention-days: 7
+
+  unsigned-device-sdk:
+    needs: host-contracts
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - name: Check out requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Verify device SDK environment
+        run: ios/build-ios.sh doctor --platform device
+
+      - name: Compile and package unsigned arm64 device app
+        run: ios/build-ios.sh package --platform device --configuration Debug
+
+      - name: Verify unsigned device app bundle
+        run: |
+          ios/ci/verify-app.sh \
+            build-ios/device/ios/Debug-iphoneos/OverteIOSBootstrap.app \
+            org.overte.interface.dev \
+            iphoneos
+
+      - name: Verify unsigned device IPA
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import zipfile
+
+          root = pathlib.Path("build-ios/artifacts")
+          manifests = list(root.glob("*-OverteIOSBootstrap-Debug-device-unsigned.json"))
+          assert len(manifests) == 1, manifests
+          manifest_path = manifests[0]
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          ipa = root / manifest["artifact"]
+          assert manifest["platform"] == "iphoneos"
+          assert manifest["architecture"] == "arm64"
+          assert manifest["signed"] is False
+          assert manifest["requiresSigning"] is True
+          assert manifest["buildNumber"] == ${{ github.run_number }}
+          assert hashlib.sha256(ipa.read_bytes()).hexdigest() == manifest["sha256"]
+          required = {
+              "Payload/OverteIOSBootstrap.app/Info.plist",
+              "Payload/OverteIOSBootstrap.app/OverteIOSBootstrap",
+              "Payload/OverteIOSBootstrap.app/PrivacyInfo.xcprivacy",
+              "Payload/OverteIOSBootstrap.app/default.metallib",
+          }
+          with zipfile.ZipFile(ipa) as archive:
+              assert archive.testzip() is None
+              names = set(archive.namelist())
+          assert required <= names, required - names
+          print(f"Verified unsigned device IPA: {ipa}")
+          PY
+
+      - name: Upload unsigned device IPA
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ github.run_number }}-overte-ios-device-unsigned-${{ github.run_id }}
+          path: |
+            build-ios/artifacts/*-OverteIOSBootstrap-Debug-device-unsigned.ipa
+            build-ios/artifacts/*-OverteIOSBootstrap-Debug-device-unsigned.json
+          if-no-files-found: error
+          retention-days: 7

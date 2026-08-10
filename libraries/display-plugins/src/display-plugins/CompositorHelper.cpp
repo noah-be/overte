@@ -28,7 +28,6 @@
 #include <DependencyManager.h>
 #include <plugins/PluginManager.h>
 #include <CursorManager.h>
-#include <gl/GLWidget.h>
 
 #include "GeometryUtil.h"
 

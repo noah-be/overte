@@ -12,6 +12,9 @@
 #include "KeyboardMouseDevice.h"
 
 #include <QtGui/QTouchEvent>
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QEventPoint>
+#endif
 #include <QGestureEvent>
 #include <QGuiApplication>
 #include <QWindow>
@@ -22,6 +25,30 @@
 #include <NumericalConstants.h>
 
 const char* TouchscreenDevice::NAME = "Touchscreen";
+
+namespace {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+using OverteTouchscreenPoint = QEventPoint;
+#else
+using OverteTouchscreenPoint = QTouchEvent::TouchPoint;
+#endif
+
+const QList<OverteTouchscreenPoint>& touchscreenPoints(const QTouchEvent* event) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return event->points();
+#else
+    return event->touchPoints();
+#endif
+}
+
+QPointF touchscreenPosition(const OverteTouchscreenPoint& point) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return point.position();
+#else
+    return point.pos();
+#endif
+}
+}
 
 bool TouchscreenDevice::isSupported() const {
     for (auto touchDevice : QTouchDevice::devices()) {
@@ -73,8 +100,9 @@ void TouchscreenDevice::InputDevice::focusOutEvent() {
 }
 
 void TouchscreenDevice::touchBeginEvent(const QTouchEvent* event) {
-    const QTouchEvent::TouchPoint& point = event->touchPoints().at(0);
-    _firstTouchVec = glm::vec2(point.pos().x(), point.pos().y());
+    const auto& point = touchscreenPoints(event).at(0);
+    const auto position = touchscreenPosition(point);
+    _firstTouchVec = glm::vec2(position.x(), position.y());
     KeyboardMouseDevice::enableTouch(false);
     QScreen* eventScreen = event->window()->screen();
     if (_screenDPI != eventScreen->physicalDotsPerInch()) {
@@ -90,9 +118,10 @@ void TouchscreenDevice::touchEndEvent(const QTouchEvent* event) {
 }
 
 void TouchscreenDevice::touchUpdateEvent(const QTouchEvent* event) {
-    const QTouchEvent::TouchPoint& point = event->touchPoints().at(0);
-    _currentTouchVec = glm::vec2(point.pos().x(), point.pos().y());
-    _touchPointCount = event->touchPoints().count();
+    const auto& points = touchscreenPoints(event);
+    const auto position = touchscreenPosition(points.at(0));
+    _currentTouchVec = glm::vec2(position.x(), position.y());
+    _touchPointCount = points.count();
 }
 
 void TouchscreenDevice::touchGestureEvent(const QGestureEvent* event) {

@@ -8,6 +8,7 @@
 #
 
 set(TARGET_NAME opusCodec)
+set(OVERTE_IOS_STATIC_PLUGIN_CLASS AthenaOpusCodecProvider)
 setup_hifi_client_server_plugin()
 link_hifi_libraries(shared audio plugins)
 target_opus()

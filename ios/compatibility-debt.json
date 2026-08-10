@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "scope": "experimental-full-client",
+  "rules": [
+    {
+      "id": "qt5-cmake-api",
+      "pattern": "Qt5::|find_package\\s*\\(Qt5|\\bqt5_[A-Za-z_]",
+      "roots": ["CMakeLists.txt", "cmake", "interface", "libraries", "tools", "launchers"],
+      "extensions": [".cmake", ".txt"],
+      "files": [
+        "cmake/QtCompat.cmake"
+      ],
+      "exitCriterion": "Only cmake/QtCompat.cmake may retain Qt 5 symbols; desktop-only callers must be unreachable from iOS."
+    },
+    {
+      "id": "qt6-removed-audio-api",
+      "pattern": "\\bQAudio(?:DeviceInfo|Input|Output)\\b",
+      "roots": ["interface", "libraries"],
+      "extensions": [".cpp", ".h", ".hpp", ".mm"],
+      "files": [
+        "libraries/audio-client/src/AudioDeviceCompat.h"
+      ],
+      "exitCriterion": "The Qt 5-only names remain isolated behind AudioDeviceCompat compile guards until desktop Qt 5 support is removed; device naming and supported-channel enumeration remain behind the same boundary. Qt 6 uses QAudioDevice/QAudioSource/QAudioSink, QAudioDevice channel ranges, and preserves the 48 kHz network format."
+    },
+    {
+      "id": "core5compat-api",
+      "pattern": "\\b(?:QRegExp|QTextCodec|QStringRef)\\b",
+      "roots": ["interface", "libraries"],
+      "extensions": [".cpp", ".h", ".hpp", ".mm", ".in"],
+      "files": [],
+      "exitCriterion": "All listed uses move to current Qt 6 APIs and Core5Compat leaves the iOS component set."
+    },
+    {
+      "id": "webengine-cpp-boundary",
+      "pattern": "QWebEngine|QtWebEngine|qtwebengine",
+      "roots": ["interface", "libraries"],
+      "extensions": [".cpp", ".h", ".hpp", ".mm"],
+      "files": [
+        "interface/src/AboutUtil.cpp",
+        "interface/src/AboutUtil.h",
+        "interface/src/Application.cpp",
+        "interface/src/Application_Graphics.cpp",
+        "interface/src/Application_Setup.cpp",
+        "libraries/ui/src/ui/types/ContextAwareProfile.h",
+        "libraries/ui/src/ui/types/FileTypeProfile.cpp",
+        "libraries/ui/src/ui/types/FileTypeProfile.h",
+        "libraries/ui/src/ui/types/HFWebEngineProfile.cpp",
+        "libraries/ui/src/ui/types/HFWebEngineProfile.h",
+        "libraries/ui/src/ui/types/RequestFilters.cpp",
+        "libraries/ui/src/ui/types/RequestFilters.h"
+      ],
+      "exitCriterion": "Every listed compilation unit is excluded on iOS or consumes the platform web-surface abstraction."
+    },
+    {
+      "id": "qt6-audio-runtime-semantics",
+      "pattern": "Qt 6 audio sink state changed|hifiAudioSinkPullCapacity",
+      "roots": ["libraries/audio-client"],
+      "extensions": [".cpp", ".h"],
+      "files": [
+        "libraries/audio-client/src/AudioClient.cpp",
+        "libraries/audio-client/src/AudioDeviceCompat.h"
+      ],
+      "exitCriterion": "On-device evidence confirms QAudioSink pull-cadence starvation telemetry and validates the conservative buffer-size allocation bound without treating it as backend period or latency."
+    },
+    {
+      "id": "apple-desktop-framework",
+      "pattern": "find_library\\s*\\([^\\n]*(?:AppKit|OpenGL|IOKit|Carbon)",
+      "roots": ["CMakeLists.txt", "cmake", "interface", "libraries"],
+      "extensions": [".cmake", ".txt"],
+      "files": [
+        "interface/CMakeLists.txt",
+        "libraries/networking/CMakeLists.txt",
+        "libraries/platform/CMakeLists.txt",
+        "libraries/shared/CMakeLists.txt"
+      ],
+      "exitCriterion": "All matches remain inside explicit APPLE AND NOT IOS branches. Shared-library CGL GPU probing and IOKit power observation likewise remain behind Q_OS_MAC AND NOT Q_OS_IOS source guards."
+    },
+    {
+      "id": "apple-desktop-simd-flags",
+      "pattern": "elseif \\(NOT IOS AND \\(APPLE OR",
+      "roots": ["cmake/macros/SetupHifiLibrary.cmake"],
+      "extensions": [".cmake"],
+      "files": [
+        "cmake/macros/SetupHifiLibrary.cmake"
+      ],
+      "exitCriterion": "x86 SIMD compiler flags remain excluded from every iOS architecture while desktop x86 builds retain their optimized translation units."
+    },
+    {
+      "id": "apple-desktop-neuron-sdk",
+      "pattern": "WIN32 OR \\(APPLE AND NOT IOS\\)",
+      "roots": ["cmake/macros/TargetNeuron.cmake"],
+      "extensions": [".cmake"],
+      "files": [
+        "cmake/macros/TargetNeuron.cmake"
+      ],
+      "exitCriterion": "The desktop Neuron data-reader dependency remains absent from the iOS plugin graph unless its vendor ships a supported iOS SDK."
+    },
+    {
+      "id": "ios-desktop-crashpad-handler",
+      "pattern": "desktop handler packaging is not supported on iOS",
+      "roots": ["cmake/macros/AddCrashpad.cmake"],
+      "extensions": [".cmake"],
+      "files": [
+        "cmake/macros/AddCrashpad.cmake"
+      ],
+      "exitCriterion": "Crash reporting remains disabled on iOS until an in-process, sandbox-compatible implementation replaces desktop crashpad_handler copying."
+    },
+    {
+      "id": "ios-platform-backend-runtime-inventory",
+      "pattern": "class IOSInstance|Q_OS_IOS|PLATFORM_TARGET_SOURCES",
+      "roots": ["libraries/platform/CMakeLists.txt", "libraries/platform/src/platform/backend/IOSPlatform.h", "libraries/platform/src/platform/backend/Platform.cpp"],
+      "extensions": [".cpp", ".h", ".txt"],
+      "files": [
+        "libraries/platform/CMakeLists.txt",
+        "libraries/platform/src/platform/backend/IOSPlatform.h",
+        "libraries/platform/src/platform/backend/Platform.cpp"
+      ],
+      "exitCriterion": "Physical-device telemetry replaces conservative unknown GPU/display/memory values without reintroducing AppKit, ApplicationServices, CGL, or system_profiler."
+    },
+    {
+      "id": "ios-audio-session-device-validation",
+      "pattern": "setAudioSessionActive|overteIOSActivateAudioSession|APPLE AND NOT IOS|Q_OS_MACOS.*Q_OS_IOS|overteIOSMicrophonePermission|NSMicrophoneUsageDescription|MACOSX_BUNDLE_INFO_PLIST.*ios/resources",
+      "roots": ["ios/resources/Info.plist.in", "ios/resources/InterfaceInfo.plist.in", "ios/src/AppDelegate.mm", "interface/CMakeLists.txt", "libraries/audio-client/CMakeLists.txt", "libraries/audio-client/src/AudioClient.cpp", "libraries/audio-client/src/IOSAudioPermission.h", "libraries/audio-client/src/IOSAudioPermission.mm"],
+      "extensions": [".cpp", ".h", ".mm", ".txt", ".in"],
+      "files": [
+        "interface/CMakeLists.txt",
+        "ios/resources/Info.plist.in",
+        "ios/resources/InterfaceInfo.plist.in",
+        "ios/src/AppDelegate.mm",
+        "libraries/audio-client/CMakeLists.txt",
+        "libraries/audio-client/src/AudioClient.cpp",
+        "libraries/audio-client/src/IOSAudioPermission.h",
+        "libraries/audio-client/src/IOSAudioPermission.mm"
+      ],
+      "exitCriterion": "Physical-device evidence separately covers bootstrap and full-client activation, interruption begin/end with ShouldResume, background deactivation, speaker and Bluetooth-HFP routes, and microphone denial; compile-time bridge coverage is not device success."
+    },
+    {
+      "id": "ios-local-network-device-validation",
+      "pattern": "IOS_LOCAL_NETWORK_UDP_ERROR|iOS UDP datagram dropped|NSLocalNetworkUsageDescription",
+      "roots": ["ios/resources/Info.plist.in", "ios/resources/InterfaceInfo.plist.in", "libraries/networking/src/udt/NetworkSocket.cpp", "libraries/networking/src/udt/Socket.cpp"],
+      "extensions": [".cpp", ".in"],
+      "files": [
+        "ios/resources/Info.plist.in",
+        "ios/resources/InterfaceInfo.plist.in",
+        "libraries/networking/src/udt/NetworkSocket.cpp",
+        "libraries/networking/src/udt/Socket.cpp"
+      ],
+      "exitCriterion": "Physical-device evidence covers local-network allow, denial, Settings recovery, public-domain UDP, private-domain UDP, and confirms that diagnostics contain no peer address."
+    },
+    {
+      "id": "dynamic-plugin-packaging",
+      "pattern": "\\b(?:SHARED|PlugIns|PLUGIN_FULL_PATH|CLIENT_PLUGIN_FULL_PATH)\\b",
+      "roots": [
+        "cmake/macros/SetupHifiPlugin.cmake",
+        "cmake/macros/SetupHifiClientServerPlugin.cmake"
+      ],
+      "extensions": [".cmake"],
+      "files": [
+        "cmake/macros/SetupHifiClientServerPlugin.cmake",
+        "cmake/macros/SetupHifiPlugin.cmake"
+      ],
+      "exitCriterion": "Selected iOS plug-ins are static targets with explicit registration and no post-build binary copy."
+    }
+  ]
+}

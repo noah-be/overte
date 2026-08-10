@@ -523,7 +523,9 @@ public:
     void recyclePreviousFrame();
     void waitForGPU();
 
+#if !defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
     void releaseExternalTexture(GLuint id, const Texture::ExternalRecycler& recycler);
+#endif
 
     // VKTODO: quick hack
     VKFramebuffer *_outputTexture{ nullptr };
@@ -559,8 +561,10 @@ protected:
     std::vector<VkWriteDescriptorSet> storageVkWriteDescriptorSets;
     std::vector<VkDescriptorBufferInfo> storageVkDescriptorBufferInfo;
 
+#if !defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
     std::mutex _externalTexturesMutex;
     std::list<std::pair<GLuint, Texture::ExternalRecycler>> _externalTexturesTrash;
+#endif
 
     // Logical device, application's view of the physical device (GPU)
     // VkPipeline cache object

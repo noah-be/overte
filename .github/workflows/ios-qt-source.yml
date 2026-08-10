@@ -1,0 +1,77 @@
+# Copyright 2026 Overte e.V.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Provision Qt iOS source cache
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      qt_cache_key:
+        description: Deterministic cache key containing the validated Qt macOS and iOS trees
+        value: ${{ jobs.qt-ios-source.outputs.qt_cache_key }}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-qt-source-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  qt-ios-source:
+    runs-on: macos-26
+    timeout-minutes: 360
+    outputs:
+      qt_cache_key: ${{ steps.cache-key.outputs.value }}
+    env:
+      QT_WORK_ROOT: ${{ github.workspace }}/build-ios/qt-work
+      QT_INSTALL_ROOT: ${{ github.workspace }}/build-ios/qt-install/qt
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Verify source-build host tests
+        run: |
+          python3 ios/tools/tests/test-prepare-qt-ios.py
+          python3 ios/tools/tests/test-build-qt-ios-from-source.py
+
+      - name: Select deterministic cache key
+        id: cache-key
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcode_build="$(xcodebuild -version | awk '/Build version/{print $3}')"
+          plan_hash="$(shasum -a 256 ios/versions.env ios/tools/prepare-qt-ios.sh ios/tools/build-qt-ios-from-source.sh | shasum -a 256 | awk '{print $1}')"
+          echo "value=overte-qt-ios-6.11.1-${RUNNER_ARCH}-xcode-${xcode_build}-${plan_hash}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore exact Qt cache
+        id: qt-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.QT_INSTALL_ROOT }}
+          key: ${{ steps.cache-key.outputs.value }}
+
+      - name: Install source-build prerequisites
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        run: brew install cmake ninja
+
+      - name: Build minimal Qt host and iOS SDK
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        run: |
+          ios/tools/build-qt-ios-from-source.sh \
+            --work-root "$QT_WORK_ROOT" \
+            --install-root "$QT_INSTALL_ROOT"
+
+      - name: Validate restored or built Qt
+        run: |
+          ios/tools/prepare-qt-ios.sh validate \
+            "$QT_INSTALL_ROOT/ios" "$QT_INSTALL_ROOT/macos"
+
+      - name: Save exact Qt cache
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.QT_INSTALL_ROOT }}
+          key: ${{ steps.cache-key.outputs.value }}
