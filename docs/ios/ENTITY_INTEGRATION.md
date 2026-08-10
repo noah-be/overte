@@ -36,3 +36,21 @@ python3 ios/tools/validate-entity-gate-log.py ipad.log --output entity-acceptanc
 ```
 
 The command exits successfully only when all six markers occur in order, UUIDs and positive packet sizes are plausible, the query/data node matches the active entity server, and the rendered entity matches the first decoded entity. Its JSON output contains ordered evidence with source line numbers and diagnostics. Messages from the bootstrap preview such as “scene loaded” are not accepted as native entity evidence.
+
+On Fedora or Windows with Python 3, turn an already exported iPad text log into
+a minimal offline handoff (PowerShell uses the same arguments):
+
+```sh
+python3 ios/tools/prepare-entity-evidence.py ipad-export.log ipad-entity-evidence \
+  --source-revision 0123456789abcdef0123456789abcdef01234567 \
+  --bundle-sha256 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+  --os-version 18.0 --device-model "iPad Pro"
+```
+
+The command requires all six gates, refuses to overwrite an existing handoff,
+and creates both a directory and `ipad-entity-evidence.zip`. It does not access
+the iPad or invoke Apple tooling. To minimize disclosure, the ZIP contains only
+canonical gate records, the validator report, and provenance metadata. The full
+raw device log is not copied; its SHA-256 is recorded so the locally retained
+export can later be matched to the evidence. Review even the canonical UUIDs
+before sharing the ZIP outside the test team.
