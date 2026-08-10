@@ -655,6 +655,23 @@ def test_scope_contract() -> None:
         "iOS platform discovery must not probe graphics before the renderer owns a surface",
     )
 
+    fst_reader = SOURCE_ROOT / "libraries" / "model-serializers" / "src" / "FSTReader.cpp"
+    require_text(
+        fst_reader,
+        r"#if QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)\s+const bool hasJointHash = jointMapping\.metaType\(\)\.id\(\) == QMetaType::QVariantHash;",
+        "FST joint mappings must use the Qt 6 metatype API",
+    )
+    require_text(
+        fst_reader,
+        r"#else\s+const bool hasJointHash = jointMapping\.type\(\) == QVariant::Hash;\s+#endif",
+        "the model parser must retain its Qt 5 type check",
+    )
+    require_text(
+        fst_reader,
+        r"if \(mapping\.contains\(\"joint\"\) && hasJointHash\) \{\s+joints = mapping\.value\(\"joint\"\)\.toHash\(\);",
+        "the Qt 6 port must preserve FST joint-map extraction",
+    )
+
     octree_persist = SOURCE_ROOT / "libraries" / "octree" / "src" / "OctreePersistThread.cpp"
     require_text(octree_persist, r"#include <QRegularExpression>", "octree backup cleanup must use the Qt 6 regex API")
     require_text(octree_persist, r"QRegularExpression::anchoredPattern", "backup matching must preserve QRegExp exactMatch semantics")

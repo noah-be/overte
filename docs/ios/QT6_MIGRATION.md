@@ -52,6 +52,11 @@ and Metal telemetry is implemented, CPU/OS data comes from Qt, memory is
 reported as unknown, GPU/display arrays stay empty, and graphics probing waits
 for the renderer-owned surface. Desktop macOS enumeration is unchanged.
 
+The FST model reader now identifies its optional `joint` value with
+`QVariant::metaType()` on Qt 6, while Qt 5 retains `QVariant::type()`. Both
+branches recognize the same `QVariantHash` and feed the unchanged joint/body/
+head classification, so FST bytes and model-type prediction are unaffected.
+
 ## iOS audio-session lifecycle
 
 The bootstrap UIKit host configures `AVAudioSessionCategoryPlayAndRecord` with
@@ -356,6 +361,12 @@ On iOS, `/~/` file URLs resolve to the executable-adjacent `resources`
 directory populated by the Interface post-build rule. This keeps the packaged
 `serverless/tutorial.json` start scene reachable without assuming a macOS
 bundle hierarchy.
+
+Interface startup excludes the macOS Chromium/OpenGL default-surface setup on
+iOS as well as its `GLHelpers` include. The iOS process therefore reaches the
+existing fail-closed Vulkan selection without an undeclared desktop GL helper
+call or a legacy OpenGL surface-format override; desktop macOS behavior is
+unchanged.
 
 The script editor highlighter's complete eight-expression set now uses
 `QRegularExpression`. Keyword, quote, number, boolean, single-line comment,
