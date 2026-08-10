@@ -20,6 +20,7 @@ OCTREE_DIALOG = (ROOT / "interface/src/ui/OctreeStatsDialog.cpp").read_text()
 LOD_DIALOG = (ROOT / "interface/src/ui/LodToolsDialog.cpp").read_text()
 LOD_MANAGER = (ROOT / "interface/src/LODManager.cpp").read_text()
 HMD_TOOLS = (ROOT / "interface/src/ui/HMDToolsDialog.cpp").read_text()
+TESTING_DIALOG = (ROOT / "interface/src/ui/TestingDialog.cpp").read_text()
 
 
 def require(condition: bool, message: str) -> None:
@@ -117,6 +118,17 @@ require("#if !defined(Q_OS_IOS)\n#include \"HMDToolsDialog.h\"\n#else\n"
 require("void DialogsManager::hmdTools(bool showTools) {\n#if !defined(Q_OS_IOS)" in DIALOGS_MANAGER and
         "#else\n    Q_UNUSED(showTools)\n#endif" in DIALOGS_MANAGER,
         "desktop HMD tools window remains reachable on iOS")
+for testing_dialog_source in ("TestingDialog.cpp", "TestingDialog.h"):
+    require(f'"${{CMAKE_CURRENT_SOURCE_DIR}}/src/ui/{testing_dialog_source}"' in INTERFACE_CMAKE,
+            f"{testing_dialog_source} remains in the iOS compile/MOC graph")
+require("#if !defined(Q_OS_IOS)\n#include \"TestingDialog.h\"\n#else\n"
+        "class TestingDialog;\n#endif" in (ROOT / "interface/src/ui/DialogsManager.h").read_text(),
+        "desktop TestingDialog type remains included by the iOS manager header")
+require("Qt::WindowStaysOnTopHint" in TESTING_DIALOG and
+        "_console(new JSConsole(this))" in TESTING_DIALOG,
+        "TestingDialog is no longer demonstrably a desktop test-console window")
+require("maybeCreateDialog(_testingDialog)" not in DIALOGS_MANAGER,
+        "TestingDialog gained a manager creation path and must be re-audited")
 require("void DialogsManager::lodTools() {\n#if !defined(Q_OS_IOS)" in DIALOGS_MANAGER,
         "desktop LOD tools dialog remains reachable on iOS")
 require("QDialog(parent, Qt::Window | Qt::WindowCloseButtonHint | Qt::WindowStaysOnTopHint)" in LOD_DIALOG and

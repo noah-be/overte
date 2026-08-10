@@ -130,6 +130,8 @@ if(IOS)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/OctreeStatsDialog.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/StandAloneJSConsole.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/StandAloneJSConsole.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/TestingDialog.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/TestingDialog.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/UpdateDialog.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/UpdateDialog.h")
   set(INTERFACE_AUTO_UPDATER_LIBRARY "")

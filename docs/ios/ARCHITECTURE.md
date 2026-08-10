@@ -131,6 +131,9 @@ remain available to the tablet view and telemetry.
 `HMDToolsDialog.cpp/.h` is likewise omitted and its manager slot is a no-op on
 iOS. This removes the desktop multi-screen/HMD utility window without changing
 display-plugin selection or the iPad Vulkan presentation path.
+The uninstantiated desktop `TestingDialog` (an always-on-top JS test-console
+window with no current manager creation slot) is also omitted from the iOS
+compile/MOC graph.
 LOD controls likewise retain their `TabletLODTools.qml` presentation on iOS;
 the fixed-width, always-on-top QWidget fallback is desktop-only.
 Its `LodToolsDialog.cpp/.h` pair and the desktop-only refresh/window-watcher
