@@ -123,6 +123,9 @@ desktop installer metadata or offer a direct-download upgrade dialog.
 Its `UpdateDialog` QML type registration and dialog-manager entry point are
 excluded as well, keeping the unavailable desktop updater UI out of the iOS
 runtime registry without changing desktop builds.
+The iOS Interface CMake graph also omits `UpdateDialog.cpp/.h` and its now-unused
+`auto-updater` link, preventing dead desktop updater code and Network linkage
+from being retained solely by that feature.
 
 ## ADR-007: secret-free automation
 

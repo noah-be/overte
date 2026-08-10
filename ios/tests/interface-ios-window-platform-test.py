@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 APPLICATION_UI = (ROOT / "interface/src/Application_UI.cpp").read_text()
 APPLICATION_SETUP = (ROOT / "interface/src/Application_Setup.cpp").read_text()
 APPLICATION_GRAPHICS = (ROOT / "interface/src/Application_Graphics.cpp").read_text()
+INTERFACE_CMAKE = (ROOT / "interface/CMakeLists.txt").read_text()
 LOG_DIALOG = (ROOT / "interface/src/ui/LogDialog.cpp").read_text()
 BASE_LOG_DIALOG = (ROOT / "interface/src/ui/BaseLogDialog.cpp").read_text()
 MENU = (ROOT / "interface/src/Menu.cpp").read_text()
@@ -85,5 +86,12 @@ require("#if !defined(Q_OS_IOS)\n#include \"UpdateDialog.h\"\n#endif" in DIALOGS
         "void DialogsManager::showUpdateDialog() {\n#if !defined(Q_OS_IOS)\n"
         "    UpdateDialog::show();" in DIALOGS_MANAGER,
         "desktop UpdateDialog manager entry remains reachable on iOS")
+require("set(INTERFACE_AUTO_UPDATER_LIBRARY auto-updater)" in INTERFACE_CMAKE and
+        '"${CMAKE_CURRENT_SOURCE_DIR}/src/ui/UpdateDialog.cpp"' in INTERFACE_CMAKE and
+        '"${CMAKE_CURRENT_SOURCE_DIR}/src/ui/UpdateDialog.h"' in INTERFACE_CMAKE,
+        "desktop UpdateDialog sources remain in the iOS compile/moc graph")
+require('set(INTERFACE_AUTO_UPDATER_LIBRARY "")' in INTERFACE_CMAKE and
+        "qml ${INTERFACE_AUTO_UPDATER_LIBRARY} midi" in INTERFACE_CMAKE,
+        "unused desktop auto-updater remains linked into the iOS Interface")
 
 print("iOS window platform contract valid: desktop log/console windows preserved and mobile-excluded")

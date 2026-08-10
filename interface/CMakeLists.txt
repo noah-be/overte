@@ -108,6 +108,17 @@ if(IOS AND OVERTE_RENDERING_BACKEND STREQUAL "Vulkan")
     "${CMAKE_CURRENT_SOURCE_DIR}/src/GLCanvas.h")
 endif()
 
+# iOS packages update through their signing/distribution channel. The runtime
+# entry points are guarded in source, so do not moc/compile the desktop update
+# dialog or retain its otherwise unused updater library at link time.
+set(INTERFACE_AUTO_UPDATER_LIBRARY auto-updater)
+if(IOS)
+  list(REMOVE_ITEM INTERFACE_SRCS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/UpdateDialog.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/UpdateDialog.h")
+  set(INTERFACE_AUTO_UPDATER_LIBRARY "")
+endif()
+
 GroupSources("src")
 list(APPEND INTERFACE_SRCS ${RESOURCES_RCC})
 
@@ -321,7 +332,7 @@ link_hifi_libraries(
   pointers recording hfm model-serializers networking material-networking
   model-networking model-baker entities avatars
   audio audio-client animation physics
-  render-utils entities-renderer avatars-renderer ui qml auto-updater midi
+  render-utils entities-renderer avatars-renderer ui qml ${INTERFACE_AUTO_UPDATER_LIBRARY} midi
   controllers plugins image platform
   ui-plugins display-plugins input-plugins
   # Platform specific GL libraries
