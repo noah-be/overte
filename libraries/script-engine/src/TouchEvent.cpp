@@ -13,12 +13,40 @@
 
 #include "TouchEvent.h"
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QEventPoint>
+#endif
+
 #include <NumericalConstants.h>
 
 #include "RegisteredMetaTypes.h"
 #include "ScriptEngine.h"
 #include "ScriptValue.h"
 #include "ScriptValueUtils.h"
+
+namespace {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+using OverteScriptTouchPoint = QEventPoint;
+#else
+using OverteScriptTouchPoint = QTouchEvent::TouchPoint;
+#endif
+
+const QList<OverteScriptTouchPoint>& eventTouchPoints(const QTouchEvent& event) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return event.points();
+#else
+    return event.touchPoints();
+#endif
+}
+
+QPointF eventTouchPosition(const OverteScriptTouchPoint& point) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return point.position();
+#else
+    return point.pos();
+#endif
+}
+}
 
 TouchEvent::TouchEvent() :
     x(0.0f),
@@ -73,17 +101,18 @@ float angleBetweenPoints(const glm::vec2& a, const glm::vec2& b ) {
 
 void TouchEvent::initWithQTouchEvent(const QTouchEvent& event) {
     // convert the touch points into an average
-    const QList<QTouchEvent::TouchPoint>& tPoints = event.touchPoints();
+    const QList<OverteScriptTouchPoint>& tPoints = eventTouchPoints(event);
     float touchAvgX = 0.0f;
     float touchAvgY = 0.0f;
     touchPoints = tPoints.count();
     if (touchPoints > 1) {
         for (int i = 0; i < touchPoints; ++i) {
-            touchAvgX += (float)tPoints[i].pos().x();
-            touchAvgY += (float)tPoints[i].pos().y();
+            const auto position = eventTouchPosition(tPoints[i]);
+            touchAvgX += (float)position.x();
+            touchAvgY += (float)position.y();
 
             // add it to our points vector
-            glm::vec2 thisPoint(tPoints[i].pos().x(), tPoints[i].pos().y());
+            glm::vec2 thisPoint(position.x(), position.y());
             points << thisPoint;
         }
         touchAvgX /= (float)(touchPoints);
@@ -91,8 +120,9 @@ void TouchEvent::initWithQTouchEvent(const QTouchEvent& event) {
     } else {
         // I'm not sure this should ever happen, why would Qt send us a touch event for only one point?
         // maybe this happens in the case of a multi-touch where all but the last finger is released?
-        touchAvgX = tPoints[0].pos().x();
-        touchAvgY = tPoints[0].pos().y();
+        const auto position = eventTouchPosition(tPoints[0]);
+        touchAvgX = position.x();
+        touchAvgY = position.y();
     }
     x = touchAvgX;
     y = touchAvgY;
@@ -102,7 +132,8 @@ void TouchEvent::initWithQTouchEvent(const QTouchEvent& event) {
     float maxRadius = 0.0f;
     glm::vec2 center(x,y);
     for (int i = 0; i < touchPoints; ++i) {
-        glm::vec2 touchPoint(tPoints[i].pos().x(), tPoints[i].pos().y());
+        const auto position = eventTouchPosition(tPoints[i]);
+        glm::vec2 touchPoint(position.x(), position.y());
         float thisRadius = glm::distance(center,touchPoint);
         if (thisRadius > maxRadius) {
             maxRadius = thisRadius;
