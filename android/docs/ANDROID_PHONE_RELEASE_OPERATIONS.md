@@ -132,7 +132,7 @@ separate runbook. Never place such a key in the store-neutral environment.
 
 ## Recommended GitHub settings after push
 
-Protect `feature/android-phone-support` with pull requests, at least one
+Protect `android-phone` with pull requests, at least one
 independent approval, dismissal of stale approvals, conversation resolution,
 linear history, and no force pushes or deletion. Require branches to be current
 before merge and require these checks from `Android tests`:

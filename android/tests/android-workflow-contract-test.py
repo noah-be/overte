@@ -75,7 +75,7 @@ class AndroidTestWorkflowContracts(unittest.TestCase):
         )
 
     def test_phone_branch_and_ci_work_are_checked(self):
-        self.assertIn("feature/android-phone-support", self.source)
+        self.assertIn("android-phone", self.source)
         self.assertIn('"ci/android-phone-**"', self.source)
         self.assertIn('"test/android-**"', self.source)
 
@@ -97,7 +97,7 @@ class AndroidPhoneBuildWorkflowContracts(unittest.TestCase):
 
     def test_build_accepts_only_reviewed_branch_or_immutable_release_tags(self):
         self.assertIn("Reject untrusted build refs", self.source)
-        self.assertIn("refs/heads/feature/android-phone-support", self.source)
+        self.assertIn("refs/heads/android-phone", self.source)
         self.assertIn("refs/tags/android-phone-v[0-9]+", self.source)
 
     def test_build_is_clean_reproducible_and_fail_closed(self):

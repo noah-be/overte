@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches:
-      - feature/pico4-support
+      - android-vr-pico
       - "ci/**"
       - "test/**"
   workflow_dispatch:
