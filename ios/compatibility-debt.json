@@ -36,7 +36,6 @@
       "files": [
         "interface/src/ScriptHighlighting.cpp",
         "interface/src/ScriptHighlighting.h",
-        "interface/src/ui/BaseLogDialog.cpp",
         "interface/src/ui/JSConsole.cpp",
         "interface/src/ui/ModelsBrowser.cpp",
         "libraries/script-engine/src/ScriptManager.cpp",

@@ -820,6 +820,19 @@ def test_scope_contract() -> None:
     if "QRegExp" in application_graphics.read_text(encoding="utf-8"):
         raise AssertionError("Application_Graphics retained removed QRegExp API")
 
+    base_log_dialog = SOURCE_ROOT / "interface" / "src" / "ui" / "BaseLogDialog.cpp"
+    require_text(base_log_dialog, r'#include <QRegularExpression>', "log highlighting must use the Qt 6 regex API")
+    require_text(base_log_dialog, r'auto match = expression\.match\(text\);', "bold log scanning must begin at the first match")
+    require_text(base_log_dialog, r'const int index = match\.capturedStart\(\);', "bold formatting must begin at the matched range")
+    require_text(base_log_dialog, r'const int length = match\.capturedLength\(\);', "bold formatting must retain matched length")
+    require_text(
+        base_log_dialog,
+        r'match = expression\.match\(text, index \+ length\);',
+        "bold log scanning must advance beyond the prior matched range",
+    )
+    if "QRegExp" in base_log_dialog.read_text(encoding="utf-8"):
+        raise AssertionError("BaseLogDialog retained removed QRegExp API")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,

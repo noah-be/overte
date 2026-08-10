@@ -259,6 +259,12 @@ the built-in empty entry, settings retrieval, and validator installation are
 unchanged. `Application_Graphics.cpp` therefore leaves the Core5Compat
 inventory.
 
+The desktop log dialog's bold timestamp/source highlighter now scans with
+`QRegularExpression`. Every formatted range still starts at the match, uses
+the full match length, and resumes immediately after that range. The existing
+greedy `BOLD_PATTERN`, keyword highlighting, colors, and search navigation are
+unchanged. `BaseLogDialog.cpp` therefore leaves the Core5Compat inventory.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant
