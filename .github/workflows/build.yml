@@ -13,6 +13,21 @@ on:
   # Keep in mind that GitHub Actions does not allow reading secrets during PR builds.
   pull_request:
     types: [opened, synchronize, reopened]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - ".github/workflows/android-phone-build.yml"
+      - ".github/workflows/android-tests.yml"
+      - ".github/workflows/build.yml"
+      - ".github/workflows/documentation-checks.yml"
+      - ".github/workflows/ios-bootstrap.yml"
+      - ".github/workflows/macos-bootstrap.yml"
+      - ".github/workflows/pico4-build.yml"
+      - ".github/workflows/project-tests.yml"
+      - "android/tests/**"
+      - "ios/tests/**"
+      - "tests/workflow-contract-test.py"
+      - "tests/check-documentation.py"
   push:
     tags:
       # Release tags. E.g. 2024.06.1

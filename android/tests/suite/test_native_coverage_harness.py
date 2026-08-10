@@ -23,7 +23,7 @@ class NativeCoverageHarnessTest(unittest.TestCase):
         executable(cmake, "printf 'cmake\\n' >>\"$TOOL_LOG\"\n")
         executable(ctest, "printf 'ctest\\n' >>\"$TOOL_LOG\"\n")
         executable(gcovr, r'''
-printf 'gcovr\n' >>"$TOOL_LOG"
+printf 'gcovr:%s\n' "$PWD" >>"$TOOL_LOG"
 count=0
 [[ -f "$GCOVR_COUNT" ]] && read -r count <"$GCOVR_COUNT"
 count=$((count + 1))
@@ -105,7 +105,8 @@ printf '<html>coverage</html>\n' >"$html"
     def test_success_publishes_all_reports_after_the_gates(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            result = subprocess.run([RUNNER], env=self.fixture(root),
+            environment = self.fixture(root)
+            result = subprocess.run([RUNNER], env=environment,
                                     text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             self.assertEqual(0, result.returncode, result.stdout)
             reports = root / "reports"
@@ -114,6 +115,10 @@ printf '<html>coverage</html>\n' >"$html"
                 {path.name for path in reports.glob("*.xml")})
             self.assertEqual(3, len(list(reports.glob("*.html"))))
             self.assertEqual([], list(reports.glob(".native-coverage.*")))
+            gcovr_calls = [line for line in Path(environment["TOOL_LOG"])
+                           .read_text(encoding="utf-8").splitlines()
+                           if line.startswith("gcovr:")]
+            self.assertEqual([f"gcovr:{ANDROID_ROOT.parent}"] * 3, gcovr_calls)
 
     @unittest.skipUnless(os.name == "posix", "flock fixture is POSIX-specific")
     def test_success_status_without_a_required_output_is_rejected(self):

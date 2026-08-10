@@ -63,7 +63,10 @@ Building is currently supported on Windows, OSX and Linux, but developers intend
 
 ### OS specific dependencies
 
-Please install the dependencies for your OS using the [Windows](BUILD_WIN.md), [OSX](BUILD_OSX.md) or [Linux](BUILD_LINUX.md) build instructions before attempting to build for Android.
+Please install the dependencies for your OS using the [Windows](BUILD_WIN.md),
+[current macOS](docs/interfaces/macos/BUILD.md), or [Linux](BUILD_LINUX.md)
+instructions before attempting to build for Android. Note that the current
+Android port itself is maintained on 64-bit Linux.
 
 ### Android Studio
 
