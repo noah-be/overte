@@ -126,4 +126,23 @@ digests, evidence for every pass or failure, an explanation for every blocked
 case, and repository-relative evidence paths. This prevents a partial or mixed
 build run from being mistaken for device acceptance.
 
+## Read-only readiness summary
+
+After artifact handoff verification, optionally combine it with the entity-gate
+ZIP without changing either input:
+
+```bash
+python3 ios/tools/check-release-readiness.py build-ios/artifacts
+python3 ios/tools/check-release-readiness.py build-ios/artifacts \
+  --entity-evidence ipad-entity-evidence.zip
+```
+
+The first command can report `build-ready` after checking the numbered manifest,
+SHA, Windows handoff pointers, embedded Info.plist, privacy allowlist, iPhone/iPad
+family and minimum-OS metadata. It never calls that state device acceptance. The
+second reports `device-accepted` only when the six-gate iPad evidence is accepted
+and bound to the exact source revision and artifact SHA. Invalid supplied
+evidence blocks readiness rather than being silently ignored. The aggregator is
+read-only and performs no upload, signing, VM, or device operation.
+
 For an iPad-only, no-Mac workflow, continue with `IPAD_REMOTE_TESTING.md`.
