@@ -119,7 +119,7 @@ QUrl PathUtils::expandToLocalDataAbsolutePath(const QUrl& fileUrl) {
         // this results in a qrc:// url...
         // return resourcesUrl(path.mid(3));
 
-#ifdef Q_OS_MAC
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
         static const QString staticResourcePath = QCoreApplication::applicationDirPath() + "/../Resources/";
 #elif defined(Q_OS_ANDROID) || defined(ANDROID)
         const QString appLocalDataPath =
