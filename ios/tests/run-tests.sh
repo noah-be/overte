@@ -62,6 +62,7 @@ done
 
 python3 "$script_dir/sbom-test.py"
 python3 "$script_dir/windows-handoff-test.py"
+python3 "$script_dir/variant-map-script-value-qt6-contract-test.py"
 python3 "$script_dir/release-readiness-test.py"
 python3 "$script_dir/ci-log-sanitizer-test.py"
 python3 "$script_dir/pending-deep-link-test.py"
