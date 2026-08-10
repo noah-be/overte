@@ -420,6 +420,8 @@ def test_cmake_boundary() -> None:
     require_text(audio_compat, r"capacity bound, not a latency or callback-cadence estimate", "Qt 6 buffer size must not be misreported as a backend period")
     require_text(audio_compat, r"setSampleFormat\(QAudioFormat::Int16\)", "Qt 6 network PCM must remain signed 16-bit")
     require_text(audio_compat, r"return device\.description\(\);", "Qt 6 device naming must use QAudioDevice::description")
+    require_text(audio_compat, r"hifiAudioDeviceSupportsChannelCount", "channel-count capability must remain behind the Qt 5/6 adapter")
+    require_text(audio_compat, r"minimumChannelCount\(\).*maximumChannelCount\(\)", "Qt 6 channel capability must use QAudioDevice range APIs")
     hifi_audio_device = SOURCE_ROOT / "libraries" / "audio-client" / "src" / "HifiAudioDeviceInfo.h"
     require_text(hifi_audio_device, r"HifiQtAudioDevice", "audio device model must consume the compatibility type")
     if "QAudioDeviceInfo" in hifi_audio_device.read_text(encoding="utf-8"):
@@ -444,6 +446,11 @@ def test_cmake_boundary() -> None:
     require_text(audio_client_source, r"return false;\s*// a supported format could not be found", "unsupported audio formats must fail closed")
     if "QAudioDeviceInfo" in audio_client_source.read_text(encoding="utf-8"):
         raise AssertionError("AudioClient bypassed QMediaDevices/QAudioDevice compatibility helpers")
+    if re.search(r"(?:\bdevice|devices\.(?:first|last)\(\)|getDevice\(\))\.deviceName\(\)", audio_client_source.read_text(encoding="utf-8")):
+        raise AssertionError("AudioClient bypassed the Qt 5/6 device-name adapter")
+    if "supportedChannelCounts()" in audio_client_source.read_text(encoding="utf-8"):
+        raise AssertionError("AudioClient retained the removed Qt 5 channel-count API")
+    require_text(audio_client_source, r"hifiAudioDeviceSupportsChannelCount\([^,]+, 2\)", "stereo-input availability must use the Qt 5/6 capability adapter")
     require_text(audio_client_source, r"Q_OS_MACOS.*!defined\(Q_OS_IOS\)", "desktop AudioHardware must be excluded from iOS")
     audio_client_cmake = SOURCE_ROOT / "libraries" / "audio-client" / "CMakeLists.txt"
     require_text(audio_client_cmake, r"if \(APPLE AND NOT IOS\)", "desktop CoreAudio linkage must be excluded from iOS")

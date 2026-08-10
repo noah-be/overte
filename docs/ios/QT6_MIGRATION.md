@@ -452,6 +452,11 @@ entity-tree mutation, renderer payload, or bootstrap lifecycle mock was changed.
 Qt 6 replaced the legacy QAudioDeviceInfo/QAudioInput/QAudioOutput and sample
 format APIs. The migration must be implemented behind the audio-client device
 boundary and verified against the existing 48 kHz signed-16-bit network format.
+Device display names and channel-count capability also cross that boundary:
+Qt 6 uses `QAudioDevice::description()` and its minimum/maximum channel range,
+while the retained Qt 5 build continues to use `deviceName()` and
+`supportedChannelCounts()`. `AudioClient` must not call either generation's
+device-discovery API directly.
 Platform-native AVAudioSession policy remains in the iOS shell and must not be
 duplicated by desktop code.
 

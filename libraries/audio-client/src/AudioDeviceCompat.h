@@ -37,6 +37,10 @@ inline QList<HifiQtAudioDevice> hifiAvailableAudioDevices(HifiAudioDeviceMode mo
 inline HifiQtAudioDevice hifiDefaultAudioDevice(HifiAudioDeviceMode mode) {
     return mode == HifiAudioDeviceMode::Input ? QMediaDevices::defaultAudioInput() : QMediaDevices::defaultAudioOutput();
 }
+
+inline bool hifiAudioDeviceSupportsChannelCount(const HifiQtAudioDevice& device, int channelCount) {
+    return channelCount >= device.minimumChannelCount() && channelCount <= device.maximumChannelCount();
+}
 #else
 #include <QAudio>
 #include <QAudioDeviceInfo>
@@ -62,6 +66,10 @@ inline QList<HifiQtAudioDevice> hifiAvailableAudioDevices(HifiAudioDeviceMode mo
 inline HifiQtAudioDevice hifiDefaultAudioDevice(HifiAudioDeviceMode mode) {
     return mode == HifiAudioDeviceMode::Input ?
         QAudioDeviceInfo::defaultInputDevice() : QAudioDeviceInfo::defaultOutputDevice();
+}
+
+inline bool hifiAudioDeviceSupportsChannelCount(const HifiQtAudioDevice& device, int channelCount) {
+    return device.supportedChannelCounts().contains(channelCount);
 }
 #endif
 

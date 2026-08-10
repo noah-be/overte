@@ -476,7 +476,7 @@ QList<HifiAudioDeviceInfo> getAvailableDevices(HifiAudioDeviceMode mode, const Q
     QList<HifiAudioDeviceInfo> newDevices;
     for (auto& device : devices) {
         newDevices.push_back(HifiAudioDeviceInfo(device, false, mode));
-        if (device.deviceName() == defDeviceName.trimmed()) {
+        if (hifiAudioDeviceName(device) == defDeviceName.trimmed()) {
             defaultDesktopDevice = HifiAudioDeviceInfo(device, true, mode, HifiAudioDeviceInfo::both);
         }
     }
@@ -484,7 +484,7 @@ QList<HifiAudioDeviceInfo> getAvailableDevices(HifiAudioDeviceMode mode, const Q
     if (defaultDesktopDevice.getDevice().isNull()) {
         if (devices.size() > 0) {
             qCDebug(audioclient) << __FUNCTION__ << "Default device not found in list:" << defDeviceName
-                << "Setting Default to: " << devices.first().deviceName();
+                << "Setting Default to: " << hifiAudioDeviceName(devices.first());
             newDevices.push_front(HifiAudioDeviceInfo(devices.first(), true, mode, HifiAudioDeviceInfo::both));
         } else {
             //current audio list is empty for some reason.
@@ -2377,7 +2377,8 @@ void AudioClient::setAcousticEchoCancellation(bool enable, bool emitSignal) {
 
 bool AudioClient::setIsStereoInput(bool isStereoInput) {
     bool stereoInputChanged = false;
-    if (isStereoInput != _isStereoInput && _inputDeviceInfo.getDevice().supportedChannelCounts().contains(2)) {
+    if (isStereoInput != _isStereoInput &&
+            hifiAudioDeviceSupportsChannelCount(_inputDeviceInfo.getDevice(), 2)) {
         _isStereoInput = isStereoInput;
         stereoInputChanged = true;
 
