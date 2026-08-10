@@ -10,13 +10,15 @@
 
 #include "ResourceImageItem.h"
 
+#include <QDebug>
+
+#if !defined(Q_OS_IOS)
 #include <gl/Config.h>
 #include <gl/GLHelpers.h>
 #include <QOpenGLFramebufferObjectFormat>
 #include <QOpenGLShaderProgram>
 
 #include <plugins/DisplayPlugin.h>
-
 
 static const char* VERTEX_SHADER = R"SHADER(
 #version 450 core
@@ -55,9 +57,9 @@ void main() {
     FragColor = vec4(color_LinearTosRGB(texture(sampler, vTexCoord).rgb), 1.0);
 }
 )SHADER";
+#endif
 
-
-ResourceImageItem::ResourceImageItem() : QQuickFramebufferObject() {
+ResourceImageItem::ResourceImageItem() : ResourceImageItemBase() {
     auto textureCache = DependencyManager::get<TextureCache>();
     connect(textureCache.data(), SIGNAL(spectatorCameraFramebufferReset()), this, SLOT(update()));
 }
@@ -72,10 +74,20 @@ void ResourceImageItem::setUrl(const QString& url) {
 void ResourceImageItem::setReady(bool ready) {
     if (ready != m_ready) {
         m_ready = ready;
+#if defined(Q_OS_IOS)
+        if (ready) {
+            static bool loggedMissingNativeQuickRenderer { false };
+            if (!loggedMissingNativeQuickRenderer) {
+                loggedMissingNativeQuickRenderer = true;
+                qCritical() << "ResourceImageItem rendering is disabled on iOS until a QRhi/Metal transfer is available";
+            }
+        }
+#endif
         update();
     }
 }
 
+#if !defined(Q_OS_IOS)
 void ResourceImageItemRenderer::onUpdateTimer() {
     if (_ready) {
         if (_networkTexture && _networkTexture->isLoaded()) {
@@ -167,3 +179,4 @@ void ResourceImageItemRenderer::render() {
     glFlush();
     _window->resetOpenGLState();
 }
+#endif
