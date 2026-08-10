@@ -70,6 +70,12 @@ service/control API entirely. Consequently the iOS runtime behavior is
 unchanged: application audio routing remains owned by Qt Multimedia and the
 native AVAudioSession lifecycle rather than a desktop QML-player control.
 
+The Interface web-suggestion JSON parser now checks its required top-level
+`QVariantList` through `QVariant::metaType()` on Qt 6, retaining
+`QVariant::type()` on Qt 5. Invalid JSON and non-list responses still fail
+closed before indexing, and suggestion ordering and network behavior are
+unchanged.
+
 ## iOS audio-session lifecycle
 
 The bootstrap UIKit host configures `AVAudioSessionCategoryPlayAndRecord` with
@@ -393,6 +399,12 @@ reported by `QTouchEvent::touchPointStates()`. The
 Qt 5 branch retains `TouchPoint`, `touchPoints()`, and `pos()`. Both branches
 feed the same average-position calculation, timeout recovery, and signed-axis
 delta mapping, preserving multi-touch motion semantics on iPad.
+
+`FileResourceRequest` maps `qrc:///…` URLs to Qt's `:/…` `QFile` namespace by
+prefixing the URL path with only `:`. Because `QUrl::path()` already supplies
+the leading slash, this avoids the invalid `://…` path that previously made
+embedded models, textures, or other resources appear missing in the iOS
+sandbox. File URLs and network resource handling are unchanged.
 
 The script editor highlighter's complete eight-expression set now uses
 `QRegularExpression`. Keyword, quote, number, boolean, single-line comment,

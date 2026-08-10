@@ -712,6 +712,18 @@ def test_scope_contract() -> None:
         "no Qt 6 or mobile target may instantiate the removed service-control adapter",
     )
 
+    suggestions_engine = SOURCE_ROOT / "interface" / "src" / "webbrowser" / "WebBrowserSuggestionsEngine.cpp"
+    require_text(
+        suggestions_engine,
+        r"#if QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)\s+const bool isSuggestionList = res\.metaType\(\)\.id\(\) == QMetaType::QVariantList;",
+        "the iOS suggestion parser must use the Qt 6 metatype API",
+    )
+    require_text(
+        suggestions_engine,
+        r"#else\s+const bool isSuggestionList = res\.type\(\) == QVariant::List;\s+#endif\s+if \(err\.error != QJsonParseError::NoError \|\| !isSuggestionList\)",
+        "Qt 5 compatibility and JSON top-level-list validation must remain",
+    )
+
     octree_persist = SOURCE_ROOT / "libraries" / "octree" / "src" / "OctreePersistThread.cpp"
     require_text(octree_persist, r"#include <QRegularExpression>", "octree backup cleanup must use the Qt 6 regex API")
     require_text(octree_persist, r"QRegularExpression::anchoredPattern", "backup matching must preserve QRegExp exactMatch semantics")
