@@ -26,6 +26,9 @@ require('new QPushButton(QIcon(":/styles/txt-file.svg"), "Reveal log file", this
         "LogDialog is no longer demonstrably a desktop file/window utility")
 require("Qt::WindowFlags flags = _logDialog->windowFlags() | Qt::Tool;" in APPLICATION_UI,
         "desktop window-on-top behavior changed")
+require("// Developer > Log\n#if !defined(Q_OS_IOS)" in MENU and
+        "qApp, SLOT(toggleLogDialog())" in MENU,
+        "desktop LogDialog action remains in the iOS developer menu")
 require("void Application::toggleEntityScriptServerLogDialog() {\n"
         "#if !defined(Q_OS_IOS)" in APPLICATION_UI,
         "desktop Entity Script Server log dialog remains reachable on iOS")

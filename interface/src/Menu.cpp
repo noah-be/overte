@@ -825,8 +825,10 @@ Menu::Menu() {
     addCheckableActionToQMenuAndActionHash(developerMenu, MenuOption::AnimStats);
 
     // Developer > Log
+#if !defined(Q_OS_IOS)
     addActionToQMenuAndActionHash(developerMenu, MenuOption::Log, static_cast<int>(Qt::CTRL | Qt::SHIFT) | static_cast<int>(Qt::Key_L),
                                   qApp, SLOT(toggleLogDialog()));
+#endif
 
 #if 0 ///  -------------- REMOVED FOR NOW --------------
     addDisabledActionAndSeparator(navigateMenu, "History");
