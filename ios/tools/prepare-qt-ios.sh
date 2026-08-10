@@ -24,9 +24,26 @@ die() {
 }
 
 read_qt_version() {
-    local config="$1/lib/cmake/Qt6/Qt6ConfigVersion.cmake"
-    [[ -f "$config" ]] || die "missing Qt version file: $config"
-    sed -nE 's/^[[:space:]]*set\(PACKAGE_VERSION[[:space:]]+"([^"]+)"\).*/\1/p' "$config" | head -n 1
+    local root="$1"
+    local cmake_dir="$root/lib/cmake/Qt6"
+    local config version found="" saw_file=0
+
+    # Qt's installed Qt6ConfigVersion.cmake is a dispatcher. Source-built Qt 6
+    # stores the literal package version in Qt6ConfigVersionImpl.cmake, while
+    # some packaged layouts still put it directly in Qt6ConfigVersion.cmake.
+    for config in "$cmake_dir/Qt6ConfigVersionImpl.cmake" "$cmake_dir/Qt6ConfigVersion.cmake"; do
+        [[ -f "$config" ]] || continue
+        saw_file=1
+        version="$(sed -nE 's/^[[:space:]]*set\(PACKAGE_VERSION[[:space:]]+"?([^" )]+)"?\).*/\1/p' "$config" | head -n 1)"
+        [[ -n "$version" ]] || continue
+        if [[ -n "$found" && "$found" != "$version" ]]; then
+            die "conflicting Qt versions in $cmake_dir: $found and $version"
+        fi
+        found="$version"
+    done
+
+    ((saw_file)) || die "missing Qt version metadata in: $cmake_dir"
+    printf '%s\n' "$found"
 }
 
 validate_root() {

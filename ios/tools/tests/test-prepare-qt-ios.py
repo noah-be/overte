@@ -20,9 +20,15 @@ def executable(path: pathlib.Path) -> None:
 
 
 def fake_qt(root: pathlib.Path, version: str, target: bool) -> None:
-    version_file = root / "lib/cmake/Qt6/Qt6ConfigVersion.cmake"
-    version_file.parent.mkdir(parents=True)
-    version_file.write_text(f'set(PACKAGE_VERSION "{version}")\n', encoding="utf-8")
+    cmake_dir = root / "lib/cmake/Qt6"
+    cmake_dir.mkdir(parents=True)
+    (cmake_dir / "Qt6ConfigVersion.cmake").write_text(
+        'include("${CMAKE_CURRENT_LIST_DIR}/Qt6ConfigVersionImpl.cmake")\n',
+        encoding="utf-8",
+    )
+    (cmake_dir / "Qt6ConfigVersionImpl.cmake").write_text(
+        f'set(PACKAGE_VERSION "{version}")\n', encoding="utf-8",
+    )
     if target:
         executable(root / "bin/qt-cmake")
         (root / "lib/cmake/Qt6/qt.toolchain.cmake").touch()
@@ -71,6 +77,33 @@ class QtToolchainPreparationTest(unittest.TestCase):
             result = self.run_script("validate", str(target), str(host))
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("exactly 6.11.1 is required", result.stderr)
+
+    def test_accepts_legacy_direct_config_version(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = pathlib.Path(directory)
+            target, host = base / "ios", base / "macos"
+            fake_qt(target, "6.11.1", target=True)
+            fake_qt(host, "6.11.1", target=False)
+            for root in (target, host):
+                (root / "lib/cmake/Qt6/Qt6ConfigVersionImpl.cmake").unlink()
+                (root / "lib/cmake/Qt6/Qt6ConfigVersion.cmake").write_text(
+                    'set(PACKAGE_VERSION "6.11.1")\n', encoding="utf-8",
+                )
+            result = self.run_script("validate", str(target), str(host))
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_rejects_conflicting_version_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = pathlib.Path(directory)
+            target, host = base / "ios", base / "macos"
+            fake_qt(target, "6.11.1", target=True)
+            fake_qt(host, "6.11.1", target=False)
+            (target / "lib/cmake/Qt6/Qt6ConfigVersion.cmake").write_text(
+                'set(PACKAGE_VERSION "6.11.0")\n', encoding="utf-8",
+            )
+            result = self.run_script("validate", str(target), str(host))
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("conflicting Qt versions", result.stderr)
 
     def test_installer_command_only_requests_verified_host_package(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
