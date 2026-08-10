@@ -23,7 +23,7 @@ class OverteMacOSAqt(ConanFile):
 
     def package(self):
         self.run(
-            f'aqt install-qt macos desktop {self.version} clang_64 '
+            f'aqt install-qt mac desktop {self.version} clang_64 '
             f'-O "{self.build_folder}" -m {self.options.modules}'
         )
         copy(
