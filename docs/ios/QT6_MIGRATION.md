@@ -81,6 +81,12 @@ joint-name hash with `QVariant::metaType()` on Qt 6 and retains the legacy type
 check on Qt 5. It still ignores absent or non-hash mappings and iterates the
 same hash values, so avatar acceptance and diagnostic messages are unchanged.
 
+Settings migration and JSON serialization now use one versioned metatype-ID
+helper: Qt 6 reads `QVariant::metaType().id()` and Qt 5 reads `userType()`.
+The switch uses the shared `QMetaType` ID space, preserving float-to-double,
+unsigned-short-to-uint, URL-to-string normalization and every special encoded
+type (`QByteArray`, rect, size, point, hash, invalid, and generic variant).
+
 ## iOS audio-session lifecycle
 
 The bootstrap UIKit host configures `AVAudioSessionCategoryPlayAndRecord` with
@@ -417,6 +423,12 @@ Until a dedicated iOS controller-state channel is introduced, all existing
 desktop platform flags remain false on iPad; macOS, Windows, and Android
 mappings keep their previous values.
 
+Recursive `QVariantMap`/`QVariantList` conversion into script values now
+switches on stable `QMetaType` IDs. Qt 6 obtains the ID from
+`QVariant::metaType()`, while Qt 5 retains `userType()`. Boolean, integer,
+double, string, URL, nested map/list, and float-convertible fallback behavior
+is unchanged.
+
 The script editor highlighter's complete eight-expression set now uses
 `QRegularExpression`. Keyword, quote, number, boolean, single-line comment,
 and multi-line comment scans retain their prior match starts, full match
@@ -562,6 +574,9 @@ and gesture channels are unchanged on both Qt generations.
 FST mapping serialization copies preserved metadata entries explicitly into
 its multi-hash. This replaces Qt 6's removed `unite()` API while retaining all
 keys and values on both Qt generations.
+Model baking validates joint-name and both rotation-offset mappings through one
+strict QVariantHash boundary: Qt 6 uses `QMetaType::QVariantHash`, while Qt 5
+retains `QVariant::Hash`. Non-hash mappings remain rejected as before.
 Platform-native AVAudioSession policy remains in the iOS shell and must not be
 duplicated by desktop code.
 

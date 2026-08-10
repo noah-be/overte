@@ -487,6 +487,12 @@ def test_cmake_boundary() -> None:
     require_text(fst_source, r"_other\.cbegin\(\)[\s\S]*mapping\.insert\(it\.key\(\), it\.value\(\)\)", "FST mappings must use Qt 5/6-compatible explicit insertion")
     if ".unite(" in fst_source.read_text(encoding="utf-8"):
         raise AssertionError("iOS-reachable FST serialization retained removed Qt 6 QHash::unite")
+    prepare_joints_source = SOURCE_ROOT / "libraries" / "model-baker" / "src" / "model-baker" / "PrepareJointsTask.cpp"
+    require_text(prepare_joints_source, r"isVariantHash[\s\S]*metaType\(\)\.id\(\) == QMetaType::QVariantHash[\s\S]*#else[\s\S]*type\(\) == QVariant::Hash", "joint baking must preserve strict Qt 5/6 QVariantHash checks")
+    prepare_joints_text = prepare_joints_source.read_text(encoding="utf-8")
+    assert prepare_joints_text.count("isVariantHash(mapping[") == 3, "all three joint mapping hash checks must use the compatibility boundary"
+    if re.search(r"mapping\[[^\]]+\]\.type\(\)", prepare_joints_text):
+        raise AssertionError("PrepareJointsTask retained direct Qt 5 QVariant type checks")
     require_text(audio_client_source, r"hifiAudioDeviceSupportsChannelCount\([^,]+, 2\)", "stereo-input availability must use the Qt 5/6 capability adapter")
     require_text(audio_client_source, r"Q_OS_MACOS.*!defined\(Q_OS_IOS\)", "desktop AudioHardware must be excluded from iOS")
     audio_client_cmake = SOURCE_ROOT / "libraries" / "audio-client" / "CMakeLists.txt"
@@ -739,6 +745,27 @@ def test_scope_contract() -> None:
         r"#else\s+const bool hasJointNameHash = jointNameMapping\.type\(\) == QVariant::Hash;\s+#endif\s+if \(mapping\.contains\(JOINT_NAME_MAPPING_FIELD\) && hasJointNameHash\)",
         "Qt 5 compatibility and strict joint-hash validation must remain",
     )
+
+    setting_helpers = SOURCE_ROOT / "libraries" / "shared" / "src" / "SettingHelpers.cpp"
+    require_text(
+        setting_helpers,
+        r"#if QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)\s+return variant\.metaType\(\)\.id\(\);\s+#else\s+return variant\.userType\(\);\s+#endif",
+        "settings serialization must use stable Qt 5/6 metatype IDs",
+    )
+    setting_helpers_text = setting_helpers.read_text(encoding="utf-8")
+    assert ".type()" not in setting_helpers_text, "SettingHelpers retained the removed QVariant::type API"
+    for normalized_type in ("Float", "UShort", "QUrl"):
+        require_text(
+            setting_helpers,
+            rf"variantType == QMetaType::{normalized_type}",
+            f"settings JSON must preserve {normalized_type} normalization",
+        )
+    for serialized_type in ("QVariantHash", "UnknownType", "QVariantMap", "QVariantList", "QString", "QByteArray", "QRect", "QSize", "QPoint"):
+        require_text(
+            setting_helpers,
+            rf"case QMetaType::{serialized_type}:",
+            f"settings JSON must preserve {serialized_type} handling",
+        )
 
     octree_persist = SOURCE_ROOT / "libraries" / "octree" / "src" / "OctreePersistThread.cpp"
     require_text(octree_persist, r"#include <QRegularExpression>", "octree backup cleanup must use the Qt 6 regex API")
