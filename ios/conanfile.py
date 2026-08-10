@@ -49,6 +49,8 @@ class OverteIOSDependencies(ConanFile):
         self.requires("bullet3/3.25")
         self.requires("cgltf/1.14@overte/stable")
         self.requires("draco/1.3.5")
+        self.requires("etc2comp/cci.20170424")
+        self.requires("gifcreator/2016.11@overte/stable")
         # The remaining target-owned QML/VK compatibility contexts dispatch
         # through GLES on iOS. Keep this pinned until native RHI replaces them.
         self.requires("glad/0.1.36@overte/experimental#9612a3032fecdd1d8781dfb1b2bd6dc6")
@@ -56,6 +58,7 @@ class OverteIOSDependencies(ConanFile):
         self.requires("gli/cci.20210515")
         self.requires("jsoncpp/1.9.6", force=True)
         self.requires("nlohmann_json/3.11.2")
+        self.requires("nvidia-texture-tools/2023.01@overte/stable#bb4a28e5438f69332299cc23b770fc07")
         self.requires("onetbb/2021.10.0")
         self.requires("openexr/3.1.9")
         self.requires("openssl/3.5.7", force=True)

@@ -387,7 +387,9 @@ target_glm()
 if(NOT IOS)
   target_discord_rpc()
 endif()
-target_quazip()
+if(NOT IOS)
+  target_quazip()
+endif()
 
 # perform standard include and linking for found externals
 foreach(EXTERNAL ${OPTIONAL_EXTERNALS})
