@@ -192,6 +192,9 @@ if (APPLE)
   add_executable(${TARGET_NAME} MACOSX_BUNDLE ${INTERFACE_SRCS} ${QM})
   if (IOS)
     set(OVERTE_IOS_PRIVACY_MANIFEST "${CMAKE_SOURCE_DIR}/ios/resources/PrivacyInfo.xcprivacy")
+    if (NOT EXISTS "${OVERTE_IOS_PRIVACY_MANIFEST}")
+      message(FATAL_ERROR "The audited iOS PrivacyInfo.xcprivacy is required")
+    endif()
     target_sources(${TARGET_NAME} PRIVATE "${OVERTE_IOS_PRIVACY_MANIFEST}")
     set_source_files_properties("${OVERTE_IOS_PRIVACY_MANIFEST}" PROPERTIES
       MACOSX_PACKAGE_LOCATION Resources

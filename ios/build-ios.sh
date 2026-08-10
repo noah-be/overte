@@ -525,6 +525,9 @@ run_package_client() {
     [[ -x "$app_path/Overte" ]] || fail "integrated client executable is missing or not executable: $app_path/Overte"
     [[ -f "$app_path/PrivacyInfo.xcprivacy" ]] \
         || fail "integrated client privacy manifest not found: $app_path/PrivacyInfo.xcprivacy"
+    python3 "$script_dir/tools/verify-privacy-manifest.py" \
+        "$app_path/PrivacyInfo.xcprivacy" \
+        || fail "integrated client privacy manifest failed the audited contract"
 
     local artifact_dir="$source_root/build-ios/artifacts"
     mkdir -p "$artifact_dir"

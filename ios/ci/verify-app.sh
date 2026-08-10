@@ -24,6 +24,7 @@ metallib="$app_path/default.metallib"
 [[ -f "$privacy" ]] || { echo "missing PrivacyInfo.xcprivacy" >&2; exit 1; }
 [[ -s "$metallib" ]] || { echo "missing compiled Metal shader library" >&2; exit 1; }
 plutil -lint "$plist" "$privacy" >/dev/null
+python3 "$script_dir/../tools/verify-privacy-manifest.py" "$privacy"
 
 bundle_id="$(plutil -extract CFBundleIdentifier raw -o - "$plist")"
 [[ "$bundle_id" == "$expected_bundle_id" ]] || {

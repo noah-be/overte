@@ -28,6 +28,9 @@ set(OVERTE_IOS_RESOURCES
     resources/Assets.xcassets
     resources/PrivacyInfo.xcprivacy
 )
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/resources/PrivacyInfo.xcprivacy")
+    message(FATAL_ERROR "The audited iOS PrivacyInfo.xcprivacy is required")
+endif()
 
 add_executable(OverteIOSBootstrap MACOSX_BUNDLE
     src/main.mm

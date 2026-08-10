@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import os
+import plistlib
+import shutil
 import stat
 import subprocess
 import tempfile
@@ -266,7 +268,10 @@ def main() -> None:
         (integrated_app / "Info.plist").touch()
         (integrated_app / "Overte").touch()
         (integrated_app / "Overte").chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
-        (integrated_app / "PrivacyInfo.xcprivacy").touch()
+        shutil.copy2(
+            SOURCE_ROOT / "ios/resources/PrivacyInfo.xcprivacy",
+            integrated_app / "PrivacyInfo.xcprivacy",
+        )
         integrated_package = run_cli(
             environment | {"OVERTE_IOS_ARTIFACT_SEQUENCE": "42"},
             "package-client",
@@ -292,6 +297,19 @@ def main() -> None:
             generated.unlink()
         (artifact_root / "LATEST-OverteIOSClient.json").unlink()
         (artifact_root / "LATEST-OverteIOSClient.txt").unlink()
+
+        with (integrated_app / "PrivacyInfo.xcprivacy").open("wb") as stream:
+            plistlib.dump({"NSPrivacyTracking": True}, stream)
+        rejected_privacy = run_cli(
+            environment | {"OVERTE_IOS_ARTIFACT_SEQUENCE": "43"},
+            "package-client",
+            "--platform",
+            "simulator",
+            "--build-dir",
+            str(integrated_build),
+        )
+        assert rejected_privacy.returncode == 1
+        assert "privacy manifest failed the audited contract" in rejected_privacy.stderr
 
         unnumbered_client = run_cli(
             environment | {"OVERTE_IOS_ARTIFACT_SEQUENCE": "0"},
