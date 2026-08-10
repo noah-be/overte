@@ -2,6 +2,7 @@
 """Validate the macOS bootstrap's runtime evidence contract."""
 
 from pathlib import Path
+import re
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -65,6 +66,61 @@ if (
 qt_compat = (ROOT / "cmake/QtCompat.cmake").read_text(encoding="utf-8")
 if "macro(overte_find_qt)" not in qt_compat or "function(overte_find_qt)" in qt_compat:
     raise SystemExit("Qt discovery must preserve Qt 5 tool variables in the caller scope")
+
+# Application's Pico state is deliberately absent from desktop builds. Check
+# every member declared in its Pico-only header blocks instead of maintaining a
+# hand-written list, so a newly added member cannot silently break macOS again.
+application_header = (ROOT / "interface/src/Application.h").read_text(encoding="utf-8")
+application_source = (ROOT / "interface/src/Application.cpp").read_text(encoding="utf-8")
+pico_member_names = set()
+inside_pico_declaration = False
+for line in application_header.splitlines():
+    directive = line.strip()
+    if directive == "#if defined(ANDROID_APP_PICO_INTERFACE)":
+        inside_pico_declaration = True
+    elif inside_pico_declaration and directive.startswith("#endif"):
+        inside_pico_declaration = False
+    elif inside_pico_declaration:
+        match = re.search(r"\b(_pico[A-Za-z0-9_]*)\s*(?:\{|;)", line)
+        if match:
+            pico_member_names.add(match.group(1))
+
+pico_guard_stack = []
+for line_number, line in enumerate(application_source.splitlines(), 1):
+    directive = line.strip()
+    if directive.startswith("#if"):
+        parent_is_pico_only = pico_guard_stack[-1] if pico_guard_stack else False
+        condition_is_pico_only = bool(re.search(
+            r"(?:defined\s*\(\s*ANDROID_APP_PICO_INTERFACE\s*\)|"
+            r"defined\s+ANDROID_APP_PICO_INTERFACE|ifdef\s+ANDROID_APP_PICO_INTERFACE)",
+            directive,
+        )) and "||" not in directive and not directive.startswith("#ifndef")
+        pico_guard_stack.append(parent_is_pico_only or condition_is_pico_only)
+        continue
+    if directive.startswith("#elif"):
+        parent_is_pico_only = pico_guard_stack[-2] if len(pico_guard_stack) > 1 else False
+        condition_is_pico_only = (
+            "ANDROID_APP_PICO_INTERFACE" in directive
+            and "!defined" not in directive
+            and "||" not in directive
+        )
+        pico_guard_stack[-1] = parent_is_pico_only or condition_is_pico_only
+        continue
+    if directive.startswith("#else"):
+        parent_is_pico_only = pico_guard_stack[-2] if len(pico_guard_stack) > 1 else False
+        pico_guard_stack[-1] = parent_is_pico_only
+        continue
+    if directive.startswith("#endif"):
+        pico_guard_stack.pop()
+        continue
+    if pico_guard_stack and pico_guard_stack[-1]:
+        continue
+    for member_name in pico_member_names:
+        if re.search(rf"\b{re.escape(member_name)}\b", line):
+            raise SystemExit(
+                f"Pico-only Application member {member_name} used outside its platform guard "
+                f"at interface/src/Application.cpp:{line_number}"
+            )
 
 CONTRACT = {
     "serverless_import_committed": "interface/src/Application.cpp",

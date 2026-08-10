@@ -3096,8 +3096,10 @@ void Application::update(float deltaTime) {
         // The committed local import is authoritative. Domain/EntityTree
         // serverless flags can be reset by a delayed disconnect from the
         // previously configured online startup domain.
-        const bool physicsServerless = _picoServerlessSceneImportCommitted ||
-            isServerlessMode() || physicsDomainHandler.isServerless();
+        bool physicsServerless = isServerlessMode() || physicsDomainHandler.isServerless();
+#if defined(ANDROID_APP_PICO_INTERFACE)
+        physicsServerless = _picoServerlessSceneImportCommitted || physicsServerless;
+#endif
         bool serverlessImportReady { true };
 #if defined(ANDROID_APP_PICO_INTERFACE)
         static bool picoStartupImportRequested { false };
