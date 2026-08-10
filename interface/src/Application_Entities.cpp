@@ -475,6 +475,13 @@ void Application::queryOctree(NodeType_t serverType, PacketType packetType) {
 
         // make sure we still have an active socket
         nodeList->sendUnreliablePacket(*queryPacket, *node);
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+        if (packetType == PacketType::EntityQuery) {
+            qInfo().noquote() << "OVERTE_IOS_ENTITY_GATE entity_query_sent"
+                              << "node=" << node->getUUID().toString(QUuid::WithoutBraces)
+                              << "bytes=" << packetSize;
+        }
+#endif
     }
 }
 

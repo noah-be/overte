@@ -80,6 +80,17 @@ void OctreePacketProcessor::processPacket(QSharedPointer<ReceivedMessage> messag
     if (packetType == PacketType::EntityData || packetType == PacketType::EntityErase) {
         _entityPacketCount.fetch_add(1, std::memory_order_relaxed);
         _entityPacketBytes.fetch_add(message->getSize(), std::memory_order_relaxed);
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+        if (packetType == PacketType::EntityData) {
+            static bool loggedFirstEntityData { false };
+            if (!loggedFirstEntityData) {
+                loggedFirstEntityData = true;
+                qInfo().noquote() << "OVERTE_IOS_ENTITY_GATE entity_data_received"
+                                  << "node=" << sendingNode->getUUID().toString(QUuid::WithoutBraces)
+                                  << "bytes=" << message->getSize();
+            }
+        }
+#endif
     }
 
     // check version of piggyback packet against expected version
