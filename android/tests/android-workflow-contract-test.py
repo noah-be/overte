@@ -246,30 +246,18 @@ class AndroidPhoneEmulatorAcceptanceWorkflowContracts(unittest.TestCase):
         self.assertIn("environment: android-phone-emulator-acceptance", self.source)
         self.assertIn("overte-android-phone-emulator", self.source)
 
-    def test_verifies_digest_and_package_before_adb_installation(self):
+    def test_verifies_digest_and_package_before_emulator_acceptance(self):
         digest = self.source.index("sha256sum --check --strict")
         unsigned = self.source.index("--expect-unsigned")
-        signing = self.source.index("apksigner sign")
-        device = self.source.index("phone-device-test.sh")
+        emulator = self.source.index("phone-emulator-test.sh all")
         self.assertLess(digest, unsigned)
-        self.assertLess(unsigned, signing)
-        self.assertLess(signing, device)
-        self.assertIn('PHONE_ALLOW_EMULATOR: "1"', self.source)
+        self.assertLess(unsigned, emulator)
 
-    def test_runtime_signature_is_ephemeral_and_never_published(self):
-        self.assertEqual(2, self.source.count(
-            "${{ runner.temp }}/android-phone-acceptance-${{ github.run_id }}-"
-            "${{ github.run_attempt }}.apk"))
+    def test_unsigned_arm64_candidate_is_not_installed(self):
         self.assertIn("phoneInterface-release-unsigned.apk", self.source)
-        self.assertNotIn('apk="android/build/emulator-candidate/phoneInterface-release.apk"', self.source)
-        self.assertIn("openssl req -x509 -newkey rsa:2048 -nodes -days 1", self.source)
-        self.assertIn("openssl pkcs8 -topk8 -nocrypt", self.source)
-        self.assertIn('apksigner sign --key "$signing_dir/key.pk8"', self.source)
-        self.assertIn("apksigner verify --verbose --print-certs", self.source)
-        self.assertIn("trap 'rm -f -- \"$ACCEPTANCE_APK\"' EXIT", self.source)
-        upload = self.source.split("uses: actions/upload-artifact@", 1)[1]
-        self.assertNotIn("ACCEPTANCE_APK", upload)
-        self.assertNotIn("android-phone-acceptance-", upload)
+        self.assertNotIn("apksigner sign", self.source)
+        self.assertNotIn("phone-device-test.sh", self.source)
+        self.assertIn("android/phone-emulator-test.sh all", self.source)
 
     def test_manual_inputs_are_not_interpolated_into_shell_programs(self):
         lines = self.source.splitlines()
@@ -283,7 +271,7 @@ class AndroidPhoneEmulatorAcceptanceWorkflowContracts(unittest.TestCase):
                     break
                 body.append(candidate)
             run_blocks.append("\n".join(body))
-        self.assertGreaterEqual(len(run_blocks), 4)
+        self.assertGreaterEqual(len(run_blocks), 3)
         self.assertNotIn("${{ inputs.", "".join(run_blocks))
         for mapping in (
             "CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}",
@@ -316,14 +304,7 @@ class AndroidPhoneEmulatorAcceptanceWorkflowContracts(unittest.TestCase):
             r"        type: string$",
         )
 
-    def test_device_report_is_run_attempt_scoped_and_outside_the_worktree(self):
-        report_path = (
-            "${{ runner.temp }}/android-phone-device-report-${{ github.run_id }}-"
-            "${{ github.run_attempt }}"
-        )
-        self.assertEqual(2, self.source.count(report_path))
-        self.assertIn(f"PHONE_TEST_REPORT: {report_path}", self.source)
-        self.assertIn(f"path: {report_path}/", self.source)
+    def test_emulator_reports_are_attempt_scoped(self):
         self.assertIn(
             "name: android-phone-emulator-acceptance-${{ github.run_id }}-"
             "${{ github.run_attempt }}",
@@ -333,8 +314,12 @@ class AndroidPhoneEmulatorAcceptanceWorkflowContracts(unittest.TestCase):
             "name: android-phone-emulator-acceptance-${{ github.run_id }}\n",
             self.source,
         )
-        self.assertNotIn("android/build/phone-device-report", self.source)
-        self.assertNotIn("${{ github.workspace }}/android-phone-device-report", self.source)
+        for report_path in (
+            "android/apps/phoneInterface/build/outputs/androidTest-results/connected/",
+            "android/apps/phoneInterface/build/reports/androidTests/connected/",
+            "android/build/phone-emulator/diagnostics/",
+        ):
+            self.assertIn(report_path, self.source)
 
     def test_actions_are_pinned_and_checkout_is_credential_free(self):
         actions = ACTION_USE.findall(self.source)

@@ -41,10 +41,11 @@ administrators and audit every change to this floor.
 
 Create a distinct `android-phone-emulator-acceptance` environment with required
 reviewers. It holds no signing key. Dispatching its workflow requires the exact
-RC run ID, tag, approved APK SHA-256, a checked installation approval box, and
-environment approval. The workflow verifies the artifact digest and complete
-package gate before its first ADB query, then opts into emulator use explicitly.
-Do not approve it merely because the RC build succeeded.
+RC run ID and attempt, tag, approved APK SHA-256, a checked emulator-test
+approval box, and environment approval. The workflow verifies the ARM64
+artifact digest and complete package gate, then builds and tests the same tagged
+source with the dedicated x86_64 emulator graph. The unsigned ARM64 candidate
+is never installed. Do not approve it merely because the RC build succeeded.
 
 ## Runner provisioning
 
@@ -92,10 +93,14 @@ argument remains for self-hosting; the current requirement is resource capacity
 only.
 
 The acceptance runner is separate and labeled
-`self-hosted, linux, x64, overte-android-phone-emulator`. Give it one disposable
-ARM64/API-26-or-newer touchscreen emulator, ADB, `gh`, Build Tools 36.0.0, and
-no signing or publication credentials. Serialize it with the workflow
-concurrency group and reset the emulator snapshot after every approved run.
+`self-hosted, linux, x64, overte-android-phone-emulator`. Give it the documented
+x86_64/API-35 AVD, hardware acceleration, ADB, `gh`, Build Tools 36.0.0, Conan,
+JDK 17--21, and no signing or publication credentials. Serialize it with the
+workflow concurrency group and reset the emulator snapshot after every
+approved run. Standard Android Emulator builds on an x86_64 host cannot execute
+the ARM64-only release APK; the workflow therefore verifies that artifact
+without installing it and runs the exact tagged source through the x86_64
+instrumentation graph.
 
 ## Candidate review and later publication
 
