@@ -34,6 +34,15 @@ planned.
 | Switch serverless to online and back | Not run | Runtime smoke required |
 | Native Apple Silicon build | Not run | Dependency audit required |
 
+Last attempted CI: `macOS bootstrap` run `31401049683` at commit
+`bc3a435597`. The modern Xcode host, Conan 2 tooling, repaired Qt 5.15.2 aqt
+package and 35 dependency positions completed. CMake configure has not run yet
+because dependency position 36, `libnode/22.22.3@overte/stable`, failed while
+compiling Node's bundled dependencies. The recipe downloads GitHub's tag
+archive, which lacks headers expected by the build (`nbytes.h`, Abseil cycle
+clock/allocator headers and `hdr/hdr_histogram.h`). The Conan cache from this
+run was saved successfully.
+
 ## Acceptance gates
 
 1. `Overte.app` launches without a crash and presents a first frame.
@@ -56,6 +65,10 @@ planned.
   selects a Windows archive on macOS; `macos/conan/qt-aqt` repairs its Intel
   package locally. Native arm64 still requires a different Qt strategy.
 - MoltenVK lookup, Vulkan surfaces and linker rules are currently iOS-only.
+- The current macOS dependency blocker is the incomplete source archive used
+  by the `libnode/22.22.3@overte/stable` recipe. The next step is a macOS-local
+  recipe repair that uses Node's complete release source archive, followed by
+  resuming the cached dependency build.
 
 ## Build
 
