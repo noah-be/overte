@@ -75,6 +75,8 @@ require_v8=0
 with_graphics_toolchain=False
 require_moltenvk=0
 client_graph=0
+build_jobs="$(sysctl -n hw.logicalcpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
+[[ "$build_jobs" =~ ^[1-9][0-9]*$ ]] || build_jobs=4
 
 while (($#)); do
     case "$1" in
@@ -388,7 +390,8 @@ configure_project() {
 
 build_project() {
     configure_project
-    cmake --build "$build_dir" --config "$configuration" --target OverteIOSBootstrap
+    cmake --build "$build_dir" --config "$configuration" \
+        --parallel "$build_jobs" --target OverteIOSBootstrap
 }
 
 run_tests() {

@@ -137,9 +137,24 @@ builds the smallest currently known full-graph source set: `qtbase`,
 `qtwebview`, `qt5compat`, and `qtshadertools`. Qt's documented comma-separated
 `-submodules` form also includes their dependencies. The workflow builds
 matching macOS host tools first and then the iOS SDK, validates both trees, and
-saves only `qt/{macos,ios}` with a cache key that includes Qt, Xcode,
-architecture, and the build-plan hash. It never uploads the tree as a
-downloadable artifact and never builds, signs, or uploads an app.
+saves the verified source archive, validated `qt/macos` host prefix, and
+validated `qt/ios` target prefix under separate immutable keys containing Qt,
+Xcode, SDK, architecture, and the build-plan hash. Each completed component is
+saved immediately, so a later iOS failure cannot discard a successful host
+build. The integrated workflow restores both component keys exactly and
+validates the pair before configuration. No prefix-matched fallback is allowed
+for toolchains because mixing Xcode, SDK, architecture, or plan revisions would
+be ABI-unsafe.
+
+Compilation uses a bounded 1 GiB `sccache` directory. A run-specific recovery entry
+is saved after a normal compile failure (not after successful component publication), and the next compatible run may
+restore the newest entry sharing the exact compile-plan prefix. This cache is
+only an optimization: host and target installations are accepted solely after
+their normal validators pass. Partial downloads, unvalidated install prefixes,
+credentials, and the complete workspace are never cached. When both validated
+component caches hit, provisioning skips source restoration, extraction,
+Homebrew setup, and compilation entirely. The workflow never uploads the Qt
+tree as a downloadable artifact and never builds, signs, or uploads an app.
 
 The underlying command can also be resumed on a controlled macOS machine:
 
@@ -150,10 +165,11 @@ ios/tools/build-qt-ios-from-source.sh \
 ```
 
 Downloads use a `.partial` file and resume with HTTP range requests. The
-archive is verified before extraction. Known configure trees and completed
-installs are reused; an unmarked source or CMake tree fails closed instead of
-being overwritten. Preserve the work root between manual attempts if the
-runner or build is interrupted.
+archive is verified before extraction. The source, host, iOS, and full local
+paths can be invoked independently with `--stage`; an unmarked source,
+unvalidated prefix, or unknown CMake tree fails closed instead of being
+overwritten. Preserve the work root between manual attempts if the runner or
+build is interrupted.
 
 Expect roughly a 1 GB source download, substantially more temporary disk space,
 and potentially several hours of compilation. GitHub-hosted runner retention,

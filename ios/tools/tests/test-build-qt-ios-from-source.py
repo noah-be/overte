@@ -36,6 +36,27 @@ class QtSourceBuildTest(unittest.TestCase):
         self.assertIn("QT_SOURCE_SHA256=252acef8", result.stdout)
         self.assertNotIn("accept-license", result.stdout.lower())
 
+    def test_all_resumable_stages_share_the_same_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            for stage in ("source", "host", "ios", "all"):
+                result = self.run_script(
+                    "--work-root", str(root / "work"),
+                    "--install-root", str(root / "qt"),
+                    "--stage", stage,
+                    "--print-plan",
+                )
+                self.assertEqual(result.returncode, 0, (stage, result.stderr))
+                self.assertIn("PLAN_ID=", result.stdout)
+
+    def test_rejects_unknown_stage(self) -> None:
+        result = self.run_script(
+            "--work-root", "/tmp/work", "--install-root", "/tmp/qt",
+            "--stage", "partial", "--print-plan",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("--stage must be", result.stderr)
+
     def test_rejects_relative_or_shared_roots(self) -> None:
         relative = self.run_script("--work-root", "work", "--install-root", "/tmp/qt", "--print-plan")
         self.assertNotEqual(relative.returncode, 0)
@@ -48,6 +69,12 @@ class QtSourceBuildTest(unittest.TestCase):
         result = self.run_script("--work-root", "/tmp/work", "--install-root", "/tmp/qt", "--yes")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("unknown argument", result.stderr)
+
+    def test_device_build_is_explicitly_iphoneos_only(self) -> None:
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertEqual(source.count("-platform macx-ios-clang -sdk iphoneos"), 2)
+        self.assertIn(".overte-qt-host-plan-id", source)
+        self.assertIn(".overte-qt-ios-plan-id", source)
 
 
 if __name__ == "__main__":

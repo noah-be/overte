@@ -37,12 +37,18 @@ def fake_qt(
     if target:
         executable(root / "bin/qt-cmake")
         (root / "lib/cmake/Qt6/qt.toolchain.cmake").touch()
+        ios_spec = root / "mkspecs/macx-ios-clang/qmake.conf"
+        ios_spec.parent.mkdir(parents=True)
+        ios_spec.touch()
+        ios_plugin = root / "lib/cmake/Qt6Gui/Qt6QIOSIntegrationPluginConfig.cmake"
+        ios_plugin.parent.mkdir(parents=True)
+        ios_plugin.touch()
         for module in (
             "Core", "Gui", "Network", "Qml", "Quick", "Multimedia", "Svg",
             "WebChannel", "WebSockets", "WebView", "Core5Compat", "ShaderTools",
         ):
             config = root / f"lib/cmake/Qt6{module}/Qt6{module}Config.cmake"
-            config.parent.mkdir(parents=True)
+            config.parent.mkdir(parents=True, exist_ok=True)
             config.touch()
     else:
         for tool in ("moc", "rcc", "qmlcachegen", "qsb"):
@@ -83,6 +89,14 @@ class QtToolchainPreparationTest(unittest.TestCase):
             result = self.run_script("validate", str(target), str(host))
             self.assertEqual(result.returncode, 0, result.stderr)
 
+            host_result = self.run_script("validate-host", str(host))
+            self.assertEqual(host_result.returncode, 0, host_result.stderr)
+            self.assertIn("host tools validated", host_result.stdout)
+
+            target_result = self.run_script("validate-target", str(target))
+            self.assertEqual(target_result.returncode, 0, target_result.stderr)
+            self.assertIn("iOS target validated", target_result.stdout)
+
     def test_rejects_missing_host_tool_from_bin_and_libexec(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             base = pathlib.Path(directory)
@@ -95,6 +109,15 @@ class QtToolchainPreparationTest(unittest.TestCase):
             self.assertIn("moc", result.stderr)
             self.assertIn("bin", result.stderr)
             self.assertIn("libexec", result.stderr)
+
+    def test_rejects_non_ios_target_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            target = pathlib.Path(directory) / "target"
+            fake_qt(target, "6.11.1", target=True)
+            (target / "mkspecs/macx-ios-clang/qmake.conf").unlink()
+            result = self.run_script("validate-target", str(target))
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("macx-ios-clang", result.stderr)
 
     def test_rejects_mismatched_host(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

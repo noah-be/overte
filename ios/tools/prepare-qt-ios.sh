@@ -76,28 +76,43 @@ resolve_host_tool() {
     die "host Qt tool is missing or not executable: $tool (checked $host_root/bin and $host_root/libexec)"
 }
 
-validate() {
-    local target_root="${OVERTE_IOS_QT_ROOT:-${1:-}}"
-    local host_root="${OVERTE_IOS_QT_HOST_ROOT:-${2:-}}"
-    local module tool
+validate_target() {
+    local target_root="$1"
+    local module
 
-    [[ -n "$target_root" ]] || die "set OVERTE_IOS_QT_ROOT or pass the iOS Qt root as argument"
-    [[ -n "$host_root" ]] || die "set OVERTE_IOS_QT_HOST_ROOT or pass the macOS Qt root as second argument"
     validate_root target "$target_root"
-    validate_root host "$host_root"
-
     [[ -x "$target_root/bin/qt-cmake" ]] || die "missing executable: $target_root/bin/qt-cmake"
     [[ -f "$target_root/lib/cmake/Qt6/qt.toolchain.cmake" ]] ||
         die "missing iOS Qt toolchain: $target_root/lib/cmake/Qt6/qt.toolchain.cmake"
+    [[ -f "$target_root/mkspecs/macx-ios-clang/qmake.conf" ]] ||
+        die "target Qt does not contain the macx-ios-clang device specification: $target_root"
+    compgen -G "$target_root/lib/cmake/Qt6Gui/Qt6QIOSIntegrationPlugin*.cmake" >/dev/null ||
+        die "target Qt does not contain the iOS QPA integration metadata: $target_root"
 
     for module in $required_modules; do
         [[ -f "$target_root/lib/cmake/Qt6${module}/Qt6${module}Config.cmake" ]] ||
             die "target Qt module is missing: Qt6$module"
     done
+}
 
+validate_host() {
+    local host_root="$1"
+    local tool
+
+    validate_root host "$host_root"
     for tool in moc rcc qmlcachegen qsb; do
         resolve_host_tool "$host_root" "$tool" >/dev/null
     done
+}
+
+validate() {
+    local target_root="${OVERTE_IOS_QT_ROOT:-${1:-}}"
+    local host_root="${OVERTE_IOS_QT_HOST_ROOT:-${2:-}}"
+
+    [[ -n "$target_root" ]] || die "set OVERTE_IOS_QT_ROOT or pass the iOS Qt root as argument"
+    [[ -n "$host_root" ]] || die "set OVERTE_IOS_QT_HOST_ROOT or pass the macOS Qt root as second argument"
+    validate_target "$target_root"
+    validate_host "$host_root"
 
     printf 'Qt iOS toolchain validated\n'
     printf '  version: %s\n  target:  %s\n  host:    %s\n' "$qt_version" "$target_root" "$host_root"
@@ -141,6 +156,20 @@ manifest() {
 }
 
 case "${1:-}" in
+    validate-host)
+        shift
+        host_root="${OVERTE_IOS_QT_HOST_ROOT:-${1:-}}"
+        [[ -n "$host_root" ]] || die "set OVERTE_IOS_QT_HOST_ROOT or pass the macOS Qt root"
+        validate_host "$host_root"
+        printf 'Qt host tools validated: %s\n' "$host_root"
+        ;;
+    validate-target)
+        shift
+        target_root="${OVERTE_IOS_QT_ROOT:-${1:-}}"
+        [[ -n "$target_root" ]] || die "set OVERTE_IOS_QT_ROOT or pass the iOS Qt root"
+        validate_target "$target_root"
+        printf 'Qt iOS target validated: %s\n' "$target_root"
+        ;;
     validate)
         shift
         validate "$@"
@@ -157,6 +186,6 @@ case "${1:-}" in
         verify_source "$@"
         ;;
     *)
-        die "usage: $0 {manifest|installer-command INSTALLER INSTALL_ROOT|verify-source ARCHIVE|validate [IOS_ROOT [HOST_ROOT]]}"
+        die "usage: $0 {manifest|installer-command INSTALLER INSTALL_ROOT|verify-source ARCHIVE|validate-host [HOST_ROOT]|validate-target [IOS_ROOT]|validate [IOS_ROOT [HOST_ROOT]]}"
         ;;
 esac

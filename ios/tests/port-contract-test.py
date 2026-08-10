@@ -1375,16 +1375,21 @@ def test_ci_contract() -> None:
     require_text(integrated, r"^\s*workflow_call:", "integrated CI must be callable after Qt provisioning")
     if re.search(r"^\s*(push|pull_request|schedule):", integrated_text, re.MULTILINE):
         raise AssertionError("experimental integrated CI must not run automatically")
-    require_text(integrated, r"qt_cache_key:", "integrated CI must require an explicit Qt cache")
+    require_text(integrated, r"qt_host_cache_key:", "integrated CI must require an explicit Qt host cache")
+    require_text(integrated, r"qt_ios_cache_key:", "integrated CI must require an explicit Qt iOS cache")
+    require_text(integrated, r"path: build-ios/qt-install/qt/macos", "consumer must restore host tools at the producer's exact path")
+    require_text(integrated, r"path: build-ios/qt-install/qt/ios", "consumer must restore target Qt at the producer's exact path")
     require_text(integrated, r"fail-on-cache-miss: true", "Qt restoration must fail closed")
     require_text(integrated, r"runs-on: ubuntu-24\.04", "integrated CI needs Linux host contracts")
     require_text(integrated, r"runs-on: macos-26", "integrated CI must use an Xcode 26 host")
+    require_text(integrated, r"timeout-minutes: 180", "the first full-client Xcode build needs a non-truncating timeout")
     require_text(integrated, r"needs: host-contracts", "macOS integration must wait for host contracts")
     require_text(integrated, r"persist-credentials: false", "checkout credentials must not persist")
     require_text(integrated, r"doctor --platform device --require-qt", "toolchain stage must validate Xcode and Qt")
     require_text(integrated, r"deps --platform device --graphics-toolchain", "dependency stage must resolve the device graph")
     require_text(integrated, r"configure --platform device --client-graph", "configure stage must select the full client graph")
-    require_text(integrated, r"cmake --build build-ios/device --config Debug --target Overte", "integrated CI must build the real client target")
+    require_text(integrated, r"cmake --build build-ios/device --config Debug.*--target Overte", "integrated CI must build the real client target")
+    require_text(integrated, r"--parallel.*sysctl -n hw\.logicalcpu", "integrated Xcode build must use all runner CPUs")
     require_text(integrated, r"package-client --platform device", "integrated CI must package the numbered client IPA")
     require_text(integrated, r"LATEST-OverteIOSClient\.json", "integrated CI must upload VM transfer metadata")
     require_text(integrated, r"check-release-readiness\.py build-ios/artifacts", "integrated CI must run the read-only readiness aggregator")
@@ -1398,13 +1403,24 @@ def test_ci_contract() -> None:
         raise AssertionError("integrated CI must not upload a potentially sensitive CMake cache")
 
     qt_source = SOURCE_ROOT / ".github" / "workflows" / "ios-qt-source.yml"
-    require_text(qt_source, r"concurrency:\s+group: ios-qt-source-\$\{\{ github\.ref \}\}", "Qt source cache writers must serialize per ref")
+    require_text(qt_source, r"concurrency:\s+group: ios-qt-source-macos26-arm64", "Qt source cache writers must serialize across branches sharing keys")
     require_text(qt_source, r"cancel-in-progress: false", "an expensive Qt source cache build must not be cancelled by a duplicate dispatch")
-    require_text(qt_source, r"workflow_call:[\s\S]*?qt_cache_key:[\s\S]*?jobs\.qt-ios-source\.outputs\.qt_cache_key", "reusable Qt workflow must expose its cache key")
-    require_text(qt_source, r"outputs:[\s\S]*?qt_cache_key:.*steps\.cache-key\.outputs\.value", "Qt job output must originate from the cache-key step")
+    require_text(qt_source, r"workflow_call:[\s\S]*?qt_host_cache_key:[\s\S]*?qt_ios_cache_key:", "reusable Qt workflow must expose both component keys")
+    require_text(qt_source, r"qt_host_cache_key:.*steps\.cache-key\.outputs\.host", "host output must originate from the deterministic key step")
+    require_text(qt_source, r"qt_ios_cache_key:.*steps\.cache-key\.outputs\.ios", "iOS output must originate from the deterministic key step")
+    require_text(qt_source, r"--stage source", "Qt provisioning must checkpoint the verified source archive")
+    require_text(qt_source, r"--stage host", "Qt provisioning must build the host as an independent checkpoint")
+    require_text(qt_source, r"Save validated Qt host tools immediately", "host Qt must survive a later target failure")
+    require_text(qt_source, r"--stage ios", "Qt provisioning must build the iOS target independently")
+    require_text(qt_source, r"Save compiler recovery cache after a build failure", "failed compiles must retain reusable compiler outputs without duplicating every successful run")
+    require_text(qt_source, r"if: failure\(\) && steps\.sccache\.outcome == 'success'", "compiler recovery must only create a new generation after a failed build")
+    require_text(qt_source, r"restore-keys:[\s\S]*?sccache_prefix", "the next run must restore the latest compatible compiler cache")
 
     bootstrap_workflow = SOURCE_ROOT / ".github" / "workflows" / "ios-bootstrap.yml"
-    require_text(bootstrap_workflow, r"needs\.provision-qt-ios\.outputs\.qt_cache_key", "reusable cache output must reach the integrated caller")
+    require_text(bootstrap_workflow, r"needs\.provision-qt-ios\.outputs\.qt_host_cache_key", "host cache output must reach the integrated caller")
+    require_text(bootstrap_workflow, r"needs\.provision-qt-ios\.outputs\.qt_ios_cache_key", "iOS cache output must reach the integrated caller")
+    if bootstrap_workflow.read_text(encoding="utf-8").count("ios/tests/run-tests.sh") != 1:
+        raise AssertionError("branch CI must run the host suite exactly once before macOS jobs")
 
     bash32_forbidden = re.compile(r"\b(?:mapfile|readarray)\b|declare\s+-A|local\s+-A|\$\{[^}\n]+(?:,,|\^\^)")
     for shell_path in (
@@ -1423,9 +1439,10 @@ def test_ci_contract() -> None:
     qt_source_text = qt_source.read_text(encoding="utf-8")
     require_text(qt_source, r"^\s*workflow_dispatch:", "Qt source provisioning must be manually dispatched")
     require_text(qt_source, r"^\s*workflow_call:", "Qt source provisioning must be reusable from the branch workflow")
-    require_text(qt_source, r"outputs:\s+qt_cache_key:", "Qt provisioning must expose its deterministic cache key")
-    require_text(qt_source, r"value:.*jobs\.qt-ios-source\.outputs\.qt_cache_key", "reusable Qt output must come from the successful provision job")
-    require_text(qt_source, r"qt_cache_key:.*steps\.cache-key\.outputs\.value", "Qt job output must use the deterministic key step")
+    require_text(qt_source, r"outputs:\s+qt_host_cache_key:", "Qt provisioning must expose its deterministic host key")
+    require_text(qt_source, r"qt_ios_cache_key:", "Qt provisioning must expose its deterministic iOS key")
+    require_text(qt_source, r"value:.*jobs\.qt-ios-source\.outputs\.qt_host_cache_key", "reusable host output must come from the successful provision job")
+    require_text(qt_source, r"value:.*jobs\.qt-ios-source\.outputs\.qt_ios_cache_key", "reusable iOS output must come from the successful provision job")
     if re.search(r"^\s*(push|pull_request|schedule):", qt_source_text, re.MULTILINE):
         raise AssertionError("expensive Qt source provisioning must not run automatically")
     require_text(qt_source, r"runs-on: macos-26", "Qt iOS must be built on the Xcode runner")
@@ -1438,7 +1455,8 @@ def test_ci_contract() -> None:
     require_text(workflow, r"uses: \./\.github/workflows/ios-qt-source\.yml", "branch CI must call the audited Qt provisioner")
     require_text(workflow, r"needs: provision-qt-ios", "integrated configure must wait for successful Qt provisioning")
     require_text(workflow, r"uses: \./\.github/workflows/ios-integrated\.yml", "opt-in branch CI must call the integrated configure gate")
-    require_text(workflow, r"qt_cache_key:.*needs\.provision-qt-ios\.outputs\.qt_cache_key", "the provisioned cache key must feed the integrated gate")
+    require_text(workflow, r"qt_host_cache_key:.*needs\.provision-qt-ios\.outputs\.qt_host_cache_key", "the host cache key must feed the integrated gate")
+    require_text(workflow, r"qt_ios_cache_key:.*needs\.provision-qt-ios\.outputs\.qt_ios_cache_key", "the target cache key must feed the integrated gate")
     require_text(verifier, r"default\.metallib", "bundle verification must require compiled Metal shaders")
 
     ios_cmake = IOS_ROOT / "CMakeLists.txt"
@@ -1451,8 +1469,12 @@ def test_ci_contract() -> None:
     require_text(smoke, r"select-simulator\.py", "simulator choice must use the tested selector")
     require_text(smoke, r"simctl io.*screenshot", "simulator failures must preserve a screenshot")
     require_text(smoke, r"log show", "simulator failures must preserve app logs")
+    require_text(smoke, r"run-with-timeout\.py", "every simulator command needs a portable timeout boundary")
+    require_text(smoke, r"wait for \$family boot.*360", "simulator boot must have a bounded six-minute wait")
+    require_text(smoke, r"shutdown iphone.*&[\s\S]*shutdown ipad.*&", "independent simulator shutdowns should overlap")
+    require_text(smoke, r"START.*timeout=[\s\S]*END.*elapsed", "simulator phases must expose timing evidence")
     require_text(smoke, r'simctl openurl.*hifi://overte_hub', "simulator smoke must exercise Overte deep links")
-    require_text(smoke, r"sleep 5", "simulator smoke must allow startup failures to surface")
+    require_text(smoke, r"OVERTE_IOS_SIMULATOR_GRACE_SECONDS:-5", "simulator smoke must allow startup failures to surface")
     require_text(
         smoke,
         r'simctl terminate "\$active_udid" "\$bundle_id"',

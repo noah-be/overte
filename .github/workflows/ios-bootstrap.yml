@@ -34,7 +34,7 @@ permissions:
 
 concurrency:
   group: ios-bootstrap-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   provision-qt-ios:
@@ -46,11 +46,12 @@ jobs:
     needs: provision-qt-ios
     uses: ./.github/workflows/ios-integrated.yml
     with:
-      qt_cache_key: ${{ needs.provision-qt-ios.outputs.qt_cache_key }}
+      qt_host_cache_key: ${{ needs.provision-qt-ios.outputs.qt_host_cache_key }}
+      qt_ios_cache_key: ${{ needs.provision-qt-ios.outputs.qt_ios_cache_key }}
 
   host-contracts:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - name: Check out requested revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
@@ -69,9 +70,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
         with:
           persist-credentials: false
-
-      - name: Run device-free contracts
-        run: ios/tests/run-tests.sh
 
       - name: Verify Xcode environment
         run: ios/build-ios.sh doctor --platform simulator

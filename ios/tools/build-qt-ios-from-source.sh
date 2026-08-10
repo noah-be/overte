@@ -16,6 +16,7 @@ install_root=""
 archive=""
 jobs="$(sysctl -n hw.logicalcpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 print_plan=0
+stage="all"
 
 die() {
     echo "error: $*" >&2
@@ -25,10 +26,12 @@ die() {
 usage() {
     cat <<'EOF'
 Usage: build-qt-ios-from-source.sh --work-root ABSOLUTE_PATH \
-       --install-root ABSOLUTE_PATH [--archive FILE] [--jobs NUMBER] [--print-plan]
+       --install-root ABSOLUTE_PATH [--archive FILE] [--jobs NUMBER] \
+       [--stage source|host|ios|all] [--print-plan]
 
-Builds the pinned minimal Qt host and iOS SDK. Existing configured build trees
-are resumed. Completed, validated installations are reused.
+Builds a resumable stage of the pinned minimal Qt host and iOS SDK. Existing
+configured build trees are resumed. Completed, validated installations are
+reused. The ios stage requires an already validated host installation.
 EOF
 }
 
@@ -38,6 +41,7 @@ while (($#)); do
         --install-root) install_root="${2:-}"; shift 2 ;;
         --archive) archive="${2:-}"; shift 2 ;;
         --jobs) jobs="${2:-}"; shift 2 ;;
+        --stage) stage="${2:-}"; shift 2 ;;
         --print-plan) print_plan=1; shift ;;
         --help|-h) usage; exit 0 ;;
         *) die "unknown argument: $1" ;;
@@ -51,6 +55,7 @@ done
 case "$work_root/" in "$install_root/"*) die "work root must not be inside install root" ;; esac
 case "$install_root/" in "$work_root/"*) die "install root must not be inside work root" ;; esac
 [[ "$jobs" =~ ^[1-9][0-9]*$ ]] || die "--jobs must be a positive integer"
+case "$stage" in source|host|ios|all) ;; *) die "--stage must be source, host, ios, or all" ;; esac
 
 readonly qt_version="${OVERTE_IOS_QT_VERSION:?missing OVERTE_IOS_QT_VERSION}"
 readonly modules="qtbase,qtdeclarative,qtmultimedia,qtsvg,qtwebchannel,qtwebsockets,qtwebview,qt5compat,qtshadertools"
@@ -92,22 +97,29 @@ command -v ninja >/dev/null || die "ninja is required"
 
 mkdir -p "$downloads" "$work_root/source" "$host_build" "$ios_build" "$install_root"
 
-if [[ -z "$archive" && ! -f "$archive_path" ]]; then
-    partial="$archive_path.partial"
-    curl --fail --location --retry 5 --retry-all-errors \
-        --continue-at - --output "$partial" "$source_url"
-    mv "$partial" "$archive_path"
-fi
-"$prepare" verify-source "$archive_path"
+ensure_source() {
+    local partial extract_stamp
 
-extract_stamp="$work_root/source/.${source_name}.${source_sha256}.extracted"
-if [[ ! -f "$extract_stamp" ]]; then
+    if [[ -z "$archive" && ! -f "$archive_path" ]]; then
+        partial="$archive_path.partial"
+        curl --fail --location --retry 5 --retry-all-errors \
+            --continue-at - --output "$partial" "$source_url"
+        mv "$partial" "$archive_path"
+    fi
+    "$prepare" verify-source "$archive_path"
+
+    extract_stamp="$work_root/source/.${source_name}.${source_sha256}.extracted"
+    if [[ -f "$extract_stamp" ]]; then
+        [[ -x "$source_root/configure" ]] ||
+            die "source extraction stamp exists without a usable configure script: $extract_stamp"
+        return
+    fi
     [[ ! -e "$source_root" ]] ||
         die "source tree exists without matching extraction stamp: $source_root"
     tar -xJf "$archive_path" -C "$work_root/source"
     [[ -x "$source_root/configure" ]] || die "Qt source archive did not contain configure"
     touch "$extract_stamp"
-fi
+}
 
 configure_tree() {
     local kind="$1" build="$2" prefix="$3"
@@ -123,19 +135,73 @@ configure_tree() {
     fi
 }
 
-if ! "$prepare" validate "$ios_prefix" "$host_prefix" >/dev/null 2>&1; then
+build_host() {
+    if "$prepare" validate-host "$host_prefix" >/dev/null 2>&1; then
+        [[ "$(cat "$host_prefix/.overte-qt-host-plan-id" 2>/dev/null || true)" == "$plan_id" ]] ||
+            die "validated host prefix has missing or mismatched build-plan provenance: $host_prefix"
+        printf 'Reusing validated Qt host installation: %s\n' "$host_prefix"
+        return
+    fi
+    [[ ! -e "$host_prefix" ]] ||
+        die "host prefix exists but is not a validated Qt host installation: $host_prefix"
+
     cd "$host_build"
-    configure_tree host "$host_build" "$host_prefix"
+    if command -v sccache >/dev/null 2>&1; then
+        configure_tree host "$host_build" "$host_prefix" -- \
+            -D CMAKE_C_COMPILER_LAUNCHER=sccache \
+            -D CMAKE_CXX_COMPILER_LAUNCHER=sccache
+    else
+        configure_tree host "$host_build" "$host_prefix"
+    fi
     cmake --build . --parallel "$jobs"
     cmake --install .
+    "$prepare" validate-host "$host_prefix"
+    printf '%s\n' "$plan_id" > "$host_prefix/.overte-qt-host-plan-id"
+}
+
+build_ios() {
+    "$prepare" validate-host "$host_prefix" >/dev/null
+    if "$prepare" validate-target "$ios_prefix" >/dev/null 2>&1; then
+        [[ "$(cat "$ios_prefix/.overte-qt-ios-plan-id" 2>/dev/null || true)" == "$plan_id" ]] ||
+            die "validated iOS prefix has missing or mismatched build-plan provenance: $ios_prefix"
+        printf 'Reusing validated Qt iOS installation: %s\n' "$ios_prefix"
+        "$prepare" validate "$ios_prefix" "$host_prefix" >/dev/null
+        return
+    fi
+    [[ ! -e "$ios_prefix" ]] ||
+        die "iOS prefix exists but is not a validated Qt target installation: $ios_prefix"
 
     cd "$ios_build"
-    configure_tree ios "$ios_build" "$ios_prefix" \
-        -platform macx-ios-clang -qt-host-path "$host_prefix" \
-        -- -D "CMAKE_OSX_DEPLOYMENT_TARGET=$OVERTE_IOS_MIN_VERSION"
+    if command -v sccache >/dev/null 2>&1; then
+        configure_tree ios "$ios_build" "$ios_prefix" \
+            -platform macx-ios-clang -sdk iphoneos -qt-host-path "$host_prefix" -- \
+            -D "CMAKE_OSX_DEPLOYMENT_TARGET=$OVERTE_IOS_MIN_VERSION" \
+            -D CMAKE_C_COMPILER_LAUNCHER=sccache \
+            -D CMAKE_CXX_COMPILER_LAUNCHER=sccache
+    else
+        configure_tree ios "$ios_build" "$ios_prefix" \
+            -platform macx-ios-clang -sdk iphoneos -qt-host-path "$host_prefix" \
+            -- -D "CMAKE_OSX_DEPLOYMENT_TARGET=$OVERTE_IOS_MIN_VERSION"
+    fi
     cmake --build . --parallel "$jobs"
     cmake --install .
-fi
+    "$prepare" validate-target "$ios_prefix"
+    "$prepare" validate "$ios_prefix" "$host_prefix"
+    printf '%s\n' "$plan_id" > "$ios_prefix/.overte-qt-ios-plan-id"
+}
 
-"$prepare" validate "$ios_prefix" "$host_prefix"
-printf '%s\n' "$plan_id" > "$install_root/.overte-qt-ios-plan-id"
+ensure_source
+case "$stage" in
+    source) ;;
+    host) build_host ;;
+    ios) build_ios ;;
+    all)
+        build_host
+        build_ios
+        ;;
+esac
+
+if [[ "$stage" == "all" ]]; then
+    "$prepare" validate "$ios_prefix" "$host_prefix"
+    printf '%s\n' "$plan_id" > "$install_root/.overte-qt-ios-plan-id"
+fi

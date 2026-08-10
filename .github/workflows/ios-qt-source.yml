@@ -7,15 +7,18 @@ on:
   workflow_dispatch:
   workflow_call:
     outputs:
-      qt_cache_key:
-        description: Deterministic cache key containing the validated Qt macOS and iOS trees
-        value: ${{ jobs.qt-ios-source.outputs.qt_cache_key }}
+      qt_host_cache_key:
+        description: Deterministic cache key containing the validated macOS Qt host tools
+        value: ${{ jobs.qt-ios-source.outputs.qt_host_cache_key }}
+      qt_ios_cache_key:
+        description: Deterministic cache key containing the validated Qt iOS target tree
+        value: ${{ jobs.qt-ios-source.outputs.qt_ios_cache_key }}
 
 permissions:
   contents: read
 
 concurrency:
-  group: ios-qt-source-${{ github.ref }}
+  group: ios-qt-source-macos26-arm64
   cancel-in-progress: false
 
 jobs:
@@ -23,10 +26,13 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 360
     outputs:
-      qt_cache_key: ${{ steps.cache-key.outputs.value }}
+      qt_host_cache_key: ${{ steps.cache-key.outputs.host }}
+      qt_ios_cache_key: ${{ steps.cache-key.outputs.ios }}
     env:
       QT_WORK_ROOT: ${{ github.workspace }}/build-ios/qt-work
       QT_INSTALL_ROOT: ${{ github.workspace }}/build-ios/qt-install/qt
+      SCCACHE_DIR: ${{ github.workspace }}/build-ios/sccache
+      SCCACHE_CACHE_SIZE: 1G
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
         with:
@@ -43,35 +49,126 @@ jobs:
         run: |
           set -euo pipefail
           xcode_build="$(xcodebuild -version | awk '/Build version/{print $3}')"
-          plan_hash="$(shasum -a 256 ios/versions.env ios/tools/prepare-qt-ios.sh ios/tools/build-qt-ios-from-source.sh | shasum -a 256 | awk '{print $1}')"
-          echo "value=overte-qt-ios-6.11.1-${RUNNER_ARCH}-xcode-${xcode_build}-${plan_hash}" >> "$GITHUB_OUTPUT"
+          sdk_version="$(xcrun --sdk iphoneos --show-sdk-version)"
+          source_sha="$(ios/tools/prepare-qt-ios.sh manifest | sed -n 's/^QT_SOURCE_SHA256=//p')"
+          source_url="$(ios/tools/prepare-qt-ios.sh manifest | sed -n 's/^QT_SOURCE_URL=//p')"
+          source_archive="${source_url##*/}"
+          [[ "$source_archive" == qt-everywhere-src-*.tar.xz ]] || {
+            echo "unexpected Qt source archive name: $source_archive" >&2
+            exit 1
+          }
+          plan_hash="$(shasum -a 256 ios/versions.env ios/tools/build-qt-ios-from-source.sh | shasum -a 256 | awk '{print $1}')"
+          validator_hash="$(shasum -a 256 ios/tools/prepare-qt-ios.sh | awk '{print $1}')"
+          base="${RUNNER_ARCH}-xcode-${xcode_build}-iphoneos-${sdk_version}-${plan_hash}"
+          component_base="${base}-contract-${validator_hash}"
+          echo "source=overte-qt-source-v2-${source_sha}" >> "$GITHUB_OUTPUT"
+          echo "source_archive=${source_archive}" >> "$GITHUB_OUTPUT"
+          echo "host=overte-qt-host-v2-${component_base}" >> "$GITHUB_OUTPUT"
+          echo "ios=overte-qt-ios-v2-${component_base}" >> "$GITHUB_OUTPUT"
+          echo "sccache_prefix=overte-qt-sccache-v2-${base}-" >> "$GITHUB_OUTPUT"
 
-      - name: Restore exact Qt cache
-        id: qt-cache
+      - name: Restore validated Qt host tools
+        id: host-cache
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
-          path: ${{ env.QT_INSTALL_ROOT }}
-          key: ${{ steps.cache-key.outputs.value }}
+          path: ${{ env.QT_INSTALL_ROOT }}/macos
+          key: ${{ steps.cache-key.outputs.host }}
+
+      - name: Restore validated Qt iOS target
+        id: ios-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.QT_INSTALL_ROOT }}/ios
+          key: ${{ steps.cache-key.outputs.ios }}
+
+      - name: Validate exact component-cache hit
+        if: steps.host-cache.outputs.cache-hit == 'true' && steps.ios-cache.outputs.cache-hit == 'true'
+        run: |
+          ios/tools/prepare-qt-ios.sh validate \
+            "$QT_INSTALL_ROOT/ios" "$QT_INSTALL_ROOT/macos"
+
+      - name: Restore verified Qt source archive
+        if: steps.host-cache.outputs.cache-hit != 'true' || steps.ios-cache.outputs.cache-hit != 'true'
+        id: source-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.QT_WORK_ROOT }}/downloads/${{ steps.cache-key.outputs.source_archive }}
+          key: ${{ steps.cache-key.outputs.source }}
 
       - name: Install source-build prerequisites
-        if: steps.qt-cache.outputs.cache-hit != 'true'
-        run: brew install cmake ninja
+        if: steps.host-cache.outputs.cache-hit != 'true' || steps.ios-cache.outputs.cache-hit != 'true'
+        run: brew install cmake ninja sccache
 
-      - name: Build minimal Qt host and iOS SDK
-        if: steps.qt-cache.outputs.cache-hit != 'true'
+      - name: Verify or download pinned Qt source archive
+        if: steps.host-cache.outputs.cache-hit != 'true' || steps.ios-cache.outputs.cache-hit != 'true'
         run: |
           ios/tools/build-qt-ios-from-source.sh \
             --work-root "$QT_WORK_ROOT" \
-            --install-root "$QT_INSTALL_ROOT"
+            --install-root "$QT_INSTALL_ROOT" \
+            --stage source
+
+      - name: Save verified Qt source archive
+        if: (steps.host-cache.outputs.cache-hit != 'true' || steps.ios-cache.outputs.cache-hit != 'true') && steps.source-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.QT_WORK_ROOT }}/downloads/${{ steps.cache-key.outputs.source_archive }}
+          key: ${{ steps.cache-key.outputs.source }}
+
+      - name: Restore compiler recovery cache
+        if: steps.host-cache.outputs.cache-hit != 'true' || steps.ios-cache.outputs.cache-hit != 'true'
+        id: sccache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: ${{ steps.cache-key.outputs.sccache_prefix }}${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ${{ steps.cache-key.outputs.sccache_prefix }}
+
+      - name: Build Qt host tools
+        if: steps.host-cache.outputs.cache-hit != 'true'
+        run: |
+          ios/tools/build-qt-ios-from-source.sh \
+            --work-root "$QT_WORK_ROOT" \
+            --install-root "$QT_INSTALL_ROOT" \
+            --stage host
+
+      - name: Validate Qt host tools
+        run: ios/tools/prepare-qt-ios.sh validate-host "$QT_INSTALL_ROOT/macos"
+
+      - name: Save validated Qt host tools immediately
+        if: steps.host-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.QT_INSTALL_ROOT }}/macos
+          key: ${{ steps.cache-key.outputs.host }}
+
+      - name: Build Qt iOS target
+        if: steps.ios-cache.outputs.cache-hit != 'true'
+        run: |
+          ios/tools/build-qt-ios-from-source.sh \
+            --work-root "$QT_WORK_ROOT" \
+            --install-root "$QT_INSTALL_ROOT" \
+            --stage ios
 
       - name: Validate restored or built Qt
         run: |
           ios/tools/prepare-qt-ios.sh validate \
             "$QT_INSTALL_ROOT/ios" "$QT_INSTALL_ROOT/macos"
 
-      - name: Save exact Qt cache
-        if: steps.qt-cache.outputs.cache-hit != 'true'
+      - name: Save validated Qt iOS target immediately
+        if: steps.ios-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
-          path: ${{ env.QT_INSTALL_ROOT }}
-          key: ${{ steps.cache-key.outputs.value }}
+          path: ${{ env.QT_INSTALL_ROOT }}/ios
+          key: ${{ steps.cache-key.outputs.ios }}
+
+      - name: Report compiler-cache statistics
+        if: always() && (steps.host-cache.outputs.cache-hit != 'true' || steps.ios-cache.outputs.cache-hit != 'true')
+        run: sccache --show-stats || true
+
+      - name: Save compiler recovery cache after a build failure
+        if: failure() && steps.sccache.outcome == 'success' && (steps.host-cache.outputs.cache-hit != 'true' || steps.ios-cache.outputs.cache-hit != 'true') && steps.sccache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: ${{ steps.cache-key.outputs.sccache_prefix }}${{ github.run_id }}-${{ github.run_attempt }}

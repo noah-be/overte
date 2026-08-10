@@ -7,6 +7,8 @@ set -euo pipefail
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 python3 "$script_dir/port-contract-test.py"
 python3 "$script_dir/build-cli-test.py"
+python3 "$script_dir/command-timeout-test.py"
+python3 "$script_dir/simulator-smoke-contract-test.py"
 python3 "$script_dir/bundle-metadata-test.py"
 python3 "$script_dir/device-results-validator-test.py"
 python3 "$script_dir/conan-graph-audit-test.py"
