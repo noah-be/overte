@@ -244,7 +244,7 @@ run_doctor() {
         [[ -n "$v8_archive" ]] \
             || fail "OVERTE_IOS_V8_ROOT does not contain a static libnode.a or libv8_monolith.a"
         require_command lipo
-        lipo -verify_arch arm64 "$v8_archive" >/dev/null \
+        lipo "$v8_archive" -verify_arch arm64 >/dev/null \
             || fail "iOS V8 archive does not contain arm64: $v8_archive"
         note "Static non-JIT V8: $v8_archive (arm64)"
     elif ((require_v8)); then
@@ -262,8 +262,8 @@ run_doctor() {
         [[ -f "$moltenvk_root/MoltenVK/MoltenVK.xcframework/$moltenvk_slice/libMoltenVK.a" ]] \
             || fail "MoltenVK static slice not found: $moltenvk_slice"
         require_command lipo
-        lipo -verify_arch arm64 \
-            "$moltenvk_root/MoltenVK/MoltenVK.xcframework/$moltenvk_slice/libMoltenVK.a" >/dev/null \
+        lipo "$moltenvk_root/MoltenVK/MoltenVK.xcframework/$moltenvk_slice/libMoltenVK.a" \
+            -verify_arch arm64 >/dev/null \
             || fail "MoltenVK static slice does not contain arm64: $moltenvk_slice"
         note "MoltenVK: $moltenvk_root ($moltenvk_slice)"
     elif ((require_moltenvk)); then

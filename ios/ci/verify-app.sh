@@ -32,7 +32,7 @@ bundle_id="$(plutil -extract CFBundleIdentifier raw -o - "$plist")"
 executable_name="$(plutil -extract CFBundleExecutable raw -o - "$plist")"
 executable="$app_path/$executable_name"
 [[ -x "$executable" ]] || { echo "missing app executable: $executable" >&2; exit 1; }
-lipo -verify_arch arm64 "$executable"
+lipo "$executable" -verify_arch arm64
 
 target_family="$(plutil -extract UIDeviceFamily json -o - "$plist")"
 [[ "$target_family" == *1* && "$target_family" == *2* ]] || {

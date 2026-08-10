@@ -332,7 +332,7 @@ def test_ci_contract() -> None:
     require_text(workflow, r"verify-app\.sh", "CI must inspect the produced bundle")
 
     verifier = IOS_ROOT / "ci" / "verify-app.sh"
-    require_text(verifier, r"lipo -verify_arch arm64", "bundle verification must enforce arm64")
+    require_text(verifier, r'lipo "\$executable" -verify_arch arm64', "bundle verification must enforce arm64")
     require_text(verifier, r"QtWebEngine", "bundle verification must reject desktop WebEngine")
     require_text(verifier, r"verify-bundle-metadata\.py", "bundle metadata must be host-testable")
 
