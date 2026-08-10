@@ -20,7 +20,7 @@ int UIUtil::getWindowTitleBarHeight(const QWidget* window) {
     options.titleBarFlags = Qt::Window;
     int titleBarHeight = window->style()->pixelMetric(QStyle::PM_TitleBarHeight, &options, window);
 
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     // The height on OSX is 4 pixels too tall
     titleBarHeight -= 4;
 #endif

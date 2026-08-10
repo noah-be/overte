@@ -7,6 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = (ROOT / "interface/src/Application_Events.cpp").read_text()
 UI_SOURCE = (ROOT / "interface/src/Application_UI.cpp").read_text()
+UI_UTIL_SOURCE = (ROOT / "interface/src/UIUtil.cpp").read_text()
 MAC_DESKTOP_GUARD = "#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)"
 
 
@@ -31,5 +32,8 @@ require(MAC_DESKTOP_GUARD in UI_SOURCE and
 require("#else\n        // On windows and linux" in UI_SOURCE and
         "auto cursorTarget = _primaryWidget;" in UI_SOURCE,
         "backend-normal primary cursor target changed")
+require(MAC_DESKTOP_GUARD in UI_UTIL_SOURCE and
+        "// The height on OSX is 4 pixels too tall\n    titleBarHeight -= 4;" in UI_UTIL_SOURCE,
+        "macOS title-bar metric workaround is not explicitly excluded on iOS")
 
-print("iOS input platform contract valid: macOS mouse/cursor workarounds preserved and mobile-excluded")
+print("iOS input platform contract valid: macOS mouse/cursor/title-bar workarounds preserved and mobile-excluded")

@@ -92,6 +92,8 @@ excluded from iOS, where touch/pointer events must retain Qt's mobile semantics.
 The related macOS cursor-target workaround is desktop-only as well: it targets
 the top-level window to compensate for a GL-widget limitation, while iOS uses
 the normal primary Vulkan surface target.
+The legacy `UIUtil` four-pixel title-bar correction is similarly restricted to
+macOS: iPad windows do not use the affected desktop `QStyle` title-bar metric.
 
 ## ADR-007: secret-free automation
 
