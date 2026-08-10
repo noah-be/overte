@@ -146,6 +146,10 @@ validates the pair before configuration. No prefix-matched fallback is allowed
 for toolchains because mixing Xcode, SDK, architecture, or plan revisions would
 be ABI-unsafe.
 
+Host and iOS configure policies have separate plan hashes. A target-only fix,
+such as explicitly skipping unsupported Qt WebEngine while retaining the native
+Qt WebView/WKWebView path, does not invalidate an already validated host prefix.
+
 Compilation uses a bounded 1 GiB `sccache` directory. A run-specific recovery entry
 is saved after a normal compile failure (not after successful component publication), and the next compatible run may
 restore the newest entry sharing the exact compile-plan prefix. This cache is

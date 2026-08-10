@@ -57,15 +57,18 @@ jobs:
             echo "unexpected Qt source archive name: $source_archive" >&2
             exit 1
           }
-          plan_hash="$(shasum -a 256 ios/versions.env ios/tools/build-qt-ios-from-source.sh | shasum -a 256 | awk '{print $1}')"
+          # Keep the already validated host cache stable across target-only
+          # configure fixes. Bump this only when host configure inputs change.
+          host_plan_hash="f7a0f4a6a8d51a462a14c9b51e1595338d023f4fd06a0a134aeadbf07a9bce18"
+          ios_plan_hash="$(shasum -a 256 ios/versions.env ios/tools/build-qt-ios-from-source.sh | shasum -a 256 | awk '{print $1}')"
           validator_hash="$(shasum -a 256 ios/tools/prepare-qt-ios.sh | awk '{print $1}')"
-          base="${RUNNER_ARCH}-xcode-${xcode_build}-iphoneos-${sdk_version}-${plan_hash}"
-          component_base="${base}-contract-${validator_hash}"
+          host_base="${RUNNER_ARCH}-xcode-${xcode_build}-iphoneos-${sdk_version}-${host_plan_hash}"
+          ios_base="${RUNNER_ARCH}-xcode-${xcode_build}-iphoneos-${sdk_version}-${ios_plan_hash}"
           echo "source=overte-qt-source-v2-${source_sha}" >> "$GITHUB_OUTPUT"
           echo "source_archive=${source_archive}" >> "$GITHUB_OUTPUT"
-          echo "host=overte-qt-host-v2-${component_base}" >> "$GITHUB_OUTPUT"
-          echo "ios=overte-qt-ios-v2-${component_base}" >> "$GITHUB_OUTPUT"
-          echo "sccache_prefix=overte-qt-sccache-v2-${base}-" >> "$GITHUB_OUTPUT"
+          echo "host=overte-qt-host-v2-${host_base}-contract-${validator_hash}" >> "$GITHUB_OUTPUT"
+          echo "ios=overte-qt-ios-v2-${ios_base}-contract-${validator_hash}" >> "$GITHUB_OUTPUT"
+          echo "sccache_prefix=overte-qt-sccache-v2-${ios_base}-" >> "$GITHUB_OUTPUT"
 
       - name: Restore validated Qt host tools
         id: host-cache

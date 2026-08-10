@@ -1411,6 +1411,8 @@ def test_ci_contract() -> None:
     require_text(qt_source, r"--stage source", "Qt provisioning must checkpoint the verified source archive")
     require_text(qt_source, r"--stage host", "Qt provisioning must build the host as an independent checkpoint")
     require_text(qt_source, r"Save validated Qt host tools immediately", "host Qt must survive a later target failure")
+    require_text(qt_source, r'host_plan_hash="f7a0f4a6a8d51a462a14c9b51e1595338d023f4fd06a0a134aeadbf07a9bce18"', "target-only fixes must retain the validated host cache key")
+    require_text(qt_source, r'ios_plan_hash=.*build-qt-ios-from-source\.sh', "target cache key must change with iOS configure policy")
     require_text(qt_source, r"--stage ios", "Qt provisioning must build the iOS target independently")
     require_text(qt_source, r"Save compiler recovery cache after a build failure", "failed compiles must retain reusable compiler outputs without duplicating every successful run")
     require_text(qt_source, r"if: failure\(\) && steps\.sccache\.outcome == 'success'", "compiler recovery must only create a new generation after a failed build")

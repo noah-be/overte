@@ -75,11 +75,12 @@ manifest_value() {
 
 readonly source_url="$(manifest_value QT_SOURCE_URL)"
 readonly source_sha256="$(manifest_value QT_SOURCE_SHA256)"
-readonly plan_id="qt-${qt_version}-modules-${modules//,/-}-ios-min-${OVERTE_IOS_MIN_VERSION}"
+readonly host_plan_id="qt-${qt_version}-modules-${modules//,/-}-ios-min-${OVERTE_IOS_MIN_VERSION}"
+readonly ios_plan_id="${host_plan_id}-skip-qtwebengine"
 
 print_build_plan() {
-    printf 'PLAN_ID=%s\nQT_VERSION=%s\nMODULES=%s\nQT_SOURCE_URL=%s\nQT_SOURCE_SHA256=%s\n' \
-        "$plan_id" "$qt_version" "$modules" "$source_url" "$source_sha256"
+    printf 'PLAN_ID=%s\nHOST_PLAN_ID=%s\nIOS_PLAN_ID=%s\nQT_VERSION=%s\nMODULES=%s\nQT_SOURCE_URL=%s\nQT_SOURCE_SHA256=%s\n' \
+        "$ios_plan_id" "$host_plan_id" "$ios_plan_id" "$qt_version" "$modules" "$source_url" "$source_sha256"
     printf 'WORK_ROOT=%s\nHOST_PREFIX=%s\nIOS_PREFIX=%s\n' \
         "$work_root" "$host_prefix" "$ios_prefix"
 }
@@ -124,7 +125,9 @@ ensure_source() {
 configure_tree() {
     local kind="$1" build="$2" prefix="$3"
     shift 3
-    local stamp="$build/.overte-${plan_id}-${kind}.configured"
+    local selected_plan_id="$host_plan_id"
+    [[ "$kind" != "ios" ]] || selected_plan_id="$ios_plan_id"
+    local stamp="$build/.overte-${selected_plan_id}-${kind}.configured"
     if [[ ! -f "$stamp" ]]; then
         if [[ -f "$build/CMakeCache.txt" ]]; then
             die "$kind build tree has an unknown configuration: $build"
@@ -137,7 +140,7 @@ configure_tree() {
 
 build_host() {
     if "$prepare" validate-host "$host_prefix" >/dev/null 2>&1; then
-        [[ "$(cat "$host_prefix/.overte-qt-host-plan-id" 2>/dev/null || true)" == "$plan_id" ]] ||
+        [[ "$(cat "$host_prefix/.overte-qt-host-plan-id" 2>/dev/null || true)" == "$host_plan_id" ]] ||
             die "validated host prefix has missing or mismatched build-plan provenance: $host_prefix"
         printf 'Reusing validated Qt host installation: %s\n' "$host_prefix"
         return
@@ -156,13 +159,13 @@ build_host() {
     cmake --build . --parallel "$jobs"
     cmake --install .
     "$prepare" validate-host "$host_prefix"
-    printf '%s\n' "$plan_id" > "$host_prefix/.overte-qt-host-plan-id"
+    printf '%s\n' "$host_plan_id" > "$host_prefix/.overte-qt-host-plan-id"
 }
 
 build_ios() {
     "$prepare" validate-host "$host_prefix" >/dev/null
     if "$prepare" validate-target "$ios_prefix" >/dev/null 2>&1; then
-        [[ "$(cat "$ios_prefix/.overte-qt-ios-plan-id" 2>/dev/null || true)" == "$plan_id" ]] ||
+        [[ "$(cat "$ios_prefix/.overte-qt-ios-plan-id" 2>/dev/null || true)" == "$ios_plan_id" ]] ||
             die "validated iOS prefix has missing or mismatched build-plan provenance: $ios_prefix"
         printf 'Reusing validated Qt iOS installation: %s\n' "$ios_prefix"
         "$prepare" validate "$ios_prefix" "$host_prefix" >/dev/null
@@ -174,20 +177,20 @@ build_ios() {
     cd "$ios_build"
     if command -v sccache >/dev/null 2>&1; then
         configure_tree ios "$ios_build" "$ios_prefix" \
-            -platform macx-ios-clang -sdk iphoneos -qt-host-path "$host_prefix" -- \
+            -skip qtwebengine -platform macx-ios-clang -sdk iphoneos -qt-host-path "$host_prefix" -- \
             -D "CMAKE_OSX_DEPLOYMENT_TARGET=$OVERTE_IOS_MIN_VERSION" \
             -D CMAKE_C_COMPILER_LAUNCHER=sccache \
             -D CMAKE_CXX_COMPILER_LAUNCHER=sccache
     else
         configure_tree ios "$ios_build" "$ios_prefix" \
-            -platform macx-ios-clang -sdk iphoneos -qt-host-path "$host_prefix" \
+            -skip qtwebengine -platform macx-ios-clang -sdk iphoneos -qt-host-path "$host_prefix" \
             -- -D "CMAKE_OSX_DEPLOYMENT_TARGET=$OVERTE_IOS_MIN_VERSION"
     fi
     cmake --build . --parallel "$jobs"
     cmake --install .
     "$prepare" validate-target "$ios_prefix"
     "$prepare" validate "$ios_prefix" "$host_prefix"
-    printf '%s\n' "$plan_id" > "$ios_prefix/.overte-qt-ios-plan-id"
+    printf '%s\n' "$ios_plan_id" > "$ios_prefix/.overte-qt-ios-plan-id"
 }
 
 ensure_source
@@ -203,5 +206,5 @@ esac
 
 if [[ "$stage" == "all" ]]; then
     "$prepare" validate "$ios_prefix" "$host_prefix"
-    printf '%s\n' "$plan_id" > "$install_root/.overte-qt-ios-plan-id"
+    printf '%s\n' "$ios_plan_id" > "$install_root/.overte-qt-ios-plan-id"
 fi

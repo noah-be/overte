@@ -34,6 +34,8 @@ class QtSourceBuildTest(unittest.TestCase):
             result.stdout,
         )
         self.assertIn("QT_SOURCE_SHA256=252acef8", result.stdout)
+        self.assertIn("IOS_PLAN_ID=", result.stdout)
+        self.assertIn("skip-qtwebengine", result.stdout)
         self.assertNotIn("accept-license", result.stdout.lower())
 
     def test_all_resumable_stages_share_the_same_plan(self) -> None:
@@ -73,6 +75,7 @@ class QtSourceBuildTest(unittest.TestCase):
     def test_device_build_is_explicitly_iphoneos_only(self) -> None:
         source = SCRIPT.read_text(encoding="utf-8")
         self.assertEqual(source.count("-platform macx-ios-clang -sdk iphoneos"), 2)
+        self.assertEqual(source.count("-skip qtwebengine -platform macx-ios-clang"), 2)
         self.assertIn(".overte-qt-host-plan-id", source)
         self.assertIn(".overte-qt-ios-plan-id", source)
 
