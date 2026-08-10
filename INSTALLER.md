@@ -85,27 +85,11 @@ For code signing to work, you will need to set the `HF_PFX_FILE` and `HF_PFX_PAS
 
 ### MacOS
 
-1. Ensure you have all the prerequisites fulfilled from the [MacOS Build Guide](BUILD_OSX.md).
-2. Perform a clean CMake in your build folder. e.g.
-    ```bash
-    cmake -DOVERTE_GIT_COMMIT_SHORT="Insert short hash of your last Git commit" -DOVERTE_RELEASE_NUMBER="Insert Release Version Here e.g. 1.1.0" -DOVERTE_RELEASE_TYPE=PRODUCTION -DCMAKE_OSX_SYSROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.12.sdk" -DOVERTE_BUILD_SERVER=0 -DCMAKE_OSX_DEPLOYMENT_TARGET=10.12 -DOPENSSL_ROOT_DIR=/usr/local/opt/openssl -DOSX_SDK=10.12  ..
-    ```
-3. Pick a method to build and package your release.
-
-#### Option A: Use Xcode GUI
-
-1. Perform a Release build of ALL_BUILD
-2. Perform a Release build of `packaged-server-console`
-     This will add a folder to `build\server-console\` -
-     Sandbox-darwin-x64
-3. Perform a Release build of `package`
-      Installer is now available in `build/_CPack_Packages/Darwin/DragNDrop`
-
-#### Option B: Use Terminal
-
-1. Navigate to your build folder with your terminal.
-2. `make -j4`, you can change the number to match the number of threads you would like to use.
-3. `make package` to create the package.
+The experimental macOS port does not yet define a supported installer,
+distribution signature, or notarization workflow. Build an application for
+developer-local testing with the
+[current macOS documentation](docs/interfaces/macos/README.md). Do not reuse the
+historical SDK 10.12 packaging commands with a current Xcode installation.
 
 ### Linux
 
