@@ -54,3 +54,17 @@ and local-network prompts are Info.plist usage declarations, not signing
 entitlements. A capability may only be added after a source-level requirement
 and provisioning impact have been reviewed. These are build-time contracts;
 device behavior still requires the documented iPad validation run.
+
+## iPad bundle boundary
+
+The integrated target explicitly selects device families `1,2`, the configured
+iOS deployment target, and both device and simulator SDK platforms. Its iPad
+orientation list supports portrait, upside-down portrait, and both landscape
+orientations; `UIRequiresFullScreen` remains false so the metadata does not
+exclude iPad multitasking.
+
+The launch screen references the existing `AccentColor`, and Xcode compiles the
+existing `Assets.xcassets` catalog with its universal `AppIcon`. No additional
+icon or launch artwork is synthesized. Host contracts can validate this wiring,
+but final icon rendering, launch presentation, rotation, and multitasking remain
+iPad test items.

@@ -158,6 +158,11 @@ if (APPLE)
       MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/ios/resources/InterfaceInfo.plist.in"
       XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE "NO"
       XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS "${CMAKE_SOURCE_DIR}/ios/resources/Overte.entitlements"
+      XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon"
+      XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET "${CMAKE_OSX_DEPLOYMENT_TARGET}"
+      XCODE_ATTRIBUTE_SUPPORTED_PLATFORMS "iphoneos iphonesimulator"
+      XCODE_ATTRIBUTE_SUPPORTS_MACCATALYST "NO"
+      XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
     )
   else()
     set_target_properties(${this_target} PROPERTIES MACOSX_BUNDLE_INFO_PLIST MacOSXBundleInfo.plist.in)
@@ -193,11 +198,21 @@ if (APPLE)
   add_executable(${TARGET_NAME} MACOSX_BUNDLE ${INTERFACE_SRCS} ${QM})
   if (IOS)
     set(OVERTE_IOS_PRIVACY_MANIFEST "${CMAKE_SOURCE_DIR}/ios/resources/PrivacyInfo.xcprivacy")
+    set(OVERTE_IOS_ASSET_CATALOG "${CMAKE_SOURCE_DIR}/ios/resources/Assets.xcassets")
     if (NOT EXISTS "${OVERTE_IOS_PRIVACY_MANIFEST}")
       message(FATAL_ERROR "The audited iOS PrivacyInfo.xcprivacy is required")
     endif()
-    target_sources(${TARGET_NAME} PRIVATE "${OVERTE_IOS_PRIVACY_MANIFEST}")
-    set_source_files_properties("${OVERTE_IOS_PRIVACY_MANIFEST}" PROPERTIES
+    if (NOT EXISTS "${OVERTE_IOS_ASSET_CATALOG}/AppIcon.appiconset/Contents.json")
+      message(FATAL_ERROR "The audited iOS AppIcon asset catalog is required")
+    endif()
+    target_sources(${TARGET_NAME} PRIVATE
+      "${OVERTE_IOS_PRIVACY_MANIFEST}"
+      "${OVERTE_IOS_ASSET_CATALOG}"
+    )
+    set_source_files_properties(
+      "${OVERTE_IOS_PRIVACY_MANIFEST}"
+      "${OVERTE_IOS_ASSET_CATALOG}"
+      PROPERTIES
       MACOSX_PACKAGE_LOCATION Resources
     )
   endif()

@@ -30,6 +30,9 @@
     <dict><key>NSAllowsLocalNetworking</key><true/></dict>
     <key>NSMicrophoneUsageDescription</key>
     <string>Overte uses the microphone for spatial voice communication after you grant permission.</string>
+    <key>UILaunchScreen</key>
+    <dict><key>UIColorName</key><string>AccentColor</string></dict>
+    <key>UIRequiresFullScreen</key><false/>
     <key>UIRequiredDeviceCapabilities</key><array><string>arm64</string></array>
     <key>UISupportedInterfaceOrientations</key>
     <array>
