@@ -1,11 +1,12 @@
 // Copyright 2026 Overte e.V.
 // SPDX-License-Identifier: Apache-2.0
 
-// QtAndroid.jar contains input-connection methods that the prebuilt Qt 5
-// native input context predates. These no-op successes mirror the working
-// Pico runtime and prevent Java-side UnsatisfiedLinkError failures.
 #include <jni.h>
 
+// QtAndroid.jar contains input-connection methods that the prebuilt Qt 5
+// native input context used by the modern Android targets predates. Returning
+// success mirrors the working runtime behavior: there is no pending composition
+// or cursor update, and Java must not fail with UnsatisfiedLinkError.
 extern "C" JNIEXPORT jboolean JNICALL
 Java_org_qtproject_qt5_android_QtNativeInputConnection_finishComposingText(
         JNIEnv*, jclass) {

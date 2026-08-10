@@ -54,7 +54,7 @@
     "android/common/libraries/qt/src/main/java/io/highfidelity/utils/SafeAssetPath.java": ["android/phone/apps/phoneInterface/src/test/java/io/highfidelity/utils/SafeAssetPathTest.java"],
     "android/common/libraries/qt/src/main/java/io/highfidelity/utils/AssetCacheExtractor.java": ["android/phone/apps/phoneInterface/src/test/java/io/highfidelity/utils/AssetCacheExtractorTest.java", "android/common/tests/java/io/highfidelity/utils/AssetCacheExtractorStandaloneTest.java"],
     "android/common/libraries/qt/src/main/java/io/highfidelity/utils/HifiUtils.java": ["android/common/tests/safe-asset-path-test.sh"],
-    "android/phone/apps/phoneInterface/src/QtInputConnectionCompat.cpp": ["android/common/tests/native/CMakeLists.txt", "android/common/tests/native/qt_input_connection_compat_test.cpp", "android/phone/tests/phone-jni-boundary-test.sh"]
+    "android/common/src/QtInputConnectionCompat.cpp": ["android/common/tests/native/CMakeLists.txt", "android/common/tests/native/qt_input_connection_compat_test.cpp", "android/phone/tests/phone-jni-boundary-test.sh"]
   },
   "runtime_boundaries": {
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java": "QtActivity/native loader, WindowInsets, predictive Back and real lifecycle require Android; pure URL retry policy is separately tested",

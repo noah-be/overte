@@ -139,7 +139,7 @@ add_overte_native_test(
     qt_input_connection_compat
     "${CMAKE_CURRENT_LIST_DIR}/qt_input_connection_compat_test.cpp")
 target_sources(qt_input_connection_compat PRIVATE
-    "${CMAKE_CURRENT_LIST_DIR}/../../../phone/apps/phoneInterface/src/QtInputConnectionCompat.cpp")
+    "${CMAKE_CURRENT_LIST_DIR}/../../src/QtInputConnectionCompat.cpp")
 target_include_directories(qt_input_connection_compat PRIVATE
     "${OVERTE_JNI_INCLUDE_DIR}"
     "${OVERTE_JNI_INCLUDE_DIR}/${OVERTE_JNI_PLATFORM_SUBDIR}")

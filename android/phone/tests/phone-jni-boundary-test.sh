@@ -3,7 +3,7 @@ set -euo pipefail
 
 readonly android_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 readonly handler="$android_root/phone/apps/phoneInterface/src/PhoneUrlHandler.cpp"
-readonly compat="$android_root/phone/apps/phoneInterface/src/QtInputConnectionCompat.cpp"
+readonly compat="$android_root/common/src/QtInputConnectionCompat.cpp"
 readonly workflow="$android_root/../.github/workflows/android-tests.yml"
 
 require() {
