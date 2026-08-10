@@ -25,6 +25,8 @@ target_include_directories(overte_native_test_options INTERFACE
     "${OVERTE_INTERFACE_UI_DIR}"
     "${CMAKE_CURRENT_LIST_DIR}/../../apps/phoneInterface/src"
     "${CMAKE_CURRENT_LIST_DIR}/support")
+target_include_directories(overte_native_test_options INTERFACE
+    "${CMAKE_CURRENT_LIST_DIR}/../../apps/picoInterface/openxr/src")
 
 if(MSVC)
     target_compile_options(overte_native_test_options INTERFACE /W4 /WX)
@@ -145,3 +147,31 @@ target_include_directories(qt_input_connection_compat PRIVATE
 add_overte_native_test(
     phone_pending_handoff_deterministic_properties
     "${CMAKE_CURRENT_LIST_DIR}/phone_pending_handoff_property_test.cpp")
+
+add_overte_native_test(
+    pico_openxr_debug_policy
+    "${CMAKE_CURRENT_LIST_DIR}/pico_openxr_debug_policy_test.cpp")
+
+add_overte_native_test(
+    pico_openxr_input_policy
+    "${CMAKE_CURRENT_LIST_DIR}/pico_openxr_input_policy_test.cpp")
+
+add_overte_native_test(
+    pico_openxr_space_policy
+    "${CMAKE_CURRENT_LIST_DIR}/pico_openxr_space_policy_test.cpp")
+
+add_overte_native_test(
+    pico_openxr_display_policy
+    "${CMAKE_CURRENT_LIST_DIR}/pico_openxr_display_policy_test.cpp")
+
+add_overte_native_test(
+    pico_openxr_graphics_policy
+    "${CMAKE_CURRENT_LIST_DIR}/pico_openxr_graphics_policy_test.cpp")
+
+add_overte_native_test(
+    pico_openxr_extension_policy
+    "${CMAKE_CURRENT_LIST_DIR}/pico_openxr_extension_policy_test.cpp")
+
+add_overte_native_test(
+    pico_openxr_event_policy
+    "${CMAKE_CURRENT_LIST_DIR}/pico_openxr_event_policy_test.cpp")

@@ -8,6 +8,11 @@
 //
 
 #include "OpenXrContext.h"
+#include "OpenXrDebugPolicy.h"
+#include "OpenXrEventPolicy.h"
+#include "OpenXrExtensionPolicy.h"
+#include "OpenXrGraphicsPolicy.h"
+#include "OpenXrSpacePolicy.h"
 #include <QLoggingCategory>
 #include <QString>
 #include <QStringList>
@@ -57,16 +62,19 @@ XRAPI_ATTR static XrBool32 XRAPI_CALL debugMessageCallback(
     const XrDebugUtilsMessengerCallbackDataEXT* data,
     void*
 ) {
-    // bitflags, so can't use a switch
-    // TODO: does any runtime actually set multiple of these bits at once?
-    if (severity <= XR_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) {
+    auto level = openXrDebugLogLevel(
+        severity,
+        XR_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT,
+        XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT,
+        XR_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT,
+        XR_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT);
+    if (level == OpenXrDebugLogLevel::Debug) {
         qCDebug(xr_context_cat, "%s: %s", data->functionName, data->message);
-    } else if (severity <= XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
+    } else if (level == OpenXrDebugLogLevel::Info) {
         qCInfo(xr_context_cat, "%s: %s", data->functionName, data->message);
-    } else if (severity <= XR_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
+    } else if (level == OpenXrDebugLogLevel::Warning) {
         qCWarning(xr_context_cat, "%s: %s", data->functionName, data->message);
     } else {
-        // XR_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT
         qCCritical(xr_context_cat, "%s: %s", data->functionName, data->message);
     }
 
@@ -104,10 +112,18 @@ OpenXrContext::~OpenXrContext() {
     if (_instance == XR_NULL_HANDLE) {
         return;
     }
+    if (_debugMessenger != XR_NULL_HANDLE && xrDestroyDebugUtilsMessengerEXT) {
+        xrCheck(
+            _instance,
+            xrDestroyDebugUtilsMessengerEXT(_debugMessenger),
+            "Failed to destroy OpenXR debug messenger");
+    }
+    _debugMessenger = XR_NULL_HANDLE;
     XrResult res = xrDestroyInstance(_instance);
     if (res != XR_SUCCESS) {
         qCCritical(xr_context_cat, "Failed to destroy OpenXR instance");
     }
+    _instance = XR_NULL_HANDLE;
     qCDebug(xr_context_cat, "Destroyed instance.");
 }
 
@@ -116,8 +132,9 @@ bool OpenXrContext::initInstance() {
     // VKTODO
     return false;
 #else
-    uint32_t count = 0;
-    XrResult result = xrEnumerateInstanceExtensionProperties(nullptr, 0, &count, nullptr);
+    uint32_t extensionCapacity = 0;
+    XrResult result = xrEnumerateInstanceExtensionProperties(
+        nullptr, 0, &extensionCapacity, nullptr);
 
     // Since this is the first OpenXR call we do, check here if RUNTIME_UNAVAILABLE is returned.
     if (result == XR_ERROR_RUNTIME_UNAVAILABLE) {
@@ -129,14 +146,28 @@ bool OpenXrContext::initInstance() {
         return false;
 
     std::vector<XrExtensionProperties> properties;
-    for (uint32_t i = 0; i < count; i++) {
+    for (uint32_t i = 0; i < extensionCapacity; i++) {
         XrExtensionProperties props = { .type = XR_TYPE_EXTENSION_PROPERTIES };
         properties.push_back(props);
     }
 
-    result = xrEnumerateInstanceExtensionProperties(nullptr, count, &count, properties.data());
-    if (!xrCheck(XR_NULL_HANDLE, result, "Failed to enumerate extensions."))
+    uint32_t returnedExtensionCount = 0;
+    if (extensionCapacity > 0) {
+        result = xrEnumerateInstanceExtensionProperties(
+            nullptr, extensionCapacity, &returnedExtensionCount,
+            properties.data());
+    }
+    if (extensionCapacity > 0 &&
+            !xrCheck(XR_NULL_HANDLE, result, "Failed to enumerate extensions."))
         return false;
+    if (!isOpenXrExtensionEnumerationCountWithinCapacity(
+            extensionCapacity, returnedExtensionCount)) {
+        qCCritical(xr_context_cat,
+                   "Runtime returned inconsistent extension count: %u of %u",
+                   returnedExtensionCount, extensionCapacity);
+        return false;
+    }
+    properties.resize(returnedExtensionCount);
 
     bool openglSupported = false;
     bool userPresenceSupported = false;
@@ -156,42 +187,42 @@ bool OpenXrContext::initInstance() {
     bool foveationConfigurationSupported = false;
 #endif
 
-    qCInfo(xr_context_cat, "Runtime supports %d extensions:", count);
-    for (uint32_t i = 0; i < count; i++) {
-        qCInfo(xr_context_cat, "%s v%d", properties[i].extensionName, properties[i].extensionVersion);
-        if (strcmp(XR_KHR_OPENGL_ENABLE_EXTENSION_NAME, properties[i].extensionName) == 0) {
+    qCInfo(xr_context_cat, "Runtime supports %zu extensions:", properties.size());
+    for (const auto& property : properties) {
+        qCInfo(xr_context_cat, "%s v%d", property.extensionName, property.extensionVersion);
+        if (strcmp(XR_KHR_OPENGL_ENABLE_EXTENSION_NAME, property.extensionName) == 0) {
             openglSupported = true;
 #if defined(Q_OS_ANDROID)
-        } else if (strcmp(XR_KHR_ANDROID_CREATE_INSTANCE_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_KHR_ANDROID_CREATE_INSTANCE_EXTENSION_NAME, property.extensionName) == 0) {
             androidCreateInstanceSupported = true;
-        } else if (strcmp(XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME, property.extensionName) == 0) {
             displayRefreshRateSupported = true;
-        } else if (strcmp(XR_FB_SWAPCHAIN_UPDATE_STATE_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_FB_SWAPCHAIN_UPDATE_STATE_EXTENSION_NAME, property.extensionName) == 0) {
             swapchainUpdateStateSupported = true;
-        } else if (strcmp(XR_FB_FOVEATION_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_FB_FOVEATION_EXTENSION_NAME, property.extensionName) == 0) {
             foveationSupported = true;
-        } else if (strcmp(XR_FB_FOVEATION_CONFIGURATION_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_FB_FOVEATION_CONFIGURATION_EXTENSION_NAME, property.extensionName) == 0) {
             foveationConfigurationSupported = true;
 #endif
-        } else if (strcmp(XR_EXT_USER_PRESENCE_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_EXT_USER_PRESENCE_EXTENSION_NAME, property.extensionName) == 0) {
             userPresenceSupported = true;
-        } else if (strcmp(XR_EXT_SAMSUNG_ODYSSEY_CONTROLLER_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_EXT_SAMSUNG_ODYSSEY_CONTROLLER_EXTENSION_NAME, property.extensionName) == 0) {
             odysseyControllerSupported = true;
-        } else if (strcmp(XR_EXT_HAND_TRACKING_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_EXT_HAND_TRACKING_EXTENSION_NAME, property.extensionName) == 0) {
             handTrackingSupported = true;
-        } else if (strcmp(XR_MNDX_XDEV_SPACE_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_MNDX_XDEV_SPACE_EXTENSION_NAME, property.extensionName) == 0) {
             MNDX_xdevSpaceSupported = true;
-        } else if (strcmp(XR_HTCX_VIVE_TRACKER_INTERACTION_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_HTCX_VIVE_TRACKER_INTERACTION_EXTENSION_NAME, property.extensionName) == 0) {
             HTCX_viveTrackerInteractionSupported = true;
-        } else if (strcmp(XR_EXT_PALM_POSE_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_EXT_PALM_POSE_EXTENSION_NAME, property.extensionName) == 0) {
             palmPoseSupported = true;
-        } else if (strcmp(XR_BD_CONTROLLER_INTERACTION_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_BD_CONTROLLER_INTERACTION_EXTENSION_NAME, property.extensionName) == 0) {
             BD_controllerInteractionSupported = true;
 #if defined(XR_USE_PLATFORM_EGL)
-        } else if (strcmp(XR_MNDX_EGL_ENABLE_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_MNDX_EGL_ENABLE_EXTENSION_NAME, property.extensionName) == 0) {
             MNDX_eglEnableSupported = true;
 #endif
-        } else if (strcmp(XR_EXT_DEBUG_UTILS_EXTENSION_NAME, properties[i].extensionName) == 0) {
+        } else if (strcmp(XR_EXT_DEBUG_UTILS_EXTENSION_NAME, property.extensionName) == 0) {
             EXT_debugUtilsSupported = true;
         }
     }
@@ -318,18 +349,61 @@ bool OpenXrContext::initInstance() {
 
 #if defined(Q_OS_ANDROID)
     if (_foveationSupported) {
-        _foveationSupported =
-            loadXrFunction(_instance, "xrCreateFoveationProfileFB", (PFN_xrVoidFunction*)&xrCreateFoveationProfileFB) &&
-            loadXrFunction(_instance, "xrDestroyFoveationProfileFB", (PFN_xrVoidFunction*)&xrDestroyFoveationProfileFB) &&
-            loadXrFunction(_instance, "xrUpdateSwapchainFB", (PFN_xrVoidFunction*)&xrUpdateSwapchainFB);
+        const bool createLoaded = loadXrFunction(
+            _instance, "xrCreateFoveationProfileFB",
+            (PFN_xrVoidFunction*)&xrCreateFoveationProfileFB);
+        const bool destroyLoaded = loadXrFunction(
+            _instance, "xrDestroyFoveationProfileFB",
+            (PFN_xrVoidFunction*)&xrDestroyFoveationProfileFB);
+        const bool updateLoaded = loadXrFunction(
+            _instance, "xrUpdateSwapchainFB",
+            (PFN_xrVoidFunction*)&xrUpdateSwapchainFB);
+        _foveationSupported = areOpenXrFoveationFunctionsReady(
+            isOpenXrOptionalFunctionReady(
+                createLoaded, xrCreateFoveationProfileFB != nullptr),
+            isOpenXrOptionalFunctionReady(
+                destroyLoaded, xrDestroyFoveationProfileFB != nullptr),
+            isOpenXrOptionalFunctionReady(
+                updateLoaded, xrUpdateSwapchainFB != nullptr));
+        if (!_foveationSupported) {
+            xrCreateFoveationProfileFB = nullptr;
+            xrDestroyFoveationProfileFB = nullptr;
+            xrUpdateSwapchainFB = nullptr;
+            qCWarning(xr_context_cat) << "OpenXR foveation API is incomplete; disabling foveation.";
+        }
         qCInfo(xr_context_cat) << "PICO_FOVEATION_SUPPORTED" << _foveationSupported;
     }
 #endif
 
-    xrStringToPath(_instance, "/user/hand/left", &_handPaths[0]);
-    xrStringToPath(_instance, "/user/hand/right", &_handPaths[1]);
+    const bool leftHandPathConverted = xrCheck(
+        _instance,
+        xrStringToPath(_instance, "/user/hand/left", &_handPaths[0]),
+        "Failed to create left-hand OpenXR path");
+    const bool rightHandPathConverted = xrCheck(
+        _instance,
+        xrStringToPath(_instance, "/user/hand/right", &_handPaths[1]),
+        "Failed to create right-hand OpenXR path");
+    if (!areOpenXrRequiredHandPathsReady(
+            leftHandPathConverted, _handPaths[0] != XR_NULL_PATH,
+            rightHandPathConverted, _handPaths[1] != XR_NULL_PATH)) {
+        _handPaths[0] = XR_NULL_PATH;
+        _handPaths[1] = XR_NULL_PATH;
+        qCCritical(xr_context_cat,
+                   "Required OpenXR hand paths are unavailable");
+        return false;
+    }
 
-    xrStringToPath(_instance, "/interaction_profiles/htc/vive_controller", &_viveControllerPath);
+    const bool viveControllerPathConverted = xrCheck(
+        _instance,
+        xrStringToPath(
+            _instance, "/interaction_profiles/htc/vive_controller",
+            &_viveControllerPath),
+        "Failed to create optional Vive controller path");
+    if (!isOpenXrPathReady(
+            viveControllerPathConverted,
+            _viveControllerPath != XR_NULL_PATH)) {
+        _viveControllerPath = XR_NULL_PATH;
+    }
 
     return true;
 #endif
@@ -382,10 +456,15 @@ bool OpenXrContext::initSystem() {
     qCInfo(xr_context_cat, "Position Tracking   : %d", props.trackingProperties.positionTracking);
 
     if (_EXT_debugUtilsSupported) {
-        xrGetInstanceProcAddr(
+        const bool createFunctionLoaded = loadXrFunction(
             _instance,
             "xrCreateDebugUtilsMessengerEXT",
             reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateDebugUtilsMessengerEXT)
+        );
+        const bool destroyFunctionLoaded = loadXrFunction(
+            _instance,
+            "xrDestroyDebugUtilsMessengerEXT",
+            reinterpret_cast<PFN_xrVoidFunction*>(&xrDestroyDebugUtilsMessengerEXT)
         );
 
         XrDebugUtilsMessengerCreateInfoEXT createInfo = {
@@ -397,11 +476,25 @@ bool OpenXrContext::initSystem() {
             .userData = nullptr,
         };
 
-        xrCreateDebugUtilsMessengerEXT(
+        const bool functionsReady = areOpenXrDebugMessengerFunctionsReady(
+            isOpenXrOptionalFunctionReady(
+                createFunctionLoaded,
+                xrCreateDebugUtilsMessengerEXT != nullptr),
+            isOpenXrOptionalFunctionReady(
+                destroyFunctionLoaded,
+                xrDestroyDebugUtilsMessengerEXT != nullptr));
+        const bool messengerCreated = functionsReady && xrCheck(
             _instance,
-            &createInfo,
-            &_debugMessenger
-        );
+            xrCreateDebugUtilsMessengerEXT(_instance, &createInfo, &_debugMessenger),
+            "Failed to create OpenXR debug messenger");
+        if (!messengerCreated || _debugMessenger == XR_NULL_HANDLE) {
+            qCWarning(xr_context_cat,
+                      "Disabling unavailable OpenXR debug messenger");
+            _debugMessenger = XR_NULL_HANDLE;
+            xrCreateDebugUtilsMessengerEXT = nullptr;
+            xrDestroyDebugUtilsMessengerEXT = nullptr;
+            _EXT_debugUtilsSupported = false;
+        }
     }
 
     auto next = reinterpret_cast<const XrExtensionProperties*>(props.next);
@@ -415,23 +508,34 @@ bool OpenXrContext::initSystem() {
                 continue;
             }
 
-            xrGetInstanceProcAddr(
+            const bool createLoaded = loadXrFunction(
                 _instance,
                 "xrCreateHandTrackerEXT",
                 reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateHandTrackerEXT)
             );
 
-            xrGetInstanceProcAddr(
+            const bool destroyLoaded = loadXrFunction(
                 _instance,
                 "xrDestroyHandTrackerEXT",
                 reinterpret_cast<PFN_xrVoidFunction*>(&xrDestroyHandTrackerEXT)
             );
 
-            xrGetInstanceProcAddr(
+            const bool locateLoaded = loadXrFunction(
                 _instance,
                 "xrLocateHandJointsEXT",
                 reinterpret_cast<PFN_xrVoidFunction*>(&xrLocateHandJointsEXT)
             );
+            if (!areOpenXrHandTrackingFunctionsReady(
+                    createLoaded && xrCreateHandTrackerEXT != nullptr,
+                    destroyLoaded && xrDestroyHandTrackerEXT != nullptr,
+                    locateLoaded && xrLocateHandJointsEXT != nullptr)) {
+                qCWarning(xr_context_cat,
+                          "Disabling hand tracking because its OpenXR API is incomplete");
+                _handTrackingSupported = false;
+                xrCreateHandTrackerEXT = nullptr;
+                xrDestroyHandTrackerEXT = nullptr;
+                xrLocateHandJointsEXT = nullptr;
+            }
         }
 
         if (next->type == XR_TYPE_SYSTEM_XDEV_SPACE_PROPERTIES_MNDX) {
@@ -443,41 +547,64 @@ bool OpenXrContext::initSystem() {
                 continue;
             }
 
-            xrGetInstanceProcAddr(
+            const bool createListLoaded = loadXrFunction(
                 _instance,
                 "xrCreateXDevListMNDX",
                 reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateXDevListMNDX)
             );
 
-            xrGetInstanceProcAddr(
+            const bool generationLoaded = loadXrFunction(
                 _instance,
                 "xrGetXDevListGenerationNumberMNDX",
                 reinterpret_cast<PFN_xrVoidFunction*>(&xrGetXDevListGenerationNumberMNDX)
             );
 
-            xrGetInstanceProcAddr(
+            const bool enumerateLoaded = loadXrFunction(
                 _instance,
                 "xrEnumerateXDevsMNDX",
                 reinterpret_cast<PFN_xrVoidFunction*>(&xrEnumerateXDevsMNDX)
             );
 
-            xrGetInstanceProcAddr(
+            const bool propertiesLoaded = loadXrFunction(
                 _instance,
                 "xrGetXDevPropertiesMNDX",
                 reinterpret_cast<PFN_xrVoidFunction*>(&xrGetXDevPropertiesMNDX)
             );
 
-            xrGetInstanceProcAddr(
+            const bool destroyListLoaded = loadXrFunction(
                 _instance,
                 "xrDestroyXDevListMNDX",
                 reinterpret_cast<PFN_xrVoidFunction*>(&xrDestroyXDevListMNDX)
             );
 
-            xrGetInstanceProcAddr(
+            const bool createSpaceLoaded = loadXrFunction(
                 _instance,
                 "xrCreateXDevSpaceMNDX",
                 reinterpret_cast<PFN_xrVoidFunction*>(&xrCreateXDevSpaceMNDX)
             );
+            const bool functionsReady = areOpenXrXDevFunctionsReady(
+                createListLoaded && xrCreateXDevListMNDX != nullptr,
+                enumerateLoaded && xrEnumerateXDevsMNDX != nullptr,
+                propertiesLoaded && xrGetXDevPropertiesMNDX != nullptr,
+                destroyListLoaded && xrDestroyXDevListMNDX != nullptr,
+                createSpaceLoaded && xrCreateXDevSpaceMNDX != nullptr);
+            if (!functionsReady) {
+                qCWarning(xr_context_cat,
+                          "Disabling XDev tracking because its OpenXR API is incomplete");
+                _MNDX_xdevSpaceSupported = false;
+                xrCreateXDevListMNDX = nullptr;
+                xrGetXDevListGenerationNumberMNDX = nullptr;
+                xrEnumerateXDevsMNDX = nullptr;
+                xrGetXDevPropertiesMNDX = nullptr;
+                xrDestroyXDevListMNDX = nullptr;
+                xrCreateXDevSpaceMNDX = nullptr;
+            } else if (!isOpenXrOptionalFunctionReady(
+                    generationLoaded,
+                    xrGetXDevListGenerationNumberMNDX != nullptr)) {
+                qCWarning(xr_context_cat,
+                          "Dynamic XDev generation tracking is unavailable");
+                xrGetXDevListGenerationNumberMNDX = nullptr;
+            }
         }
 
         next = reinterpret_cast<const XrExtensionProperties*>(next->next);
@@ -497,15 +624,26 @@ bool OpenXrContext::initSystem() {
         _palmPoseSupported = false;
     }
 
-    // disable the MNDX tracker extension if they're both available
+    bool viveEnumerationFunctionReady = false;
     if (_HTCX_viveTrackerInteractionSupported) {
-        _MNDX_xdevSpaceSupported = false;
-
-        xrGetInstanceProcAddr(
+        const bool viveEnumerationLoaded = loadXrFunction(
             _instance,
             "xrEnumerateViveTrackerPathsHTCX",
             reinterpret_cast<PFN_xrVoidFunction*>(&xrEnumerateViveTrackerPathsHTCX)
         );
+        viveEnumerationFunctionReady = isOpenXrOptionalFunctionReady(
+            viveEnumerationLoaded, xrEnumerateViveTrackerPathsHTCX != nullptr);
+    }
+    const auto bodyTrackingBackend = selectOpenXrBodyTrackingBackend(
+        _HTCX_viveTrackerInteractionSupported,
+        viveEnumerationFunctionReady,
+        _MNDX_xdevSpaceSupported);
+    _HTCX_viveTrackerInteractionSupported =
+        bodyTrackingBackend == OpenXrBodyTrackingBackend::Vive;
+    _MNDX_xdevSpaceSupported =
+        bodyTrackingBackend == OpenXrBodyTrackingBackend::Mndx;
+    if (!_HTCX_viveTrackerInteractionSupported) {
+        xrEnumerateViveTrackerPathsHTCX = nullptr;
     }
 
     if (_userPresenceAvailable) {
@@ -572,7 +710,7 @@ bool OpenXrContext::initSession() {
         auto attribs = std::to_array<EGLint>({
             EGL_RED_SIZE, 8,
             EGL_GREEN_SIZE, 8,
-            EGL_RED_SIZE, 8,
+            EGL_BLUE_SIZE, 8,
             EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
 #if defined(Q_OS_ANDROID)
             EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
@@ -581,6 +719,12 @@ bool OpenXrContext::initSession() {
 #endif
             EGL_NONE // terminator
         });
+        if (!hasRequiredOpenXrEglColorAttributes(
+                attribs.data(), attribs.size(), EGL_NONE,
+                EGL_RED_SIZE, EGL_GREEN_SIZE, EGL_BLUE_SIZE)) {
+            qCWarning(xr_context_cat, "Invalid EGL color attributes");
+            break;
+        }
 
         EGLConfig eglConfig;
         EGLint configCount = 0;
@@ -617,11 +761,17 @@ bool OpenXrContext::initSession() {
         auto attribs = std::to_array<EGLint>({
             EGL_RED_SIZE, 8,
             EGL_GREEN_SIZE, 8,
-            EGL_RED_SIZE, 8,
+            EGL_BLUE_SIZE, 8,
             EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
             EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
             EGL_NONE // terminator
         });
+        if (!hasRequiredOpenXrEglColorAttributes(
+                attribs.data(), attribs.size(), EGL_NONE,
+                EGL_RED_SIZE, EGL_GREEN_SIZE, EGL_BLUE_SIZE)) {
+            qCWarning(xr_context_cat, "Invalid EGL color attributes");
+            return false;
+        }
 
         EGLConfig eglConfig;
         EGLint configCount = 0;
@@ -697,32 +847,62 @@ bool OpenXrContext::initSession() {
 
 #if defined(Q_OS_ANDROID)
     if (_displayRefreshRateSupported) {
-        bool functionsLoaded =
-            loadXrFunction(_instance, "xrEnumerateDisplayRefreshRatesFB",
-                           reinterpret_cast<PFN_xrVoidFunction*>(&xrEnumerateDisplayRefreshRatesFB)) &&
-            loadXrFunction(_instance, "xrGetDisplayRefreshRateFB",
-                           reinterpret_cast<PFN_xrVoidFunction*>(&xrGetDisplayRefreshRateFB)) &&
-            loadXrFunction(_instance, "xrRequestDisplayRefreshRateFB",
-                           reinterpret_cast<PFN_xrVoidFunction*>(&xrRequestDisplayRefreshRateFB));
+        const bool enumerateLoaded = loadXrFunction(
+            _instance, "xrEnumerateDisplayRefreshRatesFB",
+            reinterpret_cast<PFN_xrVoidFunction*>(&xrEnumerateDisplayRefreshRatesFB));
+        const bool getLoaded = loadXrFunction(
+            _instance, "xrGetDisplayRefreshRateFB",
+            reinterpret_cast<PFN_xrVoidFunction*>(&xrGetDisplayRefreshRateFB));
+        const bool requestLoaded = loadXrFunction(
+            _instance, "xrRequestDisplayRefreshRateFB",
+            reinterpret_cast<PFN_xrVoidFunction*>(&xrRequestDisplayRefreshRateFB));
+        const bool functionsLoaded = areOpenXrRefreshRateFunctionsReady(
+            isOpenXrOptionalFunctionReady(
+                enumerateLoaded, xrEnumerateDisplayRefreshRatesFB != nullptr),
+            isOpenXrOptionalFunctionReady(
+                getLoaded, xrGetDisplayRefreshRateFB != nullptr),
+            isOpenXrOptionalFunctionReady(
+                requestLoaded, xrRequestDisplayRefreshRateFB != nullptr));
+
+        if (!functionsLoaded) {
+            qCWarning(xr_context_cat,
+                      "Disabling incomplete OpenXR display refresh-rate API");
+            xrEnumerateDisplayRefreshRatesFB = nullptr;
+            xrGetDisplayRefreshRateFB = nullptr;
+            xrRequestDisplayRefreshRateFB = nullptr;
+            _displayRefreshRateSupported = false;
+        }
 
         if (functionsLoaded) {
-            uint32_t rateCount = 0;
-            result = xrEnumerateDisplayRefreshRatesFB(_session, 0, &rateCount, nullptr);
+            uint32_t rateCapacity = 0;
+            result = xrEnumerateDisplayRefreshRatesFB(_session, 0, &rateCapacity, nullptr);
             if (xrCheck(_instance, result, "Failed to enumerate display refresh-rate count")) {
-                std::vector<float> rates(rateCount);
-                result = xrEnumerateDisplayRefreshRatesFB(_session, rateCount, &rateCount, rates.data());
-                if (xrCheck(_instance, result, "Failed to enumerate display refresh rates")) {
+                std::vector<float> rates(rateCapacity);
+                uint32_t returnedRateCount = 0;
+                if (rateCapacity > 0) {
+                    result = xrEnumerateDisplayRefreshRatesFB(
+                        _session, rateCapacity, &returnedRateCount, rates.data());
+                }
+                if (rateCapacity == 0 ||
+                        xrCheck(_instance, result, "Failed to enumerate display refresh rates")) {
+                    if (!isOpenXrEnumerationCountWithinCapacity(
+                            rateCapacity, returnedRateCount)) {
+                        qCWarning(xr_context_cat,
+                                  "The OpenXR runtime returned an invalid display refresh-rate count.");
+                        rates.clear();
+                    } else {
+                        rates.resize(returnedRateCount);
+                    }
                     QStringList rateNames;
-                    float lowestRate = rates.empty() ? 0.0f : rates.front();
                     for (float rate : rates) {
                         rateNames << QString::number(rate, 'f', 1);
-                        lowestRate = std::min(lowestRate, rate);
                     }
                     qCInfo(xr_context_cat) << "Supported display refresh rates:" << rateNames.join(", ") << "Hz";
 
                     // Use the lowest native mode and keep rendering synchronized
                     // to it. Pico 4 currently advertises 72 and 90 Hz.
-                    float requestedRate = lowestRate;
+                    float requestedRate = selectLowestUsableOpenXrRefreshRate(
+                        rates.data(), rates.size());
                     if (requestedRate > 0.0f) {
                         result = xrRequestDisplayRefreshRateFB(_session, requestedRate);
                         if (xrCheck(_instance, result, "Failed to request the lowest Pico display refresh rate")) {
@@ -743,15 +923,43 @@ bool OpenXrContext::initSession() {
 }
 
 bool OpenXrContext::initSpaces() {
-    // TODO: Do xrEnumerateReferenceSpaces before assuming stage space is available.
+    uint32_t spaceCount = 0;
+    XrResult result = xrEnumerateReferenceSpaces(_session, 0, &spaceCount, nullptr);
+    if (!xrCheck(_instance, result, "Failed to enumerate reference-space count"))
+        return false;
+
+    std::vector<XrReferenceSpaceType> supportedSpaces(spaceCount);
+    result = xrEnumerateReferenceSpaces(
+        _session, spaceCount, &spaceCount, supportedSpaces.data());
+    if (!xrCheck(_instance, result, "Failed to enumerate reference spaces"))
+        return false;
+
+    bool stageAvailable = false;
+    bool localAvailable = false;
+    bool viewAvailable = false;
+    for (auto space : supportedSpaces) {
+        stageAvailable |= space == XR_REFERENCE_SPACE_TYPE_STAGE;
+        localAvailable |= space == XR_REFERENCE_SPACE_TYPE_LOCAL;
+        viewAvailable |= space == XR_REFERENCE_SPACE_TYPE_VIEW;
+    }
+    auto worldChoice = openXrWorldSpaceChoice(stageAvailable, localAvailable);
+    if (worldChoice == OpenXrWorldSpaceChoice::Unavailable || !viewAvailable) {
+        qCCritical(xr_context_cat) << "OpenXR runtime lacks required world or view reference space";
+        return false;
+    }
+    if (worldChoice == OpenXrWorldSpaceChoice::Local) {
+        qCWarning(xr_context_cat) << "OpenXR stage space unavailable; using local world space";
+    }
+
     XrReferenceSpaceCreateInfo stageSpaceInfo = {
         .type = XR_TYPE_REFERENCE_SPACE_CREATE_INFO,
-        .referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE,
+        .referenceSpaceType = worldChoice == OpenXrWorldSpaceChoice::Stage
+                ? XR_REFERENCE_SPACE_TYPE_STAGE : XR_REFERENCE_SPACE_TYPE_LOCAL,
         .poseInReferenceSpace = XR_INDENTITY_POSE,
     };
 
-    XrResult result = xrCreateReferenceSpace(_session, &stageSpaceInfo, &_stageSpace);
-    if (!xrCheck(_instance, result, "Failed to create stage space!"))
+    result = xrCreateReferenceSpace(_session, &stageSpaceInfo, &_stageSpace);
+    if (!xrCheck(_instance, result, "Failed to create world space!"))
         return false;
 
     XrReferenceSpaceCreateInfo viewSpaceInfo = {
@@ -810,7 +1018,9 @@ bool OpenXrContext::updateSessionState(XrSessionState newState) {
         case XR_SESSION_STATE_FOCUSED:
         case XR_SESSION_STATE_SYNCHRONIZED:
         case XR_SESSION_STATE_VISIBLE: {
-            _shouldRunFrameCycle = true;
+            _shouldRunFrameCycle =
+                openXrFrameCycleAllowedForSessionState(
+                    _isValid, _isSessionRunning, true);
             break;
         }
 
@@ -827,8 +1037,11 @@ bool OpenXrContext::updateSessionState(XrSessionState newState) {
                 qCDebug(xr_context_cat, "Session started!");
                 _isSessionRunning = true;
             }
-            _shouldRunFrameCycle = true;
-            _isValid = true;
+            _isValid = openXrContextValidAfterEventProcessing(
+                _isValid, true);
+            _shouldRunFrameCycle =
+                openXrFrameCycleAllowedForSessionState(
+                    _isValid, _isSessionRunning, true);
             break;
         }
 
@@ -838,7 +1051,8 @@ bool OpenXrContext::updateSessionState(XrSessionState newState) {
                 XrResult result = xrEndSession(_session);
                 if (!xrCheck(_instance, result, "Failed to end session!"))
                     return false;
-                _isSessionRunning = false;
+                _isSessionRunning = openXrSessionRunningAfterTermination(
+                    _isSessionRunning, true);
             }
             _shouldRunFrameCycle = false;
             break;
@@ -853,6 +1067,8 @@ bool OpenXrContext::updateSessionState(XrSessionState newState) {
             _shouldQuit = true;
             _shouldRunFrameCycle = false;
             _session = XR_NULL_HANDLE;
+            _isSessionRunning = openXrSessionRunningAfterTermination(
+                _isSessionRunning, true);
             _isValid = false;
             qCDebug(xr_context_cat, "Destroyed session");
             break;
@@ -868,17 +1084,26 @@ bool OpenXrContext::pollEvents() {
     XrEventDataBuffer event = { .type = XR_TYPE_EVENT_DATA_BUFFER };
     XrResult result = xrPollEvent(_instance, &event);
     while (result == XR_SUCCESS) {
+        const OpenXrEventDrainAction drainAction = openXrEventDrainAction(
+            event.type == XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING);
         switch (event.type) {
             case XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING: {
                 const auto& instanceLossPending = *reinterpret_cast<XrEventDataInstanceLossPending*>(&event);
-                qCCritical(xr_context_cat, "Instance loss pending at %lu! Destroying instance.", instanceLossPending.lossTime);
+                qCCritical(xr_context_cat,
+                           "OpenXR instance loss pending at %lu; requesting shutdown.",
+                           instanceLossPending.lossTime);
                 _shouldQuit = true;
                 _isValid = false;
-                continue;
+                break;
             }
             case XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED: {
                 const auto& sessionStateChanged = *reinterpret_cast<XrEventDataSessionStateChanged*>(&event);
                 if (!updateSessionState(sessionStateChanged.state)) {
+                    _isValid = openXrContextValidAfterEventProcessing(
+                        _isValid, false);
+                    _shouldRunFrameCycle =
+                        openXrFrameCycleAllowedAfterEventProcessing(
+                            false, _isValid, _shouldRunFrameCycle);
                     return false;
                 }
                 break;
@@ -892,12 +1117,24 @@ bool OpenXrContext::pollEvents() {
 
                     _vivePoseHack[i] = _viveControllerPath != XR_NULL_PATH && state.interactionProfile == _viveControllerPath;
 
-                    uint32_t bufferCountOutput;
-                    char profilePath[XR_MAX_PATH_LENGTH];
+                    uint32_t bufferCountOutput { 0 };
+                    char profilePath[XR_MAX_PATH_LENGTH] {};
                     res = xrPathToString(_instance, state.interactionProfile, XR_MAX_PATH_LENGTH, &bufferCountOutput,
                                          profilePath);
-                    if (!xrCheck(_instance, res, "Failed to get interaction profile path."))
+                    const bool pathConverted = xrCheck(
+                        _instance, res, "Failed to get interaction profile path.");
+                    const bool pathTerminated = bufferCountOutput > 0 &&
+                        bufferCountOutput <= XR_MAX_PATH_LENGTH &&
+                        profilePath[bufferCountOutput - 1] == '\0';
+                    if (!isOpenXrPathStringUsable(
+                            pathConverted, bufferCountOutput,
+                            XR_MAX_PATH_LENGTH, pathTerminated)) {
+                        if (pathConverted) {
+                            qCWarning(xr_context_cat,
+                                      "OpenXR runtime returned an invalid interaction profile path.");
+                        }
                         continue;
+                    }
 
                     qCInfo(xr_context_cat, "Controller %d: Interaction profile changed to '%s'", i, profilePath);
                 }
@@ -912,13 +1149,20 @@ bool OpenXrContext::pollEvents() {
                 qCWarning(xr_context_cat, "Unhandled event type %d", event.type);
         }
 
-        event.type = XR_TYPE_EVENT_DATA_BUFFER;
+        if (drainAction == OpenXrEventDrainAction::Stop) {
+            return true;
+        }
+        event = { .type = XR_TYPE_EVENT_DATA_BUFFER };
         result = xrPollEvent(_instance, &event);
     }
 
     if (result != XR_EVENT_UNAVAILABLE) {
         qCCritical(xr_context_cat, "Failed to poll events!");
-        _isValid = false;
+        _isValid = openXrContextValidAfterEventProcessing(
+            _isValid, false);
+        _shouldRunFrameCycle =
+            openXrFrameCycleAllowedAfterEventProcessing(
+                false, _isValid, _shouldRunFrameCycle);
         return false;
     }
 
@@ -953,6 +1197,28 @@ bool OpenXrContext::initPostGraphics() {
     }
 
     if (!initSpaces()) {
+        const unsigned int cleanupTargets =
+            openXrPostGraphicsCleanupTargets(
+                _viewSpace != XR_NULL_HANDLE,
+                _stageSpace != XR_NULL_HANDLE,
+                _session != XR_NULL_HANDLE);
+        if ((cleanupTargets & OpenXrPostGraphicsCleanupViewSpace) != 0) {
+            xrCheck(_instance, xrDestroySpace(_viewSpace),
+                    "Failed to roll back OpenXR view space");
+        }
+        _viewSpace = XR_NULL_HANDLE;
+        if ((cleanupTargets & OpenXrPostGraphicsCleanupWorldSpace) != 0) {
+            xrCheck(_instance, xrDestroySpace(_stageSpace),
+                    "Failed to roll back OpenXR world space");
+        }
+        _stageSpace = XR_NULL_HANDLE;
+        if ((cleanupTargets & OpenXrPostGraphicsCleanupSession) != 0) {
+            xrCheck(_instance, xrDestroySession(_session),
+                    "Failed to roll back OpenXR session");
+        }
+        _session = XR_NULL_HANDLE;
+        _isSessionRunning = false;
+        _shouldRunFrameCycle = false;
         return false;
     }
 

@@ -57,9 +57,9 @@ private:
             _friendlyName = friendlyName;
             _type = type;
         }
+        ~Action();
 
         bool init(XrActionSet actionSet);
-        std::vector<XrActionSuggestedBinding> getBindings();
         XrActionStateFloat getFloat();
         XrActionStateVector2f getVector2f();
         XrActionStateBoolean getBool();
@@ -82,11 +82,14 @@ private:
         std::optional<controller::StandardPoseChannel> pose_channel;
         XrXDevPropertiesMNDX properties;
     };
-    void guessXDevRoles(std::unordered_map<XrXDevIdMNDX, XDevTracker>& trackers);
+    void guessXDevRoles(
+        std::unordered_map<XrXDevIdMNDX, XDevTracker>& trackers,
+        XrTime sampleTime);
 
     class InputDevice : public controller::InputDevice {
     public:
         InputDevice(std::shared_ptr<OpenXrContext> c);
+        ~InputDevice() override;
 
     private:
         controller::Input::NamedVector getAvailableInputs() const override;
@@ -112,7 +115,7 @@ private:
         friend class OpenXrInputPlugin;
 
         uint32_t _trackedControllers = 0;
-        XrActionSet _actionSet;
+        XrActionSet _actionSet { XR_NULL_HANDLE };
         std::map<std::string, std::shared_ptr<Action>> _actions;
         std::shared_ptr<OpenXrContext> _context;
         bool _actionsInitialized = false;
@@ -126,6 +129,9 @@ private:
         bool _hapticsEnabled = true;
 
         bool initActions();
+        void destroyActions();
+        void destroyHandTrackers(bool runtimeHandlesValid);
+        void destroyXDevSpaces(bool runtimeHandlesValid);
         bool initBindings(const std::string& profileName, const std::map<std::string, std::string>& actionsToBind);
     };
 
