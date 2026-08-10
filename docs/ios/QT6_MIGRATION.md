@@ -44,6 +44,14 @@ integration links desktop Apple support libraries and copies a separate
 iOS-sandbox/bundle design. Desktop targets retain that integration; iOS crash
 reporting stays fail-closed until an in-process supported path is provided.
 
+The platform-information factory now selects a dedicated conservative iOS
+backend before testing Qt's macOS/Darwin aliases. The iOS target also removes
+`MACOSPlatform.cpp` from its sources, so AppKit/ApplicationServices, CGL, and
+`system_profiler` discovery cannot enter the device binary. Until native UIKit
+and Metal telemetry is implemented, CPU/OS data comes from Qt, memory is
+reported as unknown, GPU/display arrays stay empty, and graphics probing waits
+for the renderer-owned surface. Desktop macOS enumeration is unchanged.
+
 ## iOS audio-session lifecycle
 
 The bootstrap UIKit host configures `AVAudioSessionCategoryPlayAndRecord` with
@@ -343,6 +351,12 @@ excluded from iOS. The iOS graph still installs a conservative
 application delegate and the helper emits no fabricated desktop sleep/wake
 events.
 
+`PathUtils` also treats the macOS `Contents/Resources` layout as desktop-only.
+On iOS, `/~/` file URLs resolve to the executable-adjacent `resources`
+directory populated by the Interface post-build rule. This keeps the packaged
+`serverless/tutorial.json` start scene reachable without assuming a macOS
+bundle hierarchy.
+
 The script editor highlighter's complete eight-expression set now uses
 `QRegularExpression`. Keyword, quote, number, boolean, single-line comment,
 and multi-line comment scans retain their prior match starts, full match
@@ -474,6 +488,10 @@ Machine identity on iOS never probes the macOS IOKit platform UUID. It selects
 the existing random application-local fallback, persists it through Settings
 when available, and uses a session UUID when persistence is unavailable. This
 is a stability token, not a hardware identifier.
+Network reply failures use the typed `QNetworkReply::errorOccurred` signal on
+Qt 5.15 and Qt 6, including symmetric XMLHttpRequest disconnects. The removed
+`error` signal remains only in explicit pre-5.15 compatibility branches, so
+account retry/error handling cannot silently lose its connection on Qt 6.
 Platform-native AVAudioSession policy remains in the iOS shell and must not be
 duplicated by desktop code.
 

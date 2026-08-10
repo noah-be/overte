@@ -39,6 +39,7 @@ def main() -> None:
         "apple-desktop-simd-flags": 1,
         "apple-desktop-neuron-sdk": 1,
         "ios-desktop-crashpad-handler": 1,
+        "ios-platform-backend-runtime-inventory": 3,
         "ios-audio-session-device-validation": 8,
         "ios-local-network-device-validation": 4,
         "dynamic-plugin-packaging": 2,

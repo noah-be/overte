@@ -8,6 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 GPU_IDENT = (ROOT / "libraries/shared/src/GPUIdent.cpp").read_text(encoding="utf-8")
 MAC_HELPER = (ROOT / "libraries/shared/src/shared/platform/MacHelper.cpp").read_text(encoding="utf-8")
+PATH_UTILS = (ROOT / "libraries/shared/src/PathUtils.cpp").read_text(encoding="utf-8")
+INTERFACE_CMAKE = (ROOT / "interface/CMakeLists.txt").read_text(encoding="utf-8")
 
 
 def require(condition: bool, message: str) -> None:
@@ -33,4 +35,16 @@ require("#elif defined(Q_OS_IOS)" in MAC_HELPER and
 require("application delegate" in MAC_HELPER and "without claiming desktop sleep/wake events" in MAC_HELPER,
         "the iOS fallback must document lifecycle ownership and fail-closed semantics")
 
-print("shared iOS desktop API isolation valid: CGL/system_profiler and IOKit excluded")
+require('#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)\n'
+        '        static const QString staticResourcePath = QCoreApplication::applicationDirPath() + "/../Resources/";'
+        in PATH_UTILS,
+        "the macOS Contents/Resources layout must be unreachable on iOS")
+require('#else\n        static const QString staticResourcePath = QCoreApplication::applicationDirPath() + "/resources/";'
+        in PATH_UTILS,
+        "iOS must resolve /~/ through the executable-adjacent resources directory")
+require('if (APPLE AND NOT IOS)' in INTERFACE_CMAKE and
+        'set(RESOURCES_DEV_DIR "${INTERFACE_EXEC_DIR}/resources")' in INTERFACE_CMAKE and
+        '"${RESOURCES_DEV_DIR}/serverless/tutorial.json"' in INTERFACE_CMAKE,
+        "the iOS resource resolver must match Interface's packaged tutorial location")
+
+print("shared iOS desktop API isolation valid: desktop APIs and macOS resource layout excluded")

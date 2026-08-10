@@ -73,7 +73,7 @@
         "libraries/platform/CMakeLists.txt",
         "libraries/shared/CMakeLists.txt"
       ],
-      "exitCriterion": "All matches remain inside explicit APPLE AND NOT IOS branches."
+      "exitCriterion": "All matches remain inside explicit APPLE AND NOT IOS branches. Shared-library CGL GPU probing and IOKit power observation likewise remain behind Q_OS_MAC AND NOT Q_OS_IOS source guards."
     },
     {
       "id": "apple-desktop-simd-flags",
@@ -104,6 +104,18 @@
         "cmake/macros/AddCrashpad.cmake"
       ],
       "exitCriterion": "Crash reporting remains disabled on iOS until an in-process, sandbox-compatible implementation replaces desktop crashpad_handler copying."
+    },
+    {
+      "id": "ios-platform-backend-runtime-inventory",
+      "pattern": "class IOSInstance|Q_OS_IOS|PLATFORM_TARGET_SOURCES",
+      "roots": ["libraries/platform/CMakeLists.txt", "libraries/platform/src/platform/backend/IOSPlatform.h", "libraries/platform/src/platform/backend/Platform.cpp"],
+      "extensions": [".cpp", ".h", ".txt"],
+      "files": [
+        "libraries/platform/CMakeLists.txt",
+        "libraries/platform/src/platform/backend/IOSPlatform.h",
+        "libraries/platform/src/platform/backend/Platform.cpp"
+      ],
+      "exitCriterion": "Physical-device telemetry replaces conservative unknown GPU/display/memory values without reintroducing AppKit, ApplicationServices, CGL, or system_profiler."
     },
     {
       "id": "ios-audio-session-device-validation",

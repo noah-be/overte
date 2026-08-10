@@ -463,6 +463,18 @@ def test_cmake_boundary() -> None:
     require_text(fingerprint_source, r"defined\(Q_OS_MAC\) && !defined\(Q_OS_IOS\)[\s\S]*#include <IOKit/IOBSD\.h>", "desktop IOKit fingerprint headers must be excluded from iOS")
     require_text(fingerprint_source, r"defined\(Q_OS_IOS\)[\s\S]*return QUuid\(\)\.toString\(\);[\s\S]*#else", "iOS fingerprint discovery must select the app-local fallback")
     require_text(fingerprint_source, r"FALLBACK_FINGERPRINT_KEY[\s\S]*QUuid::createUuid\(\)[\s\S]*settings\.setValue", "iOS fallback identity must be random and app-local")
+    account_manager_source = (SOURCE_ROOT / "libraries" / "networking" / "src" / "AccountManager.cpp").read_text(encoding="utf-8")
+    assert account_manager_source.count("&QNetworkReply::errorOccurred") == 6, "all account reply errors must use the Qt 5.15+/6 signal"
+    require_text(SOURCE_ROOT / "libraries" / "networking" / "src" / "AccountManager.h", r"void requestAccessTokenError\(QNetworkReply::NetworkError error\);", "access-token transport errors need a real Qt slot")
+    require_text(SOURCE_ROOT / "libraries" / "networking" / "src" / "AccountManager.cpp", r"requestAccessTokenError[\s\S]*emit loginFailed\(\)", "access-token transport errors must preserve login failure notification")
+    xhr_source = (SOURCE_ROOT / "libraries" / "script-engine" / "src" / "XMLHttpRequestClass.cpp").read_text(encoding="utf-8")
+    assert xhr_source.count("&QNetworkReply::errorOccurred") == 2, "XHR error connect/disconnect must remain symmetric on Qt 5.15+/6"
+    for source in (account_manager_source, xhr_source):
+        legacy_errors = list(re.finditer(r"SIGNAL\(error\(QNetworkReply::NetworkError\)\)", source))
+        assert legacy_errors, "pre-5.15 network reply compatibility unexpectedly disappeared"
+        for match in legacy_errors:
+            prefix = source[max(0, match.start() - 300):match.start()]
+            assert prefix.rfind("#else") > prefix.rfind("#endif"), "legacy QNetworkReply::error must remain below a version fallback"
     require_text(audio_client_source, r"hifiAudioDeviceSupportsChannelCount\([^,]+, 2\)", "stereo-input availability must use the Qt 5/6 capability adapter")
     require_text(audio_client_source, r"Q_OS_MACOS.*!defined\(Q_OS_IOS\)", "desktop AudioHardware must be excluded from iOS")
     audio_client_cmake = SOURCE_ROOT / "libraries" / "audio-client" / "CMakeLists.txt"
@@ -600,6 +612,47 @@ def test_scope_contract() -> None:
         add_crashpad,
         r"COMMAND \$\{CMAKE_COMMAND\} -E copy \$\{CRASHPAD_HANDLER_EXE_PATH\}",
         "desktop targets must retain their existing Crashpad handler packaging",
+    )
+
+    platform_cmake = SOURCE_ROOT / "libraries" / "platform" / "CMakeLists.txt"
+    platform_factory = SOURCE_ROOT / "libraries" / "platform" / "src" / "platform" / "backend" / "Platform.cpp"
+    ios_platform = platform_factory.parent / "IOSPlatform.cpp"
+    require_text(
+        platform_cmake,
+        r"if \(IOS\)[\s\S]*?list\(REMOVE_ITEM PLATFORM_TARGET_SOURCES[\s\S]*?MACOSPlatform\.cpp[\s\S]*?MACOSPlatform\.h",
+        "iOS must exclude the AppKit/CGL platform implementation from its target sources",
+    )
+    require_text(
+        platform_cmake,
+        r"else\(\)[\s\S]*?list\(REMOVE_ITEM PLATFORM_TARGET_SOURCES[\s\S]*?IOSPlatform\.cpp[\s\S]*?IOSPlatform\.h[\s\S]*?endif\(\)\s+set_property",
+        "desktop targets must not compile the iOS fallback backend",
+    )
+    require_text(
+        platform_factory,
+        r"#if defined\(Q_OS_IOS\)\s+#include \"IOSPlatform\.h\"\s+#elif defined\(Q_OS_WIN\)",
+        "the iOS platform factory must take precedence over Darwin/macOS aliases",
+    )
+    require_text(
+        platform_factory,
+        r"#if defined\(Q_OS_IOS\)\s+_instance = new IOSInstance\(\);\s+#elif defined\(Q_OS_WIN\)",
+        "the full client must instantiate the conservative iOS platform backend",
+    )
+    ios_platform_text = ios_platform.read_text(encoding="utf-8")
+    for desktop_api in (
+        r"#include\s*[<\"]AppKit",
+        r"#include\s*[<\"]ApplicationServices",
+        r"#include\s*[<\"]OpenGL/OpenGL\.h",
+        r"\bCGL(?:Query|Describe|Destroy)",
+        r"QProcess[^;]*system_profiler",
+    ):
+        assert re.search(desktop_api, ios_platform_text) is None, (
+            f"iOS platform fallback imported desktop API: {desktop_api}"
+        )
+    require_text(ios_platform, r"OS_IOS", "iOS platform telemetry must not identify itself as macOS")
+    require_text(
+        ios_platform,
+        r"void IOSInstance::enumerateGraphicsApis\(\) \{[\s\S]*?Do not call the generic GL/Vulkan probe",
+        "iOS platform discovery must not probe graphics before the renderer owns a surface",
     )
 
     octree_persist = SOURCE_ROOT / "libraries" / "octree" / "src" / "OctreePersistThread.cpp"
