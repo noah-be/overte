@@ -83,20 +83,21 @@ Exit condition: no Phone/Pico duplicate remains and all hardware-free gates pass
 
 ## Milestone A2 — Immutable platform capability identity
 
-**Mode:** 🤖 Autonomous
+**Status:** ✅ Complete on `refactor/android-platform-boundaries`
 
 Objective: replace mutable settings and unrelated behavioral probes with stable
 product capabilities.
 
 Deliverables:
 
-- [ ] Define the minimum immutable identity needed by QML/JS (`phone`, `pico`,
-  `quest`, generic Android/VR capabilities).
-- [ ] Expose it through an existing safe scripting/QML boundary rather than a new
+- [x] Define the minimum immutable identity needed by Settings (`pico interaction
+  available`), with Phone, Quest, Desktop, and unknown products failing closed.
+- [x] Expose it through an existing safe scripting/QML boundary rather than a new
   broad global API where possible.
-- [ ] Replace `deferTabletCreationUntilOpen` as Pico Settings detection.
-- [ ] Ensure Pico Interaction cannot be constructed on Phone or Quest.
-- [ ] Add Phone-negative, Pico-positive, and malformed-capability tests.
+- [x] Replace `deferTabletCreationUntilOpen` as Pico Settings detection.
+- [x] Ensure Pico Interaction cannot be constructed on Phone or Quest.
+- [x] Add Phone-negative, Quest-negative, Pico-positive, and default-negative tests.
+- [x] Pass Android fast/contracts/host, Pico device-free, and project quick suites.
 
 Exit condition: changing a persisted setting cannot change product identity.
 
@@ -236,6 +237,6 @@ Q0 (when hardware/scope are available) → Q1 → Q2
 Apple integration proceeds independently after iOS work stabilizes.
 ```
 
-The next autonomous coding milestone after A1 is A2: immutable platform identity
-for Settings. It removes an actual correctness risk with a small, testable surface
-and does not require deciding the full Quest architecture.
+The next autonomous coding milestone after A2 is A3: move genuinely shared Android
+overrides out of Pico-owned paths. It removes existing Phone-to-Pico source coupling
+without requiring the full Quest architecture decision.

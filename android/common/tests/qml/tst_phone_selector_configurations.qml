@@ -68,6 +68,7 @@ TestCase {
         compare(configuration.showGraphicsSettings, false)
         compare(configuration.showControllerSettings, false)
         compare(configuration.showPicoResolutionSettings, false)
+        compare(configuration.showPicoInteractionSettings, false)
         configuration.destroy()
     }
 }
