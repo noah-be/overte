@@ -1078,7 +1078,7 @@ void Application::initialize(const QCommandLineParser &parser) {
 #endif
     });
     _applicationStateDevice->setInputVariant(STATE_PLATFORM_MAC, []() -> float {
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
         return 1;
 #else
         return 0;

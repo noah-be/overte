@@ -6,6 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = (ROOT / "interface/src/Application_Events.cpp").read_text()
+SETUP_SOURCE = (ROOT / "interface/src/Application_Setup.cpp").read_text()
 UI_SOURCE = (ROOT / "interface/src/Application_UI.cpp").read_text()
 UI_UTIL_SOURCE = (ROOT / "interface/src/UIUtil.cpp").read_text()
 MAC_DESKTOP_GUARD = "#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)"
@@ -42,5 +43,8 @@ require("const float BASE_DPI = 72.0f;" in UI_UTIL_SOURCE and
         "const float NATIVE_DPI = 72.0f;" in UI_UTIL_SOURCE and
         "float fontScale = BASE_DPI / NATIVE_DPI;" in UI_UTIL_SOURCE,
         "iOS font scaling no longer resolves to the documented 1.0 factor")
+require("_applicationStateDevice->setInputVariant(STATE_PLATFORM_MAC" in SETUP_SOURCE and
+        "#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)\n        return 1;" in SETUP_SOURCE,
+        "iOS must not advertise the desktop macOS controller state")
 
-print("iOS input platform contract valid: desktop workarounds excluded; iOS point-font scale preserved")
+print("iOS input platform contract valid: desktop Mac state/workarounds excluded; iOS point-font scale preserved")
