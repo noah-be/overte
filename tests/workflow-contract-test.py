@@ -27,9 +27,12 @@ class GeneralBuildWorkflowContracts(unittest.TestCase):
             '"**/*.md"',
             '"docs/**"',
             '".github/workflows/build.yml"',
+            '".github/workflows/documentation-checks.yml"',
+            '".github/workflows/macos-bootstrap.yml"',
             '"android/tests/**"',
             '"ios/tests/**"',
             '"tests/workflow-contract-test.py"',
+            '"tests/check-documentation.py"',
         ):
             self.assertIn(path, source)
 
