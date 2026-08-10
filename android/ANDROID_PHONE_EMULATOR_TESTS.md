@@ -52,6 +52,31 @@ Select another AVD with `PHONE_EMULATOR_AVD=<name>`. The runner uses a private
 Gradle temporary directory below `android/build/phone-emulator`, so it does not
 depend on writable capacity in a host `/tmp` quota.
 
+### Fedora and SwiftShader troubleshooting
+
+On one Fedora 44 workstation, Android Emulator 36.6.11 and 37.1.11 exited with
+signal 11 while executing SwiftShader JIT code. The failure was reproduced with
+API 35 and API 36 x86_64 images and with both SwiftShader and Lavapipe software
+renderers. KVM acceleration and the Android images continued to work with the
+NVIDIA host renderer, so this is a host-specific troubleshooting result rather
+than a general Fedora limitation.
+
+`phone-emulator-test.sh` already selects `-gpu host`. When starting an AVD
+manually on an affected workstation, also select the host renderer instead of
+`-gpu software`. Record the emulator version, acceleration result, and verbose
+startup output before changing images or recreating the AVD:
+
+```bash
+emulator -version
+emulator -accel-check
+emulator -avd overte_api35 \
+    -no-window -no-audio -gpu host -no-snapshot -wipe-data -verbose
+```
+
+This workaround depends on a functioning host GPU driver. Do not generalize it
+to headless CI machines without first validating their renderer and emulator
+combination.
+
 ## Commands
 
 Run from `android/`:
