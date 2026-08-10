@@ -128,9 +128,9 @@
       "buildFile": "libraries/qt/build.gradle",
       "directDependencies": [
         {
-          "configuration": "implementation",
+          "configuration": "api",
           "kind": "fileTree",
-          "notation": "fileTree(dir: 'libs', include: ['*.jar'])"
+          "notation": "fileTree(dir: qtJarDir, include: ['*.jar'])"
         },
         {
           "configuration": "api",

@@ -80,7 +80,9 @@ From the _SDK Tools_ tab, select the following
 * Android SDK Tools
 * NDK (even if you have the NDK installed separately)
 
-Still in the _SDK Tools_ tab, check off _Show Package Details_ at the bottom. Select CMake 3.18.1. Do this even if you have a separate CMake installation. Also, make sure the NDK installed version is 18.
+Still in the _SDK Tools_ tab, check off _Show Package Details_ at the bottom.
+Select CMake 3.18.1 and NDK 27.3.13750724. Do this even if you have separate
+installations.
 
 The legacy graph pins Android Gradle Plugin `4.1.3` and Gradle `6.5`. Bootstrap the reviewed distribution once, then use the dedicated wrapper:
 
@@ -92,6 +94,21 @@ python3 tests/legacy-gradle/run_dependency_report.py toolchain --network
 
 Do not accept an automatic Gradle plugin upgrade: the dedicated wrapper and the
 root build file are the reviewed Legacy toolchain authority.
+
+The Interface native graph can reuse the maintained Android Conan packages.
+Point the build at their generated CMake files and package roots before building:
+
+```bash
+export HIFI_ANDROID_CONAN_GENERATORS=/absolute/path/to/conan/generators
+export HIFI_ANDROID_QT_ROOT=/absolute/path/to/the/Qt/package
+export HIFI_ANDROID_OPENSSL_ROOT=/absolute/path/to/the/OpenSSL/package
+./legacy-gradlew -PVERSION_CODE=1 -PRELEASE_NUMBER=1.0 \
+  -PSUPPRESS_PICO_INTERFACE -PSUPPRESS_QUEST_INTERFACE \
+  -PSUPPRESS_FRAME_PLAYER -PSUPPRESS_QUEST_FRAME_PLAYER \
+  :interface:assembleDebug
+```
+
+These paths must refer to ARM64 Android packages built with the selected NDK.
 
 ## Environment
 

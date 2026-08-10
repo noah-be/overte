@@ -2,8 +2,76 @@ import org.apache.tools.ant.taskdefs.condition.Os
 
 apply plugin: 'com.android.application'
 
+def legacyQtRoot = System.getenv('HIFI_ANDROID_QT_ROOT') ?
+    file(System.getenv('HIFI_ANDROID_QT_ROOT')) : null
+def legacyOpenSslRoot = System.getenv('HIFI_ANDROID_OPENSSL_ROOT') ?
+    file(System.getenv('HIFI_ANDROID_OPENSSL_ROOT')) : null
+def legacyQtRuntimeDir = file("$buildDir/generated/legacyQtRuntime")
+def legacyQtAssetsDir = file("$buildDir/generated/legacyQtAssets")
+def legacyQmlModules = [
+    'Qt/labs/settings', 'QtQml', 'QtQml/Models.2',
+    'QtQml/WorkerScript.2', 'QtQuick.2', 'QtQuick/Controls.2',
+    'QtQuick/Controls', 'QtQuick/Dialogs', 'QtQuick/Dialogs/Private',
+    'QtQuick/PrivateWidgets', 'Qt/labs/folderlistmodel',
+    'QtQuick/Templates.2', 'QtQuick/Layouts', 'QtQuick/Window.2',
+    'QtGraphicalEffects', 'QtGraphicalEffects/private'
+]
+
+task prepareLegacyQtRuntime(type: Sync) {
+    doFirst {
+        if (!legacyQtRoot?.isDirectory() || !legacyOpenSslRoot?.isDirectory()) {
+            throw new GradleException(
+                'Legacy Interface requires explicit Qt and OpenSSL package roots.')
+        }
+    }
+    into new File(legacyQtRuntimeDir, 'arm64-v8a')
+    from(new File(legacyQtRoot ?: projectDir, 'plugins/platforms')) {
+        include 'libplugins_platforms_qtforandroid_arm64-v8a.so'
+    }
+    from(new File(legacyQtRoot ?: projectDir, 'plugins/bearer')) {
+        include 'libplugins_bearer_qandroidbearer_arm64-v8a.so'
+    }
+    from(new File(legacyQtRoot ?: projectDir, 'plugins/imageformats')) {
+        include 'libplugins_imageformats_qjpeg_arm64-v8a.so'
+        include 'libplugins_imageformats_qsvg_arm64-v8a.so'
+    }
+    from(new File(legacyQtRoot ?: projectDir, 'plugins/audio')) {
+        include 'libplugins_audio_qtaudio_opensles_arm64-v8a.so'
+    }
+    legacyQmlModules.each { modulePath ->
+        from(new File(legacyQtRoot ?: projectDir, "qml/${modulePath}")) {
+            include '*.so'
+        }
+    }
+    from(new File(legacyOpenSslRoot ?: projectDir, 'lib')) {
+        include 'libcrypto.so.1.1'
+        rename { 'libcrypto_1_1.so' }
+    }
+    from(new File(legacyOpenSslRoot ?: projectDir, 'lib')) {
+        include 'libssl.so.1.1'
+        rename { 'libssl_1_1.so' }
+    }
+}
+
+task prepareLegacyQtAssets(type: Sync) {
+    doFirst {
+        if (!legacyQtRoot?.isDirectory()) {
+            throw new GradleException(
+                'Legacy Interface requires an explicit Qt package root.')
+        }
+    }
+    into new File(legacyQtAssetsDir, 'qml')
+    legacyQmlModules.each { modulePath ->
+        from(new File(legacyQtRoot ?: projectDir, "qml/${modulePath}")) {
+            into modulePath
+            exclude '*.so'
+        }
+    }
+}
+
 android {
     compileSdkVersion 26
+    ndkVersion '27.3.13750724'
     defaultConfig {
         applicationId "io.highfidelity.hifiinterface"
         minSdkVersion 24
@@ -21,6 +89,11 @@ android {
                     '-DANDROID_STL=c++_shared',
                     '-DCMAKE_C_FLAGS=-O2 -falign-functions=32 -fPIC',
                     '-DCMAKE_CXX_FLAGS=-O2 -falign-functions=32 -fPIC',
+                    '-DCMAKE_PROJECT_INCLUDE_BEFORE=' + file('../../cmake-pico-bootstrap.cmake').absolutePath,
+                    '-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON',
+                    '-DCMAKE_PREFIX_PATH=' + (System.getenv('HIFI_ANDROID_CONAN_GENERATORS') ?: file('../../conan/pico4-debug/generators').absolutePath),
+                    '-DCMAKE_MODULE_PATH=' + file('../../cmake-pico-modules').absolutePath + ';' + (System.getenv('HIFI_ANDROID_CONAN_GENERATORS') ?: file('../../conan/pico4-debug/generators').absolutePath),
+                    '-DHIFI_ANDROID_CONAN_GENERATORS=' + (System.getenv('HIFI_ANDROID_CONAN_GENERATORS') ?: file('../../conan/pico4-debug/generators').absolutePath),
                     '-DRELEASE_NUMBER=' + RELEASE_NUMBER,
                     '-DRELEASE_TYPE=' + RELEASE_TYPE,
                     '-DSTABLE_BUILD=' + STABLE_BUILD,
@@ -43,6 +116,13 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    sourceSets {
+        main {
+            jniLibs.srcDir legacyQtRuntimeDir
+            assets.srcDir legacyQtAssetsDir
+        }
     }
 
     buildTypes {
@@ -76,7 +156,9 @@ android {
         // so our merge has to depend on the external native build
         variant.externalNativeBuildTasks.each { task ->
             variant.mergeResources.dependsOn(task)
-            if (Os.isFamily(Os.FAMILY_UNIX)) {
+            if (Os.isFamily(Os.FAMILY_UNIX) &&
+                    System.getenv("CMAKE_BACKTRACE_URL") &&
+                    System.getenv("CMAKE_BACKTRACE_TOKEN")) {
                 // FIXME
                 def uploadDumpSymsTask = rootProject.getTasksByName("uploadBreakpadDumpSyms${variant.name.capitalize()}", false).first()
                 def runDumpSymsTask = rootProject.getTasksByName("runBreakpadDumpSyms${variant.name.capitalize()}", false).first()
@@ -86,13 +168,14 @@ android {
         }
 
         variant.mergeAssets.doLast {
+            def mergedAssetsDir = outputDir.get().asFile
             def assetList = new LinkedList<String>()
             def youngestLastModified = 0
 
             // Copy the compiled resources generated by the external native build
             copy {
                 from new File(projectDir, "../../../interface/compiledResources")
-                into outputDir
+                into mergedAssetsDir
                 duplicatesStrategy DuplicatesStrategy.INCLUDE
                 eachFile { details ->
                     youngestLastModified = Math.max(youngestLastModified, details.lastModified)
@@ -103,7 +186,7 @@ android {
             // Copy the scripts directory
             copy {
                 from new File(projectDir, "../../../scripts")
-                into new File(outputDir, "scripts")
+                into new File(mergedAssetsDir, "scripts")
                 duplicatesStrategy DuplicatesStrategy.INCLUDE
                 eachFile { details->
                     youngestLastModified = Math.max(youngestLastModified, details.lastModified)
@@ -112,13 +195,15 @@ android {
             }
 
             // Write a list of files to be unpacked to the cache folder
-            new File(outputDir, 'cache_assets.txt').withWriter { out ->
+            new File(mergedAssetsDir, 'cache_assets.txt').withWriter { out ->
                 out.println(Long.toString(youngestLastModified))
                 assetList.each { file -> out.println(file) }
             }
         }
     }
 }
+
+preBuild.dependsOn prepareLegacyQtRuntime, prepareLegacyQtAssets
 
 dependencies {
     implementation 'com.android.support.constraint:constraint-layout:1.0.2'

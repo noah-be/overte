@@ -215,10 +215,76 @@ class LegacyGradleDependencyTest(unittest.TestCase):
             source = (ANDROID_ROOT / relative_path).read_text(encoding="utf-8")
             self.assertEqual(1, source.count("-DOVERTE_LEGACY_ANDROID_CMAKE=ON"),
                              relative_path)
+            self.assertEqual(1, source.count("ndkVersion '27.3.13750724'"),
+                             relative_path)
             self.assertEqual(1, source.count("-DCMAKE_C_FLAGS=-O2 -falign-functions=32 -fPIC"),
                              relative_path)
             self.assertEqual(1, source.count("-DCMAKE_CXX_FLAGS=-O2 -falign-functions=32 -fPIC"),
                              relative_path)
+
+    def test_legacy_interface_accepts_an_explicit_conan_generator_bridge(self):
+        source = (ANDROID_ROOT / "apps/interface/build.gradle").read_text(
+            encoding="utf-8")
+        bootstrap = (ANDROID_ROOT / "cmake-pico-bootstrap.cmake").read_text(
+            encoding="utf-8")
+        android_extras = (ANDROID_ROOT /
+                          "cmake-pico-compat/QtAndroidExtras/QAndroidJniObject").read_text(
+            encoding="utf-8")
+        documentation = (REPOSITORY_ROOT / "BUILD_ANDROID.md").read_text(
+            encoding="utf-8")
+        self.assertIn("System.getenv('HIFI_ANDROID_CONAN_GENERATORS')", source)
+        self.assertIn("-DCMAKE_PROJECT_INCLUDE_BEFORE=", source)
+        self.assertIn("-DCMAKE_PREFIX_PATH=", source)
+        self.assertIn("-DHIFI_ANDROID_CONAN_GENERATORS=", source)
+        self.assertIn("private/qjni_p.h", bootstrap)
+        self.assertIn("public QJNIObjectPrivate", android_extras)
+        self.assertIn('System.getenv("CMAKE_BACKTRACE_URL")', source)
+        self.assertIn('System.getenv("CMAKE_BACKTRACE_TOKEN")', source)
+        self.assertIn("System.getenv('HIFI_ANDROID_QT_ROOT')", source)
+        self.assertIn("System.getenv('HIFI_ANDROID_OPENSSL_ROOT')", source)
+        self.assertIn("task prepareLegacyQtRuntime(type: Sync)", source)
+        self.assertIn("task prepareLegacyQtAssets(type: Sync)", source)
+        self.assertIn("Legacy Interface requires explicit Qt and OpenSSL package roots.", source)
+        self.assertIn("jniLibs.srcDir legacyQtRuntimeDir", source)
+        self.assertIn("assets.srcDir legacyQtAssetsDir", source)
+        self.assertIn("NDK 27.3.13750724", documentation)
+        self.assertIn("HIFI_ANDROID_CONAN_GENERATORS", documentation)
+        self.assertIn("HIFI_ANDROID_QT_ROOT", documentation)
+        self.assertIn("HIFI_ANDROID_OPENSSL_ROOT", documentation)
+
+    def test_android_gpu_library_does_not_link_host_pthread_archive(self):
+        source = (REPOSITORY_ROOT / "libraries/gpu-gl/CMakeLists.txt").read_text(
+            encoding="utf-8")
+        self.assertIn("UNIX AND NOT ANDROID AND NOT OVERTE_THREAD_DEBUGGING", source)
+
+    def test_legacy_asset_tasks_resolve_directory_properties(self):
+        for relative_path in (
+                "apps/interface/build.gradle",
+                "apps/questInterface/build.gradle"):
+            source = (ANDROID_ROOT / relative_path).read_text(encoding="utf-8")
+            self.assertIn("def mergedAssetsDir = outputDir.get().asFile", source)
+            self.assertNotIn("new File(outputDir,", source)
+
+    def test_legacy_qt_module_accepts_conan_android_jars(self):
+        source = (ANDROID_ROOT / "libraries/qt/build.gradle").read_text(
+            encoding="utf-8")
+        self.assertIn("System.getenv('HIFI_ANDROID_QT_ROOT')", source)
+        self.assertIn("api fileTree(dir: qtJarDir", source)
+
+    def test_legacy_interface_owns_required_qt_resources(self):
+        dependencies = (ANDROID_ROOT /
+                        "apps/interface/src/main/res/values/qt_dependencies.xml").read_text(
+            encoding="utf-8")
+        styles = (ANDROID_ROOT /
+                  "apps/interface/src/main/res/values/styles.xml").read_text(
+            encoding="utf-8")
+        for resource_name in ("qt_libs", "bundled_in_lib", "bundled_in_assets"):
+            self.assertIn(f'name="{resource_name}"', dependencies)
+        self.assertIn('name="NoSystemUI"', styles)
+        domain_view = (ANDROID_ROOT /
+                       "apps/interface/src/main/res/layout/domain_view.xml").read_text(
+            encoding="utf-8")
+        self.assertNotIn("@drawable/rippleable", domain_view)
 
     def test_dedicated_legacy_wrapper_gates_toolchain_and_forwards_arguments(self):
         wrapper = ANDROID_ROOT / "legacy-gradlew"
