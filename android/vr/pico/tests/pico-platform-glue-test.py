@@ -11,7 +11,7 @@ APP = ROOT / "android/vr/pico/apps/picoInterface"
 ANDROID_COMMON = ROOT / "android/common"
 CMAKE = (APP / "CMakeLists.txt").read_text(encoding="utf-8")
 PROVIDER = (APP / "openxr/src/OpenXrProvider.cpp").read_text(encoding="utf-8")
-GL_CANVAS = (APP / "overrides/OffscreenGLCanvas.cpp").read_text(encoding="utf-8")
+GL_CANVAS = (ANDROID_COMMON / "src/OffscreenGLCanvas.cpp").read_text(encoding="utf-8")
 QT_INPUT = (ANDROID_COMMON / "src/QtInputConnectionCompat.cpp").read_text(encoding="utf-8")
 
 
@@ -47,9 +47,10 @@ class PicoPlatformGlueTests(unittest.TestCase):
         self.assertEqual(QT_INPUT.count("return JNI_TRUE;"), 2)
 
     def test_cmake_replaces_upstream_sources_and_links_openxr(self):
-        for source in ("PicoWebViewItem", "OffscreenGLCanvas", "Application_Setup"):
+        for source in ("PicoWebViewItem", "Application_Setup"):
             self.assertIn(f'{source}\\\\.', CMAKE)
-        self.assertIn('../../shared/src/QtInputConnectionCompat.cpp', CMAKE)
+        self.assertIn('../../../../common/src/OffscreenGLCanvas.cpp', CMAKE)
+        self.assertIn('../../../../common/src/QtInputConnectionCompat.cpp', CMAKE)
         self.assertIn("target_link_libraries(openxr picoOpenXR)", CMAKE)
         self.assertIn("add_dependencies(${TARGET_NAME} openxr)", CMAKE)
 

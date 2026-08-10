@@ -89,6 +89,14 @@ phone_defaults='../scripts/+android_phoneInterface/defaultScripts.js'
 
 require_text "$gradle" 'Declare the module identity before dependency preflight failures' \
     'phone Gradle diagnostics initialize AGP identity before dependency preflight'
+require_text "$cmake" '../../../common/src/OffscreenGLCanvas[.]cpp' \
+    'phone native build uses the shared Android OffscreenGLCanvas override'
+require_text "$gradle" '../../../common/runtime-overrides/arm64-v8a' \
+    'phone packaging uses shared Android runtime overrides'
+reject_text "$cmake" '(\.\./|apps/)picoInterface/' \
+    'phone native build does not compile Pico-owned sources'
+reject_text "$gradle" '(\.\./|apps/)picoInterface/' \
+    'phone packaging does not consume Pico-owned paths'
 
 for source_file in \
         build-phone.sh \

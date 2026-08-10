@@ -73,7 +73,7 @@ Exit condition: future work has a clear starting branch and required gate set.
 
 Deliverables:
 
-- [x] Create `android/shared/src`.
+- [x] Create `android/common/src`.
 - [x] Move `QtInputConnectionCompat.cpp` to one shared implementation.
 - [x] Compile the shared source from Phone and Pico targets.
 - [x] Point Phone native tests and Pico platform contracts at the same file.
@@ -103,20 +103,24 @@ Exit condition: changing a persisted setting cannot change product identity.
 
 ## Milestone A3 — Shared Android override directory
 
-**Mode:** 🤖 Autonomous
+**Status:** ✅ Complete on `refactor/android-platform-boundaries`
 
 Objective: remove direct Phone dependencies on Pico-owned source paths.
 
 Deliverables:
 
-- [ ] Review `OffscreenGLCanvas.cpp` behavior against Phone and Pico tests.
-- [ ] Move the genuinely shared override under `android/shared`.
-- [ ] Update both CMake targets without changing behavior.
-- [ ] Replace Pico-named Gradle runtime override ownership where files are shared.
-- [ ] Add an architecture contract that rejects cross-product source paths.
+- [x] Review `OffscreenGLCanvas.cpp` behavior against Phone and Pico tests.
+- [x] Move the genuinely shared override under `android/common`.
+- [x] Update both CMake targets without changing behavior.
+- [x] Move shared Qt/TBB runtime override ownership to `android/common`.
+- [x] Preserve the immutable `pico4-deps-v1` archive through a checksum-verified
+  legacy-layout compatibility copy during restore.
+- [x] Add an architecture contract that rejects cross-product source paths.
+- [x] Pass Android fast/contracts, Phone host, Pico device-free, and native gates.
 
 Exit condition: Phone CMake/Gradle does not compile or package files from
-`picoInterface`, except for explicitly documented temporary runtime artifacts.
+`picoInterface`. The published Pico runtime archive may still extract its historical
+layout, but build consumers use only the shared directory.
 
 ## Milestone V1 — Generic Android-VR test gate
 
@@ -229,7 +233,7 @@ correctness is explicitly not claimed yet.
 ## Recommended execution order
 
 ```text
-A0 ✅ → A1 → A2 → A3 → V1 → V2
+A0 ✅ → A1 ✅ → A2 ✅ → A3 ✅ → V1 → V2
                      ↘ P1 (Phone validation)
                      ↘ PI1 (Pico validation)
 
@@ -237,6 +241,7 @@ Q0 (when hardware/scope are available) → Q1 → Q2
 Apple integration proceeds independently after iOS work stabilizes.
 ```
 
-The next autonomous coding milestone after A2 is A3: move genuinely shared Android
-overrides out of Pico-owned paths. It removes existing Phone-to-Pico source coupling
-without requiring the full Quest architecture decision.
+The next autonomous coding milestone is V1: provide one predictable hardware-free
+gate for the future `android-vr` integration lane. It can consolidate existing
+OpenXR, Pico, Quest launcher, syntax, and inventory contracts without changing a
+working product implementation.

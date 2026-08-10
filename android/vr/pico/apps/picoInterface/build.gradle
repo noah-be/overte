@@ -9,14 +9,15 @@ if (!qtPackageMatch.find()) {
 }
 def qtPackageDir = file(qtPackageMatch.group(1))
 def picoQtRuntimeDir = layout.buildDirectory.dir('generated/picoQtRuntime')
-def picoReleaseTbb = file(
-    'src/main/runtime-overrides/arm64-v8a/libtbb.so'
+def androidRuntimeOverrides = file('../../../../common/runtime-overrides/arm64-v8a')
+def androidReleaseTbb = new File(
+    androidRuntimeOverrides, 'libtbb.so'
 )
-def picoPatchedQtCore = file(
-    'src/main/runtime-overrides/arm64-v8a/libQt5Core_arm64-v8a.so'
+def androidPatchedQtCore = new File(
+    androidRuntimeOverrides, 'libQt5Core_arm64-v8a.so'
 )
-def picoPatchedQtPlatform = file(
-    'src/main/runtime-overrides/arm64-v8a/libplugins_platforms_qtforandroid_arm64-v8a.so'
+def androidPatchedQtPlatform = new File(
+    androidRuntimeOverrides, 'libplugins_platforms_qtforandroid_arm64-v8a.so'
 )
 def picoOpenSslDir = file('../../../../common/conan/pico4-debug/conanlibs/Debug')
 
@@ -30,10 +31,10 @@ tasks.register('preparePicoQtRuntime', Copy) {
     into picoQtRuntimeDir.map { it.dir('arm64-v8a') }
     from(new File(qtPackageDir, 'plugins/platforms')) {
         include 'libplugins_platforms_qtforandroid_arm64-v8a.so'
-        exclude { picoPatchedQtPlatform.exists() }
+        exclude { androidPatchedQtPlatform.exists() }
     }
-    from(picoPatchedQtPlatform.parentFile) {
-        include picoPatchedQtPlatform.name
+    from(androidPatchedQtPlatform.parentFile) {
+        include androidPatchedQtPlatform.name
     }
     from(new File(qtPackageDir, 'plugins/bearer')) {
         include 'libplugins_bearer_qandroidbearer_arm64-v8a.so'
@@ -393,10 +394,10 @@ tasks.configureEach { task ->
         task.doLast {
             task.outputs.files.asFileTree.matching { include '**/*.so' }.files.each { library ->
                 if (library.name == 'libtbb_debug.so') {
-                    ant.copy(file: picoReleaseTbb, tofile: library, overwrite: true)
+                    ant.copy(file: androidReleaseTbb, tofile: library, overwrite: true)
                 }
                 if (library.name == 'libQt5Core_arm64-v8a.so') {
-                    ant.copy(file: picoPatchedQtCore, tofile: library, overwrite: true)
+                    ant.copy(file: androidPatchedQtCore, tofile: library, overwrite: true)
                 }
             }
         }

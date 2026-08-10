@@ -84,8 +84,10 @@ Changes should start here when they are useful to both 2D and VR Android clients
 - the Android module inventory and cross-product security contracts.
 
 The first concrete extraction is complete on the working branch:
-`QtInputConnectionCompat.cpp` now has one implementation under `android/shared` and
-is compiled by both Phone and Pico.
+`QtInputConnectionCompat.cpp` now has one implementation under `android/common` and
+is compiled by both Phone and Pico. A3 also places the modern Android
+`OffscreenGLCanvas.cpp` and shared Qt/TBB runtime overrides under `android/common`;
+Phone no longer compiles or packages anything from the Pico product directory.
 
 ### `android-phone`
 
@@ -165,9 +167,13 @@ covered independently.
    entity loading, graphics, menu, and lifecycle code contain `PICO_*` log markers
    under generic `Q_OS_ANDROID` paths. This makes Quest/Phone diagnosis misleading
    and obscures which behavior is actually Pico-only.
-3. **Phone consumes Pico-owned paths.** Phone Gradle uses Pico runtime overrides,
-   while Phone CMake consumes Pico's `OffscreenGLCanvas.cpp`. These are shared
-   Android dependencies stored under a product directory.
+3. **Phone consumed Pico-owned paths at the assessed baseline.** A3 on
+   `refactor/android-platform-boundaries` moves `OffscreenGLCanvas.cpp` and the
+   common Qt/TBB runtime override directory under `android/common`. Both product
+   builds now consume that neutral path, and an inventory contract rejects future
+   Phone CMake/Gradle references to Pico or Quest product directories. The immutable
+   `pico4-deps-v1` release archive retains its historical layout, so the verified
+   download path copies that payload into the shared directory after extraction.
 
 ### P0 — Quest is a legacy product, not an empty modern target
 
@@ -257,7 +263,8 @@ and an aggregate Android-VR gate are enough to prevent drift first.
 ## Recommended immediate direction
 
 Continue with small shared extractions that already have two consumers. The first
-shared JNI source and immutable Settings capability boundary are complete on the
-working branch. Next, move genuinely shared Android overrides out of Pico-owned
-paths. Defer the large OpenXR/Quest design until the current iOS integration is
-stable and Quest hardware is available for a real validation loop.
+shared JNI source, immutable Settings capability boundary, and neutral Android
+override ownership are complete on the working branch. Next, add the aggregate
+Android-VR hardware-free gate before extracting a small OpenXR policy. Defer the
+large OpenXR/Quest design until the current iOS integration is stable and Quest
+hardware is available for a real validation loop.

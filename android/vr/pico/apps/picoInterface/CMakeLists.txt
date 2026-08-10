@@ -84,7 +84,7 @@ get_target_property(PICO_GL_SOURCES gl SOURCES)
 list(FILTER PICO_GL_SOURCES EXCLUDE REGEX "OffscreenGLCanvas\\.cpp$")
 set_property(TARGET gl PROPERTY SOURCES "${PICO_GL_SOURCES}")
 target_sources(gl PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/overrides/OffscreenGLCanvas.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../../common/src/OffscreenGLCanvas.cpp"
 )
 target_include_directories(gl PRIVATE
     "${CMAKE_SOURCE_DIR}/libraries/gl/src/gl"
