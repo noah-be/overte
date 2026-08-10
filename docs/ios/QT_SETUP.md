@@ -61,9 +61,10 @@ accept a license.
 The validator checks the exact host and target versions, target CMake
 toolchain, required target modules, and the host-side `moc`, `rcc`,
 `qmlcachegen`, and `qsb` executables. The default target module contract is
-`Core Gui Network Qml Quick ShaderTools`; it can be extended for an experiment
-with `OVERTE_IOS_QT_REQUIRED_MODULES`, but required production modules must not
-be removed from the default.
+`Core`, `Gui`, `Network`, `Qml`, `Quick`, `Multimedia`, `Svg`, `WebChannel`,
+`WebSockets`, `WebView`, `Core5Compat`, and `ShaderTools`. It can be extended
+for an experiment with `OVERTE_IOS_QT_REQUIRED_MODULES`, but required
+production modules must not be removed from the default.
 
 The public macOS repository exposes the host package as
 `qt.qt6.6111.clang_64`. No public `qt.qt6.6111.ios` binary component has been
@@ -101,6 +102,40 @@ The build still requires Xcode and its iOS SDK. Module selection and the
 applicable LGPL, GPL, or commercial obligations must be reviewed before this
 expensive source build is cached. The repository cannot perform that legal
 decision or provide a Qt commercial entitlement.
+
+## Automated source-cache provisioning
+
+After that license review, the manual `Provision Qt iOS source cache` workflow
+builds the smallest currently known full-graph source set: `qtbase`,
+`qtdeclarative`, `qtmultimedia`, `qtsvg`, `qtwebchannel`, `qtwebsockets`,
+`qtwebview`, `qt5compat`, and `qtshadertools`. Qt's documented comma-separated
+`-submodules` form also includes their dependencies. The workflow builds
+matching macOS host tools first and then the iOS SDK, validates both trees, and
+saves only `qt/{macos,ios}` with a cache key that includes Qt, Xcode,
+architecture, and the build-plan hash. It never uploads the tree as a
+downloadable artifact and never builds, signs, or uploads an app.
+
+The underlying command can also be resumed on a controlled macOS machine:
+
+```bash
+ios/tools/build-qt-ios-from-source.sh \
+  --work-root /absolute/volume/overte-qt-work \
+  --install-root /absolute/volume/overte-qt-install/qt
+```
+
+Downloads use a `.partial` file and resume with HTTP range requests. The
+archive is verified before extraction. Known configure trees and completed
+installs are reused; an unmarked source or CMake tree fails closed instead of
+being overwritten. Preserve the work root between manual attempts if the
+runner or build is interrupted.
+
+Expect roughly a 1 GB source download, substantially more temporary disk space,
+and potentially several hours of compilation. GitHub-hosted runner retention,
+cache quotas, and maximum job duration remain external limits. The cache does
+not change Qt's license: access, redistribution, relinking materials, source
+offer, notices, and commercial-seat requirements must be handled according to
+the modules and license selected by the project. The workflow intentionally
+contains no license-confirmation option and no Qt account credentials.
 
 The Qt host tools used for cross-compilation must match the target Qt release.
 Device and simulator slices must share the same Qt configuration and deployment

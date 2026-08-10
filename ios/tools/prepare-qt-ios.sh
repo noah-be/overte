@@ -16,7 +16,7 @@ readonly host_package="qt.qt6.${qt_compact}.clang_64"
 readonly source_archive="qt-everywhere-src-${qt_version}.tar.xz"
 readonly source_url="https://download.qt.io/official_releases/qt/6.11/${qt_version}/single/${source_archive}"
 readonly source_sha256="252acef8c5ae68074d91cadba2ee4a83465051bbb970dd26e8f0daa0f3904e03"
-readonly required_modules="${OVERTE_IOS_QT_REQUIRED_MODULES:-Core Gui Network Qml Quick ShaderTools}"
+readonly required_modules="${OVERTE_IOS_QT_REQUIRED_MODULES:-Core Gui Network Qml Quick Multimedia Svg WebChannel WebSockets WebView Core5Compat ShaderTools}"
 
 die() {
     echo "error: $*" >&2

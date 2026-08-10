@@ -389,6 +389,18 @@ def test_ci_contract() -> None:
     for forbidden in ("QT_ACCOUNT", "QT_PASSWORD", "aqtinstall", "download.qt.io"):
         if forbidden in integrated_text:
             raise AssertionError(f"integrated CI must not invent Qt acquisition credentials: {forbidden}")
+
+    qt_source = SOURCE_ROOT / ".github" / "workflows" / "ios-qt-source.yml"
+    qt_source_text = qt_source.read_text(encoding="utf-8")
+    require_text(qt_source, r"^\s*workflow_dispatch:", "Qt source provisioning must be manually dispatched")
+    if re.search(r"^\s*(push|pull_request|schedule):", qt_source_text, re.MULTILINE):
+        raise AssertionError("expensive Qt source provisioning must not run automatically")
+    require_text(qt_source, r"runs-on: macos-26", "Qt iOS must be built on the Xcode runner")
+    require_text(qt_source, r"build-qt-ios-from-source\.sh", "Qt provisioning must use the audited source-build script")
+    require_text(qt_source, r"actions/cache/save@[0-9a-f]{40}", "Qt cache writes must use an immutable action revision")
+    for forbidden in ("accept-license", "QT_ACCOUNT", "QT_PASSWORD", "upload-artifact"):
+        if forbidden in qt_source_text:
+            raise AssertionError(f"Qt source workflow contains forbidden acquisition behavior: {forbidden}")
     require_text(verifier, r"default\.metallib", "bundle verification must require compiled Metal shaders")
 
     ios_cmake = IOS_ROOT / "CMakeLists.txt"

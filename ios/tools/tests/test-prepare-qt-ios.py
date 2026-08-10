@@ -26,7 +26,10 @@ def fake_qt(root: pathlib.Path, version: str, target: bool) -> None:
     if target:
         executable(root / "bin/qt-cmake")
         (root / "lib/cmake/Qt6/qt.toolchain.cmake").touch()
-        for module in ("Core", "Gui", "Network", "Qml", "Quick", "ShaderTools"):
+        for module in (
+            "Core", "Gui", "Network", "Qml", "Quick", "Multimedia", "Svg",
+            "WebChannel", "WebSockets", "WebView", "Core5Compat", "ShaderTools",
+        ):
             config = root / f"lib/cmake/Qt6{module}/Qt6{module}Config.cmake"
             config.parent.mkdir(parents=True)
             config.touch()
