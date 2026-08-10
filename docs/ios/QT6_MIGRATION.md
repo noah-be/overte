@@ -278,6 +278,13 @@ come from capture groups three and four. Completer model switching, prefixes,
 popup behavior, and keyboard handling are unchanged. `JSConsole.cpp`
 therefore leaves the Core5Compat inventory.
 
+`ApplicationVersion` now extracts semantic versions with
+`QRegularExpression`. The expression remains an unanchored search with major,
+minor, and optional patch capture groups, so surrounding version text and the
+implicit zero patch retain their prior behavior. Numeric-build fallback and
+all equality/order comparisons are unchanged. `ApplicationVersion.cpp`
+therefore leaves the Core5Compat inventory.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant

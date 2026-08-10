@@ -37,7 +37,6 @@
         "interface/src/ScriptHighlighting.cpp",
         "interface/src/ScriptHighlighting.h",
         "libraries/script-engine/src/ScriptManager.cpp",
-        "libraries/shared/src/ApplicationVersion.cpp",
         "libraries/shared/src/GPUIdent.cpp"
       ],
       "exitCriterion": "All listed uses move to current Qt 6 APIs and Core5Compat leaves the iOS component set."

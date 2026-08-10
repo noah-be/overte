@@ -865,6 +865,19 @@ def test_scope_contract() -> None:
     if "QRegExp" in js_console.read_text(encoding="utf-8"):
         raise AssertionError("JSConsole retained removed QRegExp API")
 
+    application_version = SOURCE_ROOT / "libraries" / "shared" / "src" / "ApplicationVersion.cpp"
+    require_text(application_version, r'#include <QtCore/QRegularExpression>', "version parsing must use the Qt 6 regex API")
+    require_text(
+        application_version,
+        r'QStringLiteral\("\(\[\\\\d\]\+\)\\\\\.\(\[\\\\d\]\+\)\(\?:\\\\\.\(\[\\\\d\]\+\)\)\?"\)',
+        "version parsing must retain major/minor and optional patch capture groups",
+    )
+    require_text(application_version, r'const auto semanticMatch = semanticRegex\.match\(versionString\);', "semantic versions must retain unanchored search behavior")
+    require_text(application_version, r'if \(semanticMatch\.hasMatch\(\)\)', "semantic-version classification must retain its match gate")
+    require_text(application_version, r'auto captures = semanticMatch\.capturedTexts\(\);', "version components must come from the successful match")
+    if "QRegExp" in application_version.read_text(encoding="utf-8"):
+        raise AssertionError("ApplicationVersion retained removed QRegExp API")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,
