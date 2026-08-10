@@ -28,3 +28,11 @@ The production client emits the following structured `qInfo` markers only when c
 | 6 | `render_handoff` | The first real entity produces a renderable and enters the scene transaction. |
 
 The last three high-frequency paths log only their first successful observation where applicable. These markers report execution of existing client paths; they do not alter packets, decoding, query cadence, or rendering behavior.
+
+Export the Overte device log to a text file and produce an offline acceptance report with:
+
+```sh
+python3 ios/tools/validate-entity-gate-log.py ipad.log --output entity-acceptance.json
+```
+
+The command exits successfully only when all six markers occur in order, UUIDs and positive packet sizes are plausible, the query/data node matches the active entity server, and the rendered entity matches the first decoded entity. Its JSON output contains ordered evidence with source line numbers and diagnostics. Messages from the bootstrap preview such as “scene loaded” are not accepted as native entity evidence.
