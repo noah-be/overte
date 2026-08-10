@@ -41,6 +41,10 @@ For measured world-entry and post-loading optimization guidance, see the
 
 ### Interfaces in development
 
+The four ports use a shared documentation layout described in
+[`docs/interfaces/`](docs/interfaces/README.md). The platform documentation is
+maintained on its corresponding development branch.
+
 - [Pico 4](android/PICO4_BUILD.md)
 - [Android phones](android/ANDROID_PHONE_BUILD.md)
 - [iPhone and iPad](docs/interfaces/ios/README.md)
