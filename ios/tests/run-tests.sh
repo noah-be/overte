@@ -14,6 +14,7 @@ python3 "$script_dir/entity-conan-contract-test.py"
 python3 "$script_dir/ios-header-guard-test.py"
 python3 "$script_dir/compatibility-debt-test.py"
 python3 "$script_dir/ios-static-codec-plugin-contract-test.py"
+python3 "$script_dir/interface-ios-macos-source-isolation-test.py"
 
 # Native renderer source/CMake contracts. Keep this list alphabetical so graph
 # drift is reviewable and every contract runs exactly once in the host suite.

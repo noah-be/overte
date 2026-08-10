@@ -114,6 +114,12 @@ list(APPEND INTERFACE_SRCS ${RESOURCES_RCC})
 # grab the Objective-C sources on OS X
 if (APPLE)
   file(GLOB_RECURSE INTERFACE_OBJCPP_SRCS "src/*.m" "src/*.mm")
+  if (IOS)
+    # App Nap is a macOS process policy and has no iOS implementation. Keep
+    # the desktop Objective-C++ source out of the iphoneos compile graph.
+    get_filename_component(APP_NAP_DISABLER_MM "src/AppNapDisabler.mm" ABSOLUTE)
+    list(REMOVE_ITEM INTERFACE_OBJCPP_SRCS ${APP_NAP_DISABLER_MM})
+  endif()
   list(APPEND INTERFACE_SRCS ${INTERFACE_OBJCPP_SRCS})
 endif ()
 
