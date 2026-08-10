@@ -460,6 +460,8 @@ device-discovery API directly.
 WAV header serialization obtains its bit depth from the same compatibility
 boundary and rejects unknown sample formats instead of calling Qt 5's removed
 `QAudioFormat::sampleSize()` API or emitting an invalid header.
+The iOS-reachable script cache uses `QNetworkAccessManager` directly and must
+not reintroduce the removed, unused Qt 5 `QNetworkConfiguration` header.
 Platform-native AVAudioSession policy remains in the iOS shell and must not be
 duplicated by desktop code.
 

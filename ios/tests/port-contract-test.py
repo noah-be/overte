@@ -456,6 +456,9 @@ def test_cmake_boundary() -> None:
     require_text(audio_wav_source, r"sampleSize <= 0[\s\S]*return false", "unknown WAV sample formats must fail closed")
     if ".sampleSize()" in audio_wav_source.read_text(encoding="utf-8"):
         raise AssertionError("AudioFileWav retained the removed Qt 5 QAudioFormat::sampleSize API")
+    script_cache_source = SOURCE_ROOT / "libraries" / "script-engine" / "src" / "ScriptCache.cpp"
+    if "QNetworkConfiguration" in script_cache_source.read_text(encoding="utf-8"):
+        raise AssertionError("iOS-reachable ScriptCache retained the removed Qt 5 network-configuration API")
     require_text(audio_client_source, r"hifiAudioDeviceSupportsChannelCount\([^,]+, 2\)", "stereo-input availability must use the Qt 5/6 capability adapter")
     require_text(audio_client_source, r"Q_OS_MACOS.*!defined\(Q_OS_IOS\)", "desktop AudioHardware must be excluded from iOS")
     audio_client_cmake = SOURCE_ROOT / "libraries" / "audio-client" / "CMakeLists.txt"
