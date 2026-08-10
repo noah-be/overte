@@ -13,7 +13,10 @@ compiler.cppstd=20
 build_type=Release
 
 [conf]
-tools.cmake.cmaketoolchain:generator=Xcode
+# Dependency packages are single-architecture static libraries. Ninja avoids
+# Xcode treating incidental upstream command-line tools as unsigned iOS apps.
+# The final Overte application is still generated explicitly with Xcode.
+tools.cmake.cmaketoolchain:generator=Ninja
 {% set sdk_path = os.getenv("OVERTE_IOS_DEVICE_SDK_PATH", "") %}
 {% if sdk_path %}
 tools.apple:sdk_path={{ sdk_path }}

@@ -91,6 +91,9 @@ def test_profiles() -> None:
         require_text(profile, rf"^os\.sdk={sdk}$", "profile has the wrong SDK")
         require_text(profile, r"^arch=armv8$", "profile must target arm64")
         require_text(profile, r"^\*:shared=False$", "iOS dependencies must default to static")
+        require_text(profile, r"^tools\.cmake\.cmaketoolchain:generator=Ninja$", "single-architecture dependency builds must avoid Xcode app-bundle validation")
+        assert "tools.cmake.cmaketoolchain:generator=Xcode" not in profile.read_text(encoding="utf-8"), \
+            "dependency profiles must not turn upstream command-line tools into iOS app bundles"
 
     macos_build_profile = IOS_ROOT / "conan" / "profiles" / "macos-arm64"
     require_text(macos_build_profile, r"^os=Macos$", "Conan build tools must target the native macOS runner")
@@ -101,6 +104,7 @@ def test_profiles() -> None:
     require_text(macos_build_profile, r"^build_type=Release$", "Conan build tools must be release binaries")
 
     build_cli = IOS_ROOT / "build-ios.sh"
+    require_text(build_cli, r"-G Xcode", "the final Overte application must retain the Xcode generator")
     require_text(build_cli, r'--profile:build="\$script_dir/conan/profiles/macos-arm64"', "dependency resolution must use the audited native build profile")
     require_text(build_cli, r'readonly overte_conan_remote_url="https://artifactory\.overte\.org/artifactory/api/conan/overte"', "custom recipes must come from the canonical Overte Conan remote")
     require_text(build_cli, r"conan remote (?:add|update) overte", "dependency resolution must configure the Overte Conan remote")

@@ -39,6 +39,10 @@ Cross compilation uses the checked-in `ios-arm64` or
 runner. The dependency command names both profiles explicitly. It must not
 depend on Conan's mutable, user-global `default` profile, which is absent in a
 fresh CI environment and could otherwise silently change the build-tool ABI.
+The target profiles use Ninja for their single-architecture static dependency
+packages. This prevents Xcode from applying iOS application-bundle validation
+to incidental upstream command-line tools such as Draco's encoder and decoder.
+The final `Overte.app` remains an explicit Xcode-generator build.
 Before graph resolution, the CLI idempotently adds or resets the public
 `overte` Artifactory remote to its canonical URL. Custom recipe references such
 as `cgltf/1.14@overte/stable` must never fall through to Conan Center alone.
