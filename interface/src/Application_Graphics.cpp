@@ -168,6 +168,15 @@ void Application::initializeGL() {
 
     // Build a shared canvas / context for the QML rendering
 #if !defined(DISABLE_QML)
+#if defined(Q_OS_IOS)
+    const hifi::qml::OffscreenSurface::SharedGraphicsContext qmlContext {
+        hifi::qml::OffscreenSurface::SharedGraphicsContext::Backend::Unsupported,
+        nullptr,
+    };
+    if (!OffscreenQmlSurface::configureSharedGraphicsContext(qmlContext)) {
+        qCritical() << "Offscreen QML rendering is disabled on iOS until a native QRhi context lease is implemented";
+    }
+#else
     {
         OffscreenGLCanvas* qmlShareContext = new OffscreenGLCanvas();
         qmlShareContext->setObjectName("QmlShareContext");
@@ -181,6 +190,7 @@ void Application::initializeGL() {
             qCWarning(interfaceapp, "Unable to make window context current");
         }
     }
+#endif
 #endif
 
     // Build an offscreen GL context for the main thread.

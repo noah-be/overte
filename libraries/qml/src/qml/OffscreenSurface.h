@@ -45,6 +45,16 @@ class OffscreenSurface : public QObject {
     Q_OBJECT
 
 public:
+    struct SharedGraphicsContext {
+        enum class Backend {
+            Unsupported,
+            OpenGL,
+        };
+
+        Backend backend { Backend::Unsupported };
+        void* handle { nullptr };
+    };
+
     static const QmlContextObjectCallback DEFAULT_CONTEXT_OBJECT_CALLBACK;
     static const QmlContextCallback DEFAULT_CONTEXT_CALLBACK;
     static QmlUrlValidator validator;
@@ -54,6 +64,9 @@ public:
 
     static const QmlUrlValidator& getUrlValidator() { return validator; }
     static void setUrlValidator(const QmlUrlValidator& newValidator) { validator = newValidator; }
+    // Backend-neutral boundary for Interface. Returns false without mutating
+    // state when the producer backend is not implemented by Offscreen QML.
+    static bool configureSharedGraphicsContext(const SharedGraphicsContext& context);
     static void setSharedContext(QOpenGLContext* context);
 
     OffscreenSurface();
