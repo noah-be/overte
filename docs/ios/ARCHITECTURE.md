@@ -78,6 +78,9 @@ permissions, display metrics, safe areas, orientation, touch, and sensors.
 Desktop Objective-C++ sources are not implicitly mobile services:
 `AppNapDisabler.mm` remains part of the macOS Interface graph but is removed
 from the iOS source glob because App Nap is a macOS-only process policy.
+Likewise, the AppKit-backed `SpeechRecognizer.mm` and all of its Interface
+registration sites are excluded on iOS; the existing macOS and Windows speech
+implementations remain unchanged.
 
 ## ADR-007: secret-free automation
 

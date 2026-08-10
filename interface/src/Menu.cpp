@@ -64,7 +64,7 @@
 #include "crash-handler/CrashHandler.h"
 
 #include "scripting/SettingsScriptingInterface.h"
-#if defined(Q_OS_MAC) || defined(Q_OS_WIN)
+#if (defined(Q_OS_MAC) && !defined(Q_OS_IOS)) || defined(Q_OS_WIN)
 #include "SpeechRecognizer.h"
 #endif
 
@@ -379,7 +379,7 @@ Menu::Menu() {
                                           qApp, SLOT(setCachebustRequire()));
 
     // Developer > Scripting > Enable Speech Control API
-#if defined(Q_OS_MAC) || defined(Q_OS_WIN)
+#if (defined(Q_OS_MAC) && !defined(Q_OS_IOS)) || defined(Q_OS_WIN)
     auto speechRecognizer = DependencyManager::get<SpeechRecognizer>();
     QAction* speechRecognizerAction = addCheckableActionToQMenuAndActionHash(scriptingOptionsMenu, MenuOption::ControlWithSpeech,
         static_cast<int>(Qt::CTRL | Qt::SHIFT) | static_cast<int>(Qt::Key_C),

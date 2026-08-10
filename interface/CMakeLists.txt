@@ -119,6 +119,10 @@ if (APPLE)
     # the desktop Objective-C++ source out of the iphoneos compile graph.
     get_filename_component(APP_NAP_DISABLER_MM "src/AppNapDisabler.mm" ABSOLUTE)
     list(REMOVE_ITEM INTERFACE_OBJCPP_SRCS ${APP_NAP_DISABLER_MM})
+    # NSSpeechRecognizer is an AppKit service. iOS has no implementation and
+    # its consumers are excluded below at the source level.
+    get_filename_component(SPEECH_RECOGNIZER_MM "src/SpeechRecognizer.mm" ABSOLUTE)
+    list(REMOVE_ITEM INTERFACE_OBJCPP_SRCS ${SPEECH_RECOGNIZER_MM})
   endif()
   list(APPEND INTERFACE_SRCS ${INTERFACE_OBJCPP_SRCS})
 endif ()
@@ -126,7 +130,7 @@ endif ()
 # Add SpeechRecognizer if on Windows or OS X, otherwise remove
 if (WIN32)
   # Use .cpp and .h files as is.
-elseif (APPLE)
+elseif (APPLE AND NOT IOS)
   get_filename_component(SPEECHRECOGNIZER_CPP "src/SpeechRecognizer.cpp" ABSOLUTE)
   list(REMOVE_ITEM INTERFACE_SRCS ${SPEECHRECOGNIZER_CPP})
 else ()
