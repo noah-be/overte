@@ -244,6 +244,13 @@ parsing, the Qt message-handler entry point, repeated-message aggregation, and
 break-on-message support remain unchanged. Consumers no longer inherit an
 unnecessary Core5Compat header dependency.
 
+Rolled log filenames are now recognized with an explicitly anchored
+`QRegularExpression`. The timestamp wildcard, optional UUID session suffix,
+`.txt` suffix, and former whole-filename `exactMatch` boundary are preserved.
+Directory size accounting, oldest-file deletion, rolling thresholds, and log
+output are unchanged. `FileLogger.cpp` therefore leaves the Core5Compat
+inventory.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant

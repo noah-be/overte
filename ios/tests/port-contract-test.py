@@ -790,6 +790,21 @@ def test_scope_contract() -> None:
         "removing the unused regex include must preserve repeated-message handling"
     )
 
+    file_logger = SOURCE_ROOT / "libraries" / "shared" / "src" / "shared" / "FileLogger.cpp"
+    require_text(file_logger, r'#include <QtCore/QRegularExpression>', "rolled log matching must use the Qt 6 regex API")
+    require_text(
+        file_logger,
+        r'QRegularExpression::anchoredPattern\("overte-log_" \+ DATETIME_WILDCARD \+ "\(_" \+ SESSION_WILDCARD \+ "\)\?\\\\\.txt"\)',
+        "rolled log matching must preserve the complete timestamp/session filename pattern",
+    )
+    require_text(
+        file_logger,
+        r'!LOG_FILENAME_REGEX\.match\(fileInfo\.fileName\(\)\)\.hasMatch\(\)',
+        "log-directory accounting must retain its whole-filename match gate",
+    )
+    if "QRegExp" in file_logger.read_text(encoding="utf-8"):
+        raise AssertionError("FileLogger retained removed QRegExp API")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,

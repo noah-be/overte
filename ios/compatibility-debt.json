@@ -42,8 +42,7 @@
         "interface/src/ui/ModelsBrowser.cpp",
         "libraries/script-engine/src/ScriptManager.cpp",
         "libraries/shared/src/ApplicationVersion.cpp",
-        "libraries/shared/src/GPUIdent.cpp",
-        "libraries/shared/src/shared/FileLogger.cpp"
+        "libraries/shared/src/GPUIdent.cpp"
       ],
       "exitCriterion": "All listed uses move to current Qt 6 APIs and Core5Compat leaves the iOS component set."
     },
