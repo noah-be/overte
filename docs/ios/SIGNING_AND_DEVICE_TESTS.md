@@ -44,6 +44,20 @@ VirtualBox shared folder; the Windows VM should select the filename from
 `LATEST-OverteIOSClient.txt` and verify it against the JSON digest before
 passing an unsigned IPA to the separately authorized signing tool.
 
+Before copying the downloaded artifact directory into the VirtualBox shared
+folder, verify the current pointer, number, bytes, and signing state offline:
+
+```bash
+python3 ios/tools/verify-windows-handoff.py build-ios/artifacts
+```
+
+Copy the complete directory entry selected by `LATEST-OverteIOSClient.txt`
+together with both `LATEST` files and its same-stem JSON. The verifier rejects
+a stale pointer, mismatched leading build number, missing file, SHA mismatch,
+unsafe relative path, or contradictory signing flags. It prints whether the
+IPA still requires Sideloadly signing; it does not start or modify the VM and
+does not publish the artifact.
+
 For an unsigned device artifact, `package-client` rejects a stale
 `_CodeSignature` directory or embedded provisioning profile. Its JSON records
 that no profile, application identifier, or `get-task-allow` value was observed;
