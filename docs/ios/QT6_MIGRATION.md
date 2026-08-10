@@ -457,6 +457,9 @@ Qt 6 uses `QAudioDevice::description()` and its minimum/maximum channel range,
 while the retained Qt 5 build continues to use `deviceName()` and
 `supportedChannelCounts()`. `AudioClient` must not call either generation's
 device-discovery API directly.
+WAV header serialization obtains its bit depth from the same compatibility
+boundary and rejects unknown sample formats instead of calling Qt 5's removed
+`QAudioFormat::sampleSize()` API or emitting an invalid header.
 Platform-native AVAudioSession policy remains in the iOS shell and must not be
 duplicated by desktop code.
 

@@ -450,6 +450,12 @@ def test_cmake_boundary() -> None:
         raise AssertionError("AudioClient bypassed the Qt 5/6 device-name adapter")
     if "supportedChannelCounts()" in audio_client_source.read_text(encoding="utf-8"):
         raise AssertionError("AudioClient retained the removed Qt 5 channel-count API")
+    audio_wav_source = SOURCE_ROOT / "libraries" / "audio-client" / "src" / "AudioFileWav.cpp"
+    require_text(audio_wav_source, r'"AudioDeviceCompat\.h"', "WAV serialization must consume the Qt 5/6 format adapter")
+    require_text(audio_wav_source, r"hifiAudioSampleSize\(audioFormat\)", "WAV serialization must use the Qt 5/6 sample-size adapter")
+    require_text(audio_wav_source, r"sampleSize <= 0[\s\S]*return false", "unknown WAV sample formats must fail closed")
+    if ".sampleSize()" in audio_wav_source.read_text(encoding="utf-8"):
+        raise AssertionError("AudioFileWav retained the removed Qt 5 QAudioFormat::sampleSize API")
     require_text(audio_client_source, r"hifiAudioDeviceSupportsChannelCount\([^,]+, 2\)", "stereo-input availability must use the Qt 5/6 capability adapter")
     require_text(audio_client_source, r"Q_OS_MACOS.*!defined\(Q_OS_IOS\)", "desktop AudioHardware must be excluded from iOS")
     audio_client_cmake = SOURCE_ROOT / "libraries" / "audio-client" / "CMakeLists.txt"
