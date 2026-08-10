@@ -155,7 +155,7 @@ def main() -> None:
         qt_version_file.write_text('set(PACKAGE_VERSION "6.10.3")\n', encoding="utf-8")
         outdated_qt = run_cli(environment, "doctor", "--require-qt")
         assert outdated_qt.returncode == 1
-        assert "Qt 6.11.0 or newer is required" in outdated_qt.stderr
+        assert "Qt 6.11.1 or newer is required" in outdated_qt.stderr
         qt_version_file.write_text('set(PACKAGE_VERSION "6.11.1")\n', encoding="utf-8")
 
         invalid_bundle = run_cli(environment, "doctor", "--bundle-id", "not valid")

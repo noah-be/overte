@@ -9,15 +9,18 @@ The native bootstrap application deliberately does not depend on Qt. This
 separates Xcode, signing, bundle, lifecycle, and Metal failures from the Qt and
 Overte migrations.
 
-The integrated client targets Qt 6.11 or a newer compatible Qt 6 release for
-iOS. Install it through a Qt distribution channel permitted by the applicable
-Qt license, or build it from source with Xcode. The repository does not accept
-licenses or download Qt on a developer's behalf.
+The integrated client is pinned to Qt 6.11.1 for iOS. Host tools and target
+libraries must have exactly the same version. Install them through a Qt
+distribution channel permitted by the applicable Qt license, or build them
+from source with Xcode. The repository does not accept licenses, store Qt
+credentials, or download Qt on a developer's behalf.
 
 Point the build at the target installation, not a desktop Qt installation:
 
 ```bash
-export OVERTE_IOS_QT_ROOT=/absolute/path/to/Qt/6.11.0/ios
+export OVERTE_IOS_QT_ROOT=/absolute/path/to/Qt/6.11.1/ios
+export OVERTE_IOS_QT_HOST_ROOT=/absolute/path/to/Qt/6.11.1/macos
+./ios/tools/prepare-qt-ios.sh validate
 ./ios/build-ios.sh doctor --platform simulator --require-qt
 ```
 
@@ -28,6 +31,77 @@ bin/qt-cmake
 lib/cmake/Qt6/Qt6Config.cmake
 ```
 
+## Reproducible preparation on a macOS runner
+
+`prepare-qt-ios.sh` is the license-neutral boundary between repository CI and
+the Qt distribution. Its manifest exposes the pinned official component IDs:
+
+```bash
+./ios/tools/prepare-qt-ios.sh manifest
+```
+
+Given an already downloaded official Qt Online Installer, it prints an
+interactive installation command:
+
+```bash
+./ios/tools/prepare-qt-ios.sh installer-command \
+  /path/to/qt-online-installer-mac-x64-online.app/Contents/MacOS/qt-online-installer-mac-x64-online \
+  /absolute/path/to/Qt
+```
+
+The command deliberately omits credentials and all options that accept
+licenses or prompts. A person or an organization-controlled provisioning job
+must authenticate, inspect the offered packages, and accept the applicable Qt
+license. After provisioning, cache the resulting `6.11.1/macos` and
+`6.11.1/ios` directories in a private cache whose access and redistribution
+terms comply with that license. The ordinary build job should restore that
+cache and run `validate`; it should never contain a Qt password or silently
+accept a license.
+
+The validator checks the exact host and target versions, target CMake
+toolchain, required target modules, and the host-side `moc`, `rcc`,
+`qmlcachegen`, and `qsb` executables. The default target module contract is
+`Core Gui Network Qml Quick ShaderTools`; it can be extended for an experiment
+with `OVERTE_IOS_QT_REQUIRED_MODULES`, but required production modules must not
+be removed from the default.
+
+The public macOS repository exposes the host package as
+`qt.qt6.6111.clang_64`. No public `qt.qt6.6111.ios` binary component has been
+verified, so the preparation script intentionally does not invent or request
+one. The target must come from an organization-provisioned, license-compliant
+cache when entitlement permits it, or from the official Qt 6.11.1 source
+archive.
+
+The manifest pins the official source URL and SHA-256. Downloading is kept
+separate so CI policy can select an approved mirror and record license notices:
+
+```bash
+curl --fail --location --output qt-everywhere-src-6.11.1.tar.xz \
+  "$(./ios/tools/prepare-qt-ios.sh manifest | sed -n 's/^QT_SOURCE_URL=//p')"
+./ios/tools/prepare-qt-ios.sh verify-source qt-everywhere-src-6.11.1.tar.xz
+```
+
+On the macOS provisioning runner, first install or build the matching 6.11.1
+host Qt, then configure the verified source according to Qt's iOS instructions:
+
+```bash
+mkdir qt-ios-build
+cd qt-ios-build
+../qt-everywhere-src-6.11.1/configure \
+  -platform macx-ios-clang \
+  -release \
+  -qt-host-path /absolute/path/to/Qt/6.11.1/macos \
+  -prefix /absolute/path/to/Qt/6.11.1/ios \
+  -nomake examples -nomake tests
+cmake --build . --parallel
+cmake --install .
+```
+
+The build still requires Xcode and its iOS SDK. Module selection and the
+applicable LGPL, GPL, or commercial obligations must be reviewed before this
+expensive source build is cached. The repository cannot perform that legal
+decision or provide a Qt commercial entitlement.
+
 The Qt host tools used for cross-compilation must match the target Qt release.
 Device and simulator slices must share the same Qt configuration and deployment
 target. The build must not locate a Homebrew desktop Qt through an incidental
@@ -35,4 +109,3 @@ target. The build must not locate a Homebrew desktop Qt through an incidental
 
 Qt WebEngine is intentionally excluded from the iOS component set. Embedded
 web content uses Qt WebView/WKWebView through the platform web-surface adapter.
-

@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# Copyright 2026 Overte e.V.
+# SPDX-License-Identifier: Apache-2.0
+
+set -euo pipefail
+
+readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly repo_root="$(cd -- "$script_dir/../.." && pwd)"
+
+# shellcheck disable=SC1091
+source "$repo_root/ios/versions.env"
+
+readonly qt_version="${OVERTE_IOS_QT_VERSION:?OVERTE_IOS_QT_VERSION is not set}"
+readonly qt_compact="${qt_version//./}"
+readonly host_package="qt.qt6.${qt_compact}.clang_64"
+readonly source_archive="qt-everywhere-src-${qt_version}.tar.xz"
+readonly source_url="https://download.qt.io/official_releases/qt/6.11/${qt_version}/single/${source_archive}"
+readonly source_sha256="252acef8c5ae68074d91cadba2ee4a83465051bbb970dd26e8f0daa0f3904e03"
+readonly required_modules="${OVERTE_IOS_QT_REQUIRED_MODULES:-Core Gui Network Qml Quick ShaderTools}"
+
+die() {
+    echo "error: $*" >&2
+    exit 1
+}
+
+read_qt_version() {
+    local config="$1/lib/cmake/Qt6/Qt6ConfigVersion.cmake"
+    [[ -f "$config" ]] || die "missing Qt version file: $config"
+    sed -nE 's/^[[:space:]]*set\(PACKAGE_VERSION[[:space:]]+"([^"]+)"\).*/\1/p' "$config" | head -n 1
+}
+
+validate_root() {
+    local kind="$1"
+    local root="$2"
+    local actual_version
+
+    [[ -d "$root" ]] || die "$kind Qt root does not exist: $root"
+    actual_version="$(read_qt_version "$root")"
+    [[ -n "$actual_version" ]] || die "could not read $kind Qt version from $root"
+    [[ "$actual_version" == "$qt_version" ]] ||
+        die "$kind Qt is $actual_version; exactly $qt_version is required"
+}
+
+validate() {
+    local target_root="${OVERTE_IOS_QT_ROOT:-${1:-}}"
+    local host_root="${OVERTE_IOS_QT_HOST_ROOT:-${2:-}}"
+    local module tool
+
+    [[ -n "$target_root" ]] || die "set OVERTE_IOS_QT_ROOT or pass the iOS Qt root as argument"
+    [[ -n "$host_root" ]] || die "set OVERTE_IOS_QT_HOST_ROOT or pass the macOS Qt root as second argument"
+    validate_root target "$target_root"
+    validate_root host "$host_root"
+
+    [[ -x "$target_root/bin/qt-cmake" ]] || die "missing executable: $target_root/bin/qt-cmake"
+    [[ -f "$target_root/lib/cmake/Qt6/qt.toolchain.cmake" ]] ||
+        die "missing iOS Qt toolchain: $target_root/lib/cmake/Qt6/qt.toolchain.cmake"
+
+    for module in $required_modules; do
+        [[ -f "$target_root/lib/cmake/Qt6${module}/Qt6${module}Config.cmake" ]] ||
+            die "target Qt module is missing: Qt6$module"
+    done
+
+    for tool in moc rcc qmlcachegen qsb; do
+        [[ -x "$host_root/bin/$tool" ]] || die "host Qt tool is missing or not executable: $host_root/bin/$tool"
+    done
+
+    printf 'Qt iOS toolchain validated\n'
+    printf '  version: %s\n  target:  %s\n  host:    %s\n' "$qt_version" "$target_root" "$host_root"
+}
+
+installer_command() {
+    local installer="${1:-}"
+    local install_root="${2:-${OVERTE_IOS_QT_INSTALL_ROOT:-}}"
+    [[ -n "$installer" ]] || die "usage: $0 installer-command INSTALLER INSTALL_ROOT"
+    [[ -n "$install_root" ]] || die "pass INSTALL_ROOT or set OVERTE_IOS_QT_INSTALL_ROOT"
+    [[ -x "$installer" ]] || die "installer is not executable: $installer"
+
+    printf '%q --root %q install %q\n' \
+        "$installer" "$install_root" "$host_package"
+    cat <<'EOF'
+
+Run the printed command interactively. It intentionally does not supply Qt
+credentials, --accept-licenses, --default-answer, or --confirm-command. Review
+the displayed license and package information yourself before continuing.
+EOF
+}
+
+verify_source() {
+    local archive="${1:-}"
+    local actual
+    [[ -f "$archive" ]] || die "usage: $0 verify-source SOURCE_ARCHIVE"
+    if command -v shasum >/dev/null 2>&1; then
+        actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
+    elif command -v sha256sum >/dev/null 2>&1; then
+        actual="$(sha256sum "$archive" | awk '{print $1}')"
+    else
+        die "neither shasum nor sha256sum is available"
+    fi
+    [[ "$actual" == "$source_sha256" ]] || die "Qt source SHA-256 mismatch: $actual"
+    printf 'Qt source archive verified: %s\n' "$archive"
+}
+
+manifest() {
+    printf 'QT_VERSION=%s\nQT_HOST_PACKAGE=%s\nQT_IOS_DISTRIBUTION=%s\nQT_SOURCE_URL=%s\nQT_SOURCE_SHA256=%s\n' \
+        "$qt_version" "$host_package" "source-or-entitled-cache" "$source_url" "$source_sha256"
+}
+
+case "${1:-}" in
+    validate)
+        shift
+        validate "$@"
+        ;;
+    installer-command)
+        shift
+        installer_command "$@"
+        ;;
+    manifest)
+        manifest
+        ;;
+    verify-source)
+        shift
+        verify_source "$@"
+        ;;
+    *)
+        die "usage: $0 {manifest|installer-command INSTALLER INSTALL_ROOT|verify-source ARCHIVE|validate [IOS_ROOT [HOST_ROOT]]}"
+        ;;
+esac
