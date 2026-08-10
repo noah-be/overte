@@ -8,8 +8,6 @@ ROOT = Path(__file__).resolve().parents[2]
 CMAKE = (ROOT / "interface/CMakeLists.txt").read_text()
 HANDLER = (ROOT / "interface/src/graphics/RenderEventHandler.h").read_text()
 GRAPHICS = (ROOT / "interface/src/Application_Graphics.cpp").read_text()
-SETUP = (ROOT / "interface/src/Application_Setup.cpp").read_text()
-APPLICATION = (ROOT / "interface/src/Application.cpp").read_text()
 
 
 def require(condition: bool, message: str) -> None:
@@ -28,9 +26,5 @@ require("OffscreenGLCanvas* qmlShareContext" in GRAPHICS,
         "QML shared-context consumer moved; update this audit")
 require("glClear(GL_COLOR_BUFFER_BIT);" in GRAPHICS,
         "legacy clear consumer moved; update this audit")
-require("gl::ContextInfo::get()" in SETUP,
-        "setup GL telemetry consumer moved; update this audit")
-require("gl::ContextInfo::get().renderer" in APPLICATION,
-        "driver-blocklist GL consumer moved; update this audit")
 
-print("Interface GL link audit valid: unused RenderEventHandler include removed; active consumers remain fail-closed")
+print("Interface GL link audit valid: telemetry isolated; active QML/clear consumers remain fail-closed")

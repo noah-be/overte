@@ -93,8 +93,9 @@ void Application::initializeGL() {
     // global share context
     auto globalShareContext = qt_gl_global_share_context();
 
-#if !defined(DISABLE_QML)
+#if !defined(DISABLE_QML) && !defined(Q_OS_IOS)
     // Build a shared canvas / context for the Chromium processes
+    // iOS does not link Qt WebEngine, so it has no Chromium helper process.
     if (!globalShareContext) {
         // Chromium rendering uses some GL functions that prevent nSight from capturing
         // frames, so we only create the shared context if nsight is NOT active.
