@@ -180,6 +180,13 @@ QuaZip extraction, temporary-directory checks, and emitted results are
 unchanged. Removing the dead include therefore removes an unnecessary
 Core5Compat compile dependency without changing archive decoding behavior.
 
+The automatic asset-upload path now removes a ZIP suffix with
+`QRegularExpression`. The expression remains case-sensitive, consumes `.zip`
+and everything following it through the end of the final path component, and
+is still applied before the `model_repo` subpath is appended. Asset mappings,
+upload permissions, and entity creation are otherwise unchanged.
+`Application_Assets.cpp` therefore leaves the Core5Compat inventory.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant

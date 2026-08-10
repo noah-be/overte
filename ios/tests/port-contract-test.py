@@ -667,6 +667,16 @@ def test_scope_contract() -> None:
         "removing the unused codec include must preserve fail-closed archive validation"
     )
 
+    application_assets = SOURCE_ROOT / "interface" / "src" / "Application_Assets.cpp"
+    require_text(application_assets, r'#include <QRegularExpression>', "asset ZIP names must use the Qt 6 regex API")
+    require_text(
+        application_assets,
+        r'zipFile\.section\("/", -1\)\.remove\(QRegularExpression\(QStringLiteral\("\[\.\]zip\(\.\*\)\$"\)\)\)',
+        "asset ZIP suffix removal must remain anchored and operate on the final path component",
+    )
+    if "QRegExp" in application_assets.read_text(encoding="utf-8"):
+        raise AssertionError("Application_Assets retained removed QRegExp API")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,

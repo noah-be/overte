@@ -34,7 +34,6 @@
       "roots": ["interface", "libraries"],
       "extensions": [".cpp", ".h", ".hpp", ".mm"],
       "files": [
-        "interface/src/Application_Assets.cpp",
         "interface/src/Application_Graphics.cpp",
         "interface/src/LocationBookmarks.cpp",
         "interface/src/ModelSelector.cpp",
