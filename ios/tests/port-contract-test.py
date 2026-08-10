@@ -246,6 +246,8 @@ def test_cmake_boundary() -> None:
     require_text(app_delegate, r"AVAudioSessionRouteChangeNotification", "audio must observe route changes")
     require_text(app_delegate, r"applicationDidReceiveMemoryWarning", "lifecycle must observe memory pressure")
     require_text(app_delegate, r"LifecycleStateMachine", "application lifecycle must feed a tested state model")
+    require_text(app_delegate, r"UIWindowSceneSessionRoleApplication", "scene configuration must use the current UIKit role")
+    require_text(app_delegate, r"AVAudioSessionCategoryOptionAllowBluetoothHFP", "audio session must use the current Bluetooth option")
     scene_delegate = IOS_ROOT / "src" / "SceneDelegate.mm"
     require_text(scene_delegate, r"PendingDeepLinkStore", "deep links must survive cold-start delivery")
     require_text(scene_delegate, r"connectionOptions\.URLContexts", "cold-start deep links must be routed")

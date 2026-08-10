@@ -36,7 +36,7 @@ os_log_t lifecycleLog() {
     BOOL configured = [audioSession setCategory:AVAudioSessionCategoryPlayAndRecord
                                            mode:AVAudioSessionModeGameChat
                                         options:(AVAudioSessionCategoryOptionDefaultToSpeaker |
-                                                 AVAudioSessionCategoryOptionAllowBluetooth)
+                                                 AVAudioSessionCategoryOptionAllowBluetoothHFP)
                                           error:&error];
     if (!configured) {
         os_log_error(lifecycleLog(), "Audio session configuration failed: %{public}@", error);
@@ -82,7 +82,7 @@ os_log_t lifecycleLog() {
     (void)connectingSceneSession;
     (void)options;
     UISceneConfiguration* configuration = [[UISceneConfiguration alloc]
-        initWithName:@"Default Configuration" sessionRole:UISceneSessionRoleApplication];
+        initWithName:@"Default Configuration" sessionRole:UIWindowSceneSessionRoleApplication];
     configuration.sceneClass = UIWindowScene.class;
     configuration.delegateClass = SceneDelegate.class;
     return configuration;
