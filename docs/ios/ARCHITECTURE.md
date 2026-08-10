@@ -119,6 +119,9 @@ not removed.
 The legacy QWidget `DomainConnectionDialog` fallback is also desktop-only. The
 iOS action uses the existing tablet timing surface when available and otherwise
 does not create a dynamically sized top-level table window.
+The corresponding `DomainConnectionDialog.cpp/.h` and manager include are
+absent from the iOS compile/MOC graph. The separate `DomainConnectionModel`
+used by `TabletDCDialog.qml` remains active.
 Entity/Octree statistics use the same boundary: the fixed-width,
 always-on-top QWidget fallback is disabled on iOS, while the existing
 `TabletEntityStatistics.qml` view remains the mobile presentation.

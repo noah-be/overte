@@ -81,6 +81,13 @@ require("QDialog(parent, Qt::Window | Qt::WindowCloseButtonHint)" in DOMAIN_DIAL
         "Domain Connection dialog is no longer demonstrably a desktop utility window")
 require('tablet->pushOntoStack("hifi/dialogs/TabletDCDialog.qml");' in APPLICATION_UI,
         "mobile-friendly Domain Connection timing surface changed")
+require("#if !defined(Q_OS_IOS)\n#include \"DomainConnectionDialog.h\"\n#endif" in DIALOGS_MANAGER,
+        "desktop Domain Connection dialog header remains in the iOS manager graph")
+for domain_dialog_source in ("DomainConnectionDialog.cpp", "DomainConnectionDialog.h"):
+    require(f'"${{CMAKE_CURRENT_SOURCE_DIR}}/src/ui/{domain_dialog_source}"' in INTERFACE_CMAKE,
+            f"{domain_dialog_source} remains in the iOS compile/MOC graph")
+require("DependencyManager::set<DomainConnectionModel>();" in APPLICATION_SETUP,
+        "tablet Domain Connection model was incorrectly removed with desktop dialog")
 require("void DialogsManager::octreeStatsDetails() {\n#if !defined(Q_OS_IOS)" in DIALOGS_MANAGER,
         "desktop Octree statistics dialog remains reachable on iOS")
 require("QDialog(parent, Qt::Window | Qt::WindowCloseButtonHint | Qt::WindowStaysOnTopHint)" in OCTREE_DIALOG and

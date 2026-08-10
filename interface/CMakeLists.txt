@@ -116,6 +116,8 @@ if(IOS)
   list(REMOVE_ITEM INTERFACE_SRCS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/BaseLogDialog.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/BaseLogDialog.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/DomainConnectionDialog.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/DomainConnectionDialog.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/EntityScriptServerLogDialog.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/EntityScriptServerLogDialog.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/LogDialog.cpp"

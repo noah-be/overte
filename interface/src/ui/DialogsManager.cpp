@@ -25,7 +25,9 @@
 
 #include "AddressBarDialog.h"
 #include "ConnectionFailureDialog.h"
+#if !defined(Q_OS_IOS)
 #include "DomainConnectionDialog.h"
+#endif
 #include "HMDToolsDialog.h"
 #include "LodToolsDialog.h"
 #include "LoginDialog.h"
