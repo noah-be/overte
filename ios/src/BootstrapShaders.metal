@@ -14,10 +14,10 @@ struct SceneUniforms {
     float yaw;
     float pitch;
     float zoom;
-    float time;
     uint sceneLoaded;
     uint attendance;
     uint domainSeed;
+    uint reserved;
 };
 
 float4x4 perspective(float aspect, float zoom) {

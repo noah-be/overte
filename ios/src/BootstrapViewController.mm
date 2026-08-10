@@ -7,7 +7,6 @@
 
 #import <Metal/Metal.h>
 #import <MetalKit/MetalKit.h>
-#import <QuartzCore/QuartzCore.h>
 
 #import "PlatformProbe.h"
 #import "SceneDelegate.h"
@@ -41,10 +40,10 @@ typedef struct {
     float yaw;
     float pitch;
     float zoom;
-    float time;
     uint32_t sceneLoaded;
     uint32_t attendance;
     uint32_t domainSeed;
+    uint32_t reserved;
 } OverteSceneUniforms;
 
 @implementation BootstrapViewController
@@ -482,10 +481,10 @@ typedef struct {
             .yaw = self.sceneYaw,
             .pitch = self.scenePitch,
             .zoom = self.sceneZoom,
-            .time = (float)CACurrentMediaTime(),
             .sceneLoaded = 1,
             .attendance = self.sceneAttendance,
             .domainSeed = self.sceneSeed,
+            .reserved = 0,
         };
         [encoder setRenderPipelineState:self.scenePipelineState];
         [encoder setDepthStencilState:self.sceneDepthState];
