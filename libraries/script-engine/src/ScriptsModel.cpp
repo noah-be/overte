@@ -15,6 +15,7 @@
 #include <QUrlQuery>
 #include <QXmlStreamReader>
 #include <QDirIterator>
+#include <QRegularExpression>
 
 #include <NetworkAccessManager.h>
 #include <NetworkingConstants.h>
@@ -228,7 +229,8 @@ bool ScriptsModel::parseXML(QByteArray xmlFile) {
     beginResetModel();
 
     QXmlStreamReader xml(xmlFile);
-    QRegExp jsRegex(".*\\.js");
+    const QRegularExpression jsRegex(
+        QRegularExpression::anchoredPattern(QStringLiteral(".*\\.js")));
     bool truncated = false;
     QString lastKey;
 
@@ -247,7 +249,7 @@ bool ScriptsModel::parseXML(QByteArray xmlFile) {
                 if (xml.tokenType() == QXmlStreamReader::StartElement && xml.name() == KEY_NAME) {
                     xml.readNext();
                     lastKey = xml.text().toString();
-                    if (jsRegex.exactMatch(xml.text().toString())) {
+                    if (jsRegex.match(xml.text().toString()).hasMatch()) {
                         QString localPath = lastKey.split("/").mid(1).join("/");
                         QUrl fullPath = PathUtils::defaultScriptsLocation();
                         fullPath.setPath(fullPath.path() + lastKey);

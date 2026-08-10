@@ -42,7 +42,6 @@
         "interface/src/ui/ModelsBrowser.cpp",
         "libraries/animation/src/AnimExpression.cpp",
         "libraries/script-engine/src/ScriptManager.cpp",
-        "libraries/script-engine/src/ScriptsModel.cpp",
         "libraries/shared/src/ApplicationVersion.cpp",
         "libraries/shared/src/GPUIdent.cpp",
         "libraries/shared/src/HifiConfigVariantMap.cpp",

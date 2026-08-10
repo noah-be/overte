@@ -717,6 +717,21 @@ def test_scope_contract() -> None:
     if "QRegExp" in model_selector.read_text(encoding="utf-8"):
         raise AssertionError("ModelSelector retained removed QRegExp API")
 
+    scripts_model = SOURCE_ROOT / "libraries" / "script-engine" / "src" / "ScriptsModel.cpp"
+    require_text(scripts_model, r'#include <QRegularExpression>', "default-script keys must use the Qt 6 regex API")
+    require_text(
+        scripts_model,
+        r'QRegularExpression::anchoredPattern\(QStringLiteral\("\.\*\\\\\.js"\)\)',
+        "default-script matching must preserve the former whole-string .js gate",
+    )
+    require_text(
+        scripts_model,
+        r'if \(jsRegex\.match\(xml\.text\(\)\.toString\(\)\)\.hasMatch\(\)\)',
+        "default-script XML keys must retain their match gate",
+    )
+    if "QRegExp" in scripts_model.read_text(encoding="utf-8"):
+        raise AssertionError("ScriptsModel retained removed QRegExp API")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,

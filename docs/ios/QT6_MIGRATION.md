@@ -212,6 +212,12 @@ The desktop model chooser now checks `QFileInfo::completeSuffix()` with
 selected model, button label, and remembered browse location.
 `ModelSelector.cpp` therefore leaves the Core5Compat inventory.
 
+The default-script XML model now filters keys with an explicitly anchored
+`QRegularExpression`. This preserves the former `exactMatch` behavior for the
+`.*\\.js` pattern: only complete keys ending in lowercase `.js` create script
+nodes. XML traversal, path derivation, URL normalization, and tree rebuilding
+are unchanged. `ScriptsModel.cpp` therefore leaves the Core5Compat inventory.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant
