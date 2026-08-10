@@ -53,7 +53,7 @@ var DEFAULT_SCRIPTS_SEPARATE = [
     //"system/chat.js"
 ];
 
-if (Window.interstitialModeEnabled) {
+if (Window.interstitialModeEnabled && !Window.nativeLoadingScreenEnabled) {
     // Insert interstitial scripts at front so that they're started first.
     DEFAULT_SCRIPTS_COMBINED.splice(0, 0, "system/interstitialPage.js", "system/redirectOverlays.js");
 }

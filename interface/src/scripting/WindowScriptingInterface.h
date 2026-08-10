@@ -47,6 +47,8 @@
  *     <em>Read-only.</em>
  * @property {boolean} interstitialModeEnabled=false - <code>true</code> if the interstitial graphics are displayed when a 
  *     domain is loading, otherwise <code>false</code>.
+ * @property {boolean} nativeLoadingScreenEnabled=false - <code>true</code> when the client renders loading UI natively and
+ *     legacy JavaScript interstitials must not be started. <em>Read-only.</em>
  * @property {location} location - Provides facilities for working with your current directory services location.
  */
 
@@ -57,6 +59,7 @@ class WindowScriptingInterface : public QObject, protected Scriptable, public De
     Q_PROPERTY(int x READ getX)
     Q_PROPERTY(int y READ getY)
     Q_PROPERTY(bool interstitialModeEnabled READ getInterstitialModeEnabled WRITE setInterstitialModeEnabled)
+    Q_PROPERTY(bool nativeLoadingScreenEnabled READ getNativeLoadingScreenEnabled CONSTANT)
 
 public:
     WindowScriptingInterface();
@@ -867,6 +870,7 @@ private:
 
     bool getInterstitialModeEnabled() const;
     void setInterstitialModeEnabled(bool enableInterstitialMode);
+    bool getNativeLoadingScreenEnabled() const;
 
     void ensureReticleVisible() const;
 

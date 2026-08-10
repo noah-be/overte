@@ -5,20 +5,16 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
-import android.text.TextUtils;
 
 public final class PermissionsActivity extends Activity {
     private static final int RECORD_AUDIO_REQUEST = 20;
-    private static final String EXTRA_ARGS = "args";
     private static final String STATE_INTERFACE_LAUNCHED = "interfaceLaunched";
-    private String applicationArguments;
     private boolean interfaceLaunched;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_startup);
-        applicationArguments = getIntent().getStringExtra(EXTRA_ARGS);
         interfaceLaunched = savedInstanceState != null
                 && savedInstanceState.getBoolean(STATE_INTERFACE_LAUNCHED);
 
@@ -59,9 +55,6 @@ public final class PermissionsActivity extends Activity {
         }
         interfaceLaunched = true;
         Intent intent = new Intent(this, PicoInterfaceActivity.class);
-        if (!TextUtils.isEmpty(applicationArguments)) {
-            intent.putExtra("applicationArguments", applicationArguments);
-        }
         startActivity(intent);
         finish();
     }

@@ -2,6 +2,7 @@
 set -euo pipefail
 
 readonly android_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
+readonly repository_root="$(cd -- "$android_root/.." && pwd)"
 readonly build_dir="${OVERTE_NATIVE_COVERAGE_BUILD_DIR:-$android_root/build/native-coverage}"
 readonly report_dir="${OVERTE_NATIVE_COVERAGE_REPORT_DIR:-$android_root/build/reports/coverage/native}"
 readonly managed_gcovr="$android_root/build/tools/native-coverage-venv/bin/gcovr"
@@ -57,8 +58,8 @@ staging_dir="$("$mktemp_command" -d "$report_dir/.native-coverage.XXXXXXXX")"
 # gcovr resolves the parent repository and the nested Android tree as two
 # source roots. Report them separately so neither root can silently disappear
 # during path normalization/merging.
-"$gcovr_command" --root "$android_root/.." \
-    --filter '.*/interface/src/ui/Phone(LoginState|GraphicsPolicy)\.h$' \
+"$gcovr_command" "$build_dir" --root "$repository_root" \
+    --filter 'interface/src/ui/Phone(LoginState|GraphicsPolicy)\.h$' \
     --exclude-throw-branches \
     --xml-pretty --xml "$staging_dir/interface.xml" \
     --html-details "$staging_dir/interface.html" \
@@ -66,8 +67,8 @@ staging_dir="$("$mktemp_command" -d "$report_dir/.native-coverage.XXXXXXXX")"
     --fail-under-line 95 \
     --fail-under-branch 90
 
-"$gcovr_command" --root "$android_root/.." \
-    --filter '.*/interface/src/ui/PhoneLoginState\.h$' \
+"$gcovr_command" "$build_dir" --root "$repository_root" \
+    --filter 'interface/src/ui/PhoneLoginState\.h$' \
     --exclude-throw-branches \
     --xml-pretty --xml "$staging_dir/login-state.xml" \
     --html-details "$staging_dir/login-state.html" \
@@ -75,7 +76,7 @@ staging_dir="$("$mktemp_command" -d "$report_dir/.native-coverage.XXXXXXXX")"
     --fail-under-line 100 \
     --fail-under-branch 100
 
-"$gcovr_command" --root "$android_root/.." \
+"$gcovr_command" "$build_dir" --root "$repository_root" \
     --filter '.*PhonePendingHandoff\.h$' \
     --exclude-throw-branches \
     --xml-pretty --xml "$staging_dir/pending-handoff.xml" \

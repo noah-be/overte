@@ -12,7 +12,7 @@
 
 /* global Script, Entities, MyAvatar, Controller, Quat, RIGHT_HAND, LEFT_HAND,
    enableDispatcherModule, disableDispatcherModule, Messages, makeDispatcherModuleParameters, makeRunningValues, Vec3,
-   HMD, Uuid, AvatarList, Picks, Pointers, PickType
+   HMD, Uuid, AvatarList, Picks, Pointers, PickType, Settings, getEnabledModuleByName
 */
 
 Script.include("/~/system/libraries/Xform.js");
@@ -22,6 +22,7 @@ Script.include("/~/system/libraries/controllers.js");
 (function() { // BEGIN LOCAL_SCOPE
 
     var controllerStandard = Controller.Standard;
+    var picoUsesStickDepth = Settings.getValue("deferTabletCreationUntilOpen", false);
 
     var TARGET_MODEL_URL = Script.resolvePath("../../assets/models/teleportationSpotBasev8.fbx");
     var SEAT_MODEL_URL = Script.resolvePath("../../assets/models/teleport-seat.fbx");
@@ -144,6 +145,14 @@ Script.include("/~/system/libraries/controllers.js");
         this.getOtherModule = function() {
             var otherModule = this.hand === RIGHT_HAND ? leftTeleporter : rightTeleporter;
             return otherModule;
+        };
+
+        this.leftPicoFarGrabActive = function () {
+            if (!picoUsesStickDepth) {
+                return false;
+            }
+            var leftFarGrab = getEnabledModuleByName("LeftFarGrabEntity");
+            return leftFarGrab && leftFarGrab.grabbing;
         };
 
         this.teleportHeadCollisionPick;
@@ -764,6 +773,13 @@ Script.include("/~/system/libraries/controllers.js");
                 return makeRunningValues(false, [], []);
             }
 
+            // Pico uses the right thumbstick to adjust the depth of a far grab
+            // made with either hand. Do not let that same input activate the
+            // teleport target while the left controller owns the grab.
+            if (this.leftPicoFarGrabActive()) {
+                return makeRunningValues(false, [], []);
+            }
+
             var otherModule = this.getOtherModule();
             if (!this.disabled && !otherModule.active && (this.showReticle() && this.hand === this.getDominantHand()
                     || this.buttonValue !== 0)) {
@@ -775,6 +791,12 @@ Script.include("/~/system/libraries/controllers.js");
         };
 
         this.run = function(controllerData, deltaTime) {
+            if (_this.leftPicoFarGrabActive()) {
+                _this.disableLasers();
+                this.active = false;
+                return makeRunningValues(false, [], []);
+            }
+
             // Kill condition:
             if (_this.shouldCancel()) {
                 _this.disableLasers();

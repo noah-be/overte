@@ -41,7 +41,7 @@ public final class AndroidAudioInput {
         }
     }
 
-    public static boolean start(
+    public static synchronized boolean start(
             String requestedSource, int sampleRate, int channelCount, int framesPerBuffer) {
         stop();
 
@@ -102,13 +102,36 @@ public final class AndroidAudioInput {
             return false;
         }
 
-        synchronized (LOCK) {
-            recorder = newRecorder;
-            running = true;
-            captureThread = new Thread(
+        final Thread newCaptureThread;
+        try {
+            newCaptureThread = new Thread(
                 () -> captureLoop(newRecorder, callbackBytes),
                 "Overte Android microphone");
-            captureThread.start();
+        } catch (RuntimeException | OutOfMemoryError exception) {
+            Log.e(TAG, "Could not create microphone capture thread", exception);
+            stopAndRelease(newRecorder);
+            return false;
+        }
+        try {
+            synchronized (LOCK) {
+                recorder = newRecorder;
+                running = true;
+                captureThread = newCaptureThread;
+                newCaptureThread.start();
+            }
+        } catch (RuntimeException | OutOfMemoryError exception) {
+            Log.e(TAG, "Could not start microphone capture thread", exception);
+            synchronized (LOCK) {
+                if (recorder == newRecorder) {
+                    running = false;
+                    recorder = null;
+                }
+                if (captureThread == newCaptureThread) {
+                    captureThread = null;
+                }
+            }
+            stopAndRelease(newRecorder);
+            return false;
         }
         Log.i(TAG, "Started AudioRecord source=" + source.name()
             + "(" + audioSource + ") at " + sampleRate + " Hz, channels="
@@ -116,7 +139,7 @@ public final class AndroidAudioInput {
         return true;
     }
 
-    public static void stop() {
+    public static synchronized void stop() {
         final AudioRecord oldRecorder;
         final Thread oldThread;
         synchronized (LOCK) {
@@ -132,7 +155,7 @@ public final class AndroidAudioInput {
         }
         try {
             oldRecorder.stop();
-        } catch (IllegalStateException exception) {
+        } catch (RuntimeException exception) {
             Log.w(TAG, "AudioRecord was already stopped", exception);
         }
         if (oldThread != null && oldThread != Thread.currentThread()) {
@@ -142,7 +165,11 @@ public final class AndroidAudioInput {
                 Thread.currentThread().interrupt();
             }
         }
-        oldRecorder.release();
+        try {
+            oldRecorder.release();
+        } catch (RuntimeException exception) {
+            Log.w(TAG, "Could not release AudioRecord", exception);
+        }
         Log.i(TAG, "Stopped AudioRecord");
     }
 
@@ -155,20 +182,61 @@ public final class AndroidAudioInput {
         }
     }
 
+    private static void stopAndRelease(AudioRecord activeRecorder) {
+        try {
+            activeRecorder.stop();
+        } catch (RuntimeException exception) {
+            Log.w(TAG, "AudioRecord was already stopped during startup rollback", exception);
+        }
+        try {
+            activeRecorder.release();
+        } catch (RuntimeException exception) {
+            Log.w(TAG, "Could not release AudioRecord during cleanup", exception);
+        }
+    }
+
     private static void captureLoop(AudioRecord activeRecorder, int callbackBytes) {
-        Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
-        final byte[] audio = new byte[callbackBytes];
-        while (running && recorder == activeRecorder) {
-            final int bytesRead = activeRecorder.read(
-                audio, 0, audio.length, AudioRecord.READ_BLOCKING);
-            final boolean ownsRecorder = recorder == activeRecorder;
-            if (AndroidAudioInputPolicy.shouldDeliverRead(bytesRead, running, ownsRecorder)) {
-                nativeOnAudioData(audio, bytesRead);
-            } else if (!running || !ownsRecorder) {
-                break;
-            } else {
-                Log.e(TAG, "AudioRecord read failed: " + bytesRead);
-                break;
+        prioritizeCurrentThreadForAudio();
+        try {
+            final byte[] audio = new byte[callbackBytes];
+            while (running && recorder == activeRecorder) {
+                final int bytesRead = activeRecorder.read(
+                    audio, 0, audio.length, AudioRecord.READ_BLOCKING);
+                // stop() can unblock a pending read with a final positive buffer.
+                // Re-check recorder identity after the blocking call so an old
+                // source cannot enter a newly started source's native FIFO.
+                final boolean ownsRecorder = recorder == activeRecorder;
+                if (AndroidAudioInputPolicy.shouldDeliverRead(bytesRead, running, ownsRecorder)
+                        && PicoAudioCaptureState.shouldDeliver(
+                            running, recorder, activeRecorder, bytesRead)) {
+                    nativeOnAudioData(audio, bytesRead);
+                } else if (!running || recorder != activeRecorder) {
+                    break;
+                } else {
+                    Log.e(TAG, "AudioRecord read failed: " + bytesRead);
+                    break;
+                }
+            }
+        } catch (RuntimeException | OutOfMemoryError exception) {
+            Log.e(TAG, "AudioRecord capture loop failed", exception);
+        } finally {
+            boolean releasedRecorder = false;
+            synchronized (LOCK) {
+                // stop() may already own this recorder. Only an unexpected loop
+                // exit while still current claims cleanup here. Complete release
+                // before publishing an empty slot so start() cannot overlap it.
+                if (recorder == activeRecorder) {
+                    running = false;
+                    stopAndRelease(activeRecorder);
+                    recorder = null;
+                    if (captureThread == Thread.currentThread()) {
+                        captureThread = null;
+                    }
+                    releasedRecorder = true;
+                }
+            }
+            if (releasedRecorder) {
+                Log.w(TAG, "Released AudioRecord after capture-loop failure");
             }
         }
     }

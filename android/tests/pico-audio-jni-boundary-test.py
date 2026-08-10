@@ -29,7 +29,7 @@ require(java_sources == cpp_sources,
         "C++ diagnostic sources and Java policy remain synchronized")
 
 require(re.search(
-    r"public static boolean start\(\s*String requestedSource, int sampleRate, "
+    r"public static (?:synchronized )?boolean start\(\s*String requestedSource, int sampleRate, "
     r"int channelCount, int framesPerBuffer\)", JAVA) is not None,
     "Java start signature retains String/int/int/int ordering")
 require('GetStaticMethodID(\n        inputClass, "start", "(Ljava/lang/String;III)Z")' in CPP,
@@ -54,7 +54,7 @@ require("Java_org_overte_pico_AndroidAudioInput_nativeInitialize" in CPP
         and "Java_org_overte_pico_AndroidAudioInput_nativeOnAudioData" in CPP,
         "C++ exports retain the Java native symbol spellings")
 require(re.search(
-    r"if \(!data \|\| bytesRead <= 0 \|\| bytesRead > environment->GetArrayLength\(data\)\)",
+    r"if \(!data \|\| bytesRead <= 0 \|\| bytesRead > environment->GetArrayLength\(data\)",
     CPP) is not None,
     "native callback rejects null, non-positive and out-of-array lengths")
 require(re.search(

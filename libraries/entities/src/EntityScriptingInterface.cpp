@@ -1192,6 +1192,28 @@ QUuid EntityScriptingInterface::editEntity(const QUuid& id, const EntityItemProp
     return id;
 }
 
+bool EntityScriptingInterface::setLocalEntityPosition(const QUuid& id, const glm::vec3& localPosition) {
+    PROFILE_RANGE(script_entities, __FUNCTION__);
+
+    if (!_entityTree || isNaN(localPosition)) {
+        return false;
+    }
+
+    bool updated { false };
+    _entityTree->withReadLock([&] {
+        auto entity = _entityTree->findEntityByEntityItemID(EntityItemID(id));
+        if (!entity || !entity->isLocalEntity()) {
+            return;
+        }
+
+        // The transform has its own lock. Local entities need no edit packet,
+        // simulation ownership bid, or octree traversal for this client-only update.
+        entity->setLocalPosition(localPosition, false);
+        updated = true;
+    });
+    return updated;
+}
+
 void EntityScriptingInterface::deleteEntity(const QUuid& id) {
     PROFILE_RANGE(script_entities, __FUNCTION__);
 

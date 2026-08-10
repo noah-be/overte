@@ -63,6 +63,9 @@ Without a connected headset, only build the APK:
 To measure the completed client's battery and power use on the headset, see
 [Measure Overte power use on Pico 4](PICO4_POWER_TEST.md).
 
+For the device-free pull-request checks and trusted build-runner design, see
+[Pico 4 CI/CD](docs/pico4-ci-cd.md).
+
 For world-entry and post-loading optimization measurements, see the
 [Pico 4 world-loading guide](docs/world-loading/pico4-optimization-guide.md).
 
@@ -118,6 +121,40 @@ The `setup` command runs the environment check before downloading anything.
 | `./build-pico.sh deps --download` | Download and install prebuilt dependencies only |
 | `./build-pico.sh --help` | Show commands and supported path overrides |
 
+`PICO_BUILD_JOBS` bounds Gradle, native compilation, and shader generation to
+the same host-worker count. `PICO_SHADER_JOBS` can override only shader
+generation when memory or shared-runner load requires a lower limit. Use
+`./build-pico.sh build --stacktrace` to include Gradle failure details when
+diagnosing an unsuccessful CI or local build.
+
+Before building, or on a host without Pico/Android dependencies, run the
+device-free regression suite from the repository root:
+
+```bash
+./android/tests/pico-device-free-test.sh
+```
+
+It performs shell syntax checks and the WebView, microphone, OpenXR lifecycle,
+runner-mock, serverless-fixture, device-lock, and power-analyzer regressions. It
+does not invoke ADB, connect to a device, download dependencies, or modify
+device settings. Native Qt/C++ suites remain available separately through
+`android/tests/pico-host-regression-test.sh` when a CMake build is configured.
+
+After a build, verify that the output is a signed, structurally valid Pico APK:
+
+```bash
+./ci/verify-pico-apk.py \
+  apps/picoInterface/build/outputs/apk/debug/picoInterface-debug.apk \
+  --output ../build/pico4/apk-manifest.json
+```
+
+The verifier fails closed if the package identity, SDK levels, signature,
+ARM64-only ABI set, ZIP integrity, or required Pico/OpenXR native libraries do
+not match the application contract. It writes the version, size, and SHA-256
+digest to a small JSON manifest suitable for CI retention. `aapt` and
+`apksigner` must be on `PATH`, or their exact Build-Tools paths can be provided
+with `--aapt` and `--apksigner`.
+
 ## Default Pico graphics profile
 
 The Pico Interface uses the measured Pico 4 quality/performance baseline by
@@ -131,6 +168,10 @@ The render scale can be changed under **Settings > Graphics > Pico render
 resolution** and takes effect after the prompted app restart. See
 [Pico 4 graphics optimization results](docs/power-tests/pico-graphics-optimization.md)
 for the controlled measurements and rejected alternatives.
+
+Restart arguments are stored once in app-private preferences before the old
+process exits. The exported launcher cannot accept raw command arguments from
+another application, and the internal Qt Activity is not exported.
 
 ## Sharing one headset between worktrees
 
@@ -200,6 +241,9 @@ For reproducible Pico microphone source and fan-noise tests, see
 [`docs/pico-microphone.md`](docs/pico-microphone.md). The accompanying
 `pico-microphone-test.sh` script restores automatic fan control and stops the
 app after each run.
+
+For controller-to-entity debugging, see the
+[object interaction architecture and hardware test matrix](docs/pico4-object-interaction.md).
 
 The command expects exactly one authorized ADB device. Select a device
 explicitly when several are connected:

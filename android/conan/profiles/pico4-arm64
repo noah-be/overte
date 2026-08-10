@@ -16,7 +16,7 @@ webrtc-audio-processing/*:build_type=Release
 
 [options]
 qt*:android_sdk={{ android_sdk }}
-qt*:config=QMAKE_CXXFLAGS+=-D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION QMAKE_CXXFLAGS+=-Wno-enum-constexpr-conversion QMAKE_CXXFLAGS+=-Wno-c++11-narrowing-const-reference
+qt*:config=QMAKE_CXXFLAGS+=-D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION QMAKE_CXXFLAGS+=-Wno-enum-constexpr-conversion QMAKE_CXXFLAGS+=-Wno-c++11-narrowing-const-reference -no-feature-geoservices_mapboxgl
 qt*:opengl=es2
 qt*:qtwebengine=False
 qt*:with_mysql=False

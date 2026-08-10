@@ -17,6 +17,7 @@
 class OpenXrDisplayPlugin : public HmdDisplayPlugin {
 public:
     OpenXrDisplayPlugin(std::shared_ptr<OpenXrContext> c);
+    ~OpenXrDisplayPlugin() override;
     bool isSupported() const override;
     const QString getName() const override;
     QString getPreferredAudioInDevice() const override;
@@ -87,7 +88,7 @@ private:
     bool initSwapChains();
     void destroySwapChains();
     bool initLayers();
-    bool endFrame(bool imagesReleased = true);
+    bool endFrame(bool submitLayer = true);
 
     bool _haveFrameToSubmit = false;
     std::mutex _haveFrameMutex;

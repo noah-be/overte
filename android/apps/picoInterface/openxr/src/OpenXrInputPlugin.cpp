@@ -9,10 +9,12 @@
 
 #include <glm/ext.hpp>
 #include <QJsonArray>
+#include <algorithm>
+#include <cmath>
+#include <limits>
+#include <tuple>
 
 #include "OpenXrInputPlugin.h"
-#include "OpenXrExtensionPolicy.h"
-#include "OpenXrInputPolicy.h"
 
 #include "AvatarConstants.h"
 #include "PathUtils.h"
@@ -22,6 +24,9 @@
 
 Q_DECLARE_LOGGING_CATEGORY(xr_input_cat)
 Q_LOGGING_CATEGORY(xr_input_cat, "openxr.input")
+
+static constexpr XrSpaceLocationFlags REQUIRED_POSE_LOCATION_FLAGS =
+    XR_SPACE_LOCATION_ORIENTATION_VALID_BIT | XR_SPACE_LOCATION_POSITION_VALID_BIT;
 
 enum ExtraButtonChannel {
     LEFT_HAS_PRIMARY = controller::StandardButtonChannel::NUM_STANDARD_BUTTONS,
@@ -108,92 +113,86 @@ static glm::mat4 defaultPoseOffset(const controller::InputCalibrationData& data,
     }
 }
 
-void OpenXrInputPlugin::guessXDevRoles(
-        std::unordered_map<XrXDevIdMNDX, XDevTracker>& tracker_map,
-        XrTime sampleTime) {
-    for (auto& [id, tracker] : tracker_map) {
+void OpenXrInputPlugin::guessXDevRoles(std::unordered_map<XrXDevIdMNDX, XDevTracker>& tracker_map) {
+    std::vector<std::tuple<XrXDevIdMNDX, glm::vec3, controller::Pose>> tracker_list;
+
+    if (!_context->_lastPredictedDisplayTime.has_value()) {
+        return;
+    }
+
+    for (auto& [_, tracker] : tracker_map) {
+        tracker.pose_channel.reset();
+    }
+
+    for (auto [id, tracker] : tracker_map) {
         XrSpaceLocation stageSpace = { XR_TYPE_SPACE_LOCATION };
         XrSpaceLocation localSpace = { XR_TYPE_SPACE_LOCATION };
         XrSpaceLocation headSpace = { XR_TYPE_SPACE_LOCATION };
-        const bool stageLocated = xrCheck(
-            _context->_instance,
-            xrLocateSpace(tracker.space, _context->_stageSpace, sampleTime, &stageSpace),
+        const auto displayTime = _context->_lastPredictedDisplayTime.value();
+        const bool stageLocated = xrCheck(_context->_instance,
+            xrLocateSpace(tracker.space, _context->_stageSpace, displayTime, &stageSpace),
             "guessXDevRoles: tracker stage space fail");
-        const bool localLocated = xrCheck(
-            _context->_instance,
-            xrLocateSpace(tracker.space, _context->_viewSpace, sampleTime, &localSpace),
+        const bool localLocated = xrCheck(_context->_instance,
+            xrLocateSpace(tracker.space, _context->_viewSpace, displayTime, &localSpace),
             "guessXDevRoles: tracker local space fail");
-        const bool headLocated = xrCheck(
-            _context->_instance,
-            xrLocateSpace(_context->_viewSpace, _context->_stageSpace, sampleTime, &headSpace),
+        const bool headLocated = xrCheck(_context->_instance,
+            xrLocateSpace(_context->_viewSpace, _context->_stageSpace, displayTime, &headSpace),
             "guessXDevRoles: head space fail");
-
-        if (!openXrXDevRoleLocationsUsable(
-                stageLocated, stageSpace.locationFlags,
-                localLocated, localSpace.locationFlags,
-                headLocated, headSpace.locationFlags,
-                XR_SPACE_LOCATION_POSITION_VALID_BIT)) {
+        const bool locationsValid =
+            (stageSpace.locationFlags & REQUIRED_POSE_LOCATION_FLAGS) == REQUIRED_POSE_LOCATION_FLAGS &&
+            (localSpace.locationFlags & REQUIRED_POSE_LOCATION_FLAGS) == REQUIRED_POSE_LOCATION_FLAGS &&
+            (headSpace.locationFlags & REQUIRED_POSE_LOCATION_FLAGS) == REQUIRED_POSE_LOCATION_FLAGS;
+        if (!stageLocated || !localLocated || !headLocated || !locationsValid ||
+                std::abs(headSpace.pose.position.y) <= std::numeric_limits<float>::epsilon()) {
             continue;
         }
 
         // the tracker's position, relative horizontally to the headset
         // and vertically to the floor, normalized by the headset height
         // so we can check relative height rather than absolute meters
-        const float localX = localSpace.pose.position.x;
-        const float stageHeight = stageSpace.pose.position.y;
-        const float headHeight = headSpace.pose.position.y;
-        if (!openXrXDevRoleDimensionsUsable(localX, stageHeight, headHeight)) {
-            continue;
-        }
-        const float normalizedHeight = stageHeight / headHeight;
+        auto position = xrVecToGlm(localSpace.pose.position);
+        position.y = stageSpace.pose.position.y / headSpace.pose.position.y;
+        tracker_list.push_back({
+            id,
+            position,
+            controller::Pose(xrVecToGlm(stageSpace.pose.position), xrQuatToGlm(stageSpace.pose.orientation)),
+        });
+    }
+
+    for (auto& tracker : tracker_list) {
+        using namespace controller;
+
+        auto position = std::get<1>(tracker);
+        auto id = std::get<0>(tracker);
+        auto& state = tracker_map[id];
 
         // TODO: our input system only really expects 7-point tracking,
         // (i.e. head, hands, chest, hips, and feet), but we can expand
         // it later to support more joints if there's demand for it
 
-        switch (classifyOpenXrXDevRole(localX, normalizedHeight)) {
-            case OpenXrXDevRole::LeftFoot:
-                tracker.pose_channel = controller::LEFT_FOOT;
-                break;
-            case OpenXrXDevRole::RightFoot:
-                tracker.pose_channel = controller::RIGHT_FOOT;
-                break;
-            case OpenXrXDevRole::Hips:
-                tracker.pose_channel = controller::HIPS;
-                break;
-            case OpenXrXDevRole::Chest:
-                tracker.pose_channel = controller::SPINE2;
-                break;
-            case OpenXrXDevRole::None:
-                tracker.pose_channel.reset();
-                break;
+        if (position.y < 0.2f) {
+            state.pose_channel = position.x < 0.0f ? LEFT_FOOT : RIGHT_FOOT;
+        }
+
+        if (position.y > 0.4f && position.y < 0.65f) {
+            state.pose_channel = HIPS;
+        }
+
+        if (position.y > 0.65f && position.y < 0.9f) {
+            state.pose_channel = SPINE2;
         }
 
         qCDebug(xr_input_cat) <<
             id <<
             ":" <<
-            normalizedHeight <<
-            (tracker.pose_channel.has_value()
-                 ? poseChannelToString.at(tracker.pose_channel.value())
-                 : "None");
+            position.y <<
+            (state.pose_channel.has_value() ? poseChannelToString.at(state.pose_channel.value()) : "None");
     }
 }
 
 void OpenXrInputPlugin::calibrate() {
     qCDebug(xr_input_cat) << "OpenXrInputPlugin::calibrate";
 
-    const auto sampleTime = _context->_lastPredictedDisplayTime;
-    const bool xdevSamplingReady = openXrXDevRoleSamplingReady(
-        _context->_MNDX_xdevSpaceSupported,
-        sampleTime.has_value(),
-        !_inputDevice->_xdev.empty());
-    if (xdevSamplingReady) {
-        guessXDevRoles(_inputDevice->_xdev, sampleTime.value());
-    } else if (_context->_MNDX_xdevSpaceSupported &&
-               !_inputDevice->_xdev.empty()) {
-        qCWarning(xr_input_cat,
-                  "Skipping XDev role sampling until a predicted display time is available");
-    }
     _inputDevice->_trackerCalibrations.clear();
     _inputDevice->_wantsCalibrate = true;
 }
@@ -201,7 +200,7 @@ void OpenXrInputPlugin::calibrate() {
 bool OpenXrInputPlugin::uncalibrate() {
     qCDebug(xr_input_cat) << "OpenXrInputPlugin::uncalibrate";
 
-    for (auto [_, tracker] : _inputDevice->_xdev) {
+    for (auto& [_, tracker] : _inputDevice->_xdev) {
         tracker.pose_channel = {};
     }
 
@@ -232,11 +231,32 @@ void OpenXrInputPlugin::setConfigurationSettings(const QJsonObject configuration
         auto translationArray = value.value("translation").toArray();
         auto rotationArray = value.value("rotation").toArray();
 
+        const auto finiteNumbers = [](const QJsonArray& values, int expectedSize) {
+            if (values.size() != expectedSize) {
+                return false;
+            }
+            for (const auto& value : values) {
+                if (!value.isDouble() || !std::isfinite(value.toDouble())) {
+                    return false;
+                }
+            }
+            return true;
+        };
+        if (!finiteNumbers(translationArray, 3) || !finiteNumbers(rotationArray, 4)) {
+            continue;
+        }
+
         auto channel = stringToPoseChannel.at(key);
         auto translation = vec3(translationArray[0].toDouble(), translationArray[1].toDouble(), translationArray[2].toDouble());
-        auto rotation = quat(rotationArray[0].toDouble(), rotationArray[1].toDouble(), rotationArray[2].toDouble(), rotationArray[3].toDouble());
+        // Settings serialize quaternion components as x, y, z, w; GLM constructs them as w, x, y, z.
+        auto rotation = quat(rotationArray[3].toDouble(), rotationArray[0].toDouble(),
+            rotationArray[1].toDouble(), rotationArray[2].toDouble());
+        const auto rotationLength = glm::length(rotation);
+        if (!std::isfinite(rotationLength) || rotationLength <= std::numeric_limits<float>::epsilon()) {
+            continue;
+        }
 
-        _inputDevice->_trackerCalibrations[channel] = controller::Pose(translation, rotation);
+        _inputDevice->_trackerCalibrations[channel] = controller::Pose(translation, rotation / rotationLength);
     }
 }
 
@@ -312,7 +332,12 @@ void OpenXrInputPlugin::pluginUpdate(float deltaTime, const controller::InputCal
 
     if (!_registeredWithInputMapper) { return; }
 
-    userInputMapper->withLock([&, this]() { _inputDevice->update(deltaTime, inputCalibrationData); });
+    userInputMapper->withLock([&, this]() {
+        if (_inputDevice->_wantsCalibrate && _context->_MNDX_xdevSpaceSupported) {
+            guessXDevRoles(_inputDevice->_xdev);
+        }
+        _inputDevice->update(deltaTime, inputCalibrationData);
+    });
 
     if (_inputDevice->_trackedControllers == 0 && _registeredWithInputMapper) {
         userInputMapper->removeDevice(_inputDevice->_deviceID);
@@ -347,48 +372,32 @@ OpenXrInputPlugin::InputDevice::InputDevice(std::shared_ptr<OpenXrContext> c) : 
 }
 
 OpenXrInputPlugin::InputDevice::~InputDevice() {
-    const bool runtimeHandlesValid = _context && _context->_session != XR_NULL_HANDLE;
-    destroyHandTrackers(runtimeHandlesValid);
-    destroyXDevSpaces(runtimeHandlesValid);
-    destroyActions();
-}
-
-void OpenXrInputPlugin::InputDevice::destroyActions() {
-    _actions.clear();
-    if (_actionSet != XR_NULL_HANDLE && _context &&
-            _context->_instance != XR_NULL_HANDLE) {
-        xrCheck(_context->_instance, xrDestroyActionSet(_actionSet),
-                "Failed to destroy action set");
-    }
-    _actionSet = XR_NULL_HANDLE;
-    _actionsInitialized = false;
-}
-
-void OpenXrInputPlugin::InputDevice::destroyHandTrackers(bool runtimeHandlesValid) {
+    std::unique_lock<std::recursive_mutex> locker(_lock);
     for (auto& tracker : _handTracker) {
-        if (tracker != XR_NULL_HANDLE && runtimeHandlesValid && _context &&
-                _context->xrDestroyHandTrackerEXT != nullptr) {
+        if (tracker != XR_NULL_HANDLE && _context->_session != XR_NULL_HANDLE &&
+                _context->xrDestroyHandTrackerEXT) {
             xrCheck(_context->_instance, _context->xrDestroyHandTrackerEXT(tracker),
                     "Failed to destroy hand tracker");
         }
         tracker = XR_NULL_HANDLE;
     }
-}
-
-void OpenXrInputPlugin::InputDevice::destroyXDevSpaces(bool runtimeHandlesValid) {
     for (auto& entry : _xdev) {
-        auto& space = entry.second.space;
-        const auto cleanup = openXrOwnedHandleCleanup(
-            space != XR_NULL_HANDLE, runtimeHandlesValid);
-        if (cleanup == OpenXrOwnedHandleCleanup::DestroyAndClear) {
-            xrCheck(_context->_instance, xrDestroySpace(space),
+        auto& tracker = entry.second;
+        if (tracker.space != XR_NULL_HANDLE && _context->_session != XR_NULL_HANDLE) {
+            xrCheck(_context->_instance, xrDestroySpace(tracker.space),
                     "Failed to destroy XDev space");
         }
-        if (cleanup != OpenXrOwnedHandleCleanup::Noop) {
-            space = XR_NULL_HANDLE;
-        }
+        tracker.space = XR_NULL_HANDLE;
     }
     _xdev.clear();
+    // Action destructors release their pose spaces before the parent set.
+    _actions.clear();
+    if (_actionSet != XR_NULL_HANDLE) {
+        xrCheck(_context->_instance, xrDestroyActionSet(_actionSet),
+                "Failed to destroy action set");
+        _actionSet = XR_NULL_HANDLE;
+    }
+    _actionsInitialized = false;
 }
 
 void OpenXrInputPlugin::InputDevice::focusOutEvent() {
@@ -397,70 +406,38 @@ void OpenXrInputPlugin::InputDevice::focusOutEvent() {
 };
 
 bool OpenXrInputPlugin::InputDevice::triggerHapticPulse(float strength, float duration, uint16_t index) {
-    auto targets = openXrHapticTargets(_hapticsEnabled, index);
-    if (targets == OpenXrHapticNone) {
-        return false;
-    }
-    if (!isOpenXrHapticRequestUsable(strength, duration)) {
-        qCWarning(xr_input_cat)
-            << "Invalid OpenXR haptic request";
+    constexpr double NANOSECONDS_PER_MILLISECOND { 1000000.0 };
+    const double durationNanoseconds = static_cast<double>(duration) * NANOSECONDS_PER_MILLISECOND;
+    if (index >= HAND_COUNT || !_hapticsEnabled || !std::isfinite(strength) ||
+            !std::isfinite(duration) || duration <= 0.0f ||
+            durationNanoseconds > static_cast<double>(std::numeric_limits<XrDuration>::max())) {
         return false;
     }
 
     std::unique_lock<std::recursive_mutex> locker(_lock);
-    const auto leftHaptic = _actions.find("left_haptic");
-    const auto rightHaptic = _actions.find("right_haptic");
-    if (!openXrHapticActionsReady(
-            targets, _actionsInitialized,
-            _context && _context->_session != XR_NULL_HANDLE,
-            leftHaptic != _actions.end(), rightHaptic != _actions.end())) {
-        qCWarning(xr_input_cat)
-            << "OpenXR haptic actions are not ready";
+
+    if (!_actionsInitialized || _context->_session == XR_NULL_HANDLE) {
         return false;
     }
 
-    using namespace std::chrono;
-    nanoseconds durationNs = duration_cast<nanoseconds>(milliseconds(static_cast<int>(duration)));
-    XrDuration xrDuration = durationNs.count();
+    auto path = (index == 0) ? "left_haptic" : "right_haptic";
+    auto action = _actions.find(path);
+    if (action == _actions.end()) {
+        return false;
+    }
+
+    XrDuration xrDuration = static_cast<XrDuration>(durationNanoseconds);
+    const float amplitude = std::clamp(0.5f * strength, 0.0f, 1.0f);
 
     // FIXME: sometimes something bugs out and hammers this,
     // and the controller vibrates really loudly until another
     // haptic pulse is triggered
-    bool applied = true;
-    if ((targets & OpenXrHapticLeft) != 0
-            && !leftHaptic->second->applyHaptic(xrDuration, 50, 0.5f * strength)) {
-        qCCritical(xr_input_cat) << "Failed to apply left-hand haptic feedback!";
-        applied = false;
-    }
-    if ((targets & OpenXrHapticRight) != 0
-            && !rightHaptic->second->applyHaptic(xrDuration, 50, 0.5f * strength)) {
-        qCCritical(xr_input_cat) << "Failed to apply right-hand haptic feedback!";
-        applied = false;
+    if (!action->second->applyHaptic(xrDuration, 50, amplitude)) {
+        qCCritical(xr_input_cat) << "Failed to apply haptic feedback!";
+        return false;
     }
 
-    return applied;
-}
-
-OpenXrInputPlugin::Action::~Action() {
-    const bool sessionIsAlive = _context &&
-        _context->_session != XR_NULL_HANDLE;
-    const bool instanceIsAlive = _context &&
-        _context->_instance != XR_NULL_HANDLE;
-    const auto targets = openXrActionCleanupTargets(
-        _poseSpace != XR_NULL_HANDLE,
-        _action != XR_NULL_HANDLE,
-        sessionIsAlive,
-        instanceIsAlive);
-    if ((targets & OpenXrActionCleanupSpace) != 0) {
-        xrCheck(_context->_instance, xrDestroySpace(_poseSpace),
-                "Failed to destroy action pose space");
-    }
-    _poseSpace = XR_NULL_HANDLE;
-    if ((targets & OpenXrActionCleanupAction) != 0) {
-        xrCheck(_context->_instance, xrDestroyAction(_action),
-                "Failed to destroy action");
-    }
-    _action = XR_NULL_HANDLE;
+    return true;
 }
 
 bool OpenXrInputPlugin::Action::init(XrActionSet actionSet) {
@@ -489,6 +466,14 @@ bool OpenXrInputPlugin::Action::init(XrActionSet actionSet) {
     return true;
 }
 
+OpenXrInputPlugin::Action::~Action() {
+    if (_poseSpace != XR_NULL_HANDLE && _context->_session != XR_NULL_HANDLE) {
+        xrCheck(_context->_instance, xrDestroySpace(_poseSpace),
+                "Failed to destroy action pose space");
+    }
+    _poseSpace = XR_NULL_HANDLE;
+}
+
 XrActionStateFloat OpenXrInputPlugin::Action::getFloat() {
     XrActionStateFloat state = {
         .type = XR_TYPE_ACTION_STATE_FLOAT,
@@ -499,11 +484,8 @@ XrActionStateFloat OpenXrInputPlugin::Action::getFloat() {
         .action = _action,
     };
 
-    const bool stateRead = xrCheck(
-        _context->_instance,
-        xrGetActionStateFloat(_context->_session, &info, &state),
-        "Failed to get float state!");
-    if (!openXrActionStateOutputUsable(stateRead)) {
+    XrResult result = xrGetActionStateFloat(_context->_session, &info, &state);
+    if (!xrCheck(_context->_instance, result, "Failed to get float state!")) {
         return { .type = XR_TYPE_ACTION_STATE_FLOAT };
     }
 
@@ -520,11 +502,8 @@ XrActionStateVector2f OpenXrInputPlugin::Action::getVector2f() {
         .action = _action,
     };
 
-    const bool stateRead = xrCheck(
-        _context->_instance,
-        xrGetActionStateVector2f(_context->_session, &info, &state),
-        "Failed to get vector2 state!");
-    if (!openXrActionStateOutputUsable(stateRead)) {
+    XrResult result = xrGetActionStateVector2f(_context->_session, &info, &state);
+    if (!xrCheck(_context->_instance, result, "Failed to get vector2 state!")) {
         return { .type = XR_TYPE_ACTION_STATE_VECTOR2F };
     }
 
@@ -541,11 +520,8 @@ XrActionStateBoolean OpenXrInputPlugin::Action::getBool() {
         .action = _action,
     };
 
-    const bool stateRead = xrCheck(
-        _context->_instance,
-        xrGetActionStateBoolean(_context->_session, &info, &state),
-        "Failed to get boolean state!");
-    if (!openXrActionStateOutputUsable(stateRead)) {
+    XrResult result = xrGetActionStateBoolean(_context->_session, &info, &state);
+    if (!xrCheck(_context->_instance, result, "Failed to get boolean state!")) {
         return { .type = XR_TYPE_ACTION_STATE_BOOLEAN };
     }
 
@@ -553,51 +529,32 @@ XrActionStateBoolean OpenXrInputPlugin::Action::getBool() {
 }
 
 XrSpaceLocation OpenXrInputPlugin::Action::getPose() {
+    XrActionStatePose state = {
+        .type = XR_TYPE_ACTION_STATE_POSE,
+    };
+    XrActionStateGetInfo info = {
+        .type = XR_TYPE_ACTION_STATE_GET_INFO,
+        .action = _action,
+    };
+
     XrSpaceLocation location = {
         .type = XR_TYPE_SPACE_LOCATION,
     };
-    XrActionStatePose state = {
-        .type = XR_TYPE_ACTION_STATE_POSE,
-    };
-    XrActionStateGetInfo info = {
-        .type = XR_TYPE_ACTION_STATE_GET_INFO,
-        .action = _action,
-    };
 
-    const bool stateSucceeded = xrCheck(
-        _context->_instance,
-        xrGetActionStatePose(_context->_session, &info, &state),
-        "failed to get pose value!");
-    if (!openXrPoseActionCanLocate(
-            stateSucceeded, state.isActive, _poseSpace != XR_NULL_HANDLE,
-            _context->_lastPredictedDisplayTime.has_value())) {
+    XrResult result = xrGetActionStatePose(_context->_session, &info, &state);
+    if (!xrCheck(_context->_instance, result, "failed to get pose value!") ||
+            !state.isActive) {
         return location;
     }
-    const bool locateSucceeded = xrCheck(
-        _context->_instance,
-        xrLocateSpace(_poseSpace, _context->_stageSpace,
-                      _context->inputPredictionTime(), &location),
-        "Failed to locate hand space!");
-    if (!locateSucceeded) {
-        location.locationFlags = 0;
+
+    if (_context->_lastPredictedDisplayTime.has_value()) {
+        result = xrLocateSpace(_poseSpace, _context->_stageSpace, _context->inputPredictionTime(), &location);
+        if (!xrCheck(_context->_instance, result, "Failed to locate hand space!")) {
+            return { .type = XR_TYPE_SPACE_LOCATION };
+        }
     }
 
     return location;
-}
-
-bool OpenXrInputPlugin::Action::isPoseActive() {
-    XrActionStatePose state = {
-        .type = XR_TYPE_ACTION_STATE_POSE,
-    };
-    XrActionStateGetInfo info = {
-        .type = XR_TYPE_ACTION_STATE_GET_INFO,
-        .action = _action,
-    };
-
-    return xrCheck(
-        _context->_instance,
-        xrGetActionStatePose(_context->_session, &info, &state),
-        "failed to get pose value!") && state.isActive;
 }
 
 bool OpenXrInputPlugin::Action::applyHaptic(XrDuration duration, float frequency, float amplitude) {
@@ -635,16 +592,10 @@ bool OpenXrInputPlugin::Action::createPoseSpaces() {
 
 bool OpenXrInputPlugin::InputDevice::initBindings(const std::string& profileName,
                                                   const std::map<std::string, std::string>& actionsToBind) {
-    XrPath profilePath = XR_NULL_PATH;
-    XrResult result = xrStringToPath(
-        _context->_instance, profileName.c_str(), &profilePath);
-    const bool profileConverted = xrCheck(
-        _context->_instance, result,
-        "Failed to convert interaction profile path");
-    if (!openXrPathConversionUsable(
-            profileConverted, profilePath != XR_NULL_PATH)) {
+    XrPath profilePath;
+    XrResult result = xrStringToPath(_context->_instance, profileName.c_str(), &profilePath);
+    if (!xrCheck(_context->_instance, result, "Failed to get interaction profile"))
         return false;
-    }
 
     std::vector<XrActionSuggestedBinding> suggestions;
     for (const auto& [actionName, inputPathRaw] : actionsToBind) {
@@ -661,19 +612,15 @@ bool OpenXrInputPlugin::InputDevice::initBindings(const std::string& profileName
             return false;
         }
 
-        XrActionSuggestedBinding bind = {
-            .action = _actions[actionName]->_action,
-            .binding = XR_NULL_PATH,
-        };
-        const bool bindingConverted = xrCheck(
-            _context->_instance,
-            xrStringToPath(
-                _context->_instance, inputPathRaw.c_str(), &bind.binding),
-            "Failed to convert interaction binding path");
-        if (!openXrPathConversionUsable(
-                bindingConverted, bind.binding != XR_NULL_PATH)) {
+        XrPath bindingPath { XR_NULL_PATH };
+        result = xrStringToPath(_context->_instance, inputPathRaw.c_str(), &bindingPath);
+        if (!xrCheck(_context->_instance, result, "Failed to convert suggested binding path")) {
             return false;
         }
+        XrActionSuggestedBinding bind = {
+            .action = _actions[actionName]->_action,
+            .binding = bindingPath,
+        };
         suggestions.emplace(suggestions.end(), bind);
     }
 
@@ -821,7 +768,6 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
         return true;
 
     assert(_context->_session != XR_NULL_HANDLE);
-    destroyActions();
 
     XrInstance instance = _context->_instance;
 
@@ -832,10 +778,20 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
         .priority = 0,
     };
     XrResult result = xrCreateActionSet(instance, &actionSetInfo, &_actionSet);
-    if (!xrCheck(instance, result, "Failed to create action set.")) {
-        destroyActions();
+    if (!xrCheck(instance, result, "Failed to create action set."))
         return false;
-    }
+
+    // Until the action set is attached, every action is required by update(),
+    // which uses keyed lookups. Roll back the entire set on any partial failure
+    // instead of publishing a map that will throw on its first missing action.
+    auto discardUnattachedActionSet = [&] {
+        _actions.clear();
+        if (_actionSet != XR_NULL_HANDLE) {
+            xrCheck(instance, xrDestroyActionSet(_actionSet),
+                    "Failed to roll back unattached action set");
+            _actionSet = XR_NULL_HANDLE;
+        }
+    };
 
     std::map<std::string, std::pair<std::string, XrActionType>> actionTypes = {
         {"left_primary_click",     {"Left Primary",           XR_ACTION_TYPE_BOOLEAN_INPUT}},
@@ -1078,10 +1034,10 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
     if (_context->_HTCX_viveTrackerInteractionSupported) {
         actionSuggestions.insert(
             {"/interaction_profiles/htc/vive_tracker_htcx", {
-                {"hips_pose",       OPENXR_VIVE_TRACKER_WAIST_POSE_PATH},
-                {"chest_pose",      OPENXR_VIVE_TRACKER_CHEST_POSE_PATH},
-                {"left_foot_pose",  OPENXR_VIVE_TRACKER_LEFT_FOOT_POSE_PATH},
-                {"right_foot_pose", OPENXR_VIVE_TRACKER_RIGHT_FOOT_POSE_PATH},
+                {"hips_pose",       "/usr/vive_tracker_htcx/role/waist/input/grip/pose"},
+                {"chest_pose",      "/usr/vive_tracker_htcx/role/chest/input/grip/pose"},
+                {"left_foot_pose",  "/usr/vive_tracker_htcx/role/left_foot/input/grip/pose"},
+                {"right_foot_pose", "/usr/vive_tracker_htcx/role/right_foot/input/grip/pose"},
             }}
         );
     }
@@ -1092,17 +1048,11 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
         std::shared_ptr<Action> action = std::make_shared<Action>(_context, id, friendlyName, xr_type);
         if (!action->init(_actionSet)) {
             qCCritical(xr_input_cat) << "Creating action " << id.c_str() << " failed!";
+            discardUnattachedActionSet();
+            return false;
         } else {
             _actions.emplace(id, action);
         }
-    }
-    if (!isCompleteOpenXrRequiredActionSet(
-            actionTypes.size(), _actions.size())) {
-        qCCritical(xr_input_cat)
-            << "OpenXR required action set is incomplete:"
-            << _actions.size() << "of" << actionTypes.size();
-        destroyActions();
-        return false;
     }
 
     for (const auto& [profile, input] : actionSuggestions) {
@@ -1118,7 +1068,7 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
     };
     result = xrAttachSessionActionSets(_context->_session, &attachInfo);
     if (!xrCheck(_context->_instance, result, "Failed to attach action set")) {
-        destroyActions();
+        discardUnattachedActionSet();
         return false;
     }
 
@@ -1129,74 +1079,53 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
             .handJointSet = XR_HAND_JOINT_SET_DEFAULT_EXT,
         };
 
-        createInfo.hand = XR_HAND_LEFT_EXT;
-        const bool leftCreated = xrCheck(
-            _context->_instance,
-            _context->xrCreateHandTrackerEXT(_context->_session, &createInfo, &_handTracker[0]),
-            "Failed to create left hand tracker") && _handTracker[0] != XR_NULL_HANDLE;
-
-        createInfo.hand = XR_HAND_RIGHT_EXT;
-        const bool rightCreated = xrCheck(
-            _context->_instance,
-            _context->xrCreateHandTrackerEXT(_context->_session, &createInfo, &_handTracker[1]),
-            "Failed to create right hand tracker") && _handTracker[1] != XR_NULL_HANDLE;
-        const auto pairState = openXrHandTrackerPairState(leftCreated, rightCreated);
-        if (pairState != OpenXrHandTrackerPairState::Complete) {
-            if (pairState == OpenXrHandTrackerPairState::Partial) {
-                qCWarning(xr_input_cat,
-                          "Rolling back incomplete OpenXR hand-tracker pair");
+        const auto createHandTracker = [&](int index, XrHandEXT hand, const char* failure) {
+            createInfo.hand = hand;
+            XrHandTrackerEXT candidate { XR_NULL_HANDLE };
+            const XrResult trackerResult = _context->xrCreateHandTrackerEXT(
+                _context->_session, &createInfo, &candidate);
+            if (xrCheck(_context->_instance, trackerResult, failure)) {
+                _handTracker[index] = candidate;
             }
-            destroyHandTrackers(true);
-        }
+        };
+        createHandTracker(0, XR_HAND_LEFT_EXT, "Failed to create left hand tracker");
+        createHandTracker(1, XR_HAND_RIGHT_EXT, "Failed to create right hand tracker");
     }
 
     if (_context->_MNDX_xdevSpaceSupported) {
-        destroyXDevSpaces(_context->_session != XR_NULL_HANDLE);
+        _xdev.clear();
 
-        XrXDevListMNDX xdevList = XR_NULL_HANDLE;
+        XrXDevListMNDX xdevList { XR_NULL_HANDLE };
         std::vector<XrXDevIdMNDX> xdevIDs(MAX_TRACKER_COUNT);
         uint32_t xdevIDsCount = 0;
 
         XrCreateXDevListInfoMNDX createInfo = {.type = XR_TYPE_CREATE_XDEV_LIST_INFO_MNDX};
 
-        const bool functionsReady = _context->xrCreateXDevListMNDX != nullptr &&
-            _context->xrEnumerateXDevsMNDX != nullptr &&
-            _context->xrGetXDevPropertiesMNDX != nullptr &&
-            _context->xrDestroyXDevListMNDX != nullptr &&
-            _context->xrCreateXDevSpaceMNDX != nullptr;
-        const bool listCreated = functionsReady && xrCheck(
-            _context->_instance,
-            _context->xrCreateXDevListMNDX(_context->_session, &createInfo, &xdevList),
-            "Failed to create XDev list");
-        if (!openXrCreatedHandleUsable(
-                listCreated, xdevList != XR_NULL_HANDLE)) {
-            qCWarning(xr_input_cat, "XDev discovery is unavailable");
-            xdevIDs.clear();
-        } else {
-            const bool enumerationSucceeded = xrCheck(
-                _context->_instance,
-                _context->xrEnumerateXDevsMNDX(
-                    xdevList, static_cast<uint32_t>(xdevIDs.size()),
-                    &xdevIDsCount, xdevIDs.data()),
-                "Failed to enumerate XDevs");
-            if (openXrBoundedEnumerationUsable(
-                    enumerationSucceeded, xdevIDsCount, xdevIDs.size())) {
-                xdevIDs.resize(xdevIDsCount);
-            } else {
-                qCWarning(xr_input_cat, "Discarding invalid XDev enumeration");
-                xdevIDs.clear();
+        XrResult xdevResult = _context->xrCreateXDevListMNDX(
+            _context->_session, &createInfo, &xdevList);
+        if (!xrCheck(_context->_instance, xdevResult, "Failed to create XDev list")) {
+            xdevList = XR_NULL_HANDLE;
+        }
+        if (xdevList != XR_NULL_HANDLE) {
+            xdevResult = _context->xrEnumerateXDevsMNDX(
+                xdevList, MAX_TRACKER_COUNT, &xdevIDsCount, xdevIDs.data());
+            if (!xrCheck(_context->_instance, xdevResult, "Failed to enumerate XDevs") ||
+                    xdevIDsCount > MAX_TRACKER_COUNT) {
+                xdevIDsCount = 0;
             }
         }
+
+        // shrink the list to the number of xdevs we actually received
+        xdevIDs.resize(xdevIDsCount);
 
         for (const auto id : xdevIDs) {
             XrGetXDevInfoMNDX info = {.type = XR_TYPE_GET_XDEV_INFO_MNDX};
             XrXDevPropertiesMNDX properties = {.type = XR_TYPE_XDEV_PROPERTIES_MNDX};
 
             info.id = id;
-            if (!xrCheck(
-                    _context->_instance,
-                    _context->xrGetXDevPropertiesMNDX(xdevList, &info, &properties),
-                    "Failed to get XDev properties")) {
+            xdevResult = _context->xrGetXDevPropertiesMNDX(xdevList, &info, &properties);
+            if (!xrCheck(_context->_instance, xdevResult, "Failed to get XDev properties") ||
+                    !properties.canCreateSpace) {
                 continue;
             }
 
@@ -1208,7 +1137,6 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
             }
 
             XDevTracker tracker {};
-            tracker.space = XR_NULL_HANDLE;
             tracker.properties = properties;
 
             tracker.pose_channel = {};
@@ -1221,17 +1149,17 @@ bool OpenXrInputPlugin::InputDevice::initActions() {
                 .offset = { {0, 0, 0, 1}, {} },
             };
 
-            const bool spaceCreated = xrCheck(
-                _context->_instance,
-                _context->xrCreateXDevSpaceMNDX(
-                    _context->_session, &createSpaceInfo, &tracker.space),
-                "Failed to create XDev space");
-            if (openXrCreatedHandleUsable(
-                    spaceCreated, tracker.space != XR_NULL_HANDLE)) {
-                _xdev.insert({id, tracker});
+            XrSpace candidateSpace { XR_NULL_HANDLE };
+            xdevResult = _context->xrCreateXDevSpaceMNDX(
+                _context->_session, &createSpaceInfo, &candidateSpace);
+            if (!xrCheck(_context->_instance, xdevResult, "Failed to create XDev space")) {
+                continue;
             }
+            tracker.space = candidateSpace;
+
+            _xdev.insert({id, tracker});
         }
-        if (xdevList != XR_NULL_HANDLE && _context->xrDestroyXDevListMNDX != nullptr) {
+        if (xdevList != XR_NULL_HANDLE) {
             xrCheck(_context->_instance, _context->xrDestroyXDevListMNDX(xdevList),
                     "Failed to destroy XDev list");
         }
@@ -1246,9 +1174,12 @@ void OpenXrInputPlugin::InputDevice::update(float deltaTime, const controller::I
     using namespace controller;
 
     _poseStateMap.clear();
-    _axisStateMap.clear();
     _buttonPressedMap.clear();
-    _trackedControllers = 2;
+    // OpenXR reports an action as inactive when its controller loses tracking
+    // or its interaction profile is no longer bound. Fail closed instead of
+    // retaining the previous trigger, grip, or stick value indefinitely.
+    _axisStateMap.clear();
+    _trackedControllers = 0;
 
     if (_context->_session == XR_NULL_HANDLE) {
         return;
@@ -1273,24 +1204,25 @@ void OpenXrInputPlugin::InputDevice::update(float deltaTime, const controller::I
     XrSession session = _context->_session;
 
     XrResult result = xrSyncActions(session, &syncInfo);
-    const bool actionsSynchronized = xrCheck(
-        instance, result, "Failed to sync OpenXR actions");
-    if (!openXrActionFrameUsable(actionsSynchronized)) {
+    if (!xrCheck(instance, result, "failed to sync actions!")) {
         return;
     }
 
 #if defined(Q_OS_ANDROID)
-    static uint64_t lastInputLog { 0 };
-    const uint64_t inputNow = usecTimestampNow();
-    if (inputNow - lastInputLog >= USECS_PER_SECOND && _context->_lastPredictedDisplayTime.has_value()) {
-        lastInputLog = inputNow;
-        qCInfo(xr_input_cat) << "PICO_LATENCY_INPUT locateTime(ns)"
-                            << _context->inputPredictionTime()
-                            << "basePrediction(ns)"
-                            << _context->_lastPredictedDisplayTime.value()
-                            << "lead(ms)"
-                            << ((_context->inputPredictionTime() -
-                                 _context->_lastPredictedDisplayTime.value()) / 1000000.0);
+    if (_context->_picoLatencyTraceEnabled) {
+        static uint64_t lastInputLog { 0 };
+        const uint64_t inputNow = usecTimestampNow();
+        if (inputNow - lastInputLog >= USECS_PER_SECOND &&
+                _context->_lastPredictedDisplayTime.has_value()) {
+            lastInputLog = inputNow;
+            qCInfo(xr_input_cat) << "PICO_LATENCY_INPUT locateTime(ns)"
+                                << _context->inputPredictionTime()
+                                << "basePrediction(ns)"
+                                << _context->_lastPredictedDisplayTime.value()
+                                << "lead(ms)"
+                                << ((_context->inputPredictionTime() -
+                                     _context->_lastPredictedDisplayTime.value()) / 1000000.0);
+        }
     }
 #endif
 
@@ -1311,36 +1243,27 @@ void OpenXrInputPlugin::InputDevice::update(float deltaTime, const controller::I
         auto palm_path = (i == 0) ? "left_palm_pose" : "right_palm_pose";
         auto grip_path = (i == 0) ? "left_grip_pose" : "right_grip_pose";
 
-        const bool palmRequested = _context->_palmPoseSupported &&
-            _actions.at(palm_path)->isPoseActive();
-        XrSpaceLocation palmLocation {};
-        bool palmUsable = false;
-        if (palmRequested) {
-            palmLocation = _actions.at(palm_path)->getPose();
-            palmUsable = openXrControllerPoseUsable(
-                palmLocation.locationFlags,
-                XR_SPACE_LOCATION_POSITION_VALID_BIT,
-                XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
+        bool usingPalm = false;
+        XrSpaceLocation handLocation { .type = XR_TYPE_SPACE_LOCATION };
+
+        // Prefer a complete palm pose, but retain the grip fallback if the palm
+        // action becomes inactive or loses either position or orientation.
+        if (_context->_palmPoseSupported) {
+            const auto palmLocation = _actions.at(palm_path)->getPose();
+            if ((palmLocation.locationFlags & REQUIRED_POSE_LOCATION_FLAGS) ==
+                    REQUIRED_POSE_LOCATION_FLAGS) {
+                handLocation = palmLocation;
+                usingPalm = true;
+            }
+        }
+        if (!usingPalm) {
+            handLocation = _actions.at(grip_path)->getPose();
         }
 
-        XrSpaceLocation gripLocation {};
-        bool gripUsable = false;
-        auto poseSource = selectOpenXrControllerPoseSource(
-            palmRequested, palmUsable, gripUsable);
-        if (poseSource != OpenXrControllerPoseSource::Palm) {
-            gripLocation = _actions.at(grip_path)->getPose();
-            gripUsable = openXrControllerPoseUsable(
-                gripLocation.locationFlags,
-                XR_SPACE_LOCATION_POSITION_VALID_BIT,
-                XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
-            poseSource = selectOpenXrControllerPoseSource(
-                palmRequested, palmUsable, gripUsable);
-        }
-        if (poseSource != OpenXrControllerPoseSource::None) {
-            const bool usingPalm =
-                poseSource == OpenXrControllerPoseSource::Palm;
-            const XrSpaceLocation& handLocation =
-                usingPalm ? palmLocation : gripLocation;
+        bool locationValid =
+            (handLocation.locationFlags & REQUIRED_POSE_LOCATION_FLAGS) == REQUIRED_POSE_LOCATION_FLAGS;
+        if (locationValid) {
+            ++_trackedControllers;
             vec3 translation = xrVecToGlm(handLocation.pose.position);
             quat rotation = xrQuatToGlm(handLocation.pose.orientation);
             auto pose = Pose(translation, rotation);
@@ -1414,11 +1337,12 @@ void OpenXrInputPlugin::InputDevice::update(float deltaTime, const controller::I
         auto left_trigger = _actions.at("left_trigger_value")->getFloat();
         auto right_trigger = _actions.at("right_trigger_value")->getFloat();
 
-        if (openXrVirtualTriggerPressed(left_trigger.isActive, left_trigger.currentState)) {
+        // TODO: Customisable click threshold?
+        if (left_trigger.isActive && left_trigger.currentState >= 0.95f) {
             _buttonPressedMap.insert(LT_VIRTUAL_CLICK);
         }
 
-        if (openXrVirtualTriggerPressed(right_trigger.isActive, right_trigger.currentState)) {
+        if (right_trigger.isActive && right_trigger.currentState >= 0.95f) {
             _buttonPressedMap.insert(RT_VIRTUAL_CLICK);
         }
     }
@@ -1605,47 +1529,17 @@ void OpenXrInputPlugin::InputDevice::getHandTrackingInputs(int i, const mat4& se
         .time = _context->inputPredictionTime(),
     };
 
-    const bool locateSucceeded = xrCheck(
-        _context->_instance,
-        _context->xrLocateHandJointsEXT(_handTracker[i], &locateInfo, &locations),
-        "Failed to locate hand joints");
-    if (!openXrHandJointOutputUsable(locateSucceeded, locations.isActive)) {
+    XrResult result = _context->xrLocateHandJointsEXT(
+        _handTracker[i], &locateInfo, &locations);
+    if (!xrCheck(_context->_instance, result, "Failed to locate hand joints") ||
+            !locations.isActive) {
         return;
     }
 
-    constexpr XrSpaceLocationFlags poseFlags =
+    constexpr XrSpaceLocationFlags REQUIRED_JOINT_FLAGS =
         XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
-    constexpr XrSpaceLocationFlags orientationFlag =
-        XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
-    struct RequiredJoint {
-        XrHandJointEXT joint;
-        XrSpaceLocationFlags flags;
-    };
-    constexpr RequiredJoint requiredJoints[] = {
-        { XR_HAND_JOINT_WRIST_EXT, poseFlags },
-        { XR_HAND_JOINT_THUMB_METACARPAL_EXT, poseFlags },
-        { XR_HAND_JOINT_THUMB_PROXIMAL_EXT, poseFlags },
-        { XR_HAND_JOINT_THUMB_DISTAL_EXT, poseFlags },
-        { XR_HAND_JOINT_INDEX_METACARPAL_EXT, orientationFlag },
-        { XR_HAND_JOINT_INDEX_PROXIMAL_EXT, poseFlags },
-        { XR_HAND_JOINT_INDEX_INTERMEDIATE_EXT, poseFlags },
-        { XR_HAND_JOINT_INDEX_DISTAL_EXT, poseFlags },
-        { XR_HAND_JOINT_MIDDLE_METACARPAL_EXT, orientationFlag },
-        { XR_HAND_JOINT_MIDDLE_PROXIMAL_EXT, poseFlags },
-        { XR_HAND_JOINT_MIDDLE_INTERMEDIATE_EXT, poseFlags },
-        { XR_HAND_JOINT_MIDDLE_DISTAL_EXT, poseFlags },
-        { XR_HAND_JOINT_RING_METACARPAL_EXT, orientationFlag },
-        { XR_HAND_JOINT_RING_PROXIMAL_EXT, poseFlags },
-        { XR_HAND_JOINT_RING_INTERMEDIATE_EXT, poseFlags },
-        { XR_HAND_JOINT_RING_DISTAL_EXT, poseFlags },
-        { XR_HAND_JOINT_LITTLE_METACARPAL_EXT, orientationFlag },
-        { XR_HAND_JOINT_LITTLE_PROXIMAL_EXT, poseFlags },
-        { XR_HAND_JOINT_LITTLE_INTERMEDIATE_EXT, poseFlags },
-        { XR_HAND_JOINT_LITTLE_DISTAL_EXT, poseFlags },
-    };
-    for (const auto& required : requiredJoints) {
-        if (!openXrHandJointFlagsSatisfy(
-                joints[required.joint].locationFlags, required.flags)) {
+    for (const auto& joint : joints) {
+        if ((joint.locationFlags & REQUIRED_JOINT_FLAGS) != REQUIRED_JOINT_FLAGS) {
             return;
         }
     }
@@ -1726,25 +1620,29 @@ void OpenXrInputPlugin::InputDevice::calibratePucks(const controller::InputCalib
         LEFT_FOOT, RIGHT_FOOT, HIPS, SPINE2,
     };
 
+    bool calibratedAny = false;
+
     for (auto channel : posesToCalibrate) {
         // not connected, don't calibrate
-        if (!_poseStateMap[channel].isValid()) { continue; }
+        const auto pose = _poseStateMap.find(channel);
+        if (pose == _poseStateMap.end() || !pose->second.isValid()) { continue; }
 
         // get the heading of the headset for the forward direction
         auto heading = glm::eulerAngles(_context->_lastHeadPose.getRotation()).y;
         auto headAngle = glm::inverse(quat(vec3(0.0f, heading, 0.0f)));
 
-        //auto position = headAngle * _poseStateMap[channel].getTranslation();
-        auto rotation = headAngle * _poseStateMap[channel].getRotation();
+        //auto position = headAngle * pose->second.getTranslation();
+        auto rotation = headAngle * pose->second.getRotation();
         auto offset = defaultPoseOffset(data, channel);
 
         _trackerCalibrations[channel] = Pose(
             glm::inverse(rotation) * vec3(0.0f, 0.0f, channel == HIPS || channel == SPINE2 ? 0.2f : 0.1f),
             glm::inverse(rotation) * quat(offset)
         );
+        calibratedAny = true;
     }
 
-    _wantsCalibrate = false;
+    _wantsCalibrate = !calibratedAny;
 }
 
 void OpenXrInputPlugin::InputDevice::updateBodyFromViveTrackers(const mat4& sensorToAvatar) {
@@ -1752,11 +1650,8 @@ void OpenXrInputPlugin::InputDevice::updateBodyFromViveTrackers(const mat4& sens
 
     auto handlePose = [&](std::string action, StandardPoseChannel channel) {
         XrSpaceLocation location = _actions.at(action)->getPose();
-        constexpr XrSpaceLocationFlags requiredFlags =
-            XR_SPACE_LOCATION_POSITION_VALID_BIT |
-            XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
-        bool locationValid = openXrPoseFlagsSatisfy(
-            location.locationFlags, requiredFlags);
+        bool locationValid =
+            (location.locationFlags & REQUIRED_POSE_LOCATION_FLAGS) == REQUIRED_POSE_LOCATION_FLAGS;
         if (locationValid) {
             vec3 translation = xrVecToGlm(location.pose.position);
             quat rotation = xrQuatToGlm(location.pose.orientation);
@@ -1784,23 +1679,17 @@ void OpenXrInputPlugin::InputDevice::updateBodyFromViveTrackers(const mat4& sens
 void OpenXrInputPlugin::InputDevice::updateBodyFromXDevSpaces(const mat4& sensorToAvatar) {
     using namespace controller;
 
-    for (const auto& entry : _xdev) {
-        const auto& xdev = entry.second;
-        if (!xdev.pose_channel.has_value() || xdev.space == XR_NULL_HANDLE ||
-                !_context->_lastPredictedDisplayTime.has_value()) {
-            continue;
-        }
+    for (const auto& [id, xdev] : _xdev) {
         XrSpaceLocation location = {.type = XR_TYPE_SPACE_LOCATION};
-        const bool locateSucceeded = xrCheck(
-            _context->_instance,
-            xrLocateSpace(xdev.space, _context->_stageSpace,
-                          _context->inputPredictionTime(), &location),
-            "Failed to locate xdev space!");
-        constexpr XrSpaceLocationFlags requiredFlags =
-            XR_SPACE_LOCATION_POSITION_VALID_BIT |
-            XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
-        if (openXrLocatedPoseUsable(
-                true, true, locateSucceeded, location.locationFlags, requiredFlags)) {
+        if (_context->_lastPredictedDisplayTime.has_value()) {
+            XrResult result = xrLocateSpace(xdev.space, _context->_stageSpace, _context->inputPredictionTime(), &location);
+            xrCheck(_context->_instance, result, "Failed to locate xdev space!");
+        }
+
+        bool locationValid =
+            (location.locationFlags & REQUIRED_POSE_LOCATION_FLAGS) == REQUIRED_POSE_LOCATION_FLAGS;
+
+        if (locationValid && xdev.pose_channel.has_value()) {
             vec3 translation = xrVecToGlm(location.pose.position);
             quat rotation = xrQuatToGlm(location.pose.orientation);
             auto pose = controller::Pose(translation, rotation);

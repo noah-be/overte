@@ -110,7 +110,7 @@ finalize() {
     if [[ -n "$LOG_OUTPUT" && "$current_run" -gt 0 ]]; then
         {
             echo "===== run $current_run diagnostics (aborted, status=$exit_status) ====="
-            adb_shell logcat -d -v brief 2>/dev/null | rg 'PICO_ENTITY_PRELOAD_SLOW|PICO_UPDATE_STAGES|PICO_ENTITY_UPDATE_STAGES|Pico world loading' || true
+            adb_shell logcat -d -v brief 2>/dev/null | rg 'PICO_ENTITY_PRELOAD_SLOW|PICO_UPDATE_STAGES|PICO_ENTITY_UPDATE_STAGES|Pico world loading|PICO_ADB_NAVIGATE|PICO_SERVERLESS_TRACE' || true
         } >> "$LOG_OUTPUT"
     fi
     cleanup
@@ -184,11 +184,22 @@ collect_sample() {
     return 1
 }
 
+serverless_target_committed() {
+    local target_leaf="${TARGET##*/}" commit_status commit_epoch commit_url commit_ready
+    commit_status="$(adb_shell run-as "$PACKAGE" cat cache/serverless-status 2>/dev/null \
+        | tr -d '\r' || true)"
+    IFS='|' read -r commit_epoch commit_url commit_ready <<< "$commit_status"
+    [[ "$commit_epoch" =~ ^[0-9]+$ &&
+        "$commit_epoch" -ge $((command_epoch_ms - 5000)) &&
+        "$commit_url" == *"/$target_leaf" ]]
+}
+
 for (( run=1; run<=RUNS; ++run )); do
     current_run="$run"
     echo "world loading run $run/$RUNS"
     adb_shell am force-stop "$PACKAGE"
     adb_shell logcat -c
+    adb_shell run-as "$PACKAGE" rm -f cache/serverless-status
     adb_shell setprop debug.overte.test_mode 1
     adb_shell setprop persist.pvr.psensor_checkmode 0
     adb_shell setprop persist.pvr.sleep_by_static 0
@@ -206,6 +217,24 @@ for (( run=1; run<=RUNS; ++run )); do
         (( started_wait < 30 )) || { echo "app did not start" >&2; exit 1; }
     done
     sleep "$SETTLE"
+    if [[ "$SERVERLESS_MODE" == 1 ]]; then
+        startup_committed=0
+        for (( second=0; second<TIMEOUT; ++second )); do
+            startup_log="$(adb_shell run-as "$PACKAGE" cat cache/serverless-status 2>/dev/null \
+                | tr -d '\r' || true)"
+            IFS='|' read -r _ _ startup_ready <<< "$startup_log"
+            if [[ "$startup_ready" == 1 ]]; then
+                startup_committed=1
+                break
+            fi
+            sleep 1
+        done
+        (( startup_committed == 1 )) \
+            || { echo "timed out waiting for default serverless startup" >&2; exit 1; }
+    fi
+    # Target validation must only see commits caused by the command below.
+    adb_shell logcat -c
+    adb_shell run-as "$PACKAGE" rm -f cache/serverless-status
     adb_shell run-as "$PACKAGE" rm -f cache/world-loading-status
     adb_shell run-as "$PACKAGE" rm -f cache/world-loading-sample
     adb_shell run-as "$PACKAGE" rm -f cache/world-loading-active-resources
@@ -215,6 +244,7 @@ for (( run=1; run<=RUNS; ++run )); do
     adb_shell setprop debug.overte.navigate "${nonce}\\|${TARGET}"
 
     status=""
+    target_commit_verified=0
     for (( second=0; second<TIMEOUT; ++second )); do
         collect_sample "$run" || true
         status="$(adb_shell run-as "$PACKAGE" cat cache/world-loading-status 2>/dev/null | tr -d '\r' || true)"
@@ -223,7 +253,10 @@ for (( run=1; run<=RUNS; ++run )); do
                 entities received expected recovery fallback frames dismissed reconnects <<< "$status"
             fields="$(awk -F'|' '{ print NF }' <<< "$status")"
             if [[ "$fields" == 17 && "$epoch" =~ ^[0-9]+$ && "$epoch" -ge $((command_epoch_ms - 5000)) ]]; then
-                if [[ "$SERVERLESS_MODE" == 1 || "$sequence" =~ ^[0-9]+$ ]]; then
+                if [[ "$SERVERLESS_MODE" == 1 ]] && serverless_target_committed; then
+                    target_commit_verified=1
+                    break
+                elif [[ "$SERVERLESS_MODE" == 0 && "$sequence" =~ ^[0-9]+$ ]]; then
                     break
                 fi
             fi
@@ -232,7 +265,16 @@ for (( run=1; run<=RUNS; ++run )); do
     done
     [[ -n "$status" && "${fields:-0}" == 17 ]] || { echo "timed out waiting for loading telemetry" >&2; exit 1; }
 
-    for value in "$domain" "$world" "$safe" "$gpu" "$physics" "$ready" "$release"; do
+    if [[ "$SERVERLESS_MODE" == 1 ]]; then
+        [[ "$domain" == -1 || "$domain" =~ ^[0-9]+$ ]] \
+            || { echo "invalid serverless domain milestone: $status" >&2; exit 1; }
+        [[ "$world" == -1 || "$world" =~ ^[0-9]+$ ]] \
+            || { echo "invalid serverless world milestone: $status" >&2; exit 1; }
+    else
+        [[ "$domain" =~ ^[0-9]+$ && "$world" =~ ^[0-9]+$ ]] \
+            || { echo "invalid domain/world milestone: $status" >&2; exit 1; }
+    fi
+    for value in "$safe" "$gpu" "$physics" "$ready" "$release"; do
         [[ "$value" =~ ^[0-9]+$ ]] || { echo "invalid or missing milestone: $status" >&2; exit 1; }
     done
     if [[ "$SERVERLESS_MODE" == 0 && "$EXPECTED_CONNECTED" == 1 ]]; then
@@ -246,7 +288,9 @@ for (( run=1; run<=RUNS; ++run )); do
         }
     else
         [[ "$sequence" == -1 || "$sequence" =~ ^[0-9]+$ ]] || { echo "invalid serverless sequence milestone: $status" >&2; exit 1; }
-        (( domain <= world && world <= safe && safe <= gpu && gpu <= physics && physics <= ready && ready <= release )) || {
+        (( (domain < 0 || domain <= safe) &&
+                (world < 0 || world <= safe) &&
+                safe <= gpu && gpu <= physics && physics <= ready && ready <= release )) || {
             echo "out-of-order serverless loading milestones: $status" >&2; exit 1;
         }
     fi
@@ -258,6 +302,9 @@ for (( run=1; run<=RUNS; ++run )); do
     if [[ "$SERVERLESS_MODE" == 1 ]]; then
         [[ -z "$place" || "${place,,}" == serverless:* ]] || {
             echo "telemetry place mismatch for serverless target: ${world_status:-missing}" >&2; exit 1;
+        }
+        (( target_commit_verified == 1 )) || {
+            echo "serverless target did not commit: $TARGET" >&2; exit 1;
         }
     elif [[ -n "$EXPECTED_PLACE_PREFIX" ]]; then
         [[ "${place,,}" == "${EXPECTED_PLACE_PREFIX,,}"* ]] || {
@@ -312,7 +359,7 @@ for (( run=1; run<=RUNS; ++run )); do
 
     {
         echo "===== run $run diagnostics ====="
-        adb_shell logcat -d -v brief 2>/dev/null | rg 'PICO_ENTITY_PRELOAD_SLOW|PICO_UPDATE_STAGES|PICO_ENTITY_UPDATE_STAGES' || true
+        adb_shell logcat -d -v brief 2>/dev/null | rg 'PICO_ENTITY_PRELOAD_SLOW|PICO_UPDATE_STAGES|PICO_ENTITY_UPDATE_STAGES|PICO_ADB_NAVIGATE|PICO_SERVERLESS_TRACE' || true
     } >> "$LOG_OUTPUT"
 
     printf '%s\n' "$run,$epoch,$domain,$world,$sequence,$safe,$gpu,$physics,$ready,$release,$postload_quiet_ms,$quiet_at,$((world-domain)),$((sequence-world)),$((safe-sequence)),$((gpu-safe)),$((physics-gpu)),$((ready-physics)),$((release-ready)),$entities,$received,$expected,$recovery,$fallback,$frames,$dismissed,$reconnects" >> "$OUTPUT"

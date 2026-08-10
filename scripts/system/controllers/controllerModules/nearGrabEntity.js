@@ -11,7 +11,7 @@
    makeDispatcherModuleParameters, entityIsGrabbable, makeRunningValues, NEAR_GRAB_RADIUS, findGrabbableGroupParent, Vec3,
    cloneEntity, entityIsCloneable, HAPTIC_PULSE_STRENGTH, HAPTIC_PULSE_DURATION, BUMPER_ON_VALUE,
    distanceBetweenPointAndEntityBoundingBox, getGrabbableData, getEnabledModuleByName, DISPATCHER_PROPERTIES, HMD,
-   NEAR_GRAB_DISTANCE
+   NEAR_GRAB_DISTANCE, console, Settings, PICO_TRIGGER_OFF_VALUE, PICO_GRIP_ON_VALUE, PICO_GRIP_OFF_VALUE
 */
 
 Script.include("/~/system/libraries/controllerDispatcherUtils.js");
@@ -19,6 +19,30 @@ Script.include("/~/system/libraries/cloneEntityUtils.js");
 Script.include("/~/system/libraries/controllers.js");
 
 (function() {
+
+    var PICO_TRACE_CHANNEL = "Pico4-Interaction-Diagnostics";
+    var picoTraceEnabled = false;
+    var picoInteractionThresholds = Settings.getValue("deferTabletCreationUntilOpen", false);
+
+    function traceNearGrab(event, hand, details) {
+        if (!picoTraceEnabled) {
+            return;
+        }
+        details = details || {};
+        details.event = event;
+        details.time = Date.now();
+        details.hand = hand === RIGHT_HAND ? "right" : "left";
+        console.info("PICO4_NEAR_GRAB " + JSON.stringify(details));
+    }
+
+    function handleTraceMessage(channel, message, senderID, localOnly) {
+        if (channel === PICO_TRACE_CHANNEL && localOnly) {
+            picoTraceEnabled = message === "enable" || message === "edges";
+        }
+    }
+
+    Messages.subscribe(PICO_TRACE_CHANNEL);
+    Messages.messageReceived.connect(handleTraceMessage);
 
     function NearGrabEntity(hand) {
         this.hand = hand;
@@ -49,9 +73,18 @@ Script.include("/~/system/libraries/controllers.js");
 
             this.targetEntityID = targetProps.id;
 
+            traceNearGrab("my-avatar-grab-call", this.hand, {
+                entity: targetProps.id,
+                joint: handJointIndex
+            });
+
             var relativePosition = Entities.worldToLocalPosition(targetProps.position, MyAvatar.SELF_ID, handJointIndex);
             var relativeRotation = Entities.worldToLocalRotation(targetProps.rotation, MyAvatar.SELF_ID, handJointIndex);
             this.grabID = MyAvatar.grab(targetProps.id, handJointIndex, relativePosition, relativeRotation);
+            traceNearGrab("my-avatar-grab-return", this.hand, {
+                entity: targetProps.id,
+                grab: this.grabID
+            });
         };
 
         this.startNearGrabEntity = function (targetProps) {
@@ -73,7 +106,15 @@ Script.include("/~/system/libraries/controllers.js");
 
         this.endGrab = function () {
             if (this.grabID) {
+                traceNearGrab("my-avatar-release-call", this.hand, {
+                    entity: this.targetEntityID,
+                    grab: this.grabID
+                });
                 MyAvatar.releaseGrab(this.grabID);
+                traceNearGrab("my-avatar-release-return", this.hand, {
+                    entity: this.targetEntityID,
+                    grab: this.grabID
+                });
                 this.grabID = null;
             }
         };
@@ -128,8 +169,10 @@ Script.include("/~/system/libraries/controllers.js");
             this.targetEntityID = null;
             this.grabbing = false;
 
-            if (controllerData.triggerValues[this.hand] < TRIGGER_OFF_VALUE &&
-                controllerData.secondaryValues[this.hand] < TRIGGER_OFF_VALUE) {
+            var triggerOffValue = picoInteractionThresholds ? PICO_TRIGGER_OFF_VALUE : TRIGGER_OFF_VALUE;
+            var gripOffValue = picoInteractionThresholds ? PICO_GRIP_OFF_VALUE : TRIGGER_OFF_VALUE;
+            if (controllerData.triggerValues[this.hand] < triggerOffValue &&
+                controllerData.secondaryValues[this.hand] < gripOffValue) {
                 this.cloneAllowed = true;
                 return makeRunningValues(false, [], []);
             }
@@ -151,10 +194,11 @@ Script.include("/~/system/libraries/controllers.js");
         };
 
         this.run = function (controllerData, deltaTime) {
+            var gripOffValue = picoInteractionThresholds ? PICO_GRIP_OFF_VALUE : TRIGGER_OFF_VALUE;
 
             if (this.grabbing) {
                 if (!controllerData.triggerClicks[this.hand] &&
-                    controllerData.secondaryValues[this.hand] < TRIGGER_OFF_VALUE) {
+                    controllerData.secondaryValues[this.hand] < gripOffValue) {
                     this.endNearGrabEntity();
                     return makeRunningValues(false, [], []);
                 }
@@ -178,9 +222,16 @@ Script.include("/~/system/libraries/controllers.js");
                 if (!readiness.active) {
                     return readiness;
                 }
-                if (controllerData.triggerClicks[this.hand] || controllerData.secondaryValues[this.hand] > BUMPER_ON_VALUE) {
+                var gripOnValue = picoInteractionThresholds ? PICO_GRIP_ON_VALUE : BUMPER_ON_VALUE;
+                if (controllerData.triggerClicks[this.hand] ||
+                        controllerData.secondaryValues[this.hand] > gripOnValue) {
                     // switch to grab
                     var targetProps = this.getTargetProps(controllerData);
+                    traceNearGrab("dispatcher-start", this.hand, {
+                        entity: targetProps ? targetProps.id : null,
+                        triggerClick: controllerData.triggerClicks[this.hand],
+                        grip: controllerData.secondaryValues[this.hand]
+                    });
                     var targetCloneable = entityIsCloneable(targetProps);
 
                     if (targetCloneable) {
@@ -205,6 +256,14 @@ Script.include("/~/system/libraries/controllers.js");
             return makeRunningValues(true, [this.targetEntityID], []);
         };
 
+        this.releaseOnPicoInput = function () {
+            if (!this.grabbing || !this.targetEntityID) {
+                return false;
+            }
+            this.endNearGrabEntity();
+            return true;
+        };
+
         this.cleanup = function () {
             if (this.targetEntityID) {
                 this.endNearGrabEntity();
@@ -223,6 +282,8 @@ Script.include("/~/system/libraries/controllers.js");
         rightNearGrabEntity.cleanup();
         disableDispatcherModule("LeftNearGrabEntity");
         disableDispatcherModule("RightNearGrabEntity");
+        Messages.messageReceived.disconnect(handleTraceMessage);
+        Messages.unsubscribe(PICO_TRACE_CHANNEL);
     }
     Script.scriptEnding.connect(cleanup);
 }());

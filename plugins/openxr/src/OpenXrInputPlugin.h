@@ -64,7 +64,6 @@ private:
         XrActionStateVector2f getVector2f();
         XrActionStateBoolean getBool();
         XrSpaceLocation getPose();
-        bool isPoseActive();
         bool applyHaptic(XrDuration duration, float frequency, float amplitude);
 
         XrAction _action = XR_NULL_HANDLE;

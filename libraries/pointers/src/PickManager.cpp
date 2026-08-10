@@ -164,7 +164,6 @@ PickRay PickManager::getCurrentRay(unsigned int uid) const {
 }
 
 void PickManager::update() {
-    const uint64_t updateStart = usecTimestampNow();
     uint64_t expiry = usecTimestampNow() + _perFrameTimeBudget;
     std::unordered_map<PickQuery::PickType, std::unordered_map<unsigned int, std::shared_ptr<PickQuery>>> cachedPicks;
     withReadLock([&] {
@@ -233,9 +232,6 @@ void PickManager::update() {
         _updatedPickCounts[PickQuery::Stylus] = _stylusPickCacheOptimizer.update(cachedPicks[PickQuery::Stylus], _nextPickToUpdate[PickQuery::Stylus], expiry, false);
 #endif
     }
-#if defined(Q_OS_ANDROID)
-    const uint64_t afterStylus = usecTimestampNow();
-#endif
     {
         PROFILE_RANGE_EX(picks, "RayPicks", 0xffff0000, (uint64_t)_totalPickCounts[PickQuery::Ray]);
         PerformanceTimer perfTimer("RayPicks");
@@ -249,9 +245,6 @@ void PickManager::update() {
         _updatedPickCounts[PickQuery::Ray] = _rayPickCacheOptimizer.update(cachedPicks[PickQuery::Ray], _nextPickToUpdate[PickQuery::Ray], expiry, shouldPickHUD);
 #endif
     }
-#if defined(Q_OS_ANDROID)
-    const uint64_t afterRay = usecTimestampNow();
-#endif
     {
         PROFILE_RANGE_EX(picks, "ParabolaPicks", 0xffff0000, (uint64_t)_totalPickCounts[PickQuery::Parabola]);
         PerformanceTimer perfTimer("ParabolaPicks");
@@ -263,9 +256,6 @@ void PickManager::update() {
         _updatedPickCounts[PickQuery::Parabola] = _parabolaPickCacheOptimizer.update(cachedPicks[PickQuery::Parabola], _nextPickToUpdate[PickQuery::Parabola], expiry, shouldPickHUD);
 #endif
     }
-#if defined(Q_OS_ANDROID)
-    const uint64_t afterParabola = usecTimestampNow();
-#endif
     {
         PROFILE_RANGE_EX(picks, "CollisionPicks", 0xffff0000, (uint64_t)_totalPickCounts[PickQuery::Collision]);
         PerformanceTimer perfTimer("CollisionPicks");
@@ -277,65 +267,6 @@ void PickManager::update() {
         _updatedPickCounts[PickQuery::Collision] = _collisionPickCacheOptimizer.update(cachedPicks[PickQuery::Collision], _nextPickToUpdate[PickQuery::Collision], expiry, false);
 #endif
     }
-#if defined(Q_OS_ANDROID)
-    const uint64_t afterCollision = usecTimestampNow();
-#endif
-
-#if defined(Q_OS_ANDROID)
-    static uint64_t lastPickLog { 0 };
-    static uint64_t accumulatedDuration { 0 };
-    static uint64_t maximumDuration { 0 };
-    static uint32_t updateCalls { 0 };
-    const uint64_t now = usecTimestampNow();
-    const uint64_t duration = now - updateStart;
-    accumulatedDuration += duration;
-    maximumDuration = std::max(maximumDuration, duration);
-    ++updateCalls;
-    if (now - lastPickLog >= USECS_PER_SECOND) {
-        lastPickLog = now;
-        int enabledHandRays = 0;
-        int enabledRays = 0;
-        int enabledStylus = 0;
-        int enabledParabolas = 0;
-        int enabledCollisions = 0;
-        for (const auto& item : cachedPicks[PickQuery::Ray]) {
-            if (item.second->isEnabled()) {
-                ++enabledRays;
-                if (item.second->isLeftHand() || item.second->isRightHand()) {
-                    ++enabledHandRays;
-                }
-            }
-        }
-        for (const auto& item : cachedPicks[PickQuery::Stylus]) {
-            enabledStylus += item.second->isEnabled() ? 1 : 0;
-        }
-        for (const auto& item : cachedPicks[PickQuery::Parabola]) {
-            enabledParabolas += item.second->isEnabled() ? 1 : 0;
-        }
-        for (const auto& item : cachedPicks[PickQuery::Collision]) {
-            enabledCollisions += item.second->isEnabled() ? 1 : 0;
-        }
-        qInfo() << "PICO_LATENCY_PICK duration(us)" << (now - updateStart)
-                << "callsPerSec" << updateCalls
-                << "average(us)" << (updateCalls ? accumulatedDuration / updateCalls : 0)
-                << "maximum(us)" << maximumDuration
-                << "rayTotal" << cachedPicks[PickQuery::Ray].size()
-                << "enabledRays" << enabledRays
-                << "enabledHandRays" << enabledHandRays
-                << "enabledStylus" << enabledStylus
-                << "enabledParabolas" << enabledParabolas
-                << "enabledCollisions" << enabledCollisions
-                << "raysUpdated" << updateRaysThisFrame
-                << "stylusUs" << (afterStylus - updateStart)
-                << "rayUs" << (afterRay - afterStylus)
-                << "parabolaUs" << (afterParabola - afterRay)
-                << "collisionUs" << (afterCollision - afterParabola)
-                << "budget(us)" << _perFrameTimeBudget;
-        accumulatedDuration = 0;
-        maximumDuration = 0;
-        updateCalls = 0;
-    }
-#endif
 }
 
 bool PickManager::isLeftHand(unsigned int uid) {

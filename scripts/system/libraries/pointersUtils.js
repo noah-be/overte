@@ -12,9 +12,11 @@
 
 /* jslint bitwise: true */
 
-/* global Script, Pointers, Settings,
+/* global Script, Pointers, Settings, console,
    DEFAULT_SEARCH_SPHERE_DISTANCE, COLORS_GRAB_SEARCHING_HALF_SQUEEZE, COLORS_GRAB_SEARCHING_FULL_SQUEEZE,
-   COLORS_GRAB_DISTANCE_HOLD, TRIGGER_ON_VALUE,
+   COLORS_GRAB_DISTANCE_HOLD, TRIGGER_ON_VALUE, PICO_TRIGGER_OFF_VALUE,
+   PICO_LASER_ON_VALUE, PICO_FAR_SELECT_ON_VALUE,
+   PICO_INTERACTION_TRACE_MODE,
    Pointer:true, PointerManager:true
 */
 
@@ -133,6 +135,7 @@ var Pointer = function(hudLayer, pickType, pointerData) {
     this.pointerID = null;
     this.visible = false;
     this.locked = false;
+    this.lastRenderState = "";
     this.allwaysOn = false;
     this.hand = pointerData.hand;
     delete pointerData.hand;
@@ -179,26 +182,70 @@ var Pointer = function(hudLayer, pickType, pointerData) {
                     Pointers.setLockEndUUID(this.pointerID, targetID, targetIsOverlay, lockData.offset);
                 }
                 this.locked = targetID;
+                Pointers.setRenderState(this.pointerID, "hold");
+                this.lastRenderState = "hold";
+                if (typeof PICO_INTERACTION_TRACE_MODE !== "undefined" &&
+                        PICO_INTERACTION_TRACE_MODE !== "off") {
+                    console.info("PICO4_LASER " + JSON.stringify({
+                        event: "lock", hand: this.hand, target: targetID, time: Date.now()
+                    }));
+                }
             }
         } else if (this.locked) {
             Pointers.setLockEndUUID(this.pointerID, null, false);
             this.locked = false;
+            Pointers.setRenderState(this.pointerID, "");
+            this.lastRenderState = "";
+            if (typeof PICO_INTERACTION_TRACE_MODE !== "undefined" &&
+                    PICO_INTERACTION_TRACE_MODE !== "off") {
+                console.info("PICO4_LASER " + JSON.stringify({
+                    event: "unlock", hand: this.hand, time: Date.now()
+                }));
+            }
         }
     };
 
     this.updateRenderState = function(triggerClicks, triggerValues) {
         var mode = "";
+        var picoPointer = Settings.getValue("deferTabletCreationUntilOpen", false);
         if (this.visible) {
             if (this.locked) {
                 mode = "hold";
-            } else if (triggerClicks[this.hand]) {
+            } else if (picoPointer
+                    ? triggerValues[this.hand] >= PICO_FAR_SELECT_ON_VALUE ||
+                        (this.lastRenderState === "full" &&
+                            triggerValues[this.hand] >= PICO_FAR_SELECT_ON_VALUE - 0.05)
+                    : triggerClicks[this.hand]) {
                 mode = "full";
-            } else if (triggerValues[this.hand] > TRIGGER_ON_VALUE || this.alwaysOn) {
+            } else if (triggerValues[this.hand] >= (picoPointer
+                    ? PICO_LASER_ON_VALUE : TRIGGER_ON_VALUE) ||
+                    (picoPointer && this.lastRenderState === "half" &&
+                        triggerValues[this.hand] > PICO_TRIGGER_OFF_VALUE) || this.alwaysOn) {
                 mode = "half";
             }
         }
 
-        Pointers.setRenderState(this.pointerID, mode);
+        if (picoPointer && mode !== this.lastRenderState &&
+                typeof PICO_INTERACTION_TRACE_MODE !== "undefined" &&
+                PICO_INTERACTION_TRACE_MODE !== "off") {
+            console.info("PICO4_LASER " + JSON.stringify({
+                event: "render-state",
+                hand: this.hand,
+                mode: mode || "hidden",
+                reason: this.locked ? "locked" :
+                    (mode === "full" ? "select-threshold" :
+                        (mode === "half" ? "laser-threshold" : "below-laser-threshold")),
+                triggerValue: triggerValues[this.hand],
+                triggerClick: !!triggerClicks[this.hand],
+                target: this.locked || null,
+                time: Date.now()
+            }));
+        }
+
+        if (mode !== this.lastRenderState) {
+            Pointers.setRenderState(this.pointerID, mode);
+            this.lastRenderState = mode;
+        }
     };
 
     pointerData.renderStates = this.renderStates;
@@ -235,6 +282,12 @@ var PointerManager = function() {
         if (hand >= 0 && hand < this.pointers.length) {
             this.pointers[hand].makeVisible();
             this.pointers[hand].alwaysOn = true;
+        }
+    };
+
+    this.makeTriggerPointerVisible = function(hand) {
+        if (hand >= 0 && hand < this.pointers.length) {
+            this.pointers[hand].makeVisible();
         }
     };
 

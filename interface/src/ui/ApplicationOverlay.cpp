@@ -239,7 +239,12 @@ void ApplicationOverlay::renderDomainConnectionStatusBorder(RenderArgs* renderAr
         geometryCache->updateVertices(_domainStatusBorder, points, CONNECTION_STATUS_BORDER_COLOR);
     });
     auto nodeList = DependencyManager::get<NodeList>();
-    if (nodeList && !nodeList->getDomainHandler().isConnected()) {
+    // A serverless scene intentionally has no domain connection. Treat it as a
+    // valid world instead of covering its HUD with the disconnected red frame.
+    if (nodeList &&
+            !qApp->isServerlessMode() &&
+            !nodeList->getDomainHandler().isServerless() &&
+            !nodeList->getDomainHandler().isConnected()) {
         gpu::Batch& batch = *renderArgs->_batch;
         auto geometryCache = DependencyManager::get<GeometryCache>();
         geometryCache->useSimpleDrawPipeline(batch);

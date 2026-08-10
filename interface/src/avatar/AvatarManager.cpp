@@ -240,25 +240,13 @@ void AvatarManager::updateMyAvatar(float deltaTime) {
     bool showWarnings = Menu::getInstance()->isOptionChecked(MenuOption::PipelineWarnings);
     PerformanceWarning warn(showWarnings, "AvatarManager::updateMyAvatar()");
 
-#if defined(Q_OS_ANDROID)
-    const quint64 picoAvatarStart = usecTimestampNow();
-#endif
     AvatarTransit::Status status = _myAvatar->updateTransit(deltaTime, _myAvatar->getNextPosition(), _myAvatar->getSensorToWorldScale(), _transitConfig);
     handleTransitAnimations(status);
 
-#if defined(Q_OS_ANDROID)
-    const quint64 picoAfterTransit = usecTimestampNow();
-#endif
     _myAvatar->update(deltaTime);
-#if defined(Q_OS_ANDROID)
-    const quint64 picoAfterUpdate = usecTimestampNow();
-#endif
     render::Transaction transaction;
     _myAvatar->updateRenderItem(transaction);
     qApp->getMain3DScene()->enqueueTransaction(transaction);
-#if defined(Q_OS_ANDROID)
-    const quint64 picoAfterRenderItem = usecTimestampNow();
-#endif
 
     quint64 now = usecTimestampNow();
     quint64 dt = now - _lastSendAvatarDataTime;
@@ -270,31 +258,6 @@ void AvatarManager::updateMyAvatar(float deltaTime) {
         _lastSendAvatarDataTime = now;
         _myAvatarSendRate.increment();
     }
-#if defined(Q_OS_ANDROID)
-    const quint64 picoAfterSend = usecTimestampNow();
-    static quint64 picoLogStart { picoAvatarStart };
-    static quint64 picoCalls { 0 };
-    static quint64 picoTransitUs { 0 };
-    static quint64 picoUpdateUs { 0 };
-    static quint64 picoRenderItemUs { 0 };
-    static quint64 picoSendUs { 0 };
-    ++picoCalls;
-    picoTransitUs += picoAfterTransit - picoAvatarStart;
-    picoUpdateUs += picoAfterUpdate - picoAfterTransit;
-    picoRenderItemUs += picoAfterRenderItem - picoAfterUpdate;
-    picoSendUs += picoAfterSend - picoAfterRenderItem;
-    if (picoAfterSend - picoLogStart >= USECS_PER_SECOND) {
-        qInfo() << "PICO_AVATAR_STAGES"
-                << "callsPerSec" << picoCalls
-                << "transitMs" << (double(picoTransitUs) / (1000.0 * picoCalls))
-                << "myAvatarUpdateMs" << (double(picoUpdateUs) / (1000.0 * picoCalls))
-                << "renderItemMs" << (double(picoRenderItemUs) / (1000.0 * picoCalls))
-                << "sendMs" << (double(picoSendUs) / (1000.0 * picoCalls));
-        picoLogStart = picoAfterSend;
-        picoCalls = picoTransitUs = picoUpdateUs = picoRenderItemUs = picoSendUs = 0;
-    }
-#endif
-
     static AvatarCertifyBanner theftBanner;
     if (_myAvatar->isCertifyFailed()) {
         theftBanner.show(_myAvatar->getSessionUUID());

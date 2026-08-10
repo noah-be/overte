@@ -1,0 +1,72 @@
+name: Pico 4 device-free CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - feature/pico4-support
+      - "ci/**"
+      - "test/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  project-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.0.0
+        with:
+          node-version: "22"
+
+      - name: Set up Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.0.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Verify runner prerequisites
+        run: |
+          set -euo pipefail
+          command -v bash
+          command -v jq
+          python3 --version
+          node --version
+          java -version
+
+      - name: Run project suite
+        run: |
+          set -euo pipefail
+          tests/run-project-tests.py \
+            --timeout 240 \
+            --junit build/test-results/project-tests.xml
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: project-test-results
+          path: build/test-results/project-tests.xml
+          if-no-files-found: warn
+          retention-days: 7

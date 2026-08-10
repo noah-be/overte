@@ -815,7 +815,11 @@ Menu::Menu() {
     }
 
     // Developer > Show Statistics
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    addCheckableActionToQMenuAndActionHash(developerMenu, MenuOption::Stats, 0, false);
+#else
     addCheckableActionToQMenuAndActionHash(developerMenu, MenuOption::Stats, 0, true);
+#endif
 
     // Developer > Show Animation Statistics
     addCheckableActionToQMenuAndActionHash(developerMenu, MenuOption::AnimStats);

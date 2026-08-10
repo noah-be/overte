@@ -159,9 +159,25 @@ static void resetAndroidAudioTransport(const QAudioFormat& format) {
     androidAudioCapturedCallbacksSinceWatchdog = 0;
 }
 
+static bool androidAudioCallbackSizeValid(int bytes) {
+    std::lock_guard<std::mutex> guard(androidAudioTransportMutex);
+    const bool valid = bytes > 0 && androidAudioMaxBufferBytes > 0 &&
+        bytes % androidAudioBytesPerFrame == 0;
+    if (!valid && bytes > 0) {
+        androidAudioCapturedBytes += bytes;
+        androidAudioDroppedBytes += bytes;
+    }
+    return valid;
+}
+
 static bool enqueueAndroidAudio(const QByteArray& audio) {
     std::lock_guard<std::mutex> guard(androidAudioTransportMutex);
     androidAudioCapturedBytes += audio.size();
+    if (audio.isEmpty() || androidAudioMaxBufferBytes <= 0 ||
+            audio.size() % androidAudioBytesPerFrame != 0) {
+        androidAudioDroppedBytes += audio.size();
+        return false;
+    }
     ++androidAudioCapturedCallbacksSinceWatchdog;
 
     if (androidAudioMaxBufferBytes > 0 &&
@@ -205,7 +221,11 @@ static void cancelAndroidAudioDrainSchedule() {
 
 static QByteArray takePendingAndroidAudio(int maxBytes) {
     std::lock_guard<std::mutex> guard(androidAudioTransportMutex);
-    const int bytes = std::min(maxBytes, androidAudioTransportBuffer.size());
+    const int boundedBytes = std::min(maxBytes, androidAudioTransportBuffer.size());
+    const int bytes = boundedBytes - boundedBytes % androidAudioBytesPerFrame;
+    if (bytes <= 0) {
+        return {};
+    }
     QByteArray audio(androidAudioTransportBuffer.constData(), bytes);
     androidAudioTransportBuffer.remove(0, bytes);
     ++androidAudioDrainCount;
@@ -411,7 +431,8 @@ Java_org_overte_pico_AndroidAudioInput_nativeInitialize(
 extern "C" JNIEXPORT void JNICALL
 Java_org_overte_pico_AndroidAudioInput_nativeOnAudioData(
         JNIEnv* environment, jclass, jbyteArray data, jint bytesRead) {
-    if (!data || bytesRead <= 0 || bytesRead > environment->GetArrayLength(data)) {
+    if (!data || bytesRead <= 0 || bytesRead > environment->GetArrayLength(data) ||
+            !androidAudioCallbackSizeValid(bytesRead)) {
         return;
     }
 

@@ -453,6 +453,17 @@ public slots:
     Q_INVOKABLE QUuid editEntity(const QUuid& entityID, const EntityItemProperties& properties);
 
     /*@jsdoc
+     * Updates the local position of a local entity without creating an entity edit packet.
+     * This is intended for high-frequency, client-only presentation updates. The call fails
+     * closed for domain and avatar entities.
+     * @function Entities.setLocalEntityPosition
+     * @param {Uuid} entityID - The ID of a local entity.
+     * @param {Vec3} localPosition - The position relative to the entity's parent.
+     * @returns {boolean} <code>true</code> if the local entity was updated.
+     */
+    Q_INVOKABLE bool setLocalEntityPosition(const QUuid& entityID, const glm::vec3& localPosition);
+
+    /*@jsdoc
      * Deletes an entity.
      * @function Entities.deleteEntity
      * @param {Uuid} entityID - The ID of the entity to delete.

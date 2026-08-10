@@ -19,13 +19,13 @@ import org.robolectric.shadows.ShadowActivity;
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = {26, 35}, manifest = Config.NONE)
 public final class PermissionsActivityRobolectricTest {
-    @Test public void grantedMicrophoneLaunchesQtAndTransfersRestartArguments() {
+    @Test public void grantedMicrophoneLaunchesQtWithoutForwardingExternalArguments() {
         org.robolectric.Shadows.shadowOf(RuntimeEnvironment.getApplication())
                 .grantPermissions(Manifest.permission.RECORD_AUDIO);
         PermissionsActivity activity = create(new Intent().putExtra("args", "--display=OpenXR"));
         Intent launched = nextIntent();
         assertEquals(PicoInterfaceActivity.class.getName(), launched.getComponent().getClassName());
-        assertEquals("--display=OpenXR", launched.getStringExtra("applicationArguments"));
+        assertFalse(launched.hasExtra("applicationArguments"));
         assertTrue(activity.isFinishing());
     }
 
@@ -60,10 +60,10 @@ public final class PermissionsActivityRobolectricTest {
         assertNull(nextIntent());
     }
 
-    @Test public void emptyArgumentsAreNotForwarded() {
+    @Test public void externalArgumentsAreNotForwarded() {
         org.robolectric.Shadows.shadowOf(RuntimeEnvironment.getApplication())
                 .grantPermissions(Manifest.permission.RECORD_AUDIO);
-        create(new Intent().putExtra("args", ""));
+        create(new Intent().putExtra("args", "--url overte://untrusted.example"));
         assertFalse(nextIntent().hasExtra("applicationArguments"));
     }
 

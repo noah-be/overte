@@ -117,7 +117,8 @@ tasks.register('preparePicoQtRuntime', Copy) {
     }
     from({
         def plugins = fileTree(new File(projectDir, '.cxx')) {
-            include '**/interface/Debug/plugins/libopenxr.so'
+            include '**/interface/Debug/plugins/libopenxr.so',
+                '**/interface/RelWithDebInfo/plugins/libopenxr.so'
         }.files
         def newestPlugin = plugins ? plugins.max { it.lastModified() } : null
         newestPlugin ?: []
@@ -154,6 +155,10 @@ android {
                     '-DCMAKE_CXX_SCAN_FOR_MODULES=OFF',
                     '-DCMAKE_PROJECT_INCLUDE_BEFORE=' + file('../../cmake-pico-bootstrap.cmake').absolutePath,
                     '-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON',
+                    // The checksum-pinned Pico bundle contains Conan Debug
+                    // imports. Release APKs compile Overte as RelWithDebInfo
+                    // while deliberately reusing those verified dependencies.
+                    '-DCMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO=Debug',
                     '-DCMAKE_PREFIX_PATH=' + file('../../conan/pico4-debug/generators').absolutePath,
                     '-DCMAKE_MODULE_PATH=' + file('../../cmake-pico-modules').absolutePath + ';' +
                         file('../../conan/pico4-debug/generators').absolutePath,
@@ -165,6 +170,33 @@ android {
                     '-DUSE_BREAKPAD=OFF'
                 targets 'picoInterface'
             }
+        }
+    }
+
+    signingConfigs {
+        release {
+            def required = ['PICO_RELEASE_STORE_FILE', 'PICO_RELEASE_STORE_PASSWORD',
+                            'PICO_RELEASE_KEY_ALIAS', 'PICO_RELEASE_KEY_PASSWORD']
+            if (gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') }) {
+                required.each { name ->
+                    if (!providers.gradleProperty(name).isPresent()) {
+                        throw new GradleException("Missing protected Pico signing property: ${name}")
+                    }
+                }
+                storeFile file(providers.gradleProperty('PICO_RELEASE_STORE_FILE').get())
+                storePassword providers.gradleProperty('PICO_RELEASE_STORE_PASSWORD').get()
+                keyAlias providers.gradleProperty('PICO_RELEASE_KEY_ALIAS').get()
+                keyPassword providers.gradleProperty('PICO_RELEASE_KEY_PASSWORD').get()
+                enableV1Signing false
+                enableV2Signing true
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
         }
     }
 

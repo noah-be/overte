@@ -421,7 +421,8 @@ public slots:
     void rotationModeChanged() const;
 
     void setIsServerlessMode(bool serverlessDomain);
-    std::map<QString, QString> prepareServerlessDomainContents(QUrl domainURL, QByteArray data);
+    bool prepareServerlessDomainContents(const QUrl& domainURL, const QByteArray& data,
+                                         std::map<QString, QString>& namedPaths);
 
     void loadServerlessDomain(QUrl domainURL);
     void loadErrorDomain(QUrl domainURL);
@@ -985,11 +986,21 @@ private:
     bool _picoLoadingWasConnected { false };
     bool _picoLoadingDismissedByUser { false };
     bool _picoLoadingDismissButtonWasPressed { false };
+    bool _picoStatsThumbChordLatched { false };
+    bool _picoServerlessSceneImportCommitted { false };
+    bool _picoServerlessSceneImportInProgress { false };
+    bool _picoInitialServerlessHandoffComplete { false };
+    QUrl _picoServerlessSceneURL;
+    QUrl _picoDeferredServerlessSceneURL;
 #endif
     // This is needed so that physics do not get re-enabled before safe landing starts when moving from
     // serverless to domain server.
     // It's set to true by Application::clearDomainOctreeData and is cleared by Application::setIsServerlessMode
     bool _waitForServerlessToBeSet { true };
+    quint64 _serverlessDomainRequestGeneration { 0 };
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    bool _picoServerlessLoadFailed { false };
+#endif
 
     bool _showTrackedObjects { false };
     bool _prevShowTrackedObjects { false };

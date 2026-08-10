@@ -5,7 +5,8 @@ set(ENV{SPIRV_CROSS_DIR} "${CMAKE_CURRENT_LIST_DIR}/pico-host-tools")
 set(ENV{SPIRV_TOOLS_DIR} "${CMAKE_CURRENT_LIST_DIR}/pico-host-tools")
 
 # Gradle invokes Ninja directly, so CMAKE_BUILD_PARALLEL_LEVEL alone does not
-# limit native compilation. Carry the Android host limit into Ninja explicitly.
+# limit native compilation. A CMake job pool carries the Pico host limit into
+# Ninja without changing target-specific build logic.
 if(DEFINED ENV{PICO_BUILD_JOBS} AND "$ENV{PICO_BUILD_JOBS}" MATCHES "^[1-9][0-9]*$")
     set_property(GLOBAL PROPERTY JOB_POOLS "android_compile=$ENV{PICO_BUILD_JOBS}" android_link=1)
     set(CMAKE_JOB_POOL_COMPILE android_compile)

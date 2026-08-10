@@ -41,7 +41,7 @@
         <activity
             android:name=".PicoInterfaceActivity"
             android:configChanges="orientation|uiMode|screenLayout|screenSize|smallestScreenSize|locale|fontScale|keyboard|keyboardHidden|navigation"
-            android:exported="true"
+            android:exported="false"
             android:launchMode="singleTask"
             android:screenOrientation="landscape"
             android:theme="@style/OverteStartupTheme"
@@ -56,5 +56,12 @@
             <meta-data android:name="android.app.auto_screen_scale_factor" android:value="false" />
             <meta-data android:name="android.app.extract_android_style" android:value="none" />
         </activity>
+
+        <activity
+            android:name=".RestartActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:theme="@style/OverteStartupTheme" />
     </application>
 </manifest>

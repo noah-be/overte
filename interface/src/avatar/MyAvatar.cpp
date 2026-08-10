@@ -672,11 +672,6 @@ void MyAvatar::updateSitStandState(float newHeightReading, float dt) {
 }
 
 void MyAvatar::update(float deltaTime) {
-#if defined(Q_OS_ANDROID)
-    const quint64 picoUpdateStart = usecTimestampNow();
-    quint64 picoBeforeSimulate { 0 };
-    quint64 picoAfterSimulate { 0 };
-#endif
     // update moving average of HMD facing in xz plane.
     const float HMD_FACING_TIMESCALE = getRotationRecenterFilterLength();
     const float PERCENTAGE_WEIGHT_HEAD_VS_SHOULDERS_AZIMUTH = 0.0f; // 100 percent shoulders
@@ -812,27 +807,9 @@ void MyAvatar::update(float deltaTime) {
         Q_ARG(glm::vec3, (getWorldPosition() - halfBoundingBoxDimensions)),
         Q_ARG(glm::vec3, (halfBoundingBoxDimensions*2.0f)));
 
-#if defined(Q_OS_ANDROID)
-    picoBeforeSimulate = usecTimestampNow();
-#endif
     simulate(deltaTime, true);
-#if defined(Q_OS_ANDROID)
-    picoAfterSimulate = usecTimestampNow();
-#endif
 
     updateEyeContactTarget(deltaTime);
-
-#if defined(Q_OS_ANDROID)
-    static int picoUpdateLogCounter { 0 };
-    if (++picoUpdateLogCounter >= 120) {
-        picoUpdateLogCounter = 0;
-        const quint64 picoUpdateEnd = usecTimestampNow();
-        qInfo() << "PICO_MY_AVATAR_UPDATE"
-                << "preSimMs" << (picoBeforeSimulate - picoUpdateStart) / 1000.0
-                << "simulateMs" << (picoAfterSimulate - picoBeforeSimulate) / 1000.0
-                << "eyeMs" << (picoUpdateEnd - picoAfterSimulate) / 1000.0;
-    }
-#endif
 }
 
 void MyAvatar::updateEyeContactTarget(float deltaTime) {
@@ -893,13 +870,6 @@ void MyAvatar::updateChildCauterization(SpatiallyNestablePointer object, bool ca
 }
 
 void MyAvatar::simulate(float deltaTime, bool inView) {
-#if defined(Q_OS_ANDROID)
-    const quint64 picoSimStart = usecTimestampNow();
-    quint64 picoAfterMotion { 0 };
-    quint64 picoAfterSensor { 0 };
-    quint64 picoBeforeEntityTree { 0 };
-    quint64 picoAfterEntityTree { 0 };
-#endif
     PerformanceTimer perfTimer("simulate");
     animateScaleChanges(deltaTime);
 
@@ -951,9 +921,6 @@ void MyAvatar::simulate(float deltaTime, bool inView) {
         updatePosition(deltaTime);
         updateViewBoom();
     }
-#if defined(Q_OS_ANDROID)
-    picoAfterMotion = usecTimestampNow();
-#endif
 
     // Head's look at blending needs updating
     // before we perform rig animations and IK.
@@ -977,9 +944,6 @@ void MyAvatar::simulate(float deltaTime, bool inView) {
     // update sensorToWorldMatrix for camera and hand controllers
     // before we perform rig animations and IK.
     updateSensorToWorldMatrix();
-#if defined(Q_OS_ANDROID)
-    picoAfterSensor = usecTimestampNow();
-#endif
 
     // The Pico client does not render its local first-person body.  The model
     // must still complete its initial load/simulation because other startup
@@ -1059,7 +1023,6 @@ void MyAvatar::simulate(float deltaTime, bool inView) {
     EntityTreePointer entityTree = entityTreeRenderer ? entityTreeRenderer->getTree() : nullptr;
     if (entityTree) {
 #if defined(Q_OS_ANDROID)
-        picoBeforeEntityTree = usecTimestampNow();
         // The avatar query cube is deliberately puffed so it does not need to
         // be recomputed every simulation tick.  On Pico this write lock
         // otherwise regularly stalls behind the much heavier entity update.
@@ -1094,26 +1057,9 @@ void MyAvatar::simulate(float deltaTime, bool inView) {
         _characterController.setComfortFlyingAllowed(_enableFlying);
         _characterController.setHoverWhenUnsupported(_hoverWhenUnsupported);
         _characterController.setCollisionlessAllowed(collisionlessAllowed);
-#if defined(Q_OS_ANDROID)
-        picoAfterEntityTree = usecTimestampNow();
-#endif
     }
 
     handleChangedAvatarEntityData();
-
-#if defined(Q_OS_ANDROID)
-    static int picoSimLogCounter { 0 };
-    if (++picoSimLogCounter >= 120) {
-        picoSimLogCounter = 0;
-        const quint64 picoSimEnd = usecTimestampNow();
-        qInfo() << "PICO_MY_AVATAR_SIM"
-                << "motionMs" << (picoAfterMotion - picoSimStart) / 1000.0
-                << "lookSensorMs" << (picoAfterSensor - picoAfterMotion) / 1000.0
-                << "middleMs" << (picoBeforeEntityTree - picoAfterSensor) / 1000.0
-                << "entityTreeMs" << (picoAfterEntityTree - picoBeforeEntityTree) / 1000.0
-                << "tailMs" << (picoSimEnd - picoAfterEntityTree) / 1000.0;
-    }
-#endif
 }
 
 // As far as I know no HMD system supports a play area of a kilometer in radius.

@@ -233,6 +233,15 @@ Script.include("/~/system/libraries/utils.js");
             }
         };
 
+        this.releaseOnPicoInput = function () {
+            if (!this.grabbedThingID) {
+                return false;
+            }
+            this.endNearParentingGrabOverlay();
+            this.robbed = false;
+            return true;
+        };
+
         this.cleanup = function () {
             if (this.grabbedThingID) {
                 this.endNearParentingGrabOverlay();

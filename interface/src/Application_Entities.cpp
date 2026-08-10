@@ -335,11 +335,27 @@ void Application::clearDomainOctreeDetails(bool clearAll) {
         return;
     }
 
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    if (_picoServerlessSceneImportCommitted && _physicsEnabled) {
+        qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE ignoredOctreeClearForCommittedScene";
+        return;
+    }
+    qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE clearDomainOctreeDetails"
+        << "clearAll" << clearAll
+        << "treeServerless" << isServerlessMode()
+        << "domainServerless" << DependencyManager::get<NodeList>()->getDomainHandler().isServerless()
+        << "committed" << _picoServerlessSceneImportCommitted
+        << "wait" << _waitForServerlessToBeSet
+        << "fullScene" << _octreeProcessor->getFullSceneReceivedCounter().load();
+#else
     qCDebug(interfaceapp) << "Clearing domain octree details...";
+#endif
 
     _waitForServerlessToBeSet = true;
     resetPhysicsReadyInformation();
 #if defined(ANDROID_APP_PICO_INTERFACE)
+    const auto domainHandler = &DependencyManager::get<NodeList>()->getDomainHandler();
+    const bool serverlessReset = isServerlessMode() || domainHandler->isServerless();
     // A domain switch can happen while the previous Pico loading interstitial is still active. In that case
     // setIsInterstitialMode(true) does not see a boolean transition and therefore cannot reset its counters.
     // Start the new world's progress and recovery state from a clean slate before querying its octree.
@@ -370,8 +386,10 @@ void Application::clearDomainOctreeDetails(bool clearAll) {
     _picoLoadingGpuReadyAt = 0;
     _picoLoadingFinalStatus = {};
     _picoLoadingCandidatePhaseSince = 0;
-    _picoLoadingDisplayedProgress = 0.0f;
-    _picoLoadingDisplayedPhase = -1;
+    _picoLoadingDisplayedProgress = serverlessReset ? 0.25f : 0.0f;
+    _picoLoadingDisplayedPhase = serverlessReset
+        ? static_cast<int>(GraphicsEngine::LoadingPhase::RECEIVING_WORLD)
+        : -1;
     _picoLoadingCandidatePhase = -1;
     _picoLoadingTextureMemoryReady = false;
     _picoLoadingGpuFallbackUsed = false;
@@ -381,9 +399,14 @@ void Application::clearDomainOctreeDetails(bool clearAll) {
 #endif
     setIsInterstitialMode(true);
 #if defined(ANDROID_APP_PICO_INTERFACE)
-    // The renderer is already running during a domain switch. Do not show the app-start message again.
+    // The renderer is already running during a domain switch. Do not show the
+    // app-start message again. A local JSON import has no domain handshake, so
+    // its reset must not force the native overlay back to CONNECTING.
     if (_graphicsEngine) {
-        _graphicsEngine->setLoadingState(true, GraphicsEngine::LoadingPhase::CONNECTING, 0.05f);
+        const auto phase = serverlessReset
+            ? GraphicsEngine::LoadingPhase::RECEIVING_WORLD
+            : GraphicsEngine::LoadingPhase::CONNECTING;
+        _graphicsEngine->setLoadingState(true, phase, serverlessReset ? 0.25f : 0.05f);
     }
 #endif
 
@@ -407,6 +430,19 @@ void Application::clearDomainOctreeDetails(bool clearAll) {
 void Application::resettingDomain() {
     _notifiedPacketVersionMismatchThisDomain = false;
 
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE resettingDomain"
+        << "committed" << _picoServerlessSceneImportCommitted
+        << "fullScene" << _octreeProcessor->getFullSceneReceivedCounter().load();
+    // The initial reset must clear the previous domain before a local JSON is
+    // imported. Track the successful import independently from Octree state:
+    // the reset itself clears the full-scene counter before it can be used to
+    // recognize this condition.
+    if (_picoServerlessSceneImportCommitted) {
+        qCInfo(interfaceapp) << "Pico ignored redundant reset after serverless scene import";
+        return;
+    }
+#endif
     clearDomainOctreeDetails(false);
 }
 

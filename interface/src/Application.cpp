@@ -808,6 +808,11 @@ void Application::shareSnapshot(const QString& path, const QUrl& href) {
 
 #if defined(Q_OS_ANDROID)
 void Application::beforeEnterBackground() {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE beforeEnterBackground"
+        << "committed" << _picoServerlessSceneImportCommitted
+        << "fullScene" << _octreeProcessor->getFullSceneReceivedCounter().load();
+#endif
     auto nodeList = DependencyManager::get<NodeList>();
     nodeList->setSendDomainServerCheckInEnabled(false);
     nodeList->reset("Entering background", true);
@@ -936,7 +941,17 @@ void Application::hmdVisibleChanged(bool visible) {
 }
 
 void Application::reloadResourceCaches() {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    const bool preserveCommittedServerlessScene = _picoServerlessSceneImportCommitted;
+#endif
     resetPhysicsReadyInformation();
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    if (preserveCommittedServerlessScene) {
+        setIsServerlessMode(true);
+        _octreeProcessor->getFullSceneReceivedCounter() = 1;
+        qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE resourceReloadPreservedImport";
+    }
+#endif
 
     // Query the octree to refresh everything in view
     _queryExpiry = SteadyClock::now();
@@ -1019,34 +1034,40 @@ void Application::setIsServerlessMode(bool serverlessDomain) {
     }
 }
 
-std::map<QString, QString> Application::prepareServerlessDomainContents(QUrl domainURL, QByteArray data) {
-    QUuid serverlessSessionID = QUuid::createUuid();
-    getMyAvatar()->setSessionUUID(serverlessSessionID);
-    auto nodeList = DependencyManager::get<NodeList>();
-    nodeList->setSessionUUID(serverlessSessionID);
-
-    // there is no domain-server to tell us our permissions, so enable all
-    NodePermissions permissions;
-    permissions.setAll(true);
-    nodeList->setPermissions(permissions);
-
+bool Application::prepareServerlessDomainContents(const QUrl& domainURL, const QByteArray& data,
+                                                   std::map<QString, QString>& namedPaths) {
     // FIXME: Lock the main tree and import directly into it.
     EntityTreePointer tmpTree(std::make_shared<EntityTree>());
     tmpTree->setIsServerlessMode(true);
     tmpTree->createRootElement();
     auto myAvatar = getMyAvatar();
     tmpTree->setMyAvatar(myAvatar);
-    bool success = tmpTree->readFromByteArray(domainURL.toString(), data);
-    if (success) {
-        tmpTree->reaverageOctreeElements();
-        tmpTree->sendEntities(_entityEditSender.get(), getEntities()->getTree(), "domain", 0, 0, 0);
+    if (!tmpTree->readFromByteArray(domainURL.toString(), data)) {
+        tmpTree->eraseAllOctreeElements(false);
+        namedPaths.clear();
+        return false;
     }
-    std::map<QString, QString> namedPaths = tmpTree->getNamedPaths();
+
+    const QUuid serverlessSessionID = QUuid::createUuid();
+    myAvatar->setSessionUUID(serverlessSessionID);
+    auto nodeList = DependencyManager::get<NodeList>();
+    nodeList->setSessionUUID(serverlessSessionID);
+
+    // There is no domain server to tell us our permissions, so enable all only
+    // after the scene has parsed successfully. A malformed file must not alter
+    // the current session or permission state.
+    NodePermissions permissions;
+    permissions.setAll(true);
+    nodeList->setPermissions(permissions);
+
+    tmpTree->reaverageOctreeElements();
+    tmpTree->sendEntities(_entityEditSender.get(), getEntities()->getTree(), "domain", 0, 0, 0);
+    namedPaths = tmpTree->getNamedPaths();
 
     // we must manually eraseAllOctreeElements(false) else the tmpTree will mem-leak
     tmpTree->eraseAllOctreeElements(false);
 
-    return namedPaths;
+    return true;
 }
 
 void Application::loadServerlessDomain(QUrl domainURL) {
@@ -1055,9 +1076,80 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         return;
     }
 
+    // Resource requests may complete out of order when navigation changes
+    // quickly. Only the newest requested destination may mutate the entity
+    // tree, session, permissions, or DomainHandler state. An empty destination
+    // is also a navigation/reset boundary and must retire an in-flight request.
+    const quint64 requestGeneration = ++_serverlessDomainRequestGeneration;
     if (domainURL.isEmpty()) {
         return;
     }
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    const auto finishPicoServerlessImport = [this] {
+        _picoServerlessSceneImportInProgress = false;
+        if (!_picoDeferredServerlessSceneURL.isEmpty()) {
+            const QUrl deferredURL = _picoDeferredServerlessSceneURL;
+            _picoDeferredServerlessSceneURL = QUrl();
+            QMetaObject::invokeMethod(this, [this, deferredURL] {
+                _picoServerlessSceneImportCommitted = false;
+                _picoServerlessSceneURL = QUrl();
+                clearDomainOctreeDetails(false);
+                setIsServerlessMode(true);
+                loadServerlessDomain(deferredURL);
+                updateWindowTitle();
+            }, Qt::QueuedConnection);
+        }
+    };
+    _picoServerlessLoadFailed = false;
+#endif
+
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    const QUrl localDomainURL = PathUtils::expandToLocalDataAbsolutePath(domainURL);
+    if (localDomainURL.isLocalFile()) {
+        QFile domainFile(localDomainURL.toLocalFile());
+        if (!domainFile.open(QIODevice::ReadOnly)) {
+            _picoServerlessLoadFailed = true;
+            qCWarning(interfaceapp) << "PICO_SERVERLESS_TRACE localOpenFailed"
+                << localDomainURL << domainFile.errorString();
+            return;
+        }
+        const QByteArray domainData = domainFile.readAll();
+        qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE localRead"
+            << localDomainURL << "bytes" << domainData.size();
+        _picoServerlessSceneURL = domainURL;
+        _picoServerlessSceneImportInProgress = true;
+        std::map<QString, QString> namedPaths;
+        if (!prepareServerlessDomainContents(domainURL, domainData, namedPaths)) {
+            _picoServerlessSceneURL = QUrl();
+            finishPicoServerlessImport();
+            _picoServerlessLoadFailed = true;
+            qCWarning(interfaceapp) << "PICO_SERVERLESS_TRACE localParseFailed"
+                << localDomainURL;
+            return;
+        }
+        auto nodeList = DependencyManager::get<NodeList>();
+        nodeList->getDomainHandler().connectedToServerless(namedPaths);
+        setIsServerlessMode(true);
+        _octreeProcessor->getFullSceneReceivedCounter()++;
+        _picoServerlessSceneURL = domainURL;
+        _picoServerlessSceneImportCommitted = true;
+        qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE importCommitted"
+            << domainURL
+            << "treeServerless" << isServerlessMode()
+            << "domainServerless" << nodeList->getDomainHandler().isServerless()
+            << "wait" << _waitForServerlessToBeSet
+            << "fullScene" << _octreeProcessor->getFullSceneReceivedCounter().load();
+        QSaveFile serverlessStatusFile("/data/user/0/org.overte.pico/cache/serverless-status");
+        if (serverlessStatusFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            serverlessStatusFile.write(QStringLiteral("%1|%2|0")
+                .arg(QDateTime::currentMSecsSinceEpoch())
+                .arg(domainURL.toString()).toUtf8());
+            serverlessStatusFile.commit();
+        }
+        finishPicoServerlessImport();
+        return;
+    }
+#endif
 
     QString trimmedUrl = domainURL.toString().trimmed();
     bool DEFAULT_IS_OBSERVABLE = true;
@@ -1066,15 +1158,70 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         this, trimmedUrl, DEFAULT_IS_OBSERVABLE, DEFAULT_CALLER_ID, "Application::loadServerlessDomain");
 
     if (!request) {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+        _picoServerlessLoadFailed = true;
+#endif
         return;
     }
 
     connect(request, &ResourceRequest::finished, this, [=, this]() {
+        if (requestGeneration != _serverlessDomainRequestGeneration) {
+            qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE staleRequestIgnored"
+                << domainURL;
+            request->deleteLater();
+            return;
+        }
+        qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE requestFinished"
+            << domainURL << "result" << static_cast<int>(request->getResult())
+            << "bytes" << request->getData().size();
         if (request->getResult() == ResourceRequest::Success) {
-            auto namedPaths = prepareServerlessDomainContents(domainURL, request->getData());
+            std::map<QString, QString> namedPaths;
+#if defined(ANDROID_APP_PICO_INTERFACE)
+            _picoServerlessSceneURL = domainURL;
+            _picoServerlessSceneImportInProgress = true;
+#endif
+            if (!prepareServerlessDomainContents(domainURL, request->getData(), namedPaths)) {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+                _picoServerlessSceneURL = QUrl();
+                finishPicoServerlessImport();
+                _picoServerlessLoadFailed = true;
+#endif
+                qCWarning(interfaceapp) << "PICO_SERVERLESS_TRACE requestParseFailed"
+                    << domainURL;
+                request->deleteLater();
+                return;
+            }
             auto nodeList = DependencyManager::get<NodeList>();
             nodeList->getDomainHandler().connectedToServerless(namedPaths);
+            // connectedToServerless() emits the domain transition that clears
+            // the old Octree and marks it as waiting for its new serverless
+            // state. Confirm the mode after that synchronous reset; doing it
+            // before the signal leaves Pico's physics handoff blocked at
+            // RECEIVING_WORLD indefinitely.
+            setIsServerlessMode(true);
             _octreeProcessor->getFullSceneReceivedCounter()++;
+#if defined(ANDROID_APP_PICO_INTERFACE)
+            _picoServerlessSceneURL = domainURL;
+            _picoServerlessSceneImportCommitted = true;
+            qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE importCommitted"
+                << domainURL
+                << "treeServerless" << isServerlessMode()
+                << "domainServerless" << nodeList->getDomainHandler().isServerless()
+                << "wait" << _waitForServerlessToBeSet
+                << "fullScene" << _octreeProcessor->getFullSceneReceivedCounter().load();
+            QSaveFile serverlessStatusFile("/data/user/0/org.overte.pico/cache/serverless-status");
+            if (serverlessStatusFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                serverlessStatusFile.write(QStringLiteral("%1|%2|0")
+                    .arg(QDateTime::currentMSecsSinceEpoch())
+                    .arg(domainURL.toString()).toUtf8());
+                serverlessStatusFile.commit();
+            }
+            finishPicoServerlessImport();
+#endif
+        } else {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+            _picoServerlessLoadFailed = true;
+#endif
         }
         request->deleteLater();
     });
@@ -1215,6 +1362,15 @@ void Application::runTests() {
 void Application::resetPhysicsReadyInformation() {
     // we've changed domains or cleared out caches or something.  we no longer know enough about the
     // collision information of nearby entities to make running bullet be safe.
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    // Delayed teardown notifications from the former online startup domain
+    // can arrive after the local scene has already enabled Bullet. A genuine
+    // navigation clears the committed-scene flag in domainURLChanged() first.
+    if (_picoServerlessSceneImportCommitted && _physicsEnabled) {
+        qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE ignoredPhysicsResetForCommittedScene";
+        return;
+    }
+#endif
     _octreeProcessor->getFullSceneReceivedCounter() = 0;
     _fullSceneCounterAtLastPhysicsCheck = 0;
     _gpuTextureMemSizeStabilityCount = 0;
@@ -1649,6 +1805,81 @@ void Application::setSessionUUID(const QUuid& sessionUUID) const {
 }
 
 void Application::domainURLChanged(QUrl domainURL) {
+    // An online navigation does not call loadServerlessDomain(), so it must
+    // explicitly invalidate any older local/HTTP/ATP scene request.
+    if (domainURL.scheme() == URL_SCHEME_OVERTE) {
+        ++_serverlessDomainRequestGeneration;
+#if defined(ANDROID_APP_PICO_INTERFACE)
+        _picoServerlessLoadFailed = false;
+#endif
+    }
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    if (_picoServerlessSceneImportInProgress) {
+        const QUrl normalizedDomainURL = PathUtils::expandToLocalDataAbsolutePath(domainURL);
+        const QUrl normalizedImportURL =
+            PathUtils::expandToLocalDataAbsolutePath(_picoServerlessSceneURL);
+        if (domainURL.isEmpty()) {
+            // connectedToServerless() can emit its teardown boundary while
+            // the synchronous entity insertion is still on this call stack.
+            return;
+        }
+        if (domainURL == _picoServerlessSceneURL ||
+                normalizedDomainURL == normalizedImportURL) {
+            // Entity insertion can synchronously re-emit the destination URL.
+            // Let the active import finish instead of recursively restarting it.
+            setIsServerlessMode(true);
+            updateWindowTitle();
+            return;
+        }
+        if (normalizedDomainURL.isLocalFile()) {
+            // A real local navigation may arrive while sendEntities() is
+            // pumping nested events. Replace the scene after the current
+            // synchronous import unwinds so two trees never mutate together.
+            _picoDeferredServerlessSceneURL = domainURL;
+        }
+        return;
+    }
+    if (_picoServerlessSceneImportCommitted) {
+        qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE domainURLAfterCommit"
+            << domainURL << "committedURL" << _picoServerlessSceneURL;
+        const QUrl normalizedDomainURL = PathUtils::expandToLocalDataAbsolutePath(domainURL);
+        const QUrl normalizedCommittedURL =
+            PathUtils::expandToLocalDataAbsolutePath(_picoServerlessSceneURL);
+        if (domainURL == _picoServerlessSceneURL ||
+                normalizedDomainURL == normalizedCommittedURL) {
+            // A redundant reset can re-emit the current URL. The committed
+            // local scene is already authoritative and must not be imported
+            // or cleared again.
+            _picoServerlessSceneURL = domainURL;
+            setIsServerlessMode(true);
+            updateWindowTitle();
+            return;
+        }
+        if (domainURL.isEmpty()) {
+            // DomainHandler emits an empty URL while tearing down the old
+            // online session. It is not a navigation request and must not
+            // invalidate the local scene committed during that teardown.
+            setIsServerlessMode(true);
+            updateWindowTitle();
+            return;
+        }
+        if (!_picoInitialServerlessHandoffComplete) {
+            // Startup always belongs to the bundled serverless test scene.
+            // Ignore a remembered/late online destination until that scene's
+            // render handoff is complete; later user navigation remains valid.
+            qCWarning(interfaceapp) << "Pico ignored competing startup domain"
+                << domainURL;
+            setIsServerlessMode(true);
+            updateWindowTitle();
+            return;
+        }
+        // resettingDomain() deliberately preserved the committed local scene.
+        // A genuinely different URL now owns the transition and clears it.
+        _picoServerlessSceneImportCommitted = false;
+        _picoServerlessSceneURL = QUrl();
+        clearDomainOctreeDetails(false);
+    }
+#endif
     // disable physics until we have enough information about our new location to not cause craziness.
     setIsServerlessMode(domainURL.scheme() != URL_SCHEME_OVERTE);
     if (isServerlessMode()) {
@@ -1838,7 +2069,23 @@ void Application::nodeKilled(SharedNodePointer node) {
     if (node->getType() == NodeType::AudioMixer) {
         QMetaObject::invokeMethod(DependencyManager::get<AudioClient>().data(), "audioMixerKilled");
     } else if (node->getType() == NodeType::EntityServer) {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+        qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE entityServerKilled"
+            << "treeServerless" << isServerlessMode()
+            << "domainServerless" << DependencyManager::get<NodeList>()->getDomainHandler().isServerless()
+            << "committed" << _picoServerlessSceneImportCommitted;
+#endif
         // we lost an entity server, clear all of the domain octree details
+#if defined(ANDROID_APP_PICO_INTERFACE)
+        const auto& domainHandler = DependencyManager::get<NodeList>()->getDomainHandler();
+        // A serverless world has no current entity server. Delayed nodeKilled
+        // notifications from the previous online domain must not erase the
+        // freshly imported local scene while its physics handoff is pending.
+        if (_picoServerlessSceneImportCommitted || isServerlessMode() || domainHandler.isServerless()) {
+            qCInfo(interfaceapp) << "Pico ignored stale entity-server disconnect in serverless world";
+            return;
+        }
+#endif
 #if defined(ANDROID_APP_PICO_INTERFACE) || defined(ANDROID_APP_PHONE_INTERFACE)
         // Once the player is already in a playable world, an entity-server reconnect is not a
         // domain change. Keep the current scene and controls active while the server reconnects;
@@ -1909,11 +2156,11 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
     QString addressLookupString;
 
 #if defined(ANDROID_APP_PICO_INTERFACE)
-    // The Pico app is deployed with a dedicated LAN domain containing the
-    // measured ultra-optimized spawn scene. Use it for every ordinary launch
-    // (explicit command-line URLs still take precedence).
+    // Keep the Pico development client independent of a remembered or LAN-only
+    // domain. Use the bundled, spawn-aligned Hub fixture for every ordinary
+    // launch (explicit command-line URLs still take precedence).
     static const QString PICO_DEFAULT_STARTUP_ADDRESS =
-        QStringLiteral("hifi://192.168.188.180:40502/155.084,-98.5,-397.328");
+        QStringLiteral("file:///~/serverless/overte-hub-pico4-optimized-spawn.json");
 #endif
 
     // when --url in command line, teleport to location
@@ -1928,6 +2175,15 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
 #if defined(ANDROID_APP_PICO_INTERFACE)
     if (_urlParam.isEmpty()) {
         addressLookupString = PICO_DEFAULT_STARTUP_ADDRESS;
+        // Apply the packaged world's fixed spawn exactly once. Encoding this
+        // as an AddressManager location query replays it during later
+        // serverless handoffs and teleports a moving avatar back to spawn.
+        // The bridge static mesh resolves y=1.0 to y=1.097 after it loads.
+        // Start just above that surface so physics never has to push the
+        // avatar visibly out of the deck on the first simulated frame.
+        getMyAvatar()->goToLocation(glm::vec3(0.0f, 1.10f, 0.0f),
+            false, glm::quat(), false, false);
+        qCInfo(interfaceapp) << "Pico startup: initialized avatar at deck spawn";
     }
 #endif
 
@@ -1953,7 +2209,7 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
             // entry-point setting yet (or retain an empty one from an older
             // install). Always choose the packaged, known-good location.
 #if defined(ANDROID_APP_PICO_INTERFACE)
-            qCInfo(interfaceapp) << "Pico startup: loading optimized LAN world"
+            qCInfo(interfaceapp) << "Pico startup: loading bundled serverless test world"
                 << PICO_DEFAULT_STARTUP_ADDRESS;
             DependencyManager::get<AddressManager>()->handleLookupString(
                 PICO_DEFAULT_STARTUP_ADDRESS);
@@ -1966,7 +2222,11 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
 #endif
             sentTo = SENT_TO_ENTRY;
         } else {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+            DependencyManager::get<AddressManager>()->handleLookupString(addressLookupString);
+#else
             DependencyManager::get<AddressManager>()->loadSettings(addressLookupString);
+#endif
             sentTo = SENT_TO_PREVIOUS_LOCATION;
         }
        _firstRun.set(false);
@@ -1982,7 +2242,13 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
             }
         }
         qCDebug(interfaceapp) << "Not first run... going to" << qPrintable(!goingTo.isEmpty() ? goingTo : addressLookupString);
+#if defined(ANDROID_APP_PICO_INTERFACE)
+        qCInfo(interfaceapp) << "Pico startup: navigating to bundled serverless test world"
+            << addressLookupString;
+        DependencyManager::get<AddressManager>()->handleLookupString(addressLookupString);
+#else
         DependencyManager::get<AddressManager>()->loadSettings(addressLookupString);
+#endif
         sentTo = SENT_TO_PREVIOUS_LOCATION;
     }
 
@@ -2784,29 +3050,6 @@ void Application::update(float deltaTime) {
             }
         }
     }
-    quint64 picoAfterDevices = picoUpdateStart;
-    quint64 picoAfterTestProperties = usecTimestampNow();
-    quint64 picoAfterWorldLoading = picoUpdateStart;
-    quint64 picoAfterLoadingHandoff = picoUpdateStart;
-    quint64 picoAfterMouseCapture = picoUpdateStart;
-    quint64 picoBeforeInputPlugins = picoUpdateStart;
-    quint64 picoAfterInputPlugins = picoUpdateStart;
-    quint64 picoAfterInputMapper = picoUpdateStart;
-    quint64 picoAfterDriveKeys = picoUpdateStart;
-    quint64 picoBeforePick = picoUpdateStart;
-    quint64 picoAfterPick = picoUpdateStart;
-    quint64 picoAfterPointer = picoUpdateStart;
-    quint64 picoAfterSimulationSetup = picoUpdateStart;
-    quint64 picoAfterPrePhysics = picoUpdateStart;
-    quint64 picoBeforeEntityUpdate = picoUpdateStart;
-    quint64 picoAfterEntityUpdate = picoUpdateStart;
-    quint64 picoBeforeSimulationCleanup = picoUpdateStart;
-    quint64 picoAfterSimulation = picoUpdateStart;
-    quint64 picoAfterAvatars = picoUpdateStart;
-    quint64 picoAfterOverlays = picoUpdateStart;
-    quint64 picoBeforePostUpdate = picoUpdateStart;
-    quint64 picoAfterPostLambdas = picoUpdateStart;
-    quint64 picoAfterRenderArgs = picoUpdateStart;
 #endif
 
     if (!_physicsEnabled) {
@@ -2815,10 +3058,60 @@ void Application::update(float deltaTime) {
             _domainLoadingInProgress = true;
         }
 
-        // we haven't yet enabled physics.  we wait until we think we have all the collision information
-        // for nearby entities before starting bullet up.
-        if (isServerlessMode() && !_waitForServerlessToBeSet) {
-            tryToEnablePhysics();
+        // We haven't yet enabled physics. Wait until collision information for
+        // nearby entities is ready before starting Bullet. During Pico startup
+        // the DomainHandler already owns the file: URL while the live entity
+        // tree can still carry its previous online mode. Use the authoritative
+        // URL state to repair that handoff; the loading UI uses the same test.
+        const auto& physicsDomainHandler = DependencyManager::get<NodeList>()->getDomainHandler();
+        // The committed local import is authoritative. Domain/EntityTree
+        // serverless flags can be reset by a delayed disconnect from the
+        // previously configured online startup domain.
+        const bool physicsServerless = _picoServerlessSceneImportCommitted ||
+            isServerlessMode() || physicsDomainHandler.isServerless();
+        bool serverlessImportReady { true };
+#if defined(ANDROID_APP_PICO_INTERFACE)
+        static bool picoStartupImportRequested { false };
+        if (physicsDomainHandler.isServerless() &&
+                !_picoServerlessSceneImportCommitted &&
+                !picoStartupImportRequested && getEntities()->getTree()) {
+            picoStartupImportRequested = true;
+            const QUrl startupWorld(QStringLiteral(
+                "file:///~/serverless/overte-hub-pico4-optimized-spawn.json"));
+            qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE updateStartupImport" << startupWorld;
+            loadServerlessDomain(startupWorld);
+        }
+        serverlessImportReady = _picoServerlessSceneImportCommitted;
+        static int picoPhysicsBranchTraceCount { 0 };
+        if (picoPhysicsBranchTraceCount < 20) {
+            ++picoPhysicsBranchTraceCount;
+            qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE physicsBranch"
+                << "physicsServerless" << physicsServerless
+                << "importReady" << serverlessImportReady
+                << "committed" << _picoServerlessSceneImportCommitted
+                << "treeServerless" << isServerlessMode()
+                << "domainServerless" << physicsDomainHandler.isServerless();
+        }
+        static quint64 lastPhysicsGateTrace { 0 };
+        if (picoUpdateStart - lastPhysicsGateTrace >= 2 * USECS_PER_SECOND) {
+            lastPhysicsGateTrace = picoUpdateStart;
+            qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE physicsGate"
+                << "treeServerless" << isServerlessMode()
+                << "domainServerless" << physicsDomainHandler.isServerless()
+                << "scheme" << physicsDomainHandler.getScheme()
+                << "host" << physicsDomainHandler.getHostname()
+                << "wait" << _waitForServerlessToBeSet
+                << "committed" << _picoServerlessSceneImportCommitted
+                << "fullScene" << _octreeProcessor->getFullSceneReceivedCounter().load();
+        }
+#endif
+        if (physicsServerless) {
+            if (serverlessImportReady) {
+                if (_waitForServerlessToBeSet || !isServerlessMode()) {
+                    setIsServerlessMode(true);
+                }
+                tryToEnablePhysics();
+            }
         } else if (_failedToConnectToEntityServer) {
             if (_octreeProcessor->safeLandingIsActive()) {
                 _octreeProcessor->stopSafeLanding();
@@ -2844,11 +3137,18 @@ void Application::update(float deltaTime) {
         if (_graphicsEngine && isInterstitialMode()) {
             auto nodeList = DependencyManager::get<NodeList>();
             const auto& domainHandler = nodeList->getDomainHandler();
+            const bool serverlessLoading = _picoServerlessSceneImportCommitted ||
+                isServerlessMode() || domainHandler.isServerless();
             GraphicsEngine::LoadingPhase phase = GraphicsEngine::LoadingPhase::CONNECTING;
             float progress = 0.05f;
             const quint64 loadingNow = usecTimestampNow();
 
-            if (!domainHandler.isConnected()) {
+            // A serverless scene has no domain-server handshake. Enter its
+            // local world/resource path as soon as the URL switches mode;
+            // connectedToServerless() is emitted only after the JSON import,
+            // so gating this UI on DomainHandler::isConnected() leaves it
+            // incorrectly stuck at "Contacting the domain server".
+            if (!domainHandler.isConnected() && !serverlessLoading) {
                 if (_picoLoadingConnectedAt > 0) {
                     phase = _picoLoadingLastRecovery > 0
                         ? GraphicsEngine::LoadingPhase::RECOVERING_WORLD
@@ -2872,7 +3172,7 @@ void Application::update(float deltaTime) {
                         progress = 0.05f + 0.13f * connectionProgress;
                     }
                 }
-            } else if (_failedToConnectToEntityServer) {
+            } else if (_picoServerlessLoadFailed || _failedToConnectToEntityServer) {
                 phase = GraphicsEngine::LoadingPhase::WORLD_SERVER_UNAVAILABLE;
                 progress = 0.0f;
             } else {
@@ -2941,12 +3241,17 @@ void Application::update(float deltaTime) {
                     phase = GraphicsEngine::LoadingPhase::CONNECTED;
                     progress = 0.20f;
                 } else if (!initialWorldDataReceived) {
-                    phase = _picoLoadingLastRecovery > 0
-                        ? GraphicsEngine::LoadingPhase::RECOVERING_WORLD
-                        : GraphicsEngine::LoadingPhase::WAITING_FOR_WORLD;
-                    progress = _picoLoadingLastRecovery > 0
-                        ? 0.28f + 0.27f * _picoLoadingSequenceProgress
-                        : 0.22f;
+                    if (serverlessLoading) {
+                        phase = GraphicsEngine::LoadingPhase::RECEIVING_WORLD;
+                        progress = 0.25f;
+                    } else {
+                        phase = _picoLoadingLastRecovery > 0
+                            ? GraphicsEngine::LoadingPhase::RECOVERING_WORLD
+                            : GraphicsEngine::LoadingPhase::WAITING_FOR_WORLD;
+                        progress = _picoLoadingLastRecovery > 0
+                            ? 0.28f + 0.27f * _picoLoadingSequenceProgress
+                            : 0.22f;
+                    }
                 } else if (isRecoveringWorldPackets) {
                     phase = GraphicsEngine::LoadingPhase::RECOVERING_WORLD;
                     progress = 0.28f + 0.27f * _picoLoadingSequenceProgress;
@@ -3018,6 +3323,7 @@ void Application::update(float deltaTime) {
                         const bool recoverySceneHasNoCompletion =
                             _picoLoadingRecoveryAttempts > 0 && !safeLandingStatus.completionReceived;
                         const bool shouldRetryWorldPackets =
+                            !serverlessLoading &&
                             (!initialWorldDataReceived || isRecoveringWorldPackets ||
                                 recoverySceneHasNoCompletion ||
                                 (visualAssetsBlocked && _picoLoadingRecoveryAttempts == 0)) &&
@@ -3092,17 +3398,20 @@ void Application::update(float deltaTime) {
                 progress + 0.005f < _picoLoadingDisplayedProgress &&
                 desiredPhase != recoveringPhase && desiredPhase != retryingPhase &&
                 desiredPhase != unavailablePhase;
+            const bool returningToConnecting = desiredPhase == connectingPhase &&
+                _picoLoadingDisplayedPhase > connectingPhase;
 
-            if (_picoLoadingDisplayedPhase < 0 || immediatePhase) {
-                if (regressiveConnectionPhase) {
-                    _picoLoadingCandidatePhase = -1;
-                    _picoLoadingCandidatePhaseSince = 0;
-                } else {
+            // Apply regression protection before both immediate and debounced
+            // phase changes. Previously a CONNECTING candidate could survive
+            // the debounce and replace RECEIVING_WORLD for a serverless import.
+            if (regressiveConnectionPhase || returningToConnecting) {
+                _picoLoadingCandidatePhase = -1;
+                _picoLoadingCandidatePhaseSince = 0;
+            } else if (_picoLoadingDisplayedPhase < 0 || immediatePhase) {
                 _picoLoadingDisplayedPhase = desiredPhase;
                 _picoLoadingDisplayedProgress = glm::max(_picoLoadingDisplayedProgress, progress);
                 _picoLoadingCandidatePhase = -1;
                 _picoLoadingCandidatePhaseSince = 0;
-                }
             } else if (desiredPhase == _picoLoadingDisplayedPhase) {
                 _picoLoadingDisplayedProgress = glm::max(_picoLoadingDisplayedProgress, progress);
                 _picoLoadingCandidatePhase = -1;
@@ -3126,10 +3435,18 @@ void Application::update(float deltaTime) {
         _domainLoadingInProgress = false;
         PROFILE_ASYNC_END(app, "Scene Loading", "");
     }
-#if defined(Q_OS_ANDROID)
-    picoAfterWorldLoading = usecTimestampNow();
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    // A local startup scene has no server connection to drive repeated
+    // safe-landing checks. Keep its finalizer advancing even if a delayed
+    // online-domain reset changes the legacy serverless flags.
+    if (!_physicsEnabled && _picoServerlessSceneURL.isLocalFile()) {
+        _picoServerlessSceneImportCommitted = true;
+        if (!isServerlessMode()) {
+            setIsServerlessMode(true);
+        }
+        tryToEnablePhysics();
+    }
 #endif
-
 #if defined(ANDROID_APP_PICO_INTERFACE)
     // Physics activation makes the scene playable, but render-scene transactions still need a short time to
     // produce the first complete frame. Keep input locked and the opaque overlay visible while those frames are
@@ -3202,6 +3519,19 @@ void Application::update(float deltaTime) {
                     loadingStatusFile.write(loadingStatus.toUtf8());
                     loadingStatusFile.commit();
                 }
+#if defined(ANDROID_APP_PICO_INTERFACE)
+                if (_picoServerlessSceneImportCommitted) {
+                    _picoInitialServerlessHandoffComplete = true;
+                    QSaveFile serverlessStatusFile(
+                        "/data/user/0/org.overte.pico/cache/serverless-status");
+                    if (serverlessStatusFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                        serverlessStatusFile.write(QStringLiteral("%1|%2|1")
+                            .arg(QDateTime::currentMSecsSinceEpoch())
+                            .arg(_picoServerlessSceneURL.toString()).toUtf8());
+                        serverlessStatusFile.commit();
+                    }
+                }
+#endif
                 qCInfo(interfaceapp) << "Pico world ready; releasing loading screen"
                     << "presentedFrames"
                     << (presentFrame - _picoLoadingPhysicsPresentFrame);
@@ -3209,11 +3539,26 @@ void Application::update(float deltaTime) {
             }
         }
     }
-#endif
-#if defined(Q_OS_ANDROID)
-    picoAfterLoadingHandoff = usecTimestampNow();
-#endif
 
+    // These lightweight local fixtures are part of the Pico acceptance world,
+    // not instrumentation. Start them after the local scene is playable so
+    // their avatar-relative positions survive the startup spawn handoff.
+    static bool picoInteractionTestStationRequested { false };
+    if (!picoInteractionTestStationRequested &&
+            _picoServerlessSceneImportCommitted && _physicsEnabled) {
+        picoInteractionTestStationRequested = true;
+        QUrl testStationURL = PathUtils::defaultScriptsLocation();
+        QString testStationPath = testStationURL.path();
+        if (!testStationPath.endsWith('/')) {
+            testStationPath += '/';
+        }
+        testStationURL.setPath(testStationPath +
+            "developer/debugging/pico4InteractionTestStation.js");
+        qCInfo(interfaceapp) << "PICO4_INTERACTION_TEST_STATION loading"
+            << testStationURL;
+        DependencyManager::get<ScriptEngines>()->loadScript(testStationURL.toString());
+    }
+#endif
      if (shouldCaptureMouse()) {
         QPoint point = _primaryWidget->mapToGlobal(_primaryWidget->geometry().center());
         if (QCursor::pos() != point) {
@@ -3227,10 +3572,6 @@ void Application::update(float deltaTime) {
     }
 
     auto myAvatar = getMyAvatar();
-#if defined(Q_OS_ANDROID)
-    picoAfterMouseCapture = usecTimestampNow();
-    picoBeforeInputPlugins = usecTimestampNow();
-#endif
     {
         PerformanceTimer perfTimer("devices");
         auto userInputMapper = DependencyManager::get<UserInputMapper>();
@@ -3267,10 +3608,6 @@ void Application::update(float deltaTime) {
                 inputPlugin->pluginUpdate(deltaTime, calibrationData);
             }
         }
-#if defined(Q_OS_ANDROID)
-        picoAfterInputPlugins = usecTimestampNow();
-#endif
-
         userInputMapper->setInputCalibrationData(calibrationData);
         userInputMapper->update(deltaTime);
 #if defined(ANDROID_APP_PICO_INTERFACE)
@@ -3285,11 +3622,21 @@ void Application::update(float deltaTime) {
             setIsInterstitialMode(false);
         }
         _picoLoadingDismissButtonWasPressed = dismissLoadingPressed;
-#endif
-#if defined(Q_OS_ANDROID)
-        picoAfterInputMapper = usecTimestampNow();
-#endif
 
+        const bool leftThumbPressed = standardDevice &&
+            standardDevice->getButton(controller::LEFT_PRIMARY_THUMB) > 0.5f;
+        const bool rightThumbPressed = standardDevice &&
+            standardDevice->getButton(controller::RIGHT_PRIMARY_THUMB) > 0.5f;
+        if (leftThumbPressed && rightThumbPressed && !_picoStatsThumbChordLatched) {
+            _picoStatsThumbChordLatched = true;
+            auto menu = Menu::getInstance();
+            menu->triggerOption(MenuOption::Stats);
+            qCInfo(interfaceapp) << "PICO_STATS_OVERLAY toggled"
+                                 << menu->isOptionChecked(MenuOption::Stats);
+        } else if (!leftThumbPressed && !rightThumbPressed) {
+            _picoStatsThumbChordLatched = false;
+        }
+#endif
 #if defined(ANDROID_APP_PICO_INTERFACE) && !defined(NDEBUG)
         {
             static quint64 nextPicoLocomotionLog { 0 };
@@ -3350,9 +3697,6 @@ void Application::update(float deltaTime) {
         }
 
         myAvatar->setSprintMode((bool)userInputMapper->getActionState(controller::Action::SPRINT));
-#if defined(Q_OS_ANDROID)
-        picoAfterDriveKeys = usecTimestampNow();
-#endif
         static const std::vector<controller::Action> avatarControllerActions = {
             controller::Action::LEFT_HAND,
             controller::Action::RIGHT_HAND,
@@ -3470,38 +3814,22 @@ void Application::update(float deltaTime) {
         }
         _prevShowTrackedObjects = _showTrackedObjects;
     }
-#if defined(Q_OS_ANDROID)
-    picoAfterDevices = usecTimestampNow();
-#endif
-
     updateThreads(deltaTime); // If running non-threaded, then give the threads some time to process...
     updateDialogs(deltaTime); // update various stats dialogs if present
 
     auto grabManager = DependencyManager::get<GrabManager>();
     grabManager->simulateGrabs();
-#if defined(Q_OS_ANDROID)
-    picoBeforePick = usecTimestampNow();
-#endif
-
     // TODO: break these out into distinct perfTimers when they prove interesting
     {
         PROFILE_RANGE(app, "PickManager");
         PerformanceTimer perfTimer("pickManager");
         DependencyManager::get<PickManager>()->update();
     }
-#if defined(Q_OS_ANDROID)
-    picoAfterPick = usecTimestampNow();
-#endif
-
     {
         PROFILE_RANGE(app, "PointerManager");
         PerformanceTimer perfTimer("pointerManager");
         DependencyManager::get<PointerManager>()->update();
     }
-#if defined(Q_OS_ANDROID)
-    picoAfterPointer = usecTimestampNow();
-#endif
-
     QSharedPointer<AvatarManager> avatarManager = DependencyManager::get<AvatarManager>();
 
     {
@@ -3510,10 +3838,6 @@ void Application::update(float deltaTime) {
 
         getEntities()->preUpdate();
         _entitySimulation->removeDeadEntities();
-#if defined(Q_OS_ANDROID)
-        picoAfterSimulationSetup = usecTimestampNow();
-#endif
-
         auto t0 = std::chrono::high_resolution_clock::now();
         auto t1 = t0;
         {
@@ -3540,12 +3864,6 @@ void Application::update(float deltaTime) {
                 myAvatar->getCharacterController()->preSimulation();
             }
         }
-#if defined(Q_OS_ANDROID)
-        picoAfterPrePhysics = usecTimestampNow();
-        picoBeforeEntityUpdate = picoAfterPrePhysics;
-        picoAfterEntityUpdate = picoAfterPrePhysics;
-#endif
-
         if (_physicsEnabled) {
             {
                 PROFILE_RANGE(simulation_physics, "PrepareActions");
@@ -3611,13 +3929,7 @@ void Application::update(float deltaTime) {
 
                     // NOTE: the getEntities()->update() call below will wait for lock
                     // and will provide non-physical entity motion
-#if defined(Q_OS_ANDROID)
-                    picoBeforeEntityUpdate = usecTimestampNow();
-#endif
                     getEntities()->update(true); // update the models...
-#if defined(Q_OS_ANDROID)
-                    picoAfterEntityUpdate = usecTimestampNow();
-#endif
 
                     auto t5 = std::chrono::high_resolution_clock::now();
 
@@ -3633,26 +3945,13 @@ void Application::update(float deltaTime) {
             }
         } else {
             // update the rendering without any simulation
-#if defined(Q_OS_ANDROID)
-            picoBeforeEntityUpdate = usecTimestampNow();
-#endif
             getEntities()->update(false);
-#if defined(Q_OS_ANDROID)
-            picoAfterEntityUpdate = usecTimestampNow();
-#endif
         }
-#if defined(Q_OS_ANDROID)
-        picoBeforeSimulationCleanup = usecTimestampNow();
-#endif
         // remove recently dead avatarEntities
         SetOfEntities deadAvatarEntities;
         _entitySimulation->takeDeadAvatarEntities(deadAvatarEntities);
         avatarManager->removeDeadAvatarEntities(deadAvatarEntities);
     }
-#if defined(Q_OS_ANDROID)
-    picoAfterSimulation = usecTimestampNow();
-#endif
-
     // AvatarManager update
     {
         {
@@ -3689,10 +3988,6 @@ void Application::update(float deltaTime) {
             avatarManager->updateMyAvatar(deltaTime);
         }
     }
-#if defined(Q_OS_ANDROID)
-    picoAfterAvatars = usecTimestampNow();
-#endif
-
     bool showWarnings = Menu::getInstance()->isOptionChecked(MenuOption::PipelineWarnings);
     PerformanceWarning warn(showWarnings, "Application::update()");
 
@@ -3708,10 +4003,6 @@ void Application::update(float deltaTime) {
         PerformanceTimer perfTimer("overlays");
         _overlays.update(deltaTime);
     }
-#if defined(Q_OS_ANDROID)
-    picoAfterOverlays = usecTimestampNow();
-#endif
-
     // Update _viewFrustum with latest camera and view frustum data...
     // NOTE: we get this from the view frustum, to make it simpler, since the
     // loadViewFrumstum() method will get the correct details from the camera
@@ -3784,10 +4075,6 @@ void Application::update(float deltaTime) {
             QMetaObject::invokeMethod(DependencyManager::get<AudioClient>().data(), "sendDownstreamAudioStatsPacket", Qt::QueuedConnection);
         }
     }
-#if defined(Q_OS_ANDROID)
-    picoBeforePostUpdate = usecTimestampNow();
-#endif
-
     {
         PerformanceTimer perfTimer("avatarManager/postUpdate");
         avatarManager->postUpdate(deltaTime, getMain3DScene());
@@ -3802,15 +4089,7 @@ void Application::update(float deltaTime) {
         }
         _postUpdateLambdas.clear();
     }
-#if defined(Q_OS_ANDROID)
-    picoAfterPostLambdas = usecTimestampNow();
-#endif
-
-
     updateRenderArgs(deltaTime);
-#if defined(Q_OS_ANDROID)
-    picoAfterRenderArgs = usecTimestampNow();
-#endif
 
     {
         PerformanceTimer perfTimer("AnimDebugDraw");
@@ -3832,107 +4111,6 @@ void Application::update(float deltaTime) {
         PerformanceTimer perfTimer("squeezeVision");
         _visionSqueeze.updateVisionSqueeze(myAvatar->getSensorToWorldMatrix(), deltaTime);
     }
-#if defined(Q_OS_ANDROID)
-    struct PicoUpdateStats {
-        quint64 windowStart { 0 };
-        quint64 calls { 0 };
-        quint64 total { 0 };
-        quint64 devices { 0 };
-        quint64 testProperties { 0 };
-        quint64 worldLoading { 0 };
-        quint64 loadingHandoff { 0 };
-        quint64 mouseCapture { 0 };
-        quint64 devicesPrefix { 0 };
-        quint64 inputPlugins { 0 };
-        quint64 inputMapper { 0 };
-        quint64 driveKeys { 0 };
-        quint64 controllerPoses { 0 };
-        quint64 prePick { 0 };
-        quint64 pick { 0 };
-        quint64 pointer { 0 };
-        quint64 simulationSetup { 0 };
-        quint64 prePhysics { 0 };
-        quint64 physics { 0 };
-        quint64 entityUpdate { 0 };
-        quint64 afterEntityUpdate { 0 };
-        quint64 simulationCleanup { 0 };
-        quint64 avatars { 0 };
-        quint64 overlaysAndView { 0 };
-        quint64 postUpdate { 0 };
-        quint64 postLambdas { 0 };
-        quint64 renderArgs { 0 };
-        quint64 frameEnd { 0 };
-        quint64 maximum { 0 };
-    };
-    static PicoUpdateStats stats;
-    const quint64 end = usecTimestampNow();
-    if (stats.windowStart == 0) {
-        stats.windowStart = picoUpdateStart;
-    }
-    const quint64 total = end - picoUpdateStart;
-    stats.calls++;
-    stats.total += total;
-    stats.devices += picoAfterDevices - picoUpdateStart;
-    stats.testProperties += picoAfterTestProperties - picoUpdateStart;
-    stats.worldLoading += picoAfterWorldLoading - picoAfterTestProperties;
-    stats.loadingHandoff += picoAfterLoadingHandoff - picoAfterWorldLoading;
-    stats.mouseCapture += picoAfterMouseCapture - picoAfterLoadingHandoff;
-    stats.devicesPrefix += picoBeforeInputPlugins - picoUpdateStart;
-    stats.inputPlugins += picoAfterInputPlugins - picoBeforeInputPlugins;
-    stats.inputMapper += picoAfterInputMapper - picoAfterInputPlugins;
-    stats.driveKeys += picoAfterDriveKeys - picoAfterInputMapper;
-    stats.controllerPoses += picoAfterDevices - picoAfterDriveKeys;
-    stats.prePick += picoBeforePick - picoAfterDevices;
-    stats.pick += picoAfterPick - picoBeforePick;
-    stats.pointer += picoAfterPointer - picoAfterPick;
-    stats.simulationSetup += picoAfterSimulationSetup - picoAfterPointer;
-    stats.prePhysics += picoAfterPrePhysics - picoAfterSimulationSetup;
-    stats.physics += picoBeforeEntityUpdate - picoAfterPrePhysics;
-    stats.entityUpdate += picoAfterEntityUpdate - picoBeforeEntityUpdate;
-    stats.afterEntityUpdate += picoBeforeSimulationCleanup - picoAfterEntityUpdate;
-    stats.simulationCleanup += picoAfterSimulation - picoBeforeSimulationCleanup;
-    stats.avatars += picoAfterAvatars - picoAfterSimulation;
-    stats.overlaysAndView += picoAfterOverlays - picoAfterAvatars;
-    stats.postUpdate += picoBeforePostUpdate - picoAfterOverlays;
-    stats.postLambdas += picoAfterPostLambdas - picoBeforePostUpdate;
-    stats.renderArgs += picoAfterRenderArgs - picoAfterPostLambdas;
-    stats.frameEnd += end - picoAfterRenderArgs;
-    stats.maximum = std::max(stats.maximum, total);
-    if (end - stats.windowStart >= USECS_PER_SECOND) {
-        const double divisor = std::max<quint64>(1, stats.calls);
-        qInfo() << "PICO_UPDATE_STAGES"
-                << "callsPerSec" << stats.calls
-                << "avgTotalMs" << stats.total / divisor / 1000.0
-                << "maxTotalMs" << stats.maximum / 1000.0
-                << "devicesMs" << stats.devices / divisor / 1000.0
-                << "testPropertiesMs" << stats.testProperties / divisor / 1000.0
-                << "worldLoadingMs" << stats.worldLoading / divisor / 1000.0
-                << "loadingHandoffMs" << stats.loadingHandoff / divisor / 1000.0
-                << "mouseCaptureMs" << stats.mouseCapture / divisor / 1000.0
-                << "devicesPrefixMs" << stats.devicesPrefix / divisor / 1000.0
-                << "inputPluginsMs" << stats.inputPlugins / divisor / 1000.0
-                << "inputMapperMs" << stats.inputMapper / divisor / 1000.0
-                << "driveKeysMs" << stats.driveKeys / divisor / 1000.0
-                << "controllerPosesMs" << stats.controllerPoses / divisor / 1000.0
-                << "prePickMs" << stats.prePick / divisor / 1000.0
-                << "pickMs" << stats.pick / divisor / 1000.0
-                << "pointerMs" << stats.pointer / divisor / 1000.0
-                << "simulationSetupMs" << stats.simulationSetup / divisor / 1000.0
-                << "prePhysicsMs" << stats.prePhysics / divisor / 1000.0
-                << "physicsMs" << stats.physics / divisor / 1000.0
-                << "entityUpdateMs" << stats.entityUpdate / divisor / 1000.0
-                << "afterEntityUpdateMs" << stats.afterEntityUpdate / divisor / 1000.0
-                << "simulationCleanupMs" << stats.simulationCleanup / divisor / 1000.0
-                << "avatarsMs" << stats.avatars / divisor / 1000.0
-                << "overlaysViewMs" << stats.overlaysAndView / divisor / 1000.0
-                << "postUpdateMs" << stats.postUpdate / divisor / 1000.0
-                << "postLambdasMs" << stats.postLambdas / divisor / 1000.0
-                << "renderArgsMs" << stats.renderArgs / divisor / 1000.0
-                << "frameEndMs" << stats.frameEnd / divisor / 1000.0;
-        stats = PicoUpdateStats{};
-        stats.windowStart = end;
-    }
-#endif
 }
 
 
@@ -4043,9 +4221,32 @@ void Application::tryToEnablePhysics() {
     // handoff instead of bypassing it mid-load and dropping the final status.
     enableInterstitial = enableInterstitial || isInterstitialMode();
 #endif
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE physicsEntry"
+        << "committed" << _picoServerlessSceneImportCommitted
+        << "interstitial" << enableInterstitial;
+#endif
     bool textureMemoryReady = gpuTextureMemSizeStable();
 #if defined(ANDROID_APP_PICO_INTERFACE)
+    qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE gpuCheckReturned"
+        << "ready" << textureMemoryReady;
     const quint64 physicsNow = usecTimestampNow();
+    if (_picoServerlessSceneImportCommitted && enableInterstitial && !textureMemoryReady) {
+        // Texture streaming is visual work and may continue indefinitely on
+        // Android. A synchronously imported local entity tree already contains
+        // the collision data needed to start Bullet; the later present-frame
+        // handoff still keeps the overlay up until the scene is renderable.
+        textureMemoryReady = true;
+        _picoLoadingGpuFallbackUsed = true;
+    }
+    static quint64 committedServerlessWaitStarted { 0 };
+    if (_picoServerlessSceneImportCommitted) {
+        if (committedServerlessWaitStarted == 0) {
+            committedServerlessWaitStarted = physicsNow;
+        }
+    } else {
+        committedServerlessWaitStarted = 0;
+    }
     if (enableInterstitial && _picoLoadingFinalizingAt == 0) {
         _picoLoadingFinalizingAt = physicsNow;
     }
@@ -4055,11 +4256,14 @@ void Application::tryToEnablePhysics() {
     }
 
     // A stale driver transfer statistic must not leave the user trapped forever after every entity and
-    // collision shape is ready. This fallback is deliberately bounded and only applies when CPU resource
-    // queues are idle and GPU allocation has already been stable for the normal settling interval.
+    // collision shape is ready. Online worlds retain the strict idle-queue and stable-allocation checks.
+    // A committed serverless full scene may continue streaming non-critical visual assets after becoming
+    // playable, so it can use the same bounded timeout without waiting for every far resource.
     constexpr quint64 GPU_FINALIZATION_TIMEOUT = 15 * USECS_PER_SECOND;
+    const quint64 gpuWaitStarted = _picoServerlessSceneImportCommitted
+        ? committedServerlessWaitStarted : _picoLoadingFinalizingAt;
     if (!textureMemoryReady && enableInterstitial && !_picoLoadingGpuFallbackUsed &&
-            _picoLoadingFinalizingAt > 0 && physicsNow - _picoLoadingFinalizingAt >= GPU_FINALIZATION_TIMEOUT) {
+            gpuWaitStarted > 0 && physicsNow - gpuWaitStarted >= GPU_FINALIZATION_TIMEOUT) {
         const auto loadingRequests = ResourceCache::getLoadingRequests();
         const bool resourceQueuesIdle = loadingRequests.empty() && ResourceCache::getPendingRequestCount() == 0;
         const auto statTracker = DependencyManager::get<StatTracker>();
@@ -4067,14 +4271,19 @@ void Application::tryToEnablePhysics() {
             statTracker->getStat("PendingProcessing").toInt() == 0;
         const bool gpuAllocationStable =
             _gpuTextureMemSizeStabilityCount >= _minimumGPUTextureMemSizeStabilityCount;
-        if (resourceQueuesIdle && processingQueuesIdle && gpuAllocationStable) {
+        const auto& domainHandler = DependencyManager::get<NodeList>()->getDomainHandler();
+        const bool committedServerlessFullScene = _picoServerlessSceneImportCommitted;
+        if (committedServerlessFullScene ||
+                (resourceQueuesIdle && processingQueuesIdle && gpuAllocationStable)) {
             _picoLoadingGpuFallbackUsed = true;
             textureMemoryReady = true;
             if (_picoLoadingGpuReadyAt == 0) {
                 _picoLoadingGpuReadyAt = physicsNow;
             }
-            qCWarning(interfaceapp) << "Pico world loading ignored a stale GPU transfer statistic"
-                << "after resources and GPU allocation became stable";
+            qCWarning(interfaceapp) << "Pico world loading released bounded GPU wait"
+                << "serverlessFullScene" << committedServerlessFullScene
+                << "activeRequests" << loadingRequests.size()
+                << "pendingRequests" << ResourceCache::getPendingRequestCount();
         }
     }
 #endif
@@ -4088,13 +4297,17 @@ void Application::tryToEnablePhysics() {
         auto myAvatar = getMyAvatar();
 #if defined(ANDROID_APP_PICO_INTERFACE)
         constexpr quint64 DOMAIN_SETTINGS_TIMEOUT = 10 * USECS_PER_SECOND;
-        const quint64 domainSettingsWaitStarted = _picoLoadingConnectedAt > 0
-            ? _picoLoadingConnectedAt : _picoLoadingFinalizingAt;
+        const quint64 domainSettingsWaitStarted = _picoServerlessSceneImportCommitted
+            ? committedServerlessWaitStarted
+            : (_picoLoadingConnectedAt > 0 ? _picoLoadingConnectedAt : _picoLoadingFinalizingAt);
         const bool domainSettingsTimedOut = enableInterstitial && domainSettingsWaitStarted > 0 &&
             physicsNow - domainSettingsWaitStarted >= DOMAIN_SETTINGS_TIMEOUT;
-        if (domainSettingsTimedOut && !myAvatar->isReadyForPhysics()) {
+        const bool localSceneHasNoDomainSettings = _picoServerlessSceneImportCommitted;
+        if ((localSceneHasNoDomainSettings || domainSettingsTimedOut) && !myAvatar->isReadyForPhysics()) {
             qCWarning(interfaceapp) << "Pico world loading using default avatar height limits"
-                << "because domain settings did not arrive";
+                << (localSceneHasNoDomainSettings
+                    ? "for local serverless scene"
+                    : "because domain settings did not arrive");
             myAvatar->restrictScaleFromDomainSettings(QJsonObject());
         }
 #endif

@@ -14,6 +14,8 @@
 Script.include(Script.resolvePath("utils.js"));
 Script.include(Script.resolvePath("controllers.js"));
 Script.include(Script.resolvePath("Xform.js"));
+var sanitizePicoTabletSettings = Script.require(
+    Script.resolvePath("picoTabletSettings.js"));
 
 var Y_AXIS = {x: 0, y: 1, z: 0};
 var X_AXIS = {x: 1, y: 0, z: 0};
@@ -55,6 +57,11 @@ function calcSpawnInfo(hand, landscape, forcedRightOffset) {
     var LEFT_HAND = controllerStandard.LeftHand;
     var sensorToWorldScale = MyAvatar.sensorToWorldScale;
     var picoCenteredTablet = Settings.getValue("deferTabletCreationUntilOpen", false);
+    var picoSettings = picoCenteredTablet ? sanitizePicoTabletSettings(
+        Settings.getValue("picoTabletForwardOffset", 1.25),
+        Settings.getValue("picoTabletUpOffset", -0.52),
+        Settings.getValue("picoTabletTiltDegrees", -18)
+    ) : null;
     var headPos = (HMD.active && (Camera.mode === "first person" || Camera.mode === "first person look at")) ? HMD.position : Camera.position;
     var headRot = Quat.cancelOutRollAndPitch((HMD.active && (Camera.mode === "first person" || Camera.mode === "first person look at")) ?
         HMD.orientation : Camera.orientation);
@@ -69,14 +76,12 @@ function calcSpawnInfo(hand, landscape, forcedRightOffset) {
     // centered tablet layout and override every attempted default change.
     // Keep separate keys so the centered layout starts at its intended
     // position while remaining configurable for later tuning.
-    var FORWARD_OFFSET = Settings.getValue(
-        picoCenteredTablet ? "picoTabletForwardOffset" : "hmdTabletForwardOffset",
-        picoCenteredTablet ? 1.25 : 0.5
-    ) * sensorToWorldScale;
-    var UP_OFFSET = Settings.getValue(
-        picoCenteredTablet ? "picoTabletUpOffset" : "hmdTabletUpOffset",
-        picoCenteredTablet ? -0.52 : -0.16
-    ) * sensorToWorldScale;
+    var FORWARD_OFFSET = (picoCenteredTablet
+        ? picoSettings.forward
+        : Settings.getValue("hmdTabletForwardOffset", 0.5)) * sensorToWorldScale;
+    var UP_OFFSET = (picoCenteredTablet
+        ? picoSettings.up
+        : Settings.getValue("hmdTabletUpOffset", -0.16)) * sensorToWorldScale;
     var RIGHT_OFFSET = (forcedRightOffset !== undefined
         ? forcedRightOffset
         : (picoCenteredTablet
@@ -94,7 +99,7 @@ function calcSpawnInfo(hand, landscape, forcedRightOffset) {
         orientation = Quat.multiply(
             orientation,
             Quat.fromPitchYawRollDegrees(
-                Settings.getValue("picoTabletTiltDegrees", -18),
+                picoSettings.tilt,
                 0,
                 0
             )

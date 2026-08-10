@@ -11,7 +11,7 @@
 //
 
 /* global module, HMD, MyAvatar, controllerDispatcherPlugins:true, Quat, Vec3, Overlays, Xform, Mat4,
-   Selection, Uuid, Controller,
+   Selection, Uuid, Controller, Settings,
    MSECS_PER_SEC:true , LEFT_HAND:true, RIGHT_HAND:true, FORBIDDEN_GRAB_TYPES:true,
    HAPTIC_PULSE_STRENGTH:true, HAPTIC_PULSE_DURATION:true, ZERO_VEC:true, ONE_VEC:true,
    DEFAULT_REGISTRATION_POINT:true, INCHES_TO_METERS:true,
@@ -95,6 +95,29 @@ var DEFAULT_REGISTRATION_POINT = { x: 0.5, y: 0.5, z: 0.5 };
 
 var TRIGGER_OFF_VALUE = 0.1;
 var TRIGGER_ON_VALUE = TRIGGER_OFF_VALUE + 0.05; // Squeezed just enough to activate search or near grab
+
+function readPicoInteractionThreshold(key, fallback) {
+    var value = Number(Settings.getValue(key, fallback));
+    return isFinite(value) && value >= 0 && value <= 1 ? value : fallback;
+}
+
+var PICO_LASER_ON_VALUE = readPicoInteractionThreshold("pico/interaction/laserOn", 0.10);
+var PICO_FAR_SELECT_ON_VALUE = readPicoInteractionThreshold("pico/interaction/farSelectOn", 0.50);
+var PICO_FAR_GRAB_ON_VALUE = readPicoInteractionThreshold("pico/interaction/farGrabOn", 0.90);
+var PICO_TRIGGER_OFF_VALUE = readPicoInteractionThreshold("pico/interaction/triggerOff", 0.05);
+var PICO_GRIP_ON_VALUE = readPicoInteractionThreshold("pico/interaction/gripOn", 0.50);
+var PICO_GRIP_OFF_VALUE = readPicoInteractionThreshold("pico/interaction/gripOff", 0.10);
+if (PICO_TRIGGER_OFF_VALUE >= PICO_LASER_ON_VALUE ||
+        PICO_LASER_ON_VALUE >= PICO_FAR_SELECT_ON_VALUE ||
+        PICO_FAR_SELECT_ON_VALUE >= PICO_FAR_GRAB_ON_VALUE) {
+    PICO_TRIGGER_OFF_VALUE = 0.05;
+    PICO_LASER_ON_VALUE = 0.10;
+    PICO_FAR_SELECT_ON_VALUE = 0.50;
+    PICO_FAR_GRAB_ON_VALUE = 0.90;
+}
+if (PICO_GRIP_OFF_VALUE >= PICO_GRIP_ON_VALUE) {
+    PICO_GRIP_OFF_VALUE = Math.min(0.10, Math.max(0, PICO_GRIP_ON_VALUE - 0.05));
+}
 var BUMPER_ON_VALUE = 0.5;
 
 var PICK_MAX_DISTANCE = 500; // max length of pick-ray
@@ -132,6 +155,7 @@ var DISPATCHER_HOVERING_STYLE = {
 
 var DISPATCHER_PROPERTIES = [
     "id",
+    "entityHostType",
     "position",
     "registrationPoint",
     "rotation",
@@ -632,6 +656,12 @@ if (typeof module !== 'undefined') {
         projectOntoEntityXYPlane: projectOntoEntityXYPlane,
         TRIGGER_OFF_VALUE: TRIGGER_OFF_VALUE,
         TRIGGER_ON_VALUE: TRIGGER_ON_VALUE,
+        PICO_LASER_ON_VALUE: PICO_LASER_ON_VALUE,
+        PICO_FAR_SELECT_ON_VALUE: PICO_FAR_SELECT_ON_VALUE,
+        PICO_FAR_GRAB_ON_VALUE: PICO_FAR_GRAB_ON_VALUE,
+        PICO_TRIGGER_OFF_VALUE: PICO_TRIGGER_OFF_VALUE,
+        PICO_GRIP_ON_VALUE: PICO_GRIP_ON_VALUE,
+        PICO_GRIP_OFF_VALUE: PICO_GRIP_OFF_VALUE,
         DISPATCHER_HOVERING_LIST: DISPATCHER_HOVERING_LIST,
         worldPositionToRegistrationFrameMatrix: worldPositionToRegistrationFrameMatrix,
         handsAreTracked: handsAreTracked

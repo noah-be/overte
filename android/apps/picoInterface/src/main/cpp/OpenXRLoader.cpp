@@ -5,23 +5,24 @@
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
 
+#include <mutex>
+
 namespace {
 constexpr const char* LOG_TAG = "OvertePico";
 JavaVM* loaderJavaVm = nullptr;
 jobject loaderApplicationContext = nullptr;
 jobject loaderActivity = nullptr;
+std::mutex loaderMutex;
 }
 
 extern "C" JavaVM* overtePicoOpenXRJavaVm() {
+    std::lock_guard<std::mutex> guard(loaderMutex);
     return loaderJavaVm;
 }
 
-extern "C" jobject overtePicoOpenXRApplicationContext() {
-    return loaderApplicationContext;
-}
-
-extern "C" jobject overtePicoOpenXRActivity() {
-    return loaderActivity;
+extern "C" jobject overtePicoOpenXRAcquireActivity(JNIEnv* env) {
+    std::lock_guard<std::mutex> guard(loaderMutex);
+    return loaderActivity ? env->NewGlobalRef(loaderActivity) : nullptr;
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
@@ -32,20 +33,45 @@ Java_org_overte_pico_PicoInterfaceActivity_initializeOpenXRLoader(
         __android_log_write(ANDROID_LOG_ERROR, LOG_TAG, "Could not obtain JavaVM");
         return JNI_FALSE;
     }
-    loaderJavaVm = vm;
-
-    loaderActivity = env->NewGlobalRef(activity);
-    if (!loaderActivity) {
+    jobject newActivity = env->NewGlobalRef(activity);
+    if (!newActivity) {
         __android_log_write(
                 ANDROID_LOG_ERROR, LOG_TAG, "Could not retain Android Activity");
         return JNI_FALSE;
     }
 
+    // Serialize process-global loader publication with Activity teardown. Any
+    // native consumer obtains its own global reference while holding this lock.
+    std::lock_guard<std::mutex> guard(loaderMutex);
+
+    // The loader is process-global while Android may recreate the Activity.
+    // Keep the initialized application context and only refresh the Activity
+    // reference instead of asking the runtime to initialize twice.
+    if (loaderJavaVm == vm && loaderApplicationContext) {
+        if (loaderActivity) {
+            env->DeleteGlobalRef(loaderActivity);
+        }
+        loaderActivity = newActivity;
+        return JNI_TRUE;
+    }
+
+    jclass activityClass = env->GetObjectClass(activity);
+    if (!activityClass) {
+        env->DeleteGlobalRef(newActivity);
+        __android_log_write(
+                ANDROID_LOG_ERROR, LOG_TAG, "Could not inspect Android Activity");
+        return JNI_FALSE;
+    }
     jmethodID getApplicationContext = env->GetMethodID(
-            env->GetObjectClass(activity),
+            activityClass,
             "getApplicationContext",
             "()Landroid/content/Context;");
+    env->DeleteLocalRef(activityClass);
     if (!getApplicationContext) {
+        if (env->ExceptionCheck()) {
+            env->ExceptionClear();
+        }
+        env->DeleteGlobalRef(newActivity);
         __android_log_write(
                 ANDROID_LOG_ERROR, LOG_TAG, "Could not find getApplicationContext");
         return JNI_FALSE;
@@ -54,8 +80,21 @@ Java_org_overte_pico_PicoInterfaceActivity_initializeOpenXRLoader(
     jobject context = env->CallObjectMethod(activity, getApplicationContext);
     if (!context || env->ExceptionCheck()) {
         env->ExceptionClear();
+        if (context) {
+            env->DeleteLocalRef(context);
+        }
+        env->DeleteGlobalRef(newActivity);
         __android_log_write(
                 ANDROID_LOG_ERROR, LOG_TAG, "Could not obtain application Context");
+        return JNI_FALSE;
+    }
+
+    jobject newApplicationContext = env->NewGlobalRef(context);
+    env->DeleteLocalRef(context);
+    if (!newApplicationContext) {
+        env->DeleteGlobalRef(newActivity);
+        __android_log_write(
+                ANDROID_LOG_ERROR, LOG_TAG, "Could not retain application Context");
         return JNI_FALSE;
     }
 
@@ -67,15 +106,8 @@ Java_org_overte_pico_PicoInterfaceActivity_initializeOpenXRLoader(
     if (XR_FAILED(result) || !initializeLoader) {
         __android_log_write(
                 ANDROID_LOG_ERROR, LOG_TAG, "xrInitializeLoaderKHR is unavailable");
-        env->DeleteLocalRef(context);
-        return JNI_FALSE;
-    }
-
-    loaderApplicationContext = env->NewGlobalRef(context);
-    env->DeleteLocalRef(context);
-    if (!loaderApplicationContext) {
-        __android_log_write(
-                ANDROID_LOG_ERROR, LOG_TAG, "Could not retain application Context");
+        env->DeleteGlobalRef(newApplicationContext);
+        env->DeleteGlobalRef(newActivity);
         return JNI_FALSE;
     }
 
@@ -83,16 +115,14 @@ Java_org_overte_pico_PicoInterfaceActivity_initializeOpenXRLoader(
         XR_TYPE_LOADER_INIT_INFO_ANDROID_KHR,
         nullptr,
         vm,
-        loaderApplicationContext
+        newApplicationContext
     };
     result = initializeLoader(
             reinterpret_cast<const XrLoaderInitInfoBaseHeaderKHR*>(&loaderInfo));
 
     if (XR_FAILED(result)) {
-        env->DeleteGlobalRef(loaderApplicationContext);
-        loaderApplicationContext = nullptr;
-        env->DeleteGlobalRef(loaderActivity);
-        loaderActivity = nullptr;
+        env->DeleteGlobalRef(newApplicationContext);
+        env->DeleteGlobalRef(newActivity);
         __android_log_print(
                 ANDROID_LOG_ERROR,
                 LOG_TAG,
@@ -101,5 +131,29 @@ Java_org_overte_pico_PicoInterfaceActivity_initializeOpenXRLoader(
         return JNI_FALSE;
     }
 
+    // Publish a fully initialized set only after every operation succeeds.
+    // Activity recreation may invoke this again in the same process.
+    if (loaderApplicationContext) {
+        env->DeleteGlobalRef(loaderApplicationContext);
+    }
+    if (loaderActivity) {
+        env->DeleteGlobalRef(loaderActivity);
+    }
+    loaderJavaVm = vm;
+    loaderApplicationContext = newApplicationContext;
+    loaderActivity = newActivity;
+
     return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_overte_pico_PicoInterfaceActivity_releaseOpenXRActivity(
+        JNIEnv* env, jobject activity) {
+    std::lock_guard<std::mutex> guard(loaderMutex);
+    // A superseded Activity can finish after its replacement has initialized.
+    // Release only the global reference that represents this exact instance.
+    if (loaderActivity && env->IsSameObject(loaderActivity, activity)) {
+        env->DeleteGlobalRef(loaderActivity);
+        loaderActivity = nullptr;
+    }
 }

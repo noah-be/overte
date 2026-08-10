@@ -20,8 +20,7 @@
       "allowBackup": false,
       "sdk": {"compile": 36, "min": 26, "target": 35},
       "permissions": ["android.permission.ACCESS_NETWORK_STATE", "android.permission.INTERNET", "android.permission.MODIFY_AUDIO_SETTINGS", "android.permission.RECORD_AUDIO", "android.permission.VIBRATE"],
-      "exportedComponents": ["activity:.PermissionsActivity", "activity:.PicoInterfaceActivity"],
-      "sensitiveArgumentLogging": {"source": "android/apps/picoInterface/src/main/java/org/overte/pico/PicoInterfaceActivity.java", "identifiers": ["applicationArguments"]},
+      "exportedComponents": ["activity:.PermissionsActivity"],
       "sensitiveArgumentLogging": {"source": "android/apps/picoInterface/src/main/java/org/overte/pico/PicoInterfaceActivity.java", "identifiers": ["applicationArguments"]},
       "hostEvidence": ["android/apps/picoInterface/src/test/java/org/overte/pico/PermissionsActivityRobolectricTest.java", "android/tests/java/org/overte/pico/AndroidAudioInputPolicyStandaloneTest.java", "android/tests/java/org/overte/pico/PicoInterfaceActivityPolicyStandaloneTest.java", "android/tests/pico-audio-jni-boundary-test.py", "android/tests/pico-host-regression-test.sh", "android/tests/project-module-inventory-test.py"],
       "runtimeBoundary": "Pico OpenXR loader, headset tracking, controller input, audio and vendor runtime require Pico hardware"

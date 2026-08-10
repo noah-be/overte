@@ -12,8 +12,12 @@ Rectangle {
     property bool loading: false
     property var focusedNumericField: null
     property real focusedNumericStep: 0.01
+    function finiteNumber(value, fallback) {
+        var number = Number(value);
+        return isFinite(number) ? number : fallback;
+    }
     function numberText(value) {
-        return value === undefined ? "0" : Number(value).toFixed(3);
+        return finiteNumber(value, 0).toFixed(3);
     }
 
     function setVector(fields, vector) {
@@ -54,14 +58,13 @@ Rectangle {
     }
 
     function numeric(field) {
-        var value = Number(field.text);
-        return isNaN(value) ? 0 : value;
+        return finiteNumber(field.text, 0);
     }
 
     function setNumericFocus(field, focused, step) {
         if (focused) {
             focusedNumericField = field;
-            focusedNumericStep = step;
+            focusedNumericStep = Math.max(0.001, finiteNumber(step, 0.01));
         } else if (focusedNumericField === field) {
             focusedNumericField = null;
         }
@@ -75,10 +78,11 @@ Rectangle {
         if (focusedNumericField === null) {
             return;
         }
-        var value = Number(focusedNumericField.text);
-        if (isNaN(value)) {
-            value = 0;
+        direction = Number(direction);
+        if (direction !== -1 && direction !== 1) {
+            return;
         }
+        var value = finiteNumber(focusedNumericField.text, 0);
         value += direction * focusedNumericStep;
         var decimals = focusedNumericStep < 0.1 ? 3 : (focusedNumericStep < 1 ? 2 : 0);
         focusedNumericField.text = value.toFixed(decimals);

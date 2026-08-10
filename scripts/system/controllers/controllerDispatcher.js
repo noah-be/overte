@@ -18,11 +18,12 @@
    LEFT_HAND, RIGHT_HAND, NEAR_GRAB_PICK_RADIUS, DEFAULT_SEARCH_SPHERE_DISTANCE, DISPATCHER_PROPERTIES,
    getGrabPointSphereOffset, HMD, MyAvatar, Messages, findHandChildEntities, Picks, PickType, Pointers,
    PointerManager, getGrabPointSphereOffset, HMD, MyAvatar, Messages, findHandChildEntities, print, Keyboard,
-   Tablet, Settings, isInEditMode
+   Tablet, Settings, isInEditMode, console
 */
 
 var controllerDispatcherPlugins = {};
 var controllerDispatcherPluginsNeedSort = false;
+var PICO_INTERACTION_TRACE_MODE = "off";
 
 Script.include("/~/system/libraries/utils.js");
 Script.include("/~/system/libraries/controllers.js");
@@ -45,9 +46,93 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
     var DEBUG = false;
     var SHOW_GRAB_SPHERE = false;
     var picoLazyHandRays = Settings.getValue("deferTabletCreationUntilOpen", false);
+    // A combined ray always intersects the fixed HUD sphere before distant
+    // world entities on Pico. Keep dedicated rays for the two surfaces.
+    var combineHudAndWorldPointers = !picoLazyHandRays &&
+        Settings.getValue("combineHudAndWorldPointers", false);
     var systemTablet = picoLazyHandRays
         ? Tablet.getTablet("com.highfidelity.interface.tablet.system")
         : null;
+    var PICO_TRACE_CHANNEL = "Pico4-Interaction-Diagnostics";
+    var PICO_DEPTH_CHANNEL = "Pico4-FarGrab-Depth";
+    var picoTraceMode = "off";
+    var picoTriggerBands = ["off", "off"];
+    var lastPicoDispatcherStart = 0;
+    var previousPicoDispatcherGrip = [0, 0];
+
+    function handlePicoTraceMessage(channel, message, senderID, localOnly) {
+        if (channel === PICO_TRACE_CHANNEL && localOnly) {
+            picoTraceMode = message === "edges" ? "edges" :
+                (message === "enable" ? "full" : "off");
+            PICO_INTERACTION_TRACE_MODE = picoTraceMode;
+        } else if (channel === PICO_DEPTH_CHANNEL && localOnly) {
+            try {
+                if (JSON.parse(message).action === "ready") {
+                    sendPicoPointerConfig();
+                }
+            } catch (error) {
+                // Ignore messages from incompatible development workers.
+            }
+        }
+    }
+
+    function sendPicoPointerConfig() {
+        if (picoLazyHandRays && controllerDispatcher &&
+                controllerDispatcher.leftPointer !== undefined &&
+                controllerDispatcher.rightPointer !== undefined) {
+            Messages.sendLocalMessage(PICO_DEPTH_CHANNEL, JSON.stringify({
+                action: "configurePointers",
+                left: controllerDispatcher.leftPointer,
+                right: controllerDispatcher.rightPointer
+            }));
+        }
+    }
+
+    function tracePicoDispatcher(event, details) {
+        if (picoTraceMode === "off" ||
+                picoTraceMode === "edges" && event === "trigger-mapping") {
+            return;
+        }
+        details.event = event;
+        details.time = Date.now();
+        console.info("PICO4_DISPATCHER " + JSON.stringify(details));
+    }
+
+    function picoTriggerBand(value) {
+        if (value >= PICO_FAR_GRAB_ON_VALUE) {
+            return "grab";
+        }
+        if (value >= PICO_FAR_SELECT_ON_VALUE) {
+            return "select";
+        }
+        if (value >= PICO_LASER_ON_VALUE) {
+            return "laser";
+        }
+        return "off";
+    }
+
+    function tracePicoTriggerBand(hand, value) {
+        if (picoTraceMode === "off") {
+            return;
+        }
+        var band = picoTriggerBand(value);
+        if (picoTriggerBands[hand] !== band) {
+            picoTriggerBands[hand] = band;
+            console.info("PICO4_LASER " + JSON.stringify({
+                event: "trigger-band",
+                hand: hand === LEFT_HAND ? "left" : "right",
+                band: band,
+                value: value,
+                time: Date.now()
+            }));
+        }
+    }
+
+    Messages.subscribe(PICO_TRACE_CHANNEL);
+    if (picoLazyHandRays) {
+        Messages.subscribe(PICO_DEPTH_CHANNEL);
+    }
+    Messages.messageReceived.connect(handlePicoTraceMessage);
 
     if (typeof Test !== "undefined") {
         PROFILE = true;
@@ -61,10 +146,12 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
         this.totalVariance = 0;
         this.highVarianceCount = 0;
         this.veryhighVarianceCount = 0;
+        this.lastPicoRayTrace = [0, 0];
         this.orderedPluginNames = [];
         this.tabletID = null;
         this.blocklist = [];
         this.picoEditingHand = null;
+        this.picoIdlePointersDisabled = false;
         this.pointerManager = new PointerManager();
         this.grabSphereOverlays = [null, null];
         this.targetIDs = {};
@@ -124,7 +211,8 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
         this.unmarkSlotsForPluginName = function (runningPluginName) {
             // this is used to free activity-slots when a plugin is deactivated while it's running.
             for (var activitySlot in _this.activitySlots) {
-                if (activitySlot.hasOwnProperty(activitySlot) && _this.activitySlots[activitySlot] === runningPluginName) {
+                if (_this.activitySlots.hasOwnProperty(activitySlot) &&
+                        _this.activitySlots[activitySlot] === runningPluginName) {
                     _this.activitySlots[activitySlot] = false;
                 }
             }
@@ -141,25 +229,124 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
         this.rightTriggerClicked = 0;
         this.rightTrackerClicked = false; // is rightTriggerClicked == 1 because a hand tracker set it?
         this.rightSecondaryValue = 0;
+        this.picoStickValues = [0, 0, 0, 0];
+
+        // Pico normally disables idle controller rays to avoid paying their pick
+        // cost continuously. Input mappings run before the pick update, while
+        // the dispatcher timer runs afterwards. Wake the relevant ray here so
+        // the first trigger-click frame already has a current distant hit.
+        this.wakeHandRay = function (hand) {
+            if (!picoLazyHandRays || !HMD.active) {
+                return;
+            }
+
+            var worldPointer = hand === LEFT_HAND ? _this.leftPointer : _this.rightPointer;
+            var hudPointer = hand === LEFT_HAND ? _this.leftHudPointer : _this.rightHudPointer;
+            if (worldPointer !== undefined && worldPointer !== null) {
+                Pointers.enablePointer(worldPointer);
+            }
+            if (hudPointer !== undefined && hudPointer !== null && hudPointer !== worldPointer) {
+                Pointers.enablePointer(hudPointer);
+            }
+        };
 
         this.leftTriggerPress = function (value) {
+            var previousValue = _this.leftTriggerValue;
+            if (value !== _this.leftTriggerValue) {
+                tracePicoDispatcher("trigger-mapping", { hand: "left", value: value });
+            }
             _this.leftTriggerValue = value;
+            if (picoLazyHandRays) {
+                tracePicoTriggerBand(LEFT_HAND, value);
+                if (value >= PICO_LASER_ON_VALUE) {
+                    _this.pointerManager.makeTriggerPointerVisible(LEFT_HAND);
+                }
+                _this.pointerManager.updatePointersRenderState(
+                    [_this.leftTriggerClicked, _this.rightTriggerClicked],
+                    [_this.leftTriggerValue, _this.rightTriggerValue]);
+            }
+            if (picoLazyHandRays) {
+                if (value >= PICO_FAR_GRAB_ON_VALUE) {
+                    _this.leftTriggerClicked = 1;
+                } else if (value <= PICO_TRIGGER_OFF_VALUE) {
+                    _this.leftTriggerClicked = 0;
+                }
+            }
+            if (value > 0.01) {
+                _this.wakeHandRay(LEFT_HAND);
+            }
+            _this.releasePicoNearGrab(LEFT_HAND);
+            if (previousValue < PICO_FAR_GRAB_ON_VALUE && value >= PICO_FAR_GRAB_ON_VALUE) {
+                _this.startPicoFarGrab(LEFT_HAND);
+            }
         };
         this.leftTriggerClick = function (value) {
-            _this.leftTriggerClicked = value;
+            // Pico's OpenXR trigger can top out below the digital click
+            // threshold. Preserve the analog click synthesized above when the
+            // unavailable digital route repeatedly reports zero.
+            if (!picoLazyHandRays || value) {
+                _this.leftTriggerClicked = value;
+            }
+            if (value) {
+                _this.wakeHandRay(LEFT_HAND);
+            }
         };
         this.rightTriggerPress = function (value) {
+            var previousValue = _this.rightTriggerValue;
+            if (value !== _this.rightTriggerValue) {
+                tracePicoDispatcher("trigger-mapping", { hand: "right", value: value });
+            }
             _this.rightTriggerValue = value;
+            if (picoLazyHandRays) {
+                tracePicoTriggerBand(RIGHT_HAND, value);
+                if (value >= PICO_LASER_ON_VALUE) {
+                    _this.pointerManager.makeTriggerPointerVisible(RIGHT_HAND);
+                }
+                _this.pointerManager.updatePointersRenderState(
+                    [_this.leftTriggerClicked, _this.rightTriggerClicked],
+                    [_this.leftTriggerValue, _this.rightTriggerValue]);
+            }
+            if (picoLazyHandRays) {
+                if (value >= PICO_FAR_GRAB_ON_VALUE) {
+                    _this.rightTriggerClicked = 1;
+                } else if (value <= PICO_TRIGGER_OFF_VALUE) {
+                    _this.rightTriggerClicked = 0;
+                }
+            }
+            if (value > 0.01) {
+                _this.wakeHandRay(RIGHT_HAND);
+            }
+            _this.releasePicoNearGrab(RIGHT_HAND);
+            if (previousValue < PICO_FAR_GRAB_ON_VALUE && value >= PICO_FAR_GRAB_ON_VALUE) {
+                _this.startPicoFarGrab(RIGHT_HAND);
+            }
         };
         this.rightTriggerClick = function (value) {
-            _this.rightTriggerClicked = value;
+            if (!picoLazyHandRays || value) {
+                _this.rightTriggerClicked = value;
+            }
+            if (value) {
+                _this.wakeHandRay(RIGHT_HAND);
+            }
         };
         this.leftSecondaryPress = function (value) {
+            if (value !== _this.leftSecondaryValue) {
+                tracePicoDispatcher("grip-mapping", { hand: "left", value: value });
+            }
             _this.leftSecondaryValue = value;
+            _this.releasePicoNearGrab(LEFT_HAND);
         };
         this.rightSecondaryPress = function (value) {
+            if (value !== _this.rightSecondaryValue) {
+                tracePicoDispatcher("grip-mapping", { hand: "right", value: value });
+            }
             _this.rightSecondaryValue = value;
+            _this.releasePicoNearGrab(RIGHT_HAND);
         };
+        this.picoLeftX = function (value) { _this.picoStickValues[0] = value; };
+        this.picoLeftY = function (value) { _this.picoStickValues[1] = value; };
+        this.picoRightX = function (value) { _this.picoStickValues[2] = value; };
+        this.picoRightY = function (value) { _this.picoStickValues[3] = value; };
 
         this.dataGatherers = {};
         this.dataGatherers.leftControllerLocation = function () {
@@ -249,6 +436,100 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
             return false;
         };
 
+        this.releasePicoNearGrab = function (hand) {
+            if (!picoLazyHandRays) {
+                return;
+            }
+            // Pico's analog trigger edge arrives before the synthesized click
+            // release. Waiting for the click leaves a held entity parented for
+            // several visible frames after the user has released the trigger.
+            var triggerHeld = hand === LEFT_HAND
+                ? _this.leftTriggerValue >= PICO_TRIGGER_OFF_VALUE
+                : _this.rightTriggerValue >= PICO_TRIGGER_OFF_VALUE;
+            var gripHeld = hand === LEFT_HAND
+                ? _this.leftSecondaryValue >= PICO_GRIP_OFF_VALUE
+                : _this.rightSecondaryValue >= PICO_GRIP_OFF_VALUE;
+            if (triggerHeld || gripHeld) {
+                return;
+            }
+            var handPrefix = hand === LEFT_HAND ? "Left" : "Right";
+            Object.keys(_this.runningPluginNames).forEach(function (pluginName) {
+                var plugin = controllerDispatcherPlugins[pluginName];
+                if (pluginName.indexOf(handPrefix) === 0 && plugin &&
+                        plugin.releaseOnPicoInput && plugin.releaseOnPicoInput()) {
+                    _this.pointerManager.lockPointerEnd(plugin.parameters.handLaser);
+                    if (!_this.pointerUsedByAnotherRunningPlugin(
+                            pluginName, plugin.parameters.handLaser)) {
+                        _this.pointerManager.makePointerInvisible(plugin.parameters.handLaser);
+                    }
+                    delete _this.runningPluginNames[pluginName];
+                    delete _this.targetIDs[pluginName];
+                    _this.markSlots(plugin, false);
+                    tracePicoDispatcher("fast-release", {
+                        hand: handPrefix.toLowerCase(), plugin: pluginName
+                    });
+                }
+            });
+        };
+
+        this.startPicoFarGrab = function (hand) {
+            if (!picoLazyHandRays) {
+                return;
+            }
+            var pluginName = hand === LEFT_HAND ? "LeftFarGrabEntity" : "RightFarGrabEntity";
+            var plugin = controllerDispatcherPlugins[pluginName];
+            if (!plugin || _this.runningPluginNames[pluginName] ||
+                    !_this.slotsAreAvailableForPlugin(plugin)) {
+                return;
+            }
+            var controllerLocation = hand === LEFT_HAND
+                ? _this.dataGatherers.leftControllerLocation()
+                : _this.dataGatherers.rightControllerLocation();
+            var rayPicks = [{ intersects: false }, { intersects: false }];
+            var hudRayPicks = [{ intersects: false }, { intersects: false }];
+            rayPicks[hand] = Pointers.getPrevPickResult(
+                hand === LEFT_HAND ? _this.leftPointer : _this.rightPointer);
+            hudRayPicks[hand] = Pointers.getPrevPickResult(
+                hand === LEFT_HAND ? _this.leftHudPointer : _this.rightHudPointer);
+            var controllerLocations = [{ valid: false }, { valid: false }];
+            controllerLocations[hand] = controllerLocation;
+            var controllerData = {
+                triggerValues: [_this.leftTriggerValue, _this.rightTriggerValue],
+                triggerClicks: [
+                    _this.leftTriggerClicked || _this.leftTriggerValue >= PICO_FAR_GRAB_ON_VALUE,
+                    _this.rightTriggerClicked || _this.rightTriggerValue >= PICO_FAR_GRAB_ON_VALUE
+                ],
+                secondaryValues: [_this.leftSecondaryValue, _this.rightSecondaryValue],
+                controllerLocations: controllerLocations,
+                nearbyEntityProperties: [[], []],
+                nearbyEntityPropertiesByID: {},
+                nearbyOverlayIDs: [[], []],
+                rayPicks: rayPicks,
+                hudRayPicks: hudRayPicks,
+                mouseRayPointer: { intersects: false }
+            };
+            var readiness = plugin.isReady(controllerData, 0);
+            if (!readiness.active) {
+                return;
+            }
+            _this.runningPluginNames[pluginName] = true;
+            _this.markSlots(plugin, pluginName);
+            _this.pointerManager.makePointerVisible(plugin.parameters.handLaser);
+            var runningness = plugin.tryStartPicoLocalGrab(controllerData) ||
+                plugin.run(controllerData, 0);
+            if (!runningness.active) {
+                delete _this.runningPluginNames[pluginName];
+                _this.markSlots(plugin, false);
+                return;
+            }
+            _this.targetIDs[pluginName] = runningness.targets;
+            if (picoTraceMode !== "off") {
+                console.info("PICO4_EDGE " + JSON.stringify({
+                    event: "far-fast-start", hand: hand === LEFT_HAND ? "left" : "right", time: Date.now()
+                }));
+            }
+        };
+
         this.update = function () {
             try {
                 _this.updateInternal();
@@ -279,6 +560,24 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
         };
 
         this.updateInternal = function () {
+            var picoDispatcherStart = Date.now();
+            var picoNearbyEnd;
+            var picoLocationsEnd;
+            var picoOverlaysEnd;
+            var picoPointerEnd;
+            var picoReadyEnd;
+            var picoDispatcherGap = lastPicoDispatcherStart === 0
+                ? 0 : picoDispatcherStart - lastPicoDispatcherStart;
+            var picoGripChanged = previousPicoDispatcherGrip[0] !== _this.leftSecondaryValue ||
+                previousPicoDispatcherGrip[1] !== _this.rightSecondaryValue;
+            if (picoTraceMode === "full" && (picoGripChanged || picoDispatcherGap > 100)) {
+                tracePicoDispatcher("update-start", {
+                    gap: picoDispatcherGap,
+                    grip: [_this.leftSecondaryValue, _this.rightSecondaryValue]
+                });
+            }
+            lastPicoDispatcherStart = picoDispatcherStart;
+            previousPicoDispatcherGrip = [_this.leftSecondaryValue, _this.rightSecondaryValue];
             if (PROFILE) {
                 Script.beginProfileRange("dispatch.pre");
             }
@@ -309,17 +608,47 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
                 Script.beginProfileRange("dispatch.gather");
             }
 
+            var picoRunningPluginNames = Object.keys(_this.runningPluginNames);
+            var picoOtherModuleRunning = picoRunningPluginNames.some(function (name) {
+                return name.indexOf("Left") !== 0 && name.indexOf("Right") !== 0;
+            });
+            var picoStickActive = _this.picoStickValues.some(function (value) {
+                return Math.abs(value) > 0.01;
+            });
+            var picoGlobalNearSearch = !picoLazyHandRays ||
+                (systemTablet && systemTablet.tabletShown) || HMD.showTablet ||
+                isInEditMode() || Keyboard.raised;
+            var picoLeftModuleRunning = picoRunningPluginNames.some(function (name) {
+                return name.indexOf("Left") === 0;
+            });
+            var picoRightModuleRunning = picoRunningPluginNames.some(function (name) {
+                return name.indexOf("Right") === 0;
+            });
+            var picoLeftNearNeeded = picoGlobalNearSearch || picoLeftModuleRunning ||
+                _this.leftTriggerValue > 0.01 || _this.leftSecondaryValue > 0.01;
+            var picoRightNearNeeded = picoGlobalNearSearch || picoRightModuleRunning ||
+                _this.rightTriggerValue > 0.01 || _this.rightSecondaryValue > 0.01;
+            var picoKeepDispatcherActive = picoOtherModuleRunning || picoStickActive;
+            var picoLeftLocationNeeded = picoLeftNearNeeded || picoOtherModuleRunning ||
+                Math.abs(_this.picoStickValues[0]) > 0.01 || Math.abs(_this.picoStickValues[1]) > 0.01;
+            var picoRightLocationNeeded = picoRightNearNeeded || picoOtherModuleRunning ||
+                Math.abs(_this.picoStickValues[2]) > 0.01 || Math.abs(_this.picoStickValues[3]) > 0.01;
+            var invalidControllerLocation = { valid: false };
             var controllerLocations = [
-                _this.dataGatherers.leftControllerLocation(),
-                _this.dataGatherers.rightControllerLocation()
+                picoLeftLocationNeeded
+                    ? _this.dataGatherers.leftControllerLocation() : invalidControllerLocation,
+                picoRightLocationNeeded
+                    ? _this.dataGatherers.rightControllerLocation() : invalidControllerLocation
             ];
+            picoLocationsEnd = Date.now();
 
             // find 3d overlays/Local Entities near each hand
             var nearbyOverlayIDs = [];
             var h;
 //V8TODO: Overlays.findOverlays might not work here
             for (h = LEFT_HAND; h <= RIGHT_HAND; h++) {
-                if (controllerLocations[h].valid) {
+                var picoHandNearNeeded = h === LEFT_HAND ? picoLeftNearNeeded : picoRightNearNeeded;
+                if (controllerLocations[h].valid && picoHandNearNeeded) {
                     var nearbyOverlays =
                         Overlays.findOverlays(controllerLocations[h].position, NEAR_MAX_RADIUS * sensorScaleFactor);
 
@@ -353,12 +682,14 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
                     nearbyOverlayIDs.push([]);
                 }
             }
+            picoOverlaysEnd = Date.now();
 
             // find entities near each hand
             var nearbyEntityProperties = [[], []];
             var nearbyEntityPropertiesByID = {};
             for (h = LEFT_HAND; h <= RIGHT_HAND; h++) {
-                if (controllerLocations[h].valid) {
+                var picoEntityNearNeeded = h === LEFT_HAND ? picoLeftNearNeeded : picoRightNearNeeded;
+                if (controllerLocations[h].valid && picoEntityNearNeeded) {
                     var controllerPosition = controllerLocations[h].position;
                     var findRadius = NEAR_MAX_RADIUS * sensorScaleFactor;
 
@@ -404,6 +735,31 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
                     }
                 }
             }
+            picoNearbyEnd = Date.now();
+
+            if (picoLazyHandRays && !picoLeftNearNeeded && !picoRightNearNeeded &&
+                    !picoKeepDispatcherActive) {
+                if (!_this.picoIdlePointersDisabled) {
+                    Pointers.disablePointer(_this.leftPointer);
+                    Pointers.disablePointer(_this.rightPointer);
+                    Pointers.disablePointer(_this.leftHudPointer);
+                    Pointers.disablePointer(_this.rightHudPointer);
+                    Pointers.disablePointer(_this.mouseRayPointer);
+                    _this.picoIdlePointersDisabled = true;
+                }
+                var picoIdleEnd = Date.now();
+                if (picoTraceMode === "full" && picoIdleEnd - picoDispatcherStart > 50) {
+                    tracePicoDispatcher("idle-duration", {
+                        total: picoIdleEnd - picoDispatcherStart,
+                        locations: picoLocationsEnd - picoDispatcherStart,
+                        overlays: picoOverlaysEnd - picoLocationsEnd,
+                        entities: picoNearbyEnd - picoOverlaysEnd,
+                        pointersChanged: false
+                    });
+                }
+                return;
+            }
+            _this.picoIdlePointersDisabled = false;
 
             // On Pico, two continuously active world rays cost roughly 5 ms
             // even while the user is simply walking.  Keep them hot for the
@@ -483,6 +839,23 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
                 Pointers.getPrevPickResult(_this.leftHudPointer),
                 Pointers.getPrevPickResult(_this.rightHudPointer)
             ];
+            if (picoLazyHandRays && picoTraceMode === "full") {
+                var rayTraceNow = Date.now();
+                for (var traceHand = LEFT_HAND; traceHand <= RIGHT_HAND; traceHand++) {
+                    if ((_this.leftTriggerValue > 0.01 && traceHand === LEFT_HAND ||
+                            _this.rightTriggerValue > 0.01 && traceHand === RIGHT_HAND) &&
+                            rayTraceNow - _this.lastPicoRayTrace[traceHand] >= 250) {
+                        _this.lastPicoRayTrace[traceHand] = rayTraceNow;
+                        console.info("PICO4_RAY_SEARCH " + JSON.stringify({
+                            hand: traceHand,
+                            trigger: traceHand === LEFT_HAND
+                                ? _this.leftTriggerValue : _this.rightTriggerValue,
+                            world: rayPicks[traceHand],
+                            hud: hudRayPicks[traceHand]
+                        }));
+                    }
+                }
+            }
             var mouseRayPointer = Pointers.getPrevPickResult(_this.mouseRayPointer);
             // if the pickray hit something very nearby, put it into the nearby entities list
             for (h = LEFT_HAND; h <= RIGHT_HAND; h++) {
@@ -563,6 +936,7 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
                 hudRayPicks: hudRayPicks,
                 mouseRayPointer: mouseRayPointer
             };
+            picoPointerEnd = Date.now();
             if (PROFILE) {
                 Script.endProfileRange("dispatch.gather");
             }
@@ -598,6 +972,7 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
             if (PROFILE) {
                 Script.endProfileRange("dispatch.isReady");
             }
+            picoReadyEnd = Date.now();
 
             if (PROFILE) {
                 Script.beginProfileRange("dispatch.run");
@@ -666,9 +1041,38 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
                     _this.pointerManager.forceHandPointerVisible(RIGHT_HAND);
                 }
             }
+            // A held Pico trigger always represents an active world search.
+            // Keep its beam visible even when no dispatcher module currently
+            // owns a target, so distant aiming is observable and consistent.
+            if (picoLazyHandRays && _this.leftTriggerValue >= PICO_LASER_ON_VALUE) {
+                _this.pointerManager.makeTriggerPointerVisible(LEFT_HAND);
+            }
+            if (picoLazyHandRays && _this.rightTriggerValue >= PICO_LASER_ON_VALUE) {
+                _this.pointerManager.makeTriggerPointerVisible(RIGHT_HAND);
+            }
             _this.pointerManager.updatePointersRenderState(controllerData.triggerClicks, controllerData.triggerValues);
             if (PROFILE) {
                 Script.endProfileRange("dispatch.run");
+            }
+            var picoDispatcherEnd = Date.now();
+            if (picoTraceMode === "full" && picoDispatcherEnd - picoDispatcherStart > 50) {
+                tracePicoDispatcher("update-duration", {
+                    total: picoDispatcherEnd - picoDispatcherStart,
+                    locations: picoLocationsEnd - picoDispatcherStart,
+                    overlays: picoOverlaysEnd - picoLocationsEnd,
+                    entities: picoNearbyEnd - picoOverlaysEnd,
+                    pointers: picoPointerEnd - picoNearbyEnd,
+                    ready: picoReadyEnd - picoPointerEnd,
+                    run: picoDispatcherEnd - picoReadyEnd,
+                    grip: [_this.leftSecondaryValue, _this.rightSecondaryValue],
+                    trigger: [_this.leftTriggerValue, _this.rightTriggerValue],
+                    nearNeeded: [picoLeftNearNeeded, picoRightNearNeeded],
+                    tabletShown: !!(systemTablet && systemTablet.tabletShown),
+                    hmdTablet: HMD.showTablet,
+                    editMode: isInEditMode(),
+                    keyboard: Keyboard.raised,
+                    running: Object.keys(_this.runningPluginNames)
+                });
             }
         };
 
@@ -698,6 +1102,10 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
         mapping.from([controllerStandard.LB]).peek().to(_this.leftSecondaryPress);
         mapping.from([controllerStandard.LeftGrip]).peek().to(_this.leftSecondaryPress);
         mapping.from([controllerStandard.RightGrip]).peek().to(_this.rightSecondaryPress);
+        mapping.from([controllerStandard.LX]).peek().to(_this.picoLeftX);
+        mapping.from([controllerStandard.LY]).peek().to(_this.picoLeftY);
+        mapping.from([controllerStandard.RX]).peek().to(_this.picoRightX);
+        mapping.from([controllerStandard.RY]).peek().to(_this.picoRightY);
 
         Controller.enableMapping(MAPPING_NAME);
 
@@ -706,7 +1114,7 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
             maxDistance: picoLazyHandRays ? 20.0 : DEFAULT_SEARCH_SPHERE_DISTANCE,
             filter: Picks.PICK_OVERLAYS | Picks.PICK_LOCAL_ENTITIES | Picks.PICK_ENTITIES |
                 Picks.PICK_INCLUDE_NONCOLLIDABLE |
-                (Settings.getValue("combineHudAndWorldPointers", false) ? Picks.PICK_HUD : 0),
+                (combineHudAndWorldPointers ? Picks.PICK_HUD : 0),
             triggers: [
                 {action: controllerStandard.LTClick, button: "Primary"},
                 {action: controllerStandard.LX, button: "ScrollX"},
@@ -725,7 +1133,7 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
             maxDistance: picoLazyHandRays ? 20.0 : DEFAULT_SEARCH_SPHERE_DISTANCE,
             filter: Picks.PICK_OVERLAYS | Picks.PICK_LOCAL_ENTITIES | Picks.PICK_ENTITIES |
                 Picks.PICK_INCLUDE_NONCOLLIDABLE |
-                (Settings.getValue("combineHudAndWorldPointers", false) ? Picks.PICK_HUD : 0),
+                (combineHudAndWorldPointers ? Picks.PICK_HUD : 0),
             triggers: [
                 {action: controllerStandard.RTClick, button: "Primary"},
                 {action: controllerStandard.RX, button: "ScrollX"},
@@ -739,7 +1147,8 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
             delay: 0
         });
         Keyboard.setRightHandLaser(this.rightPointer);
-        this.leftHudPointer = Settings.getValue("combineHudAndWorldPointers", false) ? this.leftPointer :
+        sendPicoPointerConfig();
+        this.leftHudPointer = combineHudAndWorldPointers ? this.leftPointer :
             this.pointerManager.createPointer(true, PickType.Ray, {
             joint: "_CAMERA_RELATIVE_CONTROLLER_LEFTHAND",
             filter: Picks.PICK_HUD,
@@ -757,7 +1166,7 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
             hand: LEFT_HAND,
             delay: 0
         });
-        this.rightHudPointer = Settings.getValue("combineHudAndWorldPointers", false) ? this.rightPointer :
+        this.rightHudPointer = combineHudAndWorldPointers ? this.rightPointer :
             this.pointerManager.createPointer(true, PickType.Ray, {
             joint: "_CAMERA_RELATIVE_CONTROLLER_RIGHTHAND",
             filter: Picks.PICK_HUD,
@@ -903,6 +1312,11 @@ Script.include("/~/system/libraries/controllerDispatcherUtils.js");
 
     Script.scriptEnding.connect(function () {
         controllerDispatcher.cleanup();
+        Messages.messageReceived.disconnect(handlePicoTraceMessage);
+        Messages.unsubscribe(PICO_TRACE_CHANNEL);
+        if (picoLazyHandRays) {
+            Messages.unsubscribe(PICO_DEPTH_CHANNEL);
+        }
     });
     Script.setTimeout(controllerDispatcher.update, BASIC_TIMER_INTERVAL_MS);
 }());
