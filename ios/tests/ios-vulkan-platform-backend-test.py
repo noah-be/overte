@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Contract for removing GL implementations, not shared GL APIs, from iOS."""
+"""Contract for the Vulkan-only iOS platform and gated direct GL links."""
 
 import pathlib
 
@@ -18,14 +18,17 @@ for token in ('OVERTE_IOS_VULKAN_NATIVE_TARGETS gpu-vk vk', 'OVERTE_IOS_VULKAN_L
 if "gpu-gl-common gpu-gl" in ios_branch:
     raise SystemExit("iOS platform backend still selects OpenGL implementations")
 
-# Internal GL-typed UI debt remains explicit and must not be conflated with the
-# removed backend implementations. The public plugin ABI itself is neutral.
-if " shared workload task octree ktx gpu gl procedural" not in interface_cmake:
-    raise SystemExit("Interface explicit shared gl link unexpectedly changed")
-if "link_hifi_libraries(shared shaders plugins ui-plugins gl ui" not in display_cmake:
-    raise SystemExit("display-plugins explicit shared gl link unexpectedly changed")
+# Both top-level direct links are empty only for iOS Vulkan; target-owned qml/vk
+# compatibility dependencies remain separately audited.
+for text, anchors in (
+    (interface_cmake, ('set(INTERFACE_GL_LIBRARY gl)', 'set(INTERFACE_GL_LIBRARY "")', '${INTERFACE_GL_LIBRARY}')),
+    (display_cmake, ('set(DISPLAY_PLUGINS_GL_LIBRARY gl)', 'set(DISPLAY_PLUGINS_GL_LIBRARY "")', '${DISPLAY_PLUGINS_GL_LIBRARY}')),
+):
+    for anchor in anchors:
+        if anchor not in text:
+            raise SystemExit(f"gated direct GL link contract missing {anchor!r}")
 for token in ("QOpenGLFramebufferObject", "GLsync"):
     if token not in gl_ui_source:
-        raise SystemExit(f"internal GL UI evidence missing {token}")
+        raise SystemExit(f"non-iOS compatibility evidence missing {token}")
 
-print("iOS Vulkan platform backend valid: gpu-vk/vk only; explicit shared GL API debt preserved")
+print("iOS Vulkan platform backend valid: gpu-vk/vk only; both direct GL links gated")
