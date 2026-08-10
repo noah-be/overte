@@ -14,7 +14,7 @@ and retains reports for seven days.
 ## Trusted build
 
 `.github/workflows/android-phone-build.yml` is manual-only and accepts only
-`feature/android-phone-support` or immutable `android-phone-vX.Y.Z-alpha.N`
+`android-phone` or immutable `android-phone-vX.Y.Z-alpha.N`
 tags. It requires a runner with all of these labels:
 
 ```text

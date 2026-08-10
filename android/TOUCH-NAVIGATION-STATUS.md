@@ -28,7 +28,7 @@ process remained running with no fatal entries in the PID-filtered diagnostic.
 
 ## Phone/tablet integration
 
-The current `feature/android-phone-support` integration point is merged. The
+The current `android-phone` integration point is merged. The
 phone action bar now provides **Go To**, **Tablet**, and **View** controls; the
 former action-bar Login slot is used by View, while Login remains available
 from Tablet Home. Tablet visibility still captures touch input, hides the
