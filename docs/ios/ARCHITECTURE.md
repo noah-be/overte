@@ -83,6 +83,9 @@ guarded out on iOS, so no unresolved desktop implementation enters the link.
 Likewise, the AppKit-backed `SpeechRecognizer.mm` and all of its Interface
 registration sites are excluded on iOS; the existing macOS and Windows speech
 implementations remain unchanged.
+The deprecated `PlatformInfo` compatibility API identifies iOS explicitly and
+returns conservative unavailable/unknown hardware values there. It must not
+fall through to the macOS branches that launch `sysctl` or `system_profiler`.
 
 ## ADR-007: secret-free automation
 
