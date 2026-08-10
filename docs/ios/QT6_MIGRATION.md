@@ -328,6 +328,13 @@ existing target `LOCATION` lookup, `windeployqt` discovery and options, DLL
 fixup, and audio-plugin cleanup are unchanged, so desktop Qt 5 behavior is
 preserved while the macro no longer hard-codes a Qt major version.
 
+Custom Linguist translation generation now compiles its temporary TS files
+through `overte_qt_add_translation`. The central wrapper selects
+`qt_add_translation` for Qt 6 and the original `qt5_add_translation` for
+desktop Qt 5, then propagates the generated QM list to its caller. Lupdate
+inputs/options, temporary-file copying, output locations, dependencies, and
+the custom macro's existing parent-scope result remain unchanged.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant

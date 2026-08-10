@@ -969,6 +969,25 @@ def test_scope_contract() -> None:
     if "Qt5::Core" in deploy_cmake.read_text(encoding="utf-8"):
         raise AssertionError("Windows deployment retained a direct Qt 5 imported target")
 
+    require_text(
+        qt_compat,
+        r'function\(overte_qt_add_translation output_variable\)\s+if\(OVERTE_QT_MAJOR EQUAL 6\)\s+qt_add_translation\(\$\{output_variable\} \$\{ARGN\}\)\s+else\(\)\s+qt5_add_translation\(\$\{output_variable\} \$\{ARGN\}\)',
+        "translation compilation must dispatch centrally for Qt 6 and Qt 5",
+    )
+    require_text(
+        qt_compat,
+        r'set\(\$\{output_variable\} "\$\{\$\{output_variable\}\}" PARENT_SCOPE\)',
+        "Qt code-generation wrappers must return generated outputs to their callers",
+    )
+    linguist_macros = SOURCE_ROOT / "cmake" / "modules" / "FindQt5LinguistToolsMacros.cmake"
+    require_text(
+        linguist_macros,
+        r'overte_qt_add_translation\(\$\{_qm_files\} \$\{_my_temptsfiles\}\)',
+        "custom translation generation must compile temporary TS files through QtCompat",
+    )
+    if "qt5_add_translation" in linguist_macros.read_text(encoding="utf-8"):
+        raise AssertionError("custom translation generation retained a direct Qt 5 command")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,

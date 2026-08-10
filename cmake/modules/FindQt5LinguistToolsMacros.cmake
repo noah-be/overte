@@ -84,7 +84,7 @@ function(QT5_CREATE_TRANSLATION_CUSTOM _qm_files)
  	    set_property(SOURCE ${_tmpts_file} PROPERTY OUTPUT_LOCATION ${_qm_output_location})
  	endif()
     endforeach()
-    qt5_add_translation(${_qm_files} ${_my_temptsfiles})
+    overte_qt_add_translation(${_qm_files} ${_my_temptsfiles})
     set(${_qm_files} ${${_qm_files}} PARENT_SCOPE)
 endfunction()
 
