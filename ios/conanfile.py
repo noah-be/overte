@@ -8,9 +8,12 @@ enter the application by accident.
 # Copyright 2026 Overte e.V.
 # SPDX-License-Identifier: Apache-2.0
 
+import os
+
 from conan import ConanFile
 from conan.errors import ConanInvalidConfiguration
 from conan.tools.cmake import CMakeDeps, CMakeToolchain
+from conan.tools.files import save
 
 
 class OverteIOSDependencies(ConanFile):
@@ -85,3 +88,25 @@ class OverteIOSDependencies(ConanFile):
         toolchain.cache_variables["CMAKE_OSX_ARCHITECTURES"] = "arm64"
         toolchain.generate()
         CMakeDeps(self).generate()
+
+        if self.options.with_graphics_toolchain:
+            glslang = self.dependencies.build["glslang"]
+            scribe = self.dependencies.build["scribe"]
+            spirv_cross = self.dependencies.build["spirv-cross"]
+            spirv_tools = self.dependencies.build["spirv-tools"]
+            tool_paths = """
+set(GLSLANG_DIR "%s")
+set(SCRIBE_DIR "%s/tools")
+set(SPIRV_CROSS_DIR "%s")
+set(SPIRV_TOOLS_DIR "%s")
+""" % (
+                ";".join(glslang.cpp_info.bindirs).replace("\\", "/"),
+                scribe.package_folder.replace("\\", "/"),
+                ";".join(spirv_cross.cpp_info.bindirs).replace("\\", "/"),
+                ";".join(spirv_tools.cpp_info.bindirs).replace("\\", "/"),
+            )
+            save(
+                self,
+                os.path.join(self.build_folder, "cmake", "ConanToolsDirs.cmake"),
+                tool_paths,
+            )

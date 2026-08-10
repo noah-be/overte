@@ -358,7 +358,16 @@ def test_cmake_boundary() -> None:
     moltenvk = SOURCE_ROOT / "cmake" / "modules" / "FindMoltenVK.cmake"
     require_text(moltenvk, r"ios-arm64_x86_64-simulator", "MoltenVK lookup must support arm64 simulator")
     require_text(moltenvk, r"ios-arm64", "MoltenVK lookup must support arm64 devices")
+    require_text(moltenvk, r"MoltenVK/static/MoltenVK\.xcframework", "MoltenVK lookup must use the current static package layout")
     require_text(moltenvk, r"NO_DEFAULT_PATH", "MoltenVK must not be found incidentally")
+    integrated_workflow = (SOURCE_ROOT / ".github/workflows/ios-integrated.yml")
+    moltenvk_pin = IOS_ROOT / "moltenvk.env"
+    require_text(moltenvk_pin, r"OVERTE_IOS_MOLTENVK_VERSION=1\.4\.2", "MoltenVK version must be explicit")
+    require_text(moltenvk_pin, r"OVERTE_IOS_MOLTENVK_SHA256=[0-9a-f]{64}", "MoltenVK digest must be explicit")
+    require_text(integrated_workflow, r"Restore pinned MoltenVK", "integrated CI must restore MoltenVK independently")
+    require_text(integrated_workflow, r"OVERTE_IOS_MOLTENVK_SHA256", "MoltenVK download must verify its pinned digest")
+    require_text(integrated_workflow, r"--require-moltenvk", "integrated preflight must validate MoltenVK")
+    require_text(integrated_workflow, r"Save validated MoltenVK", "validated MoltenVK must become a reusable checkpoint")
 
     metal_shader = IOS_ROOT / "src" / "BootstrapShaders.metal"
     require_text(metal_shader, r"overteBootstrapVertex", "Metal probe needs a compiled vertex function")

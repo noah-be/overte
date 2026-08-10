@@ -15,7 +15,13 @@ else()
 endif()
 
 set(_moltenvk_xcframework
-    "${OVERTE_IOS_MOLTENVK_ROOT}/MoltenVK/MoltenVK.xcframework")
+    "${OVERTE_IOS_MOLTENVK_ROOT}/MoltenVK/static/MoltenVK.xcframework")
+if(NOT EXISTS "${_moltenvk_xcframework}")
+    # Retain compatibility with distributions predating the static/dynamic
+    # package split.
+    set(_moltenvk_xcframework
+        "${OVERTE_IOS_MOLTENVK_ROOT}/MoltenVK/MoltenVK.xcframework")
+endif()
 set(_moltenvk_library
     "${_moltenvk_xcframework}/${_moltenvk_slice}/libMoltenVK.a")
 if(EXISTS "${_moltenvk_library}")

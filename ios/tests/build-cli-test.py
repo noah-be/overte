@@ -125,10 +125,10 @@ def main() -> None:
         moltenvk_root = root / "MoltenVK"
         (moltenvk_root / "MoltenVK/include/vulkan").mkdir(parents=True)
         (moltenvk_root / "MoltenVK/include/vulkan/vulkan.h").touch()
-        simulator_slice = moltenvk_root / "MoltenVK/MoltenVK.xcframework/ios-arm64_x86_64-simulator"
+        simulator_slice = moltenvk_root / "MoltenVK/static/MoltenVK.xcframework/ios-arm64_x86_64-simulator"
         simulator_slice.mkdir(parents=True)
         (simulator_slice / "libMoltenVK.a").touch()
-        device_slice = moltenvk_root / "MoltenVK/MoltenVK.xcframework/ios-arm64"
+        device_slice = moltenvk_root / "MoltenVK/static/MoltenVK.xcframework/ios-arm64"
         device_slice.mkdir(parents=True)
         (device_slice / "libMoltenVK.a").touch()
         environment["OVERTE_IOS_MOLTENVK_ROOT"] = str(moltenvk_root)

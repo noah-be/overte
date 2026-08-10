@@ -278,10 +278,13 @@ run_doctor() {
         [[ "$platform" == "simulator" ]] && moltenvk_slice="ios-arm64_x86_64-simulator"
         [[ -f "$moltenvk_root/MoltenVK/include/vulkan/vulkan.h" ]] \
             || fail "MoltenVK headers not found below OVERTE_IOS_MOLTENVK_ROOT"
-        [[ -f "$moltenvk_root/MoltenVK/MoltenVK.xcframework/$moltenvk_slice/libMoltenVK.a" ]] \
+        local moltenvk_xcframework="$moltenvk_root/MoltenVK/static/MoltenVK.xcframework"
+        [[ -d "$moltenvk_xcframework" ]] \
+            || moltenvk_xcframework="$moltenvk_root/MoltenVK/MoltenVK.xcframework"
+        [[ -f "$moltenvk_xcframework/$moltenvk_slice/libMoltenVK.a" ]] \
             || fail "MoltenVK static slice not found: $moltenvk_slice"
         require_command lipo
-        lipo "$moltenvk_root/MoltenVK/MoltenVK.xcframework/$moltenvk_slice/libMoltenVK.a" \
+        lipo "$moltenvk_xcframework/$moltenvk_slice/libMoltenVK.a" \
             -verify_arch arm64 >/dev/null \
             || fail "MoltenVK static slice does not contain arm64: $moltenvk_slice"
         note "MoltenVK: $moltenvk_root ($moltenvk_slice)"
