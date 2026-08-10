@@ -340,7 +340,9 @@ void Application::handleUnzip(QString zipFile, QStringList unzipFile, bool autoA
 }
 
 void Application::packageModel() {
+#if !defined(Q_OS_IOS)
     ModelPackager::package();
+#endif
 }
 
 void Application::addAssetToWorldCheckModelSize() {

@@ -137,6 +137,10 @@ compile/MOC graph.
 With both of its owning desktop windows absent, `JSConsole.cpp/.h` and
 `ui/console.ui` are also excluded from iOS compile/MOC/UIC processing. This
 does not affect script execution or the QML/tablet log surfaces.
+The legacy `Developer > Package Model` pipeline is desktop-only: it runs a
+synchronous chain of QWidget model-selection/property dialogs and ZIP output.
+Its action and Application entry point are disabled on iOS; the distinct Avatar
+Packager tablet-QML workflow remains available.
 LOD controls likewise retain their `TabletLODTools.qml` presentation on iOS;
 the fixed-width, always-on-top QWidget fallback is desktop-only.
 Its `LodToolsDialog.cpp/.h` pair and the desktop-only refresh/window-watcher

@@ -9,6 +9,7 @@ APPLICATION_UI = (ROOT / "interface/src/Application_UI.cpp").read_text()
 APPLICATION = (ROOT / "interface/src/Application.cpp").read_text()
 APPLICATION_SETUP = (ROOT / "interface/src/Application_Setup.cpp").read_text()
 APPLICATION_GRAPHICS = (ROOT / "interface/src/Application_Graphics.cpp").read_text()
+APPLICATION_ASSETS = (ROOT / "interface/src/Application_Assets.cpp").read_text()
 INTERFACE_CMAKE = (ROOT / "interface/CMakeLists.txt").read_text()
 LOG_DIALOG = (ROOT / "interface/src/ui/LogDialog.cpp").read_text()
 BASE_LOG_DIALOG = (ROOT / "interface/src/ui/BaseLogDialog.cpp").read_text()
@@ -60,6 +61,15 @@ require("#if !defined(Q_OS_IOS)\n#include <ui/EntityScriptServerLogDialog.h>\n#e
         "desktop log dialog headers remain in the iOS Application UI graph")
 require("DependencyManager::set<EntityScriptServerLogClient>();" in APPLICATION_SETUP,
         "backend Entity Script Server log client was incorrectly removed with desktop dialogs")
+require("#if !defined(Q_OS_IOS)\n"
+        "    addActionToQMenuAndActionHash(avatarDebugMenu, MenuOption::PackageModel" in MENU,
+        "desktop Package Model action remains in the iOS developer menu")
+require("void Application::packageModel() {\n#if !defined(Q_OS_IOS)\n"
+        "    ModelPackager::package();\n#endif" in APPLICATION_ASSETS,
+        "desktop ModelPackager entry remains reachable on iOS")
+require("ModelPropertiesDialog properties(" in (ROOT / "interface/src/ModelPackager.cpp").read_text() and
+        "QFileDialog::getOpenFileName" in (ROOT / "interface/src/ModelSelector.cpp").read_text(),
+        "ModelPackager is no longer demonstrably a desktop dialog pipeline")
 require("void StandAloneJSConsole::toggleConsole()  {\n#if !defined(Q_OS_IOS)" in JS_CONSOLE,
         "stand-alone desktop JavaScript console remains reachable on iOS")
 require("// Developer > Scripting > Console...\n#if !defined(Q_OS_IOS)" in MENU,
