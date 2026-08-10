@@ -21,6 +21,8 @@ select_device() {
 
 active_udid=""
 active_family=""
+iphone_udid=""
+ipad_udid=""
 finish() {
     local status=$?
     trap - EXIT
@@ -32,18 +34,35 @@ finish() {
             --predicate "process == 'OverteIOSBootstrap'" \
             >"$diagnostics_dir/${active_family:-simulator}-console.log" 2>&1 || true
     fi
-    if [[ -n "$active_udid" ]]; then
-        xcrun simctl terminate "$active_udid" "$bundle_id" >/dev/null 2>&1 || true
-        xcrun simctl shutdown "$active_udid" >/dev/null 2>&1 || true
-    fi
+    for cleanup_udid in "$iphone_udid" "$ipad_udid"; do
+        [[ -n "$cleanup_udid" ]] || continue
+        xcrun simctl terminate "$cleanup_udid" "$bundle_id" >/dev/null 2>&1 || true
+        xcrun simctl shutdown "$cleanup_udid" >/dev/null 2>&1 || true
+    done
     exit "$status"
 }
 trap finish EXIT
 
+iphone_udid="$(select_device iphone)"
+ipad_udid="$(select_device ipad)"
+[[ "$iphone_udid" != "$ipad_udid" ]] || {
+    echo "simulator selector returned one device for both form factors" >&2
+    exit 1
+}
+
+# Start both first boots together: fresh hosted runners otherwise spend several
+# minutes performing the same runtime migration serially for each form factor.
+for boot_udid in "$iphone_udid" "$ipad_udid"; do
+    xcrun simctl boot "$boot_udid" >/dev/null 2>&1 || true
+done
+
 for family in iphone ipad; do
     active_family="$family"
-    active_udid="$(select_device "$family")"
-    xcrun simctl boot "$active_udid" >/dev/null 2>&1 || true
+    if [[ "$family" == "iphone" ]]; then
+        active_udid="$iphone_udid"
+    else
+        active_udid="$ipad_udid"
+    fi
     xcrun simctl bootstatus "$active_udid" -b
     xcrun simctl install "$active_udid" "$app_path"
     launch_output="$(xcrun simctl launch "$active_udid" "$bundle_id")"
