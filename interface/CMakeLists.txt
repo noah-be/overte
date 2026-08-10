@@ -88,8 +88,8 @@ foreach(EXTERNAL ${OPTIONAL_EXTERNALS})
   endif ()
 endforeach()
 
-# find_package(Qt5LinguistTools QUIET REQUIRED)
-# find_package(Qt5LinguistToolsMacros)
+# overte_find_qt(COMPONENTS LinguistTools QUIET REQUIRED)
+# include(FindQt5LinguistToolsMacros)
 
 if (WIN32)
   set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS_DEBUG} -bigobj")
@@ -177,7 +177,7 @@ if(IOS)
   list(REMOVE_ITEM QT_UI_FILES "${CMAKE_CURRENT_SOURCE_DIR}/ui/console.ui")
 endif()
 source_group("UI Files" FILES ${QT_UI_FILES})
-# have qt5 wrap them and generate the appropriate header files
+# Have the selected Qt version wrap them and generate the appropriate header files.
 overte_qt_wrap_ui(QT_UI_HEADERS "${QT_UI_FILES}")
 
 # add them to the interface source files
@@ -186,7 +186,7 @@ set(INTERFACE_SRCS ${INTERFACE_SRCS} "${QT_UI_HEADERS}" "${QT_RESOURCES}")
 # translation disabled until we strip out the line numbers
 # set(QM ${TARGET_NAME}_en.qm)
 # set(TS ${TARGET_NAME}_en.ts)
-# qt5_create_translation_custom(${QM} ${INTERFACE_SRCS} ${QT_UI_FILES} ${TS})
+# OVERTE_CREATE_TRANSLATION_CUSTOM(${QM} ${INTERFACE_SRCS} ${QT_UI_FILES} ${TS})
 
 # setup the android parameters that will help us produce an APK
 if (ANDROID)
