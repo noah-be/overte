@@ -41,6 +41,10 @@ For measured world-entry and post-loading optimization guidance, see the
 
 ### Interfaces in development
 
+The four ports use a shared documentation layout described in
+[`docs/interfaces/`](docs/interfaces/README.md). The platform documentation is
+maintained on its corresponding development branch.
+
 - [macOS](docs/interfaces/macos/README.md)
 
 ### What is this?
