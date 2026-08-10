@@ -165,7 +165,7 @@ extern "C" {
 }
 #endif
 
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
 // On Mac OS, disable App Nap to prevent audio glitches while running in the background
 #include "AppNapDisabler.h"
 static AppNapDisabler appNapDisabler;   // disabled, while in scope

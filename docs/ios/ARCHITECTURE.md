@@ -77,7 +77,9 @@ Platform services initially cover lifecycle, paths, audio sessions,
 permissions, display metrics, safe areas, orientation, touch, and sensors.
 Desktop Objective-C++ sources are not implicitly mobile services:
 `AppNapDisabler.mm` remains part of the macOS Interface graph but is removed
-from the iOS source glob because App Nap is a macOS-only process policy.
+from the iOS source glob because App Nap is a macOS-only process policy. Its
+`Application.cpp` include and process-lifetime instance are also explicitly
+guarded out on iOS, so no unresolved desktop implementation enters the link.
 Likewise, the AppKit-backed `SpeechRecognizer.mm` and all of its Interface
 registration sites are excluded on iOS; the existing macOS and Windows speech
 implementations remain unchanged.

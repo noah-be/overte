@@ -38,8 +38,9 @@ require("elseif (APPLE AND NOT IOS)" in CMAKE,
         "macOS SpeechRecognizer source selection is not isolated from iOS")
 require("#ifdef Q_OS_MAC" in SOURCE and "#import <AppKit/AppKit.h>" in SOURCE,
         "AppNapDisabler is no longer demonstrably macOS-only")
-require("#if defined(Q_OS_MAC)\n// On Mac OS, disable App Nap" in APPLICATION,
-        "desktop App Nap construction changed")
+require("#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)\n"
+        "// On Mac OS, disable App Nap" in APPLICATION,
+        "App Nap construction is not explicitly excluded on iOS")
 require("#import <AppKit/NSSpeechRecognizer.h>" in SPEECH_SOURCE,
         "SpeechRecognizer.mm is no longer demonstrably AppKit-only")
 speech_guard = "#if (defined(Q_OS_MAC) && !defined(Q_OS_IOS)) || defined(Q_OS_WIN)"
