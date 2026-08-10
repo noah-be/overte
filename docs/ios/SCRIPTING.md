@@ -37,6 +37,9 @@ checks those invariants and the Mach-O architecture before CMake runs.
 Because the output is a static archive rather than an installable app, its GN
 configuration disables code signing; signing remains owned by the final Overte
 bundle packaging step.
+The device archive uses Xcode's SDK libc++ (`use_custom_libcxx=false`), as
+required by V8's iOS cross-build guidance; the historical Chromium libc++ in
+this V8 tag is not mixed with the current Xcode SDK headers.
 
 The builder deliberately skips V8's unrelated test-Python hook: V8 12.4 pins
 a historical NumPy test wheel that was not published for macOS arm64. It still

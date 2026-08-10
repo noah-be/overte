@@ -32,6 +32,7 @@ validate() {
     grep -Fxq 'target_cpu = "arm64"' "$install_root/share/overte-v8-ios/build-args.gn" || die "archive was not configured for arm64"
     grep -Fxq 'target_environment = "device"' "$install_root/share/overte-v8-ios/build-args.gn" || die "archive was not configured for an iOS device"
     grep -Fxq 'ios_enable_code_signing = false' "$install_root/share/overte-v8-ios/build-args.gn" || die "unsigned static build policy is not recorded"
+    grep -Fxq 'use_custom_libcxx = false' "$install_root/share/overte-v8-ios/build-args.gn" || die "Xcode libc++ policy is not recorded"
     grep -Fxq 'v8_enable_lite_mode = true' "$install_root/share/overte-v8-ios/build-args.gn" || die "JITless lite mode is not recorded"
     grep -Fxq 'v8_jitless = true' "$install_root/share/overte-v8-ios/build-args.gn" || die "JITless mode is not recorded"
     grep -Fxq 'v8_enable_webassembly = false' "$install_root/share/overte-v8-ios/build-args.gn" || die "WebAssembly is not disabled"
@@ -107,6 +108,7 @@ ios_deployment_target = "$OVERTE_IOS_V8_DEPLOYMENT_TARGET"
 ios_enable_code_signing = false
 is_debug = false
 is_component_build = false
+use_custom_libcxx = false
 symbol_level = 0
 strip_debug_info = true
 v8_monolithic = true
