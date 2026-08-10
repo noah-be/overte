@@ -27,7 +27,9 @@
 #include "MainWindow.h"
 #include "Menu.h"
 #include "DialogsManager.h"
+#if !defined(Q_OS_IOS)
 #include "LodToolsDialog.h"
+#endif
 #include "OctreeStatsDialog.h"
 
 static const int WIDTH = 350;
@@ -86,9 +88,11 @@ HMDToolsDialog::HMDToolsDialog(QWidget* parent) :
     if (dialogsManager->getOctreeStatsDialog()) {
         watchWindow(dialogsManager->getOctreeStatsDialog()->windowHandle());
     }
+#if !defined(Q_OS_IOS)
     if (dialogsManager->getLodToolsDialog()) {
         watchWindow(dialogsManager->getLodToolsDialog()->windowHandle());
     }
+#endif
 
     connect(_switchModeButton, &QPushButton::clicked, [this]{
         toggleHMDMode();
@@ -303,4 +307,3 @@ void HMDWindowWatcher::windowScreenChanged(QScreen* screen) {
         }
     }
 }
-

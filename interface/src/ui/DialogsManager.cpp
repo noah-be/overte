@@ -29,7 +29,9 @@
 #include "DomainConnectionDialog.h"
 #endif
 #include "HMDToolsDialog.h"
+#if !defined(Q_OS_IOS)
 #include "LodToolsDialog.h"
+#endif
 #include "LoginDialog.h"
 #include "OctreeStatsDialog.h"
 #include "PreferencesDialog.h"

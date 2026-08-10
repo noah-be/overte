@@ -127,6 +127,9 @@ always-on-top QWidget fallback is disabled on iOS, while the existing
 `TabletEntityStatistics.qml` view remains the mobile presentation.
 LOD controls likewise retain their `TabletLODTools.qml` presentation on iOS;
 the fixed-width, always-on-top QWidget fallback is desktop-only.
+Its `LodToolsDialog.cpp/.h` pair and the desktop-only refresh/window-watcher
+consumers are omitted from the iOS graph; the `LODManager` and tablet controls
+continue to own the actual LOD state.
 The desktop `AutoUpdater` is not created on iOS. iPad builds are installed and
 updated through their signing/distribution channel, so startup must not query
 desktop installer metadata or offer a direct-download upgrade dialog.

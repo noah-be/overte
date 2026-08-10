@@ -18,6 +18,8 @@ DIALOGS_MANAGER = (ROOT / "interface/src/ui/DialogsManager.cpp").read_text()
 DOMAIN_DIALOG = (ROOT / "interface/src/ui/DomainConnectionDialog.cpp").read_text()
 OCTREE_DIALOG = (ROOT / "interface/src/ui/OctreeStatsDialog.cpp").read_text()
 LOD_DIALOG = (ROOT / "interface/src/ui/LodToolsDialog.cpp").read_text()
+LOD_MANAGER = (ROOT / "interface/src/LODManager.cpp").read_text()
+HMD_TOOLS = (ROOT / "interface/src/ui/HMDToolsDialog.cpp").read_text()
 
 
 def require(condition: bool, message: str) -> None:
@@ -102,6 +104,15 @@ require("QDialog(parent, Qt::Window | Qt::WindowCloseButtonHint | Qt::WindowStay
         "LOD tools dialog is no longer demonstrably a desktop utility window")
 require('tablet->pushOntoStack("hifi/dialogs/TabletLODTools.qml");' in APPLICATION_UI,
         "mobile-friendly LOD tools surface changed")
+for lod_dialog_source in ("LodToolsDialog.cpp", "LodToolsDialog.h"):
+    require(f'"${{CMAKE_CURRENT_SOURCE_DIR}}/src/ui/{lod_dialog_source}"' in INTERFACE_CMAKE,
+            f"{lod_dialog_source} remains in the iOS compile/MOC graph")
+require("#if !defined(Q_OS_IOS)\n#include \"ui/LodToolsDialog.h\"\n#endif" in LOD_MANAGER and
+        "#if !defined(Q_OS_IOS)\n        auto lodToolsDialog" in LOD_MANAGER,
+        "desktop LOD tools refresh remains in the iOS manager graph")
+require("#if !defined(Q_OS_IOS)\n#include \"LodToolsDialog.h\"\n#endif" in HMD_TOOLS and
+        "#if !defined(Q_OS_IOS)\n    if (dialogsManager->getLodToolsDialog())" in HMD_TOOLS,
+        "desktop HMD window watcher retains LOD dialog on iOS")
 require("#if !defined(ANDROID_APP_PHONE_INTERFACE) && !defined(Q_OS_IOS)\n"
         "        bool buildCanUpdate" in APPLICATION_SETUP,
         "desktop AutoUpdater startup remains reachable on iOS")
