@@ -17,6 +17,9 @@ include_hifi_library_headers(script-engine)
 
 target_openxr()
 
+target_include_directories(openxr PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../../common/openxr")
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     # Silence GCC warnings
     target_compile_options(openxr PRIVATE -Wno-missing-field-initializers)

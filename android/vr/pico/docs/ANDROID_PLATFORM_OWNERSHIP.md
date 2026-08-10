@@ -111,6 +111,12 @@ headset, even if Pico is initially the only working implementation:
 - common VR tablet placement, laser/pointer behavior, and safe interaction presets;
 - headset-independent device test protocols and acceptance-result schemas.
 
+V2 establishes the first concrete source in this layer:
+`android/vr/common/openxr/OpenXrDebugPolicy.h` classifies standard OpenXR debug
+severity flags without Qt, Android, graphics, OpenXR platform, or vendor headers.
+The working Pico callback consumes it. A future modern Quest OpenXR target must
+reuse the policy rather than copy it into `questInterface`.
+
 Moving code here must follow a second-consumer rule: extract a component when its
 contract is demonstrably vendor-neutral or when Quest work actually needs it. Do
 not rename every Pico file pre-emptively.
@@ -267,7 +273,8 @@ their product lanes.
 
 Continue with small shared extractions that already have two consumers. The first
 shared JNI source, immutable Settings capability boundary, neutral Android override
-ownership, and aggregate Android-VR gate are complete on the working branch. Next,
-extract one small OpenXR policy with a vendor-neutral contract. Defer the
-large OpenXR/Quest design until the current iOS integration is stable and Quest
-hardware is available for a real validation loop.
+ownership, aggregate Android-VR gate, and first vendor-neutral OpenXR policy are
+complete on the working branch. Do not generalize the remaining Pico policies until
+a second implementation needs them. Defer the large OpenXR/Quest design until the
+current iOS integration is stable and Quest hardware is available for a real
+validation loop.
