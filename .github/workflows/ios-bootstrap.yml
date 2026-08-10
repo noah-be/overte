@@ -115,8 +115,8 @@ jobs:
       - name: Verify device SDK environment
         run: ios/build-ios.sh doctor --platform device
 
-      - name: Compile unsigned arm64 device app
-        run: ios/build-ios.sh build --platform device --configuration Debug
+      - name: Compile and package unsigned arm64 device app
+        run: ios/build-ios.sh package --platform device --configuration Debug
 
       - name: Verify unsigned device app bundle
         run: |
@@ -124,3 +124,43 @@ jobs:
             build-ios/device/ios/Debug-iphoneos/OverteIOSBootstrap.app \
             org.overte.interface.dev \
             iphoneos
+
+      - name: Verify unsigned device IPA
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import zipfile
+
+          root = pathlib.Path("build-ios/artifacts")
+          manifest_path = root / "OverteIOSBootstrap-Debug-device-unsigned.json"
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          ipa = root / manifest["artifact"]
+          assert manifest["platform"] == "iphoneos"
+          assert manifest["architecture"] == "arm64"
+          assert manifest["signed"] is False
+          assert manifest["requiresSigning"] is True
+          assert hashlib.sha256(ipa.read_bytes()).hexdigest() == manifest["sha256"]
+          required = {
+              "Payload/OverteIOSBootstrap.app/Info.plist",
+              "Payload/OverteIOSBootstrap.app/OverteIOSBootstrap",
+              "Payload/OverteIOSBootstrap.app/PrivacyInfo.xcprivacy",
+              "Payload/OverteIOSBootstrap.app/default.metallib",
+          }
+          with zipfile.ZipFile(ipa) as archive:
+              assert archive.testzip() is None
+              names = set(archive.namelist())
+          assert required <= names, required - names
+          print(f"Verified unsigned device IPA: {ipa}")
+          PY
+
+      - name: Upload unsigned device IPA
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: overte-ios-device-unsigned-${{ github.run_id }}
+          path: |
+            build-ios/artifacts/OverteIOSBootstrap-Debug-device-unsigned.ipa
+            build-ios/artifacts/OverteIOSBootstrap-Debug-device-unsigned.json
+          if-no-files-found: error
+          retention-days: 7

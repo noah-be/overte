@@ -14,12 +14,32 @@ explicitly approved. A Hackintosh is not part of the supported toolchain.
 The iOS workflow can run without Apple credentials and performs:
 
 1. Linux host-contract and policy tests;
-2. an unsigned arm64 build against the physical-device SDK;
+2. an unsigned arm64 build against the physical-device SDK, packaged as a
+   standard `Payload/*.app` IPA with a SHA-256 manifest;
 3. unsigned iPhone and iPad simulator launches; and
 4. simulator bundle packaging with a source revision and SHA-256 manifest.
 
-The unsigned device-SDK output is compile evidence only. iPadOS will not install
-it because it has no trusted signature or provisioning profile.
+The unsigned device IPA is compile and packaging evidence. iPadOS will not
+install it until it is re-signed with a provisioning profile.
+
+## Free personal sideloading
+
+For development on one personal iPad, download the
+`overte-ios-device-unsigned-<run-id>` workflow artifact and verify the SHA-256
+value in its JSON manifest. On a trusted Windows or macOS computer, a tool such
+as Sideloadly can apply a free Apple Personal Team signature and install the IPA
+over USB. Keep this manual operation outside CI:
+
+- never upload an Apple password, session, certificate, or provisioning profile
+  to GitHub Actions or this repository;
+- prefer a separate Apple Account when authenticating a third-party signing
+  tool;
+- expect free provisioning to expire after seven days, requiring refresh or
+  reinstallation; and
+- inspect the downloaded IPA digest and exact source revision before signing.
+
+This route is suitable for iterative testing, not distribution. Sideloadly is a
+third-party tool and is not part of the trusted Overte build pipeline.
 
 ## External gate for the first iPad build
 

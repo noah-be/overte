@@ -28,7 +28,7 @@ Commands:
   configure --platform TARGET   Generate the Xcode project (simulator or device).
   build --platform TARGET       Configure and build the bootstrap application.
   test [--platform TARGET]      Run host contracts, optionally build for TARGET.
-  package --platform TARGET     Produce an unsigned simulator archive or device app.
+  package --platform TARGET     Produce a simulator archive or device IPA plus manifest.
   clean --platform TARGET       Print the build directory; use --confirm to remove it.
 
 Options:
@@ -401,7 +401,52 @@ PY
         note "Created unsigned simulator artifact: $archive"
         note "Created artifact manifest: $manifest"
     else
-        note "Device application ready at: $app_path"
+        local signing_label="unsigned" signed_state="false"
+        if [[ -n "$development_team" ]]; then
+            signing_label="signed"
+            signed_state="true"
+        fi
+
+        local ipa="$artifact_dir/OverteIOSBootstrap-${configuration}-device-${signing_label}.ipa"
+        local payload_root
+        payload_root="$(mktemp -d "${TMPDIR:-/tmp}/overte-ios-device-package.XXXXXX")"
+        [[ -d "$payload_root" && "$payload_root" == */overte-ios-device-package.* ]] \
+            || fail "could not create a bounded device packaging directory"
+        mkdir -p "$payload_root/Payload"
+        ditto "$app_path" "$payload_root/Payload/OverteIOSBootstrap.app"
+        ditto -c -k --sequesterRsrc --keepParent "$payload_root/Payload" "$ipa"
+        cmake -E remove_directory "$payload_root"
+
+        local ipa_sha source_revision manifest
+        ipa_sha="$(shasum -a 256 "$ipa" | awk '{print $1}')"
+        source_revision="$(git -C "$source_root" rev-parse HEAD)"
+        manifest="$artifact_dir/OverteIOSBootstrap-${configuration}-device-${signing_label}.json"
+        python3 - "$manifest" "$ipa" "$ipa_sha" "$source_revision" \
+            "$configuration" "$(xcodebuild -version | tr '\n' ' ')" \
+            "$(xcrun --sdk iphoneos --show-sdk-version)" "$signed_state" <<'PY'
+import json
+import pathlib
+import sys
+
+output, archive, digest, revision, configuration, xcode, sdk, signed = sys.argv[1:]
+is_signed = signed == "true"
+payload = {
+    "schemaVersion": 1,
+    "artifact": pathlib.Path(archive).name,
+    "sha256": digest,
+    "sourceRevision": revision,
+    "platform": "iphoneos",
+    "architecture": "arm64",
+    "configuration": configuration,
+    "xcode": xcode.strip(),
+    "sdk": sdk,
+    "signed": is_signed,
+    "requiresSigning": not is_signed,
+}
+pathlib.Path(output).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PY
+        note "Created ${signing_label} device IPA: $ipa"
+        note "Created artifact manifest: $manifest"
     fi
 }
 

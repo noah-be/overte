@@ -109,6 +109,9 @@ def test_profiles() -> None:
     require_text(build_script, r"generate-sbom\.py", "resolved Conan graphs must emit an SBOM")
     require_text(build_script, r'\$build_dir/ios/\$configuration-iphone', "package must use the subdirectory target output")
     require_text(build_script, r"OVERTE_IOS_SDK_NAME", "configure must pass the selected SDK to Metal compilation")
+    require_text(build_script, r"Payload/OverteIOSBootstrap\.app", "device packaging must use the standard IPA payload layout")
+    require_text(build_script, r"device-\$\{signing_label\}\.ipa", "device IPA names must disclose signing state")
+    require_text(build_script, r'"requiresSigning": not is_signed', "device manifests must disclose the signing requirement")
 
 
 def test_dependency_inventory() -> None:
@@ -333,7 +336,9 @@ def test_ci_contract() -> None:
     require_text(workflow, r"simulator-smoke\.sh", "CI must launch both form factors")
     require_text(workflow, r"verify-app\.sh", "CI must inspect the produced bundle")
     require_text(workflow, r"unsigned-device-sdk:", "CI must compile against the physical-device SDK")
-    require_text(workflow, r"build --platform device", "device SDK CI must build the arm64 device target")
+    require_text(workflow, r"package --platform device", "device SDK CI must build and package the arm64 device target")
+    require_text(workflow, r"overte-ios-device-unsigned", "CI must publish the unsigned IPA separately")
+    require_text(workflow, r"Payload/OverteIOSBootstrap\.app/default\.metallib", "CI must inspect the IPA payload")
     require_text(workflow, r"org\.overte\.interface\.dev\s+\\\s+iphoneos", "device SDK CI must verify its platform metadata")
 
     verifier = IOS_ROOT / "ci" / "verify-app.sh"

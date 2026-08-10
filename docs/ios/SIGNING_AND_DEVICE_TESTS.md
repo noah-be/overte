@@ -9,11 +9,13 @@ Simulator builds are unsigned and need no Apple credentials. Physical-device
 work is intentionally separate so pull-request code cannot access a developer
 keychain or provisioning profile.
 
-The `unsigned-device-sdk` CI job already compiles and inspects an `iphoneos`
-bundle without Apple credentials. This catches SDK-only compiler, linker, plist,
-architecture, and forbidden-dependency failures, but its app cannot be installed
-on an iPad. Signing remains the boundary between autonomous cloud preparation
-and a real-device test.
+The `unsigned-device-sdk` CI job compiles and inspects an `iphoneos` bundle
+without Apple credentials, then packages it as an unsigned IPA with a SHA-256
+manifest. This catches SDK-only compiler, linker, plist, architecture,
+forbidden-dependency, and IPA-layout failures. The IPA still cannot be installed
+on an iPad until a trusted local tool applies a personal or paid-team signature.
+Signing remains the boundary between autonomous cloud preparation and a
+real-device test.
 
 ## External inputs
 
