@@ -45,6 +45,12 @@ See the consolidated
 [Android Phone documentation](docs/interfaces/android-phone/README.md) for the
 supported developer setup, emulator and device boundaries, and current status.
 
+### Interfaces in development
+
+The four ports use a shared documentation layout described in
+[`docs/interfaces/`](docs/interfaces/README.md). The platform documentation is
+maintained on its corresponding development branch.
+
 ### What is this?
 
 Overte is a free and open source 3D social virtual worlds software.
