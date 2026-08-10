@@ -527,7 +527,7 @@ void Application::loadScriptURLDialog() const {
 }
 
 void Application::toggleLogDialog() {
-#ifndef ANDROID_APP_QUEST_INTERFACE
+#if !defined(ANDROID_APP_QUEST_INTERFACE) && !defined(Q_OS_IOS)
     if (getLoginDialogPoppedUp()) {
         return;
     }

@@ -97,6 +97,10 @@ macOS: iPad windows do not use the affected desktop `QStyle` title-bar metric.
 `UIUtil::scaleWidgetFontSizes()` treats iOS as a point-based UI platform and
 therefore keeps a 1.0 scale. The legacy 0.75 compatibility scale remains
 limited to the Windows/Linux 96-DPI branch.
+The desktop `LogDialog` is a separate fixed-layout `QDialog` with window-on-top
+and reveal-in-file-manager controls. Its toggle entry point is a no-op on iOS;
+on-device diagnostics use the existing in-app/tablet log surfaces and exported
+device logs instead of creating a desktop utility window.
 
 ## ADR-007: secret-free automation
 

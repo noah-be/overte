@@ -17,6 +17,7 @@ python3 "$script_dir/ios-static-codec-plugin-contract-test.py"
 python3 "$script_dir/interface-ios-macos-source-isolation-test.py"
 python3 "$script_dir/interface-ios-input-platform-test.py"
 python3 "$script_dir/interface-ios-platform-reporting-test.py"
+python3 "$script_dir/interface-ios-window-platform-test.py"
 
 # Native renderer source/CMake contracts. Keep this list alphabetical so graph
 # drift is reviewable and every contract runs exactly once in the host suite.
