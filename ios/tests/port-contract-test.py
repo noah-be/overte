@@ -241,12 +241,17 @@ def test_cmake_boundary() -> None:
     metal_shader = IOS_ROOT / "src" / "BootstrapShaders.metal"
     require_text(metal_shader, r"overteBootstrapVertex", "Metal probe needs a compiled vertex function")
     require_text(metal_shader, r"overteBootstrapFragment", "Metal probe needs a compiled fragment function")
+    require_text(metal_shader, r"overteSceneVertex", "resolved domains need a compiled scene renderer")
+    require_text(metal_shader, r"instanceID", "scene renderer must draw more than a bootstrap triangle")
     bootstrap_view = IOS_ROOT / "src" / "BootstrapViewController.mm"
     require_text(bootstrap_view, r"UIPanGestureRecognizer", "bootstrap must exercise continuous touch input")
     require_text(bootstrap_view, r"UIUserInterfaceIdiomPad", "bootstrap must distinguish iPad layout")
     require_text(bootstrap_view, r"safeAreaLayoutGuide", "bootstrap controls must respect safe areas")
     require_text(bootstrap_view, r"parseOverteAddress", "preview must use the tested Overte address parser")
     require_text(bootstrap_view, r"mv\.overte\.org/server/api/v1/places", "preview must resolve real Overte places")
+    require_text(bootstrap_view, r"sceneLoaded = YES", "an active place must transition into its scene preview")
+    require_text(bootstrap_view, r"UIPinchGestureRecognizer", "scene camera must support touch zoom")
+    require_text(bootstrap_view, r"instanceCount:26", "scene draw must submit its complete instance set")
     require_text(bootstrap_view, r"OverteOpenURLNotification", "preview must consume incoming Overte deep links")
     address_parser = IOS_ROOT / "src" / "OverteAddress.cpp"
     require_text(address_parser, r"40102", "address parser must share Overtes default domain port")

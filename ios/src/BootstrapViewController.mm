@@ -7,6 +7,7 @@
 
 #import <Metal/Metal.h>
 #import <MetalKit/MetalKit.h>
+#import <QuartzCore/QuartzCore.h>
 
 #import "PlatformProbe.h"
 #import "SceneDelegate.h"
@@ -18,6 +19,8 @@
 @property(nonatomic, strong) MTKView* metalView;
 @property(nonatomic, strong) id<MTLCommandQueue> commandQueue;
 @property(nonatomic, strong) id<MTLRenderPipelineState> pipelineState;
+@property(nonatomic, strong) id<MTLRenderPipelineState> scenePipelineState;
+@property(nonatomic, strong) id<MTLDepthStencilState> sceneDepthState;
 @property(nonatomic, strong) UILabel* statusLabel;
 @property(nonatomic, strong) UILabel* touchStatusLabel;
 @property(nonatomic, strong) UITextField* addressField;
@@ -25,7 +28,24 @@
 @property(nonatomic, strong) UILabel* connectionStatusLabel;
 @property(nonatomic, strong) NSURLSessionDataTask* directoryTask;
 @property(nonatomic, strong) PlatformProbe* platformProbe;
+@property(nonatomic) BOOL sceneLoaded;
+@property(nonatomic) float sceneYaw;
+@property(nonatomic) float scenePitch;
+@property(nonatomic) float sceneZoom;
+@property(nonatomic) uint32_t sceneAttendance;
+@property(nonatomic) uint32_t sceneSeed;
 @end
+
+typedef struct {
+    float aspect;
+    float yaw;
+    float pitch;
+    float zoom;
+    float time;
+    uint32_t sceneLoaded;
+    uint32_t attendance;
+    uint32_t domainSeed;
+} OverteSceneUniforms;
 
 @implementation BootstrapViewController
 
@@ -43,8 +63,11 @@
     self.metalView.accessibilityLabel = @"Overte three dimensional view";
     self.metalView.accessibilityHint = @"Use touch or pointer input to inspect the bootstrap scene.";
     self.metalView.colorPixelFormat = MTLPixelFormatBGRA8Unorm_sRGB;
+    self.metalView.depthStencilPixelFormat = MTLPixelFormatDepth32Float;
     self.metalView.clearColor = MTLClearColorMake(0.015, 0.035, 0.075, 1.0);
     self.commandQueue = [device newCommandQueue];
+    self.scenePitch = -0.28f;
+    self.sceneZoom = 1.0f;
 
     NSError* pipelineError = nil;
     id<MTLLibrary> library = [device newDefaultLibrary];
@@ -61,8 +84,19 @@
         pipelineDescriptor.vertexFunction = vertexFunction;
         pipelineDescriptor.fragmentFunction = fragmentFunction;
         pipelineDescriptor.colorAttachments[0].pixelFormat = self.metalView.colorPixelFormat;
+        pipelineDescriptor.depthAttachmentPixelFormat = self.metalView.depthStencilPixelFormat;
         self.pipelineState = [device newRenderPipelineStateWithDescriptor:pipelineDescriptor
                                                                      error:&pipelineError];
+        id<MTLFunction> sceneVertexFunction = [library newFunctionWithName:@"overteSceneVertex"];
+        if (sceneVertexFunction != nil) {
+            pipelineDescriptor.vertexFunction = sceneVertexFunction;
+            self.scenePipelineState = [device newRenderPipelineStateWithDescriptor:pipelineDescriptor
+                                                                               error:&pipelineError];
+            MTLDepthStencilDescriptor* depthDescriptor = [[MTLDepthStencilDescriptor alloc] init];
+            depthDescriptor.depthCompareFunction = MTLCompareFunctionLess;
+            depthDescriptor.depthWriteEnabled = YES;
+            self.sceneDepthState = [device newDepthStencilStateWithDescriptor:depthDescriptor];
+        }
     }
     [self.view addSubview:self.metalView];
 
@@ -175,6 +209,9 @@
     UITapGestureRecognizer* tap = [[UITapGestureRecognizer alloc]
         initWithTarget:self action:@selector(handleTap:)];
     [self.metalView addGestureRecognizer:tap];
+    UIPinchGestureRecognizer* pinch = [[UIPinchGestureRecognizer alloc]
+        initWithTarget:self action:@selector(handlePinch:)];
+    [self.metalView addGestureRecognizer:pinch];
     if (@available(iOS 13.0, *)) {
         UIHoverGestureRecognizer* hover = [[UIHoverGestureRecognizer alloc]
             initWithTarget:self action:@selector(handleHover:)];
@@ -253,6 +290,7 @@
 - (void)checkDomain:(id)sender {
     (void)sender;
     [self.addressField resignFirstResponder];
+    self.sceneLoaded = NO;
     const char* encodedAddress = self.addressField.text.UTF8String;
     auto parsed = overte::ios::parseOverteAddress(encodedAddress != nullptr ? encodedAddress : "");
     if (!parsed) {
@@ -336,6 +374,17 @@
                 @"%@ is %@ · %@:%@ · %@ present\nResolved location: %@",
                 place, state, host, port, attendance, address];
             [strongSelf setConnectionMessage:message error:!active.boolValue];
+            if (active.boolValue) {
+                NSString* domainID = [domain[@"id"] isKindOfClass:NSString.class] ? domain[@"id"] : host;
+                strongSelf.sceneAttendance = attendance.unsignedIntValue;
+                strongSelf.sceneSeed = (uint32_t)domainID.hash;
+                strongSelf.sceneLoaded = YES;
+                strongSelf.statusLabel.text = [NSString stringWithFormat:@"%@\nScene preview loaded", place];
+                strongSelf.touchStatusLabel.text = @"Drag to look · pinch to zoom · tap to reset";
+                strongSelf.metalView.accessibilityLabel = [NSString stringWithFormat:
+                    @"Interactive scene preview for %@", place];
+                strongSelf.metalView.accessibilityHint = @"Drag to rotate, pinch to zoom, or tap to reset the camera.";
+            }
         });
     }];
     [self.directoryTask resume];
@@ -344,6 +393,12 @@
 - (void)handlePan:(UIPanGestureRecognizer*)gesture {
     CGPoint translation = [gesture translationInView:self.metalView];
     CGPoint velocity = [gesture velocityInView:self.metalView];
+    if (self.sceneLoaded) {
+        self.sceneYaw += (float)translation.x * 0.005f;
+        self.scenePitch = fmaxf(-1.1f, fminf(0.35f,
+            self.scenePitch + (float)translation.y * 0.003f));
+        [gesture setTranslation:CGPointZero inView:self.metalView];
+    }
     self.touchStatusLabel.text = [NSString stringWithFormat:
         @"Touch pan Δ %.0f, %.0f · velocity %.0f, %.0f",
         translation.x, translation.y, velocity.x, velocity.y];
@@ -355,10 +410,26 @@
 
 - (void)handleTap:(UITapGestureRecognizer*)gesture {
     CGPoint location = [gesture locationInView:self.metalView];
+    if (self.sceneLoaded) {
+        self.sceneYaw = 0.0f;
+        self.scenePitch = -0.28f;
+        self.sceneZoom = 1.0f;
+        self.touchStatusLabel.text = @"Camera reset · drag to look · pinch to zoom";
+        return;
+    }
     self.touchStatusLabel.text = [NSString stringWithFormat:
         @"Touch tap %.0f, %.0f", location.x, location.y];
     UIAccessibilityPostNotification(UIAccessibilityAnnouncementNotification,
                                     self.touchStatusLabel.text);
+}
+
+- (void)handlePinch:(UIPinchGestureRecognizer*)gesture {
+    if (!self.sceneLoaded) {
+        return;
+    }
+    self.sceneZoom = fmaxf(0.55f, fminf(1.8f, self.sceneZoom * (float)gesture.scale));
+    gesture.scale = 1.0;
+    self.touchStatusLabel.text = [NSString stringWithFormat:@"Scene zoom %.0f%%", self.sceneZoom * 100.0f];
 }
 
 - (void)handleHover:(UIHoverGestureRecognizer*)gesture API_AVAILABLE(ios(13.0)) {
@@ -403,7 +474,24 @@
 
     id<MTLCommandBuffer> commandBuffer = [self.commandQueue commandBuffer];
     id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
-    if (self.pipelineState != nil) {
+    if (self.sceneLoaded && self.scenePipelineState != nil) {
+        const float width = fmaxf((float)view.drawableSize.width, 1.0f);
+        const float height = fmaxf((float)view.drawableSize.height, 1.0f);
+        OverteSceneUniforms uniforms = {
+            .aspect = width / height,
+            .yaw = self.sceneYaw,
+            .pitch = self.scenePitch,
+            .zoom = self.sceneZoom,
+            .time = (float)CACurrentMediaTime(),
+            .sceneLoaded = 1,
+            .attendance = self.sceneAttendance,
+            .domainSeed = self.sceneSeed,
+        };
+        [encoder setRenderPipelineState:self.scenePipelineState];
+        [encoder setDepthStencilState:self.sceneDepthState];
+        [encoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:0];
+        [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:36 instanceCount:26];
+    } else if (self.pipelineState != nil) {
         [encoder setRenderPipelineState:self.pipelineState];
         [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
     }
