@@ -24,6 +24,7 @@ validate() {
     test -f "$install_root/include/node/v8.h" || die "missing include/node/v8.h"
     test -f "$archive" || die "missing lib/libv8_monolith.a"
     test -f "$install_root/share/overte-v8-ios/build-args.gn" || die "missing build metadata"
+    test -f "$install_root/share/overte-v8-ios/compiler.txt" || die "missing compiler metadata"
     test -f "$metadata" || die "missing source metadata"
     grep -Fxq "OVERTE_IOS_V8_VERSION=$OVERTE_IOS_V8_VERSION" "$metadata" || die "V8 version metadata mismatch"
     grep -Fxq "OVERTE_IOS_V8_REVISION=$OVERTE_IOS_V8_REVISION" "$metadata" || die "V8 revision metadata mismatch"
@@ -33,6 +34,9 @@ validate() {
     grep -Fxq 'target_environment = "device"' "$install_root/share/overte-v8-ios/build-args.gn" || die "archive was not configured for an iOS device"
     grep -Fxq 'ios_enable_code_signing = false' "$install_root/share/overte-v8-ios/build-args.gn" || die "unsigned static build policy is not recorded"
     grep -Fxq 'use_custom_libcxx = false' "$install_root/share/overte-v8-ios/build-args.gn" || die "Xcode libc++ policy is not recorded"
+    grep -Fxq 'clang_use_chrome_plugins = false' "$install_root/share/overte-v8-ios/build-args.gn" || die "Xcode clang plugin policy is not recorded"
+    grep -Fxq 'use_lld = false' "$install_root/share/overte-v8-ios/build-args.gn" || die "Xcode linker policy is not recorded"
+    grep -q '^Apple clang version ' "$install_root/share/overte-v8-ios/compiler.txt" || die "archive was not built with Apple clang"
     grep -Fxq 'v8_enable_lite_mode = true' "$install_root/share/overte-v8-ios/build-args.gn" || die "JITless lite mode is not recorded"
     grep -Fxq 'v8_jitless = true' "$install_root/share/overte-v8-ios/build-args.gn" || die "JITless mode is not recorded"
     grep -Fxq 'v8_enable_webassembly = false' "$install_root/share/overte-v8-ios/build-args.gn" || die "WebAssembly is not disabled"
@@ -59,6 +63,9 @@ esac
 
 command -v xcrun >/dev/null || die "Xcode command-line tools are required"
 host_python="$(command -v python3)"
+xcode_clang="$(xcrun --sdk iphoneos --find clang)"
+xcode_clang_base="$(cd "$(dirname "$xcode_clang")/.." && pwd)"
+test -x "$xcode_clang_base/bin/clang++" || die "Xcode clang++ was not found next to $xcode_clang"
 mkdir -p "$work_root"
 
 if [[ ! -d "$depot_root/.git" ]]; then
@@ -91,12 +98,13 @@ EOF
 # environment.  The pinned numpy wheel for that environment was never
 # published for macOS arm64 and is unrelated to compiling v8_monolith.  Run
 # only the build hooks required by GN/Ninja instead: freeze depot_tools,
-# process landmines, install the DEPS-pinned clang toolchain and generate the
-# revision metadata consumed by the build.
+# process landmines and generate the revision metadata consumed by the build.
+# The target compiler is selected explicitly from Xcode below; downloading
+# V8's historical Clang would be both unused and incompatible with Xcode 26's
+# libc++ headers.
 (cd "$source_root" && \
     "$host_python" third_party/depot_tools/update_depot_tools_toggle.py --disable && \
     "$host_python" build/landmines.py --landmine-scripts tools/get_landmines.py && \
-    "$host_python" tools/clang/scripts/update.py && \
     "$host_python" build/util/lastchange.py -o build/util/LASTCHANGE)
 
 mkdir -p "$output_dir"
@@ -109,6 +117,9 @@ ios_enable_code_signing = false
 is_debug = false
 is_component_build = false
 use_custom_libcxx = false
+clang_base_path = "$xcode_clang_base"
+clang_use_chrome_plugins = false
+use_lld = false
 symbol_level = 0
 strip_debug_info = true
 v8_monolithic = true
@@ -128,6 +139,7 @@ mkdir -p "$install_root/include/node" "$install_root/lib" "$install_root/share/o
 cp -R "$source_root/include/." "$install_root/include/node/"
 cp "$output_dir/obj/libv8_monolith.a" "$install_root/lib/"
 cp "$output_dir/args.gn" "$install_root/share/overte-v8-ios/build-args.gn"
+"$xcode_clang" --version > "$install_root/share/overte-v8-ios/compiler.txt"
 cp "$source_root/LICENSE.v8" "$install_root/share/overte-v8-ios/"
 cat > "$install_root/share/overte-v8-ios/source.env" <<EOF
 OVERTE_IOS_V8_VERSION=$OVERTE_IOS_V8_VERSION

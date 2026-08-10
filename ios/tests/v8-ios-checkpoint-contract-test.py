@@ -23,6 +23,11 @@ class V8IOSCheckpointContractTest(unittest.TestCase):
             'target_environment = "device"',
             "ios_enable_code_signing = false",
             "use_custom_libcxx = false",
+            'xcode_clang="$(xcrun --sdk iphoneos --find clang)"',
+            'xcode_clang_base="$(cd "$(dirname "$xcode_clang")/.." && pwd)"',
+            'clang_base_path = "$xcode_clang_base"',
+            "clang_use_chrome_plugins = false",
+            "use_lld = false",
             "v8_monolithic = true",
             "is_component_build = false",
             "v8_enable_lite_mode = true",
@@ -37,11 +42,9 @@ class V8IOSCheckpointContractTest(unittest.TestCase):
         self.assertNotIn("gclient runhooks", script)
         self.assertIn('host_python="$(command -v python3)"', script)
         self.assertIn('"$depot_root/ensure_bootstrap"', script)
-        for required_build_hook in (
-            "build/landmines.py",
-            "tools/clang/scripts/update.py",
-            "build/util/lastchange.py",
-        ):
+        self.assertNotIn("tools/clang/scripts/update.py", script)
+        self.assertIn("^Apple clang version ", script)
+        for required_build_hook in ("build/landmines.py", "build/util/lastchange.py"):
             self.assertIn(required_build_hook, script)
 
     def test_integrated_job_restores_validates_and_saves_checkpoint(self):
