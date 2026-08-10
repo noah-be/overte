@@ -167,6 +167,13 @@ whole-string intent explicit before `match().hasMatch()`. Valid place previews,
 rejected punctuation/underscore cases, and the subsequent account request are
 unchanged. `Tooltip.cpp` therefore leaves the Core5Compat inventory.
 
+The embedded web server's SSI include scanner now uses `QRegularExpression`.
+Its two capture groups still distinguish `file` from `virtual` directives and
+extract the include path, while matching still begins at the prior search
+offset and advances by the original directive length after replacement. File
+resolution, missing-file handling, and inserted content are unchanged.
+`HTTPManager.cpp` therefore leaves the Core5Compat inventory.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant

@@ -16,6 +16,7 @@
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
 #include <QtCore/QMimeDatabase>
+#include <QtCore/QRegularExpression>
 #include <QtNetwork/QTcpSocket>
 
 #include "HTTPConnection.h"
@@ -127,22 +128,29 @@ bool HTTPManager::handleHTTPRequest(HTTPConnection* connection, const QUrl& url,
                 // this is a file that may have some SSI statements
                 // the only thing we support is the include directive, but check the contents for that
 
-                // setup our static QRegExp that will catch <!--#include virtual ... --> and <!--#include file .. --> directives
+                // Match <!--#include virtual ... --> and <!--#include file .. --> directives.
                 const QString includeRegExpString = "<!--\\s*#include\\s+(virtual|file)\\s?=\\s?\"(\\S+)\"\\s*-->";
-                QRegExp includeRegExp(includeRegExpString);
+                const QRegularExpression includeRegExp(includeRegExpString);
 
                 int matchPosition = 0;
 
                 QString localFileString(localFileData);
 
-                while ((matchPosition = includeRegExp.indexIn(localFileString, matchPosition)) != -1) {
+                while (true) {
+                    const auto includeMatch = includeRegExp.match(localFileString, matchPosition);
+                    if (!includeMatch.hasMatch()) {
+                        break;
+                    }
+                    matchPosition = includeMatch.capturedStart();
+                    const auto matchedLength = includeMatch.capturedLength();
+
                     // check if this is a file or vitual include
-                    bool isFileInclude = includeRegExp.cap(1) == "file";
+                    bool isFileInclude = includeMatch.captured(1) == "file";
 
                     // setup the correct file path for the included file
                     QString includeFilePath = isFileInclude
-                    ? localFileInfo.canonicalPath() + "/" + includeRegExp.cap(2)
-                    : _documentRoot + includeRegExp.cap(2);
+                    ? localFileInfo.canonicalPath() + "/" + includeMatch.captured(2)
+                    : _documentRoot + includeMatch.captured(2);
 
                     QString replacementString;
 
@@ -157,10 +165,10 @@ bool HTTPManager::handleHTTPRequest(HTTPConnection* connection, const QUrl& url,
                     }
 
                     // replace the match with the contents of the file, or an empty string if the file was not found
-                    localFileString.replace(matchPosition, includeRegExp.matchedLength(), replacementString);
+                    localFileString.replace(matchPosition, matchedLength, replacementString);
 
                     // push the match position forward so we can check the next match
-                    matchPosition += includeRegExp.matchedLength();
+                    matchPosition += matchedLength;
                 }
 
                 localFileData = localFileString.toLocal8Bit();

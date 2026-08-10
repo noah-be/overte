@@ -47,7 +47,6 @@
         "interface/src/ui/Snapshot.cpp",
         "interface/src/ui/UpdateDialog.cpp",
         "libraries/animation/src/AnimExpression.cpp",
-        "libraries/embedded-webserver/src/HTTPManager.cpp",
         "libraries/script-engine/src/ScriptManager.cpp",
         "libraries/script-engine/src/ScriptsModel.cpp",
         "libraries/shared/src/ApplicationVersion.cpp",

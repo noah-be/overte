@@ -646,6 +646,15 @@ def test_scope_contract() -> None:
     if "QRegExp" in tooltip.read_text(encoding="utf-8"):
         raise AssertionError("Tooltip retained removed QRegExp API")
 
+    http_manager = SOURCE_ROOT / "libraries" / "embedded-webserver" / "src" / "HTTPManager.cpp"
+    require_text(http_manager, r'#include <QtCore/QRegularExpression>', "SSI includes must use the Qt 6 regex API")
+    require_text(http_manager, r'includeRegExp\.match\(localFileString, matchPosition\)', "SSI scanning must retain its search offset")
+    require_text(http_manager, r'includeMatch\.captured\(1\) == "file"', "SSI file/virtual capture semantics must be preserved")
+    require_text(http_manager, r'includeMatch\.captured\(2\)', "SSI include paths must still come from capture group two")
+    require_text(http_manager, r'matchPosition \+= matchedLength;', "SSI scanning must retain its post-replacement advance")
+    if "QRegExp" in http_manager.read_text(encoding="utf-8"):
+        raise AssertionError("HTTPManager retained removed QRegExp API")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,
