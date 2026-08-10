@@ -40,18 +40,23 @@ public:
         ValueList returnedTextures;
     };
 
-    void releaseSize(const QSize& size);
-    void acquireSize(const QSize& size);
-    uint32_t acquireTexture(const QSize& size);
+    void releaseSize(const QSize& size, bool generateMips = true);
+    void acquireSize(const QSize& size, bool generateMips = true);
+    uint32_t acquireTexture(const QSize& size, bool generateMips = true);
     void releaseTexture(const Value& textureAndFence);
 
     // For debugging
     void report();
     size_t getUsedTextureMemory();
 private:
-    static size_t getMemoryForSize(const QSize& size);
+    struct TextureInfo {
+        QSize size;
+        bool generateMips { true };
+    };
 
-    uint32_t createTexture(const QSize& size);
+    static size_t getMemoryForSize(const QSize& size, bool generateMips);
+
+    uint32_t createTexture(const QSize& size, bool generateMips);
     void destroyTexture(uint32_t texture);
 
     void destroy(const Value& textureAndFence);
@@ -62,7 +67,7 @@ private:
     std::atomic<int> _allTextureCount;
     std::atomic<int> _activeTextureCount;
     std::unordered_map<Size, TextureSet> _textures;
-    std::unordered_map<uint32_t, QSize> _textureSizes;
+    std::unordered_map<uint32_t, TextureInfo> _textureSizes;
     Mutex _mutex;
     std::list<Value> _returnedTextures;
     size_t _totalTextureUsage { 0 };

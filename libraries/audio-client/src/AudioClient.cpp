@@ -63,6 +63,7 @@
 #include "AudioHelpers.h"
 
 #if defined(Q_OS_ANDROID)
+#include <jni.h>
 #include <QtAndroidExtras/QAndroidJniObject>
 #include <sys/system_properties.h>
 #endif
@@ -2999,8 +3000,11 @@ float AudioClient::gainForSource(float distance, float volume) {
 
 qint64 AudioClient::AudioOutputIODevice::readData(char * data, qint64 maxSize) {
 
-    // lock-free wait for initialization to avoid races
-    if (!_audio->_audioOutputInitialized.load(std::memory_order_acquire)) {
+    // Device switching owns this mutex while stopping QAudioOutput and replacing
+    // the buffers used below. Never wait here: stop() may itself be waiting for
+    // this callback to return.
+    Lock deviceLock(_deviceMutex, std::try_to_lock);
+    if (!deviceLock.owns_lock() || !_audio->_audioOutputInitialized.load(std::memory_order_acquire)) {
         memset(data, 0, maxSize);
         return maxSize;
     }

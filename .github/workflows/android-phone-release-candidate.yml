@@ -1,0 +1,153 @@
+name: Android Phone release candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing immutable android-phone-vM.m.p-alpha.N tag
+        required: true
+        type: string
+      version_code:
+        description: Deterministic Android version code for the tag
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-phone-release-candidate-${{ inputs.release_tag }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  preflight:
+    name: Validate immutable release source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact candidate tag without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          ref: refs/tags/${{ inputs.release_tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify tag and monotonic version
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          PUBLISHED_CODE_FLOOR: ${{ vars.ANDROID_PHONE_PUBLISHED_VERSION_CODE }}
+        run: |
+          set -euo pipefail
+          android/ci/verify-phone-release.py \
+            --tag "$RELEASE_TAG" \
+            --version-code "$VERSION_CODE" \
+            --published-code-floor "$PUBLISHED_CODE_FLOOR" \
+            --source-revision "$GITHUB_SHA" \
+            --output android/build/release/version-manifest.json
+      - name: Run release contracts
+        working-directory: android
+        run: tests/run-tests.sh contracts
+
+  build:
+    name: Build store-neutral candidate
+    needs: preflight
+    environment: android-phone-release-candidate
+    runs-on: [self-hosted, linux, x64, overte-android-phone-release]
+    timeout-minutes: 240
+    env:
+      CONAN_HOME: ${{ github.workspace }}/android/build/ci-phone-release-conan2
+      PHONE_BUILD_TMPDIR: ${{ github.workspace }}/android/build/release-package-tmp
+      PHONE_APK_VERIFY_TMPDIR: ${{ github.workspace }}/android/build/release-verify-tmp
+    steps:
+      - name: Check out exact approved tag without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          ref: refs/tags/${{ inputs.release_tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reverify approved source and version
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          PUBLISHED_CODE_FLOOR: ${{ vars.ANDROID_PHONE_PUBLISHED_VERSION_CODE }}
+        run: |
+          set -euo pipefail
+          android/ci/verify-phone-release.py \
+            --tag "$RELEASE_TAG" \
+            --version-code "$VERSION_CODE" \
+            --published-code-floor "$PUBLISHED_CODE_FLOOR" \
+            --source-revision "$GITHUB_SHA" \
+            --output android/build/release/version-manifest.json
+      - name: Verify mandatory host-test runtime
+        run: android/ci/check-phone-host-runtime.sh
+      - name: Run complete device-free host tier
+        working-directory: android
+        run: tests/run-tests.sh host --report-dir build/test-results/android-phone-release-host
+      - name: Verify build environment
+        working-directory: android
+        run: ./build-phone.sh doctor
+      - name: Restore checksum-verified 16 KiB dependencies
+        working-directory: android
+        run: ./build-phone.sh deps --download
+      - name: Prepare verified dependencies
+        working-directory: android
+        run: ./build-phone.sh prepare
+      - name: Build unsigned release APK
+        working-directory: android
+        env:
+          VERSION_CODE: ${{ inputs.version_code }}
+          RELEASE_NUMBER: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          release_number="${RELEASE_NUMBER#android-phone-v}"
+          mkdir -p -- "$PHONE_BUILD_TMPDIR"
+          TMPDIR="$PHONE_BUILD_TMPDIR" \
+          JAVA_TOOL_OPTIONS="-Djava.io.tmpdir=$PHONE_BUILD_TMPDIR" \
+          CMAKE_BUILD_PARALLEL_LEVEL=4 PICO_BUILD_JOBS=4 SHADERGEN_JOBS=4 \
+          ./gradlew --no-daemon --settings-file settings-phone.gradle \
+            -PVERSION_CODE="$VERSION_CODE" -PRELEASE_NUMBER="$release_number" \
+            :phoneInterface:assembleRelease --max-workers=8 --stacktrace
+      - name: Verify unsigned state, contents, alignment and provenance
+        env:
+          PHONE_APK: android/apps/phoneInterface/build/outputs/apk/release/phoneInterface-release-unsigned.apk
+        run: |
+          set -euo pipefail
+          sdk_root="${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}"
+          android/ci/verify-phone-apk.py "$PHONE_APK" \
+            --apkanalyzer "$sdk_root/cmdline-tools/latest/bin/apkanalyzer" \
+            --apksigner "$sdk_root/build-tools/36.0.0/apksigner" \
+            --expect-debuggable 0 --expect-unsigned \
+            --source-revision "$GITHUB_SHA" \
+            --output android/build/release/apk-manifest.json
+      - name: Create local draft metadata and SBOM
+        env:
+          PHONE_APK: android/apps/phoneInterface/build/outputs/apk/release/phoneInterface-release-unsigned.apk
+        run: |
+          set -euo pipefail
+          android/ci/create-phone-release-metadata.py \
+            --repository "$GITHUB_WORKSPACE" --apk "$PHONE_APK" \
+            --apk-manifest android/build/release/apk-manifest.json \
+            --version-manifest android/build/release/version-manifest.json \
+            --output-dir android/build/release/draft
+          cp -- "$PHONE_APK" android/build/release/apk-manifest.json \
+            android/build/release/version-manifest.json android/build/release/draft/
+      - name: Upload locally verifiable candidate (not a release)
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: android-phone-rc-${{ inputs.release_tag }}-${{ github.run_attempt }}
+          path: android/build/release/draft/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: android-phone-rc-reports-${{ github.run_id }}-${{ github.run_attempt }}
+          path: android/build/test-results/android-phone-release-host/
+          if-no-files-found: warn
+          retention-days: 14

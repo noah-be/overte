@@ -310,6 +310,11 @@ void Application::initializeUi() {
 
 #if !defined(DISABLE_QML)
     offscreenUi->setProxyWindow(_window->windowHandle());
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // The phone desktop is composited full-screen at its native logical size;
+    // its mip chain is never sampled and only adds memory and update work.
+    offscreenUi->setGenerateMips(false);
+#endif
     // OffscreenUi is a subclass of OffscreenQmlSurface specifically designed to
     // support the window management and scripting proxies for VR use
     DeadlockWatchdogThread::withPause([&] {
@@ -340,6 +345,15 @@ void Application::initializeUi() {
         }
         return result.toPoint();
     });
+#if defined(ANDROID_APP_PHONE_INTERFACE) && defined(USE_GL)
+    // The Android text-selection UI treats an always IME-enabled GL viewport
+    // as a text editor and anchors its controls at GLWidget's fallback cursor
+    // rectangle near the top-left corner. Enable IME only while an actual
+    // offscreen QML text field owns focus.
+    connect(offscreenUi.data(), &OffscreenUi::focusTextChanged, _primaryWidget, [this](bool focusText) {
+        _primaryWidget->setAttribute(Qt::WA_InputMethodEnabled, focusText);
+    });
+#endif
 
     // BUGZ-1365 - the root context should explicitly default to being unable to load local HTML content
     ContextAwareProfile::restrictContext(offscreenUi->getSurfaceContext(), true);

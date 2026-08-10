@@ -180,7 +180,9 @@ public:
     
 protected:
     LightClustersPointer _lightClusters;
+    LightStage::FramePointer _emptyLightFrame { std::make_shared<LightStage::Frame>() };
     bool _freeze;
+    bool _disabledClustersInitialized { false };
 };
 
 

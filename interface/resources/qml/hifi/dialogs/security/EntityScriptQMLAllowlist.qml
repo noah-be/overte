@@ -18,27 +18,24 @@ import stylesUit 1.0 as HifiStylesUit
 import controlsUit 1.0 as HiFiControls
 import PerformanceEnums 1.0
 import "../../../windows"
+import "SecuritySettings.js" as SecuritySettings
 
 
 Rectangle {
     id: parentBody;
+    SecurityTouchConfiguration { id: touchConfiguration }
 
     function getAllowlistAsText() {
-        var allowlist = Settings.getValue("private/settingsSafeURLS");
-        var arrayAllowlist = allowlist.split(",").join("\n");
-        return arrayAllowlist;
+        return SecuritySettings.normalizeAllowlist(
+            Settings.getValue("private/settingsSafeURLS", ""));
     }
 
     function setAllowlistAsText(allowlistText) {
-        Settings.setValue("private/settingsSafeURLS", allowlistText.text);
-
-        var originalSetString = allowlistText.text;
-        var originalSet = originalSetString.split(' ').join('');
-
-        var check = Settings.getValue("private/settingsSafeURLS");
-        var arrayCheck = check.split(",").join("\n");
-
-        setAllowlistSuccess(arrayCheck === originalSet);
+        var normalized = SecuritySettings.normalizeAllowlist(allowlistText);
+        Settings.setValue("private/settingsSafeURLS", normalized);
+        var stored = SecuritySettings.normalizeAllowlist(
+            Settings.getValue("private/settingsSafeURLS", ""));
+        setAllowlistSuccess(stored === normalized);
     }
 
     function setAllowlistSuccess(success) {
@@ -53,15 +50,6 @@ Rectangle {
         Settings.setValue("private/allowlistEnabled", enabled);
         console.info("Toggling Allowlist to:", enabled);
     }
-
-    function initCheckbox() {
-        var check = Settings.getValue("private/allowlistEnabled", false);
-
-        if (check) {
-            allowlistEnabled.toggle();
-        }
-    }
-
 
     anchors.fill: parent
     width: parent.width;
@@ -82,14 +70,11 @@ Rectangle {
         anchors.leftMargin: 20;
         anchors.right: parent.right;
         anchors.rightMargin: 20;
-        height: 60;
+        height: touchConfiguration.titleHeight;
 
         CheckBox {
-            Component.onCompleted: {
-                initCheckbox();
-            }
-
             id: allowlistEnabled;
+            checked: Settings.getValue("private/allowlistEnabled", false);
 
             anchors.right: parent.right;
             anchors.top: parent.top;
@@ -110,97 +95,73 @@ Rectangle {
     }
 
     Rectangle {
-        id: textAreaRectangle;
+        id: editorBody;
         color: "black";
-        width: parent.width;
-        height: 250;
         anchors.top: titleText.bottom;
+        anchors.left: parent.left;
+        anchors.right: parent.right;
+        anchors.bottom: parent.bottom;
 
-        ScrollView {
-            id: textAreaScrollView
-            anchors.fill: parent;
-            width: parent.width
-            height: parent.height
-            contentWidth: parent.width
-            contentHeight: parent.height
-            clip: false;
-
-            TextArea {
-                id: allowlistTextArea
-                text: getAllowlistAsText();
-                onTextChanged: notificationText.text = "";
-                width: parent.width;
-                height: parent.height;
-                font.family: "Ubuntu";
-                font.pointSize: 12;
-                color: "white";
-            }
+        Text {
+            id: descriptionText;
+            text: "One trusted URL or QML file per line. Changes apply when content reloads.";
+            color: "white";
+            font.pixelSize: 14;
+            wrapMode: Text.WordWrap;
+            anchors.top: parent.top;
+            anchors.left: parent.left;
+            anchors.right: parent.right;
+            anchors.margins: 10;
+            height: paintedHeight;
         }
 
-        Button {
-            id: saveChanges
-            anchors.topMargin: 5;
-            anchors.leftMargin: 20;
-            anchors.rightMargin: 20;
-            x: textAreaRectangle.x + textAreaRectangle.width - width - 15;
-            y: textAreaRectangle.y + textAreaRectangle.height - height;
-            contentItem: Text {
-                text: saveChanges.text
+        ScrollView {
+            id: textAreaScrollView;
+            anchors.top: descriptionText.bottom;
+            anchors.left: parent.left;
+            anchors.right: parent.right;
+            anchors.bottom: saveChanges.top;
+            anchors.margins: 10;
+            clip: true;
+
+            TextArea {
+                id: allowlistTextArea;
+                text: getAllowlistAsText();
+                onTextChanged: notificationText.text = "";
+                width: textAreaScrollView.availableWidth;
                 font.family: "Ubuntu";
                 font.pointSize: 12;
-                opacity: enabled ? 1.0 : 0.3
-                color: "black"
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                elide: Text.ElideRight
-            }
-            text: "Save Changes"
-            onClicked: setAllowlistAsText(allowlistTextArea)
-
-            HifiStylesUit.RalewayRegular {
-                id: notificationText;
-                text: ""
-                // Text size
-                size: 16;
-                // Style
                 color: "white";
-                elide: Text.ElideLeft;
-                // Anchors
-                anchors.right: parent.left;
-                anchors.rightMargin: 10;
+                wrapMode: TextEdit.NoWrap;
             }
         }
 
         HifiStylesUit.RalewayRegular {
-            id: descriptionText;
-            text:
-    "The allowlist checks scripts and QML as they are loaded.<br/>
-    Therefore, if a script is cached or has no reason to load again,<br/>
-    removing it from the allowlist will have no effect until<br/>
-    it is reloaded.<br/>
-    Separate your allowlisted domains by line, not commas. e.g.
-    <blockquote>
-        <b>https://google.com/</b><br/>
-        <b>hifi://the-spot/</b><br/>
-        <b>127.0.0.1</b><br/>
-        <b>https://mydomain.here/</b>
-    </blockquote>
-    Ensure there are no spaces or whitespace.<br/><br/>
-    For QML files, you can only allowlist each file individually<br/>
-    ending with '.qml'."
-            // Text size
+            id: notificationText;
+            text: "";
             size: 16;
-            // Style
             color: "white";
             elide: Text.ElideRight;
-            textFormat: Text.RichText;
-            // Anchors
-            anchors.top: parent.bottom;
-            anchors.topMargin: 90;
             anchors.left: parent.left;
-            anchors.leftMargin: 20;
-            anchors.right: parent.right;
-            anchors.rightMargin: 20;
+            anchors.right: saveChanges.left;
+            anchors.verticalCenter: saveChanges.verticalCenter;
+            anchors.margins: 10;
         }
+
+        Button {
+            id: saveChanges;
+            anchors.right: parent.right;
+            anchors.bottom: parent.bottom;
+            anchors.margins: 10;
+            height: touchConfiguration.buttonHeight;
+            width: 160;
+            text: "Save Changes";
+            onClicked: setAllowlistAsText(allowlistTextArea.text);
+        }
+    }
+
+    Component.onDestruction: {
+        allowlistTextArea.focus = false;
+        Qt.inputMethod.hide();
     }
 }

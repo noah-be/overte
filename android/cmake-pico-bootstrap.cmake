@@ -4,6 +4,14 @@ set(ENV{GLSLANG_DIR} "${CMAKE_CURRENT_LIST_DIR}/pico-host-tools")
 set(ENV{SPIRV_CROSS_DIR} "${CMAKE_CURRENT_LIST_DIR}/pico-host-tools")
 set(ENV{SPIRV_TOOLS_DIR} "${CMAKE_CURRENT_LIST_DIR}/pico-host-tools")
 
+# Gradle invokes Ninja directly, so CMAKE_BUILD_PARALLEL_LEVEL alone does not
+# limit native compilation. Carry the Android host limit into Ninja explicitly.
+if(DEFINED ENV{PICO_BUILD_JOBS} AND "$ENV{PICO_BUILD_JOBS}" MATCHES "^[1-9][0-9]*$")
+    set_property(GLOBAL PROPERTY JOB_POOLS "android_compile=$ENV{PICO_BUILD_JOBS}" android_link=1)
+    set(CMAKE_JOB_POOL_COMPILE android_compile)
+    set(CMAKE_JOB_POOL_LINK android_link)
+endif()
+
 # AutoScribeShader includes this generated Conan file after consulting the
 # environment.  The target dependency graph's copy points at Android ARM64
 # executables, which cannot run while generating shaders on the Linux host.
@@ -50,7 +58,36 @@ if(ANDROID)
 
     # Several legacy Android target macros skip find_package() but still link
     # the corresponding imported target. Load all resolved Conan targets once.
-    include(
-        "${CMAKE_CURRENT_LIST_DIR}/conan/pico4-debug/generators/conandeps_legacy.cmake"
-    )
+    if(HIFI_ANDROID_CONAN_GENERATORS)
+        set(_android_conan_generators "${HIFI_ANDROID_CONAN_GENERATORS}")
+    else()
+        set(_android_conan_generators
+            "${CMAKE_CURRENT_LIST_DIR}/conan/pico4-debug/generators")
+    endif()
+    include("${_android_conan_generators}/conandeps_legacy.cmake")
+    unset(_android_conan_generators)
+
+    if(TARGET Qt5::AndroidExtras)
+        file(GLOB _qt_jni_private_headers
+            "${qt_PACKAGE_FOLDER_DEBUG}/include/QtCore/*/QtCore/private/qjni_p.h")
+        list(LENGTH _qt_jni_private_headers _qt_jni_private_header_count)
+        if(NOT _qt_jni_private_header_count EQUAL 1)
+            message(FATAL_ERROR "Expected exactly one Qt Core private JNI header")
+        endif()
+        list(GET _qt_jni_private_headers 0 _qt_jni_private_header)
+        get_filename_component(_qt_jni_private_dir "${_qt_jni_private_header}" DIRECTORY)
+        get_filename_component(_qt_jni_qtcore_dir "${_qt_jni_private_dir}" DIRECTORY)
+        get_filename_component(_qt_jni_version_dir "${_qt_jni_qtcore_dir}" DIRECTORY)
+        set_property(
+            TARGET Qt5::AndroidExtras APPEND PROPERTY INTERFACE_INCLUDE_DIRECTORIES
+            "${_qt_jni_qtcore_dir}"
+            "${_qt_jni_version_dir}"
+        )
+        unset(_qt_jni_private_headers)
+        unset(_qt_jni_private_header_count)
+        unset(_qt_jni_private_header)
+        unset(_qt_jni_private_dir)
+        unset(_qt_jni_qtcore_dir)
+        unset(_qt_jni_version_dir)
+    endif()
 endif()

@@ -1508,7 +1508,7 @@ ScriptEngineMemoryStatistics ScriptEngineV8::getMemoryUsageStatistics() {
     ScriptEngineMemoryStatistics statistics;
     v8::HeapStatistics heapStatistics;
     _v8Isolate->GetHeapStatistics(&heapStatistics);
-    statistics.totalHeapSize = heapStatistics.total_available_size();
+    statistics.totalHeapSize = heapStatistics.total_heap_size();
     statistics.usedHeapSize = heapStatistics.used_heap_size();
     statistics.totalAvailableSize = heapStatistics.total_available_size();
     statistics.totalGlobalHandlesSize = heapStatistics.total_global_handles_size();

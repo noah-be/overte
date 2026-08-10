@@ -1,29 +1,18 @@
 import groovy.io.FileType
-import groovy.json.JsonSlurper
-import groovy.xml.XmlUtil
-import org.apache.tools.ant.taskdefs.condition.Os
-
-import java.util.regex.Matcher
-import java.util.regex.Pattern
 
 buildscript {
     repositories {
         google()
-        jcenter()
+        mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:3.2.1'
+        classpath 'com.android.tools.build:gradle:4.1.3'
     }
-}
-
-plugins {
-    id 'de.undercouch.download' version '3.3.0'
 }
 
 allprojects {
     repositories {
         google()
-        jcenter()
         mavenCentral()
     }
 }
@@ -32,43 +21,37 @@ task clean(type: Delete) {
     delete rootProject.buildDir
 }
 
+def parseLegacyVersionCode = { boolean propertyPresent, Object rawValue ->
+    if (!propertyPresent) {
+        return 1
+    }
+    def value = rawValue == null ? '' : rawValue.toString()
+    if (!(value ==~ /[0-9]+/)) {
+        throw new GradleException(
+            'VERSION_CODE must be an explicit positive decimal integer.')
+    }
+    def parsed = new BigInteger(value)
+    if (parsed < BigInteger.ONE || parsed > BigInteger.valueOf(Integer.MAX_VALUE)) {
+        throw new GradleException(
+            "VERSION_CODE must be between 1 and ${Integer.MAX_VALUE}.")
+    }
+    return parsed.intValue()
+}
+
 ext {
+    legacyBuildConfigString = { Object rawValue ->
+        groovy.json.JsonOutput.toJson(rawValue == null ? '' : rawValue.toString())
+    }
     RELEASE_NUMBER = project.hasProperty('RELEASE_NUMBER') ? project.getProperty('RELEASE_NUMBER') : '0'
-    VERSION_CODE = project.hasProperty('VERSION_CODE') ? project.getProperty('VERSION_CODE') : '0'
+    VERSION_CODE = project.hasProperty('VERSION_CODE') ? project.getProperty('VERSION_CODE') : null
     RELEASE_TYPE = project.hasProperty('RELEASE_TYPE') ? project.getProperty('RELEASE_TYPE') : 'DEV'
     STABLE_BUILD = project.hasProperty('STABLE_BUILD') ? project.getProperty('STABLE_BUILD') : '0'
-    EXEC_SUFFIX = Os.isFamily(Os.FAMILY_WINDOWS) ? '.exe' : ''
-    appVersionCode = Integer.valueOf(VERSION_CODE ?: 1)
+    appVersionCode = parseLegacyVersionCode(project.hasProperty('VERSION_CODE'), VERSION_CODE)
     appVersionName = RELEASE_NUMBER ?: "1.0"
 }
 
 def appDir = new File(projectDir, 'apps/interface')
-def jniFolder = new File(appDir, 'src/main/jniLibs/arm64-v8a')
-def baseUrl = 'https://build-deps.overte.org/dependencies/android/'
 def breakpadDumpSymsDir = new File("${appDir}/build/tmp/breakpadDumpSyms")
-
-task extractGvrBinaries() {
-    doLast {
-        def gvrLibFolder = new File(HIFI_ANDROID_PRECOMPILED, 'gvr/gvr-android-sdk-1.101.0/libraries');
-        zipTree(new File(HIFI_ANDROID_PRECOMPILED, 'gvr/gvr-android-sdk-1.101.0/libraries/sdk-audio-1.101.0.aar')).visit { element ->
-            def fileName = element.file.toString();
-            if (fileName.endsWith('libgvr_audio.so') && fileName.contains('arm64-v8a')) {
-                copy {  from element.file; into gvrLibFolder }
-            }
-        }
-        zipTree(new File(HIFI_ANDROID_PRECOMPILED, 'gvr/gvr-android-sdk-1.101.0/libraries/sdk-base-1.101.0.aar')).visit { element ->
-            def fileName = element.file.toString();
-            if (fileName.endsWith('libgvr.so') && fileName.contains('arm64-v8a')) {
-                copy {  from element.file; into gvrLibFolder }
-            }
-        }
-        fileTree(gvrLibFolder).visit { element ->
-            if (element.file.toString().endsWith('.so')) {
-                copy { from element.file; into jniFolder }
-            }
-        }
-    }
-}
 
 def generateAssetsFileList = {
     def assetsPath = "${appDir}/src/main/assets/"
@@ -133,13 +116,6 @@ task qtBundle {
    }
 }
 
-task setupDependencies() {
-    // migrated to python
-}
-
-task cleanDependencies(type: Delete) {
-}
-
 def runBreakpadDumpSyms = { buildType ->
     gradle.startParameter.showStacktrace = ShowStacktrace.ALWAYS
 
@@ -182,14 +158,14 @@ task runBreakpadDumpSymsRelease() {
 
 task zipDumpSymsDebug(type: Zip, dependsOn: runBreakpadDumpSymsDebug) {
     from (new File(breakpadDumpSymsDir, "debug").absolutePath)
-    archiveFileName.set("symbols-${RELEASE_NUMBER}-debug.zip")
-    destinationDirectory.set(new File("${appDir}/build/tmp/"))
+    archiveName = "symbols-${RELEASE_NUMBER}-debug.zip"
+    destinationDir = new File("${appDir}/build/tmp/")
 }
 
 task zipDumpSymsRelease(type: Zip, dependsOn: runBreakpadDumpSymsRelease) {
     from (new File(breakpadDumpSymsDir, "release").absolutePath)
-    archiveFileName.set("symbols-${RELEASE_NUMBER}-release.zip")
-    destinationDirectory.set(new File("${appDir}/build/tmp/"))
+    archiveName = "symbols-${RELEASE_NUMBER}-release.zip"
+    destinationDir = new File("${appDir}/build/tmp/")
 }
 
 // Symbol upload used an abandoned HTTP plugin whose transitive dependencies
@@ -197,78 +173,3 @@ task zipDumpSymsRelease(type: Zip, dependsOn: runBreakpadDumpSymsRelease) {
 // CI can upload the generated ZIP with a maintained, external mechanism.
 task uploadBreakpadDumpSymsDebug(dependsOn: zipDumpSymsDebug)
 task uploadBreakpadDumpSymsRelease(dependsOn: zipDumpSymsRelease)
-
-// FIXME this code is prototyping the desired functionality for doing build time binary dependency resolution.
-// See the comment on the qtBundle task above
-/*
-// FIXME derive the path from the gradle environment
-def toolchain = [
-    version: '4.9',
-    prefix: 'aarch64-linux-android',
-    // FIXME derive from the host OS
-    ndkHost: 'windows-x86_64',
-]
-
-def findDependentLibrary = { String name ->
-    def libFolders = [
-        new File(qmlRoot, 'lib'),
-        new File("${HIFI_ANDROID_PRECOMPILED}/tbb/lib/release"),
-        new File("${HIFI_ANDROID_PRECOMPILED}/polyvox/lib/Release"),
-        new File("${HIFI_ANDROID_PRECOMPILED}/polyvox/lib/"),
-        new File("${HIFI_ANDROID_PRECOMPILED}/gvr/gvr-android-sdk-1.101.0/libraries"),
-    ]
-
-}
-
-def readElfBinary = new File(android.ndkDirectory, "/toolchains/${toolchain.prefix}-${toolchain.version}/prebuilt/${toolchain.ndkHost}/bin/${toolchain.prefix}-readelf${EXEC_SUFFIX}")
-
-def getDependencies = { File elfBinary ->
-    Set<File> result = []
-    Queue<File> pending = new LinkedList<>()
-    pending.add(elfBinary)
-    Set<File> scanned = []
-
-    Pattern p = ~/.*\(NEEDED\).*Shared library: \[(.*\.so)\]/
-    while (!pending.isEmpty()) {
-        File current = pending.remove()
-        if (scanned.contains(current)) {
-            continue
-        }
-        scanned.add(current)
-        def command = "${readElfBinary} -d -W ${current.absolutePath}"
-        captureOutput(command).split('[\r\n]').each { line ->
-            Matcher m = p.matcher(line)
-            if (!m.matches()) {
-                return
-            }
-            def libName = m.group(1)
-            def file = new File(qmlRoot, "lib/${libName}")
-            if (file.exists()) {
-                result.add(file)
-                pending.add(file)
-            }
-        }
-    }
-    return result
-}
-
-task testElf (dependsOn: 'externalNativeBuildDebug') {
-    doLast {
-        def appLibraries = new HashSet<File>()
-        def qtDependencies = new HashSet<File>()
-        externalNativeBuildDebug.nativeBuildConfigurationsJsons.each { File file ->
-            def json = new JsonSlurper().parse(file)
-            json.libraries.each { node ->
-                def outputFile = new File(node.value.output)
-                if (outputFile.canonicalPath.startsWith(projectDir.canonicalPath)) {
-                    appLibraries.add(outputFile)
-                }
-            }
-        }
-
-        appLibraries.each { File file ->
-            println getDependencies(file)
-        }
-    }
-}
-*/

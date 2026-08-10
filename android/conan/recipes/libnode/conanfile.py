@@ -53,8 +53,8 @@ class LibnodeAndroidConan(ConanFile):
         replace_in_file(
             self,
             "tools/v8_gypfiles/v8.gyp",
-            'OS in "linux mac ios openharmony"',
-            'OS in "linux mac ios android openharmony"',
+            'OS in "linux mac ios freebsd openharmony"',
+            'OS in "linux mac ios freebsd android openharmony"',
         )
         replace_in_file(
             self,
@@ -83,10 +83,11 @@ class LibnodeAndroidConan(ConanFile):
         PkgConfigDeps(self).generate()
         ndk = self.conf.get("tools.android:ndk_path")
         android_env = Environment()
+        node_arch = "x64" if str(self.settings.arch) == "x86_64" else "arm64"
         android_env.define(
             "GYP_DEFINES",
-            "target_arch=arm64 v8_target_arch=arm64 "
-            "android_target_arch=arm64 host_os=linux OS=android "
+            f"target_arch={node_arch} v8_target_arch={node_arch} "
+            f"android_target_arch={node_arch} host_os=linux OS=android "
             f"android_ndk_path={ndk}",
         )
         # GYP's host toolset must remain executable on the build machine.
@@ -118,11 +119,21 @@ class LibnodeAndroidConan(ConanFile):
             "--cross-compiling",
             f"--prefix={self.package_folder}",
         ]
-        args += self._shared_args("openssl", "openssl")
+        # With an x86_64 Android target, GYP's host and target CPU names are
+        # identical. Passing the Android OpenSSL package globally then makes
+        # host generators link Bionic libraries with the Linux linker. Let
+        # Node build its bundled OpenSSL for each toolset in that configuration.
+        if str(self.settings.arch) != "x86_64":
+            args += self._shared_args("openssl", "openssl")
+        else:
+            # Node's bundled OpenSSL selects a legacy x86_64 GCC assembly
+            # implementation that is not accepted by the Android clang target.
+            args.append("--openssl-no-asm")
         args += self._shared_args("zlib", "zlib")
         if self.settings.build_type == "Debug":
             args.append("--debug")
-        args.append("--dest-cpu=arm64")
+        node_arch = "x64" if str(self.settings.arch) == "x86_64" else "arm64"
+        args.append(f"--dest-cpu={node_arch}")
 
         self.run(
             f"python3 configure.py {' '.join(args)}",

@@ -41,10 +41,19 @@ pkglist.json
 *.iml
 *.class
 local.properties
+*.jks
+*.keystore
 /android/build/
 /android/apps/picoInterface/build/
 /android/apps/picoInterface/.cxx/
+/android/apps/phoneInterface/build/
+/android/apps/phoneInterface/.cxx/
 /android/conan/pico4-*/
+/android/conan/phone-16k-debug/
+/android/conan/phone-nonqt-16k-debug/
+/android/conan/phone-nonqt-16k-*/
+/android/conan/phone-emulator-host/
+/android/conan/phone-emulator-x86_64-debug/
 /android/pico-host-tools/
 /android/pico-precompiled-compat/
 /android/power-results/
@@ -57,6 +66,7 @@ local.properties
 /android/**/src/main/res/values/libs.xml
 /android/**/src/main/assets
 /android/**/gradle*
+!/android/tests/robolectric/gradle.lockfile
 *.class
 
 # Visual Studio

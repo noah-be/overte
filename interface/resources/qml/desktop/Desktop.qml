@@ -579,7 +579,10 @@ FocusScope {
         id: focusDebugger;
         objectName: "focusDebugger"
         z: 9999; visible: false; color: "red"
-        ColorAnimation on color { from: "#7fffff00"; to: "#7f0000ff"; duration: 1000; loops: 9999 }
+        ColorAnimation on color {
+            from: "#7fffff00"; to: "#7f0000ff"; duration: 1000; loops: 9999
+            running: focusDebugger.visible
+        }
     }
 
     QQC2.Action {

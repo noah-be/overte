@@ -1,0 +1,35 @@
+plugins {
+    id 'com.android.application' version '8.13.2' apply false
+}
+
+def versionCodeProperty = providers.gradleProperty('VERSION_CODE').orNull
+def parsedVersionCode = 1
+if (versionCodeProperty != null) {
+    if (!(versionCodeProperty ==~ /[1-9][0-9]*/)) {
+        throw new GradleException(
+            'VERSION_CODE must be an explicit positive decimal integer.')
+    }
+    def versionCodeInteger = new BigInteger(versionCodeProperty)
+    if (versionCodeInteger > BigInteger.valueOf(Integer.MAX_VALUE)) {
+        throw new GradleException(
+            "VERSION_CODE must not exceed ${Integer.MAX_VALUE}.")
+    }
+    parsedVersionCode = versionCodeInteger.intValue()
+}
+
+ext {
+    appVersionCode = parsedVersionCode
+    appVersionName = providers.gradleProperty('RELEASE_NUMBER').getOrElse('0.1.0')
+    releaseType = providers.gradleProperty('RELEASE_TYPE').getOrElse('DEV')
+    stableBuild = providers.gradleProperty('STABLE_BUILD').getOrElse('0')
+}
+
+tasks.register('clean', Delete) {
+    delete rootProject.layout.buildDirectory
+}
+
+tasks.register('testPhone') {
+    group = 'verification'
+    description = 'Runs Phone JVM unit tests after native dependencies are prepared.'
+    dependsOn ':phoneInterface:testDebugUnitTest'
+}

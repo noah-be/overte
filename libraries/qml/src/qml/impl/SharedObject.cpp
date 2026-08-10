@@ -348,6 +348,16 @@ void SharedObject::setMaxFps(uint8_t maxFps) {
     _maxFps = maxFps;
 }
 
+void SharedObject::setGenerateMips(bool generateMips) {
+    QMutexLocker locker(&_mutex);
+    _generateMips = generateMips;
+}
+
+bool SharedObject::getGenerateMips() const {
+    QMutexLocker locker(&_mutex);
+    return _generateMips;
+}
+
 bool SharedObject::preRender(bool sceneGraphSync) {
 #ifndef DISABLE_QML
     QMutexLocker lock(&_mutex);
@@ -377,7 +387,7 @@ bool SharedObject::preRender(bool sceneGraphSync) {
 void SharedObject::shutdownRendering(const QSize& size) {
     QMutexLocker locker(&_mutex);
     if (size != QSize()) {
-        getTextureCache().releaseSize(size);
+        getTextureCache().releaseSize(size, _generateMips);
         if (_latestTextureAndFence.first) {
             getTextureCache().releaseTexture(_latestTextureAndFence);
         }

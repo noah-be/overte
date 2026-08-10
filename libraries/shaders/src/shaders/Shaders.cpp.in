@@ -47,7 +47,11 @@ const std::vector<Dialect> & allDialects() {
 }
 
 const std::vector<Variant>& allVariants() {
+#if defined(OVERTE_ANDROID_PHONE_SHADER_PAYLOAD)
+    static const std::vector<Variant> ALL_VARIANTS{ { Variant::Mono } };
+#else
     static const std::vector<Variant> ALL_VARIANTS{ { Variant::Mono, Variant::Stereo } };
+#endif
     return ALL_VARIANTS;
 }
 
@@ -348,4 +352,3 @@ std::vector<std::string> Reflection::getNames(const LocationMap& locations) {
 
 
 }  // namespace shader
-

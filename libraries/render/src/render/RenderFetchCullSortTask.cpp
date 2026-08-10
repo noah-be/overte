@@ -73,7 +73,13 @@ void RenderFetchCullSortTask::build(JobModel& task, const Varying& input, Varyin
     const auto transparents = task.addJob<DepthSortItems>("DepthSortTransparent", filteredSpatialBuckets[TRANSPARENT_SHAPE_BUCKET], DepthSortItems(false));
     const auto lights = filteredSpatialBuckets[LIGHT_BUCKET];
     const auto metas = filteredSpatialBuckets[META_BUCKET];
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Mirror rendering is compiled out of the Android forward graph, so the
+    // phone client must not depth-sort a bucket that has no consumer.
+    const auto mirrors = filteredSpatialBuckets[MIRROR_BUCKET];
+#else
     const auto mirrors = task.addJob<DepthSortItems>("DepthSortMirrors", filteredSpatialBuckets[MIRROR_BUCKET]);
+#endif
 
     const auto background = filteredNonspatialBuckets[BACKGROUND_BUCKET];
 

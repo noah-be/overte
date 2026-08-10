@@ -15,6 +15,8 @@
 
 #include "Application.h"
 
+#include <algorithm>
+#include <cstdint>
 #include <functional>
 
 #include <QDesktopServices>
@@ -23,6 +25,12 @@
 #include <QtCore/QResource>
 #include <QtQml/QQmlContext>
 #include <QtQuick/QQuickWindow>
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include "ui/PhoneGraphicsPolicy.h"
+#include <android/log.h>
+#include <sys/system_properties.h>
+#endif
 
 #include <AccountManager.h>
 #include <AddressManager.h>
@@ -50,6 +58,7 @@
 #include <gl/GLHelpers.h>
 #include <GPUIdent.h>
 #include <graphics-scripting/GraphicsScriptingInterface.h>
+#include <gpu/Texture.h>
 #include <hfm/ModelFormatRegistry.h>
 #include <input-plugins/KeyboardMouseDevice.h>
 #include <input-plugins/TouchscreenDevice.h>
@@ -257,6 +266,13 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     const int listenPort = parser.isSet("listenPort") ? parser.value("listenPort").toInt() : INVALID_PORT;
 
     bool suppressPrompt = parser.isSet("suppress-settings-reset");
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // The crash recovery UI is a native desktop QDialog which is neither
+    // sized nor styled for the Android activity. Keep the crash marker result
+    // (checkForResetSettings returns it when prompts are suppressed), but do
+    // not interrupt phone startup with desktop settings/reset controls.
+    suppressPrompt = true;
+#endif
 
     // set the OCULUS_STORE property so the oculus plugin can know if we ran from the Oculus Store
     qApp->setProperty(hifi::properties::OCULUS_STORE, parser.isSet("oculus-store"));
@@ -269,8 +285,17 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
 
     bool previousSessionCrashed { false };
     if (!inTestMode) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        // CrashRecoveryHandler presents a desktop QWidget dialog before the
+        // Android surface has reached its final size. Besides being unusable
+        // on a phone, that modal dialog can freeze the canvas at the small
+        // pre-rotation geometry. Preserve the crash state for diagnostics,
+        // but leave recovery to Android's normal app lifecycle.
+        previousSessionCrashed = runningMarkerExisted;
+#else
         // TODO: FIX
         previousSessionCrashed = CrashRecoveryHandler::checkForResetSettings(runningMarkerExisted, suppressPrompt);
+#endif
     }
 
     // get dir to use for cache
@@ -279,7 +304,17 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     }
 
     {
-        const QString resourcesBinaryFile = PathUtils::getRccPath();
+        QString resourcesBinaryFile = PathUtils::getRccPath();
+#if defined(Q_OS_ANDROID)
+        // Android extracts the generated RCC beside the application's cache.
+        // Qt can otherwise resolve the resource path to the filesystem root,
+        // where an unprivileged application cannot package or write it.
+        if (resourcesBinaryFile == "/resources.rcc") {
+            resourcesBinaryFile =
+                qApp->property(hifi::properties::APP_LOCAL_DATA_PATH).toString() +
+                "/resources.rcc";
+        }
+#endif
         qCInfo(interfaceapp) << "Loading primary resources from" << resourcesBinaryFile;
 
         if (!QFile::exists(resourcesBinaryFile)) {
@@ -553,6 +588,12 @@ void Application::initialize(const QCommandLineParser &parser) {
             _useSystemCursor = true;
         }
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        // ResourceCacheSharedItems defaults to the desktop request count. Set
+        // the phone baseline explicitly; --concurrent-downloads below remains
+        // the intentional escape hatch for profiling and troubleshooting.
+        ResourceCache::setRequestLimit(MAX_CONCURRENT_RESOURCE_DOWNLOADS);
+#endif
         if (parser.isSet("concurrent-downloads")) {
             bool success;
             uint32_t concurrentDownloads = parser.value("concurrent-downloads").toUInt(&success);
@@ -592,7 +633,10 @@ void Application::initialize(const QCommandLineParser &parser) {
             _overrideDefaultScriptsLocation = false;
         }
 
-        // If launched from Steam, let it handle updates
+        // If launched from Steam, let it handle updates. Android packages are
+        // updated by their installer/store and must not launch the desktop
+        // updater UI during startup.
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
         bool buildCanUpdate = BuildInfo::BUILD_TYPE == BuildInfo::BuildType::Stable
             || BuildInfo::BUILD_TYPE == BuildInfo::BuildType::Nightly;
         if (!parser.isSet("no-updater") && buildCanUpdate) {
@@ -609,6 +653,7 @@ void Application::initialize(const QCommandLineParser &parser) {
             connect(applicationUpdater.data(), &AutoUpdater::newVersionIsAvailable, dialogsManager.data(), &DialogsManager::showUpdateDialog);
             applicationUpdater->checkForUpdate();
         }
+#endif
 
         // setup the stats interval depending on if the 1s faster hearbeat was requested
         if (parser.isSet("fast-heartbeat")) {
@@ -783,8 +828,14 @@ void Application::initialize(const QCommandLineParser &parser) {
     _window->setCentralWidget(_vkWindowWrapper);
 #endif
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Do not restore desktop window geometry on Android. The Activity owns
+    // the fullscreen landscape bounds.
+    _window->showFullScreen();
+#else
     _window->restoreGeometry();
     _window->setVisible(true);
+#endif
 
     _primaryWidget->setFocusPolicy(Qt::StrongFocus);
     _primaryWidget->setFocus();
@@ -803,6 +854,29 @@ void Application::initialize(const QCommandLineParser &parser) {
     // Create the main thread context, the GPU backend
     initializeGL();
     qCDebug(interfaceapp, "Initialized GL");
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Android GPUs use shared memory and do not expose a reliable dedicated
+    // texture budget. Bound residency to reduce low-memory kills in complex
+    // desktop-authored domains while retaining useful texture detail.
+    constexpr uint32_t PHONE_DEFAULT_TEXTURE_BUDGET_MB { 256 };
+    constexpr uint32_t PHONE_MIN_TEXTURE_BUDGET_MB { 128 };
+    constexpr uint32_t PHONE_MAX_TEXTURE_BUDGET_MB { 384 };
+    uint32_t phoneTextureBudgetMB { PHONE_DEFAULT_TEXTURE_BUDGET_MB };
+    char phoneTextureBudgetValue[PROP_VALUE_MAX] {};
+    if (__system_property_get("debug.overte.phone_texture_budget_mb", phoneTextureBudgetValue) > 0) {
+        phoneTextureBudgetMB = phone::graphics::parseClampedUnsigned(
+            phoneTextureBudgetValue, PHONE_DEFAULT_TEXTURE_BUDGET_MB,
+            PHONE_MIN_TEXTURE_BUDGET_MB, PHONE_MAX_TEXTURE_BUDGET_MB);
+    }
+    const gpu::Texture::Size phoneTextureBudget =
+        static_cast<gpu::Texture::Size>(phoneTextureBudgetMB) * 1024 * 1024;
+    gpu::Texture::setAllowedGPUMemoryUsage(phoneTextureBudget);
+    qCInfo(interfaceapp) << "PHONE_RESOURCE_LIMIT textureBudgetMB"
+                         << phoneTextureBudgetMB;
+    __android_log_print(ANDROID_LOG_INFO, "OvertePhoneGraphics",
+        "texture_budget_mb=%u", phoneTextureBudgetMB);
+#endif
 
     // Initialize the display plugin architecture
     initializeDisplayPlugins();
@@ -1219,8 +1293,15 @@ void Application::initialize(const QCommandLineParser &parser) {
         };
         properties["gpu_used_memory"] = (int)BYTES_TO_MB(gpu::Context::getUsedGPUMemSize());
         properties["gpu_free_memory"] = (int)BYTES_TO_MB(gpu::Context::getFreeGPUMemSize());
-        properties["gpu_frame_time"] = (float)(qApp->getGPUContext()->getFrameTimerGPUAverage());
-        properties["batch_frame_time"] = (float)(qApp->getGPUContext()->getFrameTimerBatchAverage());
+        const float gpuFrameTime = (float)(qApp->getGPUContext()->getFrameTimerGPUAverage());
+        const float batchFrameTime = (float)(qApp->getGPUContext()->getFrameTimerBatchAverage());
+        properties["gpu_frame_time"] = gpuFrameTime;
+        properties["batch_frame_time"] = batchFrameTime;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        __android_log_print(ANDROID_LOG_INFO, "OvertePhoneGraphics",
+            "render_gpu_ms=%.2f render_batch_ms=%.2f",
+            static_cast<double>(gpuFrameTime), static_cast<double>(batchFrameTime));
+#endif
         properties["ideal_thread_count"] = QThread::idealThreadCount();
 
         auto hmdHeadPose = getHMDSensorPose();
@@ -1446,7 +1527,7 @@ void Application::setupSignalsAndOperators() {
         connect(nodeList.data(), &NodeList::packetVersionMismatch, this, &Application::notifyPacketVersionMismatch);
 
         auto accountManager = DependencyManager::get<AccountManager>();
-#if defined(Q_OS_ANDROID)
+#if defined(Q_OS_ANDROID) && !defined(ANDROID_APP_PHONE_INTERFACE)
         connect(accountManager.data(), &AccountManager::authRequired, this, []() {
             auto addressManager = DependencyManager::get<AddressManager>();
             AndroidHelper::instance().showLoginDialog(addressManager->currentAddress());

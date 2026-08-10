@@ -1,7 +1,7 @@
 "use strict";
 /*jslint vars:true, plusplus:true, forin:true*/
 /*global Tablet, Script, Entities, MyAvatar, Camera, Quat, HMD, Account, UserActivityLogger, Messages, print,
-  AvatarBookmarks, AddressManager
+  AvatarBookmarks, AddressManager, Window, ANDROID_PHONE_INTERFACE
 */
 /* eslint indent: ["error", 4, { "outerIIFEBody": 0 }] */
 //
@@ -17,6 +17,7 @@
 (function() { // BEGIN LOCAL_SCOPE
 
 var AVATARAPP_QML_SOURCE = "hifi/AvatarApp.qml";
+var isAndroidPhone = typeof ANDROID_PHONE_INTERFACE !== "undefined" && ANDROID_PHONE_INTERFACE;
 Script.include("/~/system/libraries/controllers.js");
 
 // constants from AvatarBookmarks.h
@@ -24,12 +25,29 @@ var ENTRY_AVATAR_URL = "avatarUrl";
 var ENTRY_AVATAR_ENTITIES = "avatarEntites";
 var ENTRY_AVATAR_SCALE = "avatarScale";
 
+var scheduledCallbacks = [];
 function executeLater(callback) {
-    Script.setTimeout(callback, 300);
+    var timeoutID = Script.setTimeout(function() {
+        var index = scheduledCallbacks.indexOf(timeoutID);
+        if (index !== -1) {
+            scheduledCallbacks.splice(index, 1);
+        }
+        if (isWired) {
+            callback();
+        }
+    }, 300);
+    scheduledCallbacks.push(timeoutID);
+}
+
+function cancelScheduledCallbacks() {
+    scheduledCallbacks.forEach(function(timeoutID) {
+        Script.clearTimeout(timeoutID);
+    });
+    scheduledCallbacks = [];
 }
 
 function isWearable(avatarEntity) {
-    return avatarEntity.properties.visible === true &&
+    return avatarEntity && avatarEntity.properties && avatarEntity.properties.visible === true &&
         (avatarEntity.properties.parentID === MyAvatar.sessionUUID || avatarEntity.properties.parentID === MyAvatar.SELF_ID);
 }
 
@@ -69,6 +87,15 @@ function getMyAvatarSettings() {
         animGraphUrl: MyAvatar.getAnimGraphUrl(),
         animGraphOverrideUrl : MyAvatar.getAnimGraphOverrideUrl(),
     };
+}
+
+function validAvatarScale(value) {
+    return typeof value === 'number' && isFinite(value) && value > 0;
+}
+
+function validAvatarResourceUrl(value) {
+    return typeof value === 'string' && value.length > 0 && value.length <= 4096 &&
+        !/[\u0000-\u001f\u007f]/.test(value);
 }
 
 function updateAvatarWearables(avatar, callback, wearablesOverride) {
@@ -119,7 +146,7 @@ function onTargetScaleChanged() {
 }
 
 function onSkeletonModelURLChanged() {
-    if(currentAvatar || (currentAvatar.skeletonModelURL !== MyAvatar.skeletonModelURL)) {
+    if(!currentAvatar || currentAvatar.skeletonModelURL !== MyAvatar.skeletonModelURL) {
         fromQml({'method' : 'getAvatars'});
     }
 }
@@ -205,6 +232,9 @@ function unfreezeWearables() {
 
 
 function fromQml(message) { // messages are {method, params}, like json-rpc. See also sendToQml.
+    if (!message || typeof message !== 'object' || typeof message.method !== 'string') {
+        return;
+    }
     switch (message.method) {
     case 'getAvatars':
         currentAvatar = getMyAvatar();
@@ -230,6 +260,10 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
         sendToQml(message);
         break;
     case 'selectAvatar':
+        if (!message.name || !AvatarBookmarks.getBookmark(message.name)) {
+            sendToQml({ 'method': 'avatarError', 'reason': 'Bookmark not found' });
+            break;
+        }
         Entities.addingWearable.disconnect(onAddingWearable);
         Entities.deletingWearable.disconnect(onDeletingWearable);
         AvatarBookmarks.loadBookmark(message.name);
@@ -244,6 +278,10 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
         AvatarBookmarks.addBookmark(message.name);
         break;
     case 'adjustWearable':
+        if (!message.entityID || !message.properties || !isEntityBeingWorn(message.entityID)) {
+            sendToQml({ 'method': 'avatarError', 'reason': 'Invalid wearable' });
+            break;
+        }
         if(message.properties.localRotationAngles) {
             message.properties.localRotation = Quat.fromVec3Degrees(message.properties.localRotationAngles);
         }
@@ -284,6 +322,11 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
         Messages.unsubscribe('Hifi-Object-Manipulation');
         break;
     case 'addWearable':
+
+        if (!validAvatarResourceUrl(message.url)) {
+            sendToQml({ 'method': 'avatarError', 'reason': 'Invalid wearable URL' });
+            break;
+        }
 
         var joints = MyAvatar.getJointNames();
         var hipsIndex = -1;
@@ -330,6 +373,10 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
         }
         break;
     case 'applyExternalAvatar':
+        if (!validAvatarResourceUrl(message.avatarURL)) {
+            sendToQml({ 'method': 'avatarError', 'reason': 'Invalid avatar URL' });
+            break;
+        }
         var currentAvatarURL = MyAvatar.getFullAvatarURLFromPreferences();
         if(currentAvatarURL !== message.avatarURL) {
             MyAvatar.useFullAvatarURL(message.avatarURL);
@@ -337,25 +384,46 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
         }
         break;
     case 'navigate':
+        if (typeof message.url !== 'string') {
+            sendToQml({ 'method': 'avatarError', 'reason': 'Invalid navigation URL' });
+            break;
+        }
         var tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
         if(message.url.indexOf('hifi://') === 0) {
             AddressManager.handleLookupString(message.url, false);
         } else if(message.url.indexOf('https://') === 0 || message.url.indexOf('http://') === 0) {
-            tablet.gotoWebScreen(message.url, MARKETPLACES_INJECT_SCRIPT_URL);
+            if (isAndroidPhone) {
+                Window.displayAnnouncement("External avatar marketplace pages are not supported on Android yet.");
+            } else {
+                tablet.gotoWebScreen(message.url, MARKETPLACES_INJECT_SCRIPT_URL);
+            }
         }
 
         break;
     case 'setScale':
+        if (!currentAvatar || !validAvatarScale(message.avatarScale)) {
+            sendToQml({ 'method': 'avatarError', 'reason': 'Invalid avatar scale' });
+            break;
+        }
         notifyScaleChanged = false;
         MyAvatar.setAvatarScale(message.avatarScale);
         currentAvatar.avatarScale = message.avatarScale;
         notifyScaleChanged = true;
         break;
     case 'revertScale':
+        if (!currentAvatar || !validAvatarScale(message.avatarScale)) {
+            sendToQml({ 'method': 'avatarError', 'reason': 'Invalid avatar scale' });
+            break;
+        }
         MyAvatar.setAvatarScale(message.avatarScale);
         currentAvatar.avatarScale = message.avatarScale;
         break;
     case 'saveSettings':
+        if (!currentAvatar || !validAvatarScale(message.avatarScale) ||
+                !message.settings || typeof message.settings !== 'object') {
+            sendToQml({ 'method': 'avatarError', 'reason': 'Invalid avatar settings' });
+            break;
+        }
         MyAvatar.setAvatarScale(message.avatarScale);
         currentAvatar.avatarScale = message.avatarScale;
 
@@ -458,6 +526,10 @@ function handleWearableMessages(channel, message, sender) {
         return;
     }
 
+    if (!parsedMessage || typeof parsedMessage !== 'object' || typeof parsedMessage.action !== 'string') {
+        return;
+    }
+
     var entityID = parsedMessage.grabbedEntity;
 
     var updateWearable = function() {
@@ -509,7 +581,14 @@ function onBookmarkDeleted(bookmarkName) {
 
 function onBookmarkAdded(bookmarkName) {
     var bookmark = AvatarBookmarks.getBookmark(bookmarkName);
-    bookmark.avatarEntites.forEach(function(avatarEntity) {
+    if (!bookmark) {
+        return;
+    }
+    var avatarEntities = Array.isArray(bookmark.avatarEntites) ? bookmark.avatarEntites : [];
+    avatarEntities.forEach(function(avatarEntity) {
+        if (!avatarEntity || !avatarEntity.properties || !avatarEntity.properties.localRotation) {
+            return;
+        }
         avatarEntity.properties.localRotationAngles = Quat.safeEulerAngles(avatarEntity.properties.localRotation);
     });
 
@@ -539,6 +618,7 @@ startup();
 
 var isWired = false;
 function off() {
+    cancelScheduledCallbacks();
     if(adjustWearables.opened) {
         adjustWearables.setOpened(false);
         ensureWearableSelected(null);
@@ -618,7 +698,9 @@ function onTabletScreenChanged(type, url) {
     var onAvatarAppScreenNow = (type === "QML" && url === AVATARAPP_QML_SOURCE);
     wireEventBridge(onAvatarAppScreenNow);
     // for toolbar mode: change button to active when window is first openend, false otherwise.
-    button.editProperties({isActive: onAvatarAppScreenNow});
+    if (!isAndroidPhone) {
+        button.editProperties({isActive: onAvatarAppScreenNow});
+    }
 
     if (!onAvatarAppScreen && onAvatarAppScreenNow) {
         on();
@@ -642,6 +724,7 @@ function shutdown() {
     tablet.removeButton(button);
     tablet.screenChanged.disconnect(onTabletScreenChanged);
 
+    wireEventBridge(false);
     off();
 }
 

@@ -12,6 +12,7 @@ MessageBox {
                 'Learn to make a custom avatar by opening this link on your desktop.' +
                 '</a>'
         popup.inputText.visible = true;
+        popup.inputText.maximumLength = 4096;
         popup.inputText.placeholderText = 'Enter Avatar Url';
         popup.inputText.text = url;
         popup.inputText.selectAll();
@@ -44,6 +45,7 @@ MessageBox {
         popup.bodyText = 'If you want to add a custom wearable, you can specify the URL of the wearable file here.'
 
         popup.inputText.visible = true;
+        popup.inputText.maximumLength = 4096;
         popup.inputText.placeholderText = 'Enter Wearable URL';
 
         popup.onButton2Clicked = function() {
@@ -111,4 +113,3 @@ MessageBox {
         popup.open();
     }
 }
-

@@ -12,6 +12,8 @@
 #ifndef hifi_ApplicationOverlay_h
 #define hifi_ApplicationOverlay_h
 
+#include <cstdint>
+
 #include <gpu/Texture.h>
 #include <render/Args.h>
 
@@ -35,6 +37,9 @@ public:
 private:
     void renderDomainConnectionStatusBorder(RenderArgs* renderArgs);
     void renderQmlUi(RenderArgs* renderArgs);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    bool updatePhoneQmlTexture();
+#endif
     void renderOverlays(RenderArgs* renderArgs);
     void buildFramebufferObject();
 
@@ -46,6 +51,15 @@ private:
     gpu::TexturePointer _overlayColorTexture;
     gpu::FramebufferPointer _overlayFramebuffer;
     int _qmlGeometryId { 0 };
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    bool _phoneOverlayCompositeValid { false };
+    uint32_t _phoneOverlayCacheSamples { 0 };
+    uint32_t _phoneOverlayCacheHits { 0 };
+    uint32_t _phoneOverlayCacheMisses { 0 };
+    uint32_t _phoneOverlayCacheNewTextures { 0 };
+    uint32_t _phoneOverlayCacheResizes { 0 };
+#endif
 
     bool _enabled { true };
 };

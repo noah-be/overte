@@ -68,6 +68,10 @@ fi
     printf 'error: timeout must be a positive integer, got %s\n' "$TIMEOUT_SECONDS" >&2
     exit 2
 }
+[[ "$KEEP_LOGS" == 0 || "$KEEP_LOGS" == 1 ]] || {
+    printf 'error: PICO_HOST_KEEP_LOGS must be 0 or 1, got %s\n' "$KEEP_LOGS" >&2
+    exit 2
+}
 [[ -f "$BUILD_DIR/CMakeCache.txt" ]] || {
     printf 'error: no configured CMake build at %s\n' "$BUILD_DIR" >&2
     exit 2

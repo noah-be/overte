@@ -39,6 +39,10 @@ const QStringList& FileUtils::getFileSelectors() {
         // Quest client (not the much larger desktop defaults).
         if (QStringLiteral(HIFI_ANDROID_APP) == QStringLiteral("picoInterface")) {
             extraSelectors << "android_questInterface";
+        } else if (QStringLiteral(HIFI_ANDROID_APP) == QStringLiteral("phoneInterface")) {
+            // Reuse the established touchscreen, action-bar, audio and view
+            // scripts while the phone-specific UI is introduced incrementally.
+            extraSelectors << "android_interface";
         }
 #endif
 

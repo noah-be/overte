@@ -179,6 +179,14 @@ class OneTBBConan(ConanFile):
         if self.package_type == "shared-library":
             # already the default in CMakeLists, just being explicit
             toolchain.cache_variables["BUILD_SHARED_LIBS"] = True
+        if self.settings.os == "Android":
+            # Conan's tools.build:sharedlinkflags are not propagated by this
+            # legacy recipe/toolchain combination. Android 15+ devices require
+            # every packaged shared object to support flexible 16 KiB pages.
+            toolchain.cache_variables["CMAKE_SHARED_LINKER_FLAGS"] = (
+                "-Wl,-z,max-page-size=16384 "
+                "-Wl,-z,common-page-size=16384"
+            )
         toolchain.generate()
 
         if "hwloc" in self.dependencies.direct_host:

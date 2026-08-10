@@ -1,0 +1,83 @@
+{
+  "modules": [
+    {
+      "name": "interface",
+      "path": "android/apps/interface",
+      "plugin": "application",
+      "nativeTarget": "native-lib",
+      "allowBackup": true,
+      "sdk": {"compile": 26, "min": 24, "target": 26},
+      "permissions": ["android.permission.ACCESS_NETWORK_STATE", "android.permission.INTERNET", "android.permission.MODIFY_AUDIO_SETTINGS", "android.permission.READ_EXTERNAL_STORAGE", "android.permission.RECORD_AUDIO", "android.permission.VIBRATE", "android.permission.WRITE_EXTERNAL_STORAGE"],
+      "exportedComponents": ["activity:io.highfidelity.hifiinterface.PermissionChecker", "receiver:.receiver.HeadsetStateReceiver"],
+      "hostEvidence": ["android/apps/interface/src/test/java/io/highfidelity/hifiinterface/HifiUtilsTest.java", "android/apps/interface/src/test/java/io/highfidelity/hifiinterface/PermissionCheckerRobolectricTest.java", "android/tests/java/io/highfidelity/hifiinterface/HifiUtilsStandaloneTest.java", "android/tests/project-module-inventory-test.py"],
+      "runtimeBoundary": "Legacy Qt Android activity, OpenGL renderer, microphone and sensor behavior require an Android device/runtime"
+    },
+    {
+      "name": "picoInterface",
+      "path": "android/apps/picoInterface",
+      "plugin": "application",
+      "nativeTarget": "picoInterface",
+      "allowBackup": false,
+      "sdk": {"compile": 36, "min": 26, "target": 35},
+      "permissions": ["android.permission.ACCESS_NETWORK_STATE", "android.permission.INTERNET", "android.permission.MODIFY_AUDIO_SETTINGS", "android.permission.RECORD_AUDIO", "android.permission.VIBRATE"],
+      "exportedComponents": ["activity:.PermissionsActivity", "activity:.PicoInterfaceActivity"],
+      "sensitiveArgumentLogging": {"source": "android/apps/picoInterface/src/main/java/org/overte/pico/PicoInterfaceActivity.java", "identifiers": ["applicationArguments"]},
+      "sensitiveArgumentLogging": {"source": "android/apps/picoInterface/src/main/java/org/overte/pico/PicoInterfaceActivity.java", "identifiers": ["applicationArguments"]},
+      "hostEvidence": ["android/apps/picoInterface/src/test/java/org/overte/pico/PermissionsActivityRobolectricTest.java", "android/tests/java/org/overte/pico/AndroidAudioInputPolicyStandaloneTest.java", "android/tests/java/org/overte/pico/PicoInterfaceActivityPolicyStandaloneTest.java", "android/tests/pico-audio-jni-boundary-test.py", "android/tests/pico-host-regression-test.sh", "android/tests/project-module-inventory-test.py"],
+      "runtimeBoundary": "Pico OpenXR loader, headset tracking, controller input, audio and vendor runtime require Pico hardware"
+    },
+    {
+      "name": "questInterface",
+      "path": "android/apps/questInterface",
+      "plugin": "application",
+      "nativeTarget": "questInterface",
+      "allowBackup": true,
+      "sdk": {"compile": 28, "min": 24, "target": 28},
+      "permissions": ["android.permission.ACCESS_NETWORK_STATE", "android.permission.INTERNET", "android.permission.MODIFY_AUDIO_SETTINGS", "android.permission.READ_EXTERNAL_STORAGE", "android.permission.RECORD_AUDIO", "android.permission.VIBRATE", "android.permission.WRITE_EXTERNAL_STORAGE"],
+      "exportedComponents": ["activity:.PermissionsChecker"],
+      "sensitiveArgumentLogging": {"source": "android/apps/questInterface/src/main/java/io/highfidelity/questInterface/PermissionsChecker.java", "identifiers": ["mArgs"]},
+      "hostEvidence": ["android/apps/questInterface/src/test/java/io/highfidelity/questInterface/PermissionsCheckerRobolectricTest.java", "android/tests/project-module-inventory-test.py"],
+      "runtimeBoundary": "Quest VR activity, Oculus runtime, tracking, rendering and controller behavior require a compatible headset"
+    },
+    {
+      "name": "framePlayer",
+      "path": "android/apps/framePlayer",
+      "plugin": "application",
+      "nativeTarget": "framePlayer",
+      "allowBackup": false,
+      "sdk": {"compile": 28, "min": 25, "target": 28},
+      "permissions": ["android.permission.ACCESS_NETWORK_STATE", "android.permission.INTERNET", "android.permission.READ_EXTERNAL_STORAGE", "android.permission.WRITE_EXTERNAL_STORAGE"],
+      "exportedComponents": ["activity:org.qtproject.qt5.android.bindings.QtActivity"],
+      "hostEvidence": ["android/tests/project-module-inventory-test.py"],
+      "runtimeBoundary": "Qt window, render thread, OpenGL playback and external frame input require the Android Qt runtime"
+    },
+    {
+      "name": "questFramePlayer",
+      "path": "android/apps/questFramePlayer",
+      "plugin": "application",
+      "nativeTarget": "questFramePlayer",
+      "allowBackup": false,
+      "sdk": {"compile": 28, "min": 25, "target": 28},
+      "permissions": ["android.permission.INTERNET", "android.permission.READ_EXTERNAL_STORAGE"],
+      "exportedComponents": ["activity:.QuestRenderActivity"],
+      "hostEvidence": ["android/tests/project-module-inventory-test.py"],
+      "runtimeBoundary": "Quest render activity, VR compositor and native frame playback require Oculus hardware/runtime"
+    },
+    {
+      "name": "qt",
+      "path": "android/libraries/qt",
+      "plugin": "library",
+      "allowBackup": null,
+      "hostEvidence": ["android/tests/safe-asset-path-test.sh", "android/tests/project-module-inventory-test.py"],
+      "runtimeBoundary": "Bundled Qt Android jars and platform integration require an Android classloader and Qt native runtime"
+    },
+    {
+      "name": "oculus",
+      "path": "android/libraries/oculus",
+      "plugin": "library",
+      "allowBackup": null,
+      "hostEvidence": ["android/tests/project-module-inventory-test.py"],
+      "runtimeBoundary": "Oculus SDK integration is a packaging library whose runtime behavior requires the vendor VR runtime"
+    }
+  ]
+}

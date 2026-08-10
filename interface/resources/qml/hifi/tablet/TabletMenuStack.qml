@@ -40,11 +40,24 @@ Item {
             repeat: false
             running: false
             function trigger(item) { // Capture item and schedule asynchronous Timer.
+                cancelPending();
                 menuItem = item;
                 start();
             }
+            function cancelPending() {
+                stop();
+                menuItem = null;
+            }
             onTriggered: {
-                menuItem.trigger(); // Now trigger the item.
+                var pendingItem = menuItem;
+                menuItem = null;
+                // The menu or platform policy may have changed between touch
+                // release and this deferred callback. Revalidate fail-closed.
+                if (pendingItem === null ||
+                        (d.isAndroidPhoneTablet() && !d.isPhoneMenuItemSupported(pendingItem))) {
+                    return;
+                }
+                pendingItem.trigger();
             }
         }
 
@@ -77,21 +90,71 @@ Item {
 
             for (var i = 0; i < items.length; ++i) {
                 var item = items[i];
+                var phoneSupported = isPhoneMenuItemSupported(item);
+                var unavailableSuffix = isAndroidPhoneTablet() && !phoneSupported
+                    ? " (Unavailable on Android)" : "";
                 switch (item.type) {
                 case MenuItemType.Menu:
-                    result.append({"name": item.title, "item": item})
+                    result.append({
+                        "name": item.title + unavailableSuffix,
+                        "item": item,
+                        "phoneSupported": phoneSupported
+                    })
                     break;
                 case MenuItemType.Item:
                     if (item.text !== "Users Online") {
-                        result.append({"name": item.text, "item": item})
+                        result.append({
+                            "name": item.text + unavailableSuffix,
+                            "item": item,
+                            "phoneSupported": phoneSupported
+                        })
                     }
                     break;
                 case MenuItemType.Separator:
-                    result.append({"name": "", "item": item})
+                    result.append({"name": "", "item": item, "phoneSupported": true})
                     break;
                 }
             }
             return result;
+        }
+
+        function isPhoneMenuItemSupported(item) {
+            if (!isAndroidPhoneTablet()) {
+                return true;
+            }
+
+            var label = item.type === MenuItemType.Menu ? item.title : item.text;
+            // Fail closed at the root. New desktop menus must be reviewed before
+            // the phone tablet can trigger any of their actions.
+            var supportedRootMenus = ["File", "View", "Navigate", "Settings"];
+            var unsupportedActions = [
+                "Quit",
+                "Running Scripts",
+                "Asset Browser",
+                "Controls...",
+                // These desktop settings expose developer-only menus or alter
+                // the next-start recovery flow without a Phone confirmation UI.
+                "Developer Menu",
+                "Ask To Reset Settings on Start",
+                // This native menu action opens the legacy preferences dialog.
+                // The phone's dedicated SETTINGS app remains available separately.
+                "General..."
+            ];
+            if (topMenu === null && item.type === MenuItemType.Menu
+                    && supportedRootMenus.indexOf(label) === -1) {
+                return false;
+            }
+            if (item.type === MenuItemType.Item && unsupportedActions.indexOf(label) !== -1) {
+                return false;
+            }
+
+            // These actions configure hardware/presentation modes which are not
+            // exposed by the Android phone client.
+            return !/(HMD|VR|Desktop)/i.test(label || "");
+        }
+
+        function isAndroidPhoneTablet() {
+            return tabletRoot.screenSpaceMode === true;
         }
 
         function popMenu() {
@@ -122,6 +185,7 @@ Item {
         }
 
         function clearMenus() {
+            delay.cancelPending()
             topMenu = null
             d.clear()
         }
@@ -161,6 +225,9 @@ Item {
         }
 
         function handleSelection(parentMenu, selectedItem, item) {
+            if (isAndroidPhoneTablet() && !selectedItem.platformEnabled) {
+                return;
+            }
             while (topMenu && topMenu !== parentMenu) {
                 popMenu();
             }

@@ -34,6 +34,7 @@ void AndroidHelper::requestActivity(const QString &activityName, const bool back
 }
 
 void AndroidHelper::notifyLoadComplete() {
+    _loadComplete = true;
     emit qtAppLoadComplete();
 }
 
@@ -63,10 +64,11 @@ void AndroidHelper::showLoginDialog(QUrl url) {
     emit androidActivityRequested("Login", true, args);
 }
 
-void AndroidHelper::processURL(const QString &url) {
+bool AndroidHelper::processURL(const QString &url) {
     if (qApp->canAcceptURL(url)) {
-        qApp->acceptURL(url);
+        return qApp->acceptURL(url);
     }
+    return false;
 }
 
 void AndroidHelper::notifyHeadsetOn(bool pluggedIn) {

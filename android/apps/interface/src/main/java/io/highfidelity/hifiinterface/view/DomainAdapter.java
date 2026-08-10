@@ -16,6 +16,8 @@ import java.util.Arrays;
 import java.util.List;
 
 import io.highfidelity.hifiinterface.R;
+import io.highfidelity.hifiinterface.LegacyAdapterPositionPolicy;
+import io.highfidelity.hifiinterface.LegacyDomainLocationPolicy;
 import io.highfidelity.hifiinterface.provider.DomainProvider;
 import io.highfidelity.hifiinterface.provider.UserStoryDomainProvider;
 
@@ -119,14 +121,10 @@ public class DomainAdapter extends RecyclerView.Adapter<DomainAdapter.ViewHolder
 
     private void addLastLocation(List<Domain> domain) {
         Domain lastVisitedDomain = new Domain(mContext.getString(R.string.your_last_location), mLastLocation, DEFAULT_THUMBNAIL_PLACE);
-        if (!mLastLocation.isEmpty() && mLastLocation.contains("://")) {
-            int startIndex = mLastLocation.indexOf("://");
-            int endIndex = mLastLocation.indexOf("/", startIndex + 3);
-            String toSearch = mLastLocation.substring(0, endIndex + 1).toLowerCase();
-            for (Domain d : domain) {
-                if (d.url.toLowerCase().startsWith(toSearch)) {
-                    lastVisitedDomain.thumbnail = d.thumbnail;
-                }
+        for (Domain d : domain) {
+            if (LegacyDomainLocationPolicy.matchesRoot(mLastLocation, d.url)) {
+                lastVisitedDomain.thumbnail = d.thumbnail;
+                break;
             }
         }
         domain.add(0, lastVisitedDomain);
@@ -165,7 +163,10 @@ public class DomainAdapter extends RecyclerView.Adapter<DomainAdapter.ViewHolder
         @Override
         public void onClick(View view) {
             int position = getAdapterPosition();
-            if (mClickListener != null) mClickListener.onItemClick(view, position, mDomains[position]);
+            if (mClickListener != null &&
+                    LegacyAdapterPositionPolicy.isValid(position, mDomains.length)) {
+                mClickListener.onItemClick(view, position, mDomains[position]);
+            }
         }
     }
 

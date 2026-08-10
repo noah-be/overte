@@ -1,0 +1,20 @@
+{
+  "name": "overte-android-script-tests",
+  "private": true,
+  "scripts": {
+    "test": "node --test",
+    "coverage": "npm run coverage:core && npm run coverage:places",
+    "coverage:core": "npm run coverage:action-bar && npm run coverage:tablet-apps && npm run coverage:phone-emote && npm run coverage:quick-goto && npm run coverage:core-summary",
+    "coverage:action-bar": "node --experimental-test-coverage --test-coverage-include='../../../scripts/system/+android_phoneInterface/mobileActionBar.js' --test-coverage-lines=95 --test-coverage-branches=86 --test-coverage-functions=100 --test test/mobile-action-bar.production.test.js",
+    "coverage:tablet-apps": "node --experimental-test-coverage --test-coverage-include='../../../scripts/system/+android_phoneInterface/mobileTabletApps.js' --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100 --test test/mobile-tablet-apps.production.test.js",
+    "coverage:phone-emote": "node --experimental-test-coverage --test-coverage-include='../../../scripts/system/+android_phoneInterface/phoneEmote.js' --test-coverage-lines=92 --test-coverage-branches=87 --test-coverage-functions=100 --test test/phone-emote.production.test.js",
+    "coverage:quick-goto": "node --experimental-test-coverage --test-coverage-include='../../../scripts/system/quickGoto.js' --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100 --test test/quick-goto.production.test.js",
+    "coverage:core-summary": "node --experimental-test-coverage --test-coverage-include='../../../scripts/system/+android_phoneInterface/*.js' --test-coverage-include='../../../scripts/system/quickGoto.js' --test test/mobile-action-bar.production.test.js test/mobile-tablet-apps.production.test.js test/phone-emote.production.test.js test/quick-goto.production.test.js",
+    "coverage:places": "npm run coverage:places-main && npm run coverage:portal",
+    "coverage:places-main": "node --experimental-test-coverage --test-coverage-include='../../../scripts/system/places/places.js' --test-coverage-lines=98 --test-coverage-branches=94 --test-coverage-functions=97 --test test/places.production.test.js",
+    "coverage:portal": "node --experimental-test-coverage --test-coverage-include='../../../scripts/system/places/portal.js' --test-coverage-lines=98 --test-coverage-branches=84 --test-coverage-functions=100 --test test/portal.production.test.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

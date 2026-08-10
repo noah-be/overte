@@ -81,7 +81,7 @@ void RenderEventHandler::resize() {
         // Release hold on the textures of the old size
         if (_currentSize != QSize()) {
             _shared->releaseTextureAndFence();
-            offscreenTextures.releaseSize(_currentSize);
+            offscreenTextures.releaseSize(_currentSize, _shared->getGenerateMips());
         }
 
         _currentSize = targetSize;
@@ -89,7 +89,7 @@ void RenderEventHandler::resize() {
         // Acquire the new texture size
         if (_currentSize != QSize()) {
             qCDebug(qmlLogging) << "Upating offscreen textures to " << _currentSize.width() << " x " << _currentSize.height();
-            offscreenTextures.acquireSize(_currentSize);
+            offscreenTextures.acquireSize(_currentSize, _shared->getGenerateMips());
             if (_depthStencil) {
                 glDeleteRenderbuffers(1, &_depthStencil);
                 _depthStencil = 0;
@@ -138,9 +138,11 @@ void RenderEventHandler::qmlRender(bool sceneGraphSync) {
 
     if (_currentSize != QSize()) {
         PROFILE_RANGE(render_qml_gl, "render");
-        GLuint texture = SharedObject::getTextureCache().acquireTexture(_currentSize);
+        const bool generateMips = _shared->getGenerateMips();
+        GLuint texture = SharedObject::getTextureCache().acquireTexture(_currentSize, generateMips);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _fbo);
-        glFramebufferTexture(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, texture, 0);
+        glFramebufferTexture2D(
+            GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
         if (nsightActive()) {
             glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
             glClear(GL_COLOR_BUFFER_BIT);
@@ -159,9 +161,11 @@ void RenderEventHandler::qmlRender(bool sceneGraphSync) {
         }
         _shared->_lastRenderTime = usecTimestampNow();
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-        glBindTexture(GL_TEXTURE_2D, texture);
-        glGenerateMipmap(GL_TEXTURE_2D);
-        glBindTexture(GL_TEXTURE_2D, 0);
+        if (generateMips) {
+            glBindTexture(GL_TEXTURE_2D, texture);
+            glGenerateMipmap(GL_TEXTURE_2D);
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
         auto fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
         // Fence will be used in another thread / context, so a flush is required
         glFlush();

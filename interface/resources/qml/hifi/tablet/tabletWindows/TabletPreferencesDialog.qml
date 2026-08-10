@@ -23,6 +23,7 @@ Item {
     anchors.fill: parent
 
     HifiConstants { id: hifi }
+    TabletPreferencesLayout { id: preferencesLayout }
     property var sections: []
     property var showCategories: []
     property var categoryProperties: ({})
@@ -277,10 +278,22 @@ Item {
                 rightMargin: hifi.dimensions.contentMargin.x
             }
 
-            spacing: hifi.dimensions.contentSpacing.x
+            spacing: preferencesLayout.compactFooter
+                ? preferencesLayout.buttonSpacing : hifi.dimensions.contentSpacing.x
             HifiControls.Button {
+                objectName: "GeneralPreferencesSave"
                 text: "Save changes"
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Button
+                Accessible.name: text
+                Accessible.description: qsTr("Save all changed preferences")
                 color: hifi.buttons.blue
+                width: preferencesLayout.compactFooter
+                    ? preferencesLayout.buttonWidth : hifi.dimensions.buttonWidth
+                height: preferencesLayout.compactFooter
+                    ? preferencesLayout.buttonHeight : hifi.dimensions.controlLineHeight
+                fontSize: preferencesLayout.compactFooter
+                    ? preferencesLayout.buttonFontSize : hifi.fontSizes.buttonLabel
                 androidClickAction: function() {
                     console.info("PICO_TABLET_PREFERENCES_SAVE category=" + showCategories);
                     dialog.saveAll();
@@ -289,8 +302,19 @@ Item {
             }
 
             HifiControls.Button {
+                objectName: "GeneralPreferencesCancel"
                 text: "Cancel"
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Button
+                Accessible.name: text
+                Accessible.description: qsTr("Discard changed preferences")
                 color: hifi.buttons.white
+                width: preferencesLayout.compactFooter
+                    ? preferencesLayout.buttonWidth : hifi.dimensions.buttonWidth
+                height: preferencesLayout.compactFooter
+                    ? preferencesLayout.buttonHeight : hifi.dimensions.controlLineHeight
+                fontSize: preferencesLayout.compactFooter
+                    ? preferencesLayout.buttonFontSize : hifi.fontSizes.buttonLabel
                 androidClickAction: function() {
                     dialog.cancelToTabletHome();
                 }

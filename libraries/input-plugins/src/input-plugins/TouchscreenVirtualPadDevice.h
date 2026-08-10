@@ -53,7 +53,9 @@ public:
         LX,
         LY,
         RX,
-        RY
+        RY,
+        PINCH_OUT,
+        PINCH_IN
     };
 
     enum TouchButtonChannel {
@@ -145,35 +147,37 @@ protected:
         bool touchBeginInvalidForAllButtons(glm::vec2 touchPoint);
     };
 
-    float _lastPinchScale;
-    float _pinchScale;
-    float _screenDPI;
-    qreal _screenDPIProvided;
-    glm::vec2 _screenDPIScale;
+    float _lastPinchScale { 0.0f };
+    float _pinchScale { 0.0f };
+    float _pinchOut { 0.0f };
+    float _pinchIn { 0.0f };
+    float _screenDPI { 0.0f };
+    qreal _screenDPIProvided { 0.0 };
+    glm::vec2 _screenDPIScale { 0.0f };
 
-    bool _moveHasValidTouch;
+    bool _moveHasValidTouch { false };
     glm::vec2 _moveRefTouchPoint;
     glm::vec2 _moveCurrentTouchPoint;
-    int _moveCurrentTouchId;
+    int _moveCurrentTouchId { -1 };
 
-    bool _viewHasValidTouch;
+    bool _viewHasValidTouch { false };
     glm::vec2 _viewRefTouchPoint;
     glm::vec2 _viewCurrentTouchPoint;
-    int _viewCurrentTouchId;
+    int _viewCurrentTouchId { -1 };
 
     std::map<int, TouchType> _unusedTouches;
 
-    int _touchPointCount;
-    int _screenWidthCenter;
+    int _touchPointCount { 0 };
+    int _screenWidthCenter { 0 };
     std::shared_ptr<InputDevice> _inputDevice { std::make_shared<InputDevice>() };
 
-    bool _fixedPosition;
+    bool _fixedPosition { true };
     glm::vec2 _fixedCenterPosition;
-    float _fixedRadius;
-    float _fixedRadiusForCalc;
+    float _fixedRadius { 0.0f };
+    float _fixedRadiusForCalc { 0.0f };
     int _extraBottomMargin {0};
 
-    float _buttonRadius;
+    float _buttonRadius { 0.0f };
 
     TouchscreenButtonsManager _buttonsManager;
 
@@ -195,6 +199,7 @@ protected:
     void processUnusedTouches(std::map<int, TouchType> unusedTouchesInEvent);
 
     void processInputDeviceForView();
+    void processInputDeviceForPinch();
 
 
 };

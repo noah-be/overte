@@ -34,6 +34,10 @@
 #include "TextureCache.h"
 #include "RenderCommonTask.h"
 #include "RenderHUDLayerTask.h"
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include <mutex>
+#include "PhoneFramebufferTelemetry.h"
+#endif
 
 #include "BloomEffect.h"
 
@@ -50,6 +54,42 @@ namespace gr {
 }
 
 using namespace render;
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+namespace {
+std::mutex phoneFramebufferTelemetryMutex;
+uint64_t phonePrimaryRecreateCount { 0 };
+uint64_t phoneResolveRecreateCount { 0 };
+uint64_t phonePrimarySizeSamples { 0 };
+uint64_t phoneResolveSizeSamples { 0 };
+}
+
+namespace phone_framebuffer_telemetry {
+
+void recordPrimaryRecreate(uint32_t width, uint32_t height, uint32_t samples) {
+    const std::lock_guard<std::mutex> guard(phoneFramebufferTelemetryMutex);
+    phonePrimarySizeSamples = packSizeSamples(width, height, samples);
+    ++phonePrimaryRecreateCount;
+}
+
+void recordResolveRecreate(uint32_t width, uint32_t height) {
+    const std::lock_guard<std::mutex> guard(phoneFramebufferTelemetryMutex);
+    phoneResolveSizeSamples = packSizeSamples(width, height, 1);
+    ++phoneResolveRecreateCount;
+}
+
+Snapshot snapshot() {
+    const std::lock_guard<std::mutex> guard(phoneFramebufferTelemetryMutex);
+    Snapshot result;
+    result.primaryRecreateCount = phonePrimaryRecreateCount;
+    result.resolveRecreateCount = phoneResolveRecreateCount;
+    result.primarySizeSamples = phonePrimarySizeSamples;
+    result.resolveSizeSamples = phoneResolveSizeSamples;
+    return result;
+}
+
+} // namespace phone_framebuffer_telemetry
+#endif
 
 extern void initForwardPipelines(ShapePlumber& plumber);
 
@@ -142,8 +182,11 @@ void RenderForwardTask::build(JobModel& task, const render::Varying& input, rend
         task.addJob<RenderSimulateTask>("RenderSimulation", simulateInputs);
     }
 
-    // draw a stencil mask in hidden regions of the framebuffer.
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
+    // Draw a stencil mask in hidden regions of the framebuffer. The phone
+    // client only exposes the 2D display plugin whose mask mode is NONE.
     task.addJob<PrepareStencil>("PrepareStencil", scaledPrimaryFramebuffer);
+#endif
 
     // Draw opaques forward
     const auto opaqueInputs = DrawForward::Inputs(opaques, lightingModel, hazeFrame, lightClusters, deferredFrameTransform).asVarying();
@@ -172,6 +215,7 @@ void RenderForwardTask::build(JobModel& task, const render::Varying& input, rend
     task.addJob<DrawLayered3D>("DrawInFrontOpaque", inFrontOpaquesInputs, shapePlumber, true, false, mainViewTransformSlot);
     task.addJob<DrawLayered3D>("DrawInFrontTransparent", inFrontTransparentsInputs, shapePlumber, false, false, mainViewTransformSlot);
 
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
     if (depth == 0) {  // Debug the bounds of the rendered items, still look at the zbuffer
         task.addJob<DrawBounds>("DrawMetaBounds", metas, mainViewTransformSlot);
         task.addJob<DrawBounds>("DrawBounds", opaques, mainViewTransformSlot);
@@ -181,15 +225,25 @@ void RenderForwardTask::build(JobModel& task, const render::Varying& input, rend
         const auto debugZoneInputs = DebugZoneLighting::Inputs(deferredFrameTransform, lightFrame, backgroundFrame).asVarying();
         task.addJob<DebugZoneLighting>("DrawZoneStack", debugZoneInputs);
     }
+#endif
 
-    const auto newResolvedFramebuffer = task.addJob<NewFramebuffer>("MakeResolvingFramebuffer", gpu::Element(gpu::SCALAR, gpu::FLOAT, gpu::R11G11B10));
+    const auto newResolvedFramebuffer = task.addJob<NewFramebuffer>("MakeResolvingFramebuffer",
+        gpu::Element(gpu::SCALAR, gpu::FLOAT, gpu::R11G11B10),
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        true
+#else
+        false
+#endif
+    );
 
     const auto resolveInputs = ResolveFramebuffer::Inputs(scaledPrimaryFramebuffer, newResolvedFramebuffer).asVarying();
     const auto resolvedFramebuffer = task.addJob<ResolveFramebuffer>("Resolve", resolveInputs);
 
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
     // Add bloom
     const auto bloomInputs = BloomEffect::Inputs(deferredFrameTransform, resolvedFramebuffer, bloomFrame, lightingModel).asVarying();
     task.addJob<BloomEffect>("Bloom", bloomInputs);
+#endif
 
     const auto destFramebuffer = static_cast<gpu::FramebufferPointer>(nullptr);
 
@@ -230,6 +284,9 @@ void PreparePrimaryFramebufferMSAA::run(const RenderContextPointer& renderContex
     // Resizing framebuffers instead of re-building them seems to cause issues with threaded rendering
     if (!_framebuffer || (_framebuffer->getSize() != scaledFrameSize) || (_framebuffer->getNumSamples() != _numSamples)) {
         _framebuffer = createFramebuffer("forward", scaledFrameSize, _numSamples);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        phone_framebuffer_telemetry::recordPrimaryRecreate(scaledFrameSize.x, scaledFrameSize.y, _numSamples);
+#endif
     }
 
     framebuffer = _framebuffer;
@@ -286,6 +343,11 @@ void DrawForward::run(const RenderContextPointer& renderContext, const Inputs& i
     RenderArgs* args = renderContext->args;
 
     const auto& inItems = inputs.get0();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (inItems.empty()) {
+        return;
+    }
+#endif
     const auto& lightingModel = inputs.get1();
     const auto& hazeFrame = inputs.get2();
     const auto& lightClusters = inputs.get3();

@@ -14,12 +14,15 @@
 
 #include "Application.h"
 
+#include <cmath>
+
 #include <QDesktopWidget>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QDateTime>
 #include <QSaveFile>
+#include <QStandardPaths>
 #include <QtGui/QClipboard>
 #include <QtNetwork/QLocalSocket>
 #include <QtNetwork/QLocalServer>
@@ -29,6 +32,7 @@
 #include <QWidget>
 #ifdef Q_OS_ANDROID
 #include <QLoggingCategory>
+#include <malloc.h>
 #include <sys/system_properties.h>
 #endif
 
@@ -164,6 +168,7 @@ static AppNapDisabler appNapDisabler;   // disabled, while in scope
 #endif
 
 #if defined(Q_OS_ANDROID)
+#include "ui/PhoneGraphicsPolicy.h"
 #include <android/log.h>
 #endif
 
@@ -197,23 +202,26 @@ void messageHandler(QtMsgType type, const QMessageLogContext& context, const QSt
 
     if (!logMessage.isEmpty()) {
 #ifdef Q_OS_ANDROID
-        const char * local=logMessage.toStdString().c_str();
+        // Keep the encoded storage alive for the complete Android logging call.
+        // Taking c_str() from a temporary std::string left a dangling pointer and
+        // produced one empty "Interface" warning for almost every rendered frame.
+        const QByteArray local = logMessage.toUtf8();
         switch (type) {
             case QtDebugMsg:
-                __android_log_write(ANDROID_LOG_DEBUG,"Interface",local);
+                __android_log_write(ANDROID_LOG_DEBUG,"Interface",local.constData());
                 break;
             case QtInfoMsg:
-                __android_log_write(ANDROID_LOG_INFO,"Interface",local);
+                __android_log_write(ANDROID_LOG_INFO,"Interface",local.constData());
                 break;
             case QtWarningMsg:
-                __android_log_write(ANDROID_LOG_WARN,"Interface",local);
+                __android_log_write(ANDROID_LOG_WARN,"Interface",local.constData());
                 break;
             case QtCriticalMsg:
-                __android_log_write(ANDROID_LOG_ERROR,"Interface",local);
+                __android_log_write(ANDROID_LOG_ERROR,"Interface",local.constData());
                 break;
             case QtFatalMsg:
             default:
-                __android_log_write(ANDROID_LOG_FATAL,"Interface",local);
+                __android_log_write(ANDROID_LOG_FATAL,"Interface",local.constData());
                 abort();
         }
 #else
@@ -267,6 +275,10 @@ Application::Application(
     _cameraClippingEnabled("cameraClippingEnabled", false)
 {
 #ifdef Q_OS_ANDROID
+    // Queued networking signals use the standard-library spelling. Qt knows
+    // quint64, but requires this exact name when resolving uint64_t signals.
+    qRegisterMetaType<uint64_t>("uint64_t");
+
     // Qt's generic Unix CA search paths do not include Android's system trust
     // store. Import it before AccountManager starts HTTPS requests.
     auto sslConfiguration = QSslConfiguration::defaultConfiguration();
@@ -1344,6 +1356,115 @@ void Application::loadSettings(const QCommandLineParser& parser) {
     renderSettings->setAmbientOcclusionEnabled(false);
     DependencyManager::get<LODManager>()->setWorldDetailQuality(WORLD_DETAIL_LOW);
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Phones are passively cooled and share system/GPU memory. Prefer a
+    // predictable MVP baseline. Apply it after the performance preset so a
+    // first-run preset cannot immediately restore the desktop values.
+    constexpr float PHONE_DEFAULT_VIEWPORT_RESOLUTION_SCALE { 0.65f };
+    constexpr float PHONE_MIN_VIEWPORT_RESOLUTION_SCALE { 0.5f };
+    constexpr float PHONE_MAX_VIEWPORT_RESOLUTION_SCALE { 0.7f };
+    float phoneViewportResolutionScale { PHONE_DEFAULT_VIEWPORT_RESOLUTION_SCALE };
+    char phoneRenderScaleValue[PROP_VALUE_MAX] {};
+    if (__system_property_get("debug.overte.phone_render_scale", phoneRenderScaleValue) > 0) {
+        phoneViewportResolutionScale = phone::graphics::parseClampedFloat(
+            phoneRenderScaleValue, PHONE_DEFAULT_VIEWPORT_RESOLUTION_SCALE,
+            PHONE_MIN_VIEWPORT_RESOLUTION_SCALE, PHONE_MAX_VIEWPORT_RESOLUTION_SCALE);
+    }
+    const auto phoneBoolOverride = [](const char* propertyName, bool fallback) {
+        char propertyValue[PROP_VALUE_MAX] {};
+        if (__system_property_get(propertyName, propertyValue) <= 0) {
+            return fallback;
+        }
+        return phone::graphics::parseBoolOverride(propertyValue, fallback);
+    };
+    const bool phoneHazeEnabled = phoneBoolOverride("debug.overte.phone_haze", false);
+    const bool phoneLocalLightsEnabled = phoneBoolOverride("debug.overte.phone_local_lights", false);
+    constexpr int PHONE_TARGET_FPS { 30 };
+    renderSettings->setRenderMethod(RenderScriptingInterface::RenderMethod::FORWARD);
+    renderSettings->setAntialiasingMode(AntialiasingSetupConfig::Mode::NONE);
+    renderSettings->setHazeEnabled(phoneHazeEnabled);
+    renderSettings->setLocalLightingEnabled(phoneLocalLightsEnabled);
+    renderSettings->setProceduralMaterialsEnabled(false);
+    renderSettings->setViewportResolutionScale(phoneViewportResolutionScale);
+
+    auto& phoneRefreshRateManager = getRefreshRateManager();
+    phoneRefreshRateManager.setCustomRefreshRate(RefreshRateManager::RefreshRateRegime::FOCUS_ACTIVE, PHONE_TARGET_FPS);
+    phoneRefreshRateManager.setCustomRefreshRate(RefreshRateManager::RefreshRateRegime::FOCUS_INACTIVE, PHONE_TARGET_FPS);
+    phoneRefreshRateManager.setCustomRefreshRate(RefreshRateManager::RefreshRateRegime::STARTUP, PHONE_TARGET_FPS);
+    phoneRefreshRateManager.setRefreshRateProfile(RefreshRateManager::RefreshRateProfile::CUSTOM);
+
+    auto renderConfig = qApp->getRenderEngine()->getConfiguration();
+    constexpr int PHONE_FORWARD_MSAA_SAMPLES { 1 };
+    int configuredForwardBuffers { 0 };
+    const QStringList viewNames { "RenderMainView", "RenderSecondView" };
+    for (const auto& viewName : viewNames) {
+        const QString forwardBufferName =
+            viewName + ".RenderForwardTask.PreparePrimaryBufferForward";
+        if (auto forwardBufferConfig = renderConfig->getConfig(forwardBufferName)) {
+            if (forwardBufferConfig->setProperty("numSamples", PHONE_FORWARD_MSAA_SAMPLES)) {
+                ++configuredForwardBuffers;
+            }
+        }
+    }
+
+    // A single cell avoids clustering work while local lighting is disabled.
+    // Restore the renderer's normal grid for the explicit local-light A/B path;
+    // packing every visible light into one uint8-counted cell is not correct.
+    const int phoneLightClusterGridDimension = phoneLocalLightsEnabled ? 14 : 1;
+    int configuredLightClusterGrids { 0 };
+    for (const auto& viewName : viewNames) {
+        const QString lightClusteringName =
+            viewName + ".RenderForwardTask.LightClustering";
+        if (auto lightClusteringConfig = renderConfig->getConfig(lightClusteringName)) {
+            const bool configuredX =
+                lightClusteringConfig->setProperty("dimX", phoneLightClusterGridDimension);
+            const bool configuredY =
+                lightClusteringConfig->setProperty("dimY", phoneLightClusterGridDimension);
+            const bool configuredZ =
+                lightClusteringConfig->setProperty("dimZ", phoneLightClusterGridDimension);
+            if (configuredX && configuredY && configuredZ) {
+                ++configuredLightClusterGrids;
+            }
+        }
+    }
+
+    int disabledMirrorViews { 0 };
+    for (const auto& viewName : viewNames) {
+        constexpr size_t MIRROR_VIEWS_PER_LEVEL { 3 };
+        for (size_t mirrorIndex = 0; mirrorIndex < MIRROR_VIEWS_PER_LEVEL; ++mirrorIndex) {
+            const QString mirrorName = viewName + ".RenderMirrorView" +
+                QString::number(mirrorIndex) + "Depth0";
+            if (auto mirrorConfig = renderConfig->getConfig(mirrorName)) {
+                if (mirrorConfig->setProperty("enabled", false)) {
+                    ++disabledMirrorViews;
+                }
+            }
+        }
+    }
+    qCInfo(interfaceapp) << "PHONE_GRAPHICS_PROFILE"
+                         << "targetFps" << PHONE_TARGET_FPS
+                         << "renderScale" << renderSettings->getViewportResolutionScale()
+                         << "forwardMsaaSamples" << PHONE_FORWARD_MSAA_SAMPLES
+                         << "configuredForwardBuffers" << configuredForwardBuffers
+                         << "lightClusterGridDimension" << phoneLightClusterGridDimension
+                         << "configuredLightClusterGrids" << configuredLightClusterGrids
+                         << "forward" << (renderSettings->getRenderMethod() == RenderScriptingInterface::RenderMethod::FORWARD)
+                         << "antialiasing" << (renderSettings->getAntialiasingMode() != AntialiasingSetupConfig::Mode::NONE)
+                         << "shadows" << renderSettings->getShadowsEnabled()
+                         << "haze" << renderSettings->getHazeEnabled()
+                         << "bloom" << renderSettings->getBloomEnabled()
+                         << "ambientOcclusion" << renderSettings->getAmbientOcclusionEnabled()
+                         << "localLights" << renderSettings->getLocalLightingEnabled()
+                         << "proceduralMaterials" << renderSettings->getProceduralMaterialsEnabled()
+                         << "disabledMirrorViews" << disabledMirrorViews
+                         << "worldDetail" << WORLD_DETAIL_LOW
+                         << "downloadLimit" << ResourceCache::getRequestLimit();
+    __android_log_print(ANDROID_LOG_INFO, "OvertePhoneGraphics",
+        "profile_render_scale=%.2f profile_target_fps=%d profile_forward_msaa_samples=%d profile_haze=%d profile_local_lights=%d",
+        static_cast<double>(renderSettings->getViewportResolutionScale()), PHONE_TARGET_FPS,
+        PHONE_FORWARD_MSAA_SAMPLES, phoneHazeEnabled ? 1 : 0, phoneLocalLightsEnabled ? 1 : 0);
+#endif
+
 #if defined(ANDROID_APP_PICO_INTERFACE)
     // Opt-in, process-start power profile for controlled Pico A/B tests. It
     // deliberately leaves viewport and OpenXR swapchain resolution unchanged.
@@ -1428,7 +1549,13 @@ void Application::loadSettings(const QCommandLineParser& parser) {
     // dictated that we should be in first person
     Menu::getInstance()->setIsOptionChecked(MenuOption::FirstPersonLookAt, isFirstPerson);
     Menu::getInstance()->setIsOptionChecked(MenuOption::ThirdPerson, !isFirstPerson);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // The native desktop menu bar is neither reachable nor appropriate in
+    // Android's fullscreen activity. Phone controls live in the touch UI.
+    Menu::getInstance()->setVisible(false);
+#else
     Menu::getInstance()->setVisible(_menuBarVisible.get());
+#endif
     _myCamera.setMode((isFirstPerson) ? CAMERA_MODE_FIRST_PERSON_LOOK_AT : CAMERA_MODE_LOOK_AT);
     cameraMenuChanged();
 
@@ -1712,12 +1839,12 @@ void Application::nodeKilled(SharedNodePointer node) {
         QMetaObject::invokeMethod(DependencyManager::get<AudioClient>().data(), "audioMixerKilled");
     } else if (node->getType() == NodeType::EntityServer) {
         // we lost an entity server, clear all of the domain octree details
-#if defined(ANDROID_APP_PICO_INTERFACE)
+#if defined(ANDROID_APP_PICO_INTERFACE) || defined(ANDROID_APP_PHONE_INTERFACE)
         // Once the player is already in a playable world, an entity-server reconnect is not a
         // domain change. Keep the current scene and controls active while the server reconnects;
         // clearing the octree here re-entered the full loading interstitial a few seconds later.
         if (_physicsEnabled) {
-            qCWarning(interfaceapp) << "Pico entity server disconnected; keeping playable scene during reconnect";
+            qCWarning(interfaceapp) << "Android entity server disconnected; keeping playable scene during reconnect";
             return;
         }
 #endif
@@ -2138,9 +2265,21 @@ void Application::idle() {
         std::call_once(once, [this] {
             const QString& bookmarksError = DependencyManager::get<AvatarBookmarks>()->getBookmarkError();
             if (!bookmarksError.isEmpty()) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+                // Parser diagnostics can contain file paths or fragments of
+                // personal bookmark data. Android logs are routinely captured
+                // by automated tooling, so report only the aggregate failure.
+                qWarning() << "Avatar bookmarks JSON could not be loaded";
+#else
                 OffscreenUi::asyncWarning("Avatar Bookmarks Error", "JSON parse error: " + bookmarksError, QMessageBox::Ok, QMessageBox::Ok);
+#endif
             }
 
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
+            // Desktop GPU drivers can be replaced or rolled back by the user,
+            // so the blocklist warning is actionable there. Android GPU
+            // drivers are delivered with the OS and the desktop warning is
+            // misleading (and poorly sized) in the phone activity.
             QString os = platform::getComputer()[platform::keys::computer::OS].dump().c_str();
             os = os.replace("\"", "");
             GPUIdent* gpuIdent = GPUIdent::getInstance();
@@ -2158,6 +2297,7 @@ void Application::idle() {
                 auto onFinished = std::bind(&Application::processDriverBlocklistReply, this, fullDriverToTest, os, vendor, renderer, api, driver.replace(" ", "."));
                 connect(reply, &QNetworkReply::finished, this, onFinished);
             }
+#endif
         });
     }
 }
@@ -2183,6 +2323,8 @@ void Application::update(float deltaTime) {
     static quint64 picoAvatarSimulationSamples { 0 };
     static quint64 picoLocalAvatarTemplateRefreshes { 0 };
     static quint64 lastTestModePropertyCheck { 0 };
+    static QString lastMallocTrimNonce;
+    static QString lastMallocDecayValue;
     if (picoUpdateStart - lastTestModePropertyCheck >= USECS_PER_SECOND) {
         lastTestModePropertyCheck = picoUpdateStart;
         char testModeValue[PROP_VALUE_MAX] {};
@@ -2191,6 +2333,30 @@ void Application::update(float deltaTime) {
             : QString();
         picoTestMode = requestedTestMode == "1" || requestedTestMode == "on" ||
             requestedTestMode == "true" || requestedTestMode == "enabled";
+        if (picoTestMode) {
+            char mallocDecayValue[PROP_VALUE_MAX] {};
+            const QString requestedMallocDecay = __system_property_get("debug.overte.malloc_decay", mallocDecayValue) > 0
+                ? QString::fromLatin1(mallocDecayValue).trimmed()
+                : QString();
+            if (!requestedMallocDecay.isEmpty() && requestedMallocDecay != lastMallocDecayValue) {
+                lastMallocDecayValue = requestedMallocDecay;
+                bool validDecay { false };
+                const int decay = requestedMallocDecay.toInt(&validDecay);
+                const int applied = validDecay ? mallopt(M_DECAY_TIME, decay) : 0;
+                qCWarning(interfaceapp) << "PHONE_PERF malloc_decay"
+                    << "value" << requestedMallocDecay << "applied" << applied;
+            }
+            char mallocTrimValue[PROP_VALUE_MAX] {};
+            const QString mallocTrimNonce = __system_property_get("debug.overte.malloc_trim", mallocTrimValue) > 0
+                ? QString::fromLatin1(mallocTrimValue).trimmed()
+                : QString();
+            if (!mallocTrimNonce.isEmpty() && mallocTrimNonce != lastMallocTrimNonce) {
+                lastMallocTrimNonce = mallocTrimNonce;
+                const int released = mallopt(M_PURGE, 0);
+                qCWarning(interfaceapp) << "PHONE_PERF malloc_purge"
+                    << "nonce" << mallocTrimNonce << "released" << released;
+            }
+        }
         if (!picoTestMode) {
             picoAvatarSimulationMsSum = 0.0;
             picoAvatarProcessingMsSum = 0.0;
@@ -2253,15 +2419,28 @@ void Application::update(float deltaTime) {
         if (picoTestMode && picoUpdateStart - lastWorldStatusWrite >= USECS_PER_SECOND) {
             lastWorldStatusWrite = picoUpdateStart;
             const glm::vec3 worldPosition = getMyAvatar()->getWorldPosition();
-            const QString worldStatus = QStringLiteral("%1|%2|%3|%4|%5|%6|%7")
+            const auto nodeList = DependencyManager::get<NodeList>();
+            const auto entityServer = nodeList->soloNodeOfType(NodeType::EntityServer);
+            const auto assetServer = nodeList->soloNodeOfType(NodeType::AssetServer);
+            const auto entityTree = getEntities()->getTree();
+            const QString worldStatus = QStringLiteral("%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11|%12|%13|%14|%15")
                 .arg(QDateTime::currentSecsSinceEpoch())
                 .arg(addressManager->isConnected() ? 1 : 0)
                 .arg(addressManager->getPlaceName().replace('|', '_'))
                 .arg(addressManager->getDomainID().replace('|', '_'))
                 .arg(worldPosition.x, 0, 'f', 3)
                 .arg(worldPosition.y, 0, 'f', 3)
-                .arg(worldPosition.z, 0, 'f', 3);
-            QSaveFile worldStatusFile("/data/user/0/org.overte.pico/cache/world-status");
+                .arg(worldPosition.z, 0, 'f', 3)
+                .arg(entityServer ? 1 : 0)
+                .arg(entityServer ? entityServer->getPingMs() : -1)
+                .arg(entityServer ? entityServer->getInboundKbps() : 0.0f, 0, 'f', 3)
+                .arg(entityTree ? entityTree->getOctreeElementsCount() : 0)
+                .arg(assetServer ? 1 : 0)
+                .arg(ResourceCache::getLoadingRequests().size())
+                .arg(ResourceCache::getPendingRequestCount())
+                .arg(gpu::Context::getUsedGPUMemSize());
+            QSaveFile worldStatusFile(QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation))
+                .filePath(QStringLiteral("world-status")));
             if (worldStatusFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
                 worldStatusFile.write(worldStatus.toUtf8());
                 worldStatusFile.commit();
@@ -2500,10 +2679,12 @@ void Application::update(float deltaTime) {
                 lastNavigationCommand = command;
                 const qsizetype separator = command.indexOf('|');
                 const QString address = separator >= 0 ? command.mid(separator + 1) : command;
+#if defined(ANDROID_APP_PICO_INTERFACE)
                 _picoLoadingMeasurementStartedAt = usecTimestampNow();
                 _picoLoadingMeasurementEpochMs = QDateTime::currentMSecsSinceEpoch();
                 _picoLoadingDomainReconnects = 0;
                 _picoLoadingAwaitingInitialDomainClear = true;
+#endif
                 if (address.startsWith("EXPORT|")) {
                     const QStringList fields = address.split('|');
                     bool xOk { false };

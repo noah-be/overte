@@ -12,13 +12,25 @@
 /* jslint vars:true, plusplus:true, forin:true */
 /* global Tablet, Settings, Script, AvatarList, Users, Entities,
     MyAvatar, Camera, Overlays, Vec3, Quat, HMD, Controller, Account,
-    UserActivityLogger, Messages, Window, XMLHttpRequest, print, location, getControllerWorldLocation
+    UserActivityLogger, Messages, Window, XMLHttpRequest, print, location, getControllerWorldLocation,
+    ANDROID_PHONE_INTERFACE
 */
 /* eslint indent: ["error", 4, { "outerIIFEBody": 0 }] */
 //
 
 (function () { // BEGIN LOCAL_SCOPE
-var controllerStandard = Controller.Standard;
+var isAndroidPhone = typeof ANDROID_PHONE_INTERFACE !== "undefined" && ANDROID_PHONE_INTERFACE;
+var controllerStandard = isAndroidPhone ? null : Controller.Standard;
+
+// PAL diagnostics can contain usernames, display names, session UUIDs,
+// profile URLs, relationship state, and server response text. Preserve the
+// established desktop debug output, but never place those values in Android
+// Phone logs collected by automated test and support tooling.
+function printPrivatePalData(message) {
+    if (!isAndroidPhone) {
+        print(message);
+    }
+}
 
 var request = Script.require('request').request;
 var AppUi = Script.require('appUi');
@@ -225,6 +237,7 @@ HighlightedEntity.updateOverlays = function updateHighlightedEntities() {
 /* this contains current gain for a given node (by session id).  More efficient than
  * querying it, plus there isn't a getGain function so why write one */
 var sessionGains = {};
+var phoneAudioData = {};
 function convertDbToLinear(decibels) {
     // +20db = 10x, 0dB = 1x, -10dB = 0.1x, etc...
     // but, your perception is that something 2x as loud is +10db
@@ -232,11 +245,27 @@ function convertDbToLinear(decibels) {
     // maybe scale the signal this way??
     return Math.pow(2, decibels / 10.0);
 }
+function validAccountName(value) {
+    return typeof value === 'string' && value.length > 0 && value.length <= 256 &&
+        !/[\u0000-\u001f\u007f]/.test(value);
+}
+function responseSucceeded(response) {
+    return response && response.status === 'success';
+}
+function responseFailure(error, response) {
+    return error || (response && response.status) || 'missing response';
+}
 function fromQml(message) { // messages are {method, params}, like json-rpc. See also sendToQml.
     var data, connectionUserName, friendUserName;
+    if (!message || typeof message !== 'object' || typeof message.method !== 'string') {
+        return;
+    }
     switch (message.method) {
     case 'selected':
         selectedIds = message.params;
+        if (isAndroidPhone) {
+            break;
+        }
         ExtendedOverlay.some(function (overlay) {
             var id = overlay.key;
             var selected = ExtendedOverlay.isSelected(id);
@@ -264,6 +293,9 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
         break;
     case 'refresh': // old name for refreshNearby
     case 'refreshNearby':
+        if (!message.params || typeof message.params !== 'object') {
+            return;
+        }
         data = {};
         ExtendedOverlay.some(function (overlay) { // capture the audio data
             data[overlay.key] = overlay;
@@ -282,12 +314,16 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
         break;
     case 'removeConnection':
         connectionUserName = message.params;
+        if (!validAccountName(connectionUserName)) {
+            return;
+        }
         request({
-            uri: METAVERSE_BASE + '/api/v1/user/connections/' + connectionUserName,
+            uri: METAVERSE_BASE + '/api/v1/user/connections/' + encodeURIComponent(connectionUserName),
             method: 'DELETE'
         }, function (error, response) {
-            if (error || (response.status !== 'success')) {
-                print("Error: unable to remove connection", connectionUserName, error || response.status);
+            if (error || !responseSucceeded(response)) {
+                printPrivatePalData("Error: unable to remove connection " + connectionUserName +
+                    ": " + responseFailure(error, response));
                 return;
             }
             sendToQml({ method: 'connectionRemoved', params: connectionUserName });
@@ -296,13 +332,17 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
 
     case 'removeFriend':
         friendUserName = message.params;
-        print("Removing " + friendUserName + " from friends.");
+        if (!validAccountName(friendUserName)) {
+            return;
+        }
+        printPrivatePalData("Removing " + friendUserName + " from friends.");
         request({
-            uri: METAVERSE_BASE + '/api/v1/user/friends/' + friendUserName,
+            uri: METAVERSE_BASE + '/api/v1/user/friends/' + encodeURIComponent(friendUserName),
             method: 'DELETE'
         }, function (error, response) {
-            if (error || (response.status !== 'success')) {
-                print("Error: unable to unfriend " + friendUserName, error || response.status);
+            if (error || !responseSucceeded(response)) {
+                printPrivatePalData("Error: unable to unfriend " + friendUserName +
+                    ": " + responseFailure(error, response));
                 return;
             }
             getConnectionData(friendUserName);
@@ -310,7 +350,10 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
         break;
     case 'addFriend':
         friendUserName = message.params;
-        print("Adding " + friendUserName + " to friends.");
+        if (!validAccountName(friendUserName)) {
+            return;
+        }
+        printPrivatePalData("Adding " + friendUserName + " to friends.");
         request({
             uri: METAVERSE_BASE + '/api/v1/user/friends',
             method: 'POST',
@@ -319,8 +362,9 @@ function fromQml(message) { // messages are {method, params}, like json-rpc. See
                 username: friendUserName,
             }
         }, function (error, response) {
-            if (error || (response.status !== 'success')) {
-                print("Error: unable to friend " + friendUserName, error || response.status);
+            if (error || !responseSucceeded(response)) {
+                printPrivatePalData("Error: unable to friend " + friendUserName +
+                    ": " + responseFailure(error, response));
                 return;
             }
             getConnectionData(friendUserName);
@@ -341,7 +385,7 @@ function sendToQml(message) {
     ui.sendMessage(message);
 }
 function updateUser(data) {
-    print('PAL update:', JSON.stringify(data));
+    printPrivatePalData('PAL update: ' + JSON.stringify(data));
     sendToQml({ method: 'updateUsername', params: data });
 }
 //
@@ -353,8 +397,8 @@ function requestJSON(url, callback) { // callback(data) if successfull. Logs oth
     request({
         uri: url
     }, function (error, response) {
-        if (error || (response.status !== 'success')) {
-            print("Error: unable to get request",  error || response.status);
+        if (error || !responseSucceeded(response)) {
+            printPrivatePalData("Error: unable to get request: " + responseFailure(error, response));
             return;
         }
         callback(response.data);
@@ -365,9 +409,10 @@ function getProfilePicture(username, callback) { // callback(url) if successfull
     request({
         uri: METAVERSE_BASE + '/users/' + username
     }, function (error, html) {
-        var matched = !error && html.match(/img class="users-img" src="([^"]*)"/);
+        var matched = !error && typeof html === 'string' &&
+            html.match(/img class="users-img" src="([^"]*)"/);
         if (!matched) {
-            print('Error: Unable to get profile picture for', username, error);
+            printPrivatePalData('Error: Unable to get profile picture for ' + username + ': ' + error);
             callback('');
             return;
         }
@@ -375,6 +420,9 @@ function getProfilePicture(username, callback) { // callback(url) if successfull
     });
 }
 var SAFETY_LIMIT = 400;
+function connectionUsers(data) {
+    return data && Array.isArray(data.users) ? data.users : [];
+}
 function getAvailableConnections(domain, callback, numResultsPerPage) { // callback([{usename, location}...]) if successfull. (Logs otherwise)
     var url = METAVERSE_BASE + '/api/v1/users?per_page=' + (numResultsPerPage || SAFETY_LIMIT) + '&';
     if (domain) {
@@ -383,7 +431,7 @@ function getAvailableConnections(domain, callback, numResultsPerPage) { // callb
         url += 'filter=connections'; // regardless of whether online
     }
     requestJSON(url, function (connectionsData) {
-        callback(connectionsData.users);
+        callback(connectionUsers(connectionsData));
     });
 }
 function getInfoAboutUser(specificUsername, callback) {
@@ -391,9 +439,10 @@ function getInfoAboutUser(specificUsername, callback) {
     requestJSON(url, function (connectionsData) {
         // You could have (up to SAFETY_LIMIT connections whose usernames contain the specificUsername.
         // Search returns all such matches.
-        for (user in connectionsData.users) {
-            if (connectionsData.users[user].username === specificUsername) {
-                callback(connectionsData.users[user]);
+        var users = connectionUsers(connectionsData);
+        for (var user = 0; user < users.length; user++) {
+            if (users[user] && users[user].username === specificUsername) {
+                callback(users[user]);
                 return;
             }
         }
@@ -402,7 +451,12 @@ function getInfoAboutUser(specificUsername, callback) {
 }
 function getConnectionData(specificUsername, domain) { // Update all the usernames that I am entitled to see, using my login but not dependent on canKick.
     function frob(user) { // get into the right format
-        var formattedSessionId = user.location.node_id || '';
+        if (!user || typeof user !== 'object' || typeof user.username !== 'string') {
+            return null;
+        }
+        var userLocation = user.location && typeof user.location === 'object' ? user.location : {};
+        var userImages = user.images && typeof user.images === 'object' ? user.images : {};
+        var formattedSessionId = userLocation.node_id || '';
         if (formattedSessionId !== '' && formattedSessionId.indexOf("{") != 0) {
             formattedSessionId = "{" + formattedSessionId + "}";
         }
@@ -410,22 +464,29 @@ function getConnectionData(specificUsername, domain) { // Update all the usernam
             sessionId: formattedSessionId,
             userName: user.username,
             connection: user.connection,
-            profileUrl: user.images.thumbnail,
-            placeName: (user.location.root || user.location.domain || {}).name || ''
+            profileUrl: userImages.thumbnail || '',
+            placeName: (userLocation.root || userLocation.domain || {}).name || ''
         };
     }
     if (specificUsername) {
         getInfoAboutUser(specificUsername, function (user) {
             if (user) {
-                updateUser(frob(user));
+                var formattedUser = frob(user);
+                if (formattedUser) {
+                    updateUser(formattedUser);
+                }
             } else {
-                print('Error: Unable to find information about ' + specificUsername + ' in connectionsData!');
+                printPrivatePalData('Error: Unable to find information about ' + specificUsername +
+                    ' in connectionsData!');
             }
         });
     } else if (domain) {
         getAvailableConnections(domain, function (users) {
             users.forEach(function (user) {
-                updateUser(frob(user));
+                var formattedUser = frob(user);
+                if (formattedUser) {
+                    updateUser(formattedUser);
+                }
             });
         });
     } else {
@@ -474,7 +535,7 @@ function populateNearbyUserList(selectData, oldAudioData) {
             // we won't be able to do anything with this user, so don't include them.
             // In normal circumstances, a refresh will bring in the new user, but if we're very heavily loaded,
             // we could be losing and gaining people randomly.
-            print('No avatar identity data for', currentAvatarData.sessionUUID);
+            printPrivatePalData('No avatar identity data for ' + currentAvatarData.sessionUUID);
             return;
         }
         if (id && myPosition && (Vec3.distance(currentAvatarData.position, myPosition) > filter.distance)) {
@@ -504,14 +565,21 @@ function populateNearbyUserList(selectData, oldAudioData) {
         // Everyone needs to see admin status. Username and fingerprint returns default constructor output if the requesting user isn't an admin.
         Users.requestUsernameFromID(id);
         if (id !== "") {
-            addAvatarNode(id); // No overlay for ourselves
-            avatarsOfInterest[id] = true;
+            if (isAndroidPhone) {
+                phoneAudioData[id] = avatarPalDatum;
+            } else {
+                addAvatarNode(id); // No overlay for ourselves
+                avatarsOfInterest[id] = true;
+            }
         } else {
             // Return our username from the Account API
             avatarPalDatum.userName = Account.username;
+            if (isAndroidPhone) {
+                phoneAudioData[id] = avatarPalDatum;
+            }
         }
         data.push(avatarPalDatum);
-        print('PAL data:', JSON.stringify(avatarPalDatum));
+        printPrivatePalData('PAL data: ' + JSON.stringify(avatarPalDatum));
     });
     getConnectionData(false, location.domainID); // Even admins don't get relationship data in requestUsernameFromID (which is still needed for admin status, which comes from domain).
     sendToQml({ method: 'nearbyUsers', params: data });
@@ -541,7 +609,9 @@ function updateAudioLevel(avatarData) {
     var audioLevel = 0.0;
     var avgAudioLevel = 0.0;
 
-    var data = avatarData.sessionUUID === "" ? myData : ExtendedOverlay.get(avatarData.sessionUUID);
+    var data = isAndroidPhone
+        ? phoneAudioData[avatarData.sessionUUID]
+        : avatarData.sessionUUID === "" ? myData : ExtendedOverlay.get(avatarData.sessionUUID);
 
     if (data) {
         // we will do exponential moving average by taking some the last loudness and averaging
@@ -583,7 +653,7 @@ function updateOverlays() {
         updateAudioLevel(currentAvatarData);
         var overlay = ExtendedOverlay.get(currentAvatarData.sessionUUID);
         if (!overlay) { // For now, we're treating this as a temporary loss, as from the personal space bubble. Add it back.
-            print('Adding non-PAL avatar node', currentAvatarData.sessionUUID);
+            printPrivatePalData('Adding non-PAL avatar node ' + currentAvatarData.sessionUUID);
             overlay = addAvatarNode(currentAvatarData.sessionUUID);
         }
 
@@ -624,6 +694,7 @@ function updateOverlays() {
 }
 function removeOverlays() {
     selectedIds = [];
+    phoneAudioData = {};
     lastHoveringId = 0;
     HighlightedEntity.clearOverlays();
     ExtendedOverlay.some(function (overlay) {
@@ -695,8 +766,8 @@ function handleTriggerPressed(hand, value) {
 
 // We get mouseMoveEvents from the handControllers, via handControllerPointer.
 // But we don't get mousePressEvents.
-var triggerMapping = Controller.newMapping(Script.resolvePath('') + '-click');
-var triggerPressMapping = Controller.newMapping(Script.resolvePath('') + '-press');
+var triggerMapping = isAndroidPhone ? null : Controller.newMapping(Script.resolvePath('') + '-click');
+var triggerPressMapping = isAndroidPhone ? null : Controller.newMapping(Script.resolvePath('') + '-press');
 function controllerComputePickRay(hand) {
     var controllerPose = getControllerWorldLocation(hand, true);
     if (controllerPose.valid) {
@@ -716,10 +787,12 @@ function makePressHandler(hand) {
         handleTriggerPressed(hand, value);
     };
 }
-triggerMapping.from(controllerStandard.RTClick).peek().to(makeClickHandler(controllerStandard.RightHand));
-triggerMapping.from(controllerStandard.LTClick).peek().to(makeClickHandler(controllerStandard.LeftHand));
-triggerPressMapping.from(controllerStandard.RT).peek().to(makePressHandler(controllerStandard.RightHand));
-triggerPressMapping.from(controllerStandard.LT).peek().to(makePressHandler(controllerStandard.LeftHand));
+if (!isAndroidPhone) {
+    triggerMapping.from(controllerStandard.RTClick).peek().to(makeClickHandler(controllerStandard.RightHand));
+    triggerMapping.from(controllerStandard.LTClick).peek().to(makeClickHandler(controllerStandard.LeftHand));
+    triggerPressMapping.from(controllerStandard.RT).peek().to(makePressHandler(controllerStandard.RightHand));
+    triggerPressMapping.from(controllerStandard.LT).peek().to(makePressHandler(controllerStandard.LeftHand));
+}
 
 var ui;
 // Most apps can have people toggle the tablet closed and open again, and the app should remain "open" even while
@@ -735,12 +808,21 @@ var UPDATE_INTERVAL_MS = 100;
 var updateInterval;
 function createUpdateInterval() {
     return Script.setInterval(function () {
-        updateOverlays();
+        if (isAndroidPhone) {
+            AvatarList.getPalData().data.forEach(updateAudioLevel);
+        } else {
+            updateOverlays();
+        }
     }, UPDATE_INTERVAL_MS);
 }
 
 var previousRequestsDomainListData = Users.requestsDomainListData;
+var palRuntimeActive = false;
 function palOpened() {
+    if (palRuntimeActive) {
+        return;
+    }
+    palRuntimeActive = true;
     ui.sendMessage({
         method: 'changeConnectionsDotStatus',
         shouldShowDot: shouldShowDot
@@ -751,11 +833,13 @@ function palOpened() {
 
     ui.tablet.tabletShownChanged.connect(tabletVisibilityChanged);
     updateInterval = createUpdateInterval();
-    Controller.mousePressEvent.connect(handleMouseEvent);
-    Controller.mouseMoveEvent.connect(handleMouseMoveEvent);
+    if (!isAndroidPhone) {
+        Controller.mousePressEvent.connect(handleMouseEvent);
+        Controller.mouseMoveEvent.connect(handleMouseMoveEvent);
+        triggerMapping.enable();
+        triggerPressMapping.enable();
+    }
     Users.usernameFromIDReply.connect(usernameFromIDReply);
-    triggerMapping.enable();
-    triggerPressMapping.enable();
     populateNearbyUserList();
 }
 
@@ -763,16 +847,39 @@ function palOpened() {
 // Message from other scripts, such as edit.js
 //
 var CHANNEL = 'com.highfidelity.pal';
+var pendingSelectTimer = null;
+
+function cancelPendingSelect() {
+    if (pendingSelectTimer !== null) {
+        Script.clearTimeout(pendingSelectTimer);
+        pendingSelectTimer = null;
+    }
+}
+
 function receiveMessage(channel, messageString, senderID) {
     if ((channel !== CHANNEL) || (senderID !== MyAvatar.sessionUUID)) {
         return;
     }
-    var message = JSON.parse(messageString);
+    var message;
+    try {
+        message = JSON.parse(messageString);
+    } catch (error) {
+        return;
+    }
+    if (!message || typeof message !== 'object' || message.method !== 'select') {
+        return;
+    }
     switch (message.method) {
     case 'select':
         if (!ui.isOpen) {
             ui.open();
-            Script.setTimeout(function () { sendToQml(message); }, 1000);
+            cancelPendingSelect();
+            pendingSelectTimer = Script.setTimeout(function () {
+                pendingSelectTimer = null;
+                if (ui.isOpen) {
+                    sendToQml(message);
+                }
+            }, 1000);
         } else {
             sendToQml(message); // Accepts objects, not just strings.
         }
@@ -916,16 +1023,21 @@ function startup() {
 startup();
 
 function off() {
-    if (ui.isOpen) { // i.e., only when connected
-        if (updateInterval) {
+    cancelPendingSelect();
+    if (palRuntimeActive) {
+        palRuntimeActive = false;
+        if (updateInterval !== undefined) {
             Script.clearInterval(updateInterval);
+            updateInterval = undefined;
         }
-        Controller.mousePressEvent.disconnect(handleMouseEvent);
-        Controller.mouseMoveEvent.disconnect(handleMouseMoveEvent);
+        if (!isAndroidPhone) {
+            Controller.mousePressEvent.disconnect(handleMouseEvent);
+            Controller.mouseMoveEvent.disconnect(handleMouseMoveEvent);
+            triggerMapping.disable();
+            triggerPressMapping.disable();
+        }
         ui.tablet.tabletShownChanged.disconnect(tabletVisibilityChanged);
         Users.usernameFromIDReply.disconnect(usernameFromIDReply);
-        triggerMapping.disable();
-        triggerPressMapping.disable();
     }
 
     removeOverlays();
@@ -935,7 +1047,7 @@ function off() {
 function shutdown() {
     Window.domainChanged.disconnect(clearLocalQMLDataAndClosePAL);
     Window.domainConnectionRefused.disconnect(clearLocalQMLDataAndClosePAL);
-    Messages.subscribe(CHANNEL);
+    Messages.unsubscribe(CHANNEL);
     Messages.messageReceived.disconnect(receiveMessage);
     Users.avatarDisconnected.disconnect(avatarDisconnected);
     AvatarList.avatarAddedEvent.disconnect(avatarAdded);

@@ -167,7 +167,7 @@ void OffscreenUi::onRootContextCreated(QQmlContext* qmlContext) {
     qmlContext->setContextProperty("OffscreenUi", this);
     qmlContext->setContextProperty("offscreenFlags", offscreenFlags = new OffscreenFlags());
     qmlContext->setContextProperty("fileDialogHelper", new FileDialogHelper());
-#ifdef DEBUG
+#if defined(DEBUG) && !defined(ANDROID_APP_PHONE_INTERFACE)
     qmlContext->setContextProperty("DebugQML", QVariant(true));
 #else
     qmlContext->setContextProperty("DebugQML", QVariant(false));

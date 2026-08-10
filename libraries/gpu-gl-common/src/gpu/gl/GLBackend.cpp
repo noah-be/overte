@@ -16,6 +16,9 @@
 #include <queue>
 #include <list>
 #include <functional>
+#if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
+#include <atomic>
+#endif
 #include <glm/gtc/type_ptr.hpp>
 #include "gl/Config.h"
 
@@ -33,6 +36,38 @@
 
 using namespace gpu;
 using namespace gpu::gl;
+
+#if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
+namespace {
+struct PhoneTrashAtomicMetrics {
+    std::atomic<uint64_t> buffersEnqueued { 0 };
+    std::atomic<uint64_t> buffersCleaned { 0 };
+    std::atomic<uint64_t> texturesEnqueued { 0 };
+    std::atomic<uint64_t> texturesCleaned { 0 };
+    std::atomic<uint64_t> externalTexturesEnqueued { 0 };
+    std::atomic<uint64_t> externalTexturesCleaned { 0 };
+    std::atomic<uint64_t> framebuffersEnqueued { 0 };
+    std::atomic<uint64_t> framebuffersCleaned { 0 };
+    std::atomic<uint64_t> bufferBytesEnqueued { 0 };
+    std::atomic<uint64_t> bufferBytesCleaned { 0 };
+} phoneTrashMetrics;
+}
+
+GLBackend::PhoneTrashMetrics GLBackend::getPhoneTrashMetrics() {
+    return {
+        phoneTrashMetrics.buffersEnqueued.load(std::memory_order_relaxed),
+        phoneTrashMetrics.buffersCleaned.load(std::memory_order_relaxed),
+        phoneTrashMetrics.texturesEnqueued.load(std::memory_order_relaxed),
+        phoneTrashMetrics.texturesCleaned.load(std::memory_order_relaxed),
+        phoneTrashMetrics.externalTexturesEnqueued.load(std::memory_order_relaxed),
+        phoneTrashMetrics.externalTexturesCleaned.load(std::memory_order_relaxed),
+        phoneTrashMetrics.framebuffersEnqueued.load(std::memory_order_relaxed),
+        phoneTrashMetrics.framebuffersCleaned.load(std::memory_order_relaxed),
+        phoneTrashMetrics.bufferBytesEnqueued.load(std::memory_order_relaxed),
+        phoneTrashMetrics.bufferBytesCleaned.load(std::memory_order_relaxed)
+    };
+}
+#endif
 
 GLBackend::CommandCall GLBackend::_commandCalls[Batch::NUM_COMMANDS] = 
 {
@@ -507,14 +542,21 @@ void GLBackend::renderPassDraw(const Batch& batch) {
 class GlDuration {
 public:
 #ifdef Q_OS_ANDROID
-    GlDuration(const char* name) {
+    GlDuration(const char* name) :
+        _enabled(glad_glPushDebugGroup != nullptr && glad_glPopDebugGroup != nullptr) {
         // We need to use strlen here instead of -1, because the Snapdragon profiler
-        // will crash otherwise 
-        glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, strlen(name), name);
+        // will crash otherwise.
+        if (_enabled) {
+            glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, strlen(name), name);
+        }
     }
     ~GlDuration() {
-        glPopDebugGroup();
+        if (_enabled) {
+            glPopDebugGroup();
+        }
     }
+private:
+    bool _enabled { false };
 #else
     GlDuration(const char* name) {
         if (::gl::khrDebugEnabled()) {
@@ -863,21 +905,34 @@ void GLBackend::do_glUniformMatrix4fv(const Batch& batch, size_t paramOffset) {
 void GLBackend::releaseBuffer(GLuint id, Size size) const {
     Lock lock(_trashMutex);
     _currentFrameTrash.buffersTrash.push_back({ id, size });
+#if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
+    phoneTrashMetrics.buffersEnqueued.fetch_add(1, std::memory_order_relaxed);
+    phoneTrashMetrics.bufferBytesEnqueued.fetch_add(size, std::memory_order_relaxed);
+#endif
 }
 
 void GLBackend::releaseExternalTexture(GLuint id, const Texture::ExternalRecycler& recycler) const {
     Lock lock(_trashMutex);
     _currentFrameTrash.externalTexturesTrash.push_back({ id, recycler });
+#if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
+    phoneTrashMetrics.externalTexturesEnqueued.fetch_add(1, std::memory_order_relaxed);
+#endif
 }
 
 void GLBackend::releaseTexture(GLuint id, Size size) const {
     Lock lock(_trashMutex);
     _currentFrameTrash.texturesTrash.push_back({ id, size });
+#if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
+    phoneTrashMetrics.texturesEnqueued.fetch_add(1, std::memory_order_relaxed);
+#endif
 }
 
 void GLBackend::releaseFramebuffer(GLuint id) const {
     Lock lock(_trashMutex);
     _currentFrameTrash.framebuffersTrash.push_back(id);
+#if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
+    phoneTrashMetrics.framebuffersEnqueued.fetch_add(1, std::memory_order_relaxed);
+#endif
 }
 
 void GLBackend::releaseShader(GLuint id) const {
@@ -905,6 +960,12 @@ void GLBackend::FrameTrash::cleanup() {
     glDeleteSync(fence);
 
     {
+#if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
+        uint64_t cleanedBytes { 0 };
+        for (const auto& pair : buffersTrash) {
+            cleanedBytes += pair.second;
+        }
+#endif
         std::vector<GLuint> ids;
         ids.reserve(buffersTrash.size());
         for (auto pair : buffersTrash) {
@@ -913,6 +974,10 @@ void GLBackend::FrameTrash::cleanup() {
         if (!ids.empty()) {
             glDeleteBuffers((GLsizei)ids.size(), ids.data());
         }
+#if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
+        phoneTrashMetrics.buffersCleaned.fetch_add(ids.size(), std::memory_order_relaxed);
+        phoneTrashMetrics.bufferBytesCleaned.fetch_add(cleanedBytes, std::memory_order_relaxed);
+#endif
     }
 
     {
@@ -924,6 +989,9 @@ void GLBackend::FrameTrash::cleanup() {
         if (!ids.empty()) {
             glDeleteFramebuffers((GLsizei)ids.size(), ids.data());
         }
+#if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
+        phoneTrashMetrics.framebuffersCleaned.fetch_add(ids.size(), std::memory_order_relaxed);
+#endif
     }
 
     {
@@ -935,6 +1003,9 @@ void GLBackend::FrameTrash::cleanup() {
         if (!ids.empty()) {
             glDeleteTextures((GLsizei)ids.size(), ids.data());
         }
+#if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
+        phoneTrashMetrics.texturesCleaned.fetch_add(ids.size(), std::memory_order_relaxed);
+#endif
     }
 
     {
@@ -951,6 +1022,9 @@ void GLBackend::FrameTrash::cleanup() {
                 auto fence = fences[index++];
                 pair.second(pair.first, fence);
             }
+#if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
+            phoneTrashMetrics.externalTexturesCleaned.fetch_add(externalTexturesTrash.size(), std::memory_order_relaxed);
+#endif
         }
     }
     

@@ -11,21 +11,34 @@ Rectangle {
 	height: parent.height;
 	anchors.centerIn: parent;
 	anchors.horizontalCenter: parent.horizontalCenter
-	property var pages: [
+	property var allPages: [
 		{name: "General", icon: "../img/overte.svg", targetPage: "hifi/tablet/TabletGeneralPreferences.qml" },
-		{name: "Graphics", icon: "../img/computer.svg", targetPage: "" }, 
+		{name: "Graphics", icon: "../img/computer.svg", targetPage: "",
+			requiresGraphicsSettings: true },
 		{name: "Audio", icon: "../img/volume.svg", targetPage: "hifi/audio/Audio.qml" }, 
-		{name: "Controls", icon: "../img/dpad.svg", targetPage: "hifi/tablet/ControllerSettings.qml" }, 
+		{name: "Controls", icon: "../img/dpad.svg", targetPage: "hifi/tablet/ControllerSettings.qml",
+			requiresControllerSettings: true },
 		{name: "Security", icon: "../img/badge.svg", targetPage: "hifi/dialogs/security/Security.qml" }, 
 		{name: "QML Allowlist", icon: "../img/lock.svg", targetPage: "hifi/dialogs/security/EntityScriptQMLAllowlist.qml" }, 
 		{name: "Script Security", icon: "../img/shield.svg", targetPage: "hifi/dialogs/security/ScriptSecurity.qml" }, 
 	];
 	property string currentPage: "Settings"
 
+	SettingsTouchConfiguration {
+		id: touchConfiguration
+	}
+	property var pages: allPages.filter(function (page) {
+		return (!page.requiresControllerSettings || touchConfiguration.showControllerSettings)
+			&& (!page.requiresGraphicsSettings || touchConfiguration.showGraphicsSettings);
+	})
+
 	ColumnLayout {
-		width: parent.width
-		height: parent.height
-		anchors.horizontalCenter: parent.horizontalCenter
+		width: parent.width / touchConfiguration.contentScale
+		height: parent.height / touchConfiguration.contentScale
+		transformOrigin: Item.TopLeft
+		scale: touchConfiguration.contentScale
+		x: 0
+		y: 0
 		id: root
 
 		// Navigation Header
@@ -50,7 +63,12 @@ Rectangle {
 		}
 
 		// Graphics 
-		GraphicsSettings {}
+		Loader {
+			active: touchConfiguration.showGraphicsSettings
+			Layout.fillWidth: true
+			Layout.fillHeight: true
+			sourceComponent: Component { GraphicsSettings {} }
+		}
 
 		// Templates
 	}

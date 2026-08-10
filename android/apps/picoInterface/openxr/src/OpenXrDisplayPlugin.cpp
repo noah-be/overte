@@ -8,6 +8,7 @@
 //
 
 #include "OpenXrDisplayPlugin.h"
+#include "OpenXrDisplayPolicy.h"
 #include <qloggingcategory.h>
 #include <SettingHandle.h>
 
@@ -18,6 +19,7 @@
 #include <glm/gtx/transform.hpp>
 #include <thread>
 #include <sstream>
+#include <utility>
 
 #if defined(Q_OS_ANDROID)
 #include <sys/system_properties.h>
@@ -178,35 +180,62 @@ bool OpenXrDisplayPlugin::initViews() {
     XrInstance instance = _context->_instance;
     XrSystemId systemId = _context->_systemId;
 
-    XrResult result = xrEnumerateViewConfigurationViews(instance, systemId, XR_VIEW_CONFIG_TYPE, 0, &_viewCount, nullptr);
+    uint32_t reportedViewCount = 0;
+    XrResult result = xrEnumerateViewConfigurationViews(
+        instance, systemId, XR_VIEW_CONFIG_TYPE, 0, &reportedViewCount, nullptr);
     if (!xrCheck(instance, result, "Failed to get view configuration view count!")) {
         qCCritical(xr_display_cat, "Failed to get view configuration view count!");
         return false;
     }
 
-    assert(_viewCount != 0);
-
-    _views = std::vector<XrView>();
-
-    for (uint32_t i = 0; i < _viewCount; i++) {
-        XrView view = { .type = XR_TYPE_VIEW };
-        _views.value().push_back(view);
-
-        XrViewConfigurationView viewConfig = { .type = XR_TYPE_VIEW_CONFIGURATION_VIEW };
-        _viewConfigs.push_back(viewConfig);
+    if (!isSupportedOpenXrViewCount(reportedViewCount)) {
+        qCCritical(xr_display_cat, "Runtime reported unsupported view count: %u", reportedViewCount);
+        return false;
     }
 
-    _swapChains.resize(_viewCount);
-    _swapChainLengths.resize(_viewCount);
-    _swapChainIndices.resize(_viewCount);
-    _images.resize(_viewCount);
+    std::vector<XrView> views;
+    std::vector<XrViewConfigurationView> viewConfigs;
+    for (uint32_t i = 0; i < reportedViewCount; i++) {
+        XrView view = { .type = XR_TYPE_VIEW };
+        views.push_back(view);
 
-    result = xrEnumerateViewConfigurationViews(instance, systemId, XR_VIEW_CONFIG_TYPE, _viewCount, &_viewCount,
-                                               _viewConfigs.data());
+        XrViewConfigurationView viewConfig = { .type = XR_TYPE_VIEW_CONFIGURATION_VIEW };
+        viewConfigs.push_back(viewConfig);
+    }
+
+    uint32_t enumeratedViewCount = reportedViewCount;
+    result = xrEnumerateViewConfigurationViews(
+        instance, systemId, XR_VIEW_CONFIG_TYPE, reportedViewCount,
+        &enumeratedViewCount, viewConfigs.data());
     if (!xrCheck(instance, result, "Failed to enumerate view configuration views!")) {
         qCCritical(xr_display_cat, "Failed to enumerate view configuration views!");
         return false;
     }
+    if (!isSupportedOpenXrViewCount(enumeratedViewCount)) {
+        qCCritical(xr_display_cat, "Runtime enumerated unsupported view count: %u", enumeratedViewCount);
+        return false;
+    }
+    if (!areOpenXrStereoViewDimensionsCompatible(
+            viewConfigs[0].recommendedImageRectWidth,
+            viewConfigs[0].recommendedImageRectHeight,
+            viewConfigs[1].recommendedImageRectWidth,
+            viewConfigs[1].recommendedImageRectHeight)) {
+        qCCritical(xr_display_cat,
+                   "Runtime returned incompatible stereo view dimensions: %ux%u and %ux%u",
+                   viewConfigs[0].recommendedImageRectWidth,
+                   viewConfigs[0].recommendedImageRectHeight,
+                   viewConfigs[1].recommendedImageRectWidth,
+                   viewConfigs[1].recommendedImageRectHeight);
+        return false;
+    }
+
+    _viewCount = enumeratedViewCount;
+    _views = std::move(views);
+    _viewConfigs = std::move(viewConfigs);
+    _swapChains.resize(_viewCount);
+    _swapChainLengths.resize(_viewCount);
+    _swapChainIndices.resize(_viewCount);
+    _images.resize(_viewCount);
 
     return true;
 }
@@ -230,27 +259,42 @@ static std::string glFormatStr(GLenum source) {
 }
 
 static int64_t chooseSwapChainFormat(XrInstance instance, XrSession session, int64_t preferred) {
-    uint32_t formatCount;
-    XrResult result = xrEnumerateSwapchainFormats(session, 0, &formatCount, nullptr);
+    uint32_t formatCapacity = 0;
+    XrResult result = xrEnumerateSwapchainFormats(
+        session, 0, &formatCapacity, nullptr);
     if (!xrCheck(instance, result, "Failed to get number of supported swapchain formats"))
-        return -1;
+        return OPENXR_NO_SWAPCHAIN_FORMAT;
 
-    qCInfo(xr_display_cat, "Runtime supports %d swapchain formats", formatCount);
-    std::vector<int64_t> formats(formatCount);
+    qCInfo(xr_display_cat, "Runtime supports %d swapchain formats", formatCapacity);
+    std::vector<int64_t> formats(formatCapacity);
 
-    result = xrEnumerateSwapchainFormats(session, formatCount, &formatCount, formats.data());
-    if (!xrCheck(instance, result, "Failed to enumerate swapchain formats"))
-        return -1;
+    uint32_t returnedFormatCount = 0;
+    if (formatCapacity > 0) {
+        result = xrEnumerateSwapchainFormats(
+            session, formatCapacity, &returnedFormatCount, formats.data());
+        if (!xrCheck(instance, result, "Failed to enumerate swapchain formats"))
+            return OPENXR_NO_SWAPCHAIN_FORMAT;
+    }
+    if (!isOpenXrEnumerationCountWithinCapacity(
+            formatCapacity, returnedFormatCount)) {
+        qCCritical(xr_display_cat,
+                   "Runtime returned inconsistent swapchain format count: %u of %u",
+                   returnedFormatCount, formatCapacity);
+        return OPENXR_NO_SWAPCHAIN_FORMAT;
+    }
+    formats.resize(returnedFormatCount);
 
-    int64_t chosen = formats[0];
-
-    for (uint32_t i = 0; i < formatCount; i++) {
-        qCInfo(xr_display_cat, "Supported GL format: %s", glFormatStr(formats[i]).c_str());
-        if (formats[i] == preferred) {
-            chosen = formats[i];
-            qCInfo(xr_display_cat, "Using preferred swapchain format %s", glFormatStr(chosen).c_str());
-            break;
-        }
+    for (int64_t format : formats) {
+        qCInfo(xr_display_cat, "Supported GL format: %s", glFormatStr(format).c_str());
+    }
+    const int64_t chosen = selectOpenXrSwapchainFormat(
+        formats.data(), formats.size(), preferred);
+    if (chosen == OPENXR_NO_SWAPCHAIN_FORMAT) {
+        qCCritical(xr_display_cat, "Runtime returned no usable swapchain formats");
+        return OPENXR_NO_SWAPCHAIN_FORMAT;
+    }
+    if (chosen == preferred) {
+        qCInfo(xr_display_cat, "Using preferred swapchain format %s", glFormatStr(chosen).c_str());
     }
     if (chosen != preferred) {
         qCWarning(xr_display_cat, "Falling back to non preferred swapchain format %s", glFormatStr(chosen).c_str());
@@ -262,8 +306,16 @@ static int64_t chooseSwapChainFormat(XrInstance instance, XrSession session, int
 bool OpenXrDisplayPlugin::initSwapChains() {
     XrInstance instance = _context->_instance;
     XrSession session = _context->_session;
+    destroySwapChains();
+    auto failInitialization = [this] {
+        destroySwapChains();
+        return false;
+    };
 
     int64_t format = chooseSwapChainFormat(instance, session, XR_PREFERRED_COLOR_FORMAT);
+    if (format == OPENXR_NO_SWAPCHAIN_FORMAT) {
+        return failInitialization();
+    }
 
 #if defined(Q_OS_ANDROID)
     const XrFoveationLevelFB foveationLevel = picoFoveationLevel();
@@ -296,20 +348,35 @@ bool OpenXrDisplayPlugin::initSwapChains() {
 
         XrResult result = xrCreateSwapchain(session, &info, &_swapChains[i]);
         if (!xrCheck(instance, result, "Failed to create swapchain!"))
-            return false;
+            return failInitialization();
 
-        result = xrEnumerateSwapchainImages(_swapChains[i], 0, &_swapChainLengths[i], nullptr);
+        uint32_t imageCapacity = 0;
+        result = xrEnumerateSwapchainImages(_swapChains[i], 0, &imageCapacity, nullptr);
         if (!xrCheck(instance, result, "Failed to enumerate swapchains"))
-            return false;
+            return failInitialization();
+        if (!isConsistentOpenXrEnumerationCount(imageCapacity, imageCapacity)) {
+            qCCritical(xr_display_cat, "Runtime returned no swapchain images for eye %u", i);
+            return failInitialization();
+        }
 
-        for (uint32_t j = 0; j < _swapChainLengths[i]; j++) {
+        for (uint32_t j = 0; j < imageCapacity; j++) {
             XrSwapchainImageOpenGLKHR image = { .type = XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_KHR };
             _images[i].push_back(image);
         }
-        result = xrEnumerateSwapchainImages(_swapChains[i], _swapChainLengths[i], &_swapChainLengths[i],
-                                            (XrSwapchainImageBaseHeader*)_images[i].data());
+        uint32_t returnedImageCount = imageCapacity;
+        result = xrEnumerateSwapchainImages(
+            _swapChains[i], imageCapacity, &returnedImageCount,
+            (XrSwapchainImageBaseHeader*)_images[i].data());
         if (!xrCheck(instance, result, "Failed to enumerate swapchain images"))
-            return false;
+            return failInitialization();
+        if (!isConsistentOpenXrEnumerationCount(imageCapacity, returnedImageCount)) {
+            qCCritical(xr_display_cat,
+                       "Runtime returned inconsistent swapchain image count for eye %u: %u of %u",
+                       i, returnedImageCount, imageCapacity);
+            return failInitialization();
+        }
+        _images[i].resize(returnedImageCount);
+        _swapChainLengths[i] = returnedImageCount;
     }
 
 #if defined(Q_OS_ANDROID)
@@ -326,8 +393,15 @@ bool OpenXrDisplayPlugin::initSwapChains() {
             .next = &levelInfo,
         };
         XrResult result = _context->xrCreateFoveationProfileFB(session, &profileInfo, &_foveationProfile);
-        if (!xrCheck(instance, result, "Failed to create foveation profile")) {
-            return false;
+        const bool profileCreated = xrCheck(
+            instance, result, "Failed to create foveation profile");
+        if (!isOpenXrFoveationProfileUsable(
+                profileCreated, _foveationProfile != XR_NULL_HANDLE)) {
+            if (profileCreated) {
+                qCCritical(xr_display_cat,
+                           "OpenXR runtime returned a null foveation profile.");
+            }
+            return failInitialization();
         }
 
         XrSwapchainStateFoveationFB state = {
@@ -340,7 +414,7 @@ bool OpenXrDisplayPlugin::initSwapChains() {
             result = _context->xrUpdateSwapchainFB(
                 swapchain, reinterpret_cast<const XrSwapchainStateBaseHeaderFB*>(&state));
             if (!xrCheck(instance, result, "Failed to apply foveation profile")) {
-                return false;
+                return failInitialization();
             }
         }
     }
@@ -351,7 +425,41 @@ bool OpenXrDisplayPlugin::initSwapChains() {
     return true;
 }
 
+void OpenXrDisplayPlugin::destroySwapChains() {
+    const bool sessionAlive = _context &&
+        _context->_session != XR_NULL_HANDLE;
+#if defined(Q_OS_ANDROID)
+    const auto foveationCleanup = openXrSessionChildCleanup(
+        _foveationProfile != XR_NULL_HANDLE, sessionAlive);
+    if (foveationCleanup == OpenXrSessionChildCleanup::DestroyAndClear &&
+            _context->xrDestroyFoveationProfileFB) {
+        xrCheck(_context->_instance, _context->xrDestroyFoveationProfileFB(_foveationProfile),
+                "Failed to destroy foveation profile");
+    }
+    if (foveationCleanup != OpenXrSessionChildCleanup::Noop) {
+        _foveationProfile = XR_NULL_HANDLE;
+    }
+#endif
+    for (XrSwapchain& swapchain : _swapChains) {
+        const auto cleanup = openXrSessionChildCleanup(
+            swapchain != XR_NULL_HANDLE, sessionAlive);
+        if (cleanup == OpenXrSessionChildCleanup::DestroyAndClear) {
+            xrCheck(_context->_instance, xrDestroySwapchain(swapchain),
+                    "Failed to destroy swapchain");
+        }
+        if (cleanup != OpenXrSessionChildCleanup::Noop) {
+            swapchain = XR_NULL_HANDLE;
+        }
+    }
+    for (auto& images : _images) {
+        images.clear();
+    }
+    std::fill(_swapChainLengths.begin(), _swapChainLengths.end(), 0);
+    std::fill(_swapChainIndices.begin(), _swapChainIndices.end(), 0);
+}
+
 bool OpenXrDisplayPlugin::initLayers() {
+    _projectionLayerViews.clear();
     for (uint32_t i = 0; i < _viewCount; i++) {
         XrCompositionLayerProjectionView layer = {
             .type = XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW,
@@ -379,7 +487,10 @@ bool OpenXrDisplayPlugin::initLayers() {
 void OpenXrDisplayPlugin::init() {
     Plugin::init();
 
-    if (!initViews()) {
+    const bool viewsInitialized = initViews();
+    _context->_isValid = openXrContextValidAfterRequiredInitialization(
+        _context->_isValid, viewsInitialized);
+    if (!viewsInitialized) {
         qCCritical(xr_display_cat, "View init failed.");
         return;
     }
@@ -425,17 +536,26 @@ void OpenXrDisplayPlugin::customizeContext() {
     gl::initModuleGl();
     HmdDisplayPlugin::customizeContext();
 
-    if (!_context->initPostGraphics()) {
+    const bool postGraphicsInitialized = _context->initPostGraphics();
+    _context->_isValid = openXrContextValidAfterRequiredInitialization(
+        _context->_isValid, postGraphicsInitialized);
+    if (!postGraphicsInitialized) {
         qCCritical(xr_display_cat, "Post graphics init failed.");
         return;
     }
 
-    if (!initSwapChains()) {
+    const bool swapChainsInitialized = initSwapChains();
+    _context->_isValid = openXrContextValidAfterRequiredInitialization(
+        _context->_isValid, swapChainsInitialized);
+    if (!swapChainsInitialized) {
         qCCritical(xr_display_cat, "Swap chain init failed.");
         return;
     }
 
-    if (!initLayers()) {
+    const bool layersInitialized = initLayers();
+    _context->_isValid = openXrContextValidAfterRequiredInitialization(
+        _context->_isValid, layersInitialized);
+    if (!layersInitialized) {
         qCCritical(xr_display_cat, "Layer init failed.");
         return;
     }
@@ -450,18 +570,9 @@ void OpenXrDisplayPlugin::customizeContext() {
 }
 
 void OpenXrDisplayPlugin::uncustomizeContext() {
-#if defined(Q_OS_ANDROID)
-    if (_foveationProfile != XR_NULL_HANDLE && _context->xrDestroyFoveationProfileFB) {
-        xrCheck(_context->_instance, _context->xrDestroyFoveationProfileFB(_foveationProfile),
-                "Failed to destroy foveation profile");
-        _foveationProfile = XR_NULL_HANDLE;
-    }
-#endif
     _compositeSwapChain.clear();
     _projectionLayerViews.clear();
-    for (uint32_t i = 0; i < _viewCount; i++) {
-        _images[i].clear();
-    }
+    destroySwapChains();
     HmdDisplayPlugin::uncustomizeContext();
 }
 
@@ -474,7 +585,10 @@ bool OpenXrDisplayPlugin::beginFrameRender(uint32_t frameIndex) {
         return false;
     }
 
-    _context->pollEvents();
+    if (!_context->pollEvents()) {
+        deactivate();
+        return false;
+    }
 
     if (_context->_shouldQuit) {
         QMetaObject::invokeMethod(qApp, "quit");
@@ -508,6 +622,12 @@ void OpenXrDisplayPlugin::compositeLayers() {
     }
 
     if (_lastFrameState.shouldRender) {
+        if (!isOpenXrSwapchainImageIndexValid(
+                _swapChainIndices[0], _compositeSwapChain.size())) {
+            qCCritical(xr_display_cat, "Invalid composite swapchain image index: %u (count %zu)",
+                       _swapChainIndices[0], _compositeSwapChain.size());
+            return;
+        }
         _compositeFramebuffer->setRenderBuffer(0, _compositeSwapChain[_swapChainIndices[0]]);
         HmdDisplayPlugin::compositeLayers();
     }
@@ -560,17 +680,67 @@ void OpenXrDisplayPlugin::hmdPresent() {
 
     if (_lastFrameState.shouldRender) {
         // TODO: Use multiview swapchain
+        uint32_t acquiredCount = 0;
+        auto releaseAcquiredImages = [&] {
+            bool released = true;
+            for (uint32_t acquired = 0; acquired < acquiredCount; ++acquired) {
+                XrSwapchainImageReleaseInfo releaseInfo = { .type = XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
+                if (!xrCheck(_context->_instance,
+                             xrReleaseSwapchainImage(_swapChains[acquired], &releaseInfo),
+                             "failed to release swapchain image!")) {
+                    released = false;
+                }
+            }
+            acquiredCount = 0;
+            return released;
+        };
+        auto abortFrame = [&] {
+            const bool imagesReleased = releaseAcquiredImages();
+            endFrame(false);
+            if (!imagesReleased) {
+                qCCritical(xr_display_cat,
+                           "OpenXR swapchain image release failed; disabling the context.");
+                _context->_isValid = false;
+            }
+        };
         for (uint32_t i = 0; i < 2; i++) {
             XrSwapchainImageAcquireInfo acquireInfo = { .type = XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO };
 
             XrResult result = xrAcquireSwapchainImage(_swapChains[i], &acquireInfo, &_swapChainIndices[i]);
-            if (!xrCheck(_context->_instance, result, "failed to acquire swapchain image!"))
+            if (!xrCheck(_context->_instance, result, "failed to acquire swapchain image!")) {
+                abortFrame();
                 return;
+            }
+            ++acquiredCount;
+            const bool validRuntimeImage = isOpenXrSwapchainImageIndexValid(
+                _swapChainIndices[i], _images[i].size());
+            const bool validCompositeImage = i != 0 || isOpenXrSwapchainImageIndexValid(
+                _swapChainIndices[i], _compositeSwapChain.size());
+            if (!validRuntimeImage || !validCompositeImage) {
+                qCCritical(xr_display_cat,
+                           "Runtime returned invalid swapchain image index for eye %u: %u",
+                           i, _swapChainIndices[i]);
+                abortFrame();
+                return;
+            }
 
-            XrSwapchainImageWaitInfo waitInfo = { .type = XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO, .timeout = 1000 };
+            XrSwapchainImageWaitInfo waitInfo = {
+                .type = XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO,
+                .timeout = XR_INFINITE_DURATION,
+            };
             result = xrWaitSwapchainImage(_swapChains[i], &waitInfo);
-            if (!xrCheck(_context->_instance, result, "failed to wait for swapchain image!"))
+            const bool waitSucceeded = xrCheck(
+                _context->_instance, result, "failed to wait for swapchain image!");
+            const bool timeoutExpired = result == XR_TIMEOUT_EXPIRED;
+            if (!isOpenXrSwapchainImageWaitComplete(
+                    waitSucceeded, timeoutExpired)) {
+                if (timeoutExpired) {
+                    qCWarning(xr_display_cat,
+                              "OpenXR swapchain image wait timed out unexpectedly.");
+                }
+                abortFrame();
                 return;
+            }
         }
 
         auto backend = getBackend();
@@ -584,22 +754,24 @@ void OpenXrDisplayPlugin::hmdPresent() {
         glCopyImageSubData(glTexId, GL_TEXTURE_2D, 0, _renderTargetSize.x / 2, 0, 0, _images[1][_swapChainIndices[1]].image,
                            GL_TEXTURE_2D, 0, 0, 0, 0, _renderTargetSize.x / 2, _renderTargetSize.y, 1);
 
-        for (uint32_t i = 0; i < 2; i++) {
-            XrSwapchainImageReleaseInfo releaseInfo = { .type = XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
-            XrResult result = xrReleaseSwapchainImage(_swapChains[i], &releaseInfo);
-            if (!xrCheck(_context->_instance, result, "failed to release swapchain image!")) {
-                assert(false);
-                return;
-            }
+        const bool imagesReleased = releaseAcquiredImages();
+        const bool frameEnded = endFrame(imagesReleased);
+        if (!imagesReleased) {
+            qCCritical(xr_display_cat,
+                       "OpenXR swapchain image release failed; disabling the context.");
+            _context->_isValid = false;
         }
+        if (!isOpenXrFramePresentationComplete(imagesReleased, frameEnded)) {
+            return;
+        }
+    } else if (!isOpenXrFramePresentationComplete(true, endFrame())) {
+        return;
     }
-
-    endFrame();
 
     _presentRate.increment();
 }
 
-bool OpenXrDisplayPlugin::endFrame() {
+bool OpenXrDisplayPlugin::endFrame(bool imagesReleased) {
     XrCompositionLayerProjection projectionLayer = {
         .type = XR_TYPE_COMPOSITION_LAYER_PROJECTION,
         .layerFlags = 0,
@@ -620,11 +792,13 @@ bool OpenXrDisplayPlugin::endFrame() {
         .layers = layers.data(),
     };
 
-    if ((_lastViewState.viewStateFlags & XR_VIEW_STATE_ORIENTATION_VALID_BIT) == 0) {
-        info.layerCount = 0;
-    }
-
-    if (!_lastFrameState.shouldRender) {
+    constexpr XrViewStateFlags requiredViewFlags =
+        XR_VIEW_STATE_POSITION_VALID_BIT |
+        XR_VIEW_STATE_ORIENTATION_VALID_BIT;
+    const bool viewsUsable = isOpenXrViewStateUsable(
+        _lastViewState.viewStateFlags, requiredViewFlags);
+    if (!shouldSubmitOpenXrProjectionLayer(
+            _lastFrameState.shouldRender, viewsUsable, imagesReleased)) {
         info.layerCount = 0;
     }
 
@@ -672,17 +846,30 @@ void OpenXrDisplayPlugin::updatePresentPose() {
 
     XrViewState eyeViewState = { .type = XR_TYPE_VIEW_STATE };
 
-    XrResult result = xrLocateViews(_context->_session, &eyeViewLocateInfo, &eyeViewState, _viewCount, &_viewCount, eye_views.data());
+    uint32_t locatedEyeViewCount = 0;
+    XrResult result = xrLocateViews(
+        _context->_session, &eyeViewLocateInfo, &eyeViewState, _viewCount,
+        &locatedEyeViewCount, eye_views.data());
     if (!xrCheck(_context->_instance, result, "Could not locate views"))
         return;
-
-    for (uint32_t i = 0; i < 2; i++) {
-        vec3 eyePosition = xrVecToGlm(eye_views[i].pose.position);
-        quat eyeOrientation = xrQuatToGlm(eye_views[i].pose.orientation);
-        _eyeOffsets[i] = controller::Pose(eyePosition, eyeOrientation).getMatrix();
+    if (!isCompleteOpenXrStereoViewResult(_viewCount, locatedEyeViewCount)) {
+        qCWarning(xr_display_cat, "Runtime returned incomplete eye views: %u", locatedEyeViewCount);
+        return;
+    }
+    constexpr XrViewStateFlags requiredViewFlags =
+        XR_VIEW_STATE_POSITION_VALID_BIT |
+        XR_VIEW_STATE_ORIENTATION_VALID_BIT;
+    if (!isOpenXrViewStateUsable(
+            eyeViewState.viewStateFlags, requiredViewFlags)) {
+        qCWarning(xr_display_cat, "Runtime returned invalid eye-view poses");
+        return;
     }
 
-    _lastViewState = { .type = XR_TYPE_VIEW_STATE };
+    XrViewState worldViewState = { .type = XR_TYPE_VIEW_STATE };
+    std::vector<XrView> worldViews(_viewCount);
+    for (auto& view : worldViews) {
+        view.type = XR_TYPE_VIEW;
+    }
 
     XrViewLocateInfo viewLocateInfo = {
         .type = XR_TYPE_VIEW_LOCATE_INFO,
@@ -691,20 +878,54 @@ void OpenXrDisplayPlugin::updatePresentPose() {
         .space = _context->_stageSpace,
     };
 
-    result = xrLocateViews(_context->_session, &viewLocateInfo, &_lastViewState, _viewCount, &_viewCount, _views.value().data());
+    uint32_t locatedWorldViewCount = 0;
+    result = xrLocateViews(
+        _context->_session, &viewLocateInfo, &worldViewState, _viewCount,
+        &locatedWorldViewCount, worldViews.data());
     if (!xrCheck(_context->_instance, result, "Could not locate views"))
         return;
+    if (!isCompleteOpenXrStereoViewResult(_viewCount, locatedWorldViewCount)) {
+        qCWarning(xr_display_cat, "Runtime returned incomplete world views: %u", locatedWorldViewCount);
+        return;
+    }
+    if (!isOpenXrViewStateUsable(
+            worldViewState.viewStateFlags, requiredViewFlags)) {
+        qCWarning(xr_display_cat, "Runtime returned invalid world-view poses");
+        return;
+    }
+
+    for (uint32_t i = 0; i < 2; i++) {
+        vec3 eyePosition = xrVecToGlm(eye_views[i].pose.position);
+        quat eyeOrientation = xrQuatToGlm(eye_views[i].pose.orientation);
+        _eyeOffsets[i] = controller::Pose(
+            eyePosition, eyeOrientation).getMatrix();
+    }
+
+    _lastViewState = worldViewState;
+    _views.value() = worldViews;
 
     for (uint32_t i = 0; i < _viewCount; i++) {
-        _projectionLayerViews[i].pose = _views.value()[i].pose;
-        _projectionLayerViews[i].fov = _views.value()[i].fov;
+        _projectionLayerViews[i].pose = worldViews[i].pose;
+        _projectionLayerViews[i].fov = worldViews[i].fov;
     }
 
     XrSpaceLocation headLocation = {
         .type = XR_TYPE_SPACE_LOCATION,
         .pose = XR_INDENTITY_POSE,
     };
-    xrLocateSpace(_context->_viewSpace, _context->_stageSpace, predictedDisplayTime, &headLocation);
+    const bool headLocated = xrCheck(
+        _context->_instance,
+        xrLocateSpace(
+            _context->_viewSpace, _context->_stageSpace,
+            predictedDisplayTime, &headLocation),
+        "Could not locate head pose");
+    constexpr XrSpaceLocationFlags requiredHeadFlags =
+        XR_SPACE_LOCATION_POSITION_VALID_BIT |
+        XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+    if (!isOpenXrLocatedPoseUsable(
+            headLocated, headLocation.locationFlags, requiredHeadFlags)) {
+        return;
+    }
 
     glm::vec3 headPosition = xrVecToGlm(headLocation.pose.position);
     glm::quat headOrientation = xrQuatToGlm(headLocation.pose.orientation);

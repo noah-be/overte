@@ -8,7 +8,21 @@
 #include "OpenGLDisplayPlugin.h"
 
 #include <condition_variable>
+#include <mutex>
 #include <queue>
+
+#if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
+#include <algorithm>
+#include <array>
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <cstdint>
+#include <cstring>
+#include <limits>
+#include <malloc.h>
+#include <android/log.h>
+#endif
 
 #include <gl/Config.h>
 
@@ -55,6 +69,9 @@
 #include <ui/Menu.h>
 #include <CursorManager.h>
 #include <TextureCache.h>
+#if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
+#include <PhoneFramebufferTelemetry.h>
+#endif
 #include "CompositorHelper.h"
 #include "Logging.h"
 #include "RefreshRateController.h"
@@ -66,6 +83,241 @@ extern QThread* RENDER_THREAD;
 
 Setting::Handle<bool> OpenGLDisplayPlugin::_extraLinearToSRGBConversionSetting("extraLinearToSRGBConversion", false);
 bool OpenGLDisplayPlugin::_hasSetSRGBConversion = false;
+
+#if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
+namespace {
+constexpr uint64_t PHONE_PRESENT_REPORT_INTERVAL_USEC { 10ULL * 1000ULL * 1000ULL };
+constexpr uint64_t PHONE_PRESENT_DISCONTINUITY_USEC { 1000ULL * 1000ULL };
+constexpr size_t PHONE_PRESENT_INTERVAL_CAPACITY { 2048 };
+constexpr int64_t PHONE_MEMORY_UNAVAILABLE_KIB { -1 };
+
+struct PhoneProcessMemory {
+    bool procValid { false };
+    bool allocatorValid { false };
+    int64_t residentKiB { PHONE_MEMORY_UNAVAILABLE_KIB };
+    int64_t dataKiB { PHONE_MEMORY_UNAVAILABLE_KIB };
+    int64_t swapKiB { PHONE_MEMORY_UNAVAILABLE_KIB };
+    int64_t allocatorUsedKiB { PHONE_MEMORY_UNAVAILABLE_KIB };
+    int64_t allocatorFreeKiB { PHONE_MEMORY_UNAVAILABLE_KIB };
+};
+
+bool parseStatusKiB(const char* line, const char* key, int64_t& value) {
+    const size_t keyLength = std::strlen(key);
+    if (std::strncmp(line, key, keyLength) != 0) {
+        return false;
+    }
+    const char* cursor = line + keyLength;
+    while (*cursor == ' ' || *cursor == '\t') {
+        ++cursor;
+    }
+    errno = 0;
+    char* end { nullptr };
+    const unsigned long long parsed = std::strtoull(cursor, &end, 10);
+    if (cursor == end || errno == ERANGE || parsed > static_cast<unsigned long long>(std::numeric_limits<int64_t>::max())) {
+        return false;
+    }
+    while (*end == ' ' || *end == '\t') {
+        ++end;
+    }
+    if (std::strncmp(end, "kB", 2) != 0) {
+        return false;
+    }
+    end += 2;
+    while (*end == ' ' || *end == '\t' || *end == '\r' || *end == '\n') {
+        ++end;
+    }
+    if (*end != '\0') {
+        return false;
+    }
+    value = static_cast<int64_t>(parsed);
+    return true;
+}
+
+PhoneProcessMemory samplePhoneProcessMemory() {
+    PhoneProcessMemory result;
+    if (FILE* status = std::fopen("/proc/self/status", "r")) {
+        bool hasResident { false };
+        bool hasData { false };
+        bool hasSwap { false };
+        std::array<char, 256> line {};
+        while (std::fgets(line.data(), static_cast<int>(line.size()), status)) {
+            hasResident = hasResident || parseStatusKiB(line.data(), "VmRSS:", result.residentKiB);
+            hasData = hasData || parseStatusKiB(line.data(), "VmData:", result.dataKiB);
+            hasSwap = hasSwap || parseStatusKiB(line.data(), "VmSwap:", result.swapKiB);
+        }
+        std::fclose(status);
+        result.procValid = hasResident && hasData && hasSwap;
+    }
+
+    const struct mallinfo2 allocator = ::mallinfo2();
+    if (allocator.uordblks <= static_cast<size_t>(std::numeric_limits<int64_t>::max()) &&
+            allocator.fordblks <= static_cast<size_t>(std::numeric_limits<int64_t>::max())) {
+        result.allocatorUsedKiB = static_cast<int64_t>(allocator.uordblks / 1024U);
+        result.allocatorFreeKiB = static_cast<int64_t>(allocator.fordblks / 1024U);
+        result.allocatorValid = true;
+    }
+    return result;
+}
+
+struct PhonePresentTelemetry {
+    void record(bool hasNewFrame) {
+        const auto now = Clock::now();
+        if (_windowStart == Clock::time_point {}) {
+            resetWindow(now);
+            return;
+        }
+
+        const auto intervalDuration = std::chrono::duration_cast<std::chrono::microseconds>(now - _lastPresent);
+        const uint64_t interval = static_cast<uint64_t>(intervalDuration.count());
+        if (interval > PHONE_PRESENT_DISCONTINUITY_USEC) {
+            resetWindow(now);
+            return;
+        }
+        if (_intervalCount < _intervals.size()) {
+            _intervals[_intervalCount++] = static_cast<uint32_t>(
+                std::min<uint64_t>(interval, std::numeric_limits<uint32_t>::max()));
+        }
+        _lastPresent = now;
+        ++_presentCount;
+        _newFrameCount += hasNewFrame ? 1U : 0U;
+
+        const uint64_t elapsed = static_cast<uint64_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(now - _windowStart).count());
+        if (elapsed < PHONE_PRESENT_REPORT_INTERVAL_USEC) {
+            return;
+        }
+
+        std::array<uint32_t, PHONE_PRESENT_INTERVAL_CAPACITY> sortedIntervals;
+        std::copy_n(_intervals.begin(), _intervalCount, sortedIntervals.begin());
+        std::sort(sortedIntervals.begin(), sortedIntervals.begin() + _intervalCount);
+        const double elapsedSeconds = static_cast<double>(elapsed) / 1000000.0;
+        const double p50 = percentileMilliseconds(sortedIntervals, _intervalCount, 50);
+        const double p95 = percentileMilliseconds(sortedIntervals, _intervalCount, 95);
+        const double maximum = _intervalCount == 0 ? 0.0 : sortedIntervals[_intervalCount - 1] / 1000.0;
+        constexpr double BYTES_PER_MIB { 1024.0 * 1024.0 };
+        const uint32_t bufferCount = gpu::Context::getBufferGPUCount();
+        const double bufferMiB = gpu::Context::getBufferGPUMemSize() / BYTES_PER_MIB;
+        const uint32_t textureResidentCount = gpu::Context::getTextureResidentGPUCount();
+        const double textureResidentMiB = gpu::Context::getTextureResidentGPUMemSize() / BYTES_PER_MIB;
+        const uint32_t textureFramebufferCount = gpu::Context::getTextureFramebufferGPUCount();
+        const double textureFramebufferMiB = gpu::Context::getTextureFramebufferGPUMemSize() / BYTES_PER_MIB;
+        const uint32_t textureResourceCount = gpu::Context::getTextureResourceGPUCount();
+        const double textureResourceMiB = gpu::Context::getTextureResourceGPUMemSize() / BYTES_PER_MIB;
+        const uint32_t textureExternalCount = gpu::Context::getTextureExternalGPUCount();
+        const double textureExternalMiB = gpu::Context::getTextureExternalGPUMemSize() / BYTES_PER_MIB;
+        const double texturePopulatedMiB = gpu::Context::getTextureResourcePopulatedGPUMemSize() / BYTES_PER_MIB;
+        const uint32_t texturePendingTransferCount = gpu::Context::getTexturePendingGPUTransferCount();
+        const double texturePendingTransferMiB = gpu::Context::getTexturePendingGPUTransferMemSize() / BYTES_PER_MIB;
+        const PhoneProcessMemory processMemory = samplePhoneProcessMemory();
+        const auto trash = gpu::gl::GLBackend::getPhoneTrashMetrics();
+        const auto delta = [](uint64_t current, uint64_t previous) {
+            return current >= previous ? current - previous : 0;
+        };
+        const auto backlog = [](uint64_t enqueued, uint64_t cleaned) {
+            return enqueued >= cleaned ? enqueued - cleaned : 0;
+        };
+        const uint64_t bufferEnqueuedDelta = delta(trash.buffersEnqueued, _lastTrash.buffersEnqueued);
+        const uint64_t bufferCleanedDelta = delta(trash.buffersCleaned, _lastTrash.buffersCleaned);
+        const uint64_t textureEnqueuedDelta = delta(trash.texturesEnqueued, _lastTrash.texturesEnqueued);
+        const uint64_t textureCleanedDelta = delta(trash.texturesCleaned, _lastTrash.texturesCleaned);
+        const uint64_t externalTextureEnqueuedDelta = delta(trash.externalTexturesEnqueued, _lastTrash.externalTexturesEnqueued);
+        const uint64_t externalTextureCleanedDelta = delta(trash.externalTexturesCleaned, _lastTrash.externalTexturesCleaned);
+        const uint64_t framebufferEnqueuedDelta = delta(trash.framebuffersEnqueued, _lastTrash.framebuffersEnqueued);
+        const uint64_t framebufferCleanedDelta = delta(trash.framebuffersCleaned, _lastTrash.framebuffersCleaned);
+        const uint64_t bufferBytesEnqueuedDelta = delta(trash.bufferBytesEnqueued, _lastTrash.bufferBytesEnqueued);
+        const uint64_t bufferBytesCleanedDelta = delta(trash.bufferBytesCleaned, _lastTrash.bufferBytesCleaned);
+        _lastTrash = trash;
+        const auto framebuffer = phone_framebuffer_telemetry::snapshot();
+        const uint64_t primaryRecreateDelta = framebuffer.primaryRecreateCount - _lastPrimaryRecreateCount;
+        const uint64_t resolveRecreateDelta = framebuffer.resolveRecreateCount - _lastResolveRecreateCount;
+        _lastPrimaryRecreateCount = framebuffer.primaryRecreateCount;
+        _lastResolveRecreateCount = framebuffer.resolveRecreateCount;
+        const uint32_t primaryWidth = phone_framebuffer_telemetry::unpackWidth(framebuffer.primarySizeSamples);
+        const uint32_t primaryHeight = phone_framebuffer_telemetry::unpackHeight(framebuffer.primarySizeSamples);
+        const uint32_t primarySamples = phone_framebuffer_telemetry::unpackSamples(framebuffer.primarySizeSamples);
+        const uint32_t resolveWidth = phone_framebuffer_telemetry::unpackWidth(framebuffer.resolveSizeSamples);
+        const uint32_t resolveHeight = phone_framebuffer_telemetry::unpackHeight(framebuffer.resolveSizeSamples);
+        const uint32_t resolveSamples = phone_framebuffer_telemetry::unpackSamples(framebuffer.resolveSizeSamples);
+        const double framebufferMiB =
+            (static_cast<double>(primaryWidth) * primaryHeight * primarySamples * 8.0 +
+                static_cast<double>(resolveWidth) * resolveHeight * 4.0) / BYTES_PER_MIB;
+        const uint64_t reportWindowId = ++_reportWindowId;
+
+        __android_log_print(ANDROID_LOG_INFO, "OvertePhoneGraphics",
+            "record=present window_id=%llu window_seconds=%.2f present_fps=%.2f new_frame_fps=%.2f inter_present_p50_ms=%.2f inter_present_p95_ms=%.2f inter_present_max_ms=%.2f gpu_buffer_count=%u gpu_buffer_mib=%.2f gpu_texture_resident_count=%u gpu_texture_resident_mib=%.2f gpu_texture_framebuffer_count=%u gpu_texture_framebuffer_mib=%.2f gpu_texture_resource_count=%u texture_resource_mib=%.2f gpu_texture_external_count=%u gpu_texture_external_mib=%.2f texture_populated_mib=%.2f gpu_texture_pending_transfer_count=%u texture_pending_transfer_mib=%.2f",
+            static_cast<unsigned long long>(reportWindowId), elapsedSeconds,
+            _presentCount / elapsedSeconds, _newFrameCount / elapsedSeconds, p50, p95, maximum,
+            bufferCount, bufferMiB, textureResidentCount, textureResidentMiB,
+            textureFramebufferCount, textureFramebufferMiB, textureResourceCount, textureResourceMiB,
+            textureExternalCount, textureExternalMiB, texturePopulatedMiB,
+            texturePendingTransferCount, texturePendingTransferMiB);
+        __android_log_print(ANDROID_LOG_INFO, "OvertePhoneGraphics",
+            "record=trash window_id=%llu gl_trash_buffer_enqueued_delta=%llu gl_trash_buffer_cleaned_delta=%llu gl_trash_buffer_backlog=%llu gl_trash_texture_enqueued_delta=%llu gl_trash_texture_cleaned_delta=%llu gl_trash_texture_backlog=%llu gl_trash_external_texture_enqueued_delta=%llu gl_trash_external_texture_cleaned_delta=%llu gl_trash_external_texture_backlog=%llu gl_trash_framebuffer_enqueued_delta=%llu gl_trash_framebuffer_cleaned_delta=%llu gl_trash_framebuffer_backlog=%llu gl_trash_buffer_bytes_enqueued_delta=%llu gl_trash_buffer_bytes_cleaned_delta=%llu gl_trash_buffer_pending_mib=%.2f",
+            static_cast<unsigned long long>(reportWindowId),
+            static_cast<unsigned long long>(bufferEnqueuedDelta), static_cast<unsigned long long>(bufferCleanedDelta),
+            static_cast<unsigned long long>(backlog(trash.buffersEnqueued, trash.buffersCleaned)),
+            static_cast<unsigned long long>(textureEnqueuedDelta), static_cast<unsigned long long>(textureCleanedDelta),
+            static_cast<unsigned long long>(backlog(trash.texturesEnqueued, trash.texturesCleaned)),
+            static_cast<unsigned long long>(externalTextureEnqueuedDelta), static_cast<unsigned long long>(externalTextureCleanedDelta),
+            static_cast<unsigned long long>(backlog(trash.externalTexturesEnqueued, trash.externalTexturesCleaned)),
+            static_cast<unsigned long long>(framebufferEnqueuedDelta), static_cast<unsigned long long>(framebufferCleanedDelta),
+            static_cast<unsigned long long>(backlog(trash.framebuffersEnqueued, trash.framebuffersCleaned)),
+            static_cast<unsigned long long>(bufferBytesEnqueuedDelta), static_cast<unsigned long long>(bufferBytesCleanedDelta),
+            backlog(trash.bufferBytesEnqueued, trash.bufferBytesCleaned) / BYTES_PER_MIB);
+        __android_log_print(ANDROID_LOG_INFO, "OvertePhoneGraphics",
+            "record=state window_id=%llu framebuffer_primary_recreate_delta=%llu framebuffer_primary_recreate_total=%llu framebuffer_resolve_recreate_delta=%llu framebuffer_resolve_recreate_total=%llu framebuffer_primary_width=%u framebuffer_primary_height=%u framebuffer_primary_samples=%u framebuffer_resolve_width=%u framebuffer_resolve_height=%u framebuffer_resolve_samples=%u framebuffer_estimated_mib=%.2f memory_proc_valid=%d memory_rss_kib=%lld memory_data_kib=%lld memory_swap_kib=%lld memory_allocator_valid=%d memory_allocator_used_kib=%lld memory_allocator_free_kib=%lld",
+            static_cast<unsigned long long>(reportWindowId), static_cast<unsigned long long>(primaryRecreateDelta),
+            static_cast<unsigned long long>(framebuffer.primaryRecreateCount),
+            static_cast<unsigned long long>(resolveRecreateDelta),
+            static_cast<unsigned long long>(framebuffer.resolveRecreateCount),
+            primaryWidth, primaryHeight, primarySamples, resolveWidth, resolveHeight, resolveSamples, framebufferMiB,
+            processMemory.procValid ? 1 : 0, static_cast<long long>(processMemory.residentKiB),
+            static_cast<long long>(processMemory.dataKiB), static_cast<long long>(processMemory.swapKiB),
+            processMemory.allocatorValid ? 1 : 0, static_cast<long long>(processMemory.allocatorUsedKiB),
+            static_cast<long long>(processMemory.allocatorFreeKiB));
+
+        _windowStart = now;
+        _presentCount = 0;
+        _newFrameCount = 0;
+        _intervalCount = 0;
+    }
+
+private:
+    using Clock = std::chrono::steady_clock;
+
+    void resetWindow(Clock::time_point now) {
+        _windowStart = now;
+        _lastPresent = now;
+        _presentCount = 0;
+        _newFrameCount = 0;
+        _intervalCount = 0;
+    }
+
+    static double percentileMilliseconds(
+            const std::array<uint32_t, PHONE_PRESENT_INTERVAL_CAPACITY>& values,
+            size_t count, size_t percentile) {
+        if (count == 0) {
+            return 0.0;
+        }
+        const size_t rank = (percentile * count + 99) / 100;
+        return values[rank - 1] / 1000.0;
+    }
+
+    Clock::time_point _windowStart {};
+    Clock::time_point _lastPresent {};
+    uint32_t _presentCount { 0 };
+    uint32_t _newFrameCount { 0 };
+    size_t _intervalCount { 0 };
+    std::array<uint32_t, PHONE_PRESENT_INTERVAL_CAPACITY> _intervals {};
+    uint64_t _lastPrimaryRecreateCount { 0 };
+    uint64_t _lastResolveRecreateCount { 0 };
+    gpu::gl::GLBackend::PhoneTrashMetrics _lastTrash {};
+    uint64_t _reportWindowId { 0 };
+};
+
+PhonePresentTelemetry phonePresentTelemetry;
+}
+#endif
 
 class OpenGLPresentThread : public QThread, public Dependency {
     using Mutex = std::mutex;
@@ -707,6 +959,9 @@ void OpenGLDisplayPlugin::internalPresent() {
 }
 
 void OpenGLDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& refreshRateController) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    _phonePresentHasNewFrame = false;
+#endif
     auto frameId = (uint64_t)presentCount();
     PROFILE_RANGE_EX(render, __FUNCTION__, 0xffffff00, frameId)
     uint64_t startPresent = usecTimestampNow();
@@ -725,6 +980,9 @@ void OpenGLDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                 _renderRate.increment();
                 if (_currentFrame.get() != _lastFrame) {
                     _newFrameRate.increment();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+                    _phonePresentHasNewFrame = true;
+#endif
                 }
                 _lastFrame = _currentFrame.get();
             });
@@ -758,11 +1016,20 @@ void OpenGLDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
             PROFILE_RANGE_EX(render, "internalPresent", 0xff00ffff, frameId)
             internalPresent();
         }
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        // Phone swapBuffers can block on Android's compositor. Include that
+        // time in pacing so it is subtracted from the subsequent sleep rather
+        // than added on top of the requested frame period.
+        refreshRateController->clockEndTime();
+#endif
 
         gpu::Backend::freeGPUMemSize.set(gpu::gl::getFreeDedicatedMemory());
     } else if (alwaysPresent()) {
         refreshRateController->clockEndTime();
         internalPresent();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        refreshRateController->clockEndTime();
+#endif
     } else {
         refreshRateController->clockEndTime();
     }
@@ -799,7 +1066,23 @@ float OpenGLDisplayPlugin::renderRate() const {
 
 void OpenGLDisplayPlugin::swapBuffers() {
     static auto context = _container->getPrimaryWidget()->context();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // On Android the Qt context can lose its current-surface association after
+    // composition even though the dedicated present thread retains ownership.
+    // Rebind it before swapping; otherwise Qt rejects every swap and emits one
+    // warning per frame.
+    if (!context->makeCurrent()) {
+        static std::once_flag warningOnce;
+        std::call_once(warningOnce, [] {
+            qWarning("Phone display could not make its OpenGL context current before swap");
+        });
+    }
+#endif
     context->swapBuffers();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    phonePresentTelemetry.record(_phonePresentHasNewFrame);
+    _phonePresentHasNewFrame = false;
+#endif
 }
 
 void OpenGLDisplayPlugin::withOtherThreadContext(std::function<void()> f) const {

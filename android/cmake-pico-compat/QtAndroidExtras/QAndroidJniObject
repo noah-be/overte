@@ -1,17 +1,45 @@
 #pragma once
 
+#include <jni.h>
+#include <private/qjni_p.h>
 #include <QString>
+#include <QMetaType>
+#include <type_traits>
 
-// Pico builds do not need the Samsung-phone-only audio restart workaround
-// which is the sole AndroidExtras use in the selected native target graph.
-class QAndroidJniObject {
+// Qt 5.15 implements the AndroidExtras object on top of this Qt Core private
+// type.  The Conan Android package omits AndroidExtras itself, so preserve the
+// small public surface used by Overte without duplicating the JNI machinery.
+class QAndroidJniObject : public QJNIObjectPrivate {
 public:
+    using QJNIObjectPrivate::QJNIObjectPrivate;
+    using QJNIObjectPrivate::callMethod;
+    using QJNIObjectPrivate::callObjectMethod;
+    using QJNIObjectPrivate::callStaticObjectMethod;
+    using QJNIObjectPrivate::operator=;
+
+    QAndroidJniObject() = default;
+    QAndroidJniObject(const QJNIObjectPrivate& object) : QJNIObjectPrivate(object) {}
+
     template<typename T>
-    static QAndroidJniObject getStaticObjectField(const char*, const char*) {
-        return {};
+    T object() const {
+        return static_cast<T>(QJNIObjectPrivate::object());
     }
 
-    QString toString() const {
-        return {};
+    jobject object() const {
+        return QJNIObjectPrivate::object();
+    }
+
+    template<typename T>
+    static QAndroidJniObject getStaticObjectField(const char* className, const char* fieldName) {
+        static_assert(std::is_same<T, jstring>::value,
+            "Only Java String object fields are used by this compatibility surface");
+        return QJNIObjectPrivate::getStaticObjectField(
+            className, fieldName, "Ljava/lang/String;");
+    }
+
+    static QAndroidJniObject fromString(const QString& string) {
+        return QJNIObjectPrivate::fromString(string);
     }
 };
+
+Q_DECLARE_METATYPE(QAndroidJniObject)

@@ -14,14 +14,36 @@
     var ROOT = Script.resolvePath('').split("portal.js")[0];
     var portalURL = "";
     var portalName = "";
+    var portalReady = false;
+    var teleportTimer = null;
     var TP_SOUND = SoundCache.getSound(ROOT + "sounds/teleportSound.mp3");
+
+    function validText(value, maxLength) {
+        return typeof value === "string" && value.length > 0 && value.length <= maxLength &&
+            !/[\u0000-\u001f\u007f]/.test(value);
+    }
+
+    function validPortalData(data, dimensions) {
+        return data && typeof data === "object" && validText(data.url, 4096) &&
+            validText(data.name, 256) && validText(data.placeID, 256) && dimensions &&
+            typeof dimensions.y === "number" && isFinite(dimensions.y) && dimensions.y > 0;
+    }
     
     this.preload = function(entityID) {
 
         var properties = Entities.getEntityProperties(entityID, ["userData", "dimensions"]);
-        var userDataObj = JSON.parse(properties.userData);
+        var userDataObj;
+        try {
+            userDataObj = JSON.parse(properties.userData);
+        } catch (error) {
+            return;
+        }
+        if (!validPortalData(userDataObj, properties.dimensions)) {
+            return;
+        }
         portalURL = userDataObj.url;
         portalName = userDataObj.name;
+        portalReady = true;
         var portalColor = getColorFromPlaceID(userDataObj.placeID);
 
         var textLocalPosition = {"x": 0.0, "y": (properties.dimensions.y / 2) * 1.2, "z": 0.0};
@@ -128,6 +150,9 @@
     }
 
     this.enterEntity = function(entityID) {
+        if (!portalReady || teleportTimer !== null) {
+            return;
+        }
         var injectorOptions = {
             "position": MyAvatar.position,
             "volume": 0.3,
@@ -136,11 +161,23 @@
         };
         var injector = Audio.playSound(TP_SOUND, injectorOptions);
         
-        var timer = Script.setTimeout(function () {
+        teleportTimer = Script.setTimeout(function () {
+            teleportTimer = null;
+            if (!portalReady) {
+                return;
+            }
             Window.location = portalURL;
             Entities.deleteEntity(entityID);
         }, 1000);
 
+    };
+
+    this.unload = function() {
+        portalReady = false;
+        if (teleportTimer !== null) {
+            Script.clearTimeout(teleportTimer);
+            teleportTimer = null;
+        }
     };
 
     function getColorFromPlaceID(placeID) {

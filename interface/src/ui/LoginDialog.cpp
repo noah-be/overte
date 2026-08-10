@@ -29,6 +29,7 @@
 #include "DependencyManager.h"
 #include "DialogsManager.h"
 #include "Menu.h"
+#include "PhoneLoginState.h"
 
 #include "Application.h"
 #include "scripting/HMDScriptingInterface.h"
@@ -40,11 +41,34 @@ HIFI_QML_DEF(LoginDialog)
 static const QUrl TABLET_LOGIN_DIALOG_URL("dialogs/TabletLoginDialog.qml");
 const QUrl LOGIN_DIALOG = PathUtils::qmlUrl("OverlayLoginDialog.qml");
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+namespace {
+bool phoneLoginOwnsUiFocus { false };
+bool phoneLoginCleanupQueued { false };
+PhoneLoginState phoneLoginState;
+
+void acquirePhoneLoginUiFocus() {
+    if (!phoneLoginOwnsUiFocus) {
+        phoneLoginCleanupQueued = false;
+        phoneLoginOwnsUiFocus = true;
+        emit DependencyManager::get<DesktopScriptingInterface>()->uiFocusChanged(true);
+    }
+}
+
+void releasePhoneLoginUiFocus() {
+    if (phoneLoginOwnsUiFocus) {
+        phoneLoginOwnsUiFocus = false;
+        emit DependencyManager::get<DesktopScriptingInterface>()->uiFocusChanged(false);
+    }
+}
+}
+#endif
+
 LoginDialog::LoginDialog(QQuickItem *parent) : OffscreenQmlDialog(parent) {
     auto accountManager = DependencyManager::get<AccountManager>();
     auto domainAccountManager = DependencyManager::get<DomainAccountManager>();
     // the login hasn't been dismissed yet if the user isn't logged in and is encouraged to login.
-#if !defined(Q_OS_ANDROID)
+#if !defined(Q_OS_ANDROID) || defined(ANDROID_APP_PHONE_INTERFACE)
     connect(accountManager.data(), &AccountManager::loginComplete,
         this, &LoginDialog::handleLoginCompleted);
     connect(accountManager.data(), &AccountManager::loginFailed,
@@ -53,6 +77,14 @@ LoginDialog::LoginDialog(QQuickItem *parent) : OffscreenQmlDialog(parent) {
         this, &LoginDialog::handleLoginCompleted);
     connect(domainAccountManager.data(), &DomainAccountManager::loginFailed,
             this, &LoginDialog::handleLoginFailed);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    connect(this, &LoginDialog::handleLoginCompleted, this, [] {
+        phoneLoginState.finishRequest();
+    });
+    connect(this, &LoginDialog::handleLoginFailed, this, [] {
+        phoneLoginState.finishRequest();
+    });
+#endif
     connect(qApp, &Application::loginDialogFocusEnabled, this, &LoginDialog::focusEnabled);
     connect(qApp, &Application::loginDialogFocusDisabled, this, &LoginDialog::focusDisabled);
 #endif
@@ -66,6 +98,14 @@ LoginDialog::~LoginDialog() {
 }
 
 void LoginDialog::showWithSelection() {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Phones render Interface's offscreen surface directly. Opening the system
+    // tablet here makes the dialog depend on HMD entities that do not exist in
+    // the 2D phone client.
+    acquirePhoneLoginUiFocus();
+    LoginDialog::show();
+    return;
+#else
     auto tabletScriptingInterface = DependencyManager::get<TabletScriptingInterface>();
     auto tablet = dynamic_cast<TabletProxy*>(tabletScriptingInterface->getTablet("com.highfidelity.interface.tablet.system"));
     auto hmd = DependencyManager::get<HMDScriptingInterface>();
@@ -91,7 +131,19 @@ void LoginDialog::showWithSelection() {
     if (!hmd->getShouldShowTablet()) {
         hmd->openTablet();
     }
+#endif
 }
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+void LoginDialog::hidePhoneDialog() {
+    releasePhoneLoginUiFocus();
+    LoginDialog::hide();
+    if (!phoneLoginCleanupQueued) {
+        phoneLoginCleanupQueued = true;
+        QMetaObject::invokeMethod(qApp, "onDismissedLoginDialog", Qt::QueuedConnection);
+    }
+}
+#endif
 
 void LoginDialog::toggleAction() {
     auto accountManager = DependencyManager::get<AccountManager>();
@@ -143,6 +195,10 @@ void LoginDialog::dismissLoginDialog() {
     loginAction->setEnabled(true);
 
 #if defined(Q_OS_ANDROID)
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    hidePhoneDialog();
+    return;
+#endif
     qInfo() << "PICO_LOGIN_DISMISS requested";
     // The Android login QML is rendered through a WebEntity. Queue the
     // application cleanup explicitly so entity deletion cannot happen inside
@@ -154,15 +210,40 @@ void LoginDialog::dismissLoginDialog() {
 #endif
 }
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+void LoginDialog::dismissPhoneLoginDialog() {
+    // Action-bar login does not set Application::_loginDialogPoppedUp, while
+    // startup login does. Both must run the same focus and startup cleanup;
+    // hidePhoneDialog() makes that transaction idempotent.
+    hidePhoneDialog();
+}
+#endif
+
 void LoginDialog::login(const QString& username, const QString& password) const {
     qDebug() << "Attempting to login" << username;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (!phoneLoginState.beginRequest()) {
+        return;
+    }
+#endif
     DependencyManager::get<AccountManager>()->requestAccessToken(username, password);
 }
 
 void LoginDialog::loginDomain(const QString& username, const QString& password) const {
     qDebug() << "Attempting to login" << username << "into a domain";
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (!phoneLoginState.beginRequest()) {
+        return;
+    }
+#endif
     DependencyManager::get<DomainAccountManager>()->requestAccessToken(username, password);
 }
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+bool LoginDialog::isPhoneLoginRequestPending() const {
+    return phoneLoginState.requestPending();
+}
+#endif
 
 void LoginDialog::loginThroughOculus() {
    qDebug() << "Attempting to login through Oculus";

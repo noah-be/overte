@@ -26,12 +26,13 @@ Rectangle {
     id: root;
 
     HifiConstants { id: hifi; }
+    AudioTouchConfiguration { id: touchConfiguration }
 
     property var eventBridge;
     // leave as blank, this is user's volume for the avatar mixer
     property var myAvatarUuid: ""
     property string title: "Audio Settings"
-    property int switchHeight: 16
+    property int switchHeight: touchConfiguration.minimumControlHeight
     property int switchWidth: 40
     property bool pushToTalk: (bar.currentIndex === 0) ? AudioScriptingInterface.pushToTalkDesktop : AudioScriptingInterface.pushToTalkHMD;
     property bool muted: (bar.currentIndex === 0) ? AudioScriptingInterface.mutedDesktop : AudioScriptingInterface.mutedHMD;
@@ -65,8 +66,9 @@ Rectangle {
         id: bar
         spacing: 0
         width: parent.width
-        height: 28;
-        currentIndex: isVR ? 1 : 0;
+        height: visible ? 28 : 0;
+        visible: touchConfiguration.showModeTabs
+        currentIndex: touchConfiguration.showVrMode && isVR ? 1 : 0;
 
         AudioControls.AudioTabButton {
             height: parent.height
@@ -75,18 +77,23 @@ Rectangle {
         AudioControls.AudioTabButton {
             height: parent.height
             text: qsTr("VR")
+            visible: touchConfiguration.showVrMode
         }
     }
 
     property bool showPeaks: true;
+    property bool peakValuesWereEnabled: false;
 
     function enablePeakValues() {
+        peakValuesWereEnabled = AudioScriptingInterface.devices.input.peakValuesEnabled;
         AudioScriptingInterface.devices.input.peakValuesEnabled = true;
-        AudioScriptingInterface.devices.input.peakValuesEnabledChanged.connect(function(enabled) {
-            if (!enabled && root.showPeaks) {
-                AudioScriptingInterface.devices.input.peakValuesEnabled = true;
-            }
-        });
+        AudioScriptingInterface.devices.input.peakValuesEnabledChanged.connect(onPeakValuesEnabledChanged);
+    }
+
+    function onPeakValuesEnabledChanged(enabled) {
+        if (!enabled && root.showPeaks) {
+            AudioScriptingInterface.devices.input.peakValuesEnabled = true;
+        }
     }
 
     function updateMyAvatarGainFromQML(sliderValue, isReleased) {
@@ -115,9 +122,15 @@ Rectangle {
         enablePeakValues();
     }
 
+    Component.onDestruction: {
+        root.showPeaks = false;
+        AudioScriptingInterface.devices.input.peakValuesEnabledChanged.disconnect(onPeakValuesEnabledChanged);
+        AudioScriptingInterface.devices.input.peakValuesEnabled = root.peakValuesWereEnabled;
+    }
+
     Flickable {
         id: flickView;
-        anchors.top: bar.bottom;
+        anchors.top: bar.visible ? bar.bottom : parent.top;
         anchors.left: parent.left;
         anchors.bottom: parent.bottom;
         width: parent.width;
@@ -202,6 +215,7 @@ Rectangle {
 
                 HifiControlsUit.Switch {
                     id: pttSwitch
+                    visible: touchConfiguration.showPushToTalk;
                     height: root.switchHeight;
                     switchWidth: root.switchWidth;
                     anchors.top: muteMic.bottom;
@@ -212,10 +226,12 @@ Rectangle {
                     backgroundOnColor: "#E3E3E3";
                     checked: (bar.currentIndex === 0) ? AudioScriptingInterface.pushToTalkDesktop : AudioScriptingInterface.pushToTalkHMD;
                     onCheckedChanged: {
-                        if (bar.currentIndex === 0) {
-                            AudioScriptingInterface.pushToTalkDesktop = checked;
-                        } else {
-                            AudioScriptingInterface.pushToTalkHMD = checked;
+                        if (touchConfiguration.showPushToTalk) {
+                            if (bar.currentIndex === 0) {
+                                AudioScriptingInterface.pushToTalkDesktop = checked;
+                            } else {
+                                AudioScriptingInterface.pushToTalkHMD = checked;
+                            }
                         }
                     }
                 }
@@ -247,6 +263,7 @@ Rectangle {
 
                 HifiControlsUit.Switch {
                     id: audioLevelSwitch
+                    visible: touchConfiguration.showAvatarAudioTools;
                     height: root.switchHeight;
                     switchWidth: root.switchWidth;
                     anchors.top: warnMutedSwitch.visible ? warnMutedSwitch.bottom : parent.top
@@ -257,8 +274,10 @@ Rectangle {
                     backgroundOnColor: "#E3E3E3";
                     checked: AvatarInputs.showAudioTools;
                     onCheckedChanged: {
-                        AvatarInputs.showAudioTools = checked;
-                        checked = Qt.binding(function() { return AvatarInputs.showAudioTools; }); // restore binding
+                        if (touchConfiguration.showAvatarAudioTools) {
+                            AvatarInputs.showAudioTools = checked;
+                            checked = Qt.binding(function() { return AvatarInputs.showAudioTools; }); // restore binding
+                        }
                     }
                 }
 
@@ -266,8 +285,8 @@ Rectangle {
                     id: stereoInput;
                     height: root.switchHeight;
                     switchWidth: root.switchWidth;
-                    anchors.top: audioLevelSwitch.bottom
-                    anchors.topMargin: 24
+                    anchors.top: audioLevelSwitch.visible ? audioLevelSwitch.bottom : parent.top
+                    anchors.topMargin: audioLevelSwitch.visible ? 24 : 0
                     anchors.left: parent.left
                     labelTextOn:  qsTr("Stereo input");
                     labelTextSize: 16;
@@ -283,11 +302,12 @@ Rectangle {
 
         Item {
             id: pttTextContainer
+            visible: touchConfiguration.showPushToTalk;
             anchors.top: switchesContainer.bottom;
             anchors.topMargin: 10;
             anchors.left: parent.left;
             width: rightMostInputLevelPos;
-            height: pttText.height;
+            height: visible ? pttText.height : 0;
             RalewayRegular {
                 id: pttText;
                 x: margins.paddings;

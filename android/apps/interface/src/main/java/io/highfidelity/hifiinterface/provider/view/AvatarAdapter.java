@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import io.highfidelity.hifiinterface.R;
+import io.highfidelity.hifiinterface.LegacyAdapterPositionPolicy;
 import io.highfidelity.hifiinterface.provider.AvatarProvider;
 
 /**
@@ -94,8 +95,9 @@ public class AvatarAdapter extends RecyclerView.Adapter<AvatarAdapter.ViewHolder
 
         @Override
         public void onClick(View view) {
-            int position= getAdapterPosition();
-            if (mClickListener != null) {
+            int position = getAdapterPosition();
+            if (mClickListener != null &&
+                    LegacyAdapterPositionPolicy.isValid(position, mAvatars.size())) {
                 mClickListener.onItemClick(view, position, mAvatars.get(position));
             }
         }

@@ -2,11 +2,13 @@
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+source "$script_dir/with-temporary-git-patch.sh"
 conan_home="${CONAN_HOME:-${HOME}/.conan2}"
 jobs="${PICO_BUILD_JOBS:-$(nproc)}"
 command_name="${1:-all}"
 command_option="${2:-}"
 prebuilt_tag="pico4-deps-v1"
+qt_reference='qt/5.15.18-2026.01.04@overte/stable#d59ba2a04fe9ede772b05b0bb0865eb0'
 android_cmake_version="3.31.6"
 android_tools_url="https://developer.android.com/studio"
 android_repository_url="https://dl.google.com/android/repository/repository2-1.xml"
@@ -639,7 +641,7 @@ install_dependencies() {
 download_prebuilt_dependencies() {
     local checksums="$script_dir/conan/prebuilt/${prebuilt_tag}.sha256"
     local base_url="https://github.com/noah-be/overte/releases/download/${prebuilt_tag}"
-    local download_dir asset
+    local download_dir asset qt_source_dir
 
     find_conan >/dev/null || fail "Conan 2 was not found (install: $conan_install_url)"
     command -v curl >/dev/null || fail "curl is not installed or not in PATH"
@@ -662,7 +664,23 @@ download_prebuilt_dependencies() {
     rm -rf -- "$download_dir"
     trap - RETURN
 
-    install_dependencies
+    # Phone setup restores a complete, separately verified 16 KiB Conan graph
+    # next. It only needs the shared cache and runtime payload from this step;
+    # resolving the Pico graph here can otherwise rebuild Node/V8 needlessly.
+    if [[ "${PICO_PREBUILT_RESTORE_ONLY:-0}" == 1 ]]; then
+        echo "Skipped Pico dependency resolution after artifact restore"
+        return
+    fi
+
+    if [[ -n "${PICO_QT_FALLBACK_PATCH:-}" ]]; then
+        qt_source_dir="$(run_conan cache path "$qt_reference" --folder=source)"
+        [[ -d "$qt_source_dir/qt5" ]] \
+            || fail "Qt sources are missing for the requested fallback patch"
+        with_temporary_git_patch "$PICO_QT_FALLBACK_PATCH" "$qt_source_dir/qt5" \
+            install_dependencies
+    else
+        install_dependencies
+    fi
 }
 
 prepare() {

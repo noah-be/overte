@@ -14,6 +14,25 @@
 //
 
 (function () { // BEGIN LOCAL_SCOPE
+    // Phone rendering is capped at 30 FPS. Avoid waking its script engine twice
+    // per rendered frame while retaining the established desktop cadence.
+    var IS_ANDROID_PHONE = typeof ANDROID_PHONE_INTERFACE !== "undefined" && ANDROID_PHONE_INTERFACE,
+        ACTIVE_UPDATE_INTERVAL = IS_ANDROID_PHONE ? 1000 / 30 : 1000 / 60,
+        IDLE_PHONE_UPDATE_INTERVAL = 250,
+        updateInterval = 0,
+        updateTimer = null;
+
+    function setUpdateInterval(interval) {
+        if (updateTimer !== null && updateInterval === interval) {
+            return;
+        }
+        if (updateTimer !== null) {
+            Script.clearInterval(updateTimer);
+        }
+        updateInterval = interval;
+        updateTimer = Script.setInterval(update, interval);
+    }
+
     function debug() {
         //print.apply(null, arguments);
     }
@@ -161,6 +180,9 @@
                     bestRawProgress = rawProgress;
                 }
             }
+        }
+        if (IS_ANDROID_PHONE && isDownloading) {
+            setUpdateInterval(ACTIVE_UPDATE_INTERVAL);
         }
         debug("PROGRESS:", rawProgress, bestRawProgress, maxSeen);
     }
@@ -347,6 +369,12 @@
                 updateProgressBarLocation();
             }
         }
+
+        if (IS_ANDROID_PHONE) {
+            setUpdateInterval(visible || displayProgress < 100 || gpuTextures > 0
+                ? ACTIVE_UPDATE_INTERVAL
+                : IDLE_PHONE_UPDATE_INTERVAL);
+        }
     }
 
     function interstitialModeChanged(inMode) {
@@ -374,6 +402,10 @@
     }
 
     function tearDown() {
+        if (updateTimer !== null) {
+            Script.clearInterval(updateTimer);
+            updateTimer = null;
+        }
         deleteOverlays();
     }
 
@@ -381,7 +413,7 @@
     Window.interstitialModeChanged.connect(interstitialModeChanged);
     GlobalServices.downloadInfoChanged.connect(onDownloadInfoChanged);
     GlobalServices.updateDownloadInfo();
-    Script.setInterval(update, 1000 / 60);
+    setUpdateInterval(IS_ANDROID_PHONE ? IDLE_PHONE_UPDATE_INTERVAL : ACTIVE_UPDATE_INTERVAL);
     Script.scriptEnding.connect(tearDown);
 
 }()); // END LOCAL_SCOPE

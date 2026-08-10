@@ -146,6 +146,10 @@ protected:
     void render(std::function<void(gpu::Batch& batch)> f);
 
     bool _vsyncEnabled{ true };
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Consumed by swapBuffers() on the present thread; no synchronization needed.
+    bool _phonePresentHasNewFrame{ false };
+#endif
     QThread* _presentThread{ nullptr };
     std::queue<gpu::FramePointer> _newFrameQueue;
     RateCounter<200> _droppedFrameRate;

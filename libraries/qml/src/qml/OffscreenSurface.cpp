@@ -297,6 +297,10 @@ void OffscreenSurface::setMaxFps(uint8_t maxFps) {
     _sharedObject->setMaxFps(maxFps);
 }
 
+void OffscreenSurface::setGenerateMips(bool generateMips) {
+    _sharedObject->setGenerateMips(generateMips);
+}
+
 void OffscreenSurface::load(const QUrl& qmlSource, QQuickItem* parent, const QJSValue& callback) {
     loadFromQml(qmlSource, parent, callback);
 }

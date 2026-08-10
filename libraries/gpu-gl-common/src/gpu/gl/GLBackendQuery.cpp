@@ -28,7 +28,8 @@ static bool hasTimerExtension() {
     static std::once_flag once;
     static bool result = false;
     std::call_once(once, [&] {
-        result = glGetQueryObjectui64vEXT != nullptr;
+        result = glad_glQueryCounterEXT != nullptr &&
+            glad_glGetQueryObjectui64vEXT != nullptr;
     });
     return result;
 }

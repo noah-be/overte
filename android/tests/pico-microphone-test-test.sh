@@ -84,10 +84,10 @@ else
 fi
 
 if [[ ! -e "$success_state/device.lock.owner" ]] && \
-   rg -Fq 'setfantestmode 0' "$success_state/commands.log" && \
-   rg -Fq "setprop debug.overte.audio_capture_seconds ''" "$success_state/commands.log" && \
-   rg -Fq 'run-as org.overte.pico rm -f cache/pico-mic-input.wav' "$success_state/commands.log" && \
-   rg -Fq 'am force-stop org.overte.pico' "$success_state/commands.log"; then
+   grep -Fq 'setfantestmode 0' "$success_state/commands.log" && \
+   grep -Fq "setprop debug.overte.audio_capture_seconds ''" "$success_state/commands.log" && \
+   grep -Fq 'run-as org.overte.pico rm -f cache/pico-mic-input.wav' "$success_state/commands.log" && \
+   grep -Fq 'am force-stop org.overte.pico' "$success_state/commands.log"; then
     PASSED=$((PASSED + 1))
     printf 'PASS cleanup_and_fan_restore\n'
 else

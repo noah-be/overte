@@ -39,7 +39,9 @@ GLWidget::GLWidget() {
     setAttribute(Qt::WA_NativeWindow);
     setAttribute(Qt::WA_PaintOnScreen);
     setAttribute(Qt::WA_NoSystemBackground);
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
     setAttribute(Qt::WA_InputMethodEnabled);
+#endif
     setAutoFillBackground(false);
     grabGesture(Qt::PinchGesture);
     setAcceptDrops(true);

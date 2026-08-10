@@ -1,5 +1,8 @@
 apply plugin: 'com.android.library'
 
+def qtJarDir = System.getenv('HIFI_ANDROID_QT_ROOT') ?
+    new File(System.getenv('HIFI_ANDROID_QT_ROOT'), 'jar') : file('libs')
+
 android {
     compileSdkVersion 28
 
@@ -17,6 +20,6 @@ android {
 }
 
 dependencies {
-    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    api fileTree(dir: qtJarDir, include: ['*.jar'])
     api 'com.google.guava:guava:23.0'
 }

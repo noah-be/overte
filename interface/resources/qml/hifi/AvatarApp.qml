@@ -217,6 +217,10 @@ Rectangle {
         id: style
     }
 
+    AvatarTouchConfiguration {
+        id: touchConfiguration
+    }
+
     AvatarAppHeader {
         id: header
         z: 100
@@ -544,7 +548,9 @@ Rectangle {
 
     Rectangle {
         id: favoritesBlock
-        height: 407
+        height: touchConfiguration.favoritesFillBelowHeader
+            ? Math.max(0, root.height - header.height)
+            : 407
 
         anchors.left: parent.left
         anchors.right: parent.right
@@ -639,7 +645,8 @@ Rectangle {
                         pageOfAvatars.append(avatarItem);
                     }
 
-                    if (pageOfAvatars.count !== itemsPerPage) {
+                    if (pageOfAvatars.count !== itemsPerPage &&
+                            touchConfiguration.showGetMoreAvatars) {
                         pageOfAvatars.appendGetAvatars();
                     }
 

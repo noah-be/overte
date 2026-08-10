@@ -33,6 +33,19 @@ void setupPreferences() {
     auto preferences = DependencyManager::get<Preferences>();
     auto myAvatar = DependencyManager::get<AvatarManager>()->getMyAvatar();
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    static const QString NAVIGATION { "Navigation" };
+    {
+        auto getter = []()->bool {
+            return Setting::Handle<bool> { "android/phone/pinchZoomEnabled", false }.get();
+        };
+        auto setter = [](bool value) {
+            Setting::Handle<bool> { "android/phone/pinchZoomEnabled", false }.set(value);
+        };
+        preferences->addPreference(new CheckPreference(NAVIGATION, "Enable two-finger perspective zoom", getter, setter));
+    }
+#endif
+
     
     static const QString AVATAR_BASICS { "Avatar Basics" };
     {

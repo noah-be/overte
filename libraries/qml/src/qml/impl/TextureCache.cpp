@@ -13,22 +13,25 @@
 
 using namespace hifi::qml::impl;
 
-uint64_t uvec2ToUint64(const QSize& size) {
+uint64_t uvec2ToUint64(const QSize& size, bool generateMips) {
     uint64_t result = size.width();
     result <<= 32;
     result |= size.height();
+    if (!generateMips) {
+        result |= (uint64_t { 1 } << 63);
+    }
     return result;
 }
 
-void TextureCache::acquireSize(const QSize& size) {
-    auto sizeKey = uvec2ToUint64(size);
+void TextureCache::acquireSize(const QSize& size, bool generateMips) {
+    auto sizeKey = uvec2ToUint64(size, generateMips);
     Lock lock(_mutex);
     auto& textureSet = _textures[sizeKey];
     ++textureSet.clientCount;
 }
 
-void TextureCache::releaseSize(const QSize& size) {
-    auto sizeKey = uvec2ToUint64(size);
+void TextureCache::releaseSize(const QSize& size, bool generateMips) {
+    auto sizeKey = uvec2ToUint64(size, generateMips);
     {
         Lock lock(_mutex);
         assert(_textures.count(sizeKey));
@@ -42,12 +45,12 @@ void TextureCache::releaseSize(const QSize& size) {
     }
 }
 
-uint32_t TextureCache::acquireTexture(const QSize& size) {
+uint32_t TextureCache::acquireTexture(const QSize& size, bool generateMips) {
     Lock lock(_mutex);
     recycle();
 
     ++_activeTextureCount;
-    auto sizeKey = uvec2ToUint64(size);
+    auto sizeKey = uvec2ToUint64(size, generateMips);
     assert(_textures.count(sizeKey));
     auto& textureSet = _textures[sizeKey];
     if (!textureSet.returnedTextures.empty()) {
@@ -59,7 +62,7 @@ uint32_t TextureCache::acquireTexture(const QSize& size) {
         }
         return textureAndFence.first;
     }
-    return createTexture(size);
+    return createTexture(size, generateMips);
 }
 
 void TextureCache::releaseTexture(const Value& textureAndFence) {
@@ -88,16 +91,16 @@ size_t TextureCache::getUsedTextureMemory() {
     return toReturn;
 }
 
-size_t TextureCache::getMemoryForSize(const QSize& size) {
-    // Base size + mips
-    return static_cast<size_t>(((size.width() * size.height()) << 2) * 1.33f);
+size_t TextureCache::getMemoryForSize(const QSize& size, bool generateMips) {
+    const auto baseSize = static_cast<size_t>((size.width() * size.height()) << 2);
+    return generateMips ? static_cast<size_t>(baseSize * 1.33f) : baseSize;
 }
 
 void TextureCache::destroyTexture(uint32_t texture) {
     --_allTextureCount;
-    auto size = _textureSizes[texture];
-    assert(getMemoryForSize(size) <= _totalTextureUsage);
-    _totalTextureUsage -= getMemoryForSize(size);
+    const auto info = _textureSizes[texture];
+    assert(getMemoryForSize(info.size, info.generateMips) <= _totalTextureUsage);
+    _totalTextureUsage -= getMemoryForSize(info.size, info.generateMips);
     _textureSizes.erase(texture);
     // FIXME prevents crash on shutdown, but we should migrate to a global functions object owned by the shared context.
     glDeleteTextures(1, &texture);
@@ -113,15 +116,15 @@ void TextureCache::destroy(const Value& textureAndFence) {
     destroyTexture(textureAndFence.first);
 }
 
-uint32_t TextureCache::createTexture(const QSize& size) {
+uint32_t TextureCache::createTexture(const QSize& size, bool generateMips) {
     // Need a new texture
     uint32_t newTexture;
     glGenTextures(1, &newTexture);
     ++_allTextureCount;
-    _textureSizes[newTexture] = size;
-    _totalTextureUsage += getMemoryForSize(size);
+    _textureSizes[newTexture] = { size, generateMips };
+    _totalTextureUsage += getMemoryForSize(size, generateMips);
     glBindTexture(GL_TEXTURE_2D, newTexture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, generateMips ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -130,7 +133,9 @@ uint32_t TextureCache::createTexture(const QSize& size) {
     if (backendApi != hifi::properties::GraphicsAPI::GLES32) {
         glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_LOD_BIAS, -0.2f);
     }
-    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 8.0f);
+    if (generateMips) {
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 8.0f);
+    }
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, size.width(), size.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
     return newTexture;
 }
@@ -142,8 +147,8 @@ void TextureCache::recycle() {
 
     for (auto textureAndFence : returnedTextures) {
         GLuint texture = textureAndFence.first;
-        QSize size = _textureSizes[texture];
-        auto sizeKey = uvec2ToUint64(size);
+        const auto info = _textureSizes[texture];
+        auto sizeKey = uvec2ToUint64(info.size, info.generateMips);
         // Textures can be returned after all surfaces of the given size have been destroyed,
         // in which case we just destroy the texture
         if (!_textures.count(sizeKey)) {

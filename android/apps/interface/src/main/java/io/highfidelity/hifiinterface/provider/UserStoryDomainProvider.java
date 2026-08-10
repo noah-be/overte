@@ -7,7 +7,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import io.highfidelity.hifiinterface.HifiUtils;
 import io.highfidelity.hifiinterface.view.DomainAdapter;
 import retrofit2.Call;
 import retrofit2.Response;
@@ -34,6 +33,8 @@ public class UserStoryDomainProvider implements DomainProvider {
     private UserStoryDomainProviderService mUserStoryDomainProviderService;
 
     private boolean startedToGetFromAPI = false;
+    private boolean requestInFlight = false;
+    private final LegacyLatestRequestGate requestGate = new LegacyLatestRequestGate();
     private List<UserStory> allStories; // All retrieved stories from the API
     private List<DomainAdapter.Domain> suggestions; // Filtered places to show
 
@@ -50,43 +51,80 @@ public class UserStoryDomainProvider implements DomainProvider {
 
     @Override
     public synchronized void retrieve(String filterText, DomainCallback domainCallback, boolean forceRefresh) {
-        if (!startedToGetFromAPI || forceRefresh) {
+        long requestTicket = requestGate.begin();
+        if (!startedToGetFromAPI || forceRefresh || requestInFlight) {
             startedToGetFromAPI = true;
-            fillDestinations(filterText, domainCallback);
+            requestInFlight = true;
+            fillDestinations(filterText, domainCallback, requestTicket);
         } else {
-            filterChoicesByText(filterText, domainCallback);
+            filterChoicesByText(filterText, domainCallback, requestTicket);
         }
     }
 
-    private void fillDestinations(String filterText, DomainCallback domainCallback) {
+    private void fillDestinations(String filterText, DomainCallback domainCallback,
+            long requestTicket) {
         StoriesFilter filter = new StoriesFilter(filterText);
-
-        List<UserStory> taggedStories = new ArrayList<>();
-        Set<String> taggedStoriesIds = new HashSet<>();
-        getUserStoryPage(1, taggedStories, TAGS_TO_SEARCH,
-                e -> {
-                    taggedStories.forEach(userStory -> {
-                        taggedStoriesIds.add(userStory.id);
-                    });
-
-                    allStories.clear();
-                    getUserStoryPage(1, allStories, null,
-                            ex -> {
-                                suggestions.clear();
-                                allStories.forEach(userStory -> {
-                                    if (taggedStoriesIds.contains(userStory.id)) {
-                                        userStory.tagFound = true;
-                                    }
-                                    filter.filterOrAdd(userStory);
-                                });
-                                if (domainCallback != null) {
-                                    domainCallback.retrieveOk(suggestions); //ended
-                                }
-                            }
-                    );
-
+        UserStoryRetrievalCoordinator.retrieve((tagsFilter, callback) -> {
+            List<UserStory> destination = new ArrayList<>();
+            getUserStoryPage(1, destination, tagsFilter, error -> {
+                if (error == null) {
+                    callback.success(destination);
+                } else {
+                    callback.failure(error);
                 }
-        );
+            });
+        }, TAGS_TO_SEARCH, new UserStoryRetrievalCoordinator.Completion<UserStory>() {
+            @Override
+            public void success(List<UserStory> taggedStories, List<UserStory> retrievedStories) {
+                synchronized (UserStoryDomainProvider.this) {
+                    if (!requestGate.isCurrent(requestTicket)) {
+                        return;
+                    }
+                    requestInFlight = false;
+                    Set<String> taggedStoriesIds = new HashSet<>();
+                    taggedStories.forEach(userStory -> {
+                        if (userStory != null) {
+                            taggedStoriesIds.add(userStory.id);
+                        }
+                    });
+                    allStories.clear();
+                    retrievedStories.forEach(userStory -> {
+                        if (userStory != null) {
+                            allStories.add(userStory);
+                        }
+                    });
+                    suggestions.clear();
+                    allStories.forEach(userStory -> {
+                        if (taggedStoriesIds.contains(userStory.id)) {
+                            userStory.tagFound = true;
+                        }
+                        filter.filterOrAdd(userStory);
+                    });
+                    if (domainCallback != null) {
+                        domainCallback.retrieveOk(suggestions);
+                    }
+                }
+            }
+
+            @Override
+            public void failure(Exception error) {
+                notifyRetrieveError(domainCallback, error, requestTicket);
+            }
+        });
+    }
+
+    private synchronized void notifyRetrieveError(
+            DomainCallback domainCallback, Exception error, long requestTicket) {
+        if (!requestGate.isCurrent(requestTicket)) {
+            return;
+        }
+        requestInFlight = false;
+        startedToGetFromAPI = false;
+        allStories.clear();
+        suggestions.clear();
+        if (domainCallback != null) {
+            domainCallback.retrieveError(error, "Failed retrieving places");
+        }
     }
 
     private void handleError(String url, Throwable t, Callback<Exception> restOfPagesCallback) {
@@ -106,8 +144,20 @@ public class UserStoryDomainProvider implements DomainProvider {
             @Override
             public void onResponse(Call<UserStories> call, Response<UserStories> response) {
                 UserStories data = response.body();
+                UserStoryDomainPolicy.PageDecision decision =
+                        UserStoryDomainPolicy.classifyPage(
+                                response.isSuccessful(), data != null,
+                                data != null && data.user_stories != null,
+                                data == null ? 0 : data.current_page,
+                                data == null ? 0 : data.total_pages,
+                                MAX_PAGES_TO_GET);
+                if (decision == UserStoryDomainPolicy.PageDecision.INVALID) {
+                    restOfPagesCallback.callback(new Exception(
+                            "Invalid user stories response (HTTP " + response.code() + ")"));
+                    return;
+                }
                 userStoriesList.addAll(data.user_stories);
-                if (data.current_page < data.total_pages && data.current_page <= MAX_PAGES_TO_GET) {
+                if (decision == UserStoryDomainPolicy.PageDecision.CONTINUE) {
                     getUserStoryPage(pageNumber + 1, userStoriesList, tagsFilter, restOfPagesCallback);
                     return;
                 }
@@ -124,7 +174,7 @@ public class UserStoryDomainProvider implements DomainProvider {
     private class StoriesFilter {
         String[] mWords = new String[]{};
         public StoriesFilter(String filterText) {
-            mWords = filterText.trim().toUpperCase().split("\\s+");
+            mWords = UserStoryDomainPolicy.normalizedSearchText(filterText).trim().split("\\s+");
             if (mWords.length == 1 && (mWords[0] == null || mWords[0].length() <= 0 ) ) {
                 mWords = null;
             }
@@ -159,13 +209,19 @@ public class UserStoryDomainProvider implements DomainProvider {
         }
     }
 
-    private void filterChoicesByText(String filterText, DomainCallback domainCallback) {
+    private void filterChoicesByText(String filterText, DomainCallback domainCallback,
+            long requestTicket) {
+        if (!requestGate.isCurrent(requestTicket)) {
+            return;
+        }
         suggestions.clear();
         StoriesFilter storiesFilter = new StoriesFilter(filterText);
         allStories.forEach(story -> {
             storiesFilter.filterOrAdd(story);
         });
-        domainCallback.retrieveOk(suggestions);
+        if (domainCallback != null) {
+            domainCallback.retrieveOk(suggestions);
+        }
     }
 
     public interface UserStoryDomainProviderService {
@@ -193,17 +249,17 @@ public class UserStoryDomainProvider implements DomainProvider {
 
         String searchText() {
             if (searchText == null) {
-                searchText = place_name == null? "" : place_name.toUpperCase();
+                searchText = UserStoryDomainPolicy.normalizedSearchText(place_name);
             }
             return searchText;
         }
         DomainAdapter.Domain toDomain() {
             // TODO Proper url creation (it can or can't have hifi
             // TODO Or use host value from api?
-            String absoluteThumbnailUrl = HifiUtils.getInstance().absoluteHifiAssetUrl(thumbnail_url);
+            String absoluteThumbnailUrl = UserStoryDomainPolicy.thumbnailUrl(thumbnail_url);
             DomainAdapter.Domain domain = new DomainAdapter.Domain(
                     place_name,
-                    HifiUtils.getInstance().sanitizeHifiUrl(place_name) + "/" + path,
+                    UserStoryDomainPolicy.destinationUrl(place_name, path),
                     absoluteThumbnailUrl
             );
             return domain;

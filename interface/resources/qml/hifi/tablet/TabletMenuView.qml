@@ -68,11 +68,12 @@ FocusScope {
         delegate: TabletMenuItem {
             text: name
             source: item
+            platformEnabled: phoneSupported
             onImplicitHeightChanged: listView !== null ? listView.scheduleRecalcSize() : 0
             onImplicitWidthChanged: listView !== null ? listView.scheduleRecalcSize() : 0
 
             MouseArea {
-                enabled: name !== "" && item.enabled
+                enabled: name !== "" && item.enabled && phoneSupported
                 anchors.fill: parent
                 hoverEnabled: true
                 onEntered: {
@@ -138,5 +139,4 @@ FocusScope {
     function selectCurrentItem() { if (listView.currentIndex != -1) root.selected(currentItem.source); }
     function previousPage() { root.parent.pop(); }
 }
-
 

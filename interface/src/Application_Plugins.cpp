@@ -63,6 +63,16 @@ void Application::initializePluginManager(const QCommandLineParser& parser) {
     // QApplication must exist, or it can't find the plugin path, as QCoreApplication:applicationDirPath
     // won't work yet.
 
+    QStringList disabledLaunchPlugins;
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // The phone client always renders through the 2D OpenGL window. It neither
+    // ships an XR runtime nor has a useful display-mode choice to present.
+    pluginManager->setPreferredDisplayPlugins({ DESKTOP_DISPLAY_PLUGIN_NAME });
+    disabledLaunchPlugins.push_back(OPENVR_PLUGIN_NAME);
+    disabledLaunchPlugins.push_back(OPENXR_PLUGIN_NAME);
+    _previousPreferredDisplayMode.set(0);
+#else
     auto displayPluginSpecified = false;
     auto openxrPreferred = false;
     auto desktopPreferred = false;
@@ -92,8 +102,6 @@ void Application::initializePluginManager(const QCommandLineParser& parser) {
         qInfo() << "Disabling following input plugins:" << disabledInputs;
         PluginManager::getInstance()->disableInputs(disabledInputs);
     }
-
-    QStringList disabledLaunchPlugins = {};
 
     if (parser.isSet("useExperimentalXR") || openxrPreferred) {
         // If the user wants to use OpenXR, then disable the OpenVR plugin.
@@ -147,6 +155,7 @@ void Application::initializePluginManager(const QCommandLineParser& parser) {
         // the OpenXR plugin so it doesn't clash with OpenVR.
         disabledLaunchPlugins.push_back(OPENXR_PLUGIN_NAME);
     }
+#endif
 
     PluginManager::getInstance()->disableDisplays(disabledLaunchPlugins);
     PluginManager::getInstance()->disableInputs(disabledLaunchPlugins);
@@ -157,16 +166,26 @@ void Application::shutdownPlugins() {}
 void Application::initializeDisplayPlugins() {
     const auto& displayPlugins = PluginManager::getInstance()->getDisplayPlugins();
     Setting::Handle<QString> activeDisplayPluginSetting { ACTIVE_DISPLAY_PLUGIN_SETTING_NAME, displayPlugins.at(0)->getName() };
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    activeDisplayPluginSetting.set(DESKTOP_DISPLAY_PLUGIN_NAME);
+#else
     auto lastActiveDisplayPluginName = activeDisplayPluginSetting.get();
+#endif
 
     auto defaultDisplayPlugin = displayPlugins.at(0);
     // One time initialization code
     DisplayPluginPointer targetDisplayPlugin;
     for(const auto& displayPlugin : displayPlugins) {
         displayPlugin->setContext(_graphicsEngine->getGPUContext());
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        if (displayPlugin->getName() == DESKTOP_DISPLAY_PLUGIN_NAME) {
+            targetDisplayPlugin = displayPlugin;
+        }
+#else
         if (displayPlugin->getName() == lastActiveDisplayPluginName) {
             targetDisplayPlugin = displayPlugin;
         }
+#endif
 
         if (!_autoSwitchDisplayModeSupportedHMDPlugin) {
             if (displayPlugin->isHmd() && displayPlugin->getSupportsAutoSwitch()) {
@@ -454,6 +473,15 @@ void Application::setDisplayPlugin(DisplayPluginPointer newDisplayPlugin) {
             RefreshRateManager::UXMode::DESKTOP;
 
         refreshRateManager.setUXMode(uxMode);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        // The present-thread operator is installed only when the display
+        // plugin activates. Re-apply the previously selected custom profile
+        // now so the 30 Hz phone target becomes an active frame-pacing limit,
+        // including when UX mode was already DESKTOP and did not change.
+        refreshRateManager.updateRefreshRateController();
+        qCInfo(interfaceapp) << "PHONE_FRAME_PACING"
+                             << "targetFps" << refreshRateManager.getActiveRefreshRate();
+#endif
     }
 
     bool isHmd = _displayPlugin->isHmd();

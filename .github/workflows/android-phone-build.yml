@@ -1,0 +1,95 @@
+name: Android Phone trusted build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-phone-build-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+    working-directory: android
+
+env:
+  # A private cache prevents same-reference Pico/Phone binaries with different
+  # page-size alignment from shadowing the verified Phone archive.
+  CONAN_HOME: ${{ github.workspace }}/build/ci-phone-conan2
+
+jobs:
+  build:
+    # Keep this label exclusive to an isolated trusted build runner. Never run
+    # pull-request code on a host containing the Phone dependency graph.
+    runs-on: [self-hosted, linux, x64, overte-android-phone-build]
+    timeout-minutes: 240
+    steps:
+      - name: Check out requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Reject untrusted build refs
+        working-directory: .
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/heads/feature/android-phone-support ]]; then
+            exit 0
+          fi
+          if [[ "$GITHUB_REF" =~ ^refs/tags/android-phone-v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$ ]]; then
+            exit 0
+          fi
+          echo "Ref is not approved for the trusted Android Phone builder: $GITHUB_REF" >&2
+          exit 2
+
+      - name: Run complete device-free host tier
+        run: tests/run-tests.sh host --report-dir build/test-results/android-phone-host
+
+      - name: Verify build environment
+        run: ./build-phone.sh doctor
+
+      - name: Restore checksum-verified 16 KiB dependencies
+        run: ./build-phone.sh deps --download
+
+      - name: Prepare verified dependencies
+        run: ./build-phone.sh prepare
+
+      - name: Build Phone debug APK
+        env:
+          PHONE_BUILD_JOBS: "8"
+        run: ./build-phone.sh build --stacktrace
+
+      - name: Verify signed 16 KiB Phone APK
+        working-directory: .
+        env:
+          PHONE_APK: android/apps/phoneInterface/build/outputs/apk/debug/phoneInterface-debug.apk
+        run: |
+          set -euo pipefail
+          sdk_root="${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}"
+          android/ci/verify-phone-apk.py "$PHONE_APK" \
+            --apkanalyzer "$sdk_root/cmdline-tools/latest/bin/apkanalyzer" \
+            --apksigner "$sdk_root/build-tools/36.0.0/apksigner" \
+            --expect-debuggable 1 \
+            --source-revision "$GITHUB_SHA" \
+            --output build/android-phone/apk-manifest.json
+          {
+            echo "### Verified Android Phone APK"
+            echo
+            echo '```json'
+            cat build/android-phone/apk-manifest.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload small verification reports
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: android-phone-build-reports-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            android/build/test-results/android-phone-host/
+            build/android-phone/apk-manifest.json
+          if-no-files-found: warn
+          retention-days: 7

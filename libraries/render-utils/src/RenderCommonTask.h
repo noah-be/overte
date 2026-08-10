@@ -97,10 +97,12 @@ public:
     using JobModel = render::Job::ModelO<NewFramebuffer, Output>;
 
     NewFramebuffer(gpu::Element pixelFormat = gpu::Element::COLOR_SRGBA_32);
+    NewFramebuffer(gpu::Element pixelFormat, bool trackPhoneResolveRecreates);
 
     void run(const render::RenderContextPointer& renderContext, Output& output);
 protected:
     gpu::Element _pixelFormat;
+    bool _trackPhoneResolveRecreates { false };
 private:
     gpu::FramebufferPointer _outputFramebuffer;
 };

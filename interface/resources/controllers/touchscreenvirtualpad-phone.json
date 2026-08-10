@@ -1,0 +1,30 @@
+{
+    "name": "Android Phone Touch Navigation to Actions",
+    "channels": [
+        { "from": "TouchscreenVirtualPad.LY", "when": "!Application.CameraIndependent", "filters": { "type": "deadZone", "min": 0.05 }, "to": "Actions.TranslateZ" },
+        { "from": "TouchscreenVirtualPad.LX", "when": "!Application.CameraIndependent", "filters": { "type": "deadZone", "min": 0.05 }, "to": "Actions.TranslateX" },
+        { "from": "TouchscreenVirtualPad.JUMP_BUTTON_PRESS", "when": "!Application.CameraIndependent", "to": "Actions.VERTICAL_UP" },
+
+        { "from": "TouchscreenVirtualPad.RX", "when": "!Application.CameraIndependent",
+            "filters": [
+                { "type": "deadZone", "min": 0.000 },
+                { "type": "scale", "scale": 0.06 }
+            ],
+            "to": "Actions.Yaw"
+        },
+        { "from": "TouchscreenVirtualPad.RY", "when": "!Application.CameraIndependent",
+            "filters": [
+                { "type": "deadZone", "min": 0.000 },
+                { "type": "scale", "scale": 0.06 }
+            ],
+            "to": "Actions.Pitch"
+        },
+
+        { "from": "TouchscreenVirtualPad.PinchOut", "when": "!Application.CameraIndependent",
+            "filters": [ { "type": "scale", "scale": 0.35 } ], "to": "Actions.BoomOut" },
+        { "from": "TouchscreenVirtualPad.PinchIn", "when": "!Application.CameraIndependent",
+            "filters": [ { "type": "scale", "scale": 0.35 } ], "to": "Actions.BoomIn" },
+
+        { "from": "TouchscreenVirtualPad.RB", "to": "Standard.RB" }
+    ]
+}

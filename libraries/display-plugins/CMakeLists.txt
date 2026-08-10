@@ -16,4 +16,8 @@ include_hifi_library_headers(procedural)
 set(OpenGL_GL_PREFERENCE "GLVND")
 target_opengl()
 
+if (ANDROID AND HIFI_ANDROID_APP STREQUAL "phoneInterface")
+    target_link_libraries(${TARGET_NAME} log)
+endif()
+
 GroupSources("src/display-plugins")

@@ -20,6 +20,7 @@
 #include <controllers/UserInputMapper.h>
 #include <PathUtils.h>
 #include <NumericalConstants.h>
+#include <SettingHandle.h>
 #include "VirtualPadManager.h"
 
 #include <cmath>
@@ -168,6 +169,19 @@ void TouchscreenVirtualPadDevice::processInputDeviceForView() {
     _viewTouchUpdateCount = 0;
 }
 
+void TouchscreenVirtualPadDevice::processInputDeviceForPinch() {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (_pinchOut > 0.0f) {
+        _inputDevice->_axisStateMap[PINCH_OUT].value = _pinchOut;
+    }
+    if (_pinchIn > 0.0f) {
+        _inputDevice->_axisStateMap[PINCH_IN].value = _pinchIn;
+    }
+#endif
+    _pinchOut = 0.0f;
+    _pinchIn = 0.0f;
+}
+
 void TouchscreenVirtualPadDevice::pluginUpdate(float deltaTime, const controller::InputCalibrationData& inputCalibrationData) {
     auto userInputMapper = DependencyManager::get<controller::UserInputMapper>();
     userInputMapper->withLock([&, this]() {
@@ -192,6 +206,8 @@ void TouchscreenVirtualPadDevice::pluginUpdate(float deltaTime, const controller
     if (_viewHasValidTouch) {
         processInputDeviceForView();
     }
+
+    processInputDeviceForPinch();
 
 }
 
@@ -235,6 +251,10 @@ void TouchscreenVirtualPadDevice::touchEndEvent(const QTouchEvent* event) {
     _buttonsManager.endTouchForAll();
     _inputDevice->_axisStateMap.clear();
     _inputDevice->_buttonPressedMap.clear();
+    _lastPinchScale = 0.0f;
+    _pinchScale = 0.0f;
+    _pinchOut = 0.0f;
+    _pinchIn = 0.0f;
 }
 
 void TouchscreenVirtualPadDevice::processUnusedTouches(std::map<int, TouchType> unusedTouchesInEvent) {
@@ -426,6 +446,35 @@ void TouchscreenVirtualPadDevice::touchGestureEvent(const QGestureEvent* event) 
     if (QGesture* gesture = event->gesture(Qt::PinchGesture)) {
         QPinchGesture* pinch = static_cast<QPinchGesture*>(gesture);
         _pinchScale = pinch->totalScaleFactor();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        // Preferences may update this key through a different Setting::Handle.
+        // Read the manager-backed value so a saved change takes effect without
+        // restarting instead of retaining this device's startup cache.
+        Settings settings;
+        if (!settings.value("android/phone/pinchZoomEnabled", false).toBool()) {
+            _lastPinchScale = 0.0f;
+            _pinchOut = 0.0f;
+            _pinchIn = 0.0f;
+            return;
+        }
+        if (pinch->state() == Qt::GestureStarted || _lastPinchScale <= 0.0f) {
+            _lastPinchScale = _pinchScale;
+            return;
+        }
+
+        constexpr float MIN_SCALE_CHANGE = 0.001f;
+        float scaleChange = _pinchScale / _lastPinchScale - 1.0f;
+        if (scaleChange > MIN_SCALE_CHANGE) {
+            _pinchOut += scaleChange;
+        } else if (scaleChange < -MIN_SCALE_CHANGE) {
+            _pinchIn += -scaleChange;
+        }
+        _lastPinchScale = _pinchScale;
+
+        if (pinch->state() == Qt::GestureFinished || pinch->state() == Qt::GestureCanceled) {
+            _lastPinchScale = 0.0f;
+        }
+#endif
     }
 }
 
@@ -444,6 +493,8 @@ controller::Input::NamedVector TouchscreenVirtualPadDevice::InputDevice::getAvai
         Input::NamedPair(makeInput(TouchAxisChannel::LY), "LY"),
         Input::NamedPair(makeInput(TouchAxisChannel::RX), "RX"),
         Input::NamedPair(makeInput(TouchAxisChannel::RY), "RY"),
+        Input::NamedPair(makeInput(TouchAxisChannel::PINCH_OUT), "PinchOut"),
+        Input::NamedPair(makeInput(TouchAxisChannel::PINCH_IN), "PinchIn"),
         Input::NamedPair(makeInput(TouchButtonChannel::JUMP), "JUMP_BUTTON_PRESS"),
         Input::NamedPair(makeInput(TouchButtonChannel::RB), "RB")
     };
@@ -451,7 +502,11 @@ controller::Input::NamedVector TouchscreenVirtualPadDevice::InputDevice::getAvai
 }
 
 QString TouchscreenVirtualPadDevice::InputDevice::getDefaultMappingConfig() const {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    static const QString MAPPING_JSON = PathUtils::resourcesPath() + "/controllers/touchscreenvirtualpad-phone.json";
+#else
     static const QString MAPPING_JSON = PathUtils::resourcesPath() + "/controllers/touchscreenvirtualpad.json";
+#endif
     return MAPPING_JSON;
 }
 

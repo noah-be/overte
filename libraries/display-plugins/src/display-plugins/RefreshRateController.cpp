@@ -32,7 +32,11 @@ int RefreshRateController::getRefreshRateLimitPeriod() const {
 
 std::chrono::nanoseconds RefreshRateController::sleepThreadIfNeeded(QThread* thread, bool isHmd) {
     if (!isHmd) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        static const std::chrono::nanoseconds EPSILON { 0 };
+#else
         static const std::chrono::nanoseconds EPSILON = std::chrono::milliseconds(1);
+#endif
         auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(_endTime - _startTime);
         if (duration.count() < 0) {
             return std::chrono::nanoseconds(0);
@@ -40,7 +44,12 @@ std::chrono::nanoseconds RefreshRateController::sleepThreadIfNeeded(QThread* thr
         auto refreshRateLimitPeriod = std::chrono::nanoseconds(_refreshRateLimitPeriod);
         auto sleepDuration = refreshRateLimitPeriod - (duration + EPSILON);
         if (sleepDuration.count() > 0) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+            thread->usleep(static_cast<unsigned long>(
+                std::chrono::duration_cast<std::chrono::microseconds>(sleepDuration).count()));
+#else
             thread->msleep(std::chrono::duration_cast<std::chrono::milliseconds>(sleepDuration).count());
+#endif
         }
         return sleepDuration;
     }
