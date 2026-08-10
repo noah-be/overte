@@ -19,8 +19,10 @@ python3 "$script_dir/../tools/verify-bundle-metadata.py" \
 
 plist="$app_path/Info.plist"
 privacy="$app_path/PrivacyInfo.xcprivacy"
+metallib="$app_path/default.metallib"
 [[ -f "$plist" ]] || { echo "missing Info.plist" >&2; exit 1; }
 [[ -f "$privacy" ]] || { echo "missing PrivacyInfo.xcprivacy" >&2; exit 1; }
+[[ -s "$metallib" ]] || { echo "missing compiled Metal shader library" >&2; exit 1; }
 plutil -lint "$plist" "$privacy" >/dev/null
 
 bundle_id="$(plutil -extract CFBundleIdentifier raw -o - "$plist")"

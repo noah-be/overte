@@ -336,6 +336,7 @@ configure_project() {
         -DCMAKE_OSX_ARCHITECTURES=arm64 \
         -DCMAKE_OSX_DEPLOYMENT_TARGET="$OVERTE_IOS_MIN_VERSION" \
         -DCMAKE_OSX_SYSROOT="$sdk_path" \
+        -DOVERTE_IOS_SDK_NAME="$sdk_name" \
         -DOVERTE_IOS_BUNDLE_IDENTIFIER="$bundle_id" \
         -DOVERTE_IOS_DEVELOPMENT_TEAM="$development_team" \
         -DOVERTE_IOS_ENABLE_SIGNING="$signing" \

@@ -15,7 +15,14 @@ set(OVERTE_IOS_BUNDLE_IDENTIFIER "org.overte.interface.dev" CACHE STRING
     "Bundle identifier for the iOS bootstrap application")
 set(OVERTE_IOS_DEVELOPMENT_TEAM "" CACHE STRING
     "Apple Developer team ID; leave empty for unsigned simulator builds")
+set(OVERTE_IOS_SDK_NAME "" CACHE STRING
+    "Xcode SDK name used to compile Metal shaders")
 option(OVERTE_IOS_ENABLE_SIGNING "Enable Xcode code signing" OFF)
+
+if(NOT OVERTE_IOS_SDK_NAME MATCHES "^(iphoneos|iphonesimulator)$")
+    message(FATAL_ERROR
+        "OVERTE_IOS_SDK_NAME must be iphoneos or iphonesimulator")
+endif()
 
 set(OVERTE_IOS_RESOURCES
     resources/Assets.xcassets
@@ -45,6 +52,32 @@ set_source_files_properties(${OVERTE_IOS_RESOURCES} PROPERTIES
 )
 set_source_files_properties(src/BootstrapShaders.metal PROPERTIES
     XCODE_EXPLICIT_FILE_TYPE "sourcecode.metal"
+)
+
+find_program(OVERTE_IOS_XCRUN xcrun REQUIRED)
+set(OVERTE_IOS_METAL_TARGET "air64-apple-ios${CMAKE_OSX_DEPLOYMENT_TARGET}")
+if(OVERTE_IOS_SDK_NAME STREQUAL "iphonesimulator")
+    string(APPEND OVERTE_IOS_METAL_TARGET "-simulator")
+endif()
+set(OVERTE_IOS_METAL_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/metal/$<CONFIG>")
+set(OVERTE_IOS_METAL_AIR "${OVERTE_IOS_METAL_OUTPUT_DIR}/BootstrapShaders.air")
+set(OVERTE_IOS_METALLIB "${OVERTE_IOS_METAL_OUTPUT_DIR}/default.metallib")
+
+add_custom_command(TARGET OverteIOSBootstrap POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${OVERTE_IOS_METAL_OUTPUT_DIR}"
+    COMMAND "${OVERTE_IOS_XCRUN}" --sdk "${OVERTE_IOS_SDK_NAME}" metal
+        -c "${CMAKE_CURRENT_SOURCE_DIR}/src/BootstrapShaders.metal"
+        -target "${OVERTE_IOS_METAL_TARGET}"
+        -isysroot "${CMAKE_OSX_SYSROOT}"
+        -o "${OVERTE_IOS_METAL_AIR}"
+    COMMAND "${OVERTE_IOS_XCRUN}" --sdk "${OVERTE_IOS_SDK_NAME}" metallib
+        "${OVERTE_IOS_METAL_AIR}"
+        -o "${OVERTE_IOS_METALLIB}"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${OVERTE_IOS_METALLIB}"
+        "$<TARGET_BUNDLE_DIR:OverteIOSBootstrap>/default.metallib"
+    COMMENT "Compiling and embedding iOS Metal shader library"
+    VERBATIM
 )
 
 target_compile_definitions(OverteIOSBootstrap PRIVATE

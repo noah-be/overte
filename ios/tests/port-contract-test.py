@@ -108,6 +108,7 @@ def test_profiles() -> None:
     require_text(build_script, r"audit-conan-graph\.py", "resolved Conan graphs must be audited")
     require_text(build_script, r"generate-sbom\.py", "resolved Conan graphs must emit an SBOM")
     require_text(build_script, r'\$build_dir/ios/\$configuration-iphone', "package must use the subdirectory target output")
+    require_text(build_script, r"OVERTE_IOS_SDK_NAME", "configure must pass the selected SDK to Metal compilation")
 
 
 def test_dependency_inventory() -> None:
@@ -339,6 +340,12 @@ def test_ci_contract() -> None:
     require_text(verifier, r'lipo "\$executable" -verify_arch arm64', "bundle verification must enforce arm64")
     require_text(verifier, r"QtWebEngine", "bundle verification must reject desktop WebEngine")
     require_text(verifier, r"verify-bundle-metadata\.py", "bundle metadata must be host-testable")
+    require_text(verifier, r"default\.metallib", "bundle verification must require compiled Metal shaders")
+
+    ios_cmake = IOS_ROOT / "CMakeLists.txt"
+    require_text(ios_cmake, r"air64-apple-ios", "Metal compilation must target iOS AIR")
+    require_text(ios_cmake, r"--sdk.*OVERTE_IOS_SDK_NAME", "Metal compilation must use the selected Xcode SDK")
+    require_text(ios_cmake, r"TARGET_BUNDLE_DIR", "compiled Metal shaders must be embedded in the app")
 
     smoke = IOS_ROOT / "ci" / "simulator-smoke.sh"
     require_text(smoke, r"for family in iphone ipad", "smoke tier must cover iPhone and iPad")
