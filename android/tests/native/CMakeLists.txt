@@ -27,6 +27,8 @@ target_include_directories(overte_native_test_options INTERFACE
     "${CMAKE_CURRENT_LIST_DIR}/support")
 target_include_directories(overte_native_test_options INTERFACE
     "${CMAKE_CURRENT_LIST_DIR}/../../apps/picoInterface/openxr/src")
+target_include_directories(overte_native_test_options INTERFACE
+    "${CMAKE_CURRENT_LIST_DIR}/../../shared/vr/openxr")
 
 if(MSVC)
     target_compile_options(overte_native_test_options INTERFACE /W4 /WX)
@@ -149,8 +151,8 @@ add_overte_native_test(
     "${CMAKE_CURRENT_LIST_DIR}/phone_pending_handoff_property_test.cpp")
 
 add_overte_native_test(
-    pico_openxr_debug_policy
-    "${CMAKE_CURRENT_LIST_DIR}/pico_openxr_debug_policy_test.cpp")
+    android_vr_openxr_debug_policy
+    "${CMAKE_CURRENT_LIST_DIR}/android_vr_openxr_debug_policy_test.cpp")
 
 add_overte_native_test(
     pico_openxr_input_policy
@@ -177,7 +179,7 @@ add_overte_native_test(
     "${CMAKE_CURRENT_LIST_DIR}/pico_openxr_event_policy_test.cpp")
 
 set_tests_properties(
-    pico_openxr_debug_policy
+    android_vr_openxr_debug_policy
     pico_openxr_input_policy
     pico_openxr_space_policy
     pico_openxr_display_policy

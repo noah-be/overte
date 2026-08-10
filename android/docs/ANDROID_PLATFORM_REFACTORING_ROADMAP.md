@@ -139,7 +139,7 @@ Exit condition: an `android-vr` merge has one local command that fails closed.
 
 ## Milestone V2 — Small OpenXR policy extraction
 
-**Mode:** 🤖 Autonomous
+**Status:** ✅ Complete on `refactor/android-platform-boundaries`
 
 Do not move the complete Pico plugin first. Choose one policy that has no Pico SDK
 dependency, such as extension classification, event-state validation, or space
@@ -147,11 +147,11 @@ lifecycle rules.
 
 Deliverables:
 
-- [ ] Prove the selected policy uses only OpenXR/core C++ types.
-- [ ] Move it to a neutral Android-VR location.
-- [ ] Retain Pico behavior and tests.
-- [ ] Add a Quest-facing consumer or explicit future-consumer contract.
-- [ ] Repeat only after the pattern stays easy to maintain.
+- [x] Prove `OpenXrDebugPolicy.h` uses only `<cstdint>` and primitive C++ types.
+- [x] Move it to `android/shared/vr/openxr`.
+- [x] Make the real Pico OpenXR debug callback consume it and retain host tests.
+- [x] Document and enforce the future Quest consumer contract without copying it.
+- [x] Stop after this first extraction so the pattern can prove itself before reuse.
 
 Exit condition: one real OpenXR abstraction is vendor-neutral without a large rename.
 
@@ -233,7 +233,7 @@ correctness is explicitly not claimed yet.
 ## Recommended execution order
 
 ```text
-A0 ✅ → A1 ✅ → A2 ✅ → A3 ✅ → V1 ✅ → V2
+A0 ✅ → A1 ✅ → A2 ✅ → A3 ✅ → V1 ✅ → V2 ✅
                      ↘ P1 (Phone validation)
                      ↘ PI1 (Pico validation)
 
@@ -241,6 +241,6 @@ Q0 (when hardware/scope are available) → Q1 → Q2
 Apple integration proceeds independently after iOS work stabilizes.
 ```
 
-The next autonomous coding milestone is V2: extract one small, demonstrably
-vendor-neutral OpenXR policy into an Android-VR-owned location while retaining the
-working Pico consumer and its tests.
+The next useful work is a focused Phone or Pico regression cycle, or Q0 when Quest
+scope and hardware are available. Further OpenXR extraction should wait until a
+second real consumer needs a specific policy.

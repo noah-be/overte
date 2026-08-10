@@ -8,14 +8,36 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / "android/apps/picoInterface"
+SHARED_OPENXR = ROOT / "android/shared/vr/openxr"
 ANDROID_SHARED = ROOT / "android/shared"
 CMAKE = (APP / "CMakeLists.txt").read_text(encoding="utf-8")
+PLUGIN_CMAKE = (APP / "openxr/CMakeLists.txt").read_text(encoding="utf-8")
+CONTEXT = (APP / "openxr/src/OpenXrContext.cpp").read_text(encoding="utf-8")
 PROVIDER = (APP / "openxr/src/OpenXrProvider.cpp").read_text(encoding="utf-8")
 GL_CANVAS = (ANDROID_SHARED / "src/OffscreenGLCanvas.cpp").read_text(encoding="utf-8")
 QT_INPUT = (ANDROID_SHARED / "src/QtInputConnectionCompat.cpp").read_text(encoding="utf-8")
 
 
 class PicoPlatformGlueTests(unittest.TestCase):
+    def test_debug_policy_is_vendor_neutral_and_consumed_by_pico(self):
+        policy = (SHARED_OPENXR / "OpenXrDebugPolicy.h").read_text(encoding="utf-8")
+        ownership = (SHARED_OPENXR / "README.md").read_text(encoding="utf-8")
+        self.assertEqual(["#include <cstdint>"], re.findall(r"^#include .+$", policy,
+                                                            re.MULTILINE))
+        self.assertNotRegex(policy, r"(?i)pico|oculus|meta|android|jni|qt|openxr/")
+        self.assertIn('#include "OpenXrDebugPolicy.h"', CONTEXT)
+        self.assertIn("openXrDebugLogLevel(", CONTEXT)
+        for level, logger in (("Debug", "qCDebug"), ("Info", "qCInfo"),
+                              ("Warning", "qCWarning"), ("Critical", "qCCritical")):
+            self.assertRegex(
+                CONTEXT,
+                rf"case OpenXrDebugLogLevel::{level}:\s+{logger}\(xr_context_cat",
+            )
+        self.assertIn("../../../shared/vr/openxr", PLUGIN_CMAKE)
+        self.assertIn("future modern `questInterface`", ownership)
+        self.assertEqual([], list((ROOT / "android/apps/questInterface").rglob(
+            "OpenXrDebugPolicy.h")))
+
     def test_openxr_provider_publishes_only_supported_plugins(self):
         for getter, plugin in (("getDisplayPlugins", "OpenXrDisplayPlugin"),
                                ("getInputPlugins", "OpenXrInputPlugin")):
