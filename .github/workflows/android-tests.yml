@@ -65,6 +65,8 @@ jobs:
             qml-module-qtquick-controls qml-module-qtquick-controls2 \
             qml-module-qtquick-layouts \
             qml-module-qtquick-window2
+      - name: Install pinned static quality tools
+        run: tests/quality/install-tools.sh
       - name: Run fast tier
         run: tests/run-tests.sh fast
         env:
@@ -86,7 +88,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: android-fast-results
+          name: android-fast-results-${{ github.run_attempt }}
           path: |
             android/build/test-results/suite/
             android/build/test-results/native/
@@ -99,7 +101,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: android-fast-coverage
+          name: android-fast-coverage-${{ github.run_attempt }}
           path: android/build/reports/coverage/
           if-no-files-found: warn
           retention-days: 7
@@ -132,7 +134,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: android-contract-results
+          name: android-contract-results-${{ github.run_attempt }}
           path: |
             android/build/test-results/suite/
             android/build/reports/summary/contracts.md
@@ -194,7 +196,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: android-host-coverage
+          name: android-host-coverage-${{ github.run_attempt }}
           path: |
             android/build/reports/coverage/
             android/build/test-results/suite/TEST-android-mutation.xml
@@ -235,7 +237,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: android-mutation-extended-results
+          name: android-mutation-extended-results-${{ github.run_attempt }}
           path: |
             android/build/test-results/suite/TEST-android-mutation-extended.xml
             android/build/reports/mutation/critical-policies-extended.json
@@ -275,7 +277,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: android-stability-results
+          name: android-stability-results-${{ github.run_attempt }}
           path: |
             android/build/test-results/suite/TEST-android-stability.xml
             android/build/reports/summary/stability.md
@@ -327,7 +329,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: android-endurance-results
+          name: android-endurance-results-${{ github.run_attempt }}
           path: |
             android/build/test-results/suite/TEST-android-endurance.xml
             android/build/test-results/native/TEST-native.xml
@@ -369,7 +371,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: android-regression-results
+          name: android-regression-results-${{ github.run_attempt }}
           path: |
             android/build/test-results/suite/
             android/build/reports/summary/regression.md

@@ -4,10 +4,11 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
+import fcntl
 import json
 import os
 from pathlib import Path
-import signal
 import subprocess
 import sys
 import tempfile
@@ -16,11 +17,57 @@ import xml.etree.ElementTree as ET
 
 
 ANDROID_ROOT = Path(__file__).resolve().parents[2]
+TESTS_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(TESTS_ROOT))
+from process_control import communicate_with_timeout, popen_session_kwargs  # noqa: E402 -- controlled tests path
+
 DEFAULT_CATALOG = Path(__file__).with_name("catalog.json")
 KNOWN_TIERS = {"fast", "host", "prepared-host", "contracts", "regression", "device", "instrumentation", "coverage", "mutation", "mutation-extended", "robolectric", "endurance", "stability"}
 MAX_REPORT_OUTPUT_BYTES = 256 * 1024
 TERMINATION_GRACE_SECONDS = 1.0
 DEFAULT_SUITE_TIMEOUT_SECONDS = 480
+DEFAULT_REPORT_LOCK_TIMEOUT_SECONDS = 600.0
+DEFAULT_SUITE_TEMP_PARENT = (
+    Path("/dev/shm") if Path("/dev/shm").is_dir() and os.access("/dev/shm", os.W_OK)
+    else Path(tempfile.gettempdir())
+)
+SUITE_TEMP_PARENT = Path(os.environ.get("OVERTE_SUITE_TEMP_ROOT", DEFAULT_SUITE_TEMP_PARENT))
+
+
+def report_lock_timeout() -> float:
+    value = os.environ.get(
+        "OVERTE_SUITE_REPORT_LOCK_TIMEOUT_SECONDS",
+        str(DEFAULT_REPORT_LOCK_TIMEOUT_SECONDS),
+    )
+    try:
+        timeout = float(value)
+    except ValueError as error:
+        raise ValueError("suite report lock timeout must be a non-negative number") from error
+    if timeout < 0 or not timeout < float("inf"):
+        raise ValueError("suite report lock timeout must be a non-negative number")
+    return timeout
+
+
+@contextmanager
+def report_lifecycle_lock(report: Path, timeout: float):
+    """Serialize complete runs publishing the same report without unlink races."""
+    report.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = report.parent / f".{report.name}.lock"
+    with lock_path.open("a+b") as lock:
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(
+                        f"timed out waiting for suite report lock after {timeout:g} seconds")
+                time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
 
 
 def xml_safe(value: object) -> str:
@@ -48,40 +95,10 @@ def run_command(command: list[str], timeout: int, *, cwd: Path = ANDROID_ROOT,
     """Run one suite and guarantee timeout cleanup of its complete POSIX process group."""
     process = subprocess.Popen(
         command, cwd=cwd, env=env, text=True, stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT, start_new_session=(os.name == "posix"),
+        stderr=subprocess.STDOUT, **popen_session_kwargs(),
     )
-    try:
-        output, _ = process.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired as timeout_error:
-        termination_started = time.monotonic()
-        if os.name == "posix":
-            try:
-                os.killpg(process.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-        else:
-            process.terminate()
-        try:
-            output, _ = process.communicate(timeout=TERMINATION_GRACE_SECONDS)
-        except subprocess.TimeoutExpired:
-            output = None
-        remaining_grace = TERMINATION_GRACE_SECONDS - (time.monotonic() - termination_started)
-        if remaining_grace > 0:
-            time.sleep(remaining_grace)
-        if os.name == "posix":
-            # Sweep the group even when the leader exited and all descendants
-            # closed inherited output pipes during the grace period.
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-        elif process.poll() is None:
-            process.kill()
-        if output is None:
-            output, _ = process.communicate()
-        # communicate() after a timeout returns all captured output, not only
-        # the suffix, so reusing it avoids duplicated partial diagnostics.
-        raise subprocess.TimeoutExpired(command, timeout_error.timeout, output=output)
+    output, _ = communicate_with_timeout(
+        process, timeout, termination_grace=TERMINATION_GRACE_SECONDS)
     return subprocess.CompletedProcess(command, process.returncode, output)
 
 
@@ -164,36 +181,46 @@ def write_report(results: list[dict], destination: Path, tier: str) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def main() -> int:
-    args = parse_args()
-    report = args.report_dir.resolve() / f"TEST-android-{args.tier}.xml"
-    try:
-        suites = load_suites(args.catalog.resolve(), args.tier)
-    except (OSError, ValueError, json.JSONDecodeError) as error:
-        output = f"Unable to load test catalog: {error}\n"
-        print(output, end="", file=sys.stderr)
-        write_report([{
-            "id": "catalog-validation", "kind": "infrastructure", "status": "failed",
-            "reason": "", "returncode": 2, "duration": 0.0, "output": output,
-        }], report, args.tier)
-        print(f"JUnit report: {report}", file=sys.stderr)
-        return 2
-    if args.list:
-        for suite in suites:
-            print(f"{suite['id']}\t{suite['kind']}\t{suite['description']}")
-        return 0
+def failure_result(identifier: str, output: str) -> dict:
+    return {
+        "id": identifier, "kind": "infrastructure", "status": "failed",
+        "reason": "", "returncode": 2, "duration": 0.0, "output": output,
+    }
+
+
+def incomplete_result(completed: int, total: int) -> dict:
+    return failure_result(
+        "suite-run-incomplete",
+        f"Suite run incomplete: {completed} of {total} suites completed.\n",
+    )
+
+
+def run_suites(args: argparse.Namespace, report: Path, suites: list[dict]) -> int:
     if not suites:
-        print(f"No suites selected for tier {args.tier}", file=sys.stderr)
+        output = f"No suites selected for tier {args.tier}\n"
+        print(output, end="", file=sys.stderr)
+        write_report([failure_result("empty-tier", output)], report, args.tier)
+        print(f"JUnit report: {report}", file=sys.stderr)
         return 2
 
     results = []
+    write_report([incomplete_result(0, len(suites))], report, args.tier)
+    # Some privacy-sensitive device harnesses deliberately reject report paths
+    # inside the source worktree. Keep runner-owned scratch space external.
+    suite_temp_parent = SUITE_TEMP_PARENT
+    suite_temp_parent.mkdir(parents=True, exist_ok=True)
     for suite in suites:
         print(f"\n[{suite['id']}] {suite['description']}", flush=True)
         started = time.monotonic()
         command = suite["command"]
         try:
-            completed = run_command(command, suite.get("timeoutSeconds", DEFAULT_SUITE_TIMEOUT_SECONDS),
-                                    cwd=ANDROID_ROOT, env=os.environ.copy())
+            with tempfile.TemporaryDirectory(
+                    prefix="overte-android-suite-", dir=suite_temp_parent) as temporary:
+                child_env = os.environ.copy()
+                child_env["TMPDIR"] = temporary
+                completed = run_command(
+                    command, suite.get("timeoutSeconds", DEFAULT_SUITE_TIMEOUT_SECONDS),
+                    cwd=ANDROID_ROOT, env=child_env)
             output = completed.stdout
             if completed.returncode == 77 and suite.get("optionalWhenToolMissing"):
                 status, reason = "skipped", "required optional host tool is unavailable"
@@ -217,11 +244,42 @@ def main() -> int:
         print(output, end="")
         results.append({**suite, "status": status, "reason": reason,
                         "returncode": returncode, "duration": duration, "output": output})
-        write_report(results, report, args.tier)
+        write_report(
+            [*results, incomplete_result(len(results), len(suites))], report, args.tier)
 
     write_report(results, report, args.tier)
     print(f"\nJUnit report: {report}")
     return 1 if any(result["status"] == "failed" for result in results) else 0
+
+
+def main() -> int:
+    args = parse_args()
+    report = args.report_dir.resolve() / f"TEST-android-{args.tier}.xml"
+    if args.list:
+        try:
+            suites = load_suites(args.catalog.resolve(), args.tier)
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            print(f"Unable to load test catalog: {error}", file=sys.stderr)
+            return 2
+        for suite in suites:
+            print(f"{suite['id']}\t{suite['kind']}\t{suite['description']}")
+        return 0
+    try:
+        timeout = report_lock_timeout()
+        with report_lifecycle_lock(report, timeout):
+            try:
+                suites = load_suites(args.catalog.resolve(), args.tier)
+            except (OSError, ValueError, json.JSONDecodeError) as error:
+                output = f"Unable to load test catalog: {error}\n"
+                print(output, end="", file=sys.stderr)
+                write_report(
+                    [failure_result("catalog-validation", output)], report, args.tier)
+                print(f"JUnit report: {report}", file=sys.stderr)
+                return 2
+            return run_suites(args, report, suites)
+    except (TimeoutError, ValueError) as error:
+        print(f"Unable to acquire suite report lock: {error}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

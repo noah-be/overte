@@ -4,16 +4,22 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
+import fcntl
 import json
+import math
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_REPORT_LOCK_TIMEOUT_SECONDS = 600.0
 SCRIPTS = ROOT.parent / "scripts/system"
 JAVA_PRODUCTION = {
     "legacy-url": ROOT / "apps/interface/src/main/java/io/highfidelity/hifiinterface/HifiUtils.java",
@@ -239,11 +245,43 @@ def write_report(path: Path, payload: dict) -> None:
             os.unlink(temporary_name)
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--extended", action="store_true", help="include the slower periodic mutation set")
-    parser.add_argument("--report", type=Path, default=ROOT / "build/reports/mutation/critical-policies.json")
-    args = parser.parse_args()
+def report_lock_timeout() -> float:
+    value = os.environ.get(
+        "OVERTE_MUTATION_REPORT_LOCK_TIMEOUT_SECONDS",
+        str(DEFAULT_REPORT_LOCK_TIMEOUT_SECONDS),
+    )
+    try:
+        timeout = float(value)
+    except ValueError as error:
+        raise ValueError("mutation report lock timeout must be a non-negative number") from error
+    if timeout < 0 or not math.isfinite(timeout):
+        raise ValueError("mutation report lock timeout must be a non-negative number")
+    return timeout
+
+
+@contextmanager
+def mutation_report_lock(report: Path, timeout: float):
+    """Serialize complete mutation runs that publish the same report path."""
+    report.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = report.parent / f".{report.name}.lock"
+    with lock_path.open("a+b") as lock:
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(
+                        f"timed out waiting for mutation report lock after {timeout:g} seconds")
+                time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+def run_mutations(args: argparse.Namespace) -> int:
     selected = [mutant for mutant in MUTANTS if args.extended or not mutant.extended]
     results = []
     baselines = []
@@ -261,7 +299,7 @@ def main() -> int:
                 write_report(args.report, {
                     "mode": "extended" if args.extended else "quick",
                     "seedPolicy": "fixed deterministic inputs in production-facing harnesses",
-                    "baseline": baselines, "killed": 0, "survived": 0, "errors": 1, "mutants": [],
+                    "baseline": baselines, "killed": 0, "survived": 0, "errors": 1,
                 })
                 return 2
         for mutant in selected:
@@ -280,6 +318,25 @@ def main() -> int:
     })
     print(f"Critical policy mutation score: {killed}/{len(results)} killed; {errors} harness errors")
     return 1 if survived or errors else 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--extended", action="store_true", help="include the slower periodic mutation set")
+    parser.add_argument("--report", type=Path, default=ROOT / "build/reports/mutation/critical-policies.json")
+    args = parser.parse_args()
+    try:
+        timeout = report_lock_timeout()
+    except ValueError as error:
+        print(f"Invalid mutation report lock: {error}", file=sys.stderr)
+        return 2
+    try:
+        with mutation_report_lock(args.report, timeout):
+            args.report.unlink(missing_ok=True)
+            return run_mutations(args)
+    except TimeoutError as error:
+        print(error, file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

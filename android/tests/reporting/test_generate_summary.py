@@ -55,6 +55,29 @@ class SummaryTest(unittest.TestCase):
         self.assertEqual(0, issues)
         self.assertIn("3 passed, 1 failed, 1 skipped / 5", console)
 
+    def test_zero_test_junit_is_a_malformed_report_issue(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "empty.xml"
+            report.write_text(
+                '<testsuite tests="0" failures="0" errors="0" skipped="0"/>',
+                encoding="utf-8")
+            console, markdown, issues = summary.generate([f"empty={report}"], [], [])
+        self.assertEqual(1, issues)
+        self.assertIn("JUnit empty: MALFORMED", console)
+        self.assertIn("JUnit report contains no tests", console)
+        self.assertIn("MALFORMED", markdown)
+
+    def test_positive_junit_and_inconsistent_zero_counter_remain_distinct(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            normal = root / "normal.xml"
+            normal.write_text('<testsuite tests="1" failures="0"/>', encoding="utf-8")
+            inconsistent = root / "inconsistent.xml"
+            inconsistent.write_text('<testsuite tests="0" failures="1"/>', encoding="utf-8")
+            self.assertEqual(1, summary.junit(normal)["passed"])
+            with self.assertRaisesRegex(ValueError, "counters are inconsistent"):
+                summary.junit(inconsistent)
+
     def test_node_native_direct_testcases_are_counted(self):
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "node.xml"
@@ -117,21 +140,110 @@ class SummaryTest(unittest.TestCase):
         self.assertEqual(1, too_many_issues)
         self.assertIn("TOO MANY", too_many_markdown)
 
-    def test_atomic_output_refuses_preexisting_symlink(self):
+    def test_symlinked_output_fails_without_partial_publication_in_both_modes(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             target = root / "target.md"
             target.write_text("unchanged", encoding="utf-8")
             output = root / "summary.md"
+            step_summary = root / "step-summary.md"
+            step_summary.write_text("existing step summary\n", encoding="utf-8")
             try:
                 output.symlink_to(target)
             except OSError:
                 self.skipTest("symlinks unavailable")
+            for strict in (False, True):
+                with self.subTest(strict=strict):
+                    argv = ["generate_summary.py", "--output", str(output)]
+                    if strict:
+                        argv.append("--strict")
+                    with mock.patch.object(sys, "argv", argv), mock.patch.dict(
+                            os.environ, {"GITHUB_STEP_SUMMARY": str(step_summary)}, clear=True):
+                        self.assertEqual(1, summary.main())
+                    self.assertEqual("unchanged", target.read_text(encoding="utf-8"))
+                    self.assertTrue(output.is_symlink())
+                    self.assertEqual(
+                        "existing step summary\n", step_summary.read_text(encoding="utf-8"))
+                    self.assertEqual([], list(root.glob(".summary.md.*.tmp")))
+
+    def test_staging_failure_invalidates_stale_output_without_step_append(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "summary.md"
+            output.write_text("stale green", encoding="utf-8")
+            step_summary = root / "step-summary.md"
+            step_summary.write_text("existing\n", encoding="utf-8")
             argv = ["generate_summary.py", "--output", str(output)]
-            with mock.patch.object(sys, "argv", argv), mock.patch.dict(os.environ, {}, clear=True):
-                self.assertEqual(0, summary.main())
-            self.assertEqual("unchanged", target.read_text(encoding="utf-8"))
-            self.assertTrue(output.is_symlink())
+            with mock.patch.object(sys, "argv", argv), mock.patch.dict(
+                    os.environ, {"GITHUB_STEP_SUMMARY": str(step_summary)},
+                    clear=True), mock.patch.object(
+                    summary.tempfile, "mkstemp", side_effect=OSError("full")):
+                self.assertEqual(1, summary.main())
+            self.assertFalse(output.exists())
+            self.assertEqual("existing\n", step_summary.read_text(encoding="utf-8"))
+            self.assertTrue((root / ".summary.md.lock").is_file())
+
+    def test_invalid_lock_timeout_preserves_existing_outputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "summary.md"
+            output.write_text("owned", encoding="utf-8")
+            step_summary = root / "step-summary.md"
+            step_summary.write_text("existing\n", encoding="utf-8")
+            argv = ["generate_summary.py", "--output", str(output)]
+            environment = {
+                "GITHUB_STEP_SUMMARY": str(step_summary),
+                "OVERTE_SUMMARY_LOCK_TIMEOUT_SECONDS": "invalid",
+            }
+            with mock.patch.object(sys, "argv", argv), mock.patch.dict(
+                    os.environ, environment, clear=True):
+                self.assertEqual(2, summary.main())
+            self.assertEqual("owned", output.read_text(encoding="utf-8"))
+            self.assertEqual("existing\n", step_summary.read_text(encoding="utf-8"))
+
+    @unittest.skipUnless(os.name == "posix", "flock fixture is POSIX-specific")
+    def test_lock_timeout_preserves_owner_outputs(self):
+        import fcntl
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "summary.md"
+            output.write_text("owned", encoding="utf-8")
+            step_summary = root / "step-summary.md"
+            step_summary.write_text("existing\n", encoding="utf-8")
+            lock_path = root / ".summary.md.lock"
+            argv = ["generate_summary.py", "--output", str(output)]
+            environment = {
+                "GITHUB_STEP_SUMMARY": str(step_summary),
+                "OVERTE_SUMMARY_LOCK_TIMEOUT_SECONDS": "0.01",
+            }
+            with lock_path.open("a+b") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                with mock.patch.object(sys, "argv", argv), mock.patch.dict(
+                        os.environ, environment, clear=True):
+                    self.assertEqual(1, summary.main())
+            self.assertEqual("owned", output.read_text(encoding="utf-8"))
+            self.assertEqual("existing\n", step_summary.read_text(encoding="utf-8"))
+
+    def test_step_summary_symlink_is_rejected_without_touching_its_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "summary.md"
+            victim = root / "victim.md"
+            victim.write_text("private", encoding="utf-8")
+            step_summary = root / "step-summary.md"
+            try:
+                step_summary.symlink_to(victim)
+            except OSError:
+                self.skipTest("symlinks unavailable")
+            argv = ["generate_summary.py", "--output", str(output)]
+            with mock.patch.object(sys, "argv", argv), mock.patch.dict(
+                    os.environ, {"GITHUB_STEP_SUMMARY": str(step_summary)},
+                    clear=True):
+                self.assertEqual(1, summary.main())
+            self.assertTrue(output.is_file())
+            self.assertEqual("private", victim.read_text(encoding="utf-8"))
+            self.assertTrue(step_summary.is_symlink())
 
 
 if __name__ == "__main__":

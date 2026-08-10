@@ -104,9 +104,90 @@ class MutationClassificationTest(unittest.TestCase):
                 text=True, capture_output=True, env=environment, check=False)
             import json
             payload = json.loads(report.read_text(encoding="utf-8"))
+            summary_output = Path(temporary) / "summary.md"
+            summary_result = subprocess.run([
+                sys.executable,
+                str(runner.ROOT / "tests/reporting/generate_summary.py"),
+                "--mutation", f"baseline={report}",
+                "--output", str(summary_output),
+                "--strict",
+            ], text=True, capture_output=True, check=False)
         self.assertEqual(2, result.returncode)
-        self.assertEqual([], payload["mutants"])
+        self.assertNotIn("mutants", payload)
         self.assertEqual("error", payload["baseline"][0]["status"])
+        self.assertEqual(1, payload["errors"])
+        self.assertEqual(0, summary_result.returncode, summary_result.stderr)
+        self.assertIn("0/1 killed, 0 survived, 1 errors (quick)", summary_result.stdout)
+        self.assertNotIn("MALFORMED", summary_result.stdout)
+        self.assertNotIn("Report issues", summary_result.stdout)
+
+    def test_interrupted_run_invalidates_stale_report(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            report = root / "reports/mutation.json"
+            report.parent.mkdir(parents=True)
+            report.write_text('{"killed": 9}\n', encoding="utf-8")
+            argv = ["run_mutations.py", "--report", str(report)]
+            with mock.patch.object(sys, "argv", argv), mock.patch.object(
+                    runner, "ROOT", root), mock.patch.object(
+                    runner, "execute", side_effect=KeyboardInterrupt):
+                with self.assertRaises(KeyboardInterrupt):
+                    runner.main()
+            self.assertFalse(report.exists())
+            self.assertTrue((report.parent / f".{report.name}.lock").is_file())
+            scratch_parent = root / "build/tmp/mutation"
+            self.assertEqual([], list(scratch_parent.glob("overte-mutation-*")))
+
+    @unittest.skipUnless(os.name == "posix", "flock fixture is POSIX-specific")
+    def test_report_lock_contention_times_out_without_mutating_report(self):
+        import fcntl
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            report = root / "mutation.json"
+            stale = b'{"killed": 9}\n'
+            report.write_bytes(stale)
+            lock_path = report.parent / f".{report.name}.lock"
+            environment = {
+                **os.environ,
+                "PATH": "",
+                "OVERTE_MUTATION_REPORT_LOCK_TIMEOUT_SECONDS": "0.05",
+            }
+            with lock_path.open("a+b") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                result = subprocess.run(
+                    [sys.executable, str(MODULE_PATH), "--report", str(report)],
+                    text=True, capture_output=True, env=environment, check=False)
+            self.assertEqual(1, result.returncode)
+            self.assertIn("timed out waiting for mutation report lock", result.stderr)
+            self.assertEqual(stale, report.read_bytes())
+
+    def test_invalid_lock_timeout_preserves_report_and_starts_nothing(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            report = Path(temporary) / "mutation.json"
+            stale = b'{"killed": 9}\n'
+            report.write_bytes(stale)
+            argv = ["run_mutations.py", "--report", str(report)]
+            with mock.patch.object(sys, "argv", argv):
+                with mock.patch.dict(
+                        os.environ,
+                        {"OVERTE_MUTATION_REPORT_LOCK_TIMEOUT_SECONDS": "invalid"}):
+                    with mock.patch.object(runner, "execute") as execute:
+                        self.assertEqual(2, runner.main())
+            execute.assert_not_called()
+            self.assertEqual(stale, report.read_bytes())
+
+    @unittest.skipUnless(os.name == "posix", "flock fixture is POSIX-specific")
+    def test_distinct_report_paths_lock_independently(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            first = root / "quick.json"
+            second = root / "extended.json"
+            with runner.mutation_report_lock(first, 0):
+                with runner.mutation_report_lock(second, 0):
+                    pass
+            self.assertTrue((root / ".quick.json.lock").is_file())
+            self.assertTrue((root / ".extended.json.lock").is_file())
 
     def test_curated_mutant_order_is_stable(self):
         quick = [mutant.name for mutant in runner.MUTANTS if not mutant.extended]

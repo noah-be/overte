@@ -2,9 +2,10 @@
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-fixture="$(mktemp -d /tmp/overte-phone-graphics-harness-test.XXXXXXXX)"
+fixture="$(mktemp -d "${TMPDIR:-/tmp}/overte-phone-graphics-harness-test.XXXXXXXX")"
 trap 'rm -rf -- "$fixture"' EXIT INT TERM
 report="$fixture/report"
+mkdir "$fixture/private-tmp"
 readonly real_mktemp="$(command -v mktemp)"
 readonly real_sleep="$(command -v sleep)"
 readonly real_chmod="$(command -v chmod)"
@@ -13,6 +14,8 @@ export PHONE_BENCHMARK_TEST_REAL_MKTEMP="$real_mktemp"
 export PHONE_BENCHMARK_TEST_REAL_SLEEP="$real_sleep"
 export PHONE_BENCHMARK_TEST_REAL_CHMOD="$real_chmod"
 export PHONE_BENCHMARK_TEST_REAL_RM="$real_rm"
+export PHONE_BENCHMARK_TEST_TMPDIR="$fixture/private-tmp"
+export PHONE_BENCHMARK_TEST_MKTEMP_LOG="$fixture/mktemp-templates"
 # The fixture supplies fake ADB and must never contend for the real shared
 # device lock or its post-device cooldown.
 export PHONE_DEVICE_LOCK_HELD=1
@@ -25,7 +28,15 @@ if [[ "${MOCK_SUMMARY_MKTEMP_FAILURE:-0}" == 1 && "$*" == *'.summary.txt.'* ]]; 
     printf 'private summary allocation failure: %s\n' "$*" >&2
     exit 7
 fi
-exec "$PHONE_BENCHMARK_TEST_REAL_MKTEMP" "$@"
+args=()
+for arg in "$@"; do
+    if [[ "$arg" == /tmp/overte-phone-graphics-*.XXXXXXXX ]]; then
+        printf '%s\n' "$arg" >>"$PHONE_BENCHMARK_TEST_MKTEMP_LOG"
+        arg="$PHONE_BENCHMARK_TEST_TMPDIR/${arg##*/}"
+    fi
+    args+=("$arg")
+done
+exec "$PHONE_BENCHMARK_TEST_REAL_MKTEMP" "${args[@]}"
 MOCK_MKTEMP
 chmod +x "$fixture/bin/mktemp"
 cat >"$fixture/bin/sleep" <<'MOCK_SLEEP'
@@ -403,12 +414,14 @@ PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/temporary-report-exits" 
     ANDROID_SERIAL=phone-secret PHONE_BENCHMARK_CONFIRM_NON_VR=YES \
     PHONE_BENCHMARK_INTERVAL=1 "$script_dir/phone-graphics-benchmark.sh" 1 \
     >"$fixture/temporary-report.out"
-temporary_summary="$(sed -n 's|^Aggregate benchmark report: \(/tmp/overte-phone-graphics-report\.[^/]*/summary[.]txt\)$|\1|p' \
+temporary_summary="$(sed -n 's|^Aggregate benchmark report: \(.*[/]summary[.]txt\)$|\1|p' \
     "$fixture/temporary-report.out")"
 [[ -n "$temporary_summary" && -f "$temporary_summary" ]]
 grep -q '^schema=overte-phone-graphics-aggregate-v1$' "$temporary_summary"
 temporary_report_dir="${temporary_summary%/summary.txt}"
-[[ "$temporary_report_dir" == /tmp/overte-phone-graphics-report.* ]]
+[[ "$temporary_report_dir" == "$PHONE_BENCHMARK_TEST_TMPDIR"/overte-phone-graphics-report.* ]]
+grep -Fxq '/tmp/overte-phone-graphics-report.XXXXXXXX' \
+    "$PHONE_BENCHMARK_TEST_MKTEMP_LOG"
 rm -rf -- "$temporary_report_dir"
 
 summary_failure_report="$fixture/summary-failure-report"

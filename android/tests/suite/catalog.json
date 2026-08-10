@@ -16,11 +16,32 @@
       "description": "Pinned CI actions, toolchains, dependency locks, packages and artifacts"
     },
     {
+      "id": "shell-syntax-contract",
+      "kind": "infrastructure",
+      "tiers": ["fast", "host", "contracts"],
+      "command": ["tests/shell-syntax-test.sh"],
+      "description": "Parse every tracked Android Bash entry point before execution"
+    },
+    {
+      "id": "python-syntax-contract",
+      "kind": "infrastructure",
+      "tiers": ["fast", "host", "contracts"],
+      "command": ["tests/python-syntax-test.py"],
+      "description": "Parse every tracked Android Python source without writing bytecode"
+    },
+    {
       "id": "result-summary-self-test",
       "kind": "infrastructure",
       "tiers": ["fast"],
       "command": ["tests/reporting/run-summary-self-tests.sh"],
       "description": "Honest JUnit, coverage and mutation result aggregation"
+    },
+    {
+      "id": "android-static-quality",
+      "kind": "infrastructure",
+      "tiers": ["fast"],
+      "command": ["tests/quality/run-static-quality.sh"],
+      "description": "Pinned ShellCheck and Ruff gates for critical test infrastructure"
     },
     {
       "id": "test-documentation-contract",

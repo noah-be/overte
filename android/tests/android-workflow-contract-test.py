@@ -53,6 +53,27 @@ class AndroidTestWorkflowContracts(unittest.TestCase):
         self.assertLessEqual(max(retentions), 30)
         self.assertNotRegex(self.source, r"(?im)^\s+.*\.apk\s*$")
 
+    def test_all_uploaded_artifacts_are_scoped_to_the_workflow_attempt(self):
+        names = re.findall(
+            r"(?m)^\s+uses: actions/upload-artifact@[^\n]+\n"
+            r"\s+with:\n\s+name: ([^\n]+)$",
+            self.source,
+        )
+        self.assertEqual(8, len(names))
+        self.assertEqual(
+            {
+                "android-fast-results-${{ github.run_attempt }}",
+                "android-fast-coverage-${{ github.run_attempt }}",
+                "android-contract-results-${{ github.run_attempt }}",
+                "android-host-coverage-${{ github.run_attempt }}",
+                "android-mutation-extended-results-${{ github.run_attempt }}",
+                "android-stability-results-${{ github.run_attempt }}",
+                "android-endurance-results-${{ github.run_attempt }}",
+                "android-regression-results-${{ github.run_attempt }}",
+            },
+            set(names),
+        )
+
     def test_phone_branch_and_ci_work_are_checked(self):
         self.assertIn("feature/android-phone-support", self.source)
         self.assertIn('"ci/android-phone-**"', self.source)

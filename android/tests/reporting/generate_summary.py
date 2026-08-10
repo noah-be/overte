@@ -4,13 +4,17 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
+import fcntl
 import glob
 import json
 import os
 from pathlib import Path
 import re
+import stat
 import sys
 import tempfile
+import time
 import xml.etree.ElementTree as ET
 
 MAX_REPORT_BYTES = 8 * 1024 * 1024
@@ -21,6 +25,60 @@ JACOCO_DOCTYPE = (b'<!DOCTYPE report PUBLIC "-//JACOCO//DTD Report 1.1//EN" '
                   b'"report.dtd">')
 COBERTURA_DOCTYPE = (b"<!DOCTYPE coverage SYSTEM "
                      b"'http://cobertura.sourceforge.net/xml/coverage-04.dtd'>")
+DEFAULT_SUMMARY_LOCK_TIMEOUT_SECONDS = 600.0
+
+
+def summary_lock_timeout() -> float:
+    value = os.environ.get(
+        "OVERTE_SUMMARY_LOCK_TIMEOUT_SECONDS",
+        str(DEFAULT_SUMMARY_LOCK_TIMEOUT_SECONDS))
+    try:
+        timeout = float(value)
+    except ValueError as error:
+        raise ValueError(
+            "summary lock timeout must be a non-negative number") from error
+    if timeout < 0 or not timeout < float("inf"):
+        raise ValueError("summary lock timeout must be a non-negative number")
+    return timeout
+
+
+@contextmanager
+def summary_lifecycle_lock(output: Path, timeout: float):
+    output.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = output.parent / f".{output.name}.lock"
+    with lock_path.open("a+b") as lock:
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(
+                        "timed out waiting for summary output lock")
+                time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+def append_step_summary(path: Path, markdown: str) -> None:
+    flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NONBLOCK
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    elif path.is_symlink():
+        raise OSError("step summary cannot be a symlink")
+    descriptor = os.open(path, flags, 0o600)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise OSError("step summary is not a regular file")
+        with os.fdopen(descriptor, "a", encoding="utf-8") as destination:
+            descriptor = -1
+            destination.write(markdown)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
 
 
 def report_bytes(path: Path) -> bytes:
@@ -74,6 +132,8 @@ def junit(path: Path) -> dict:
     totals["passed"] = totals["tests"] - totals["failures"] - totals["errors"] - totals["skipped"]
     if totals["passed"] < 0:
         raise ValueError("JUnit counters are inconsistent")
+    if totals["tests"] == 0:
+        raise ValueError("JUnit report contains no tests")
     return totals
 
 
@@ -223,29 +283,43 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--strict", action="store_true", help="fail when a requested report is missing or malformed")
     args = parser.parse_args()
-    console, markdown, issue_count = generate(args.junit, args.coverage, args.mutation)
-    print(console, end="")
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    if args.output.is_symlink():
-        print("error: summary output cannot be a symlink", file=sys.stderr)
-        return 1 if args.strict else 0
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{args.output.name}.", suffix=".tmp", dir=args.output.parent)
-    temporary = Path(temporary_name)
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as destination:
-            destination.write(markdown)
-        os.replace(temporary, args.output)
-    finally:
-        try:
-            temporary.unlink()
-        except FileNotFoundError:
-            pass
-    step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
-    if step_summary:
-        with Path(step_summary).open("a", encoding="utf-8") as destination:
-            destination.write(markdown)
-    return 1 if args.strict and issue_count else 0
+        timeout = summary_lock_timeout()
+    except ValueError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+    try:
+        with summary_lifecycle_lock(args.output, timeout):
+            if args.output.is_symlink():
+                print("error: summary output cannot be a symlink", file=sys.stderr)
+                return 1
+            args.output.unlink(missing_ok=True)
+            console, markdown, issue_count = generate(
+                args.junit, args.coverage, args.mutation)
+            print(console, end="")
+            descriptor, temporary_name = tempfile.mkstemp(
+                prefix=f".{args.output.name}.", suffix=".tmp",
+                dir=args.output.parent)
+            temporary = Path(temporary_name)
+            try:
+                with os.fdopen(descriptor, "w", encoding="utf-8") as destination:
+                    destination.write(markdown)
+                os.replace(temporary, args.output)
+            finally:
+                try:
+                    temporary.unlink()
+                except FileNotFoundError:
+                    pass
+            step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
+            if step_summary:
+                append_step_summary(Path(step_summary), markdown)
+            return 1 if args.strict and issue_count else 0
+    except TimeoutError:
+        print("error: timed out waiting for summary output lock", file=sys.stderr)
+        return 1
+    except OSError:
+        print("error: unable to publish Android test summary", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

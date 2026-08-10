@@ -5,6 +5,14 @@ fast feedback without accidentally starting a device test or an expensive
 build. `tests/suite/catalog.json` is the source of truth. The runner never
 discovers tests by filename glob.
 
+The fast and contract tiers parse every tracked Android `*.sh` entry point with
+`bash -n` and every tracked Python source through the standard-library AST
+parser. Executable Python entry points must retain the repository's Python 3
+shebang. These checks catch syntax regressions even in hardware-only scripts
+that cannot execute on a pull-request host, without creating bytecode or cache
+files. They are syntax contracts, not substitutes for behavior tests or
+general-purpose linters.
+
 ## Test architecture
 
 | Tier | Purpose | Expected use |
@@ -171,6 +179,12 @@ tests/run-tests.sh coverage
 tests/run-tests.sh robolectric
 ```
 
+The mandatory static-quality entry in `fast` uses ShellCheck 0.11.0 and Ruff
+0.15.22 from a verified repository-managed tool directory. On a clean Linux
+x86_64 host, run `tests/quality/install-tools.sh` before the tier. The installer
+checks the ShellCheck archive digest and uses pip hash-checking for Ruff; the
+lint runner rejects missing or version-drifted executables.
+
 List a tier without executing it:
 
 ```bash
@@ -222,8 +236,8 @@ Activity class at the boundary. Across Phone, legacy Interface, Pico, and
 Quest, 32 Robolectric source behaviors produce 71 executions. The exact matrix
 is Phone (API 26/35), legacy Interface (API 24/26), Pico (API 26/35), and
 legacy Quest (API 24/28/35). Phone contributes 13 source behaviors and 26
-executions. Seven framework-independent legacy `HifiUtils` checks bring the
-harness report to 78 granular JUnit cases. This harness is mandatory in the CI
+executions. Eight framework-independent legacy `HifiUtils` checks bring the
+harness report to 79 granular JUnit cases. This harness is mandatory in the CI
 coverage job and publishes JUnit XML.
 
 The default `coverage` tier uses a dependency-free JaCoCo harness for ten
