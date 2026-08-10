@@ -31,6 +31,15 @@ An iOS dependency must:
 
 The build must fail, rather than silently enable a disabled desktop dependency.
 
+## Conan build context
+
+Cross compilation uses the checked-in `ios-arm64` or
+`ios-simulator-arm64` profile for target libraries and the separate
+`macos-arm64` profile for native tools that execute on the pinned macOS 26
+runner. The dependency command names both profiles explicitly. It must not
+depend on Conan's mutable, user-global `default` profile, which is absent in a
+fresh CI environment and could otherwise silently change the build-tool ABI.
+
 ## Entity pipeline direct-requirement audit
 
 `ios/tools/audit-entity-conan-contract.py` scans the CMake dependency macros

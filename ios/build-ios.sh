@@ -327,7 +327,7 @@ resolve_dependencies() {
     mkdir -p "$conan_output"
     conan install "$script_dir" \
         --profile:host="$conan_profile" \
-        --profile:build=default \
+        --profile:build="$script_dir/conan/profiles/macos-arm64" \
         --build=missing \
         --options="overte-ios-dependencies/*:with_graphics_toolchain=$with_graphics_toolchain" \
         --output-folder="$conan_output" \

@@ -92,6 +92,19 @@ def test_profiles() -> None:
         require_text(profile, r"^arch=armv8$", "profile must target arm64")
         require_text(profile, r"^\*:shared=False$", "iOS dependencies must default to static")
 
+    macos_build_profile = IOS_ROOT / "conan" / "profiles" / "macos-arm64"
+    require_text(macos_build_profile, r"^os=Macos$", "Conan build tools must target the native macOS runner")
+    require_text(macos_build_profile, r"^arch=armv8$", "Conan build tools must target the arm64 runner")
+    require_text(macos_build_profile, r"^compiler=apple-clang$", "Conan build tools must use Apple Clang")
+    require_text(macos_build_profile, r"^compiler\.version=17$", "Conan build profile must match Xcode 26 Apple Clang")
+    require_text(macos_build_profile, r"^compiler\.libcxx=libc\+\+$", "Conan build tools must use libc++")
+    require_text(macos_build_profile, r"^build_type=Release$", "Conan build tools must be release binaries")
+
+    build_cli = IOS_ROOT / "build-ios.sh"
+    require_text(build_cli, r'--profile:build="\$script_dir/conan/profiles/macos-arm64"', "dependency resolution must use the audited native build profile")
+    assert "--profile:build=default" not in build_cli.read_text(encoding="utf-8"), \
+        "dependency resolution must not rely on a mutable Conan default profile"
+
     recipe = IOS_ROOT / "conanfile.py"
     require_text(recipe, r'package_type = "application"', "staged graph must not publish a library")
     require_text(recipe, r'str\(self\.settings\.os\) != "iOS"', "staged graph must reject non-iOS hosts")
