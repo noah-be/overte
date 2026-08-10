@@ -91,7 +91,9 @@
 #include "AboutUtil.h"
 #include "ArchiveDownloadInterface.h"
 #include "AudioClient.h"
+#ifdef USE_GL
 #include "GLCanvas.h"
+#endif
 #include "LocationBookmarks.h"
 #include "LODManager.h"
 #include "ResourceRequestObserver.h"

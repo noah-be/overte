@@ -51,7 +51,9 @@
 #endif
 
 #include "DeadlockWatchdog.h"
+#ifdef USE_GL
 #include "GLCanvas.h"
+#endif
 #include "InterfaceLogging.h"
 #include "LODManager.h"
 #include "Menu.h"

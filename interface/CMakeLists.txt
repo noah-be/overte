@@ -99,6 +99,15 @@ endif()
 
 # grab the implementation and header files from src dirs
 file(GLOB_RECURSE INTERFACE_SRCS "src/*.cpp" "src/*.h")
+
+# The Vulkan application constructs VKCanvas and never references GLCanvas.
+# Do not parse or moc the legacy OpenGL widget in the iOS Vulkan graph.
+if(IOS AND OVERTE_RENDERING_BACKEND STREQUAL "Vulkan")
+  list(REMOVE_ITEM INTERFACE_SRCS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/GLCanvas.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/GLCanvas.h")
+endif()
+
 GroupSources("src")
 list(APPEND INTERFACE_SRCS ${RESOURCES_RCC})
 

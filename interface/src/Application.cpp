@@ -138,7 +138,9 @@
 #include "ApplicationEventHandler.h"
 #include "AudioClient.h"
 #include "DeadlockWatchdog.h"
+#ifdef USE_GL
 #include "GLCanvas.h"
+#endif
 #include "LocationBookmarks.h"
 #include "LODManager.h"
 #include "Menu.h"

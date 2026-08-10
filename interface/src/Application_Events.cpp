@@ -33,7 +33,9 @@
 #include <ui/DialogsManager.h>
 
 #include "AudioClient.h"
+#ifdef USE_GL
 #include "GLCanvas.h"
+#endif
 #include "Menu.h"
 
 #if defined(Q_OS_ANDROID)

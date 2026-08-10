@@ -140,7 +140,9 @@
 #include "DiscordRichPresence.h"
 #include "DiscoverabilityManager.h"
 #include "FileDialogHelper.h"
+#ifdef USE_GL
 #include "GLCanvas.h"
+#endif
 #include "InterfaceDynamicFactory.h"
 #include "InterfaceLogging.h"
 #include "InterfaceParentFinder.h"
