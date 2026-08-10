@@ -36,6 +36,19 @@ for description, (source, token) in LIBNODE_CONTRACT.items():
     if token not in source:
         raise SystemExit(f"missing libnode contract: {description}")
 
+compiler_cmake = (ROOT / "cmake/compiler.cmake").read_text(encoding="utf-8")
+if (
+    "exec_program(" in compiler_cmake
+    or "COMMAND sw_vers -productVersion" not in compiler_cmake
+    or "OUTPUT_STRIP_TRAILING_WHITESPACE" not in compiler_cmake
+    or "RESULT_VARIABLE _SW_VERS_RESULT" not in compiler_cmake
+):
+    raise SystemExit("macOS version detection must use execute_process, not removed exec_program")
+
+jsapi_cmake = (ROOT / "plugins/JSAPIExample/CMakeLists.txt").read_text(encoding="utf-8")
+if "overte_find_qt(COMPONENTS Core Core5Compat QUIET REQUIRED)" not in jsapi_cmake:
+    raise SystemExit("JSAPIExample must retain a real Qt 5 component after compatibility filtering")
+
 CONTRACT = {
     "serverless_import_committed": "interface/src/Application.cpp",
     "entity_tree_nonempty": "libraries/entities-renderer/src/EntityTreeRenderer.cpp",

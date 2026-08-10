@@ -59,8 +59,17 @@ if (NOT ANDROID_LIB_DIR)
 endif ()
 
 if (APPLE AND NOT IOS)
-  exec_program(sw_vers ARGS -productVersion  OUTPUT_VARIABLE OSX_VERSION)
-  string(REGEX MATCH "^[0-9]+\\.[0-9]+" OSX_VERSION ${OSX_VERSION})
+  execute_process(
+    COMMAND sw_vers -productVersion
+    OUTPUT_VARIABLE OSX_VERSION
+    ERROR_VARIABLE _SW_VERS_ERROR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE _SW_VERS_RESULT
+  )
+  if (NOT _SW_VERS_RESULT STREQUAL "0")
+    message(FATAL_ERROR "Could not determine the macOS version with sw_vers: ${_SW_VERS_ERROR}")
+  endif ()
+  string(REGEX MATCH "^[0-9]+\\.[0-9]+" OSX_VERSION "${OSX_VERSION}")
   message(STATUS "Detected OS X version = ${OSX_VERSION}")
   message(STATUS "OS X deployment target = ${CMAKE_OSX_DEPLOYMENT_TARGET}")
 
