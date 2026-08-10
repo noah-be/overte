@@ -86,6 +86,12 @@ toolchain, required target modules, and the host-side `moc`, `rcc`,
 for an experiment with `OVERTE_IOS_QT_REQUIRED_MODULES`, but required
 production modules must not be removed from the default.
 
+Qt 6 source installations place internal build helpers such as `moc`, `rcc`,
+and `qmlcachegen` in the host prefix's `libexec` directory, while packaged Qt
+installations may expose them from `bin`; `qsb` is commonly installed in
+`bin`. Validation accepts an executable from either canonical directory for
+each required tool and still fails closed when a tool is absent from both.
+
 The public macOS repository exposes the host package as
 `qt.qt6.6111.clang_64`. No public `qt.qt6.6111.ios` binary component has been
 verified, so the preparation script intentionally does not invent or request

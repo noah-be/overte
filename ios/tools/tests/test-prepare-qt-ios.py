@@ -19,7 +19,12 @@ def executable(path: pathlib.Path) -> None:
     path.chmod(path.stat().st_mode | stat.S_IXUSR)
 
 
-def fake_qt(root: pathlib.Path, version: str, target: bool) -> None:
+def fake_qt(
+    root: pathlib.Path,
+    version: str,
+    target: bool,
+    source_host_layout: bool = False,
+) -> None:
     cmake_dir = root / "lib/cmake/Qt6"
     cmake_dir.mkdir(parents=True)
     (cmake_dir / "Qt6ConfigVersion.cmake").write_text(
@@ -41,7 +46,8 @@ def fake_qt(root: pathlib.Path, version: str, target: bool) -> None:
             config.touch()
     else:
         for tool in ("moc", "rcc", "qmlcachegen", "qsb"):
-            executable(root / f"bin/{tool}")
+            tool_dir = "libexec" if source_host_layout and tool != "qsb" else "bin"
+            executable(root / tool_dir / tool)
 
 
 class QtToolchainPreparationTest(unittest.TestCase):
@@ -67,6 +73,28 @@ class QtToolchainPreparationTest(unittest.TestCase):
             fake_qt(host, "6.11.1", target=False)
             result = self.run_script("validate", str(target), str(host))
             self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_validates_source_built_qt6_host_tool_layout(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = pathlib.Path(directory)
+            target, host = base / "ios", base / "macos"
+            fake_qt(target, "6.11.1", target=True)
+            fake_qt(host, "6.11.1", target=False, source_host_layout=True)
+            result = self.run_script("validate", str(target), str(host))
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_rejects_missing_host_tool_from_bin_and_libexec(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = pathlib.Path(directory)
+            target, host = base / "ios", base / "macos"
+            fake_qt(target, "6.11.1", target=True)
+            fake_qt(host, "6.11.1", target=False, source_host_layout=True)
+            (host / "libexec/moc").unlink()
+            result = self.run_script("validate", str(target), str(host))
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("moc", result.stderr)
+            self.assertIn("bin", result.stderr)
+            self.assertIn("libexec", result.stderr)
 
     def test_rejects_mismatched_host(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

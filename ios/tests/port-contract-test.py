@@ -1352,7 +1352,7 @@ def test_scope_contract() -> None:
 def test_ci_contract() -> None:
     workflow = SOURCE_ROOT / ".github" / "workflows" / "ios-bootstrap.yml"
     require_text(workflow, r"runs-on: macos-26", "CI must use an Xcode 26 capable host")
-    require_text(workflow, r"push:\s+branches:\s+- feature/ios-support", "fork CI must run without changing its default branch")
+    require_text(workflow, r"push:\s+branches:\s+- apple-ios", "iOS CI must run on the durable integration branch")
     require_text(workflow, r"runs-on: ubuntu-24\.04", "host contracts need an independent Linux gate")
     require_text(workflow, r"needs: host-contracts", "macOS CI must wait for host contracts")
     require_text(workflow, r"persist-credentials: false", "checkout credentials must not persist")

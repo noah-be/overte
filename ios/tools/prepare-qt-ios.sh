@@ -58,6 +58,24 @@ validate_root() {
         die "$kind Qt is $actual_version; exactly $qt_version is required"
 }
 
+resolve_host_tool() {
+    local host_root="$1"
+    local tool="$2"
+    local candidate
+
+    # Source-built Qt 6 installs build helpers such as moc, rcc, and
+    # qmlcachegen in libexec. Qt binary distributions may expose the same
+    # tools from bin, while user-facing tools such as qsb normally live there.
+    for candidate in "$host_root/bin/$tool" "$host_root/libexec/$tool"; do
+        if [[ -x "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+
+    die "host Qt tool is missing or not executable: $tool (checked $host_root/bin and $host_root/libexec)"
+}
+
 validate() {
     local target_root="${OVERTE_IOS_QT_ROOT:-${1:-}}"
     local host_root="${OVERTE_IOS_QT_HOST_ROOT:-${2:-}}"
@@ -78,7 +96,7 @@ validate() {
     done
 
     for tool in moc rcc qmlcachegen qsb; do
-        [[ -x "$host_root/bin/$tool" ]] || die "host Qt tool is missing or not executable: $host_root/bin/$tool"
+        resolve_host_tool "$host_root" "$tool" >/dev/null
     done
 
     printf 'Qt iOS toolchain validated\n'
