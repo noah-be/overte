@@ -988,6 +988,26 @@ def test_scope_contract() -> None:
     if "qt5_add_translation" in linguist_macros.read_text(encoding="utf-8"):
         raise AssertionError("custom translation generation retained a direct Qt 5 command")
 
+    installers_cmake = SOURCE_ROOT / "cmake" / "macros" / "GenerateInstallers.cmake"
+    require_text(
+        installers_cmake,
+        r'overte_find_qt\(COMPONENTS Core QUIET REQUIRED\)\s+overte_get_qt_target\(Qt_qmake_Target qmake\)',
+        "AppImage packaging must resolve qmake through the selected Qt major version",
+    )
+    require_text(
+        installers_cmake,
+        r'get_target_property\(Qt_qmake_Executable "\$\{Qt_qmake_Target\}" LOCATION\)',
+        "AppImage packaging must retain its imported qmake executable lookup",
+    )
+    require_text(
+        installers_cmake,
+        r'set\(CPACK_QMAKE_EXECUTABLE \$\{Qt_qmake_Executable\}\)',
+        "AppImage packaging must continue forwarding qmake into CPack",
+    )
+    installers_text = installers_cmake.read_text(encoding="utf-8")
+    if "find_package(Qt5" in installers_text or "Qt5::qmake" in installers_text:
+        raise AssertionError("installer generation retained direct Qt 5 qmake discovery")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,

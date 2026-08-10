@@ -9,7 +9,6 @@
       "extensions": [".cmake", ".txt"],
       "files": [
         "cmake/QtCompat.cmake",
-        "cmake/macros/GenerateInstallers.cmake",
         "interface/CMakeLists.txt",
         "launchers/qt/CMakeLists.txt"
       ],

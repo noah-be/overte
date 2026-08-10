@@ -335,6 +335,13 @@ desktop Qt 5, then propagates the generated QM list to its caller. Lupdate
 inputs/options, temporary-file copying, output locations, dependencies, and
 the custom macro's existing parent-scope result remain unchanged.
 
+Linux AppImage packaging now discovers Core and resolves the imported `qmake`
+executable through the central Qt compatibility helpers. Qt 6 therefore uses
+its selected package/target, while desktop Qt 5 still resolves `Qt5::qmake`.
+The executable `LOCATION`, `CPACK_QMAKE_EXECUTABLE` handoff, fail-closed
+availability check, linuxdeploy integration, and packaging flags are
+unchanged. `GenerateInstallers.cmake` no longer hard-codes Qt 5.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant
