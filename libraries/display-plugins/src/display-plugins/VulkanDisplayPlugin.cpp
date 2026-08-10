@@ -27,16 +27,18 @@
 
 #include <QtGui/QImage>
 #include <QtGui/QImageWriter>
+#if !defined(OVERTE_IOS_VULKAN_DISABLE_QUICK_GL_COPY)
 #include <QtGui/QOpenGLFramebufferObject>
+#endif
 
 #include <NumericalConstants.h>
 #include <DependencyManager.h>
 #include <GLMHelpers.h>
 
-#include <gl/QOpenGLContextWrapper.h>
 #include <vk/VKWidget.h>
-#include <gl/GLEscrow.h>
+#if !defined(Q_OS_IOS)
 #include <gl/Context.h>
+#endif
 #include <gl/OffscreenGLCanvas.h>
 
 #include <gpu/Texture.h>
@@ -948,8 +950,13 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
         _vkWindow->_acquireCompleteSemaphore = VK_NULL_HANDLE;
         _vkWindow->_renderCompleteSemaphore = VK_NULL_HANDLE;
 
+        // GL driver memory queries do not describe Metal allocations on iOS.
+#if defined(Q_OS_IOS)
+        gpu::Backend::freeGPUMemSize.set(0);
+#else
         // VKTODO
         gpu::Backend::freeGPUMemSize.set(gpu::gl::getFreeDedicatedMemory());
+#endif
     } else if (alwaysPresent()) {
         refreshRateController->clockEndTime();
         internalPresent();
