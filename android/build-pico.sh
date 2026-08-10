@@ -476,9 +476,15 @@ newest_match() {
 }
 
 newest_host_tool() {
-    local pattern="$1" candidate
+    local pattern="$1" candidate description
     while IFS= read -r candidate; do
-        if file "$candidate" | grep -Eq 'x86-64|x86_64'; then
+        description="$(file "$candidate")"
+        # Conan's shared cache can also contain Android x86_64 packages. They
+        # have the right CPU architecture but require /system/bin/linker64 and
+        # fail on the build host with a misleading ENOENT. Require a GNU/Linux
+        # executable rather than matching the architecture alone.
+        if [[ "$description" =~ x86-64|x86_64 ]] \
+                && [[ "$description" == *GNU/Linux* ]]; then
             echo "$candidate"
             return
         fi
