@@ -687,6 +687,16 @@ def test_scope_contract() -> None:
     if "QRegExp" in location_bookmarks.read_text(encoding="utf-8"):
         raise AssertionError("LocationBookmarks retained removed QRegExp API")
 
+    snapshot = SOURCE_ROOT / "interface" / "src" / "ui" / "Snapshot.cpp"
+    require_text(snapshot, r'#include <QtCore/QRegularExpression>', "snapshot usernames must use the Qt 6 regex API")
+    require_text(
+        snapshot,
+        r'username\.replace\(QRegularExpression\(QStringLiteral\("\[\^A-Za-z0-9_\]"\)\), QStringLiteral\("-"\)\)',
+        "snapshot usernames must retain their global ASCII allowlist replacement",
+    )
+    if "QRegExp" in snapshot.read_text(encoding="utf-8"):
+        raise AssertionError("Snapshot retained removed QRegExp API")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,

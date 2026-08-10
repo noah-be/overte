@@ -193,6 +193,13 @@ individual CR/LF characters, tabs, vertical tabs, or spaces is replaced by one
 space. Empty-name rejection and bookmark persistence are unchanged.
 `LocationBookmarks.cpp` therefore leaves the Core5Compat inventory.
 
+Snapshot filenames now normalize the account username with
+`QRegularExpression`. The same negated ASCII allowlist is applied globally:
+letters, digits, and underscore remain valid, while every other character is
+replaced by `-`. Snapshot metadata, timestamps, image formats, paths, and
+upload behavior are unchanged. `Snapshot.cpp` therefore leaves the
+Core5Compat inventory.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant

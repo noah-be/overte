@@ -21,6 +21,7 @@
 #include <QtCore/QUrlQuery>
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonArray>
+#include <QtCore/QRegularExpression>
 #include <QtNetwork/QHttpMultiPart>
 #include <QPainter>
 #include <QtConcurrent/QtConcurrentRun>
@@ -361,7 +362,7 @@ QFile* Snapshot::savedFileForSnapshot(QImage& shot,
 
     QString username = DependencyManager::get<AccountManager>()->getAccountInfo().getUsername();
     // normalize username, replace all non alphanumeric with '-'
-    username.replace(QRegExp("[^A-Za-z0-9_]"), "-");
+    username.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9_]")), QStringLiteral("-"));
 
     QDateTime now = QDateTime::currentDateTime();
 
