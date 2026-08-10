@@ -774,6 +774,22 @@ def test_scope_contract() -> None:
     assert "AnimExpression::OpCode AnimExpression::evaluate" in anim_expression_text, (
         "removing the unused regex include must preserve expression evaluation"
     )
+    anim_expression_header = SOURCE_ROOT / "libraries" / "animation" / "src" / "AnimExpression.h"
+    anim_expression_header_text = anim_expression_header.read_text(encoding="utf-8")
+    assert "#include <QStringView>" in anim_expression_header_text
+    assert "explicit Token(QStringView strView)" in anim_expression_header_text
+    assert "explicit OpCode(QStringView strView)" in anim_expression_header_text
+    assert "const auto stringView = QStringView(str).mid(pos, len);" in anim_expression_text
+    assert "QString sub = QStringView(str).mid(pos, len).toString();" in anim_expression_text
+    flow = SOURCE_ROOT / "libraries" / "animation" / "src" / "Flow.cpp"
+    flow_text = flow.read_text(encoding="utf-8")
+    assert "QStringView(name).left(3).toString().toUpper()" in flow_text
+    assert "QStringView(name).mid(name.size() - j, 1).toString().toFloat(&toFloatSuccess)" in flow_text
+    assert "QStringView(name).mid(simPrefix.size(), name.size() - j + 1 - simPrefix.size()).toString()" in flow_text
+    assert "QStringView(name).mid(simPrefix.size(), name.size() - simPrefix.size()).toString()" in flow_text
+    for animation_text in (anim_expression_header_text, anim_expression_text, flow_text):
+        if "QStringRef" in animation_text:
+            raise AssertionError("iOS-reachable animation code retained removed QStringRef API")
 
     log_handler = SOURCE_ROOT / "libraries" / "shared" / "src" / "LogHandler.h"
     log_handler_text = log_handler.read_text(encoding="utf-8")

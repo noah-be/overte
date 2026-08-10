@@ -27,11 +27,9 @@
       "id": "core5compat-api",
       "pattern": "\\b(?:QRegExp|QTextCodec|QStringRef)\\b",
       "roots": ["interface", "libraries"],
-      "extensions": [".cpp", ".h", ".hpp", ".mm"],
+      "extensions": [".cpp", ".h", ".hpp", ".mm", ".in"],
       "files": [
-        "libraries/animation/src/AnimExpression.cpp",
-        "libraries/animation/src/AnimExpression.h",
-        "libraries/animation/src/Flow.cpp"
+        "libraries/entities/src/EntityItemProperties.cpp.in"
       ],
       "exitCriterion": "All listed uses move to current Qt 6 APIs and Core5Compat leaves the iOS component set."
     },

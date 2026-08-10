@@ -79,13 +79,13 @@ AnimExpression::Token AnimExpression::consumeIdentifier(const QString& str, QStr
     int pos = (int)(begin - str.begin());
     int len = (int)(iter - begin);
 
-    QStringRef stringRef(const_cast<const QString*>(&str), pos, len);
-    if (stringRef == "true") {
+    const auto stringView = QStringView(str).mid(pos, len);
+    if (stringView == QStringLiteral("true")) {
         return Token(true);
-    } else if (stringRef == "false") {
+    } else if (stringView == QStringLiteral("false")) {
         return Token(false);
     } else {
-        return Token(stringRef);
+        return Token(stringView);
     }
 }
 
@@ -115,7 +115,7 @@ AnimExpression::Token AnimExpression::consumeNumber(const QString& str, QString:
     // parse whole integer part
     int pos = (int)(begin - str.begin());
     int len = (int)(iter - begin);
-    QString sub = QStringRef(const_cast<const QString*>(&str), pos, len).toString();
+    QString sub = QStringView(str).mid(pos, len).toString();
     int whole = sub.toInt();
 
     // parse optional fractional part
@@ -128,7 +128,7 @@ AnimExpression::Token AnimExpression::consumeNumber(const QString& str, QString:
 
         int pos = (int)(begin - str.begin());
         int len = (int)(iter - begin);
-        QString sub = QStringRef(const_cast<const QString*>(&str), pos, len).toString();
+        QString sub = QStringView(str).mid(pos, len).toString();
         int fraction = sub.toInt();
 
         return Token(computeFloat(whole, fraction));

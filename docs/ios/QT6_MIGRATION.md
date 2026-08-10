@@ -10,12 +10,12 @@ desktop and Android targets remain on Qt 5 while shared source is migrated.
 
 ## Transitional compatibility
 
-Qt Core5Compat is linked to Qt 6 targets as a temporary bridge for QRegExp,
-QTextCodec, and QStringRef. The iOS-reachable animation library still uses
-QStringRef in `AnimExpression.cpp/.h` and `Flow.cpp`, so the module cannot yet
-leave the iOS graph. New iOS code must use QRegularExpression, QStringView, and
-current text APIs.
-Core5Compat is not a reason to add new Qt 5 API use.
+Qt Core5Compat remains a temporary build bridge while the wider Qt 6 graph is
+validated. The audited `QRegExp`/`QTextCodec` inventory is empty, while the
+generated EntityItemProperties source template retains the final inventoried
+`QStringRef` boundary. New iOS code must use `QRegularExpression`,
+`QStringView`, and current text APIs. Core5Compat is not a reason to add new
+Qt 5 API use.
 
 The shared library macro treats iOS as an ARM target before applying optional
 x86 SIMD flags. Although CMake reports iOS as both `APPLE` and `UNIX`, its
@@ -240,6 +240,15 @@ animation expression implementation never used regular expressions: its
 tokenizer remains character-driven, and parsing plus opcode evaluation are
 unchanged. This removes an unnecessary Core5Compat compile dependency without
 altering animation graph expressions.
+
+The same animation parser now uses `QStringView` for identifier and numeric
+slices. Tokens and opcodes still materialize owned `QString` values, so no view
+outlives the constructor input. `Flow` uses equivalent `left`/`mid` views for
+the three-character joint prefix, trailing numeric probe, and simulation group
+slice. Offsets, lengths, uppercase comparisons, float detection, and resulting
+group names are unchanged. The animation library therefore leaves the
+Core5Compat inventory; the separately generated EntityItemProperties template
+remains explicitly tracked.
 
 The public `LogHandler.h` header no longer includes `QRegExp`, which was not
 used by any declaration or inline macro in that interface. Logging option
