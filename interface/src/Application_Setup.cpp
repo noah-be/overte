@@ -55,7 +55,9 @@
 #include <EntityScriptServerLogClient.h>
 #include <FingerprintUtils.h>
 #include <FramebufferCache.h>
+#if !defined(Q_OS_IOS)
 #include <gl/GLHelpers.h>
+#endif
 #include <GPUIdent.h>
 #include <graphics-scripting/GraphicsScriptingInterface.h>
 #include <gpu/Texture.h>
@@ -932,7 +934,9 @@ void Application::initialize(const QCommandLineParser &parser) {
         // The value will be 0 if the user blew away settings this session, which is both a feature and a bug.
         static const QString TESTER = "HIFI_TESTER";
         auto gpuIdent = GPUIdent::getInstance();
+#if !defined(Q_OS_IOS)
         auto glContextData = gl::ContextInfo::get();
+#endif
         QJsonObject properties = {
             { "version", applicationVersion() },
             { "tester", QProcessEnvironment::systemEnvironment().contains(TESTER) || isTester },
@@ -949,11 +953,20 @@ void Application::initialize(const QCommandLineParser &parser) {
             { "gpu_name", gpuIdent->getName() },
             { "gpu_driver", gpuIdent->getDriver() },
             { "gpu_memory", static_cast<qint64>(gpuIdent->getMemory()) },
+#if defined(Q_OS_IOS)
+            { "graphics_backend", _graphicsEngine->getGPUContext()->getBackendVersion().c_str() },
+            { "gl_version_int", 0 },
+            { "gl_version", "" },
+            { "gl_vender", "" },
+            { "gl_sl_version", "" },
+            { "gl_renderer", "" },
+#else
             { "gl_version_int", glVersionToInteger(glContextData.version.c_str()) },
             { "gl_version", glContextData.version.c_str() },
             { "gl_vender", glContextData.vendor.c_str() },
             { "gl_sl_version", glContextData.shadingLanguageVersion.c_str() },
             { "gl_renderer", glContextData.renderer.c_str() },
+#endif
             { "ideal_thread_count", QThread::idealThreadCount() }
         };
         auto macVersion = QSysInfo::macVersion();
@@ -1286,6 +1299,15 @@ void Application::initialize(const QCommandLineParser &parser) {
         properties["active_display_plugin"] = getActiveDisplayPlugin()->getName();
         properties["using_hmd"] = isHMDMode();
 
+#if defined(Q_OS_IOS)
+        properties["gl_info"] = QJsonObject{
+            { "version", "" },
+            { "sl_version", "" },
+            { "vendor", "" },
+            { "renderer", "" },
+            { "graphics_backend", qApp->getGPUContext()->getBackendVersion().c_str() },
+        };
+#else
         auto contextInfo = gl::ContextInfo::get();
         properties["gl_info"] = QJsonObject{
             { "version", contextInfo.version.c_str() },
@@ -1293,6 +1315,7 @@ void Application::initialize(const QCommandLineParser &parser) {
             { "vendor", contextInfo.vendor.c_str() },
             { "renderer", contextInfo.renderer.c_str() },
         };
+#endif
         properties["gpu_used_memory"] = (int)BYTES_TO_MB(gpu::Context::getUsedGPUMemSize());
         properties["gpu_free_memory"] = (int)BYTES_TO_MB(gpu::Context::getFreeGPUMemSize());
         const float gpuFrameTime = (float)(qApp->getGPUContext()->getFrameTimerGPUAverage());

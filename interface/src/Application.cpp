@@ -56,7 +56,9 @@
 #include <DomainAccountManager.h>
 #include <EntityScriptServerLogClient.h>
 #include <FramebufferCache.h>
+#if !defined(Q_OS_IOS)
 #include <gl/GLHelpers.h>
+#endif
 #include <GPUIdent.h>
 #include <graphics-scripting/GraphicsScriptingInterface.h>
 #include <hfm/ModelFormatRegistry.h>
@@ -2281,11 +2283,11 @@ void Application::idle() {
 #endif
             }
 
-#if !defined(ANDROID_APP_PHONE_INTERFACE)
+#if !defined(ANDROID_APP_PHONE_INTERFACE) && !defined(Q_OS_IOS)
             // Desktop GPU drivers can be replaced or rolled back by the user,
-            // so the blocklist warning is actionable there. Android GPU
+            // so the blocklist warning is actionable there. Mobile GPU
             // drivers are delivered with the OS and the desktop warning is
-            // misleading (and poorly sized) in the phone activity.
+            // not actionable there.
             QString os = platform::getComputer()[platform::keys::computer::OS].dump().c_str();
             os = os.replace("\"", "");
             GPUIdent* gpuIdent = GPUIdent::getInstance();
