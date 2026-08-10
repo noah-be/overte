@@ -272,6 +272,11 @@ def test_cmake_boundary() -> None:
     require_text(interface_cmake, r'PRODUCT_BUNDLE_IDENTIFIER.*OVERTE_IOS_BUNDLE_IDENTIFIER', "full client signature identity must use the requested bundle ID")
     require_text(interface_cmake, r'Integrated iOS signing requires OVERTE_IOS_DEVELOPMENT_TEAM', "signed full-client configure must require a team")
     require_text(interface_cmake, r'CODE_SIGNING_ALLOWED "NO"', "unsigned full-client builds must explicitly disable signing")
+    interface_cmake_text = interface_cmake.read_text(encoding="utf-8")
+    target_creation = interface_cmake_text.index("add_executable(${TARGET_NAME} MACOSX_BUNDLE")
+    first_target_properties = interface_cmake_text.index("set_target_properties(${TARGET_NAME} PROPERTIES")
+    assert first_target_properties > target_creation, "Interface bundle properties must follow target creation"
+    assert "set_target_properties(${this_target}" not in interface_cmake_text, "undefined pre-target alias must not configure Interface"
     require_text(interface_cmake, r'ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon"', "full client must select the existing app icon set")
     require_text(interface_cmake, r'IPHONEOS_DEPLOYMENT_TARGET.*CMAKE_OSX_DEPLOYMENT_TARGET', "full client minimum OS must follow the configured deployment target")
     require_text(interface_cmake, r'TARGETED_DEVICE_FAMILY "1,2"', "full client must target iPhone and iPad")
