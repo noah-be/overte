@@ -4,6 +4,30 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 143 — Rebuild and republish the reproducible dependency graph
+
+- Branch: `refactor/android-platform-boundaries`
+- Change: Rebuild the complete Phone graph with the reproducible Qt recipe,
+  bounded four-job producer profiles, and a 16 GB decimal cgroup ceiling. The
+  clean-room test found that the historical v2 libnode recipe revision was
+  removed after restore, which discarded the corrected 16 KiB binary and made
+  Conan fall back to Pico's 4 KiB package. v3 removes any stale v2 copy before
+  restoring the corrected package and verifies the complete graph afterward.
+- Local artifact: `android-phone-16k-conan.tgz`, 1,476,694,358 bytes, SHA-256
+  `092fde910f2dcc3eb0c2d6cff819f2e6264de4e176750ed1f7625a9a21e926be`.
+- Clean-room evidence: An isolated Conan cache was populated with the immutable
+  Pico restore first, proving that only the colliding 4 KiB libnode package was
+  initially available. The local v3 download then passed its checksum, both
+  offline `--build=never` installs, every 16 KiB ELF gate, and the content-bound
+  readiness sentinel without a source-build fallback.
+- APK evidence: The debug APK built at source revision
+  `a4ac144c1d79908968114650b04cf3891ec2754a`; the independent package verifier
+  accepted its signature, exact metadata and permissions, arm64-only contents,
+  16 KiB ELF/ZIP layout, and embedded source revision.
+- Release: [`android-phone-16k-deps-v3`](https://github.com/noah-be/overte/releases/tag/android-phone-16k-deps-v3).
+- Historical v1 and v2 releases remain immutable evidence. New consumers must
+  use v3.
+
 ## 142 — Publish and clean-room-test the complete dependency restore
 
 - Branch: `nightly/android-phone-142-published-dependency-release`
