@@ -87,6 +87,12 @@ The switch uses the shared `QMetaType` ID space, preserving float-to-double,
 unsigned-short-to-uint, URL-to-string normalization and every special encoded
 type (`QByteArray`, rect, size, point, hash, invalid, and generic variant).
 
+OSC argument serialization now uses the same stable metatype-ID strategy:
+Qt 6 reads `metaType().id()`, Qt 5 reads `userType()`, and the tag table maps
+to `QMetaType` IDs. The wire mapping is unchanged: int to `i`/32-bit integer,
+double to `f`/32-bit float, QString to `s`, QByteArray to `b`, bool to `T` or
+`F`, and null to `N`; explicit `{ type, value }` maps retain the same behavior.
+
 ## iOS audio-session lifecycle
 
 The bootstrap UIKit host configures `AVAudioSessionCategoryPlayAndRecord` with
@@ -428,6 +434,11 @@ switches on stable `QMetaType` IDs. Qt 6 obtains the ID from
 `QVariant::metaType()`, while Qt 5 retains `userType()`. Boolean, integer,
 double, string, URL, nested map/list, and float-convertible fallback behavior
 is unchanged.
+
+`FBXWriter` likewise dispatches property serialization through
+`QVariant::metaType().id()` on Qt 6 and `userType()` on Qt 5. The scalar FBX
+wire tags (`Y`, `C`, `I`, `F`, `D`, `L`, and `S`), vector tags, byte order,
+property ordering, and unsupported-type failure remain unchanged.
 
 The script editor highlighter's complete eight-expression set now uses
 `QRegularExpression`. Keyword, quote, number, boolean, single-line comment,

@@ -767,6 +767,37 @@ def test_scope_contract() -> None:
             f"settings JSON must preserve {serialized_type} handling",
         )
 
+    osc_interface = SOURCE_ROOT / "interface" / "src" / "scripting" / "OSCScriptingInterface.cpp"
+    require_text(
+        osc_interface,
+        r"#if QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)\s+return value\.metaType\(\)\.id\(\);\s+#else\s+return value\.userType\(\);\s+#endif",
+        "OSC serialization must use stable Qt 5/6 metatype IDs",
+    )
+    osc_text = osc_interface.read_text(encoding="utf-8")
+    assert "QVariant::Type" not in osc_text and ".type()" not in osc_text, (
+        "OSC serialization retained removed QVariant type APIs"
+    )
+    expected_osc_types = {
+        "Int": "Int",
+        "Float": "Double",
+        "String": "QString",
+        "Blob": "QByteArray",
+        "False": "Bool",
+        "True": "Bool",
+        "Null": "UnknownType",
+    }
+    for tag, meta_type in expected_osc_types.items():
+        require_text(
+            osc_interface,
+            rf"\{{ OSCTag::{tag}, QMetaType::{meta_type} \}}",
+            f"OSC tag {tag} must retain its QVariant payload type",
+        )
+    require_text(
+        osc_interface,
+        r"oscVariantTypeId\(arg\) == QMetaType::QVariantMap",
+        "explicit OSC type wrappers must remain QVariant maps",
+    )
+
     octree_persist = SOURCE_ROOT / "libraries" / "octree" / "src" / "OctreePersistThread.cpp"
     require_text(octree_persist, r"#include <QRegularExpression>", "octree backup cleanup must use the Qt 6 regex API")
     require_text(octree_persist, r"QRegularExpression::anchoredPattern", "backup matching must preserve QRegExp exactMatch semantics")
