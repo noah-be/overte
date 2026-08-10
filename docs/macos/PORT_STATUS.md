@@ -59,7 +59,8 @@ planned.
 
 ## Build
 
-Install Xcode, CMake, Conan 2, Python 3 and Node.js, then run:
+Install Xcode, CMake, Conan 2, Python 3, Node.js and `aqtinstall` in a Python
+virtual environment, then run:
 
 ```bash
 macos/build-macos.sh doctor

@@ -23,6 +23,9 @@ doctor() {
     command -v node >/dev/null || fail "Node.js is missing"
     [[ "$(conan --version)" =~ Conan\ version\ 2\. ]] || fail "Conan 2 is required"
     case "$architecture" in x86_64|arm64) ;; *) fail "OVERTE_MACOS_ARCH must be x86_64 or arm64" ;; esac
+    if [[ "$qt_source" == aqt ]]; then
+        command -v aqt >/dev/null || fail "aqtinstall is missing (install it in a Python virtual environment)"
+    fi
     note "Xcode: $(xcodebuild -version | tr '\n' ' ')"
     note "host: $(uname -m); target: $architecture; configuration: $build_type"
     note "Qt source: $qt_source; deployment target: ${MACOSX_DEPLOYMENT_TARGET:-11.0}"

@@ -4,7 +4,7 @@ import os
 
 from conan import ConanFile
 from conan.errors import ConanInvalidConfiguration
-from conan.tools.files import copy, download
+from conan.tools.files import copy
 
 
 class OverteMacOSAqt(ConanFile):
@@ -21,19 +21,9 @@ class OverteMacOSAqt(ConanFile):
         if str(self.settings.arch) != "x86_64":
             raise ConanInvalidConfiguration("Qt 5.15.2 aqt is available only for macOS x86_64")
 
-    def source(self):
-        tool = os.path.join(self.source_folder, "aqt")
-        download(
-            self,
-            "https://github.com/AnotherFoxGuy/aqtinstall-onefile/releases/latest/download/aqt-macos",
-            tool,
-        )
-        os.chmod(tool, 0o755)
-
     def package(self):
-        tool = os.path.join(self.source_folder, "aqt")
         self.run(
-            f'"{tool}" install-qt macos desktop {self.version} clang_64 '
+            f'aqt install-qt macos desktop {self.version} clang_64 '
             f'-O "{self.build_folder}" -m {self.options.modules}'
         )
         copy(
