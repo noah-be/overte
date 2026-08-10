@@ -175,3 +175,13 @@ add_overte_native_test(
 add_overte_native_test(
     pico_openxr_event_policy
     "${CMAKE_CURRENT_LIST_DIR}/pico_openxr_event_policy_test.cpp")
+
+set_tests_properties(
+    pico_openxr_debug_policy
+    pico_openxr_input_policy
+    pico_openxr_space_policy
+    pico_openxr_display_policy
+    pico_openxr_graphics_policy
+    pico_openxr_extension_policy
+    pico_openxr_event_policy
+    PROPERTIES LABELS "native;host;android-vr")

@@ -52,8 +52,9 @@ targets, but its architectural boundaries are less mature than its product names
   after the first hardware used to test it.
 - Settings are partially capability-driven for Phone, but Pico visibility still
   relies on a mutable setting (`deferTabletCreationUntilOpen`) as a platform proxy.
-- Test coverage is strong for Phone and increasingly strong for Pico, but the two
-  catalogs are separate and Quest modernization has no equivalent gate.
+- Test coverage is strong for Phone and Pico. V1 adds one shared hardware-free
+  Android-VR gate; Quest modernization still lacks a modern product build and
+  hardware acceptance loop.
 
 The correct strategy is gradual extraction with tests, not history rewriting or a
 large attempt to make each branch contain only platform-specific files.
@@ -216,14 +217,16 @@ should be absent or fail closed rather than remain visible as historical residue
 ### P1 — Test topology does not match branch topology
 
 - `android/tests/suite/catalog.json` provides strong shared and Phone gates.
-- `pico4-test-suite.py` provides 30 Pico device-free tests but is a separate runner.
+- `pico4-test-suite.py` provides 30 Pico device-free tests; V1 selects its sixteen
+  parent-relevant runtime tests through the shared Android catalog.
 - Robolectric covers launcher behavior for Interface, Phone, Pico, and Quest.
 - Quest has no modern build, OpenXR, interaction, packaging, or device-free suite.
 - CI workflow names and triggers still describe individual historical branches,
   not the new integration hierarchy.
 
-The suites do not need to be rewritten immediately. A small branch-to-gate matrix
-and an aggregate Android-VR gate are enough to prevent drift first.
+The suites do not need to be rewritten immediately. The V1 `android-vr` catalog
+tier aggregates shared policy evidence while leaving release and hardware gates in
+their product lanes.
 
 ## Settings and interface residue
 
@@ -263,8 +266,8 @@ and an aggregate Android-VR gate are enough to prevent drift first.
 ## Recommended immediate direction
 
 Continue with small shared extractions that already have two consumers. The first
-shared JNI source, immutable Settings capability boundary, and neutral Android
-override ownership are complete on the working branch. Next, add the aggregate
-Android-VR hardware-free gate before extracting a small OpenXR policy. Defer the
+shared JNI source, immutable Settings capability boundary, neutral Android override
+ownership, and aggregate Android-VR gate are complete on the working branch. Next,
+extract one small OpenXR policy with a vendor-neutral contract. Defer the
 large OpenXR/Quest design until the current iOS integration is stable and Quest
 hardware is available for a real validation loop.

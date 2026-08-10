@@ -124,16 +124,16 @@ layout, but build consumers use only the shared directory.
 
 ## Milestone V1 — Generic Android-VR test gate
 
-**Mode:** 🤖 Autonomous
+**Status:** ✅ Complete on `refactor/android-platform-boundaries`
 
 Deliverables:
 
-- [ ] Add an aggregate `android-vr` hardware-free command.
-- [ ] Include generic OpenXR native policies, Pico device-free tests, Quest launcher
+- [x] Add an aggregate `android-vr` hardware-free command.
+- [x] Include generic OpenXR native policies, Pico device-free tests, Quest launcher
   policy, syntax, and module inventory.
-- [ ] Keep vendor release/tooling tests in child suites.
-- [ ] Document expected runtime and stable JUnit output.
-- [ ] Wire the gate to Android-VR integration changes without duplicating every CI job.
+- [x] Keep vendor release/tooling tests in child suites.
+- [x] Document expected runtime and stable JUnit output.
+- [x] Wire the gate to Android-VR integration changes without duplicating every CI job.
 
 Exit condition: an `android-vr` merge has one local command that fails closed.
 
@@ -233,7 +233,7 @@ correctness is explicitly not claimed yet.
 ## Recommended execution order
 
 ```text
-A0 ✅ → A1 ✅ → A2 ✅ → A3 ✅ → V1 → V2
+A0 ✅ → A1 ✅ → A2 ✅ → A3 ✅ → V1 ✅ → V2
                      ↘ P1 (Phone validation)
                      ↘ PI1 (Pico validation)
 
@@ -241,7 +241,6 @@ Q0 (when hardware/scope are available) → Q1 → Q2
 Apple integration proceeds independently after iOS work stabilizes.
 ```
 
-The next autonomous coding milestone is V1: provide one predictable hardware-free
-gate for the future `android-vr` integration lane. It can consolidate existing
-OpenXR, Pico, Quest launcher, syntax, and inventory contracts without changing a
-working product implementation.
+The next autonomous coding milestone is V2: extract one small, demonstrably
+vendor-neutral OpenXR policy into an Android-VR-owned location while retaining the
+working Pico consumer and its tests.
