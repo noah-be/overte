@@ -54,8 +54,6 @@
         "libraries/embedded-webserver/src/HTTPManager.cpp",
         "libraries/model-serializers/src/OBJWriter.cpp",
         "libraries/networking/src/AddressManager.cpp",
-        "libraries/networking/src/AssetResourceRequest.cpp",
-        "libraries/networking/src/AssetUtils.cpp",
         "libraries/octree/src/OctreePersistThread.cpp",
         "libraries/script-engine/src/ScriptManager.cpp",
         "libraries/script-engine/src/ScriptsModel.cpp",

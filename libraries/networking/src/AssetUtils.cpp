@@ -16,6 +16,7 @@
 #include <QtCore/QCryptographicHash>
 #include <QtCore/QDateTime>
 #include <QtCore/QFileInfo> // for baseName
+#include <QtCore/QRegularExpression>
 #include <QtNetwork/QAbstractNetworkCache>
 
 #include "NetworkAccessManager.h"
@@ -98,18 +99,24 @@ bool saveToCache(const QUrl& url, const QByteArray& file) {
 }
 
 bool isValidFilePath(const AssetPath& filePath) {
-    QRegExp filePathRegex { ASSET_FILE_PATH_REGEX_STRING };
-    return filePathRegex.exactMatch(filePath);
+    static const QRegularExpression filePathRegex {
+        QRegularExpression::anchoredPattern(ASSET_FILE_PATH_REGEX_STRING)
+    };
+    return filePathRegex.match(filePath).hasMatch();
 }
 
 bool isValidPath(const AssetPath& path) {
-    QRegExp pathRegex { ASSET_PATH_REGEX_STRING };
-    return pathRegex.exactMatch(path);
+    static const QRegularExpression pathRegex {
+        QRegularExpression::anchoredPattern(ASSET_PATH_REGEX_STRING)
+    };
+    return pathRegex.match(path).hasMatch();
 }
 
 bool isValidHash(const AssetHash& hash) {
-    QRegExp hashRegex { ASSET_HASH_REGEX_STRING };
-    return hashRegex.exactMatch(hash);
+    static const QRegularExpression hashRegex {
+        QRegularExpression::anchoredPattern(ASSET_HASH_REGEX_STRING)
+    };
+    return hashRegex.match(hash).hasMatch();
 }
 
 QString bakingStatusToString(BakingStatus status) {
