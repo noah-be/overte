@@ -16,7 +16,9 @@
 #include <condition_variable>
 #include <queue>
 
+#if !defined(OVERTE_IOS_VULKAN_DISABLE_QUICK_GL_COPY)
 #include <gl/Config.h>
+#endif
 
 #include <QtCore/QCoreApplication>
 #include <QtCore/QBuffer>

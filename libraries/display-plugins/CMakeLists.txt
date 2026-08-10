@@ -22,7 +22,13 @@ if(IOS AND OVERTE_RENDERING_BACKEND STREQUAL "Vulkan")
         PROPERTIES HEADER_FILE_ONLY TRUE SKIP_AUTOMOC TRUE)
 endif()
 
-link_hifi_libraries(shared shaders plugins ui-plugins gl ui render-utils ${PLATFORM_GL_BACKEND})
+set(DISPLAY_PLUGINS_GL_LIBRARY gl)
+if(IOS AND OVERTE_RENDERING_BACKEND STREQUAL "Vulkan")
+    # Every GL-typed display source or branch is excluded above or by the
+    # OVERTE_IOS_VULKAN_DISABLE_QUICK_GL_COPY compile gate.
+    set(DISPLAY_PLUGINS_GL_LIBRARY "")
+endif()
+link_hifi_libraries(shared shaders plugins ui-plugins ${DISPLAY_PLUGINS_GL_LIBRARY} ui render-utils ${PLATFORM_GL_BACKEND})
 include_hifi_library_headers(gpu)
 include_hifi_library_headers(material-networking)
 include_hifi_library_headers(model-networking)
