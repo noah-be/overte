@@ -63,6 +63,13 @@ retain `QVariant::type()`, and neither branch treats convertible numeric or
 object values as strings. Keyboard commands and all forwarded event payloads
 therefore keep their existing semantics.
 
+`OffscreenQmlSurface` now compiles its legacy `QMediaService`/
+`QAudioOutputSelectorControl` QML-player rerouting helper only with Qt 5. That
+helper was already never instantiated on iOS or Android; Qt 6 removed its
+service/control API entirely. Consequently the iOS runtime behavior is
+unchanged: application audio routing remains owned by Qt Multimedia and the
+native AVAudioSession lifecycle rather than a desktop QML-player control.
+
 ## iOS audio-session lifecycle
 
 The bootstrap UIKit host configures `AVAudioSessionCategoryPlayAndRecord` with
@@ -380,6 +387,13 @@ Entity dynamic vector and quaternion argument parsing now performs its strict
 rejects merely convertible values, so action/constraint validation semantics
 and malformed-argument fallbacks are unchanged.
 
+`KeyboardMouseDevice` consumes Qt 6 touch input through `QEventPoint`,
+`QTouchEvent::points()`, `QEventPoint::position()`, and QEventPoint state flags
+reported by `QTouchEvent::touchPointStates()`. The
+Qt 5 branch retains `TouchPoint`, `touchPoints()`, and `pos()`. Both branches
+feed the same average-position calculation, timeout recovery, and signed-axis
+delta mapping, preserving multi-touch motion semantics on iPad.
+
 The script editor highlighter's complete eight-expression set now uses
 `QRegularExpression`. Keyword, quote, number, boolean, single-line comment,
 and multi-line comment scans retain their prior match starts, full match
@@ -519,6 +533,9 @@ Script-facing touch events use `QEventPoint` with `points()` and `position()`
 on Qt 6 while retaining the Qt 5 `QTouchEvent::TouchPoint`, `touchPoints()`, and
 `pos()` path. Gesture averaging, radius, rotation, and script payload semantics
 remain unchanged.
+The physical touchscreen input plug-in follows the same guarded point and
+position boundary; its first/current touch tracking, point count, DPI scaling,
+and gesture channels are unchanged on both Qt generations.
 Platform-native AVAudioSession policy remains in the iOS shell and must not be
 duplicated by desktop code.
 

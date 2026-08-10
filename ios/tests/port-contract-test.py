@@ -479,6 +479,10 @@ def test_cmake_boundary() -> None:
     require_text(touch_event_source, r"using OverteScriptTouchPoint = QEventPoint;", "Qt 6 script touch events must use QEventPoint")
     require_text(touch_event_source, r"return event\.points\(\);[\s\S]*#else[\s\S]*return event\.touchPoints\(\);", "script touch-point enumeration must preserve Qt 5 and Qt 6 paths")
     require_text(touch_event_source, r"return point\.position\(\);[\s\S]*#else[\s\S]*return point\.pos\(\);", "script touch positions must preserve Qt 5 and Qt 6 semantics")
+    touchscreen_source = SOURCE_ROOT / "libraries" / "input-plugins" / "src" / "input-plugins" / "TouchscreenDevice.cpp"
+    require_text(touchscreen_source, r"using OverteTouchscreenPoint = QEventPoint;", "Qt 6 touchscreen input must use QEventPoint")
+    require_text(touchscreen_source, r"return event->points\(\);[\s\S]*#else[\s\S]*return event->touchPoints\(\);", "touchscreen enumeration must preserve Qt 5 and Qt 6 paths")
+    require_text(touchscreen_source, r"return point\.position\(\);[\s\S]*#else[\s\S]*return point\.pos\(\);", "touchscreen positions must preserve Qt 5 and Qt 6 semantics")
     require_text(audio_client_source, r"hifiAudioDeviceSupportsChannelCount\([^,]+, 2\)", "stereo-input availability must use the Qt 5/6 capability adapter")
     require_text(audio_client_source, r"Q_OS_MACOS.*!defined\(Q_OS_IOS\)", "desktop AudioHardware must be excluded from iOS")
     audio_client_cmake = SOURCE_ROOT / "libraries" / "audio-client" / "CMakeLists.txt"
@@ -690,6 +694,23 @@ def test_scope_contract() -> None:
             rf"#else\s+const bool isStringMessage = {argument}\.type\(\) == QVariant::String;\s+#endif\s+QString messageString = isStringMessage \? {argument}\.toString\(\) : \"\";",
             "Qt 5 compatibility and exact string-only keyboard handling must remain",
         )
+
+    offscreen_qml = SOURCE_ROOT / "libraries" / "ui" / "src" / "ui" / "OffscreenQmlSurface.cpp"
+    require_text(
+        offscreen_qml,
+        r"#if QT_VERSION < QT_VERSION_CHECK\(6, 0, 0\)\s+#include <QtMultimedia/QMediaService>\s+#include <QtMultimedia/QAudioOutputSelectorControl>\s+#include <QtMultimedia/QMediaPlayer>\s+#endif",
+        "removed Qt 5 multimedia service headers must not enter the Qt 6 iOS source",
+    )
+    require_text(
+        offscreen_qml,
+        r"#if QT_VERSION < QT_VERSION_CHECK\(6, 0, 0\)\s+class AudioHandler[\s\S]*?QMediaPlayer[\s\S]*?#endif",
+        "the legacy QML audio-output control implementation must remain Qt 5-only",
+    )
+    require_text(
+        offscreen_qml,
+        r"#if QT_VERSION < QT_VERSION_CHECK\(6, 0, 0\) && !defined\(Q_OS_ANDROID\) && !defined\(Q_OS_IOS\)[\s\S]*?new AudioHandler",
+        "no Qt 6 or mobile target may instantiate the removed service-control adapter",
+    )
 
     octree_persist = SOURCE_ROOT / "libraries" / "octree" / "src" / "OctreePersistThread.cpp"
     require_text(octree_persist, r"#include <QRegularExpression>", "octree backup cleanup must use the Qt 6 regex API")
