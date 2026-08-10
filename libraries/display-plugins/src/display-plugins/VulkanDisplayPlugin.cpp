@@ -1109,7 +1109,24 @@ void VulkanDisplayPlugin::updateCompositeFramebuffer() {
     }
 }
 
-void VulkanDisplayPlugin::copyTextureToQuickFramebuffer(NetworkTexturePointer networkTexture, QOpenGLFramebufferObject* target, GLsync* fenceSync) {
+bool VulkanDisplayPlugin::copyTextureToQuickFramebuffer(NetworkTexturePointer networkTexture,
+                                                        const QuickTextureCopyTarget& quickTarget) {
+#if defined(OVERTE_IOS_VULKAN_DISABLE_QUICK_GL_COPY)
+    Q_UNUSED(networkTexture);
+    Q_UNUSED(quickTarget.framebuffer);
+    if (quickTarget.completionToken) {
+        *quickTarget.completionToken = nullptr;
+    }
+    static bool loggedUnsupportedQuickCopy { false };
+    if (!loggedUnsupportedQuickCopy) {
+        loggedUnsupportedQuickCopy = true;
+        qCritical() << "Qt Quick OpenGL framebuffer copy is disabled on iOS Vulkan; "
+                       "a QRhi/Metal-native bridge is required";
+    }
+    return false;
+#else
+    auto* target = static_cast<QOpenGLFramebufferObject*>(quickTarget.framebuffer);
+    GLsync fenceSync { nullptr };
     // VKTODO
 #if 0
     auto glBackend = const_cast<VulkanDisplayPlugin&>(*this).getBackend();
@@ -1156,8 +1173,13 @@ void VulkanDisplayPlugin::copyTextureToQuickFramebuffer(NetworkTexturePointer ne
 
         // don't delete the textures!
         glDeleteFramebuffers(2, fbo);
-        *fenceSync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        fenceSync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     });
+#endif
+    if (quickTarget.completionToken) {
+        *quickTarget.completionToken = fenceSync;
+    }
+    return false;
 #endif
 }
 

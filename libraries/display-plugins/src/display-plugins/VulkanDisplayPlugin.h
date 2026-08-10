@@ -85,9 +85,8 @@ public:
     int getRequiredThreadCount() const override { return 1; }
 
     virtual std::function<void(gpu::Batch&, const gpu::TexturePointer&)> getHUDOperator() override;
-    void copyTextureToQuickFramebuffer(NetworkTexturePointer source,
-                                       QOpenGLFramebufferObject* target,
-                                       GLsync* fenceSync) override;
+    bool copyTextureToQuickFramebuffer(NetworkTexturePointer source,
+                                       const QuickTextureCopyTarget& target) override;
 
     virtual const QString getName() const override { return "Vulkan window"; }
     virtual void pluginUpdate() override {};

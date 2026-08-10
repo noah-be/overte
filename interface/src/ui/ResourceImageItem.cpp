@@ -81,7 +81,10 @@ void ResourceImageItemRenderer::onUpdateTimer() {
         if (_networkTexture && _networkTexture->isLoaded()) {
             if(_fboMutex.tryLock()) {
                 invalidateFramebufferObject();
-                qApp->getActiveDisplayPlugin()->copyTextureToQuickFramebuffer(_networkTexture, _copyFbo, &_fenceSync);
+                void* completionToken { nullptr };
+                const QuickTextureCopyTarget copyTarget { _copyFbo, &completionToken };
+                qApp->getActiveDisplayPlugin()->copyTextureToQuickFramebuffer(_networkTexture, copyTarget);
+                _fenceSync = static_cast<GLsync>(completionToken);
                 _fboMutex.unlock();
             } else {
                 qDebug() << "couldn't get a lock, using last frame";
