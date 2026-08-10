@@ -50,6 +50,7 @@ target_compile_definitions(OverteIOSBootstrap PRIVATE
 
 target_link_libraries(OverteIOSBootstrap PRIVATE
     "-framework AVFoundation"
+    "-framework CoreGraphics"
     "-framework CoreMotion"
     "-framework Foundation"
     "-framework Metal"
