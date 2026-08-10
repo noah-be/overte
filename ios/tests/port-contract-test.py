@@ -677,6 +677,16 @@ def test_scope_contract() -> None:
     if "QRegExp" in application_assets.read_text(encoding="utf-8"):
         raise AssertionError("Application_Assets retained removed QRegExp API")
 
+    location_bookmarks = SOURCE_ROOT / "interface" / "src" / "LocationBookmarks.cpp"
+    require_text(location_bookmarks, r'#include <QRegularExpression>', "bookmark names must use the Qt 6 regex API")
+    require_text(
+        location_bookmarks,
+        r'bookmarkName\.trimmed\(\)\.replace\(\s*QRegularExpression\(QStringLiteral\("\(\\r\\n\|\[\\r\\n\\t\\v \]\)\+"\)\), QStringLiteral\(" "\)\)',
+        "bookmark names must still trim boundaries and collapse supported whitespace runs",
+    )
+    if "QRegExp" in location_bookmarks.read_text(encoding="utf-8"):
+        raise AssertionError("LocationBookmarks retained removed QRegExp API")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,

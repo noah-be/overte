@@ -14,6 +14,7 @@
 #include "LocationBookmarks.h"
 
 #include <QAction>
+#include <QRegularExpression>
 #include <QStandardPaths>
 
 #include <AddressManager.h>
@@ -104,7 +105,8 @@ void LocationBookmarks::addBookmark() {
         disconnect(dlg, &ModalDialogListener::response, this, nullptr);
         auto bookmarkName = response.toString();
 
-        bookmarkName = bookmarkName.trimmed().replace(QRegExp("(\r\n|[\r\n\t\v ])+"), " ");
+        bookmarkName = bookmarkName.trimmed().replace(
+            QRegularExpression(QStringLiteral("(\r\n|[\r\n\t\v ])+")), QStringLiteral(" "));
         if (bookmarkName.length() == 0) {
             return;
         }

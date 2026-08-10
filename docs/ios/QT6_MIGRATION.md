@@ -187,6 +187,12 @@ is still applied before the `model_repo` subpath is appended. Asset mappings,
 upload permissions, and entity creation are otherwise unchanged.
 `Application_Assets.cpp` therefore leaves the Core5Compat inventory.
 
+Bookmark names are now normalized with `QRegularExpression`. Leading and
+trailing whitespace is still trimmed first, then every run of CR/LF pairs,
+individual CR/LF characters, tabs, vertical tabs, or spaces is replaced by one
+space. Empty-name rejection and bookmark persistence are unchanged.
+`LocationBookmarks.cpp` therefore leaves the Core5Compat inventory.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant
