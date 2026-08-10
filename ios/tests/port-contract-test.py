@@ -833,6 +833,21 @@ def test_scope_contract() -> None:
     if "QRegExp" in base_log_dialog.read_text(encoding="utf-8"):
         raise AssertionError("BaseLogDialog retained removed QRegExp API")
 
+    models_browser = SOURCE_ROOT / "interface" / "src" / "ui" / "ModelsBrowser.cpp"
+    require_text(models_browser, r'#include <QRegularExpression>', "model-browser keys must use the Qt 6 regex API")
+    require_text(
+        models_browser,
+        r'QRegularExpression rx\(QRegularExpression::anchoredPattern\(_nameFilter\)\)',
+        "model-browser filtering must preserve whole-key matching for the configured expression",
+    )
+    require_text(
+        models_browser,
+        r'if \(rx\.match\(xml\.text\(\)\.toString\(\)\)\.hasMatch\(\)\)',
+        "model-browser XML keys must retain their filter gate",
+    )
+    if "QRegExp" in models_browser.read_text(encoding="utf-8"):
+        raise AssertionError("ModelsBrowser retained removed QRegExp API")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,

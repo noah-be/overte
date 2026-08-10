@@ -37,7 +37,6 @@
         "interface/src/ScriptHighlighting.cpp",
         "interface/src/ScriptHighlighting.h",
         "interface/src/ui/JSConsole.cpp",
-        "interface/src/ui/ModelsBrowser.cpp",
         "libraries/script-engine/src/ScriptManager.cpp",
         "libraries/shared/src/ApplicationVersion.cpp",
         "libraries/shared/src/GPUIdent.cpp"

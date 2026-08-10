@@ -265,6 +265,12 @@ the full match length, and resumes immediately after that range. The existing
 greedy `BOLD_PATTERN`, keyword highlighting, colors, and search navigation are
 unchanged. `BaseLogDialog.cpp` therefore leaves the Core5Compat inventory.
 
+The model browser's XML key filter now uses an explicitly anchored
+`QRegularExpression`. The configured `_nameFilter` still has to match the
+entire key before a row is added, preserving the former `exactMatch` boundary.
+XML pagination, truncation handling, locking, model rows, and download URLs
+are unchanged. `ModelsBrowser.cpp` therefore leaves the Core5Compat inventory.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant
