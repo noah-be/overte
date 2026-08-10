@@ -20,7 +20,8 @@ SPDX-License-Identifier: Apache-2.0
 - explicit MoltenVK device/simulator XCFramework selection;
 - classified staged dependency graph with host shader tools separated from
   target libraries;
-- unsigned macOS 26 simulator CI for iPhone and iPad launch tests; and
+- unsigned macOS 26 CI for arm64 device-SDK compilation plus iPhone and iPad
+  simulator launch tests; and
 - machine-readable host and physical-device acceptance contracts.
 
 The second host-preparation pass additionally provides a fail-closed root
@@ -43,14 +44,21 @@ shader tools placed in the target context.
 
 ## Verified without Apple hardware
 
-The iOS host contracts, plist parsing, dependency classification, shell syntax,
-Python syntax, and workflow YAML parse pass on Linux. The existing Android host
-suite passed its harness, native, and JavaScript tiers; its Robolectric tier was
-blocked by the host providing Java 25 instead of its required Java 21.
+The credential-free cloud pipeline passed on source revision
+`a0fb187efea53821bf2ed7a4988bca78efbc1046` in
+[GitHub Actions run 31363636498](https://github.com/noah-be/overte/actions/runs/31363636498)
+using Xcode 26.6 and the iOS 26.5 SDK. It compiled and validated an unsigned
+arm64 `iphoneos` bundle, compiled and embedded `default.metallib`, launched the
+app for at least five seconds on both iPhone and iPad simulators, and produced
+an unsigned simulator archive. The downloaded archive passed ZIP integrity and
+SHA-256 manifest verification; its digest was
+`a3b08e5d7a08e15af1d0a2646b90960e48eb8cdb95e3d62765e10aa053e1671a`.
 
-## Requires a macOS/Xcode execution environment
+The Linux iOS host contracts and the Android `fast` regression tier also pass
+in this worktree.
 
-- compile and launch the bootstrap on the macOS 26 CI image;
+## Remaining hosted macOS integration work
+
 - resolve and patch failures in each target dependency recipe;
 - compile the shared Overte client with Qt 6 and finish the Qt Multimedia
   migration;
