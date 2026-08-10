@@ -637,10 +637,10 @@ void Application::initialize(const QCommandLineParser &parser) {
             _overrideDefaultScriptsLocation = false;
         }
 
-        // If launched from Steam, let it handle updates. Android packages are
-        // updated by their installer/store and must not launch the desktop
-        // updater UI during startup.
-#if !defined(ANDROID_APP_PHONE_INTERFACE)
+        // If launched from Steam, let it handle updates. Android and iOS
+        // packages are updated by their installer/store and must not launch
+        // the desktop updater UI during startup.
+#if !defined(ANDROID_APP_PHONE_INTERFACE) && !defined(Q_OS_IOS)
         bool buildCanUpdate = BuildInfo::BUILD_TYPE == BuildInfo::BuildType::Stable
             || BuildInfo::BUILD_TYPE == BuildInfo::BuildType::Nightly;
         if (!parser.isSet("no-updater") && buildCanUpdate) {

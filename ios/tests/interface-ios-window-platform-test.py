@@ -6,6 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 APPLICATION_UI = (ROOT / "interface/src/Application_UI.cpp").read_text()
+APPLICATION_SETUP = (ROOT / "interface/src/Application_Setup.cpp").read_text()
 LOG_DIALOG = (ROOT / "interface/src/ui/LogDialog.cpp").read_text()
 BASE_LOG_DIALOG = (ROOT / "interface/src/ui/BaseLogDialog.cpp").read_text()
 MENU = (ROOT / "interface/src/Menu.cpp").read_text()
@@ -70,5 +71,11 @@ require("QDialog(parent, Qt::Window | Qt::WindowCloseButtonHint | Qt::WindowStay
         "LOD tools dialog is no longer demonstrably a desktop utility window")
 require('tablet->pushOntoStack("hifi/dialogs/TabletLODTools.qml");' in APPLICATION_UI,
         "mobile-friendly LOD tools surface changed")
+require("#if !defined(ANDROID_APP_PHONE_INTERFACE) && !defined(Q_OS_IOS)\n"
+        "        bool buildCanUpdate" in APPLICATION_SETUP,
+        "desktop AutoUpdater startup remains reachable on iOS")
+require("DependencyManager::set<AutoUpdater>()" in APPLICATION_SETUP and
+        "&AutoUpdater::newVersionIsAvailable" in APPLICATION_SETUP,
+        "desktop updater behavior changed on supported platforms")
 
 print("iOS window platform contract valid: desktop log/console windows preserved and mobile-excluded")
