@@ -732,6 +732,16 @@ def test_scope_contract() -> None:
     if "QRegExp" in scripts_model.read_text(encoding="utf-8"):
         raise AssertionError("ScriptsModel retained removed QRegExp API")
 
+    string_helpers = SOURCE_ROOT / "libraries" / "shared" / "src" / "shared" / "StringHelpers.cpp"
+    require_text(string_helpers, r'#include <QRegularExpression>', "word wrapping must use the Qt 6 regex API")
+    require_text(
+        string_helpers,
+        r'input\.split\(QRegularExpression\(QStringLiteral\("\\\\s\+"\)\), Qt::KeepEmptyParts\)',
+        "word wrapping must retain whitespace-run splitting and legacy empty-part handling",
+    )
+    if "QRegExp" in string_helpers.read_text(encoding="utf-8"):
+        raise AssertionError("StringHelpers retained removed QRegExp API")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,

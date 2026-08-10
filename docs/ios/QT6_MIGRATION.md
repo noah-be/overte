@@ -218,6 +218,13 @@ The default-script XML model now filters keys with an explicitly anchored
 nodes. XML traversal, path derivation, URL normalization, and tree rebuilding
 are unchanged. `ScriptsModel.cpp` therefore leaves the Core5Compat inventory.
 
+The shared `simpleWordWrap` helper now splits whitespace runs with
+`QRegularExpression`. `Qt::KeepEmptyParts` is explicit to retain the legacy
+split default, while the same `\\s+` expression, line-length calculation, and
+output assembly remain unchanged. Its UI license and warning-message callers
+therefore receive the same wrapping behavior. `StringHelpers.cpp` leaves the
+Core5Compat inventory.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant
