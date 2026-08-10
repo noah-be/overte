@@ -43,9 +43,53 @@ jobs:
       - name: Run device-free contracts
         run: ios/tests/run-tests.sh
 
+  v8-checkpoint:
+    name: Static JITless V8 checkpoint
+    needs: host-contracts
+    runs-on: macos-26
+    timeout-minutes: 180
+    outputs:
+      cache-key: ${{ steps.v8-cache-key.outputs.key }}
+    env:
+      OVERTE_IOS_V8_ROOT: ${{ github.workspace }}/build-ios/external/v8-ios
+    steps:
+      - name: Check out requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Select deterministic iOS V8 cache key
+        id: v8-cache-key
+        run: |
+          xcode_build="$(xcodebuild -version | awk '/Build version/{print $3}')"
+          sdk_version="$(xcrun --sdk iphoneos --show-sdk-version)"
+          recipe_hash="$(shasum -a 256 ios/v8.env ios/tools/build-v8-ios.sh | shasum -a 256 | awk '{print $1}')"
+          echo "key=overte-v8-ios-v1-${RUNNER_ARCH}-xcode-${xcode_build}-iphoneos-${sdk_version}-${recipe_hash}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore pinned static JITless V8 for iOS
+        id: v8-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.OVERTE_IOS_V8_ROOT }}
+          key: ${{ steps.v8-cache-key.outputs.key }}
+
+      - name: Build pinned static JITless V8 for iOS
+        if: steps.v8-cache.outputs.cache-hit != 'true'
+        run: ios/tools/build-v8-ios.sh build
+
+      - name: Validate pinned static JITless V8 for iOS
+        run: ios/tools/build-v8-ios.sh validate
+
+      - name: Save validated static JITless V8 for iOS
+        if: steps.v8-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.OVERTE_IOS_V8_ROOT }}
+          key: ${{ steps.v8-cache-key.outputs.key }}
+
   integrated-configure:
     name: Toolchain, dependencies, build and package
-    needs: host-contracts
+    needs: [host-contracts, v8-checkpoint]
     runs-on: macos-26
     timeout-minutes: 180
     env:
@@ -53,6 +97,7 @@ jobs:
       OVERTE_IOS_QT_HOST_ROOT: ${{ github.workspace }}/build-ios/qt-install/qt/macos
       CONAN_HOME: ${{ github.workspace }}/build-ios/conan-home
       OVERTE_IOS_MOLTENVK_ROOT: ${{ github.workspace }}/build-ios/external/MoltenVK
+      OVERTE_IOS_V8_ROOT: ${{ github.workspace }}/build-ios/external/v8-ios
     defaults:
       run:
         # GitHub's implicit bash invocation omits pipefail. Diagnostics use
@@ -125,6 +170,16 @@ jobs:
         with:
           path: ${{ github.workspace }}/build-ios/external/MoltenVK
           key: overte-moltenvk-ios-v1-${{ runner.arch }}-${{ hashFiles('ios/moltenvk.env') }}
+
+      - name: Restore pinned static JITless V8 for iOS
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.OVERTE_IOS_V8_ROOT }}
+          key: ${{ needs.v8-checkpoint.outputs.cache-key }}
+          fail-on-cache-miss: true
+
+      - name: Validate pinned static JITless V8 for iOS
+        run: ios/tools/build-v8-ios.sh validate
 
       - name: Bootstrap pinned Conan tooling
         run: ios/build-ios.sh bootstrap

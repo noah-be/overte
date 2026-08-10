@@ -13,22 +13,31 @@ writable executable memory, WebAssembly code generation, dynamic native
 modules, or a separately launched helper process. The application also sets
 V8's `--jitless` and `--no-expose-wasm` runtime flags as a fail-closed layer.
 
-Until an audited package exists, the integrated client configuration stops with
-an actionable CMake error. A developer supplies the package explicitly:
+CI builds V8 12.4.254.21 from its official source tag using a pinned
+`depot_tools` revision. The package is an independent, deterministic cache
+checkpoint: a failed application build reuses the validated archive instead of
+rebuilding V8. Developers may build and select the same package explicitly:
 
 ```bash
-export OVERTE_IOS_V8_ROOT=/absolute/path/to/overte-v8-ios
+ios/tools/build-v8-ios.sh build
+export OVERTE_IOS_V8_ROOT="$PWD/build-ios/external/v8-ios"
 ```
 
 Expected layout:
 
 ```text
 include/node/v8.h
-lib/libnode.a
+lib/libv8_monolith.a
 ```
 
-`libv8_monolith.a` may be supplied instead of `libnode.a` after the ABI and
-initialization paths pass the existing script-engine tests.
+The build records its complete GN arguments beside the package. It targets the
+device `arm64` ABI, statically links `v8_monolith`, embeds startup data, and
+disables JIT and WebAssembly generation. `ios/tools/build-v8-ios.sh validate`
+checks those invariants and the Mach-O architecture before CMake runs.
+
+V8 derives its internal `v8_jitless` setting for an iOS device build. The
+recipe additionally enables V8 lite mode, which fail-closes the optimizing
+compilers and is asserted by V8 to be incompatible with WebAssembly.
 
 ## Acceptance gate
 
@@ -40,4 +49,3 @@ The package is accepted only after:
 - downloaded JavaScript remains interpreted data;
 - native Node modules and process-spawning APIs are unavailable; and
 - the complete script compatibility suite passes on a physical device.
-
