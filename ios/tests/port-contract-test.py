@@ -629,6 +629,16 @@ def test_scope_contract() -> None:
         "range-for migration must preserve prefix replacement boundaries"
     )
 
+    obj_writer = SOURCE_ROOT / "libraries" / "model-serializers" / "src" / "OBJWriter.cpp"
+    require_text(obj_writer, r'#include <QRegularExpression>', "OBJ group-name sanitization must use the Qt 6 regex API")
+    require_text(
+        obj_writer,
+        r'\.replace\(QRegularExpression\(QStringLiteral\("\[\^-_a-zA-Z0-9\]"\)\), QStringLiteral\("_"\)\)',
+        "OBJ group-name sanitization must preserve its global allowed-character replacement",
+    )
+    if "QRegExp" in obj_writer.read_text(encoding="utf-8"):
+        raise AssertionError("OBJWriter retained removed QRegExp API")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,

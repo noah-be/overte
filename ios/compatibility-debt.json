@@ -48,7 +48,6 @@
         "interface/src/ui/UpdateDialog.cpp",
         "libraries/animation/src/AnimExpression.cpp",
         "libraries/embedded-webserver/src/HTTPManager.cpp",
-        "libraries/model-serializers/src/OBJWriter.cpp",
         "libraries/script-engine/src/ScriptManager.cpp",
         "libraries/script-engine/src/ScriptsModel.cpp",
         "libraries/shared/src/ApplicationVersion.cpp",

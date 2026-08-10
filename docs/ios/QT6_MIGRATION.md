@@ -153,6 +153,13 @@ hashes through `AssetClient`. No URL scheme, hash expression, byte range,
 cache policy, request packet, renderer selection, or EntityTree mutation was
 changed by this compile fix.
 
+The adjacent OBJ export boundary now sanitizes mesh group names with
+`QRegularExpression`. The same negated ASCII character class is passed to
+`QString::replace`, which still replaces every character outside letters,
+digits, hyphen, and underscore with `_`. Vertex, normal, part, topology, and
+index serialization are unchanged. This removes `OBJWriter.cpp` from the
+Core5Compat debt inventory without broadening accepted OBJ identifiers.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant
