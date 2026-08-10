@@ -2,9 +2,17 @@ name: Pico 4 device-free CI
 
 on:
   pull_request:
+    paths:
+      - "android/**"
+      - "interface/**"
+      - "libraries/**"
+      - "scripts/**"
+      - "tests/**"
+      - ".github/workflows/project-tests.yml"
+      - "!**/*.md"
   push:
     branches:
-      - feature/pico4-support
+      - android-vr-pico
       - "ci/**"
       - "test/**"
   workflow_dispatch:

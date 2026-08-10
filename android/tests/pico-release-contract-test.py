@@ -28,7 +28,7 @@ class PicoReleaseContractTests(unittest.TestCase):
 
     def test_rejects_ref_tag_mismatch(self):
         result = self.run_tool("--tag", "pico4-v1.2.3-rc.1", "--revision", REVISION,
-                               "--github-ref", "refs/heads/feature/pico4-support")
+                               "--github-ref", "refs/heads/android-vr-pico")
         self.assertEqual(result.returncode, 2)
 
     def test_bundle_is_deterministic_and_checks_apk_version(self):
