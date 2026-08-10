@@ -43,11 +43,10 @@ jobs:
 
       - name: Install build tools
         run: |
-          brew install cmake ninja node
-          python3 -m pip install --user 'conan>=2,<3'
-          python_user_bin="$(python3 -m site --user-base)/bin"
-          echo "$python_user_bin" >> "$GITHUB_PATH"
-          export PATH="$python_user_bin:$PATH"
+          python3 -m venv build-tooling-venv
+          build-tooling-venv/bin/pip install 'conan>=2,<3'
+          echo "$GITHUB_WORKSPACE/build-tooling-venv/bin" >> "$GITHUB_PATH"
+          export PATH="$GITHUB_WORKSPACE/build-tooling-venv/bin:$PATH"
           conan --version
 
       - name: Check host toolchain
