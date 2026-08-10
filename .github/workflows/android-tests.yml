@@ -8,9 +8,10 @@ on:
       - "libraries/**"
       - "scripts/**"
       - ".github/workflows/android-tests.yml"
+      - "!**/*.md"
   push:
     branches:
-      - feature/android-phone-support
+      - android-phone
       - "ci/android-phone-**"
       - "test/android-**"
     paths:
@@ -19,6 +20,7 @@ on:
       - "libraries/**"
       - "scripts/**"
       - ".github/workflows/android-tests.yml"
+      - "!**/*.md"
   schedule:
     - cron: "17 2 * * *"
   workflow_dispatch:

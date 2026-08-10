@@ -5,6 +5,28 @@ on:
   push:
     branches:
       - apple-ios
+    paths:
+      - 'CMakeLists.txt'
+      - '.github/workflows/ios-bootstrap.yml'
+      - 'cmake/QtCompat.cmake'
+      - 'cmake/init.cmake'
+      - 'cmake/compiler.cmake'
+      - 'cmake/macros/SetupHifiLibrary.cmake'
+      - 'cmake/macros/SetupHifiProject.cmake'
+      - 'cmake/macros/SetupHifiTestCase.cmake'
+      - 'cmake/macros/TargetV8.cmake'
+      - 'cmake/macros/TargetVulkan.cmake'
+      - 'cmake/modules/FindMoltenVK.cmake'
+      - 'interface/CMakeLists.txt'
+      - 'interface/resources/qml/controls/+ios/**'
+      - 'interface/src/AboutUtil.cpp'
+      - 'interface/src/main.cpp'
+      - 'libraries/script-engine/src/v8/ScriptEngineV8.cpp'
+      - 'libraries/shared/src/shared/FileUtils.cpp'
+      - 'libraries/ui/src/**'
+      - 'libraries/vk/**'
+      - 'ios/**'
+      - '!**/*.md'
   pull_request:
     paths:
       - 'CMakeLists.txt'
@@ -18,7 +40,6 @@ on:
       - 'cmake/macros/TargetV8.cmake'
       - 'cmake/macros/TargetVulkan.cmake'
       - 'cmake/modules/FindMoltenVK.cmake'
-      - 'docs/ios/**'
       - 'interface/CMakeLists.txt'
       - 'interface/resources/qml/controls/+ios/**'
       - 'interface/src/AboutUtil.cpp'
@@ -28,6 +49,7 @@ on:
       - 'libraries/ui/src/**'
       - 'libraries/vk/**'
       - 'ios/**'
+      - '!**/*.md'
 
 permissions:
   contents: read
