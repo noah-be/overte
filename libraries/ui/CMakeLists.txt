@@ -5,7 +5,7 @@
 set(TARGET_NAME ui)
 set(UI_QT_COMPONENTS Multimedia Network Qml Quick WebChannel WebSockets)
 if (NOT (IOS AND OVERTE_QT_MAJOR EQUAL 6))
-  list(APPEND UI_QT_COMPONENTS OpenGL XmlPatterns)
+  list(APPEND UI_QT_COMPONENTS OpenGL)
 endif()
 setup_hifi_library(${UI_QT_COMPONENTS} ${PLATFORM_QT_COMPONENTS})
 link_hifi_libraries(shared networking qml gl audio audio-client plugins pointers script-engine)

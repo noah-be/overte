@@ -228,6 +228,14 @@ def test_cmake_boundary() -> None:
 
     ui_cmake = SOURCE_ROOT / "libraries" / "ui" / "CMakeLists.txt"
     require_text(ui_cmake, r"NOT \(IOS AND OVERTE_QT_MAJOR EQUAL 6\)", "UI must exclude legacy Qt modules from iOS")
+    if "XmlPatterns" in ui_cmake.read_text(encoding="utf-8"):
+        raise AssertionError("UI must not link the removed Qt XmlPatterns module")
+    info_view = SOURCE_ROOT / "libraries" / "ui" / "src" / "InfoView.cpp"
+    require_text(info_view, r"QXmlStreamReader", "InfoView version parsing must work with Qt 6")
+    require_text(info_view, r'attributes\.value\(QStringLiteral\("id"\)\).*QStringLiteral\("version"\)', "InfoView must locate the version input")
+    require_text(info_view, r'attributes\.value\(QStringLiteral\("value"\)\)', "InfoView must return the version value")
+    if "QXmlQuery" in info_view.read_text(encoding="utf-8"):
+        raise AssertionError("InfoView must not depend on removed Qt XmlPatterns APIs")
 
     file_utils = SOURCE_ROOT / "libraries" / "shared" / "src" / "shared" / "FileUtils.cpp"
     require_text(file_utils, r'extraSelectors << "ios" << "mobile" << "touch"', "iOS selectors must include mobile touch variants")
