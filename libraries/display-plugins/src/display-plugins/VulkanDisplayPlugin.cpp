@@ -38,8 +38,8 @@
 #include <vk/VKWidget.h>
 #if !defined(Q_OS_IOS)
 #include <gl/Context.h>
-#endif
 #include <gl/OffscreenGLCanvas.h>
+#endif
 
 #include <gpu/Texture.h>
 #include <gpu/FrameIO.h>
@@ -1015,9 +1015,11 @@ void VulkanDisplayPlugin::swapBuffers() {
 void VulkanDisplayPlugin::withOtherThreadContext(std::function<void()> f) const {
     static auto presentThread = DependencyManager::get<VulkanPresentThread>();
     presentThread->withOtherThreadContext(f);
+#if !defined(Q_OS_IOS)
     if (!OffscreenGLCanvas::restoreThreadContext()) {
         qWarning("Unable to restore original OpenGL context");
     }
+#endif
 }
 
 bool VulkanDisplayPlugin::setDisplayTexture(const QString& name) {

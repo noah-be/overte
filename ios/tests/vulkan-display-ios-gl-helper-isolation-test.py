@@ -17,8 +17,8 @@ require("#include <gl/QOpenGLContextWrapper.h>" not in SOURCE,
         "unused QOpenGLContextWrapper include remains")
 require("#include <gl/GLEscrow.h>" not in SOURCE,
         "unused GLEscrow include remains")
-require("#if !defined(Q_OS_IOS)\n#include <gl/Context.h>\n#endif" in SOURCE,
-        "GL memory helper include must be excluded on iOS")
+require("#if !defined(Q_OS_IOS)\n#include <gl/Context.h>\n#include <gl/OffscreenGLCanvas.h>\n#endif" in SOURCE,
+        "GL memory/context helper includes must be excluded on iOS")
 require("#if !defined(OVERTE_IOS_VULKAN_DISABLE_QUICK_GL_COPY)\n#include <QtGui/QOpenGLFramebufferObject>\n#endif" in SOURCE,
         "disabled iOS Quick-copy must not parse the GL FBO type")
 require("#if defined(Q_OS_IOS)\n        gpu::Backend::freeGPUMemSize.set(0);\n#else" in SOURCE,
@@ -29,7 +29,7 @@ require("#if !defined(Q_OS_IOS)\n#include <gpu/gl/GLTexelFormat.h>\n#endif" in S
         "GLTexelFormat header must be excluded on iOS")
 require("KTX1 requires the legacy GL format mapping" in SOURCE,
         "iOS KTX capture must fail closed with its source-level reason")
-require("OffscreenGLCanvas::restoreThreadContext()" in SOURCE,
-        "QML context restore moved; update the native-RHI migration audit")
+require("#if !defined(Q_OS_IOS)\n    if (!OffscreenGLCanvas::restoreThreadContext())" in SOURCE,
+        "legacy context restore must be excluded on iOS and preserved elsewhere")
 
-print("Vulkan display GL helper isolation valid: iOS memory/FBO/KTX helpers excluded; QML restore remains")
+print("Vulkan display GL helper isolation valid: iOS memory/FBO/KTX/context-restore helpers excluded")
