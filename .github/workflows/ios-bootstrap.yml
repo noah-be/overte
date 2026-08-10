@@ -2,6 +2,9 @@ name: iOS bootstrap
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/ios-support
   pull_request:
     paths:
       - 'CMakeLists.txt'
