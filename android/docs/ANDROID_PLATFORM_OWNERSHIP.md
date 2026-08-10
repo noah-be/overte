@@ -156,10 +156,11 @@ covered independently.
 
 ### P0 — Incorrect or fragile platform identity
 
-1. **Pico Settings detection uses mutable state.** `Settings.qml` shows “Pico
-   Interaction” when `deferTabletCreationUntilOpen` is true. That key describes
-   tablet behavior, not immutable platform identity, and can expose Pico controls
-   on another product.
+1. **Pico Settings detection used mutable state at the assessed baseline.** A2 on
+   `refactor/android-platform-boundaries` replaces it with fail-closed
+   `SettingsTouchConfiguration` profiles selected from the compiled
+   `HIFI_ANDROID_APP` identity. Only `android_picoInterface` enables and constructs
+   Pico Interaction; Phone, Quest, Desktop, and unknown profiles keep it disabled.
 2. **Generic Android paths emit Pico-branded diagnostics.** Keyboard, audio,
    entity loading, graphics, menu, and lifecycle code contain `PICO_*` log markers
    under generic `Q_OS_ANDROID` paths. This makes Quest/Phone diagnosis misleading
@@ -222,7 +223,7 @@ and an aggregate Android-VR gate are enough to prevent drift first.
 
 | Surface | Residue or risk | Correct owner / action |
 |---|---|---|
-| Shared Settings home | Pico page selected through mutable setting | Add immutable platform capability; `android-main` + `android-vr` |
+| Shared Settings home | Baseline selected Pico page through mutable setting | A2 complete: immutable QFileSelector profile; `android-main` + `android-vr` |
 | General Preferences | Desktop Movement, VR hardware/plugins, filesystem and Oculus options remain in shared graph | Capability filtering; platform branches |
 | Login | Oculus account creation/linking remains in shared C++ and QML | Keep only for a product that supports it |
 | Pico Interaction | Vendor name is valid today, but several thresholds describe generic ray/grab behavior | Keep Pico-owned until a second headset uses the contract |
@@ -255,7 +256,8 @@ and an aggregate Android-VR gate are enough to prevent drift first.
 
 ## Recommended immediate direction
 
-Continue with small shared extractions that already have two consumers. Then add
-an immutable capability boundary for Settings. Defer the large OpenXR/Quest design
-until the current iOS integration is stable and Quest hardware is available for a
-real validation loop.
+Continue with small shared extractions that already have two consumers. The first
+shared JNI source and immutable Settings capability boundary are complete on the
+working branch. Next, move genuinely shared Android overrides out of Pico-owned
+paths. Defer the large OpenXR/Quest design until the current iOS integration is
+stable and Quest hardware is available for a real validation loop.
