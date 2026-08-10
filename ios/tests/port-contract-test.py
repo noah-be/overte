@@ -886,6 +886,19 @@ def test_scope_contract() -> None:
     )
     if 'QRegExp("/[^/]*$")' in script_manager.read_text(encoding="utf-8"):
         raise AssertionError("ScriptManager retained QRegExp in CommonJS __dirname derivation")
+    script_manager_text = script_manager.read_text(encoding="utf-8")
+    assert len(re.findall(
+        r'qEnvironmentVariable\("EXTRA_ALLOWLIST"\)\.trimmed\(\)\.split\(\s*'
+        r'QRegularExpression\(QStringLiteral\("\\\\s\*,\\\\s\*"\)\), Qt::SkipEmptyParts\)',
+        script_manager_text,
+    )) == 2, "both ScriptManager allowlist paths must preserve environment comma splitting"
+    assert len(re.findall(
+        r'raw\.toString\(\)\.trimmed\(\)\.split\(\s*'
+        r'QRegularExpression\(QStringLiteral\("\\\\s\*\[,\\r\\n\]\+\\\\s\*"\)\), Qt::SkipEmptyParts\)',
+        script_manager_text,
+    )) == 2, "both ScriptManager allowlist paths must preserve settings comma/newline splitting"
+    if "QRegExp" in script_manager_text:
+        raise AssertionError("ScriptManager retained removed QRegExp API")
 
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(

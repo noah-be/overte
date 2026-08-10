@@ -289,9 +289,15 @@ CommonJS module evaluation now derives `__dirname` with
 `QRegularExpression`. The same `/[^/]*$` suffix is removed from `modulePath`,
 so the final slash-delimited filename component and only that component is
 dropped before the read-only closure property is installed. Source evaluation,
-`__filename`, and module resolution are unchanged. `ScriptManager.cpp` remains
-in the Core5Compat inventory for its separate entity-script allowlist split
-unit.
+`__filename`, and module resolution are unchanged.
+
+Both entity-script allowlist checks in `ScriptManager` now also split their
+environment and settings sources with `QRegularExpression`. Each environment
+value retains whitespace-padded comma splitting; each settings value retains
+comma/CR/LF runs with surrounding whitespace. All four calls keep
+`Qt::SkipEmptyParts`, and allowlist toggles, domain bypass, safe built-in
+schemes, and URL decisions are unchanged. `ScriptManager.cpp` therefore leaves
+the Core5Compat inventory.
 
 ## Model and texture upload audit
 

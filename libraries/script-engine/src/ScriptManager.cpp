@@ -2248,7 +2248,8 @@ void ScriptManager::entityScriptContentAvailable(const EntityItemID& entityID, c
         bool passList = false;  // assume unsafe
         QString allowlistPrefix = "[ALLOWLIST ENTITY SCRIPTS]";
         QList<QString> safeURLPrefixes = { "file:///", "atp:", "cache:" };
-        safeURLPrefixes += qEnvironmentVariable("EXTRA_ALLOWLIST").trimmed().split(QRegExp("\\s*,\\s*"), Qt::SkipEmptyParts);
+        safeURLPrefixes += qEnvironmentVariable("EXTRA_ALLOWLIST").trimmed().split(
+            QRegularExpression(QStringLiteral("\\s*,\\s*")), Qt::SkipEmptyParts);
 
         // Entity Script Allowlist toggle check.
         Setting::Handle<bool> allowlistEnabled {"private/allowlistEnabled", false };
@@ -2259,7 +2260,8 @@ void ScriptManager::entityScriptContentAvailable(const EntityItemID& entityID, c
 
         // Pull SAFEURLS from the Interface.JSON settings.
         QVariant raw = Setting::Handle<QVariant>("private/settingsSafeURLS").get();
-        QStringList settingsSafeURLS = raw.toString().trimmed().split(QRegExp("\\s*[,\r\n]+\\s*"), Qt::SkipEmptyParts);
+        QStringList settingsSafeURLS = raw.toString().trimmed().split(
+            QRegularExpression(QStringLiteral("\\s*[,\r\n]+\\s*")), Qt::SkipEmptyParts);
         safeURLPrefixes += settingsSafeURLS;
         // END Pull SAFEURLS from the Interface.JSON settings.
 
@@ -2359,7 +2361,8 @@ void ScriptManager::entityScriptContentAvailable(const EntityItemID& entityID, c
     bool passList = false;  // assume unsafe
     QString allowlistPrefix = "[ALLOWLIST ENTITY SCRIPTS]";
     QList<QString> safeURLPrefixes = { "file:///", "atp:", "cache:" };
-    safeURLPrefixes += qEnvironmentVariable("EXTRA_ALLOWLIST").trimmed().split(QRegExp("\\s*,\\s*"), Qt::SkipEmptyParts);
+    safeURLPrefixes += qEnvironmentVariable("EXTRA_ALLOWLIST").trimmed().split(
+        QRegularExpression(QStringLiteral("\\s*,\\s*")), Qt::SkipEmptyParts);
 
     // Entity Script Allowlist toggle check.
     Setting::Handle<bool> allowlistEnabled {"private/allowlistEnabled", false };
@@ -2370,7 +2373,8 @@ void ScriptManager::entityScriptContentAvailable(const EntityItemID& entityID, c
 
     // Pull SAFEURLS from the Interface.JSON settings.
     QVariant raw = Setting::Handle<QVariant>("private/settingsSafeURLS").get();
-    QStringList settingsSafeURLS = raw.toString().trimmed().split(QRegExp("\\s*[,\r\n]+\\s*"), Qt::SkipEmptyParts);
+    QStringList settingsSafeURLS = raw.toString().trimmed().split(
+        QRegularExpression(QStringLiteral("\\s*[,\r\n]+\\s*")), Qt::SkipEmptyParts);
     safeURLPrefixes += settingsSafeURLS;
     // END Pull SAFEURLS from the Interface.JSON settings.
 

@@ -32,7 +32,7 @@ def main() -> None:
     assert counts == {
         "qt5-cmake-api": 7,
         "qt6-removed-audio-api": 1,
-        "core5compat-api": 4,
+        "core5compat-api": 3,
         "webengine-cpp-boundary": 12,
         "qt6-audio-runtime-semantics": 2,
         "apple-desktop-framework": 4,
