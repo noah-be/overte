@@ -775,6 +775,21 @@ def test_scope_contract() -> None:
         "removing the unused regex include must preserve expression evaluation"
     )
 
+    log_handler = SOURCE_ROOT / "libraries" / "shared" / "src" / "LogHandler.h"
+    log_handler_text = log_handler.read_text(encoding="utf-8")
+    assert "QRegExp" not in log_handler_text, (
+        "the shared logging interface must not expose an unused Core5Compat dependency"
+    )
+    assert "bool parseOptions(const QString& options, const QString &paramName);" in log_handler_text, (
+        "removing the unused regex include must preserve logging option parsing"
+    )
+    assert "static void verboseMessageHandler(" in log_handler_text, (
+        "removing the unused regex include must preserve the Qt message-handler entry point"
+    )
+    assert "void printRepeatedMessage(" in log_handler_text and "void setupRepeatedMessageFlusher();" in log_handler_text, (
+        "removing the unused regex include must preserve repeated-message handling"
+    )
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,

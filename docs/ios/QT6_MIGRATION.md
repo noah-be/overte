@@ -238,6 +238,12 @@ tokenizer remains character-driven, and parsing plus opcode evaluation are
 unchanged. This removes an unnecessary Core5Compat compile dependency without
 altering animation graph expressions.
 
+The public `LogHandler.h` header no longer includes `QRegExp`, which was not
+used by any declaration or inline macro in that interface. Logging option
+parsing, the Qt message-handler entry point, repeated-message aggregation, and
+break-on-message support remain unchanged. Consumers no longer inherit an
+unnecessary Core5Compat header dependency.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant
