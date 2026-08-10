@@ -294,6 +294,12 @@ endif()
 
 if (OVERTE_BUILD_CLIENT)
   add_subdirectory(interface)
+  if (IOS)
+    # This is intentionally configured after Interface: its library macros have
+    # materialized the native networking/entity targets that the iOS client must
+    # reuse rather than replacing with a bootstrap protocol implementation.
+    add_subdirectory(ios/integration)
+  endif()
   if (APPLE)
     set_target_properties(Overte PROPERTIES FOLDER "Apps")
   else()
