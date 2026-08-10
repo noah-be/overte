@@ -18,14 +18,14 @@
     {
       "id": "shell-syntax-contract",
       "kind": "infrastructure",
-      "tiers": ["fast", "host", "contracts"],
+      "tiers": ["fast", "host", "contracts", "android-vr"],
       "command": ["common/tests/shell-syntax-test.sh"],
       "description": "Parse every tracked Android Bash entry point before execution"
     },
     {
       "id": "python-syntax-contract",
       "kind": "infrastructure",
-      "tiers": ["fast", "host", "contracts"],
+      "tiers": ["android-vr", "fast", "host", "contracts"],
       "command": ["common/tests/python-syntax-test.py"],
       "description": "Parse every tracked Android Python source without writing bytecode"
     },
@@ -88,7 +88,7 @@
     {
       "id": "android-project-module-inventory",
       "kind": "inventory",
-      "tiers": ["fast", "host", "contracts"],
+      "tiers": ["android-vr", "fast", "host", "contracts"],
       "command": ["common/tests/project-module-inventory-test.sh"],
       "description": "Android module ownership, manifest security surface and runtime boundaries"
     },
@@ -200,7 +200,7 @@
     {
       "id": "phone-robolectric-launcher",
       "kind": "jvm",
-      "tiers": ["robolectric", "host"],
+      "tiers": ["android-vr", "robolectric", "host"],
       "command": ["common/tests/robolectric/run-tests.sh"],
       "timeoutSeconds": 600,
       "description": "Real Interface, Phone, Pico and Quest launcher behavior on Robolectric APIs 24 through 35"

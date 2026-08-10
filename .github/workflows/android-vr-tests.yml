@@ -1,0 +1,70 @@
+name: Android VR integration tests
+
+on:
+  pull_request:
+    paths:
+      - "android/**"
+      - "interface/**"
+      - "libraries/**"
+      - "scripts/**"
+      - ".github/workflows/android-vr-tests.yml"
+  push:
+    branches:
+      - android-main
+      - android-vr
+      - "android-vr-**"
+      - refactor/android-platform-boundaries
+    paths:
+      - "android/**"
+      - "interface/**"
+      - "libraries/**"
+      - "scripts/**"
+      - ".github/workflows/android-vr-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-vr-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+    working-directory: android
+
+jobs:
+  android-vr:
+    name: Shared standalone VR gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.0.0
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.0.0
+        with:
+          node-version: 22
+      - name: Run Android VR hardware-free gate
+        timeout-minutes: 15
+        run: tests/run-tests.sh android-vr
+      - name: Publish Android VR reports
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: android-vr-results-${{ github.run_attempt }}
+          path: |
+            android/build/test-results/suite/TEST-android-android-vr.xml
+            android/build/test-results/native/TEST-native-android-vr.xml
+            android/common/tests/robolectric/build/test-results/test/
+          if-no-files-found: error
+          retention-days: 14

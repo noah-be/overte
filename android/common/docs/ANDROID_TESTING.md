@@ -21,6 +21,7 @@ general-purpose linters.
 | `contracts` | Source, architecture, privacy, packaging and security invariants | Every pull request |
 | `host` | All focused host behavior suites | Local investigation and future CI expansion |
 | `prepared-host` | Pico-relevant Qt/C++ suites from an existing CMake/Conan build | Explicit prepared developer host |
+| `android-vr` | Shared OpenXR, Pico runtime, Quest launcher, syntax, and inventory contracts | Android-VR integration changes |
 | `regression` | The complete established device-free phone gate | Protected branches, nightly and manual CI |
 | `device` | Physical ARM64 phone smoke and lifecycle coverage | Explicit device lab invocation only |
 | `instrumentation` | AndroidX tests on a connected emulator or device | Explicit prepared Android environment |
@@ -46,6 +47,15 @@ The categories are complementary:
   runtime tests, including permissions, privacy and packaged resources.
 - Device tests cover the Android lifecycle, system integration, graphics and
   hardware-dependent behavior that a host test cannot prove.
+
+The standalone Android-VR integration gate is hardware-free:
+
+```bash
+tests/run-tests.sh android-vr
+```
+
+Its six-suite boundary, stable JUnit output, runtime expectations, and deliberate
+vendor exclusions are documented in [Android VR Hardware-Free Test Gate](ANDROID_VR_TESTING.md).
 
 The hardware-free Pico harness self-tests run in `fast`, `host`, and
 `contracts`; they exercise lock, unattended-runner, and microphone-script
