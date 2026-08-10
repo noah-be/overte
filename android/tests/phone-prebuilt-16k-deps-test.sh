@@ -5,6 +5,9 @@ android_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 subject="$android_dir/phone-prebuilt-16k-deps.sh"
 fixture="$(mktemp -d "${TMPDIR:-/tmp}/overte-phone-prebuilt-test.XXXXXXXX")"
 trap 'rm -rf -- "$fixture"' EXIT
+grep -Fq "tag='android-phone-16k-deps-v3'" "$subject"
+grep -Eq '^[0-9a-f]{64}  android-phone-16k-conan\.tgz$' \
+    "$android_dir/conan/prebuilt/android-phone-16k-deps-v3.sha256"
 mkdir -p "$fixture/source" "$fixture/bin"
 printf 'deterministic Phone dependency fixture\n' >"$fixture/source/android-phone-16k-conan.tgz"
 (cd "$fixture/source" && sha256sum android-phone-16k-conan.tgz) >"$fixture/manifest.sha256"
@@ -53,6 +56,9 @@ PHONE_PREBUILT_TMPDIR="$fixture/large-download-temp" \
 grep -Fq 'cache restore' "$fixture/calls"
 grep -Fq 'remove libnode/22.22.3@overte/stable#261cd4344c058c7f08a0fb892519880a --confirm' \
     "$fixture/calls"
+remove_line="$(grep -n '^remove libnode/' "$fixture/calls" | cut -d: -f1)"
+restore_line="$(grep -n '^cache restore ' "$fixture/calls" | cut -d: -f1)"
+[[ "$remove_line" -lt "$restore_line" ]]
 [[ "$(grep -c 'install ' "$fixture/calls")" == 2 ]]
 grep -Fq -- '--build=never' "$fixture/calls"
 [[ -d "$fixture/large-download-temp" ]]
