@@ -43,6 +43,10 @@ The target profiles use Ninja for their single-architecture static dependency
 packages. This prevents Xcode from applying iOS application-bundle validation
 to incidental upstream command-line tools such as Draco's encoder and decoder.
 The final `Overte.app` remains an explicit Xcode-generator build.
+Both target profiles also provide the required function-alignment flags through
+Conan's `tools.build:cflags` and `tools.build:cxxflags` configuration. Conan's
+CMakeToolchain consumes these when generating the file that Qt chainloads;
+preset-only cache variables are not sufficient for this workflow.
 After the graph audit succeeds, CI stores the isolated, anonymous Conan home
 under a key derived from Xcode, the iPhoneOS SDK, both profiles, the staged
 recipe, dependency policy, and tool versions. Failed or partial graph

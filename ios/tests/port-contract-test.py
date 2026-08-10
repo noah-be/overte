@@ -92,6 +92,8 @@ def test_profiles() -> None:
         require_text(profile, r"^arch=armv8$", "profile must target arm64")
         require_text(profile, r"^\*:shared=False$", "iOS dependencies must default to static")
         require_text(profile, r"^tools\.cmake\.cmaketoolchain:generator=Ninja$", "single-architecture dependency builds must avoid Xcode app-bundle validation")
+        require_text(profile, r'^tools\.build:cflags=\["-falign-functions=32", "-fPIC"\]$', "Conan must propagate aligned C flags into the chainloaded toolchain")
+        require_text(profile, r'^tools\.build:cxxflags=\["-falign-functions=32", "-fPIC"\]$', "Conan must propagate aligned C++ flags into the chainloaded toolchain")
         assert "tools.cmake.cmaketoolchain:generator=Xcode" not in profile.read_text(encoding="utf-8"), \
             "dependency profiles must not turn upstream command-line tools into iOS app bundles"
 
@@ -113,10 +115,6 @@ def test_profiles() -> None:
 
     recipe = IOS_ROOT / "conanfile.py"
     require_text(recipe, r'package_type = "application"', "staged graph must not publish a library")
-    require_text(recipe, r'toolchain\.variables\["CMAKE_CXX_FLAGS_INIT"\] = "-falign-functions=32 -fPIC"', "chainloaded toolchain must preserve the V8 function-alignment invariant")
-    require_text(recipe, r'toolchain\.variables\["CMAKE_C_FLAGS_INIT"\] = "-falign-functions=32 -fPIC"', "chainloaded toolchain must align C and C++ compilation consistently")
-    assert 'toolchain.cache_variables["CMAKE_CXX_FLAGS_INIT"]' not in recipe.read_text(encoding="utf-8"), \
-        "function-alignment flags must not be confined to CMakePresets.json"
     require_text(recipe, r'str\(self\.settings\.os\) != "iOS"', "staged graph must reject non-iOS hosts")
     for forbidden in ("steamworks", "discord-rpc", "openvr", "openxr", "sdl"):
         if re.search(rf'self\.requires\("{re.escape(forbidden)}/', recipe.read_text(encoding="utf-8")):
