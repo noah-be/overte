@@ -26,6 +26,15 @@ plug-ins at build time.
 **Reason:** The desktop plug-in architecture assumes shared libraries and
 runtime discovery. An iOS bundle needs a closed, signed native-code graph.
 
+The PCM and Opus codec providers implement this decision explicitly. Their
+iOS targets are static, compile with `QT_STATICPLUGIN`, and are linked into
+`Overte` with CMake `WHOLE_ARCHIVE` so linker dead stripping cannot discard the
+generated provider entry points. `IOSStaticCodecPlugins.cpp` imports both
+providers with `Q_IMPORT_PLUGIN`, and `PluginManager` enumerates
+`QPluginLoader::staticInstances()` instead of scanning the signed application
+bundle. The desktop shared-library and `Contents/PlugIns` copy paths are not
+executed on iOS.
+
 ## ADR-003: graphics selection spike
 
 **Decision:** Evaluate the existing Vulkan backend through MoltenVK first, then
