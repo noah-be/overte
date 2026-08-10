@@ -1387,7 +1387,7 @@ bool Application::shouldCaptureMouse() const {
 void Application::checkChangeCursor() {
     QMutexLocker locker(&_changeCursorLock);
     if (_cursorNeedsChanging) {
-#ifdef Q_OS_MAC
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
         auto cursorTarget = _window; // OSX doesn't seem to provide for hiding the cursor only on the GL widget
 #else
         // On windows and linux, hiding the top level cursor also means it's invisible when hovering over the

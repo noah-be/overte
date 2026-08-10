@@ -89,6 +89,9 @@ fall through to the macOS branches that launch `sysctl` or `system_profiler`.
 The two macOS native-window mouse workarounds in `Application_Events.cpp`
 (Cmd-click rewriting and right-drag focus recovery) are also explicitly
 excluded from iOS, where touch/pointer events must retain Qt's mobile semantics.
+The related macOS cursor-target workaround is desktop-only as well: it targets
+the top-level window to compensate for a GL-widget limitation, while iOS uses
+the normal primary Vulkan surface target.
 
 ## ADR-007: secret-free automation
 
