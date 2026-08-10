@@ -17,6 +17,7 @@
 #include <QDebug>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QMetaType>
 #include <QPoint>
 #include <QRect>
 #include <QSettings>
@@ -29,6 +30,18 @@ const QSettings::Format JSON_FORMAT = QSettings::registerFormat("json", readJSON
 
 QSettings::SettingsMap jsonDocumentToVariantMap(const QJsonDocument& document);
 QJsonDocument variantMapToJsonDocument(const QSettings::SettingsMap& map);
+
+namespace {
+
+int variantTypeId(const QVariant& variant) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return variant.metaType().id();
+#else
+    return variant.userType();
+#endif
+}
+
+} // namespace
 
 QString settingsFilename() {
     return QSettings().fileName();
@@ -67,7 +80,7 @@ void loadOldINIFile(QSettings& settings) {
         for (auto key : iniSettings.allKeys()) {
             auto variant = iniSettings.value(key);
 
-            if (variant.type() == QVariant::String) {
+            if (variantTypeId(variant) == QMetaType::QString) {
                 auto string = variant.toString();
                 if (string == "true") {
                     variant = true;
@@ -120,42 +133,42 @@ QJsonDocument variantMapToJsonDocument(const QSettings::SettingsMap& map) {
     for (auto it = map.cbegin(); it != map.cend(); ++it) {
         auto& key = it.key();
         auto& variant = it.value();
-        auto variantType = variant.type();
+        auto variantType = variantTypeId(variant);
 
         // Switch some types so they are readable/modifiable in the json file
-        if (variantType == QVariant(1.0f).type()) { // float
-            variantType = QVariant::Double;
+        if (variantType == QMetaType::Float) {
+            variantType = QMetaType::Double;
         }
-        if (variantType == QVariant((quint16)0).type()) { // uint16
-            variantType = QVariant::UInt;
+        if (variantType == QMetaType::UShort) {
+            variantType = QMetaType::UInt;
         }
-        if (variantType == QVariant::Url) { // QUrl
-            variantType = QVariant::String;
+        if (variantType == QMetaType::QUrl) {
+            variantType = QMetaType::QString;
         }
 
         switch (variantType) {
             // QML has problems with QVariant::Hash
-            case QVariant::Hash: {
+            case QMetaType::QVariantHash: {
                 qCritical() << "Unsupported variant type" << variant.typeName() << ";" << key << variant;
                 Q_ASSERT(false);
                 break;
             }
 
-            case QVariant::Invalid:
+            case QMetaType::UnknownType:
                 object.insert(key, QJsonValue());
                 break;
-            case QVariant::LongLong:
-            case QVariant::ULongLong:
-            case QVariant::Int:
-            case QVariant::UInt:
-            case QVariant::Bool:
-            case QVariant::Double:
-            case QVariant::Map:
-            case QVariant::List:
+            case QMetaType::LongLong:
+            case QMetaType::ULongLong:
+            case QMetaType::Int:
+            case QMetaType::UInt:
+            case QMetaType::Bool:
+            case QMetaType::Double:
+            case QMetaType::QVariantMap:
+            case QMetaType::QVariantList:
                 object.insert(key, QJsonValue::fromVariant(variant));
                 break;
 
-            case QVariant::String: {
+            case QMetaType::QString: {
                 QString result = variant.toString();
                 if (result.startsWith(QLatin1Char('@'))) {
                     result.prepend(QLatin1Char('@'));
@@ -164,7 +177,7 @@ QJsonDocument variantMapToJsonDocument(const QSettings::SettingsMap& map) {
                 break;
             }
 
-            case QVariant::ByteArray: {
+            case QMetaType::QByteArray: {
                 QByteArray a = variant.toByteArray();
                 QString result = QLatin1String("@ByteArray(");
                 int sz = a.size();
@@ -177,7 +190,7 @@ QJsonDocument variantMapToJsonDocument(const QSettings::SettingsMap& map) {
                 object.insert(key, result);
                 break;
             }
-            case QVariant::Rect: {
+            case QMetaType::QRect: {
                 QRect r = qvariant_cast<QRect>(variant);
                 QString result = QLatin1String("@Rect(");
                 result += QString::number(r.x());
@@ -191,7 +204,7 @@ QJsonDocument variantMapToJsonDocument(const QSettings::SettingsMap& map) {
                 object.insert(key, result);
                 break;
             }
-            case QVariant::Size: {
+            case QMetaType::QSize: {
                 QSize s = qvariant_cast<QSize>(variant);
                 QString result = QLatin1String("@Size(");
                 result += QString::number(s.width());
@@ -201,7 +214,7 @@ QJsonDocument variantMapToJsonDocument(const QSettings::SettingsMap& map) {
                 object.insert(key, result);
                 break;
             }
-            case QVariant::Point: {
+            case QMetaType::QPoint: {
                 QPoint p = qvariant_cast<QPoint>(variant);
                 QString result = QLatin1String("@Point(");
                 result += QString::number(p.x());
