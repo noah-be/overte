@@ -23,7 +23,7 @@
 #define qApp (static_cast<Application*>(QCoreApplication::instance()))
 
 AndroidHelper::AndroidHelper() {
-    qRegisterMetaType<QAudio::Mode>("QAudio::Mode");
+    qRegisterMetaType<HifiAudioDeviceMode>("HifiAudioDeviceMode");
 }
 
 AndroidHelper::~AndroidHelper() {

@@ -144,7 +144,14 @@ endif ()
 if (APPLE)
 
   # configure CMake to use a custom Info.plist
-  set_target_properties(${this_target} PROPERTIES MACOSX_BUNDLE_INFO_PLIST MacOSXBundleInfo.plist.in)
+  if (IOS)
+    set_target_properties(${this_target} PROPERTIES
+      MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/ios/resources/InterfaceInfo.plist.in"
+      XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE "NO"
+    )
+  else()
+    set_target_properties(${this_target} PROPERTIES MACOSX_BUNDLE_INFO_PLIST MacOSXBundleInfo.plist.in)
+  endif()
 
   set(MACOSX_BUNDLE_BUNDLE_NAME "Overte")
   if (PRODUCTION_BUILD)

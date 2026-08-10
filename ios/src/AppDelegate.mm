@@ -17,6 +17,16 @@ os_log_t lifecycleLog() {
     static os_log_t log = os_log_create("org.overte.interface", "lifecycle");
     return log;
 }
+
+bool setAudioSessionActive(bool active, AVAudioSessionSetActiveOptions options = 0) {
+    NSError* error = nil;
+    BOOL changed = [AVAudioSession.sharedInstance setActive:active withOptions:options error:&error];
+    if (!changed) {
+        os_log_error(lifecycleLog(), "Audio session %{public}s failed: %{public}@",
+                     active ? "activation" : "deactivation", error);
+    }
+    return changed;
+}
 }
 
 @interface AppDelegate ()
@@ -42,6 +52,20 @@ os_log_t lifecycleLog() {
         os_log_error(lifecycleLog(), "Audio session configuration failed: %{public}@", error);
     }
 
+    AVAudioSessionRecordPermission permission = audioSession.recordPermission;
+    if (permission == AVAudioSessionRecordPermissionUndetermined) {
+        os_log_info(lifecycleLog(), "Microphone permission request started");
+        [audioSession requestRecordPermission:^(BOOL granted) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                os_log_info(lifecycleLog(), "Microphone permission resolved: %{public}s",
+                            granted ? "granted" : "denied");
+            });
+        }];
+    } else {
+        os_log_info(lifecycleLog(), "Microphone permission at launch: %{public}s",
+                    permission == AVAudioSessionRecordPermissionGranted ? "granted" : "denied");
+    }
+
     self.audioInterruptionObserver = [NSNotificationCenter.defaultCenter
         addObserverForName:AVAudioSessionInterruptionNotification
                     object:audioSession
@@ -57,6 +81,9 @@ os_log_t lifecycleLog() {
                                  AVAudioSessionInterruptionOptionShouldResume) != 0;
             os_log_info(lifecycleLog(), "Audio interruption ended; should resume: %{public}s",
                         shouldResume ? "yes" : "no");
+            if (shouldResume) {
+                setAudioSessionActive(true);
+            }
         }
     }];
     self.audioRouteObserver = [NSNotificationCenter.defaultCenter
@@ -90,6 +117,7 @@ os_log_t lifecycleLog() {
 
 - (void)applicationDidBecomeActive:(UIApplication*)application {
     (void)application;
+    setAudioSessionActive(true);
     os_log_info(lifecycleLog(), "Application became active");
 }
 
@@ -100,6 +128,7 @@ os_log_t lifecycleLog() {
 
 - (void)applicationDidEnterBackground:(UIApplication*)application {
     (void)application;
+    setAudioSessionActive(false, AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation);
     os_log_info(lifecycleLog(), "Application entered background");
 }
 

@@ -29,7 +29,6 @@
 #include <QtCore/QVector>
 #include <QtMultimedia/QAudio>
 #include <QtMultimedia/QAudioFormat>
-#include <QtMultimedia/QAudioInput>
 #include <AbstractAudioInterface.h>
 #include <AudioEffectOptions.h>
 #include <AudioStreamStats.h>
@@ -82,8 +81,6 @@
 #define DEFAULT_AEC_ENABLED true
 #endif
 
-class QAudioInput;
-class QAudioOutput;
 class QIODevice;
 
 class Transform;
@@ -117,12 +114,16 @@ public:
         void start() { open(QIODevice::ReadOnly | QIODevice::Unbuffered); }
         qint64 readData(char* data, qint64 maxSize) override;
         qint64 writeData(const char* data, qint64 maxSize) override { return 0; }
-        int getRecentUnfulfilledReads() { int unfulfilledReads = _unfulfilledReads; _unfulfilledReads = 0; return unfulfilledReads; }
+        int getRecentUnfulfilledReads() { return _unfulfilledReads.exchange(0); }
     private:
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        void schedulePullTelemetry();
+        std::atomic<bool> _pullTelemetryPending { false };
+#endif
         LocalInjectorsStream& _localInjectorsStream;
         MixedProcessedAudioStream& _receivedAudioStream;
         AudioClient* _audio;
-        int _unfulfilledReads;
+        std::atomic<int> _unfulfilledReads;
     };
     
     void startThread();
@@ -168,15 +169,15 @@ public:
 
     bool outputLocalInjector(const AudioInjectorPointer& injector) override;
 
-    HifiAudioDeviceInfo getActiveAudioDevice(QAudio::Mode mode) const;
-    QList<HifiAudioDeviceInfo> getAudioDevices(QAudio::Mode mode) const;
+    HifiAudioDeviceInfo getActiveAudioDevice(HifiAudioDeviceMode mode) const;
+    QList<HifiAudioDeviceInfo> getAudioDevices(HifiAudioDeviceMode mode) const;
   
     void enablePeakValues(bool enable) { _enablePeakValues = enable; }
     bool peakValuesAvailable() const;
 
     static const float CALLBACK_ACCELERATOR_RATIO;
 
-    bool getNamedAudioDeviceForModeExists(QAudio::Mode mode, const QString& deviceName);
+    bool getNamedAudioDeviceForModeExists(HifiAudioDeviceMode mode, const QString& deviceName);
 
     void setRecording(bool isRecording) { _isRecording = isRecording; };
     bool getRecording() { return _isRecording; };
@@ -257,9 +258,9 @@ public slots:
     bool shouldLoopbackInjectors() override { return _shouldEchoToServer; }
 
     // calling with a null QAudioDevice will use the system default
-    bool switchAudioDevice(QAudio::Mode mode, const HifiAudioDeviceInfo& deviceInfo = HifiAudioDeviceInfo());
-    bool switchAudioDevice(QAudio::Mode mode, const QString& deviceName, bool isHmd);
-    void setHmdAudioName(QAudio::Mode mode, const QString& name);
+    bool switchAudioDevice(HifiAudioDeviceMode mode, const HifiAudioDeviceInfo& deviceInfo = HifiAudioDeviceInfo());
+    bool switchAudioDevice(HifiAudioDeviceMode mode, const QString& deviceName, bool isHmd);
+    void setHmdAudioName(HifiAudioDeviceMode mode, const QString& name);
     // Qt opensles plugin is not able to detect when the headset is plugged in
     void setHeadsetPluggedIn(bool pluggedIn);
 
@@ -296,8 +297,8 @@ signals:
 
     void changeDevice(const HifiAudioDeviceInfo& outputDeviceInfo);
 
-    void deviceChanged(QAudio::Mode mode, const HifiAudioDeviceInfo& device);
-    void devicesChanged(QAudio::Mode mode, const QList<HifiAudioDeviceInfo>& devices);
+    void deviceChanged(HifiAudioDeviceMode mode, const HifiAudioDeviceInfo& device);
+    void devicesChanged(HifiAudioDeviceMode mode, const QList<HifiAudioDeviceInfo>& devices);
     void peakValueListChanged(const QList<float> peakValueList);
 
     void receivedFirstPacket();
@@ -380,19 +381,19 @@ private:
     Gate _gate{ this };
 
     Mutex _injectorsMutex;
-    QAudioInput* _audioInput{ nullptr };
+    HifiAudioSource* _audioInput{ nullptr };
     QTimer* _dummyAudioInput{ nullptr };
     QAudioFormat _desiredInputFormat;
     QAudioFormat _inputFormat;
     QIODevice* _inputDevice{ nullptr };
     int _numInputCallbackBytes{ 0 };
-    QAudioOutput* _audioOutput{ nullptr };
+    HifiAudioSink* _audioOutput{ nullptr };
     std::atomic<bool> _audioOutputInitialized { false };
     QAudioFormat _desiredOutputFormat;
     QAudioFormat _outputFormat;
     int _outputFrameSize{ 0 };
     int _numOutputCallbackBytes{ 0 };
-    QAudioOutput* _loopbackAudioOutput{ nullptr };
+    HifiAudioSink* _loopbackAudioOutput{ nullptr };
     QIODevice* _loopbackOutputDevice{ nullptr };
     QByteArray _loopbackPendingAudio;
     AudioRingBuffer _inputRingBuffer{ 0 };
