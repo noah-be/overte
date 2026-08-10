@@ -10,7 +10,6 @@
       "files": [
         "cmake/QtCompat.cmake",
         "cmake/macros/GenerateInstallers.cmake",
-        "cmake/macros/PackageLibrariesForDeployment.cmake",
         "cmake/modules/FindQt5LinguistToolsMacros.cmake",
         "interface/CMakeLists.txt",
         "launchers/qt/CMakeLists.txt"

@@ -948,6 +948,27 @@ def test_scope_contract() -> None:
         if legacy_cmake_api in nitpick_cmake_text:
             raise AssertionError(f"nitpick retained direct Qt 5 CMake API: {legacy_cmake_api}")
 
+    qt_compat = SOURCE_ROOT / "cmake" / "QtCompat.cmake"
+    require_text(
+        qt_compat,
+        r'function\(overte_get_qt_target output_variable component\)\s+set\(_overte_qt_target "\$\{OVERTE_QT_TARGET_PREFIX\}\$\{component\}"\)',
+        "Qt imported targets must be resolved through the selected major-version prefix",
+    )
+    require_text(
+        qt_compat,
+        r'if\(NOT TARGET "\$\{_overte_qt_target\}"\)\s+message\(FATAL_ERROR',
+        "Qt target resolution must fail closed when the selected component is unavailable",
+    )
+    deploy_cmake = SOURCE_ROOT / "cmake" / "macros" / "PackageLibrariesForDeployment.cmake"
+    require_text(deploy_cmake, r'overte_get_qt_target\(Qt_Core_Target Core\)', "Windows deployment must resolve Qt Core centrally")
+    require_text(
+        deploy_cmake,
+        r'get_target_property\(Qt_Core_Location "\$\{Qt_Core_Target\}" LOCATION\)',
+        "Windows deployment must retain its Qt binary-directory lookup",
+    )
+    if "Qt5::Core" in deploy_cmake.read_text(encoding="utf-8"):
+        raise AssertionError("Windows deployment retained a direct Qt 5 imported target")
+
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(
         buffer_helpers,

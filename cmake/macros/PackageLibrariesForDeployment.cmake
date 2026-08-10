@@ -14,7 +14,8 @@ macro(PACKAGE_LIBRARIES_FOR_DEPLOYMENT)
     if (WIN32)
         set(PLUGIN_PATH "plugins")
 
-        get_target_property(Qt_Core_Location Qt5::Core LOCATION)
+        overte_get_qt_target(Qt_Core_Target Core)
+        get_target_property(Qt_Core_Location "${Qt_Core_Target}" LOCATION)
         get_filename_component(QT_BIN_DIR ${Qt_Core_Location} DIRECTORY)
         find_program(WINDEPLOYQT_COMMAND windeployqt PATHS ${QT_BIN_DIR})
 

@@ -321,6 +321,13 @@ to the original Qt 5 commands on existing desktop builds. Resource paths,
 no-compression options, generated headers, and target dependencies are
 unchanged; `tools/nitpick/CMakeLists.txt` leaves the Qt-5-CMake debt inventory.
 
+Windows Qt deployment now resolves the imported Core target through
+`overte_get_qt_target`. The central helper selects `Qt6::Core` or `Qt5::Core`
+from `OVERTE_QT_MAJOR` and fails closed if that target is unavailable. The
+existing target `LOCATION` lookup, `windeployqt` discovery and options, DLL
+fixup, and audio-plugin cleanup are unchanged, so desktop Qt 5 behavior is
+preserved while the macro no longer hard-codes a Qt major version.
+
 ## Model and texture upload audit
 
 The model-buffer conversion at the graphics/GPU boundary now tests QVariant
