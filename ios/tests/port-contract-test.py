@@ -358,6 +358,24 @@ def test_ci_contract() -> None:
     require_text(verifier, r'lipo "\$executable" -verify_arch arm64', "bundle verification must enforce arm64")
     require_text(verifier, r"QtWebEngine", "bundle verification must reject desktop WebEngine")
     require_text(verifier, r"verify-bundle-metadata\.py", "bundle metadata must be host-testable")
+
+    integrated = SOURCE_ROOT / ".github" / "workflows" / "ios-integrated.yml"
+    integrated_text = integrated.read_text(encoding="utf-8")
+    require_text(integrated, r"^\s*workflow_dispatch:", "integrated CI must be manually dispatched")
+    if re.search(r"^\s*(push|pull_request|schedule):", integrated_text, re.MULTILINE):
+        raise AssertionError("experimental integrated CI must not run automatically")
+    require_text(integrated, r"qt_cache_key:", "integrated CI must require an explicit Qt cache")
+    require_text(integrated, r"fail-on-cache-miss: true", "Qt restoration must fail closed")
+    require_text(integrated, r"runs-on: ubuntu-24\.04", "integrated CI needs Linux host contracts")
+    require_text(integrated, r"runs-on: macos-26", "integrated CI must use an Xcode 26 host")
+    require_text(integrated, r"needs: host-contracts", "macOS integration must wait for host contracts")
+    require_text(integrated, r"persist-credentials: false", "checkout credentials must not persist")
+    require_text(integrated, r"doctor --platform device --require-qt", "toolchain stage must validate Xcode and Qt")
+    require_text(integrated, r"deps --platform device --graphics-toolchain", "dependency stage must resolve the device graph")
+    require_text(integrated, r"configure --platform device --client-graph", "configure stage must select the full client graph")
+    for forbidden in ("QT_ACCOUNT", "QT_PASSWORD", "aqtinstall", "download.qt.io"):
+        if forbidden in integrated_text:
+            raise AssertionError(f"integrated CI must not invent Qt acquisition credentials: {forbidden}")
     require_text(verifier, r"default\.metallib", "bundle verification must require compiled Metal shaders")
 
     ios_cmake = IOS_ROOT / "CMakeLists.txt"

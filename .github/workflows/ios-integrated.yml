@@ -1,0 +1,93 @@
+name: iOS experimental integrated client gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      qt_cache_key:
+        description: Existing GitHub Actions cache key containing an audited Qt 6 iOS tree
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-integrated-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  host-contracts:
+    name: Host contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Run device-free contracts
+        run: ios/tests/run-tests.sh
+
+  integrated-configure:
+    name: Toolchain, dependencies and full-client configure
+    needs: host-contracts
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      OVERTE_IOS_QT_ROOT: ${{ github.workspace }}/build-ios/external/qt-ios
+    steps:
+      - name: Check out requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Fail closed without an explicit Qt cache key
+        env:
+          QT_CACHE_KEY: ${{ inputs.qt_cache_key }}
+        run: |
+          if [[ -z "$QT_CACHE_KEY" ]]; then
+            echo "qt_cache_key must name a pre-populated, licensed Qt 6 iOS cache." >&2
+            exit 1
+          fi
+
+      - name: Restore externally provisioned Qt for iOS
+        id: qt-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: build-ios/external/qt-ios
+          key: ${{ inputs.qt_cache_key }}
+          fail-on-cache-miss: true
+
+      - name: Toolchain preflight
+        run: |
+          test "${{ steps.qt-cache.outputs.cache-hit }}" = true
+          test -f "$OVERTE_IOS_QT_ROOT/lib/cmake/Qt6/Qt6Config.cmake"
+          test -x "$OVERTE_IOS_QT_ROOT/bin/qt-cmake"
+          ios/build-ios.sh doctor --platform device --require-qt
+
+      - name: Bootstrap pinned Conan tooling
+        run: ios/build-ios.sh bootstrap
+
+      - name: Resolve audited device dependencies
+        run: |
+          source build-ios/tooling-venv/bin/activate
+          ios/build-ios.sh deps --platform device --graphics-toolchain
+
+      - name: Configure experimental full client graph
+        run: |
+          source build-ios/tooling-venv/bin/activate
+          ios/build-ios.sh configure --platform device --client-graph
+
+      - name: Upload configure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ios-integrated-configure-diagnostics-${{ github.run_id }}
+          path: |
+            build-ios/device/CMakeCache.txt
+            build-ios/device/CMakeFiles/CMakeConfigureLog.yaml
+            build-ios/device/conan/graph.json
+            build-ios/device/conan/sbom.cdx.json
+          if-no-files-found: ignore
+          retention-days: 7
