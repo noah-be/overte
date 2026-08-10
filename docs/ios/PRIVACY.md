@@ -34,3 +34,23 @@ not send user data. The integrated client's actual account, voice, telemetry,
 and crash-report behavior must be reviewed against both the runtime network
 trace and App Store privacy disclosures before that array can be considered
 final. Enabling telemetry or crash uploads is not implied by the port.
+
+## Transport, links, and capabilities
+
+The integrated client keeps ATS enabled. Its only ATS relaxation is
+`NSAllowsLocalNetworking`, for user-selected services on the local network;
+there is no arbitrary-load switch and no domain exception list. The built-in
+metaverse directory and default asset endpoints use HTTPS. Domain, audio, and
+entity traffic over UDP is outside ATS, but remains subject to the separately
+documented local-network permission gate.
+
+The full-client bundle registers only `hifi` and `hifiapp`, matching
+`NetworkingConstants.h` and the existing URL dispatch path. HTTP and HTTPS are
+ordinary outbound links and are not claimed as application-owned schemes. The
+bootstrap additionally accepts its explicitly implemented `overte` alias.
+
+Both targets use the audited empty `Overte.entitlements` allowlist. Microphone
+and local-network prompts are Info.plist usage declarations, not signing
+entitlements. A capability may only be added after a source-level requirement
+and provisioning impact have been reviewed. These are build-time contracts;
+device behavior still requires the documented iPad validation run.

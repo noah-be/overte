@@ -157,6 +157,7 @@ if (APPLE)
     set_target_properties(${this_target} PROPERTIES
       MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/ios/resources/InterfaceInfo.plist.in"
       XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE "NO"
+      XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS "${CMAKE_SOURCE_DIR}/ios/resources/Overte.entitlements"
     )
   else()
     set_target_properties(${this_target} PROPERTIES MACOSX_BUNDLE_INFO_PLIST MacOSXBundleInfo.plist.in)
