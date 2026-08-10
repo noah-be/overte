@@ -22,6 +22,7 @@
 #include <QFile>
 #include <QDateTime>
 #include <QSaveFile>
+#include <QStandardPaths>
 #include <QtGui/QClipboard>
 #include <QtNetwork/QLocalSocket>
 #include <QtNetwork/QLocalServer>
@@ -31,6 +32,7 @@
 #include <QWidget>
 #ifdef Q_OS_ANDROID
 #include <QLoggingCategory>
+#include <malloc.h>
 #include <sys/system_properties.h>
 #endif
 
@@ -200,23 +202,26 @@ void messageHandler(QtMsgType type, const QMessageLogContext& context, const QSt
 
     if (!logMessage.isEmpty()) {
 #ifdef Q_OS_ANDROID
-        const char * local=logMessage.toStdString().c_str();
+        // Keep the encoded storage alive for the complete Android logging call.
+        // Taking c_str() from a temporary std::string left a dangling pointer and
+        // produced one empty "Interface" warning for almost every rendered frame.
+        const QByteArray local = logMessage.toUtf8();
         switch (type) {
             case QtDebugMsg:
-                __android_log_write(ANDROID_LOG_DEBUG,"Interface",local);
+                __android_log_write(ANDROID_LOG_DEBUG,"Interface",local.constData());
                 break;
             case QtInfoMsg:
-                __android_log_write(ANDROID_LOG_INFO,"Interface",local);
+                __android_log_write(ANDROID_LOG_INFO,"Interface",local.constData());
                 break;
             case QtWarningMsg:
-                __android_log_write(ANDROID_LOG_WARN,"Interface",local);
+                __android_log_write(ANDROID_LOG_WARN,"Interface",local.constData());
                 break;
             case QtCriticalMsg:
-                __android_log_write(ANDROID_LOG_ERROR,"Interface",local);
+                __android_log_write(ANDROID_LOG_ERROR,"Interface",local.constData());
                 break;
             case QtFatalMsg:
             default:
-                __android_log_write(ANDROID_LOG_FATAL,"Interface",local);
+                __android_log_write(ANDROID_LOG_FATAL,"Interface",local.constData());
                 abort();
         }
 #else
@@ -270,6 +275,10 @@ Application::Application(
     _cameraClippingEnabled("cameraClippingEnabled", false)
 {
 #ifdef Q_OS_ANDROID
+    // Queued networking signals use the standard-library spelling. Qt knows
+    // quint64, but requires this exact name when resolving uint64_t signals.
+    qRegisterMetaType<uint64_t>("uint64_t");
+
     // Qt's generic Unix CA search paths do not include Android's system trust
     // store. Import it before AccountManager starts HTTPS requests.
     auto sslConfiguration = QSslConfiguration::defaultConfiguration();
@@ -1830,12 +1839,12 @@ void Application::nodeKilled(SharedNodePointer node) {
         QMetaObject::invokeMethod(DependencyManager::get<AudioClient>().data(), "audioMixerKilled");
     } else if (node->getType() == NodeType::EntityServer) {
         // we lost an entity server, clear all of the domain octree details
-#if defined(ANDROID_APP_PICO_INTERFACE)
+#if defined(ANDROID_APP_PICO_INTERFACE) || defined(ANDROID_APP_PHONE_INTERFACE)
         // Once the player is already in a playable world, an entity-server reconnect is not a
         // domain change. Keep the current scene and controls active while the server reconnects;
         // clearing the octree here re-entered the full loading interstitial a few seconds later.
         if (_physicsEnabled) {
-            qCWarning(interfaceapp) << "Pico entity server disconnected; keeping playable scene during reconnect";
+            qCWarning(interfaceapp) << "Android entity server disconnected; keeping playable scene during reconnect";
             return;
         }
 #endif
@@ -2314,6 +2323,8 @@ void Application::update(float deltaTime) {
     static quint64 picoAvatarSimulationSamples { 0 };
     static quint64 picoLocalAvatarTemplateRefreshes { 0 };
     static quint64 lastTestModePropertyCheck { 0 };
+    static QString lastMallocTrimNonce;
+    static QString lastMallocDecayValue;
     if (picoUpdateStart - lastTestModePropertyCheck >= USECS_PER_SECOND) {
         lastTestModePropertyCheck = picoUpdateStart;
         char testModeValue[PROP_VALUE_MAX] {};
@@ -2322,6 +2333,30 @@ void Application::update(float deltaTime) {
             : QString();
         picoTestMode = requestedTestMode == "1" || requestedTestMode == "on" ||
             requestedTestMode == "true" || requestedTestMode == "enabled";
+        if (picoTestMode) {
+            char mallocDecayValue[PROP_VALUE_MAX] {};
+            const QString requestedMallocDecay = __system_property_get("debug.overte.malloc_decay", mallocDecayValue) > 0
+                ? QString::fromLatin1(mallocDecayValue).trimmed()
+                : QString();
+            if (!requestedMallocDecay.isEmpty() && requestedMallocDecay != lastMallocDecayValue) {
+                lastMallocDecayValue = requestedMallocDecay;
+                bool validDecay { false };
+                const int decay = requestedMallocDecay.toInt(&validDecay);
+                const int applied = validDecay ? mallopt(M_DECAY_TIME, decay) : 0;
+                qCWarning(interfaceapp) << "PHONE_PERF malloc_decay"
+                    << "value" << requestedMallocDecay << "applied" << applied;
+            }
+            char mallocTrimValue[PROP_VALUE_MAX] {};
+            const QString mallocTrimNonce = __system_property_get("debug.overte.malloc_trim", mallocTrimValue) > 0
+                ? QString::fromLatin1(mallocTrimValue).trimmed()
+                : QString();
+            if (!mallocTrimNonce.isEmpty() && mallocTrimNonce != lastMallocTrimNonce) {
+                lastMallocTrimNonce = mallocTrimNonce;
+                const int released = mallopt(M_PURGE, 0);
+                qCWarning(interfaceapp) << "PHONE_PERF malloc_purge"
+                    << "nonce" << mallocTrimNonce << "released" << released;
+            }
+        }
         if (!picoTestMode) {
             picoAvatarSimulationMsSum = 0.0;
             picoAvatarProcessingMsSum = 0.0;
@@ -2384,15 +2419,28 @@ void Application::update(float deltaTime) {
         if (picoTestMode && picoUpdateStart - lastWorldStatusWrite >= USECS_PER_SECOND) {
             lastWorldStatusWrite = picoUpdateStart;
             const glm::vec3 worldPosition = getMyAvatar()->getWorldPosition();
-            const QString worldStatus = QStringLiteral("%1|%2|%3|%4|%5|%6|%7")
+            const auto nodeList = DependencyManager::get<NodeList>();
+            const auto entityServer = nodeList->soloNodeOfType(NodeType::EntityServer);
+            const auto assetServer = nodeList->soloNodeOfType(NodeType::AssetServer);
+            const auto entityTree = getEntities()->getTree();
+            const QString worldStatus = QStringLiteral("%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11|%12|%13|%14|%15")
                 .arg(QDateTime::currentSecsSinceEpoch())
                 .arg(addressManager->isConnected() ? 1 : 0)
                 .arg(addressManager->getPlaceName().replace('|', '_'))
                 .arg(addressManager->getDomainID().replace('|', '_'))
                 .arg(worldPosition.x, 0, 'f', 3)
                 .arg(worldPosition.y, 0, 'f', 3)
-                .arg(worldPosition.z, 0, 'f', 3);
-            QSaveFile worldStatusFile("/data/user/0/org.overte.pico/cache/world-status");
+                .arg(worldPosition.z, 0, 'f', 3)
+                .arg(entityServer ? 1 : 0)
+                .arg(entityServer ? entityServer->getPingMs() : -1)
+                .arg(entityServer ? entityServer->getInboundKbps() : 0.0f, 0, 'f', 3)
+                .arg(entityTree ? entityTree->getOctreeElementsCount() : 0)
+                .arg(assetServer ? 1 : 0)
+                .arg(ResourceCache::getLoadingRequests().size())
+                .arg(ResourceCache::getPendingRequestCount())
+                .arg(gpu::Context::getUsedGPUMemSize());
+            QSaveFile worldStatusFile(QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation))
+                .filePath(QStringLiteral("world-status")));
             if (worldStatusFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
                 worldStatusFile.write(worldStatus.toUtf8());
                 worldStatusFile.commit();

@@ -15,6 +15,11 @@ nonqt_output="$script_dir/conan/phone-nonqt-16k-debug"
 ready_marker="${PHONE_PREBUILT_READY_MARKER:-$nonqt_output/.phone-16k-dependencies.ready}"
 finalizer="${PHONE_PREBUILT_FINALIZER:-$script_dir/finalize-phone-16k-deps.sh}"
 qt_package='qt/5.15.18-2026.01.04@overte/stable#d59ba2a04fe9ede772b05b0bb0865eb0:ecaa689b690ceb46b802551d031b4fd0b54cf970'
+# The v2 Phone delta accidentally includes a newer libnode recipe revision
+# containing only the build-machine package. Remove that revision after restore
+# so Conan selects the complete Android recipe supplied by the shared Pico
+# artifact downloaded immediately beforehand.
+incomplete_v2_libnode_recipe='libnode/22.22.3@overte/stable#261cd4344c058c7f08a0fb892519880a'
 
 fail() {
     echo "error: $*" >&2
@@ -74,6 +79,7 @@ download_artifact() {
     (cd "$download_dir" && sha256sum --check "$manifest") \
         || fail "Phone prebuilt dependency checksum does not match"
     "$conan_bin" cache restore "$download_dir/$asset"
+    "$conan_bin" remove "$incomplete_v2_libnode_recipe" --confirm >/dev/null
     generate_outputs "$conan_bin"
     echo "Restored and verified Phone 16 KiB dependencies"
     rm -rf -- "$download_dir"

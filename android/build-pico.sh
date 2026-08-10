@@ -664,6 +664,14 @@ download_prebuilt_dependencies() {
     rm -rf -- "$download_dir"
     trap - RETURN
 
+    # Phone setup restores a complete, separately verified 16 KiB Conan graph
+    # next. It only needs the shared cache and runtime payload from this step;
+    # resolving the Pico graph here can otherwise rebuild Node/V8 needlessly.
+    if [[ "${PICO_PREBUILT_RESTORE_ONLY:-0}" == 1 ]]; then
+        echo "Skipped Pico dependency resolution after artifact restore"
+        return
+    fi
+
     if [[ -n "${PICO_QT_FALLBACK_PATCH:-}" ]]; then
         qt_source_dir="$(run_conan cache path "$qt_reference" --folder=source)"
         [[ -d "$qt_source_dir/qt5" ]] \

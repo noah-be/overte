@@ -13,7 +13,8 @@ for helper in build-pico.sh phone-prebuilt-16k-deps.sh build-phone-qt-16k.sh \
 #!/usr/bin/env bash
 if [[ 'HELPER' == build-pico.sh && "$*" == 'deps --download' ]]; then
     [[ "${CONAN_HOME:-}" == "${PHONE_EXPECT_SHARED_CONAN_HOME:-}" ]]
-    [[ "${PICO_QT_FALLBACK_PATCH:-}" == "$PHONE_EXPECT_QT_FALLBACK_PATCH" ]]
+    [[ "${PICO_PREBUILT_RESTORE_ONLY:-}" == 1 ]]
+    [[ -z "${PICO_QT_FALLBACK_PATCH:-}" ]]
 fi
 if [[ 'HELPER' == build-pico.sh && "$*" == deps ]]; then
     [[ -z "${PICO_QT_FALLBACK_PATCH:-}" ]]
@@ -28,7 +29,6 @@ chmod +x "$fixture/build-phone.sh"
 log="$fixture/calls.log"
 CONAN_HOME="$fixture/phone-conan-home" PHONE_SHARED_CONAN_HOME="$fixture/shared-conan-home" \
     PHONE_EXPECT_SHARED_CONAN_HOME="$fixture/shared-conan-home" \
-    PHONE_EXPECT_QT_FALLBACK_PATCH="$fixture/conan/patches/qt-phone-16k-pages.patch" \
     PHONE_PARITY_LOG="$log" "$fixture/build-phone.sh" deps --download
 mapfile -t calls < "$log"
 [[ "${calls[0]}" == 'build-pico.sh <deps --download>' ]]
