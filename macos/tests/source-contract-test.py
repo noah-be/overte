@@ -49,6 +49,19 @@ jsapi_cmake = (ROOT / "plugins/JSAPIExample/CMakeLists.txt").read_text(encoding=
 if "overte_find_qt(COMPONENTS Core Core5Compat QUIET REQUIRED)" not in jsapi_cmake:
     raise SystemExit("JSAPIExample must retain a real Qt 5 component after compatibility filtering")
 
+plugins_cmake = (ROOT / "plugins/CMakeLists.txt").read_text(encoding="utf-8")
+openxr_entry = 'set(DIR "openxr")'
+openxr_position = plugins_cmake.find(openxr_entry)
+openxr_guard = plugins_cmake.rfind("if (NOT APPLE)", 0, openxr_position)
+openxr_guard_end = plugins_cmake.find("endif()", openxr_position)
+if (
+    openxr_position < 0
+    or openxr_guard < 0
+    or openxr_guard_end < 0
+    or plugins_cmake.find("endif()", openxr_guard, openxr_position) >= 0
+):
+    raise SystemExit("OpenXR must stay outside the macOS client build graph")
+
 qt_compat = (ROOT / "cmake/QtCompat.cmake").read_text(encoding="utf-8")
 if "macro(overte_find_qt)" not in qt_compat or "function(overte_find_qt)" in qt_compat:
     raise SystemExit("Qt discovery must preserve Qt 5 tool variables in the caller scope")

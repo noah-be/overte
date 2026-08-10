@@ -59,21 +59,45 @@ jobs:
           path: |
             ${{ env.CONAN_HOME }}/p
             ${{ env.CONAN_HOME }}/sources
-          key: macos-x86_64-qt-aqt-${{ hashFiles('conanfile.py', 'macos/conan/**') }}
+          key: macos-complete-x86_64-qt-aqt-${{ hashFiles('conanfile.py', 'macos/conan/**') }}
+          # The final entry is a one-way migration seed; new runs never save it.
           restore-keys: |
+            macos-complete-x86_64-qt-aqt-
+            macos-partial-x86_64-qt-aqt-${{ hashFiles('conanfile.py', 'macos/conan/**') }}-
+            macos-partial-x86_64-qt-aqt-
             macos-x86_64-qt-aqt-
 
       - name: Resolve dependencies
+        id: resolve-dependencies
+        continue-on-error: true
         run: macos/build-macos.sh deps
 
-      - name: Save partial or complete Conan cache
-        if: always() && steps.conan-cache.outputs.cache-hit != 'true'
+      - name: Save complete Conan cache
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.resolve-dependencies.outcome == 'success' &&
+              steps.conan-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v5
         with:
           path: |
             ${{ env.CONAN_HOME }}/p
             ${{ env.CONAN_HOME }}/sources
-          key: macos-x86_64-qt-aqt-${{ hashFiles('conanfile.py', 'macos/conan/**') }}-${{ github.run_id }}
+          key: macos-complete-x86_64-qt-aqt-${{ hashFiles('conanfile.py', 'macos/conan/**') }}
+
+      - name: Save partial Conan cache after dependency failure
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.resolve-dependencies.outcome == 'failure' }}
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            ${{ env.CONAN_HOME }}/p
+            ${{ env.CONAN_HOME }}/sources
+          key: macos-partial-x86_64-qt-aqt-${{ hashFiles('conanfile.py', 'macos/conan/**') }}-${{ github.run_id }}
+
+      - name: Require resolved dependencies
+        if: ${{ always() && steps.resolve-dependencies.outcome == 'failure' }}
+        run: exit 1
 
       - name: Configure and build client
         run: macos/build-macos.sh build

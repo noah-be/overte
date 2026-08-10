@@ -51,6 +51,58 @@ class GeneralBuildWorkflowContracts(unittest.TestCase):
                 self.assertIn("'!**/*.md'", workflow.read_text(encoding="utf-8"))
 
 
+class MacOSWorkflowContracts(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.source = MACOS_WORKFLOW.read_text(encoding="utf-8")
+
+    def test_complete_conan_caches_are_restored_before_partial_caches(self):
+        complete = "macos-complete-x86_64-qt-aqt-"
+        partial = "macos-partial-x86_64-qt-aqt-"
+        legacy = "macos-x86_64-qt-aqt-"
+        restore = self.source.split("uses: actions/cache/restore@v5", 1)[1].split(
+            "- name: Resolve dependencies", 1
+        )[0]
+        self.assertIn(f"key: {complete}", restore)
+        self.assertIn(complete, restore)
+        self.assertIn(partial, restore)
+        self.assertIn(legacy, restore)
+        self.assertLess(restore.index(complete), restore.index(partial))
+        self.assertLess(restore.index(partial), restore.index(legacy))
+
+    def test_cancelled_runs_never_save_conan_caches(self):
+        complete_save = self.source.split("- name: Save complete Conan cache", 1)[1].split(
+            "- name: Save partial Conan cache", 1
+        )[0]
+        partial_save = self.source.split(
+            "- name: Save partial Conan cache after dependency failure", 1
+        )[1].split("- name: Require resolved dependencies", 1)[0]
+        self.assertIn("!cancelled()", complete_save)
+        self.assertIn("!cancelled()", partial_save)
+
+    def test_cache_kind_matches_dependency_outcome(self):
+        self.assertIn("id: resolve-dependencies", self.source)
+        self.assertIn("continue-on-error: true", self.source)
+        complete_save = self.source.split("- name: Save complete Conan cache", 1)[1].split(
+            "- name: Save partial Conan cache", 1
+        )[0]
+        partial_save = self.source.split(
+            "- name: Save partial Conan cache after dependency failure", 1
+        )[1].split("- name: Require resolved dependencies", 1)[0]
+        self.assertIn("steps.resolve-dependencies.outcome == 'success'", complete_save)
+        self.assertIn("macos-complete-x86_64-qt-aqt-", complete_save)
+        self.assertIn("steps.resolve-dependencies.outcome == 'failure'", partial_save)
+        self.assertIn("macos-partial-x86_64-qt-aqt-", partial_save)
+        self.assertIn("${{ github.run_id }}", partial_save)
+
+    def test_dependency_failure_is_propagated_after_partial_cache_save(self):
+        failure_gate = self.source.split("- name: Require resolved dependencies", 1)[1].split(
+            "- name: Configure and build client", 1
+        )[0]
+        self.assertIn("steps.resolve-dependencies.outcome == 'failure'", failure_gate)
+        self.assertIn("run: exit 1", failure_gate)
+
+
 class PicoWorkflowContracts(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

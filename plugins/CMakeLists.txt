@@ -19,8 +19,13 @@ if (OVERTE_BUILD_CLIENT AND NOT ANDROID AND NOT IOS)
     add_subdirectory(${DIR})
   endif()
 
-  set(DIR "openxr")
-  add_subdirectory(${DIR})
+  # The OpenXR display plugin only implements EGL/GLX and WGL graphics
+  # bindings. OpenXR has no matching native macOS OpenGL binding, so do not
+  # add an unbuildable plugin to Apple desktop clients.
+  if (NOT APPLE)
+    set(DIR "openxr")
+    add_subdirectory(${DIR})
+  endif()
 
   set(DIR "hifiSdl2")
   add_subdirectory(${DIR})
