@@ -22,6 +22,11 @@ macro(TARGET_V8)
                 "iOS scripting requires an audited static non-JIT V8 package. "
                 "Set OVERTE_IOS_V8_ROOT; see docs/ios/SCRIPTING.md.")
         endif()
+        if(NOT OVERTE_IOS_V8_LIBRARY MATCHES "\\.a$")
+            message(FATAL_ERROR
+                "iOS scripting must link a static V8/libnode archive; found "
+                "${OVERTE_IOS_V8_LIBRARY}")
+        endif()
         target_compile_definitions(${TARGET_NAME} PRIVATE OVERTE_V8_JITLESS=1)
         target_include_directories(${TARGET_NAME} SYSTEM PRIVATE
             "${OVERTE_IOS_V8_INCLUDE_DIR}")

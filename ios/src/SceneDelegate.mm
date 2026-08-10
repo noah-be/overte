@@ -9,6 +9,9 @@
 
 #import "BootstrapViewController.h"
 
+#include "PendingDeepLinkStore.h"
+#include "LifecycleStateMachine.h"
+
 NSNotificationName const OverteOpenURLNotification = @"org.overte.interface.open-url";
 
 namespace {
@@ -18,19 +21,23 @@ os_log_t sceneLog() {
 }
 
 void routeURLContexts(NSSet<UIOpenURLContext*>* URLContexts) {
-    NSSet<NSString*>* allowedSchemes = [NSSet setWithObjects:@"overte", @"hifi", nil];
     for (UIOpenURLContext* context in URLContexts) {
         NSURL* url = context.URL;
         NSString* scheme = url.scheme.lowercaseString;
-        if (url != nil && [allowedSchemes containsObject:scheme]) {
+        const char* encodedURL = url.absoluteString.UTF8String;
+        auto result = encodedURL != nullptr
+            ? overte::ios::PendingDeepLinkStore::instance().enqueue(encodedURL)
+            : overte::ios::DeepLinkEnqueueResult::Invalid;
+        if (result == overte::ios::DeepLinkEnqueueResult::Accepted) {
             // Do not log the complete URL; locations can contain sensitive
-            // path and query data. The integrated client consumes the object
-            // through the notification on its application thread.
+            // path and query data. The notification is only a wake-up edge;
+            // the integrated client drains PendingDeepLinkStore exactly once.
             os_log_info(sceneLog(), "Accepted deep link with scheme %{public}@", scheme);
-            [NSNotificationCenter.defaultCenter postNotificationName:OverteOpenURLNotification
-                                                               object:url];
+            [NSNotificationCenter.defaultCenter postNotificationName:OverteOpenURLNotification object:nil];
+        } else if (result == overte::ios::DeepLinkEnqueueResult::Duplicate) {
+            os_log_info(sceneLog(), "Ignored duplicate deep link with scheme %{public}@", scheme);
         } else {
-            os_log_error(sceneLog(), "Rejected unsupported deep-link scheme");
+            os_log_error(sceneLog(), "Rejected invalid, unsupported, or excessive deep link");
         }
     }
 }
@@ -56,21 +63,29 @@ void routeURLContexts(NSSet<UIOpenURLContext*>* URLContexts) {
 
 - (void)sceneDidBecomeActive:(UIScene*)scene {
     (void)scene;
+    overte::ios::LifecycleStateMachine::instance().apply(
+        overte::ios::LifecycleEvent::DidBecomeActive);
     os_log_info(sceneLog(), "Scene became active");
 }
 
 - (void)sceneWillResignActive:(UIScene*)scene {
     (void)scene;
+    overte::ios::LifecycleStateMachine::instance().apply(
+        overte::ios::LifecycleEvent::WillResignActive);
     os_log_info(sceneLog(), "Scene will resign active");
 }
 
 - (void)sceneDidEnterBackground:(UIScene*)scene {
     (void)scene;
+    overte::ios::LifecycleStateMachine::instance().apply(
+        overte::ios::LifecycleEvent::DidEnterBackground);
     os_log_info(sceneLog(), "Scene entered background");
 }
 
 - (void)sceneWillEnterForeground:(UIScene*)scene {
     (void)scene;
+    overte::ios::LifecycleStateMachine::instance().apply(
+        overte::ios::LifecycleEvent::WillEnterForeground);
     os_log_info(sceneLog(), "Scene will enter foreground");
 }
 

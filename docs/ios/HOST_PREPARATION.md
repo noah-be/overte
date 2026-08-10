@@ -32,6 +32,12 @@ physical hardware. The authoritative gate inventory is
   screenshots and console logs; and
 - signing, privacy, rendering and device acceptance handoff gates.
 
+The extended pass also adds a regression-checked full-client compatibility-debt
+inventory, deterministic CycloneDX SBOM generation, portable lifecycle and
+bounded deep-link state machines, accessibility/iPad acceptance probes, static
+V8 and MoltenVK slice checks, and the first-Xcode-run/review handoff in
+`XCODE_FIRST_RUN.md`, `COMPLIANCE.md`, and `REVIEW_CHECKLIST.md`.
+
 Run every Linux-verifiable preparation check with:
 
 ```bash

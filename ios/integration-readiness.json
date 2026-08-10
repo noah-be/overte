@@ -12,6 +12,24 @@
       "remainingAction": "none"
     },
     {
+      "id": "full-client-compatibility-inventory",
+      "area": "build-system",
+      "status": "complete",
+      "requiresMac": false,
+      "requiresDevice": false,
+      "evidence": ["ios/compatibility-debt.json", "ios/tools/audit-compatibility-debt.py"],
+      "remainingAction": "none"
+    },
+    {
+      "id": "dependency-sbom",
+      "area": "dependencies",
+      "status": "complete",
+      "requiresMac": false,
+      "requiresDevice": false,
+      "evidence": ["ios/tools/generate-sbom.py", "docs/ios/COMPLIANCE.md"],
+      "remainingAction": "none"
+    },
+    {
       "id": "qt6-client-migration",
       "area": "shared-client",
       "status": "external-validation",

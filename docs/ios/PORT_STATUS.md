@@ -29,6 +29,12 @@ bundle metadata validation, cold-start deep-link routing, Linux CI gating,
 simulator failure diagnostics, and an offline-verifiable device evidence
 format. See `HOST_PREPARATION.md` and `ios/integration-readiness.json`.
 
+The third pass inventories remaining Qt 5, removed Qt 6 audio, Core5Compat,
+WebEngine, desktop-framework, and dynamic-plugin debt; generates a deterministic
+CycloneDX SBOM; exercises lossless deep-link and lifecycle state machines on the
+host; adds accessibility/iPad acceptance cases; and documents the first Xcode
+run with machine-readable failure phases.
+
 An isolated Conan recipe resolution on Linux produced a 25-reference arm64
 simulator graph after replacing the staged OpenSSL 1.1 dependency with 3.5.7
 and moving legacy QuaZIP 1.4 behind the Qt 6 integration gate. The graph audit

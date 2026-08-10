@@ -16,9 +16,13 @@
     { "id": "voice-interruption-recovery", "category": "audio", "deviceOnly": true },
     { "id": "safe-area-all-orientations", "category": "layout", "deviceOnly": true },
     { "id": "ipad-resize", "category": "layout", "deviceOnly": true },
+    { "id": "ipad-split-view-resize", "category": "layout", "deviceOnly": true },
+    { "id": "voiceover-navigation", "category": "accessibility", "deviceOnly": true },
+    { "id": "dynamic-type-xxxl", "category": "accessibility", "deviceOnly": true },
+    { "id": "reduce-motion", "category": "accessibility", "deviceOnly": true },
+    { "id": "ipad-pointer-hover", "category": "accessibility", "deviceOnly": true },
     { "id": "thermal-memory-budget", "category": "performance", "deviceOnly": true },
     { "id": "jitless-script-suite", "category": "scripting", "deviceOnly": true },
     { "id": "privacy-permission-review", "category": "privacy", "deviceOnly": true }
   ]
 }
-

@@ -69,17 +69,58 @@ def main() -> None:
         framework.rmdir()
         framework.parent.rmdir()
 
-        with (app / "Info.plist").open("rb") as stream:
-            wrong_target = plistlib.load(stream)
-        wrong_target["MinimumOSVersion"] = "18.0"
-        with (app / "Info.plist").open("wb") as stream:
-            plistlib.dump(wrong_target, stream)
+        metadata_cases = (
+            ("MinimumOSVersion", "18.0", "deployment target"),
+            ("CFBundleExecutable", "../unsafe", "unsafe"),
+            ("UIDeviceFamily", [1], "iPhone and iPad"),
+            ("DTPlatformName", "iphoneos", "DTPlatformName"),
+        )
+        for key, value, expected in metadata_cases:
+            write_info(app / "Info.plist")
+            with (app / "Info.plist").open("rb") as stream:
+                payload = plistlib.load(stream)
+            payload[key] = value
+            with (app / "Info.plist").open("wb") as stream:
+                plistlib.dump(payload, stream)
+            try:
+                validator.validate_bundle(app, "org.overte.interface.dev", "iphonesimulator", "17.0")
+            except ValueError as error:
+                assert expected in str(error)
+            else:
+                raise AssertionError(f"unsafe metadata was accepted: {key}")
+
+        write_info(app / "Info.plist")
+        (app / "Assets.car").unlink()
         try:
             validator.validate_bundle(app, "org.overte.interface.dev", "iphonesimulator", "17.0")
         except ValueError as error:
-            assert "deployment target" in str(error)
+            assert "asset catalog" in str(error)
         else:
-            raise AssertionError("unexpected deployment target was accepted")
+            raise AssertionError("bundle without compiled assets was accepted")
+        (app / "Assets.car").write_bytes(b"compiled-assets-fixture")
+
+        forbidden_dylib = app / "libInjected.dylib"
+        forbidden_dylib.touch()
+        try:
+            validator.validate_bundle(app, "org.overte.interface.dev", "iphonesimulator", "17.0")
+        except ValueError as error:
+            assert "forbidden native payloads" in str(error)
+        else:
+            raise AssertionError("dynamic library payload was accepted")
+        forbidden_dylib.unlink()
+
+        privacy_path = app / "PrivacyInfo.xcprivacy"
+        with privacy_path.open("rb") as stream:
+            privacy = plistlib.load(stream)
+        privacy["NSPrivacyTracking"] = True
+        with privacy_path.open("wb") as stream:
+            plistlib.dump(privacy, stream)
+        try:
+            validator.validate_bundle(app, "org.overte.interface.dev", "iphonesimulator", "17.0")
+        except ValueError as error:
+            assert "no tracking" in str(error)
+        else:
+            raise AssertionError("tracking-enabled privacy manifest was accepted")
 
     print("PASS iOS bundle metadata tests")
 

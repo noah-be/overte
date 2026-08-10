@@ -30,6 +30,10 @@
     self.metalView.translatesAutoresizingMaskIntoConstraints = NO;
     self.metalView.delegate = self;
     self.metalView.preferredFramesPerSecond = 60;
+    self.metalView.accessibilityIdentifier = @"overte.bootstrap.metal-view";
+    self.metalView.isAccessibilityElement = YES;
+    self.metalView.accessibilityLabel = @"Overte three dimensional view";
+    self.metalView.accessibilityHint = @"Use touch or pointer input to inspect the bootstrap scene.";
     self.metalView.colorPixelFormat = MTLPixelFormatBGRA8Unorm_sRGB;
     self.metalView.clearColor = MTLClearColorMake(0.015, 0.035, 0.075, 1.0);
     self.commandQueue = [device newCommandQueue];
@@ -54,6 +58,7 @@
     self.statusLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleTitle2];
     self.statusLabel.adjustsFontForContentSizeCategory = YES;
     self.statusLabel.accessibilityIdentifier = @"overte.bootstrap.status";
+    self.statusLabel.accessibilityTraits = UIAccessibilityTraitHeader;
     self.statusLabel.text = self.pipelineState
         ? @"Overte iOS Bootstrap\nMetal pipeline ready"
         : [NSString stringWithFormat:@"Overte iOS Bootstrap\nMetal unavailable: %@",
@@ -67,6 +72,7 @@
     self.touchStatusLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
     self.touchStatusLabel.adjustsFontForContentSizeCategory = YES;
     self.touchStatusLabel.accessibilityIdentifier = @"overte.bootstrap.touch-status";
+    self.touchStatusLabel.accessibilityLabel = @"Input status";
     self.touchStatusLabel.text = UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad
         ? @"iPad layout · drag to validate touch input"
         : @"iPhone layout · drag to validate touch input";
@@ -90,6 +96,18 @@
     UITapGestureRecognizer* tap = [[UITapGestureRecognizer alloc]
         initWithTarget:self action:@selector(handleTap:)];
     [self.metalView addGestureRecognizer:tap];
+    if (@available(iOS 13.0, *)) {
+        UIHoverGestureRecognizer* hover = [[UIHoverGestureRecognizer alloc]
+            initWithTarget:self action:@selector(handleHover:)];
+        [self.metalView addGestureRecognizer:hover];
+    }
+
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+           selector:@selector(accessibilitySettingsDidChange:)
+               name:UIAccessibilityReduceMotionStatusDidChangeNotification
+             object:nil];
+    [self updateAccessibilitySettings];
 
     UILayoutGuide* safeArea = self.view.safeAreaLayoutGuide;
     [NSLayoutConstraint activateConstraints:@[
@@ -109,6 +127,7 @@
 }
 
 - (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
     [self.platformProbe stop];
 }
 
@@ -118,12 +137,46 @@
     self.touchStatusLabel.text = [NSString stringWithFormat:
         @"Touch pan Δ %.0f, %.0f · velocity %.0f, %.0f",
         translation.x, translation.y, velocity.x, velocity.y];
+    if (gesture.state == UIGestureRecognizerStateEnded) {
+        UIAccessibilityPostNotification(UIAccessibilityAnnouncementNotification,
+                                        self.touchStatusLabel.text);
+    }
 }
 
 - (void)handleTap:(UITapGestureRecognizer*)gesture {
     CGPoint location = [gesture locationInView:self.metalView];
     self.touchStatusLabel.text = [NSString stringWithFormat:
         @"Touch tap %.0f, %.0f", location.x, location.y];
+    UIAccessibilityPostNotification(UIAccessibilityAnnouncementNotification,
+                                    self.touchStatusLabel.text);
+}
+
+- (void)handleHover:(UIHoverGestureRecognizer*)gesture API_AVAILABLE(ios(13.0)) {
+    CGPoint location = [gesture locationInView:self.metalView];
+    self.touchStatusLabel.text = [NSString stringWithFormat:
+        @"Pointer hover %.0f, %.0f", location.x, location.y];
+}
+
+- (void)accessibilitySettingsDidChange:(NSNotification*)notification {
+    (void)notification;
+    [self updateAccessibilitySettings];
+}
+
+- (void)updateAccessibilitySettings {
+    self.metalView.preferredFramesPerSecond = UIAccessibilityIsReduceMotionEnabled() ? 30 : 60;
+    self.view.accessibilityIdentifier = UIAccessibilityIsReduceMotionEnabled()
+        ? @"overte.bootstrap.reduce-motion"
+        : @"overte.bootstrap.standard-motion";
+}
+
+- (void)viewWillTransitionToSize:(CGSize)size
+       withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
+    [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
+    [coordinator animateAlongsideTransition:nil completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
+        (void)context;
+        self.touchStatusLabel.accessibilityValue = [NSString stringWithFormat:
+            @"Viewport %.0f by %.0f points", size.width, size.height];
+    }];
 }
 
 - (void)mtkView:(MTKView*)view drawableSizeWillChange:(CGSize)size {

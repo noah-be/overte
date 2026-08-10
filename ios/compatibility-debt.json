@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "scope": "experimental-full-client",
+  "rules": [
+    {
+      "id": "qt5-cmake-api",
+      "pattern": "Qt5::|find_package\\s*\\(Qt5|\\bqt5_[A-Za-z_]",
+      "roots": ["CMakeLists.txt", "cmake", "interface", "libraries", "tools", "launchers"],
+      "extensions": [".cmake", ".txt"],
+      "files": [
+        "cmake/QtCompat.cmake",
+        "cmake/macros/GenerateInstallers.cmake",
+        "cmake/macros/PackageLibrariesForDeployment.cmake",
+        "cmake/modules/FindQt5LinguistToolsMacros.cmake",
+        "interface/CMakeLists.txt",
+        "launchers/qt/CMakeLists.txt",
+        "tools/nitpick/CMakeLists.txt"
+      ],
+      "exitCriterion": "Only cmake/QtCompat.cmake may retain Qt 5 symbols; desktop-only callers must be unreachable from iOS."
+    },
+    {
+      "id": "qt6-removed-audio-api",
+      "pattern": "\\bQAudio(?:DeviceInfo|Input|Output)\\b",
+      "roots": ["interface", "libraries"],
+      "extensions": [".cpp", ".h", ".hpp", ".mm"],
+      "files": [
+        "interface/src/scripting/AudioDevices.h",
+        "libraries/audio-client/src/AudioClient.cpp",
+        "libraries/audio-client/src/AudioClient.h",
+        "libraries/audio-client/src/HifiAudioDeviceInfo.cpp",
+        "libraries/audio-client/src/HifiAudioDeviceInfo.h"
+      ],
+      "exitCriterion": "The audio-client boundary uses Qt 6 QAudioDevice/QAudioSource/QAudioSink and preserves the 48 kHz network format."
+    },
+    {
+      "id": "core5compat-api",
+      "pattern": "\\b(?:QRegExp|QTextCodec)\\b",
+      "roots": ["interface", "libraries"],
+      "extensions": [".cpp", ".h", ".hpp", ".mm"],
+      "files": [
+        "interface/src/Application_Assets.cpp",
+        "interface/src/Application_Graphics.cpp",
+        "interface/src/ArchiveDownloadInterface.cpp",
+        "interface/src/LocationBookmarks.cpp",
+        "interface/src/ModelSelector.cpp",
+        "interface/src/ScriptHighlighting.cpp",
+        "interface/src/ScriptHighlighting.h",
+        "interface/src/ui/BaseLogDialog.cpp",
+        "interface/src/ui/JSConsole.cpp",
+        "interface/src/ui/ModelsBrowser.cpp",
+        "interface/src/ui/Snapshot.cpp",
+        "interface/src/ui/UpdateDialog.cpp",
+        "libraries/animation/src/AnimExpression.cpp",
+        "libraries/embedded-webserver/src/HTTPManager.cpp",
+        "libraries/model-serializers/src/OBJWriter.cpp",
+        "libraries/networking/src/AddressManager.cpp",
+        "libraries/networking/src/AssetResourceRequest.cpp",
+        "libraries/networking/src/AssetUtils.cpp",
+        "libraries/octree/src/OctreePersistThread.cpp",
+        "libraries/script-engine/src/ScriptManager.cpp",
+        "libraries/script-engine/src/ScriptsModel.cpp",
+        "libraries/shared/src/ApplicationVersion.cpp",
+        "libraries/shared/src/GPUIdent.cpp",
+        "libraries/shared/src/HifiConfigVariantMap.cpp",
+        "libraries/shared/src/LogHandler.h",
+        "libraries/shared/src/shared/FileLogger.cpp",
+        "libraries/shared/src/shared/StringHelpers.cpp",
+        "libraries/ui/src/Tooltip.cpp"
+      ],
+      "exitCriterion": "All listed uses move to current Qt 6 APIs and Core5Compat leaves the iOS component set."
+    },
+    {
+      "id": "webengine-cpp-boundary",
+      "pattern": "QWebEngine|QtWebEngine|qtwebengine",
+      "roots": ["interface", "libraries"],
+      "extensions": [".cpp", ".h", ".hpp", ".mm"],
+      "files": [
+        "interface/src/AboutUtil.cpp",
+        "interface/src/AboutUtil.h",
+        "interface/src/Application.cpp",
+        "interface/src/Application_Graphics.cpp",
+        "interface/src/Application_Setup.cpp",
+        "libraries/ui/src/ui/types/ContextAwareProfile.h",
+        "libraries/ui/src/ui/types/FileTypeProfile.cpp",
+        "libraries/ui/src/ui/types/FileTypeProfile.h",
+        "libraries/ui/src/ui/types/HFWebEngineProfile.cpp",
+        "libraries/ui/src/ui/types/HFWebEngineProfile.h",
+        "libraries/ui/src/ui/types/RequestFilters.cpp",
+        "libraries/ui/src/ui/types/RequestFilters.h"
+      ],
+      "exitCriterion": "Every listed compilation unit is excluded on iOS or consumes the platform web-surface abstraction."
+    },
+    {
+      "id": "apple-desktop-framework",
+      "pattern": "find_library\\s*\\([^\\n]*(?:AppKit|OpenGL|IOKit|Carbon)",
+      "roots": ["CMakeLists.txt", "cmake", "interface", "libraries"],
+      "extensions": [".cmake", ".txt"],
+      "files": [
+        "interface/CMakeLists.txt",
+        "libraries/networking/CMakeLists.txt",
+        "libraries/platform/CMakeLists.txt",
+        "libraries/shared/CMakeLists.txt"
+      ],
+      "exitCriterion": "All matches remain inside explicit APPLE AND NOT IOS branches."
+    },
+    {
+      "id": "dynamic-plugin-packaging",
+      "pattern": "\\b(?:SHARED|PlugIns|PLUGIN_FULL_PATH|CLIENT_PLUGIN_FULL_PATH)\\b",
+      "roots": [
+        "cmake/macros/SetupHifiPlugin.cmake",
+        "cmake/macros/SetupHifiClientServerPlugin.cmake"
+      ],
+      "extensions": [".cmake"],
+      "files": [
+        "cmake/macros/SetupHifiClientServerPlugin.cmake",
+        "cmake/macros/SetupHifiPlugin.cmake"
+      ],
+      "exitCriterion": "Selected iOS plug-ins are static targets with explicit registration and no post-build binary copy."
+    }
+  ]
+}

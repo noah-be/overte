@@ -10,6 +10,8 @@
 
 #import "SceneDelegate.h"
 
+#include "LifecycleStateMachine.h"
+
 namespace {
 os_log_t lifecycleLog() {
     static os_log_t log = os_log_create("org.overte.interface", "lifecycle");
@@ -68,6 +70,8 @@ os_log_t lifecycleLog() {
     }];
 
     os_log_info(lifecycleLog(), "Overte iOS bootstrap launched");
+    overte::ios::LifecycleStateMachine::instance().apply(
+        overte::ios::LifecycleEvent::DidFinishLaunching);
     return YES;
 }
 
@@ -106,11 +110,15 @@ os_log_t lifecycleLog() {
 
 - (void)applicationDidReceiveMemoryWarning:(UIApplication*)application {
     (void)application;
+    overte::ios::LifecycleStateMachine::instance().apply(
+        overte::ios::LifecycleEvent::DidReceiveMemoryWarning);
     os_log_error(lifecycleLog(), "Application received a memory warning");
 }
 
 - (void)applicationWillTerminate:(UIApplication*)application {
     (void)application;
+    overte::ios::LifecycleStateMachine::instance().apply(
+        overte::ios::LifecycleEvent::WillTerminate);
     NSNotificationCenter* center = NSNotificationCenter.defaultCenter;
     if (self.audioInterruptionObserver != nil) {
         [center removeObserver:self.audioInterruptionObserver];

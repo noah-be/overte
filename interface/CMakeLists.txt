@@ -339,7 +339,7 @@ endif()
 # assume we are using a Qt build without bearer management
 add_definitions(-DQT_NO_BEARERMANAGEMENT)
 
-if (APPLE)
+if (APPLE AND NOT IOS)
   # link in required OS X frameworks and include the right GL headers
   find_library(OpenGL OpenGL)
   find_library(AppKit AppKit)

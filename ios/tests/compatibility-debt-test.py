@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+"""Run and adversarially test the compatibility-debt inventory."""
+
+# Copyright 2026 Overte e.V.
+# SPDX-License-Identifier: Apache-2.0
+
+from __future__ import annotations
+
+import importlib.util
+import json
+from copy import deepcopy
+from pathlib import Path
+
+
+IOS_ROOT = Path(__file__).resolve().parents[1]
+SOURCE_ROOT = IOS_ROOT.parent
+
+
+def load_auditor():
+    path = IOS_ROOT / "tools/audit-compatibility-debt.py"
+    specification = importlib.util.spec_from_file_location("audit_compatibility_debt", path)
+    assert specification is not None and specification.loader is not None
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
+
+
+def main() -> None:
+    auditor = load_auditor()
+    inventory = json.loads((IOS_ROOT / "compatibility-debt.json").read_text(encoding="utf-8"))
+    counts = auditor.audit_inventory(SOURCE_ROOT, inventory)
+    assert counts == {
+        "qt5-cmake-api": 7,
+        "qt6-removed-audio-api": 5,
+        "core5compat-api": 28,
+        "webengine-cpp-boundary": 12,
+        "apple-desktop-framework": 4,
+        "dynamic-plugin-packaging": 2,
+    }
+
+    stale = deepcopy(inventory)
+    stale["rules"][0]["files"].append("invented/Qt5Debt.cpp")
+    try:
+        auditor.audit_inventory(SOURCE_ROOT, stale)
+    except ValueError as error:
+        assert "removed=['invented/Qt5Debt.cpp']" in str(error)
+    else:
+        raise AssertionError("stale compatibility inventory was accepted")
+    print("PASS iOS compatibility-debt tests")
+
+
+if __name__ == "__main__":
+    main()

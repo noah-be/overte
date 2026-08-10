@@ -6,7 +6,7 @@ link_hifi_libraries(shared gl)
 GroupSources("src")
 target_json()
 
-if (APPLE)
+if (APPLE AND NOT IOS)
   # link in required OS X frameworks and include the right GL headers
   find_library(OpenGL OpenGL)
   find_library(AppKit AppKit)

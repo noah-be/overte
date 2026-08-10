@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import stat
 import subprocess
@@ -80,6 +81,10 @@ def main() -> None:
             "\"context\":\"host\",\"settings\":{\"os\":\"iOS\"},\"options\":{}}}}}'\n"
             'fi\n',
         )
+        make_executable(
+            shims / "lipo",
+            '[[ "${FAKE_LIPO_FAIL:-0}" == "0" ]]\n',
+        )
 
         environment = os.environ.copy()
         environment.update(
@@ -111,17 +116,30 @@ def main() -> None:
         (device_slice / "libMoltenVK.a").touch()
         environment["OVERTE_IOS_MOLTENVK_ROOT"] = str(moltenvk_root)
 
+        v8_root = root / "v8-ios"
+        (v8_root / "include/node").mkdir(parents=True)
+        (v8_root / "include/node/v8.h").touch()
+        (v8_root / "lib").mkdir()
+        (v8_root / "lib/libnode.a").touch()
+        environment["OVERTE_IOS_V8_ROOT"] = str(v8_root)
+
         doctor = run_cli(
             environment,
             "doctor",
             "--platform",
             "simulator",
             "--require-qt",
+            "--require-v8",
             "--require-moltenvk",
         )
         assert doctor.returncode == 0, doctor.stderr
         assert "iOS build environment is ready" in doctor.stdout
         assert "Python:" in doctor.stdout
+        assert "Static non-JIT V8:" in doctor.stdout
+
+        wrong_slice = run_cli(environment | {"FAKE_LIPO_FAIL": "1"}, "doctor", "--require-v8")
+        assert wrong_slice.returncode == 1
+        assert "does not contain arm64" in wrong_slice.stderr
 
         outdated_environment = environment | {"FAKE_XCODE_VERSION": "25.4"}
         outdated = run_cli(outdated_environment, "doctor")
@@ -147,6 +165,10 @@ def main() -> None:
         invalid_team = run_cli(environment, "doctor", "--development-team", "short")
         assert invalid_team.returncode == 1
         assert "exactly 10" in invalid_team.stderr
+
+        invalid_configuration = run_cli(environment, "doctor", "--configuration", "../Release")
+        assert invalid_configuration.returncode == 1
+        assert "invalid Xcode configuration" in invalid_configuration.stderr
 
         log.write_text("", encoding="utf-8")
         configured = run_cli(
@@ -181,6 +203,10 @@ def main() -> None:
         invocation = log.read_text(encoding="utf-8")
         assert "conan <install>" in invocation
         assert "sdk-simulator=<" + str(sdk) + ">" in invocation
+        sbom = json.loads(
+            (root / "dependency-build/conan/sbom.cdx.json").read_text(encoding="utf-8")
+        )
+        assert sbom["bomFormat"] == "CycloneDX"
 
         clean_target = SOURCE_ROOT / "build-ios/custom-host-contract"
         clean_target.mkdir(parents=True, exist_ok=True)

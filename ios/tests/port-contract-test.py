@@ -106,6 +106,7 @@ def test_profiles() -> None:
     require_text(recipe, r'self\.tool_requires\("spirv-cross/', "SPIR-V conversion must run in the build context")
     build_script = IOS_ROOT / "build-ios.sh"
     require_text(build_script, r"audit-conan-graph\.py", "resolved Conan graphs must be audited")
+    require_text(build_script, r"generate-sbom\.py", "resolved Conan graphs must emit an SBOM")
 
 
 def test_dependency_inventory() -> None:
@@ -242,11 +243,15 @@ def test_cmake_boundary() -> None:
     require_text(app_delegate, r"AVAudioSessionInterruptionNotification", "audio must observe interruptions")
     require_text(app_delegate, r"AVAudioSessionRouteChangeNotification", "audio must observe route changes")
     require_text(app_delegate, r"applicationDidReceiveMemoryWarning", "lifecycle must observe memory pressure")
+    require_text(app_delegate, r"LifecycleStateMachine", "application lifecycle must feed a tested state model")
     scene_delegate = IOS_ROOT / "src" / "SceneDelegate.mm"
-    require_text(scene_delegate, r"allowedSchemes", "deep links must use an explicit scheme allowlist")
+    require_text(scene_delegate, r"PendingDeepLinkStore", "deep links must survive cold-start delivery")
     require_text(scene_delegate, r"connectionOptions\.URLContexts", "cold-start deep links must be routed")
     if "Accepted deep link with scheme %{public}@\", url" in scene_delegate.read_text(encoding="utf-8"):
         raise AssertionError("deep-link logs must not expose the complete URL")
+    deep_link_store = IOS_ROOT / "src" / "PendingDeepLinkStore.cpp"
+    require_text(deep_link_store, r"MAX_PENDING_URLS", "pending deep links must be bounded")
+    require_text(deep_link_store, r"UnsupportedScheme", "deep-link schemes must fail closed")
 
     request_filters = SOURCE_ROOT / "libraries" / "ui" / "src" / "ui" / "types" / "RequestFilters.h"
     require_text(
@@ -271,7 +276,13 @@ def test_scope_contract() -> None:
     dependency_policy = SOURCE_ROOT / "docs" / "ios" / "DEPENDENCY_POLICY.md"
     qt_setup = SOURCE_ROOT / "docs" / "ios" / "QT_SETUP.md"
     host_preparation = SOURCE_ROOT / "docs" / "ios" / "HOST_PREPARATION.md"
-    for path in (scope, architecture, dependency_policy, qt_setup, host_preparation):
+    xcode_first_run = SOURCE_ROOT / "docs" / "ios" / "XCODE_FIRST_RUN.md"
+    review_checklist = SOURCE_ROOT / "docs" / "ios" / "REVIEW_CHECKLIST.md"
+    compliance = SOURCE_ROOT / "docs" / "ios" / "COMPLIANCE.md"
+    for path in (
+        scope, architecture, dependency_policy, qt_setup, host_preparation,
+        xcode_first_run, review_checklist, compliance,
+    ):
         assert path.is_file() and path.stat().st_size > 500, path
     require_text(scope, r"First usable client", "scope needs a product acceptance target")
     require_text(architecture, r"non-JIT", "architecture must address executable-memory policy")
@@ -283,6 +294,15 @@ def test_scope_contract() -> None:
         "doctor must validate the configured Qt 6 version",
     )
     require_text(host_preparation, r"cannot be closed here", "external validation limits must be explicit")
+    require_text(xcode_first_run, r"first-run-triage\.json", "Xcode failures need deterministic classification")
+    require_text(review_checklist, r"Signing, provisioning, upload", "external actions must remain explicit")
+    require_text(compliance, r"CycloneDX 1\.6", "compliance handoff must identify the SBOM format")
+    triage = json.loads((IOS_ROOT / "first-run-triage.json").read_text(encoding="utf-8"))
+    assert triage["schemaVersion"] == 1
+    phases = triage["phases"]
+    assert len(phases) >= 10
+    assert len({phase["id"] for phase in phases}) == len(phases)
+    assert all(phase["ownerArea"] and phase["signatures"] for phase in phases)
 
     scripting = SOURCE_ROOT / "docs" / "ios" / "SCRIPTING.md"
     require_text(scripting, r"--jitless", "iOS scripting must enforce non-JIT execution")
@@ -333,6 +353,20 @@ def test_ci_contract() -> None:
     }
     assert selector.select_device(fixture, "iphone") == "new-phone-a"
     assert selector.select_device(fixture, "ipad") == "new-tablet"
+    fixture["devices"]["com.apple.CoreSimulator.SimRuntime.iOS-26-0"][1]["isAvailable"] = False
+    assert selector.select_device(fixture, "iphone") == "new-phone-z"
+    try:
+        selector.select_device({"devices": {"malformed-runtime": []}}, "iphone")
+    except LookupError as error:
+        assert "no available iphone simulator" in str(error)
+    else:
+        raise AssertionError("missing iPhone simulator was accepted")
+    try:
+        selector.select_device({"devices": []}, "ipad")
+    except (AttributeError, TypeError):
+        pass
+    else:
+        raise AssertionError("malformed simulator payload was accepted")
 
 
 def test_device_acceptance_contract() -> None:
@@ -346,9 +380,17 @@ def test_device_acceptance_contract() -> None:
     assert all(case["deviceOnly"] is True for case in cases)
     required_categories = {
         "lifecycle", "network", "graphics", "input", "audio", "layout",
-        "performance", "scripting", "privacy",
+        "performance", "scripting", "privacy", "accessibility",
     }
     assert required_categories <= {case["category"] for case in cases}
+    bootstrap = (IOS_ROOT / "src" / "BootstrapViewController.mm").read_text(encoding="utf-8")
+    for contract in (
+        "adjustsFontForContentSizeCategory",
+        "UIAccessibilityReduceMotionStatusDidChangeNotification",
+        "UIHoverGestureRecognizer",
+        "viewWillTransitionToSize",
+    ):
+        assert contract in bootstrap, f"bootstrap missing accessibility/iPad contract: {contract}"
 
     signing = SOURCE_ROOT / "docs" / "ios" / "SIGNING_AND_DEVICE_TESTS.md"
     require_text(signing, r"script never\s+installs", "device installation must require a separate action")
@@ -386,6 +428,10 @@ def test_integration_readiness_contract() -> None:
             assert (SOURCE_ROOT / evidence).exists(), (gate["id"], evidence)
         if gate["status"] != "complete":
             assert gate["remainingAction"] != "none"
+
+    debt = IOS_ROOT / "compatibility-debt.json"
+    require_text(debt, r"qt6-removed-audio-api", "Qt 6 source debt must be inventoried")
+    require_text(debt, r"dynamic-plugin-packaging", "static plug-in debt must be inventoried")
 
 
 def main() -> None:

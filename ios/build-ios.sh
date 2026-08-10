@@ -38,6 +38,7 @@ Options:
   --bundle-id IDENTIFIER        Override org.overte.interface.dev.
   --development-team TEAM       Enable device signing with this Apple team ID.
   --require-qt                  Make doctor fail unless Qt 6 for iOS is configured.
+  --require-v8                  Make doctor validate the static iOS V8/libnode package.
   --graphics-toolchain          Include Vulkan and host shader tools in deps.
   --require-moltenvk            Make doctor validate the MoltenVK XCFramework.
   --confirm                     Confirm clean removal of the resolved build directory.
@@ -65,6 +66,7 @@ bundle_id="org.overte.interface.dev"
 development_team=""
 confirm_clean=0
 require_qt=0
+require_v8=0
 with_graphics_toolchain=False
 require_moltenvk=0
 
@@ -101,6 +103,10 @@ while (($#)); do
             ;;
         --require-qt)
             require_qt=1
+            shift
+            ;;
+        --require-v8)
+            require_v8=1
             shift
             ;;
         --graphics-toolchain)
@@ -224,6 +230,29 @@ run_doctor() {
         note "Qt for iOS: not configured (native bootstrap only)"
     fi
 
+    local v8_root="${OVERTE_IOS_V8_ROOT:-}"
+    if [[ -n "$v8_root" ]]; then
+        [[ -f "$v8_root/include/node/v8.h" ]] \
+            || fail "OVERTE_IOS_V8_ROOT does not contain include/node/v8.h"
+        local v8_archive=""
+        for candidate in "$v8_root/lib/libnode.a" "$v8_root/lib/libv8_monolith.a"; do
+            if [[ -f "$candidate" ]]; then
+                v8_archive="$candidate"
+                break
+            fi
+        done
+        [[ -n "$v8_archive" ]] \
+            || fail "OVERTE_IOS_V8_ROOT does not contain a static libnode.a or libv8_monolith.a"
+        require_command lipo
+        lipo -verify_arch arm64 "$v8_archive" >/dev/null \
+            || fail "iOS V8 archive does not contain arm64: $v8_archive"
+        note "Static non-JIT V8: $v8_archive (arm64)"
+    elif ((require_v8)); then
+        fail "set OVERTE_IOS_V8_ROOT to an audited static non-JIT iOS package"
+    else
+        note "Static non-JIT V8: not configured (scripting integration disabled)"
+    fi
+
     local moltenvk_root="${OVERTE_IOS_MOLTENVK_ROOT:-}"
     if [[ -n "$moltenvk_root" ]]; then
         local moltenvk_slice="ios-arm64"
@@ -232,6 +261,10 @@ run_doctor() {
             || fail "MoltenVK headers not found below OVERTE_IOS_MOLTENVK_ROOT"
         [[ -f "$moltenvk_root/MoltenVK/MoltenVK.xcframework/$moltenvk_slice/libMoltenVK.a" ]] \
             || fail "MoltenVK static slice not found: $moltenvk_slice"
+        require_command lipo
+        lipo -verify_arch arm64 \
+            "$moltenvk_root/MoltenVK/MoltenVK.xcframework/$moltenvk_slice/libMoltenVK.a" >/dev/null \
+            || fail "MoltenVK static slice does not contain arm64: $moltenvk_slice"
         note "MoltenVK: $moltenvk_root ($moltenvk_slice)"
     elif ((require_moltenvk)); then
         fail "set OVERTE_IOS_MOLTENVK_ROOT to an unpacked MoltenVK distribution"
@@ -282,7 +315,10 @@ resolve_dependencies() {
         --output-folder="$conan_output" \
         --format=json > "$conan_output/graph.json"
     python3 "$script_dir/tools/audit-conan-graph.py" "$conan_output/graph.json"
+    python3 "$script_dir/tools/generate-sbom.py" \
+        "$conan_output/graph.json" "$script_dir/dependencies.json" "$conan_output/sbom.cdx.json"
     note "Resolved staged dependency graph at $conan_output"
+    note "Generated dependency and compliance inventory at $conan_output/sbom.cdx.json"
 }
 
 configure_project() {

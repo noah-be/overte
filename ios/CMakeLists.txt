@@ -32,6 +32,10 @@ add_executable(OverteIOSBootstrap MACOSX_BUNDLE
     src/SceneDelegate.mm
     src/PlatformProbe.h
     src/PlatformProbe.mm
+    src/PendingDeepLinkStore.h
+    src/PendingDeepLinkStore.cpp
+    src/LifecycleStateMachine.h
+    src/LifecycleStateMachine.cpp
     src/BootstrapViewController.h
     src/BootstrapViewController.mm
     src/BootstrapShaders.metal
