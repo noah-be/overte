@@ -198,6 +198,8 @@ def test_cmake_boundary() -> None:
     require_text(cmake, r'CMAKE_SYSTEM_NAME STREQUAL "iOS"', "CMake must reject non-iOS targets")
     require_text(cmake, r'XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"', "bundle must support iPhone and iPad")
     require_text(cmake, r'XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"', "unsigned builds must be explicit")
+    require_text(cmake, r'XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC "YES"', "Objective-C ARC must be target-local")
+    require_text(cmake, r"AUTOMOC OFF", "native bootstrap must not inherit Qt AUTOGEN")
     require_text(cmake, r'"-framework Metal"', "bootstrap must link Metal")
     require_text(cmake, r'"-framework AVFoundation"', "bootstrap must link AVFoundation")
 
