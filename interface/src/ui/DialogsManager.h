@@ -17,7 +17,11 @@
 
 #include <DependencyManager.h>
 
+#if !defined(Q_OS_IOS)
 #include "HMDToolsDialog.h"
+#else
+class HMDToolsDialog;
+#endif
 #include "TestingDialog.h"
 
 class LodToolsDialog;

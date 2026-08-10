@@ -28,7 +28,9 @@
 #if !defined(Q_OS_IOS)
 #include "DomainConnectionDialog.h"
 #endif
+#if !defined(Q_OS_IOS)
 #include "HMDToolsDialog.h"
+#endif
 #if !defined(Q_OS_IOS)
 #include "LodToolsDialog.h"
 #endif
@@ -250,6 +252,7 @@ void DialogsManager::lodTools() {
 }
 
 void DialogsManager::hmdTools(bool showTools) {
+#if !defined(Q_OS_IOS)
     if (showTools) {
         if (!_hmdToolsDialog) {
             maybeCreateDialog(_hmdToolsDialog);
@@ -263,12 +266,17 @@ void DialogsManager::hmdTools(bool showTools) {
     } else {
         hmdToolsClosed();
     }
+#else
+    Q_UNUSED(showTools)
+#endif
 }
 
 void DialogsManager::hmdToolsClosed() {
+#if !defined(Q_OS_IOS)
     if (_hmdToolsDialog) {
         _hmdToolsDialog->hide();
     }
+#endif
 }
 
 void DialogsManager::toggleAddressBar() {

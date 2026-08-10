@@ -128,6 +128,9 @@ always-on-top QWidget fallback is disabled on iOS, while the existing
 The `OctreeStatsDialog.cpp/.h` pair and its per-frame desktop-window update/HMD
 watcher consumers are omitted on iOS. Entity processing and statistics models
 remain available to the tablet view and telemetry.
+`HMDToolsDialog.cpp/.h` is likewise omitted and its manager slot is a no-op on
+iOS. This removes the desktop multi-screen/HMD utility window without changing
+display-plugin selection or the iPad Vulkan presentation path.
 LOD controls likewise retain their `TabletLODTools.qml` presentation on iOS;
 the fixed-width, always-on-top QWidget fallback is desktop-only.
 Its `LodToolsDialog.cpp/.h` pair and the desktop-only refresh/window-watcher

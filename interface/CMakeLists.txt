@@ -120,6 +120,8 @@ if(IOS)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/DomainConnectionDialog.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/EntityScriptServerLogDialog.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/EntityScriptServerLogDialog.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/HMDToolsDialog.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/HMDToolsDialog.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/LogDialog.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/LogDialog.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/LodToolsDialog.cpp"
