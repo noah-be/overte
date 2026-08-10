@@ -4,6 +4,38 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+
+libnode_recipe = (ROOT / "macos/conan/libnode/conanfile.py").read_text(encoding="utf-8")
+libnode_data = (ROOT / "macos/conan/libnode/conandata.yml").read_text(encoding="utf-8")
+build_script = (ROOT / "macos/build-macos.sh").read_text(encoding="utf-8")
+root_recipe = (ROOT / "conanfile.py").read_text(encoding="utf-8")
+LIBNODE_CONTRACT = {
+    "official release archive": (
+        libnode_data,
+        "https://nodejs.org/dist/v22.22.3/node-v22.22.3.tar.gz",
+    ),
+    "pinned release checksum": (
+        libnode_data,
+        "3c354fe130e6a8b71701784f48f010ce9a0af40d9f20292c7a8fb8efed1e694c",
+    ),
+    "macOS-only recipe": (libnode_recipe, 'str(self.settings.os) != "Macos"'),
+    "Node build-type mapping": (
+        libnode_recipe,
+        'node_build_type = "Debug" if str(self.settings.build_type) == "Debug" else "Release"',
+    ),
+    "bootstrap export": (
+        build_script,
+        'conan export "$source_root/macos/conan/libnode" --user overte --channel macos',
+    ),
+    "macOS graph selection": (
+        root_recipe,
+        'self.requires("libnode/22.22.3@overte/macos")',
+    ),
+}
+for description, (source, token) in LIBNODE_CONTRACT.items():
+    if token not in source:
+        raise SystemExit(f"missing libnode contract: {description}")
+
 CONTRACT = {
     "serverless_import_committed": "interface/src/Application.cpp",
     "entity_tree_nonempty": "libraries/entities-renderer/src/EntityTreeRenderer.cpp",

@@ -6,7 +6,7 @@ name: macOS bootstrap
 on:
   workflow_dispatch:
   push:
-    branches: [feature/macos-support]
+    branches: [apple-macos]
     paths:
       - '.github/workflows/macos-bootstrap.yml'
       - 'CMakeLists.txt'

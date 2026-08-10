@@ -39,9 +39,11 @@ Last attempted CI: `macOS bootstrap` run `31401049683` at commit
 package and 35 dependency positions completed. CMake configure has not run yet
 because dependency position 36, `libnode/22.22.3@overte/stable`, failed while
 compiling Node's bundled dependencies. The recipe downloads GitHub's tag
-archive, which lacks headers expected by the build (`nbytes.h`, Abseil cycle
-clock/allocator headers and `hdr/hdr_histogram.h`). The Conan cache from this
-run was saved successfully.
+archive. Those headers are present, but the recipe passes `RelWithDebInfo` to
+Node's generated makefiles even though they only define internal include sets
+for `Debug` and `Release`. The resulting empty include set produces the
+misleading missing-header errors. The Conan cache from this run was saved
+successfully.
 
 ## Acceptance gates
 
@@ -65,10 +67,15 @@ run was saved successfully.
   selects a Windows archive on macOS; `macos/conan/qt-aqt` repairs its Intel
   package locally. Native arm64 still requires a different Qt strategy.
 - MoltenVK lookup, Vulkan surfaces and linker rules are currently iOS-only.
-- The current macOS dependency blocker is the incomplete source archive used
-  by the `libnode/22.22.3@overte/stable` recipe. The next step is a macOS-local
-  recipe repair that uses Node's complete release source archive, followed by
+- The current macOS dependency blocker is the build-type mapping in the
+  `libnode/22.22.3@overte/stable` recipe. A macOS-local recipe maps Conan Debug
+  to Node Debug and all other configurations to Node Release, and pins Node's
+  official release archive. The next step is native CI validation, followed by
   resuming the cached dependency build.
+
+After the complete macOS plan and final status report, compare the retained
+`feature/macos-support` branch against `apple-main` and `apple-macos` one last
+time. Remove it only after confirming that it remains fully contained.
 
 ## Build
 

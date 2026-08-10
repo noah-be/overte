@@ -1,0 +1,4 @@
+sources:
+  "22.22.3":
+    url: "https://nodejs.org/dist/v22.22.3/node-v22.22.3.tar.gz"
+    sha256: "3c354fe130e6a8b71701784f48f010ce9a0af40d9f20292c7a8fb8efed1e694c"

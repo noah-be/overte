@@ -46,6 +46,7 @@ deps() {
     doctor
     ensure_conan_profile
     configure_remotes
+    conan export "$source_root/macos/conan/libnode" --user overte --channel macos
     if [[ "$qt_source" == aqt ]]; then
         # The published aqt recipe selects a Windows archive on macOS and does
         # not preserve the installer's executable bit. Export our macOS-only
