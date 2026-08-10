@@ -131,8 +131,11 @@ void Application::initializeGL() {
         qCWarning(interfaceapp, "Unable to make window context current");
     }
 
-    // Populate the global OpenGL context based on the information for the primary window GL context
+    // Populate desktop/Android OpenGL diagnostics from the primary context.
+    // MoltenVK has no GL context to describe on iOS.
+#if !defined(Q_OS_IOS)
     gl::ContextInfo::get(true);
+#endif
 
 #if !defined(DISABLE_QML)
     QStringList chromiumFlags;
@@ -140,12 +143,14 @@ void Application::initializeGL() {
     // Bug 21993: disable microphone and camera input
     //chromiumFlags << "--use-fake-device-for-media-stream";
 
-    // Disable signed distance field font rendering on ATI/AMD GPUs, due to
+    // Disable signed distance field font rendering on ATI/AMD desktop GPUs, due to
     // https://highfidelity.manuscript.com/f/cases/13677/Text-showing-up-white-on-Marketplace-app
+#if !defined(Q_OS_IOS)
     std::string vendor{ (const char*)glGetString(GL_VENDOR) };
     if ((vendor.find("AMD") != std::string::npos) || (vendor.find("ATI") != std::string::npos)) {
         chromiumFlags << "--disable-distance-field-text";
     }
+#endif
 
     // Ensure all Qt webengine processes launched from us have the appropriate command line flags
     if (!chromiumFlags.empty()) {
