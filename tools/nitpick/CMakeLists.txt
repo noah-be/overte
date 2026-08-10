@@ -4,7 +4,7 @@ project(${TARGET_NAME})
 set(CUSTOM_NITPICK_QRC_PATHS "")
 
 find_npm()
-overte_find_qt(COMPONENTS Widgets QUIET REQUIRED)
+overte_find_qt(COMPONENTS Widgets Core5Compat QUIET REQUIRED)
 
 set(RESOURCES_QRC ${CMAKE_CURRENT_BINARY_DIR}/resources.qrc)
 set(RESOURCES_RCC ${CMAKE_CURRENT_BINARY_DIR}/resources.rcc)
@@ -79,6 +79,7 @@ else ()
 endif ()
 
 add_dependencies(${TARGET_NAME} nitpick_resources)
+overte_link_qt_modules(${TARGET_NAME} Widgets Core5Compat)
 
 # disable /OPT:REF and /OPT:ICF for the Debug builds
 # This will prevent the following linker warnings

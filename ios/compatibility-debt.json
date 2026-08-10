@@ -8,8 +8,7 @@
       "roots": ["CMakeLists.txt", "cmake", "interface", "libraries", "tools", "launchers"],
       "extensions": [".cmake", ".txt"],
       "files": [
-        "cmake/QtCompat.cmake",
-        "launchers/qt/CMakeLists.txt"
+        "cmake/QtCompat.cmake"
       ],
       "exitCriterion": "Only cmake/QtCompat.cmake may retain Qt 5 symbols; desktop-only callers must be unreachable from iOS."
     },

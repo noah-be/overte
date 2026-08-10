@@ -300,7 +300,7 @@ def test_cmake_boundary() -> None:
     require_text(root_cmake, r"ANDROID OR UWP OR IOS", "iOS must use the mobile build policy")
     require_text(root_cmake, r"OVERTE_IOS_BOOTSTRAP_ONLY", "root CMake must default to the audited iOS graph")
     require_text(root_cmake, r"add_subdirectory\(ios\)", "root CMake must expose the iOS bootstrap")
-    require_text(root_cmake, r"set\(PLATFORM_QT_COMPONENTS WebView Xml Core5Compat\)", "iOS must select WebView and transitional Core5Compat")
+    require_text(root_cmake, r"set\(PLATFORM_QT_COMPONENTS WebView Xml\)", "iOS must select WebView and Xml without retired Core5Compat")
 
     ui_cmake = SOURCE_ROOT / "libraries" / "ui" / "CMakeLists.txt"
     require_text(ui_cmake, r"NOT \(IOS AND OVERTE_QT_MAJOR EQUAL 6\)", "UI must exclude legacy Qt modules from iOS")
@@ -971,7 +971,7 @@ def test_scope_contract() -> None:
 
     nitpick_cmake = SOURCE_ROOT / "tools" / "nitpick" / "CMakeLists.txt"
     nitpick_cmake_text = nitpick_cmake.read_text(encoding="utf-8")
-    assert "overte_find_qt(COMPONENTS Widgets QUIET REQUIRED)" in nitpick_cmake_text
+    assert "overte_find_qt(COMPONENTS Widgets Core5Compat QUIET REQUIRED)" in nitpick_cmake_text
     assert "overte_qt_add_binary_resources(" in nitpick_cmake_text
     assert "overte_qt_wrap_ui(QT_UI_HEADERS" in nitpick_cmake_text
     for legacy_cmake_api in ("find_package(Qt5", "qt5_add_binary_resources", "qt5_wrap_ui"):
@@ -1050,6 +1050,20 @@ def test_scope_contract() -> None:
         r'function\(OVERTE_CREATE_TRANSLATION_CUSTOM _qm_files\)',
         "the dormant Interface translation recipe must name a Qt-major-neutral custom wrapper",
     )
+
+    qt_launcher_cmake = SOURCE_ROOT / "launchers" / "qt" / "CMakeLists.txt"
+    require_text(
+        qt_launcher_cmake,
+        r'if\(CMAKE_SYSTEM_NAME STREQUAL "iOS"\)\s+message\(FATAL_ERROR "The legacy qtlite launcher is desktop-only and cannot be configured for iOS"\)',
+        "the legacy desktop qtlite launcher must fail closed outside the iOS graph",
+    )
+    assert 'include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/QtCompat.cmake")' in qt_launcher_cmake.read_text(encoding="utf-8")
+    assert "overte_find_qt(COMPONENTS Core Gui Qml Quick QuickControls2 Network REQUIRED)" in qt_launcher_cmake.read_text(encoding="utf-8")
+    assert "overte_qt_add_resources(RES_SOURCES ${RESOURCES_QRC})" in qt_launcher_cmake.read_text(encoding="utf-8")
+    assert "overte_link_qt_modules(${PROJECT_NAME} Core Quick QuickControls2 Qml Gui Network)" in qt_launcher_cmake.read_text(encoding="utf-8")
+    qt_launcher_text = qt_launcher_cmake.read_text(encoding="utf-8")
+    if "find_package(Qt5" in qt_launcher_text or "Qt5::" in qt_launcher_text:
+        raise AssertionError("legacy desktop launcher retained direct Qt 5 package/target APIs")
 
     buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
     require_text(

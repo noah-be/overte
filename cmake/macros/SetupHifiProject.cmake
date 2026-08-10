@@ -30,10 +30,6 @@ macro(SETUP_HIFI_PROJECT)
 
   set(${TARGET_NAME}_DEPENDENCY_QT_MODULES ${ARGN})
   list(APPEND ${TARGET_NAME}_DEPENDENCY_QT_MODULES Core)
-  if(OVERTE_QT_MAJOR EQUAL 6)
-    list(APPEND ${TARGET_NAME}_DEPENDENCY_QT_MODULES Core5Compat)
-  endif()
-
   # find these Qt modules and link them to our own target
   overte_find_qt(COMPONENTS ${${TARGET_NAME}_DEPENDENCY_QT_MODULES} QUIET REQUIRED)
 

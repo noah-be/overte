@@ -11,7 +11,7 @@ else ()
 endif ()
 
 # setup the project and link required Qt modules
-setup_hifi_project(Network)
+setup_hifi_project(Network Core5Compat)
 
 # Fix up the rpath so macdeployqt works
 if (APPLE)

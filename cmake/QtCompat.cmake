@@ -25,8 +25,13 @@ set(OVERTE_QT_TARGET_PREFIX "Qt${OVERTE_QT_MAJOR}::")
 # desktop OpenGL module. Keep this policy here so individual libraries cannot
 # accidentally reintroduce unavailable package components.
 set(OVERTE_QT_UNAVAILABLE_COMPONENTS "")
+if(OVERTE_QT_MAJOR EQUAL 5)
+    # Core5Compat only exists as a separate module in Qt 6. The same APIs are
+    # part of QtCore in Qt 5, so explicit migration opt-ins must be ignored.
+    list(APPEND OVERTE_QT_UNAVAILABLE_COMPONENTS Core5Compat)
+endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "iOS" AND OVERTE_QT_MAJOR EQUAL 6)
-    set(OVERTE_QT_UNAVAILABLE_COMPONENTS OpenGL XmlPatterns)
+    list(APPEND OVERTE_QT_UNAVAILABLE_COMPONENTS OpenGL XmlPatterns)
 endif()
 
 function(overte_filter_qt_components output_variable)

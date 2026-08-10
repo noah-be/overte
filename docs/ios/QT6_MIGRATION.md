@@ -10,11 +10,17 @@ desktop and Android targets remain on Qt 5 while shared source is migrated.
 
 ## Transitional compatibility
 
-Qt Core5Compat remains a temporary build bridge while the wider Qt 6 graph is
-validated. The audited `QRegExp`, `QTextCodec`, and `QStringRef` production
-source/template inventory is empty. New iOS code must use
+Qt Core5Compat is no longer selected by the iOS Qt component graph. The audited
+`QRegExp`, `QTextCodec`, and `QStringRef` production source/template inventory
+is empty. New iOS code must use
 `QRegularExpression`, `QStringView`, and current text APIs. Core5Compat is not
-a reason to add new Qt 5 API use.
+a reason to add new Qt 5 API use. Standard project, library, and test macros no
+longer link it by default; remaining desktop/tool consumers opt in at their
+owning targets, and a source/template contract keeps that allowlist synchronized.
+The central component filter drops those opt-ins for Qt 5, where the APIs are
+already part of QtCore, before both package discovery and target linking. Qt 6
+retains the explicit component; the independent iOS Qt 6 filter continues to
+remove only unavailable `OpenGL` and `XmlPatterns` modules.
 
 The shared library macro treats iOS as an ARM target before applying optional
 x86 SIMD flags. Although CMake reports iOS as both `APPLE` and `UNIX`, its
@@ -366,6 +372,14 @@ neither iOS nor desktop builds gain translation-generation work. If it is
 re-enabled later, its QM/TS inputs route through the central translation
 dispatcher instead of a direct Qt 5 command. `interface/CMakeLists.txt` leaves
 the Qt-5-CMake debt inventory without changing generated targets.
+
+The legacy qtlite launcher now fails closed when configured for iOS. Its
+desktop graph includes `QtCompat.cmake` and routes Qt discovery, QRC source
+generation, and imported module links through `overte_find_qt`,
+`overte_qt_add_resources`, and `overte_link_qt_modules`. Existing desktop
+defaults still select Qt 5 and the same qtlite artifacts, plugins, OpenGL,
+OpenSSL, and static dependencies. The launcher therefore leaves the direct
+Qt-5-CMake inventory without pretending its desktop artifacts support iOS.
 
 ## Model and texture upload audit
 
