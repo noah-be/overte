@@ -114,6 +114,8 @@ endif()
 set(INTERFACE_AUTO_UPDATER_LIBRARY auto-updater)
 if(IOS)
   list(REMOVE_ITEM INTERFACE_SRCS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/StandAloneJSConsole.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/StandAloneJSConsole.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/UpdateDialog.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/UpdateDialog.h")
   set(INTERFACE_AUTO_UPDATER_LIBRARY "")

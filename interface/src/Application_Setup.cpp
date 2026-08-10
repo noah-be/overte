@@ -126,7 +126,9 @@
 #include <ui/OctreeStatsProvider.h>
 #include <ui/OffscreenQmlSurfaceCache.h>
 #include <ui/Snapshot.h>
+#if !defined(Q_OS_IOS)
 #include <ui/StandAloneJSConsole.h>
+#endif
 #include <ui/TabletScriptingInterface.h>
 #include <ui/ToolbarScriptingInterface.h>
 #include <UserActivityLogger.h>
@@ -393,7 +395,9 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     DependencyManager::set<UsersScriptingInterface>();
     DependencyManager::set<AvatarManager>();
     DependencyManager::set<LODManager>();
+#if !defined(Q_OS_IOS)
     DependencyManager::set<StandAloneJSConsole>();
+#endif
     DependencyManager::set<DialogsManager>();
     DependencyManager::set<ResourceCacheSharedItems>();
     DependencyManager::set<DesktopScriptingInterface>();

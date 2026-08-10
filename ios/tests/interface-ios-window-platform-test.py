@@ -6,6 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 APPLICATION_UI = (ROOT / "interface/src/Application_UI.cpp").read_text()
+APPLICATION = (ROOT / "interface/src/Application.cpp").read_text()
 APPLICATION_SETUP = (ROOT / "interface/src/Application_Setup.cpp").read_text()
 APPLICATION_GRAPHICS = (ROOT / "interface/src/Application_Graphics.cpp").read_text()
 INTERFACE_CMAKE = (ROOT / "interface/CMakeLists.txt").read_text()
@@ -52,6 +53,16 @@ require("// Developer > Scripting > Console...\n#if !defined(Q_OS_IOS)" in MENU,
 require("new QDialog(mainWindow, Qt::WindowStaysOnTopHint)" in JS_CONSOLE and
         "dialog->resize(QSize(CONSOLE_WIDTH, CONSOLE_HEIGHT));" in JS_CONSOLE,
         "stand-alone JavaScript console is no longer demonstrably a desktop utility window")
+require(INTERFACE_CMAKE.count("src/ui/StandAloneJSConsole") == 2,
+        "stand-alone JavaScript console sources are not deterministically removed on iOS")
+require("#if !defined(Q_OS_IOS)\n#include <ui/StandAloneJSConsole.h>\n#endif" in APPLICATION_SETUP and
+        "#if !defined(Q_OS_IOS)\n    DependencyManager::set<StandAloneJSConsole>();\n#endif" in APPLICATION_SETUP,
+        "stand-alone console singleton remains initialized on iOS")
+require("#if !defined(Q_OS_IOS)\n#include <ui/StandAloneJSConsole.h>\n#endif" in APPLICATION and
+        "#if !defined(Q_OS_IOS)\n        DependencyManager::destroy<StandAloneJSConsole>();\n#endif" in APPLICATION,
+        "stand-alone console shutdown dependency remains on iOS")
+require("#if !defined(Q_OS_IOS)\n#include \"ui/StandAloneJSConsole.h\"\n#endif" in MENU,
+        "stand-alone console header remains in the iOS menu graph")
 require("void DialogsManager::showDomainConnectionDialog() {\n#if !defined(Q_OS_IOS)" in DIALOGS_MANAGER,
         "desktop Domain Connection table dialog remains reachable on iOS")
 require("QDialog(parent, Qt::Window | Qt::WindowCloseButtonHint)" in DOMAIN_DIALOG and

@@ -129,7 +129,9 @@
 #include <ui/OffscreenQmlSurfaceCache.h>
 #include <ui/Snapshot.h>
 #include <ui/SnapshotAnimated.h>
+#if !defined(Q_OS_IOS)
 #include <ui/StandAloneJSConsole.h>
+#endif
 #include <ui/Stats.h>
 #include <ui/ToolbarScriptingInterface.h>
 #include <UserActivityLogger.h>
@@ -2059,7 +2061,9 @@ void Application::cleanupBeforeQuit() {
     // These classes hold ScriptEnginePointers, so they must be destroyed before ScriptEngines
     // Must be done after shutdownScripting in case any scripts try to access these things
     {
+#if !defined(Q_OS_IOS)
         DependencyManager::destroy<StandAloneJSConsole>();
+#endif
         EntityTreePointer tree = getEntities()->getTree();
         tree->setSimulation(nullptr);
         DependencyManager::destroy<EntityTreeRenderer>();

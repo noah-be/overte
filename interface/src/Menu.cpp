@@ -56,7 +56,9 @@
 #include "scripting/MenuScriptingInterface.h"
 #include "scripting/HMDScriptingInterface.h"
 #include "ui/DialogsManager.h"
+#if !defined(Q_OS_IOS)
 #include "ui/StandAloneJSConsole.h"
+#endif
 #include "InterfaceLogging.h"
 #include "LocationBookmarks.h"
 #include "DeferredLightingEffect.h"
