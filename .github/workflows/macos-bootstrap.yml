@@ -12,11 +12,11 @@ on:
       - 'CMakeLists.txt'
       - 'cmake/**'
       - 'conanfile.py'
-      - 'docs/macos/**'
       - 'interface/**'
       - 'libraries/**'
       - 'macos/**'
       - 'plugins/**'
+      - '!**/*.md'
 
 permissions:
   contents: read
