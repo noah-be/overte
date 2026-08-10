@@ -39,6 +39,12 @@ build, installation, and deployment instructions.
 For measured world-entry and post-loading optimization guidance, see the
 [Pico 4 world-loading guide](android/docs/world-loading/pico4-optimization-guide.md).
 
+### Android Phone port
+
+See the consolidated
+[Android Phone documentation](docs/interfaces/android-phone/README.md) for the
+supported developer setup, emulator and device boundaries, and current status.
+
 ### What is this?
 
 Overte is a free and open source 3D social virtual worlds software.
