@@ -59,7 +59,7 @@ for relative, marker in contracts.items():
 qt_compat = (ROOT / "cmake/QtCompat.cmake").read_text()
 require(re.search(r"if\(OVERTE_QT_MAJOR EQUAL 5\).*?OVERTE_QT_UNAVAILABLE_COMPONENTS Core5Compat", qt_compat, re.S),
         "Qt 5 does not centrally filter the nonexistent Core5Compat component")
-require(re.search(r"function\(overte_find_qt[^)]*\).*?overte_filter_qt_components", qt_compat, re.S),
+require(re.search(r"macro\(overte_find_qt[^)]*\).*?overte_filter_qt_components", qt_compat, re.S),
         "Qt package discovery bypasses the central component filter")
 require(re.search(r"function\(overte_link_qt_modules[^)]*\).*?overte_filter_qt_components", qt_compat, re.S),
         "Qt target linking bypasses the central component filter")

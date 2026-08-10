@@ -49,6 +49,10 @@ jsapi_cmake = (ROOT / "plugins/JSAPIExample/CMakeLists.txt").read_text(encoding=
 if "overte_find_qt(COMPONENTS Core Core5Compat QUIET REQUIRED)" not in jsapi_cmake:
     raise SystemExit("JSAPIExample must retain a real Qt 5 component after compatibility filtering")
 
+qt_compat = (ROOT / "cmake/QtCompat.cmake").read_text(encoding="utf-8")
+if "macro(overte_find_qt)" not in qt_compat or "function(overte_find_qt)" in qt_compat:
+    raise SystemExit("Qt discovery must preserve Qt 5 tool variables in the caller scope")
+
 CONTRACT = {
     "serverless_import_committed": "interface/src/Application.cpp",
     "entity_tree_nonempty": "libraries/entities-renderer/src/EntityTreeRenderer.cpp",
