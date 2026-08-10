@@ -134,6 +134,9 @@ display-plugin selection or the iPad Vulkan presentation path.
 The uninstantiated desktop `TestingDialog` (an always-on-top JS test-console
 window with no current manager creation slot) is also omitted from the iOS
 compile/MOC graph.
+With both of its owning desktop windows absent, `JSConsole.cpp/.h` and
+`ui/console.ui` are also excluded from iOS compile/MOC/UIC processing. This
+does not affect script execution or the QML/tablet log surfaces.
 LOD controls likewise retain their `TabletLODTools.qml` presentation on iOS;
 the fixed-width, always-on-top QWidget fallback is desktop-only.
 Its `LodToolsDialog.cpp/.h` pair and the desktop-only refresh/window-watcher

@@ -122,6 +122,8 @@ if(IOS)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/EntityScriptServerLogDialog.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/HMDToolsDialog.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/HMDToolsDialog.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/JSConsole.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/JSConsole.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/LogDialog.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/LogDialog.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/LodToolsDialog.cpp"
@@ -171,6 +173,9 @@ endif ()
 
 # grab the ui files in resources/ui
 file (GLOB_RECURSE QT_UI_FILES ui/*.ui)
+if(IOS)
+  list(REMOVE_ITEM QT_UI_FILES "${CMAKE_CURRENT_SOURCE_DIR}/ui/console.ui")
+endif()
 source_group("UI Files" FILES ${QT_UI_FILES})
 # have qt5 wrap them and generate the appropriate header files
 overte_qt_wrap_ui(QT_UI_HEADERS "${QT_UI_FILES}")

@@ -129,6 +129,14 @@ require("Qt::WindowStaysOnTopHint" in TESTING_DIALOG and
         "TestingDialog is no longer demonstrably a desktop test-console window")
 require("maybeCreateDialog(_testingDialog)" not in DIALOGS_MANAGER,
         "TestingDialog gained a manager creation path and must be re-audited")
+for js_console_source in ("JSConsole.cpp", "JSConsole.h"):
+    require(f'"${{CMAKE_CURRENT_SOURCE_DIR}}/src/ui/{js_console_source}"' in INTERFACE_CMAKE,
+            f"{js_console_source} remains in the iOS compile/MOC graph")
+require('list(REMOVE_ITEM QT_UI_FILES "${CMAKE_CURRENT_SOURCE_DIR}/ui/console.ui")' in INTERFACE_CMAKE,
+        "desktop JSConsole form remains in the iOS UIC graph")
+require("_console(new JSConsole(this))" in TESTING_DIALOG and
+        "new JSConsole(dialog)" in JS_CONSOLE,
+        "JSConsole ownership changed and its iOS source exclusion must be re-audited")
 require("void DialogsManager::lodTools() {\n#if !defined(Q_OS_IOS)" in DIALOGS_MANAGER,
         "desktop LOD tools dialog remains reachable on iOS")
 require("QDialog(parent, Qt::Window | Qt::WindowCloseButtonHint | Qt::WindowStaysOnTopHint)" in LOD_DIALOG and
