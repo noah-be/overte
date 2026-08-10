@@ -24,13 +24,9 @@
       "roots": ["interface", "libraries"],
       "extensions": [".cpp", ".h", ".hpp", ".mm"],
       "files": [
-        "interface/src/scripting/AudioDevices.h",
-        "libraries/audio-client/src/AudioClient.cpp",
-        "libraries/audio-client/src/AudioClient.h",
-        "libraries/audio-client/src/HifiAudioDeviceInfo.cpp",
-        "libraries/audio-client/src/HifiAudioDeviceInfo.h"
+        "libraries/audio-client/src/AudioDeviceCompat.h"
       ],
-      "exitCriterion": "The audio-client boundary uses Qt 6 QAudioDevice/QAudioSource/QAudioSink and preserves the 48 kHz network format."
+      "exitCriterion": "The Qt 5-only names remain isolated behind AudioDeviceCompat compile guards until desktop Qt 5 support is removed; Qt 6 uses QAudioDevice/QAudioSource/QAudioSink and preserves the 48 kHz network format."
     },
     {
       "id": "core5compat-api",
@@ -53,8 +49,6 @@
         "libraries/animation/src/AnimExpression.cpp",
         "libraries/embedded-webserver/src/HTTPManager.cpp",
         "libraries/model-serializers/src/OBJWriter.cpp",
-        "libraries/networking/src/AddressManager.cpp",
-        "libraries/octree/src/OctreePersistThread.cpp",
         "libraries/script-engine/src/ScriptManager.cpp",
         "libraries/script-engine/src/ScriptsModel.cpp",
         "libraries/shared/src/ApplicationVersion.cpp",
@@ -89,6 +83,17 @@
       "exitCriterion": "Every listed compilation unit is excluded on iOS or consumes the platform web-surface abstraction."
     },
     {
+      "id": "qt6-audio-runtime-semantics",
+      "pattern": "Qt 6 audio sink state changed|hifiAudioSinkPullCapacity",
+      "roots": ["libraries/audio-client"],
+      "extensions": [".cpp", ".h"],
+      "files": [
+        "libraries/audio-client/src/AudioClient.cpp",
+        "libraries/audio-client/src/AudioDeviceCompat.h"
+      ],
+      "exitCriterion": "On-device evidence confirms QAudioSink pull-cadence starvation telemetry and validates the conservative buffer-size allocation bound without treating it as backend period or latency."
+    },
+    {
       "id": "apple-desktop-framework",
       "pattern": "find_library\\s*\\([^\\n]*(?:AppKit|OpenGL|IOKit|Carbon)",
       "roots": ["CMakeLists.txt", "cmake", "interface", "libraries"],
@@ -100,6 +105,66 @@
         "libraries/shared/CMakeLists.txt"
       ],
       "exitCriterion": "All matches remain inside explicit APPLE AND NOT IOS branches."
+    },
+    {
+      "id": "apple-desktop-simd-flags",
+      "pattern": "elseif \\(NOT IOS AND \\(APPLE OR",
+      "roots": ["cmake/macros/SetupHifiLibrary.cmake"],
+      "extensions": [".cmake"],
+      "files": [
+        "cmake/macros/SetupHifiLibrary.cmake"
+      ],
+      "exitCriterion": "x86 SIMD compiler flags remain excluded from every iOS architecture while desktop x86 builds retain their optimized translation units."
+    },
+    {
+      "id": "apple-desktop-neuron-sdk",
+      "pattern": "WIN32 OR \\(APPLE AND NOT IOS\\)",
+      "roots": ["cmake/macros/TargetNeuron.cmake"],
+      "extensions": [".cmake"],
+      "files": [
+        "cmake/macros/TargetNeuron.cmake"
+      ],
+      "exitCriterion": "The desktop Neuron data-reader dependency remains absent from the iOS plugin graph unless its vendor ships a supported iOS SDK."
+    },
+    {
+      "id": "ios-desktop-crashpad-handler",
+      "pattern": "desktop handler packaging is not supported on iOS",
+      "roots": ["cmake/macros/AddCrashpad.cmake"],
+      "extensions": [".cmake"],
+      "files": [
+        "cmake/macros/AddCrashpad.cmake"
+      ],
+      "exitCriterion": "Crash reporting remains disabled on iOS until an in-process, sandbox-compatible implementation replaces desktop crashpad_handler copying."
+    },
+    {
+      "id": "ios-audio-session-device-validation",
+      "pattern": "setAudioSessionActive|APPLE AND NOT IOS|Q_OS_MACOS.*Q_OS_IOS|overteIOSMicrophonePermission|NSMicrophoneUsageDescription|MACOSX_BUNDLE_INFO_PLIST.*ios/resources",
+      "roots": ["ios/resources/Info.plist.in", "ios/resources/InterfaceInfo.plist.in", "ios/src/AppDelegate.mm", "interface/CMakeLists.txt", "libraries/audio-client/CMakeLists.txt", "libraries/audio-client/src/AudioClient.cpp", "libraries/audio-client/src/IOSAudioPermission.h", "libraries/audio-client/src/IOSAudioPermission.mm"],
+      "extensions": [".cpp", ".h", ".mm", ".txt", ".in"],
+      "files": [
+        "interface/CMakeLists.txt",
+        "ios/resources/Info.plist.in",
+        "ios/resources/InterfaceInfo.plist.in",
+        "ios/src/AppDelegate.mm",
+        "libraries/audio-client/CMakeLists.txt",
+        "libraries/audio-client/src/AudioClient.cpp",
+        "libraries/audio-client/src/IOSAudioPermission.h",
+        "libraries/audio-client/src/IOSAudioPermission.mm"
+      ],
+      "exitCriterion": "Physical-device evidence separately covers the bootstrap AppDelegate interruption/session policy and the Qt full client's background restart, route behavior, and microphone denial; the bootstrap AppDelegate must not be treated as full-client implementation evidence."
+    },
+    {
+      "id": "ios-local-network-device-validation",
+      "pattern": "IOS_LOCAL_NETWORK_UDP_ERROR|iOS UDP datagram dropped|NSLocalNetworkUsageDescription",
+      "roots": ["ios/resources/Info.plist.in", "ios/resources/InterfaceInfo.plist.in", "libraries/networking/src/udt/NetworkSocket.cpp", "libraries/networking/src/udt/Socket.cpp"],
+      "extensions": [".cpp", ".in"],
+      "files": [
+        "ios/resources/Info.plist.in",
+        "ios/resources/InterfaceInfo.plist.in",
+        "libraries/networking/src/udt/NetworkSocket.cpp",
+        "libraries/networking/src/udt/Socket.cpp"
+      ],
+      "exitCriterion": "Physical-device evidence covers local-network allow, denial, Settings recovery, public-domain UDP, private-domain UDP, and confirms that diagnostics contain no peer address."
     },
     {
       "id": "dynamic-plugin-packaging",

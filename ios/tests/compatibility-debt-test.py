@@ -31,12 +31,24 @@ def main() -> None:
     counts = auditor.audit_inventory(SOURCE_ROOT, inventory)
     assert counts == {
         "qt5-cmake-api": 7,
-        "qt6-removed-audio-api": 5,
-        "core5compat-api": 26,
+        "qt6-removed-audio-api": 1,
+        "core5compat-api": 24,
         "webengine-cpp-boundary": 12,
+        "qt6-audio-runtime-semantics": 2,
         "apple-desktop-framework": 4,
+        "apple-desktop-simd-flags": 1,
+        "apple-desktop-neuron-sdk": 1,
+        "ios-desktop-crashpad-handler": 1,
+        "ios-audio-session-device-validation": 8,
+        "ios-local-network-device-validation": 4,
         "dynamic-plugin-packaging": 2,
     }
+
+    rules = {rule["id"]: rule for rule in inventory["rules"]}
+    assert "Qt 5-only names remain isolated" in rules["qt6-removed-audio-api"]["exitCriterion"]
+    audio_session_exit = rules["ios-audio-session-device-validation"]["exitCriterion"]
+    assert "separately covers the bootstrap" in audio_session_exit
+    assert "must not be treated as full-client implementation evidence" in audio_session_exit
 
     stale = deepcopy(inventory)
     stale["rules"][0]["files"].append("invented/Qt5Debt.cpp")

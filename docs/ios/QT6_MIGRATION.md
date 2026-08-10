@@ -14,6 +14,66 @@ Qt Core5Compat is linked to Qt 6 targets as a temporary bridge for QRegExp and
 QTextCodec. New iOS code must use QRegularExpression and current text APIs.
 Core5Compat is not a reason to add new Qt 5 API use.
 
+The shared library macro treats iOS as an ARM target before applying optional
+x86 SIMD flags. Although CMake reports iOS as both `APPLE` and `UNIX`, its
+translation units must never inherit desktop `-mavx`, `-mavx2`, or
+`-mavx512f`; desktop x86 builds retain the existing optimized-source flags.
+
+The optional Neuron mocap plugin likewise limits its proprietary data-reader
+dependency to Windows and desktop Apple builds. iOS must not download or link
+that macOS SDK merely because CMake reports the target as `APPLE`; the plugin
+can only be enabled there after its vendor provides an iOS-compatible SDK.
+
+Crashpad is also disabled before dependency discovery on iOS. The current
+integration links desktop Apple support libraries and copies a separate
+`crashpad_handler` executable next to the target, which is not an audited
+iOS-sandbox/bundle design. Desktop targets retain that integration; iOS crash
+reporting stays fail-closed until an in-process supported path is provided.
+
+## iOS audio-session lifecycle
+
+The bootstrap UIKit host configures `AVAudioSessionCategoryPlayAndRecord` with
+game-chat, speaker, and Bluetooth-HFP policy. It activates the session only when
+the application becomes active, deactivates it on entry to the background with
+`NotifyOthersOnDeactivation`, and only reactivates after an interruption when
+iOS supplies `ShouldResume`. Activation failures are logged and never reported
+as success. This AppDelegate is not linked into the Qt full-client target.
+
+Apple's desktop `AudioHardware.h` fallback and explicit CoreAudio linkage are
+excluded from iOS. The full-client path uses Qt Multimedia's `QAudioDevice`,
+`QAudioSource`, and `QAudioSink`; its productive application lifecycle stops and
+restarts `AudioClient`, but does not claim the bootstrap AppDelegate's native
+session policy. Full-client interruption recovery, Bluetooth routing, microphone
+permission, and background behavior still require physical-device evidence and,
+where Qt does not supply the required session behavior, a separately reviewed
+native integration.
+
+Both the bootstrap and integrated Interface bundle use the audited iOS plist,
+including `NSMicrophoneUsageDescription`. The UIKit host requests record
+permission, while the Qt full client also requests it at audio startup because
+Qt may own the application delegate. `AudioClient` treats both undetermined and
+denied states as unavailable input and falls back to its existing silent timer;
+it does not construct a `QAudioSource` until permission is explicitly granted.
+Only the coarse granted/denied state is logged. Grant/denial prompts and recovery
+after changing permission in Settings remain physical-device acceptance checks.
+
+## Local-network permission and domain UDP
+
+Both iOS bundles declare `NSLocalNetworkUsageDescription`. The production
+domain path continues to use the existing `QUdpSocket`/UDT transport and lets
+iOS present its local-network prompt when a private-network endpoint is first
+accessed. The client neither browses nor publishes Bonjour services, so
+`NSBonjourServices` is intentionally absent. DNS resolution, STUN, DomainList,
+and entity packet bytes are unchanged.
+
+iOS does not expose a reliable application-level local-network permission
+status. UDP therefore remains fail-closed through the existing negative send
+result and socket-error signal. iOS diagnostics record only numeric error/state
+categories and whether output remains pending; they omit peer addresses and
+free-form error strings that could contain private LAN endpoints. Prompt,
+denial, Settings recovery, public-domain access, and private-domain access still
+require physical-device evidence.
+
 The first source audit identified these compile boundaries:
 
 - legacy QRegExp use spread across application and shared libraries;
@@ -21,6 +81,136 @@ The first source audit identified these compile boundaries:
 - desktop WebEngine profiles, now excluded in favor of the iOS WebView adapter;
 - desktop/HMD window and OpenGL paths that must not enter the iOS target; and
 - remaining Qt-5-specific deployment helpers used only by desktop packaging.
+
+The network/entity migration now uses `QRegularExpression` for address,
+viewpoint, host, UUID, and octree replacement-backup matching. Explicit
+`anchoredPattern` calls preserve the former `QRegExp::exactMatch` boundaries;
+captured address/viewpoint fields and case-insensitive host matching remain
+unchanged. This removes `AddressManager.cpp` and `OctreePersistThread.cpp` from
+the Core5Compat debt inventory.
+
+## Domain connection audit
+
+The production `DomainHandler` hostname lookup now uses Qt 6's typed
+`QHostInfo::lookupHost(name, context, member)` overload. The context remains the
+handler itself, so completion still runs in its event-loop thread and is
+discarded if the handler is destroyed; DNS selection and all Overte protocol
+packets are unchanged. This removes the compile-time dependency on a
+string-normalized `SLOT(...)` signature in the first domain connection step.
+
+The adjacent `NodeList` path uses Qt 6-supported `QHostInfo`,
+`QNetworkInterface`, queued `QMetaObject::invokeMethod`, and QObject connection
+APIs. Its remaining string-based timer connection is supported by Qt 6 and is
+not a current iOS compile blocker, so it is left unchanged to keep this port
+semantics-neutral.
+
+## UDT receive-path audit
+
+The iOS UDP transport now connects `QAbstractSocket::errorOccurred` to
+`NetworkSocket::onUDPSocketError` with Qt's typed connection syntax. Qt 6 no
+longer exposes the former `error(...)` signal used by the string-based Android
+compatibility connection. A version guard retains that legacy path for builds
+older than Qt 5.15, while Qt 5.15 and Qt 6 compile-check the signal and slot
+types and reliably forward UDP errors on iOS.
+
+This change is below packet decoding: it does not touch UDT headers,
+`ReceivedMessage` byte positions, message assembly, `PacketReceiver` listener
+selection, or any DomainServer packet. The adjacent receive and dispatch code
+uses Qt 6-supported `QByteArray`, atomics, `QPointer`, `QSharedPointer`, mutex,
+and functor-based queued invocation APIs; no additional Apple-only branch is
+required there.
+
+## Entity-query receive audit
+
+`OctreePacketProcessor` no longer includes or calls the desktop `FileLogger`
+queue diagnostic on iOS. The diagnostic was already disabled on Android and is
+now guarded from both Qt's `Q_OS_IOS` configuration and the early
+`OVERTE_IOS` build boundary. It only reported when the processing queue was far
+behind; removing it from the iOS compilation unit cannot change queueing or
+entity processing.
+
+The audited `EntityQuery` receive path otherwise retains the same packet type
+registration, stats/piggyback split, version check, message rewind, erase/data
+dispatch, safe-landing sequence, and EntityServer protocol bytes. Its Qt data
+structures and atomics are available on Qt 6/iOS, so no further platform branch
+is introduced.
+
+## Entity-to-resource handoff audit
+
+The ATP `ResourceManager::normalizeURL(QString)` prefix pass now uses a C++
+range-based loop instead of Qt's legacy `foreach` macro. Qt 6 strict mode can
+define `QT_NO_FOREACH`; the old spelling then prevents this production resource
+path from compiling. The function already takes a locked snapshot of the
+ordered prefix map, and the new loop iterates that same snapshot by const
+reference, so matching order and `replace(0, prefix.size(), replacement)` are
+unchanged.
+
+The adjacent handoff remains real production code: `EntityTreeRenderer`
+creates renderables from streamed entities, model/material resources retain
+their normalized URL, and `AssetResourceRequest` resolves ATP mappings or
+hashes through `AssetClient`. No URL scheme, hash expression, byte range,
+cache policy, request packet, renderer selection, or EntityTree mutation was
+changed by this compile fix.
+
+## Model and texture upload audit
+
+The model-buffer conversion at the graphics/GPU boundary now tests QVariant
+maps with `QVariant::metaType().id()` on Qt 6. The legacy `QVariant::type()`
+branch remains for desktop Qt 5 builds. Both branches compare the same
+`QMetaType::QVariantMap` identity, so map-versus-list selection and every
+component copied into the GPU buffer are unchanged.
+
+The surrounding production path was audited from model and texture resource
+requests through `ModelCache`, image/OpenEXR decoding, KTX descriptors, and
+`gpu::Texture`. No ResourceManager URL, downloaded byte, image format, KTX
+layout, sampler, texture element, mip level, or GPU payload was changed. The
+port only removes a Qt 6 strict-mode compile dependency on the retired QVariant
+type-enum API.
+
+## Entity renderer to GPU audit
+
+Compound model traversal in `RenderableModelEntityItem` now uses nested C++
+range loops instead of Qt's legacy `foreach` macro. This path is reachable from
+the model renderer created by `EntityRenderer::addToScene`, and Qt 6 strict
+mode may define `QT_NO_FOREACH`. Both loops retain const references and iterate
+the same `collisionGeometry.meshes` and `mesh.parts` order.
+
+No mesh or part is inserted, removed, or reordered during traversal. Triangle
+indices, unique convex-hull points, shape selection, render item allocation,
+payload proxy, status getters, scene transaction, model resource, material,
+and GPU buffer contents are therefore unchanged.
+
+## iPad input and lifecycle audit
+
+The production `TouchscreenVirtualPadDevice` now has an explicit Qt-version
+boundary. Qt 6/iPadOS enumerates `QInputDevice` touchscreen devices, consumes
+`QTouchEvent::points()`, and reads `QEventPoint::position()`. Desktop and
+Android Qt 5 retain `QTouchDevice`, `QTouchEvent::TouchPoint`, `touchPoints()`,
+and `pos()`. Both paths feed the same touch IDs and logical-pixel coordinates
+into the existing move/view/button state machine and `UserInputMapper` axes.
+
+The audit also followed those axes into avatar movement/view updates. No axis
+scaling, pinch, button, haptic, avatar, or camera behavior was changed. This is
+the full-client input plugin, not the bootstrap Metal touch demonstration.
+
+## Productive iOS application lifecycle audit
+
+The existing full-client mobile pause/resume boundary is now compiled for iOS
+as well as Android. On the first Qt `ApplicationHidden` or
+`ApplicationSuspended` transition after startup, it disables DomainServer
+check-ins, resets the stale connection and octree state, stops audio, and
+deactivates the active display plugin. A later `ApplicationActive` transition
+starts audio, reactivates that plugin (which recreates its platform surface as
+needed), and enables check-ins so the normal DomainHandler reconnect path can
+run. `ApplicationInactive` deliberately remains only a refresh-rate change:
+short-lived iOS interruptions and system overlays must not tear down the domain.
+
+The transition is edge-triggered through `_isForeground`, so Qt's consecutive
+hidden/suspended notifications cannot reset the network twice. Startup and
+shutdown guards prevent lifecycle callbacks from touching partially constructed
+or destructing dependencies. The display deactivation also tolerates the state
+before any plugin has been selected. No packet, DomainHandler handshake,
+entity-tree mutation, renderer payload, or bootstrap lifecycle mock was changed.
 
 ## Audio migration rule
 
@@ -40,4 +230,3 @@ The iOS build is not allowed to restore Qt WebEngine, QDesktopWidget, QGLWidget,
 or a desktop Qt installation to work around a migration error. A temporary
 compatibility use must be centralized, documented here, and covered by a host
 contract.
-

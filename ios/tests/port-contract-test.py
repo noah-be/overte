@@ -114,6 +114,18 @@ def test_profiles() -> None:
     require_text(build_script, r"device-\$\{signing_label\}\.ipa", "device IPA names must disclose signing state")
     require_text(build_script, r'"buildNumber": int\(build_number\)', "artifact manifests must record the build number")
     require_text(build_script, r'"requiresSigning": not is_signed', "device manifests must disclose the signing requirement")
+    require_text(build_script, r"package-client\)", "integrated client packaging must be an explicit command")
+    require_text(build_script, r"embedded\.mobileprovision", "signed client packaging must audit its provisioning profile")
+    require_text(build_script, r"application-identifier mismatch", "signed client packaging must bind the team and bundle ID")
+    require_text(build_script, r"get-task-allow differs", "signed client packaging must compare debug entitlement state")
+    require_text(build_script, r"unexpectedly contains _CodeSignature", "unsigned Sideloadly input must reject stale signatures")
+    handoff = IOS_ROOT / "tools" / "verify-windows-handoff.py"
+    require_text(handoff, r"LATEST-OverteIOSClient\.json", "handoff verifier must resolve the current JSON pointer")
+    require_text(handoff, r"hashlib\.sha256", "handoff verifier must recompute SHA-256")
+    require_text(handoff, r"Sideloadly must sign", "handoff verifier must explain unsigned device artifacts")
+    require_text(build_script, r"positive OVERTE_IOS_ARTIFACT_SEQUENCE", "integrated artifacts must reject missing or zero numbering")
+    require_text(build_script, r"LATEST-OverteIOSClient\.json", "integrated artifacts need machine-readable VM handoff metadata")
+    require_text(build_script, r"sharedFolderRelativePath", "integrated manifests must name the Windows shared-folder payload")
 
 
 def test_dependency_inventory() -> None:
@@ -150,6 +162,7 @@ def test_plists() -> None:
     assert info["LSRequiresIPhoneOS"] is True
     assert info["NSMicrophoneUsageDescription"]
     assert info["NSLocalNetworkUsageDescription"]
+    assert "NSBonjourServices" not in info, "direct domain UDP must not declare unused Bonjour services"
     assert info["NSAppTransportSecurity"] == {"NSAllowsLocalNetworking": True}
     assert info["UIApplicationSceneManifest"]["UIApplicationSupportsMultipleScenes"] is False
     assert info["UIRequiredDeviceCapabilities"] == ["arm64"]
@@ -157,6 +170,25 @@ def test_plists() -> None:
     assert set(url_schemes) == {"overte", "hifi"}
     assert set(info["UISupportedInterfaceOrientations~ipad"]) >= {
         "UIInterfaceOrientationPortrait",
+        "UIInterfaceOrientationLandscapeLeft",
+        "UIInterfaceOrientationLandscapeRight",
+    }
+
+    interface_info_path = IOS_ROOT / "resources" / "InterfaceInfo.plist.in"
+    with interface_info_path.open("rb") as stream:
+        interface_info = plistlib.load(stream)
+    assert interface_info["NSAppTransportSecurity"] == {"NSAllowsLocalNetworking": True}
+    assert "NSAllowsArbitraryLoads" not in interface_info["NSAppTransportSecurity"]
+    assert "NSExceptionDomains" not in interface_info["NSAppTransportSecurity"]
+    interface_schemes = interface_info["CFBundleURLTypes"][0]["CFBundleURLSchemes"]
+    assert set(interface_schemes) == {"hifi", "hifiapp"}
+    assert "NSBonjourServices" not in interface_info
+    assert interface_info["UILaunchScreen"] == {"UIColorName": "AccentColor"}
+    assert interface_info["UIRequiresFullScreen"] is False
+    assert interface_info["UIRequiredDeviceCapabilities"] == ["arm64"]
+    assert set(interface_info["UISupportedInterfaceOrientations~ipad"]) == {
+        "UIInterfaceOrientationPortrait",
+        "UIInterfaceOrientationPortraitUpsideDown",
         "UIInterfaceOrientationLandscapeLeft",
         "UIInterfaceOrientationLandscapeRight",
     }
@@ -176,6 +208,27 @@ def test_plists() -> None:
         "NSPrivacyAccessedAPICategoryDiskSpace": ["E174.1"],
         "NSPrivacyAccessedAPICategoryUserDefaults": ["CA92.1"],
     }
+    evidence = {
+        "NSPrivacyAccessedAPICategoryFileTimestamp": (
+            SOURCE_ROOT / "libraries/networking/src/FileResourceRequest.cpp",
+            r"QFileInfo\(file\)\.lastModified\(\)",
+        ),
+        "NSPrivacyAccessedAPICategorySystemBootTime": (
+            SOURCE_ROOT / "interface/src/main.cpp",
+            r"QElapsedTimer\s+startupTime",
+        ),
+        "NSPrivacyAccessedAPICategoryDiskSpace": (
+            SOURCE_ROOT / "libraries/shared/src/shared/FileCache.cpp",
+            r"QStorageInfo\(_dirpath\.c_str\(\)\)\.bytesFree\(\)",
+        ),
+        "NSPrivacyAccessedAPICategoryUserDefaults": (
+            SOURCE_ROOT / "libraries/shared/src/SettingManager.cpp",
+            r"QSettings\s+settings",
+        ),
+    }
+    assert set(evidence) == set(accessed), "every declared category needs source evidence"
+    for category, (path, pattern) in evidence.items():
+        require_text(path, pattern, f"missing required-reason API evidence for {category}")
 
     entitlements_path = IOS_ROOT / "resources" / "Overte.entitlements"
     with entitlements_path.open("rb") as stream:
@@ -211,6 +264,24 @@ def test_cmake_boundary() -> None:
     require_text(cmake, r'XCODE_EXPLICIT_FILE_TYPE "sourcecode\.metal"', "Xcode must compile the Metal shader source")
     require_text(cmake, r'"-framework Metal"', "bootstrap must link Metal")
     require_text(cmake, r'"-framework AVFoundation"', "bootstrap must link AVFoundation")
+    require_text(cmake, r'NOT EXISTS.*PrivacyInfo', "bootstrap configure must require its privacy manifest")
+    interface_cmake = SOURCE_ROOT / "interface" / "CMakeLists.txt"
+    require_text(interface_cmake, r'NOT EXISTS.*OVERTE_IOS_PRIVACY_MANIFEST', "full client must fail closed without its privacy manifest")
+    require_text(interface_cmake, r'MACOSX_PACKAGE_LOCATION Resources', "full client must bundle its privacy manifest as a resource")
+    require_text(interface_cmake, r'CODE_SIGN_ENTITLEMENTS.*Overte\.entitlements', "full client signing must use the audited empty entitlement allowlist")
+    require_text(interface_cmake, r'PRODUCT_BUNDLE_IDENTIFIER.*OVERTE_IOS_BUNDLE_IDENTIFIER', "full client signature identity must use the requested bundle ID")
+    require_text(interface_cmake, r'Integrated iOS signing requires OVERTE_IOS_DEVELOPMENT_TEAM', "signed full-client configure must require a team")
+    require_text(interface_cmake, r'CODE_SIGNING_ALLOWED "NO"', "unsigned full-client builds must explicitly disable signing")
+    require_text(interface_cmake, r'ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon"', "full client must select the existing app icon set")
+    require_text(interface_cmake, r'IPHONEOS_DEPLOYMENT_TARGET.*CMAKE_OSX_DEPLOYMENT_TARGET', "full client minimum OS must follow the configured deployment target")
+    require_text(interface_cmake, r'TARGETED_DEVICE_FAMILY "1,2"', "full client must target iPhone and iPad")
+    require_text(interface_cmake, r'SUPPORTED_PLATFORMS "iphoneos iphonesimulator"', "full client must declare device and simulator platforms")
+    require_text(interface_cmake, r'"\$\{OVERTE_IOS_ASSET_CATALOG\}"', "full client must compile the existing asset catalog")
+
+    networking_constants = SOURCE_ROOT / "libraries/networking/src/NetworkingConstants.h"
+    require_text(networking_constants, r'URL_SCHEME_OVERTE\s*=\s*"hifi"', "registered deep-link scheme must match AddressManager")
+    require_text(networking_constants, r'URL_SCHEME_OVERTEAPP\s*=\s*"hifiapp"', "registered app-command scheme must match client dispatch")
+    require_text(networking_constants, r'METAVERSE_SERVER_URL_STABLE\s*\{\s*"https://', "directory traffic must use HTTPS without an ATS exception")
 
     qt_compat = SOURCE_ROOT / "cmake" / "QtCompat.cmake"
     require_text(qt_compat, r"OVERTE_QT_MAJOR", "Qt major selection must be centralized")
@@ -281,6 +352,10 @@ def test_cmake_boundary() -> None:
     require_text(app_delegate, r"LifecycleStateMachine", "application lifecycle must feed a tested state model")
     require_text(app_delegate, r"UIWindowSceneSessionRoleApplication", "scene configuration must use the current UIKit role")
     require_text(app_delegate, r"AVAudioSessionCategoryOptionAllowBluetoothHFP", "audio session must use the current Bluetooth option")
+    require_text(app_delegate, r"applicationDidBecomeActive[\s\S]*setAudioSessionActive\(true\)", "foreground activation must activate the iOS audio session")
+    require_text(app_delegate, r"applicationDidEnterBackground[\s\S]*setAudioSessionActive\(false, AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation\)", "background entry must release the iOS audio session")
+    require_text(app_delegate, r"shouldResume[\s\S]*setAudioSessionActive\(true\)", "interruption recovery must obey ShouldResume")
+    require_text(app_delegate, r"requestRecordPermission", "bootstrap must request microphone permission")
     scene_delegate = IOS_ROOT / "src" / "SceneDelegate.mm"
     require_text(scene_delegate, r"PendingDeepLinkStore", "deep links must survive cold-start delivery")
     require_text(scene_delegate, r"connectionOptions\.URLContexts", "cold-start deep links must be routed")
@@ -304,6 +379,101 @@ def test_cmake_boundary() -> None:
         require_text(asset_source, r"QRegularExpression::anchoredPattern", "ATP validation must preserve exact-match semantics")
         if "QRegExp" in asset_source.read_text(encoding="utf-8"):
             raise AssertionError(f"ATP validation retained removed QRegExp API: {asset_source}")
+    address_manager = SOURCE_ROOT / "libraries" / "networking" / "src" / "AddressManager.cpp"
+    require_text(address_manager, r"QRegularExpression::CaseInsensitiveOption", "address matching must preserve case-insensitive host and UUID handling")
+    require_text(address_manager, r"anchoredPattern\(IP_ADDRESS_REGEX_STRING\)", "IP matching must preserve exact-match semantics")
+    require_text(address_manager, r"anchoredPattern\(HOSTNAME_REGEX_STRING\)", "hostname matching must preserve exact-match semantics")
+    require_text(address_manager, r"\.captured\([1-4]\)", "address matching must preserve captured network and viewpoint fields")
+    require_text(address_manager, r"positionMatch\.capturedEnd", "viewpoint orientation parsing must start after the position match")
+    if "QRegExp" in address_manager.read_text(encoding="utf-8"):
+        raise AssertionError("AddressManager retained removed QRegExp API")
+    audio_compat = SOURCE_ROOT / "libraries" / "audio-client" / "src" / "AudioDeviceCompat.h"
+    require_text(audio_compat, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)", "audio device adapter must select APIs at compile time")
+    require_text(audio_compat, r"using HifiQtAudioDevice = QAudioDevice;", "Qt 6 audio adapter must use QAudioDevice")
+    require_text(audio_compat, r"QMediaDevices::audioInputs", "Qt 6 input enumeration must use QMediaDevices")
+    require_text(audio_compat, r"QMediaDevices::audioOutputs", "Qt 6 output enumeration must use QMediaDevices")
+    require_text(audio_compat, r"QMediaDevices::defaultAudioInput", "Qt 6 default input must use QMediaDevices")
+    require_text(audio_compat, r"QMediaDevices::defaultAudioOutput", "Qt 6 default output must use QMediaDevices")
+    require_text(audio_compat, r"using HifiQtAudioDevice = QAudioDeviceInfo;", "Qt 5 audio adapter must preserve QAudioDeviceInfo")
+    require_text(audio_compat, r"using HifiAudioSource = QAudioSource;", "Qt 6 input must use QAudioSource")
+    require_text(audio_compat, r"using HifiAudioSink = QAudioSink;", "Qt 6 output must use QAudioSink")
+    require_text(audio_compat, r"using HifiAudioSource = QAudioInput;", "Qt 5 input must remain QAudioInput")
+    require_text(audio_compat, r"using HifiAudioSink = QAudioOutput;", "Qt 5 output must remain QAudioOutput")
+    require_text(audio_compat, r"hifiAudioSinkPullCapacity", "removed Qt 6 periodSize API needs an explicit allocation boundary")
+    require_text(audio_compat, r"capacity bound, not a latency or callback-cadence estimate", "Qt 6 buffer size must not be misreported as a backend period")
+    require_text(audio_compat, r"setSampleFormat\(QAudioFormat::Int16\)", "Qt 6 network PCM must remain signed 16-bit")
+    require_text(audio_compat, r"return device\.description\(\);", "Qt 6 device naming must use QAudioDevice::description")
+    hifi_audio_device = SOURCE_ROOT / "libraries" / "audio-client" / "src" / "HifiAudioDeviceInfo.h"
+    require_text(hifi_audio_device, r"HifiQtAudioDevice", "audio device model must consume the compatibility type")
+    if "QAudioDeviceInfo" in hifi_audio_device.read_text(encoding="utf-8"):
+        raise AssertionError("HifiAudioDeviceInfo bypassed the Qt 5/6 device adapter")
+    compatibility_debt = json.loads((IOS_ROOT / "compatibility-debt.json").read_text(encoding="utf-8"))
+    audio_rule = next(rule for rule in compatibility_debt["rules"] if rule["id"] == "qt6-removed-audio-api")
+    assert set(audio_rule["files"]) == {"libraries/audio-client/src/AudioDeviceCompat.h"}, "removed Qt 5 audio APIs must be isolated in the adapter"
+    audio_runtime_rule = next(rule for rule in compatibility_debt["rules"] if rule["id"] == "qt6-audio-runtime-semantics")
+    assert "On-device evidence" in audio_runtime_rule["exitCriterion"]
+    audio_client_header = SOURCE_ROOT / "libraries" / "audio-client" / "src" / "AudioClient.h"
+    require_text(audio_client_header, r"HifiAudioSource\* _audioInput", "input ownership must use the Qt 5/6 stream adapter")
+    require_text(audio_client_header, r"HifiAudioSink\* _audioOutput", "output ownership must use the Qt 5/6 stream adapter")
+    audio_client_source = SOURCE_ROOT / "libraries" / "audio-client" / "src" / "AudioClient.cpp"
+    require_text(audio_client_source, r"new HifiAudioSource", "input construction must use the stream adapter")
+    require_text(audio_client_source, r"new HifiAudioSink", "output construction must use the stream adapter")
+    require_text(audio_client_source, r"QT_VERSION < QT_VERSION_CHECK\(6, 0, 0\)\s*\n\s*connect\([^\n]*HifiAudioSink::notify", "removed Qt 6 notify signal must remain Qt 5-only")
+    require_text(audio_client_source, r"schedulePullTelemetry\(\)", "Qt 6 starvation telemetry must be driven by real sink pulls")
+    require_text(audio_client_source, r"HifiAudioSink::stateChanged", "Qt 6 sink state changes must remain observable")
+    require_text(audio_client_source, r"setSampleRate\(AudioConstants::SAMPLE_RATE\)", "audio must preserve the 48 kHz network rate contract")
+    require_text(audio_client_source, r"hifiConfigurePcm16", "audio formats must use the Qt 5/6 PCM adapter")
+    require_text(audio_client_source, r'qRegisterMetaType<HifiAudioDeviceMode>\("HifiAudioDeviceMode"\)', "queued audio mode calls must register the compatibility enum on every platform")
+    require_text(audio_client_source, r"return false;\s*// a supported format could not be found", "unsupported audio formats must fail closed")
+    if "QAudioDeviceInfo" in audio_client_source.read_text(encoding="utf-8"):
+        raise AssertionError("AudioClient bypassed QMediaDevices/QAudioDevice compatibility helpers")
+    require_text(audio_client_source, r"Q_OS_MACOS.*!defined\(Q_OS_IOS\)", "desktop AudioHardware must be excluded from iOS")
+    audio_client_cmake = SOURCE_ROOT / "libraries" / "audio-client" / "CMakeLists.txt"
+    require_text(audio_client_cmake, r"if \(APPLE AND NOT IOS\)", "desktop CoreAudio linkage must be excluded from iOS")
+    require_text(audio_client_cmake, r"src/IOSAudioPermission\.mm", "full client must compile the iOS permission bridge")
+    require_text(audio_client_cmake, r"enable_language\(OBJCXX\)", "full client must enable Objective-C++ before compiling the permission bridge")
+    permission_bridge = SOURCE_ROOT / "libraries" / "audio-client" / "src" / "IOSAudioPermission.mm"
+    require_text(permission_bridge, r"AVAudioSessionRecordPermissionGranted", "microphone permission must fail closed unless granted")
+    require_text(permission_bridge, r"requestRecordPermission", "full client must be able to request microphone permission")
+    require_text(permission_bridge, r"dispatch_get_main_queue", "permission UI must be requested on the main queue")
+    require_text(permission_bridge, r"dispatch_once", "permission requests must be coalesced per process")
+    require_text(audio_client_source, r"overteIOSMicrophonePermissionGranted", "AudioClient input must enforce iOS permission")
+    interface_cmake = SOURCE_ROOT / "interface" / "CMakeLists.txt"
+    require_text(interface_cmake, r"MACOSX_BUNDLE_INFO_PLIST.*ios/resources/InterfaceInfo\.plist\.in", "full client must package its audited iOS plist")
+    integrated_info = IOS_ROOT / "resources" / "InterfaceInfo.plist.in"
+    with integrated_info.open("rb") as stream:
+        integrated_plist = plistlib.load(stream)
+    assert integrated_plist["NSMicrophoneUsageDescription"]
+    assert integrated_plist["NSLocalNetworkUsageDescription"]
+    assert integrated_plist["NSAppTransportSecurity"] == {"NSAllowsLocalNetworking": True}
+    assert "NSBonjourServices" not in integrated_plist, "full client does not browse or advertise Bonjour"
+    assert integrated_plist["LSRequiresIPhoneOS"] is True
+    assert "UIApplicationSceneManifest" not in integrated_plist, "full client plist must not name bootstrap-only delegates"
+    network_socket = SOURCE_ROOT / "libraries" / "networking" / "src" / "udt" / "NetworkSocket.cpp"
+    require_text(network_socket, r"IOS_LOCAL_NETWORK_UDP_ERROR", "iOS UDP denial/unavailability needs categorical telemetry")
+    require_text(network_socket, r"static_cast<int>\(socketError\)", "iOS UDP telemetry must use a bounded error category")
+    require_text(network_socket, r"lastReportedCategory\.exchange", "iOS UDP telemetry must coalesce repeated error categories")
+    udt_socket = SOURCE_ROOT / "libraries" / "networking" / "src" / "udt" / "Socket.cpp"
+    require_text(udt_socket, r"iOS udt::writeDatagram error category", "iOS UDP send errors need address-free telemetry")
+    require_text(udt_socket, r"iOS UDP datagram dropped because the socket is unbound", "unbound iOS UDP writes must fail closed")
+    udt_text = udt_socket.read_text(encoding="utf-8")
+    private_log = re.search(
+        r"#if defined\(Q_OS_IOS\)\s+QDebug\(&errorString\) << \"iOS udt::writeDatagram error category\"([\s\S]*?)#else",
+        udt_text,
+    )
+    assert private_log and "sockAddr" not in private_log.group(1) and "errorString(socketType)" not in private_log.group(1), "iOS UDP telemetry must not disclose LAN endpoints"
+    for mode_boundary in (
+        SOURCE_ROOT / "libraries" / "audio-client" / "src" / "AudioClient.cpp",
+        SOURCE_ROOT / "libraries" / "audio-client" / "src" / "AudioClient.h",
+        SOURCE_ROOT / "interface" / "src" / "scripting" / "AudioDevices.cpp",
+        SOURCE_ROOT / "interface" / "src" / "scripting" / "AudioDevices.h",
+        SOURCE_ROOT / "interface" / "src" / "AndroidHelper.cpp",
+        SOURCE_ROOT / "libraries" / "ui" / "src" / "ui" / "OffscreenQmlSurface.cpp",
+    ):
+        mode_text = mode_boundary.read_text(encoding="utf-8")
+        assert "HifiAudioDeviceMode" in mode_text, mode_boundary
+        if re.search(r"QAudio::(?:Mode|AudioInput|AudioOutput)", mode_text):
+            raise AssertionError(f"audio mode boundary bypasses compatibility enum: {mode_boundary}")
     render_utils = SOURCE_ROOT / "libraries" / "render-utils" / "CMakeLists.txt"
     require_text(
         render_utils,
@@ -358,6 +528,149 @@ def test_scope_contract() -> None:
     qt6_migration = SOURCE_ROOT / "docs" / "ios" / "QT6_MIGRATION.md"
     require_text(qt6_migration, r"QAudioDeviceInfo/QAudioInput/QAudioOutput", "Qt 6 audio boundary must be explicit")
     require_text(qt6_migration, r"must not enter the iOS target", "desktop-only Qt paths must be excluded")
+    require_text(qt6_migration, r"This AppDelegate is not linked into the Qt full-client target", "bootstrap AVAudioSession behavior must not be claimed for the full client")
+
+    setup_library = SOURCE_ROOT / "cmake" / "macros" / "SetupHifiLibrary.cmake"
+    setup_library_text = setup_library.read_text(encoding="utf-8")
+    assert len(re.findall(r"elseif \(NOT IOS AND \(APPLE OR", setup_library_text)) == 3, (
+        "all AVX, AVX2, and AVX512 compiler-flag branches must exclude iOS"
+    )
+    for desktop_flag in ("-mavx", "-mavx2", "-mavx512f"):
+        require_text(setup_library, re.escape(desktop_flag), f"desktop SIMD flag {desktop_flag} must remain available")
+
+    target_neuron = SOURCE_ROOT / "cmake" / "macros" / "TargetNeuron.cmake"
+    require_text(
+        target_neuron,
+        r"if \(WIN32 OR \(APPLE AND NOT IOS\)\)[\s\S]*?find_package\(Neuron REQUIRED\)",
+        "the desktop-only Neuron SDK must not enter the iOS plugin graph",
+    )
+    assert "if (WIN32 OR APPLE)" not in target_neuron.read_text(encoding="utf-8")
+
+    add_crashpad = SOURCE_ROOT / "cmake" / "macros" / "AddCrashpad.cmake"
+    require_text(
+        add_crashpad,
+        r"if \(IOS\)\s+message\(STATUS \"Checking crashpad config - desktop handler packaging is not supported on iOS, disabled\.\"\)\s+set\(USE_CRASHPAD FALSE\)\s+endif\(\)\s+if \(USE_CRASHPAD\)",
+        "iOS must disable Crashpad before package discovery and desktop handler packaging",
+    )
+    require_text(
+        add_crashpad,
+        r"COMMAND \$\{CMAKE_COMMAND\} -E copy \$\{CRASHPAD_HANDLER_EXE_PATH\}",
+        "desktop targets must retain their existing Crashpad handler packaging",
+    )
+
+    octree_persist = SOURCE_ROOT / "libraries" / "octree" / "src" / "OctreePersistThread.cpp"
+    require_text(octree_persist, r"#include <QRegularExpression>", "octree backup cleanup must use the Qt 6 regex API")
+    require_text(octree_persist, r"QRegularExpression::anchoredPattern", "backup matching must preserve QRegExp exactMatch semantics")
+    require_text(octree_persist, r"filenameRegex\.match\(absPath\)\.hasMatch\(\)", "backup cleanup must test the anchored Qt 6 match")
+
+    domain_handler = SOURCE_ROOT / "libraries" / "networking" / "src" / "DomainHandler.cpp"
+    require_text(
+        domain_handler,
+        r"QHostInfo::lookupHost\(domainURL\.host\(\), this, &DomainHandler::completedHostnameLookup\)",
+        "domain DNS completion must use the typed Qt 6 context overload",
+    )
+    if re.search(r"QHostInfo::lookupHost\([^;]*\bSLOT\s*\(", domain_handler.read_text(encoding="utf-8")):
+        raise AssertionError("domain DNS lookup must not depend on string-normalized Qt slot signatures")
+
+    network_socket = SOURCE_ROOT / "libraries" / "networking" / "src" / "udt" / "NetworkSocket.cpp"
+    require_text(
+        network_socket,
+        r"#if QT_VERSION >= QT_VERSION_CHECK\(5, 15, 0\)\s+connect\(&_udpSocket, &QAbstractSocket::errorOccurred,\s+this, &NetworkSocket::onUDPSocketError\);",
+        "the iOS UDT socket must connect Qt 6 UDP errors through the typed signal",
+    )
+    require_text(
+        network_socket,
+        r"#else\s+// Preserve compatibility with Android builds that still use Qt before 5\.15\.",
+        "the Qt 6 socket fix must retain the legacy Android compatibility branch",
+    )
+
+    octree_processor = SOURCE_ROOT / "interface" / "src" / "octree" / "OctreePacketProcessor.cpp"
+    ios_free_file_logger_guard = (
+        r"#if !defined\(Q_OS_ANDROID\) && !defined\(Q_OS_IOS\) && !defined\(OVERTE_IOS\)"
+    )
+    processor_text = octree_processor.read_text(encoding="utf-8")
+    assert len(re.findall(ios_free_file_logger_guard, processor_text)) == 2, (
+        "FileLogger include and queue diagnostic must both be excluded from iOS"
+    )
+    require_text(
+        octree_processor,
+        ios_free_file_logger_guard + r"\s+#include <shared/FileLogger\.h>",
+        "the entity receive path must not import the desktop file logger on iOS",
+    )
+    require_text(
+        octree_processor,
+        ios_free_file_logger_guard + r"[\s\S]*?qApp->getLogger\(\)->extraDebugging\(\)[\s\S]*?#endif",
+        "the desktop queue diagnostic must remain inside the same iOS exclusion",
+    )
+
+    resource_manager = SOURCE_ROOT / "libraries" / "networking" / "src" / "ResourceManager.cpp"
+    resource_manager_text = resource_manager.read_text(encoding="utf-8")
+    normalize_string = re.search(
+        r"QString ResourceManager::normalizeURL\(const QString& urlString\) \{([\s\S]*?)\n\}",
+        resource_manager_text,
+    )
+    assert normalize_string is not None, "ResourceManager string URL normalization is missing"
+    normalize_body = normalize_string.group(1)
+    assert "foreach" not in normalize_body, "ATP prefix normalization must compile with QT_NO_FOREACH"
+    assert "for (const auto& entry : copy)" in normalize_body
+    assert "result.replace(0, prefix.size(), replacement);" in normalize_body, (
+        "range-for migration must preserve prefix replacement boundaries"
+    )
+
+    buffer_helpers = SOURCE_ROOT / "libraries" / "graphics" / "src" / "graphics" / "BufferViewHelpers.h"
+    require_text(
+        buffer_helpers,
+        r"#if QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)\s+const bool isMap = v\.metaType\(\)\.id\(\) == QMetaType::QVariantMap;",
+        "model buffer conversion must use the Qt 6 metatype API",
+    )
+    require_text(
+        buffer_helpers,
+        r"#else\s+const bool isMap = v\.type\(\) == QVariant::Map;\s+#endif",
+        "the Qt 6 metatype port must preserve the desktop Qt 5 branch",
+    )
+
+    model_renderer = SOURCE_ROOT / "libraries" / "entities-renderer" / "src" / "RenderableModelEntityItem.cpp"
+    model_renderer_text = model_renderer.read_text(encoding="utf-8")
+    assert "foreach" not in model_renderer_text, (
+        "model render/collision handoff must compile with Qt 6 QT_NO_FOREACH"
+    )
+    require_text(
+        model_renderer,
+        r"for \(const HFMMesh& mesh : collisionGeometry\.meshes\) \{\s+// each meshPart is a convex hull\s+for \(const HFMMeshPart& meshPart : mesh\.parts\)",
+        "compound-model traversal must preserve the nested mesh/part order",
+    )
+
+    touch_header = SOURCE_ROOT / "libraries" / "input-plugins" / "src" / "input-plugins" / "TouchscreenVirtualPadDevice.h"
+    touch_source = touch_header.with_suffix(".cpp")
+    require_text(touch_header, r"using OverteTouchPoint = QEventPoint;", "Qt 6 touch input must use QEventPoint")
+    require_text(touch_header, r"using OverteTouchPoint = QTouchEvent::TouchPoint;", "Qt 5 touch input compatibility must remain")
+    require_text(touch_source, r"return event->points\(\);", "Qt 6 touch events must expose their current points")
+    require_text(touch_source, r"return point\.position\(\);", "Qt 6 touch coordinates must use QEventPoint position")
+    require_text(touch_source, r"QInputDevice::DeviceType::TouchScreen", "iPad support must detect the Qt 6 touchscreen device type")
+
+    application_header = SOURCE_ROOT / "interface" / "src" / "Application.h"
+    application_source = application_header.with_suffix(".cpp")
+    application_events = application_header.parent / "Application_Events.cpp"
+    require_text(
+        application_header,
+        r"#if defined\(Q_OS_ANDROID\) \|\| defined\(Q_OS_IOS\) \|\| defined\(OVERTE_IOS\)\s+void beforeEnterBackground\(\);",
+        "the production network/display lifecycle boundary must be available to iOS",
+    )
+    require_text(
+        application_events,
+        r"case Qt::ApplicationSuspended:\s+case Qt::ApplicationHidden:[\s\S]*?if \(_isForeground && !_aboutToQuit && _startUpFinished\) \{\s+beforeEnterBackground\(\);\s+enterBackground\(\);",
+        "an actual iOS background transition must pause networking and the display plugin exactly once",
+    )
+    require_text(
+        application_events,
+        r"case Qt::ApplicationActive:[\s\S]*?if \(!_isForeground && !_aboutToQuit && _startUpFinished\) \{\s+enterForeground\(\);",
+        "iOS foreground re-entry must reactivate the production display and network path",
+    )
+    require_text(
+        application_source,
+        r"auto displayPlugin = getActiveDisplayPlugin\(\);\s+if \(displayPlugin && displayPlugin->isActive\(\)\)",
+        "backgrounding before display selection must not dereference a null plugin",
+    )
 
 
 def test_ci_contract() -> None:
@@ -395,6 +708,37 @@ def test_ci_contract() -> None:
     require_text(integrated, r"doctor --platform device --require-qt", "toolchain stage must validate Xcode and Qt")
     require_text(integrated, r"deps --platform device --graphics-toolchain", "dependency stage must resolve the device graph")
     require_text(integrated, r"configure --platform device --client-graph", "configure stage must select the full client graph")
+    require_text(integrated, r"cmake --build build-ios/device --config Debug --target Overte", "integrated CI must build the real client target")
+    require_text(integrated, r"package-client --platform device", "integrated CI must package the numbered client IPA")
+    require_text(integrated, r"LATEST-OverteIOSClient\.json", "integrated CI must upload VM transfer metadata")
+    require_text(integrated, r"check-release-readiness\.py build-ios/artifacts", "integrated CI must run the read-only readiness aggregator")
+    require_text(integrated, r'deviceAccepted"\) is not False', "CI must reject an unsupported device-acceptance claim")
+    require_text(integrated, r"device-unsigned-readiness\.json", "CI must upload the numbered build-readiness report")
+    require_text(integrated, r"expected exactly one numbered integrated-client manifest", "CI readiness must select an unambiguous numbered manifest")
+    require_text(integrated, r"sanitize-ci-log\.py", "integrated failure logs must be redacted before upload")
+    require_text(integrated, r"ci-upload-diagnostics/", "diagnostic upload must use only the sanitized directory")
+    require_text(integrated, r"github\.run_number.*ios-integrated-failure-diagnostics", "failure diagnostics must be numbered")
+    if "build-ios/device/CMakeCache.txt" in integrated.read_text(encoding="utf-8"):
+        raise AssertionError("integrated CI must not upload a potentially sensitive CMake cache")
+
+    qt_source = SOURCE_ROOT / ".github" / "workflows" / "ios-qt-source.yml"
+    require_text(qt_source, r"concurrency:\s+group: ios-qt-source-\$\{\{ github\.ref \}\}", "Qt source cache writers must serialize per ref")
+    require_text(qt_source, r"cancel-in-progress: false", "an expensive Qt source cache build must not be cancelled by a duplicate dispatch")
+    require_text(qt_source, r"workflow_call:[\s\S]*?qt_cache_key:[\s\S]*?jobs\.qt-ios-source\.outputs\.qt_cache_key", "reusable Qt workflow must expose its cache key")
+    require_text(qt_source, r"outputs:[\s\S]*?qt_cache_key:.*steps\.cache-key\.outputs\.value", "Qt job output must originate from the cache-key step")
+
+    bootstrap_workflow = SOURCE_ROOT / ".github" / "workflows" / "ios-bootstrap.yml"
+    require_text(bootstrap_workflow, r"needs\.provision-qt-ios\.outputs\.qt_cache_key", "reusable cache output must reach the integrated caller")
+
+    bash32_forbidden = re.compile(r"\b(?:mapfile|readarray)\b|declare\s+-A|local\s+-A|\$\{[^}\n]+(?:,,|\^\^)")
+    for shell_path in (
+        IOS_ROOT / "build-ios.sh",
+        IOS_ROOT / "ci" / "verify-app.sh",
+        IOS_ROOT / "tools" / "prepare-qt-ios.sh",
+        IOS_ROOT / "tools" / "build-qt-ios-from-source.sh",
+    ):
+        if bash32_forbidden.search(shell_path.read_text(encoding="utf-8")):
+            raise AssertionError(f"Bash 4-only syntax entered macOS workflow path: {shell_path}")
     for forbidden in ("QT_ACCOUNT", "QT_PASSWORD", "aqtinstall", "download.qt.io"):
         if forbidden in integrated_text:
             raise AssertionError(f"integrated CI must not invent Qt acquisition credentials: {forbidden}")
@@ -507,6 +851,14 @@ def test_device_acceptance_contract() -> None:
     privacy_doc = SOURCE_ROOT / "docs" / "ios" / "PRIVACY.md"
     require_text(privacy_doc, r"Xcode's\s+privacy report", "release gate must include Xcode privacy aggregation")
     require_text(privacy_doc, r"runtime network\s+trace", "collected-data review must use runtime evidence")
+    evidence_tool = IOS_ROOT / "tools" / "prepare-entity-evidence.py"
+    require_text(evidence_tool, r'"containsRawDeviceLog": False', "entity handoff must exclude raw device logs")
+    require_text(evidence_tool, r"rawLogSha256", "entity handoff must retain raw-log provenance")
+    require_text(evidence_tool, r"make_archive", "entity handoff must create a portable offline ZIP")
+    readiness_tool = IOS_ROOT / "tools" / "check-release-readiness.py"
+    require_text(readiness_tool, r'"buildReady": True', "readiness must report a verified build separately")
+    require_text(readiness_tool, r'"deviceAccepted": device_accepted', "readiness must not equate build and device acceptance")
+    require_text(readiness_tool, r"bundle SHA-256 differs", "device evidence must bind to the exact artifact")
 
 
 def test_integration_readiness_contract() -> None:
