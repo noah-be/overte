@@ -33,6 +33,8 @@ class V8IOSCheckpointContractTest(unittest.TestCase):
         ):
             self.assertIn(contract, script)
         self.assertNotIn("gclient runhooks", script)
+        self.assertIn('host_python="$(command -v python3)"', script)
+        self.assertIn('"$depot_root/ensure_bootstrap"', script)
         for required_build_hook in (
             "build/landmines.py",
             "tools/clang/scripts/update.py",

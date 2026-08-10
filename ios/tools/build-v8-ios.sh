@@ -56,6 +56,7 @@ build)
 esac
 
 command -v xcrun >/dev/null || die "Xcode command-line tools are required"
+host_python="$(command -v python3)"
 mkdir -p "$work_root"
 
 if [[ ! -d "$depot_root/.git" ]]; then
@@ -63,9 +64,9 @@ if [[ ! -d "$depot_root/.git" ]]; then
 fi
 git -C "$depot_root" fetch --depth=1 origin "$OVERTE_IOS_DEPOT_TOOLS_REVISION"
 git -C "$depot_root" checkout --detach "$OVERTE_IOS_DEPOT_TOOLS_REVISION"
+"$depot_root/ensure_bootstrap"
 export PATH="$depot_root:$PATH"
 export DEPOT_TOOLS_UPDATE=0
-export VPYTHON_BYPASS='manually managed by the pinned iOS V8 builder'
 
 if [[ ! -d "$source_root/.git" ]]; then
     git clone --filter=blob:none https://chromium.googlesource.com/v8/v8.git "$source_root"
@@ -91,10 +92,10 @@ EOF
 # process landmines, install the DEPS-pinned clang toolchain and generate the
 # revision metadata consumed by the build.
 (cd "$source_root" && \
-    python3 third_party/depot_tools/update_depot_tools_toggle.py --disable && \
-    python3 build/landmines.py --landmine-scripts tools/get_landmines.py && \
-    python3 tools/clang/scripts/update.py && \
-    python3 build/util/lastchange.py -o build/util/LASTCHANGE)
+    "$host_python" third_party/depot_tools/update_depot_tools_toggle.py --disable && \
+    "$host_python" build/landmines.py --landmine-scripts tools/get_landmines.py && \
+    "$host_python" tools/clang/scripts/update.py && \
+    "$host_python" build/util/lastchange.py -o build/util/LASTCHANGE)
 
 mkdir -p "$output_dir"
 cat > "$output_dir/args.gn" <<EOF

@@ -38,7 +38,9 @@ checks those invariants and the Mach-O architecture before CMake runs.
 The builder deliberately skips V8's unrelated test-Python hook: V8 12.4 pins
 a historical NumPy test wheel that was not published for macOS arm64. It still
 runs the DEPS-pinned Clang, landmine and revision-metadata hooks required by the
-GN/Ninja production build.
+GN/Ninja production build. The pinned `depot_tools` bootstrap is initialized
+before use, while those manual hooks use the runner's already resolved Python
+binary so PATH changes cannot redirect them through an uninitialized shim.
 
 V8 derives its internal `v8_jitless` setting for an iOS device build. The
 recipe additionally enables V8 lite mode, which fail-closes the optimizing
