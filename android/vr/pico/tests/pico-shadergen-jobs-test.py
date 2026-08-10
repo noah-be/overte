@@ -76,6 +76,10 @@ class ShadergenJobTests(unittest.TestCase):
         self.assertIn("pico-host-tools/perl", BUILD_SCRIPT)
         self.assertIn("f857b95e26385272525a7519267c8c63648d692608b7633b46d267c38092ccb3", BUILD_SCRIPT)
 
+    def test_host_tool_detection_rejects_android_x86_64_binaries(self):
+        self.assertIn('[[ "$description" == *GNU/Linux* ]]', BUILD_SCRIPT)
+        self.assertIn("require /system/bin/linker64", BUILD_SCRIPT)
+
     def test_native_compile_and_link_use_bounded_cmake_pools(self):
         self.assertIn('PROPERTY JOB_POOLS "android_compile=$ENV{PICO_BUILD_JOBS}" android_link=1', CMAKE_BOOTSTRAP)
         self.assertIn("set(CMAKE_JOB_POOL_COMPILE android_compile)", CMAKE_BOOTSTRAP)
