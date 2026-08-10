@@ -64,8 +64,8 @@ esac
 command -v xcrun >/dev/null || die "Xcode command-line tools are required"
 host_python="$(command -v python3)"
 xcode_clang="$(xcrun --sdk iphoneos --find clang)"
-xcode_clang_base="$(cd "$(dirname "$xcode_clang")/.." && pwd)"
-test -x "$xcode_clang_base/bin/clang++" || die "Xcode clang++ was not found next to $xcode_clang"
+test -x /usr/bin/clang++ || die "Xcode command-line clang++ shim is missing"
+test -x /usr/bin/llvm-ar || die "Xcode command-line llvm-ar shim is missing"
 mkdir -p "$work_root"
 
 if [[ ! -d "$depot_root/.git" ]]; then
@@ -117,7 +117,7 @@ ios_enable_code_signing = false
 is_debug = false
 is_component_build = false
 use_custom_libcxx = false
-clang_base_path = "$xcode_clang_base"
+clang_base_path = "/usr"
 clang_use_chrome_plugins = false
 use_lld = false
 symbol_level = 0
