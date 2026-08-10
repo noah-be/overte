@@ -47,7 +47,9 @@
 #include <gpu/vk/VKShared.h>
 #include <gpu/vk/VKBackend.h>
 #include <gpu/vk/VKFramebuffer.h>
+#if !defined(Q_OS_IOS)
 #include <gpu/gl/GLTexelFormat.h>
+#endif
 #include <GeometryCache.h>
 
 #include <CursorManager.h>
@@ -519,7 +521,8 @@ void VulkanDisplayPlugin::submitFrame(const gpu::FramePointer& newFrame) {
     });
 }
 
-ktx::StoragePointer textureToKtxVulkan(const gpu::Texture& texture) {
+#if !defined(Q_OS_IOS)
+static ktx::StoragePointer textureToKtxVulkan(const gpu::Texture& texture) {
     ktx::Header header;
     {
         auto gpuDims = texture.getDimensions();
@@ -556,8 +559,17 @@ ktx::StoragePointer textureToKtxVulkan(const gpu::Texture& texture) {
     }
     return storage;
 }
+#endif
 
 void VulkanDisplayPlugin::captureFrame(const std::string& filename) const {
+#if defined(Q_OS_IOS)
+    Q_UNUSED(filename)
+    static bool loggedUnsupportedCapture { false };
+    if (!loggedUnsupportedCapture) {
+        loggedUnsupportedCapture = true;
+        qWarning() << "Vulkan frame-file capture is disabled on iOS: KTX1 requires the legacy GL format mapping";
+    }
+#else
     withOtherThreadContext([&] {
         using namespace gpu;
         TextureCapturer captureLambda = [&](const gpu::TexturePointer& texture)->storage::StoragePointer {
@@ -568,6 +580,7 @@ void VulkanDisplayPlugin::captureFrame(const std::string& filename) const {
             gpu::writeFrame(filename, _currentFrame, captureLambda);
         }
     });
+#endif
 }
 
 void VulkanDisplayPlugin::renderFromTexture(gpu::Batch& batch,

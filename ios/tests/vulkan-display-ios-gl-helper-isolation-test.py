@@ -24,10 +24,12 @@ require("#if !defined(OVERTE_IOS_VULKAN_DISABLE_QUICK_GL_COPY)\n#include <QtGui/
 require("#if defined(Q_OS_IOS)\n        gpu::Backend::freeGPUMemSize.set(0);\n#else" in SOURCE,
         "iOS must not report a GL driver's memory as Metal memory")
 
-# These two dependencies remain real and may only move with their producer contracts.
-require("gpu::gl::GLTexelFormat::evalGLTexelFormat" in SOURCE,
-        "KTX capture format dependency moved; update this audit")
+# KTX1 capture is retained for non-iOS, but neither mapping nor header is parsed on iOS.
+require("#if !defined(Q_OS_IOS)\n#include <gpu/gl/GLTexelFormat.h>\n#endif" in SOURCE,
+        "GLTexelFormat header must be excluded on iOS")
+require("KTX1 requires the legacy GL format mapping" in SOURCE,
+        "iOS KTX capture must fail closed with its source-level reason")
 require("OffscreenGLCanvas::restoreThreadContext()" in SOURCE,
         "QML context restore moved; update the native-RHI migration audit")
 
-print("Vulkan display GL helper isolation valid: iOS memory/FBO helpers excluded; two real contracts remain")
+print("Vulkan display GL helper isolation valid: iOS memory/FBO/KTX helpers excluded; QML restore remains")
