@@ -24,7 +24,9 @@
 #include <SandboxUtils.h>
 #include <SharedUtil.h>
 #include <NetworkAccessManager.h>
+#if (defined(Q_OS_MAC) && !defined(Q_OS_IOS)) || defined(Q_OS_WIN)
 #include <gl/GLHelpers.h>
+#endif
 #include <iostream>
 #include <plugins/InputPlugin.h>
 #include <plugins/PluginManager.h>
