@@ -205,14 +205,14 @@ def _signal_pids(pids: set[int], signum: int) -> None:
     for pid in pids:
         try:
             os.kill(pid, signum)
-        except ProcessLookupError:
+        except (ProcessLookupError, PermissionError):
             pass
 
 
 def _signal_group(pid: int, signum: int) -> None:
     try:
         os.killpg(pid, signum)
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
         pass
 
 
@@ -282,6 +282,11 @@ def run(command: list[str], interval: float, inactivity_timeout: float, grace: f
                 time.sleep(wait_for)
             try:
                 rows = _snapshot()
+                # The process can finish while a comparatively expensive macOS
+                # process-table snapshot is being collected. Never classify an
+                # invocation that has already exited as stalled.
+                if process.poll() is not None and not forwarded_signal:
+                    continue
                 tree = _tree(rows, process.pid)
                 correlated = _correlated_compilers(rows, source_marker, output_marker)
                 correlated_pids = {int(row["pid"]) for row in correlated}
@@ -317,7 +322,12 @@ def run(command: list[str], interval: float, inactivity_timeout: float, grace: f
                       language=language, source=source_label,
                       error=type(error).__name__)
         status = process.wait()
-        result = 128 + forwarded_signal if forwarded_signal else status
+        if forwarded_signal:
+            result = 128 + forwarded_signal
+        elif status < 0:
+            result = 128 - status
+        else:
+            result = status
         _emit("end", invocation, time.monotonic() - started, language=language,
               source=source_label, exit_code=result)
         return result

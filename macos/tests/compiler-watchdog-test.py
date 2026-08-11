@@ -10,6 +10,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -49,8 +50,24 @@ class CompilerWatchdogTest(unittest.TestCase):
         self.assertEqual(records[0]["source"], "private-unit.cpp")
         self.assertEqual(records[-1]["exit_code"], 23)
 
+    def test_normalizes_compiler_signal_exit_status(self) -> None:
+        result = self.invoke("import os,signal; os.kill(os.getpid(), signal.SIGTERM)")
+        self.assertEqual(result.returncode, 128 + signal.SIGTERM, result.stdout + result.stderr)
+        records = [json.loads(line) for line in result.stdout.splitlines()]
+        self.assertEqual(records[-1]["exit_code"], 128 + signal.SIGTERM)
+
+    def test_signal_helpers_tolerate_finished_or_inaccessible_processes(self) -> None:
+        module = load_watchdog()
+        with mock.patch.object(module.os, "killpg", side_effect=PermissionError):
+            module._signal_group(12345, signal.SIGKILL)
+        with mock.patch.object(module.os, "kill", side_effect=PermissionError):
+            module._signal_pids({12345}, signal.SIGKILL)
+
     def test_reports_cpu_active_long_invocation_without_stalling(self) -> None:
-        result = self.invoke("import time; end=time.time()+.3\nwhile time.time()<end: pass", timeout=0.12)
+        result = self.invoke(
+            "import time; end=time.time()+1.5\nwhile time.time()<end: pass",
+            timeout=0.4,
+        )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         records = [json.loads(line) for line in result.stdout.splitlines()]
         progress = [row for row in records if row["compiler_watchdog"] == "progress"]
