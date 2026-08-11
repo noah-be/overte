@@ -322,6 +322,9 @@ def test_cmake_boundary() -> None:
     json_helpers = SOURCE_ROOT / "libraries/shared/src/shared/JSONHelpers.cpp"
     require_text(json_helpers, r"std::min\(array\.size\(\), static_cast<qsizetype>\(result\.length\(\)\)\)", "Qt 6 JSON array sizes must share an explicit index type")
     require_text(json_helpers, r"setProperty\(key\.c_str\(\), it\.value\(\)\.toVariant\(\)\)", "JSON properties must cross the QObject boundary as explicit variants")
+    config_map = SOURCE_ROOT / "libraries/shared/src/HifiConfigVariantMap.cpp"
+    require_text(config_map, r"QVariantMap mergedMap;", "command-line configuration must use its declared return-map type")
+    assert "QMultiMap<QString, QVariant> mergedMap" not in config_map.read_text(encoding="utf-8"), "Qt 6 no longer slices QMultiMap into QVariantMap"
     shutdown_listener = SOURCE_ROOT / "libraries/shared/src/ShutdownEventListener.h"
     require_text(shutdown_listener, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*qintptr\* result[\s\S]*long\* result", "native event filters must use the Qt 6 result type with a Qt 5 fallback")
     shutdown_listener_impl = SOURCE_ROOT / "libraries/shared/src/ShutdownEventListener.cpp"
