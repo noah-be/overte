@@ -223,18 +223,20 @@ jobs:
           ios/build-ios.sh configure --platform device --client-graph 2>&1 | tee build-ios/ci-raw-diagnostics/configure.log
 
       - name: Build experimental full client
-        run: cmake --build build-ios/device --config Debug --parallel "$(sysctl -n hw.logicalcpu)" --target Overte 2>&1 | tee build-ios/ci-raw-diagnostics/xcode-build.log
+        # Match the configuration of the audited Conan device packages so
+        # their imported include and library requirements remain active.
+        run: cmake --build build-ios/device --config Release --parallel "$(sysctl -n hw.logicalcpu)" --target Overte 2>&1 | tee build-ios/ci-raw-diagnostics/xcode-build.log
 
       - name: Package numbered unsigned client IPA
         env:
           OVERTE_IOS_ARTIFACT_SEQUENCE: ${{ github.run_number }}
-        run: ios/build-ios.sh package-client --platform device --configuration Debug 2>&1 | tee build-ios/ci-raw-diagnostics/package.log
+        run: ios/build-ios.sh package-client --platform device --configuration Release 2>&1 | tee build-ios/ci-raw-diagnostics/package.log
 
       - name: Verify build-ready release boundary
         shell: bash
         run: |
           shopt -s nullglob
-          manifests=(build-ios/artifacts/*-OverteIOSClient-Debug-device-unsigned.json)
+          manifests=(build-ios/artifacts/*-OverteIOSClient-Release-device-unsigned.json)
           if (( ${#manifests[@]} != 1 )); then
             echo "expected exactly one numbered integrated-client manifest" >&2
             exit 1
@@ -258,9 +260,9 @@ jobs:
         with:
           name: ${{ github.run_number }}-overte-ios-integrated-device-${{ github.run_id }}
           path: |
-            build-ios/artifacts/*-OverteIOSClient-Debug-device-unsigned.ipa
-            build-ios/artifacts/*-OverteIOSClient-Debug-device-unsigned.json
-            build-ios/artifacts/*-OverteIOSClient-Debug-device-unsigned-readiness.json
+            build-ios/artifacts/*-OverteIOSClient-Release-device-unsigned.ipa
+            build-ios/artifacts/*-OverteIOSClient-Release-device-unsigned.json
+            build-ios/artifacts/*-OverteIOSClient-Release-device-unsigned-readiness.json
             build-ios/artifacts/LATEST-OverteIOSClient.json
             build-ios/artifacts/LATEST-OverteIOSClient.txt
           if-no-files-found: error
