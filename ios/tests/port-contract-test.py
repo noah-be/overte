@@ -813,6 +813,12 @@ def test_scope_contract() -> None:
         r"bool result \{ false \};[\s\S]*return uncalibratePlugin\(pluginName\);[\s\S]*&result",
         "input plug-in uncalibration must use the typed blocking return boundary",
     )
+    script_value_wrapper = SOURCE_ROOT / "libraries" / "script-engine" / "src" / "v8" / "ScriptValueV8Wrapper.cpp"
+    require_text(
+        script_value_wrapper,
+        r"Failed to set property: .*QString::number\(arrayIndex\)",
+        "V8 array-index diagnostics must use an explicit decimal QString conversion",
+    )
     triage = json.loads((IOS_ROOT / "first-run-triage.json").read_text(encoding="utf-8"))
     assert triage["schemaVersion"] == 1
     phases = triage["phases"]
