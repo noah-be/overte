@@ -47,26 +47,26 @@ jobs:
 
       - name: Verify build environment
         working-directory: android
-        run: ./build-pico.sh doctor
+        run: ./vr/pico/build.sh doctor
 
       - name: Restore checksum-verified dependencies
         working-directory: android
-        run: ./build-pico.sh deps --download
+        run: ./vr/pico/build.sh deps --download
 
       - name: Prepare dependencies
         working-directory: android
-        run: ./build-pico.sh prepare
+        run: ./vr/pico/build.sh prepare
 
       - name: Build Pico debug APK
         working-directory: android
-        run: ./build-pico.sh build --stacktrace
+        run: ./vr/pico/build.sh build --stacktrace
 
       - name: Verify Pico APK
         env:
-          PICO_APK: android/apps/picoInterface/build/outputs/apk/debug/picoInterface-debug.apk
+          PICO_APK: android/vr/pico/apps/picoInterface/build/outputs/apk/debug/picoInterface-debug.apk
         run: |
           set -euo pipefail
-          android/ci/verify-pico-apk.py "$PICO_APK" \
+          android/vr/pico/ci/verify-pico-apk.py "$PICO_APK" \
             --aapt "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt" \
             --apksigner "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" \
             --source-revision "$GITHUB_SHA" \

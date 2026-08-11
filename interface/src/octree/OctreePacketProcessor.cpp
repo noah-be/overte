@@ -80,6 +80,17 @@ void OctreePacketProcessor::processPacket(QSharedPointer<ReceivedMessage> messag
     if (packetType == PacketType::EntityData || packetType == PacketType::EntityErase) {
         _entityPacketCount.fetch_add(1, std::memory_order_relaxed);
         _entityPacketBytes.fetch_add(message->getSize(), std::memory_order_relaxed);
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+        if (packetType == PacketType::EntityData) {
+            static bool loggedFirstMacOSEntityData { false };
+            if (!loggedFirstMacOSEntityData) {
+                loggedFirstMacOSEntityData = true;
+                qInfo().noquote() << "OVERTE_MACOS_ENTITY_GATE entity_data_received"
+                                  << "node=" << sendingNode->getUUID().toString(QUuid::WithoutBraces)
+                                  << "bytes=" << message->getSize();
+            }
+        }
+#endif
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
         if (packetType == PacketType::EntityData) {
             static bool loggedFirstEntityData { false };

@@ -35,7 +35,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
     set(CMAKE_OSX_DEPLOYMENT_TARGET "17.0" CACHE STRING "Minimum iOS version")
 elseif (APPLE)
     # Needs to be set before the first project() call.
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "10.11" CACHE STRING "Specifies the minimum version of the target platform (e.g. macOS or iOS) on which the target binaries are to be deployed.")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum supported macOS version")
 endif()
 
 
@@ -305,7 +305,14 @@ set(OVERTE_USE_NSIGHT ON CACHE BOOL "Attempt to find the Nvidia nSight libraries
 
 # FIXME hack to work on the proper Android toolchain
 if (ANDROID)
-  add_subdirectory(android/apps/${HIFI_ANDROID_APP})
+  if (HIFI_ANDROID_APP STREQUAL "picoInterface")
+    add_subdirectory(android/vr/pico/apps/${HIFI_ANDROID_APP})
+  elseif (HIFI_ANDROID_APP STREQUAL "questInterface" OR
+          HIFI_ANDROID_APP STREQUAL "questFramePlayer")
+    add_subdirectory(android/vr/quest/apps/${HIFI_ANDROID_APP})
+  else()
+    add_subdirectory(android/phone/apps/${HIFI_ANDROID_APP})
+  endif()
   return()
 endif()
 

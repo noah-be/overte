@@ -42,7 +42,7 @@ jobs:
           PUBLISHED_CODE_FLOOR: ${{ vars.ANDROID_PHONE_PUBLISHED_VERSION_CODE }}
         run: |
           set -euo pipefail
-          android/ci/verify-phone-release.py \
+          android/phone/ci/verify-phone-release.py \
             --tag "$RELEASE_TAG" \
             --version-code "$VERSION_CODE" \
             --published-code-floor "$PUBLISHED_CODE_FLOOR" \
@@ -50,7 +50,7 @@ jobs:
             --output android/build/release/version-manifest.json
       - name: Run release contracts
         working-directory: android
-        run: tests/run-tests.sh contracts
+        run: common/tests/run-tests.sh contracts
 
   build:
     name: Build store-neutral candidate
@@ -76,26 +76,26 @@ jobs:
           PUBLISHED_CODE_FLOOR: ${{ vars.ANDROID_PHONE_PUBLISHED_VERSION_CODE }}
         run: |
           set -euo pipefail
-          android/ci/verify-phone-release.py \
+          android/phone/ci/verify-phone-release.py \
             --tag "$RELEASE_TAG" \
             --version-code "$VERSION_CODE" \
             --published-code-floor "$PUBLISHED_CODE_FLOOR" \
             --source-revision "$GITHUB_SHA" \
             --output android/build/release/version-manifest.json
       - name: Verify mandatory host-test runtime
-        run: android/ci/check-phone-host-runtime.sh
+        run: android/phone/ci/check-phone-host-runtime.sh
       - name: Run complete device-free host tier
         working-directory: android
-        run: tests/run-tests.sh host --report-dir build/test-results/android-phone-release-host
+        run: common/tests/run-tests.sh host --report-dir build/test-results/android-phone-release-host
       - name: Verify build environment
         working-directory: android
-        run: ./build-phone.sh doctor
+        run: ./phone/build.sh doctor
       - name: Restore checksum-verified 16 KiB dependencies
         working-directory: android
-        run: ./build-phone.sh deps --download
+        run: ./phone/build.sh deps --download
       - name: Prepare verified dependencies
         working-directory: android
-        run: ./build-phone.sh prepare
+        run: ./phone/build.sh prepare
       - name: Build unsigned release APK
         working-directory: android
         env:
@@ -108,16 +108,16 @@ jobs:
           TMPDIR="$PHONE_BUILD_TMPDIR" \
           JAVA_TOOL_OPTIONS="-Djava.io.tmpdir=$PHONE_BUILD_TMPDIR" \
           CMAKE_BUILD_PARALLEL_LEVEL=4 PICO_BUILD_JOBS=4 SHADERGEN_JOBS=4 \
-          ./gradlew --no-daemon --settings-file settings-phone.gradle \
+          ./common/gradlew --no-daemon --settings-file phone/settings.gradle \
             -PVERSION_CODE="$VERSION_CODE" -PRELEASE_NUMBER="$release_number" \
             :phoneInterface:assembleRelease --max-workers=8 --stacktrace
       - name: Verify unsigned state, contents, alignment and provenance
         env:
-          PHONE_APK: android/apps/phoneInterface/build/outputs/apk/release/phoneInterface-release-unsigned.apk
+          PHONE_APK: android/phone/apps/phoneInterface/build/outputs/apk/release/phoneInterface-release-unsigned.apk
         run: |
           set -euo pipefail
           sdk_root="${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}"
-          android/ci/verify-phone-apk.py "$PHONE_APK" \
+          android/phone/ci/verify-phone-apk.py "$PHONE_APK" \
             --apkanalyzer "$sdk_root/cmdline-tools/latest/bin/apkanalyzer" \
             --apksigner "$sdk_root/build-tools/36.0.0/apksigner" \
             --expect-debuggable 0 --expect-unsigned \
@@ -125,10 +125,10 @@ jobs:
             --output android/build/release/apk-manifest.json
       - name: Create local draft metadata and SBOM
         env:
-          PHONE_APK: android/apps/phoneInterface/build/outputs/apk/release/phoneInterface-release-unsigned.apk
+          PHONE_APK: android/phone/apps/phoneInterface/build/outputs/apk/release/phoneInterface-release-unsigned.apk
         run: |
           set -euo pipefail
-          android/ci/create-phone-release-metadata.py \
+          android/phone/ci/create-phone-release-metadata.py \
             --repository "$GITHUB_WORKSPACE" --apk "$PHONE_APK" \
             --apk-manifest android/build/release/apk-manifest.json \
             --version-manifest android/build/release/version-manifest.json \
