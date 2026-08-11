@@ -239,7 +239,7 @@ void GeometryResource::downloadFinished(const QByteArray& data) {
                 _textureBaseURL = url.resolved(QUrl("."));
             }
 
-            auto scripts = FSTReader::getScripts(base, _mapping);
+            auto scripts = FSTReader::getScripts(base, hifi::VariantMultiHash(_mapping));
             if (scripts.size() > 0) {
                 _mapping.remove(SCRIPT_FIELD);
                 for (auto &scriptPath : scripts) {

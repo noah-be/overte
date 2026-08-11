@@ -403,12 +403,13 @@ configure_project() {
         # CMAKE_<LANG>_COMPILER_LAUNCHER is not implemented by CMake's Xcode
         # generator. Xcode's C_COMPILER_LAUNCHER build setting covers the C,
         # C++, Objective-C and Objective-C++ compile rules instead. Disable the
-        # Xcode features that bypass sccache's compile contract. Modern pinned
-        # sccache parses Xcode response files, so those remain enabled.
+        # Xcode features that bypass sccache's documented integration contract,
+        # including compiler response files.
         configure_arguments+=(
             "-DCMAKE_XCODE_ATTRIBUTE_C_COMPILER_LAUNCHER=$compiler_launcher_path"
             -DCMAKE_XCODE_ATTRIBUTE_CLANG_ENABLE_MODULES=NO
             -DCMAKE_XCODE_ATTRIBUTE_COMPILER_INDEX_STORE_ENABLE=NO
+            -DCMAKE_XCODE_ATTRIBUTE_CLANG_USE_RESPONSE_FILE=NO
         )
         note "Configuring Xcode compiler checkpoint through $compiler_launcher_path"
     fi

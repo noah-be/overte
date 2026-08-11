@@ -76,6 +76,12 @@ The Interface web-suggestion JSON parser now checks its required top-level
 closed before indexing, and suggestion ordering and network behavior are
 unchanged.
 
+FST mappings continue to use `VariantMultiHash` so repeated script and
+blendshape keys are preserved. Qt 6 no longer implicitly converts between
+`QHash` and `QMultiHash`, so default arguments now use the multi-hash type and
+the few scalar-hash inputs are converted explicitly. Model-type prediction and
+the validated mapping passed to deferred model loading retain the same values.
+
 AvatarDoctor's duplicate-joint diagnostic now recognizes the optional FST
 joint-name hash with `QVariant::metaType()` on Qt 6 and retains the legacy type
 check on Qt 5. It still ignores absent or non-hash mappings and iterates the

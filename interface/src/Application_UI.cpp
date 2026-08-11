@@ -1000,7 +1000,7 @@ bool Application::askToSetAvatarUrl(const QString& url) {
     }
 
     // Download the FST file, to attempt to determine its model type
-    QVariantHash fstMapping = FSTReader::downloadMapping(url);
+    auto fstMapping = FSTReader::downloadMapping(url);
 
     FSTReader::ModelType modelType = FSTReader::predictModelType(fstMapping);
 

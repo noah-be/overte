@@ -98,7 +98,7 @@ static void splitBlendshapes(hifi::VariantMultiHash& bs, const QString& key, con
 
 // convert legacy blendshapes to arkit blendshapes
 static void fixUpLegacyBlendshapes(hifi::VariantMultiHash & properties) {
-    hifi::VariantMultiHash bs = properties.value("bs").toHash();
+    hifi::VariantMultiHash bs(properties.value("bs").toHash());
 
     // These blendshapes have no ARKit equivalent, so we remove them.
     removeBlendshape(bs, "JawChew");

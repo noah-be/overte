@@ -253,7 +253,7 @@ def main() -> None:
         assert f"<-DCMAKE_XCODE_ATTRIBUTE_C_COMPILER_LAUNCHER={compiler_launcher}>" in invocation
         assert "<-DCMAKE_XCODE_ATTRIBUTE_CLANG_ENABLE_MODULES=NO>" in invocation
         assert "<-DCMAKE_XCODE_ATTRIBUTE_COMPILER_INDEX_STORE_ENABLE=NO>" in invocation
-        assert "CMAKE_XCODE_ATTRIBUTE_CLANG_USE_RESPONSE_FILE" not in invocation
+        assert "<-DCMAKE_XCODE_ATTRIBUTE_CLANG_USE_RESPONSE_FILE=NO>" in invocation
 
         missing_launcher = run_cli(
             environment | {"OVERTE_IOS_COMPILER_LAUNCHER": str(root / "missing-sccache")},

@@ -674,6 +674,25 @@ def test_cmake_boundary() -> None:
     require_text(fst_source, r"_other\.cbegin\(\)[\s\S]*mapping\.insert\(it\.key\(\), it\.value\(\)\)", "FST mappings must use Qt 5/6-compatible explicit insertion")
     if ".unite(" in fst_source.read_text(encoding="utf-8"):
         raise AssertionError("iOS-reachable FST serialization retained removed Qt 6 QHash::unite")
+    fst_reader_header = SOURCE_ROOT / "libraries" / "model-serializers" / "src" / "FSTReader.h"
+    require_text(
+        fst_reader_header,
+        r"getScripts\([^;]*const hifi::VariantMultiHash& mapping = hifi::VariantMultiHash\(\)\)",
+        "Qt 6 FST script lookup must default to the declared multi-hash type",
+    )
+    if "mapping = QVariantHash()" in fst_reader_header.read_text(encoding="utf-8"):
+        raise AssertionError("FSTReader retained Qt 5's implicit QHash-to-QMultiHash conversion")
+    fst_reader_source = fst_reader_header.with_suffix(".cpp")
+    require_text(fst_reader_source, r"VariantMultiHash bs\(properties\.value\(\"bs\"\)\.toHash\(\)\)", "legacy FST blendshapes must cross the Qt 6 hash boundary explicitly")
+    for serializer in (
+        SOURCE_ROOT / "libraries" / "model-serializers" / "src" / "FBXSerializer.cpp",
+        SOURCE_ROOT / "libraries" / "model-serializers" / "src" / "GLTFSerializer.cpp",
+    ):
+        require_text(serializer, r"VariantMultiHash blendshapeMappings\(mapping\.value\(\"bs\"\)\.toHash\(\)\)", "model blendshape mappings must cross the Qt 6 hash boundary explicitly")
+    model_cache = SOURCE_ROOT / "libraries" / "model-networking" / "src" / "model-networking" / "ModelCache.cpp"
+    require_text(model_cache, r"getScripts\(base, hifi::VariantMultiHash\(_mapping\)\)", "model script lookup must explicitly preserve repeated FST keys")
+    application_ui = SOURCE_ROOT / "interface" / "src" / "Application_UI.cpp"
+    require_text(application_ui, r"auto fstMapping = FSTReader::downloadMapping\(url\)", "avatar FST inspection must retain the downloaded multi-hash type")
     prepare_joints_source = SOURCE_ROOT / "libraries" / "model-baker" / "src" / "model-baker" / "PrepareJointsTask.cpp"
     require_text(prepare_joints_source, r"isVariantHash[\s\S]*metaType\(\)\.id\(\) == QMetaType::QVariantHash[\s\S]*#else[\s\S]*type\(\) == QVariant::Hash", "joint baking must preserve strict Qt 5/6 QVariantHash checks")
     prepare_joints_text = prepare_joints_source.read_text(encoding="utf-8")

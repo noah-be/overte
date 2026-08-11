@@ -55,7 +55,8 @@ public:
     /// Predicts the type of model by examining the mapping
     static ModelType predictModelType(const hifi::VariantMultiHash& mapping);
 
-    static QVector<QString> getScripts(const QUrl& fstUrl, const hifi::VariantMultiHash& mapping = QVariantHash());
+    static QVector<QString> getScripts(const QUrl& fstUrl,
+                                       const hifi::VariantMultiHash& mapping = hifi::VariantMultiHash());
 
     static QString getNameFromType(ModelType modelType);
     static FSTReader::ModelType getTypeFromName(const QString& name);

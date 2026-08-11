@@ -166,11 +166,18 @@ headers and compiler flags are already part of every content key. CI fails if
 Xcode bypasses the launcher or if the compiler cache reports write
 errors.
 
-The pinned sccache release supports Xcode response files, so the large client
-graph retains them. Clang modules and the index store are disabled for this
-cacheable CI configuration; the repository contains no Objective-C `@import`
-consumer, and the effective Xcode target build settings are checked before the
-first compilation.
+The pinned sccache Xcode integration requires response files, Clang modules and
+the index store to be disabled. CI checks all four effective Xcode build
+settings and compiles a small Xcode target through the launcher before starting
+the full client. A missing launcher invocation therefore fails in seconds
+instead of being discovered after a long build. The repository contains no
+Objective-C `@import` consumer.
+
+While the full build runs, a secret-safe heartbeat reports process-tree
+activity, active CPU time and memory, and build-log growth every 30 seconds. It
+never prints process arguments or environment variables. The heartbeat is
+observational only: it cannot fail or terminate the build, and the original
+Xcode exit status is preserved.
 
 At most two generations across all full-client compiler namespaces for the
 matching branch and runner architecture are retained, so obsolete toolchain
