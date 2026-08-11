@@ -102,18 +102,38 @@ if not re.search(
     re.DOTALL,
 ):
     raise SystemExit("settings writer start must be explicit and idempotent")
-setup_writer = setting_interface.split("void setupSettingsSaveThread()", 1)[1].split(
-    "void init()", 1
+setup_writer = setting_interface.split("void startThread()", 1)[1].split(
+    "void init(bool deferThreadStart)", 1
 )[0]
 if "globalManager->startThread();" not in setup_writer:
-    raise SystemExit("QApplication pre-routine must start the settings writer")
+    raise SystemExit("explicit settings lifecycle must start the writer")
 if not re.search(
-    r"if \(qApp\).*?setupSettingsSaveThread\(\).*?else.*?"
-    r"qAddPreRoutine\(setupSettingsSaveThread\)",
+    r"if \(!deferThreadStart\).*?if \(qApp\).*?startThread\(\).*?else.*?"
+    r"qAddPreRoutine\(startThread\)",
     setting_interface,
     re.DOTALL,
 ):
-    raise SystemExit("settings init must support both existing and future applications")
+    raise SystemExit("settings init must support explicit deferral and legacy application startup")
+
+main_source = (ROOT / "interface/src/main.cpp").read_text(encoding="utf-8")
+if "QCoreApplication tempApp" in main_source:
+    raise SystemExit("Interface must not create a temporary QCoreApplication before QApplication")
+application_offset = main_source.index("Application app(")
+settings_load_offset = main_source.index("Setting::init(true)")
+settings_start_offset = main_source.index("Setting::startThread()")
+parser_offset = main_source.index("parser.process(app)")
+if not settings_load_offset < application_offset < settings_start_offset < parser_offset:
+    raise SystemExit("Interface settings and command-line startup phases are ordered incorrectly")
+
+startup_preflight = (ROOT / "macos/ci/startup-preflight.sh").read_text(encoding="utf-8")
+for startup_contract in (
+    "--abortAfterStartup",
+    "OVERTE_MACOS_STARTUP_TIMEOUT_SECONDS:-30",
+    "[[ $status -eq 99 ]]",
+    '--sample "$process_sample"',
+):
+    if startup_contract not in startup_preflight:
+        raise SystemExit(f"startup preflight missing contract: {startup_contract}")
 
 jsapi_cmake = (ROOT / "plugins/JSAPIExample/CMakeLists.txt").read_text(encoding="utf-8")
 if "overte_find_qt(COMPONENTS Core Core5Compat QUIET REQUIRED)" not in jsapi_cmake:

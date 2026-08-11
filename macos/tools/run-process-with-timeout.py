@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import sys
 import time
@@ -19,6 +20,7 @@ def main() -> int:
     parser.add_argument("--grace", type=float, required=True)
     parser.add_argument("--log", type=Path, required=True)
     parser.add_argument("--result", type=Path, required=True)
+    parser.add_argument("--sample", type=Path)
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
@@ -32,6 +34,7 @@ def main() -> int:
     sent_term = False
     sent_kill = False
     return_code: int | None = None
+    sample_succeeded = False
 
     with args.log.open("w", encoding="utf-8", errors="replace") as log_stream:
         process = subprocess.Popen(
@@ -61,6 +64,23 @@ def main() -> int:
                 return_code = process.wait(timeout=args.timeout)
             except subprocess.TimeoutExpired:
                 timed_out = True
+                if args.sample:
+                    args.sample.parent.mkdir(parents=True, exist_ok=True)
+                    sample_tool = shutil.which("sample")
+                    if sample_tool:
+                        print(
+                            f"process exceeded {args.timeout:g}s; capturing thread sample",
+                            file=sys.stderr,
+                            flush=True,
+                        )
+                        sampled = subprocess.run(
+                            [sample_tool, str(process.pid), "5", "5", "-file", str(args.sample)],
+                            check=False,
+                            timeout=15,
+                        )
+                        sample_succeeded = sampled.returncode == 0 and args.sample.is_file()
+                    else:
+                        print("sample tool is unavailable; skipping thread sample", file=sys.stderr, flush=True)
                 sent_term = True
                 print(
                     f"process exceeded {args.timeout:g}s; sending SIGTERM",
@@ -98,6 +118,8 @@ def main() -> int:
                 "timed_out": timed_out,
                 "sent_sigterm": sent_term,
                 "sent_sigkill": sent_kill,
+                "sample_path": str(args.sample) if args.sample else None,
+                "sample_succeeded": sample_succeeded,
             }
             args.result.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
 

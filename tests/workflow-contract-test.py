@@ -148,6 +148,15 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("steps.build-client.outcome == 'failure'", failure_gate)
         self.assertIn("run: exit 1", failure_gate)
 
+    def test_startup_preflight_runs_before_entity_smokes_and_uploads_diagnostics(self):
+        preflight = self.source.index("- name: Run application startup preflight")
+        serverless = self.source.index("- name: Run serverless entity smoke")
+        online = self.source.index("- name: Run online entity smoke")
+        self.assertLess(preflight, serverless)
+        self.assertLess(serverless, online)
+        self.assertIn("macos/ci/startup-preflight.sh", self.source)
+        self.assertIn("build/macos-startup-preflight", self.source)
+
 
 class PicoWorkflowContracts(unittest.TestCase):
     @classmethod

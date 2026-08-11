@@ -434,37 +434,29 @@ int main(int argc, const char* argv[]) {
     parser.addOption(xrNoPalmPoseOption);
     parser.addOption(graphicsAPIOption);
 
-    QString applicationPath;
-    // A temporary application instance is needed to get the location of the running executable
-    // Tests using high_resolution_clock show that this takes about 30-50 microseconds (on my machine, YMMV)
-    // If we wanted to avoid the QCoreApplication, we would need to write our own
-    // cross-platform implementation.
-    {
-        QCoreApplication tempApp(argc, const_cast<char**>(argv));
-
-        parser.process(QCoreApplication::arguments());  // Must be run after QCoreApplication is initalised.
-
-#ifdef Q_OS_OSX
-        if (QFileInfo::exists(QCoreApplication::applicationDirPath() + "/../../../config.json")) {
-            applicationPath = QCoreApplication::applicationDirPath() + "/../../../";
-        } else {
-            applicationPath = QCoreApplication::applicationDirPath();
-        }
-#else
-        applicationPath = QCoreApplication::applicationDirPath();
-#endif
-    }
-
-    // TODO: We need settings for Application, but Settings needs an Application
-    // to handle events. Needs splitting into two parts: enough initialization
-    // for Application to work, and then thread start afterwards.
-    Setting::init();
+    // Load settings before Application members use them, but start the writer
+    // only after the single real QApplication is fully constructed. A temporary
+    // QCoreApplication followed by QApplication is not safe for Cocoa startup.
+    Setting::init(true);
 #ifdef NDEBUG
     // Fail if asserts are enabled on release build.
     Q_ASSERT_X(false, "Interface", "This is not a debug build, but somehow Q_ASSERTs are enabled. \
                This is known to happen on Windows if QT_NO_DEBUG isn't set by us.");
 #endif
     Application app(argcExtended, const_cast<char**>(argvExtended.data()), startupTime);
+    Setting::startThread();
+    parser.process(app);
+
+    QString applicationPath;
+#ifdef Q_OS_OSX
+    if (QFileInfo::exists(QCoreApplication::applicationDirPath() + "/../../../config.json")) {
+        applicationPath = QCoreApplication::applicationDirPath() + "/../../../";
+    } else {
+        applicationPath = QCoreApplication::applicationDirPath();
+    }
+#else
+    applicationPath = QCoreApplication::applicationDirPath();
+#endif
 
     if (parser.isSet("abortAfterStartup")) {
         return 99;

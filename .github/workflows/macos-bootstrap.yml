@@ -159,6 +159,11 @@ jobs:
           test -f "$app/Contents/Info.plist"
           plutil -lint "$app/Contents/Info.plist"
 
+      - name: Run application startup preflight
+        run: |
+          app="$(find build -type d -name Overte.app -print -quit)"
+          macos/ci/startup-preflight.sh "$app" build/macos-startup-preflight
+
       - name: Run serverless entity smoke
         run: |
           app="$(find build -type d -name Overte.app -print -quit)"
@@ -175,6 +180,7 @@ jobs:
         with:
           name: overte-macos-smoke-${{ github.run_id }}
           path: |
+            build/macos-startup-preflight
             build/macos-smoke
             build/macos-online-smoke
           if-no-files-found: ignore

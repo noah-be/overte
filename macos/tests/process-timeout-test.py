@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import os
 
 ROOT = Path(__file__).resolve().parents[2]
 SUPERVISOR = ROOT / "macos/tools/run-process-with-timeout.py"
@@ -26,6 +27,17 @@ with tempfile.TemporaryDirectory() as temporary:
 
     timeout_log = output / "timeout.log"
     timeout_result = output / "timeout.json"
+    timeout_sample = output / "timeout.sample.txt"
+    tools = output / "tools"
+    tools.mkdir()
+    sample_tool = tools / "sample"
+    sample_tool.write_text(
+        "#!/bin/sh\n"
+        "while [ \"$1\" != \"-file\" ]; do shift; done\n"
+        "printf 'sampled blocked process\\n' > \"$2\"\n",
+        encoding="utf-8",
+    )
+    sample_tool.chmod(0o755)
     child = (
         "import signal,time; "
         "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
@@ -33,10 +45,12 @@ with tempfile.TemporaryDirectory() as temporary:
     )
     timed_out = subprocess.run(
         [sys.executable, str(SUPERVISOR), "--timeout", "0.2", "--grace", "0.1",
-         "--log", str(timeout_log), "--result", str(timeout_result), "--",
+         "--log", str(timeout_log), "--result", str(timeout_result),
+         "--sample", str(timeout_sample), "--",
          sys.executable, "-c", child],
         check=False,
         timeout=5,
+        env={**os.environ, "PATH": f"{tools}:{os.environ.get('PATH', '')}"},
     )
     assert timed_out.returncode == 124
     assert "before hang" in timeout_log.read_text(encoding="utf-8")
@@ -44,5 +58,7 @@ with tempfile.TemporaryDirectory() as temporary:
     assert timeout_metadata["timed_out"] is True
     assert timeout_metadata["sent_sigterm"] is True
     assert timeout_metadata["sent_sigkill"] is True
+    assert timeout_metadata["sample_succeeded"] is True
+    assert timeout_sample.read_text(encoding="utf-8") == "sampled blocked process\n"
 
 print("macOS smoke timeout contract valid")

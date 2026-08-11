@@ -24,7 +24,8 @@ Q_DECLARE_LOGGING_CATEGORY(settings_interface)
 namespace Setting {
     class Manager;
 
-    void init();
+    void init(bool deferThreadStart = false);
+    void startThread();
 
     class Interface {
     public:

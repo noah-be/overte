@@ -262,7 +262,7 @@ namespace Setting {
         friend class ::SettingsTestsWorker;
 
         friend void cleanupSettingsSaveThread();
-        friend void setupSettingsSaveThread();
+        friend void startThread();
 
 
         QHash<QString, QVariant> _settings;

@@ -36,8 +36,7 @@ namespace Setting {
         qCDebug(shared) << "Settings thread stopped.";
     }
 
-    // This should only run as a pre-routine in the QCoreApplication constructor
-    void setupSettingsSaveThread() {
+    void startThread() {
         auto globalManager = DependencyManager::get<Manager>();
         Q_ASSERT(qApp && globalManager);
 
@@ -46,7 +45,7 @@ namespace Setting {
     }
 
     // Sets up the settings private instance. Should only be run once at startup.
-    void init() {
+    void init(bool deferThreadStart) {
         // Set settings format
         QSettings::setDefaultFormat(JSON_FORMAT);
         QSettings settings;
@@ -71,10 +70,12 @@ namespace Setting {
         // Start the writer only once an application event dispatcher exists. Interface
         // initializes settings between a temporary QCoreApplication and its real
         // QApplication, which macOS cannot use to host a QThread event loop.
-        if (qApp) {
-            setupSettingsSaveThread();
-        } else {
-            qAddPreRoutine(setupSettingsSaveThread);
+        if (!deferThreadStart) {
+            if (qApp) {
+                startThread();
+            } else {
+                qAddPreRoutine(startThread);
+            }
         }
     }
 
