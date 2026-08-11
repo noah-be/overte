@@ -23,6 +23,7 @@ def require(condition: bool, message: str) -> None:
 for anchor in (
     "set(${TARGET_NAME}_SHARED 0)",
     "target_compile_definitions(${TARGET_NAME} PRIVATE QT_STATICPLUGIN)",
+    'target_link_libraries(Overte "$<LINK_LIBRARY:WHOLE_ARCHIVE,${TARGET_NAME}>")',
     '"$<LINK_LIBRARY:WHOLE_ARCHIVE,${TARGET_NAME}>"',
     "OVERTE_IOS_STATIC_PLUGIN_AUDITED TRUE",
     "if (NOT IOS)",
