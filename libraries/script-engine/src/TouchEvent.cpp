@@ -152,10 +152,17 @@ void TouchEvent::initWithQTouchEvent(const QTouchEvent& event) {
     }
     angle = totalAngle/(float)touchPoints;
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    isPressed = event.touchPointStates().testFlag(QEventPoint::State::Pressed);
+    isMoved = event.touchPointStates().testFlag(QEventPoint::State::Updated);
+    isStationary = event.touchPointStates().testFlag(QEventPoint::State::Stationary);
+    isReleased = event.touchPointStates().testFlag(QEventPoint::State::Released);
+#else
     isPressed = event.touchPointStates().testFlag(Qt::TouchPointPressed);
     isMoved = event.touchPointStates().testFlag(Qt::TouchPointMoved);
     isStationary = event.touchPointStates().testFlag(Qt::TouchPointStationary);
     isReleased = event.touchPointStates().testFlag(Qt::TouchPointReleased);
+#endif
 
     // keyboard modifiers
     isShifted = event.modifiers().testFlag(Qt::ShiftModifier);

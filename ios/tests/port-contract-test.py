@@ -781,6 +781,17 @@ def test_scope_contract() -> None:
         r"#include\s+<QObject>[\s\S]*class UsersScriptingInterface\s*:\s*public QObject",
         "UsersScriptingInterface must include its complete QObject base type",
     )
+    touch_event = SOURCE_ROOT / "libraries" / "script-engine" / "src" / "TouchEvent.cpp"
+    require_text(
+        touch_event,
+        r"QEventPoint::State::Pressed[\s\S]*QEventPoint::State::Updated[\s\S]*QEventPoint::State::Stationary[\s\S]*QEventPoint::State::Released",
+        "Qt 6 scripted touch state flags must use QEventPoint states",
+    )
+    require_text(
+        touch_event,
+        r"#else[\s\S]*Qt::TouchPointPressed[\s\S]*Qt::TouchPointMoved[\s\S]*Qt::TouchPointStationary[\s\S]*Qt::TouchPointReleased",
+        "Qt 5 scripted touch state flags must remain available",
+    )
     triage = json.loads((IOS_ROOT / "first-run-triage.json").read_text(encoding="utf-8"))
     assert triage["schemaVersion"] == 1
     phases = triage["phases"]
