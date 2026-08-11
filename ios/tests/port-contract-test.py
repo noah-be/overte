@@ -319,6 +319,9 @@ def test_cmake_boundary() -> None:
     assert "capturedRef(" not in path_utils_text, "Qt 6 removed QRegularExpressionMatch::capturedRef"
     assert path_utils_text.count('match.captured("pid")') == 2, "temporary-directory PID captures must retain both validation paths"
     assert 'match.captured("timestamp")' in path_utils_text, "temporary-directory timestamp capture must remain available"
+    json_helpers = SOURCE_ROOT / "libraries/shared/src/shared/JSONHelpers.cpp"
+    require_text(json_helpers, r"std::min\(array\.size\(\), static_cast<qsizetype>\(result\.length\(\)\)\)", "Qt 6 JSON array sizes must share an explicit index type")
+    require_text(json_helpers, r"setProperty\(key\.c_str\(\), it\.value\(\)\.toVariant\(\)\)", "JSON properties must cross the QObject boundary as explicit variants")
     shutdown_listener = SOURCE_ROOT / "libraries/shared/src/ShutdownEventListener.h"
     require_text(shutdown_listener, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*qintptr\* result[\s\S]*long\* result", "native event filters must use the Qt 6 result type with a Qt 5 fallback")
     shutdown_listener_impl = SOURCE_ROOT / "libraries/shared/src/ShutdownEventListener.cpp"
