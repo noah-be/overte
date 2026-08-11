@@ -298,6 +298,8 @@ def test_cmake_boundary() -> None:
     assert "QDateTime::fromTime_t" not in shared_util_impl.read_text(encoding="utf-8"), "Qt 6 removed QDateTime::fromTime_t"
     trace = SOURCE_ROOT / "libraries/shared/src/Trace.cpp"
     require_text(trace, r'"ph", QString\(QChar::fromLatin1\(static_cast<char>\(type\)\)\)', "trace event phases must explicitly preserve their one-byte JSON representation")
+    setting_helpers = SOURCE_ROOT / "libraries/shared/src/SettingHelpers.cpp"
+    require_text(setting_helpers, r"#include <QIODevice>", "settings serializers must include the complete device type they access")
     shutdown_listener = SOURCE_ROOT / "libraries/shared/src/ShutdownEventListener.h"
     require_text(shutdown_listener, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*qintptr\* result[\s\S]*long\* result", "native event filters must use the Qt 6 result type with a Qt 5 fallback")
     shutdown_listener_impl = SOURCE_ROOT / "libraries/shared/src/ShutdownEventListener.cpp"

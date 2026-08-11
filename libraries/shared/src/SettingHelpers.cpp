@@ -15,6 +15,7 @@
 
 #include <QDataStream>
 #include <QDebug>
+#include <QIODevice>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMetaType>
