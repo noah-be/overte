@@ -11,10 +11,6 @@
 #include <unordered_set>
 #include <unordered_map>
 
-#include <gl/Config.h>
-
-#include <QtGui/QOpenGLContext>
-#include <QtGui/QOpenGLFunctions_4_1_Core>
 #include <QtWidgets/QWidget>
 #include <QtQml/QtQml>
 #include <QtQml/QQmlEngine>
@@ -50,7 +46,6 @@
 #include <AudioClient.h>
 #include <shared/LocalFileAccessGate.h>
 
-#include <gl/OffscreenGLCanvas.h>
 #include <gl/GLHelpers.h>
 #include <gl/Context.h>
 #include <shared/ReadWriteLockable.h>

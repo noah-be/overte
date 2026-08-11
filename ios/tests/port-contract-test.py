@@ -631,6 +631,13 @@ def test_cmake_boundary() -> None:
     if "class QTouchDevice&" in offscreen_touch_header.read_text(encoding="utf-8"):
         raise AssertionError("offscreen surface signatures retained the removed Qt 6 QTouchDevice type")
     offscreen_touch_source = offscreen_touch_header.with_suffix(".cpp")
+    offscreen_touch_text = offscreen_touch_source.read_text(encoding="utf-8")
+    for stale_gl_include in (
+        "QOpenGLFunctions_4_1_Core", "QOpenGLContext", "gl/Config.h", "gl/OffscreenGLCanvas.h",
+    ):
+        if stale_gl_include in offscreen_touch_text:
+            raise AssertionError(f"the iOS UI graph retained an unused desktop GL include: {stale_gl_include}")
+    require_text(offscreen_touch_source, r"#include <gl/GLHelpers\.h>[\s\S]*gl::ContextInfo::get\(\)", "QML GL metadata must retain its owning helper boundary")
     require_text(offscreen_touch_source, r"QEventPoint\(id, state, position, position\)", "Qt 6 synthetic points must be constructed atomically")
     require_text(offscreen_touch_source, r"return point\.scenePosition\(\);[\s\S]*#else[\s\S]*return point\.pos\(\);", "synthetic touch tracking must read the scene position initialized by the Qt 6 public constructor")
     require_text(offscreen_touch_source, r"QEventPoint::State::Pressed[\s\S]*QEventPoint::State::Released[\s\S]*QEventPoint::State::Updated", "Qt 6 synthetic touch states must use QEventPoint")
