@@ -41,6 +41,7 @@ namespace Setting {
         auto globalManager = DependencyManager::get<Manager>();
         Q_ASSERT(qApp && globalManager);
 
+        globalManager->startThread();
         qAddPostRoutine(cleanupSettingsSaveThread);
     }
 
@@ -67,8 +68,14 @@ namespace Setting {
         // Setup settings manager, the manager will live until the process shuts down
         DependencyManager::set<Manager>();
 
-        // Add pre-routine to setup threading
-        qAddPreRoutine(setupSettingsSaveThread);
+        // Start the writer only once an application event dispatcher exists. Interface
+        // initializes settings between a temporary QCoreApplication and its real
+        // QApplication, which macOS cannot use to host a QThread event loop.
+        if (qApp) {
+            setupSettingsSaveThread();
+        } else {
+            qAddPreRoutine(setupSettingsSaveThread);
+        }
     }
 
     void Interface::init() {

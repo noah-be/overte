@@ -11,19 +11,25 @@ readonly location="${OVERTE_MACOS_ONLINE_LOCATION:-overte://welcome}"
 readonly executable="$app/Contents/MacOS/Overte"
 readonly test_script="$source_root/macos/tests/serverless-smoke.js"
 readonly log="$output_dir/online.log"
+readonly process_result="$output_dir/online-process.json"
+readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-180}"
+readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
 
 [[ "$(uname -s)" == Darwin ]] || { echo "online smoke requires macOS" >&2; exit 1; }
 [[ -x "$executable" ]] || { echo "missing executable: $executable" >&2; exit 1; }
 mkdir -p "$output_dir"
 
 set +e
-"$executable" --allowMultipleInstances --no-login-suggestion --url "$location" \
+python3 "$source_root/macos/tools/run-process-with-timeout.py" \
+    --timeout "$timeout_seconds" --grace "$shutdown_grace_seconds" \
+    --log "$log" --result "$process_result" -- \
+    "$executable" --allowMultipleInstances --no-login-suggestion --url "$location" \
     --testScript "$test_script" --testResultsLocation "$output_dir" \
-    --quitWhenFinished 2>&1 | tee "$log"
-status=${PIPESTATUS[0]}
+    --quitWhenFinished
+status=$?
 set -e
 
-[[ $status -eq 0 ]] || { echo "Overte exited with status $status" >&2; exit "$status"; }
+[[ $status -eq 0 ]] || { echo "Overte supervisor exited with status $status" >&2; exit "$status"; }
 for marker in domain_list_connected entity_server_active entity_query_sent entity_data_received render_handoff; do
     rg -q "OVERTE_MACOS_ENTITY_GATE $marker" "$log" || {
         echo "missing online runtime gate: $marker" >&2

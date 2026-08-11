@@ -253,6 +253,8 @@ namespace Setting {
         void terminationRequested();
 
     private:
+        void startThread();
+
         QHash<QString, Interface*> _handles;
 
         friend class Interface;

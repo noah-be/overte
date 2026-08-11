@@ -84,6 +84,37 @@ if (
 ):
     raise SystemExit("macOS version detection must use execute_process, not removed exec_program")
 
+setting_manager = (ROOT / "libraries/shared/src/SettingManager.cpp").read_text(
+    encoding="utf-8"
+)
+setting_interface = (ROOT / "libraries/shared/src/SettingInterface.cpp").read_text(
+    encoding="utf-8"
+)
+manager_constructor = setting_manager.split("Manager::Manager", 1)[1].split(
+    "Manager::~Manager", 1
+)[0]
+if "_workerThread.start()" in manager_constructor:
+    raise SystemExit("settings writer must not start before QApplication exists")
+if not re.search(
+    r"void Manager::startThread\(\).*?if \(!_workerThread\.isRunning\(\)\).*?"
+    r"_workerThread\.start\(\)",
+    setting_manager,
+    re.DOTALL,
+):
+    raise SystemExit("settings writer start must be explicit and idempotent")
+setup_writer = setting_interface.split("void setupSettingsSaveThread()", 1)[1].split(
+    "void init()", 1
+)[0]
+if "globalManager->startThread();" not in setup_writer:
+    raise SystemExit("QApplication pre-routine must start the settings writer")
+if not re.search(
+    r"if \(qApp\).*?setupSettingsSaveThread\(\).*?else.*?"
+    r"qAddPreRoutine\(setupSettingsSaveThread\)",
+    setting_interface,
+    re.DOTALL,
+):
+    raise SystemExit("settings init must support both existing and future applications")
+
 jsapi_cmake = (ROOT / "plugins/JSAPIExample/CMakeLists.txt").read_text(encoding="utf-8")
 if "overte_find_qt(COMPONENTS Core Core5Compat QUIET REQUIRED)" not in jsapi_cmake:
     raise SystemExit("JSAPIExample must retain a real Qt 5 component after compatibility filtering")
@@ -201,5 +232,31 @@ online_smoke = (ROOT / "macos/ci/online-smoke.sh").read_text(encoding="utf-8")
 for marker in ONLINE_CONTRACT | {"render_handoff": ""}:
     if marker not in online_smoke:
         raise SystemExit(f"online smoke runner does not require {marker}")
+
+for smoke_name, smoke_source in (("serverless", smoke), ("online", online_smoke)):
+    for timeout_contract in (
+        "run-process-with-timeout.py",
+        "OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS",
+        "OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS",
+        "process.json",
+    ):
+        if timeout_contract not in smoke_source:
+            raise SystemExit(
+                f"{smoke_name} smoke is missing timeout contract: {timeout_contract}"
+            )
+for smoke_name, smoke_source, maximum in (
+    ("serverless", smoke, 120),
+    ("online", online_smoke, 180),
+):
+    default_timeout = re.search(
+        r'OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-([0-9]+)', smoke_source
+    )
+    if not default_timeout or int(default_timeout.group(1)) > maximum:
+        raise SystemExit(f"{smoke_name} smoke timeout must be at most {maximum}s")
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/process-timeout-test.py")],
+    cwd=ROOT,
+    check=True,
+)
 
 print("macOS runtime evidence contract valid")

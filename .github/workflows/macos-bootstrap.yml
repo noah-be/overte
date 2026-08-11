@@ -35,6 +35,12 @@ jobs:
       OVERTE_MACOS_BUILD_TYPE: RelWithDebInfo
       OVERTE_MACOS_QT_SOURCE: aqt
       MACOSX_DEPLOYMENT_TARGET: '11.0'
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 1536M
+      CCACHE_COMPRESS: 'true'
+      CCACHE_COMPILERCHECK: content
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
     steps:
       - name: Check out requested revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
@@ -43,6 +49,7 @@ jobs:
 
       - name: Install build tools
         run: |
+          brew list ccache >/dev/null 2>&1 || brew install ccache
           python3 -m venv build-tooling-venv
           build-tooling-venv/bin/pip install 'conan>=2,<3' 'aqtinstall>=3,<4'
           echo "$GITHUB_WORKSPACE/build-tooling-venv/bin" >> "$GITHUB_PATH"
@@ -99,8 +106,50 @@ jobs:
         if: ${{ always() && steps.resolve-dependencies.outcome == 'failure' }}
         run: exit 1
 
+      - name: Restore bounded compiler cache
+        id: ccache-restore
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: macos-ccache-complete-v1-x86_64-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'interface/**', 'libraries/**', 'plugins/**') }}
+          restore-keys: |
+            macos-ccache-complete-v1-x86_64-
+            macos-ccache-partial-v1-x86_64-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'interface/**', 'libraries/**', 'plugins/**') }}-
+            macos-ccache-partial-v1-x86_64-
+
+      - name: Configure compiler cache
+        run: |
+          ccache --set-config "max_size=$CCACHE_MAXSIZE"
+          ccache --set-config compression=true
+          ccache --zero-stats
+
       - name: Configure and build client
+        id: build-client
+        continue-on-error: true
         run: macos/build-macos.sh build
+
+      - name: Save complete compiler cache
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.build-client.outcome == 'success' &&
+              steps.ccache-restore.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: macos-ccache-complete-v1-x86_64-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'interface/**', 'libraries/**', 'plugins/**') }}
+
+      - name: Save partial compiler cache after build failure
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.build-client.outcome == 'failure' }}
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: macos-ccache-partial-v1-x86_64-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'interface/**', 'libraries/**', 'plugins/**') }}-${{ github.run_id }}
+
+      - name: Require successful client build
+        if: ${{ always() && steps.build-client.outcome == 'failure' }}
+        run: exit 1
 
       - name: Verify application bundle
         run: |

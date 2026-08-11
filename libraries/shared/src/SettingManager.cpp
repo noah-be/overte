@@ -93,8 +93,6 @@ namespace Setting {
         connect(this, &Manager::terminationRequested, worker, &WriteWorker::terminate, Qt::BlockingQueuedConnection);
 
 
-        _workerThread.start();
-
         // Load all current settings
         QSettings settings;
         _fileName = settings.fileName();
@@ -165,6 +163,12 @@ namespace Setting {
 
     void Manager::forceSave() {
         emit syncRequested();
+    }
+
+    void Manager::startThread() {
+        if (!_workerThread.isRunning()) {
+            _workerThread.start();
+        }
     }
 
     void Manager::terminateThread() {

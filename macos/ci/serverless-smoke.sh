@@ -11,6 +11,9 @@ readonly executable="$app/Contents/MacOS/Overte"
 readonly scene="$source_root/interface/resources/serverless/tutorial.json"
 readonly test_script="$source_root/macos/tests/serverless-smoke.js"
 readonly log="$output_dir/serverless.log"
+readonly process_result="$output_dir/serverless-process.json"
+readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-120}"
+readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
 
 [[ "$(uname -s)" == Darwin ]] || { echo "serverless smoke requires macOS" >&2; exit 1; }
 [[ -x "$executable" ]] || { echo "missing executable: $executable" >&2; exit 1; }
@@ -18,13 +21,16 @@ readonly log="$output_dir/serverless.log"
 mkdir -p "$output_dir"
 
 set +e
-"$executable" --allowMultipleInstances --no-login-suggestion \
+python3 "$source_root/macos/tools/run-process-with-timeout.py" \
+    --timeout "$timeout_seconds" --grace "$shutdown_grace_seconds" \
+    --log "$log" --result "$process_result" -- \
+    "$executable" --allowMultipleInstances --no-login-suggestion \
     --url "file://$scene" --testScript "$test_script" \
-    --testResultsLocation "$output_dir" --quitWhenFinished 2>&1 | tee "$log"
-status=${PIPESTATUS[0]}
+    --testResultsLocation "$output_dir" --quitWhenFinished
+status=$?
 set -e
 
-[[ $status -eq 0 ]] || { echo "Overte exited with status $status" >&2; exit "$status"; }
+[[ $status -eq 0 ]] || { echo "Overte supervisor exited with status $status" >&2; exit "$status"; }
 for marker in serverless_import_committed entity_tree_nonempty render_handoff; do
     rg -q "OVERTE_MACOS_ENTITY_GATE $marker" "$log" || {
         echo "missing runtime gate: $marker" >&2

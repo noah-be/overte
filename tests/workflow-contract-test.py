@@ -102,6 +102,52 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("steps.resolve-dependencies.outcome == 'failure'", failure_gate)
         self.assertIn("run: exit 1", failure_gate)
 
+    def test_compiler_cache_is_separate_bounded_and_used_by_both_languages(self):
+        self.assertIn("CCACHE_DIR: ${{ github.workspace }}/.ccache", self.source)
+        maximum = re.search(r"(?m)^\s+CCACHE_MAXSIZE:\s*(\d+)M\s*$", self.source)
+        self.assertIsNotNone(maximum)
+        self.assertGreaterEqual(int(maximum.group(1)), 1024)
+        self.assertLessEqual(int(maximum.group(1)), 2048)
+        self.assertIn("CMAKE_C_COMPILER_LAUNCHER: ccache", self.source)
+        self.assertIn("CMAKE_CXX_COMPILER_LAUNCHER: ccache", self.source)
+        compiler_cache = self.source.split("- name: Restore bounded compiler cache", 1)[1]
+        complete = "macos-ccache-complete-v1-x86_64-"
+        partial = "macos-ccache-partial-v1-x86_64-"
+        restore = compiler_cache.split("- name: Configure compiler cache", 1)[0]
+        self.assertIn(complete, restore)
+        self.assertIn(partial, restore)
+        self.assertLess(restore.index(complete), restore.index(partial))
+        self.assertNotIn("macos-complete-x86_64", compiler_cache)
+        self.assertIn('ccache --set-config "max_size=$CCACHE_MAXSIZE"', compiler_cache)
+
+    def test_compiler_cache_checkpoints_preserve_success_and_failure_progress(self):
+        build = self.source.split("- name: Configure and build client", 1)[1].split(
+            "- name: Save complete compiler cache", 1
+        )[0]
+        complete_save = self.source.split("- name: Save complete compiler cache", 1)[1].split(
+            "- name: Save partial compiler cache after build failure", 1
+        )[0]
+        partial_save = self.source.split(
+            "- name: Save partial compiler cache after build failure", 1
+        )[1].split("- name: Require successful client build", 1)[0]
+        failure_gate = self.source.split("- name: Require successful client build", 1)[1].split(
+            "- name: Verify application bundle", 1
+        )[0]
+        self.assertIn("id: build-client", build)
+        self.assertIn("continue-on-error: true", build)
+        self.assertIn("always()", complete_save)
+        self.assertIn("!cancelled()", complete_save)
+        self.assertIn("steps.build-client.outcome == 'success'", complete_save)
+        self.assertIn("steps.ccache-restore.outputs.cache-hit != 'true'", complete_save)
+        self.assertIn("macos-ccache-complete-v1-x86_64-", complete_save)
+        self.assertIn("always()", partial_save)
+        self.assertIn("!cancelled()", partial_save)
+        self.assertIn("steps.build-client.outcome == 'failure'", partial_save)
+        self.assertIn("macos-ccache-partial-v1-x86_64-", partial_save)
+        self.assertIn("${{ github.run_id }}", partial_save)
+        self.assertIn("steps.build-client.outcome == 'failure'", failure_gate)
+        self.assertIn("run: exit 1", failure_gate)
+
 
 class PicoWorkflowContracts(unittest.TestCase):
     @classmethod
