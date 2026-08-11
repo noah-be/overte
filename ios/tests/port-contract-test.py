@@ -291,6 +291,11 @@ def test_cmake_boundary() -> None:
     require_text(registered_metatypes, r"#include <QtCore/QVariant>", "registered inline metatype helpers must have a complete QVariant type")
     shared_util = SOURCE_ROOT / "libraries/shared/src/SharedUtil.h"
     require_text(shared_util, r"#include <QtCore/QVariant>", "global-instance templates must have a complete QVariant type")
+    shared_util_impl = SOURCE_ROOT / "libraries/shared/src/SharedUtil.cpp"
+    require_text(shared_util_impl, r"QChar::fromLatin1\(static_cast<char>\(byte\)\)", "byte diagnostics must explicitly preserve their Latin-1 character")
+    require_text(shared_util_impl, r"QDateTime::fromSecsSinceEpoch\(static_cast<qint64>\(rest\)\)", "multi-day elapsed formatting must preserve sub-day truncation with the Qt 6 epoch API")
+    require_text(shared_util_impl, r"QDateTime::fromSecsSinceEpoch\(static_cast<qint64>\(seconds\)\)", "elapsed formatting must preserve second truncation with the Qt 6 epoch API")
+    assert "QDateTime::fromTime_t" not in shared_util_impl.read_text(encoding="utf-8"), "Qt 6 removed QDateTime::fromTime_t"
     trace = SOURCE_ROOT / "libraries/shared/src/Trace.cpp"
     require_text(trace, r'"ph", QString\(QChar::fromLatin1\(static_cast<char>\(type\)\)\)', "trace event phases must explicitly preserve their one-byte JSON representation")
     shutdown_listener = SOURCE_ROOT / "libraries/shared/src/ShutdownEventListener.h"
