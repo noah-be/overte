@@ -64,7 +64,7 @@ class PicoPackageContractTests(unittest.TestCase):
         self.assertIn("-DUSE_BREAKPAD=OFF", GRADLE)
 
     def test_runtime_overrides_are_owned_by_shared_android(self):
-        build_script = (ANDROID / "build-pico.sh").read_text(encoding="utf-8")
+        build_script = (ANDROID / "vr/pico/build.sh").read_text(encoding="utf-8")
         self.assertIn("../../../../common/runtime-overrides/arm64-v8a", GRADLE)
         self.assertIn('../../common/runtime-overrides/arm64-v8a', build_script)
         self.assertIn('legacy_runtime_dir', build_script)
