@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - feature/ios-support
+      - apple-ios
   pull_request:
     paths:
       - 'CMakeLists.txt'
@@ -28,6 +28,7 @@ on:
       - 'libraries/ui/src/**'
       - 'libraries/vk/**'
       - 'ios/**'
+      - '!**/*.md'
 
 permissions:
   contents: read
