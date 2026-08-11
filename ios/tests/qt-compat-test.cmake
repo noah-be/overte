@@ -6,6 +6,11 @@ cmake_minimum_required(VERSION 3.24)
 set(CMAKE_SYSTEM_NAME iOS)
 include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/QtCompat.cmake")
 
+file(READ "${CMAKE_CURRENT_LIST_DIR}/../../cmake/QtCompat.cmake" QT_COMPAT_SOURCE)
+if(NOT QT_COMPAT_SOURCE MATCHES "macro\\(overte_find_qt\\)")
+    message(FATAL_ERROR "Qt package discovery must preserve package variables in the caller scope")
+endif()
+
 if(NOT OVERTE_QT_MAJOR STREQUAL "6")
     message(FATAL_ERROR "iOS did not select Qt 6")
 endif()

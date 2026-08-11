@@ -42,10 +42,10 @@ function(overte_filter_qt_components output_variable)
     set(${output_variable} "${_overte_qt_components}" PARENT_SCOPE)
 endfunction()
 
-function(overte_find_qt)
+macro(overte_find_qt)
     overte_filter_qt_components(_overte_find_arguments ${ARGN})
     find_package(${OVERTE_QT_PACKAGE} ${_overte_find_arguments})
-endfunction()
+endmacro()
 
 function(overte_link_qt_modules target)
     overte_filter_qt_components(_overte_link_modules ${ARGN})
