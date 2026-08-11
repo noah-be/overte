@@ -317,6 +317,13 @@ def test_cmake_boundary() -> None:
     file_utils = SOURCE_ROOT / "libraries/shared/src/shared/FileUtils.cpp"
     require_text(file_utils, r"#include <QtCore/QStandardPaths>", "file path helpers must include the Qt type they use")
     require_text(file_utils, r"defined\(Q_OS_MAC\) && !defined\(Q_OS_IOS\)[\s\S]*QProcess::startDetached\(\"osascript\"", "desktop Finder process launching must remain unreachable on iOS")
+    for native_widget in (
+        SOURCE_ROOT / "libraries/gl/src/gl/GLWidget.h",
+        SOURCE_ROOT / "libraries/gl/src/gl/GLWidget.cpp",
+        SOURCE_ROOT / "libraries/vk/src/vk/VKWidget.h",
+        SOURCE_ROOT / "libraries/vk/src/vk/VKWidget.cpp",
+    ):
+        require_text(native_widget, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*qintptr \*result[\s\S]*long \*result", "native widget event results must use the Qt 6 pointer-sized signature with a Qt 5 fallback")
     path_utils = SOURCE_ROOT / "libraries/shared/src/PathUtils.cpp"
     path_utils_text = path_utils.read_text(encoding="utf-8")
     assert "capturedRef(" not in path_utils_text, "Qt 6 removed QRegularExpressionMatch::capturedRef"
