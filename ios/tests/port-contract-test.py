@@ -1456,6 +1456,7 @@ def test_ci_contract() -> None:
     bootstrap_workflow = SOURCE_ROOT / ".github" / "workflows" / "ios-bootstrap.yml"
     require_text(bootstrap_workflow, r"needs\.provision-qt-ios\.outputs\.qt_host_cache_key", "host cache output must reach the integrated caller")
     require_text(bootstrap_workflow, r"needs\.provision-qt-ios\.outputs\.qt_ios_cache_key", "iOS cache output must reach the integrated caller")
+    require_text(bootstrap_workflow, r"contains\(github\.event\.head_commit\.message, '\[ios-integrated\]'\)", "integrated-only fixes must be able to reuse provisioned Qt caches")
     if bootstrap_workflow.read_text(encoding="utf-8").count("ios/tests/run-tests.sh") != 1:
         raise AssertionError("branch CI must run the host suite exactly once before macOS jobs")
 
