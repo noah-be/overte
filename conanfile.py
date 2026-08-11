@@ -61,7 +61,16 @@ class Overte(ConanFile):
         self.requires("draco/1.3.5") # FIXME: update to newer version
         self.requires("etc2comp/cci.20170424") # NOTE: archived upstream
         self.requires("gifcreator/2016.11@overte/stable")
-        self.requires("glad/0.1.36@overte/experimental#9612a3032fecdd1d8781dfb1b2bd6dc6") # NOTE: glad 2 is released
+        # Every Overte shared library that uses OpenGL links GLAD. A static
+        # GLAD archive gives each Mach-O image its own function-pointer table;
+        # macOS' two-level namespace then lets Interface call a table owned by
+        # a different dylib than the one initialized by gl::initModuleGl().
+        # Keep one process-wide table on macOS by linking the shared package.
+        glad_options = {"shared": True} if self.settings.os == "Macos" else {}
+        self.requires(
+            "glad/0.1.36@overte/experimental#9612a3032fecdd1d8781dfb1b2bd6dc6",
+            options=glad_options,
+        ) # NOTE: glad 2 is released
         self.requires("gli/cci.20210515") # NOTE: not maintained for 4 years
         self.requires("glslang/1.4.350.0")
         self.requires("liblo/0.35@overte/stable") # For hifiOSC

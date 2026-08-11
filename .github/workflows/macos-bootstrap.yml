@@ -158,6 +158,7 @@ jobs:
           test -x "$app/Contents/MacOS/Overte"
           test -f "$app/Contents/Info.plist"
           plutil -lint "$app/Contents/Info.plist"
+          macos/ci/verify-glad-linkage.sh "$app"
 
       - name: Run application startup preflight
         run: |

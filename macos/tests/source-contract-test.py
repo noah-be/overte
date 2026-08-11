@@ -96,6 +96,17 @@ if "return GL_LIB ? dlsym(GL_LIB, namez) : nullptr;" not in gl_config:
 if not re.search(r"loadedVersion.*?gladLoadGLLoader.*?if \(loadedVersion == 0\).*?qFatal", gl_config, re.DOTALL):
     raise SystemExit("GLAD initialization must fail closed when entry-point loading fails")
 
+conanfile = (ROOT / "conanfile.py").read_text(encoding="utf-8")
+if not re.search(
+    r'glad_options\s*=\s*\{"shared": True\}\s+if\s+self\.settings\.os\s*==\s*"Macos"\s+else\s*\{\}.*?'
+    r'self\.requires\(\s*"glad/0\.1\.36@overte/experimental#[^"]+",\s*options=glad_options',
+    conanfile,
+    re.DOTALL,
+):
+    raise SystemExit(
+        "macOS must use one shared GLAD function-pointer table across all Mach-O images"
+    )
+
 gl_context = (ROOT / "libraries/gl/src/gl/ContextQt.cpp").read_text(encoding="utf-8")
 if not re.search(
     r"if \(!_qglContext \|\| !_window \|\| !_qglContext->isValid\(\)\).*?"

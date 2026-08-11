@@ -178,6 +178,21 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertNotIn("build-macos.sh build", source)
         self.assertIn("if: always()", source)
 
+    def test_macos_bundles_share_one_glad_loader_state(self):
+        linkage_check = (ROOT / "macos/ci/verify-glad-linkage.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("expected exactly one shared libglad dylib", linkage_check)
+        self.assertIn("otool -L", linkage_check)
+        self.assertIn("nm -gU", linkage_check)
+        self.assertIn("_glad_glGetString", linkage_check)
+        self.assertIn("_glad_debug_impl_glGetString", linkage_check)
+        self.assertIn("macos/ci/verify-glad-linkage.sh", self.source)
+        self.assertIn(
+            "macos/ci/verify-glad-linkage.sh",
+            MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8"),
+        )
+
 
 class PicoWorkflowContracts(unittest.TestCase):
     @classmethod
