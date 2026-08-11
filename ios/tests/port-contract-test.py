@@ -468,6 +468,13 @@ def test_cmake_boundary() -> None:
     if "QtWidgets/QShortcut" in ui_menu_source.read_text(encoding="utf-8"):
         raise AssertionError("the iOS UI graph retained the Qt 5 QShortcut module path")
 
+    for action_group_owner in (
+        SOURCE_ROOT / "libraries" / "ui-plugins" / "src" / "ui-plugins" / "PluginContainer.cpp",
+        SOURCE_ROOT / "interface" / "src" / "Menu.cpp",
+        SOURCE_ROOT / "interface" / "src" / "Application_Graphics.cpp",
+    ):
+        require_text(action_group_owner, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*#include <QtGui/QActionGroup>[\s\S]*#else[\s\S]*#include <QtWidgets/QActionGroup>", "QActionGroup owners must include its complete Qt 5/6 module header")
+
     moltenvk = SOURCE_ROOT / "cmake" / "modules" / "FindMoltenVK.cmake"
     require_text(moltenvk, r"ios-arm64_x86_64-simulator", "MoltenVK lookup must support arm64 simulator")
     require_text(moltenvk, r"ios-arm64", "MoltenVK lookup must support arm64 devices")

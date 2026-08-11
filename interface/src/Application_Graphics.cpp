@@ -19,6 +19,11 @@
 
 #include <QtCore/QRegularExpression>
 #include <QtQml/QQmlContext>
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QtGui/QActionGroup>
+#else
+#include <QtWidgets/QActionGroup>
+#endif
 
 #include <AudioScriptingInterface.h>
 #include <display-plugins/CompositorHelper.h>

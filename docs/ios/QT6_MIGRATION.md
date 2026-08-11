@@ -591,6 +591,9 @@ The same UI unit does not include the unused desktop-only
 `QOpenGLFunctions_4_1_Core` wrapper, which is absent from Qt's iOS build.
 The UI menu implementation likewise no longer includes its unused Qt 5
 `QtWidgets/QShortcut` path; Qt 6 moved that class to QtGui.
+Every iOS-reachable translation unit that constructs a `QActionGroup` now owns
+its complete QtGui header on Qt 6 while retaining the QtWidgets include on Qt 5;
+none relies on QMenuBar's transitive include structure.
 FST mapping serialization copies preserved metadata entries explicitly into
 its multi-hash. This replaces Qt 6's removed `unite()` API while retaining all
 keys and values on both Qt generations.
