@@ -775,6 +775,12 @@ def test_scope_contract() -> None:
         r"releaseTexture\(\{\s*texture,\s*fence\s*\}\);",
         "the backend-neutral discard boundary must forward its opaque fence without a GLsync dependency",
     )
+    users_interface = SOURCE_ROOT / "libraries" / "script-engine" / "src" / "UsersScriptingInterface.h"
+    require_text(
+        users_interface,
+        r"#include\s+<QObject>[\s\S]*class UsersScriptingInterface\s*:\s*public QObject",
+        "UsersScriptingInterface must include its complete QObject base type",
+    )
     triage = json.loads((IOS_ROOT / "first-run-triage.json").read_text(encoding="utf-8"))
     assert triage["schemaVersion"] == 1
     phases = triage["phases"]
