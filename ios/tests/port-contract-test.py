@@ -1903,6 +1903,7 @@ def test_script_entity_id_qt6_contract() -> None:
 
     controller_header = SOURCE_ROOT / "libraries" / "controllers" / "src" / "controllers" / "UserInputMapper.h"
     controller_text = controller_header.read_text(encoding="utf-8")
+    # Qt 6 automatically instantiates the leaf metatype while declaring QPair and QVector wrappers.
     input_type = controller_text.index("Q_DECLARE_METATYPE(controller::Input)\n")
     pose_type = controller_text.index("Q_DECLARE_METATYPE(controller::Pose)\n")
     action_type = controller_text.index("Q_DECLARE_METATYPE(controller::Action)\n")
