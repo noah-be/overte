@@ -325,6 +325,8 @@ def test_cmake_boundary() -> None:
     config_map = SOURCE_ROOT / "libraries/shared/src/HifiConfigVariantMap.cpp"
     require_text(config_map, r"QVariantMap mergedMap;", "command-line configuration must use its declared return-map type")
     assert "QMultiMap<QString, QVariant> mergedMap" not in config_map.read_text(encoding="utf-8"), "Qt 6 no longer slices QMultiMap into QVariantMap"
+    grab = SOURCE_ROOT / "libraries/shared/src/Grab.cpp"
+    require_text(grab, r"#include <QtCore/QIODevice>", "grab serialization must include the complete device type used for stream mode flags")
     shutdown_listener = SOURCE_ROOT / "libraries/shared/src/ShutdownEventListener.h"
     require_text(shutdown_listener, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*qintptr\* result[\s\S]*long\* result", "native event filters must use the Qt 6 result type with a Qt 5 fallback")
     shutdown_listener_impl = SOURCE_ROOT / "libraries/shared/src/ShutdownEventListener.cpp"
