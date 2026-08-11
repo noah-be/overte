@@ -336,6 +336,9 @@ def test_cmake_boundary() -> None:
         SOURCE_ROOT / "libraries/gl/src/gl/ContextQt.cpp",
     ):
         require_text(gl_debug_source, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*QtOpenGL/QOpenGLDebug", "Qt 6 GL diagnostics must use their QtOpenGL headers")
+    gl_helpers = SOURCE_ROOT / "libraries/gl/src/gl/GLHelpers.cpp"
+    require_text(gl_helpers, r"bool khrDebugEnabled\(\) \{[\s\S]*Q_OS_IOS[\s\S]*return false;[\s\S]*glPushDebugGroupKHR", "iOS GLES compatibility must not compile unavailable KHR desktop debug markers")
+    require_text(gl_helpers, r"bool extDebugMarkerEnabled\(\) \{[\s\S]*Q_OS_IOS[\s\S]*return false;[\s\S]*glPushGroupMarkerEXT", "iOS GLES compatibility must not compile unavailable EXT desktop debug markers")
     path_utils = SOURCE_ROOT / "libraries/shared/src/PathUtils.cpp"
     path_utils_text = path_utils.read_text(encoding="utf-8")
     assert "capturedRef(" not in path_utils_text, "Qt 6 removed QRegularExpressionMatch::capturedRef"

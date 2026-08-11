@@ -376,22 +376,30 @@ namespace gl {
 
     // Enables annotation of captures made by tools like renderdoc
     bool khrDebugEnabled() {
+#if defined(Q_OS_IOS)
+        return false;
+#else
         static std::once_flag once;
         static bool khrDebug = false;
         std::call_once(once, [&] {
             khrDebug = nullptr != glPushDebugGroupKHR;
         });
         return khrDebug;
+#endif
     }
 
     // Enables annotation of captures made by tools like renderdoc
     bool extDebugMarkerEnabled() {
+#if defined(Q_OS_IOS)
+        return false;
+#else
         static std::once_flag once;
         static bool extMarker = false;
         std::call_once(once, [&] {
             extMarker = nullptr != glPushGroupMarkerEXT;
         });
         return extMarker;
+#endif
     }
 
     bool debugContextEnabled() {
