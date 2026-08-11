@@ -731,6 +731,22 @@ def test_scope_contract() -> None:
         r"error\s*=\s*request->getErrorString\(\);",
         "asset download failures must forward their textual error instead of assigning an enum to QString",
     )
+    account_manager = SOURCE_ROOT / "libraries" / "networking" / "src" / "AccountManager.cpp"
+    require_text(
+        account_manager,
+        r"QT_VERSION < QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*qRegisterMetaTypeStreamOperators<OAuthAccessToken>",
+        "Qt 5 stream-operator registration must not compile against Qt 6",
+    )
+    require_text(
+        account_manager,
+        r"QUuid::fromString\(QString::fromLatin1\([\s\S]*rawHeader\(METAVERSE_SESSION_ID_HEADER\)",
+        "session IDs must be parsed explicitly from textual response headers",
+    )
+    require_text(
+        account_manager,
+        r"#if !defined\(Q_OS_IOS\)[\s\S]*QProcess launcher;[\s\S]*launcher\.startDetached\(\);[\s\S]*#endif",
+        "desktop launcher processes must be excluded from iOS",
+    )
     triage = json.loads((IOS_ROOT / "first-run-triage.json").read_text(encoding="utf-8"))
     assert triage["schemaVersion"] == 1
     phases = triage["phases"]

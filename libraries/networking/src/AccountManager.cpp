@@ -83,10 +83,14 @@ AccountManager::AccountManager(bool accountSettingsEnabled, UserAgentGetter user
     _accountSettingsEnabled(accountSettingsEnabled)
 {
     qRegisterMetaType<OAuthAccessToken>("OAuthAccessToken");
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     qRegisterMetaTypeStreamOperators<OAuthAccessToken>("OAuthAccessToken");
+#endif
 
     qRegisterMetaType<DataServerAccountInfo>("DataServerAccountInfo");
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     qRegisterMetaTypeStreamOperators<DataServerAccountInfo>("DataServerAccountInfo");
+#endif
 
     qRegisterMetaType<QNetworkAccessManager::Operation>("QNetworkAccessManager::Operation");
     qRegisterMetaType<JSONCallbackParameters>("JSONCallbackParameters");
@@ -347,7 +351,8 @@ void AccountManager::sendRequest(const QString& path,
             // double check if the finished network reply had a session ID in the header and make
             // sure that our session ID matches that value if so
             if (networkReply->hasRawHeader(METAVERSE_SESSION_ID_HEADER)) {
-                _sessionID = networkReply->rawHeader(METAVERSE_SESSION_ID_HEADER);
+                _sessionID = QUuid::fromString(QString::fromLatin1(
+                    networkReply->rawHeader(METAVERSE_SESSION_ID_HEADER)));
             }
         });
 
@@ -1145,12 +1150,14 @@ void AccountManager::saveLoginStatus(bool isLoggedIn) {
         configFile.open(QFile::WriteOnly | QFile::Text | QFile::Truncate);
         configFile.write(jsonDocument.toJson());
         configFile.close();
+#if !defined(Q_OS_IOS)
         if (!isLoggedIn && !launcherPath.isEmpty()) {
             QProcess launcher;
             launcher.setProgram(launcherPath);
             launcher.startDetached();
             QMetaObject::invokeMethod(qApp, "quit", Qt::QueuedConnection);
         }
+#endif
     }
 }
 
