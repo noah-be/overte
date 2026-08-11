@@ -10,6 +10,8 @@
 
 #include <atomic>
 
+#include <QtCore/QVariant>
+
 #include "../NetworkLogging.h"
 
 
@@ -66,7 +68,7 @@ QVariant NetworkSocket::socketOption(SocketType socketType, QAbstractSocket::Soc
 #endif
     default:
         qCCritical(networking) << "Socket type" << socketType << "not recognized in socketOption()";
-        return "";
+        return {};
     }
 }
 

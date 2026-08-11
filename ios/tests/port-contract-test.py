@@ -359,6 +359,9 @@ def test_cmake_boundary() -> None:
     assert node_permissions_text.count("QUuid {}") == 4, "standard permission keys must construct explicit null UUID values"
     for standard_name in ("localhost", "logged-in", "anonymous", "friends"):
         assert f'QStringLiteral("{standard_name}")' in node_permissions_text, f"standard permission key must preserve {standard_name}"
+    network_socket = SOURCE_ROOT / "libraries/networking/src/udt/NetworkSocket.cpp"
+    require_text(network_socket, r"#include <QtCore/QVariant>[\s\S]*QVariant NetworkSocket::socketOption", "socket-option definitions must include their complete QVariant value type")
+    require_text(network_socket, r"not recognized in socketOption\(\)\";[\s\S]*return \{\};", "unknown socket types must return an invalid QVariant fail closed")
     path_utils = SOURCE_ROOT / "libraries/shared/src/PathUtils.cpp"
     path_utils_text = path_utils.read_text(encoding="utf-8")
     assert "capturedRef(" not in path_utils_text, "Qt 6 removed QRegularExpressionMatch::capturedRef"
