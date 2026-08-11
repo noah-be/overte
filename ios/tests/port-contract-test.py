@@ -328,6 +328,14 @@ def test_cmake_boundary() -> None:
     require_text(context_wrapper, r"defined\(Q_OS_IOS\)[\s\S]*return result;[\s\S]*#else[\s\S]*_context->nativeHandle\(\)", "Qt 6 iOS must not compile the removed desktop nativeHandle API")
     gl_config = SOURCE_ROOT / "libraries/gl/src/gl/Config.h"
     require_text(gl_config, r"defined\(Q_OS_IOS\)[\s\S]*#include <QtGui/QOpenGLContext>[\s\S]*#include <glad/glad\.h>", "Apple OpenGLES declarations must precede glad function-name macros on iOS")
+    gl_cmake = SOURCE_ROOT / "libraries/gl/CMakeLists.txt"
+    require_text(gl_cmake, r"OVERTE_QT_MAJOR EQUAL 6[\s\S]*setup_hifi_library\(Gui Widgets OpenGL\)[\s\S]*else\(\)[\s\S]*setup_hifi_library\(Gui Widgets\)", "Qt 6 GL diagnostics must link the QtOpenGL module without changing Qt 5")
+    for gl_debug_source in (
+        SOURCE_ROOT / "libraries/gl/src/gl/OffscreenGLCanvas.cpp",
+        SOURCE_ROOT / "libraries/gl/src/gl/GLHelpers.cpp",
+        SOURCE_ROOT / "libraries/gl/src/gl/ContextQt.cpp",
+    ):
+        require_text(gl_debug_source, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*QtOpenGL/QOpenGLDebug", "Qt 6 GL diagnostics must use their QtOpenGL headers")
     path_utils = SOURCE_ROOT / "libraries/shared/src/PathUtils.cpp"
     path_utils_text = path_utils.read_text(encoding="utf-8")
     assert "capturedRef(" not in path_utils_text, "Qt 6 removed QRegularExpressionMatch::capturedRef"
