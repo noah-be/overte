@@ -73,9 +73,23 @@ configure() {
 }
 
 build() {
+    local diagnostics_dir="$build_dir/macos-build-diagnostics"
+    mkdir -p "$diagnostics_dir"
+    note "phase=configure progress=0/100"
+    if [[ "${GITHUB_ACTIONS:-false}" == true ]]; then
+        echo "::notice title=macOS build progress::phase=configure progress=0/100"
+    fi
     configure
+    note "phase=configure progress=100/100"
+    if [[ "${GITHUB_ACTIONS:-false}" == true ]]; then
+        echo "::notice title=macOS build progress::phase=configure progress=100/100"
+    fi
     local preset="conan-$(printf '%s' "$build_type" | tr '[:upper:]' '[:lower:]')"
-    cmake --build --preset "$preset" --target Overte --parallel "$(sysctl -n hw.logicalcpu)"
+    python3 "$source_root/macos/tools/run-build-with-progress.py" \
+        --log "$diagnostics_dir/build.log" \
+        --result "$diagnostics_dir/build-result.json" -- \
+        cmake --build --preset "$preset" --target Overte \
+        --parallel "$(sysctl -n hw.logicalcpu)"
     find "$build_dir" -type d -name Overte.app -print -quit
 }
 

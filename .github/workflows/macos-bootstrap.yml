@@ -111,10 +111,10 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: macos-ccache-complete-v1-x86_64-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'interface/**', 'libraries/**', 'plugins/**') }}
+          key: macos-ccache-complete-v1-x86_64-${{ hashFiles('conanfile.py', 'macos/conan/**', 'CMakeLists.txt', 'cmake/**', 'interface/**', 'libraries/**', 'plugins/**') }}
           restore-keys: |
             macos-ccache-complete-v1-x86_64-
-            macos-ccache-partial-v1-x86_64-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'interface/**', 'libraries/**', 'plugins/**') }}-
+            macos-ccache-partial-v1-x86_64-${{ hashFiles('conanfile.py', 'macos/conan/**', 'CMakeLists.txt', 'cmake/**', 'interface/**', 'libraries/**', 'plugins/**') }}-
             macos-ccache-partial-v1-x86_64-
 
       - name: Configure compiler cache
@@ -136,7 +136,7 @@ jobs:
         uses: actions/cache/save@v5
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: macos-ccache-complete-v1-x86_64-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'interface/**', 'libraries/**', 'plugins/**') }}
+          key: macos-ccache-complete-v1-x86_64-${{ hashFiles('conanfile.py', 'macos/conan/**', 'CMakeLists.txt', 'cmake/**', 'interface/**', 'libraries/**', 'plugins/**') }}
 
       - name: Save partial compiler cache after build failure
         if: >-
@@ -145,7 +145,7 @@ jobs:
         uses: actions/cache/save@v5
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: macos-ccache-partial-v1-x86_64-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'interface/**', 'libraries/**', 'plugins/**') }}-${{ github.run_id }}
+          key: macos-ccache-partial-v1-x86_64-${{ hashFiles('conanfile.py', 'macos/conan/**', 'CMakeLists.txt', 'cmake/**', 'interface/**', 'libraries/**', 'plugins/**') }}-${{ github.run_id }}
 
       - name: Require successful client build
         if: ${{ always() && steps.build-client.outcome == 'failure' }}
@@ -181,6 +181,7 @@ jobs:
         with:
           name: overte-macos-smoke-${{ github.run_id }}
           path: |
+            build/macos-build-diagnostics
             build/macos-startup-preflight
             build/macos-smoke
             build/macos-online-smoke

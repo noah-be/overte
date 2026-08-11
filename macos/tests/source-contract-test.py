@@ -332,5 +332,10 @@ subprocess.run(
     cwd=ROOT,
     check=True,
 )
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/build-progress-test.py")],
+    cwd=ROOT,
+    check=True,
+)
 
 print("macOS runtime evidence contract valid")

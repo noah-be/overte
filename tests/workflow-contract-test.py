@@ -120,6 +120,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertLess(restore.index(complete), restore.index(partial))
         self.assertNotIn("macos-complete-x86_64", compiler_cache)
         self.assertIn('ccache --set-config "max_size=$CCACHE_MAXSIZE"', compiler_cache)
+        self.assertIn("hashFiles('conanfile.py', 'macos/conan/**'", compiler_cache)
 
     def test_compiler_cache_checkpoints_preserve_success_and_failure_progress(self):
         build = self.source.split("- name: Configure and build client", 1)[1].split(
@@ -192,6 +193,14 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "macos/ci/verify-glad-linkage.sh",
             MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8"),
         )
+
+    def test_build_progress_is_live_and_preserved(self):
+        build_script = (ROOT / "macos/build-macos.sh").read_text(encoding="utf-8")
+        self.assertIn("run-build-with-progress.py", build_script)
+        self.assertIn("--log", build_script)
+        self.assertIn("--result", build_script)
+        self.assertIn("::notice title=macOS build progress::", build_script)
+        self.assertIn("build/macos-build-diagnostics", self.source)
 
 
 class PicoWorkflowContracts(unittest.TestCase):
