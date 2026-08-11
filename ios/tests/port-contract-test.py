@@ -303,6 +303,17 @@ def test_cmake_boundary() -> None:
     sampler = SOURCE_ROOT / "libraries/shared/src/Sampler.cpp"
     sampler_text = sampler.read_text(encoding="utf-8")
     assert sampler_text.count("result += QString::number(") == 13, "sampler diagnostics must explicitly format all numeric fields"
+    for data_location_source in (
+        SOURCE_ROOT / "libraries/shared/src/RunningMarker.cpp",
+        SOURCE_ROOT / "libraries/shared/src/shared/FileUtils.cpp",
+        SOURCE_ROOT / "libraries/networking/src/AssetClient.cpp",
+        SOURCE_ROOT / "interface/src/AvatarBookmarks.cpp",
+        SOURCE_ROOT / "interface/src/LocationBookmarks.cpp",
+        SOURCE_ROOT / "interface/src/ui/JSConsole.cpp",
+    ):
+        data_location_text = data_location_source.read_text(encoding="utf-8")
+        assert "QStandardPaths::DataLocation" not in data_location_text, f"Qt 6 removed DataLocation: {data_location_source}"
+        assert "QStandardPaths::AppLocalDataLocation" in data_location_text, f"local app-data semantics must be preserved: {data_location_source}"
     shutdown_listener = SOURCE_ROOT / "libraries/shared/src/ShutdownEventListener.h"
     require_text(shutdown_listener, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*qintptr\* result[\s\S]*long\* result", "native event filters must use the Qt 6 result type with a Qt 5 fallback")
     shutdown_listener_impl = SOURCE_ROOT / "libraries/shared/src/ShutdownEventListener.cpp"

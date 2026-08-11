@@ -26,7 +26,7 @@
 const QString LocationBookmarks::HOME_BOOKMARK = "Home";
 
 LocationBookmarks::LocationBookmarks() {
-    _bookmarksFilename = QStandardPaths::writableLocation(QStandardPaths::DataLocation) + "/" + LOCATIONBOOKMARKS_FILENAME;
+    _bookmarksFilename = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/" + LOCATIONBOOKMARKS_FILENAME;
     readFromFile();
 }
 
