@@ -64,7 +64,7 @@ endfunction()
 
 function(overte_qt_add_binary_resources target input_file)
     if(OVERTE_QT_MAJOR EQUAL 6)
-        qt_add_binary_resources(${target} "${input_file}" ${ARGN})
+        qt6_add_binary_resources(${target} "${input_file}" ${ARGN})
     else()
         qt5_add_binary_resources(${target} "${input_file}" ${ARGN})
     endif()

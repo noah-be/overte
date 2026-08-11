@@ -19,6 +19,14 @@ if(NOT COMMAND overte_qt_add_resources)
     message(FATAL_ERROR "Qt resource compatibility helper is missing")
 endif()
 
+function(qt6_add_binary_resources target input_file)
+    set(QT6_BINARY_RESOURCE_CALL "${target}|${input_file}|${ARGN}" CACHE INTERNAL "")
+endfunction()
+overte_qt_add_binary_resources(resources fixture.qrc DESTINATION fixture.rcc)
+if(NOT QT6_BINARY_RESOURCE_CALL STREQUAL "resources|fixture.qrc|DESTINATION;fixture.rcc")
+    message(FATAL_ERROR "Qt 6 binary resource dispatcher did not use explicit qt6 command: '${QT6_BINARY_RESOURCE_CALL}'")
+endif()
+
 overte_filter_qt_components(
     FILTERED_IOS_COMPONENTS
     COMPONENTS Core Gui OpenGL XmlPatterns WebView REQUIRED
