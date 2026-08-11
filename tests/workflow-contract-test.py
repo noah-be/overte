@@ -57,19 +57,18 @@ class MacOSWorkflowContracts(unittest.TestCase):
     def setUpClass(cls):
         cls.source = MACOS_WORKFLOW.read_text(encoding="utf-8")
 
-    def test_complete_conan_caches_are_restored_before_partial_caches(self):
-        complete = "macos-complete-x86_64-qt-aqt-"
-        partial = "macos-partial-x86_64-qt-aqt-"
-        legacy = "macos-x86_64-qt-aqt-"
+    def test_conan_cache_uses_the_deterministic_toolchain_key(self):
         restore = self.source.split("uses: actions/cache/restore@v5", 1)[1].split(
             "- name: Resolve dependencies", 1
         )[0]
-        self.assertIn(f"key: {complete}", restore)
-        self.assertIn(complete, restore)
-        self.assertIn(partial, restore)
-        self.assertIn(legacy, restore)
-        self.assertLess(restore.index(complete), restore.index(partial))
-        self.assertLess(restore.index(partial), restore.index(legacy))
+        self.assertIn("key: ${{ steps.cache-key.outputs.conan }}", restore)
+        self.assertIn("macos-conan-v2-${{ env.OVERTE_MACOS_ARCH }}-", restore)
+        self.assertIn("macos-complete-x86_64-qt-aqt-", restore)
+        self.assertIn("macos-partial-x86_64-qt-aqt-", restore)
+        self.assertLess(
+            restore.index("macos-conan-v2-${{ env.OVERTE_MACOS_ARCH }}-"),
+            restore.index("macos-complete-x86_64-qt-aqt-"),
+        )
 
     def test_cancelled_runs_never_save_conan_caches(self):
         complete_save = self.source.split("- name: Save complete Conan cache", 1)[1].split(
@@ -91,10 +90,11 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "- name: Save partial Conan cache after dependency failure", 1
         )[1].split("- name: Require resolved dependencies", 1)[0]
         self.assertIn("steps.resolve-dependencies.outcome == 'success'", complete_save)
-        self.assertIn("macos-complete-x86_64-qt-aqt-", complete_save)
+        self.assertIn("steps.cache-key.outputs.conan", complete_save)
         self.assertIn("steps.resolve-dependencies.outcome == 'failure'", partial_save)
-        self.assertIn("macos-partial-x86_64-qt-aqt-", partial_save)
+        self.assertIn("steps.cache-key.outputs.conan", partial_save)
         self.assertIn("${{ github.run_id }}", partial_save)
+        self.assertIn("${{ github.run_attempt }}", partial_save)
 
     def test_dependency_failure_is_propagated_after_partial_cache_save(self):
         failure_gate = self.source.split("- name: Require resolved dependencies", 1)[1].split(
@@ -103,24 +103,68 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("steps.resolve-dependencies.outcome == 'failure'", failure_gate)
         self.assertIn("run: exit 1", failure_gate)
 
-    def test_compiler_cache_is_separate_bounded_and_used_by_both_languages(self):
-        self.assertIn("CCACHE_DIR: ${{ github.workspace }}/.ccache", self.source)
-        maximum = re.search(r"(?m)^\s+CCACHE_MAXSIZE:\s*(\d+)M\s*$", self.source)
+    def test_sccache_is_bounded_and_every_compiler_language_is_watched(self):
+        self.assertIn("SCCACHE_DIR: ${{ github.workspace }}/.sccache", self.source)
+        maximum = re.search(r"(?m)^\s+SCCACHE_CACHE_SIZE:\s*(\d+)M\s*$", self.source)
         self.assertIsNotNone(maximum)
         self.assertGreaterEqual(int(maximum.group(1)), 1024)
         self.assertLessEqual(int(maximum.group(1)), 2048)
-        self.assertIn("CMAKE_C_COMPILER_LAUNCHER: ccache", self.source)
-        self.assertIn("CMAKE_CXX_COMPILER_LAUNCHER: ccache", self.source)
-        compiler_cache = self.source.split("- name: Restore bounded compiler cache", 1)[1]
-        complete = "macos-ccache-complete-v1-x86_64-"
-        partial = "macos-ccache-partial-v1-x86_64-"
+        self.assertIn("brew list sccache", self.source)
+        self.assertNotRegex(self.source, r"(?m)^\s+CCACHE_")
+        for language in ("C", "CXX", "OBJC", "OBJCXX"):
+            self.assertIn(
+                f"CMAKE_{language}_COMPILER_LAUNCHER: "
+                "${{ github.workspace }}/macos/ci/compiler-watchdog.py;--",
+                self.source,
+            )
+
+    def test_monitoring_contracts_run_before_cache_restore_and_build(self):
+        monitoring = self.source.index("- name: Verify macOS monitoring contracts")
+        cache = self.source.index("- name: Cache Conan packages")
+        build = self.source.index("- name: Configure and build client")
+        self.assertLess(monitoring, cache)
+        self.assertLess(monitoring, build)
+        self.assertIn(
+            "python3 macos/tests/source-contract-test.py",
+            self.source[monitoring:cache],
+        )
+
+    def test_compiler_cache_restores_complete_before_partial_generations(self):
+        compiler_cache = self.source.split(
+            "- name: Restore bounded compiler recovery cache", 1
+        )[1]
         restore = compiler_cache.split("- name: Configure compiler cache", 1)[0]
+        complete = "steps.cache-key.outputs.sccache_complete_prefix"
+        partial = "steps.cache-key.outputs.sccache_partial_prefix"
+        self.assertIn("path: ${{ env.SCCACHE_DIR }}", restore)
+        self.assertIn("key: ${{ steps.cache-key.outputs.sccache_complete }}", restore)
         self.assertIn(complete, restore)
         self.assertIn(partial, restore)
         self.assertLess(restore.index(complete), restore.index(partial))
-        self.assertNotIn("macos-complete-x86_64", compiler_cache)
-        self.assertIn('ccache --set-config "max_size=$CCACHE_MAXSIZE"', compiler_cache)
-        self.assertIn("hashFiles('conanfile.py', 'macos/conan/**'", compiler_cache)
+
+    def test_cache_key_fingerprints_toolchain_platform_configuration_and_inputs(self):
+        key_step = self.source.split(
+            "- name: Select deterministic toolchain and cache keys", 1
+        )[1].split("- name: Cache Conan packages", 1)[0]
+        for required in (
+            "xcrun --find clang",
+            "compiler_digest",
+            "compiler_version",
+            "xcodebuild -version",
+            "xcrun --sdk macosx --show-sdk-version",
+            "xcrun --sdk macosx --show-sdk-build-version",
+            "$OVERTE_MACOS_ARCH",
+            "$OVERTE_MACOS_BUILD_TYPE",
+            "$MACOSX_DEPLOYMENT_TARGET",
+            "$OVERTE_MACOS_QT_SOURCE",
+            "toolchain_inputs",
+            "source_inputs",
+            "git ls-files -s",
+            "shasum -a 256",
+        ):
+            self.assertIn(required, key_step)
+        self.assertIn("macos-sccache-v2-", key_step)
+        self.assertIn("macos-conan-v2-", key_step)
 
     def test_compiler_cache_checkpoints_preserve_success_and_failure_progress(self):
         build = self.source.split("- name: Configure and build client", 1)[1].split(
@@ -140,15 +184,42 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("always()", complete_save)
         self.assertIn("!cancelled()", complete_save)
         self.assertIn("steps.build-client.outcome == 'success'", complete_save)
-        self.assertIn("steps.ccache-restore.outputs.cache-hit != 'true'", complete_save)
-        self.assertIn("macos-ccache-complete-v1-x86_64-", complete_save)
+        self.assertIn("steps.sccache-restore.outputs.cache-hit != 'true'", complete_save)
+        self.assertIn("steps.cache-key.outputs.sccache_complete", complete_save)
         self.assertIn("always()", partial_save)
         self.assertIn("!cancelled()", partial_save)
         self.assertIn("steps.build-client.outcome == 'failure'", partial_save)
-        self.assertIn("macos-ccache-partial-v1-x86_64-", partial_save)
+        self.assertIn("steps.cache-key.outputs.sccache_partial_prefix", partial_save)
         self.assertIn("${{ github.run_id }}", partial_save)
+        self.assertIn("${{ github.run_attempt }}", partial_save)
         self.assertIn("steps.build-client.outcome == 'failure'", failure_gate)
         self.assertIn("run: exit 1", failure_gate)
+
+    def test_sccache_server_is_stopped_before_every_snapshot(self):
+        start = self.source.index("sccache --start-server")
+        build = self.source.index("- name: Configure and build client")
+        stop_step = self.source.split(
+            "- name: Stop compiler-cache server before snapshot", 1
+        )[1].split("- name: Save complete compiler cache", 1)[0]
+        stop = self.source.index("sccache --stop-server")
+        complete_save = self.source.index("- name: Save complete compiler cache")
+        partial_save = self.source.index("- name: Save partial compiler cache")
+        self.assertLess(start, build)
+        self.assertLess(build, stop)
+        self.assertLess(stop, complete_save)
+        self.assertLess(stop, partial_save)
+        self.assertIn("always()", stop_step)
+        self.assertIn("!cancelled()", stop_step)
+
+    def test_expensive_build_is_non_cancelling_and_has_step_timeout(self):
+        self.assertIn("cancel-in-progress: false", self.source)
+        build = self.source.split("- name: Configure and build client", 1)[1].split(
+            "- name: Report compiler-cache statistics", 1
+        )[0]
+        timeout = re.search(r"timeout-minutes:\s*(\d+)", build)
+        self.assertIsNotNone(timeout)
+        self.assertGreaterEqual(int(timeout.group(1)), 60)
+        self.assertLess(int(timeout.group(1)), 180)
 
     def test_startup_preflight_runs_before_entity_smokes_and_uploads_diagnostics(self):
         preflight = self.source.index("- name: Run application startup preflight")

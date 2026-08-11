@@ -19,6 +19,7 @@ class ProjectSuiteCliTests(unittest.TestCase):
         result = self.run_cli("--list")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("repository-health", result.stdout)
+        self.assertIn("macos-contracts", result.stdout)
         self.assertIn("pico4-device-free", result.stdout)
         self.assertNotIn("native-ctest", result.stdout)
 

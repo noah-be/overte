@@ -27,6 +27,7 @@ class Suite:
 SUITES = (
     Suite("project-runner", "quick", (sys.executable, "tests/project-suite-self-test.py")),
     Suite("workflow-contracts", "quick", (sys.executable, "tests/workflow-contract-test.py")),
+    Suite("macos-contracts", "quick", (sys.executable, "macos/tests/source-contract-test.py")),
     Suite("repository-health", "quick", (sys.executable, "tests/project-health-test.py")),
     Suite("project-coverage", "quick", (sys.executable, "tests/project-coverage-test.py")),
     Suite("javascript-behavior", "quick", ("node", "tests/mocha/test/testVirtualBaton.js")),

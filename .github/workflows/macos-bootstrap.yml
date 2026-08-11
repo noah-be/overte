@@ -23,7 +23,8 @@ permissions:
 
 concurrency:
   group: macos-bootstrap-${{ github.ref }}
-  cancel-in-progress: true
+  # A replacement run must not discard an expensive compiler-cache generation.
+  cancel-in-progress: false
 
 jobs:
   client-opengl-x86_64:
@@ -35,12 +36,12 @@ jobs:
       OVERTE_MACOS_BUILD_TYPE: RelWithDebInfo
       OVERTE_MACOS_QT_SOURCE: aqt
       MACOSX_DEPLOYMENT_TARGET: '11.0'
-      CCACHE_DIR: ${{ github.workspace }}/.ccache
-      CCACHE_MAXSIZE: 1536M
-      CCACHE_COMPRESS: 'true'
-      CCACHE_COMPILERCHECK: content
-      CMAKE_C_COMPILER_LAUNCHER: ccache
-      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+      SCCACHE_DIR: ${{ github.workspace }}/.sccache
+      SCCACHE_CACHE_SIZE: 1536M
+      CMAKE_C_COMPILER_LAUNCHER: ${{ github.workspace }}/macos/ci/compiler-watchdog.py;--
+      CMAKE_CXX_COMPILER_LAUNCHER: ${{ github.workspace }}/macos/ci/compiler-watchdog.py;--
+      CMAKE_OBJC_COMPILER_LAUNCHER: ${{ github.workspace }}/macos/ci/compiler-watchdog.py;--
+      CMAKE_OBJCXX_COMPILER_LAUNCHER: ${{ github.workspace }}/macos/ci/compiler-watchdog.py;--
     steps:
       - name: Check out requested revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
@@ -49,7 +50,7 @@ jobs:
 
       - name: Install build tools
         run: |
-          brew list ccache >/dev/null 2>&1 || brew install ccache
+          brew list sccache >/dev/null 2>&1 || brew install sccache
           python3 -m venv build-tooling-venv
           build-tooling-venv/bin/pip install 'conan>=2,<3' 'aqtinstall>=3,<4'
           echo "$GITHUB_WORKSPACE/build-tooling-venv/bin" >> "$GITHUB_PATH"
@@ -59,6 +60,40 @@ jobs:
       - name: Check host toolchain
         run: macos/build-macos.sh doctor
 
+      - name: Verify macOS monitoring contracts
+        run: python3 macos/tests/source-contract-test.py
+
+      - name: Select deterministic toolchain and cache keys
+        id: cache-key
+        shell: bash
+        run: |
+          set -euo pipefail
+          compiler="$(xcrun --find clang)"
+          compiler_digest="$(shasum -a 256 "$compiler" | awk '{print $1}')"
+          compiler_version="$("$compiler" --version | awk 'NR == 1 {print}')"
+          xcode_build="$(xcodebuild -version | awk '/Build version/{print $3}')"
+          sdk_version="$(xcrun --sdk macosx --show-sdk-version)"
+          sdk_build="$(xcrun --sdk macosx --show-sdk-build-version)"
+          toolchain_inputs="$(git ls-files -s -- conanfile.py 'macos/conan/**' \
+            CMakeLists.txt 'cmake/**' macos/build-macos.sh \
+            macos/ci/compiler-watchdog.py | shasum -a 256 | awk '{print $1}')"
+          source_inputs="$(git ls-files -s -- conanfile.py 'macos/conan/**' \
+            CMakeLists.txt 'cmake/**' 'interface/**' 'libraries/**' 'plugins/**' \
+            'macos/**' | shasum -a 256 | awk '{print $1}')"
+          toolchain_fingerprint="$(printf '%s\n' \
+            "$compiler_digest" "$compiler_version" "$xcode_build" \
+            "$sdk_version" "$sdk_build" "$OVERTE_MACOS_ARCH" \
+            "$OVERTE_MACOS_BUILD_TYPE" "$MACOSX_DEPLOYMENT_TARGET" \
+            "$OVERTE_MACOS_QT_SOURCE" "$toolchain_inputs" | \
+            shasum -a 256 | awk '{print $1}')"
+          conan_inputs="$(git ls-files -s -- conanfile.py 'macos/conan/**' | \
+            shasum -a 256 | awk '{print $1}')"
+          base="macos-sccache-v2-${OVERTE_MACOS_ARCH}-${toolchain_fingerprint}"
+          echo "conan=macos-conan-v2-${OVERTE_MACOS_ARCH}-${toolchain_fingerprint}-${conan_inputs}" >> "$GITHUB_OUTPUT"
+          echo "sccache_complete=${base}-complete-${source_inputs}" >> "$GITHUB_OUTPUT"
+          echo "sccache_complete_prefix=${base}-complete-" >> "$GITHUB_OUTPUT"
+          echo "sccache_partial_prefix=${base}-partial-" >> "$GITHUB_OUTPUT"
+
       - name: Cache Conan packages
         id: conan-cache
         uses: actions/cache/restore@v5
@@ -66,13 +101,11 @@ jobs:
           path: |
             ${{ env.CONAN_HOME }}/p
             ${{ env.CONAN_HOME }}/sources
-          key: macos-complete-x86_64-qt-aqt-${{ hashFiles('conanfile.py', 'macos/conan/**') }}
-          # The final entry is a one-way migration seed; new runs never save it.
+          key: ${{ steps.cache-key.outputs.conan }}
           restore-keys: |
+            macos-conan-v2-${{ env.OVERTE_MACOS_ARCH }}-
             macos-complete-x86_64-qt-aqt-
-            macos-partial-x86_64-qt-aqt-${{ hashFiles('conanfile.py', 'macos/conan/**') }}-
             macos-partial-x86_64-qt-aqt-
-            macos-x86_64-qt-aqt-
 
       - name: Resolve dependencies
         id: resolve-dependencies
@@ -89,7 +122,7 @@ jobs:
           path: |
             ${{ env.CONAN_HOME }}/p
             ${{ env.CONAN_HOME }}/sources
-          key: macos-complete-x86_64-qt-aqt-${{ hashFiles('conanfile.py', 'macos/conan/**') }}
+          key: ${{ steps.cache-key.outputs.conan }}
 
       - name: Save partial Conan cache after dependency failure
         if: >-
@@ -100,43 +133,50 @@ jobs:
           path: |
             ${{ env.CONAN_HOME }}/p
             ${{ env.CONAN_HOME }}/sources
-          key: macos-partial-x86_64-qt-aqt-${{ hashFiles('conanfile.py', 'macos/conan/**') }}-${{ github.run_id }}
+          key: ${{ steps.cache-key.outputs.conan }}-partial-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Require resolved dependencies
         if: ${{ always() && steps.resolve-dependencies.outcome == 'failure' }}
         run: exit 1
 
-      - name: Restore bounded compiler cache
-        id: ccache-restore
+      - name: Restore bounded compiler recovery cache
+        id: sccache-restore
         uses: actions/cache/restore@v5
         with:
-          path: ${{ env.CCACHE_DIR }}
-          key: macos-ccache-complete-v1-x86_64-${{ hashFiles('conanfile.py', 'macos/conan/**', 'CMakeLists.txt', 'cmake/**', 'interface/**', 'libraries/**', 'plugins/**') }}
+          path: ${{ env.SCCACHE_DIR }}
+          key: ${{ steps.cache-key.outputs.sccache_complete }}
           restore-keys: |
-            macos-ccache-complete-v1-x86_64-
-            macos-ccache-partial-v1-x86_64-${{ hashFiles('conanfile.py', 'macos/conan/**', 'CMakeLists.txt', 'cmake/**', 'interface/**', 'libraries/**', 'plugins/**') }}-
-            macos-ccache-partial-v1-x86_64-
+            ${{ steps.cache-key.outputs.sccache_complete_prefix }}
+            ${{ steps.cache-key.outputs.sccache_partial_prefix }}
 
       - name: Configure compiler cache
         run: |
-          ccache --set-config "max_size=$CCACHE_MAXSIZE"
-          ccache --set-config compression=true
-          ccache --zero-stats
+          sccache --start-server
+          sccache --zero-stats
 
       - name: Configure and build client
         id: build-client
         continue-on-error: true
+        timeout-minutes: 150
         run: macos/build-macos.sh build
+
+      - name: Report compiler-cache statistics
+        if: ${{ always() && !cancelled() }}
+        run: sccache --show-stats || true
+
+      - name: Stop compiler-cache server before snapshot
+        if: ${{ always() && !cancelled() }}
+        run: sccache --stop-server || true
 
       - name: Save complete compiler cache
         if: >-
           ${{ always() && !cancelled() &&
               steps.build-client.outcome == 'success' &&
-              steps.ccache-restore.outputs.cache-hit != 'true' }}
+              steps.sccache-restore.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v5
         with:
-          path: ${{ env.CCACHE_DIR }}
-          key: macos-ccache-complete-v1-x86_64-${{ hashFiles('conanfile.py', 'macos/conan/**', 'CMakeLists.txt', 'cmake/**', 'interface/**', 'libraries/**', 'plugins/**') }}
+          path: ${{ env.SCCACHE_DIR }}
+          key: ${{ steps.cache-key.outputs.sccache_complete }}
 
       - name: Save partial compiler cache after build failure
         if: >-
@@ -144,8 +184,8 @@ jobs:
               steps.build-client.outcome == 'failure' }}
         uses: actions/cache/save@v5
         with:
-          path: ${{ env.CCACHE_DIR }}
-          key: macos-ccache-partial-v1-x86_64-${{ hashFiles('conanfile.py', 'macos/conan/**', 'CMakeLists.txt', 'cmake/**', 'interface/**', 'libraries/**', 'plugins/**') }}-${{ github.run_id }}
+          path: ${{ env.SCCACHE_DIR }}
+          key: ${{ steps.cache-key.outputs.sccache_partial_prefix }}${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Require successful client build
         if: ${{ always() && steps.build-client.outcome == 'failure' }}

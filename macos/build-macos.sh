@@ -64,12 +64,23 @@ deps() {
 configure() {
     doctor
     local preset="conan-$(printf '%s' "$build_type" | tr '[:upper:]' '[:lower:]')"
+    local compiler_watchdog="$source_root/macos/ci/compiler-watchdog.py"
+    local launcher_args=()
+    if [[ -x "$compiler_watchdog" ]]; then
+        launcher_args=(
+            -D "CMAKE_C_COMPILER_LAUNCHER=$compiler_watchdog;--"
+            -D "CMAKE_CXX_COMPILER_LAUNCHER=$compiler_watchdog;--"
+            -D "CMAKE_OBJC_COMPILER_LAUNCHER=$compiler_watchdog;--"
+            -D "CMAKE_OBJCXX_COMPILER_LAUNCHER=$compiler_watchdog;--"
+        )
+    fi
     cmake --preset "$preset" \
         -DOVERTE_RENDERING_BACKEND=OpenGL -DOVERTE_BUILD_CLIENT=ON \
         -DOVERTE_BUILD_SERVER=OFF -DOVERTE_BUILD_TOOLS=OFF \
         -DOVERTE_BUILD_TESTS=OFF -DOVERTE_BUILD_INSTALLER=OFF \
         -DOVERTE_RELEASE_TYPE=DEV -DCMAKE_OSX_ARCHITECTURES="$architecture" \
-        -DCMAKE_OSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-11.0}"
+        -DCMAKE_OSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-11.0}" \
+        "${launcher_args[@]}"
 }
 
 build() {
@@ -87,7 +98,9 @@ build() {
     local preset="conan-$(printf '%s' "$build_type" | tr '[:upper:]' '[:lower:]')"
     python3 "$source_root/macos/tools/run-build-with-progress.py" \
         --log "$diagnostics_dir/build.log" \
-        --result "$diagnostics_dir/build-result.json" -- \
+        --result "$diagnostics_dir/build-result.json" \
+        --live-log "$diagnostics_dir/compiler-watchdog.jsonl" \
+        --compiler-diagnostics-dir "$diagnostics_dir/compiler-stalls" -- \
         cmake --build --preset "$preset" --target Overte \
         --parallel "$(sysctl -n hw.logicalcpu)"
     find "$build_dir" -type d -name Overte.app -print -quit
