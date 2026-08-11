@@ -138,6 +138,26 @@ configure_tree() {
     fi
 }
 
+build_with_live_compiler_tracking() {
+    local build_dir="$1"
+    local live_log="$build_dir/.overte-compiler-watchdog.jsonl"
+    : > "$live_log"
+    export OVERTE_COMPILER_WATCHDOG_LOG="$live_log"
+    tail -n 0 -F "$live_log" &
+    local tail_pid=$!
+    local status=0
+    if cmake --build . --parallel "$jobs"; then
+        status=0
+    else
+        status=$?
+    fi
+    sleep 1
+    kill "$tail_pid" 2>/dev/null || true
+    wait "$tail_pid" 2>/dev/null || true
+    unset OVERTE_COMPILER_WATCHDOG_LOG
+    return "$status"
+}
+
 build_host() {
     if "$prepare" validate-host "$host_prefix" >/dev/null 2>&1; then
         [[ "$(cat "$host_prefix/.overte-qt-host-plan-id" 2>/dev/null || true)" == "$host_plan_id" ]] ||
@@ -159,7 +179,7 @@ build_host() {
     else
         configure_tree host "$host_build" "$host_prefix"
     fi
-    cmake --build . --parallel "$jobs"
+    build_with_live_compiler_tracking "$host_build"
     cmake --install .
     "$prepare" validate-host "$host_prefix"
     printf '%s\n' "$host_plan_id" > "$host_prefix/.overte-qt-host-plan-id"
@@ -192,7 +212,7 @@ build_ios() {
             -skip qtwebengine -platform macx-ios-clang -sdk iphoneos -qt-host-path "$host_prefix" \
             -- -D "CMAKE_OSX_DEPLOYMENT_TARGET=$OVERTE_IOS_MIN_VERSION"
     fi
-    cmake --build . --parallel "$jobs"
+    build_with_live_compiler_tracking "$ios_build"
     cmake --install .
     "$prepare" validate-target "$ios_prefix"
     "$prepare" validate "$ios_prefix" "$host_prefix"

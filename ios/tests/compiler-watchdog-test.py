@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 
 
@@ -19,16 +20,17 @@ class CompilerWatchdogTest(unittest.TestCase):
         return subprocess.run(
             [sys.executable, str(WATCHDOG), "--interval", "0.05",
              "--inactivity-timeout", str(timeout), "--term-grace", "0.1", "--",
-             sys.executable, "-c", code, "secret-source-name.cpp"],
+             sys.executable, "-c", code, "/secret/path/unit.cpp"],
             text=True, capture_output=True, env=env, timeout=5, check=False,
         )
 
     def test_preserves_compiler_exit_and_sanitizes_output(self) -> None:
         result = self.invoke("import sys; sys.exit(23)")
         self.assertEqual(result.returncode, 23, result.stdout + result.stderr)
-        self.assertNotIn("secret-source-name", result.stdout)
+        self.assertNotIn("/secret/path", result.stdout)
         records = [json.loads(line) for line in result.stdout.splitlines()]
         self.assertEqual(records[0]["compiler_watchdog"], "start")
+        self.assertEqual(records[0]["source"], "unit.cpp")
         self.assertEqual(records[-1]["exit_code"], 23)
 
     def test_reports_each_active_invocation(self) -> None:
@@ -51,6 +53,23 @@ class CompilerWatchdogTest(unittest.TestCase):
                  "comm": "clang++", "command": "clang++ /secret/unit.cpp -o /secret/unit.o"}]
         matches = namespace["_correlated_compilers"](rows, "/secret/unit.cpp", "/secret/unit.o")
         self.assertEqual([row["pid"] for row in matches], [77])
+
+    def test_writes_immediate_source_named_live_log(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            live_log = Path(directory) / "watchdog.jsonl"
+            env = os.environ.copy()
+            env["OVERTE_COMPILER_WATCHDOG_DISABLE_SCCACHE"] = "1"
+            env["OVERTE_COMPILER_WATCHDOG_LOG"] = str(live_log)
+            result = subprocess.run(
+                [sys.executable, str(WATCHDOG), "--interval", "0.05", "--",
+                 sys.executable, "-c", "pass", "visible-unit.cpp"],
+                text=True, capture_output=True, env=env, check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, "")
+            records = [json.loads(line) for line in live_log.read_text().splitlines()]
+            self.assertEqual(records[0]["source"], "visible-unit.cpp")
+            self.assertEqual(records[-1]["compiler_watchdog"], "end")
 
 
 if __name__ == "__main__":

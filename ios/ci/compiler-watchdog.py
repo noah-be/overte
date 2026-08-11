@@ -88,7 +88,16 @@ def _emit(kind: str, invocation: str, elapsed: float, **fields: object) -> None:
         "elapsed_s": round(elapsed, 1),
     }
     record.update(fields)
-    print(json.dumps(record, separators=(",", ":"), sort_keys=True), flush=True)
+    line = json.dumps(record, separators=(",", ":"), sort_keys=True)
+    live_log = os.environ.get("OVERTE_COMPILER_WATCHDOG_LOG")
+    if live_log:
+        descriptor = os.open(live_log, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
+        try:
+            os.write(descriptor, (line + "\n").encode("utf-8"))
+        finally:
+            os.close(descriptor)
+    else:
+        print(line, flush=True)
 
 
 def _language(compiler: str, arguments: list[str]) -> str:
@@ -125,6 +134,7 @@ def run(command: list[str], interval: float, inactivity_timeout: float, grace: f
     identity = hashlib.sha256("\0".join(command).encode("utf-8", "surrogateescape")).hexdigest()[:12]
     language = _language(compiler, arguments)
     source_marker, output_marker = _compiler_markers(arguments)
+    source_label = Path(source_marker).name if source_marker else "unknown"
     executable = [compiler, *arguments]
     cache = shutil.which("sccache")
     if cache and os.environ.get("OVERTE_COMPILER_WATCHDOG_DISABLE_SCCACHE") != "1":
@@ -132,7 +142,7 @@ def run(command: list[str], interval: float, inactivity_timeout: float, grace: f
 
     started = time.monotonic()
     process = subprocess.Popen(executable, start_new_session=True)
-    _emit("start", identity, 0, language=language, pid=process.pid)
+    _emit("start", identity, 0, language=language, source=source_label, pid=process.pid)
     last_cpu = -1.0
     last_progress = started
 
@@ -162,18 +172,21 @@ def run(command: list[str], interval: float, inactivity_timeout: float, grace: f
                     last_progress = time.monotonic()
                 idle = time.monotonic() - last_progress
                 _emit("progress", identity, time.monotonic() - started, language=language,
+                      source=source_label,
                       processes=len(active), cpu_s=round(cpu, 1), rss_mib=round(rss, 1),
                       inactive_s=round(idle, 1))
                 if idle >= inactivity_timeout:
                     _emit("stalled", identity, time.monotonic() - started,
-                          language=language, inactive_s=round(idle, 1))
+                          language=language, source=source_label, inactive_s=round(idle, 1))
                     _terminate_group(process.pid, grace)
                     process.wait()
                     return 124
             except Exception:
-                _emit("monitor_error", identity, time.monotonic() - started, language=language)
+                _emit("monitor_error", identity, time.monotonic() - started,
+                      language=language, source=source_label)
         status = process.wait()
-        _emit("end", identity, time.monotonic() - started, language=language, exit_code=status)
+        _emit("end", identity, time.monotonic() - started, language=language,
+              source=source_label, exit_code=status)
         return status
     finally:
         signal.signal(signal.SIGTERM, old_term)
