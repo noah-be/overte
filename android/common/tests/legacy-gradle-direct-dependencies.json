@@ -146,7 +146,7 @@
         {
           "configuration": "implementation",
           "kind": "fileTree",
-          "notation": "fileTree(include: ['*.jar'], dir: '../../../common/libraries/qt/libs')"
+          "notation": "fileTree(include: ['*.jar'], dir: '../../../../common/libraries/qt/libs')"
         },
         {
           "configuration": "implementation",
@@ -167,7 +167,7 @@
         {
           "configuration": "implementation",
           "kind": "fileTree",
-          "notation": "fileTree(include: ['*.jar'], dir: '../../../common/libraries/qt/libs')"
+          "notation": "fileTree(include: ['*.jar'], dir: '../../../../common/libraries/qt/libs')"
         },
         {
           "configuration": "implementation",
