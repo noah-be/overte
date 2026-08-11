@@ -464,6 +464,10 @@ def test_cmake_boundary() -> None:
     if "QtWebEngine" in ios_webview.read_text(encoding="utf-8"):
         raise AssertionError("iOS web surface must not import Qt WebEngine")
 
+    ui_menu_source = SOURCE_ROOT / "libraries" / "ui" / "src" / "ui" / "Menu.cpp"
+    if "QtWidgets/QShortcut" in ui_menu_source.read_text(encoding="utf-8"):
+        raise AssertionError("the iOS UI graph retained the Qt 5 QShortcut module path")
+
     moltenvk = SOURCE_ROOT / "cmake" / "modules" / "FindMoltenVK.cmake"
     require_text(moltenvk, r"ios-arm64_x86_64-simulator", "MoltenVK lookup must support arm64 simulator")
     require_text(moltenvk, r"ios-arm64", "MoltenVK lookup must support arm64 devices")

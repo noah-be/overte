@@ -589,6 +589,8 @@ branch, while event order, IDs, positions, states, and four-point capacity stay
 unchanged. Physical touchscreen discovery likewise uses `QInputDevice` on Qt 6.
 The same UI unit does not include the unused desktop-only
 `QOpenGLFunctions_4_1_Core` wrapper, which is absent from Qt's iOS build.
+The UI menu implementation likewise no longer includes its unused Qt 5
+`QtWidgets/QShortcut` path; Qt 6 moved that class to QtGui.
 FST mapping serialization copies preserved metadata entries explicitly into
 its multi-hash. This replaces Qt 6's removed `unite()` API while retaining all
 keys and values on both Qt generations.
