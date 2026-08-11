@@ -792,6 +792,18 @@ def test_scope_contract() -> None:
         r"#else[\s\S]*Qt::TouchPointPressed[\s\S]*Qt::TouchPointMoved[\s\S]*Qt::TouchPointStationary[\s\S]*Qt::TouchPointReleased",
         "Qt 5 scripted touch state flags must remain available",
     )
+    scripts_filter_header = SOURCE_ROOT / "libraries" / "script-engine" / "src" / "ScriptsModelFilter.h"
+    require_text(
+        scripts_filter_header,
+        r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*Q_PROPERTY\(QRegularExpression filterRegExp READ filterRegularExpression WRITE setFilterRegularExpression\)",
+        "Qt 6 scripts model must preserve the filterRegExp QML compatibility property",
+    )
+    scripts_filter = SOURCE_ROOT / "libraries" / "script-engine" / "src" / "ScriptsModelFilter.cpp"
+    require_text(
+        scripts_filter,
+        r"filterRegularExpression\(\)\.pattern\(\)\.isEmpty\(\)[\s\S]*#else[\s\S]*filterRegExp\(\)\.isEmpty\(\)",
+        "scripts filtering must use the Qt 6 regular-expression accessor with its Qt 5 fallback",
+    )
     triage = json.loads((IOS_ROOT / "first-run-triage.json").read_text(encoding="utf-8"))
     assert triage["schemaVersion"] == 1
     phases = triage["phases"]
