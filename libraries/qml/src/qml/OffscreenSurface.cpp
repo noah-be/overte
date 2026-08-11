@@ -100,7 +100,7 @@ void OffscreenSurface::setSharedContext(QOpenGLContext* sharedContext) {
 
 std::function<void(uint32_t, void*)> OffscreenSurface::getDiscardLambda() {
     return [](uint32_t texture, void* fence) {
-        SharedObject::getTextureCache().releaseTexture({ texture, static_cast<GLsync>(fence) });
+        SharedObject::getTextureCache().releaseTexture({ texture, fence });
     };
 }
 

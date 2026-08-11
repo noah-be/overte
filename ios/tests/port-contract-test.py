@@ -769,6 +769,12 @@ def test_scope_contract() -> None:
         r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*QQuickOpenGLUtils::resetOpenGLState\(\);[\s\S]*#else[\s\S]*_quickWindow->resetOpenGLState\(\);",
         "offscreen QML must use the Qt 6 OpenGL state-reset utility with its Qt 5 fallback",
     )
+    offscreen_surface = SOURCE_ROOT / "libraries" / "qml" / "src" / "qml" / "OffscreenSurface.cpp"
+    require_text(
+        offscreen_surface,
+        r"releaseTexture\(\{\s*texture,\s*fence\s*\}\);",
+        "the backend-neutral discard boundary must forward its opaque fence without a GLsync dependency",
+    )
     triage = json.loads((IOS_ROOT / "first-run-triage.json").read_text(encoding="utf-8"))
     assert triage["schemaVersion"] == 1
     phases = triage["phases"]
