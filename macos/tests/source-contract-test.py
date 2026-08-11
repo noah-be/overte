@@ -58,19 +58,14 @@ if not re.search(
     re.DOTALL,
 ):
     raise SystemExit("macOS DEV bundles must run macdeployqt before direct launch")
+if '"-libpath=${CMAKE_BINARY_DIR}/conanlibs/$<CONFIG>"' not in fixup_interface:
+    raise SystemExit("macdeployqt must search the collected versioned Conan dylibs")
 
 package_libraries = (
     ROOT / "cmake/macros/PackageLibrariesForDeployment.cmake"
 ).read_text(encoding="utf-8")
-for token in (
-    'get_target_property(_OVERTE_IS_APP_BUNDLE ${TARGET_NAME} MACOSX_BUNDLE)',
-    '"-DBUNDLE_EXECUTABLE=$<TARGET_BUNDLE_DIR:${TARGET_NAME}>"',
-    '"-DBUNDLE_PLUGIN_DIR=$<TARGET_BUNDLE_DIR:${TARGET_NAME}>/Contents/PlugIns"',
-    '"-DLIB_PATHS=${CMAKE_BINARY_DIR}/conanlibs/$<CONFIG>"',
-    'FixupBundlePostBuild.cmake',
-):
-    if token not in package_libraries:
-        raise SystemExit(f"missing macOS bundle fixup contract: {token}")
+if "if (APPLE)" in package_libraries:
+    raise SystemExit("macOS bundles must not run BundleUtilities after macdeployqt")
 
 compiler_cmake = (ROOT / "cmake/compiler.cmake").read_text(encoding="utf-8")
 if (

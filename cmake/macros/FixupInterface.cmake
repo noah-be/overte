@@ -92,18 +92,25 @@ macro(fixup_interface)
             # local workflows and smoke tests.  Make that bundle relocatable;
             # the install-time deployment below only covers `cmake --install`.
             add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-                COMMAND ${MACDEPLOYQT_COMMAND} "$<TARGET_FILE_DIR:${TARGET_NAME}>/../.." -verbose=2 -qmldir=${CMAKE_SOURCE_DIR}/interface/resources/qml/
+                COMMAND ${MACDEPLOYQT_COMMAND} "$<TARGET_FILE_DIR:${TARGET_NAME}>/../.."
+                    -verbose=2
+                    -qmldir=${CMAKE_SOURCE_DIR}/interface/resources/qml/
+                    "-libpath=${CMAKE_BINARY_DIR}/conanlibs/$<CONFIG>"
             )
             install(CODE "
                 execute_process(COMMAND ${MACDEPLOYQT_COMMAND}\
                     \${CMAKE_INSTALL_PREFIX}/${_INTERFACE_INSTALL_PATH}/\
                     -verbose=2 -qmldir=${CMAKE_SOURCE_DIR}/interface/resources/qml/\
+                    -libpath=${CMAKE_BINARY_DIR}/conanlibs/$<CONFIG>\
                 )"
                 COMPONENT ${CLIENT_COMPONENT}
             )
         else ()
             add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-                COMMAND ${MACDEPLOYQT_COMMAND} "$<TARGET_FILE_DIR:${TARGET_NAME}>/../.." -verbose=2 -qmldir=${CMAKE_SOURCE_DIR}/interface/resources/qml/
+                COMMAND ${MACDEPLOYQT_COMMAND} "$<TARGET_FILE_DIR:${TARGET_NAME}>/../.."
+                    -verbose=2
+                    -qmldir=${CMAKE_SOURCE_DIR}/interface/resources/qml/
+                    "-libpath=${CMAKE_BINARY_DIR}/conanlibs/$<CONFIG>"
             )
         endif()
     endif ()
