@@ -1839,6 +1839,22 @@ def test_script_entity_id_qt6_contract() -> None:
         "Qt 6 must parse script UUID strings explicitly before constructing EntityItemID",
     )
 
+    v8_proxy = SOURCE_ROOT / "libraries" / "script-engine" / "src" / "v8" / "ScriptObjectV8Proxy.cpp"
+    require_text(v8_proxy, r"QVariant\s*\(\s*QMetaType\s*\(\s*typeId\s*\)",
+                 "Qt 6 dynamic variants must use QMetaType objects")
+    require_text(v8_proxy, r'QGenericArgument\s*\(\s*"ScriptValue"',
+                 "stored script invocation arguments must remain QGenericArgument values")
+    require_text(v8_proxy, r'QGenericArgument\s*\(\s*"QVariant"',
+                 "stored QVariant invocation arguments must remain QGenericArgument values")
+    require_text(v8_proxy, r'qScriptArgLists\[i\]\.reserve\(numArgs\)',
+                 "stored script argument addresses must survive list population")
+    require_text(v8_proxy, r'qVarArgLists\[i\]\.reserve\(numArgs\)',
+                 "stored QVariant argument addresses must survive list population")
+
+    script_message = SOURCE_ROOT / "libraries" / "script-engine" / "src" / "ScriptMessage.cpp"
+    require_text(script_message, r'_fileName\s*=\s*object\["fileName"\]\.toString\(\)',
+                 "script message file names must remain strings")
+
 
 def main() -> None:
     tests = (

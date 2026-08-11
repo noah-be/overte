@@ -30,6 +30,14 @@ Q_DECLARE_METATYPE(ScriptValue)
 Q_DECLARE_METATYPE(QSharedPointer<ScriptObjectV8Proxy>)
 Q_DECLARE_METATYPE(QSharedPointer<ScriptVariantV8Proxy>)
 
+static QVariant variantFromMetaTypeId(int typeId, const void* copy = nullptr) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return QVariant(QMetaType(typeId), copy);
+#else
+    return QVariant(typeId, copy);
+#endif
+}
+
 
 // These values are put into internal fields of V8 objects, to signalize what kind of data is the pointer in another
 // internal field pointing to. Proxy unwrapping functions recognize proxies by checking for these values in internal field 0
@@ -1035,6 +1043,8 @@ void ScriptMethodV8Proxy::call(const v8::FunctionCallbackInfo<v8::Value>& argume
         }
 
         qGenArgsVectors[i].resize(10);
+        qScriptArgLists[i].reserve(numArgs);
+        qVarArgLists[i].reserve(numArgs);
         int conversionPenaltyScore = 0;
         int conversionFailures = 0;
 
@@ -1048,14 +1058,14 @@ void ScriptMethodV8Proxy::call(const v8::FunctionCallbackInfo<v8::Value>& argume
             v8::Local<v8::Value> argVal = arguments[arg];
             if (methodArgTypeId == scriptValueTypeId) {
                 qScriptArgLists[i].append(ScriptValue(new ScriptValueV8Wrapper(_engine, V8ScriptValue(_engine, argVal))));
-                qGenArgsVectors[i][arg] = Q_ARG(ScriptValue, qScriptArgLists[i].back());
+                qGenArgsVectors[i][arg] = QGenericArgument("ScriptValue", &qScriptArgLists[i].back());
             } else if (methodArgTypeId == QMetaType::QVariant) {
                 QVariant varArgVal;
                 if (!_engine->castValueToVariant(V8ScriptValue(_engine, argVal), varArgVal, methodArgTypeId)) {
                     conversionFailures++;
                 } else {
                     qVarArgLists[i].append(varArgVal);
-                    qGenArgsVectors[i][arg] = Q_ARG(QVariant, qVarArgLists[i].back());
+                    qGenArgsVectors[i][arg] = QGenericArgument("QVariant", &qVarArgLists[i].back());
                 }
             } else {
                 QVariant varArgVal;
@@ -1134,7 +1144,7 @@ void ScriptMethodV8Proxy::call(const v8::FunctionCallbackInfo<v8::Value>& argume
         } else {
             // a lot of type conversion assistance thanks to https://stackoverflow.com/questions/28457819/qt-invoke-method-with-qvariant
             const char* typeName = meta.typeName();
-            QVariant qRetVal(returnTypeId, static_cast<void*>(NULL));
+            QVariant qRetVal = variantFromMetaTypeId(returnTypeId);
             QGenericReturnArgument sRetVal(typeName, const_cast<void*>(qRetVal.constData()));
 
             bool success =
@@ -1272,7 +1282,7 @@ int ScriptSignalV8Proxy::qt_metacall(QMetaObject::Call call, int id, void** argu
         for (int arg = 0; arg < numArgs; ++arg) {
             int methodArgTypeId = _meta.parameterType(arg);
             Q_ASSERT(methodArgTypeId != QMetaType::UnknownType);
-            QVariant argValue(methodArgTypeId, arguments[arg + 1]);
+            QVariant argValue = variantFromMetaTypeId(methodArgTypeId, arguments[arg + 1]);
             args[arg] = _engine->castVariantToValue(argValue).get();
         }
         for (ConnectionList::iterator iter = connections.begin(); iter != connections.end(); ++iter) {
