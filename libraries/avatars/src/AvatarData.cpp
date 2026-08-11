@@ -710,8 +710,10 @@ QByteArray AvatarData::toByteArray(AvatarDataDetail dataDetail, quint64 lastSent
     }
 
     const auto& blendshapeCoefficients = _headData->getBlendshapeCoefficients();
-    const int numBlendshapeCoefficients = std::min(
-        blendshapeCoefficients.size(), int(std::numeric_limits<uint8_t>::max()));
+    const auto boundedBlendshapeCoefficientCount = std::min(
+        blendshapeCoefficients.size(),
+        static_cast<decltype(blendshapeCoefficients.size())>(std::numeric_limits<uint8_t>::max()));
+    const int numBlendshapeCoefficients = static_cast<int>(boundedBlendshapeCoefficientCount);
     // If it is connected, pack up the data
     IF_AVATAR_SPACE(PACKET_HAS_FACE_TRACKER_INFO,
                     sizeof(AvatarDataPacket::FaceTrackerInfo) + (size_t)numBlendshapeCoefficients * sizeof(float)) {
@@ -744,7 +746,9 @@ QByteArray AvatarData::toByteArray(AvatarDataDetail dataDetail, quint64 lastSent
         QReadLocker readLock(&_jointDataLock);
         jointData = _jointData;
     }
-    const int numJoints = std::min(jointData.size(), int(std::numeric_limits<uint8_t>::max()));
+    const auto boundedJointCount = std::min(
+        jointData.size(), static_cast<decltype(jointData.size())>(std::numeric_limits<uint8_t>::max()));
+    const int numJoints = static_cast<int>(boundedJointCount);
     const int jointBitVectorSize = calcBitVectorSize(numJoints);
 
     // include jointData if there is room for the most minimal section. i.e. no translations or rotations.

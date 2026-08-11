@@ -1392,7 +1392,8 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
     }
 
     // NOTE: shapeVertices are in joint-frame
-    hfmModel.shapeVertices.resize(std::max(1, hfmModel.joints.size()) );
+    hfmModel.shapeVertices.resize(std::max(
+        static_cast<decltype(hfmModel.joints.size())>(1), hfmModel.joints.size()));
 
     hfmModel.bindExtents.reset();
     hfmModel.meshExtents.reset();

@@ -1915,6 +1915,46 @@ def test_script_entity_id_qt6_contract() -> None:
         "Qt 6 must register controller leaf types before automatic QPair and QVector metatypes"
     assert action_type < action_vector, "Qt 6 must register Action before its QVector metatype"
 
+    avatar_data = SOURCE_ROOT / "libraries" / "avatars" / "src" / "AvatarData.cpp"
+    require_text(
+        avatar_data,
+        r"boundedBlendshapeCoefficientCount\s*=\s*std::min\([\s\S]*?"
+        r"static_cast<decltype\(blendshapeCoefficients\.size\(\)\)>"
+        r"\(std::numeric_limits<uint8_t>::max\(\)\)\)",
+        "Qt 6 blendshape packet counts must be capped in the native container size type",
+    )
+    require_text(
+        avatar_data,
+        r"numBlendshapeCoefficients\s*=\s*static_cast<int>\(boundedBlendshapeCoefficientCount\)",
+        "the already bounded blendshape wire count must remain an int",
+    )
+    require_text(
+        avatar_data,
+        r"boundedJointCount\s*=\s*std::min\([\s\S]*?"
+        r"static_cast<decltype\(jointData\.size\(\)\)>"
+        r"\(std::numeric_limits<uint8_t>::max\(\)\)\)",
+        "Qt 6 joint packet counts must be capped in the native container size type",
+    )
+    require_text(
+        avatar_data,
+        r"numJoints\s*=\s*static_cast<int>\(boundedJointCount\)",
+        "the already bounded joint wire count must remain an int",
+    )
+    avatar_tests = SOURCE_ROOT / "tests" / "avatars" / "src" / "AvatarDataTests.cpp"
+    require_text(avatar_tests, r"void\s+AvatarDataTests::limitAvatarDataJointCount\(\)",
+                 "avatar wire tests must retain the 255-joint overflow boundary")
+    require_text(avatar_tests, r"void\s+AvatarDataTests::limitAvatarDataBlendshapeCount\(\)",
+                 "avatar wire tests must retain the 255-blendshape overflow boundary")
+
+    fbx_serializer = SOURCE_ROOT / "libraries" / "model-serializers" / "src" / "FBXSerializer.cpp"
+    require_text(
+        fbx_serializer,
+        r"shapeVertices\.resize\(std::max\(\s*"
+        r"static_cast<decltype\(hfmModel\.joints\.size\(\)\)>\(1\),\s*"
+        r"hfmModel\.joints\.size\(\)\)\)",
+        "Qt 6 FBX shape allocation must compare its lower bound in the QVector size type",
+    )
+
     qt_helpers = SOURCE_ROOT / "libraries" / "shared" / "src" / "shared" / "QtHelpers.h"
     require_text(qt_helpers, r'QT_VERSION\s*>=\s*QT_VERSION_CHECK\s*\(\s*6\s*,\s*5\s*,\s*0\s*\)',
                  "typed invoke support must be isolated to Qt versions that provide it")
