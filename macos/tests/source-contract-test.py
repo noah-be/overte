@@ -3,6 +3,7 @@
 
 from pathlib import Path
 import re
+import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -43,6 +44,14 @@ if 'copy(self, "*.dylib*", src, bindir, False)' not in root_recipe:
 fixup_interface = (ROOT / "cmake/macros/FixupInterface.cmake").read_text(encoding="utf-8")
 if "if (NOT MACDEPLOYQT_COMMAND)" not in fixup_interface:
     raise SystemExit("all macOS bundles must fail closed when macdeployqt is unavailable")
+for qt_core_dir in ("Qt5Core_DIR", "Qt6Core_DIR"):
+    if qt_core_dir not in fixup_interface:
+        raise SystemExit(f"macdeployqt discovery must support {qt_core_dir}")
+subprocess.run(
+    ["cmake", "-P", str(ROOT / "macos/tests/macdeployqt-discovery-test.cmake")],
+    cwd=ROOT,
+    check=True,
+)
 if not re.search(
     r'OVERTE_RELEASE_TYPE STREQUAL "DEV".*?add_custom_command\(TARGET \$\{TARGET_NAME\} POST_BUILD.*?MACDEPLOYQT_COMMAND',
     fixup_interface,

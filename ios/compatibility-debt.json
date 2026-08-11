@@ -8,9 +8,10 @@
       "roots": ["CMakeLists.txt", "cmake", "interface", "libraries", "tools", "launchers"],
       "extensions": [".cmake", ".txt"],
       "files": [
-        "cmake/QtCompat.cmake"
+        "cmake/QtCompat.cmake",
+        "cmake/macros/FixupInterface.cmake"
       ],
-      "exitCriterion": "Only cmake/QtCompat.cmake may retain Qt 5 symbols; desktop-only callers must be unreachable from iOS."
+      "exitCriterion": "Qt 5 symbols remain limited to the compatibility layer and desktop deployment-tool discovery; desktop-only callers must be unreachable from iOS."
     },
     {
       "id": "qt6-removed-audio-api",
