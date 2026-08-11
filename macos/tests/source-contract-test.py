@@ -126,6 +126,7 @@ if not settings_load_offset < application_offset < settings_start_offset < parse
     raise SystemExit("Interface settings and command-line startup phases are ordered incorrectly")
 
 startup_preflight = (ROOT / "macos/ci/startup-preflight.sh").read_text(encoding="utf-8")
+assert "--display Desktop" in startup_preflight, "startup preflight must never block on display selection"
 for startup_contract in (
     "--abortAfterStartup",
     "OVERTE_MACOS_STARTUP_TIMEOUT_SECONDS:-30",
@@ -244,11 +245,13 @@ for marker, relative in (CONTRACT | ONLINE_CONTRACT).items():
         raise SystemExit(f"{marker} is not inside the desktop macOS guard")
 
 smoke = (ROOT / "macos/ci/serverless-smoke.sh").read_text(encoding="utf-8")
+assert "--display Desktop" in smoke, "serverless smoke must never block on display selection"
 for marker in CONTRACT:
     if marker not in smoke:
         raise SystemExit(f"smoke runner does not require {marker}")
 
 online_smoke = (ROOT / "macos/ci/online-smoke.sh").read_text(encoding="utf-8")
+assert "--display Desktop" in online_smoke, "online smoke must never block on display selection"
 for marker in ONLINE_CONTRACT | {"render_handoff": ""}:
     if marker not in online_smoke:
         raise SystemExit(f"online smoke runner does not require {marker}")

@@ -24,7 +24,7 @@ set +e
 python3 "$source_root/macos/tools/run-process-with-timeout.py" \
     --timeout "$timeout_seconds" --grace "$shutdown_grace_seconds" \
     --log "$log" --result "$process_result" --sample "$process_sample" -- \
-    "$executable" --allowMultipleInstances --no-login-suggestion --url "$location" \
+    "$executable" --allowMultipleInstances --no-login-suggestion --display Desktop --url "$location" \
     --testScript "$test_script" --testResultsLocation "$output_dir" \
     --quitWhenFinished
 status=$?
