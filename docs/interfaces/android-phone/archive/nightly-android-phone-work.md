@@ -4,6 +4,30 @@ This file records the cumulative Android phone work based on
 `origin/feature/android-phone-support`. Most validation is device-free; any
 real-device test is identified explicitly and never implied by a host check.
 
+## 143 — Rebuild and republish the reproducible dependency graph
+
+- Branch: `refactor/android-platform-boundaries`
+- Change: Rebuild the complete Phone graph with the reproducible Qt recipe,
+  bounded four-job producer profiles, and a 16 GB decimal cgroup ceiling. The
+  clean-room test found that the historical v2 libnode recipe revision was
+  removed after restore, which discarded the corrected 16 KiB binary and made
+  Conan fall back to Pico's 4 KiB package. v3 removes any stale v2 copy before
+  restoring the corrected package and verifies the complete graph afterward.
+- Local artifact: `android-phone-16k-conan.tgz`, 1,476,694,358 bytes, SHA-256
+  `092fde910f2dcc3eb0c2d6cff819f2e6264de4e176750ed1f7625a9a21e926be`.
+- Clean-room evidence: An isolated Conan cache was populated with the immutable
+  Pico restore first, proving that only the colliding 4 KiB libnode package was
+  initially available. The local v3 download then passed its checksum, both
+  offline `--build=never` installs, every 16 KiB ELF gate, and the content-bound
+  readiness sentinel without a source-build fallback.
+- APK evidence: The debug APK built at source revision
+  `a4ac144c1d79908968114650b04cf3891ec2754a`; the independent package verifier
+  accepted its signature, exact metadata and permissions, arm64-only contents,
+  16 KiB ELF/ZIP layout, and embedded source revision.
+- Release: [`android-phone-16k-deps-v3`](https://github.com/noah-be/overte/releases/tag/android-phone-16k-deps-v3).
+- Historical v1 and v2 releases remain immutable evidence. New consumers must
+  use v3.
+
 ## 142 — Publish and clean-room-test the complete dependency restore
 
 - Branch: `nightly/android-phone-142-published-dependency-release`
@@ -77,15 +101,15 @@ is tracked in task 142 rather than repeated here.
   reject unknown dependency/setup options, and document why the historically
   named Pico release is a reusable Android base rather than a VR dependency.
 - Tests:
-  - `android/tests/phone-build-download-parity-test.sh`: **passed**; verified
+  - `android/phone/tests/phone-build-download-parity-test.sh`: **passed**; verified
     exact shared-then-Phone download ordering, exact slow producer ordering,
     and fail-closed unsupported option handling with local mocks.
   - Existing source-free Phone artifact export and local download/restore from
     task 137 remain **passed** for the exact committed checksum. Network release
     download was **not executed** because this session may not create a release
     and the Phone asset has not yet been published by an authorized maintainer.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 332/332 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 41
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 332/332 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 41
     explicitly device-free suites; nested host regression passed 332/332.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: `pico4-deps-v1` is an existing public release, but
@@ -110,9 +134,9 @@ is tracked in task 142 rather than repeated here.
   - Incremental real j16 Phone APK build: **passed**; Android compilation and
     link prove the QuaZip headers/library are available, then all 106 native
     libraries/378 LOAD segments and APK content/metadata/ZIP gates passed.
-  - `android/tests/phone-archive-extraction-test.sh`: **passed** for the
+  - `android/phone/tests/phone-archive-extraction-test.sh`: **passed** for the
     fail-closed source contract and removal of the obsolete Android stub.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 40
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 40
     explicitly device-free suites; nested host regression passed 330/330.
   - Physical Phone post-link smoke: **passed**; installed-byte verification,
     launch, deep link, three lifecycle cycles, Back recovery, and all crash/page
@@ -177,10 +201,10 @@ is tracked in task 142 rather than repeated here.
     thermal samples peaked at status 1, and native telemetry measured 29.82 FPS
     against the 30-FPS target. Android `gfxinfo` framestats were unavailable;
     native render telemetry remained valid (13.16 ms GPU, 6.69 ms batch).
-  - `android/tests/phone-prepare-architecture-test.sh`: **passed**, including
+  - `android/phone/tests/phone-prepare-architecture-test.sh`: **passed**, including
     selection of Android ARM64 over a host package and explicit-host rejection.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 329/329 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 39
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 329/329 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 39
     explicitly device-free suites; nested host regression passed 329/329.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: The physical run provides no human assessment of touch feel,
@@ -203,7 +227,7 @@ is tracked in task 142 rather than repeated here.
   The existing shared Pico download supplies Node and the other native packages;
   the Phone archive carries only the different 16-KiB Qt package.
 - Tests:
-  - `android/tests/phone-prebuilt-16k-deps-test.sh`: **passed** for valid
+  - `android/phone/tests/phone-prebuilt-16k-deps-test.sh`: **passed** for valid
     restore sequencing, malformed manifests, and checksum mismatch rejection.
   - Real artifact export: **passed**; produced an approximately 743-MiB
     source-free Conan Qt archive plus a versioned SHA-256 manifest.
@@ -211,8 +235,8 @@ is tracked in task 142 rather than repeated here.
     checksum, Conan restore, both offline generator installs, all dependency
     ELF gates, and content-bound sentinel publication succeeded without a
     source rebuild.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 326/326 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 38
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 326/326 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 38
     explicitly device-free suites; nested host regression passed 326/326.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: The archive exists only as a local release-ready output because
@@ -232,11 +256,11 @@ is tracked in task 142 rather than repeated here.
   the pinned Qt Conan recipe only for the duration of a build so compilation
   remains at j16 while its racy package install is serialized.
 - Tests:
-  - `android/tests/phone-build-resource-guard-test.sh`: **passed**, including
+  - `android/phone/tests/phone-build-resource-guard-test.sh`: **passed**, including
     exact swap/memory boundaries, delegated-cgroup handling, service dispatch,
     j16 profile retention, and the serial-install recipe contract.
   - Real transient systemd service caller-`PATH` check: **passed**.
-  - `android/build-phone-qt-16k.sh`: **passed** with j16 compilation and
+  - `android/phone/build-phone-qt-16k.sh`: **passed** with j16 compilation and
     serialized install; all 130 packaged libraries and 520 ELF LOAD segments
     passed 0x4000 alignment with zero failures or inspection errors.
   - Shell syntax and `git diff --check`: **passed**.
@@ -255,8 +279,8 @@ is tracked in task 142 rather than repeated here.
   selection, bounded runtime, signal/error cleanup, the required successful
   cleanup marker, atomic private reports, and discoverable automatic reports.
 - Tests:
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 319/319 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 319/319 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     device-free suites; nested host regression passed 319/319.
   - Markdown scope review and `git diff --check`: **passed**.
 - Known risks: Documentation cannot substitute for a current-chain physical
@@ -281,7 +305,7 @@ is tracked in task 142 rather than repeated here.
   - Installation, Activity start, app smoke, and graphics benchmark on connected
     hardware: **not executed**. Running Phone tests on either rejected target
     would violate the Phone-only/Pico-exclusion contract.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     device-free suites; nested host regression passed 319/319.
   - Shell syntax, `git diff --check`, and clean-worktree check: **passed**.
 - Known risks: A supported physical Phone was not available despite connected
@@ -299,13 +323,13 @@ is tracked in task 142 rather than repeated here.
   publishing success, clear exit-cleanup ownership only after it succeeds, and
   record `cleanup_force_stopped=1` in every successful aggregate summary.
 - Tests:
-  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; forced final
+  - `android/phone/tests/phone-graphics-benchmark-test.sh`: **passed**; forced final
     cleanup failure emits only the fixed phase error, triggers one best-effort
     retry, and publishes no summary; successful summaries contain the cleanup
     marker and still stop exactly once.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 319/319 checks,
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 319/319 checks,
     including required cleanup and summary-marker contracts.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 319/319.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: If both required stop and best-effort retry fail, Android may keep
@@ -321,11 +345,11 @@ is tracked in task 142 rather than repeated here.
 - Change: Suppress raw filesystem diagnostics during exit-time raw-directory
   removal and prevent a cleanup error from replacing the benchmark result.
 - Tests:
-  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; a fake remover
+  - `android/phone/tests/phone-graphics-benchmark-test.sh`: **passed**; a fake remover
     deletes the raw directory but returns a private error, while the benchmark
     remains successful, emits no raw path/detail, and publishes a valid summary.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 317/317.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: A genuine removal failure can leave mode-0700 raw data in `/tmp`;
@@ -341,12 +365,12 @@ is tracked in task 142 rather than repeated here.
   report-lifecycle improvements, each on its own stacked branch. The exact
   chain below is contiguous from task 1 through this handoff.
 - Tests:
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 317/317.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**.
-  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**.
-  - `android/build-phone.sh doctor`: **passed** for host/Android toolchain;
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**.
+  - `android/phone/tests/phone-graphics-benchmark-test.sh`: **passed**.
+  - `android/phone/build.sh doctor`: **passed** for host/Android toolchain;
     dependency graph reports **SETUP required** because verified 16-KiB
     dependencies are not prepared.
   - Shell syntax, `git diff --check`, branch ancestry, 1–130 chain continuity,
@@ -368,11 +392,11 @@ is tracked in task 142 rather than repeated here.
 - Change: Parameterize the fake product identity and exercise the conservative
   Pico/ByteDance identity defense independently of generic VR characteristics.
 - Tests:
-  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; a Pico identity
+  - `android/phone/tests/phone-graphics-benchmark-test.sh`: **passed**; a Pico identity
     receives the dedicated refusal before graphics reset, log clear, or Activity
     start, while all physical-Phone boundary fixtures remain green.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 317/317.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: The identity check is intentionally conservative to prevent
@@ -387,12 +411,12 @@ is tracked in task 142 rather than repeated here.
 - Change: Parameterize the fake Android properties/features and dynamically
   exercise all physical Phone target predicates.
 - Tests:
-  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; emulator,
+  - `android/phone/tests/phone-graphics-benchmark-test.sh`: **passed**; emulator,
     Watch, x86-only ABI, API 25, GLES below 3.2, and missing touchscreen each
     fail with the fixed contract error before reset, log clear, or Activity
     start; the valid ARM64 Phone fixture remains green.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 317/317.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Vendor property variations on a valid physical device still need
@@ -407,11 +431,11 @@ is tracked in task 142 rather than repeated here.
 - Change: Add deterministic coverage for permission-hardening failure on the
   private raw-data directory after automatic aggregate allocation.
 - Tests:
-  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; forced raw
+  - `android/phone/tests/phone-graphics-benchmark-test.sh`: **passed**; forced raw
     chmod failure exposes only the fixed security error and leaves neither a raw
     directory nor an unpublished automatic aggregate directory.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 317/317.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: SIGKILL remains outside shell cleanup guarantees.
@@ -425,11 +449,11 @@ is tracked in task 142 rather than repeated here.
 - Change: Install aggregate-report ownership cleanup immediately after path
   allocation, before directory creation and mode hardening.
 - Tests:
-  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; forced chmod
+  - `android/phone/tests/phone-graphics-benchmark-test.sh`: **passed**; forced chmod
     failure on an automatic report emits only the fixed security error, exposes
     no generated path, and leaves no new report directory.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 317/317.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: A hostile privileged process can always interfere with `/tmp`;
@@ -444,11 +468,11 @@ is tracked in task 142 rather than repeated here.
   automatically allocated aggregate directory only after its summary was
   atomically published. Explicit caller-owned report directories are preserved.
 - Tests:
-  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; an automatic
+  - `android/phone/tests/phone-graphics-benchmark-test.sh`: **passed**; an automatic
     report followed by forced Activity-start failure leaves no newly created
     report directory, while successful automatic reports remain discoverable.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 317/317.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: SIGKILL during the very short setup/publish window can bypass
@@ -464,11 +488,11 @@ is tracked in task 142 rather than repeated here.
   non-personal `/tmp/overte-phone-graphics-report.*` summary location when no
   report directory was requested, so the successful result is usable.
 - Tests:
-  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; an automatic
+  - `android/phone/tests/phone-graphics-benchmark-test.sh`: **passed**; an automatic
     report prints a strictly shaped `/tmp` summary path whose schema is valid,
     while an explicit private directory still emits only the fixed message.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 317/317.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Automatically generated aggregate reports persist until the
@@ -483,11 +507,11 @@ is tracked in task 142 rather than repeated here.
 - Change: Track the hidden aggregate-summary temporary in the central exit
   cleanup until its atomic rename succeeds.
 - Tests:
-  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; TERM injected
+  - `android/phone/tests/phone-graphics-benchmark-test.sh`: **passed**; TERM injected
     during temporary-summary permission hardening returns 143, force-stops the
     app exactly once, publishes no summary, and leaves no hidden partial file.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 317/317.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: SIGKILL can bypass shell cleanup, but any remnant remains a
@@ -502,11 +526,11 @@ is tracked in task 142 rather than repeated here.
 - Change: Treat the required `gfxinfo framestats` capture as a named checked
   ADB phase instead of allowing an unlabeled shell exit.
 - Tests:
-  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; forced private
+  - `android/phone/tests/phone-graphics-benchmark-test.sh`: **passed**; forced private
     framestats transport failure exposes only the fixed phase error, performs
     exactly one app cleanup, and publishes no aggregate summary.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 317/317.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Structurally unsupported but successfully returned framestats
@@ -521,11 +545,11 @@ is tracked in task 142 rather than repeated here.
 - Change: Generalize the signal-injecting fake sleeper and exercise INT during
   active sampling in addition to the existing TERM case.
 - Tests:
-  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; INT produces
+  - `android/phone/tests/phone-graphics-benchmark-test.sh`: **passed**; INT produces
     status 130, exactly one Phone force-stop, and no partial summary; TERM still
     produces status 143 with the same cleanup guarantees.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 317/317.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: SIGKILL remains inherently untrappable.
@@ -539,11 +563,11 @@ is tracked in task 142 rather than repeated here.
 - Change: Add a deterministic fake sleeper that delivers TERM during the
   sampling window and exercises the real benchmark traps end to end.
 - Tests:
-  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; TERM produces
+  - `android/phone/tests/phone-graphics-benchmark-test.sh`: **passed**; TERM produces
     status 143, performs exactly one Phone force-stop, and publishes no partial
     aggregate summary, while every prior benchmark fixture remains green.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 317/317.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: SIGKILL cannot run process cleanup by operating-system design;
@@ -559,12 +583,12 @@ is tracked in task 142 rather than repeated here.
   its thermal sampling interval to 1–300 seconds, with digit-length checks that
   prevent shell arithmetic overflow before device access.
 - Tests:
-  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; 3601-second
+  - `android/phone/tests/phone-graphics-benchmark-test.sh`: **passed**; 3601-second
     duration and 301-second interval fixtures fail immediately with exact errors
     while all valid aggregate scenarios remain green.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks,
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 317/317 checks,
     including explicit duration and sampling bounds.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 317/317.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Longer endurance studies require multiple explicitly scheduled
@@ -579,12 +603,12 @@ is tracked in task 142 rather than repeated here.
 - Change: Route required graphics-counter reset and Phone Activity start calls
   through a checked ADB helper with fixed, phase-specific errors.
 - Tests:
-  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; deliberately
+  - `android/phone/tests/phone-graphics-benchmark-test.sh`: **passed**; deliberately
     private reset/start failures expose only their fixed phase messages, reset
     failure never starts the app, and failed start never triggers cleanup for an
     app the harness did not successfully start.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 315/315 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 315/315 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 315/315.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Optional log clearing remains best-effort by design; required
@@ -600,12 +624,12 @@ is tracked in task 142 rather than repeated here.
   non-Watch/TV/Automotive/VR ARM64 touchscreen with Android API 26+ and OpenGL
   ES 3.2+, matching the packaged Phone runtime contract.
 - Tests:
-  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; a fake emulator
+  - `android/phone/tests/phone-graphics-benchmark-test.sh`: **passed**; a fake emulator
     is rejected with the fixed contract error before graphics reset, log clear,
     or Activity start, while the valid physical-Phone fixture remains green.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 315/315 checks,
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 315/315 checks,
     including explicit emulator, ABI, touchscreen, SDK, and GLES contracts.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 315/315.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Manufacturer/brand checks remain as an additional conservative
@@ -621,12 +645,12 @@ is tracked in task 142 rather than repeated here.
   best-effort exit cleanup on success and every later error. INT and TERM now
   convert to terminating status codes while still passing through cleanup.
 - Tests:
-  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; fake-ADB logs
+  - `android/phone/tests/phone-graphics-benchmark-test.sh`: **passed**; fake-ADB logs
     prove exactly one cleanup force-stop after a successful benchmark and after
     a deliberately late summary-publication failure.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 310/310 checks,
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 310/310 checks,
     including source contracts for cleanup plus INT/TERM termination.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 310/310.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Cleanup is deliberately best-effort so an unavailable transport
@@ -642,12 +666,12 @@ is tracked in task 142 rather than repeated here.
   failures fixed errors; remove partial temporary summaries; and stop printing
   the caller's report path on successful completion.
 - Tests:
-  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; forced summary
+  - `android/phone/tests/phone-graphics-benchmark-test.sh`: **passed**; forced summary
     allocation failure exposes neither fake-tool diagnostics nor the private
     report path and leaves no published summary, while success emits only the
     fixed completion message.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 307/307 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 307/307 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 307/307.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: The final filesystem can still fail between phases; each checked
@@ -662,12 +686,12 @@ is tracked in task 142 rather than repeated here.
 - Change: Replace raw `realpath`, `mktemp`, `mkdir`, and `chmod` diagnostics
   during aggregate/raw report setup with fixed phase messages.
 - Tests:
-  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; using a
+  - `android/phone/tests/phone-graphics-benchmark-test.sh`: **passed**; using a
     deliberately private regular file as the requested report directory emits
     only the fixed creation error, leaks no fixture path, and performs no
     mutating ADB operation.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 307/307 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 307/307 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 307/307.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Failures while publishing the final aggregate summary are
@@ -683,11 +707,11 @@ is tracked in task 142 rather than repeated here.
   before resetting graphics counters, clearing logs, or starting the Phone app.
   Existing regular summaries remain supported through atomic replacement.
 - Tests:
-  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; fake-ADB
+  - `android/phone/tests/phone-graphics-benchmark-test.sh`: **passed**; fake-ADB
     command capture proves both a symlink and a directory at `summary.txt` fail
     before any `gfxinfo` reset, log clear, or Activity start.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 307/307 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 307/307 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 307/307.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: A privileged local process could still race filesystem entries;
@@ -704,11 +728,11 @@ is tracked in task 142 rather than repeated here.
   a serial, account, private endpoint, or other device detail in console logs.
   Keep the fake-ADB regression isolated from the real shared device lock.
 - Tests:
-  - `android/tests/phone-graphics-benchmark-test.sh`: **passed**; a complete
+  - `android/phone/tests/phone-graphics-benchmark-test.sh`: **passed**; a complete
     benchmark whose fake ADB emits identifying text on every invocation still
     produces a valid aggregate report and exposes none of that text.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 307/307 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 307/307 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 307/307.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Phase-specific benchmark failures are still intentionally terse;
@@ -724,12 +748,12 @@ is tracked in task 142 rather than repeated here.
   that a post-install write failure remains private, marks the run failed, and
   force-stops the already installed Phone app before exiting.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; the second
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**; the second
     summary append fails after installation, emits only the fixed phase error,
     retains no private path, records failure, and performs exactly one cleanup
     force-stop.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 307/307 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 307/307 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 307/307.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: The exit trap's final status append is intentionally best-effort
@@ -745,12 +769,12 @@ is tracked in task 142 rather than repeated here.
   report allocation and summary-permission failures independently, including
   deliberately private raw error text.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; both setup
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**; both setup
     failures reduce to their fixed phase messages, retain no private path, and
     issue zero ADB commands, while all prior success/failure scenarios remain
     green.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 307/307 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 307/307 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 307/307.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Filesystem disappearance after successful setup is covered by
@@ -766,11 +790,11 @@ is tracked in task 142 rather than repeated here.
   create/write the initial private summary before selecting a device. Later
   appends share one checked helper, while the exit trap remains best-effort.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, forcing a fake
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**, forcing a fake
     `tee` private-path failure before ADB, preserving `test_status=failed`, and
     proving existing/symlink summary rejection is also path-private.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 307/307 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 307/307 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 307/307.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: If the report filesystem fails again while the exit trap writes
@@ -787,11 +811,11 @@ is tracked in task 142 rather than repeated here.
   failure after path resolution into a fixed phase error. Artifact hashing still
   completes before any ADB query or device mutation.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, with a fake
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**, with a fake
     hasher that emits a private APK path and fails; output retains neither the
     raw detail nor path, and the ADB command log remains empty.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 306/306 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 306/306 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 306/306.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Local filesystem instability remains a hard preflight failure;
@@ -808,11 +832,11 @@ is tracked in task 142 rather than repeated here.
   report destination before device selection. Invalid local inputs now cause
   zero ADB reads as well as zero device mutations.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, adding missing
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**, adding missing
     private APK and report path cases, no retained path, and empty ADB command
     logs for both.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 305/305 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 305/305 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 305/305.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Detailed local path diagnosis remains intentionally separate
@@ -829,10 +853,10 @@ is tracked in task 142 rather than repeated here.
   outside those roots. Qt may retain flexible files within a declared module,
   but a new or stale module cannot silently expand the package surface.
 - Tests:
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, adding undeclared
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, adding undeclared
     QML module fixtures for APK and AAB plus an out-of-root dependency fixture.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 303/303 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 303/303 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 303/303.
   - Python/shell syntax and `git diff --check`: **passed**.
 - Known risks: Files inside an approved module are content-verified and CRC
@@ -853,10 +877,10 @@ is tracked in task 142 rather than repeated here.
   - Gradle/source audit: **passed**, all non-QML Phone staging paths add their
     output through `assetList`; Phone contributes no independent source asset
     directory.
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, adding undeclared
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, adding undeclared
     APK script, APK RCC, and AAB script fixtures.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 302/302 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 302/302 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 302/302.
   - Python/shell syntax and `git diff --check`: **passed**.
 - Known risks: Loose `assets/qml/` modules are governed separately by
@@ -873,10 +897,10 @@ is tracked in task 142 rather than repeated here.
   entries before per-entry validation. Both limits leave wide headroom over
   the current Phone payload while bounding pathological release inputs.
 - Tests:
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, adding a sparse
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, adding a sparse
     oversized package and a 32,769-entry archive with limit-specific errors.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 301/301 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 301/301 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 301/301.
   - Python/shell syntax and `git diff --check`: **passed**.
 - Known risks: Opening ZIP metadata still has work proportional to the bounded
@@ -896,10 +920,10 @@ is tracked in task 142 rather than repeated here.
 - Tests:
   - Source inventory: **passed**, 1,957 relevant Phone/asset paths contain no
     newly forbidden name.
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, adding dot-segment,
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, adding dot-segment,
     repeated-separator, backslash, and control-character fixtures.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 299/299 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 299/299 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 299/299.
   - Python/shell syntax and `git diff --check`: **passed**.
 - Known risks: Printable Unicode remains valid and case-sensitive, matching
@@ -916,10 +940,10 @@ is tracked in task 142 rather than repeated here.
   any later host extraction. Safety is no longer limited to cache-manifest and
   Qt dependency declarations.
 - Tests:
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, adding APK relative
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, adding APK relative
     traversal, APK absolute path, and AAB base-module traversal fixtures.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 297/297 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 297/297 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 297/297.
   - Python/shell syntax and `git diff --check`: **passed**.
 - Known risks: Archive names remain case-sensitive as required by Android's
@@ -936,10 +960,10 @@ is tracked in task 142 rather than repeated here.
   empty directories, so host-dependent link extraction cannot redirect or
   reinterpret an otherwise allowlisted asset or bundle-metadata path.
 - Tests:
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, with independent APK
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, with independent APK
     asset and AAB metadata symlink fixtures.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 296/296 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 296/296 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 296/296.
   - Python/shell syntax and `git diff --check`: **passed**.
 - Known risks: A future intentional link-like resource must use an explicit
@@ -956,11 +980,11 @@ is tracked in task 142 rather than repeated here.
   metadata. Cache-digest inputs are recognized as already verified to avoid a
   second pass; directory entries carrying file data are rejected.
 - Tests:
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, adding corrupt
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, adding corrupt
     optional APK asset, corrupt AAB `BUNDLE-METADATA`, and data-bearing
     directory fixtures to the required-entry corruption cases.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 295/295 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 295/295 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 295/295.
   - Python/shell syntax and `git diff --check`: **passed**.
 - Known risks: Full streaming adds I/O proportional to package size but keeps
@@ -977,11 +1001,11 @@ is tracked in task 142 rather than repeated here.
   any bytes after its declared end. A package can no longer carry ignored stale
   payload after an otherwise valid archive.
 - Tests:
-  - `android/tests/phone-apk-padding-test.sh`: **passed**, accepting a legal ZIP
+  - `android/phone/tests/phone-apk-padding-test.sh`: **passed**, accepting a legal ZIP
     comment and rejecting a 20-byte post-EOCD payload in addition to both
     internal-padding fixtures.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 294/294 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 294/294 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 294/294.
   - Python/shell syntax and `git diff --check`: **passed**.
 - Known risks: Phone APKs remain classic non-ZIP64 archives by contract; a
@@ -999,10 +1023,10 @@ is tracked in task 142 rather than repeated here.
   stale bytes can no longer bypass the gate by occupying that final internal
   region rather than a gap between two entries.
 - Tests:
-  - `android/tests/phone-apk-padding-test.sh`: **passed**, adding an APK with
+  - `android/phone/tests/phone-apk-padding-test.sh`: **passed**, adding an APK with
     128 KiB inserted immediately before its relocated central directory.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 293/293 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 293/293 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 293/293.
   - Python/shell syntax and `git diff --check`: **passed**.
 - Known risks: Bytes after the ZIP end record are outside the internal-entry
@@ -1021,12 +1045,12 @@ is tracked in task 142 rather than repeated here.
   input privacy rule to the ZIP-padding gate while preserving safe padding and
   package-content diagnostics.
 - Tests:
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, including missing
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, including missing
     private-path input and corrupt required-entry cases.
-  - `android/tests/phone-apk-padding-test.sh`: **passed**, including missing
+  - `android/phone/tests/phone-apk-padding-test.sh`: **passed**, including missing
     private-path and invalid-ZIP cases plus the existing excessive-gap fixture.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 292/292 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 292/292 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 292/292.
   - Python/shell syntax and `git diff --check`: **passed**.
 - Known risks: Detailed local exception text is intentionally outside shared
@@ -1042,11 +1066,11 @@ is tracked in task 142 rather than repeated here.
   `readelf` output that can contain SDK/worktree locations. Relative packaged
   library names remain available for actionable artifact diagnosis.
 - Tests:
-  - `android/tests/phone-elf-alignment-test.sh`: **passed**, covering a fake
+  - `android/phone/tests/phone-elf-alignment-test.sh`: **passed**, covering a fake
     `readelf` private-path failure plus missing, invalid, and empty package
     inputs without retaining their private paths.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 290/290 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 37
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 290/290 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 37
     explicitly device-free suites; nested host regression passed 290/290.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Detailed tool troubleshooting deliberately requires a separate
@@ -1062,10 +1086,10 @@ is tracked in task 142 rather than repeated here.
   without the required `base` module. Phone defines no dynamic features, so
   ignored module payload can no longer hide outside logical package checks.
 - Tests:
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, including explicit
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, including explicit
     mixed-layout, unexpected-feature, and missing-base fixtures.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 286/286 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 36
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 286/286 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 36
     explicitly device-free suites; nested host regression passed 286/286.
   - Python/shell syntax and `git diff --check`: **passed**.
 - Known risks: If Phone intentionally gains a dynamic feature, its module must
@@ -1083,10 +1107,10 @@ is tracked in task 142 rather than repeated here.
   native runtimes, cache manifest, and required loose QML markers. Presence in
   the central directory alone no longer satisfies the package gate.
 - Tests:
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, including APK DEX
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, including APK DEX
     and AAB native-library fixtures corrupted after ZIP creation.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 284/284 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 36
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 284/284 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 36
     explicitly device-free suites; nested host regression passed 284/284.
   - Python/shell syntax and `git diff --check`: **passed**.
 - Known risks: Integrity is checked for required and cache-declared payloads;
@@ -1103,10 +1127,10 @@ is tracked in task 142 rather than repeated here.
   stale or otherwise undeclared same-ABI `.so` payloads now fail alongside the
   existing foreign-ABI rejection.
 - Tests:
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, including distinct
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, including distinct
     APK and AAB fixtures containing an undeclared ARM64 runtime.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 283/283 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 36
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 283/283 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 36
     explicitly device-free suites; nested host regression passed 283/283.
   - Python/shell syntax and `git diff --check`: **passed**.
 - Known risks: Every intentional future native runtime must be reviewed and
@@ -1123,10 +1147,10 @@ is tracked in task 142 rather than repeated here.
   bytes before doing archive-wide presence and digest work. Pathological APK
   or AAB inputs can no longer drive unbounded manifest allocation or iteration.
 - Tests:
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, with independent
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, with independent
     fixtures proving each limit reports its intended fail-closed error.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 282/282 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 36
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 282/282 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 36
     explicitly device-free suites; nested host regression passed 282/282.
   - Python/shell syntax and `git diff --check`: **passed**.
 - Known risks: Limits deliberately leave ample growth above the current Phone
@@ -1144,11 +1168,11 @@ is tracked in task 142 rather than repeated here.
   AAB layouts. Reject legacy numeric stamps, unsorted manifests, and packages
   whose assets changed after the manifest was generated.
 - Tests:
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, including valid APK
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, including valid APK
     and AAB fixtures plus tampered-asset, legacy-stamp, unsorted, malformed,
     incomplete, duplicate, traversal, ABI, native-runtime, and QML cases.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 279/279 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 36
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 279/279 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 36
     explicitly device-free suites; nested host regression passed 279/279.
   - Python/shell syntax and `git diff --check`: **passed**.
 - Known risks: This proves package/cache consistency, not publisher identity;
@@ -1169,9 +1193,9 @@ is tracked in task 142 rather than repeated here.
   separate anonymous capability probes and an installed unknown-artifact
   baseline from validation still required on an APK built from this chain.
 - Tests:
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 36 explicit
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 36 explicit
     device-free suites; nested host regression passed 277/277 checks.
-  - `./android/build-phone.sh doctor`: **passed**, all host tools found and the
+  - `./android/phone/build.sh doctor`: **passed**, all host tools found and the
     absent dedicated Phone dependency graph correctly reported `[SETUP]`.
   - Offline Gradle missing-dependency diagnostics: **expected failures passed**;
     the verified and explicit legacy setup errors were actionable and had no
@@ -1213,11 +1237,11 @@ is tracked in task 142 rather than repeated here.
   retaining suppression of raw analyzer stderr. Java/SDK/tool failures no longer
   exit silently or expose local command-line-tool paths in shared gates.
 - Tests:
-  - `android/tests/phone-apk-metadata-test.sh`: **passed**; a target-SDK analyzer
+  - `android/phone/tests/phone-apk-metadata-test.sh`: **passed**; a target-SDK analyzer
     failure containing a synthetic private path becomes only the generic field
     error, alongside all existing metadata fixtures.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 277/277 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 277/277 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 277/277 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Detailed analyzer debugging is intentionally a separate local
@@ -1232,10 +1256,10 @@ is tracked in task 142 rather than repeated here.
   signed-32-bit `versionCode` plus the same portable 1–100-character
   `versionName` form as the Gradle release gate. Version names are never echoed.
 - Tests:
-  - `android/tests/phone-apk-metadata-test.sh`: **passed**, adding overflow code
+  - `android/phone/tests/phone-apk-metadata-test.sh`: **passed**, adding overflow code
     and unsafe whitespace/slash name failures to existing metadata fixtures.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 276/276 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 276/276 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 276/276 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Play monotonicity remains external state and cannot be inferred
@@ -1251,10 +1275,10 @@ is tracked in task 142 rather than repeated here.
   and have Gradle pass `1` for debug variants and `0` for release variants. A
   release APK accidentally marked debuggable now fails final packaging checks.
 - Tests:
-  - `android/tests/phone-apk-metadata-test.sh`: **passed**, covering matching
+  - `android/phone/tests/phone-apk-metadata-test.sh`: **passed**, covering matching
     debug/release expectations and a release/debug mismatch failure.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 274/274 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 274/274 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 274/274 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Full Gradle packaging remains blocked by absent Phone dependencies;
@@ -1270,12 +1294,12 @@ is tracked in task 142 rather than repeated here.
   SDK, exact permissions, and boolean debug state, and invoke it from the
   combined contents/ELF/zipalign/padding gate used by Gradle and device smoke.
 - Tests:
-  - `android/tests/phone-apk-metadata-test.sh`: **passed**, with good metadata
+  - `android/phone/tests/phone-apk-metadata-test.sh`: **passed**, with good metadata
     plus wrong-ID, stale-SDK, extra-permission, and invalid-debug fixtures.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 272/272 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 272/272 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 272/272 host checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 36 explicit
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 36 explicit
     device-free suites.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: AAB metadata remains protobuf/bundletool-specific; its content
@@ -1291,11 +1315,11 @@ is tracked in task 142 rather than repeated here.
   `PHONE_ALLOW_TEST_OVERRIDES=1`. The device-free Fake-ADB harness opts in;
   normal device runs cannot accidentally inherit a bypassing package checker.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; an unguarded
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**; an unguarded
     override is rejected before every ADB command, then the explicitly guarded
     mock executes all positive and negative flows.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 267/267 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 267/267 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 267/267 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: The explicit override remains powerful by design for isolated
@@ -1312,11 +1336,11 @@ is tracked in task 142 rather than repeated here.
   response now identifies whether launch baseline or post-lifecycle diagnosis
   failed instead of exiting silently under shell error handling.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; baseline and
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**; baseline and
     second-query failures emit their respective safe errors, final status is
     failed, and no unverifiable aggregate crash field is written.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 265/265 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 265/265 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 265/265 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Unsupported OEM exit-info output remains an explicit failure;
@@ -1332,11 +1356,11 @@ is tracked in task 142 rather than repeated here.
   report `test_status=failed`, omit `cleanup_force_stopped=1`, and issue one
   best-effort finalizer retry rather than accepting incomplete cleanup.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, proving two
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**, proving two
     failed cleanup attempts after the successful pre-launch force-stop and no
     false success field.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 263/263 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 263/263 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 263/263 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: A disconnected device can prevent both cleanup attempts; the
@@ -1353,11 +1377,11 @@ is tracked in task 142 rather than repeated here.
   force-stop in the EXIT finalizer, preventing a crashed test from leaving the
   Phone app foregrounded, network-active, or holding its keep-screen-on flag.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; success and a
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**; success and a
     launcher failure both issue pre-launch plus finalizer/required cleanup, while
     only success records the cleanup flag.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 262/262 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 262/262 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 262/262 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Force-stop preserves installed APK/data but ends active network
@@ -1374,10 +1398,10 @@ is tracked in task 142 rather than repeated here.
   `test_status=passed` or `test_status=failed`, so incremental lifecycle flags
   cannot be mistaken for a complete pass after a later abort.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; successful flow
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**; successful flow
     records `passed`, while installed-read and launcher failures record `failed`.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 260/260 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 260/260 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 260/260 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Failures before report creation intentionally produce no summary;
@@ -1393,11 +1417,11 @@ is tracked in task 142 rather than repeated here.
   replace transport/path detail with a generic failure. Unreadable installed
   bytes cannot terminate ambiguously or set `installed_apk_verified=1`.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; a synthetic
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**; a synthetic
     private installed path/serial on stderr is suppressed, the safe phase error
     remains, and provenance success is absent.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 258/258 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 258/258 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 258/258 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Restricted OEM package storage now causes an explicit smoke
@@ -1413,11 +1437,11 @@ is tracked in task 142 rather than repeated here.
   and Back through a checked phase wrapper. Raw ADB detail remains suppressed,
   while failures now identify the exact safe phase and cannot continue.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; a launcher-start
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**; a launcher-start
     error with a synthetic serial on stderr becomes only `launcher start failed`
     and never records launch success.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 257/257 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 257/257 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 257/257 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Detailed transport diagnosis intentionally remains a separate,
@@ -1433,11 +1457,11 @@ is tracked in task 142 rather than repeated here.
   installation detail with a generic checked failure. A disconnect or install
   error can no longer place a serial or local APK path in shared console logs.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; a failed install
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**; a failed install
     emits a synthetic serial/path on raw stderr, which is absent from captured
     smoke output while the generic error remains.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 255/255 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 255/255 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 255/255 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Detailed ADB diagnosis now requires an intentional separate local
@@ -1453,11 +1477,11 @@ is tracked in task 142 rather than repeated here.
   identity, SDKs, permissions, debug mode, contents, ELF, zipalign, and padding.
   Invalid input now causes zero ADB commands, including read-only property calls.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; foreign/stale/
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**; foreign/stale/
     extra-permission/mode/package-gate failures each leave the ADB command log
     completely empty.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 253/253 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 253/253 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 253/253 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Local preflight can take longer before reporting device
@@ -1475,10 +1499,10 @@ is tracked in task 142 rather than repeated here.
   ADB installation. External artifacts no longer rely on having come through a
   correctly configured Gradle task.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, including a
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**, including a
     package-gate failure rejected before any install command.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 252/252 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 252/252 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 252/252 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Device smoke now requires Build-Tools 36 `zipalign`, Python, and
@@ -1494,10 +1518,10 @@ is tracked in task 142 rather than repeated here.
   only as `apk_debuggable=0/1`, and allow unattended callers to require the
   expected mode with `PHONE_EXPECT_DEBUGGABLE`. Mode mismatch aborts before ADB.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, recording debug
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**, recording debug
     mode and rejecting a debug APK when release mode is required, before install.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 250/250 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 250/250 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 250/250 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Omitting `PHONE_EXPECT_DEBUGGABLE` accepts either mode but records
@@ -1513,10 +1537,10 @@ is tracked in task 142 rather than repeated here.
   against the five required Phone permissions before ADB. Unexpected transitive
   manifest contributions and missing required capabilities both fail closed.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, including an APK
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**, including an APK
     with unexpected camera permission rejected before installation.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 248/248 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 248/248 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 248/248 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Future intentional permission changes require coordinated source,
@@ -1532,10 +1556,10 @@ is tracked in task 142 rather than repeated here.
   artifact's exact minSdk 26 and targetSdk 36 before ADB. An old APK sharing the
   package ID can no longer alter the device before being identified as stale.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, including a
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**, including a
     targetSdk 35 APK rejected before any install command.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 246/246 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 246/246 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 246/246 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Intentional future SDK changes must update Gradle, manifest
@@ -1552,11 +1576,11 @@ is tracked in task 142 rather than repeated here.
   ADB install. A mistaken foreign APK can no longer alter the phone before the
   post-install digest check notices a mismatch.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, including an
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**, including an
     unrelated application ID rejected with no install command.
   - Local tool capability: **passed**, SDK `apkanalyzer` is available.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 244/244 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 244/244 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 244/244 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: `apkanalyzer` requires Android command-line tools and a working
@@ -1573,12 +1597,12 @@ is tracked in task 142 rather than repeated here.
   and OpenGL ES 3.2+ checks, matching Gradle and manifest requirements that a
   direct ADB install may not prefilter. Invalid/missing properties fail closed.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, including API 25
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**, including API 25
     rejection before installation.
   - Anonymous locked device runtime probe: **passed**,
     `phone_runtime_contract=1`; no values or identifier were logged.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 241/241 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 241/241 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 241/241 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Vendor builds with malformed standard numeric properties fail
@@ -1595,12 +1619,12 @@ is tracked in task 142 rather than repeated here.
   implicit single-device selection and explicit `ANDROID_SERIAL` enforce the
   same APK-supported physical Phone contract before installation.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, including a
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**, including a
     qemu target rejected before any install command.
   - Anonymous locked device capability probe: **passed**,
     `supported_physical_phone_contract=1`; no property or identifier was logged.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 239/239 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 239/239 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 239/239 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Unusual physical Android devices that omit standard feature or
@@ -1618,11 +1642,11 @@ is tracked in task 142 rather than repeated here.
   size token must accompany error, failure, incompatibility, invalidity,
   unsupported, or misalignment context.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**; a benign
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**; a benign
     verification message records zero, while an incompatible linker-alignment
     message records one and returns the diagnostic failure status 2.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 236/236 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 236/236 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 236/236 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Unseen OEM linker wording may need a reviewed explicit marker;
@@ -1642,10 +1666,10 @@ is tracked in task 142 rather than repeated here.
 - Tests:
   - Anonymous locked device structure probe: **passed**,
     `exit_info_header=1 structured_fields=1`; no raw output was retained.
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed** with the
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed** with the
     structural response contract and existing transport-failure fixture.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 235/235 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 235/235 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 235/235 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: OEMs that remove the standard header will now fail explicitly;
@@ -1662,10 +1686,10 @@ is tracked in task 142 rather than repeated here.
   failures. The smoke cannot report zero crashes when either diagnostic source
   was unavailable or returned malformed counters.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, including new
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**, including new
     logcat and exit-info failure fixtures that must abort before success fields.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 233/233 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 233/233 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 233/233 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Vendor builds that do not expose package exit info will now fail
@@ -1684,10 +1708,10 @@ is tracked in task 142 rather than repeated here.
 - Tests:
   - Anonymous locked device capability probe: **passed**,
     `device_epoch_cursor_supported=1`; no identifier or logs were read.
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, exercising the
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**, exercising the
     cursor command and time-bounded logcat invocation.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 231/231 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 231/231 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 231/231 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Vendor logcat implementations must accept the documented epoch
@@ -1705,11 +1729,11 @@ is tracked in task 142 rather than repeated here.
   `caller-provided`; callers needing a known retained location select it via
   `PHONE_TEST_REPORT` without exposing it to shared logs.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, asserting the
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**, asserting the
     private fixture root is absent from success, digest-mismatch, PID-restart,
     and sticky-foreground output.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 230/230 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 230/230 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 230/230 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Automatically created temporary report paths are intentionally
@@ -1726,10 +1750,10 @@ is tracked in task 142 rather than repeated here.
   from entering shared diagnostic logs; direct verifier runs retain detail for
   deliberate local troubleshooting.
 - Tests:
-  - `android/tests/phone-doctor-output-test.sh`: **passed**, with a synthetic
+  - `android/phone/tests/phone-doctor-output-test.sh`: **passed**, with a synthetic
     private path that must not escape the verifier subprocess.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 229/229 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 229/229 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 229/229 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Shared doctor logs trade detailed stale-file diagnosis for
@@ -1745,11 +1769,11 @@ is tracked in task 142 rather than repeated here.
   verifier; mismatches report `[STALE]` and fail, while absent graphs remain the
   normal non-failing `[SETUP]` state.
 - Tests:
-  - `android/tests/phone-doctor-output-test.sh`: **passed**, covering setup,
+  - `android/phone/tests/phone-doctor-output-test.sh`: **passed**, covering setup,
     content-verified ready, stale, and shared-checker failure states.
-  - `./android/build-phone.sh doctor`: **passed**, expected `[SETUP]` locally.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 228/228 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `./android/phone/build.sh doctor`: **passed**, expected `[SETUP]` locally.
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 228/228 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 228/228 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Doctor takes longer on a prepared graph because it hashes and
@@ -1764,12 +1788,12 @@ is tracked in task 142 rather than repeated here.
   or `[READY]` for the dedicated atomic 16-KiB dependency marker. A green host
   toolchain can no longer be mistaken for an immediately buildable Phone graph.
 - Tests:
-  - `android/tests/phone-doctor-output-test.sh`: **passed**, covering missing and
+  - `android/phone/tests/phone-doctor-output-test.sh`: **passed**, covering missing and
     present marker states plus preservation of shared checker failures.
-  - `./android/build-phone.sh doctor`: **passed**, reports `[SETUP]` in this
+  - `./android/phone/build.sh doctor`: **passed**, reports `[SETUP]` in this
     worktree because dedicated dependencies are absent.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 227/227 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 227/227 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 227/227 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Marker presence is a fast status hint; Gradle's content-bound
@@ -1785,15 +1809,15 @@ is tracked in task 142 rather than repeated here.
   intended actionable failure instead of an additional false AGP claim that
   `compileSdk` was absent.
 - Tests:
-  - `./android/build-phone.sh doctor`: **passed**, all required host tools.
+  - `./android/phone/build.sh doctor`: **passed**, all required host tools.
   - Offline Gradle configuration without the 16-KiB sentinel: **expected
     failure**, solely the documented sentinel error; no `compileSdk` error.
   - Offline Gradle configuration with the legacy migration switch but absent
     legacy dependencies: **expected failure**, solely the documented setup
     error; no `compileSdk` error.
-  - `android/tests/phone-release-config-test.sh`: **passed**.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 225/225 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-release-config-test.sh`: **passed**.
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 225/225 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 225/225 host checks.
   - `git diff --check`: **passed**.
 - Known risks: Full task-graph configuration remains correctly blocked until
@@ -1808,9 +1832,9 @@ is tracked in task 142 rather than repeated here.
   a launcher that leaves Phone falsely resumed. The real smoke must reject both
   before recording lifecycle success, complementing its successful-flow test.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, including both
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**, including both
     new lifecycle failure fixtures.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 35
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 35
     explicitly device-free suites.
   - `git diff --check`: **passed**.
 - Known risks: Mock timing is deliberately instant; vendor scheduling and
@@ -1828,9 +1852,9 @@ is tracked in task 142 rather than repeated here.
   exported, and rejection of aliases, providers, receivers, or services. New
   Android entry points now require an explicit reviewed contract change.
 - Tests:
-  - `android/tests/phone-data-protection-test.sh`: **passed**.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 224/224 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-data-protection-test.sh`: **passed**.
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 224/224 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 224/224 host checks.
   - Python syntax and `git diff --check`: **passed**.
 - Known risks: Gradle dependencies can contribute to the merged manifest; the
@@ -1848,9 +1872,9 @@ is tracked in task 142 rather than repeated here.
   characters and beginning alphanumerically. Debug builds retain their local
   default, while release artifacts can no longer silently ship as `0.1.0`.
 - Tests:
-  - `android/tests/phone-release-config-test.sh`: **passed**.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 221/221 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-release-config-test.sh`: **passed**.
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 221/221 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 221/221 host checks.
   - `git diff --check`: **passed**.
 - Known risks: Play version-code monotonicity still requires external release
@@ -1867,10 +1891,10 @@ is tracked in task 142 rather than repeated here.
   followed. The end-to-end Fake-ADB suite now proves a symlink target remains
   unchanged and installation never starts on this failure path.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**, including the
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**, including the
     new protected symlink fixture.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 220/220 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 220/220 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 220/220 host checks.
   - Shell syntax and `git diff --check`: **passed**.
 - Known risks: Atomic creation prevents local overwrite races; filesystem-level
@@ -1887,8 +1911,8 @@ is tracked in task 142 rather than repeated here.
   deep link, three Home cycles, Back recovery, private aggregate output, digest
   mismatch rejection, and refusal to overwrite an existing summary.
 - Tests:
-  - `android/tests/phone-device-smoke-mock-test.sh`: **passed**.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, 35 device-free
+  - `android/phone/tests/phone-device-smoke-mock-test.sh`: **passed**.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, 35 device-free
     suites including the new end-to-end smoke mock.
   - `git diff --check`: **passed**.
 - Known risks: The mock proves orchestration and fail-closed contracts, not
@@ -1906,9 +1930,9 @@ is tracked in task 142 rather than repeated here.
   owner-only permissions. This prevents accidental disclosure or overwrite via
   a caller-selected report directory while preserving all data minimization.
 - Tests:
-  - `bash -n android/tests/phone-device-test.sh`: **passed**.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 218/218 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `bash -n android/phone/tests/phone-device-test.sh`: **passed**.
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 218/218 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 218/218 host checks.
   - `git diff --check`: **passed**.
 - Known risks: Callers that intentionally reused one report directory must now
@@ -1926,9 +1950,9 @@ is tracked in task 142 rather than repeated here.
   cycle. Every phase requires the original native process, and dumpsys state
   must prove that the Phone activity really left and regained the foreground.
 - Tests:
-  - `bash -n android/tests/phone-device-test.sh`: **passed**.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 215/215 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `bash -n android/phone/tests/phone-device-test.sh`: **passed**.
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 215/215 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 215/215 host checks.
   - `git diff --check`: **passed**.
 - Known risks: Vendor launchers and power managers can expose lifecycle timing
@@ -1947,9 +1971,9 @@ is tracked in task 142 rather than repeated here.
   SHA-256 tool, and requires its digest to equal the requested APK. Reports only
   record the digest and a boolean verification result, never the device path.
 - Tests:
-  - `bash -n android/tests/phone-device-test.sh`: **passed**.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 211/211 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `bash -n android/phone/tests/phone-device-test.sh`: **passed**.
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 211/211 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 211/211 host checks.
   - `git diff --check`: **passed**.
 - Known risks: Some unusually restricted Android builds may deny streaming their
@@ -1970,10 +1994,10 @@ is tracked in task 142 rather than repeated here.
   runtimes, QML declarations, cache bundles, and synchronized default scripts.
   ZIP alignment remains correctly limited to final APK outputs.
 - Tests:
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, including a complete
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, including a complete
     synthetic AAB and a missing-runtime AAB failure alongside all APK fixtures.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 207/207 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 207/207 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/package suites and 207/207 host checks.
   - Python syntax and `git diff --check`: **passed**.
 - Known risks: A full `bundleRelease` remains blocked by absent dedicated Phone
@@ -1992,9 +2016,9 @@ is tracked in task 142 rather than repeated here.
   runtime-permission grant in the external summary. Permission denial/revocation
   remains an explicit separate lifecycle test rather than hidden human input.
 - Tests:
-  - `bash -n android/tests/phone-device-test.sh`: **passed**.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 204/204 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `bash -n android/phone/tests/phone-device-test.sh`: **passed**.
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 204/204 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/APK suites and 204/204 host checks.
   - `git diff --check`: **passed**.
 - Known risks: The smoke install changes runtime permission state on its test
@@ -2012,9 +2036,9 @@ is tracked in task 142 rather than repeated here.
   device-test summary. Future results can be tied to an artifact without
   exposing local paths, device identifiers, or raw logs.
 - Tests:
-  - `bash -n android/tests/phone-device-test.sh`: **passed**.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 202/202 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `bash -n android/phone/tests/phone-device-test.sh`: **passed**.
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 202/202 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/APK suites and 202/202 host checks.
   - `git diff --check`: **passed**.
 - Known risks: SHA-256 identifies content but does not establish signer trust;
@@ -2032,10 +2056,10 @@ is tracked in task 142 rather than repeated here.
   corresponding source file. Future startup additions/removals cannot leave the
   APK gate missing a script or carrying a stale mandatory entry.
 - Tests:
-  - `android/tests/phone-script-payload-test.sh`: **passed**, reporting 13/13
+  - `android/phone/tests/phone-script-payload-test.sh`: **passed**, reporting 13/13
     synchronized startup scripts and all payload exclusions.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 200/200 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 200/200 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/APK suites and 200/200 host checks.
   - Python syntax and `git diff --check`: **passed**.
 - Known risks: Parsing deliberately targets the simple literal startup array;
@@ -2052,10 +2076,10 @@ is tracked in task 142 rather than repeated here.
   People/Avatar/Places/Home runtime, including `androidControls`. APK fixtures
   import this exact checker set so additions cannot silently diverge.
 - Tests:
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, with every required
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, with every required
     cached script present in valid fixtures and covered by cache/ZIP checks.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 199/199 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 199/199 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/APK suites and 199/199 host checks.
   - Python syntax and `git diff --check`: **passed**.
 - Known risks: Transitive `Script.require/include` assets below these roots are
@@ -2073,10 +2097,10 @@ is tracked in task 142 rather than repeated here.
   cannot reach the application cache now fails before install rather than
   passing content checks and failing during native/QML startup.
 - Tests:
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, with corrected
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, with corrected
     complete fixtures and an explicit present-in-APK/but-omitted-from-cache case.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 196/196 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 196/196 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/APK suites and 196/196 host checks.
   - Python syntax and `git diff --check`: **passed**.
 - Known risks: Raw QML module files are consumed through the generated RCC and
@@ -2094,10 +2118,10 @@ is tracked in task 142 rather than repeated here.
   `lib/arm64-v8a/`, enforcing the Gradle ARM64-only contract against stale or
   injected multi-ABI package output.
 - Tests:
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, including explicit
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, including explicit
     duplicate-entry and unexpected-x86_64 fixtures plus all completeness cases.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 194/194 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 194/194 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/APK suites and 194/194 host checks.
   - Python syntax and `git diff --check`: **passed**.
 - Known risks: Non-native archive paths remain allowed unless governed by their
@@ -2116,11 +2140,11 @@ is tracked in task 142 rather than repeated here.
   OpenSSL, PositioningQuick, and every declared plugin. Incremental/stale APKs
   missing a fundamental loader dependency now fail before install.
 - Tests:
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, with a generated
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, with a generated
     omission fixture for every base/declaration runtime including all four new
     entries, plus QML/cache failure fixtures.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 192/192 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 192/192 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/APK suites and 192/192 host checks.
   - Python syntax and `git diff --check`: **passed**.
 - Known risks: This is a reviewed start-critical subset, not a general ELF
@@ -2139,10 +2163,10 @@ is tracked in task 142 rather than repeated here.
   Missing location/images objects now produce empty optional fields rather than
   property errors after a formally successful server response.
 - Tests:
-  - `android/tests/phone-tablet-people-menu-test.sh`: **passed**, including an
+  - `android/phone/tests/phone-tablet-people-menu-test.sh`: **passed**, including an
     executable successful-response-with-null-data callback and directory/record
     shape contracts.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/APK suites and 188/188 host checks.
   - JavaScript syntax and `git diff --check`: **passed**.
 - Known risks: This intentionally degrades malformed directory records to absent
@@ -2161,9 +2185,9 @@ is tracked in task 142 rather than repeated here.
   `status`. Require profile-page content to be a string before regex matching.
   Phone privacy suppression continues to prevent response details in logs.
 - Tests:
-  - `android/tests/phone-tablet-people-menu-test.sh`: **passed**, including an
+  - `android/phone/tests/phone-tablet-people-menu-test.sh`: **passed**, including an
     executable missing-response callback and profile-content type contract.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/APK suites and 188/188 host checks.
   - JavaScript syntax and `git diff --check`: **passed**.
 - Known risks: Backend payload schemas after a declared successful response
@@ -2182,10 +2206,10 @@ is tracked in task 142 rather than repeated here.
   ownership when it fires, and cancel/delete all remaining timers/entities when
   Places shuts down. No local portal can outlive its owning system script.
 - Tests:
-  - `android/tests/phone-tablet-places-test.sh`: **passed**, covering exact
+  - `android/phone/tests/phone-tablet-places-test.sh`: **passed**, covering exact
     limit, timer registration, expiry ownership, callback cancellation, entity
     deletion, and cleanup invocation contracts.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including portal
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including portal
     entity lifecycle, all tablet/APK suites, and 188/188 host checks.
   - JavaScript syntax and `git diff --check`: **passed**.
 - Known risks: The shared Messages channel intentionally supports portals from
@@ -2204,9 +2228,9 @@ is tracked in task 142 rather than repeated here.
   and mirror the length in both custom URL text fields. Scheme acceptance stays
   with the established resource system so ATP/HTTP/file workflows are preserved.
 - Tests:
-  - `android/tests/phone-tablet-avatar-test.sh`: **passed**, covering shared URL
+  - `android/phone/tests/phone-tablet-avatar-test.sh`: **passed**, covering shared URL
     validation, both action boundaries, and QML input lengths.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/APK suites and 188/188 host checks.
   - JavaScript syntax and `git diff --check`: **passed**.
 - Known risks: Reachability and content trust remain native resource-system
@@ -2225,9 +2249,9 @@ is tracked in task 142 rather than repeated here.
   unavailable. Desktop and Pico retain the tile; Phone favorites/pagination and
   custom avatar/wearable URLs remain available.
 - Tests:
-  - `android/tests/phone-tablet-avatar-test.sh`: **passed**, covering Phone
+  - `android/phone/tests/phone-tablet-avatar-test.sh`: **passed**, covering Phone
     omission, shared construction gate, and Desktop/Pico preservation.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/APK suites and 188/188 host checks.
   - `git diff --check`: **passed**.
 - Known risks: The hidden tile should return only after Phone has an approved,
@@ -2246,9 +2270,9 @@ is tracked in task 142 rather than repeated here.
   Bound each QML credential field to a generous 4096 characters to prevent
   accidental/untrusted unbounded retention without affecting normal accounts.
 - Tests:
-  - `android/tests/phone-dialog-routing-test.sh`: **passed**, including bounded
+  - `android/phone/tests/phone-dialog-routing-test.sh`: **passed**, including bounded
     fields, synchronous password clearing, and destruction-fallback clearing.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including the C++
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including the C++
     async login contract, all tablet/lifecycle/APK suites, and 188/188 host checks.
   - `git diff --check`: **passed**.
 - Known risks: The account managers necessarily retain their own request copy
@@ -2267,10 +2291,10 @@ is tracked in task 142 rather than repeated here.
   QML/C++ lookup boundary. Invalid input keeps the dialog and keyboard focus
   with a bounded local error; valid place names containing spaces remain valid.
 - Tests:
-  - `android/tests/phone-dialog-routing-test.sh`: **passed**, including maximum
+  - `android/phone/tests/phone-dialog-routing-test.sh`: **passed**, including maximum
     length, normalization, control-character, local-error, and validated-value
     delegation contracts.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/APK suites and 188/188 host checks.
   - `git diff --check`: **passed**.
 - Known risks: QML source contracts cannot reproduce every Android IME action;
@@ -2289,9 +2313,9 @@ is tracked in task 142 rather than repeated here.
   object before dereferencing it. Rejected actions return bounded QML errors
   instead of throwing or passing NaN/Infinity into native avatar state.
 - Tests:
-  - `android/tests/phone-tablet-avatar-test.sh`: **passed**, including scale
+  - `android/phone/tests/phone-tablet-avatar-test.sh`: **passed**, including scale
     type/finiteness/range, initialized-model, settings-object, and error contracts.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/APK suites and 188/188 host checks.
   - JavaScript syntax and `git diff --check`: **passed**.
 - Known risks: Native avatar-scale clamping remains authoritative for the upper
@@ -2310,10 +2334,10 @@ is tracked in task 142 rather than repeated here.
   inserted into REST paths as one URI segment so reserved characters cannot
   alter the endpoint; valid request bodies and response handling are unchanged.
 - Tests:
-  - `android/tests/phone-tablet-people-menu-test.sh`: **passed**, including an
+  - `android/phone/tests/phone-tablet-people-menu-test.sh`: **passed**, including an
     executable mock proving invalid names issue no request and `user/name`
     reaches the connection endpoint as `user%2Fname`.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/APK suites and 188/188 host checks.
   - JavaScript syntax and `git diff --check`: **passed**.
 - Known risks: Backend username semantics may be narrower than the transport
@@ -2333,10 +2357,10 @@ is tracked in task 142 rather than repeated here.
   callback time. A stale touch can no longer trigger an action after Home/menu
   replacement or after the action becomes unsupported.
 - Tests:
-  - `android/tests/phone-tablet-people-menu-test.sh`: **passed**, including timer
+  - `android/phone/tests/phone-tablet-people-menu-test.sh`: **passed**, including timer
     ownership, replacement cancellation, reference detachment, and execution-
     time Phone-policy contracts.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/APK suites and 188/188 host checks.
   - `git diff --check`: **passed**.
 - Known risks: QML Timer scheduling is source-contract tested; actual event-loop
@@ -2357,11 +2381,11 @@ is tracked in task 142 rather than repeated here.
   compatibility while ensuring changed Phone assets are never skipped merely
   because another file has a newer mtime.
 - Tests:
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, covering legacy and
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, covering legacy and
     content-digest markers plus short, non-hex, oversized, non-ASCII, duplicate,
     traversal, missing-asset, native-runtime, and QML-asset failures.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 188/188 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 188/188 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle/APK suites and 188/188 host checks.
   - `git diff --check`: **passed**.
 - Known risks: Full Gradle asset merging is blocked by absent Phone dependencies;
@@ -2381,9 +2405,9 @@ is tracked in task 142 rather than repeated here.
   containing XML metacharacters can no longer corrupt `phone-qml.qrc` before
   `rcc` runs; packaged modules and runtime paths are unchanged.
 - Tests:
-  - `android/tests/phone-host-regression-test.sh`: **passed**, including escape
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, including escape
     helper, metacharacter, and absolute-path-use contracts.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle suites and 185/185 host checks.
   - `git diff --check`: **passed**.
 - Known risks: A full Gradle merge-assets run is blocked by the absent Phone
@@ -2402,10 +2426,10 @@ is tracked in task 142 rather than repeated here.
   drain it from `onResume`; Activity destruction also clears retry callbacks
   explicitly before parent teardown.
 - Tests:
-  - `android/tests/phone-app-lifecycle-test.sh`: **passed**, including ordered
+  - `android/phone/tests/phone-app-lifecycle-test.sh`: **passed**, including ordered
     background-retention and destroy-cleanup contracts.
-  - `android/tests/phone-deep-link-test.sh`: **passed**, 20 JVM assertions.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-deep-link-test.sh`: **passed**, 20 JVM assertions.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle suites and 182/182 host checks.
   - `git diff --check`: **passed**.
 - Known risks: Android framework scheduling is represented by ordered source
@@ -2424,10 +2448,10 @@ is tracked in task 142 rather than repeated here.
   gesture can no longer leak repeat events into Qt and close additional layers
   or background the task. Unconsumed Back gestures retain legacy handling.
 - Tests:
-  - `android/tests/phone-app-lifecycle-test.sh`: **passed**, including an
+  - `android/phone/tests/phone-app-lifecycle-test.sh`: **passed**, including an
     ordered source contract for initial Down, native decision, repeat ownership,
     matching Up, and pause-state reset.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle suites and 181/181 host checks.
   - `git diff --check`: **passed**.
 - Known risks: Host tests cannot synthesize Android framework KeyEvent dispatch;
@@ -2446,10 +2470,10 @@ is tracked in task 142 rather than repeated here.
   and overlong values all fail closed to packaged tutorial content; valid Home
   navigation and the direct Tutorial action are unchanged.
 - Tests:
-  - `android/tests/phone-tablet-quick-goto-test.sh`: **passed**, including an
+  - `android/phone/tests/phone-tablet-quick-goto-test.sh`: **passed**, including an
     executable mock for button registration, valid Home lookup, packaged
     Tutorial, malformed/overlong fallback, and tablet close on every action.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet/lifecycle suites and 181/181 host checks.
   - JavaScript syntax and `git diff --check`: **passed**.
 - Known risks: Address scheme/domain policy remains owned by the established
@@ -2468,9 +2492,9 @@ is tracked in task 142 rather than repeated here.
   preference and its established lifecycle.
 - Tests:
   - `node --check scripts/system/bubble.js`: **passed**.
-  - `android/tests/phone-tablet-shield-test.sh`: **passed**, including guarded
+  - `android/phone/tests/phone-tablet-shield-test.sh`: **passed**, including guarded
     setup/teardown and Desktop/Pico preservation contracts.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet suites, portal lifecycle suite, and 181/181 host checks.
   - `git diff --check`: **passed**.
 - Known risks: Phone has one intentional Shield entry point instead of the
@@ -2490,10 +2514,10 @@ is tracked in task 142 rather than repeated here.
   entities. Entering an invalid portal is inert; repeated enter events own one
   teleport timer; entity unload cancels it and prevents delayed navigation.
 - Tests:
-  - `android/tests/phone-tablet-portal-lifecycle-test.sh`: **passed**, including
+  - `android/phone/tests/phone-tablet-portal-lifecycle-test.sh`: **passed**, including
     JavaScript syntax and an executable invalid/valid preload, repeated-entry,
     unload-cancellation, completed-navigation, and deletion mock.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including the new
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including the new
     portal suite, all tablet suites, and 181/181 host checks.
   - `git diff --check`: **passed**.
 - Known risks: The mock does not render particles/text or play real Android
@@ -2514,9 +2538,9 @@ is tracked in task 142 rather than repeated here.
   coordinates before any Vec3 operation or local entity creation.
 - Tests:
   - `node --check scripts/system/places/places.js`: **passed**.
-  - `android/tests/phone-tablet-places-test.sh`: **passed**, including outgoing
+  - `android/phone/tests/phone-tablet-places-test.sh`: **passed**, including outgoing
     destination and incoming address/finite-position contracts.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet suites and 181/181 host checks.
   - `git diff --check`: **passed**.
 - Known risks: Portal display names and place identifiers are serialized as
@@ -2537,9 +2561,9 @@ is tracked in task 142 rather than repeated here.
   unchanged.
 - Tests:
   - `node --check scripts/system/avatarapp.js`: **passed**.
-  - `android/tests/phone-tablet-avatar-test.sh`: **passed**, including explicit
+  - `android/phone/tests/phone-tablet-avatar-test.sh`: **passed**, including explicit
     QML, navigation, and manipulation-message boundary contracts.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet suites and 181/181 host checks.
   - `git diff --check`: **passed**.
 - Known risks: Source-contract tests do not instantiate the large shared Avatar
@@ -2559,10 +2583,10 @@ is tracked in task 142 rather than repeated here.
   close/shutdown, and verifies the surface is still open before delivery.
 - Tests:
   - JavaScript syntax checks for PAL and its mock: **passed**.
-  - `android/tests/phone-tablet-people-menu-test.sh`: **passed**, including an
+  - `android/phone/tests/phone-tablet-people-menu-test.sh`: **passed**, including an
     executable mock for malformed messages, valid open, timer ownership,
     cancellation, repeated lifecycle transitions, and shutdown.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet suites and 181/181 host checks.
   - `git diff --check`: **passed**.
 - Known risks: Server response schemas and valid user-operation parameters are
@@ -2582,9 +2606,9 @@ is tracked in task 142 rather than repeated here.
   recovery policy without a Phone-native confirmation flow. Desktop and Pico
   menu behavior is unchanged.
 - Tests:
-  - `android/tests/phone-tablet-people-menu-test.sh`: **passed**, including
+  - `android/phone/tests/phone-tablet-people-menu-test.sh`: **passed**, including
     explicit contracts for both blocked Settings actions.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet suites and 181/181 host checks.
   - `git diff --check`: **passed**.
 - Known risks: The Settings subtree still uses a reviewed denylist after its
@@ -2605,10 +2629,10 @@ is tracked in task 142 rather than repeated here.
   logs collected by automated tests or support tooling.
 - Tests:
   - `node --check scripts/system/pal.js`: **passed**.
-  - `android/tests/phone-tablet-people-menu-test.sh`: **passed**, including
+  - `android/phone/tests/phone-tablet-people-menu-test.sh`: **passed**, including
     privacy-boundary and no-direct-personal-log contracts plus the executable
     People lifecycle mock.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet suites and 181/181 host checks.
   - `git diff --check`: **passed**.
 - Known risks: This suppresses potentially private PAL diagnostics rather than
@@ -2629,10 +2653,10 @@ is tracked in task 142 rather than repeated here.
   scale, 30-FPS target, forward path, and disabled expensive effects. Desktop
   and Pico retain the complete page and existing layout.
 - Tests:
-  - `android/tests/phone-tablet-settings-scale-test.sh`: **passed**, 17
+  - `android/phone/tests/phone-tablet-settings-scale-test.sh`: **passed**, 17
     selector, layout, non-construction, and desktop/Pico preservation checks.
-  - `android/tests/phone-tablet-app-router-test.sh`: **passed**.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-app-router-test.sh`: **passed**.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet suites and 181/181 host checks.
   - `git diff --check`: **passed**.
 - Known risks: Runtime graphics experimentation remains available through the
@@ -2653,9 +2677,9 @@ is tracked in task 142 rather than repeated here.
   Hidden PTT/audio-tools bindings are write-guarded so construction cannot
   mutate their settings. Desktop and VR presentations remain unchanged.
 - Tests:
-  - `android/tests/phone-tablet-audio-test.sh`: **passed**, 16 Phone/Desktop/VR
+  - `android/phone/tests/phone-tablet-audio-test.sh`: **passed**, 16 Phone/Desktop/VR
     presentation and lifecycle contracts.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet suites and 181/181 host checks.
   - `git diff --check`: **passed**.
 - Known risks: Phone currently has no dedicated press-and-hold PTT input. It can
@@ -2675,11 +2699,11 @@ is tracked in task 142 rather than repeated here.
   timer and restores the avatar animation immediately instead of leaving an
   invisible override running until its nominal frame duration expires.
 - Tests:
-  - `android/tests/phone-tablet-emote-test.sh`: **passed**, 15 source contracts
+  - `android/phone/tests/phone-tablet-emote-test.sh`: **passed**, 15 source contracts
     plus the executable lifecycle mock.
   - Lifecycle mock: **passed** for play, same-action stop, surface close,
     timer cancellation, restoration, reopen/play, and script shutdown.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet suites and 181/181 host checks.
   - JavaScript syntax and `git diff --check`: **passed**.
 - Known risks: Animation restoration on actual movement still belongs to the
@@ -2698,10 +2722,10 @@ is tracked in task 142 rather than repeated here.
   unrelated QML apps, and a Settings page that has already navigated away can
   no longer reuse the Settings router.
 - Tests:
-  - `android/tests/phone-tablet-app-router-test.sh`: **passed**, including
+  - `android/phone/tests/phone-tablet-app-router-test.sh`: **passed**, including
     executable Home, unrelated-app, active-Settings, post-navigation, malformed,
     inherited-property, local-file, and remote-URL cases.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet suites and 181/181 host checks.
   - JavaScript syntax and `git diff --check`: **passed**.
 - Known risks: Source equality depends on the established Tablet `screenChanged`
@@ -2721,11 +2745,11 @@ is tracked in task 142 rather than repeated here.
   signal and teardown, and clear all fragment/button references after closing.
   Existing signal, virtual-pad, and touch-capture cleanup remains deterministic.
 - Tests:
-  - `android/tests/phone-actionbar-qml-lifetime-test.sh`: **passed**, including
+  - `android/phone/tests/phone-actionbar-qml-lifetime-test.sh`: **passed**, including
     a new executable mock for deferred-timer cancellation, destroyed-fragment
     geometry, signal teardown, fragment close, and world-control restoration.
-  - `android/tests/phone-tablet-routing-test.sh`: **passed**.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-routing-test.sh`: **passed**.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet suites and 181/181 host checks.
   - JavaScript syntax and `git diff --check`: **passed**.
 - Known risks: QML fragment destruction timing is mocked; the defensive catch
@@ -2745,10 +2769,10 @@ is tracked in task 142 rather than repeated here.
   responsive above their Save controls, and explicit about IME focus teardown.
   Desktop retains its existing plugin control and dimensions.
 - Tests:
-  - `android/tests/phone-tablet-security-test.sh`: **passed**, ten source
+  - `android/phone/tests/phone-tablet-security-test.sh`: **passed**, ten source
     contracts plus an executable Node normalization suite covering empty,
     malformed, mixed-separator, duplicate, and prototype-named entries.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet suites and 181/181 host checks.
   - JavaScript syntax and `git diff --check`: **passed**.
 - Known risks: Static layout checks cannot prove keyboard resize or font metrics
@@ -2770,9 +2794,9 @@ is tracked in task 142 rather than repeated here.
   any destination outside the app-private cache before creating or replacing a
   file.
 - Tests:
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, including traversal,
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, including traversal,
     absolute-path, duplicate-entry, Unicode-digit, and oversized-stamp fixtures.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 181/181 checks,
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 181/181 checks,
     including canonical-root and containment contracts for `HifiUtils`.
   - `git diff --check`: **passed**.
 - Known risks: The runtime extractor is shared Android code because Phone calls
@@ -2793,11 +2817,11 @@ is tracked in task 142 rather than repeated here.
   packaged `qmldir` marker. Absolute/traversing paths, empty declarations, and
   duplicate markers fail closed.
 - Tests:
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, including twelve
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, including twelve
     independently omitted QML-module metadata fixtures in addition to all 25
     native-runtime omissions, the general cached-asset fixture, and three
     malformed/traversing/duplicate declaration fixtures.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 179/179 checks.
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 179/179 checks.
   - `git diff --check`: **passed**.
 - Known risks: A `qmldir` marker proves module metadata presence, not that every
   optional QML component is packaged. Native plugin presence, cached app assets,
@@ -2816,10 +2840,10 @@ is tracked in task 142 rather than repeated here.
   malformed, empty, or duplicate entries fail closed. This expands omission
   coverage from nine native runtimes to all 25 current required libraries.
 - Tests:
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, including a fixture
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, including a fixture
     omitting each of the 25 native entries independently.
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 177/177 checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 34
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 177/177 checks.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 34
     explicitly device-free suites.
   - Python source execution through the fixture test: **passed**.
   - `git diff --check`: **passed**.
@@ -2838,9 +2862,9 @@ is tracked in task 142 rather than repeated here.
   Phone now emits one fixed aggregate warning; the desktop recovery dialog
   retains its detailed local error because this change is Phone-scoped.
 - Tests:
-  - `android/tests/phone-host-regression-test.sh`: **passed**, 175/175 checks,
+  - `android/phone/tests/phone-host-regression-test.sh`: **passed**, 175/175 checks,
     including a regression rejection for raw parser details in `qWarning`.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet contracts and 175/175 host checks.
   - `git diff --check`: **passed**.
 - Known risks: The aggregate warning intentionally sacrifices parser detail in
@@ -2860,12 +2884,12 @@ is tracked in task 142 rather than repeated here.
   resolve to the selector-aware tablet page. Unknown local paths, remote URLs,
   inherited object properties, and non-string payloads are ignored.
 - Tests:
-  - `android/tests/phone-tablet-app-router-test.sh`: **passed**, including the
+  - `android/phone/tests/phone-tablet-app-router-test.sh`: **passed**, including the
     executable Node lifecycle mock and ten rejected payload classes.
-  - `android/tests/phone-tablet-routing-test.sh`: **passed**.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-routing-test.sh`: **passed**.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet contracts and 174/174 host checks.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 34
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 34
     explicitly device-free suites.
   - `git diff --check`: **passed**.
 - Known risks: The allowlist intentionally mirrors the Settings QML page list;
@@ -2883,12 +2907,12 @@ is tracked in task 142 rather than repeated here.
   script's already-normalized Android root. The advertised root-level command
   now exercises all checks instead of producing a false failure.
 - Tests:
-  - Before the fix, `./android/tests/phone-host-regression-test.sh`: **failed**,
+  - Before the fix, `./android/phone/tests/phone-host-regression-test.sh`: **failed**,
     173 of 174 checks passed; `awk` could not open
-    `apps/phoneInterface/build.gradle` from the repository root.
+    `phone/apps/phoneInterface/build.gradle` from the repository root.
   - Before the fix, `(cd android && ./tests/phone-host-regression-test.sh)`:
     **passed**, 174 of 174 checks.
-  - After the fix, `./android/tests/phone-host-regression-test.sh` from the
+  - After the fix, `./android/phone/tests/phone-host-regression-test.sh` from the
     repository root: **passed**, 174 of 174 checks.
   - After the fix, the same absolute script command from `/tmp`: **passed**,
     174 of 174 checks.
@@ -2905,13 +2929,13 @@ is tracked in task 142 rather than repeated here.
   its heading and successful next step at the Phone wrapper boundary. Preserve
   the original checker exit status through the output filter.
 - Tests:
-  - `android/tests/phone-doctor-output-test.sh`: **passed**, including shared
+  - `android/phone/tests/phone-doctor-output-test.sh`: **passed**, including shared
     checker status propagation.
-  - `bash -n android/build-phone.sh android/tests/phone-doctor-output-test.sh`:
+  - `bash -n android/phone/build.sh android/phone/tests/phone-doctor-output-test.sh`:
     **passed**.
-  - `./android/build-phone.sh doctor`: **passed**, Phone heading and next step,
+  - `./android/phone/build.sh doctor`: **passed**, Phone heading and next step,
     all tools found with no warnings.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 34 suites;
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 34 suites;
     nested host regression passed 174/174 checks.
   - `git diff --check`: **passed**.
 - Known risks: Diagnostic detail still comes from the shared checker by design;
@@ -2929,11 +2953,11 @@ is tracked in task 142 rather than repeated here.
   complete Navigation and touch-look sensitivity categories; other clients are
   unchanged.
 - Tests:
-  - `android/tests/phone-tablet-general-preferences-test.sh`: passed (10
+  - `android/phone/tests/phone-tablet-general-preferences-test.sh`: passed (10
     contract checks).
-  - `android/tests/phone-tablet-static-test.sh`: passed (174 checks plus
+  - `android/phone/tests/phone-tablet-static-test.sh`: passed (174 checks plus
     focused tablet suites).
-  - `android/tests/phone-static-regression-test.sh`: passed (34 explicitly
+  - `android/phone/tests/phone-static-regression-test.sh`: passed (34 explicitly
     device-free suites).
   - `git diff --check`: passed.
 - Known risks: The generic activity-data preference is hidden together with
@@ -2955,10 +2979,10 @@ is tracked in task 142 rather than repeated here.
   normalizer was audited and already has equivalent scheme/size/raw-character
   boundaries, so it was not changed.
 - Tests:
-  - `android/tests/phone-tablet-places-test.sh`: **passed**, 24 checks.
+  - `android/phone/tests/phone-tablet-places-test.sh`: **passed**, 24 checks.
   - `node --check scripts/system/places/places.js`: **passed**.
-  - `android/tests/phone-deep-link-test.sh`: **passed**, 20 Java assertions.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 34 suites;
+  - `android/phone/tests/phone-deep-link-test.sh`: **passed**, 20 Java assertions.
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 34 suites;
     nested host regression passed 174/174 checks.
   - `git diff --check`: **passed**.
 - Known risks: Static contracts cannot execute a real destination transition;
@@ -2977,13 +3001,13 @@ is tracked in task 142 rather than repeated here.
   bearer, JPEG/SVG image, and OpenSL ES audio. Generate and reject a fixture
   omitting each required native entry independently.
 - Tests:
-  - `android/tests/phone-apk-contents-test.sh`: **passed**, including 9
+  - `android/phone/tests/phone-apk-contents-test.sh`: **passed**, including 9
     independently omitted native-runtime fixtures plus the asset fixture.
-  - `python3 -m py_compile android/tests/check-phone-apk-contents.py`:
+  - `python3 -m py_compile android/phone/tests/check-phone-apk-contents.py`:
     **passed**; generated bytecode was removed afterward.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 33 suites;
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 33 suites;
     nested host regression passed 174/174 checks.
-  - `./android/build-phone.sh doctor`: **passed**, all tools found with no
+  - `./android/phone/build.sh doctor`: **passed**, all tools found with no
     warnings. A full APK build was **not run** because the dedicated Phone Qt
     and non-Qt 16-KiB outputs and readiness sentinel are absent; the build is
     designed to stop before compiling in that state.
@@ -3004,12 +3028,12 @@ is tracked in task 142 rather than repeated here.
   format and Android 12+ cloud/device-transfer rules. Add an XML parser test
   that rejects missing, duplicate, included, or custom-agent escape paths.
 - Tests:
-  - `android/tests/phone-data-protection-test.sh`: **passed**, all 9 domains in
+  - `android/phone/tests/phone-data-protection-test.sh`: **passed**, all 9 domains in
     all three rule sections.
-  - `android/tests/phone-release-config-test.sh`: **passed**.
+  - `android/phone/tests/phone-release-config-test.sh`: **passed**.
   - Python bytecode compilation and `xmllint --noout` for both rule files and
     the manifest: **passed**; generated bytecode was removed afterward.
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 33 suites;
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 33 suites;
     nested host regression passed 174/174 checks.
   - `git diff --check`: **passed**.
 - Known risks: OEM backup behavior can deviate from AOSP; redundant manifest
@@ -3032,9 +3056,9 @@ is tracked in task 142 rather than repeated here.
 - Tests:
   - Pre-integration run of every `phone-*-test.sh` and contract script except
     the two real device runners: **passed**.
-  - `android/tests/serverless-hub-fixture-test.sh`: **passed** (136 entities,
+  - `android/phone/tests/serverless-hub-fixture-test.sh`: **passed** (136 entities,
     schema and referenced scripts valid).
-  - `android/tests/phone-static-regression-test.sh`: **passed**, all 32
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed**, all 32
     allowlisted suites; nested host regression passed 174/174 checks.
   - `git diff --check`: **passed**, both directly and as the final aggregate
     gate step.
@@ -3061,16 +3085,16 @@ is tracked in task 142 rather than repeated here.
   More remains disabled because it downloads remote metadata and installs
   third-party scripts; Create remains disabled by its existing isolation gate.
 - Tests:
-  - `android/tests/phone-tablet-emote-test.sh`: **passed**, 14 source
+  - `android/phone/tests/phone-tablet-emote-test.sh`: **passed**, 14 source
     contracts, JavaScript syntax, and the lifecycle mock.
-  - `android/tests/phone-tablet-emote-lifecycle-mock.js`: **passed** for open,
+  - `android/phone/tests/phone-tablet-emote-lifecycle-mock.js`: **passed** for open,
     ready, invalid request, play, same-action stop, timer cancellation, avatar
     restoration, signal disconnection, and button removal.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet suites, JavaScript syntax checks, and 174/174 host checks.
   - Qt 6 `qmllint` on `PhoneEmote.qml`: **passed** with non-fatal Qt 6
     unqualified-access warnings for Qt 5-compatible delegate context access.
-  - `android/tests/phone-script-payload-test.sh`: **passed** again after the
+  - `android/phone/tests/phone-script-payload-test.sh`: **passed** again after the
     new assets became tracked; all required defaults and payload exclusions
     remain consistent.
   - `git diff --check`: **passed**.
@@ -3092,9 +3116,9 @@ is tracked in task 142 rather than repeated here.
   destruction fallback that drops field focus and hides the IME. Existing
   pending-deep-link callbacks remain pause-aware and are not discarded.
 - Tests:
-  - `android/tests/phone-app-lifecycle-test.sh`: **passed**, 5 lifecycle
+  - `android/phone/tests/phone-app-lifecycle-test.sh`: **passed**, 5 lifecycle
     contract checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet suites, JavaScript syntax checks, and 174/174 host checks.
   - `git diff --check`: **passed**.
 - Known risks: The shared foreground flag now reflects Qt's documented Hidden
@@ -3116,12 +3140,12 @@ is tracked in task 142 rather than repeated here.
   toolbar/tablet, desktop filesystem, HMD, VR laser/keyboard, or Oculus-only
   behavior. Desktop and VR category selection is unchanged.
 - Tests:
-  - `android/tests/phone-tablet-general-preferences-test.sh`: **passed**,
+  - `android/phone/tests/phone-tablet-general-preferences-test.sh`: **passed**,
     7 contract checks.
   - `(cd android && ./tests/phone-tablet-static-test.sh)`: **passed**,
     including all tablet suites, JavaScript syntax checks, and 174/174 host
     regression checks.
-  - `./android/tests/phone-tablet-static-test.sh` from the repository root:
+  - `./android/phone/tests/phone-tablet-static-test.sh` from the repository root:
     **failed** in the pre-existing modern-API test because three inputs are
     resolved relative to the caller. The same gate passes from its documented
     Android working directory; the CWD defect is queued as the next task.
@@ -3144,8 +3168,8 @@ is tracked in task 142 rather than repeated here.
   normalized repository root. This makes the test itself and the aggregate
   tablet static gate independent of the caller's working directory.
 - Tests:
-  - `android/tests/phone-modern-android-api-test.sh`: **passed**, 15 checks.
-  - `android/tests/phone-tablet-static-test.sh`: **passed**, including all
+  - `android/phone/tests/phone-modern-android-api-test.sh`: **passed**, 15 checks.
+  - `android/phone/tests/phone-tablet-static-test.sh`: **passed**, including all
     tablet suites, JavaScript syntax checks, and 174/174 host checks.
   - Absolute aggregate-gate invocation from `/tmp`: **passed** with the same
     complete result.
@@ -3164,10 +3188,10 @@ is tracked in task 142 rather than repeated here.
 - Tests:
   - Every commit recorded below is verified as a descendant of
     `origin/feature/android-phone-support`.
-  - `android/tests/phone-static-regression-test.sh`: **passed** on the parent
+  - `android/phone/tests/phone-static-regression-test.sh`: **passed** on the parent
     runtime commit, all 34 explicitly device-free suites; nested host
     regression passed 174/174 checks.
-  - `./android/build-phone.sh doctor`: **passed** on this host, with all
+  - `./android/phone/build.sh doctor`: **passed** on this host, with all
     required tools found and no warnings.
   - Documentation consistency: **passed** (11 exact parent commits and 12 task
     sections); `git diff --check`: **passed**.

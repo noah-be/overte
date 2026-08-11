@@ -30,7 +30,7 @@ SUITES = (
     Suite("repository-health", "quick", (sys.executable, "tests/project-health-test.py")),
     Suite("project-coverage", "quick", (sys.executable, "tests/project-coverage-test.py")),
     Suite("javascript-behavior", "quick", ("node", "tests/mocha/test/testVirtualBaton.js")),
-    Suite("pico4-device-free", "quick", ("bash", "android/tests/pico-device-free-test.sh")),
+    Suite("pico4-device-free", "quick", ("bash", "android/vr/pico/tests/pico-device-free-test.sh")),
     Suite("native-ctest", "native", ("bash", "tests/project-native-test.sh")),
 )
 

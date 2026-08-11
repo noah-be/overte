@@ -1,0 +1,12 @@
+diff --git a/conanfile.py b/conanfile.py
+index 279972b..2dd9d31 100644
+--- a/conanfile.py
++++ b/conanfile.py
+@@ -903,3 +903,5 @@ class QtConan(ConanFile):
+     def package(self):
+-        with chdir(self, "build_folder"):
+-            self.run(f"{self._make_program()} install")
++        # Keep the bounded compile, but serialize qmake's install graph: parallel
++        # installs can race and silently leave the package incomplete.
++        with chdir(self, "build_folder"):
++            self.run(f"MAKEFLAGS= {self._make_program()} -j1 install")
