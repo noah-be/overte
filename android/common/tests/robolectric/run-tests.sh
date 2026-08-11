@@ -2,10 +2,10 @@
 set -euo pipefail
 
 readonly android_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)"
-readonly bundled_jdk="$android_root/pico-host-tools/jdk-21"
+readonly bundled_jdk="$android_root/vr/pico/pico-host-tools/jdk-21"
 readonly report_dir="${OVERTE_ROBOLECTRIC_REPORT_DIR:-$android_root/common/tests/robolectric/build/test-results/test}"
 readonly lock_file="${OVERTE_ROBOLECTRIC_LOCK_FILE:-$android_root/build/locks/robolectric.lock}"
-readonly gradlew_command="${OVERTE_GRADLEW_COMMAND:-$android_root/gradlew}"
+readonly gradlew_command="${OVERTE_GRADLEW_COMMAND:-$android_root/common/gradlew}"
 lock_timeout="${OVERTE_ROBOLECTRIC_LOCK_TIMEOUT_SECONDS:-900}"
 if [[ ! "$lock_timeout" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
     printf 'error: invalid Robolectric build lock timeout: %s\n' "$lock_timeout" >&2

@@ -27,7 +27,7 @@ java_major() {
 
 find_jdk() {
     local candidate major
-    for candidate in "${JAVA_HOME:-}" "$script_dir/pico-host-tools/jdk-21" \
+    for candidate in "${JAVA_HOME:-}" "$android_root/vr/pico/pico-host-tools/jdk-21" \
             "${HOME}/Applications/android-studio/jbr" \
             "/usr/lib/jvm/java-21-openjdk" "/usr/lib/jvm/java-17-openjdk"; do
         [[ -n "$candidate" && -x "$candidate/bin/java" ]] || continue

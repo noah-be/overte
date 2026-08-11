@@ -212,9 +212,9 @@ The Gradle JVM tests likewise require the prepared Phone Qt/Conan graph because
 the Android module compiles its main Qt activity before its unit-test source set:
 
 ```bash
-JAVA_HOME="$PWD/pico-host-tools/jdk-21" \
-  PATH="$PWD/pico-host-tools/jdk-21/bin:$PATH" \
-  ./gradlew -c settings-phone.gradle :phoneInterface:testDebugUnitTest
+JAVA_HOME="$PWD/vr/pico/pico-host-tools/jdk-21" \
+  PATH="$PWD/vr/pico/pico-host-tools/jdk-21/bin:$PATH" \
+  ./common/gradlew -c phone/settings.gradle :phoneInterface:testDebugUnitTest
 ```
 
 Use the bundled JDK 21 explicitly. The host's OpenJDK 25 is not compatible with
