@@ -24,7 +24,7 @@ jobs:
     permissions:
       contents: write
     env:
-      PICO_APK: android/apps/picoInterface/build/outputs/apk/release/picoInterface-release.apk
+      PICO_APK: android/vr/pico/apps/picoInterface/build/outputs/apk/release/picoInterface-release.apk
     steps:
       - name: Check out selected tag without credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
@@ -44,7 +44,7 @@ jobs:
             echo "Checked-out revision does not match the selected tag" >&2
             exit 2
           }
-          android/ci/pico4-release.py \
+          android/vr/pico/ci/pico4-release.py \
             --tag "$GITHUB_REF_NAME" \
             --github-ref "$GITHUB_REF" \
             --revision "$GITHUB_SHA" \
@@ -57,9 +57,9 @@ jobs:
         working-directory: android
         run: |
           set -euo pipefail
-          ./build-pico.sh doctor
-          ./build-pico.sh deps --download
-          ./build-pico.sh prepare
+          ./vr/pico/build.sh doctor
+          ./vr/pico/build.sh deps --download
+          ./vr/pico/build.sh prepare
 
       - name: Materialize protected signing key
         id: signing
@@ -84,14 +84,14 @@ jobs:
           ORG_GRADLE_PROJECT_PICO_RELEASE_STORE_PASSWORD: ${{ secrets.PICO_RELEASE_STORE_PASSWORD }}
           ORG_GRADLE_PROJECT_PICO_RELEASE_KEY_ALIAS: ${{ secrets.PICO_RELEASE_KEY_ALIAS }}
           ORG_GRADLE_PROJECT_PICO_RELEASE_KEY_PASSWORD: ${{ secrets.PICO_RELEASE_KEY_PASSWORD }}
-        run: ./build-pico.sh release --stacktrace
+        run: ./vr/pico/build.sh release --stacktrace
 
       - name: Verify APK identity, version, signature and provenance
         env:
           PICO_RELEASE_CERT_SHA256: ${{ secrets.PICO_RELEASE_CERT_SHA256 }}
         run: |
           set -euo pipefail
-          android/ci/verify-pico-apk.py "$PICO_APK" \
+          android/vr/pico/ci/verify-pico-apk.py "$PICO_APK" \
             --aapt "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt" \
             --apksigner "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" \
             --source-revision "$GITHUB_SHA" \
@@ -99,10 +99,10 @@ jobs:
             --expected-version-name "${{ steps.release.outputs.version_name }}" \
             --expected-signer-sha256 "$PICO_RELEASE_CERT_SHA256" \
             --output build/pico4/apk-manifest.json
-          android/ci/pico4-release.py \
+          android/vr/pico/ci/pico4-release.py \
             --tag "$GITHUB_REF_NAME" --revision "$GITHUB_SHA" \
             --apk-manifest build/pico4/apk-manifest.json \
-            --dependency-checksums android/conan/prebuilt/pico4-deps-v1.sha256 \
+            --dependency-checksums android/common/conan/prebuilt/pico4-deps-v1.sha256 \
             --output-dir build/pico4
 
       - name: Upload locally verifiable reports
@@ -129,7 +129,7 @@ jobs:
           }
           gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
             --title "Overte Pico 4 ${{ steps.release.outputs.version_name }}" \
-            --notes-file android/docs/PICO4_RELEASE_CHECKLIST.md \
+            --notes-file android/vr/pico/docs/PICO4_RELEASE_CHECKLIST.md \
             "$PICO_APK" \
             build/pico4/apk-manifest.json \
             build/pico4/pico4-release-manifest.json \

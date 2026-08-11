@@ -18,8 +18,7 @@ Rectangle {
 		{name: "Audio", icon: "../img/volume.svg", targetPage: "hifi/audio/Audio.qml" }, 
 		{name: "Controls", icon: "../img/dpad.svg", targetPage: "hifi/tablet/ControllerSettings.qml",
 			requiresControllerSettings: true },
-		{name: "Pico Interaction", icon: "../img/dpad.svg", targetPage: "",
-			requiresPicoInteractionSettings: true },
+		{name: "Pico Interaction", icon: "../img/dpad.svg", targetPage: "", picoOnly: true },
 		{name: "Security", icon: "../img/badge.svg", targetPage: "hifi/dialogs/security/Security.qml" }, 
 		{name: "QML Allowlist", icon: "../img/lock.svg", targetPage: "hifi/dialogs/security/EntityScriptQMLAllowlist.qml" }, 
 		{name: "Script Security", icon: "../img/shield.svg", targetPage: "hifi/dialogs/security/ScriptSecurity.qml" }, 
@@ -31,9 +30,7 @@ Rectangle {
 	}
 	property var pages: allPages.filter(function (page) {
 		return (!page.requiresControllerSettings || touchConfiguration.showControllerSettings)
-			&& (!page.requiresGraphicsSettings || touchConfiguration.showGraphicsSettings)
-			&& (!page.requiresPicoInteractionSettings
-				|| touchConfiguration.showPicoInteractionSettings);
+			&& (!page.requiresGraphicsSettings || touchConfiguration.showGraphicsSettings);
 	})
 
 	ColumnLayout {
@@ -59,6 +56,8 @@ Rectangle {
 			Repeater {
 				model: pages.length;
 				delegate: SettingSubviewListElement {
+					visible: !pages[index].picoOnly || Settings.getValue("deferTabletCreationUntilOpen", false)
+					height: visible ? 60 : 0
 					property string pageName: pages[index].name;
 					property string pageIcon: pages[index].icon;
 					property string targetPage: pages[index].targetPage;
@@ -73,12 +72,7 @@ Rectangle {
 			Layout.fillHeight: true
 			sourceComponent: Component { GraphicsSettings {} }
 		}
-		Loader {
-			active: touchConfiguration.showPicoInteractionSettings
-			Layout.fillWidth: true
-			Layout.fillHeight: true
-			sourceComponent: Component { PicoInteractionSettings {} }
-		}
+		PicoInteractionSettings {}
 
 		// Templates
 	}

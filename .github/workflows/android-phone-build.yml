@@ -36,7 +36,7 @@ jobs:
         working-directory: .
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_REF" == refs/heads/feature/android-phone-support ]]; then
+          if [[ "$GITHUB_REF" == refs/heads/android-phone ]]; then
             exit 0
           fi
           if [[ "$GITHUB_REF" =~ ^refs/tags/android-phone-v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$ ]]; then
@@ -46,30 +46,30 @@ jobs:
           exit 2
 
       - name: Run complete device-free host tier
-        run: tests/run-tests.sh host --report-dir build/test-results/android-phone-host
+        run: common/tests/run-tests.sh host --report-dir build/test-results/android-phone-host
 
       - name: Verify build environment
-        run: ./build-phone.sh doctor
+        run: ./phone/build.sh doctor
 
       - name: Restore checksum-verified 16 KiB dependencies
-        run: ./build-phone.sh deps --download
+        run: ./phone/build.sh deps --download
 
       - name: Prepare verified dependencies
-        run: ./build-phone.sh prepare
+        run: ./phone/build.sh prepare
 
       - name: Build Phone debug APK
         env:
           PHONE_BUILD_JOBS: "8"
-        run: ./build-phone.sh build --stacktrace
+        run: ./phone/build.sh build --stacktrace
 
       - name: Verify signed 16 KiB Phone APK
         working-directory: .
         env:
-          PHONE_APK: android/apps/phoneInterface/build/outputs/apk/debug/phoneInterface-debug.apk
+          PHONE_APK: android/phone/apps/phoneInterface/build/outputs/apk/debug/phoneInterface-debug.apk
         run: |
           set -euo pipefail
           sdk_root="${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}"
-          android/ci/verify-phone-apk.py "$PHONE_APK" \
+          android/phone/ci/verify-phone-apk.py "$PHONE_APK" \
             --apkanalyzer "$sdk_root/cmdline-tools/latest/bin/apkanalyzer" \
             --apksigner "$sdk_root/build-tools/36.0.0/apksigner" \
             --expect-debuggable 1 \
