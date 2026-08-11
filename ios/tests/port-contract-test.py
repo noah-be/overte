@@ -804,6 +804,15 @@ def test_scope_contract() -> None:
         r"filterRegularExpression\(\)\.pattern\(\)\.isEmpty\(\)[\s\S]*#else[\s\S]*filterRegExp\(\)\.isEmpty\(\)",
         "scripts filtering must use the Qt 6 regular-expression accessor with its Qt 5 fallback",
     )
+    input_configuration = SOURCE_ROOT / "libraries" / "plugins" / "src" / "plugins" / "InputConfiguration.cpp"
+    input_configuration_text = input_configuration.read_text(encoding="utf-8")
+    assert input_configuration_text.count("BLOCKING_INVOKE_METHOD(this, [this") == 7
+    assert "Q_RETURN_ARG" not in input_configuration_text and "Q_ARG(" not in input_configuration_text
+    require_text(
+        input_configuration,
+        r"bool result \{ false \};[\s\S]*return uncalibratePlugin\(pluginName\);[\s\S]*&result",
+        "input plug-in uncalibration must use the typed blocking return boundary",
+    )
     triage = json.loads((IOS_ROOT / "first-run-triage.json").read_text(encoding="utf-8"))
     assert triage["schemaVersion"] == 1
     phases = triage["phases"]
