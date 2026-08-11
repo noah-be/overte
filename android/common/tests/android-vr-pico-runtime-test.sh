@@ -2,11 +2,12 @@
 set -euo pipefail
 
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly android_root="$(cd -- "$script_dir/../.." && pwd)"
 
 # This is the Pico implementation evidence relevant to a parent android-vr
 # integration lane. Pico packaging, release, performance, power, and device
 # tooling deliberately remain in the complete Pico child suite.
-exec python3 "$script_dir/pico4-test-suite.py" \
+exec python3 "$android_root/vr/pico/tests/pico4-test-suite.py" \
     --timeout 120 \
     --test platform-glue \
     --test android-entrypoints \
