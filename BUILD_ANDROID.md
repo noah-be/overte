@@ -17,9 +17,8 @@ and start it on a USB-connected Pico 4.
 For a new development environment, run:
 
 ```bash
-cd android
-./build-pico.sh bootstrap --with-deps
-./build-pico.sh
+./android/vr/pico/build.sh bootstrap --with-deps
+./android/vr/pico/build.sh
 ```
 
 The bootstrap may request administrator access for missing system packages and
@@ -31,19 +30,17 @@ official tools automatically.
 To inspect the machine without making changes, use:
 
 ```bash
-cd android
-./build-pico.sh doctor
+./android/vr/pico/build.sh doctor
 ```
 
 To build, install, and automatically start the client on an authorized
 USB-connected headset, use:
 
 ```bash
-cd android
-./build-pico.sh deploy
+./android/vr/pico/build.sh deploy
 ```
 
-See the [complete Pico 4 build guide](android/PICO4_BUILD.md) for prerequisites,
+See the [complete Pico 4 build guide](android/vr/pico/docs/BUILD.md) for prerequisites,
 individual build stages, the source-build fallback, device selection, path
 overrides, and troubleshooting information.
 
@@ -90,9 +87,8 @@ installations.
 The legacy graph pins Android Gradle Plugin `4.1.3` and Gradle `6.5`. Bootstrap the reviewed distribution once, then use the dedicated wrapper:
 
 ```bash
-cd android
-python3 tests/legacy-gradle/run_dependency_report.py toolchain --network
-./legacy-gradlew tasks
+python3 android/common/tests/legacy-gradle/run_dependency_report.py toolchain --network
+./android/common/legacy/gradlew tasks
 ```
 
 Do not accept an automatic Gradle plugin upgrade: the dedicated wrapper and the
@@ -105,7 +101,7 @@ Point the build at their generated CMake files and package roots before building
 export HIFI_ANDROID_CONAN_GENERATORS=/absolute/path/to/conan/generators
 export HIFI_ANDROID_QT_ROOT=/absolute/path/to/the/Qt/package
 export HIFI_ANDROID_OPENSSL_ROOT=/absolute/path/to/the/OpenSSL/package
-./legacy-gradlew -PVERSION_CODE=1 -PRELEASE_NUMBER=1.0 \
+./android/common/legacy/gradlew -PVERSION_CODE=1 -PRELEASE_NUMBER=1.0 \
   -PSUPPRESS_PICO_INTERFACE -PSUPPRESS_QUEST_INTERFACE \
   -PSUPPRESS_FRAME_PLAYER -PSUPPRESS_QUEST_FRAME_PLAYER \
   :interface:assembleDebug
@@ -220,7 +216,7 @@ With your start menu, search for 'Edit the System Environment Variables' and ope
 
 Some things you can try if you want to do a clean build
  
-* Delete the `build` and `.externalNativeBuild` folders from the folder for each module you're building (for example, `overte/android/apps/interface`)
+* Delete the `build` and `.externalNativeBuild` folders from the folder for each module you're building (for example, `overte/android/phone/apps/interface`)
 * If you have set your `HIFI_VCPKG_ROOT` environment variable, delete the contents of that directory; otherwise, delete `AppData/Local/Temp/hifi`
 * In Android Studio, click _File > Invalidate Caches / Restart_ and select _Invalidate and Restart_
 

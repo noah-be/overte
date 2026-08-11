@@ -30,7 +30,7 @@ class GeneralBuildWorkflowContracts(unittest.TestCase):
             '".github/workflows/build.yml"',
             '".github/workflows/documentation-checks.yml"',
             '".github/workflows/macos-bootstrap.yml"',
-            '"android/tests/**"',
+            '"android/common/tests/**"',
             '"ios/tests/**"',
             '"tests/workflow-contract-test.py"',
             '"tests/check-documentation.py"',
@@ -270,10 +270,10 @@ class PicoBuildWorkflowContracts(unittest.TestCase):
         self.assertIn("refs/heads/android-vr-pico", self.source)
         self.assertIn("refs/tags/pico4-preview-[0-9]+", self.source)
         self.assertIn("tests/run-project-tests.py", self.source)
-        self.assertIn("./build-pico.sh doctor", self.source)
-        self.assertIn("./build-pico.sh deps --download", self.source)
-        self.assertIn("./build-pico.sh build --stacktrace", self.source)
-        self.assertIn("android/ci/verify-pico-apk.py", self.source)
+        self.assertIn("./vr/pico/build.sh doctor", self.source)
+        self.assertIn("./vr/pico/build.sh deps --download", self.source)
+        self.assertIn("./vr/pico/build.sh build --stacktrace", self.source)
+        self.assertIn("android/vr/pico/ci/verify-pico-apk.py", self.source)
         self.assertIn('--source-revision "$GITHUB_SHA"', self.source)
 
     def test_large_apk_is_not_uploaded_to_actions_storage(self):
@@ -308,8 +308,8 @@ class PicoReleaseWorkflowContracts(unittest.TestCase):
         self.assertIn("persist-credentials: false", self.source)
 
     def test_release_reuses_gates_and_only_creates_a_draft(self):
-        for contract in ("tests/run-project-tests.py", "./build-pico.sh deps --download",
-                         "android/ci/verify-pico-apk.py", "--expected-version-code",
+        for contract in ("tests/run-project-tests.py", "./vr/pico/build.sh deps --download",
+                         "android/vr/pico/ci/verify-pico-apk.py", "--expected-version-code",
                          "--expected-version-name", "--expected-signer-sha256"):
             self.assertIn(contract, self.source)
         self.assertIn("gh release create", self.source)

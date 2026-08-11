@@ -17,9 +17,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def tracked(*patterns: str) -> list[Path]:
-    command = ["git", "ls-files", "-z", "--", *patterns]
+    command = ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", *patterns]
     output = subprocess.check_output(command, cwd=ROOT)
-    return [ROOT / item.decode() for item in output.rstrip(b"\0").split(b"\0") if item]
+    return sorted(path for item in output.rstrip(b"\0").split(b"\0") if item
+                  and (path := ROOT / item.decode()).exists())
 
 
 class ProjectHealthTests(unittest.TestCase):
@@ -198,10 +199,11 @@ class ProjectHealthTests(unittest.TestCase):
 
     def test_gradle_wrapper_is_complete(self):
         required = [
-            ROOT / "android/gradlew",
-            ROOT / "android/gradle/wrapper/gradle-wrapper.jar",
-            ROOT / "android/gradle/wrapper/gradle-wrapper.properties",
-            ROOT / "android/settings.gradle",
+            ROOT / "android/common/gradlew",
+            ROOT / "android/common/gradle/wrapper/gradle-wrapper.jar",
+            ROOT / "android/common/gradle/wrapper/gradle-wrapper.properties",
+            ROOT / "android/phone/settings.gradle",
+            ROOT / "android/vr/pico/settings.gradle",
         ]
         self.assertTrue(all(path.is_file() for path in required))
         self.assertTrue(os.access(required[0], os.X_OK))
