@@ -72,7 +72,7 @@ class PicoPlatformGlueTests(unittest.TestCase):
         for source in ("PicoWebViewItem", "Application_Setup"):
             self.assertIn(f'{source}\\\\.', CMAKE)
         self.assertIn('../../../../common/src/OffscreenGLCanvas.cpp', CMAKE)
-        self.assertIn('../../shared/src/QtInputConnectionCompat.cpp', CMAKE)
+        self.assertIn('../../../../common/src/QtInputConnectionCompat.cpp', CMAKE)
         self.assertIn("target_link_libraries(openxr picoOpenXR)", CMAKE)
         self.assertIn("add_dependencies(${TARGET_NAME} openxr)", CMAKE)
 
