@@ -314,6 +314,11 @@ def test_cmake_boundary() -> None:
         data_location_text = data_location_source.read_text(encoding="utf-8")
         assert "QStandardPaths::DataLocation" not in data_location_text, f"Qt 6 removed DataLocation: {data_location_source}"
         assert "QStandardPaths::AppLocalDataLocation" in data_location_text, f"local app-data semantics must be preserved: {data_location_source}"
+    path_utils = SOURCE_ROOT / "libraries/shared/src/PathUtils.cpp"
+    path_utils_text = path_utils.read_text(encoding="utf-8")
+    assert "capturedRef(" not in path_utils_text, "Qt 6 removed QRegularExpressionMatch::capturedRef"
+    assert path_utils_text.count('match.captured("pid")') == 2, "temporary-directory PID captures must retain both validation paths"
+    assert 'match.captured("timestamp")' in path_utils_text, "temporary-directory timestamp capture must remain available"
     shutdown_listener = SOURCE_ROOT / "libraries/shared/src/ShutdownEventListener.h"
     require_text(shutdown_listener, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*qintptr\* result[\s\S]*long\* result", "native event filters must use the Qt 6 result type with a Qt 5 fallback")
     shutdown_listener_impl = SOURCE_ROOT / "libraries/shared/src/ShutdownEventListener.cpp"
