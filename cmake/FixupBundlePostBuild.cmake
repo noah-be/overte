@@ -11,6 +11,12 @@
 
 include(BundleUtilities)
 
+# BundleUtilities identifies application bundles by their normalized `.app`
+# path.  Fail closed if a caller passes an executable-relative path containing
+# `..`, which CMake otherwise classifies as a plain directory.
+get_filename_component(BUNDLE_EXECUTABLE "${BUNDLE_EXECUTABLE}" ABSOLUTE)
+get_filename_component(BUNDLE_PLUGIN_DIR "${BUNDLE_PLUGIN_DIR}" ABSOLUTE)
+
 if (APPLE)
   set(PLUGIN_EXTENSION "dylib")
 elseif (WIN32)

@@ -21,8 +21,8 @@ macro(PACKAGE_LIBRARIES_FOR_DEPLOYMENT)
                 TARGET ${TARGET_NAME}
                 POST_BUILD
                 COMMAND ${CMAKE_COMMAND}
-                    "-DBUNDLE_EXECUTABLE=$<TARGET_FILE_DIR:${TARGET_NAME}>/../.."
-                    "-DBUNDLE_PLUGIN_DIR=$<TARGET_FILE_DIR:${TARGET_NAME}>/../PlugIns"
+                    "-DBUNDLE_EXECUTABLE=$<TARGET_BUNDLE_DIR:${TARGET_NAME}>"
+                    "-DBUNDLE_PLUGIN_DIR=$<TARGET_BUNDLE_DIR:${TARGET_NAME}>/Contents/PlugIns"
                     "-DLIB_PATHS=${CMAKE_BINARY_DIR}/conanlibs/$<CONFIG>"
                     -P "${CMAKE_SOURCE_DIR}/cmake/FixupBundlePostBuild.cmake"
                 COMMENT "Bundling non-Qt macOS runtime libraries"

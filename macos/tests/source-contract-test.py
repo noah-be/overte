@@ -64,7 +64,8 @@ package_libraries = (
 ).read_text(encoding="utf-8")
 for token in (
     'get_target_property(_OVERTE_IS_APP_BUNDLE ${TARGET_NAME} MACOSX_BUNDLE)',
-    '"-DBUNDLE_EXECUTABLE=$<TARGET_FILE_DIR:${TARGET_NAME}>/../.."',
+    '"-DBUNDLE_EXECUTABLE=$<TARGET_BUNDLE_DIR:${TARGET_NAME}>"',
+    '"-DBUNDLE_PLUGIN_DIR=$<TARGET_BUNDLE_DIR:${TARGET_NAME}>/Contents/PlugIns"',
     '"-DLIB_PATHS=${CMAKE_BINARY_DIR}/conanlibs/$<CONFIG>"',
     'FixupBundlePostBuild.cmake',
 ):
