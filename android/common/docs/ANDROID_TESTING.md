@@ -55,7 +55,8 @@ tests/run-tests.sh android-vr
 ```
 
 Its six-suite boundary, stable JUnit output, runtime expectations, and deliberate
-vendor exclusions are documented in [Android VR Hardware-Free Test Gate](ANDROID_VR_TESTING.md).
+vendor exclusions are documented in the
+[Android VR Hardware-Free Test Gate](../../vr/pico/docs/ANDROID_VR_TESTING.md).
 
 The hardware-free Pico harness self-tests run in `fast`, `host`, and
 `contracts`; they exercise lock, unattended-runner, and microphone-script
