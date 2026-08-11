@@ -293,6 +293,8 @@ def test_cmake_boundary() -> None:
     require_text(shutdown_listener, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*qintptr\* result[\s\S]*long\* result", "native event filters must use the Qt 6 result type with a Qt 5 fallback")
     shutdown_listener_impl = SOURCE_ROOT / "libraries/shared/src/ShutdownEventListener.cpp"
     require_text(shutdown_listener_impl, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*qintptr\* result[\s\S]*long\* result", "native event filter declarations and definitions must keep matching Qt-versioned result types")
+    platform_helper = SOURCE_ROOT / "libraries/shared/src/shared/PlatformHelper.h"
+    require_text(platform_helper, r"#include <QtCore/QObject>", "QObject-derived platform helpers must include their complete base type")
     cmake = IOS_ROOT / "CMakeLists.txt"
     require_text(cmake, r'CMAKE_SYSTEM_NAME STREQUAL "iOS"', "CMake must reject non-iOS targets")
     require_text(cmake, r'XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"', "bundle must support iPhone and iPad")

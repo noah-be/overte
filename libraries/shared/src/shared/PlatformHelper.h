@@ -11,6 +11,7 @@
 #define hifi_shared_PlatformHelper_h
 
 #include <atomic>
+#include <QtCore/QObject>
 #include <QtCore/QtGlobal>
 #include "../DependencyManager.h"
 
