@@ -71,7 +71,7 @@ class PicoPlatformGlueTests(unittest.TestCase):
     def test_cmake_replaces_upstream_sources_and_links_openxr(self):
         for source in ("PicoWebViewItem", "Application_Setup"):
             self.assertIn(f'{source}\\\\.', CMAKE)
-        self.assertIn('../../shared/src/OffscreenGLCanvas.cpp', CMAKE)
+        self.assertIn('../../../../common/src/OffscreenGLCanvas.cpp', CMAKE)
         self.assertIn('../../shared/src/QtInputConnectionCompat.cpp', CMAKE)
         self.assertIn("target_link_libraries(openxr picoOpenXR)", CMAKE)
         self.assertIn("add_dependencies(${TARGET_NAME} openxr)", CMAKE)
