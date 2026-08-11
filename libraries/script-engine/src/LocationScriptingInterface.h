@@ -14,6 +14,8 @@
 #ifndef hifi_LocationScriptingInterface_h
 #define hifi_LocationScriptingInterface_h
 
+#include <QtCore/QObject>
+
 #include "ScriptValue.h"
 
 class ScriptContext;

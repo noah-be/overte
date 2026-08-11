@@ -20,6 +20,7 @@
 
 #include <QtCore/QHash>
 #include <QtCore/QList>
+#include <QtCore/QObject>
 #include <QtCore/QPointer>
 #include <QtCore/QString>
 

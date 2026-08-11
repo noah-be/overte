@@ -1882,6 +1882,14 @@ def test_script_entity_id_qt6_contract() -> None:
     require_text(v8_cast, r'QString::number\s*\(\s*i\s*\)',
                  "V8 array diagnostics must preserve their numeric index")
 
+    for relative_header in (
+        "ScriptCache.h", "SceneScriptingInterface.h", "LocationScriptingInterface.h",
+        "EntityScriptClient.h", "EntityScriptUtils.h", "v8/ScriptObjectV8Proxy.h",
+    ):
+        header = SOURCE_ROOT / "libraries" / "script-engine" / "src" / relative_header
+        require_text(header, r'#include\s*[<"](?:QtCore/)?QObject[>"]',
+                     "QObject subclasses must include their complete base type directly")
+
 
 def main() -> None:
     tests = (
