@@ -6,7 +6,7 @@
 const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
-const repository = path.resolve(__dirname, "../..");
+const repository = path.resolve(__dirname, "../../../..");
 const sanitize = require(path.resolve(__dirname,
     "../../../../scripts/system/libraries/picoTabletSettings.js"));
 
