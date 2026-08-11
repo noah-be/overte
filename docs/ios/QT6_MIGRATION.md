@@ -533,6 +533,11 @@ The audit also followed those axes into avatar movement/view updates. No axis
 scaling, pinch, button, haptic, avatar, or camera behavior was changed. This is
 the full-client input plugin, not the bootstrap Metal touch demonstration.
 
+Qt 6 no longer exposes the event window on `QTouchEvent`. The touchscreen
+plugin now resolves the display from the first point's global position and
+falls back to the primary display, while Qt 5 retains its event-window lookup.
+The DPI update is skipped if neither lookup yields a display.
+
 ## Productive iOS application lifecycle audit
 
 The existing full-client mobile pause/resume boundary is now compiled for iOS

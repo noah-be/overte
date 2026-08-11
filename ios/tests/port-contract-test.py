@@ -633,6 +633,8 @@ def test_cmake_boundary() -> None:
     require_text(touchscreen_source, r"using OverteTouchscreenPoint = QEventPoint;", "Qt 6 touchscreen input must use QEventPoint")
     require_text(touchscreen_source, r"return event->points\(\);[\s\S]*#else[\s\S]*return event->touchPoints\(\);", "touchscreen enumeration must preserve Qt 5 and Qt 6 paths")
     require_text(touchscreen_source, r"return point\.position\(\);[\s\S]*#else[\s\S]*return point\.pos\(\);", "touchscreen positions must preserve Qt 5 and Qt 6 semantics")
+    require_text(touchscreen_source, r"QGuiApplication::screenAt\(point\.globalPosition\(\)\.toPoint\(\)\)[\s\S]*primaryScreen\(\)[\s\S]*#else[\s\S]*event->window\(\)->screen\(\)", "touchscreen screen selection must use Qt 6 global points while preserving the Qt 5 event-window path")
+    require_text(touchscreen_source, r"if \(eventScreen && _screenDPI != eventScreen->physicalDotsPerInch\(\)\)", "touchscreen DPI lookup must fail safely when no screen is available")
     require_text(touchscreen_source, r"QInputDevice::devices\(\)[\s\S]*QInputDevice::DeviceType::TouchScreen[\s\S]*#else[\s\S]*QTouchDevice::devices\(\)", "Qt 6 touchscreen discovery must not use the removed QTouchDevice registry")
     touchscreen_header = touchscreen_source.with_suffix(".h")
     require_text(touchscreen_header, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*QInputDevice[\s\S]*#else[\s\S]*qtouchdevice", "the QTouchDevice header must remain Qt 5-only")
