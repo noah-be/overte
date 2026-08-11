@@ -12,7 +12,7 @@
 > [no-AI-contributions policy](https://github.com/overte-org/overte/blob/master/CONTRIBUTING.md).
 > For the official, stable project, use the
 > [original Overte repository](https://github.com/overte-org/overte). See the
-> fork's [full AI-use disclaimer](../README.md) for more information.
+> fork's [full AI-use disclaimer](../../../README.md) for more information.
 
 The Pico 4 client has a maintained command-line build workflow for 64-bit
 Linux. Run all commands below from the repository's `android/` directory.
@@ -61,13 +61,13 @@ Without a connected headset, only build the APK:
 ```
 
 To measure the completed client's battery and power use on the headset, see
-[Measure Overte power use on Pico 4](PICO4_POWER_TEST.md).
+[Measure Overte power use on Pico 4](POWER_TEST.md).
 
 For the device-free pull-request checks and trusted build-runner design, see
-[Pico 4 CI/CD](docs/pico4-ci-cd.md).
+[Pico 4 CI/CD](pico4-ci-cd.md).
 
 For world-entry and post-loading optimization measurements, see the
-[Pico 4 world-loading guide](docs/world-loading/pico4-optimization-guide.md).
+[Pico 4 world-loading guide](world-loading/pico4-optimization-guide.md).
 
 `deploy` assumes that the one-time bootstrap or setup has already installed the
 dependencies. It does not download missing Conan packages itself.
@@ -166,7 +166,7 @@ did not produce a repeatable benefit.
 
 The render scale can be changed under **Settings > Graphics > Pico render
 resolution** and takes effect after the prompted app restart. See
-[Pico 4 graphics optimization results](docs/power-tests/pico-graphics-optimization.md)
+[Pico 4 graphics optimization results](power-tests/pico-graphics-optimization.md)
 for the controlled measurements and rejected alternatives.
 
 Restart arguments are stored once in app-private preferences before the old
@@ -238,12 +238,12 @@ Both installation paths preserve existing app data, start the launcher
 activity automatically, and verify that the app process remains active.
 
 For reproducible Pico microphone source and fan-noise tests, see
-[`docs/pico-microphone.md`](docs/pico-microphone.md). The accompanying
+[`pico-microphone.md`](pico-microphone.md). The accompanying
 `pico-microphone-test.sh` script restores automatic fan control and stops the
 app after each run.
 
 For controller-to-entity debugging, see the
-[object interaction architecture and hardware test matrix](docs/pico4-object-interaction.md).
+[object interaction architecture and hardware test matrix](pico4-object-interaction.md).
 
 The command expects exactly one authorized ADB device. Select a device
 explicitly when several are connected:

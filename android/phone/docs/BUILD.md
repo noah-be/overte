@@ -15,7 +15,7 @@ runtime. The port currently targets landscape-oriented, ARM64 devices running
 Android 8 (API 26) or newer and targets Android 16 (API 36).
 
 For the device-free Actions checks and trusted build-runner architecture, see
-[Android Phone CI/CD](docs/ANDROID_PHONE_CI_CD.md).
+[Android Phone CI/CD](ANDROID_PHONE_CI_CD.md).
 
 Run the commands in this document from the repository's `android/` directory.
 
@@ -50,7 +50,7 @@ and is substantially slower than later incremental runs. Individual phases
 are available as `deps`, `build`, `start`, `test`, and `stop`. The runner only
 stops an AVD when explicitly invoked with `stop`.
 
-See [ANDROID_PHONE_EMULATOR_TESTS.md](ANDROID_PHONE_EMULATOR_TESTS.md) for the
+See [EMULATOR_TESTS.md](EMULATOR_TESTS.md) for the
 implementation details, validated baseline, limitations, and test roadmap.
 
 ## Current scope
@@ -557,7 +557,7 @@ For repeated online-world loading measurements, including CPU, memory,
 per-UID network traffic, frame jank, thermals, battery and optional Perfetto
 traces, use `tests/phone-world-loading-test.sh`. The complete invocation and
 interpretation guide is in
-[`docs/ANDROID_PHONE_PERFORMANCE_TESTING.md`](docs/ANDROID_PHONE_PERFORMANCE_TESTING.md).
+[`ANDROID_PHONE_PERFORMANCE_TESTING.md`](ANDROID_PHONE_PERFORMANCE_TESTING.md).
 
 Raw app-scoped Logcat, thermal and frame-stat output exists only in a private
 `/tmp` directory and is deleted on exit. INT, TERM, successful collection and

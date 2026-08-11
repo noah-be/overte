@@ -10,7 +10,7 @@ experiments:
 - [Pico 4 graphics optimization](pico-graphics-optimization.md)
 
 The test procedure and recorder usage are documented in
-[PICO4_POWER_TEST.md](../../PICO4_POWER_TEST.md). Raw CSV recordings remain in
+[POWER_TEST.md](../POWER_TEST.md). Raw CSV recordings remain in
 the Git-ignored `android/power-results/` directory and are not committed.
 
 For bounded CPU hot-path recording, `pico-simpleperf.sh` prepares and verifies

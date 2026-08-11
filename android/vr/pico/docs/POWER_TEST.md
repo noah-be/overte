@@ -5,10 +5,10 @@ firmware and compares repeatable scenarios. It measures the complete headset,
 not Overte in isolation. The difference between an idle baseline and an Overte
 run is an estimate of the application's additional power cost.
 
-See [Pico 4 fan power test results](docs/power-tests/fan-power.md) for the first
+See [Pico 4 fan power test results](power-tests/fan-power.md) for the first
 25%, 50%, and 100% fixed-fan comparison.
 
-See [Pico 4 display-brightness power test results](docs/power-tests/display-brightness-power.md)
+See [Pico 4 display-brightness power test results](power-tests/display-brightness-power.md)
 for controlled measurements at minimum, 50%, and 100% MCU brightness with a fixed
 fan duty.
 

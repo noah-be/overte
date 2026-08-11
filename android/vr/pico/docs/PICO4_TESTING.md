@@ -1,7 +1,7 @@
 # Pico 4 hardware-independent test suite
 
 For the repository-wide runner that includes this suite, see
-[`tests/PROJECT_TESTING.md`](../../tests/PROJECT_TESTING.md).
+[`tests/PROJECT_TESTING.md`](../../../../tests/PROJECT_TESTING.md).
 
 The Pico 4 suite protects Android packaging, OpenXR, WebView, audio, controller
 interaction, tablet/Create UI, serverless worlds, performance tooling, and the

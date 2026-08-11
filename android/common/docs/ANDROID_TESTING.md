@@ -402,7 +402,7 @@ hardware tests require separate, trusted runners and credentials; keeping them
 separate makes the device-free gate reproducible and safe for pull requests.
 The investigated emulator options, measured artifact/dependency sizes and the
 prerequisites for an honest future instrumentation lane are documented in
-[`ANDROID_EMULATOR_CI_FEASIBILITY.md`](ANDROID_EMULATOR_CI_FEASIBILITY.md).
+[`ANDROID_EMULATOR_CI_FEASIBILITY.md`](../../phone/docs/ANDROID_EMULATOR_CI_FEASIBILITY.md).
 
 ## Device and nightly matrix
 
