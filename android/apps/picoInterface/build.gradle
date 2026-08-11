@@ -2,6 +2,7 @@ plugins {
     id 'com.android.application'
 }
 
+def questBuild = providers.gradleProperty('QUEST_BUILD').map { it.toBoolean() }.getOrElse(false)
 def qtConanData = file('../../conan/pico4-debug/generators/Qt5-debug-armv8-data.cmake')
 def qtPackageMatch = qtConanData.text =~ /set\(qt_PACKAGE_FOLDER_DEBUG "([^"]+)"\)/
 if (!qtPackageMatch.find()) {
@@ -130,12 +131,14 @@ tasks.register('preparePicoQtRuntime', Copy) {
 }
 
 android {
+    // Keep the namespace aligned with the reused Java sources. The Quest build
+    // still gets its own installable identity through applicationId below.
     namespace 'org.overte.pico'
     compileSdk 36
     ndkVersion '27.3.13750724'
 
     defaultConfig {
-        applicationId 'org.overte.pico'
+        applicationId questBuild ? 'org.overte.quest.preview' : 'org.overte.pico'
         minSdk 26
         targetSdk 35
         versionCode rootProject.ext.appVersionCode
@@ -176,18 +179,21 @@ android {
 
     signingConfigs {
         release {
-            def required = ['PICO_RELEASE_STORE_FILE', 'PICO_RELEASE_STORE_PASSWORD',
-                            'PICO_RELEASE_KEY_ALIAS', 'PICO_RELEASE_KEY_PASSWORD']
+            def signingPrefix = questBuild ? 'QUEST' : 'PICO'
+            def required = ["${signingPrefix}_RELEASE_STORE_FILE",
+                            "${signingPrefix}_RELEASE_STORE_PASSWORD",
+                            "${signingPrefix}_RELEASE_KEY_ALIAS",
+                            "${signingPrefix}_RELEASE_KEY_PASSWORD"]
             if (gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') }) {
                 required.each { name ->
                     if (!providers.gradleProperty(name).isPresent()) {
-                        throw new GradleException("Missing protected Pico signing property: ${name}")
+                        throw new GradleException("Missing protected Android XR signing property: ${name}")
                     }
                 }
-                storeFile file(providers.gradleProperty('PICO_RELEASE_STORE_FILE').get())
-                storePassword providers.gradleProperty('PICO_RELEASE_STORE_PASSWORD').get()
-                keyAlias providers.gradleProperty('PICO_RELEASE_KEY_ALIAS').get()
-                keyPassword providers.gradleProperty('PICO_RELEASE_KEY_PASSWORD').get()
+                storeFile file(providers.gradleProperty(required[0]).get())
+                storePassword providers.gradleProperty(required[1]).get()
+                keyAlias providers.gradleProperty(required[2]).get()
+                keyPassword providers.gradleProperty(required[3]).get()
                 enableV1Signing false
                 enableV2Signing true
             }
@@ -203,6 +209,9 @@ android {
 
     sourceSets {
         main {
+            if (questBuild) {
+                manifest.srcFile 'src/quest/AndroidManifest.xml'
+            }
             java.srcDir '../../libraries/qt/src/main/java'
             jniLibs.srcDirs '../../libraries/qt/libs', 'src/main/jniLibs',
                 picoQtRuntimeDir
@@ -252,6 +261,11 @@ android {
     }
 
     applicationVariants.all { variant ->
+        if (questBuild) {
+            variant.outputs.all {
+                outputFileName = "overte-quest-preview-${variant.name}.apk"
+            }
+        }
         // The runtime unpacks these CMake-produced assets into its cache on startup.
         // Ensure they are generated before merging and include the manifest expected
         // by HifiUtils.upackAssets().

@@ -7,6 +7,19 @@ SPDX-License-Identifier: Apache-2.0
 
 # Build Android
 
+## Meta Quest (hardware-unverified preview)
+
+The modern Quest preview reuses the maintained Android/OpenXR dependency graph
+and can be built without a headset:
+
+```bash
+cd android
+./build-quest.sh all --stacktrace
+```
+
+See [the Quest preview build guide](android/QUEST_BUILD.md) for the artifact
+location, current scope, and the acceptance tests that still require hardware.
+
 ## Pico 4 (current Linux workflow)
 
 The Pico 4 client has a maintained command-line build workflow for Linux. It

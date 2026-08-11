@@ -33,6 +33,10 @@ public final class PicoInterfaceActivity extends QtActivity {
     private native boolean initializeOpenXRLoader();
     private native void releaseOpenXRActivity();
 
+    public static PicoInterfaceActivity getInstance() {
+        return INSTANCE.current();
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         INSTANCE.register(this);

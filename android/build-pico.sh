@@ -546,7 +546,7 @@ detect_jdk() {
 }
 
 detect_dependencies() {
-    local qt_build qt_source draco_package draco_member tbb_package
+    local qt_build qt_source draco_package draco_member draco_probe tbb_package
 
     local draco_conan_data="$script_dir/conan/pico4-debug/generators/draco-debug-armv8-data.cmake"
     if [[ -z "${PICO_DRACO_PACKAGE_DIR:-}" && -f "$draco_conan_data" ]]; then
@@ -558,8 +558,16 @@ detect_dependencies() {
     [[ "$draco_package" != *.a ]] || draco_package="${draco_package%/lib/libdraco.a}"
     read -r draco_member < <(ar t "$draco_package/lib/libdraco.a")
     [[ -n "$draco_member" ]] || fail "Draco archive is empty: $draco_package/lib/libdraco.a"
-    ar p "$draco_package/lib/libdraco.a" "$draco_member" | file - | grep -Eq 'ARM aarch64|ARM64' \
-        || fail "Draco library is not Android ARM64: $draco_package/lib/libdraco.a"
+    # `file -` copies stdin to the system temporary directory. Large debug
+    # objects can exceed a constrained /tmp even when the package itself is
+    # valid, so inspect one archive member from a project-local temporary file.
+    draco_probe="$(mktemp "$script_dir/.draco-member.XXXXXX")"
+    ar p "$draco_package/lib/libdraco.a" "$draco_member" > "$draco_probe"
+    if ! file "$draco_probe" | grep -Eq 'ARM aarch64|ARM64'; then
+        rm -f -- "$draco_probe"
+        fail "Draco library is not Android ARM64: $draco_package/lib/libdraco.a"
+    fi
+    rm -f -- "$draco_probe"
 
     export PICO_DRACO_PACKAGE_DIR="$draco_package"
     if [[ ! -f "$script_dir/shared/runtime-overrides/arm64-v8a/.prebuilt-runtime" ]]; then
