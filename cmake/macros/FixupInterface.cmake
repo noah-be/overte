@@ -96,6 +96,10 @@ macro(fixup_interface)
                     -verbose=2
                     -qmldir=${CMAKE_SOURCE_DIR}/interface/resources/qml/
                     "-libpath=${CMAKE_BINARY_DIR}/conanlibs/$<CONFIG>"
+                COMMAND ${Python3_EXECUTABLE}
+                    "${CMAKE_SOURCE_DIR}/macos/tools/deploy-conan-dylibs.py"
+                    --app "$<TARGET_FILE_DIR:${TARGET_NAME}>/../.."
+                    --lib-dir "${CMAKE_BINARY_DIR}/conanlibs/$<CONFIG>"
             )
             install(CODE "
                 execute_process(COMMAND ${MACDEPLOYQT_COMMAND}\
@@ -111,6 +115,10 @@ macro(fixup_interface)
                     -verbose=2
                     -qmldir=${CMAKE_SOURCE_DIR}/interface/resources/qml/
                     "-libpath=${CMAKE_BINARY_DIR}/conanlibs/$<CONFIG>"
+                COMMAND ${Python3_EXECUTABLE}
+                    "${CMAKE_SOURCE_DIR}/macos/tools/deploy-conan-dylibs.py"
+                    --app "$<TARGET_FILE_DIR:${TARGET_NAME}>/../.."
+                    --lib-dir "${CMAKE_BINARY_DIR}/conanlibs/$<CONFIG>"
             )
         endif()
     endif ()

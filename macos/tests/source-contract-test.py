@@ -4,6 +4,7 @@
 from pathlib import Path
 import re
 import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -60,6 +61,13 @@ if not re.search(
     raise SystemExit("macOS DEV bundles must run macdeployqt before direct launch")
 if '"-libpath=${CMAKE_BINARY_DIR}/conanlibs/$<CONFIG>"' not in fixup_interface:
     raise SystemExit("macdeployqt must search the collected versioned Conan dylibs")
+if fixup_interface.count('macos/tools/deploy-conan-dylibs.py') != 2:
+    raise SystemExit("every macOS post-build deployment must rewrite collected Conan dylibs")
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/deploy-conan-dylibs-test.py")],
+    cwd=ROOT,
+    check=True,
+)
 
 package_libraries = (
     ROOT / "cmake/macros/PackageLibrariesForDeployment.cmake"
