@@ -170,6 +170,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("if: github.event_name == 'workflow_dispatch'", source)
         self.assertIn("actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53", source)
         self.assertIn("run-id: ${{ inputs.artifact_run_id }}", source)
+        self.assertIn("mv build/runtime-artifact/Contents build/runtime-artifact/Overte.app/Contents", source)
         self.assertIn("OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '300'", source)
         self.assertIn("macos/ci/serverless-smoke.sh", source)
         self.assertIn("macos/ci/online-smoke.sh", source)

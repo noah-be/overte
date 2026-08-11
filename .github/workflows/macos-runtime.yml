@@ -52,6 +52,12 @@ jobs:
 
       - name: Verify restored application bundle
         run: |
+          # upload-artifact stores the contents of a directory at the artifact
+          # root. Recreate the bundle directory around that preserved tree.
+          if [[ -d build/runtime-artifact/Contents && ! -d build/runtime-artifact/Overte.app ]]; then
+            mkdir build/runtime-artifact/Overte.app
+            mv build/runtime-artifact/Contents build/runtime-artifact/Overte.app/Contents
+          fi
           app="$(find build/runtime-artifact -type d -name Overte.app -print -quit)"
           test -n "$app"
           test -x "$app/Contents/MacOS/Overte"
