@@ -1,0 +1,226 @@
+import org.apache.tools.ant.taskdefs.condition.Os
+
+apply plugin: 'com.android.application'
+
+def legacyQtRoot = System.getenv('HIFI_ANDROID_QT_ROOT') ?
+    file(System.getenv('HIFI_ANDROID_QT_ROOT')) : null
+def legacyOpenSslRoot = System.getenv('HIFI_ANDROID_OPENSSL_ROOT') ?
+    file(System.getenv('HIFI_ANDROID_OPENSSL_ROOT')) : null
+def legacyQtRuntimeDir = file("$buildDir/generated/legacyQtRuntime")
+def legacyQtAssetsDir = file("$buildDir/generated/legacyQtAssets")
+def legacyQmlModules = [
+    'Qt/labs/settings', 'QtQml', 'QtQml/Models.2',
+    'QtQml/WorkerScript.2', 'QtQuick.2', 'QtQuick/Controls.2',
+    'QtQuick/Controls', 'QtQuick/Dialogs', 'QtQuick/Dialogs/Private',
+    'QtQuick/PrivateWidgets', 'Qt/labs/folderlistmodel',
+    'QtQuick/Templates.2', 'QtQuick/Layouts', 'QtQuick/Window.2',
+    'QtGraphicalEffects', 'QtGraphicalEffects/private'
+]
+
+task prepareLegacyQtRuntime(type: Sync) {
+    doFirst {
+        if (!legacyQtRoot?.isDirectory() || !legacyOpenSslRoot?.isDirectory()) {
+            throw new GradleException(
+                'Legacy Interface requires explicit Qt and OpenSSL package roots.')
+        }
+    }
+    into new File(legacyQtRuntimeDir, 'arm64-v8a')
+    from(new File(legacyQtRoot ?: projectDir, 'plugins/platforms')) {
+        include 'libplugins_platforms_qtforandroid_arm64-v8a.so'
+    }
+    from(new File(legacyQtRoot ?: projectDir, 'plugins/bearer')) {
+        include 'libplugins_bearer_qandroidbearer_arm64-v8a.so'
+    }
+    from(new File(legacyQtRoot ?: projectDir, 'plugins/imageformats')) {
+        include 'libplugins_imageformats_qjpeg_arm64-v8a.so'
+        include 'libplugins_imageformats_qsvg_arm64-v8a.so'
+    }
+    from(new File(legacyQtRoot ?: projectDir, 'plugins/audio')) {
+        include 'libplugins_audio_qtaudio_opensles_arm64-v8a.so'
+    }
+    legacyQmlModules.each { modulePath ->
+        from(new File(legacyQtRoot ?: projectDir, "qml/${modulePath}")) {
+            include '*.so'
+        }
+    }
+    from(new File(legacyOpenSslRoot ?: projectDir, 'lib')) {
+        include 'libcrypto.so.1.1'
+        rename { 'libcrypto_1_1.so' }
+    }
+    from(new File(legacyOpenSslRoot ?: projectDir, 'lib')) {
+        include 'libssl.so.1.1'
+        rename { 'libssl_1_1.so' }
+    }
+}
+
+task prepareLegacyQtAssets(type: Sync) {
+    doFirst {
+        if (!legacyQtRoot?.isDirectory()) {
+            throw new GradleException(
+                'Legacy Interface requires an explicit Qt package root.')
+        }
+    }
+    into new File(legacyQtAssetsDir, 'qml')
+    legacyQmlModules.each { modulePath ->
+        from(new File(legacyQtRoot ?: projectDir, "qml/${modulePath}")) {
+            into modulePath
+            exclude '*.so'
+        }
+    }
+}
+
+android {
+    compileSdkVersion 26
+    ndkVersion '27.3.13750724'
+    defaultConfig {
+        applicationId "io.highfidelity.hifiinterface"
+        minSdkVersion 24
+        targetSdkVersion 26
+        versionCode appVersionCode
+        versionName appVersionName
+        ndk { abiFilters 'arm64-v8a' }
+        externalNativeBuild {
+            cmake {
+                arguments '-DHIFI_ANDROID=1',
+                    '-DOVERTE_LEGACY_ANDROID_CMAKE=ON',
+                    '-DHIFI_ANDROID_APP=interface',
+                    '-DANDROID_PLATFORM=android-24',
+                    '-DANDROID_TOOLCHAIN=clang',
+                    '-DANDROID_STL=c++_shared',
+                    '-DCMAKE_C_FLAGS=-O2 -falign-functions=32 -fPIC',
+                    '-DCMAKE_CXX_FLAGS=-O2 -falign-functions=32 -fPIC',
+                    '-DCMAKE_PROJECT_INCLUDE_BEFORE=' + file('../../../common/cmake/pico-bootstrap.cmake').absolutePath,
+                    '-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON',
+                    '-DCMAKE_PREFIX_PATH=' + (System.getenv('HIFI_ANDROID_CONAN_GENERATORS') ?: file('../../../common/conan/pico4-debug/generators').absolutePath),
+                    '-DCMAKE_MODULE_PATH=' + file('../../../common/cmake/pico-modules').absolutePath + ';' + (System.getenv('HIFI_ANDROID_CONAN_GENERATORS') ?: file('../../../common/conan/pico4-debug/generators').absolutePath),
+                    '-DHIFI_ANDROID_CONAN_GENERATORS=' + (System.getenv('HIFI_ANDROID_CONAN_GENERATORS') ?: file('../../../common/conan/pico4-debug/generators').absolutePath),
+                    '-DRELEASE_NUMBER=' + RELEASE_NUMBER,
+                    '-DRELEASE_TYPE=' + RELEASE_TYPE,
+                    '-DSTABLE_BUILD=' + STABLE_BUILD,
+                    '-DDISABLE_QML=OFF',
+                    '-DDISABLE_KTX_CACHE=OFF',
+                    '-DUSE_BREAKPAD=' + (System.getenv("CMAKE_BACKTRACE_URL") && System.getenv("CMAKE_BACKTRACE_TOKEN") ? 'ON' : 'OFF');
+                targets = ['native-lib']
+            }
+        }
+        signingConfigs {
+            release {
+                storeFile project.hasProperty("HIFI_ANDROID_KEYSTORE") ? file(HIFI_ANDROID_KEYSTORE) : file('../keystore.jks')
+                storePassword project.hasProperty("HIFI_ANDROID_KEYSTORE_PASSWORD") ? HIFI_ANDROID_KEYSTORE_PASSWORD : 'password'
+                keyAlias project.hasProperty("HIFI_ANDROID_KEY_ALIAS") ? HIFI_ANDROID_KEY_ALIAS : 'key0'
+                keyPassword project.hasProperty("HIFI_ANDROID_KEY_PASSWORD") ? HIFI_ANDROID_KEY_PASSWORD : 'password'
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    sourceSets {
+        main {
+            jniLibs.srcDir legacyQtRuntimeDir
+            assets.srcDir legacyQtAssetsDir
+        }
+    }
+
+    buildTypes {
+        debug {
+            buildConfigField "String", "BACKTRACE_URL", rootProject.ext.legacyBuildConfigString(System.getenv("CMAKE_BACKTRACE_URL"))
+            buildConfigField "String", "BACKTRACE_TOKEN", rootProject.ext.legacyBuildConfigString(System.getenv("CMAKE_BACKTRACE_TOKEN"))
+            buildConfigField "String", "OAUTH_CLIENT_ID", rootProject.ext.legacyBuildConfigString(System.getenv("OAUTH_CLIENT_ID"))
+            buildConfigField "String", "OAUTH_CLIENT_SECRET", rootProject.ext.legacyBuildConfigString(System.getenv("OAUTH_CLIENT_SECRET"))
+            buildConfigField "String", "OAUTH_REDIRECT_URI", rootProject.ext.legacyBuildConfigString(System.getenv("OAUTH_REDIRECT_URI"))
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+            buildConfigField "String", "BACKTRACE_URL", rootProject.ext.legacyBuildConfigString(System.getenv("CMAKE_BACKTRACE_URL"))
+            buildConfigField "String", "BACKTRACE_TOKEN", rootProject.ext.legacyBuildConfigString(System.getenv("CMAKE_BACKTRACE_TOKEN"))
+            buildConfigField "String", "OAUTH_CLIENT_ID", rootProject.ext.legacyBuildConfigString(System.getenv("OAUTH_CLIENT_ID"))
+            buildConfigField "String", "OAUTH_CLIENT_SECRET", rootProject.ext.legacyBuildConfigString(System.getenv("OAUTH_CLIENT_SECRET"))
+            buildConfigField "String", "OAUTH_REDIRECT_URI", rootProject.ext.legacyBuildConfigString(System.getenv("OAUTH_REDIRECT_URI"))
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path '../../../CMakeLists.txt'
+        }
+    }
+
+    applicationVariants.all { variant ->
+        // Our asset contents depend on items produced in the CMake build
+        // so our merge has to depend on the external native build
+        variant.externalNativeBuildTasks.each { task ->
+            variant.mergeResources.dependsOn(task)
+            if (Os.isFamily(Os.FAMILY_UNIX) &&
+                    System.getenv("CMAKE_BACKTRACE_URL") &&
+                    System.getenv("CMAKE_BACKTRACE_TOKEN")) {
+                // FIXME
+                def uploadDumpSymsTask = rootProject.getTasksByName("uploadBreakpadDumpSyms${variant.name.capitalize()}", false).first()
+                def runDumpSymsTask = rootProject.getTasksByName("runBreakpadDumpSyms${variant.name.capitalize()}", false).first()
+                runDumpSymsTask.dependsOn(task)
+                variant.assemble.dependsOn(uploadDumpSymsTask)
+            }
+        }
+
+        variant.mergeAssets.doLast {
+            def mergedAssetsDir = outputDir.get().asFile
+            def assetList = new LinkedList<String>()
+            def youngestLastModified = 0
+
+            // Copy the compiled resources generated by the external native build
+            copy {
+                from new File(projectDir, "../../../../interface/compiledResources")
+                into mergedAssetsDir
+                duplicatesStrategy DuplicatesStrategy.INCLUDE
+                eachFile { details ->
+                    youngestLastModified = Math.max(youngestLastModified, details.lastModified)
+                    assetList.add(details.path)
+                }
+            }
+
+            // Copy the scripts directory
+            copy {
+                from new File(projectDir, "../../../../scripts")
+                into new File(mergedAssetsDir, "scripts")
+                duplicatesStrategy DuplicatesStrategy.INCLUDE
+                eachFile { details->
+                    youngestLastModified = Math.max(youngestLastModified, details.lastModified)
+                    assetList.add("scripts/" + details.path)
+                }
+            }
+
+            // Write a list of files to be unpacked to the cache folder
+            new File(mergedAssetsDir, 'cache_assets.txt').withWriter { out ->
+                out.println(Long.toString(youngestLastModified))
+                assetList.each { file -> out.println(file) }
+            }
+        }
+    }
+}
+
+preBuild.dependsOn prepareLegacyQtRuntime, prepareLegacyQtAssets
+
+dependencies {
+    implementation 'com.android.support.constraint:constraint-layout:1.0.2'
+    implementation 'com.android.support:design:26.1.0'
+    implementation 'com.android.support:support-v4:26.1.0'
+    implementation 'com.android.support:support-vector-drawable:26.1.0'
+
+    implementation 'com.android.support:appcompat-v7:26.1.0'
+    implementation 'com.android.support:recyclerview-v7:26.1.0'
+    implementation 'com.android.support:cardview-v7:26.1.0'
+
+    implementation 'com.squareup.retrofit2:retrofit:2.4.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.4.0'
+    implementation 'com.squareup.picasso:picasso:2.71828'
+
+    implementation 'com.sothree.slidinguppanel:library:3.4.0'
+
+    implementation fileTree(include: ['*.jar'], dir: '../../../common/libraries/qt/libs')
+    implementation project(':qt')
+}

@@ -257,7 +257,14 @@ set(OVERTE_USE_NSIGHT ON CACHE BOOL "Attempt to find the Nvidia nSight libraries
 
 # FIXME hack to work on the proper Android toolchain
 if (ANDROID)
-  add_subdirectory(android/apps/${HIFI_ANDROID_APP})
+  if (HIFI_ANDROID_APP STREQUAL "picoInterface")
+    add_subdirectory(android/vr/pico/apps/${HIFI_ANDROID_APP})
+  elseif (HIFI_ANDROID_APP STREQUAL "questInterface" OR
+          HIFI_ANDROID_APP STREQUAL "questFramePlayer")
+    add_subdirectory(android/vr/quest/apps/${HIFI_ANDROID_APP})
+  else()
+    add_subdirectory(android/phone/apps/${HIFI_ANDROID_APP})
+  endif()
   return()
 endif()
 
