@@ -1,0 +1,22 @@
+name: iOS GetMac persistent recovery
+
+on:
+  push:
+    branches:
+      - getmac-recovery
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-getmac-recovery
+  cancel-in-progress: false
+
+jobs:
+  recovery:
+    uses: ./.github/workflows/ios-integrated.yml
+    with:
+      qt_host_cache_key: ${{ vars.OVERTE_IOS_QT_HOST_CACHE_KEY }}
+      qt_ios_cache_key: ${{ vars.OVERTE_IOS_QT_IOS_CACHE_KEY }}
+      macos_runner: overte-ios-getmac
