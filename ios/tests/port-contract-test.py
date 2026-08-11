@@ -1890,6 +1890,12 @@ def test_script_entity_id_qt6_contract() -> None:
         require_text(header, r'#include\s*[<"](?:QtCore/)?QObject[>"]',
                      "QObject subclasses must include their complete base type directly")
 
+    midi_header = SOURCE_ROOT / "libraries" / "midi" / "src" / "Midi.h"
+    require_text(midi_header, r'#include\s*<QtCore/QVariantMap>',
+                 "Qt 6 MOC must see the complete QVariantMap signal argument type")
+    require_text(midi_header, r'void\s+midi(?:Note|Message)\s*\(\s*QVariantMap\s+eventData\s*\)',
+                 "MIDI script signals must preserve their event-map payload")
+
 
 def main() -> None:
     tests = (
