@@ -282,6 +282,9 @@ def test_cmake_boundary() -> None:
             rf'set\(OVERTE_BUILD_{mobile_option} OFF CACHE BOOL "Overwritten \(mobile build\)" FORCE\)',
             f"mobile {mobile_option.lower()} option must be a real forced OFF cache boolean",
         )
+    autoscribe = SOURCE_ROOT / "cmake/macros/AutoScribeShader.cmake"
+    require_text(autoscribe, r"if \(IOS\)[\s\S]*shadergen\.stamp", "iOS shader generation must avoid Xcode ARG_MAX via one stamp output")
+    require_text(autoscribe, r"AUTOSCRIBE_SHADERGEN_DEPENDS[\s\S]*AUTOSCRIBE_SHADERGEN_COMMANDS_FILE", "iOS shader generation must retain its authoritative command manifest")
     cmake = IOS_ROOT / "CMakeLists.txt"
     require_text(cmake, r'CMAKE_SYSTEM_NAME STREQUAL "iOS"', "CMake must reject non-iOS targets")
     require_text(cmake, r'XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"', "bundle must support iPhone and iPad")
