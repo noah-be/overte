@@ -1725,6 +1725,15 @@ def test_ci_contract() -> None:
         raise AssertionError("the disposable Qt source archive must not compete with validated component caches")
     require_text(qt_source, r"--stage host", "Qt provisioning must build the host as an independent checkpoint")
     require_text(qt_source, r"Save validated Qt host tools immediately", "host Qt must survive a later target failure")
+    require_text(qt_source, r"Restore validated Qt host artifact fallback[\s\S]*?qt-checkpoint-artifact\.py restore[\s\S]*?host_artifact_prefix", "evicted host Qt must have a cross-run artifact fallback")
+    require_text(qt_source, r"Restore validated Qt iOS artifact fallback[\s\S]*?qt-checkpoint-artifact\.py restore[\s\S]*?ios_artifact_prefix", "evicted target Qt must have a cross-run artifact fallback")
+    require_text(qt_source, r"Probe validated Qt host artifact fallback[\s\S]*?--expected-repository-id[\s\S]*?--expected-branch[\s\S]*?--max-age-days 21", "host fallback provenance and freshness must be checked")
+    require_text(qt_source, r"Probe validated Qt iOS artifact fallback[\s\S]*?--expected-repository-id[\s\S]*?--expected-branch[\s\S]*?--max-age-days 21", "target fallback provenance and freshness must be checked")
+    require_text(qt_source, r"Upload validated Qt host artifact checkpoint[\s\S]*?actions/upload-artifact@[0-9a-f]{40}[\s\S]*?retention-days: 30", "validated host Qt must be checkpointed outside the cache quota")
+    require_text(qt_source, r"Upload validated Qt iOS artifact checkpoint[\s\S]*?actions/upload-artifact@[0-9a-f]{40}[\s\S]*?retention-days: 30", "validated target Qt must be checkpointed outside the cache quota")
+    require_text(qt_source, r"Create validated Qt host artifact checkpoint[\s\S]*?if: steps\.host-artifact-probe\.outputs\.fresh != 'true'[\s\S]*?--producer-repository-id[\s\S]*?--producer-branch", "host fallback must refresh before expiry with bound provenance")
+    require_text(qt_source, r"Create validated Qt iOS artifact checkpoint[\s\S]*?if: steps\.ios-artifact-probe\.outputs\.fresh != 'true'[\s\S]*?--producer-repository-id[\s\S]*?--producer-branch", "target fallback must refresh before expiry with bound provenance")
+    require_text(qt_source, r"permissions:[\s\S]*?actions: write[\s\S]*?contents: read", "Qt checkpoint fallback needs job-local Actions access")
     require_text(qt_source, r'host_plan_hash="f7a0f4a6a8d51a462a14c9b51e1595338d023f4fd06a0a134aeadbf07a9bce18"', "target-only fixes must retain the validated host cache key")
     require_text(qt_source, r'ios_plan_hash=.*build-qt-ios-from-source\.sh', "target cache key must change with iOS configure policy")
     require_text(qt_source, r"--stage ios", "Qt provisioning must build the iOS target independently")
@@ -1735,6 +1744,7 @@ def test_ci_contract() -> None:
     require_text(qt_source, r"Prune superseded Qt compiler recovery caches[\s\S]*?sort_by\(\.createdAt\)[\s\S]*?\.\[1:\]", "only the newest Qt compiler recovery generation may remain")
 
     bootstrap_workflow = SOURCE_ROOT / ".github" / "workflows" / "ios-bootstrap.yml"
+    require_text(bootstrap_workflow, r"provision-qt-ios:[\s\S]*?permissions:[\s\S]*?actions: write[\s\S]*?contents: read", "the reusable Qt caller must pass checkpoint permissions")
     require_text(bootstrap_workflow, r"needs\.provision-qt-ios\.outputs\.qt_host_cache_key", "host cache output must reach the integrated caller")
     require_text(bootstrap_workflow, r"needs\.provision-qt-ios\.outputs\.qt_ios_cache_key", "iOS cache output must reach the integrated caller")
     require_text(bootstrap_workflow, r"contains\(github\.event\.head_commit\.message, '\[ios-integrated\]'\)", "integrated-only fixes must be able to reuse provisioned Qt caches")
@@ -1769,9 +1779,11 @@ def test_ci_contract() -> None:
     require_text(qt_source, r"runs-on: macos-26", "Qt iOS must be built on the Xcode runner")
     require_text(qt_source, r"build-qt-ios-from-source\.sh", "Qt provisioning must use the audited source-build script")
     require_text(qt_source, r"actions/cache/save@[0-9a-f]{40}", "Qt cache writes must use an immutable action revision")
-    for forbidden in ("accept-license", "QT_ACCOUNT", "QT_PASSWORD", "upload-artifact"):
+    for forbidden in ("accept-license", "QT_ACCOUNT", "QT_PASSWORD"):
         if forbidden in qt_source_text:
             raise AssertionError(f"Qt source workflow contains forbidden acquisition behavior: {forbidden}")
+    if re.search(r"actions/upload-artifact@[0-9a-f]{40}[\s\S]{0,500}(?:\.app|\.ipa|build-ios/artifacts)", qt_source_text):
+        raise AssertionError("Qt provisioning must checkpoint SDK prefixes only, never application artifacts")
     require_text(workflow, r"contains\(github\.event\.head_commit\.message, '\[qt-source\]'\)", "branch CI must require an explicit Qt source opt-in")
     require_text(workflow, r"uses: \./\.github/workflows/ios-qt-source\.yml", "branch CI must call the audited Qt provisioner")
     require_text(workflow, r"needs: provision-qt-ios", "integrated configure must wait for successful Qt provisioning")

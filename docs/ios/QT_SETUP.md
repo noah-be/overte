@@ -148,6 +148,18 @@ exactly and validates the pair before configuration. No prefix-matched fallback
 is allowed for toolchains because mixing Xcode, SDK, architecture, or plan
 revisions would be ABI-unsafe.
 
+Each available validated prefix is also packed with its executable modes and
+symlinks intact and uploaded as a 30-day workflow artifact before its cache
+save. A 21-day freshness probe refreshes this fallback while a validated cache
+still exists, preventing silent expiry. On a later exact-cache miss, the trusted provisioning workflow searches
+for the newest artifact with the deterministic component identity, verifies its
+producer repository and branch, manifest, cache key, kind, byte count and
+SHA-256 digest, extracts it into an
+empty prefix, and runs the normal Qt validators again. This independent fallback
+uses artifact storage rather than the repository cache quota; a missing artifact
+simply falls through to the pinned source build, while a malformed artifact
+fails closed.
+
 Host and iOS configure policies have separate plan hashes. A target-only fix,
 such as explicitly skipping unsupported Qt WebEngine while retaining the native
 Qt WebView/WKWebView path, does not invalidate an already validated host prefix.
@@ -160,8 +172,9 @@ only an optimization: host and target installations are accepted solely after
 their normal validators pass. Partial downloads, unvalidated install prefixes,
 credentials, and the complete workspace are never cached. When both validated
 component caches hit, provisioning skips source restoration, extraction,
-Homebrew setup, and compilation entirely. The workflow never uploads the Qt
-tree as a downloadable artifact and never builds, signs, or uploads an app.
+Homebrew setup, and compilation entirely. The checkpoint artifacts contain only
+the unsigned Qt SDK prefixes; this workflow never builds, signs, or uploads an
+application.
 
 The underlying command can also be resumed on a controlled macOS machine:
 
