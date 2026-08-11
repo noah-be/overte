@@ -149,10 +149,13 @@ build_host() {
         die "host prefix exists but is not a validated Qt host installation: $host_prefix"
 
     cd "$host_build"
+    local compiler_watchdog="$repo_root/ios/ci/compiler-watchdog.py"
     if command -v sccache >/dev/null 2>&1; then
         configure_tree host "$host_build" "$host_prefix" -- \
-            -D CMAKE_C_COMPILER_LAUNCHER=sccache \
-            -D CMAKE_CXX_COMPILER_LAUNCHER=sccache
+            -D "CMAKE_C_COMPILER_LAUNCHER=$compiler_watchdog;--" \
+            -D "CMAKE_CXX_COMPILER_LAUNCHER=$compiler_watchdog;--" \
+            -D "CMAKE_OBJC_COMPILER_LAUNCHER=$compiler_watchdog;--" \
+            -D "CMAKE_OBJCXX_COMPILER_LAUNCHER=$compiler_watchdog;--"
     else
         configure_tree host "$host_build" "$host_prefix"
     fi
@@ -175,12 +178,15 @@ build_ios() {
         die "iOS prefix exists but is not a validated Qt target installation: $ios_prefix"
 
     cd "$ios_build"
+    local compiler_watchdog="$repo_root/ios/ci/compiler-watchdog.py"
     if command -v sccache >/dev/null 2>&1; then
         configure_tree ios "$ios_build" "$ios_prefix" \
             -skip qtwebengine -platform macx-ios-clang -sdk iphoneos -qt-host-path "$host_prefix" -- \
             -D "CMAKE_OSX_DEPLOYMENT_TARGET=$OVERTE_IOS_MIN_VERSION" \
-            -D CMAKE_C_COMPILER_LAUNCHER=sccache \
-            -D CMAKE_CXX_COMPILER_LAUNCHER=sccache
+            -D "CMAKE_C_COMPILER_LAUNCHER=$compiler_watchdog;--" \
+            -D "CMAKE_CXX_COMPILER_LAUNCHER=$compiler_watchdog;--" \
+            -D "CMAKE_OBJC_COMPILER_LAUNCHER=$compiler_watchdog;--" \
+            -D "CMAKE_OBJCXX_COMPILER_LAUNCHER=$compiler_watchdog;--"
     else
         configure_tree ios "$ios_build" "$ios_prefix" \
             -skip qtwebengine -platform macx-ios-clang -sdk iphoneos -qt-host-path "$host_prefix" \

@@ -79,6 +79,12 @@ class QtSourceBuildTest(unittest.TestCase):
         self.assertIn(".overte-qt-host-plan-id", source)
         self.assertIn(".overte-qt-ios-plan-id", source)
 
+    def test_every_compiler_language_uses_the_per_file_watchdog(self) -> None:
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("ios/ci/compiler-watchdog.py", source)
+        for language in ("C", "CXX", "OBJC", "OBJCXX"):
+            self.assertEqual(source.count(f"CMAKE_{language}_COMPILER_LAUNCHER=$compiler_watchdog;--"), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

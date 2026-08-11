@@ -264,6 +264,13 @@ jobs:
            (steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true'))
         run: sccache --show-stats || true
 
+      - name: Stop compiler-cache server before recovery snapshot
+        if: >-
+          failure() && steps.sccache.outcome == 'success' &&
+          ((steps.host-cache.outputs.cache-hit != 'true' && steps.host-artifact.outputs.restored != 'true') ||
+           (steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true'))
+        run: sccache --stop-server || true
+
       - name: Save compiler recovery cache after a build failure
         if: >-
           failure() && steps.sccache.outcome == 'success' && steps.sccache.outputs.cache-hit != 'true' &&
