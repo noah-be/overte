@@ -28,7 +28,7 @@ target_include_directories(overte_native_test_options INTERFACE
 target_include_directories(overte_native_test_options INTERFACE
     "${CMAKE_CURRENT_LIST_DIR}/../../apps/picoInterface/openxr/src")
 target_include_directories(overte_native_test_options INTERFACE
-    "${CMAKE_CURRENT_LIST_DIR}/../../../../vr/common/openxr")
+    "${CMAKE_CURRENT_LIST_DIR}/../../../vr/common/openxr")
 
 if(MSVC)
     target_compile_options(overte_native_test_options INTERFACE /W4 /WX)

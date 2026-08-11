@@ -33,7 +33,7 @@ class PicoPlatformGlueTests(unittest.TestCase):
                 CONTEXT,
                 rf"case OpenXrDebugLogLevel::{level}:\s+{logger}\(xr_context_cat",
             )
-        self.assertIn("../../../../../common/openxr", PLUGIN_CMAKE)
+        self.assertIn("../../../../common/openxr", PLUGIN_CMAKE)
         self.assertIn("future modern `questInterface`", ownership)
         self.assertEqual([], list((ROOT / "android/apps/questInterface").rglob(
             "OpenXrDebugPolicy.h")))
