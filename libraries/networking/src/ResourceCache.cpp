@@ -226,9 +226,10 @@ ScriptableResource* ResourceCache::prefetch(const QUrl& url, void* extra, size_t
 
     if (QThread::currentThread() != thread()) {
         // Must be called in thread to ensure getResource returns a valid pointer
-        BLOCKING_INVOKE_METHOD(this, "prefetchAndMoveToThread",
-            Q_RETURN_ARG(ScriptableResource*, result),
-            Q_ARG(QUrl, url), Q_ARG(void*, extra), Q_ARG(size_t, extraHash), Q_ARG(QThread*, QThread::currentThread()));
+        auto scriptThread = QThread::currentThread();
+        BLOCKING_INVOKE_METHOD(this, [this, url, extra, extraHash, scriptThread] {
+            return prefetchAndMoveToThread(url, extra, extraHash, scriptThread);
+        }, &result);
         return result;
     }
 
@@ -330,8 +331,7 @@ QVariantList ResourceCache::getResourceList() {
     QVariantList list;
     if (QThread::currentThread() != thread()) {
         // NOTE: invokeMethod does not allow a const QObject*
-        BLOCKING_INVOKE_METHOD(this, "getResourceList",
-            Q_RETURN_ARG(QVariantList, list));
+        BLOCKING_INVOKE_METHOD(this, [this] { return getResourceList(); }, &list);
     } else {
         QList<QUrl> resources;
         {
@@ -882,6 +882,12 @@ bool Resource::handleFailedRequest(ResourceRequest::Result result) {
     return willRetry;
 }
 
-uint qHash(const QPointer<QObject>& value, uint seed) {
-    return qHash(value.data(), seed);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+size_t qHash(const QPointer<QObject>& value, size_t seed) noexcept {
+    return ::qHash(reinterpret_cast<quintptr>(value.data()), seed);
 }
+#else
+uint qHash(const QPointer<QObject>& value, uint seed) {
+    return ::qHash(reinterpret_cast<quintptr>(value.data()), seed);
+}
+#endif

@@ -346,6 +346,12 @@ def test_cmake_boundary() -> None:
     sandbox_utils = SOURCE_ROOT / "libraries/networking/src/SandboxUtils.cpp"
     require_text(sandbox_utils, r"!defined\(Q_OS_WIN\) && !defined\(Q_OS_IOS\)[\s\S]*#include <QMessageBox>", "desktop sandbox UI and signals must remain unreachable on iOS")
     require_text(sandbox_utils, r"void runLocalSandbox[\s\S]*defined\(Q_OS_IOS\)[\s\S]*Local sandbox processes are unavailable on iOS[\s\S]*return;[\s\S]*#elif defined\(Q_OS_WIN\)[\s\S]*QProcess::startDetached", "iOS must fail closed before desktop child-process launching")
+    resource_cache_cpp = SOURCE_ROOT / "libraries/networking/src/ResourceCache.cpp"
+    resource_cache_h = SOURCE_ROOT / "libraries/networking/src/ResourceCache.h"
+    require_text(resource_cache_cpp, r"BLOCKING_INVOKE_METHOD\(this, \[this, url, extra, extraHash, scriptThread\][\s\S]*&result\)", "resource prefetch must use the typed blocking invoke boundary")
+    require_text(resource_cache_cpp, r"BLOCKING_INVOKE_METHOD\(this, \[this\] \{ return getResourceList\(\); \}, &list\)", "resource-list return values must use the typed blocking invoke boundary")
+    require_text(resource_cache_cpp, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*size_t qHash\(const QPointer<QObject>& value, size_t seed\) noexcept[\s\S]*reinterpret_cast<quintptr>", "Qt 6 QPointer hashing must use its size_t seed without overload ambiguity")
+    require_text(resource_cache_h, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*size_t qHash\(const QPointer<QObject>& value, size_t seed = 0\) noexcept[\s\S]*uint qHash", "QPointer hash declarations must preserve Qt 6 and Qt 5 signatures")
     path_utils = SOURCE_ROOT / "libraries/shared/src/PathUtils.cpp"
     path_utils_text = path_utils.read_text(encoding="utf-8")
     assert "capturedRef(" not in path_utils_text, "Qt 6 removed QRegularExpressionMatch::capturedRef"
