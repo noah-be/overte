@@ -1,0 +1,94 @@
+# Copyright 2026 Overte e.V.
+# SPDX-License-Identifier: Apache-2.0
+
+name: macOS runtime smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact_run_id:
+        description: Successful macOS bootstrap run containing the Overte.app artifact
+        required: true
+        type: string
+      run_online:
+        description: Run the public-domain smoke after the serverless smoke succeeds
+        required: true
+        default: true
+        type: boolean
+  # Register this branch-local workflow without running a second smoke suite.
+  push:
+    branches: [apple-macos]
+    paths: ['.github/workflows/macos-runtime.yml']
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: macos-runtime-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  runtime-x86_64:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-15-intel
+    timeout-minutes: 30
+    env:
+      OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '300'
+    steps:
+      - name: Check out runtime tests
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Restore built application checkpoint
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: overte-macos-x86_64-${{ inputs.artifact_run_id }}
+          path: build/runtime-artifact
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.artifact_run_id }}
+
+      - name: Verify restored application bundle
+        run: |
+          app="$(find build/runtime-artifact -type d -name Overte.app -print -quit)"
+          test -n "$app"
+          test -x "$app/Contents/MacOS/Overte"
+          test -f "$app/Contents/Info.plist"
+          plutil -lint "$app/Contents/Info.plist"
+          printf '%s\n' "$app" > build/runtime-artifact/app-path.txt
+
+      - name: Run application startup preflight
+        run: |
+          app="$(cat build/runtime-artifact/app-path.txt)"
+          macos/ci/startup-preflight.sh "$app" build/macos-startup-preflight
+
+      - name: Run serverless entity smoke
+        id: serverless-smoke
+        continue-on-error: true
+        run: |
+          app="$(cat build/runtime-artifact/app-path.txt)"
+          macos/ci/serverless-smoke.sh "$app" build/macos-smoke
+
+      - name: Run online entity smoke
+        if: ${{ inputs.run_online && steps.serverless-smoke.outcome == 'success' }}
+        run: |
+          app="$(cat build/runtime-artifact/app-path.txt)"
+          macos/ci/online-smoke.sh "$app" build/macos-online-smoke
+
+      - name: Upload runtime diagnostics
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: overte-macos-runtime-${{ github.run_id }}
+          path: |
+            build/macos-startup-preflight
+            build/macos-smoke
+            build/macos-online-smoke
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Require successful serverless smoke
+        if: ${{ always() && steps.serverless-smoke.outcome == 'failure' }}
+        run: exit 1

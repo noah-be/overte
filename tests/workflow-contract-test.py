@@ -16,6 +16,7 @@ ANDROID_TESTS_WORKFLOW = ROOT / ".github/workflows/android-tests.yml"
 DOCUMENTATION_WORKFLOW = ROOT / ".github/workflows/documentation-checks.yml"
 IOS_WORKFLOW = ROOT / ".github/workflows/ios-bootstrap.yml"
 MACOS_WORKFLOW = ROOT / ".github/workflows/macos-bootstrap.yml"
+MACOS_RUNTIME_WORKFLOW = ROOT / ".github/workflows/macos-runtime.yml"
 ACTION_USE = re.compile(r"^\s*uses:\s*([^\s#]+)", re.MULTILINE)
 FULL_SHA_ACTION = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 
@@ -162,6 +163,18 @@ class MacOSWorkflowContracts(unittest.TestCase):
         upload = upload.split("uses: actions/upload-artifact@", 1)[0]
         self.assertIn("always()", upload)
         self.assertIn("steps.build-client.outcome == 'success'", upload)
+
+    def test_runtime_reuses_a_built_app_without_rebuilding(self):
+        source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("artifact_run_id:", source)
+        self.assertIn("if: github.event_name == 'workflow_dispatch'", source)
+        self.assertIn("actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53", source)
+        self.assertIn("run-id: ${{ inputs.artifact_run_id }}", source)
+        self.assertIn("OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '300'", source)
+        self.assertIn("macos/ci/serverless-smoke.sh", source)
+        self.assertIn("macos/ci/online-smoke.sh", source)
+        self.assertNotIn("build-macos.sh build", source)
+        self.assertIn("if: always()", source)
 
 
 class PicoWorkflowContracts(unittest.TestCase):
