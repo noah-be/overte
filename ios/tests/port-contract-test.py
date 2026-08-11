@@ -747,6 +747,22 @@ def test_scope_contract() -> None:
         r"#if !defined\(Q_OS_IOS\)[\s\S]*QProcess launcher;[\s\S]*launcher\.startDetached\(\);[\s\S]*#endif",
         "desktop launcher processes must be excluded from iOS",
     )
+    shared_qml = SOURCE_ROOT / "libraries" / "qml" / "src" / "qml" / "impl" / "SharedObject.cpp"
+    require_text(
+        shared_qml,
+        r"QQuickGraphicsDevice::fromOpenGLContext\(context\)[\s\S]*_renderControl->initialize\(\);",
+        "Qt 6 offscreen QML must initialize render control with its explicit OpenGL device",
+    )
+    require_text(
+        shared_qml,
+        r"QQuickRenderTarget::fromOpenGLTexture\(texture, size\)",
+        "Qt 6 offscreen QML must render into the acquired texture",
+    )
+    require_text(
+        shared_qml,
+        r"QT_VERSION < QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*setClearBeforeRendering\(true\)",
+        "removed clear-before-rendering API must remain Qt 5-only",
+    )
     triage = json.loads((IOS_ROOT / "first-run-triage.json").read_text(encoding="utf-8"))
     assert triage["schemaVersion"] == 1
     phases = triage["phases"]

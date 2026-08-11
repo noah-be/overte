@@ -11,6 +11,10 @@
 #include <QtCore/qlogging.h>
 #include <QtQuick/QQuickWindow>
 #include <QtQuick/QQuickItem>
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QtQuick/QQuickGraphicsDevice>
+#include <QtQuick/QQuickRenderTarget>
+#endif
 #include <QtQml/QQmlContext>
 #include <QtQml/QQmlEngine>
 
@@ -72,7 +76,9 @@ SharedObject::SharedObject() {
     _quickWindow = new QQuickWindow(_renderControl);
     _quickWindow->setFormat(getDefaultOpenGLSurfaceFormat());
     _quickWindow->setColor(Qt::transparent);
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     _quickWindow->setClearBeforeRendering(true);
+#endif
 
 #endif
 
@@ -292,7 +298,12 @@ void SharedObject::initializeRenderControl(QOpenGLContext* context) {
 
 #ifndef DISABLE_QML
     if (!nsightActive()) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        _quickWindow->setGraphicsDevice(QQuickGraphicsDevice::fromOpenGLContext(context));
+        _renderControl->initialize();
+#else
         _renderControl->initialize(context);
+#endif
     }
 #endif
 }
@@ -308,9 +319,15 @@ void SharedObject::releaseTextureAndFence() {
 #endif
 }
 
-void SharedObject::setRenderTarget(uint32_t fbo, const QSize& size) {
+void SharedObject::setRenderTarget(uint32_t fbo, uint32_t texture, const QSize& size) {
 #ifndef DISABLE_QML
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    Q_UNUSED(fbo)
+    _quickWindow->setRenderTarget(QQuickRenderTarget::fromOpenGLTexture(texture, size));
+#else
+    Q_UNUSED(texture)
     _quickWindow->setRenderTarget(fbo, size);
+#endif
 #endif
 }
 
