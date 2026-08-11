@@ -1,9 +1,9 @@
 name: iOS GetMac persistent recovery
 
 on:
-  push:
+  pull_request:
     branches:
-      - getmac-recovery
+      - apple-ios
   workflow_dispatch:
 
 permissions:
