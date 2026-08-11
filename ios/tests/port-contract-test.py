@@ -1835,7 +1835,7 @@ def test_script_entity_id_qt6_contract() -> None:
     script_values = SOURCE_ROOT / "libraries" / "script-engine" / "src" / "ScriptValueUtils.cpp"
     require_text(
         script_values,
-        r"EntityItemID\s+fromString\s*\(\s*QUuid\s*\(\s*uuidAsString\s*\)\s*\)\s*;",
+        r"EntityItemID\s+fromString\s*\{\s*QUuid\s*\(\s*uuidAsString\s*\)\s*\}\s*;",
         "Qt 6 must parse script UUID strings explicitly before constructing EntityItemID",
     )
 
