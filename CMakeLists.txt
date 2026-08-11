@@ -142,9 +142,9 @@ set(OVERTE_BACKTRACE_URL "" CACHE STRING "URL to an endpoint for uploading crash
 set(OVERTE_BACKTRACE_TOKEN "" CACHE STRING "Token used to identify this build, for use in uploading crash-dumps.")
 
 if (ANDROID OR UWP OR IOS)
-    set(OVERTE_BUILD_SERVER OFF CACHE BOOL FORCE "Overwritten (mobile build)")
-    set(OVERTE_BUILD_TOOLS OFF CACHE BOOL FORCE "Overwritten (mobile build)")
-    set(OVERTE_BUILD_INSTALLER OFF CACHE BOOL FORCE "Overwritten (mobile build)")
+    set(OVERTE_BUILD_SERVER OFF CACHE BOOL "Overwritten (mobile build)" FORCE)
+    set(OVERTE_BUILD_TOOLS OFF CACHE BOOL "Overwritten (mobile build)" FORCE)
+    set(OVERTE_BUILD_INSTALLER OFF CACHE BOOL "Overwritten (mobile build)" FORCE)
 endif()
 
 if (ANDROID)

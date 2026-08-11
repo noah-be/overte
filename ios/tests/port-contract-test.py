@@ -275,6 +275,13 @@ def test_assets() -> None:
 
 
 def test_cmake_boundary() -> None:
+    root_cmake = SOURCE_ROOT / "CMakeLists.txt"
+    for mobile_option in ("SERVER", "TOOLS", "INSTALLER"):
+        require_text(
+            root_cmake,
+            rf'set\(OVERTE_BUILD_{mobile_option} OFF CACHE BOOL "Overwritten \(mobile build\)" FORCE\)',
+            f"mobile {mobile_option.lower()} option must be a real forced OFF cache boolean",
+        )
     cmake = IOS_ROOT / "CMakeLists.txt"
     require_text(cmake, r'CMAKE_SYSTEM_NAME STREQUAL "iOS"', "CMake must reject non-iOS targets")
     require_text(cmake, r'XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"', "bundle must support iPhone and iPad")
