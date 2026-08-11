@@ -64,6 +64,7 @@ esac
 command -v xcrun >/dev/null || die "Xcode command-line tools are required"
 host_python="$(command -v python3)"
 xcode_clang="$(xcrun --sdk iphoneos --find clang)"
+xcode_tool_bin="$(dirname "$xcode_clang")"
 mkdir -p "$work_root"
 
 if [[ ! -d "$depot_root/.git" ]]; then
@@ -113,7 +114,14 @@ EOF
 xcode_toolchain_dir="$source_root/buildtools/overte-xcode-toolchain/bin"
 mkdir -p "$xcode_toolchain_dir"
 for tool in clang clang++ llvm-ar llvm-nm llvm-otool install_name_tool; do
-    tool_path="$(xcrun --sdk iphoneos --find "$tool")"
+    case "$tool" in
+    install_name_tool)
+        tool_path="$(xcrun --find install_name_tool)"
+        ;;
+    *)
+        tool_path="$xcode_tool_bin/$tool"
+        ;;
+    esac
     test -x "$tool_path" || die "Xcode tool is not executable: $tool_path"
     ln -sfn "$tool_path" "$xcode_toolchain_dir/$tool"
 done
