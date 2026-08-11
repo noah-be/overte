@@ -41,9 +41,25 @@ class CompilerWatchdogTest(unittest.TestCase):
         self.assertEqual(records[-1]["compiler_watchdog"], "end")
 
     def test_terminates_inactive_invocation(self) -> None:
-        result = self.invoke("import time; time.sleep(3)", timeout=0.2)
-        self.assertEqual(result.returncode, 124, result.stdout + result.stderr)
-        self.assertIn('"compiler_watchdog":"stalled"', result.stdout)
+        with tempfile.TemporaryDirectory() as directory:
+            env = os.environ.copy()
+            env["OVERTE_COMPILER_WATCHDOG_DISABLE_SCCACHE"] = "1"
+            env["OVERTE_COMPILER_WATCHDOG_DIAGNOSTICS"] = directory
+            result = subprocess.run(
+                [sys.executable, str(WATCHDOG), "--interval", "0.05",
+                 "--inactivity-timeout", "0.2", "--term-grace", "0.1", "--",
+                 sys.executable, "-c", "import time; time.sleep(3)",
+                 "/secret/path/stalled.cpp"],
+                text=True, capture_output=True, env=env, timeout=5, check=False,
+            )
+            self.assertEqual(result.returncode, 124, result.stdout + result.stderr)
+            self.assertIn('"compiler_watchdog":"stalled"', result.stdout)
+            reports = list(Path(directory).glob("*.json"))
+            self.assertEqual(len(reports), 1)
+            report = reports[0].read_text(encoding="utf-8")
+            self.assertIn('"source":"stalled.cpp"', report)
+            self.assertNotIn("/secret/path", report)
+            self.assertNotIn("command", report)
 
     def test_correlates_daemon_owned_clang_by_source_and_output(self) -> None:
         namespace: dict[str, object] = {}

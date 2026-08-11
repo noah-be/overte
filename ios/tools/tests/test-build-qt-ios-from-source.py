@@ -86,6 +86,8 @@ class QtSourceBuildTest(unittest.TestCase):
             self.assertEqual(source.count(f"CMAKE_{language}_COMPILER_LAUNCHER=$compiler_watchdog;--"), 2)
         self.assertIn("OVERTE_COMPILER_WATCHDOG_LOG", source)
         self.assertIn('tail -n 0 -F "$live_log"', source)
+        self.assertIn('ios/ci/build-heartbeat.py', source)
+        self.assertIn('--root-pid "$build_pid"', source)
         self.assertEqual(source.count('build_with_live_compiler_tracking "$'), 2)
 
 

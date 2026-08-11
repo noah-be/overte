@@ -129,6 +129,41 @@ def _terminate_group(pid: int, grace: float) -> None:
         pass
 
 
+def _capture_diagnostics(invocation: str, source: str,
+                         active: list[dict[str, object]]) -> bool:
+    directory_value = os.environ.get("OVERTE_COMPILER_WATCHDOG_DIAGNOSTICS")
+    if not directory_value:
+        return False
+    directory = Path(directory_value)
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    metadata = {
+        "schema": 1,
+        "id": invocation,
+        "source": source,
+        "utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+        "processes": [{key: row[key] for key in ("pid", "ppid", "cpu", "rss", "comm")}
+                      for row in active],
+    }
+    (directory / f"{invocation}.json").write_text(
+        json.dumps(metadata, separators=(",", ":"), sort_keys=True) + "\n", encoding="utf-8")
+    os.chmod(directory / f"{invocation}.json", 0o600)
+
+    sample_tool = os.environ.get("OVERTE_COMPILER_WATCHDOG_SAMPLE_TOOL", "/usr/bin/sample")
+    if sys.platform != "darwin" or not os.path.isfile(sample_tool):
+        return True
+    candidates = [row for row in active
+                  if str(row["comm"]).lower() in {"clang", "clang++", "sccache", "ld", "ld64"}]
+    for index, row in enumerate(candidates[:4]):
+        output = directory / f"{invocation}-{index}-{row['comm']}.sample.txt"
+        try:
+            subprocess.run([sample_tool, str(row["pid"]), "5", "1", "-file", str(output)],
+                           check=False, timeout=15, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL)
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+    return True
+
+
 def run(command: list[str], interval: float, inactivity_timeout: float, grace: float) -> int:
     compiler, arguments = command[0], command[1:]
     identity = hashlib.sha256("\0".join(command).encode("utf-8", "surrogateescape")).hexdigest()[:12]
@@ -176,8 +211,10 @@ def run(command: list[str], interval: float, inactivity_timeout: float, grace: f
                       processes=len(active), cpu_s=round(cpu, 1), rss_mib=round(rss, 1),
                       inactive_s=round(idle, 1))
                 if idle >= inactivity_timeout:
+                    captured = _capture_diagnostics(identity, source_label, active)
                     _emit("stalled", identity, time.monotonic() - started,
-                          language=language, source=source_label, inactive_s=round(idle, 1))
+                          language=language, source=source_label, inactive_s=round(idle, 1),
+                          diagnostics=captured)
                     _terminate_group(process.pid, grace)
                     process.wait()
                     return 124

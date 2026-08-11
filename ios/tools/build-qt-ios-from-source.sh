@@ -145,13 +145,20 @@ build_with_live_compiler_tracking() {
     export OVERTE_COMPILER_WATCHDOG_LOG="$live_log"
     tail -n 0 -F "$live_log" &
     local tail_pid=$!
+    cmake --build . --parallel "$jobs" &
+    local build_pid=$!
+    "$repo_root/ios/ci/build-heartbeat.py" \
+        --root-pid "$build_pid" --log "$live_log" --interval 30 &
+    local heartbeat_pid=$!
     local status=0
-    if cmake --build . --parallel "$jobs"; then
+    if wait "$build_pid"; then
         status=0
     else
         status=$?
     fi
     sleep 1
+    kill "$heartbeat_pid" 2>/dev/null || true
+    wait "$heartbeat_pid" 2>/dev/null || true
     kill "$tail_pid" 2>/dev/null || true
     wait "$tail_pid" 2>/dev/null || true
     unset OVERTE_COMPILER_WATCHDOG_LOG

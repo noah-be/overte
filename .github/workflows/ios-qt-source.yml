@@ -33,6 +33,7 @@ jobs:
       QT_WORK_ROOT: ${{ github.workspace }}/build-ios/qt-work
       QT_INSTALL_ROOT: ${{ github.workspace }}/build-ios/qt-install/qt
       SCCACHE_DIR: ${{ github.workspace }}/build-ios/sccache
+      OVERTE_COMPILER_WATCHDOG_DIAGNOSTICS: ${{ github.workspace }}/build-ios/compiler-watchdog-diagnostics
       SCCACHE_CACHE_SIZE: 256M
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
@@ -263,6 +264,15 @@ jobs:
           ((steps.host-cache.outputs.cache-hit != 'true' && steps.host-artifact.outputs.restored != 'true') ||
            (steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true'))
         run: sccache --show-stats || true
+
+      - name: Upload compiler stall diagnostics
+        if: failure() && !cancelled()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: qt-compiler-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.OVERTE_COMPILER_WATCHDOG_DIAGNOSTICS }}
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Stop compiler-cache server before recovery snapshot
         if: >-
