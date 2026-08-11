@@ -29,7 +29,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
         with:
-          fetch-depth: 0
+          # The PR merge commit and its parents are enough for BASE_SHA...HEAD.
+          # Avoid fetching every branch and tag in this large repository.
+          fetch-depth: 2
           persist-credentials: false
       - name: Check changed documentation
         env:
