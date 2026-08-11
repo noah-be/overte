@@ -22,6 +22,7 @@
 #include <QtCore/QTextStream>
 #include <QtCore/QRegularExpression>
 #include <QtCore/QFileSelector>
+#include <QtCore/QStandardPaths>
 #include <QtGui/QDesktopServices>
 
 #include "GlobalAppProperties.h"
@@ -114,7 +115,7 @@ void FileUtils::locateFile(const QString& filePath) {
     }
 
     bool success = false;
-#ifdef Q_OS_MAC
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     QStringList args;
     args << "-e";
     args << "tell application \"Finder\"";

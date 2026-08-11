@@ -314,6 +314,9 @@ def test_cmake_boundary() -> None:
         data_location_text = data_location_source.read_text(encoding="utf-8")
         assert "QStandardPaths::DataLocation" not in data_location_text, f"Qt 6 removed DataLocation: {data_location_source}"
         assert "QStandardPaths::AppLocalDataLocation" in data_location_text, f"local app-data semantics must be preserved: {data_location_source}"
+    file_utils = SOURCE_ROOT / "libraries/shared/src/shared/FileUtils.cpp"
+    require_text(file_utils, r"#include <QtCore/QStandardPaths>", "file path helpers must include the Qt type they use")
+    require_text(file_utils, r"defined\(Q_OS_MAC\) && !defined\(Q_OS_IOS\)[\s\S]*QProcess::startDetached\(\"osascript\"", "desktop Finder process launching must remain unreachable on iOS")
     path_utils = SOURCE_ROOT / "libraries/shared/src/PathUtils.cpp"
     path_utils_text = path_utils.read_text(encoding="utf-8")
     assert "capturedRef(" not in path_utils_text, "Qt 6 removed QRegularExpressionMatch::capturedRef"
