@@ -1870,6 +1870,18 @@ def test_script_entity_id_qt6_contract() -> None:
                      script_engines.read_text(encoding="utf-8")) is None, \
         "Qt 6 templated Q_RETURN_ARG must not cross the legacy QGenericReturnArgument helper"
 
+    v8_engine = SOURCE_ROOT / "libraries" / "script-engine" / "src" / "v8" / "ScriptEngineV8.cpp"
+    require_text(v8_engine, r'BLOCKING_INVOKE_METHOD\s*\(\s*this\s*,\s*\[this,\s*program\]',
+                 "cross-thread V8 program evaluation must use the typed invoke helper")
+    require_text(v8_engine, r'QVariant\s+variant\s*\(\s*QMetaType\s*\(\s*type\s*\)',
+                 "Qt 6 V8 values must construct dynamic variants through QMetaType")
+
+    v8_cast = SOURCE_ROOT / "libraries" / "script-engine" / "src" / "v8" / "ScriptEngineV8_cast.cpp"
+    assert "QString(i)" not in v8_cast.read_text(encoding="utf-8"), \
+        "V8 array diagnostics must format numeric indexes explicitly"
+    require_text(v8_cast, r'QString::number\s*\(\s*i\s*\)',
+                 "V8 array diagnostics must preserve their numeric index")
+
 
 def main() -> None:
     tests = (
