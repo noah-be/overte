@@ -14,6 +14,13 @@
 
 #include <QtCore/QtGlobal>
 
+#if defined(Q_OS_IOS)
+// Qt includes Apple's OpenGLES declarations through QOpenGLContext.  They must
+// be parsed before glad defines gl* function-name macros, otherwise the SDK
+// declarations are rewritten into conflicting glad_gl* variable declarations.
+#include <QtGui/QOpenGLContext>
+#endif
+
 #include <glad/glad.h>
 
 #if defined(Q_OS_ANDROID)
