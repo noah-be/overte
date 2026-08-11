@@ -7,7 +7,7 @@ fixture="$(mktemp -d "${TMPDIR:-/tmp}/overte-phone-prebuilt-test.XXXXXXXX")"
 trap 'rm -rf -- "$fixture"' EXIT
 grep -Fq "tag='android-phone-16k-deps-v3'" "$subject"
 grep -Eq '^[0-9a-f]{64}  android-phone-16k-conan\.tgz$' \
-    "$android_dir/conan/prebuilt/android-phone-16k-deps-v3.sha256"
+    "$android_dir/../common/conan/prebuilt/android-phone-16k-deps-v3.sha256"
 mkdir -p "$fixture/source" "$fixture/bin"
 printf 'deterministic Phone dependency fixture\n' >"$fixture/source/android-phone-16k-conan.tgz"
 (cd "$fixture/source" && sha256sum android-phone-16k-conan.tgz) >"$fixture/manifest.sha256"
