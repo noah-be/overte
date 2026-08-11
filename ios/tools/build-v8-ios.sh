@@ -123,6 +123,7 @@ for compiler in clang clang++; do
 done
 for mapping in \
     "llvm-ar:$bundled_llvm_bin/llvm-ar" \
+    "ld64.lld:$bundled_llvm_bin/ld64.lld" \
     "llvm-nm:$(xcrun --find nm)" \
     "llvm-otool:$(xcrun --find otool)" \
     "install_name_tool:$(xcrun --find install_name_tool)"; do
@@ -131,6 +132,7 @@ for mapping in \
     test -x "$tool_path" || die "required Apple/LLVM tool is not executable: $tool_path"
     ln -sfn "$tool_path" "$xcode_toolchain_dir/$tool"
 done
+export PATH="$xcode_toolchain_dir:$PATH"
 
 mkdir -p "$output_dir"
 cat > "$output_dir/args.gn" <<EOF
