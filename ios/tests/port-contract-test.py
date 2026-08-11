@@ -291,6 +291,8 @@ def test_cmake_boundary() -> None:
     require_text(registered_metatypes, r"#include <QtCore/QVariant>", "registered inline metatype helpers must have a complete QVariant type")
     shared_util = SOURCE_ROOT / "libraries/shared/src/SharedUtil.h"
     require_text(shared_util, r"#include <QtCore/QVariant>", "global-instance templates must have a complete QVariant type")
+    trace = SOURCE_ROOT / "libraries/shared/src/Trace.cpp"
+    require_text(trace, r'"ph", QString\(QChar::fromLatin1\(static_cast<char>\(type\)\)\)', "trace event phases must explicitly preserve their one-byte JSON representation")
     shutdown_listener = SOURCE_ROOT / "libraries/shared/src/ShutdownEventListener.h"
     require_text(shutdown_listener, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*qintptr\* result[\s\S]*long\* result", "native event filters must use the Qt 6 result type with a Qt 5 fallback")
     shutdown_listener_impl = SOURCE_ROOT / "libraries/shared/src/ShutdownEventListener.cpp"
