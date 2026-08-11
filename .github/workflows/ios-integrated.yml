@@ -100,6 +100,9 @@ jobs:
 
   integrated-configure:
     name: Toolchain, dependencies, build and package
+    permissions:
+      actions: write
+      contents: read
     needs: [host-contracts, v8-checkpoint]
     runs-on: ${{ inputs.macos_runner }}
     timeout-minutes: 180
@@ -109,6 +112,9 @@ jobs:
       CONAN_HOME: ${{ github.workspace }}/build-ios/conan-home
       OVERTE_IOS_MOLTENVK_ROOT: ${{ github.workspace }}/build-ios/external/MoltenVK
       OVERTE_IOS_V8_ROOT: ${{ github.workspace }}/build-ios/external/v8-ios
+      SCCACHE_DIR: ${{ github.workspace }}/build-ios/client-sccache
+      SCCACHE_CACHE_SIZE: 2G
+      SCCACHE_BASEDIRS: ${{ github.workspace }}
     defaults:
       run:
         # GitHub's implicit bash invocation omits pipefail. Diagnostics use
@@ -120,6 +126,13 @@ jobs:
         with:
           persist-credentials: false
           clean: ${{ inputs.macos_runner != 'overte-ios-getmac' }}
+
+      - name: Install pinned full-client compiler checkpoint
+        id: client-sccache
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        with:
+          version: v0.17.0
+          disable_annotations: true
 
       - name: Fail closed without an explicit Qt cache key
         env:
@@ -209,6 +222,45 @@ jobs:
             ios/conan/profiles/macos-arm64 | shasum -a 256 | awk '{print $1}')"
           echo "key=overte-ios-conan-v1-${RUNNER_ARCH}-xcode-${xcode_build}-iphoneos-${sdk_version}-${graph_hash}" >> "$GITHUB_OUTPUT"
 
+      - name: Select full-client compiler cache namespace
+        id: client-sccache-key
+        env:
+          QT_HOST_KEY: ${{ inputs.qt_host_cache_key }}
+          QT_IOS_KEY: ${{ inputs.qt_ios_cache_key }}
+          CONAN_KEY: ${{ steps.conan-cache-key.outputs.key }}
+          V8_KEY: ${{ needs.v8-checkpoint.outputs.cache-key }}
+          MOLTENVK_KEY: overte-moltenvk-ios-v1-${{ runner.arch }}-${{ hashFiles('ios/moltenvk.env') }}
+        run: |
+          xcode_build="$(xcodebuild -version | awk '/Build version/{print $3}')"
+          sdk_version="$(xcrun --sdk iphoneos --show-sdk-version)"
+          cmake_version="$(cmake --version | awk 'NR == 1 { print $3 }')"
+          policy_hash="$(shasum -a 256 \
+            ios/build-ios.sh \
+            ios/versions.env \
+            cmake/compiler.cmake \
+            cmake/init.cmake | shasum -a 256 | awk '{print $1}')"
+          namespace="$(printf '%s\n' \
+            'overte-ios-client-sccache-v1' \
+            "$RUNNER_ARCH" "$xcode_build" "$sdk_version" "$cmake_version" \
+            "$QT_HOST_KEY" "$QT_IOS_KEY" "$CONAN_KEY" "$V8_KEY" "$MOLTENVK_KEY" \
+            "$policy_hash" | shasum -a 256 | awk '{print $1}')"
+          prefix="overte-ios-client-sccache-v2-${RUNNER_ARCH}-${namespace}-"
+          prune_prefix="overte-ios-client-sccache-v2-${RUNNER_ARCH}-"
+          echo "namespace=$namespace" >> "$GITHUB_OUTPUT"
+          echo "prefix=$prefix" >> "$GITHUB_OUTPUT"
+          echo "prune_prefix=$prune_prefix" >> "$GITHUB_OUTPUT"
+          echo "key=${prefix}${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+          echo "SCCACHE_C_CUSTOM_CACHE_BUSTER=$namespace" >> "$GITHUB_ENV"
+
+      - name: Restore compatible full-client compiler checkpoint
+        id: client-sccache-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ github.workspace }}/build-ios/client-sccache
+          key: ${{ steps.client-sccache-key.outputs.key }}
+          restore-keys: |
+            ${{ steps.client-sccache-key.outputs.prefix }}
+
       - name: Restore validated Conan package cache
         id: conan-cache
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
@@ -228,16 +280,108 @@ jobs:
           path: ${{ env.CONAN_HOME }}
           key: ${{ steps.conan-cache-key.outputs.key }}
 
+      - name: Start full-client compiler checkpoint
+        id: client-sccache-start
+        run: |
+          sccache --stop-server || true
+          sccache --start-server
+          sccache --zero-stats
+
       - name: Configure experimental full client graph
+        id: full-client-configure
         run: |
           mkdir -p build-ios/ci-raw-diagnostics
           source build-ios/tooling-venv/bin/activate
-          ios/build-ios.sh configure --platform device --client-graph 2>&1 | tee build-ios/ci-raw-diagnostics/configure.log
+          OVERTE_IOS_COMPILER_LAUNCHER="$SCCACHE_PATH" \
+            ios/build-ios.sh configure --platform device --client-graph 2>&1 | tee build-ios/ci-raw-diagnostics/configure.log
+          grep -Fq 'C_COMPILER_LAUNCHER' build-ios/device/Overte.xcodeproj/project.pbxproj
+          xcodebuild -project build-ios/device/Overte.xcodeproj \
+            -target Overte -configuration Release -sdk iphoneos -showBuildSettings |
+            grep -F "C_COMPILER_LAUNCHER = $SCCACHE_PATH"
 
       - name: Build experimental full client
+        id: full-client-build
         # Match the configuration of the audited Conan device packages so
         # their imported include and library requirements remain active.
         run: cmake --build build-ios/device --config Release --parallel "$(sysctl -n hw.logicalcpu)" --target Overte 2>&1 | tee build-ios/ci-raw-diagnostics/xcode-build.log
+
+      - name: Verify full-client compiler checkpoint activity
+        id: client-sccache-verify
+        if: ${{ !cancelled() && steps.full-client-build.outcome != 'skipped' }}
+        run: |
+          sccache --show-stats --stats-format=json > build-ios/ci-raw-diagnostics/sccache-stats.json
+          sccache --show-stats
+          python3 - build-ios/ci-raw-diagnostics/sccache-stats.json <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          stats = payload.get("stats", payload)
+
+          def total(counter):
+              if not isinstance(counter, dict):
+                  return 0
+              counts = counter.get("counts", {})
+              if counts:
+                  return sum(counts.values())
+              return sum(counter.get("adv_counts", {}).values())
+
+          requests = int(stats.get("compile_requests", 0))
+          cacheable = total(stats.get("cache_hits", {})) + total(stats.get("cache_misses", {}))
+          write_errors = int(stats.get("cache_write_errors", 0))
+          if requests < 1:
+              raise SystemExit("Xcode did not route any compilation through sccache")
+          if cacheable < 1:
+              raise SystemExit("sccache observed no reusable full-client compilation")
+          if write_errors:
+              raise SystemExit(f"sccache reported {write_errors} cache write errors")
+          PY
+
+      - name: Stop full-client compiler checkpoint server
+        id: client-sccache-stop
+        if: ${{ !cancelled() && steps.full-client-build.outcome != 'skipped' }}
+        continue-on-error: true
+        run: sccache --stop-server
+
+      - name: Free space for the next compiler checkpoint
+        if: ${{ !cancelled() && steps.full-client-build.outcome != 'skipped' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CACHE_PREFIX: ${{ steps.client-sccache-key.outputs.prune_prefix }}
+        run: |
+          gh cache list --repo "$GITHUB_REPOSITORY" --key "$CACHE_PREFIX" --limit 100 \
+            --json id,createdAt,ref \
+            --jq '[.[] | select(.ref == env.GITHUB_REF)] | sort_by(.createdAt) | reverse | .[1:] | .[].id' |
+          while IFS= read -r cache_id; do
+            [[ -n "$cache_id" ]] || continue
+            gh cache delete "$cache_id" --repo "$GITHUB_REPOSITORY"
+          done
+
+      - name: Save reusable full-client compiler checkpoint
+        id: client-sccache-save
+        if: ${{ !cancelled() && steps.full-client-build.outcome != 'skipped' && steps.client-sccache-cache.outputs.cache-hit != 'true' }}
+        continue-on-error: true
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ github.workspace }}/build-ios/client-sccache
+          key: ${{ steps.client-sccache-key.outputs.key }}
+
+      - name: Prune superseded full-client compiler checkpoints
+        if: ${{ !cancelled() && steps.client-sccache-save.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CACHE_PREFIX: ${{ steps.client-sccache-key.outputs.prune_prefix }}
+        run: |
+          gh cache list --repo "$GITHUB_REPOSITORY" --key "$CACHE_PREFIX" --limit 100 \
+            --json id,createdAt,ref \
+            --jq '[.[] | select(.ref == env.GITHUB_REF)] | sort_by(.createdAt) | reverse | .[2:] | .[].id' |
+          while IFS= read -r cache_id; do
+            [[ -n "$cache_id" ]] || continue
+            gh cache delete "$cache_id" --repo "$GITHUB_REPOSITORY"
+          done
 
       - name: Package numbered unsigned client IPA
         env:
@@ -285,7 +429,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p build-ios/ci-upload-diagnostics
-          for source in build-ios/ci-raw-diagnostics/*.log build-ios/device/CMakeFiles/CMakeConfigureLog.yaml; do
+          for source in build-ios/ci-raw-diagnostics/*.log build-ios/ci-raw-diagnostics/sccache-stats.json build-ios/device/CMakeFiles/CMakeConfigureLog.yaml; do
             if [[ -f "$source" ]]; then
               python3 ios/tools/sanitize-ci-log.py "$source" "build-ios/ci-upload-diagnostics/$(basename "$source")"
             fi

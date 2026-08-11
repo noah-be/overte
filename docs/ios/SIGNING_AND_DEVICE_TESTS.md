@@ -153,6 +153,38 @@ not manufacture or infer physical-device acceptance.
 
 ## Failure diagnostics
 
+The integrated Xcode build routes C, C++, Objective-C and Objective-C++
+compilations through a pinned `sccache` client. It writes content-addressed
+compiler results into a bounded 2 GiB workspace cache
+as compilation succeeds. Immediately after either a successful Xcode build or
+a normal compiler/link failure, CI uploads that checkpoint under a new immutable
+generation. A later source-only fix can then reuse unchanged translation units.
+The cache namespace is bound to the exact Xcode, iPhoneOS SDK,
+CMake, Qt host/target, Conan, V8, MoltenVK and configure-policy identities; the
+source revision is deliberately not part of that namespace because source,
+headers and compiler flags are already part of every content key. CI fails if
+Xcode bypasses the launcher or if the compiler cache reports write
+errors.
+
+The pinned sccache release supports Xcode response files, so the large client
+graph retains them. Clang modules and the index store are disabled for this
+cacheable CI configuration; the repository contains no Objective-C `@import`
+consumer, and the effective Xcode target build settings are checked before the
+first compilation.
+
+At most two generations across all full-client compiler namespaces for the
+matching branch and runner architecture are retained, so obsolete toolchain
+namespaces cannot accumulate and displace the separately validated Qt, V8,
+MoltenVK and Conan checkpoints. A hard runner termination can still prevent the final cache
+upload; ordinary compile and link failures do not. Cache-upload or pruning
+trouble is reported without replacing the original compiler diagnostic.
+
+The generated Xcode project, `CMakeCache.txt`, products, bundles, signing data,
+raw diagnostics and the complete workspace are not cached. They are regenerated
+and revalidated on every runner, avoiding stale project graphs and embedded
+absolute paths. Linking and packaging therefore still run normally, while the
+expensive unchanged compilation work is recoverable.
+
 On configure, Xcode build, or packaging failure, integrated CI retains raw logs
 only inside the ephemeral runner workspace. Before upload it keeps at most the
 last 2 MiB per log and redacts credential-shaped assignments, authenticated

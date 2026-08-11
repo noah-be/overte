@@ -72,6 +72,9 @@ jobs:
       (contains(github.event.head_commit.message, '[qt-source]') ||
        contains(github.event.head_commit.message, '[ios-integrated]'))
     needs: provision-qt-ios
+    permissions:
+      actions: write
+      contents: read
     uses: ./.github/workflows/ios-integrated.yml
     with:
       qt_host_cache_key: ${{ needs.provision-qt-ios.outputs.qt_host_cache_key }}

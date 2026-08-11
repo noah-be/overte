@@ -236,6 +236,37 @@ def main() -> None:
         assert "<-DCMAKE_PREFIX_PATH=" not in invocation
         assert invocation.count("TOOLCHAIN_FILE=") == 1, invocation
 
+        compiler_launcher = shims / "sccache"
+        make_executable(compiler_launcher, "exit 0\n")
+        log.write_text("", encoding="utf-8")
+        cached_client_graph = run_cli(
+            environment | {"OVERTE_IOS_COMPILER_LAUNCHER": str(compiler_launcher)},
+            "configure",
+            "--platform",
+            "device",
+            "--build-dir",
+            str(client_build),
+            "--client-graph",
+        )
+        assert cached_client_graph.returncode == 0, cached_client_graph.stderr
+        invocation = log.read_text(encoding="utf-8")
+        assert f"<-DCMAKE_XCODE_ATTRIBUTE_C_COMPILER_LAUNCHER={compiler_launcher}>" in invocation
+        assert "<-DCMAKE_XCODE_ATTRIBUTE_CLANG_ENABLE_MODULES=NO>" in invocation
+        assert "<-DCMAKE_XCODE_ATTRIBUTE_COMPILER_INDEX_STORE_ENABLE=NO>" in invocation
+        assert "CMAKE_XCODE_ATTRIBUTE_CLANG_USE_RESPONSE_FILE" not in invocation
+
+        missing_launcher = run_cli(
+            environment | {"OVERTE_IOS_COMPILER_LAUNCHER": str(root / "missing-sccache")},
+            "configure",
+            "--platform",
+            "device",
+            "--build-dir",
+            str(client_build),
+            "--client-graph",
+        )
+        assert missing_launcher.returncode == 1
+        assert "OVERTE_IOS_COMPILER_LAUNCHER is not executable" in missing_launcher.stderr
+
         missing_client_toolchain = run_cli(
             environment,
             "configure",

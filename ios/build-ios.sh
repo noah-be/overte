@@ -76,6 +76,7 @@ require_v8=0
 with_graphics_toolchain=False
 require_moltenvk=0
 client_graph=0
+compiler_launcher="${OVERTE_IOS_COMPILER_LAUNCHER:-}"
 build_jobs="$(sysctl -n hw.logicalcpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 [[ "$build_jobs" =~ ^[1-9][0-9]*$ ]] || build_jobs=4
 
@@ -394,6 +395,23 @@ configure_project() {
         "-DOVERTE_IOS_ENABLE_SIGNING=$signing"
         "-DOVERTE_IOS_BOOTSTRAP_ONLY=$bootstrap_only"
     )
+    if [[ -n "$compiler_launcher" ]]; then
+        local compiler_launcher_path
+        compiler_launcher_path="$(command -v "$compiler_launcher" 2>/dev/null || true)"
+        [[ -n "$compiler_launcher_path" && -x "$compiler_launcher_path" ]] \
+            || fail "OVERTE_IOS_COMPILER_LAUNCHER is not executable: $compiler_launcher"
+        # CMAKE_<LANG>_COMPILER_LAUNCHER is not implemented by CMake's Xcode
+        # generator. Xcode's C_COMPILER_LAUNCHER build setting covers the C,
+        # C++, Objective-C and Objective-C++ compile rules instead. Disable the
+        # Xcode features that bypass sccache's compile contract. Modern pinned
+        # sccache parses Xcode response files, so those remain enabled.
+        configure_arguments+=(
+            "-DCMAKE_XCODE_ATTRIBUTE_C_COMPILER_LAUNCHER=$compiler_launcher_path"
+            -DCMAKE_XCODE_ATTRIBUTE_CLANG_ENABLE_MODULES=NO
+            -DCMAKE_XCODE_ATTRIBUTE_COMPILER_INDEX_STORE_ENABLE=NO
+        )
+        note "Configuring Xcode compiler checkpoint through $compiler_launcher_path"
+    fi
     "$cmake_frontend" "${configure_arguments[@]}"
 }
 
