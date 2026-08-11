@@ -54,6 +54,7 @@ readonly rendering_contracts=(
     rendering-integration-inventory-test.py
     rendering-target-ownership-acceptance-test.py
     resource-image-item-ios-contract-test.py
+    vk-ios-gl-interop-helper-contract-test.py
     vk-qt-public-api-contract-test.py
     vulkan-display-ios-context-restore-test.py
     vulkan-display-ios-gl-helper-isolation-test.py

@@ -17,7 +17,9 @@
 
 #include <mutex>
 
+#if !defined(Q_OS_IOS)
 #include <gl/Config.h>
+#endif
 #include <shared/FileUtils.h>
 
 const QString& getPipelineCacheFile() {
@@ -51,6 +53,7 @@ void vks::util::savePipelineCacheData(const std::vector<uint8_t>& cache) {
     saveFile.close();
 }
 
+#if !defined(Q_OS_IOS)
 static std::set<std::string> getGLExtensions() {
     static std::set<std::string> result;
     static std::once_flag once;
@@ -69,9 +72,13 @@ static bool hasExtension(const std::string& name) {
     const auto& extensions = getGLExtensions();
     return 0 != extensions.count(name);
 }
+#endif
 
 
 vks::util::gl::UuidSet vks::util::gl::getUuids() {
+#if defined(Q_OS_IOS)
+    return {};
+#else
     static vks::util::gl::UuidSet result;
     static std::once_flag once;
     QUuid driverUuid;
@@ -88,11 +95,15 @@ vks::util::gl::UuidSet vks::util::gl::getUuids() {
         }
     });
     return result;
+#endif
 }
 
 bool vks::util::gl::contextSupported(QOpenGLContext*) {
+#if defined(Q_OS_IOS)
+    return false;
+#else
     return hasExtension("GL_EXT_memory_object") && hasExtension("GL_EXT_semaphore");
+#endif
  }
-
 
 
