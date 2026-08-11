@@ -54,7 +54,7 @@ endfunction()
 # prevents the CMake suite and the legacy shell runner from silently diverging.
 add_overte_native_test(
     phone_login_state_contract
-    "${CMAKE_CURRENT_LIST_DIR}/../phone-login-state-contract-test.cpp")
+    "${CMAKE_CURRENT_LIST_DIR}/../../../phone/tests/phone-login-state-contract-test.cpp")
 if(MSVC)
     target_compile_options(phone_login_state_contract PRIVATE /UNDEBUG)
 else()
@@ -102,7 +102,7 @@ add_overte_native_test(
     "${CMAKE_CURRENT_LIST_DIR}/phone_pending_handoff_move_test.cpp")
 
 set(OVERTE_BUNDLED_JDK_ROOT
-    "${CMAKE_CURRENT_LIST_DIR}/../../pico-host-tools/jdk-21"
+    "${CMAKE_CURRENT_LIST_DIR}/../../../vr/pico/pico-host-tools/jdk-21"
     CACHE PATH "Optional repository-local JDK used for JNI test headers")
 set(OVERTE_JNI_HINTS
     "$ENV{JAVA_HOME}/include"
