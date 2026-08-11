@@ -599,6 +599,9 @@ The UI menu implementation likewise no longer includes its unused Qt 5
 Every iOS-reachable translation unit that constructs a `QActionGroup` now owns
 its complete QtGui header on Qt 6 while retaining the QtWidgets include on Qt 5;
 none relies on QMenuBar's transitive include structure.
+Texture references parse and validate their UUID once, then pass that typed
+`QUuid` to the deferred entity-texture operator. They do not rely on Qt 5's
+implicit `QString`-to-`QUuid` conversion, which Qt 6 no longer permits.
 FST mapping serialization copies preserved metadata entries explicitly into
 its multi-hash. This replaces Qt 6's removed `unite()` API while retaining all
 keys and values on both Qt generations.

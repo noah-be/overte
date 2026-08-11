@@ -464,6 +464,15 @@ def test_cmake_boundary() -> None:
     if "QtWebEngine" in ios_webview.read_text(encoding="utf-8"):
         raise AssertionError("iOS web surface must not import Qt WebEngine")
 
+    texture_cache = SOURCE_ROOT / "libraries" / "material-networking" / "src" / "material-networking" / "TextureCache.cpp"
+    require_text(
+        texture_cache,
+        r"QUuid quuid = QUuid\(uuid\);[\s\S]*if \(!quuid\.isNull\(\)\)[\s\S]*getTextureForUUIDOperator\(quuid\)",
+        "Qt 6 texture references must pass the already parsed and validated QUuid to their deferred operator",
+    )
+    if "getTextureForUUIDOperator(uuid)" in texture_cache.read_text(encoding="utf-8"):
+        raise AssertionError("texture UUID resolution retained Qt 5's implicit QString-to-QUuid conversion")
+
     ui_menu_source = SOURCE_ROOT / "libraries" / "ui" / "src" / "ui" / "Menu.cpp"
     if "QtWidgets/QShortcut" in ui_menu_source.read_text(encoding="utf-8"):
         raise AssertionError("the iOS UI graph retained the Qt 5 QShortcut module path")
