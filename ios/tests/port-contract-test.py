@@ -1895,6 +1895,13 @@ def test_script_entity_id_qt6_contract() -> None:
         require_text(header, r'#include\s*[<"](?:QtCore/)?QObject[>"]',
                      "QObject subclasses must include their complete base type directly")
 
+    for relative_header in (
+        "DesktopPreviewProvider.h", "CursorManager.h", "VirtualPadManager.h",
+    ):
+        header = SOURCE_ROOT / "libraries" / "ui" / "src" / relative_header
+        require_text(header, r'#include\s*<QtCore/QObject>',
+                     "iOS-reachable UI QObject subclasses must own their complete base type")
+
     midi_header = SOURCE_ROOT / "libraries" / "midi" / "src" / "Midi.h"
     require_text(midi_header, r'#include\s*<QtCore/QVariantMap>',
                  "Qt 6 MOC must see the complete QVariantMap signal argument type")

@@ -588,6 +588,9 @@ keys and values on both Qt generations.
 Model baking validates joint-name and both rotation-offset mappings through one
 strict QVariantHash boundary: Qt 6 uses `QMetaType::QVariantHash`, while Qt 5
 retains `QVariant::Hash`. Non-hash mappings remain rejected as before.
+UI dependency headers that derive directly from `QObject` include that complete
+base themselves; Qt 6 MOC and ordinary translation units do not rely on an
+unrelated Qt header to provide it transitively.
 Platform-native AVAudioSession policy remains in the iOS shell and must not be
 duplicated by desktop code.
 
