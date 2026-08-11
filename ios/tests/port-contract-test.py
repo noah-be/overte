@@ -763,6 +763,12 @@ def test_scope_contract() -> None:
         r"QT_VERSION < QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*setClearBeforeRendering\(true\)",
         "removed clear-before-rendering API must remain Qt 5-only",
     )
+    render_event_handler = SOURCE_ROOT / "libraries" / "qml" / "src" / "qml" / "impl" / "RenderEventHandler.cpp"
+    require_text(
+        render_event_handler,
+        r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*QQuickOpenGLUtils::resetOpenGLState\(\);[\s\S]*#else[\s\S]*_quickWindow->resetOpenGLState\(\);",
+        "offscreen QML must use the Qt 6 OpenGL state-reset utility with its Qt 5 fallback",
+    )
     triage = json.loads((IOS_ROOT / "first-run-triage.json").read_text(encoding="utf-8"))
     assert triage["schemaVersion"] == 1
     phases = triage["phases"]
