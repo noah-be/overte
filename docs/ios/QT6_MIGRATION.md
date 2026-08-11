@@ -582,6 +582,11 @@ remain unchanged.
 The physical touchscreen input plug-in follows the same guarded point and
 position boundary; its first/current touch tracking, point count, DPI scaling,
 and gesture channels are unchanged on both Qt generations.
+Synthetic HUD and web-entity touch injection uses constructor-configured
+`QPointingDevice` and immutable `QEventPoint` lists on Qt 6. The Qt 5 device
+setters and mutable touch-event path remain isolated behind the compatibility
+branch, while event order, IDs, positions, states, and four-point capacity stay
+unchanged. Physical touchscreen discovery likewise uses `QInputDevice` on Qt 6.
 FST mapping serialization copies preserved metadata entries explicitly into
 its multi-hash. This replaces Qt 6's removed `unite()` API while retaining all
 keys and values on both Qt generations.

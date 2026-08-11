@@ -622,6 +622,25 @@ def test_cmake_boundary() -> None:
     require_text(touchscreen_source, r"using OverteTouchscreenPoint = QEventPoint;", "Qt 6 touchscreen input must use QEventPoint")
     require_text(touchscreen_source, r"return event->points\(\);[\s\S]*#else[\s\S]*return event->touchPoints\(\);", "touchscreen enumeration must preserve Qt 5 and Qt 6 paths")
     require_text(touchscreen_source, r"return point\.position\(\);[\s\S]*#else[\s\S]*return point\.pos\(\);", "touchscreen positions must preserve Qt 5 and Qt 6 semantics")
+    require_text(touchscreen_source, r"QInputDevice::devices\(\)[\s\S]*QInputDevice::DeviceType::TouchScreen[\s\S]*#else[\s\S]*QTouchDevice::devices\(\)", "Qt 6 touchscreen discovery must not use the removed QTouchDevice registry")
+    touchscreen_header = touchscreen_source.with_suffix(".h")
+    require_text(touchscreen_header, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*QInputDevice[\s\S]*#else[\s\S]*qtouchdevice", "the QTouchDevice header must remain Qt 5-only")
+
+    offscreen_touch_header = SOURCE_ROOT / "libraries" / "ui" / "src" / "ui" / "OffscreenQmlSurface.h"
+    require_text(offscreen_touch_header, r"using OffscreenTouchDevice = QPointingDevice;[\s\S]*using OffscreenTouchPoint = QEventPoint;[\s\S]*#else[\s\S]*using OffscreenTouchDevice = QTouchDevice;", "offscreen touch injection must share a Qt 5/6 device boundary")
+    if "class QTouchDevice&" in offscreen_touch_header.read_text(encoding="utf-8"):
+        raise AssertionError("offscreen surface signatures retained the removed Qt 6 QTouchDevice type")
+    offscreen_touch_source = offscreen_touch_header.with_suffix(".cpp")
+    require_text(offscreen_touch_source, r"QEventPoint\(id, state, position, position\)", "Qt 6 synthetic points must be constructed atomically")
+    require_text(offscreen_touch_source, r"return point\.scenePosition\(\);[\s\S]*#else[\s\S]*return point\.pos\(\);", "synthetic touch tracking must read the scene position initialized by the Qt 6 public constructor")
+    require_text(offscreen_touch_source, r"QEventPoint::State::Pressed[\s\S]*QEventPoint::State::Released[\s\S]*QEventPoint::State::Updated", "Qt 6 synthetic touch states must use QEventPoint")
+    require_text(offscreen_touch_source, r"QTouchEvent touchEvent\(touchType, &device, event\.getKeyboardModifiers\(\), touchPoints\);[\s\S]*#else[\s\S]*touchEvent\.setTouchPoints", "Qt 6 must pass immutable points to the touch-event constructor while Qt 5 keeps its setters")
+    for producer in (
+        SOURCE_ROOT / "libraries" / "ui" / "src" / "OffscreenUi.cpp",
+        SOURCE_ROOT / "libraries" / "entities-renderer" / "src" / "RenderableWebEntityItem.cpp",
+    ):
+        require_text(producer, r"QInputDevice::DeviceType::TouchScreen[\s\S]*QPointingDevice::PointerType::Finger[\s\S]*QInputDevice::Capability::Position, 4, 0", "Qt 6 synthetic touch devices must preserve touchscreen/finger/position/four-point capabilities")
+        require_text(producer, r"#else[\s\S]*setCapabilities\(QTouchDevice::Position\)[\s\S]*setMaximumTouchPoints\(4\)", "desktop Qt 5 synthetic touch initialization must remain available")
     fst_source = SOURCE_ROOT / "libraries" / "model-serializers" / "src" / "FST.cpp"
     require_text(fst_source, r"_other\.cbegin\(\)[\s\S]*mapping\.insert\(it\.key\(\), it\.value\(\)\)", "FST mappings must use Qt 5/6-compatible explicit insertion")
     if ".unite(" in fst_source.read_text(encoding="utf-8"):

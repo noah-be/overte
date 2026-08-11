@@ -51,8 +51,13 @@ QPointF touchscreenPosition(const OverteTouchscreenPoint& point) {
 }
 
 bool TouchscreenDevice::isSupported() const {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    for (const auto* touchDevice : QInputDevice::devices()) {
+        if (touchDevice->type() == QInputDevice::DeviceType::TouchScreen) {
+#else
     for (auto touchDevice : QTouchDevice::devices()) {
         if (touchDevice->type() == QTouchDevice::TouchScreen) {
+#endif
             return true;
         }
     }
