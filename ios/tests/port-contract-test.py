@@ -1861,6 +1861,15 @@ def test_script_entity_id_qt6_contract() -> None:
     require_text(script_manager, r'return\s+cloneEntityScriptDetails\s*\(\s*entityID\s*,\s*scriptURL\s*\)',
                  "the asynchronous entity-script query must preserve its synchronous implementation")
 
+    script_engines = SOURCE_ROOT / "libraries" / "script-engine" / "src" / "ScriptEngines.cpp"
+    require_text(script_engines, r'QMultiHash<QUrl,\s*ScriptManagerPointer>\s+scriptManagersHashCopy',
+                 "the script-manager snapshot must preserve duplicate URL entries under Qt 6")
+    require_text(script_engines, r'BLOCKING_INVOKE_METHOD\s*\(\s*this\s*,\s*\[this,\s*scriptFilename',
+                 "cross-thread script loading must use the typed invoke helper under Qt 6")
+    assert re.search(r'Q_RETURN_ARG\s*\(\s*ScriptManagerPointer',
+                     script_engines.read_text(encoding="utf-8")) is None, \
+        "Qt 6 templated Q_RETURN_ARG must not cross the legacy QGenericReturnArgument helper"
+
 
 def main() -> None:
     tests = (
