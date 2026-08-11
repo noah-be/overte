@@ -166,6 +166,18 @@ class CompilerWatchdogTest(unittest.TestCase):
             time.sleep(0.02)
         self.assertFalse(alive, f"process {pid} survived signal escalation")
 
+    def wait_for_pid(self, path: Path, timeout: float = 3.0) -> int:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                value = path.read_text().strip()
+                if value.isdigit():
+                    return int(value)
+            except FileNotFoundError:
+                pass
+            time.sleep(0.02)
+        self.fail(f"PID file was not populated in time: {path.name}")
+
     @unittest.skipUnless(hasattr(os, "killpg"), "requires POSIX process groups")
     def test_term_and_int_escalate_for_ignoring_compiler_process_group(self) -> None:
         for sent_signal in (signal.SIGTERM, signal.SIGINT):
@@ -195,18 +207,18 @@ class CompilerWatchdogTest(unittest.TestCase):
                  "unit.cpp", "-o", "unit.o"],
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env,
             )
-            deadline = time.monotonic() + 3
-            while (not leader_file.exists() or not child_file.exists()) and time.monotonic() < deadline:
-                time.sleep(0.02)
-            self.assertTrue(leader_file.exists())
-            self.assertTrue(child_file.exists())
-            leader_pid = int(leader_file.read_text())
-            child_pid = int(child_file.read_text())
-            process.send_signal(sent_signal)
-            stdout, stderr = process.communicate(timeout=3)
-            self.assertEqual(process.returncode, 128 + sent_signal, stdout + stderr)
-            records = [json.loads(line) for line in stdout.splitlines()]
-            self.assertEqual(records[-1]["exit_code"], 128 + sent_signal)
+            leader_pid = self.wait_for_pid(leader_file)
+            child_pid = self.wait_for_pid(child_file)
+            try:
+                process.send_signal(sent_signal)
+                stdout, stderr = process.communicate(timeout=3)
+                self.assertEqual(process.returncode, 128 + sent_signal, stdout + stderr)
+                records = [json.loads(line) for line in stdout.splitlines()]
+                self.assertEqual(records[-1]["exit_code"], 128 + sent_signal)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.communicate(timeout=3)
             self.assert_process_gone(leader_pid)
             self.assert_process_gone(child_pid)
 
