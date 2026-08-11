@@ -14,24 +14,43 @@ readonly log="$output_dir/serverless.log"
 readonly process_result="$output_dir/serverless-process.json"
 readonly process_sample="$output_dir/serverless.sample.txt"
 readonly crash_report="$output_dir/serverless.crash.ips"
+readonly lldb_log="$output_dir/serverless-lldb.log"
+readonly lldb_result="$output_dir/serverless-lldb-process.json"
 readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-120}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
+readonly lldb_timeout_seconds="${OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-90}"
 
 [[ "$(uname -s)" == Darwin ]] || { echo "serverless smoke requires macOS" >&2; exit 1; }
 [[ -x "$executable" ]] || { echo "missing executable: $executable" >&2; exit 1; }
 [[ -f "$scene" ]] || { echo "missing scene fixture: $scene" >&2; exit 1; }
 mkdir -p "$output_dir"
 
+readonly -a app_command=(
+    "$executable" --allowMultipleInstances --no-login-suggestion --display Desktop
+    --url "file://$scene" --testScript "$test_script"
+    --testResultsLocation "$output_dir" --quitWhenFinished
+)
+
 set +e
 python3 "$source_root/macos/tools/run-process-with-timeout.py" \
     --timeout "$timeout_seconds" --grace "$shutdown_grace_seconds" \
     --log "$log" --result "$process_result" --sample "$process_sample" \
     --crash-report "$crash_report" -- \
-    "$executable" --allowMultipleInstances --no-login-suggestion --display Desktop \
-    --url "file://$scene" --testScript "$test_script" \
-    --testResultsLocation "$output_dir" --quitWhenFinished
+    "${app_command[@]}"
 status=$?
 set -e
+
+if (( status > 128 && status < 192 )); then
+    if command -v lldb >/dev/null 2>&1; then
+        echo "Overte exited after signal $((status - 128)); rerunning once under LLDB" >&2
+        python3 "$source_root/macos/tools/run-process-with-timeout.py" \
+            --timeout "$lldb_timeout_seconds" --grace "$shutdown_grace_seconds" \
+            --log "$lldb_log" --result "$lldb_result" -- \
+            lldb --batch -o run -k "thread backtrace all" -- "${app_command[@]}" || true
+    else
+        echo "LLDB unavailable; no automatic crash backtrace was captured" >&2
+    fi
+fi
 
 [[ $status -eq 0 ]] || { echo "Overte supervisor exited with status $status" >&2; exit "$status"; }
 for marker in serverless_import_committed entity_tree_nonempty render_handoff; do

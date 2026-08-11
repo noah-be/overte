@@ -157,6 +157,12 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("macos/ci/startup-preflight.sh", self.source)
         self.assertIn("build/macos-startup-preflight", self.source)
 
+    def test_built_application_is_preserved_when_runtime_smoke_fails(self):
+        upload = self.source.split("- name: Upload application bundle", 1)[1]
+        upload = upload.split("uses: actions/upload-artifact@", 1)[0]
+        self.assertIn("always()", upload)
+        self.assertIn("steps.build-client.outcome == 'success'", upload)
+
 
 class PicoWorkflowContracts(unittest.TestCase):
     @classmethod

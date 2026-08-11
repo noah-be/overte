@@ -271,9 +271,12 @@ for smoke_name, smoke_source in (("serverless", smoke), ("online", online_smoke)
         "run-process-with-timeout.py",
         "OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS",
         "OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS",
+        "OVERTE_MACOS_LLDB_TIMEOUT_SECONDS",
         "process.json",
         "crash.ips",
         "--crash-report",
+        "lldb --batch -o run -k \"thread backtrace all\"",
+        "status > 128 && status < 192",
     ):
         if timeout_contract not in smoke_source:
             raise SystemExit(
