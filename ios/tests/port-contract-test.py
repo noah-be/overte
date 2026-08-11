@@ -1855,6 +1855,12 @@ def test_script_entity_id_qt6_contract() -> None:
     require_text(script_message, r'_fileName\s*=\s*object\["fileName"\]\.toString\(\)',
                  "script message file names must remain strings")
 
+    script_manager = SOURCE_ROOT / "libraries" / "script-engine" / "src" / "ScriptManager.cpp"
+    require_text(script_manager, r'QtConcurrent::run\s*\(\s*\[this,\s*entityID,\s*scriptURL\]',
+                 "Qt 6 entity-script details must use the callable QtConcurrent API")
+    require_text(script_manager, r'return\s+cloneEntityScriptDetails\s*\(\s*entityID\s*,\s*scriptURL\s*\)',
+                 "the asynchronous entity-script query must preserve its synchronous implementation")
+
 
 def main() -> None:
     tests = (

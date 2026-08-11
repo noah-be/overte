@@ -2066,7 +2066,9 @@ QVariant ScriptManager::cloneEntityScriptDetails(const EntityItemID& entityID, c
 }
 
 QFuture<QVariant> ScriptManager::getLocalEntityScriptDetails(const EntityItemID& entityID, const QString& scriptURL) {
-    return QtConcurrent::run(this, &ScriptManager::cloneEntityScriptDetails, entityID, scriptURL);
+    return QtConcurrent::run([this, entityID, scriptURL] {
+        return cloneEntityScriptDetails(entityID, scriptURL);
+    });
 }
 
 bool ScriptManager::getEntityScriptDetails(const EntityItemID& entityID, const QString& scriptURL, EntityScriptDetails &details) const {
