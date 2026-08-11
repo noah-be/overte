@@ -218,7 +218,9 @@ class Overte(ConanFile):
         )
         copy(self, "*.dll", src, bindir, False)
         copy(self, "*.so*", src, bindir, False)
+        copy(self, "*.dylib*", src, bindir, False)
         if self.settings.build_type == "Release":
             bindir = os.path.join(self.build_folder, "conanlibs", "RelWithDebInfo")
             copy(self, "*.dll", src, bindir, False)
             copy(self, "*.so*", src, bindir, False)
+            copy(self, "*.dylib*", src, bindir, False)

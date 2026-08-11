@@ -11,7 +11,24 @@
 #
 
 macro(PACKAGE_LIBRARIES_FOR_DEPLOYMENT)
-    if (WIN32)
+    if (APPLE)
+        get_target_property(_OVERTE_IS_APP_BUNDLE ${TARGET_NAME} MACOSX_BUNDLE)
+        if (_OVERTE_IS_APP_BUNDLE AND OVERTE_RELEASE_TYPE STREQUAL "DEV")
+            # macdeployqt handles Qt frameworks and plugins first. BundleUtilities
+            # then copies every remaining transitive Conan dylib and rewrites its
+            # install name/rpaths for direct launch from the build tree.
+            add_custom_command(
+                TARGET ${TARGET_NAME}
+                POST_BUILD
+                COMMAND ${CMAKE_COMMAND}
+                    "-DBUNDLE_EXECUTABLE=$<TARGET_FILE_DIR:${TARGET_NAME}>/../.."
+                    "-DBUNDLE_PLUGIN_DIR=$<TARGET_FILE_DIR:${TARGET_NAME}>/../PlugIns"
+                    "-DLIB_PATHS=${CMAKE_BINARY_DIR}/conanlibs/$<CONFIG>"
+                    -P "${CMAKE_SOURCE_DIR}/cmake/FixupBundlePostBuild.cmake"
+                COMMENT "Bundling non-Qt macOS runtime libraries"
+            )
+        endif ()
+    elseif (WIN32)
         set(PLUGIN_PATH "plugins")
 
         overte_get_qt_target(Qt_Core_Target Core)

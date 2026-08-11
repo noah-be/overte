@@ -18,7 +18,7 @@ macro(fixup_interface)
 
         find_program(MACDEPLOYQT_COMMAND macdeployqt PATHS "${QT_DIR}/bin" NO_DEFAULT_PATH)
 
-        if (NOT MACDEPLOYQT_COMMAND AND (PRODUCTION_BUILD OR PR_BUILD))
+        if (NOT MACDEPLOYQT_COMMAND)
             message(FATAL_ERROR "Could not find macdeployqt at ${QT_DIR}/bin.\
                 It is required to produce an relocatable interface application.\
                 Check that the variable QT_DIR points to your Qt installation.\
@@ -26,6 +26,12 @@ macro(fixup_interface)
         endif ()
 
         if (OVERTE_RELEASE_TYPE STREQUAL "DEV")
+            # A developer build is launched directly from the build tree by
+            # local workflows and smoke tests.  Make that bundle relocatable;
+            # the install-time deployment below only covers `cmake --install`.
+            add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+                COMMAND ${MACDEPLOYQT_COMMAND} "$<TARGET_FILE_DIR:${TARGET_NAME}>/../.." -verbose=2 -qmldir=${CMAKE_SOURCE_DIR}/interface/resources/qml/
+            )
             install(CODE "
                 execute_process(COMMAND ${MACDEPLOYQT_COMMAND}\
                     \${CMAKE_INSTALL_PREFIX}/${_INTERFACE_INSTALL_PATH}/\

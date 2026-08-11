@@ -37,6 +37,31 @@ for description, (source, token) in LIBNODE_CONTRACT.items():
     if token not in source:
         raise SystemExit(f"missing libnode contract: {description}")
 
+if 'copy(self, "*.dylib*", src, bindir, False)' not in root_recipe:
+    raise SystemExit("Conan deployment must collect versioned macOS dylibs")
+
+fixup_interface = (ROOT / "cmake/macros/FixupInterface.cmake").read_text(encoding="utf-8")
+if "if (NOT MACDEPLOYQT_COMMAND)" not in fixup_interface:
+    raise SystemExit("all macOS bundles must fail closed when macdeployqt is unavailable")
+if not re.search(
+    r'OVERTE_RELEASE_TYPE STREQUAL "DEV".*?add_custom_command\(TARGET \$\{TARGET_NAME\} POST_BUILD.*?MACDEPLOYQT_COMMAND',
+    fixup_interface,
+    re.DOTALL,
+):
+    raise SystemExit("macOS DEV bundles must run macdeployqt before direct launch")
+
+package_libraries = (
+    ROOT / "cmake/macros/PackageLibrariesForDeployment.cmake"
+).read_text(encoding="utf-8")
+for token in (
+    'get_target_property(_OVERTE_IS_APP_BUNDLE ${TARGET_NAME} MACOSX_BUNDLE)',
+    '"-DBUNDLE_EXECUTABLE=$<TARGET_FILE_DIR:${TARGET_NAME}>/../.."',
+    '"-DLIB_PATHS=${CMAKE_BINARY_DIR}/conanlibs/$<CONFIG>"',
+    'FixupBundlePostBuild.cmake',
+):
+    if token not in package_libraries:
+        raise SystemExit(f"missing macOS bundle fixup contract: {token}")
+
 compiler_cmake = (ROOT / "cmake/compiler.cmake").read_text(encoding="utf-8")
 if (
     "exec_program(" in compiler_cmake
