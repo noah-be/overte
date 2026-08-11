@@ -13,6 +13,7 @@ readonly test_script="$source_root/macos/tests/serverless-smoke.js"
 readonly log="$output_dir/online.log"
 readonly process_result="$output_dir/online-process.json"
 readonly process_sample="$output_dir/online.sample.txt"
+readonly crash_report="$output_dir/online.crash.ips"
 readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-180}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
 
@@ -23,7 +24,8 @@ mkdir -p "$output_dir"
 set +e
 python3 "$source_root/macos/tools/run-process-with-timeout.py" \
     --timeout "$timeout_seconds" --grace "$shutdown_grace_seconds" \
-    --log "$log" --result "$process_result" --sample "$process_sample" -- \
+    --log "$log" --result "$process_result" --sample "$process_sample" \
+    --crash-report "$crash_report" -- \
     "$executable" --allowMultipleInstances --no-login-suggestion --display Desktop --url "$location" \
     --testScript "$test_script" --testResultsLocation "$output_dir" \
     --quitWhenFinished

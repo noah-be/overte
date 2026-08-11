@@ -118,6 +118,16 @@ if not re.search(
 main_source = (ROOT / "interface/src/main.cpp").read_text(encoding="utf-8")
 if "QCoreApplication tempApp" in main_source:
     raise SystemExit("Interface must not create a temporary QCoreApplication before QApplication")
+graphics_api_offset = main_source.index("hifi::properties::setGraphicsAPI(")
+surface_format_offset = main_source.index("getDefaultOpenGLSurfaceFormat()")
+if graphics_api_offset > surface_format_offset:
+    raise SystemExit("graphics API must be selected before the OpenGL surface format is cached")
+if not re.search(
+    r"#elif defined\(Q_OS_MAC\).*?setGraphicsAPI\(hifi::properties::GraphicsAPI::GL41\)",
+    main_source,
+    re.DOTALL,
+):
+    raise SystemExit("desktop macOS must default to its supported OpenGL 4.1 backend")
 application_offset = main_source.index("Application app(")
 settings_load_offset = main_source.index("Setting::init(true)")
 settings_start_offset = main_source.index("Setting::startThread()")
@@ -262,6 +272,8 @@ for smoke_name, smoke_source in (("serverless", smoke), ("online", online_smoke)
         "OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS",
         "OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS",
         "process.json",
+        "crash.ips",
+        "--crash-report",
     ):
         if timeout_contract not in smoke_source:
             raise SystemExit(

@@ -60,19 +60,6 @@ int main(int argc, const char* argv[]) {
     // Qt WebView must select WKWebView before the application object exists.
     QtWebView::initialize();
 #endif
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
-    auto format = getDefaultOpenGLSurfaceFormat();
-    // Deal with some weirdness in the chromium context sharing on Mac.
-    // The primary share context needs to be 3.2, so that the Chromium will
-    // succeed in it's creation of it's command stub contexts.
-    format.setVersion(3, 2);
-    // This appears to resolve the issues with corrupted fonts on OSX.  No
-    // idea why.
-    qputenv("QT_ENABLE_GLYPH_CACHE_WORKAROUND", "true");
-    // https://i.kym-cdn.com/entries/icons/original/000/008/342/ihave.jpg
-    QSurfaceFormat::setDefaultFormat(format);
-#endif
-
     // You can force a specific graphics API with the --graphicsAPI option.  By default we will pick the best available based on the platform.
     // Some systems may fallback to a lower API than requested based on what is supported.
     std::string apiString;
@@ -107,6 +94,20 @@ int main(int argc, const char* argv[]) {
         hifi::properties::setGraphicsAPI(hifi::properties::GraphicsAPI::GL45);
 #endif
     }
+
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    // getDefaultOpenGLSurfaceFormat() is initialized once from the selected
+    // graphics API. Select GL 4.1 above before caching the format; otherwise
+    // macOS can retain the unsupported desktop GL 4.5 default.
+    auto format = getDefaultOpenGLSurfaceFormat();
+    // Deal with some weirdness in the Chromium context sharing on Mac.
+    // The primary share context needs to be 3.2 so Chromium can create its
+    // command stub contexts.
+    format.setVersion(3, 2);
+    // This appears to resolve issues with corrupted fonts on macOS.
+    qputenv("QT_ENABLE_GLYPH_CACHE_WORKAROUND", "true");
+    QSurfaceFormat::setDefaultFormat(format);
+#endif
 
 #ifdef Q_OS_WIN
     // Check the minimum GL version as early as possible

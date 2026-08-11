@@ -61,4 +61,26 @@ with tempfile.TemporaryDirectory() as temporary:
     assert timeout_metadata["sample_succeeded"] is True
     assert timeout_sample.read_text(encoding="utf-8") == "sampled blocked process\n"
 
+    crash_reports = output / "diagnostic-reports"
+    crash_reports.mkdir()
+    executable_name = Path(sys.executable).name
+    native_report = crash_reports / f"{executable_name}-test.ips"
+    native_report.write_text("native crash evidence\n", encoding="utf-8")
+    copied_report = output / "captured.crash.ips"
+    crash_result = output / "crash.json"
+    crashed = subprocess.run(
+        [sys.executable, str(SUPERVISOR), "--timeout", "2", "--grace", "0.1",
+         "--log", str(output / "crash.log"), "--result", str(crash_result),
+         "--crash-report", str(copied_report),
+         "--crash-report-dir", str(crash_reports), "--crash-report-wait", "0", "--",
+         sys.executable, "-c", "import os, signal; os.kill(os.getpid(), signal.SIGSEGV)"],
+        check=False,
+        timeout=5,
+    )
+    assert crashed.returncode == 139
+    assert copied_report.read_text(encoding="utf-8") == "native crash evidence\n"
+    crash_metadata = json.loads(crash_result.read_text())
+    assert crash_metadata["crash_report_succeeded"] is True
+    assert crash_metadata["crash_report_source"] == str(native_report)
+
 print("macOS smoke timeout contract valid")

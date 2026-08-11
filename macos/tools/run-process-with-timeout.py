@@ -14,6 +14,36 @@ import sys
 import time
 
 
+def capture_macos_crash_report(
+    command: list[str],
+    destination: Path,
+    report_directory: Path,
+    started_wall_time: float,
+    wait_seconds: float,
+) -> tuple[bool, str | None]:
+    """Copy the newest matching macOS crash report after a signalled exit."""
+    executable_name = Path(command[0]).name
+    deadline = time.monotonic() + wait_seconds
+    while True:
+        candidates = []
+        if report_directory.is_dir():
+            for suffix in ("ips", "crash"):
+                candidates.extend(report_directory.glob(f"{executable_name}*.{suffix}"))
+        candidates = [
+            candidate
+            for candidate in candidates
+            if candidate.is_file() and candidate.stat().st_mtime >= started_wall_time - 2
+        ]
+        if candidates:
+            source = max(candidates, key=lambda candidate: candidate.stat().st_mtime)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+            return True, str(source)
+        if time.monotonic() >= deadline:
+            return False, None
+        time.sleep(0.25)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--timeout", type=float, required=True)
@@ -21,11 +51,14 @@ def main() -> int:
     parser.add_argument("--log", type=Path, required=True)
     parser.add_argument("--result", type=Path, required=True)
     parser.add_argument("--sample", type=Path)
+    parser.add_argument("--crash-report", type=Path)
+    parser.add_argument("--crash-report-dir", type=Path)
+    parser.add_argument("--crash-report-wait", type=float, default=10.0)
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
-    if not command or args.timeout <= 0 or args.grace < 0:
-        parser.error("a command, positive timeout, and non-negative grace are required")
+    if not command or args.timeout <= 0 or args.grace < 0 or args.crash_report_wait < 0:
+        parser.error("a command, positive timeout, and non-negative grace/report wait are required")
 
     args.log.parent.mkdir(parents=True, exist_ok=True)
     args.result.parent.mkdir(parents=True, exist_ok=True)
@@ -35,6 +68,9 @@ def main() -> int:
     sent_kill = False
     return_code: int | None = None
     sample_succeeded = False
+    crash_report_succeeded = False
+    crash_report_source: str | None = None
+    started_wall_time = time.time()
 
     with args.log.open("w", encoding="utf-8", errors="replace") as log_stream:
         process = subprocess.Popen(
@@ -100,6 +136,18 @@ def main() -> int:
                     os.killpg(process.pid, signal.SIGKILL)
                     return_code = process.wait()
             reader.join(timeout=5)
+            if return_code is not None and return_code < 0 and args.crash_report:
+                report_directory = args.crash_report_dir
+                if report_directory is None and sys.platform == "darwin":
+                    report_directory = Path.home() / "Library/Logs/DiagnosticReports"
+                if report_directory is not None:
+                    crash_report_succeeded, crash_report_source = capture_macos_crash_report(
+                        command,
+                        args.crash_report,
+                        report_directory,
+                        started_wall_time,
+                        args.crash_report_wait,
+                    )
         except BaseException:
             if process.poll() is None:
                 os.killpg(process.pid, signal.SIGTERM)
@@ -120,6 +168,9 @@ def main() -> int:
                 "sent_sigkill": sent_kill,
                 "sample_path": str(args.sample) if args.sample else None,
                 "sample_succeeded": sample_succeeded,
+                "crash_report_path": str(args.crash_report) if args.crash_report else None,
+                "crash_report_succeeded": crash_report_succeeded,
+                "crash_report_source": crash_report_source,
             }
             args.result.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
 
