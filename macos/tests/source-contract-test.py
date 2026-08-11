@@ -96,6 +96,33 @@ if "return GL_LIB ? dlsym(GL_LIB, namez) : nullptr;" not in gl_config:
 if not re.search(r"loadedVersion.*?gladLoadGLLoader.*?if \(loadedVersion == 0\).*?qFatal", gl_config, re.DOTALL):
     raise SystemExit("GLAD initialization must fail closed when entry-point loading fails")
 
+gl_helpers = (ROOT / "libraries/gl/src/gl/GLHelpers.cpp").read_text(encoding="utf-8")
+khr_debug_helper = gl_helpers.split("bool khrDebugEnabled()", 1)[1].split(
+    "bool extDebugMarkerEnabled()", 1
+)[0]
+for token in (
+    "GLAD_GL_KHR_debug",
+    "glad_glPushDebugGroupKHR",
+    "glad_glPopDebugGroupKHR",
+):
+    if token not in khr_debug_helper:
+        raise SystemExit(f"KHR debug availability must check raw GLAD state: {token}")
+if "nullptr != glPushDebugGroupKHR" in khr_debug_helper:
+    raise SystemExit("KHR debug availability must not test GLAD's always-present debug wrapper")
+
+ext_debug_helper = gl_helpers.split("bool extDebugMarkerEnabled()", 1)[1].split(
+    "bool debugContextEnabled()", 1
+)[0]
+for token in (
+    "GLAD_GL_EXT_debug_marker",
+    "glad_glPushGroupMarkerEXT",
+    "glad_glPopGroupMarkerEXT",
+):
+    if token not in ext_debug_helper:
+        raise SystemExit(f"EXT debug marker availability must check raw GLAD state: {token}")
+if "nullptr != glPushGroupMarkerEXT" in ext_debug_helper:
+    raise SystemExit("EXT debug availability must not test GLAD's always-present debug wrapper")
+
 conanfile = (ROOT / "conanfile.py").read_text(encoding="utf-8")
 if not re.search(
     r'glad_options\s*=\s*\{"shared": True\}\s+if\s+self\.settings\.os\s*==\s*"Macos"\s+else\s*\{\}.*?'

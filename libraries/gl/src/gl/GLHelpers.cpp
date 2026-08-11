@@ -375,7 +375,14 @@ namespace gl {
         static std::once_flag once;
         static bool khrDebug = false;
         std::call_once(once, [&] {
-            khrDebug = nullptr != glPushDebugGroupKHR;
+            // With a GLAD debug build, glPushDebugGroupKHR and
+            // glPopDebugGroupKHR are macros for always-present wrapper
+            // functions.  Test the extension flag and the raw entry points
+            // instead so a GL 4.1 implementation without GL_KHR_debug (such
+            // as macOS) does not call through a null function pointer.
+            khrDebug = GLAD_GL_KHR_debug &&
+                nullptr != glad_glPushDebugGroupKHR &&
+                nullptr != glad_glPopDebugGroupKHR;
         });
         return khrDebug;
     }
@@ -385,7 +392,9 @@ namespace gl {
         static std::once_flag once;
         static bool extMarker = false;
         std::call_once(once, [&] {
-            extMarker = nullptr != glPushGroupMarkerEXT;
+            extMarker = GLAD_GL_EXT_debug_marker &&
+                nullptr != glad_glPushGroupMarkerEXT &&
+                nullptr != glad_glPopGroupMarkerEXT;
         });
         return extMarker;
     }
