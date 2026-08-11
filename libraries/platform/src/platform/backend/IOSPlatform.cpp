@@ -7,6 +7,7 @@
 
 #include <thread>
 
+#include <QtCore/QString>
 #include <QSysInfo>
 
 using namespace platform;
