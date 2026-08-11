@@ -300,6 +300,9 @@ def test_cmake_boundary() -> None:
     require_text(trace, r'"ph", QString\(QChar::fromLatin1\(static_cast<char>\(type\)\)\)', "trace event phases must explicitly preserve their one-byte JSON representation")
     setting_helpers = SOURCE_ROOT / "libraries/shared/src/SettingHelpers.cpp"
     require_text(setting_helpers, r"#include <QIODevice>", "settings serializers must include the complete device type they access")
+    sampler = SOURCE_ROOT / "libraries/shared/src/Sampler.cpp"
+    sampler_text = sampler.read_text(encoding="utf-8")
+    assert sampler_text.count("result += QString::number(") == 13, "sampler diagnostics must explicitly format all numeric fields"
     shutdown_listener = SOURCE_ROOT / "libraries/shared/src/ShutdownEventListener.h"
     require_text(shutdown_listener, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*qintptr\* result[\s\S]*long\* result", "native event filters must use the Qt 6 result type with a Qt 5 fallback")
     shutdown_listener_impl = SOURCE_ROOT / "libraries/shared/src/ShutdownEventListener.cpp"
