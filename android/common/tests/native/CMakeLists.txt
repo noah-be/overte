@@ -9,7 +9,7 @@ if(NOT BUILD_TESTING)
 endif()
 
 set(OVERTE_INTERFACE_UI_DIR
-    "${CMAKE_CURRENT_LIST_DIR}/../../../interface/src/ui"
+    "${CMAKE_CURRENT_LIST_DIR}/../../../../interface/src/ui"
     CACHE PATH
     "Path to the Overte interface UI headers")
 
@@ -23,10 +23,10 @@ add_library(overte_native_test_options INTERFACE)
 target_compile_features(overte_native_test_options INTERFACE cxx_std_11)
 target_include_directories(overte_native_test_options INTERFACE
     "${OVERTE_INTERFACE_UI_DIR}"
-    "${CMAKE_CURRENT_LIST_DIR}/../../apps/phoneInterface/src"
+    "${CMAKE_CURRENT_LIST_DIR}/../../../phone/apps/phoneInterface/src"
     "${CMAKE_CURRENT_LIST_DIR}/support")
 target_include_directories(overte_native_test_options INTERFACE
-    "${CMAKE_CURRENT_LIST_DIR}/../../apps/picoInterface/openxr/src")
+    "${CMAKE_CURRENT_LIST_DIR}/../../../vr/pico/apps/picoInterface/openxr/src")
 target_include_directories(overte_native_test_options INTERFACE
     "${CMAKE_CURRENT_LIST_DIR}/../../../vr/common/openxr")
 

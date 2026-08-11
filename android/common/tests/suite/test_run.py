@@ -32,11 +32,11 @@ class SuiteRunnerTest(unittest.TestCase):
         })
         pico = next(suite for suite in suites
                     if suite["id"] == "android-vr-pico-runtime")
-        self.assertEqual(["tests/android-vr-pico-runtime-test.sh"], pico["command"])
+        self.assertEqual(["common/tests/android-vr-pico-runtime-test.sh"], pico["command"])
         self.assertLessEqual(pico["timeoutSeconds"], 300)
         native = next(suite for suite in suites
                       if suite["id"] == "android-vr-native-policies")
-        self.assertEqual(["tests/native/run-native-tests.sh", "android-vr"],
+        self.assertEqual(["common/tests/native/run-native-tests.sh", "android-vr"],
                          native["command"])
 
     def test_catalog_rejects_unknown_tier(self):

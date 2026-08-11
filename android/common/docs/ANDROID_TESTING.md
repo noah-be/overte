@@ -51,7 +51,7 @@ The categories are complementary:
 The standalone Android-VR integration gate is hardware-free:
 
 ```bash
-tests/run-tests.sh android-vr
+common/tests/run-tests.sh android-vr
 ```
 
 Its six-suite boundary, stable JUnit output, runtime expectations, and deliberate

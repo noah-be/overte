@@ -2,6 +2,21 @@
   "schemaVersion": 1,
   "suites": [
     {
+      "id": "android-vr-native-policies",
+      "kind": "native",
+      "tiers": ["android-vr"],
+      "command": ["common/tests/native/run-native-tests.sh", "android-vr"],
+      "description": "Seven deterministic native OpenXR policies selected by the Android-VR label"
+    },
+    {
+      "id": "android-vr-pico-runtime",
+      "kind": "integration",
+      "tiers": ["android-vr"],
+      "command": ["common/tests/android-vr-pico-runtime-test.sh"],
+      "timeoutSeconds": 300,
+      "description": "Pico runtime behavior shared by the standalone Android-VR integration lane"
+    },
+    {
       "id": "suite-runner-self-test",
       "kind": "infrastructure",
       "tiers": ["fast", "host"],

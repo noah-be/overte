@@ -1,6 +1,7 @@
 {
   "scope": {
-    "globs": [
+  "globs": [
+      "android/common/src/*.cpp",
       "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/*.java",
       "android/phone/apps/phoneInterface/src/*.cpp",
       "android/phone/apps/phoneInterface/src/*.h",
