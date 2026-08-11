@@ -124,7 +124,13 @@ def main(repository):
     if len(names) != len(set(names)) or set(names) != EXPECTED_MODULES:
         fail(f"module inventory mismatch: {names}")
 
-    settings = (root / "android/settings.gradle").read_text(encoding="utf-8")
+    settings = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (
+            root / "android/phone/settings.gradle",
+            root / "android/vr/pico/settings.gradle",
+        )
+    )
     for module in modules:
         name = module["name"]
         module_root = root / module["path"]
@@ -133,7 +139,7 @@ def main(repository):
         if not build_file.is_file() or not manifest_file.is_file():
             fail(f"{name} lacks build.gradle or AndroidManifest.xml")
         if f"include ':{name}'" not in settings:
-            fail(f"{name} is absent from settings.gradle")
+            fail(f"{name} is absent from the platform settings.gradle files")
 
         build = build_file.read_text(encoding="utf-8")
         expected_plugin = f"com.android.{module['plugin']}"
