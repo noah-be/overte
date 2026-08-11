@@ -725,6 +725,12 @@ def test_scope_contract() -> None:
     require_text(xcode_first_run, r"first-run-triage\.json", "Xcode failures need deterministic classification")
     require_text(review_checklist, r"Signing, provisioning, upload", "external actions must remain explicit")
     require_text(compliance, r"CycloneDX 1\.6", "compliance handoff must identify the SBOM format")
+    asset_interface = SOURCE_ROOT / "libraries" / "networking" / "src" / "BaseAssetScriptingInterface.cpp"
+    require_text(
+        asset_interface,
+        r"error\s*=\s*request->getErrorString\(\);",
+        "asset download failures must forward their textual error instead of assigning an enum to QString",
+    )
     triage = json.loads((IOS_ROOT / "first-run-triage.json").read_text(encoding="utf-8"))
     assert triage["schemaVersion"] == 1
     phases = triage["phases"]
