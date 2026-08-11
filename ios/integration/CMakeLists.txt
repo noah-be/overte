@@ -18,6 +18,6 @@ if(NOT TARGET Overte)
     message(FATAL_ERROR
         "iOS full-client entity integration requires the Overte application target")
 endif()
-target_link_libraries(Overte PRIVATE overte-ios-entity-integration)
-target_link_libraries(Overte PRIVATE overte-ios-rendering-compatibility)
+target_link_libraries(Overte overte-ios-entity-integration)
+target_link_libraries(Overte overte-ios-rendering-compatibility)
 add_dependencies(Overte overte-ios-entity-integration)

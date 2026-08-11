@@ -19,7 +19,7 @@ HEADERS = (
 for anchor in (
     'include("${CMAKE_CURRENT_LIST_DIR}/RenderingCompatibilityPreflight.cmake")',
     "overte_add_ios_rendering_compatibility_preflight(overte-ios-rendering-compatibility)",
-    "target_link_libraries(Overte PRIVATE overte-ios-rendering-compatibility)",
+    "target_link_libraries(Overte overte-ios-rendering-compatibility)",
 ):
     if anchor not in INTEGRATION:
         raise SystemExit(f"integrated preflight binding missing: {anchor}")

@@ -8,6 +8,9 @@ import tempfile
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 MODULE = ROOT / "ios/integration/EntityIntegrationGate.cmake"
 REQUIRED = ("networking", "octree", "entities", "entities-renderer")
+INTEGRATED_CMAKE = (ROOT / "ios/integration/CMakeLists.txt").read_text(encoding="utf-8")
+if "target_link_libraries(Overte overte-ios-entity-integration)" not in INTEGRATED_CMAKE:
+    raise SystemExit("integrated client must bind the entity gate with the project's plain link signature")
 
 
 def configure(source: pathlib.Path, build: pathlib.Path):
