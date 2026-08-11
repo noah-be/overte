@@ -1901,6 +1901,19 @@ def test_script_entity_id_qt6_contract() -> None:
     require_text(midi_header, r'void\s+midi(?:Note|Message)\s*\(\s*QVariantMap\s+eventData\s*\)',
                  "MIDI script signals must preserve their event-map payload")
 
+    controller_header = SOURCE_ROOT / "libraries" / "controllers" / "src" / "controllers" / "UserInputMapper.h"
+    controller_text = controller_header.read_text(encoding="utf-8")
+    input_type = controller_text.index("Q_DECLARE_METATYPE(controller::Input)\n")
+    pose_type = controller_text.index("Q_DECLARE_METATYPE(controller::Pose)\n")
+    action_type = controller_text.index("Q_DECLARE_METATYPE(controller::Action)\n")
+    hand_type = controller_text.index("Q_DECLARE_METATYPE(controller::Hand)\n")
+    input_pair = controller_text.index("Q_DECLARE_METATYPE(controller::Input::NamedPair)\n")
+    input_vector = controller_text.index("Q_DECLARE_METATYPE(QVector<controller::Input::NamedPair>)\n")
+    action_vector = controller_text.index("Q_DECLARE_METATYPE(QVector<controller::Action>)\n")
+    assert max(input_type, pose_type, action_type, hand_type) < input_pair < input_vector, \
+        "Qt 6 must register controller leaf types before automatic QPair and QVector metatypes"
+    assert action_type < action_vector, "Qt 6 must register Action before its QVector metatype"
+
     qt_helpers = SOURCE_ROOT / "libraries" / "shared" / "src" / "shared" / "QtHelpers.h"
     require_text(qt_helpers, r'QT_VERSION\s*>=\s*QT_VERSION_CHECK\s*\(\s*6\s*,\s*5\s*,\s*0\s*\)',
                  "typed invoke support must be isolated to Qt versions that provide it")
