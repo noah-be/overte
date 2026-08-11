@@ -10,9 +10,11 @@
 #ifndef hifi_RenderEventHandler_h
 #define hifi_RenderEventHandler_h
 
+#include <atomic>
 #include <functional>
 #include <QEvent>
 #include <QElapsedTimer>
+#include <QObject>
 
 enum ApplicationEvent {
     // Execute a lambda function

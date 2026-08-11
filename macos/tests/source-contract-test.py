@@ -67,6 +67,15 @@ qt_compat = (ROOT / "cmake/QtCompat.cmake").read_text(encoding="utf-8")
 if "macro(overte_find_qt)" not in qt_compat or "function(overte_find_qt)" in qt_compat:
     raise SystemExit("Qt discovery must preserve Qt 5 tool variables in the caller scope")
 
+render_event_handler = (
+    ROOT / "interface/src/graphics/RenderEventHandler.h"
+).read_text(encoding="utf-8")
+for required_include in ("<atomic>", "<QObject>"):
+    if f"#include {required_include}" not in render_event_handler:
+        raise SystemExit(
+            f"RenderEventHandler must include {required_include} instead of relying on transitive includes"
+        )
+
 # Application's Pico state is deliberately absent from desktop builds. Check
 # every member declared in its Pico-only header blocks instead of maintaining a
 # hand-written list, so a newly added member cannot silently break macOS again.
