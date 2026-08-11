@@ -22,6 +22,28 @@ if "QX11Info" in ios_branch:
 if "_swapchain.initSurface(QX11Info::connection(), winId())" not in window[linux_start:]:
     raise SystemExit("existing X11 surface branch was not preserved")
 
+swapchain = (ROOT / "libraries/vk/src/vk/VulkanSwapChain.cpp").read_text(encoding="utf-8")
+surface_start = swapchain.index("void VulkanSwapChain::initSurface")
+surface_end = swapchain.index("void VulkanSwapChain::setContext", surface_start)
+surface_body = swapchain[surface_start:surface_end]
+for token in (
+    "assert(_context && _context->instance)",
+    "vkCreateMetalSurfaceEXT(_context->instance",
+    "vkCreateXcbSurfaceKHR(_context->instance",
+):
+    if token not in surface_body:
+        raise SystemExit(f"Vulkan swapchain surface creation missing {token!r}")
+for stale in (
+    "SurfaceKHR(instance", "SurfaceMVK(instance", "vkGetInstanceProcAddr(instance",
+    "fpCreateHeadlessSurfaceEXT(instance",
+):
+    if stale in swapchain:
+        raise SystemExit(f"Vulkan swapchain retained stale context access {stale!r}")
+
+config = (ROOT / "libraries/vk/src/vk/Config.h").read_text(encoding="utf-8")
+if "#ifndef VK_USE_PLATFORM_METAL_EXT\n#define VK_USE_PLATFORM_METAL_EXT\n#endif" not in config:
+    raise SystemExit("the iOS Metal platform define must tolerate the owning CMake definition")
+
 bridge = (ROOT / "libraries/vk/src/vk/VulkanIOSSurface.mm").read_text(encoding="utf-8")
 for token in ("QWindow::winId()", "CAMetalLayer", "isKindOfClass", "Qt owns its lifetime"):
     if token not in bridge:
