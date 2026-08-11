@@ -24,7 +24,7 @@ on:
       - ".github/workflows/macos-bootstrap.yml"
       - ".github/workflows/pico4-build.yml"
       - ".github/workflows/project-tests.yml"
-      - "android/tests/**"
+      - "android/common/tests/**"
       - "ios/tests/**"
       - "tests/workflow-contract-test.py"
       - "tests/check-documentation.py"

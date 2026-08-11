@@ -12,4 +12,5 @@ QtObject {
     readonly property bool showControllerSettings: false
     // Pico render scale changes are specific to the separate VR client.
     readonly property bool showPicoResolutionSettings: false
+    readonly property bool showPicoInteractionSettings: false
 }

@@ -5,48 +5,50 @@ Copyright 2021-2025 Overte e.V.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-<p align="center"><a href="https://overte.org/"><picture><source srcset="interface/resources/images/brand-banner.svg" alt="Overte" width="350" media="(prefers-color-scheme: dark)"><img src="interface/resources/images/brand-banner-black.svg" alt="Overte" width="350"></picture></a></p>
-
-<h3 align="center"><a href="https://overte.org/">Website</a> | <a href="https://matrix.to/#/#overte:matrix.org">Matrix</a> | <a href="https://overte.org/downloads.html">Download</a></h3>
-<p align="center">
-    <a href="https://docs.overte.org/en/latest/contribute.html"><img alt="GitHub contributors" src="https://img.shields.io/github/contributors/overte-org/overte"></a>
-    <a href="https://github.com/overte-org/overte/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/overte-org/overte"></a>
-    <a href="https://github.com/overte-org/overte/network"><img alt="GitHub forks" src="https://img.shields.io/github/forks/overte-org/overte"></a>
-    <a href="https://www.apache.org/licenses/LICENSE-2.0"><img alt="Apache 2.0" src="https://img.shields.io/badge/license-Apache--2.0-%230A7BBB?style=flat"></a>
-    <a href="https://matrix.to/#/#overte:overte.org"><img alt="Matrix" src="https://img.shields.io/matrix/overte_general:matrix.org?label=Matrix%20chat"></a>
-    <a href="https://depot.dev/?utm_source=Overte"><img alt="Built with Depot" src="https://depot.dev/badges/built-with-depot.svg"></a>
-</p>
-<h3 align="center">Build Status</h3>
-<p align="center">
-    <a href="https://github.com/overte-org/overte/actions/workflows/build.yml"><img alt="Nightly CI Build" src="https://github.com/overte-org/overte/actions/workflows/build.yml/badge.svg?event=schedule"></a>
-    <a href="https://github.com/overte-org/overte/actions/workflows/master_deploy_apidocs.yml"><img alt="API-docs CI Build & Deploy" src="https://github.com/overte-org/overte/actions/workflows/master_deploy_apidocs.yml/badge.svg"></a>
-    <a href="https://github.com/overte-org/overte/actions/workflows/master_deploy_doxygen.yml"><img alt="Doxygen CI Build & Deploy" src="https://github.com/overte-org/overte/actions/workflows/master_deploy_doxygen.yml/badge.svg"></a>
-</p>
+<p align="center"><a href="https://overte.org/"><picture><source srcset="interface/resources/images/brand-banner.svg?version=experimental-fork" alt="Overte experimental AI assisted fork" width="350" media="(prefers-color-scheme: dark)"><img src="interface/resources/images/brand-banner-black.svg?version=experimental-fork" alt="Overte experimental AI assisted fork" width="350"></picture></a></p>
 
 > [!CAUTION]
 > **AI-assisted experimental fork**
 >
-> I use AI tools to assist with experiments and implementation work in this fork. I work in a separate fork for this reason and do not consider its changes suitable for contribution to the original Overte project.
+> This repository is an experimental fork of the [original Overte project](https://github.com/overte-org/overte). I am currently developing interfaces for the Pico 4 VR headset, Android phones, iPhones, iPads, and Mac computers. I am not a member of the Overte development team. I maintain this fork as a personal hobby project with the goal of making Overte playable by as many different people as possible.
 >
-> Code in this fork should be reviewed and used with caution. It may contain incomplete, poorly tested, insecure, or otherwise dangerous code, including quick-and-dirty fixes. Do not treat this fork as a clean, stable, or production-ready version of Overte. For the official, stable project, use the [original Overte repository](https://github.com/overte-org/overte).
+> I use AI tools to assist with experiments and implementation work in this fork. Code in this repository may therefore be incomplete, poorly tested, insecure, or otherwise dangerous, including quick-and-dirty fixes and vulnerabilities that have not yet been identified. Building or running it may expose your device, data, accounts, or network to security risks. Review the code carefully and use it entirely at your own risk. Do not treat this fork as a clean, stable, or production-ready version of Overte.
 >
 > The Overte project has a [no-AI-contributions policy](https://github.com/overte-org/overte/blob/master/CONTRIBUTING.md), which I respect. AI tools help me work more efficiently, so I use them only for work maintained separately in this fork.
 
-### Pico 4 port
+### Repository structure
 
-See [Build the Overte client for Pico 4](android/PICO4_BUILD.md) for setup,
-build, installation, and deployment instructions.
-For measured world-entry and post-loading optimization guidance, see the
-[Pico 4 world-loading guide](android/docs/world-loading/pico4-optimization-guide.md).
+The branches in this fork are organized by platform and device target:
 
-The consolidated platform entry point is
-[`docs/interfaces/pico4/README.md`](docs/interfaces/pico4/README.md).
+```text
+main
+├── Android (android-main)
+│   ├── Android phones (android-phone)
+│   └── VR headsets (android-vr)
+│       ├── Pico 4 (android-vr-pico)
+│       └── Meta Quest (android-vr-quest)
+└── Apple (apple-main)
+    ├── iPhone and iPad (apple-ios)
+    └── Mac computers (apple-macos)
+```
+
+The Android source tree mirrors the same ownership boundaries inside
+[`android/`](android/README.md): shared infrastructure lives in `common`, Phone
+code in `phone`, and headset code below `vr/pico` or `vr/quest`. The `vr/common`
+directory is reserved for implementation genuinely shared by multiple Android
+VR targets.
 
 ### Interfaces in development
 
 The four ports use a shared documentation layout described in
 [`docs/interfaces/`](docs/interfaces/README.md). The platform documentation is
 maintained on its corresponding development branch.
+
+> [!NOTE]
+> The information below comes from the original Overte project. For the latest official information, see the [README in the original Overte repository](https://github.com/overte-org/overte#readme). This fork is an experimental personal hobby project and is not an official version of Overte.
+
+<details>
+<summary>Original Overte project information</summary>
 
 ### What is this?
 
@@ -118,3 +120,5 @@ Overte consists of many projects and codebases with its unifying structure's goa
 There are many contributors to Overte.
 Code writers, reviewers, testers, documentation writers, modellers, and general supporters of the project are all integral to its development and success towards its goals.
 Find out how you can [contribute](https://docs.overte.org/en/latest/contribute.html)!
+
+</details>

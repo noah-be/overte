@@ -14,10 +14,10 @@ headset, ADB, Android device, external domain, or device setting is used.
   transparent centre pixel as an unready surface; reject invalid dimensions,
   multiplication overflow, null direct-buffer addresses, and undersized JNI
   frame buffers before constructing a `QImage`.
-- Regression: `python3 android/tests/pico-webview-bridge-test.py`.
+- Regression: `python3 android/vr/pico/tests/pico-webview-bridge-test.py`.
 - Passed: WebView bridge regression (2 tests); microphone runner mocks (11);
   unattended runner mocks (9); serverless fixture integrity; Pico device-lock
-  mocks (5); Bash syntax for `android/tests/*.sh` and `android/*.sh`.
+  mocks (5); Bash syntax for `android/common/tests/*.sh` and `android/*.sh`.
 - Risk: the source-level bridge test cannot exercise Android WebView rendering
   or the Qt scene graph. The checks are deliberately narrow and complement an
   Android build and later acceptance test.
@@ -37,7 +37,7 @@ headset, ADB, Android device, external domain, or device setting is used.
 - Passed: `pico-webview-input-test.sh`; WebView bridge regression (3 tests);
   Bash syntax for the new runner; `git diff --check`.
 - Build not run: offline Gradle configuration stops before Java compilation
-  because `android/conan/pico4-debug/generators/Qt5-debug-armv8-data.cmake` is
+  because `android/common/conan/pico4-debug/generators/Qt5-debug-armv8-data.cmake` is
   absent. No dependency installation or network fetch was attempted.
 - Risk: Android dispatch and physical ray behavior remain outside a host JVM.
   The extracted state machine itself has no Android dependency and covers
@@ -74,7 +74,7 @@ headset, ADB, Android device, external domain, or device setting is used.
   every early failure path, release the Activity-class local reference, and on
   Activity recreation reuse the process-global loader while replacing only the
   Activity reference.
-- Regression: `python3 android/tests/pico-openxr-loader-test.py` checks the
+- Regression: `python3 android/vr/pico/tests/pico-openxr-loader-test.py` checks the
   recreation, transactional-publication, and local-reference contracts.
 - Passed: OpenXR loader lifecycle regression (3 tests); `git diff --check`.
 - Build not run: the Pico Conan/Qt generator metadata needed by the Android
@@ -94,7 +94,7 @@ headset, ADB, Android device, external domain, or device setting is used.
   AudioRecord, OpenXR loader, microphone/unattended/device-lock mocks,
   serverless fixture integrity, and power-analyzer coverage; document its
   separation from configured native Qt/C++ host tests.
-- Passed: `android/tests/pico-device-free-test.sh` in full: WebView bridge (3),
+- Passed: `android/vr/pico/tests/pico-device-free-test.sh` in full: WebView bridge (3),
   WebView gesture state, AudioRecord state, OpenXR lifecycle (3), microphone
   mocks (11), unattended mocks (9), device-lock mocks (5), serverless fixture,
   power analyzer (4), and all selected Bash syntax checks.
@@ -1973,7 +1973,7 @@ headset, ADB, Android device, external domain, or device setting is used.
   exposed on a Pico-only Settings page. The lightweight fixture station loads
   for the local acceptance world without enabling diagnostics.
 - Passed: JavaScript syntax for every changed runtime script; expanded Pico
-  interaction regression; complete `android/tests/pico-device-free-test.sh`;
+  interaction regression; complete `android/vr/pico/tests/pico-device-free-test.sh`;
   full ARM64 debug APK build (`41` Gradle tasks, `BUILD SUCCESSFUL`); update APK
   installation and unattended cold start on Pico 4. The packaged app reached
   the local scene, created all four fixtures, started the independent Far Grab
