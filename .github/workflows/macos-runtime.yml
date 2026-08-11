@@ -60,6 +60,8 @@ jobs:
           fi
           app="$(find build/runtime-artifact -type d -name Overte.app -print -quit)"
           test -n "$app"
+          # GitHub's artifact extraction does not retain executable modes.
+          chmod -R u+rx "$app/Contents/MacOS" "$app/Contents/Frameworks" "$app/Contents/PlugIns"
           test -x "$app/Contents/MacOS/Overte"
           test -f "$app/Contents/Info.plist"
           plutil -lint "$app/Contents/Info.plist"
