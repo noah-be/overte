@@ -32,6 +32,12 @@ main
     └── Mac computers (apple-macos)
 ```
 
+The Android source tree mirrors the same ownership boundaries inside
+[`android/`](android/README.md): shared infrastructure lives in `common`, Phone
+code in `phone`, and headset code below `vr/pico` or `vr/quest`. The `vr/common`
+directory is reserved for implementation genuinely shared by multiple Android
+VR targets.
+
 ### Interfaces in development
 
 The four ports use a shared documentation layout described in

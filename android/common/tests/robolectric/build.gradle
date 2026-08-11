@@ -1,0 +1,102 @@
+plugins {
+    id 'java'
+}
+
+dependencyLocking {
+    lockAllConfigurations()
+    lockMode = LockMode.STRICT
+}
+
+def phoneJava = file('../../../phone/apps/phoneInterface/src/main/java')
+def phoneTests = file('../../../phone/apps/phoneInterface/src/test/java')
+def interfaceJava = file('../../../phone/apps/interface/src/main/java')
+def interfaceTests = file('../../../phone/apps/interface/src/test/java')
+def picoJava = file('../../../vr/pico/apps/picoInterface/src/main/java')
+def picoTests = file('../../../vr/pico/apps/picoInterface/src/test/java')
+def questJava = file('../../../vr/quest/apps/questInterface/src/main/java')
+def questTests = file('../../../vr/quest/apps/questInterface/src/test/java')
+
+sourceSets {
+    boundary {
+        java.srcDirs 'src/main/java'
+    }
+    main {
+        java {
+            srcDirs phoneJava, interfaceJava, picoJava, questJava
+            include 'org/overte/phone/PermissionsActivity.java'
+            include 'org/overte/phone/PhoneDeepLink.java'
+            include 'org/overte/phone/PhoneDeepLinkNormalizer.java'
+            include 'org/overte/phone/PhoneLaunchState.java'
+            include 'org/overte/phone/PhonePermissionFlow.java'
+            include 'io/highfidelity/hifiinterface/HifiUtils.java'
+            include 'io/highfidelity/hifiinterface/PermissionChecker.java'
+            include 'org/overte/pico/PermissionsActivity.java'
+            include 'org/overte/pico/AndroidAudioInput.java'
+            include 'org/overte/pico/AndroidAudioInputPolicy.java'
+            include 'org/overte/pico/PicoAudioCaptureState.java'
+            include 'io/highfidelity/questInterface/PermissionsChecker.java'
+        }
+        compileClasspath += sourceSets.boundary.output
+        runtimeClasspath += sourceSets.boundary.output
+    }
+    test {
+        java {
+            srcDirs phoneTests, interfaceTests, picoTests, questTests
+            include 'org/overte/phone/PermissionsActivityRobolectricTest.java'
+            include 'org/overte/phone/PhoneDeepLinkRobolectricTest.java'
+            include 'io/highfidelity/hifiinterface/HifiUtilsTest.java'
+            include 'io/highfidelity/hifiinterface/PermissionCheckerRobolectricTest.java'
+            include 'org/overte/pico/PermissionsActivityRobolectricTest.java'
+            include 'io/highfidelity/questInterface/PermissionsCheckerRobolectricTest.java'
+        }
+        compileClasspath += sourceSets.boundary.output
+        runtimeClasspath += sourceSets.boundary.output
+    }
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+dependencies {
+    boundaryCompileOnly 'org.robolectric:android-all:15-robolectric-13954326'
+    compileOnly 'org.robolectric:android-all:15-robolectric-13954326'
+    testCompileOnly 'org.robolectric:android-all:15-robolectric-13954326'
+    testRuntimeOnly 'org.robolectric:android-all:15-robolectric-13954326'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.16.1'
+}
+
+def extractedTestAars = layout.buildDirectory.dir('extracted-test-aars')
+def extractTestAars = tasks.register('extractTestAars') {
+    outputs.dir extractedTestAars
+    doLast {
+        def destination = extractedTestAars.get().asFile
+        delete destination
+        configurations.testRuntimeClasspath.resolvedConfiguration.resolvedArtifacts
+                .findAll { it.extension == 'aar' }
+                .each { artifact ->
+                    copy {
+                        from zipTree(artifact.file)
+                        include 'classes.jar'
+                        into destination
+                        rename { "${artifact.moduleVersion.id.group}-${artifact.name}.jar" }
+                    }
+                }
+    }
+}
+
+test {
+    dependsOn extractTestAars
+    classpath += fileTree(extractedTestAars) { include '*.jar' }
+    useJUnit()
+    // Avoid host-wide /tmp cleanup and extraction collisions for Conscrypt's JNI helper.
+    def conscryptWorkDir = layout.buildDirectory.dir('tmp/conscrypt-native')
+    doFirst {
+        conscryptWorkDir.get().asFile.mkdirs()
+    }
+    systemProperty 'org.conscrypt.native.workdir', conscryptWorkDir.get().asFile.absolutePath
+    reports.junitXml.required = true
+    reports.html.required = true
+}
