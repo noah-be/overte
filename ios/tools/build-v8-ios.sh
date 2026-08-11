@@ -115,9 +115,13 @@ EOF
 xcode_toolchain_dir="$source_root/buildtools/overte-xcode-toolchain/bin"
 mkdir -p "$xcode_toolchain_dir"
 bundled_llvm_bin="$source_root/third_party/llvm-build/Release+Asserts/bin"
+for compiler in clang clang++; do
+    compiler_path="$xcode_tool_bin/$compiler"
+    test -x "$compiler_path" || die "Xcode compiler is not executable: $compiler_path"
+    printf '#!/bin/sh\nexec "%s" "$@"\n' "$compiler_path" > "$xcode_toolchain_dir/$compiler"
+    chmod +x "$xcode_toolchain_dir/$compiler"
+done
 for mapping in \
-    "clang:$xcode_tool_bin/clang" \
-    "clang++:$xcode_tool_bin/clang++" \
     "llvm-ar:$bundled_llvm_bin/llvm-ar" \
     "llvm-nm:$(xcrun --find nm)" \
     "llvm-otool:$(xcrun --find otool)" \
