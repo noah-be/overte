@@ -354,6 +354,11 @@ def test_cmake_boundary() -> None:
     require_text(resource_cache_h, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*size_t qHash\(const QPointer<QObject>& value, size_t seed = 0\) noexcept[\s\S]*uint qHash", "QPointer hash declarations must preserve Qt 6 and Qt 5 signatures")
     packet_headers = SOURCE_ROOT / "libraries/networking/src/udt/PacketHeaders.cpp"
     require_text(packet_headers, r"#include <QtCore/QIODevice>[\s\S]*QDataStream stream\(&buffer, QIODevice::WriteOnly\)", "protocol signature serialization must include the complete QIODevice open-mode type")
+    node_permissions = SOURCE_ROOT / "libraries/networking/src/NodePermissions.cpp"
+    node_permissions_text = node_permissions.read_text(encoding="utf-8")
+    assert node_permissions_text.count("QUuid {}") == 4, "standard permission keys must construct explicit null UUID values"
+    for standard_name in ("localhost", "logged-in", "anonymous", "friends"):
+        assert f'QStringLiteral("{standard_name}")' in node_permissions_text, f"standard permission key must preserve {standard_name}"
     path_utils = SOURCE_ROOT / "libraries/shared/src/PathUtils.cpp"
     path_utils_text = path_utils.read_text(encoding="utf-8")
     assert "capturedRef(" not in path_utils_text, "Qt 6 removed QRegularExpressionMatch::capturedRef"
