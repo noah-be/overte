@@ -25,9 +25,10 @@ class V8IOSCheckpointContractTest(unittest.TestCase):
             "use_custom_libcxx = false",
             'xcode_clang="$(xcrun --sdk iphoneos --find clang)"',
             'xcode_tool_bin="$(dirname "$xcode_clang")"',
-            "for tool in clang clang++ llvm-ar llvm-nm llvm-otool install_name_tool",
-            'tool_path="$xcode_tool_bin/$tool"',
-            'tool_path="$(xcrun --find install_name_tool)"',
+            'bundled_llvm_bin="$source_root/third_party/llvm-build/Release+Asserts/bin"',
+            '"llvm-ar:$bundled_llvm_bin/llvm-ar"',
+            '"llvm-nm:$(xcrun --find nm)"',
+            '"llvm-otool:$(xcrun --find otool)"',
             'clang_base_path = "//buildtools/overte-xcode-toolchain"',
             "clang_use_chrome_plugins = false",
             "use_lld = false",
@@ -45,9 +46,12 @@ class V8IOSCheckpointContractTest(unittest.TestCase):
         self.assertNotIn("gclient runhooks", script)
         self.assertIn('host_python="$(command -v python3)"', script)
         self.assertIn('"$depot_root/ensure_bootstrap"', script)
-        self.assertNotIn("tools/clang/scripts/update.py", script)
         self.assertIn("^Apple clang version ", script)
-        for required_build_hook in ("build/landmines.py", "build/util/lastchange.py"):
+        for required_build_hook in (
+            "build/landmines.py",
+            "tools/clang/scripts/update.py",
+            "build/util/lastchange.py",
+        ):
             self.assertIn(required_build_hook, script)
 
     def test_integrated_job_restores_validates_and_saves_checkpoint(self):

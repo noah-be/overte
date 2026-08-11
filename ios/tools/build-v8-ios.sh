@@ -97,13 +97,14 @@ EOF
 # environment.  The pinned numpy wheel for that environment was never
 # published for macOS arm64 and is unrelated to compiling v8_monolith.  Run
 # only the build hooks required by GN/Ninja instead: freeze depot_tools,
-# process landmines and generate the revision metadata consumed by the build.
-# The target compiler is selected explicitly from Xcode below; downloading
-# V8's historical Clang would be both unused and incompatible with Xcode 26's
-# libc++ headers.
+# process landmines, install the DEPS-pinned LLVM utilities and generate the
+# revision metadata consumed by the build.  The pinned compiler itself is too
+# old for Xcode 26's libc++ headers, but its llvm-ar is still required by V8's
+# secondary thin-archive toolchain because current Xcode ships no llvm-ar.
 (cd "$source_root" && \
     "$host_python" third_party/depot_tools/update_depot_tools_toggle.py --disable && \
     "$host_python" build/landmines.py --landmine-scripts tools/get_landmines.py && \
+    "$host_python" tools/clang/scripts/update.py && \
     "$host_python" build/util/lastchange.py -o build/util/LASTCHANGE)
 
 # Chromium's Apple GN toolchain rebases clang_base_path from nested output
@@ -113,16 +114,17 @@ EOF
 # tools so compiler, archiver and inspection commands share one stable base.
 xcode_toolchain_dir="$source_root/buildtools/overte-xcode-toolchain/bin"
 mkdir -p "$xcode_toolchain_dir"
-for tool in clang clang++ llvm-ar llvm-nm llvm-otool install_name_tool; do
-    case "$tool" in
-    install_name_tool)
-        tool_path="$(xcrun --find install_name_tool)"
-        ;;
-    *)
-        tool_path="$xcode_tool_bin/$tool"
-        ;;
-    esac
-    test -x "$tool_path" || die "Xcode tool is not executable: $tool_path"
+bundled_llvm_bin="$source_root/third_party/llvm-build/Release+Asserts/bin"
+for mapping in \
+    "clang:$xcode_tool_bin/clang" \
+    "clang++:$xcode_tool_bin/clang++" \
+    "llvm-ar:$bundled_llvm_bin/llvm-ar" \
+    "llvm-nm:$(xcrun --find nm)" \
+    "llvm-otool:$(xcrun --find otool)" \
+    "install_name_tool:$(xcrun --find install_name_tool)"; do
+    tool="${mapping%%:*}"
+    tool_path="${mapping#*:}"
+    test -x "$tool_path" || die "required Apple/LLVM tool is not executable: $tool_path"
     ln -sfn "$tool_path" "$xcode_toolchain_dir/$tool"
 done
 
