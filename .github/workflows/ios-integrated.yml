@@ -113,7 +113,7 @@ jobs:
       OVERTE_IOS_MOLTENVK_ROOT: ${{ github.workspace }}/build-ios/external/MoltenVK
       OVERTE_IOS_V8_ROOT: ${{ github.workspace }}/build-ios/external/v8-ios
       SCCACHE_DIR: ${{ github.workspace }}/build-ios/client-sccache
-      SCCACHE_CACHE_SIZE: 2G
+      SCCACHE_CACHE_SIZE: 512M
       SCCACHE_BASEDIRS: ${{ github.workspace }}
     defaults:
       run:
@@ -442,7 +442,7 @@ jobs:
         run: |
           gh cache list --repo "$GITHUB_REPOSITORY" --key "$CACHE_PREFIX" --limit 100 \
             --json id,createdAt,ref \
-            --jq '[.[] | select(.ref == env.GITHUB_REF)] | sort_by(.createdAt) | reverse | .[2:] | .[].id' |
+            --jq '[.[] | select(.ref == env.GITHUB_REF)] | sort_by(.createdAt) | reverse | .[1:] | .[].id' |
           while IFS= read -r cache_id; do
             [[ -n "$cache_id" ]] || continue
             gh cache delete "$cache_id" --repo "$GITHUB_REPOSITORY"

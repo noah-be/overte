@@ -1718,7 +1718,11 @@ def test_ci_contract() -> None:
     require_text(qt_source, r"workflow_call:[\s\S]*?qt_host_cache_key:[\s\S]*?qt_ios_cache_key:", "reusable Qt workflow must expose both component keys")
     require_text(qt_source, r"qt_host_cache_key:.*steps\.cache-key\.outputs\.host", "host output must originate from the deterministic key step")
     require_text(qt_source, r"qt_ios_cache_key:.*steps\.cache-key\.outputs\.ios", "iOS output must originate from the deterministic key step")
-    require_text(qt_source, r"--stage source", "Qt provisioning must checkpoint the verified source archive")
+    require_text(qt_source, r"--stage source", "Qt provisioning must verify or download the pinned source archive")
+    require_text(qt_source, r"SCCACHE_CACHE_SIZE:\s*256M", "Qt failure recovery must leave room for validated component caches")
+    qt_source_text = qt_source.read_text(encoding="utf-8")
+    if re.search(r"actions/cache/(?:restore|save)@[0-9a-f]+[\s\S]{0,500}QT_WORK_ROOT.*/downloads", qt_source_text):
+        raise AssertionError("the disposable Qt source archive must not compete with validated component caches")
     require_text(qt_source, r"--stage host", "Qt provisioning must build the host as an independent checkpoint")
     require_text(qt_source, r"Save validated Qt host tools immediately", "host Qt must survive a later target failure")
     require_text(qt_source, r'host_plan_hash="f7a0f4a6a8d51a462a14c9b51e1595338d023f4fd06a0a134aeadbf07a9bce18"', "target-only fixes must retain the validated host cache key")
@@ -1727,6 +1731,8 @@ def test_ci_contract() -> None:
     require_text(qt_source, r"Save compiler recovery cache after a build failure", "failed compiles must retain reusable compiler outputs without duplicating every successful run")
     require_text(qt_source, r"if: failure\(\) && steps\.sccache\.outcome == 'success'", "compiler recovery must only create a new generation after a failed build")
     require_text(qt_source, r"restore-keys:[\s\S]*?sccache_prefix", "the next run must restore the latest compatible compiler cache")
+    require_text(qt_source, r"sccache_prune_prefix=overte-qt-sccache-v2-\$\{RUNNER_ARCH\}-", "Qt recovery pruning must cover obsolete toolchain namespaces")
+    require_text(qt_source, r"Prune superseded Qt compiler recovery caches[\s\S]*?sort_by\(\.createdAt\)[\s\S]*?\.\[1:\]", "only the newest Qt compiler recovery generation may remain")
 
     bootstrap_workflow = SOURCE_ROOT / ".github" / "workflows" / "ios-bootstrap.yml"
     require_text(bootstrap_workflow, r"needs\.provision-qt-ios\.outputs\.qt_host_cache_key", "host cache output must reach the integrated caller")

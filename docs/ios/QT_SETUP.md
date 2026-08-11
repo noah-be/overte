@@ -137,22 +137,25 @@ builds the smallest currently known full-graph source set: `qtbase`,
 `qtwebview`, `qt5compat`, and `qtshadertools`. Qt's documented comma-separated
 `-submodules` form also includes their dependencies. The workflow builds
 matching macOS host tools first and then the iOS SDK, validates both trees, and
-saves the verified source archive, validated `qt/macos` host prefix, and
-validated `qt/ios` target prefix under separate immutable keys containing Qt,
-Xcode, SDK, architecture, and the build-plan hash. Each completed component is
-saved immediately, so a later iOS failure cannot discard a successful host
-build. The integrated workflow restores both component keys exactly and
-validates the pair before configuration. No prefix-matched fallback is allowed
-for toolchains because mixing Xcode, SDK, architecture, or plan revisions would
-be ABI-unsafe.
+downloads and verifies the pinned source archive in the ephemeral workspace,
+then saves the validated `qt/macos` host prefix and validated `qt/ios` target
+prefix under separate immutable keys containing Qt, Xcode, SDK, architecture,
+and the build-plan hash. The large, reproducible source archive is deliberately
+not cached so it cannot evict the much smaller validated install prefixes. Each
+completed component is saved immediately, so a later iOS failure cannot discard
+a successful host build. The integrated workflow restores both component keys
+exactly and validates the pair before configuration. No prefix-matched fallback
+is allowed for toolchains because mixing Xcode, SDK, architecture, or plan
+revisions would be ABI-unsafe.
 
 Host and iOS configure policies have separate plan hashes. A target-only fix,
 such as explicitly skipping unsupported Qt WebEngine while retaining the native
 Qt WebView/WKWebView path, does not invalidate an already validated host prefix.
 
-Compilation uses a bounded 1 GiB `sccache` directory. A run-specific recovery entry
+Compilation uses a bounded 256 MiB `sccache` directory. A run-specific recovery entry
 is saved after a normal compile failure (not after successful component publication), and the next compatible run may
-restore the newest entry sharing the exact compile-plan prefix. This cache is
+restore the newest entry sharing the exact compile-plan prefix. Only the newest
+recovery generation for the branch and runner architecture is retained. This cache is
 only an optimization: host and target installations are accepted solely after
 their normal validators pass. Partial downloads, unvalidated install prefixes,
 credentials, and the complete workspace are never cached. When both validated

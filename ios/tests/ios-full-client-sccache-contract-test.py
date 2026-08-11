@@ -46,7 +46,7 @@ def main() -> None:
         "the full-client cache must use pinned action and compiler-cache revisions",
     )
     require(r"SCCACHE_DIR:\s*\$\{\{ github\.workspace \}\}/build-ios/client-sccache", integrated, "the cache must stay in the bounded workspace path")
-    require(r"SCCACHE_CACHE_SIZE:\s*2G", integrated, "the client cache must not evict toolchain checkpoints")
+    require(r"SCCACHE_CACHE_SIZE:\s*512M", integrated, "the client cache must leave room for validated toolchain checkpoints")
     require(r"SCCACHE_BASEDIRS:\s*\$\{\{ github\.workspace \}\}", integrated, "workspace paths must be normalized")
     require(r"SCCACHE_C_CUSTOM_CACHE_BUSTER=.*namespace", integrated, "toolchain identity must enter compiler keys")
     for identity in ("QT_HOST_KEY", "QT_IOS_KEY", "CONAN_KEY", "V8_KEY", "MOLTENVK_KEY"):
@@ -112,7 +112,7 @@ def main() -> None:
 
     prune_slice = integrated[prune:package]
     require(r"client-sccache-key\.outputs\.prune_prefix", prune_slice, "pruning must cover obsolete compiler namespaces")
-    require(r"sort_by\(\.createdAt\).*reverse.*\.\[2:\]", prune_slice, "only the two newest branch/architecture generations may remain")
+    require(r"sort_by\(\.createdAt\).*reverse.*\.\[1:\]", prune_slice, "only the newest branch/architecture generation may remain")
     require(r"select\(\.ref == env\.GITHUB_REF\)", prune_slice, "pruning must not touch another branch")
     integrated_job_header = integrated[: integrated.index("steps:")]
     require(r"permissions:[\s\S]*actions: write[\s\S]*contents: read", integrated_job_header, "only the pruning job needs Actions write scope")

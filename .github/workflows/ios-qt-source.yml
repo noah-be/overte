@@ -15,6 +15,7 @@ on:
         value: ${{ jobs.qt-ios-source.outputs.qt_ios_cache_key }}
 
 permissions:
+  actions: write
   contents: read
 
 concurrency:
@@ -32,7 +33,7 @@ jobs:
       QT_WORK_ROOT: ${{ github.workspace }}/build-ios/qt-work
       QT_INSTALL_ROOT: ${{ github.workspace }}/build-ios/qt-install/qt
       SCCACHE_DIR: ${{ github.workspace }}/build-ios/sccache
-      SCCACHE_CACHE_SIZE: 1G
+      SCCACHE_CACHE_SIZE: 256M
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
         with:
@@ -50,13 +51,6 @@ jobs:
           set -euo pipefail
           xcode_build="$(xcodebuild -version | awk '/Build version/{print $3}')"
           sdk_version="$(xcrun --sdk iphoneos --show-sdk-version)"
-          source_sha="$(ios/tools/prepare-qt-ios.sh manifest | sed -n 's/^QT_SOURCE_SHA256=//p')"
-          source_url="$(ios/tools/prepare-qt-ios.sh manifest | sed -n 's/^QT_SOURCE_URL=//p')"
-          source_archive="${source_url##*/}"
-          [[ "$source_archive" == qt-everywhere-src-*.tar.xz ]] || {
-            echo "unexpected Qt source archive name: $source_archive" >&2
-            exit 1
-          }
           # Keep the already validated host cache stable across target-only
           # configure fixes. Bump this only when host configure inputs change.
           host_plan_hash="f7a0f4a6a8d51a462a14c9b51e1595338d023f4fd06a0a134aeadbf07a9bce18"
@@ -64,11 +58,10 @@ jobs:
           validator_hash="$(shasum -a 256 ios/tools/prepare-qt-ios.sh | awk '{print $1}')"
           host_base="${RUNNER_ARCH}-xcode-${xcode_build}-iphoneos-${sdk_version}-${host_plan_hash}"
           ios_base="${RUNNER_ARCH}-xcode-${xcode_build}-iphoneos-${sdk_version}-${ios_plan_hash}"
-          echo "source=overte-qt-source-v2-${source_sha}" >> "$GITHUB_OUTPUT"
-          echo "source_archive=${source_archive}" >> "$GITHUB_OUTPUT"
           echo "host=overte-qt-host-v2-${host_base}-contract-${validator_hash}" >> "$GITHUB_OUTPUT"
           echo "ios=overte-qt-ios-v2-${ios_base}-contract-${validator_hash}" >> "$GITHUB_OUTPUT"
           echo "sccache_prefix=overte-qt-sccache-v2-${ios_base}-" >> "$GITHUB_OUTPUT"
+          echo "sccache_prune_prefix=overte-qt-sccache-v2-${RUNNER_ARCH}-" >> "$GITHUB_OUTPUT"
 
       - name: Restore validated Qt host tools
         id: host-cache
@@ -90,14 +83,6 @@ jobs:
           ios/tools/prepare-qt-ios.sh validate \
             "$QT_INSTALL_ROOT/ios" "$QT_INSTALL_ROOT/macos"
 
-      - name: Restore verified Qt source archive
-        if: steps.host-cache.outputs.cache-hit != 'true' || steps.ios-cache.outputs.cache-hit != 'true'
-        id: source-cache
-        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        with:
-          path: ${{ env.QT_WORK_ROOT }}/downloads/${{ steps.cache-key.outputs.source_archive }}
-          key: ${{ steps.cache-key.outputs.source }}
-
       - name: Install source-build prerequisites
         if: steps.host-cache.outputs.cache-hit != 'true' || steps.ios-cache.outputs.cache-hit != 'true'
         run: brew install cmake ninja sccache
@@ -109,13 +94,6 @@ jobs:
             --work-root "$QT_WORK_ROOT" \
             --install-root "$QT_INSTALL_ROOT" \
             --stage source
-
-      - name: Save verified Qt source archive
-        if: (steps.host-cache.outputs.cache-hit != 'true' || steps.ios-cache.outputs.cache-hit != 'true') && steps.source-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        with:
-          path: ${{ env.QT_WORK_ROOT }}/downloads/${{ steps.cache-key.outputs.source_archive }}
-          key: ${{ steps.cache-key.outputs.source }}
 
       - name: Restore compiler recovery cache
         if: steps.host-cache.outputs.cache-hit != 'true' || steps.ios-cache.outputs.cache-hit != 'true'
@@ -175,3 +153,18 @@ jobs:
         with:
           path: ${{ env.SCCACHE_DIR }}
           key: ${{ steps.cache-key.outputs.sccache_prefix }}${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Prune superseded Qt compiler recovery caches
+        if: failure() && steps.sccache.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CACHE_PREFIX: ${{ steps.cache-key.outputs.sccache_prune_prefix }}
+        run: |
+          gh cache list --repo "$GITHUB_REPOSITORY" --key "$CACHE_PREFIX" --limit 100 \
+            --json id,createdAt,ref \
+            --jq '[.[] | select(.ref == env.GITHUB_REF)] | sort_by(.createdAt) | reverse | .[1:] | .[].id' |
+          while IFS= read -r cache_id; do
+            [[ -n "$cache_id" ]] || continue
+            gh cache delete "$cache_id" --repo "$GITHUB_REPOSITORY"
+          done

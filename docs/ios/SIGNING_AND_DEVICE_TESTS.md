@@ -155,7 +155,7 @@ not manufacture or infer physical-device acceptance.
 
 The integrated Xcode build routes C, C++, Objective-C and Objective-C++
 compilations through a pinned `sccache` client. It writes content-addressed
-compiler results into a bounded 2 GiB workspace cache
+compiler results into a bounded 512 MiB workspace cache
 as compilation succeeds. Immediately after either a successful Xcode build or
 a normal compiler/link failure, CI uploads that checkpoint under a new immutable
 generation. A later source-only fix can then reuse unchanged translation units.
@@ -179,7 +179,7 @@ never prints process arguments or environment variables. The heartbeat is
 observational only: it cannot fail or terminate the build, and the original
 Xcode exit status is preserved.
 
-At most two generations across all full-client compiler namespaces for the
+Only the newest generation across all full-client compiler namespaces for the
 matching branch and runner architecture are retained, so obsolete toolchain
 namespaces cannot accumulate and displace the separately validated Qt, V8,
 MoltenVK and Conan checkpoints. A hard runner termination can still prevent the final cache

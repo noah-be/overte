@@ -65,6 +65,9 @@ jobs:
       (contains(github.event.head_commit.message, '[qt-source]') ||
        contains(github.event.head_commit.message, '[ios-integrated]'))
     uses: ./.github/workflows/ios-qt-source.yml
+    permissions:
+      actions: write
+      contents: read
 
   integrated-ios-after-qt:
     if: >-
