@@ -1614,7 +1614,12 @@ def test_ci_contract() -> None:
     require_text(integrated, r"path: \$\{\{ github\.workspace \}\}/build-ios/qt-install/qt/ios", "consumer must restore target Qt with the producer's absolute path form")
     require_text(integrated, r"fail-on-cache-miss: true", "Qt restoration must fail closed")
     require_text(integrated, r"runs-on: ubuntu-24\.04", "integrated CI needs Linux host contracts")
-    require_text(integrated, r"runs-on: macos-26", "integrated CI must use an Xcode 26 host")
+    require_text(integrated, r"macos_runner:[\s\S]*default:\s*macos-26",
+                 "integrated CI must default to the Xcode 26 hosted runner")
+    require_text(integrated, r"runs-on:\s*\$\{\{\s*inputs\.macos_runner\s*\}\}",
+                 "integrated CI must support the explicit GetMac recovery runner")
+    require_text(integrated, r"clean:\s*\$\{\{\s*inputs\.macos_runner\s*!=\s*'overte-ios-getmac'\s*\}\}",
+                 "persistent recovery builds must retain their incremental build tree")
     require_text(integrated, r"defaults:\n\s+run:\n(?:\s+#.*\n){0,3}\s+shell: bash", "integrated diagnostics pipelines must run with pipefail")
     require_text(integrated, r"CONAN_HOME: \$\{\{ github\.workspace \}\}/build-ios/conan-home", "Conan state must be isolated inside the workspace")
     require_text(integrated, r"Select deterministic Conan package cache key", "integrated CI must key its validated dependency checkpoint")
@@ -1895,6 +1900,16 @@ def test_script_entity_id_qt6_contract() -> None:
                  "Qt 6 MOC must see the complete QVariantMap signal argument type")
     require_text(midi_header, r'void\s+midi(?:Note|Message)\s*\(\s*QVariantMap\s+eventData\s*\)',
                  "MIDI script signals must preserve their event-map payload")
+
+    qt_helpers = SOURCE_ROOT / "libraries" / "shared" / "src" / "shared" / "QtHelpers.h"
+    require_text(qt_helpers, r'QT_VERSION\s*>=\s*QT_VERSION_CHECK\s*\(\s*6\s*,\s*5\s*,\s*0\s*\)',
+                 "typed invoke support must be isolated to Qt versions that provide it")
+    require_text(qt_helpers, r'template\s*<\s*typename\.\.\.\s+Args\s*>[\s\S]*const char\*\s+member',
+                 "Qt 6 blocking invokes must accept typed Q_ARG and Q_RETURN_ARG wrappers")
+    require_text(qt_helpers, r'QMetaObject::invokeMethod\s*\(\s*context\s*,\s*member\s*,\s*Qt::BlockingQueuedConnection',
+                 "typed blocking invokes must preserve their connection semantics")
+    require_text(qt_helpers, r'std::forward<Args>\s*\(\s*args\s*\)\.\.\.',
+                 "typed blocking invokes must forward every argument without erasure")
 
 
 def main() -> None:

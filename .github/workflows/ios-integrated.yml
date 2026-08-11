@@ -11,6 +11,11 @@ on:
         description: Existing GitHub Actions cache key containing an audited Qt 6 iOS tree
         required: true
         type: string
+      macos_runner:
+        description: macOS runner label; use overte-ios-getmac for persistent recovery builds
+        required: false
+        default: macos-26
+        type: string
   workflow_call:
     inputs:
       qt_host_cache_key:
@@ -20,6 +25,11 @@ on:
       qt_ios_cache_key:
         description: Existing GitHub Actions cache key containing an audited Qt 6 iOS tree
         required: true
+        type: string
+      macos_runner:
+        description: macOS runner label; use overte-ios-getmac for persistent recovery builds
+        required: false
+        default: macos-26
         type: string
 
 permissions:
@@ -46,7 +56,7 @@ jobs:
   v8-checkpoint:
     name: Static JITless V8 checkpoint
     needs: host-contracts
-    runs-on: macos-26
+    runs-on: ${{ inputs.macos_runner }}
     timeout-minutes: 180
     outputs:
       cache-key: ${{ steps.v8-cache-key.outputs.key }}
@@ -57,6 +67,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
         with:
           persist-credentials: false
+          clean: ${{ inputs.macos_runner != 'overte-ios-getmac' }}
 
       - name: Select deterministic iOS V8 cache key
         id: v8-cache-key
@@ -90,7 +101,7 @@ jobs:
   integrated-configure:
     name: Toolchain, dependencies, build and package
     needs: [host-contracts, v8-checkpoint]
-    runs-on: macos-26
+    runs-on: ${{ inputs.macos_runner }}
     timeout-minutes: 180
     env:
       OVERTE_IOS_QT_ROOT: ${{ github.workspace }}/build-ios/qt-install/qt/ios
@@ -108,6 +119,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
         with:
           persist-credentials: false
+          clean: ${{ inputs.macos_runner != 'overte-ios-getmac' }}
 
       - name: Fail closed without an explicit Qt cache key
         env:
