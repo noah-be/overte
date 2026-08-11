@@ -287,6 +287,8 @@ def test_cmake_boundary() -> None:
     require_text(autoscribe, r"AUTOSCRIBE_SHADERGEN_DEPENDS[\s\S]*AUTOSCRIBE_SHADERGEN_COMMANDS_FILE", "iOS shader generation must retain its authoritative command manifest")
     debug_draw = SOURCE_ROOT / "libraries/shared/src/DebugDraw.h"
     require_text(debug_draw, r'#include "RegisteredMetaTypes\.h"', "Qt 6 moc must see GLM metatype declarations before invokable arguments")
+    registered_metatypes = SOURCE_ROOT / "libraries/shared/src/RegisteredMetaTypes.h"
+    require_text(registered_metatypes, r"#include <QtCore/QVariant>", "registered inline metatype helpers must have a complete QVariant type")
     shutdown_listener = SOURCE_ROOT / "libraries/shared/src/ShutdownEventListener.h"
     require_text(shutdown_listener, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*qintptr\* result[\s\S]*long\* result", "native event filters must use the Qt 6 result type with a Qt 5 fallback")
     shutdown_listener_impl = SOURCE_ROOT / "libraries/shared/src/ShutdownEventListener.cpp"
