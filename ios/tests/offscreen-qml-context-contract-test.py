@@ -23,6 +23,10 @@ require("context.backend != SharedGraphicsContext::Backend::OpenGL || !context.h
         "unsupported/null leases must fail closed")
 require("setSharedContext(static_cast<QOpenGLContext*>(context.handle));" in SOURCE,
         "existing desktop OpenGL implementation is not adapted")
+require("#if !defined(Q_OS_IOS)\n#include <QtGui/QSurfaceFormat>\n#endif" in GRAPHICS,
+        "desktop surface-format calls must include their concrete Qt type without exposing it to iOS")
+require("#if !defined(Q_OS_IOS)\n#include <gl/GLHelpers.h>\n#include <gl/OffscreenGLCanvas.h>\n#endif" in GRAPHICS,
+        "desktop OffscreenGLCanvas users must include their concrete type without exposing it to iOS")
 require("#if defined(Q_OS_IOS)\n    const hifi::qml::OffscreenSurface::SharedGraphicsContext" in GRAPHICS,
         "iOS does not use the backend-neutral contract")
 require("Backend::Unsupported" in GRAPHICS and "native QRhi context lease is implemented" in GRAPHICS,

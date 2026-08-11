@@ -19,8 +19,8 @@ require("set(INTERFACE_GL_LIBRARY gl)" in CMAKE and 'set(INTERFACE_GL_LIBRARY ""
         "Interface GL library is not platform-gated")
 require("${INTERFACE_GL_LIBRARY}" in CMAKE,
         "Interface does not consume its gated GL variable")
-require("#if !defined(Q_OS_IOS)\n#include <gl/GLHelpers.h>\n#endif" in GRAPHICS,
-        "iOS still parses direct GL helpers")
+require("#if !defined(Q_OS_IOS)\n#include <gl/GLHelpers.h>\n#include <gl/OffscreenGLCanvas.h>\n#endif" in GRAPHICS,
+        "iOS still parses direct GL helpers or the desktop offscreen canvas")
 require("#if !defined(Q_OS_IOS)\nQ_GUI_EXPORT void qt_gl_set_global_share_context" in GRAPHICS,
         "iOS still declares Qt global GL share functions")
 require("#if !defined(Q_OS_IOS)\n    glClearColor" in GRAPHICS,

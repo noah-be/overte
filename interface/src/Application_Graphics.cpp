@@ -19,6 +19,9 @@
 
 #include <QtCore/QRegularExpression>
 #include <QtQml/QQmlContext>
+#if !defined(Q_OS_IOS)
+#include <QtGui/QSurfaceFormat>
+#endif
 
 #include <AudioScriptingInterface.h>
 #include <display-plugins/CompositorHelper.h>
@@ -26,6 +29,7 @@
 #include <FramebufferCache.h>
 #if !defined(Q_OS_IOS)
 #include <gl/GLHelpers.h>
+#include <gl/OffscreenGLCanvas.h>
 #endif
 #include <input-plugins/KeyboardMouseDevice.h>
 #include <input-plugins/TouchscreenDevice.h>
