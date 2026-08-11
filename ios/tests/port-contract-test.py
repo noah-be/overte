@@ -285,6 +285,10 @@ def test_cmake_boundary() -> None:
     autoscribe = SOURCE_ROOT / "cmake/macros/AutoScribeShader.cmake"
     require_text(autoscribe, r"if \(IOS\)[\s\S]*shadergen\.stamp", "iOS shader generation must avoid Xcode ARG_MAX via one stamp output")
     require_text(autoscribe, r"AUTOSCRIBE_SHADERGEN_DEPENDS[\s\S]*AUTOSCRIBE_SHADERGEN_COMMANDS_FILE", "iOS shader generation must retain its authoritative command manifest")
+    debug_draw = SOURCE_ROOT / "libraries/shared/src/DebugDraw.h"
+    require_text(debug_draw, r'#include "RegisteredMetaTypes\.h"', "Qt 6 moc must see GLM metatype declarations before invokable arguments")
+    shutdown_listener = SOURCE_ROOT / "libraries/shared/src/ShutdownEventListener.h"
+    require_text(shutdown_listener, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*qintptr\* result[\s\S]*long\* result", "native event filters must use the Qt 6 result type with a Qt 5 fallback")
     cmake = IOS_ROOT / "CMakeLists.txt"
     require_text(cmake, r'CMAKE_SYSTEM_NAME STREQUAL "iOS"', "CMake must reject non-iOS targets")
     require_text(cmake, r'XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"', "bundle must support iPhone and iPad")
