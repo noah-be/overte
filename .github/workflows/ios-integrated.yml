@@ -157,13 +157,6 @@ jobs:
           tar -xf "$archive" -C build-ios/external
           rm "$archive"
 
-      - name: Toolchain preflight
-        run: |
-          test "${{ steps.qt-host-cache.outputs.cache-hit }}" = true
-          test "${{ steps.qt-ios-cache.outputs.cache-hit }}" = true
-          ios/tools/prepare-qt-ios.sh validate
-          ios/build-ios.sh doctor --platform device --require-qt --require-moltenvk
-
       - name: Save validated MoltenVK
         if: steps.moltenvk-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
@@ -180,6 +173,13 @@ jobs:
 
       - name: Validate pinned static JITless V8 for iOS
         run: ios/tools/build-v8-ios.sh validate
+
+      - name: Toolchain preflight
+        run: |
+          test "${{ steps.qt-host-cache.outputs.cache-hit }}" = true
+          test "${{ steps.qt-ios-cache.outputs.cache-hit }}" = true
+          ios/tools/prepare-qt-ios.sh validate
+          ios/build-ios.sh doctor --platform device --require-qt --require-moltenvk
 
       - name: Bootstrap pinned Conan tooling
         run: ios/build-ios.sh bootstrap

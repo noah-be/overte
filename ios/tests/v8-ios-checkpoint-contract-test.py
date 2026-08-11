@@ -61,13 +61,17 @@ class V8IOSCheckpointContractTest(unittest.TestCase):
 
     def test_integrated_job_restores_validates_and_saves_checkpoint(self):
         workflow = (ROOT / ".github/workflows/ios-integrated.yml").read_text(encoding="utf-8")
-        restore = workflow.index("Restore pinned static JITless V8 for iOS")
-        validate = workflow.index("Validate pinned static JITless V8 for iOS")
+        integrated = workflow[workflow.index("  integrated-configure:"):]
+        restore = integrated.index("Restore pinned static JITless V8 for iOS")
+        validate = integrated.index("Validate pinned static JITless V8 for iOS")
+        preflight = integrated.index("Toolchain preflight")
         save = workflow.index("Save validated static JITless V8 for iOS")
         configure = workflow.index("Configure experimental full client graph")
         self.assertLess(restore, validate)
-        self.assertLess(validate, save)
+        self.assertLess(validate, preflight)
         self.assertLess(save, configure)
+        self.assertIn("fail-on-cache-miss: true", integrated[restore:validate])
+        self.assertIn("needs.v8-checkpoint.outputs.cache-key", integrated[restore:validate])
         self.assertIn("OVERTE_IOS_V8_ROOT:", workflow)
 
 
