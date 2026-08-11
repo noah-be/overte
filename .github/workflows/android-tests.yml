@@ -8,9 +8,10 @@ on:
       - "libraries/**"
       - "scripts/**"
       - ".github/workflows/android-tests.yml"
+      - "!**/*.md"
   push:
     branches:
-      - feature/android-phone-support
+      - android-phone
       - "ci/android-phone-**"
       - "test/android-**"
     paths:
@@ -19,6 +20,7 @@ on:
       - "libraries/**"
       - "scripts/**"
       - ".github/workflows/android-tests.yml"
+      - "!**/*.md"
   schedule:
     - cron: "17 2 * * *"
   workflow_dispatch:
@@ -66,19 +68,19 @@ jobs:
             qml-module-qtquick-layouts \
             qml-module-qtquick-window2
       - name: Install pinned static quality tools
-        run: tests/quality/install-tools.sh
+        run: common/tests/quality/install-tools.sh
       - name: Run fast tier
-        run: tests/run-tests.sh fast
+        run: common/tests/run-tests.sh fast
         env:
           OVERTE_REQUIRE_QML_TESTS: 1
           QT_QPA_PLATFORM: offscreen
       - name: Enforce production JavaScript coverage
-        run: tests/coverage/run-javascript-coverage.sh
+        run: common/tests/coverage/run-javascript-coverage.sh
       - name: Summarize fast results
         if: always()
         continue-on-error: true
         run: >-
-          python3 tests/reporting/generate_summary.py
+          python3 common/tests/reporting/generate_summary.py
           --junit fast=build/test-results/suite/TEST-android-fast.xml
           --junit native=build/test-results/native/TEST-native.xml
           --junit javascript=build/test-results/javascript/TEST-javascript.xml
@@ -122,12 +124,12 @@ jobs:
         with:
           node-version: 22
       - name: Run contract tier
-        run: tests/run-tests.sh contracts
+        run: common/tests/run-tests.sh contracts
       - name: Summarize contract results
         if: always()
         continue-on-error: true
         run: >-
-          python3 tests/reporting/generate_summary.py
+          python3 common/tests/reporting/generate_summary.py
           --junit contracts=build/test-results/suite/TEST-android-contracts.xml
           --output build/reports/summary/contracts.md
       - name: Publish JUnit report
@@ -166,14 +168,14 @@ jobs:
           build/tools/native-coverage-venv/bin/pip install \
             --disable-pip-version-check --retries 4 --timeout 30 gcovr==8.4
       - name: Enforce dependency-free JVM coverage
-        run: tests/coverage/run-standalone-jvm-coverage.sh
+        run: common/tests/coverage/run-standalone-jvm-coverage.sh
       - name: Run launcher Activities on Robolectric API 24 through 35
-        run: tests/robolectric/run-tests.sh
+        run: common/tests/robolectric/run-tests.sh
       - name: Enforce native policy coverage
-        run: tests/coverage/run-native-coverage.sh
+        run: common/tests/coverage/run-native-coverage.sh
       - name: Reject surviving critical policy mutations
         if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
-        run: tests/run-tests.sh mutation
+        run: common/tests/run-tests.sh mutation
       - name: Summarize host coverage results
         if: always()
         continue-on-error: true
@@ -181,7 +183,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
         run: |
           summary_args=(
-            --junit 'robolectric=tests/robolectric/build/test-results/test/TEST-*.xml'
+            --junit 'robolectric=common/tests/robolectric/build/test-results/test/TEST-*.xml'
             --coverage jvm=build/reports/coverage/jvm-standalone/report.xml
             --coverage native-interface=build/reports/coverage/native/interface.xml
             --coverage native-handoff=build/reports/coverage/native/pending-handoff.xml
@@ -191,7 +193,7 @@ jobs:
             summary_args+=(--junit mutation=build/test-results/suite/TEST-android-mutation.xml)
             summary_args+=(--mutation critical=build/reports/mutation/critical-policies.json)
           fi
-          python3 tests/reporting/generate_summary.py "${summary_args[@]}"
+          python3 common/tests/reporting/generate_summary.py "${summary_args[@]}"
       - name: Publish coverage reports
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -200,7 +202,7 @@ jobs:
           path: |
             android/build/reports/coverage/
             android/build/test-results/suite/TEST-android-mutation.xml
-            android/tests/robolectric/build/test-results/test/
+            android/common/tests/robolectric/build/test-results/test/
             android/build/reports/summary/coverage.md
           if-no-files-found: error
           retention-days: 7
@@ -224,12 +226,12 @@ jobs:
           node-version: 22
       - name: Run extended mutation tier
         timeout-minutes: 35
-        run: tests/run-tests.sh mutation-extended
+        run: common/tests/run-tests.sh mutation-extended
       - name: Summarize extended mutation results
         if: always()
         continue-on-error: true
         run: >-
-          python3 tests/reporting/generate_summary.py
+          python3 common/tests/reporting/generate_summary.py
           --junit mutation-extended=build/test-results/suite/TEST-android-mutation-extended.xml
           --mutation mutation-extended=build/reports/mutation/critical-policies-extended.json
           --output build/reports/summary/mutation-extended.md
@@ -265,12 +267,12 @@ jobs:
           node-version: 22
       - name: Run order and parallel isolation stability tier
         timeout-minutes: 40
-        run: tests/run-tests.sh stability
+        run: common/tests/run-tests.sh stability
       - name: Summarize stability results
         if: always()
         continue-on-error: true
         run: >-
-          python3 tests/reporting/generate_summary.py
+          python3 common/tests/reporting/generate_summary.py
           --junit stability=build/test-results/suite/TEST-android-stability.xml
           --output build/reports/summary/stability.md
       - name: Publish stability diagnostics
@@ -315,12 +317,12 @@ jobs:
           OVERTE_NATIVE_ENDURANCE_CYCLES: 1000
           OVERTE_REQUIRE_QML_TESTS: 1
           QT_QPA_PLATFORM: offscreen
-        run: tests/run-tests.sh endurance
+        run: common/tests/run-tests.sh endurance
       - name: Summarize endurance results
         if: always()
         continue-on-error: true
         run: >-
-          python3 tests/reporting/generate_summary.py
+          python3 common/tests/reporting/generate_summary.py
           --junit endurance=build/test-results/suite/TEST-android-endurance.xml
           --junit native=build/test-results/native/TEST-native.xml
           --junit qml-endurance=build/test-results/qml-endurance/TEST-qml-endurance.xml
@@ -359,12 +361,12 @@ jobs:
         with:
           node-version: 22
       - name: Run regression tier
-        run: tests/run-tests.sh regression
+        run: common/tests/run-tests.sh regression
       - name: Summarize regression results
         if: always()
         continue-on-error: true
         run: >-
-          python3 tests/reporting/generate_summary.py
+          python3 common/tests/reporting/generate_summary.py
           --junit regression=build/test-results/suite/TEST-android-regression.xml
           --output build/reports/summary/regression.md
       - name: Publish JUnit report

@@ -40,7 +40,7 @@ jobs:
           set -euo pipefail
           [[ "$GITHUB_REF_TYPE" == tag ]] || { echo "Select an existing Pico RC tag" >&2; exit 2; }
           [[ "$(git rev-list -n 1 "$GITHUB_REF")" == "$GITHUB_SHA" ]] || exit 2
-          android/ci/pico4-release.py --tag "$GITHUB_REF_NAME" \
+          android/vr/pico/ci/pico4-release.py --tag "$GITHUB_REF_NAME" \
             --github-ref "$GITHUB_REF" --revision "$GITHUB_SHA"
 
       - name: Download exact draft release candidate
@@ -62,7 +62,7 @@ jobs:
       - name: Verify without accessing ADB
         run: |
           set -euo pipefail
-          android/ci/pico4-device-acceptance.sh \
+          android/vr/pico/ci/pico4-device-acceptance.sh \
             --tag "$GITHUB_REF_NAME" --revision "$GITHUB_SHA" \
             --apk build/pico4-device/picoInterface-release.apk \
             --checksums build/pico4-device/SHA256SUMS \
@@ -102,7 +102,7 @@ jobs:
             echo "Confirmation must be exactly: INSTALL $GITHUB_REF_NAME" >&2
             exit 2
           }
-          android/ci/pico4-release.py --tag "$GITHUB_REF_NAME" \
+          android/vr/pico/ci/pico4-release.py --tag "$GITHUB_REF_NAME" \
             --github-ref "$GITHUB_REF" --revision "$GITHUB_SHA" \
             --github-output "$GITHUB_OUTPUT"
 
@@ -123,7 +123,7 @@ jobs:
           PICO_RELEASE_CERT_SHA256: ${{ secrets.PICO_RELEASE_CERT_SHA256 }}
         run: |
           set -euo pipefail
-          android/ci/verify-pico-apk.py build/pico4-device/picoInterface-release.apk \
+          android/vr/pico/ci/verify-pico-apk.py build/pico4-device/picoInterface-release.apk \
             --aapt "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt" \
             --apksigner "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" \
             --source-revision "$GITHUB_SHA" \
@@ -139,8 +139,8 @@ jobs:
           DEVICE_CONFIRMATION: ${{ inputs.confirmation }}
         run: |
           set -euo pipefail
-          android/pico-device-lock.sh run -- \
-            android/ci/pico4-device-acceptance.sh --execute \
+          android/vr/pico/pico-device-lock.sh run -- \
+            android/vr/pico/ci/pico4-device-acceptance.sh --execute \
               --confirmation "$DEVICE_CONFIRMATION" \
               --tag "$GITHUB_REF_NAME" --revision "$GITHUB_SHA" \
               --apk build/pico4-device/picoInterface-release.apk \

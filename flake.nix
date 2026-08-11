@@ -71,7 +71,7 @@
               inputsFrom = [ self'.packages.overte-full ];
 
               buildInputs = [
-                # taken from: https://github.com/NixOS/nixpkgs/blob/ac62194c3917d5f474c1a844b6fd6da2db95077d/pkgs/development/libraries/qt-5/5.15/default.nix#L353-L388
+                # taken from: https://github.com/NixOS/nixpkgs/blob/ac62194c3917d5f474c1a844b6fd6da2db95077d/pkgs/development/common/libraries/qt-5/5.15/default.nix#L353-L388
                 (pkgs.qt5.env "overte-devenv" (
                   builtins.attrValues {
                     inherit (pkgs.libsForQt5)

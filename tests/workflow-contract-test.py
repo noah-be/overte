@@ -11,8 +11,44 @@ WORKFLOW = ROOT / ".github/workflows/project-tests.yml"
 BUILD_WORKFLOW = ROOT / ".github/workflows/pico4-build.yml"
 RELEASE_WORKFLOW = ROOT / ".github/workflows/pico4-release-candidate.yml"
 DEVICE_WORKFLOW = ROOT / ".github/workflows/pico4-device-acceptance.yml"
+GENERAL_BUILD_WORKFLOW = ROOT / ".github/workflows/build.yml"
+ANDROID_TESTS_WORKFLOW = ROOT / ".github/workflows/android-tests.yml"
+DOCUMENTATION_WORKFLOW = ROOT / ".github/workflows/documentation-checks.yml"
+IOS_WORKFLOW = ROOT / ".github/workflows/ios-bootstrap.yml"
+MACOS_WORKFLOW = ROOT / ".github/workflows/macos-bootstrap.yml"
 ACTION_USE = re.compile(r"^\s*uses:\s*([^\s#]+)", re.MULTILINE)
 FULL_SHA_ACTION = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
+
+
+class GeneralBuildWorkflowContracts(unittest.TestCase):
+    def test_documentation_and_contract_only_prs_skip_full_build_matrix(self):
+        source = GENERAL_BUILD_WORKFLOW.read_text(encoding="utf-8")
+        for path in (
+            '"**/*.md"',
+            '"docs/**"',
+            '".github/workflows/build.yml"',
+            '".github/workflows/documentation-checks.yml"',
+            '".github/workflows/macos-bootstrap.yml"',
+            '"android/common/tests/**"',
+            '"ios/tests/**"',
+            '"tests/workflow-contract-test.py"',
+            '"tests/check-documentation.py"',
+        ):
+            self.assertIn(path, source)
+
+    def test_documentation_changes_use_lightweight_checks(self):
+        documentation = DOCUMENTATION_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn('"**/*.md"', documentation)
+        self.assertIn("tests/check-documentation.py", documentation)
+        self.assertIn("timeout-minutes: 5", documentation)
+        self.assertIn("persist-credentials: false", documentation)
+
+    def test_app_test_workflows_exclude_markdown(self):
+        for workflow in (ANDROID_TESTS_WORKFLOW, WORKFLOW):
+            self.assertIn('"!**/*.md"', workflow.read_text(encoding="utf-8"))
+        for workflow in (IOS_WORKFLOW, MACOS_WORKFLOW):
+            if workflow.exists():
+                self.assertIn("'!**/*.md'", workflow.read_text(encoding="utf-8"))
 
 
 class PicoWorkflowContracts(unittest.TestCase):
@@ -79,13 +115,13 @@ class PicoBuildWorkflowContracts(unittest.TestCase):
 
     def test_build_runs_tests_and_fail_closed_apk_verification(self):
         self.assertIn("Reject untrusted build refs", self.source)
-        self.assertIn("refs/heads/feature/pico4-support", self.source)
+        self.assertIn("refs/heads/android-vr-pico", self.source)
         self.assertIn("refs/tags/pico4-preview-[0-9]+", self.source)
         self.assertIn("tests/run-project-tests.py", self.source)
-        self.assertIn("./build-pico.sh doctor", self.source)
-        self.assertIn("./build-pico.sh deps --download", self.source)
-        self.assertIn("./build-pico.sh build --stacktrace", self.source)
-        self.assertIn("android/ci/verify-pico-apk.py", self.source)
+        self.assertIn("./vr/pico/build.sh doctor", self.source)
+        self.assertIn("./vr/pico/build.sh deps --download", self.source)
+        self.assertIn("./vr/pico/build.sh build --stacktrace", self.source)
+        self.assertIn("android/vr/pico/ci/verify-pico-apk.py", self.source)
         self.assertIn('--source-revision "$GITHUB_SHA"', self.source)
 
     def test_large_apk_is_not_uploaded_to_actions_storage(self):
@@ -105,7 +141,7 @@ class PicoReleaseWorkflowContracts(unittest.TestCase):
         self.assertNotRegex(self.source, r"(?m)^  (pull_request|pull_request_target|push):$")
         self.assertIn('[[ "$GITHUB_REF_TYPE" == tag ]]', self.source)
         self.assertIn("pico4-release.py", self.source)
-        self.assertNotIn("refs/heads/feature/pico4-support", self.source)
+        self.assertNotIn("refs/heads/android-vr-pico", self.source)
 
     def test_release_has_protected_boundary_and_dedicated_runner(self):
         self.assertIn("environment: pico4-release-candidate", self.source)
@@ -120,8 +156,8 @@ class PicoReleaseWorkflowContracts(unittest.TestCase):
         self.assertIn("persist-credentials: false", self.source)
 
     def test_release_reuses_gates_and_only_creates_a_draft(self):
-        for contract in ("tests/run-project-tests.py", "./build-pico.sh deps --download",
-                         "android/ci/verify-pico-apk.py", "--expected-version-code",
+        for contract in ("tests/run-project-tests.py", "./vr/pico/build.sh deps --download",
+                         "android/vr/pico/ci/verify-pico-apk.py", "--expected-version-code",
                          "--expected-version-name", "--expected-signer-sha256"):
             self.assertIn(contract, self.source)
         self.assertIn("gh release create", self.source)
