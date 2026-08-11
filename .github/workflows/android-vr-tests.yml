@@ -56,7 +56,7 @@ jobs:
           node-version: 22
       - name: Run Android VR hardware-free gate
         timeout-minutes: 15
-        run: tests/run-tests.sh android-vr
+        run: common/tests/run-tests.sh android-vr
       - name: Publish Android VR reports
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -65,6 +65,6 @@ jobs:
           path: |
             android/build/test-results/suite/TEST-android-android-vr.xml
             android/build/test-results/native/TEST-native-android-vr.xml
-            android/tests/robolectric/build/test-results/test/
+            android/common/tests/robolectric/build/test-results/test/
           if-no-files-found: error
           retention-days: 14

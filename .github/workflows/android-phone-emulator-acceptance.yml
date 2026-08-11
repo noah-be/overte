@@ -78,19 +78,19 @@ jobs:
           test -f "$apk" && test ! -L "$apk"
           printf '%s  %s\n' "$APPROVED_APK_SHA256" "$apk" | sha256sum --check --strict
           sdk_root="${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}"
-          android/ci/verify-phone-apk.py "$apk" --expect-unsigned --expect-debuggable 0 \
+          android/phone/ci/verify-phone-apk.py "$apk" --expect-unsigned --expect-debuggable 0 \
             --apkanalyzer "$sdk_root/cmdline-tools/latest/bin/apkanalyzer" \
             --source-revision "$GITHUB_SHA" >/dev/null
       - name: Run exact-source x86_64 emulator acceptance
-        run: android/phone-emulator-test.sh all
+        run: android/phone/phone-emulator-test.sh all
       - name: Upload acceptance report
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: android-phone-emulator-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            android/apps/phoneInterface/build/outputs/androidTest-results/connected/
-            android/apps/phoneInterface/build/reports/androidTests/connected/
+            android/phone/apps/phoneInterface/build/outputs/androidTest-results/connected/
+            android/phone/apps/phoneInterface/build/reports/androidTests/connected/
             android/build/phone-emulator/diagnostics/
           if-no-files-found: warn
           retention-days: 14
