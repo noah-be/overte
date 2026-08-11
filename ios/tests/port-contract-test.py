@@ -341,6 +341,8 @@ def test_cmake_boundary() -> None:
     require_text(gl_helpers, r"bool extDebugMarkerEnabled\(\) \{[\s\S]*Q_OS_IOS[\s\S]*return false;[\s\S]*glPushGroupMarkerEXT", "iOS GLES compatibility must not compile unavailable EXT desktop debug markers")
     ios_platform = SOURCE_ROOT / "libraries/platform/src/platform/backend/IOSPlatform.cpp"
     require_text(ios_platform, r"#include <QtCore/QString>", "iOS platform inventory must include the complete QString return type used from QSysInfo")
+    socket_type = SOURCE_ROOT / "libraries/networking/src/SocketType.h"
+    require_text(socket_type, r"#include <cstdint>[\s\S]*#include <QtCore/QDebug>[\s\S]*#include <QtCore/QString>", "SocketType inline formatting must include its complete standard and Qt value types")
     path_utils = SOURCE_ROOT / "libraries/shared/src/PathUtils.cpp"
     path_utils_text = path_utils.read_text(encoding="utf-8")
     assert "capturedRef(" not in path_utils_text, "Qt 6 removed QRegularExpressionMatch::capturedRef"
