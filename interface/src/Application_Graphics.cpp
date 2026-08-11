@@ -145,7 +145,7 @@ void Application::initializeGL() {
     _primaryWidget->createContext(globalShareContext);
 
     if (!_primaryWidget->makeCurrent()) {
-        qCWarning(interfaceapp, "Unable to make window context current");
+        qFatal("Unable to make the window OpenGL context current");
     }
 
     // Populate desktop/Android OpenGL diagnostics from the primary context.

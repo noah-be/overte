@@ -65,7 +65,9 @@ void GLWidget::createContext(QOpenGLContext* shareContext) {
     _context = new gl::Context();
     _context->setWindow(windowHandle());
     _context->create(shareContext);
-    _context->makeCurrent();
+    if (!_context->makeCurrent()) {
+        qFatal("Unable to make the primary OpenGL context current");
+    }
     _context->clear();
     _context->doneCurrent();
 }

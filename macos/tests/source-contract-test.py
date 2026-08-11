@@ -84,6 +84,31 @@ if (
 ):
     raise SystemExit("macOS version detection must use execute_process, not removed exec_program")
 
+gl_config = (ROOT / "libraries/gl/src/gl/Config.cpp").read_text(encoding="utf-8")
+public_framework = '"/System/Library/Frameworks/OpenGL.framework/OpenGL"'
+legacy_framework = '"/System/Library/Frameworks/OpenGL.framework/Versions/Current/OpenGL"'
+if public_framework not in gl_config or legacy_framework not in gl_config:
+    raise SystemExit("macOS GLAD loader must support current and legacy OpenGL framework paths")
+if gl_config.index(public_framework) > gl_config.index(legacy_framework):
+    raise SystemExit("macOS GLAD loader must prefer the public framework path")
+if "return GL_LIB ? dlsym(GL_LIB, namez) : nullptr;" not in gl_config:
+    raise SystemExit("macOS GLAD loader must not call dlsym with a failed framework handle")
+if not re.search(r"loadedVersion.*?gladLoadGLLoader.*?if \(loadedVersion == 0\).*?qFatal", gl_config, re.DOTALL):
+    raise SystemExit("GLAD initialization must fail closed when entry-point loading fails")
+
+gl_context = (ROOT / "libraries/gl/src/gl/ContextQt.cpp").read_text(encoding="utf-8")
+if not re.search(
+    r"if \(!_qglContext \|\| !_window \|\| !_qglContext->isValid\(\)\).*?"
+    r"bool result = _qglContext->makeCurrent\(_window\);.*?if \(result\).*?gl::initModuleGl\(\)",
+    gl_context,
+    re.DOTALL,
+):
+    raise SystemExit("GL entry points must only load after a valid context is current")
+
+gl_widget = (ROOT / "libraries/gl/src/gl/GLWidget.cpp").read_text(encoding="utf-8")
+if not re.search(r"if \(!_context->makeCurrent\(\)\).*?qFatal.*?_context->clear\(\)", gl_widget, re.DOTALL):
+    raise SystemExit("primary GL widget must not issue GL calls after makeCurrent fails")
+
 setting_manager = (ROOT / "libraries/shared/src/SettingManager.cpp").read_text(
     encoding="utf-8"
 )

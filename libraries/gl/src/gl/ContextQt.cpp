@@ -90,9 +90,14 @@ bool Context::makeCurrent() {
         return result;
     } else {
 #endif
+        if (!_qglContext || !_window || !_qglContext->isValid()) {
+            return false;
+        }
         updateSwapchainMemoryCounter();
         bool result = _qglContext->makeCurrent(_window);
-        gl::initModuleGl();
+        if (result) {
+            gl::initModuleGl();
+        }
         return result;
 #ifdef Q_OS_WIN
     }
@@ -138,6 +143,9 @@ void Context::qtCreate(QOpenGLContext* shareContext) {
     if (shareContext) {
         _qglContext->setShareContext(shareContext);
     }
-    _qglContext->create();
+    if (!_qglContext->create()) {
+        qCWarning(glLogging) << "Unable to create Qt OpenGL context with format"
+                             << _qglContext->format();
+    }
     _swapchainPixelSize = evalGLFormatSwapchainPixelSize(_qglContext->format());
 }

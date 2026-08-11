@@ -67,11 +67,24 @@ static void* getGlProcessAddress(const char *namez) {
 #elif defined(Q_OS_MAC)
 
 static void* getGlProcessAddress(const char *namez) {
-    static void* GL_LIB = nullptr;
-    if (nullptr == GL_LIB) {
-        GL_LIB = dlopen("/System/Library/Frameworks/OpenGL.framework/Versions/Current/OpenGL", RTLD_NOW | RTLD_GLOBAL);
-    }
-    return dlsym(GL_LIB, namez);
+    // Recent macOS releases keep system frameworks in the dyld shared cache,
+    // where the versioned compatibility path is not guaranteed to open. The
+    // public framework path is the primary loader name used by modern GLAD;
+    // retain the historical paths for older hosts.
+    static void* GL_LIB = []() -> void* {
+        static constexpr const char* OPENGL_FRAMEWORK_PATHS[] {
+            "/System/Library/Frameworks/OpenGL.framework/OpenGL",
+            "/System/Library/Frameworks/OpenGL.framework/Versions/Current/OpenGL",
+            "/System/Library/Frameworks/OpenGL.framework/Versions/A/OpenGL",
+        };
+        for (const auto* path : OPENGL_FRAMEWORK_PATHS) {
+            if (auto* library = dlopen(path, RTLD_NOW | RTLD_GLOBAL)) {
+                return library;
+            }
+        }
+        return nullptr;
+    }();
+    return GL_LIB ? dlsym(GL_LIB, namez) : nullptr;
 }
 
 #elif defined(Q_OS_LINUX) && !defined(Q_OS_ANDORID)
@@ -135,10 +148,11 @@ void gl::initModuleGl() {
 #endif
 
         auto backendApi = hifi::properties::getGraphicsAPI();
-        if (backendApi == hifi::properties::GraphicsAPI::GLES32) {
-            gladLoadGLES2Loader(getGlProcessAddress);
-        } else {
-            gladLoadGLLoader(getGlProcessAddress);
+        const int loadedVersion = backendApi == hifi::properties::GraphicsAPI::GLES32
+            ? gladLoadGLES2Loader(getGlProcessAddress)
+            : gladLoadGLLoader(getGlProcessAddress);
+        if (loadedVersion == 0) {
+            qFatal("Unable to load OpenGL entry points for the current context");
         }
     });
 }
