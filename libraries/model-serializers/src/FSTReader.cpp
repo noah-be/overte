@@ -83,7 +83,7 @@ static void removeBlendshape(QVariantHash& bs, const QString& key) {
 static void splitBlendshapes(QVariantHash& bs, const QString& key, const QString& leftKey, const QString& rightKey) {
     if (bs.contains(key) && !(bs.contains(leftKey) || bs.contains(rightKey))) {
         // key has been split into leftKey and rightKey blendshapes
-        QVariantList origShapes = bs.values(key);
+        QVariantList origShapes = bs.value(key).toList();
         QVariantList halfShapes;
         for (int i = 0; i < origShapes.size(); i++) {
             QVariantList origShape = origShapes[i].toList();

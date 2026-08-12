@@ -685,6 +685,7 @@ def test_cmake_boundary() -> None:
     fst_reader_source = fst_reader_header.with_suffix(".cpp")
     require_text(fst_reader_source, r"QVariantHash bs = properties\.value\(\"bs\"\)\.toHash\(\)", "nested legacy FST blendshapes must retain their QVariantHash representation")
     require_text(fst_reader_source, r"splitBlendshapes\(QVariantHash& bs", "nested FST blendshape mutation must not mix QHash and QMultiHash")
+    require_text(fst_reader_source, r"QVariantList origShapes = bs\.value\(key\)\.toList\(\)", "nested blendshape lists must use the Qt 6 QHash value API")
     require_text(fst_reader_source, r"writeVariant\(QBuffer& buffer, hifi::VariantMultiHash::const_iterator it\)", "top-level repeated FST keys require the QMultiHash iterator")
     for serializer in (
         SOURCE_ROOT / "libraries" / "model-serializers" / "src" / "FBXSerializer.cpp",
