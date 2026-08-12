@@ -353,7 +353,7 @@ jobs:
                   return sum(counts.values())
               return sum(counter.get("adv_counts", {}).values())
 
-          requests = int(stats.get("compile_requests", 0))
+          requests = int(stats.get("requests_executed", stats.get("compile_requests", 0)))
           cacheable = total(stats.get("cache_hits", {})) + total(stats.get("cache_misses", {}))
           write_errors = int(stats.get("cache_write_errors", 0))
           writes = int(stats.get("cache_writes", 0))
@@ -426,7 +426,7 @@ jobs:
                   return sum(counts.values())
               return sum(counter.get("adv_counts", {}).values())
 
-          requests = int(stats.get("compile_requests", 0))
+          requests = int(stats.get("requests_executed", stats.get("compile_requests", 0)))
           cacheable = total(stats.get("cache_hits", {})) + total(stats.get("cache_misses", {}))
           write_errors = int(stats.get("cache_write_errors", 0))
           cache_root = pathlib.Path("build-ios/client-sccache")

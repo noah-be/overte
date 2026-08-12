@@ -109,9 +109,11 @@ def main() -> None:
     verify_slice = integrated[verify:package]
     require(r"if:.*!cancelled\(\).*full-client-build\.outcome != 'skipped'", verify_slice, "stats must run after success or failure, but not cancellation")
     require(r"--show-stats --stats-format=json", verify_slice, "machine-readable cache evidence is required")
-    for invariant in ("compile_requests", "cache_hits", "cache_misses", "cache_write_errors"):
+    for invariant in ("requests_executed", "compile_requests", "cache_hits", "cache_misses", "cache_write_errors"):
         if invariant not in verify_slice:
             raise AssertionError(f"compiler checkpoint does not validate {invariant}")
+    if integrated.count('stats.get("requests_executed", stats.get("compile_requests", 0))') != 2:
+        raise AssertionError("both smoke and final verification must understand the sccache 0.17 statistics schema")
     require(r'cache_root = pathlib\.Path\("build-ios/client-sccache"\)[\s\S]*cache_bytes[\s\S]*requests < 1:[\s\S]*cache_files', verify_slice, "expired live statistics must fall back to validating the durable on-disk cache")
 
     stop_slice = integrated[stop:free]
