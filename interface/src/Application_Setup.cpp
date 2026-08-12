@@ -1414,7 +1414,19 @@ void Application::initialize(const QCommandLineParser &parser) {
     // Preload Tablet sounds
     DependencyManager::get<EntityScriptingInterface>()->setEntityTree(qApp->getEntities()->getTree());
     DependencyManager::get<TabletScriptingInterface>()->preloadSounds();
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    if (property(hifi::properties::TEST).isValid()) {
+        // Disabled desktop stylus pointers still create two local model
+        // entities. Apple's virtualized software renderer can spend minutes
+        // compiling their first pipeline and block a scene test before its
+        // explicit URL is processed. They are unrelated to entity rendering.
+        qCInfo(interfaceapp) << "OVERTE_MACOS_RENDER_PHASE local_input_models_skipped";
+    } else {
+        DependencyManager::get<Keyboard>()->createKeyboard();
+    }
+#else
     DependencyManager::get<Keyboard>()->createKeyboard();
+#endif
 
     // Needs to happen later in the constructor as it depends on some other things being set up
     _discordPresence = new DiscordPresence();

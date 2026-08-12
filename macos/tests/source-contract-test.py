@@ -439,6 +439,51 @@ for fixture_name in (
     if fixture_name not in serverless_script:
         raise SystemExit(f"serverless smoke does not require fixture: {fixture_name}")
 
+application_setup = (ROOT / "interface/src/Application_Setup.cpp").read_text(
+    encoding="utf-8"
+)
+local_input_gate = application_setup.split(
+    "// Preload Tablet sounds", 1
+)[1].split("// Needs to happen later", 1)[0]
+for local_input_contract in (
+    "Q_OS_MAC",
+    "property(hifi::properties::TEST).isValid()",
+    "local_input_models_skipped",
+    "DependencyManager::get<Keyboard>()->createKeyboard()",
+):
+    if local_input_contract not in local_input_gate:
+        raise SystemExit(
+            f"macOS runtime isolation contract missing: {local_input_contract}"
+        )
+
+gl41_backend = (ROOT / "libraries/gpu-gl/src/gpu/gl41/GL41Backend.cpp").read_text(
+    encoding="utf-8"
+)
+draw_indexed = gl41_backend.split("void GL41Backend::do_drawIndexed", 1)[1].split(
+    "void GL41Backend::do_drawInstanced", 1
+)[0]
+for draw_contract in (
+    "OVERTE_MACOS_GL_DIAGNOSTICS",
+    "OVERTE_MACOS_GL_DRAW begin",
+    "OVERTE_MACOS_GL_DRAW end",
+    "vertex=",
+    "fragment=",
+    "tracedPrograms.insert(_pipeline._program).second",
+):
+    if draw_contract not in draw_indexed:
+        raise SystemExit(f"macOS GL first-draw diagnostic missing: {draw_contract}")
+if draw_indexed.index("OVERTE_MACOS_GL_DRAW begin") > draw_indexed.index(
+    "glDrawElements(mode"
+):
+    raise SystemExit("macOS GL draw-begin diagnostic must precede the driver call")
+if draw_indexed.index("OVERTE_MACOS_GL_DRAW end") < draw_indexed.index(
+    "glDrawElements(mode"
+):
+    raise SystemExit("macOS GL draw-end diagnostic must follow the driver call")
+for smoke_source in (smoke, online_smoke):
+    if "OVERTE_MACOS_GL_DIAGNOSTICS=1" not in smoke_source:
+        raise SystemExit("macOS entity smokes must enable bounded GL diagnostics")
+
 opengl_display = (
     ROOT / "libraries/display-plugins/src/display-plugins/OpenGLDisplayPlugin.cpp"
 ).read_text(encoding="utf-8")

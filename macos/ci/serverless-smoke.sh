@@ -22,6 +22,8 @@ readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-720}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
 readonly lldb_timeout_seconds="${OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-90}"
 
+export OVERTE_MACOS_GL_DIAGNOSTICS=1
+
 [[ "$(uname -s)" == Darwin ]] || { echo "serverless smoke requires macOS" >&2; exit 1; }
 [[ -x "$executable" ]] || { echo "missing executable: $executable" >&2; exit 1; }
 [[ -f "$scene" ]] || { echo "missing scene fixture: $scene" >&2; exit 1; }

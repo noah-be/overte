@@ -11,7 +11,9 @@
 #include <queue>
 #include <list>
 #include <functional>
+#include <unordered_set>
 #include <glm/gtc/type_ptr.hpp>
+#include <QtCore/QString>
 
 Q_LOGGING_CATEGORY(gpugl41logging, "hifi.gpu.gl41")
 
@@ -63,6 +65,40 @@ void GL41Backend::do_drawIndexed(const Batch& batch, size_t paramOffset) {
     auto typeByteSize = TYPE_SIZE[_input._indexBufferType];
     GLvoid* indexBufferByteOffset = reinterpret_cast<GLvoid*>(startIndex * typeByteSize + _input._indexBufferOffset);
 
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    // Record only the first indexed draw per GL program on each render thread.
+    // This identifies driver-side first-draw stalls without exposing command
+    // lines, paths, environment contents, or unbounded per-frame diagnostics.
+    static thread_local std::unordered_set<GLuint> tracedPrograms;
+    const bool traceProgram = qEnvironmentVariableIsSet("OVERTE_MACOS_GL_DIAGNOSTICS") &&
+        tracedPrograms.insert(_pipeline._program).second;
+    if (traceProgram) {
+        QString vertexName { "dynamic" };
+        QString fragmentName { "dynamic" };
+        uint32_t gpuProgram { 0 };
+        if (auto pipeline = acquire(_pipeline._pipeline)) {
+            const auto& program = pipeline->getProgram();
+            if (program) {
+                gpuProgram = program->getID();
+                const auto& shaders = program->getShaders();
+                if (shaders.size() > Shader::VERTEX && shaders[Shader::VERTEX]) {
+                    vertexName = QString::fromStdString(shaders[Shader::VERTEX]->getSource().name);
+                }
+                if (shaders.size() > Shader::PIXEL && shaders[Shader::PIXEL]) {
+                    fragmentName = QString::fromStdString(shaders[Shader::PIXEL]->getSource().name);
+                }
+            }
+        }
+        qCInfo(gpugl41logging).noquote()
+            << "OVERTE_MACOS_GL_DRAW begin"
+            << "gl_program=" << _pipeline._program
+            << "gpu_program=" << gpuProgram
+            << "vertex=" << vertexName
+            << "fragment=" << fragmentName
+            << "indices=" << numIndices;
+    }
+#endif
+
     if (isStereo()) {
 #ifdef GPU_STEREO_DRAWCALL_INSTANCED
         glDrawElementsInstanced(mode, numIndices, glType, indexBufferByteOffset, 2);
@@ -79,6 +115,13 @@ void GL41Backend::do_drawIndexed(const Batch& batch, size_t paramOffset) {
         _stats._DSNumTriangles += numIndices / 3;
         _stats._DSNumDrawcalls++;
     }
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    if (traceProgram) {
+        qCInfo(gpugl41logging).noquote()
+            << "OVERTE_MACOS_GL_DRAW end"
+            << "gl_program=" << _pipeline._program;
+    }
+#endif
     _stats._DSNumAPIDrawcalls++;
 
     (void) CHECK_GL_ERROR();
