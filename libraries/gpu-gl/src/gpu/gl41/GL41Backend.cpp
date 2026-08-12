@@ -89,7 +89,7 @@ void GL41Backend::do_drawIndexed(const Batch& batch, size_t paramOffset) {
                 }
             }
         }
-        qCInfo(gpugl41logging).noquote()
+        qInfo().noquote()
             << "OVERTE_MACOS_GL_DRAW begin"
             << "gl_program=" << _pipeline._program
             << "gpu_program=" << gpuProgram
@@ -117,7 +117,7 @@ void GL41Backend::do_drawIndexed(const Batch& batch, size_t paramOffset) {
     }
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     if (traceProgram) {
-        qCInfo(gpugl41logging).noquote()
+        qInfo().noquote()
             << "OVERTE_MACOS_GL_DRAW end"
             << "gl_program=" << _pipeline._program;
     }

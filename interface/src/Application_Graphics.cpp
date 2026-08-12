@@ -397,7 +397,21 @@ void Application::initializeUi() {
 
     // BUGZ-1365 - the root context should explicitly default to being unable to load local HTML content
     ContextAwareProfile::restrictContext(offscreenUi->getSurfaceContext(), true);
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    if (property(hifi::properties::TEST).isValid()) {
+        // Automated scene tests validate the 3D render target, not Desktop.qml.
+        // Apple's software OpenGL renderer serializes all shared contexts; a
+        // slow first scene draw can otherwise hold the global GL lock while
+        // the main thread waits synchronously for Desktop QML, preventing the
+        // scene snapshot callback from ever being queued.
+        offscreenUi->pause();
+        qCInfo(interfaceapp) << "OVERTE_MACOS_RENDER_PHASE desktop_qml_paused";
+    } else {
+        offscreenUi->resume();
+    }
+#else
     offscreenUi->resume();
+#endif
 #endif
     connect(_window, &MainWindow::windowGeometryChanged, [this](const QRect& r){
         resizeGL();

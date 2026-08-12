@@ -411,7 +411,6 @@ for script_name, script_source, snapshot_name in (
     ("online", online_script, "macos-online-smoke.png"),
 ):
     for render_contract in (
-        'Test.startTracing("hifi.gpu.gl41.info=true")',
         "Render.renderMethod = 1",
         "Render.shadowsEnabled = false",
         "Render.ambientOcclusionEnabled = false",
@@ -481,11 +480,27 @@ if draw_indexed.index("OVERTE_MACOS_GL_DRAW end") < draw_indexed.index(
     "glDrawElements(mode"
 ):
     raise SystemExit("macOS GL draw-end diagnostic must follow the driver call")
+if "qCInfo(gpugl41logging)" in draw_indexed:
+    raise SystemExit("macOS GL draw diagnostics must bypass startup category resets")
 for smoke_source in (smoke, online_smoke):
     if "OVERTE_MACOS_GL_DIAGNOSTICS=1" not in smoke_source:
         raise SystemExit("macOS entity smokes must enable bounded GL diagnostics")
-    if "hifi.gpu.gl41.info=true" not in smoke_source:
-        raise SystemExit("macOS entity smokes must publish bounded GL diagnostics")
+
+application_graphics = (
+    ROOT / "interface/src/Application_Graphics.cpp"
+).read_text(encoding="utf-8")
+desktop_resume = application_graphics.split(
+    "ContextAwareProfile::restrictContext", 1
+)[1].split("connect(_window", 1)[0]
+for desktop_contract in (
+    "Q_OS_MAC",
+    "property(hifi::properties::TEST).isValid()",
+    "offscreenUi->pause()",
+    "desktop_qml_paused",
+    "offscreenUi->resume()",
+):
+    if desktop_contract not in desktop_resume:
+        raise SystemExit(f"macOS test UI isolation missing: {desktop_contract}")
 
 opengl_display = (
     ROOT / "libraries/display-plugins/src/display-plugins/OpenGLDisplayPlugin.cpp"

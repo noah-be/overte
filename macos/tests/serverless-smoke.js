@@ -4,11 +4,6 @@
 (function () {
     "use strict";
 
-    // Application startup resets Qt logging filters after reading the process
-    // environment. Reapply the one bounded first-draw category from inside the
-    // test engine so a driver stall leaves an exact shader-pair marker.
-    Test.startTracing("hifi.gpu.gl41.info=true");
-
     // Keep the visual gate deterministic and tractable on GitHub's Intel
     // runner, which exposes Apple's software OpenGL renderer.
     Render.renderMethod = 1;
