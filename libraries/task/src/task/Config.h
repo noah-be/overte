@@ -79,8 +79,8 @@ public:
     }
 
 protected:
-    QMultiMap<QString, QVariant> _default;
-    QMultiMap<QString, QVariant> _presets;
+    QVariantMap _default;
+    QVariantMap _presets;
     Setting::Handle<QString> _preset;
 };
 

@@ -652,6 +652,13 @@ the consumer restores the same validated component from its durable workflow
 artifact and rechecks the exact cache-key manifest. It still fails closed when
 neither recovery source is available.
 
+Persistent task presets again use `QVariantMap` for both a configuration and
+the name-to-configuration table. A historical warning cleanup accidentally
+changed them to `QMultiMap<QString, QVariant>` even though the implementation
+assigns, merges, and stores `QVariantMap` values; Qt 5's map inheritance hid
+that mismatch. Qt 6's independent multimap type exposes it. Preset overlay,
+default/disabled entries, and deterministic loading are unchanged.
+
 The audio gate requires device enumeration, route change, microphone consent,
 interruption recovery, Bluetooth behavior, mono input, stereo output, and
 resampling tests on physical hardware.

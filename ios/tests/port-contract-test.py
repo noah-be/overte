@@ -1348,6 +1348,13 @@ def test_scope_contract() -> None:
         in entity_item_template_text
     ), "generated EntityItem source must stringify action enums explicitly on Qt 6"
     assert 'QString("") + actionType' not in entity_item_template_text
+    task_config = SOURCE_ROOT / "libraries" / "task" / "src" / "task" / "Config.h"
+    task_config_text = task_config.read_text(encoding="utf-8")
+    assert task_config_text.count("QVariantMap _default;") == 1
+    assert task_config_text.count("QVariantMap _presets;") == 1
+    assert "QMultiMap<QString, QVariant> _default" not in task_config_text
+    assert "QMultiMap<QString, QVariant> _presets" not in task_config_text
+    assert "_presets.unite(list.toVariantMap());" in task_config_text
     entity_generator = SOURCE_ROOT / "cmake" / "macros" / "GenerateEntityProperties.cmake"
     require_text(
         entity_generator,
