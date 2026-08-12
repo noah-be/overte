@@ -159,6 +159,7 @@ jobs:
 
       - name: Probe validated Qt host artifact fallback
         id: host-artifact-probe
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -171,6 +172,7 @@ jobs:
 
       - name: Probe validated Qt iOS artifact fallback
         id: ios-artifact-probe
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -184,6 +186,7 @@ jobs:
       - name: Restore validated Qt host artifact fallback
         id: host-artifact
         if: steps.host-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -199,6 +202,7 @@ jobs:
       - name: Restore validated Qt iOS artifact fallback
         id: ios-artifact
         if: steps.ios-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

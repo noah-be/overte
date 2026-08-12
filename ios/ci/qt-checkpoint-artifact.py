@@ -18,6 +18,7 @@ import stat
 import sys
 import tarfile
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -160,8 +161,17 @@ def _github_request(url: str, token: str, limit: int = API_JSON_LIMIT) -> bytes:
             "User-Agent": "overte-qt-checkpoint",
         },
     )
-    with urllib.request.urlopen(request) as response:
-        return _read_limited(response, limit)
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return _read_limited(response, limit)
+        except urllib.error.HTTPError:
+            raise
+        except (urllib.error.URLError, TimeoutError):
+            if attempt == 3:
+                fail("GitHub artifact API remained unavailable after four verified-TLS attempts")
+            time.sleep(2 ** attempt)
+    raise AssertionError("unreachable")
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):

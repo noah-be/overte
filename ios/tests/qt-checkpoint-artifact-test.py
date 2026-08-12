@@ -20,6 +20,7 @@ import datetime as dt
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "ios/ci/qt-checkpoint-artifact.py"
+WORKFLOW = (ROOT / ".github/workflows/ios-qt-source.yml").read_text(encoding="utf-8")
 spec = importlib.util.spec_from_file_location("qt_checkpoint", TOOL)
 module = importlib.util.module_from_spec(spec)
 assert spec.loader
@@ -220,6 +221,17 @@ assert module.select_artifact(artifacts, "qt-host", 99, "apple-ios")["id"] == 5
 assert module.select_artifact(artifacts, "qt-host", 42, "other")["id"] == 6
 assert module.select_artifact(artifacts, "absent", 42, "apple-ios") is None
 
+for step_name in (
+    "Probe validated Qt host artifact fallback",
+    "Probe validated Qt iOS artifact fallback",
+    "Restore validated Qt host artifact fallback",
+    "Restore validated Qt iOS artifact fallback",
+):
+    start = WORKFLOW.index(f"- name: {step_name}")
+    following = WORKFLOW.find("\n      - name:", start + 1)
+    step = WORKFLOW[start:following if following >= 0 else len(WORKFLOW)]
+    assert "continue-on-error: true" in step, f"optional artifact step can block rebuild: {step_name}"
+
 
 class FakeResponse:
     def __init__(self, body=b"", headers=None):
@@ -268,6 +280,33 @@ try:
         assert stale_output.read_text() == "available=true\nfresh=false\n"
 finally:
     module.find_latest = original_find_latest
+
+
+class TransientUrlOpen:
+    def __init__(self):
+        self.calls = 0
+
+    def __call__(self, request, timeout):
+        assert timeout == 30
+        self.calls += 1
+        if self.calls < 3:
+            raise module.urllib.error.URLError("transient TLS route")
+        return FakeResponse(b'{"artifacts": []}')
+
+
+original_urlopen = module.urllib.request.urlopen
+original_sleep = module.time.sleep
+try:
+    transient = TransientUrlOpen()
+    delays = []
+    module.urllib.request.urlopen = transient
+    module.time.sleep = delays.append
+    assert module._github_request("https://api.github.com/test", "token") == b'{"artifacts": []}'
+    assert transient.calls == 3
+    assert delays == [1, 2]
+finally:
+    module.urllib.request.urlopen = original_urlopen
+    module.time.sleep = original_sleep
 
 try:
     module._read_limited(FakeResponse(b"12345"), 4)
