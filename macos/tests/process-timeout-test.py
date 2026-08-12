@@ -61,6 +61,27 @@ with tempfile.TemporaryDirectory() as temporary:
     assert timeout_metadata["sample_succeeded"] is True
     assert timeout_sample.read_text(encoding="utf-8") == "sampled blocked process\n"
 
+    hanging_tools = output / "hanging-tools"
+    hanging_tools.mkdir()
+    hanging_sample = hanging_tools / "sample"
+    hanging_sample.write_text("#!/bin/sh\nsleep 30\n", encoding="utf-8")
+    hanging_sample.chmod(0o755)
+    hanging_result = output / "hanging-sample.json"
+    hanging = subprocess.run(
+        [sys.executable, str(SUPERVISOR), "--timeout", "0.1", "--grace", "0.1",
+         "--log", str(output / "hanging-sample.log"), "--result", str(hanging_result),
+         "--sample", str(output / "unused.sample"), "--",
+         sys.executable, "-c", child],
+        check=False,
+        timeout=20,
+        env={**os.environ, "PATH": f"{hanging_tools}:{os.environ.get('PATH', '')}"},
+    )
+    assert hanging.returncode == 124
+    hanging_metadata = json.loads(hanging_result.read_text())
+    assert hanging_metadata["sample_timed_out"] is True
+    assert hanging_metadata["sent_sigterm"] is True
+    assert hanging_metadata["sent_sigkill"] is True
+
     crash_reports = output / "diagnostic-reports"
     crash_reports.mkdir()
     executable_name = Path(sys.executable).name

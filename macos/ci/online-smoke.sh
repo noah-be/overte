@@ -16,7 +16,7 @@ readonly process_sample="$output_dir/online.sample.txt"
 readonly crash_report="$output_dir/online.crash.ips"
 readonly lldb_log="$output_dir/online-lldb.log"
 readonly lldb_result="$output_dir/online-lldb-process.json"
-readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-180}"
+readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-300}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
 readonly lldb_timeout_seconds="${OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-90}"
 

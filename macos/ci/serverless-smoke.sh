@@ -16,7 +16,7 @@ readonly process_sample="$output_dir/serverless.sample.txt"
 readonly crash_report="$output_dir/serverless.crash.ips"
 readonly lldb_log="$output_dir/serverless-lldb.log"
 readonly lldb_result="$output_dir/serverless-lldb-process.json"
-readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-120}"
+readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-240}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
 readonly lldb_timeout_seconds="${OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-90}"
 

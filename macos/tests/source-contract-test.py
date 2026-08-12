@@ -346,8 +346,8 @@ for smoke_name, smoke_source in (("serverless", smoke), ("online", online_smoke)
                 f"{smoke_name} smoke is missing timeout contract: {timeout_contract}"
             )
 for smoke_name, smoke_source, maximum in (
-    ("serverless", smoke, 120),
-    ("online", online_smoke, 180),
+    ("serverless", smoke, 240),
+    ("online", online_smoke, 300),
 ):
     default_timeout = re.search(
         r'OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-([0-9]+)', smoke_source

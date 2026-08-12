@@ -68,6 +68,7 @@ def main() -> int:
     sent_kill = False
     return_code: int | None = None
     sample_succeeded = False
+    sample_timed_out = False
     crash_report_succeeded = False
     crash_report_source: str | None = None
     started_wall_time = time.time()
@@ -109,12 +110,20 @@ def main() -> int:
                             file=sys.stderr,
                             flush=True,
                         )
-                        sampled = subprocess.run(
-                            [sample_tool, str(process.pid), "5", "5", "-file", str(args.sample)],
-                            check=False,
-                            timeout=15,
-                        )
-                        sample_succeeded = sampled.returncode == 0 and args.sample.is_file()
+                        try:
+                            sampled = subprocess.run(
+                                [sample_tool, str(process.pid), "5", "5", "-file", str(args.sample)],
+                                check=False,
+                                timeout=15,
+                            )
+                            sample_succeeded = sampled.returncode == 0 and args.sample.is_file()
+                        except subprocess.TimeoutExpired:
+                            sample_timed_out = True
+                            print(
+                                "thread sample exceeded 15s; continuing process cleanup",
+                                file=sys.stderr,
+                                flush=True,
+                            )
                     else:
                         print("sample tool is unavailable; skipping thread sample", file=sys.stderr, flush=True)
                 sent_term = True
@@ -168,6 +177,7 @@ def main() -> int:
                 "sent_sigkill": sent_kill,
                 "sample_path": str(args.sample) if args.sample else None,
                 "sample_succeeded": sample_succeeded,
+                "sample_timed_out": sample_timed_out,
                 "crash_report_path": str(args.crash_report) if args.crash_report else None,
                 "crash_report_succeeded": crash_report_succeeded,
                 "crash_report_source": crash_report_source,

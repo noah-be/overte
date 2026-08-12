@@ -4,7 +4,10 @@
 (function () {
     "use strict";
 
-    var deadline = Date.now() + 60000;
+    // The GitHub Intel runner exposes Apple's software OpenGL renderer.  Its
+    // first scene frame can spend well over a minute compiling the complete
+    // shader set before the queued snapshot reaches the present thread.
+    var deadline = Date.now() + 180000;
     var snapshotRequested = false;
     var completed = false;
 
