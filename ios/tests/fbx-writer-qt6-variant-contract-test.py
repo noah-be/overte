@@ -8,6 +8,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = (ROOT / "libraries/model-serializers/src/FBXWriter.cpp").read_text(encoding="utf-8")
 
+if "#include <QIODevice>" not in SOURCE:
+    raise SystemExit("FBXWriter must own the complete QIODevice type used through QDataStream")
+
 
 def require(condition: bool, message: str) -> None:
     if not condition:
