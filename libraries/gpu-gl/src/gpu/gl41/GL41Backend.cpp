@@ -13,8 +13,11 @@
 #include <functional>
 #include <unordered_set>
 #include <glm/gtc/type_ptr.hpp>
+#include <QtCore/QCoreApplication>
 #include <QtCore/QDebug>
 #include <QtCore/QString>
+
+#include <shared/GlobalAppProperties.h>
 
 Q_LOGGING_CATEGORY(gpugl41logging, "hifi.gpu.gl41")
 
@@ -71,7 +74,10 @@ void GL41Backend::do_drawIndexed(const Batch& batch, size_t paramOffset) {
     // This identifies driver-side first-draw stalls without exposing command
     // lines, paths, environment contents, or unbounded per-frame diagnostics.
     static thread_local std::unordered_set<GLuint> tracedPrograms;
-    const bool traceProgram = qEnvironmentVariableIsSet("OVERTE_MACOS_GL_DIAGNOSTICS") &&
+    const auto application = QCoreApplication::instance();
+    const bool diagnosticsEnabled = qEnvironmentVariableIsSet("OVERTE_MACOS_GL_DIAGNOSTICS") ||
+        (application && application->property(hifi::properties::TEST).isValid());
+    const bool traceProgram = diagnosticsEnabled &&
         tracedPrograms.insert(_pipeline._program).second;
     if (traceProgram) {
         QString vertexName { "dynamic" };

@@ -7,6 +7,8 @@
 //
 #pragma once
 
+#include <atomic>
+
 #include <QtCore/QObject>
 #include <QtCore/QThread>
 #include <QtCore/QWaitCondition>
@@ -117,7 +119,7 @@ private:
     bool _renderRequested { false };
     bool _syncRequested { false };
     bool _quit { false };
-    bool _paused { false };
+    std::atomic_bool _paused { false };
 };
 
 }  // namespace impl

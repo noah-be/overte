@@ -187,7 +187,7 @@ void SharedObject::destroy() {
         return;
     }
 
-    _paused = true;
+    _paused.store(true, std::memory_order_release);
 #ifndef DISABLE_QML
     if (_renderTimer) {
         _renderTimer->stop();
@@ -361,7 +361,7 @@ bool SharedObject::getGenerateMips() const {
 bool SharedObject::preRender(bool sceneGraphSync) {
 #ifndef DISABLE_QML
     QMutexLocker lock(&_mutex);
-    if (_paused) {
+    if (_paused.load(std::memory_order_acquire)) {
         if (sceneGraphSync) {
             wake();
         }
@@ -534,14 +534,14 @@ void SharedObject::updateTextureAndFence(const TextureAndFence& newTextureAndFen
 }
 
 void SharedObject::pause() {
-    _paused = true;
+    _paused.store(true, std::memory_order_release);
 }
 
 void SharedObject::resume() {
-    _paused = false;
+    _paused.store(false, std::memory_order_release);
     requestRender();
 }
 
 bool SharedObject::isPaused() const {
-    return _paused;
+    return _paused.load(std::memory_order_acquire);
 }

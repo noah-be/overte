@@ -482,6 +482,8 @@ if draw_indexed.index("OVERTE_MACOS_GL_DRAW end") < draw_indexed.index(
     raise SystemExit("macOS GL draw-end diagnostic must follow the driver call")
 if "qCInfo(gpugl41logging)" in draw_indexed:
     raise SystemExit("macOS GL draw diagnostics must bypass startup category resets")
+if "application->property(hifi::properties::TEST).isValid()" not in draw_indexed:
+    raise SystemExit("macOS test runs must enable GL diagnostics without shell-env dependence")
 for smoke_source in (smoke, online_smoke):
     if "OVERTE_MACOS_GL_DIAGNOSTICS=1" not in smoke_source:
         raise SystemExit("macOS entity smokes must enable bounded GL diagnostics")
@@ -491,8 +493,8 @@ application_graphics = (
 ).read_text(encoding="utf-8")
 if "#include <shared/GlobalAppProperties.h>" not in application_graphics:
     raise SystemExit("macOS test UI isolation must declare hifi application properties")
-desktop_resume = application_graphics.split(
-    "ContextAwareProfile::restrictContext", 1
+desktop_setup = application_graphics.split(
+    "auto offscreenUi = getOffscreenUI();", 1
 )[1].split("connect(_window", 1)[0]
 for desktop_contract in (
     "Q_OS_MAC",
@@ -501,8 +503,28 @@ for desktop_contract in (
     "desktop_qml_paused",
     "offscreenUi->resume()",
 ):
-    if desktop_contract not in desktop_resume:
+    if desktop_contract not in desktop_setup:
         raise SystemExit(f"macOS test UI isolation missing: {desktop_contract}")
+if desktop_setup.index("offscreenUi->pause()") > desktop_setup.index(
+    "offscreenUi->createDesktop"
+):
+    raise SystemExit("macOS scene tests must pause QML before its render thread starts")
+
+shared_object_header = (
+    ROOT / "libraries/qml/src/qml/impl/SharedObject.h"
+).read_text(encoding="utf-8")
+shared_object_source = (
+    ROOT / "libraries/qml/src/qml/impl/SharedObject.cpp"
+).read_text(encoding="utf-8")
+if "std::atomic_bool _paused" not in shared_object_header:
+    raise SystemExit("offscreen QML pause state must be thread-safe")
+for pause_contract in (
+    "_paused.store(true, std::memory_order_release)",
+    "_paused.store(false, std::memory_order_release)",
+    "_paused.load(std::memory_order_acquire)",
+):
+    if pause_contract not in shared_object_source:
+        raise SystemExit(f"offscreen QML pause synchronization missing: {pause_contract}")
 
 opengl_display = (
     ROOT / "libraries/display-plugins/src/display-plugins/OpenGLDisplayPlugin.cpp"

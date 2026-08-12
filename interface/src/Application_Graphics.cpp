@@ -356,6 +356,17 @@ void Application::initializeUi() {
     // its mip chain is never sampled and only adds memory and update work.
     offscreenUi->setGenerateMips(false);
 #endif
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    const bool pauseDesktopForSceneTest = property(hifi::properties::TEST).isValid();
+    if (pauseDesktopForSceneTest) {
+        // Pause before createDesktop() starts the QML render thread.  Pausing
+        // after the load races its initial RenderSync event, which can enter
+        // Apple's software OpenGL compiler and serialize the 3D scene behind
+        // the shared context for several minutes.
+        offscreenUi->pause();
+        qCInfo(interfaceapp) << "OVERTE_MACOS_RENDER_PHASE desktop_qml_paused";
+    }
+#endif
     // OffscreenUi is a subclass of OffscreenQmlSurface specifically designed to
     // support the window management and scripting proxies for VR use
     DeadlockWatchdogThread::withPause([&] {
@@ -399,15 +410,7 @@ void Application::initializeUi() {
     // BUGZ-1365 - the root context should explicitly default to being unable to load local HTML content
     ContextAwareProfile::restrictContext(offscreenUi->getSurfaceContext(), true);
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
-    if (property(hifi::properties::TEST).isValid()) {
-        // Automated scene tests validate the 3D render target, not Desktop.qml.
-        // Apple's software OpenGL renderer serializes all shared contexts; a
-        // slow first scene draw can otherwise hold the global GL lock while
-        // the main thread waits synchronously for Desktop QML, preventing the
-        // scene snapshot callback from ever being queued.
-        offscreenUi->pause();
-        qCInfo(interfaceapp) << "OVERTE_MACOS_RENDER_PHASE desktop_qml_paused";
-    } else {
+    if (!pauseDesktopForSceneTest) {
         offscreenUi->resume();
     }
 #else
