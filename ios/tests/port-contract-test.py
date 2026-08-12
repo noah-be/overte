@@ -2035,6 +2035,13 @@ def test_script_entity_id_qt6_contract() -> None:
         scriptable_model.read_text(encoding="utf-8"), \
         "numeric MToon outline modes cannot rely on Qt 5's implicit QChar conversion"
 
+    graphics_util = SOURCE_ROOT / "libraries" / "graphics-scripting" / "src" / \
+        "graphics-scripting" / "GraphicsScriptingUtil.cpp"
+    require_text(graphics_util, r'v\.setValue\s*\(\s*floats\s*\)',
+                 "QVariant must deduce the lvalue vector type across Qt 5 and Qt 6")
+    assert "setValue<QVector<float>>(floats)" not in graphics_util.read_text(encoding="utf-8"), \
+        "an explicit Qt 6 forwarding-reference type would incorrectly require an rvalue"
+
     midi_header = SOURCE_ROOT / "libraries" / "midi" / "src" / "Midi.h"
     require_text(midi_header, r'#include\s*<QtCore/QVariantMap>',
                  "Qt 6 MOC must see the complete QVariantMap signal argument type")

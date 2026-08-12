@@ -625,6 +625,8 @@ on Qt 5 only because Qt 6 instantiates those generic metatypes automatically.
 Scriptable MToon materials convert the numeric outline-width mode explicitly
 to the documented `none`, `worldCoordinates`, or `screenCoordinates` string;
 they do not rely on Qt 5's accidental integer-to-`QChar` assignment.
+Graphics matrix variants let `QVariant::setValue` deduce the lvalue vector
+type, which preserves Qt 5 behavior and satisfies Qt 6's forwarding overload.
 Platform-native AVAudioSession policy remains in the iOS shell and must not be
 duplicated by desktop code.
 
