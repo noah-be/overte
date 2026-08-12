@@ -92,6 +92,7 @@ def main() -> None:
 
     smoke_slice = integrated[smoke:build]
     require(r"ios/tests/fixtures/xcode-sccache", smoke_slice, "a real Xcode compile must prove launcher activity before the full build")
+    require(r"OVERTE_SCCACHE_REMOTE_PROBE=\$\{GITHUB_RUN_ID\}_\$\{GITHUB_RUN_ATTEMPT\}", smoke_slice, "every run must force a unique probe and prove a fresh remote write")
     require(r"sccache --zero-stats[\s\S]*cmake --build[\s\S]*sccache --show-stats --stats-format=json", smoke_slice, "the smoke compile needs isolated machine-readable statistics")
     if smoke_slice.count("sccache --zero-stats") != 2:
         raise AssertionError("the full build must start with clean statistics after the Xcode smoke")
