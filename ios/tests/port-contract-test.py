@@ -2057,6 +2057,15 @@ def test_script_entity_id_qt6_contract() -> None:
         "Qt 6 FBX shape allocation must compare its lower bound in the QVector size type",
     )
 
+    fbx_to_json = SOURCE_ROOT / "libraries" / "model-serializers" / "src" / "FBXToJSON.h"
+    require_text(
+        fbx_to_json,
+        r'#include\s*<QtCore/QVector>',
+        "FBXToJSON must include Qt 6's QVector alias instead of forward-declaring it as a class",
+    )
+    assert "template<typename T> class QVector" not in fbx_to_json.read_text(encoding="utf-8"), \
+        "Qt 6 defines QVector as a QList alias, so a class forward declaration is invalid"
+
     qt_helpers = SOURCE_ROOT / "libraries" / "shared" / "src" / "shared" / "QtHelpers.h"
     require_text(qt_helpers, r'QT_VERSION\s*>=\s*QT_VERSION_CHECK\s*\(\s*6\s*,\s*5\s*,\s*0\s*\)',
                  "typed invoke support must be isolated to Qt versions that provide it")
