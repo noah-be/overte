@@ -118,7 +118,8 @@ jobs:
           echo "$GITHUB_WORKSPACE/build-tooling-venv/bin" >> "$GITHUB_PATH"
           export PATH="$GITHUB_WORKSPACE/build-tooling-venv/bin:$PATH"
           [[ "$(conan --version)" == "Conan version 2.31.2" ]]
-          aqt version | grep -F 'aqtinstall(aqt) v3.3.0'
+          # aqt deliberately writes its version banner through logging/stderr.
+          aqt version 2>&1 | grep -Fq 'aqtinstall(aqt) v3.3.0'
 
       - name: Save pinned build tools
         if: ${{ steps.tooling-cache.outputs.cache-hit != 'true' }}
@@ -399,7 +400,9 @@ jobs:
 
       - name: Report dependency compiler-checkpoint statistics
         id: dependency-compiler-stats
-        if: ${{ always() && !cancelled() }}
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.resolve-libnode.outcome != 'skipped' }}
         continue-on-error: true
         run: |
           mkdir -p "$MACOS_RUNNER_TELEMETRY_DIR"
@@ -408,7 +411,9 @@ jobs:
           sccache --show-stats
 
       - name: Stop compiler-cache server after libnode
-        if: ${{ always() && !cancelled() }}
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.resolve-libnode.outcome != 'skipped' }}
         run: sccache --stop-server || true
 
       - name: Verify libnode objects were checkpointed
@@ -445,7 +450,7 @@ jobs:
 
       - name: Require healthy libnode dependency stage
         if: >-
-          ${{ always() &&
+          ${{ always() && steps.resolve-libnode.outcome != 'skipped' &&
               (steps.resolve-libnode.outcome == 'failure' ||
                steps.dependency-compiler-stats.outcome == 'failure' ||
                steps.dependency-compiler-verify.outcome == 'failure') }}
@@ -485,7 +490,9 @@ jobs:
 
       - name: Report remaining dependency compiler statistics
         id: remaining-dependency-compiler-stats
-        if: ${{ always() && !cancelled() }}
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.resolve-dependencies.outcome != 'skipped' }}
         continue-on-error: true
         run: |
           sccache --show-stats --stats-format=json \
@@ -493,7 +500,9 @@ jobs:
           sccache --show-stats
 
       - name: Stop compiler-cache server before dependency snapshots
-        if: ${{ always() && !cancelled() }}
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.resolve-dependencies.outcome != 'skipped' }}
         run: sccache --stop-server || true
 
       - name: Verify remaining dependency compiler checkpoint
@@ -612,7 +621,7 @@ jobs:
 
       - name: Require resolved dependencies
         if: >-
-          ${{ always() &&
+          ${{ always() && steps.resolve-dependencies.outcome != 'skipped' &&
               (steps.resolve-dependencies.outcome == 'failure' ||
                steps.conan-integrity.outcome == 'failure' ||
                steps.remaining-dependency-compiler-stats.outcome == 'failure' ||
@@ -688,7 +697,9 @@ jobs:
 
       - name: Report compiler-cache statistics
         id: client-compiler-stats
-        if: ${{ always() && !cancelled() }}
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.build-client.outcome != 'skipped' }}
         continue-on-error: true
         run: |
           sccache --show-stats --stats-format=json \
@@ -696,7 +707,9 @@ jobs:
           sccache --show-stats
 
       - name: Stop compiler-cache server before snapshot
-        if: ${{ always() && !cancelled() }}
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.build-client.outcome != 'skipped' }}
         run: sccache --stop-server || true
 
       - name: Verify client objects were checkpointed
@@ -760,7 +773,7 @@ jobs:
 
       - name: Require successful client build
         if: >-
-          ${{ always() &&
+          ${{ always() && steps.build-client.outcome != 'skipped' &&
               (steps.build-client.outcome == 'failure' ||
                steps.client-compiler-stats.outcome == 'failure' ||
                steps.client-compiler-verify.outcome == 'failure') }}

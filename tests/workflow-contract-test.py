@@ -83,6 +83,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "pip check",
             "Conan version 2.31.2",
             "aqtinstall(aqt) v3.3.0",
+            "aqt version 2>&1",
         ):
             self.assertIn(token, tool_section)
 
@@ -227,7 +228,12 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "- name: Restore resumable build-tree checkpoint", 1
         )[0]
         self.assertIn("steps.resolve-dependencies.outcome == 'failure'", failure_gate)
+        self.assertIn("steps.resolve-dependencies.outcome != 'skipped'", failure_gate)
         self.assertIn("run: exit 1", failure_gate)
+
+    def test_downstream_health_gates_ignore_phases_that_never_started(self):
+        for phase in ("resolve-libnode", "resolve-dependencies", "build-client"):
+            self.assertIn(f"steps.{phase}.outcome != 'skipped'", self.source)
 
     def test_conan_has_an_independent_validated_artifact_checkpoint(self):
         self.assertIn("actions: write", self.source)
