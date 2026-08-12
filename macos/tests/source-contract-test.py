@@ -483,6 +483,8 @@ if draw_indexed.index("OVERTE_MACOS_GL_DRAW end") < draw_indexed.index(
 for smoke_source in (smoke, online_smoke):
     if "OVERTE_MACOS_GL_DIAGNOSTICS=1" not in smoke_source:
         raise SystemExit("macOS entity smokes must enable bounded GL diagnostics")
+    if "hifi.gpu.gl41.info=true" not in smoke_source:
+        raise SystemExit("macOS entity smokes must publish bounded GL diagnostics")
 
 opengl_display = (
     ROOT / "libraries/display-plugins/src/display-plugins/OpenGLDisplayPlugin.cpp"

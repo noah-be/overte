@@ -19,7 +19,7 @@
     // The GitHub Intel runner exposes Apple's software OpenGL renderer.  Its
     // first scene frame can spend several minutes compiling the complete
     // shader set before the queued snapshot reaches the present thread.
-    var deadline = Date.now() + 600000;
+    var deadline = Date.now() + 180000;
     var expectedNames = {
         "macOS smoke red cube": false,
         "macOS smoke cyan sphere": false,

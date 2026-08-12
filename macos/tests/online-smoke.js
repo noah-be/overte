@@ -14,7 +14,7 @@
     Render.antialiasingMode = 0;
     Render.viewportResolutionScale = 0.5;
 
-    var deadline = Date.now() + 600000;
+    var deadline = Date.now() + 180000;
     var snapshotRequested = false;
     var completed = false;
 
