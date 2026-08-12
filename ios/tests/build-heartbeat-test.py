@@ -66,6 +66,18 @@ def test_log_metrics() -> None:
         assert 0 <= int(metrics["log_stale_s"]) <= 2
 
 
+def test_system_metrics() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        metrics = heartbeat.system_metrics(Path(directory) / "build.log")
+        for field in ("disk_free_gib", "disk_used_percent", "inodes_free",
+                      "load_1m", "load_5m", "load_15m", "system_cpu_percent",
+                      "memory_total_gib", "memory_available_gib",
+                      "memory_used_percent", "swap_used_gib"):
+            assert field in metrics, (field, metrics)
+        assert metrics["disk_free_gib"] >= 0
+        assert 0 <= metrics["disk_used_percent"] <= 100
+
+
 def test_secret_safe_short_lifecycle() -> None:
     secret = "SIGNING_TOKEN_DO_NOT_PRINT_719"
     with tempfile.TemporaryDirectory() as directory:
@@ -109,6 +121,14 @@ def test_secret_safe_short_lifecycle() -> None:
             "log_bytes",
             "log_mtime_utc",
             "log_stale_s",
+            "disk_free_gib",
+            "disk_used_percent",
+            "inodes_free",
+            "load_1m",
+            "system_cpu_percent",
+            "memory_available_gib",
+            "memory_used_percent",
+            "swap_used_gib",
         ):
             assert field in records[0]
 
@@ -117,6 +137,7 @@ def main() -> None:
     test_cpu_time()
     test_process_tree_and_metrics()
     test_log_metrics()
+    test_system_metrics()
     test_secret_safe_short_lifecycle()
     print("Build heartbeat tests passed")
 

@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 
@@ -32,6 +33,19 @@ class CompilerWatchdogTest(unittest.TestCase):
         self.assertEqual(records[0]["compiler_watchdog"], "start")
         self.assertEqual(records[0]["source"], "unit.cpp")
         self.assertEqual(records[-1]["exit_code"], 23)
+
+    def test_fast_compile_does_not_wait_for_heartbeat_interval(self) -> None:
+        env = os.environ.copy()
+        env["OVERTE_COMPILER_WATCHDOG_DISABLE_SCCACHE"] = "1"
+        started = time.monotonic()
+        result = subprocess.run(
+            [sys.executable, str(WATCHDOG), "--interval", "2", "--",
+             sys.executable, "-c", "pass", "fast.cpp"],
+            text=True, capture_output=True, env=env, timeout=1, check=False,
+        )
+        elapsed = time.monotonic() - started
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertLess(elapsed, 0.5, "watchdog delayed a completed object until the heartbeat")
 
     def test_reports_each_active_invocation(self) -> None:
         result = self.invoke("import time; end=time.time()+.25\nwhile time.time()<end: pass")

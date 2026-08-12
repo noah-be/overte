@@ -11,6 +11,8 @@ import datetime as dt
 import json
 import os
 from pathlib import Path
+import re
+import shutil
 import subprocess
 import time
 from typing import Iterable
@@ -110,6 +112,76 @@ def log_metrics(path: Path, now: float) -> dict[str, object]:
     }
 
 
+def system_metrics(path: Path) -> dict[str, object]:
+    """Return bounded, secret-free host pressure and filesystem metrics."""
+    probe = path.parent if path.parent.exists() else Path.cwd()
+    disk = shutil.disk_usage(probe)
+    stat = os.statvfs(probe)
+    loads = os.getloadavg()
+    metrics: dict[str, object] = {
+        "disk_free_gib": round(disk.free / (1024 ** 3), 2),
+        "disk_used_percent": round(disk.used * 100 / disk.total, 1) if disk.total else None,
+        "inodes_free": stat.f_favail,
+        "load_1m": round(loads[0], 2),
+        "load_5m": round(loads[1], 2),
+        "load_15m": round(loads[2], 2),
+    }
+    try:
+        cpu = subprocess.run(
+            ["ps", "-A", "-o", "%cpu="], check=True, capture_output=True, text=True,
+        )
+        metrics["system_cpu_percent"] = round(
+            sum(float(value) for value in cpu.stdout.split() if value), 1
+        )
+    except (OSError, subprocess.SubprocessError, ValueError):
+        metrics["system_cpu_percent"] = None
+
+    if os.uname().sysname == "Darwin":
+        try:
+            total_result = subprocess.run(
+                ["sysctl", "-n", "hw.memsize"], check=True, capture_output=True, text=True,
+            )
+            vm_result = subprocess.run(
+                ["vm_stat"], check=True, capture_output=True, text=True,
+            )
+            total = int(total_result.stdout.strip())
+            page_match = re.search(r"page size of (\d+) bytes", vm_result.stdout)
+            page_size = int(page_match.group(1)) if page_match else 4096
+            pages = {name: int(value.replace(".", "")) for name, value in
+                     re.findall(r"^([^:]+):\s+(\d+\.)$", vm_result.stdout, re.MULTILINE)}
+            available = sum(pages.get(name, 0) for name in
+                            ("Pages free", "Pages inactive", "Pages speculative")) * page_size
+            metrics["memory_total_gib"] = round(total / (1024 ** 3), 2)
+            metrics["memory_available_gib"] = round(available / (1024 ** 3), 2)
+            metrics["memory_used_percent"] = round((total - available) * 100 / total, 1)
+            swap = subprocess.run(
+                ["sysctl", "-n", "vm.swapusage"], check=True, capture_output=True, text=True,
+            ).stdout
+            used_match = re.search(r"used = ([0-9.]+)([MG])", swap)
+            if used_match:
+                used = float(used_match.group(1)) / (1024 if used_match.group(2) == "M" else 1)
+                metrics["swap_used_gib"] = round(used, 2)
+        except (OSError, subprocess.SubprocessError, ValueError):
+            metrics["memory_error"] = "memory_snapshot_failed"
+    else:
+        try:
+            values = {}
+            for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
+                key, value = line.split(":", 1)
+                values[key] = int(value.strip().split()[0]) * 1024
+            total = values["MemTotal"]
+            available = values["MemAvailable"]
+            metrics["memory_total_gib"] = round(total / (1024 ** 3), 2)
+            metrics["memory_available_gib"] = round(available / (1024 ** 3), 2)
+            metrics["memory_used_percent"] = round((total - available) * 100 / total, 1)
+            metrics["swap_used_gib"] = round(
+                (values.get("SwapTotal", 0) - values.get("SwapFree", 0)) / (1024 ** 3), 2
+            )
+        except (OSError, KeyError, ValueError):
+            metrics["memory_error"] = "memory_snapshot_failed"
+    return metrics
+
+
 def emit_heartbeats(root_pid: int, log_path: Path, interval: float) -> int:
     started = time.monotonic()
     while True:
@@ -137,6 +209,10 @@ def emit_heartbeats(root_pid: int, log_path: Path, interval: float) -> int:
                 }
             )
         record.update(log_metrics(log_path, now))
+        try:
+            record.update(system_metrics(log_path))
+        except Exception:
+            record["system_error"] = "system_snapshot_failed"
         print(json.dumps(record, separators=(",", ":"), sort_keys=True), flush=True)
         if record["build_alive"] is False:
             return 0

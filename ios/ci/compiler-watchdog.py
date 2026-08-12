@@ -191,7 +191,15 @@ def run(command: list[str], interval: float, inactivity_timeout: float, grace: f
     old_int = signal.signal(signal.SIGINT, forward)
     try:
         while process.poll() is None:
-            time.sleep(interval)
+            try:
+                # Wake immediately when the compiler exits. A fixed sleep here
+                # would add the full heartbeat interval to every object file.
+                return_code = process.wait(timeout=interval)
+                _emit("end", identity, time.monotonic() - started, language=language,
+                      source=source_label, exit_code=return_code)
+                return return_code
+            except subprocess.TimeoutExpired:
+                pass
             try:
                 rows = _snapshot()
                 active_by_pid = {int(row["pid"]): row for row in _tree(rows, process.pid)}
