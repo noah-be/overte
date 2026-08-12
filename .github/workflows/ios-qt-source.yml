@@ -35,10 +35,20 @@ jobs:
       SCCACHE_DIR: ${{ github.workspace }}/build-ios/sccache
       OVERTE_COMPILER_WATCHDOG_DIAGNOSTICS: ${{ github.workspace }}/build-ios/compiler-watchdog-diagnostics
       SCCACHE_CACHE_SIZE: 256M
+      SCCACHE_BASEDIRS: ${{ github.workspace }}
+      SCCACHE_CLIENT_SIDE: "1"
+      SCCACHE_MULTILEVEL_CHAIN: disk,gha
+      SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: all
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
         with:
           persist-credentials: false
+
+      - name: Install pinned per-object remote compiler checkpoint
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        with:
+          version: v0.17.0
+          disable_annotations: true
 
       - name: Verify source-build host tests
         run: |
@@ -69,6 +79,9 @@ jobs:
           echo "ios_artifact_prefix=overte-qt-ios-checkpoint-v1-${ios_artifact_hash}" >> "$GITHUB_OUTPUT"
           echo "sccache_prefix=overte-qt-sccache-v2-${ios_base}-" >> "$GITHUB_OUTPUT"
           echo "sccache_prune_prefix=overte-qt-sccache-v2-${RUNNER_ARCH}-" >> "$GITHUB_OUTPUT"
+          remote_namespace="overte-qt-objects-v1-${ios_base}"
+          echo "SCCACHE_GHA_CACHE_TO=$remote_namespace" >> "$GITHUB_ENV"
+          echo "SCCACHE_GHA_CACHE_FROM=$remote_namespace" >> "$GITHUB_ENV"
 
       - name: Restore validated Qt host tools
         id: host-cache
@@ -150,7 +163,7 @@ jobs:
         if: >-
           (steps.host-cache.outputs.cache-hit != 'true' && steps.host-artifact.outputs.restored != 'true') ||
           (steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true')
-        run: brew install cmake ninja sccache
+        run: brew install cmake ninja
 
       - name: Verify or download pinned Qt source archive
         if: >-
@@ -216,6 +229,7 @@ jobs:
           key: ${{ steps.cache-key.outputs.host }}
 
       - name: Build Qt iOS target
+        id: qt-ios-build
         if: steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true'
         run: |
           ios/tools/build-qt-ios-from-source.sh \
@@ -263,7 +277,39 @@ jobs:
           always() &&
           ((steps.host-cache.outputs.cache-hit != 'true' && steps.host-artifact.outputs.restored != 'true') ||
            (steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true'))
-        run: sccache --show-stats || true
+        run: |
+          mkdir -p build-ios/compiler-watchdog-diagnostics
+          sccache --show-stats --stats-format=json \
+            > build-ios/compiler-watchdog-diagnostics/sccache-stats.json || true
+          sccache --show-stats || true
+
+      - name: Verify successful Qt build was remotely checkpointed
+        if: >-
+          success() && steps.qt-ios-build.outcome == 'success' &&
+          steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true'
+        run: |
+          python3 - build-ios/compiler-watchdog-diagnostics/sccache-stats.json <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          stats = payload.get("stats", payload)
+
+          def total(counter):
+              if not isinstance(counter, dict):
+                  return 0
+              counts = counter.get("counts", {})
+              return sum((counts or counter.get("adv_counts", {})).values())
+
+          requests = int(stats.get("compile_requests", 0))
+          cacheable = total(stats.get("cache_hits", {})) + total(stats.get("cache_misses", {}))
+          write_errors = int(stats.get("cache_write_errors", 0))
+          if requests < 1 or cacheable < 1:
+              raise SystemExit("Qt build produced no reusable compiler checkpoint entries")
+          if write_errors:
+              raise SystemExit(f"remote compiler checkpoint reported {write_errors} write errors")
+          PY
 
       - name: Upload compiler stall diagnostics
         if: failure() && !cancelled()
