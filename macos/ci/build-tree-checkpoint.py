@@ -23,7 +23,8 @@ import tempfile
 import time
 
 
-SCHEMA = 1
+SCHEMA = 2
+SUPPORTED_SCHEMAS = {1, SCHEMA}
 METADATA_NAME = ".overte-ninja-checkpoint.json"
 # Old enough to precede every supported macOS/Xcode build artifact, while still
 # being representable by filesystems used by GitHub-hosted runners.
@@ -56,6 +57,57 @@ def nul_paths(data: bytes) -> set[str]:
     }
 
 
+def tracked_blobs(repository: Path) -> dict[str, str]:
+    """Return the index blob id for every stage-zero tracked path."""
+    result: dict[str, str] = {}
+    for entry in git(repository, "ls-files", "--stage", "-z").split(b"\0"):
+        if not entry:
+            continue
+        try:
+            metadata, raw_path = entry.split(b"\t", 1)
+            _mode, object_id, stage = metadata.split(b" ", 2)
+        except ValueError as error:
+            raise CheckpointError("git returned malformed tracked-file metadata") from error
+        if stage != b"0":
+            continue
+        path = raw_path.decode("utf-8", "surrogateescape")
+        blob = object_id.decode("ascii", "strict")
+        if not COMMIT_RE.fullmatch(blob):
+            raise CheckpointError("git returned an invalid tracked-file object id")
+        result[path] = blob
+    return result
+
+
+def commit_available(repository: Path, commit: str) -> bool:
+    return subprocess.run(
+        ["git", "-C", str(repository), "cat-file", "-e", f"{commit}^{{commit}}"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    ).returncode == 0
+
+
+def fetch_checkpoint_commit(repository: Path, commit: str) -> None:
+    """Fetch one legacy checkpoint commit omitted by a shallow checkout."""
+    if commit_available(repository, commit):
+        return
+    result = subprocess.run(
+        [
+            "git", "-C", str(repository), "fetch", "--no-tags", "--depth=1",
+            "origin", commit,
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if result.returncode or not commit_available(repository, commit):
+        # Do not echo a remote URL or arbitrary Git configuration into CI logs.
+        raise CheckpointError(
+            "checkpoint commit is absent from the shallow checkout and could not be fetched"
+        )
+    print(f"macOS Ninja checkpoint fetched legacy commit {commit}", flush=True)
+
+
 def metadata_path(build_dir: Path) -> Path:
     return build_dir / METADATA_NAME
 
@@ -70,6 +122,7 @@ def record(repository: Path, build_dir: Path) -> None:
         "schema": SCHEMA,
         "commit": commit,
         "baseline_ns": BASELINE_NS,
+        "tracked_blobs": tracked_blobs(repository),
         "created_utc": datetime.now(timezone.utc).isoformat(),
     }
     destination = metadata_path(build_dir)
@@ -98,13 +151,27 @@ def load_metadata(build_dir: Path) -> dict[str, object] | None:
         raise CheckpointError(f"invalid checkpoint metadata: {error}") from error
     if not isinstance(payload, dict):
         raise CheckpointError("checkpoint metadata is not an object")
-    if payload.get("schema") != SCHEMA:
+    schema = payload.get("schema")
+    if schema not in SUPPORTED_SCHEMAS:
         raise CheckpointError("unsupported checkpoint metadata schema")
     commit = payload.get("commit")
     if not isinstance(commit, str) or not COMMIT_RE.fullmatch(commit):
         raise CheckpointError("checkpoint contains an invalid commit id")
     if payload.get("baseline_ns") != BASELINE_NS:
         raise CheckpointError("checkpoint contains an invalid source baseline")
+    if schema == SCHEMA:
+        blobs = payload.get("tracked_blobs")
+        if not isinstance(blobs, dict):
+            raise CheckpointError("checkpoint contains no tracked-file manifest")
+        for path, object_id in blobs.items():
+            if (
+                not isinstance(path, str)
+                or not path
+                or "\0" in path
+                or not isinstance(object_id, str)
+                or not COMMIT_RE.fullmatch(object_id)
+            ):
+                raise CheckpointError("checkpoint contains invalid tracked-file metadata")
     return payload
 
 
@@ -120,24 +187,35 @@ def restore(repository: Path, build_dir: Path) -> None:
         return
 
     checkpoint = str(payload["commit"])
-    # Cached metadata is untrusted input.  Resolve it as a commit before using it
-    # in a diff and never interpret a cached value as a path or option.
-    git(repository, "cat-file", "-e", f"{checkpoint}^{{commit}}")
     head = git(repository, "rev-parse", "--verify", "HEAD^{commit}").decode().strip()
 
-    tracked = nul_paths(git(repository, "ls-files", "-z"))
-    changed = nul_paths(
-        git(
-            repository,
-            "diff",
-            "--name-only",
-            "-z",
-            "--diff-filter=ACMRTUXB",
-            checkpoint,
-            head,
-            "--",
+    current_blobs = tracked_blobs(repository)
+    tracked = set(current_blobs)
+    if payload["schema"] == SCHEMA:
+        checkpoint_blobs = payload["tracked_blobs"]
+        assert isinstance(checkpoint_blobs, dict)
+        changed = {
+            relative
+            for relative, object_id in current_blobs.items()
+            if checkpoint_blobs.get(relative) != object_id
+        }
+    else:
+        # Schema 1 predates the manifest.  Its commit may be absent from the
+        # default depth-one Actions checkout, so fetch only that exact validated
+        # object instead of downloading the full repository history.
+        fetch_checkpoint_commit(repository, checkpoint)
+        changed = nul_paths(
+            git(
+                repository,
+                "diff",
+                "--name-only",
+                "-z",
+                "--diff-filter=ACMRTUXB",
+                checkpoint,
+                head,
+                "--",
+            )
         )
-    )
     # Do not make a developer's staged or unstaged edit look older than an
     # object restored from CI.  These sets are empty on a clean Actions checkout.
     changed |= nul_paths(git(repository, "diff", "--name-only", "-z", "HEAD", "--"))

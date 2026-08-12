@@ -64,6 +64,8 @@ class BuildTreeCheckpointTests(unittest.TestCase):
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         self.assertEqual(metadata["commit"], checkpoint)
         self.assertEqual(metadata["baseline_ns"], BASELINE_NS)
+        self.assertEqual(metadata["schema"], 2)
+        self.assertEqual(set(metadata["tracked_blobs"]), {"changed.cpp", "unchanged.cpp"})
         self.assertEqual(metadata_path.stat().st_mode & 0o777, 0o600)
         self.assertIn(checkpoint, recorded.stdout)
 
@@ -129,7 +131,59 @@ class BuildTreeCheckpointTests(unittest.TestCase):
         )
         unknown = self.tool("restore", check=False)
         self.assertEqual(unknown.returncode, 2)
-        self.assertIn("git cat-file", unknown.stderr)
+        self.assertIn("absent from the shallow checkout", unknown.stderr)
+
+    def test_schema_two_restore_does_not_require_checkpoint_commit_history(self):
+        self.tool("record")
+        metadata_path = self.build / ".overte-ninja-checkpoint.json"
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        metadata["commit"] = "0" * 40
+        metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+
+        (self.repository / "changed.cpp").write_text("two\n", encoding="utf-8")
+        self.git("add", "changed.cpp")
+        self.git("commit", "-qm", "source changes")
+
+        restored = self.tool("restore")
+        self.assertIn("changed=1", restored.stdout)
+        self.assertEqual((self.repository / "unchanged.cpp").stat().st_mtime_ns, BASELINE_NS)
+
+    def test_schema_one_checkpoint_fetches_its_commit_from_shallow_origin(self):
+        self.tool("record")
+        old_metadata = json.loads(
+            (self.build / ".overte-ninja-checkpoint.json").read_text(encoding="utf-8")
+        )
+        old_metadata["schema"] = 1
+        old_metadata.pop("tracked_blobs")
+
+        (self.repository / "changed.cpp").write_text("two\n", encoding="utf-8")
+        self.git("add", "changed.cpp")
+        self.git("commit", "-qm", "source changes")
+
+        clone = Path(self.temporary.name) / "shallow"
+        subprocess.run(
+            [
+                "git", "clone", "-q", "--depth=1", f"file://{self.repository}",
+                str(clone),
+            ],
+            check=True,
+        )
+        clone_build = clone / "build"
+        clone_build.mkdir()
+        (clone_build / ".overte-ninja-checkpoint.json").write_text(
+            json.dumps(old_metadata), encoding="utf-8"
+        )
+        result = subprocess.run(
+            [
+                sys.executable, str(TOOL), "restore", "--repository", str(clone),
+                "--build-dir", str(clone_build),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        self.assertIn("fetched legacy commit", result.stdout)
+        self.assertIn("changed=1", result.stdout)
 
 
 if __name__ == "__main__":
