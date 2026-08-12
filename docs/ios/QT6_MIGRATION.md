@@ -322,6 +322,11 @@ for the duration of the case-sensitive group lookup. Group names, bit values,
 unknown/empty handling, mask accumulation, and the `configure_file` production
 path are unchanged. This removes the final inventoried `QStringRef` use.
 
+The same generated source now passes `qsizetype` arguments to the indexed
+`QByteArray::replace` overload explicitly. Qt 6 otherwise treats the leading
+literal zero as both a possible index and a null pointer for the byte-pattern
+overload. The copied byte range and final resize remain unchanged.
+
 The public `LogHandler.h` header no longer includes `QRegExp`, which was not
 used by any declaration or inline macro in that interface. Logging option
 parsing, the Qt message-handler entry point, repeated-message aggregation, and

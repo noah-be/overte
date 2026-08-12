@@ -1334,6 +1334,13 @@ def test_scope_contract() -> None:
     assert "getCollisionGroupAsBitMask(QStringView(groupName))" in entity_properties_template_text
     if "QStringRef" in entity_properties_template_text or "splitRef(" in entity_properties_template_text:
         raise AssertionError("generated EntityItemProperties source retained removed QStringRef API")
+    assert (
+        "buffer.replace(qsizetype { 0 }, qsizetype { finalizedSize }, finalizedData, qsizetype { finalizedSize });"
+        in entity_properties_template_text
+    ), "generated source must select QByteArray's indexed replace overload explicitly on Qt 6"
+    assert "buffer.replace(0, finalizedSize, finalizedData, finalizedSize);" not in entity_properties_template_text, (
+        "literal zero makes QByteArray::replace ambiguous between index and pointer overloads on Qt 6"
+    )
     entity_generator = SOURCE_ROOT / "cmake" / "macros" / "GenerateEntityProperties.cmake"
     require_text(
         entity_generator,
