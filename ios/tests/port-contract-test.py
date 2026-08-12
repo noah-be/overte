@@ -698,7 +698,7 @@ def test_cmake_boundary() -> None:
     ):
         require_text(serializer, r"VariantMultiHash blendshapeMappings\(mapping\.value\(\"bs\"\)\.toHash\(\)\)", "model blendshape mappings must cross the Qt 6 hash boundary explicitly")
     model_cache = SOURCE_ROOT / "libraries" / "model-networking" / "src" / "model-networking" / "ModelCache.cpp"
-    require_text(model_cache, r"getScripts\(base, hifi::VariantMultiHash\(_mapping\)\)", "model script lookup must explicitly preserve repeated FST keys")
+    require_text(model_cache, r"getScripts\(base, _mapping\)", "model script lookup must preserve the stored repeated-key FST mapping")
     application_ui = SOURCE_ROOT / "interface" / "src" / "Application_UI.cpp"
     require_text(application_ui, r"auto fstMapping = FSTReader::downloadMapping\(url\)", "avatar FST inspection must retain the downloaded multi-hash type")
     prepare_joints_source = SOURCE_ROOT / "libraries" / "model-baker" / "src" / "model-baker" / "PrepareJointsTask.cpp"
@@ -2078,6 +2078,34 @@ def test_script_entity_id_qt6_contract() -> None:
     )
     assert "template<typename T> class QVector" not in fbx_to_json.read_text(encoding="utf-8"), \
         "Qt 6 defines QVector as a QList alias, so a class forward declaration is invalid"
+
+    model_cache = SOURCE_ROOT / "libraries" / "model-networking" / "src" / "model-networking" / "ModelCache.cpp"
+    require_text(
+        model_cache,
+        r"hifi::VariantHash\s+toVariantHash\(const hifi::VariantMultiHash&\s+mapping\)[\s\S]*?"
+        r"mapping\.uniqueKeys\(\)[\s\S]*?result\.insert\(key,\s*mapping\.value\(key\)\)",
+        "Qt 6 ModelCache must flatten FST multi-values explicitly using QMultiHash value semantics",
+    )
+    require_text(
+        model_cache,
+        r"hifi::VariantMultiHash\s+serializerMapping\s*=\s*_mapping\.second",
+        "ModelCache must preserve repeated FST fields until scalar serializer boundaries",
+    )
+    require_text(
+        model_cache,
+        r"_mapping\s*=\s*FSTReader::readMapping\(data\)",
+        "ModelCache must retain the complete repeated-key FST mapping",
+    )
+    require_text(
+        model_cache,
+        r"_modelLoader\.load\([^;]*toVariantHash\(serializerMapping\)",
+        "scalar model loaders must receive an explicit QVariantHash projection",
+    )
+    require_text(
+        model_cache,
+        r"baker::Baker\s+modelBaker\(hfmModel,\s*toVariantHash\(_mapping\.second\)",
+        "the scalar Baker mapping boundary must be explicit under Qt 6",
+    )
 
     qt_helpers = SOURCE_ROOT / "libraries" / "shared" / "src" / "shared" / "QtHelpers.h"
     require_text(qt_helpers, r'QT_VERSION\s*>=\s*QT_VERSION_CHECK\s*\(\s*6\s*,\s*5\s*,\s*0\s*\)',

@@ -31,6 +31,16 @@
 
 Q_LOGGING_CATEGORY(trace_resource_parse_geometry, "trace.resource.parse.geometry")
 
+hifi::VariantHash toVariantHash(const hifi::VariantMultiHash& mapping) {
+    hifi::VariantHash result;
+    for (const auto& key : mapping.uniqueKeys()) {
+        // Downstream geometry loaders consume one scalar per key. Preserve the
+        // value chosen by QMultiHash::value(); scripts are expanded separately.
+        result.insert(key, mapping.value(key));
+    }
+    return result;
+}
+
 class GeometryExtra {
 public:
     const GeometryMappingPair& mapping;
@@ -59,8 +69,8 @@ private:
 };
 
 template <>
-struct std::hash<QVariantHash> {
-    size_t operator()(const QVariantHash& a) const {
+struct std::hash<hifi::VariantMultiHash> {
+    size_t operator()(const hifi::VariantMultiHash& a) const {
         QVariantHasher hasher;
         return hasher.hash(a);
     }
@@ -136,7 +146,7 @@ void GeometryReader::run() {
         }
 
         HFMModel::Pointer hfmModel;
-        QMultiHash<QString, QVariant> serializerMapping = _mapping.second;
+        hifi::VariantMultiHash serializerMapping = _mapping.second;
         serializerMapping.replace("combineParts",_combineParts);
         serializerMapping.replace("deduplicateIndices", true);
 
@@ -149,9 +159,9 @@ void GeometryReader::run() {
             // This is okay because we don't expect the serializer to be able to read the contents of a compressed model file.
             auto strippedUrl = _url;
             strippedUrl.setPath(_url.path().left(_url.path().size() - 3));
-            hfmModel = _modelLoader.load(uncompressedData, serializerMapping, strippedUrl, "");
+            hfmModel = _modelLoader.load(uncompressedData, toVariantHash(serializerMapping), strippedUrl, "");
         } else {
-            hfmModel = _modelLoader.load(_data, serializerMapping, _url, _webMediaType.toStdString());
+            hfmModel = _modelLoader.load(_data, toVariantHash(serializerMapping), _url, _webMediaType.toStdString());
         }
 
         if (!hfmModel) {
@@ -171,7 +181,7 @@ void GeometryReader::run() {
         }
 
         // Do processing on the model
-        baker::Baker modelBaker(hfmModel, _mapping.second, _mapping.first);
+        baker::Baker modelBaker(hfmModel, toVariantHash(_mapping.second), _mapping.first);
         modelBaker.run();
 
         auto processedHFMModel = modelBaker.getHFMModel();
@@ -239,7 +249,7 @@ void GeometryResource::downloadFinished(const QByteArray& data) {
                 _textureBaseURL = url.resolved(QUrl("."));
             }
 
-            auto scripts = FSTReader::getScripts(base, hifi::VariantMultiHash(_mapping));
+            auto scripts = FSTReader::getScripts(base, _mapping);
             if (scripts.size() > 0) {
                 _mapping.remove(SCRIPT_FIELD);
                 for (auto &scriptPath : scripts) {
@@ -308,7 +318,7 @@ void GeometryResource::onGeometryMappingLoaded(bool success) {
 
 void GeometryResource::setExtra(void* extra) {
     const GeometryExtra* geometryExtra = static_cast<const GeometryExtra*>(extra);
-    _mappingPair = geometryExtra ? geometryExtra->mapping : GeometryMappingPair(QUrl(), QVariantHash());
+    _mappingPair = geometryExtra ? geometryExtra->mapping : GeometryMappingPair(QUrl(), hifi::VariantMultiHash());
     _textureBaseURL = geometryExtra ? resolveTextureBaseUrl(_url, geometryExtra->textureBaseUrl) : QUrl();
     _combineParts = geometryExtra ? geometryExtra->combineParts : true;
 }
