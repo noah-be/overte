@@ -223,6 +223,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("build_complete=${build_base}-complete-${source_inputs}", key_step)
         self.assertIn("build_complete_prefix=${build_base}-complete-", key_step)
         self.assertIn("build_partial_prefix=${build_base}-partial-", key_step)
+        self.assertIn("macos/ci/build-tree-checkpoint.py", key_step)
 
         restore = self.source.split(
             "- name: Restore resumable build-tree checkpoint", 1
@@ -236,9 +237,16 @@ class MacOSWorkflowContracts(unittest.TestCase):
             restore.index("steps.cache-key.outputs.build_complete_prefix"),
             restore.index("steps.cache-key.outputs.build_partial_prefix"),
         )
+        self.assertIn("- name: Normalize restored Ninja source timestamps", restore)
+        self.assertIn("build-tree-checkpoint.py restore", restore)
+        self.assertIn('--repository "$GITHUB_WORKSPACE" --build-dir build', restore)
 
     def test_build_tree_is_saved_after_orderly_success_or_failure(self):
         stop = self.source.index("- name: Stop compiler-cache server before snapshot")
+        metadata_name = "- name: Record Ninja build-tree checkpoint metadata"
+        metadata = self.source.split(metadata_name, 1)[1].split(
+            "- name: Save complete compiler cache", 1
+        )[0]
         complete_name = "- name: Save complete build-tree checkpoint"
         partial_name = "- name: Save partial build-tree checkpoint after build failure"
         complete = self.source.split(complete_name, 1)[1].split(partial_name, 1)[0]
@@ -247,10 +255,20 @@ class MacOSWorkflowContracts(unittest.TestCase):
         )[0]
         self.assertLess(stop, self.source.index(complete_name))
         self.assertLess(stop, self.source.index(partial_name))
+        self.assertLess(stop, self.source.index(metadata_name))
+        self.assertLess(self.source.index(metadata_name), self.source.index(complete_name))
+        self.assertLess(self.source.index(metadata_name), self.source.index(partial_name))
+        self.assertIn("always()", metadata)
+        self.assertIn("!cancelled()", metadata)
+        self.assertIn("steps.build-client.outcome == 'success'", metadata)
+        self.assertIn("steps.build-client.outcome == 'failure'", metadata)
+        self.assertIn("build-tree-checkpoint.py record", metadata)
+        self.assertIn("id: build-tree-metadata", metadata)
         for section in (complete, partial):
             self.assertIn("always()", section)
             self.assertIn("!cancelled()", section)
             self.assertIn("path: build", section)
+            self.assertIn("steps.build-tree-metadata.outcome == 'success'", section)
         self.assertIn("steps.build-client.outcome == 'success'", complete)
         self.assertIn("steps.build-tree-restore.outputs.cache-hit != 'true'", complete)
         self.assertIn("steps.cache-key.outputs.build_complete", complete)

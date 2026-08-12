@@ -10,6 +10,7 @@ readonly output_dir="${2:-$source_root/build/macos-online-smoke}"
 readonly location="${OVERTE_MACOS_ONLINE_LOCATION:-overte://welcome}"
 readonly executable="$app/Contents/MacOS/Overte"
 readonly test_script="$source_root/macos/tests/serverless-smoke.js"
+readonly default_scripts_override="$source_root/macos/tests/fixtures/no-default-scripts.js"
 readonly log="$output_dir/online.log"
 readonly process_result="$output_dir/online-process.json"
 readonly process_sample="$output_dir/online.sample.txt"
@@ -22,10 +23,12 @@ readonly lldb_timeout_seconds="${OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-90}"
 
 [[ "$(uname -s)" == Darwin ]] || { echo "online smoke requires macOS" >&2; exit 1; }
 [[ -x "$executable" ]] || { echo "missing executable: $executable" >&2; exit 1; }
+[[ -f "$default_scripts_override" ]] || { echo "missing default script override: $default_scripts_override" >&2; exit 1; }
 mkdir -p "$output_dir"
 
 readonly -a app_command=(
-    "$executable" --allowMultipleInstances --no-login-suggestion --display Desktop --url "$location"
+    "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog --display Desktop
+    --defaultScriptsOverride "file://$default_scripts_override" --url "$location"
     --testScript "$test_script" --testResultsLocation "$output_dir" --quitWhenFinished
 )
 

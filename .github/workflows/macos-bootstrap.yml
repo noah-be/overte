@@ -81,7 +81,8 @@ jobs:
             | shasum -a 256 | awk '{print $1}')"
           source_inputs="$(git ls-files -s -- conanfile.py 'macos/conan/**' \
             CMakeLists.txt 'cmake/**' 'interface/**' 'libraries/**' 'plugins/**' \
-            macos/build-macos.sh 'macos/tools/**' | \
+            macos/build-macos.sh 'macos/tools/**' \
+            macos/ci/build-tree-checkpoint.py | \
             shasum -a 256 | awk '{print $1}')"
           compiler_fingerprint="$(printf '%s\n' \
             "$compiler_digest" "$compiler_version" "$xcode_build" \
@@ -188,6 +189,11 @@ jobs:
             ${{ steps.cache-key.outputs.build_complete_prefix }}
             ${{ steps.cache-key.outputs.build_partial_prefix }}
 
+      - name: Normalize restored Ninja source timestamps
+        run: >-
+          python3 macos/ci/build-tree-checkpoint.py restore
+          --repository "$GITHUB_WORKSPACE" --build-dir build
+
       - name: Configure compiler cache
         run: |
           sccache --start-server
@@ -215,6 +221,16 @@ jobs:
         if: ${{ always() && !cancelled() }}
         run: sccache --stop-server || true
 
+      - name: Record Ninja build-tree checkpoint metadata
+        id: build-tree-metadata
+        if: >-
+          ${{ always() && !cancelled() &&
+              (steps.build-client.outcome == 'success' ||
+               steps.build-client.outcome == 'failure') }}
+        run: >-
+          python3 macos/ci/build-tree-checkpoint.py record
+          --repository "$GITHUB_WORKSPACE" --build-dir build
+
       - name: Save complete compiler cache
         if: >-
           ${{ always() && !cancelled() &&
@@ -238,6 +254,7 @@ jobs:
         if: >-
           ${{ always() && !cancelled() &&
               steps.build-client.outcome == 'success' &&
+              steps.build-tree-metadata.outcome == 'success' &&
               steps.build-tree-restore.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v5
         with:
@@ -247,7 +264,8 @@ jobs:
       - name: Save partial build-tree checkpoint after build failure
         if: >-
           ${{ always() && !cancelled() &&
-              steps.build-client.outcome == 'failure' }}
+              steps.build-client.outcome == 'failure' &&
+              steps.build-tree-metadata.outcome == 'success' }}
         uses: actions/cache/save@v5
         with:
           path: build

@@ -330,6 +330,14 @@ for marker in ONLINE_CONTRACT | {"render_handoff": ""}:
         raise SystemExit(f"online smoke runner does not require {marker}")
 
 for smoke_name, smoke_source in (("serverless", smoke), ("online", online_smoke)):
+    if "--disableWatchdog" not in smoke_source:
+        raise SystemExit(
+            f"{smoke_name} smoke must leave stall sampling to the external supervisor"
+        )
+    if '--defaultScriptsOverride "file://$default_scripts_override"' not in smoke_source:
+        raise SystemExit(
+            f"{smoke_name} smoke must isolate the scene from persisted system scripts"
+        )
     for timeout_contract in (
         "run-process-with-timeout.py",
         "OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS",
@@ -361,6 +369,20 @@ opengl_display = (
 update_frame_data = opengl_display.split(
     "void OpenGLDisplayPlugin::updateFrameData()", 1
 )[1].split("std::function<void(gpu::Batch&", 1)[0]
+present_lock_body = update_frame_data.split("withPresentThreadLock([&] {", 1)[1].split(
+    "});", 1
+)[0]
+for forbidden_locked_gl_work in (
+    "processProgramsToSync",
+    "consumeFrameUpdates",
+):
+    if forbidden_locked_gl_work in present_lock_body:
+        raise SystemExit(
+            "OpenGL frame processing must not hold the producer/present mutex: "
+            + forbidden_locked_gl_work
+        )
+if "pendingFrames.swap(_newFrameQueue)" not in present_lock_body:
+    raise SystemExit("OpenGL frame queue must be transferred atomically under its mutex")
 for snapshot_queue_contract in (
     "pendingSnapshotOperators",
     "std::move(_currentFrame->snapshotOperators.front())",
@@ -401,6 +423,11 @@ subprocess.run(
 )
 subprocess.run(
     [sys.executable, str(ROOT / "macos/tests/build-progress-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/build-tree-checkpoint-test.py")],
     cwd=ROOT,
     check=True,
 )

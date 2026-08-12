@@ -857,42 +857,47 @@ void OpenGLDisplayPlugin::updateFrameData() {
     if (_lockCurrentTexture) {
         return;
     }
+
+    // submitFrame() runs on the producer/main thread.  Keep the shared queue
+    // mutex limited to moving ownership of the queued pointers: consuming a
+    // frame can synchronize and compile GL programs for a long time on
+    // software renderers.  Doing that work under _presentMutex starves the
+    // producer in submitFrame() and eventually trips the application watchdog.
+    decltype(_newFrameQueue) pendingFrames;
     withPresentThreadLock([&] {
-        // The present thread deliberately collapses a producer backlog to the
-        // newest frame.  Snapshot callbacks are commands rather than visual
-        // frame state, so they must survive that collapse.  Otherwise a fast
-        // render producer (especially against macOS's software OpenGL
-        // renderer) can replace the snapshot-bearing frame before it is
-        // presented and the caller waits forever for stillSnapshotTaken.
-        decltype(_currentFrame->snapshotOperators) pendingSnapshotOperators;
-        if (!_newFrameQueue.empty()) {
-            // We're changing frames, so we can cleanup any GL resources that might have been used by the old frame
-            _gpuContext->recycle();
-        }
         if (_newFrameQueue.size() > 1) {
             _droppedFrameRate.increment(_newFrameQueue.size() - 1);
         }
-
-        _gpuContext->processProgramsToSync();
-
-        while (!_newFrameQueue.empty()) {
-            _currentFrame = _newFrameQueue.front();
-            _newFrameQueue.pop();
-            _gpuContext->consumeFrameUpdates(_currentFrame);
-            while (!_currentFrame->snapshotOperators.empty()) {
-                pendingSnapshotOperators.push(
-                    std::move(_currentFrame->snapshotOperators.front()));
-                _currentFrame->snapshotOperators.pop();
-            }
-        }
-        if (_currentFrame) {
-            while (!pendingSnapshotOperators.empty()) {
-                _currentFrame->snapshotOperators.push(
-                    std::move(pendingSnapshotOperators.front()));
-                pendingSnapshotOperators.pop();
-            }
-        }
+        pendingFrames.swap(_newFrameQueue);
     });
+
+    if (!pendingFrames.empty()) {
+        // We're changing frames, so we can cleanup any GL resources that might have been used by the old frame.
+        _gpuContext->recycle();
+    }
+    _gpuContext->processProgramsToSync();
+
+    // The present thread deliberately collapses a producer backlog to the
+    // newest frame.  Snapshot callbacks are commands rather than visual frame
+    // state, so they must survive that collapse.
+    decltype(_currentFrame->snapshotOperators) pendingSnapshotOperators;
+    while (!pendingFrames.empty()) {
+        _currentFrame = pendingFrames.front();
+        pendingFrames.pop();
+        _gpuContext->consumeFrameUpdates(_currentFrame);
+        while (!_currentFrame->snapshotOperators.empty()) {
+            pendingSnapshotOperators.push(
+                std::move(_currentFrame->snapshotOperators.front()));
+            _currentFrame->snapshotOperators.pop();
+        }
+    }
+    if (_currentFrame) {
+        while (!pendingSnapshotOperators.empty()) {
+            _currentFrame->snapshotOperators.push(
+                std::move(pendingSnapshotOperators.front()));
+            pendingSnapshotOperators.pop();
+        }
+    }
 }
 
 std::function<void(gpu::Batch&, const gpu::TexturePointer&)> OpenGLDisplayPlugin::getHUDOperator() {
