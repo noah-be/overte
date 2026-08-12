@@ -411,6 +411,7 @@ for script_name, script_source, snapshot_name in (
     ("online", online_script, "macos-online-smoke.png"),
 ):
     for render_contract in (
+        'Test.startTracing("hifi.gpu.gl41.info=true")',
         "Render.renderMethod = 1",
         "Render.shadowsEnabled = false",
         "Render.ambientOcclusionEnabled = false",

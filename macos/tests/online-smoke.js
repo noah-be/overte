@@ -4,6 +4,8 @@
 (function () {
     "use strict";
 
+    Test.startTracing("hifi.gpu.gl41.info=true");
+
     Render.renderMethod = 1;
     Render.shadowsEnabled = false;
     Render.hazeEnabled = false;
