@@ -327,6 +327,12 @@ The same generated source now passes `qsizetype` arguments to the indexed
 literal zero as both a possible index and a null pointer for the byte-pattern
 overload. The copied byte range and final resize remain unchanged.
 
+Generated `EntityItem.cpp` action summaries now convert `EntityDynamicType`
+through the existing canonical `dynamicTypeToString` mapping before appending
+it to a `QString`. Qt 6 no longer accepts the former implicit enum/string
+concatenation; action names, UUID formatting, separators, and ordering remain
+unchanged.
+
 The public `LogHandler.h` header no longer includes `QRegExp`, which was not
 used by any declaration or inline macro in that interface. Logging option
 parsing, the Qt message-handler entry point, repeated-message aggregation, and

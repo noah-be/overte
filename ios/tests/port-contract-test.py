@@ -1341,6 +1341,13 @@ def test_scope_contract() -> None:
     assert "buffer.replace(0, finalizedSize, finalizedData, finalizedSize);" not in entity_properties_template_text, (
         "literal zero makes QByteArray::replace ambiguous between index and pointer overloads on Qt 6"
     )
+    entity_item_template = SOURCE_ROOT / "libraries" / "entities" / "src" / "EntityItem.cpp.in"
+    entity_item_template_text = entity_item_template.read_text(encoding="utf-8")
+    assert (
+        'EntityDynamicInterface::dynamicTypeToString(actionType) + ":" + action->getID().toString() + " "'
+        in entity_item_template_text
+    ), "generated EntityItem source must stringify action enums explicitly on Qt 6"
+    assert 'QString("") + actionType' not in entity_item_template_text
     entity_generator = SOURCE_ROOT / "cmake" / "macros" / "GenerateEntityProperties.cmake"
     require_text(
         entity_generator,
