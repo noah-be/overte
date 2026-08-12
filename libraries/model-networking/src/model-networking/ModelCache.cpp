@@ -57,7 +57,8 @@ public:
         bb.reserve(1000);
         buff.open(QIODevice::WriteOnly);
     }
-    uint hash(const QVariant& v) {
+    template <typename T>
+    uint hash(const T& v) {
         buff.seek(0);
         ds << v;
         return qHashBits(bb.constData(), buff.pos());

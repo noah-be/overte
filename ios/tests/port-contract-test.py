@@ -2088,6 +2088,11 @@ def test_script_entity_id_qt6_contract() -> None:
     )
     require_text(
         model_cache,
+        r"template\s*<\s*typename\s+T\s*>\s*uint\s+hash\(const T&\s+v\)[\s\S]*?ds\s*<<\s*v",
+        "geometry cache hashing must serialize Qt 6 QHash and QMultiHash values directly",
+    )
+    require_text(
+        model_cache,
         r"hifi::VariantMultiHash\s+serializerMapping\s*=\s*_mapping\.second",
         "ModelCache must preserve repeated FST fields until scalar serializer boundaries",
     )
