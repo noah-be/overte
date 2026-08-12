@@ -29,6 +29,7 @@ for setting in (
     'SCCACHE_CLIENT_SIDE: "1"',
     'SCCACHE_MULTILEVEL_CHAIN: disk,gha',
     'SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: all',
+    'SCCACHE_GHA_ENABLED: "true"',
 ):
     if setting not in WORKFLOW:
         raise SystemExit(f"missing fail-closed per-object checkpoint setting: {setting}")
@@ -36,9 +37,8 @@ for setting in (
 key_start = WORKFLOW.index("Select deterministic cache key")
 key_end = WORKFLOW.index("Restore validated Qt host tools")
 key_slice = WORKFLOW[key_start:key_end]
-for variable in ("SCCACHE_GHA_CACHE_TO", "SCCACHE_GHA_CACHE_FROM"):
-    if f'echo "{variable}=$remote_namespace" >> "$GITHUB_ENV"' not in key_slice:
-        raise SystemExit(f"{variable} is not exported from the deterministic namespace")
+if 'echo "SCCACHE_GHA_VERSION=$remote_namespace" >> "$GITHUB_ENV"' not in key_slice:
+    raise SystemExit("SCCACHE_GHA_VERSION is not exported from the deterministic namespace")
 if 'remote_namespace="overte-qt-objects-v1-${ios_base}"' not in key_slice:
     raise SystemExit("remote per-object namespace is not tied to the exact iOS toolchain plan")
 if "GITHUB_RUN_ID" in key_slice[key_slice.index("remote_namespace="):]:
@@ -52,7 +52,8 @@ if not key_start < probe_start < probe_end:
 for invariant in (
     "SCCACHE_GHA_CACHE_URL",
     "SCCACHE_GHA_RUNTIME_TOKEN",
-    "SCCACHE_GHA_CACHE_TO",
+    "SCCACHE_GHA_ENABLED",
+    "SCCACHE_GHA_VERSION",
     "sccache /usr/bin/clang",
     "compile_requests",
     "cache_write_errors",

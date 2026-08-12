@@ -39,6 +39,7 @@ jobs:
       SCCACHE_CLIENT_SIDE: "1"
       SCCACHE_MULTILEVEL_CHAIN: disk,gha
       SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: all
+      SCCACHE_GHA_ENABLED: "true"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
         with:
@@ -97,8 +98,7 @@ jobs:
           echo "sccache_prefix=overte-qt-sccache-v2-${ios_base}-" >> "$GITHUB_OUTPUT"
           echo "sccache_prune_prefix=overte-qt-sccache-v2-${RUNNER_ARCH}-" >> "$GITHUB_OUTPUT"
           remote_namespace="overte-qt-objects-v1-${ios_base}"
-          echo "SCCACHE_GHA_CACHE_TO=$remote_namespace" >> "$GITHUB_ENV"
-          echo "SCCACHE_GHA_CACHE_FROM=$remote_namespace" >> "$GITHUB_ENV"
+          echo "SCCACHE_GHA_VERSION=$remote_namespace" >> "$GITHUB_ENV"
 
       - name: Verify remote compiler checkpoint before the long build
         shell: bash
@@ -106,7 +106,8 @@ jobs:
           set -euo pipefail
           [[ -n "${SCCACHE_GHA_CACHE_URL:-}" ]] || { echo "remote cache URL missing" >&2; exit 1; }
           [[ -n "${SCCACHE_GHA_RUNTIME_TOKEN:-}" ]] || { echo "remote cache token missing" >&2; exit 1; }
-          [[ -n "${SCCACHE_GHA_CACHE_TO:-}" ]] || { echo "remote cache write namespace missing" >&2; exit 1; }
+          [[ "${SCCACHE_GHA_ENABLED:-}" == "true" ]] || { echo "remote cache backend disabled" >&2; exit 1; }
+          [[ -n "${SCCACHE_GHA_VERSION:-}" ]] || { echo "remote cache namespace missing" >&2; exit 1; }
           probe_dir="$GITHUB_WORKSPACE/build-ios/sccache-remote-probe"
           mkdir -p "$probe_dir"
           trap 'rm -rf "$probe_dir"' EXIT
