@@ -658,6 +658,9 @@ changed them to `QMultiMap<QString, QVariant>` even though the implementation
 assigns, merges, and stores `QVariantMap` values; Qt 5's map inheritance hid
 that mismatch. Qt 6's independent multimap type exposes it. Preset overlay,
 default/disabled entries, and deterministic loading are unchanged.
+The initially empty preset table is populated with `QMap::insert(map)`, the
+Qt 6 replacement for the removed `QMap::unite`; with the existing empty-table
+assertion this copies precisely the same entries.
 
 The audio gate requires device enumeration, route change, microphone consent,
 interruption recovery, Bluetooth behavior, mono input, stereo output, and

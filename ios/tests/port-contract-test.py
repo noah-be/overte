@@ -1354,7 +1354,8 @@ def test_scope_contract() -> None:
     assert task_config_text.count("QVariantMap _presets;") == 1
     assert "QMultiMap<QString, QVariant> _default" not in task_config_text
     assert "QMultiMap<QString, QVariant> _presets" not in task_config_text
-    assert "_presets.unite(list.toVariantMap());" in task_config_text
+    assert "_presets.insert(list.toVariantMap());" in task_config_text
+    assert "_presets.unite(" not in task_config_text
     entity_generator = SOURCE_ROOT / "cmake" / "macros" / "GenerateEntityProperties.cmake"
     require_text(
         entity_generator,
