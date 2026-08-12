@@ -40,20 +40,34 @@ def _cpu_seconds(value: str) -> float:
 
 def _snapshot() -> list[dict[str, Any]]:
     result = subprocess.run(
-        ["ps", "-axo", "pid=,ppid=,time=,rss=,%cpu=,comm=,command="],
+        # Do not request both ``comm`` and ``command`` here.  On macOS/BSD ps,
+        # the former may be truncated to a single character when the process
+        # has an unusual argv layout.  ``args`` is the final, unlimited-width
+        # column and is sufficient to derive the real compiler executable.
+        ["ps", "-ww", "-axo", "pid=,ppid=,time=,rss=,%cpu=,args="],
         check=True, capture_output=True, text=True,
     )
+    return _parse_snapshot(result.stdout)
+
+
+def _parse_snapshot(output: str) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    for line in result.stdout.splitlines():
-        fields = line.strip().split(None, 6)
-        if len(fields) != 7:
+    for line in output.splitlines():
+        fields = line.strip().split(None, 5)
+        if len(fields) != 6:
             continue
         try:
+            command = fields[5]
+            try:
+                argv = shlex.split(command)
+            except ValueError:
+                argv = command.split(None, 1)
+            executable = os.path.basename(argv[0]) if argv else ""
             rows.append({
                 "pid": int(fields[0]), "ppid": int(fields[1]),
                 "cpu": _cpu_seconds(fields[2]), "rss": int(fields[3]),
                 "cpu_pct": float(fields[4]),
-                "comm": os.path.basename(fields[5]), "command": fields[6],
+                "comm": executable, "command": command,
             })
         except ValueError:
             continue
@@ -72,7 +86,27 @@ def _tree(rows: list[dict[str, Any]], root: int) -> list[dict[str, Any]]:
     return [row for row in rows if int(row["pid"]) in selected]
 
 
+def _expanded_arguments(arguments: list[str], depth: int = 0) -> list[str]:
+    """Expand compiler response files for private, exact process correlation."""
+    if depth >= 3:
+        return arguments
+    expanded: list[str] = []
+    for value in arguments:
+        if not value.startswith("@") or len(value) == 1:
+            expanded.append(value)
+            continue
+        try:
+            contents = Path(value[1:]).read_text(encoding="utf-8")
+            response = shlex.split(contents)
+        except (OSError, UnicodeError, ValueError):
+            expanded.append(value)
+        else:
+            expanded.extend(_expanded_arguments(response, depth + 1))
+    return expanded
+
+
 def _compiler_markers(arguments: list[str]) -> tuple[str | None, str | None]:
+    arguments = _expanded_arguments(arguments)
     source = next((value for value in reversed(arguments)
                    if Path(value).suffix.lower() in SOURCE_SUFFIXES), None)
     output = None
@@ -99,15 +133,16 @@ def _correlated_compilers(rows: list[dict[str, Any]], source: str | None,
         return []
     matches = []
     for row in rows:
-        if str(row["comm"]).lower() not in COMPILER_NAMES:
-            continue
         try:
-            arguments = shlex.split(str(row.get("command", "")))[1:]
+            argv = shlex.split(str(row.get("command", "")))
         except ValueError:
             continue
-        if (any(_same_argument(value, source) for value in arguments)
-                and any(_same_argument(value.removeprefix("-o"), output)
-                        for value in arguments if value == output or value.startswith("-o"))):
+        if not argv or os.path.basename(argv[0]).lower() not in COMPILER_NAMES:
+            continue
+        candidate_source, candidate_output = _compiler_markers(argv[1:])
+        if (candidate_source is not None and candidate_output is not None
+                and _same_argument(candidate_source, source)
+                and _same_argument(candidate_output, output)):
             matches.append(row)
     return matches
 

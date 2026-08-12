@@ -163,8 +163,27 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "shasum -a 256",
         ):
             self.assertIn(required, key_step)
-        self.assertIn("macos-sccache-v2-", key_step)
+        self.assertIn("compiler_fingerprint", key_step)
+        self.assertIn("macos-sccache-v3-", key_step)
         self.assertIn("macos-conan-v2-", key_step)
+
+    def test_monitoring_only_changes_do_not_strand_compatible_sccache_entries(self):
+        key_step = self.source.split(
+            "- name: Select deterministic toolchain and cache keys", 1
+        )[1].split("- name: Cache Conan packages", 1)[0]
+        compiler_key = key_step.split('base="macos-sccache-v3-', 1)[1].split(
+            '"', 1
+        )[0]
+        self.assertIn("${compiler_fingerprint}", compiler_key)
+        compiler_fingerprint = key_step.split('compiler_fingerprint="', 1)[1].split(
+            'toolchain_fingerprint="', 1
+        )[0]
+        self.assertNotIn("compiler-watchdog.py", compiler_fingerprint)
+        self.assertNotIn("source_inputs", compiler_fingerprint)
+        restore = self.source.split(
+            "- name: Restore bounded compiler recovery cache", 1
+        )[1].split("- name: Restore resumable build-tree checkpoint", 1)[0]
+        self.assertIn("macos-sccache-v2-${{ env.OVERTE_MACOS_ARCH }}-", restore)
 
     def test_compiler_cache_checkpoints_preserve_success_and_failure_progress(self):
         build = self.source.split("- name: Configure and build client", 1)[1].split(
@@ -194,6 +213,83 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("${{ github.run_attempt }}", partial_save)
         self.assertIn("steps.build-client.outcome == 'failure'", failure_gate)
         self.assertIn("run: exit 1", failure_gate)
+
+    def test_build_tree_restores_exact_complete_then_same_toolchain_partial(self):
+        key_step = self.source.split(
+            "- name: Select deterministic toolchain and cache keys", 1
+        )[1].split("- name: Cache Conan packages", 1)[0]
+        self.assertIn("build_base=\"macos-build-tree-v1-", key_step)
+        self.assertIn("${toolchain_fingerprint}", key_step)
+        self.assertIn("build_complete=${build_base}-complete-${source_inputs}", key_step)
+        self.assertIn(
+            "build_partial_prefix=${build_base}-partial-${source_inputs}-", key_step
+        )
+
+        restore = self.source.split(
+            "- name: Restore resumable build-tree checkpoint", 1
+        )[1].split("- name: Configure compiler cache", 1)[0]
+        self.assertIn("id: build-tree-restore", restore)
+        self.assertIn("path: build", restore)
+        self.assertIn("key: ${{ steps.cache-key.outputs.build_complete }}", restore)
+        self.assertIn("steps.cache-key.outputs.build_partial_prefix", restore)
+        self.assertNotIn("build_complete_prefix", restore)
+
+    def test_build_tree_is_saved_after_orderly_success_or_failure(self):
+        stop = self.source.index("- name: Stop compiler-cache server before snapshot")
+        complete_name = "- name: Save complete build-tree checkpoint"
+        partial_name = "- name: Save partial build-tree checkpoint after build failure"
+        complete = self.source.split(complete_name, 1)[1].split(partial_name, 1)[0]
+        partial = self.source.split(partial_name, 1)[1].split(
+            "- name: Require successful client build", 1
+        )[0]
+        self.assertLess(stop, self.source.index(complete_name))
+        self.assertLess(stop, self.source.index(partial_name))
+        for section in (complete, partial):
+            self.assertIn("always()", section)
+            self.assertIn("!cancelled()", section)
+            self.assertIn("path: build", section)
+        self.assertIn("steps.build-client.outcome == 'success'", complete)
+        self.assertIn("steps.build-tree-restore.outputs.cache-hit != 'true'", complete)
+        self.assertIn("steps.cache-key.outputs.build_complete", complete)
+        self.assertIn("steps.build-client.outcome == 'failure'", partial)
+        self.assertIn("steps.cache-key.outputs.build_partial_prefix", partial)
+        self.assertIn("${{ github.run_id }}", partial)
+        self.assertIn("${{ github.run_attempt }}", partial)
+
+    def test_runner_telemetry_supervises_dependency_and_build_commands(self):
+        self.assertIn(
+            "MACOS_RUNNER_TELEMETRY_DIR: "
+            "${{ runner.temp }}/overte-macos-runner-telemetry",
+            self.source,
+        )
+        self.assertIn("PYTHONUNBUFFERED: '1'", self.source)
+        dependencies = self.source.split("- name: Resolve dependencies", 1)[1].split(
+            "- name: Save complete Conan cache", 1
+        )[0]
+        build = self.source.split("- name: Configure and build client", 1)[1].split(
+            "- name: Report compiler-cache statistics", 1
+        )[0]
+        for section, command in (
+            (dependencies, "-- macos/build-macos.sh deps"),
+            (build, "-- macos/build-macos.sh build"),
+        ):
+            self.assertIn("python3 macos/ci/runner-telemetry.py", section)
+            self.assertIn("--sample-interval 5", section)
+            self.assertIn("--publish-interval 30", section)
+            self.assertIn("--directory-interval 300", section)
+            self.assertIn(command, section)
+        self.assertIn('--watch build=build', build)
+        self.assertIn('--watch conan="$CONAN_HOME"', build)
+        self.assertIn('--watch sccache="$SCCACHE_DIR"', build)
+
+    def test_runner_telemetry_and_build_diagnostics_are_always_uploaded(self):
+        upload = self.source.split("- name: Upload smoke diagnostics", 1)[1].split(
+            "- name: Upload application bundle", 1
+        )[0]
+        self.assertIn("if: always()", upload)
+        self.assertIn("${{ runner.temp }}/overte-macos-runner-telemetry", upload)
+        self.assertIn("build/macos-build-diagnostics", upload)
+        self.assertIn("if-no-files-found: ignore", upload)
 
     def test_sccache_server_is_stopped_before_every_snapshot(self):
         start = self.source.index("sccache --start-server")

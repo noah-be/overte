@@ -24,11 +24,27 @@ server is stopped before either a successful or failure snapshot. Complete
 generations are preferred on restore, with partial failure generations as a
 fallback. Expensive builds are not automatically cancelled by a newer push.
 
+The generated `build` tree is checkpointed separately after an orderly build
+success or failure. A complete tree is restored only for an exact source and
+toolchain match; a partial tree is reused only with the same source, compiler,
+Xcode, SDK, architecture, configuration, and dependency inputs. This preserves
+generated build state and objects in addition to sccache's content-addressed
+compiler results. A GitHub-hosted runner remains ephemeral and cannot be kept
+alive after a job, so caches and uploaded artifacts are the durable recovery
+boundary.
+
 The aggregate build supervisor also writes a sanitized 30-second heartbeat to
 the same live channel. Compiler activity can therefore be distinguished from a
 compiler stall, while the absence of both compiler records and supervisor
 heartbeats indicates a runner-level freeze. The build step is capped at 150
 minutes and the complete job at 180 minutes.
+
+`macos/ci/runner-telemetry.py` samples host health every five seconds and emits
+sanitized, flushed 30-second aggregates. It records CPU/load, RAM and memory
+pressure, swap, free disk space, inode availability, process count, and bounded
+five-minute build/Conan/sccache size samples. Threshold transitions are emitted
+immediately. The telemetry supervisor preserves the supervised command's exit
+status and never records commands, environment variables, paths, or secrets.
 
 On completion it uploads:
 

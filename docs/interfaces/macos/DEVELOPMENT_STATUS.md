@@ -10,6 +10,8 @@
 - per-file compiler monitoring with CPU, memory, inactivity, signal, and stall
   diagnostics;
 - deterministic complete and partial sccache recovery checkpoints;
+- exact complete and failure-time partial build-tree checkpoints;
+- five-second runner health sampling with sanitized 30-second live aggregates;
 - shared GLAD state and optional OpenGL debug-entry-point guards;
 - startup, bundle-linkage, and reusable runtime-only diagnostic workflows; and
 - accepted `arm64` configuration value for future dependency work.

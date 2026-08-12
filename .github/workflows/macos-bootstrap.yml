@@ -38,6 +38,8 @@ jobs:
       MACOSX_DEPLOYMENT_TARGET: '11.0'
       SCCACHE_DIR: ${{ github.workspace }}/.sccache
       SCCACHE_CACHE_SIZE: 1536M
+      MACOS_RUNNER_TELEMETRY_DIR: ${{ runner.temp }}/overte-macos-runner-telemetry
+      PYTHONUNBUFFERED: '1'
       CMAKE_C_COMPILER_LAUNCHER: ${{ github.workspace }}/macos/ci/compiler-watchdog.py;--
       CMAKE_CXX_COMPILER_LAUNCHER: ${{ github.workspace }}/macos/ci/compiler-watchdog.py;--
       CMAKE_OBJC_COMPILER_LAUNCHER: ${{ github.workspace }}/macos/ci/compiler-watchdog.py;--
@@ -76,10 +78,16 @@ jobs:
           sdk_build="$(xcrun --sdk macosx --show-sdk-build-version)"
           toolchain_inputs="$(git ls-files -s -- conanfile.py 'macos/conan/**' \
             CMakeLists.txt 'cmake/**' macos/build-macos.sh \
-            macos/ci/compiler-watchdog.py | shasum -a 256 | awk '{print $1}')"
+            | shasum -a 256 | awk '{print $1}')"
           source_inputs="$(git ls-files -s -- conanfile.py 'macos/conan/**' \
             CMakeLists.txt 'cmake/**' 'interface/**' 'libraries/**' 'plugins/**' \
-            'macos/**' | shasum -a 256 | awk '{print $1}')"
+            macos/build-macos.sh 'macos/tools/**' | \
+            shasum -a 256 | awk '{print $1}')"
+          compiler_fingerprint="$(printf '%s\n' \
+            "$compiler_digest" "$compiler_version" "$xcode_build" \
+            "$sdk_version" "$sdk_build" "$OVERTE_MACOS_ARCH" \
+            "$OVERTE_MACOS_BUILD_TYPE" "$MACOSX_DEPLOYMENT_TARGET" | \
+            shasum -a 256 | awk '{print $1}')"
           toolchain_fingerprint="$(printf '%s\n' \
             "$compiler_digest" "$compiler_version" "$xcode_build" \
             "$sdk_version" "$sdk_build" "$OVERTE_MACOS_ARCH" \
@@ -88,11 +96,17 @@ jobs:
             shasum -a 256 | awk '{print $1}')"
           conan_inputs="$(git ls-files -s -- conanfile.py 'macos/conan/**' | \
             shasum -a 256 | awk '{print $1}')"
-          base="macos-sccache-v2-${OVERTE_MACOS_ARCH}-${toolchain_fingerprint}"
+          # sccache validates each entry by content, so monitoring-only changes
+          # must not strand compatible compiler results.  The non-content-
+          # addressed build tree below deliberately retains the stricter key.
+          base="macos-sccache-v3-${OVERTE_MACOS_ARCH}-${compiler_fingerprint}"
           echo "conan=macos-conan-v2-${OVERTE_MACOS_ARCH}-${toolchain_fingerprint}-${conan_inputs}" >> "$GITHUB_OUTPUT"
           echo "sccache_complete=${base}-complete-${source_inputs}" >> "$GITHUB_OUTPUT"
           echo "sccache_complete_prefix=${base}-complete-" >> "$GITHUB_OUTPUT"
           echo "sccache_partial_prefix=${base}-partial-" >> "$GITHUB_OUTPUT"
+          build_base="macos-build-tree-v1-${OVERTE_MACOS_ARCH}-${toolchain_fingerprint}"
+          echo "build_complete=${build_base}-complete-${source_inputs}" >> "$GITHUB_OUTPUT"
+          echo "build_partial_prefix=${build_base}-partial-${source_inputs}-" >> "$GITHUB_OUTPUT"
 
       - name: Cache Conan packages
         id: conan-cache
@@ -110,7 +124,14 @@ jobs:
       - name: Resolve dependencies
         id: resolve-dependencies
         continue-on-error: true
-        run: macos/build-macos.sh deps
+        run: |
+          mkdir -p "$MACOS_RUNNER_TELEMETRY_DIR"
+          python3 macos/ci/runner-telemetry.py \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/dependencies.jsonl" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 300 \
+            --watch conan="$CONAN_HOME" \
+            --watch sccache="$SCCACHE_DIR" \
+            -- macos/build-macos.sh deps
 
       - name: Save complete Conan cache
         if: >-
@@ -148,6 +169,21 @@ jobs:
           restore-keys: |
             ${{ steps.cache-key.outputs.sccache_complete_prefix }}
             ${{ steps.cache-key.outputs.sccache_partial_prefix }}
+            macos-sccache-v2-${{ env.OVERTE_MACOS_ARCH }}-
+
+      # GitHub-hosted runners are intentionally ephemeral.  Persist the generated
+      # build graph outside the runner so an orderly failure can resume compiled
+      # objects instead of relying on the VM surviving.  Only an exact completed
+      # tree is accepted; otherwise restore the newest partial tree produced by
+      # identical source and compiler/SDK/architecture/configuration inputs.
+      - name: Restore resumable build-tree checkpoint
+        id: build-tree-restore
+        uses: actions/cache/restore@v5
+        with:
+          path: build
+          key: ${{ steps.cache-key.outputs.build_complete }}
+          restore-keys: |
+            ${{ steps.cache-key.outputs.build_partial_prefix }}
 
       - name: Configure compiler cache
         run: |
@@ -158,7 +194,15 @@ jobs:
         id: build-client
         continue-on-error: true
         timeout-minutes: 150
-        run: macos/build-macos.sh build
+        run: |
+          mkdir -p "$MACOS_RUNNER_TELEMETRY_DIR"
+          python3 macos/ci/runner-telemetry.py \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/build.jsonl" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 300 \
+            --watch build=build \
+            --watch conan="$CONAN_HOME" \
+            --watch sccache="$SCCACHE_DIR" \
+            -- macos/build-macos.sh build
 
       - name: Report compiler-cache statistics
         if: ${{ always() && !cancelled() }}
@@ -186,6 +230,25 @@ jobs:
         with:
           path: ${{ env.SCCACHE_DIR }}
           key: ${{ steps.cache-key.outputs.sccache_partial_prefix }}${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Save complete build-tree checkpoint
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.build-client.outcome == 'success' &&
+              steps.build-tree-restore.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v5
+        with:
+          path: build
+          key: ${{ steps.cache-key.outputs.build_complete }}
+
+      - name: Save partial build-tree checkpoint after build failure
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.build-client.outcome == 'failure' }}
+        uses: actions/cache/save@v5
+        with:
+          path: build
+          key: ${{ steps.cache-key.outputs.build_partial_prefix }}${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Require successful client build
         if: ${{ always() && steps.build-client.outcome == 'failure' }}
@@ -221,6 +284,7 @@ jobs:
         with:
           name: overte-macos-smoke-${{ github.run_id }}
           path: |
+            ${{ runner.temp }}/overte-macos-runner-telemetry
             build/macos-build-diagnostics
             build/macos-startup-preflight
             build/macos-smoke

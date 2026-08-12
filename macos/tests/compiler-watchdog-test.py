@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -161,6 +162,48 @@ class CompilerWatchdogTest(unittest.TestCase):
         matches = module._correlated_compilers(
             rows, "/secret/unit file.cpp", "/secret/unit file.o")
         self.assertEqual([row["pid"] for row in matches], [77])
+
+    def test_parses_unlimited_macos_ps_args_and_derives_compiler_name(self) -> None:
+        module = load_watchdog()
+        rows = module._parse_snapshot(
+            " 731 1 00:02.34 409600 98.7 /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang++ -c '/tmp/unit file.mm' -o '/tmp/unit file.o'\n"
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["comm"], "clang++")
+        self.assertEqual(rows[0]["cpu"], 2.34)
+        self.assertEqual(rows[0]["rss"], 409600)
+        matches = module._correlated_compilers(
+            rows, "/tmp/unit file.mm", "/tmp/unit file.o")
+        self.assertEqual([row["pid"] for row in matches], [731])
+
+    def test_correlates_daemon_compiler_with_response_file(self) -> None:
+        module = load_watchdog()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "unit file.cpp"
+            output = root / "unit file.o"
+            response = root / "compile.rsp"
+            response.write_text(
+                f"-c {shlex.quote(str(source))} -o {shlex.quote(str(output))}\n")
+            rows = [{
+                "pid": 991, "ppid": 1, "cpu": 7.0, "rss": 500000,
+                "cpu_pct": 100.0, "comm": "s",
+                "command": f"/usr/bin/clang++ @{shlex.quote(str(response))}",
+            }]
+            matches = module._correlated_compilers(rows, str(source), str(output))
+            self.assertEqual([row["pid"] for row in matches], [991])
+
+    def test_snapshot_uses_unlimited_width_args_without_comm_column(self) -> None:
+        module = load_watchdog()
+        completed = subprocess.CompletedProcess(
+            [], 0, "12 1 00:00.50 2048 90.0 /usr/bin/clang -c unit.c -o unit.o\n", "")
+        with mock.patch.object(module.subprocess, "run", return_value=completed) as run:
+            rows = module._snapshot()
+        self.assertEqual(rows[0]["comm"], "clang")
+        self.assertEqual(
+            run.call_args.args[0],
+            ["ps", "-ww", "-axo", "pid=,ppid=,time=,rss=,%cpu=,args="],
+        )
 
     def test_classifies_all_four_compiler_languages(self) -> None:
         module = load_watchdog()
