@@ -45,13 +45,28 @@ def main() -> None:
         integrated,
         "the full-client cache must use pinned action and compiler-cache revisions",
     )
+    require(
+        r'core\.exportVariable\("SCCACHE_GHA_CACHE_URL", cacheUrl\)[\s\S]*?core\.exportVariable\("SCCACHE_GHA_RUNTIME_TOKEN", runtimeToken\)',
+        integrated,
+        "each successful client object needs authenticated remote persistence",
+    )
     require(r"SCCACHE_DIR:\s*\$\{\{ github\.workspace \}\}/build-ios/client-sccache", integrated, "the cache must stay in the bounded workspace path")
     require(r"SCCACHE_CACHE_SIZE:\s*512M", integrated, "the client cache must leave room for validated toolchain checkpoints")
+    require(r'SCCACHE_IDLE_TIMEOUT:\s*"0"', integrated, "the cache server must survive long non-compiler Xcode phases")
+    for remote_setting in (
+        'SCCACHE_CLIENT_SIDE: "1"',
+        "SCCACHE_MULTILEVEL_CHAIN: disk,gha",
+        "SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: all",
+        'SCCACHE_GHA_ENABLED: "true"',
+    ):
+        if remote_setting not in integrated:
+            raise AssertionError(f"remote object persistence omits {remote_setting}")
     require(r"SCCACHE_BASEDIRS:\s*\$\{\{ github\.workspace \}\}", integrated, "workspace paths must be normalized")
     require(r"SCCACHE_C_CUSTOM_CACHE_BUSTER=.*namespace", integrated, "toolchain identity must enter compiler keys")
     for identity in ("QT_HOST_KEY", "QT_IOS_KEY", "CONAN_KEY", "V8_KEY", "MOLTENVK_KEY"):
         if identity not in integrated[namespace:restore]:
             raise AssertionError(f"compiler namespace omits {identity}")
+    require(r'echo "SCCACHE_GHA_VERSION=overte-ios-client-objects-v1-\$namespace"', integrated[namespace:restore], "remote objects must share the deterministic toolchain namespace")
 
     restore_slice = integrated[restore:start]
     require(r"actions/cache/restore@[0-9a-f]{40}", restore_slice, "compiler restore action must be immutable")
@@ -81,6 +96,9 @@ def main() -> None:
     if smoke_slice.count("sccache --zero-stats") != 2:
         raise AssertionError("the full build must start with clean statistics after the Xcode smoke")
     require(r"requests < 1 or cacheable < 1[\s\S]*Xcode compiler checkpoint smoke did not reach sccache", smoke_slice, "a bypassed launcher must fail before the long build")
+    for remote_evidence in ("cache_writes", "multi_level", "write_failures", "remote GHA cache"):
+        if remote_evidence not in smoke_slice:
+            raise AssertionError(f"the preflight does not prove remote object persistence: {remote_evidence}")
     require(r"id: full-client-build", integrated[build:verify], "checkpoint verification needs the named build outcome")
 
     build_slice = integrated[build:verify]
@@ -94,10 +112,11 @@ def main() -> None:
     for invariant in ("compile_requests", "cache_hits", "cache_misses", "cache_write_errors"):
         if invariant not in verify_slice:
             raise AssertionError(f"compiler checkpoint does not validate {invariant}")
+    require(r'cache_root = pathlib\.Path\("build-ios/client-sccache"\)[\s\S]*cache_bytes[\s\S]*requests < 1:[\s\S]*cache_files', verify_slice, "expired live statistics must fall back to validating the durable on-disk cache")
 
     stop_slice = integrated[stop:free]
     require(r"if:.*!cancelled\(\).*full-client-build\.outcome != 'skipped'", stop_slice, "the server must stop after success or failure")
-    require(r"sccache --stop-server", stop_slice, "cache writes must quiesce before snapshot")
+    require(r"sccache --stop-server \|\| true", stop_slice, "an already idle server must not block the durable snapshot")
 
     free_slice = integrated[free:save]
     require(r"sort_by\(\.createdAt\).*reverse.*\.\[1:\]", free_slice, "one fallback generation must remain while space is freed")

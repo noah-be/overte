@@ -63,7 +63,7 @@ public:
     static hifi::VariantMultiHash downloadMapping(const QString& url);
 
 private:
-    static void writeVariant(QBuffer& buffer, QVariantHash::const_iterator& it);
+    static void writeVariant(QBuffer& buffer, hifi::VariantMultiHash::const_iterator it);
     static hifi::VariantMultiHash parseMapping(QIODevice* device);
 
     static QHash<FSTReader::ModelType, QString> _typesToNames;

@@ -683,7 +683,9 @@ def test_cmake_boundary() -> None:
     if "mapping = QVariantHash()" in fst_reader_header.read_text(encoding="utf-8"):
         raise AssertionError("FSTReader retained Qt 5's implicit QHash-to-QMultiHash conversion")
     fst_reader_source = fst_reader_header.with_suffix(".cpp")
-    require_text(fst_reader_source, r"VariantMultiHash bs\(properties\.value\(\"bs\"\)\.toHash\(\)\)", "legacy FST blendshapes must cross the Qt 6 hash boundary explicitly")
+    require_text(fst_reader_source, r"QVariantHash bs = properties\.value\(\"bs\"\)\.toHash\(\)", "nested legacy FST blendshapes must retain their QVariantHash representation")
+    require_text(fst_reader_source, r"splitBlendshapes\(QVariantHash& bs", "nested FST blendshape mutation must not mix QHash and QMultiHash")
+    require_text(fst_reader_source, r"writeVariant\(QBuffer& buffer, hifi::VariantMultiHash::const_iterator it\)", "top-level repeated FST keys require the QMultiHash iterator")
     for serializer in (
         SOURCE_ROOT / "libraries" / "model-serializers" / "src" / "FBXSerializer.cpp",
         SOURCE_ROOT / "libraries" / "model-serializers" / "src" / "GLTFSerializer.cpp",
