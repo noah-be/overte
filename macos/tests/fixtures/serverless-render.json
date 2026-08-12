@@ -1,0 +1,51 @@
+{
+    "DataVersion": 3,
+    "Paths": {
+        "/": "/0,1.6,0/0,0,0,1"
+    },
+    "Entities": [
+        {
+            "id": "{5680c199-e84c-4b03-aa7d-e3fd5fb21f9a}",
+            "type": "Shape",
+            "shape": "Cube",
+            "name": "macOS smoke red cube",
+            "locked": true,
+            "position": { "x": -0.9, "y": 1.6, "z": -4.0 },
+            "dimensions": { "x": 1.4, "y": 1.4, "z": 1.4 },
+            "color": { "red": 235, "green": 48, "blue": 72 },
+            "unlit": true,
+            "collisionless": true,
+            "grab": { "grabbable": false }
+        },
+        {
+            "id": "{236883a8-e2cb-4a22-aa3a-fc236b5557dd}",
+            "type": "Shape",
+            "shape": "Sphere",
+            "name": "macOS smoke cyan sphere",
+            "locked": true,
+            "position": { "x": 0.9, "y": 1.6, "z": -4.0 },
+            "dimensions": { "x": 1.4, "y": 1.4, "z": 1.4 },
+            "color": { "red": 25, "green": 210, "blue": 225 },
+            "unlit": true,
+            "collisionless": true,
+            "grab": { "grabbable": false }
+        },
+        {
+            "id": "{29078667-37d5-4b9a-a4e5-26c99632ed83}",
+            "type": "Text",
+            "name": "macOS smoke label",
+            "locked": true,
+            "position": { "x": 0.0, "y": 0.45, "z": -3.9 },
+            "dimensions": { "x": 3.8, "y": 0.65, "z": 0.02 },
+            "text": "Overte macOS",
+            "textColor": { "red": 255, "green": 255, "blue": 255 },
+            "backgroundColor": { "red": 30, "green": 35, "blue": 50 },
+            "lineHeight": 0.35,
+            "unlit": true,
+            "collisionless": true,
+            "grab": { "grabbable": false }
+        }
+    ],
+    "Id": "{e198fd93-205b-424d-8ced-c9f84d358da9}",
+    "Version": 120
+}
