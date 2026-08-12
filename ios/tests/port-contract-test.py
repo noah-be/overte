@@ -1997,6 +1997,10 @@ def test_script_entity_id_qt6_contract() -> None:
         require_text(header, r'#include\s*<QtCore/QObject>',
                      "iOS-reachable UI QObject subclasses must own their complete base type")
 
+    flow_header = SOURCE_ROOT / "libraries" / "animation" / "src" / "Flow.h"
+    require_text(flow_header, r'#include\s*<QtCore/QObject>',
+                 "the iOS-reachable Flow QObject subclass must own its complete base type")
+
     midi_header = SOURCE_ROOT / "libraries" / "midi" / "src" / "Midi.h"
     require_text(midi_header, r'#include\s*<QtCore/QVariantMap>',
                  "Qt 6 MOC must see the complete QVariantMap signal argument type")
