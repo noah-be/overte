@@ -858,6 +858,13 @@ void OpenGLDisplayPlugin::updateFrameData() {
         return;
     }
     withPresentThreadLock([&] {
+        // The present thread deliberately collapses a producer backlog to the
+        // newest frame.  Snapshot callbacks are commands rather than visual
+        // frame state, so they must survive that collapse.  Otherwise a fast
+        // render producer (especially against macOS's software OpenGL
+        // renderer) can replace the snapshot-bearing frame before it is
+        // presented and the caller waits forever for stillSnapshotTaken.
+        decltype(_currentFrame->snapshotOperators) pendingSnapshotOperators;
         if (!_newFrameQueue.empty()) {
             // We're changing frames, so we can cleanup any GL resources that might have been used by the old frame
             _gpuContext->recycle();
@@ -872,6 +879,18 @@ void OpenGLDisplayPlugin::updateFrameData() {
             _currentFrame = _newFrameQueue.front();
             _newFrameQueue.pop();
             _gpuContext->consumeFrameUpdates(_currentFrame);
+            while (!_currentFrame->snapshotOperators.empty()) {
+                pendingSnapshotOperators.push(
+                    std::move(_currentFrame->snapshotOperators.front()));
+                _currentFrame->snapshotOperators.pop();
+            }
+        }
+        if (_currentFrame) {
+            while (!pendingSnapshotOperators.empty()) {
+                _currentFrame->snapshotOperators.push(
+                    std::move(pendingSnapshotOperators.front()));
+                pendingSnapshotOperators.pop();
+            }
         }
     });
 }

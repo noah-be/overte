@@ -25,9 +25,9 @@ generations are preferred on restore, with partial failure generations as a
 fallback. Expensive builds are not automatically cancelled by a newer push.
 
 The generated `build` tree is checkpointed separately after an orderly build
-success or failure. A complete tree is restored only for an exact source and
-toolchain match; a partial tree is reused only with the same source, compiler,
-Xcode, SDK, architecture, configuration, and dependency inputs. This preserves
+success or failure. An exact source match is preferred; otherwise the newest
+tree with the same compiler, Xcode, SDK, architecture, configuration, and
+dependency inputs is restored and CMake incrementally rebuilds changed sources. This preserves
 generated build state and objects in addition to sccache's content-addressed
 compiler results. A GitHub-hosted runner remains ephemeral and cannot be kept
 alive after a job, so caches and uploaded artifacts are the durable recovery

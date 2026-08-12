@@ -106,7 +106,8 @@ jobs:
           echo "sccache_partial_prefix=${base}-partial-" >> "$GITHUB_OUTPUT"
           build_base="macos-build-tree-v1-${OVERTE_MACOS_ARCH}-${toolchain_fingerprint}"
           echo "build_complete=${build_base}-complete-${source_inputs}" >> "$GITHUB_OUTPUT"
-          echo "build_partial_prefix=${build_base}-partial-${source_inputs}-" >> "$GITHUB_OUTPUT"
+          echo "build_complete_prefix=${build_base}-complete-" >> "$GITHUB_OUTPUT"
+          echo "build_partial_prefix=${build_base}-partial-" >> "$GITHUB_OUTPUT"
 
       - name: Cache Conan packages
         id: conan-cache
@@ -174,8 +175,9 @@ jobs:
       # GitHub-hosted runners are intentionally ephemeral.  Persist the generated
       # build graph outside the runner so an orderly failure can resume compiled
       # objects instead of relying on the VM surviving.  Only an exact completed
-      # tree is accepted; otherwise restore the newest partial tree produced by
-      # identical source and compiler/SDK/architecture/configuration inputs.
+      # tree is preferred; otherwise restore the newest tree produced by an
+      # identical compiler/SDK/architecture/configuration and let CMake rebuild
+      # only source changes.
       - name: Restore resumable build-tree checkpoint
         id: build-tree-restore
         uses: actions/cache/restore@v5
@@ -183,6 +185,7 @@ jobs:
           path: build
           key: ${{ steps.cache-key.outputs.build_complete }}
           restore-keys: |
+            ${{ steps.cache-key.outputs.build_complete_prefix }}
             ${{ steps.cache-key.outputs.build_partial_prefix }}
 
       - name: Configure compiler cache

@@ -354,6 +354,36 @@ for smoke_name, smoke_source, maximum in (
     )
     if not default_timeout or int(default_timeout.group(1)) > maximum:
         raise SystemExit(f"{smoke_name} smoke timeout must be at most {maximum}s")
+
+opengl_display = (
+    ROOT / "libraries/display-plugins/src/display-plugins/OpenGLDisplayPlugin.cpp"
+).read_text(encoding="utf-8")
+update_frame_data = opengl_display.split(
+    "void OpenGLDisplayPlugin::updateFrameData()", 1
+)[1].split("std::function<void(gpu::Batch&", 1)[0]
+for snapshot_queue_contract in (
+    "pendingSnapshotOperators",
+    "std::move(_currentFrame->snapshotOperators.front())",
+    "_currentFrame->snapshotOperators.push",
+):
+    if snapshot_queue_contract not in update_frame_data:
+        raise SystemExit(
+            "OpenGL frame collapsing must preserve snapshot operators: "
+            + snapshot_queue_contract
+        )
+
+script_manager = (
+    ROOT / "libraries/script-engine/src/ScriptManager.cpp"
+).read_text(encoding="utf-8")
+shutdown_wait = script_manager.split(
+    "void ScriptManager::waitTillDoneRunning(bool shutdown)", 1
+)[1].split(
+    "void ScriptManager::removeFromScriptEngines()", 1
+)[0]
+if "_engine->getScopeGuard()" in shutdown_wait:
+    raise SystemExit(
+        "shutdown wait must not acquire the script isolate from the main thread"
+    )
 subprocess.run(
     [sys.executable, str(ROOT / "macos/tests/process-timeout-test.py")],
     cwd=ROOT,

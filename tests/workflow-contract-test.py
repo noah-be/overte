@@ -221,9 +221,8 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("build_base=\"macos-build-tree-v1-", key_step)
         self.assertIn("${toolchain_fingerprint}", key_step)
         self.assertIn("build_complete=${build_base}-complete-${source_inputs}", key_step)
-        self.assertIn(
-            "build_partial_prefix=${build_base}-partial-${source_inputs}-", key_step
-        )
+        self.assertIn("build_complete_prefix=${build_base}-complete-", key_step)
+        self.assertIn("build_partial_prefix=${build_base}-partial-", key_step)
 
         restore = self.source.split(
             "- name: Restore resumable build-tree checkpoint", 1
@@ -231,8 +230,12 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("id: build-tree-restore", restore)
         self.assertIn("path: build", restore)
         self.assertIn("key: ${{ steps.cache-key.outputs.build_complete }}", restore)
+        self.assertIn("steps.cache-key.outputs.build_complete_prefix", restore)
         self.assertIn("steps.cache-key.outputs.build_partial_prefix", restore)
-        self.assertNotIn("build_complete_prefix", restore)
+        self.assertLess(
+            restore.index("steps.cache-key.outputs.build_complete_prefix"),
+            restore.index("steps.cache-key.outputs.build_partial_prefix"),
+        )
 
     def test_build_tree_is_saved_after_orderly_success_or_failure(self):
         stop = self.source.index("- name: Stop compiler-cache server before snapshot")

@@ -554,9 +554,13 @@ void ScriptManager::waitTillDoneRunning(bool shutdown) {
                 //       if they access Settings or Menu in any of their shutdown code. So:
                 // Process events for this thread, allowing invokeMethod calls to pass between threads.
                 QCoreApplication::processEvents();
-                // Events may use script engine so guard is necessary.
-                auto scopeGuard = _engine->getScopeGuard();
-                _engine->processEvents();
+                // Do not enter this script's V8 isolate from the application
+                // thread here.  The script thread can hold the isolate lock
+                // while making a BlockingQueuedConnection back to the main
+                // thread (Menu and Settings do this during script shutdown).
+                // Taking the scope guard in that window deadlocks both
+                // threads.  The script's own event loop continues processing
+                // its engine work until _isDoneRunning becomes true.
             }
 
             // Avoid a pure busy wait
