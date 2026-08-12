@@ -24,7 +24,12 @@ with tempfile.TemporaryDirectory() as temporary:
         "print('[ 99%] Linking CXX executable Overte', flush=True); "
         "time.sleep(0.08); "
         "print('Running macdeployqt and deploy-conan-dylibs', flush=True); "
-        "print('[100%] Built target Overte', flush=True)"
+        "print('[100%] Built target Overte', flush=True); "
+        # Leave a deterministic quiet window longer than the configured
+        # heartbeat. Without it, macOS can consume all four progress lines in
+        # one scheduling quantum and correctly finish before a heartbeat is
+        # due, making this particular heartbeat assertion timing-dependent.
+        "time.sleep(0.15)"
     )
     completed = subprocess.run(
         [
