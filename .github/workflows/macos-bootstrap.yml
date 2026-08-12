@@ -38,7 +38,7 @@ jobs:
       MACOSX_DEPLOYMENT_TARGET: '11.0'
       SCCACHE_DIR: ${{ github.workspace }}/.sccache
       SCCACHE_CACHE_SIZE: 1536M
-      MACOS_RUNNER_TELEMETRY_DIR: ${{ runner.temp }}/overte-macos-runner-telemetry
+      MACOS_RUNNER_TELEMETRY_DIR: ${{ github.workspace }}/.macos-runner-telemetry
       PYTHONUNBUFFERED: '1'
       CMAKE_C_COMPILER_LAUNCHER: ${{ github.workspace }}/macos/ci/compiler-watchdog.py;--
       CMAKE_CXX_COMPILER_LAUNCHER: ${{ github.workspace }}/macos/ci/compiler-watchdog.py;--
@@ -284,7 +284,7 @@ jobs:
         with:
           name: overte-macos-smoke-${{ github.run_id }}
           path: |
-            ${{ runner.temp }}/overte-macos-runner-telemetry
+            .macos-runner-telemetry
             build/macos-build-diagnostics
             build/macos-startup-preflight
             build/macos-smoke

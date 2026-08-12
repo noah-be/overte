@@ -259,7 +259,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
     def test_runner_telemetry_supervises_dependency_and_build_commands(self):
         self.assertIn(
             "MACOS_RUNNER_TELEMETRY_DIR: "
-            "${{ runner.temp }}/overte-macos-runner-telemetry",
+            "${{ github.workspace }}/.macos-runner-telemetry",
             self.source,
         )
         self.assertIn("PYTHONUNBUFFERED: '1'", self.source)
@@ -287,7 +287,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "- name: Upload application bundle", 1
         )[0]
         self.assertIn("if: always()", upload)
-        self.assertIn("${{ runner.temp }}/overte-macos-runner-telemetry", upload)
+        self.assertIn(".macos-runner-telemetry", upload)
         self.assertIn("build/macos-build-diagnostics", upload)
         self.assertIn("if-no-files-found: ignore", upload)
 
