@@ -339,5 +339,7 @@ namespace scriptable {
     };
 }
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 Q_DECLARE_METATYPE(scriptable::ScriptableMeshPartPointer)
 Q_DECLARE_METATYPE(QVector<scriptable::ScriptableMeshPartPointer>)
+#endif

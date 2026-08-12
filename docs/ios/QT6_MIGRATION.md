@@ -619,6 +619,9 @@ base themselves; Qt 6 MOC and ordinary translation units do not rely on an
 unrelated Qt header to provide it transitively.
 The animation `Flow` header follows the same boundary because it directly
 derives from `QObject` in every translation unit that consumes the flow model.
+`NestableType` declares its metatype beside the enum before any MOC-visible
+consumer. Scriptable mesh-part pointer/container declarations remain explicit
+on Qt 5 only because Qt 6 instantiates those generic metatypes automatically.
 Platform-native AVAudioSession policy remains in the iOS shell and must not be
 duplicated by desktop code.
 

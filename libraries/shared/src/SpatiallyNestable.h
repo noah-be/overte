@@ -33,6 +33,8 @@ enum class NestableType {
     Avatar
 };
 
+Q_DECLARE_METATYPE(NestableType)
+
 class SpatiallyNestable : public std::enable_shared_from_this<SpatiallyNestable> {
 public:
     SpatiallyNestable(NestableType nestableType, QUuid id);

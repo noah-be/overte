@@ -2001,6 +2001,25 @@ def test_script_entity_id_qt6_contract() -> None:
     require_text(flow_header, r'#include\s*<QtCore/QObject>',
                  "the iOS-reachable Flow QObject subclass must own its complete base type")
 
+    spatial_header = SOURCE_ROOT / "libraries" / "shared" / "src" / "SpatiallyNestable.h"
+    spatial_text = spatial_header.read_text(encoding="utf-8")
+    assert spatial_text.index("enum class NestableType") < spatial_text.index("Q_DECLARE_METATYPE(NestableType)") \
+        < spatial_text.index("class SpatiallyNestable :"), \
+        "NestableType must own its metatype declaration before MOC-visible consumers instantiate it"
+    graphics_interface = SOURCE_ROOT / "libraries" / "graphics-scripting" / "src" / \
+        "graphics-scripting" / "GraphicsScriptingInterface.h"
+    assert "Q_DECLARE_METATYPE(NestableType)" not in graphics_interface.read_text(encoding="utf-8"), \
+        "graphics scripting must not redeclare NestableType after MOC has instantiated it"
+    mesh_part = SOURCE_ROOT / "libraries" / "graphics-scripting" / "src" / \
+        "graphics-scripting" / "ScriptableMeshPart.h"
+    mesh_part_text = mesh_part.read_text(encoding="utf-8")
+    qt5_guard = mesh_part_text.index("#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)")
+    pointer_meta = mesh_part_text.index("Q_DECLARE_METATYPE(scriptable::ScriptableMeshPartPointer)")
+    vector_meta = mesh_part_text.index("Q_DECLARE_METATYPE(QVector<scriptable::ScriptableMeshPartPointer>)")
+    guard_end = mesh_part_text.index("#endif", vector_meta)
+    assert qt5_guard < pointer_meta < vector_meta < guard_end, \
+        "Qt 5 mesh-part metatypes must not specialize Qt 6 auto-instantiated pointer/container types"
+
     midi_header = SOURCE_ROOT / "libraries" / "midi" / "src" / "Midi.h"
     require_text(midi_header, r'#include\s*<QtCore/QVariantMap>',
                  "Qt 6 MOC must see the complete QVariantMap signal argument type")
