@@ -35,7 +35,9 @@
 #include <display-plugins/DisplayPlugin.h>
 
 #include <display-plugins/CompositorHelper.h>
+#include <QtCore/QDebug>
 #include <QMetaObject>
+#include <string_view>
 #if defined(ANDROID_APP_PICO_INTERFACE)
 #include <QCoreApplication>
 #include <QFont>
@@ -148,9 +150,33 @@ void GraphicsEngine::initializeGPU(VKWidget* primaryWidget) {
     _gpuContext = std::make_shared<gpu::Context>();
 
 #ifndef Q_OS_ANDROID
-    _gpuContext->pushProgramsToSync(shader::startupPrograms(), [this] {
+    bool skipEagerShaderWarmup { false };
+#if defined(USE_GL) && defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    const auto rendererBytes = glGetString(GL_RENDERER);
+    const auto renderer = reinterpret_cast<const char*>(rendererBytes);
+    skipEagerShaderWarmup = renderer &&
+        std::string_view(renderer).find("Apple Software Renderer") != std::string_view::npos;
+    if (skipEagerShaderWarmup) {
+        // GitHub's Intel macOS VM exposes a CPU renderer.  Eagerly compiling
+        // every desktop permutation takes tens of minutes and deliberately
+        // prevents the first scene frame until the entire list is finished.
+        // Compile only pipelines that the active scene actually uses instead.
+        qInfo().noquote() << "OVERTE_MACOS_RENDER_PHASE shader_warmup_skipped"
+                          << "renderer=Apple Software Renderer";
+    }
+#endif
+    if (skipEagerShaderWarmup) {
         _programsCompiled.store(true);
-    }, 1);
+    } else {
+        const auto& startupPrograms = shader::startupPrograms();
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+        qInfo().noquote() << "OVERTE_MACOS_RENDER_PHASE shader_warmup_queued"
+                          << "programs=" << startupPrograms.size();
+#endif
+        _gpuContext->pushProgramsToSync(startupPrograms, [this] {
+            _programsCompiled.store(true);
+        }, 1);
+    }
 #endif
 
     DependencyManager::get<TextureCache>()->setGPUContext(_gpuContext);

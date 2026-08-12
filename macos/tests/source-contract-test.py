@@ -65,6 +65,34 @@ subprocess.run(
     cwd=ROOT,
     check=True,
 )
+
+graphics_engine = (ROOT / "interface/src/graphics/GraphicsEngine.cpp").read_text(
+    encoding="utf-8"
+)
+warmup = graphics_engine.split("void GraphicsEngine::initializeGPU", 1)[1].split(
+    "DependencyManager::get<TextureCache>", 1
+)[0]
+for warmup_contract in (
+    "GL_RENDERER",
+    "Apple Software Renderer",
+    "shader_warmup_skipped",
+    "_programsCompiled.store(true)",
+    "pushProgramsToSync(startupPrograms",
+):
+    if warmup_contract not in warmup:
+        raise SystemExit(f"macOS software renderer warmup contract missing: {warmup_contract}")
+if warmup.index("shader_warmup_skipped") > warmup.index("pushProgramsToSync"):
+    raise SystemExit("software-renderer warmup bypass must precede eager compilation")
+
+deploy_tool = (ROOT / "macos/tools/deploy-conan-dylibs.py").read_text(encoding="utf-8")
+bundle_verify = (ROOT / "macos/ci/verify-glad-linkage.sh").read_text(encoding="utf-8")
+for webengine_contract in (
+    "QtWebEngineProcess.app/Contents/MacOS/QtWebEngineProcess",
+    "@executable_path/../../../../..",
+    "QtGui.framework/Versions/5/QtGui",
+):
+    if webengine_contract not in deploy_tool or webengine_contract not in bundle_verify:
+        raise SystemExit(f"QtWebEngine bundle contract missing: {webengine_contract}")
 if not re.search(
     r'OVERTE_RELEASE_TYPE STREQUAL "DEV".*?add_custom_command\(TARGET \$\{TARGET_NAME\} POST_BUILD.*?MACDEPLOYQT_COMMAND',
     fixup_interface,
@@ -395,6 +423,12 @@ for script_name, script_source, snapshot_name in (
             raise SystemExit(
                 f"{script_name} smoke lacks deterministic rendering contract: {render_contract}"
             )
+    if script_source.index("Render.renderMethod = 1") > script_source.index(
+        "Window.takeSnapshot"
+    ):
+        raise SystemExit(
+            f"{script_name} smoke must apply its render profile before taking a snapshot"
+        )
 if "fixture_entities=3" not in serverless_script:
     raise SystemExit("serverless smoke must identify the exact three fixture entities")
 for fixture_name in (

@@ -7,7 +7,7 @@ set -euo pipefail
 readonly app="${1:?usage: verify-glad-linkage.sh /path/to/Overte.app}"
 readonly frameworks="$app/Contents/Frameworks"
 
-fail() { echo "macOS GLAD linkage error: $*" >&2; exit 1; }
+fail() { echo "macOS bundle linkage error: $*" >&2; exit 1; }
 
 [[ -d "$app" ]] || fail "application bundle does not exist: $app"
 [[ -d "$frameworks" ]] || fail "Frameworks directory does not exist: $frameworks"
@@ -37,3 +37,14 @@ for consumer in "${consumers[@]}"; do
 done
 
 echo "macOS GLAD linkage valid: ${glad_libraries[0]}"
+
+readonly webengine_helper="$frameworks/QtWebEngineCore.framework/Helpers/QtWebEngineProcess.app/Contents/MacOS/QtWebEngineProcess"
+readonly qt_gui="$frameworks/QtGui.framework/Versions/5/QtGui"
+[[ -x "$webengine_helper" ]] || fail "QtWebEngine helper is missing or not executable"
+[[ -f "$qt_gui" ]] || fail "QtGui framework required by QtWebEngine is missing"
+otool -L "$webengine_helper" | grep -Fq '@rpath/QtGui.framework/Versions/5/QtGui' \
+    || fail "QtWebEngine helper has no relocatable QtGui dependency"
+otool -l "$webengine_helper" | grep -Fq '@executable_path/../../../../..' \
+    || fail "QtWebEngine helper cannot reach the main Frameworks directory"
+
+echo "macOS QtWebEngine helper linkage valid"

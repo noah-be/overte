@@ -40,6 +40,63 @@ def dependencies(path: Path, otool: str) -> list[str] | None:
     return found
 
 
+def runtime_paths(path: Path, otool: str) -> list[str] | None:
+    result = subprocess.run(
+        [otool, "-l", str(path)], capture_output=True, text=True, check=False
+    )
+    if result.returncode:
+        return None
+    found: list[str] = []
+    expect_path = False
+    for line in result.stdout.splitlines():
+        stripped = line.strip()
+        if stripped == "cmd LC_RPATH":
+            expect_path = True
+        elif expect_path and stripped.startswith("path "):
+            found.append(stripped[5:].split(" (offset ", 1)[0])
+            expect_path = False
+    return found
+
+
+def fix_webengine_helper(
+    contents: Path, otool: str, install_name_tool: str
+) -> bool:
+    frameworks = contents / "Frameworks"
+    webengine = frameworks / "QtWebEngineCore.framework"
+    if not webengine.exists():
+        return False
+
+    helper = (
+        webengine
+        / "Helpers/QtWebEngineProcess.app/Contents/MacOS/QtWebEngineProcess"
+    )
+    qt_gui = frameworks / "QtGui.framework/Versions/5/QtGui"
+    if not helper.is_file():
+        raise RuntimeError("QtWebEngine helper executable is missing from the bundle")
+    if not qt_gui.is_file():
+        raise RuntimeError("QtGui framework required by QtWebEngine is missing")
+
+    helper_dependencies = dependencies(helper, otool)
+    if helper_dependencies is None or not any(
+        dependency.startswith("@rpath/QtGui.framework/")
+        for dependency in helper_dependencies
+    ):
+        raise RuntimeError("QtWebEngine helper has no relocatable QtGui dependency")
+    helper_rpaths = runtime_paths(helper, otool)
+    if helper_rpaths is None:
+        raise RuntimeError("unable to inspect QtWebEngine helper runtime paths")
+
+    # From .../QtWebEngineProcess.app/Contents/MacOS, five parent components
+    # lead to the main application's Contents/Frameworks directory.
+    required_rpath = "@executable_path/../../../../.."
+    if required_rpath not in helper_rpaths:
+        subprocess.run(
+            [install_name_tool, "-add_rpath", required_rpath, str(helper)],
+            check=True,
+        )
+    return True
+
+
 def deploy(app: Path, lib_dir: Path, otool: str, install_name_tool: str) -> int:
     contents = app / "Contents"
     if not contents.is_dir():
@@ -81,11 +138,14 @@ def deploy(app: Path, lib_dir: Path, otool: str, install_name_tool: str) -> int:
                         check=True,
                     )
 
+    fixed_webengine = fix_webengine_helper(contents, otool, install_name_tool)
+
     if not macho_files:
         raise RuntimeError(f"no Mach-O files found in application bundle: {app}")
     print(
         f"Deployed {len(inventory)} Conan dylibs and inspected "
-        f"{len(macho_files)} Mach-O files"
+        f"{len(macho_files)} Mach-O files; "
+        f"QtWebEngine helper fixed={str(fixed_webengine).lower()}"
     )
     return 0
 
