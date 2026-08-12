@@ -56,9 +56,13 @@ terminated as a process group after a grace period.
 The job uses `sccache` v0.17.0 with a bounded 512 MiB disk layer and the GitHub
 Actions remote backend. A real compilation probe must demonstrate a successful
 remote write before any dependency build starts. Every successful cacheable
-compiler invocation is therefore persisted remotely when the object completes,
-not only when the whole Conan or client stage exits. Statistics after libnode,
-the remaining graph, and the client build fail closed on remote write errors.
+compiler invocation is therefore offered to the remote tier when the object
+completes, not only when the whole Conan or client stage exits. The initial
+probe fails closed on any remote error. Completed phases may report a degraded
+remote tier only when the bounded disk tier proves that every cacheable miss
+was captured without a local write failure; dependency packages are then
+covered by the independently verified Conan artifact, and client objects by
+the Ninja-tree checkpoint and uploaded application bundle.
 The checked-in sccache configuration gives a newly started server up to 60
 seconds to index a restored disk cache; the upstream ten-second default is too
 short for a full 512 MiB generation on a fresh hosted runner.

@@ -78,6 +78,10 @@ def validate_stats(path: Path, mode: str) -> dict[str, int]:
     write_errors = _counter(raw, "cache_write_errors")
     cacheable = _cacheable(raw)
     levels = raw.get("multi_level", [])
+    local = [
+        level for level in levels
+        if isinstance(level, dict) and "disk" in str(level.get("name", "")).lower()
+    ] if isinstance(levels, list) else []
     remote = [
         level for level in levels
         if isinstance(level, dict) and "gha" in str(level.get("name", "")).lower()
@@ -94,30 +98,57 @@ def validate_stats(path: Path, mode: str) -> dict[str, int]:
             "requests": 0, "cacheable": 0, "writes": 0,
             "remote_writes": 0, "remote_hits": 0,
         }
-    if write_errors:
-        raise CheckpointError("compiler checkpoint reported cache write errors")
+    if len(local) != 1:
+        raise CheckpointError("compiler checkpoint did not expose exactly one disk level")
     if len(remote) != 1:
         raise CheckpointError("compiler checkpoint did not expose exactly one GHA level")
+    local_writes = _counter(local[0], "writes")
+    local_failures = _counter(local[0], "write_failures")
     remote_writes = _counter(remote[0], "writes")
     remote_hits = _counter(remote[0], "hits")
     remote_failures = _counter(remote[0], "write_failures")
-    if remote_failures:
-        raise CheckpointError("remote compiler checkpoint reported write failures")
+    if local_failures:
+        raise CheckpointError("disk compiler checkpoint reported write failures")
     if mode == "probe":
+        if write_errors or remote_failures:
+            raise CheckpointError("remote compiler checkpoint probe reported write failures")
         if writes < 1 or remote_writes < 1:
             raise CheckpointError("remote compiler checkpoint probe produced no GHA write")
-    elif cacheable < 1 or remote_writes + remote_hits < 1:
-        raise CheckpointError("build produced no reusable remote compiler checkpoint")
+    else:
+        if cacheable < 1 or remote_writes + remote_hits < 1:
+            raise CheckpointError("build produced no reusable remote compiler checkpoint")
+        # GHA stores one object per request and can transiently reject a small
+        # subset even though the compiler and the local disk tier succeeded.
+        # A completed phase remains recoverable when every cacheable miss is
+        # represented by a successful L0 write: dependency phases additionally
+        # publish a verified Conan checkpoint, and the client phase publishes
+        # its Ninja tree and application bundle.  Never relax the initial probe
+        # above, and never accept loss in the local recovery tier.
+        total_hits = _counter(raw, "cache_hits")
+        if not total_hits:
+            hits_payload = raw.get("cache_hits", {})
+            if isinstance(hits_payload, dict):
+                hit_counts = hits_payload.get("counts", {})
+                if isinstance(hit_counts, dict):
+                    total_hits = sum(
+                        int(value) for value in hit_counts.values()
+                        if isinstance(value, (int, float)) and not isinstance(value, bool)
+                    )
+        if local_writes + total_hits < cacheable:
+            raise CheckpointError("disk compiler checkpoint did not cover all cacheable requests")
 
     summary = {
         "requests": requests,
         "cacheable": cacheable,
         "writes": writes,
+        "local_writes": local_writes,
         "remote_writes": remote_writes,
         "remote_hits": remote_hits,
+        "remote_failures": remote_failures,
     }
+    status = "degraded" if write_errors or remote_failures else "healthy"
     print(
-        "sccache-remote-checkpoint status=healthy "
+        f"sccache-remote-checkpoint status={status} "
         + " ".join(f"{name}={value}" for name, value in summary.items()),
         flush=True,
     )

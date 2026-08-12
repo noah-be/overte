@@ -25,12 +25,20 @@ def stats(*, requests=1, writes=1, hits=0, failures=0, errors=0):
             "cache_write_errors": errors,
             "cache_hits": {"counts": {"C/C++": hits}},
             "cache_misses": {"counts": {"C/C++": max(0, writes)}},
-            "multi_level": [{
-                "name": "gha",
-                "writes": writes,
-                "hits": hits,
-                "write_failures": failures,
-            }],
+            "multi_level": [
+                {
+                    "name": "L0 (disk)",
+                    "writes": writes,
+                    "hits": 0,
+                    "write_failures": 0,
+                },
+                {
+                    "name": "L1 (gha)",
+                    "writes": max(0, writes - failures),
+                    "hits": hits,
+                    "write_failures": failures,
+                },
+            ],
         }
     }
 
@@ -53,6 +61,30 @@ class RemoteSccacheCheckpointTests(unittest.TestCase):
                 path.write_text(json.dumps(invalid), encoding="utf-8")
                 with self.assertRaises(checkpoint.CheckpointError):
                     checkpoint.validate_stats(path, "probe")
+
+    def test_completed_phase_uses_lossless_disk_fallback_for_transient_gha_errors(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "stats.json"
+            payload = stats(requests=2737, writes=2624, hits=54, failures=7, errors=7)
+            payload["stats"]["cache_misses"]["counts"]["C/C++"] = 2624
+            payload["stats"]["multi_level"][1]["writes"] = 2313
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with mock.patch("builtins.print") as output:
+                result = checkpoint.validate_stats(path, "phase")
+            self.assertEqual(result["local_writes"], 2624)
+            self.assertEqual(result["remote_failures"], 7)
+            self.assertIn("status=degraded", output.call_args.args[0])
+
+            payload["stats"]["multi_level"][0]["write_failures"] = 1
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(checkpoint.CheckpointError, "disk.*write failures"):
+                checkpoint.validate_stats(path, "phase")
+
+            payload["stats"]["multi_level"][0]["write_failures"] = 0
+            payload["stats"]["multi_level"][0]["writes"] = 2600
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(checkpoint.CheckpointError, "all cacheable requests"):
+                checkpoint.validate_stats(path, "phase")
 
     def test_current_generation_uses_latest_branch_local_marker(self):
         ref = "refs/heads/apple-macos"
