@@ -526,6 +526,29 @@ for pause_contract in (
     if pause_contract not in shared_object_source:
         raise SystemExit(f"offscreen QML pause synchronization missing: {pause_contract}")
 
+fixup_interface = (
+    ROOT / "cmake/macros/FixupInterface.cmake"
+).read_text(encoding="utf-8")
+for post_build in fixup_interface.split(
+    "add_custom_command(TARGET ${TARGET_NAME} POST_BUILD"
+)[1:]:
+    if post_build.index("remove_directory") > post_build.index("${MACDEPLOYQT_COMMAND}"):
+        raise SystemExit("macOS bundle Frameworks must be cleared before macdeployqt")
+    if '"$<TARGET_FILE_DIR:${TARGET_NAME}>/../Frameworks"' not in post_build:
+        raise SystemExit("macOS bundle refresh must target Contents/Frameworks exactly")
+
+bundle_freshness = (
+    ROOT / "macos/ci/verify-bundle-freshness.sh"
+).read_text(encoding="utf-8")
+for freshness_contract in (
+    "dwarfdump --uuid",
+    "libgpu-gl.dylib",
+    "OVERTE_MACOS_GL_DRAW begin",
+    "bundle contains a stale",
+):
+    if freshness_contract not in bundle_freshness:
+        raise SystemExit(f"macOS bundle freshness gate missing: {freshness_contract}")
+
 opengl_display = (
     ROOT / "libraries/display-plugins/src/display-plugins/OpenGLDisplayPlugin.cpp"
 ).read_text(encoding="utf-8")

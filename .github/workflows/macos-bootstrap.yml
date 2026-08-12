@@ -793,6 +793,7 @@ jobs:
           test -f "$app/Contents/Info.plist"
           plutil -lint "$app/Contents/Info.plist"
           macos/ci/verify-glad-linkage.sh "$app"
+          macos/ci/verify-bundle-freshness.sh "$app" build
 
       - name: Upload application bundle immediately
         id: application-upload

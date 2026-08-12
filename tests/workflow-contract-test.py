@@ -610,6 +610,18 @@ class MacOSWorkflowContracts(unittest.TestCase):
             MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8"),
         )
 
+    def test_restored_bundle_cannot_reuse_stale_internal_libraries(self):
+        freshness_check = (
+            ROOT / "macos/ci/verify-bundle-freshness.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn("dwarfdump --uuid", freshness_check)
+        self.assertIn("OVERTE_MACOS_GL_DRAW begin", freshness_check)
+        self.assertIn("bundle contains a stale libgpu-gl.dylib", freshness_check)
+        verification = self.source.split(
+            "- name: Verify application bundle", 1
+        )[1].split("- name: Upload application bundle immediately", 1)[0]
+        self.assertIn("macos/ci/verify-bundle-freshness.sh", verification)
+
     def test_build_progress_is_live_and_preserved(self):
         build_script = (ROOT / "macos/build-macos.sh").read_text(encoding="utf-8")
         self.assertIn("run-build-with-progress.py", build_script)
