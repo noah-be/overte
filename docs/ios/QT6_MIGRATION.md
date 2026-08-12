@@ -622,6 +622,9 @@ derives from `QObject` in every translation unit that consumes the flow model.
 `NestableType` declares its metatype beside the enum before any MOC-visible
 consumer. Scriptable mesh-part pointer/container declarations remain explicit
 on Qt 5 only because Qt 6 instantiates those generic metatypes automatically.
+Scriptable MToon materials convert the numeric outline-width mode explicitly
+to the documented `none`, `worldCoordinates`, or `screenCoordinates` string;
+they do not rely on Qt 5's accidental integer-to-`QChar` assignment.
 Platform-native AVAudioSession policy remains in the iOS shell and must not be
 duplicated by desktop code.
 

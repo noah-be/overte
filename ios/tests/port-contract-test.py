@@ -2020,6 +2020,21 @@ def test_script_entity_id_qt6_contract() -> None:
     assert qt5_guard < pointer_meta < vector_meta < guard_end, \
         "Qt 5 mesh-part metatypes must not specialize Qt 6 auto-instantiated pointer/container types"
 
+    scriptable_model = SOURCE_ROOT / "libraries" / "graphics-scripting" / "src" / \
+        "graphics-scripting" / "ScriptableModel.cpp"
+    require_text(scriptable_model,
+                 r'QString\s+outlineWidthModeName\s*\(\s*uint8_t\s+mode\s*\)',
+                 "scriptable MToon outline modes must cross the numeric-to-string boundary explicitly")
+    for mode_name in ("none", "worldCoordinates", "screenCoordinates"):
+        require_text(scriptable_model, rf'QStringLiteral\("{mode_name}"\)',
+                     "scriptable MToon outline modes must preserve documented string names")
+    require_text(scriptable_model,
+                 r'outlineWidthMode\s*=\s*outlineWidthModeName\s*\(\s*material->getOutlineWidthMode\(\)\s*\)',
+                 "Qt 6 must not assign the numeric outline mode directly to QString")
+    assert "outlineWidthMode = material->getOutlineWidthMode();" not in \
+        scriptable_model.read_text(encoding="utf-8"), \
+        "numeric MToon outline modes cannot rely on Qt 5's implicit QChar conversion"
+
     midi_header = SOURCE_ROOT / "libraries" / "midi" / "src" / "Midi.h"
     require_text(midi_header, r'#include\s*<QtCore/QVariantMap>',
                  "Qt 6 MOC must see the complete QVariantMap signal argument type")
