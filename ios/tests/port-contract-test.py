@@ -687,6 +687,11 @@ def test_cmake_boundary() -> None:
     require_text(fst_reader_source, r"splitBlendshapes\(QVariantHash& bs", "nested FST blendshape mutation must not mix QHash and QMultiHash")
     require_text(fst_reader_source, r"QVariantList origShapes = bs\.value\(key\)\.toList\(\)", "nested blendshape lists must use the Qt 6 QHash value API")
     require_text(fst_reader_source, r"writeVariant\(QBuffer& buffer, hifi::VariantMultiHash::const_iterator it\)", "top-level repeated FST keys require the QMultiHash iterator")
+    fst_source = SOURCE_ROOT / "libraries" / "model-serializers" / "src" / "FST.cpp"
+    fst_header = SOURCE_ROOT / "libraries" / "model-serializers" / "src" / "FST.h"
+    require_text(fst_source, r"hifi::VariantMultiHash mapping;", "generated FST mappings must retain repeated top-level keys")
+    require_text(fst_source, r"QVariantHash blendshapes;", "nested FST blendshapes must remain QVariant-compatible hashes")
+    require_text(fst_header, r"hifi::VariantMultiHash _other", "FST residual properties must preserve their top-level multihash type")
     for serializer in (
         SOURCE_ROOT / "libraries" / "model-serializers" / "src" / "FBXSerializer.cpp",
         SOURCE_ROOT / "libraries" / "model-serializers" / "src" / "GLTFSerializer.cpp",

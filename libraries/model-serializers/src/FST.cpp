@@ -40,7 +40,7 @@ FST::FST(QString fstPath, QMultiHash<QString, QVariant> data) : _fstPath(std::mo
 }
 
 FST* FST::createFSTFromModel(const QString& fstPath, const QString& modelFilePath, const hfm::Model& hfmModel) {
-    QVariantHash mapping;
+    hifi::VariantMultiHash mapping;
 
     // mixamo files - in the event that a mixamo file was edited by some other tool, it's likely the applicationName will
     // be rewritten, so we detect the existence of several different blendshapes which indicate we're likely a mixamo file
@@ -85,7 +85,7 @@ FST* FST::createFSTFromModel(const QString& fstPath, const QString& modelFilePat
     // If there are no blendshape mappings, and we detect that this is likely a mixamo file,
     // then we can add the default mixamo to blendshape mappings.
     if (likelyMixamoFile) {
-        hifi::VariantMultiHash blendshapes;
+        QVariantHash blendshapes;
         blendshapes.insert("BrowsD_L", QVariantList() << "BrowsDown_Left" << 1.0);
         blendshapes.insert("BrowsD_R", QVariantList() << "BrowsDown_Right" << 1.0);
         blendshapes.insert("BrowsU_C", QVariantList() << "BrowsUp_Left" << 1.0);
