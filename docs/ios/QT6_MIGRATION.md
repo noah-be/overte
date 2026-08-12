@@ -645,6 +645,13 @@ explicitly; logging also avoids a conditional expression mixing UUID and text.
 Platform-native AVAudioSession policy remains in the iOS shell and must not be
 duplicated by desktop code.
 
+The integrated consumer now receives the provenance-bound Qt host and iOS
+artifact namespaces together with their fast Actions-cache keys. If repository
+cache pressure evicts either component between provisioning and consumption,
+the consumer restores the same validated component from its durable workflow
+artifact and rechecks the exact cache-key manifest. It still fails closed when
+neither recovery source is available.
+
 The audio gate requires device enumeration, route change, microphone consent,
 interruption recovery, Bluetooth behavior, mono input, stereo output, and
 resampling tests on physical hardware.

@@ -13,6 +13,12 @@ on:
       qt_ios_cache_key:
         description: Deterministic cache key containing the validated Qt iOS target tree
         value: ${{ jobs.qt-ios-source.outputs.qt_ios_cache_key }}
+      qt_host_artifact_prefix:
+        description: Durable artifact namespace containing the validated macOS Qt host tools
+        value: ${{ jobs.qt-ios-source.outputs.qt_host_artifact_prefix }}
+      qt_ios_artifact_prefix:
+        description: Durable artifact namespace containing the validated Qt iOS target tree
+        value: ${{ jobs.qt-ios-source.outputs.qt_ios_artifact_prefix }}
 
 permissions:
   actions: write
@@ -29,6 +35,8 @@ jobs:
     outputs:
       qt_host_cache_key: ${{ steps.cache-key.outputs.host }}
       qt_ios_cache_key: ${{ steps.cache-key.outputs.ios }}
+      qt_host_artifact_prefix: ${{ steps.cache-key.outputs.host_artifact_prefix }}
+      qt_ios_artifact_prefix: ${{ steps.cache-key.outputs.ios_artifact_prefix }}
     env:
       QT_WORK_ROOT: ${{ github.workspace }}/build-ios/qt-work
       QT_INSTALL_ROOT: ${{ github.workspace }}/build-ios/qt-install/qt

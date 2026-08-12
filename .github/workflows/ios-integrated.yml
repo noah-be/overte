@@ -11,6 +11,14 @@ on:
         description: Existing GitHub Actions cache key containing an audited Qt 6 iOS tree
         required: true
         type: string
+      qt_host_artifact_prefix:
+        description: Durable artifact namespace containing audited Qt 6 host tools
+        required: true
+        type: string
+      qt_ios_artifact_prefix:
+        description: Durable artifact namespace containing an audited Qt 6 iOS tree
+        required: true
+        type: string
       macos_runner:
         description: macOS runner label; use overte-ios-getmac for persistent recovery builds
         required: false
@@ -24,6 +32,14 @@ on:
         type: string
       qt_ios_cache_key:
         description: Existing GitHub Actions cache key containing an audited Qt 6 iOS tree
+        required: true
+        type: string
+      qt_host_artifact_prefix:
+        description: Durable artifact namespace containing audited Qt 6 host tools
+        required: true
+        type: string
+      qt_ios_artifact_prefix:
+        description: Durable artifact namespace containing an audited Qt 6 iOS tree
         required: true
         type: string
       macos_runner:
@@ -162,8 +178,9 @@ jobs:
           QT_HOST_CACHE_KEY: ${{ inputs.qt_host_cache_key }}
           QT_IOS_CACHE_KEY: ${{ inputs.qt_ios_cache_key }}
         run: |
-          if [[ -z "$QT_HOST_CACHE_KEY" || -z "$QT_IOS_CACHE_KEY" ]]; then
-            echo "both Qt host and iOS cache keys must name pre-populated, licensed caches." >&2
+          if [[ -z "$QT_HOST_CACHE_KEY" || -z "$QT_IOS_CACHE_KEY" ||
+                -z "${{ inputs.qt_host_artifact_prefix }}" || -z "${{ inputs.qt_ios_artifact_prefix }}" ]]; then
+            echo "Qt cache keys and durable artifact namespaces must be explicit." >&2
             exit 1
           fi
 
@@ -175,7 +192,27 @@ jobs:
           # Keep this absolute path identical to the producer workflow.
           path: ${{ github.workspace }}/build-ios/qt-install/qt/macos
           key: ${{ inputs.qt_host_cache_key }}
-          fail-on-cache-miss: true
+
+      - name: Restore durable Qt host artifact after cache eviction
+        id: qt-host-artifact
+        if: steps.qt-host-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py restore \
+            --artifact-prefix "${{ inputs.qt_host_artifact_prefix }}" \
+            --kind host \
+            --cache-key "${{ inputs.qt_host_cache_key }}" \
+            --expected-repository-id "${{ github.repository_id }}" \
+            --expected-branch "${{ github.ref_name }}" \
+            --install-root "${{ github.workspace }}/build-ios/qt-install/qt" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Fail closed without validated Qt host tools
+        if: steps.qt-host-cache.outputs.cache-hit != 'true' && steps.qt-host-artifact.outputs.restored != 'true'
+        run: |
+          echo "neither the exact Qt host cache nor its validated artifact fallback was available" >&2
+          exit 1
 
       - name: Restore externally provisioned Qt for iOS
         id: qt-ios-cache
@@ -183,7 +220,27 @@ jobs:
         with:
           path: ${{ github.workspace }}/build-ios/qt-install/qt/ios
           key: ${{ inputs.qt_ios_cache_key }}
-          fail-on-cache-miss: true
+
+      - name: Restore durable Qt iOS artifact after cache eviction
+        id: qt-ios-artifact
+        if: steps.qt-ios-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py restore \
+            --artifact-prefix "${{ inputs.qt_ios_artifact_prefix }}" \
+            --kind ios \
+            --cache-key "${{ inputs.qt_ios_cache_key }}" \
+            --expected-repository-id "${{ github.repository_id }}" \
+            --expected-branch "${{ github.ref_name }}" \
+            --install-root "${{ github.workspace }}/build-ios/qt-install/qt" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Fail closed without validated Qt iOS target
+        if: steps.qt-ios-cache.outputs.cache-hit != 'true' && steps.qt-ios-artifact.outputs.restored != 'true'
+        run: |
+          echo "neither the exact Qt iOS cache nor its validated artifact fallback was available" >&2
+          exit 1
 
       - name: Restore pinned MoltenVK
         id: moltenvk-cache

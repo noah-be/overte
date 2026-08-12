@@ -90,6 +90,8 @@ jobs:
     with:
       qt_host_cache_key: ${{ needs.provision-qt-ios.outputs.qt_host_cache_key }}
       qt_ios_cache_key: ${{ needs.provision-qt-ios.outputs.qt_ios_cache_key }}
+      qt_host_artifact_prefix: ${{ needs.provision-qt-ios.outputs.qt_host_artifact_prefix }}
+      qt_ios_artifact_prefix: ${{ needs.provision-qt-ios.outputs.qt_ios_artifact_prefix }}
 
   host-contracts:
     runs-on: ubuntu-24.04
