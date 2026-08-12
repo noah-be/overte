@@ -223,11 +223,24 @@ class RunnerTelemetryTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             diagnostics = root / "diagnostics"
+            # Keep the wall-limit test hermetic on macOS.  The system `sample`
+            # command intentionally records for several seconds per process,
+            # which is useful in production but would exceed this test's
+            # six-second outer guard before the supervisor can terminate the
+            # synthetic active child.
+            fake_bin = root / "bin"
+            fake_bin.mkdir()
+            sample = fake_bin / "sample"
+            sample.write_text("#!/bin/sh\nprintf 'bounded test sample\\n'\n")
+            sample.chmod(0o755)
             result, records = self.invoke_phase(
                 root,
                 "import time; end=time.monotonic()+5\nwhile time.monotonic()<end: pass",
                 inactivity=2,
                 extra=["--max-runtime", "0.25", "--diagnostics-dir", str(diagnostics)],
+                extra_env={
+                    "PATH": f"{fake_bin}{os.pathsep}{os.environ.get('PATH', '')}",
+                },
             )
             self.assertEqual(result.returncode, 124, result.stdout + result.stderr)
             self.assertTrue(any(row["macos_runner_telemetry"] == "timed_out"
