@@ -41,7 +41,8 @@ if 'echo "SCCACHE_GHA_VERSION=$remote_namespace" >> "$GITHUB_ENV"' not in key_sl
     raise SystemExit("SCCACHE_GHA_VERSION is not exported from the deterministic namespace")
 if 'remote_namespace="overte-qt-objects-v1-${ios_base}"' not in key_slice:
     raise SystemExit("remote per-object namespace is not tied to the exact iOS toolchain plan")
-if "GITHUB_RUN_ID" in key_slice[key_slice.index("remote_namespace="):]:
+namespace_line = next(line for line in key_slice.splitlines() if "remote_namespace=" in line)
+if "GITHUB_RUN_ID" in namespace_line or "GITHUB_RUN_ATTEMPT" in namespace_line:
     raise SystemExit("remote per-object namespace must survive runs of the same toolchain plan")
 
 probe_start = WORKFLOW.index("Verify remote compiler checkpoint before the long build")
@@ -54,9 +55,14 @@ for invariant in (
     "SCCACHE_GHA_RUNTIME_TOKEN",
     "SCCACHE_GHA_ENABLED",
     "SCCACHE_GHA_VERSION",
+    "GITHUB_RUN_ID",
+    "GITHUB_RUN_ATTEMPT",
     "sccache /usr/bin/clang",
-    "compile_requests",
+    "requests_executed",
+    "cache_writes",
     "cache_write_errors",
+    "multi_level",
+    "write_failures",
     "sccache --stop-server",
 ):
     if invariant not in probe_slice:
@@ -75,7 +81,8 @@ save = WORKFLOW.index("Save compiler recovery cache after a build failure")
 if not report < verify < diagnostics < stop < save:
     raise SystemExit("checkpoint verification/diagnostics/local recovery ordering drifted")
 verify_slice = WORKFLOW[verify:diagnostics]
-for invariant in ("compile_requests", "cache_hits", "cache_misses", "cache_write_errors"):
+for invariant in ("requests_executed", "cache_hits", "cache_misses", "cache_write_errors",
+                  "multi_level", "write_failures"):
     if invariant not in verify_slice:
         raise SystemExit(f"remote checkpoint verification omits {invariant}")
 

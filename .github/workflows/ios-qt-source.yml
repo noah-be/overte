@@ -111,7 +111,9 @@ jobs:
           probe_dir="$GITHUB_WORKSPACE/build-ios/sccache-remote-probe"
           mkdir -p "$probe_dir"
           trap 'rm -rf "$probe_dir"' EXIT
-          printf '%s\n' 'int overte_sccache_remote_probe(void) { return 0; }' > "$probe_dir/probe.c"
+          printf '%s\n' \
+            "const char overte_sccache_remote_probe[] = \"${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\";" \
+            > "$probe_dir/probe.c"
           sccache --stop-server >/dev/null 2>&1 || true
           sccache --zero-stats
           sccache /usr/bin/clang -c "$probe_dir/probe.c" -o "$probe_dir/probe.o"
@@ -123,12 +125,21 @@ jobs:
 
           payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
           stats = payload.get("stats", payload)
-          requests = int(stats.get("compile_requests", 0))
+          requests = int(stats.get("requests_executed", stats.get("compile_requests", 0)))
           write_errors = int(stats.get("cache_write_errors", 0))
+          writes = int(stats.get("cache_writes", 0))
+          remote_levels = [level for level in stats.get("multi_level", [])
+                           if "gha" in str(level.get("name", "")).lower()]
           if requests < 1:
               raise SystemExit("remote checkpoint probe did not reach sccache")
           if write_errors:
               raise SystemExit(f"remote checkpoint probe reported {write_errors} write errors")
+          if writes < 1:
+              raise SystemExit("remote checkpoint probe produced no cache writes")
+          if len(remote_levels) != 1 or int(remote_levels[0].get("writes", 0)) < 1:
+              raise SystemExit("remote checkpoint probe did not write to the GHA cache level")
+          if int(remote_levels[0].get("write_failures", 0)):
+              raise SystemExit("remote checkpoint probe reported a GHA cache write failure")
           PY
           sccache --stop-server
 
@@ -351,13 +362,23 @@ jobs:
               counts = counter.get("counts", {})
               return sum((counts or counter.get("adv_counts", {})).values())
 
-          requests = int(stats.get("compile_requests", 0))
+          requests = int(stats.get("requests_executed", stats.get("compile_requests", 0)))
           cacheable = total(stats.get("cache_hits", {})) + total(stats.get("cache_misses", {}))
           write_errors = int(stats.get("cache_write_errors", 0))
+          remote_levels = [level for level in stats.get("multi_level", [])
+                           if "gha" in str(level.get("name", "")).lower()]
           if requests < 1 or cacheable < 1:
               raise SystemExit("Qt build produced no reusable compiler checkpoint entries")
           if write_errors:
               raise SystemExit(f"remote compiler checkpoint reported {write_errors} write errors")
+          if len(remote_levels) != 1:
+              raise SystemExit("Qt build did not expose exactly one remote GHA cache level")
+          remote_activity = (int(remote_levels[0].get("writes", 0)) +
+                             int(remote_levels[0].get("hits", 0)))
+          if remote_activity < 1:
+              raise SystemExit("Qt build produced neither remote GHA hits nor writes")
+          if int(remote_levels[0].get("write_failures", 0)):
+              raise SystemExit("remote GHA compiler checkpoint reported write failures")
           PY
 
       - name: Upload compiler stall diagnostics
