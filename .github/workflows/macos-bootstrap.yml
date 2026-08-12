@@ -427,7 +427,7 @@ jobs:
         run: >-
           python3 macos/ci/sccache-remote-checkpoint.py verify-stats
           --stats "$MACOS_RUNNER_TELEMETRY_DIR/dependency-sccache-stats.json"
-          --mode build
+          --mode phase
 
       - name: Save compiler cache after libnode stage
         if: >-

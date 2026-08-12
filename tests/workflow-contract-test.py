@@ -143,6 +143,11 @@ class MacOSWorkflowContracts(unittest.TestCase):
             self.assertIn(f"macos/build-macos.sh {command}", self.source)
         self.assertGreaterEqual(self.source.count("--compiler-live-log"), 3)
         self.assertGreaterEqual(self.source.count("--compiler-diagnostics-dir"), 3)
+        libnode_verify = self.source.split(
+            "- name: Verify libnode objects were checkpointed", 1
+        )[1].split("- name: Save compiler cache after libnode stage", 1)[0]
+        self.assertIn("--mode phase", libnode_verify)
+        self.assertNotIn("--mode build", libnode_verify)
 
     def test_each_expensive_stage_has_heartbeat_timeout_health_gate_and_checkpoint(self):
         for phase in (
