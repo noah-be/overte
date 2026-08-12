@@ -16,6 +16,14 @@ def require(pattern: str, message: str) -> None:
 
 require(r"mozilla-actions/sccache-action@[0-9a-f]{40}\s+# v0\.0\.11[\s\S]*?version: v0\.17\.0",
         "Qt per-object checkpoint must use pinned sccache action and version")
+require(r"Export remote compiler checkpoint credentials[\s\S]*?"
+        r"actions/github-script@[0-9a-f]{40}\s+# v9\.0\.0[\s\S]*?"
+        r"process\.env\.ACTIONS_RESULTS_URL[\s\S]*?"
+        r"process\.env\.ACTIONS_RUNTIME_TOKEN[\s\S]*?"
+        r"core\.setSecret\(runtimeToken\)[\s\S]*?"
+        r'core\.exportVariable\("SCCACHE_GHA_CACHE_URL", cacheUrl\)[\s\S]*?'
+        r'core\.exportVariable\("SCCACHE_GHA_RUNTIME_TOKEN", runtimeToken\)',
+        "Qt per-object checkpoint must securely export ephemeral GHA cache credentials")
 for setting in (
     'SCCACHE_BASEDIRS: ${{ github.workspace }}',
     'SCCACHE_CLIENT_SIDE: "1"',
@@ -35,6 +43,23 @@ if 'remote_namespace="overte-qt-objects-v1-${ios_base}"' not in key_slice:
     raise SystemExit("remote per-object namespace is not tied to the exact iOS toolchain plan")
 if "GITHUB_RUN_ID" in key_slice[key_slice.index("remote_namespace="):]:
     raise SystemExit("remote per-object namespace must survive runs of the same toolchain plan")
+
+probe_start = WORKFLOW.index("Verify remote compiler checkpoint before the long build")
+probe_end = WORKFLOW.index("Restore validated Qt host tools")
+probe_slice = WORKFLOW[probe_start:probe_end]
+if not key_start < probe_start < probe_end:
+    raise SystemExit("remote checkpoint probe must run after namespace selection and before long work")
+for invariant in (
+    "SCCACHE_GHA_CACHE_URL",
+    "SCCACHE_GHA_RUNTIME_TOKEN",
+    "SCCACHE_GHA_CACHE_TO",
+    "sccache /usr/bin/clang",
+    "compile_requests",
+    "cache_write_errors",
+    "sccache --stop-server",
+):
+    if invariant not in probe_slice:
+        raise SystemExit(f"remote checkpoint preflight omits {invariant}")
 
 install = WORKFLOW[WORKFLOW.index("Install source-build prerequisites"):
                    WORKFLOW.index("Verify or download pinned Qt source archive")]

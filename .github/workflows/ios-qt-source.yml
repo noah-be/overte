@@ -50,6 +50,23 @@ jobs:
           version: v0.17.0
           disable_annotations: true
 
+      # Shell steps do not receive GitHub's ephemeral cache-service credentials.
+      # Export them from a JavaScript action, whose process does, so sccache's GHA
+      # backend can persist each successful object before the job finishes.
+      - name: Export remote compiler checkpoint credentials
+        uses: actions/github-script@d746ffe35508b1917358783b479e04febd2b8f71 # v9.0.0
+        with:
+          script: |
+            const cacheUrl = process.env.ACTIONS_RESULTS_URL || process.env.ACTIONS_CACHE_URL;
+            const runtimeToken = process.env.ACTIONS_RUNTIME_TOKEN;
+            if (!cacheUrl || !runtimeToken) {
+              core.setFailed("GitHub Actions cache-service credentials are unavailable");
+              return;
+            }
+            core.setSecret(runtimeToken);
+            core.exportVariable("SCCACHE_GHA_CACHE_URL", cacheUrl);
+            core.exportVariable("SCCACHE_GHA_RUNTIME_TOKEN", runtimeToken);
+
       - name: Verify source-build host tests
         run: |
           python3 ios/tools/tests/test-prepare-qt-ios.py
@@ -82,6 +99,37 @@ jobs:
           remote_namespace="overte-qt-objects-v1-${ios_base}"
           echo "SCCACHE_GHA_CACHE_TO=$remote_namespace" >> "$GITHUB_ENV"
           echo "SCCACHE_GHA_CACHE_FROM=$remote_namespace" >> "$GITHUB_ENV"
+
+      - name: Verify remote compiler checkpoint before the long build
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "${SCCACHE_GHA_CACHE_URL:-}" ]] || { echo "remote cache URL missing" >&2; exit 1; }
+          [[ -n "${SCCACHE_GHA_RUNTIME_TOKEN:-}" ]] || { echo "remote cache token missing" >&2; exit 1; }
+          [[ -n "${SCCACHE_GHA_CACHE_TO:-}" ]] || { echo "remote cache write namespace missing" >&2; exit 1; }
+          probe_dir="$GITHUB_WORKSPACE/build-ios/sccache-remote-probe"
+          mkdir -p "$probe_dir"
+          trap 'rm -rf "$probe_dir"' EXIT
+          printf '%s\n' 'int overte_sccache_remote_probe(void) { return 0; }' > "$probe_dir/probe.c"
+          sccache --stop-server >/dev/null 2>&1 || true
+          sccache --zero-stats
+          sccache /usr/bin/clang -c "$probe_dir/probe.c" -o "$probe_dir/probe.o"
+          sccache --show-stats --stats-format=json > "$probe_dir/stats.json"
+          python3 - "$probe_dir/stats.json" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          stats = payload.get("stats", payload)
+          requests = int(stats.get("compile_requests", 0))
+          write_errors = int(stats.get("cache_write_errors", 0))
+          if requests < 1:
+              raise SystemExit("remote checkpoint probe did not reach sccache")
+          if write_errors:
+              raise SystemExit(f"remote checkpoint probe reported {write_errors} write errors")
+          PY
+          sccache --stop-server
 
       - name: Restore validated Qt host tools
         id: host-cache
