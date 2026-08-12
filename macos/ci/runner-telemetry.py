@@ -670,13 +670,6 @@ def supervise(command: list[str], collector: Collector, emit: Callable[..., None
                 break
 
             if max_runtime is not None and now - started >= max_runtime:
-                _collect_phase_diagnostics(
-                    diagnostics_dir, phase, invocation, latest_rows
-                )
-                status = process.poll()
-                if status is not None:
-                    result_code = 128 - status if status < 0 else status
-                    break
                 emit(
                     "timed_out",
                     phase=phase,
@@ -684,7 +677,11 @@ def supervise(command: list[str], collector: Collector, emit: Callable[..., None
                     elapsed_s=round(now - started, 1),
                     limit_s=round(max_runtime, 1),
                 )
-                _terminate_group(process, term_grace)
+                _collect_phase_diagnostics(
+                    diagnostics_dir, phase, invocation, latest_rows
+                )
+                if process.poll() is None:
+                    _terminate_group(process, term_grace)
                 result_code = 124
                 reason = "wall_timeout"
                 break

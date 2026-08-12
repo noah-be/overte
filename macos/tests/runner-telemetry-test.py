@@ -231,6 +231,27 @@ class RunnerTelemetryTest(unittest.TestCase):
             self.assertEqual(records[-1]["reason"], "wall_timeout")
             self.assertTrue(list(diagnostics.glob("stall-*.json")))
 
+    def test_wall_limit_remains_a_timeout_if_child_exits_during_diagnostics(self):
+        module = load_tool()
+
+        class SlowDiagnosticsCollector:
+            def sample(self, include_directories=False):
+                return ({"disk_free_mib": 9000, "ram_available_pct": 50,
+                         "swap_used_pct": 0}, {})
+
+        records = []
+        with mock.patch.object(module, "_collect_phase_diagnostics",
+                               side_effect=lambda *_args: time.sleep(0.2)):
+            result = module.supervise(
+                [sys.executable, "-c", "import time; time.sleep(.15)"],
+                SlowDiagnosticsCollector(),
+                lambda event, **fields: records.append((event, fields)),
+                "timeout-race", 0.01, 0.02, 1.0, 2.0, 1.0, 0.05,
+                4096, 10, 80, None, max_runtime=0.05,
+            )
+        self.assertEqual(result, 124)
+        self.assertEqual(records[-1][1]["reason"], "wall_timeout")
+
     def test_watched_filesystem_growth_prevents_false_inactivity_abort(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
