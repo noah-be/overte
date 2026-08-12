@@ -2056,6 +2056,19 @@ def test_script_entity_id_qt6_contract() -> None:
         r"hfmModel\.joints\.size\(\)\)\)",
         "Qt 6 FBX shape allocation must compare its lower bound in the QVector size type",
     )
+    require_text(
+        fbx_serializer,
+        r"elements\.at\(min\(static_cast<decltype\(elements\.size\(\)\)>\(i\),\s*"
+        r"elements\.size\(\)\s*-\s*1\)\)",
+        "Qt 6 FBX vector parsing must compare indexes in the QStringList size type",
+    )
+    require_text(
+        fbx_serializer,
+        r"blendshapes\.resize\(max\(\s*extractedMesh\.mesh\.blendshapes\.size\(\),\s*"
+        r"static_cast<decltype\(extractedMesh\.mesh\.blendshapes\.size\(\)\)>"
+        r"\(index\.first\s*\+\s*1\)\)\)",
+        "Qt 6 FBX blendshape growth must compare indexes in the QVector size type",
+    )
 
     fbx_to_json = SOURCE_ROOT / "libraries" / "model-serializers" / "src" / "FBXToJSON.h"
     require_text(
