@@ -26,6 +26,18 @@ LIBNODE_CONTRACT = {
         libnode_recipe,
         'node_build_type = "Debug" if str(self.settings.build_type) == "Debug" else "Release"',
     ),
+    "Node per-object compiler watchdog": (
+        libnode_recipe,
+        'watchdog = os.environ.get("OVERTE_COMPILER_WATCHDOG", "")',
+    ),
+    "Node C compiler watchdog": (
+        libnode_recipe,
+        '"CC", shlex.join([watchdog, "--", c_compiler])',
+    ),
+    "Node C++ compiler watchdog": (
+        libnode_recipe,
+        '"CXX", shlex.join([watchdog, "--", cxx_compiler])',
+    ),
     "bootstrap export": (
         build_script,
         'conan export "$source_root/macos/conan/libnode" --user overte --channel macos',

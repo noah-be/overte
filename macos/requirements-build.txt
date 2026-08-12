@@ -1,0 +1,5 @@
+# Direct macOS bootstrap tools.  The workflow cache key also fingerprints the
+# runner's Python runtime; keep these versions explicit so a restored tool
+# environment cannot silently change between retries.
+conan==2.31.2
+aqtinstall==3.3.0

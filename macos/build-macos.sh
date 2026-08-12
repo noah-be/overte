@@ -42,7 +42,7 @@ configure_remotes() {
 
 conan_architecture() { [[ "$architecture" == arm64 ]] && echo armv8 || echo x86_64; }
 
-deps() {
+prepare_dependencies() {
     doctor
     ensure_conan_profile
     configure_remotes
@@ -53,6 +53,33 @@ deps() {
         # repair under the same reference before resolving the graph.
         conan export "$source_root/macos/conan/qt-aqt" --user overte --channel aqt
     fi
+}
+
+deps_qt() {
+    prepare_dependencies
+    if [[ "$qt_source" != aqt ]]; then
+        note "Qt preflight stage is only required for the aqt dependency"
+        return
+    fi
+    mkdir -p "$build_dir/conan-stage-qt"
+    local args=(-s "arch=$(conan_architecture)" -s compiler.cppstd=20
+        -s "build_type=$build_type" -b missing)
+    conan install --requires=qt/5.15.2@overte/aqt \
+        -o 'qt/*:modules=qtwebengine' "${args[@]}" \
+        -of "$build_dir/conan-stage-qt"
+}
+
+deps_libnode() {
+    prepare_dependencies
+    mkdir -p "$build_dir/conan-stage-libnode"
+    local args=(-s "arch=$(conan_architecture)" -s compiler.cppstd=20
+        -s "build_type=$build_type" -b missing)
+    conan install --requires=libnode/22.22.3@overte/macos \
+        "${args[@]}" -of "$build_dir/conan-stage-libnode"
+}
+
+deps() {
+    prepare_dependencies
     mkdir -p "$build_dir"
     local args=("$source_root" -s "arch=$(conan_architecture)" -s compiler.cppstd=20
         -s "build_type=$build_type" -o "Overte/*:qt_source=$qt_source" -b missing -of "$build_dir")
@@ -83,18 +110,9 @@ configure() {
         "${launcher_args[@]}"
 }
 
-build() {
+compile() {
     local diagnostics_dir="$build_dir/macos-build-diagnostics"
     mkdir -p "$diagnostics_dir"
-    note "phase=configure progress=0/100"
-    if [[ "${GITHUB_ACTIONS:-false}" == true ]]; then
-        echo "::notice title=macOS build progress::phase=configure progress=0/100"
-    fi
-    configure
-    note "phase=configure progress=100/100"
-    if [[ "${GITHUB_ACTIONS:-false}" == true ]]; then
-        echo "::notice title=macOS build progress::phase=configure progress=100/100"
-    fi
     local preset="conan-$(printf '%s' "$build_type" | tr '[:upper:]' '[:lower:]')"
     python3 "$source_root/macos/tools/run-build-with-progress.py" \
         --log "$diagnostics_dir/build.log" \
@@ -106,7 +124,28 @@ build() {
     find "$build_dir" -type d -name Overte.app -print -quit
 }
 
+build() {
+    note "phase=configure progress=0/100"
+    if [[ "${GITHUB_ACTIONS:-false}" == true ]]; then
+        echo "::notice title=macOS build progress::phase=configure progress=0/100"
+    fi
+    configure
+    note "phase=configure progress=100/100"
+    if [[ "${GITHUB_ACTIONS:-false}" == true ]]; then
+        echo "::notice title=macOS build progress::phase=configure progress=100/100"
+    fi
+    compile
+}
+
 case "${1:-}" in
-    doctor) doctor ;; deps) deps ;; configure) configure ;; build) build ;; all) deps; build ;;
-    *) echo "Usage: macos/build-macos.sh doctor|deps|configure|build|all" >&2; exit 2 ;;
+    doctor) doctor ;;
+    prepare) prepare_dependencies ;;
+    deps-qt) deps_qt ;;
+    deps-libnode) deps_libnode ;;
+    deps) deps ;;
+    configure) configure ;;
+    compile) compile ;;
+    build) build ;;
+    all) deps_qt; deps_libnode; deps; build ;;
+    *) echo "Usage: macos/build-macos.sh doctor|prepare|deps-qt|deps-libnode|deps|configure|compile|build|all" >&2; exit 2 ;;
 esac

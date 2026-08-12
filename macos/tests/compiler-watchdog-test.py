@@ -94,7 +94,11 @@ class CompilerWatchdogTest(unittest.TestCase):
                 },
             )
             self.assertEqual(result.returncode, 124, result.stdout + result.stderr)
-            self.assertIn('"compiler_watchdog":"stalled"', result.stdout)
+            records = [json.loads(line) for line in result.stdout.splitlines()]
+            self.assertTrue(any(row["compiler_watchdog"] == "stalled" for row in records))
+            self.assertEqual(records[-1]["compiler_watchdog"], "end")
+            self.assertEqual(records[-1]["exit_code"], 124)
+            self.assertEqual(records[-1]["reason"], "inactivity")
             reports = list(diagnostics.glob("stall-*.json"))
             self.assertEqual(len(reports), 1)
             report_text = reports[0].read_text()

@@ -20,6 +20,9 @@ on:
 
 permissions:
   contents: read
+  # Read durable dependency artifacts and prune only obsolete, branch-local
+  # compiler-object generations after the replacement is verified.
+  actions: write
 
 concurrency:
   group: macos-bootstrap-${{ github.ref }}
@@ -29,7 +32,7 @@ concurrency:
 jobs:
   client-opengl-x86_64:
     runs-on: macos-15-intel
-    timeout-minutes: 180
+    timeout-minutes: 300
     env:
       CONAN_HOME: ${{ github.workspace }}/.conan2
       OVERTE_MACOS_ARCH: x86_64
@@ -37,9 +40,15 @@ jobs:
       OVERTE_MACOS_QT_SOURCE: aqt
       MACOSX_DEPLOYMENT_TARGET: '11.0'
       SCCACHE_DIR: ${{ github.workspace }}/.sccache
-      SCCACHE_CACHE_SIZE: 1536M
+      SCCACHE_CACHE_SIZE: 512M
+      SCCACHE_BASEDIRS: ${{ github.workspace }}
+      SCCACHE_CLIENT_SIDE: '1'
+      SCCACHE_MULTILEVEL_CHAIN: disk,gha
+      SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: all
+      SCCACHE_GHA_ENABLED: 'true'
       MACOS_RUNNER_TELEMETRY_DIR: ${{ github.workspace }}/.macos-runner-telemetry
       PYTHONUNBUFFERED: '1'
+      OVERTE_COMPILER_WATCHDOG: ${{ github.workspace }}/macos/ci/compiler-watchdog.py
       CMAKE_C_COMPILER_LAUNCHER: ${{ github.workspace }}/macos/ci/compiler-watchdog.py;--
       CMAKE_CXX_COMPILER_LAUNCHER: ${{ github.workspace }}/macos/ci/compiler-watchdog.py;--
       CMAKE_OBJC_COMPILER_LAUNCHER: ${{ github.workspace }}/macos/ci/compiler-watchdog.py;--
@@ -50,20 +59,89 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install build tools
+      - name: Install pinned per-object remote compiler checkpoint
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        with:
+          version: v0.17.0
+          disable_annotations: true
+
+      - name: Export remote compiler checkpoint credentials
+        uses: actions/github-script@d746ffe35508b1917358783b479e04febd2b8f71 # v9.0.0
+        with:
+          script: |
+            const cacheUrl = process.env.ACTIONS_RESULTS_URL || process.env.ACTIONS_CACHE_URL;
+            const runtimeToken = process.env.ACTIONS_RUNTIME_TOKEN;
+            if (!cacheUrl || !runtimeToken) {
+              core.setFailed("GitHub Actions cache-service credentials are unavailable");
+              return;
+            }
+            core.setSecret(runtimeToken);
+            core.exportVariable("SCCACHE_GHA_CACHE_URL", cacheUrl);
+            core.exportVariable("SCCACHE_GHA_RUNTIME_TOKEN", runtimeToken);
+
+      - name: Select build-tool cache key
+        id: tooling-key
+        shell: bash
         run: |
-          brew list sccache >/dev/null 2>&1 || brew install sccache
-          python3 -m venv build-tooling-venv
-          build-tooling-venv/bin/pip install 'conan>=2,<3' 'aqtinstall>=3,<4'
+          set -euo pipefail
+          python_identity="$(python3 -VV)"
+          tooling_inputs="$(shasum -a 256 macos/requirements-build.txt | awk '{print $1}')"
+          fingerprint="$(printf '%s\n' "$python_identity" "$RUNNER_ARCH" "$tooling_inputs" | shasum -a 256 | awk '{print $1}')"
+          echo "key=macos-build-tooling-v1-${fingerprint}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore pinned build tools
+        id: tooling-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: build-tooling-venv
+          key: ${{ steps.tooling-key.outputs.key }}
+
+      - name: Install build tools
+        timeout-minutes: 15
+        run: |
+          mkdir -p "$MACOS_RUNNER_TELEMETRY_DIR"
+          python3 macos/ci/runner-telemetry.py \
+            --phase build-tools \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/build-tools.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/build-tools-stall" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 600 \
+            --watch tooling=build-tooling-venv -- \
+            bash -euo pipefail -c '
+              if [[ ! -x build-tooling-venv/bin/python3 ]]; then
+                python3 -m venv build-tooling-venv
+              fi
+              build-tooling-venv/bin/pip install --disable-pip-version-check \
+                -r macos/requirements-build.txt
+              build-tooling-venv/bin/pip check
+            '
           echo "$GITHUB_WORKSPACE/build-tooling-venv/bin" >> "$GITHUB_PATH"
           export PATH="$GITHUB_WORKSPACE/build-tooling-venv/bin:$PATH"
-          conan --version
+          [[ "$(conan --version)" == "Conan version 2.31.2" ]]
+          aqt version | grep -F 'aqtinstall(aqt) v3.3.0'
+
+      - name: Save pinned build tools
+        if: ${{ steps.tooling-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: build-tooling-venv
+          key: ${{ steps.tooling-key.outputs.key }}
 
       - name: Check host toolchain
-        run: macos/build-macos.sh doctor
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          available_kib="$(df -Pk "$GITHUB_WORKSPACE" | awk 'NR == 2 {print $4}')"
+          physical_bytes="$(sysctl -n hw.memsize)"
+          [[ "$available_kib" -ge 41943040 ]] || { echo "less than 40 GiB runner disk available" >&2; exit 1; }
+          [[ "$physical_bytes" -ge 12884901888 ]] || { echo "less than 12 GiB runner RAM available" >&2; exit 1; }
+          macos/build-macos.sh doctor
 
       - name: Verify macOS monitoring contracts
-        run: python3 macos/tests/source-contract-test.py
+        run: |
+          python3 macos/tests/source-contract-test.py
+          python3 macos/tests/conan-checkpoint-test.py
+          python3 macos/tests/sccache-remote-checkpoint-test.py
 
       - name: Select deterministic toolchain and cache keys
         id: cache-key
@@ -100,88 +178,79 @@ jobs:
           # sccache validates each entry by content, so monitoring-only changes
           # must not strand compatible compiler results.  The non-content-
           # addressed build tree below deliberately retains the stricter key.
-          base="macos-sccache-v3-${OVERTE_MACOS_ARCH}-${compiler_fingerprint}"
-          echo "conan=macos-conan-v2-${OVERTE_MACOS_ARCH}-${toolchain_fingerprint}-${conan_inputs}" >> "$GITHUB_OUTPUT"
+          base="macos-sccache-v4-${OVERTE_MACOS_ARCH}-${compiler_fingerprint}"
+          # v3/v2 start deliberately clean: the first hardened run must prove
+          # every checkpoint layer rather than consume the evicted/partial
+          # generations produced by the superseded workflow.
+          conan_key="macos-conan-v3-${OVERTE_MACOS_ARCH}-${toolchain_fingerprint}-${conan_inputs}"
+          echo "conan=${conan_key}" >> "$GITHUB_OUTPUT"
+          echo "conan_stage_prefix=${conan_key}-stage-" >> "$GITHUB_OUTPUT"
+          echo "conan_checkpoint=overte-macos-conan-checkpoint-v3-${OVERTE_MACOS_ARCH}-${toolchain_fingerprint}-${conan_inputs}" >> "$GITHUB_OUTPUT"
           echo "sccache_complete=${base}-complete-${source_inputs}" >> "$GITHUB_OUTPUT"
           echo "sccache_complete_prefix=${base}-complete-" >> "$GITHUB_OUTPUT"
           echo "sccache_partial_prefix=${base}-partial-" >> "$GITHUB_OUTPUT"
-          build_base="macos-build-tree-v1-${OVERTE_MACOS_ARCH}-${toolchain_fingerprint}"
+          remote_namespace="overte-macos-objects-v1-${OVERTE_MACOS_ARCH}-${toolchain_fingerprint}"
+          echo "SCCACHE_GHA_VERSION=${remote_namespace}" >> "$GITHUB_ENV"
+          echo "sccache_remote_namespace=${remote_namespace}" >> "$GITHUB_OUTPUT"
+          build_base="macos-build-tree-v2-${OVERTE_MACOS_ARCH}-${toolchain_fingerprint}"
+          echo "build_configured=${build_base}-configured-${source_inputs}" >> "$GITHUB_OUTPUT"
           echo "build_complete=${build_base}-complete-${source_inputs}" >> "$GITHUB_OUTPUT"
           echo "build_complete_prefix=${build_base}-complete-" >> "$GITHUB_OUTPUT"
           echo "build_partial_prefix=${build_base}-partial-" >> "$GITHUB_OUTPUT"
 
-      - name: Cache Conan packages
-        id: conan-cache
-        uses: actions/cache/restore@v5
-        with:
-          path: |
-            ${{ env.CONAN_HOME }}/p
-            ${{ env.CONAN_HOME }}/sources
-          key: ${{ steps.cache-key.outputs.conan }}
-          restore-keys: |
-            macos-conan-v2-${{ env.OVERTE_MACOS_ARCH }}-
-            macos-complete-x86_64-qt-aqt-
-            macos-partial-x86_64-qt-aqt-
-
-      - name: Resolve dependencies
-        id: resolve-dependencies
-        continue-on-error: true
-        run: |
-          mkdir -p "$MACOS_RUNNER_TELEMETRY_DIR"
-          python3 macos/ci/runner-telemetry.py \
-            --log "$MACOS_RUNNER_TELEMETRY_DIR/dependencies.jsonl" \
-            --sample-interval 5 --publish-interval 30 --directory-interval 300 \
-            --watch conan="$CONAN_HOME" \
-            --watch sccache="$SCCACHE_DIR" \
-            -- macos/build-macos.sh deps
-
-      - name: Save complete Conan cache
-        if: >-
-          ${{ always() && !cancelled() &&
-              steps.resolve-dependencies.outcome == 'success' &&
-              steps.conan-cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v5
-        with:
-          path: |
-            ${{ env.CONAN_HOME }}/p
-            ${{ env.CONAN_HOME }}/sources
-          key: ${{ steps.cache-key.outputs.conan }}
-
-      - name: Save partial Conan cache after dependency failure
-        if: >-
-          ${{ always() && !cancelled() &&
-              steps.resolve-dependencies.outcome == 'failure' }}
-        uses: actions/cache/save@v5
-        with:
-          path: |
-            ${{ env.CONAN_HOME }}/p
-            ${{ env.CONAN_HOME }}/sources
-          key: ${{ steps.cache-key.outputs.conan }}-partial-${{ github.run_id }}-${{ github.run_attempt }}
-
-      - name: Require resolved dependencies
-        if: ${{ always() && steps.resolve-dependencies.outcome == 'failure' }}
-        run: exit 1
-
       - name: Restore bounded compiler recovery cache
         id: sccache-restore
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ${{ env.SCCACHE_DIR }}
           key: ${{ steps.cache-key.outputs.sccache_complete }}
           restore-keys: |
             ${{ steps.cache-key.outputs.sccache_complete_prefix }}
             ${{ steps.cache-key.outputs.sccache_partial_prefix }}
-            macos-sccache-v2-${{ env.OVERTE_MACOS_ARCH }}-
 
-      # GitHub-hosted runners are intentionally ephemeral.  Persist the generated
-      # build graph outside the runner so an orderly failure can resume compiled
-      # objects instead of relying on the VM surviving.  Only an exact completed
-      # tree is preferred; otherwise restore the newest tree produced by an
-      # identical compiler/SDK/architecture/configuration and let CMake rebuild
-      # only source changes.
+      - name: Verify immediate remote compiler checkpoint
+        id: remote-compiler-probe
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "${SCCACHE_GHA_CACHE_URL:-}" ]]
+          [[ -n "${SCCACHE_GHA_RUNTIME_TOKEN:-}" ]]
+          [[ "${SCCACHE_GHA_ENABLED:-}" == true ]]
+          [[ -n "${SCCACHE_GHA_VERSION:-}" ]]
+          probe_dir="$RUNNER_TEMP/macos-sccache-remote-probe"
+          rm -rf "$probe_dir"
+          mkdir -p "$probe_dir" "$MACOS_RUNNER_TELEMETRY_DIR"
+          trap 'rm -rf "$probe_dir"' EXIT
+          printf '%s\n' \
+            "const char overte_macos_checkpoint_probe[] = \"${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\";" \
+            > "$probe_dir/probe.c"
+          sccache --stop-server >/dev/null 2>&1 || true
+          sccache --zero-stats
+          sccache "$(xcrun --find clang)" -c "$probe_dir/probe.c" -o "$probe_dir/probe.o"
+          sccache --show-stats --stats-format=json > "$probe_dir/stats.json"
+          python3 macos/ci/sccache-remote-checkpoint.py verify-stats \
+            --stats "$probe_dir/stats.json" --mode probe
+          sccache --stop-server
+
+      - name: Discover verified remote compiler generation
+        id: remote-compiler-generation
+        timeout-minutes: 5
+        env:
+          OVERTE_CHECKPOINT_TOKEN: ${{ github.token }}
+        run: >-
+          python3 macos/ci/sccache-remote-checkpoint.py discover
+          --repository "$GITHUB_REPOSITORY"
+          --ref "$GITHUB_REF"
+          --token-env OVERTE_CHECKPOINT_TOKEN
+          --github-output "$GITHUB_OUTPUT"
+
+      # Restore generated objects before Conan writes the current toolchain and
+      # presets.  Restoring this tree after dependency resolution could replace
+      # fresh Conan generators with files from an older source checkpoint.
       - name: Restore resumable build-tree checkpoint
         id: build-tree-restore
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: build
           key: ${{ steps.cache-key.outputs.build_complete }}
@@ -194,32 +263,450 @@ jobs:
           python3 macos/ci/build-tree-checkpoint.py restore
           --repository "$GITHUB_WORKSPACE" --build-dir build
 
+      - name: Cache Conan packages
+        id: conan-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            ${{ env.CONAN_HOME }}/p
+            ${{ env.CONAN_HOME }}/sources
+          key: ${{ steps.cache-key.outputs.conan }}
+          restore-keys: |
+            ${{ steps.cache-key.outputs.conan_stage_prefix }}
+
+      # actions/cache is an evictable speed optimization shared with every
+      # other workflow in the repository.  The artifact checkpoint below is an
+      # independent recovery boundary with its own manifest and SHA-256.
+      - name: Probe latest compatible durable Conan checkpoint
+        id: conan-checkpoint-probe
+        env:
+          OVERTE_CHECKPOINT_TOKEN: ${{ github.token }}
+        run: >-
+          python3 macos/ci/conan-checkpoint.py probe
+          --repository "$GITHUB_REPOSITORY"
+          --artifact-name "${{ steps.cache-key.outputs.conan_checkpoint }}"
+          --repository-id "$GITHUB_REPOSITORY_ID"
+          --branch "$GITHUB_REF_NAME"
+          --token-env OVERTE_CHECKPOINT_TOKEN
+          --github-output "$GITHUB_OUTPUT"
+
+      - name: Restore latest compatible durable Conan checkpoint
+        id: conan-checkpoint-restore
+        if: >-
+          ${{ steps.conan-cache.outputs.cache-hit != 'true' &&
+              steps.conan-checkpoint-probe.outputs.found == 'true' }}
+        env:
+          OVERTE_CHECKPOINT_TOKEN: ${{ github.token }}
+        run: |
+          python3 macos/ci/runner-telemetry.py \
+            --phase conan-durable-restore \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/conan-durable-restore.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/conan-durable-restore-stall" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 900 --watch conan="$CONAN_HOME" -- \
+            python3 macos/ci/conan-checkpoint.py restore-remote \
+              --repository "$GITHUB_REPOSITORY" \
+              --artifact-name "${{ steps.cache-key.outputs.conan_checkpoint }}" \
+              --repository-id "$GITHUB_REPOSITORY_ID" \
+              --branch "$GITHUB_REF_NAME" \
+              --token-env OVERTE_CHECKPOINT_TOKEN \
+              --key "${{ steps.cache-key.outputs.conan }}" \
+              --conan-home "$CONAN_HOME" \
+              --github-output "$GITHUB_OUTPUT"
+
+      - name: Prepare deterministic Conan configuration
+        timeout-minutes: 10
+        run: macos/build-macos.sh prepare
+
+      - name: Configure compiler checkpoint for dependency stages
+        run: |
+          sccache --start-server
+          sccache --zero-stats
+
+      # Resolve the two expensive local recipes separately.  Qt becomes a
+      # restorable Conan generation before V8 starts; every V8 object is then
+      # written to the remote sccache backend before its compiler exits.
+      - name: Resolve Qt dependency stage
+        id: resolve-qt
+        continue-on-error: true
+        timeout-minutes: 30
+        env:
+          CC: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang
+          CXX: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang++
+          OBJC: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang
+          OBJCXX: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang++
+          CMAKE_C_COMPILER_LAUNCHER: ''
+          CMAKE_CXX_COMPILER_LAUNCHER: ''
+          CMAKE_OBJC_COMPILER_LAUNCHER: ''
+          CMAKE_OBJCXX_COMPILER_LAUNCHER: ''
+        run: |
+          mkdir -p "$MACOS_RUNNER_TELEMETRY_DIR"
+          python3 macos/ci/runner-telemetry.py \
+            --phase dependency-qt \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/dependency-qt.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/dependency-qt-stall" \
+            --compiler-live-log "$MACOS_RUNNER_TELEMETRY_DIR/dependency-qt-compilers.jsonl" \
+            --compiler-diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/dependency-qt-compiler-stalls" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 300 \
+            --inactivity-timeout 900 \
+            --watch conan="$CONAN_HOME" \
+            --watch sccache="$SCCACHE_DIR" \
+            -- macos/build-macos.sh deps-qt
+
+      - name: Save Qt Conan stage immediately
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.resolve-qt.outcome == 'success' &&
+              steps.conan-cache.outputs.cache-hit != 'true' &&
+              steps.conan-checkpoint-restore.outputs.restored != 'true' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            ${{ env.CONAN_HOME }}/p
+            ${{ env.CONAN_HOME }}/sources
+          key: ${{ steps.cache-key.outputs.conan_stage_prefix }}qt-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Require resolved Qt dependency stage
+        if: ${{ always() && steps.resolve-qt.outcome == 'failure' }}
+        run: exit 1
+
+      - name: Resolve libnode dependency stage
+        id: resolve-libnode
+        continue-on-error: true
+        timeout-minutes: 150
+        env:
+          CC: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang
+          CXX: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang++
+          OBJC: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang
+          OBJCXX: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang++
+          CMAKE_C_COMPILER_LAUNCHER: ''
+          CMAKE_CXX_COMPILER_LAUNCHER: ''
+          CMAKE_OBJC_COMPILER_LAUNCHER: ''
+          CMAKE_OBJCXX_COMPILER_LAUNCHER: ''
+        run: |
+          mkdir -p "$MACOS_RUNNER_TELEMETRY_DIR"
+          python3 macos/ci/runner-telemetry.py \
+            --phase dependency-libnode \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/dependency-libnode.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/dependency-libnode-stall" \
+            --compiler-live-log "$MACOS_RUNNER_TELEMETRY_DIR/dependency-libnode-compilers.jsonl" \
+            --compiler-diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/dependency-libnode-compiler-stalls" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 300 \
+            --inactivity-timeout 900 \
+            --watch conan="$CONAN_HOME" \
+            --watch sccache="$SCCACHE_DIR" \
+            -- macos/build-macos.sh deps-libnode
+
+      - name: Report dependency compiler-checkpoint statistics
+        id: dependency-compiler-stats
+        if: ${{ always() && !cancelled() }}
+        continue-on-error: true
+        run: |
+          mkdir -p "$MACOS_RUNNER_TELEMETRY_DIR"
+          sccache --show-stats --stats-format=json \
+            > "$MACOS_RUNNER_TELEMETRY_DIR/dependency-sccache-stats.json"
+          sccache --show-stats
+
+      - name: Stop compiler-cache server after libnode
+        if: ${{ always() && !cancelled() }}
+        run: sccache --stop-server || true
+
+      - name: Verify libnode objects were checkpointed
+        id: dependency-compiler-verify
+        if: ${{ always() && !cancelled() && steps.dependency-compiler-stats.outcome == 'success' }}
+        continue-on-error: true
+        run: >-
+          python3 macos/ci/sccache-remote-checkpoint.py verify-stats
+          --stats "$MACOS_RUNNER_TELEMETRY_DIR/dependency-sccache-stats.json"
+          --mode build
+
+      - name: Save compiler cache after libnode stage
+        if: >-
+          ${{ always() && !cancelled() &&
+              (steps.resolve-libnode.outcome == 'success' ||
+               steps.resolve-libnode.outcome == 'failure') }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: ${{ steps.cache-key.outputs.sccache_partial_prefix }}dependencies-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Save Conan cache after libnode stage
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.resolve-libnode.outcome == 'success' &&
+              steps.conan-cache.outputs.cache-hit != 'true' &&
+              steps.conan-checkpoint-restore.outputs.restored != 'true' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            ${{ env.CONAN_HOME }}/p
+            ${{ env.CONAN_HOME }}/sources
+          key: ${{ steps.cache-key.outputs.conan_stage_prefix }}libnode-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Require healthy libnode dependency stage
+        if: >-
+          ${{ always() &&
+              (steps.resolve-libnode.outcome == 'failure' ||
+               steps.dependency-compiler-stats.outcome == 'failure' ||
+               steps.dependency-compiler-verify.outcome == 'failure') }}
+        run: exit 1
+
+      - name: Configure compiler checkpoint for remaining dependencies
+        run: |
+          sccache --start-server
+          sccache --zero-stats
+
+      - name: Resolve remaining dependency graph
+        id: resolve-dependencies
+        continue-on-error: true
+        timeout-minutes: 120
+        env:
+          CC: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang
+          CXX: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang++
+          OBJC: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang
+          OBJCXX: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang++
+          CMAKE_C_COMPILER_LAUNCHER: ''
+          CMAKE_CXX_COMPILER_LAUNCHER: ''
+          CMAKE_OBJC_COMPILER_LAUNCHER: ''
+          CMAKE_OBJCXX_COMPILER_LAUNCHER: ''
+        run: |
+          mkdir -p "$MACOS_RUNNER_TELEMETRY_DIR"
+          python3 macos/ci/runner-telemetry.py \
+            --phase dependency-graph \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/dependencies.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/dependencies-stall" \
+            --compiler-live-log "$MACOS_RUNNER_TELEMETRY_DIR/dependency-compilers.jsonl" \
+            --compiler-diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/dependency-compiler-stalls" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 300 \
+            --inactivity-timeout 900 \
+            --watch conan="$CONAN_HOME" \
+            --watch sccache="$SCCACHE_DIR" \
+            -- macos/build-macos.sh deps
+
+      - name: Report remaining dependency compiler statistics
+        id: remaining-dependency-compiler-stats
+        if: ${{ always() && !cancelled() }}
+        continue-on-error: true
+        run: |
+          sccache --show-stats --stats-format=json \
+            > "$MACOS_RUNNER_TELEMETRY_DIR/remaining-dependency-sccache-stats.json"
+          sccache --show-stats
+
+      - name: Stop compiler-cache server before dependency snapshots
+        if: ${{ always() && !cancelled() }}
+        run: sccache --stop-server || true
+
+      - name: Verify remaining dependency compiler checkpoint
+        id: remaining-dependency-compiler-verify
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.remaining-dependency-compiler-stats.outcome == 'success' }}
+        continue-on-error: true
+        run: >-
+          python3 macos/ci/sccache-remote-checkpoint.py verify-stats
+          --stats "$MACOS_RUNNER_TELEMETRY_DIR/remaining-dependency-sccache-stats.json"
+          --mode phase
+
+      - name: Validate and compact completed Conan cache
+        id: conan-integrity
+        if: ${{ always() && !cancelled() && steps.resolve-dependencies.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 30
+        run: |
+          python3 macos/ci/runner-telemetry.py \
+            --phase conan-integrity \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/conan-integrity.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/conan-integrity-stall" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 900 --watch conan="$CONAN_HOME" -- \
+            bash -euo pipefail -c '
+              conan cache check-integrity "*"
+              conan cache clean "*" --build --temp
+              conan cache check-integrity "*"
+            '
+
+      - name: Package durable Conan checkpoint
+        id: conan-checkpoint-package
+        timeout-minutes: 45
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.resolve-dependencies.outcome == 'success' &&
+              steps.conan-integrity.outcome == 'success' &&
+              (steps.conan-checkpoint-probe.outputs.found != 'true' ||
+               (steps.conan-cache.outputs.cache-hit != 'true' &&
+                steps.conan-checkpoint-restore.outputs.restored != 'true')) }}
+        run: |
+          python3 macos/ci/runner-telemetry.py \
+            --phase conan-durable-package \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/conan-durable-package.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/conan-durable-package-stall" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 900 \
+            --watch conan="$CONAN_HOME" \
+            --watch checkpoint="$RUNNER_TEMP/macos-conan-checkpoint" -- \
+            python3 macos/ci/conan-checkpoint.py create \
+              --conan-home "$CONAN_HOME" \
+              --output-dir "$RUNNER_TEMP/macos-conan-checkpoint" \
+              --key "${{ steps.cache-key.outputs.conan }}" \
+              --repository-id "$GITHUB_REPOSITORY_ID" \
+              --branch "$GITHUB_REF_NAME"
+
+      - name: Upload durable Conan checkpoint
+        id: conan-checkpoint-upload
+        timeout-minutes: 60
+        if: ${{ always() && steps.conan-checkpoint-package.outcome == 'success' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ steps.cache-key.outputs.conan_checkpoint }}
+          path: ${{ runner.temp }}/macos-conan-checkpoint
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Verify durable Conan checkpoint upload
+        timeout-minutes: 60
+        if: ${{ always() && steps.conan-checkpoint-upload.outcome == 'success' }}
+        env:
+          OVERTE_CHECKPOINT_TOKEN: ${{ github.token }}
+        run: |
+          python3 macos/ci/runner-telemetry.py \
+            --phase conan-durable-verify \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/conan-durable-verify.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/conan-durable-verify-stall" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 900 --watch conan="$CONAN_HOME" -- \
+            python3 macos/ci/conan-checkpoint.py verify-remote \
+              --repository "$GITHUB_REPOSITORY" \
+              --artifact-name "${{ steps.cache-key.outputs.conan_checkpoint }}" \
+              --artifact-id "${{ steps.conan-checkpoint-upload.outputs.artifact-id }}" \
+              --expected-digest "${{ steps.conan-checkpoint-upload.outputs.artifact-digest }}" \
+              --key "${{ steps.cache-key.outputs.conan }}" \
+              --repository-id "$GITHUB_REPOSITORY_ID" \
+              --branch "$GITHUB_REF_NAME" \
+              --token-env OVERTE_CHECKPOINT_TOKEN
+
+      - name: Save complete Conan cache
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.resolve-dependencies.outcome == 'success' &&
+              steps.conan-integrity.outcome == 'success' &&
+              steps.conan-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            ${{ env.CONAN_HOME }}/p
+            ${{ env.CONAN_HOME }}/sources
+          key: ${{ steps.cache-key.outputs.conan }}
+
+      - name: Save partial Conan cache after dependency failure
+        if: >-
+          ${{ always() && !cancelled() &&
+              (steps.resolve-dependencies.outcome == 'failure' ||
+               steps.conan-integrity.outcome == 'failure') }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            ${{ env.CONAN_HOME }}/p
+            ${{ env.CONAN_HOME }}/sources
+          key: ${{ steps.cache-key.outputs.conan }}-partial-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Require resolved dependencies
+        if: >-
+          ${{ always() &&
+              (steps.resolve-dependencies.outcome == 'failure' ||
+               steps.conan-integrity.outcome == 'failure' ||
+               steps.remaining-dependency-compiler-stats.outcome == 'failure' ||
+               steps.remaining-dependency-compiler-verify.outcome == 'failure') }}
+        run: exit 1
+
       - name: Configure compiler cache
         run: |
           sccache --start-server
           sccache --zero-stats
 
-      - name: Configure and build client
+      - name: Configure client build graph
+        id: configure-client
+        continue-on-error: true
+        timeout-minutes: 30
+        run: |
+          mkdir -p "$MACOS_RUNNER_TELEMETRY_DIR"
+          python3 macos/ci/runner-telemetry.py \
+            --phase client-configure \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/configure.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/configure-stall" \
+            --compiler-live-log "$MACOS_RUNNER_TELEMETRY_DIR/configure-compilers.jsonl" \
+            --compiler-diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/configure-compiler-stalls" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 600 \
+            --watch build=build --watch conan="$CONAN_HOME" \
+            --watch sccache="$SCCACHE_DIR" -- \
+            macos/build-macos.sh configure
+
+      - name: Record configured build-tree checkpoint metadata
+        if: >-
+          ${{ always() && !cancelled() &&
+              (steps.configure-client.outcome == 'success' ||
+               steps.configure-client.outcome == 'failure') }}
+        run: >-
+          python3 macos/ci/build-tree-checkpoint.py record
+          --repository "$GITHUB_WORKSPACE" --build-dir build
+
+      - name: Save configured build-tree checkpoint
+        if: ${{ always() && !cancelled() && steps.configure-client.outcome == 'success' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: build
+          key: ${{ steps.cache-key.outputs.build_configured }}
+
+      - name: Save failed configure checkpoint
+        if: ${{ always() && !cancelled() && steps.configure-client.outcome == 'failure' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: build
+          key: ${{ steps.cache-key.outputs.build_partial_prefix }}configure-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Require successful client configuration
+        if: ${{ always() && steps.configure-client.outcome == 'failure' }}
+        run: exit 1
+
+      - name: Build client application
         id: build-client
         continue-on-error: true
         timeout-minutes: 150
         run: |
           mkdir -p "$MACOS_RUNNER_TELEMETRY_DIR"
           python3 macos/ci/runner-telemetry.py \
+            --phase client-build \
             --log "$MACOS_RUNNER_TELEMETRY_DIR/build.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/build-stall" \
             --sample-interval 5 --publish-interval 30 --directory-interval 300 \
+            --inactivity-timeout 900 \
             --watch build=build \
             --watch conan="$CONAN_HOME" \
             --watch sccache="$SCCACHE_DIR" \
-            -- macos/build-macos.sh build
+            -- macos/build-macos.sh compile
 
       - name: Report compiler-cache statistics
+        id: client-compiler-stats
         if: ${{ always() && !cancelled() }}
-        run: sccache --show-stats || true
+        continue-on-error: true
+        run: |
+          sccache --show-stats --stats-format=json \
+            > "$MACOS_RUNNER_TELEMETRY_DIR/client-sccache-stats.json"
+          sccache --show-stats
 
       - name: Stop compiler-cache server before snapshot
         if: ${{ always() && !cancelled() }}
         run: sccache --stop-server || true
+
+      - name: Verify client objects were checkpointed
+        id: client-compiler-verify
+        if: ${{ always() && !cancelled() && steps.client-compiler-stats.outcome == 'success' }}
+        continue-on-error: true
+        run: >-
+          python3 macos/ci/sccache-remote-checkpoint.py verify-stats
+          --stats "$MACOS_RUNNER_TELEMETRY_DIR/client-sccache-stats.json"
+          --mode phase
 
       - name: Record Ninja build-tree checkpoint metadata
         id: build-tree-metadata
@@ -236,7 +723,7 @@ jobs:
           ${{ always() && !cancelled() &&
               steps.build-client.outcome == 'success' &&
               steps.sccache-restore.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ${{ env.SCCACHE_DIR }}
           key: ${{ steps.cache-key.outputs.sccache_complete }}
@@ -245,7 +732,7 @@ jobs:
         if: >-
           ${{ always() && !cancelled() &&
               steps.build-client.outcome == 'failure' }}
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ${{ env.SCCACHE_DIR }}
           key: ${{ steps.cache-key.outputs.sccache_partial_prefix }}${{ github.run_id }}-${{ github.run_attempt }}
@@ -256,7 +743,7 @@ jobs:
               steps.build-client.outcome == 'success' &&
               steps.build-tree-metadata.outcome == 'success' &&
               steps.build-tree-restore.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: build
           key: ${{ steps.cache-key.outputs.build_complete }}
@@ -266,13 +753,17 @@ jobs:
           ${{ always() && !cancelled() &&
               steps.build-client.outcome == 'failure' &&
               steps.build-tree-metadata.outcome == 'success' }}
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: build
           key: ${{ steps.cache-key.outputs.build_partial_prefix }}${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Require successful client build
-        if: ${{ always() && steps.build-client.outcome == 'failure' }}
+        if: >-
+          ${{ always() &&
+              (steps.build-client.outcome == 'failure' ||
+               steps.client-compiler-stats.outcome == 'failure' ||
+               steps.client-compiler-verify.outcome == 'failure') }}
         run: exit 1
 
       - name: Verify application bundle
@@ -284,20 +775,55 @@ jobs:
           plutil -lint "$app/Contents/Info.plist"
           macos/ci/verify-glad-linkage.sh "$app"
 
+      - name: Upload application bundle immediately
+        id: application-upload
+        timeout-minutes: 30
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: overte-macos-x86_64-${{ github.run_id }}
+          path: build/interface/Overte.app
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
       - name: Run application startup preflight
+        timeout-minutes: 5
         run: |
           app="$(find build -type d -name Overte.app -print -quit)"
-          macos/ci/startup-preflight.sh "$app" build/macos-startup-preflight
+          python3 macos/ci/runner-telemetry.py \
+            --phase runtime-startup \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/runtime-startup.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/runtime-startup-stall" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 180 \
+            --watch startup=build/macos-startup-preflight -- \
+            macos/ci/startup-preflight.sh "$app" build/macos-startup-preflight
 
       - name: Run serverless entity smoke
+        timeout-minutes: 15
         run: |
           app="$(find build -type d -name Overte.app -print -quit)"
-          macos/ci/serverless-smoke.sh "$app" build/macos-smoke
+          python3 macos/ci/runner-telemetry.py \
+            --phase runtime-serverless \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/runtime-serverless.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/runtime-serverless-stall" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 600 \
+            --watch smoke=build/macos-smoke -- \
+            macos/ci/serverless-smoke.sh "$app" build/macos-smoke
 
       - name: Run online entity smoke
+        timeout-minutes: 15
         run: |
           app="$(find build -type d -name Overte.app -print -quit)"
-          macos/ci/online-smoke.sh "$app" build/macos-online-smoke
+          python3 macos/ci/runner-telemetry.py \
+            --phase runtime-online \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/runtime-online.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/runtime-online-stall" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 600 \
+            --watch smoke=build/macos-online-smoke -- \
+            macos/ci/online-smoke.sh "$app" build/macos-online-smoke
 
       - name: Upload smoke diagnostics
         if: always()
@@ -313,11 +839,16 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Upload application bundle
-        if: ${{ always() && steps.build-client.outcome == 'success' }}
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: overte-macos-x86_64-${{ github.run_id }}
-          path: build/interface/Overte.app
-          if-no-files-found: error
-          retention-days: 7
+      - name: Prune superseded branch-local compiler generations
+        if: ${{ always() && steps.application-upload.outcome == 'success' }}
+        timeout-minutes: 20
+        env:
+          OVERTE_CHECKPOINT_TOKEN: ${{ github.token }}
+        run: >-
+          python3 macos/ci/sccache-remote-checkpoint.py prune
+          --repository "$GITHUB_REPOSITORY"
+          --ref "$GITHUB_REF"
+          --active-version "${{ steps.remote-compiler-generation.outputs.version }}"
+          --retain-previous 1
+          --token-env OVERTE_CHECKPOINT_TOKEN
+          --execute

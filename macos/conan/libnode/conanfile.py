@@ -1,6 +1,8 @@
 """Build libnode on macOS from Node's complete official release archive."""
 
 import os
+import shlex
+import shutil
 
 from conan import ConanFile
 from conan.errors import ConanInvalidConfiguration
@@ -69,13 +71,32 @@ class OverteMacOSLibnode(ConanFile):
         args += self._shared_args(self.dependencies["zlib"], "zlib")
         if str(self.settings.build_type) == "Debug":
             args.append("--debug")
-        self.run(f"python3 configure.py {' '.join(args)}", env=["node_build_env"])
-        Autotools(self).make(
-            # Node only generates internal include sets for Debug and Release.
-            # RelWithDebInfo would silently compile without those include paths.
-            args=["-C", "out", f"BUILDTYPE={node_build_type}"],
-            target="libnode",
-        )
+        build_environment = Environment()
+        watchdog = os.environ.get("OVERTE_COMPILER_WATCHDOG", "")
+        if watchdog:
+            if not os.path.isfile(watchdog) or not os.access(watchdog, os.X_OK):
+                raise ConanInvalidConfiguration("compiler watchdog is not executable")
+            c_compiler = shutil.which("clang")
+            cxx_compiler = shutil.which("clang++")
+            if not c_compiler or not cxx_compiler:
+                raise ConanInvalidConfiguration("Apple Clang is unavailable")
+            # Node's GYP Makefiles do not understand CMake compiler launchers.
+            # Put the same per-invocation watchdog in CC/CXX so every V8 object
+            # is persisted through sccache immediately and remains observable.
+            build_environment.define(
+                "CC", shlex.join([watchdog, "--", c_compiler])
+            )
+            build_environment.define(
+                "CXX", shlex.join([watchdog, "--", cxx_compiler])
+            )
+        with build_environment.vars(self).apply():
+            self.run(f"python3 configure.py {' '.join(args)}", env=["node_build_env"])
+            Autotools(self).make(
+                # Node only generates internal include sets for Debug and Release.
+                # RelWithDebInfo would silently compile without those include paths.
+                args=["-C", "out", f"BUILDTYPE={node_build_type}"],
+                target="libnode",
+            )
 
     def package(self):
         self.run(

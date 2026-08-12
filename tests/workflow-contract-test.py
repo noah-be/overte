@@ -57,18 +57,144 @@ class MacOSWorkflowContracts(unittest.TestCase):
     def setUpClass(cls):
         cls.source = MACOS_WORKFLOW.read_text(encoding="utf-8")
 
+    def test_every_macos_action_is_immutable_and_checkout_has_no_credentials(self):
+        action_uses = ACTION_USE.findall(self.source)
+        self.assertGreaterEqual(len(action_uses), 10)
+        for action in action_uses:
+            self.assertRegex(action, FULL_SHA_ACTION)
+        checkout = self.source.split("actions/checkout@", 1)[1].split("- name:", 1)[0]
+        self.assertIn("persist-credentials: false", checkout)
+
+    def test_build_tools_are_pinned_cached_monitored_and_validated(self):
+        requirements = (ROOT / "macos/requirements-build.txt").read_text(encoding="utf-8")
+        self.assertIn("conan==2.31.2", requirements)
+        self.assertIn("aqtinstall==3.3.0", requirements)
+        tool_section = self.source.split("- name: Select build-tool cache key", 1)[1].split(
+            "- name: Check host toolchain", 1
+        )[0]
+        for token in (
+            "python3 -VV",
+            "macos/requirements-build.txt",
+            "Restore pinned build tools",
+            "Save pinned build tools",
+            "--phase build-tools",
+            "--sample-interval 5",
+            "--publish-interval 30",
+            "pip check",
+            "Conan version 2.31.2",
+            "aqtinstall(aqt) v3.3.0",
+        ):
+            self.assertIn(token, tool_section)
+
+    def test_host_preflight_fails_closed_on_disk_ram_and_toolchain(self):
+        doctor = self.source.split("- name: Check host toolchain", 1)[1].split(
+            "- name: Verify macOS monitoring contracts", 1
+        )[0]
+        self.assertIn("df -Pk", doctor)
+        self.assertIn("sysctl -n hw.memsize", doctor)
+        self.assertIn("41943040", doctor)
+        self.assertIn("12884901888", doctor)
+        self.assertIn("macos/build-macos.sh doctor", doctor)
+
+    def test_remote_compiler_objects_are_persisted_and_probed_before_dependencies(self):
+        install = self.source.index("- name: Install pinned per-object remote compiler checkpoint")
+        credentials = self.source.index("- name: Export remote compiler checkpoint credentials")
+        keys = self.source.index("- name: Select deterministic toolchain and cache keys")
+        probe = self.source.index("- name: Verify immediate remote compiler checkpoint")
+        dependencies = self.source.index("- name: Resolve Qt dependency stage")
+        self.assertLess(install, credentials)
+        self.assertLess(credentials, keys)
+        self.assertLess(keys, probe)
+        self.assertLess(probe, dependencies)
+        for token in (
+            "SCCACHE_MULTILEVEL_CHAIN: disk,gha",
+            "SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: all",
+            "SCCACHE_GHA_ENABLED: 'true'",
+            "ACTIONS_RUNTIME_TOKEN",
+            "core.setSecret(runtimeToken)",
+            "SCCACHE_GHA_CACHE_URL",
+            "SCCACHE_GHA_RUNTIME_TOKEN",
+            "SCCACHE_GHA_VERSION",
+            "sccache --show-stats --stats-format=json",
+            "verify-stats",
+            "--mode probe",
+            "Discover verified remote compiler generation",
+        ):
+            self.assertIn(token, self.source)
+
+    def test_dependency_stages_checkpoint_qt_then_libnode_then_full_graph(self):
+        qt = self.source.index("- name: Resolve Qt dependency stage")
+        qt_save = self.source.index("- name: Save Qt Conan stage immediately")
+        node = self.source.index("- name: Resolve libnode dependency stage")
+        node_compiler_save = self.source.index("- name: Save compiler cache after libnode stage")
+        node_conan_save = self.source.index("- name: Save Conan cache after libnode stage")
+        graph = self.source.index("- name: Resolve remaining dependency graph")
+        durable = self.source.index("- name: Package durable Conan checkpoint")
+        self.assertLess(qt, qt_save)
+        self.assertLess(qt_save, node)
+        self.assertLess(node, node_compiler_save)
+        self.assertLess(node_compiler_save, node_conan_save)
+        self.assertLess(node_conan_save, graph)
+        self.assertLess(graph, durable)
+        for phase in ("dependency-qt", "dependency-libnode", "dependency-graph"):
+            self.assertIn(f"--phase {phase}", self.source)
+        for command in ("deps-qt", "deps-libnode", "deps"):
+            self.assertIn(f"macos/build-macos.sh {command}", self.source)
+        self.assertGreaterEqual(self.source.count("--compiler-live-log"), 3)
+        self.assertGreaterEqual(self.source.count("--compiler-diagnostics-dir"), 3)
+
+    def test_each_expensive_stage_has_heartbeat_timeout_health_gate_and_checkpoint(self):
+        for phase in (
+            "build-tools",
+            "dependency-qt",
+            "dependency-libnode",
+            "dependency-graph",
+            "conan-integrity",
+            "conan-durable-restore",
+            "conan-durable-package",
+            "conan-durable-verify",
+            "client-configure",
+            "client-build",
+            "runtime-startup",
+            "runtime-serverless",
+            "runtime-online",
+        ):
+            self.assertIn(f"--phase {phase}", self.source)
+        self.assertGreaterEqual(self.source.count("--sample-interval 5"), 13)
+        self.assertGreaterEqual(self.source.count("--publish-interval 30"), 13)
+        for checkpoint in (
+            "Save pinned build tools",
+            "Save Qt Conan stage immediately",
+            "Save compiler cache after libnode stage",
+            "Save Conan cache after libnode stage",
+            "Upload durable Conan checkpoint",
+            "Save configured build-tree checkpoint",
+            "Save complete compiler cache",
+            "Save complete build-tree checkpoint",
+            "Upload application bundle immediately",
+        ):
+            self.assertIn(f"- name: {checkpoint}", self.source)
+
+    def test_remote_compiler_pruning_is_delayed_scoped_and_keeps_a_fallback(self):
+        upload = self.source.index("- name: Upload application bundle immediately")
+        prune = self.source.index("- name: Prune superseded branch-local compiler generations")
+        self.assertLess(upload, prune)
+        section = self.source[prune:]
+        self.assertIn("always()", section)
+        self.assertIn("steps.application-upload.outcome == 'success'", section)
+        self.assertIn('--ref "$GITHUB_REF"', section)
+        self.assertIn("steps.remote-compiler-generation.outputs.version", section)
+        self.assertIn("--retain-previous 1", section)
+        self.assertIn("--execute", section)
+
     def test_conan_cache_uses_the_deterministic_toolchain_key(self):
-        restore = self.source.split("uses: actions/cache/restore@v5", 1)[1].split(
-            "- name: Resolve dependencies", 1
+        restore = self.source.split("- name: Cache Conan packages", 1)[1].split(
+            "- name: Probe latest compatible durable Conan checkpoint", 1
         )[0]
         self.assertIn("key: ${{ steps.cache-key.outputs.conan }}", restore)
-        self.assertIn("macos-conan-v2-${{ env.OVERTE_MACOS_ARCH }}-", restore)
-        self.assertIn("macos-complete-x86_64-qt-aqt-", restore)
-        self.assertIn("macos-partial-x86_64-qt-aqt-", restore)
-        self.assertLess(
-            restore.index("macos-conan-v2-${{ env.OVERTE_MACOS_ARCH }}-"),
-            restore.index("macos-complete-x86_64-qt-aqt-"),
-        )
+        self.assertIn("steps.cache-key.outputs.conan_stage_prefix", restore)
+        self.assertNotIn("macos-conan-v2-", restore)
+        self.assertNotIn("macos-complete-x86_64-qt-aqt-", restore)
 
     def test_cancelled_runs_never_save_conan_caches(self):
         complete_save = self.source.split("- name: Save complete Conan cache", 1)[1].split(
@@ -98,18 +224,87 @@ class MacOSWorkflowContracts(unittest.TestCase):
 
     def test_dependency_failure_is_propagated_after_partial_cache_save(self):
         failure_gate = self.source.split("- name: Require resolved dependencies", 1)[1].split(
-            "- name: Configure and build client", 1
+            "- name: Restore resumable build-tree checkpoint", 1
         )[0]
         self.assertIn("steps.resolve-dependencies.outcome == 'failure'", failure_gate)
         self.assertIn("run: exit 1", failure_gate)
+
+    def test_conan_has_an_independent_validated_artifact_checkpoint(self):
+        self.assertIn("actions: write", self.source)
+        key_step = self.source.split(
+            "- name: Select deterministic toolchain and cache keys", 1
+        )[1].split("- name: Cache Conan packages", 1)[0]
+        self.assertIn("conan_checkpoint=overte-macos-conan-checkpoint-v3-", key_step)
+        self.assertIn("${toolchain_fingerprint}", key_step)
+        self.assertIn("${conan_inputs}", key_step)
+
+        probe_name = "- name: Probe latest compatible durable Conan checkpoint"
+        restore_name = "- name: Restore latest compatible durable Conan checkpoint"
+        resolve_name = "- name: Resolve remaining dependency graph"
+        package_name = "- name: Package durable Conan checkpoint"
+        upload_name = "- name: Upload durable Conan checkpoint"
+        verify_name = "- name: Verify durable Conan checkpoint upload"
+        cache_save_name = "- name: Save complete Conan cache"
+        for name in (
+            probe_name,
+            restore_name,
+            package_name,
+            upload_name,
+            verify_name,
+        ):
+            self.assertIn(name, self.source)
+        self.assertLess(self.source.index(probe_name), self.source.index(resolve_name))
+        self.assertLess(self.source.index(restore_name), self.source.index(resolve_name))
+        self.assertLess(self.source.index(resolve_name), self.source.index(package_name))
+        self.assertLess(self.source.index(package_name), self.source.index(upload_name))
+        self.assertLess(self.source.index(upload_name), self.source.index(verify_name))
+        self.assertLess(self.source.index(verify_name), self.source.index(cache_save_name))
+
+        probe = self.source.split(probe_name, 1)[1].split(restore_name, 1)[0]
+        restore = self.source.split(restore_name, 1)[1].split(resolve_name, 1)[0]
+        package = self.source.split(package_name, 1)[1].split(upload_name, 1)[0]
+        upload = self.source.split(upload_name, 1)[1].split(verify_name, 1)[0]
+        verify = self.source.split(verify_name, 1)[1].split(cache_save_name, 1)[0]
+        self.assertIn("conan-checkpoint.py probe", probe)
+        self.assertIn("steps.conan-cache.outputs.cache-hit != 'true'", restore)
+        self.assertIn("conan-checkpoint.py restore-remote", restore)
+        self.assertIn("steps.resolve-dependencies.outcome == 'success'", package)
+        self.assertIn("conan-checkpoint.py create", package)
+        self.assertIn("steps.conan-checkpoint-restore.outputs.restored != 'true'", package)
+        self.assertIn("actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f", upload)
+        self.assertIn("compression-level: 0", upload)
+        retention = re.search(r"retention-days:\s*(\d+)", upload)
+        self.assertIsNotNone(retention)
+        self.assertGreaterEqual(int(retention.group(1)), 7)
+        self.assertLessEqual(int(retention.group(1)), 30)
+        self.assertIn("conan-checkpoint.py verify-remote", verify)
+        self.assertIn("artifact-digest", verify)
+        for section in (probe, restore, verify):
+            self.assertIn("--token-env OVERTE_CHECKPOINT_TOKEN", section)
+            self.assertIn('--repository-id "$GITHUB_REPOSITORY_ID"', section)
+            self.assertIn('--branch "$GITHUB_REF_NAME"', section)
+            self.assertNotIn("--token \"${{ github.token }}\"", section)
+        self.assertIn('--repository-id "$GITHUB_REPOSITORY_ID"', package)
+        self.assertIn('--branch "$GITHUB_REF_NAME"', package)
+        self.assertIn('--key "${{ steps.cache-key.outputs.conan }}"', verify)
+
+    def test_conan_checkpoint_integrity_tests_run_before_restore(self):
+        tests = self.source.index("python3 macos/tests/conan-checkpoint-test.py")
+        probe = self.source.index("- name: Probe latest compatible durable Conan checkpoint")
+        self.assertLess(tests, probe)
 
     def test_sccache_is_bounded_and_every_compiler_language_is_watched(self):
         self.assertIn("SCCACHE_DIR: ${{ github.workspace }}/.sccache", self.source)
         maximum = re.search(r"(?m)^\s+SCCACHE_CACHE_SIZE:\s*(\d+)M\s*$", self.source)
         self.assertIsNotNone(maximum)
-        self.assertGreaterEqual(int(maximum.group(1)), 1024)
-        self.assertLessEqual(int(maximum.group(1)), 2048)
-        self.assertIn("brew list sccache", self.source)
+        self.assertGreaterEqual(int(maximum.group(1)), 256)
+        self.assertLessEqual(int(maximum.group(1)), 1024)
+        self.assertIn(
+            "mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba",
+            self.source,
+        )
+        self.assertIn("version: v0.17.0", self.source)
+        self.assertNotIn("brew install sccache", self.source)
         self.assertNotRegex(self.source, r"(?m)^\s+CCACHE_")
         for language in ("C", "CXX", "OBJC", "OBJCXX"):
             self.assertIn(
@@ -121,7 +316,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
     def test_monitoring_contracts_run_before_cache_restore_and_build(self):
         monitoring = self.source.index("- name: Verify macOS monitoring contracts")
         cache = self.source.index("- name: Cache Conan packages")
-        build = self.source.index("- name: Configure and build client")
+        build = self.source.index("- name: Build client application")
         self.assertLess(monitoring, cache)
         self.assertLess(monitoring, build)
         self.assertIn(
@@ -164,14 +359,14 @@ class MacOSWorkflowContracts(unittest.TestCase):
         ):
             self.assertIn(required, key_step)
         self.assertIn("compiler_fingerprint", key_step)
-        self.assertIn("macos-sccache-v3-", key_step)
-        self.assertIn("macos-conan-v2-", key_step)
+        self.assertIn("macos-sccache-v4-", key_step)
+        self.assertIn("macos-conan-v3-", key_step)
 
     def test_monitoring_only_changes_do_not_strand_compatible_sccache_entries(self):
         key_step = self.source.split(
             "- name: Select deterministic toolchain and cache keys", 1
         )[1].split("- name: Cache Conan packages", 1)[0]
-        compiler_key = key_step.split('base="macos-sccache-v3-', 1)[1].split(
+        compiler_key = key_step.split('base="macos-sccache-v4-', 1)[1].split(
             '"', 1
         )[0]
         self.assertIn("${compiler_fingerprint}", compiler_key)
@@ -183,10 +378,11 @@ class MacOSWorkflowContracts(unittest.TestCase):
         restore = self.source.split(
             "- name: Restore bounded compiler recovery cache", 1
         )[1].split("- name: Restore resumable build-tree checkpoint", 1)[0]
-        self.assertIn("macos-sccache-v2-${{ env.OVERTE_MACOS_ARCH }}-", restore)
+        self.assertNotIn("macos-sccache-v3-${{ env.OVERTE_MACOS_ARCH }}-", restore)
+        self.assertNotIn("macos-sccache-v2-${{ env.OVERTE_MACOS_ARCH }}-", restore)
 
     def test_compiler_cache_checkpoints_preserve_success_and_failure_progress(self):
-        build = self.source.split("- name: Configure and build client", 1)[1].split(
+        build = self.source.split("- name: Build client application", 1)[1].split(
             "- name: Save complete compiler cache", 1
         )[0]
         complete_save = self.source.split("- name: Save complete compiler cache", 1)[1].split(
@@ -218,7 +414,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
         key_step = self.source.split(
             "- name: Select deterministic toolchain and cache keys", 1
         )[1].split("- name: Cache Conan packages", 1)[0]
-        self.assertIn("build_base=\"macos-build-tree-v1-", key_step)
+        self.assertIn("build_base=\"macos-build-tree-v2-", key_step)
         self.assertIn("${toolchain_fingerprint}", key_step)
         self.assertIn("build_complete=${build_base}-complete-${source_inputs}", key_step)
         self.assertIn("build_complete_prefix=${build_base}-complete-", key_step)
@@ -284,15 +480,15 @@ class MacOSWorkflowContracts(unittest.TestCase):
             self.source,
         )
         self.assertIn("PYTHONUNBUFFERED: '1'", self.source)
-        dependencies = self.source.split("- name: Resolve dependencies", 1)[1].split(
-            "- name: Save complete Conan cache", 1
+        dependencies = self.source.split("- name: Resolve remaining dependency graph", 1)[1].split(
+            "- name: Report remaining dependency compiler statistics", 1
         )[0]
-        build = self.source.split("- name: Configure and build client", 1)[1].split(
+        build = self.source.split("- name: Build client application", 1)[1].split(
             "- name: Report compiler-cache statistics", 1
         )[0]
         for section, command in (
             (dependencies, "-- macos/build-macos.sh deps"),
-            (build, "-- macos/build-macos.sh build"),
+            (build, "-- macos/build-macos.sh compile"),
         ):
             self.assertIn("python3 macos/ci/runner-telemetry.py", section)
             self.assertIn("--sample-interval 5", section)
@@ -304,9 +500,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn('--watch sccache="$SCCACHE_DIR"', build)
 
     def test_runner_telemetry_and_build_diagnostics_are_always_uploaded(self):
-        upload = self.source.split("- name: Upload smoke diagnostics", 1)[1].split(
-            "- name: Upload application bundle", 1
-        )[0]
+        upload = self.source.split("- name: Upload smoke diagnostics", 1)[1]
         self.assertIn("if: always()", upload)
         self.assertIn(".macos-runner-telemetry", upload)
         self.assertIn("build/macos-build-diagnostics", upload)
@@ -314,11 +508,15 @@ class MacOSWorkflowContracts(unittest.TestCase):
 
     def test_sccache_server_is_stopped_before_every_snapshot(self):
         start = self.source.index("sccache --start-server")
-        build = self.source.index("- name: Configure and build client")
+        build = self.source.index("- name: Build client application")
         stop_step = self.source.split(
             "- name: Stop compiler-cache server before snapshot", 1
         )[1].split("- name: Save complete compiler cache", 1)[0]
-        stop = self.source.index("sccache --stop-server")
+        stop = self.source.index(
+            "sccache --stop-server", self.source.index(
+                "- name: Stop compiler-cache server before snapshot"
+            )
+        )
         complete_save = self.source.index("- name: Save complete compiler cache")
         partial_save = self.source.index("- name: Save partial compiler cache")
         self.assertLess(start, build)
@@ -330,7 +528,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
 
     def test_expensive_build_is_non_cancelling_and_has_step_timeout(self):
         self.assertIn("cancel-in-progress: false", self.source)
-        build = self.source.split("- name: Configure and build client", 1)[1].split(
+        build = self.source.split("- name: Build client application", 1)[1].split(
             "- name: Report compiler-cache statistics", 1
         )[0]
         timeout = re.search(r"timeout-minutes:\s*(\d+)", build)
@@ -348,10 +546,14 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("build/macos-startup-preflight", self.source)
 
     def test_built_application_is_preserved_when_runtime_smoke_fails(self):
-        upload = self.source.split("- name: Upload application bundle", 1)[1]
-        upload = upload.split("uses: actions/upload-artifact@", 1)[0]
-        self.assertIn("always()", upload)
-        self.assertIn("steps.build-client.outcome == 'success'", upload)
+        upload = self.source.index("- name: Upload application bundle immediately")
+        startup = self.source.index("- name: Run application startup preflight")
+        serverless = self.source.index("- name: Run serverless entity smoke")
+        self.assertLess(upload, startup)
+        self.assertLess(upload, serverless)
+        upload_section = self.source[upload:startup]
+        self.assertIn("id: application-upload", upload_section)
+        self.assertIn("if-no-files-found: error", upload_section)
 
     def test_runtime_reuses_a_built_app_without_rebuilding(self):
         source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")

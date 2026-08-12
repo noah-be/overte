@@ -47,7 +47,27 @@ def _snapshot() -> list[dict[str, Any]]:
         ["ps", "-ww", "-axo", "pid=,ppid=,time=,rss=,%cpu=,args="],
         check=True, capture_output=True, text=True,
     )
-    return _parse_snapshot(result.stdout)
+    rows = _parse_snapshot(result.stdout)
+    if sys.platform.startswith("linux"):
+        # GNU ps rounds short-lived CPU time too coarsely for the hermetic
+        # watchdog tests and Linux self-hosted runners.  /proc exposes the
+        # cumulative user/system ticks without relying on averaged %CPU.
+        try:
+            ticks_per_second = os.sysconf("SC_CLK_TCK")
+        except (OSError, ValueError):
+            ticks_per_second = 0
+        if ticks_per_second:
+            for row in rows:
+                try:
+                    stat_fields = Path(f"/proc/{row['pid']}/stat").read_text().rsplit(
+                        ")", 1
+                    )[1].split()
+                    row["cpu"] = (
+                        int(stat_fields[11]) + int(stat_fields[12])
+                    ) / ticks_per_second
+                except (OSError, ValueError, IndexError):
+                    pass
+    return rows
 
 
 def _parse_snapshot(output: str) -> list[dict[str, Any]]:
@@ -335,7 +355,11 @@ def run(command: list[str], interval: float, inactivity_timeout: float, grace: f
                 cpu_pct = sum(float(row.get("cpu_pct", 0.0)) for row in active)
                 rss = sum(int(row["rss"]) for row in active) / 1024.0
                 output_signature = _output_signature(output_marker)
-                if (cpu > last_cpu or cpu_pct > 0.0
+                # Cumulative CPU time must advance; an averaged ``%cpu`` value
+                # can remain non-zero after a process has stopped doing work
+                # and must therefore never keep a genuinely stalled compiler
+                # alive indefinitely.
+                if (cpu > last_cpu
                         or (output_signature is not None and output_signature != last_output)):
                     last_cpu = cpu
                     last_output = output_signature
@@ -351,6 +375,9 @@ def run(command: list[str], interval: float, inactivity_timeout: float, grace: f
                           language=language, source=source_label, inactive_s=round(idle, 1))
                     _terminate(process, correlated_pids, grace)
                     process.wait()
+                    _emit("end", invocation, time.monotonic() - started,
+                          language=language, source=source_label, exit_code=124,
+                          reason="inactivity")
                     return 124
             except Exception as error:
                 _emit("monitor_error", invocation, time.monotonic() - started,
