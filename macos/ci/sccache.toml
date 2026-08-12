@@ -1,0 +1,4 @@
+# A restored 512 MiB disk cache can take longer than sccache's 10-second
+# default to index on a fresh macOS runner. Keep the client fail-closed while
+# giving the local server a bounded initialization window.
+server_startup_timeout_ms = 60000

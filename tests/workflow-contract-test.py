@@ -310,6 +310,12 @@ class MacOSWorkflowContracts(unittest.TestCase):
 
     def test_sccache_is_bounded_and_every_compiler_language_is_watched(self):
         self.assertIn("SCCACHE_DIR: ${{ github.workspace }}/.sccache", self.source)
+        self.assertIn(
+            "SCCACHE_CONF: ${{ github.workspace }}/macos/ci/sccache.toml",
+            self.source,
+        )
+        sccache_config = (ROOT / "macos/ci/sccache.toml").read_text(encoding="utf-8")
+        self.assertIn("server_startup_timeout_ms = 60000", sccache_config)
         maximum = re.search(r"(?m)^\s+SCCACHE_CACHE_SIZE:\s*(\d+)M\s*$", self.source)
         self.assertIsNotNone(maximum)
         self.assertGreaterEqual(int(maximum.group(1)), 256)

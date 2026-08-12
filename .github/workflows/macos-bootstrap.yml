@@ -40,6 +40,7 @@ jobs:
       OVERTE_MACOS_QT_SOURCE: aqt
       MACOSX_DEPLOYMENT_TARGET: '11.0'
       SCCACHE_DIR: ${{ github.workspace }}/.sccache
+      SCCACHE_CONF: ${{ github.workspace }}/macos/ci/sccache.toml
       SCCACHE_CACHE_SIZE: 512M
       SCCACHE_BASEDIRS: ${{ github.workspace }}
       SCCACHE_CLIENT_SIDE: '1'
@@ -227,6 +228,7 @@ jobs:
             "const char overte_macos_checkpoint_probe[] = \"${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\";" \
             > "$probe_dir/probe.c"
           sccache --stop-server >/dev/null 2>&1 || true
+          sccache --start-server
           sccache --zero-stats
           sccache "$(xcrun --find clang)" -c "$probe_dir/probe.c" -o "$probe_dir/probe.o"
           sccache --show-stats --stats-format=json > "$probe_dir/stats.json"

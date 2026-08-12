@@ -59,6 +59,9 @@ remote write before any dependency build starts. Every successful cacheable
 compiler invocation is therefore persisted remotely when the object completes,
 not only when the whole Conan or client stage exits. Statistics after libnode,
 the remaining graph, and the client build fail closed on remote write errors.
+The checked-in sccache configuration gives a newly started server up to 60
+seconds to index a restored disk cache; the upstream ten-second default is too
+short for a full 512 MiB generation on a fresh hosted runner.
 
 Its namespace fingerprints the
 compiler binary and version, Xcode build, macOS SDK, architecture, build type,
@@ -84,7 +87,11 @@ the same live channel. Compiler activity can therefore be distinguished from a
 compiler stall, while the absence of both compiler records and supervisor
 heartbeats indicates a runner-level freeze. Dependency restore, checkpoint
 packaging, and checkpoint revalidation use the same resource supervisor. The
-client build step is capped at 150 minutes and the complete job at 300 minutes.
+client build step is capped at 175 minutes and the complete job at 360 minutes.
+Each supervised phase also has an earlier internal wall-clock limit. It records
+diagnostics and terminates the whole process group before GitHub reaches its
+outer step timeout, leaving enough time for failure checkpoints and diagnostic
+uploads.
 
 `macos/ci/runner-telemetry.py` samples host health every five seconds and emits
 sanitized, flushed 30-second aggregates. It records CPU/load, RAM and memory
