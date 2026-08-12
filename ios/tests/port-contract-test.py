@@ -2057,6 +2057,19 @@ def test_script_entity_id_qt6_contract() -> None:
         graphics_interface_cpp.read_text(encoding="utf-8"), \
         "Qt 6 qsizetype must not narrow inside the mesh-part initializer"
 
+    entity_tree = SOURCE_ROOT / "libraries" / "entities" / "src" / "EntityTree.cpp"
+    entity_tree_text = entity_tree.read_text(encoding="utf-8")
+    assert '(senderNode ? senderNode->getUUID() : "null")' not in entity_tree_text, \
+        "Qt 6 cannot select between QUuid and a string literal"
+    assert entity_tree_text.count("child->setParentID(QUuid());") == 2, \
+        "detached avatar descendants must use an explicit null UUID"
+    for source_name in ("stringValue", "uuidString", "materialName", "imageURL"):
+        require_text(entity_tree, rf'QUuid\s+old(?:MaterialName|ID)\s*\(\s*{source_name}\s*\)',
+                     "Qt 6 QString-to-QUuid boundaries must use explicit construction")
+    assert re.search(r'QUuid\s+old(?:MaterialName|ID)\s*=\s*(?:stringValue|uuidString|materialName|imageURL)',
+                     entity_tree_text) is None, \
+        "entity remapping must not depend on Qt 5 implicit QString-to-QUuid conversion"
+
     midi_header = SOURCE_ROOT / "libraries" / "midi" / "src" / "Midi.h"
     require_text(midi_header, r'#include\s*<QtCore/QVariantMap>',
                  "Qt 6 MOC must see the complete QVariantMap signal argument type")

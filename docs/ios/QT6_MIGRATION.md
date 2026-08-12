@@ -629,6 +629,8 @@ Graphics matrix variants let `QVariant::setValue` deduce the lvalue vector
 type, which preserves Qt 5 behavior and satisfies Qt 6's forwarding overload.
 Script-created mesh vertex and index counts are range-checked in Qt's native
 size type before conversion to the fixed-width GPU and mesh-part fields.
+Entity-tree UUID boundaries now construct null and parsed UUID values
+explicitly; logging also avoids a conditional expression mixing UUID and text.
 Platform-native AVAudioSession policy remains in the iOS shell and must not be
 duplicated by desktop code.
 
