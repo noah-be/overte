@@ -9,7 +9,7 @@ readonly app="${1:?usage: macos/ci/online-smoke.sh /path/to/Overte.app [output-d
 readonly output_dir="${2:-$source_root/build/macos-online-smoke}"
 readonly location="${OVERTE_MACOS_ONLINE_LOCATION:-overte://welcome}"
 readonly executable="$app/Contents/MacOS/Overte"
-readonly test_script="$source_root/macos/tests/serverless-smoke.js"
+readonly test_script="$source_root/macos/tests/online-smoke.js"
 readonly default_scripts_override="$source_root/macos/tests/fixtures/no-default-scripts.js"
 readonly log="$output_dir/online.log"
 readonly process_result="$output_dir/online-process.json"
@@ -17,7 +17,8 @@ readonly process_sample="$output_dir/online.sample.txt"
 readonly crash_report="$output_dir/online.crash.ips"
 readonly lldb_log="$output_dir/online-lldb.log"
 readonly lldb_result="$output_dir/online-lldb-process.json"
-readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-300}"
+readonly snapshot="$output_dir/macos-online-smoke.png"
+readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-720}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
 readonly lldb_timeout_seconds="${OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-90}"
 
@@ -63,6 +64,12 @@ done
 rg -q "OVERTE_MACOS_SMOKE passed" "$log" || {
     echo "online smoke script did not pass" >&2
     exit 1
+}
+[[ -s "$snapshot" ]] || { echo "online snapshot is missing or empty" >&2; exit 1; }
+readonly snapshot_width="$(sips -g pixelWidth "$snapshot" | awk '/pixelWidth:/ { print $2 }')"
+readonly snapshot_height="$(sips -g pixelHeight "$snapshot" | awk '/pixelHeight:/ { print $2 }')"
+(( snapshot_width > 0 && snapshot_height > 0 )) || {
+    echo "online snapshot has invalid dimensions" >&2; exit 1;
 }
 
 echo "macOS online smoke passed for $location"

@@ -4,8 +4,6 @@
 (function () {
     "use strict";
 
-    // Keep the visual gate deterministic and tractable on GitHub's Intel
-    // runner, which exposes Apple's software OpenGL renderer.
     Render.renderMethod = 1;
     Render.shadowsEnabled = false;
     Render.hazeEnabled = false;
@@ -16,15 +14,7 @@
     Render.antialiasingMode = 0;
     Render.viewportResolutionScale = 0.5;
 
-    // The GitHub Intel runner exposes Apple's software OpenGL renderer.  Its
-    // first scene frame can spend several minutes compiling the complete
-    // shader set before the queued snapshot reaches the present thread.
     var deadline = Date.now() + 600000;
-    var expectedNames = {
-        "macOS smoke red cube": false,
-        "macOS smoke cyan sphere": false,
-        "macOS smoke label": false
-    };
     var snapshotRequested = false;
     var completed = false;
 
@@ -46,19 +36,10 @@
             return;
         }
         var entities = Entities.findEntities(MyAvatar.position, 16384);
-        entities.forEach(function (entityID) {
-            var name = Entities.getEntityProperties(entityID, ["name"]).name;
-            if (Object.prototype.hasOwnProperty.call(expectedNames, name)) {
-                expectedNames[name] = true;
-            }
-        });
-        var fixtureComplete = Object.keys(expectedNames).every(function (name) {
-            return expectedNames[name];
-        });
-        if (fixtureComplete && !snapshotRequested) {
+        if (entities.length > 0 && !snapshotRequested) {
             snapshotRequested = true;
-            print("OVERTE_MACOS_SMOKE fixture_entities=3");
-            Window.takeSnapshot(false, false, 16 / 9, "macos-serverless-smoke.png");
+            print("OVERTE_MACOS_SMOKE online_entities=" + entities.length);
+            Window.takeSnapshot(false, false, 16 / 9, "macos-online-smoke.png");
         }
         if (Date.now() >= deadline) {
             finish(false, snapshotRequested ? "snapshot_timeout" : "entity_timeout");

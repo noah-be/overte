@@ -337,6 +337,7 @@ for marker in CONTRACT:
 
 online_smoke = (ROOT / "macos/ci/online-smoke.sh").read_text(encoding="utf-8")
 assert "--display Desktop" in online_smoke, "online smoke must never block on display selection"
+assert 'macos/tests/online-smoke.js' in online_smoke, "online smoke needs its own online fixture gate"
 for marker in ONLINE_CONTRACT | {"render_handoff": ""}:
     if marker not in online_smoke:
         raise SystemExit(f"online smoke runner does not require {marker}")
@@ -366,14 +367,43 @@ for smoke_name, smoke_source in (("serverless", smoke), ("online", online_smoke)
                 f"{smoke_name} smoke is missing timeout contract: {timeout_contract}"
             )
 for smoke_name, smoke_source, maximum in (
-    ("serverless", smoke, 240),
-    ("online", online_smoke, 300),
+    ("serverless", smoke, 720),
+    ("online", online_smoke, 720),
 ):
     default_timeout = re.search(
         r'OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-([0-9]+)', smoke_source
     )
     if not default_timeout or int(default_timeout.group(1)) > maximum:
         raise SystemExit(f"{smoke_name} smoke timeout must be at most {maximum}s")
+
+serverless_script = (ROOT / "macos/tests/serverless-smoke.js").read_text(encoding="utf-8")
+online_script = (ROOT / "macos/tests/online-smoke.js").read_text(encoding="utf-8")
+for script_name, script_source, snapshot_name in (
+    ("serverless", serverless_script, "macos-serverless-smoke.png"),
+    ("online", online_script, "macos-online-smoke.png"),
+):
+    for render_contract in (
+        "Render.renderMethod = 1",
+        "Render.shadowsEnabled = false",
+        "Render.ambientOcclusionEnabled = false",
+        "Render.antialiasingMode = 0",
+        "Render.viewportResolutionScale = 0.5",
+        "Script.stop()",
+        snapshot_name,
+    ):
+        if render_contract not in script_source:
+            raise SystemExit(
+                f"{script_name} smoke lacks deterministic rendering contract: {render_contract}"
+            )
+if "fixture_entities=3" not in serverless_script:
+    raise SystemExit("serverless smoke must identify the exact three fixture entities")
+for fixture_name in (
+    "macOS smoke red cube",
+    "macOS smoke cyan sphere",
+    "macOS smoke label",
+):
+    if fixture_name not in serverless_script:
+        raise SystemExit(f"serverless smoke does not require fixture: {fixture_name}")
 
 opengl_display = (
     ROOT / "libraries/display-plugins/src/display-plugins/OpenGLDisplayPlugin.cpp"

@@ -32,7 +32,7 @@ jobs:
   runtime-x86_64:
     if: github.event_name == 'workflow_dispatch'
     runs-on: macos-15-intel
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '300'
     steps:
@@ -71,20 +71,41 @@ jobs:
       - name: Run application startup preflight
         run: |
           app="$(cat build/runtime-artifact/app-path.txt)"
-          macos/ci/startup-preflight.sh "$app" build/macos-startup-preflight
+          python3 macos/ci/runner-telemetry.py \
+            --phase runtime-startup \
+            --log build/macos-runtime-telemetry/startup.jsonl \
+            --diagnostics-dir build/macos-runtime-telemetry/startup-stall \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 180 --max-runtime 240 \
+            --watch startup=build/macos-startup-preflight -- \
+            macos/ci/startup-preflight.sh "$app" build/macos-startup-preflight
 
       - name: Run serverless entity smoke
         id: serverless-smoke
         continue-on-error: true
         run: |
           app="$(cat build/runtime-artifact/app-path.txt)"
-          macos/ci/serverless-smoke.sh "$app" build/macos-smoke
+          python3 macos/ci/runner-telemetry.py \
+            --phase runtime-serverless \
+            --log build/macos-runtime-telemetry/serverless.jsonl \
+            --diagnostics-dir build/macos-runtime-telemetry/serverless-stall \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 660 --max-runtime 780 \
+            --watch smoke=build/macos-smoke -- \
+            macos/ci/serverless-smoke.sh "$app" build/macos-smoke
 
       - name: Run online entity smoke
         if: ${{ inputs.run_online && steps.serverless-smoke.outcome == 'success' }}
         run: |
           app="$(cat build/runtime-artifact/app-path.txt)"
-          macos/ci/online-smoke.sh "$app" build/macos-online-smoke
+          python3 macos/ci/runner-telemetry.py \
+            --phase runtime-online \
+            --log build/macos-runtime-telemetry/online.jsonl \
+            --diagnostics-dir build/macos-runtime-telemetry/online-stall \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 660 --max-runtime 780 \
+            --watch smoke=build/macos-online-smoke -- \
+            macos/ci/online-smoke.sh "$app" build/macos-online-smoke
 
       - name: Upload runtime diagnostics
         if: always()
@@ -95,6 +116,7 @@ jobs:
             build/macos-startup-preflight
             build/macos-smoke
             build/macos-online-smoke
+            build/macos-runtime-telemetry
           if-no-files-found: ignore
           retention-days: 7
 

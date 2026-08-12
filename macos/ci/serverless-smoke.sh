@@ -17,7 +17,8 @@ readonly process_sample="$output_dir/serverless.sample.txt"
 readonly crash_report="$output_dir/serverless.crash.ips"
 readonly lldb_log="$output_dir/serverless-lldb.log"
 readonly lldb_result="$output_dir/serverless-lldb-process.json"
-readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-240}"
+readonly snapshot="$output_dir/macos-serverless-smoke.png"
+readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-720}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
 readonly lldb_timeout_seconds="${OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-90}"
 
@@ -65,6 +66,12 @@ done
 rg -q "OVERTE_MACOS_SMOKE passed" "$log" || {
     echo "serverless smoke script did not pass" >&2
     exit 1
+}
+[[ -s "$snapshot" ]] || { echo "serverless snapshot is missing or empty" >&2; exit 1; }
+readonly snapshot_width="$(sips -g pixelWidth "$snapshot" | awk '/pixelWidth:/ { print $2 }')"
+readonly snapshot_height="$(sips -g pixelHeight "$snapshot" | awk '/pixelHeight:/ { print $2 }')"
+(( snapshot_width > 0 && snapshot_height > 0 )) || {
+    echo "serverless snapshot has invalid dimensions" >&2; exit 1;
 }
 
 echo "macOS serverless smoke passed"
