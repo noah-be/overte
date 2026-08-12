@@ -2042,6 +2042,21 @@ def test_script_entity_id_qt6_contract() -> None:
     assert "setValue<QVector<float>>(floats)" not in graphics_util.read_text(encoding="utf-8"), \
         "an explicit Qt 6 forwarding-reference type would incorrectly require an rvalue"
 
+    graphics_interface_cpp = SOURCE_ROOT / "libraries" / "graphics-scripting" / "src" / \
+        "graphics-scripting" / "GraphicsScriptingInterface.cpp"
+    require_text(graphics_interface_cpp,
+                 r'numIndices\s*>\s*std::numeric_limits<graphics::Index>::max\(\)',
+                 "script-created mesh index counts must be bounded before narrowing")
+    require_text(graphics_interface_cpp,
+                 r'indexCount\s*=\s*static_cast<graphics::Index>\(indices\.size\(\)\)',
+                 "the checked Qt 6 container size must be narrowed explicitly")
+    require_text(graphics_interface_cpp,
+                 r'parts\s*=\s*\{\{\s*0\s*,\s*indexCount\s*,\s*0\s*,\s*topology\s*\}\}',
+                 "mesh parts must use the checked index count")
+    assert "{{ 0, indices.size(), 0, topology }}" not in \
+        graphics_interface_cpp.read_text(encoding="utf-8"), \
+        "Qt 6 qsizetype must not narrow inside the mesh-part initializer"
+
     midi_header = SOURCE_ROOT / "libraries" / "midi" / "src" / "Midi.h"
     require_text(midi_header, r'#include\s*<QtCore/QVariantMap>',
                  "Qt 6 MOC must see the complete QVariantMap signal argument type")

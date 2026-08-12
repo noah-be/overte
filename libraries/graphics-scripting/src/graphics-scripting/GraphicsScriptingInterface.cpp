@@ -29,6 +29,8 @@
 #include <shared/QtHelpers.h>
 #include <SpatiallyNestable.h>
 
+#include <limits>
+
 STATIC_SCRIPT_TYPES_INITIALIZER(+[](ScriptManager* manager){
     auto scriptEngine = manager->engine().get();
 
@@ -212,12 +214,16 @@ scriptable::ScriptableMeshPointer GraphicsScriptingInterface::newMesh(const QVar
         error = QString("expected .topology to be %1").arg(acceptableTopologies.join(" | "));
     } else if (!numIndices) {
         error = QString("expected non-empty [uint32,...] array for .indices (got type=%1)").arg(ifsMeshData.value("indices").typeName());
+    } else if (numIndices > std::numeric_limits<graphics::Index>::max()) {
+        error = QString(".indices length exceeds the mesh part limit: %1").arg(numIndices);
     } else if (numIndices % 3 != 0) {
         error = QString("expected 'triangle faces' for .indices (ie: length to be divisible by 3) length=%1").arg(numIndices);
     } else if (!numVertices) {
         error = "expected non-empty [glm::vec3(),...] array for .positions";
+    } else if (static_cast<quint64>(numVertices) > std::numeric_limits<gpu::uint32>::max()) {
+        error = QString(".positions length exceeds the vertex-index limit: %1").arg(numVertices);
     } else {
-        const gpu::uint32 maxVertexIndex = numVertices;
+        const auto maxVertexIndex = static_cast<gpu::uint32>(numVertices);
         int i = 0;
         for (const auto& ind : indices) {
             if (ind >= maxVertexIndex) {
@@ -265,7 +271,8 @@ scriptable::ScriptableMeshPointer GraphicsScriptingInterface::newMesh(const QVar
     if (texCoords0.size()) {
         mesh->addAttribute(gpu::Stream::TEXCOORD0, buffer_helpers::newFromVector(gpu::Buffer::VertexBuffer, texCoords0, gpu::Format::VEC2F_UV));
     }
-    QVector<graphics::Mesh::Part> parts = {{ 0, indices.size(), 0, topology }};
+    const auto indexCount = static_cast<graphics::Index>(indices.size());
+    QVector<graphics::Mesh::Part> parts = {{ 0, indexCount, 0, topology }};
     mesh->setPartBuffer(buffer_helpers::newFromVector(gpu::Buffer::IndirectBuffer, parts, gpu::Element::PART_DRAWCALL));
     return scriptable::make_scriptowned<scriptable::ScriptableMesh>(mesh, nullptr);
 }

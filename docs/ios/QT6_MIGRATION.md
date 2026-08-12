@@ -627,6 +627,8 @@ to the documented `none`, `worldCoordinates`, or `screenCoordinates` string;
 they do not rely on Qt 5's accidental integer-to-`QChar` assignment.
 Graphics matrix variants let `QVariant::setValue` deduce the lvalue vector
 type, which preserves Qt 5 behavior and satisfies Qt 6's forwarding overload.
+Script-created mesh vertex and index counts are range-checked in Qt's native
+size type before conversion to the fixed-width GPU and mesh-part fields.
 Platform-native AVAudioSession policy remains in the iOS shell and must not be
 duplicated by desktop code.
 
