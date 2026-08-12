@@ -206,8 +206,12 @@ class RunnerTelemetryTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             result, records = self.invoke_phase(
                 Path(directory),
-                "import time\nfor _ in range(6): print('working', flush=True); time.sleep(.07)",
-                inactivity=0.13,
+                # Keep the producer alive across several report intervals.
+                # A six-by-70ms window was too narrow on loaded macOS hosts:
+                # the reader thread could observe the data only after the last
+                # heartbeat even though supervision itself remained healthy.
+                "import time\nfor _ in range(12): print('working', flush=True); time.sleep(.1)",
+                inactivity=0.25,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             heartbeats = [row for row in records
@@ -260,15 +264,15 @@ class RunnerTelemetryTest(unittest.TestCase):
             log = root / "phase.jsonl"
             code = (
                 "import pathlib,sys,time\nroot=pathlib.Path(sys.argv[1])\n"
-                "for i in range(6):\n"
+                "for i in range(12):\n"
                 "    (root / f'part-{i}').write_bytes(b'x'*8192)\n"
-                "    time.sleep(.07)\n"
+                "    time.sleep(.1)\n"
             )
             result = subprocess.run(
                 [sys.executable, str(TOOL), "--log", str(log),
                  "--phase", "filesystem", "--sample-interval", "0.05",
                  "--publish-interval", "0.1", "--directory-interval", "0.05",
-                 "--inactivity-timeout", "0.13", "--monitor-failure-timeout", "0.3",
+                 "--inactivity-timeout", "0.25", "--monitor-failure-timeout", "0.5",
                  "--term-grace", "0.1", "--watch", f"payload={watched}", "--",
                  sys.executable, "-c", code, str(watched)],
                 capture_output=True, text=True, timeout=6, check=False,
