@@ -32,7 +32,7 @@ concurrency:
 jobs:
   client-opengl-x86_64:
     runs-on: macos-15-intel
-    timeout-minutes: 300
+    timeout-minutes: 360
     env:
       CONAN_HOME: ${{ github.workspace }}/.conan2
       OVERTE_MACOS_ARCH: x86_64
@@ -105,7 +105,7 @@ jobs:
             --log "$MACOS_RUNNER_TELEMETRY_DIR/build-tools.jsonl" \
             --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/build-tools-stall" \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 600 \
+            --inactivity-timeout 600 --max-runtime 600 \
             --watch tooling=build-tooling-venv -- \
             bash -euo pipefail -c '
               if [[ ! -x build-tooling-venv/bin/python3 ]]; then
@@ -293,6 +293,7 @@ jobs:
 
       - name: Restore latest compatible durable Conan checkpoint
         id: conan-checkpoint-restore
+        timeout-minutes: 45
         if: >-
           ${{ steps.conan-cache.outputs.cache-hit != 'true' &&
               steps.conan-checkpoint-probe.outputs.found == 'true' }}
@@ -304,7 +305,8 @@ jobs:
             --log "$MACOS_RUNNER_TELEMETRY_DIR/conan-durable-restore.jsonl" \
             --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/conan-durable-restore-stall" \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 900 --watch conan="$CONAN_HOME" -- \
+            --inactivity-timeout 900 --max-runtime 2400 \
+            --watch conan="$CONAN_HOME" -- \
             python3 macos/ci/conan-checkpoint.py restore-remote \
               --repository "$GITHUB_REPOSITORY" \
               --artifact-name "${{ steps.cache-key.outputs.conan_checkpoint }}" \
@@ -349,7 +351,7 @@ jobs:
             --compiler-live-log "$MACOS_RUNNER_TELEMETRY_DIR/dependency-qt-compilers.jsonl" \
             --compiler-diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/dependency-qt-compiler-stalls" \
             --sample-interval 5 --publish-interval 30 --directory-interval 300 \
-            --inactivity-timeout 900 \
+            --inactivity-timeout 900 --max-runtime 1500 \
             --watch conan="$CONAN_HOME" \
             --watch sccache="$SCCACHE_DIR" \
             -- macos/build-macos.sh deps-qt
@@ -374,7 +376,7 @@ jobs:
       - name: Resolve libnode dependency stage
         id: resolve-libnode
         continue-on-error: true
-        timeout-minutes: 150
+        timeout-minutes: 240
         env:
           CC: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang
           CXX: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang++
@@ -393,7 +395,7 @@ jobs:
             --compiler-live-log "$MACOS_RUNNER_TELEMETRY_DIR/dependency-libnode-compilers.jsonl" \
             --compiler-diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/dependency-libnode-compiler-stalls" \
             --sample-interval 5 --publish-interval 30 --directory-interval 300 \
-            --inactivity-timeout 900 \
+            --inactivity-timeout 900 --max-runtime 13800 \
             --watch conan="$CONAN_HOME" \
             --watch sccache="$SCCACHE_DIR" \
             -- macos/build-macos.sh deps-libnode
@@ -483,7 +485,7 @@ jobs:
             --compiler-live-log "$MACOS_RUNNER_TELEMETRY_DIR/dependency-compilers.jsonl" \
             --compiler-diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/dependency-compiler-stalls" \
             --sample-interval 5 --publish-interval 30 --directory-interval 300 \
-            --inactivity-timeout 900 \
+            --inactivity-timeout 900 --max-runtime 6900 \
             --watch conan="$CONAN_HOME" \
             --watch sccache="$SCCACHE_DIR" \
             -- macos/build-macos.sh deps
@@ -527,7 +529,8 @@ jobs:
             --log "$MACOS_RUNNER_TELEMETRY_DIR/conan-integrity.jsonl" \
             --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/conan-integrity-stall" \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 900 --watch conan="$CONAN_HOME" -- \
+            --inactivity-timeout 900 --max-runtime 1500 \
+            --watch conan="$CONAN_HOME" -- \
             bash -euo pipefail -c '
               conan cache check-integrity "*"
               conan cache clean "*" --build --temp
@@ -550,7 +553,7 @@ jobs:
             --log "$MACOS_RUNNER_TELEMETRY_DIR/conan-durable-package.jsonl" \
             --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/conan-durable-package-stall" \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 900 \
+            --inactivity-timeout 900 --max-runtime 2400 \
             --watch conan="$CONAN_HOME" \
             --watch checkpoint="$RUNNER_TEMP/macos-conan-checkpoint" -- \
             python3 macos/ci/conan-checkpoint.py create \
@@ -583,7 +586,8 @@ jobs:
             --log "$MACOS_RUNNER_TELEMETRY_DIR/conan-durable-verify.jsonl" \
             --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/conan-durable-verify-stall" \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 900 --watch conan="$CONAN_HOME" -- \
+            --inactivity-timeout 900 --max-runtime 3300 \
+            --watch conan="$CONAN_HOME" -- \
             python3 macos/ci/conan-checkpoint.py verify-remote \
               --repository "$GITHUB_REPOSITORY" \
               --artifact-name "${{ steps.cache-key.outputs.conan_checkpoint }}" \
@@ -646,7 +650,7 @@ jobs:
             --compiler-live-log "$MACOS_RUNNER_TELEMETRY_DIR/configure-compilers.jsonl" \
             --compiler-diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/configure-compiler-stalls" \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 600 \
+            --inactivity-timeout 600 --max-runtime 1500 \
             --watch build=build --watch conan="$CONAN_HOME" \
             --watch sccache="$SCCACHE_DIR" -- \
             macos/build-macos.sh configure
@@ -681,7 +685,7 @@ jobs:
       - name: Build client application
         id: build-client
         continue-on-error: true
-        timeout-minutes: 150
+        timeout-minutes: 175
         run: |
           mkdir -p "$MACOS_RUNNER_TELEMETRY_DIR"
           python3 macos/ci/runner-telemetry.py \
@@ -689,7 +693,7 @@ jobs:
             --log "$MACOS_RUNNER_TELEMETRY_DIR/build.jsonl" \
             --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/build-stall" \
             --sample-interval 5 --publish-interval 30 --directory-interval 300 \
-            --inactivity-timeout 900 \
+            --inactivity-timeout 900 --max-runtime 9900 \
             --watch build=build \
             --watch conan="$CONAN_HOME" \
             --watch sccache="$SCCACHE_DIR" \
@@ -808,7 +812,7 @@ jobs:
             --log "$MACOS_RUNNER_TELEMETRY_DIR/runtime-startup.jsonl" \
             --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/runtime-startup-stall" \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 180 \
+            --inactivity-timeout 180 --max-runtime 240 \
             --watch startup=build/macos-startup-preflight -- \
             macos/ci/startup-preflight.sh "$app" build/macos-startup-preflight
 
@@ -821,7 +825,7 @@ jobs:
             --log "$MACOS_RUNNER_TELEMETRY_DIR/runtime-serverless.jsonl" \
             --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/runtime-serverless-stall" \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 600 \
+            --inactivity-timeout 600 --max-runtime 840 \
             --watch smoke=build/macos-smoke -- \
             macos/ci/serverless-smoke.sh "$app" build/macos-smoke
 
@@ -834,7 +838,7 @@ jobs:
             --log "$MACOS_RUNNER_TELEMETRY_DIR/runtime-online.jsonl" \
             --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/runtime-online-stall" \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 600 \
+            --inactivity-timeout 600 --max-runtime 840 \
             --watch smoke=build/macos-online-smoke -- \
             macos/ci/online-smoke.sh "$app" build/macos-online-smoke
 
@@ -850,6 +854,7 @@ jobs:
             build/macos-smoke
             build/macos-online-smoke
           if-no-files-found: ignore
+          include-hidden-files: true
           retention-days: 7
 
       - name: Prune superseded branch-local compiler generations

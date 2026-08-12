@@ -215,6 +215,22 @@ class RunnerTelemetryTest(unittest.TestCase):
             self.assertTrue(any("output" in row["progress_sources"] for row in heartbeats))
             self.assertIn("working", result.stdout)
 
+    def test_active_phase_hits_controlled_wall_limit_before_outer_ci_timeout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            diagnostics = root / "diagnostics"
+            result, records = self.invoke_phase(
+                root,
+                "import time; end=time.monotonic()+5\nwhile time.monotonic()<end: pass",
+                inactivity=2,
+                extra=["--max-runtime", "0.25", "--diagnostics-dir", str(diagnostics)],
+            )
+            self.assertEqual(result.returncode, 124, result.stdout + result.stderr)
+            self.assertTrue(any(row["macos_runner_telemetry"] == "timed_out"
+                                for row in records))
+            self.assertEqual(records[-1]["reason"], "wall_timeout")
+            self.assertTrue(list(diagnostics.glob("stall-*.json")))
+
     def test_watched_filesystem_growth_prevents_false_inactivity_abort(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -511,7 +511,8 @@ def supervise(command: list[str], collector: Collector, emit: Callable[..., None
               disk_free_mib: float, memory_available_pct: float,
               swap_used_pct: float, diagnostics_dir: Path | None,
               compiler_live_log: Path | None = None,
-              compiler_diagnostics_dir: Path | None = None) -> int:
+              compiler_diagnostics_dir: Path | None = None,
+              max_runtime: float | None = None) -> int:
     """Run one non-compiler phase with resource-aware stall detection."""
     started = time.monotonic()
     invocation = secrets.token_hex(6)
@@ -648,6 +649,7 @@ def supervise(command: list[str], collector: Collector, emit: Callable[..., None
         sample_seconds=sample_seconds,
         report_seconds=report_seconds,
         inactivity_timeout_seconds=inactivity_timeout,
+        max_runtime_seconds=max_runtime,
     )
     reason = "exit"
     result_code = 0
@@ -665,6 +667,26 @@ def supervise(command: list[str], collector: Collector, emit: Callable[..., None
                     break
             elif status is not None:
                 result_code = 128 - status if status < 0 else status
+                break
+
+            if max_runtime is not None and now - started >= max_runtime:
+                _collect_phase_diagnostics(
+                    diagnostics_dir, phase, invocation, latest_rows
+                )
+                status = process.poll()
+                if status is not None:
+                    result_code = 128 - status if status < 0 else status
+                    break
+                emit(
+                    "timed_out",
+                    phase=phase,
+                    id=invocation,
+                    elapsed_s=round(now - started, 1),
+                    limit_s=round(max_runtime, 1),
+                )
+                _terminate_group(process, term_grace)
+                result_code = 124
+                reason = "wall_timeout"
                 break
 
             if now >= next_sample and status is None:
@@ -868,6 +890,10 @@ def main() -> int:
     parser.add_argument("--memory-available-warning-pct", type=float, default=10.0)
     parser.add_argument("--swap-used-warning-pct", type=float, default=80.0)
     parser.add_argument("--inactivity-timeout", type=float, default=900.0)
+    parser.add_argument(
+        "--max-runtime", type=float,
+        help="controlled wall-clock limit below the surrounding CI step timeout",
+    )
     parser.add_argument("--monitor-failure-timeout", type=float, default=120.0)
     parser.add_argument("--term-grace", type=float, default=10.0)
     parser.add_argument("--max-samples", type=int, help=argparse.SUPPRESS)
@@ -876,6 +902,7 @@ def main() -> int:
     if min(args.sample_seconds, args.report_seconds, args.directory_seconds) <= 0:
         parser.error("sampling intervals must be positive")
     if (args.inactivity_timeout <= 0 or args.monitor_failure_timeout <= 0
+            or (args.max_runtime is not None and args.max_runtime <= 0)
             or args.term_grace < 0):
         parser.error("watchdog timeouts must be positive and grace non-negative")
     if not SAFE_LABEL.fullmatch(args.phase):
@@ -925,6 +952,7 @@ def main() -> int:
         diagnostics_dir,
         args.compiler_live_log,
         args.compiler_diagnostics_dir,
+        args.max_runtime,
     )
 
 

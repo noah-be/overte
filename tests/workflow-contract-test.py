@@ -163,6 +163,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
             self.assertIn(f"--phase {phase}", self.source)
         self.assertGreaterEqual(self.source.count("--sample-interval 5"), 13)
         self.assertGreaterEqual(self.source.count("--publish-interval 30"), 13)
+        self.assertGreaterEqual(self.source.count("--max-runtime"), 13)
         for checkpoint in (
             "Save pinned build tools",
             "Save Qt Conan stage immediately",
@@ -175,6 +176,14 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "Upload application bundle immediately",
         ):
             self.assertIn(f"- name: {checkpoint}", self.source)
+
+    def test_phase_wall_limits_precede_ci_timeouts_and_hidden_diagnostics_upload(self):
+        self.assertIn("timeout-minutes: 240", self.source)
+        self.assertIn("--max-runtime 13800", self.source)
+        self.assertIn("timeout-minutes: 175", self.source)
+        self.assertIn("--max-runtime 9900", self.source)
+        diagnostics = self.source.split("- name: Upload smoke diagnostics", 1)[1]
+        self.assertIn("include-hidden-files: true", diagnostics)
 
     def test_remote_compiler_pruning_is_delayed_scoped_and_keeps_a_fallback(self):
         upload = self.source.index("- name: Upload application bundle immediately")
