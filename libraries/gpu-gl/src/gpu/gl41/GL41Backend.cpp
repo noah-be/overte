@@ -13,6 +13,7 @@
 #include <functional>
 #include <unordered_set>
 #include <glm/gtc/type_ptr.hpp>
+#include <QtCore/QDebug>
 #include <QtCore/QString>
 
 Q_LOGGING_CATEGORY(gpugl41logging, "hifi.gpu.gl41")

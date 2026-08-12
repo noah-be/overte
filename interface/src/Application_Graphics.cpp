@@ -38,6 +38,7 @@
 #include <plugins/PluginManager.h>
 #include <Preferences.h>
 #include <RenderableWebEntityItem.h>
+#include <shared/GlobalAppProperties.h>
 #include <scripting/AccountServicesScriptingInterface.h>
 #include <scripting/HMDScriptingInterface.h>
 #include <scripting/PlatformInfoScriptingInterface.h>

@@ -489,6 +489,8 @@ for smoke_source in (smoke, online_smoke):
 application_graphics = (
     ROOT / "interface/src/Application_Graphics.cpp"
 ).read_text(encoding="utf-8")
+if "#include <shared/GlobalAppProperties.h>" not in application_graphics:
+    raise SystemExit("macOS test UI isolation must declare hifi application properties")
 desktop_resume = application_graphics.split(
     "ContextAwareProfile::restrictContext", 1
 )[1].split("connect(_window", 1)[0]
