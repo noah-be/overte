@@ -44,7 +44,11 @@ with tempfile.TemporaryDirectory() as temporary:
         "print('before hang', flush=True); time.sleep(30)"
     )
     timed_out = subprocess.run(
-        [sys.executable, str(SUPERVISOR), "--timeout", "0.2", "--grace", "0.1",
+        # Leave enough startup time for a cold Python 3.14 interpreter on a
+        # loaded hosted macOS runner.  The child still spends essentially the
+        # entire interval idle, so this remains an inactivity/TERM/KILL test
+        # rather than a scheduler-speed test.
+        [sys.executable, str(SUPERVISOR), "--timeout", "1", "--grace", "0.1",
          "--log", str(timeout_log), "--result", str(timeout_result),
          "--sample", str(timeout_sample), "--",
          sys.executable, "-c", child],
