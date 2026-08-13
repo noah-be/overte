@@ -1116,12 +1116,29 @@ def test_scope_contract() -> None:
         "True": "Bool",
         "Null": "UnknownType",
     }
+    require_text(
+        osc_interface,
+        r"constexpr QChar oscTagCharacter\(OSCTag tag\)[\s\S]*QChar::fromLatin1\(static_cast<char>\(tag\)\)",
+        "OSC enum tags must cross the Qt 6 character boundary explicitly without changing their byte values",
+    )
+    require_text(
+        osc_interface,
+        r"QString oscTagString\(OSCTag tag\)[\s\S]*QString\(oscTagCharacter\(tag\)\)",
+        "received OSC wrapper tags must remain one-character strings",
+    )
     for tag, meta_type in expected_osc_types.items():
         require_text(
             osc_interface,
-            rf"\{{ OSCTag::{tag}, QMetaType::{meta_type} \}}",
+            rf"\{{ oscTagCharacter\(OSCTag::{tag}\), QMetaType::{meta_type} \}}",
             f"OSC tag {tag} must retain its QVariant payload type",
         )
+        require_text(
+            osc_interface,
+            rf'\{{"type", oscTagString\(OSCTag::{tag}\)\}},',
+            f"received OSC tag {tag} must retain its one-character script wrapper",
+        )
+    assert re.search(r"QString\s*\(\s*OSCTag::", osc_text) is None, \
+        "Qt 6 cannot construct QString implicitly from the OSC enum"
     require_text(
         osc_interface,
         r"oscVariantTypeId\(arg\) == QMetaType::QVariantMap",

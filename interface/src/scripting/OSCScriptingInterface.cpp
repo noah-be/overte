@@ -174,15 +174,23 @@ enum OSCTag: char {
     Null = 'N',
 };
 
+constexpr QChar oscTagCharacter(OSCTag tag) {
+    return QChar::fromLatin1(static_cast<char>(tag));
+}
+
+QString oscTagString(OSCTag tag) {
+    return QString(oscTagCharacter(tag));
+}
+
 static const QRegularExpression invalidCharacters = QRegularExpression("([ #*,?\\[\\]{}])");
 static const QMap<QChar, int> typeNameMap = {
-    { OSCTag::Int, QMetaType::Int },
-    { OSCTag::Float, QMetaType::Double },
-    { OSCTag::String, QMetaType::QString },
-    { OSCTag::Blob, QMetaType::QByteArray },
-    { OSCTag::False, QMetaType::Bool },
-    { OSCTag::True, QMetaType::Bool },
-    { OSCTag::Null, QMetaType::UnknownType },
+    { oscTagCharacter(OSCTag::Int), QMetaType::Int },
+    { oscTagCharacter(OSCTag::Float), QMetaType::Double },
+    { oscTagCharacter(OSCTag::String), QMetaType::QString },
+    { oscTagCharacter(OSCTag::Blob), QMetaType::QByteArray },
+    { oscTagCharacter(OSCTag::False), QMetaType::Bool },
+    { oscTagCharacter(OSCTag::True), QMetaType::Bool },
+    { oscTagCharacter(OSCTag::Null), QMetaType::UnknownType },
 };
 
 
@@ -272,7 +280,7 @@ void OSCScriptingInterface::readPacket() {
                 }
 
                 args.append(QVariantMap {
-                    {"type", QString(OSCTag::Int)},
+                    {"type", oscTagString(OSCTag::Int)},
                     {"value", value.value()},
                 });
             } break;
@@ -286,7 +294,7 @@ void OSCScriptingInterface::readPacket() {
                 }
 
                 args.append(QVariantMap {
-                    {"type", QString(OSCTag::Float)},
+                    {"type", oscTagString(OSCTag::Float)},
                     {"value", value.value()},
                 });
             } break;
@@ -303,7 +311,7 @@ void OSCScriptingInterface::readPacket() {
                 cursor = next4(cursor);
 
                 args.append(QVariantMap {
-                    {"type", QString(OSCTag::String)},
+                    {"type", oscTagString(OSCTag::String)},
                     {"value", value.value()},
                 });
             } break;
@@ -325,7 +333,7 @@ void OSCScriptingInterface::readPacket() {
                 }
 
                 args.append(QVariantMap {
-                    {"type", QString(OSCTag::Blob)},
+                    {"type", oscTagString(OSCTag::Blob)},
                     {"value", bytes.value()},
                 });
 
@@ -334,21 +342,21 @@ void OSCScriptingInterface::readPacket() {
 
             case OSCTag::False:
                 args.append(QVariantMap {
-                    {"type", QString(OSCTag::False)},
+                    {"type", oscTagString(OSCTag::False)},
                     {"value", false},
                 });
                 break;
 
             case OSCTag::True:
                 args.append(QVariantMap {
-                    {"type", QString(OSCTag::True)},
+                    {"type", oscTagString(OSCTag::True)},
                     {"value", true},
                 });
                 break;
 
             case OSCTag::Null:
                 args.append(QVariantMap {
-                    {"type", QString(OSCTag::Null)},
+                    {"type", oscTagString(OSCTag::Null)},
                     {"value", QVariant()},
                 });
                 break;

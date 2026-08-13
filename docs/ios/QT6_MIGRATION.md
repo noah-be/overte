@@ -82,6 +82,12 @@ The performance timing display now traverses its duplicate-preserving
 duration records, the top-ten limit, and the formatted statistics remain
 unchanged while avoiding Qt 5's removed QMap/QMultiMap interoperability.
 
+OSC tag enums now cross Qt's character boundary through an explicit Latin-1
+`QChar` helper. The same single-byte `i`, `f`, `s`, `b`, `F`, `T`, and `N`
+wire tags still key serialization and appear as one-character script wrapper
+strings; only Qt 5's removed implicit enum-to-QChar/QString conversions are
+gone.
+
 FST mappings continue to use `VariantMultiHash` so repeated script and
 blendshape keys are preserved. Qt 6 no longer implicitly converts between
 `QHash` and `QMultiHash`, so default arguments now use the multi-hash type and
