@@ -486,6 +486,9 @@ if resolve_framebuffer.index("srcFbo->getNumSamples() <= 1") > resolve_framebuff
 gl_backend_header = (ROOT / "libraries/gpu-gl-common/src/gpu/gl/GLBackend.h").read_text(
     encoding="utf-8"
 )
+gl_backend_source = (
+    ROOT / "libraries/gpu-gl-common/src/gpu/gl/GLBackend.cpp"
+).read_text(encoding="utf-8")
 gl_backend_output = (
     ROOT / "libraries/gpu-gl-common/src/gpu/gl/GLBackendOutput.cpp"
 ).read_text(encoding="utf-8")
@@ -582,6 +585,8 @@ for neutral_backend_contract in (
     "OVERTE_MACOS_GL_BLIT",
     "source_nonzero=",
     "destination_nonzero=",
+    "_macosToneMapDiagnosticFBO = newDrawFBO",
+    "_macosToneMapDiagnosticSize",
 ):
     if neutral_backend_contract not in gl41_backend_output:
         raise SystemExit(
@@ -598,6 +603,16 @@ if neutral_backend_blit.index("glEnable(GL_SCISSOR_TEST)") < neutral_backend_bli
     "glBlitFramebuffer"
 ):
     raise SystemExit("neutral macOS GL blit must restore inherited scissoring after copying")
+for overwrite_trace_contract in (
+    "diagnoseToneMapOverwrite(batch)",
+    "OVERTE_MACOS_GL_OVERWRITE",
+    "target_became_black=true",
+    "_macosToneMapDiagnosticHadRGB && !hasRGB",
+):
+    if overwrite_trace_contract not in gl_backend_header + gl_backend_source:
+        raise SystemExit(
+            f"macOS post-tone-map overwrite tracing missing: {overwrite_trace_contract}"
+        )
 for diagnostic_token in ("OVERTE_MACOS_TONEMAP_PARAMS", "sizeof(Parameters)", "exposure_scale="):
     if diagnostic_token not in tone_map_source:
         raise SystemExit(f"tone-map runtime diagnostics missing: {diagnostic_token}")

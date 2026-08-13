@@ -16,6 +16,11 @@
 #include <queue>
 #include <list>
 #include <functional>
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#include <array>
+#include <vector>
+#include <QtCore/QDebug>
+#endif
 #if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
 #include <atomic>
 #endif
@@ -625,7 +630,62 @@ void GLBackend::render(const Batch& batch) {
         }
         batch._mustUpdatePreviousModels = false;
     }
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    diagnoseToneMapOverwrite(batch);
+#endif
 }
+
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+void GLBackend::diagnoseToneMapOverwrite(const Batch& batch) {
+    if (_macosToneMapOverwriteLogged || !_macosToneMapDiagnosticFBO ||
+            _macosToneMapDiagnosticSize.x <= 0 || _macosToneMapDiagnosticSize.y <= 0 ||
+            !qEnvironmentVariableIsSet("OVERTE_MACOS_GL_DIAGNOSTICS")) {
+        return;
+    }
+
+    GLint previousReadFBO { 0 };
+    GLint previousReadBuffer { 0 };
+    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &previousReadFBO);
+    glGetIntegerv(GL_READ_BUFFER, &previousReadBuffer);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, _macosToneMapDiagnosticFBO);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+
+    const auto width = _macosToneMapDiagnosticSize.x;
+    const auto height = _macosToneMapDiagnosticSize.y;
+    const std::array<int, 5> rows {
+        height / 8,
+        height / 4,
+        height / 2,
+        (height * 3) / 4,
+        (height * 7) / 8
+    };
+    std::vector<uint8_t> pixels(static_cast<size_t>(width) * 4);
+    bool hasRGB { false };
+    for (const auto row : rows) {
+        glReadPixels(0, row, width, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+        for (size_t index = 0; index + 3 < pixels.size(); index += 4) {
+            if (pixels[index] != 0 || pixels[index + 1] != 0 || pixels[index + 2] != 0) {
+                hasRGB = true;
+                break;
+            }
+        }
+        if (hasRGB) {
+            break;
+        }
+    }
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, previousReadFBO);
+    glReadBuffer(previousReadBuffer);
+
+    if (_macosToneMapDiagnosticHadRGB && !hasRGB) {
+        _macosToneMapOverwriteLogged = true;
+        qInfo().noquote() << "OVERTE_MACOS_GL_OVERWRITE"
+                          << "batch=" << QString::fromStdString(batch.getName())
+                          << "target_became_black=true";
+    }
+    _macosToneMapDiagnosticHadRGB = hasRGB;
+}
+#endif
 
 void GLBackend::executeFrame(const FramePointer& frame) {
     // Execute the frame rendering commands

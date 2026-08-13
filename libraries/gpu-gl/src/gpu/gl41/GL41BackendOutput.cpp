@@ -212,6 +212,11 @@ void GL41Backend::do_blit(const Batch& batch, size_t paramOffset) {
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     GLenum neutralToneMapBlitError { GL_NO_ERROR };
     if (neutralToneMapBlit) {
+        _macosToneMapDiagnosticFBO = newDrawFBO;
+        _macosToneMapDiagnosticSize = {
+            std::abs(dstvp.z - dstvp.x),
+            std::abs(dstvp.w - dstvp.y)
+        };
         neutralToneMapBlitError = glGetError();
         if (neutralToneMapBlitError != GL_NO_ERROR) {
             qWarning().noquote() << "OVERTE_MACOS_GL_BLIT_ERROR"

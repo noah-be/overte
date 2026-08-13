@@ -319,6 +319,13 @@ protected:
     static const uint INVALID_SAVED_CAMERA_SLOT = (uint)-1;
     bool _inRenderTransferPass { false };
     int _currentDraw { -1 };
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    GLuint _macosToneMapDiagnosticFBO { 0 };
+    ivec2 _macosToneMapDiagnosticSize { 0, 0 };
+    bool _macosToneMapDiagnosticHadRGB { false };
+    bool _macosToneMapOverwriteLogged { false };
+    void diagnoseToneMapOverwrite(const Batch& batch);
+#endif
     
     struct FrameTrash {
         GLsync fence = nullptr;
