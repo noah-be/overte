@@ -54,9 +54,11 @@ void DialogsManager::maybeCreateDialog(QPointer<T>& member) {
         member = new T(parent);
         Q_CHECK_PTR(member);
 
+#if !defined(Q_OS_IOS)
         if (_hmdToolsDialog && member->windowHandle()) {
             _hmdToolsDialog->watchWindow(member->windowHandle());
         }
+#endif
     }
 }
 

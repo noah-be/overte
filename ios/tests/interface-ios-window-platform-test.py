@@ -132,6 +132,11 @@ for hmd_dialog_source in ("HMDToolsDialog.cpp", "HMDToolsDialog.h"):
 require("#if !defined(Q_OS_IOS)\n#include \"HMDToolsDialog.h\"\n#else\n"
         "class HMDToolsDialog;\n#endif" in (ROOT / "interface/src/ui/DialogsManager.h").read_text(),
         "desktop HMD dialog type remains included by the iOS manager header")
+require("#include <QtCore/QObject>" in (ROOT / "interface/src/ui/DialogsManager.h").read_text(),
+        "DialogsManager must include its complete QObject base type directly")
+require("#if !defined(Q_OS_IOS)\n        if (_hmdToolsDialog && member->windowHandle())" in DIALOGS_MANAGER and
+        "_hmdToolsDialog->watchWindow(member->windowHandle());\n        }\n#endif" in DIALOGS_MANAGER,
+        "desktop HMD window watching remains compiled in the iOS dialog template")
 require("void DialogsManager::hmdTools(bool showTools) {\n#if !defined(Q_OS_IOS)" in DIALOGS_MANAGER and
         "#else\n    Q_UNUSED(showTools)\n#endif" in DIALOGS_MANAGER,
         "desktop HMD tools window remains reachable on iOS")

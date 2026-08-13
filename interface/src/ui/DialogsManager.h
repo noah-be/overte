@@ -13,6 +13,7 @@
 #ifndef hifi_DialogsManager_h
 #define hifi_DialogsManager_h
 
+#include <QtCore/QObject>
 #include <QPointer>
 
 #include <DependencyManager.h>

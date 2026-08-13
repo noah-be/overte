@@ -737,6 +737,11 @@ Detailed-avatar motion-state names retain their historical
 `QString::number`. Qt 5 accepted the integer directly in the concatenation;
 Qt 6 requires the textual conversion to be explicit.
 
+`DialogsManager` now owns the complete `QObject` definition required by its
+direct base class. Its generic dialog-creation helper also compiles the
+`HMDToolsDialog::watchWindow` call only on desktop targets, matching the
+existing iOS source exclusion and no-op HMD-tools entry point.
+
 The audio gate requires device enumeration, route change, microphone consent,
 interruption recovery, Bluetooth behavior, mono input, stereo output, and
 resampling tests on physical hardware.
