@@ -17,6 +17,7 @@
 #include <limits>
 #include <vector>
 
+#include <QtCore/QDebug>
 #include <QtGui/QImage>
 
 using namespace gpu;
@@ -63,6 +64,36 @@ void GLBackend::setFramebuffer(const FramebufferPointer& framebuffer) {
         }
         assign(_output._framebuffer, framebuffer);
     }
+
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    // Apple Software OpenGL incorrectly applies FRAMEBUFFER_SRGB to linear
+    // offscreen attachments instead of treating it as a no-op. Select the
+    // conversion state from the actual bound color attachment, and restore it
+    // automatically when a later sRGB/default framebuffer is selected.
+    bool enableFramebufferSRGB = !framebuffer;
+    GLint colorEncoding { GL_LINEAR };
+    if (framebuffer && framebuffer->hasColor()) {
+        glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER,
+            GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING,
+            &colorEncoding);
+        enableFramebufferSRGB = colorEncoding == GL_SRGB;
+    }
+    if (enableFramebufferSRGB) {
+        glEnable(GL_FRAMEBUFFER_SRGB);
+    } else {
+        glDisable(GL_FRAMEBUFFER_SRGB);
+    }
+
+    static thread_local bool loggedLinearFramebuffer { false };
+    if (!enableFramebufferSRGB && !loggedLinearFramebuffer &&
+            qEnvironmentVariableIsSet("OVERTE_MACOS_GL_DIAGNOSTICS")) {
+        loggedLinearFramebuffer = true;
+        qInfo().noquote() << "OVERTE_MACOS_FRAMEBUFFER_SRGB"
+                          << "fbo=" << _output._drawFBO
+                          << "encoding=" << colorEncoding
+                          << "enabled=0";
+    }
+#endif
 }
 
 void GLBackend::do_advance(const Batch& batch, size_t paramOffset) {

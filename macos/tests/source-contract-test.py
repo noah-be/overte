@@ -652,6 +652,25 @@ for local_input_contract in (
 gl41_backend = (ROOT / "libraries/gpu-gl/src/gpu/gl41/GL41Backend.cpp").read_text(
     encoding="utf-8"
 )
+gl_backend_output = (
+    ROOT / "libraries/gpu-gl-common/src/gpu/gl/GLBackendOutput.cpp"
+).read_text(encoding="utf-8")
+mac_framebuffer_srgb = gl_backend_output.split(
+    "#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)", 1
+)[1].split("#endif", 1)[0]
+for framebuffer_srgb_contract in (
+    "GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING",
+    "colorEncoding == GL_SRGB",
+    "glEnable(GL_FRAMEBUFFER_SRGB)",
+    "glDisable(GL_FRAMEBUFFER_SRGB)",
+    "OVERTE_MACOS_FRAMEBUFFER_SRGB",
+):
+    if framebuffer_srgb_contract not in mac_framebuffer_srgb:
+        raise SystemExit(f"macOS framebuffer-sRGB state contract missing: {framebuffer_srgb_contract}")
+if mac_framebuffer_srgb.index("colorEncoding == GL_SRGB") > mac_framebuffer_srgb.index(
+    "glDisable(GL_FRAMEBUFFER_SRGB)"
+):
+    raise SystemExit("macOS must classify a framebuffer before selecting its sRGB write state")
 draw_unindexed = gl41_backend.split("void GL41Backend::do_draw", 1)[1].split(
     "void GL41Backend::do_drawIndexed", 1
 )[0]
