@@ -1777,6 +1777,8 @@ def test_ci_contract() -> None:
     require_text(integrated, r"Restore durable Qt iOS artifact after cache eviction[\s\S]*?qt-checkpoint-artifact\.py restore[\s\S]*?qt_ios_artifact_prefix", "the consumer must survive target-cache eviction through the validated artifact")
     require_text(integrated, r"Fail closed without validated Qt host tools[\s\S]*?qt-host-artifact\.outputs\.restored != 'true'", "the consumer must fail when both host recovery sources are absent")
     require_text(integrated, r"Fail closed without validated Qt iOS target[\s\S]*?qt-ios-artifact\.outputs\.restored != 'true'", "the consumer must fail when both target recovery sources are absent")
+    require_text(integrated, r"Toolchain preflight[\s\S]*?qt-host-cache\.outputs\.cache-hit[\s\S]*?\|\| test .*qt-host-artifact\.outputs\.restored", "the preflight must accept a validated host artifact after cache eviction")
+    require_text(integrated, r"Toolchain preflight[\s\S]*?qt-ios-cache\.outputs\.cache-hit[\s\S]*?\|\| test .*qt-ios-artifact\.outputs\.restored", "the preflight must accept a validated iOS artifact after cache eviction")
     require_text(integrated, r"runs-on: ubuntu-24\.04", "integrated CI needs Linux host contracts")
     require_text(integrated, r"macos_runner:[\s\S]*default:\s*macos-26",
                  "integrated CI must default to the Xcode 26 hosted runner")

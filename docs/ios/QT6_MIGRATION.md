@@ -718,6 +718,11 @@ resampling tests on physical hardware.
 
 ## Enforcement
 
+The integrated toolchain preflight accepts either an exact GitHub Actions
+cache hit or the corresponding provenance-checked Qt checkpoint artifact.
+Cache eviction therefore cannot reject a host/iOS tree that the durable
+fallback restored and the normal Qt validator subsequently verifies.
+
 The iOS build is not allowed to restore Qt WebEngine, QDesktopWidget, QGLWidget,
 or a desktop Qt installation to work around a migration error. A temporary
 compatibility use must be centralized, documented here, and covered by a host

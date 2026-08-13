@@ -281,8 +281,10 @@ jobs:
 
       - name: Toolchain preflight
         run: |
-          test "${{ steps.qt-host-cache.outputs.cache-hit }}" = true
-          test "${{ steps.qt-ios-cache.outputs.cache-hit }}" = true
+          test "${{ steps.qt-host-cache.outputs.cache-hit }}" = true \
+            || test "${{ steps.qt-host-artifact.outputs.restored }}" = true
+          test "${{ steps.qt-ios-cache.outputs.cache-hit }}" = true \
+            || test "${{ steps.qt-ios-artifact.outputs.restored }}" = true
           ios/tools/prepare-qt-ios.sh validate
           ios/build-ios.sh doctor --platform device --require-qt --require-moltenvk
 
