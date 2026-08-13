@@ -36,16 +36,7 @@
             finish(false, "snapshot_save_failed");
             return;
         }
-        if (snapshotStage === "warmup") {
-            snapshotStage = "cooldown";
-            print("OVERTE_MACOS_SMOKE warmup_snapshot=" + path);
-            Script.setTimeout(function () {
-                if (!completed) {
-                    snapshotStage = "final";
-                    Window.takeSnapshot(false, false, 16 / 9, "macos-online-smoke.png");
-                }
-            }, 5000);
-        } else if (snapshotStage === "final") {
+        if (snapshotStage === "capturing") {
             finish(true, "snapshot=" + path);
         }
     });
@@ -56,9 +47,13 @@
         }
         var entities = Entities.findEntities(MyAvatar.position, 16384);
         if (entities.length > 0 && snapshotStage === "waiting") {
-            snapshotStage = "warmup";
+            snapshotStage = "capturing";
             print("OVERTE_MACOS_SMOKE online_entities=" + entities.length);
-            Window.takeSnapshot(false, false, 16 / 9, "macos-online-warmup.png");
+            // One completed frame is the online rendering proof. Waiting for
+            // a second capture lets unrelated late domain assets enqueue new
+            // pipelines; Apple's virtualized software renderer may spend
+            // minutes compiling those after the scene is already visible.
+            Window.takeSnapshot(false, false, 16 / 9, "macos-online-smoke.png");
         }
         if (Date.now() >= deadline) {
             finish(false, snapshotStage === "waiting" ? "entity_timeout" : "snapshot_timeout");

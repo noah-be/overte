@@ -20,7 +20,6 @@ readonly crash_report="$output_dir/online.crash.ips"
 readonly lldb_log="$output_dir/online-lldb.log"
 readonly lldb_result="$output_dir/online-lldb-process.json"
 readonly snapshot="$output_dir/macos-online-smoke.png"
-readonly warmup_snapshot="$output_dir/macos-online-warmup.png"
 readonly screenshot_result="$output_dir/online-screenshot.json"
 readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-360}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
@@ -32,7 +31,7 @@ export OVERTE_MACOS_GL_DIAGNOSTICS=1
 [[ -x "$executable" ]] || { echo "missing executable: $executable" >&2; exit 1; }
 [[ -f "$default_scripts_override" ]] || { echo "missing default script override: $default_scripts_override" >&2; exit 1; }
 mkdir -p "$output_dir"
-rm -f "$snapshot" "$warmup_snapshot" "$screenshot_result"
+rm -f "$snapshot" "$screenshot_result"
 
 readonly -a app_command=(
     "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog --display Desktop

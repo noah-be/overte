@@ -402,9 +402,9 @@ for smoke_name, smoke_source in (("serverless", smoke), ("online", online_smoke)
             raise SystemExit(
                 f"{smoke_name} smoke is missing timeout contract: {timeout_contract}"
             )
-for smoke_name, smoke_source, maximum in (
-    ("serverless", smoke, 720),
-    ("online", online_smoke, 720),
+for smoke_name, smoke_source, maximum, cleanup_contract in (
+    ("serverless", smoke, 720, 'rm -f "$snapshot" "$warmup_snapshot" "$screenshot_result"'),
+    ("online", online_smoke, 720, 'rm -f "$snapshot" "$screenshot_result"'),
 ):
     default_timeout = re.search(
         r'OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-([0-9]+)', smoke_source
@@ -416,7 +416,7 @@ for smoke_name, smoke_source, maximum in (
     for screenshot_contract in (
         "validate-screenshot.py",
         "screenshot_result",
-        'rm -f "$snapshot" "$warmup_snapshot" "$screenshot_result"',
+        cleanup_contract,
     ):
         if screenshot_contract not in smoke_source:
             raise SystemExit(
@@ -425,9 +425,19 @@ for smoke_name, smoke_source, maximum in (
 
 serverless_script = (ROOT / "macos/tests/serverless-smoke.js").read_text(encoding="utf-8")
 online_script = (ROOT / "macos/tests/online-smoke.js").read_text(encoding="utf-8")
-for script_name, script_source, snapshot_name in (
-    ("serverless", serverless_script, "macos-serverless-smoke.png"),
-    ("online", online_script, "macos-online-smoke.png"),
+for script_name, script_source, snapshot_name, stage_contracts in (
+    (
+        "serverless",
+        serverless_script,
+        "macos-serverless-smoke.png",
+        ("warmup_snapshot=", 'snapshotStage = "final"', "5000"),
+    ),
+    (
+        "online",
+        online_script,
+        "macos-online-smoke.png",
+        ('snapshotStage = "capturing"', "One completed frame is the online rendering proof"),
+    ),
 ):
     for render_contract in (
         "Render.renderMethod = 1",
@@ -438,11 +448,8 @@ for script_name, script_source, snapshot_name in (
         'Render.getConfig("RenderMainView.PreparePrimaryBufferForward").numSamples = 1',
         "Scene.shouldRenderAvatars = false",
         "Script.stop()",
-        "warmup_snapshot=",
-        'snapshotStage = "final"',
-        "5000",
         snapshot_name,
-    ):
+    ) + stage_contracts:
         if render_contract not in script_source:
             raise SystemExit(
                 f"{script_name} smoke lacks deterministic rendering contract: {render_contract}"
