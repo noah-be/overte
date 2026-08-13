@@ -189,8 +189,12 @@ class RunnerTelemetryTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             result, records = self.invoke_phase(
                 Path(directory),
-                "import time; end=time.monotonic()+0.55\nwhile time.monotonic()<end: pass",
-                inactivity=0.15,
+                # A complete macOS sample invokes ps, vm_stat, sysctl and
+                # memory_pressure.  On a loaded hosted runner that can exceed
+                # the former 550 ms child lifetime, leaving no opportunity to
+                # publish the heartbeat the test is intended to inspect.
+                "import time; end=time.monotonic()+2.0\nwhile time.monotonic()<end: pass",
+                inactivity=0.4,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             heartbeats = [row for row in records
