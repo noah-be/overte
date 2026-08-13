@@ -538,6 +538,7 @@ for performance_contract in (
     "MAXIMUM_MEASUREMENT_MS = 90000",
     "MINIMUM_SAMPLE_COUNT = 30",
     "sampleCount >= MINIMUM_SAMPLE_COUNT",
+    "samples.length >= MINIMUM_SAMPLE_COUNT",
     "samples_us",
     "p50_frame_ms",
     "p95_frame_ms",
@@ -1092,6 +1093,15 @@ subprocess.run(
 )
 subprocess.run(
     [sys.executable, str(ROOT / "macos/tests/performance-validator-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [
+        "node",
+        str(ROOT / "macos/tests/performance-script-test.js"),
+        str(ROOT / "macos/tests/performance-smoke.js"),
+    ],
     cwd=ROOT,
     check=True,
 )

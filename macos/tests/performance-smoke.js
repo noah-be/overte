@@ -103,7 +103,7 @@
             }
         };
         Test.saveObject(metrics, "macos-performance.json");
-        finish(samples.length > 0, "samples=" + samples.length);
+        finish(samples.length >= MINIMUM_SAMPLE_COUNT, "samples=" + samples.length);
     }
 
     function startMeasurement() {
