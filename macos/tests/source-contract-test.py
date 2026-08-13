@@ -504,6 +504,9 @@ tone_map_source = (
 tone_map_shader = (
     ROOT / "libraries/render-utils/src/toneMapping.slf"
 ).read_text(encoding="utf-8")
+framebuffer_cache = (
+    ROOT / "libraries/render-utils/src/FramebufferCache.cpp"
+).read_text(encoding="utf-8")
 for diagnostic_contract in (
     "diagnoseFramebuffer",
     "GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING",
@@ -536,6 +539,13 @@ if "uvec2 _std140Padding" not in tone_map_shader:
 for diagnostic_token in ("OVERTE_MACOS_TONEMAP_PARAMS", "sizeof(Parameters)", "exposure_scale="):
     if diagnostic_token not in tone_map_source:
         raise SystemExit(f"tone-map runtime diagnostics missing: {diagnostic_token}")
+for linear_output_source, stage in (
+    (framebuffer_cache, "tone_map"),
+    (display_plugin, "composite"),
+):
+    linear_guard = linear_output_source.split("#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)", 1)[1]
+    if "COLOR_RGBA_32" not in linear_guard or f"stage={stage}" not in linear_guard:
+        raise SystemExit(f"macOS {stage} output must bypass broken offscreen sRGB writes")
 if display_plugin.index('diagnoseFramebuffer(toneInput') > display_plugin.index(
     'diagnoseFramebuffer(_currentFrame->framebuffer'
 ):

@@ -11,6 +11,10 @@
 
 #include "FramebufferCache.h"
 
+#include <mutex>
+
+#include <QtCore/QDebug>
+
 #include <glm/glm.hpp>
 #include <gpu/Format.h>
 #include <gpu/Framebuffer.h>
@@ -38,7 +42,20 @@ void FramebufferCache::createPrimaryFramebuffer() {
 gpu::FramebufferPointer FramebufferCache::getFramebuffer() {
     std::unique_lock<std::mutex> lock(_mutex);
     if (_cachedFramebuffers.empty()) {
-        _cachedFramebuffers.push_back(gpu::FramebufferPointer(gpu::Framebuffer::create("cached", gpu::Element::COLOR_SRGBA_32, gpu::Element::DEPTH24_STENCIL8, _frameBufferSize.width(), _frameBufferSize.height())));
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+        // Apple Software OpenGL reports a valid sRGB framebuffer but writes
+        // every positive tone-mapped channel as 1/255 into GL_SRGB8_ALPHA8
+        // texture attachments.  Keep the offscreen render/composite chain
+        // linear and defer its single sRGB conversion to window presentation.
+        const auto colorFormat = gpu::Element::COLOR_RGBA_32;
+        static std::once_flag linearOutputOnce;
+        std::call_once(linearOutputOnce, [] {
+            qInfo().noquote() << "OVERTE_MACOS_LINEAR_OUTPUT stage=tone_map format=RGBA8";
+        });
+#else
+        const auto colorFormat = gpu::Element::COLOR_SRGBA_32;
+#endif
+        _cachedFramebuffers.push_back(gpu::FramebufferPointer(gpu::Framebuffer::create("cached", colorFormat, gpu::Element::DEPTH24_STENCIL8, _frameBufferSize.width(), _frameBufferSize.height())));
     }
     gpu::FramebufferPointer result = _cachedFramebuffers.front();
     _cachedFramebuffers.pop_front();

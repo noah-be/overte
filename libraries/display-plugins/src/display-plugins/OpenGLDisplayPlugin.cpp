@@ -1235,7 +1235,20 @@ OpenGLDisplayPlugin::~OpenGLDisplayPlugin() {
 void OpenGLDisplayPlugin::updateCompositeFramebuffer() {
     auto renderSize = getRecommendedRenderSize();
     if (!_compositeFramebuffer || _compositeFramebuffer->getSize() != renderSize) {
-        _compositeFramebuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("OpenGLDisplayPlugin::composite", gpu::Element::COLOR_SRGBA_32, renderSize.x, renderSize.y));
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+        // Match FramebufferCache's linear macOS output.  Scene, HUD, cursor,
+        // screenshot and window presentation must all see one coherent color
+        // space; an sRGB composite attachment would re-enter Apple's broken
+        // offscreen conversion path.
+        const auto compositeFormat = gpu::Element::COLOR_RGBA_32;
+        static std::once_flag linearCompositeOnce;
+        std::call_once(linearCompositeOnce, [] {
+            qInfo().noquote() << "OVERTE_MACOS_LINEAR_OUTPUT stage=composite format=RGBA8";
+        });
+#else
+        const auto compositeFormat = gpu::Element::COLOR_SRGBA_32;
+#endif
+        _compositeFramebuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("OpenGLDisplayPlugin::composite", compositeFormat, renderSize.x, renderSize.y));
     }
 }
 
