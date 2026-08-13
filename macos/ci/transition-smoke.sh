@@ -32,7 +32,7 @@ rm -f "$initial_snapshot" "$online_snapshot" "$final_snapshot" \
 
 readonly -a app_command=(
     "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog --display Desktop
-    --disableLocalAvatar
+    --disableLocalAvatar --disableEntityScripts
     --defaultScriptsOverride "file://$default_scripts_override"
     --url "file://$scene" --testScript "$test_script"
     --testResultsLocation "$output_dir" --quitWhenFinished
@@ -43,6 +43,11 @@ python3 "$source_root/macos/tools/run-process-with-timeout.py" \
     --log "$log" --result "$process_result" --sample "$process_sample" \
     --crash-report "$crash_report" -- \
     "${app_command[@]}"
+
+grep -Fq "OVERTE_MACOS_RENDER_PHASE entity_scripts_disabled" "$log" || {
+    echo "transition smoke did not disable client entity scripts" >&2
+    exit 1
+}
 
 for marker in domain_list_connected entity_server_active entity_query_sent entity_data_received render_handoff; do
     grep -Fq "OVERTE_MACOS_ENTITY_GATE $marker" "$log" || {

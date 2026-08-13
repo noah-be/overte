@@ -390,6 +390,19 @@ for entity_script_contract in (
             f"online smoke must isolate client entity scripts: {entity_script_contract}"
         )
 
+transition_smoke = (ROOT / "macos/ci/transition-smoke.sh").read_text(
+    encoding="utf-8"
+)
+for entity_script_contract in (
+    "--disableEntityScripts",
+    "entity_scripts_disabled",
+):
+    if entity_script_contract not in transition_smoke:
+        raise SystemExit(
+            "serverless/online transition smoke must isolate client entity scripts: "
+            f"{entity_script_contract}"
+        )
+
 for smoke_name, smoke_source in (("serverless", smoke), ("online", online_smoke)):
     if "--disableWatchdog" not in smoke_source:
         raise SystemExit(
