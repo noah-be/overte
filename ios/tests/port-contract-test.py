@@ -1042,6 +1042,8 @@ def test_scope_contract() -> None:
     )
 
     suggestions_engine = SOURCE_ROOT / "interface" / "src" / "webbrowser" / "WebBrowserSuggestionsEngine.cpp"
+    assert "qregexp.h" not in suggestions_engine.read_text(encoding="utf-8").lower(), \
+        "the iOS-reachable suggestion engine must not include the removed and unused Qt 5 QRegExp header"
     require_text(
         suggestions_engine,
         r"#if QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)\s+const bool isSuggestionList = res\.metaType\(\)\.id\(\) == QMetaType::QVariantList;",

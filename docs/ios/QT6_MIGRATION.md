@@ -74,7 +74,8 @@ The Interface web-suggestion JSON parser now checks its required top-level
 `QVariantList` through `QVariant::metaType()` on Qt 6, retaining
 `QVariant::type()` on Qt 5. Invalid JSON and non-list responses still fail
 closed before indexing, and suggestion ordering and network behavior are
-unchanged.
+unchanged. Its two unused direct `qregexp.h` includes are removed so this
+iOS-reachable source no longer depends on a header removed from Qt 6.
 
 FST mappings continue to use `VariantMultiHash` so repeated script and
 blendshape keys are preserved. Qt 6 no longer implicitly converts between
