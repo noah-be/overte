@@ -1360,6 +1360,11 @@ def test_scope_contract() -> None:
     font_source_text = font_source.read_text(encoding="utf-8")
     assert "glyph.c = QChar(static_cast<ushort>(g.codepoint));" in font_source_text
     assert "glyph.c = g.codepoint;" not in font_source_text
+    geometry_cache = SOURCE_ROOT / "libraries" / "render-utils" / "src" / "GeometryCache.cpp"
+    geometry_cache_text = geometry_cache.read_text(encoding="utf-8")
+    assert "inline size_t qHash(const SimpleProgramKey& key, size_t seed)" in geometry_cache_text
+    assert "inline uint qHash(const SimpleProgramKey& key, uint seed)" in geometry_cache_text
+    assert "#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)" in geometry_cache_text
     entity_generator = SOURCE_ROOT / "cmake" / "macros" / "GenerateEntityProperties.cmake"
     require_text(
         entity_generator,

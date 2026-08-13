@@ -667,6 +667,11 @@ UTF-16 `QChar` glyph key. This makes the former Qt 5 narrowing visible to Qt 6
 without changing the BMP-oriented glyph table, lookup keys, spacing, or atlas
 metrics.
 
+`GeometryCache`'s private simple-program key now follows Qt's versioned hash
+ABI: `size_t` seed/result on Qt 6 and the original `uint` pair on Qt 5. The raw
+pipeline flag bits and Qt's integer hash function remain unchanged; matching
+the seed width removes the ambiguous mixed-width overload call.
+
 The audio gate requires device enumeration, route change, microphone consent,
 interruption recovery, Bluetooth behavior, mono input, stereo output, and
 resampling tests on physical hardware.

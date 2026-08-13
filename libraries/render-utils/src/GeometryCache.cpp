@@ -2284,7 +2284,11 @@ public:
     SimpleProgramKey(int bitmask) : _flags(bitmask) {}
 };
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+inline size_t qHash(const SimpleProgramKey& key, size_t seed) {
+#else
 inline uint qHash(const SimpleProgramKey& key, uint seed) {
+#endif
     return qHash(key.getRaw(), seed);
 }
 
