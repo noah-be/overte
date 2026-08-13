@@ -2140,15 +2140,22 @@ def test_script_entity_id_qt6_contract() -> None:
 
     controller_header = SOURCE_ROOT / "libraries" / "controllers" / "src" / "controllers" / "UserInputMapper.h"
     controller_text = controller_header.read_text(encoding="utf-8")
+    pose_header = SOURCE_ROOT / "libraries" / "controllers" / "src" / "controllers" / "Pose.h"
+    require_text(
+        pose_header,
+        r"#include <QtCore/QMetaType>[\s\S]*struct Pose[\s\S]*Q_DECLARE_METATYPE\(controller::Pose\)",
+        "Pose must own its Qt metatype declaration before MOC consumers can instantiate it",
+    )
+    assert "Q_DECLARE_METATYPE(controller::Pose)" not in controller_text, \
+        "UserInputMapper must not declare Pose after MOC-visible methods have instantiated it"
     # Qt 6 automatically instantiates the leaf metatype while declaring QPair and QVector wrappers.
     input_type = controller_text.index("Q_DECLARE_METATYPE(controller::Input)\n")
-    pose_type = controller_text.index("Q_DECLARE_METATYPE(controller::Pose)\n")
     action_type = controller_text.index("Q_DECLARE_METATYPE(controller::Action)\n")
     hand_type = controller_text.index("Q_DECLARE_METATYPE(controller::Hand)\n")
     input_pair = controller_text.index("Q_DECLARE_METATYPE(controller::Input::NamedPair)\n")
     input_vector = controller_text.index("Q_DECLARE_METATYPE(QVector<controller::Input::NamedPair>)\n")
     action_vector = controller_text.index("Q_DECLARE_METATYPE(QVector<controller::Action>)\n")
-    assert max(input_type, pose_type, action_type, hand_type) < input_pair < input_vector, \
+    assert max(input_type, action_type, hand_type) < input_pair < input_vector, \
         "Qt 6 must register controller leaf types before automatic QPair and QVector metatypes"
     assert action_type < action_vector, "Qt 6 must register Action before its QVector metatype"
 

@@ -427,6 +427,11 @@ so it reads the shared application configuration and retains environment
 access without constructing `QProcess`; desktop launcher behavior is
 unchanged.
 
+The controller `Pose` value now owns its `Q_DECLARE_METATYPE` declaration in
+`Pose.h`, immediately after the complete type. This makes the declaration
+available before Qt 6 MOC consumers instantiate `QMetaTypeId<Pose>` and keeps
+the runtime controller/script payload unchanged.
+
 Entity dynamic vector and quaternion argument parsing now performs its strict
 `QVariantMap` check through `QVariant::metaType()` on Qt 6 while retaining
 `QVariant::type()` only inside the Qt 5 compatibility branch. The parser still
