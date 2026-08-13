@@ -33,8 +33,8 @@ crash report.
 
 ## Open gates
 
-1. Re-run serverless after online navigation in the same process to prove
-   transition cleanup.
+1. Pass the prepared same-process serverless-online-serverless transition gate
+   on the Intel runtime artifact.
 2. Establish stable performance baselines before making frame-time thresholds
    blocking.
 3. Validate native Apple Silicon dependencies and runtime.

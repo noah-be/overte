@@ -26,6 +26,11 @@ on:
         default: '0'
         type: choice
         options: ['0', '3', '5']
+      run_transition:
+        description: Prove serverless to online to serverless cleanup in one process
+        required: true
+        default: false
+        type: boolean
       online_location:
         description: Online place or direct domain URL used by the public-domain smoke
         required: true
@@ -48,7 +53,7 @@ jobs:
   runtime-x86_64:
     if: github.event_name == 'workflow_dispatch'
     runs-on: macos-15-intel
-    timeout-minutes: 45
+    timeout-minutes: 95
     env:
       OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '300'
     steps:
@@ -125,6 +130,19 @@ jobs:
             --watch smoke=build/macos-online-smoke -- \
             macos/ci/online-smoke.sh "$app" build/macos-online-smoke
 
+      - name: Run serverless-online-serverless transition smoke
+        if: ${{ inputs.run_transition && steps.serverless-smoke.outcome == 'success' }}
+        run: |
+          app="$(cat build/runtime-artifact/app-path.txt)"
+          python3 macos/ci/runner-telemetry.py \
+            --phase runtime-transition \
+            --log build/macos-runtime-telemetry/transition.jsonl \
+            --diagnostics-dir build/macos-runtime-telemetry/transition-stall \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 660 --max-runtime 720 \
+            --watch transition=build/macos-transition -- \
+            macos/ci/transition-smoke.sh "$app" build/macos-transition
+
       - name: Run deterministic graphics performance smoke
         if: ${{ inputs.run_performance && steps.serverless-smoke.outcome == 'success' }}
         run: |
@@ -163,6 +181,7 @@ jobs:
             build/macos-startup-preflight
             build/macos-smoke
             build/macos-online-smoke
+            build/macos-transition
             build/macos-performance
             build/macos-stability
             build/macos-runtime-telemetry

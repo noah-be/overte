@@ -60,8 +60,20 @@ Every cycle retains its own process, image, and log evidence. The summary and
 JUnit report fail if any cycle times out, receives a termination signal, exits
 non-zero, misses a runtime gate, or fails visual validation.
 
+Same-process cleanup across both connection modes can be tested separately:
+
+```bash
+macos/ci/transition-smoke.sh build/interface/Overte.app build/macos-transition
+```
+
+It loads and captures the exact local fixture, connects to and captures the
+public Hub only after the fixture entities disappear, returns to the local
+scene, requires a second serverless import generation, and validates the final
+fixture image. This catches stale entity trees, stale network requests, and
+mode-switch shutdown problems that independent launches cannot detect.
+
 The manually dispatched `macOS runtime smoke` workflow can run performance and
-three or five stability cycles against an existing matching application
+three or five stability cycles, or the same-process transition, against an existing matching application
 artifact. This avoids rebuilding the app for runtime-only test changes. A real
 WindowServer/OpenGL context is required; Qt's offscreen platform is not a
 substitute for the 3D graphics gates.

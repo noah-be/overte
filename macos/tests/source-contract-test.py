@@ -555,6 +555,33 @@ for stability_contract in (
     ).read_text(encoding="utf-8"):
         raise SystemExit(f"macOS stability suite missing: {stability_contract}")
 
+transition_smoke = (ROOT / "macos/ci/transition-smoke.sh").read_text(encoding="utf-8")
+transition_script = (ROOT / "macos/tests/transition-smoke.js").read_text(encoding="utf-8")
+for transition_contract in (
+    "domain_list_connected",
+    "entity_server_active",
+    "entity_query_sent",
+    "entity_data_received",
+    "serverless_import_committed",
+    "online_seen && /OVERTE_MACOS_ENTITY_GATE serverless_import_committed/",
+    "serverless-online-serverless transition smoke passed",
+    "--require-red-left --require-cyan-right",
+):
+    if transition_contract not in transition_smoke:
+        raise SystemExit(f"macOS transition runner missing: {transition_contract}")
+for transition_contract in (
+    'Script.resolvePath("fixtures/serverless-render.json")',
+    'AddressManager.handleLookupString("hifi://overte_hub")',
+    "AddressManager.handleLookupString(localScene)",
+    "state.fixtureCount === 0",
+    "initial_fixture_entities=3",
+    "online_entities=",
+    "returned_fixture_entities=3",
+    'finish(true, "serverless_online_serverless")',
+):
+    if transition_contract not in transition_script:
+        raise SystemExit(f"macOS transition script missing: {transition_contract}")
+
 render_common = (ROOT / "libraries/render-utils/src/RenderCommonTask.cpp").read_text(
     encoding="utf-8"
 )

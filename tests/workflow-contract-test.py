@@ -601,6 +601,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("online_location:", source)
         self.assertIn("run_performance:", source)
         self.assertIn("stability_iterations:", source)
+        self.assertIn("run_transition:", source)
         self.assertIn("options: ['0', '3', '5']", source)
         self.assertIn("default: hifi://overte_hub", source)
         self.assertIn(
@@ -623,6 +624,11 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("--phase runtime-stability", source)
         self.assertIn("--inactivity-timeout 660 --max-runtime 2400", source)
         self.assertIn("build/macos-stability", source)
+        self.assertIn("macos/ci/transition-smoke.sh", source)
+        self.assertIn("--phase runtime-transition", source)
+        self.assertIn("--inactivity-timeout 660 --max-runtime 720", source)
+        self.assertIn("build/macos-transition", source)
+        self.assertIn("timeout-minutes: 95", source)
         self.assertNotIn("build-macos.sh build", source)
         self.assertIn("if: always()", source)
 
