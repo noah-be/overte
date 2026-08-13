@@ -42,13 +42,6 @@
 
 <@include render-utils/ShaderConstants.h@>
 
-struct ToneMappingParams {
-    // Apple OpenGL 4.1 reliably consumes complete vec4 registers here, while
-    // its software renderer can misread a compact mixed float/int struct.
-    vec4 _exposureRegister;
-    ivec4 _curveRegister;
-};
-
 const float GAMMA_22 = 2.2;
 const float INV_GAMMA_22 = 1.0 / 2.2;
 const int ToneCurveNone = 0;
@@ -57,13 +50,17 @@ const int ToneCurveReinhard = 2;
 const int ToneCurveFilmic = 3;
 
 UNIFORM_BUFFER(RENDER_UTILS_BUFFER_TM_PARAMS, toneMappingParamsBuffer) {
-    ToneMappingParams params;
+    // Keep these as direct block members.  Apple's software OpenGL renderer
+    // reflects nested std140 structs correctly but reads their scalar members
+    // as sub-LSB values.  Direct, full-register members avoid that driver path.
+    vec4 _exposureRegister;
+    ivec4 _curveRegister;
 };
 float getTwoPowExposure() {
-    return params._exposureRegister.y;
+    return _exposureRegister.y;
 }
 int getToneCurve() {
-    return params._curveRegister.x;
+    return _curveRegister.x;
 }
 
 TEXTURE(RENDER_UTILS_TEXTURE_TM_COLOR, sampler2D, colorMap);

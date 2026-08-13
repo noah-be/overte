@@ -541,6 +541,8 @@ for std140_contract in (
 for shader_register in ("vec4 _exposureRegister", "ivec4 _curveRegister"):
     if shader_register not in tone_map_shader:
         raise SystemExit("tone-map shader must use two explicit std140 registers")
+if "struct ToneMappingParams" in tone_map_shader or "params._exposureRegister" in tone_map_shader:
+    raise SystemExit("tone-map uniforms must be direct block members for Apple OpenGL")
 for diagnostic_token in ("OVERTE_MACOS_TONEMAP_PARAMS", "sizeof(Parameters)", "exposure_scale="):
     if diagnostic_token not in tone_map_source:
         raise SystemExit(f"tone-map runtime diagnostics missing: {diagnostic_token}")
