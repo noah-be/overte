@@ -258,8 +258,13 @@ static void addDisplayPluginToMenu(const DisplayPluginPointer& displayPlugin, in
         displayPluginGroup->setExclusive(true);
     }
     auto parent = menu->getMenu(MenuOption::OutputMenu);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    const QKeySequence shortcut(Qt::CTRL | static_cast<Qt::Key>(Qt::Key_0 + index));
+#else
+    const QKeySequence shortcut(Qt::CTRL + (Qt::Key_0 + index));
+#endif
     auto action = menu->addActionToQMenuAndActionHash(parent,
-        name, QKeySequence(Qt::CTRL + (Qt::Key_0 + index)), qApp,
+        name, shortcut, qApp,
         SLOT(updateDisplayMode()),
         QAction::NoRole, Menu::UNSPECIFIED_POSITION, groupingMenu);
 

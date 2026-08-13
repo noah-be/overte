@@ -366,6 +366,11 @@ the built-in empty entry, settings retrieval, and validator installation are
 unchanged. `Application_Graphics.cpp` therefore leaves the Core5Compat
 inventory.
 
+Display-plugin menu shortcuts use Qt 6's typed `QKeyCombination` operator for
+Ctrl plus the indexed digit key. The Qt 5 branch retains its original integer
+combination, so plugin ordering and the Ctrl+0…9 selection behavior do not
+change while avoiding the deleted Qt 6 arithmetic operator.
+
 The desktop log dialog's bold timestamp/source highlighter now scans with
 `QRegularExpression`. Every formatted range still starts at the match, uses
 the full match length, and resumes immediately after that range. The existing

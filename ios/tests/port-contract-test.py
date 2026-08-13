@@ -1483,6 +1483,20 @@ def test_scope_contract() -> None:
     )
     if "QRegExp" in application_graphics.read_text(encoding="utf-8"):
         raise AssertionError("Application_Graphics retained removed QRegExp API")
+    require_text(
+        application_graphics,
+        r'#if QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)\s*'
+        r'const QKeySequence shortcut\(Qt::CTRL \| static_cast<Qt::Key>\(Qt::Key_0 \+ index\)\);\s*'
+        r'#else\s*const QKeySequence shortcut\(Qt::CTRL \+ \(Qt::Key_0 \+ index\)\);\s*#endif',
+        "display selection shortcuts must use QKeyCombination on Qt 6 and retain Qt 5 behavior",
+    )
+    require_text(
+        application_graphics,
+        r'addActionToQMenuAndActionHash\(parent,\s*name,\s*shortcut,\s*qApp,',
+        "the versioned display shortcut must remain bound to each plugin action",
+    )
+    assert "QKeySequence(Qt::CTRL + (Qt::Key_0 + index))" not in application_graphics.read_text(encoding="utf-8"), \
+        "Qt 6 deletes arithmetic addition between keyboard modifiers and keys"
 
     base_log_dialog = SOURCE_ROOT / "interface" / "src" / "ui" / "BaseLogDialog.cpp"
     require_text(base_log_dialog, r'#include <QRegularExpression>', "log highlighting must use the Qt 6 regex API")
