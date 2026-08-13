@@ -2333,6 +2333,23 @@ def test_script_entity_id_qt6_contract() -> None:
     assert '+ "_" + _jointIndex' not in detailed_motion_state.read_text(encoding="utf-8"), \
         "QString must not rely on Qt 5's implicit integer concatenation"
 
+    collision_pick = SOURCE_ROOT / "interface" / "src" / "raypick" / "CollisionPick.cpp"
+    require_text(
+        collision_pick,
+        r"auto\s+vertexItr\s*=\s*vertices\.cbegin\(\)",
+        "Qt 6 collision vertices must retain their container const-iterator type",
+    )
+    require_text(
+        collision_pick,
+        r"auto\s+indexItr\s*=\s*meshPart\.triangleIndices\.cbegin\(\)",
+        "Qt 6 triangle indices must retain their container const-iterator type",
+    )
+    collision_pick_text = collision_pick.read_text(encoding="utf-8")
+    assert "const glm::vec3* vertexItr = vertices.cbegin()" not in collision_pick_text, \
+        "QVector iterators must not be assumed to be raw pointers under Qt 6"
+    assert "const int* indexItr = meshPart.triangleIndices.cbegin()" not in collision_pick_text, \
+        "Qt 6 triangle-index iterators must not be narrowed to raw pointers"
+
 
 def main() -> None:
     tests = (

@@ -747,6 +747,12 @@ declaring its direct base. This keeps its typed network-reply connection,
 `sender()` lookup, and named-thread handoff visible under Qt 6 without changing
 the asynchronous quit-event protocol.
 
+Collision-shape extraction now preserves the concrete const-iterator types
+returned by the vertex and triangle-index containers. Qt 5's QVector iterator
+representation happened to be pointer-compatible; Qt 6's container aliases do
+not promise that representation. Point order, extents, and copied triangle
+indices remain unchanged.
+
 The audio gate requires device enumeration, route change, microphone consent,
 interruption recovery, Bluetooth behavior, mono input, stereo output, and
 resampling tests on physical hardware.
