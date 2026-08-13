@@ -235,6 +235,14 @@ void ResolveFramebuffer::run(const render::RenderContextPointer& renderContext, 
     auto srcFbo = inputs.get0();
     auto destFbo = inputs.get1();
 
+    // A single-sample framebuffer is already resolved.  Passing it through also
+    // avoids an unnecessary floating-point framebuffer blit, which is both
+    // expensive and unreliable on Apple's software OpenGL implementation.
+    if (srcFbo && srcFbo->getNumSamples() <= 1) {
+        outputs = srcFbo;
+        return;
+    }
+
     if (!destFbo) {
         destFbo = args->_blitFramebuffer;
     }

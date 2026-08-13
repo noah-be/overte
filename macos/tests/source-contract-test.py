@@ -463,6 +463,26 @@ for fixture_name in (
 if "--require-red-pixels 128 --require-cyan-pixels 128" not in smoke:
     raise SystemExit("serverless smoke must verify both colored fixture entities")
 
+render_common = (ROOT / "libraries/render-utils/src/RenderCommonTask.cpp").read_text(
+    encoding="utf-8"
+)
+resolve_framebuffer = render_common.split("void ResolveFramebuffer::run", 1)[1].split(
+    "void ExtractFrustums::run", 1
+)[0]
+for resolve_contract in (
+    "srcFbo->getNumSamples() <= 1",
+    "outputs = srcFbo",
+    "batch.blit(srcFbo, rectSrc, destFbo, rectSrc)",
+):
+    if resolve_contract not in resolve_framebuffer:
+        raise SystemExit(
+            f"forward framebuffer resolve contract missing: {resolve_contract}"
+        )
+if resolve_framebuffer.index("srcFbo->getNumSamples() <= 1") > resolve_framebuffer.index(
+    "batch.blit(srcFbo, rectSrc, destFbo, rectSrc)"
+):
+    raise SystemExit("single-sample forward framebuffers must bypass the resolve blit")
+
 main_source = (ROOT / "interface/src/main.cpp").read_text(encoding="utf-8")
 if main_source.count('"disableLocalAvatar"') != 1:
     raise SystemExit("the local-avatar suppression option must be declared exactly once")
