@@ -6,10 +6,10 @@
 
     // Keep the visual gate deterministic and tractable on GitHub's Intel
     // runner, which exposes Apple's software OpenGL renderer.
-    // The local avatar is suppressed before scene submission, so the smoke no
-    // longer needs the macOS software renderer's broken forward-color path.
-    // Deferred rendering preserves the entity albedo in captured frames.
-    Render.renderMethod = 0;
+    // The local avatar is suppressed before scene submission. Keep the normal
+    // desktop forward path at native resolution so this smoke also covers the
+    // final color/resampling path without a test-only downscale.
+    Render.renderMethod = 1;
     Render.shadowsEnabled = false;
     Render.hazeEnabled = false;
     Render.bloomEnabled = false;
@@ -17,7 +17,7 @@
     Render.localLightingEnabled = false;
     Render.proceduralMaterialsEnabled = false;
     Render.antialiasingMode = 0;
-    Render.viewportResolutionScale = 0.5;
+    Render.viewportResolutionScale = 1.0;
     Scene.shouldRenderAvatars = false;
 
     // The GitHub Intel runner exposes Apple's software OpenGL renderer.  Its
@@ -66,8 +66,13 @@
         }
         var entities = Entities.findEntities(MyAvatar.position, 16384);
         entities.forEach(function (entityID) {
-            var name = Entities.getEntityProperties(entityID, ["name"]).name;
+            var properties = Entities.getEntityProperties(entityID, ["name", "color", "textColor"]);
+            var name = properties.name;
             if (Object.prototype.hasOwnProperty.call(expectedNames, name)) {
+                if (!expectedNames[name]) {
+                    print("OVERTE_MACOS_SMOKE fixture_color=" + name + " " +
+                        JSON.stringify(properties.color || properties.textColor));
+                }
                 expectedNames[name] = true;
             }
         });

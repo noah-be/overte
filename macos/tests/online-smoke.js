@@ -6,7 +6,7 @@
 
     // Match the supported desktop scene path. The local avatar is disabled by
     // the runner before it can submit its expensive skinned pipelines.
-    Render.renderMethod = 0;
+    Render.renderMethod = 1;
     Render.shadowsEnabled = false;
     Render.hazeEnabled = false;
     Render.bloomEnabled = false;
@@ -14,7 +14,7 @@
     Render.localLightingEnabled = false;
     Render.proceduralMaterialsEnabled = false;
     Render.antialiasingMode = 0;
-    Render.viewportResolutionScale = 0.5;
+    Render.viewportResolutionScale = 1.0;
     Scene.shouldRenderAvatars = false;
 
     var deadline = Date.now() + 180000;
