@@ -753,6 +753,10 @@ representation happened to be pointer-compatible; Qt 6's container aliases do
 not promise that representation. Point order, extents, and copied triangle
 indices remain unchanged.
 
+Avatar hold actions now parse the optional textual holder identifier explicitly
+as a `QUuid`. Invalid or absent input still follows the existing `ok`/session-ID
+fallback behavior; the change only replaces Qt 5's implicit string conversion.
+
 The audio gate requires device enumeration, route change, microphone consent,
 interruption recovery, Bluetooth behavior, mono input, stereo output, and
 resampling tests on physical hardware.

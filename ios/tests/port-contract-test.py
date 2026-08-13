@@ -2350,6 +2350,17 @@ def test_script_entity_id_qt6_contract() -> None:
     assert "const int* indexItr = meshPart.triangleIndices.cbegin()" not in collision_pick_text, \
         "Qt 6 triangle-index iterators must not be narrowed to raw pointers"
 
+    avatar_action_hold = SOURCE_ROOT / "interface" / "src" / "avatar" / "AvatarActionHold.cpp"
+    require_text(
+        avatar_action_hold,
+        r'holderID\s*=\s*QUuid\(EntityDynamicInterface::extractStringArgument\('
+        r'"hold",\s*arguments,\s*"holderID",\s*ok,\s*false\)\)',
+        "Qt 6 hold actions must parse their string holder identifier explicitly",
+    )
+    assert 'holderID = EntityDynamicInterface::extractStringArgument(' not in \
+        avatar_action_hold.read_text(encoding="utf-8"), \
+        "QUuid assignment must not rely on Qt 5's implicit QString conversion"
+
 
 def main() -> None:
     tests = (
