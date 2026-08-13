@@ -678,6 +678,12 @@ longer converts a Boolean to `QChar` during string concatenation. Both compound
 and ordinary model keys preserve those exact binary marker values, URLs, and
 shape-cache partitioning.
 
+The Vulkan display plugin no longer compiles its legacy offscreen-OpenGL
+context ownership on iOS. macOS keeps current/done-current, thread migration,
+and widget swap behavior; iOS executes the same GPU frame and presents through
+the existing MoltenVK swapchain/`vkQueuePresentKHR` path without inventing an
+absent GL context.
+
 The audio gate requires device enumeration, route change, microphone consent,
 interruption recovery, Bluetooth behavior, mono input, stereo output, and
 resampling tests on physical hardware.

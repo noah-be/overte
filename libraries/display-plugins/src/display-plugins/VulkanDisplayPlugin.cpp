@@ -173,12 +173,12 @@ public:
                             //bool hasVsync = true;
                             QThread::setPriority(newPlugin->getPresentPriority());
                             //bool wantVsync = newPlugin->wantVsync();
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
                             newPlugin->swapBuffers();
 #endif
                             // VKTODO
                             //gl::setSwapInterval(wantVsync ? 1 : 0);
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
                             newPlugin->swapBuffers();
 #endif
                             //hasVsync = gl::getSwapInterval() != 0; // VKTODO: is this needed?
@@ -202,7 +202,7 @@ public:
                 continue;
             }
 
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
             _context->makeCurrent();
 #endif
             // Execute the frame and present it to the display device.
@@ -213,7 +213,7 @@ public:
                 //gl::globalRelease(false);
                 //CHECK_GL_ERROR();
             }
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
             _context->doneCurrent();
 #endif
 
@@ -297,12 +297,14 @@ bool VulkanDisplayPlugin::activate() {
         DependencyManager::set<VulkanPresentThread>();
         presentThread = DependencyManager::get<VulkanPresentThread>();
         presentThread->setObjectName("PresentThread");
+#if !defined(Q_OS_IOS)
         if (!widget->context()->makeCurrent()) {
             throw std::runtime_error("Failed to make context current");
         }
         //CHECK_GL_ERROR();
         widget->context()->doneCurrent();
         widget->context()->moveToThread(presentThread.get());
+#endif
 #ifdef USE_GL
 #else
         VKWidget *vkWidget = _container->getPrimaryWidget();
@@ -800,12 +802,16 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
             });
             // Execute the frame rendering commands
             PROFILE_RANGE_EX(render, "execute", 0xff00ff00, frameId)
+#if !defined(Q_OS_IOS)
             auto context = _container->getPrimaryWidget()->context();
             context->moveToThread(QThread::currentThread());
             context->makeCurrent();
+#endif
             vkBackend->setDrawCommandBuffer(commandBuffer);
             _gpuContext->executeFrame(_currentFrame);
+#if !defined(Q_OS_IOS)
             context->doneCurrent();
+#endif
             _renderedFrameCount++;
         }
 
@@ -1010,8 +1016,10 @@ float VulkanDisplayPlugin::renderRate() const {
 }
 
 void VulkanDisplayPlugin::swapBuffers() {
+#if !defined(Q_OS_IOS)
     static auto context = _container->getPrimaryWidget()->context();
     context->swapBuffers();
+#endif
 }
 
 void VulkanDisplayPlugin::withOtherThreadContext(std::function<void()> f) const {

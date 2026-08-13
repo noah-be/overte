@@ -31,5 +31,14 @@ require("KTX1 requires the legacy GL format mapping" in SOURCE,
         "iOS KTX capture must fail closed with its source-level reason")
 require("#if !defined(Q_OS_IOS)\n    if (!OffscreenGLCanvas::restoreThreadContext())" in SOURCE,
         "legacy context restore must be excluded on iOS and preserved elsewhere")
+require(SOURCE.count("#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)") == 4,
+        "macOS present-thread GL current/swap calls must not compile for iOS")
+require("#if !defined(Q_OS_IOS)\n        if (!widget->context()->makeCurrent())" in SOURCE,
+        "display activation must not access the absent iOS GL context")
+require("#if !defined(Q_OS_IOS)\n            auto context = _container->getPrimaryWidget()->context();" in SOURCE,
+        "Vulkan execution must retain desktop GL ownership without requiring it on iOS")
+swap_body = SOURCE.split("void VulkanDisplayPlugin::swapBuffers() {", 1)[1].split("\n}", 1)[0]
+require(swap_body.lstrip().startswith("#if !defined(Q_OS_IOS)"),
+        "legacy widget swap must compile out on iOS")
 
 print("Vulkan display GL helper isolation valid: iOS memory/FBO/KTX/context-restore helpers excluded")
