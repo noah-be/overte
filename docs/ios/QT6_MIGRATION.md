@@ -757,6 +757,11 @@ Avatar hold actions now parse the optional textual holder identifier explicitly
 as a `QUuid`. Invalid or absent input still follows the existing `ok`/session-ID
 fallback behavior; the change only replaces Qt 5's implicit string conversion.
 
+Asset-mapping callbacks now recover the `QJSEngine` from the scripting QObject
+registered with QML before creating their result object. Qt 6 removed
+`QJSValue::engine()`; mapping properties and the callback's error-first result
+shape are unchanged, while a missing engine fails closed with an undefined map.
+
 The audio gate requires device enumeration, route change, microphone consent,
 interruption recovery, Bluetooth behavior, mono input, stereo output, and
 resampling tests on physical hardware.

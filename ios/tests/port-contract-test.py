@@ -2361,6 +2361,26 @@ def test_script_entity_id_qt6_contract() -> None:
         avatar_action_hold.read_text(encoding="utf-8"), \
         "QUuid assignment must not rely on Qt 5's implicit QString conversion"
 
+    asset_mappings = SOURCE_ROOT / "interface" / "src" / "scripting" / "AssetMappingsScriptingInterface.cpp"
+    require_text(
+        asset_mappings,
+        r'#include\s*<QtQml/QJSEngine>',
+        "Qt 6 asset mappings must own the QJSEngine API used to create callback objects",
+    )
+    require_text(
+        asset_mappings,
+        r'connect\([^;]*GetAllMappingsRequest::finished[^;]*\[this,\s*callback\][\s\S]*?'
+        r'auto\s+engine\s*=\s*qjsEngine\(this\)[\s\S]*?engine\s*\?\s*engine->newObject\(\)',
+        "Qt 6 asset mappings must recover their registered QML engine from the exposed QObject",
+    )
+    require_text(
+        asset_mappings,
+        r'for\s*\(const auto&\s+kv\s*:\s*mappings\)[\s\S]*?map\.setProperty\(kv\.first,\s*kv\.second\.hash\)',
+        "the Qt 6 mapping object must retain every path-to-hash property",
+    )
+    assert "callback.engine()" not in asset_mappings.read_text(encoding="utf-8"), \
+        "QJSValue::engine was removed in Qt 6"
+
 
 def main() -> None:
     tests = (
