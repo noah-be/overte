@@ -1365,6 +1365,11 @@ def test_scope_contract() -> None:
     assert "inline size_t qHash(const SimpleProgramKey& key, size_t seed)" in geometry_cache_text
     assert "inline uint qHash(const SimpleProgramKey& key, uint seed)" in geometry_cache_text
     assert "#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)" in geometry_cache_text
+    renderable_model = SOURCE_ROOT / "libraries" / "entities-renderer" / "src" / "RenderableModelEntityItem.cpp"
+    renderable_model_text = renderable_model.read_text(encoding="utf-8")
+    snap_marker = "QChar(static_cast<ushort>(model->getSnapModelToRegistrationPoint()))"
+    assert renderable_model_text.count(snap_marker) == 2
+    assert "+ model->getSnapModelToRegistrationPoint()" not in renderable_model_text
     entity_generator = SOURCE_ROOT / "cmake" / "macros" / "GenerateEntityProperties.cmake"
     require_text(
         entity_generator,

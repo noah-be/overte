@@ -672,6 +672,12 @@ ABI: `size_t` seed/result on Qt 6 and the original `uint` pair on Qt 5. The raw
 pipeline flag bits and Qt's integer hash function remain unchanged; matching
 the seed width removes the ambiguous mixed-width overload call.
 
+Model collision-shape cache keys now spell their historical one-code-unit snap
+marker explicitly. Qt 5 appended `false`/`true` as UTF-16 values 0/1; Qt 6 no
+longer converts a Boolean to `QChar` during string concatenation. Both compound
+and ordinary model keys preserve those exact binary marker values, URLs, and
+shape-cache partitioning.
+
 The audio gate requires device enumeration, route change, microphone consent,
 interruption recovery, Bluetooth behavior, mono input, stereo output, and
 resampling tests on physical hardware.

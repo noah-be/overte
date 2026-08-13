@@ -465,7 +465,8 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
                 pointCollection[i][j] = scaleToFit * (pointCollection[i][j] + offset) - registrationOffset;
             }
         }
-        shapeInfo.setParams(type, 0.5f * extents, getCompoundShapeURL() + model->getSnapModelToRegistrationPoint());
+        shapeInfo.setParams(type, 0.5f * extents,
+            getCompoundShapeURL() + QChar(static_cast<ushort>(model->getSnapModelToRegistrationPoint())));
         adjustShapeInfoByRegistration(shapeInfo, model->getSnapModelToRegistrationPoint());
     } else if (type >= SHAPE_TYPE_SIMPLE_HULL && type <= SHAPE_TYPE_STATIC_MESH) {
         updateModelBounds();
@@ -698,7 +699,8 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
             }
         }
 
-        shapeInfo.setParams(type, 0.5f * extents.size(), getModelURL() + model->getSnapModelToRegistrationPoint());
+        shapeInfo.setParams(type, 0.5f * extents.size(),
+            getModelURL() + QChar(static_cast<ushort>(model->getSnapModelToRegistrationPoint())));
         adjustShapeInfoByRegistration(shapeInfo, model->getSnapModelToRegistrationPoint());
     } else {
         EntityItem::computeShapeInfo(shapeInfo);
