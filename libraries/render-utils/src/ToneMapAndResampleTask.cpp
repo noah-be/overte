@@ -32,10 +32,13 @@ using namespace shader::render_utils::program;
 gpu::PipelinePointer ToneMapAndResample::_pipeline;
 gpu::PipelinePointer ToneMapAndResample::_mirrorPipeline;
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+gpu::PipelinePointer ToneMapAndResample::_passthroughPipeline;
+gpu::PipelinePointer ToneMapAndResample::_mirrorPassthroughPipeline;
 namespace {
 std::mutex diagnosticMutex;
 gpu::FramebufferPointer diagnosticInputFramebuffer;
 std::once_flag diagnosticParametersOnce;
+std::once_flag neutralPassthroughOnce;
 }
 
 gpu::FramebufferPointer getToneMapDiagnosticInputFramebuffer() {
@@ -58,6 +61,21 @@ void ToneMapAndResample::init() {
 
     _pipeline = gpu::PipelinePointer(gpu::Pipeline::create(gpu::Shader::createProgram(toneMapping), blitState));
     _mirrorPipeline = gpu::PipelinePointer(gpu::Pipeline::create(gpu::Shader::createProgram(toneMapping_mirrored), blitState));
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    // SRGB with zero exposure is an exact no-op.  Avoid Apple's software GL
+    // miscompile of the larger tone-mapping fragment shader for that common
+    // case, while retaining the same viewport-driven texture coordinates.
+    const auto passthroughVertex = gpu::Shader::createVertex(
+        shader::gpu::vertex::DrawViewportQuadTransformTexcoord);
+    _passthroughPipeline = gpu::PipelinePointer(gpu::Pipeline::create(
+        gpu::Shader::createProgram(passthroughVertex,
+            gpu::Shader::createPixel(shader::gpu::fragment::DrawTextureOpaque)),
+        blitState));
+    _mirrorPassthroughPipeline = gpu::PipelinePointer(gpu::Pipeline::create(
+        gpu::Shader::createProgram(passthroughVertex,
+            gpu::Shader::createPixel(shader::gpu::fragment::DrawTextureMirroredX)),
+        blitState));
+#endif
 }
 
 void ToneMapAndResample::setExposure(float exposure) {
@@ -137,6 +155,19 @@ void ToneMapAndResample::run(const RenderContextPointer& renderContext, const In
         init();
     }
 
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    const auto& activeParameters = _parametersBuffer.get<Parameters>();
+    const bool neutralPassthrough =
+        activeParameters._curveRegister.front() == (int)TonemappingCurve::SRGB &&
+        activeParameters._exposureRegister.front() == 1.0f;
+    if (neutralPassthrough) {
+        std::call_once(neutralPassthroughOnce, [] {
+            qInfo().noquote() << "OVERTE_MACOS_TONEMAP_PASSTHROUGH"
+                              << "curve=SRGB exposure=0";
+        });
+    }
+#endif
+
     const auto bufferSize = destinationFramebuffer->getSize();
 
     auto srcBufferSize = glm::ivec2(lightingBuffer->getDimensions());
@@ -151,10 +182,22 @@ void ToneMapAndResample::run(const RenderContextPointer& renderContext, const In
         batch.setProjectionTransform(glm::mat4());
         batch.resetViewTransform();
         bool shouldMirror = args->_numMirrorFlips >= (args->_renderMode != RenderArgs::MIRROR_RENDER_MODE ? 1 : 0);
-        batch.setPipeline(shouldMirror ? _mirrorPipeline : _pipeline);
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+        if (neutralPassthrough) {
+            batch.setPipeline(shouldMirror ? _mirrorPassthroughPipeline : _passthroughPipeline);
+        } else
+#endif
+        {
+            batch.setPipeline(shouldMirror ? _mirrorPipeline : _pipeline);
+        }
 
         batch.setModelTransform(gpu::Framebuffer::evalSubregionTexcoordTransform(srcBufferSize, args->_viewport));
-        batch.setUniformBuffer(render_utils::slot::buffer::ToneMappingParams, _parametersBuffer);
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+        if (!neutralPassthrough)
+#endif
+        {
+            batch.setUniformBuffer(render_utils::slot::buffer::ToneMappingParams, _parametersBuffer);
+        }
         batch.setResourceTexture(render_utils::slot::texture::ToneMappingColor, lightingBuffer);
         batch.draw(gpu::TRIANGLE_STRIP, 4);
     });
