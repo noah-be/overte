@@ -492,6 +492,9 @@ gl_backend_output = (
 display_plugin = (
     ROOT / "libraries/display-plugins/src/display-plugins/OpenGLDisplayPlugin.cpp"
 ).read_text(encoding="utf-8")
+tone_map_diagnostics = (
+    ROOT / "libraries/render-utils/src/ToneMapDiagnostics.h"
+).read_text(encoding="utf-8")
 for diagnostic_contract in (
     "diagnoseFramebuffer",
     "GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING",
@@ -506,8 +509,12 @@ for diagnostic_contract in (
 for stage in ('"tone_input"', '"final"', '"composite"'):
     if f"diagnoseFramebuffer" not in display_plugin or stage not in display_plugin:
         raise SystemExit(f"macOS screenshot diagnostics do not capture {stage}")
-if "getDiagnosticInputFramebuffer" not in display_plugin:
+if "getToneMapDiagnosticInputFramebuffer" not in display_plugin:
     raise SystemExit("macOS screenshot diagnostics must retain the tone-mapping input")
+if "#include <ToneMapDiagnostics.h>" not in display_plugin or "ToneMapAndResampleTask.h" in display_plugin:
+    raise SystemExit("macOS display diagnostics must use the narrow tone-map diagnostics header")
+if "getToneMapDiagnosticInputFramebuffer" not in tone_map_diagnostics or "task/" in tone_map_diagnostics:
+    raise SystemExit("tone-map diagnostics header must expose only the narrow framebuffer boundary")
 if display_plugin.index('diagnoseFramebuffer(toneInput') > display_plugin.index(
     'diagnoseFramebuffer(_currentFrame->framebuffer'
 ):

@@ -12,6 +12,10 @@
 
 #include "ToneMapAndResampleTask.h"
 
+#include "ToneMapDiagnostics.h"
+
+#include <mutex>
+
 #include <gpu/Context.h>
 #include <shaders/Shaders.h>
 
@@ -26,12 +30,14 @@ using namespace shader::render_utils::program;
 gpu::PipelinePointer ToneMapAndResample::_pipeline;
 gpu::PipelinePointer ToneMapAndResample::_mirrorPipeline;
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
-std::mutex ToneMapAndResample::_diagnosticMutex;
-gpu::FramebufferPointer ToneMapAndResample::_diagnosticInputFramebuffer;
+namespace {
+std::mutex diagnosticMutex;
+gpu::FramebufferPointer diagnosticInputFramebuffer;
+}
 
-gpu::FramebufferPointer ToneMapAndResample::getDiagnosticInputFramebuffer() {
-    const std::lock_guard<std::mutex> guard(_diagnosticMutex);
-    return _diagnosticInputFramebuffer;
+gpu::FramebufferPointer getToneMapDiagnosticInputFramebuffer() {
+    const std::lock_guard<std::mutex> guard(diagnosticMutex);
+    return diagnosticInputFramebuffer;
 }
 #endif
 
@@ -80,8 +86,8 @@ void ToneMapAndResample::run(const RenderContextPointer& renderContext, const In
     auto lightingBuffer = input.get0()->getRenderBuffer(0);
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     if (qEnvironmentVariableIsSet("OVERTE_MACOS_GL_DIAGNOSTICS")) {
-        const std::lock_guard<std::mutex> guard(_diagnosticMutex);
-        _diagnosticInputFramebuffer = input.get0();
+        const std::lock_guard<std::mutex> guard(diagnosticMutex);
+        diagnosticInputFramebuffer = input.get0();
     }
 #endif
     auto destinationFramebuffer = input.get1();
