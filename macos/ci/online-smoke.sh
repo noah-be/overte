@@ -18,6 +18,8 @@ readonly crash_report="$output_dir/online.crash.ips"
 readonly lldb_log="$output_dir/online-lldb.log"
 readonly lldb_result="$output_dir/online-lldb-process.json"
 readonly snapshot="$output_dir/macos-online-smoke.png"
+readonly warmup_snapshot="$output_dir/macos-online-warmup.png"
+readonly screenshot_result="$output_dir/online-screenshot.json"
 readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-360}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
 readonly lldb_timeout_seconds="${OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-90}"
@@ -28,6 +30,7 @@ export OVERTE_MACOS_GL_DIAGNOSTICS=1
 [[ -x "$executable" ]] || { echo "missing executable: $executable" >&2; exit 1; }
 [[ -f "$default_scripts_override" ]] || { echo "missing default script override: $default_scripts_override" >&2; exit 1; }
 mkdir -p "$output_dir"
+rm -f "$snapshot" "$warmup_snapshot" "$screenshot_result"
 
 readonly -a app_command=(
     "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog --display Desktop
@@ -59,26 +62,23 @@ fi
 
 [[ $status -eq 0 ]] || { echo "Overte supervisor exited with status $status" >&2; exit "$status"; }
 for marker in domain_list_connected entity_server_active entity_query_sent entity_data_received render_handoff; do
-    rg -q "OVERTE_MACOS_ENTITY_GATE $marker" "$log" || {
+    grep -Fq "OVERTE_MACOS_ENTITY_GATE $marker" "$log" || {
         echo "missing online runtime gate: $marker" >&2
         exit 1
     }
 done
 for marker in local_avatar_skipped local_avatar_scene_submission_skipped; do
-    rg -q "OVERTE_MACOS_RENDER_PHASE $marker" "$log" || {
+    grep -Fq "OVERTE_MACOS_RENDER_PHASE $marker" "$log" || {
         echo "missing local-avatar isolation gate: $marker" >&2
         exit 1
     }
 done
-rg -q "OVERTE_MACOS_SMOKE passed" "$log" || {
+grep -Fq "OVERTE_MACOS_SMOKE passed" "$log" || {
     echo "online smoke script did not pass" >&2
     exit 1
 }
 [[ -s "$snapshot" ]] || { echo "online snapshot is missing or empty" >&2; exit 1; }
-readonly snapshot_width="$(sips -g pixelWidth "$snapshot" | awk '/pixelWidth:/ { print $2 }')"
-readonly snapshot_height="$(sips -g pixelHeight "$snapshot" | awk '/pixelHeight:/ { print $2 }')"
-(( snapshot_width > 0 && snapshot_height > 0 )) || {
-    echo "online snapshot has invalid dimensions" >&2; exit 1;
-}
+python3 "$source_root/macos/tools/validate-screenshot.py" "$snapshot" \
+    --result "$screenshot_result"
 
 echo "macOS online smoke passed for $location"

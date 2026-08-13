@@ -409,6 +409,17 @@ for smoke_name, smoke_source, maximum in (
     )
     if not default_timeout or int(default_timeout.group(1)) > maximum:
         raise SystemExit(f"{smoke_name} smoke timeout must be at most {maximum}s")
+    if "rg -q" in smoke_source:
+        raise SystemExit(f"{smoke_name} smoke must not require ripgrep on the runner")
+    for screenshot_contract in (
+        "validate-screenshot.py",
+        "screenshot_result",
+        'rm -f "$snapshot" "$warmup_snapshot" "$screenshot_result"',
+    ):
+        if screenshot_contract not in smoke_source:
+            raise SystemExit(
+                f"{smoke_name} smoke lacks screenshot validation: {screenshot_contract}"
+            )
 
 serverless_script = (ROOT / "macos/tests/serverless-smoke.js").read_text(encoding="utf-8")
 online_script = (ROOT / "macos/tests/online-smoke.js").read_text(encoding="utf-8")
@@ -424,6 +435,9 @@ for script_name, script_source, snapshot_name in (
         "Render.viewportResolutionScale = 0.5",
         "Scene.shouldRenderAvatars = false",
         "Script.stop()",
+        "warmup_snapshot=",
+        'snapshotStage = "final"',
+        "5000",
         snapshot_name,
     ):
         if render_contract not in script_source:
@@ -445,6 +459,8 @@ for fixture_name in (
 ):
     if fixture_name not in serverless_script:
         raise SystemExit(f"serverless smoke does not require fixture: {fixture_name}")
+if "--require-red-pixels 128 --require-cyan-pixels 128" not in smoke:
+    raise SystemExit("serverless smoke must verify both colored fixture entities")
 
 main_source = (ROOT / "interface/src/main.cpp").read_text(encoding="utf-8")
 if main_source.count('"disableLocalAvatar"') != 1:
@@ -647,6 +663,11 @@ if "_engine->getScopeGuard()" in shutdown_wait:
     raise SystemExit(
         "shutdown wait must not acquire the script isolate from the main thread"
     )
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/screenshot-validator-test.py")],
+    cwd=ROOT,
+    check=True,
+)
 subprocess.run(
     [sys.executable, str(ROOT / "macos/tests/process-timeout-test.py")],
     cwd=ROOT,

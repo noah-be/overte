@@ -16,7 +16,7 @@
     Scene.shouldRenderAvatars = false;
 
     var deadline = Date.now() + 180000;
-    var snapshotRequested = false;
+    var snapshotStage = "waiting";
     var completed = false;
 
     function finish(success, detail) {
@@ -29,7 +29,22 @@
     }
 
     Window.stillSnapshotTaken.connect(function (path) {
-        finish(Boolean(path), "snapshot=" + path);
+        if (!path) {
+            finish(false, "snapshot_save_failed");
+            return;
+        }
+        if (snapshotStage === "warmup") {
+            snapshotStage = "cooldown";
+            print("OVERTE_MACOS_SMOKE warmup_snapshot=" + path);
+            Script.setTimeout(function () {
+                if (!completed) {
+                    snapshotStage = "final";
+                    Window.takeSnapshot(false, false, 16 / 9, "macos-online-smoke.png");
+                }
+            }, 5000);
+        } else if (snapshotStage === "final") {
+            finish(true, "snapshot=" + path);
+        }
     });
 
     Script.setInterval(function () {
@@ -37,13 +52,13 @@
             return;
         }
         var entities = Entities.findEntities(MyAvatar.position, 16384);
-        if (entities.length > 0 && !snapshotRequested) {
-            snapshotRequested = true;
+        if (entities.length > 0 && snapshotStage === "waiting") {
+            snapshotStage = "warmup";
             print("OVERTE_MACOS_SMOKE online_entities=" + entities.length);
-            Window.takeSnapshot(false, false, 16 / 9, "macos-online-smoke.png");
+            Window.takeSnapshot(false, false, 16 / 9, "macos-online-warmup.png");
         }
         if (Date.now() >= deadline) {
-            finish(false, snapshotRequested ? "snapshot_timeout" : "entity_timeout");
+            finish(false, snapshotStage === "waiting" ? "entity_timeout" : "snapshot_timeout");
         }
     }, 250);
 }());
