@@ -563,6 +563,7 @@ void Application::toggleLogDialog() {
 }
 
 void Application::recreateLogWindow(int keepOnTop) {
+#if !defined(Q_OS_IOS)
     _keepLogWindowOnTop.set(keepOnTop != 0);
     if (_logDialog) {
         bool toggle = _logDialog->isVisible();
@@ -573,6 +574,9 @@ void Application::recreateLogWindow(int keepOnTop) {
             toggleLogDialog();
         }
     }
+#else
+    Q_UNUSED(keepOnTop)
+#endif
 }
 
 void Application::toggleEntityScriptServerLogDialog() {

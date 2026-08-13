@@ -100,7 +100,9 @@ limited to the Windows/Linux 96-DPI branch.
 The desktop `LogDialog` is a separate fixed-layout `QDialog` with window-on-top
 and reveal-in-file-manager controls. Its toggle entry point is a no-op on iOS;
 on-device diagnostics use the existing in-app/tablet log surfaces and exported
-device logs instead of creating a desktop utility window.
+device logs instead of creating a desktop utility window. Recreating that
+desktop window after its always-on-top preference changes is also a no-op on
+iOS, so the source cannot dereference the deliberately excluded dialog type.
 Its now-nonfunctional desktop `Developer > Log` action and Ctrl+Shift+L
 shortcut are omitted from the iOS menu as part of the same boundary.
 The separate 780-pixel-minimum Entity Script Server `QDialog` follows the same
