@@ -742,6 +742,11 @@ direct base class. Its generic dialog-creation helper also compiles the
 `HMDToolsDialog::watchWindow` call only on desktop targets, matching the
 existing iOS source exclusion and no-op HMD-tools entry point.
 
+`CloseEventSender` likewise includes the complete `QObject` definition before
+declaring its direct base. This keeps its typed network-reply connection,
+`sender()` lookup, and named-thread handoff visible under Qt 6 without changing
+the asynchronous quit-event protocol.
+
 The audio gate requires device enumeration, route change, microphone consent,
 interruption recovery, Bluetooth behavior, mono input, stereo output, and
 resampling tests on physical hardware.

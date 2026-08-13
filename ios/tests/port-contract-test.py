@@ -2098,6 +2098,10 @@ def test_script_entity_id_qt6_contract() -> None:
         require_text(header, r'#include\s*<QtCore/QObject>',
                      "iOS-reachable UI QObject subclasses must own their complete base type")
 
+    close_event_sender = SOURCE_ROOT / "interface" / "src" / "networking" / "CloseEventSender.h"
+    require_text(close_event_sender, r'#include\s*<QtCore/QObject>',
+                 "the iOS-reachable close-event sender must own its complete QObject base type")
+
     flow_header = SOURCE_ROOT / "libraries" / "animation" / "src" / "Flow.h"
     require_text(flow_header, r'#include\s*<QtCore/QObject>',
                  "the iOS-reachable Flow QObject subclass must own its complete base type")
