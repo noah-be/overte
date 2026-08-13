@@ -21,6 +21,8 @@ readonly lldb_log="$output_dir/online-lldb.log"
 readonly lldb_result="$output_dir/online-lldb-process.json"
 readonly snapshot="$output_dir/macos-online-smoke.png"
 readonly screenshot_result="$output_dir/online-screenshot.json"
+readonly entity_inventory="$output_dir/macos-online-entities.json"
+readonly entity_validation="$output_dir/online-entity-validation.json"
 readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-360}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
 readonly lldb_timeout_seconds="${OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-90}"
@@ -31,7 +33,7 @@ export OVERTE_MACOS_GL_DIAGNOSTICS=1
 [[ -x "$executable" ]] || { echo "missing executable: $executable" >&2; exit 1; }
 [[ -f "$default_scripts_override" ]] || { echo "missing default script override: $default_scripts_override" >&2; exit 1; }
 mkdir -p "$output_dir"
-rm -f "$snapshot" "$screenshot_result"
+rm -f "$snapshot" "$screenshot_result" "$entity_inventory" "$entity_validation"
 
 readonly -a app_command=(
     "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog --display Desktop
@@ -79,6 +81,11 @@ grep -Fq "OVERTE_MACOS_SMOKE passed" "$log" || {
     exit 1
 }
 [[ -s "$snapshot" ]] || { echo "online snapshot is missing or empty" >&2; exit 1; }
+[[ -s "$entity_inventory" ]] || { echo "online entity inventory is missing" >&2; exit 1; }
+render_handoff_id="$(sed -nE 's/.*OVERTE_MACOS_ENTITY_GATE render_handoff entity= \{([^}]*)\}.*/\1/p' "$log" | tail -n 1)"
+[[ -n "$render_handoff_id" ]] || { echo "online render-handoff entity ID is missing" >&2; exit 1; }
+python3 "$source_root/macos/tools/validate-online-entities.py" "$entity_inventory" \
+    --render-handoff-id "$render_handoff_id" --result "$entity_validation"
 python3 "$source_root/macos/tools/validate-screenshot.py" "$snapshot" \
     --result "$screenshot_result"
 

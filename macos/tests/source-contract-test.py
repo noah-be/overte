@@ -378,6 +378,14 @@ assert "hifi://overte_hub" in online_smoke, "online smoke must target the active
 assert "URL_SCHEME_OVERTE" in online_smoke, "online smoke must document its compatibility scheme"
 assert "overte://overte_hub" not in online_smoke, "unsupported product-name scheme must not silently no-op"
 assert "overte://welcome" not in online_smoke, "the retired welcome place must not be used"
+for inventory_contract in (
+    "macos-online-entities.json",
+    "validate-online-entities.py",
+    "render_handoff_id",
+    "--render-handoff-id",
+):
+    if inventory_contract not in online_smoke:
+        raise SystemExit(f"online smoke must correlate its rendered entity: {inventory_contract}")
 for marker in ONLINE_CONTRACT | {"render_handoff": ""}:
     if marker not in online_smoke:
         raise SystemExit(f"online smoke runner does not require {marker}")
@@ -469,6 +477,15 @@ for smoke_name, smoke_source, maximum, cleanup_contract in (
 
 serverless_script = (ROOT / "macos/tests/serverless-smoke.js").read_text(encoding="utf-8")
 online_script = (ROOT / "macos/tests/online-smoke.js").read_text(encoding="utf-8")
+for inventory_contract in (
+    "saveEntityInventory(entities)",
+    'Test.saveObject({',
+    '"macos-online-entities.json"',
+    "visible_renderable_count",
+    "type_counts",
+):
+    if inventory_contract not in online_script:
+        raise SystemExit(f"online smoke script lacks entity inventory: {inventory_contract}")
 for script_name, script_source, snapshot_name, stage_contracts in (
     (
         "serverless",
@@ -1093,6 +1110,11 @@ subprocess.run(
 )
 subprocess.run(
     [sys.executable, str(ROOT / "macos/tests/performance-validator-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/online-entity-validator-test.py")],
     cwd=ROOT,
     check=True,
 )

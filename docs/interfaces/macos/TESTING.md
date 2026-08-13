@@ -26,11 +26,13 @@ deterministic three-entity fixture. It validates a 1380x776-or-larger PNG,
 non-black content, opacity and contrast, red/cyan pixel populations, and their
 expected left/right placement. The online gate additionally requires directory,
 entity-server, query, receive, and render progress before accepting a non-empty
-image. It suppresses client entity scripts so a public world's optional UI and
-interaction scripts cannot introduce unrelated shader pipelines after the
-protocol entities have arrived; the streamed entities themselves still follow
-the normal renderer. A passing process exit without the expected markers is not
-acceptance.
+image. It writes a bounded inventory of nearby streamed entities and requires
+the exact entity UUID from the render-handoff marker to be present, visible, and
+render-affecting. It suppresses client entity scripts so a public world's
+optional UI and interaction scripts cannot introduce unrelated shader pipelines
+after the protocol entities have arrived; the streamed entities themselves
+still follow the normal renderer. A passing process exit without the expected
+markers and correlated inventory is not acceptance.
 
 ## Performance and stability
 

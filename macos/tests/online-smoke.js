@@ -23,6 +23,60 @@
     var snapshotStage = "waiting";
     var completed = false;
 
+    function finiteNumber(value) {
+        value = Number(value);
+        return isFinite(value) ? value : 0;
+    }
+
+    function plainVector(value) {
+        value = value || {};
+        return {
+            x: finiteNumber(value.x),
+            y: finiteNumber(value.y),
+            z: finiteNumber(value.z)
+        };
+    }
+
+    function saveEntityInventory(entities) {
+        var nonRenderingTypes = {
+            Unknown: true,
+            Empty: true,
+            Sound: true,
+            Script: true
+        };
+        var typeCounts = {};
+        var visibleRenderableCount = 0;
+        var records = entities.slice(0, 64).map(function (entityID) {
+            var properties = Entities.getEntityProperties(entityID, [
+                "type", "visible", "position", "dimensions"
+            ]);
+            var type = String(properties.type || "Unknown");
+            var visible = properties.visible !== false;
+            typeCounts[type] = (typeCounts[type] || 0) + 1;
+            if (visible && !nonRenderingTypes[type]) {
+                visibleRenderableCount += 1;
+            }
+            return {
+                id: String(entityID),
+                type: type,
+                visible: visible,
+                position: plainVector(properties.position),
+                dimensions: plainVector(properties.dimensions)
+            };
+        });
+        Test.saveObject({
+            schema_version: 1,
+            entity_count: entities.length,
+            captured_count: records.length,
+            visible_renderable_count: visibleRenderableCount,
+            type_counts: typeCounts,
+            entities: records
+        }, "macos-online-entities.json");
+        print("OVERTE_MACOS_SMOKE online_inventory captured=" + records.length +
+            " visible_renderable=" + visibleRenderableCount +
+            " types=" + JSON.stringify(typeCounts));
+    }
+
     function finish(success, detail) {
         if (completed) {
             return;
@@ -50,6 +104,7 @@
         if (entities.length > 0 && snapshotStage === "waiting") {
             snapshotStage = "capturing";
             print("OVERTE_MACOS_SMOKE online_entities=" + entities.length);
+            saveEntityInventory(entities);
             // One completed frame is the online rendering proof. Waiting for
             // a second capture lets unrelated late domain assets enqueue new
             // pipelines; Apple's virtualized software renderer may spend
