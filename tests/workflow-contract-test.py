@@ -585,7 +585,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
         source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("artifact_run_id:", source)
         self.assertIn("online_location:", source)
-        self.assertIn("default: overte://overte_hub", source)
+        self.assertIn("default: hifi://overte_hub", source)
         self.assertIn(
             "OVERTE_MACOS_ONLINE_LOCATION: ${{ inputs.online_location }}", source
         )

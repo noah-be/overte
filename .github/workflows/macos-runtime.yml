@@ -18,7 +18,7 @@ on:
       online_location:
         description: Online place or direct domain URL used by the public-domain smoke
         required: true
-        default: overte://overte_hub
+        default: hifi://overte_hub
         type: string
   # Register this branch-local workflow without running a second smoke suite.
   push:

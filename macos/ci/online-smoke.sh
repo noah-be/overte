@@ -7,7 +7,9 @@ set -euo pipefail
 readonly source_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 readonly app="${1:?usage: macos/ci/online-smoke.sh /path/to/Overte.app [output-directory]}"
 readonly output_dir="${2:-$source_root/build/macos-online-smoke}"
-readonly location="${OVERTE_MACOS_ONLINE_LOCATION:-overte://overte_hub}"
+# The user-facing product is Overte, but the on-wire/navigation URL scheme is
+# intentionally still "hifi" for protocol compatibility (URL_SCHEME_OVERTE).
+readonly location="${OVERTE_MACOS_ONLINE_LOCATION:-hifi://overte_hub}"
 readonly executable="$app/Contents/MacOS/Overte"
 readonly test_script="$source_root/macos/tests/online-smoke.js"
 readonly default_scripts_override="$source_root/macos/tests/fixtures/no-default-scripts.js"

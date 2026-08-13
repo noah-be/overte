@@ -366,7 +366,9 @@ for marker in CONTRACT:
 online_smoke = (ROOT / "macos/ci/online-smoke.sh").read_text(encoding="utf-8")
 assert "--display Desktop" in online_smoke, "online smoke must never block on display selection"
 assert 'macos/tests/online-smoke.js' in online_smoke, "online smoke needs its own online fixture gate"
-assert "overte://overte_hub" in online_smoke, "online smoke must target the active public hub"
+assert "hifi://overte_hub" in online_smoke, "online smoke must target the active public hub"
+assert "URL_SCHEME_OVERTE" in online_smoke, "online smoke must document its compatibility scheme"
+assert "overte://overte_hub" not in online_smoke, "unsupported product-name scheme must not silently no-op"
 assert "overte://welcome" not in online_smoke, "the retired welcome place must not be used"
 for marker in ONLINE_CONTRACT | {"render_handoff": ""}:
     if marker not in online_smoke:
