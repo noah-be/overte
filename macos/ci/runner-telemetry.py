@@ -657,18 +657,12 @@ def supervise(command: list[str], collector: Collector, emit: Callable[..., None
         while True:
             now = time.monotonic()
             status = process.poll()
-            if forwarded_signal:
-                if now >= signal_deadline:
-                    _signal_group(process.pid, signal.SIGKILL)
-                    signal_deadline = float("inf")
-                if status is not None and signal_deadline == float("inf"):
-                    result_code = 128 + forwarded_signal
-                    reason = "signal"
-                    break
-            elif status is not None:
-                result_code = 128 - status if status < 0 else status
-                break
 
+            # The phase wall deadline is fail-closed.  Check it before a
+            # concurrently observed child exit so a process that finishes
+            # while timeout diagnostics are being scheduled cannot turn an
+            # already-expired phase into a false success.  Processes observed
+            # before the deadline still preserve their real exit status below.
             if max_runtime is not None and now - started >= max_runtime:
                 emit(
                     "timed_out",
@@ -684,6 +678,18 @@ def supervise(command: list[str], collector: Collector, emit: Callable[..., None
                     _terminate_group(process, term_grace)
                 result_code = 124
                 reason = "wall_timeout"
+                break
+
+            if forwarded_signal:
+                if now >= signal_deadline:
+                    _signal_group(process.pid, signal.SIGKILL)
+                    signal_deadline = float("inf")
+                if status is not None and signal_deadline == float("inf"):
+                    result_code = 128 + forwarded_signal
+                    reason = "signal"
+                    break
+            elif status is not None:
+                result_code = 128 - status if status < 0 else status
                 break
 
             if now >= next_sample and status is None:

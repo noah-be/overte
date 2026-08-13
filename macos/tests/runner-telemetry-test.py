@@ -269,6 +269,25 @@ class RunnerTelemetryTest(unittest.TestCase):
         self.assertEqual(result, 124)
         self.assertEqual(records[-1][1]["reason"], "wall_timeout")
 
+    def test_child_observed_before_wall_limit_preserves_normal_exit(self):
+        module = load_tool()
+
+        class StaticCollector:
+            def sample(self, include_directories=False):
+                return ({"disk_free_mib": 9000, "ram_available_pct": 50,
+                         "swap_used_pct": 0}, {})
+
+        records = []
+        result = module.supervise(
+            [sys.executable, "-c", "raise SystemExit(23)"],
+            StaticCollector(),
+            lambda event, **fields: records.append((event, fields)),
+            "normal-before-timeout", 0.01, 0.02, 1.0, 2.0, 1.0, 0.05,
+            4096, 10, 80, None, max_runtime=2.0,
+        )
+        self.assertEqual(result, 23)
+        self.assertEqual(records[-1][1]["reason"], "exit")
+
     def test_watched_filesystem_growth_prevents_false_inactivity_abort(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
