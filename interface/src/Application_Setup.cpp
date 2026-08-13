@@ -40,7 +40,9 @@
 #include <avatar/GrabManager.h>
 #include <audio/AudioScope.h>
 #include <AudioScriptingInterface.h>
+#if !defined(Q_OS_IOS)
 #include <AutoUpdater.h>
+#endif
 #include <avatar/AvatarManager.h>
 #include <BuildInfo.h>
 #include <CameraRootTransformNode.h>

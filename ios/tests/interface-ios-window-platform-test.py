@@ -178,6 +178,8 @@ require("#if !defined(Q_OS_IOS)\n#include \"LodToolsDialog.h\"\n#endif" in HMD_T
 require("#if !defined(ANDROID_APP_PHONE_INTERFACE) && !defined(Q_OS_IOS)\n"
         "        bool buildCanUpdate" in APPLICATION_SETUP,
         "desktop AutoUpdater startup remains reachable on iOS")
+require("#if !defined(Q_OS_IOS)\n#include <AutoUpdater.h>\n#endif" in APPLICATION_SETUP,
+        "the excluded AutoUpdater header remains in the iOS compile graph")
 require("DependencyManager::set<AutoUpdater>()" in APPLICATION_SETUP and
         "&AutoUpdater::newVersionIsAvailable" in APPLICATION_SETUP,
         "desktop updater behavior changed on supported platforms")

@@ -154,7 +154,9 @@ excluded as well, keeping the unavailable desktop updater UI out of the iOS
 runtime registry without changing desktop builds.
 The iOS Interface CMake graph also omits `UpdateDialog.cpp/.h` and its now-unused
 `auto-updater` link, preventing dead desktop updater code and Network linkage
-from being retained solely by that feature.
+from being retained solely by that feature. `Application_Setup.cpp` guards the
+matching updater header together with its already gated startup implementation,
+so removing the library cannot leave a stale compile-time include edge.
 
 ## ADR-007: secret-free automation
 
