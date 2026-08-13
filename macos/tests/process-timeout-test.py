@@ -23,7 +23,12 @@ with tempfile.TemporaryDirectory() as temporary:
     )
     assert completed.returncode == 0
     assert "runtime evidence" in success_log.read_text(encoding="utf-8")
-    assert json.loads(success_result.read_text())["timed_out"] is False
+    success_metadata = json.loads(success_result.read_text())
+    assert success_metadata["timed_out"] is False
+    assert success_metadata["executable"] == Path(sys.executable).name
+    assert success_metadata["argument_count"] == 2
+    assert "command" not in success_metadata
+    assert success_result.stat().st_mode & 0o777 == 0o600
 
     timeout_log = output / "timeout.log"
     timeout_result = output / "timeout.json"
@@ -63,6 +68,8 @@ with tempfile.TemporaryDirectory() as temporary:
     assert timeout_metadata["sent_sigterm"] is True
     assert timeout_metadata["sent_sigkill"] is True
     assert timeout_metadata["sample_succeeded"] is True
+    assert timeout_metadata["sample_name"] == timeout_sample.name
+    assert str(timeout_sample) not in timeout_result.read_text(encoding="utf-8")
     assert timeout_sample.read_text(encoding="utf-8") == "sampled blocked process\n"
 
     hanging_tools = output / "hanging-tools"
@@ -106,6 +113,7 @@ with tempfile.TemporaryDirectory() as temporary:
     assert copied_report.read_text(encoding="utf-8") == "native crash evidence\n"
     crash_metadata = json.loads(crash_result.read_text())
     assert crash_metadata["crash_report_succeeded"] is True
-    assert crash_metadata["crash_report_source"] == str(native_report)
+    assert crash_metadata["crash_report_source_name"] == native_report.name
+    assert str(crash_reports) not in crash_result.read_text(encoding="utf-8")
 
 print("macOS smoke timeout contract valid")

@@ -402,6 +402,21 @@ for smoke_name, smoke_source in (("serverless", smoke), ("online", online_smoke)
             raise SystemExit(
                 f"{smoke_name} smoke is missing timeout contract: {timeout_contract}"
             )
+
+runtime_supervisor = (
+    ROOT / "macos/tools/run-process-with-timeout.py"
+).read_text(encoding="utf-8")
+runtime_result = runtime_supervisor.split('result = {', 1)[1].split('}', 1)[0]
+if '"command"' in runtime_result or '"crash_report_source"' in runtime_result:
+    raise SystemExit("runtime evidence must not persist argv or private diagnostic paths")
+for sanitized_contract in (
+    '"executable": Path(command[0]).name',
+    '"argument_count": len(command) - 1',
+    '"sample_name": args.sample.name',
+    '"crash_report_source_name"',
+):
+    if sanitized_contract not in runtime_supervisor:
+        raise SystemExit(f"runtime evidence redaction missing: {sanitized_contract}")
 for smoke_name, smoke_source, maximum, cleanup_contract in (
     ("serverless", smoke, 720, 'rm -f "$snapshot" "$warmup_snapshot" "$screenshot_result"'),
     ("online", online_smoke, 720, 'rm -f "$snapshot" "$screenshot_result"'),
@@ -471,6 +486,74 @@ for fixture_name in (
         raise SystemExit(f"serverless smoke does not require fixture: {fixture_name}")
 if "--require-red-pixels 128 --require-cyan-pixels 128" not in smoke:
     raise SystemExit("serverless smoke must verify both colored fixture entities")
+if "--require-red-left --require-cyan-right" not in smoke:
+    raise SystemExit("serverless smoke must verify deterministic fixture placement")
+
+performance_smoke = (ROOT / "macos/ci/performance-smoke.sh").read_text(encoding="utf-8")
+performance_script = (ROOT / "macos/tests/performance-smoke.js").read_text(encoding="utf-8")
+for performance_contract in (
+    "run-process-with-timeout.py",
+    "validate-performance.py",
+    "validate-screenshot.py",
+    "TEST-overte-macos-performance.xml",
+    "OVERTE_MACOS_PERFORMANCE_MAXIMUM_P95_MS",
+    "OVERTE_MACOS_PERFORMANCE passed",
+):
+    if performance_contract not in performance_smoke:
+        raise SystemExit(f"macOS performance runner missing: {performance_contract}")
+for performance_contract in (
+    "FrameTimings.start()",
+    "FrameTimings.finish()",
+    "FrameTimings.getValues()",
+    "samples_us",
+    "p50_frame_ms",
+    "p95_frame_ms",
+    "p99_frame_ms",
+    "over_16_67_ms",
+    "over_33_33_ms",
+    "Test.saveObject(metrics, \"macos-performance.json\")",
+):
+    if performance_contract not in performance_script:
+        raise SystemExit(f"macOS performance script missing: {performance_contract}")
+warmup_handler = performance_script.split("Window.stillSnapshotTaken.connect", 1)[1].split(
+    "Script.setInterval", 1
+)[0]
+if "if (!path)" not in warmup_handler or "startMeasurement();" not in warmup_handler:
+    raise SystemExit("performance measurement must start after a completed warmup frame")
+
+frame_timings_header = (
+    ROOT / "interface/src/FrameTimingsScriptingInterface.h"
+).read_text(encoding="utf-8")
+frame_timings_source = (
+    ROOT / "interface/src/FrameTimingsScriptingInterface.cpp"
+).read_text(encoding="utf-8")
+application_source = (ROOT / "interface/src/Application.cpp").read_text(encoding="utf-8")
+test_registration = application_source.split(
+    "if (property(hifi::properties::TEST).isValid())", 1
+)[1].split("}", 1)[0]
+if '"FrameTimings"' not in test_registration:
+    raise SystemExit("frame timings must be exposed to explicit application test scripts")
+if "mutable QMutex _mutex" not in frame_timings_header:
+    raise SystemExit("frame timing samples must synchronize render and script threads")
+if frame_timings_source.count("QMutexLocker locker(&_mutex)") < 7:
+    raise SystemExit("all frame timing sample and result access must be synchronized")
+if "if (_values.empty())" not in frame_timings_source:
+    raise SystemExit("empty frame timing measurements must produce finite zero results")
+
+stability_smoke = (ROOT / "macos/ci/stability-smoke.sh").read_text(encoding="utf-8")
+for stability_contract in (
+    "serverless-smoke.sh",
+    "validate-stability.py",
+    "serverless-process.json",
+    "serverless-screenshot.json",
+    "TEST-overte-macos-stability.xml",
+    "iteration <= iterations",
+    "refusing to reuse existing stability evidence",
+):
+    if stability_contract not in stability_smoke and stability_contract not in (
+        ROOT / "macos/tools/validate-stability.py"
+    ).read_text(encoding="utf-8"):
+        raise SystemExit(f"macOS stability suite missing: {stability_contract}")
 
 render_common = (ROOT / "libraries/render-utils/src/RenderCommonTask.cpp").read_text(
     encoding="utf-8"
@@ -904,6 +987,16 @@ if "_engine->getScopeGuard()" in shutdown_wait:
     )
 subprocess.run(
     [sys.executable, str(ROOT / "macos/tests/screenshot-validator-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/performance-validator-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/stability-validator-test.py")],
     cwd=ROOT,
     check=True,
 )

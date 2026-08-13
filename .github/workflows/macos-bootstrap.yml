@@ -845,6 +845,19 @@ jobs:
             --watch smoke=build/macos-online-smoke -- \
             macos/ci/online-smoke.sh "$app" build/macos-online-smoke
 
+      - name: Run deterministic graphics performance smoke
+        timeout-minutes: 10
+        run: |
+          app="$(find build -type d -name Overte.app -print -quit)"
+          python3 macos/ci/runner-telemetry.py \
+            --phase runtime-performance \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/runtime-performance.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/runtime-performance-stall" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 300 --max-runtime 540 \
+            --watch performance=build/macos-performance -- \
+            macos/ci/performance-smoke.sh "$app" build/macos-performance
+
       - name: Upload smoke diagnostics
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -856,6 +869,7 @@ jobs:
             build/macos-startup-preflight
             build/macos-smoke
             build/macos-online-smoke
+            build/macos-performance
           if-no-files-found: ignore
           include-hidden-files: true
           retention-days: 7

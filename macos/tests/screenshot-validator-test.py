@@ -82,6 +82,8 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as directory:
         "100",
         "--require-cyan-pixels",
         "100",
+        "--require-red-left",
+        "--require-cyan-right",
         "--result",
         str(result),
     )
@@ -90,6 +92,9 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as directory:
     assert metrics["passed"] is True
     assert metrics["red_pixels"] >= 100
     assert metrics["cyan_pixels"] >= 100
+    assert metrics["red_centroid_x_ratio"] < 0.5
+    assert metrics["cyan_centroid_x_ratio"] > 0.5
+    assert metrics["opaque_ratio"] == 1.0
     assert result.stat().st_mode & 0o777 == 0o600
 
     malformed = temporary / "malformed.png"
@@ -97,5 +102,29 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as directory:
     malformed_run = run(malformed)
     assert malformed_run.returncode == 1
     assert "signature" in malformed_run.stdout
+
+    swapped = temporary / "swapped.png"
+    write_png(
+        swapped,
+        64,
+        64,
+        lambda x, _y: (25, 210, 225, 255) if x < 32 else (235, 48, 72, 255),
+    )
+    swapped_run = run(
+        swapped,
+        "--require-red-pixels",
+        "100",
+        "--require-cyan-pixels",
+        "100",
+        "--require-red-left",
+        "--require-cyan-right",
+    )
+    assert swapped_run.returncode == 1
+    assert "left half" in swapped_run.stdout
+    assert "right half" in swapped_run.stdout
+
+    invalid_threshold = run(fixture, "--min-opaque-ratio", "1.1")
+    assert invalid_threshold.returncode == 2
+    assert "between zero and one" in invalid_threshold.stderr
 
 print("macOS screenshot validator tests passed")

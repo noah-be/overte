@@ -169,20 +169,33 @@ def main() -> int:
         finally:
             elapsed = time.monotonic() - started
             result = {
-                "command": command,
+                # Runtime URLs and script paths may contain private locations.
+                # Persist only bounded process identity, never the argv.
+                "executable": Path(command[0]).name,
+                "argument_count": len(command) - 1,
                 "elapsed_seconds": round(elapsed, 3),
                 "exit_code": return_code,
                 "timed_out": timed_out,
                 "sent_sigterm": sent_term,
                 "sent_sigkill": sent_kill,
-                "sample_path": str(args.sample) if args.sample else None,
+                "sample_name": args.sample.name if args.sample else None,
                 "sample_succeeded": sample_succeeded,
                 "sample_timed_out": sample_timed_out,
-                "crash_report_path": str(args.crash_report) if args.crash_report else None,
+                "crash_report_name": args.crash_report.name if args.crash_report else None,
                 "crash_report_succeeded": crash_report_succeeded,
-                "crash_report_source": crash_report_source,
+                "crash_report_source_name": (
+                    Path(crash_report_source).name if crash_report_source else None
+                ),
             }
-            args.result.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+            descriptor = os.open(
+                args.result,
+                os.O_CREAT | os.O_TRUNC | os.O_WRONLY,
+                0o600,
+            )
+            with os.fdopen(descriptor, "w", encoding="utf-8") as result_stream:
+                json.dump(result, result_stream, indent=2)
+                result_stream.write("\n")
+            os.chmod(args.result, 0o600)
 
     if timed_out:
         return 124

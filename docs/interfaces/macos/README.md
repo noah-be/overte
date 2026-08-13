@@ -2,7 +2,7 @@
 
 > [!CAUTION]
 > This is an AI-assisted experimental port. It is incomplete, has not completed
-> runtime acceptance, and is not a production-ready Overte release. Review the
+> release acceptance, and is not a production-ready Overte release. Review the
 > source and current status before using valuable accounts or distributing the
 > application.
 
@@ -10,8 +10,11 @@
 
 The goal is an Overte desktop application that can load local serverless scenes
 and online domains on macOS. The current bootstrap path uses Qt 5 and OpenGL 4.1
-and targets Intel (`x86_64`) first. Dependency resolution is still being repaired
-and no current revision has completed the build and runtime gates.
+and targets Intel (`x86_64`) first. The Intel developer bundle now builds,
+launches, loads the deterministic local scene, connects to the public Overte
+Hub, receives entities, renders them, captures non-empty images, and exits
+cleanly. The combined acceptance evidence is GitHub Actions run
+[`31719242695`](https://github.com/noah-be/overte/actions/runs/31719242695).
 
 Apple Silicon (`arm64`) is an intended target and the build script accepts it,
 but its Qt and native dependency graph has not been validated. Do not interpret
@@ -22,10 +25,10 @@ configuration support as a working native Apple Silicon build.
 | Area | Current configuration |
 | --- | --- |
 | Build host | macOS with Xcode command-line tools |
-| Target OS | macOS 11.0 or newer build target; runtime support not yet validated |
+| Target OS | macOS 11.0 or newer build target; CI runtime validated on macOS 15 Intel |
 | Architecture | `x86_64` bootstrap; `arm64` preparation only |
-| Graphics | OpenGL 4.1 bootstrap |
-| Virtual target | No VM workflow is defined or required |
+| Graphics | OpenGL 4.1; CI evidence uses Apple's virtualized software renderer |
+| Virtual target | GitHub `macos-15-intel` runtime acceptance |
 | Physical target | A Mac is required for build and runtime validation |
 
 ## Quick start
@@ -56,10 +59,11 @@ testing are the only release goal at this stage.
 
 ## Known limitations
 
-- The latest recorded CI attempt stopped during the Node dependency build.
-- Runtime launch, first frame, serverless loading, and online-domain loading
-  still require successful evidence on a Mac.
 - Native Apple Silicon dependencies are not validated.
+- The public online smoke depends on an external Overte place and network.
+- Apple's virtualized software OpenGL renderer compiles some complex pipelines
+  pathologically slowly; deterministic tests suppress the local avatar and
+  unrelated system scripts, but normal application use does not.
 - Signing, notarization, installer creation, and public distribution are out of
   scope for the current milestone.
 - Apple's OpenGL implementation is deprecated and limited to 4.1. MoltenVK is a

@@ -110,6 +110,14 @@ runtime gates, it also uploads:
 
 - `overte-macos-smoke-<run-id>` with smoke diagnostics.
 
+The separate `.github/workflows/macos-runtime.yml` workflow restores one
+explicit application artifact without rebuilding it. It always runs startup
+and serverless visual acceptance, optionally runs the public online world, and
+can additionally record deterministic frame timings or execute three/five
+launch-render-quit stability cycles. Performance and stability results include
+machine-readable JSON and JUnit XML. Frame-time thresholds are opt-in until a
+stable runner/GPU-specific baseline has been collected.
+
 The application is retained for fourteen days and smoke diagnostics for seven
 days. The workflow does not verify a
 distribution signature or notarization, so the application is a developer build

@@ -164,6 +164,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "runtime-startup",
             "runtime-serverless",
             "runtime-online",
+            "runtime-performance",
         ):
             self.assertIn(f"--phase {phase}", self.source)
         self.assertGreaterEqual(self.source.count("--sample-interval 5"), 13)
@@ -571,6 +572,19 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("macos/ci/startup-preflight.sh", self.source)
         self.assertIn("build/macos-startup-preflight", self.source)
 
+    def test_performance_gate_uses_the_built_application_and_publishes_results(self):
+        serverless = self.source.index("- name: Run serverless entity smoke")
+        performance = self.source.index("- name: Run deterministic graphics performance smoke")
+        diagnostics = self.source.index("- name: Upload smoke diagnostics")
+        self.assertLess(serverless, performance)
+        self.assertLess(performance, diagnostics)
+        section = self.source[performance:diagnostics]
+        self.assertIn("--phase runtime-performance", section)
+        self.assertIn("--sample-interval 5 --publish-interval 30", section)
+        self.assertIn("--inactivity-timeout 300 --max-runtime 540", section)
+        self.assertIn("macos/ci/performance-smoke.sh", section)
+        self.assertIn("build/macos-performance", self.source[diagnostics:])
+
     def test_built_application_is_preserved_when_runtime_smoke_fails(self):
         upload = self.source.index("- name: Upload application bundle immediately")
         startup = self.source.index("- name: Run application startup preflight")
@@ -585,6 +599,9 @@ class MacOSWorkflowContracts(unittest.TestCase):
         source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("artifact_run_id:", source)
         self.assertIn("online_location:", source)
+        self.assertIn("run_performance:", source)
+        self.assertIn("stability_iterations:", source)
+        self.assertIn("options: ['0', '3', '5']", source)
         self.assertIn("default: hifi://overte_hub", source)
         self.assertIn(
             "OVERTE_MACOS_ONLINE_LOCATION: ${{ inputs.online_location }}", source
@@ -597,6 +614,15 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '300'", source)
         self.assertIn("macos/ci/serverless-smoke.sh", source)
         self.assertIn("macos/ci/online-smoke.sh", source)
+        self.assertIn("macos/ci/performance-smoke.sh", source)
+        self.assertIn("--phase runtime-performance", source)
+        self.assertIn("--sample-interval 5 --publish-interval 30", source)
+        self.assertIn("--inactivity-timeout 300 --max-runtime 420", source)
+        self.assertIn("build/macos-performance", source)
+        self.assertIn("macos/ci/stability-smoke.sh", source)
+        self.assertIn("--phase runtime-stability", source)
+        self.assertIn("--inactivity-timeout 660 --max-runtime 2400", source)
+        self.assertIn("build/macos-stability", source)
         self.assertNotIn("build-macos.sh build", source)
         self.assertIn("if: always()", source)
 

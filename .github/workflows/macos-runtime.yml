@@ -15,6 +15,17 @@ on:
         required: true
         default: true
         type: boolean
+      run_performance:
+        description: Record validated frame timings for the deterministic local scene
+        required: true
+        default: false
+        type: boolean
+      stability_iterations:
+        description: Repeated local launch/render/quit cycles (0 disables the stability suite)
+        required: true
+        default: '0'
+        type: choice
+        options: ['0', '3', '5']
       online_location:
         description: Online place or direct domain URL used by the public-domain smoke
         required: true
@@ -114,6 +125,35 @@ jobs:
             --watch smoke=build/macos-online-smoke -- \
             macos/ci/online-smoke.sh "$app" build/macos-online-smoke
 
+      - name: Run deterministic graphics performance smoke
+        if: ${{ inputs.run_performance && steps.serverless-smoke.outcome == 'success' }}
+        run: |
+          app="$(cat build/runtime-artifact/app-path.txt)"
+          python3 macos/ci/runner-telemetry.py \
+            --phase runtime-performance \
+            --log build/macos-runtime-telemetry/performance.jsonl \
+            --diagnostics-dir build/macos-runtime-telemetry/performance-stall \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 300 --max-runtime 420 \
+            --watch performance=build/macos-performance -- \
+            macos/ci/performance-smoke.sh "$app" build/macos-performance
+
+      - name: Run repeated launch-render-quit stability suite
+        if: ${{ inputs.stability_iterations != '0' && steps.serverless-smoke.outcome == 'success' }}
+        env:
+          OVERTE_MACOS_STABILITY_ITERATIONS: ${{ inputs.stability_iterations }}
+        run: |
+          app="$(cat build/runtime-artifact/app-path.txt)"
+          python3 macos/ci/runner-telemetry.py \
+            --phase runtime-stability \
+            --log build/macos-runtime-telemetry/stability.jsonl \
+            --diagnostics-dir build/macos-runtime-telemetry/stability-stall \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 660 --max-runtime 2400 \
+            --watch stability=build/macos-stability -- \
+            macos/ci/stability-smoke.sh "$app" build/macos-stability \
+              "$OVERTE_MACOS_STABILITY_ITERATIONS"
+
       - name: Upload runtime diagnostics
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -123,6 +163,8 @@ jobs:
             build/macos-startup-preflight
             build/macos-smoke
             build/macos-online-smoke
+            build/macos-performance
+            build/macos-stability
             build/macos-runtime-telemetry
           if-no-files-found: ignore
           retention-days: 7

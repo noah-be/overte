@@ -115,28 +115,49 @@ def decode_png(path: Path) -> tuple[int, int, int, bytes]:
     return width, height, color_type, bytes(decoded)
 
 
-def measure_pixels(width: int, height: int, color_type: int, pixels: bytes) -> dict[str, float | int]:
+def measure_pixels(width: int, height: int, color_type: int, pixels: bytes) -> dict[str, object]:
     channels = CHANNELS[color_type]
     nonblack = 0
+    opaque = 0
     red = 0
     cyan = 0
+    red_x_total = 0
+    cyan_x_total = 0
+    red_bounds = [width, height, -1, -1]
+    cyan_bounds = [width, height, -1, -1]
     minimum = 255
     maximum = 0
     buckets: set[tuple[int, int, int]] = set()
     for offset in range(0, len(pixels), channels):
+        pixel_index = offset // channels
+        x = pixel_index % width
+        y = pixel_index // width
         if color_type in (0, 4):
             r = g = b = pixels[offset]
         else:
             r, g, b = pixels[offset : offset + 3]
+        alpha = pixels[offset + channels - 1] if color_type in (4, 6) else 255
         luminance = (54 * r + 183 * g + 19 * b) // 256
         minimum = min(minimum, luminance)
         maximum = max(maximum, luminance)
         if max(r, g, b) > 16:
             nonblack += 1
+        if alpha >= 250:
+            opaque += 1
         if r >= 150 and r * 5 >= g * 7 and r * 5 >= b * 6:
             red += 1
+            red_x_total += x
+            red_bounds = [
+                min(red_bounds[0], x), min(red_bounds[1], y),
+                max(red_bounds[2], x), max(red_bounds[3], y),
+            ]
         if g >= 120 and b >= 120 and min(g, b) * 5 >= r * 7:
             cyan += 1
+            cyan_x_total += x
+            cyan_bounds = [
+                min(cyan_bounds[0], x), min(cyan_bounds[1], y),
+                max(cyan_bounds[2], x), max(cyan_bounds[3], y),
+            ]
         if len(buckets) < 4096:
             buckets.add((r // 16, g // 16, b // 16))
 
@@ -145,8 +166,14 @@ def measure_pixels(width: int, height: int, color_type: int, pixels: bytes) -> d
         "pixels": total,
         "nonblack_pixels": nonblack,
         "nonblack_ratio": nonblack / total,
+        "opaque_pixels": opaque,
+        "opaque_ratio": opaque / total,
         "red_pixels": red,
         "cyan_pixels": cyan,
+        "red_bounds": red_bounds if red else None,
+        "cyan_bounds": cyan_bounds if cyan else None,
+        "red_centroid_x_ratio": red_x_total / red / width if red else None,
+        "cyan_centroid_x_ratio": cyan_x_total / cyan / width if cyan else None,
         "luminance_min": minimum,
         "luminance_max": maximum,
         "luminance_span": maximum - minimum,
@@ -162,6 +189,8 @@ def validate(arguments: argparse.Namespace) -> dict[str, object]:
         failures.append(f"dimensions {width}x{height} are below the required minimum")
     if metrics["nonblack_ratio"] < arguments.min_nonblack_ratio:
         failures.append("image does not contain enough non-black pixels")
+    if metrics["opaque_ratio"] < arguments.min_opaque_ratio:
+        failures.append("image does not contain enough opaque pixels")
     if metrics["luminance_span"] < arguments.min_luminance_span:
         failures.append("image does not contain enough luminance contrast")
     if metrics["color_buckets"] < arguments.min_color_buckets:
@@ -170,6 +199,14 @@ def validate(arguments: argparse.Namespace) -> dict[str, object]:
         failures.append("image does not contain the required red fixture pixels")
     if metrics["cyan_pixels"] < arguments.require_cyan_pixels:
         failures.append("image does not contain the required cyan fixture pixels")
+    if arguments.require_red_left and (
+        metrics["red_centroid_x_ratio"] is None or metrics["red_centroid_x_ratio"] >= 0.5
+    ):
+        failures.append("red fixture is not centered in the left half")
+    if arguments.require_cyan_right and (
+        metrics["cyan_centroid_x_ratio"] is None or metrics["cyan_centroid_x_ratio"] <= 0.5
+    ):
+        failures.append("cyan fixture is not centered in the right half")
     return {
         "passed": not failures,
         "image": arguments.image.name,
@@ -187,11 +224,29 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--min-width", type=int, default=640)
     parser.add_argument("--min-height", type=int, default=360)
     parser.add_argument("--min-nonblack-ratio", type=float, default=0.001)
+    parser.add_argument("--min-opaque-ratio", type=float, default=0.99)
     parser.add_argument("--min-luminance-span", type=int, default=20)
     parser.add_argument("--min-color-buckets", type=int, default=4)
     parser.add_argument("--require-red-pixels", type=int, default=0)
     parser.add_argument("--require-cyan-pixels", type=int, default=0)
-    return parser.parse_args()
+    parser.add_argument("--require-red-left", action="store_true")
+    parser.add_argument("--require-cyan-right", action="store_true")
+    arguments = parser.parse_args()
+    if arguments.min_width <= 0 or arguments.min_height <= 0:
+        parser.error("minimum dimensions must be positive")
+    for name in ("min_nonblack_ratio", "min_opaque_ratio"):
+        value = getattr(arguments, name)
+        if not 0.0 <= value <= 1.0:
+            parser.error(f"--{name.replace('_', '-')} must be between zero and one")
+    for name in (
+        "min_luminance_span",
+        "min_color_buckets",
+        "require_red_pixels",
+        "require_cyan_pixels",
+    ):
+        if getattr(arguments, name) < 0:
+            parser.error(f"--{name.replace('_', '-')} must not be negative")
+    return arguments
 
 
 def main() -> int:

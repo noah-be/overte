@@ -86,6 +86,7 @@ grep -Fq "OVERTE_MACOS_SMOKE passed" "$log" || {
 [[ -s "$snapshot" ]] || { echo "serverless snapshot is missing or empty" >&2; exit 1; }
 python3 "$source_root/macos/tools/validate-screenshot.py" "$snapshot" \
     --result "$screenshot_result" \
-    --require-red-pixels 128 --require-cyan-pixels 128
+    --require-red-pixels 128 --require-cyan-pixels 128 \
+    --require-red-left --require-cyan-right
 
 echo "macOS serverless smoke passed"

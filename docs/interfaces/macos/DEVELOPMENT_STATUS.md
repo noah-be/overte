@@ -14,24 +14,28 @@
 - five-second runner health sampling with sanitized 30-second live aggregates;
 - shared GLAD state and optional OpenGL debug-entry-point guards;
 - startup, bundle-linkage, and reusable runtime-only diagnostic workflows; and
+- deterministic screenshot, frame-timing, JUnit, and repeated-runtime test
+  harnesses;
 - accepted `arm64` configuration value for future dependency work.
 
 ## Current evidence
 
-The Intel CI path now resolves dependencies, builds and bundles `Overte.app`,
-passes its bundle-linkage gate, and passes the startup preflight. Runtime LLDB
-evidence identified and removed two OpenGL loader failures: duplicated static
-GLAD state across Mach-O images and an unconditional optional `GL_KHR_debug`
-entry-point call. A fully monitored follow-up run must still prove the complete
-serverless and online entity gates; those gates remain the definition of a
-functional milestone.
+The Intel CI path resolves dependencies, builds and bundles `Overte.app`, and
+passes bundle linkage and startup. Run
+[`31719242695`](https://github.com/noah-be/overte/actions/runs/31719242695)
+then passed serverless and online acceptance in one monitored job. The local
+fixture produced its three named entities and a 1380x776 image with 55,179 red
+and 30,216 cyan pixels. The online client connected to the public Hub's domain
+and entity server, sent its query, received entity data, handed entities to the
+renderer, found eight nearby entities, saved a non-empty 1380x776 image, and
+exited with status zero. Neither runtime needed timeout signals or produced a
+crash report.
 
 ## Open gates
 
-1. Pass the serverless scene import, non-empty entity tree, render handoff, and
-   snapshot gates in one monitored run.
-2. Pass the online entity-server, query, data-receive, render-handoff, and
-   snapshot gates.
-3. Re-run serverless after online navigation to prove transition cleanup.
-4. Validate native Apple Silicon dependencies and runtime.
-5. Define signing, notarization, privacy, and packaging requirements.
+1. Re-run serverless after online navigation in the same process to prove
+   transition cleanup.
+2. Establish stable performance baselines before making frame-time thresholds
+   blocking.
+3. Validate native Apple Silicon dependencies and runtime.
+4. Define signing, notarization, privacy, and packaging requirements.
