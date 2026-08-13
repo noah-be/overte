@@ -550,21 +550,25 @@ for vector_parameter_contract in (
     if vector_parameter_contract not in tone_map_source + tone_map_shader:
         raise SystemExit(f"tone-map vector parameter contract missing: {vector_parameter_contract}")
 for neutral_passthrough_contract in (
-    "_passthroughPipeline",
-    "_mirrorPassthroughPipeline",
-    "DrawViewportQuadTransformTexcoord",
-    "shader::gpu::fragment::DrawTextureOpaque",
-    "shader::gpu::fragment::DrawTextureMirroredX",
     "OVERTE_MACOS_TONEMAP_PASSTHROUGH",
     "activeParameters._curveRegister.front() == (int)TonemappingCurve::SRGB",
     "activeParameters._exposureRegister.front() == 1.0f",
+    'gpu::doInBatch("ToneMapNeutralBlit::run"',
+    "batch.setFramebuffer(destinationFramebuffer)",
+    "batch.blit(input.get0(), sourceRect, destinationFramebuffer, destinationRect)",
+    "std::swap(sourceRect.x, sourceRect.z)",
 ):
     if neutral_passthrough_contract not in tone_map_source + tone_map_header:
         raise SystemExit(f"neutral macOS tone-map passthrough missing: {neutral_passthrough_contract}")
-if tone_map_source.index("if (neutralPassthrough)") > tone_map_source.index(
-    "batch.setPipeline(shouldMirror ? _mirrorPassthroughPipeline : _passthroughPipeline)"
+neutral_blit = tone_map_source.split("if (neutralPassthrough)", 1)[1].split(
+    'gpu::doInBatch("Resample::run"', 1
+)[0]
+if neutral_blit.index("batch.setFramebuffer(destinationFramebuffer)") > neutral_blit.index(
+    "batch.blit(input.get0(), sourceRect, destinationFramebuffer, destinationRect)"
 ):
-    raise SystemExit("neutral macOS tone-map passthrough must select its UBO-free pipeline")
+    raise SystemExit("neutral macOS tone-map blit must select destination state before copying")
+if "return;" not in neutral_blit:
+    raise SystemExit("neutral macOS tone-map blit must bypass the broken sampler pipeline")
 for diagnostic_token in ("OVERTE_MACOS_TONEMAP_PARAMS", "sizeof(Parameters)", "exposure_scale="):
     if diagnostic_token not in tone_map_source:
         raise SystemExit(f"tone-map runtime diagnostics missing: {diagnostic_token}")

@@ -68,10 +68,6 @@ public:
 protected:
     static gpu::PipelinePointer _pipeline;
     static gpu::PipelinePointer _mirrorPipeline;
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
-    static gpu::PipelinePointer _passthroughPipeline;
-    static gpu::PipelinePointer _mirrorPassthroughPipeline;
-#endif
 
     gpu::FramebufferPointer _destinationFrameBuffer;
 
