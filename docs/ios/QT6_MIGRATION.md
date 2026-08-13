@@ -77,6 +77,11 @@ closed before indexing, and suggestion ordering and network behavior are
 unchanged. Its two unused direct `qregexp.h` includes are removed so this
 iOS-reachable source no longer depends on a header removed from Qt 6.
 
+The performance timing display now traverses its duplicate-preserving
+`QMultiMap<float, QString>` with `QMultiMapIterator`. Reverse ordering, equal
+duration records, the top-ten limit, and the formatted statistics remain
+unchanged while avoiding Qt 5's removed QMap/QMultiMap interoperability.
+
 FST mappings continue to use `VariantMultiHash` so repeated script and
 blendshape keys are preserved. Qt 6 no longer implicitly converts between
 `QHash` and `QMultiHash`, so default arguments now use the multi-hash type and

@@ -1055,6 +1055,15 @@ def test_scope_contract() -> None:
         "Qt 5 compatibility and JSON top-level-list validation must remain",
     )
 
+    stats_source = SOURCE_ROOT / "interface" / "src" / "ui" / "Stats.cpp"
+    require_text(
+        stats_source,
+        r"QMultiMap<float, QString> sortedRecords;[\s\S]*QMultiMapIterator<float, QString> j\(sortedRecords\);[\s\S]*j\.toBack\(\);[\s\S]*j\.hasPrevious\(\)",
+        "Qt 6 timing statistics must iterate the multi-map with its matching reverse iterator",
+    )
+    assert "QMapIterator<float, QString> j(sortedRecords)" not in stats_source.read_text(encoding="utf-8"), \
+        "Qt 6 no longer implicitly exposes QMultiMap through QMapIterator"
+
     avatar_doctor = SOURCE_ROOT / "interface" / "src" / "avatar" / "AvatarDoctor.cpp"
     require_text(
         avatar_doctor,
