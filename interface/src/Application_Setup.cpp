@@ -823,7 +823,9 @@ void Application::initialize(const QCommandLineParser &parser) {
         << NodeType::EntityServer << NodeType::AssetServer << NodeType::MessagesMixer << NodeType::EntityScriptServer);
 
     // setDefaultFormat has no effect after the platform window has been created, so call it here.
+#if !defined(Q_OS_IOS)
     QSurfaceFormat::setDefaultFormat(getDefaultOpenGLSurfaceFormat());
+#endif
 
 #ifdef USE_GL
     _primaryWidget = new GLCanvas();
@@ -977,14 +979,20 @@ void Application::initialize(const QCommandLineParser &parser) {
 #endif
             { "ideal_thread_count", QThread::idealThreadCount() }
         };
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
         auto macVersion = QSysInfo::macVersion();
         if (macVersion != QSysInfo::MV_None) {
-            properties["os_osx_version"] = QSysInfo::macVersion();
+            properties["os_osx_version"] = macVersion;
         }
         auto windowsVersion = QSysInfo::windowsVersion();
         if (windowsVersion != QSysInfo::WV_None) {
-            properties["os_win_version"] = QSysInfo::windowsVersion();
+            properties["os_win_version"] = windowsVersion;
         }
+#elif defined(Q_OS_MACOS)
+        properties["os_osx_version"] = QSysInfo::productVersion();
+#elif defined(Q_OS_WIN)
+        properties["os_win_version"] = QSysInfo::productVersion();
+#endif
 
         ProcessorInfo procInfo;
         if (getProcessorInfo(procInfo)) {

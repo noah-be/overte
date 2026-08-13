@@ -1422,6 +1422,11 @@ def test_scope_contract() -> None:
     assert '${CMAKE_CURRENT_SOURCE_DIR}/src/DiscordRichPresence.cpp' in interface_cmake_text
     assert '${CMAKE_CURRENT_SOURCE_DIR}/src/DiscordRichPresence.h' in interface_cmake_text
     application_setup_text = (SOURCE_ROOT / "interface" / "src" / "Application_Setup.cpp").read_text(encoding="utf-8")
+    assert "#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)\n        auto macVersion = QSysInfo::macVersion();" in application_setup_text
+    assert '#elif defined(Q_OS_MACOS)\n        properties["os_osx_version"] = QSysInfo::productVersion();' in application_setup_text
+    assert '#elif defined(Q_OS_WIN)\n        properties["os_win_version"] = QSysInfo::productVersion();' in application_setup_text
+    assert 'properties["os_osx_version"] = QSysInfo::macVersion();' not in application_setup_text
+    assert 'properties["os_win_version"] = QSysInfo::windowsVersion();' not in application_setup_text
     assert "#if !defined(Q_OS_IOS)\n#include \"DiscordRichPresence.h\"\n#endif" in application_setup_text
     assert "#if !defined(Q_OS_IOS)\n    _discordPresence = new DiscordPresence();" in application_setup_text
     preferences_text = (SOURCE_ROOT / "interface" / "src" / "ui" / "PreferencesDialog.cpp").read_text(encoding="utf-8")

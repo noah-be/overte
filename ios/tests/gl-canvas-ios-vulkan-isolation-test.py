@@ -32,6 +32,8 @@ for name in USERS:
             f"{name} must not parse GLCanvas.h in a Vulkan build")
 
 setup = (ROOT / "interface/src/Application_Setup.cpp").read_text()
+require("#if !defined(Q_OS_IOS)\n    QSurfaceFormat::setDefaultFormat(getDefaultOpenGLSurfaceFormat());\n#endif" in setup,
+        "iOS Vulkan setup still calls the unavailable desktop GL surface helper")
 require("#ifdef USE_GL\n    _primaryWidget = new GLCanvas();" in setup,
         "desktop/Android OpenGL GLCanvas construction changed")
 require("#else\n    _primaryWidget = new VKCanvas();" in setup,

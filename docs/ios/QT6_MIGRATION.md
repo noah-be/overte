@@ -762,6 +762,12 @@ registered with QML before creating their result object. Qt 6 removed
 `QJSValue::engine()`; mapping properties and the callback's error-first result
 shape are unchanged, while a missing engine fails closed with an undefined map.
 
+Full-client setup no longer requests a desktop OpenGL default surface format on
+iOS before constructing its Vulkan canvas. Launch telemetry also keeps Qt 5's
+legacy macOS/Windows version enums only in the Qt 5 branch; Qt 6 populates the
+same platform-specific key from `QSysInfo::productVersion()`, alongside the
+existing cross-platform OS type/version fields. iOS is not classified as macOS.
+
 The audio gate requires device enumeration, route change, microphone consent,
 interruption recovery, Bluetooth behavior, mono input, stereo output, and
 resampling tests on physical hardware.
