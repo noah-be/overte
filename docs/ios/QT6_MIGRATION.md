@@ -727,6 +727,11 @@ already disabled on iOS; the four implementation/header files and their include
 are now excluded from the iOS compile/MOC graph as well. The independent avatar
 packager, model serializers, and tablet model workflows remain available.
 
+Directory heartbeat responses expose their session identifier as a JSON string,
+while `AccountManager` intentionally stores a `QUuid`. The heartbeat boundary
+now performs that parse explicitly before calling `setSessionID`; this preserves
+the Qt 5 behavior while satisfying Qt 6's explicit string-to-UUID conversion.
+
 The audio gate requires device enumeration, route change, microphone consent,
 interruption recovery, Bluetooth behavior, mono input, stereo output, and
 resampling tests on physical hardware.

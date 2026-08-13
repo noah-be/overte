@@ -473,6 +473,15 @@ def test_cmake_boundary() -> None:
     if "getTextureForUUIDOperator(uuid)" in texture_cache.read_text(encoding="utf-8"):
         raise AssertionError("texture UUID resolution retained Qt 5's implicit QString-to-QUuid conversion")
 
+    discoverability_manager = SOURCE_ROOT / "interface" / "src" / "DiscoverabilityManager.cpp"
+    require_text(
+        discoverability_manager,
+        r"const QUuid sessionID\(dataObject\[SESSION_ID_KEY\]\.toString\(\)\);[\s\S]*accountManager->setSessionID\(sessionID\)",
+        "Qt 6 heartbeat handling must parse the directory session string before the typed AccountManager boundary",
+    )
+    if "setSessionID(dataObject[SESSION_ID_KEY].toString())" in discoverability_manager.read_text(encoding="utf-8"):
+        raise AssertionError("discoverability heartbeat retained Qt 5's implicit QString-to-QUuid conversion")
+
     ui_menu_source = SOURCE_ROOT / "libraries" / "ui" / "src" / "ui" / "Menu.cpp"
     if "QtWidgets/QShortcut" in ui_menu_source.read_text(encoding="utf-8"):
         raise AssertionError("the iOS UI graph retained the Qt 5 QShortcut module path")

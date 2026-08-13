@@ -12,6 +12,7 @@
 #include "DiscoverabilityManager.h"
 
 #include <QtCore/QJsonDocument>
+#include <QtCore/QUuid>
 #include <QThread>
 
 #include <AccountManager.h>
@@ -141,7 +142,7 @@ void DiscoverabilityManager::handleHeartbeatResponse(QNetworkReply* requestReply
     auto dataObject = AccountManager::dataObjectFromResponse(requestReply);
 
     if (!dataObject.isEmpty()) {
-        auto sessionID = dataObject[SESSION_ID_KEY].toString();
+        const QUuid sessionID(dataObject[SESSION_ID_KEY].toString());
 
         // give that session ID to the account manager
         auto accountManager = DependencyManager::get<AccountManager>();
