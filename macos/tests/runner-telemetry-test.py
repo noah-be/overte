@@ -296,6 +296,8 @@ class RunnerTelemetryTest(unittest.TestCase):
                           if row["macos_runner_telemetry"] == "heartbeat"]
             self.assertTrue(any("filesystem" in row["progress_sources"]
                                 for row in heartbeats))
+            self.assertTrue(any(row.get("directory_mib", {}).get("payload", 0) > 0
+                                for row in heartbeats))
             self.assertNotIn(str(watched), log.read_text())
 
     def test_inactive_phase_is_killed_after_private_sanitized_diagnostics(self):

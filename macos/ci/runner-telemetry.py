@@ -703,8 +703,8 @@ def supervise(command: list[str], collector: Collector, emit: Callable[..., None
                 prior_alerts = current_alerts
                 if include_directories:
                     latest_sizes = sizes
-                    if last_sizes and any(
-                        last_sizes.get(label) != size for label, size in sizes.items()
+                    if any(
+                        last_sizes.get(label, 0.0) != size for label, size in sizes.items()
                     ):
                         last_progress = now
                         progress_sources.add("filesystem")
