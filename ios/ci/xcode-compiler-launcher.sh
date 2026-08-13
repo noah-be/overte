@@ -11,4 +11,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     exit 127
 }
 
-exec "$script_dir/compiler-watchdog.py" -- "$SCCACHE_PATH" "$@"
+# The watchdog receives the real compiler as argv[0] and inserts the pinned
+# sccache executable exactly once.  Passing SCCACHE_PATH here as the command
+# would produce the recursive chain `sccache sccache clang ...`.
+exec "$script_dir/compiler-watchdog.py" -- "$@"

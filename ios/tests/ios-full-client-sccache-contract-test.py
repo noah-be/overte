@@ -109,8 +109,13 @@ def main() -> None:
     require(r"--compiler-live-log", build_slice, "every compiler invocation must have a live watchdog channel")
 
     launcher = (ROOT / "ios/ci/xcode-compiler-launcher.sh").read_text(encoding="utf-8")
-    require(r"compiler-watchdog\.py[\s\S]*-- \"\$SCCACHE_PATH\" \"\$@\"", launcher,
-            "every Xcode source compile must run watchdog -> sccache -> compiler")
+    require(r"compiler-watchdog\.py[\s\S]*-- \"\$@\"", launcher,
+            "every Xcode source compile must enter the watchdog with the real compiler")
+    if re.search(r'compiler-watchdog\.py[\s\S]*-- \"\$SCCACHE_PATH\"', launcher):
+        raise AssertionError("the launcher must not recursively pass sccache as the compiler")
+    require(r'configured_cache = os\.environ\.get\("SCCACHE_PATH"\)[\s\S]*executable\.insert\(0, cache\)',
+            (ROOT / "ios/ci/compiler-watchdog.py").read_text(encoding="utf-8"),
+            "the watchdog must insert the pinned compiler cache exactly once")
 
     verify_slice = integrated[verify:package]
     require(r"if:.*!cancelled\(\).*full-client-build\.outcome != 'skipped'", verify_slice, "stats must run after success or failure, but not cancellation")

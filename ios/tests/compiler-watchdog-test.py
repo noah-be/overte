@@ -101,6 +101,36 @@ class CompilerWatchdogTest(unittest.TestCase):
             self.assertEqual(records[0]["source"], "visible-unit.cpp")
             self.assertEqual(records[-1]["compiler_watchdog"], "end")
 
+    def test_launcher_inserts_pinned_sccache_exactly_once(self) -> None:
+        launcher = ROOT / "ios" / "ci" / "xcode-compiler-launcher.sh"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            trace = root / "trace.txt"
+            compiler = root / "clang++"
+            compiler.write_text(
+                "#!/bin/sh\nprintf 'compiler:%s\\n' \"$*\" >> \"$TRACE_FILE\"\nexit 0\n",
+                encoding="utf-8",
+            )
+            compiler.chmod(0o755)
+            cache = root / "sccache"
+            cache.write_text(
+                "#!/bin/sh\nprintf 'sccache:%s\\n' \"$1\" >> \"$TRACE_FILE\"\nexec \"$@\"\n",
+                encoding="utf-8",
+            )
+            cache.chmod(0o755)
+            env = os.environ.copy()
+            env["SCCACHE_PATH"] = str(cache)
+            env["TRACE_FILE"] = str(trace)
+            result = subprocess.run(
+                [str(launcher), str(compiler), "-c", "unit.cpp", "-o", "unit.o"],
+                text=True, capture_output=True, env=env, timeout=5, check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            lines = trace.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(lines[0], f"sccache:{compiler}")
+            self.assertEqual(sum(line.startswith("sccache:") for line in lines), 1)
+            self.assertEqual(sum(line.startswith("compiler:") for line in lines), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

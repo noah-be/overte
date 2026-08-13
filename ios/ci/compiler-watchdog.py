@@ -171,7 +171,10 @@ def run(command: list[str], interval: float, inactivity_timeout: float, grace: f
     source_marker, output_marker = _compiler_markers(arguments)
     source_label = Path(source_marker).name if source_marker else "unknown"
     executable = [compiler, *arguments]
-    cache = shutil.which("sccache")
+    configured_cache = os.environ.get("SCCACHE_PATH")
+    cache = configured_cache or shutil.which("sccache")
+    if configured_cache and not os.access(configured_cache, os.X_OK):
+        raise RuntimeError("SCCACHE_PATH does not name an executable")
     if cache and os.environ.get("OVERTE_COMPILER_WATCHDOG_DISABLE_SCCACHE") != "1":
         executable.insert(0, cache)
 
