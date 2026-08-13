@@ -51,6 +51,14 @@ for description, (source, token) in LIBNODE_CONTRACT.items():
     if token not in source:
         raise SystemExit(f"missing libnode contract: {description}")
 
+for native_test_contract in (
+    'build_tests="${OVERTE_MACOS_BUILD_TESTS:-OFF}"',
+    "OVERTE_MACOS_BUILD_TESTS must be ON or OFF",
+    '-DOVERTE_BUILD_TESTS="$build_tests"',
+):
+    if native_test_contract not in build_script:
+        raise SystemExit(f"macOS native test build contract missing: {native_test_contract}")
+
 if 'copy(self, "*.dylib*", src, bindir, False)' not in root_recipe:
     raise SystemExit("Conan deployment must collect versioned macOS dylibs")
 
@@ -1049,6 +1057,11 @@ subprocess.run(
 )
 subprocess.run(
     [sys.executable, str(ROOT / "macos/tests/build-tree-checkpoint-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/native-test-runner-test.py")],
     cwd=ROOT,
     check=True,
 )

@@ -4,7 +4,21 @@ set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${OVERTE_TEST_BUILD_DIR:-$ROOT/build-tests}"
 BUILD_CONFIG="${OVERTE_TEST_BUILD_CONFIG:-Debug}"
-JOBS="${OVERTE_TEST_JOBS:-$(nproc)}"
+
+default_jobs() {
+    local detected=''
+    if command -v nproc >/dev/null 2>&1; then
+        detected="$(nproc 2>/dev/null || true)"
+    fi
+    if [[ ! "$detected" =~ ^[1-9][0-9]*$ ]] && command -v sysctl >/dev/null 2>&1; then
+        detected="$(sysctl -n hw.logicalcpu 2>/dev/null || true)"
+    fi
+    [[ "$detected" =~ ^[1-9][0-9]*$ ]] || detected=1
+    printf '%s\n' "$detected"
+}
+
+JOBS="${OVERTE_TEST_JOBS:-$(default_jobs)}"
+JUNIT="${OVERTE_TEST_JUNIT:-}"
 
 usage() {
     cat <<'EOF'
@@ -12,7 +26,7 @@ Usage: tests/project-native-test.sh [BUILD_DIR]
 
 Build and execute every CTest-registered automated native test in an already
 configured Overte build. Environment: OVERTE_TEST_BUILD_CONFIG,
-OVERTE_TEST_JOBS, CTEST_OUTPUT_ON_FAILURE.
+OVERTE_TEST_JOBS, OVERTE_TEST_JUNIT, CTEST_OUTPUT_ON_FAILURE.
 EOF
 }
 
@@ -28,6 +42,14 @@ esac
 }
 command -v cmake >/dev/null || { echo "error: cmake is required" >&2; exit 2; }
 command -v ctest >/dev/null || { echo "error: ctest is required" >&2; exit 2; }
+[[ "$JOBS" =~ ^[1-9][0-9]*$ ]] || { echo "error: OVERTE_TEST_JOBS must be positive" >&2; exit 2; }
 
 cmake --build "$BUILD_DIR" --config "$BUILD_CONFIG" --target all-tests --parallel "$JOBS"
-ctest --test-dir "$BUILD_DIR" -C "$BUILD_CONFIG" --output-on-failure --no-tests=error
+ctest_args=(--test-dir "$BUILD_DIR" -C "$BUILD_CONFIG" --output-on-failure --no-tests=error)
+if [[ -n "$JUNIT" ]]; then
+    [[ "$JUNIT" == /* ]] || JUNIT="$ROOT/$JUNIT"
+    [[ ! -L "$JUNIT" ]] || { echo "error: refusing a symlinked JUnit report" >&2; exit 2; }
+    mkdir -p "$(dirname "$JUNIT")"
+    ctest_args+=(--output-junit "$JUNIT")
+fi
+ctest "${ctest_args[@]}"

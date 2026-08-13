@@ -389,6 +389,28 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("macos-sccache-v4-", key_step)
         self.assertIn("macos-conan-v3-", key_step)
 
+    def test_native_test_build_tree_is_profiled_without_splitting_dependencies(self):
+        self.assertIn("run_native_tests:", self.source)
+        self.assertIn(
+            "OVERTE_MACOS_BUILD_TESTS: ${{ inputs.run_native_tests && 'ON' || 'OFF' }}",
+            self.source,
+        )
+        key_step = self.source.split(
+            "- name: Select deterministic toolchain and cache keys", 1
+        )[1].split("- name: Restore bounded compiler recovery cache", 1)[0]
+        self.assertIn('if [[ "$OVERTE_MACOS_BUILD_TESTS" == ON ]]', key_step)
+        self.assertIn("git ls-files -s -- 'tests/**'", key_step)
+        self.assertIn(
+            '"$toolchain_fingerprint" "$OVERTE_MACOS_BUILD_TESTS"', key_step
+        )
+        self.assertIn("build_profile_fingerprint", key_step)
+        conan_section = key_step.split('conan_key="', 1)[1].split(
+            'echo "conan=', 1
+        )[0]
+        self.assertNotIn("build_profile_fingerprint", conan_section)
+        build_section = key_step.split('build_base="', 1)[1]
+        self.assertIn("build_profile_fingerprint", build_section)
+
     def test_monitoring_only_changes_do_not_strand_compatible_sccache_entries(self):
         key_step = self.source.split(
             "- name: Select deterministic toolchain and cache keys", 1
@@ -584,6 +606,27 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("--inactivity-timeout 300 --max-runtime 540", section)
         self.assertIn("macos/ci/performance-smoke.sh", section)
         self.assertIn("build/macos-performance", self.source[diagnostics:])
+
+    def test_optional_native_code_suite_is_watched_bounded_and_publishes_junit(self):
+        performance = self.source.index("- name: Run deterministic graphics performance smoke")
+        native = self.source.index("- name: Run native C++ and Qt code tests")
+        diagnostics = self.source.index("- name: Upload smoke diagnostics")
+        self.assertLess(performance, native)
+        self.assertLess(native, diagnostics)
+        section = self.source[native:diagnostics]
+        for token in (
+            "if: ${{ inputs.run_native_tests }}",
+            "timeout-minutes: 120",
+            "--phase native-code-tests",
+            "--sample-interval 5 --publish-interval 30",
+            "--inactivity-timeout 900 --max-runtime 6900",
+            "--compiler-live-log",
+            "--compiler-diagnostics-dir",
+            "tests/project-native-test.sh build",
+            "TEST-overte-macos-native.xml",
+        ):
+            self.assertIn(token, section)
+        self.assertIn("build/macos-native-test-results", self.source[diagnostics:])
 
     def test_built_application_is_preserved_when_runtime_smoke_fails(self):
         upload = self.source.index("- name: Upload application bundle immediately")

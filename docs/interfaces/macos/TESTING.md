@@ -72,11 +72,26 @@ scene, requires a second serverless import generation, and validates the final
 fixture image. This catches stale entity trees, stale network requests, and
 mode-switch shutdown problems that independent launches cannot detect.
 
-The manually dispatched `macOS runtime smoke` workflow can run performance and
-three or five stability cycles, or the same-process transition, against an existing matching application
-artifact. This avoids rebuilding the app for runtime-only test changes. A real
+The manually dispatched `macOS runtime smoke` workflow can run performance,
+three or five stability cycles, or the same-process transition against an
+existing matching application artifact. This avoids rebuilding the app for
+runtime-only test changes. A real
 WindowServer/OpenGL context is required; Qt's offscreen platform is not a
 substitute for the 3D graphics gates.
+
+## Native code suite
+
+The manual `macOS bootstrap` input `run_native_tests` configures the application
+with `OVERTE_BUILD_TESTS=ON`, builds every CTest-registered C++/Qt executable,
+and runs CTest after the runtime gates. Compiler invocations retain the same
+per-file watchdog and independent live log as the client build. The phase has
+five-second host samples, 30-second aggregates, a 115-minute internal deadline,
+a 120-minute step cap, stall samples, and an always-uploaded JUnit report.
+
+The native-test option gets a separate Ninja build-tree profile because its
+generated graph differs from the client-only graph. It deliberately shares
+Conan packages and content-addressed sccache objects with normal builds, so
+enabling tests does not discard already compiled compatible code.
 
 ## Physical Mac matrix
 

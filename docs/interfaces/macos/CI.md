@@ -134,3 +134,11 @@ correlation, process-group cleanup, diagnostic redaction, live append behavior,
 cache restore/save ordering, round-trip checkpoint recovery, corruption and
 path-traversal rejection, candidate fallback, token redaction, and remote upload
 digest validation.
+
+For code-level platform regression coverage, the manual bootstrap input
+`run_native_tests` enables all registered C++/Qt CTest targets. The native phase
+uses the same four-language compiler watchdog, runner telemetry, process-group
+cleanup, and compiler-stall diagnostics as the application build, then publishes
+CTest JUnit output. Test-enabled and client-only Ninja trees have distinct
+profile keys; Conan and sccache remain shared because their artifacts are
+content-addressed and configuration-compatible.

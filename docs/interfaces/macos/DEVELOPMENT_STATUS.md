@@ -16,6 +16,8 @@
 - startup, bundle-linkage, and reusable runtime-only diagnostic workflows; and
 - deterministic screenshot, frame-timing, JUnit, and repeated-runtime test
   harnesses;
+- optional monitored build and JUnit execution of every registered native
+  C++/Qt CTest; and
 - accepted `arm64` configuration value for future dependency work.
 
 ## Current evidence
@@ -35,7 +37,8 @@ crash report.
 
 1. Pass the prepared same-process serverless-online-serverless transition gate
    on the Intel runtime artifact.
-2. Establish stable performance baselines before making frame-time thresholds
+2. Run the prepared native C++/Qt suite on its test-enabled Intel build tree.
+3. Establish stable performance baselines before making frame-time thresholds
    blocking.
-3. Validate native Apple Silicon dependencies and runtime.
-4. Define signing, notarization, privacy, and packaging requirements.
+4. Validate native Apple Silicon dependencies and runtime.
+5. Define signing, notarization, privacy, and packaging requirements.

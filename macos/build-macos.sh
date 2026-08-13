@@ -9,6 +9,7 @@ readonly build_type="${OVERTE_MACOS_BUILD_TYPE:-RelWithDebInfo}"
 readonly architecture="${OVERTE_MACOS_ARCH:-x86_64}"
 readonly qt_source="${OVERTE_MACOS_QT_SOURCE:-aqt}"
 readonly build_dir="${OVERTE_MACOS_BUILD_DIR:-$source_root/build}"
+readonly build_tests="${OVERTE_MACOS_BUILD_TESTS:-OFF}"
 
 fail() { echo "macOS build error: $*" >&2; exit 1; }
 note() { echo "macOS build: $*"; }
@@ -23,12 +24,13 @@ doctor() {
     command -v node >/dev/null || fail "Node.js is missing"
     [[ "$(conan --version)" =~ Conan\ version\ 2\. ]] || fail "Conan 2 is required"
     case "$architecture" in x86_64|arm64) ;; *) fail "OVERTE_MACOS_ARCH must be x86_64 or arm64" ;; esac
+    case "$build_tests" in ON|OFF) ;; *) fail "OVERTE_MACOS_BUILD_TESTS must be ON or OFF" ;; esac
     if [[ "$qt_source" == aqt ]]; then
         command -v aqt >/dev/null || fail "aqtinstall is missing (install it in a Python virtual environment)"
     fi
     note "Xcode: $(xcodebuild -version | tr '\n' ' ')"
     note "host: $(uname -m); target: $architecture; configuration: $build_type"
-    note "Qt source: $qt_source; deployment target: ${MACOSX_DEPLOYMENT_TARGET:-11.0}"
+    note "Qt source: $qt_source; deployment target: ${MACOSX_DEPLOYMENT_TARGET:-11.0}; tests: $build_tests"
 }
 
 ensure_conan_profile() {
@@ -104,7 +106,7 @@ configure() {
     cmake --preset "$preset" \
         -DOVERTE_RENDERING_BACKEND=OpenGL -DOVERTE_BUILD_CLIENT=ON \
         -DOVERTE_BUILD_SERVER=OFF -DOVERTE_BUILD_TOOLS=OFF \
-        -DOVERTE_BUILD_TESTS=OFF -DOVERTE_BUILD_INSTALLER=OFF \
+        -DOVERTE_BUILD_TESTS="$build_tests" -DOVERTE_BUILD_INSTALLER=OFF \
         -DOVERTE_RELEASE_TYPE=DEV -DCMAKE_OSX_ARCHITECTURES="$architecture" \
         -DCMAKE_OSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-11.0}" \
         "${launcher_args[@]}"

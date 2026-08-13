@@ -42,8 +42,22 @@ package, and deployment target 11.0.
 | `OVERTE_MACOS_ARCH` | `x86_64` or experimental `arm64` |
 | `OVERTE_MACOS_QT_SOURCE` | Qt package source |
 | `OVERTE_MACOS_BUILD_DIR` | Build directory |
+| `OVERTE_MACOS_BUILD_TESTS` | `ON` enables registered C++/Qt test targets; default `OFF` |
 | `MACOSX_DEPLOYMENT_TARGET` | macOS deployment target |
 
 The script configures the Overte Conan remotes and exports macOS-local repairs
 for the Qt and Node recipes. Those repairs are part of the experimental port and
 must be validated before they are treated as reusable release dependencies.
+
+For an explicit code-test build, configure the same client tree with tests and
+then execute the common native runner:
+
+```bash
+OVERTE_MACOS_BUILD_TESTS=ON macos/build-macos.sh build
+OVERTE_TEST_BUILD_CONFIG=RelWithDebInfo \
+OVERTE_TEST_JUNIT=build/macos-native-test-results/TEST-overte-macos-native.xml \
+  tests/project-native-test.sh build
+```
+
+This is intentionally opt-in because compiling every registered test executable
+is substantially more expensive than the application target.

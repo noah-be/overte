@@ -5,6 +5,12 @@ name: macOS bootstrap
 
 on:
   workflow_dispatch:
+    inputs:
+      run_native_tests:
+        description: Configure, build, and execute every registered C++/Qt CTest
+        required: true
+        default: false
+        type: boolean
   push:
     branches: [apple-macos]
     paths:
@@ -38,6 +44,7 @@ jobs:
       OVERTE_MACOS_ARCH: x86_64
       OVERTE_MACOS_BUILD_TYPE: RelWithDebInfo
       OVERTE_MACOS_QT_SOURCE: aqt
+      OVERTE_MACOS_BUILD_TESTS: ${{ inputs.run_native_tests && 'ON' || 'OFF' }}
       MACOSX_DEPLOYMENT_TARGET: '11.0'
       SCCACHE_DIR: ${{ github.workspace }}/.sccache
       SCCACHE_CONF: ${{ github.workspace }}/macos/ci/sccache.toml
@@ -159,11 +166,15 @@ jobs:
           toolchain_inputs="$(git ls-files -s -- conanfile.py 'macos/conan/**' \
             CMakeLists.txt 'cmake/**' macos/build-macos.sh \
             | shasum -a 256 | awk '{print $1}')"
-          source_inputs="$(git ls-files -s -- conanfile.py 'macos/conan/**' \
-            CMakeLists.txt 'cmake/**' 'interface/**' 'libraries/**' 'plugins/**' \
-            macos/build-macos.sh 'macos/tools/**' \
-            macos/ci/build-tree-checkpoint.py | \
-            shasum -a 256 | awk '{print $1}')"
+          source_inputs="$({
+            git ls-files -s -- conanfile.py 'macos/conan/**' \
+              CMakeLists.txt 'cmake/**' 'interface/**' 'libraries/**' 'plugins/**' \
+              macos/build-macos.sh 'macos/tools/**' \
+              macos/ci/build-tree-checkpoint.py
+            if [[ "$OVERTE_MACOS_BUILD_TESTS" == ON ]]; then
+              git ls-files -s -- 'tests/**'
+            fi
+          } | shasum -a 256 | awk '{print $1}')"
           compiler_fingerprint="$(printf '%s\n' \
             "$compiler_digest" "$compiler_version" "$xcode_build" \
             "$sdk_version" "$sdk_build" "$OVERTE_MACOS_ARCH" \
@@ -174,6 +185,9 @@ jobs:
             "$sdk_version" "$sdk_build" "$OVERTE_MACOS_ARCH" \
             "$OVERTE_MACOS_BUILD_TYPE" "$MACOSX_DEPLOYMENT_TARGET" \
             "$OVERTE_MACOS_QT_SOURCE" "$toolchain_inputs" | \
+            shasum -a 256 | awk '{print $1}')"
+          build_profile_fingerprint="$(printf '%s\n' \
+            "$toolchain_fingerprint" "$OVERTE_MACOS_BUILD_TESTS" | \
             shasum -a 256 | awk '{print $1}')"
           conan_inputs="$(git ls-files -s -- conanfile.py 'macos/conan/**' | \
             shasum -a 256 | awk '{print $1}')"
@@ -194,7 +208,7 @@ jobs:
           remote_namespace="overte-macos-objects-v1-${OVERTE_MACOS_ARCH}-${toolchain_fingerprint}"
           echo "SCCACHE_GHA_VERSION=${remote_namespace}" >> "$GITHUB_ENV"
           echo "sccache_remote_namespace=${remote_namespace}" >> "$GITHUB_OUTPUT"
-          build_base="macos-build-tree-v2-${OVERTE_MACOS_ARCH}-${toolchain_fingerprint}"
+          build_base="macos-build-tree-v2-${OVERTE_MACOS_ARCH}-${build_profile_fingerprint}"
           echo "build_configured=${build_base}-configured-${source_inputs}" >> "$GITHUB_OUTPUT"
           echo "build_complete=${build_base}-complete-${source_inputs}" >> "$GITHUB_OUTPUT"
           echo "build_complete_prefix=${build_base}-complete-" >> "$GITHUB_OUTPUT"
@@ -858,6 +872,24 @@ jobs:
             --watch performance=build/macos-performance -- \
             macos/ci/performance-smoke.sh "$app" build/macos-performance
 
+      - name: Run native C++ and Qt code tests
+        if: ${{ inputs.run_native_tests }}
+        timeout-minutes: 120
+        env:
+          OVERTE_TEST_BUILD_CONFIG: ${{ env.OVERTE_MACOS_BUILD_TYPE }}
+          OVERTE_TEST_JUNIT: ${{ github.workspace }}/build/macos-native-test-results/TEST-overte-macos-native.xml
+        run: |
+          python3 macos/ci/runner-telemetry.py \
+            --phase native-code-tests \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/native-code-tests.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/native-code-tests-stall" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 300 \
+            --inactivity-timeout 900 --max-runtime 6900 \
+            --compiler-live-log build/macos-native-test-results/compiler-watchdog.jsonl \
+            --compiler-diagnostics-dir build/macos-native-test-results/compiler-stalls \
+            --watch native=build/tests -- \
+            tests/project-native-test.sh build
+
       - name: Upload smoke diagnostics
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -870,6 +902,7 @@ jobs:
             build/macos-smoke
             build/macos-online-smoke
             build/macos-performance
+            build/macos-native-test-results
           if-no-files-found: ignore
           include-hidden-files: true
           retention-days: 7
