@@ -250,6 +250,10 @@ int main(int argc, const char* argv[]) {
         "disableWatchdog",
         "Disable the watchdog thread. The interface will crash on deadlocks."
     );
+    QCommandLineOption disableLocalAvatarOption(
+        "disableLocalAvatar",
+        "Do not submit the local avatar mesh to the render scene."
+    );
     QCommandLineOption systemCursorOption(
         "system-cursor",
         "Use the default system cursor."
@@ -405,6 +409,7 @@ int main(int argc, const char* argv[]) {
     parser.addOption(oculusStoreOption);
     parser.addOption(standaloneOption);
     parser.addOption(disableWatchdogOption);
+    parser.addOption(disableLocalAvatarOption);
     parser.addOption(systemCursorOption);
     parser.addOption(concurrentDownloadsOption);
     parser.addOption(avatarURLOption);

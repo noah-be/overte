@@ -15,6 +15,7 @@
     Render.proceduralMaterialsEnabled = false;
     Render.antialiasingMode = 0;
     Render.viewportResolutionScale = 0.5;
+    Scene.shouldRenderAvatars = false;
 
     // The GitHub Intel runner exposes Apple's software OpenGL renderer.  Its
     // first scene frame can spend several minutes compiling the complete

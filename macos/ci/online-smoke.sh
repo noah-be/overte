@@ -31,6 +31,7 @@ mkdir -p "$output_dir"
 
 readonly -a app_command=(
     "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog --display Desktop
+    --disableLocalAvatar
     --defaultScriptsOverride "file://$default_scripts_override" --url "$location"
     --testScript "$test_script" --testResultsLocation "$output_dir" --quitWhenFinished
 )
@@ -60,6 +61,12 @@ fi
 for marker in domain_list_connected entity_server_active entity_query_sent entity_data_received render_handoff; do
     rg -q "OVERTE_MACOS_ENTITY_GATE $marker" "$log" || {
         echo "missing online runtime gate: $marker" >&2
+        exit 1
+    }
+done
+for marker in local_avatar_skipped local_avatar_scene_submission_skipped; do
+    rg -q "OVERTE_MACOS_RENDER_PHASE $marker" "$log" || {
+        echo "missing local-avatar isolation gate: $marker" >&2
         exit 1
     }
 done

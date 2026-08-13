@@ -41,6 +41,7 @@
 #include <UsersScriptingInterface.h>
 #include <UUID.h>
 #include <shared/ConicalViewFrustum.h>
+#include <shared/GlobalAppProperties.h>
 #include <ui/AvatarInputs.h>
 
 #include "Application.h"
@@ -194,11 +195,14 @@ void AvatarManager::init() {
     connect(DependencyManager::get<SceneScriptingInterface>().data(), &SceneScriptingInterface::shouldRenderAvatarsChanged,
             this, &AvatarManager::updateAvatarRenderStatus, Qt::QueuedConnection);
 
-    if (_shouldRender) {
+    const bool disableLocalAvatar = qApp->property(hifi::properties::DISABLE_LOCAL_AVATAR).toBool();
+    if (_shouldRender && !disableLocalAvatar) {
         const render::ScenePointer& scene = qApp->getMain3DScene();
         render::Transaction transaction;
         _myAvatar->addToScene(_myAvatar, scene, transaction);
         scene->enqueueTransaction(transaction);
+    } else if (disableLocalAvatar) {
+        qCInfo(interfaceapp) << "OVERTE_MACOS_RENDER_PHASE local_avatar_scene_submission_skipped";
     }
 
     setEnableDebugDrawOtherSkeletons(Menu::getInstance()->isOptionChecked(MenuOption::AnimDebugDrawOtherSkeletons));
@@ -516,10 +520,16 @@ void AvatarManager::updateOtherAvatars(float deltaTime, bool collectDetailedTimi
 }
 
 void AvatarManager::postUpdate(float deltaTime, const render::ScenePointer& scene) {
+    const bool disableLocalAvatar = qApp->property(hifi::properties::DISABLE_LOCAL_AVATAR).toBool();
     auto hashCopy = getHashCopy();
     AvatarHash::iterator avatarIterator = hashCopy.begin();
     for (avatarIterator = hashCopy.begin(); avatarIterator != hashCopy.end(); avatarIterator++) {
         auto avatar = std::static_pointer_cast<Avatar>(avatarIterator.value());
+        if (disableLocalAvatar && avatar == _myAvatar) {
+            // Avatar::postUpdate may add a newly loaded skeleton model to the
+            // scene even when AvatarManager::init deliberately skipped it.
+            continue;
+        }
         avatar->postUpdate(deltaTime, scene);
     }
 }
@@ -845,12 +855,16 @@ void AvatarManager::handleCollisionEvents(const CollisionEvents& collisionEvents
 
 void AvatarManager::updateAvatarRenderStatus(bool shouldRenderAvatars) {
     _shouldRender = shouldRenderAvatars;
+    const bool disableLocalAvatar = qApp->property(hifi::properties::DISABLE_LOCAL_AVATAR).toBool();
     const render::ScenePointer& scene = qApp->getMain3DScene();
     render::Transaction transaction;
     auto avatarHashCopy = getHashCopy();
     if (_shouldRender) {
         for (auto avatarData : avatarHashCopy) {
             auto avatar = std::static_pointer_cast<Avatar>(avatarData);
+            if (disableLocalAvatar && avatar == _myAvatar) {
+                continue;
+            }
             avatar->addToScene(avatar, scene, transaction);
         }
     } else {

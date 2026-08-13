@@ -271,6 +271,8 @@ static const QString TESTER_FILE = "/sdcard/_hifi_test_device.txt";
 bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted) {
     const int listenPort = parser.isSet("listenPort") ? parser.value("listenPort").toInt() : INVALID_PORT;
 
+    qApp->setProperty(hifi::properties::DISABLE_LOCAL_AVATAR, parser.isSet("disableLocalAvatar"));
+
     bool suppressPrompt = parser.isSet("suppress-settings-reset");
 #if defined(ANDROID_APP_PHONE_INTERFACE)
     // The crash recovery UI is a native desktop QDialog which is neither
@@ -1445,7 +1447,15 @@ void Application::init() {
 #if !defined(DISABLE_QML)
     DependencyManager::get<DialogsManager>()->toggleLoginDialog();
 #endif
-    DependencyManager::get<AvatarManager>()->init();
+    const auto avatarManager = DependencyManager::get<AvatarManager>();
+    if (property(hifi::properties::DISABLE_LOCAL_AVATAR).toBool()) {
+        // Automated scene tests need to exercise domain entities without the
+        // bundled skinned mannequin monopolizing Apple's virtualized software
+        // OpenGL compiler before the first scene frame is presented.
+        avatarManager->getMyAvatar()->setProperty("shouldRenderLocally", false);
+        qCInfo(interfaceapp) << "OVERTE_MACOS_RENDER_PHASE local_avatar_skipped";
+    }
+    avatarManager->init();
 
     _lastTimeUpdated.start();
 

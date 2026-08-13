@@ -18,6 +18,7 @@ namespace hifi { namespace properties {
     extern const char* OCULUS_STORE;
     extern const char* STANDALONE;
     extern const char* TEST;
+    extern const char* DISABLE_LOCAL_AVATAR;
     extern const char* TRACING;
     extern const char* HMD;
     extern const char* APP_LOCAL_DATA_PATH;

@@ -32,6 +32,7 @@ mkdir -p "$output_dir"
 
 readonly -a app_command=(
     "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog --display Desktop
+    --disableLocalAvatar
     --defaultScriptsOverride "file://$default_scripts_override"
     --url "file://$scene" --testScript "$test_script"
     --testResultsLocation "$output_dir" --quitWhenFinished
@@ -65,6 +66,16 @@ for marker in serverless_import_committed entity_tree_nonempty render_handoff; d
         exit 1
     }
 done
+for marker in local_avatar_skipped local_avatar_scene_submission_skipped; do
+    rg -q "OVERTE_MACOS_RENDER_PHASE $marker" "$log" || {
+        echo "missing local-avatar isolation gate: $marker" >&2
+        exit 1
+    }
+done
+if rg -q 'OVERTE_MACOS_GL_DRAW begin.*model_.*deformeddq' "$log"; then
+    echo "serverless smoke submitted an unexpected skinned model draw" >&2
+    exit 1
+fi
 rg -q "OVERTE_MACOS_SMOKE passed" "$log" || {
     echo "serverless smoke script did not pass" >&2
     exit 1

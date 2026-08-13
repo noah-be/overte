@@ -375,6 +375,10 @@ for smoke_name, smoke_source in (("serverless", smoke), ("online", online_smoke)
         raise SystemExit(
             f"{smoke_name} smoke must leave stall sampling to the external supervisor"
         )
+    if "--disableLocalAvatar" not in smoke_source:
+        raise SystemExit(
+            f"{smoke_name} smoke must isolate scene rendering from the local avatar"
+        )
     if '--defaultScriptsOverride "file://$default_scripts_override"' not in smoke_source:
         raise SystemExit(
             f"{smoke_name} smoke must isolate the scene from persisted system scripts"
@@ -416,6 +420,7 @@ for script_name, script_source, snapshot_name in (
         "Render.ambientOcclusionEnabled = false",
         "Render.antialiasingMode = 0",
         "Render.viewportResolutionScale = 0.5",
+        "Scene.shouldRenderAvatars = false",
         "Script.stop()",
         snapshot_name,
     ):
@@ -438,6 +443,54 @@ for fixture_name in (
 ):
     if fixture_name not in serverless_script:
         raise SystemExit(f"serverless smoke does not require fixture: {fixture_name}")
+
+main_source = (ROOT / "interface/src/main.cpp").read_text(encoding="utf-8")
+if main_source.count('"disableLocalAvatar"') != 1:
+    raise SystemExit("the local-avatar suppression option must be declared exactly once")
+if "parser.addOption(disableLocalAvatarOption);" not in main_source:
+    raise SystemExit("the local-avatar suppression option is not registered")
+
+application_setup_source = (ROOT / "interface/src/Application_Setup.cpp").read_text(
+    encoding="utf-8"
+)
+local_avatar_property = 'parser.isSet("disableLocalAvatar")'
+local_avatar_disable = 'setProperty("shouldRenderLocally", false)'
+avatar_init = "avatarManager->init();"
+for contract in (
+    local_avatar_property,
+    local_avatar_disable,
+    "OVERTE_MACOS_RENDER_PHASE local_avatar_skipped",
+    avatar_init,
+):
+    if contract not in application_setup_source:
+        raise SystemExit(f"missing local-avatar suppression contract: {contract}")
+if application_setup_source.index(local_avatar_disable) > application_setup_source.index(
+    avatar_init
+):
+    raise SystemExit("the local avatar must be hidden before AvatarManager::init")
+
+avatar_manager_source = (ROOT / "interface/src/avatar/AvatarManager.cpp").read_text(
+    encoding="utf-8"
+)
+for contract in (
+    "hifi::properties::DISABLE_LOCAL_AVATAR",
+    "_shouldRender && !disableLocalAvatar",
+    "disableLocalAvatar && avatar == _myAvatar",
+    "OVERTE_MACOS_RENDER_PHASE local_avatar_scene_submission_skipped",
+):
+    if contract not in avatar_manager_source:
+        raise SystemExit(f"missing AvatarManager local-avatar gate: {contract}")
+if "serverless smoke submitted an unexpected skinned model draw" not in smoke:
+    raise SystemExit("serverless smoke must reject local-avatar DQ model draws")
+
+application_ui_source = (ROOT / "interface/src/Application_UI.cpp").read_text(
+    encoding="utf-8"
+)
+mesh_reenable_guard = """if (!property(hifi::properties::DISABLE_LOCAL_AVATAR).toBool()) {
+        myAvatar->setEnableMeshVisible(true);
+    }"""
+if mesh_reenable_guard not in application_ui_source:
+    raise SystemExit("login completion must not re-enable a suppressed local avatar")
 
 application_setup = (ROOT / "interface/src/Application_Setup.cpp").read_text(
     encoding="utf-8"

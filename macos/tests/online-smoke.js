@@ -13,6 +13,7 @@
     Render.proceduralMaterialsEnabled = false;
     Render.antialiasingMode = 0;
     Render.viewportResolutionScale = 0.5;
+    Scene.shouldRenderAvatars = false;
 
     var deadline = Date.now() + 180000;
     var snapshotRequested = false;

@@ -1274,7 +1274,9 @@ void Application::resumeAfterLoginDialogActionTaken() {
     auto myAvatar = getMyAvatar();
     myAvatar->setTargetScale(_previousAvatarTargetScale);
     myAvatar->setSkeletonModelURLFromScript(_previousAvatarSkeletonModel);
-    myAvatar->setEnableMeshVisible(true);
+    if (!property(hifi::properties::DISABLE_LOCAL_AVATAR).toBool()) {
+        myAvatar->setEnableMeshVisible(true);
+    }
 
     _controllerScriptingInterface->enableMapping(STANDARD_TO_ACTION_MAPPING_NAME);
 
