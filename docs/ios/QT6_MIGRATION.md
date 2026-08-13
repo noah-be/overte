@@ -662,6 +662,11 @@ The initially empty preset table is populated with `QMap::insert(map)`, the
 Qt 6 replacement for the removed `QMap::unite`; with the existing empty-table
 assertion this copies precisely the same entries.
 
+Artery font codepoints are now converted explicitly to the renderer's existing
+UTF-16 `QChar` glyph key. This makes the former Qt 5 narrowing visible to Qt 6
+without changing the BMP-oriented glyph table, lookup keys, spacing, or atlas
+metrics.
+
 The audio gate requires device enumeration, route change, microphone consent,
 interruption recovery, Bluetooth behavior, mono input, stereo output, and
 resampling tests on physical hardware.

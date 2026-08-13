@@ -1356,6 +1356,10 @@ def test_scope_contract() -> None:
     assert "QMultiMap<QString, QVariant> _presets" not in task_config_text
     assert "_presets.insert(list.toVariantMap());" in task_config_text
     assert "_presets.unite(" not in task_config_text
+    font_source = SOURCE_ROOT / "libraries" / "render-utils" / "src" / "text" / "Font.cpp"
+    font_source_text = font_source.read_text(encoding="utf-8")
+    assert "glyph.c = QChar(static_cast<ushort>(g.codepoint));" in font_source_text
+    assert "glyph.c = g.codepoint;" not in font_source_text
     entity_generator = SOURCE_ROOT / "cmake" / "macros" / "GenerateEntityProperties.cmake"
     require_text(
         entity_generator,
