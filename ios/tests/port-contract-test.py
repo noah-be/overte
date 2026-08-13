@@ -2214,6 +2214,23 @@ def test_script_entity_id_qt6_contract() -> None:
         r"numJoints\s*=\s*static_cast<int>\(boundedJointCount\)",
         "the already bounded joint wire count must remain an int",
     )
+    my_avatar = SOURCE_ROOT / "interface" / "src" / "avatar" / "MyAvatar.cpp"
+    require_text(
+        my_avatar,
+        r"boundedStateCount\s*=\s*std::min\(\s*"
+        r"static_cast<decltype\(jointRotations\.size\(\)\)>"
+        r"\(_skeletonModel->getJointStateCount\(\)\),\s*"
+        r"jointRotations\.size\(\)\s*\)",
+        "Qt 6 avatar joint-state bounds must compare in QVector's native size type",
+    )
+    require_text(
+        my_avatar,
+        r"numStates\s*=\s*static_cast<int>\(boundedStateCount\)",
+        "avatar joint-state counts may narrow only after the skeleton bound is applied",
+    )
+    assert "glm::min(_skeletonModel->getJointStateCount(), jointRotations.size())" not in \
+        my_avatar.read_text(encoding="utf-8"), \
+        "Qt 6 cannot deduce one glm::min type from int and qsizetype"
     avatar_tests = SOURCE_ROOT / "tests" / "avatars" / "src" / "AvatarDataTests.cpp"
     require_text(avatar_tests, r"void\s+AvatarDataTests::limitAvatarDataJointCount\(\)",
                  "avatar wire tests must retain the 255-joint overflow boundary")
