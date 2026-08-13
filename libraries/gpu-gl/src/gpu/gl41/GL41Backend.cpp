@@ -145,6 +145,7 @@ void GL41Backend::do_draw(const Batch& batch, size_t paramOffset) {
                 << "ubo_exposure_x=" << exposureRegisterX
                 << "ubo_exposure_y=" << exposureRegisterY
                 << "ubo_curve_x=" << static_cast<int32_t>(uniformWords[4])
+                << "ubo_curve_y=" << static_cast<int32_t>(uniformWords[5])
                 << "texture=" << texture2D
                 << "texture_format=" << textureInternalFormat;
             (void)CHECK_GL_ERROR();

@@ -529,12 +529,11 @@ if "getToneMapDiagnosticInputFramebuffer" not in tone_map_diagnostics or "task/"
     raise SystemExit("tone-map diagnostics header must expose only the narrow framebuffer boundary")
 for std140_contract in (
     "class alignas(16) Parameters",
-    "float _unusedExposure",
-    "std::int32_t _toneCurve",
-    "std::int32_t _curvePadding[3]",
+    "std::array<float, 4> _exposureRegister",
+    "std::array<std::int32_t, 4> _curveRegister",
     "static_assert(sizeof(Parameters) == 32",
-    "offsetof(Parameters, _twoPowExposure) == 4",
-    "offsetof(Parameters, _toneCurve) == 16",
+    "offsetof(Parameters, _exposureRegister) == 0",
+    "offsetof(Parameters, _curveRegister) == 16",
 ):
     if std140_contract not in tone_map_header:
         raise SystemExit(f"tone-map std140 layout contract missing: {std140_contract}")
@@ -543,6 +542,13 @@ for shader_register in ("vec4 _exposureRegister", "ivec4 _curveRegister"):
         raise SystemExit("tone-map shader must use two explicit std140 registers")
 if "struct ToneMappingParams" in tone_map_shader or "params._exposureRegister" in tone_map_shader:
     raise SystemExit("tone-map uniforms must be direct block members for Apple OpenGL")
+for vector_parameter_contract in (
+    "_exposureRegister.fill(pow(2.0, exposure))",
+    "_curveRegister.fill((int)curve)",
+    "fragColor * _exposureRegister.xyz",
+):
+    if vector_parameter_contract not in tone_map_source + tone_map_shader:
+        raise SystemExit(f"tone-map vector parameter contract missing: {vector_parameter_contract}")
 for diagnostic_token in ("OVERTE_MACOS_TONEMAP_PARAMS", "sizeof(Parameters)", "exposure_scale="):
     if diagnostic_token not in tone_map_source:
         raise SystemExit(f"tone-map runtime diagnostics missing: {diagnostic_token}")

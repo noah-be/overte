@@ -85,7 +85,9 @@ void main(void) {
 <@endif@>
     vec3 fragColor = fragColorRaw.xyz;
 
-    vec3 srcColor = fragColor * getTwoPowExposure();
+    // C++ replicates the exposure across this register. Consuming it as a
+    // vector avoids Apple's broken scalar extraction path for this UBO.
+    vec3 srcColor = fragColor * _exposureRegister.xyz;
 
     int toneCurve = getToneCurve();
     vec3 tonedColor = srcColor;

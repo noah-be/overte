@@ -63,14 +63,14 @@ void ToneMapAndResample::init() {
 void ToneMapAndResample::setExposure(float exposure) {
     if (_exposure != exposure) {
         _exposure = exposure;
-        _parametersBuffer.edit<Parameters>()._twoPowExposure = pow(2.0, exposure);
+        _parametersBuffer.edit<Parameters>()._exposureRegister.fill(pow(2.0, exposure));
     }
 }
 
 void ToneMapAndResample::setCurve(TonemappingCurve curve) {
     auto& params = _parametersBuffer.get<Parameters>();
-    if (params._toneCurve != (int)curve) {
-        _parametersBuffer.edit<Parameters>()._toneCurve = (int)curve;
+    if (params._curveRegister.front() != (int)curve) {
+        _parametersBuffer.edit<Parameters>()._curveRegister.fill((int)curve);
     }
 }
 
@@ -127,8 +127,8 @@ void ToneMapAndResample::run(const RenderContextPointer& renderContext, const In
             const auto& parameters = _parametersBuffer.get<Parameters>();
             qInfo().noquote() << "OVERTE_MACOS_TONEMAP_PARAMS"
                               << "bytes=" << sizeof(Parameters)
-                              << "exposure_scale=" << parameters._twoPowExposure
-                              << "curve=" << parameters._toneCurve;
+                              << "exposure_scale=" << parameters._exposureRegister.front()
+                              << "curve=" << parameters._curveRegister.front();
         });
     }
 #endif
