@@ -684,6 +684,11 @@ and widget swap behavior; iOS executes the same GPU frame and presents through
 the existing MoltenVK swapchain/`vkQueuePresentKHR` path without inventing an
 absent GL context.
 
+Discord Rich Presence is a desktop integration backed by the external Discord
+RPC library. iOS neither provisions that library nor exposes the desktop
+privacy preference, so its implementation/header, construction, and preference
+entry are excluded from the mobile graph. Desktop behavior remains unchanged.
+
 The audio gate requires device enumeration, route change, microphone consent,
 interruption recovery, Bluetooth behavior, mono input, stereo output, and
 resampling tests on physical hardware.

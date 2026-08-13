@@ -1370,6 +1370,15 @@ def test_scope_contract() -> None:
     snap_marker = "QChar(static_cast<ushort>(model->getSnapModelToRegistrationPoint()))"
     assert renderable_model_text.count(snap_marker) == 2
     assert "+ model->getSnapModelToRegistrationPoint()" not in renderable_model_text
+    interface_cmake_text = (SOURCE_ROOT / "interface" / "CMakeLists.txt").read_text(encoding="utf-8")
+    assert '${CMAKE_CURRENT_SOURCE_DIR}/src/DiscordRichPresence.cpp' in interface_cmake_text
+    assert '${CMAKE_CURRENT_SOURCE_DIR}/src/DiscordRichPresence.h' in interface_cmake_text
+    application_setup_text = (SOURCE_ROOT / "interface" / "src" / "Application_Setup.cpp").read_text(encoding="utf-8")
+    assert "#if !defined(Q_OS_IOS)\n#include \"DiscordRichPresence.h\"\n#endif" in application_setup_text
+    assert "#if !defined(Q_OS_IOS)\n    _discordPresence = new DiscordPresence();" in application_setup_text
+    preferences_text = (SOURCE_ROOT / "interface" / "src" / "ui" / "PreferencesDialog.cpp").read_text(encoding="utf-8")
+    discord_preference = preferences_text.index('"Use Discord Rich Presence"')
+    assert preferences_text.rfind("#if !defined(Q_OS_IOS)", 0, discord_preference) > preferences_text.rfind("#endif", 0, discord_preference)
     entity_generator = SOURCE_ROOT / "cmake" / "macros" / "GenerateEntityProperties.cmake"
     require_text(
         entity_generator,

@@ -141,7 +141,9 @@
 #include "AudioClient.h"
 #include "CrashRecoveryHandler.h"
 #include "DeadlockWatchdog.h"
+#if !defined(Q_OS_IOS)
 #include "DiscordRichPresence.h"
+#endif
 #include "DiscoverabilityManager.h"
 #include "FileDialogHelper.h"
 #ifdef USE_GL
@@ -1417,8 +1419,10 @@ void Application::initialize(const QCommandLineParser &parser) {
     DependencyManager::get<Keyboard>()->createKeyboard();
 
     // Needs to happen later in the constructor as it depends on some other things being set up
+#if !defined(Q_OS_IOS)
     _discordPresence = new DiscordPresence();
     _discordPresence->setEnabled(_useDiscordPresence.get());
+#endif
 
     _pendingIdleEvent = false;
     _graphicsEngine->startup();
@@ -2312,7 +2316,9 @@ void Application::setupSignalsAndOperators() {
 void Application::setUseDiscordPresence(bool enable) {
     _useDiscordPresence.set(enable);
 
+#if !defined(Q_OS_IOS)
     if (_discordPresence) {
         _discordPresence->setEnabled(enable);
     }
+#endif
 }
