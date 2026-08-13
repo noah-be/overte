@@ -25,6 +25,15 @@ using namespace shader::render_utils::program;
 
 gpu::PipelinePointer ToneMapAndResample::_pipeline;
 gpu::PipelinePointer ToneMapAndResample::_mirrorPipeline;
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+std::mutex ToneMapAndResample::_diagnosticMutex;
+gpu::FramebufferPointer ToneMapAndResample::_diagnosticInputFramebuffer;
+
+gpu::FramebufferPointer ToneMapAndResample::getDiagnosticInputFramebuffer() {
+    const std::lock_guard<std::mutex> guard(_diagnosticMutex);
+    return _diagnosticInputFramebuffer;
+}
+#endif
 
 ToneMapAndResample::ToneMapAndResample() {
     Parameters parameters;
@@ -69,6 +78,12 @@ void ToneMapAndResample::run(const RenderContextPointer& renderContext, const In
     RenderArgs* args = renderContext->args;
 
     auto lightingBuffer = input.get0()->getRenderBuffer(0);
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    if (qEnvironmentVariableIsSet("OVERTE_MACOS_GL_DIAGNOSTICS")) {
+        const std::lock_guard<std::mutex> guard(_diagnosticMutex);
+        _diagnosticInputFramebuffer = input.get0();
+    }
+#endif
     auto destinationFramebuffer = input.get1();
     const auto tonemappingFrame = input.get2();
 

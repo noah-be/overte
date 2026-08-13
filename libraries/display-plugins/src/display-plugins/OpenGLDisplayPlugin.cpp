@@ -69,6 +69,7 @@
 #include <ui/Menu.h>
 #include <CursorManager.h>
 #include <TextureCache.h>
+#include <ToneMapAndResampleTask.h>
 #if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
 #include <PhoneFramebufferTelemetry.h>
 #endif
@@ -1153,6 +1154,11 @@ QImage OpenGLDisplayPlugin::getScreenshot(float aspectRatio) {
     if (qEnvironmentVariableIsSet("OVERTE_MACOS_GL_DIAGNOSTICS")) {
         auto glBackend = std::dynamic_pointer_cast<gpu::gl::GLBackend>(getBackend());
         if (glBackend) {
+            const auto toneInput = ToneMapAndResample::getDiagnosticInputFramebuffer();
+            if (toneInput) {
+                const auto inputSize = toneInput->getSize();
+                glBackend->diagnoseFramebuffer(toneInput, ivec4(0, 0, inputSize.x, inputSize.y), "tone_input");
+            }
             if (_currentFrame && _currentFrame->framebuffer) {
                 glBackend->diagnoseFramebuffer(_currentFrame->framebuffer, ivec4(corner, bestSize), "final");
             }

@@ -503,9 +503,15 @@ for diagnostic_contract in (
 ):
     if diagnostic_contract not in gl_backend_header + gl_backend_output:
         raise SystemExit(f"macOS framebuffer diagnostics missing: {diagnostic_contract}")
-for stage in ('"final"', '"composite"'):
+for stage in ('"tone_input"', '"final"', '"composite"'):
     if f"diagnoseFramebuffer" not in display_plugin or stage not in display_plugin:
         raise SystemExit(f"macOS screenshot diagnostics do not capture {stage}")
+if "getDiagnosticInputFramebuffer" not in display_plugin:
+    raise SystemExit("macOS screenshot diagnostics must retain the tone-mapping input")
+if display_plugin.index('diagnoseFramebuffer(toneInput') > display_plugin.index(
+    'diagnoseFramebuffer(_currentFrame->framebuffer'
+):
+    raise SystemExit("macOS screenshot diagnostics must capture tone input before final")
 if display_plugin.index('diagnoseFramebuffer(_currentFrame->framebuffer') > display_plugin.index(
     'diagnoseFramebuffer(_compositeFramebuffer'
 ):

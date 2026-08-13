@@ -14,6 +14,9 @@
 
 #include <DependencyManager.h>
 #include <NumericalConstants.h>
+#include <QtCore/QtGlobal>
+
+#include <mutex>
 
 #include <gpu/Resource.h>
 #include <gpu/Pipeline.h>
@@ -60,9 +63,17 @@ public:
     void configure(const Config& config);
     void run(const render::RenderContextPointer& renderContext, const Input& input, Output& output);
 
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    static gpu::FramebufferPointer getDiagnosticInputFramebuffer();
+#endif
+
 protected:
     static gpu::PipelinePointer _pipeline;
     static gpu::PipelinePointer _mirrorPipeline;
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    static std::mutex _diagnosticMutex;
+    static gpu::FramebufferPointer _diagnosticInputFramebuffer;
+#endif
 
     gpu::FramebufferPointer _destinationFrameBuffer;
 
