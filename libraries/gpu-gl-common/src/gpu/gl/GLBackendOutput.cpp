@@ -12,6 +12,11 @@
 #include "GLShared.h"
 #include "GLFramebuffer.h"
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
+#include <vector>
+
 #include <QtGui/QImage>
 
 using namespace gpu;
@@ -199,3 +204,66 @@ void GLBackend::downloadFramebuffer(const FramebufferPointer& srcFramebuffer, co
 
     (void) CHECK_GL_ERROR();
 }
+
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+void GLBackend::diagnoseFramebuffer(const FramebufferPointer& framebuffer, const Vec4i& region, const char* label) {
+    const auto framebufferID = getFramebufferID(framebuffer);
+    if (!framebuffer || !framebufferID || region.z <= 0 || region.w <= 0) {
+        qInfo().noquote() << "OVERTE_MACOS_GL_FRAMEBUFFER"
+                          << "label=" << label << "available=false";
+        return;
+    }
+
+    const auto pixelCount = static_cast<size_t>(region.z) * static_cast<size_t>(region.w);
+    std::vector<float> floatPixels(pixelCount * 4);
+    std::vector<uint8_t> bytePixels(pixelCount * 4);
+    GLint colorEncoding { 0 };
+    GLint componentType { 0 };
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, framebufferID);
+    glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+        GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING, &colorEncoding);
+    glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+        GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE, &componentType);
+    glReadPixels(region.x, region.y, region.z, region.w, GL_RGBA, GL_FLOAT, floatPixels.data());
+    glReadPixels(region.x, region.y, region.z, region.w, GL_RGBA, GL_UNSIGNED_BYTE, bytePixels.data());
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+
+    float floatMin { std::numeric_limits<float>::max() };
+    float floatMax { std::numeric_limits<float>::lowest() };
+    uint8_t byteMin { std::numeric_limits<uint8_t>::max() };
+    uint8_t byteMax { std::numeric_limits<uint8_t>::lowest() };
+    size_t finiteRGB { 0 };
+    size_t nonzeroFloatRGB { 0 };
+    size_t nonzeroByteRGB { 0 };
+    for (size_t pixel = 0; pixel < pixelCount; ++pixel) {
+        for (size_t channel = 0; channel < 3; ++channel) {
+            const auto index = pixel * 4 + channel;
+            const auto floatValue = floatPixels[index];
+            if (std::isfinite(floatValue)) {
+                floatMin = std::min(floatMin, floatValue);
+                floatMax = std::max(floatMax, floatValue);
+                ++finiteRGB;
+                nonzeroFloatRGB += floatValue > 0.0f;
+            }
+            byteMin = std::min(byteMin, bytePixels[index]);
+            byteMax = std::max(byteMax, bytePixels[index]);
+            nonzeroByteRGB += bytePixels[index] > 0;
+        }
+    }
+
+    qInfo().noquote() << "OVERTE_MACOS_GL_FRAMEBUFFER"
+                      << "label=" << label
+                      << "name=" << QString::fromStdString(framebuffer->getName())
+                      << "encoding=" << colorEncoding
+                      << "component_type=" << componentType
+                      << "samples=" << framebuffer->getNumSamples()
+                      << "float_min=" << (finiteRGB ? floatMin : 0.0f)
+                      << "float_max=" << (finiteRGB ? floatMax : 0.0f)
+                      << "float_nonzero=" << nonzeroFloatRGB
+                      << "byte_min=" << static_cast<int>(byteMin)
+                      << "byte_max=" << static_cast<int>(byteMax)
+                      << "byte_nonzero=" << nonzeroByteRGB;
+    (void) CHECK_GL_ERROR();
+}
+#endif

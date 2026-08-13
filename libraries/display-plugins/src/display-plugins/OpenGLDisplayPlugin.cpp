@@ -1149,6 +1149,17 @@ QImage OpenGLDisplayPlugin::getScreenshot(float aspectRatio) {
         corner.x = round((size.x - bestSize.x) / 2.0f);
         corner.y = round((size.y - bestSize.y) / 2.0f);
     }
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    if (qEnvironmentVariableIsSet("OVERTE_MACOS_GL_DIAGNOSTICS")) {
+        auto glBackend = std::dynamic_pointer_cast<gpu::gl::GLBackend>(getBackend());
+        if (glBackend) {
+            if (_currentFrame && _currentFrame->framebuffer) {
+                glBackend->diagnoseFramebuffer(_currentFrame->framebuffer, ivec4(corner, bestSize), "final");
+            }
+            glBackend->diagnoseFramebuffer(_compositeFramebuffer, ivec4(corner, bestSize), "composite");
+        }
+    }
+#endif
     QImage screenshot(bestSize.x, bestSize.y, QImage::Format_ARGB32);
     getBackend()->downloadFramebuffer(_compositeFramebuffer, ivec4(corner, bestSize), screenshot);
     return screenshot.mirrored(false, true);

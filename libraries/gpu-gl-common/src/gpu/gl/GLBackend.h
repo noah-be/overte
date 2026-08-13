@@ -70,6 +70,10 @@ protected:
     GLBackend();
 
 public:
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    void diagnoseFramebuffer(const FramebufferPointer& framebuffer, const Vec4i& region, const char* label);
+#endif
+
 #if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
     struct PhoneTrashMetrics {
         uint64_t buffersEnqueued;

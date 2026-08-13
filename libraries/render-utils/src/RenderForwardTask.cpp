@@ -13,8 +13,6 @@
 
 #include "RenderForwardTask.h"
 
-#include <QtCore/QtGlobal>
-
 #include <PerfStat.h>
 #include <PathUtils.h>
 #include <ViewFrustum.h>
@@ -56,19 +54,6 @@ namespace gr {
 }
 
 using namespace render;
-
-namespace {
-gpu::Element getForwardColorFormat() {
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
-    // Apple's OpenGL implementation does not reliably preserve normalized
-    // scene colors when an R11G11B10F forward target is sampled.  RGBA16F is
-    // the supported floating-point fallback used by other render passes.
-    return gpu::Element(gpu::VEC4, gpu::HALF, gpu::RGBA);
-#else
-    return gpu::Element(gpu::SCALAR, gpu::FLOAT, gpu::R11G11B10);
-#endif
-}
-}
 
 #if defined(ANDROID_APP_PHONE_INTERFACE)
 namespace {
@@ -243,7 +228,7 @@ void RenderForwardTask::build(JobModel& task, const render::Varying& input, rend
 #endif
 
     const auto newResolvedFramebuffer = task.addJob<NewFramebuffer>("MakeResolvingFramebuffer",
-        getForwardColorFormat(),
+        gpu::Element(gpu::SCALAR, gpu::FLOAT, gpu::R11G11B10),
 #if defined(ANDROID_APP_PHONE_INTERFACE)
         true
 #else
@@ -274,7 +259,7 @@ gpu::FramebufferPointer PreparePrimaryFramebufferMSAA::createFramebuffer(const c
 
     auto defaultSampler = Sampler(Sampler::FILTER_MIN_MAG_LINEAR);
 
-    auto colorFormat = getForwardColorFormat();
+    auto colorFormat = gpu::Element(gpu::SCALAR, gpu::FLOAT, gpu::R11G11B10);
     auto colorTexture =
         gpu::Texture::createRenderBufferMultisample(colorFormat, frameSize.x, frameSize.y, numSamples, defaultSampler);
     framebuffer->setRenderBuffer(0, colorTexture);

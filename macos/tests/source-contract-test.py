@@ -483,21 +483,33 @@ if resolve_framebuffer.index("srcFbo->getNumSamples() <= 1") > resolve_framebuff
 ):
     raise SystemExit("single-sample forward framebuffers must bypass the resolve blit")
 
-render_forward = (ROOT / "libraries/render-utils/src/RenderForwardTask.cpp").read_text(
+gl_backend_header = (ROOT / "libraries/gpu-gl-common/src/gpu/gl/GLBackend.h").read_text(
     encoding="utf-8"
 )
-forward_format = render_forward.split("gpu::Element getForwardColorFormat()", 1)[1].split(
-    "#if defined(ANDROID_APP_PHONE_INTERFACE)", 1
-)[0]
-for format_contract in (
-    "defined(Q_OS_MAC) && !defined(Q_OS_IOS)",
-    "gpu::Element(gpu::VEC4, gpu::HALF, gpu::RGBA)",
-    "gpu::Element(gpu::SCALAR, gpu::FLOAT, gpu::R11G11B10)",
+gl_backend_output = (
+    ROOT / "libraries/gpu-gl-common/src/gpu/gl/GLBackendOutput.cpp"
+).read_text(encoding="utf-8")
+display_plugin = (
+    ROOT / "libraries/display-plugins/src/display-plugins/OpenGLDisplayPlugin.cpp"
+).read_text(encoding="utf-8")
+for diagnostic_contract in (
+    "diagnoseFramebuffer",
+    "GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING",
+    "GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE",
+    "GL_FLOAT",
+    "GL_UNSIGNED_BYTE",
+    "float_nonzero=",
+    "byte_nonzero=",
 ):
-    if format_contract not in forward_format:
-        raise SystemExit(f"macOS forward framebuffer format missing: {format_contract}")
-if render_forward.count("getForwardColorFormat()") != 3:
-    raise SystemExit("forward primary and resolve targets must use the same color format")
+    if diagnostic_contract not in gl_backend_header + gl_backend_output:
+        raise SystemExit(f"macOS framebuffer diagnostics missing: {diagnostic_contract}")
+for stage in ('"final"', '"composite"'):
+    if f"diagnoseFramebuffer" not in display_plugin or stage not in display_plugin:
+        raise SystemExit(f"macOS screenshot diagnostics do not capture {stage}")
+if display_plugin.index('diagnoseFramebuffer(_currentFrame->framebuffer') > display_plugin.index(
+    'diagnoseFramebuffer(_compositeFramebuffer'
+):
+    raise SystemExit("macOS screenshot diagnostics must capture final before composite")
 
 main_source = (ROOT / "interface/src/main.cpp").read_text(encoding="utf-8")
 if main_source.count('"disableLocalAvatar"') != 1:
