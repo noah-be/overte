@@ -428,7 +428,7 @@ for script_name, script_source, snapshot_name in (
     ("online", online_script, "macos-online-smoke.png"),
 ):
     for render_contract in (
-        "Render.renderMethod = 1",
+        "Render.renderMethod = 0",
         "Render.shadowsEnabled = false",
         "Render.ambientOcclusionEnabled = false",
         "Render.antialiasingMode = 0",
@@ -444,7 +444,7 @@ for script_name, script_source, snapshot_name in (
             raise SystemExit(
                 f"{script_name} smoke lacks deterministic rendering contract: {render_contract}"
             )
-    if script_source.index("Render.renderMethod = 1") > script_source.index(
+    if script_source.index("Render.renderMethod = 0") > script_source.index(
         "Window.takeSnapshot"
     ):
         raise SystemExit(

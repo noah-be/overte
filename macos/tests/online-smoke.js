@@ -4,7 +4,9 @@
 (function () {
     "use strict";
 
-    Render.renderMethod = 1;
+    // Match the supported desktop scene path. The local avatar is disabled by
+    // the runner before it can submit its expensive skinned pipelines.
+    Render.renderMethod = 0;
     Render.shadowsEnabled = false;
     Render.hazeEnabled = false;
     Render.bloomEnabled = false;

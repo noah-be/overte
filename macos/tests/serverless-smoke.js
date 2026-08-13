@@ -6,7 +6,10 @@
 
     // Keep the visual gate deterministic and tractable on GitHub's Intel
     // runner, which exposes Apple's software OpenGL renderer.
-    Render.renderMethod = 1;
+    // The local avatar is suppressed before scene submission, so the smoke no
+    // longer needs the macOS software renderer's broken forward-color path.
+    // Deferred rendering preserves the entity albedo in captured frames.
+    Render.renderMethod = 0;
     Render.shadowsEnabled = false;
     Render.hazeEnabled = false;
     Render.bloomEnabled = false;
