@@ -2320,6 +2320,15 @@ def test_script_entity_id_qt6_contract() -> None:
     require_text(qt_helpers, r'std::forward<Args>\s*\(\s*args\s*\)\.\.\.',
                  "typed blocking invokes must forward every argument without erasure")
 
+    detailed_motion_state = SOURCE_ROOT / "interface" / "src" / "avatar" / "DetailedMotionState.cpp"
+    require_text(
+        detailed_motion_state,
+        r'return\s+_avatar->getName\(\)\s*\+\s*"_"\s*\+\s*QString::number\(_jointIndex\)',
+        "Qt 6 detailed-avatar names must format the numeric joint index explicitly",
+    )
+    assert '+ "_" + _jointIndex' not in detailed_motion_state.read_text(encoding="utf-8"), \
+        "QString must not rely on Qt 5's implicit integer concatenation"
+
 
 def main() -> None:
     tests = (

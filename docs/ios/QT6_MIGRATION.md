@@ -732,6 +732,11 @@ while `AccountManager` intentionally stores a `QUuid`. The heartbeat boundary
 now performs that parse explicitly before calling `setSessionID`; this preserves
 the Qt 5 behavior while satisfying Qt 6's explicit string-to-UUID conversion.
 
+Detailed-avatar motion-state names retain their historical
+`<avatar-name>_<joint-index>` form, but now format the numeric joint index with
+`QString::number`. Qt 5 accepted the integer directly in the concatenation;
+Qt 6 requires the textual conversion to be explicit.
+
 The audio gate requires device enumeration, route change, microphone consent,
 interruption recovery, Bluetooth behavior, mono input, stereo output, and
 resampling tests on physical hardware.
