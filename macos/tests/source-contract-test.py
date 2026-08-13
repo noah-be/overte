@@ -507,6 +507,9 @@ tone_map_header = (
 tone_map_source = (
     ROOT / "libraries/render-utils/src/ToneMapAndResampleTask.cpp"
 ).read_text(encoding="utf-8")
+render_hud_layer = (
+    ROOT / "libraries/render-utils/src/RenderHUDLayerTask.cpp"
+).read_text(encoding="utf-8")
 tone_map_shader = (
     ROOT / "libraries/render-utils/src/toneMapping.slf"
 ).read_text(encoding="utf-8")
@@ -613,6 +616,22 @@ for overwrite_trace_contract in (
         raise SystemExit(
             f"macOS post-tone-map overwrite tracing missing: {overwrite_trace_contract}"
         )
+for paused_hud_contract in (
+    "#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)",
+    "QCoreApplication::instance()",
+    "application->property(hifi::properties::TEST).isValid()",
+):
+    if paused_hud_contract not in render_hud_layer:
+        raise SystemExit(f"macOS paused desktop HUD guard missing: {paused_hud_contract}")
+paused_hud_guard = render_hud_layer.split(
+    "application->property(hifi::properties::TEST).isValid()", 1
+)[1].split("#endif", 1)[0]
+if "return;" not in paused_hud_guard:
+    raise SystemExit("macOS scene tests must skip the deliberately paused desktop HUD")
+if render_hud_layer.index("application->property(hifi::properties::TEST).isValid()") > render_hud_layer.index(
+    'gpu::doInBatch("CompositeHUD"'
+):
+    raise SystemExit("macOS paused desktop HUD must be rejected before its composite batch")
 for diagnostic_token in ("OVERTE_MACOS_TONEMAP_PARAMS", "sizeof(Parameters)", "exposure_scale="):
     if diagnostic_token not in tone_map_source:
         raise SystemExit(f"tone-map runtime diagnostics missing: {diagnostic_token}")

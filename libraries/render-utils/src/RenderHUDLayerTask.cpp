@@ -8,6 +8,12 @@
 //
 #include "RenderHUDLayerTask.h"
 
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#include <QtCore/QCoreApplication>
+#include <QtCore/QVariant>
+#include <shared/GlobalAppProperties.h>
+#endif
+
 #include <gpu/Context.h>
 #include "RenderCommonTask.h"
 
@@ -21,6 +27,18 @@ void CompositeHUD::run(const RenderContextPointer& renderContext, const gpu::Fra
     if (nsightActive() || renderContext->args->_renderMode == RenderArgs::RenderMode::SECONDARY_CAMERA_RENDER_MODE || renderContext->args->_mirrorDepth > 0) {
         return;
     }
+
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    const auto application = QCoreApplication::instance();
+    if (application && application->property(hifi::properties::TEST).isValid()) {
+        // The macOS scene-smoke profile pauses the desktop QML renderer before
+        // it creates a usable texture.  Compositing that transparent/unready
+        // HUD through Apple's software OpenGL path clears the already rendered
+        // scene to black.  Test scripts still exercise world-space HUD items;
+        // only the deliberately paused desktop texture is omitted.
+        return;
+    }
+#endif
 
     // Grab the HUD texture
 #if !defined(DISABLE_QML)
