@@ -4,8 +4,9 @@
 (function () {
     "use strict";
 
-    // Match the supported desktop scene path. The local avatar is disabled by
-    // the runner before it can submit its expensive skinned pipelines.
+    // Match the supported desktop scene path. The local avatar and client
+    // entity scripts are disabled by the runner before they can submit
+    // unrelated skinned or overlay pipelines; domain entities remain enabled.
     Render.renderMethod = 1;
     Render.shadowsEnabled = false;
     Render.hazeEnabled = false;

@@ -254,6 +254,10 @@ int main(int argc, const char* argv[]) {
         "disableLocalAvatar",
         "Do not submit the local avatar mesh to the render scene."
     );
+    QCommandLineOption disableEntityScriptsOption(
+        "disableEntityScripts",
+        "Do not execute client entity scripts."
+    );
     QCommandLineOption systemCursorOption(
         "system-cursor",
         "Use the default system cursor."
@@ -410,6 +414,7 @@ int main(int argc, const char* argv[]) {
     parser.addOption(standaloneOption);
     parser.addOption(disableWatchdogOption);
     parser.addOption(disableLocalAvatarOption);
+    parser.addOption(disableEntityScriptsOption);
     parser.addOption(systemCursorOption);
     parser.addOption(concurrentDownloadsOption);
     parser.addOption(avatarURLOption);

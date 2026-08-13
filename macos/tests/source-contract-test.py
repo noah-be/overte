@@ -381,6 +381,14 @@ assert "overte://welcome" not in online_smoke, "the retired welcome place must n
 for marker in ONLINE_CONTRACT | {"render_handoff": ""}:
     if marker not in online_smoke:
         raise SystemExit(f"online smoke runner does not require {marker}")
+for entity_script_contract in (
+    "--disableEntityScripts",
+    "entity_scripts_disabled",
+):
+    if entity_script_contract not in online_smoke:
+        raise SystemExit(
+            f"online smoke must isolate client entity scripts: {entity_script_contract}"
+        )
 
 for smoke_name, smoke_source in (("serverless", smoke), ("online", online_smoke)):
     if "--disableWatchdog" not in smoke_source:
@@ -783,10 +791,23 @@ if main_source.count('"disableLocalAvatar"') != 1:
     raise SystemExit("the local-avatar suppression option must be declared exactly once")
 if "parser.addOption(disableLocalAvatarOption);" not in main_source:
     raise SystemExit("the local-avatar suppression option is not registered")
+if main_source.count('"disableEntityScripts"') != 1:
+    raise SystemExit("the entity-script suppression option must be declared exactly once")
+if "parser.addOption(disableEntityScriptsOption);" not in main_source:
+    raise SystemExit("the entity-script suppression option is not registered")
 
 application_setup_source = (ROOT / "interface/src/Application_Setup.cpp").read_text(
     encoding="utf-8"
 )
+for entity_script_contract in (
+    'parser.isSet("disableEntityScripts")',
+    "DependencyManager::set<EntityTreeRenderer>(!disableEntityScripts, qApp, qApp)",
+    "OVERTE_MACOS_RENDER_PHASE entity_scripts_disabled",
+):
+    if entity_script_contract not in application_setup_source:
+        raise SystemExit(
+            f"missing client entity-script isolation: {entity_script_contract}"
+        )
 local_avatar_property = 'parser.isSet("disableLocalAvatar")'
 local_avatar_disable = 'setProperty("shouldRenderLocally", false)'
 avatar_init = "avatarManager->init();"
@@ -887,6 +908,25 @@ if draw_unindexed.index("OVERTE_MACOS_TONEMAP_GL_STATE") > draw_unindexed.index(
     "draw(mode, numVertices, startVertex)"
 ):
     raise SystemExit("macOS tone-map state must be captured before its driver draw")
+for array_draw_contract in (
+    "OVERTE_MACOS_GL_ARRAY_DRAW begin",
+    "OVERTE_MACOS_GL_ARRAY_DRAW end",
+    "vertex=",
+    "fragment=",
+    "tracedArrayPrograms.insert(_pipeline._program).second",
+):
+    if array_draw_contract not in draw_unindexed:
+        raise SystemExit(
+            f"macOS GL array-draw diagnostic missing: {array_draw_contract}"
+        )
+if draw_unindexed.index("OVERTE_MACOS_GL_ARRAY_DRAW begin") > draw_unindexed.index(
+    "draw(mode, numVertices, startVertex)"
+):
+    raise SystemExit("macOS GL array draw-begin must precede the driver call")
+if draw_unindexed.index("OVERTE_MACOS_GL_ARRAY_DRAW end") < draw_unindexed.index(
+    "draw(mode, numVertices, startVertex)"
+):
+    raise SystemExit("macOS GL array draw-end must follow the driver call")
 draw_indexed = gl41_backend.split("void GL41Backend::do_drawIndexed", 1)[1].split(
     "void GL41Backend::do_drawInstanced", 1
 )[0]

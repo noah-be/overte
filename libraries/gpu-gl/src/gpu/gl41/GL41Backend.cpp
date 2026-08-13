@@ -59,6 +59,44 @@ void GL41Backend::do_draw(const Batch& batch, size_t paramOffset) {
     uint32 startVertex = batch._params[paramOffset + 0]._uint;
 
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    // Record the first non-indexed draw for each program as well. Public
+    // domains can introduce client-script overlays and other quad pipelines;
+    // if Apple's software GL compiler stalls on their first draw, the
+    // begin-without-end pair identifies the exact bounded shader program.
+    static thread_local std::unordered_set<GLuint> tracedArrayPrograms;
+    const auto drawApplication = QCoreApplication::instance();
+    const bool drawDiagnosticsEnabled = qEnvironmentVariableIsSet("OVERTE_MACOS_GL_DIAGNOSTICS") ||
+        (drawApplication && drawApplication->property(hifi::properties::TEST).isValid());
+    const bool traceArrayProgram = drawDiagnosticsEnabled &&
+        tracedArrayPrograms.insert(_pipeline._program).second;
+    if (traceArrayProgram) {
+        QString vertexName { "dynamic" };
+        QString fragmentName { "dynamic" };
+        uint32_t gpuProgram { 0 };
+        if (auto pipeline = acquire(_pipeline._pipeline)) {
+            const auto& program = pipeline->getProgram();
+            if (program) {
+                gpuProgram = program->getID();
+                const auto& shaders = program->getShaders();
+                if (shaders.size() > Shader::VERTEX && shaders[Shader::VERTEX]) {
+                    vertexName = QString::fromStdString(shaders[Shader::VERTEX]->getSource().name);
+                }
+                if (shaders.size() > Shader::PIXEL && shaders[Shader::PIXEL]) {
+                    fragmentName = QString::fromStdString(shaders[Shader::PIXEL]->getSource().name);
+                }
+            }
+        }
+        qInfo().noquote()
+            << "OVERTE_MACOS_GL_ARRAY_DRAW begin"
+            << "gl_program=" << _pipeline._program
+            << "gpu_program=" << gpuProgram
+            << "vertex=" << vertexName
+            << "fragment=" << fragmentName
+            << "vertices=" << numVertices;
+    }
+#endif
+
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     // Capture the real driver-visible state for the first tone-map draw.  CPU
     // values alone cannot prove that Apple's GL implementation sees the same
     // UBO range.  Keep this bounded, opt-in and free of paths/arguments.
@@ -154,6 +192,13 @@ void GL41Backend::do_draw(const Batch& batch, size_t paramOffset) {
 #endif
 
     draw(mode, numVertices, startVertex);
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    if (traceArrayProgram) {
+        qInfo().noquote()
+            << "OVERTE_MACOS_GL_ARRAY_DRAW end"
+            << "gl_program=" << _pipeline._program;
+    }
+#endif
 }
 
 void GL41Backend::do_drawIndexed(const Batch& batch, size_t paramOffset) {

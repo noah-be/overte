@@ -456,7 +456,11 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     DependencyManager::set<UserInputMapper>();
     DependencyManager::set<controller::ScriptingInterface, ControllerScriptingInterface>();
     DependencyManager::set<InterfaceParentFinder>();
-    DependencyManager::set<EntityTreeRenderer>(true, qApp, qApp);
+    const bool disableEntityScripts = parser.isSet("disableEntityScripts");
+    DependencyManager::set<EntityTreeRenderer>(!disableEntityScripts, qApp, qApp);
+    if (disableEntityScripts) {
+        qInfo().noquote() << "OVERTE_MACOS_RENDER_PHASE entity_scripts_disabled";
+    }
     DependencyManager::set<CompositorHelper>();
     DependencyManager::set<OffscreenQmlSurfaceCache>();
     DependencyManager::set<EntityScriptClient>();
