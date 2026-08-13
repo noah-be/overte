@@ -489,6 +489,9 @@ gl_backend_header = (ROOT / "libraries/gpu-gl-common/src/gpu/gl/GLBackend.h").re
 gl_backend_output = (
     ROOT / "libraries/gpu-gl-common/src/gpu/gl/GLBackendOutput.cpp"
 ).read_text(encoding="utf-8")
+gl41_backend_output = (
+    ROOT / "libraries/gpu-gl/src/gpu/gl41/GL41BackendOutput.cpp"
+).read_text(encoding="utf-8")
 display_plugin = (
     ROOT / "libraries/display-plugins/src/display-plugins/OpenGLDisplayPlugin.cpp"
 ).read_text(encoding="utf-8")
@@ -569,6 +572,32 @@ if neutral_blit.index("batch.setFramebuffer(destinationFramebuffer)") > neutral_
     raise SystemExit("neutral macOS tone-map blit must select destination state before copying")
 if "return;" not in neutral_blit:
     raise SystemExit("neutral macOS tone-map blit must bypass the broken sampler pipeline")
+for neutral_backend_contract in (
+    'batch.getName() == "ToneMapNeutralBlit::run"',
+    "glIsEnabled(GL_SCISSOR_TEST)",
+    "glDisable(GL_SCISSOR_TEST)",
+    "glEnable(GL_SCISSOR_TEST)",
+    "glReadBuffer(GL_COLOR_ATTACHMENT0)",
+    "OVERTE_MACOS_GL_BLIT_ERROR",
+    "OVERTE_MACOS_GL_BLIT",
+    "source_nonzero=",
+    "destination_nonzero=",
+):
+    if neutral_backend_contract not in gl41_backend_output:
+        raise SystemExit(
+            f"neutral macOS GL blit hardening missing: {neutral_backend_contract}"
+        )
+neutral_backend_blit = gl41_backend_output.split(
+    "const bool neutralToneMapBlit", 1
+)[1].split("// Always clean the read fbo", 1)[0]
+if neutral_backend_blit.index("glDisable(GL_SCISSOR_TEST)") > neutral_backend_blit.index(
+    "glBlitFramebuffer"
+):
+    raise SystemExit("neutral macOS GL blit must disable inherited scissoring before copying")
+if neutral_backend_blit.index("glEnable(GL_SCISSOR_TEST)") < neutral_backend_blit.index(
+    "glBlitFramebuffer"
+):
+    raise SystemExit("neutral macOS GL blit must restore inherited scissoring after copying")
 for diagnostic_token in ("OVERTE_MACOS_TONEMAP_PARAMS", "sizeof(Parameters)", "exposure_scale="):
     if diagnostic_token not in tone_map_source:
         raise SystemExit(f"tone-map runtime diagnostics missing: {diagnostic_token}")

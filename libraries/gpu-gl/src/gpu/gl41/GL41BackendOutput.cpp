@@ -10,6 +10,13 @@
 //
 #include "GL41Backend.h"
 
+#include <algorithm>
+#include <array>
+#include <cstdint>
+#include <cstdlib>
+#include <vector>
+
+#include <QtCore/QDebug>
 #include <QtGui/QImage>
 
 #include <gpu/gl/GLFramebuffer.h>
@@ -167,10 +174,120 @@ void GL41Backend::do_blit(const Batch& batch, size_t paramOffset) {
     // always bind the read fbo
     glBindFramebuffer(GL_READ_FRAMEBUFFER, getFramebufferID(srcframebuffer));
 
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    // glBlitFramebuffer is affected by the scissor test, but Batch::blit has
+    // its own explicit source and destination rectangles and no scissor
+    // argument.  A draw job may leave scissoring enabled before the neutral
+    // tone-map transfer, causing Apple's GL implementation to copy no pixels.
+    // Keep the backend state cache coherent by restoring the driver state
+    // immediately after the transfer.
+    const bool neutralToneMapBlit = batch.getName() == "ToneMapNeutralBlit::run";
+    const bool scissorWasEnabled = neutralToneMapBlit && glIsEnabled(GL_SCISSOR_TEST);
+    GLint readBufferBefore { 0 };
+    GLint drawBufferBefore { 0 };
+    GLint scissorBox[4] { 0, 0, 0, 0 };
+    if (neutralToneMapBlit) {
+        glGetIntegerv(GL_READ_BUFFER, &readBufferBefore);
+        glGetIntegerv(GL_DRAW_BUFFER0, &drawBufferBefore);
+        glGetIntegerv(GL_SCISSOR_BOX, scissorBox);
+        if (scissorWasEnabled) {
+            glDisable(GL_SCISSOR_TEST);
+        }
+        // Framebuffer read-buffer selection is stored per FBO.  Select the
+        // attachment Batch::blit is defined to copy instead of inheriting an
+        // unrelated job's selection.
+        glReadBuffer(GL_COLOR_ATTACHMENT0);
+        while (glGetError() != GL_NO_ERROR) {
+            // Attribute the error sampled below to glBlitFramebuffer rather
+            // than to an earlier diagnostic query.
+        }
+    }
+#endif
+
     // Blit!
     glBlitFramebuffer(srcvp.x, srcvp.y, srcvp.z, srcvp.w, 
         dstvp.x, dstvp.y, dstvp.z, dstvp.w,
         GL_COLOR_BUFFER_BIT, GL_LINEAR);
+
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    GLenum neutralToneMapBlitError { GL_NO_ERROR };
+    if (neutralToneMapBlit) {
+        neutralToneMapBlitError = glGetError();
+        if (neutralToneMapBlitError != GL_NO_ERROR) {
+            qWarning().noquote() << "OVERTE_MACOS_GL_BLIT_ERROR"
+                                 << "error=" << neutralToneMapBlitError;
+        }
+        if (scissorWasEnabled) {
+            glEnable(GL_SCISSOR_TEST);
+        }
+
+        // When diagnostics are requested, wait until representative source
+        // pixels exist and then record one bounded before/after probe.  This
+        // distinguishes a failed transfer from a later composite overwrite
+        // without dumping textures, paths, arguments or environment data.
+        static bool transferProbeLogged { false };
+        if (!transferProbeLogged && qEnvironmentVariableIsSet("OVERTE_MACOS_GL_DIAGNOSTICS")) {
+            const auto srcWidth = std::abs(srcvp.z - srcvp.x);
+            const auto srcHeight = std::abs(srcvp.w - srcvp.y);
+            const auto dstWidth = std::abs(dstvp.z - dstvp.x);
+            const auto dstHeight = std::abs(dstvp.w - dstvp.y);
+            if (srcWidth > 0 && srcHeight > 0 && dstWidth > 0 && dstHeight > 0) {
+                const std::array<int, 3> sourceRows {
+                    std::min(srcvp.y, srcvp.w) + srcHeight / 8,
+                    std::min(srcvp.y, srcvp.w) + srcHeight / 4,
+                    std::min(srcvp.y, srcvp.w) + srcHeight / 2
+                };
+                const std::array<int, 3> destinationRows {
+                    std::min(dstvp.y, dstvp.w) + dstHeight / 8,
+                    std::min(dstvp.y, dstvp.w) + dstHeight / 4,
+                    std::min(dstvp.y, dstvp.w) + dstHeight / 2
+                };
+                std::vector<uint8_t> sourcePixels(static_cast<size_t>(srcWidth) * 4);
+                std::vector<uint8_t> destinationPixels(static_cast<size_t>(dstWidth) * 4);
+                bool sourceNonzero { false };
+                bool destinationNonzero { false };
+                const auto hasNonzeroRGB = [](const std::vector<uint8_t>& pixels) {
+                    for (size_t index = 0; index + 3 < pixels.size(); index += 4) {
+                        if (pixels[index] != 0 || pixels[index + 1] != 0 || pixels[index + 2] != 0) {
+                            return true;
+                        }
+                    }
+                    return false;
+                };
+
+                glBindFramebuffer(GL_READ_FRAMEBUFFER, getFramebufferID(srcframebuffer));
+                glReadBuffer(GL_COLOR_ATTACHMENT0);
+                for (const auto row : sourceRows) {
+                    glReadPixels(std::min(srcvp.x, srcvp.z), row, srcWidth, 1,
+                        GL_RGBA, GL_UNSIGNED_BYTE, sourcePixels.data());
+                    sourceNonzero = sourceNonzero || hasNonzeroRGB(sourcePixels);
+                }
+
+                if (sourceNonzero) {
+                    glBindFramebuffer(GL_READ_FRAMEBUFFER, getFramebufferID(dstframebuffer));
+                    glReadBuffer(GL_COLOR_ATTACHMENT0);
+                    for (const auto row : destinationRows) {
+                        glReadPixels(std::min(dstvp.x, dstvp.z), row, dstWidth, 1,
+                            GL_RGBA, GL_UNSIGNED_BYTE, destinationPixels.data());
+                        destinationNonzero = destinationNonzero || hasNonzeroRGB(destinationPixels);
+                    }
+                    transferProbeLogged = true;
+                    qInfo().noquote() << "OVERTE_MACOS_GL_BLIT"
+                                      << "source_nonzero=" << sourceNonzero
+                                      << "destination_nonzero=" << destinationNonzero
+                                      << "error=" << neutralToneMapBlitError
+                                      << "read_buffer=" << readBufferBefore
+                                      << "draw_buffer=" << drawBufferBefore
+                                      << "scissor_enabled=" << scissorWasEnabled
+                                      << "scissor=" << scissorBox[0] << scissorBox[1]
+                                      << scissorBox[2] << scissorBox[3]
+                                      << "source_size=" << srcWidth << srcHeight
+                                      << "destination_size=" << dstWidth << dstHeight;
+                }
+            }
+        }
+    }
+#endif
 
     // Always clean the read fbo to 0
     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
@@ -180,7 +297,13 @@ void GL41Backend::do_blit(const Batch& batch, size_t paramOffset) {
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _output._drawFBO);
     }
 
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    if (!neutralToneMapBlit || neutralToneMapBlitError == GL_NO_ERROR) {
+        (void) CHECK_GL_ERROR();
+    }
+#else
     (void) CHECK_GL_ERROR();
+#endif
 }
 
 
