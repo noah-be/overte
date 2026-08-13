@@ -799,6 +799,9 @@ if "parser.addOption(disableEntityScriptsOption);" not in main_source:
 application_setup_source = (ROOT / "interface/src/Application_Setup.cpp").read_text(
     encoding="utf-8"
 )
+entity_renderer_source = (
+    ROOT / "libraries/entities-renderer/src/EntityTreeRenderer.cpp"
+).read_text(encoding="utf-8")
 for entity_script_contract in (
     'parser.isSet("disableEntityScripts")',
     "DependencyManager::set<EntityTreeRenderer>(!disableEntityScripts, qApp, qApp)",
@@ -808,6 +811,11 @@ for entity_script_contract in (
         raise SystemExit(
             f"missing client entity-script isolation: {entity_script_contract}"
         )
+reload_entity_scripts = entity_renderer_source.split(
+    "void EntityTreeRenderer::reloadEntityScripts()", 1
+)[1].split("void EntityTreeRenderer::init()", 1)[0]
+if "if (!_wantScripts)" not in reload_entity_scripts or "return;" not in reload_entity_scripts:
+    raise SystemExit("disabled entity scripts must make reload requests a safe no-op")
 local_avatar_property = 'parser.isSet("disableLocalAvatar")'
 local_avatar_disable = 'setProperty("shouldRenderLocally", false)'
 avatar_init = "avatarManager->init();"

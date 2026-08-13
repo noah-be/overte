@@ -481,6 +481,9 @@ void EntityTreeRenderer::clear() {
 }
 
 void EntityTreeRenderer::reloadEntityScripts() {
+    if (!_wantScripts) {
+        return;
+    }
     _persistentEntitiesScriptManager->unloadAllEntityScripts();
     _persistentEntitiesScriptManager->resetModuleCache();
     _nonPersistentEntitiesScriptManager->unloadAllEntityScripts();
