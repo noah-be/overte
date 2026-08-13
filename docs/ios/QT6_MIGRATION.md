@@ -421,6 +421,12 @@ existing fail-closed Vulkan selection without an undeclared desktop GL helper
 call or a legacy OpenGL surface-format override; desktop macOS behavior is
 unchanged.
 
+Interface startup also keeps the optional desktop launcher handoff behind a
+non-iOS boundary. The iOS Qt build intentionally has no child-process support,
+so it reads the shared application configuration and retains environment
+access without constructing `QProcess`; desktop launcher behavior is
+unchanged.
+
 Entity dynamic vector and quaternion argument parsing now performs its strict
 `QVariantMap` check through `QVariant::metaType()` on Qt 6 while retaining
 `QVariant::type()` only inside the Qt 5 compatibility branch. The parser still

@@ -822,6 +822,17 @@ def test_scope_contract() -> None:
         r"#if !defined\(Q_OS_IOS\)[\s\S]*QProcess launcher;[\s\S]*launcher\.startDetached\(\);[\s\S]*#endif",
         "desktop launcher processes must be excluded from iOS",
     )
+    interface_main = SOURCE_ROOT / "interface" / "src" / "main.cpp"
+    require_text(
+        interface_main,
+        r"#if !defined\(Q_OS_IOS\)\s*#include <QtCore/QProcess>\s*#endif[\s\S]*#include <QtCore/QProcessEnvironment>",
+        "the iOS entry point must retain environment access without including unavailable child-process support",
+    )
+    require_text(
+        interface_main,
+        r"launcherPath = doc\.object\(\)\[LAUNCHER_PATH_KEY\]\.toString\(\);[\s\S]*#if !defined\(Q_OS_IOS\)[\s\S]*QProcess launcher;[\s\S]*launcher\.startDetached\(\);[\s\S]*#endif[\s\S]*configFile\.close\(\);",
+        "the desktop application-launcher handoff must remain unavailable on iOS without dropping config parsing",
+    )
     shared_qml = SOURCE_ROOT / "libraries" / "qml" / "src" / "qml" / "impl" / "SharedObject.cpp"
     require_text(
         shared_qml,

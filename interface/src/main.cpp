@@ -10,7 +10,10 @@
 //
 
 #include <QCommandLineParser>
+#if !defined(Q_OS_IOS)
 #include <QtCore/QProcess>
+#endif
+#include <QtCore/QProcessEnvironment>
 #include <QDebug>
 #include <QDir>
 #include <QFileInfo>
@@ -619,6 +622,7 @@ int main(int argc, const char* argv[]) {
                 static const QString LAUNCHER_PATH_KEY = "launcherPath";
                 launcherPath = doc.object()[LAUNCHER_PATH_KEY].toString();
                 if (!launcherPath.isEmpty()) {
+#if !defined(Q_OS_IOS)
                     if (!parser.isSet(noLauncherOption)) {
                         qDebug() << "Found a launcherPath in application config. Starting launcher.";
                         QProcess launcher;
@@ -629,6 +633,7 @@ int main(int argc, const char* argv[]) {
                         qDebug() << "Found a launcherPath in application config, but the launcher"
                                     " has been suppressed. Continuing normal execution.";
                     }
+#endif
                     configFile.close();
                 }
             }
