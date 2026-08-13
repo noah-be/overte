@@ -15,15 +15,17 @@ LINK = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 SCHEME = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
 
 
-def changed_markdown(base: str) -> list[Path]:
+def changed_markdown(base: str, root: Path = ROOT) -> list[Path]:
     result = subprocess.run(
-        ["git", "diff", "--name-only", "--diff-filter=ACMR", f"{base}...HEAD"],
-        cwd=ROOT,
-        check=True,
+        ["git", "diff", "--name-only", "--diff-filter=ACMR", base, "HEAD"],
+        cwd=root,
+        check=False,
         capture_output=True,
         text=True,
     )
-    return [ROOT / name for name in result.stdout.splitlines() if name.lower().endswith(".md")]
+    if result.returncode != 0:
+        raise RuntimeError("the documentation comparison tree is unavailable")
+    return [root / name for name in result.stdout.splitlines() if name.lower().endswith(".md")]
 
 
 def link_target(raw: str) -> str:
@@ -61,7 +63,11 @@ def main() -> int:
     parser.add_argument("--base", required=True)
     args = parser.parse_args()
     failures = []
-    files = changed_markdown(args.base)
+    try:
+        files = changed_markdown(args.base)
+    except RuntimeError as error:
+        print(f"Documentation checks failed: {error}")
+        return 1
     for path in files:
         for error in validate(path):
             failures.append(f"{path.relative_to(ROOT)}: {error}")

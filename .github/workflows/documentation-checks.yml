@@ -6,6 +6,7 @@ on:
       - "**/*.md"
       - "docs/**"
       - "tests/check-documentation.py"
+      - "tests/check-documentation-test.py"
       - ".github/workflows/documentation-checks.yml"
   push:
     branches: [main, android-phone, android-vr-pico, apple-ios, apple-macos]
@@ -13,6 +14,7 @@ on:
       - "**/*.md"
       - "docs/**"
       - "tests/check-documentation.py"
+      - "tests/check-documentation-test.py"
       - ".github/workflows/documentation-checks.yml"
 
 permissions:
@@ -29,11 +31,19 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
         with:
-          # The PR merge commit and its parents are enough for BASE_SHA...HEAD.
-          # Avoid fetching every branch and tag in this large repository.
-          fetch-depth: 2
+          # The exact comparison tree is fetched below. Avoid fetching every
+          # intervening commit, branch, and tag in this large repository.
+          fetch-depth: 1
           persist-credentials: false
+      - name: Fetch exact documentation comparison tree
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
       - name: Check changed documentation
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: python3 tests/check-documentation.py --base "$BASE_SHA"
+        run: |
+          python3 tests/check-documentation-test.py
+          python3 tests/check-documentation.py --base "$BASE_SHA"
