@@ -151,6 +151,14 @@ public:
     float getRenderLoopRate() const { return _renderLoopCounter.rate(); }
 
     /**
+     * Provides frame-production timings to explicit application test scripts.
+     * The scripting interface synchronizes access with the render thread.
+     */
+    FrameTimingsScriptingInterface* getFrameTimingsScriptingInterface() {
+        return &_frameTimingsScriptingInterface;
+    }
+
+    /**
      * Give Graphics Engine new frame configuration.
      * @param editor
      */

@@ -607,6 +607,8 @@ void Application::registerScriptEngineWithApplicationServices(ScriptManagerPoint
 
     if (property(hifi::properties::TEST).isValid()) {
         scriptEngine->registerGlobalObject(sgp, "Test", TestScriptingInterface::getInstance());
+        scriptEngine->registerGlobalObject(
+            sgp, "FrameTimings", _graphicsEngine->getFrameTimingsScriptingInterface());
     }
 
     scriptEngine->registerGlobalObject(sgp, "PlatformInfo", PlatformInfoScriptingInterface::getInstance());
