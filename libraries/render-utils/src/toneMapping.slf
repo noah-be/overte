@@ -43,10 +43,10 @@
 <@include render-utils/ShaderConstants.h@>
 
 struct ToneMappingParams {
-    float _2powExp;
-    int _toneCurve;
-    // Explicitly mirror the 16-byte std140 range bound by C++.
-    uvec2 _std140Padding;
+    // Apple OpenGL 4.1 reliably consumes complete vec4 registers here, while
+    // its software renderer can misread a compact mixed float/int struct.
+    vec4 _exposureRegister;
+    ivec4 _curveRegister;
 };
 
 const float GAMMA_22 = 2.2;
@@ -60,10 +60,10 @@ UNIFORM_BUFFER(RENDER_UTILS_BUFFER_TM_PARAMS, toneMappingParamsBuffer) {
     ToneMappingParams params;
 };
 float getTwoPowExposure() {
-    return params._2powExp;
+    return params._exposureRegister.y;
 }
 int getToneCurve() {
-    return params._toneCurve;
+    return params._curveRegister.x;
 }
 
 TEXTURE(RENDER_UTILS_TEXTURE_TM_COLOR, sampler2D, colorMap);

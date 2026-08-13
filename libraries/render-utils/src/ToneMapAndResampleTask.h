@@ -16,6 +16,7 @@
 #include <NumericalConstants.h>
 #include <QtCore/QtGlobal>
 
+#include <cstddef>
 #include <cstdint>
 
 #include <gpu/Resource.h>
@@ -77,19 +78,24 @@ private:
     float _debugExposure { 0.0f };
 
     // Class describing the uniform buffer with all the parameters common to the tone mapping shaders
-    class Parameters {
+    class alignas(16) Parameters {
     public:
+        // Keep the values in complete 16-byte registers.  Apple OpenGL 4.1's
+        // software renderer has been observed to read a compact mixed
+        // float/int struct as sub-LSB values even though its reflected std140
+        // offsets are correct.  This is also the layout used by the original
+        // desktop tone-mapping implementation.
+        float _unusedExposure = 0.0f;
         float _twoPowExposure = 1.0f;
+        float _exposurePadding[2] { 0.0f, 0.0f };
         std::int32_t _toneCurve = (std::int32_t)TonemappingCurve::SRGB;
-        // ToneMappingParams is nested in a std140 uniform block.  Its base
-        // alignment and occupied range are therefore 16 bytes even though the
-        // two active scalars need only eight.  Binding an eight-byte range is
-        // undefined and Apple GL has been observed to read a 1/255 exposure.
-        std::uint32_t _std140Padding[2] { 0, 0 };
+        std::int32_t _curvePadding[3] { 0, 0, 0 };
 
         Parameters() {}
     };
-    static_assert(sizeof(Parameters) == 16, "ToneMappingParams must match its std140 block size");
+    static_assert(sizeof(Parameters) == 32, "ToneMappingParams must occupy two std140 registers");
+    static_assert(offsetof(Parameters, _twoPowExposure) == 4, "Tone-map exposure must be register 0.y");
+    static_assert(offsetof(Parameters, _toneCurve) == 16, "Tone-map curve must be register 1.x");
 
     typedef gpu::BufferView UniformBufferView;
     gpu::BufferView _parametersBuffer;

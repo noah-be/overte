@@ -528,14 +528,19 @@ if "#include <ToneMapDiagnostics.h>" not in display_plugin or "ToneMapAndResampl
 if "getToneMapDiagnosticInputFramebuffer" not in tone_map_diagnostics or "task/" in tone_map_diagnostics:
     raise SystemExit("tone-map diagnostics header must expose only the narrow framebuffer boundary")
 for std140_contract in (
+    "class alignas(16) Parameters",
+    "float _unusedExposure",
     "std::int32_t _toneCurve",
-    "std::uint32_t _std140Padding[2]",
-    "static_assert(sizeof(Parameters) == 16",
+    "std::int32_t _curvePadding[3]",
+    "static_assert(sizeof(Parameters) == 32",
+    "offsetof(Parameters, _twoPowExposure) == 4",
+    "offsetof(Parameters, _toneCurve) == 16",
 ):
     if std140_contract not in tone_map_header:
         raise SystemExit(f"tone-map std140 layout contract missing: {std140_contract}")
-if "uvec2 _std140Padding" not in tone_map_shader:
-    raise SystemExit("tone-map shader must explicitly mirror the 16-byte std140 layout")
+for shader_register in ("vec4 _exposureRegister", "ivec4 _curveRegister"):
+    if shader_register not in tone_map_shader:
+        raise SystemExit("tone-map shader must use two explicit std140 registers")
 for diagnostic_token in ("OVERTE_MACOS_TONEMAP_PARAMS", "sizeof(Parameters)", "exposure_scale="):
     if diagnostic_token not in tone_map_source:
         raise SystemExit(f"tone-map runtime diagnostics missing: {diagnostic_token}")
@@ -623,6 +628,28 @@ for local_input_contract in (
 gl41_backend = (ROOT / "libraries/gpu-gl/src/gpu/gl41/GL41Backend.cpp").read_text(
     encoding="utf-8"
 )
+draw_unindexed = gl41_backend.split("void GL41Backend::do_draw", 1)[1].split(
+    "void GL41Backend::do_drawIndexed", 1
+)[0]
+for tone_state_contract in (
+    "OVERTE_MACOS_TONEMAP_GL_STATE",
+    'fragmentName.contains("toneMapping"',
+    "GL_UNIFORM_BUFFER_BINDING",
+    "GL_UNIFORM_BUFFER_START",
+    "GL_UNIFORM_BUFFER_SIZE",
+    "glGetBufferSubData",
+    "GL_DRAW_FRAMEBUFFER_BINDING",
+    "GL_DRAW_BUFFER0",
+    "GL_COLOR_WRITEMASK",
+    "GL_FRAMEBUFFER_SRGB",
+    "GL_TEXTURE_INTERNAL_FORMAT",
+):
+    if tone_state_contract not in draw_unindexed:
+        raise SystemExit(f"macOS tone-map GL-state diagnostic missing: {tone_state_contract}")
+if draw_unindexed.index("OVERTE_MACOS_TONEMAP_GL_STATE") > draw_unindexed.index(
+    "draw(mode, numVertices, startVertex)"
+):
+    raise SystemExit("macOS tone-map state must be captured before its driver draw")
 draw_indexed = gl41_backend.split("void GL41Backend::do_drawIndexed", 1)[1].split(
     "void GL41Backend::do_drawInstanced", 1
 )[0]

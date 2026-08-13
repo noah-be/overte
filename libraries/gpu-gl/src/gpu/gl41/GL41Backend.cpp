@@ -7,6 +7,9 @@
 //
 #include "GL41Backend.h"
 
+#include <algorithm>
+#include <array>
+#include <cstring>
 #include <mutex>
 #include <queue>
 #include <list>
@@ -54,6 +57,100 @@ void GL41Backend::do_draw(const Batch& batch, size_t paramOffset) {
     GLenum mode = gl::PRIMITIVE_TO_GL[primitiveType];
     uint32 numVertices = batch._params[paramOffset + 1]._uint;
     uint32 startVertex = batch._params[paramOffset + 0]._uint;
+
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    // Capture the real driver-visible state for the first tone-map draw.  CPU
+    // values alone cannot prove that Apple's GL implementation sees the same
+    // UBO range.  Keep this bounded, opt-in and free of paths/arguments.
+    static thread_local std::unordered_set<GLuint> tracedToneMapPrograms;
+    const auto application = QCoreApplication::instance();
+    const bool diagnosticsEnabled = qEnvironmentVariableIsSet("OVERTE_MACOS_GL_DIAGNOSTICS") ||
+        (application && application->property(hifi::properties::TEST).isValid());
+    if (diagnosticsEnabled && tracedToneMapPrograms.count(_pipeline._program) == 0) {
+        QString fragmentName;
+        if (auto pipeline = acquire(_pipeline._pipeline)) {
+            const auto& program = pipeline->getProgram();
+            if (program) {
+                const auto& shaders = program->getShaders();
+                if (shaders.size() > Shader::PIXEL && shaders[Shader::PIXEL]) {
+                    fragmentName = QString::fromStdString(shaders[Shader::PIXEL]->getSource().name);
+                }
+            }
+        }
+        if (fragmentName.contains("toneMapping", Qt::CaseInsensitive)) {
+            tracedToneMapPrograms.insert(_pipeline._program);
+
+            GLint drawFramebuffer { 0 };
+            GLint drawBuffer { 0 };
+            GLint viewport[4] { 0, 0, 0, 0 };
+            GLint scissorBox[4] { 0, 0, 0, 0 };
+            GLboolean colorMask[4] { GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE };
+            glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &drawFramebuffer);
+            glGetIntegerv(GL_DRAW_BUFFER0, &drawBuffer);
+            glGetIntegerv(GL_VIEWPORT, viewport);
+            glGetIntegerv(GL_SCISSOR_BOX, scissorBox);
+            glGetBooleanv(GL_COLOR_WRITEMASK, colorMask);
+            const auto framebufferStatus = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
+
+            GLint uniformBuffer { 0 };
+            GLint genericUniformBuffer { 0 };
+            GLint64 uniformOffset { 0 };
+            GLint64 uniformSize { 0 };
+            glGetIntegeri_v(GL_UNIFORM_BUFFER_BINDING, 0, &uniformBuffer);
+            glGetInteger64i_v(GL_UNIFORM_BUFFER_START, 0, &uniformOffset);
+            glGetInteger64i_v(GL_UNIFORM_BUFFER_SIZE, 0, &uniformSize);
+            glGetIntegerv(GL_UNIFORM_BUFFER_BINDING, &genericUniformBuffer);
+
+            std::array<uint32_t, 8> uniformWords {};
+            if (uniformBuffer != 0 && uniformSize > 0) {
+                glBindBuffer(GL_UNIFORM_BUFFER, uniformBuffer);
+                const auto bytesToRead = std::min<GLint64>(uniformSize,
+                    static_cast<GLint64>(sizeof(uniformWords)));
+                glGetBufferSubData(GL_UNIFORM_BUFFER, uniformOffset, bytesToRead,
+                    uniformWords.data());
+                glBindBuffer(GL_UNIFORM_BUFFER, genericUniformBuffer);
+            }
+            float exposureRegisterX { 0.0f };
+            float exposureRegisterY { 0.0f };
+            std::memcpy(&exposureRegisterX, &uniformWords[0], sizeof(float));
+            std::memcpy(&exposureRegisterY, &uniformWords[1], sizeof(float));
+
+            GLint activeTexture { GL_TEXTURE0 };
+            GLint texture2D { 0 };
+            GLint textureInternalFormat { 0 };
+            glGetIntegerv(GL_ACTIVE_TEXTURE, &activeTexture);
+            glActiveTexture(GL_TEXTURE0);
+            glGetIntegerv(GL_TEXTURE_BINDING_2D, &texture2D);
+            if (texture2D != 0) {
+                glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT,
+                    &textureInternalFormat);
+            }
+            glActiveTexture(activeTexture);
+
+            qInfo().noquote()
+                << "OVERTE_MACOS_TONEMAP_GL_STATE"
+                << "program=" << _pipeline._program
+                << "fbo=" << drawFramebuffer
+                << "fbo_status=" << framebufferStatus
+                << "draw_buffer=" << drawBuffer
+                << "viewport=" << viewport[0] << viewport[1] << viewport[2] << viewport[3]
+                << "scissor_enabled=" << glIsEnabled(GL_SCISSOR_TEST)
+                << "scissor=" << scissorBox[0] << scissorBox[1] << scissorBox[2] << scissorBox[3]
+                << "blend_enabled=" << glIsEnabled(GL_BLEND)
+                << "framebuffer_srgb=" << glIsEnabled(GL_FRAMEBUFFER_SRGB)
+                << "color_mask=" << colorMask[0] << colorMask[1] << colorMask[2] << colorMask[3]
+                << "ubo=" << uniformBuffer
+                << "ubo_offset=" << uniformOffset
+                << "ubo_size=" << uniformSize
+                << "ubo_exposure_x=" << exposureRegisterX
+                << "ubo_exposure_y=" << exposureRegisterY
+                << "ubo_curve_x=" << static_cast<int32_t>(uniformWords[4])
+                << "texture=" << texture2D
+                << "texture_format=" << textureInternalFormat;
+            (void)CHECK_GL_ERROR();
+        }
+    }
+#endif
 
     draw(mode, numVertices, startVertex);
 }
