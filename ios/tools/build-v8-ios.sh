@@ -135,6 +135,14 @@ done
 export PATH="$xcode_toolchain_dir:$PATH"
 
 mkdir -p "$output_dir"
+cc_wrapper_line=""
+if [[ -n "${OVERTE_IOS_V8_COMPILER_LAUNCHER:-}" ]]; then
+    [[ "$OVERTE_IOS_V8_COMPILER_LAUNCHER" == /* && -x "$OVERTE_IOS_V8_COMPILER_LAUNCHER" ]] \
+        || die "OVERTE_IOS_V8_COMPILER_LAUNCHER must be an absolute executable path"
+    [[ "$OVERTE_IOS_V8_COMPILER_LAUNCHER" != *'"'* && "$OVERTE_IOS_V8_COMPILER_LAUNCHER" != *'\\'* ]] \
+        || die "OVERTE_IOS_V8_COMPILER_LAUNCHER contains unsupported characters"
+    cc_wrapper_line="cc_wrapper = \"$OVERTE_IOS_V8_COMPILER_LAUNCHER\""
+fi
 cat > "$output_dir/args.gn" <<EOF
 target_os = "ios"
 target_cpu = "arm64"
@@ -157,6 +165,7 @@ v8_jitless = true
 v8_enable_webassembly = false
 v8_enable_pointer_compression = false
 treat_warnings_as_errors = false
+$cc_wrapper_line
 EOF
 
 (cd "$source_root" && gn gen "$output_dir" && autoninja -C "$output_dir" v8_monolith)

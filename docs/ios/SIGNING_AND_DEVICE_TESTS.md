@@ -173,11 +173,15 @@ the full client. A missing launcher invocation therefore fails in seconds
 instead of being discovered after a long build. The repository contains no
 Objective-C `@import` consumer.
 
-While the full build runs, a secret-safe heartbeat reports process-tree
-activity, active CPU time and memory, and build-log growth every 30 seconds. It
-never prints process arguments or environment variables. The heartbeat is
-observational only: it cannot fail or terminate the build, and the original
-Xcode exit status is preserved.
+While configure, dependency resolution, compilation, checkpoint creation and
+packaging run, a secret-safe supervisor reports process-tree activity, active
+CPU time, RAM, swap, disk space and bounded directory growth every 30 seconds.
+It never prints process arguments or environment variables. Each individual
+Xcode/V8 compiler invocation additionally runs through a CPU-aware watchdog
+before sccache. A genuinely inactive compiler is diagnosed and terminated
+fail-closed; long CPU-active translation units are not mistaken for hangs. The
+original child exit status is preserved, and complete private phase output is
+sanitized before a failure artifact is uploaded.
 
 Only the newest generation across all full-client compiler namespaces for the
 matching branch and runner architecture are retained, so obsolete toolchain
@@ -185,6 +189,12 @@ namespaces cannot accumulate and displace the separately validated Qt, V8,
 MoltenVK and Conan checkpoints. A hard runner termination can still prevent the final cache
 upload; ordinary compile and link failures do not. Cache-upload or pruning
 trouble is reported without replacing the original compiler diagnostic.
+
+Validated V8 and Conan outputs also receive provenance-bound 30-day workflow
+artifacts, so repository cache eviction cannot force an unnecessary full
+rebuild. A failed Conan resolution saves its isolated partial package home under
+a non-durable recovery key; only an integrity-checked compact graph becomes a
+durable artifact.
 
 The generated Xcode project, `CMakeCache.txt`, products, bundles, signing data,
 raw diagnostics and the complete workspace are not cached. They are regenerated

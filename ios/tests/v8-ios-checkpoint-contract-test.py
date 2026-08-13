@@ -46,6 +46,8 @@ class V8IOSCheckpointContractTest(unittest.TestCase):
             "libv8_monolith.a",
             "lipo -info",
             "target_os = ['ios']",
+            "OVERTE_IOS_V8_COMPILER_LAUNCHER",
+            "cc_wrapper =",
         ):
             self.assertIn(contract, script)
         self.assertNotIn("gclient runhooks", script)
@@ -61,17 +63,26 @@ class V8IOSCheckpointContractTest(unittest.TestCase):
 
     def test_integrated_job_restores_validates_and_saves_checkpoint(self):
         workflow = (ROOT / ".github/workflows/ios-integrated.yml").read_text(encoding="utf-8")
-        integrated = workflow[workflow.index("  integrated-configure:"):]
-        restore = integrated.index("Restore pinned static JITless V8 for iOS")
-        validate = integrated.index("Validate pinned static JITless V8 for iOS")
-        preflight = integrated.index("Toolchain preflight")
-        save = workflow.index("Save validated static JITless V8 for iOS")
-        configure = workflow.index("Configure experimental full client graph")
-        self.assertLess(restore, validate)
-        self.assertLess(validate, preflight)
-        self.assertLess(save, configure)
-        self.assertIn("fail-on-cache-miss: true", integrated[restore:validate])
-        self.assertIn("needs.v8-checkpoint.outputs.cache-key", integrated[restore:validate])
+        v8 = workflow[workflow.index("  v8-checkpoint:"):workflow.index("  integrated-configure:")]
+        names = [
+            "Restore pinned static JITless V8 for iOS",
+            "Restore V8 compiler recovery checkpoint",
+            "Probe durable static JITless V8 checkpoint",
+            "Restore durable static JITless V8 checkpoint",
+            "Build pinned static JITless V8 for iOS",
+            "Validate pinned static JITless V8 for iOS",
+            "Create durable static JITless V8 checkpoint",
+            "Upload durable static JITless V8 checkpoint",
+            "Save validated static JITless V8 for iOS",
+        ]
+        positions = [v8.index(name) for name in names]
+        self.assertEqual(positions, sorted(positions))
+        self.assertIn("--kind v8", v8)
+        self.assertIn("--compiler-live-log", v8)
+        self.assertIn("--output-log", v8)
+        self.assertIn("OVERTE_IOS_V8_COMPILER_LAUNCHER", v8)
+        self.assertIn("Save V8 compiler recovery checkpoint", v8)
+        self.assertIn("retention-days: 30", v8)
         self.assertIn("OVERTE_IOS_V8_ROOT:", workflow)
 
 

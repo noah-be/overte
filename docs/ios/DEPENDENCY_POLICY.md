@@ -49,9 +49,12 @@ CMakeToolchain consumes these when generating the file that Qt chainloads;
 preset-only cache variables are not sufficient for this workflow.
 After the graph audit succeeds, CI stores the isolated, anonymous Conan home
 under a key derived from Xcode, the iPhoneOS SDK, both profiles, the staged
-recipe, dependency policy, and tool versions. Failed or partial graph
-resolutions are never saved. This checkpoint lets later configure/compile
-retries reuse all successfully validated native packages.
+recipe, dependency policy, and tool versions. Failed graph resolutions are
+saved only as short-lived, isolated partial recovery checkpoints and are never
+consumed as validated dependencies. After two integrity checks around
+build/temp cleanup, the compact Conan home is saved both under its exact cache
+key and as a provenance-bound 30-day workflow artifact. This lets retries reuse
+completed packages even when the repository cache quota evicts the exact entry.
 Before graph resolution, the CLI idempotently adds or resets the public
 `overte` Artifactory remote to its canonical URL. Custom recipe references such
 as `cgltf/1.14@overte/stable` must never fall through to Conan Center alone.

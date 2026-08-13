@@ -62,7 +62,7 @@ with tempfile.TemporaryDirectory(prefix="qt-checkpoint-test-") as temporary_name
     original_download = module.download_latest
     created_at = dt.datetime.now(dt.timezone.utc).isoformat()
     selected = {"id": 7, "created_at": created_at}
-    module.download_latest = lambda artifact_prefix, repository_id, branch, destination: (
+    module.download_latest = lambda artifact_prefix, repository_id, branch, destination, kind: (
         destination.write_bytes(workflow_zip.read_bytes()) and selected
     )
     try:
@@ -119,7 +119,7 @@ with tempfile.TemporaryDirectory(prefix="qt-checkpoint-test-") as temporary_name
         assert not (temporary / "escape").exists()
 
         missing_output = temporary / "missing-output"
-        module.download_latest = lambda artifact_prefix, repository_id, branch, destination: None
+        module.download_latest = lambda artifact_prefix, repository_id, branch, destination, kind: None
         missing_args = type("Args", (), dict(
             artifact_prefix="missing", kind="host", cache_key="qt-key", install_root=str(temporary / "unused"),
             github_output=str(missing_output), expected_repository_id=42, expected_branch="apple-ios", max_age_days=21,
@@ -133,7 +133,7 @@ with tempfile.TemporaryDirectory(prefix="qt-checkpoint-test-") as temporary_name
             "id": 8,
             "created_at": (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=22)).isoformat(),
         }
-        module.download_latest = lambda artifact_prefix, repository_id, branch, destination: (
+        module.download_latest = lambda artifact_prefix, repository_id, branch, destination, kind: (
             destination.write_bytes(workflow_zip.read_bytes()) and stale_selected
         )
         stale_args = type("Args", (), dict(
@@ -145,6 +145,50 @@ with tempfile.TemporaryDirectory(prefix="qt-checkpoint-test-") as temporary_name
         assert stale_restore_output.read_text() == "available=true\nfresh=false\nrestored=true\n"
         assert (stale_install / "macos/bin/qmake").is_file()
 
+        v8_payload = temporary / "v8-payload"
+        run(
+            "create", "--prefix", prefix, "--kind", "v8", "--cache-key", "v8-key",
+            "--producer-repository-id", "42", "--producer-branch", "apple-ios",
+            "--output-dir", v8_payload,
+        )
+        v8_zip = temporary / "v8-artifact.zip"
+        artifact_zip(v8_payload, v8_zip)
+        module.download_latest = lambda artifact_prefix, repository_id, branch, destination, kind: (
+            destination.write_bytes(v8_zip.read_bytes()) and selected
+        )
+        v8_output = temporary / "v8-output"
+        v8_install = temporary / "v8-restored"
+        v8_args = type("Args", (), dict(
+            artifact_prefix="v8", kind="v8", cache_key="v8-key",
+            install_root=str(v8_install), github_output=str(v8_output),
+            expected_repository_id=42, expected_branch="apple-ios", max_age_days=21,
+        ))()
+        module.restore(v8_args)
+        assert v8_output.read_text() == "available=true\nfresh=true\nrestored=true\n"
+        assert (v8_install / "v8-ios/bin/qmake").stat().st_mode & 0o777 == 0o755
+
+        conan_payload = temporary / "conan-payload"
+        run(
+            "create", "--prefix", prefix, "--kind", "conan", "--cache-key", "conan-key",
+            "--producer-repository-id", "42", "--producer-branch", "apple-ios",
+            "--output-dir", conan_payload,
+        )
+        conan_zip = temporary / "conan-artifact.zip"
+        artifact_zip(conan_payload, conan_zip)
+        module.download_latest = lambda artifact_prefix, repository_id, branch, destination, kind: (
+            destination.write_bytes(conan_zip.read_bytes()) and selected
+        )
+        conan_output = temporary / "conan-output"
+        conan_install = temporary / "conan-restored"
+        conan_args = type("Args", (), dict(
+            artifact_prefix="conan", kind="conan", cache_key="conan-key",
+            install_root=str(conan_install), github_output=str(conan_output),
+            expected_repository_id=42, expected_branch="apple-ios", max_age_days=21,
+        ))()
+        module.restore(conan_args)
+        assert conan_output.read_text() == "available=true\nfresh=true\nrestored=true\n"
+        assert (conan_install / "conan-home/.qt-hidden").read_text() == "hidden"
+
         for bad_name in ("nested/manifest.json", "extra"):
             invalid_zip = temporary / (bad_name.replace("/", "-") + ".zip")
             with zipfile.ZipFile(invalid_zip, "w") as archive:
@@ -154,7 +198,7 @@ with tempfile.TemporaryDirectory(prefix="qt-checkpoint-test-") as temporary_name
             invalid_destination = temporary / (bad_name.replace("/", "-") + "-out")
             invalid_destination.mkdir()
             try:
-                module.unpack_payload(invalid_zip, invalid_destination)
+                module.unpack_payload(invalid_zip, invalid_destination, "host")
                 raise AssertionError("accepted nested/extra ZIP member")
             except SystemExit:
                 pass
@@ -169,7 +213,7 @@ with tempfile.TemporaryDirectory(prefix="qt-checkpoint-test-") as temporary_name
         duplicate_out = temporary / "duplicate-out"
         duplicate_out.mkdir()
         try:
-            module.unpack_payload(duplicate_zip, duplicate_out)
+            module.unpack_payload(duplicate_zip, duplicate_out, "host")
             raise AssertionError("accepted duplicate ZIP member")
         except SystemExit:
             pass
@@ -189,8 +233,8 @@ with tempfile.TemporaryDirectory(prefix="qt-checkpoint-test-") as temporary_name
             info = tarfile.TarInfo("large")
             info.size = 2
             archive.addfile(info, io.BytesIO(b"xx"))
-        original_expanded_limit = module.EXPANDED_LIMIT
-        module.EXPANDED_LIMIT = 1
+        original_expanded_limit = module.EXPANDED_LIMITS["host"]
+        module.EXPANDED_LIMITS["host"] = 1
         try:
             try:
                 module.safe_extract(expanded, target)
@@ -198,7 +242,7 @@ with tempfile.TemporaryDirectory(prefix="qt-checkpoint-test-") as temporary_name
             except SystemExit:
                 pass
         finally:
-            module.EXPANDED_LIMIT = original_expanded_limit
+            module.EXPANDED_LIMITS["host"] = original_expanded_limit
     finally:
         module.download_latest = original_download
 
@@ -252,7 +296,10 @@ def fake_open(request):
 
 with tempfile.TemporaryDirectory(prefix="qt-redirect-test-") as redirect_temp:
     downloaded = Path(redirect_temp) / "artifact.zip"
-    module.download_artifact("https://api.github.com/artifact", "secret", downloaded, opener=fake_open)
+    module.download_artifact(
+        "https://api.github.com/artifact", "secret", downloaded,
+        module.DOWNLOAD_LIMITS["host"], opener=fake_open,
+    )
     assert requests[0].get_header("Authorization") == "Bearer secret"
     assert requests[1].get_header("Authorization") is None
     assert downloaded.read_bytes() == b"zip-data"

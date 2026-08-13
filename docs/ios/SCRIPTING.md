@@ -15,8 +15,11 @@ V8's `--jitless` and `--no-expose-wasm` runtime flags as a fail-closed layer.
 
 CI builds V8 12.4.254.21 from its official source tag using a pinned
 `depot_tools` revision. The package is an independent, deterministic cache
-checkpoint: a failed application build reuses the validated archive instead of
-rebuilding V8. Developers may build and select the same package explicitly:
+checkpoint backed by a provenance-checked durable workflow artifact. Its
+translation units are also written through the same watchdog/sccache chain as
+the client, so a failed V8 build can reuse completed objects. A failed
+application build therefore reuses the validated archive instead of rebuilding
+V8. Developers may build and select the same package explicitly:
 
 ```bash
 ios/tools/build-v8-ios.sh build

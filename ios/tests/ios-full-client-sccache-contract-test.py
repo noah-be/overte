@@ -79,9 +79,10 @@ def main() -> None:
     require(r"sccache --zero-stats", start_slice, "each build needs isolated cache statistics")
 
     configure_slice = integrated[configure:smoke]
-    require(r'OVERTE_IOS_COMPILER_LAUNCHER="\$SCCACHE_PATH"', configure_slice, "configure must receive the pinned launcher")
+    require(r'compiler_launcher="\$GITHUB_WORKSPACE/ios/ci/xcode-compiler-launcher\.sh"', configure_slice, "configure must select the watchdog launcher")
+    require(r'OVERTE_IOS_COMPILER_LAUNCHER="\$compiler_launcher"', configure_slice, "configure must receive the watchdog launcher")
     require(r"C_COMPILER_LAUNCHER.*project\.pbxproj", configure_slice, "the generated Xcode project must prove launcher wiring")
-    require(r"xcodebuild -project.*-showBuildSettings[\s\S]*C_COMPILER_LAUNCHER = \$SCCACHE_PATH", configure_slice, "effective target settings must retain the launcher")
+    require(r"xcodebuild -project.*-showBuildSettings[\s\S]*C_COMPILER_LAUNCHER = \$compiler_launcher", configure_slice, "effective target settings must retain the launcher")
     for setting in (
         "CLANG_ENABLE_MODULES = NO",
         "COMPILER_INDEX_STORE_ENABLE = NO",
@@ -103,9 +104,13 @@ def main() -> None:
     require(r"id: full-client-build", integrated[build:verify], "checkpoint verification needs the named build outcome")
 
     build_slice = integrated[build:verify]
-    require(r"python3 ios/ci/build-heartbeat\.py[\s\S]*--root-pid \"\$build_pid\"[\s\S]*--interval 30", build_slice, "the long Xcode build needs a bounded read-only heartbeat")
-    require(r"if wait \"\$build_pid\"; then[\s\S]*build_status=\$\?[\s\S]*exit \"\$build_status\"", build_slice, "heartbeat cleanup must preserve the original build status")
-    require(r"kill \"\$heartbeat_pid\"[\s\S]*wait \"\$heartbeat_pid\"", build_slice, "the heartbeat must not survive the build")
+    require(r"python3 ios/ci/runner-telemetry\.py[\s\S]*--phase client-build", build_slice, "the long Xcode build needs supervised runner telemetry")
+    require(r"--output-log build-ios/ci-raw-diagnostics/xcode-build\.log", build_slice, "the complete compiler output must survive a failed build")
+    require(r"--compiler-live-log", build_slice, "every compiler invocation must have a live watchdog channel")
+
+    launcher = (ROOT / "ios/ci/xcode-compiler-launcher.sh").read_text(encoding="utf-8")
+    require(r"compiler-watchdog\.py[\s\S]*-- \"\$SCCACHE_PATH\" \"\$@\"", launcher,
+            "every Xcode source compile must run watchdog -> sccache -> compiler")
 
     verify_slice = integrated[verify:package]
     require(r"if:.*!cancelled\(\).*full-client-build\.outcome != 'skipped'", verify_slice, "stats must run after success or failure, but not cancellation")

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create and restore validated Qt prefixes via GitHub workflow artifacts."""
+"""Create and restore validated iOS toolchain prefixes via workflow artifacts."""
 
 # Copyright 2026 Overte e.V.
 # SPDX-License-Identifier: Apache-2.0
@@ -29,11 +29,26 @@ SCHEMA = 1
 ARCHIVE_NAME = "checkpoint.tar.gz"
 MANIFEST_NAME = "manifest.json"
 API_JSON_LIMIT = 16 * 1024 * 1024
-DOWNLOAD_LIMIT = 512 * 1024 * 1024
+DOWNLOAD_LIMITS = {
+    "host": 512 * 1024 * 1024,
+    "ios": 512 * 1024 * 1024,
+    "v8": 512 * 1024 * 1024,
+    "conan": 2 * 1024 * 1024 * 1024,
+}
 MANIFEST_LIMIT = 64 * 1024
-ARCHIVE_LIMIT = 384 * 1024 * 1024
-MEMBER_LIMIT = 100_000
-EXPANDED_LIMIT = 2 * 1024 * 1024 * 1024
+ARCHIVE_LIMITS = {
+    "host": 384 * 1024 * 1024,
+    "ios": 384 * 1024 * 1024,
+    "v8": 384 * 1024 * 1024,
+    "conan": 1536 * 1024 * 1024,
+}
+MEMBER_LIMITS = {"host": 100_000, "ios": 100_000, "v8": 100_000, "conan": 500_000}
+EXPANDED_LIMITS = {
+    "host": 2 * 1024 * 1024 * 1024,
+    "ios": 2 * 1024 * 1024 * 1024,
+    "v8": 2 * 1024 * 1024 * 1024,
+    "conan": 10 * 1024 * 1024 * 1024,
+}
 
 
 def fail(message: str) -> "None":
@@ -68,18 +83,18 @@ def _tar_info(path: Path, relative: Path) -> tarfile.TarInfo:
     return info
 
 
-def create_archive(prefix: Path, archive: Path) -> None:
+def create_archive(prefix: Path, archive: Path, kind: str) -> None:
     archive.parent.mkdir(parents=True, exist_ok=True)
     temporary = archive.with_suffix(archive.suffix + ".tmp")
     with temporary.open("wb") as raw:
         with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed:
             with tarfile.open(fileobj=compressed, mode="w") as output:
                 paths = sorted(prefix.rglob("*"), key=lambda item: item.relative_to(prefix).as_posix())
-                if len(paths) > MEMBER_LIMIT:
-                    fail("Qt prefix exceeds the checkpoint member limit")
+                if len(paths) > MEMBER_LIMITS[kind]:
+                    fail("checkpoint prefix exceeds the member limit")
                 expanded = sum(path.lstat().st_size for path in paths if path.is_file() and not path.is_symlink())
-                if expanded > EXPANDED_LIMIT:
-                    fail("Qt prefix exceeds the checkpoint expanded-size limit")
+                if expanded > EXPANDED_LIMITS[kind]:
+                    fail("checkpoint prefix exceeds the expanded-size limit")
                 for path in paths:
                     relative = path.relative_to(prefix)
                     info = _tar_info(path, relative)
@@ -89,19 +104,19 @@ def create_archive(prefix: Path, archive: Path) -> None:
                     else:
                         output.addfile(info)
     os.replace(temporary, archive)
-    if archive.stat().st_size > ARCHIVE_LIMIT:
+    if archive.stat().st_size > ARCHIVE_LIMITS[kind]:
         archive.unlink()
-        fail("Qt checkpoint archive exceeds the compressed-size limit")
+        fail("checkpoint archive exceeds the compressed-size limit")
 
 
 def create(args: argparse.Namespace) -> None:
     prefix = Path(args.prefix).resolve()
     if not prefix.is_dir():
-        fail(f"Qt {args.kind} prefix is not a directory: {prefix}")
+        fail(f"{args.kind} checkpoint prefix is not a directory: {prefix}")
     output = Path(args.output_dir)
     output.mkdir(parents=True, exist_ok=True)
     archive = output / ARCHIVE_NAME
-    create_archive(prefix, archive)
+    create_archive(prefix, archive, args.kind)
     manifest = {
         "schema": SCHEMA,
         "kind": args.kind,
@@ -179,7 +194,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def download_artifact(url: str, token: str, destination: Path, opener=None) -> None:
+def download_artifact(url: str, token: str, destination: Path, limit: int, opener=None) -> None:
     opener = opener or urllib.request.build_opener(_NoRedirect()).open
     authenticated = urllib.request.Request(
         url,
@@ -207,7 +222,7 @@ def download_artifact(url: str, token: str, destination: Path, opener=None) -> N
         fail("GitHub artifact redirect is not a safe HTTPS URL")
     anonymous = urllib.request.Request(location, headers={"User-Agent": "overte-qt-checkpoint"})
     with opener(anonymous) as response, destination.open("wb") as output:
-        _read_limited(response, DOWNLOAD_LIMIT, output)
+        _read_limited(response, limit, output)
 
 
 def find_latest(prefix: str, expected_repository_id: int, expected_branch: str) -> tuple[dict | None, str]:
@@ -229,12 +244,12 @@ def find_latest(prefix: str, expected_repository_id: int, expected_branch: str) 
 
 
 def download_latest(
-    prefix: str, expected_repository_id: int, expected_branch: str, destination: Path
+    prefix: str, expected_repository_id: int, expected_branch: str, destination: Path, kind: str
 ) -> dict | None:
     artifact, token = find_latest(prefix, expected_repository_id, expected_branch)
     if artifact is None:
         return None
-    download_artifact(artifact["archive_download_url"], token, destination)
+    download_artifact(artifact["archive_download_url"], token, destination, DOWNLOAD_LIMITS[kind])
     return artifact
 
 
@@ -245,7 +260,7 @@ def _safe_name(name: str) -> PurePosixPath:
     return path
 
 
-def unpack_payload(workflow_zip: Path, destination: Path) -> None:
+def unpack_payload(workflow_zip: Path, destination: Path, kind: str) -> None:
     with zipfile.ZipFile(workflow_zip) as source:
         infos = source.infolist()
         names = [info.filename for info in infos]
@@ -256,7 +271,7 @@ def unpack_payload(workflow_zip: Path, destination: Path) -> None:
             info = entries[name]
             if info.is_dir():
                 fail(f"workflow artifact entry is not a file: {name}")
-            limit = MANIFEST_LIMIT if name == MANIFEST_NAME else ARCHIVE_LIMIT
+            limit = MANIFEST_LIMIT if name == MANIFEST_NAME else ARCHIVE_LIMITS[kind]
             if info.file_size > limit:
                 fail(f"workflow artifact entry exceeds its safety limit: {name}")
             with source.open(info) as incoming, (destination / name).open("wb") as outgoing:
@@ -297,16 +312,16 @@ def _safe_link(member: tarfile.TarInfo) -> None:
             fail(f"link escapes checkpoint root: {member.name!r}")
 
 
-def safe_extract(archive: Path, destination: Path) -> None:
+def safe_extract(archive: Path, destination: Path, kind: str = "host") -> None:
     with tarfile.open(archive, "r:gz") as source:
         members = []
         expanded = 0
         for member in source:
-            if len(members) >= MEMBER_LIMIT:
+            if len(members) >= MEMBER_LIMITS[kind]:
                 fail("checkpoint archive exceeds the member limit")
             if member.isreg():
                 expanded += member.size
-                if expanded > EXPANDED_LIMIT:
+                if expanded > EXPANDED_LIMITS[kind]:
                     fail("checkpoint archive exceeds the expanded-size limit")
             _safe_name(member.name)
             if member.issym() or member.islnk():
@@ -365,7 +380,10 @@ def probe(args: argparse.Namespace) -> None:
 def restore(args: argparse.Namespace) -> None:
     output = Path(args.github_output)
     install_root = Path(args.install_root)
-    target_root = install_root / ("macos" if args.kind == "host" else "ios")
+    target_name = {
+        "host": "macos", "ios": "ios", "v8": "v8-ios", "conan": "conan-home"
+    }[args.kind]
+    target_root = install_root / target_name
     with tempfile.TemporaryDirectory(prefix="overte-qt-checkpoint-") as temporary_name:
         temporary = Path(temporary_name)
         workflow_zip = temporary / "artifact.zip"
@@ -375,6 +393,7 @@ def restore(args: argparse.Namespace) -> None:
                 int(args.expected_repository_id),
                 args.expected_branch,
                 workflow_zip,
+                args.kind,
             )
         except urllib.error.HTTPError as error:
             fail(f"GitHub artifact API failed with HTTP {error.code}")
@@ -384,7 +403,7 @@ def restore(args: argparse.Namespace) -> None:
         fresh = is_fresh(artifact, args.max_age_days)
         payload = temporary / "payload"
         payload.mkdir()
-        unpack_payload(workflow_zip, payload)
+        unpack_payload(workflow_zip, payload, args.kind)
         archive = validate_manifest(payload, args.kind, args.cache_key)
         manifest = json.loads((payload / MANIFEST_NAME).read_text(encoding="utf-8"))
         if manifest.get("producerRepositoryId") != int(args.expected_repository_id):
@@ -397,7 +416,7 @@ def restore(args: argparse.Namespace) -> None:
             fail(f"Qt install root already exists: {target_root}")
         staged.mkdir(parents=True)
         try:
-            safe_extract(archive, staged)
+            safe_extract(archive, staged, args.kind)
             os.replace(staged, target_root)
         finally:
             if staged.exists():
@@ -410,7 +429,7 @@ def parser() -> argparse.ArgumentParser:
     commands = result.add_subparsers(dest="command", required=True)
     create_parser = commands.add_parser("create")
     create_parser.add_argument("--prefix", required=True)
-    create_parser.add_argument("--kind", choices=("host", "ios"), required=True)
+    create_parser.add_argument("--kind", choices=("host", "ios", "v8", "conan"), required=True)
     create_parser.add_argument("--cache-key", required=True)
     create_parser.add_argument("--producer-repository-id", required=True)
     create_parser.add_argument("--producer-branch", required=True)
@@ -418,7 +437,7 @@ def parser() -> argparse.ArgumentParser:
     create_parser.set_defaults(handler=create)
     restore_parser = commands.add_parser("restore")
     restore_parser.add_argument("--artifact-prefix", required=True)
-    restore_parser.add_argument("--kind", choices=("host", "ios"), required=True)
+    restore_parser.add_argument("--kind", choices=("host", "ios", "v8", "conan"), required=True)
     restore_parser.add_argument("--cache-key", required=True)
     restore_parser.add_argument("--expected-repository-id", required=True, type=int)
     restore_parser.add_argument("--expected-branch", required=True)
