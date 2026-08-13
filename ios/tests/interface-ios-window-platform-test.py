@@ -70,6 +70,13 @@ require("void Application::packageModel() {\n#if !defined(Q_OS_IOS)\n"
 require("ModelPropertiesDialog properties(" in (ROOT / "interface/src/ModelPackager.cpp").read_text() and
         "QFileDialog::getOpenFileName" in (ROOT / "interface/src/ModelSelector.cpp").read_text(),
         "ModelPackager is no longer demonstrably a desktop dialog pipeline")
+for desktop_model_packager_source in (
+        "ModelPackager.cpp", "ModelPackager.h",
+        "ModelPropertiesDialog.cpp", "ModelPropertiesDialog.h"):
+    require(f'"${{CMAKE_CURRENT_SOURCE_DIR}}/src/{desktop_model_packager_source}"' in INTERFACE_CMAKE,
+            f"{desktop_model_packager_source} remains in the iOS compile/MOC graph")
+require('#if !defined(Q_OS_IOS)\n#include "ModelPackager.h"\n#endif' in APPLICATION_ASSETS,
+        "desktop ModelPackager header remains in the iOS Application Assets graph")
 require("void StandAloneJSConsole::toggleConsole()  {\n#if !defined(Q_OS_IOS)" in JS_CONSOLE,
         "stand-alone desktop JavaScript console remains reachable on iOS")
 require("// Developer > Scripting > Console...\n#if !defined(Q_OS_IOS)" in MENU,

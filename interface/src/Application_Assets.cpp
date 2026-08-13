@@ -26,7 +26,9 @@
 #include "ArchiveDownloadInterface.h"
 #include "InterfaceLogging.h"
 #include "Menu.h"
+#if !defined(Q_OS_IOS)
 #include "ModelPackager.h"
+#endif
 
 static const QString SVO_EXTENSION = ".svo";
 static const QString SVO_JSON_EXTENSION = ".svo.json";

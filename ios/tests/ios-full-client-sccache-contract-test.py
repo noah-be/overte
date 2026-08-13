@@ -113,6 +113,10 @@ def main() -> None:
     for invariant in ("requests_executed", "compile_requests", "cache_hits", "cache_misses", "cache_write_errors"):
         if invariant not in verify_slice:
             raise AssertionError(f"compiler checkpoint does not validate {invariant}")
+    require(r"if write_errors:[\s\S]*::warning::sccache reported[\s\S]*local checkpoint will still be archived", verify_slice,
+            "a partial remote write failure must remain visible without discarding valid local objects")
+    if "raise SystemExit(f\"sccache reported {write_errors} cache write errors\")" in verify_slice:
+        raise AssertionError("a partial remote write failure must not suppress the local recovery checkpoint")
     if integrated.count('stats.get("requests_executed", stats.get("compile_requests", 0))') != 2:
         raise AssertionError("both smoke and final verification must understand the sccache 0.17 statistics schema")
     require(r'cache_root = pathlib\.Path\("build-ios/client-sccache"\)[\s\S]*cache_bytes[\s\S]*requests < 1:[\s\S]*cache_files', verify_slice, "expired live statistics must fall back to validating the durable on-disk cache")

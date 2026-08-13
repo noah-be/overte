@@ -500,7 +500,10 @@ jobs:
           if cacheable < 1:
               raise SystemExit("sccache observed no reusable full-client compilation")
           if write_errors:
-              raise SystemExit(f"sccache reported {write_errors} cache write errors")
+              print(
+                  f"::warning::sccache reported {write_errors} remote/cache write errors; "
+                  "the validated local checkpoint will still be archived"
+              )
           PY
 
       - name: Stop full-client compiler checkpoint server

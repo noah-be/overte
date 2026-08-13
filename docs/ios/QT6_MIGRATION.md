@@ -678,6 +678,12 @@ the consumer restores the same validated component from its durable workflow
 artifact and rechecks the exact cache-key manifest. It still fails closed when
 neither recovery source is available.
 
+The full-client compiler checkpoint distinguishes unusable cache state from a
+partial remote write failure. A build must still prove cacheable compilations
+and a nonempty local checkpoint; individual remote-write errors are emitted as
+CI warnings, while the validated local checkpoint is archived so one transient
+backend failure cannot discard all successful object compilations.
+
 Persistent task presets again use `QVariantMap` for both a configuration and
 the name-to-configuration table. A historical warning cleanup accidentally
 changed them to `QMultiMap<QString, QVariant>` even though the implementation
@@ -714,6 +720,12 @@ Discord Rich Presence is a desktop integration backed by the external Discord
 RPC library. iOS neither provisions that library nor exposes the desktop
 privacy preference, so its implementation/header, construction, and preference
 entry are excluded from the mobile graph. Desktop behavior remains unchanged.
+
+The legacy Model Packager and its properties dialog are likewise a desktop-only
+QWidget/QFileDialog pipeline. Its menu action and application entry point were
+already disabled on iOS; the four implementation/header files and their include
+are now excluded from the iOS compile/MOC graph as well. The independent avatar
+packager, model serializers, and tablet model workflows remain available.
 
 The audio gate requires device enumeration, route change, microphone consent,
 interruption recovery, Bluetooth behavior, mono input, stereo output, and

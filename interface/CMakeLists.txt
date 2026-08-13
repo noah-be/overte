@@ -116,6 +116,10 @@ if(IOS)
   list(REMOVE_ITEM INTERFACE_SRCS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/DiscordRichPresence.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/DiscordRichPresence.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ModelPackager.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ModelPackager.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ModelPropertiesDialog.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ModelPropertiesDialog.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/BaseLogDialog.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/BaseLogDialog.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/DomainConnectionDialog.cpp"
