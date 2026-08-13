@@ -433,6 +433,7 @@ for script_name, script_source, snapshot_name in (
         "Render.ambientOcclusionEnabled = false",
         "Render.antialiasingMode = 0",
         "Render.viewportResolutionScale = 1.0",
+        'Render.getConfig("RenderMainView.PreparePrimaryBufferForward").numSamples = 1',
         "Scene.shouldRenderAvatars = false",
         "Script.stop()",
         "warmup_snapshot=",

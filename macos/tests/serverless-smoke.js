@@ -18,6 +18,7 @@
     Render.proceduralMaterialsEnabled = false;
     Render.antialiasingMode = 0;
     Render.viewportResolutionScale = 1.0;
+    Render.getConfig("RenderMainView.PreparePrimaryBufferForward").numSamples = 1;
     Scene.shouldRenderAvatars = false;
 
     // The GitHub Intel runner exposes Apple's software OpenGL renderer.  Its

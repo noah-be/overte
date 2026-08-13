@@ -15,6 +15,7 @@
     Render.proceduralMaterialsEnabled = false;
     Render.antialiasingMode = 0;
     Render.viewportResolutionScale = 1.0;
+    Render.getConfig("RenderMainView.PreparePrimaryBufferForward").numSamples = 1;
     Scene.shouldRenderAvatars = false;
 
     var deadline = Date.now() + 180000;
