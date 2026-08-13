@@ -495,6 +495,15 @@ display_plugin = (
 tone_map_diagnostics = (
     ROOT / "libraries/render-utils/src/ToneMapDiagnostics.h"
 ).read_text(encoding="utf-8")
+tone_map_header = (
+    ROOT / "libraries/render-utils/src/ToneMapAndResampleTask.h"
+).read_text(encoding="utf-8")
+tone_map_source = (
+    ROOT / "libraries/render-utils/src/ToneMapAndResampleTask.cpp"
+).read_text(encoding="utf-8")
+tone_map_shader = (
+    ROOT / "libraries/render-utils/src/toneMapping.slf"
+).read_text(encoding="utf-8")
 for diagnostic_contract in (
     "diagnoseFramebuffer",
     "GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING",
@@ -515,6 +524,18 @@ if "#include <ToneMapDiagnostics.h>" not in display_plugin or "ToneMapAndResampl
     raise SystemExit("macOS display diagnostics must use the narrow tone-map diagnostics header")
 if "getToneMapDiagnosticInputFramebuffer" not in tone_map_diagnostics or "task/" in tone_map_diagnostics:
     raise SystemExit("tone-map diagnostics header must expose only the narrow framebuffer boundary")
+for std140_contract in (
+    "std::int32_t _toneCurve",
+    "std::uint32_t _std140Padding[2]",
+    "static_assert(sizeof(Parameters) == 16",
+):
+    if std140_contract not in tone_map_header:
+        raise SystemExit(f"tone-map std140 layout contract missing: {std140_contract}")
+if "uvec2 _std140Padding" not in tone_map_shader:
+    raise SystemExit("tone-map shader must explicitly mirror the 16-byte std140 layout")
+for diagnostic_token in ("OVERTE_MACOS_TONEMAP_PARAMS", "sizeof(Parameters)", "exposure_scale="):
+    if diagnostic_token not in tone_map_source:
+        raise SystemExit(f"tone-map runtime diagnostics missing: {diagnostic_token}")
 if display_plugin.index('diagnoseFramebuffer(toneInput') > display_plugin.index(
     'diagnoseFramebuffer(_currentFrame->framebuffer'
 ):

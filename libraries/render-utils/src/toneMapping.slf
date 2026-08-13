@@ -45,6 +45,8 @@
 struct ToneMappingParams {
     float _2powExp;
     int _toneCurve;
+    // Explicitly mirror the 16-byte std140 range bound by C++.
+    uvec2 _std140Padding;
 };
 
 const float GAMMA_22 = 2.2;

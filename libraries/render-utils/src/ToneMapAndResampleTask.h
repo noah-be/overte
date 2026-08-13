@@ -16,6 +16,8 @@
 #include <NumericalConstants.h>
 #include <QtCore/QtGlobal>
 
+#include <cstdint>
+
 #include <gpu/Resource.h>
 #include <gpu/Pipeline.h>
 #include <render/Forward.h>
@@ -78,10 +80,16 @@ private:
     class Parameters {
     public:
         float _twoPowExposure = 1.0f;
-        int _toneCurve = (int)TonemappingCurve::SRGB;
+        std::int32_t _toneCurve = (std::int32_t)TonemappingCurve::SRGB;
+        // ToneMappingParams is nested in a std140 uniform block.  Its base
+        // alignment and occupied range are therefore 16 bytes even though the
+        // two active scalars need only eight.  Binding an eight-byte range is
+        // undefined and Apple GL has been observed to read a 1/255 exposure.
+        std::uint32_t _std140Padding[2] { 0, 0 };
 
         Parameters() {}
     };
+    static_assert(sizeof(Parameters) == 16, "ToneMappingParams must match its std140 block size");
 
     typedef gpu::BufferView UniformBufferView;
     gpu::BufferView _parametersBuffer;

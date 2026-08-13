@@ -16,6 +16,8 @@
 
 #include <mutex>
 
+#include <QtCore/QDebug>
+
 #include <gpu/Context.h>
 #include <shaders/Shaders.h>
 
@@ -33,6 +35,7 @@ gpu::PipelinePointer ToneMapAndResample::_mirrorPipeline;
 namespace {
 std::mutex diagnosticMutex;
 gpu::FramebufferPointer diagnosticInputFramebuffer;
+std::once_flag diagnosticParametersOnce;
 }
 
 gpu::FramebufferPointer getToneMapDiagnosticInputFramebuffer() {
@@ -117,6 +120,18 @@ void ToneMapAndResample::run(const RenderContextPointer& renderContext, const In
     if (!lightingBuffer || !destinationFramebuffer) {
         return;
     }
+
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    if (qEnvironmentVariableIsSet("OVERTE_MACOS_GL_DIAGNOSTICS")) {
+        std::call_once(diagnosticParametersOnce, [&] {
+            const auto& parameters = _parametersBuffer.get<Parameters>();
+            qInfo().noquote() << "OVERTE_MACOS_TONEMAP_PARAMS"
+                              << "bytes=" << sizeof(Parameters)
+                              << "exposure_scale=" << parameters._twoPowExposure
+                              << "curve=" << parameters._toneCurve;
+        });
+    }
+#endif
 
     if (!_pipeline) {
         init();
