@@ -41,12 +41,13 @@ an explicit `--testScript`. Record the deterministic local scene with:
 macos/ci/performance-smoke.sh build/interface/Overte.app build/macos-performance
 ```
 
-The harness waits for a completed warm-up image, measures 20 seconds of moving
-camera output, and stores raw microsecond samples plus mean, p50, p90, p95, p99,
-maximum, 16.67/33.33 ms jank counts, and render/present/simulation rates. Its
-validator recomputes every aggregate from the raw samples and publishes JSON
-and JUnit. Results are informational by default. After baselines exist, set a
-blocking threshold explicitly:
+The harness waits for a completed warm-up image, then measures moving-camera
+output for at least 20 seconds and until it has 30 complete render samples. A
+90-second ceiling bounds abnormally slow runs. It stores raw microsecond samples
+plus mean, p50, p90, p95, p99, maximum, 16.67/33.33 ms jank counts, and
+render/present/simulation rates. Its validator recomputes every aggregate from
+the raw samples and publishes JSON and JUnit. Results are informational by
+default. After baselines exist, set a blocking threshold explicitly:
 
 ```bash
 OVERTE_MACOS_PERFORMANCE_MAXIMUM_P95_MS=33.33 \

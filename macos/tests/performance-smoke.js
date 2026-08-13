@@ -18,7 +18,9 @@
     Render.getConfig("RenderMainView.PreparePrimaryBufferForward").numSamples = 1;
     Scene.shouldRenderAvatars = false;
 
-    var MEASUREMENT_MS = 20000;
+    var MINIMUM_MEASUREMENT_MS = 20000;
+    var MAXIMUM_MEASUREMENT_MS = 90000;
+    var MINIMUM_SAMPLE_COUNT = 30;
     var deadline = Date.now() + 180000;
     var expectedNames = {
         "macOS smoke red cube": false,
@@ -28,6 +30,7 @@
     var stage = "waiting";
     var completed = false;
     var measurementStartedAt = 0;
+    var nextMeasurementCheckAt = 0;
     var rateSamples = [];
 
     function finiteNumber(value) {
@@ -106,9 +109,11 @@
     function startMeasurement() {
         stage = "measuring";
         measurementStartedAt = Date.now();
+        nextMeasurementCheckAt = MINIMUM_MEASUREMENT_MS;
         FrameTimings.start();
-        print("OVERTE_MACOS_PERFORMANCE measurement_started duration_ms=" + MEASUREMENT_MS);
-        Script.setTimeout(completeMeasurement, MEASUREMENT_MS);
+        print("OVERTE_MACOS_PERFORMANCE measurement_started minimum_duration_ms=" +
+            MINIMUM_MEASUREMENT_MS + " maximum_duration_ms=" + MAXIMUM_MEASUREMENT_MS +
+            " minimum_samples=" + MINIMUM_SAMPLE_COUNT);
     }
 
     Window.stillSnapshotTaken.connect(function (path) {
@@ -141,7 +146,8 @@
                 Window.takeSnapshot(false, false, 16 / 9, "macos-performance-warmup.png");
             }
         } else if (stage === "measuring") {
-            var seconds = (Date.now() - measurementStartedAt) / 1000;
+            var elapsedMs = Date.now() - measurementStartedAt;
+            var seconds = elapsedMs / 1000;
             var halfAngle = seconds * 0.08;
             MyAvatar.setOrientationVar(Quat.normalize({
                 x: 0,
@@ -156,6 +162,17 @@
                 dropped: finiteNumber(Rates.dropped),
                 simulation: finiteNumber(Rates.simulation)
             });
+            if (elapsedMs >= nextMeasurementCheckAt) {
+                var sampleCount = FrameTimings.getValues().length;
+                nextMeasurementCheckAt = elapsedMs + 1000;
+                print("OVERTE_MACOS_PERFORMANCE measurement_progress elapsed_ms=" +
+                    elapsedMs + " samples=" + sampleCount);
+                if ((elapsedMs >= MINIMUM_MEASUREMENT_MS &&
+                        sampleCount >= MINIMUM_SAMPLE_COUNT) ||
+                        elapsedMs >= MAXIMUM_MEASUREMENT_MS) {
+                    completeMeasurement();
+                }
+            }
         }
         if (Date.now() >= deadline) {
             finish(false, "startup_timeout");
