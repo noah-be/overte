@@ -15,6 +15,11 @@ on:
         required: true
         default: true
         type: boolean
+      online_location:
+        description: Online place or direct domain URL used by the public-domain smoke
+        required: true
+        default: overte://overte_hub
+        type: string
   # Register this branch-local workflow without running a second smoke suite.
   push:
     branches: [apple-macos]
@@ -96,6 +101,8 @@ jobs:
 
       - name: Run online entity smoke
         if: ${{ inputs.run_online && steps.serverless-smoke.outcome == 'success' }}
+        env:
+          OVERTE_MACOS_ONLINE_LOCATION: ${{ inputs.online_location }}
         run: |
           app="$(cat build/runtime-artifact/app-path.txt)"
           python3 macos/ci/runner-telemetry.py \

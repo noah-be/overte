@@ -584,6 +584,11 @@ class MacOSWorkflowContracts(unittest.TestCase):
     def test_runtime_reuses_a_built_app_without_rebuilding(self):
         source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("artifact_run_id:", source)
+        self.assertIn("online_location:", source)
+        self.assertIn("default: overte://overte_hub", source)
+        self.assertIn(
+            "OVERTE_MACOS_ONLINE_LOCATION: ${{ inputs.online_location }}", source
+        )
         self.assertIn("if: github.event_name == 'workflow_dispatch'", source)
         self.assertIn("actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53", source)
         self.assertIn("run-id: ${{ inputs.artifact_run_id }}", source)
