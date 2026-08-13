@@ -19,6 +19,7 @@ default_jobs() {
 
 JOBS="${OVERTE_TEST_JOBS:-$(default_jobs)}"
 JUNIT="${OVERTE_TEST_JUNIT:-}"
+TEST_TIMEOUT="${OVERTE_TEST_TIMEOUT:-900}"
 
 usage() {
     cat <<'EOF'
@@ -26,7 +27,8 @@ Usage: tests/project-native-test.sh [BUILD_DIR]
 
 Build and execute every CTest-registered automated native test in an already
 configured Overte build. Environment: OVERTE_TEST_BUILD_CONFIG,
-OVERTE_TEST_JOBS, OVERTE_TEST_JUNIT, CTEST_OUTPUT_ON_FAILURE.
+OVERTE_TEST_JOBS, OVERTE_TEST_JUNIT, OVERTE_TEST_TIMEOUT,
+CTEST_OUTPUT_ON_FAILURE.
 EOF
 }
 
@@ -43,9 +45,11 @@ esac
 command -v cmake >/dev/null || { echo "error: cmake is required" >&2; exit 2; }
 command -v ctest >/dev/null || { echo "error: ctest is required" >&2; exit 2; }
 [[ "$JOBS" =~ ^[1-9][0-9]*$ ]] || { echo "error: OVERTE_TEST_JOBS must be positive" >&2; exit 2; }
+[[ "$TEST_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || { echo "error: OVERTE_TEST_TIMEOUT must be positive" >&2; exit 2; }
 
 cmake --build "$BUILD_DIR" --config "$BUILD_CONFIG" --target all-tests --parallel "$JOBS"
-ctest_args=(--test-dir "$BUILD_DIR" -C "$BUILD_CONFIG" --output-on-failure --no-tests=error)
+ctest_args=(--test-dir "$BUILD_DIR" -C "$BUILD_CONFIG" --output-on-failure
+    --no-tests=error --timeout "$TEST_TIMEOUT")
 if [[ -n "$JUNIT" ]]; then
     [[ "$JUNIT" == /* ]] || JUNIT="$ROOT/$JUNIT"
     [[ ! -L "$JUNIT" ]] || { echo "error: refusing a symlinked JUnit report" >&2; exit 2; }

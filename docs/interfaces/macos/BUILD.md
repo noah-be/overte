@@ -55,6 +55,7 @@ then execute the common native runner:
 ```bash
 OVERTE_MACOS_BUILD_TESTS=ON macos/build-macos.sh build
 OVERTE_TEST_BUILD_CONFIG=RelWithDebInfo \
+OVERTE_TEST_TIMEOUT=900 \
 OVERTE_TEST_JUNIT=build/macos-native-test-results/TEST-overte-macos-native.xml \
   tests/project-native-test.sh build
 ```

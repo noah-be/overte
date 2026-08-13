@@ -71,6 +71,7 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     assert "<--parallel> <7>" in commands
     assert "ctest <--test-dir>" in commands
     assert "<-C> <RelWithDebInfo>" in commands
+    assert "<--timeout> <900>" in commands
     assert f"<--output-junit> <{junit}>" in commands
     assert junit.read_text(encoding="utf-8") == '<testsuite tests="1"/>\n'
 
@@ -84,6 +85,17 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     )
     assert invalid.returncode == 2
     assert "OVERTE_TEST_JOBS must be positive" in invalid.stderr
+
+    invalid_timeout = subprocess.run(
+        [str(RUNNER), str(build)],
+        cwd=ROOT,
+        env={**environment, "OVERTE_TEST_TIMEOUT": "never"},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert invalid_timeout.returncode == 2
+    assert "OVERTE_TEST_TIMEOUT must be positive" in invalid_timeout.stderr
 
     symlink = temporary / "linked.xml"
     symlink.symlink_to(temporary / "target.xml")

@@ -877,6 +877,7 @@ jobs:
         timeout-minutes: 120
         env:
           OVERTE_TEST_BUILD_CONFIG: ${{ env.OVERTE_MACOS_BUILD_TYPE }}
+          OVERTE_TEST_TIMEOUT: '900'
           OVERTE_TEST_JUNIT: ${{ github.workspace }}/build/macos-native-test-results/TEST-overte-macos-native.xml
         run: |
           python3 macos/ci/runner-telemetry.py \

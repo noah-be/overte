@@ -86,7 +86,9 @@ with `OVERTE_BUILD_TESTS=ON`, builds every CTest-registered C++/Qt executable,
 and runs CTest after the runtime gates. Compiler invocations retain the same
 per-file watchdog and independent live log as the client build. The phase has
 five-second host samples, 30-second aggregates, a 115-minute internal deadline,
-a 120-minute step cap, stall samples, and an always-uploaded JUnit report.
+a 120-minute step cap, a 15-minute limit per individual CTest, stall samples,
+and an always-uploaded JUnit report. Set `OVERTE_TEST_TIMEOUT` to another
+positive number of seconds for a deliberately longer test.
 
 The native-test option gets a separate Ninja build-tree profile because its
 generated graph differs from the client-only graph. It deliberately shares

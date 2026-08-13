@@ -622,6 +622,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "--inactivity-timeout 900 --max-runtime 6900",
             "--compiler-live-log",
             "--compiler-diagnostics-dir",
+            "OVERTE_TEST_TIMEOUT: '900'",
             "tests/project-native-test.sh build",
             "TEST-overte-macos-native.xml",
         ):
