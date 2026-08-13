@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 
-SCRIPT = Path(__file__).parents[1] / "analyze-phone-world-loading.py"
+SCRIPT = Path(__file__).parents[2] / "phone/tools/analyze-phone-world-loading.py"
 SPEC = importlib.util.spec_from_file_location("phone_world_analyzer", SCRIPT)
 ANALYZER = importlib.util.module_from_spec(SPEC)
 assert SPEC and SPEC.loader

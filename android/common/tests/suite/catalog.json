@@ -86,6 +86,13 @@
       "description": "Machine-readable ownership of Phone production files and default scripts"
     },
     {
+      "id": "phone-world-loading-analyzer",
+      "kind": "python",
+      "tiers": ["fast", "host"],
+      "command": ["python3", "common/tools-tests/test_analyze_phone_world_loading.py"],
+      "description": "Phone world-loading report analysis and malformed-input behavior"
+    },
+    {
       "id": "android-project-module-inventory",
       "kind": "inventory",
       "tiers": ["fast", "host", "contracts"],

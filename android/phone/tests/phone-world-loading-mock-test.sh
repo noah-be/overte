@@ -2,7 +2,7 @@
 set -euo pipefail
 
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-fixture="$(mktemp -d /tmp/overte-phone-world-loading-test.XXXXXXXX)"
+fixture="$(mktemp -d "${TMPDIR:-/tmp}/overte-phone-world-loading-test.XXXXXXXX")"
 trap 'rm -rf -- "$fixture"' EXIT INT TERM
 mkdir "$fixture/bin"
 

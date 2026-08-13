@@ -257,10 +257,14 @@ jobs:
     - name: Configure CMake
       shell: bash
       run: |
+        test_args=()
+        if [[ "${{ matrix.id }}" == ubuntu-opengl-amd64 ]]; then
+          test_args+=("-DOVERTE_BUILD_TESTS=ON")
+        fi
         if [[ "${{ matrix.os }}" =~ "Windows" ]]; then
-          cmake --preset conan-default -DOVERTE_RENDERING_BACKEND=${{ matrix.rendering_backend }} -DOVERTE_RELEASE_NUMBER=$OVERTE_RELEASE_NUMBER -DOVERTE_GIT_COMMIT_SHORT=$GIT_COMMIT_SHORT -DOVERTE_RELEASE_TYPE=$OVERTE_RELEASE_TYPE $CMAKE_EXTRA
+          cmake --preset conan-default -DOVERTE_RENDERING_BACKEND=${{ matrix.rendering_backend }} -DOVERTE_RELEASE_NUMBER=$OVERTE_RELEASE_NUMBER -DOVERTE_GIT_COMMIT_SHORT=$GIT_COMMIT_SHORT -DOVERTE_RELEASE_TYPE=$OVERTE_RELEASE_TYPE $CMAKE_EXTRA "${test_args[@]}"
         else
-          cmake --preset conan-${CMAKE_BUILD_TYPE,,} -DOVERTE_RENDERING_BACKEND=${{ matrix.rendering_backend }} -DOVERTE_RELEASE_NUMBER=$OVERTE_RELEASE_NUMBER -DOVERTE_GIT_COMMIT_SHORT=$GIT_COMMIT_SHORT -DOVERTE_RELEASE_TYPE=$OVERTE_RELEASE_TYPE $CMAKE_EXTRA
+          cmake --preset conan-${CMAKE_BUILD_TYPE,,} -DOVERTE_RENDERING_BACKEND=${{ matrix.rendering_backend }} -DOVERTE_RELEASE_NUMBER=$OVERTE_RELEASE_NUMBER -DOVERTE_GIT_COMMIT_SHORT=$GIT_COMMIT_SHORT -DOVERTE_RELEASE_TYPE=$OVERTE_RELEASE_TYPE $CMAKE_EXTRA "${test_args[@]}"
         fi
 
     - name: Run CodeChecker static analysis
@@ -332,6 +336,23 @@ jobs:
     - name: Build console
       shell: bash
       run: cmake --build --target packaged-server-console --preset conan-${CMAKE_BUILD_TYPE,,}
+
+    - name: Run registered native tests
+      if: matrix.id == 'ubuntu-opengl-amd64'
+      shell: bash
+      run: >-
+        tests/run-tests.py --profile project-full --suite native-ctest
+        --native-build-dir build
+        --junit build/test-results/native/TEST-overte-native.xml
+
+    - name: Upload native test report
+      if: always() && matrix.id == 'ubuntu-opengl-amd64' && !env.ACT
+      uses: actions/upload-artifact@v7
+      with:
+        name: native-test-results-${{ env.GIT_COMMIT_SHORT }}
+        path: build/test-results/native/TEST-overte-native.xml
+        if-no-files-found: error
+        retention-days: 7
 
     - name: Build installer
       shell: bash

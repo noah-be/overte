@@ -43,6 +43,13 @@ class GeneralBuildWorkflowContracts(unittest.TestCase):
         self.assertIn("timeout-minutes: 5", documentation)
         self.assertIn("persist-credentials: false", documentation)
 
+    def test_one_standard_build_runs_registered_native_tests(self):
+        source = GENERAL_BUILD_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn('"-DOVERTE_BUILD_TESTS=ON"', source)
+        self.assertIn("matrix.id == 'ubuntu-opengl-amd64'", source)
+        self.assertIn("tests/run-tests.py --profile project-full --suite native-ctest", source)
+        self.assertIn("TEST-overte-native.xml", source)
+
     def test_app_test_workflows_exclude_markdown(self):
         for workflow in (ANDROID_TESTS_WORKFLOW, WORKFLOW):
             self.assertIn('"!**/*.md"', workflow.read_text(encoding="utf-8"))
@@ -87,7 +94,7 @@ class PicoWorkflowContracts(unittest.TestCase):
         self.assertNotIn("*.apk", self.source.lower())
 
     def test_ci_uses_the_repository_entry_point(self):
-        self.assertIn("tests/run-project-tests.py", self.source)
+        self.assertIn("tests/run-tests.py --profile project-quick", self.source)
         self.assertIn("--junit build/test-results/project-tests.xml", self.source)
 
 
@@ -117,7 +124,7 @@ class PicoBuildWorkflowContracts(unittest.TestCase):
         self.assertIn("Reject untrusted build refs", self.source)
         self.assertIn("refs/heads/android-vr-pico", self.source)
         self.assertIn("refs/tags/pico4-preview-[0-9]+", self.source)
-        self.assertIn("tests/run-project-tests.py", self.source)
+        self.assertIn("tests/run-tests.py --profile project-quick", self.source)
         self.assertIn("./vr/pico/build.sh doctor", self.source)
         self.assertIn("./vr/pico/build.sh deps --download", self.source)
         self.assertIn("./vr/pico/build.sh build --stacktrace", self.source)
@@ -156,7 +163,7 @@ class PicoReleaseWorkflowContracts(unittest.TestCase):
         self.assertIn("persist-credentials: false", self.source)
 
     def test_release_reuses_gates_and_only_creates_a_draft(self):
-        for contract in ("tests/run-project-tests.py", "./vr/pico/build.sh deps --download",
+        for contract in ("tests/run-tests.py --profile project-quick", "./vr/pico/build.sh deps --download",
                          "android/vr/pico/ci/verify-pico-apk.py", "--expected-version-code",
                          "--expected-version-name", "--expected-signer-sha256"):
             self.assertIn(contract, self.source)

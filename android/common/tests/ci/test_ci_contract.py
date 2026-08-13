@@ -12,13 +12,13 @@ VALID_WORKFLOW = VALID_ACTION + """
           qml-module-qtquick-controls qml-module-qtquick-controls2 \\
           qml-module-qtquick-layouts qml-module-qtquick-window2
     - name: next
-      run: common/tests/run-tests.sh fast
-    - run: common/tests/run-tests.sh contracts
-    - run: common/tests/run-tests.sh regression
-    - run: common/tests/run-tests.sh mutation
-    - run: common/tests/run-tests.sh mutation-extended
-    - run: common/tests/run-tests.sh stability
-    - run: common/tests/run-tests.sh endurance
+      run: python3 ../tests/run-tests.py --profile android-fast
+    - run: python3 ../tests/run-tests.py --profile android-contracts
+    - run: python3 ../tests/run-tests.py --profile android-regression
+    - run: python3 ../tests/run-tests.py --profile android-mutation
+    - run: python3 ../tests/run-tests.py --profile android-mutation-extended
+    - run: python3 ../tests/run-tests.py --profile android-stability
+    - run: python3 ../tests/run-tests.py --profile android-endurance
       path: |
         android/build/test-results/suite/
         android/build/test-results/suite/
@@ -40,7 +40,7 @@ PERIODIC_WORKFLOW = """
   stability:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
-      - run: common/tests/run-tests.sh stability
+      - run: python3 ../tests/run-tests.py --profile android-stability
       - if: always()
         continue-on-error: true
   endurance:
@@ -50,7 +50,7 @@ PERIODIC_WORKFLOW = """
           OVERTE_JS_ENDURANCE_CYCLES: 100
           OVERTE_NATIVE_ENDURANCE_CYCLES: 1000
           OVERTE_REQUIRE_QML_TESTS: 1
-        run: common/tests/run-tests.sh endurance
+        run: python3 ../tests/run-tests.py --profile android-endurance
       - if: always()
         continue-on-error: true
 """
@@ -75,7 +75,7 @@ class CiContractTest(unittest.TestCase):
 
     def test_rejects_missing_tier_command(self):
         errors = contract.validate_workflow(
-            VALID_WORKFLOW.replace("run: common/tests/run-tests.sh contracts", "run: common/tests/run-tests.sh typo"))
+            VALID_WORKFLOW.replace("--profile android-contracts", "--profile android-typo"))
         self.assertTrue(any("contracts" in error for error in errors))
 
     def test_rejects_wrong_wrapper_checksum(self):

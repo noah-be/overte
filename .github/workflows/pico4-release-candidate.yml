@@ -51,7 +51,7 @@ jobs:
             --github-output "$GITHUB_OUTPUT"
 
       - name: Run device-free regression suite
-        run: tests/run-project-tests.py --timeout 240 --junit build/test-results/project-tests.xml
+        run: tests/run-tests.py --profile project-quick --timeout 240 --junit build/test-results/project-tests.xml
 
       - name: Verify build environment and restore pinned dependencies
         working-directory: android

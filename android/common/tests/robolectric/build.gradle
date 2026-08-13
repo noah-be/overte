@@ -15,6 +15,7 @@ def picoJava = file('../../../vr/pico/apps/picoInterface/src/main/java')
 def picoTests = file('../../../vr/pico/apps/picoInterface/src/test/java')
 def questJava = file('../../../vr/quest/apps/questInterface/src/main/java')
 def questTests = file('../../../vr/quest/apps/questInterface/src/test/java')
+def sharedContractTests = file('src/test/java')
 
 sourceSets {
     boundary {
@@ -41,13 +42,14 @@ sourceSets {
     }
     test {
         java {
-            srcDirs phoneTests, interfaceTests, picoTests, questTests
+            srcDirs phoneTests, interfaceTests, picoTests, questTests, sharedContractTests
             include 'org/overte/phone/PermissionsActivityRobolectricTest.java'
             include 'org/overte/phone/PhoneDeepLinkRobolectricTest.java'
             include 'io/highfidelity/hifiinterface/HifiUtilsTest.java'
             include 'io/highfidelity/hifiinterface/PermissionCheckerRobolectricTest.java'
             include 'org/overte/pico/PermissionsActivityRobolectricTest.java'
             include 'io/highfidelity/questInterface/PermissionsCheckerRobolectricTest.java'
+            include 'org/overte/testing/LauncherContractRobolectricTest.java'
         }
         compileClasspath += sourceSets.boundary.output
         runtimeClasspath += sourceSets.boundary.output
@@ -93,10 +95,13 @@ test {
     useJUnit()
     // Avoid host-wide /tmp cleanup and extraction collisions for Conscrypt's JNI helper.
     def conscryptWorkDir = layout.buildDirectory.dir('tmp/conscrypt-native')
+    def robolectricTempDir = layout.buildDirectory.dir('tmp/robolectric-native')
     doFirst {
         conscryptWorkDir.get().asFile.mkdirs()
+        robolectricTempDir.get().asFile.mkdirs()
     }
     systemProperty 'org.conscrypt.native.workdir', conscryptWorkDir.get().asFile.absolutePath
+    systemProperty 'java.io.tmpdir', robolectricTempDir.get().asFile.absolutePath
     reports.junitXml.required = true
     reports.html.required = true
 }

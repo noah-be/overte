@@ -15,12 +15,9 @@
 
 class JitterTests : public QObject {
     Q_OBJECT
-    
-    private slots:
-    void qTestsNotYetImplemented () {
-        qDebug() << "TODO: Reimplement this using QtTest!\n"
-        "(JitterTests takes commandline arguments (port numbers), and can be run manually by #define-ing RUN_MANUALLY in JitterTests.cpp)";
-    }
+
+private slots:
+    void movingStatisticsTrackOverallAndRollingWindows();
 };
 
 #endif

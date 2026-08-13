@@ -16,6 +16,7 @@
 #include <arpa/inet.h>
 #endif
 #include <cerrno>
+#include <initializer_list>
 #include <stdio.h>
 
 #include <NumericalConstants.h>
@@ -31,6 +32,23 @@
 #ifndef RUN_MANUALLY
 
 QTEST_MAIN(JitterTests)
+
+void JitterTests::movingStatisticsTrackOverallAndRollingWindows() {
+    MovingMinMaxAvg<int> statistics(2, 2);
+    for (int sample : { 2, 4, 6, 8, 10, 12 }) {
+        statistics.update(sample);
+    }
+
+    QCOMPARE(statistics.getSamples(), 6);
+    QCOMPARE(statistics.getMin(), 2);
+    QCOMPARE(statistics.getMax(), 12);
+    QCOMPARE(statistics.getAverage(), 7.0);
+    QCOMPARE(statistics.getWindowSamples(), 4);
+    QCOMPARE(statistics.getWindowMin(), 6);
+    QCOMPARE(statistics.getWindowMax(), 12);
+    QCOMPARE(statistics.getWindowAverage(), 9.0);
+    QVERIFY(statistics.isWindowFilled());
+}
 
 #else // RUN_MANUALLY
 

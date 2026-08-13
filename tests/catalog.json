@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "suites": [
+    {
+      "id": "project-runner",
+      "kind": "infrastructure",
+      "interfaces": ["project"],
+      "tiers": ["project-quick", "project-full"],
+      "command": ["{python}", "tests/project-suite-self-test.py"],
+      "description": "Unified catalog, selection, timeout and JUnit behavior"
+    },
+    {
+      "id": "workflow-contracts",
+      "kind": "contract",
+      "interfaces": ["project", "ci"],
+      "tiers": ["project-quick", "project-full"],
+      "command": ["{python}", "tests/workflow-contract-test.py"],
+      "description": "Repository workflow security and reproducibility contracts"
+    },
+    {
+      "id": "repository-health",
+      "kind": "infrastructure",
+      "interfaces": ["project"],
+      "tiers": ["project-quick", "project-full"],
+      "command": ["{python}", "tests/project-health-test.py"],
+      "requirements": ["node"],
+      "description": "Repository-wide syntax, resource and CMake integrity checks"
+    },
+    {
+      "id": "project-coverage",
+      "kind": "inventory",
+      "interfaces": ["project"],
+      "tiers": ["project-quick", "project-full"],
+      "command": ["{python}", "tests/project-coverage-test.py"],
+      "description": "Validate interface and subsystem coverage ownership"
+    },
+    {
+      "id": "test-reachability",
+      "kind": "inventory",
+      "interfaces": ["project"],
+      "tiers": ["project-quick", "project-full"],
+      "command": ["{python}", "tests/test-reachability-test.py"],
+      "description": "Every discovered test is executable through the catalog or explicitly manual"
+    },
+    {
+      "id": "native-test-debt",
+      "kind": "inventory",
+      "interfaces": ["project", "shared"],
+      "tiers": ["project-quick", "project-full"],
+      "command": ["{python}", "tests/test-debt-test.py"],
+      "description": "Skipped and disabled native tests remain explicit while runnable groups contain assertions"
+    },
+    {
+      "id": "javascript-behavior",
+      "kind": "javascript",
+      "interfaces": ["desktop", "shared"],
+      "tiers": ["project-quick", "project-full"],
+      "command": ["node", "tests/mocha/test/testVirtualBaton.js"],
+      "requirements": ["node"],
+      "description": "Dependency-free shared JavaScript behavior tests"
+    },
+    {
+      "id": "native-ctest",
+      "kind": "native",
+      "interfaces": ["desktop", "shared", "server"],
+      "tiers": ["project-full"],
+      "command": ["bash", "tests/project-native-test.sh"],
+      "requirements": ["bash", "cmake", "ctest"],
+      "timeoutSeconds": 1800,
+      "description": "All CTest-registered C++ and Qt tests from a prepared build"
+    },
+    {
+      "id": "apple-launcher-xctest",
+      "kind": "native",
+      "interfaces": ["apple-launcher"],
+      "tiers": ["project-full", "apple-host"],
+      "command": ["bash", "tests/apple-launcher-test.sh"],
+      "requirements": ["bash", "cmake", "ctest", "xcodebuild"],
+      "optionalWhenToolMissing": true,
+      "timeoutSeconds": 900,
+      "description": "Objective-C launcher preference behavior through XCTest on macOS"
+    }
+  ],
+  "imports": [
+    {
+      "path": "android/common/tests/suite/catalog.json",
+      "namespace": "android",
+      "cwd": "android",
+      "interfaces": ["android"],
+      "tierAliases": {
+        "fast": "android-fast",
+        "host": "android-host",
+        "prepared-host": "android-prepared-host",
+        "contracts": "android-contracts",
+        "regression": "android-regression",
+        "device": "android-device",
+        "instrumentation": "android-instrumentation",
+        "coverage": "android-coverage",
+        "mutation": "android-mutation",
+        "mutation-extended": "android-mutation-extended",
+        "robolectric": "android-robolectric",
+        "endurance": "android-endurance",
+        "stability": "android-stability"
+      },
+      "allTier": "android-all"
+    },
+    {
+      "path": "android/vr/pico/tests/catalog.json",
+      "namespace": "pico",
+      "cwd": "android/vr/pico/tests",
+      "interfaces": ["android-pico"]
+    }
+  ]
+}

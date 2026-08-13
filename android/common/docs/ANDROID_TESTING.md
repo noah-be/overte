@@ -233,11 +233,12 @@ host without Android SDK, Qt or Conan, use `android/common/tests/robolectric/run
 Its small Java harness compiles the real Activity and supporting production
 sources directly, and stubs only the generated `R` symbol and the Qt-native
 Activity class at the boundary. Across Phone, legacy Interface, Pico, and
-Quest, 32 Robolectric source behaviors produce 71 executions. The exact matrix
-is Phone (API 26/35), legacy Interface (API 24/26), Pico (API 26/35), and
-legacy Quest (API 24/28/35). Phone contributes 13 source behaviors and 26
-executions. Nine framework-independent legacy `HifiUtils` checks bring the
-harness report to 80 granular JUnit cases. This harness is mandatory in the CI
+Quest, 36 Robolectric source behaviors produce 87 executions. The exact matrix
+is Phone (API 26/35), legacy Interface (API 24/26), Pico (API 26/35),
+legacy Quest (API 24/28/35), and the parameterized common launcher contract (API 26).
+Phone contributes 13 source behaviors and 26 executions. Nine
+framework-independent legacy `HifiUtils` checks bring the harness report to 96
+granular JUnit cases. This harness is mandatory in the CI
 coverage job and publishes JUnit XML.
 
 The default `coverage` tier uses a dependency-free JaCoCo harness for ten

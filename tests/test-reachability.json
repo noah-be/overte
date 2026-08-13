@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "compatibilityEntrypoints": [
+    "tests/run-project-tests.py",
+    "android/common/tests/run-tests.sh",
+    "android/vr/pico/tests/pico-device-free-test.sh",
+    "android/vr/pico/tests/pico4-test-suite.py"
+  ],
+  "manual": [
+    {
+      "path": "android/phone/phone-emulator-test.sh",
+      "reason": "Interactive emulator orchestration; device-writing execution remains an explicit operator action"
+    },
+    {
+      "path": "android/vr/pico/pico-world-loading-test.sh",
+      "reason": "Long-running physical-headset performance scenario with an operator-selected world"
+    },
+    {
+      "path": "android/vr/pico/pico4-power-test.sh",
+      "reason": "Physical-headset power capture requires an operator-controlled measurement session"
+    }
+  ]
+}

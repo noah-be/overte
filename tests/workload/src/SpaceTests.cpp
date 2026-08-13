@@ -12,6 +12,7 @@
 #include "SpaceTests.h"
 
 #include <iostream>
+#include <utility>
 
 #include <workload/Space.h>
 #include <StreamUtils.h>
@@ -23,7 +24,32 @@ const float INV_SQRT_3 = 1.0f / sqrtf(3.0f);
 QTEST_MAIN(SpaceTests)
 
 void SpaceTests::testOverlaps() {
-    QSKIP("Test removed due to being completely broken, please fix me!");
+    workload::Space space;
+    const workload::ProxyID proxyId = space.allocateID();
+    workload::Transaction create;
+    create.reset(proxyId, workload::Sphere(0.0f, 0.0f, 0.0f, 0.5f),
+                 workload::Owner(QStringLiteral("owner")));
+    space.enqueueTransaction(std::move(create));
+    space.enqueueFrame();
+    space.processTransactionQueue();
+
+    QCOMPARE(space.getNumObjects(), 1U);
+    QCOMPARE(space.getOwner(proxyId).get<QString>(), QStringLiteral("owner"));
+
+    std::vector<workload::Space::Change> changes;
+    space.categorizeAndGetChanges(changes);
+    QCOMPARE(changes.size(), size_t(1));
+    QCOMPARE(changes.front().proxyId, proxyId);
+    QCOMPARE(changes.front().prevRegion, uint8_t(workload::Region::UNKNOWN));
+    QCOMPARE(changes.front().region, uint8_t(workload::Region::R4));
+
+    workload::Transaction remove;
+    remove.remove(proxyId);
+    space.enqueueTransaction(std::move(remove));
+    space.enqueueFrame();
+    space.processTransactionQueue();
+    QCOMPARE(space.getNumObjects(), 0U);
+    QCOMPARE(space.getRegion(proxyId), uint8_t(workload::Region::INVALID));
 
 #if 0
     // This seems to be completely broken and doesn't work on the current code.

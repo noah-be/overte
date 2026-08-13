@@ -19,13 +19,13 @@ REQUIRED_QT_PACKAGES = {
     "qml-module-qtquick-layouts", "qml-module-qtquick-window2",
 }
 REQUIRED_TIER_COMMANDS = {
-    "common/tests/run-tests.sh fast",
-    "common/tests/run-tests.sh contracts",
-    "common/tests/run-tests.sh regression",
-    "common/tests/run-tests.sh mutation",
-    "common/tests/run-tests.sh mutation-extended",
-    "common/tests/run-tests.sh stability",
-    "common/tests/run-tests.sh endurance",
+    "python3 ../tests/run-tests.py --profile android-fast",
+    "python3 ../tests/run-tests.py --profile android-contracts",
+    "python3 ../tests/run-tests.py --profile android-regression",
+    "python3 ../tests/run-tests.py --profile android-mutation",
+    "python3 ../tests/run-tests.py --profile android-mutation-extended",
+    "python3 ../tests/run-tests.py --profile android-stability",
+    "python3 ../tests/run-tests.py --profile android-endurance",
 }
 REQUIRED_JUNIT_PATHS = {
     "android/build/test-results/suite/",
@@ -77,8 +77,7 @@ def validate_workflow(workflow: str) -> list[str]:
         if not re.search(rf"(?<![\w-]){re.escape(package)}(?![\w-])", install_body):
             errors.append(f"Qt install step is missing {package}")
     for command in sorted(REQUIRED_TIER_COMMANDS):
-        if not re.search(rf"^\s*(?:-\s*)?run:\s*{re.escape(command)}\s*$",
-                         workflow, re.MULTILINE):
+        if command not in workflow:
             errors.append(f"workflow is missing tier command: {command}")
     for path in sorted(REQUIRED_JUNIT_PATHS):
         if path not in workflow:
@@ -102,8 +101,9 @@ def validate_wrapper(properties: str) -> list[str]:
 
 def validate_periodic_jobs(workflow: str) -> list[str]:
     errors = []
-    for job, command in (("stability", "common/tests/run-tests.sh stability"),
-                         ("endurance", "common/tests/run-tests.sh endurance")):
+    for job, command in (
+            ("stability", "--profile android-stability"),
+            ("endurance", "--profile android-endurance")):
         body = job_body(workflow, job)
         if body is None:
             errors.append(f"workflow is missing periodic {job} job")

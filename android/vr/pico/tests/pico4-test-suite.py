@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+import json
 from pathlib import Path
 import os
 import shutil
@@ -30,39 +31,21 @@ def test(name: str, category: str, *command: str, requires: tuple[str, ...] = ()
     return Test(name, category, command, requires)
 
 
-PYTHON = sys.executable
-TESTS = (
-    test("suite-runner", "infrastructure", PYTHON, "pico4-test-suite-self-test.py"),
-    test("coverage-matrix", "infrastructure", PYTHON, "pico4-coverage-test.py"),
-    test("shell-syntax", "infrastructure", "bash", "pico-shell-syntax-test.sh"),
-    test("package-contract", "android", PYTHON, "pico-package-contract-test.py"),
-    test("apk-verifier", "android", PYTHON, "pico-apk-verifier-test.py"),
-    test("release-contract", "android", PYTHON, "pico-release-contract-test.py"),
-    test("platform-glue", "android", PYTHON, "pico-platform-glue-test.py"),
-    test("android-entrypoints", "android", PYTHON, "pico-android-entrypoints-test.py"),
-    test("webview-bridge", "webview", PYTHON, "pico-webview-bridge-test.py"),
-    test("webview-touch-state", "webview", "bash", "pico-webview-input-test.sh", requires=("javac", "java")),
-    test("audio-capture-state", "audio", "bash", "pico-audio-capture-state-test.sh", requires=("javac", "java")),
-    test("audio-native-transport", "audio", PYTHON, "pico-audio-transport-test.py"),
-    test("openxr-loader", "openxr", PYTHON, "pico-openxr-loader-test.py"),
-    test("openxr-input", "openxr", PYTHON, "pico-openxr-input-test.py"),
-    test("openxr-display", "openxr", PYTHON, "pico-openxr-display-test.py"),
-    test("interaction-diagnostics", "interaction", "node", "pico-interaction-diagnostics-test.js", requires=("node",)),
-    test("tablet-lifecycle", "interaction", "node", "pico-tablet-lifecycle-test.js", requires=("node",)),
-    test("tablet-settings", "interaction", "node", "pico-tablet-settings-test.js", requires=("node",)),
-    test("create-qml", "interaction", PYTHON, "pico-create-qml-test.py"),
-    test("create-properties", "interaction", "node", "pico-create-properties-validation-test.js", requires=("node",)),
-    test("create-message", "interaction", "node", "pico-create-message-validation-test.js", requires=("node",)),
-    test("avatar-hotpath", "performance", PYTHON, "pico-avatar-hotpath-test.py"),
-    test("shadergen-jobs", "performance", PYTHON, "pico-shadergen-jobs-test.py"),
-    test("world-state", "world", PYTHON, "pico-world-state-test.py"),
-    test("microphone-runner", "tooling", "bash", "pico-microphone-test-test.sh"),
-    test("unattended-runner", "tooling", "bash", "pico-unattended-test-test.sh"),
-    test("device-lock", "tooling", "bash", "pico-device-lock-test.sh"),
-    test("device-acceptance", "tooling", "bash", "pico-device-acceptance-test.sh"),
-    test("serverless-fixtures", "world", "bash", "serverless-hub-fixture-test.sh", requires=("jq",)),
-    test("power-analyzer", "performance", PYTHON, "test_analyze_pico4_power.py"),
-)
+def load_tests() -> tuple[Test, ...]:
+    """Read the Pico compatibility view from the shared machine-readable catalog."""
+    payload = json.loads((TEST_DIR / "catalog.json").read_text(encoding="utf-8"))
+    if payload.get("schemaVersion") != 1 or not isinstance(payload.get("suites"), list):
+        raise ValueError("unsupported Pico test catalog schema")
+    result = []
+    for suite in payload["suites"]:
+        command = tuple(sys.executable if part == "{python}" else part
+                        for part in suite["command"])
+        result.append(test(suite["id"], suite.get("category", suite["kind"]), *command,
+                           requires=tuple(suite.get("requirements", ()))))
+    return tuple(result)
+
+
+TESTS = load_tests()
 
 
 def parse_args() -> argparse.Namespace:

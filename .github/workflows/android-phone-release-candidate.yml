@@ -50,7 +50,9 @@ jobs:
             --output android/build/release/version-manifest.json
       - name: Run release contracts
         working-directory: android
-        run: common/tests/run-tests.sh contracts
+        run: >-
+          python3 ../tests/run-tests.py --profile android-contracts
+          --junit build/test-results/suite/TEST-android-contracts.xml
 
   build:
     name: Build store-neutral candidate
@@ -86,7 +88,9 @@ jobs:
         run: android/phone/ci/check-phone-host-runtime.sh
       - name: Run complete device-free host tier
         working-directory: android
-        run: common/tests/run-tests.sh host --report-dir build/test-results/android-phone-release-host
+        run: >-
+          python3 ../tests/run-tests.py --profile android-host
+          --junit build/test-results/android-phone-release-host/TEST-android-host.xml
       - name: Verify build environment
         working-directory: android
         run: ./phone/build.sh doctor

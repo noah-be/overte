@@ -41,7 +41,7 @@ jobs:
       - name: Run device-free regression suite
         run: |
           set -euo pipefail
-          tests/run-project-tests.py \
+          tests/run-tests.py --profile project-quick \
             --timeout 240 \
             --junit build/test-results/project-tests.xml
 

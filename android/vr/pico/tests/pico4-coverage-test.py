@@ -2,23 +2,17 @@
 """Validate and summarize the risk-based Pico 4 test coverage matrix."""
 
 from pathlib import Path
-import ast
 import json
 import unittest
 
 
 TEST_DIR = Path(__file__).resolve().parent
 MATRIX = json.loads((TEST_DIR / "pico4-coverage.json").read_text(encoding="utf-8"))
-RUNNER_TREE = ast.parse((TEST_DIR / "pico4-test-suite.py").read_text(encoding="utf-8"))
+CATALOG = json.loads((TEST_DIR / "catalog.json").read_text(encoding="utf-8"))
 
 
 def catalog_names() -> set[str]:
-    names = set()
-    for node in ast.walk(RUNNER_TREE):
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "test":
-            if node.args and isinstance(node.args[0], ast.Constant):
-                names.add(node.args[0].value)
-    return names
+    return {suite["id"] for suite in CATALOG["suites"]}
 
 
 class CoverageMatrixTests(unittest.TestCase):

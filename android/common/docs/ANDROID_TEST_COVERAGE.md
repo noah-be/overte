@@ -131,12 +131,13 @@ must not be interpreted as whole-application coverage. The current measured
 results exceed those gates: interface policies are at 100% lines/functions and
 98.9% branches; pending handoff is at 100% for all three metrics.
 
-The clean-host CI harness executes 32 Robolectric source behaviors for Phone,
-legacy Interface, Pico, and Quest (71 executions). The exact matrix is Phone
-(API 26/35), legacy Interface (API 24/26), Pico (API 26/35), and legacy Quest
-(API 24/28/35). Phone accounts for 13 Activity and deep-link behaviors and 26
-executions. Nine single-execution tests of the real legacy `HifiUtils` URL
-policy bring this clean-host harness report to 80 granular JUnit cases. The
+The clean-host CI harness executes 36 Robolectric source behaviors for Phone,
+legacy Interface, Pico, and Quest (87 executions). The exact matrix is Phone
+(API 26/35), legacy Interface (API 24/26), Pico (API 26/35),
+legacy Quest (API 24/28/35), and the parameterized common launcher contract (API 26). Phone
+accounts for 13 Activity and deep-link behaviors and 26 executions. Nine
+single-execution tests of the real legacy `HifiUtils` URL policy bring this
+clean-host harness report to 96 granular JUnit cases. The
 separate prepared-dependency Android Gradle report is scoped to the Phone
 module; it does not duplicate the legacy Interface, Pico, or Quest matrix.
 Their value is behavioral framework coverage, not inflating the

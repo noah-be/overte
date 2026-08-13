@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "skippedSources": [
+    {
+      "path": "tests/gpu/src/ShaderLoadTest.cpp",
+      "count": 2,
+      "reason": "Legacy shader-cache cases no longer match the current shader API"
+    },
+    {
+      "path": "tests/networking/src/PacketTests.cpp",
+      "count": 1,
+      "reason": "The malformed-packet case deliberately triggers a debug assertion"
+    },
+    {
+      "path": "tests/script-engine/src/ScriptEngineBenchmarkTests.cpp",
+      "count": 1,
+      "reason": "The benchmark slot has not yet acquired a stable performance contract"
+    },
+    {
+      "path": "tests/shaders/src/ShaderTests.cpp",
+      "count": 1,
+      "reason": "The entire shader suite is disabled because its obsolete glslang linkage fails"
+    }
+  ],
+  "disabledSuites": [
+    {
+      "path": "tests/shaders/CMakeLists.txt",
+      "reason": "Obsolete glslang symbols prevent the historical shader suite from linking"
+    }
+  ]
+}

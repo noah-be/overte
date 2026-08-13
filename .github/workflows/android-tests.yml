@@ -70,7 +70,9 @@ jobs:
       - name: Install pinned static quality tools
         run: common/tests/quality/install-tools.sh
       - name: Run fast tier
-        run: common/tests/run-tests.sh fast
+        run: >-
+          python3 ../tests/run-tests.py --profile android-fast
+          --junit build/test-results/suite/TEST-android-fast.xml
         env:
           OVERTE_REQUIRE_QML_TESTS: 1
           QT_QPA_PLATFORM: offscreen
@@ -124,7 +126,9 @@ jobs:
         with:
           node-version: 22
       - name: Run contract tier
-        run: common/tests/run-tests.sh contracts
+        run: >-
+          python3 ../tests/run-tests.py --profile android-contracts
+          --junit build/test-results/suite/TEST-android-contracts.xml
       - name: Summarize contract results
         if: always()
         continue-on-error: true
@@ -175,7 +179,9 @@ jobs:
         run: common/tests/coverage/run-native-coverage.sh
       - name: Reject surviving critical policy mutations
         if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
-        run: common/tests/run-tests.sh mutation
+        run: >-
+          python3 ../tests/run-tests.py --profile android-mutation
+          --junit build/test-results/suite/TEST-android-mutation.xml
       - name: Summarize host coverage results
         if: always()
         continue-on-error: true
@@ -226,7 +232,9 @@ jobs:
           node-version: 22
       - name: Run extended mutation tier
         timeout-minutes: 35
-        run: common/tests/run-tests.sh mutation-extended
+        run: >-
+          python3 ../tests/run-tests.py --profile android-mutation-extended
+          --junit build/test-results/suite/TEST-android-mutation-extended.xml
       - name: Summarize extended mutation results
         if: always()
         continue-on-error: true
@@ -267,7 +275,9 @@ jobs:
           node-version: 22
       - name: Run order and parallel isolation stability tier
         timeout-minutes: 40
-        run: common/tests/run-tests.sh stability
+        run: >-
+          python3 ../tests/run-tests.py --profile android-stability
+          --junit build/test-results/suite/TEST-android-stability.xml
       - name: Summarize stability results
         if: always()
         continue-on-error: true
@@ -317,7 +327,9 @@ jobs:
           OVERTE_NATIVE_ENDURANCE_CYCLES: 1000
           OVERTE_REQUIRE_QML_TESTS: 1
           QT_QPA_PLATFORM: offscreen
-        run: common/tests/run-tests.sh endurance
+        run: >-
+          python3 ../tests/run-tests.py --profile android-endurance
+          --junit build/test-results/suite/TEST-android-endurance.xml
       - name: Summarize endurance results
         if: always()
         continue-on-error: true
@@ -361,7 +373,9 @@ jobs:
         with:
           node-version: 22
       - name: Run regression tier
-        run: common/tests/run-tests.sh regression
+        run: >-
+          python3 ../tests/run-tests.py --profile android-regression
+          --junit build/test-results/suite/TEST-android-regression.xml
       - name: Summarize regression results
         if: always()
         continue-on-error: true

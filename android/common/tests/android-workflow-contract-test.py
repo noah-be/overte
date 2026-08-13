@@ -102,7 +102,8 @@ class AndroidPhoneBuildWorkflowContracts(unittest.TestCase):
 
     def test_build_is_clean_reproducible_and_fail_closed(self):
         self.assertIn("CONAN_HOME: ${{ github.workspace }}/build/ci-phone-conan2", self.source)
-        self.assertIn("common/tests/run-tests.sh host", self.source)
+        self.assertIn("--profile android-host", self.source)
+        self.assertIn("../tests/run-tests.py", self.source)
         self.assertIn("./phone/build.sh deps --download", self.source)
         self.assertIn("./phone/build.sh prepare", self.source)
         self.assertIn("./phone/build.sh build --stacktrace", self.source)
@@ -185,7 +186,7 @@ class AndroidPhoneReleaseCandidateWorkflowContracts(unittest.TestCase):
 
     def test_complete_gates_and_local_metadata_are_retained(self):
         for required in (
-            "common/tests/run-tests.sh host", "./phone/build.sh deps --download",
+            "--profile android-host", "./phone/build.sh deps --download",
             "./phone/build.sh prepare", "--expect-debuggable 0",
             "create-phone-release-metadata.py", "android/build/release/draft/",
         ):

@@ -24,9 +24,10 @@ def source_facts(root: Path = ROOT) -> dict[str, object]:
         "io/highfidelity/hifiinterface/": "legacy Interface",
         "org/overte/pico/": "Pico",
         "io/highfidelity/questInterface/": "legacy Quest",
+        "org/overte/testing/": "common launcher contract",
     }
     for relative in included:
-        candidates = list(root.glob(f"**/apps/*/src/test/java/{relative}"))
+        candidates = list(root.glob(f"**/src/test/java/{relative}"))
         if len(candidates) != 1:
             raise ValueError(f"Robolectric include must resolve exactly once: {relative}")
         text = candidates[0].read_text()
@@ -41,12 +42,13 @@ def source_facts(root: Path = ROOT) -> dict[str, object]:
         previous = robo_matrices.setdefault(labels[0], sdks)
         if previous != sdks:
             raise ValueError(f"inconsistent Robolectric SDK matrix for {labels[0]}")
+        parameters = len(re.findall(r"\{new ContractCase\(", text)) or 1
         robo_methods += methods
-        robo_executions += methods * len(sdks)
+        robo_executions += methods * len(sdks) * parameters
     all_test_includes = re.findall(r"include '([^']+Test\.java)'", build)
     harness_executions = robo_executions
     for relative in set(all_test_includes) - set(included):
-        candidates = list(root.glob(f"**/apps/*/src/test/java/{relative}"))
+        candidates = list(root.glob(f"**/src/test/java/{relative}"))
         if len(candidates) != 1:
             raise ValueError(f"JUnit include must resolve exactly once: {relative}")
         harness_executions += len(re.findall(

@@ -46,7 +46,9 @@ jobs:
           exit 2
 
       - name: Run complete device-free host tier
-        run: common/tests/run-tests.sh host --report-dir build/test-results/android-phone-host
+        run: >-
+          python3 ../tests/run-tests.py --profile android-host
+          --junit build/test-results/android-phone-host/TEST-android-host.xml
 
       - name: Verify build environment
         run: ./phone/build.sh doctor

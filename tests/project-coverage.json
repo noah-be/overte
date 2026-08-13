@@ -1,17 +1,179 @@
 {
-  "schema": 1,
+  "schemaVersion": 2,
+  "interfaces": [
+    {
+      "id": "desktop-interface",
+      "roots": ["interface", "launchers/qt", "launchers/win32"],
+      "status": "partial",
+      "evidence": [
+        {"suite": "native-ctest", "level": "behavior"},
+        {"suite": "javascript-behavior", "level": "behavior"},
+        {"suite": "repository-health", "level": "structural"}
+      ],
+      "runtimeBoundaries": ["Qt display and audio backends", "GPU drivers", "network services"],
+      "gaps": ["No catalogued end-to-end desktop application lifecycle test"]
+    },
+    {
+      "id": "android-phone",
+      "roots": ["android/phone"],
+      "status": "covered",
+      "evidence": [
+        {"suite": "android:phone-robolectric-launcher", "level": "behavior"},
+        {"suite": "android:phone-contracts", "level": "contract"},
+        {"suite": "android:phone-device-free-regression", "level": "behavior"}
+      ],
+      "runtimeBoundaries": ["Android framework", "physical phone GPU and sensors"],
+      "gaps": []
+    },
+    {
+      "id": "android-pico",
+      "roots": ["android/vr/pico"],
+      "status": "covered",
+      "evidence": [
+        {"suite": "android:phone-robolectric-launcher", "level": "behavior"},
+        {"suite": "pico:webview-touch-state", "level": "behavior"},
+        {"suite": "pico:openxr-input", "level": "contract"},
+        {"suite": "pico:device-acceptance", "level": "contract"}
+      ],
+      "runtimeBoundaries": ["Pico OpenXR runtime", "headset audio, display and controller hardware"],
+      "gaps": []
+    },
+    {
+      "id": "android-quest",
+      "roots": ["android/vr/quest"],
+      "status": "partial",
+      "evidence": [
+        {"suite": "android:phone-robolectric-launcher", "level": "behavior"},
+        {"suite": "android:android-project-module-inventory", "level": "structural"}
+      ],
+      "runtimeBoundaries": ["Quest runtime and headset hardware"],
+      "gaps": ["No Quest-specific device-free lifecycle or OpenXR behavior suite"]
+    },
+    {
+      "id": "android-legacy-interface",
+      "roots": ["android/phone/apps/interface"],
+      "status": "partial",
+      "evidence": [
+        {"suite": "android:phone-robolectric-launcher", "level": "behavior"},
+        {"suite": "android:legacy-user-story-policy", "level": "behavior"},
+        {"suite": "android:legacy-gradle-dependencies", "level": "contract"}
+      ],
+      "runtimeBoundaries": ["Android service lifecycle and native Interface process"],
+      "gaps": ["No maintained on-device legacy Interface acceptance workflow"]
+    },
+    {
+      "id": "android-frameplayers",
+      "roots": ["android/phone/apps/framePlayer", "android/vr/quest/apps/questFramePlayer"],
+      "status": "gap",
+      "evidence": [
+        {"suite": "android:android-project-module-inventory", "level": "structural"}
+      ],
+      "runtimeBoundaries": ["Android media playback and Surface lifecycle"],
+      "gaps": ["Inventory validation exists, but no behavior test is catalogued"]
+    },
+    {
+      "id": "apple-launcher",
+      "roots": ["launchers/darwin"],
+      "status": "partial",
+      "evidence": [
+        {"suite": "apple-launcher-xctest", "level": "behavior"},
+        {"suite": "repository-health", "level": "structural"}
+      ],
+      "runtimeBoundaries": ["macOS AppKit and launcher process integration"],
+      "gaps": ["XCTest is macOS-only and is not yet scheduled on hosted CI"]
+    },
+    {
+      "id": "server-processes",
+      "roots": ["assignment-client", "domain-server", "ice-server", "server-console"],
+      "status": "partial",
+      "evidence": [
+        {"suite": "native-ctest", "level": "behavior"},
+        {"suite": "repository-health", "level": "structural"}
+      ],
+      "runtimeBoundaries": ["Multi-process deployment, persistence and public network behavior"],
+      "gaps": ["No common end-to-end distributed server acceptance suite"]
+    }
+  ],
   "areas": [
-    {"id": "android-pico", "roots": ["android"], "automated": ["pico4-device-free"], "native": [], "hardware": ["pico4-headset-acceptance"]},
-    {"id": "animation", "roots": ["libraries/animation"], "automated": ["repository-health"], "native": ["animation"], "hardware": []},
-    {"id": "audio", "roots": ["libraries/audio", "libraries/audio-client"], "automated": ["pico4-device-free"], "native": ["audio"], "hardware": ["audio-device-acceptance"]},
-    {"id": "avatars", "roots": ["libraries/avatars", "libraries/avatars-renderer"], "automated": ["pico4-device-free"], "native": ["avatars"], "hardware": []},
-    {"id": "baking-and-model-serialization", "roots": ["libraries/baking", "libraries/model-baker", "libraries/model-serializers"], "automated": ["repository-health"], "native": ["baking", "model-serializers"], "hardware": []},
-    {"id": "gpu-and-rendering", "roots": ["interface", "libraries/gl", "libraries/gpu", "libraries/graphics", "libraries/render", "libraries/render-utils"], "automated": ["pico4-device-free"], "native": ["gpu", "ktx"], "hardware": ["gpu-driver-acceptance"]},
-    {"id": "networking-and-octree", "roots": ["assignment-client", "domain-server", "ice-server", "libraries/networking", "libraries/octree"], "automated": ["repository-health"], "native": ["networking", "jitter", "octree"], "hardware": []},
-    {"id": "physics-and-workload", "roots": ["libraries/physics", "libraries/workload"], "automated": ["pico4-device-free"], "native": ["physics", "workload"], "hardware": []},
-    {"id": "script-engine-and-javascript", "roots": ["libraries/script-engine", "script-archive", "scripts", "unpublishedScripts"], "automated": ["repository-health", "javascript-behavior"], "native": ["script-engine"], "hardware": []},
-    {"id": "shared-core", "roots": ["libraries/shared"], "automated": ["repository-health"], "native": ["shared"], "hardware": []},
-    {"id": "build-packaging-and-resources", "roots": ["cmake"], "automated": ["repository-health", "pico4-device-free"], "native": [], "hardware": []},
-    {"id": "server-and-tools", "roots": ["launchers", "plugins", "server-console", "tools"], "automated": ["repository-health"], "native": [], "hardware": ["distributed-system-acceptance"]}
+    {
+      "id": "animation-avatar-input",
+      "roots": ["libraries/animation", "libraries/avatars", "libraries/avatars-renderer", "libraries/controllers", "libraries/input-plugins", "libraries/midi", "libraries/pointers"],
+      "status": "partial",
+      "native": ["animation", "avatars"],
+      "evidence": [{"suite": "native-ctest", "level": "behavior"}],
+      "gaps": ["Controller, MIDI and pointer behavior lacks a registered native group"]
+    },
+    {
+      "id": "audio",
+      "roots": ["libraries/audio", "libraries/audio-client"],
+      "status": "covered",
+      "native": ["audio"],
+      "evidence": [{"suite": "native-ctest", "level": "behavior"}, {"suite": "pico:audio-capture-state", "level": "behavior"}],
+      "gaps": []
+    },
+    {
+      "id": "assets-entities-models",
+      "roots": ["libraries/baking", "libraries/entities", "libraries/entities-renderer", "libraries/hfm", "libraries/image", "libraries/material-networking", "libraries/model-baker", "libraries/model-networking", "libraries/model-serializers", "libraries/procedural"],
+      "status": "partial",
+      "native": ["baking", "model-serializers"],
+      "evidence": [{"suite": "native-ctest", "level": "behavior"}, {"suite": "repository-health", "level": "structural"}],
+      "gaps": ["Several model and entity libraries have structural checks only"]
+    },
+    {
+      "id": "graphics-rendering",
+      "roots": ["libraries/display-plugins", "libraries/gl", "libraries/gpu", "libraries/gpu-gl", "libraries/gpu-gl-common", "libraries/gpu-vk", "libraries/graphics", "libraries/graphics-scripting", "libraries/ktx", "libraries/render", "libraries/render-utils", "libraries/shaders", "libraries/vk"],
+      "status": "partial",
+      "native": ["gpu", "ktx"],
+      "evidence": [{"suite": "native-ctest", "level": "behavior"}, {"suite": "pico:shadergen-jobs", "level": "contract"}],
+      "gaps": ["Backend correctness still depends on real OpenGL/Vulkan drivers"]
+    },
+    {
+      "id": "networking-octree",
+      "roots": ["libraries/embedded-webserver", "libraries/networking", "libraries/octree"],
+      "status": "covered",
+      "native": ["jitter", "networking", "octree"],
+      "evidence": [{"suite": "native-ctest", "level": "behavior"}],
+      "gaps": []
+    },
+    {
+      "id": "physics-scheduling",
+      "roots": ["libraries/physics", "libraries/task", "libraries/workload"],
+      "status": "partial",
+      "native": ["physics", "workload"],
+      "evidence": [{"suite": "native-ctest", "level": "behavior"}],
+      "gaps": ["The workload CTest is intentionally skipped pending a repaired fixture"]
+    },
+    {
+      "id": "script-recording",
+      "roots": ["libraries/recording", "libraries/script-engine"],
+      "status": "partial",
+      "native": ["recording", "script-engine"],
+      "evidence": [{"suite": "native-ctest", "level": "behavior"}, {"suite": "javascript-behavior", "level": "behavior"}],
+      "gaps": ["Script integration beyond the registered unit suites remains runtime-dependent"]
+    },
+    {
+      "id": "shared-platform",
+      "roots": ["libraries/auto-updater", "libraries/platform", "libraries/shared", "libraries/test-utils"],
+      "status": "partial",
+      "native": ["shared"],
+      "evidence": [{"suite": "native-ctest", "level": "behavior"}, {"suite": "repository-health", "level": "structural"}],
+      "gaps": ["Platform and updater integrations are structurally checked only"]
+    },
+    {
+      "id": "ui-qml-plugins",
+      "roots": ["libraries/plugins", "libraries/qml", "libraries/ui", "libraries/ui-plugins"],
+      "status": "partial",
+      "native": [],
+      "evidence": [{"suite": "android:qml-components", "level": "behavior"}, {"suite": "repository-health", "level": "structural"}],
+      "gaps": ["Host QML runner is optional when Qt tools are unavailable"]
+    },
+    {
+      "id": "legacy-mobile-vr",
+      "roots": ["libraries/oculusMobile", "libraries/oculusMobilePlugin"],
+      "status": "gap",
+      "native": [],
+      "evidence": [{"suite": "repository-health", "level": "structural"}],
+      "gaps": ["No catalogued behavior suite covers the legacy Oculus Mobile libraries"]
+    }
   ]
 }

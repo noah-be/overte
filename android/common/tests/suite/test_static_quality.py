@@ -144,7 +144,7 @@ if [[ "${1:-}" == --version ]]; then printf 'ruff 0.15.22\n'; fi
             "365523eb91d9224e1bcb03b022fbf0facb8f9e23792a2c53d9d4b3924bdbdebb",
             requirements)
         self.assertLess(workflow.index("tests/quality/install-tools.sh"),
-                        workflow.index("common/tests/run-tests.sh fast"))
+                        workflow.index("--profile android-fast"))
 
     def test_pinned_tools_receive_the_reviewed_inventories(self):
         with tempfile.TemporaryDirectory() as directory:

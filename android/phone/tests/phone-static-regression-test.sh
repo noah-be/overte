@@ -52,6 +52,8 @@ readonly tests=(
     phone-tablet-static-test.sh
     phone-touch-navigation-test.sh
     phone-virtual-pad-texture-test.sh
+    phone-world-loading-mock-test.sh
+    phone-world-status-path-test.sh
 )
 
 for test_name in "${tests[@]}"; do
