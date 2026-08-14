@@ -389,26 +389,16 @@ for inventory_contract in (
 for marker in ONLINE_CONTRACT | {"render_handoff": ""}:
     if marker not in online_smoke:
         raise SystemExit(f"online smoke runner does not require {marker}")
-for entity_script_contract in (
-    "--disableEntityScripts",
-    "entity_scripts_disabled",
-):
-    if entity_script_contract not in online_smoke:
-        raise SystemExit(
-            f"online smoke must isolate client entity scripts: {entity_script_contract}"
-        )
-
 transition_smoke = (ROOT / "macos/ci/transition-smoke.sh").read_text(
     encoding="utf-8"
 )
-for entity_script_contract in (
-    "--disableEntityScripts",
-    "entity_scripts_disabled",
+for smoke_name, smoke_source in (
+    ("online", online_smoke),
+    ("serverless/online transition", transition_smoke),
 ):
-    if entity_script_contract not in transition_smoke:
+    if "disableEntityScripts" in smoke_source or "entity_scripts_disabled" in smoke_source:
         raise SystemExit(
-            "serverless/online transition smoke must isolate client entity scripts: "
-            f"{entity_script_contract}"
+            f"{smoke_name} smoke must retain the production entity-script lifecycle"
         )
 
 for smoke_name, smoke_source in (("serverless", smoke), ("online", online_smoke)):
@@ -826,10 +816,10 @@ if main_source.count('"disableLocalAvatar"') != 1:
     raise SystemExit("the local-avatar suppression option must be declared exactly once")
 if "parser.addOption(disableLocalAvatarOption);" not in main_source:
     raise SystemExit("the local-avatar suppression option is not registered")
-if main_source.count('"disableEntityScripts"') != 1:
-    raise SystemExit("the entity-script suppression option must be declared exactly once")
-if "parser.addOption(disableEntityScriptsOption);" not in main_source:
-    raise SystemExit("the entity-script suppression option is not registered")
+if "disableEntityScripts" in main_source:
+    raise SystemExit(
+        "Interface must not expose the incomplete no-entity-script lifecycle"
+    )
 
 application_setup_source = (ROOT / "interface/src/Application_Setup.cpp").read_text(
     encoding="utf-8"
@@ -837,15 +827,10 @@ application_setup_source = (ROOT / "interface/src/Application_Setup.cpp").read_t
 entity_renderer_source = (
     ROOT / "libraries/entities-renderer/src/EntityTreeRenderer.cpp"
 ).read_text(encoding="utf-8")
-for entity_script_contract in (
-    'parser.isSet("disableEntityScripts")',
-    "DependencyManager::set<EntityTreeRenderer>(!disableEntityScripts, qApp, qApp)",
-    "OVERTE_MACOS_RENDER_PHASE entity_scripts_disabled",
-):
-    if entity_script_contract not in application_setup_source:
-        raise SystemExit(
-            f"missing client entity-script isolation: {entity_script_contract}"
-        )
+if "DependencyManager::set<EntityTreeRenderer>(true, qApp, qApp)" not in application_setup_source:
+    raise SystemExit("Interface must initialize the complete entity-script lifecycle")
+if "disableEntityScripts" in application_setup_source:
+    raise SystemExit("Interface must not construct a partially initialized entity renderer")
 reload_entity_scripts = entity_renderer_source.split(
     "void EntityTreeRenderer::reloadEntityScripts()", 1
 )[1].split("void EntityTreeRenderer::init()", 1)[0]

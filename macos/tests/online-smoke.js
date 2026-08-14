@@ -4,9 +4,10 @@
 (function () {
     "use strict";
 
-    // Match the supported desktop scene path. The local avatar and client
-    // entity scripts are disabled by the runner before they can submit
-    // unrelated skinned or overlay pipelines; domain entities remain enabled.
+    // Match the supported desktop scene path. The local avatar and default
+    // client scripts are disabled by the runner before they can submit
+    // unrelated skinned or overlay pipelines. Domain entity scripts keep the
+    // production Interface lifecycle used outside the smoke test.
     Render.renderMethod = 1;
     Render.shadowsEnabled = false;
     Render.hazeEnabled = false;

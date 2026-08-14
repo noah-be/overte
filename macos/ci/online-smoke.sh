@@ -37,7 +37,7 @@ rm -f "$snapshot" "$screenshot_result" "$entity_inventory" "$entity_validation"
 
 readonly -a app_command=(
     "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog --display Desktop
-    --disableLocalAvatar --disableEntityScripts
+    --disableLocalAvatar
     --defaultScriptsOverride "file://$default_scripts_override" --url "$location"
     --testScript "$test_script" --testResultsLocation "$output_dir" --quitWhenFinished
 )
@@ -70,7 +70,7 @@ for marker in domain_list_connected entity_server_active entity_query_sent entit
         exit 1
     }
 done
-for marker in local_avatar_skipped local_avatar_scene_submission_skipped entity_scripts_disabled; do
+for marker in local_avatar_skipped local_avatar_scene_submission_skipped; do
     grep -Fq "OVERTE_MACOS_RENDER_PHASE $marker" "$log" || {
         echo "missing local-avatar isolation gate: $marker" >&2
         exit 1
