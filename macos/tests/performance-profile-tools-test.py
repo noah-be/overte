@@ -26,6 +26,7 @@ def run_result(profile: str, index: int, present: float, p95: float, renderer: s
         "schema_version": 2,
         "platform": "macos",
         "fixture_version": "lit-grid-v1",
+        "fixture_mode": "full",
         "profile_id": profile,
         "run_index": index,
         "quality_score": 35 if profile == "forward-compat" else 85,
@@ -38,6 +39,7 @@ def run_result(profile: str, index: int, present: float, p95: float, renderer: s
         },
         "sample_count": len(samples),
         "samples_us": samples,
+        "measurement_complete": True,
         "p95_frame_ms": p95,
         "rates_hz": {
             "render": distribution,
@@ -64,6 +66,17 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     assert '"id": "forward-compat"' in source
     assert generated.stat().st_mode & 0o777 == 0o600
 
+    diagnostic_generated = temporary / "diagnostic.js"
+    diagnostic_generation = subprocess.run(
+        [sys.executable, str(GENERATOR), "--profiles", str(PROFILES),
+         "--profile", "forward-compat", "--template", str(TEMPLATE),
+         "--output", str(diagnostic_generated), "--trace", str(temporary / "trace.gz"),
+         "--run-index", "1", "--fixture-mode", "diagnostic-lite"],
+        text=True, capture_output=True, check=False,
+    )
+    assert diagnostic_generation.returncode == 0, diagnostic_generation.stderr
+    assert '"fixture_mode": "diagnostic-lite"' in diagnostic_generated.read_text(encoding="utf-8")
+
     rejected = subprocess.run(
         [sys.executable, str(GENERATOR), "--profiles", str(PROFILES), "--profile", "../escape",
          "--template", str(TEMPLATE), "--output", str(temporary / "bad.js"),
@@ -79,6 +92,7 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
             directory.mkdir(parents=True)
             payload = run_result(profile, index, present, p95, "Apple M4")
             (directory / "macos-profile.json").write_text(json.dumps(payload), encoding="utf-8")
+            (directory / "profile-accepted").write_text("accepted\n", encoding="utf-8")
     result = temporary / "result.json"
     junit = temporary / "junit.xml"
     analysis = subprocess.run(
@@ -99,6 +113,7 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
         (directory / "macos-profile.json").write_text(
             json.dumps(run_result(profile, 1, present, p95, "Apple Software Renderer")), encoding="utf-8"
         )
+        (directory / "profile-accepted").write_text("accepted\n", encoding="utf-8")
     software_result = temporary / "software.json"
     software_junit = temporary / "software.xml"
     software_analysis = subprocess.run(
@@ -110,5 +125,34 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     software_summary = json.loads(software_result.read_text(encoding="utf-8"))
     assert software_summary["diagnostic_only"] is True
     assert software_summary["selected_profile"] == "deferred-balanced"
+
+    incomplete = temporary / "incomplete" / "forward-compat" / "run-1"
+    incomplete.mkdir(parents=True)
+    incomplete_payload = run_result("forward-compat", 1, 60, 12, "Apple M4")
+    incomplete_payload["measurement_complete"] = False
+    (incomplete / "macos-profile.json").write_text(json.dumps(incomplete_payload), encoding="utf-8")
+    (incomplete / "profile-accepted").write_text("accepted\n", encoding="utf-8")
+    incomplete_analysis = subprocess.run(
+        [sys.executable, str(ANALYZER), str(temporary / "incomplete"),
+         "--result", str(temporary / "incomplete.json"),
+         "--junit", str(temporary / "incomplete.xml"), "--minimum-runs", "1"],
+        text=True, capture_output=True, check=False,
+    )
+    assert incomplete_analysis.returncode != 0
+    assert "incomplete measurement" in incomplete_analysis.stdout
+
+    unaccepted = temporary / "unaccepted" / "forward-compat" / "run-1"
+    unaccepted.mkdir(parents=True)
+    (unaccepted / "macos-profile.json").write_text(
+        json.dumps(run_result("forward-compat", 1, 60, 12, "Apple M4")), encoding="utf-8"
+    )
+    unaccepted_analysis = subprocess.run(
+        [sys.executable, str(ANALYZER), str(temporary / "unaccepted"),
+         "--result", str(temporary / "unaccepted.json"),
+         "--junit", str(temporary / "unaccepted.xml"), "--minimum-runs", "1"],
+        text=True, capture_output=True, check=False,
+    )
+    assert unaccepted_analysis.returncode != 0
+    assert "no accepted profile results" in unaccepted_analysis.stdout
 
 print("macOS performance profile tool tests passed")

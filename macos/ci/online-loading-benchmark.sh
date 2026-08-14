@@ -54,7 +54,8 @@ run_case() {
     local -a app_command
 
     mkdir -p "$cache_dir" "$run_dir"
-    rm -f "$snapshot" "$screenshot_result" "$run_dir/macos-online-loading.json"
+    rm -f "$snapshot" "$screenshot_result" "$run_dir/macos-online-loading.json" \
+        "$run_dir/online-loading-accepted"
     python3 "$source_root/macos/tools/render-online-loading-case.py" \
         --template "$template" --output "$generated_script" --cache-mode "$cache_mode" \
         --concurrency "$concurrency" --run-index "$pair" --location-label "$location_label"
@@ -80,6 +81,9 @@ run_case() {
         python3 "$source_root/macos/tools/validate-screenshot.py" "$snapshot" \
             --result "$screenshot_result" || status=$?
     fi
+    if (( status == 0 )); then
+        printf 'accepted\n' > "$run_dir/online-loading-accepted"
+    fi
     python3 - "$output_dir/attempts.jsonl" "$concurrency" "$pair" "$cache_mode" "$status" <<'PY'
 import json
 from pathlib import Path
@@ -99,12 +103,20 @@ PY
 }
 
 for (( pair = 1; pair <= repeats; pair += 1 )); do
-    for concurrency in "${concurrencies[@]}"; do
-        # A unique cache per pair makes the first process cold for resources;
-        # the immediately following process reuses that exact disk cache.
-        run_case "$concurrency" "$pair" cold
-        run_case "$concurrency" "$pair" warm
-    done
+    if (( pair % 2 == 0 )); then
+        for (( index = ${#concurrencies[@]} - 1; index >= 0; index -= 1 )); do
+            concurrency="${concurrencies[index]}"
+            run_case "$concurrency" "$pair" cold
+            run_case "$concurrency" "$pair" warm
+        done
+    else
+        for concurrency in "${concurrencies[@]}"; do
+            # A unique cache per pair makes the first process cold for resources;
+            # the immediately following process reuses that exact disk cache.
+            run_case "$concurrency" "$pair" cold
+            run_case "$concurrency" "$pair" warm
+        done
+    fi
 done
 
 python3 "$source_root/macos/tools/analyze-online-loading.py" "$output_dir" \

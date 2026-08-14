@@ -73,6 +73,7 @@
       "forward_samples": 1
     }
   ],
+  "diagnostic_order": ["forward-compat"],
   "quick_order": ["forward-compat", "deferred-balanced"],
   "full_order": [
     "forward-compat",

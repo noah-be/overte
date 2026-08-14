@@ -117,10 +117,15 @@ can additionally record deterministic frame timings, compare five explicit
 graphics-quality profiles, compare cold/warm full-world loading at controlled
 download limits, or execute three/five launch-render-quit stability cycles.
 The expensive matrix inputs default to off and reuse the exact uploaded app;
-runtime-only test changes therefore need no rebuild. Results include raw
+runtime-only test changes therefore need no rebuild. Independent optional
+stages use `always()` plus the serverless prerequisite, so a graphics-matrix
+failure cannot silently skip requested online-loading evidence. Results include raw
 samples, screenshots, traces, host telemetry, machine-readable aggregates, and
-JUnit XML. The graphics selector is hardware-keyed. Software-renderer results
-are diagnostic only, and public-world loading is informational until a
+JUnit XML. The graphics selector is hardware-keyed and accepts only runs that
+completed process, image, and metrics validation. The hosted software renderer
+automatically uses the small Forward diagnostic fixture; full lit/effect
+profiles are reserved for physical Macs. Software-renderer results are
+diagnostic only, and public-world loading is informational until a
 versioned controlled domain exists.
 
 The application is retained for fourteen days and smoke diagnostics for seven

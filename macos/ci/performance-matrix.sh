@@ -14,7 +14,7 @@ readonly scene="$source_root/macos/tests/fixtures/serverless-render.json"
 readonly default_scripts_override="$source_root/macos/tests/fixtures/no-default-scripts.js"
 readonly mode="${OVERTE_MACOS_PROFILE_MATRIX_MODE:-quick}"
 readonly repeats="${OVERTE_MACOS_PROFILE_REPEATS:-1}"
-readonly timeout_seconds="${OVERTE_MACOS_PROFILE_TIMEOUT_SECONDS:-300}"
+readonly timeout_seconds="${OVERTE_MACOS_PROFILE_TIMEOUT_SECONDS:-420}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
 
 [[ "$(uname -s)" == Darwin ]] || { echo "performance matrix requires macOS" >&2; exit 1; }
@@ -32,16 +32,39 @@ sw_vers > "$output_dir/macos-version.txt"
 uname -a > "$output_dir/kernel.txt"
 shasum -a 256 "$executable" > "$output_dir/application.sha256"
 
+runner_class="${OVERTE_MACOS_PROFILE_RUNNER_CLASS:-auto}"
+if [[ "$runner_class" == auto ]]; then
+    runner_class="$(python3 - "$output_dir/hardware.json" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+text = json.dumps(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))).lower()
+tokens = ("paravirtual", "software renderer")
+print("diagnostic" if any(token in text for token in tokens) else "hardware")
+PY
+)"
+fi
+[[ "$runner_class" == diagnostic || "$runner_class" == hardware ]] || {
+    echo "profile runner class must be auto, diagnostic, or hardware" >&2
+    exit 2
+}
+readonly runner_class
+readonly fixture_mode="$([[ "$runner_class" == diagnostic ]] && printf diagnostic-lite || printf full)"
+printf '{"fixture_mode":"%s","runner_class":"%s"}\n' "$fixture_mode" "$runner_class" > \
+    "$output_dir/runner-class.json"
+
 profiles=()
 while IFS= read -r profile; do
     profiles+=("$profile")
-done < <(python3 - "$profiles_file" "$mode" <<'PY'
+done < <(python3 - "$profiles_file" "$mode" "$runner_class" <<'PY'
 import json
 from pathlib import Path
 import sys
 
 payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-for identifier in payload[f"{sys.argv[2]}_order"]:
+order = "diagnostic_order" if sys.argv[3] == "diagnostic" else f"{sys.argv[2]}_order"
+for identifier in payload[order]:
     print(identifier)
 PY
 )
@@ -63,10 +86,12 @@ run_case() {
     local status=0
 
     mkdir -p "$run_dir" "$output_dir/cache/$profile"
-    rm -f "$snapshot" "$screenshot_result" "$run_dir/macos-profile.json"
+    rm -f "$snapshot" "$screenshot_result" "$run_dir/macos-profile.json" \
+        "$run_dir/profile-accepted"
     python3 "$source_root/macos/tools/render-performance-profile.py" \
         --profiles "$profiles_file" --profile "$profile" --template "$template" \
-        --output "$generated_script" --trace "$trace" --run-index "$run_index"
+        --output "$generated_script" --trace "$trace" --run-index "$run_index" \
+        --fixture-mode "$fixture_mode"
 
     local -a app_command=(
         "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog --display Desktop
@@ -93,6 +118,9 @@ run_case() {
         python3 "$source_root/macos/tools/validate-screenshot.py" "$snapshot" \
             --result "$screenshot_result" || status=$?
     fi
+    if (( status == 0 )); then
+        printf 'accepted\n' > "$run_dir/profile-accepted"
+    fi
     python3 - "$output_dir/attempts.jsonl" "$profile" "$label" "$run_index" "$status" <<'PY'
 import json
 from pathlib import Path
@@ -113,16 +141,25 @@ PY
     return 0
 }
 
-# Each profile gets a throwaway process so shader/resource first-use costs do
-# not contaminate the repeated steady-state measurements. The actual runs are
-# interleaved by repeat number to reduce runner drift bias.
-for profile in "${profiles[@]}"; do
-    run_case "$profile" warmup 1
-done
-for (( repeat = 1; repeat <= repeats; repeat += 1 )); do
+# Physical hardware gets a throwaway process so shader/resource first-use costs
+# do not contaminate the repeated steady-state measurements. The hosted
+# software renderer retains first-use cost as bounded diagnostic evidence and
+# avoids doubling a process that cannot persist useful driver binaries.
+if [[ "$runner_class" == hardware ]]; then
     for profile in "${profiles[@]}"; do
-        run_case "$profile" "run-$repeat" "$((repeat + 1))"
+        run_case "$profile" warmup 1
     done
+fi
+for (( repeat = 1; repeat <= repeats; repeat += 1 )); do
+    if (( repeat % 2 == 0 )); then
+        for (( index = ${#profiles[@]} - 1; index >= 0; index -= 1 )); do
+            run_case "${profiles[index]}" "run-$repeat" "$((repeat + 1))"
+        done
+    else
+        for profile in "${profiles[@]}"; do
+            run_case "$profile" "run-$repeat" "$((repeat + 1))"
+        done
+    fi
 done
 
 python3 "$source_root/macos/tools/analyze-performance-matrix.py" "$output_dir" \

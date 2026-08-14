@@ -14,6 +14,10 @@ if (!scriptPath) {
 
 const source = fs.readFileSync(scriptPath, "utf8");
 const clock = { now: 1000 };
+const fixtureMode = process.env.OVERTE_TEST_FIXTURE_MODE || "full";
+const expectedStressEntities = fixtureMode === "diagnostic-lite" ? 13 : 50;
+const settleMilliseconds = fixtureMode === "diagnostic-lite" ? 5000 : 10000;
+const minimumSamples = fixtureMode === "diagnostic-lite" ? 15 : 90;
 const output = [];
 const saved = [];
 const deleted = [];
@@ -66,6 +70,7 @@ const performance = {
 const context = {
     OVERTE_MACOS_PERFORMANCE_CASE: {
         fixture_version: "lit-grid-v1",
+        fixture_mode: fixtureMode,
         run_index: 2,
         trace_path: "/tmp/profile-trace.json.gz",
         profile: {
@@ -129,13 +134,13 @@ assert.strictEqual(forwardConfig.numSamples, 1);
 assert.strictEqual(typeof script.interval, "function");
 
 script.interval();
-assert(output.some((line) => line.includes("stress_entities=50")));
-clock.now += 10000;
+assert(output.some((line) => line.includes("stress_entities=" + expectedStressEntities)));
+clock.now += settleMilliseconds;
 script.interval();
 assert.strictEqual(windowObject.snapshotName, "macos-profile.png");
 windowObject.snapshotHandler("/tmp/macos-profile.png");
 assert.strictEqual(frameTimings.active, true);
-frameTimings.values = Array(120).fill(9000);
+frameTimings.values = Array(Math.max(120, minimumSamples)).fill(9000);
 clock.now += 30000;
 script.interval();
 
@@ -143,11 +148,13 @@ assert.strictEqual(script.stopped, true);
 assert.strictEqual(saved.length, 1);
 assert.strictEqual(saved[0].name, "macos-profile.json");
 assert.strictEqual(saved[0].value.schema_version, 2);
+assert.strictEqual(saved[0].value.measurement_complete, true);
+assert.strictEqual(saved[0].value.fixture_mode, fixtureMode);
 assert.strictEqual(saved[0].value.profile_id, "forward-compat");
-assert.strictEqual(saved[0].value.stress_entities, 50);
+assert.strictEqual(saved[0].value.stress_entities, expectedStressEntities);
 assert.strictEqual(saved[0].value.rates_hz.present.p50, 59);
 assert.strictEqual(saved[0].value.stats.drawcalls.p50, 120);
-assert.strictEqual(deleted.length, 50);
+assert.strictEqual(deleted.length, expectedStressEntities);
 assert(output.some((line) => line.includes("OVERTE_MACOS_PROFILE passed id=forward-compat")));
 
 console.log("macOS profile performance script contract valid");

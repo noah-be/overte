@@ -108,6 +108,9 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--trace", type=Path, required=True)
     parser.add_argument("--run-index", type=int, required=True)
+    parser.add_argument(
+        "--fixture-mode", choices=("full", "diagnostic-lite"), default="full"
+    )
     arguments = parser.parse_args()
     try:
         if arguments.run_index <= 0 or arguments.run_index > 20:
@@ -118,6 +121,7 @@ def main() -> int:
         injected = {
             "profile": profile,
             "fixture_version": payload.get("fixture_version"),
+            "fixture_mode": arguments.fixture_mode,
             "run_index": arguments.run_index,
             "trace_path": str(arguments.trace.resolve()),
         }

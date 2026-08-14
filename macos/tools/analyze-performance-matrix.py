@@ -61,6 +61,8 @@ def load_run(path: Path) -> dict[str, object]:
         raise MatrixError(f"non-macOS profile result in {path}")
     if not isinstance(payload.get("profile_id"), str):
         raise MatrixError(f"missing profile id in {path}")
+    if payload.get("measurement_complete") is not True:
+        raise MatrixError(f"incomplete measurement in {path}")
     rates = payload.get("rates_hz")
     if not isinstance(rates, dict) or not isinstance(rates.get("present"), dict):
         raise MatrixError(f"missing present-rate distribution in {path}")
@@ -98,6 +100,8 @@ def hardware_key(payload: dict[str, object]) -> str:
 
 
 def aggregate(runs: list[dict[str, object]], minimum_runs: int) -> dict[str, object]:
+    if not runs:
+        raise MatrixError("no accepted profile results found")
     by_profile: dict[str, list[dict[str, object]]] = {}
     hardware_keys = {hardware_key(run) for run in runs}
     fixture_versions = {run.get("fixture_version") for run in runs}
@@ -181,7 +185,8 @@ def aggregate(runs: list[dict[str, object]], minimum_runs: int) -> dict[str, obj
 
 def write_junit(path: Path, result: dict[str, object]) -> None:
     profiles = result.get("profiles", [])
-    failures = sum(not item["stable"] for item in profiles)
+    infrastructure_failures = result.get("failures", [])
+    failures = sum(not item["stable"] for item in profiles) + len(infrastructure_failures)
     suite = ET.Element(
         "testsuite",
         name="overte.macos.performance-matrix",
@@ -198,6 +203,16 @@ def write_junit(path: Path, result: dict[str, object]) -> None:
         if not item["stable"]:
             failure = ET.SubElement(case, "failure", message="profile did not meet stability contract")
             failure.text = json.dumps(item, sort_keys=True)
+    for index, message in enumerate(infrastructure_failures):
+        case = ET.SubElement(
+            suite,
+            "testcase",
+            classname="overte.macos.performance",
+            name=f"infrastructure-{index + 1}",
+        )
+        failure = ET.SubElement(case, "failure", message=str(message))
+        failure.text = str(message)
+    suite.set("tests", str(len(profiles) + len(infrastructure_failures)))
     atomic_write(path, ET.tostring(suite, encoding="utf-8", xml_declaration=True) + b"\n")
 
 
@@ -211,7 +226,10 @@ def main() -> int:
     if arguments.minimum_runs <= 0 or arguments.minimum_runs > 20:
         parser.error("--minimum-runs is outside 1..20")
     try:
-        paths = sorted(arguments.matrix_directory.glob("*/run-*/macos-profile.json"))
+        paths = sorted(
+            path.parent / "macos-profile.json"
+            for path in arguments.matrix_directory.glob("*/run-*/profile-accepted")
+        )
         runs = [load_run(path) for path in paths]
         result = aggregate(runs, arguments.minimum_runs)
         atomic_write(arguments.result, (json.dumps(result, sort_keys=True) + "\n").encode("utf-8"))

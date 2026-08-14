@@ -10,12 +10,14 @@
 
     var testCase = OVERTE_MACOS_PERFORMANCE_CASE;
     var profile = testCase.profile;
+    var diagnosticLite = testCase.fixture_mode === "diagnostic-lite";
     var localEntities = [];
-    var MINIMUM_MEASUREMENT_MS = 30000;
-    var MAXIMUM_MEASUREMENT_MS = 90000;
-    var MINIMUM_SAMPLE_COUNT = 90;
-    var SETTLE_MS = 10000;
-    var deadline = Date.now() + 240000;
+    var MINIMUM_MEASUREMENT_MS = diagnosticLite ? 20000 : 30000;
+    var MAXIMUM_MEASUREMENT_MS = diagnosticLite ? 60000 : 90000;
+    var MINIMUM_SAMPLE_COUNT = diagnosticLite ? 15 : 90;
+    var SETTLE_MS = diagnosticLite ? 5000 : 10000;
+    var scriptStartedAt = Date.now();
+    var deadline = scriptStartedAt + 360000;
     var expectedNames = {
         "macOS smoke red cube": false,
         "macOS smoke cyan sphere": false,
@@ -94,34 +96,36 @@
     }
 
     function createStressScene() {
-        var rows = 5;
-        var columns = 9;
+        var rows = diagnosticLite ? 3 : 5;
+        var columns = diagnosticLite ? 4 : 9;
         var row;
         var column;
         var materialParent = null;
-        addEntity({
-            type: "Zone",
-            name: "macOS profile zone",
-            position: { x: 0, y: 2, z: -12 },
-            dimensions: { x: 40, y: 20, z: 40 },
-            keyLightMode: "enabled",
-            keyLight: {
-                color: { red: 255, green: 244, blue: 225 },
-                intensity: 1.0,
-                direction: { x: -0.35, y: -0.8, z: -0.45 },
-                castShadows: true,
-                shadowMaxDistance: 40
-            },
-            ambientLightMode: "enabled",
-            ambientLight: {
-                ambientColor: { red: 75, green: 85, blue: 110 },
-                ambientIntensity: 0.45
-            },
-            hazeMode: "enabled",
-            haze: { hazeRange: 120, hazeColor: { red: 95, green: 115, blue: 145 } },
-            bloomMode: "enabled",
-            bloom: { bloomIntensity: 0.4, bloomThreshold: 0.65, bloomSize: 0.5 }
-        });
+        if (!diagnosticLite) {
+            addEntity({
+                type: "Zone",
+                name: "macOS profile zone",
+                position: { x: 0, y: 2, z: -12 },
+                dimensions: { x: 40, y: 20, z: 40 },
+                keyLightMode: "enabled",
+                keyLight: {
+                    color: { red: 255, green: 244, blue: 225 },
+                    intensity: 1.0,
+                    direction: { x: -0.35, y: -0.8, z: -0.45 },
+                    castShadows: true,
+                    shadowMaxDistance: 40
+                },
+                ambientLightMode: "enabled",
+                ambientLight: {
+                    ambientColor: { red: 75, green: 85, blue: 110 },
+                    ambientIntensity: 0.45
+                },
+                hazeMode: "enabled",
+                haze: { hazeRange: 120, hazeColor: { red: 95, green: 115, blue: 145 } },
+                bloomMode: "enabled",
+                bloom: { bloomIntensity: 0.4, bloomThreshold: 0.65, bloomSize: 0.5 }
+            });
+        }
         addEntity({
             type: "Shape",
             shape: "Cube",
@@ -129,7 +133,7 @@
             position: { x: 0, y: -0.35, z: -13 },
             dimensions: { x: 20, y: 0.25, z: 24 },
             color: { red: 82, green: 88, blue: 98 },
-            unlit: false,
+            unlit: diagnosticLite,
             collisionless: true
         });
         for (row = 0; row < rows; row += 1) {
@@ -149,55 +153,58 @@
                         green: 45 + ((row * 43 + column * 11) % 190),
                         blue: 45 + ((row * 29 + column * 23) % 190)
                     },
-                    unlit: false,
+                    unlit: diagnosticLite,
                     collisionless: true,
                     canCastShadow: true
                 });
-                if (row === 1 && column === 4) {
+                if (!diagnosticLite && row === 1 && column === 4) {
                     materialParent = shapeID;
                 }
             }
         }
-        addEntity({
-            type: "Material",
-            name: "macOS profile emissive PBR material",
-            parentID: materialParent,
-            parentMaterialName: "0",
-            materialURL: "materialData",
-            priority: 1,
-            materialData: JSON.stringify({
-                materialVersion: 1,
-                materials: [{
-                    name: "0",
-                    model: "hifi_pbr",
-                    albedo: [0.12, 0.35, 1.0],
-                    metallic: 0.7,
-                    roughness: 0.18,
-                    emissive: [2.0, 0.35, 0.10]
-                }]
-            })
-        });
-        addEntity({
-            type: "Light",
-            name: "macOS profile point light red",
-            position: { x: -3.5, y: 2.5, z: -8.5 },
-            dimensions: { x: 9, y: 9, z: 9 },
-            color: { red: 255, green: 80, blue: 55 },
-            intensity: 7,
-            falloffRadius: 1.5,
-            isSpotlight: false
-        });
-        addEntity({
-            type: "Light",
-            name: "macOS profile point light cyan",
-            position: { x: 3.5, y: 3.0, z: -11 },
-            dimensions: { x: 10, y: 10, z: 10 },
-            color: { red: 40, green: 190, blue: 255 },
-            intensity: 8,
-            falloffRadius: 1.5,
-            isSpotlight: false
-        });
-        print("OVERTE_MACOS_PROFILE stress_entities=" + localEntities.length);
+        if (!diagnosticLite) {
+            addEntity({
+                type: "Material",
+                name: "macOS profile emissive PBR material",
+                parentID: materialParent,
+                parentMaterialName: "0",
+                materialURL: "materialData",
+                priority: 1,
+                materialData: JSON.stringify({
+                    materialVersion: 1,
+                    materials: [{
+                        name: "0",
+                        model: "hifi_pbr",
+                        albedo: [0.12, 0.35, 1.0],
+                        metallic: 0.7,
+                        roughness: 0.18,
+                        emissive: [2.0, 0.35, 0.10]
+                    }]
+                })
+            });
+            addEntity({
+                type: "Light",
+                name: "macOS profile point light red",
+                position: { x: -3.5, y: 2.5, z: -8.5 },
+                dimensions: { x: 9, y: 9, z: 9 },
+                color: { red: 255, green: 80, blue: 55 },
+                intensity: 7,
+                falloffRadius: 1.5,
+                isSpotlight: false
+            });
+            addEntity({
+                type: "Light",
+                name: "macOS profile point light cyan",
+                position: { x: 3.5, y: 3.0, z: -11 },
+                dimensions: { x: 10, y: 10, z: 10 },
+                color: { red: 40, green: 190, blue: 255 },
+                intensity: 8,
+                falloffRadius: 1.5,
+                isSpotlight: false
+            });
+        }
+        print("OVERTE_MACOS_PROFILE stress_entities=" + localEntities.length +
+            " fixture_mode=" + testCase.fixture_mode);
     }
 
     function cleanup() {
@@ -242,6 +249,7 @@
             schema_version: 2,
             platform: "macos",
             fixture_version: testCase.fixture_version,
+            fixture_mode: testCase.fixture_mode,
             profile_id: profile.id,
             run_index: testCase.run_index,
             quality_score: profile.quality_score,
@@ -268,7 +276,9 @@
                 deferred_capable: Boolean(PlatformInfo.isRenderMethodDeferredCapable())
             },
             stress_entities: localEntities.length,
+            warmup_to_snapshot_ms: measurementStartedAt - scriptStartedAt,
             duration_ms: Date.now() - measurementStartedAt,
+            measurement_complete: samples.length >= MINIMUM_SAMPLE_COUNT,
             sample_count: samples.length,
             frame_time_unit: "microseconds",
             samples_us: samples,
@@ -285,7 +295,7 @@
             stats: stats
         };
         Test.saveObject(metrics, "macos-profile.json");
-        finish(samples.length >= MINIMUM_SAMPLE_COUNT, "samples=" + samples.length);
+        finish(metrics.measurement_complete, "samples=" + samples.length);
     }
 
     function startMeasurement() {

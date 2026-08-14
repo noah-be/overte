@@ -88,21 +88,27 @@ OVERTE_MACOS_PROFILE_REPEATS=1 \
     build/macos-performance-matrix
 ```
 
-Use `full` and three repeats for a profile decision. Every profile first gets
-a throwaway warm-up process; measured processes are then interleaved to reduce
-runner drift. The suite records raw render CPU samples, present/new-frame/drop
+Use `full` and three repeats for a profile decision on a physical Mac. Every
+hardware profile first gets a throwaway warm-up process; measured processes are
+then interleaved and their order is reversed on alternating repetitions to
+reduce runner drift. The suite records raw render CPU samples, present/new-frame/drop
 distributions, GPU/batch/engine time, draw calls, triangles, rendered items,
 shadow work, texture/framebuffer memory, the exact requested and observed
 settings, platform data, screenshots, traces, process diagnostics, Median, and
 MAD. It compares Forward at 1/2/4 samples with balanced and maximum-quality
 Deferred configurations.
 
-Hardware classes never share results. On a physical Mac a selectable 60 Hz
+Hardware classes never share results. The hosted paravirtualized/software-GL
+runner is detected automatically and executes only a bounded `forward-compat`
+diagnostic with 13 unlit local stress entities. This avoids presenting several
+minutes of Apple software-driver shader compilation as gameplay performance;
+the full lit/effect matrix is retained for physical hardware. Only a
+shell-validated run gets a `profile-accepted` marker, and the aggregator rejects
+incomplete or unaccepted measurements. On a physical Mac a selectable 60 Hz
 profile must sustain at least 58 Hz present, 55 Hz new frames, and an 18 ms p95
-render-submit time. Apple's paravirtualized/software OpenGL renderer uses only
-a relative bounded-completion contract. Its result is useful for shader,
-correctness, and regression diagnosis, but cannot certify fluid gameplay or
-choose an Apple Silicon profile.
+render-submit time. The hosted renderer uses only a bounded diagnostic contract.
+Its result is useful for shader, correctness, and regression diagnosis, but
+cannot certify fluid gameplay or choose an Apple Silicon profile.
 
 Online connectivity acceptance remains separate from loading performance. The
 loading benchmark intentionally does **not** enable the lightweight entity

@@ -684,6 +684,10 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("build/macos-performance-matrix", source)
         self.assertIn("macos/ci/online-loading-benchmark.sh", source)
         self.assertIn("--phase runtime-online-loading", source)
+        self.assertIn(
+            "always() && inputs.run_online_loading && steps.serverless-smoke.outcome == 'success'",
+            source,
+        )
         self.assertIn("--inactivity-timeout 360 --max-runtime 6000", source)
         self.assertIn("build/macos-online-loading", source)
         self.assertIn("macos/ci/stability-smoke.sh", source)

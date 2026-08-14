@@ -182,14 +182,21 @@ def atomic_write(path: Path, content: bytes) -> None:
 
 def write_junit(path: Path, result: dict[str, object]) -> None:
     groups = result.get("groups", [])
+    infrastructure_failures = result.get("failures", []) if not groups else []
     failures = sum(item["valid_count"] < result.get("minimum_runs", 1) for item in groups)
+    failures += len(infrastructure_failures)
     suite = ET.Element("testsuite", name="overte.macos.online-loading",
-                       tests=str(len(groups)), failures=str(failures))
+                       tests=str(len(groups) + len(infrastructure_failures)), failures=str(failures))
     for item in groups:
         case = ET.SubElement(suite, "testcase", classname="overte.macos.online-loading",
                              name=f"c{item['concurrency']}-{item['cache_mode']}")
         if item["valid_count"] < result.get("minimum_runs", 1):
             ET.SubElement(case, "failure", message="insufficient valid repetitions")
+    for index, message in enumerate(infrastructure_failures):
+        case = ET.SubElement(suite, "testcase", classname="overte.macos.online-loading",
+                             name=f"infrastructure-{index + 1}")
+        failure = ET.SubElement(case, "failure", message=str(message))
+        failure.text = str(message)
     atomic_write(path, ET.tostring(suite, encoding="utf-8", xml_declaration=True) + b"\n")
 
 
@@ -203,8 +210,9 @@ def main() -> int:
     if not 1 <= arguments.minimum_runs <= 20:
         parser.error("--minimum-runs is outside 1..20")
     try:
-        paths = sorted(arguments.benchmark_directory.glob("c*/pair-*/cold/macos-online-loading.json"))
-        paths += sorted(arguments.benchmark_directory.glob("c*/pair-*/warm/macos-online-loading.json"))
+        markers = sorted(arguments.benchmark_directory.glob("c*/pair-*/cold/online-loading-accepted"))
+        markers += sorted(arguments.benchmark_directory.glob("c*/pair-*/warm/online-loading-accepted"))
+        paths = [marker.with_name("macos-online-loading.json") for marker in markers]
         attempts = [load_attempt(path) for path in paths]
         if not attempts:
             raise LoadingError("no online-loading results found")

@@ -3,6 +3,7 @@
 
 from pathlib import Path
 import json
+import os
 import re
 import subprocess
 import sys
@@ -997,6 +998,9 @@ for profile_contract in (
     "validate-screenshot.py",
     "warmup",
     "run-$repeat",
+    "runner_class",
+    "diagnostic-lite",
+    "profile-accepted",
 ):
     if profile_contract not in profile_matrix:
         raise SystemExit(f"performance matrix runner missing: {profile_contract}")
@@ -1014,6 +1018,8 @@ for profile_contract in (
     "gpuTextureMemory",
     "rates_hz",
     "Test.startTracing()",
+    "measurement_complete",
+    "warmup_to_snapshot_ms",
 ):
     if profile_contract not in profile_script:
         raise SystemExit(f"performance profile script missing: {profile_contract}")
@@ -1028,6 +1034,7 @@ for loading_contract in (
     "--cache",
     "--concurrent-downloads",
     "analyze-online-loading.py",
+    "online-loading-accepted",
 ):
     if loading_contract not in online_loading_runner:
         raise SystemExit(f"online loading runner missing: {loading_contract}")
@@ -1647,6 +1654,16 @@ if "_engine->getScopeGuard()" in shutdown_wait:
 subprocess.run(
     [sys.executable, str(ROOT / "macos/tests/screenshot-validator-test.py")],
     cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [
+        "node",
+        str(ROOT / "macos/tests/profile-performance-script-test.js"),
+        str(ROOT / "macos/tests/profile-performance-smoke.js"),
+    ],
+    cwd=ROOT,
+    env={**os.environ, "OVERTE_TEST_FIXTURE_MODE": "diagnostic-lite"},
     check=True,
 )
 subprocess.run(

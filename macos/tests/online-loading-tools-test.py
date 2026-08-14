@@ -77,6 +77,7 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
             (directory / "macos-online-loading.json").write_text(
                 json.dumps(payload(mode, concurrency, 1, visible)), encoding="utf-8"
             )
+            (directory / "online-loading-accepted").write_text("accepted\n", encoding="utf-8")
             (directory / "online-loading.log").write_text(
                 "[12:00:00.000] start\n"
                 "[12:00:01.000] OVERTE_MACOS_ENTITY_GATE domain_list_connected\n"
@@ -105,6 +106,7 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     corrupt_dir = temporary / "corrupt" / "c10" / "pair-1" / "cold"
     corrupt_dir.mkdir(parents=True)
     (corrupt_dir / "macos-online-loading.json").write_text(json.dumps(corrupt), encoding="utf-8")
+    (corrupt_dir / "online-loading-accepted").write_text("accepted\n", encoding="utf-8")
     failed = subprocess.run(
         [sys.executable, str(ANALYZER), str(temporary / "corrupt"),
          "--result", str(temporary / "corrupt.json"), "--junit", str(temporary / "corrupt.xml"),
