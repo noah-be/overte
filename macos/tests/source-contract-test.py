@@ -646,6 +646,7 @@ for transition_contract in (
     'AddressManager.handleLookupString("hifi://overte_hub")',
     "AddressManager.handleLookupString(localScene)",
     "state.fixtureCount === 0",
+    'AddressManager.protocol === "file"',
     "initial_fixture_entities=3",
     "online_entities=",
     "returned_fixture_entities=3",
@@ -653,6 +654,22 @@ for transition_contract in (
 ):
     if transition_contract not in transition_script:
         raise SystemExit(f"macOS transition script missing: {transition_contract}")
+if "!AddressManager.isConnected" in transition_script:
+    raise SystemExit(
+        "serverless transition must remain connected and use its file protocol as the mode gate"
+    )
+returning_serverless_gate = transition_script.split(
+    'stage === "returning_serverless"', 1
+)[1].split(") {", 1)[0]
+for transition_contract in (
+    "AddressManager.isConnected",
+    'AddressManager.protocol === "file"',
+    "state.fixtureComplete",
+):
+    if transition_contract not in returning_serverless_gate:
+        raise SystemExit(
+            f"returning serverless gate missing: {transition_contract}"
+        )
 
 render_common = (ROOT / "libraries/render-utils/src/RenderCommonTask.cpp").read_text(
     encoding="utf-8"

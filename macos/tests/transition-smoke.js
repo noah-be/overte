@@ -89,7 +89,8 @@
             stage = "online_snapshot";
             Window.takeSnapshot(false, false, 16 / 9, "macos-transition-online.png");
         } else if (
-            stage === "returning_serverless" && !AddressManager.isConnected && state.fixtureComplete
+            stage === "returning_serverless" && AddressManager.isConnected &&
+            AddressManager.protocol === "file" && state.fixtureComplete
         ) {
             print("OVERTE_MACOS_TRANSITION returned_fixture_entities=3");
             stage = "final_snapshot";
