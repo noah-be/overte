@@ -171,6 +171,16 @@ def assert_private_cleanup(root: Path) -> None:
     assert list((root / "private-tmp").iterdir()) == [], list((root / "private-tmp").iterdir())
 
 
+def assert_identifier_private(result: subprocess.CompletedProcess[str]) -> None:
+    allowed_mask = f"::add-mask::{DEVICE_ID}"
+    leaks = [
+        line
+        for line in (result.stdout + result.stderr).splitlines()
+        if DEVICE_ID in line and line != allowed_mask
+    ]
+    assert not leaks, leaks
+
+
 with tempfile.TemporaryDirectory(prefix="overte-ipad-device-contract-") as temporary:
     root = Path(temporary)
     (root / "bin").mkdir()
@@ -185,7 +195,7 @@ with tempfile.TemporaryDirectory(prefix="overte-ipad-device-contract-") as tempo
     denied = run_executor(root, app, root / "denied-output", "INSTALL " + "0" * 64)
     assert denied.returncode == 2, (denied.stdout, denied.stderr)
     assert not (root / "xcrun-commands.jsonl").exists()
-    assert DEVICE_ID not in denied.stdout + denied.stderr
+    assert_identifier_private(denied)
 
     wrong = run_executor(root, app, root / "wrong-output", f"INSTALL {CANDIDATE_SHA}", "wrong")
     assert wrong.returncode == 1, (wrong.stdout, wrong.stderr)
@@ -196,7 +206,7 @@ with tempfile.TemporaryDirectory(prefix="overte-ipad-device-contract-") as tempo
         command[:4] == ["devicectl", "device", "process", "launch"] and "--help" not in command
         for command in wrong_commands
     )
-    assert DEVICE_ID not in wrong.stdout + wrong.stderr
+    assert_identifier_private(wrong)
     assert_private_cleanup(root)
 
     (root / "xcrun-commands.jsonl").unlink()
@@ -205,7 +215,7 @@ with tempfile.TemporaryDirectory(prefix="overte-ipad-device-contract-") as tempo
     )
     assert install_failure.returncode == 23, (install_failure.stdout, install_failure.stderr)
     assert "application installation failed" in install_failure.stderr
-    assert DEVICE_ID not in install_failure.stdout + install_failure.stderr
+    assert_identifier_private(install_failure)
     assert_private_cleanup(root)
 
     (root / "xcrun-commands.jsonl").unlink()
@@ -226,7 +236,7 @@ with tempfile.TemporaryDirectory(prefix="overte-ipad-device-contract-") as tempo
         assert DEVICE_ID.encode() not in contents
     public_payload = b"".join(path.read_bytes() for path in success_output.rglob("*") if path.is_file())
     assert DEVICE_ID.encode() not in public_payload
-    assert DEVICE_ID not in success.stdout + success.stderr
+    assert_identifier_private(success)
     assert b"must-not-survive" not in public_payload
     commands = [json.loads(line) for line in (root / "xcrun-commands.jsonl").read_text().splitlines()]
     launch = next(
@@ -246,7 +256,7 @@ with tempfile.TemporaryDirectory(prefix="overte-ipad-device-contract-") as tempo
     )
     assert timed_out.returncode == 124, (timed_out.stdout, timed_out.stderr)
     assert "timed out" in timed_out.stderr
-    assert DEVICE_ID not in timed_out.stdout + timed_out.stderr
+    assert_identifier_private(timed_out)
     assert not (timeout_output / "entity-evidence.zip").exists()
     assert_private_cleanup(root)
 
