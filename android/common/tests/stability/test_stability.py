@@ -20,6 +20,13 @@ SPEC.loader.exec_module(audit)
 
 
 class StabilityRunnerTest(unittest.TestCase):
+    def test_production_case_commands_are_absolute_executable_files(self):
+        for name, command in [*audit.BASE_CASES, audit.ROBOLECTRIC_CASE]:
+            executable = Path(command[0])
+            self.assertTrue(executable.is_absolute(), name)
+            self.assertTrue(executable.is_file(), name)
+            self.assertTrue(os.access(executable, os.X_OK), name)
+
     def test_exit_vs_kill_race_is_already_terminated(self):
         with mock.patch.object(audit.os, "killpg", side_effect=ProcessLookupError):
             self.assertFalse(audit.kill_process_group(12345, signal.SIGTERM))
