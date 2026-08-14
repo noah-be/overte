@@ -41,12 +41,14 @@ assert "iPhone-16-Pro" in WORKFLOW
 assert "simctl install" in WORKFLOW
 assert "Foundation" in WORKFLOW and "foundation_bundle_identifier" in WORKFLOW
 assert "foundation_raw_identifier" in WORKFLOW
-assert 'for variant in identified identified-xml' in WORKFLOW
-assert 'plutil -convert xml1 "$app/Info.plist"' in WORKFLOW
-assert 'codesign --force --deep --sign - --identifier "$BUNDLE_ID" --timestamp=none' in WORKFLOW
-assert 'grep -Fx "Identifier=$BUNDLE_ID"' in WORKFLOW
+assert 'codesign --force --deep --sign - --identifier "$identifier" --timestamp=none' in WORKFLOW
+for case in ("control", "metadata-control", "overte-minimal"):
+    assert case in WORKFLOW
+assert "xcrun clang" in WORKFLOW and "UIApplicationMain" in WORKFLOW
+assert "processed Overte metadata is not a valid install bundle" in WORKFLOW
+assert "Overte Mach-O prevents minimal bundle installation" in WORKFLOW
+assert "retained resources require isolation" in WORKFLOW
 assert "cmake --build" not in WORKFLOW and "build-ios.sh build" not in WORKFLOW
-assert "all bounded install variants failed" in WORKFLOW
 assert "retention-days: 14" in WORKFLOW
 assert RUN_TESTS.count("simulator-install-diagnostic-workflow-test.py") == 1
 

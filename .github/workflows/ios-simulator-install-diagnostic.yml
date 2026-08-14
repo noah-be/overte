@@ -155,28 +155,22 @@ jobs:
             echo unsigned > "$DIAGNOSTIC_ROOT/output/original-signing-state.txt"
           fi
 
-      - name: Test unchanged candidate outside macOS 26 CoreSimulator
+      - name: Compare working control, Overte metadata, and Overte executable
         id: install
         run: |
           set -euo pipefail
           original="$DIAGNOSTIC_ROOT/original/Overte.app"
-          success=0
-          successful_case=""
-          for specification in \
-            '26.3|17C529|26-2'; do
-            IFS='|' read -r xcode_version expected_build runtime_suffix <<< "$specification"
-            developer_dir="/Applications/Xcode_${xcode_version}.app/Contents/Developer"
-            if [[ ! -x "$developer_dir/usr/bin/xcodebuild" ]]; then
-              echo "SKIP Xcode $xcode_version is unavailable" \
-                | tee -a "$DIAGNOSTIC_ROOT/output/results.txt"
-              continue
-            fi
-            actual_build="$(DEVELOPER_DIR="$developer_dir" xcodebuild -version \
-              | awk '/Build version/{print $3}')"
-            [[ "$actual_build" == "$expected_build" ]]
-            runtime_json="$DIAGNOSTIC_ROOT/runtime-$xcode_version.json"
-            DEVELOPER_DIR="$developer_dir" xcrun simctl list runtimes --json > "$runtime_json"
-            runtime_id="$(python3 - "$runtime_json" "$runtime_suffix" <<'PY'
+          xcode_version=26.3
+          expected_build=17C529
+          runtime_suffix=26-2
+          developer_dir="/Applications/Xcode_${xcode_version}.app/Contents/Developer"
+          test -x "$developer_dir/usr/bin/xcodebuild"
+          actual_build="$(DEVELOPER_DIR="$developer_dir" xcodebuild -version \
+            | awk '/Build version/{print $3}')"
+          [[ "$actual_build" == "$expected_build" ]]
+          runtime_json="$DIAGNOSTIC_ROOT/runtime-$xcode_version.json"
+          DEVELOPER_DIR="$developer_dir" xcrun simctl list runtimes --json > "$runtime_json"
+          runtime_id="$(python3 - "$runtime_json" "$runtime_suffix" <<'PY'
           import json
           import sys
           runtimes = json.load(open(sys.argv[1], encoding="utf-8")).get("runtimes", [])
@@ -187,60 +181,116 @@ jobs:
               raise SystemExit(f"expected one available runtime ending {suffix}, got {matches}")
           print(matches[0])
           PY
-            )"
-            device_name="Overte install diagnostic $GITHUB_RUN_ID $xcode_version"
-            udid="$(DEVELOPER_DIR="$developer_dir" xcrun simctl create "$device_name" \
-              com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro "$runtime_id")"
-            [[ "$udid" =~ ^[0-9A-Fa-f-]{36}$ ]]
-            cleanup_device() {
-              DEVELOPER_DIR="$developer_dir" xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
-              DEVELOPER_DIR="$developer_dir" xcrun simctl delete "$udid" >/dev/null 2>&1 || true
-            }
-            trap cleanup_device EXIT
-            DEVELOPER_DIR="$developer_dir" xcrun simctl boot "$udid"
-            DEVELOPER_DIR="$developer_dir" xcrun simctl bootstatus "$udid" -b
+          )"
 
-            for variant in identified identified-xml; do
-              variant_root="$DIAGNOSTIC_ROOT/$xcode_version-$variant"
-              rm -rf "$variant_root"
-              mkdir -p "$variant_root"
-              ditto "$original" "$variant_root/Overte.app"
-              app="$variant_root/Overte.app"
-              xattr -cr "$app"
-              if [[ "$variant" == identified-xml ]]; then
-                plutil -convert xml1 "$app/Info.plist"
-              fi
-              codesign --force --deep --sign - --identifier "$BUNDLE_ID" --timestamp=none \
-                --generate-entitlement-der "$app" \
-                > "$DIAGNOSTIC_ROOT/output/$xcode_version-$variant-codesign.txt" 2>&1
-              codesign --verify --deep --strict --verbose=4 "$app" \
-                >> "$DIAGNOSTIC_ROOT/output/$xcode_version-$variant-codesign.txt" 2>&1
-              codesign -d --verbose=4 "$app" \
-                >> "$DIAGNOSTIC_ROOT/output/$xcode_version-$variant-codesign.txt" 2>&1
-              grep -Fx "Identifier=$BUNDLE_ID" \
-                "$DIAGNOSTIC_ROOT/output/$xcode_version-$variant-codesign.txt"
-              error_log="$DIAGNOSTIC_ROOT/output/$xcode_version-$variant-install.txt"
-              set +e
-              DEVELOPER_DIR="$developer_dir" xcrun simctl install "$udid" "$app" \
-                > "$error_log" 2>&1
-              status=$?
-              set -e
-              printf 'xcode=%s build=%s runtime=%s variant=%s status=%s\n' \
-                "$xcode_version" "$actual_build" "$runtime_id" "$variant" "$status" \
-                | tee -a "$DIAGNOSTIC_ROOT/output/results.txt"
-              if ((status == 0)); then
-                DEVELOPER_DIR="$developer_dir" xcrun simctl io "$udid" screenshot \
-                  "$DIAGNOSTIC_ROOT/output/$xcode_version-$variant-installed.png"
-                successful_case="$xcode_version-$variant"
-                success=1
-                break 2
-              fi
-            done
-            cleanup_device
-            trap - EXIT
-          done
-          echo "successful_case=$successful_case" >> "$GITHUB_OUTPUT"
-          ((success == 1)) || { echo "all bounded install variants failed" >&2; exit 1; }
+          control_root="$DIAGNOSTIC_ROOT/control"
+          control_app="$control_root/Control.app"
+          mkdir -p "$control_app"
+          cat > "$control_root/main.m" <<'OBJC'
+          #import <UIKit/UIKit.h>
+          int main(int argc, char *argv[]) {
+              @autoreleasepool { return UIApplicationMain(argc, argv, nil, nil); }
+          }
+          OBJC
+          sdk_path="$(DEVELOPER_DIR="$developer_dir" xcrun --sdk iphonesimulator --show-sdk-path)"
+          DEVELOPER_DIR="$developer_dir" xcrun clang -fobjc-arc \
+            -isysroot "$sdk_path" -mios-simulator-version-min=17.0 \
+            -framework UIKit "$control_root/main.m" -o "$control_app/Control"
+          cat > "$control_app/Info.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+          <key>CFBundleExecutable</key><string>Control</string>
+          <key>CFBundleIdentifier</key><string>org.overte.install-control</string>
+          <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+          <key>CFBundleName</key><string>Control</string>
+          <key>CFBundlePackageType</key><string>APPL</string>
+          <key>CFBundleShortVersionString</key><string>1.0</string>
+          <key>CFBundleVersion</key><string>1</string>
+          <key>CFBundleSupportedPlatforms</key><array><string>iPhoneSimulator</string></array>
+          <key>LSRequiresIPhoneOS</key><true/>
+          <key>MinimumOSVersion</key><string>17.0</string>
+          <key>UIDeviceFamily</key><array><integer>1</integer><integer>2</integer></array>
+          </dict></plist>
+          PLIST
+
+          metadata_root="$DIAGNOSTIC_ROOT/metadata-control"
+          metadata_app="$metadata_root/MetadataControl.app"
+          mkdir -p "$metadata_app"
+          ditto "$control_app/Control" "$metadata_app/Control"
+          ditto "$original/Info.plist" "$metadata_app/Info.plist"
+          ditto "$original/PkgInfo" "$metadata_app/PkgInfo"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleExecutable Control' "$metadata_app/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier org.overte.metadata-control' "$metadata_app/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleName MetadataControl' "$metadata_app/Info.plist"
+
+          minimal_root="$DIAGNOSTIC_ROOT/overte-minimal"
+          minimal_app="$minimal_root/Overte.app"
+          mkdir -p "$minimal_app"
+          ditto "$original/Overte" "$minimal_app/Overte"
+          ditto "$original/Info.plist" "$minimal_app/Info.plist"
+          ditto "$original/PkgInfo" "$minimal_app/PkgInfo"
+
+          sign_bundle() {
+            local label="$1" app="$2" identifier="$3"
+            xattr -cr "$app"
+            codesign --force --deep --sign - --identifier "$identifier" --timestamp=none \
+              --generate-entitlement-der "$app" \
+              > "$DIAGNOSTIC_ROOT/output/$label-codesign.txt" 2>&1
+            codesign --verify --deep --strict --verbose=4 "$app" \
+              >> "$DIAGNOSTIC_ROOT/output/$label-codesign.txt" 2>&1
+            codesign -d --verbose=4 "$app" \
+              >> "$DIAGNOSTIC_ROOT/output/$label-codesign.txt" 2>&1
+            grep -Fx "Identifier=$identifier" "$DIAGNOSTIC_ROOT/output/$label-codesign.txt"
+            swift "$DIAGNOSTIC_ROOT/bundle-check.swift" "$app" \
+              > "$DIAGNOSTIC_ROOT/output/$label-foundation.txt"
+          }
+          sign_bundle control "$control_app" org.overte.install-control
+          sign_bundle metadata-control "$metadata_app" org.overte.metadata-control
+          sign_bundle overte-minimal "$minimal_app" "$BUNDLE_ID"
+
+          device_name="Overte install diagnostic $GITHUB_RUN_ID $xcode_version"
+          udid="$(DEVELOPER_DIR="$developer_dir" xcrun simctl create "$device_name" \
+            com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro "$runtime_id")"
+          [[ "$udid" =~ ^[0-9A-Fa-f-]{36}$ ]]
+          cleanup_device() {
+            DEVELOPER_DIR="$developer_dir" xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
+            DEVELOPER_DIR="$developer_dir" xcrun simctl delete "$udid" >/dev/null 2>&1 || true
+          }
+          trap cleanup_device EXIT
+          DEVELOPER_DIR="$developer_dir" xcrun simctl boot "$udid"
+          DEVELOPER_DIR="$developer_dir" xcrun simctl bootstatus "$udid" -b
+
+          run_install() {
+            local label="$1" app="$2" identifier="$3" status
+            set +e
+            DEVELOPER_DIR="$developer_dir" xcrun simctl install "$udid" "$app" \
+              > "$DIAGNOSTIC_ROOT/output/$label-install.txt" 2>&1
+            status=$?
+            set -e
+            printf 'case=%s identifier=%s status=%s\n' "$label" "$identifier" "$status" \
+              | tee -a "$DIAGNOSTIC_ROOT/output/results.txt"
+            if ((status == 0)); then
+              DEVELOPER_DIR="$developer_dir" xcrun simctl io "$udid" screenshot \
+                "$DIAGNOSTIC_ROOT/output/$label-installed.png"
+              DEVELOPER_DIR="$developer_dir" xcrun simctl uninstall "$udid" "$identifier"
+            fi
+            return "$status"
+          }
+
+          control_status=0
+          run_install control "$control_app" org.overte.install-control || control_status=$?
+          metadata_status=0
+          run_install metadata-control "$metadata_app" org.overte.metadata-control || metadata_status=$?
+          minimal_status=0
+          run_install overte-minimal "$minimal_app" "$BUNDLE_ID" || minimal_status=$?
+          printf 'control_status=%s\nmetadata_status=%s\nminimal_status=%s\n' \
+            "$control_status" "$metadata_status" "$minimal_status" >> "$GITHUB_OUTPUT"
+          ((control_status == 0)) || { echo "minimal simulator control failed" >&2; exit 1; }
+          ((metadata_status == 0)) || { echo "processed Overte metadata is not a valid install bundle" >&2; exit 1; }
+          ((minimal_status == 0)) || { echo "Overte Mach-O prevents minimal bundle installation" >&2; exit 1; }
+          echo "minimal Overte bundle installs; retained resources require isolation" >&2
+          exit 1
 
       - name: Upload bounded installation diagnostics
         if: ${{ always() && !cancelled() }}
