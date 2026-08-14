@@ -20,6 +20,35 @@ on:
         required: true
         default: false
         type: boolean
+      profile_matrix_mode:
+        description: Compare macOS graphics quality profiles against a lit deterministic scene
+        required: true
+        default: 'off'
+        type: choice
+        options: ['off', 'quick', 'full']
+      profile_repeats:
+        description: Measured processes per graphics profile (warmup is additional)
+        required: true
+        default: '1'
+        type: choice
+        options: ['1', '3']
+      run_online_loading:
+        description: Compare cold and warm public-world loading without the lightweight entity filter
+        required: true
+        default: false
+        type: boolean
+      online_loading_repeats:
+        description: Cold/warm process pairs per download-concurrency value
+        required: true
+        default: '1'
+        type: choice
+        options: ['1', '3']
+      online_download_concurrencies:
+        description: Resource-request limits compared by the online loading benchmark
+        required: true
+        default: '10,16'
+        type: choice
+        options: ['10', '10,16']
       stability_iterations:
         description: Repeated local launch/render/quit cycles (0 disables the stability suite)
         required: true
@@ -53,7 +82,7 @@ jobs:
   runtime-x86_64:
     if: github.event_name == 'workflow_dispatch'
     runs-on: macos-15-intel
-    timeout-minutes: 95
+    timeout-minutes: 330
     env:
       OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '300'
     steps:
@@ -156,6 +185,42 @@ jobs:
             --watch performance=build/macos-performance -- \
             macos/ci/performance-smoke.sh "$app" build/macos-performance
 
+      - name: Run macOS graphics quality profile matrix
+        if: ${{ inputs.profile_matrix_mode != 'off' && steps.serverless-smoke.outcome == 'success' }}
+        timeout-minutes: 120
+        env:
+          OVERTE_MACOS_PROFILE_MATRIX_MODE: ${{ inputs.profile_matrix_mode }}
+          OVERTE_MACOS_PROFILE_REPEATS: ${{ inputs.profile_repeats }}
+        run: |
+          app="$(cat build/runtime-artifact/app-path.txt)"
+          python3 macos/ci/runner-telemetry.py \
+            --phase runtime-performance-matrix \
+            --log build/macos-runtime-telemetry/performance-matrix.jsonl \
+            --diagnostics-dir build/macos-runtime-telemetry/performance-matrix-stall \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 360 --max-runtime 7000 \
+            --watch performance-matrix=build/macos-performance-matrix -- \
+            macos/ci/performance-matrix.sh "$app" build/macos-performance-matrix
+
+      - name: Run macOS online world-loading benchmark
+        if: ${{ inputs.run_online_loading && steps.serverless-smoke.outcome == 'success' }}
+        timeout-minutes: 105
+        env:
+          OVERTE_MACOS_ONLINE_LOCATION: ${{ inputs.online_location }}
+          OVERTE_MACOS_ONLINE_LOCATION_LABEL: public-hub
+          OVERTE_MACOS_ONLINE_REPEATS: ${{ inputs.online_loading_repeats }}
+          OVERTE_MACOS_ONLINE_CONCURRENCIES: ${{ inputs.online_download_concurrencies }}
+        run: |
+          app="$(cat build/runtime-artifact/app-path.txt)"
+          python3 macos/ci/runner-telemetry.py \
+            --phase runtime-online-loading \
+            --log build/macos-runtime-telemetry/online-loading.jsonl \
+            --diagnostics-dir build/macos-runtime-telemetry/online-loading-stall \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 360 --max-runtime 6000 \
+            --watch online-loading=build/macos-online-loading -- \
+            macos/ci/online-loading-benchmark.sh "$app" build/macos-online-loading
+
       - name: Run repeated launch-render-quit stability suite
         if: ${{ inputs.stability_iterations != '0' && steps.serverless-smoke.outcome == 'success' }}
         env:
@@ -183,6 +248,8 @@ jobs:
             build/macos-online-smoke
             build/macos-transition
             build/macos-performance
+            build/macos-performance-matrix
+            build/macos-online-loading
             build/macos-stability
             build/macos-runtime-telemetry
           if-no-files-found: ignore

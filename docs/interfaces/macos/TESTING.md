@@ -75,6 +75,57 @@ OVERTE_MACOS_PERFORMANCE_MAXIMUM_P95_MS=33.33 \
   macos/ci/performance-smoke.sh build/interface/Overte.app build/macos-performance
 ```
 
+The single-profile smoke is only a fast regression signal. It deliberately
+uses unlit primitives and cannot choose a production quality profile. The
+profiling matrix exercises a deterministic local scene with 45 lit shapes, a
+shadow-casting directional light, two point lights, haze, bloom, PBR material,
+fixed LOD, and a moving camera:
+
+```bash
+OVERTE_MACOS_PROFILE_MATRIX_MODE=quick \
+OVERTE_MACOS_PROFILE_REPEATS=1 \
+  macos/ci/performance-matrix.sh build/interface/Overte.app \
+    build/macos-performance-matrix
+```
+
+Use `full` and three repeats for a profile decision. Every profile first gets
+a throwaway warm-up process; measured processes are then interleaved to reduce
+runner drift. The suite records raw render CPU samples, present/new-frame/drop
+distributions, GPU/batch/engine time, draw calls, triangles, rendered items,
+shadow work, texture/framebuffer memory, the exact requested and observed
+settings, platform data, screenshots, traces, process diagnostics, Median, and
+MAD. It compares Forward at 1/2/4 samples with balanced and maximum-quality
+Deferred configurations.
+
+Hardware classes never share results. On a physical Mac a selectable 60 Hz
+profile must sustain at least 58 Hz present, 55 Hz new frames, and an 18 ms p95
+render-submit time. Apple's paravirtualized/software OpenGL renderer uses only
+a relative bounded-completion contract. Its result is useful for shader,
+correctness, and regression diagnosis, but cannot certify fluid gameplay or
+choose an Apple Silicon profile.
+
+Online connectivity acceptance remains separate from loading performance. The
+loading benchmark intentionally does **not** enable the lightweight entity
+filter. It runs cold and immediately repeated warm processes against the same
+isolated resource cache and can compare the desktop default with 16 concurrent
+requests:
+
+```bash
+OVERTE_MACOS_ONLINE_CONCURRENCIES=10,16 \
+OVERTE_MACOS_ONLINE_REPEATS=1 \
+  macos/ci/online-loading-benchmark.sh build/interface/Overte.app \
+    build/macos-online-loading
+```
+
+It records time to the first entity, first visible entity, completed captured
+frame, five seconds of sustained zero download/processing/GPU-transfer queues,
+the complete bounded queue time series, and host log milestones. Each pair uses
+a new resource-cache directory for the cold process and reuses it for the warm
+process. The driver-dependent GL program-binary cache is not covered by
+`--cache`; this limitation is included in every aggregate. A mutable public
+world is informational and never an absolute merge gate. A controlled,
+versioned domain is required before adopting hard online-loading thresholds.
+
 Repeated clean launch, local-scene render, screenshot, and shutdown cycles are
 available with:
 
@@ -102,9 +153,10 @@ camera state leaking across modes, and mode-switch shutdown problems that
 independent launches cannot detect.
 
 The manually dispatched `macOS runtime smoke` workflow can run performance,
-three or five stability cycles, or the same-process transition against an
-existing matching application artifact. This avoids rebuilding the app for
-runtime-only test changes. A real
+the graphics profile matrix, cold/warm online loading, three or five stability
+cycles, or the same-process transition against an existing matching
+application artifact. This avoids rebuilding the app for runtime-only test
+changes. A real
 WindowServer/OpenGL context is required; Qt's offscreen platform is not a
 substitute for the 3D graphics gates.
 

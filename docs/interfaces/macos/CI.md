@@ -113,10 +113,15 @@ runtime gates, it also uploads:
 The separate `.github/workflows/macos-runtime.yml` workflow restores one
 explicit application artifact without rebuilding it. It always runs startup
 and serverless visual acceptance, optionally runs the public online world, and
-can additionally record deterministic frame timings or execute three/five
-launch-render-quit stability cycles. Performance and stability results include
-machine-readable JSON and JUnit XML. Frame-time thresholds are opt-in until a
-stable runner/GPU-specific baseline has been collected.
+can additionally record deterministic frame timings, compare five explicit
+graphics-quality profiles, compare cold/warm full-world loading at controlled
+download limits, or execute three/five launch-render-quit stability cycles.
+The expensive matrix inputs default to off and reuse the exact uploaded app;
+runtime-only test changes therefore need no rebuild. Results include raw
+samples, screenshots, traces, host telemetry, machine-readable aggregates, and
+JUnit XML. The graphics selector is hardware-keyed. Software-renderer results
+are diagnostic only, and public-world loading is informational until a
+versioned controlled domain exists.
 
 The application is retained for fourteen days and smoke diagnostics for seven
 days. The workflow does not verify a

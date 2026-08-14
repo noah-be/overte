@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "fixture_version": "lit-grid-v1",
+  "profiles": [
+    {
+      "id": "forward-compat",
+      "quality_score": 35,
+      "render_method": 1,
+      "shadows": false,
+      "haze": false,
+      "bloom": false,
+      "ambient_occlusion": false,
+      "local_lighting": true,
+      "procedural_materials": false,
+      "antialiasing": 0,
+      "viewport_scale": 1.0,
+      "forward_samples": 1
+    },
+    {
+      "id": "forward-balanced",
+      "quality_score": 60,
+      "render_method": 1,
+      "shadows": true,
+      "haze": true,
+      "bloom": true,
+      "ambient_occlusion": false,
+      "local_lighting": true,
+      "procedural_materials": true,
+      "antialiasing": 0,
+      "viewport_scale": 1.0,
+      "forward_samples": 2
+    },
+    {
+      "id": "forward-quality",
+      "quality_score": 75,
+      "render_method": 1,
+      "shadows": true,
+      "haze": true,
+      "bloom": true,
+      "ambient_occlusion": false,
+      "local_lighting": true,
+      "procedural_materials": true,
+      "antialiasing": 0,
+      "viewport_scale": 1.0,
+      "forward_samples": 4
+    },
+    {
+      "id": "deferred-balanced",
+      "quality_score": 85,
+      "render_method": 0,
+      "shadows": false,
+      "haze": true,
+      "bloom": true,
+      "ambient_occlusion": false,
+      "local_lighting": true,
+      "procedural_materials": true,
+      "antialiasing": 2,
+      "viewport_scale": 1.0,
+      "forward_samples": 1
+    },
+    {
+      "id": "deferred-quality",
+      "quality_score": 100,
+      "render_method": 0,
+      "shadows": true,
+      "haze": true,
+      "bloom": true,
+      "ambient_occlusion": true,
+      "local_lighting": true,
+      "procedural_materials": true,
+      "antialiasing": 1,
+      "viewport_scale": 1.0,
+      "forward_samples": 1
+    }
+  ],
+  "quick_order": ["forward-compat", "deferred-balanced"],
+  "full_order": [
+    "forward-compat",
+    "deferred-balanced",
+    "forward-balanced",
+    "deferred-quality",
+    "forward-quality"
+  ]
+}

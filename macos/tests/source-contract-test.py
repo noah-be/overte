@@ -2,6 +2,7 @@
 """Validate the macOS bootstrap's runtime evidence contract."""
 
 from pathlib import Path
+import json
 import re
 import subprocess
 import sys
@@ -973,6 +974,80 @@ if performance_script.index('stage = "settling"') > performance_script.index(
 ):
     raise SystemExit("performance warmup must settle after discovery before snapshot capture")
 
+profile_matrix = (ROOT / "macos/ci/performance-matrix.sh").read_text(encoding="utf-8")
+profile_script = (ROOT / "macos/tests/profile-performance-smoke.js").read_text(encoding="utf-8")
+profile_definitions = json.loads(
+    (ROOT / "macos/tests/performance-profiles.json").read_text(encoding="utf-8")
+)
+profile_ids = [profile["id"] for profile in profile_definitions["profiles"]]
+for required_profile in (
+    "forward-compat",
+    "forward-balanced",
+    "forward-quality",
+    "deferred-balanced",
+    "deferred-quality",
+):
+    if profile_ids.count(required_profile) != 1:
+        raise SystemExit(f"performance profile set must contain exactly one {required_profile}")
+for profile_contract in (
+    "OVERTE_MACOS_PROFILE_REPEATS",
+    "OVERTE_MACOS_PROFILE_MATRIX_MODE",
+    "render-performance-profile.py",
+    "analyze-performance-matrix.py",
+    "validate-screenshot.py",
+    "warmup",
+    "run-$repeat",
+):
+    if profile_contract not in profile_matrix:
+        raise SystemExit(f"performance matrix runner missing: {profile_contract}")
+for profile_contract in (
+    "stress_entities=",
+    "Performance.setRefreshRateProfile(2)",
+    "LODManager.automaticLODAdjust = false",
+    "Stats.forceUpdateStats()",
+    "Stats.expanded = true",
+    "gpuFrameTime",
+    "batchFrameTime",
+    "engineFrameTime",
+    "drawcalls",
+    "triangles",
+    "gpuTextureMemory",
+    "rates_hz",
+    "Test.startTracing()",
+):
+    if profile_contract not in profile_script:
+        raise SystemExit(f"performance profile script missing: {profile_contract}")
+
+online_loading_runner = (ROOT / "macos/ci/online-loading-benchmark.sh").read_text(encoding="utf-8")
+online_loading_script = (ROOT / "macos/tests/online-loading-benchmark.js").read_text(encoding="utf-8")
+for loading_contract in (
+    "OVERTE_MACOS_ONLINE_CONCURRENCIES",
+    "OVERTE_MACOS_ONLINE_REPEATS",
+    'run_case "$concurrency" "$pair" cold',
+    'run_case "$concurrency" "$pair" warm',
+    "--cache",
+    "--concurrent-downloads",
+    "analyze-online-loading.py",
+):
+    if loading_contract not in online_loading_runner:
+        raise SystemExit(f"online loading runner missing: {loading_contract}")
+if "--macosTestLightweightEntities" in online_loading_runner:
+    raise SystemExit("online loading benchmark must exercise full online entity content")
+for loading_contract in (
+    "Stats.downloads",
+    "Stats.downloadsPending",
+    "Stats.processing",
+    "Stats.processingPending",
+    "Stats.texturePendingTransfers",
+    "Test.isTextureLoadingComplete()",
+    "Stats.expanded = true",
+    "sustained_idle_ms",
+    "first_visible_ms",
+    "queue_samples",
+):
+    if loading_contract not in online_loading_script:
+        raise SystemExit(f"online loading script missing: {loading_contract}")
+
 frame_timings_header = (
     ROOT / "interface/src/FrameTimingsScriptingInterface.h"
 ).read_text(encoding="utf-8")
@@ -1580,6 +1655,16 @@ subprocess.run(
     check=True,
 )
 subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/performance-profile-tools-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/online-loading-tools-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
     [sys.executable, str(ROOT / "macos/tests/online-entity-validator-test.py")],
     cwd=ROOT,
     check=True,
@@ -1589,6 +1674,24 @@ subprocess.run(
         "node",
         str(ROOT / "macos/tests/performance-script-test.js"),
         str(ROOT / "macos/tests/performance-smoke.js"),
+    ],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [
+        "node",
+        str(ROOT / "macos/tests/profile-performance-script-test.js"),
+        str(ROOT / "macos/tests/profile-performance-smoke.js"),
+    ],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [
+        "node",
+        str(ROOT / "macos/tests/online-loading-script-test.js"),
+        str(ROOT / "macos/tests/online-loading-benchmark.js"),
     ],
     cwd=ROOT,
     check=True,
