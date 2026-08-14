@@ -640,10 +640,15 @@ int main(int argc, const char* argv[]) {
 
     // Early check for --traceFile argument
     auto tracer = DependencyManager::set<tracing::Tracer>();
-    const char* traceFile = nullptr;
+    const bool traceRequested = parser.isSet(traceFileOption);
+    QString traceFile;
     float traceDuration = 0.0f;
-    if (parser.isSet(traceFileOption)) {
-        traceFile = parser.value(traceFileOption).toStdString().c_str();
+    if (traceRequested) {
+        traceFile = parser.value(traceFileOption);
+        if (traceFile.isEmpty()) {
+            qWarning() << "\"--traceFile\" must name an output file...";
+            return 1;
+        }
         if (parser.isSet(traceDurationOption)) {
             traceDuration = parser.value(traceDurationOption).toFloat();
             tracer->startTracing();
@@ -878,9 +883,9 @@ int main(int argc, const char* argv[]) {
         exitCode = app.exec();
         server.close();
 
-        if (traceFile != nullptr) {
+        if (traceRequested) {
             tracer->stopTracing();
-            tracer->serialize(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + "/" + traceFile);
+            tracer->serialize(traceFile);
         }
     }
 

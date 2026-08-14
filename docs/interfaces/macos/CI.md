@@ -128,6 +128,17 @@ profiles are reserved for physical Macs. Software-renderer results are
 diagnostic only, and public-world loading is informational until a
 versioned controlled domain exists.
 
+Both profiling suites create a new immutable plan manifest plus an append-only
+attempt manifest and refuse non-empty output directories. Aggregators consume
+only paths named by those manifests, so stale files cannot satisfy repetition
+counts. A graphics decision additionally requires every planned profile, its
+warm-up, three accepted native-hardware runs, exact app/profile hashes, exact
+requested-versus-observed settings, consistent hardware/fixture identity, and
+the per-run 60 Hz contract. A one-run matrix is provisional; 30 Hz is reported
+only as a fallback. Online reports preserve partial metrics, timeout state, and
+crash counts from failed attempts but never select a concurrency from a mutable
+public world. A diagnostic software renderer runs only one cold/warm pair.
+
 The application is retained for fourteen days and smoke diagnostics for seven
 days. The workflow does not verify a
 distribution signature or notarization, so the application is a developer build

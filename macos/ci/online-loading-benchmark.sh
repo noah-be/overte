@@ -25,8 +25,26 @@ readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15
 }
 
 mkdir -p "$output_dir"
-rm -f "$output_dir/attempts.jsonl" "$output_dir/online-loading-result.json" \
-    "$output_dir/TEST-overte-macos-online-loading.xml"
+if [[ -n "$(find "$output_dir" -mindepth 1 -print -quit)" ]]; then
+    echo "refusing to mix an online-loading benchmark with existing evidence: $output_dir" >&2
+    exit 2
+fi
+system_profiler -json SPHardwareDataType SPDisplaysDataType > "$output_dir/hardware.json"
+sw_vers > "$output_dir/macos-version.txt"
+shasum -a 256 "$executable" > "$output_dir/application.sha256"
+
+runner_class="$(python3 - "$output_dir/hardware.json" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+text = json.dumps(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))).lower()
+tokens = ("software", "paravirtual", "virtual", "swiftshader", "llvmpipe", "softpipe", "offscreen")
+has_display = "spdisplays" in text or "sppci" in text or "chipset_model" in text
+print("diagnostic" if not has_display or any(token in text for token in tokens) else "hardware")
+PY
+)"
+readonly runner_class
 
 IFS=',' read -r -a concurrencies <<< "$concurrency_csv"
 (( ${#concurrencies[@]} > 0 )) || { echo "online concurrency list is empty" >&2; exit 2; }
@@ -36,6 +54,42 @@ for concurrency in "${concurrencies[@]}"; do
         exit 2
     }
 done
+requested_concurrencies=("${concurrencies[@]}")
+if [[ "$runner_class" == diagnostic ]]; then
+    # A virtual software renderer cannot produce a meaningful asset/render
+    # concurrency comparison and is prone to multi-minute driver compilation.
+    # Retain one full-content cold/warm pair as bounded diagnostic evidence.
+    concurrencies=("${concurrencies[0]}")
+fi
+
+translated="$(sysctl -in sysctl.proc_translated 2>/dev/null || printf '0')"
+python3 - "$output_dir/online-loading-manifest.json" "$runner_class" "$repeats" \
+    "$location_label" "$location" "$output_dir/application.sha256" "$(uname -m)" "$translated" \
+    "${concurrencies[*]}" "${requested_concurrencies[*]}" <<'PY'
+import hashlib
+import json
+import os
+from pathlib import Path
+import sys
+
+path, runner_class, repeats, label, location, app_sha_path, machine, translated, executed, requested = sys.argv[1:]
+payload = {
+    "schema_version": 1,
+    "runner_class": runner_class,
+    "repeats": int(repeats),
+    "location_label": label,
+    "location_sha256": hashlib.sha256(location.encode("utf-8")).hexdigest(),
+    "application_sha256": Path(app_sha_path).read_text(encoding="utf-8").split()[0],
+    "machine": machine,
+    "translated": translated == "1",
+    "executed_concurrencies": [int(value) for value in executed.split()],
+    "requested_concurrencies": [int(value) for value in requested.split()],
+    "public_world_informational": True,
+}
+target = Path(path)
+target.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
+os.chmod(target, 0o600)
+PY
 
 run_case() {
     local concurrency="$1"
@@ -51,6 +105,8 @@ run_case() {
     local snapshot="$run_dir/macos-online-loading.png"
     local screenshot_result="$run_dir/online-loading-screenshot.json"
     local status=0
+    local accepted=false
+    local metrics_present=false
     local -a app_command
 
     mkdir -p "$cache_dir" "$run_dir"
@@ -83,19 +139,28 @@ run_case() {
     fi
     if (( status == 0 )); then
         printf 'accepted\n' > "$run_dir/online-loading-accepted"
+        accepted=true
     fi
-    python3 - "$output_dir/attempts.jsonl" "$concurrency" "$pair" "$cache_mode" "$status" <<'PY'
+    [[ -s "$run_dir/macos-online-loading.json" ]] && metrics_present=true
+    python3 - "$output_dir/attempts.jsonl" "$concurrency" "$pair" "$cache_mode" "$status" \
+        "$accepted" "$metrics_present" "$run_dir" <<'PY'
 import json
+import os
 from pathlib import Path
 import sys
 
-with Path(sys.argv[1]).open("a", encoding="utf-8") as output:
+path = Path(sys.argv[1])
+with path.open("a", encoding="utf-8") as output:
     output.write(json.dumps({
         "concurrency": int(sys.argv[2]),
         "pair": int(sys.argv[3]),
         "cache_mode": sys.argv[4],
         "exit_code": int(sys.argv[5]),
+        "accepted": sys.argv[6] == "true",
+        "metrics_present": sys.argv[7] == "true",
+        "result_directory": str(Path(sys.argv[8]).relative_to(path.parent)),
     }, sort_keys=True) + "\n")
+os.chmod(path, 0o600)
 PY
     if (( status != 0 )); then
         echo "online loading case failed but suite continues: c$concurrency pair=$pair $cache_mode status=$status" >&2

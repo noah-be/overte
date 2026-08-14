@@ -13,14 +13,14 @@
 #include <SharedUtil.h>
 
 #include "EntityTreeRenderer.h"
+#include "EntitySchedulingPolicy.h"
 #include "RenderableModelEntityItem.h"
 #include "InterfaceLogging.h"
 #include "Application.h"
 
 
 CalculateEntityLoadingPriority SafeLanding::entityLoadingOperatorElevateCollidables = [](const EntityItem& entityItem) {
-    const int COLLIDABLE_ENTITY_PRIORITY = 10.0f;
-    return entityItem.getCollisionless() * COLLIDABLE_ENTITY_PRIORITY;
+    return EntitySchedulingPolicy::safeLandingLoadPriority(entityItem.getCollisionless());
 };
 
 namespace {

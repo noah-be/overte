@@ -92,6 +92,41 @@ if [shutdown.index(token) for token in shutdown_order] != sorted(
 entity_renderer = (ROOT / "libraries/entities-renderer/src/EntityTreeRenderer.cpp").read_text(
     encoding="utf-8"
 )
+entity_scheduling_policy = (
+    ROOT / "libraries/entities-renderer/src/EntitySchedulingPolicy.h"
+).read_text(encoding="utf-8")
+safe_landing_source = (ROOT / "interface/src/octree/SafeLanding.cpp").read_text(
+    encoding="utf-8"
+)
+for scheduling_contract in (
+    "safeLandingLoadPriority(bool collisionless)",
+    "collisionless ? 0.0f : COLLIDABLE_ENTITY_LOAD_PRIORITY",
+    "MAX_UNBUDGETED_RENDERABLE_UPDATES { 16 }",
+    "pendingCount <= MAX_UNBUDGETED_RENDERABLE_UPDATES",
+    "expectedCostUsec < static_cast<float>(budgetUsec)",
+):
+    if scheduling_contract not in entity_scheduling_policy:
+        raise SystemExit(f"entity scheduling policy missing: {scheduling_contract}")
+if "EntitySchedulingPolicy::safeLandingLoadPriority(entityItem.getCollisionless())" not in safe_landing_source:
+    raise SystemExit("Safe Landing must use the tested collidable-first loading policy")
+if "entityItem.getCollisionless() *" in safe_landing_source:
+    raise SystemExit("Safe Landing must not invert collidable loading priority")
+if "EntitySchedulingPolicy::shouldUseUnbudgetedRenderableUpdate(" not in entity_renderer:
+    raise SystemExit("all platforms must use the tested renderable update budget policy")
+if "const bool smallEnoughForUnbudgetedUpdate = true" in entity_renderer:
+    raise SystemExit("desktop renderable batches must not bypass the update-count bound")
+scheduling_test = (
+    ROOT / "tests/entities-renderer/src/EntitySchedulingPolicyTests.cpp"
+).read_text(encoding="utf-8")
+for boundary_contract in (
+    "safeLandingLoadPriority(false)",
+    "safeLandingLoadPriority(true)",
+    "shouldUseUnbudgetedRenderableUpdate(1999.0f, 16, 2000)",
+    "shouldUseUnbudgetedRenderableUpdate(0.0f, 17, 2000)",
+    "shouldUseUnbudgetedRenderableUpdate(2000.0f, 1, 2000)",
+):
+    if boundary_contract not in scheduling_test:
+        raise SystemExit(f"entity scheduling boundary test missing: {boundary_contract}")
 entity_shutdown = entity_renderer.split("void EntityTreeRenderer::clear()", 1)[1].split(
     "void EntityTreeRenderer::reloadEntityScripts()", 1
 )[0]
@@ -464,6 +499,23 @@ if not re.search(
     raise SystemExit("settings init must support explicit deferral and legacy application startup")
 
 main_source = (ROOT / "interface/src/main.cpp").read_text(encoding="utf-8")
+trace_block = main_source.split("// Early check for --traceFile argument", 1)[1].split(
+    "PROFILE_SYNC_BEGIN", 1
+)[0]
+trace_shutdown = main_source.split("exitCode = app.exec();", 1)[1].split(
+    "Application::shutdownPlugins();", 1
+)[0]
+if "const char* traceFile" in trace_block or ".toStdString().c_str()" in trace_block:
+    raise SystemExit("trace output path must own its storage across the application lifetime")
+for trace_contract in (
+    "const bool traceRequested = parser.isSet(traceFileOption)",
+    "QString traceFile",
+    "traceFile = parser.value(traceFileOption)",
+):
+    if trace_contract not in trace_block:
+        raise SystemExit(f"trace output lifetime contract missing: {trace_contract}")
+if "if (traceRequested)" not in trace_shutdown or "tracer->serialize(traceFile)" not in trace_shutdown:
+    raise SystemExit("trace output must serialize the owning QString after app execution")
 application_setup_source = (ROOT / "interface/src/Application_Setup.cpp").read_text(
     encoding="utf-8"
 )
@@ -1001,6 +1053,11 @@ for profile_contract in (
     "runner_class",
     "diagnostic-lite",
     "profile-accepted",
+    "matrix-manifest.json",
+    "attempts.jsonl",
+    "refusing to upgrade diagnostic graphics evidence to hardware",
+    "refusing to mix a performance matrix with existing evidence",
+    '--profiles "$profiles_file"',
 ):
     if profile_contract not in profile_matrix:
         raise SystemExit(f"performance matrix runner missing: {profile_contract}")
@@ -1020,6 +1077,13 @@ for profile_contract in (
     "Test.startTracing()",
     "measurement_complete",
     "warmup_to_snapshot_ms",
+    "LODManager.presentTime",
+    "LODManager.engineRunTime",
+    "LODManager.batchTime",
+    "LODManager.gpuTime",
+    "lod_timings_ms",
+    "polled_latest_and_moving_averages",
+    "invalid_count",
 ):
     if profile_contract not in profile_script:
         raise SystemExit(f"performance profile script missing: {profile_contract}")
@@ -1035,6 +1099,12 @@ for loading_contract in (
     "--concurrent-downloads",
     "analyze-online-loading.py",
     "online-loading-accepted",
+    "online-loading-manifest.json",
+    "attempts.jsonl",
+    "metrics_present",
+    "result_directory",
+    "refusing to mix an online-loading benchmark with existing evidence",
+    'concurrencies=("${concurrencies[0]}")',
 ):
     if loading_contract not in online_loading_runner:
         raise SystemExit(f"online loading runner missing: {loading_contract}")
@@ -1073,6 +1143,8 @@ if frame_timings_source.count("QMutexLocker locker(&_mutex)") < 7:
     raise SystemExit("all frame timing sample and result access must be synchronized")
 if "if (_values.empty())" not in frame_timings_source:
     raise SystemExit("empty frame timing measurements must produce finite zero results")
+if "TextureCache" in frame_timings_source or "setUnusedResourceCacheSize" in frame_timings_source:
+    raise SystemExit("frame timing collection must not mutate global resource-cache policy")
 
 stability_smoke = (ROOT / "macos/ci/stability-smoke.sh").read_text(encoding="utf-8")
 for stability_contract in (

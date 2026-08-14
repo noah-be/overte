@@ -13,11 +13,7 @@
 
 #include <QtCore/QMutexLocker>
 
-#include <TextureCache.h>
-
 void FrameTimingsScriptingInterface::start() {
-    DependencyManager::get<TextureCache>()->setUnusedResourceCacheSize(0);
-
     QMutexLocker locker(&_mutex);
     _values.clear();
     _values.reserve(8192);

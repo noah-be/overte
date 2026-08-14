@@ -88,7 +88,9 @@ OVERTE_MACOS_PROFILE_REPEATS=1 \
     build/macos-performance-matrix
 ```
 
-Use `full` and three repeats for a profile decision on a physical Mac. Every
+Use `full` and three repeats for a profile decision on a physical Mac. A quick
+matrix or a one-run matrix can only report a provisional profile and never a
+production selection. Every
 hardware profile first gets a throwaway warm-up process; measured processes are
 then interleaved and their order is reversed on alternating repetitions to
 reduce runner drift. The suite records raw render CPU samples, present/new-frame/drop
@@ -102,13 +104,27 @@ Hardware classes never share results. The hosted paravirtualized/software-GL
 runner is detected automatically and executes only a bounded `forward-compat`
 diagnostic with 13 unlit local stress entities. This avoids presenting several
 minutes of Apple software-driver shader compilation as gameplay performance;
-the full lit/effect matrix is retained for physical hardware. Only a
-shell-validated run gets a `profile-accepted` marker, and the aggregator rejects
-incomplete or unaccepted measurements. On a physical Mac a selectable 60 Hz
-profile must sustain at least 58 Hz present, 55 Hz new frames, and an 18 ms p95
-render-submit time. The hosted renderer uses only a bounded diagnostic contract.
+the full lit/effect matrix is retained for physical hardware. Every invocation
+is listed in an immutable attempt manifest. Only a shell-validated run gets a
+`profile-accepted` marker, and the aggregator rejects missing, duplicate,
+incomplete, unaccepted, or stale measurements. A failed throwaway
+shader/resource warm-up also invalidates the decision. On a physical Mac every
+one of the three runs of a selectable 60 Hz profile must sustain a present-rate
+p10/p50 of at least 55/58 Hz, a new-frame-rate p10/p50 of at least 50/55 Hz,
+dropped-frame p95 no greater than 0.5 Hz, render-submit p95/p99 no greater than
+18/25 ms, and at most 0.5 percent of render-submit samples above 33.33 ms. A
+separately reported 30 Hz fallback is never promoted to the selected 60 Hz
+gameplay profile. The hosted renderer uses only a bounded diagnostic contract.
 Its result is useful for shader, correctness, and regression diagnosis, but
 cannot certify fluid gameplay or choose an Apple Silicon profile.
+
+Run [`31834975878`](https://github.com/noah-be/overte/actions/runs/31834975878)
+established the first diagnostic baseline. Its Forward case completed with a
+valid 1380x776 image and a 9.658 ms render-submit p95, but the actual
+present/new-frame rate was only about 0.64 Hz and Apple software-GL GPU/batch
+time was roughly 1.34 seconds at the median. This demonstrates why CPU-submit
+timings alone are not a gameplay result and why hosted software-renderer data is
+kept diagnostic-only.
 
 Online connectivity acceptance remains separate from loading performance. The
 loading benchmark intentionally does **not** enable the lightweight entity
@@ -128,9 +144,24 @@ frame, five seconds of sustained zero download/processing/GPU-transfer queues,
 the complete bounded queue time series, and host log milestones. Each pair uses
 a new resource-cache directory for the cold process and reuses it for the warm
 process. The driver-dependent GL program-binary cache is not covered by
-`--cache`; this limitation is included in every aggregate. A mutable public
-world is informational and never an absolute merge gate. A controlled,
-versioned domain is required before adopting hard online-loading thresholds.
+`--cache`; this limitation is included in every aggregate. Every planned
+cold/warm attempt is manifest-driven, and partial metrics from crashes or
+timeouts are retained instead of disappearing from the report. Stale result
+directories are ignored. On the hosted software renderer the suite deliberately
+runs only the first requested concurrency, because two driver-pathological runs
+cannot produce a meaningful download-concurrency comparison. A mutable public
+world is informational and never selects or changes the application default. A
+controlled, versioned domain plus at least three complete native-hardware
+repetitions is required before adopting hard online-loading thresholds.
+
+In baseline run `31834975878`, cold c10/c16 reached first visible entities in
+6.938/8.758 seconds but then crashed inside Apple's software OpenGL fragment
+transform. Warm c10/c16 reached first visible entities in 66.942/15.281 seconds
+but timed out while the presentation thread was actively compiling or executing
+Apple software-renderer draw work. Public-server reconnects and different entity
+counts made the two concurrency settings non-comparable, so the default remains
+unchanged. These partial milestones and the native samples remain useful
+bottleneck evidence even though no concurrency decision is permitted.
 
 Repeated clean launch, local-scene render, screenshot, and shutdown cycles are
 available with:

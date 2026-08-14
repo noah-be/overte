@@ -13,6 +13,8 @@
 
 #include "EntityTreeRenderer.h"
 
+#include "EntitySchedulingPolicy.h"
+
 #include <glm/gtx/quaternion.hpp>
 #include <array>
 #include <queue>
@@ -693,15 +695,12 @@ void EntityTreeRenderer::updateChangedEntities(const render::ScenePointer& scene
     const uint64_t updateRenderableTimeBudget = picoRenderableBudget;
     const uint64_t minSortedUpdateRenderableTimeBudget =
         std::min<uint64_t>(MIN_SORTED_UPDATE_RENDERABLES_TIME_BUDGET, updateRenderableTimeBudget);
-    constexpr size_t MAX_UNBUDGETED_RENDERABLE_UPDATES { 16 };
-    const bool smallEnoughForUnbudgetedUpdate =
-        _renderablesToUpdate.size() <= MAX_UNBUDGETED_RENDERABLE_UPDATES;
 #else
     constexpr uint64_t updateRenderableTimeBudget = MAX_UPDATE_RENDERABLES_TIME_BUDGET;
     constexpr uint64_t minSortedUpdateRenderableTimeBudget = MIN_SORTED_UPDATE_RENDERABLES_TIME_BUDGET;
-    const bool smallEnoughForUnbudgetedUpdate = true;
 #endif
-    if (expectedUpdateCost < updateRenderableTimeBudget && smallEnoughForUnbudgetedUpdate) {
+    if (EntitySchedulingPolicy::shouldUseUnbudgetedRenderableUpdate(
+            expectedUpdateCost, _renderablesToUpdate.size(), updateRenderableTimeBudget)) {
         // we expect to update all renderables within available time budget
         PROFILE_RANGE_EX(simulation_physics, "UpdateRenderables", 0xffff00ff, (uint64_t)_renderablesToUpdate.size());
         uint64_t updateStart = usecTimestampNow();

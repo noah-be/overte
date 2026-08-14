@@ -30,6 +30,7 @@
     var nextProgressAt = 0;
     var rateSamples = [];
     var statsSamples = [];
+    var lodTimingSamples = [];
     var tracing = false;
 
     function finiteNumber(value) {
@@ -57,6 +58,23 @@
             p95: percentile(sorted, 0.95),
             max: finite.length ? sorted[sorted.length - 1] : 0
         };
+    }
+
+    function optionalNonnegativeNumber(value) {
+        value = Number(value);
+        return isFinite(value) && value >= 0 ? value : null;
+    }
+
+    function summarizeOptionalSamples(rows, name) {
+        var values = rows.map(function (row) { return row[name]; }).filter(function (value) {
+            return value !== null;
+        });
+        var summary = summarize(values);
+        summary.available = values.length > 0;
+        summary.invalid_count = rows.length - values.length;
+        summary.zero_count = values.filter(function (value) { return value === 0; }).length;
+        summary.positive_count = values.filter(function (value) { return value > 0; }).length;
+        return summary;
     }
 
     function safePlatformJSON(method, fallback) {
@@ -245,6 +263,14 @@
             "gpuTextureFramebufferMemory", "texturePendingTransfers"].forEach(function (name) {
             stats[name] = summarize(statsSamples.map(function (sample) { return sample[name]; }));
         });
+        var lodTimings = {
+            sampling_interval_ms: 250,
+            semantics: "polled_latest_and_moving_averages",
+            raw_samples: lodTimingSamples
+        };
+        ["present_ms", "engine_ms", "batch_ms", "gpu_ms"].forEach(function (name) {
+            lodTimings[name] = summarizeOptionalSamples(lodTimingSamples, name);
+        });
         var metrics = {
             schema_version: 2,
             platform: "macos",
@@ -292,7 +318,8 @@
             over_16_67_ms: samples.filter(function (value) { return value > 16667; }).length,
             over_33_33_ms: samples.filter(function (value) { return value > 33333; }).length,
             rates_hz: rates,
-            stats: stats
+            stats: stats,
+            lod_timings_ms: lodTimings
         };
         Test.saveObject(metrics, "macos-profile.json");
         finish(metrics.measurement_complete, "samples=" + samples.length);
@@ -376,6 +403,13 @@
                 gpuTextureResidentMemory: finiteNumber(Stats.gpuTextureResidentMemory),
                 gpuTextureFramebufferMemory: finiteNumber(Stats.gpuTextureFramebufferMemory),
                 texturePendingTransfers: finiteNumber(Stats.texturePendingTransfers)
+            });
+            lodTimingSamples.push({
+                elapsed_ms: elapsedMs,
+                present_ms: optionalNonnegativeNumber(LODManager.presentTime),
+                engine_ms: optionalNonnegativeNumber(LODManager.engineRunTime),
+                batch_ms: optionalNonnegativeNumber(LODManager.batchTime),
+                gpu_ms: optionalNonnegativeNumber(LODManager.gpuTime)
             });
             if (elapsedMs >= nextProgressAt) {
                 var sampleCount = FrameTimings.getValues().length;

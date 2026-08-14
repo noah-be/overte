@@ -26,32 +26,42 @@ readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15
 }
 
 mkdir -p "$output_dir"
-rm -f "$output_dir/matrix-result.json" "$output_dir/TEST-overte-macos-performance-matrix.xml"
+if [[ -n "$(find "$output_dir" -mindepth 1 -print -quit)" ]]; then
+    echo "refusing to mix a performance matrix with existing evidence: $output_dir" >&2
+    exit 2
+fi
 system_profiler -json SPHardwareDataType SPDisplaysDataType > "$output_dir/hardware.json"
 sw_vers > "$output_dir/macos-version.txt"
 uname -a > "$output_dir/kernel.txt"
 shasum -a 256 "$executable" > "$output_dir/application.sha256"
 
-runner_class="${OVERTE_MACOS_PROFILE_RUNNER_CLASS:-auto}"
-if [[ "$runner_class" == auto ]]; then
-    runner_class="$(python3 - "$output_dir/hardware.json" <<'PY'
+detected_runner_class="$(python3 - "$output_dir/hardware.json" "$(uname -m)" <<'PY'
 import json
 from pathlib import Path
 import sys
 
 text = json.dumps(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))).lower()
-tokens = ("paravirtual", "software renderer")
-print("diagnostic" if any(token in text for token in tokens) else "hardware")
+tokens = ("software", "paravirtual", "virtual", "swiftshader", "llvmpipe", "softpipe", "offscreen")
+has_display = "spdisplays" in text or "sppci" in text or "chipset_model" in text
+print("diagnostic" if not has_display or any(token in text for token in tokens) else "hardware")
 PY
 )"
-fi
+runner_class="${OVERTE_MACOS_PROFILE_RUNNER_CLASS:-auto}"
 [[ "$runner_class" == diagnostic || "$runner_class" == hardware ]] || {
-    echo "profile runner class must be auto, diagnostic, or hardware" >&2
-    exit 2
+    [[ "$runner_class" == auto ]] || {
+        echo "profile runner class must be auto, diagnostic, or hardware" >&2
+        exit 2
+    }
 }
+if [[ "$runner_class" == hardware && "$detected_runner_class" != hardware ]]; then
+    echo "refusing to upgrade diagnostic graphics evidence to hardware" >&2
+    exit 2
+fi
+[[ "$runner_class" == auto ]] && runner_class="$detected_runner_class"
 readonly runner_class
 readonly fixture_mode="$([[ "$runner_class" == diagnostic ]] && printf diagnostic-lite || printf full)"
-printf '{"fixture_mode":"%s","runner_class":"%s"}\n' "$fixture_mode" "$runner_class" > \
+printf '{"detected_runner_class":"%s","fixture_mode":"%s","runner_class":"%s"}\n' \
+    "$detected_runner_class" "$fixture_mode" "$runner_class" > \
     "$output_dir/runner-class.json"
 
 profiles=()
@@ -70,6 +80,36 @@ PY
 )
 (( ${#profiles[@]} > 0 )) || { echo "profile order is empty" >&2; exit 2; }
 
+translated="$(sysctl -in sysctl.proc_translated 2>/dev/null || printf '0')"
+python3 - "$output_dir/matrix-manifest.json" "$mode" "$runner_class" "$fixture_mode" \
+    "$repeats" "$output_dir/application.sha256" "$profiles_file" "$(uname -m)" "$translated" \
+    "${profiles[@]}" <<'PY'
+import hashlib
+import json
+import os
+from pathlib import Path
+import sys
+
+path, mode, runner_class, fixture_mode, repeats, app_sha_path, profiles_path, machine, translated, *profiles = sys.argv[1:]
+app_sha = Path(app_sha_path).read_text(encoding="utf-8").split()[0]
+catalog = Path(profiles_path).read_bytes()
+payload = {
+    "schema_version": 1,
+    "mode": mode,
+    "runner_class": runner_class,
+    "fixture_mode": fixture_mode,
+    "repeats": int(repeats),
+    "expected_profiles": profiles,
+    "application_sha256": app_sha,
+    "profiles_sha256": hashlib.sha256(catalog).hexdigest(),
+    "machine": machine,
+    "translated": translated == "1",
+}
+target = Path(path)
+target.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
+os.chmod(target, 0o600)
+PY
+
 run_case() {
     local profile="$1"
     local label="$2"
@@ -84,6 +124,7 @@ run_case() {
     local snapshot="$run_dir/macos-profile.png"
     local screenshot_result="$run_dir/profile-screenshot.json"
     local status=0
+    local accepted=false
 
     mkdir -p "$run_dir" "$output_dir/cache/$profile"
     rm -f "$snapshot" "$screenshot_result" "$run_dir/macos-profile.json" \
@@ -120,9 +161,12 @@ run_case() {
     fi
     if (( status == 0 )); then
         printf 'accepted\n' > "$run_dir/profile-accepted"
+        accepted=true
     fi
-    python3 - "$output_dir/attempts.jsonl" "$profile" "$label" "$run_index" "$status" <<'PY'
+    python3 - "$output_dir/attempts.jsonl" "$profile" "$label" "$run_index" "$status" \
+        "$accepted" "$run_dir" <<'PY'
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -133,7 +177,10 @@ with path.open("a", encoding="utf-8") as output:
         "label": sys.argv[3],
         "run_index": int(sys.argv[4]),
         "exit_code": int(sys.argv[5]),
+        "accepted": sys.argv[6] == "true",
+        "result_directory": str(Path(sys.argv[7]).relative_to(path.parent)),
     }, sort_keys=True) + "\n")
+os.chmod(path, 0o600)
 PY
     if (( status != 0 )); then
         echo "profile case failed but matrix continues: $profile/$label status=$status" >&2
@@ -163,6 +210,7 @@ for (( repeat = 1; repeat <= repeats; repeat += 1 )); do
 done
 
 python3 "$source_root/macos/tools/analyze-performance-matrix.py" "$output_dir" \
+    --profiles "$profiles_file" \
     --result "$output_dir/matrix-result.json" \
     --junit "$output_dir/TEST-overte-macos-performance-matrix.xml" \
     --minimum-runs "$repeats"

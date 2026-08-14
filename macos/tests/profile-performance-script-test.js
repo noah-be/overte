@@ -67,6 +67,12 @@ const performance = {
     refreshRateProfile: -1,
     setRefreshRateProfile(value) { this.refreshRateProfile = value; }
 };
+const lodManager = {
+    presentTime: 14,
+    engineRunTime: 8,
+    batchTime: 7,
+    gpuTime: NaN
+};
 const context = {
     OVERTE_MACOS_PERFORMANCE_CASE: {
         fixture_version: "lit-grid-v1",
@@ -92,7 +98,7 @@ const context = {
     Render: { getConfig() { return forwardConfig; } },
     Scene: {},
     Performance: performance,
-    LODManager: {},
+    LODManager: lodManager,
     Stats: stats,
     FrameTimings: frameTimings,
     Test: {
@@ -141,7 +147,20 @@ assert.strictEqual(windowObject.snapshotName, "macos-profile.png");
 windowObject.snapshotHandler("/tmp/macos-profile.png");
 assert.strictEqual(frameTimings.active, true);
 frameTimings.values = Array(Math.max(120, minimumSamples)).fill(9000);
-clock.now += 30000;
+const measurementSteps = fixtureMode === "diagnostic-lite" ? [5000, 5000, 10000] : [10000, 10000, 10000];
+clock.now += measurementSteps[0];
+script.interval();
+lodManager.presentTime = 15;
+lodManager.engineRunTime = 9;
+lodManager.batchTime = 8;
+lodManager.gpuTime = 0;
+clock.now += measurementSteps[1];
+script.interval();
+lodManager.presentTime = 16;
+lodManager.engineRunTime = 10;
+lodManager.batchTime = 9;
+lodManager.gpuTime = 7;
+clock.now += measurementSteps[2];
 script.interval();
 
 assert.strictEqual(script.stopped, true);
@@ -154,6 +173,17 @@ assert.strictEqual(saved[0].value.profile_id, "forward-compat");
 assert.strictEqual(saved[0].value.stress_entities, expectedStressEntities);
 assert.strictEqual(saved[0].value.rates_hz.present.p50, 59);
 assert.strictEqual(saved[0].value.stats.drawcalls.p50, 120);
+assert.strictEqual(saved[0].value.lod_timings_ms.raw_samples.length, 3);
+assert.strictEqual(saved[0].value.lod_timings_ms.present_ms.min, 14);
+assert.strictEqual(saved[0].value.lod_timings_ms.present_ms.p50, 15);
+assert.strictEqual(saved[0].value.lod_timings_ms.present_ms.max, 16);
+assert.strictEqual(saved[0].value.lod_timings_ms.gpu_ms.invalid_count, 1);
+assert.strictEqual(saved[0].value.lod_timings_ms.gpu_ms.zero_count, 1);
+assert.strictEqual(saved[0].value.lod_timings_ms.gpu_ms.positive_count, 1);
+assert.strictEqual(saved[0].value.lod_timings_ms.gpu_ms.raw_samples, undefined);
+assert.strictEqual(saved[0].value.lod_timings_ms.raw_samples[0].gpu_ms, null);
+assert.strictEqual(saved[0].value.lod_timings_ms.raw_samples[1].gpu_ms, 0);
+assert.strictEqual(saved[0].value.lod_timings_ms.raw_samples[2].gpu_ms, 7);
 assert.strictEqual(deleted.length, expectedStressEntities);
 assert(output.some((line) => line.includes("OVERTE_MACOS_PROFILE passed id=forward-compat")));
 
