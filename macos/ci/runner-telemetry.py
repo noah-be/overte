@@ -38,6 +38,8 @@ BUILD_HEARTBEAT_TEXT = re.compile(
     rb"inactive=[0-9]+(?:\.[0-9]+)?s$"
 )
 MAX_PENDING_OUTPUT_LINE = 65536
+CPU_PROGRESS_MIN_SECONDS = 0.01
+CPU_PROGRESS_MIN_PERCENT = 1.0
 
 
 def _command(arguments: list[str]) -> str:
@@ -204,6 +206,33 @@ def _process_scope(rows: list[dict[str, Any]], root: int) -> list[dict[str, Any]
                 selected.add(pid)
                 changed = True
     return [row for row in rows if int(row["pid"]) in selected]
+
+
+def _cpu_progress(
+    rows: list[dict[str, Any]],
+    previous: dict[int, float],
+    window_seconds: float,
+) -> tuple[dict[int, float], bool, float]:
+    """Separate measurable work from polling overhead in nested supervisors."""
+    current = {int(row["pid"]): float(row["cpu"]) for row in rows}
+    cpu_delta = 0.0
+    for row in rows:
+        pid = int(row["pid"])
+        value = float(row["cpu"])
+        prior = previous.get(pid)
+        if prior is not None:
+            cpu_delta += max(0.0, value - prior)
+        elif float(row.get("cpu_pct", 0.0)) >= CPU_PROGRESS_MIN_PERCENT:
+            # A compiler may be born and accumulate work entirely between two
+            # samples. Count it once when ps also reports meaningful activity.
+            cpu_delta += min(value, max(window_seconds, CPU_PROGRESS_MIN_SECONDS))
+    window = max(window_seconds, 0.001)
+    activity_pct = cpu_delta * 100.0 / window
+    threshold = max(
+        CPU_PROGRESS_MIN_SECONDS,
+        window * CPU_PROGRESS_MIN_PERCENT / 100.0,
+    )
+    return current, cpu_delta >= threshold, activity_pct
 
 
 def _sanitize_diagnostic(text: str) -> str:
@@ -689,6 +718,7 @@ def supervise(command: list[str], collector: Collector, emit: Callable[..., None
     next_directory = started
     last_progress = started
     last_cpu: dict[int, float] = {}
+    last_cpu_sample_at = started
     last_liveness_output_bytes = 0
     last_sizes: dict[str, float] = {}
     latest_sizes: dict[str, float] = {}
@@ -791,23 +821,17 @@ def supervise(command: list[str], collector: Collector, emit: Callable[..., None
                     if not rows and process.poll() is None:
                         raise RuntimeError("empty process scope")
                     latest_rows = rows
-                    cpu_progress = False
-                    current_cpu: dict[int, float] = {}
-                    for row in rows:
-                        pid = int(row["pid"])
-                        cpu = float(row["cpu"])
-                        current_cpu[pid] = cpu
-                        previous = last_cpu.get(pid)
-                        if (previous is not None and cpu > previous + 0.001) or (
-                            previous is None and cpu > 0.0
-                        ):
-                            cpu_progress = True
+                    current_cpu, cpu_progress, cpu_progress_pct = _cpu_progress(
+                        rows, last_cpu, now - last_cpu_sample_at
+                    )
                     last_cpu = current_cpu
+                    last_cpu_sample_at = now
                     if cpu_progress:
                         last_progress = now
                         progress_sources.add("cpu")
                     aggregate.add({
                         "phase_cpu_seconds": sum(float(row["cpu"]) for row in rows),
+                        "phase_cpu_progress_pct": cpu_progress_pct,
                         "phase_cpu_activity_pct": sum(
                             float(row["cpu_pct"]) for row in rows
                         ),

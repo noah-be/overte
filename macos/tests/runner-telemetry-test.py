@@ -160,6 +160,29 @@ class RunnerTelemetryTest(unittest.TestCase):
         self.assertEqual(result["memory_free_pct"], 42)
         self.assertGreater(result["ram_available_mib"], 0)
 
+    def test_cpu_progress_ignores_polling_overhead_but_accepts_real_work(self):
+        module = load_tool()
+        quiet_rows = [{"pid": 10, "cpu": 2.02, "cpu_pct": 0.4}]
+        current, progressed, activity = module._cpu_progress(
+            quiet_rows, {10: 2.0}, 5.0
+        )
+        self.assertEqual(current, {10: 2.02})
+        self.assertFalse(progressed)
+        self.assertAlmostEqual(activity, 0.4)
+
+        active_rows = [{"pid": 10, "cpu": 2.20, "cpu_pct": 4.0}]
+        _current, progressed, activity = module._cpu_progress(
+            active_rows, current, 5.0
+        )
+        self.assertTrue(progressed)
+        self.assertAlmostEqual(activity, 3.6)
+
+        new_compiler = [{"pid": 11, "cpu": 0.25, "cpu_pct": 85.0}]
+        _current, progressed, _activity = module._cpu_progress(
+            new_compiler, {}, 5.0
+        )
+        self.assertTrue(progressed)
+
     def test_supervisor_preserves_child_exit_code_and_never_logs_command(self):
         with tempfile.TemporaryDirectory() as directory:
             log = Path(directory) / "runner.jsonl"
