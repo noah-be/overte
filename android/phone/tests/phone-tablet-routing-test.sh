@@ -33,17 +33,23 @@ for method in showAndroidTablet resizeAndroidTablet hideAndroidTablet handleAndr
 done
 require "$tablet_header" '#if defined\(ANDROID_APP_PHONE_INTERFACE\)' \
     'the screen-space presenter API is restricted to the phone client'
-require "$phone_ui_profile" 'safeInsetLeft:[[:space:]]*25' \
-    'the phone profile supplies its rounded-corner left safety inset'
+require "$phone_ui_profile" 'safeInsetLeft:[[:space:]]*runtimeMetricsAvailable[[:space:]]*\?[[:space:]]*runtimeMetrics[.]safeInsetLeft[[:space:]]*:[[:space:]]*25' \
+    'the phone profile prefers live left safety geometry with a startup fallback'
+require "$activity" 'WindowInsets[.]Type[.]displayCutout\(\)' \
+    'Android display cutouts feed the shared safe-area profile'
+require "$activity" 'WindowInsets[.]Type[.]ime\(\)' \
+    'Android software-keyboard geometry feeds the shared profile'
+require "$native_handler" 'PhoneInterfaceActivity_nativeUpdateTouchUiMetrics' \
+    'JNI accepts live touch-surface metrics from Android'
 require "$tablet_source" 'root->property\("screenSpaceSafeInsetLeft"\)' \
     'the native presenter reads safe-area geometry from the selected UI profile'
 require "$tablet_source" '_desktopWindow->setPosition\(leftInset,[[:space:]]*topInset\)' \
     'the tablet surface starts inside the profile-provided safe area'
-require "$tablet_source" 'width[[:space:]]*-[[:space:]]*leftInset[[:space:]]*-[[:space:]]*rightInset' \
+require "$tablet_source" 'surfaceWidth[[:space:]]*-[[:space:]]*leftInset[[:space:]]*-[[:space:]]*rightInset' \
     'the tablet width preserves asymmetric horizontal safety margins'
-require "$tablet_source" 'height[[:space:]]*-[[:space:]]*topInset[[:space:]]*-[[:space:]]*bottomInset' \
+require "$tablet_source" 'surfaceHeight[[:space:]]*-[[:space:]]*topInset[[:space:]]*-[[:space:]]*bottomInset' \
     'the tablet height preserves asymmetric vertical safety margins'
-require "$tablet_source" 'width <= leftInset \+ rightInset \|\| height <= topInset \+ bottomInset' \
+require "$tablet_source" 'surfaceWidth <= leftInset \+ rightInset' \
     'invalid transient Android surface dimensions are ignored'
 require "$tablet_source" 'else if \(_state != State::Home\)[[:space:]]*\{[[:space:]]*$' \
     'Back distinguishes app navigation from closing the tablet home'
@@ -72,8 +78,10 @@ require "$window_root" 'x[[:space:]]*=[[:space:]]*screenSpaceSafeInsetLeft' \
     'the screen-space tablet preserves its left display margin'
 require "$window_root" 'y[[:space:]]*=[[:space:]]*screenSpaceSafeInsetTop' \
     'the screen-space tablet preserves its top display margin'
-require "$phone_ui_profile" 'screenSpaceContentScale:[[:space:]]*2[.]5' \
-    'Android tablet applications share a touch-readable 250 percent scale'
+require "$phone_ui_profile" 'screenSpaceContentScale:[[:space:]]*runtimeMetricsAvailable' \
+    'Android tablet applications consume the density- and surface-bounded runtime scale'
+require "$phone_ui_profile" 'runtimeMetrics[.]contentScale[[:space:]]*:[[:space:]]*2[.]5' \
+    'Android tablet applications retain a conservative startup scale before native delivery'
 require "$window_root" 'screenSpaceContentScale:[[:space:]]*touchUiProfile[.]screenSpaceContentScale' \
     'the screen-space host obtains content scale from the device profile'
 require "$window_root" 'readonly property real contentScale:[[:space:]]*tabletRoot\.screenSpaceMode' \

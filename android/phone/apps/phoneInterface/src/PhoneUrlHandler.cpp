@@ -12,9 +12,13 @@
 #include <QPointer>
 #include <QString>
 #include <QThread>
+#include <QVariantMap>
 
+#include <DependencyManager.h>
 #include "AndroidHelper.h"
 #include "PhonePendingHandoff.h"
+#include "PhoneTouchUiMetrics.h"
+#include "ui/TabletScriptingInterface.h"
 #include "ui/PhoneDialogRouter.h"
 
 namespace {
@@ -79,6 +83,67 @@ PendingUrlDelivery* urlDelivery(QCoreApplication* application) {
     return delivery;
 }
 
+QVariantMap touchUiMetricsMap(const phone::TouchUiMetrics& metrics) {
+    QVariantMap result;
+    result.insert("valid", metrics.valid);
+    result.insert("surfaceWidth", metrics.surfaceWidth);
+    result.insert("surfaceHeight", metrics.surfaceHeight);
+    result.insert("safeInsetLeft", metrics.safeInsetLeft);
+    result.insert("safeInsetTop", metrics.safeInsetTop);
+    result.insert("safeInsetRight", metrics.safeInsetRight);
+    result.insert("safeInsetBottom", metrics.safeInsetBottom);
+    result.insert("imeInsetBottom", metrics.imeInsetBottom);
+    result.insert("density", metrics.density);
+    result.insert("fontScale", metrics.fontScale);
+    result.insert("contentScale", metrics.contentScale);
+    result.insert("keyboardVisible", metrics.keyboardVisible);
+    result.insert("hoverSupported", metrics.hoverSupported);
+    result.insert("hardwareKeyboardSupported", metrics.hardwareKeyboardSupported);
+    result.insert("hapticsSupported", metrics.hapticsSupported);
+    result.insert("landscape", metrics.surfaceWidth >= metrics.surfaceHeight);
+    return result;
+}
+
+class PendingTouchUiMetricsDelivery final : public QObject {
+public:
+    explicit PendingTouchUiMetricsDelivery(QCoreApplication* application)
+        : QObject(application) {
+        auto& helper = AndroidHelper::instance();
+        connect(&helper, &AndroidHelper::qtAppLoadComplete,
+                this, [this]() { deliverIfReady(); });
+    }
+
+    void submit(const phone::TouchUiMetrics& metrics) {
+        _pending = metrics;
+        _hasPending = metrics.valid;
+        deliverIfReady();
+    }
+
+private:
+    void deliverIfReady() {
+        if (!_hasPending || !AndroidHelper::instance().isLoadComplete()) {
+            return;
+        }
+        auto tablet = DependencyManager::get<TabletScriptingInterface>();
+        if (!tablet) {
+            return;
+        }
+        tablet->setTouchUiRuntimeMetrics(touchUiMetricsMap(_pending));
+        _hasPending = false;
+    }
+
+    phone::TouchUiMetrics _pending;
+    bool _hasPending { false };
+};
+
+PendingTouchUiMetricsDelivery* touchUiMetricsDelivery(QCoreApplication* application) {
+    static QPointer<PendingTouchUiMetricsDelivery> delivery;
+    if (!delivery) {
+        delivery = new PendingTouchUiMetricsDelivery(application);
+    }
+    return delivery;
+}
+
 } // namespace
 
 extern "C" JNIEXPORT jboolean JNICALL
@@ -123,4 +188,51 @@ Java_org_overte_phone_PhoneInterfaceActivity_nativeHandleBack(
             application, closePhoneUi, Qt::BlockingQueuedConnection);
     }
     return invoked && consumed ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_org_overte_phone_PhoneInterfaceActivity_nativeUpdateTouchUiMetrics(
+        JNIEnv* /* env */,
+        jclass /* activityClass */,
+        jint surfaceWidth,
+        jint surfaceHeight,
+        jint safeInsetLeft,
+        jint safeInsetTop,
+        jint safeInsetRight,
+        jint safeInsetBottom,
+        jint imeInsetBottom,
+        jfloat density,
+        jfloat fontScale,
+        jfloat contentScale,
+        jboolean keyboardVisible,
+        jboolean hoverSupported,
+        jboolean hardwareKeyboardSupported,
+        jboolean hapticsSupported) {
+    const auto metrics = phone::TouchUiMetrics::fromUntrusted(
+        surfaceWidth,
+        surfaceHeight,
+        safeInsetLeft,
+        safeInsetTop,
+        safeInsetRight,
+        safeInsetBottom,
+        imeInsetBottom,
+        density,
+        fontScale,
+        contentScale,
+        keyboardVisible == JNI_TRUE,
+        hoverSupported == JNI_TRUE,
+        hardwareKeyboardSupported == JNI_TRUE,
+        hapticsSupported == JNI_TRUE);
+    auto* application = QCoreApplication::instance();
+    if (!metrics.valid || !application) {
+        return JNI_FALSE;
+    }
+
+    const bool ownedByNative = QMetaObject::invokeMethod(
+        application,
+        [application, metrics]() {
+            touchUiMetricsDelivery(application)->submit(metrics);
+        },
+        Qt::QueuedConnection);
+    return ownedByNative ? JNI_TRUE : JNI_FALSE;
 }

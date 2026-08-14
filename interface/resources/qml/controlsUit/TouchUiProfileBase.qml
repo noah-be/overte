@@ -7,12 +7,19 @@ QtObject {
     property bool hoverSupported: !directTouch
     property bool hapticsSupported: false
     property bool hardwareKeyboardSupported: true
+    property bool systemImeAvailable: false
     property bool screenSpacePresentation: false
 
     property int safeInsetLeft: 0
     property int safeInsetTop: 0
     property int safeInsetRight: 0
     property int safeInsetBottom: 0
+    property int imeInsetBottom: 0
+    property bool keyboardVisible: false
+    property int surfaceWidth: 0
+    property int surfaceHeight: 0
+    property real density: 1.0
+    property real fontScale: 1.0
     property real screenSpaceContentScale: 1.0
 
     property bool audioModeTabsAvailable: true

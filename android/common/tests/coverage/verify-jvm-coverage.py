@@ -16,6 +16,7 @@ CRITICAL_CLASSES = {
     "org/overte/phone/PhoneLaunchState",
     "org/overte/phone/PhonePendingUrlPolicy",
     "org/overte/phone/PhonePermissionFlow",
+    "org/overte/phone/PhoneTouchUiMetricsPolicy",
 }
 CLASS_MINIMUMS = {
     name: {"LINE": 100.0, "BRANCH": 100.0} for name in CRITICAL_CLASSES

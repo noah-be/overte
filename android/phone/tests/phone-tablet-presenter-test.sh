@@ -24,10 +24,16 @@ require "$tablet_source" 'setToolbarMode\(true\)' \
     'presenter does not reuse the established tablet window and proxy path'
 require "$tablet_source" 'setPosition\(leftInset, topInset\)' \
     'tablet is not anchored inside the rounded-corner safe area'
-require "$tablet_source" 'setSize\(width - leftInset - rightInset,' \
+require "$tablet_source" 'setSize\(surfaceWidth - leftInset - rightInset,' \
     'tablet does not follow the safe Android surface dimensions'
-require "$tablet_source" 'height - topInset - bottomInset\)' \
+require "$tablet_source" 'surfaceHeight - topInset - bottomInset\)' \
     'tablet height does not preserve its safe Android surface inset'
+require "$tablet_header" 'Q_PROPERTY\(QVariantMap touchUiRuntimeMetrics' \
+    'the platform host does not expose live touch geometry to QML'
+require "$tablet_source" 'runtimeMetrics[.]value\("imeInsetBottom"\)' \
+    'the tablet presenter does not react to the software keyboard inset'
+require "$tablet_source" 'std::max\(safeBottomInset, imeBottomInset\)' \
+    'the presenter does not preserve both navigation and software-keyboard protection'
 require "$tablet_source" 'TABLET_HOME_SOURCE_URL' \
     'presenter does not load the established Tablet home'
 require "$window_root" 'property bool screenSpaceMode: false' \
@@ -40,6 +46,8 @@ require "$action_bar" 'Tablet\.getTablet\("com.highfidelity.interface.tablet.sys
     'mobile action bar does not use the system TabletProxy'
 require "$action_bar" 'systemTablet\.resizeAndroidTablet\(Window.innerWidth, Window.innerHeight\)' \
     'tablet is not resized after Android surface geometry changes'
+require "$action_bar" 'touchUiRuntimeMetricsChanged' \
+    'action controls do not react to live safe-area capability changes'
 require "$action_bar" 'Controller\.setVPadHidden\(tabletShown\)' \
     'world touch controls are not suspended while the tablet owns input'
 require "$action_bar" 'navigationBar\.visible = !tabletShown' \

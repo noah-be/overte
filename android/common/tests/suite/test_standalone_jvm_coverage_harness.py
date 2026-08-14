@@ -169,10 +169,10 @@ printf '%s\n' "$1" >"$VERIFIED_PATH"
             self.assertEqual("<report/>\n", (reports / "report.xml").read_text())
             self.assertTrue((reports / "html/index.html").is_file())
             self.assertEqual([], list(reports.glob(".jvm-coverage.*")))
-            self.assertEqual("9", (root / "java-test-count").read_text().strip())
+            self.assertEqual("10", (root / "java-test-count").read_text().strip())
             calls = (root / "java-log").read_text().splitlines()
-            self.assertEqual(10, len(calls))
-            self.assertEqual(9, sum("append=true" in call for call in calls))
+            self.assertEqual(11, len(calls))
+            self.assertEqual(10, sum("append=true" in call for call in calls))
             verified = (root / "verified-path").read_text().strip()
             self.assertIn("/.jvm-coverage.", verified)
 

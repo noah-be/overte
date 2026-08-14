@@ -32,6 +32,12 @@ Windows.ScrollingWindow {
     property int screenSpaceSafeInsetTop: touchUiProfile.safeInsetTop
     property int screenSpaceSafeInsetRight: touchUiProfile.safeInsetRight
     property int screenSpaceSafeInsetBottom: touchUiProfile.safeInsetBottom
+    property int screenSpaceImeInsetBottom: touchUiProfile.imeInsetBottom
+    property bool screenSpaceKeyboardVisible: touchUiProfile.keyboardVisible
+    property int screenSpaceSurfaceWidth: touchUiProfile.surfaceWidth
+    property int screenSpaceSurfaceHeight: touchUiProfile.surfaceHeight
+    property real screenSpaceDensity: touchUiProfile.density
+    property real screenSpaceFontScale: touchUiProfile.fontScale
 
     shown: false
     resizable: false

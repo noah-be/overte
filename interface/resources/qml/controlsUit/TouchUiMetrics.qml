@@ -12,6 +12,10 @@ QtObject {
     property bool hoverSupported: profile.hoverSupported
     property bool hapticsSupported: profile.hapticsSupported
     property bool hardwareKeyboardSupported: profile.hardwareKeyboardSupported
+    readonly property bool systemImeAvailable: profile.systemImeAvailable
+    readonly property bool keyboardVisible: profile.keyboardVisible
+    readonly property real keyboardInsetBottom: profile.imeInsetBottom
+    readonly property real textScale: clamp(profile.fontScale, 1.0, 1.5)
 
     property real availableWidth: 0
     property real availableHeight: 0
@@ -46,6 +50,11 @@ QtObject {
     readonly property int spacingSmall: directTouch ? 8 : 4
     readonly property int spacingMedium: directTouch ? 12 : 8
     readonly property int spacingLarge: directTouch ? 24 : 16
+    readonly property int dragThreshold: directTouch ? 12 : 4
+    readonly property int pressDelay: directTouch ? 80 : 0
+    readonly property int longPressInterval: directTouch ? 500 : 800
+    readonly property int flickDeceleration: directTouch ? 4000 : 2500
+    readonly property int maximumFlickVelocity: directTouch ? 8000 : 2500
 
     function clamp(value, minimum, maximum) {
         return Math.max(minimum, Math.min(maximum, value))
@@ -60,5 +69,23 @@ QtObject {
         return Math.max(lowerBound, Math.min(upperBound,
             Math.floor((usableWidth + spacingSmall) /
                 (minimumCellWidth + spacingSmall))))
+    }
+
+    function ensureVisible(flickable, item, margin) {
+        if (!flickable || !item || typeof item.mapToItem !== "function") {
+            return
+        }
+        var safeMargin = Math.max(spacingMedium, margin || 0)
+        var position = item.mapToItem(flickable.contentItem, 0, 0)
+        var visibleTop = flickable.contentY + safeMargin
+        var visibleBottom = flickable.contentY + flickable.height - safeMargin
+        if (position.y < visibleTop) {
+            flickable.contentY = Math.max(0, position.y - safeMargin)
+        } else if (position.y + item.height > visibleBottom) {
+            var maximumContentY = Math.max(0,
+                flickable.contentHeight - flickable.height)
+            flickable.contentY = Math.min(maximumContentY,
+                position.y + item.height + safeMargin - flickable.height)
+        }
     }
 }
