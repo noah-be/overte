@@ -66,3 +66,15 @@ class WebRTCAudioProcessingIOSConan(ConanFile):
     def package_info(self):
         self.cpp_info.libs = collect_libs(self)
         self.cpp_info.includedirs = ["include/webrtc-audio-processing-2"]
+        # Public WebRTC headers include Abseil headers, and a static archive
+        # also leaves those symbols for the final application link.  Express
+        # the same dependency set as the upstream Meson target so CMakeDeps
+        # propagates both includes and link libraries to audio-client.
+        self.cpp_info.requires = [
+            "abseil::absl_base",
+            "abseil::absl_flags",
+            "abseil::absl_strings",
+            "abseil::absl_numeric",
+            "abseil::absl_synchronization",
+            "abseil::absl_bad_optional_access",
+        ]

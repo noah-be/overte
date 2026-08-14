@@ -811,7 +811,10 @@ archives. Their previous remote recipes ignored the graph-wide `shared=False`
 request and installed only dylibs, leaving the app with unresolved `/lib` and
 `@rpath` load commands. The Conan graph audit requires the explicit static
 options and archive files, while packaging and release readiness independently
-parse Mach-O load commands and reject non-system runtime dependencies.
+parse Mach-O load commands and reject non-system runtime dependencies. The
+static WebRTC recipe also exports its public Abseil component dependencies, so
+its installed headers and unresolved archive symbols propagate together to the
+final `audio-client` target.
 
 ## Enforcement
 

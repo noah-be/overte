@@ -172,6 +172,18 @@ def main() -> None:
         recipe = (IOS_ROOT / relative).read_text(encoding="utf-8")
         assert '"shared": False' in recipe
         assert "ios-static" not in recipe
+    webrtc_recipe = (
+        IOS_ROOT / "conan/recipes/webrtc-audio-processing/conanfile.py"
+    ).read_text(encoding="utf-8")
+    for abseil_component in (
+        "abseil::absl_base",
+        "abseil::absl_flags",
+        "abseil::absl_strings",
+        "abseil::absl_numeric",
+        "abseil::absl_synchronization",
+        "abseil::absl_bad_optional_access",
+    ):
+        assert abseil_component in webrtc_recipe
     for workflow_name in ("ios-integrated.yml", "ios-world-runtime.yml"):
         workflow = (IOS_ROOT.parent / ".github/workflows" / workflow_name).read_text(
             encoding="utf-8"
