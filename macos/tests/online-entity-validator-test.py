@@ -28,7 +28,7 @@ def record(entity_id: str, entity_type: str = "Shape", visible: bool = True) -> 
 
 def payload(entities: list[dict]) -> dict:
     visible = sum(
-        item["visible"] and item["type"] not in MODULE.NON_RENDERING_TYPES
+        item["visible"] and item["type"] not in MODULE.NON_VISIBLE_GEOMETRY_TYPES
         for item in entities
     )
     return {
@@ -50,6 +50,13 @@ for environmental_type in ("Zone", "Light", "Material"):
     environmental = MODULE.validate(payload([record(handoff, environmental_type)]), handoff)
     assert not environmental["passed"]
     assert "inventory has no visible render-affecting entity" in environmental["failures"]
+    assert "render-handoff entity is not visible and render-affecting" not in environmental["failures"]
+
+zone_handoff = MODULE.validate(
+    payload([record(handoff, "Zone"), record("visible-shape")]), handoff
+)
+assert zone_handoff["passed"], zone_handoff
+assert zone_handoff["render_handoff_type"] == "Zone"
 
 missing = MODULE.validate(payload([record("other")]), handoff)
 assert not missing["passed"]

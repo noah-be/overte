@@ -12,7 +12,8 @@ import math
 from pathlib import Path
 
 
-NON_RENDERING_TYPES = {"Unknown", "Empty", "Sound", "Script", "Zone", "Light", "Material"}
+NON_RENDERING_TYPES = {"Unknown", "Empty", "Sound", "Script"}
+NON_VISIBLE_GEOMETRY_TYPES = NON_RENDERING_TYPES | {"Zone", "Light", "Material"}
 
 
 def normalized_id(value: object) -> str:
@@ -69,7 +70,11 @@ def validate(payload: object, render_handoff_id: str) -> dict[str, object]:
             failures.append(f"entity {index} position is invalid")
         if not valid_vector(entity.get("dimensions")):
             failures.append(f"entity {index} dimensions are invalid")
-        if visible is True and isinstance(entity_type, str) and entity_type not in NON_RENDERING_TYPES:
+        if (
+            visible is True
+            and isinstance(entity_type, str)
+            and entity_type not in NON_VISIBLE_GEOMETRY_TYPES
+        ):
             computed_visible_renderable += 1
 
     if payload.get("visible_renderable_count") != computed_visible_renderable:

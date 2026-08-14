@@ -41,8 +41,9 @@ travels through the production network, tree, script, renderer, and scene paths.
 This prevents an unrelated WebEngine sync from blocking delivery of an already
 completed 3D snapshot. The online inventory is captured after that snapshot and
 must contain visible geometry; environmental `Zone`, `Light`, and `Material`
-entities alone cannot satisfy the visual gate. Normal application launches do
-not pause Web surfaces.
+entities alone cannot satisfy the visual gate, although a visible environmental
+entity remains a valid renderer handoff when the inventory also contains direct
+geometry. Normal application launches do not pause Web surfaces.
 
 ## Performance and stability
 

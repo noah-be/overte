@@ -41,7 +41,7 @@
     }
 
     function inspectEntityInventory(entities) {
-        var nonRenderingTypes = {
+        var nonVisibleGeometryTypes = {
             Unknown: true,
             Empty: true,
             Sound: true,
@@ -59,7 +59,7 @@
             var type = String(properties.type || "Unknown");
             var visible = properties.visible !== false;
             typeCounts[type] = (typeCounts[type] || 0) + 1;
-            if (visible && !nonRenderingTypes[type]) {
+            if (visible && !nonVisibleGeometryTypes[type]) {
                 visibleRenderableCount += 1;
             }
             return {

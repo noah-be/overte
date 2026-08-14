@@ -517,6 +517,20 @@ for environmental_type in ("Zone", "Light", "Material"):
         raise SystemExit(
             f"online smoke must not mistake {environmental_type} for visible geometry"
         )
+online_validator = (
+    ROOT / "macos/tools/validate-online-entities.py"
+).read_text(encoding="utf-8")
+for online_entity_classification_contract in (
+    'NON_RENDERING_TYPES = {"Unknown", "Empty", "Sound", "Script"}',
+    'NON_VISIBLE_GEOMETRY_TYPES = NON_RENDERING_TYPES | {"Zone", "Light", "Material"}',
+    "entity_type not in NON_VISIBLE_GEOMETRY_TYPES",
+    "handoff_type in NON_RENDERING_TYPES",
+):
+    if online_entity_classification_contract not in online_validator:
+        raise SystemExit(
+            "online validator must distinguish environmental render effects "
+            f"from visible geometry: {online_entity_classification_contract}"
+        )
 for online_timing_contract in (
     'snapshotStage = "awaiting_inventory"',
     "snapshot_complete=",
