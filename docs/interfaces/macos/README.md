@@ -13,8 +13,13 @@ and online domains on macOS. The current bootstrap path uses Qt 5 and OpenGL 4.1
 and targets Intel (`x86_64`) first. The Intel developer bundle now builds,
 launches, loads the deterministic local scene, connects to the public Overte
 Hub, receives entities, renders them, captures non-empty images, and exits
-cleanly. The combined acceptance evidence is GitHub Actions run
-[`31719242695`](https://github.com/noah-be/overte/actions/runs/31719242695).
+cleanly. Comprehensive GitHub Actions run
+[`31821239596`](https://github.com/noah-be/overte/actions/runs/31821239596)
+built and bundled the app, passed startup, serverless, online, graphics and
+performance acceptance, and completed all 50 native C++/Qt tests without a
+failure or skip. Earlier run
+[`31778713708`](https://github.com/noah-be/overte/actions/runs/31778713708)
+also passed a same-process serverless-online-serverless transition.
 
 Apple Silicon (`arm64`) is an intended target and the build script accepts it,
 but its Qt and native dependency graph has not been validated. Do not interpret
