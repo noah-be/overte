@@ -180,6 +180,12 @@ int main(int argc, const char* argv[]) {
         "Start at specified URL location.",
         "string"
     );
+#ifdef Q_OS_IOS
+    QCommandLineOption iosWorldEvidenceOption(
+        "ios-world-evidence",
+        "Emit privacy-bounded iOS world acceptance markers for the fixed CI destinations."
+    );
+#endif
     QCommandLineOption protocolVersionOption(
         "protocolVersion",
         "Writes the protocol version base64 signature to a file",
@@ -391,6 +397,9 @@ int main(int argc, const char* argv[]) {
     );
 
     parser.addOption(urlOption);
+#ifdef Q_OS_IOS
+    parser.addOption(iosWorldEvidenceOption);
+#endif
     parser.addOption(protocolVersionOption);
     parser.addOption(noUpdaterOption);
     parser.addOption(checkMinSpecOption);
@@ -446,6 +455,25 @@ int main(int argc, const char* argv[]) {
         QCoreApplication tempApp(argc, const_cast<char**>(argv));
 
         parser.process(QCoreApplication::arguments());  // Must be run after QCoreApplication is initalised.
+
+#ifdef Q_OS_IOS
+        if (parser.isSet(iosWorldEvidenceOption)) {
+            QString kind { "unsupported" };
+            QString destination { "unsupported" };
+            QString requested = parser.value(urlOption).trimmed().toLower();
+            if (requested == QStringLiteral("file:///~/serverless/tutorial.json")) {
+                kind = QStringLiteral("serverless");
+                destination = QStringLiteral("serverless_tutorial");
+            } else if (requested == QStringLiteral("hifi://overte_hub") ||
+                       requested == QStringLiteral("hifi://overte_hub/")) {
+                kind = QStringLiteral("online");
+                destination = QStringLiteral("overte_hub");
+            }
+            qInfo().noquote() << "OVERTE_IOS_WORLD_GATE navigation_requested"
+                              << "kind=" << kind
+                              << "destination=" << destination;
+        }
+#endif
 
 #ifdef Q_OS_OSX
         if (QFileInfo::exists(QCoreApplication::applicationDirPath() + "/../../../config.json")) {

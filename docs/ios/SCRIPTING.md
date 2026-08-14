@@ -19,11 +19,21 @@ checkpoint backed by a provenance-checked durable workflow artifact. Its
 translation units are also written through the same watchdog/sccache chain as
 the client, so a failed V8 build can reuse completed objects. A failed
 application build therefore reuses the validated archive instead of rebuilding
-V8. Developers may build and select the same package explicitly:
+V8. Developers may build and select the same device package explicitly:
 
 ```bash
 ios/tools/build-v8-ios.sh build
 export OVERTE_IOS_V8_ROOT="$PWD/build-ios/external/v8-ios"
+```
+
+The simulator package is a separate Mach-O platform build even on an arm64
+host. Select it explicitly; the validator records and rejects a mismatched
+`target_environment`:
+
+```bash
+OVERTE_IOS_V8_PLATFORM=simulator \
+OVERTE_IOS_V8_ROOT="$PWD/build-ios/external-simulator/v8-ios" \
+  ios/tools/build-v8-ios.sh build
 ```
 
 Expected layout:
@@ -34,7 +44,7 @@ lib/libv8_monolith.a
 ```
 
 The build records its complete GN arguments beside the package. It targets the
-device `arm64` ABI, statically links `v8_monolith`, embeds startup data, and
+selected device or simulator `arm64` ABI, statically links `v8_monolith`, embeds startup data, and
 disables JIT and WebAssembly generation. `ios/tools/build-v8-ios.sh validate`
 checks those invariants and the Mach-O architecture before CMake runs.
 Because the output is a static archive rather than an installable app, its GN

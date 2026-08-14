@@ -15,15 +15,20 @@ class V8IOSCheckpointContractTest(unittest.TestCase):
         self.assertRegex(env, r"OVERTE_IOS_V8_REVISION=[0-9a-f]{40}")
         self.assertRegex(env, r"OVERTE_IOS_DEPOT_TOOLS_REVISION=[0-9a-f]{40}")
 
-    def test_build_is_static_device_arm64_and_fail_closed(self):
+    def test_build_is_static_arm64_for_device_or_simulator_and_fail_closed(self):
         script = (ROOT / "ios/tools/build-v8-ios.sh").read_text(encoding="utf-8")
         for contract in (
             'target_os = "ios"',
             'target_cpu = "arm64"',
-            'target_environment = "device"',
+            'target_environment = "$target_environment"',
+            'OVERTE_IOS_V8_PLATFORM:-device',
+            'sdk_name="iphoneos"',
+            'sdk_name="iphonesimulator"',
+            'target_environment="device"',
+            'target_environment="simulator"',
             "ios_enable_code_signing = false",
             "use_custom_libcxx = false",
-            'xcode_clang="$(xcrun --sdk iphoneos --find clang)"',
+            'xcode_clang="$(xcrun --sdk "$sdk_name" --find clang)"',
             'xcode_tool_bin="$(dirname "$xcode_clang")"',
             'bundled_llvm_bin="$source_root/third_party/llvm-build/Release+Asserts/bin"',
             "for compiler in clang clang++",
@@ -47,6 +52,7 @@ class V8IOSCheckpointContractTest(unittest.TestCase):
             "lipo -info",
             "target_os = ['ios']",
             "OVERTE_IOS_V8_COMPILER_LAUNCHER",
+            "OVERTE_IOS_V8_PLATFORM=$platform",
             "cc_wrapper =",
         ):
             self.assertIn(contract, script)

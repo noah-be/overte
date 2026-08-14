@@ -8,10 +8,27 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$repo_root/ios/v8.env"
 
 work_root="${OVERTE_IOS_V8_WORK_ROOT:-$repo_root/build-ios/v8-work}"
-install_root="${OVERTE_IOS_V8_ROOT:-$repo_root/build-ios/external/v8-ios}"
+platform="${OVERTE_IOS_V8_PLATFORM:-device}"
+case "$platform" in
+device)
+    sdk_name="iphoneos"
+    target_environment="device"
+    default_install_root="$repo_root/build-ios/external/v8-ios"
+    ;;
+simulator)
+    sdk_name="iphonesimulator"
+    target_environment="simulator"
+    default_install_root="$repo_root/build-ios/external/v8-ios-simulator"
+    ;;
+*)
+    echo "build-v8-ios: OVERTE_IOS_V8_PLATFORM must be device or simulator" >&2
+    exit 1
+    ;;
+esac
+install_root="${OVERTE_IOS_V8_ROOT:-$default_install_root}"
 depot_root="$work_root/depot_tools"
 source_root="$work_root/v8"
-output_dir="$source_root/out/ios-arm64-jitless"
+output_dir="$source_root/out/ios-$target_environment-arm64-jitless"
 
 die() {
     echo "build-v8-ios: $*" >&2
@@ -29,9 +46,10 @@ validate() {
     grep -Fxq "OVERTE_IOS_V8_VERSION=$OVERTE_IOS_V8_VERSION" "$metadata" || die "V8 version metadata mismatch"
     grep -Fxq "OVERTE_IOS_V8_REVISION=$OVERTE_IOS_V8_REVISION" "$metadata" || die "V8 revision metadata mismatch"
     grep -Fxq "OVERTE_IOS_DEPOT_TOOLS_REVISION=$OVERTE_IOS_DEPOT_TOOLS_REVISION" "$metadata" || die "depot_tools metadata mismatch"
+    grep -Fxq "OVERTE_IOS_V8_PLATFORM=$platform" "$metadata" || die "V8 platform metadata mismatch"
     grep -Fxq 'target_os = "ios"' "$install_root/share/overte-v8-ios/build-args.gn" || die "archive was not configured for iOS"
     grep -Fxq 'target_cpu = "arm64"' "$install_root/share/overte-v8-ios/build-args.gn" || die "archive was not configured for arm64"
-    grep -Fxq 'target_environment = "device"' "$install_root/share/overte-v8-ios/build-args.gn" || die "archive was not configured for an iOS device"
+    grep -Fxq "target_environment = \"$target_environment\"" "$install_root/share/overte-v8-ios/build-args.gn" || die "archive was not configured for the selected iOS environment"
     grep -Fxq 'ios_enable_code_signing = false' "$install_root/share/overte-v8-ios/build-args.gn" || die "unsigned static build policy is not recorded"
     grep -Fxq 'use_custom_libcxx = false' "$install_root/share/overte-v8-ios/build-args.gn" || die "Xcode libc++ policy is not recorded"
     grep -Fxq 'clang_use_chrome_plugins = false' "$install_root/share/overte-v8-ios/build-args.gn" || die "Xcode clang plugin policy is not recorded"
@@ -44,9 +62,9 @@ validate() {
         die "archive is not an arm64 Mach-O archive"
     fi
     if lipo -info "$archive" 2>&1 | grep -Eq '\b(x86_64|i386|armv7)\b'; then
-        die "archive contains a non-device architecture"
+        die "archive contains an unsupported architecture"
     fi
-    echo "Validated pinned V8 $OVERTE_IOS_V8_VERSION: static iOS arm64, JITless, WebAssembly disabled"
+    echo "Validated pinned V8 $OVERTE_IOS_V8_VERSION: static iOS $target_environment arm64, JITless, WebAssembly disabled"
 }
 
 case "${1:-build}" in
@@ -63,7 +81,7 @@ esac
 
 command -v xcrun >/dev/null || die "Xcode command-line tools are required"
 host_python="$(command -v python3)"
-xcode_clang="$(xcrun --sdk iphoneos --find clang)"
+xcode_clang="$(xcrun --sdk "$sdk_name" --find clang)"
 xcode_tool_bin="$(dirname "$xcode_clang")"
 mkdir -p "$work_root"
 
@@ -146,7 +164,7 @@ fi
 cat > "$output_dir/args.gn" <<EOF
 target_os = "ios"
 target_cpu = "arm64"
-target_environment = "device"
+target_environment = "$target_environment"
 ios_deployment_target = "$OVERTE_IOS_V8_DEPLOYMENT_TARGET"
 ios_enable_code_signing = false
 is_debug = false
@@ -181,6 +199,7 @@ cat > "$install_root/share/overte-v8-ios/source.env" <<EOF
 OVERTE_IOS_V8_VERSION=$OVERTE_IOS_V8_VERSION
 OVERTE_IOS_V8_REVISION=$OVERTE_IOS_V8_REVISION
 OVERTE_IOS_DEPOT_TOOLS_REVISION=$OVERTE_IOS_DEPOT_TOOLS_REVISION
+OVERTE_IOS_V8_PLATFORM=$platform
 EOF
 
 validate

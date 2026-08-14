@@ -18,11 +18,11 @@
       "id": "full-client-simulator",
       "status": "prepared",
       "runner": "macos-26",
-      "workflow": ".github/workflows/ios-interface-simulator-acceptance.yml",
+      "workflow": ".github/workflows/ios-world-runtime.yml",
       "candidatePlatform": "iphonesimulator",
-      "proves": ["install-launch", "domain-connect", "entity-render-handoff"],
-      "activationRequirement": "The dispatch-only workflow definition must first be merged into the repository default branch.",
-      "remainingExternalInput": "Extend a trusted iOS producer to build and publish a validated arm64 Full Client simulator artifact with simulator Qt, V8, Conan and MoltenVK slices."
+      "proves": ["install-launch", "serverless-import", "named-domain-connect", "entity-render-handoff", "retained-world-screenshots"],
+      "activationRequirement": "Use the explicit apple-ios [ios-worlds] commit marker or the world_evidence bootstrap dispatch input.",
+      "remainingExternalInput": "Complete one successful trusted workflow run and review its four provenance-bound screenshots."
     },
     {
       "id": "full-client-ipad",

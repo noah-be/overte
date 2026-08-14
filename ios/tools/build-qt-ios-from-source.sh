@@ -17,6 +17,7 @@ archive=""
 jobs="$(sysctl -n hw.logicalcpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 print_plan=0
 stage="all"
+target_sdk="iphoneos"
 
 die() {
     echo "error: $*" >&2
@@ -27,7 +28,8 @@ usage() {
     cat <<'EOF'
 Usage: build-qt-ios-from-source.sh --work-root ABSOLUTE_PATH \
        --install-root ABSOLUTE_PATH [--archive FILE] [--jobs NUMBER] \
-       [--stage source|host|ios|all] [--print-plan]
+       [--stage source|host|ios|all] [--target-sdk iphoneos|iphonesimulator] \
+       [--print-plan]
 
 Builds a resumable stage of the pinned minimal Qt host and iOS SDK. Existing
 configured build trees are resumed. Completed, validated installations are
@@ -42,6 +44,7 @@ while (($#)); do
         --archive) archive="${2:-}"; shift 2 ;;
         --jobs) jobs="${2:-}"; shift 2 ;;
         --stage) stage="${2:-}"; shift 2 ;;
+        --target-sdk) target_sdk="${2:-}"; shift 2 ;;
         --print-plan) print_plan=1; shift ;;
         --help|-h) usage; exit 0 ;;
         *) die "unknown argument: $1" ;;
@@ -56,6 +59,7 @@ case "$work_root/" in "$install_root/"*) die "work root must not be inside insta
 case "$install_root/" in "$work_root/"*) die "install root must not be inside work root" ;; esac
 [[ "$jobs" =~ ^[1-9][0-9]*$ ]] || die "--jobs must be a positive integer"
 case "$stage" in source|host|ios|all) ;; *) die "--stage must be source, host, ios, or all" ;; esac
+case "$target_sdk" in iphoneos|iphonesimulator) ;; *) die "--target-sdk must be iphoneos or iphonesimulator" ;; esac
 
 readonly qt_version="${OVERTE_IOS_QT_VERSION:?missing OVERTE_IOS_QT_VERSION}"
 readonly modules="qtbase,qtdeclarative,qtmultimedia,qtsvg,qtwebchannel,qtwebsockets,qtwebview,qt5compat,qtshadertools"
@@ -63,7 +67,7 @@ readonly source_name="qt-everywhere-src-${qt_version}"
 readonly downloads="$work_root/downloads"
 readonly source_root="$work_root/source/$source_name"
 readonly host_build="$work_root/build-host"
-readonly ios_build="$work_root/build-ios"
+readonly ios_build="$work_root/build-$target_sdk"
 readonly host_prefix="$install_root/macos"
 readonly ios_prefix="$install_root/ios"
 readonly archive_path="${archive:-$downloads/${source_name}.tar.xz}"
@@ -76,11 +80,15 @@ manifest_value() {
 readonly source_url="$(manifest_value QT_SOURCE_URL)"
 readonly source_sha256="$(manifest_value QT_SOURCE_SHA256)"
 readonly host_plan_id="qt-${qt_version}-modules-${modules//,/-}-ios-min-${OVERTE_IOS_MIN_VERSION}"
-readonly ios_plan_id="${host_plan_id}-skip-qtwebengine"
+ios_plan_id="${host_plan_id}-skip-qtwebengine"
+if [[ "$target_sdk" == "iphonesimulator" ]]; then
+    ios_plan_id="${ios_plan_id}-iphonesimulator"
+fi
+readonly ios_plan_id
 
 print_build_plan() {
-    printf 'PLAN_ID=%s\nHOST_PLAN_ID=%s\nIOS_PLAN_ID=%s\nQT_VERSION=%s\nMODULES=%s\nQT_SOURCE_URL=%s\nQT_SOURCE_SHA256=%s\n' \
-        "$ios_plan_id" "$host_plan_id" "$ios_plan_id" "$qt_version" "$modules" "$source_url" "$source_sha256"
+    printf 'PLAN_ID=%s\nHOST_PLAN_ID=%s\nIOS_PLAN_ID=%s\nTARGET_SDK=%s\nQT_VERSION=%s\nMODULES=%s\nQT_SOURCE_URL=%s\nQT_SOURCE_SHA256=%s\n' \
+        "$ios_plan_id" "$host_plan_id" "$ios_plan_id" "$target_sdk" "$qt_version" "$modules" "$source_url" "$source_sha256"
     printf 'WORK_ROOT=%s\nHOST_PREFIX=%s\nIOS_PREFIX=%s\n' \
         "$work_root" "$host_prefix" "$ios_prefix"
 }
@@ -208,7 +216,7 @@ build_ios() {
     local compiler_watchdog="$repo_root/ios/ci/compiler-watchdog.py"
     if command -v sccache >/dev/null 2>&1; then
         configure_tree ios "$ios_build" "$ios_prefix" \
-            -skip qtwebengine -platform macx-ios-clang -sdk iphoneos -qt-host-path "$host_prefix" -- \
+            -skip qtwebengine -platform macx-ios-clang -sdk "$target_sdk" -qt-host-path "$host_prefix" -- \
             -D "CMAKE_OSX_DEPLOYMENT_TARGET=$OVERTE_IOS_MIN_VERSION" \
             -D "CMAKE_C_COMPILER_LAUNCHER=$compiler_watchdog;--" \
             -D "CMAKE_CXX_COMPILER_LAUNCHER=$compiler_watchdog;--" \
@@ -216,7 +224,7 @@ build_ios() {
             -D "CMAKE_OBJCXX_COMPILER_LAUNCHER=$compiler_watchdog;--"
     else
         configure_tree ios "$ios_build" "$ios_prefix" \
-            -skip qtwebengine -platform macx-ios-clang -sdk iphoneos -qt-host-path "$host_prefix" \
+            -skip qtwebengine -platform macx-ios-clang -sdk "$target_sdk" -qt-host-path "$host_prefix" \
             -- -D "CMAKE_OSX_DEPLOYMENT_TARGET=$OVERTE_IOS_MIN_VERSION"
     fi
     build_with_live_compiler_tracking "$ios_build"

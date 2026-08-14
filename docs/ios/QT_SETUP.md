@@ -24,6 +24,19 @@ export OVERTE_IOS_QT_HOST_ROOT=/absolute/path/to/Qt/6.11.1/macos
 ./ios/build-ios.sh doctor --platform simulator --require-qt
 ```
 
+Source provisioning selects the target SDK explicitly. `iphoneos` remains the
+default and keeps its existing checkpoint identity; the Full Client world gate
+uses a separate `iphonesimulator` prefix and cache key:
+
+```bash
+./ios/tools/build-qt-ios-from-source.sh \
+  --work-root /absolute/work --install-root /absolute/qt \
+  --target-sdk iphonesimulator --stage all
+```
+
+Device and simulator target trees may share the validated macOS host tools, but
+must never share target-library or provenance markers.
+
 The directory must contain:
 
 ```text

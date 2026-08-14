@@ -35,6 +35,7 @@ class QtSourceBuildTest(unittest.TestCase):
         )
         self.assertIn("QT_SOURCE_SHA256=252acef8", result.stdout)
         self.assertIn("IOS_PLAN_ID=", result.stdout)
+        self.assertIn("TARGET_SDK=iphoneos", result.stdout)
         self.assertIn("skip-qtwebengine", result.stdout)
         self.assertNotIn("accept-license", result.stdout.lower())
 
@@ -72,12 +73,33 @@ class QtSourceBuildTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("unknown argument", result.stderr)
 
-    def test_device_build_is_explicitly_iphoneos_only(self) -> None:
+    def test_target_build_requires_an_explicit_supported_sdk(self) -> None:
         source = SCRIPT.read_text(encoding="utf-8")
-        self.assertEqual(source.count("-platform macx-ios-clang -sdk iphoneos"), 2)
+        self.assertEqual(source.count('-platform macx-ios-clang -sdk "$target_sdk"'), 2)
         self.assertEqual(source.count("-skip qtwebengine -platform macx-ios-clang"), 2)
+        self.assertIn("iphoneos|iphonesimulator", source)
         self.assertIn(".overte-qt-host-plan-id", source)
         self.assertIn(".overte-qt-ios-plan-id", source)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            simulator = self.run_script(
+                "--work-root", str(root / "work"),
+                "--install-root", str(root / "qt"),
+                "--target-sdk", "iphonesimulator",
+                "--print-plan",
+            )
+        self.assertEqual(simulator.returncode, 0, simulator.stderr)
+        self.assertIn("TARGET_SDK=iphonesimulator", simulator.stdout)
+        self.assertIn("IOS_PLAN_ID=", simulator.stdout)
+        self.assertIn("-iphonesimulator", simulator.stdout)
+
+        invalid = self.run_script(
+            "--work-root", "/tmp/work", "--install-root", "/tmp/qt",
+            "--target-sdk", "auto", "--print-plan",
+        )
+        self.assertNotEqual(invalid.returncode, 0)
+        self.assertIn("--target-sdk must be", invalid.stderr)
 
     def test_every_compiler_language_uses_the_per_file_watchdog(self) -> None:
         source = SCRIPT.read_text(encoding="utf-8")

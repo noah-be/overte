@@ -20,6 +20,7 @@
 #include <QDesktopWidget>
 #endif
 #include <QDesktopServices>
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QDateTime>
@@ -1218,6 +1219,16 @@ void Application::loadServerlessDomain(QUrl domainURL) {
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
             qInfo().noquote() << "OVERTE_MACOS_ENTITY_GATE serverless_import_committed"
                               << "url=" << domainURL.toString();
+#endif
+#if defined(Q_OS_IOS)
+            if (QCoreApplication::arguments().contains(QStringLiteral("--ios-world-evidence"))) {
+                const QString scene = domainURL.toString() ==
+                        QStringLiteral("file:///~/serverless/tutorial.json")
+                    ? QStringLiteral("serverless_tutorial")
+                    : QStringLiteral("unsupported");
+                qInfo().noquote() << "OVERTE_IOS_WORLD_GATE serverless_import_committed"
+                                  << "scene=" << scene;
+            }
 #endif
 #if defined(ANDROID_APP_PICO_INTERFACE)
             _picoServerlessSceneURL = domainURL;

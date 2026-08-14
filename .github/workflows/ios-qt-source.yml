@@ -5,7 +5,22 @@ name: Provision Qt iOS source cache
 
 on:
   workflow_dispatch:
+    inputs:
+      target_sdk:
+        description: Build the Qt target for a physical device or Apple Silicon simulator
+        required: true
+        default: iphoneos
+        type: choice
+        options:
+          - iphoneos
+          - iphonesimulator
   workflow_call:
+    inputs:
+      target_sdk:
+        description: Exact Xcode SDK for the Qt target tree
+        required: false
+        default: iphoneos
+        type: string
     outputs:
       qt_host_cache_key:
         description: Deterministic cache key containing the validated macOS Qt host tools
@@ -25,7 +40,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ios-qt-source-macos26-arm64
+  group: ios-qt-source-macos26-arm64-${{ inputs.target_sdk }}
   cancel-in-progress: false
 
 jobs:
@@ -87,14 +102,23 @@ jobs:
         run: |
           set -euo pipefail
           xcode_build="$(xcodebuild -version | awk '/Build version/{print $3}')"
-          sdk_version="$(xcrun --sdk iphoneos --show-sdk-version)"
+          target_sdk="${{ inputs.target_sdk }}"
+          [[ "$target_sdk" == iphoneos || "$target_sdk" == iphonesimulator ]]
+          device_sdk_version="$(xcrun --sdk iphoneos --show-sdk-version)"
+          sdk_version="$(xcrun --sdk "$target_sdk" --show-sdk-version)"
           # Keep the already validated host cache stable across target-only
           # configure fixes. Bump this only when host configure inputs change.
           host_plan_hash="f7a0f4a6a8d51a462a14c9b51e1595338d023f4fd06a0a134aeadbf07a9bce18"
-          ios_plan_hash="$(shasum -a 256 ios/versions.env ios/tools/build-qt-ios-from-source.sh | shasum -a 256 | awk '{print $1}')"
+          if [[ "$target_sdk" == iphoneos ]]; then
+            # The new SDK selector preserves the previously audited device
+            # configure semantics, so keep its durable checkpoint identity.
+            ios_plan_hash="ec28efd87d92f1d3076c099bcc048407eb918eb9664fd5b3f033d9108839bb70"
+          else
+            ios_plan_hash="$(shasum -a 256 ios/versions.env ios/tools/build-qt-ios-from-source.sh | shasum -a 256 | awk '{print $1}')"
+          fi
           validator_hash="$(shasum -a 256 ios/tools/prepare-qt-ios.sh | awk '{print $1}')"
-          host_base="${RUNNER_ARCH}-xcode-${xcode_build}-iphoneos-${sdk_version}-${host_plan_hash}"
-          ios_base="${RUNNER_ARCH}-xcode-${xcode_build}-iphoneos-${sdk_version}-${ios_plan_hash}"
+          host_base="${RUNNER_ARCH}-xcode-${xcode_build}-iphoneos-${device_sdk_version}-${host_plan_hash}"
+          ios_base="${RUNNER_ARCH}-xcode-${xcode_build}-${target_sdk}-${sdk_version}-${ios_plan_hash}"
           host_key="overte-qt-host-v2-${host_base}-contract-${validator_hash}"
           ios_key="overte-qt-ios-v2-${ios_base}-contract-${validator_hash}"
           host_artifact_hash="$(printf '%s' "$host_key" | shasum -a 256 | cut -c1-32)"
@@ -245,6 +269,7 @@ jobs:
           ios/tools/build-qt-ios-from-source.sh \
             --work-root "$QT_WORK_ROOT" \
             --install-root "$QT_INSTALL_ROOT" \
+            --target-sdk "${{ inputs.target_sdk }}" \
             --stage source
 
       - name: Restore compiler recovery cache
@@ -265,6 +290,7 @@ jobs:
           ios/tools/build-qt-ios-from-source.sh \
             --work-root "$QT_WORK_ROOT" \
             --install-root "$QT_INSTALL_ROOT" \
+            --target-sdk "${{ inputs.target_sdk }}" \
             --stage host
 
       - name: Validate Qt host tools
@@ -307,6 +333,7 @@ jobs:
           ios/tools/build-qt-ios-from-source.sh \
             --work-root "$QT_WORK_ROOT" \
             --install-root "$QT_INSTALL_ROOT" \
+            --target-sdk "${{ inputs.target_sdk }}" \
             --stage ios
 
       - name: Validate restored or built Qt

@@ -1881,7 +1881,7 @@ def test_ci_contract() -> None:
         raise AssertionError("integrated CI must not upload a potentially sensitive CMake cache")
 
     qt_source = SOURCE_ROOT / ".github" / "workflows" / "ios-qt-source.yml"
-    require_text(qt_source, r"concurrency:\s+group: ios-qt-source-macos26-arm64", "Qt source cache writers must serialize across branches sharing keys")
+    require_text(qt_source, r"concurrency:\s+group: ios-qt-source-macos26-arm64-\$\{\{ inputs\.target_sdk \}\}", "Qt source cache writers must serialize each SDK across branches sharing keys")
     require_text(qt_source, r"cancel-in-progress: false", "an expensive Qt source cache build must not be cancelled by a duplicate dispatch")
     require_text(qt_source, r"workflow_call:[\s\S]*?qt_host_cache_key:[\s\S]*?qt_ios_cache_key:", "reusable Qt workflow must expose both component keys")
     require_text(qt_source, r"workflow_call:[\s\S]*?qt_host_artifact_prefix:[\s\S]*?qt_ios_artifact_prefix:", "reusable Qt workflow must expose both durable artifact namespaces")
@@ -1905,6 +1905,8 @@ def test_ci_contract() -> None:
     require_text(qt_source, r"permissions:[\s\S]*?actions: write[\s\S]*?contents: read", "Qt checkpoint fallback needs job-local Actions access")
     require_text(qt_source, r'host_plan_hash="f7a0f4a6a8d51a462a14c9b51e1595338d023f4fd06a0a134aeadbf07a9bce18"', "target-only fixes must retain the validated host cache key")
     require_text(qt_source, r'ios_plan_hash=.*build-qt-ios-from-source\.sh', "target cache key must change with iOS configure policy")
+    require_text(qt_source, r"target_sdk:[\s\S]*?iphoneos[\s\S]*?iphonesimulator", "Qt provisioning must expose an explicit device/simulator SDK boundary")
+    require_text(qt_source, r'--target-sdk "\$\{\{ inputs\.target_sdk \}\}"', "every Qt source stage must receive the selected target SDK")
     require_text(qt_source, r"--stage ios", "Qt provisioning must build the iOS target independently")
     require_text(qt_source, r"Save compiler recovery cache after a build failure", "failed compiles must retain reusable compiler outputs without duplicating every successful run")
     require_text(qt_source, r"if: failure\(\) && steps\.sccache\.outcome == 'success'", "compiler recovery must only create a new generation after a failed build")

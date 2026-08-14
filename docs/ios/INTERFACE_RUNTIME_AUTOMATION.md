@@ -26,23 +26,33 @@ the default branch. This is an activation boundary, not runtime evidence.
 
 ## Simulator tier
 
-`.github/workflows/ios-interface-simulator-acceptance.yml` is manual and
-credential-free. It accepts only a successful same-repository run containing a
-numbered `iphonesimulator` Full Client ZIP whose manifest matches the approved
-revision and digest. Separate iPhone and iPad jobs install that exact app, open
-the fixed Overte Hub deep link and require all six entity gates. The current
-gates prove that a domain connected and rendered after the request; they do not
-yet bind the resulting domain UUID to that named place. Runtime logs
-are private scratch data; the uploaded evidence contains only canonical gate
-fields, bounded diagnostics and screenshots.
+`.github/workflows/ios-world-runtime.yml` is called only by the reviewed
+`ios-bootstrap.yml` gate after the complete host suite. The explicit
+`[ios-worlds]` commit marker (or `world_evidence` dispatch input) provisions
+independent arm64 `iphonesimulator` Qt, JITless V8, Conan and MoltenVK slices,
+builds the real `Overte` target and packages a numbered simulator candidate.
+Validated Qt, V8 and Conan outputs are saved immediately as both exact caches
+and provenance-bound durable artifacts. Cacheable Qt, V8 and client compiler
+outputs are also written to remote sccache storage as each translation unit
+finishes.
 
-The current branch can package a simulator Full Client, but its expensive
-simulator-native inputs are not provisioned yet: Qt and JITless V8 are currently
-checkpointed only for `iphoneos`. Until a validated arm64 simulator artifact is
-produced by an extended trusted Full Client workflow, the acceptance harness
-has no compatible producer. The existing
-bootstrap simulator smoke remains useful lifecycle coverage but is not promoted
-to Full Client acceptance.
+The runtime gate installs that exact app separately on iPhone and iPad
+simulators. Each family loads the bundled
+`file:///~/serverless/tutorial.json` scene and the current `hifi://overte_hub`
+online place. The serverless case requires an import-commit marker followed by
+a populated EntityTree and renderer handoff. The online case resolves the
+active place through the metaverse API immediately before launch and requires
+the connected DomainList UUID to equal the resolved domain UUID, in addition
+to all six network/entity gates. A screenshot is retained only after those
+gates pass; its PNG structure, digest, dimensions and visible image variation
+are validated. The final evidence-set report binds all four screenshots to the
+candidate SHA-256 and source revision and rejects byte-identical serverless and
+online frames. Raw unified logs remain private scratch data and are deleted.
+
+`.github/workflows/ios-interface-simulator-acceptance.yml` remains available as
+a manual consumer for an already published simulator candidate. Its older
+six-gate route is useful for generic entity acceptance, but the world workflow
+is the stronger named-destination and screenshot oracle.
 
 ## Physical iPad tier
 
