@@ -27,6 +27,7 @@
     // leaving enough room for that first visible online frame.
     var deadline = Date.now() + 420000;
     var snapshotStage = "waiting";
+    var snapshotSettleDeadline = 0;
     var visibleGeometryReadyAt = 0;
     var snapshotPath = "";
     var latestInventory = null;
@@ -58,6 +59,8 @@
         };
         var typeCounts = {};
         var visibleRenderableCount = 0;
+        var visiblePrimitiveCount = 0;
+        var primitiveTypes = { Box: true, Sphere: true, Shape: true };
         var records = entities.slice(0, captureLimit).map(function (entityID) {
             var properties = Entities.getEntityProperties(entityID, [
                 "type", "visible", "position", "dimensions"
@@ -67,6 +70,9 @@
             typeCounts[type] = (typeCounts[type] || 0) + 1;
             if (visible && !nonVisibleGeometryTypes[type]) {
                 visibleRenderableCount += 1;
+            }
+            if (visible && primitiveTypes[type]) {
+                visiblePrimitiveCount += 1;
             }
             return {
                 id: String(entityID),
@@ -81,6 +87,7 @@
             entity_count: entities.length,
             captured_count: records.length,
             visible_renderable_count: visibleRenderableCount,
+            visible_primitive_count: visiblePrimitiveCount,
             type_counts: typeCounts,
             entities: records
         };
@@ -90,6 +97,7 @@
         Test.saveObject(inventory, "macos-online-entities.json");
         print("OVERTE_MACOS_SMOKE online_inventory captured=" + inventory.captured_count +
             " visible_renderable=" + inventory.visible_renderable_count +
+            " visible_primitive=" + inventory.visible_primitive_count +
             " types=" + JSON.stringify(inventory.type_counts));
     }
 
@@ -121,7 +129,7 @@
         var entities = Entities.findEntities(MyAvatar.position, 16384);
         latestInventory = inspectEntityInventory(entities, 64);
         if (snapshotStage === "waiting" &&
-                latestInventory.visible_renderable_count > 0) {
+                latestInventory.visible_primitive_count > 0) {
             if (visibleGeometryReadyAt === 0) {
                 // Give the entity-tree/render-handoff queues one bounded
                 // interval to converge before freezing the correlated
@@ -135,10 +143,9 @@
         }
         if (snapshotStage === "waiting" && visibleGeometryReadyAt !== 0 &&
                 Date.now() >= visibleGeometryReadyAt) {
-            // Record the complete bounded domain snapshot once. Polling stays
-            // cheap above, while this final inventory guarantees that the
-            // exact streamed primitive named by the C++ render-handoff gate
-            // can be correlated even when it was not among the first 64 IDs.
+            // Record the complete nearby scene snapshot once. Polling stays
+            // cheap above, while the final inventory correlates a streamed
+            // primitive handoff with at least one visible domain primitive.
             latestInventory = inspectEntityInventory(entities, entities.length);
             saveEntityInventory(latestInventory);
             snapshotStage = "capturing";
@@ -148,6 +155,17 @@
             // pipelines; Apple's virtualized software renderer may spend
             // minutes compiling those after the scene is already visible.
             Window.takeSnapshot(false, false, 16 / 9, "macos-online-smoke.png");
+            // On Apple's software GL runner the PNG writer can complete while
+            // the main-thread stillSnapshotTaken callback remains queued
+            // behind active domain-script setup. The shell is authoritative:
+            // after this bounded settle it requires and decodes the PNG before
+            // accepting the run. A timely callback still finishes earlier.
+            snapshotSettleDeadline = Date.now() + 150000;
+        }
+        if (snapshotStage === "capturing" && snapshotSettleDeadline !== 0 &&
+                Date.now() >= snapshotSettleDeadline) {
+            print("OVERTE_MACOS_SMOKE snapshot_callback_deferred");
+            finish(true, "snapshot_settle_elapsed");
         }
         if (Date.now() >= deadline) {
             finish(false, snapshotStage === "waiting" ? "entity_timeout" :

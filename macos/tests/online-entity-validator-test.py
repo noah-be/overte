@@ -31,11 +31,16 @@ def payload(entities: list[dict]) -> dict:
         item["visible"] and item["type"] not in MODULE.NON_VISIBLE_GEOMETRY_TYPES
         for item in entities
     )
+    visible_primitives = sum(
+        item["visible"] and item["type"] in MODULE.PRIMITIVE_TYPES
+        for item in entities
+    )
     return {
         "schema_version": 1,
         "entity_count": len(entities),
         "captured_count": len(entities),
         "visible_renderable_count": visible,
+        "visible_primitive_count": visible_primitives,
         "type_counts": {},
         "entities": entities,
     }
@@ -50,13 +55,13 @@ for environmental_type in ("Zone", "Light", "Material"):
     environmental = MODULE.validate(payload([record(handoff, environmental_type)]), handoff)
     assert not environmental["passed"]
     assert "inventory has no visible render-affecting entity" in environmental["failures"]
-    assert "render-handoff entity is not visible and render-affecting" not in environmental["failures"]
+    assert "render-handoff entity is not a primitive" in environmental["failures"]
 
 zone_handoff = MODULE.validate(
     payload([record(handoff, "Zone"), record("visible-shape")]), handoff
 )
-assert zone_handoff["passed"], zone_handoff
-assert zone_handoff["render_handoff_type"] == "Zone"
+assert not zone_handoff["passed"], zone_handoff
+assert "render-handoff entity is not a primitive" in zone_handoff["failures"]
 
 missing = MODULE.validate(payload([record("other")]), handoff)
 assert not missing["passed"]
@@ -66,9 +71,17 @@ non_rendering = MODULE.validate(payload([record(handoff, "Sound")]), handoff)
 assert not non_rendering["passed"]
 assert "inventory has no visible render-affecting entity" in non_rendering["failures"]
 
-hidden = MODULE.validate(payload([record(handoff, "Model", False)]), handoff)
-assert not hidden["passed"]
-assert "render-handoff entity is not visible and render-affecting" in hidden["failures"]
+hidden_primitive_handoff = MODULE.validate(
+    payload([record(handoff, "Box", False), record("visible-box", "Box")]), handoff
+)
+assert hidden_primitive_handoff["passed"], hidden_primitive_handoff
+assert hidden_primitive_handoff["visible_primitive_count"] == 1
+
+hidden_model = MODULE.validate(
+    payload([record(handoff, "Model", False), record("visible-box", "Box")]), handoff
+)
+assert not hidden_model["passed"]
+assert "render-handoff entity is not a primitive" in hidden_model["failures"]
 
 bad_vector_payload = payload([record(handoff)])
 bad_vector_payload["entities"][0]["position"]["x"] = float("nan")

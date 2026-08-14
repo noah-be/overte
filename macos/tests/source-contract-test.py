@@ -580,6 +580,7 @@ for inventory_contract in (
     "Test.saveObject(inventory",
     '"macos-online-entities.json"',
     "visible_renderable_count",
+    "visible_primitive_count",
     "type_counts",
 ):
     if inventory_contract not in online_script:
@@ -630,8 +631,9 @@ online_validator = (
 for online_entity_classification_contract in (
     'NON_RENDERING_TYPES = {"Unknown", "Empty", "Sound", "Script"}',
     'NON_VISIBLE_GEOMETRY_TYPES = NON_RENDERING_TYPES | {"Zone", "Light", "Material"}',
+    'PRIMITIVE_TYPES = {"Box", "Sphere", "Shape"}',
     "entity_type not in NON_VISIBLE_GEOMETRY_TYPES",
-    "handoff_type in NON_RENDERING_TYPES",
+    "handoff_type not in PRIMITIVE_TYPES",
 ):
     if online_entity_classification_contract not in online_validator:
         raise SystemExit(
@@ -641,8 +643,10 @@ for online_entity_classification_contract in (
 for online_timing_contract in (
     "snapshot_complete=",
     "visibleGeometryReadyAt = Date.now() + 1000",
-    "latestInventory.visible_renderable_count > 0",
+    "latestInventory.visible_primitive_count > 0",
     "saveEntityInventory(latestInventory)",
+    "snapshotSettleDeadline = Date.now() + 150000",
+    "snapshot_callback_deferred",
     "Date.now() + 420000",
 ):
     if online_timing_contract not in online_script:
@@ -661,6 +665,9 @@ for transition_geometry_contract in (
     "state.visibleGeometryCount > 0",
     '" visible_geometry="',
     "Date.now() + 420000",
+    "onlineSnapshotSettleDeadline = Date.now() + 150000",
+    "online_snapshot_callback_deferred",
+    "returnToServerless",
 ):
     if transition_geometry_contract not in transition_script:
         raise SystemExit(

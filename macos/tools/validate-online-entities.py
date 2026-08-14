@@ -14,6 +14,7 @@ from pathlib import Path
 
 NON_RENDERING_TYPES = {"Unknown", "Empty", "Sound", "Script"}
 NON_VISIBLE_GEOMETRY_TYPES = NON_RENDERING_TYPES | {"Zone", "Light", "Material"}
+PRIMITIVE_TYPES = {"Box", "Sphere", "Shape"}
 
 
 def normalized_id(value: object) -> str:
@@ -49,6 +50,7 @@ def validate(payload: object, render_handoff_id: str) -> dict[str, object]:
 
     records: dict[str, dict[str, object]] = {}
     computed_visible_renderable = 0
+    computed_visible_primitive = 0
     for index, entity in enumerate(entities):
         if not isinstance(entity, dict):
             failures.append(f"entity {index} is not an object")
@@ -76,11 +78,17 @@ def validate(payload: object, render_handoff_id: str) -> dict[str, object]:
             and entity_type not in NON_VISIBLE_GEOMETRY_TYPES
         ):
             computed_visible_renderable += 1
+        if visible is True and entity_type in PRIMITIVE_TYPES:
+            computed_visible_primitive += 1
 
     if payload.get("visible_renderable_count") != computed_visible_renderable:
         failures.append("visible_renderable_count does not match inventory")
     if computed_visible_renderable < 1:
         failures.append("inventory has no visible render-affecting entity")
+    if payload.get("visible_primitive_count") != computed_visible_primitive:
+        failures.append("visible_primitive_count does not match inventory")
+    if computed_visible_primitive < 1:
+        failures.append("inventory has no visible primitive entity")
 
     handoff_id = normalized_id(render_handoff_id)
     handoff = records.get(handoff_id)
@@ -91,8 +99,8 @@ def validate(payload: object, render_handoff_id: str) -> dict[str, object]:
     else:
         handoff_type = handoff.get("type")
         handoff_visible = handoff.get("visible")
-        if handoff_visible is not True or handoff_type in NON_RENDERING_TYPES:
-            failures.append("render-handoff entity is not visible and render-affecting")
+        if handoff_type not in PRIMITIVE_TYPES:
+            failures.append("render-handoff entity is not a primitive")
 
     return {
         "schema_version": 1,
@@ -101,6 +109,7 @@ def validate(payload: object, render_handoff_id: str) -> dict[str, object]:
         "entity_count": entity_count,
         "captured_count": len(entities),
         "visible_renderable_count": computed_visible_renderable,
+        "visible_primitive_count": computed_visible_primitive,
         "render_handoff_id": handoff_id,
         "render_handoff_type": handoff_type,
         "render_handoff_visible": handoff_visible,

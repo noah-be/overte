@@ -20,6 +20,7 @@
     var stage = "initial_serverless";
     var stageDeadline = Date.now() + 180000;
     var finalRenderReadyAt = 0;
+    var onlineSnapshotSettleDeadline = 0;
     var completed = false;
     var expectedNames = [
         "macOS smoke red cube",
@@ -71,6 +72,19 @@
         };
     }
 
+    function returnToServerless(snapshotDetail) {
+        print("OVERTE_MACOS_TRANSITION online_snapshot=" + snapshotDetail);
+        // The public Hub contains many script-bearing entities. The PNG can
+        // be complete while its Qt completion signal waits behind script
+        // setup on Apple's software runner. Stop queuing Hub entity frames;
+        // the shell remains authoritative and decodes the written PNG.
+        Scene.shouldRenderEntities = false;
+        print("OVERTE_MACOS_TRANSITION online_rendering_paused");
+        stage = "returning_serverless";
+        stageDeadline = Date.now() + 180000;
+        AddressManager.handleLookupString(localScene);
+    }
+
     Window.stillSnapshotTaken.connect(function (path) {
         if (!path) {
             finish(false, stage + "_snapshot_save_failed");
@@ -84,15 +98,7 @@
             stageDeadline = Date.now() + 420000;
             AddressManager.handleLookupString("hifi://overte_hub");
         } else if (stage === "online_snapshot") {
-            print("OVERTE_MACOS_TRANSITION online_snapshot=" + path);
-            // The public Hub contains many shader variants.  The online image
-            // above is already the rendering proof; stop queuing more Hub
-            // entity frames while the connection/tree transition is handled.
-            Scene.shouldRenderEntities = false;
-            print("OVERTE_MACOS_TRANSITION online_rendering_paused");
-            stage = "returning_serverless";
-            stageDeadline = Date.now() + 180000;
-            AddressManager.handleLookupString(localScene);
+            returnToServerless(path);
         } else if (stage === "final_snapshot") {
             finish(true, "serverless_online_serverless");
         }
@@ -116,6 +122,12 @@
                 " visible_geometry=" + state.visibleGeometryCount);
             stage = "online_snapshot";
             Window.takeSnapshot(false, false, 16 / 9, "macos-transition-online.png");
+            onlineSnapshotSettleDeadline = Date.now() + 150000;
+        } else if (stage === "online_snapshot" &&
+                onlineSnapshotSettleDeadline !== 0 &&
+                Date.now() >= onlineSnapshotSettleDeadline) {
+            print("OVERTE_MACOS_TRANSITION online_snapshot_callback_deferred");
+            returnToServerless("settle_elapsed");
         } else if (
             stage === "returning_serverless" && AddressManager.isConnected &&
             AddressManager.protocol === "file" && state.fixtureComplete

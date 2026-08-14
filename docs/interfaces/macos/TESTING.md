@@ -27,12 +27,15 @@ non-black content, opacity and contrast, red/cyan pixel populations, and their
 expected left/right placement. The online gate additionally requires directory,
 entity-server, query, receive, and render progress before accepting a non-empty
 image. Immediately before capture it writes the complete nearby entity
-inventory and requires the exact UUID from a domain-hosted Box, Sphere, or Shape
-render handoff to be present and visible. The correlated protocol, tree,
-primitive-render, inventory, and image gates prevent local helper entities or
-entity scripts from substituting for an entity streamed by the domain's entity
-server. A passing process exit without every marker and the correlated inventory
-is not acceptance.
+inventory. A domain-hosted Box, Sphere, or Shape render-handoff UUID must occur
+in that inventory, and the same inventory must contain at least one visible
+primitive. The correlated protocol, tree, primitive-render, inventory, and
+image gates prevent local helper entities or entity scripts from substituting
+for an entity streamed by the domain's entity server. A passing process exit
+without every marker and the correlated inventory is not acceptance. If the
+software renderer writes the PNG but delays Qt's completion signal behind
+domain-script startup, the script stops after a bounded 150-second settle;
+the shell still requires and fully decodes the resulting image.
 
 The hosted Intel runner exposes Apple's software OpenGL renderer. Compiling the
 public Hub's complete model and text pipeline can take many minutes per shader,
