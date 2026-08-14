@@ -498,6 +498,11 @@ def test_cmake_boundary() -> None:
     require_text(moltenvk, r"ios-arm64", "MoltenVK lookup must support arm64 devices")
     require_text(moltenvk, r"MoltenVK/static/MoltenVK\.xcframework", "MoltenVK lookup must use the current static package layout")
     require_text(moltenvk, r"NO_DEFAULT_PATH", "MoltenVK must not be found incidentally")
+    require_text(
+        SOURCE_ROOT / "cmake" / "macros" / "TargetVulkan.cmake",
+        r'if\(IOS\)[\s\S]*MoltenVK::MoltenVK[\s\S]*"-framework IOSurface"[\s\S]*"-framework Metal"',
+        "static iOS MoltenVK linkage must propagate its IOSurface system dependency",
+    )
     integrated_workflow = (SOURCE_ROOT / ".github/workflows/ios-integrated.yml")
     moltenvk_pin = IOS_ROOT / "moltenvk.env"
     require_text(moltenvk_pin, r"OVERTE_IOS_MOLTENVK_VERSION=1\.4\.2", "MoltenVK version must be explicit")
@@ -506,6 +511,14 @@ def test_cmake_boundary() -> None:
     require_text(integrated_workflow, r"OVERTE_IOS_MOLTENVK_SHA256", "MoltenVK download must verify its pinned digest")
     require_text(integrated_workflow, r"--require-moltenvk", "integrated preflight must validate MoltenVK")
     require_text(integrated_workflow, r"Save validated MoltenVK", "validated MoltenVK must become a reusable checkpoint")
+
+    inbound_audio_stream = SOURCE_ROOT / "libraries" / "audio" / "src" / "InboundAudioStream.h"
+    require_text(
+        inbound_audio_stream,
+        r'InboundAudioStream\(const InboundAudioStream&\) = delete;\s*'
+        r'InboundAudioStream& operator=\(const InboundAudioStream&\) = delete;',
+        "Qt 6 metatype traits must see the stateful inbound audio stream as explicitly non-copyable",
+    )
 
     metal_shader = IOS_ROOT / "src" / "BootstrapShaders.metal"
     require_text(metal_shader, r"overteBootstrapVertex", "Metal probe needs a compiled vertex function")

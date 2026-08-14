@@ -14,6 +14,7 @@ macro(TARGET_VULKAN)
         target_link_libraries(${TARGET_NAME}
             MoltenVK::MoltenVK
             "-framework Foundation"
+            "-framework IOSurface"
             "-framework Metal"
             "-framework QuartzCore")
     else()

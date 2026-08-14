@@ -7,6 +7,9 @@ import re
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 cmake = (ROOT / "libraries/display-plugins/CMakeLists.txt").read_text(encoding="utf-8")
 registration = (ROOT / "libraries/display-plugins/src/display-plugins/DisplayPlugin.cpp").read_text(encoding="utf-8")
+application_plugins = (ROOT / "interface/src/Application_Plugins.cpp").read_text(encoding="utf-8")
+vision_squeeze = (ROOT / "interface/src/VisionSqueeze.cpp").read_text(encoding="utf-8")
+interface_menu = (ROOT / "interface/src/Menu.cpp").read_text(encoding="utf-8")
 
 start = cmake.index('if(IOS AND OVERTE_RENDERING_BACKEND STREQUAL "Vulkan")')
 end = cmake.index("endif()", start)
@@ -34,4 +37,29 @@ for token in ('#include "hmd/DebugHmdDisplayPlugin.h"', "new DebugHmdDisplayPlug
     if guard < 0 or close < 0 or registration.find("#endif", guard, position) >= 0:
         raise SystemExit(f"iOS plugin registration does not guard {token!r}")
 
-print("iOS display source isolation valid: 14 OpenGL/stereo/HMD files excluded; registration guarded")
+for source, tokens in (
+    (application_plugins, (
+        "#include <display-plugins/hmd/HmdDisplayPlugin.h>",
+        "dynamic_cast<HmdDisplayPlugin*>",
+        "&HmdDisplayPlugin::hmdMountedChanged",
+        "&HmdDisplayPlugin::hmdVisibleChanged",
+    )),
+    (vision_squeeze, (
+        "#include <display-plugins/hmd/HmdDisplayPlugin.h>",
+        "std::dynamic_pointer_cast<HmdDisplayPlugin>",
+        "hmdDisplayPlugin->updateVisionSqueezeParameters",
+    )),
+    (interface_menu, (
+        "#include <display-plugins/OpenGLDisplayPlugin.h>",
+        "OpenGLDisplayPlugin::getExtraLinearToSRGBConversion",
+        "OpenGLDisplayPlugin::setExtraLinearToSRGBConversion",
+    )),
+):
+    for token in tokens:
+        position = source.index(token)
+        guard = source.rfind("#if !defined(Q_OS_IOS)", 0, position)
+        close = source.find("#endif", position)
+        if guard < 0 or close < 0 or source.find("#endif", guard, position) >= 0:
+            raise SystemExit(f"iOS Interface consumer does not guard excluded display symbol {token!r}")
+
+print("iOS display source isolation valid: 14 OpenGL/stereo/HMD files excluded; registration and consumers guarded")

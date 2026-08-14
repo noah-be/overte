@@ -381,6 +381,13 @@ The shared physics update computes serverless state from the entity tree and
 committed-import override; iOS therefore follows the normal serverless physics
 handoff without referencing Android-only scene state.
 
+`InboundAudioStream` now explicitly deletes its copy constructor and copy
+assignment operator. Copying this stateful stream was already unsupported, but
+the old protected, undefined declarations made Qt 6 metatype traits emit copy
+and move helpers for `MixedProcessedAudioStream`, leaving an undefined base
+copy at link time. The explicit deletion makes the intended ownership boundary
+visible without changing runtime audio behavior.
+
 The desktop log dialog's bold timestamp/source highlighter now scans with
 `QRegularExpression`. Every formatted range still starts at the match, uses
 the full match length, and resumes immediately after that range. The existing

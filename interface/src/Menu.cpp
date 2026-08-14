@@ -54,7 +54,9 @@
 #include "avatar/AvatarManager.h"
 #include "avatar/AvatarPackager.h"
 #include "AvatarBookmarks.h"
+#if !defined(Q_OS_IOS)
 #include <display-plugins/OpenGLDisplayPlugin.h>
+#endif
 #include "DomainAccountManager.h"
 #include "MainWindow.h"
 #include "render/DrawStatus.h"
@@ -562,12 +564,14 @@ Menu::Menu() {
             drawStatusConfig, SLOT(setShowFade(bool)));
     }
 
+#if !defined(Q_OS_IOS)
     {
         action = addCheckableActionToQMenuAndActionHash(renderOptionsMenu, MenuOption::ExtraLinearTosRGBConversion, 0, OpenGLDisplayPlugin::getExtraLinearToSRGBConversion());
         connect(action, &QAction::triggered, [action] {
             OpenGLDisplayPlugin::setExtraLinearToSRGBConversion(action->isChecked());
         });
     }
+#endif
 
     // Developer > Assets >>>
     // Menu item is not currently needed but code should be kept in case it proves useful again at some stage.

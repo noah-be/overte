@@ -14,7 +14,9 @@
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtc/epsilon.hpp>
 
+#if !defined(Q_OS_IOS)
 #include <display-plugins/hmd/HmdDisplayPlugin.h>
+#endif
 
 #include "Application.h"
 
@@ -201,6 +203,7 @@ void VisionSqueeze::updateVisionSqueeze(const glm::mat4& sensorToWorldMatrix, fl
         }
     }
 
+#if !defined(Q_OS_IOS)
     std::shared_ptr<HmdDisplayPlugin> hmdDisplayPlugin =
         std::dynamic_pointer_cast<HmdDisplayPlugin>(qApp->getActiveDisplayPlugin());
     if (hmdDisplayPlugin) {
@@ -210,4 +213,5 @@ void VisionSqueeze::updateVisionSqueeze(const glm::mat4& sensorToWorldMatrix, fl
                                                         getVisionSqueezeGroundPlaneY(),
                                                         getVisionSqueezeSpotlightSize());
     }
+#endif
 }

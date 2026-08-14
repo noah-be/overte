@@ -21,7 +21,9 @@
 
 #include <input-plugins/InputPlugin.h>
 #include <display-plugins/DisplayPlugin.h>
+#if !defined(Q_OS_IOS)
 #include <display-plugins/hmd/HmdDisplayPlugin.h>
+#endif
 #include <OffscreenUi.h>
 #include <plugins/PluginManager.h>
 #include <plugins/PluginUtils.h>
@@ -199,12 +201,14 @@ void Application::initializeDisplayPlugins() {
             [this](const QSize& size) { resizeGL(); });
         QObject::connect(displayPlugin.get(), &DisplayPlugin::resetSensorsRequested, this, &Application::requestReset);
 
+#if !defined(Q_OS_IOS)
         if (displayPlugin->isHmd()) {
             auto hmdDisplayPlugin = dynamic_cast<HmdDisplayPlugin*>(displayPlugin.get());
             QObject::connect(hmdDisplayPlugin, &HmdDisplayPlugin::hmdMountedChanged,
                 DependencyManager::get<HMDScriptingInterface>().data(), &HMDScriptingInterface::mountedChanged);
             QObject::connect(hmdDisplayPlugin, &HmdDisplayPlugin::hmdVisibleChanged, this, &Application::hmdVisibleChanged);
         }
+#endif
     }
 
     // The default display plugin needs to be activated first, otherwise the display plugin thread
