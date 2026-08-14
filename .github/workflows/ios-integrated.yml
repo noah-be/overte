@@ -86,8 +86,9 @@ jobs:
       SCCACHE_CACHE_SIZE: 512M
       SCCACHE_BASEDIRS: ${{ github.workspace }}
       SCCACHE_CLIENT_SIDE: "1"
+      SCCACHE_IDLE_TIMEOUT: "0"
       SCCACHE_MULTILEVEL_CHAIN: disk,gha
-      SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: all
+      SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: l0
       SCCACHE_GHA_ENABLED: "true"
       OVERTE_COMPILER_WATCHDOG_DIAGNOSTICS: ${{ github.workspace }}/build-ios/v8-compiler-watchdog-diagnostics
     steps:
@@ -122,15 +123,39 @@ jobs:
         run: |
           xcode_build="$(xcodebuild -version | awk '/Build version/{print $3}')"
           sdk_version="$(xcrun --sdk iphoneos --show-sdk-version)"
-          recipe_hash="$(shasum -a 256 ios/v8.env ios/tools/build-v8-ios.sh | shasum -a 256 | awk '{print $1}')"
-          key="overte-v8-ios-v1-${RUNNER_ARCH}-xcode-${xcode_build}-iphoneos-${sdk_version}-${recipe_hash}"
-          artifact_hash="$(printf '%s' "$key" | shasum -a 256 | cut -c1-32)"
-          echo "key=$key" >> "$GITHUB_OUTPUT"
-          echo "artifact-prefix=overte-v8-ios-checkpoint-v1-${artifact_hash}" >> "$GITHUB_OUTPUT"
-          sccache_base="overte-v8-ios-sccache-v1-${RUNNER_ARCH}-xcode-${xcode_build}-iphoneos-${sdk_version}-${recipe_hash}-"
-          echo "sccache-prefix=$sccache_base" >> "$GITHUB_OUTPUT"
-          echo "SCCACHE_GHA_VERSION=overte-v8-ios-objects-v1-${artifact_hash}" >> "$GITHUB_ENV"
-          echo "SCCACHE_C_CUSTOM_CACHE_BUSTER=${artifact_hash}" >> "$GITHUB_ENV"
+          sdk_build="$(xcrun --sdk iphoneos --show-sdk-build-version)"
+          xcode_clang="$(xcrun --sdk iphoneos --find clang)"
+          compiler_version="$("$xcode_clang" --version | head -n 1)"
+          compiler_sha256="$(shasum -a 256 "$xcode_clang" | awk '{print $1}')"
+          mkdir -p "$IOS_RUNNER_TELEMETRY_DIR"
+          python3 ios/tools/v8-build-plan.py identity \
+            --platform device \
+            --runner-arch "$RUNNER_ARCH" \
+            --xcode-build "$xcode_build" \
+            --sdk-version "$sdk_version" \
+            --sdk-build "$sdk_build" \
+            --compiler-version "$compiler_version" \
+            --compiler-sha256 "$compiler_sha256" \
+            --json-output "$IOS_RUNNER_TELEMETRY_DIR/build-identity.json" \
+            --github-output "$GITHUB_OUTPUT"
+          identity="$(awk -F= '$1 == "identity" { print $2 }' "$GITHUB_OUTPUT" | tail -n 1)"
+          test -n "$identity"
+          echo "SCCACHE_GHA_VERSION=overte-v8-ios-objects-v2-${identity}" >> "$GITHUB_ENV"
+          echo "SCCACHE_C_CUSTOM_CACHE_BUSTER=${identity}" >> "$GITHUB_ENV"
+
+          source ios/v8-legacy-checkpoints.env
+          legacy_compatible=false
+          if [[ "$RUNNER_ARCH" == "$OVERTE_IOS_V8_LEGACY_DEVICE_RUNNER_ARCH" &&
+                "$xcode_build" == "$OVERTE_IOS_V8_LEGACY_DEVICE_XCODE_BUILD" &&
+                "$sdk_version" == "$OVERTE_IOS_V8_LEGACY_DEVICE_SDK_VERSION" ]]; then
+            legacy_compatible=true
+          fi
+          echo "legacy-compatible=$legacy_compatible" >> "$GITHUB_OUTPUT"
+          echo "legacy-cache-key=$OVERTE_IOS_V8_LEGACY_DEVICE_CACHE_KEY" >> "$GITHUB_OUTPUT"
+          echo "legacy-artifact-prefix=$OVERTE_IOS_V8_LEGACY_DEVICE_ARTIFACT_PREFIX" >> "$GITHUB_OUTPUT"
+          echo "legacy-library-sha256=$OVERTE_IOS_V8_LEGACY_DEVICE_LIBRARY_SHA256" >> "$GITHUB_OUTPUT"
+          echo "V8 checkpoint key: overte-v8-ios-v2-${identity}"
+          echo "V8 identity inputs: platform=device arch=arm64 xcode=$xcode_build sdk=$sdk_version sdk_build=$sdk_build compiler=$compiler_version"
 
       - name: Restore pinned static JITless V8 for iOS
         id: v8-cache
@@ -138,16 +163,6 @@ jobs:
         with:
           path: ${{ env.OVERTE_IOS_V8_ROOT }}
           key: ${{ steps.v8-cache-key.outputs.key }}
-
-      - name: Restore V8 compiler recovery checkpoint
-        id: v8-sccache
-        if: steps.v8-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        with:
-          path: ${{ env.SCCACHE_DIR }}
-          key: ${{ steps.v8-cache-key.outputs.sccache-prefix }}${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            ${{ steps.v8-cache-key.outputs.sccache-prefix }}
 
       - name: Probe durable static JITless V8 checkpoint
         id: v8-artifact-probe
@@ -159,7 +174,7 @@ jobs:
             --artifact-prefix "${{ steps.v8-cache-key.outputs.artifact-prefix }}" \
             --expected-repository-id "${{ github.repository_id }}" \
             --expected-branch "${{ github.ref_name }}" \
-            --max-age-days 21 \
+            --max-age-days 75 \
             --github-output "$GITHUB_OUTPUT"
 
       - name: Restore durable static JITless V8 checkpoint
@@ -175,18 +190,80 @@ jobs:
             --cache-key "${{ steps.v8-cache-key.outputs.key }}" \
             --expected-repository-id "${{ github.repository_id }}" \
             --expected-branch "${{ github.ref_name }}" \
-            --max-age-days 21 \
+            --max-age-days 75 \
             --install-root "${{ github.workspace }}/build-ios/external" \
             --github-output "$GITHUB_OUTPUT"
 
+      - name: Restore reviewed legacy V8 checkpoint for v2 promotion
+        id: v8-legacy-artifact
+        if: steps.v8-cache.outputs.cache-hit != 'true' && steps.v8-artifact.outputs.restored != 'true' && steps.v8-cache-key.outputs.legacy-compatible == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py restore \
+            --artifact-prefix "${{ steps.v8-cache-key.outputs.legacy-artifact-prefix }}" \
+            --kind v8 \
+            --cache-key "${{ steps.v8-cache-key.outputs.legacy-cache-key }}" \
+            --expected-repository-id "${{ github.repository_id }}" \
+            --expected-branch "${{ github.ref_name }}" \
+            --max-age-days 21 \
+            --install-root "${{ github.workspace }}/build-ios/external" \
+            --github-output "$GITHUB_OUTPUT"
+          if [[ "$(awk -F= '$1 == "restored" { print $2 }' "$GITHUB_OUTPUT" | tail -n 1)" == true ]]; then
+            actual_sha="$(shasum -a 256 "$OVERTE_IOS_V8_ROOT/lib/libv8_monolith.a" | awk '{print $1}')"
+            [[ "$actual_sha" == "${{ steps.v8-cache-key.outputs.legacy-library-sha256 }}" ]] || {
+              echo "reviewed legacy V8 library digest mismatch" >&2
+              exit 1
+            }
+            ios/tools/build-v8-ios.sh stamp-identity
+          fi
+
+      - name: Restore V8 compiler recovery checkpoint
+        id: v8-sccache
+        if: steps.v8-cache.outputs.cache-hit != 'true' && steps.v8-artifact.outputs.restored != 'true' && steps.v8-legacy-artifact.outputs.restored != 'true'
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: ${{ steps.v8-cache-key.outputs.sccache-prefix }}${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ${{ steps.v8-cache-key.outputs.sccache-prefix }}
+
+      - name: Report V8 checkpoint decision
+        run: |
+          if [[ "${{ steps.v8-cache.outputs.cache-hit }}" == true ]]; then
+            source=actions-cache
+            reason="exact output identity hit"
+          elif [[ "${{ steps.v8-artifact.outputs.restored }}" == true ]]; then
+            source=durable-artifact
+            reason="Actions cache was evicted; exact validated artifact restored"
+          elif [[ "${{ steps.v8-legacy-artifact.outputs.restored }}" == true ]]; then
+            source=reviewed-legacy-promotion
+            reason="v2 namespace migration used the exact reviewed v1 library digest"
+          else
+            source=rebuild
+            reason="no compatible complete output checkpoint was available"
+          fi
+          echo "V8 checkpoint source=$source"
+          echo "V8 rebuild reason=$reason"
+          echo "V8 output cache hit=${{ steps.v8-cache.outputs.cache-hit }}"
+          echo "V8 output matched key=${{ steps.v8-cache.outputs.cache-matched-key }}"
+          echo "V8 compiler cache hit=${{ steps.v8-sccache.outputs.cache-hit }}"
+          echo "V8 compiler matched key=${{ steps.v8-sccache.outputs.cache-matched-key }}"
+
       - name: Build pinned static JITless V8 for iOS
         id: v8-build
-        if: steps.v8-cache.outputs.cache-hit != 'true' && steps.v8-artifact.outputs.restored != 'true'
+        if: steps.v8-cache.outputs.cache-hit != 'true' && steps.v8-artifact.outputs.restored != 'true' && steps.v8-legacy-artifact.outputs.restored != 'true'
         continue-on-error: true
         run: |
           mkdir -p "$IOS_RUNNER_TELEMETRY_DIR"
           sccache --stop-server || true
           sccache --start-server
+          sccache --show-stats --stats-format=json > "$IOS_RUNNER_TELEMETRY_DIR/sccache-before.json"
+          echo "V8 sccache state before rebuild:"
+          sccache --show-stats
+          python3 ios/ci/report-sccache-stats.py \
+            "$IOS_RUNNER_TELEMETRY_DIR/sccache-before.json" \
+            --cache-dir "$SCCACHE_DIR" --phase before
           sccache --zero-stats
           python3 ios/ci/runner-telemetry.py \
             --phase v8-build \
@@ -205,11 +282,14 @@ jobs:
       - name: Report V8 compiler checkpoint statistics
         id: v8-sccache-stats
         if: ${{ always() && !cancelled() && steps.v8-build.outcome != 'skipped' }}
-        continue-on-error: true
         run: |
           mkdir -p "$IOS_RUNNER_TELEMETRY_DIR"
           sccache --show-stats --stats-format=json > "$IOS_RUNNER_TELEMETRY_DIR/sccache-stats.json"
+          echo "V8 sccache state after rebuild:"
           sccache --show-stats
+          python3 ios/ci/report-sccache-stats.py \
+            "$IOS_RUNNER_TELEMETRY_DIR/sccache-stats.json" \
+            --cache-dir "$SCCACHE_DIR" --phase after --require-activity
 
       - name: Stop V8 compiler checkpoint server
         if: ${{ always() && !cancelled() && steps.v8-build.outcome != 'skipped' }}
@@ -251,7 +331,7 @@ jobs:
             build-ios/v8-checkpoint/manifest.json
           if-no-files-found: error
           compression-level: 0
-          retention-days: 30
+          retention-days: 90
 
       - name: Save validated static JITless V8 for iOS
         if: steps.v8-cache.outputs.cache-hit != 'true'

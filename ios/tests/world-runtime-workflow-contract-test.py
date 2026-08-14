@@ -33,6 +33,20 @@ for line in WORKFLOW.splitlines():
 require(WORKFLOW, r"qt-simulator:[\s\S]*uses: \./\.github/workflows/ios-qt-source\.yml[\s\S]*target_sdk: iphonesimulator", "world workflow must provision simulator Qt")
 require(QT, r"target_sdk:[\s\S]*iphoneos[\s\S]*iphonesimulator", "Qt provisioner must keep device and simulator explicit")
 require(WORKFLOW, r"OVERTE_IOS_V8_PLATFORM: simulator", "V8 must be compiled and validated for the simulator")
+require(WORKFLOW, r"v8-build-plan\.py identity[\s\S]*--platform simulator", "simulator V8 must use the canonical output identity")
+assert 'recipe_hash="$(shasum -a 256 ios/v8.env ios/tools/build-v8-ios.sh' not in WORKFLOW
+for checkpoint_step in (
+    "Restore validated simulator V8 cache",
+    "Restore durable simulator V8 checkpoint",
+    "Restore reviewed legacy simulator V8 checkpoint for v2 promotion",
+    "Restore simulator V8 compiler recovery checkpoint",
+    "Report simulator V8 checkpoint decision",
+    "Build pinned simulator V8",
+):
+    assert checkpoint_step in WORKFLOW
+assert "Simulator V8 sccache state before rebuild" in WORKFLOW
+assert "Simulator V8 sccache state after rebuild" in WORKFLOW
+assert "retention-days: 90" in WORKFLOW
 require(WORKFLOW, r"target-sdk iphonesimulator --print-plan", "restored Qt must prove simulator provenance")
 require(WORKFLOW, r'QT_OSX_ARCHITECTURES "arm64"', "restored simulator Qt must prove its arm64 target architecture")
 require(MOLTENVK_SIMULATOR, r"OVERTE_IOS_MOLTENVK_SIMULATOR_ARCHIVE=MoltenVK-all\.tar", "simulator MoltenVK must use the multi-slice archive")
