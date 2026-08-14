@@ -1131,6 +1131,8 @@ frame_timings_header = (
 frame_timings_source = (
     ROOT / "interface/src/FrameTimingsScriptingInterface.cpp"
 ).read_text(encoding="utf-8")
+if "#include <QtCore/QVariant>" not in frame_timings_header:
+    raise SystemExit("frame timing public QVariantList API must include QVariant directly")
 application_source = (ROOT / "interface/src/Application.cpp").read_text(encoding="utf-8")
 test_registration = application_source.split(
     "if (property(hifi::properties::TEST).isValid())", 1

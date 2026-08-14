@@ -13,6 +13,7 @@
 
 #include <QtCore/QMutex>
 #include <QtCore/QObject>
+#include <QtCore/QVariant>
 
 class FrameTimingsScriptingInterface : public QObject {
     Q_OBJECT
