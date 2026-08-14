@@ -275,10 +275,6 @@ jobs:
           PY
           swift "$DIAGNOSTIC_ROOT/bundle-check.swift" "$normalized_app" \
             > "$DIAGNOSTIC_ROOT/output/full-normalized-foundation-before-signing.txt"
-          grep -Fx "foundation_bundle_identifier=$BUNDLE_ID" \
-            "$DIAGNOSTIC_ROOT/output/full-normalized-foundation-before-signing.txt"
-          grep -Fx "foundation_raw_identifier=$BUNDLE_ID" \
-            "$DIAGNOSTIC_ROOT/output/full-normalized-foundation-before-signing.txt"
 
           sign_bundle() {
             local label="$1" app="$2" identifier="$3"

@@ -56,7 +56,7 @@ assert "original full bundle unexpectedly installed" in WORKFLOW
 assert "normalizing the executable resource did not repair installation" in WORKFLOW
 assert "PASS full Overte bundle installs after executable resource normalization" in WORKFLOW
 assert re.search(
-    r"full-normalized-foundation-before-signing[.]txt.*?"
+    r"sign_bundle full-normalized.*?"
     r"foundation_bundle_identifier=[$]BUNDLE_ID.*?"
     r"foundation_raw_identifier=[$]BUNDLE_ID",
     WORKFLOW,
