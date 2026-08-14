@@ -392,7 +392,9 @@ GLuint gl::buildProgram(const std::vector<GLuint>& glshaders) {
         return 0;
     }
 
-    // glProgramParameteri(glprogram, GL_PROGRAM_, GL_TRUE);
+    // The backend persists linked binaries across launches. OpenGL is allowed
+    // to return a zero-length binary unless this hint is set before linking.
+    glProgramParameteri(glprogram, GL_PROGRAM_BINARY_RETRIEVABLE_HINT, GL_TRUE);
     // Create the program from the sub shaders
     for (auto so : glshaders) {
         glAttachShader(glprogram, so);

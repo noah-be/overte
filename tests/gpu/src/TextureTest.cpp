@@ -15,6 +15,7 @@
 #include <QtGui/QImage>
 
 #include <gpu/Forward.h>
+#include <gpu/Shader.h>
 #include <gl/Config.h>
 #include <gl/GLHelpers.h>
 #include <gpu/gl/GLBackend.h>
@@ -31,38 +32,6 @@ QTEST_MAIN(TextureTest)
 #define FAIL_AFTER_SECONDS 30
 
 static const QString KTX_TEST_DIR_ENV("HIFI_KTX_TEST_DIR");
-
-std::string vertexShaderSource = R"SHADER(
-OUTPUT(0, vec2, outTexCoord0);
-
-const vec4 VERTICES[] = vec4[](
-    vec4(-1.0, -1.0, 0.0, 1.0),
-    vec4( 1.0, -1.0, 0.0, 1.0),
-    vec4(-1.0,  1.0, 0.0, 1.0),
-    vec4( 1.0,  1.0, 0.0, 1.0)
-);
-
-void main() {
-    outTexCoord0 = VERTICES[gl_VertexID].xy;
-    outTexCoord0 += 1.0;
-    outTexCoord0 /= 2.0;
-    gl_Position = VERTICES[gl_VertexID];
-}
-)SHADER";
-
-std::string fragmentShaderSource = R"SHADER(
-uniform sampler2D tex;
-
-INPUT(0, vec2, inTexCoord0);
-OUTPUT(0, vec4, outFragColor);
-
-void main() {
-    outFragColor = texture(tex, inTexCoord0);
-    outFragColor.a = 1.0;
-    //outFragColor.rb = inTexCoord0;
-}
-
-)SHADER";
 
 QtMessageHandler originalHandler;
 
@@ -116,9 +85,7 @@ void TextureTest::initTestCase() {
 
     _canvas.makeCurrent();
     {
-        auto VS = gpu::Shader::createVertex(shader::Source::generate(vertexShaderSource));
-        auto PS = gpu::Shader::createPixel(shader::Source::generate(fragmentShaderSource));
-        auto program = gpu::Shader::createProgram(VS, PS);
+        auto program = gpu::Shader::createProgram(shader::gpu::program::drawUnitQuatTextureOpaque);
         // If the pipeline did not exist, make it
         auto state = std::make_shared<gpu::State>();
         state->setCullMode(gpu::State::CULL_NONE);

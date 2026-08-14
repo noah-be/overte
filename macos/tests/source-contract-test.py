@@ -100,12 +100,33 @@ if "unloadAllEntityScripts(true)" in entity_shutdown:
 
 shader_test_header = (ROOT / "tests/gpu/src/ShaderLoadTest.h").read_text(encoding="utf-8")
 shader_test_source = (ROOT / "tests/gpu/src/ShaderLoadTest.cpp").read_text(encoding="utf-8")
-if "#define USE_LOCAL_SHADERS 0" not in shader_test_header:
-    raise SystemExit("shader tests must use the repository cache instead of developer paths")
 if "backend->syncProgram(program);" not in shader_test_source or "return false;" in shader_test_source.split(
     "bool ShaderLoadTest::buildProgram", 1
 )[1].split("void ShaderLoadTest::initTestCase", 1)[0]:
     raise SystemExit("shader tests must compile programs through the current GL backend")
+for shader_cache_contract in (
+    "shader::gpu::program::DrawTexture",
+    "shader::Source::get(shader::getVertexId(programId))",
+    "shader::Source::get(shader::getFragmentId(programId))",
+    "expectedBinaryLoads",
+    "gpuBinaryShadersLoaded.load()",
+    "GL_NUM_PROGRAM_BINARY_FORMATS",
+    "Shader cache was not persisted to disk",
+):
+    if shader_cache_contract not in shader_test_source:
+        raise SystemExit(f"current production shader cache test contract missing: {shader_cache_contract}")
+for retired_shader_contract in (
+    "Source::generate",
+    "Test no longer compatible with current code",
+    "parseCacheFile",
+):
+    if retired_shader_contract in shader_test_source:
+        raise SystemExit(f"shader tests retain obsolete source handling: {retired_shader_contract}")
+shader_source_api = (ROOT / "libraries/shaders/src/shaders/Shaders.h").read_text(
+    encoding="utf-8"
+)
+if 'runtime_error("Implement me")' in shader_source_api:
+    raise SystemExit("public shader source API must not expose an unimplemented factory")
 
 texture_test = (ROOT / "tests/gpu/src/TextureTest.cpp").read_text(encoding="utf-8")
 for forbidden_texture_dependency in ("ExternalResource", "test_ktx.zip", "downloadFile("):
@@ -118,6 +139,15 @@ for texture_contract in ("cube_texture.png", "gpu::Texture::serialize", "cube_te
         raise SystemExit(f"deterministic texture fixture contract missing: {texture_contract}")
 if "#include <ktx/KTX.h>" not in texture_test:
     raise SystemExit("texture serialization test must bind the complete KTX type")
+if "gpu::Shader::createProgram(shader::gpu::program::drawUnitQuatTextureOpaque)" not in texture_test:
+    raise SystemExit("texture test must exercise the generated production texture program")
+if "Source::generate" in texture_test:
+    raise SystemExit("texture test must not call the retired raw shader factory")
+gl_shader_source = (ROOT / "libraries/gl/src/gl/GLShaders.cpp").read_text(
+    encoding="utf-8"
+)
+if "GL_PROGRAM_BINARY_RETRIEVABLE_HINT, GL_TRUE" not in gl_shader_source:
+    raise SystemExit("shader programs must opt in to retrievable binary checkpoints before linking")
 
 audio_test = (ROOT / "tests/audio/src/AudioTests.cpp").read_text(encoding="utf-8")
 typed_audio_spy = "QSignalSpy spy(ac.get(), &AudioClient::devicesChanged);"
