@@ -126,6 +126,7 @@ class NormalizerTests(unittest.TestCase):
             self.assertEqual(payload["bundleIdentifier"], NEW_ID)
             self.assertEqual(payload["sourceSha256"], archive_digest(source))
             self.assertEqual(payload["sha256"], archive_digest(output))
+            self.assertEqual(payload["infoPlistFormat"], "binary1")
             self.assertFalse(payload["signed"])
             self.assertTrue(payload["requiresSigning"])
 
@@ -140,7 +141,7 @@ class NormalizerTests(unittest.TestCase):
                 info = plistlib.loads(archive.read("Payload/Overte.app/Info.plist"))
                 self.assertEqual(info["CFBundleIdentifier"], NEW_ID)
                 self.assertTrue(
-                    archive.read("Payload/Overte.app/Info.plist").startswith(b"<?xml")
+                    archive.read("Payload/Overte.app/Info.plist").startswith(b"bplist00")
                 )
                 executable = archive.getinfo("Payload/Overte.app/Overte")
                 self.assertEqual(executable.external_attr >> 16 & 0o777, 0o755)

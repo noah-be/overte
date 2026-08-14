@@ -167,6 +167,13 @@ jobs:
           plist="$app/Info.plist"
           test -d "$app" && test ! -L "$app"
           /usr/bin/plutil -lint "$plist"
+          python3 - "$plist" <<'PY'
+          import pathlib
+          import sys
+
+          if not pathlib.Path(sys.argv[1]).read_bytes().startswith(b"bplist00"):
+              raise SystemExit("normalized application Info.plist is not binary1")
+          PY
           actual_bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")"
           [[ "$actual_bundle_id" == "$BUNDLE_ID" ]]
           xcrun swift ios/ci/verify-apple-bundle.swift "$app" "$BUNDLE_ID"

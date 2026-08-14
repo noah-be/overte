@@ -45,6 +45,7 @@ require(
     "the original producer bundle must establish the Foundation baseline",
 )
 require(r"plutil -lint", "Apple plutil must validate the final Info.plist")
+require(r'bplist00', "the final application Info.plist must retain Xcode binary1 format")
 require(r"PlistBuddy[^\n]*CFBundleIdentifier", "Apple metadata lookup must verify the ID")
 require(r"xcrun swift ios/ci/verify-apple-bundle[.]swift", "Foundation must parse the iOS app")
 require(r"if-no-files-found:\s*error", "missing normalized outputs must fail closed")

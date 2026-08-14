@@ -156,8 +156,12 @@ def normalize(source: Path, output: Path, new_bundle_id: str) -> tuple[str, str]
     with zipfile.ZipFile(source, "r") as input_archive:
         members, metadata, old_bundle_id, executable_name = inspect_source(input_archive)
         metadata["CFBundleIdentifier"] = new_bundle_id
+        # Xcode emits the installed application's Info.plist as a binary
+        # property list.  Keep that native bundle representation when changing
+        # the identifier: external signing tools rewrite this file again and
+        # must not have to translate a hand-authored XML plist first.
         normalized_plist = plistlib.dumps(
-            metadata, fmt=plistlib.FMT_XML, sort_keys=True
+            metadata, fmt=plistlib.FMT_BINARY, sort_keys=True
         )
         with tempfile.NamedTemporaryFile(
             prefix=output.name + ".", suffix=".partial", dir=output.parent, delete=False
@@ -241,7 +245,7 @@ def main() -> int:
         "originalBundleIdentifier": old_bundle_id,
         "bundleIdentifier": arguments.bundle_id,
         "size": arguments.output.stat().st_size,
-        "infoPlistFormat": "xml1",
+        "infoPlistFormat": "binary1",
         "signed": False,
         "requiresSigning": True,
     }
