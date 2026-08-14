@@ -1,0 +1,223 @@
+name: iOS Full Client simulator install diagnostic
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Trusted iOS world producer run ID
+        required: true
+        default: "31818380576"
+        type: string
+      source_artifact_name:
+        description: Exact artifact containing the simulator candidate
+        required: true
+        default: "215-overte-ios-world-candidate-31818380576"
+        type: string
+      source_candidate_name:
+        description: Exact simulator ZIP inside the artifact
+        required: true
+        default: "0215-OverteIOSClient-Release-simulator.zip"
+        type: string
+      expected_sha256:
+        description: Approved SHA-256 of the simulator ZIP
+        required: true
+        default: "bfe1aceaf08bac604db5d4ac43ebc917e5e2ff3d84e42aec8a1c1915174e4f96"
+        type: string
+      expected_source_revision:
+        description: Approved source revision embedded in the candidate
+        required: true
+        default: "fc1462617639c40c1c1e76d2044fa4ab741075f8"
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ios-simulator-install-${{ inputs.expected_sha256 }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  diagnose-install:
+    name: Reuse candidate and isolate CoreSimulator install failure
+    runs-on: macos-26
+    timeout-minutes: 35
+    env:
+      DIAGNOSTIC_ROOT: ${{ github.workspace }}/build-ios/simulator-install-diagnostic
+      SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+      SOURCE_ARTIFACT_NAME: ${{ inputs.source_artifact_name }}
+      SOURCE_CANDIDATE_NAME: ${{ inputs.source_candidate_name }}
+      EXPECTED_SHA256: ${{ inputs.expected_sha256 }}
+      EXPECTED_SOURCE_REVISION: ${{ inputs.expected_source_revision }}
+      BUNDLE_ID: org.overte.interface.dev
+    steps:
+      - name: Check out reviewed diagnostics without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Validate trusted failed producer and exact candidate identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$SOURCE_ARTIFACT_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
+          [[ "$SOURCE_CANDIDATE_NAME" =~ ^[0-9]+-OverteIOSClient-Release-simulator[.]zip$ ]]
+          [[ "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$EXPECTED_SOURCE_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          test ! -e "$DIAGNOSTIC_ROOT"
+          install -d -m 0700 "$DIAGNOSTIC_ROOT/source" "$DIAGNOSTIC_ROOT/output"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" > "$DIAGNOSTIC_ROOT/producer.json"
+          python3 - "$DIAGNOSTIC_ROOT/producer.json" <<'PY'
+          import json
+          import os
+          import pathlib
+          import sys
+
+          run = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          repository = run.get("head_repository") or {}
+          path = str(run.get("path", "")).split("@", 1)[0]
+          if run.get("status") != "completed" or run.get("conclusion") != "failure":
+              raise SystemExit("diagnostic source must be the reviewed failed world run")
+          if repository.get("full_name") != os.environ["GITHUB_REPOSITORY"]:
+              raise SystemExit("producer repository mismatch")
+          if run.get("head_branch") != "apple-ios":
+              raise SystemExit("producer branch mismatch")
+          if run.get("head_sha") != os.environ["EXPECTED_SOURCE_REVISION"]:
+              raise SystemExit("producer revision mismatch")
+          if path != ".github/workflows/ios-bootstrap.yml":
+              raise SystemExit("producer workflow is outside the trusted world boundary")
+          PY
+
+      - name: Download exact preserved simulator candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ env.SOURCE_ARTIFACT_NAME }}
+          path: ${{ env.DIAGNOSTIC_ROOT }}/source
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
+
+      - name: Verify and expand candidate without rebuilding
+        run: |
+          set -euo pipefail
+          candidate="$DIAGNOSTIC_ROOT/source/$SOURCE_CANDIDATE_NAME"
+          test -f "$candidate"
+          actual_sha="$(shasum -a 256 "$candidate" | awk '{print $1}')"
+          [[ "$actual_sha" == "$EXPECTED_SHA256" ]]
+          ditto -x -k "$candidate" "$DIAGNOSTIC_ROOT/original"
+          app="$DIAGNOSTIC_ROOT/original/Overte.app"
+          test -x "$app/Overte"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist" \
+            | grep -Fx "$BUNDLE_ID"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundlePackageType' "$app/Info.plist" \
+            | grep -Fx APPL
+          plutil -lint "$app/Info.plist" > "$DIAGNOSTIC_ROOT/output/plist-lint.txt"
+          file "$app/Info.plist" "$app/Overte" > "$DIAGNOSTIC_ROOT/output/file-types.txt"
+          if codesign --verify --deep --strict --verbose=4 "$app" \
+              > "$DIAGNOSTIC_ROOT/output/original-codesign-verify.txt" 2>&1; then
+            echo signed > "$DIAGNOSTIC_ROOT/output/original-signing-state.txt"
+          else
+            echo unsigned > "$DIAGNOSTIC_ROOT/output/original-signing-state.txt"
+          fi
+
+      - name: Test original and ad-hoc-signed app on older CoreSimulator releases
+        id: install
+        run: |
+          set -euo pipefail
+          original="$DIAGNOSTIC_ROOT/original/Overte.app"
+          success=0
+          successful_case=""
+          for specification in \
+            '26.4.1|17E202|26-4' \
+            '26.5|17F42|26-5' \
+            '26.6|17F113|26-5'; do
+            IFS='|' read -r xcode_version expected_build runtime_suffix <<< "$specification"
+            developer_dir="/Applications/Xcode_${xcode_version}.app/Contents/Developer"
+            if [[ ! -x "$developer_dir/usr/bin/xcodebuild" ]]; then
+              echo "SKIP Xcode $xcode_version is unavailable" \
+                | tee -a "$DIAGNOSTIC_ROOT/output/results.txt"
+              continue
+            fi
+            actual_build="$(DEVELOPER_DIR="$developer_dir" xcodebuild -version \
+              | awk '/Build version/{print $3}')"
+            [[ "$actual_build" == "$expected_build" ]]
+            runtime_json="$DIAGNOSTIC_ROOT/runtime-$xcode_version.json"
+            DEVELOPER_DIR="$developer_dir" xcrun simctl list runtimes --json > "$runtime_json"
+            runtime_id="$(python3 - "$runtime_json" "$runtime_suffix" <<'PY'
+          import json
+          import sys
+          runtimes = json.load(open(sys.argv[1], encoding="utf-8")).get("runtimes", [])
+          suffix = ".iOS-" + sys.argv[2]
+          matches = [r.get("identifier", "") for r in runtimes
+                     if r.get("isAvailable") and str(r.get("identifier", "")).endswith(suffix)]
+          if len(matches) != 1:
+              raise SystemExit(f"expected one available runtime ending {suffix}, got {matches}")
+          print(matches[0])
+          PY
+            )"
+            device_name="Overte install diagnostic $GITHUB_RUN_ID $xcode_version"
+            udid="$(DEVELOPER_DIR="$developer_dir" xcrun simctl create "$device_name" \
+              com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro "$runtime_id")"
+            [[ "$udid" =~ ^[0-9A-Fa-f-]{36}$ ]]
+            cleanup_device() {
+              DEVELOPER_DIR="$developer_dir" xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
+              DEVELOPER_DIR="$developer_dir" xcrun simctl delete "$udid" >/dev/null 2>&1 || true
+            }
+            trap cleanup_device EXIT
+            DEVELOPER_DIR="$developer_dir" xcrun simctl boot "$udid"
+            DEVELOPER_DIR="$developer_dir" xcrun simctl bootstatus "$udid" -b
+
+            for variant in original adhoc; do
+              app="$original"
+              if [[ "$variant" == adhoc ]]; then
+                variant_root="$DIAGNOSTIC_ROOT/$xcode_version-adhoc"
+                rm -rf "$variant_root"
+                mkdir -p "$variant_root"
+                ditto "$original" "$variant_root/Overte.app"
+                app="$variant_root/Overte.app"
+                xattr -cr "$app"
+                codesign --force --deep --sign - --timestamp=none \
+                  --generate-entitlement-der "$app" \
+                  > "$DIAGNOSTIC_ROOT/output/$xcode_version-$variant-codesign.txt" 2>&1
+                codesign --verify --deep --strict --verbose=4 "$app" \
+                  >> "$DIAGNOSTIC_ROOT/output/$xcode_version-$variant-codesign.txt" 2>&1
+                codesign -d --verbose=4 "$app" \
+                  >> "$DIAGNOSTIC_ROOT/output/$xcode_version-$variant-codesign.txt" 2>&1
+              fi
+              error_log="$DIAGNOSTIC_ROOT/output/$xcode_version-$variant-install.txt"
+              set +e
+              DEVELOPER_DIR="$developer_dir" xcrun simctl install "$udid" "$app" \
+                > "$error_log" 2>&1
+              status=$?
+              set -e
+              printf 'xcode=%s build=%s runtime=%s variant=%s status=%s\n' \
+                "$xcode_version" "$actual_build" "$runtime_id" "$variant" "$status" \
+                | tee -a "$DIAGNOSTIC_ROOT/output/results.txt"
+              if ((status == 0)); then
+                DEVELOPER_DIR="$developer_dir" xcrun simctl io "$udid" screenshot \
+                  "$DIAGNOSTIC_ROOT/output/$xcode_version-$variant-installed.png"
+                successful_case="$xcode_version-$variant"
+                success=1
+                break 2
+              fi
+            done
+            cleanup_device
+            trap - EXIT
+          done
+          echo "successful_case=$successful_case" >> "$GITHUB_OUTPUT"
+          ((success == 1)) || { echo "all bounded install variants failed" >&2; exit 1; }
+
+      - name: Upload bounded installation diagnostics
+        if: ${{ always() && !cancelled() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ios-simulator-install-diagnostic-${{ github.run_id }}
+          path: ${{ env.DIAGNOSTIC_ROOT }}/output
+          if-no-files-found: error
+          retention-days: 14
