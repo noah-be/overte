@@ -376,6 +376,11 @@ instead of storing `QKeyEvent` objects in a `QHash`. Qt 6 key events are not
 publicly copyable, while focus loss still swaps and clears the tracked set
 before synthesizing the same `KeyRelease` events with `Qt::NoModifier`.
 
+The shared physics update computes serverless state from the entity tree and
+`DomainHandler` on every platform. Only the Pico build adds its private
+committed-import override; iOS therefore follows the normal serverless physics
+handoff without referencing Android-only scene state.
+
 The desktop log dialog's bold timestamp/source highlighter now scans with
 `QRegularExpression`. Every formatted range still starts at the match, uses
 the full match length, and resumes immediately after that range. The existing

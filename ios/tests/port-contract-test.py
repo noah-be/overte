@@ -1518,6 +1518,13 @@ def test_scope_contract() -> None:
     )
     assert "QHash<int, QKeyEvent>" not in application_header.read_text(encoding="utf-8"), \
         "Qt 6 key events are not copyable container values"
+    require_text(
+        SOURCE_ROOT / "interface" / "src" / "Application.cpp",
+        r'const bool physicsServerless =\s*#if defined\(ANDROID_APP_PICO_INTERFACE\)\s*'
+        r'_picoServerlessSceneImportCommitted \|\|\s*#endif\s*'
+        r'isServerlessMode\(\) \|\| physicsDomainHandler\.isServerless\(\);',
+        "Pico's committed-scene override must not leak into the general iOS serverless physics path",
+    )
 
     base_log_dialog = SOURCE_ROOT / "interface" / "src" / "ui" / "BaseLogDialog.cpp"
     require_text(base_log_dialog, r'#include <QRegularExpression>', "log highlighting must use the Qt 6 regex API")
