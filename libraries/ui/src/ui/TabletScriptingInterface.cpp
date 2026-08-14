@@ -10,6 +10,8 @@
 
 #include "TabletScriptingInterface.h"
 
+#include <algorithm>
+
 #include <QtCore/QThread>
 #include <QtQml/QQmlProperty>
 
@@ -614,15 +616,20 @@ void TabletProxy::resizeAndroidTablet(int width, int height) {
         QMetaObject::invokeMethod(this, "resizeAndroidTablet", Q_ARG(int, width), Q_ARG(int, height));
         return;
     }
-    constexpr int ANDROID_TABLET_SAFE_INSET { 25 };
-    constexpr int ANDROID_TABLET_TOTAL_INSET { 2 * ANDROID_TABLET_SAFE_INSET };
-    if (!_androidScreenSpaceMode || !_desktopWindow ||
-            width <= ANDROID_TABLET_TOTAL_INSET || height <= ANDROID_TABLET_TOTAL_INSET) {
+    if (!_androidScreenSpaceMode || !_desktopWindow || !_desktopWindow->asQuickItem()) {
         return;
     }
-    _desktopWindow->setPosition(ANDROID_TABLET_SAFE_INSET, ANDROID_TABLET_SAFE_INSET);
-    _desktopWindow->setSize(width - ANDROID_TABLET_TOTAL_INSET,
-                            height - ANDROID_TABLET_TOTAL_INSET);
+    auto root = _desktopWindow->asQuickItem();
+    const int leftInset = std::max(0, root->property("screenSpaceSafeInsetLeft").toInt());
+    const int topInset = std::max(0, root->property("screenSpaceSafeInsetTop").toInt());
+    const int rightInset = std::max(0, root->property("screenSpaceSafeInsetRight").toInt());
+    const int bottomInset = std::max(0, root->property("screenSpaceSafeInsetBottom").toInt());
+    if (width <= leftInset + rightInset || height <= topInset + bottomInset) {
+        return;
+    }
+    _desktopWindow->setPosition(leftInset, topInset);
+    _desktopWindow->setSize(width - leftInset - rightInset,
+                            height - topInset - bottomInset);
 }
 
 void TabletProxy::hideAndroidTablet() {

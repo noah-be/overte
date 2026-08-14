@@ -23,7 +23,11 @@ import "SecuritySettings.js" as SecuritySettings
 
 Rectangle {
     id: parentBody;
-    SecurityTouchConfiguration { id: touchConfiguration }
+    SecurityTouchConfiguration {
+        id: touchConfiguration
+        availableWidth: parentBody.width
+        availableHeight: parentBody.height
+    }
 
     function getAllowlistAsText() {
         return SecuritySettings.normalizeAllowlist(

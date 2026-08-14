@@ -15,6 +15,7 @@ import QtQuick 2.0
 import Hifi 1.0
 
 import Qt.labs.settings 1.0
+import controlsUit 1.0 as HifiControls
 
 Windows.ScrollingWindow {
     id: tabletRoot
@@ -24,9 +25,13 @@ Windows.ScrollingWindow {
 
     property var rootMenu;
     property string subMenu: ""
+    HifiControls.TouchUiProfile { id: touchUiProfile }
     property bool screenSpaceMode: false
-    property real screenSpaceContentScale: 2.5
-    property int screenSpaceSafeInset: 25
+    property real screenSpaceContentScale: touchUiProfile.screenSpaceContentScale
+    property int screenSpaceSafeInsetLeft: touchUiProfile.safeInsetLeft
+    property int screenSpaceSafeInsetTop: touchUiProfile.safeInsetTop
+    property int screenSpaceSafeInsetRight: touchUiProfile.safeInsetRight
+    property int screenSpaceSafeInsetBottom: touchUiProfile.safeInsetBottom
 
     shown: false
     resizable: false
@@ -48,8 +53,8 @@ Windows.ScrollingWindow {
 
     function alignScreenSpaceWindow() {
         if (screenSpaceMode) {
-            x = screenSpaceSafeInset
-            y = screenSpaceSafeInset
+            x = screenSpaceSafeInsetLeft
+            y = screenSpaceSafeInsetTop
         }
     }
 

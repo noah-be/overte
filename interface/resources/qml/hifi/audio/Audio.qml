@@ -26,7 +26,11 @@ Rectangle {
     id: root;
 
     HifiConstants { id: hifi; }
-    AudioTouchConfiguration { id: touchConfiguration }
+    AudioTouchConfiguration {
+        id: touchConfiguration
+        availableWidth: root.width
+        availableHeight: root.height
+    }
 
     property var eventBridge;
     // leave as blank, this is user's volume for the avatar mixer

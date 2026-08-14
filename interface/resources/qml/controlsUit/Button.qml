@@ -35,13 +35,16 @@ Original.Button {
     property var androidClickAction: null
 
     width: hifi.dimensions.buttonWidth
-    height: hifi.dimensions.controlLineHeight
+    height: Math.max(hifi.dimensions.controlLineHeight,
+        touchMetrics.adaptiveMinimumControlHeight)
+    hoverEnabled: touchMetrics.hoverSupported
 
     property size implicitPadding: Qt.size(20, 16)
     property int implicitWidth: buttonContentItem.implicitWidth + implicitPadding.width
     property int implicitHeight: buttonContentItem.implicitHeight + implicitPadding.height
 
     HifiConstants { id: hifi }
+    TouchUiMetrics { id: touchMetrics }
 
     onHoveredChanged: {
         if (hovered) {

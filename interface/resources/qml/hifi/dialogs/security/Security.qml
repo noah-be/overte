@@ -20,7 +20,11 @@ import "qrc:////qml//controls" as HifiControls
 
 Rectangle {
     HifiStylesUit.HifiConstants { id: hifi; }
-    SecurityTouchConfiguration { id: touchConfiguration }
+    SecurityTouchConfiguration {
+        id: touchConfiguration
+        availableWidth: root.width
+        availableHeight: root.height
+    }
 
     id: root;
     color: hifi.colors.baseGray;

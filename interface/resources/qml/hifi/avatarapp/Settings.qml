@@ -9,7 +9,11 @@ import "../../controls" as HifiControls
 Rectangle {
     id: root
 
-    AvatarTouchConfiguration { id: touchConfiguration }
+    AvatarTouchConfiguration {
+        id: touchConfiguration
+        availableWidth: root.width
+        availableHeight: root.height
+    }
 
     color: 'white'
     visible: false;

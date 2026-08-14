@@ -141,8 +141,8 @@ Item {
 
             Item {
                 id: loginItem
-                width: Math.max(loginTextMetrics.width, touchConfiguration.minimumTouchTarget)
-                height: Math.max(loginTextMetrics.height, touchConfiguration.minimumTouchTarget)
+                width: Math.max(loginTextMetrics.width, presentation.minimumTouchTarget)
+                height: Math.max(loginTextMetrics.height, presentation.minimumTouchTarget)
                 anchors {
                     bottom: parent.bottom
                     bottomMargin: 10
