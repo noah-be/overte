@@ -17,6 +17,7 @@
 #include <image/Image.h>
 #include <image/TextureProcessing.h>
 #include <QDebug>
+#include <QDir>
 #include <QImageReader>
 #include <QTextStream>
 
@@ -24,21 +25,21 @@
 QTEST_GUILESS_MAIN(KtxBenchmarks)
 
 QStringList png_images{
-    "/interface/scripts/developer/tests/cube_texture.png",
-    "/interface/scripts/system/assets/images/materials/GridPattern.png",
-    "/interface/scripts/simplifiedUI/simplifiedEmote/emojiApp/resources/images/emojis/512px/1f92c.png",
-    "/interface/scripts/system/assets/images/Particle-Sprite-Smoke-1.png",
-    "/interface/scripts/system/assets/images/grabsprite-3.png",
-    "/interface/scripts/system/html/img/snapshotIcon.png",
+    "scripts/developer/tests/cube_texture.png",
+    "scripts/system/assets/images/materials/GridPattern.png",
+    "scripts/simplifiedUI/simplifiedEmote/emojiApp/resources/images/emojis/512px/1f92c.png",
+    "scripts/system/assets/images/Particle-Sprite-Smoke-1.png",
+    "scripts/system/assets/images/grabsprite-3.png",
+    "scripts/system/html/img/snapshotIcon.png",
 };
 
 QStringList jpg_images{
-    "/interface/scripts/system/appreciate/appreciate.jpg",
-    "/interface/scripts/system/assets/images/textures/dirt.jpeg",
+    "interface/resources/snapshot/img/no-image.jpg",
+    "scripts/system/assets/images/textures/dirt.jpeg",
 };
 
 
-QString test_texture = "/interface/scripts/developer/tests/cube_texture.png";
+QString test_texture = "scripts/developer/tests/cube_texture.png";
 
 QString getRootPath() {
 #ifdef OVERTE_TEST_SOURCE_ROOT
@@ -46,6 +47,10 @@ QString getRootPath() {
 #else
 #error "KtxBenchmarkTests requires OVERTE_TEST_SOURCE_ROOT"
 #endif
+}
+
+QString fixturePath(const QString& relativePath) {
+    return QDir(getRootPath()).filePath(relativePath);
 }
 
 void benchmarkImage(const QString &path) {
@@ -104,8 +109,10 @@ void KtxBenchmarks::benchmarkPNG_data() {
     QTest::addColumn<QString>("filename");
 
     for(QString filename : png_images) {
-        QString full_name = getRootPath() + filename;
-        QSize sz = imageSize(full_name);
+        QString full_name = fixturePath(filename);
+        QImage image(full_name);
+        QVERIFY2(!image.isNull(), qPrintable("Unable to load PNG benchmark fixture: " + full_name));
+        QSize sz = image.size();
         QString desc = QString("%1 x %2").arg(sz.width()).arg(sz.height());
 
         QTest::newRow( desc.toUtf8() ) << full_name;
@@ -124,8 +131,10 @@ void KtxBenchmarks::benchmarkJPG_data() {
     QTest::addColumn<QString>("filename");
 
     for(QString filename : jpg_images) {
-        QString full_name = getRootPath() + filename;
-        QSize sz = imageSize(full_name);
+        QString full_name = fixturePath(filename);
+        QImage image(full_name);
+        QVERIFY2(!image.isNull(), qPrintable("Unable to load JPEG benchmark fixture: " + full_name));
+        QSize sz = image.size();
         QString desc = QString("%1 x %2").arg(sz.width()).arg(sz.height());
 
         QTest::newRow( desc.toUtf8() ) << full_name;
@@ -141,7 +150,7 @@ void KtxBenchmarks::benchmarkJPG() {
 }
 
 void KtxBenchmarks::benchmarkCreateTexture() {
-    const QString TEST_IMAGE = getRootPath() + test_texture;
+    const QString TEST_IMAGE = fixturePath(test_texture);
 
     QBENCHMARK {
         gpu::TexturePointer testTexture = loadTexture(TEST_IMAGE);
@@ -154,7 +163,7 @@ void KtxBenchmarks::benchmarkCreateTexture() {
 }
 
 void KtxBenchmarks::benchmarkSerializeTexture() {
-    const QString TEST_IMAGE = getRootPath() +  test_texture;
+    const QString TEST_IMAGE = fixturePath(test_texture);
     gpu::TexturePointer testTexture = loadTexture(TEST_IMAGE);
 
     if (!testTexture) {
@@ -171,7 +180,7 @@ void KtxBenchmarks::benchmarkSerializeTexture() {
 }
 
 void KtxBenchmarks::benchmarkWriteKTX() {
-    const QString TEST_IMAGE = getRootPath() + test_texture;
+    const QString TEST_IMAGE = fixturePath(test_texture);
     gpu::TexturePointer testTexture = loadTexture(TEST_IMAGE);
 
     if (!testTexture) {

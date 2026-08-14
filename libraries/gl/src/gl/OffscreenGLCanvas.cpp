@@ -75,6 +75,10 @@ bool OffscreenGLCanvas::makeCurrent() {
     bool result = _context->makeCurrent(_offscreenSurface);
     if (result) {
         std::call_once(_reportOnce, [] {
+            // ContextInfo uses GLAD entry points. Load them before collecting
+            // diagnostics so debug GLAD builds do not call through an
+            // uninitialized function table.
+            gl::initModuleGl();
             LOG_GL_CONTEXT_INFO(glLogging, gl::ContextInfo().init());
         });
     }

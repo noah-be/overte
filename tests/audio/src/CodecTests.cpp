@@ -1,7 +1,7 @@
 #include <QSignalSpy>
 #include <QDebug>
 #include <QCoreApplication>
-#include <QFile>
+#include <QDir>
 
 
 #include "CodecTests.h"
@@ -20,27 +20,14 @@ void CodecTests::initTestCase() {
     DependencyManager::set<PluginManager>();
 
     QDir testPath (QCoreApplication::applicationDirPath());
-    QDir interfacePluginPath = testPath;
-
-
-
     qDebug() << "Our directory is" << testPath;
-
-    interfacePluginPath.cdUp();
-    interfacePluginPath.cdUp();
-    interfacePluginPath.cd("interface");
-    interfacePluginPath.cd("plugins");
-    interfacePluginPath.makeAbsolute();
-
+#if defined(Q_OS_MAC)
+    QString ourPluginPath = testPath.filePath("../PlugIns");
+#else
     QString ourPluginPath = testPath.filePath("plugins");
-
-
-    qDebug() << "Interface plugins are at" << interfacePluginPath;
+#endif
     qDebug() << "Our plugins are at" << ourPluginPath;
-
-
-    QFile::link(interfacePluginPath.path(), ourPluginPath);
-
+    QVERIFY2(QDir(ourPluginPath).exists(), qPrintable("Missing packaged test plugins: " + ourPluginPath));
 }
 
 void CodecTests::loadCodecs() {
@@ -80,6 +67,7 @@ void CodecTests::testEncoders() {
         QVERIFY(encoded.size() > 0);
 
         qDebug() << "Codec" << plugin->getName() << "encoded empty buffer of" << data.size() << "bytes into" << encoded.size();
+        plugin->releaseEncoder(encoder);
     }
 }
 
@@ -98,6 +86,7 @@ void CodecTests::testDecoders () {
         Encoder* encoder = plugin->createEncoder(AudioConstants::SAMPLE_RATE, AudioConstants::STEREO);
         Decoder* decoder = plugin->createDecoder(AudioConstants::SAMPLE_RATE, AudioConstants::STEREO);
         QVERIFY(encoder != nullptr);
+        QVERIFY(decoder != nullptr);
 
         QByteArray data(AudioConstants::NETWORK_FRAME_BYTES_STEREO, 0);
         QByteArray encoded;
@@ -121,5 +110,7 @@ void CodecTests::testDecoders () {
         decoder->lostFrame(lost);
         QVERIFY(lost.size() > 0);
         qDebug() << "Codec" << plugin->getName() << "decoded a lost frame";
+        plugin->releaseEncoder(encoder);
+        plugin->releaseDecoder(decoder);
     }
 }

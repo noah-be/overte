@@ -8,6 +8,8 @@
 
 #include "GlobalAppProperties.h"
 
+#include <QtCore/QtGlobal>
+
 namespace hifi { namespace properties {
 
     const char* CRASHED = "com.highfidelity.crashed";
@@ -31,7 +33,14 @@ namespace hifi { namespace properties {
         const char* CONTEXT = "com.highfidelity.vk.context";
     }
 
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    // Apple desktop OpenGL tops out at 4.1. Interface selects this explicitly,
+    // but standalone tools and tests must also have a valid default before
+    // they cache a surface format.
+    static GraphicsAPI GRAPHICS_API { GraphicsAPI::GL41 };
+#else
     static GraphicsAPI GRAPHICS_API { GraphicsAPI::GL45 };
+#endif
 
     void setGraphicsAPI(GraphicsAPI api) {
         GRAPHICS_API = api;

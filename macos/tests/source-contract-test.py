@@ -119,12 +119,91 @@ for texture_contract in ("cube_texture.png", "gpu::Texture::serialize", "cube_te
 if "#include <ktx/KTX.h>" not in texture_test:
     raise SystemExit("texture serialization test must bind the complete KTX type")
 
+audio_test = (ROOT / "tests/audio/src/AudioTests.cpp").read_text(encoding="utf-8")
+typed_audio_spy = "QSignalSpy spy(ac.get(), &AudioClient::devicesChanged);"
+if typed_audio_spy not in audio_test or "qvariant_cast<HifiAudioDeviceMode>" not in audio_test:
+    raise SystemExit("audio device tests must follow the current typed device signal")
+if "SIGNAL(devicesChanged(QAudio::Mode" in audio_test:
+    raise SystemExit("audio device tests retain the retired QAudio::Mode signal signature")
+if audio_test.index("ac->startThread();") < audio_test.index(typed_audio_spy):
+    raise SystemExit("audio tests must validate their signal observer before starting async audio")
+if "QSKIP(" not in audio_test:
+    raise SystemExit("audio device enumeration must tolerate a runner without audio hardware")
+
+audio_cmake = (ROOT / "tests/audio/CMakeLists.txt").read_text(encoding="utf-8")
+codec_test = (ROOT / "tests/audio/src/CodecTests.cpp").read_text(encoding="utf-8")
+for codec_deployment_contract in (
+    "add_dependencies(${TARGET_NAME} pcmCodec opusCodec)",
+    "$<TARGET_FILE_DIR:${TARGET_NAME}>/../PlugIns",
+    "$<TARGET_FILE:pcmCodec>",
+    "$<TARGET_FILE:opusCodec>",
+):
+    if codec_deployment_contract not in audio_cmake:
+        raise SystemExit(f"codec test deployment contract missing: {codec_deployment_contract}")
+for codec_runtime_contract in (
+    'testPath.filePath("../PlugIns")',
+    "QVERIFY(decoder != nullptr)",
+    "plugin->releaseEncoder(encoder)",
+    "plugin->releaseDecoder(decoder)",
+):
+    if codec_runtime_contract not in codec_test:
+        raise SystemExit(f"codec test runtime contract missing: {codec_runtime_contract}")
+if "QFile::link" in codec_test:
+    raise SystemExit("codec tests must not manufacture runtime plugin symlinks")
+
 ktx_benchmark = (ROOT / "tests/ktx/src/KtxBenchmarkTests.cpp").read_text(encoding="utf-8")
 ktx_cmake = (ROOT / "tests/ktx/CMakeLists.txt").read_text(encoding="utf-8")
 if "OVERTE_TEST_SOURCE_ROOT" not in ktx_benchmark or "OVERTE_TEST_SOURCE_ROOT" not in ktx_cmake:
     raise SystemExit("KTX benchmarks must resolve fixtures from the configured source root")
 if "parent.currentPath()" in ktx_benchmark:
     raise SystemExit("KTX benchmarks must not derive source fixtures from the process cwd")
+for forbidden_ktx_fixture in ("/interface/scripts/", "scripts/system/appreciate/appreciate.jpg"):
+    if forbidden_ktx_fixture in ktx_benchmark:
+        raise SystemExit(f"KTX benchmark retains a retired fixture path: {forbidden_ktx_fixture}")
+ktx_fixtures = (
+    "scripts/developer/tests/cube_texture.png",
+    "scripts/system/assets/images/materials/GridPattern.png",
+    "scripts/simplifiedUI/simplifiedEmote/emojiApp/resources/images/emojis/512px/1f92c.png",
+    "scripts/system/assets/images/Particle-Sprite-Smoke-1.png",
+    "scripts/system/assets/images/grabsprite-3.png",
+    "scripts/system/html/img/snapshotIcon.png",
+    "interface/resources/snapshot/img/no-image.jpg",
+    "scripts/system/assets/images/textures/dirt.jpeg",
+)
+for fixture in ktx_fixtures:
+    if f'"{fixture}"' not in ktx_benchmark or not (ROOT / fixture).is_file():
+        raise SystemExit(f"KTX benchmark fixture is missing or not tracked by its source: {fixture}")
+for ktx_fixture_contract in (
+    "QDir(getRootPath()).filePath(relativePath)",
+    "QVERIFY2(!image.isNull()",
+):
+    if ktx_fixture_contract not in ktx_benchmark:
+        raise SystemExit(f"KTX benchmark fixture validation missing: {ktx_fixture_contract}")
+
+offscreen_canvas = (ROOT / "libraries/gl/src/gl/OffscreenGLCanvas.cpp").read_text(
+    encoding="utf-8"
+)
+offscreen_make_current = offscreen_canvas.split(
+    "bool OffscreenGLCanvas::makeCurrent()", 1
+)[1].split("void OffscreenGLCanvas::doneCurrent()", 1)[0]
+if not (
+    offscreen_make_current.count("gl::initModuleGl();") == 1
+    and offscreen_make_current.index("gl::initModuleGl();")
+    < offscreen_make_current.index("gl::ContextInfo().init()")
+):
+    raise SystemExit("offscreen contexts must initialize GLAD before querying context information")
+
+standalone_graphics_defaults = (
+    ROOT / "libraries/shared/src/shared/GlobalAppProperties.cpp"
+).read_text(encoding="utf-8")
+if not re.search(
+    r"#if defined\(Q_OS_MAC\) && !defined\(Q_OS_IOS\).*?"
+    r"GRAPHICS_API \{ GraphicsAPI::GL41 \};.*?#else.*?"
+    r"GRAPHICS_API \{ GraphicsAPI::GL45 \};",
+    standalone_graphics_defaults,
+    re.DOTALL,
+):
+    raise SystemExit("standalone desktop-macOS programs must default to OpenGL 4.1")
 
 gltf_serializer = (ROOT / "libraries/model-serializers/src/GLTFSerializer.cpp").read_text(
     encoding="utf-8"
