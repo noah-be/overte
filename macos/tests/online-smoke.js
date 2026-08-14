@@ -160,7 +160,11 @@
             // behind active domain-script setup. The shell is authoritative:
             // after this bounded settle it requires and decodes the PNG before
             // accepting the run. A timely callback still finishes earlier.
-            snapshotSettleDeadline = Date.now() + 150000;
+            // A content-heavy public domain can keep Apple's virtualized
+            // software renderer busy after the lightweight primitive handoff.
+            // The preceding successful run produced the PNG inside this wider
+            // budget even though its Qt callback remained queued.
+            snapshotSettleDeadline = Date.now() + 300000;
         }
         if (snapshotStage === "capturing" && snapshotSettleDeadline !== 0 &&
                 Date.now() >= snapshotSettleDeadline) {

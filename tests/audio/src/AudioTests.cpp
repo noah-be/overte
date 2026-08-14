@@ -81,7 +81,7 @@ void AudioTests::listAudioDevices() {
 
         QVERIFY(devs.count() > 0);
 
-        qDebug() << "Mode:" << mode;
+        qDebug() << "Mode:" << static_cast<int>(mode);
         for(auto dev : devs) {
             qDebug() << "\t" << dev.deviceName();
         }

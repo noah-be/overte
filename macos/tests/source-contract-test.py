@@ -129,6 +129,8 @@ if audio_test.index("ac->startThread();") < audio_test.index(typed_audio_spy):
     raise SystemExit("audio tests must validate their signal observer before starting async audio")
 if "QSKIP(" not in audio_test:
     raise SystemExit("audio device enumeration must tolerate a runner without audio hardware")
+if 'qDebug() << "Mode:" << static_cast<int>(mode);' not in audio_test:
+    raise SystemExit("audio device tests must log the scoped device mode portably")
 
 audio_cmake = (ROOT / "tests/audio/CMakeLists.txt").read_text(encoding="utf-8")
 codec_test = (ROOT / "tests/audio/src/CodecTests.cpp").read_text(encoding="utf-8")
@@ -802,7 +804,7 @@ for online_timing_contract in (
     "visibleGeometryReadyAt = Date.now() + 1000",
     "latestInventory.visible_primitive_count > 0",
     "saveEntityInventory(latestInventory)",
-    "snapshotSettleDeadline = Date.now() + 150000",
+    "snapshotSettleDeadline = Date.now() + 300000",
     "snapshot_callback_deferred",
     "Date.now() + 420000",
 ):
