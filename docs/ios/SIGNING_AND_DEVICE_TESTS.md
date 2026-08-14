@@ -30,8 +30,12 @@ OVERTE_IOS_ARTIFACT_SEQUENCE=123 \
 ```
 
 `package-client` rejects zero or missing sequence numbers, missing executables,
-Info.plists, and privacy manifests. It never silently falls back to the
-bootstrap bundle. Device output is named like
+Info.plists, and privacy manifests. It also parses the finished app metadata
+before packaging: the requested `CFBundleIdentifier`, numeric
+`CFBundleShortVersionString`, numeric `CFBundleVersion`, target platform and
+Full Client URL schemes must all be concrete and installer-valid. Unresolved
+or missing Xcode substitutions therefore fail before an IPA can be uploaded.
+It never silently falls back to the bootstrap bundle. Device output is named like
 `0123-OverteIOSClient-Debug-device-unsigned.ipa`; the existing bootstrap names
 and numbering remain unchanged.
 

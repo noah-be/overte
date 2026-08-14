@@ -567,6 +567,9 @@ run_package_client() {
     [[ -x "$app_path/Overte" ]] || fail "integrated client executable is missing or not executable: $app_path/Overte"
     [[ -f "$app_path/PrivacyInfo.xcprivacy" ]] \
         || fail "integrated client privacy manifest not found: $app_path/PrivacyInfo.xcprivacy"
+    python3 "$script_dir/tools/verify-client-bundle-info.py" \
+        "$app_path" "$bundle_id" "$sdk_suffix" "$OVERTE_IOS_MIN_VERSION" \
+        || fail "integrated client install metadata failed validation"
     python3 "$script_dir/tools/verify-privacy-manifest.py" \
         "$app_path/PrivacyInfo.xcprivacy" \
         || fail "integrated client privacy manifest failed the audited contract"
@@ -591,7 +594,7 @@ run_package_client() {
             || fail "could not decode integrated client provisioning profile"
         codesign -d --entitlements :- "$app_path" > "$signature_plist" 2>/dev/null \
             || fail "could not extract integrated client signing entitlements"
-        signing_audit="$(python3 - "$profile_plist" "$signature_plist" "$bundle_identifier" "$development_team" <<'PY'
+        signing_audit="$(python3 - "$profile_plist" "$signature_plist" "$bundle_id" "$development_team" <<'PY'
 import plistlib
 import sys
 

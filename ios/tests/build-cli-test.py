@@ -298,7 +298,28 @@ def main() -> None:
         integrated_build = root / "integrated-package"
         integrated_app = integrated_build / "interface/Debug-iphonesimulator/Overte.app"
         integrated_app.mkdir(parents=True)
-        (integrated_app / "Info.plist").touch()
+        with (integrated_app / "Info.plist").open("wb") as stream:
+            plistlib.dump(
+                {
+                    "CFBundleIdentifier": "org.overte.interface.dev",
+                    "CFBundleExecutable": "Overte",
+                    "CFBundleDisplayName": "Overte",
+                    "CFBundleName": "Overte",
+                    "CFBundlePackageType": "APPL",
+                    "CFBundleShortVersionString": "0.1.0",
+                    "CFBundleVersion": "1",
+                    "CFBundleSupportedPlatforms": ["iPhoneSimulator"],
+                    "DTPlatformName": "iphonesimulator",
+                    "LSRequiresIPhoneOS": True,
+                    "MinimumOSVersion": "17.0",
+                    "UIDeviceFamily": [1, 2],
+                    "UIRequiredDeviceCapabilities": ["arm64"],
+                    "CFBundleURLTypes": [
+                        {"CFBundleURLSchemes": ["hifi", "hifiapp"]}
+                    ],
+                },
+                stream,
+            )
         (integrated_app / "Overte").touch()
         (integrated_app / "Overte").chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
         shutil.copy2(

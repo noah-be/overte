@@ -27,6 +27,7 @@ SAFE_ARTIFACT = re.compile(
 BUNDLE_ID = re.compile(
     r"[A-Za-z0-9][A-Za-z0-9-]*(?:[.][A-Za-z0-9][A-Za-z0-9-]*)+"
 )
+APPLE_VERSION = re.compile(r"[0-9]+(?:[.][0-9]+){0,2}")
 MAX_ARCHIVE_BYTES = 1024 * 1024 * 1024
 MAX_EXPANDED_BYTES = 2 * 1024 * 1024 * 1024
 MAX_MEMBERS = 20_000
@@ -239,6 +240,10 @@ def inspect_archive(artifact: Path, mode: str) -> tuple[str, str]:
             raise ValueError("Overte.app Info.plist root is not a dictionary")
         if bundle_info.get("CFBundleExecutable") != "Overte":
             raise ValueError("Info.plist does not select the Overte executable")
+        if APPLE_VERSION.fullmatch(str(bundle_info.get("CFBundleShortVersionString", ""))) is None:
+            raise ValueError("Info.plist has no valid marketing version")
+        if APPLE_VERSION.fullmatch(str(bundle_info.get("CFBundleVersion", ""))) is None:
+            raise ValueError("Info.plist has no valid build version")
         expected_platform = "iPhoneSimulator" if mode == "simulator" else "iPhoneOS"
         if bundle_info.get("CFBundleSupportedPlatforms") != [expected_platform]:
             raise ValueError("Info.plist targets the wrong Apple platform")

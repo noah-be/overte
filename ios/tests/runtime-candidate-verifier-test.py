@@ -47,24 +47,31 @@ def write_archive(
     mode: str,
     *,
     macho_mode: str | None = None,
+    info_updates: dict | None = None,
     extra_entries: list[tuple[str, bytes | str | None]] | None = None,
     omit: set[str] | None = None,
 ) -> None:
     root = "Overte.app" if mode == "simulator" else "Payload/Overte.app"
+    bundle_info = {
+        "CFBundleExecutable": "Overte",
+        "CFBundleIdentifier": "org.overte.interface.dev",
+        "CFBundleShortVersionString": "0.1.0",
+        "CFBundleVersion": "1",
+        "CFBundleSupportedPlatforms": [
+            "iPhoneSimulator" if mode == "simulator" else "iPhoneOS"
+        ],
+        "UIDeviceFamily": [1, 2],
+        "LSRequiresIPhoneOS": True,
+    }
+    for key, value in (info_updates or {}).items():
+        if value is None:
+            bundle_info.pop(key, None)
+        else:
+            bundle_info[key] = value
     entries: list[tuple[str, bytes | str | None]] = [
         (
             f"{root}/Info.plist",
-            plistlib.dumps(
-                {
-                    "CFBundleExecutable": "Overte",
-                    "CFBundleIdentifier": "org.overte.interface.dev",
-                    "CFBundleSupportedPlatforms": [
-                        "iPhoneSimulator" if mode == "simulator" else "iPhoneOS"
-                    ],
-                    "UIDeviceFamily": [1, 2],
-                    "LSRequiresIPhoneOS": True,
-                }
-            ),
+            plistlib.dumps(bundle_info),
         ),
         (f"{root}/Overte", macho_fixture(macho_mode or mode)),
         (f"{root}/PrivacyInfo.xcprivacy", b"privacy fixture"),
@@ -104,6 +111,7 @@ def write_candidate(
     mode: str,
     *,
     macho_mode: str | None = None,
+    info_updates: dict | None = None,
     manifest_updates: dict | None = None,
     extra_entries: list[tuple[str, bytes | str | None]] | None = None,
     omit: set[str] | None = None,
@@ -118,7 +126,12 @@ def write_candidate(
         signed = True
     artifact = root / artifact_name
     write_archive(
-        artifact, mode, macho_mode=macho_mode, extra_entries=extra_entries, omit=omit
+        artifact,
+        mode,
+        macho_mode=macho_mode,
+        info_updates=info_updates,
+        extra_entries=extra_entries,
+        omit=omit,
     )
     digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
     manifest_name = str(Path(artifact_name).with_suffix(".json"))
@@ -347,6 +360,23 @@ def main() -> None:
             ),
             "wrong Apple platform",
         )
+
+        for key, expected in (
+            ("CFBundleShortVersionString", "marketing version"),
+            ("CFBundleVersion", "build version"),
+        ):
+            missing_version = isolated_case(root, f"missing-{key.lower()}")
+            _, digest = write_candidate(
+                missing_version,
+                "simulator",
+                info_updates={key: None},
+            )
+            expect_failure(
+                lambda missing_version=missing_version, digest=digest: verifier.verify_candidate(
+                    missing_version, "simulator", REVISION, digest
+                ),
+                expected,
+            )
 
         wrong_simulator_signing = isolated_case(root, "wrong-simulator-signing")
         _, digest = write_candidate(
