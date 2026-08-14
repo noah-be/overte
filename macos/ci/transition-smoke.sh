@@ -16,8 +16,10 @@ readonly process_result="$output_dir/transition-process.json"
 readonly process_sample="$output_dir/transition.sample.txt"
 readonly crash_report="$output_dir/transition.crash.ips"
 readonly initial_snapshot="$output_dir/macos-transition-initial.png"
+readonly initial_warmup_snapshot="$output_dir/macos-transition-initial-warmup.png"
 readonly online_snapshot="$output_dir/macos-transition-online.png"
 readonly final_snapshot="$output_dir/macos-transition-final.png"
+readonly final_warmup_snapshot="$output_dir/macos-transition-final-warmup.png"
 readonly initial_result="$output_dir/transition-initial-screenshot.json"
 readonly online_result="$output_dir/transition-online-screenshot.json"
 readonly final_result="$output_dir/transition-final-screenshot.json"
@@ -27,7 +29,8 @@ readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15
 [[ "$(uname -s)" == Darwin ]] || { echo "transition smoke requires macOS" >&2; exit 1; }
 [[ -x "$executable" ]] || { echo "missing executable: $executable" >&2; exit 1; }
 mkdir -p "$output_dir"
-rm -f "$initial_snapshot" "$online_snapshot" "$final_snapshot" \
+rm -f "$initial_snapshot" "$initial_warmup_snapshot" "$online_snapshot" \
+    "$final_snapshot" "$final_warmup_snapshot" \
     "$initial_result" "$online_result" "$final_result"
 
 readonly -a app_command=(

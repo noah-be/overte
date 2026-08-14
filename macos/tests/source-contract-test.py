@@ -668,6 +668,12 @@ for transition_geometry_contract in (
     "onlineSnapshotSettleDeadline = Date.now() + 150000",
     "online_snapshot_callback_deferred",
     "returnToServerless",
+    "resetFixtureView",
+    "MyAvatar.position = { x: 0, y: 1.6, z: 0 }",
+    'Camera.mode = "first person"',
+    "initial_warmup_snapshot",
+    "final_warmup_snapshot",
+    "Date.now() + 5000",
 ):
     if transition_geometry_contract not in transition_script:
         raise SystemExit(

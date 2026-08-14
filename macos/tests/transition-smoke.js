@@ -15,6 +15,7 @@
     Render.viewportResolutionScale = 1.0;
     Render.getConfig("RenderMainView.PreparePrimaryBufferForward").numSamples = 1;
     Scene.shouldRenderAvatars = false;
+    Scene.shouldRenderEntities = true;
 
     var localScene = Script.resolvePath("fixtures/serverless-render.json");
     var stage = "initial_serverless";
@@ -85,12 +86,25 @@
         AddressManager.handleLookupString(localScene);
     }
 
+    function resetFixtureView() {
+        // The Hub changes the avatar/camera pose. The local fixture is fixed
+        // around (0, 1.6, -4), so both serverless captures must restore the
+        // same first-person pose before proving its colored geometry.
+        MyAvatar.position = { x: 0, y: 1.6, z: 0 };
+        MyAvatar.orientation = Quat.IDENTITY;
+        Camera.mode = "first person";
+    }
+
     Window.stillSnapshotTaken.connect(function (path) {
         if (!path) {
             finish(false, stage + "_snapshot_save_failed");
             return;
         }
-        if (stage === "initial_snapshot") {
+        if (stage === "initial_warmup_snapshot") {
+            print("OVERTE_MACOS_TRANSITION initial_warmup_snapshot=" + path);
+            stage = "initial_render";
+            finalRenderReadyAt = Date.now() + 5000;
+        } else if (stage === "initial_snapshot") {
             print("OVERTE_MACOS_TRANSITION initial_snapshot=" + path);
             stage = "online";
             // A first public-domain model pipeline can need a little over
@@ -99,6 +113,10 @@
             AddressManager.handleLookupString("hifi://overte_hub");
         } else if (stage === "online_snapshot") {
             returnToServerless(path);
+        } else if (stage === "final_warmup_snapshot") {
+            print("OVERTE_MACOS_TRANSITION final_warmup_snapshot=" + path);
+            stage = "final_render";
+            finalRenderReadyAt = Date.now() + 5000;
         } else if (stage === "final_snapshot") {
             finish(true, "serverless_online_serverless");
         }
@@ -111,6 +129,11 @@
         var state = sceneState();
         if (stage === "initial_serverless" && state.fixtureComplete) {
             print("OVERTE_MACOS_TRANSITION initial_fixture_entities=3");
+            resetFixtureView();
+            stage = "initial_warmup_snapshot";
+            Window.takeSnapshot(false, false, 16 / 9,
+                "macos-transition-initial-warmup.png");
+        } else if (stage === "initial_render" && Date.now() >= finalRenderReadyAt) {
             stage = "initial_snapshot";
             Window.takeSnapshot(false, false, 16 / 9, "macos-transition-initial.png");
         } else if (
@@ -134,9 +157,11 @@
         ) {
             print("OVERTE_MACOS_TRANSITION returned_fixture_entities=3");
             Scene.shouldRenderEntities = true;
-            finalRenderReadyAt = Date.now() + 1000;
-            stage = "final_render";
+            resetFixtureView();
+            stage = "final_warmup_snapshot";
             stageDeadline = Date.now() + 180000;
+            Window.takeSnapshot(false, false, 16 / 9,
+                "macos-transition-final-warmup.png");
         } else if (stage === "final_render" && Date.now() >= finalRenderReadyAt) {
             stage = "final_snapshot";
             Window.takeSnapshot(false, false, 16 / 9, "macos-transition-final.png");

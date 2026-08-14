@@ -95,8 +95,11 @@ macos/ci/transition-smoke.sh build/interface/Overte.app build/macos-transition
 It loads and captures the exact local fixture, connects to and captures the
 public Hub only after the fixture entities disappear, returns to the local
 scene, requires a second serverless import generation, and validates the final
-fixture image. This catches stale entity trees, stale network requests, and
-mode-switch shutdown problems that independent launches cannot detect.
+fixture image. Both local phases restore the fixture's first-person camera pose
+and use a completed warm-up frame plus a five-second render settle before their
+validated captures. This catches stale entity trees, stale network requests,
+camera state leaking across modes, and mode-switch shutdown problems that
+independent launches cannot detect.
 
 The manually dispatched `macOS runtime smoke` workflow can run performance,
 three or five stability cycles, or the same-process transition against an
