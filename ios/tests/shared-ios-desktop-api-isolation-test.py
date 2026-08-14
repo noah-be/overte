@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from pathlib import Path
+import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -39,12 +40,32 @@ require('#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)\n'
         '        static const QString staticResourcePath = QCoreApplication::applicationDirPath() + "/../Resources/";'
         in PATH_UTILS,
         "the macOS Contents/Resources layout must be unreachable on iOS")
-require('#else\n        static const QString staticResourcePath = QCoreApplication::applicationDirPath() + "/resources/";'
+require('#elif defined(Q_OS_IOS)\n'
+        '        // Resources is a reserved, case-insensitive bundle directory name on\n'
+        '        // iOS.  Keep Overte\'s file-backed content in its own shallow folder.\n'
+        '        static const QString staticResourcePath =\n'
+        '            QCoreApplication::applicationDirPath() + "/overte-resources/";'
         in PATH_UTILS,
-        "iOS must resolve /~/ through the executable-adjacent resources directory")
+        "iOS must resolve /~/ through its non-reserved bundle directory")
 require('if (APPLE AND NOT IOS)' in INTERFACE_CMAKE and
-        'set(RESOURCES_DEV_DIR "${INTERFACE_EXEC_DIR}/resources")' in INTERFACE_CMAKE and
+        'if(IOS)' in INTERFACE_CMAKE and
+        'set(RESOURCES_DEV_DIR "${INTERFACE_EXEC_DIR}/overte-resources")' in INTERFACE_CMAKE and
         '"${RESOURCES_DEV_DIR}/serverless/tutorial.json"' in INTERFACE_CMAKE,
         "the iOS resource resolver must match Interface's packaged tutorial location")
+require('set(RESOURCES_DEV_DIR "${INTERFACE_EXEC_DIR}/resources")' in INTERFACE_CMAKE,
+        "non-iOS executable-adjacent resource packaging must remain unchanged")
+
+resource_files = subprocess.check_output(
+    ["git", "ls-files", "scripts", "interface/resources"],
+    cwd=ROOT,
+    text=True,
+).splitlines()
+executable_resources = [
+    path
+    for path in resource_files
+    if (ROOT / path).stat().st_mode & 0o111
+]
+require(not executable_resources,
+        f"non-code bundle resources must not be executable: {executable_resources}")
 
 print("shared iOS desktop API isolation valid: desktop APIs and macOS resource layout excluded")

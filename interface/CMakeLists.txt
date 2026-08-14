@@ -522,7 +522,14 @@ if (APPLE AND NOT IOS)
 
 else()
   set(INTERFACE_EXEC_DIR "$<TARGET_FILE_DIR:${TARGET_NAME}>")
-  set(RESOURCES_DEV_DIR "${INTERFACE_EXEC_DIR}/resources")
+  if(IOS)
+    # iOS reserves the case-insensitive Resources directory name for its
+    # shallow bundle layout.  A custom resources/ directory makes Launch
+    # Services classify the app as a generic bundle and hide its identifier.
+    set(RESOURCES_DEV_DIR "${INTERFACE_EXEC_DIR}/overte-resources")
+  else()
+    set(RESOURCES_DEV_DIR "${INTERFACE_EXEC_DIR}/resources")
+  endif()
 
   # copy the resources files beside the executable
   add_custom_command(TARGET ${TARGET_NAME} POST_BUILD

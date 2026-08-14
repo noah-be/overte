@@ -444,10 +444,14 @@ application delegate and the helper emits no fabricated desktop sleep/wake
 events.
 
 `PathUtils` also treats the macOS `Contents/Resources` layout as desktop-only.
-On iOS, `/~/` file URLs resolve to the executable-adjacent `resources`
-directory populated by the Interface post-build rule. This keeps the packaged
-`serverless/tutorial.json` start scene reachable without assuming a macOS
-bundle hierarchy.
+On iOS, `/~/` file URLs resolve to the executable-adjacent
+`overte-resources` directory populated by the Interface post-build rule. The
+distinct name is required because iOS reserves the case-insensitive
+`Resources` bundle directory name; using `resources` makes Launch Services
+classify the product as a generic bundle and report a missing bundle ID. This
+keeps the packaged `serverless/tutorial.json` start scene reachable without
+assuming a macOS bundle hierarchy. A source contract also rejects executable
+bits on non-code files copied from `scripts` and `interface/resources`.
 
 Interface startup excludes the macOS Chromium/OpenGL default-surface setup on
 iOS as well as its `GLHelpers` include. The iOS process therefore reaches the

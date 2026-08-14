@@ -128,6 +128,11 @@ QUrl PathUtils::expandToLocalDataAbsolutePath(const QUrl& fileUrl) {
             (appLocalDataPath.isEmpty()
                  ? QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
                  : appLocalDataPath) + "/resources/";
+#elif defined(Q_OS_IOS)
+        // Resources is a reserved, case-insensitive bundle directory name on
+        // iOS.  Keep Overte's file-backed content in its own shallow folder.
+        static const QString staticResourcePath =
+            QCoreApplication::applicationDirPath() + "/overte-resources/";
 #else
         static const QString staticResourcePath = QCoreApplication::applicationDirPath() + "/resources/";
 #endif
