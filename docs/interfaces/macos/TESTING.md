@@ -26,24 +26,29 @@ deterministic three-entity fixture. It validates a 1380x776-or-larger PNG,
 non-black content, opacity and contrast, red/cyan pixel populations, and their
 expected left/right placement. The online gate additionally requires directory,
 entity-server, query, receive, and render progress before accepting a non-empty
-image. It writes a bounded inventory of nearby streamed entities and requires
-the exact entity UUID from the render-handoff marker to be present, visible, and
-render-affecting. The local avatar and default client scripts are suppressed to
-avoid unrelated shader pipelines, while domain entity scripts retain the normal
-production Interface lifecycle. The correlated protocol/render inventory keeps
-those scripts from substituting for actual streamed entities. A passing process
-exit without the expected markers and correlated inventory is not acceptance.
+image. Immediately before capture it writes the complete nearby entity
+inventory and requires the exact UUID from a domain-hosted Box, Sphere, or Shape
+render handoff to be present and visible. The correlated protocol, tree,
+primitive-render, inventory, and image gates prevent local helper entities or
+entity scripts from substituting for an entity streamed by the domain's entity
+server. A passing process exit without every marker and the correlated inventory
+is not acceptance.
 
-On the virtual Intel runner, Web-entity QML shares Apple's software OpenGL
-context with the scene. During an explicit `--testScript` run only, each Web
-surface is paused before its first QML render sync; the Web entity itself still
-travels through the production network, tree, script, renderer, and scene paths.
-This prevents an unrelated WebEngine sync from blocking delivery of an already
-completed 3D snapshot. The online inventory is captured after that snapshot and
-must contain visible geometry; environmental `Zone`, `Light`, and `Material`
-entities alone cannot satisfy the visual gate, although a visible environmental
-entity remains a valid renderer handoff when the inventory also contains direct
-geometry. Normal application launches do not pause Web surfaces.
+The hosted Intel runner exposes Apple's software OpenGL renderer. Compiling the
+public Hub's complete model and text pipeline can take many minutes per shader,
+even while the runner remains CPU-active. The smoke runner therefore passes the
+explicit `--macosTestLightweightEntities` option together with its test script.
+Only in that combination, scene submission is limited to Zones and primitive
+Box, Sphere, and Shape entities. Network decoding, the complete entity tree,
+inventory, and domain entity-script lifecycle remain active. The local avatar
+and default client scripts are also suppressed; complex Web entities remain in
+the inventory but never instantiate their WebEngine surface in this mode. Thus
+unrelated local, model, text, and WebEngine pipelines cannot block the primitive
+rendering proof. Normal application launches never enable this filter and
+continue to submit the complete online scene. Consequently, this virtual-runner
+gate proves online connectivity, entity streaming, primitive scene submission,
+and visible OpenGL output; it does not replace full-scene model/Web validation
+on a physical Mac.
 
 ## Performance and stability
 

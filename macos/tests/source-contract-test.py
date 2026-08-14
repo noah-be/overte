@@ -396,6 +396,10 @@ for inventory_contract in (
 ):
     if inventory_contract not in online_smoke:
         raise SystemExit(f"online smoke must correlate its rendered entity: {inventory_contract}")
+if "web_entity_qml_paused" in online_smoke:
+    raise SystemExit(
+        "online lightweight mode must not require a Web renderer that it intentionally filters"
+    )
 for marker in ONLINE_CONTRACT | {"render_handoff": ""}:
     if marker not in online_smoke:
         raise SystemExit(f"online smoke runner does not require {marker}")

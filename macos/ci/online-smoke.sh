@@ -90,20 +90,6 @@ render_handoff_id="$(sed -nE 's/.*OVERTE_MACOS_ENTITY_GATE lightweight_primitive
 [[ -n "$render_handoff_id" ]] || { echo "online render-handoff entity ID is missing" >&2; exit 1; }
 python3 "$source_root/macos/tools/validate-online-entities.py" "$entity_inventory" \
     --render-handoff-id "$render_handoff_id" --result "$entity_validation"
-if python3 - "$entity_inventory" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-raise SystemExit(0 if payload.get("type_counts", {}).get("Web", 0) > 0 else 1)
-PY
-then
-    grep -Fq "OVERTE_MACOS_RENDER_PHASE web_entity_qml_paused" "$log" || {
-        echo "online Web entity was not isolated from the macOS test render context" >&2
-        exit 1
-    }
-fi
 python3 "$source_root/macos/tools/validate-screenshot.py" "$snapshot" \
     --result "$screenshot_result"
 
