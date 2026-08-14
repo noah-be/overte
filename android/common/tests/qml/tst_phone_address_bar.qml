@@ -82,6 +82,11 @@ TestCase {
         verify(field.focus)
     }
 
+    function test_systemImeReceivesAddressSpecificHints() {
+        verify((field.inputMethodHints & Qt.ImhNoAutoUppercase) !== 0)
+        compare(field.echoMode, TextInput.Normal)
+    }
+
     function test_validAddressIsTrimmedLoadedAndClosed() {
         field.text = "  overte://example.com/place  "
         dialog.goToAddress()

@@ -6,9 +6,10 @@ import QtQuick.Controls 2.2
 
 HifiControlsUit.TextField {
     id: control
+    HifiControlsUit.TouchUiMetrics { id: touchMetrics }
     font.family: "Fira Sans"
-    font.pixelSize: 15;
-    implicitHeight: 40
+    font.pixelSize: Math.round(15 * touchMetrics.textScale);
+    implicitHeight: Math.max(40, touchMetrics.adaptiveMinimumControlHeight)
 
     AvatarAppStyle {
         id: style

@@ -9,8 +9,9 @@ readonly button_qml="$repo_root/interface/resources/qml/hifi/+android_interface/
 grep -Fq 'property bool bindToAudioMute: false' "$button_qml"
 grep -Fq 'value: AudioScriptingInterface.muted' "$button_qml"
 grep -Fq 'value: AudioScriptingInterface.muted ? "UNMUTE" : "MUTE"' "$button_qml"
-if [[ "$(grep -Fc 'when: button.bindToAudioMute' "$button_qml")" -ne 2 ]]; then
-    echo 'FAIL: microphone state bindings are not both opt-in' >&2
+grep -Fq '? qsTr("Unmute microphone") : qsTr("Mute microphone")' "$button_qml"
+if [[ "$(grep -Fc 'when: button.bindToAudioMute' "$button_qml")" -ne 3 ]]; then
+    echo 'FAIL: microphone visual and accessibility bindings are not all opt-in' >&2
     exit 1
 fi
 

@@ -107,7 +107,7 @@ Item {
                     id: clockAmPm
                     anchors.right: parent.right
                     font.capitalization: Font.AllUppercase
-                    font.pixelSize: 12
+                    font.pixelSize: Math.round(12 * presentation.textScale)
                     font.family: "Rawline"
                     color: "#afafaf"
                 }
@@ -133,7 +133,7 @@ Item {
                     anchors.right: parent.right
                     id: clockTime
                     font.bold: false
-                    font.pixelSize: 36
+                    font.pixelSize: Math.round(36 * presentation.textScale)
                     font.family: "Rawline"
                     color: "#afafaf"
                 }
@@ -141,6 +141,11 @@ Item {
 
             Item {
                 id: loginItem
+                function openLogin() {
+                    if (!Account.loggedIn) {
+                        DialogsManager.showLoginDialog()
+                    }
+                }
                 width: Math.max(loginTextMetrics.width, presentation.minimumTouchTarget)
                 height: Math.max(loginTextMetrics.height, presentation.minimumTouchTarget)
                 anchors {
@@ -156,7 +161,7 @@ Item {
                     text: Account.loggedIn ? tabletRoot.usernameShort : qsTr("Log in")
                     horizontalAlignment: Text.AlignRight
                     Layout.alignment: Qt.AlignRight
-                    font.pixelSize: 18
+                    font.pixelSize: Math.round(18 * presentation.textScale)
                     font.family: "Rawline"
                     color: "#afafaf"
                 }
@@ -168,11 +173,17 @@ Item {
 
                 MouseArea {
                     anchors.fill: parent
-                    onClicked: {
-                        if (!Account.loggedIn) {
-                            DialogsManager.showLoginDialog();
-                        }
-                    }
+                    hoverEnabled: presentation.hoverSupported
+                    activeFocusOnTab: !Account.loggedIn
+                    Accessible.role: Accessible.Button
+                    Accessible.name: loginText.text
+                    Accessible.description: qsTr("Open the login dialog")
+                    Accessible.ignored: Account.loggedIn
+                    Accessible.onPressAction: loginItem.openLogin()
+                    onClicked: loginItem.openLogin()
+                    Keys.onReturnPressed: loginItem.openLogin()
+                    Keys.onEnterPressed: loginItem.openLogin()
+                    Keys.onSpacePressed: loginItem.openLogin()
                 }
             }
 
@@ -373,9 +384,17 @@ Item {
                         height: presentation.minimumTouchTarget
                         hoverEnabled: !presentation.touchOptimized
                         enabled: true
+                        activeFocusOnTab: true
+                        Accessible.role: Accessible.Button
+                        Accessible.name: qsTr("Tablet page %1").arg(index + 1)
+                        Accessible.description: index === pageIndicator.currentIndex
+                            ? qsTr("Current page") : qsTr("Show page")
                         onEntered: parent.isHovered = true;
                         onExited: parent.isHovered = false;
                         onClicked: swipeView.currentIndex = index;
+                        Keys.onReturnPressed: swipeView.currentIndex = index
+                        Keys.onEnterPressed: swipeView.currentIndex = index
+                        Keys.onSpacePressed: swipeView.currentIndex = index
                     }
                 }
             }
@@ -408,13 +427,20 @@ Item {
                 color: "#10252d"
                 font.family: "Rawline"
                 font.bold: true
-                font.pixelSize: 18
+                font.pixelSize: Math.round(18 * presentation.textScale)
             }
 
             MouseArea {
                 id: closeTabletMouseArea
                 anchors.fill: parent
+                activeFocusOnTab: visible
+                Accessible.role: Accessible.Button
+                Accessible.name: qsTr("Close tablet")
+                Accessible.description: qsTr("Return to the world controls")
                 onClicked: tabletProxy.hideAndroidTablet()
+                Keys.onReturnPressed: tabletProxy.hideAndroidTablet()
+                Keys.onEnterPressed: tabletProxy.hideAndroidTablet()
+                Keys.onSpacePressed: tabletProxy.hideAndroidTablet()
             }
         }
 
@@ -452,8 +478,8 @@ Item {
             }
         }
     }
-    Keys.onDownPressed: currentGridItems.moveCurrentIndexDown();
-    Keys.onUpPressed: currentGridItems.moveCurrentIndexUp();
+    Keys.onDownPressed: if (currentGridItems) currentGridItems.moveCurrentIndexDown();
+    Keys.onUpPressed: if (currentGridItems) currentGridItems.moveCurrentIndexUp();
     Keys.onReturnPressed: {
         if (currentGridItems.currentItem) {
             currentGridItems.currentItem.proxy.clicked();

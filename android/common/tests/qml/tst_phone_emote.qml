@@ -15,6 +15,8 @@ TestCase {
     }
 
     function init() {
+        testCase.width = 640
+        testCase.height = 360
         var path = Qt.resolvedUrl(
             "../../../../scripts/system/+android_phoneInterface/PhoneEmote.qml")
         var component = Qt.createComponent(path)
@@ -109,5 +111,24 @@ TestCase {
         })
         compare(crying.Accessible.description, "Currently playing emote")
         compare(status.Accessible.name, "Playing Crying")
+    }
+
+    function test_gridReflowsAcrossCompactMediumAndExpandedWidths() {
+        var grid = findChild(emote, "PhoneEmoteGrid")
+        verify(grid !== null)
+
+        testCase.width = 360
+        wait(0)
+        compare(grid.adaptiveColumns, 2)
+        verify(grid.cellWidth >= 150)
+
+        testCase.width = 500
+        wait(0)
+        compare(grid.adaptiveColumns, 3)
+
+        testCase.width = 700
+        wait(0)
+        compare(grid.adaptiveColumns, 4)
+        verify(grid.cellHeight >= 48 / 2.5)
     }
 }

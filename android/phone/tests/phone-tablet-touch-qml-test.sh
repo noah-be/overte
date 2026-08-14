@@ -7,6 +7,8 @@ repo_root="$(cd -- "$script_dir/../../.." && pwd)"
 
 home="$repo_root/interface/resources/qml/hifi/tablet/TabletHome.qml"
 button="$repo_root/interface/resources/qml/hifi/tablet/TabletButton.qml"
+menu_view="$repo_root/interface/resources/qml/hifi/tablet/TabletMenuView.qml"
+menu_item="$repo_root/interface/resources/qml/hifi/tablet/TabletMenuItem.qml"
 shared_config="$repo_root/interface/resources/qml/hifi/tablet/TabletTouchConfiguration.qml"
 shared_config_base="$repo_root/interface/resources/qml/hifi/tablet/TabletTouchConfigurationBase.qml"
 touch_metrics="$repo_root/interface/resources/qml/controlsUit/TouchUiMetrics.qml"
@@ -109,5 +111,17 @@ require "$home" 'hoverEnabled:[[:space:]]*!presentation\.touchOptimized' \
     'touch presentation does not depend on hover input'
 require "$button" 'hoverEnabled:[[:space:]]*tabletButton\.hoverEnabled' \
     'tablet buttons suppress synthetic hover handling on direct touch'
+require "$menu_view" 'pressDelay:[[:space:]]*touchMetrics[.]pressDelay' \
+    'tablet menus share the touch scroll activation delay'
+require "$menu_view" 'hoverEnabled:[[:space:]]*touchMetrics[.]hoverSupported' \
+    'tablet menus retain hover only on capable hybrid devices'
+require "$menu_view" 'Accessible[.]onPressAction:[[:space:]]*root[.]activateItem' \
+    'tablet menu actions expose semantic activation'
+require "$menu_view" 'Keys[.]onSpacePressed:[[:space:]]*root[.]activateItem' \
+    'tablet menu actions support hardware-keyboard activation'
+require "$menu_item" 'Math[.]max\(2 \* label[.]implicitHeight, minimumControlHeight\)' \
+    'tablet menu rows consume the universal touch target'
+require "$menu_item" '20 \* root[.]touchTextScale' \
+    'tablet menu labels follow the bounded system font scale'
 
 printf 'Phone tablet touchscreen QML checks passed.\n'

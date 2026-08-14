@@ -7,6 +7,7 @@ HifiControls.TouchUiMetrics {
     readonly property bool showPushToTalk: profile.pushToTalkAvailable
     readonly property bool showAvatarAudioTools: profile.avatarAudioToolsAvailable
     readonly property int minimumControlHeight: directTouch
-        ? Math.max(20, adaptiveMinimumControlHeight)
+        ? Math.max(20, adaptiveMinimumControlHeight,
+            Math.ceil(20 * textScale))
         : 16
 }

@@ -28,7 +28,7 @@ Original.CheckBox {
     readonly property int checkSize: Math.max(boxSize - 8, 10)
     readonly property int checkRadius: 2
     property string labelFontFamily: "Raleway"
-    property int labelFontSize: 14;
+    property int labelFontSize: Math.round(14 * touchMetrics.textScale);
     property int labelFontWeight: Font.DemiBold;
     focusPolicy: Qt.ClickFocus
     hoverEnabled: touchMetrics.hoverSupported

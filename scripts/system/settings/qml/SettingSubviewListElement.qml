@@ -1,13 +1,31 @@
 import QtQuick 2.15
 import QtQuick.Layouts 1.3
 import TabletScriptingInterface 1.0
+import controlsUit 1.0 as HifiControls
 
 Item {
+	id: root;
 	property color bgColor: index % 2 === 0 ? "transparent" : Qt.rgba(0.12,0.12,0.12,1);
 	property int initialTextXPosition;
 
 	width: parent.width;
-	height: 60;
+	height: Math.max(60, touchMetrics.adaptiveMinimumControlHeight);
+	activeFocusOnTab: true;
+	Accessible.role: Accessible.Button
+	Accessible.name: pageName
+	Accessible.description: qsTr("Open %1 settings").arg(pageName)
+	Accessible.onPressAction: activate()
+
+	HifiControls.TouchUiMetrics { id: touchMetrics }
+
+	function activate() {
+		Tablet.playSound(TabletEnums.ButtonClicked);
+		if (targetPage !== "") {
+			toScript({type:"switchApp", appUrl: targetPage});
+			return;
+		}
+		currentPage = pageName;
+	}
 
 	Rectangle {
 		id: backgroundElement;
@@ -46,7 +64,7 @@ Item {
 			id: pageNameElement
 			text: pageName;
 			color: "white";
-			font.pixelSize: 24;
+			font.pixelSize: Math.round(24 * touchMetrics.textScale);
 			anchors.verticalCenter: parent.verticalCenter;
 
 			// Set a variable to the initial X position, used for animating it on hover.
@@ -67,15 +85,11 @@ Item {
 
 	MouseArea {
 		anchors.fill: parent;
-		hoverEnabled: true;
+		Accessible.ignored: true
+		hoverEnabled: touchMetrics.hoverSupported;
 
 		onClicked: {
-			Tablet.playSound(TabletEnums.ButtonClicked);
-			if (targetPage !== "") {
-				toScript({type:"switchApp", appUrl: targetPage});
-				return;
-			}
-			currentPage = pageName;
+			root.activate();
 		}
 
 		onEntered: {
@@ -89,4 +103,8 @@ Item {
 			pageNameElement.x = initialTextXPosition;
 		}
 	}
+
+	Keys.onReturnPressed: root.activate()
+	Keys.onEnterPressed: root.activate()
+	Keys.onSpacePressed: root.activate()
 }

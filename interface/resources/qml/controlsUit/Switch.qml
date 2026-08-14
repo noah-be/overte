@@ -24,7 +24,8 @@ Item {
     property int switchWidth: 70;
     readonly property int switchRadius: height/2;
     property string labelTextOff: "";
-    property int labelTextSize: hifi.fontSizes.inputLabel;
+    property int labelTextSize: Math.round(hifi.fontSizes.inputLabel
+        * touchMetrics.textScale);
     property string labelGlyphOffText: "";
     property int labelGlyphOffSize: 32;
     property string labelTextOn: "";

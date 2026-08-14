@@ -37,7 +37,7 @@ TextField {
     placeholderText: textField.placeholderText
 
     font.family: "Fira Sans"
-    font.pixelSize: hifi.fontSizes.textFieldInput
+    font.pixelSize: Math.round(hifi.fontSizes.textFieldInput * touchMetrics.textScale)
     height: Math.max(implicitHeight + 3,
         touchMetrics.adaptiveMinimumControlHeight)
         // Make surrounding box higher so that highlight is vertically centered.

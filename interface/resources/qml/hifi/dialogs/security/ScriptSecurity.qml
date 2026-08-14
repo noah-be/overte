@@ -27,6 +27,7 @@ import "SecuritySettings.js" as SecuritySettings
 
 Rectangle {
     id: parentBody;
+    HifiStylesUit.HifiConstants { id: hifi }
     SecurityTouchConfiguration {
         id: touchConfiguration
         availableWidth: parentBody.width
@@ -66,7 +67,7 @@ Rectangle {
         id: protectAvatars;
         text: "Protect Avatar URLs"
         // Text size
-        size: 24;
+        size: Math.round(24 * touchConfiguration.textScale);
         // Style
         color: "white";
         elide: Text.ElideRight;
@@ -78,7 +79,7 @@ Rectangle {
         anchors.rightMargin: 20;
         height: touchConfiguration.titleHeight;
 
-        CheckBox {
+        HiFiControls.CheckBox {
             id: avatarsAllowlistEnabled;
 
             checked: Settings.getValue("private/scriptPermissionGetAvatarURLEnable", true);
@@ -86,17 +87,16 @@ Rectangle {
             anchors.right: parent.right;
             anchors.top: parent.top;
             anchors.topMargin: 10;
+            height: Math.max(touchConfiguration.buttonHeight,
+                touchConfiguration.adaptiveMinimumControlHeight)
+            text: qsTr("Enabled")
+            labelFontSize: Math.round(18 * touchConfiguration.textScale)
+            colorScheme: hifi.colorSchemes.dark
+            color: "white"
+            Accessible.name: qsTr("Protect avatar URLs")
+            Accessible.description: qsTr("Require trusted script URLs for avatar changes")
             onToggled: {
                 setAvatarProtection(avatarsAllowlistEnabled.checked)
-            }
-
-            Label {
-                text: "Enabled"
-                color: "white"
-                font.pixelSize: 18;
-                anchors.right: parent.left;
-                anchors.top: parent.top;
-                anchors.topMargin: 10;
             }
         }
     }
@@ -105,7 +105,7 @@ Rectangle {
         id: protectBookmarks;
         text: "Protect Bookmarks"
         // Text size
-        size: 24;
+        size: Math.round(24 * touchConfiguration.textScale);
         // Style
         color: "white";
         elide: Text.ElideRight;
@@ -117,7 +117,7 @@ Rectangle {
         anchors.rightMargin: 20;
         height: touchConfiguration.titleHeight;
 
-        CheckBox {
+        HiFiControls.CheckBox {
             id: bookmarksAllowlistEnabled;
 
             checked: Settings.getValue("private/scriptPermissionBookmarksEnable", true);
@@ -125,17 +125,16 @@ Rectangle {
             anchors.right: parent.right;
             anchors.top: parent.top;
             anchors.topMargin: 10;
+            height: Math.max(touchConfiguration.buttonHeight,
+                touchConfiguration.adaptiveMinimumControlHeight)
+            text: qsTr("Enabled")
+            labelFontSize: Math.round(18 * touchConfiguration.textScale)
+            colorScheme: hifi.colorSchemes.dark
+            color: "white"
+            Accessible.name: qsTr("Protect bookmarks")
+            Accessible.description: qsTr("Require trusted script URLs for bookmark access")
             onToggled: {
                 setBookmarkProtection(bookmarksAllowlistEnabled.checked)
-            }
-
-            Label {
-                text: "Enabled"
-                color: "white"
-                font.pixelSize: 18;
-                anchors.right: parent.left;
-                anchors.top: parent.top;
-                anchors.topMargin: 10;
             }
         }
     }
@@ -144,7 +143,7 @@ Rectangle {
         id: allowedURLsTitle;
         text: "Trusted Scripts";
         // Text size
-        size: 24;
+        size: Math.round(24 * touchConfiguration.textScale);
         // Style
         color: "white";
         elide: Text.ElideRight;
@@ -172,6 +171,7 @@ Rectangle {
             contentWidth: parent.width
             contentHeight: parent.height
             clip: false;
+            ScrollBar.vertical: HiFiControls.ScrollBar { }
 
             TextArea {
                 id: allowlistTextArea
@@ -181,13 +181,18 @@ Rectangle {
                 width: parent.width;
                 height: parent.height;
                 font.family: "Ubuntu";
-                font.pointSize: 12;
+                font.pixelSize: Math.round(16 * touchConfiguration.textScale);
                 color: "white";
+                inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase
+                    | Qt.ImhNoPredictiveText
+                Accessible.role: Accessible.EditableText
+                Accessible.name: qsTr("Trusted script URLs")
+                Accessible.description: qsTr("One trusted URL per line")
             }
         }
     }
 
-    Button {
+    HiFiControls.Button {
         id: saveChanges
         anchors.topMargin: 20;
         anchors.leftMargin: 20;
@@ -198,7 +203,7 @@ Rectangle {
         contentItem: Text {
             text: saveChanges.text
             font.family: "Ubuntu";
-            font.pointSize: 12;
+            font.pixelSize: Math.round(16 * touchConfiguration.textScale);
             opacity: enabled ? 1.0 : 0.3
             color: "black"
             horizontalAlignment: Text.AlignHCenter
@@ -207,13 +212,20 @@ Rectangle {
         }
         text: "Save Changes"
         height: touchConfiguration.buttonHeight;
-        onClicked: setAllowlistAsText(allowlistTextArea.text)
+        Accessible.name: qsTr("Save trusted script URLs")
+        Accessible.description: qsTr("Store the edited script allowlist")
+        androidClickAction: function () {
+            setAllowlistAsText(allowlistTextArea.text)
+        }
+        onClicked: if (Qt.platform.os !== "android") {
+            setAllowlistAsText(allowlistTextArea.text)
+        }
 
         HifiStylesUit.RalewayRegular {
             id: notificationText;
             text: ""
             // Text size
-            size: 16;
+            size: Math.round(16 * touchConfiguration.textScale);
             // Style
             color: "white";
             elide: Text.ElideLeft;
