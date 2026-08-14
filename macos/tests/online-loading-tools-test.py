@@ -19,7 +19,8 @@ TEMPLATE = ROOT / "macos/tests/online-loading-benchmark.js"
 
 
 def payload(mode: str, concurrency: int, index: int, first_visible: int,
-            *, success: bool = True) -> dict[str, object]:
+            *, success: bool = True, runner_class: str = "hardware",
+            diagnostic_observation: bool = False) -> dict[str, object]:
     snapshot = first_visible + 2000 if success else None
     idle = first_visible + 5000 if success else None
     return {
@@ -29,6 +30,7 @@ def payload(mode: str, concurrency: int, index: int, first_visible: int,
         "concurrency": concurrency,
         "run_index": index,
         "location_label": "hub",
+        "runner_class": runner_class,
         "duration_ms": first_visible + 6000,
         "first_entities_ms": first_visible - 100,
         "first_visible_ms": first_visible,
@@ -48,13 +50,18 @@ def payload(mode: str, concurrency: int, index: int, first_visible: int,
         "completed_idle": success,
         "completed_snapshot": success,
         "success": success,
-        "reason": "visible_and_idle" if success else "snapshot_timeout",
+        "reason": (
+            "visible_and_idle" if success else
+            "diagnostic_observation_complete" if diagnostic_observation else
+            "snapshot_timeout"
+        ),
     }
 
 
 def create_benchmark(root: Path, *, runner_class: str = "hardware",
                      concurrencies: tuple[int, ...] = (10, 16), repeats: int = 1,
-                     failed: set[tuple[int, int, str]] | None = None) -> None:
+                     failed: set[tuple[int, int, str]] | None = None,
+                     diagnostic_partial: bool = False) -> None:
     root.mkdir(parents=True)
     manifest = {
         "schema_version": 1,
@@ -78,13 +85,17 @@ def create_benchmark(root: Path, *, runner_class: str = "hardware",
                 directory = root / f"c{concurrency}" / f"pair-{pair}" / mode
                 directory.mkdir(parents=True)
                 failed_attempt = (concurrency, pair, mode) in (failed or set())
+                incomplete_diagnostic = diagnostic_partial and runner_class == "diagnostic"
                 (directory / "macos-online-loading.json").write_text(
                     json.dumps(payload(mode, concurrency, pair, visible,
-                                       success=not failed_attempt)), encoding="utf-8"
+                                       success=not failed_attempt and not incomplete_diagnostic,
+                                       runner_class=runner_class,
+                                       diagnostic_observation=incomplete_diagnostic)), encoding="utf-8"
                 )
                 (directory / "online-loading-process.json").write_text(json.dumps({
-                    "exit_code": 124 if failed_attempt else 0,
-                    "timed_out": failed_attempt,
+                    "exit_code": 124 if failed_attempt or incomplete_diagnostic else 0,
+                    "timed_out": failed_attempt or incomplete_diagnostic,
+                    "sample_succeeded": incomplete_diagnostic,
                 }), encoding="utf-8")
                 (directory / "online-loading.log").write_text(
                     "[12:00:00.000] start\n"
@@ -96,14 +107,15 @@ def create_benchmark(root: Path, *, runner_class: str = "hardware",
                     f"[12:00:06.000] OVERTE_MACOS_ONLINE_LOADING first_visible_ms={visible}\n",
                     encoding="utf-8",
                 )
-                if not failed_attempt:
+                accepted = not failed_attempt and not incomplete_diagnostic
+                if accepted:
                     (directory / "online-loading-accepted").write_text("accepted\n", encoding="utf-8")
                 attempts.append({
                     "concurrency": concurrency,
                     "pair": pair,
                     "cache_mode": mode,
-                    "exit_code": 124 if failed_attempt else 0,
-                    "accepted": not failed_attempt,
+                    "exit_code": 124 if failed_attempt or incomplete_diagnostic else 0,
+                    "accepted": accepted,
                     "metrics_present": True,
                     "result_directory": str(directory.relative_to(root)),
                 })
@@ -126,7 +138,7 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     generation = subprocess.run(
         [sys.executable, str(GENERATOR), "--template", str(TEMPLATE), "--output", str(generated),
          "--cache-mode", "cold", "--concurrency", "10", "--run-index", "1",
-         "--location-label", "hub"],
+         "--location-label", "hub", "--runner-class", "hardware"],
         text=True, capture_output=True, check=False,
     )
     assert generation.returncode == 0, generation.stderr
@@ -136,7 +148,8 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     rejected = subprocess.run(
         [sys.executable, str(GENERATOR), "--template", str(TEMPLATE),
          "--output", str(temporary / "bad.js"), "--cache-mode", "warm",
-         "--concurrency", "100", "--run-index", "1", "--location-label", "hub"],
+         "--concurrency", "100", "--run-index", "1", "--location-label", "hub",
+         "--runner-class", "hardware"],
         text=True, capture_output=True, check=False,
     )
     assert rejected.returncode != 0
@@ -202,5 +215,46 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     assert diagnostic_summary["selected_concurrency"] is None
     assert diagnostic_summary["decision_ready"] is False
     assert diagnostic_summary["observed_best_concurrency"] == 10
+
+    diagnostic_partial = temporary / "diagnostic-partial"
+    create_benchmark(
+        diagnostic_partial,
+        runner_class="diagnostic",
+        concurrencies=(10,),
+        diagnostic_partial=True,
+    )
+    partial_diagnostic_result = temporary / "diagnostic-partial.json"
+    partial_diagnostic_junit = temporary / "diagnostic-partial.xml"
+    partial_diagnostic_analysis = analyze(
+        diagnostic_partial, partial_diagnostic_result, partial_diagnostic_junit
+    )
+    assert partial_diagnostic_analysis.returncode == 0, (
+        partial_diagnostic_analysis.stdout + partial_diagnostic_analysis.stderr
+    )
+    partial_diagnostic_summary = json.loads(
+        partial_diagnostic_result.read_text(encoding="utf-8")
+    )
+    assert partial_diagnostic_summary["measurement_passed"] is False
+    assert partial_diagnostic_summary["diagnostic_observation_complete"] is True
+    assert partial_diagnostic_summary["passed"] is True
+    assert partial_diagnostic_summary["failures"] == []
+    assert len(partial_diagnostic_summary["incomplete_attempts"]) == 2
+    assert all(group["diagnostic_observation_count"] == 1
+               for group in partial_diagnostic_summary["groups"])
+    partial_suite = ET.parse(partial_diagnostic_junit).getroot()
+    assert int(partial_suite.attrib["failures"]) == 0
+    assert int(partial_suite.attrib["skipped"]) >= 2
+
+    mismatched_runner = temporary / "mismatched-runner"
+    create_benchmark(mismatched_runner, runner_class="hardware", concurrencies=(10,))
+    mismatched_path = mismatched_runner / "c10/pair-1/cold/macos-online-loading.json"
+    mismatched_payload = json.loads(mismatched_path.read_text(encoding="utf-8"))
+    mismatched_payload["runner_class"] = "diagnostic"
+    mismatched_path.write_text(json.dumps(mismatched_payload), encoding="utf-8")
+    mismatched_result = temporary / "mismatched-runner.json"
+    mismatched_junit = temporary / "mismatched-runner.xml"
+    mismatched_analysis = analyze(mismatched_runner, mismatched_result, mismatched_junit)
+    assert mismatched_analysis.returncode != 0
+    assert "runner class does not match" in mismatched_analysis.stdout
 
 print("macOS online loading tool tests passed")

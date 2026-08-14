@@ -9,8 +9,9 @@
     }
 
     var testCase = OVERTE_MACOS_ONLINE_LOADING_CASE;
+    var diagnosticOnly = testCase.runner_class === "diagnostic";
     var startedAt = Date.now();
-    var deadline = startedAt + 360000;
+    var deadline = startedAt + (diagnosticOnly ? 120000 : 360000);
     var measurementDeadline = 0;
     var firstEntitiesMs = null;
     var firstVisibleMs = null;
@@ -85,6 +86,7 @@
             concurrency: testCase.concurrency,
             run_index: testCase.run_index,
             location_label: testCase.location_label,
+            runner_class: testCase.runner_class,
             duration_ms: Date.now() - startedAt,
             first_entities_ms: firstEntitiesMs,
             first_visible_ms: firstVisibleMs,
@@ -153,7 +155,7 @@
         }
         if (firstVisibleMs === null && visible > 0) {
             firstVisibleMs = elapsed;
-            measurementDeadline = now + 180000;
+            measurementDeadline = now + (diagnosticOnly ? 60000 : 180000);
             print("OVERTE_MACOS_ONLINE_LOADING first_visible_ms=" + firstVisibleMs +
                 " count=" + visible);
         }
@@ -174,6 +176,8 @@
         }
         if (sustainedIdleMs !== null && snapshotCompletedMs !== null) {
             publish(true, "visible_and_idle");
+        } else if (diagnosticOnly && measurementDeadline !== 0 && now >= measurementDeadline) {
+            publish(false, "diagnostic_observation_complete");
         } else if (measurementDeadline !== 0 && now >= measurementDeadline) {
             publish(snapshotCompletedMs !== null, "bounded_measurement_complete");
         } else if (now >= deadline) {

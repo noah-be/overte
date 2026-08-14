@@ -149,8 +149,14 @@ cold/warm attempt is manifest-driven, and partial metrics from crashes or
 timeouts are retained instead of disappearing from the report. Stale result
 directories are ignored. On the hosted software renderer the suite deliberately
 runs only the first requested concurrency, because two driver-pathological runs
-cannot produce a meaningful download-concurrency comparison. A mutable public
-world is informational and never selects or changes the application default. A
+cannot produce a meaningful download-concurrency comparison. It records a
+60-second post-visible diagnostic window and then bounds each process at 150
+seconds. If entities and first-visible evidence were captured but Apple's
+software GL compiler prevents the screenshot/idle gates, the aggregate remains
+`measurement_passed: false`, marks the cases skipped in JUnit, and reports
+`diagnostic_observation_complete: true`; it never promotes that partial evidence
+to a loading or gameplay decision. A mutable public world is informational and
+never selects or changes the application default. A
 controlled, versioned domain plus at least three complete native-hardware
 repetitions is required before adopting hard online-loading thresholds.
 
@@ -162,6 +168,17 @@ Apple software-renderer draw work. Public-server reconnects and different entity
 counts made the two concurrency settings non-comparable, so the default remains
 unchanged. These partial milestones and the native samples remain useful
 bottleneck evidence even though no concurrency decision is permitted.
+
+Run `31848707317` reproduced the limitation without a crash. Cold c10 reached
+575 entities and first-visible at 4.974 seconds; warm c10 reached 580 entities
+and first-visible at 12.752 seconds. The cold timeout sample spent every sample
+of the Presentation Thread in Apple's native software-GL pipeline compiler.
+Instrumented first-use draws took 121 seconds for `simple_forward` and 167
+seconds for `sdf_text3D_forward`, after which a translucent Forward shader was
+still compiling. Host telemetry remained CPU-active with ample RAM and disk.
+This proves that the hosted full-world failure is a graphics-driver bottleneck,
+not slow domain/entity discovery, cache loss, runner freeze, or resource
+exhaustion.
 
 Repeated clean launch, local-scene render, screenshot, and shutdown cycles are
 available with:

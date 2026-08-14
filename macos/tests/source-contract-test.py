@@ -1122,6 +1122,9 @@ for loading_contract in (
     "result_directory",
     "refusing to mix an online-loading benchmark with existing evidence",
     'concurrencies=("${concurrencies[0]}")',
+    "OVERTE_MACOS_ONLINE_DIAGNOSTIC_TIMEOUT_SECONDS",
+    '--runner-class "$runner_class"',
+    'case_timeout_seconds="$diagnostic_timeout_seconds"',
 ):
     if loading_contract not in online_loading_runner:
         raise SystemExit(f"online loading runner missing: {loading_contract}")
@@ -1138,6 +1141,8 @@ for loading_contract in (
     "sustained_idle_ms",
     "first_visible_ms",
     "queue_samples",
+    'testCase.runner_class === "diagnostic"',
+    "diagnostic_observation_complete",
 ):
     if loading_contract not in online_loading_script:
         raise SystemExit(f"online loading script missing: {loading_contract}")

@@ -162,7 +162,7 @@ def load_attempts(root: Path, manifest: dict[str, object]) -> tuple[list[dict[st
     return attempts, failures
 
 
-def load_metrics(attempt: dict[str, object]) -> dict[str, object] | None:
+def load_metrics(attempt: dict[str, object], manifest: dict[str, object]) -> dict[str, object] | None:
     directory = attempt["resolved_directory"]
     if not attempt["metrics_present"]:
         return None
@@ -173,6 +173,8 @@ def load_metrics(attempt: dict[str, object]) -> dict[str, object] | None:
             payload.get("concurrency") != attempt["concurrency"] or
             payload.get("run_index") != attempt["pair"]):
         raise LoadingError("online-loading result does not match its attempt")
+    if payload.get("runner_class") != manifest["runner_class"]:
+        raise LoadingError("online-loading result runner class does not match its manifest")
     samples = payload.get("queue_samples")
     if not isinstance(samples, list) or not samples or len(samples) > 1000:
         raise LoadingError("invalid online queue samples")
@@ -194,7 +196,24 @@ def load_metrics(attempt: dict[str, object]) -> dict[str, object] | None:
     process = load_object(directory / "online-loading-process.json", "online-loading process result")
     payload["process_exit_code"] = process.get("exit_code")
     payload["process_timed_out"] = process.get("timed_out") is True
+    payload["process_sample_succeeded"] = process.get("sample_succeeded") is True
     return payload
+
+
+def diagnostic_observation(value: dict[str, object], manifest: dict[str, object]) -> bool:
+    if manifest["runner_class"] != "diagnostic" or value.get("runner_class") != "diagnostic":
+        return False
+    if value.get("first_visible_ms") is None or integer(
+            value.get("max_entity_count"), "max_entity_count", minimum=1) < 1:
+        return False
+    if value.get("success") is True:
+        return True
+    bounded = value.get("reason") == "diagnostic_observation_complete"
+    process_bounded = (
+        value.get("process_exit_code") == 0 or
+        (value.get("process_timed_out") is True and value.get("process_sample_succeeded") is True)
+    )
+    return bounded and process_bounded
 
 
 def median_or_none(values: list[float]) -> float | None:
@@ -214,6 +233,7 @@ def aggregate(attempts: list[dict[str, object]], metrics: list[dict[str, object]
                      item.get("first_visible_ms") is not None and
                      item.get("snapshot_completed_ms") is not None and
                      item.get("sustained_idle_ms") is not None]
+            observed = [item for item in group_metrics if diagnostic_observation(item, manifest)]
             visible = [finite(item["first_visible_ms"], "first_visible_ms") for item in group_metrics
                        if item.get("first_visible_ms") is not None]
             snapshot = [finite(item["snapshot_completed_ms"], "snapshot_completed_ms") for item in valid]
@@ -224,6 +244,7 @@ def aggregate(attempts: list[dict[str, object]], metrics: list[dict[str, object]
                 "attempt_count": len(group_attempts),
                 "metrics_count": len(group_metrics),
                 "valid_count": len(valid),
+                "diagnostic_observation_count": len(observed),
                 "failure_count": sum(not item["accepted"] for item in group_attempts),
                 "crash_count": sum(int(item["exit_code"]) in (134, 136, 139) for item in group_attempts),
                 "timeout_count": sum(item.get("process_timed_out") is True for item in group_metrics),
@@ -233,6 +254,22 @@ def aggregate(attempts: list[dict[str, object]], metrics: list[dict[str, object]
             })
     diagnostic = manifest["runner_class"] == "diagnostic" or manifest.get("translated") is True
     complete = not failures and all(item["valid_count"] >= minimum_runs for item in groups)
+    diagnostic_observation_complete = (
+        diagnostic and all(item["diagnostic_observation_count"] >= minimum_runs for item in groups)
+    )
+    observed_attempts = {
+        (int(item["concurrency"]), int(item["run_index"]), str(item["cache_mode"]))
+        for item in metrics if diagnostic_observation(item, manifest)
+    }
+    expected_incomplete = {
+        f"c{item['concurrency']}/pair-{item['pair']}/{item['cache_mode']} failed with exit {item['exit_code']}"
+        for item in attempts
+        if (int(item["concurrency"]), int(item["pair"]), str(item["cache_mode"])) in observed_attempts
+        and not item["accepted"]
+    }
+    hard_failures = [failure for failure in failures if failure not in expected_incomplete]
+    if hard_failures:
+        diagnostic_observation_complete = False
     warm = [item for item in groups if item["cache_mode"] == "warm" and
             item["valid_count"] >= minimum_runs]
     warm.sort(key=lambda item: (float(item["first_visible_ms_median_partial"]), int(item["concurrency"])))
@@ -250,15 +287,18 @@ def aggregate(attempts: list[dict[str, object]], metrics: list[dict[str, object]
         "attempt_count": len(attempts),
         "metrics_count": len(metrics),
         "measurement_passed": complete,
+        "diagnostic_observation_complete": diagnostic_observation_complete,
         "decision_ready": decision_ready,
         "selected_concurrency": observed_best if decision_ready else None,
         "observed_best_concurrency": observed_best,
-        "passed": complete,
+        "passed": complete or diagnostic_observation_complete,
         "groups": groups,
-        "failures": failures,
+        "failures": hard_failures if diagnostic_observation_complete else failures,
+        "incomplete_attempts": sorted(expected_incomplete),
         "limitations": [
             "public world and network are mutable; concurrency observations are informational",
             "--cache isolates resource caches but not the driver-dependent GL shader cache",
+            "software-renderer observations may terminate after bounded evidence without a completed frame or idle queues",
         ],
     }
 
@@ -286,7 +326,13 @@ def write_junit(path: Path, result: dict[str, object]) -> None:
     for item in result.get("groups", []):
         case = ET.SubElement(suite, "testcase", classname="overte.macos.online-loading",
                              name=f"c{item['concurrency']}-{item['cache_mode']}")
-        if item["valid_count"] < result.get("minimum_runs", 1):
+        if (item["valid_count"] < result.get("minimum_runs", 1) and
+                item.get("diagnostic_observation_count", 0) >= result.get("minimum_runs", 1)):
+            ET.SubElement(
+                case, "skipped",
+                message="diagnostic software renderer did not complete full render and idle gates",
+            )
+        elif item["valid_count"] < result.get("minimum_runs", 1):
             failure = ET.SubElement(case, "failure", message="insufficient valid repetitions")
             failure.text = json.dumps(item, sort_keys=True)
     for index, message in enumerate(result.get("failures", [])):
@@ -319,7 +365,8 @@ def main() -> int:
         if arguments.minimum_runs != manifest["repeats"]:
             raise LoadingError("minimum runs must match the immutable online-loading manifest")
         attempts, failures = load_attempts(arguments.benchmark_directory, manifest)
-        metrics = [value for value in (load_metrics(attempt) for attempt in attempts) if value is not None]
+        metrics = [value for value in
+                   (load_metrics(attempt, manifest) for attempt in attempts) if value is not None]
         result = aggregate(attempts, metrics, manifest, arguments.minimum_runs, failures)
         atomic_write(arguments.result, (json.dumps(result, sort_keys=True) + "\n").encode("utf-8"))
         write_junit(arguments.junit, result)

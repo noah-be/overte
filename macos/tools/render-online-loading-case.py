@@ -23,6 +23,7 @@ def main() -> int:
     parser.add_argument("--concurrency", type=int, required=True)
     parser.add_argument("--run-index", type=int, required=True)
     parser.add_argument("--location-label", required=True)
+    parser.add_argument("--runner-class", choices=("diagnostic", "hardware"), required=True)
     arguments = parser.parse_args()
     if not 1 <= arguments.concurrency <= 64:
         parser.error("--concurrency is outside 1..64")
@@ -35,6 +36,7 @@ def main() -> int:
         "concurrency": arguments.concurrency,
         "run_index": arguments.run_index,
         "location_label": arguments.location_label,
+        "runner_class": arguments.runner_class,
     }
     try:
         template = arguments.template.read_text(encoding="utf-8")

@@ -137,7 +137,11 @@ requested-versus-observed settings, consistent hardware/fixture identity, and
 the per-run 60 Hz contract. A one-run matrix is provisional; 30 Hz is reported
 only as a fallback. Online reports preserve partial metrics, timeout state, and
 crash counts from failed attempts but never select a concurrency from a mutable
-public world. A diagnostic software renderer runs only one cold/warm pair.
+public world. A diagnostic software renderer runs only one cold/warm pair,
+bounds each process at 150 seconds, and treats a first-visible, sampled
+software-GL limitation as an explicit skipped diagnostic observation rather
+than a completed loading measurement. `measurement_passed` remains false and
+no profile or concurrency can be selected from that evidence.
 
 The application is retained for fourteen days and smoke diagnostics for seven
 days. The workflow does not verify a

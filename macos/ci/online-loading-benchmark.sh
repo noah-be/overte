@@ -15,12 +15,17 @@ readonly location_label="${OVERTE_MACOS_ONLINE_LOCATION_LABEL:-overte-hub}"
 readonly concurrency_csv="${OVERTE_MACOS_ONLINE_CONCURRENCIES:-10,16}"
 readonly repeats="${OVERTE_MACOS_ONLINE_REPEATS:-1}"
 readonly timeout_seconds="${OVERTE_MACOS_ONLINE_LOADING_TIMEOUT_SECONDS:-420}"
+readonly diagnostic_timeout_seconds="${OVERTE_MACOS_ONLINE_DIAGNOSTIC_TIMEOUT_SECONDS:-150}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
 
 [[ "$(uname -s)" == Darwin ]] || { echo "online loading benchmark requires macOS" >&2; exit 1; }
 [[ -x "$executable" ]] || { echo "missing executable: $executable" >&2; exit 1; }
 [[ "$repeats" =~ ^[1-9][0-9]*$ ]] && (( repeats <= 10 )) || {
     echo "online repeats must be in 1..10" >&2
+    exit 2
+}
+[[ "$diagnostic_timeout_seconds" =~ ^[1-9][0-9]*$ ]] || {
+    echo "diagnostic online timeout must be a positive integer" >&2
     exit 2
 }
 
@@ -107,14 +112,20 @@ run_case() {
     local status=0
     local accepted=false
     local metrics_present=false
+    local case_timeout_seconds="$timeout_seconds"
     local -a app_command
+
+    if [[ "$runner_class" == diagnostic ]]; then
+        case_timeout_seconds="$diagnostic_timeout_seconds"
+    fi
 
     mkdir -p "$cache_dir" "$run_dir"
     rm -f "$snapshot" "$screenshot_result" "$run_dir/macos-online-loading.json" \
         "$run_dir/online-loading-accepted"
     python3 "$source_root/macos/tools/render-online-loading-case.py" \
         --template "$template" --output "$generated_script" --cache-mode "$cache_mode" \
-        --concurrency "$concurrency" --run-index "$pair" --location-label "$location_label"
+        --concurrency "$concurrency" --run-index "$pair" --location-label "$location_label" \
+        --runner-class "$runner_class"
 
     app_command=(
         "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog --display Desktop
@@ -124,7 +135,7 @@ run_case() {
     )
     set +e
     python3 "$source_root/macos/tools/run-process-with-timeout.py" \
-        --timeout "$timeout_seconds" --grace "$shutdown_grace_seconds" \
+        --timeout "$case_timeout_seconds" --grace "$shutdown_grace_seconds" \
         --log "$log" --result "$result" --sample "$sample" --crash-report "$crash" -- \
         "${app_command[@]}"
     status=$?
