@@ -67,7 +67,7 @@ void TextureTest::initTestCase() {
         QVERIFY2(!image.isNull(), qPrintable("Unable to load texture fixture: " + imagePath));
         std::atomic<bool> abortSignal { false };
         auto texture = image::TextureUsage::process2DTextureColorFromImage(
-            std::move(image), imagePath.toStdString(), true, gpu::BackendTarget::GL45, true, abortSignal);
+            std::move(image), imagePath.toStdString(), false, gpu::BackendTarget::GL41, false, abortSignal);
         QVERIFY2(texture, "Unable to convert texture fixture");
         auto ktxMemory = gpu::Texture::serialize(
             *texture, glm::ivec2(texture->getWidth(), texture->getHeight()));
@@ -111,6 +111,7 @@ void TextureTest::initTestCase() {
 }
 
 void TextureTest::cleanupTestCase() {
+    gpu::Texture::setAllowedGPUMemoryUsage(0);
     _framebuffer.reset();
     _pipeline.reset();
     _gpuContext->recycle();
@@ -163,6 +164,11 @@ void TextureTest::testTextureLoading() {
         _frameCount = 0;
         auto textures = loadTestTextures();
         QVERIFY(textures.size() > 0);
+        for (const auto& texture : textures) {
+            QVERIFY2(texture.first, "Unable to deserialize texture fixture");
+            QVERIFY2(texture.first->getUsageType() == gpu::TextureUsageType::RESOURCE,
+                     "Texture fixture must exercise managed resource allocation");
+        }
         auto renderTexturesLamdba = [&](gpu::Batch& batch) {
             batch.setPipeline(_pipeline);
             for (const auto& texture : textures) {
@@ -195,7 +201,7 @@ void TextureTest::testTextureLoading() {
         qDebug() << "Awaiting texture allocation";
         while (expectedAllocation != allocatedMemory) {
             doEvery(lastReport, 4, reportLambda);
-            failAfter(start, FAIL_AFTER_SECONDS, "Failed to allocate texture memory");
+            QVERIFY2(!afterSecs(start, FAIL_AFTER_SECONDS), "Failed to allocate texture memory");
             renderFrame(renderTexturesLamdba);
             allocatedMemory = gpu::Context::getTextureResourceGPUMemSize();
             populatedMemory = gpu::Context::getTextureResourcePopulatedGPUMemSize();
@@ -209,7 +215,7 @@ void TextureTest::testTextureLoading() {
         qDebug() << "Awaiting texture population";
         while (allocatedMemory != populatedMemory || 0 != gpu::Context::getTexturePendingGPUTransferMemSize()) {
             doEvery(lastReport, 4, reportLambda);
-            failAfter(start, FAIL_AFTER_SECONDS, "Failed to populate texture memory");
+            QVERIFY2(!afterSecs(start, FAIL_AFTER_SECONDS), "Failed to populate texture memory");
             renderFrame();
             allocatedMemory = gpu::Context::getTextureResourceGPUMemSize();
             populatedMemory = gpu::Context::getTextureResourcePopulatedGPUMemSize();
@@ -231,7 +237,7 @@ void TextureTest::testTextureLoading() {
         qDebug() << "Awaiting texture deallocation";
         while (allocatedMemory > maxMemory || allocatedMemory != populatedMemory) {
             doEvery(lastReport, 4, reportLambda);
-            failAfter(start, FAIL_AFTER_SECONDS, "Failed to deallocate texture memory");
+            QVERIFY2(!afterSecs(start, FAIL_AFTER_SECONDS), "Failed to deallocate texture memory");
             renderFrame(renderTexturesLamdba);
             allocatedMemory = gpu::Context::getTextureResourceGPUMemSize();
             populatedMemory = gpu::Context::getTextureResourcePopulatedGPUMemSize();
@@ -251,7 +257,7 @@ void TextureTest::testTextureLoading() {
         qDebug() << "Awaiting texture reallocation and repopulation";
         while (allocatedMemory != expectedAllocation || allocatedMemory != populatedMemory) {
             doEvery(lastReport, 4, reportLambda);
-            failAfter(start, FAIL_AFTER_SECONDS, "Failed to populate texture memory");
+            QVERIFY2(!afterSecs(start, FAIL_AFTER_SECONDS), "Failed to populate texture memory");
             renderFrame();
             allocatedMemory = gpu::Context::getTextureResourceGPUMemSize();
             populatedMemory = gpu::Context::getTextureResourcePopulatedGPUMemSize();
@@ -261,10 +267,11 @@ void TextureTest::testTextureLoading() {
         QCOMPARE(populatedMemory, allocatedMemory);
 
         textures.clear();
-        // Cycle frames we're fully populated
+        start = usecTimestampNow();
+        // Cycle frames until the released textures have been reclaimed.
         qDebug() << "Awaiting texture deallocation";
         while (allocatedMemory != 0) {
-            failAfter(start, FAIL_AFTER_SECONDS, "Failed to clear texture memory");
+            QVERIFY2(!afterSecs(start, FAIL_AFTER_SECONDS), "Failed to clear texture memory");
             renderFrame();
             allocatedMemory = gpu::Context::getTextureResourceGPUMemSize();
             populatedMemory = gpu::Context::getTextureResourcePopulatedGPUMemSize();

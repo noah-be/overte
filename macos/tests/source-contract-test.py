@@ -145,6 +145,34 @@ if "gpu::Shader::createProgram(shader::gpu::program::drawUnitQuatTextureOpaque)"
     raise SystemExit("texture test must exercise the generated production texture program")
 if "Source::generate" in texture_test:
     raise SystemExit("texture test must not call the retired raw shader factory")
+if not re.search(
+    r"process2DTextureColorFromImage\(\s*std::move\(image\),\s*"
+    r"imagePath\.toStdString\(\),\s*false,\s*gpu::BackendTarget::GL41,\s*"
+    r"false,\s*abortSignal\s*\)",
+    texture_test,
+):
+    raise SystemExit(
+        "texture test fixture must be an uncompressed managed GL41 resource"
+    )
+for managed_texture_contract in (
+    "getUsageType() == gpu::TextureUsageType::RESOURCE",
+    "gpu::Texture::setAllowedGPUMemoryUsage(0);",
+):
+    if managed_texture_contract not in texture_test:
+        raise SystemExit(
+            f"managed texture test isolation missing: {managed_texture_contract}"
+        )
+if texture_test.count("QVERIFY2(!afterSecs(start, FAIL_AFTER_SECONDS)") != 5:
+    raise SystemExit("every texture-memory wait must fail from the calling test")
+clear_wait = texture_test.split("textures.clear();", 1)[1].split("reportLambda();", 1)[0]
+clear_timer_reset = clear_wait.find("start = usecTimestampNow();")
+clear_loop = clear_wait.find("while (allocatedMemory != 0)")
+if clear_timer_reset < 0 or clear_loop < 0 or clear_timer_reset > clear_loop:
+    raise SystemExit("released-texture wait must have an independent timeout")
+if "failAfter(" in texture_test or "failAfter(" in (
+    ROOT / "libraries/test-utils/src/test-utils/QTestExtensions.h"
+).read_text(encoding="utf-8"):
+    raise SystemExit("test timeouts must not return only from an inline helper")
 gl_shader_source = (ROOT / "libraries/gl/src/gl/GLShaders.cpp").read_text(
     encoding="utf-8"
 )

@@ -312,9 +312,3 @@ inline QString getTestResource(const QString& relativePath) {
 
     return QDir::cleanPath(dir.absoluteFilePath(relativePath));
 }
-
-inline void failAfter(quint64 startUsecs, quint64 secs, const char* message) {
-    if (afterSecs(startUsecs, secs)) {
-        QFAIL(message);
-    }
-}
