@@ -111,6 +111,34 @@ target_os = ['ios']
 EOF
 (cd "$work_root" && gclient sync --revision "v8@$OVERTE_IOS_V8_REVISION" --no-history --nohooks)
 
+# V8 12.4 still enables pthread_jit_write_protect_np for an arm64 iOS
+# simulator.  Xcode 26.6 explicitly marks that API unavailable there.  This
+# package is always JITless, so use the same fail-closed platform capability
+# boundary as current V8: pthread JIT write protection is macOS-only.  Accept
+# exactly the pinned original or already-patched source state so resumed work
+# trees remain deterministic; never transform an unknown revision fuzzily.
+"$host_python" - "$source_root/src/base/build_config.h" "$platform" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+platform = sys.argv[2]
+original = """#if defined(V8_HOST_ARCH_ARM64) && \\
+    (defined(V8_OS_MACOS) || (defined(V8_OS_IOS) && TARGET_OS_SIMULATOR))
+"""
+jitless_simulator = """#if defined(V8_HOST_ARCH_ARM64) && defined(V8_OS_MACOS)
+"""
+source = path.read_text(encoding="utf-8")
+if platform == "simulator":
+    expected, replacement = original, jitless_simulator
+else:
+    expected, replacement = jitless_simulator, original
+if expected in source:
+    path.write_text(source.replace(expected, replacement, 1), encoding="utf-8")
+elif replacement not in source:
+    raise SystemExit("pinned V8 JITless platform boundary does not match the source tree")
+PY
+
 # V8 12.4's general-purpose runhooks list installs its historical test Python
 # environment.  The pinned numpy wheel for that environment was never
 # published for macOS arm64 and is unrelated to compiling v8_monolith.  Run

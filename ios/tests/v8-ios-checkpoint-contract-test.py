@@ -54,6 +54,10 @@ class V8IOSCheckpointContractTest(unittest.TestCase):
             "OVERTE_IOS_V8_COMPILER_LAUNCHER",
             "OVERTE_IOS_V8_PLATFORM=$platform",
             "cc_wrapper =",
+            '"$host_python" - "$source_root/src/base/build_config.h" "$platform"',
+            "pinned V8 JITless platform boundary does not match the source tree",
+            "#if defined(V8_HOST_ARCH_ARM64) && defined(V8_OS_MACOS)",
+            "TARGET_OS_SIMULATOR",
         ):
             self.assertIn(contract, script)
         self.assertNotIn("gclient runhooks", script)
@@ -90,7 +94,6 @@ class V8IOSCheckpointContractTest(unittest.TestCase):
         self.assertIn("Save V8 compiler recovery checkpoint", v8)
         self.assertIn("retention-days: 30", v8)
         self.assertIn("OVERTE_IOS_V8_ROOT:", workflow)
-
 
 if __name__ == "__main__":
     unittest.main()
