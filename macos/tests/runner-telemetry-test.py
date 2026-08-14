@@ -114,6 +114,21 @@ class RunnerTelemetryTest(unittest.TestCase):
             self.assertNotIn(str(ROOT), log.read_text())
             self.assertEqual(log.stat().st_mode & 0o777, 0o600)
 
+    def test_emitter_creates_a_private_missing_log_parent_before_launch(self):
+        module = load_tool()
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / "missing" / "telemetry" / "phase.jsonl"
+            stream = io.StringIO()
+            emitter = module.Emitter(log, stream)
+            emitter("start", phase="runtime-transition")
+
+            self.assertTrue(log.is_file())
+            self.assertEqual(log.parent.stat().st_mode & 0o777, 0o700)
+            self.assertEqual(log.stat().st_mode & 0o777, 0o600)
+            record = json.loads(log.read_text())
+            self.assertEqual(record["macos_runner_telemetry"], "start")
+            self.assertNotIn("append_error", record)
+
     def test_directory_labels_are_bounded_and_paths_are_never_reported(self):
         module = load_tool()
         with tempfile.TemporaryDirectory() as directory:

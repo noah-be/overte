@@ -382,6 +382,19 @@ class Emitter:
     def __init__(self, log_path: Path | None, stream=sys.stdout):
         self.log_path = log_path
         self.stream = stream
+        if self.log_path:
+            parent = self.log_path.parent
+            parent_missing = not parent.exists()
+            parent.mkdir(parents=True, exist_ok=True)
+            if parent_missing:
+                parent.chmod(0o700)
+            descriptor = os.open(
+                self.log_path, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600
+            )
+            try:
+                os.fchmod(descriptor, 0o600)
+            finally:
+                os.close(descriptor)
 
     def __call__(self, event: str, **fields: object) -> None:
         record = {
