@@ -14,25 +14,38 @@ guard CommandLine.arguments.count == 3 else {
 
 let appPath = CommandLine.arguments[1]
 let expectedBundleIdentifier = CommandLine.arguments[2]
-guard let bundle = Bundle(path: appPath) else {
-    fail("Foundation.Bundle cannot open the application bundle")
+let appURL = URL(fileURLWithPath: appPath, isDirectory: true)
+let infoURL = appURL.appendingPathComponent("Info.plist", isDirectory: false)
+let infoData: Data
+do {
+    infoData = try Data(contentsOf: infoURL)
+} catch {
+    fail("Foundation cannot read the application Info.plist")
 }
-let observedBundleIdentifier = bundle.bundleIdentifier ?? "<nil>"
-let dictionaryBundleIdentifier =
-    bundle.infoDictionary?["CFBundleIdentifier"] as? String ?? "<nil>"
-guard observedBundleIdentifier == expectedBundleIdentifier else {
-    fail(
-        "Foundation.Bundle identifier mismatch: expected=\(expectedBundleIdentifier) "
-            + "bundleIdentifier=\(observedBundleIdentifier) "
-            + "infoDictionary=\(dictionaryBundleIdentifier)"
-    )
+let propertyList: Any
+do {
+    propertyList = try PropertyListSerialization.propertyList(
+        from: infoData, options: [], format: nil)
+} catch {
+    fail("Foundation cannot parse the application Info.plist")
 }
-guard bundle.object(forInfoDictionaryKey: "CFBundlePackageType") as? String == "APPL" else {
+guard let info = propertyList as? [String: Any] else {
+    fail("Foundation reports a non-dictionary application Info.plist")
+}
+guard info["CFBundleIdentifier"] as? String == expectedBundleIdentifier else {
+    fail("Foundation reports an unexpected application bundle identifier")
+}
+guard info["CFBundlePackageType"] as? String == "APPL" else {
     fail("Foundation.Bundle does not recognize an APPL package")
 }
-guard let executableURL = bundle.executableURL,
-      FileManager.default.isExecutableFile(atPath: executableURL.path) else {
-    fail("Foundation.Bundle cannot resolve an executable application binary")
+guard let executableName = info["CFBundleExecutable"] as? String,
+      !executableName.isEmpty,
+      !executableName.contains("/") else {
+    fail("Foundation reports an invalid application executable name")
+}
+let executableURL = appURL.appendingPathComponent(executableName)
+guard FileManager.default.isExecutableFile(atPath: executableURL.path) else {
+    fail("Foundation cannot resolve an executable application binary")
 }
 
-print("PASS Apple Foundation recognizes \(expectedBundleIdentifier) as an executable app bundle")
+print("PASS Apple Foundation parses \(expectedBundleIdentifier) as an executable iOS app bundle")

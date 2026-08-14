@@ -37,12 +37,16 @@ require(r"head_branch[^\n]*apple-ios", "only the reviewed branch may produce inp
 require(r"normalize-sideload-ipa[.]py", "the guarded normalizer must run")
 require(r"ditto -x -k", "Apple ditto must re-extract the normalized IPA")
 require(
+    r"ditto -c -k --norsrc --keepParent[\s\\]*\n\s*\"\$SIDELOAD_ROOT/native-payload/Payload\"",
+    "the downloadable IPA must be repacked by Apple ditto without resource forks",
+)
+require(
     r"source-expanded[\s\S]*verify-apple-bundle[.]swift[^\n]*SOURCE_BUNDLE_ID",
     "the original producer bundle must establish the Foundation baseline",
 )
 require(r"plutil -lint", "Apple plutil must validate the final Info.plist")
 require(r"PlistBuddy[^\n]*CFBundleIdentifier", "Apple metadata lookup must verify the ID")
-require(r"xcrun swift ios/ci/verify-apple-bundle[.]swift", "Foundation.Bundle must verify the app")
+require(r"xcrun swift ios/ci/verify-apple-bundle[.]swift", "Foundation must parse the iOS app")
 require(r"if-no-files-found:\s*error", "missing normalized outputs must fail closed")
 require(r"retention-days:\s*30", "the corrected candidate must remain downloadable")
 
@@ -57,11 +61,10 @@ for action, digest in {
     )
 
 for token in [
-    "Bundle(path: appPath)",
-    "observedBundleIdentifier == expectedBundleIdentifier",
-    'bundle.infoDictionary?["CFBundleIdentifier"]',
-    'CFBundlePackageType") as? String == "APPL"',
-    "bundle.executableURL",
+    "PropertyListSerialization.propertyList",
+    'info["CFBundleIdentifier"] as? String == expectedBundleIdentifier',
+    'info["CFBundlePackageType"] as? String == "APPL"',
+    'info["CFBundleExecutable"] as? String',
     "isExecutableFile",
 ]:
     if token not in SWIFT:

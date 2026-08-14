@@ -79,7 +79,8 @@ jobs:
           [[ "$BUNDLE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9-]*(\.[A-Za-z0-9][A-Za-z0-9-]*)+$ ]]
           test ! -e "$SIDELOAD_ROOT"
           install -d -m 0700 "$SIDELOAD_ROOT/source" "$SIDELOAD_ROOT/output" \
-            "$SIDELOAD_ROOT/source-expanded" "$SIDELOAD_ROOT/expanded"
+            "$SIDELOAD_ROOT/source-expanded" "$SIDELOAD_ROOT/native-payload" \
+            "$SIDELOAD_ROOT/expanded"
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" > "$SIDELOAD_ROOT/producer.json"
           python3 - "$SIDELOAD_ROOT/producer.json" <<'PY'
           import json
@@ -114,13 +115,42 @@ jobs:
       - name: Normalize IPA with explicit unique bundle identifier
         run: |
           set -euo pipefail
+          intermediate="$SIDELOAD_ROOT/normalized-intermediate.ipa"
+          intermediate_manifest="$SIDELOAD_ROOT/normalized-intermediate.json"
           output="$SIDELOAD_ROOT/output/Overte-iPad-Sideloadly-normalized.ipa"
           manifest="$SIDELOAD_ROOT/output/Overte-iPad-Sideloadly-normalized.json"
           python3 ios/tools/normalize-sideload-ipa.py \
-            "$SIDELOAD_ROOT/source/$SOURCE_IPA_NAME" "$output" \
+            "$SIDELOAD_ROOT/source/$SOURCE_IPA_NAME" "$intermediate" \
             --bundle-id "$BUNDLE_ID" \
             --expected-sha256 "$EXPECTED_SHA256" \
-            --manifest "$manifest"
+            --manifest "$intermediate_manifest"
+          ditto -x -k "$intermediate" "$SIDELOAD_ROOT/native-payload"
+          ditto -c -k --norsrc --keepParent \
+            "$SIDELOAD_ROOT/native-payload/Payload" "$output"
+          python3 - "$intermediate_manifest" "$output" "$manifest" <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import sys
+
+          source = pathlib.Path(sys.argv[1])
+          artifact = pathlib.Path(sys.argv[2])
+          destination = pathlib.Path(sys.argv[3])
+          payload = json.loads(source.read_text(encoding="utf-8"))
+          digest = hashlib.sha256()
+          with artifact.open("rb") as stream:
+              for block in iter(lambda: stream.read(1024 * 1024), b""):
+                  digest.update(block)
+          payload.update({
+              "artifact": artifact.name,
+              "sha256": digest.hexdigest(),
+              "size": artifact.stat().st_size,
+              "packaging": "apple-ditto-zip-norsrc",
+          })
+          destination.write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          PY
 
       - name: Verify normalized bundle with native Apple parsers
         run: |
