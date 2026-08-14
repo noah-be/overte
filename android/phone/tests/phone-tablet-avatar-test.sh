@@ -7,8 +7,9 @@ repo_root="$(cd -- "$script_dir/../../.." && pwd)"
 avatar="$repo_root/scripts/system/avatarapp.js"
 qml="$repo_root/interface/resources/qml/hifi/AvatarApp.qml"
 settings_qml="$repo_root/interface/resources/qml/hifi/avatarapp/Settings.qml"
-desktop_config="$repo_root/interface/resources/qml/hifi/avatarapp/AvatarTouchConfiguration.qml"
-phone_config="$repo_root/interface/resources/qml/hifi/avatarapp/+android_phoneInterface/AvatarTouchConfiguration.qml"
+shared_config="$repo_root/interface/resources/qml/hifi/avatarapp/AvatarTouchConfiguration.qml"
+base_profile="$repo_root/interface/resources/qml/controlsUit/TouchUiProfileBase.qml"
+phone_profile="$repo_root/interface/resources/qml/controlsUit/+android_phoneInterface/TouchUiProfile.qml"
 message_boxes="$repo_root/interface/resources/qml/hifi/avatarapp/MessageBoxes.qml"
 
 require() {
@@ -36,23 +37,25 @@ require_qml() {
     printf 'PASS: %s\n' "$description"
 }
 
-require_qml "$desktop_config" 'favoritesFillBelowHeader:[[:space:]]*false' \
+require_qml "$shared_config" 'favoritesFillBelowHeader:[[:space:]]*profile[.]screenSpacePresentation' \
+    'Avatar derives its layout from the shared device profile'
+require_qml "$base_profile" 'property bool screenSpacePresentation:[[:space:]]*false' \
     'desktop Avatar retains its established favorites layout'
-require_qml "$phone_config" 'favoritesFillBelowHeader:[[:space:]]*true' \
+require_qml "$phone_profile" 'screenSpacePresentation:[[:space:]]*true' \
     'phone Avatar places its favorites list below the app header'
 require_qml "$qml" 'root[.]height[[:space:]]*-[[:space:]]*header[.]height' \
     'phone favorites consume only the area below the app status header'
-require_qml "$phone_config" 'showDominantHand:[[:space:]]*false' \
+require_qml "$phone_profile" 'dominantHandSettingsAvailable:[[:space:]]*false' \
     'phone Avatar hides tracked-hand preference controls'
-require_qml "$phone_config" 'showHmdAlignment:[[:space:]]*false' \
+require_qml "$phone_profile" 'hmdAlignmentAvailable:[[:space:]]*false' \
     'phone Avatar hides HMD-only alignment controls'
-require_qml "$desktop_config" 'showDominantHand:[[:space:]]*true' \
+require_qml "$base_profile" 'property bool dominantHandSettingsAvailable:[[:space:]]*true' \
     'desktop Avatar retains dominant-hand settings'
-require_qml "$desktop_config" 'showHmdAlignment:[[:space:]]*true' \
+require_qml "$base_profile" 'property bool hmdAlignmentAvailable:[[:space:]]*true' \
     'desktop Avatar retains HMD alignment settings'
-require_qml "$desktop_config" 'showGetMoreAvatars:[[:space:]]*true' \
+require_qml "$base_profile" 'property bool externalAvatarCatalogAvailable:[[:space:]]*true' \
     'desktop and Pico retain the Community avatar entry point'
-require_qml "$phone_config" 'showGetMoreAvatars:[[:space:]]*false' \
+require_qml "$phone_profile" 'externalAvatarCatalogAvailable:[[:space:]]*false' \
     'phone Avatar omits the unavailable Community avatar entry point'
 require_qml "$qml" 'touchConfiguration[.]showGetMoreAvatars' \
     'Avatar gates construction of the Community tile through its selector'

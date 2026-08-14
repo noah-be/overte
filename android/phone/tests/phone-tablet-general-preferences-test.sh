@@ -4,9 +4,10 @@ set -euo pipefail
 
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly repo_root="$(cd -- "$script_dir/../../.." && pwd)"
-readonly phone_preferences="$repo_root/interface/resources/qml/hifi/tablet/+android_phoneInterface/TabletGeneralPreferences.qml"
-readonly phone_policy="$repo_root/interface/resources/qml/hifi/tablet/+android_phoneInterface/PhoneGeneralPreferencesPolicy.qml"
 readonly shared_preferences="$repo_root/interface/resources/qml/hifi/tablet/TabletGeneralPreferences.qml"
+readonly shared_policy="$repo_root/interface/resources/qml/hifi/tablet/TabletGeneralPreferencesPolicy.qml"
+readonly base_profile="$repo_root/interface/resources/qml/controlsUit/TouchUiProfileBase.qml"
+readonly phone_profile="$repo_root/interface/resources/qml/controlsUit/+android_phoneInterface/TouchUiProfile.qml"
 readonly tablet_preferences_dialog="$repo_root/interface/resources/qml/hifi/tablet/tabletWindows/TabletPreferencesDialog.qml"
 readonly preference_source="$repo_root/interface/src/ui/PreferencesDialog.cpp"
 readonly phone_gradle="$repo_root/android/phone/apps/phoneInterface/build.gradle"
@@ -30,15 +31,25 @@ reject() {
     printf 'PASS: %s\n' "$description"
 }
 
-require "$phone_policy" \
-    'allowedCategories:[[:space:]]*\["Navigation",[[:space:]]*"Mouse Sensitivity"\]' \
-    'phone General Settings use an explicit reviewed category allowlist'
-require "$phone_preferences" 'showCategories:[[:space:]]*phonePolicy[.]allowedCategories' \
+require "$shared_policy" 'profile[.]navigationPreferencesAvailable' \
+    'General Settings admit Navigation only through an explicit capability'
+require "$shared_policy" 'categories[.]push\("Mouse Sensitivity"\)' \
+    'General Settings retain the shared look-sensitivity category'
+require "$shared_preferences" 'showCategories:[[:space:]]*preferencesPolicy[.]allowedCategories' \
     'phone General Settings consume the tested fail-closed category policy'
-reject "$phone_preferences" \
-    'showCategories:.*"(User Interface|HMD|Snapshots|Privacy|Plugins)"' \
-    'phone General Settings exclude incomplete, desktop, VR, filesystem, and Oculus categories'
-require "$phone_policy" 'Individual hidden controls' \
+require "$phone_profile" 'navigationPreferencesAvailable:[[:space:]]*true' \
+    'phone General Settings expose Navigation'
+require "$phone_profile" 'userInterfacePreferencesAvailable:[[:space:]]*false' \
+    'phone General Settings exclude incomplete desktop UI controls'
+require "$phone_profile" 'hmdPreferencesAvailable:[[:space:]]*false' \
+    'phone General Settings exclude HMD controls'
+require "$phone_profile" 'snapshotPreferencesAvailable:[[:space:]]*false' \
+    'phone General Settings exclude filesystem-backed Snapshot controls'
+require "$phone_profile" 'privacyPreferencesAvailable:[[:space:]]*false' \
+    'phone General Settings exclude incomplete Privacy controls'
+require "$phone_profile" 'pluginPreferencesAvailable:[[:space:]]*false' \
+    'phone General Settings exclude unavailable plugin controls'
+require "$shared_policy" 'Individual hidden controls' \
     'phone filtering documents why whole unsupported categories are excluded'
 
 require "$preference_source" '#if defined\(ANDROID_APP_PHONE_INTERFACE\)' \
@@ -51,8 +62,8 @@ require "$phone_gradle" 'USE_BREAKPAD=OFF' \
     'phone build keeps crash reporting disabled'
 require "$discord_stub" 'static inline void Discord_UpdatePresence' \
     'phone build resolves Discord presence to its Android no-op stub'
-require "$phone_preferences" 'Privacy includes crash reporting and Discord controls' \
-    'phone selector documents why the incomplete Privacy category is excluded'
+require "$shared_policy" 'whole category' \
+    'shared policy documents why incomplete categories are excluded'
 require "$tablet_preferences_dialog" 'objectName:[[:space:]]*"GeneralPreferencesSave"' \
     'General Settings expose a stable semantic identity for Save'
 require "$tablet_preferences_dialog" 'Accessible[.]description:[[:space:]]*qsTr\("Save all changed preferences"\)' \
@@ -62,8 +73,13 @@ require "$tablet_preferences_dialog" 'objectName:[[:space:]]*"GeneralPreferences
 require "$tablet_preferences_dialog" 'Accessible[.]description:[[:space:]]*qsTr\("Discard changed preferences"\)' \
     'General Settings describe the destructive Cancel result'
 
-require "$shared_preferences" \
-    'showCategories:.*"User Interface".*"HMD".*"Snapshots".*"Plugins"' \
+require "$base_profile" 'property bool userInterfacePreferencesAvailable:[[:space:]]*true' \
+    'desktop General Settings retain User Interface preferences'
+require "$base_profile" 'property bool hmdPreferencesAvailable:[[:space:]]*true' \
+    'desktop and VR General Settings retain HMD preferences'
+require "$base_profile" 'property bool snapshotPreferencesAvailable:[[:space:]]*true' \
+    'desktop General Settings retain Snapshot preferences'
+require "$base_profile" 'property bool pluginPreferencesAvailable:[[:space:]]*true' \
     'desktop and VR General Settings retain their established categories'
 
 printf 'Android phone General Settings contract checks passed.\n'

@@ -68,8 +68,8 @@ separate aggregate Phone-core run remains informational.
 
 ## QML production inventory
 
-The following Phone selector components are suitable for direct host loading
-because they are plain `QtObject` configurations:
+The following Phone selector and shared presentation components are suitable
+for direct host loading because they are non-visual configurations:
 
 - `AudioTouchConfiguration.qml`
 - `AvatarTouchConfiguration.qml`
@@ -77,6 +77,10 @@ because they are plain `QtObject` configurations:
 - `TabletTouchConfiguration.qml`
 - `TabletPreferencesLayout.qml`
 - `SettingsTouchConfiguration.qml`
+- `TouchUiMetrics.qml`
+- `TouchUiProfile.qml`
+- `TabletTouchConfigurationBase.qml`
+- `TabletGeneralPreferencesPolicy.qml`
 
 They are loaded from their real production paths by the tests in `android/common/tests/qml`;
 the tests do not copy their values into test-only components.
@@ -104,8 +108,8 @@ by contracts rather than a test-only imitation of that backend.
 ## Runtime validation
 
 The Qt Quick tests require `qmltestrunner`, Qt Quick Test and Qt Quick Controls
-2. They were executed in an isolated Ubuntu 24.04 / Qt 5.15 environment with
-38 explicit `test_*` functions pass (52 QtTest result rows when suite
+2. They were executed in an isolated Linux / Qt 5.15 environment. All
+45 explicit `test_*` functions pass (61 QtTest result rows when suite
 initialization and cleanup rows are included). The fast CI job installs the same package set and requires
 the QML tier to execute; a missing tool is a failure there. Local hosts without
 Qt still receive an explicit skip. This host evidence does not replace Android

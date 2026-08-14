@@ -5,8 +5,9 @@ set -euo pipefail
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly repo_root="$(cd -- "$script_dir/../../.." && pwd)"
 readonly security_root="$repo_root/interface/resources/qml/hifi/dialogs/security"
-readonly phone_config="$security_root/+android_phoneInterface/SecurityTouchConfiguration.qml"
-readonly desktop_config="$security_root/SecurityTouchConfiguration.qml"
+readonly shared_config="$security_root/SecurityTouchConfiguration.qml"
+readonly base_profile="$repo_root/interface/resources/qml/controlsUit/TouchUiProfileBase.qml"
+readonly phone_profile="$repo_root/interface/resources/qml/controlsUit/+android_phoneInterface/TouchUiProfile.qml"
 readonly security="$security_root/Security.qml"
 readonly entity_allowlist="$security_root/EntityScriptQMLAllowlist.qml"
 readonly script_security="$security_root/ScriptSecurity.qml"
@@ -20,9 +21,11 @@ require() {
     printf 'PASS: %s\n' "$description"
 }
 
-require "$desktop_config" 'showScriptingPlugins:[[:space:]]*true' \
+require "$shared_config" 'showScriptingPlugins:[[:space:]]*profile[.]scriptingPluginsAvailable' \
+    'Security derives optional features from the shared device profile'
+require "$base_profile" 'property bool scriptingPluginsAvailable:[[:space:]]*true' \
     'desktop retains scripting-plugin security controls'
-require "$phone_config" 'showScriptingPlugins:[[:space:]]*false' \
+require "$phone_profile" 'scriptingPluginsAvailable:[[:space:]]*false' \
     'Phone hides its incomplete scripting-plugin flow'
 require "$security" 'SecurityTouchConfiguration[[:space:]]*\{' \
     'Security resolves its Phone presentation through QFileSelector'
