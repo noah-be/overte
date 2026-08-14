@@ -11,6 +11,9 @@ application_plugins = (ROOT / "interface/src/Application_Plugins.cpp").read_text
 vision_squeeze = (ROOT / "interface/src/VisionSqueeze.cpp").read_text(encoding="utf-8")
 interface_menu = (ROOT / "interface/src/Menu.cpp").read_text(encoding="utf-8")
 
+if "#include <display-plugins/CompositorHelper.h>" not in application_plugins:
+    raise SystemExit("Application_Plugins.cpp must own the complete CompositorHelper type it calls")
+
 start = cmake.index('if(IOS AND OVERTE_RENDERING_BACKEND STREQUAL "Vulkan")')
 end = cmake.index("endif()", start)
 branch = cmake[start:end]
@@ -62,4 +65,4 @@ for source, tokens in (
         if guard < 0 or close < 0 or source.find("#endif", guard, position) >= 0:
             raise SystemExit(f"iOS Interface consumer does not guard excluded display symbol {token!r}")
 
-print("iOS display source isolation valid: 14 OpenGL/stereo/HMD files excluded; registration and consumers guarded")
+print("iOS display source isolation valid: 14 OpenGL/stereo/HMD files excluded; compositor complete; registration and consumers guarded")

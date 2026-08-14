@@ -20,6 +20,7 @@
 #include <cstdlib>
 
 #include <input-plugins/InputPlugin.h>
+#include <display-plugins/CompositorHelper.h>
 #include <display-plugins/DisplayPlugin.h>
 #if !defined(Q_OS_IOS)
 #include <display-plugins/hmd/HmdDisplayPlugin.h>
