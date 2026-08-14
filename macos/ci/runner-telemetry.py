@@ -32,6 +32,12 @@ SECRET_ASSIGNMENT = re.compile(
     r"\s*[:=]\s*)(?:\S+)"
 )
 ABSOLUTE_PATH = re.compile(r"(?<![A-Za-z0-9_.-])/(?:[^\s\"'<>|:]+/?)+")
+BUILD_HEARTBEAT_TEXT = re.compile(
+    rb"^(?:macOS build progress: |::notice title=macOS build progress::)"
+    rb"phase=[A-Za-z0-9_.-]+ progress=[0-9]+/100 "
+    rb"inactive=[0-9]+(?:\.[0-9]+)?s$"
+)
+MAX_PENDING_OUTPUT_LINE = 65536
 
 
 def _command(arguments: list[str]) -> str:
@@ -481,25 +487,52 @@ def run(collector: Collector, emit: Callable[..., None], sample_seconds: float,
 
 
 class OutputActivity:
-    """Forward child output unchanged while exposing only byte activity."""
+    """Track all output without treating a nested supervisor as its own progress."""
 
     def __init__(self, started: float):
         self._lock = threading.Lock()
-        self._bytes = 0
-        self._last_at = started
+        self._total_bytes = 0
+        self._liveness_bytes = 0
+        self._liveness_last_at = started
 
-    def observe(self, size: int, now: float) -> None:
+    def observe_total(self, size: int) -> None:
         with self._lock:
-            self._bytes += size
-            self._last_at = now
+            self._total_bytes += size
 
-    def snapshot(self) -> tuple[int, float]:
+    def observe_liveness(self, size: int, now: float) -> None:
         with self._lock:
-            return self._bytes, self._last_at
+            self._liveness_bytes += size
+            self._liveness_last_at = now
+
+    def snapshot(self) -> tuple[int, int, float]:
+        with self._lock:
+            return (
+                self._total_bytes,
+                self._liveness_bytes,
+                self._liveness_last_at,
+            )
+
+
+def _is_nested_build_heartbeat(line: bytes) -> bool:
+    """Recognize only the bounded heartbeat formats emitted by our build wrapper."""
+    stripped = line.strip()
+    if BUILD_HEARTBEAT_TEXT.fullmatch(stripped):
+        return True
+    if not stripped.startswith(b"{") or b'"macos_build_supervisor"' not in stripped:
+        return False
+    try:
+        record = json.loads(stripped)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return False
+    return (
+        isinstance(record, dict)
+        and record.get("macos_build_supervisor") == "heartbeat"
+    )
 
 
 def _forward_output(stream: BinaryIO, activity: OutputActivity) -> None:
     destination = getattr(sys.stdout, "buffer", sys.stdout)
+    pending = bytearray()
     while True:
         try:
             chunk = stream.read1(65536) if hasattr(stream, "read1") else stream.read(65536)
@@ -507,7 +540,23 @@ def _forward_output(stream: BinaryIO, activity: OutputActivity) -> None:
             break
         if not chunk:
             break
-        activity.observe(len(chunk), time.monotonic())
+        now = time.monotonic()
+        activity.observe_total(len(chunk))
+        pending.extend(chunk)
+        while True:
+            newline = pending.find(b"\n")
+            if newline < 0:
+                break
+            line = bytes(pending[:newline + 1])
+            del pending[:newline + 1]
+            if not _is_nested_build_heartbeat(line):
+                activity.observe_liveness(len(line), now)
+        # Heartbeats are deliberately short, one-line records.  Treat an
+        # unbounded partial line as real output so a tool that streams binary
+        # data or a long diagnostic without newlines cannot be killed falsely.
+        if len(pending) > MAX_PENDING_OUTPUT_LINE:
+            activity.observe_liveness(len(pending), now)
+            pending.clear()
         try:
             destination.write(chunk)
             destination.flush()
@@ -515,6 +564,8 @@ def _forward_output(stream: BinaryIO, activity: OutputActivity) -> None:
             # Continue draining so a closed log consumer cannot deadlock the
             # supervised command's stdout pipe.
             continue
+    if pending:
+        activity.observe_liveness(len(pending), time.monotonic())
 
 
 def supervise(command: list[str], collector: Collector, emit: Callable[..., None],
@@ -638,7 +689,7 @@ def supervise(command: list[str], collector: Collector, emit: Callable[..., None
     next_directory = started
     last_progress = started
     last_cpu: dict[int, float] = {}
-    last_output_bytes = 0
+    last_liveness_output_bytes = 0
     last_sizes: dict[str, float] = {}
     latest_sizes: dict[str, float] = {}
     progress_sources: set[str] = set()
@@ -776,9 +827,9 @@ def supervise(command: list[str], collector: Collector, emit: Callable[..., None
                         emit("monitor_error", phase=phase, id=invocation,
                              error=error_name)
 
-                output_bytes, output_at = activity.snapshot()
-                if output_bytes != last_output_bytes:
-                    last_output_bytes = output_bytes
+                _output_bytes, liveness_output_bytes, output_at = activity.snapshot()
+                if liveness_output_bytes != last_liveness_output_bytes:
+                    last_liveness_output_bytes = liveness_output_bytes
                     last_progress = max(last_progress, output_at)
                     progress_sources.add("output")
 
@@ -832,7 +883,7 @@ def supervise(command: list[str], collector: Collector, emit: Callable[..., None
 
             now = time.monotonic()
             if now >= next_report and process.poll() is None:
-                output_bytes, _output_at = activity.snapshot()
+                output_bytes, liveness_output_bytes, _output_at = activity.snapshot()
                 fields: dict[str, object] = {
                     "phase": phase,
                     "id": invocation,
@@ -841,6 +892,7 @@ def supervise(command: list[str], collector: Collector, emit: Callable[..., None
                     "samples": samples,
                     "metrics": aggregate.report(),
                     "output_bytes": output_bytes,
+                    "liveness_output_bytes": liveness_output_bytes,
                     "progress_sources": sorted(progress_sources),
                 }
                 if latest_sizes:

@@ -240,6 +240,66 @@ class RunnerTelemetryTest(unittest.TestCase):
             self.assertTrue(any("output" in row["progress_sources"] for row in heartbeats))
             self.assertIn("working", result.stdout)
 
+    def test_nested_build_heartbeats_do_not_mask_an_inactive_phase(self):
+        with tempfile.TemporaryDirectory() as directory:
+            heartbeat = (
+                "macOS build progress: phase=link progress=99/100 inactive=30.0s"
+            )
+            notice = (
+                "::notice title=macOS build progress::phase=link "
+                "progress=99/100 inactive=30.0s"
+            )
+            record = json.dumps({
+                "elapsed_s": 30.0,
+                "inactive_s": 30.0,
+                "macos_build_supervisor": "heartbeat",
+                "phase": "link",
+                "progress": 99,
+            }, separators=(",", ":"), sort_keys=True)
+            code = (
+                "import sys,time\n"
+                f"rows={repr([heartbeat, notice, record])}\n"
+                "while True:\n"
+                "    for row in rows:\n"
+                "        print(row, flush=True)\n"
+                "        time.sleep(.04)\n"
+            )
+            result, records = self.invoke_phase(
+                Path(directory), code, inactivity=0.3, timeout=5,
+            )
+            self.assertEqual(result.returncode, 124, result.stdout + result.stderr)
+            self.assertEqual(records[-1]["reason"], "inactivity")
+            heartbeats = [row for row in records
+                          if row["macos_runner_telemetry"] == "heartbeat"]
+            self.assertTrue(heartbeats)
+            self.assertTrue(any(row["output_bytes"] > 0 for row in heartbeats))
+            self.assertTrue(all(row["liveness_output_bytes"] == 0
+                                for row in heartbeats))
+            self.assertTrue(all("output" not in row["progress_sources"]
+                                for row in heartbeats))
+            self.assertIn(heartbeat, result.stdout)
+
+    def test_real_nested_build_progress_remains_liveness(self):
+        with tempfile.TemporaryDirectory() as directory:
+            progress = "macOS build progress: phase=compile progress=25/100"
+            code = (
+                "import time\n"
+                f"row={progress!r}\n"
+                "for _ in range(12):\n"
+                "    print(row, flush=True)\n"
+                "    time.sleep(.1)\n"
+            )
+            result, records = self.invoke_phase(
+                Path(directory), code, inactivity=0.25,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            heartbeats = [row for row in records
+                          if row["macos_runner_telemetry"] == "heartbeat"]
+            self.assertTrue(any("output" in row["progress_sources"]
+                                for row in heartbeats))
+            self.assertTrue(any(row["liveness_output_bytes"] > 0
+                                for row in heartbeats))
+
     def test_active_phase_hits_controlled_wall_limit_before_outer_ci_timeout(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
