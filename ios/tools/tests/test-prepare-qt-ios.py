@@ -36,7 +36,10 @@ def fake_qt(
     )
     if target:
         executable(root / "bin/qt-cmake")
-        (root / "lib/cmake/Qt6/qt.toolchain.cmake").touch()
+        (root / "lib/cmake/Qt6/qt.toolchain.cmake").write_text(
+            'set(QT_OSX_ARCHITECTURES "arm64" CACHE STRING "")\n',
+            encoding="utf-8",
+        )
         ios_spec = root / "mkspecs/macx-ios-clang/qmake.conf"
         ios_spec.parent.mkdir(parents=True)
         ios_spec.touch()
@@ -118,6 +121,18 @@ class QtToolchainPreparationTest(unittest.TestCase):
             result = self.run_script("validate-target", str(target))
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("macx-ios-clang", result.stderr)
+
+    def test_rejects_non_arm64_ios_target_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            target = pathlib.Path(directory) / "target"
+            fake_qt(target, "6.11.1", target=True)
+            (target / "lib/cmake/Qt6/qt.toolchain.cmake").write_text(
+                'set(QT_OSX_ARCHITECTURES "x86_64" CACHE STRING "")\n',
+                encoding="utf-8",
+            )
+            result = self.run_script("validate-target", str(target))
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("arm64", result.stderr)
 
     def test_rejects_mismatched_host(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

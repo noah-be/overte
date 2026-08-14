@@ -8,7 +8,15 @@
 set(OVERTE_IOS_MOLTENVK_ROOT "$ENV{OVERTE_IOS_MOLTENVK_ROOT}" CACHE PATH
     "Root of an unpacked MoltenVK distribution")
 
-if(CMAKE_OSX_SYSROOT MATCHES "iphonesimulator")
+# CMAKE_OSX_SYSROOT may be the canonical mixed-case Xcode SDK path rather than
+# the short SDK name. Prefer the explicit build contract and normalize the
+# fallback before selecting an XCFramework slice.
+set(_moltenvk_sdk "${OVERTE_IOS_SDK_NAME}")
+if(NOT _moltenvk_sdk)
+    set(_moltenvk_sdk "${CMAKE_OSX_SYSROOT}")
+endif()
+string(TOLOWER "${_moltenvk_sdk}" _moltenvk_sdk_lower)
+if(_moltenvk_sdk_lower MATCHES "iphonesimulator")
     set(_moltenvk_slice "ios-arm64_x86_64-simulator")
 else()
     set(_moltenvk_slice "ios-arm64")

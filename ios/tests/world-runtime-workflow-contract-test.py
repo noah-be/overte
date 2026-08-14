@@ -34,6 +34,7 @@ require(WORKFLOW, r"qt-simulator:[\s\S]*uses: \./\.github/workflows/ios-qt-sourc
 require(QT, r"target_sdk:[\s\S]*iphoneos[\s\S]*iphonesimulator", "Qt provisioner must keep device and simulator explicit")
 require(WORKFLOW, r"OVERTE_IOS_V8_PLATFORM: simulator", "V8 must be compiled and validated for the simulator")
 require(WORKFLOW, r"target-sdk iphonesimulator --print-plan", "restored Qt must prove simulator provenance")
+require(WORKFLOW, r'QT_OSX_ARCHITECTURES "arm64"', "restored simulator Qt must prove its arm64 target architecture")
 require(MOLTENVK_SIMULATOR, r"OVERTE_IOS_MOLTENVK_SIMULATOR_ARCHIVE=MoltenVK-all\.tar", "simulator MoltenVK must use the multi-slice archive")
 require(MOLTENVK_SIMULATOR, r"OVERTE_IOS_MOLTENVK_SIMULATOR_SHA256=[0-9a-f]{64}", "simulator MoltenVK digest must be pinned")
 require(WORKFLOW, r"overte-moltenvk-ios-simulator-v1", "simulator MoltenVK must have a distinct cache namespace")

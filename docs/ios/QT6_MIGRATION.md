@@ -794,6 +794,13 @@ The audio gate requires device enumeration, route change, microphone consent,
 interruption recovery, Bluetooth behavior, mono input, stereo output, and
 resampling tests on physical hardware.
 
+The simulator Qt checkpoint is now configured and validated explicitly as
+`arm64`. The first simulator link exposed that Qt's default source-build
+architecture was `x86_64`, which is not usable by the arm64 Full Client graph.
+The MoltenVK finder also uses the explicit SDK contract and normalizes absolute
+mixed-case Xcode SDK paths before selecting the XCFramework slice, preventing
+an `iOS` device archive from entering an `iOS-simulator` link.
+
 ## Enforcement
 
 The integrated toolchain preflight accepts either an exact GitHub Actions

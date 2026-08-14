@@ -82,7 +82,7 @@ readonly source_sha256="$(manifest_value QT_SOURCE_SHA256)"
 readonly host_plan_id="qt-${qt_version}-modules-${modules//,/-}-ios-min-${OVERTE_IOS_MIN_VERSION}"
 ios_plan_id="${host_plan_id}-skip-qtwebengine"
 if [[ "$target_sdk" == "iphonesimulator" ]]; then
-    ios_plan_id="${ios_plan_id}-iphonesimulator"
+    ios_plan_id="${ios_plan_id}-arm64-iphonesimulator"
 fi
 readonly ios_plan_id
 
@@ -205,6 +205,9 @@ build_ios() {
     if "$prepare" validate-target "$ios_prefix" >/dev/null 2>&1; then
         [[ "$(cat "$ios_prefix/.overte-qt-ios-plan-id" 2>/dev/null || true)" == "$ios_plan_id" ]] ||
             die "validated iOS prefix has missing or mismatched build-plan provenance: $ios_prefix"
+        grep -Eq 'set\(QT_OSX_ARCHITECTURES "arm64"' \
+            "$ios_prefix/lib/cmake/Qt6/qt.toolchain.cmake" ||
+            die "validated iOS prefix was not built exclusively for arm64: $ios_prefix"
         printf 'Reusing validated Qt iOS installation: %s\n' "$ios_prefix"
         "$prepare" validate "$ios_prefix" "$host_prefix" >/dev/null
         return
@@ -218,6 +221,7 @@ build_ios() {
         configure_tree ios "$ios_build" "$ios_prefix" \
             -skip qtwebengine -platform macx-ios-clang -sdk "$target_sdk" -qt-host-path "$host_prefix" -- \
             -D "CMAKE_OSX_DEPLOYMENT_TARGET=$OVERTE_IOS_MIN_VERSION" \
+            -D "CMAKE_OSX_ARCHITECTURES=arm64" \
             -D "CMAKE_C_COMPILER_LAUNCHER=$compiler_watchdog;--" \
             -D "CMAKE_CXX_COMPILER_LAUNCHER=$compiler_watchdog;--" \
             -D "CMAKE_OBJC_COMPILER_LAUNCHER=$compiler_watchdog;--" \
@@ -225,12 +229,16 @@ build_ios() {
     else
         configure_tree ios "$ios_build" "$ios_prefix" \
             -skip qtwebengine -platform macx-ios-clang -sdk "$target_sdk" -qt-host-path "$host_prefix" \
-            -- -D "CMAKE_OSX_DEPLOYMENT_TARGET=$OVERTE_IOS_MIN_VERSION"
+            -- -D "CMAKE_OSX_DEPLOYMENT_TARGET=$OVERTE_IOS_MIN_VERSION" \
+            -D "CMAKE_OSX_ARCHITECTURES=arm64"
     fi
     build_with_live_compiler_tracking "$ios_build"
     cmake --install .
     "$prepare" validate-target "$ios_prefix"
     "$prepare" validate "$ios_prefix" "$host_prefix"
+    grep -Eq 'set\(QT_OSX_ARCHITECTURES "arm64"' \
+        "$ios_prefix/lib/cmake/Qt6/qt.toolchain.cmake" ||
+        die "built iOS prefix did not record the required arm64 architecture: $ios_prefix"
     printf '%s\n' "$ios_plan_id" > "$ios_prefix/.overte-qt-ios-plan-id"
 }
 

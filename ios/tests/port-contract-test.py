@@ -494,6 +494,8 @@ def test_cmake_boundary() -> None:
         require_text(action_group_owner, r"QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)[\s\S]*#include <QtGui/QActionGroup>[\s\S]*#else[\s\S]*#include <QtWidgets/QActionGroup>", "QActionGroup owners must include its complete Qt 5/6 module header")
 
     moltenvk = SOURCE_ROOT / "cmake" / "modules" / "FindMoltenVK.cmake"
+    require_text(moltenvk, r"OVERTE_IOS_SDK_NAME", "MoltenVK lookup must honor the explicit iOS SDK contract")
+    require_text(moltenvk, r"string\(TOLOWER.*_moltenvk_sdk_lower", "absolute mixed-case Xcode SDK paths must be normalized")
     require_text(moltenvk, r"ios-arm64_x86_64-simulator", "MoltenVK lookup must support arm64 simulator")
     require_text(moltenvk, r"ios-arm64", "MoltenVK lookup must support arm64 devices")
     require_text(moltenvk, r"MoltenVK/static/MoltenVK\.xcframework", "MoltenVK lookup must use the current static package layout")
@@ -1904,6 +1906,7 @@ def test_ci_contract() -> None:
     require_text(qt_source, r"Create validated Qt iOS artifact checkpoint[\s\S]*?if: steps\.ios-artifact-probe\.outputs\.fresh != 'true'[\s\S]*?--producer-repository-id[\s\S]*?--producer-branch", "target fallback must refresh before expiry with bound provenance")
     require_text(qt_source, r"permissions:[\s\S]*?actions: write[\s\S]*?contents: read", "Qt checkpoint fallback needs job-local Actions access")
     require_text(qt_source, r'host_plan_hash="f7a0f4a6a8d51a462a14c9b51e1595338d023f4fd06a0a134aeadbf07a9bce18"', "target-only fixes must retain the validated host cache key")
+    require_text(qt_source, r'host_validator_hash="cb986644c5f67162982d39b4c00cebde2ce17fa43ce75ae97c95680360de1b8a"', "target validation fixes must retain the validated host artifact identity")
     require_text(qt_source, r'ios_plan_hash=.*build-qt-ios-from-source\.sh', "target cache key must change with iOS configure policy")
     require_text(qt_source, r"target_sdk:[\s\S]*?iphoneos[\s\S]*?iphonesimulator", "Qt provisioning must expose an explicit device/simulator SDK boundary")
     require_text(qt_source, r'--target-sdk "\$\{\{ inputs\.target_sdk \}\}"', "every Qt source stage must receive the selected target SDK")

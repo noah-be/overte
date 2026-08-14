@@ -84,6 +84,9 @@ validate_target() {
     [[ -x "$target_root/bin/qt-cmake" ]] || die "missing executable: $target_root/bin/qt-cmake"
     [[ -f "$target_root/lib/cmake/Qt6/qt.toolchain.cmake" ]] ||
         die "missing iOS Qt toolchain: $target_root/lib/cmake/Qt6/qt.toolchain.cmake"
+    grep -Eq 'set\(QT_OSX_ARCHITECTURES "arm64"' \
+        "$target_root/lib/cmake/Qt6/qt.toolchain.cmake" ||
+        die "target Qt toolchain is not restricted to arm64: $target_root"
     [[ -f "$target_root/mkspecs/macx-ios-clang/qmake.conf" ]] ||
         die "target Qt does not contain the macx-ios-clang device specification: $target_root"
     compgen -G "$target_root/lib/cmake/Qt6Gui/Qt6QIOSIntegrationPlugin*.cmake" >/dev/null ||

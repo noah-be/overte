@@ -78,6 +78,7 @@ class QtSourceBuildTest(unittest.TestCase):
         self.assertEqual(source.count('-platform macx-ios-clang -sdk "$target_sdk"'), 2)
         self.assertEqual(source.count("-skip qtwebengine -platform macx-ios-clang"), 2)
         self.assertIn("iphoneos|iphonesimulator", source)
+        self.assertEqual(source.count('CMAKE_OSX_ARCHITECTURES=arm64'), 2)
         self.assertIn(".overte-qt-host-plan-id", source)
         self.assertIn(".overte-qt-ios-plan-id", source)
 
@@ -92,7 +93,7 @@ class QtSourceBuildTest(unittest.TestCase):
         self.assertEqual(simulator.returncode, 0, simulator.stderr)
         self.assertIn("TARGET_SDK=iphonesimulator", simulator.stdout)
         self.assertIn("IOS_PLAN_ID=", simulator.stdout)
-        self.assertIn("-iphonesimulator", simulator.stdout)
+        self.assertIn("-arm64-iphonesimulator", simulator.stdout)
 
         invalid = self.run_script(
             "--work-root", "/tmp/work", "--install-root", "/tmp/qt",

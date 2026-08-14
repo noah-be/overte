@@ -314,6 +314,8 @@ jobs:
           test "${{ steps.qt-target-cache.outputs.cache-hit }}" = true \
             || test "${{ steps.qt-target-artifact.outputs.restored }}" = true
           ios/tools/prepare-qt-ios.sh validate "$OVERTE_IOS_QT_ROOT" "$OVERTE_IOS_QT_HOST_ROOT"
+          grep -Eq 'set\(QT_OSX_ARCHITECTURES "arm64"' \
+            "$OVERTE_IOS_QT_ROOT/lib/cmake/Qt6/qt.toolchain.cmake"
           plan="$(ios/tools/build-qt-ios-from-source.sh \
             --work-root "$GITHUB_WORKSPACE/build-ios/qt-plan-work" \
             --install-root "$GITHUB_WORKSPACE/build-ios/qt-plan-install" \

@@ -109,18 +109,22 @@ jobs:
           # Keep the already validated host cache stable across target-only
           # configure fixes. Bump this only when host configure inputs change.
           host_plan_hash="f7a0f4a6a8d51a462a14c9b51e1595338d023f4fd06a0a134aeadbf07a9bce18"
+          # Host validation semantics have not changed. Preserve its proven
+          # durable key while target-only validation becomes stricter.
+          host_validator_hash="cb986644c5f67162982d39b4c00cebde2ce17fa43ce75ae97c95680360de1b8a"
           if [[ "$target_sdk" == iphoneos ]]; then
             # The new SDK selector preserves the previously audited device
             # configure semantics, so keep its durable checkpoint identity.
             ios_plan_hash="ec28efd87d92f1d3076c099bcc048407eb918eb9664fd5b3f033d9108839bb70"
+            ios_validator_hash="$host_validator_hash"
           else
             ios_plan_hash="$(shasum -a 256 ios/versions.env ios/tools/build-qt-ios-from-source.sh | shasum -a 256 | awk '{print $1}')"
+            ios_validator_hash="$(shasum -a 256 ios/tools/prepare-qt-ios.sh | awk '{print $1}')"
           fi
-          validator_hash="$(shasum -a 256 ios/tools/prepare-qt-ios.sh | awk '{print $1}')"
           host_base="${RUNNER_ARCH}-xcode-${xcode_build}-iphoneos-${device_sdk_version}-${host_plan_hash}"
           ios_base="${RUNNER_ARCH}-xcode-${xcode_build}-${target_sdk}-${sdk_version}-${ios_plan_hash}"
-          host_key="overte-qt-host-v2-${host_base}-contract-${validator_hash}"
-          ios_key="overte-qt-ios-v2-${ios_base}-contract-${validator_hash}"
+          host_key="overte-qt-host-v2-${host_base}-contract-${host_validator_hash}"
+          ios_key="overte-qt-ios-v2-${ios_base}-contract-${ios_validator_hash}"
           host_artifact_hash="$(printf '%s' "$host_key" | shasum -a 256 | cut -c1-32)"
           ios_artifact_hash="$(printf '%s' "$ios_key" | shasum -a 256 | cut -c1-32)"
           echo "host=$host_key" >> "$GITHUB_OUTPUT"
