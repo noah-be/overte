@@ -629,6 +629,9 @@ for stability_contract in (
 
 transition_smoke = (ROOT / "macos/ci/transition-smoke.sh").read_text(encoding="utf-8")
 transition_script = (ROOT / "macos/tests/transition-smoke.js").read_text(encoding="utf-8")
+node_list_source = (ROOT / "libraries/networking/src/NodeList.cpp").read_text(
+    encoding="utf-8"
+)
 for transition_contract in (
     "domain_list_connected",
     "entity_server_active",
@@ -647,6 +650,7 @@ for transition_contract in (
     "AddressManager.handleLookupString(localScene)",
     "state.fixtureCount === 0",
     'AddressManager.protocol === "file"',
+    "online_rendering_paused",
     "initial_fixture_entities=3",
     "online_entities=",
     "returned_fixture_entities=3",
@@ -670,6 +674,32 @@ for transition_contract in (
         raise SystemExit(
             f"returning serverless gate missing: {transition_contract}"
         )
+if transition_script.index("Scene.shouldRenderEntities = false") > transition_script.index(
+    "AddressManager.handleLookupString(localScene)"
+):
+    raise SystemExit("online entity frames must pause before returning to serverless")
+if transition_script.index("Scene.shouldRenderEntities = true") > transition_script.index(
+    'Window.takeSnapshot(false, false, 16 / 9, "macos-transition-final.png")'
+):
+    raise SystemExit("serverless entities must resume before the final render proof")
+
+process_domain_list = node_list_source.split("void NodeList::processDomainList", 1)[1].split(
+    "void NodeList::", 1
+)[0]
+serverless_packet_guard = "if (_domainHandler.isServerless())"
+for domain_list_mutation in (
+    "QDataStream packetStream",
+    "setSessionLocalID(newLocalID)",
+    "setSessionUUID(newUUID)",
+):
+    if process_domain_list.index(serverless_packet_guard) > process_domain_list.index(
+        domain_list_mutation
+    ):
+        raise SystemExit(
+            f"serverless DomainList guard must precede {domain_list_mutation}"
+        )
+if "IGNORING DomainList packet while in a serverless domain" not in process_domain_list:
+    raise SystemExit("stale serverless DomainList rejection must remain diagnosable")
 
 render_common = (ROOT / "libraries/render-utils/src/RenderCommonTask.cpp").read_text(
     encoding="utf-8"

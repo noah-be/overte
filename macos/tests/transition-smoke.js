@@ -19,6 +19,7 @@
     var localScene = Script.resolvePath("fixtures/serverless-render.json");
     var stage = "initial_serverless";
     var stageDeadline = Date.now() + 180000;
+    var finalRenderReadyAt = 0;
     var completed = false;
     var expectedNames = [
         "macOS smoke red cube",
@@ -64,6 +65,11 @@
             AddressManager.handleLookupString("hifi://overte_hub");
         } else if (stage === "online_snapshot") {
             print("OVERTE_MACOS_TRANSITION online_snapshot=" + path);
+            // The public Hub contains many shader variants.  The online image
+            // above is already the rendering proof; stop queuing more Hub
+            // entity frames while the connection/tree transition is handled.
+            Scene.shouldRenderEntities = false;
+            print("OVERTE_MACOS_TRANSITION online_rendering_paused");
             stage = "returning_serverless";
             stageDeadline = Date.now() + 180000;
             AddressManager.handleLookupString(localScene);
@@ -93,6 +99,11 @@
             AddressManager.protocol === "file" && state.fixtureComplete
         ) {
             print("OVERTE_MACOS_TRANSITION returned_fixture_entities=3");
+            Scene.shouldRenderEntities = true;
+            finalRenderReadyAt = Date.now() + 1000;
+            stage = "final_render";
+            stageDeadline = Date.now() + 180000;
+        } else if (stage === "final_render" && Date.now() >= finalRenderReadyAt) {
             stage = "final_snapshot";
             Window.takeSnapshot(false, false, 16 / 9, "macos-transition-final.png");
         }

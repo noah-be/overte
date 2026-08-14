@@ -717,6 +717,18 @@ void NodeList::processDomainServerConnectionTokenPacket(QSharedPointer<ReceivedM
 
 void NodeList::processDomainList(QSharedPointer<ReceivedMessage> message) {
 
+    // DomainList is intentionally registered as an unsourced packet, so a
+    // response that was already in flight can arrive after hardReset() has
+    // switched the client to a local/HTTP serverless scene.  setURLAndID()
+    // assigns the default domain port even for that serverless URL, which
+    // means a getSockAddr().isNull() check alone cannot identify the stale
+    // response.  Reject it before it can restore the old session UUID and
+    // online nodes over the new serverless destination.
+    if (_domainHandler.isServerless()) {
+        qCWarning(networking) << "IGNORING DomainList packet while in a serverless domain.";
+        return;
+    }
+
     // WEBRTC TODO: Move code into packet library.  And update reference in DomainServerList.js.
 
     // parse header information
