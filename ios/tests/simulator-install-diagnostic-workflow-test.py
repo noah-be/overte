@@ -35,11 +35,15 @@ assert 'source/artifacts/$SOURCE_CANDIDATE_NAME' in WORKFLOW
 assert "downloaded artifact does not contain the requested simulator candidate" in WORKFLOW
 assert "shasum -a 256" in WORKFLOW
 assert "expected one available runtime" in WORKFLOW
-for version, build in (("26.3", "17C529"), ("16.4", "16F6")):
+for version, build in (("26.3", "17C529"),):
     assert version in WORKFLOW and build in WORKFLOW
 assert "iPhone-16-Pro" in WORKFLOW
 assert "simctl install" in WORKFLOW
-assert "codesign --force --deep --sign - --timestamp=none" in WORKFLOW
+assert "Foundation" in WORKFLOW and "foundation_bundle_identifier" in WORKFLOW
+assert 'for variant in identified identified-xml' in WORKFLOW
+assert 'plutil -convert xml1 "$app/Info.plist"' in WORKFLOW
+assert 'codesign --force --sign - --identifier "$BUNDLE_ID" --timestamp=none' in WORKFLOW
+assert 'grep -Fx "Identifier=$BUNDLE_ID"' in WORKFLOW
 assert "cmake --build" not in WORKFLOW and "build-ios.sh build" not in WORKFLOW
 assert "all bounded install variants failed" in WORKFLOW
 assert "retention-days: 14" in WORKFLOW

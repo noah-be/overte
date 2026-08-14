@@ -135,6 +135,17 @@ jobs:
             | grep -Fx APPL
           plutil -lint "$app/Info.plist" > "$DIAGNOSTIC_ROOT/output/plist-lint.txt"
           file "$app/Info.plist" "$app/Overte" > "$DIAGNOSTIC_ROOT/output/file-types.txt"
+          cat > "$DIAGNOSTIC_ROOT/bundle-check.swift" <<'SWIFT'
+          import Foundation
+          let path = CommandLine.arguments[1]
+          guard let bundle = Bundle(url: URL(fileURLWithPath: path)) else {
+              fatalError("Foundation could not construct the application bundle")
+          }
+          print("foundation_bundle_identifier=\(bundle.bundleIdentifier ?? "nil")")
+          print("foundation_executable=\(bundle.executableURL?.lastPathComponent ?? "nil")")
+          SWIFT
+          swift "$DIAGNOSTIC_ROOT/bundle-check.swift" "$app" \
+            > "$DIAGNOSTIC_ROOT/output/foundation-bundle.txt"
           if codesign --verify --deep --strict --verbose=4 "$app" \
               > "$DIAGNOSTIC_ROOT/output/original-codesign-verify.txt" 2>&1; then
             echo signed > "$DIAGNOSTIC_ROOT/output/original-signing-state.txt"
@@ -150,8 +161,7 @@ jobs:
           success=0
           successful_case=""
           for specification in \
-            '26.3|17C529|26-2' \
-            '16.4|16F6|18-5'; do
+            '26.3|17C529|26-2'; do
             IFS='|' read -r xcode_version expected_build runtime_suffix <<< "$specification"
             developer_dir="/Applications/Xcode_${xcode_version}.app/Contents/Developer"
             if [[ ! -x "$developer_dir/usr/bin/xcodebuild" ]]; then
@@ -188,23 +198,25 @@ jobs:
             DEVELOPER_DIR="$developer_dir" xcrun simctl boot "$udid"
             DEVELOPER_DIR="$developer_dir" xcrun simctl bootstatus "$udid" -b
 
-            for variant in original adhoc; do
-              app="$original"
-              if [[ "$variant" == adhoc ]]; then
-                variant_root="$DIAGNOSTIC_ROOT/$xcode_version-adhoc"
-                rm -rf "$variant_root"
-                mkdir -p "$variant_root"
-                ditto "$original" "$variant_root/Overte.app"
-                app="$variant_root/Overte.app"
-                xattr -cr "$app"
-                codesign --force --deep --sign - --timestamp=none \
-                  --generate-entitlement-der "$app" \
-                  > "$DIAGNOSTIC_ROOT/output/$xcode_version-$variant-codesign.txt" 2>&1
-                codesign --verify --deep --strict --verbose=4 "$app" \
-                  >> "$DIAGNOSTIC_ROOT/output/$xcode_version-$variant-codesign.txt" 2>&1
-                codesign -d --verbose=4 "$app" \
-                  >> "$DIAGNOSTIC_ROOT/output/$xcode_version-$variant-codesign.txt" 2>&1
+            for variant in identified identified-xml; do
+              variant_root="$DIAGNOSTIC_ROOT/$xcode_version-$variant"
+              rm -rf "$variant_root"
+              mkdir -p "$variant_root"
+              ditto "$original" "$variant_root/Overte.app"
+              app="$variant_root/Overte.app"
+              xattr -cr "$app"
+              if [[ "$variant" == identified-xml ]]; then
+                plutil -convert xml1 "$app/Info.plist"
               fi
+              codesign --force --sign - --identifier "$BUNDLE_ID" --timestamp=none \
+                --generate-entitlement-der "$app" \
+                > "$DIAGNOSTIC_ROOT/output/$xcode_version-$variant-codesign.txt" 2>&1
+              codesign --verify --deep --strict --verbose=4 "$app" \
+                >> "$DIAGNOSTIC_ROOT/output/$xcode_version-$variant-codesign.txt" 2>&1
+              codesign -d --verbose=4 "$app" \
+                >> "$DIAGNOSTIC_ROOT/output/$xcode_version-$variant-codesign.txt" 2>&1
+              grep -Fx "Identifier=$BUNDLE_ID" \
+                "$DIAGNOSTIC_ROOT/output/$xcode_version-$variant-codesign.txt"
               error_log="$DIAGNOSTIC_ROOT/output/$xcode_version-$variant-install.txt"
               set +e
               DEVELOPER_DIR="$developer_dir" xcrun simctl install "$udid" "$app" \
