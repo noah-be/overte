@@ -35,6 +35,10 @@ before packaging: the requested `CFBundleIdentifier`, numeric
 `CFBundleShortVersionString`, numeric `CFBundleVersion`, target platform and
 Full Client URL schemes must all be concrete and installer-valid. Unresolved
 or missing Xcode substitutions therefore fail before an IPA can be uploaded.
+The packager also parses the arm64 Mach-O load commands and rejects every
+non-system dynamic dependency or build-local runtime search path. Third-party
+code in the current iOS graph must be linked statically; an IPA that refers to
+an absent Conan dylib is never reported as build-ready.
 It never silently falls back to the bootstrap bundle. Device output is named like
 `0123-OverteIOSClient-Debug-device-unsigned.ipa`; the existing bootstrap names
 and numbering remain unchanged.

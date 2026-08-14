@@ -22,6 +22,10 @@ FORBIDDEN_PACKAGES = {
     "steamworks",
 }
 BUILD_CONTEXT_ONLY = {"glslang", "scribe", "spirv-cross", "spirv-tools"}
+STATIC_IOS_PACKAGES = {
+    "onetbb": "libtbb.a",
+    "webrtc-audio-processing": "libwebrtc-audio-processing-2.a",
+}
 
 
 def split_reference(reference: str) -> tuple[str, str]:
@@ -29,6 +33,33 @@ def split_reference(reference: str) -> tuple[str, str]:
     if match is None:
         raise ValueError(f"invalid Conan reference: {reference}")
     return match.group(1), match.group(2)
+
+
+def audit_static_package(node: dict, reference: str, name: str) -> None:
+    if "@overte/ios-static" not in reference:
+        raise ValueError(f"iOS static package does not use the audited recipe: {reference}")
+    shared = node.get("options", {}).get("shared")
+    if shared not in (False, "False", "false"):
+        raise ValueError(f"iOS static package lacks shared=False: {reference}")
+    raw_folder = node.get("package_folder")
+    if not isinstance(raw_folder, str) or not raw_folder:
+        raise ValueError(f"iOS static package has no resolved package folder: {reference}")
+    package_folder = Path(raw_folder)
+    if not package_folder.is_dir():
+        raise ValueError(f"iOS static package folder does not exist: {reference}")
+    files = [path for path in package_folder.rglob("*") if path.is_file()]
+    expected = STATIC_IOS_PACKAGES[name]
+    if not any(path.name == expected for path in files):
+        raise ValueError(f"iOS static package lacks {expected}: {reference}")
+    dynamic = sorted(
+        path.name
+        for path in files
+        if path.name.endswith((".dylib", ".dll", ".so")) or ".so." in path.name
+    )
+    if dynamic:
+        raise ValueError(
+            f"iOS static package contains dynamic libraries: {reference}: {', '.join(dynamic)}"
+        )
 
 
 def audit_graph(payload: dict) -> int:
@@ -66,6 +97,8 @@ def audit_graph(payload: dict) -> int:
         shared = node.get("options", {}).get("shared")
         if context == "host" and shared not in (None, False, "False", "false"):
             raise ValueError(f"shared target package entered iOS graph: {reference}")
+        if context == "host" and settings.get("os") == "iOS" and name in STATIC_IOS_PACKAGES:
+            audit_static_package(node, reference, name)
     if not saw_ios_host:
         raise ValueError("Conan graph has no iOS host-context node")
     return references

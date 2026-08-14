@@ -50,6 +50,16 @@ def load_handoff_verifier():
     return module
 
 
+def load_static_runtime_verifier():
+    path = Path(__file__).with_name("verify-ios-static-runtime.py")
+    specification = importlib.util.spec_from_file_location("runtime_candidate_static", path)
+    if specification is None or specification.loader is None:
+        raise RuntimeError("cannot load the static iOS runtime verifier")
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
+
+
 def normalized_member_name(raw_name: str) -> str:
     if not raw_name or "\0" in raw_name or "\\" in raw_name:
         raise ValueError("artifact contains an unsafe ZIP entry")
@@ -151,6 +161,7 @@ def require_arm64_macho(
         offset += size
     if offset != len(commands):
         raise ValueError("Overte executable Mach-O command size mismatch")
+    load_static_runtime_verifier().audit_macho_parts(header, commands)
     expected = PLATFORM_IOS_SIMULATOR if mode == "simulator" else PLATFORM_IOS
     if platforms != [expected]:
         raise ValueError("Overte executable targets the wrong Apple platform")

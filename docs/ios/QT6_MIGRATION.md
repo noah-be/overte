@@ -805,6 +805,14 @@ The MoltenVK finder also uses the explicit SDK contract and normalizes absolute
 mixed-case Xcode SDK paths before selecting the XCFramework slice, preventing
 an `iOS` device archive from entering an `iOS-simulator` link.
 
+The iOS dependency graph now exports repository-owned static recipes for
+oneTBB 2021.10.0 and WebRTC audio processing 2.1 from their pinned upstream
+archives. Their previous remote recipes ignored the graph-wide `shared=False`
+request and installed only dylibs, leaving the app with unresolved `/lib` and
+`@rpath` load commands. The Conan graph audit requires the explicit static
+options and archive files, while packaging and release readiness independently
+parse Mach-O load commands and reject non-system runtime dependencies.
+
 ## Enforcement
 
 The integrated toolchain preflight accepts either an exact GitHub Actions

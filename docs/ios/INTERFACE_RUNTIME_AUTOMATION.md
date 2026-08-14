@@ -13,6 +13,12 @@ queried. The workflow always executes the reviewed harness from its dispatch
 revision; the candidate revision is treated only as untrusted artifact data and
 is never checked out on the protected iPad runner.
 
+Candidate verification includes the main executable's Mach-O load commands.
+Only Apple system frameworks and `/usr/lib` may remain dynamically linked; the
+audited oneTBB and WebRTC audio-processing recipes produce static archives.
+Absolute Conan build RPATHs, `@rpath` third-party dylibs, or `/lib` load paths
+fail before simulator installation, evidence collection, or iPad handoff.
+
 `ios/tests/interface-runtime-automation.json` is the machine-readable boundary.
 Host contracts remain the broad deterministic regression tier. Simulator and
 iPad execution initially share the strongest existing end-to-end oracle: six

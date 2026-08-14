@@ -34,11 +34,24 @@ def read_single_plist(bundle: zipfile.ZipFile, suffix: str) -> dict:
 def check(artifact_directory: Path, evidence: Path | None) -> dict:
     handoff_tool = load_tool("verify-windows-handoff.py", "windows_handoff")
     privacy_tool = load_tool("verify-privacy-manifest.py", "privacy_manifest")
+    runtime_tool = load_tool("verify-ios-static-runtime.py", "ios_static_runtime")
     artifact_manifest = handoff_tool.verify_handoff(artifact_directory)
     artifact = artifact_directory / artifact_manifest["artifact"]
     with zipfile.ZipFile(artifact) as bundle:
+        info_names = [name for name in bundle.namelist() if name.endswith("/Info.plist")]
+        if len(info_names) != 1:
+            raise ValueError("artifact must contain exactly one /Info.plist")
         info = read_single_plist(bundle, "/Info.plist")
         privacy = read_single_plist(bundle, "/PrivacyInfo.xcprivacy")
+        executable_name = info.get("CFBundleExecutable")
+        if not isinstance(executable_name, str) or Path(executable_name).name != executable_name:
+            raise ValueError("artifact Info.plist has no safe CFBundleExecutable")
+        executable_entry = str(Path(info_names[0]).parent / executable_name)
+        try:
+            with bundle.open(executable_entry) as executable:
+                runtime_tool.audit_macho_stream(executable)
+        except KeyError as error:
+            raise ValueError("artifact is missing the selected executable") from error
     if privacy != privacy_tool.EXPECTED_PRIVACY_MANIFEST:
         raise ValueError("bundled privacy manifest differs from the audited allowlist")
     if info.get("LSRequiresIPhoneOS") is not True:

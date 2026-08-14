@@ -295,9 +295,13 @@ if (APPLE)
     )
   endif()
 
-  # make sure the output name for the .app bundle is correct
-  # Fix up the rpath so macdeployqt works
-  set_target_properties(${TARGET_NAME} PROPERTIES INSTALL_RPATH "@executable_path/../Frameworks")
+  # macdeployqt owns the desktop bundle Frameworks directory.  The iOS client
+  # uses static third-party dependencies and must not inherit a macOS RPATH.
+  if (IOS)
+    set_target_properties(${TARGET_NAME} PROPERTIES INSTALL_RPATH "")
+  else()
+    set_target_properties(${TARGET_NAME} PROPERTIES INSTALL_RPATH "@executable_path/../Frameworks")
+  endif()
 elseif (WIN32)
   # configure an rc file for the chosen icon
   set(CONFIGURE_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/icon/${INTERFACE_ICON_FILENAME}")

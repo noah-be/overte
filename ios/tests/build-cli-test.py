@@ -11,6 +11,7 @@ import os
 import plistlib
 import shutil
 import stat
+import struct
 import subprocess
 import tempfile
 from pathlib import Path
@@ -35,6 +36,22 @@ def run_cli(environment: dict[str, str], *arguments: str) -> subprocess.Complete
         capture_output=True,
         text=True,
     )
+
+
+def arm64_simulator_macho() -> bytes:
+    build_version = struct.pack("<IIIIII", 0x32, 24, 7, 0, 0, 0)
+    header = struct.pack(
+        "<IiiIIIII",
+        0xFEEDFACF,
+        0x0100000C,
+        0,
+        2,
+        1,
+        len(build_version),
+        0,
+        0,
+    )
+    return header + build_version + b"fixture"
 
 
 def main() -> None:
@@ -320,7 +337,7 @@ def main() -> None:
                 },
                 stream,
             )
-        (integrated_app / "Overte").touch()
+        (integrated_app / "Overte").write_bytes(arm64_simulator_macho())
         (integrated_app / "Overte").chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
         shutil.copy2(
             SOURCE_ROOT / "ios/resources/PrivacyInfo.xcprivacy",

@@ -338,6 +338,13 @@ resolve_dependencies() {
     else
         conan remote add overte "$overte_conan_remote_url"
     fi
+    # These upstream recipes produce dylibs even when the graph requests
+    # *:shared=False.  Export dedicated, source-pinned static iOS recipes into
+    # the job-local Conan home before graph resolution.
+    conan export "$script_dir/conan/recipes/onetbb" \
+        --user=overte --channel=ios-static
+    conan export "$script_dir/conan/recipes/webrtc-audio-processing" \
+        --user=overte --channel=ios-static
     local sdk_path conan_output="$build_dir/conan"
     sdk_path="$(xcrun --sdk "$sdk_name" --show-sdk-path)"
     if [[ "$platform" == "simulator" ]]; then
@@ -573,6 +580,8 @@ run_package_client() {
     python3 "$script_dir/tools/verify-privacy-manifest.py" \
         "$app_path/PrivacyInfo.xcprivacy" \
         || fail "integrated client privacy manifest failed the audited contract"
+    python3 "$script_dir/tools/verify-ios-static-runtime.py" "$app_path" \
+        || fail "integrated client has unsafe or unresolved Mach-O runtime dependencies"
 
     local artifact_dir="$source_root/build-ios/artifacts"
     mkdir -p "$artifact_dir"

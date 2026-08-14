@@ -59,7 +59,10 @@ class OverteIOSDependencies(ConanFile):
         self.requires("jsoncpp/1.9.6", force=True)
         self.requires("nlohmann_json/3.11.2")
         self.requires("nvidia-texture-tools/2023.01@overte/stable#bb4a28e5438f69332299cc23b770fc07")
-        self.requires("onetbb/2021.10.0")
+        # The upstream/remote recipe is shared-only.  iOS app bundles must not
+        # depend on unbundled third-party dylibs, so resolve the repository's
+        # audited static recipe exported by ios/build-ios.sh instead.
+        self.requires("onetbb/2021.10.0@overte/ios-static")
         self.requires("openexr/3.1.9")
         self.requires("openssl/3.5.7", force=True)
         self.requires("v-hacd/4.1.0")
@@ -71,7 +74,7 @@ class OverteIOSDependencies(ConanFile):
 
         if self.options.with_audio:
             self.requires("opus/1.5.2")
-            self.requires("webrtc-audio-processing/2.1@overte/stable")
+            self.requires("webrtc-audio-processing/2.1@overte/ios-static")
 
         if self.options.with_graphics_toolchain:
             self.requires("vulkan-memory-allocator/3.0.1")

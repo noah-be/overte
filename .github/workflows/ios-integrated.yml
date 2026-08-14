@@ -550,6 +550,10 @@ jobs:
             ios/conanfile.py \
             ios/dependencies.json \
             ios/versions.env \
+            ios/conan/recipes/onetbb/conanfile.py \
+            ios/conan/recipes/onetbb/conandata.yml \
+            ios/conan/recipes/webrtc-audio-processing/conanfile.py \
+            ios/conan/recipes/webrtc-audio-processing/conandata.yml \
             ios/conan/profiles/ios-arm64 \
             ios/conan/profiles/macos-arm64 | shasum -a 256 | awk '{print $1}')"
           key="overte-ios-conan-v1-${RUNNER_ARCH}-xcode-${xcode_build}-iphoneos-${sdk_version}-${graph_hash}"

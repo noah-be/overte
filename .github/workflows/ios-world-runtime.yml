@@ -491,6 +491,9 @@ jobs:
           xcode_build="$(xcodebuild -version | awk '/Build version/{print $3}')"
           sdk_version="$(xcrun --sdk iphonesimulator --show-sdk-version)"
           graph_hash="$(shasum -a 256 ios/conanfile.py ios/dependencies.json ios/versions.env \
+            ios/conan/recipes/onetbb/conanfile.py ios/conan/recipes/onetbb/conandata.yml \
+            ios/conan/recipes/webrtc-audio-processing/conanfile.py \
+            ios/conan/recipes/webrtc-audio-processing/conandata.yml \
             ios/conan/profiles/ios-simulator-arm64 ios/conan/profiles/macos-arm64 | \
             shasum -a 256 | awk '{print $1}')"
           key="overte-ios-conan-simulator-v1-${RUNNER_ARCH}-xcode-${xcode_build}-iphonesimulator-${sdk_version}-${graph_hash}"
