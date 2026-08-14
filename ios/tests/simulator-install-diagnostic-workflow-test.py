@@ -51,6 +51,7 @@ assert "scripts/system/assets/images/tools/snap.svg" in WORKFLOW
 assert "unexpected executable resources" in WORKFLOW
 assert "mode & 0o111" in WORKFLOW
 assert "os.chmod(snap, snap.stat().st_mode & ~0o111)" in WORKFLOW
+assert 'mv "$normalized_app/resources" "$normalized_app/overte-resources"' in WORKFLOW
 assert "full-original" in WORKFLOW and "full-normalized" in WORKFLOW
 assert "original full bundle unexpectedly installed" in WORKFLOW
 assert "normalizing the executable resource did not repair installation" in WORKFLOW

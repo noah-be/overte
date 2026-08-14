@@ -273,6 +273,9 @@ jobs:
               encoding="utf-8",
           )
           PY
+          test -d "$normalized_app/resources"
+          test ! -e "$normalized_app/overte-resources"
+          mv "$normalized_app/resources" "$normalized_app/overte-resources"
           swift "$DIAGNOSTIC_ROOT/bundle-check.swift" "$normalized_app" \
             > "$DIAGNOSTIC_ROOT/output/full-normalized-foundation-before-signing.txt"
 
