@@ -19,6 +19,7 @@ output_dir="${6:-}"
 poll_timeout="${OVERTE_IOS_WORLD_TIMEOUT_SECONDS:-240}"
 poll_interval="${OVERTE_IOS_WORLD_POLL_SECONDS:-2}"
 screenshot_settle="${OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS:-2}"
+diagnostics_dir="${OVERTE_IOS_WORLD_DIAGNOSTICS_DIR:-}"
 
 [[ -d "$app_path" && "$app_path" == *.app ]] || {
     echo "usage: $0 APP_PATH BUNDLE_ID iphone|ipad serverless|online EXPECTED_DOMAIN|- OUTPUT_DIR" >&2
@@ -83,6 +84,12 @@ readonly temp_root
 readonly device_list="$temp_root/devices.json"
 readonly raw_log="$temp_root/process.log"
 readonly command_stderr="$temp_root/command.stderr"
+readonly command_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-command-errors.log}"
+
+if [[ -n "$diagnostics_dir" ]]; then
+    mkdir -p "$diagnostics_dir"
+    rm -f "$command_diagnostics"
+fi
 
 active_udid=""
 boot_requested=0
@@ -94,10 +101,22 @@ run_bounded() {
     shift 2
     : > "$command_stderr"
     "$timeout_runner" "$seconds" "$@" 2>"$command_stderr" || status=$?
-    rm -f "$command_stderr"
     if ((status != 0)); then
+        if [[ -n "$command_diagnostics" ]]; then
+            {
+                printf 'command_label=%s\ncommand_status=%s\n' "$label" "$status"
+                if [[ -s "$command_stderr" ]]; then
+                    cat "$command_stderr"
+                else
+                    printf 'command_stderr=empty\n'
+                fi
+                printf '%s\n' '---'
+            } >> "$command_diagnostics"
+            chmod 0600 "$command_diagnostics"
+        fi
         echo "$label failed with status $status" >&2
     fi
+    rm -f "$command_stderr"
     return "$status"
 }
 

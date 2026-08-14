@@ -75,6 +75,9 @@ assert "SCCACHE_GHA_VERSION=overte-ios-world-client-objects" in WORKFLOW
 
 require(WORKFLOW, r"https://mv\.overte\.org/server/api/v1/places/overte_hub", "online place must be resolved authoritatively at runtime")
 require(WORKFLOW, r'domain\.get\("active"\) is not True', "inactive online worlds must fail closed")
+require(WORKFLOW, r"/Applications/Xcode_26[.]5[.]app/Contents/Developer", "runtime install must avoid the Xcode 26.6 CoreSimulator regression")
+require(WORKFLOW, r'xcode_build[^\n]*17F42', "stable CoreSimulator selection must verify the reviewed Xcode build")
+require(WORKFLOW, r"OVERTE_IOS_WORLD_DIAGNOSTICS_DIR:.*world-raw-diagnostics", "simctl failures must be retained for sanitization")
 world_step = WORKFLOW[
     WORKFLOW.index("Load serverless and online worlds with screenshots"):
     WORKFLOW.index("Upload simulator candidate and world screenshot evidence")
@@ -96,6 +99,15 @@ for retained in ("*.png", "*-screenshot.json", "*-runtime.json", "world-evidence
     assert retained in upload
 assert "*.log" not in upload and "raw" not in upload.lower()
 assert "retention-days: 14" in upload
+
+failure_candidate = WORKFLOW[
+    WORKFLOW.index("Preserve simulator candidate after runtime failure"):
+    WORKFLOW.index("Sanitize world-build failure diagnostics")
+]
+assert "if: failure()" in failure_candidate
+assert "*-OverteIOSClient-Release-simulator.zip" in failure_candidate
+assert "*-failure.png" in failure_candidate
+assert "if-no-files-found: error" in failure_candidate
 
 require(BOOTSTRAP, r"world_evidence:[\s\S]*type: boolean[\s\S]*default: false", "manual world acceptance needs an explicit opt-in")
 require(

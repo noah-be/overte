@@ -338,6 +338,7 @@ jobs:
       SCCACHE_GHA_ENABLED: "true"
       IOS_RUNNER_TELEMETRY_DIR: ${{ github.workspace }}/build-ios/world-runner-telemetry
       OVERTE_COMPILER_WATCHDOG_DIAGNOSTICS: ${{ github.workspace }}/build-ios/world-compiler-watchdog
+      OVERTE_IOS_WORLD_DIAGNOSTICS_DIR: ${{ github.workspace }}/build-ios/world-raw-diagnostics
     steps:
       - name: Check out requested revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
@@ -749,6 +750,17 @@ jobs:
           )"
           echo "domain=$domain" >> "$GITHUB_OUTPUT"
 
+      - name: Select stable CoreSimulator installation tools
+        run: |
+          set -euo pipefail
+          developer_dir=/Applications/Xcode_26.5.app/Contents/Developer
+          test -x "$developer_dir/usr/bin/xcodebuild"
+          xcode_build="$(DEVELOPER_DIR="$developer_dir" xcodebuild -version | awk '/Build version/{print $3}')"
+          [[ "$xcode_build" == 17F42 ]]
+          DEVELOPER_DIR="$developer_dir" xcrun simctl list runtimes --json >/dev/null
+          echo "DEVELOPER_DIR=$developer_dir" >> "$GITHUB_ENV"
+          echo "Using Xcode 26.5 ($xcode_build) CoreSimulator tools to avoid the Xcode 26.6 IXErrorDomain-13 regression"
+
       - name: Load serverless and online worlds with screenshots
         env:
           ONLINE_DOMAIN: ${{ steps.online-world.outputs.domain }}
@@ -780,6 +792,18 @@ jobs:
             build-ios/world-evidence/*-screenshot.json
             build-ios/world-evidence/*-runtime.json
             build-ios/world-evidence-set.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Preserve simulator candidate after runtime failure
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ github.run_number }}-overte-ios-world-candidate-${{ github.run_id }}
+          path: |
+            build-ios/artifacts/*-OverteIOSClient-Release-simulator.zip
+            build-ios/artifacts/*-OverteIOSClient-Release-simulator.json
+            build-ios/world-evidence/*-failure.png
           if-no-files-found: error
           retention-days: 14
 

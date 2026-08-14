@@ -141,6 +141,9 @@ set -eu
 printf '%s\n' "$*" >> "$FAKE_XCRUN_COMMAND_LOG"
 if [ "$1 $2 $3" = "simctl list devices" ]; then
     printf '%s\n' "$FAKE_DEVICE_JSON"
+elif [ -n "${FAKE_FAIL_MATCH:-}" ] && [ "$*" = "$FAKE_FAIL_MATCH" ]; then
+    printf '%s\n' "${FAKE_FAILURE_DETAIL:-fixture command failure}" >&2
+    exit "${FAKE_FAIL_STATUS:-13}"
 elif [ "$1 $2" = "simctl launch" ]; then
     printf '%s: 4242\n' "$4"
 elif [ "$1 $2" = "simctl spawn" ] && [ "$4 $5" = "log show" ]; then
@@ -163,6 +166,7 @@ fi
             "OVERTE_IOS_WORLD_TIMEOUT_SECONDS": "1",
             "OVERTE_IOS_WORLD_POLL_SECONDS": "1",
             "OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS": "0",
+            "OVERTE_IOS_WORLD_DIAGNOSTICS_DIR": str(root / "raw-diagnostics"),
         }
     )
 
@@ -224,6 +228,30 @@ fi
     assert "connected domain does not match" in wrong_domain.stderr
     assert (wrong_domain_output / "iphone-online-failure.png").is_file()
     assert_no_raw_log(wrong_domain_output, scratch)
+
+    install_failure_output = root / "install-failure"
+    install_failure = invoke(
+        app,
+        install_failure_output,
+        {
+            **environment,
+            "FAKE_PROCESS_LOG": SERVERLESS_LOG,
+            "FAKE_FAIL_MATCH": f"simctl install phone-udid {app}",
+            "FAKE_FAIL_STATUS": "13",
+            "FAKE_FAILURE_DETAIL": "IXErrorDomain Code=13 Missing bundle ID",
+        },
+        "iphone",
+        "serverless",
+        "-",
+    )
+    assert install_failure.returncode == 13, (install_failure.stdout, install_failure.stderr)
+    command_diagnostics = root / "raw-diagnostics/iphone-serverless-command-errors.log"
+    assert command_diagnostics.is_file()
+    diagnostic_text = command_diagnostics.read_text(encoding="utf-8")
+    assert "command_label=application install" in diagnostic_text
+    assert "command_status=13" in diagnostic_text
+    assert "IXErrorDomain Code=13 Missing bundle ID" in diagnostic_text
+    assert_no_raw_log(install_failure_output, scratch)
 
     blank_output = root / "blank"
     blank = invoke(
