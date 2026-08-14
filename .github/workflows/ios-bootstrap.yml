@@ -66,7 +66,19 @@ permissions:
   contents: read
 
 concurrency:
-  group: ios-bootstrap-${{ github.ref }}
+  # Device, world-evidence, and lightweight smoke runs own disjoint build
+  # trees/cache namespaces.  Serialize duplicate writers within each mode,
+  # without making a long device build block independent world acceptance.
+  group: >-
+    ios-bootstrap-${{ github.ref }}-${{
+      (github.event_name == 'workflow_dispatch' && inputs.world_evidence && 'world') ||
+      (github.event_name == 'workflow_dispatch' && inputs.integrated && 'integrated') ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[ios-worlds]') && 'world') ||
+      (github.event_name == 'push' &&
+       (contains(github.event.head_commit.message, '[qt-source]') ||
+        contains(github.event.head_commit.message, '[ios-integrated]')) && 'integrated') ||
+      'smoke'
+    }}
   cancel-in-progress: false
 
 jobs:

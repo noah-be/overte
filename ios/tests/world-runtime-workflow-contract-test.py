@@ -98,6 +98,11 @@ assert "*.log" not in upload and "raw" not in upload.lower()
 assert "retention-days: 14" in upload
 
 require(BOOTSTRAP, r"world_evidence:[\s\S]*type: boolean[\s\S]*default: false", "manual world acceptance needs an explicit opt-in")
+require(
+    BOOTSTRAP,
+    r"concurrency:[\s\S]*ios-bootstrap-\$\{\{ github[.]ref \}\}-\$\{\{[\s\S]*inputs[.]world_evidence[\s\S]*'world'[\s\S]*inputs[.]integrated[\s\S]*'integrated'[\s\S]*'smoke'",
+    "world, integrated, and smoke runs must not share one branch-wide mutex",
+)
 require(BOOTSTRAP, r"contains\(github\.event\.head_commit\.message, '\[ios-worlds\]'\)", "branch world acceptance needs an explicit marker")
 require(BOOTSTRAP, r"world-runtime-evidence:[\s\S]*needs: host-contracts[\s\S]*uses: \./\.github/workflows/ios-world-runtime\.yml", "world runtime must wait for all host contracts")
 assert RUN_TESTS.count("world-runtime-workflow-contract-test.py") == 1
