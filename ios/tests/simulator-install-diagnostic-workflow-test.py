@@ -29,6 +29,8 @@ for line in WORKFLOW.splitlines():
 
 assert "actions/download-artifact@" in WORKFLOW
 assert "run-id: ${{ env.SOURCE_RUN_ID }}" in WORKFLOW
+assert 'source/artifacts/$SOURCE_CANDIDATE_NAME' in WORKFLOW
+assert "downloaded artifact does not contain the requested simulator candidate" in WORKFLOW
 assert "shasum -a 256" in WORKFLOW
 assert "expected one available runtime" in WORKFLOW
 for version, build in (("26.4.1", "17E202"), ("26.5", "17F42"), ("26.6", "17F113")):

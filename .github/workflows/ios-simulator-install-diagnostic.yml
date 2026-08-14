@@ -111,8 +111,15 @@ jobs:
       - name: Verify and expand candidate without rebuilding
         run: |
           set -euo pipefail
-          candidate="$DIAGNOSTIC_ROOT/source/$SOURCE_CANDIDATE_NAME"
-          test -f "$candidate"
+          candidate="$DIAGNOSTIC_ROOT/source/artifacts/$SOURCE_CANDIDATE_NAME"
+          printf 'candidate=%s\n' "$SOURCE_CANDIDATE_NAME" \
+            > "$DIAGNOSTIC_ROOT/output/transfer.txt"
+          if [[ ! -f "$candidate" ]]; then
+            find "$DIAGNOSTIC_ROOT/source" -maxdepth 3 -type f \
+              > "$DIAGNOSTIC_ROOT/output/source-files.txt"
+            echo "downloaded artifact does not contain the requested simulator candidate" >&2
+            exit 1
+          fi
           actual_sha="$(shasum -a 256 "$candidate" | awk '{print $1}')"
           [[ "$actual_sha" == "$EXPECTED_SHA256" ]]
           ditto -x -k "$candidate" "$DIAGNOSTIC_ROOT/original"
