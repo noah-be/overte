@@ -115,6 +115,7 @@ void TextureTest::cleanupTestCase() {
     _framebuffer.reset();
     _pipeline.reset();
     _gpuContext->recycle();
+    _gpuContext->shutdown();
     _gpuContext.reset();
 }
 

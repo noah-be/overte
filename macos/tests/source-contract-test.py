@@ -162,6 +162,22 @@ for managed_texture_contract in (
         raise SystemExit(
             f"managed texture test isolation missing: {managed_texture_contract}"
         )
+texture_cleanup = texture_test.split("void TextureTest::cleanupTestCase()", 1)[1].split(
+    "std::vector<", 1
+)[0]
+for cleanup_contract in (
+    "_gpuContext->recycle();",
+    "_gpuContext->shutdown();",
+    "_gpuContext.reset();",
+):
+    if cleanup_contract not in texture_cleanup:
+        raise SystemExit(f"texture test backend cleanup missing: {cleanup_contract}")
+if not (
+    texture_cleanup.index("_gpuContext->recycle();")
+    < texture_cleanup.index("_gpuContext->shutdown();")
+    < texture_cleanup.index("_gpuContext.reset();")
+):
+    raise SystemExit("texture test must stop the transfer engine before backend release")
 if texture_test.count("QVERIFY2(!afterSecs(start, FAIL_AFTER_SECONDS)") != 5:
     raise SystemExit("every texture-memory wait must fail from the calling test")
 clear_wait = texture_test.split("textures.clear();", 1)[1].split("reportLambda();", 1)[0]
