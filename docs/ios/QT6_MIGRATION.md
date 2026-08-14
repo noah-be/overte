@@ -812,9 +812,12 @@ request and installed only dylibs, leaving the app with unresolved `/lib` and
 `@rpath` load commands. The Conan graph audit requires the explicit static
 options and archive files, while packaging and release readiness independently
 parse Mach-O load commands and reject non-system runtime dependencies. The
-static WebRTC recipe also exports its public Abseil component dependencies, so
-its installed headers and unresolved archive symbols propagate together to the
-final `audio-client` target.
+static WebRTC recipe exports its public Abseil component dependencies. Conan
+Center's current Abseil component metadata preserves the static link graph but
+omits its package include root, so the iOS `target_webrtc()` boundary exposes
+that exact resolved root explicitly. Both the graph audit and CMake configure
+reject the graph unless `absl/base/nullability.h` exists before compiling
+`audio-client`; no package version or unverified fallback path is substituted.
 
 ## Enforcement
 

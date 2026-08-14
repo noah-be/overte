@@ -26,6 +26,9 @@ STATIC_IOS_PACKAGES = {
     "onetbb": "libtbb.a",
     "webrtc-audio-processing": "libwebrtc-audio-processing-2.a",
 }
+IOS_PACKAGE_REQUIRED_HEADERS = {
+    "abseil": "include/absl/base/nullability.h",
+}
 
 
 def split_reference(reference: str) -> tuple[str, str]:
@@ -68,6 +71,7 @@ def audit_graph(payload: dict) -> int:
         raise ValueError("Conan graph has no nodes")
     references = 0
     saw_ios_host = False
+    host_packages: set[str] = set()
     for node in nodes.values():
         if not isinstance(node, dict):
             raise ValueError("Conan graph node is not an object")
@@ -80,6 +84,8 @@ def audit_graph(payload: dict) -> int:
             continue
         references += 1
         name, version = split_reference(reference)
+        if context == "host" and settings.get("os") == "iOS":
+            host_packages.add(name)
         if name in FORBIDDEN_PACKAGES:
             raise ValueError(f"desktop-only package entered iOS graph: {reference}")
         if name == "glad":
@@ -99,8 +105,19 @@ def audit_graph(payload: dict) -> int:
             raise ValueError(f"shared target package entered iOS graph: {reference}")
         if context == "host" and settings.get("os") == "iOS" and name in STATIC_IOS_PACKAGES:
             audit_static_package(node, reference, name)
+        required_header = IOS_PACKAGE_REQUIRED_HEADERS.get(name)
+        if context == "host" and settings.get("os") == "iOS" and required_header:
+            raw_folder = node.get("package_folder")
+            if not isinstance(raw_folder, str) or not raw_folder:
+                raise ValueError(f"iOS package has no resolved package folder: {reference}")
+            if not (Path(raw_folder) / required_header).is_file():
+                raise ValueError(
+                    f"iOS package lacks required public header {required_header}: {reference}"
+                )
     if not saw_ios_host:
         raise ValueError("Conan graph has no iOS host-context node")
+    if "webrtc-audio-processing" in host_packages and "abseil" not in host_packages:
+        raise ValueError("iOS WebRTC graph lacks its Abseil package")
     return references
 
 

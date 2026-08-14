@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -36,16 +37,59 @@ def expect_rejected(auditor, payload: dict, expected: str) -> None:
         raise AssertionError(f"graph was accepted; expected {expected}")
 
 
+def configure_webrtc_boundary(root: Path, abseil: Path, *, expect_success: bool) -> None:
+    package_config = root / "cmake-package"
+    package_config.mkdir(exist_ok=True)
+    (package_config / "webrtc-audio-processing-config.cmake").write_text(
+        "add_library(webrtc-audio-processing::webrtc-audio-processing INTERFACE IMPORTED)\n"
+        f'set(abseil_PACKAGE_FOLDER_RELEASE "{abseil.as_posix()}")\n',
+        encoding="utf-8",
+    )
+    source = root / ("cmake-source-pass" if expect_success else "cmake-source-fail")
+    source.mkdir()
+    (source / "CMakeLists.txt").write_text(
+        "cmake_minimum_required(VERSION 3.20)\n"
+        "project(overte_webrtc_abseil_boundary LANGUAGES CXX)\n"
+        "set(IOS TRUE)\n"
+        "set(TARGET_NAME consumer)\n"
+        "file(WRITE \"${CMAKE_BINARY_DIR}/consumer.cpp\" \"int overte_consumer;\\n\")\n"
+        "add_library(consumer STATIC \"${CMAKE_BINARY_DIR}/consumer.cpp\")\n"
+        f'list(PREPEND CMAKE_PREFIX_PATH "{package_config.as_posix()}")\n'
+        f'include("{(IOS_ROOT.parent / "cmake/macros/TargetWebRTC.cmake").as_posix()}")\n'
+        "target_webrtc()\n"
+        "get_target_property(includes consumer INTERFACE_INCLUDE_DIRECTORIES)\n"
+        'file(WRITE "${CMAKE_BINARY_DIR}/includes.txt" "${includes}")\n',
+        encoding="utf-8",
+    )
+    build = root / ("cmake-build-pass" if expect_success else "cmake-build-fail")
+    completed = subprocess.run(
+        ["cmake", "-S", str(source), "-B", str(build)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if expect_success:
+        assert completed.returncode == 0, completed.stderr
+        includes = (build / "includes.txt").read_text(encoding="utf-8")
+        assert str(abseil / "include") in includes, includes
+    else:
+        assert completed.returncode != 0
+        assert "lacks absl/base/nullability.h" in completed.stderr
+
+
 def main() -> None:
     auditor = load_auditor()
     with tempfile.TemporaryDirectory(prefix="overte-conan-audit-") as temporary:
         root = Path(temporary)
         onetbb = root / "onetbb"
         webrtc = root / "webrtc"
+        abseil = root / "abseil"
         (onetbb / "lib").mkdir(parents=True)
         (webrtc / "lib").mkdir(parents=True)
         (onetbb / "lib/libtbb.a").touch()
         (webrtc / "lib/libwebrtc-audio-processing-2.a").touch()
+        (abseil / "include/absl/base").mkdir(parents=True)
+        (abseil / "include/absl/base/nullability.h").touch()
         valid = graph(
             {
                 "ref": "overte-ios-dependencies/0.1",
@@ -80,13 +124,42 @@ def main() -> None:
                 "package_folder": str(webrtc),
             },
             {
+                "ref": "abseil/20250127.0",
+                "context": "host",
+                "settings": {"os": "iOS"},
+                "options": {"shared": False},
+                "package_folder": str(abseil),
+            },
+            {
                 "ref": "spirv-cross/1.4.350.0",
                 "context": "build",
                 "settings": {"os": "Macos"},
                 "options": {},
             },
         )
-        assert auditor.audit_graph(valid) == 6
+        assert auditor.audit_graph(valid) == 7
+
+        (abseil / "include/absl/base/nullability.h").unlink()
+        expect_rejected(auditor, valid, "required public header")
+        (abseil / "include/absl/base/nullability.h").touch()
+        configure_webrtc_boundary(root, abseil, expect_success=True)
+        (abseil / "include/absl/base/nullability.h").unlink()
+        configure_webrtc_boundary(root, abseil, expect_success=False)
+        (abseil / "include/absl/base/nullability.h").touch()
+
+        expect_rejected(
+            auditor,
+            graph(
+                {
+                    "ref": "webrtc-audio-processing/2.1@overte/ios-static",
+                    "context": "host",
+                    "settings": {"os": "iOS"},
+                    "options": {"shared": False},
+                    "package_folder": str(webrtc),
+                }
+            ),
+            "lacks its Abseil package",
+        )
 
         shared_recipe = root / "shared-recipe"
         (shared_recipe / "lib").mkdir(parents=True)
@@ -184,6 +257,13 @@ def main() -> None:
         "abseil::absl_bad_optional_access",
     ):
         assert abseil_component in webrtc_recipe
+    target_webrtc = (IOS_ROOT.parent / "cmake/macros/TargetWebRTC.cmake").read_text(
+        encoding="utf-8"
+    )
+    assert "if (IOS)" in target_webrtc
+    assert "abseil_PACKAGE_FOLDER_RELEASE" in target_webrtc
+    assert "absl/base/nullability.h" in target_webrtc
+    assert "target_include_directories" in target_webrtc
     for workflow_name in ("ios-integrated.yml", "ios-world-runtime.yml"):
         workflow = (IOS_ROOT.parent / ".github/workflows" / workflow_name).read_text(
             encoding="utf-8"
