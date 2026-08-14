@@ -165,7 +165,7 @@ void AnimTests::testClipEvaulateWithVars() {
 }
 
 void AnimTests::testLoader() {
-    auto url = QUrl("https://gist.githubusercontent.com/hyperlogic/756e6b7018c96c9778dba4ffb959c3c7/raw/4b37f10c9d2636608916208ba7b415c1a3f842ff/test.json");
+    const QUrl url("qrc:/animation-tests/test.json");
     // NOTE: This will warn about missing "test01.fbx", "test02.fbx", etc. if the resource loading code doesn't handle relative pathnames!
     // However, the test will proceed.
     AnimNodeLoader loader(url);

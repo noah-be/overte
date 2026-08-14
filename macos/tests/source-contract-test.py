@@ -266,6 +266,23 @@ for codec_runtime_contract in (
 if "QFile::link" in codec_test:
     raise SystemExit("codec tests must not manufacture runtime plugin symlinks")
 
+animation_test = (ROOT / "tests/animation/src/AnimTests.cpp").read_text(encoding="utf-8")
+animation_resources = (
+    ROOT / "tests/animation/src/animation-test-data.qrc"
+).read_text(encoding="utf-8")
+if 'QUrl url("qrc:/animation-tests/test.json")' not in animation_test:
+    raise SystemExit("animation loader tests must use their deterministic embedded fixture")
+if "gist.githubusercontent.com" in animation_test:
+    raise SystemExit("animation unit tests must not depend on a mutable remote gist")
+for animation_resource_contract in (
+    '<qresource prefix="/animation-tests">',
+    '<file alias="test.json">data/test.json</file>',
+):
+    if animation_resource_contract not in animation_resources:
+        raise SystemExit(
+            f"animation loader fixture resource missing: {animation_resource_contract}"
+        )
+
 ktx_benchmark = (ROOT / "tests/ktx/src/KtxBenchmarkTests.cpp").read_text(encoding="utf-8")
 ktx_cmake = (ROOT / "tests/ktx/CMakeLists.txt").read_text(encoding="utf-8")
 if "OVERTE_TEST_SOURCE_ROOT" not in ktx_benchmark or "OVERTE_TEST_SOURCE_ROOT" not in ktx_cmake:

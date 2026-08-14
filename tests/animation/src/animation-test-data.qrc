@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/animation-tests">
+        <file alias="test.json">data/test.json</file>
+    </qresource>
+</RCC>
