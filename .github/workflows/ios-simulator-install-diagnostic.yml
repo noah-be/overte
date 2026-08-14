@@ -49,7 +49,11 @@ defaults:
 jobs:
   diagnose-install:
     name: Reuse candidate and isolate CoreSimulator install failure
-    runs-on: macos-26
+    # macOS 26.5.2 currently reproduces IXErrorDomain 13 across all installed
+    # Xcode versions because CoreSimulatorService belongs to the host OS. Use
+    # the ARM64 macOS 15 image to isolate the already-built candidate from that
+    # host regression without changing its Mach-O architecture.
+    runs-on: macos-15
     timeout-minutes: 35
     env:
       DIAGNOSTIC_ROOT: ${{ github.workspace }}/build-ios/simulator-install-diagnostic
@@ -138,7 +142,7 @@ jobs:
             echo unsigned > "$DIAGNOSTIC_ROOT/output/original-signing-state.txt"
           fi
 
-      - name: Test original and ad-hoc-signed app on older CoreSimulator releases
+      - name: Test unchanged candidate outside macOS 26 CoreSimulator
         id: install
         run: |
           set -euo pipefail
@@ -146,9 +150,8 @@ jobs:
           success=0
           successful_case=""
           for specification in \
-            '26.4.1|17E202|26-4' \
-            '26.5|17F42|26-5' \
-            '26.6|17F113|26-5'; do
+            '26.3|17C529|26-2' \
+            '16.4|16F6|18-5'; do
             IFS='|' read -r xcode_version expected_build runtime_suffix <<< "$specification"
             developer_dir="/Applications/Xcode_${xcode_version}.app/Contents/Developer"
             if [[ ! -x "$developer_dir/usr/bin/xcodebuild" ]]; then
@@ -175,7 +178,7 @@ jobs:
             )"
             device_name="Overte install diagnostic $GITHUB_RUN_ID $xcode_version"
             udid="$(DEVELOPER_DIR="$developer_dir" xcrun simctl create "$device_name" \
-              com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro "$runtime_id")"
+              com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro "$runtime_id")"
             [[ "$udid" =~ ^[0-9A-Fa-f-]{36}$ ]]
             cleanup_device() {
               DEVELOPER_DIR="$developer_dir" xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true

@@ -23,6 +23,8 @@ assert re.search(
 assert "inputs.source_run_id || '31818380576'" in WORKFLOW
 assert "actions: read" in WORKFLOW and "contents: read" in WORKFLOW
 assert "persist-credentials: false" in WORKFLOW
+assert "runs-on: macos-15" in WORKFLOW
+assert "CoreSimulatorService belongs to the host OS" in WORKFLOW
 for line in WORKFLOW.splitlines():
     if line.lstrip().startswith("uses:"):
         assert re.search(r"@[0-9a-f]{40}(?:\s+#.*)?$", line), line
@@ -33,8 +35,9 @@ assert 'source/artifacts/$SOURCE_CANDIDATE_NAME' in WORKFLOW
 assert "downloaded artifact does not contain the requested simulator candidate" in WORKFLOW
 assert "shasum -a 256" in WORKFLOW
 assert "expected one available runtime" in WORKFLOW
-for version, build in (("26.4.1", "17E202"), ("26.5", "17F42"), ("26.6", "17F113")):
+for version, build in (("26.3", "17C529"), ("16.4", "16F6")):
     assert version in WORKFLOW and build in WORKFLOW
+assert "iPhone-16-Pro" in WORKFLOW
 assert "simctl install" in WORKFLOW
 assert "codesign --force --deep --sign - --timestamp=none" in WORKFLOW
 assert "cmake --build" not in WORKFLOW and "build-ios.sh build" not in WORKFLOW
