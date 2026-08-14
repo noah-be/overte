@@ -231,6 +231,7 @@ def main() -> None:
         invocation = log.read_text(encoding="utf-8")
         assert invocation.startswith("qt-cmake "), invocation
         assert "<-DOVERTE_IOS_BOOTSTRAP_ONLY=OFF>" in invocation
+        assert "<-DOVERTE_IOS_BUNDLE_IDENTIFIER=org.overte.interface.dev>" in invocation
         assert f"<-DQT_CHAINLOAD_TOOLCHAIN_FILE={client_build}/conan/conan_toolchain.cmake>" in invocation
         assert "<-DCMAKE_TOOLCHAIN_FILE=" not in invocation
         assert "<-DCMAKE_PREFIX_PATH=" not in invocation
@@ -291,6 +292,7 @@ def main() -> None:
         assert bootstrap_build.returncode == 0, bootstrap_build.stderr
         invocation = log.read_text(encoding="utf-8")
         assert "<-DOVERTE_IOS_BOOTSTRAP_ONLY=ON>" in invocation
+        assert "<-DOVERTE_IOS_BUNDLE_IDENTIFIER=org.overte.bootstrap.dev>" in invocation
         assert "<--target> <OverteIOSBootstrap>" in invocation
 
         integrated_build = root / "integrated-package"

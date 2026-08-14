@@ -28,7 +28,7 @@ def load_validator():
 def write_info(path: Path) -> None:
     payload = {
         "CFBundleExecutable": "OverteIOSBootstrap",
-        "CFBundleIdentifier": "org.overte.interface.dev",
+        "CFBundleIdentifier": "org.overte.bootstrap.dev",
         "CFBundlePackageType": "APPL",
         "CFBundleSupportedPlatforms": ["iPhoneSimulator"],
         "CFBundleURLTypes": [
@@ -56,12 +56,12 @@ def main() -> None:
         executable.write_bytes(b"Mach-O fixture")
         executable.chmod(executable.stat().st_mode | 0o100)
 
-        validator.validate_bundle(app, "org.overte.interface.dev", "iphonesimulator", "17.0")
+        validator.validate_bundle(app, "org.overte.bootstrap.dev", "iphonesimulator", "17.0")
 
         framework = app / "Frameworks/Desktop.framework"
         framework.mkdir(parents=True)
         try:
-            validator.validate_bundle(app, "org.overte.interface.dev", "iphonesimulator", "17.0")
+            validator.validate_bundle(app, "org.overte.bootstrap.dev", "iphonesimulator", "17.0")
         except ValueError as error:
             assert "forbidden native payloads" in str(error)
         else:
@@ -83,7 +83,7 @@ def main() -> None:
             with (app / "Info.plist").open("wb") as stream:
                 plistlib.dump(payload, stream)
             try:
-                validator.validate_bundle(app, "org.overte.interface.dev", "iphonesimulator", "17.0")
+                validator.validate_bundle(app, "org.overte.bootstrap.dev", "iphonesimulator", "17.0")
             except ValueError as error:
                 assert expected in str(error)
             else:
@@ -92,7 +92,7 @@ def main() -> None:
         write_info(app / "Info.plist")
         (app / "Assets.car").unlink()
         try:
-            validator.validate_bundle(app, "org.overte.interface.dev", "iphonesimulator", "17.0")
+            validator.validate_bundle(app, "org.overte.bootstrap.dev", "iphonesimulator", "17.0")
         except ValueError as error:
             assert "asset catalog" in str(error)
         else:
@@ -102,7 +102,7 @@ def main() -> None:
         forbidden_dylib = app / "libInjected.dylib"
         forbidden_dylib.touch()
         try:
-            validator.validate_bundle(app, "org.overte.interface.dev", "iphonesimulator", "17.0")
+            validator.validate_bundle(app, "org.overte.bootstrap.dev", "iphonesimulator", "17.0")
         except ValueError as error:
             assert "forbidden native payloads" in str(error)
         else:
@@ -116,7 +116,7 @@ def main() -> None:
         with privacy_path.open("wb") as stream:
             plistlib.dump(privacy, stream)
         try:
-            validator.validate_bundle(app, "org.overte.interface.dev", "iphonesimulator", "17.0")
+            validator.validate_bundle(app, "org.overte.bootstrap.dev", "iphonesimulator", "17.0")
         except ValueError as error:
             assert "no tracking" in str(error)
         else:

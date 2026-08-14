@@ -7,7 +7,7 @@ set -euo pipefail
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly timeout_runner="$script_dir/../tools/run-with-timeout.py"
 app_path="${1:-}"
-bundle_id="${2:-org.overte.interface.dev}"
+bundle_id="${2:-org.overte.bootstrap.dev}"
 diagnostics_dir="${3:-}"
 grace_seconds="${OVERTE_IOS_SIMULATOR_GRACE_SECONDS:-5}"
 [[ -d "$app_path" && "$app_path" == *.app ]] || {

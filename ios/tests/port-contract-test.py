@@ -126,6 +126,8 @@ def test_profiles() -> None:
     require_text(recipe, r'self\.tool_requires\("scribe/', "shader generator must run in the build context")
     require_text(recipe, r'self\.tool_requires\("spirv-cross/', "SPIR-V conversion must run in the build context")
     build_script = IOS_ROOT / "build-ios.sh"
+    require_text(build_script, r'bundle_id="org\.overte\.bootstrap\.dev"', "bootstrap and Full Client must not share an install identity")
+    require_text(build_script, r'bundle_id="org\.overte\.interface\.dev"', "Full Client packaging must retain its stable install identity")
     require_text(build_script, r"audit-conan-graph\.py", "resolved Conan graphs must be audited")
     require_text(build_script, r"generate-sbom\.py", "resolved Conan graphs must emit an SBOM")
     require_text(build_script, r'\$build_dir/ios/\$configuration-iphone', "package must use the subdirectory target output")
@@ -386,6 +388,9 @@ def test_cmake_boundary() -> None:
     require_text(platform_helper, r"#include <QtCore/QObject>", "QObject-derived platform helpers must include their complete base type")
     cmake = IOS_ROOT / "CMakeLists.txt"
     require_text(cmake, r'CMAKE_SYSTEM_NAME STREQUAL "iOS"', "CMake must reject non-iOS targets")
+    require_text(cmake, r'OVERTE_IOS_BUNDLE_IDENTIFIER "org\.overte\.bootstrap\.dev"', "bootstrap CMake identity must remain distinct from the Full Client")
+    bootstrap_plist = IOS_ROOT / "resources" / "Info.plist.in"
+    require_text(bootstrap_plist, r'CFBundleDisplayName</key>\s*<string>Overte Bootstrap</string>', "bootstrap must be visibly distinguishable on an iOS home screen")
     require_text(cmake, r'XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"', "bundle must support iPhone and iPad")
     require_text(cmake, r'XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"', "unsigned builds must be explicit")
     require_text(cmake, r'XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC "YES"', "Objective-C ARC must be target-local")
@@ -1825,7 +1830,7 @@ def test_ci_contract() -> None:
     require_text(workflow, r"package --platform device", "device SDK CI must build and package the arm64 device target")
     require_text(workflow, r"github\.run_number.*overte-ios-device-unsigned", "CI artifact names must start with the build number")
     require_text(workflow, r"Payload/OverteIOSBootstrap\.app/default\.metallib", "CI must inspect the IPA payload")
-    require_text(workflow, r"org\.overte\.interface\.dev\s+\\\s+iphoneos", "device SDK CI must verify its platform metadata")
+    require_text(workflow, r"org\.overte\.bootstrap\.dev\s+\\\s+iphoneos", "bootstrap device SDK CI must verify its distinct platform identity")
 
     verifier = IOS_ROOT / "ci" / "verify-app.sh"
     require_text(verifier, r'lipo "\$executable" -verify_arch arm64', "bundle verification must enforce arm64")

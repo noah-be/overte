@@ -11,7 +11,7 @@ project(OverteIOSBootstrap VERSION 0.2.0 LANGUAGES C CXX OBJC OBJCXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(OVERTE_IOS_BUNDLE_IDENTIFIER "org.overte.interface.dev" CACHE STRING
+set(OVERTE_IOS_BUNDLE_IDENTIFIER "org.overte.bootstrap.dev" CACHE STRING
     "Bundle identifier for the iOS bootstrap application")
 set(OVERTE_IOS_DEVELOPMENT_TEAM "" CACHE STRING
     "Apple Developer team ID; leave empty for unsigned simulator builds")

@@ -151,7 +151,7 @@ jobs:
         run: |
           ios/ci/simulator-smoke.sh \
             build-ios/simulator/ios/Debug-iphonesimulator/OverteIOSBootstrap.app \
-            org.overte.interface.dev \
+            org.overte.bootstrap.dev \
             build-ios/diagnostics
 
       - name: Upload simulator failure diagnostics
@@ -201,7 +201,7 @@ jobs:
         run: |
           ios/ci/verify-app.sh \
             build-ios/device/ios/Debug-iphoneos/OverteIOSBootstrap.app \
-            org.overte.interface.dev \
+            org.overte.bootstrap.dev \
             iphoneos
 
       - name: Verify unsigned device IPA

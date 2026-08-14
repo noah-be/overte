@@ -38,7 +38,7 @@ Options:
   --platform simulator|device   Target platform. Defaults to simulator.
   --configuration NAME          Xcode configuration. Defaults to Debug.
   --build-dir PATH              Override the target build directory.
-  --bundle-id IDENTIFIER        Override org.overte.interface.dev.
+  --bundle-id IDENTIFIER        Override the product-specific bundle identifier.
   --development-team TEAM       Enable device signing with this Apple team ID.
   --require-qt                  Make doctor fail unless Qt 6 for iOS is configured.
   --require-v8                  Make doctor validate the static iOS V8/libnode package.
@@ -68,7 +68,7 @@ shift
 platform="simulator"
 configuration="Debug"
 build_dir=""
-bundle_id="org.overte.interface.dev"
+bundle_id=""
 development_team=""
 confirm_clean=0
 require_qt=0
@@ -143,6 +143,17 @@ done
 
 if ((client_graph)) && [[ "$command_name" != "configure" ]]; then
     fail "--client-graph is only valid with the configure command"
+fi
+
+# Bootstrap and Full Client are separate products. Keeping their default
+# identities distinct prevents a bootstrap preview from silently replacing a
+# Full Client (or vice versa) during Sideloadly and simulator installs.
+if [[ -z "$bundle_id" ]]; then
+    if ((client_graph)) || [[ "$command_name" == "package-client" ]]; then
+        bundle_id="org.overte.interface.dev"
+    else
+        bundle_id="org.overte.bootstrap.dev"
+    fi
 fi
 
 case "$platform" in

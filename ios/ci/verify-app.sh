@@ -5,7 +5,7 @@
 set -euo pipefail
 
 app_path="${1:-}"
-expected_bundle_id="${2:-org.overte.interface.dev}"
+expected_bundle_id="${2:-org.overte.bootstrap.dev}"
 expected_platform="${3:-iphonesimulator}"
 minimum_ios="${4:-17.0}"
 [[ -d "$app_path" && "$app_path" == *.app ]] || {
