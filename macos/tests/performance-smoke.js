@@ -21,6 +21,7 @@
     var MINIMUM_MEASUREMENT_MS = 20000;
     var MAXIMUM_MEASUREMENT_MS = 90000;
     var MINIMUM_SAMPLE_COUNT = 30;
+    var WARMUP_SETTLE_MS = 5000;
     var deadline = Date.now() + 180000;
     var expectedNames = {
         "macOS smoke red cube": false,
@@ -28,6 +29,7 @@
         "macOS smoke label": false
     };
     var stage = "waiting";
+    var settleStartedAt = 0;
     var completed = false;
     var measurementStartedAt = 0;
     var nextMeasurementCheckAt = 0;
@@ -141,8 +143,19 @@
                 }
             });
             if (Object.keys(expectedNames).every(function (name) { return expectedNames[name]; })) {
-                stage = "warmup";
+                stage = "settling";
+                settleStartedAt = Date.now();
                 print("OVERTE_MACOS_PERFORMANCE fixture_entities=3");
+            }
+        } else if (stage === "settling") {
+            // Entity discovery happens on the script thread before the queued
+            // render handoff can reach the scene.  Give that handoff one
+            // bounded frame-settling window so the warmup image measures the
+            // fixture rather than the pre-import sky frame.
+            if (Date.now() - settleStartedAt >= WARMUP_SETTLE_MS) {
+                stage = "warmup";
+                print("OVERTE_MACOS_PERFORMANCE fixture_settled_ms=" +
+                    (Date.now() - settleStartedAt));
                 Window.takeSnapshot(false, false, 16 / 9, "macos-performance-warmup.png");
             }
         } else if (stage === "measuring") {

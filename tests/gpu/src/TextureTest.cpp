@@ -19,6 +19,7 @@
 #include <gl/GLHelpers.h>
 #include <gpu/gl/GLBackend.h>
 #include <image/TextureProcessing.h>
+#include <ktx/KTX.h>
 #include <NumericalConstants.h>
 
 #include <test-utils/QTestExtensions.h>

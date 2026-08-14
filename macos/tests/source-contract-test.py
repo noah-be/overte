@@ -116,6 +116,8 @@ for texture_contract in ("cube_texture.png", "gpu::Texture::serialize", "cube_te
         ROOT / "tests/gpu/CMakeLists.txt"
     ).read_text(encoding="utf-8"):
         raise SystemExit(f"deterministic texture fixture contract missing: {texture_contract}")
+if "#include <ktx/KTX.h>" not in texture_test:
+    raise SystemExit("texture serialization test must bind the complete KTX type")
 
 ktx_benchmark = (ROOT / "tests/ktx/src/KtxBenchmarkTests.cpp").read_text(encoding="utf-8")
 ktx_cmake = (ROOT / "tests/ktx/CMakeLists.txt").read_text(encoding="utf-8")
@@ -789,6 +791,9 @@ for performance_contract in (
     "MINIMUM_MEASUREMENT_MS = 20000",
     "MAXIMUM_MEASUREMENT_MS = 90000",
     "MINIMUM_SAMPLE_COUNT = 30",
+    "WARMUP_SETTLE_MS = 5000",
+    'stage = "settling"',
+    "fixture_settled_ms=",
     "sampleCount >= MINIMUM_SAMPLE_COUNT",
     "samples.length >= MINIMUM_SAMPLE_COUNT",
     "samples_us",
@@ -806,6 +811,10 @@ warmup_handler = performance_script.split("Window.stillSnapshotTaken.connect", 1
 )[0]
 if "if (!path)" not in warmup_handler or "startMeasurement();" not in warmup_handler:
     raise SystemExit("performance measurement must start after a completed warmup frame")
+if performance_script.index('stage = "settling"') > performance_script.index(
+    'Window.takeSnapshot(false, false, 16 / 9, "macos-performance-warmup.png")'
+):
+    raise SystemExit("performance warmup must settle after discovery before snapshot capture")
 
 frame_timings_header = (
     ROOT / "interface/src/FrameTimingsScriptingInterface.h"

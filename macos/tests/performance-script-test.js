@@ -76,6 +76,14 @@ function createRun() {
 
     function startMeasurement() {
         script.interval();
+        assert.strictEqual(window.snapshotName, null,
+            "fixture discovery must not capture the pre-handoff frame");
+        clock.now += 4999;
+        script.interval();
+        assert.strictEqual(window.snapshotName, null,
+            "warmup must retain the complete settling window");
+        clock.now += 1;
+        script.interval();
         assert.strictEqual(window.snapshotName, "macos-performance-warmup.png");
         window.snapshotHandler("/tmp/macos-performance-warmup.png");
         assert.strictEqual(frameTimings.active, true);
@@ -105,6 +113,7 @@ function createRun() {
     assert.strictEqual(run.saved.length, 1);
     assert.strictEqual(run.saved[0].name, "macos-performance.json");
     assert.strictEqual(run.saved[0].value.sample_count, 30);
+    assert(run.output.some((line) => line.includes("fixture_settled_ms=5000")));
     assert(run.output.some((line) => line.includes("OVERTE_MACOS_PERFORMANCE passed samples=30")));
 }
 
