@@ -19,6 +19,14 @@ ARTIFACT_PATTERN = re.compile(
 )
 
 
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def verify_handoff(directory: Path) -> dict:
     latest_json = directory / "LATEST-OverteIOSClient.json"
     latest_text = directory / "LATEST-OverteIOSClient.txt"
@@ -46,7 +54,7 @@ def verify_handoff(directory: Path) -> dict:
     artifact = directory / artifact_name
     if not artifact.is_file():
         raise ValueError("selected artifact is missing")
-    digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    digest = sha256_file(artifact)
     if digest != payload.get("sha256"):
         raise ValueError("artifact SHA-256 does not match the manifest")
     if payload.get("windowsVm", {}).get("sharedFolderRelativePath") != artifact_name:

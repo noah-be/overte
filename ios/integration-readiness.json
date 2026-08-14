@@ -120,6 +120,24 @@
       "remainingAction": "Push the branch or otherwise run the macOS 26 workflow in an approved GitHub context."
     },
     {
+      "id": "full-client-simulator-runtime-automation",
+      "area": "automation",
+      "status": "prepared",
+      "requiresMac": true,
+      "requiresDevice": false,
+      "evidence": [".github/workflows/ios-interface-simulator-acceptance.yml", "ios/ci/interface-simulator-smoke.sh", "ios/tools/verify-runtime-candidate.py"],
+      "remainingAction": "Merge the dispatch harness to the default branch and extend a trusted producer to publish a validated arm64 iphonesimulator Full Client artifact with simulator-native Qt, JITless V8, Conan and MoltenVK checkpoints, then run both form-factor jobs."
+    },
+    {
+      "id": "full-client-ipad-runtime-automation",
+      "area": "automation",
+      "status": "prepared",
+      "requiresMac": true,
+      "requiresDevice": true,
+      "evidence": [".github/workflows/ios-ipad-runtime-acceptance.yml", "ios/ci/ipad-device-acceptance.py", "ios/tools/prepare-entity-evidence.py"],
+      "remainingAction": "Merge the dispatch harness to the default branch, add a protected pre-signed candidate producer, provide an unlocked paired iPad in Developer Mode, approve the environment, and run the six-gate acceptance."
+    },
+    {
       "id": "signed-device-acceptance",
       "area": "distribution",
       "status": "external-validation",

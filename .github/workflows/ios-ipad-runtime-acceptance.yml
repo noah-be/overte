@@ -1,0 +1,233 @@
+name: iOS Full Client protected iPad acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: Successful signed iOS candidate workflow run ID
+        required: true
+        type: string
+      candidate_run_attempt:
+        description: Successful signed candidate workflow run attempt
+        required: true
+        type: string
+      candidate_artifact_name:
+        description: Exact artifact name containing the numbered signed candidate
+        required: true
+        type: string
+      source_revision:
+        description: Exact lowercase 40-character source revision
+        required: true
+        type: string
+      artifact_sha256:
+        description: Approved SHA-256 from the numbered signed-candidate manifest
+        required: true
+        type: string
+      execute_device_install:
+        description: Install and run the verified candidate on the protected iPad
+        required: true
+        default: false
+        type: boolean
+      confirmation:
+        description: For execution, enter INSTALL followed by a space and artifact_sha256
+        required: false
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ios-ipad-device-acceptance
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  verify-candidate:
+    name: Verify pre-signed iPad candidate without a device
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      RUNTIME_ROOT: ${{ github.workspace }}/build-ios/ipad-plan-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Check out reviewed runtime harness without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Validate immutable candidate inputs and producer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          CANDIDATE_RUN_ATTEMPT: ${{ inputs.candidate_run_attempt }}
+          CANDIDATE_ARTIFACT_NAME: ${{ inputs.candidate_artifact_name }}
+          SOURCE_REVISION: ${{ inputs.source_revision }}
+          APPROVED_SHA256: ${{ inputs.artifact_sha256 }}
+        run: |
+          set -euo pipefail
+          [[ "$CANDIDATE_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$CANDIDATE_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]
+          [[ "$CANDIDATE_ARTIFACT_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
+          [[ "$SOURCE_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$APPROVED_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          test ! -e "$RUNTIME_ROOT"
+          install -d -m 0700 "$RUNTIME_ROOT/candidate"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID" > "$RUNTIME_ROOT/run.json"
+          python3 - "$RUNTIME_ROOT/run.json" "$CANDIDATE_RUN_ATTEMPT" "$SOURCE_REVISION" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          allowed_workflows = {
+              ".github/workflows/ios-bootstrap.yml",
+              ".github/workflows/ios-integrated.yml",
+          }
+          path = str(payload.get("path", "")).split("@", 1)[0]
+          repository = payload.get("head_repository") or {}
+          if payload.get("status") != "completed" or payload.get("conclusion") != "success":
+              raise SystemExit("candidate producer run is not successful")
+          if payload.get("run_attempt") != int(sys.argv[2]):
+              raise SystemExit("candidate producer run attempt mismatch")
+          if payload.get("head_sha") != sys.argv[3]:
+              raise SystemExit("candidate producer source revision mismatch")
+          if repository.get("full_name") != __import__("os").environ["GITHUB_REPOSITORY"]:
+              raise SystemExit("candidate producer repository mismatch")
+          if payload.get("head_branch") != "apple-ios" or path not in allowed_workflows:
+              raise SystemExit("candidate producer is outside the trusted iOS workflow boundary")
+          PY
+
+      - name: Download and verify exact signed iPad candidate
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          CANDIDATE_ARTIFACT_NAME: ${{ inputs.candidate_artifact_name }}
+          SOURCE_REVISION: ${{ inputs.source_revision }}
+          APPROVED_SHA256: ${{ inputs.artifact_sha256 }}
+        run: |
+          set -euo pipefail
+          gh run download "$CANDIDATE_RUN_ID" --name "$CANDIDATE_ARTIFACT_NAME" \
+            --dir "$RUNTIME_ROOT/candidate"
+          python3 ios/tools/verify-runtime-candidate.py "$RUNTIME_ROOT/candidate" \
+            --mode ipad \
+            --expected-source-revision "$SOURCE_REVISION" \
+            --expected-sha256 "$APPROVED_SHA256" \
+            --github-output "$GITHUB_OUTPUT" > "$RUNTIME_ROOT/runtime-plan.json"
+
+      - name: Upload non-sensitive candidate plan
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ios-ipad-candidate-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.RUNTIME_ROOT }}/runtime-plan.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Remove signed candidate working files
+        if: always()
+        run: python3 -c 'import os, pathlib, shutil; shutil.rmtree(pathlib.Path(os.environ["RUNTIME_ROOT"]), ignore_errors=True)'
+
+  device-acceptance:
+    name: Install and exercise Full Client on protected iPad
+    if: inputs.execute_device_install
+    needs: verify-candidate
+    environment: ios-ipad-device-acceptance
+    runs-on: [self-hosted, macOS, ARM64, overte-ios-ipad]
+    timeout-minutes: 20
+    env:
+      RUNTIME_ROOT: ${{ github.workspace }}/build-ios/ipad-runtime-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Check out reviewed runtime harness without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Enforce explicit installation confirmation
+        env:
+          DEVICE_CONFIRMATION: ${{ inputs.confirmation }}
+          APPROVED_SHA256: ${{ inputs.artifact_sha256 }}
+        run: |
+          set -euo pipefail
+          [[ "$DEVICE_CONFIRMATION" == "INSTALL $APPROVED_SHA256" ]] || {
+            echo "Confirmation must be INSTALL followed by the approved SHA-256" >&2
+            exit 2
+          }
+          test ! -e "$RUNTIME_ROOT"
+          install -d -m 0700 "$RUNTIME_ROOT/candidate" "$RUNTIME_ROOT/expanded"
+
+      - name: Redownload and reverify exact signed candidate
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          CANDIDATE_ARTIFACT_NAME: ${{ inputs.candidate_artifact_name }}
+          SOURCE_REVISION: ${{ inputs.source_revision }}
+          APPROVED_SHA256: ${{ inputs.artifact_sha256 }}
+        run: |
+          set -euo pipefail
+          gh run download "$CANDIDATE_RUN_ID" --name "$CANDIDATE_ARTIFACT_NAME" \
+            --dir "$RUNTIME_ROOT/candidate"
+          python3 ios/tools/verify-runtime-candidate.py "$RUNTIME_ROOT/candidate" \
+            --mode ipad \
+            --expected-source-revision "$SOURCE_REVISION" \
+            --expected-sha256 "$APPROVED_SHA256" \
+            --github-output "$GITHUB_OUTPUT" > "$RUNTIME_ROOT/runtime-plan.json"
+
+      - name: Expand and verify signing provenance
+        env:
+          CANDIDATE_FILE: ${{ steps.candidate.outputs.artifact }}
+          APP_ROOT: ${{ steps.candidate.outputs.app_root }}
+          BUNDLE_ID: ${{ steps.candidate.outputs.bundle_id }}
+          APPLICATION_IDENTIFIER: ${{ steps.candidate.outputs.application_identifier }}
+        run: |
+          set -euo pipefail
+          ditto -x -k "$RUNTIME_ROOT/candidate/$CANDIDATE_FILE" \
+            "$RUNTIME_ROOT/expanded"
+          app="$RUNTIME_ROOT/expanded/$APP_ROOT"
+          test -d "$app" && test ! -L "$app"
+          python3 ios/ci/verify-ipad-signing.py "$app" \
+            --expected-bundle-id "$BUNDLE_ID" \
+            --expected-application-identifier "$APPLICATION_IDENTIFIER"
+
+      - name: Run bounded protected iPad entity acceptance
+        env:
+          DEVICE_CONFIRMATION: ${{ inputs.confirmation }}
+          TMPDIR: ${{ env.RUNTIME_ROOT }}/private-tmp
+          APP_ROOT: ${{ steps.candidate.outputs.app_root }}
+          BUNDLE_ID: ${{ steps.candidate.outputs.bundle_id }}
+          SOURCE_REVISION: ${{ inputs.source_revision }}
+          APPROVED_SHA256: ${{ inputs.artifact_sha256 }}
+        run: |
+          install -d -m 0700 "$TMPDIR"
+          python3 ios/ci/ipad-device-acceptance.py \
+            --app "$RUNTIME_ROOT/expanded/$APP_ROOT" \
+            --bundle-id "$BUNDLE_ID" \
+            --source-revision "$SOURCE_REVISION" \
+            --candidate-sha256 "$APPROVED_SHA256" \
+            --output-dir "$RUNTIME_ROOT/evidence" \
+            --confirmation "$DEVICE_CONFIRMATION"
+
+      - name: Upload privacy-minimal iPad evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ios-ipad-runtime-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.RUNTIME_ROOT }}/evidence/result.json
+            ${{ env.RUNTIME_ROOT }}/evidence/entity-evidence.zip
+            ${{ env.RUNTIME_ROOT }}/evidence/entity-evidence/entity-gates.log
+            ${{ env.RUNTIME_ROOT }}/evidence/entity-evidence/entity-gates.json
+            ${{ env.RUNTIME_ROOT }}/evidence/entity-evidence/handoff.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Remove signed candidate and private runtime files
+        if: always()
+        run: |
+          python3 -c 'import os, pathlib, shutil; root = pathlib.Path(os.environ["RUNTIME_ROOT"]); shutil.rmtree(root) if root.exists() else None'
+          test ! -e "$RUNTIME_ROOT"

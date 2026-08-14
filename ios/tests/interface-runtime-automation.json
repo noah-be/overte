@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "policy": {
+    "fullClientOnly": true,
+    "bootstrapEvidenceCountsAsInterfaceAcceptance": false,
+    "simulatorEvidenceCountsAsPhysicalDeviceAcceptance": false,
+    "rawRuntimeLogsMayBeUploaded": false
+  },
+  "tiers": [
+    {
+      "id": "host-contracts",
+      "status": "active",
+      "runner": "ubuntu",
+      "entrypoint": "ios/tests/run-tests.sh",
+      "proves": ["source-contracts", "artifact-policy", "offline-evidence-validation"]
+    },
+    {
+      "id": "full-client-simulator",
+      "status": "prepared",
+      "runner": "macos-26",
+      "workflow": ".github/workflows/ios-interface-simulator-acceptance.yml",
+      "candidatePlatform": "iphonesimulator",
+      "proves": ["install-launch", "domain-connect", "entity-render-handoff"],
+      "activationRequirement": "The dispatch-only workflow definition must first be merged into the repository default branch.",
+      "remainingExternalInput": "Extend a trusted iOS producer to build and publish a validated arm64 Full Client simulator artifact with simulator Qt, V8, Conan and MoltenVK slices."
+    },
+    {
+      "id": "full-client-ipad",
+      "status": "prepared",
+      "runner": "self-hosted-macos-arm64-with-paired-ipad",
+      "workflow": ".github/workflows/ios-ipad-runtime-acceptance.yml",
+      "candidatePlatform": "iphoneos",
+      "proves": ["signed-install-launch", "domain-connect", "entity-render-handoff"],
+      "activationRequirement": "The dispatch-only workflow definition must first be merged into the repository default branch.",
+      "remainingExternalInput": "Add a protected trusted producer for a pre-signed candidate, then provide an unlocked paired iPad in Developer Mode."
+    }
+  ],
+  "runtimeCases": [
+    {
+      "id": "install-launch",
+      "automatedOn": ["full-client-simulator", "full-client-ipad"],
+      "assertion": "The exact verified bundle installs and remains alive long enough to enter the runtime gate sequence."
+    },
+    {
+      "id": "domain-connect",
+      "automatedOn": ["full-client-simulator", "full-client-ipad"],
+      "assertion": "The ordered domain_list_connected, entity_server_active and entity_query_sent gates carry valid identifiers."
+    },
+    {
+      "id": "reference-world-frame",
+      "automatedOn": ["full-client-simulator", "full-client-ipad"],
+      "assertion": "Entity data populates the real EntityTree and reaches render_handoff; pixel correctness remains a separate visual assertion."
+    },
+    {
+      "id": "jitless-script-suite",
+      "automatedOn": [],
+      "assertion": "Prepared after a structured in-app test reporter and simulator JITless V8 checkpoint exist."
+    }
+  ],
+  "hardwareOnlyRemainder": [
+    "foreground-background-10x",
+    "memory-warning-recovery",
+    "network-loss-reconnect",
+    "camera-motion-30-minutes",
+    "touch-move-look",
+    "software-keyboard",
+    "audio-output-route-change",
+    "microphone-consent-capture",
+    "voice-interruption-recovery",
+    "safe-area-all-orientations",
+    "ipad-resize",
+    "ipad-split-view-resize",
+    "voiceover-navigation",
+    "dynamic-type-xxxl",
+    "reduce-motion",
+    "ipad-pointer-hover",
+    "thermal-memory-budget",
+    "privacy-permission-review"
+  ]
+}
