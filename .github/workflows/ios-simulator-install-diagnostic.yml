@@ -1,6 +1,11 @@
 name: iOS Full Client simulator install diagnostic
 
 on:
+  push:
+    branches:
+      - apple-ios
+    paths:
+      - .github/workflows/ios-simulator-install-diagnostic.yml
   workflow_dispatch:
     inputs:
       source_run_id:
@@ -34,7 +39,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ios-simulator-install-${{ inputs.expected_sha256 }}
+  group: ios-simulator-install-${{ inputs.expected_sha256 || 'bfe1aceaf08bac604db5d4ac43ebc917e5e2ff3d84e42aec8a1c1915174e4f96' }}
   cancel-in-progress: false
 
 defaults:
@@ -48,11 +53,11 @@ jobs:
     timeout-minutes: 35
     env:
       DIAGNOSTIC_ROOT: ${{ github.workspace }}/build-ios/simulator-install-diagnostic
-      SOURCE_RUN_ID: ${{ inputs.source_run_id }}
-      SOURCE_ARTIFACT_NAME: ${{ inputs.source_artifact_name }}
-      SOURCE_CANDIDATE_NAME: ${{ inputs.source_candidate_name }}
-      EXPECTED_SHA256: ${{ inputs.expected_sha256 }}
-      EXPECTED_SOURCE_REVISION: ${{ inputs.expected_source_revision }}
+      SOURCE_RUN_ID: ${{ inputs.source_run_id || '31818380576' }}
+      SOURCE_ARTIFACT_NAME: ${{ inputs.source_artifact_name || '215-overte-ios-world-candidate-31818380576' }}
+      SOURCE_CANDIDATE_NAME: ${{ inputs.source_candidate_name || '0215-OverteIOSClient-Release-simulator.zip' }}
+      EXPECTED_SHA256: ${{ inputs.expected_sha256 || 'bfe1aceaf08bac604db5d4ac43ebc917e5e2ff3d84e42aec8a1c1915174e4f96' }}
+      EXPECTED_SOURCE_REVISION: ${{ inputs.expected_source_revision || 'fc1462617639c40c1c1e76d2044fa4ab741075f8' }}
       BUNDLE_ID: org.overte.interface.dev
     steps:
       - name: Check out reviewed diagnostics without credentials

@@ -13,8 +13,14 @@ WORKFLOW = (ROOT / ".github/workflows/ios-simulator-install-diagnostic.yml").rea
 RUN_TESTS = (ROOT / "ios/tests/run-tests.sh").read_text(encoding="utf-8")
 
 
-assert re.search(r"^on:\n\s+workflow_dispatch:\s*$", WORKFLOW, re.MULTILINE)
-assert "push:" not in WORKFLOW and "pull_request:" not in WORKFLOW
+assert re.search(r"^\s+workflow_dispatch:\s*$", WORKFLOW, re.MULTILINE)
+assert "pull_request:" not in WORKFLOW
+assert re.search(
+    r"push:\n\s+branches:\n\s+- apple-ios\n\s+paths:\n"
+    r"\s+- [.]github/workflows/ios-simulator-install-diagnostic[.]yml",
+    WORKFLOW,
+)
+assert "inputs.source_run_id || '31818380576'" in WORKFLOW
 assert "actions: read" in WORKFLOW and "contents: read" in WORKFLOW
 assert "persist-credentials: false" in WORKFLOW
 for line in WORKFLOW.splitlines():
