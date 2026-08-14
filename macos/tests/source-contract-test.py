@@ -100,6 +100,8 @@ if "unloadAllEntityScripts(true)" in entity_shutdown:
 
 shader_test_header = (ROOT / "tests/gpu/src/ShaderLoadTest.h").read_text(encoding="utf-8")
 shader_test_source = (ROOT / "tests/gpu/src/ShaderLoadTest.cpp").read_text(encoding="utf-8")
+if "#include <test-utils/Utils.h>" not in shader_test_source:
+    raise SystemExit("shader test must include the declaration for installTestMessageHandler")
 if "backend->syncProgram(program);" not in shader_test_source or "return false;" in shader_test_source.split(
     "bool ShaderLoadTest::buildProgram", 1
 )[1].split("void ShaderLoadTest::initTestCase", 1)[0]:

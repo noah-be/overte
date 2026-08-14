@@ -20,6 +20,7 @@
 #include <gpu/gl/GLBackend.h>
 #include <shaders/Shaders.h>
 #include <test-utils/QTestExtensions.h>
+#include <test-utils/Utils.h>
 
 QTEST_MAIN(ShaderLoadTest)
 
