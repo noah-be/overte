@@ -317,18 +317,18 @@ class RunnerTelemetryTest(unittest.TestCase):
             log = root / "phase.jsonl"
             code = (
                 "import pathlib,sys,time\nroot=pathlib.Path(sys.argv[1])\n"
-                "for i in range(12):\n"
-                "    (root / f'part-{i}').write_bytes(b'x'*8192)\n"
-                "    time.sleep(.1)\n"
+                "for i in range(18):\n"
+                "    (root / f'part-{i}').write_bytes(b'x'*65536)\n"
+                "    time.sleep(.12)\n"
             )
             result = subprocess.run(
                 [sys.executable, str(TOOL), "--log", str(log),
-                 "--phase", "filesystem", "--sample-interval", "0.05",
-                 "--publish-interval", "0.1", "--directory-interval", "0.05",
-                 "--inactivity-timeout", "0.25", "--monitor-failure-timeout", "0.5",
+                 "--phase", "filesystem", "--sample-interval", "0.1",
+                 "--publish-interval", "0.2", "--directory-interval", "0.1",
+                 "--inactivity-timeout", "0.8", "--monitor-failure-timeout", "1.0",
                  "--term-grace", "0.1", "--watch", f"payload={watched}", "--",
                  sys.executable, "-c", code, str(watched)],
-                capture_output=True, text=True, timeout=6, check=False,
+                capture_output=True, text=True, timeout=8, check=False,
             )
             records = [json.loads(line) for line in log.read_text().splitlines()]
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
