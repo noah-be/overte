@@ -17,6 +17,7 @@
 #include <array>
 #include <queue>
 
+#include <QCoreApplication>
 #include <QEventLoop>
 #include <QThreadPool>
 
@@ -25,6 +26,7 @@
 #endif
 
 #include <shared/QtHelpers.h>
+#include <shared/GlobalAppProperties.h>
 #include <AbstractScriptingServicesInterface.h>
 #include <AbstractViewStateInterface.h>
 #include <AddressManager.h>
@@ -49,6 +51,35 @@
 
 #include <PointerManager.h>
 #include <QtConcurrent/QtConcurrentRun>
+
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+namespace {
+
+bool macOSLightweightEntityTestEnabled() {
+    auto application = QCoreApplication::instance();
+    return application && application->property(hifi::properties::TEST).isValid() &&
+        application->property(hifi::properties::MACOS_TEST_LIGHTWEIGHT_ENTITIES).toBool();
+}
+
+bool isLightweightMacOSEntityType(EntityTypes::EntityType type) {
+    switch (type) {
+        case EntityTypes::Box:
+        case EntityTypes::Sphere:
+        case EntityTypes::Shape:
+        case EntityTypes::Zone:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool isPrimitiveEntityType(EntityTypes::EntityType type) {
+    return type == EntityTypes::Box || type == EntityTypes::Sphere ||
+        type == EntityTypes::Shape;
+}
+
+} // namespace
+#endif
 
 QString resolveScriptURL(const QString& scriptUrl) {
     auto normalizedScriptUrl = DependencyManager::get<ResourceManager>()->normalizeURL(scriptUrl);
@@ -550,6 +581,23 @@ void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, r
                 continue;
             }
 
+            auto entityID = entity->getEntityItemID();
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+            const bool lightweightEntityTest = macOSLightweightEntityTestEnabled();
+            if (lightweightEntityTest) {
+                static bool loggedLightweightFilter { false };
+                if (!loggedLightweightFilter) {
+                    loggedLightweightFilter = true;
+                    qInfo().noquote()
+                        << "OVERTE_MACOS_RENDER_PHASE lightweight_entity_filter_active";
+                }
+                if (!isLightweightMacOSEntityType(entity->getType())) {
+                    processedIds.insert(entityID);
+                    continue;
+                }
+            }
+#endif
+
             // Path to the parent transforms is not valid,
             // don't add to the scene graph yet
             if (!entity->isParentPathComplete()) {
@@ -567,7 +615,6 @@ void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, r
                 connect(entity.get(), &EntityItem::spaceUpdate, this, &EntityTreeRenderer::handleSpaceUpdate, Qt::QueuedConnection);
             }
 
-            auto entityID = entity->getEntityItemID();
             auto renderable = EntityRenderer::addToScene(*this, entity, scene, transaction);
             if (renderable) {
                 _entitiesInScene.insert({ entityID, renderable });
@@ -578,6 +625,16 @@ void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, r
                     loggedFirstMacOSRenderHandoff = true;
                     qInfo().noquote() << "OVERTE_MACOS_ENTITY_GATE render_handoff"
                                       << "entity=" << entityID.toString();
+                }
+                static bool loggedFirstLightweightPrimitiveHandoff { false };
+                if (lightweightEntityTest && !loggedFirstLightweightPrimitiveHandoff &&
+                        entity->getEntityHostType() == entity::HostType::DOMAIN &&
+                        isPrimitiveEntityType(entity->getType())) {
+                    loggedFirstLightweightPrimitiveHandoff = true;
+                    qInfo().noquote()
+                        << "OVERTE_MACOS_ENTITY_GATE lightweight_primitive_handoff"
+                        << "entity=" << entityID.toString()
+                        << "type=" << EntityTypes::getEntityTypeName(entity->getType());
                 }
 #endif
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)

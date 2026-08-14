@@ -46,7 +46,7 @@
         };
     }
 
-    function inspectEntityInventory(entities) {
+    function inspectEntityInventory(entities, captureLimit) {
         var nonVisibleGeometryTypes = {
             Unknown: true,
             Empty: true,
@@ -58,7 +58,7 @@
         };
         var typeCounts = {};
         var visibleRenderableCount = 0;
-        var records = entities.slice(0, 64).map(function (entityID) {
+        var records = entities.slice(0, captureLimit).map(function (entityID) {
             var properties = Entities.getEntityProperties(entityID, [
                 "type", "visible", "position", "dimensions"
             ]);
@@ -119,7 +119,7 @@
             return;
         }
         var entities = Entities.findEntities(MyAvatar.position, 16384);
-        latestInventory = inspectEntityInventory(entities);
+        latestInventory = inspectEntityInventory(entities, 64);
         if (snapshotStage === "waiting" &&
                 latestInventory.visible_renderable_count > 0) {
             if (visibleGeometryReadyAt === 0) {
@@ -135,6 +135,11 @@
         }
         if (snapshotStage === "waiting" && visibleGeometryReadyAt !== 0 &&
                 Date.now() >= visibleGeometryReadyAt) {
+            // Record the complete bounded domain snapshot once. Polling stays
+            // cheap above, while this final inventory guarantees that the
+            // exact streamed primitive named by the C++ render-handoff gate
+            // can be correlated even when it was not among the first 64 IDs.
+            latestInventory = inspectEntityInventory(entities, entities.length);
             saveEntityInventory(latestInventory);
             snapshotStage = "capturing";
             print("OVERTE_MACOS_SMOKE online_entities=" + entities.length);

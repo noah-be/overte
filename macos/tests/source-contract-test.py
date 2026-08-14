@@ -227,6 +227,12 @@ if not re.search(
     raise SystemExit("settings init must support explicit deferral and legacy application startup")
 
 main_source = (ROOT / "interface/src/main.cpp").read_text(encoding="utf-8")
+application_setup_source = (ROOT / "interface/src/Application_Setup.cpp").read_text(
+    encoding="utf-8"
+)
+entity_renderer_source = (
+    ROOT / "libraries/entities-renderer/src/EntityTreeRenderer.cpp"
+).read_text(encoding="utf-8")
 if "QCoreApplication tempApp" in main_source:
     raise SystemExit("Interface must not create a temporary QCoreApplication before QApplication")
 graphics_api_offset = main_source.index("hifi::properties::setGraphicsAPI(")
@@ -352,6 +358,7 @@ ONLINE_CONTRACT = {
     "entity_server_active": "interface/src/Application.cpp",
     "entity_query_sent": "interface/src/Application_Entities.cpp",
     "entity_data_received": "interface/src/octree/OctreePacketProcessor.cpp",
+    "lightweight_primitive_handoff": "libraries/entities-renderer/src/EntityTreeRenderer.cpp",
 }
 
 for marker, relative in (CONTRACT | ONLINE_CONTRACT).items():
@@ -383,6 +390,9 @@ for inventory_contract in (
     "validate-online-entities.py",
     "render_handoff_id",
     "--render-handoff-id",
+    "--macosTestLightweightEntities",
+    "lightweight_entity_filter_active",
+    "lightweight_primitive_handoff",
 ):
     if inventory_contract not in online_smoke:
         raise SystemExit(f"online smoke must correlate its rendered entity: {inventory_contract}")
@@ -402,6 +412,95 @@ for smoke_name, smoke_source in (
     if "disableEntityScripts" in smoke_source or "entity_scripts_disabled" in smoke_source:
         raise SystemExit(
             f"{smoke_name} smoke must retain the production entity-script lifecycle"
+        )
+    for lightweight_runner_contract in (
+        "--macosTestLightweightEntities",
+        "lightweight_entity_filter_active",
+    ):
+        if lightweight_runner_contract not in smoke_source:
+            raise SystemExit(
+                f"{smoke_name} smoke must activate the explicit lightweight "
+                f"render mode: {lightweight_runner_contract}"
+            )
+
+global_properties_header = (
+    ROOT / "libraries/shared/src/shared/GlobalAppProperties.h"
+).read_text(encoding="utf-8")
+global_properties_source = (
+    ROOT / "libraries/shared/src/shared/GlobalAppProperties.cpp"
+).read_text(encoding="utf-8")
+main_source = (ROOT / "interface/src/main.cpp").read_text(encoding="utf-8")
+for lightweight_property_contract in (
+    "MACOS_TEST_LIGHTWEIGHT_ENTITIES",
+    '"overte.macosTestLightweightEntities"',
+):
+    if lightweight_property_contract not in (
+        global_properties_header + global_properties_source
+    ):
+        raise SystemExit(
+            "missing macOS lightweight entity property: "
+            f"{lightweight_property_contract}"
+        )
+if main_source.count('"macosTestLightweightEntities"') != 1:
+    raise SystemExit("macOS lightweight entity test flag must be declared exactly once")
+
+lightweight_helper = entity_renderer_source.split(
+    "bool macOSLightweightEntityTestEnabled()", 1
+)[1].split("bool isLightweightMacOSEntityType", 1)[0]
+for lightweight_helper_contract in (
+    "property(hifi::properties::TEST).isValid()",
+    "hifi::properties::MACOS_TEST_LIGHTWEIGHT_ENTITIES",
+):
+    if lightweight_helper_contract not in lightweight_helper:
+        raise SystemExit(
+            "macOS lightweight entity helper missing: "
+            f"{lightweight_helper_contract}"
+        )
+
+lightweight_types = entity_renderer_source.split(
+    "bool isLightweightMacOSEntityType", 1
+)[1].split("bool isPrimitiveEntityType", 1)[0]
+for lightweight_type_contract in (
+    "EntityTypes::Box",
+    "EntityTypes::Sphere",
+    "EntityTypes::Shape",
+    "EntityTypes::Zone",
+):
+    if lightweight_type_contract not in lightweight_types:
+        raise SystemExit(
+            "macOS lightweight entity type missing: "
+            f"{lightweight_type_contract}"
+        )
+
+lightweight_filter = entity_renderer_source.split(
+    "const bool lightweightEntityTest = macOSLightweightEntityTestEnabled();", 1
+)[1].split("// Path to the parent transforms", 1)[0]
+for lightweight_filter_contract in (
+    "processedIds.insert(entityID)",
+    "lightweight_entity_filter_active",
+):
+    if lightweight_filter_contract not in lightweight_filter:
+        raise SystemExit(
+            "macOS lightweight entity filter missing: "
+            f"{lightweight_filter_contract}"
+        )
+if entity_renderer_source.index("processedIds.insert(entityID)") > entity_renderer_source.index(
+    "EntityRenderer::addToScene"
+):
+    raise SystemExit("macOS test filter must skip complex entities before scene submission")
+if 'parser.isSet("macosTestLightweightEntities")' not in application_setup_source:
+    raise SystemExit("Interface must transfer the macOS lightweight test flag to the app")
+lightweight_handoff = entity_renderer_source.split(
+    '"OVERTE_MACOS_ENTITY_GATE lightweight_primitive_handoff"', 1
+)[0].rsplit("static bool loggedFirstLightweightPrimitiveHandoff", 1)[1]
+for handoff_contract in (
+    "entity->getEntityHostType() == entity::HostType::DOMAIN",
+    "isPrimitiveEntityType(entity->getType())",
+):
+    if handoff_contract not in lightweight_handoff:
+        raise SystemExit(
+            "macOS lightweight handoff must identify a streamed domain primitive: "
+            f"{handoff_contract}"
         )
 
 for smoke_name, smoke_source in (("serverless", smoke), ("online", online_smoke)):
@@ -471,7 +570,8 @@ for smoke_name, smoke_source, maximum, cleanup_contract in (
 serverless_script = (ROOT / "macos/tests/serverless-smoke.js").read_text(encoding="utf-8")
 online_script = (ROOT / "macos/tests/online-smoke.js").read_text(encoding="utf-8")
 for inventory_contract in (
-    "inspectEntityInventory(entities)",
+    "inspectEntityInventory(entities, 64)",
+    "inspectEntityInventory(entities, entities.length)",
     "saveEntityInventory(latestInventory)",
     "Test.saveObject(inventory",
     '"macos-online-entities.json"',
@@ -919,12 +1019,6 @@ if "disableEntityScripts" in main_source:
         "Interface must not expose the incomplete no-entity-script lifecycle"
     )
 
-application_setup_source = (ROOT / "interface/src/Application_Setup.cpp").read_text(
-    encoding="utf-8"
-)
-entity_renderer_source = (
-    ROOT / "libraries/entities-renderer/src/EntityTreeRenderer.cpp"
-).read_text(encoding="utf-8")
 if "DependencyManager::set<EntityTreeRenderer>(true, qApp, qApp)" not in application_setup_source:
     raise SystemExit("Interface must initialize the complete entity-script lifecycle")
 if "disableEntityScripts" in application_setup_source:

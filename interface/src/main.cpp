@@ -254,6 +254,10 @@ int main(int argc, const char* argv[]) {
         "disableLocalAvatar",
         "Do not submit the local avatar mesh to the render scene."
     );
+    QCommandLineOption macosTestLightweightEntitiesOption(
+        "macosTestLightweightEntities",
+        "In an explicit macOS test script, render streamed zones and primitive shapes only."
+    );
     QCommandLineOption systemCursorOption(
         "system-cursor",
         "Use the default system cursor."
@@ -410,6 +414,7 @@ int main(int argc, const char* argv[]) {
     parser.addOption(standaloneOption);
     parser.addOption(disableWatchdogOption);
     parser.addOption(disableLocalAvatarOption);
+    parser.addOption(macosTestLightweightEntitiesOption);
     parser.addOption(systemCursorOption);
     parser.addOption(concurrentDownloadsOption);
     parser.addOption(avatarURLOption);

@@ -273,6 +273,10 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     const int listenPort = parser.isSet("listenPort") ? parser.value("listenPort").toInt() : INVALID_PORT;
 
     qApp->setProperty(hifi::properties::DISABLE_LOCAL_AVATAR, parser.isSet("disableLocalAvatar"));
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    qApp->setProperty(hifi::properties::MACOS_TEST_LIGHTWEIGHT_ENTITIES,
+                      parser.isSet("macosTestLightweightEntities"));
+#endif
 
     bool suppressPrompt = parser.isSet("suppress-settings-reset");
 #if defined(ANDROID_APP_PHONE_INTERFACE)
