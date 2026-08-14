@@ -47,6 +47,15 @@ command -v ctest >/dev/null || { echo "error: ctest is required" >&2; exit 2; }
 [[ "$JOBS" =~ ^[1-9][0-9]*$ ]] || { echo "error: OVERTE_TEST_JOBS must be positive" >&2; exit 2; }
 [[ "$TEST_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || { echo "error: OVERTE_TEST_TIMEOUT must be positive" >&2; exit 2; }
 
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    conan_dylib_dir="$BUILD_DIR/conanlibs/$BUILD_CONFIG"
+    [[ -d "$conan_dylib_dir" ]] || {
+        echo "error: missing macOS Conan dylib directory: $conan_dylib_dir" >&2
+        exit 2
+    }
+    export DYLD_LIBRARY_PATH="$conan_dylib_dir${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+fi
+
 cmake --build "$BUILD_DIR" --config "$BUILD_CONFIG" --target all-tests --parallel "$JOBS"
 ctest_args=(--test-dir "$BUILD_DIR" -C "$BUILD_CONFIG" --output-on-failure
     --no-tests=error --timeout "$TEST_TIMEOUT")

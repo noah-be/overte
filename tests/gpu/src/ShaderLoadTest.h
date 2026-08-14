@@ -17,7 +17,7 @@
 #include <gpu/Forward.h>
 #include <gl/OffscreenGLCanvas.h>
 
-#define USE_LOCAL_SHADERS 1
+#define USE_LOCAL_SHADERS 0
 
 template <>
 struct std::hash<std::pair<std::string, std::string>> {

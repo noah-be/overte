@@ -455,25 +455,16 @@ void EntityTreeRenderer::clear() {
     if (_shuttingDown) {
         // unload and stop the engines
         if (_nonPersistentEntitiesScriptManager) {
-            // do this here (instead of in deleter) to avoid marshalling unload signals back to this thread
-
-            // TODO: blocking call will cause deadlocks if the script engine is doing blocking call to main thread,
-            //  for example to access resource cache.
-            //  Since there's no event loop running at this time anymore, I have no easy workaround for this.
-            //  This could be solved by replacing all calls to quit() with calls to a new function that will do
-            //  a cleanup first while event loop is still running
-            _nonPersistentEntitiesScriptManager->unloadAllEntityScripts(true);
+            // Queue unload on the script thread before asking it to stop.  A
+            // blocking invoke here can deadlock when an entity script is
+            // simultaneously making a blocking call to the application
+            // thread.  Application shutdown subsequently waits for every
+            // ScriptManager while continuing to process application events.
+            _nonPersistentEntitiesScriptManager->unloadAllEntityScripts(false);
             _nonPersistentEntitiesScriptManager->stop();
         }
         if (_persistentEntitiesScriptManager) {
-            // do this here (instead of in deleter) to avoid marshalling unload signals back to this thread
-
-            // TODO: blocking call will cause deadlocks if the script engine is doing blocking call to main thread,
-            //  for example to access resource cache.
-            //  Since there's no event loop running at this time anymore, I have no easy workaround for this.
-            //  This could be solved by replacing all calls to quit() with calls to a new function that will do
-            //  a cleanup first while event loop is still running
-            _persistentEntitiesScriptManager->unloadAllEntityScripts(true);
+            _persistentEntitiesScriptManager->unloadAllEntityScripts(false);
             _persistentEntitiesScriptManager->stop();
         }
 

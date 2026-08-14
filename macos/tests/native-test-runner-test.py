@@ -18,6 +18,7 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     build = temporary / "build"
     tools = temporary / "tools"
     build.mkdir()
+    (build / "conanlibs/RelWithDebInfo").mkdir(parents=True)
     tools.mkdir()
     (build / "CMakeCache.txt").write_text("configured\n", encoding="utf-8")
     command_log = temporary / "commands.log"
@@ -25,6 +26,10 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     (tools / "nproc").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
     (tools / "sysctl").write_text(
         "#!/bin/sh\n[ \"$1 $2\" = '-n hw.logicalcpu' ] && printf '7\\n'\n",
+        encoding="utf-8",
+    )
+    (tools / "uname").write_text(
+        "#!/bin/sh\n[ \"$1\" = -s ] && printf 'Darwin\\n'\n",
         encoding="utf-8",
     )
     (tools / "cmake").write_text(
@@ -42,6 +47,7 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
         "  shift\n"
         "done\n"
         "printf '\\n' >>\"$COMMAND_LOG\"\n"
+        "printf 'dyld=<%s>\\n' \"${DYLD_LIBRARY_PATH:-}\" >>\"$COMMAND_LOG\"\n"
         "[ -z \"$junit\" ] || printf '<testsuite tests=\"1\"/>\\n' >\"$junit\"\n",
         encoding="utf-8",
     )
@@ -70,6 +76,7 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     assert "<--target> <all-tests>" in commands
     assert "<--parallel> <7>" in commands
     assert "ctest <--test-dir>" in commands
+    assert f"dyld=<{build}/conanlibs/RelWithDebInfo>" in commands
     assert "<-C> <RelWithDebInfo>" in commands
     assert "<--timeout> <900>" in commands
     assert f"<--output-junit> <{junit}>" in commands

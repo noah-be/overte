@@ -59,6 +59,82 @@ for native_test_contract in (
     if native_test_contract not in build_script:
         raise SystemExit(f"macOS native test build contract missing: {native_test_contract}")
 
+native_runner = (ROOT / "tests/project-native-test.sh").read_text(encoding="utf-8")
+for native_runtime_contract in (
+    '"$(uname -s)" == "Darwin"',
+    'conan_dylib_dir="$BUILD_DIR/conanlibs/$BUILD_CONFIG"',
+    'export DYLD_LIBRARY_PATH="$conan_dylib_dir${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"',
+):
+    if native_runtime_contract not in native_runner:
+        raise SystemExit(f"macOS native dylib lookup contract missing: {native_runtime_contract}")
+
+application_source = (ROOT / "interface/src/Application.cpp").read_text(encoding="utf-8")
+shutdown = application_source.split("void Application::cleanupBeforeQuit()", 1)[1].split(
+    "static const float FOCUS_HIGHLIGHT_EXPANSION_FACTOR", 1
+)[0]
+shutdown_order = (
+    "getEntities()->shutdown()",
+    "shutdownScripting()",
+    "QThreadPool::globalInstance()->clear()",
+    "QThreadPool::globalInstance()->waitForDone()",
+    "DependencyManager::destroy<EntityTreeRenderer>()",
+    "DependencyManager::destroy<ScriptEngines>()",
+)
+if any(token not in shutdown for token in shutdown_order):
+    raise SystemExit("application shutdown dependency contract is incomplete")
+if [shutdown.index(token) for token in shutdown_order] != sorted(
+    shutdown.index(token) for token in shutdown_order
+):
+    raise SystemExit("scripts must stop before pooled cleanup and dependency destruction")
+
+entity_renderer = (ROOT / "libraries/entities-renderer/src/EntityTreeRenderer.cpp").read_text(
+    encoding="utf-8"
+)
+entity_shutdown = entity_renderer.split("void EntityTreeRenderer::clear()", 1)[1].split(
+    "void EntityTreeRenderer::reloadEntityScripts()", 1
+)[0]
+if entity_shutdown.count("unloadAllEntityScripts(false)") != 2:
+    raise SystemExit("application shutdown must queue both entity-script unload operations")
+if "unloadAllEntityScripts(true)" in entity_shutdown:
+    raise SystemExit("application shutdown must not block the main thread on entity-script unload")
+
+shader_test_header = (ROOT / "tests/gpu/src/ShaderLoadTest.h").read_text(encoding="utf-8")
+shader_test_source = (ROOT / "tests/gpu/src/ShaderLoadTest.cpp").read_text(encoding="utf-8")
+if "#define USE_LOCAL_SHADERS 0" not in shader_test_header:
+    raise SystemExit("shader tests must use the repository cache instead of developer paths")
+if "backend->syncProgram(program);" not in shader_test_source or "return false;" in shader_test_source.split(
+    "bool ShaderLoadTest::buildProgram", 1
+)[1].split("void ShaderLoadTest::initTestCase", 1)[0]:
+    raise SystemExit("shader tests must compile programs through the current GL backend")
+
+texture_test = (ROOT / "tests/gpu/src/TextureTest.cpp").read_text(encoding="utf-8")
+for forbidden_texture_dependency in ("ExternalResource", "test_ktx.zip", "downloadFile("):
+    if forbidden_texture_dependency in texture_test:
+        raise SystemExit("texture tests must not depend on the retired network fixture")
+for texture_contract in ("cube_texture.png", "gpu::Texture::serialize", "cube_texture.ktx"):
+    if texture_contract not in texture_test and texture_contract not in (
+        ROOT / "tests/gpu/CMakeLists.txt"
+    ).read_text(encoding="utf-8"):
+        raise SystemExit(f"deterministic texture fixture contract missing: {texture_contract}")
+
+ktx_benchmark = (ROOT / "tests/ktx/src/KtxBenchmarkTests.cpp").read_text(encoding="utf-8")
+ktx_cmake = (ROOT / "tests/ktx/CMakeLists.txt").read_text(encoding="utf-8")
+if "OVERTE_TEST_SOURCE_ROOT" not in ktx_benchmark or "OVERTE_TEST_SOURCE_ROOT" not in ktx_cmake:
+    raise SystemExit("KTX benchmarks must resolve fixtures from the configured source root")
+if "parent.currentPath()" in ktx_benchmark:
+    raise SystemExit("KTX benchmarks must not derive source fixtures from the process cwd")
+
+gltf_serializer = (ROOT / "libraries/model-serializers/src/GLTFSerializer.cpp").read_text(
+    encoding="utf-8"
+)
+for gltf_contract in (
+    "primitive.type != cgltf_primitive_type_triangles",
+    "if (primitive.indices == nullptr)",
+    "std::iota(indices.begin(), indices.end(), 0)",
+):
+    if gltf_contract not in gltf_serializer:
+        raise SystemExit(f"non-indexed glTF triangle contract missing: {gltf_contract}")
+
 if 'copy(self, "*.dylib*", src, bindir, False)' not in root_recipe:
     raise SystemExit("Conan deployment must collect versioned macOS dylibs")
 

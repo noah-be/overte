@@ -7,6 +7,11 @@ macro (SETUP_TESTCASE_DEPENDENCIES)
   include_hifi_library_headers(entities)
   package_libraries_for_deployment()
 
+  if("${TARGET_NAME}" STREQUAL "ktx-KtxBenchmarkTests")
+    target_compile_definitions(${TARGET_NAME} PRIVATE
+      OVERTE_TEST_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
+  endif()
+
   if("${TARGET_NAME}" STREQUAL "ktx-KtxTests")
     # The test wants the cube_texture.png for testing.
     file(INSTALL "${CMAKE_SOURCE_DIR}/scripts/developer/tests/cube_texture.png" DESTINATION "${CMAKE_BINARY_DIR}/tests/ktx")

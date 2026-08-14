@@ -8,30 +8,27 @@
 
 #include "TextureTest.h"
 
-#include <iostream>
-#include <QtCore/QTemporaryFile>
+#include <atomic>
+#include <utility>
+
+#include <QtCore/QFile>
+#include <QtGui/QImage>
 
 #include <gpu/Forward.h>
 #include <gl/Config.h>
 #include <gl/GLHelpers.h>
 #include <gpu/gl/GLBackend.h>
+#include <image/TextureProcessing.h>
 #include <NumericalConstants.h>
-
-#include <quazip/quazip.h>
-#include <quazip/JlCompress.h>
 
 #include <test-utils/QTestExtensions.h>
 #include <test-utils/Utils.h>
-
-#include <ExternalResource.h>
 
 QTEST_MAIN(TextureTest)
 
 #define LOAD_TEXTURE_COUNT 100
 #define FAIL_AFTER_SECONDS 30
 
-static const QString TEST_DATA(ExternalResource::getInstance()->getUrl(ExternalResource::Bucket::HF_Public, "/austin/test_data/test_ktx.zip"));
-static const QString TEST_DIR_NAME("{630b8f02-52af-4cdf-a896-24e472b94b28}");
 static const QString KTX_TEST_DIR_ENV("HIFI_KTX_TEST_DIR");
 
 std::string vertexShaderSource = R"SHADER(
@@ -92,18 +89,26 @@ void TextureTest::initTestCase() {
         // For local testing with larger data sets
         _resourcesPath = QProcessEnvironment::systemEnvironment().value(KTX_TEST_DIR_ENV);
     } else {
-        _resourcesPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/" + TEST_DIR_NAME;
-        if (!QFileInfo(_resourcesPath).exists()) {
-            QDir(_resourcesPath).mkpath(".");
-            downloadFile(TEST_DATA, [&](const QByteArray& data) {
-                QTemporaryFile zipFile;
-                if (zipFile.open()) {
-                    zipFile.write(data);
-                    zipFile.close();
-                }
-                JlCompress::extractDir(zipFile.fileName(), _resourcesPath);
-            });
-        }
+        QVERIFY2(_testDataDir.isValid(), "Unable to create deterministic texture test directory");
+        _resourcesPath = _testDataDir.path();
+
+        const QString imagePath = QCoreApplication::applicationDirPath() + "/cube_texture.png";
+        QImage image(imagePath);
+        QVERIFY2(!image.isNull(), qPrintable("Unable to load texture fixture: " + imagePath));
+        std::atomic<bool> abortSignal { false };
+        auto texture = image::TextureUsage::process2DTextureColorFromImage(
+            std::move(image), imagePath.toStdString(), true, gpu::BackendTarget::GL45, true, abortSignal);
+        QVERIFY2(texture, "Unable to convert texture fixture");
+        auto ktxMemory = gpu::Texture::serialize(
+            *texture, glm::ivec2(texture->getWidth(), texture->getHeight()));
+        QVERIFY2(ktxMemory && ktxMemory->isValid(), "Unable to serialize texture fixture");
+
+        QFile output(_testDataDir.filePath("cube_texture.ktx"));
+        QVERIFY2(output.open(QIODevice::WriteOnly), "Unable to write texture fixture");
+        const auto& storage = ktxMemory->getStorage();
+        QCOMPARE(output.write(reinterpret_cast<const char*>(storage->data()), storage->size()),
+                 static_cast<qint64>(storage->size()));
+        output.close();
     }
 
     QVERIFY(!_resourcesPath.isEmpty());

@@ -142,8 +142,8 @@ void ShaderLoadTest::parseCacheFile() {
     _programs.reserve(root.size());
 
     const auto keys = root.keys();
-    Program program;
     for (auto shaderKey : keys) {
+        Program program;
         auto cacheEntry = root[shaderKey].toObject();
         auto source = cacheEntry["source"].toString();
         auto shaders = parseCachedShaderString(source);
@@ -181,8 +181,9 @@ bool ShaderLoadTest::buildProgram(const Program& programFiles) {
     auto pixelShader = gpu::Shader::createPixel({ shader::Source::generate(pixelSource) });
 
     auto program = gpu::Shader::createProgram(vertexShader, pixelShader);
-    //return gpu::gl::GLBackend::makeProgram(*program, {}, {}); // This no longer works, FIXME.
-    return false;
+    auto backend = std::static_pointer_cast<gpu::gl::GLBackend>(_gpuContext->getBackend());
+    backend->syncProgram(program);
+    return !program->compilationHasFailed();
 }
 
 void ShaderLoadTest::initTestCase() {
@@ -284,4 +285,3 @@ void ShaderLoadTest::testShaderLoad() {
     }
 
 }
-

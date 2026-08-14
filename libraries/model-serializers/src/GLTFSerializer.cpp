@@ -32,6 +32,7 @@
 #include <qfileinfo.h>
 
 #include <sstream>
+#include <numeric>
 
 #include <glm/gtx/transform.hpp>
 
@@ -439,12 +440,11 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const hifi::VariantHash& 
                 auto &primitive = node.mesh->primitives[primitiveIndex];
                 HFMMeshPart part = HFMMeshPart();
 
-                if (primitive.indices == nullptr) {
-                    qDebug() << "No indices accessor for mesh: " << _url;
+                if (primitive.type != cgltf_primitive_type_triangles) {
+                    qWarning(modelformat) << "Unsupported non-triangle glTF primitive for model " << _url;
                     hfmModel.loadErrorCount++;
-                    return false;
+                    continue;
                 }
-                auto &indicesAccessor = primitive.indices;
 
                 // Buffers
                 QVector<int> indices;
@@ -465,13 +465,17 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const hifi::VariantHash& 
                 QVector<float> weights;
                 int weightStride = 4;
 
-                indices.resize((int)indicesAccessor->count);
-                size_t readIndicesCount = cgltf_accessor_unpack_indices(indicesAccessor, indices.data(), sizeof(unsigned int), indicesAccessor->count);
+                if (primitive.indices != nullptr) {
+                    auto indicesAccessor = primitive.indices;
+                    indices.resize((int)indicesAccessor->count);
+                    size_t readIndicesCount = cgltf_accessor_unpack_indices(
+                        indicesAccessor, indices.data(), sizeof(unsigned int), indicesAccessor->count);
 
-                if (readIndicesCount != indicesAccessor->count) {
-                    qWarning(modelformat) << "There was a problem reading glTF INDICES data for model " << _url;
-                    hfmModel.loadErrorCount++;
-                    continue;
+                    if (readIndicesCount != indicesAccessor->count) {
+                        qWarning(modelformat) << "There was a problem reading glTF INDICES data for model " << _url;
+                        hfmModel.loadErrorCount++;
+                        continue;
+                    }
                 }
 
                 // Increment the triangle indices by the current mesh vertex count so each mesh part can all reference the same buffers within the mesh
@@ -640,11 +644,6 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const hifi::VariantHash& 
                 }
 
                 // Validation stage
-                if (indices.count() == 0) {
-                    qWarning(modelformat) << "Missing indices for model " << _url;
-                    hfmModel.loadErrorCount++;
-                    continue;
-                }
                 if (vertices.count() == 0) {
                     qWarning(modelformat) << "Missing vertices for model " << _url;
                     hfmModel.loadErrorCount++;
@@ -652,6 +651,20 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const hifi::VariantHash& 
                 }
 
                 int partVerticesCount = vertices.size() / 3;
+
+                if (primitive.indices == nullptr) {
+                    if (partVerticesCount % 3 != 0) {
+                        qWarning(modelformat) << "Non-indexed glTF triangle count is incomplete for model " << _url;
+                        hfmModel.loadErrorCount++;
+                        continue;
+                    }
+                    indices.resize(partVerticesCount);
+                    std::iota(indices.begin(), indices.end(), 0);
+                } else if (indices.isEmpty()) {
+                    qWarning(modelformat) << "Missing indices for model " << _url;
+                    hfmModel.loadErrorCount++;
+                    continue;
+                }
 
                 // generate the normals if they don't exist
                 if (normals.size() == 0) {

@@ -32,6 +32,7 @@ private slots:
 
 private:
     QString _resourcesPath;
+    QTemporaryDir _testDataDir;
     OffscreenGLCanvas _canvas;
     gpu::ContextPointer _gpuContext;
     gpu::PipelinePointer _pipeline;

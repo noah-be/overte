@@ -41,14 +41,11 @@ QStringList jpg_images{
 QString test_texture = "/interface/scripts/developer/tests/cube_texture.png";
 
 QString getRootPath() {
-    static std::once_flag once;
-    static QString result;
-    std::call_once(once, [&] {
-        QFileInfo file(__FILE__);
-        QDir parent = file.absolutePath();
-        result = QDir::cleanPath(parent.currentPath() + "/../..");
-    });
-    return result;
+#ifdef OVERTE_TEST_SOURCE_ROOT
+    return QDir::cleanPath(QString::fromUtf8(OVERTE_TEST_SOURCE_ROOT));
+#else
+#error "KtxBenchmarkTests requires OVERTE_TEST_SOURCE_ROOT"
+#endif
 }
 
 void benchmarkImage(const QString &path) {
@@ -208,4 +205,3 @@ void KtxBenchmarks::benchmarkWriteKTX() {
         }
     }
 }
-

@@ -2334,15 +2334,19 @@ void Application::cleanupBeforeQuit() {
 
     getEntities()->shutdown(); // tell the entities system we're shutting down, so it will stop running scripts
 
-    // Clear any queued processing (I/O, FBX/OBJ/Texture parsing)
-    QThreadPool::globalInstance()->clear();
-    QThreadPool::globalInstance()->waitForDone();
-
     DependencyManager::destroy<RecordingScriptingInterface>();
 
     // FIXME: Something is still holding on to the ScriptEnginePointers contained in ScriptEngines, and they hold backpointers to ScriptEngines,
     // so this doesn't shut down properly
     DependencyManager::get<ScriptEngines>()->shutdownScripting(); // stop all currently running global scripts
+
+    // Entity script managers retired during domain changes finish their cleanup
+    // in the global pool.  Stop every script first so those jobs cannot remain
+    // blocked on a script or a blocking invoke back to the application thread.
+    // Keep ScriptEngines and EntityTreeRenderer alive until the jobs are done.
+    QThreadPool::globalInstance()->clear();
+    QThreadPool::globalInstance()->waitForDone();
+
     // These classes hold ScriptEnginePointers, so they must be destroyed before ScriptEngines
     // Must be done after shutdownScripting in case any scripts try to access these things
     {
