@@ -362,7 +362,7 @@ void Application::windowMinimizedChanged(bool minimized) {
 
 void Application::keyPressEvent(QKeyEvent* event) {
     if (!event->isAutoRepeat()) {
-        _keysPressed.insert(event->key(), *event);
+        _keysPressed.insert(event->key(), event->text());
     }
 
 #if defined(ANDROID_APP_PHONE_INTERFACE)
@@ -659,10 +659,10 @@ void Application::synthesizeKeyReleasEvents() {
     // synthesize events for keys currently pressed, since we may not get their release events
     // Because our key event handlers may manipulate _keysPressed, lets swap the keys pressed into a local copy,
     // clearing the existing list.
-    QHash<int, QKeyEvent> keysPressed;
+    QHash<int, QString> keysPressed;
     std::swap(keysPressed, _keysPressed);
-    for (auto& ev : keysPressed) {
-        QKeyEvent synthesizedEvent { QKeyEvent::KeyRelease, ev.key(), Qt::NoModifier, ev.text() };
+    for (auto it = keysPressed.cbegin(); it != keysPressed.cend(); ++it) {
+        QKeyEvent synthesizedEvent { QKeyEvent::KeyRelease, it.key(), Qt::NoModifier, it.value() };
         keyReleaseEvent(&synthesizedEvent);
     }
 }

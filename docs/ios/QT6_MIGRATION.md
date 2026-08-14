@@ -371,6 +371,11 @@ Ctrl plus the indexed digit key. The Qt 5 branch retains its original integer
 combination, so plugin ordering and the Ctrl+0…9 selection behavior do not
 change while avoiding the deleted Qt 6 arithmetic operator.
 
+Pressed-key tracking stores the copyable key text alongside each integer key
+instead of storing `QKeyEvent` objects in a `QHash`. Qt 6 key events are not
+publicly copyable, while focus loss still swaps and clears the tracked set
+before synthesizing the same `KeyRelease` events with `Qt::NoModifier`.
+
 The desktop log dialog's bold timestamp/source highlighter now scans with
 `QRegularExpression`. Every formatted range still starts at the match, uses
 the full match length, and resumes immediately after that range. The existing

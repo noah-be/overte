@@ -1498,6 +1498,27 @@ def test_scope_contract() -> None:
     assert "QKeySequence(Qt::CTRL + (Qt::Key_0 + index))" not in application_graphics.read_text(encoding="utf-8"), \
         "Qt 6 deletes arithmetic addition between keyboard modifiers and keys"
 
+    application_header = SOURCE_ROOT / "interface" / "src" / "Application.h"
+    application_events = SOURCE_ROOT / "interface" / "src" / "Application_Events.cpp"
+    require_text(
+        application_header,
+        r'QHash<int, QString> _keysPressed;',
+        "pressed keys must store copyable release data rather than non-copyable Qt 6 key events",
+    )
+    require_text(
+        application_events,
+        r'_keysPressed\.insert\(event->key\(\), event->text\(\)\);',
+        "key presses must retain the text used by synthesized releases",
+    )
+    require_text(
+        application_events,
+        r'QHash<int, QString> keysPressed;[\s\S]*?std::swap\(keysPressed, _keysPressed\);[\s\S]*?'
+        r'QKeyEvent synthesizedEvent \{ QKeyEvent::KeyRelease, it\.key\(\), Qt::NoModifier, it\.value\(\) \};',
+        "focus loss must clear tracked keys before synthesizing equivalent release events",
+    )
+    assert "QHash<int, QKeyEvent>" not in application_header.read_text(encoding="utf-8"), \
+        "Qt 6 key events are not copyable container values"
+
     base_log_dialog = SOURCE_ROOT / "interface" / "src" / "ui" / "BaseLogDialog.cpp"
     require_text(base_log_dialog, r'#include <QRegularExpression>', "log highlighting must use the Qt 6 regex API")
     require_text(base_log_dialog, r'auto match = expression\.match\(text\);', "bold log scanning must begin at the first match")
