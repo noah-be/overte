@@ -26,6 +26,15 @@
         "macOS smoke cyan sphere",
         "macOS smoke label"
     ];
+    var nonVisibleGeometryTypes = {
+        Unknown: true,
+        Empty: true,
+        Sound: true,
+        Script: true,
+        Zone: true,
+        Light: true,
+        Material: true
+    };
 
     function finish(success, detail) {
         if (completed) {
@@ -39,17 +48,26 @@
     function sceneState() {
         var entities = Entities.findEntities(MyAvatar.position, 16384);
         var found = {};
+        var visibleGeometryCount = 0;
         expectedNames.forEach(function (name) { found[name] = false; });
         entities.forEach(function (entityID) {
-            var name = Entities.getEntityProperties(entityID, ["name"]).name;
+            var properties = Entities.getEntityProperties(entityID, [
+                "name", "type", "visible"
+            ]);
+            var name = properties.name;
             if (Object.prototype.hasOwnProperty.call(found, name)) {
                 found[name] = true;
+            }
+            if (properties.visible !== false &&
+                    !nonVisibleGeometryTypes[String(properties.type || "Unknown")]) {
+                visibleGeometryCount += 1;
             }
         });
         return {
             entityCount: entities.length,
             fixtureComplete: expectedNames.every(function (name) { return found[name]; }),
-            fixtureCount: expectedNames.filter(function (name) { return found[name]; }).length
+            fixtureCount: expectedNames.filter(function (name) { return found[name]; }).length,
+            visibleGeometryCount: visibleGeometryCount
         };
     }
 
@@ -61,7 +79,9 @@
         if (stage === "initial_snapshot") {
             print("OVERTE_MACOS_TRANSITION initial_snapshot=" + path);
             stage = "online";
-            stageDeadline = Date.now() + 180000;
+            // A first public-domain model pipeline can need a little over
+            // three minutes on Apple's hosted software OpenGL renderer.
+            stageDeadline = Date.now() + 420000;
             AddressManager.handleLookupString("hifi://overte_hub");
         } else if (stage === "online_snapshot") {
             print("OVERTE_MACOS_TRANSITION online_snapshot=" + path);
@@ -89,9 +109,11 @@
             Window.takeSnapshot(false, false, 16 / 9, "macos-transition-initial.png");
         } else if (
             stage === "online" && AddressManager.isConnected &&
-            state.entityCount > 0 && state.fixtureCount === 0
+            state.entityCount > 0 && state.fixtureCount === 0 &&
+            state.visibleGeometryCount > 0
         ) {
-            print("OVERTE_MACOS_TRANSITION online_entities=" + state.entityCount);
+            print("OVERTE_MACOS_TRANSITION online_entities=" + state.entityCount +
+                " visible_geometry=" + state.visibleGeometryCount);
             stage = "online_snapshot";
             Window.takeSnapshot(false, false, 16 / 9, "macos-transition-online.png");
         } else if (

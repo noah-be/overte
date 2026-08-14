@@ -20,8 +20,14 @@
     Render.getConfig("RenderMainView.PreparePrimaryBufferForward").numSamples = 1;
     Scene.shouldRenderAvatars = false;
 
-    var deadline = Date.now() + 180000;
+    // The hosted Intel runner exposes Apple's software OpenGL renderer.  A
+    // public-domain model pipeline has been measured taking just over three
+    // minutes to compile there even though the process remains CPU-active.
+    // Keep the in-app deadline below the external 600-second supervisor while
+    // leaving enough room for that first visible online frame.
+    var deadline = Date.now() + 420000;
     var snapshotStage = "waiting";
+    var visibleGeometryReadyAt = 0;
     var snapshotPath = "";
     var latestInventory = null;
     var completed = false;
@@ -103,8 +109,8 @@
         }
         if (snapshotStage === "capturing") {
             snapshotPath = path;
-            snapshotStage = "awaiting_inventory";
             print("OVERTE_MACOS_SMOKE snapshot_complete=" + path);
+            finish(true, "snapshot=" + snapshotPath);
         }
     });
 
@@ -114,7 +120,22 @@
         }
         var entities = Entities.findEntities(MyAvatar.position, 16384);
         latestInventory = inspectEntityInventory(entities);
-        if (entities.length > 0 && snapshotStage === "waiting") {
+        if (snapshotStage === "waiting" &&
+                latestInventory.visible_renderable_count > 0) {
+            if (visibleGeometryReadyAt === 0) {
+                // Give the entity-tree/render-handoff queues one bounded
+                // interval to converge before freezing the correlated
+                // inventory used to validate the captured frame.
+                visibleGeometryReadyAt = Date.now() + 1000;
+                print("OVERTE_MACOS_SMOKE visible_geometry_ready count=" +
+                    latestInventory.visible_renderable_count);
+            }
+        } else if (snapshotStage === "waiting") {
+            visibleGeometryReadyAt = 0;
+        }
+        if (snapshotStage === "waiting" && visibleGeometryReadyAt !== 0 &&
+                Date.now() >= visibleGeometryReadyAt) {
+            saveEntityInventory(latestInventory);
             snapshotStage = "capturing";
             print("OVERTE_MACOS_SMOKE online_entities=" + entities.length);
             // One completed frame is the online rendering proof. Waiting for
@@ -123,14 +144,9 @@
             // minutes compiling those after the scene is already visible.
             Window.takeSnapshot(false, false, 16 / 9, "macos-online-smoke.png");
         }
-        if (snapshotStage === "awaiting_inventory" &&
-                latestInventory.visible_renderable_count > 0) {
-            saveEntityInventory(latestInventory);
-            finish(true, "snapshot=" + snapshotPath);
-        }
         if (Date.now() >= deadline) {
             finish(false, snapshotStage === "waiting" ? "entity_timeout" :
-                (snapshotStage === "capturing" ? "snapshot_timeout" : "inventory_timeout"));
+                "snapshot_timeout");
         }
     }, 250);
 }());

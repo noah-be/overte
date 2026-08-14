@@ -873,7 +873,9 @@ jobs:
             macos/ci/performance-smoke.sh "$app" build/macos-performance
 
       - name: Run native C++ and Qt code tests
-        if: ${{ inputs.run_native_tests }}
+        if: >-
+          ${{ !cancelled() && inputs.run_native_tests &&
+              steps.build-client.outcome == 'success' }}
         timeout-minutes: 120
         env:
           OVERTE_TEST_BUILD_CONFIG: ${{ env.OVERTE_MACOS_BUILD_TYPE }}

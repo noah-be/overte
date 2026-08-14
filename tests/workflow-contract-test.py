@@ -615,7 +615,8 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertLess(native, diagnostics)
         section = self.source[native:diagnostics]
         for token in (
-            "if: ${{ inputs.run_native_tests }}",
+            "!cancelled() && inputs.run_native_tests",
+            "steps.build-client.outcome == 'success'",
             "timeout-minutes: 120",
             "--phase native-code-tests",
             "--sample-interval 5 --publish-interval 30",
@@ -670,7 +671,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("build/macos-stability", source)
         self.assertIn("macos/ci/transition-smoke.sh", source)
         self.assertIn("--phase runtime-transition", source)
-        self.assertIn("--inactivity-timeout 660 --max-runtime 720", source)
+        self.assertIn("--inactivity-timeout 660 --max-runtime 840", source)
         self.assertIn("build/macos-transition", source)
         self.assertIn("timeout-minutes: 95", source)
         self.assertNotIn("build-macos.sh build", source)

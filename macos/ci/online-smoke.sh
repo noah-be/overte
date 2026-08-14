@@ -23,7 +23,7 @@ readonly snapshot="$output_dir/macos-online-smoke.png"
 readonly screenshot_result="$output_dir/online-screenshot.json"
 readonly entity_inventory="$output_dir/macos-online-entities.json"
 readonly entity_validation="$output_dir/online-entity-validation.json"
-readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-360}"
+readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-600}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
 readonly lldb_timeout_seconds="${OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-90}"
 

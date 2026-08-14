@@ -392,6 +392,9 @@ for marker in ONLINE_CONTRACT | {"render_handoff": ""}:
 transition_smoke = (ROOT / "macos/ci/transition-smoke.sh").read_text(
     encoding="utf-8"
 )
+transition_script = (ROOT / "macos/tests/transition-smoke.js").read_text(
+    encoding="utf-8"
+)
 for smoke_name, smoke_source in (
     ("online", online_smoke),
     ("serverless/online transition", transition_smoke),
@@ -532,15 +535,33 @@ for online_entity_classification_contract in (
             f"from visible geometry: {online_entity_classification_contract}"
         )
 for online_timing_contract in (
-    'snapshotStage = "awaiting_inventory"',
     "snapshot_complete=",
+    "visibleGeometryReadyAt = Date.now() + 1000",
     "latestInventory.visible_renderable_count > 0",
     "saveEntityInventory(latestInventory)",
-    '"inventory_timeout"',
+    "Date.now() + 420000",
 ):
     if online_timing_contract not in online_script:
         raise SystemExit(
             f"online smoke must inventory the completed frame: {online_timing_contract}"
+        )
+if online_script.index("saveEntityInventory(latestInventory)") > online_script.index(
+    "Window.takeSnapshot"
+):
+    raise SystemExit("online smoke must freeze its correlated inventory before capture")
+if 'OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-600' not in online_smoke:
+    raise SystemExit("online smoke must cover the measured software-renderer frame budget")
+
+for transition_geometry_contract in (
+    "visibleGeometryCount",
+    "state.visibleGeometryCount > 0",
+    '" visible_geometry="',
+    "Date.now() + 420000",
+):
+    if transition_geometry_contract not in transition_script:
+        raise SystemExit(
+            "transition smoke must wait for visible online geometry: "
+            f"{transition_geometry_contract}"
         )
 if "fixture_entities=3" not in serverless_script:
     raise SystemExit("serverless smoke must identify the exact three fixture entities")
@@ -628,7 +649,6 @@ for stability_contract in (
         raise SystemExit(f"macOS stability suite missing: {stability_contract}")
 
 transition_smoke = (ROOT / "macos/ci/transition-smoke.sh").read_text(encoding="utf-8")
-transition_script = (ROOT / "macos/tests/transition-smoke.js").read_text(encoding="utf-8")
 node_list_source = (ROOT / "libraries/networking/src/NodeList.cpp").read_text(
     encoding="utf-8"
 )

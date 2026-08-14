@@ -21,7 +21,7 @@ readonly final_snapshot="$output_dir/macos-transition-final.png"
 readonly initial_result="$output_dir/transition-initial-screenshot.json"
 readonly online_result="$output_dir/transition-online-screenshot.json"
 readonly final_result="$output_dir/transition-final-screenshot.json"
-readonly timeout_seconds="${OVERTE_MACOS_TRANSITION_TIMEOUT_SECONDS:-600}"
+readonly timeout_seconds="${OVERTE_MACOS_TRANSITION_TIMEOUT_SECONDS:-720}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
 
 [[ "$(uname -s)" == Darwin ]] || { echo "transition smoke requires macOS" >&2; exit 1; }

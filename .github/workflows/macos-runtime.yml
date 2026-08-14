@@ -139,7 +139,7 @@ jobs:
             --log build/macos-runtime-telemetry/transition.jsonl \
             --diagnostics-dir build/macos-runtime-telemetry/transition-stall \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 660 --max-runtime 720 \
+            --inactivity-timeout 660 --max-runtime 840 \
             --watch transition=build/macos-transition -- \
             macos/ci/transition-smoke.sh "$app" build/macos-transition
 
