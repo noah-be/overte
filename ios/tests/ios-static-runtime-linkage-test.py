@@ -127,7 +127,12 @@ def main() -> None:
         encoding="utf-8"
     )
     assert 'verify-ios-static-runtime.py" "$app_path"' in build_script
-    assert 'if (IOS)\n    set_target_properties(${TARGET_NAME} PROPERTIES INSTALL_RPATH "")' in interface_cmake
+    ios_rpath_boundary = """if (IOS)
+    set_target_properties(${TARGET_NAME} PROPERTIES
+      SKIP_BUILD_RPATH TRUE
+      INSTALL_RPATH ""
+    )"""
+    assert ios_rpath_boundary in interface_cmake
     print("PASS iOS static runtime linkage tests")
 
 

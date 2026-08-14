@@ -297,8 +297,14 @@ if (APPLE)
 
   # macdeployqt owns the desktop bundle Frameworks directory.  The iOS client
   # uses static third-party dependencies and must not inherit a macOS RPATH.
+  # package-client archives the Xcode build bundle directly rather than a
+  # cmake --install result, so INSTALL_RPATH alone does not suppress CMake's
+  # automatically generated build-tree search paths.
   if (IOS)
-    set_target_properties(${TARGET_NAME} PROPERTIES INSTALL_RPATH "")
+    set_target_properties(${TARGET_NAME} PROPERTIES
+      SKIP_BUILD_RPATH TRUE
+      INSTALL_RPATH ""
+    )
   else()
     set_target_properties(${TARGET_NAME} PROPERTIES INSTALL_RPATH "@executable_path/../Frameworks")
   endif()

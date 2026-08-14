@@ -818,6 +818,11 @@ omits its package include root, so the iOS `target_webrtc()` boundary exposes
 that exact resolved root explicitly. Both the graph audit and CMake configure
 reject the graph unless `absl/base/nullability.h` exists before compiling
 `audio-client`; no package version or unverified fallback path is substituted.
+Because `package-client` archives the Xcode build bundle directly, the iOS
+executable also sets `SKIP_BUILD_RPATH`: an empty `INSTALL_RPATH` alone does not
+remove CMake's automatically inferred Conan search paths from the build-tree
+Mach-O. The final package gate still parses every load command and rejects any
+non-system dependency or build-local runtime path.
 
 ## Enforcement
 
