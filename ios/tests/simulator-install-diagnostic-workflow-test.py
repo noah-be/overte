@@ -47,7 +47,21 @@ for case in ("control", "metadata-control", "overte-minimal"):
 assert "xcrun clang" in WORKFLOW and "UIApplicationMain" in WORKFLOW
 assert "processed Overte metadata is not a valid install bundle" in WORKFLOW
 assert "Overte Mach-O prevents minimal bundle installation" in WORKFLOW
-assert "retained resources require isolation" in WORKFLOW
+assert "scripts/system/assets/images/tools/snap.svg" in WORKFLOW
+assert "unexpected executable resources" in WORKFLOW
+assert "mode & 0o111" in WORKFLOW
+assert "os.chmod(snap, snap.stat().st_mode & ~0o111)" in WORKFLOW
+assert "full-original" in WORKFLOW and "full-normalized" in WORKFLOW
+assert "original full bundle unexpectedly installed" in WORKFLOW
+assert "normalizing the executable resource did not repair installation" in WORKFLOW
+assert "PASS full Overte bundle installs after executable resource normalization" in WORKFLOW
+assert re.search(
+    r"full-normalized-foundation-before-signing[.]txt.*?"
+    r"foundation_bundle_identifier=[$]BUNDLE_ID.*?"
+    r"foundation_raw_identifier=[$]BUNDLE_ID",
+    WORKFLOW,
+    re.DOTALL,
+)
 assert "cmake --build" not in WORKFLOW and "build-ios.sh build" not in WORKFLOW
 assert "retention-days: 14" in WORKFLOW
 assert RUN_TESTS.count("simulator-install-diagnostic-workflow-test.py") == 1

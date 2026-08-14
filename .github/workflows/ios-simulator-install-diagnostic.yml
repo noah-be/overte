@@ -155,7 +155,7 @@ jobs:
             echo unsigned > "$DIAGNOSTIC_ROOT/output/original-signing-state.txt"
           fi
 
-      - name: Compare working control, Overte metadata, and Overte executable
+      - name: Isolate executable resource mode in the complete Overte bundle
         id: install
         run: |
           set -euo pipefail
@@ -231,6 +231,55 @@ jobs:
           ditto "$original/Info.plist" "$minimal_app/Info.plist"
           ditto "$original/PkgInfo" "$minimal_app/PkgInfo"
 
+          full_original_root="$DIAGNOSTIC_ROOT/full-original"
+          full_original_app="$full_original_root/Overte.app"
+          mkdir -p "$full_original_root"
+          ditto "$original" "$full_original_app"
+
+          normalized_root="$DIAGNOSTIC_ROOT/full-normalized"
+          normalized_app="$normalized_root/Overte.app"
+          mkdir -p "$normalized_root"
+          ditto "$original" "$normalized_app"
+          python3 - "$normalized_app" "$DIAGNOSTIC_ROOT/output/resource-modes.txt" <<'PY'
+          import os
+          from pathlib import Path
+          import stat
+          import sys
+
+          app = Path(sys.argv[1])
+          report = Path(sys.argv[2])
+          executable = app / "Overte"
+          expected = "scripts/system/assets/images/tools/snap.svg"
+
+          def executable_resources():
+              result = []
+              for path in app.rglob("*"):
+                  mode = path.lstat().st_mode
+                  if path != executable and stat.S_ISREG(mode) and mode & 0o111:
+                      result.append(path.relative_to(app).as_posix())
+              return sorted(result)
+
+          before = executable_resources()
+          if before != [expected]:
+              raise SystemExit(f"unexpected executable resources: {before}")
+          snap = app / expected
+          os.chmod(snap, snap.stat().st_mode & ~0o111)
+          after = executable_resources()
+          if after:
+              raise SystemExit(f"executable resources remain after normalization: {after}")
+          report.write_text(
+              "before=" + ",".join(before) + "\n" +
+              "after=" + ",".join(after) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          swift "$DIAGNOSTIC_ROOT/bundle-check.swift" "$normalized_app" \
+            > "$DIAGNOSTIC_ROOT/output/full-normalized-foundation-before-signing.txt"
+          grep -Fx "foundation_bundle_identifier=$BUNDLE_ID" \
+            "$DIAGNOSTIC_ROOT/output/full-normalized-foundation-before-signing.txt"
+          grep -Fx "foundation_raw_identifier=$BUNDLE_ID" \
+            "$DIAGNOSTIC_ROOT/output/full-normalized-foundation-before-signing.txt"
+
           sign_bundle() {
             local label="$1" app="$2" identifier="$3"
             xattr -cr "$app"
@@ -248,6 +297,12 @@ jobs:
           sign_bundle control "$control_app" org.overte.install-control
           sign_bundle metadata-control "$metadata_app" org.overte.metadata-control
           sign_bundle overte-minimal "$minimal_app" "$BUNDLE_ID"
+          sign_bundle full-original "$full_original_app" "$BUNDLE_ID"
+          sign_bundle full-normalized "$normalized_app" "$BUNDLE_ID"
+          grep -Fx "foundation_bundle_identifier=$BUNDLE_ID" \
+            "$DIAGNOSTIC_ROOT/output/full-normalized-foundation.txt"
+          grep -Fx "foundation_raw_identifier=$BUNDLE_ID" \
+            "$DIAGNOSTIC_ROOT/output/full-normalized-foundation.txt"
 
           device_name="Overte install diagnostic $GITHUB_RUN_ID $xcode_version"
           udid="$(DEVELOPER_DIR="$developer_dir" xcrun simctl create "$device_name" \
@@ -284,13 +339,19 @@ jobs:
           run_install metadata-control "$metadata_app" org.overte.metadata-control || metadata_status=$?
           minimal_status=0
           run_install overte-minimal "$minimal_app" "$BUNDLE_ID" || minimal_status=$?
-          printf 'control_status=%s\nmetadata_status=%s\nminimal_status=%s\n' \
-            "$control_status" "$metadata_status" "$minimal_status" >> "$GITHUB_OUTPUT"
+          full_original_status=0
+          run_install full-original "$full_original_app" "$BUNDLE_ID" || full_original_status=$?
+          normalized_status=0
+          run_install full-normalized "$normalized_app" "$BUNDLE_ID" || normalized_status=$?
+          printf 'control_status=%s\nmetadata_status=%s\nminimal_status=%s\nfull_original_status=%s\nnormalized_status=%s\n' \
+            "$control_status" "$metadata_status" "$minimal_status" \
+            "$full_original_status" "$normalized_status" >> "$GITHUB_OUTPUT"
           ((control_status == 0)) || { echo "minimal simulator control failed" >&2; exit 1; }
           ((metadata_status == 0)) || { echo "processed Overte metadata is not a valid install bundle" >&2; exit 1; }
           ((minimal_status == 0)) || { echo "Overte Mach-O prevents minimal bundle installation" >&2; exit 1; }
-          echo "minimal Overte bundle installs; retained resources require isolation" >&2
-          exit 1
+          ((full_original_status != 0)) || { echo "original full bundle unexpectedly installed" >&2; exit 1; }
+          ((normalized_status == 0)) || { echo "normalizing the executable resource did not repair installation" >&2; exit 1; }
+          echo "PASS full Overte bundle installs after executable resource normalization"
 
       - name: Upload bounded installation diagnostics
         if: ${{ always() && !cancelled() }}
