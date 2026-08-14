@@ -142,6 +142,8 @@ jobs:
               fatalError("Foundation could not construct the application bundle")
           }
           print("foundation_bundle_identifier=\(bundle.bundleIdentifier ?? "nil")")
+          let rawIdentifier = bundle.object(forInfoDictionaryKey: "CFBundleIdentifier") as? String
+          print("foundation_raw_identifier=\(rawIdentifier ?? "nil")")
           print("foundation_executable=\(bundle.executableURL?.lastPathComponent ?? "nil")")
           SWIFT
           swift "$DIAGNOSTIC_ROOT/bundle-check.swift" "$app" \
@@ -208,7 +210,7 @@ jobs:
               if [[ "$variant" == identified-xml ]]; then
                 plutil -convert xml1 "$app/Info.plist"
               fi
-              codesign --force --sign - --identifier "$BUNDLE_ID" --timestamp=none \
+              codesign --force --deep --sign - --identifier "$BUNDLE_ID" --timestamp=none \
                 --generate-entitlement-der "$app" \
                 > "$DIAGNOSTIC_ROOT/output/$xcode_version-$variant-codesign.txt" 2>&1
               codesign --verify --deep --strict --verbose=4 "$app" \

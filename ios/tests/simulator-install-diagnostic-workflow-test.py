@@ -40,9 +40,10 @@ for version, build in (("26.3", "17C529"),):
 assert "iPhone-16-Pro" in WORKFLOW
 assert "simctl install" in WORKFLOW
 assert "Foundation" in WORKFLOW and "foundation_bundle_identifier" in WORKFLOW
+assert "foundation_raw_identifier" in WORKFLOW
 assert 'for variant in identified identified-xml' in WORKFLOW
 assert 'plutil -convert xml1 "$app/Info.plist"' in WORKFLOW
-assert 'codesign --force --sign - --identifier "$BUNDLE_ID" --timestamp=none' in WORKFLOW
+assert 'codesign --force --deep --sign - --identifier "$BUNDLE_ID" --timestamp=none' in WORKFLOW
 assert 'grep -Fx "Identifier=$BUNDLE_ID"' in WORKFLOW
 assert "cmake --build" not in WORKFLOW and "build-ios.sh build" not in WORKFLOW
 assert "all bounded install variants failed" in WORKFLOW
