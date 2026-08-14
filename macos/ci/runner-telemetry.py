@@ -533,6 +533,10 @@ def supervise(command: list[str], collector: Collector, emit: Callable[..., None
     tail: subprocess.Popen[bytes] | None = None
     if compiler_live_log is not None:
         try:
+            # Compiler launchers inherit the build tool's working directory,
+            # which may be any nested CMake target directory.  Anchor the
+            # channel before launch so every compiler writes to one file.
+            compiler_live_log = compiler_live_log.expanduser().resolve()
             compiler_live_log.parent.mkdir(parents=True, exist_ok=True)
             descriptor = os.open(
                 compiler_live_log, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600
@@ -575,6 +579,7 @@ def supervise(command: list[str], collector: Collector, emit: Callable[..., None
             return 125
     if compiler_diagnostics_dir is not None:
         try:
+            compiler_diagnostics_dir = compiler_diagnostics_dir.expanduser().resolve()
             compiler_diagnostics_dir.mkdir(parents=True, exist_ok=True)
             compiler_diagnostics_dir.chmod(0o700)
         except OSError as error:

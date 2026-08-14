@@ -888,8 +888,8 @@ jobs:
             --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/native-code-tests-stall" \
             --sample-interval 5 --publish-interval 30 --directory-interval 300 \
             --inactivity-timeout 900 --max-runtime 6900 \
-            --compiler-live-log build/macos-native-test-results/compiler-watchdog.jsonl \
-            --compiler-diagnostics-dir build/macos-native-test-results/compiler-stalls \
+            --compiler-live-log "$GITHUB_WORKSPACE/build/macos-native-test-results/compiler-watchdog.jsonl" \
+            --compiler-diagnostics-dir "$GITHUB_WORKSPACE/build/macos-native-test-results/compiler-stalls" \
             --watch native=build/tests -- \
             tests/project-native-test.sh build
 

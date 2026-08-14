@@ -628,6 +628,14 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "TEST-overte-macos-native.xml",
         ):
             self.assertIn(token, section)
+        self.assertIn(
+            '--compiler-live-log "$GITHUB_WORKSPACE/build/macos-native-test-results/',
+            section,
+        )
+        self.assertIn(
+            '--compiler-diagnostics-dir "$GITHUB_WORKSPACE/build/macos-native-test-results/',
+            section,
+        )
         self.assertIn("build/macos-native-test-results", self.source[diagnostics:])
 
     def test_built_application_is_preserved_when_runtime_smoke_fails(self):

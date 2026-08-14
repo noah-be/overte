@@ -41,6 +41,7 @@ class RunnerTelemetryTest(unittest.TestCase):
     def invoke_phase(self, root: Path, code: str, *, inactivity: float = 1.0,
                      extra: list[str] | None = None,
                      extra_env: dict[str, str] | None = None,
+                     cwd: Path | None = None,
                      timeout: float = 6.0) -> tuple[subprocess.CompletedProcess[str], list[dict]]:
         log = root / "phase.jsonl"
         env = os.environ.copy()
@@ -53,6 +54,7 @@ class RunnerTelemetryTest(unittest.TestCase):
              "--monitor-failure-timeout", "0.3", "--term-grace", "0.1",
              *(extra or []), "--", sys.executable, "-c", code],
             capture_output=True, text=True, timeout=timeout, check=False, env=env,
+            cwd=cwd,
         )
         records = [json.loads(line) for line in log.read_text().splitlines()]
         return completed, records
@@ -433,6 +435,37 @@ class RunnerTelemetryTest(unittest.TestCase):
             serialized = "\n".join(json.dumps(row) for row in records)
             self.assertNotIn(str(live_log), serialized)
             self.assertNotIn(str(diagnostics), serialized)
+
+    def test_relative_compiler_paths_are_anchored_before_child_changes_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            nested = root / "nested" / "target"
+            nested.mkdir(parents=True)
+            code = (
+                "import os,pathlib; "
+                "os.chdir('nested/target'); "
+                "live=pathlib.Path(os.environ['OVERTE_COMPILER_WATCHDOG_LOG']); "
+                "diag=pathlib.Path(os.environ['OVERTE_COMPILER_WATCHDOG_DIAGNOSTICS']); "
+                "assert live.is_absolute() and diag.is_absolute(); "
+                "assert diag.is_dir(); "
+                "open(live,'a',buffering=1).write('nested-compiler-marker\\n')"
+            )
+            result, _records = self.invoke_phase(
+                root,
+                code,
+                inactivity=1,
+                extra=[
+                    "--compiler-live-log", "relative/compiler.jsonl",
+                    "--compiler-diagnostics-dir", "relative/compiler-stalls",
+                ],
+                cwd=root,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            live_log = root / "relative" / "compiler.jsonl"
+            diagnostics = root / "relative" / "compiler-stalls"
+            self.assertEqual(live_log.read_text(), "nested-compiler-marker\n")
+            self.assertTrue(diagnostics.is_dir())
+            self.assertFalse((nested / "relative").exists())
 
     def test_compiler_live_tail_failure_does_not_start_unobservable_phase(self):
         module = load_tool()
