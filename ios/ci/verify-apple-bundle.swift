@@ -17,8 +17,15 @@ let expectedBundleIdentifier = CommandLine.arguments[2]
 guard let bundle = Bundle(path: appPath) else {
     fail("Foundation.Bundle cannot open the application bundle")
 }
-guard bundle.bundleIdentifier == expectedBundleIdentifier else {
-    fail("Foundation.Bundle reports an unexpected bundle identifier")
+let observedBundleIdentifier = bundle.bundleIdentifier ?? "<nil>"
+let dictionaryBundleIdentifier =
+    bundle.infoDictionary?["CFBundleIdentifier"] as? String ?? "<nil>"
+guard observedBundleIdentifier == expectedBundleIdentifier else {
+    fail(
+        "Foundation.Bundle identifier mismatch: expected=\(expectedBundleIdentifier) "
+            + "bundleIdentifier=\(observedBundleIdentifier) "
+            + "infoDictionary=\(dictionaryBundleIdentifier)"
+    )
 }
 guard bundle.object(forInfoDictionaryKey: "CFBundlePackageType") as? String == "APPL" else {
     fail("Foundation.Bundle does not recognize an APPL package")

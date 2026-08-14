@@ -36,6 +36,10 @@ require(r"expected_sha256:[\s\S]*bundle_id:", "identity inputs must be explicit"
 require(r"head_branch[^\n]*apple-ios", "only the reviewed branch may produce input")
 require(r"normalize-sideload-ipa[.]py", "the guarded normalizer must run")
 require(r"ditto -x -k", "Apple ditto must re-extract the normalized IPA")
+require(
+    r"source-expanded[\s\S]*verify-apple-bundle[.]swift[^\n]*SOURCE_BUNDLE_ID",
+    "the original producer bundle must establish the Foundation baseline",
+)
 require(r"plutil -lint", "Apple plutil must validate the final Info.plist")
 require(r"PlistBuddy[^\n]*CFBundleIdentifier", "Apple metadata lookup must verify the ID")
 require(r"xcrun swift ios/ci/verify-apple-bundle[.]swift", "Foundation.Bundle must verify the app")
@@ -54,7 +58,8 @@ for action, digest in {
 
 for token in [
     "Bundle(path: appPath)",
-    "bundle.bundleIdentifier == expectedBundleIdentifier",
+    "observedBundleIdentifier == expectedBundleIdentifier",
+    'bundle.infoDictionary?["CFBundleIdentifier"]',
     'CFBundlePackageType") as? String == "APPL"',
     "bundle.executableURL",
     "isExecutableFile",

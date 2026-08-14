@@ -59,6 +59,7 @@ jobs:
       SOURCE_ARTIFACT_NAME: ${{ inputs.source_artifact_name || '206-overte-ios-integrated-device-31796177166' }}
       SOURCE_IPA_NAME: ${{ inputs.source_ipa_name || '0206-OverteIOSClient-Release-device-unsigned.ipa' }}
       EXPECTED_SHA256: ${{ inputs.expected_sha256 || '60a051318089d56665b66707380f73ca9f90cbe99effe03e207b97420d7bff68' }}
+      SOURCE_BUNDLE_ID: org.overte.interface.dev
       BUNDLE_ID: ${{ inputs.bundle_id || 'org.overte.interface.sideload.b206' }}
     steps:
       - name: Check out reviewed normalizer without credentials
@@ -77,7 +78,8 @@ jobs:
           [[ "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]]
           [[ "$BUNDLE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9-]*(\.[A-Za-z0-9][A-Za-z0-9-]*)+$ ]]
           test ! -e "$SIDELOAD_ROOT"
-          install -d -m 0700 "$SIDELOAD_ROOT/source" "$SIDELOAD_ROOT/output" "$SIDELOAD_ROOT/expanded"
+          install -d -m 0700 "$SIDELOAD_ROOT/source" "$SIDELOAD_ROOT/output" \
+            "$SIDELOAD_ROOT/source-expanded" "$SIDELOAD_ROOT/expanded"
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" > "$SIDELOAD_ROOT/producer.json"
           python3 - "$SIDELOAD_ROOT/producer.json" <<'PY'
           import json
@@ -123,6 +125,12 @@ jobs:
       - name: Verify normalized bundle with native Apple parsers
         run: |
           set -euo pipefail
+          source_ipa="$SIDELOAD_ROOT/source/$SOURCE_IPA_NAME"
+          ditto -x -k "$source_ipa" "$SIDELOAD_ROOT/source-expanded"
+          source_app="$SIDELOAD_ROOT/source-expanded/Payload/Overte.app"
+          /usr/bin/plutil -lint "$source_app/Info.plist"
+          xcrun swift ios/ci/verify-apple-bundle.swift "$source_app" "$SOURCE_BUNDLE_ID"
+
           ipa="$SIDELOAD_ROOT/output/Overte-iPad-Sideloadly-normalized.ipa"
           ditto -x -k "$ipa" "$SIDELOAD_ROOT/expanded"
           app="$SIDELOAD_ROOT/expanded/Payload/Overte.app"
