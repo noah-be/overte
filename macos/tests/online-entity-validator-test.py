@@ -46,6 +46,11 @@ valid = MODULE.validate(payload([record("{" + handoff + "}"), record("other", "Z
 assert valid["passed"], valid
 assert valid["render_handoff_type"] == "Shape"
 
+for environmental_type in ("Zone", "Light", "Material"):
+    environmental = MODULE.validate(payload([record(handoff, environmental_type)]), handoff)
+    assert not environmental["passed"]
+    assert "inventory has no visible render-affecting entity" in environmental["failures"]
+
 missing = MODULE.validate(payload([record("other")]), handoff)
 assert not missing["passed"]
 assert "render-handoff entity is absent from online inventory" in missing["failures"]

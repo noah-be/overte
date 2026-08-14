@@ -22,6 +22,8 @@
 
     var deadline = Date.now() + 180000;
     var snapshotStage = "waiting";
+    var snapshotPath = "";
+    var latestInventory = null;
     var completed = false;
 
     function finiteNumber(value) {
@@ -38,12 +40,15 @@
         };
     }
 
-    function saveEntityInventory(entities) {
+    function inspectEntityInventory(entities) {
         var nonRenderingTypes = {
             Unknown: true,
             Empty: true,
             Sound: true,
-            Script: true
+            Script: true,
+            Zone: true,
+            Light: true,
+            Material: true
         };
         var typeCounts = {};
         var visibleRenderableCount = 0;
@@ -65,17 +70,21 @@
                 dimensions: plainVector(properties.dimensions)
             };
         });
-        Test.saveObject({
+        return {
             schema_version: 1,
             entity_count: entities.length,
             captured_count: records.length,
             visible_renderable_count: visibleRenderableCount,
             type_counts: typeCounts,
             entities: records
-        }, "macos-online-entities.json");
-        print("OVERTE_MACOS_SMOKE online_inventory captured=" + records.length +
-            " visible_renderable=" + visibleRenderableCount +
-            " types=" + JSON.stringify(typeCounts));
+        };
+    }
+
+    function saveEntityInventory(inventory) {
+        Test.saveObject(inventory, "macos-online-entities.json");
+        print("OVERTE_MACOS_SMOKE online_inventory captured=" + inventory.captured_count +
+            " visible_renderable=" + inventory.visible_renderable_count +
+            " types=" + JSON.stringify(inventory.type_counts));
     }
 
     function finish(success, detail) {
@@ -93,7 +102,9 @@
             return;
         }
         if (snapshotStage === "capturing") {
-            finish(true, "snapshot=" + path);
+            snapshotPath = path;
+            snapshotStage = "awaiting_inventory";
+            print("OVERTE_MACOS_SMOKE snapshot_complete=" + path);
         }
     });
 
@@ -102,18 +113,24 @@
             return;
         }
         var entities = Entities.findEntities(MyAvatar.position, 16384);
+        latestInventory = inspectEntityInventory(entities);
         if (entities.length > 0 && snapshotStage === "waiting") {
             snapshotStage = "capturing";
             print("OVERTE_MACOS_SMOKE online_entities=" + entities.length);
-            saveEntityInventory(entities);
             // One completed frame is the online rendering proof. Waiting for
             // a second capture lets unrelated late domain assets enqueue new
             // pipelines; Apple's virtualized software renderer may spend
             // minutes compiling those after the scene is already visible.
             Window.takeSnapshot(false, false, 16 / 9, "macos-online-smoke.png");
         }
+        if (snapshotStage === "awaiting_inventory" &&
+                latestInventory.visible_renderable_count > 0) {
+            saveEntityInventory(latestInventory);
+            finish(true, "snapshot=" + snapshotPath);
+        }
         if (Date.now() >= deadline) {
-            finish(false, snapshotStage === "waiting" ? "entity_timeout" : "snapshot_timeout");
+            finish(false, snapshotStage === "waiting" ? "entity_timeout" :
+                (snapshotStage === "capturing" ? "snapshot_timeout" : "inventory_timeout"));
         }
     }, 250);
 }());

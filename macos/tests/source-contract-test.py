@@ -468,8 +468,9 @@ for smoke_name, smoke_source, maximum, cleanup_contract in (
 serverless_script = (ROOT / "macos/tests/serverless-smoke.js").read_text(encoding="utf-8")
 online_script = (ROOT / "macos/tests/online-smoke.js").read_text(encoding="utf-8")
 for inventory_contract in (
-    "saveEntityInventory(entities)",
-    'Test.saveObject({',
+    "inspectEntityInventory(entities)",
+    "saveEntityInventory(latestInventory)",
+    "Test.saveObject(inventory",
     '"macos-online-entities.json"',
     "visible_renderable_count",
     "type_counts",
@@ -510,6 +511,22 @@ for script_name, script_source, snapshot_name, stage_contracts in (
     ):
         raise SystemExit(
             f"{script_name} smoke must apply its render profile before taking a snapshot"
+        )
+for environmental_type in ("Zone", "Light", "Material"):
+    if f"{environmental_type}: true" not in online_script:
+        raise SystemExit(
+            f"online smoke must not mistake {environmental_type} for visible geometry"
+        )
+for online_timing_contract in (
+    'snapshotStage = "awaiting_inventory"',
+    "snapshot_complete=",
+    "latestInventory.visible_renderable_count > 0",
+    "saveEntityInventory(latestInventory)",
+    '"inventory_timeout"',
+):
+    if online_timing_contract not in online_script:
+        raise SystemExit(
+            f"online smoke must inventory the completed frame: {online_timing_contract}"
         )
 if "fixture_entities=3" not in serverless_script:
     raise SystemExit("serverless smoke must identify the exact three fixture entities")
@@ -1005,6 +1022,36 @@ if desktop_setup.index("offscreenUi->pause()") > desktop_setup.index(
     "offscreenUi->createDesktop"
 ):
     raise SystemExit("macOS scene tests must pause QML before its render thread starts")
+
+application_setup = (
+    ROOT / "interface/src/Application_Setup.cpp"
+).read_text(encoding="utf-8")
+web_surface_setup = application_setup.split(
+    "WebEntityRenderer::setAcquireWebSurfaceOperator", 1
+)[1].split("WebEntityRenderer::setReleaseWebSurfaceOperator", 1)[0]
+for web_surface_contract in (
+    "Q_OS_MAC",
+    "!defined(Q_OS_IOS)",
+    "property(hifi::properties::TEST).isValid()",
+    "webSurface->pause()",
+    "std::once_flag",
+    "web_entity_qml_paused",
+):
+    if web_surface_contract not in web_surface_setup:
+        raise SystemExit(
+            f"macOS Web entity test isolation missing: {web_surface_contract}"
+        )
+if web_surface_setup.index("webSurface->pause()") > web_surface_setup.index(
+    "webSurface->load(url)"
+):
+    raise SystemExit("macOS scene tests must pause Web QML before its first load")
+if web_surface_setup.count("webSurface->pause()") != 2:
+    raise SystemExit("both cached and uncached macOS Web surfaces must be paused")
+uncached_web_surface_setup = web_surface_setup.split(
+    "new OffscreenQmlSurface()", 1
+)[1].split("webSurface->load(url)", 1)[0]
+if "webSurface->pause()" not in uncached_web_surface_setup:
+    raise SystemExit("uncached macOS Web surfaces must be paused before load")
 
 shared_object_header = (
     ROOT / "libraries/qml/src/qml/impl/SharedObject.h"

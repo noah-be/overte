@@ -34,6 +34,16 @@ production Interface lifecycle. The correlated protocol/render inventory keeps
 those scripts from substituting for actual streamed entities. A passing process
 exit without the expected markers and correlated inventory is not acceptance.
 
+On the virtual Intel runner, Web-entity QML shares Apple's software OpenGL
+context with the scene. During an explicit `--testScript` run only, each Web
+surface is paused before its first QML render sync; the Web entity itself still
+travels through the production network, tree, script, renderer, and scene paths.
+This prevents an unrelated WebEngine sync from blocking delivery of an already
+completed 3D snapshot. The online inventory is captured after that snapshot and
+must contain visible geometry; environmental `Zone`, `Light`, and `Material`
+entities alone cannot satisfy the visual gate. Normal application launches do
+not pause Web surfaces.
+
 ## Performance and stability
 
 An application built from the matching revision exposes `FrameTimings` only to

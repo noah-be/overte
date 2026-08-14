@@ -12,7 +12,7 @@ import math
 from pathlib import Path
 
 
-NON_RENDERING_TYPES = {"Unknown", "Empty", "Sound", "Script"}
+NON_RENDERING_TYPES = {"Unknown", "Empty", "Sound", "Script", "Zone", "Light", "Material"}
 
 
 def normalized_id(value: object) -> str:

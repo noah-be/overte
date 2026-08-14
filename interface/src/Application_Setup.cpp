@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <mutex>
 
 #include <QDesktopServices>
 #include <QFontDatabase>
@@ -1929,9 +1930,17 @@ void Application::setupSignalsAndOperators() {
 
         render::entities::WebEntityRenderer::setAcquireWebSurfaceOperator([=](const QString& url, bool htmlContent, QSharedPointer<OffscreenQmlSurface>& webSurface, bool& cachedWebSurface) {
             bool isTablet = url == TabletScriptingInterface::QML;
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+            const bool pauseWebSurfaceForSceneTest = property(hifi::properties::TEST).isValid();
+#endif
             if (htmlContent) {
                 webSurface = DependencyManager::get<OffscreenQmlSurfaceCache>()->acquire(render::entities::WebEntityRenderer::QML);
                 cachedWebSurface = true;
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+                if (pauseWebSurfaceForSceneTest) {
+                    webSurface->pause();
+                }
+#endif
                 auto rootItemLoadedFunctor = [url, webSurface] {
                     webSurface->getRootItem()->setProperty(render::entities::WebEntityRenderer::URL_PROPERTY, url);
                 };
@@ -1951,6 +1960,11 @@ void Application::setupSignalsAndOperators() {
                         delete webSurface;
                     });
                 });
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+                if (pauseWebSurfaceForSceneTest) {
+                    webSurface->pause();
+                }
+#endif
                 auto rootItemLoadedFunctor = [webSurface, url, isTablet] {
                     Application::setupQmlSurface(webSurface->getSurfaceContext(), isTablet || url == LOGIN_DIALOG.toString() || url == AVATAR_INPUTS_BAR_QML.toString() ||
                        url == BUBBLE_ICON_QML.toString());
@@ -1966,6 +1980,18 @@ void Application::setupSignalsAndOperators() {
             const uint8_t DEFAULT_MAX_FPS = 10;
             const uint8_t TABLET_FPS = 90;
             webSurface->setMaxFps(isTablet ? TABLET_FPS : DEFAULT_MAX_FPS);
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+            if (pauseWebSurfaceForSceneTest) {
+                // Web3DSurface shares Apple's virtualized software OpenGL
+                // context with the scene. Its initial RenderSync can wait on
+                // a multi-minute native pipeline compile and prevent the main
+                // thread from saving an already completed scene snapshot.
+                static std::once_flag loggedWebEntityQmlPause;
+                std::call_once(loggedWebEntityQmlPause, [] {
+                    qCInfo(interfaceapp) << "OVERTE_MACOS_RENDER_PHASE web_entity_qml_paused";
+                });
+            }
+#endif
         });
         render::entities::WebEntityRenderer::setReleaseWebSurfaceOperator([=](QSharedPointer<OffscreenQmlSurface>& webSurface, bool& cachedWebSurface, std::vector<QMetaObject::Connection>& connections) {
             QQuickItem* rootItem = webSurface->getRootItem();
