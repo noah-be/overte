@@ -86,6 +86,19 @@ class RemoteSccacheCheckpointTests(unittest.TestCase):
             with self.assertRaisesRegex(checkpoint.CheckpointError, "all cacheable requests"):
                 checkpoint.validate_stats(path, "phase")
 
+    def test_completed_phase_survives_one_remote_write_failure_after_local_hits(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "stats.json"
+            payload = stats(requests=188, writes=1, hits=187, failures=1, errors=1)
+            payload["stats"]["multi_level"][1]["writes"] = 0
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with mock.patch("builtins.print") as output:
+                result = checkpoint.validate_stats(path, "phase")
+            self.assertEqual(result["local_writes"], 1)
+            self.assertEqual(result["remote_writes"], 0)
+            self.assertEqual(result["remote_failures"], 1)
+            self.assertIn("status=degraded", output.call_args.args[0])
+
     def test_current_generation_uses_latest_branch_local_marker(self):
         ref = "refs/heads/apple-macos"
         old = "1" * 64

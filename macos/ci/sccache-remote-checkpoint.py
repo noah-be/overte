@@ -115,8 +115,8 @@ def validate_stats(path: Path, mode: str) -> dict[str, int]:
         if writes < 1 or remote_writes < 1:
             raise CheckpointError("remote compiler checkpoint probe produced no GHA write")
     else:
-        if cacheable < 1 or remote_writes + remote_hits < 1:
-            raise CheckpointError("build produced no reusable remote compiler checkpoint")
+        if cacheable < 1:
+            raise CheckpointError("build produced no reusable compiler checkpoint")
         # GHA stores one object per request and can transiently reject a small
         # subset even though the compiler and the local disk tier succeeded.
         # A completed phase remains recoverable when every cacheable miss is
