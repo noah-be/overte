@@ -2187,6 +2187,16 @@ void Application::setupSignalsAndOperators() {
             if (desktop) {
                 desktop->setProperty("repositionLocked", false);
             }
+#if defined(Q_OS_IOS)
+            // iOS does not reliably emit keyboardFocusActive during startup.
+            // Resume only after the asynchronous desktop exists so toolbar
+            // proxies and the rest of the QML surface are safe to access.
+            if (_noLoginSuggestion) {
+                QMetaObject::invokeMethod(this, [this] {
+                    resumeAfterLoginDialogActionTaken();
+                }, Qt::QueuedConnection);
+            }
+#endif
         });
 
 #if defined(Q_OS_ANDROID) || defined(DISABLE_QML)

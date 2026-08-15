@@ -381,10 +381,29 @@ resume_method = application_ui_source.index(
 )
 assert safe_resume < queued_resume < resume_method
 ios_resume_boundary = application_ui_source[safe_resume:resume_method]
-assert "if (_noLoginSuggestion)" in ios_resume_boundary
+assert "const bool desktopReady = offscreenUi && offscreenUi->getDesktop();" in ios_resume_boundary
+assert "desktopReady && (_noLoginSuggestion ||" in ios_resume_boundary
 assert "Qt::QueuedConnection" in ios_resume_boundary
 assert 'invokeMethod(this, "resumeAfterLoginDialogActionTaken"' not in application_ui_source
 assert 'invokeMethod(this, "pauseUntilLoginDetermined"' not in application_ui_source
+desktop_ready_handler = application_setup_source.index(
+    "connect(offscreenUi, &OffscreenUi::desktopReady"
+)
+desktop_resume = application_setup_source.index(
+    "QMetaObject::invokeMethod(this, [this] {\n"
+    "                    resumeAfterLoginDialogActionTaken();\n"
+    "                }, Qt::QueuedConnection);",
+    desktop_ready_handler,
+)
+assert desktop_ready_handler < desktop_resume
+toolbar_lookup = application_ui_source.index(
+    'getToolbar("com.highfidelity.interface.toolbar.system")', resume_method
+)
+toolbar_guard = application_ui_source.index("if (toolbar) {", toolbar_lookup)
+toolbar_write = application_ui_source.index(
+    'toolbar->writeProperty("visible", true);', toolbar_guard
+)
+assert toolbar_lookup < toolbar_guard < toolbar_write
 assert "sandbox_probe_skipped=unsupported_platform" in application_source
 assert "suppressAudioForWorldEvidence" in application_setup_source
 assert 'QStringLiteral("--ios-world-evidence")' in application_setup_source

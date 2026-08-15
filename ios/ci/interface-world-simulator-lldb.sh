@@ -258,9 +258,9 @@ lldb_status=0
     -o 'script print("OVERTE_LLDB_STARTUP_TRACE_COMPLETE")' \
     > "$lldb_log" 2>&1 || lldb_status=$?
 
-grep -Fq 'OVERTE_LLDB_TRACE resume_entry' "$lldb_log" && resume_trace="observed" || true
-grep -Fq 'OVERTE_LLDB_TRACE sandbox_entry' "$lldb_log" && sandbox_trace="observed" || true
-if grep -Eq 'OVERTE_LLDB_TRACE (qt_exit|libc_exit|posix_exit|abort|application_destructor)' "$lldb_log" || \
+grep -Fxq 'OVERTE_LLDB_TRACE resume_entry' "$lldb_log" && resume_trace="observed" || true
+grep -Fxq 'OVERTE_LLDB_TRACE sandbox_entry' "$lldb_log" && sandbox_trace="observed" || true
+if grep -Exq 'OVERTE_LLDB_TRACE (qt_exit|libc_exit|posix_exit|abort|application_destructor)' "$lldb_log" || \
         grep -Eq 'Process [0-9]+ exited with status' "$lldb_log"; then
     exit_trace="observed"
 fi

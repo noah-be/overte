@@ -1236,17 +1236,16 @@ void Application::pauseUntilLoginDetermined() {
 
 #if defined(Q_OS_IOS)
     // The desktop QML path normally resumes when keyboardFocusActive is
-    // emitted. iOS disables the startup login screen, and that focus signal is
-    // not guaranteed to arrive. Queue the one-shot resume so main.cpp can
-    // finish initialize() and apply --url/overrideEntry before navigation is
-    // selected. A later focus signal is harmless because the resume method is
-    // guarded against duplicate execution.
-    if (_noLoginSuggestion) {
+    // emitted. That signal is not guaranteed on iOS, but resuming before the
+    // asynchronous desktop is ready leaves the toolbar proxy unavailable.
+    // Queue only once both the login gate and the desktop gate are ready so
+    // main.cpp can also finish initialize() and apply --url/overrideEntry.
+    const auto offscreenUi = getOffscreenUI();
+    const bool desktopReady = offscreenUi && offscreenUi->getDesktop();
+    if (desktopReady && (_noLoginSuggestion || _resumeAfterLoginDialogActionTaken_WasPostponed)) {
         QMetaObject::invokeMethod(this, [this] {
             resumeAfterLoginDialogActionTaken();
         }, Qt::QueuedConnection);
-    } else if (_resumeAfterLoginDialogActionTaken_WasPostponed) {
-        resumeAfterLoginDialogActionTaken();
     }
 #else
     if (_resumeAfterLoginDialogActionTaken_WasPostponed) {
@@ -1280,7 +1279,13 @@ void Application::resumeAfterLoginDialogActionTaken() {
 #if !defined(DISABLE_QML)
     if (!isHMDMode() && getDesktopTabletBecomesToolbarSetting()) {
         auto toolbar = DependencyManager::get<ToolbarScriptingInterface>()->getToolbar("com.highfidelity.interface.toolbar.system");
-        toolbar->writeProperty("visible", true);
+        if (toolbar) {
+            toolbar->writeProperty("visible", true);
+        } else {
+            qCWarning(interfaceapp) << "System toolbar is unavailable while resuming; using the reticle fallback";
+            getApplicationCompositor().getReticleInterface()->setAllowMouseCapture(true);
+            getApplicationCompositor().getReticleInterface()->setVisible(true);
+        }
     } else {
         getApplicationCompositor().getReticleInterface()->setAllowMouseCapture(true);
         getApplicationCompositor().getReticleInterface()->setVisible(true);
