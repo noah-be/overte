@@ -217,6 +217,7 @@ protected:
 #if defined(Q_OS_IOS)
     std::atomic<bool> _iosFramebufferResizeEnabled{ false };
     std::atomic<bool> _iosFramebufferResizeQueued{ false };
+    bool _iosOutputPendingReported{ false };
 #endif
 };
 

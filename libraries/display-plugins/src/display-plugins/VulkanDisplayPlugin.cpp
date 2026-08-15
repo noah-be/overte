@@ -895,14 +895,34 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
         {
             PROFILE_RANGE_EX(render, "internalPresent", 0xff00ffff, frameId)
 
-            // Blit the image into the swapchain.
-            // is vks::tools::insertImageMemoryBarrier needed?
+            // The first startup frame can legitimately finish before the
+            // Resample/CompositeHUD batch publishes its output framebuffer.
+            // Still consume the acquired image and submit this command buffer:
+            // returning here would leave the acquire semaphore signalled and
+            // the command buffer recording.  Present a deterministic black
+            // image until a complete output framebuffer becomes available.
+            const auto outputTexture = vkBackend->_outputTexture;
+            const bool outputReady = outputTexture &&
+                !outputTexture->attachments.empty() &&
+                outputTexture->attachments[0].image != VK_NULL_HANDLE &&
+                outputTexture->_gpuObject.getWidth() > 0 &&
+                outputTexture->_gpuObject.getHeight() > 0;
+#if defined(Q_OS_IOS)
+            if (!outputReady && !_iosOutputPendingReported) {
+                qCWarning(displayPlugins) << "OVERTE_IOS_VULKAN_OUTPUT_PENDING";
+                _iosOutputPendingReported = true;
+            } else if (outputReady && _iosOutputPendingReported) {
+                qCInfo(displayPlugins) << "OVERTE_IOS_VULKAN_OUTPUT_READY";
+                _iosOutputPendingReported = false;
+            }
+#endif
+
             VkImageBlit imageBlit{};
             imageBlit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             imageBlit.srcSubresource.layerCount = 1;
             imageBlit.srcSubresource.mipLevel = 0;
-            imageBlit.srcOffsets[1].x = vkBackend->_outputTexture->_gpuObject.getWidth();
-            imageBlit.srcOffsets[1].y = vkBackend->_outputTexture->_gpuObject.getHeight();
+            imageBlit.srcOffsets[1].x = outputReady ? outputTexture->_gpuObject.getWidth() : 0;
+            imageBlit.srcOffsets[1].y = outputReady ? outputTexture->_gpuObject.getHeight() : 0;
             imageBlit.srcOffsets[1].z = 1;
 
             imageBlit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -918,16 +938,18 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
             mipSubRange.levelCount = 1;
             mipSubRange.layerCount = 1;
 
-            vks::tools::insertImageMemoryBarrier(
-                commandBuffer,
-                vkBackend->_outputTexture->attachments[0].image,
-                VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                VK_ACCESS_TRANSFER_READ_BIT,
-                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                mipSubRange);
+            if (outputReady) {
+                vks::tools::insertImageMemoryBarrier(
+                    commandBuffer,
+                    outputTexture->attachments[0].image,
+                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                    VK_ACCESS_TRANSFER_READ_BIT,
+                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    mipSubRange);
+            }
 
             vks::tools::insertImageMemoryBarrier(
                 commandBuffer,
@@ -940,15 +962,27 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                 VK_PIPELINE_STAGE_TRANSFER_BIT,
                 mipSubRange);
 
-            vkCmdBlitImage(
-                commandBuffer,
-                vkBackend->_outputTexture->attachments[0].image,
-                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                _vkWindow->_swapchain.images[currentImageIndex],
-                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                1,
-                &imageBlit,
-                VK_FILTER_LINEAR);
+            if (outputReady) {
+                vkCmdBlitImage(
+                    commandBuffer,
+                    outputTexture->attachments[0].image,
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    _vkWindow->_swapchain.images[currentImageIndex],
+                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    1,
+                    &imageBlit,
+                    VK_FILTER_LINEAR);
+            } else {
+                VkClearColorValue clearColor{};
+                clearColor.float32[3] = 1.0f;
+                vkCmdClearColorImage(
+                    commandBuffer,
+                    _vkWindow->_swapchain.images[currentImageIndex],
+                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    &clearColor,
+                    1,
+                    &mipSubRange);
+            }
 
             vks::tools::insertImageMemoryBarrier(
                 commandBuffer,
@@ -961,16 +995,18 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                 VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
                 mipSubRange);
 
-            vks::tools::insertImageMemoryBarrier(
-                commandBuffer,
-                vkBackend->_outputTexture->attachments[0].image,
-                VK_ACCESS_TRANSFER_READ_BIT,
-                VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                mipSubRange);
+            if (outputReady) {
+                vks::tools::insertImageMemoryBarrier(
+                    commandBuffer,
+                    outputTexture->attachments[0].image,
+                    VK_ACCESS_TRANSFER_READ_BIT,
+                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                    VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    mipSubRange);
+            }
 
             cmdEndLabel(commandBuffer);
             VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer));
@@ -980,7 +1016,10 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                 VK_CHECK_RESULT(vkCreateSemaphore(_vkWindow->_context.device->logicalDevice, &semaphoreCreateInfo, nullptr, &_vkWindow->_renderCompleteSemaphore));
             }
 
-            static const VkPipelineStageFlags waitFlags{ VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT };
+            // The acquired swapchain image is first accessed by the transfer
+            // clear/blit above.  Waiting at bottom-of-pipe would allow those
+            // transfer commands to run before the acquire semaphore resolves.
+            static const VkPipelineStageFlags waitFlags{ VK_PIPELINE_STAGE_TRANSFER_BIT };
             VkSubmitInfo submitInfo = vks::initializers::submitInfo();
             submitInfo.waitSemaphoreCount = 1;
             submitInfo.pWaitSemaphores = &_vkWindow->_acquireCompleteSemaphore;
