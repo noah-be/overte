@@ -10,6 +10,12 @@ falling back to a source build, then publish one exact current generation for
 later runs. Build tools themselves are version-pinned and cached against the
 runner's exact Python identity.
 
+The Conan compatibility fingerprint hashes recipes, requirements, and only the
+dependency-resolution prefix of `macos/build-macos.sh`. Changes confined to its
+configure or compile functions therefore retain the verified package graph. A
+one-time ordered v3 fallback migrates the earlier whole-script fingerprint; it
+is removed by normal retention only after the new exact recovery layers exist.
+
 Dependency resolution is divided into Qt, libnode/V8, and remaining-graph
 stages. Qt is snapshotted before V8 begins; after libnode, both the Conan cache
 and compiler cache are snapshotted again. The completed graph is integrity

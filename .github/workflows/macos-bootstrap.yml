@@ -173,9 +173,18 @@ jobs:
           legacy_toolchain_inputs="$(git ls-files -s -- conanfile.py 'macos/conan/**' \
             CMakeLists.txt 'cmake/**' macos/build-macos.sh \
             | shasum -a 256 | awk '{print $1}')"
-          dependency_inputs="$(git ls-files -s -- conanfile.py 'macos/conan/**' \
-            macos/build-macos.sh macos/requirements-build.txt \
-            | shasum -a 256 | awk '{print $1}')"
+          # Only the dependency half of build-macos.sh belongs in the Conan
+          # compatibility key. Configure/compile/watchdog changes below the
+          # configure() boundary must not discard a verified 2.8-GiB package
+          # graph. Recipe, option, remote, architecture, and doctor/preflight
+          # changes remain covered by the exact prefix content.
+          dependency_script_inputs="$(sed -n '1,/^configure() {/p' \
+            macos/build-macos.sh | sed '$d' | shasum -a 256 | awk '{print $1}')"
+          dependency_inputs="$({
+            git ls-files -s -- conanfile.py 'macos/conan/**' \
+              macos/requirements-build.txt
+            printf '%s\n' "$dependency_script_inputs"
+          } | shasum -a 256 | awk '{print $1}')"
           # Exact build-tree reuse tracks inputs that CMake scans, compiles, or
           # copies into Overte.app. Runtime smokes, benchmark analyzers,
           # telemetry, watchdogs, and checkpoint implementations deliberately
@@ -230,6 +239,15 @@ jobs:
           echo "conan_stage_prefix=${conan_key}-stage-" >> "$GITHUB_OUTPUT"
           legacy_conan_key="macos-conan-v3-${OVERTE_MACOS_ARCH}-${legacy_toolchain_fingerprint}-${conan_inputs}"
           echo "legacy_conan=${legacy_conan_key}" >> "$GITHUB_OUTPUT"
+          # One-time migration from the first unified v3 generation. That
+          # generation hashed the whole build script, so the configure-only
+          # fast-path edit would otherwise cause an unnecessary Conan miss.
+          if [[ "$OVERTE_MACOS_ARCH" == x86_64 ]]; then
+            migration_v3_dependency_fingerprint="3f1de10f08f82e89d747b103d1647964e2c5bc4b96154e15d8dbc79958908484"
+            echo "migration_conan=macos-conan-v3-${OVERTE_MACOS_ARCH}-${migration_v3_dependency_fingerprint}-${conan_inputs}" >> "$GITHUB_OUTPUT"
+            echo "migration_build_complete_prefix=macos-build-tree-v3-${OVERTE_MACOS_ARCH}-${migration_v3_dependency_fingerprint}-complete-" >> "$GITHUB_OUTPUT"
+            echo "migration_build_partial_prefix=macos-build-tree-v3-${OVERTE_MACOS_ARCH}-${migration_v3_dependency_fingerprint}-partial-" >> "$GITHUB_OUTPUT"
+          fi
           echo "conan_checkpoint=overte-macos-conan-checkpoint-v4-${OVERTE_MACOS_ARCH}-${dependency_fingerprint}-${conan_inputs}" >> "$GITHUB_OUTPUT"
           echo "sccache_complete=${base}-complete-${source_inputs}" >> "$GITHUB_OUTPUT"
           echo "sccache_complete_prefix=${base}-complete-" >> "$GITHUB_OUTPUT"
@@ -311,9 +329,11 @@ jobs:
           key: ${{ steps.cache-key.outputs.build_complete }}
           restore-keys: |
             ${{ steps.cache-key.outputs.build_complete_prefix }}
+            ${{ steps.cache-key.outputs.migration_build_complete_prefix }}
             ${{ steps.cache-key.outputs.legacy_on_complete_prefix }}
             ${{ steps.cache-key.outputs.legacy_off_complete_prefix }}
             ${{ steps.cache-key.outputs.build_partial_prefix }}
+            ${{ steps.cache-key.outputs.migration_build_partial_prefix }}
             ${{ steps.cache-key.outputs.legacy_on_partial_prefix }}
             ${{ steps.cache-key.outputs.legacy_off_partial_prefix }}
             ${{ steps.cache-key.outputs.build_configured }}
@@ -332,6 +352,7 @@ jobs:
             ${{ env.CONAN_HOME }}/sources
           key: ${{ steps.cache-key.outputs.conan }}
           restore-keys: |
+            ${{ steps.cache-key.outputs.migration_conan }}
             ${{ steps.cache-key.outputs.legacy_conan }}
             ${{ steps.cache-key.outputs.conan_stage_prefix }}
 

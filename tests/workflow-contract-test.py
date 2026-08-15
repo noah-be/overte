@@ -463,14 +463,16 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("macos-sccache-v4-", key_step)
         self.assertIn("macos-conan-v3-", key_step)
 
-        dependency_hash = key_step.split('dependency_inputs="', 1)[1].split(
+        dependency_hash = key_step.split('dependency_script_inputs="', 1)[1].split(
             'source_inputs="', 1
         )[0]
         for required in (
             "conanfile.py",
             "'macos/conan/**'",
-            "macos/build-macos.sh",
             "macos/requirements-build.txt",
+            "dependency_script_inputs",
+            "sed -n '1,/^configure() {/p'",
+            "sed '$d'",
         ):
             self.assertIn(required, dependency_hash)
         self.assertNotIn("CMakeLists.txt", dependency_hash)
@@ -483,6 +485,10 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("'cmake/**'", legacy_hash)
         self.assertIn("legacy_conan_key=", key_step)
         self.assertIn("${legacy_toolchain_fingerprint}", key_step)
+        self.assertIn("migration_v3_dependency_fingerprint", key_step)
+        self.assertIn("migration_conan=", key_step)
+        self.assertIn("migration_build_complete_prefix=", key_step)
+        self.assertIn("migration_build_partial_prefix=", key_step)
 
     def test_native_test_graph_is_always_configured_without_splitting_dependencies(self):
         self.assertIn("run_native_tests:", self.source)
@@ -659,9 +665,11 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("key: ${{ steps.cache-key.outputs.build_complete }}", restore)
         ordered = (
             "steps.cache-key.outputs.build_complete_prefix",
+            "steps.cache-key.outputs.migration_build_complete_prefix",
             "steps.cache-key.outputs.legacy_on_complete_prefix",
             "steps.cache-key.outputs.legacy_off_complete_prefix",
             "steps.cache-key.outputs.build_partial_prefix",
+            "steps.cache-key.outputs.migration_build_partial_prefix",
             "steps.cache-key.outputs.legacy_on_partial_prefix",
             "steps.cache-key.outputs.legacy_off_partial_prefix",
             "steps.cache-key.outputs.build_configured",
@@ -671,6 +679,13 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("- name: Normalize restored Ninja source timestamps", restore)
         self.assertIn("build-tree-checkpoint.py restore", restore)
         self.assertIn('--repository "$GITHUB_WORKSPACE" --build-dir build', restore)
+        conan_restore = self.source.split("- name: Cache Conan packages", 1)[1].split(
+            "- name: Probe latest compatible durable Conan checkpoint", 1
+        )[0]
+        self.assertLess(
+            conan_restore.index("steps.cache-key.outputs.migration_conan"),
+            conan_restore.index("steps.cache-key.outputs.legacy_conan"),
+        )
         configure = self.source.split("- name: Configure client build graph", 1)[1].split(
             "- name: Record configured build-tree checkpoint metadata", 1
         )[0]
