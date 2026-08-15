@@ -841,6 +841,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertLess(serverless, online)
         self.assertIn("macos/ci/startup-preflight.sh", self.source)
         self.assertIn("build/macos-startup-preflight", self.source)
+        self.assertIn("OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '300'", self.source)
 
     def test_performance_gate_uses_the_built_application_and_publishes_results(self):
         serverless = self.source.index("- name: Run serverless entity smoke")

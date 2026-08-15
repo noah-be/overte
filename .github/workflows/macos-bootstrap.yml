@@ -60,6 +60,10 @@ jobs:
       MACOS_RUNNER_TELEMETRY_DIR: ${{ github.workspace }}/.macos-runner-telemetry
       PYTHONUNBUFFERED: '1'
       OVERTE_COMPILER_WATCHDOG: ${{ github.workspace }}/macos/ci/compiler-watchdog.py
+      # A cold LLDB launch on the hosted Intel runner spends close to 90 seconds
+      # in startup before the online smoke reaches the reproducible crash site.
+      # Keep enough bounded time to capture the stopped process and backtrace.
+      OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '300'
       CMAKE_C_COMPILER_LAUNCHER: ${{ github.workspace }}/macos/ci/compiler-watchdog.py;--
       CMAKE_CXX_COMPILER_LAUNCHER: ${{ github.workspace }}/macos/ci/compiler-watchdog.py;--
       CMAKE_OBJC_COMPILER_LAUNCHER: ${{ github.workspace }}/macos/ci/compiler-watchdog.py;--
