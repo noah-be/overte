@@ -508,6 +508,7 @@ fi
 touch "$launch_marker"
 launch_output="$(run_bounded "application launch" 60 env \
     SIMCTL_CHILD_MVK_CONFIG_LOG_LEVEL=4 \
+    SIMCTL_CHILD_MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=0 \
     SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR="$mvk_dump_root" \
     xcrun simctl launch \
     --stdout="$app_stdout" --stderr="$app_stderr" \

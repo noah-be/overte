@@ -157,6 +157,10 @@ elif [ "$1 $2" = "simctl launch" ]; then
         printf '%s\n' "missing MoltenVK diagnostic log level" >&2
         exit 65
     }
+    [ "${SIMCTL_CHILD_MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS:-}" = 0 ] || {
+        printf '%s\n' "Metal argument buffers must be disabled for simulator runtime evidence" >&2
+        exit 71
+    }
     [ -n "${SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR:-}" ] || exit 66
     case "$SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR" in
         "$FAKE_DATA_CONTAINER"/tmp/overte-mvk-shaders-*) ;;
