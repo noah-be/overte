@@ -285,6 +285,18 @@ runtime_log_contains() {
     grep -Eq "$pattern" "$raw_log" "$app_stdout" "$app_stderr"
 }
 
+fail_if_vulkan_fatal() {
+    if runtime_log_contains 'OVERTE_IOS_VULKAN_FATAL'; then
+        # The pipeline-context and driver callback immediately follow the fatal
+        # marker. Let the already-running stream drain them before the EXIT trap
+        # stops it and copies the bounded diagnostics.
+        sleep 1
+        echo "fatal iOS Vulkan pipeline error observed" >&2
+        return 1
+    fi
+    return 0
+}
+
 assemble_runtime_log() {
     cat "$raw_log" "$app_stdout" "$app_stderr" > "$runtime_log"
 }
@@ -396,7 +408,7 @@ run_bounded "simulator microphone permission" 60 xcrun simctl privacy \
 log_stream_timeout=$((10#$poll_timeout + 30))
 "$timeout_runner" "$log_stream_timeout" xcrun simctl spawn "$active_udid" log stream \
     --style compact --level debug \
-    --predicate "(process == \"Overte\" OR eventMessage CONTAINS \"$bundle_id\" OR eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\")" \
+    --predicate "(process == \"Overte\" OR eventMessage CONTAINS \"$bundle_id\" OR eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\")" \
     > "$raw_log" 2> "$log_stream_stderr" &
 log_stream_pid=$!
 # Give CoreSimulator's log subscriber a bounded head start. Merely spawning the
@@ -410,7 +422,9 @@ if ! kill -0 "$log_stream_pid" 2>/dev/null; then
 fi
 
 touch "$launch_marker"
-launch_output="$(run_bounded "application launch" 60 xcrun simctl launch \
+launch_output="$(run_bounded "application launch" 60 env \
+    SIMCTL_CHILD_MVK_CONFIG_LOG_LEVEL=4 \
+    xcrun simctl launch \
     --stdout="$app_stdout" --stderr="$app_stderr" \
     "$active_udid" "$bundle_id" --url "$launch_url" --ios-world-evidence \
     --no-login-suggestion)"
@@ -424,7 +438,12 @@ deadline=$(( $(date +%s) + 10#$poll_timeout ))
 sample_deadline=$(( $(date +%s) + 10#$stack_sample_delay ))
 startup_stack_captured=0
 while :; do
+    fail_if_vulkan_fatal || exit 1
     if ! process_is_running; then
+        # Give the unified log stream one bounded opportunity to flush a fatal
+        # marker emitted immediately before process termination.
+        sleep 1
+        fail_if_vulkan_fatal || exit 1
         echo "application process exited before the world gates were observed" >&2
         exit 1
     fi
@@ -460,15 +479,30 @@ while :; do
     fi
     sleep "$poll_interval"
 done
-stop_log_stream
-assemble_runtime_log
 
 # Let the accepted scene transaction reach the presented framebuffer before
-# capturing. The screenshot validator still rejects blank/loading-only output.
+# capturing. Keep the log subscriber alive throughout this acceptance window:
+# a fatal renderer error after the gates must invalidate the screenshot rather
+# than race with a false success.
 if ((10#$screenshot_settle > 0)); then
     sleep "$screenshot_settle"
 fi
+fail_if_vulkan_fatal || exit 1
+process_is_running || { echo "application process exited before the world screenshot" >&2; exit 1; }
+kill -0 "$log_stream_pid" 2>/dev/null || {
+    stream_status=0
+    fail_stopped_log_stream || stream_status=$?
+    exit "$stream_status"
+}
 run_bounded "world screenshot" 30 xcrun simctl io "$active_udid" screenshot "$screenshot" >/dev/null
+fail_if_vulkan_fatal || exit 1
+process_is_running || { echo "application process exited while capturing the world screenshot" >&2; exit 1; }
+kill -0 "$log_stream_pid" 2>/dev/null || {
+    stream_status=0
+    fail_stopped_log_stream || stream_status=$?
+    exit "$stream_status"
+}
+assemble_runtime_log
 python3 "$screenshot_validator" "$screenshot" \
     --scenario "$scenario" --destination "$destination" --output "$screenshot_report"
 
@@ -480,6 +514,14 @@ if [[ "$scenario" == online ]]; then
     validator_arguments+=(--expected-domain "$expected_domain")
 fi
 python3 "$world_validator" "${validator_arguments[@]}"
+fail_if_vulkan_fatal || exit 1
+process_is_running || { echo "application process exited before world validation completed" >&2; exit 1; }
+kill -0 "$log_stream_pid" 2>/dev/null || {
+    stream_status=0
+    fail_stopped_log_stream || stream_status=$?
+    exit "$stream_status"
+}
+stop_log_stream
 
 run_bounded "application termination" 60 xcrun simctl terminate "$active_udid" "$bundle_id" >/dev/null
 app_launched=0

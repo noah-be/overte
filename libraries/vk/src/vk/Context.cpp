@@ -202,7 +202,16 @@ void Context::createInstance() {
         throw std::runtime_error("Could not create Vulkan instance: " + vks::tools::errorString(result));
     }
 
-    if (enableValidation) {
+    // MoltenVK reports driver-side shader conversion and Metal pipeline
+    // failures through VK_EXT_debug_utils even when the validation layer is
+    // deliberately disabled in release builds. Keep that diagnostic channel
+    // active on iOS so a pipeline failure is actionable instead of reducing to
+    // VK_ERROR_INITIALIZATION_FAILED and an abort stack.
+    if (enableValidation
+#if defined(Q_OS_IOS)
+        || enableDebugMarkers
+#endif
+    ) {
         debug::setupDebugging(instance);
     }
 
@@ -221,7 +230,11 @@ void Context::destroyContext() {
     VK_CHECK_RESULT(vkQueueWaitIdle(graphicsQueue));
 
     device.reset();
-    if (enableValidation) {
+    if (enableValidation
+#if defined(Q_OS_IOS)
+        || enableDebugMarkers
+#endif
+    ) {
         debug::freeDebugCallback(instance);
     }
     vkDestroyInstance(instance, nullptr);

@@ -146,6 +146,10 @@ elif [ -n "${FAKE_FAIL_MATCH:-}" ] && [ "$*" = "$FAKE_FAIL_MATCH" ]; then
     printf '%s\n' "${FAKE_FAILURE_DETAIL:-fixture command failure}" >&2
     exit "${FAKE_FAIL_STATUS:-13}"
 elif [ "$1 $2" = "simctl launch" ]; then
+    [ "${SIMCTL_CHILD_MVK_CONFIG_LOG_LEVEL:-}" = 4 ] || {
+        printf '%s\n' "missing MoltenVK diagnostic log level" >&2
+        exit 65
+    }
     app_stdout=""
     app_stderr=""
     for argument in "$@"; do
@@ -176,6 +180,10 @@ elif [ "$1 $2" = "simctl launch" ]; then
     printf 'fixture: %s\n' "$app_pid"
 elif [ "$1 $2" = "simctl spawn" ] && [ "$4 $5" = "log stream" ]; then
     printf '%s' "$FAKE_PROCESS_LOG"
+    if [ -n "${FAKE_DELAYED_PROCESS_LOG:-}" ]; then
+        sleep "${FAKE_DELAYED_PROCESS_LOG_SECONDS:-0.2}"
+        printf '%s' "$FAKE_DELAYED_PROCESS_LOG"
+    fi
     if [ "${FAKE_LOG_STREAM_EXIT:-0}" = 1 ]; then
         exit 0
     fi
@@ -287,6 +295,9 @@ printf '%s\n' "${FAKE_SAMPLE_TEXT:-synthetic process stack}" > "$output"
             assert "log show" not in "\n".join(commands), commands
             assert 'process == "Overte"' in streams[0], streams
             assert "--level debug" in streams[0], streams
+            assert "OVERTE_IOS_VULKAN_FATAL" in streams[0], streams
+            assert "OVERTE_IOS_VULKAN_DEBUG" in streams[0], streams
+            assert "OVERTE_IOS_VULKAN_PIPELINE_CONTEXT" in streams[0], streams
             assert f"--url {launch_url}" in launch[0], launch
             assert "--ios-world-evidence" in launch[0], launch
             assert "--stdout=" in launch[0], launch
@@ -385,6 +396,36 @@ printf '%s\n' "${FAKE_SAMPLE_TEXT:-synthetic process stack}" > "$output"
     assert "blank or lacks visible world detail" in blank.stderr
     assert (blank_output / "ipad-serverless-failure.png").is_file()
     assert_no_raw_log(blank_output, scratch)
+
+    fatal_after_gates_output = root / "fatal-after-gates"
+    fatal_after_gates = invoke(
+        app,
+        fatal_after_gates_output,
+        {
+            **environment,
+            "FAKE_PROCESS_LOG": SERVERLESS_LOG,
+            "FAKE_DELAYED_PROCESS_LOG": (
+                "Overte OVERTE_IOS_VULKAN_FATAL "
+                "Fatal iOS Vulkan result: VK_ERROR_UNKNOWN (-13)\n"
+            ),
+            # The stream gets a one-second head start before launch. Delay past
+            # that boundary so the fatal marker arrives only after the gates
+            # have been accepted, during the screenshot-settle window.
+            "FAKE_DELAYED_PROCESS_LOG_SECONDS": "1.5",
+            "OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS": "2",
+        },
+        "iphone",
+        "serverless",
+        "-",
+    )
+    assert fatal_after_gates.returncode == 1, (
+        fatal_after_gates.stdout,
+        fatal_after_gates.stderr,
+    )
+    assert "fatal iOS Vulkan pipeline error observed" in fatal_after_gates.stderr
+    assert not (fatal_after_gates_output / "iphone-serverless.png").exists()
+    assert (fatal_after_gates_output / "iphone-serverless-failure.png").is_file()
+    assert_no_raw_log(fatal_after_gates_output, scratch)
 
     stopped_stream_output = root / "stopped-stream"
     stopped_stream = invoke(

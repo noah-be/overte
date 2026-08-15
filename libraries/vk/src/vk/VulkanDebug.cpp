@@ -8,6 +8,11 @@
 
 #include "VulkanDebug.h"
 #include <iostream>
+#include <stdexcept>
+
+#if defined(__APPLE__) && defined(VK_USE_PLATFORM_METAL_EXT)
+#include <os/log.h>
+#endif
 
 namespace vks
 {
@@ -67,6 +72,16 @@ namespace vks
             } else {
                 LOGD("%s", debugMessage.str().c_str());
             }
+#elif defined(__APPLE__) && defined(VK_USE_PLATFORM_METAL_EXT)
+            if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+                os_log_fault(OS_LOG_DEFAULT,
+                             "OVERTE_IOS_VULKAN_DEBUG %{public}s",
+                             debugMessage.str().c_str());
+            } else {
+                os_log_error(OS_LOG_DEFAULT,
+                             "OVERTE_IOS_VULKAN_DEBUG %{public}s",
+                             debugMessage.str().c_str());
+            }
 #else
             if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
                 std::cerr << debugMessage.str() << "\n\n";
@@ -104,8 +119,14 @@ namespace vks
 
             VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCI{};
             setupDebugingMessengerCreateInfo(debugUtilsMessengerCI);
+            if (!vkCreateDebugUtilsMessengerEXT || !vkDestroyDebugUtilsMessengerEXT) {
+                throw std::runtime_error("VK_EXT_debug_utils entry points are unavailable");
+            }
             [[maybe_unused]] VkResult result = vkCreateDebugUtilsMessengerEXT(instance, &debugUtilsMessengerCI, nullptr, &debugUtilsMessenger);
-            assert(result == VK_SUCCESS);
+            if (result != VK_SUCCESS) {
+                throw std::runtime_error("Could not create Vulkan debug messenger: " +
+                                         std::to_string(static_cast<int>(result)));
+            }
         }
 
         void freeDebugCallback(VkInstance instance)

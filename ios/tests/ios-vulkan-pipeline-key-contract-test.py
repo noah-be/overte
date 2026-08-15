@@ -14,6 +14,66 @@ backend = (ROOT / "libraries/gpu-vk/src/gpu/vk/VKBackend.cpp").read_text(
 pipeline_header = (
     ROOT / "libraries/gpu-vk/src/gpu/vk/VKPipelineCache.h"
 ).read_text(encoding="utf-8")
+vulkan_tools = (ROOT / "libraries/vk/src/vk/VulkanTools.h").read_text(
+    encoding="utf-8"
+)
+vulkan_debug = (ROOT / "libraries/vk/src/vk/VulkanDebug.cpp").read_text(
+    encoding="utf-8"
+)
+vulkan_context = (ROOT / "libraries/vk/src/vk/Context.cpp").read_text(
+    encoding="utf-8"
+)
+
+for fragment in (
+    '#include <os/log.h>',
+    'std::to_string(static_cast<int>(res))',
+    'os_log_fault(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_FATAL %{public}s"',
+    'std::cerr << "OVERTE_IOS_VULKAN_FATAL "',
+):
+    if fragment not in vulkan_tools:
+        raise SystemExit(
+            f"iOS Vulkan failures no longer retain their exact result in unified logs: {fragment}"
+        )
+
+for fragment in (
+    "OVERTE_IOS_VULKAN_DEBUG %{public}s",
+    "os_log_fault(OS_LOG_DEFAULT",
+    "os_log_error(OS_LOG_DEFAULT",
+    "if (!vkCreateDebugUtilsMessengerEXT || !vkDestroyDebugUtilsMessengerEXT)",
+    "Could not create Vulkan debug messenger:",
+):
+    if fragment not in vulkan_debug:
+        raise SystemExit(
+            f"MoltenVK debug-utils diagnostics are not fail-closed on iOS: {fragment}"
+        )
+
+for fragment in (
+    "MoltenVK reports driver-side shader conversion",
+    "if (enableValidation",
+    "|| enableDebugMarkers",
+    "debug::setupDebugging(instance);",
+    "debug::freeDebugCallback(instance);",
+):
+    if fragment not in vulkan_context:
+        raise SystemExit(
+            f"release iOS lost its MoltenVK debug messenger lifecycle: {fragment}"
+        )
+
+for fragment in (
+    "OVERTE_IOS_VULKAN_PIPELINE_CONTEXT",
+    "getVulkanShaderDiagnosticFingerprint(vertexSpirv)",
+    "getVulkanShaderDiagnosticFingerprint(fragmentSpirv)",
+    '<< " vertex_bindings=" << builder.vertexInputState.bindingDescriptions.size()',
+    '<< " vertex_attributes=" << builder.vertexInputState.attributeDescriptions.size()',
+    '<< " vertex_descriptors=" << pipelineLayout.vertexReflection.descriptorCount()',
+    "binding.binding < MAX_NUM_INPUT_BUFFERS",
+    '<< "/set=" << strideWasSet',
+    'os_log_fault(OS_LOG_DEFAULT, "%{public}s", details.str().c_str())',
+):
+    if fragment not in pipeline_cache:
+        raise SystemExit(
+            f"failed iOS Vulkan pipelines no longer emit bounded state context: {fragment}"
+        )
 
 key_start = pipeline_cache.index(
     "std::string Cache::Pipeline::getKey(const vks::Context& context, Cache& cache) const"
@@ -176,6 +236,41 @@ if "if (pipelineState.format)" not in pipeline_body:
     raise SystemExit("Vulkan pipeline creation no longer supports format-free draws")
 if "gpu::acquire(pipelineState.format)" not in pipeline_body:
     raise SystemExit("Vulkan vertex input no longer acquires its guarded format")
+
+draw_call_comment = (
+    "Fullscreen/procedural draws may generate their geometry from gl_VertexID"
+)
+for fragment in (
+    draw_call_comment,
+    "if (vertexReflection.validInput(gpu::slot::attr::DrawCallInfo))",
+    "const auto attribute = std::find_if(",
+    "return description.location == drawCallInfo;",
+    "DrawCallInfo vertex attribute conflicts with the reflected slot",
+    "const auto binding = std::find_if(",
+    "return description.binding == drawCallInfo;",
+    "DrawCallInfo vertex binding conflicts with the reflected slot",
+    "const auto drawCallInfoStride = static_cast<uint32_t>(sizeof(uint16_t) * 2)",
+):
+    if fragment not in pipeline_body:
+        raise SystemExit(
+            f"format-free draws lost their reflected DrawCallInfo vertex descriptor: {fragment}"
+        )
+format_guard = pipeline_body.index("if (pipelineState.format)")
+format_open = pipeline_body.index("{", format_guard)
+depth = 0
+format_close = None
+for index in range(format_open, len(pipeline_body)):
+    if pipeline_body[index] == "{":
+        depth += 1
+    elif pipeline_body[index] == "}":
+        depth -= 1
+        if depth == 0:
+            format_close = index
+            break
+if format_close is None:
+    raise SystemExit("optional Stream::Format block is syntactically incomplete")
+if pipeline_body.index(draw_call_comment) < format_close:
+    raise SystemExit("DrawCallInfo is again nested inside the optional Stream::Format path")
 
 input_start = backend.index("void VKBackend::do_setInputFormat")
 input_end = backend.index("void VKBackend::do_setInputBuffer", input_start)

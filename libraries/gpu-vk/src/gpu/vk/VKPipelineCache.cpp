@@ -10,10 +10,16 @@
 
 #include "VKPipelineCache.h"
 
+#include <algorithm>
 #include <cstring>
 #include <iomanip>
+#include <sstream>
 #include <stdexcept>
 #include <string_view>
+
+#if defined(Q_OS_IOS)
+#include <os/log.h>
+#endif
 
 #include "VKShared.h"
 #include <vk/Pipelines.h>
@@ -135,6 +141,18 @@ std::string getVulkanShaderCacheKey(const shader::Source& source,
         key.append(reinterpret_cast<const char*>(spirv.data()), spirv.size());
     }
     return key;
+}
+
+uint64_t getVulkanShaderDiagnosticFingerprint(const shader::Binary& spirv) {
+    // FNV-1a is intentionally diagnostic-only. The real cache continues to use
+    // exact binary equality; this short value merely correlates a failed CI
+    // pipeline without logging shader contents.
+    uint64_t fingerprint = 1469598103934665603ULL;
+    for (const auto byte : spirv) {
+        fingerprint ^= byte;
+        fingerprint *= 1099511628211ULL;
+    }
+    return fingerprint;
 }
 
 } // namespace
@@ -668,11 +686,11 @@ const Cache::PipelineLayout& Cache::getPipeline(const vks::Context& context) {
     }
 
     // Vertex input
+    const auto& vertexReflection = pipelineLayout.vertexReflection;
+    auto& bindingDescriptions = builder.vertexInputState.bindingDescriptions;
+    auto& attributeDescriptions = builder.vertexInputState.attributeDescriptions;
     if (pipelineState.format) {
-        const auto& vertexReflection = pipelineLayout.vertexReflection;
-
         const gpu::Stream::Format& format = *gpu::acquire(pipelineState.format);
-        auto& bindingDescriptions = builder.vertexInputState.bindingDescriptions;
         //auto channelCount = format.getNumChannels();
         for (const auto& entry : format.getChannels()) {
             const auto& slot = entry.first;
@@ -687,7 +705,6 @@ const Cache::PipelineLayout& Cache::getPipeline(const vks::Context& context) {
         std::array<bool, 16> isAttributeSlotOccupied{};
 
         bool colorFound = false;
-        auto& attributeDescriptions = builder.vertexInputState.attributeDescriptions;
         for (const auto& entry : format.getAttributes()) {
             const auto& slot = entry.first;
             const auto& attribute = entry.second;
@@ -759,15 +776,86 @@ const Cache::PipelineLayout& Cache::getPipeline(const vks::Context& context) {
             attributeDescriptions.push_back({ GPU_ATTR_FADEDATA7, 0, VK_FORMAT_R8G8B8A8_UNORM, 0 });
         }
 
-        // Explicitly add the draw call info slot if required
-        if (vertexReflection.validInput(gpu::slot::attr::DrawCallInfo)) {
+    }
+
+    // Fullscreen/procedural draws may generate their geometry from gl_VertexID
+    // and therefore have no ordinary Stream::Format. The standard transform
+    // still consumes DrawCallInfo, and updateTransform() binds that buffer on
+    // every draw. Describe it independently of the optional stream format so
+    // MoltenVK can build a complete Metal vertex descriptor.
+    if (vertexReflection.validInput(gpu::slot::attr::DrawCallInfo)) {
+        const auto drawCallInfo = gpu::slot::attr::DrawCallInfo;
+        const auto attribute = std::find_if(
+            attributeDescriptions.cbegin(), attributeDescriptions.cend(),
+            [drawCallInfo](const VkVertexInputAttributeDescription& description) {
+                return description.location == drawCallInfo;
+            });
+        if (attribute == attributeDescriptions.cend()) {
             attributeDescriptions.push_back(
-                { gpu::slot::attr::DrawCallInfo, gpu::slot::attr::DrawCallInfo, VK_FORMAT_R16G16_SINT, (uint32_t)0 });
-            bindingDescriptions.push_back({ gpu::slot::attr::DrawCallInfo, (uint32_t)sizeof(uint16_t) * 2, VK_VERTEX_INPUT_RATE_INSTANCE });
+                { drawCallInfo, drawCallInfo, VK_FORMAT_R16G16_SINT, 0 });
+        } else if (attribute->binding != drawCallInfo ||
+                   attribute->format != VK_FORMAT_R16G16_SINT ||
+                   attribute->offset != 0) {
+            throw std::runtime_error("DrawCallInfo vertex attribute conflicts with the reflected slot");
+        }
+
+        const auto binding = std::find_if(
+            bindingDescriptions.cbegin(), bindingDescriptions.cend(),
+            [drawCallInfo](const VkVertexInputBindingDescription& description) {
+                return description.binding == drawCallInfo;
+            });
+        const auto drawCallInfoStride = static_cast<uint32_t>(sizeof(uint16_t) * 2);
+        if (binding == bindingDescriptions.cend()) {
+            bindingDescriptions.push_back(
+                { drawCallInfo, drawCallInfoStride, VK_VERTEX_INPUT_RATE_INSTANCE });
+        } else if (binding->stride != drawCallInfoStride ||
+                   binding->inputRate != VK_VERTEX_INPUT_RATE_INSTANCE) {
+            throw std::runtime_error("DrawCallInfo vertex binding conflicts with the reflected slot");
         }
     }
 
-    auto result = builder.create();
+    VkPipeline result { VK_NULL_HANDLE };
+    try {
+        result = builder.create();
+    } catch (const std::exception& error) {
+#if defined(Q_OS_IOS)
+        const auto& vertexSpirv = getVulkanShaderSpirv(vertexShader);
+        const auto& fragmentSpirv = getVulkanShaderSpirv(fragmentShader);
+        std::ostringstream details;
+        details << "OVERTE_IOS_VULKAN_PIPELINE_CONTEXT"
+                << " error=" << error.what()
+                << " vertex=" << vertexShader.name
+                << " vertex_id=" << vertexShader.id
+                << " vertex_bytes=" << vertexSpirv.size()
+                << " vertex_fingerprint=" << getVulkanShaderDiagnosticFingerprint(vertexSpirv)
+                << " fragment=" << fragmentShader.name
+                << " fragment_id=" << fragmentShader.id
+                << " fragment_bytes=" << fragmentSpirv.size()
+                << " fragment_fingerprint=" << getVulkanShaderDiagnosticFingerprint(fragmentSpirv)
+                << " topology=" << static_cast<uint32_t>(builder.inputAssemblyState.topology)
+                << " color_attachments=" << builder.colorBlendState.blendAttachmentStates.size()
+                << " depth_test=" << builder.depthStencilState.depthTestEnable
+                << " depth_write=" << builder.depthStencilState.depthWriteEnable
+                << " vertex_descriptors=" << pipelineLayout.vertexReflection.descriptorCount()
+                << " fragment_descriptors=" << pipelineLayout.fragmentReflection.descriptorCount()
+                << " vertex_bindings=" << builder.vertexInputState.bindingDescriptions.size()
+                << " vertex_attributes=" << builder.vertexInputState.attributeDescriptions.size();
+        for (const auto& binding : builder.vertexInputState.bindingDescriptions) {
+            const bool strideWasSet = binding.binding < MAX_NUM_INPUT_BUFFERS &&
+                pipelineState._bufferStrideSet.test(binding.binding);
+            details << " binding[" << binding.binding << "]=" << binding.stride
+                    << "/" << static_cast<uint32_t>(binding.inputRate)
+                    << "/set=" << strideWasSet;
+        }
+        for (const auto& attribute : builder.vertexInputState.attributeDescriptions) {
+            details << " attribute[" << attribute.location << "]="
+                    << attribute.binding << "/" << static_cast<uint32_t>(attribute.format)
+                    << "/" << attribute.offset;
+        }
+        os_log_fault(OS_LOG_DEFAULT, "%{public}s", details.str().c_str());
+#endif
+        throw;
+    }
     builder.shaderStages.clear();
     pipelineLayout.pipeline = result;
     auto pipelineInMap = pipelineMap.insert({key, pipelineLayout});
