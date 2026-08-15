@@ -1236,13 +1236,12 @@ void Application::pauseUntilLoginDetermined() {
 
 #if defined(Q_OS_IOS)
     // The desktop QML path normally resumes when keyboardFocusActive is
-    // emitted. That signal is not guaranteed on iOS, but resuming before the
-    // asynchronous desktop is ready leaves the toolbar proxy unavailable.
-    // Queue only once both the login gate and the desktop gate are ready so
-    // main.cpp can also finish initialize() and apply --url/overrideEntry.
-    const auto offscreenUi = getOffscreenUI();
-    const bool desktopReady = offscreenUi && offscreenUi->getDesktop();
-    if (desktopReady && (_noLoginSuggestion || _resumeAfterLoginDialogActionTaken_WasPostponed)) {
+    // emitted. That signal is not guaranteed on iOS and the offscreen desktop
+    // is not a prerequisite for loading a world. Queue the one-shot resume so
+    // main.cpp can finish initialize() and apply --url/overrideEntry before
+    // navigation is selected. The iOS resume path below deliberately avoids
+    // the desktop-only toolbar proxy.
+    if (_noLoginSuggestion || _resumeAfterLoginDialogActionTaken_WasPostponed) {
         QMetaObject::invokeMethod(this, [this] {
             resumeAfterLoginDialogActionTaken();
         }, Qt::QueuedConnection);
@@ -1277,6 +1276,12 @@ void Application::resumeAfterLoginDialogActionTaken() {
     _resumeAfterLoginDialogActionTaken_Completed = true;
 
 #if !defined(DISABLE_QML)
+#if defined(Q_OS_IOS)
+    // The desktop toolbar is optional and may never be created by the iOS
+    // offscreen-QML path. Mobile world startup must not depend on it.
+    getApplicationCompositor().getReticleInterface()->setAllowMouseCapture(true);
+    getApplicationCompositor().getReticleInterface()->setVisible(true);
+#else
     if (!isHMDMode() && getDesktopTabletBecomesToolbarSetting()) {
         auto toolbar = DependencyManager::get<ToolbarScriptingInterface>()->getToolbar("com.highfidelity.interface.toolbar.system");
         if (toolbar) {
@@ -1290,6 +1295,7 @@ void Application::resumeAfterLoginDialogActionTaken() {
         getApplicationCompositor().getReticleInterface()->setAllowMouseCapture(true);
         getApplicationCompositor().getReticleInterface()->setVisible(true);
     }
+#endif
 
     updateSystemTabletMode();
 #endif
