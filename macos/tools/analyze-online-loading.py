@@ -264,6 +264,7 @@ def queue_diagnostics(value: dict[str, object]) -> dict[str, object]:
         "handoff_to_present_ms": delta("render_handoff", "first_presented"),
         "present_to_visible_ms": delta("first_presented", "first_visible"),
         "navigation_event_details": value.get("navigation_event_details", {}),
+        "navigation_clock_skew_ms": value.get("navigation_clock_skew_ms"),
     }
     signals: list[str] = []
     present_p50 = diagnostics["post_visible_present_hz_p50"]
@@ -303,8 +304,10 @@ def queue_diagnostics(value: dict[str, object]) -> dict[str, object]:
 
 def load_manifest(root: Path) -> dict[str, object]:
     manifest = load_object(root / "online-loading-manifest.json", "online-loading manifest")
-    if manifest.get("schema_version") != 1 or manifest.get("runner_class") not in ("diagnostic", "hardware"):
+    if manifest.get("schema_version") != 2 or manifest.get("runner_class") not in ("diagnostic", "hardware"):
         raise LoadingError("unsupported online-loading manifest")
+    if manifest.get("navigation_after_startup") is not True:
+        raise LoadingError("online benchmark must begin navigation after the ready-app baseline")
     repeats = integer(manifest.get("repeats"), "manifest repeats", minimum=1)
     concurrencies = manifest.get("executed_concurrencies")
     if (not isinstance(concurrencies, list) or not concurrencies or
@@ -422,6 +425,18 @@ def load_metrics(attempt: dict[str, object], manifest: dict[str, object]) -> dic
         raise LoadingError("online-loading result has no navigation-scoped telemetry")
     if payload.get("first_visible_ms") is not None and navigation_values["first_visible"] is None:
         raise LoadingError("online-loading result claims visibility without a navigation-scoped milestone")
+    interval_ms = integer(payload.get("queue_sample_interval_ms"), "queue_sample_interval_ms", minimum=1)
+    if interval_ms != 500:
+        raise LoadingError("online-loading queue sample interval must be exactly 500 ms")
+    if payload.get("first_visible_ms") is not None:
+        core_visible_ms = finite(navigation_values["first_visible"], "navigation.first_visible")
+        script_visible_ms = finite(payload["first_visible_ms"], "first_visible_ms")
+        clock_skew_ms = abs(core_visible_ms - script_visible_ms)
+        if clock_skew_ms > interval_ms + 250:
+            raise LoadingError("navigation and script first-visible clocks diverge")
+        payload["navigation_clock_skew_ms"] = round(clock_skew_ms, 3)
+    else:
+        payload["navigation_clock_skew_ms"] = None
     if payload.get("success") is True and any(
             navigation_values[event] is None for event in NAVIGATION_EVENT_ORDER):
         raise LoadingError("successful online-loading result has an incomplete navigation event sequence")

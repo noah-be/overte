@@ -78,6 +78,13 @@ if '#include "shared/GlobalAppProperties.h"' not in online_loading_telemetry:
     raise SystemExit("shared macOS online telemetry must use the target-local quoted include path")
 if "#include <shared/GlobalAppProperties.h>" in online_loading_telemetry:
     raise SystemExit("shared macOS online telemetry must not use the unavailable angled include path")
+for telemetry_start_contract in (
+    "bool beginNavigation(const QByteArray& target)",
+    "QCryptographicHash::hash",
+    'return recordOnce("url_accepted")',
+):
+    if telemetry_start_contract not in online_loading_telemetry:
+        raise SystemExit(f"shared macOS online telemetry start contract missing: {telemetry_start_contract}")
 shutdown = application_source.split("void Application::cleanupBeforeQuit()", 1)[1].split(
     "static const float FOCUS_HIGHLIGHT_EXPANSION_FACTOR", 1
 )[0]
@@ -1159,8 +1166,9 @@ for loading_contract in (
     '--runner-class "$runner_class"',
     'case_timeout_seconds="$diagnostic_timeout_seconds"',
     '--completion-file "$run_dir/macos-online-loading.json"',
-    'OVERTE_MACOS_ONLINE_DIAGNOSTIC_TIMEOUT_SECONDS:-210',
+    'OVERTE_MACOS_ONLINE_DIAGNOSTIC_TIMEOUT_SECONDS:-300',
     "OVERTE_MACOS_LLDB_TIMEOUT_SECONDS",
+    'OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-420',
     "online-loading-lldb.log",
     "status > 128 && status < 192",
     'lldb --batch -o run -k "thread backtrace all" -k "register read"',
@@ -1169,12 +1177,17 @@ for loading_contract in (
     'local navigation_id="c${concurrency}-p${pair}-${cache_mode}"',
     '--location-sha256 "$location_sha256" --navigation-id "$navigation_id"',
     '"navigation_id": sys.argv[5]',
+    '"navigation_after_startup": True',
+    '"schema_version": 2',
+    'readonly baseline_scene="$source_root/macos/tests/fixtures/serverless-render.json"',
+    '--url "file://$baseline_scene"',
 ):
     if loading_contract not in online_loading_runner:
         raise SystemExit(f"online loading runner missing: {loading_contract}")
 for telemetry_environment in (
     'OVERTE_MACOS_ONLINE_LOADING_NAVIGATION_ID="$navigation_id"',
     'OVERTE_MACOS_ONLINE_LOADING_LOCATION_SHA256="$location_sha256"',
+    'OVERTE_MACOS_ONLINE_LOADING_TARGET_URL="$location"',
 ):
     if online_loading_runner.count(telemetry_environment) < 2:
         raise SystemExit(
@@ -1182,6 +1195,8 @@ for telemetry_environment in (
         )
 if "--macosTestLightweightEntities" in online_loading_runner:
     raise SystemExit("online loading benchmark must exercise full online entity content")
+if '--url "$location"' in online_loading_runner:
+    raise SystemExit("online loading benchmark must not start Interface at the online target")
 for loading_contract in (
     "Stats.downloads",
     "Stats.downloadsPending",
@@ -1197,6 +1212,14 @@ for loading_contract in (
     "diagnostic_observation_complete",
     "diagnosticOnly ? 70000 : 360000",
     "diagnosticOnly ? 30000 : 180000",
+    "Test.beginOnlineLoadingNavigation()",
+    "Test.isOnlineLoadingEntityTreeReady()",
+    'AddressManager.protocol === "file"',
+    'AddressManager.protocol === "hifi"',
+    '"macOS smoke red cube"',
+    '"macOS smoke cyan sphere"',
+    '"macOS smoke label"',
+    'fixture.count === 0',
 ):
     if loading_contract not in online_loading_script:
         raise SystemExit(f"online loading script missing: {loading_contract}")
@@ -1218,9 +1241,52 @@ for analyzer_contract in (
     '"navigation_event_details"',
     "navigation_milestones",
     "legacy_host_milestones_ms",
+    '"navigation_clock_skew_ms"',
+    "navigation and script first-visible clocks diverge",
+    "queue sample interval must be exactly 500 ms",
+    "navigation_after_startup",
 ):
     if analyzer_contract not in online_loading_analyzer:
         raise SystemExit(f"online loading analyzer missing: {analyzer_contract}")
+
+test_scripting_header = (
+    ROOT / "interface/src/scripting/TestScriptingInterface.h"
+).read_text(encoding="utf-8")
+test_scripting_source = (
+    ROOT / "interface/src/scripting/TestScriptingInterface.cpp"
+).read_text(encoding="utf-8")
+for navigation_api in (
+    "beginOnlineLoadingNavigation() const",
+    "isOnlineLoadingEntityTreeReady() const",
+):
+    if navigation_api not in test_scripting_header or navigation_api not in test_scripting_source:
+        raise SystemExit(f"online loading test API missing: {navigation_api}")
+navigation_method = test_scripting_source.split(
+    "bool TestScriptingInterface::beginOnlineLoadingNavigation() const", 1
+)[1].split(
+    "bool TestScriptingInterface::isOnlineLoadingEntityTreeReady() const", 1
+)[0]
+for navigation_guard in (
+    "QUrl::fromEncoded(targetBytes, QUrl::StrictMode)",
+    "target.scheme() != URL_SCHEME_OVERTE",
+    "target.host().isEmpty()",
+    "target.userName().isEmpty()",
+    "target.password().isEmpty()",
+    "macos::online_loading::beginNavigation(targetBytes)",
+    "Qt::QueuedConnection",
+    '"handleLookupString"',
+):
+    if navigation_guard not in navigation_method:
+        raise SystemExit(f"online loading navigation validation missing: {navigation_guard}")
+for navigation_constant in (
+    "OVERTE_MACOS_ONLINE_LOADING_TARGET_URL",
+    "MAX_ONLINE_LOADING_TARGET_BYTES",
+):
+    if navigation_constant not in test_scripting_source:
+        raise SystemExit(f"online loading navigation constant missing: {navigation_constant}")
+if navigation_method.index("macos::online_loading::beginNavigation") > navigation_method.index(
+        '"handleLookupString"'):
+    raise SystemExit("online loading epoch must begin before the queued address lookup")
 
 frame_timings_header = (
     ROOT / "interface/src/FrameTimingsScriptingInterface.h"

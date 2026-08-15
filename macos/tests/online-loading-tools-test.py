@@ -24,9 +24,11 @@ EVENT_ORDER = (
 )
 
 
-def telemetry_lines(navigation_id: str, through: str = "first_visible") -> str:
+def telemetry_lines(navigation_id: str, through: str = "first_visible",
+                    first_visible_ms: int = 5000) -> str:
     lines = []
-    for index, event in enumerate(EVENT_ORDER[:EVENT_ORDER.index(through) + 1], 1):
+    emitted_events = EVENT_ORDER[:EVENT_ORDER.index(through) + 1]
+    for index, event in enumerate(emitted_events):
         details = {
             "entity_server_active": {"resource_loading": 1, "resource_pending": 2},
             "entity_query": {"bytes": 64, "resource_loading": 1, "resource_pending": 2},
@@ -42,11 +44,14 @@ def telemetry_lines(navigation_id: str, through: str = "first_visible") -> str:
             "navigation_id": navigation_id,
             "location_sha256": LOCATION_SHA256,
             "event": event,
-            "monotonic_us": 1_000_000 + index * 100_000,
+            "monotonic_us": 1_000_000 + (
+                round(index * first_visible_ms * 1000 / (len(EVENT_ORDER) - 1))
+                if through == "first_visible" else index * 100_000
+            ),
         }
         record.update(details)
         lines.append("[12:00:%02d.000] OVERTE_MACOS_ONLINE_NAV %s\n" % (
-            index,
+            index + 1,
             json.dumps(record, sort_keys=True),
         ))
     return "".join(lines)
@@ -100,7 +105,7 @@ def create_benchmark(root: Path, *, runner_class: str = "hardware",
                      diagnostic_partial: bool = False) -> None:
     root.mkdir(parents=True)
     manifest = {
-        "schema_version": 1,
+        "schema_version": 2,
         "runner_class": runner_class,
         "repeats": repeats,
         "location_label": "hub",
@@ -111,6 +116,7 @@ def create_benchmark(root: Path, *, runner_class: str = "hardware",
         "executed_concurrencies": list(concurrencies),
         "requested_concurrencies": list(concurrencies),
         "public_world_informational": True,
+        "navigation_after_startup": True,
     }
     (root / "online-loading-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     attempts: list[dict[str, object]] = []
@@ -144,7 +150,7 @@ def create_benchmark(root: Path, *, runner_class: str = "hardware",
                     "[12:00:04.000] OVERTE_MACOS_ENTITY_GATE entity_data_received\n"
                     "[12:00:05.000] OVERTE_MACOS_ENTITY_GATE render_handoff\n"
                     f"[12:00:06.000] OVERTE_MACOS_ONLINE_LOADING first_visible_ms={visible}\n" +
-                    telemetry_lines(navigation_id),
+                    telemetry_lines(navigation_id, first_visible_ms=visible),
                     encoding="utf-8",
                 )
                 accepted = not failed_attempt
@@ -241,6 +247,8 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
         "decompress_us": 40.0,
         "wait_lock_us": 10.0,
     } for group in summary["groups"])
+    assert all(group["queue_diagnostics"][0]["navigation_clock_skew_ms"] <= 1.0
+               for group in summary["groups"])
     assert result.stat().st_mode & 0o777 == 0o600
     assert int(ET.parse(junit).getroot().attrib["failures"]) == 0
 
@@ -270,6 +278,30 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     assert corrupt_analysis.returncode != 0
     assert "strictly increasing" in corrupt_analysis.stdout
     assert int(ET.parse(corrupt_junit).getroot().attrib["failures"]) >= 1
+
+    divergent_epoch = temporary / "divergent-epoch"
+    create_benchmark(divergent_epoch, concurrencies=(10,))
+    divergent_path = divergent_epoch / "c10/pair-1/cold/macos-online-loading.json"
+    divergent_payload = json.loads(divergent_path.read_text(encoding="utf-8"))
+    divergent_payload["first_visible_ms"] += 100000
+    divergent_path.write_text(json.dumps(divergent_payload), encoding="utf-8")
+    divergent_result = temporary / "divergent.json"
+    divergent_junit = temporary / "divergent.xml"
+    divergent_analysis = analyze(divergent_epoch, divergent_result, divergent_junit)
+    assert divergent_analysis.returncode != 0
+    assert "first-visible clocks diverge" in divergent_analysis.stdout
+
+    wrong_interval = temporary / "wrong-interval"
+    create_benchmark(wrong_interval, concurrencies=(10,))
+    interval_path = wrong_interval / "c10/pair-1/cold/macos-online-loading.json"
+    interval_payload = json.loads(interval_path.read_text(encoding="utf-8"))
+    interval_payload["queue_sample_interval_ms"] = 250
+    interval_path.write_text(json.dumps(interval_payload), encoding="utf-8")
+    interval_result = temporary / "interval.json"
+    interval_junit = temporary / "interval.xml"
+    interval_analysis = analyze(wrong_interval, interval_result, interval_junit)
+    assert interval_analysis.returncode != 0
+    assert "sample interval must be exactly 500" in interval_analysis.stdout
 
     sequence_gap = temporary / "sequence-gap"
     create_benchmark(sequence_gap, concurrencies=(10,))

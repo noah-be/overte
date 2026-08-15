@@ -8,8 +8,10 @@
 
 #include "MacOSOnlineLoadingTelemetryTests.h"
 
+#include <QtCore/QCryptographicHash>
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
+#include <QtCore/QList>
 #include <QtCore/QUrl>
 
 #include <MacOSOnlineLoadingTelemetry.h>
@@ -38,6 +40,13 @@ void configure(const QByteArray& navigationId = "c10-p1-cold") {
     qApp->setProperty(hifi::properties::TEST, QUrl::fromLocalFile(QStringLiteral("/tmp/test.js")));
     qputenv("OVERTE_MACOS_ONLINE_LOADING_NAVIGATION_ID", navigationId);
     qputenv("OVERTE_MACOS_ONLINE_LOADING_LOCATION_SHA256", QByteArray(64, 'b'));
+}
+
+void configureTarget(const QByteArray& target, const QByteArray& navigationId = "c10-p1-target") {
+    configure(navigationId);
+    qputenv(
+        "OVERTE_MACOS_ONLINE_LOADING_LOCATION_SHA256",
+        QCryptographicHash::hash(target, QCryptographicHash::Sha256).toHex());
 }
 
 } // namespace
@@ -127,4 +136,39 @@ void MacOSOnlineLoadingTelemetryTests::testDeduplicatesPerNavigation() {
 
     QCOMPARE(capturedMessages.size(), 2);
     QCOMPARE(lastRecord().value("navigation_id").toString(), QStringLiteral("c10-p1-second"));
+}
+
+void MacOSOnlineLoadingTelemetryTests::testBeginsOnlyForExactTargetBytes() {
+    const QByteArray target("hifi://overte_hub/benchmark");
+    configureTarget(target);
+
+    const auto previousHandler = qInstallMessageHandler(captureMessage);
+    QVERIFY(!macos::online_loading::beginNavigation("hifi://another.invalid/benchmark"));
+    QVERIFY(macos::online_loading::beginNavigation(target));
+    QVERIFY(!macos::online_loading::beginNavigation(target));
+    qInstallMessageHandler(previousHandler);
+
+    QCOMPARE(capturedMessages.size(), 1);
+    QCOMPARE(lastRecord().value("event").toString(), QStringLiteral("url_accepted"));
+    QVERIFY(!capturedMessages.join('\n').contains(QString::fromUtf8(target)));
+    QVERIFY(!capturedMessages.join('\n').contains(QStringLiteral("another.invalid")));
+}
+
+void MacOSOnlineLoadingTelemetryTests::testRejectsUnsafeTargets() {
+    const QList<QByteArray> invalidTargets {
+        "http://example.invalid/benchmark",
+        "hifi:///missing-host",
+        "hifi://user@example.invalid/benchmark",
+        "hifi://user:password@example.invalid/benchmark",
+        QByteArray("hifi://example.invalid/") + QByteArray(2048, 'x'),
+        QByteArray::fromHex("686966693a2f2f6578616d706c652e696e76616c69642fff"),
+    };
+    const auto previousHandler = qInstallMessageHandler(captureMessage);
+    for (int index = 0; index < invalidTargets.size(); ++index) {
+        const auto& target = invalidTargets.at(index);
+        configureTarget(target, QByteArray("c10-p1-invalid-") + QByteArray::number(index));
+        QVERIFY(!macos::online_loading::beginNavigation(target));
+    }
+    qInstallMessageHandler(previousHandler);
+    QVERIFY(capturedMessages.isEmpty());
 }

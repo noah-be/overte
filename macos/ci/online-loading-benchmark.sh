@@ -10,14 +10,15 @@ readonly output_dir="${2:-$source_root/build/macos-online-loading}"
 readonly executable="$app/Contents/MacOS/Overte"
 readonly template="$source_root/macos/tests/online-loading-benchmark.js"
 readonly default_scripts_override="$source_root/macos/tests/fixtures/no-default-scripts.js"
+readonly baseline_scene="$source_root/macos/tests/fixtures/serverless-render.json"
 readonly location="${OVERTE_MACOS_ONLINE_LOCATION:-hifi://overte_hub}"
 readonly location_label="${OVERTE_MACOS_ONLINE_LOCATION_LABEL:-overte-hub}"
 readonly concurrency_csv="${OVERTE_MACOS_ONLINE_CONCURRENCIES:-10,16}"
 readonly repeats="${OVERTE_MACOS_ONLINE_REPEATS:-1}"
 readonly timeout_seconds="${OVERTE_MACOS_ONLINE_LOADING_TIMEOUT_SECONDS:-420}"
-readonly diagnostic_timeout_seconds="${OVERTE_MACOS_ONLINE_DIAGNOSTIC_TIMEOUT_SECONDS:-210}"
+readonly diagnostic_timeout_seconds="${OVERTE_MACOS_ONLINE_DIAGNOSTIC_TIMEOUT_SECONDS:-300}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
-readonly lldb_timeout_seconds="${OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-300}"
+readonly lldb_timeout_seconds="${OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-420}"
 
 [[ "$(uname -s)" == Darwin ]] || { echo "online loading benchmark requires macOS" >&2; exit 1; }
 [[ -x "$executable" ]] || { echo "missing executable: $executable" >&2; exit 1; }
@@ -80,7 +81,7 @@ import sys
 
 path, runner_class, repeats, label, location, app_sha_path, machine, translated, executed, requested = sys.argv[1:]
 payload = {
-    "schema_version": 1,
+    "schema_version": 2,
     "runner_class": runner_class,
     "repeats": int(repeats),
     "location_label": label,
@@ -91,6 +92,7 @@ payload = {
     "executed_concurrencies": [int(value) for value in executed.split()],
     "requested_concurrencies": [int(value) for value in requested.split()],
     "public_world_informational": True,
+    "navigation_after_startup": True,
 }
 target = Path(path)
 target.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
@@ -150,12 +152,13 @@ run_case() {
     app_command=(
         "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog --display Desktop
         --disableLocalAvatar --cache "$cache_dir" --concurrent-downloads "$concurrency"
-        --defaultScriptsOverride "file://$default_scripts_override" --url "$location"
+        --defaultScriptsOverride "file://$default_scripts_override" --url "file://$baseline_scene"
         --testScript "$generated_script" --testResultsLocation "$run_dir" --quitWhenFinished
     )
     set +e
     OVERTE_MACOS_ONLINE_LOADING_NAVIGATION_ID="$navigation_id" \
     OVERTE_MACOS_ONLINE_LOADING_LOCATION_SHA256="$location_sha256" \
+    OVERTE_MACOS_ONLINE_LOADING_TARGET_URL="$location" \
     python3 "$source_root/macos/tools/run-process-with-timeout.py" \
         --timeout "$case_timeout_seconds" --grace "$shutdown_grace_seconds" \
         --log "$log" --result "$result" --sample "$sample" --crash-report "$crash" \
@@ -172,12 +175,13 @@ run_case() {
                 "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog
                 --display Desktop --disableLocalAvatar --cache "$cache_dir"
                 --concurrent-downloads "$concurrency"
-                --defaultScriptsOverride "file://$default_scripts_override" --url "$location"
+                --defaultScriptsOverride "file://$default_scripts_override" --url "file://$baseline_scene"
                 --testScript "$generated_script" --testResultsLocation "$lldb_dir"
                 --quitWhenFinished
             )
             OVERTE_MACOS_ONLINE_LOADING_NAVIGATION_ID="$navigation_id" \
             OVERTE_MACOS_ONLINE_LOADING_LOCATION_SHA256="$location_sha256" \
+            OVERTE_MACOS_ONLINE_LOADING_TARGET_URL="$location" \
             python3 "$source_root/macos/tools/run-process-with-timeout.py" \
                 --timeout "$lldb_timeout_seconds" --grace "$shutdown_grace_seconds" \
                 --log "$lldb_log" --result "$lldb_result" \

@@ -9,6 +9,12 @@ following are true:
 - `OVERTE_MACOS_ONLINE_LOADING_NAVIGATION_ID` is a lowercase, bounded identifier;
 - `OVERTE_MACOS_ONLINE_LOADING_LOCATION_SHA256` is exactly 64 lowercase hexadecimal characters.
 
+Every process first loads the local `serverless-render.json` fixture. The test waits for all three fixture entities, empty
+resource queues, and a new display present. Only then does `Test.beginOnlineLoadingNavigation()` validate the bounded
+`hifi` target supplied in `OVERTE_MACOS_ONLINE_LOADING_TARGET_URL`, compare the SHA-256 of its exact UTF-8 bytes with the
+manifest identity, record `url_accepted`, and queue the address lookup on `AddressManager`'s thread. The target value is
+never returned to JavaScript or written to diagnostics. Repeated begin requests do not trigger another lookup.
+
 Invalid configuration fails closed. No URL, host, entity or node UUID, compiler argument, environment dump, token, or
 signing value is included in a telemetry record. Event-specific fields are integers only.
 
@@ -42,11 +48,14 @@ counts, render add/update queue depths, and present/visible counts. They are exp
 The result file `macos-online-loading.json` carries the same `navigation_id` and sanitized location digest. Its 500 ms
 queue samples cover active and pending downloads, active and pending processing, pending texture transfers, entity counts,
 and display rates. `analyze-online-loading.py` rejects another navigation ID, another location identity, duplicate or
-out-of-order events, non-monotonic timestamps, and a successful result with an incomplete event sequence.
+out-of-order events, non-monotonic timestamps, and a successful result with an incomplete event sequence. It also requires
+the Core and JavaScript `first_visible` clocks to agree within the fixed 500 ms polling interval plus 250 ms scheduling
+allowance. This fail-closed check prevents application startup from being mistaken for navigation time.
 
 ## Scope and limitations
 
-This is additive test instrumentation, not a production analytics channel. It intentionally does not copy the Pico loading
-state machine. The first presented frame is correlated with render handoff and a later visible-entity observation, but it
-does not identify a particular mesh draw call. A future deterministic-domain fixture can strengthen that last association
-without changing the navigation identity or event format.
+This is additive test instrumentation, not a production analytics channel. It intentionally measures **ready application
+to online world**, not cold process startup, and does not copy the Pico loading state machine. Cold startup remains a
+separate benchmark. The first presented frame is correlated with render handoff and a later visible-entity observation,
+but it does not identify a particular mesh draw call. A future deterministic-domain fixture can strengthen that last
+association without changing the navigation identity or event format.

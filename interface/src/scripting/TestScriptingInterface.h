@@ -187,6 +187,23 @@ public slots:
     Q_INVOKABLE quint32 getPresentCount() const;
 
     /*@jsdoc
+     * Begins the validated macOS online-loading navigation after the local
+     * benchmark baseline is ready. Available to explicit test scripts only.
+     * The target is supplied out-of-band and is never exposed to JavaScript.
+     * @function Test.beginOnlineLoadingNavigation
+     * @returns {boolean} <code>true</code> when the navigation was queued.
+     */
+    Q_INVOKABLE bool beginOnlineLoadingNavigation() const;
+
+    /*@jsdoc
+     * Reports whether the validated online-loading navigation has mutated the
+     * domain entity tree. Available to explicit test scripts only.
+     * @function Test.isOnlineLoadingEntityTreeReady
+     * @returns {boolean} <code>true</code> after domain entity-tree mutation.
+     */
+    Q_INVOKABLE bool isOnlineLoadingEntityTreeReady() const;
+
+    /*@jsdoc
      * Records the macOS online-loading benchmark's first visible milestone.
      * The record is accepted only after a new frame has been presented and
      * only when validated navigation-scoped test telemetry is enabled.

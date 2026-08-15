@@ -160,7 +160,9 @@ prevents the 30.876-ms CPU-submit p95 from being mistaken for the primary cost.
 
 Online connectivity acceptance remains separate from loading performance. The
 loading benchmark intentionally does **not** enable the lightweight entity
-filter. It runs cold and immediately repeated warm processes against the same
+filter. Its [navigation telemetry contract](ONLINE_LOADING_TELEMETRY.md)
+defines the sanitized event state machine used by the analyzer. It runs cold
+and immediately repeated warm processes against the same
 isolated resource cache and can compare the desktop default with 16 concurrent
 requests:
 
@@ -173,22 +175,34 @@ OVERTE_MACOS_ONLINE_REPEATS=1 \
 
 It records time to the first entity, first visible entity, completed captured
 frame, five seconds of sustained zero download/processing/GPU-transfer queues,
-the complete bounded queue time series, and host log milestones. Each pair uses
-a new resource-cache directory for the cold process and reuses it for the warm
-process. The driver-dependent GL program-binary cache is not covered by
+the complete bounded queue time series, and navigation-scoped monotonic
+milestones from URL acceptance through connection, query, packet receipt,
+decode, tree mutation, render handoff, first present, and first visible output.
+Legacy process-wide host markers remain troubleshooting data only. Each pair
+uses a new resource-cache directory for the cold process and reuses it for the
+warm process. The driver-dependent GL program-binary cache is not covered by
 `--cache`; this limitation is included in every aggregate. Every planned
 cold/warm attempt is manifest-driven, and partial metrics from crashes or
 timeouts are retained instead of disappearing from the report. Stale result
 directories are ignored. The aggregator computes peak and time-integrated
 download/processing/texture pressure, post-visible present/new-frame rates, and
-domain-to-query, query-to-data, and data-to-handoff durations. It classifies
-each cache-mode run as connection, entity-server/query, entity-stream/public
-domain, decode/visibility, render/present, screenshot completion, resource
-backlog, or no observed bottleneck. On the hosted software renderer the suite
+domain-to-query, query-to-data, data-to-decode, decode-to-tree,
+tree-to-handoff, handoff-to-present, and present-to-visible durations. Event
+records are accepted only for the run's validated navigation ID and sanitized
+location digest; arbitrary fields, duplicate/out-of-order records, and missing
+success milestones fail closed. It classifies each cache-mode run as
+connection, entity-server/query, entity-stream/public domain,
+decode/visibility, render/present, screenshot completion, resource backlog, or
+no observed bottleneck. On the hosted software renderer the suite
 deliberately runs only the first requested concurrency, because two driver-pathological runs
 cannot produce a meaningful download-concurrency comparison. Its script records
 at most 70 seconds without visible content or 30 seconds after first-visible.
-The 210-second outer bound includes variable application startup; a private
+Before navigation it loads the deterministic local 3-entity fixture and waits
+for complete fixture discovery, empty queues, and a new present. The test then
+starts the sanitized navigation epoch and queues the online address lookup.
+Core and script first-visible clocks must agree within 750 ms, so startup can
+no longer contaminate world-loading durations. The 300-second outer bound
+includes variable application startup and baseline settling; a private
 completion-file checkpoint lets the supervisor stop the process group as soon
 as the result is durable instead of waiting for the blocked renderer teardown.
 The aggregate requires bounded connection/query evidence for both cold and warm

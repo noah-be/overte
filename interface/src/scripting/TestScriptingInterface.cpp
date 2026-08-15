@@ -23,11 +23,24 @@
 #include <StatTracker.h>
 #include <Trace.h>
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#include <QtCore/QByteArray>
+#include <QtCore/QUrl>
+
+#include <AddressManager.h>
 #include <MacOSOnlineLoadingTelemetry.h>
 #endif
 
 #include "Application.h"
 #include "NetworkingConstants.h"
+
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+namespace {
+
+constexpr auto ONLINE_LOADING_TARGET_ENV = "OVERTE_MACOS_ONLINE_LOADING_TARGET_URL";
+constexpr int MAX_ONLINE_LOADING_TARGET_BYTES { 2048 };
+
+} // namespace
+#endif
 
 Q_LOGGING_CATEGORY(trace_test, "trace.test")
 
@@ -221,6 +234,39 @@ bool TestScriptingInterface::isTextureLoadingComplete() {
 quint32 TestScriptingInterface::getPresentCount() const {
     const auto displayPlugin = qApp->getActiveDisplayPlugin();
     return displayPlugin ? displayPlugin->presentCount() : 0;
+}
+
+bool TestScriptingInterface::beginOnlineLoadingNavigation() const {
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    const QByteArray targetBytes = qgetenv(ONLINE_LOADING_TARGET_ENV);
+    if (targetBytes.isEmpty() || targetBytes.size() > MAX_ONLINE_LOADING_TARGET_BYTES ||
+            QString::fromUtf8(targetBytes).toUtf8() != targetBytes) {
+        return false;
+    }
+    const QUrl target = QUrl::fromEncoded(targetBytes, QUrl::StrictMode);
+    if (!target.isValid() || target.scheme() != URL_SCHEME_OVERTE || target.host().isEmpty() ||
+            !target.userName().isEmpty() || !target.password().isEmpty() ||
+            !DependencyManager::isSet<AddressManager>()) {
+        return false;
+    }
+    if (!macos::online_loading::beginNavigation(targetBytes)) {
+        return false;
+    }
+    const QString lookup = QString::fromUtf8(targetBytes);
+    return QMetaObject::invokeMethod(
+        DependencyManager::get<AddressManager>().data(), "handleLookupString",
+        Qt::QueuedConnection, Q_ARG(const QString&, lookup));
+#else
+    return false;
+#endif
+}
+
+bool TestScriptingInterface::isOnlineLoadingEntityTreeReady() const {
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    return macos::online_loading::hasRecorded("entity_tree");
+#else
+    return false;
+#endif
 }
 
 bool TestScriptingInterface::recordOnlineLoadingVisible(int visibleCount) const {

@@ -20,4 +20,6 @@ private slots:
     void testEmitsSanitizedMonotonicJSON();
     void testRequiresStrictOrderAndMonotonicTime();
     void testDeduplicatesPerNavigation();
+    void testBeginsOnlyForExactTargetBytes();
+    void testRejectsUnsafeTargets();
 };

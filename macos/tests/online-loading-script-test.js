@@ -10,6 +10,17 @@ const vm = require("vm");
 const source = fs.readFileSync(process.argv[2], "utf8");
 function createHarness(runnerClass) {
     const clock = { now: 1000, presentCount: 10 };
+    const addressManager = { isConnected: true, protocol: "file" };
+    const entities = {
+        ids: ["red", "cyan", "label"],
+        properties: {
+            red: { name: "macOS smoke red cube", type: "Shape", visible: true },
+            cyan: { name: "macOS smoke cyan sphere", type: "Shape", visible: true },
+            label: { name: "macOS smoke label", type: "Text", visible: true },
+            online: { name: "online primitive", type: "Shape", visible: true }
+        }
+    };
+    const test = { beginCount: 0, entityTreeReady: false };
     const output = [];
     const saved = [];
     const forwardConfig = {};
@@ -34,33 +45,51 @@ function createHarness(runnerClass) {
         Scene: {},
         Stats: stats,
         Rates: { present: 60, newFrame: 59 },
+        AddressManager: addressManager,
         Test: {
             isTextureLoadingComplete() { return true; },
             getPresentCount() { return clock.presentCount; },
+            beginOnlineLoadingNavigation() { test.beginCount += 1; return true; },
+            isOnlineLoadingEntityTreeReady() { return test.entityTreeReady; },
             recordOnlineLoadingVisible(visibleCount) { return visibleCount > 0; },
             saveObject(value, name) { saved.push({ value, name }); }
         },
         Script: script,
         Window: windowObject,
         Entities: {
-            findEntities() { return ["shape"]; },
-            getEntityProperties() { return { type: "Shape", visible: true }; }
+            findEntities() { return entities.ids; },
+            getEntityProperties(id) { return entities.properties[id] || {}; }
         },
         MyAvatar: { position: {} },
         print(message) { output.push(message); }
     };
     vm.runInNewContext(source, context, { filename: process.argv[2] });
-    return { clock, output, saved, script, windowObject };
+    return { addressManager, clock, entities, output, saved, script, test, windowObject };
 }
 
 const hardware = createHarness("hardware");
 assert.strictEqual(typeof hardware.script.interval, "function");
 hardware.script.interval();
-assert(hardware.output.some((line) => line.includes("visible_candidate_ms=0")));
-hardware.clock.now += 2000;
+assert.strictEqual(hardware.test.beginCount, 0);
+assert(!hardware.output.some((line) => line.includes("visible_candidate_ms=")));
+hardware.clock.now += 500;
 hardware.clock.presentCount += 1;
 hardware.script.interval();
-assert(hardware.output.some((line) => line.includes("first_visible_ms=2000")));
+assert.strictEqual(hardware.test.beginCount, 1);
+assert(hardware.output.some((line) => line.includes("started navigation_id=c10-p1-cold")));
+hardware.clock.now += 500;
+hardware.script.interval();
+assert(!hardware.output.some((line) => line.includes("visible_candidate_ms=")));
+hardware.addressManager.protocol = "hifi";
+hardware.test.entityTreeReady = true;
+hardware.entities.ids = ["online"];
+hardware.clock.now += 500;
+hardware.script.interval();
+assert(hardware.output.some((line) => line.includes("visible_candidate_ms=1000")));
+hardware.clock.now += 500;
+hardware.clock.presentCount += 1;
+hardware.script.interval();
+assert(hardware.output.some((line) => line.includes("first_visible_ms=1500")));
 hardware.clock.now += 2000;
 hardware.clock.presentCount += 1;
 hardware.script.interval();
@@ -75,17 +104,34 @@ assert.strictEqual(hardware.saved[0].name, "macos-online-loading.json");
 assert.strictEqual(hardware.saved[0].value.runner_class, "hardware");
 assert.strictEqual(hardware.saved[0].value.completed_idle, true);
 assert.strictEqual(hardware.saved[0].value.completed_snapshot, true);
-assert.strictEqual(hardware.saved[0].value.sustained_idle_ms, 7000);
+assert.strictEqual(hardware.saved[0].value.sustained_idle_ms, 6500);
 assert.strictEqual(hardware.saved[0].value.navigation_id, "c10-p1-cold");
 assert.strictEqual(hardware.saved[0].value.schema_version, 2);
 assert(hardware.output.some((line) => line.includes("OVERTE_MACOS_ONLINE_LOADING passed")));
 
+const incompleteBaseline = createHarness("hardware");
+incompleteBaseline.entities.ids = ["red", "cyan"];
+incompleteBaseline.script.interval();
+incompleteBaseline.clock.now += 500;
+incompleteBaseline.clock.presentCount += 1;
+incompleteBaseline.script.interval();
+assert.strictEqual(incompleteBaseline.test.beginCount, 0);
+assert(!incompleteBaseline.output.some((line) => line.includes("started navigation_id=")));
+
 const diagnostic = createHarness("diagnostic");
 diagnostic.script.interval();
-diagnostic.clock.now += 1000;
+diagnostic.clock.now += 500;
 diagnostic.clock.presentCount += 1;
 diagnostic.script.interval();
-diagnostic.clock.now += 60000;
+diagnostic.addressManager.protocol = "hifi";
+diagnostic.test.entityTreeReady = true;
+diagnostic.entities.ids = ["online"];
+diagnostic.clock.now += 500;
+diagnostic.script.interval();
+diagnostic.clock.now += 500;
+diagnostic.clock.presentCount += 1;
+diagnostic.script.interval();
+diagnostic.clock.now += 30000;
 diagnostic.script.interval();
 assert.strictEqual(diagnostic.script.stopped, true);
 assert.strictEqual(diagnostic.saved.length, 1);

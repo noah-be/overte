@@ -14,11 +14,13 @@
 #include <iterator>
 
 #include <QtCore/QCoreApplication>
+#include <QtCore/QCryptographicHash>
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
 #include <QtCore/QMutex>
 #include <QtCore/QMutexLocker>
 #include <QtCore/QSet>
+#include <QtCore/QUrl>
 
 #include "shared/GlobalAppProperties.h"
 
@@ -29,6 +31,7 @@ constexpr auto NAVIGATION_ENV = "OVERTE_MACOS_ONLINE_LOADING_NAVIGATION_ID";
 constexpr auto LOCATION_SHA_ENV = "OVERTE_MACOS_ONLINE_LOADING_LOCATION_SHA256";
 constexpr auto LOG_PREFIX = "OVERTE_MACOS_ONLINE_NAV";
 constexpr int MAX_NAVIGATION_ID_LENGTH { 64 };
+constexpr int MAX_TARGET_BYTES { 2048 };
 constexpr std::array<const char*, 10> EVENT_ORDER {{
     "url_accepted",
     "domain_connected",
@@ -162,6 +165,26 @@ QString navigationId() {
 
 QString locationSha256() {
     return configuration().locationSha256;
+}
+
+bool beginNavigation(const QByteArray& target) {
+    const auto current = configuration();
+    if (!current.valid() || target.isEmpty() || target.size() > MAX_TARGET_BYTES ||
+            QString::fromUtf8(target).toUtf8() != target) {
+        return false;
+    }
+    const QUrl targetUrl = QUrl::fromEncoded(target, QUrl::StrictMode);
+    if (!targetUrl.isValid() || targetUrl.scheme() != QStringLiteral("hifi") ||
+            targetUrl.host().isEmpty() || !targetUrl.userName().isEmpty() ||
+            !targetUrl.password().isEmpty()) {
+        return false;
+    }
+    const QByteArray targetSha256 = QCryptographicHash::hash(
+        target, QCryptographicHash::Sha256).toHex();
+    if (targetSha256 != current.locationSha256.toLatin1()) {
+        return false;
+    }
+    return recordOnce("url_accepted");
 }
 
 bool recordOnce(const char* event, NumericFields fields) {

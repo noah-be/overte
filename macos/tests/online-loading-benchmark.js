@@ -10,8 +10,10 @@
 
     var testCase = OVERTE_MACOS_ONLINE_LOADING_CASE;
     var diagnosticOnly = testCase.runner_class === "diagnostic";
-    var startedAt = Date.now();
-    var deadline = startedAt + (diagnosticOnly ? 70000 : 360000);
+    var baselineStartedAt = Date.now();
+    var baselineDeadline = baselineStartedAt + 180000;
+    var startedAt = null;
+    var deadline = 0;
     var measurementDeadline = 0;
     var firstEntitiesMs = null;
     var firstVisibleMs = null;
@@ -24,6 +26,13 @@
     var samples = [];
     var maxEntityCount = 0;
     var visiblePresentBaseline = null;
+    var baselinePresentCount = null;
+    var navigationStarted = false;
+    var expectedFixtureNames = {
+        "macOS smoke red cube": false,
+        "macOS smoke cyan sphere": false,
+        "macOS smoke label": false
+    };
 
     Render.renderMethod = 1;
     Render.shadowsEnabled = false;
@@ -37,6 +46,7 @@
     Render.getConfig("RenderMainView.PreparePrimaryBufferForward").numSamples = 1;
     Performance.setRefreshRateProfile(2);
     Scene.shouldRenderAvatars = false;
+    Scene.shouldRenderEntities = true;
     Stats.expanded = true;
 
     function finiteNumber(value) {
@@ -61,14 +71,30 @@
             state.texture_pending_mb === 0 && Test.isTextureLoadingComplete();
     }
 
+    function fixtureState(entities) {
+        var found = {};
+        Object.keys(expectedFixtureNames).forEach(function (name) { found[name] = false; });
+        entities.forEach(function (id) {
+            var name = Entities.getEntityProperties(id, ["name"]).name;
+            if (Object.prototype.hasOwnProperty.call(found, name)) {
+                found[name] = true;
+            }
+        });
+        return {
+            count: Object.keys(found).filter(function (name) { return found[name]; }).length,
+            complete: Object.keys(found).every(function (name) { return found[name]; })
+        };
+    }
+
     function inspectVisible(entities) {
         var ignored = { Unknown: true, Empty: true, Sound: true, Script: true, Zone: true,
             Light: true, Material: true };
         var visible = 0;
         entities.slice(0, 512).forEach(function (id) {
-            var properties = Entities.getEntityProperties(id, ["type", "visible"]);
+            var properties = Entities.getEntityProperties(id, ["name", "type", "visible"]);
             var type = String(properties.type || "Unknown");
-            if (properties.visible !== false && !ignored[type]) {
+            if (!Object.prototype.hasOwnProperty.call(expectedFixtureNames, properties.name) &&
+                    properties.visible !== false && !ignored[type]) {
                 visible += 1;
             }
         });
@@ -90,7 +116,7 @@
             run_index: testCase.run_index,
             location_label: testCase.location_label,
             runner_class: testCase.runner_class,
-            duration_ms: Date.now() - startedAt,
+            duration_ms: Date.now() - (startedAt === null ? baselineStartedAt : startedAt),
             first_entities_ms: firstEntitiesMs,
             first_visible_ms: firstVisibleMs,
             snapshot_requested_ms: snapshotRequestedMs,
@@ -123,20 +149,44 @@
         print("OVERTE_MACOS_ONLINE_LOADING snapshot_complete_ms=" + snapshotCompletedMs);
     });
 
-    print("OVERTE_MACOS_ONLINE_LOADING started navigation_id=" + testCase.navigation_id +
-        " cache=" + testCase.cache_mode +
-        " concurrency=" + testCase.concurrency + " run=" + testCase.run_index);
-
     Script.setInterval(function () {
         if (completed) {
             return;
         }
         var now = Date.now();
-        var elapsed = now - startedAt;
         var state = queueState();
         var entities = Entities.findEntities(MyAvatar.position, 16384);
-        maxEntityCount = Math.max(maxEntityCount, entities.length);
-        var visible = inspectVisible(entities);
+        var fixture = fixtureState(entities);
+        var presentCount = finiteNumber(Test.getPresentCount());
+        if (!navigationStarted) {
+            if (baselinePresentCount === null) {
+                baselinePresentCount = presentCount;
+            }
+            if (AddressManager.isConnected && AddressManager.protocol === "file" &&
+                    fixture.complete && queuesEmpty(state) && presentCount > baselinePresentCount) {
+                startedAt = now;
+                deadline = startedAt + (diagnosticOnly ? 70000 : 360000);
+                navigationStarted = Test.beginOnlineLoadingNavigation();
+                if (!navigationStarted) {
+                    publish(false, "navigation_start_failed");
+                    return;
+                }
+                print("OVERTE_MACOS_ONLINE_LOADING started navigation_id=" + testCase.navigation_id +
+                    " cache=" + testCase.cache_mode +
+                    " concurrency=" + testCase.concurrency + " run=" + testCase.run_index);
+            } else if (now >= baselineDeadline) {
+                publish(false, "baseline_timeout");
+            }
+            return;
+        }
+
+        var elapsed = now - startedAt;
+        var onlineReady = AddressManager.isConnected && AddressManager.protocol === "hifi" &&
+            Test.isOnlineLoadingEntityTreeReady() && fixture.count === 0;
+        var visible = onlineReady ? inspectVisible(entities) : 0;
+        if (onlineReady) {
+            maxEntityCount = Math.max(maxEntityCount, entities.length);
+        }
         samples.push({
             elapsed_ms: elapsed,
             downloads: state.downloads,
@@ -144,7 +194,7 @@
             processing: state.processing,
             processing_pending: state.processing_pending,
             texture_pending_mb: state.texture_pending_mb,
-            entity_count: entities.length,
+            entity_count: onlineReady ? entities.length : 0,
             visible_count: visible,
             present_hz: finiteNumber(Rates.present),
             new_frame_hz: finiteNumber(Rates.newFrame)
@@ -152,7 +202,7 @@
         if (samples.length > 720) {
             samples.shift();
         }
-        if (firstEntitiesMs === null && entities.length > 0) {
+        if (firstEntitiesMs === null && onlineReady && entities.length > 0) {
             firstEntitiesMs = elapsed;
             print("OVERTE_MACOS_ONLINE_LOADING first_entities_ms=" + firstEntitiesMs +
                 " count=" + entities.length);
