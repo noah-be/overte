@@ -58,10 +58,17 @@ plugin instead of presenting the desktop/XR first-launch chooser. One bounded
 unified-log stream starts before the app and captures its process/lifecycle
 messages together with the runtime gates, so immediate startup failures and
 early markers cannot be missed and polling never repeatedly scans the log
-database. The returned simulator PID is checked during every poll, turning an
-early app exit into an immediate failure instead of a four-minute timeout. Raw
-unified logs remain private runner scratch data; on failure only their
-size-bounded, secret-redacted diagnostic copy is uploaded, and otherwise they
+database. The launch also redirects the app's own stdout and stderr to private
+runner files because Qt startup messages are not guaranteed to enter Unified
+Logging. The returned simulator PID and its argument-free CPU/RAM/process state
+are checked during every poll, turning an early app exit into an immediate
+failure instead of a four-minute timeout. If startup has not produced a gate
+after eight seconds, one bounded `sample` captures the live stack before a
+later watchdog exit can destroy it. On failure the harness additionally queries
+a bounded bundle-specific dyld/RunningBoard/FrontBoard postmortem and retains
+only crash reports created after this launch. Raw logs, process samples and
+crash data remain private runner scratch data; only their size-bounded,
+secret-redacted diagnostic copies are uploaded on failure, and otherwise they
 are deleted.
 
 `.github/workflows/ios-interface-simulator-acceptance.yml` remains available as

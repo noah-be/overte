@@ -19,6 +19,7 @@ output_dir="${6:-}"
 poll_timeout="${OVERTE_IOS_WORLD_TIMEOUT_SECONDS:-240}"
 poll_interval="${OVERTE_IOS_WORLD_POLL_SECONDS:-2}"
 screenshot_settle="${OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS:-2}"
+stack_sample_delay="${OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS:-8}"
 diagnostics_dir="${OVERTE_IOS_WORLD_DIAGNOSTICS_DIR:-}"
 
 [[ -d "$app_path" && "$app_path" == *.app ]] || {
@@ -48,6 +49,10 @@ diagnostics_dir="${OVERTE_IOS_WORLD_DIAGNOSTICS_DIR:-}"
 }
 [[ "$screenshot_settle" =~ ^[0-9]+$ ]] && ((10#$screenshot_settle <= 30)) || {
     echo "OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS must be an integer from 0 through 30" >&2
+    exit 2
+}
+[[ "$stack_sample_delay" =~ ^[1-9][0-9]*$ ]] && ((10#$stack_sample_delay <= 120)) || {
+    echo "OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS must be an integer from 1 through 120" >&2
     exit 2
 }
 for helper in "$timeout_runner" "$simulator_selector" "$screenshot_validator" "$world_validator"; do
@@ -86,14 +91,20 @@ readonly raw_log="$temp_root/process.log"
 readonly app_stdout="$temp_root/application.stdout"
 readonly app_stderr="$temp_root/application.stderr"
 readonly runtime_log="$temp_root/runtime.log"
+readonly process_state_log="$temp_root/process-samples.log"
 readonly command_stderr="$temp_root/command.stderr"
 readonly log_stream_stderr="$temp_root/log-stream.stderr"
+readonly launch_marker="$temp_root/application-launch.marker"
 readonly command_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-command-errors.log}"
 readonly application_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-application.log}"
+readonly process_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-process-samples.log}"
+readonly postmortem_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-postmortem.log}"
+readonly crash_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-crash-report.log}"
 
 if [[ -n "$diagnostics_dir" ]]; then
     mkdir -p "$diagnostics_dir"
-    rm -f "$command_diagnostics"
+    rm -f "$command_diagnostics" "$application_diagnostics" "$process_diagnostics" \
+        "$postmortem_diagnostics" "$crash_diagnostics"
 fi
 
 # These files must exist before any fallible simulator operation because the
@@ -101,6 +112,7 @@ fi
 : > "$raw_log"
 : > "$app_stdout"
 : > "$app_stderr"
+: > "$process_state_log"
 
 active_udid=""
 boot_requested=0
@@ -160,6 +172,82 @@ preserve_failure_application_log() {
     chmod 0600 "$application_diagnostics"
 }
 
+record_process_state() {
+    [[ -n "$launch_pid" ]] || return 0
+    {
+        printf 'utc=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+        # Deliberately omit args and environment.  They can contain URLs,
+        # signing values or tokens; comm plus resource counters is sufficient
+        # to prove whether the launched PID is the app and whether it advances.
+        ps -p "$launch_pid" -o pid=,ppid=,state=,etime=,time=,rss=,%cpu=,comm= \
+            2>/dev/null || printf 'process_state=unavailable\n'
+        printf '%s\n' '---'
+    } >> "$process_state_log"
+    chmod 0600 "$process_state_log"
+}
+
+capture_startup_stack() {
+    [[ -n "$launch_pid" ]] || return 0
+    local sample_tool status=0
+    sample_tool="$(command -v sample || true)"
+    [[ -n "$sample_tool" ]] || {
+        printf 'stack_sample=unavailable\n---\n' >> "$process_state_log"
+        chmod 0600 "$process_state_log"
+        return 0
+    }
+    {
+        printf 'stack_sample_utc=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+        "$timeout_runner" 15 "$sample_tool" "$launch_pid" 3 1 || status=$?
+        printf 'stack_sample_status=%s\n---\n' "$status"
+    } >> "$process_state_log" 2>&1
+    chmod 0600 "$process_state_log"
+    # Stack capture is supplementary.  Its failure must not replace the
+    # actual app/gate result, which remains fail-closed below.
+    return 0
+}
+
+preserve_failure_process_log() {
+    [[ -n "$process_diagnostics" && -s "$process_state_log" ]] || return 0
+    cp "$process_state_log" "$process_diagnostics"
+    chmod 0600 "$process_diagnostics"
+}
+
+capture_postmortem_log() {
+    [[ -n "$postmortem_diagnostics" && -n "$active_udid" ]] || return 0
+    local status=0
+    : > "$postmortem_diagnostics"
+    "$timeout_runner" 45 xcrun simctl spawn "$active_udid" log show \
+        --last 5m --style compact --level debug \
+        --predicate "process == \"Overte\" OR process == \"launchd_sim\" OR composedMessage CONTAINS \"$bundle_id\" OR composedMessage CONTAINS \"Overte\"" \
+        > "$postmortem_diagnostics" 2>&1 || status=$?
+    printf '\npostmortem_status=%s\n' "$status" >> "$postmortem_diagnostics"
+    chmod 0600 "$postmortem_diagnostics"
+}
+
+capture_crash_reports() {
+    [[ -n "$crash_diagnostics" && -f "$launch_marker" ]] || return 0
+    local root report found=0
+    : > "$crash_diagnostics"
+    for root in \
+        "$HOME/Library/Logs/DiagnosticReports" \
+        "$HOME/Library/Developer/CoreSimulator/Devices/$active_udid/data/Library/Logs/CrashReporter"; do
+        [[ -d "$root" ]] || continue
+        while IFS= read -r -d '' report; do
+            found=1
+            printf '=== %s ===\n' "$(basename "$report")" >> "$crash_diagnostics"
+            tail -c 2097152 "$report" >> "$crash_diagnostics" 2>/dev/null || true
+            printf '\n' >> "$crash_diagnostics"
+        done < <(find "$root" -maxdepth 3 -type f \
+            \( -name 'Overte*.ips' -o -name 'Overte*.crash' \) \
+            -newer "$launch_marker" -print0 2>/dev/null)
+    done
+    if ((found)); then
+        chmod 0600 "$crash_diagnostics"
+    else
+        rm -f "$crash_diagnostics"
+    fi
+}
+
 runtime_log_contains() {
     local pattern="$1"
     grep -Eq "$pattern" "$raw_log" "$app_stdout" "$app_stderr"
@@ -199,10 +287,16 @@ finish() {
     stop_log_stream
     if ((status != 0)); then
         preserve_failure_application_log
+        record_process_state
+        preserve_failure_process_log
+        capture_crash_reports
     fi
     if ((status != 0)) && [[ -n "$active_udid" && ! -f "$failure_screenshot" ]]; then
         run_bounded "failure screenshot" 30 xcrun simctl io "$active_udid" screenshot \
             "$failure_screenshot" >/dev/null || true
+    fi
+    if ((status != 0)); then
+        capture_postmortem_log
     fi
     if ((app_launched)) && [[ -n "$active_udid" ]]; then
         run_bounded "application cleanup" 30 xcrun simctl terminate \
@@ -215,7 +309,7 @@ finish() {
     if ((boot_requested)) && [[ -n "$active_udid" ]]; then
         run_bounded "simulator cleanup" 60 xcrun simctl shutdown "$active_udid" >/dev/null || true
     fi
-    rm -f "$raw_log" "$app_stdout" "$app_stderr" "$runtime_log" \
+    rm -f "$raw_log" "$app_stdout" "$app_stderr" "$runtime_log" "$process_state_log" \
         "$command_stderr" "$log_stream_stderr" "$device_list"
     rm -rf "$temp_root"
     exit "$status"
@@ -272,6 +366,7 @@ if ! kill -0 "$log_stream_pid" 2>/dev/null; then
     exit "$stream_status"
 fi
 
+touch "$launch_marker"
 launch_output="$(run_bounded "application launch" 60 xcrun simctl launch \
     --stdout="$app_stdout" --stderr="$app_stderr" \
     "$active_udid" "$bundle_id" --url "$launch_url" --ios-world-evidence \
@@ -280,13 +375,17 @@ launch_output="$(run_bounded "application launch" 60 xcrun simctl launch \
 launch_pid="${launch_output##*: }"
 [[ "$launch_pid" =~ ^[1-9][0-9]*$ ]] || { echo "application launch returned an invalid process identifier" >&2; exit 1; }
 app_launched=1
+record_process_state
 
 deadline=$(( $(date +%s) + 10#$poll_timeout ))
+sample_deadline=$(( $(date +%s) + 10#$stack_sample_delay ))
+startup_stack_captured=0
 while :; do
     if ! kill -0 "$launch_pid" 2>/dev/null; then
         echo "application process exited before the world gates were observed" >&2
         exit 1
     fi
+    record_process_state
     ready=0
     if runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+navigation_requested'; then
         if [[ "$scenario" == serverless ]]; then
@@ -303,6 +402,10 @@ while :; do
         fi
     fi
     ((ready)) && break
+    if ((!startup_stack_captured)) && (( $(date +%s) >= sample_deadline )); then
+        capture_startup_stack
+        startup_stack_captured=1
+    fi
     if ! kill -0 "$log_stream_pid" 2>/dev/null; then
         stream_status=0
         fail_stopped_log_stream || stream_status=$?

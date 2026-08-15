@@ -158,12 +158,18 @@ elif [ "$1 $2" = "simctl launch" ]; then
     : > "$app_stdout"
     printf '%s' "${FAKE_APP_STDERR:-}" > "$app_stderr"
     if [ "${FAKE_APP_EXIT_EARLY:-0}" = 1 ]; then
-        sleep 0.2 >/dev/null 2>&1 &
+        sleep "${FAKE_APP_EXIT_SECONDS:-0.2}" >/dev/null 2>&1 &
     else
         sleep 60 >/dev/null 2>&1 &
     fi
     app_pid=$!
     printf '%s\n' "$app_pid" > "$FAKE_APP_PID_FILE"
+    if [ "${FAKE_CREATE_CRASH_REPORT:-0}" = 1 ]; then
+        crash_root="$HOME/Library/Logs/DiagnosticReports"
+        mkdir -p "$crash_root"
+        printf '%s\n' "${FAKE_CRASH_REPORT:-synthetic crash report}" > \
+            "$crash_root/Overte-fixture.ips"
+    fi
     printf 'fixture: %s\n' "$app_pid"
 elif [ "$1 $2" = "simctl spawn" ] && [ "$4 $5" = "log stream" ]; then
     printf '%s' "$FAKE_PROCESS_LOG"
@@ -172,6 +178,8 @@ elif [ "$1 $2" = "simctl spawn" ] && [ "$4 $5" = "log stream" ]; then
     fi
     trap 'exit 0' TERM INT
     while :; do sleep 1; done
+elif [ "$1 $2" = "simctl spawn" ] && [ "$4 $5" = "log show" ]; then
+    printf '%s\n' "${FAKE_POSTMORTEM_LOG:-synthetic RunningBoard postmortem}"
 elif [ "$1 $2" = "simctl terminate" ]; then
     if [ -s "$FAKE_APP_PID_FILE" ]; then
         kill "$(cat "$FAKE_APP_PID_FILE")" 2>/dev/null || true
@@ -183,6 +191,12 @@ fi
         encoding="utf-8",
     )
     fake_xcrun.chmod(fake_xcrun.stat().st_mode | stat.S_IXUSR)
+    fake_sample = bin_dir / "sample"
+    fake_sample.write_text(
+        "#!/bin/sh\nprintf '%s\\n' \"${FAKE_SAMPLE_TEXT:-synthetic process stack}\"\n",
+        encoding="utf-8",
+    )
+    fake_sample.chmod(fake_sample.stat().st_mode | stat.S_IXUSR)
     environment = os.environ.copy()
     environment.update(
         {
@@ -231,6 +245,8 @@ fi
             assert runtime["scenario"] == scenario
             assert runtime["screenshot"]["sha256"] == screenshot_report["sha256"]
             assert not (output / f"{family}-{scenario}-failure.png").exists()
+            for suffix in ("process-samples", "postmortem", "crash-report"):
+                assert not (root / f"raw-diagnostics/{family}-{scenario}-{suffix}.log").exists()
             assert_no_raw_log(output, scratch)
             assert_private(result, app)
             commands = command_log.read_text(encoding="utf-8").splitlines()
@@ -334,9 +350,17 @@ fi
         early_exit_output,
         {
             **environment,
+            "HOME": str(root / "home"),
             "FAKE_PROCESS_LOG": "",
             "FAKE_APP_STDERR": "Overte fatal: synthetic early process exit\n",
             "FAKE_APP_EXIT_EARLY": "1",
+            "FAKE_APP_EXIT_SECONDS": "2",
+            "FAKE_CREATE_CRASH_REPORT": "1",
+            "FAKE_CRASH_REPORT": "synthetic dyld crash cause",
+            "FAKE_POSTMORTEM_LOG": "synthetic RunningBoard exit cause",
+            "FAKE_SAMPLE_TEXT": "synthetic main-thread stack",
+            "OVERTE_IOS_WORLD_TIMEOUT_SECONDS": "5",
+            "OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS": "1",
         },
         "iphone",
         "serverless",
@@ -347,6 +371,14 @@ fi
     application_diagnostics = root / "raw-diagnostics/iphone-serverless-application.log"
     assert application_diagnostics.is_file()
     assert "synthetic early process exit" in application_diagnostics.read_text(encoding="utf-8")
+    process_diagnostics = root / "raw-diagnostics/iphone-serverless-process-samples.log"
+    assert process_diagnostics.is_file()
+    assert "synthetic main-thread stack" in process_diagnostics.read_text(encoding="utf-8")
+    assert "command" not in process_diagnostics.read_text(encoding="utf-8")
+    postmortem = root / "raw-diagnostics/iphone-serverless-postmortem.log"
+    assert "synthetic RunningBoard exit cause" in postmortem.read_text(encoding="utf-8")
+    crash = root / "raw-diagnostics/iphone-serverless-crash-report.log"
+    assert "synthetic dyld crash cause" in crash.read_text(encoding="utf-8")
     assert (early_exit_output / "iphone-serverless-failure.png").is_file()
     assert_no_raw_log(early_exit_output, scratch)
 
