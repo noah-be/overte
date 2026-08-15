@@ -122,6 +122,7 @@ with tempfile.TemporaryDirectory(prefix="overte-ios-world-smoke-test-") as direc
     scratch = root / "tmp"
     scratch.mkdir()
     command_log = root / "xcrun-commands.txt"
+    app_pid_file = root / "fake-app.pid"
     screenshot_fixture = root / "world.png"
     screenshot_fixture.write_bytes(png_bytes())
     blank_fixture = root / "blank.png"
@@ -145,7 +146,14 @@ elif [ -n "${FAKE_FAIL_MATCH:-}" ] && [ "$*" = "$FAKE_FAIL_MATCH" ]; then
     printf '%s\n' "${FAKE_FAILURE_DETAIL:-fixture command failure}" >&2
     exit "${FAKE_FAIL_STATUS:-13}"
 elif [ "$1 $2" = "simctl launch" ]; then
-    printf '%s: 4242\n' "$4"
+    if [ "${FAKE_APP_EXIT_EARLY:-0}" = 1 ]; then
+        sleep 0.2 >/dev/null 2>&1 &
+    else
+        sleep 60 >/dev/null 2>&1 &
+    fi
+    app_pid=$!
+    printf '%s\n' "$app_pid" > "$FAKE_APP_PID_FILE"
+    printf '%s: %s\n' "$4" "$app_pid"
 elif [ "$1 $2" = "simctl spawn" ] && [ "$4 $5" = "log stream" ]; then
     printf '%s' "$FAKE_PROCESS_LOG"
     if [ "${FAKE_LOG_STREAM_EXIT:-0}" = 1 ]; then
@@ -153,6 +161,10 @@ elif [ "$1 $2" = "simctl spawn" ] && [ "$4 $5" = "log stream" ]; then
     fi
     trap 'exit 0' TERM INT
     while :; do sleep 1; done
+elif [ "$1 $2" = "simctl terminate" ]; then
+    if [ -s "$FAKE_APP_PID_FILE" ]; then
+        kill "$(cat "$FAKE_APP_PID_FILE")" 2>/dev/null || true
+    fi
 elif [ "$1 $2" = "simctl io" ] && [ "$4" = "screenshot" ]; then
     cp "$FAKE_SCREENSHOT" "$5"
 fi
@@ -166,6 +178,7 @@ fi
             "PATH": f"{bin_dir}:{environment['PATH']}",
             "TMPDIR": str(scratch),
             "FAKE_XCRUN_COMMAND_LOG": str(command_log),
+            "FAKE_APP_PID_FILE": str(app_pid_file),
             "FAKE_DEVICE_JSON": json.dumps(device_fixture),
             "FAKE_SCREENSHOT": str(screenshot_fixture),
             "OVERTE_IOS_WORLD_TIMEOUT_SECONDS": "1",
@@ -217,6 +230,8 @@ fi
             assert len(streams) == 1, streams
             assert commands.index(streams[0]) < commands.index(launch[0]), commands
             assert "log show" not in "\n".join(commands), commands
+            assert 'process == "Overte"' in streams[0], streams
+            assert "--level debug" in streams[0], streams
             assert f"--url {launch_url}" in launch[0], launch
             assert "--ios-world-evidence" in launch[0], launch
             assert f"simctl io {udid} screenshot {screenshot}" in commands, commands
@@ -294,5 +309,26 @@ fi
     stream_diagnostics = root / "raw-diagnostics/iphone-serverless-command-errors.log"
     assert "command_label=process log stream" in stream_diagnostics.read_text(encoding="utf-8")
     assert_no_raw_log(stopped_stream_output, scratch)
+
+    early_exit_output = root / "early-exit"
+    early_exit = invoke(
+        app,
+        early_exit_output,
+        {
+            **environment,
+            "FAKE_PROCESS_LOG": "Overte fatal: synthetic early process exit\n",
+            "FAKE_APP_EXIT_EARLY": "1",
+        },
+        "iphone",
+        "serverless",
+        "-",
+    )
+    assert early_exit.returncode == 1, (early_exit.stdout, early_exit.stderr)
+    assert "application process exited before the world gates were observed" in early_exit.stderr
+    application_diagnostics = root / "raw-diagnostics/iphone-serverless-application.log"
+    assert application_diagnostics.is_file()
+    assert "synthetic early process exit" in application_diagnostics.read_text(encoding="utf-8")
+    assert (early_exit_output / "iphone-serverless-failure.png").is_file()
+    assert_no_raw_log(early_exit_output, scratch)
 
 print("PASS fail-closed iPhone/iPad serverless and online simulator screenshot runner mocks")

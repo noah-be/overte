@@ -86,6 +86,7 @@ readonly raw_log="$temp_root/process.log"
 readonly command_stderr="$temp_root/command.stderr"
 readonly log_stream_stderr="$temp_root/log-stream.stderr"
 readonly command_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-command-errors.log}"
+readonly application_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-application.log}"
 
 if [[ -n "$diagnostics_dir" ]]; then
     mkdir -p "$diagnostics_dir"
@@ -97,6 +98,7 @@ boot_requested=0
 app_launched=0
 app_installed=0
 log_stream_pid=""
+launch_pid=""
 
 run_bounded() {
     local label="$1" seconds="$2" status=0
@@ -136,6 +138,11 @@ stop_log_stream() {
     return 0
 }
 
+preserve_failure_application_log() {
+    [[ -n "$application_diagnostics" && -s "$raw_log" ]] || return 0
+    install -m 0600 "$raw_log" "$application_diagnostics"
+}
+
 fail_stopped_log_stream() {
     local status=0
     wait "$log_stream_pid" 2>/dev/null || status=$?
@@ -164,6 +171,9 @@ finish() {
     local status=$?
     trap - EXIT
     stop_log_stream
+    if ((status != 0)); then
+        preserve_failure_application_log
+    fi
     if ((status != 0)) && [[ -n "$active_udid" && ! -f "$failure_screenshot" ]]; then
         run_bounded "failure screenshot" 30 xcrun simctl io "$active_udid" screenshot \
             "$failure_screenshot" >/dev/null || true
@@ -210,16 +220,17 @@ fi
 run_bounded "application install" 120 xcrun simctl install "$active_udid" "$app_path" >/dev/null
 app_installed=1
 
-# Capture only the privacy-bounded world/entity markers. Starting the stream
-# before launch prevents fast startup gates from falling into the gap between
-# simctl launch and a later log query. Unlike `log show`, this does not rescan
-# the simulator's unified-log database on every poll.
+# Capture the app process, its lifecycle messages and the privacy-bounded
+# world/entity markers. Starting the stream before launch prevents immediate
+# startup failures or fast gates from falling into the gap between launch and
+# a later query. The raw stream remains runner-local; only a size-bounded,
+# secret-redacted copy is uploaded on failure by the workflow.
 : > "$raw_log"
 : > "$log_stream_stderr"
 log_stream_timeout=$((10#$poll_timeout + 30))
 "$timeout_runner" "$log_stream_timeout" xcrun simctl spawn "$active_udid" log stream \
-    --style compact --level info \
-    --predicate '(eventMessage CONTAINS "OVERTE_IOS_WORLD_GATE" OR eventMessage CONTAINS "OVERTE_IOS_ENTITY_GATE")' \
+    --style compact --level debug \
+    --predicate "(process == \"Overte\" OR eventMessage CONTAINS \"$bundle_id\" OR eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\")" \
     > "$raw_log" 2> "$log_stream_stderr" &
 log_stream_pid=$!
 # Give CoreSimulator's log subscriber a bounded head start. Merely spawning the
@@ -242,6 +253,10 @@ app_launched=1
 
 deadline=$(( $(date +%s) + 10#$poll_timeout ))
 while :; do
+    if ! kill -0 "$launch_pid" 2>/dev/null; then
+        echo "application process exited before the world gates were observed" >&2
+        exit 1
+    fi
     ready=0
     if grep -Eq 'OVERTE_IOS_WORLD_GATE[[:space:]]+navigation_requested' "$raw_log"; then
         if [[ "$scenario" == serverless ]]; then

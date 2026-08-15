@@ -54,10 +54,15 @@ gates pass; its PNG structure, digest, dimensions and visible image variation
 are validated. The final evidence-set report binds all four screenshots to the
 candidate SHA-256 and source revision and rejects byte-identical serverless and
 online frames. iOS deterministically selects its sole window-backed display
-plugin instead of presenting the desktop/XR first-launch chooser. Runtime gates
-are collected by one bounded unified-log stream that starts before the app, so
+plugin instead of presenting the desktop/XR first-launch chooser. One bounded
+unified-log stream starts before the app and captures its process/lifecycle
+messages together with the runtime gates, so immediate startup failures and
 early markers cannot be missed and polling never repeatedly scans the log
-database. Raw unified logs remain private scratch data and are deleted.
+database. The returned simulator PID is checked during every poll, turning an
+early app exit into an immediate failure instead of a four-minute timeout. Raw
+unified logs remain private runner scratch data; on failure only their
+size-bounded, secret-redacted diagnostic copy is uploaded, and otherwise they
+are deleted.
 
 `.github/workflows/ios-interface-simulator-acceptance.yml` remains available as
 a manual consumer for an already published simulator candidate. Its older
