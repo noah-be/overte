@@ -144,19 +144,15 @@ raw OpenGL and `system_profiler` evidence for fourteen days. GitHub documents
 `macos-15` as a standard three-core M1 runner, but the repository deliberately
 does not infer GPU suitability from that label alone.
 
-Run [`31834975878`](https://github.com/noah-be/overte/actions/runs/31834975878)
-established the first diagnostic baseline. Its Forward case completed with a
-valid 1380x776 image and a 9.658 ms render-submit p95, but the actual
-present/new-frame rate was only about 0.64 Hz and Apple software-GL GPU/batch
-time was roughly 1.34 seconds at the median. This demonstrates why CPU-submit
-timings alone are not a gameplay result and why hosted software-renderer data is
-kept diagnostic-only.
-
-Re-analysis of the raw profile evidence from run `31848707317` identifies the
-hosted baseline as GPU-bound: median-p95 GPU/batch time is about 488 ms while
-engine time is 3.69 ms and present time is 615.89 ms. This is consistent with
-the independent native thread samples in Apple's software shader compiler and
-prevents the 30.876-ms CPU-submit p95 from being mistaken for the primary cost.
+Run [`31871253541`](https://github.com/noah-be/overte/actions/runs/31871253541)
+is the current hosted diagnostic baseline. Its final 1380x776 smoke image
+passed the semantic layout gate with 55,187 red and 30,216 cyan pixels after a
+separate shader-warmup image, a five-second cooldown, and two additional
+presents. The smoke's render-submit p95 was 4.663 ms. The richer Forward matrix
+case was nevertheless unambiguously GPU-bound: GPU/batch p95 was about 897 ms,
+present p95 about 852 ms, and engine p95 about 8.96 ms. The analyzer therefore
+reported `diagnostic-only`, `decision_ready=false`, and no selected profile.
+This prevents fast CPU submission from being mistaken for fluid gameplay.
 
 Online connectivity acceptance remains separate from loading performance. The
 loading benchmark intentionally does **not** enable the lightweight entity

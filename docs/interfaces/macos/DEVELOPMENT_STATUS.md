@@ -35,11 +35,11 @@
 
 The Intel CI path resolves dependencies, builds and bundles `Overte.app`, and
 passes bundle linkage and startup. Comprehensive run
-[`31821239596`](https://github.com/noah-be/overte/actions/runs/31821239596)
-passed every enabled gate on commit `e6f5d94a9e`: build and checkpoint recovery,
-bundle validation, startup, deterministic serverless rendering, public online
-entity loading, graphics performance, and all 50 registered native C++/Qt
-tests. No native test failed or was skipped.
+[`31868069780`](https://github.com/noah-be/overte/actions/runs/31868069780)
+passed every enabled gate: dependency and build checkpoint recovery, bundle
+validation, startup, deterministic serverless rendering, public online entity
+loading, graphics performance, and all 52 registered native C++/Qt tests. No
+native test failed or was skipped.
 
 The serverless scene produced its three named entities and a 1380x776 image
 with 55,187 red and 30,216 cyan pixels. The online client captured 78 domain
@@ -49,14 +49,17 @@ needed timeout signals or produced a crash report. The informational
 performance sample contained 31 frames with a 4.870 ms p95 and no sample above
 16.67 ms.
 
-Diagnostic profiling run
-[`31834975878`](https://github.com/noah-be/overte/actions/runs/31834975878)
-then exposed the distinction between render-submit and actual presentation. The
-hosted Apple Software Renderer completed the bounded Forward scene and valid
-image with a 9.658 ms render-submit p95, but averaged only about 0.64 presented
-frames per second and spent roughly 1.34 seconds per GPU/batch frame at the
-median. It is therefore an effective correctness, crash, and cold-shader oracle,
-but cannot select a real-Mac quality profile.
+Runtime-only run
+[`31871253541`](https://github.com/noah-be/overte/actions/runs/31871253541)
+reused that exact application bundle and passed startup, serverless and online
+entity acceptance, the corrected deterministic performance smoke, the graphics
+profile matrix, and the online-loading benchmark. The final 1380x776
+performance image contained 55,187 red and 30,216 cyan fixture pixels; its 30
+render-submit samples had a 4.663 ms p95. The matrix independently identified
+the hosted Apple Software Renderer as GPU-bound: GPU/batch p95 was about 897 ms
+and present p95 about 852 ms while engine p95 was about 8.96 ms. It therefore
+correctly reported `diagnostic-only`, left `decision_ready` false, and selected
+no gameplay profile.
 
 Native arm64 capability probe
 [`31853662830`](https://github.com/noah-be/overte/actions/runs/31853662830)
@@ -65,15 +68,19 @@ CGL pixel format or accelerated renderer. It therefore cannot execute the
 graphics matrix or certify an Apple Silicon profile. The remaining native
 profile gate explicitly requires a physical or self-hosted Apple-GPU runner.
 
-The same run found the dominant online-world bottleneck on that environment.
-Cold attempts reached visible entities in 6.938 and 8.758 seconds before native
-Apple software-GL crashes. Warm attempts reached visible entities in 66.942 and
-15.281 seconds, then remained CPU-active inside the Apple presentation driver
-until the bounded supervisor stopped them. The public domain also reconnected
-and returned different entity counts, so no defensible 10-versus-16 download
-concurrency decision was possible. The default concurrency has intentionally
-not changed. New manifests retain these partial milestones while preventing
-them from being mistaken for accepted optimization evidence.
+The same runtime run produced the first clean post-startup cold/warm navigation
+pair on that environment. Both processes reached 392 visible entities without
+a crash: cold first-visible was 13.0 seconds and warm first-visible was 9.0
+seconds. Packet receipt through decompression and tree mutation took less than
+0.6 ms in each attempt, while domain-to-query took 4.16/1.68 seconds and
+tree-to-render-handoff took 4.74/1.94 seconds. Ten active downloads and 33/34
+pending downloads remained at the bounded observation endpoint, and the
+software renderer did not sustain presentation or finish the screenshot/idle
+gate. The analyzer consequently classified both attempts as
+`render-present` plus `resource-backlog`, kept `measurement_passed` and
+`decision_ready` false, and selected no concurrency. This single mutable public
+world pair is diagnostic evidence only; the default concurrency intentionally
+remains unchanged.
 
 Earlier transition run
 [`31778713708`](https://github.com/noah-be/overte/actions/runs/31778713708)
@@ -91,12 +98,11 @@ stability iterations exited cleanly.
 
 ## Open gates
 
-1. Rebuild and run the new scheduling-policy native test plus runtime diagnostics
-   on the updated client.
-2. Run the full profile matrix three times on native, non-Rosetta Apple Silicon
+1. Run the full profile matrix three times on native, non-Rosetta Apple Silicon
    hardware; establish reviewed per-renderer image baselines before selecting a
    production quality profile.
-3. Run online loading against a pinned, controlled domain before considering a
-   download-concurrency or cache-policy change.
-4. Validate native Apple Silicon dependencies and runtime.
-5. Define signing, notarization, privacy, and packaging requirements.
+2. Run online loading against a pinned, controlled domain for at least three
+   cold/warm pairs before considering a download-concurrency or cache-policy
+   change.
+3. Validate native Apple Silicon dependencies and runtime.
+4. Define signing, notarization, privacy, and packaging requirements.
