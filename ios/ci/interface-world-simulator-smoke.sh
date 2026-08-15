@@ -83,6 +83,9 @@ temp_root="$(mktemp -d "${TMPDIR:-/tmp}/overte-ios-world-smoke.XXXXXX")"
 readonly temp_root
 readonly device_list="$temp_root/devices.json"
 readonly raw_log="$temp_root/process.log"
+readonly app_stdout="$temp_root/application.stdout"
+readonly app_stderr="$temp_root/application.stderr"
+readonly runtime_log="$temp_root/runtime.log"
 readonly command_stderr="$temp_root/command.stderr"
 readonly log_stream_stderr="$temp_root/log-stream.stderr"
 readonly command_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-command-errors.log}"
@@ -92,6 +95,12 @@ if [[ -n "$diagnostics_dir" ]]; then
     mkdir -p "$diagnostics_dir"
     rm -f "$command_diagnostics"
 fi
+
+# These files must exist before any fallible simulator operation because the
+# EXIT trap preserves them even when discovery, boot or installation fails.
+: > "$raw_log"
+: > "$app_stdout"
+: > "$app_stderr"
 
 active_udid=""
 boot_requested=0
@@ -139,8 +148,25 @@ stop_log_stream() {
 }
 
 preserve_failure_application_log() {
-    [[ -n "$application_diagnostics" && -s "$raw_log" ]] || return 0
-    install -m 0600 "$raw_log" "$application_diagnostics"
+    [[ -n "$application_diagnostics" ]] || return 0
+    {
+        printf '%s\n' '=== unified lifecycle log ==='
+        cat "$raw_log"
+        printf '%s\n' '=== application stdout ==='
+        cat "$app_stdout"
+        printf '%s\n' '=== application stderr ==='
+        cat "$app_stderr"
+    } > "$application_diagnostics"
+    chmod 0600 "$application_diagnostics"
+}
+
+runtime_log_contains() {
+    local pattern="$1"
+    grep -Eq "$pattern" "$raw_log" "$app_stdout" "$app_stderr"
+}
+
+assemble_runtime_log() {
+    cat "$raw_log" "$app_stdout" "$app_stderr" > "$runtime_log"
 }
 
 fail_stopped_log_stream() {
@@ -189,7 +215,8 @@ finish() {
     if ((boot_requested)) && [[ -n "$active_udid" ]]; then
         run_bounded "simulator cleanup" 60 xcrun simctl shutdown "$active_udid" >/dev/null || true
     fi
-    rm -f "$raw_log" "$command_stderr" "$log_stream_stderr" "$device_list"
+    rm -f "$raw_log" "$app_stdout" "$app_stderr" "$runtime_log" \
+        "$command_stderr" "$log_stream_stderr" "$device_list"
     rm -rf "$temp_root"
     exit "$status"
 }
@@ -226,6 +253,8 @@ app_installed=1
 # a later query. The raw stream remains runner-local; only a size-bounded,
 # secret-redacted copy is uploaded on failure by the workflow.
 : > "$raw_log"
+: > "$app_stdout"
+: > "$app_stderr"
 : > "$log_stream_stderr"
 log_stream_timeout=$((10#$poll_timeout + 30))
 "$timeout_runner" "$log_stream_timeout" xcrun simctl spawn "$active_udid" log stream \
@@ -244,6 +273,7 @@ if ! kill -0 "$log_stream_pid" 2>/dev/null; then
 fi
 
 launch_output="$(run_bounded "application launch" 60 xcrun simctl launch \
+    --stdout="$app_stdout" --stderr="$app_stderr" \
     "$active_udid" "$bundle_id" --url "$launch_url" --ios-world-evidence \
     --no-login-suggestion)"
 [[ "$launch_output" == *":"* ]] || { echo "application launch returned no process identifier" >&2; exit 1; }
@@ -258,18 +288,18 @@ while :; do
         exit 1
     fi
     ready=0
-    if grep -Eq 'OVERTE_IOS_WORLD_GATE[[:space:]]+navigation_requested' "$raw_log"; then
+    if runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+navigation_requested'; then
         if [[ "$scenario" == serverless ]]; then
-            grep -Eq 'OVERTE_IOS_WORLD_GATE[[:space:]]+serverless_import_committed' "$raw_log" && \
-            grep -Eq 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_tree_nonempty' "$raw_log" && \
-            grep -Eq 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' "$raw_log" && ready=1
+            runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+serverless_import_committed' && \
+            runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_tree_nonempty' && \
+            runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' && ready=1
         else
-            grep -Eq 'OVERTE_IOS_ENTITY_GATE[[:space:]]+domain_list_connected' "$raw_log" && \
-            grep -Eq 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_server_active' "$raw_log" && \
-            grep -Eq 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_query_sent' "$raw_log" && \
-            grep -Eq 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_data_received' "$raw_log" && \
-            grep -Eq 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_tree_nonempty' "$raw_log" && \
-            grep -Eq 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' "$raw_log" && ready=1
+            runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+domain_list_connected' && \
+            runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_server_active' && \
+            runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_query_sent' && \
+            runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_data_received' && \
+            runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_tree_nonempty' && \
+            runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' && ready=1
         fi
     fi
     ((ready)) && break
@@ -285,6 +315,7 @@ while :; do
     sleep "$poll_interval"
 done
 stop_log_stream
+assemble_runtime_log
 
 # Let the accepted scene transaction reach the presented framebuffer before
 # capturing. The screenshot validator still rejects blank/loading-only output.
@@ -296,7 +327,7 @@ python3 "$screenshot_validator" "$screenshot" \
     --scenario "$scenario" --destination "$destination" --output "$screenshot_report"
 
 validator_arguments=(
-    "$raw_log" --scenario "$scenario" --destination "$destination"
+    "$runtime_log" --scenario "$scenario" --destination "$destination"
     --screenshot "$screenshot" --screenshot-report "$screenshot_report" --output "$result"
 )
 if [[ "$scenario" == online ]]; then

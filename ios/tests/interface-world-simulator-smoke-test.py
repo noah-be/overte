@@ -146,6 +146,17 @@ elif [ -n "${FAKE_FAIL_MATCH:-}" ] && [ "$*" = "$FAKE_FAIL_MATCH" ]; then
     printf '%s\n' "${FAKE_FAILURE_DETAIL:-fixture command failure}" >&2
     exit "${FAKE_FAIL_STATUS:-13}"
 elif [ "$1 $2" = "simctl launch" ]; then
+    app_stdout=""
+    app_stderr=""
+    for argument in "$@"; do
+        case "$argument" in
+            --stdout=*) app_stdout=${argument#--stdout=} ;;
+            --stderr=*) app_stderr=${argument#--stderr=} ;;
+        esac
+    done
+    [ -n "$app_stdout" ] && [ -n "$app_stderr" ]
+    : > "$app_stdout"
+    printf '%s' "${FAKE_APP_STDERR:-}" > "$app_stderr"
     if [ "${FAKE_APP_EXIT_EARLY:-0}" = 1 ]; then
         sleep 0.2 >/dev/null 2>&1 &
     else
@@ -153,7 +164,7 @@ elif [ "$1 $2" = "simctl launch" ]; then
     fi
     app_pid=$!
     printf '%s\n' "$app_pid" > "$FAKE_APP_PID_FILE"
-    printf '%s: %s\n' "$4" "$app_pid"
+    printf 'fixture: %s\n' "$app_pid"
 elif [ "$1 $2" = "simctl spawn" ] && [ "$4 $5" = "log stream" ]; then
     printf '%s' "$FAKE_PROCESS_LOG"
     if [ "${FAKE_LOG_STREAM_EXIT:-0}" = 1 ]; then
@@ -224,7 +235,12 @@ fi
             assert_private(result, app)
             commands = command_log.read_text(encoding="utf-8").splitlines()
             assert f"simctl boot {udid}" in commands, commands
-            launch = [line for line in commands if line.startswith(f"simctl launch {udid} ")]
+            launch = [
+                line
+                for line in commands
+                if line.startswith("simctl launch --stdout=")
+                and f" {udid} org.overte.interface.dev " in line
+            ]
             assert len(launch) == 1, launch
             streams = [line for line in commands if line.startswith(f"simctl spawn {udid} log stream ")]
             assert len(streams) == 1, streams
@@ -234,6 +250,8 @@ fi
             assert "--level debug" in streams[0], streams
             assert f"--url {launch_url}" in launch[0], launch
             assert "--ios-world-evidence" in launch[0], launch
+            assert "--stdout=" in launch[0], launch
+            assert "--stderr=" in launch[0], launch
             assert f"simctl io {udid} screenshot {screenshot}" in commands, commands
             assert f"simctl terminate {udid} org.overte.interface.dev" in commands, commands
             assert f"simctl uninstall {udid} org.overte.interface.dev" in commands, commands
@@ -316,7 +334,8 @@ fi
         early_exit_output,
         {
             **environment,
-            "FAKE_PROCESS_LOG": "Overte fatal: synthetic early process exit\n",
+            "FAKE_PROCESS_LOG": "",
+            "FAKE_APP_STDERR": "Overte fatal: synthetic early process exit\n",
             "FAKE_APP_EXIT_EARLY": "1",
         },
         "iphone",

@@ -15,11 +15,8 @@ RUN_TESTS = (ROOT / "ios/tests/run-tests.sh").read_text(encoding="utf-8")
 
 assert re.search(r"^\s+workflow_dispatch:\s*$", WORKFLOW, re.MULTILINE)
 assert "pull_request:" not in WORKFLOW
-assert re.search(
-    r"push:\n\s+branches:\n\s+- apple-ios\n\s+paths:\n"
-    r"\s+- [.]github/workflows/ios-simulator-install-diagnostic[.]yml",
-    WORKFLOW,
-)
+assert "push:" not in WORKFLOW
+assert re.search(r"world_runtime_only:[\s\S]*type: boolean", WORKFLOW)
 assert "inputs.source_run_id || '31818380576'" in WORKFLOW
 assert "actions: read" in WORKFLOW and "contents: read" in WORKFLOW
 assert "persist-credentials: false" in WORKFLOW
@@ -65,6 +62,25 @@ assert re.search(
 )
 assert "cmake --build" not in WORKFLOW and "build-ios.sh build" not in WORKFLOW
 assert "retention-days: 14" in WORKFLOW
+
+runtime = WORKFLOW[WORKFLOW.index("world-runtime-only:") :]
+assert "if: ${{ inputs.world_runtime_only }}" in runtime
+assert "runs-on: macos-26" in runtime
+assert "Download exact preserved simulator candidate without rebuilding" in runtime
+assert "verify-runtime-candidate.py" in runtime
+assert "--mode simulator" in runtime
+assert "--expected-source-revision \"$EXPECTED_SOURCE_REVISION\"" in runtime
+assert "--expected-sha256 \"$EXPECTED_SHA256\"" in runtime
+assert "/Applications/Xcode_26.5.app/Contents/Developer" in runtime
+assert "interface-world-simulator-smoke.sh" in runtime
+assert "for family in iphone ipad" in runtime
+assert "serverless -" in runtime and 'online "$ONLINE_DOMAIN"' in runtime
+assert "validate-world-evidence-set.py" in runtime
+assert "sanitize-ci-log.py" in runtime
+assert "*-screenshot.json" in runtime and "*-runtime.json" in runtime
+assert "world-evidence-set.json" in runtime
+assert "Require successful preserved-candidate runtime evidence" in runtime
+assert "cmake --build" not in runtime and "build-ios.sh build" not in runtime
 assert RUN_TESTS.count("simulator-install-diagnostic-workflow-test.py") == 1
 
 print("PASS no-rebuild CoreSimulator installation diagnostic workflow contract")
