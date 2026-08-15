@@ -153,10 +153,10 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _run_tool(tool: Path, arguments: list[str], label: str) -> str:
+def _run_tool(tool: Path, arguments: list[str], label: str) -> bytes:
     try:
         result = subprocess.run(
-            [str(tool), *arguments], check=False, capture_output=True, text=True,
+            [str(tool), *arguments], check=False, capture_output=True,
             timeout=30, env={**os.environ, "LC_ALL": "C"},
         )
     except (OSError, subprocess.TimeoutExpired) as error:
@@ -201,9 +201,16 @@ def inspect_mach_o_bundle(
     inventory: list[dict[str, object]] = []
     for relative, path in _bundle_files(app):
         description = _run_tool(file_tool, ["-b", str(path)], "file")
-        if "Mach-O" not in description:
+        if b"Mach-O" not in description:
             continue
-        architecture_text = _run_tool(lipo_tool, ["-archs", str(path)], "lipo")
+        try:
+            architecture_text = _run_tool(
+                lipo_tool, ["-archs", str(path)], "lipo",
+            ).decode("ascii")
+        except UnicodeDecodeError as error:
+            raise ArtifactError(
+                f"invalid Mach-O architecture list for {relative}"
+            ) from error
         architectures = sorted(set(architecture_text.split()))
         if not architectures or any(not ARCHITECTURE.fullmatch(item) for item in architectures):
             raise ArtifactError(f"invalid Mach-O architecture list for {relative}")

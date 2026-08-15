@@ -242,6 +242,46 @@ class ApplicationArtifactTests(unittest.TestCase):
                 file_tool=broken, lipo_tool=self.lipo_tool,
             )
 
+    def test_non_utf8_file_description_is_safe_but_architectures_are_ascii(self):
+        non_utf8_file = self.root / "non-utf8-file.py"
+        non_utf8_file.write_text(
+            "#!/usr/bin/env python3\n"
+            "from pathlib import Path\n"
+            "import sys\n"
+            "data = Path(sys.argv[-1]).read_bytes()\n"
+            "output = b'Mach-O 64-bit binary\\n' if data.startswith(b'MACHO:') else b'font metadata \\xa9\\n'\n"
+            "sys.stdout.buffer.write(output)\n",
+            encoding="utf-8",
+        )
+        non_utf8_file.chmod(0o755)
+        manifest = artifact.package_application(
+            self.app, self.manifest, self.metadata,
+            file_tool=non_utf8_file, lipo_tool=self.lipo_tool,
+        )
+        self.assertEqual(len(manifest["application"]["mach_o"]), 2)
+        self.assertEqual(
+            artifact.verify_application(
+                self.app, self.manifest, self.metadata,
+                file_tool=non_utf8_file, lipo_tool=self.lipo_tool,
+            ),
+            manifest,
+        )
+
+        non_ascii_lipo = self.root / "non-ascii-lipo.py"
+        non_ascii_lipo.write_text(
+            "#!/usr/bin/env python3\n"
+            "import sys\n"
+            "sys.stdout.buffer.write(b'arm64 \\xa9\\n')\n",
+            encoding="utf-8",
+        )
+        non_ascii_lipo.chmod(0o755)
+        with self.assertRaisesRegex(
+                artifact.ArtifactError, "invalid Mach-O architecture list"):
+            artifact.package_application(
+                self.app, self.manifest, self.metadata,
+                file_tool=non_utf8_file, lipo_tool=non_ascii_lipo,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
