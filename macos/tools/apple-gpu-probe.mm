@@ -18,7 +18,9 @@ int main() {
     @autoreleasepool {
         CGLPixelFormatAttribute attributes[] = {
             kCGLPFAOpenGLProfile,
-            static_cast<CGLPixelFormatAttribute>(kCGLOGLPVersion_4_1_Core),
+            // Apple's modern Core selector is named 3.2 even when the
+            // selected renderer exposes the maximum macOS 4.1 context.
+            static_cast<CGLPixelFormatAttribute>(kCGLOGLPVersion_3_2_Core),
             kCGLPFAAccelerated,
             kCGLPFANoRecovery,
             static_cast<CGLPixelFormatAttribute>(0),

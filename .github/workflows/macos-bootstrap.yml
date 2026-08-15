@@ -21,6 +21,7 @@ on:
       - 'interface/**'
       - 'libraries/**'
       - 'macos/**'
+      - '!macos/tools/apple-gpu-probe.mm'
       - 'plugins/**'
       - '!**/*.md'
 

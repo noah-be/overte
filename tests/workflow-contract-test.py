@@ -76,7 +76,7 @@ class MacOSAppleSiliconProbeWorkflowContracts(unittest.TestCase):
 
     def test_probe_measures_real_cgl_context_and_fails_closed_to_diagnostic(self):
         for token in (
-            "kCGLOGLPVersion_4_1_Core",
+            "kCGLOGLPVersion_3_2_Core",
             "kCGLPFAAccelerated",
             "kCGLPFANoRecovery",
             "CGLCreateContext",
@@ -91,6 +91,8 @@ class MacOSAppleSiliconProbeWorkflowContracts(unittest.TestCase):
             'translated == "0"',
             'gl.get("context_created") is True',
             'gl.get("accelerated") is True',
+            "and opengl_41 and hardware_renderer",
+            '"opengl_41": opengl_41',
             '"paravirtual"',
             '"hardware_eligible": eligible',
             '"classification": "native-hardware" if eligible else "diagnostic-only"',
@@ -103,7 +105,9 @@ class MacOSAppleSiliconProbeWorkflowContracts(unittest.TestCase):
             "sw_vers",
             "xcodebuild -version",
             "opengl.json",
+            "compile.log",
             "result.json",
+            "Classify native hardware eligibility\n        if: ${{ always() }}",
             "if: ${{ always() }}",
             "if-no-files-found: error",
             "retention-days: 14",
