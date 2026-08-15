@@ -146,8 +146,13 @@ elif [ -n "${FAKE_FAIL_MATCH:-}" ] && [ "$*" = "$FAKE_FAIL_MATCH" ]; then
     exit "${FAKE_FAIL_STATUS:-13}"
 elif [ "$1 $2" = "simctl launch" ]; then
     printf '%s: 4242\n' "$4"
-elif [ "$1 $2" = "simctl spawn" ] && [ "$4 $5" = "log show" ]; then
+elif [ "$1 $2" = "simctl spawn" ] && [ "$4 $5" = "log stream" ]; then
     printf '%s' "$FAKE_PROCESS_LOG"
+    if [ "${FAKE_LOG_STREAM_EXIT:-0}" = 1 ]; then
+        exit 0
+    fi
+    trap 'exit 0' TERM INT
+    while :; do sleep 1; done
 elif [ "$1 $2" = "simctl io" ] && [ "$4" = "screenshot" ]; then
     cp "$FAKE_SCREENSHOT" "$5"
 fi
@@ -208,6 +213,10 @@ fi
             assert f"simctl boot {udid}" in commands, commands
             launch = [line for line in commands if line.startswith(f"simctl launch {udid} ")]
             assert len(launch) == 1, launch
+            streams = [line for line in commands if line.startswith(f"simctl spawn {udid} log stream ")]
+            assert len(streams) == 1, streams
+            assert commands.index(streams[0]) < commands.index(launch[0]), commands
+            assert "log show" not in "\n".join(commands), commands
             assert f"--url {launch_url}" in launch[0], launch
             assert "--ios-world-evidence" in launch[0], launch
             assert f"simctl io {udid} screenshot {screenshot}" in commands, commands
@@ -270,5 +279,20 @@ fi
     assert "blank or lacks visible world detail" in blank.stderr
     assert (blank_output / "ipad-serverless-failure.png").is_file()
     assert_no_raw_log(blank_output, scratch)
+
+    stopped_stream_output = root / "stopped-stream"
+    stopped_stream = invoke(
+        app,
+        stopped_stream_output,
+        {**environment, "FAKE_PROCESS_LOG": "", "FAKE_LOG_STREAM_EXIT": "1"},
+        "iphone",
+        "serverless",
+        "-",
+    )
+    assert stopped_stream.returncode == 1, (stopped_stream.stdout, stopped_stream.stderr)
+    assert "process log stream stopped before the world gates were observed" in stopped_stream.stderr
+    stream_diagnostics = root / "raw-diagnostics/iphone-serverless-command-errors.log"
+    assert "command_label=process log stream" in stream_diagnostics.read_text(encoding="utf-8")
+    assert_no_raw_log(stopped_stream_output, scratch)
 
 print("PASS fail-closed iPhone/iPad serverless and online simulator screenshot runner mocks")

@@ -84,6 +84,7 @@ readonly temp_root
 readonly device_list="$temp_root/devices.json"
 readonly raw_log="$temp_root/process.log"
 readonly command_stderr="$temp_root/command.stderr"
+readonly log_stream_stderr="$temp_root/log-stream.stderr"
 readonly command_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-command-errors.log}"
 
 if [[ -n "$diagnostics_dir" ]]; then
@@ -95,6 +96,7 @@ active_udid=""
 boot_requested=0
 app_launched=0
 app_installed=0
+log_stream_pid=""
 
 run_bounded() {
     local label="$1" seconds="$2" status=0
@@ -120,9 +122,48 @@ run_bounded() {
     return "$status"
 }
 
+stop_log_stream() {
+    local status=0
+    [[ -n "$log_stream_pid" ]] || return 0
+    if kill -0 "$log_stream_pid" 2>/dev/null; then
+        kill -TERM "$log_stream_pid" 2>/dev/null || true
+    fi
+    wait "$log_stream_pid" 2>/dev/null || status=$?
+    log_stream_pid=""
+    rm -f "$log_stream_stderr"
+    # SIGTERM is the expected way to stop the bounded stream after the runtime
+    # gates have been observed. Its status must not replace the test result.
+    return 0
+}
+
+fail_stopped_log_stream() {
+    local status=0
+    wait "$log_stream_pid" 2>/dev/null || status=$?
+    log_stream_pid=""
+    if ((status == 0)); then
+        status=1
+    fi
+    if [[ -n "$command_diagnostics" ]]; then
+        {
+            printf 'command_label=process log stream\ncommand_status=%s\n' "$status"
+            if [[ -s "$log_stream_stderr" ]]; then
+                cat "$log_stream_stderr"
+            else
+                printf 'command_stderr=empty\n'
+            fi
+            printf '%s\n' '---'
+        } >> "$command_diagnostics"
+        chmod 0600 "$command_diagnostics"
+    fi
+    echo "process log stream stopped before the world gates were observed" >&2
+    rm -f "$log_stream_stderr"
+    return "$status"
+}
+
 finish() {
     local status=$?
     trap - EXIT
+    stop_log_stream
     if ((status != 0)) && [[ -n "$active_udid" && ! -f "$failure_screenshot" ]]; then
         run_bounded "failure screenshot" 30 xcrun simctl io "$active_udid" screenshot \
             "$failure_screenshot" >/dev/null || true
@@ -138,7 +179,7 @@ finish() {
     if ((boot_requested)) && [[ -n "$active_udid" ]]; then
         run_bounded "simulator cleanup" 60 xcrun simctl shutdown "$active_udid" >/dev/null || true
     fi
-    rm -f "$raw_log" "$command_stderr" "$device_list"
+    rm -f "$raw_log" "$command_stderr" "$log_stream_stderr" "$device_list"
     rm -rf "$temp_root"
     exit "$status"
 }
@@ -169,7 +210,28 @@ fi
 run_bounded "application install" 120 xcrun simctl install "$active_udid" "$app_path" >/dev/null
 app_installed=1
 
-log_start="$(date -u '+%Y-%m-%d %H:%M:%S')"
+# Capture only the privacy-bounded world/entity markers. Starting the stream
+# before launch prevents fast startup gates from falling into the gap between
+# simctl launch and a later log query. Unlike `log show`, this does not rescan
+# the simulator's unified-log database on every poll.
+: > "$raw_log"
+: > "$log_stream_stderr"
+log_stream_timeout=$((10#$poll_timeout + 30))
+"$timeout_runner" "$log_stream_timeout" xcrun simctl spawn "$active_udid" log stream \
+    --style compact --level info \
+    --predicate '(eventMessage CONTAINS "OVERTE_IOS_WORLD_GATE" OR eventMessage CONTAINS "OVERTE_IOS_ENTITY_GATE")' \
+    > "$raw_log" 2> "$log_stream_stderr" &
+log_stream_pid=$!
+# Give CoreSimulator's log subscriber a bounded head start. Merely spawning the
+# background wrapper is not sufficient: the shell may otherwise launch the app
+# before `log stream` has subscribed and lose an immediate navigation marker.
+sleep 1
+if ! kill -0 "$log_stream_pid" 2>/dev/null; then
+    stream_status=0
+    fail_stopped_log_stream || stream_status=$?
+    exit "$stream_status"
+fi
+
 launch_output="$(run_bounded "application launch" 60 xcrun simctl launch \
     "$active_udid" "$bundle_id" --url "$launch_url" --ios-world-evidence \
     --no-login-suggestion)"
@@ -180,12 +242,6 @@ app_launched=1
 
 deadline=$(( $(date +%s) + 10#$poll_timeout ))
 while :; do
-    : > "$raw_log"
-    run_bounded "process log query" 30 xcrun simctl spawn "$active_udid" log show \
-        --style compact --start "$log_start" \
-        --predicate "processIdentifier == $launch_pid AND (eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\")" \
-        > "$raw_log"
-
     ready=0
     if grep -Eq 'OVERTE_IOS_WORLD_GATE[[:space:]]+navigation_requested' "$raw_log"; then
         if [[ "$scenario" == serverless ]]; then
@@ -202,12 +258,18 @@ while :; do
         fi
     fi
     ((ready)) && break
+    if ! kill -0 "$log_stream_pid" 2>/dev/null; then
+        stream_status=0
+        fail_stopped_log_stream || stream_status=$?
+        exit "$stream_status"
+    fi
     if (( $(date +%s) >= deadline )); then
         echo "$scenario world runtime timed out" >&2
         exit 124
     fi
     sleep "$poll_interval"
 done
+stop_log_stream
 
 # Let the accepted scene transaction reach the presented framebuffer before
 # capturing. The screenshot validator still rejects blank/loading-only output.

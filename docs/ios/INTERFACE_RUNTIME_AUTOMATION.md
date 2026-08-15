@@ -53,7 +53,11 @@ to all six network/entity gates. A screenshot is retained only after those
 gates pass; its PNG structure, digest, dimensions and visible image variation
 are validated. The final evidence-set report binds all four screenshots to the
 candidate SHA-256 and source revision and rejects byte-identical serverless and
-online frames. Raw unified logs remain private scratch data and are deleted.
+online frames. iOS deterministically selects its sole window-backed display
+plugin instead of presenting the desktop/XR first-launch chooser. Runtime gates
+are collected by one bounded unified-log stream that starts before the app, so
+early markers cannot be missed and polling never repeatedly scans the log
+database. Raw unified logs remain private scratch data and are deleted.
 
 `.github/workflows/ios-interface-simulator-acceptance.yml` remains available as
 a manual consumer for an already published simulator candidate. Its older
