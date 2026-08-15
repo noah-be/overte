@@ -101,14 +101,11 @@
         return visible;
     }
 
-    function publish(success, reason) {
-        if (completed) {
-            return;
-        }
-        completed = true;
-        var result = {
+    function resultObject(success, reason, evidenceStage) {
+        return {
             schema_version: 2,
             platform: "macos",
+            evidence_stage: evidenceStage,
             navigation_id: testCase.navigation_id,
             location_sha256: testCase.location_sha256,
             cache_mode: testCase.cache_mode,
@@ -124,12 +121,31 @@
             sustained_idle_ms: sustainedIdleMs,
             max_entity_count: maxEntityCount,
             queue_sample_interval_ms: 500,
-            queue_samples: samples,
+            queue_samples: samples.slice(0),
             completed_idle: sustainedIdleMs !== null,
             completed_snapshot: snapshotCompletedMs !== null,
             success: success,
             reason: reason
         };
+    }
+
+    function checkpointFirstVisible() {
+        // This deliberately has a different filename from the completion file
+        // watched by the process supervisor. Test.saveObject is synchronous and
+        // this immutable, one-shot checkpoint is validated before it can be used.
+        Test.saveObject(
+            resultObject(false, "first_visible_checkpoint", "first_visible_checkpoint"),
+            "macos-online-loading-checkpoint.json"
+        );
+        print("OVERTE_MACOS_ONLINE_LOADING first_visible_checkpoint_saved");
+    }
+
+    function publish(success, reason) {
+        if (completed) {
+            return;
+        }
+        completed = true;
+        var result = resultObject(success, reason, "final");
         Test.saveObject(result, "macos-online-loading.json");
         print("OVERTE_MACOS_ONLINE_LOADING " + (success ? "passed " : "failed ") +
             "cache=" + testCase.cache_mode + " run=" + testCase.run_index +
@@ -217,6 +233,7 @@
                     Test.recordOnlineLoadingVisible(visible)) {
                 firstVisibleMs = elapsed;
                 measurementDeadline = now + (diagnosticOnly ? 30000 : 180000);
+                checkpointFirstVisible();
                 print("OVERTE_MACOS_ONLINE_LOADING first_visible_ms=" + firstVisibleMs +
                     " count=" + visible + " present_count=" + currentPresentCount);
             }

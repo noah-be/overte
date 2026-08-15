@@ -1043,8 +1043,13 @@ for performance_contract in (
     "MAXIMUM_MEASUREMENT_MS = 90000",
     "MINIMUM_SAMPLE_COUNT = 30",
     "WARMUP_SETTLE_MS = 5000",
+    "WARMUP_COOLDOWN_MS = 5000",
+    "MINIMUM_COOLDOWN_PRESENTS = 2",
     'stage = "settling"',
+    'stage = "cooldown"',
+    'stage = "final"',
     "fixture_settled_ms=",
+    "warmup_cooldown_ms=",
     "sampleCount >= MINIMUM_SAMPLE_COUNT",
     "samples.length >= MINIMUM_SAMPLE_COUNT",
     "samples_us",
@@ -1062,10 +1067,34 @@ warmup_handler = performance_script.split("Window.stillSnapshotTaken.connect", 1
 )[0]
 if "if (!path)" not in warmup_handler or "startMeasurement();" not in warmup_handler:
     raise SystemExit("performance measurement must start after a completed warmup frame")
+warmup_branch = warmup_handler.split('if (stage === "warmup")', 1)[1].split(
+    "} else {", 1
+)[0]
+if "startMeasurement();" in warmup_branch or 'stage = "cooldown"' not in warmup_branch:
+    raise SystemExit("performance shader-warmup snapshot must enter cooldown without starting measurement")
+final_branch = warmup_handler.split("} else {", 1)[1]
+if "startMeasurement();" not in final_branch or "final_snapshot=" not in final_branch:
+    raise SystemExit("performance measurement must start only after the final snapshot is saved")
 if performance_script.index('stage = "settling"') > performance_script.index(
     'Window.takeSnapshot(false, false, 16 / 9, "macos-performance-warmup.png")'
 ):
     raise SystemExit("performance warmup must settle after discovery before snapshot capture")
+cooldown_branch = performance_script.split('} else if (stage === "cooldown") {', 1)[1].split(
+    '} else if (stage === "measuring") {', 1
+)[0]
+if (
+    "Date.now() - cooldownStartedAt >= WARMUP_COOLDOWN_MS" not in cooldown_branch
+    or "cooldownPresents >= MINIMUM_COOLDOWN_PRESENTS" not in cooldown_branch
+    or "Test.getPresentCount()" not in cooldown_branch
+    or 'stage = "final"' not in cooldown_branch
+    or 'Window.takeSnapshot(false, false, 16 / 9, "macos-performance.png")'
+    not in cooldown_branch
+):
+    raise SystemExit("performance final snapshot must be requested only after the bounded cooldown")
+if 'readonly warmup_snapshot="$output_dir/macos-performance-warmup.png"' not in performance_smoke:
+    raise SystemExit("performance runner must retain separate shader-warmup evidence")
+if 'readonly snapshot="$output_dir/macos-performance.png"' not in performance_smoke:
+    raise SystemExit("performance runner must validate the final post-cooldown snapshot")
 
 profile_matrix = (ROOT / "macos/ci/performance-matrix.sh").read_text(encoding="utf-8")
 profile_script = (ROOT / "macos/tests/profile-performance-smoke.js").read_text(encoding="utf-8")
@@ -1170,6 +1199,9 @@ for loading_contract in (
     "OVERTE_MACOS_LLDB_TIMEOUT_SECONDS",
     'OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-420',
     "online-loading-lldb.log",
+    "macos-online-loading-checkpoint.json",
+    '[[ -s "$lldb_dir/macos-online-loading.json" ]]',
+    '"diagnostic_retry_attempted": sys.argv[10] == "true"',
     "status > 128 && status < 192",
     'lldb --batch -o run -k "thread backtrace all" -k "register read"',
     '--completion-file "$lldb_dir/macos-online-loading.json"',
@@ -1197,6 +1229,10 @@ if "--macosTestLightweightEntities" in online_loading_runner:
     raise SystemExit("online loading benchmark must exercise full online entity content")
 if '--url "$location"' in online_loading_runner:
     raise SystemExit("online loading benchmark must not start Interface at the online target")
+if '--completion-file "$run_dir/macos-online-loading-checkpoint.json"' in online_loading_runner:
+    raise SystemExit("online loading visibility checkpoint must not terminate the primary supervisor")
+if '--completion-file "$lldb_dir/macos-online-loading-checkpoint.json"' in online_loading_runner:
+    raise SystemExit("online loading visibility checkpoint must not terminate the LLDB supervisor")
 for loading_contract in (
     "Stats.downloads",
     "Stats.downloadsPending",
@@ -1210,6 +1246,9 @@ for loading_contract in (
     "queue_samples",
     'testCase.runner_class === "diagnostic"',
     "diagnostic_observation_complete",
+    "first_visible_checkpoint",
+    '"macos-online-loading-checkpoint.json"',
+    'resultObject(false, "first_visible_checkpoint", "first_visible_checkpoint")',
     "diagnosticOnly ? 70000 : 360000",
     "diagnosticOnly ? 30000 : 180000",
     "Test.beginOnlineLoadingNavigation()",
@@ -1245,6 +1284,11 @@ for analyzer_contract in (
     "navigation and script first-visible clocks diverge",
     "queue sample interval must be exactly 500 ms",
     "navigation_after_startup",
+    '"primary-checkpoint"',
+    '"lldb-final"',
+    "load_signal_process",
+    "diagnostic_signal_evidence",
+    "visible online-loading evidence has an incomplete navigation event sequence",
 ):
     if analyzer_contract not in online_loading_analyzer:
         raise SystemExit(f"online loading analyzer missing: {analyzer_contract}")

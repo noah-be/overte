@@ -22,6 +22,8 @@
     var MAXIMUM_MEASUREMENT_MS = 90000;
     var MINIMUM_SAMPLE_COUNT = 30;
     var WARMUP_SETTLE_MS = 5000;
+    var WARMUP_COOLDOWN_MS = 5000;
+    var MINIMUM_COOLDOWN_PRESENTS = 2;
     var deadline = Date.now() + 180000;
     var expectedNames = {
         "macOS smoke red cube": false,
@@ -30,6 +32,8 @@
     };
     var stage = "waiting";
     var settleStartedAt = 0;
+    var cooldownStartedAt = 0;
+    var cooldownPresentBaseline = 0;
     var completed = false;
     var measurementStartedAt = 0;
     var nextMeasurementCheckAt = 0;
@@ -119,15 +123,22 @@
     }
 
     Window.stillSnapshotTaken.connect(function (path) {
-        if (stage !== "warmup") {
+        if (stage !== "warmup" && stage !== "final") {
             return;
         }
         if (!path) {
             finish(false, "snapshot_save_failed");
             return;
         }
-        print("OVERTE_MACOS_PERFORMANCE warmup_snapshot=" + path);
-        startMeasurement();
+        if (stage === "warmup") {
+            stage = "cooldown";
+            cooldownStartedAt = Date.now();
+            cooldownPresentBaseline = Number(Test.getPresentCount()) || 0;
+            print("OVERTE_MACOS_PERFORMANCE warmup_snapshot=" + path);
+        } else {
+            print("OVERTE_MACOS_PERFORMANCE final_snapshot=" + path);
+            startMeasurement();
+        }
     });
 
     Script.setInterval(function () {
@@ -157,6 +168,19 @@
                 print("OVERTE_MACOS_PERFORMANCE fixture_settled_ms=" +
                     (Date.now() - settleStartedAt));
                 Window.takeSnapshot(false, false, 16 / 9, "macos-performance-warmup.png");
+            }
+        } else if (stage === "cooldown") {
+            // The first snapshot forces lazy software-renderer shaders through
+            // their first present. Keep that compilation and the following
+            // scene handoff outside both the visual gate and timing samples.
+            var cooldownPresents = Math.max(0,
+                (Number(Test.getPresentCount()) || 0) - cooldownPresentBaseline);
+            if (Date.now() - cooldownStartedAt >= WARMUP_COOLDOWN_MS &&
+                    cooldownPresents >= MINIMUM_COOLDOWN_PRESENTS) {
+                stage = "final";
+                print("OVERTE_MACOS_PERFORMANCE warmup_cooldown_ms=" +
+                    (Date.now() - cooldownStartedAt) + " presents=" + cooldownPresents);
+                Window.takeSnapshot(false, false, 16 / 9, "macos-performance.png");
             }
         } else if (stage === "measuring") {
             var elapsedMs = Date.now() - measurementStartedAt;

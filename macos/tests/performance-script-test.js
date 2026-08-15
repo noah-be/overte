@@ -15,6 +15,7 @@ const source = fs.readFileSync(scriptPath, "utf8");
 
 function createRun() {
     const clock = { now: 1000 };
+    const present = { count: 100 };
     const output = [];
     const saved = [];
     const frameTimings = {
@@ -34,11 +35,13 @@ function createRun() {
     const window = {
         snapshotHandler: null,
         snapshotName: null,
+        snapshotNames: [],
         stillSnapshotTaken: {
             connect(callback) { window.snapshotHandler = callback; }
         },
         takeSnapshot(_notify, _includeAnimated, _aspect, name) {
             this.snapshotName = name;
+            this.snapshotNames.push(name);
         }
     };
     const names = {
@@ -54,6 +57,7 @@ function createRun() {
         Scene: {},
         FrameTimings: frameTimings,
         Test: {
+            getPresentCount() { return present.count; },
             saveObject(value, name) { saved.push({ value, name }); }
         },
         Script: script,
@@ -86,6 +90,31 @@ function createRun() {
         script.interval();
         assert.strictEqual(window.snapshotName, "macos-performance-warmup.png");
         window.snapshotHandler("/tmp/macos-performance-warmup.png");
+        assert.strictEqual(frameTimings.active, false,
+            "the shader-warmup snapshot must not start performance sampling");
+        assert.deepStrictEqual(window.snapshotNames, ["macos-performance-warmup.png"]);
+        clock.now += 4999;
+        script.interval();
+        assert.deepStrictEqual(window.snapshotNames, ["macos-performance-warmup.png"],
+            "the final snapshot must wait for the complete cooldown");
+        assert.strictEqual(frameTimings.active, false);
+        clock.now += 1;
+        script.interval();
+        assert.deepStrictEqual(window.snapshotNames, ["macos-performance-warmup.png"],
+            "elapsed cooldown alone must not substitute for new display presents");
+        present.count += 1;
+        script.interval();
+        assert.deepStrictEqual(window.snapshotNames, ["macos-performance-warmup.png"],
+            "one post-warmup present is insufficient");
+        present.count += 1;
+        script.interval();
+        assert.deepStrictEqual(window.snapshotNames, [
+            "macos-performance-warmup.png",
+            "macos-performance.png"
+        ]);
+        assert.strictEqual(frameTimings.active, false,
+            "requesting the final snapshot must not start sampling before it is saved");
+        window.snapshotHandler("/tmp/macos-performance.png");
         assert.strictEqual(frameTimings.active, true);
         return clock.now;
     }
@@ -95,7 +124,7 @@ function createRun() {
         script.interval();
     }
 
-    return { clock, frameTimings, output, saved, script, startMeasurement, tick };
+    return { clock, frameTimings, output, present, saved, script, startMeasurement, tick };
 }
 
 {
@@ -114,6 +143,9 @@ function createRun() {
     assert.strictEqual(run.saved[0].name, "macos-performance.json");
     assert.strictEqual(run.saved[0].value.sample_count, 30);
     assert(run.output.some((line) => line.includes("fixture_settled_ms=5000")));
+    assert(run.output.some((line) => line.includes("warmup_cooldown_ms=5000")));
+    assert(run.output.some((line) => line.includes("presents=2")));
+    assert(run.output.some((line) => line.includes("final_snapshot=/tmp/macos-performance.png")));
     assert(run.output.some((line) => line.includes("OVERTE_MACOS_PERFORMANCE passed samples=30")));
 }
 

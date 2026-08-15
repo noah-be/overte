@@ -205,6 +205,13 @@ no longer contaminate world-loading durations. The 300-second outer bound
 includes variable application startup and baseline settling; a private
 completion-file checkpoint lets the supervisor stop the process group as soon
 as the result is durable instead of waiting for the blocked renderer teardown.
+The first validated visible frame is also saved immediately to the separate
+`macos-online-loading-checkpoint.json`; that filename is deliberately not watched
+by the completion supervisor. If a diagnostic process then exits on a signal,
+the analyzer may consume that fail-closed checkpoint, or a completed LLDB retry,
+only with matching navigation identity, digest, contiguous telemetry and paired
+process/log evidence. The primary crash remains counted and incomplete. This
+recovery path never applies to native-hardware acceptance or performance decisions.
 The aggregate requires bounded connection/query evidence for both cold and warm
 and first-visible evidence in at least one of them. If Apple's software GL
 compiler prevents the screenshot/idle gates, it remains

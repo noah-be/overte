@@ -171,6 +171,89 @@ def create_benchmark(root: Path, *, runner_class: str = "hardware",
     )
 
 
+def mark_signal_attempt(root: Path, mode: str, *, metrics_present: bool) -> Path:
+    directory = root / f"c10/pair-1/{mode}"
+    attempts = [json.loads(line) for line in
+                (root / "attempts.jsonl").read_text(encoding="utf-8").splitlines()]
+    for attempt in attempts:
+        if attempt["concurrency"] == 10 and attempt["pair"] == 1 and attempt["cache_mode"] == mode:
+            attempt.update({
+                "exit_code": 139,
+                "accepted": False,
+                "metrics_present": metrics_present,
+                "diagnostic_retry_attempted": False,
+                "diagnostic_retry_exit_code": None,
+            })
+    (root / "attempts.jsonl").write_text(
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in attempts), encoding="utf-8"
+    )
+    (directory / "online-loading-accepted").unlink(missing_ok=True)
+    (directory / "online-loading-process.json").write_text(json.dumps({
+        "exit_code": -11,
+        "timed_out": False,
+        "sample_succeeded": False,
+        "completion_file_observed": False,
+        "terminated_after_completion": False,
+    }), encoding="utf-8")
+    return directory
+
+
+def install_primary_checkpoint(directory: Path) -> None:
+    final_path = directory / "macos-online-loading.json"
+    checkpoint = json.loads(final_path.read_text(encoding="utf-8"))
+    checkpoint.update({
+        "evidence_stage": "first_visible_checkpoint",
+        "reason": "first_visible_checkpoint",
+        "success": False,
+        "snapshot_requested_ms": None,
+        "snapshot_completed_ms": None,
+        "sustained_idle_ms": None,
+        "completed_idle": False,
+        "completed_snapshot": False,
+        "duration_ms": checkpoint["first_visible_ms"],
+    })
+    checkpoint["queue_samples"][-1]["elapsed_ms"] = checkpoint["first_visible_ms"]
+    (directory / "macos-online-loading-checkpoint.json").write_text(
+        json.dumps(checkpoint), encoding="utf-8"
+    )
+    final_path.unlink()
+
+
+def install_lldb_result(root: Path, directory: Path) -> None:
+    final_path = directory / "macos-online-loading.json"
+    source_path = final_path if final_path.is_file() else directory / "macos-online-loading-checkpoint.json"
+    final = json.loads(source_path.read_text(encoding="utf-8"))
+    final.update({
+        "evidence_stage": "final",
+        "reason": "diagnostic_observation_complete",
+        "success": False,
+    })
+    lldb = directory / "lldb"
+    lldb.mkdir()
+    (lldb / "macos-online-loading.json").write_text(json.dumps(final), encoding="utf-8")
+    (lldb / "online-loading-lldb.log").write_text(
+        (directory / "online-loading.log").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (lldb / "online-loading-lldb-process.json").write_text(json.dumps({
+        "exit_code": -15,
+        "timed_out": False,
+        "sample_succeeded": False,
+        "completion_file_observed": True,
+        "terminated_after_completion": True,
+    }), encoding="utf-8")
+    final_path.unlink(missing_ok=True)
+    attempts = [json.loads(line) for line in
+                (root / "attempts.jsonl").read_text(encoding="utf-8").splitlines()]
+    for attempt in attempts:
+        if attempt["concurrency"] == 10 and attempt["pair"] == 1 and \
+                attempt["cache_mode"] == directory.name:
+            attempt["diagnostic_retry_attempted"] = True
+            attempt["diagnostic_retry_exit_code"] = 0
+    (root / "attempts.jsonl").write_text(
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in attempts), encoding="utf-8"
+    )
+
+
 def analyze(root: Path, result: Path, junit: Path, repeats: int = 1) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(ANALYZER), str(root), "--result", str(result),
@@ -417,6 +500,160 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     partial_suite = ET.parse(partial_diagnostic_junit).getroot()
     assert int(partial_suite.attrib["failures"]) == 0
     assert int(partial_suite.attrib["skipped"]) >= 2
+
+    checkpoint_crash = temporary / "diagnostic-checkpoint-crash"
+    create_benchmark(
+        checkpoint_crash, runner_class="diagnostic", concurrencies=(10,),
+        diagnostic_partial=True,
+    )
+    checkpoint_directory = mark_signal_attempt(checkpoint_crash, "warm", metrics_present=True)
+    install_primary_checkpoint(checkpoint_directory)
+    checkpoint_result = temporary / "diagnostic-checkpoint-crash.json"
+    checkpoint_junit = temporary / "diagnostic-checkpoint-crash.xml"
+    checkpoint_analysis = analyze(checkpoint_crash, checkpoint_result, checkpoint_junit)
+    assert checkpoint_analysis.returncode == 0, checkpoint_analysis.stdout + checkpoint_analysis.stderr
+    checkpoint_summary = json.loads(checkpoint_result.read_text(encoding="utf-8"))
+    assert checkpoint_summary["measurement_passed"] is False
+    assert checkpoint_summary["diagnostic_observation_complete"] is True
+    assert checkpoint_summary["failures"] == []
+    assert checkpoint_summary["incomplete_attempts"] == ["c10/pair-1/warm failed with exit 139"]
+    checkpoint_warm = next(group for group in checkpoint_summary["groups"]
+                           if group["cache_mode"] == "warm")
+    assert checkpoint_warm["crash_count"] == 1
+    assert checkpoint_warm["diagnostic_evidence_sources"] == {"primary-checkpoint": 1}
+    assert int(ET.parse(checkpoint_junit).getroot().attrib["failures"]) == 0
+
+    lldb_crash = temporary / "diagnostic-lldb-crash"
+    create_benchmark(
+        lldb_crash, runner_class="diagnostic", concurrencies=(10,),
+        diagnostic_partial=True,
+    )
+    lldb_directory = mark_signal_attempt(lldb_crash, "warm", metrics_present=True)
+    install_lldb_result(lldb_crash, lldb_directory)
+    lldb_result = temporary / "diagnostic-lldb-crash.json"
+    lldb_junit = temporary / "diagnostic-lldb-crash.xml"
+    lldb_analysis = analyze(lldb_crash, lldb_result, lldb_junit)
+    assert lldb_analysis.returncode == 0, lldb_analysis.stdout + lldb_analysis.stderr
+    lldb_summary = json.loads(lldb_result.read_text(encoding="utf-8"))
+    lldb_warm = next(group for group in lldb_summary["groups"] if group["cache_mode"] == "warm")
+    assert lldb_warm["crash_count"] == 1
+    assert lldb_warm["diagnostic_evidence_sources"] == {"lldb-final": 1}
+    assert lldb_summary["incomplete_attempts"] == ["c10/pair-1/warm failed with exit 139"]
+
+    lldb_priority = temporary / "diagnostic-lldb-priority"
+    create_benchmark(
+        lldb_priority, runner_class="diagnostic", concurrencies=(10,),
+        diagnostic_partial=True,
+    )
+    priority_directory = mark_signal_attempt(lldb_priority, "warm", metrics_present=True)
+    install_primary_checkpoint(priority_directory)
+    install_lldb_result(lldb_priority, priority_directory)
+    priority_result = temporary / "diagnostic-lldb-priority.json"
+    priority_junit = temporary / "diagnostic-lldb-priority.xml"
+    priority_analysis = analyze(lldb_priority, priority_result, priority_junit)
+    assert priority_analysis.returncode == 0, priority_analysis.stdout + priority_analysis.stderr
+    priority_summary = json.loads(priority_result.read_text(encoding="utf-8"))
+    priority_warm = next(group for group in priority_summary["groups"]
+                         if group["cache_mode"] == "warm")
+    assert priority_warm["diagnostic_evidence_sources"] == {"lldb-final": 1}
+
+    for invalid_retry_field in (
+            "retry_exit_code", "completion_file_observed", "terminated_after_completion", "timed_out"):
+        invalid_lldb = temporary / f"invalid-lldb-{invalid_retry_field}"
+        create_benchmark(
+            invalid_lldb, runner_class="diagnostic", concurrencies=(10,),
+            diagnostic_partial=True,
+        )
+        invalid_lldb_directory = mark_signal_attempt(invalid_lldb, "warm", metrics_present=True)
+        install_lldb_result(invalid_lldb, invalid_lldb_directory)
+        if invalid_retry_field == "retry_exit_code":
+            attempts = [json.loads(line) for line in
+                        (invalid_lldb / "attempts.jsonl").read_text(encoding="utf-8").splitlines()]
+            for attempt in attempts:
+                if attempt["cache_mode"] == "warm":
+                    attempt["diagnostic_retry_exit_code"] = 124
+            (invalid_lldb / "attempts.jsonl").write_text(
+                "".join(json.dumps(row, sort_keys=True) + "\n" for row in attempts),
+                encoding="utf-8",
+            )
+        else:
+            process_path = invalid_lldb_directory / "lldb/online-loading-lldb-process.json"
+            process = json.loads(process_path.read_text(encoding="utf-8"))
+            process[invalid_retry_field] = invalid_retry_field == "timed_out"
+            process_path.write_text(json.dumps(process), encoding="utf-8")
+        invalid_lldb_result = temporary / f"invalid-lldb-{invalid_retry_field}.json"
+        invalid_lldb_junit = temporary / f"invalid-lldb-{invalid_retry_field}.xml"
+        invalid_lldb_analysis = analyze(invalid_lldb, invalid_lldb_result, invalid_lldb_junit)
+        assert invalid_lldb_analysis.returncode != 0
+        assert "no controlled successful retry completion" in invalid_lldb_analysis.stdout
+
+    for corrupt_field, corrupt_value, expected_error in (
+            ("navigation_id", "c10-p1-cold", "navigation identity"),
+            ("location_sha256", "c" * 64, "sanitized location identity")):
+        invalid_checkpoint = temporary / f"invalid-checkpoint-{corrupt_field}"
+        create_benchmark(
+            invalid_checkpoint, runner_class="diagnostic", concurrencies=(10,),
+            diagnostic_partial=True,
+        )
+        invalid_directory = mark_signal_attempt(invalid_checkpoint, "warm", metrics_present=True)
+        install_primary_checkpoint(invalid_directory)
+        invalid_path = invalid_directory / "macos-online-loading-checkpoint.json"
+        invalid_payload = json.loads(invalid_path.read_text(encoding="utf-8"))
+        invalid_payload[corrupt_field] = corrupt_value
+        invalid_path.write_text(json.dumps(invalid_payload), encoding="utf-8")
+        invalid_result = temporary / f"invalid-checkpoint-{corrupt_field}.json"
+        invalid_junit = temporary / f"invalid-checkpoint-{corrupt_field}.xml"
+        invalid_analysis = analyze(invalid_checkpoint, invalid_result, invalid_junit)
+        assert invalid_analysis.returncode != 0
+        assert expected_error in invalid_analysis.stdout
+
+    incomplete_checkpoint = temporary / "incomplete-checkpoint-order"
+    create_benchmark(
+        incomplete_checkpoint, runner_class="diagnostic", concurrencies=(10,),
+        diagnostic_partial=True,
+    )
+    incomplete_directory = mark_signal_attempt(incomplete_checkpoint, "warm", metrics_present=True)
+    install_primary_checkpoint(incomplete_directory)
+    incomplete_log = incomplete_directory / "online-loading.log"
+    incomplete_log.write_text("\n".join(
+        line for line in incomplete_log.read_text(encoding="utf-8").splitlines()
+        if '"event": "entity_decode"' not in line
+    ) + "\n", encoding="utf-8")
+    incomplete_result = temporary / "incomplete-checkpoint-order.json"
+    incomplete_junit = temporary / "incomplete-checkpoint-order.xml"
+    incomplete_analysis = analyze(
+        incomplete_checkpoint, incomplete_result, incomplete_junit
+    )
+    assert incomplete_analysis.returncode != 0
+    assert "contiguous sequence" in incomplete_analysis.stdout
+
+    pre_visible_crash = temporary / "diagnostic-pre-visible-crash"
+    create_benchmark(
+        pre_visible_crash, runner_class="diagnostic", concurrencies=(10,),
+        diagnostic_partial=True,
+    )
+    pre_visible_directory = mark_signal_attempt(pre_visible_crash, "warm", metrics_present=False)
+    (pre_visible_directory / "macos-online-loading.json").unlink()
+    pre_visible_result = temporary / "diagnostic-pre-visible-crash.json"
+    pre_visible_junit = temporary / "diagnostic-pre-visible-crash.xml"
+    pre_visible_analysis = analyze(pre_visible_crash, pre_visible_result, pre_visible_junit)
+    assert pre_visible_analysis.returncode != 0
+    pre_visible_summary = json.loads(pre_visible_result.read_text(encoding="utf-8"))
+    assert pre_visible_summary["passed"] is False
+    assert pre_visible_summary["diagnostic_capture_complete"] is False
+    assert "c10/pair-1/warm failed with exit 139" in pre_visible_summary["failures"]
+
+    hardware_checkpoint = temporary / "hardware-checkpoint-crash"
+    create_benchmark(hardware_checkpoint, runner_class="hardware", concurrencies=(10,))
+    hardware_directory = mark_signal_attempt(hardware_checkpoint, "warm", metrics_present=True)
+    install_primary_checkpoint(hardware_directory)
+    hardware_checkpoint_result = temporary / "hardware-checkpoint-crash.json"
+    hardware_checkpoint_junit = temporary / "hardware-checkpoint-crash.xml"
+    hardware_checkpoint_analysis = analyze(
+        hardware_checkpoint, hardware_checkpoint_result, hardware_checkpoint_junit
+    )
+    assert hardware_checkpoint_analysis.returncode != 0
+    assert "no eligible evidence file exists" in hardware_checkpoint_analysis.stdout
 
     mixed_diagnostic = temporary / "diagnostic-mixed"
     create_benchmark(

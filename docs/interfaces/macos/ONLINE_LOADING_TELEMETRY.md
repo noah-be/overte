@@ -45,12 +45,22 @@ and query, query/data byte counts, packet queue depth, decompression/lock/tree t
 counts, render add/update queue depths, and present/visible counts. They are exposed in the analysis as
 `navigation_event_details`; arbitrary keys and all string details are rejected.
 
-The result file `macos-online-loading.json` carries the same `navigation_id` and sanitized location digest. Its 500 ms
+Immediately after the validated `first_visible` event, the script synchronously writes the immutable one-shot
+`macos-online-loading-checkpoint.json`. This is not the supervisor's completion file and therefore cannot stop the process
+before the screenshot/idle observation finishes. The final result remains `macos-online-loading.json`. Both carry the same
+`navigation_id` and sanitized location digest. Their 500 ms
 queue samples cover active and pending downloads, active and pending processing, pending texture transfers, entity counts,
 and display rates. `analyze-online-loading.py` rejects another navigation ID, another location identity, duplicate or
 out-of-order events, non-monotonic timestamps, and a successful result with an incomplete event sequence. It also requires
 the Core and JavaScript `first_visible` clocks to agree within the fixed 500 ms polling interval plus 250 ms scheduling
 allowance. This fail-closed check prevents application startup from being mistaken for navigation time.
+
+On a hosted diagnostic runner only, a signal exit may use a validated primary first-visible checkpoint or a validated final
+LLDB retry result. The selected evidence must have the exact attempt identity and digest, the complete ordered navigation
+sequence through `first_visible`, matching log/process evidence, and a visible entity. The original signal status remains a
+failed/incomplete attempt and is counted as a crash; this evidence can only satisfy the bounded diagnostic capture/skip gate.
+It cannot satisfy native-hardware acceptance, make `measurement_passed` true, or select a production concurrency. A crash
+before visibility, a malformed/partial checkpoint, a missing event, or any identity mismatch remains a hard failure.
 
 ## Scope and limitations
 

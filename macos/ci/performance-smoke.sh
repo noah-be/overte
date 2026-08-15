@@ -15,7 +15,8 @@ readonly log="$output_dir/performance.log"
 readonly process_result="$output_dir/performance-process.json"
 readonly process_sample="$output_dir/performance.sample.txt"
 readonly crash_report="$output_dir/performance.crash.ips"
-readonly snapshot="$output_dir/macos-performance-warmup.png"
+readonly warmup_snapshot="$output_dir/macos-performance-warmup.png"
+readonly snapshot="$output_dir/macos-performance.png"
 readonly screenshot_result="$output_dir/performance-screenshot.json"
 readonly metrics="$output_dir/macos-performance.json"
 readonly validation="$output_dir/performance-validation.json"
@@ -28,7 +29,7 @@ readonly maximum_p95_ms="${OVERTE_MACOS_PERFORMANCE_MAXIMUM_P95_MS:-}"
 [[ "$(uname -s)" == Darwin ]] || { echo "performance smoke requires macOS" >&2; exit 1; }
 [[ -x "$executable" ]] || { echo "missing executable: $executable" >&2; exit 1; }
 mkdir -p "$output_dir"
-rm -f "$snapshot" "$screenshot_result" "$metrics" "$validation" "$junit"
+rm -f "$warmup_snapshot" "$snapshot" "$screenshot_result" "$metrics" "$validation" "$junit"
 
 readonly -a app_command=(
     "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog --display Desktop
@@ -54,7 +55,8 @@ grep -Fq "OVERTE_MACOS_PERFORMANCE passed" "$log" || {
     echo "performance script did not pass" >&2
     exit 1
 }
-[[ -s "$snapshot" ]] || { echo "performance warmup snapshot is missing" >&2; exit 1; }
+[[ -s "$warmup_snapshot" ]] || { echo "performance shader-warmup snapshot is missing" >&2; exit 1; }
+[[ -s "$snapshot" ]] || { echo "performance final snapshot is missing" >&2; exit 1; }
 [[ -s "$metrics" ]] || { echo "performance metrics are missing" >&2; exit 1; }
 python3 "$source_root/macos/tools/validate-screenshot.py" "$snapshot" \
     --result "$screenshot_result" --require-red-pixels 128 --require-cyan-pixels 128 \

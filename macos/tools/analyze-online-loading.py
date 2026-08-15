@@ -73,6 +73,10 @@ def integer(value: object, name: str, *, minimum: int = 0) -> int:
     return value
 
 
+def is_signal_exit(exit_code: object) -> bool:
+    return isinstance(exit_code, int) and not isinstance(exit_code, bool) and 128 < exit_code < 192
+
+
 def load_object(path: Path, description: str) -> dict[str, object]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -353,6 +357,17 @@ def load_attempts(root: Path, manifest: dict[str, object]) -> tuple[list[dict[st
             raise LoadingError(f"online attempt record {number} has invalid evidence flags")
         if attempt["accepted"] != (exit_code == 0):
             raise LoadingError(f"online attempt record {number} acceptance and exit status disagree")
+        retry_attempted = attempt.get("diagnostic_retry_attempted", False)
+        retry_exit_code = attempt.get("diagnostic_retry_exit_code")
+        if not isinstance(retry_attempted, bool):
+            raise LoadingError(f"online attempt record {number} has an invalid diagnostic retry flag")
+        if retry_attempted:
+            if (manifest["runner_class"] != "diagnostic" or not is_signal_exit(exit_code) or
+                    isinstance(retry_exit_code, bool) or not isinstance(retry_exit_code, int) or
+                    retry_exit_code < 0):
+                raise LoadingError(f"online attempt record {number} has invalid diagnostic retry evidence")
+        elif retry_exit_code is not None:
+            raise LoadingError(f"online attempt record {number} has an unexpected diagnostic retry exit")
         relative = attempt.get("result_directory")
         if not isinstance(relative, str) or Path(relative).is_absolute() or ".." in Path(relative).parts:
             raise LoadingError(f"online attempt record {number} has unsafe result directory")
@@ -377,11 +392,22 @@ def load_attempts(root: Path, manifest: dict[str, object]) -> tuple[list[dict[st
     return attempts, failures
 
 
-def load_metrics(attempt: dict[str, object], manifest: dict[str, object]) -> dict[str, object] | None:
-    directory = attempt["resolved_directory"]
-    if not attempt["metrics_present"]:
-        return None
-    payload = load_object(directory / "macos-online-loading.json", "online-loading metrics")
+def load_signal_process(path: Path, attempt: dict[str, object]) -> dict[str, object]:
+    process = load_object(path, "primary signal process result")
+    exit_code = process.get("exit_code")
+    expected = -(int(attempt["exit_code"]) - 128)
+    if isinstance(exit_code, bool) or not isinstance(exit_code, int) or exit_code != expected:
+        raise LoadingError("primary process result does not prove the recorded signal exit")
+    if process.get("timed_out") is True or process.get("completion_file_observed") is True:
+        raise LoadingError("primary signal process result has contradictory completion state")
+    return process
+
+
+def validate_metrics_candidate(attempt: dict[str, object], manifest: dict[str, object], *,
+                               metrics_path: Path, log_path: Path, process_path: Path,
+                               evidence_source: str,
+                               primary_signal_process: dict[str, object] | None) -> dict[str, object]:
+    payload = load_object(metrics_path, f"{evidence_source} online-loading metrics")
     if payload.get("schema_version") != 2 or payload.get("platform") != "macos":
         raise LoadingError("unsupported online-loading result")
     if (payload.get("cache_mode") != attempt["cache_mode"] or
@@ -394,6 +420,21 @@ def load_metrics(attempt: dict[str, object], manifest: dict[str, object]) -> dic
         raise LoadingError("online-loading result does not match its sanitized location identity")
     if payload.get("runner_class") != manifest["runner_class"]:
         raise LoadingError("online-loading result runner class does not match its manifest")
+    if not isinstance(payload.get("success"), bool) or not isinstance(payload.get("reason"), str):
+        raise LoadingError("online-loading result has invalid completion fields")
+    evidence_stage = payload.get("evidence_stage")
+    if evidence_source == "primary-checkpoint":
+        if (evidence_stage != "first_visible_checkpoint" or
+                payload.get("reason") != "first_visible_checkpoint" or
+                payload.get("success") is not False or
+                payload.get("snapshot_requested_ms") is not None or
+                payload.get("snapshot_completed_ms") is not None or
+                payload.get("sustained_idle_ms") is not None or
+                payload.get("completed_idle") is not False or
+                payload.get("completed_snapshot") is not False):
+            raise LoadingError("first-visible checkpoint has invalid evidence-stage fields")
+    elif evidence_stage not in (None, "final"):
+        raise LoadingError("final online-loading result has an invalid evidence stage")
     samples = payload.get("queue_samples")
     if not isinstance(samples, list) or not samples or len(samples) > 1000:
         raise LoadingError("invalid online queue samples")
@@ -412,7 +453,7 @@ def load_metrics(attempt: dict[str, object], manifest: dict[str, object]) -> dic
         if payload.get(name) is not None:
             finite(payload[name], name)
     navigation_values, navigation_details = navigation_milestones(
-        directory / "online-loading.log",
+        log_path,
         str(payload["navigation_id"]),
         str(payload["location_sha256"]),
     )
@@ -420,7 +461,7 @@ def load_metrics(attempt: dict[str, object], manifest: dict[str, object]) -> dic
     payload["navigation_event_details"] = navigation_details
     # Retain old wall-clock markers for troubleshooting only. They are neither
     # navigation-scoped nor used for validation, completion, or bottleneck decisions.
-    payload["legacy_host_milestones_ms"] = log_milestones(directory / "online-loading.log")
+    payload["legacy_host_milestones_ms"] = log_milestones(log_path)
     if navigation_values["url_accepted"] is None:
         raise LoadingError("online-loading result has no navigation-scoped telemetry")
     if payload.get("first_visible_ms") is not None and navigation_values["first_visible"] is None:
@@ -437,16 +478,87 @@ def load_metrics(attempt: dict[str, object], manifest: dict[str, object]) -> dic
         payload["navigation_clock_skew_ms"] = round(clock_skew_ms, 3)
     else:
         payload["navigation_clock_skew_ms"] = None
-    if payload.get("success") is True and any(
+    if payload.get("first_visible_ms") is not None and any(
             navigation_values[event] is None for event in NAVIGATION_EVENT_ORDER):
-        raise LoadingError("successful online-loading result has an incomplete navigation event sequence")
-    process = load_object(directory / "online-loading-process.json", "online-loading process result")
+        raise LoadingError("visible online-loading evidence has an incomplete navigation event sequence")
+    if evidence_source == "primary-checkpoint":
+        if (payload.get("first_visible_ms") is None or
+                integer(payload.get("max_entity_count"), "max_entity_count", minimum=1) < 1):
+            raise LoadingError("first-visible checkpoint does not contain visible entity evidence")
+    process = load_object(process_path, f"{evidence_source} process result")
+    if evidence_source == "lldb-final" and (
+            attempt.get("diagnostic_retry_exit_code") != 0 or
+            process.get("completion_file_observed") is not True or
+            process.get("terminated_after_completion") is not True or
+            process.get("timed_out") is not False):
+        raise LoadingError("LLDB final result has no controlled successful retry completion")
     payload["process_exit_code"] = process.get("exit_code")
     payload["process_timed_out"] = process.get("timed_out") is True
     payload["process_sample_succeeded"] = process.get("sample_succeeded") is True
     payload["process_completion_file_observed"] = process.get("completion_file_observed") is True
+    payload["diagnostic_evidence_source"] = evidence_source
+    payload["diagnostic_signal_evidence"] = (
+        primary_signal_process is not None and evidence_source.startswith("primary-")
+    )
+    payload["primary_signal_exit_code"] = (
+        attempt["exit_code"] if primary_signal_process is not None else None
+    )
     payload["queue_diagnostics"] = queue_diagnostics(payload)
     return payload
+
+
+def load_metrics(attempt: dict[str, object], manifest: dict[str, object]) -> dict[str, object] | None:
+    directory = attempt["resolved_directory"]
+    if not attempt["metrics_present"]:
+        return None
+    signal_diagnostic = (
+        manifest["runner_class"] == "diagnostic" and is_signal_exit(attempt["exit_code"])
+    )
+    primary_signal_process = (
+        load_signal_process(directory / "online-loading-process.json", attempt)
+        if signal_diagnostic else None
+    )
+    candidates = [(
+        "primary-final",
+        directory / "macos-online-loading.json",
+        directory / "online-loading.log",
+        directory / "online-loading-process.json",
+    )]
+    if signal_diagnostic:
+        if attempt.get("diagnostic_retry_attempted") is True:
+            candidates.append((
+                "lldb-final",
+                directory / "lldb/macos-online-loading.json",
+                directory / "lldb/online-loading-lldb.log",
+                directory / "lldb/online-loading-lldb-process.json",
+            ))
+        candidates.append((
+            "primary-checkpoint",
+            directory / "macos-online-loading-checkpoint.json",
+            directory / "online-loading.log",
+            directory / "online-loading-process.json",
+        ))
+    rejected: list[str] = []
+    for evidence_source, metrics_path, log_path, process_path in candidates:
+        if not metrics_path.is_file():
+            continue
+        try:
+            value = validate_metrics_candidate(
+                attempt,
+                manifest,
+                metrics_path=metrics_path,
+                log_path=log_path,
+                process_path=process_path,
+                evidence_source=evidence_source,
+                primary_signal_process=primary_signal_process,
+            )
+        except LoadingError as error:
+            rejected.append(f"{evidence_source}: {error}")
+            continue
+        value["rejected_diagnostic_evidence"] = rejected
+        return value
+    detail = "; ".join(rejected) if rejected else "no eligible evidence file exists"
+    raise LoadingError(f"online-loading attempt has no valid evidence: {detail}")
 
 
 def diagnostic_observation(value: dict[str, object], manifest: dict[str, object]) -> bool:
@@ -457,10 +569,11 @@ def diagnostic_observation(value: dict[str, object], manifest: dict[str, object]
         return False
     if value.get("success") is True:
         return True
-    bounded = value.get("reason") == "diagnostic_observation_complete"
+    bounded = value.get("reason") in ("diagnostic_observation_complete", "first_visible_checkpoint")
     process_bounded = (
         value.get("process_exit_code") == 0 or
         value.get("process_completion_file_observed") is True or
+        value.get("diagnostic_signal_evidence") is True or
         (value.get("process_timed_out") is True and value.get("process_sample_succeeded") is True)
     )
     return bounded and process_bounded
@@ -469,11 +582,13 @@ def diagnostic_observation(value: dict[str, object], manifest: dict[str, object]
 def diagnostic_capture(value: dict[str, object], manifest: dict[str, object]) -> bool:
     if manifest["runner_class"] != "diagnostic" or value.get("runner_class") != "diagnostic":
         return False
-    if value.get("reason") not in ("diagnostic_observation_complete", "visible_timeout"):
+    if value.get("reason") not in (
+            "diagnostic_observation_complete", "visible_timeout", "first_visible_checkpoint"):
         return False
     process_bounded = (
         value.get("process_exit_code") == 0 or
         value.get("process_completion_file_observed") is True or
+        value.get("diagnostic_signal_evidence") is True or
         (value.get("process_timed_out") is True and value.get("process_sample_succeeded") is True)
     )
     milestones = value.get("navigation_milestones_ms")
@@ -510,6 +625,10 @@ def aggregate(attempts: list[dict[str, object]], metrics: list[dict[str, object]
                 for item in group_metrics
                 for signal in item["queue_diagnostics"]["bottleneck_signals"]
             )
+            evidence_sources = Counter(
+                str(item.get("diagnostic_evidence_source", "primary-final"))
+                for item in group_metrics
+            )
             visible = [finite(item["first_visible_ms"], "first_visible_ms") for item in group_metrics
                        if item.get("first_visible_ms") is not None]
             snapshot = [finite(item["snapshot_completed_ms"], "snapshot_completed_ms") for item in valid]
@@ -524,6 +643,7 @@ def aggregate(attempts: list[dict[str, object]], metrics: list[dict[str, object]
                 "diagnostic_capture_count": len(captured),
                 "failure_count": sum(not item["accepted"] for item in group_attempts),
                 "crash_count": sum(int(item["exit_code"]) in (134, 136, 139) for item in group_attempts),
+                "diagnostic_evidence_sources": dict(sorted(evidence_sources.items())),
                 "timeout_count": sum(item.get("process_timed_out") is True for item in group_metrics),
                 "first_visible_ms_median_partial": median_or_none(visible),
                 "snapshot_ms_median": median_or_none(snapshot),

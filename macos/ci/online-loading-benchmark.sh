@@ -129,6 +129,8 @@ run_case() {
     local snapshot="$run_dir/macos-online-loading.png"
     local screenshot_result="$run_dir/online-loading-screenshot.json"
     local status=0
+    local lldb_status=-1
+    local lldb_attempted=false
     local accepted=false
     local metrics_present=false
     local case_timeout_seconds="$timeout_seconds"
@@ -142,6 +144,7 @@ run_case() {
 
     mkdir -p "$cache_dir" "$run_dir"
     rm -f "$snapshot" "$screenshot_result" "$run_dir/macos-online-loading.json" \
+        "$run_dir/macos-online-loading-checkpoint.json" \
         "$run_dir/online-loading-accepted"
     python3 "$source_root/macos/tools/render-online-loading-case.py" \
         --template "$template" --output "$generated_script" --cache-mode "$cache_mode" \
@@ -170,7 +173,9 @@ run_case() {
         if command -v lldb >/dev/null 2>&1; then
             echo "online loading exited after signal $((status - 128)); rerunning once under LLDB" >&2
             mkdir -p "$lldb_dir"
-            rm -f "$lldb_dir/macos-online-loading.json"
+            rm -f "$lldb_dir/macos-online-loading.json" \
+                "$lldb_dir/macos-online-loading-checkpoint.json"
+            lldb_attempted=true
             local -a lldb_app_command=(
                 "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog
                 --display Desktop --disableLocalAvatar --cache "$cache_dir"
@@ -179,6 +184,7 @@ run_case() {
                 --testScript "$generated_script" --testResultsLocation "$lldb_dir"
                 --quitWhenFinished
             )
+            set +e
             OVERTE_MACOS_ONLINE_LOADING_NAVIGATION_ID="$navigation_id" \
             OVERTE_MACOS_ONLINE_LOADING_LOCATION_SHA256="$location_sha256" \
             OVERTE_MACOS_ONLINE_LOADING_TARGET_URL="$location" \
@@ -187,7 +193,9 @@ run_case() {
                 --log "$lldb_log" --result "$lldb_result" \
                 --completion-file "$lldb_dir/macos-online-loading.json" -- \
                 lldb --batch -o run -k "thread backtrace all" -k "register read" \
-                -- "${lldb_app_command[@]}" || true
+                -- "${lldb_app_command[@]}"
+            lldb_status=$?
+            set -e
         else
             echo "LLDB unavailable; no automatic online-loading crash backtrace was captured" >&2
         fi
@@ -207,9 +215,14 @@ run_case() {
         printf 'accepted\n' > "$run_dir/online-loading-accepted"
         accepted=true
     fi
-    [[ -s "$run_dir/macos-online-loading.json" ]] && metrics_present=true
+    if [[ -s "$run_dir/macos-online-loading.json" ]] || \
+            { [[ "$runner_class" == diagnostic ]] && (( status > 128 && status < 192 )) && \
+              { [[ -s "$run_dir/macos-online-loading-checkpoint.json" ]] || \
+                [[ -s "$lldb_dir/macos-online-loading.json" ]]; }; }; then
+        metrics_present=true
+    fi
     python3 - "$output_dir/attempts.jsonl" "$concurrency" "$pair" "$cache_mode" "$navigation_id" "$status" \
-        "$accepted" "$metrics_present" "$run_dir" <<'PY'
+        "$accepted" "$metrics_present" "$run_dir" "$lldb_attempted" "$lldb_status" <<'PY'
 import json
 import os
 from pathlib import Path
@@ -226,6 +239,8 @@ with path.open("a", encoding="utf-8") as output:
         "accepted": sys.argv[7] == "true",
         "metrics_present": sys.argv[8] == "true",
         "result_directory": str(Path(sys.argv[9]).relative_to(path.parent)),
+        "diagnostic_retry_attempted": sys.argv[10] == "true",
+        "diagnostic_retry_exit_code": int(sys.argv[11]) if sys.argv[10] == "true" else None,
     }, sort_keys=True) + "\n")
 os.chmod(path, 0o600)
 PY
