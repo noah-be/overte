@@ -135,6 +135,13 @@ require(
 )
 require(BOOTSTRAP, r"contains\(github\.event\.head_commit\.message, '\[ios-worlds\]'\)", "branch world acceptance needs an explicit marker")
 require(BOOTSTRAP, r"world-runtime-evidence:[\s\S]*needs: host-contracts[\s\S]*uses: \./\.github/workflows/ios-world-runtime\.yml", "world runtime must wait for all host contracts")
+for job, following in (("simulator:", "unsigned-device-sdk:"), ("unsigned-device-sdk:", None)):
+    start = BOOTSTRAP.index(f"  {job}")
+    end = BOOTSTRAP.index(f"  {following}", start) if following else len(BOOTSTRAP)
+    body = BOOTSTRAP[start:end]
+    assert "!(github.event_name == 'workflow_dispatch' && inputs.world_evidence)" in body, (
+        f"{job[:-1]} must not duplicate the Full Client world-evidence run"
+    )
 assert RUN_TESTS.count("world-runtime-workflow-contract-test.py") == 1
 assert RUN_TESTS.count("interface-world-simulator-smoke-test.py") == 1
 assert RUN_TESTS.count("world-runtime-evidence-test.py") == 1
