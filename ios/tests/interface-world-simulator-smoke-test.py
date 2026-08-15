@@ -167,8 +167,11 @@ elif [ "$1 $2" = "simctl launch" ]; then
     if [ "${FAKE_CREATE_CRASH_REPORT:-0}" = 1 ]; then
         crash_root="$HOME/Library/Logs/DiagnosticReports"
         mkdir -p "$crash_root"
-        printf '%s\n' "${FAKE_CRASH_REPORT:-synthetic crash report}" > \
-            "$crash_root/Overte-fixture.ips"
+        (
+            sleep "${FAKE_CRASH_REPORT_DELAY:-0}"
+            printf '%s\n' "${FAKE_CRASH_REPORT:-synthetic crash report}" > \
+                "$crash_root/Overte-fixture.ips"
+        ) >/dev/null 2>&1 &
     fi
     printf 'fixture: %s\n' "$app_pid"
 elif [ "$1 $2" = "simctl spawn" ] && [ "$4 $5" = "log stream" ]; then
@@ -360,11 +363,13 @@ fi
             "FAKE_APP_EXIT_EARLY": "1",
             "FAKE_APP_EXIT_SECONDS": "2",
             "FAKE_CREATE_CRASH_REPORT": "1",
+            "FAKE_CRASH_REPORT_DELAY": "2",
             "FAKE_CRASH_REPORT": "synthetic dyld crash cause",
             "FAKE_POSTMORTEM_LOG": "synthetic RunningBoard exit cause",
             "FAKE_SAMPLE_TEXT": "synthetic main-thread stack",
             "OVERTE_IOS_WORLD_TIMEOUT_SECONDS": "5",
             "OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS": "1",
+            "OVERTE_IOS_WORLD_CRASH_REPORT_WAIT_SECONDS": "5",
         },
         "iphone",
         "serverless",
