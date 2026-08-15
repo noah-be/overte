@@ -60,15 +60,21 @@ for fragment in (
         )
 
 for fragment in (
+    "inputAssembly.topology == VK_PRIMITIVE_TOPOLOGY_LINE_STRIP",
+    "inputAssembly.topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP",
+    "inputAssembly.primitiveRestartEnable = stripTopology ? VK_TRUE : VK_FALSE;",
+    'makePipelineDetails("OVERTE_IOS_VULKAN_PIPELINE_CREATE", nullptr)',
     "OVERTE_IOS_VULKAN_PIPELINE_CONTEXT",
     "getVulkanShaderDiagnosticFingerprint(vertexSpirv)",
     "getVulkanShaderDiagnosticFingerprint(fragmentSpirv)",
     '<< " vertex_bindings=" << builder.vertexInputState.bindingDescriptions.size()',
     '<< " vertex_attributes=" << builder.vertexInputState.attributeDescriptions.size()',
+    '<< " primitive_restart=" << builder.inputAssemblyState.primitiveRestartEnable',
     '<< " vertex_descriptors=" << pipelineLayout.vertexReflection.descriptorCount()',
     "binding.binding < MAX_NUM_INPUT_BUFFERS",
     '<< "/set=" << strideWasSet',
-    'os_log_fault(OS_LOG_DEFAULT, "%{public}s", details.str().c_str())',
+    'os_log_info(OS_LOG_DEFAULT, "%{public}s", createDetails.c_str())',
+    'os_log_fault(OS_LOG_DEFAULT, "%{public}s", failureDetails.c_str())',
 ):
     if fragment not in pipeline_cache:
         raise SystemExit(

@@ -239,7 +239,7 @@ capture_postmortem_log() {
     : > "$postmortem_diagnostics"
     "$timeout_runner" 45 xcrun simctl spawn "$active_udid" log show \
         --last 5m --style compact --info --debug \
-        --predicate "process == \"Overte\" OR process == \"launchd_sim\" OR composedMessage CONTAINS \"$bundle_id\" OR composedMessage CONTAINS \"Overte\"" \
+        --predicate "process == \"Overte\" OR process == \"SimMetalHost\" OR process == \"launchd_sim\" OR composedMessage CONTAINS \"$bundle_id\" OR composedMessage CONTAINS \"Overte\"" \
         > "$postmortem_diagnostics" 2>&1 || status=$?
     printf '\npostmortem_status=%s\n' "$status" >> "$postmortem_diagnostics"
     chmod 0600 "$postmortem_diagnostics"
@@ -259,7 +259,8 @@ capture_crash_reports() {
             while IFS= read -r -d '' report; do
                 reports+=("$report")
             done < <(find "$root" -maxdepth 3 -type f \
-                \( -name 'Overte*.ips' -o -name 'Overte*.crash' \) \
+                \( -name 'Overte*.ips' -o -name 'Overte*.crash' -o \
+                   -name 'SimMetalHost*.ips' -o -name 'SimMetalHost*.crash' \) \
                 -newer "$launch_marker" -print0 2>/dev/null)
         done
         if ((${#reports[@]} > 0)); then
@@ -286,7 +287,9 @@ runtime_log_contains() {
 }
 
 fail_if_vulkan_fatal() {
-    if runtime_log_contains 'OVERTE_IOS_VULKAN_FATAL'; then
+    # `log stream` prints its predicate before the first event. Match only a
+    # standalone runtime marker, not the marker name quoted in that banner.
+    if runtime_log_contains '(^|[[:space:]])OVERTE_IOS_VULKAN_FATAL[[:space:]]'; then
         # The pipeline-context and driver callback immediately follow the fatal
         # marker. Let the already-running stream drain them before the EXIT trap
         # stops it and copies the bounded diagnostics.
@@ -408,7 +411,7 @@ run_bounded "simulator microphone permission" 60 xcrun simctl privacy \
 log_stream_timeout=$((10#$poll_timeout + 30))
 "$timeout_runner" "$log_stream_timeout" xcrun simctl spawn "$active_udid" log stream \
     --style compact --level debug \
-    --predicate "(process == \"Overte\" OR eventMessage CONTAINS \"$bundle_id\" OR eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\")" \
+    --predicate "(process == \"Overte\" OR eventMessage CONTAINS \"$bundle_id\" OR eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\")" \
     > "$raw_log" 2> "$log_stream_stderr" &
 log_stream_pid=$!
 # Give CoreSimulator's log subscriber a bounded head start. Merely spawning the

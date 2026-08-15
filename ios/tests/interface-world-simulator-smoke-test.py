@@ -52,7 +52,11 @@ def png_bytes(*, blank: bool = False) -> bytes:
     )
 
 
-SERVERLESS_LOG = "\n".join(
+LOG_STREAM_FILTER_BANNER = (
+    'Filtering the log data using "process == "Overte" OR '
+    'eventMessage CONTAINS "OVERTE_IOS_VULKAN_FATAL""\n'
+)
+SERVERLESS_LOG = LOG_STREAM_FILTER_BANNER + "\n".join(
     (
         "Overte OVERTE_IOS_WORLD_GATE navigation_requested kind= serverless destination= serverless_tutorial",
         "Overte OVERTE_IOS_WORLD_GATE serverless_import_committed scene= serverless_tutorial",

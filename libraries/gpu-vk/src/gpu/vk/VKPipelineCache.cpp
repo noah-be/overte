@@ -600,9 +600,15 @@ const Cache::PipelineLayout& Cache::getPipeline(const vks::Context& context) {
     {
         auto& inputAssembly = builder.inputAssemblyState;
         inputAssembly.topology = PRIMITIVE_TO_VK[pipelineState.primitiveTopology];
-        // VKTODO: this looks unfinished
-        // ia.primitiveRestartEnable = ???
-        // ia.topology = vk::PrimitiveTopology::eTriangleList; ???
+#if defined(Q_OS_IOS)
+        // Metal always enables primitive restart for strip topologies. Match
+        // that behavior explicitly so MoltenVK does not have to run with a
+        // pipeline state that differs from the state requested by Overte.
+        const bool stripTopology =
+            inputAssembly.topology == VK_PRIMITIVE_TOPOLOGY_LINE_STRIP ||
+            inputAssembly.topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+        inputAssembly.primitiveRestartEnable = stripTopology ? VK_TRUE : VK_FALSE;
+#endif
     }
 
     // Shader modules
@@ -815,16 +821,16 @@ const Cache::PipelineLayout& Cache::getPipeline(const vks::Context& context) {
     }
 
     VkPipeline result { VK_NULL_HANDLE };
-    try {
-        result = builder.create();
-    } catch (const std::exception& error) {
 #if defined(Q_OS_IOS)
+    const auto makePipelineDetails = [&](const char* marker, const char* error) {
         const auto& vertexSpirv = getVulkanShaderSpirv(vertexShader);
         const auto& fragmentSpirv = getVulkanShaderSpirv(fragmentShader);
         std::ostringstream details;
-        details << "OVERTE_IOS_VULKAN_PIPELINE_CONTEXT"
-                << " error=" << error.what()
-                << " vertex=" << vertexShader.name
+        details << marker;
+        if (error) {
+            details << " error=" << error;
+        }
+        details << " vertex=" << vertexShader.name
                 << " vertex_id=" << vertexShader.id
                 << " vertex_bytes=" << vertexSpirv.size()
                 << " vertex_fingerprint=" << getVulkanShaderDiagnosticFingerprint(vertexSpirv)
@@ -833,6 +839,7 @@ const Cache::PipelineLayout& Cache::getPipeline(const vks::Context& context) {
                 << " fragment_bytes=" << fragmentSpirv.size()
                 << " fragment_fingerprint=" << getVulkanShaderDiagnosticFingerprint(fragmentSpirv)
                 << " topology=" << static_cast<uint32_t>(builder.inputAssemblyState.topology)
+                << " primitive_restart=" << builder.inputAssemblyState.primitiveRestartEnable
                 << " color_attachments=" << builder.colorBlendState.blendAttachmentStates.size()
                 << " depth_test=" << builder.depthStencilState.depthTestEnable
                 << " depth_write=" << builder.depthStencilState.depthWriteEnable
@@ -852,7 +859,18 @@ const Cache::PipelineLayout& Cache::getPipeline(const vks::Context& context) {
                     << attribute.binding << "/" << static_cast<uint32_t>(attribute.format)
                     << "/" << attribute.offset;
         }
-        os_log_fault(OS_LOG_DEFAULT, "%{public}s", details.str().c_str());
+        return details.str();
+    };
+    const auto createDetails = makePipelineDetails("OVERTE_IOS_VULKAN_PIPELINE_CREATE", nullptr);
+    os_log_info(OS_LOG_DEFAULT, "%{public}s", createDetails.c_str());
+#endif
+    try {
+        result = builder.create();
+    } catch (const std::exception& error) {
+#if defined(Q_OS_IOS)
+        const auto failureDetails =
+            makePipelineDetails("OVERTE_IOS_VULKAN_PIPELINE_CONTEXT", error.what());
+        os_log_fault(OS_LOG_DEFAULT, "%{public}s", failureDetails.c_str());
 #endif
         throw;
     }
