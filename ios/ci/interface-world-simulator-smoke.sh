@@ -61,8 +61,8 @@ mvk_trace_vulkan_calls="${OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS:-}"
     echo "OVERTE_IOS_WORLD_CRASH_REPORT_WAIT_SECONDS must be an integer from 0 through 60" >&2
     exit 2
 }
-[[ -z "$mvk_trace_vulkan_calls" || "$mvk_trace_vulkan_calls" =~ ^[0-7]$ ]] || {
-    echo "OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS must be empty or an integer from 0 through 7" >&2
+[[ -z "$mvk_trace_vulkan_calls" || "$mvk_trace_vulkan_calls" =~ ^[0-6]$ ]] || {
+    echo "OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS must be empty or an integer from 0 through 6" >&2
     exit 2
 }
 for helper in "$timeout_runner" "$simulator_selector" "$screenshot_validator" "$world_validator"; do

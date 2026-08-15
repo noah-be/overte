@@ -8,6 +8,11 @@ on:
         required: false
         default: false
         type: boolean
+      lldb_runtime_only:
+        description: Reuse the candidate and matching dSYM to capture the first simulator SIGSEGV under LLDB
+        required: false
+        default: false
+        type: boolean
       symbolicate_existing_crash:
         description: Symbolicate a preserved runtime crash instead of launching a simulator
         required: false
@@ -64,7 +69,7 @@ defaults:
 jobs:
   diagnose-install:
     name: Reuse candidate and isolate CoreSimulator install failure
-    if: ${{ !inputs.world_runtime_only && !inputs.symbolicate_existing_crash }}
+    if: ${{ !inputs.world_runtime_only && !inputs.lldb_runtime_only && !inputs.symbolicate_existing_crash }}
     # macOS 26.5.2 currently reproduces IXErrorDomain 13 across all installed
     # Xcode versions because CoreSimulatorService belongs to the host OS. Use
     # the ARM64 macOS 15 image to isolate the already-built candidate from that
@@ -378,8 +383,8 @@ jobs:
           retention-days: 14
 
   world-runtime-only:
-    name: Reuse exact candidate for serverless and online screenshots
-    if: ${{ inputs.world_runtime_only && !inputs.symbolicate_existing_crash }}
+    name: Reuse exact candidate for world evidence or LLDB diagnosis
+    if: ${{ (inputs.world_runtime_only || inputs.lldb_runtime_only) && !inputs.symbolicate_existing_crash }}
     # Reuse the exact Xcode/CoreSimulator pair from the trusted producer. The
     # Xcode 16.4 fallback proved inconclusive when LaunchServices never created
     # an app PID, while Xcode 26.5 launched this exact candidate and reached the
@@ -484,6 +489,7 @@ jobs:
           PY
           )
           symbol_binary="$app/Overte"
+          symbol_bundle=-
           if [[ "$symbols_name" != - ]]; then
             [[ "$symbols_name" =~ ^[0-9]+-OverteIOSClient-Release-simulator-symbols[.]zip$ ]]
             [[ "$symbols_sha" =~ ^[0-9a-f]{64}$ ]]
@@ -491,14 +497,17 @@ jobs:
             test -f "$symbols"
             [[ "$(shasum -a 256 "$symbols" | awk '{print $1}')" == "$symbols_sha" ]]
             ditto -x -k "$symbols" "$RUNTIME_ROOT/symbols"
-            symbol_binary="$RUNTIME_ROOT/symbols/Overte.app.dSYM/Contents/Resources/DWARF/Overte"
+            symbol_bundle="$RUNTIME_ROOT/symbols/Overte.app.dSYM"
+            symbol_binary="$symbol_bundle/Contents/Resources/DWARF/Overte"
             test -f "$symbol_binary"
           fi
           echo "app=$app" >> "$GITHUB_OUTPUT"
           echo "manifest=$manifest" >> "$GITHUB_OUTPUT"
           echo "symbol_binary=$symbol_binary" >> "$GITHUB_OUTPUT"
+          echo "symbol_bundle=$symbol_bundle" >> "$GITHUB_OUTPUT"
 
       - name: Resolve current overte_hub domain identity
+        if: ${{ !inputs.lldb_runtime_only }}
         id: online-place
         run: |
           set -euo pipefail
@@ -548,6 +557,7 @@ jobs:
           echo "DEVELOPER_DIR=$developer_dir" >> "$GITHUB_ENV"
 
       - name: Load serverless and online worlds from preserved candidate
+        if: ${{ !inputs.lldb_runtime_only }}
         id: worlds
         continue-on-error: true
         env:
@@ -572,8 +582,28 @@ jobs:
             --candidate-sha256 "$EXPECTED_SHA256" \
             --output "$RUNTIME_ROOT/world-evidence-set.json"
 
+      - name: Capture preserved candidate SIGSEGV with LLDB
+        if: ${{ inputs.lldb_runtime_only }}
+        id: lldb
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          symbol_bundle="${{ steps.candidate.outputs.symbol_bundle }}"
+          [[ "$symbol_bundle" != - ]] || {
+            echo "the preserved candidate has no matching dSYM" >&2
+            exit 2
+          }
+          ios/ci/interface-world-simulator-lldb.sh \
+            "${{ steps.candidate.outputs.app }}" \
+            "$symbol_bundle" \
+            "$BUNDLE_ID" \
+            iphone \
+            "$EXPECTED_SOURCE_REVISION" \
+            "$EXPECTED_SHA256" \
+            "$RUNTIME_ROOT/raw-diagnostics"
+
       - name: Sanitize runtime-only failure diagnostics
-        if: ${{ always() && steps.worlds.outcome == 'failure' }}
+        if: ${{ always() && (steps.worlds.outcome == 'failure' || steps.lldb.outcome == 'failure') }}
         run: |
           set -euo pipefail
           app="${{ steps.candidate.outputs.app }}"
@@ -614,7 +644,7 @@ jobs:
         if: ${{ always() && !cancelled() }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: ios-world-runtime-only-${{ github.run_id }}
+          name: ios-world-${{ inputs.lldb_runtime_only && 'lldb' || 'runtime-only' }}-${{ github.run_id }}
           path: |
             ${{ env.RUNTIME_ROOT }}/evidence/*.png
             ${{ env.RUNTIME_ROOT }}/evidence/*-screenshot.json
@@ -625,9 +655,20 @@ jobs:
           retention-days: 14
 
       - name: Require successful preserved-candidate runtime evidence
-        if: ${{ always() && !cancelled() }}
+        if: ${{ always() && !cancelled() && !inputs.lldb_runtime_only }}
         run: |
           [[ "${{ steps.worlds.outcome }}" == success ]]
+
+      - name: Require captured LLDB crash and keep runtime acceptance red
+        if: ${{ always() && !cancelled() && inputs.lldb_runtime_only }}
+        run: |
+          set -euo pipefail
+          result="$RUNTIME_ROOT/upload-diagnostics/iphone-serverless-lldb-result.log"
+          test -s "$result"
+          grep -Fxq 'capture_status=captured_sigsegv' "$result"
+          [[ "${{ steps.lldb.outcome }}" == failure ]]
+          echo "LLDB captured the simulator SIGSEGV; runtime acceptance remains failed" >&2
+          exit 1
 
   symbolicate-existing-crash:
     name: Symbolicate preserved Simulator crash without rebuilding

@@ -12,12 +12,14 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = (ROOT / ".github/workflows/ios-simulator-install-diagnostic.yml").read_text(encoding="utf-8")
 RUN_TESTS = (ROOT / "ios/tests/run-tests.sh").read_text(encoding="utf-8")
 SMOKE = (ROOT / "ios/ci/interface-world-simulator-smoke.sh").read_text(encoding="utf-8")
+LLDB = (ROOT / "ios/ci/interface-world-simulator-lldb.sh").read_text(encoding="utf-8")
 
 
 assert re.search(r"^\s+workflow_dispatch:\s*$", WORKFLOW, re.MULTILINE)
 assert "pull_request:" not in WORKFLOW
 assert "push:" not in WORKFLOW
 assert re.search(r"world_runtime_only:[\s\S]*type: boolean", WORKFLOW)
+assert re.search(r"lldb_runtime_only:[\s\S]*type: boolean", WORKFLOW)
 assert re.search(r"symbolicate_existing_crash:[\s\S]*type: boolean", WORKFLOW)
 assert "inputs.source_run_id || '31818380576'" in WORKFLOW
 assert "actions: read" in WORKFLOW and "contents: read" in WORKFLOW
@@ -66,7 +68,7 @@ assert "cmake --build" not in WORKFLOW and "build-ios.sh build" not in WORKFLOW
 assert "retention-days: 14" in WORKFLOW
 
 runtime = WORKFLOW[WORKFLOW.index("world-runtime-only:") :]
-assert "if: ${{ inputs.world_runtime_only && !inputs.symbolicate_existing_crash }}" in runtime
+assert "if: ${{ (inputs.world_runtime_only || inputs.lldb_runtime_only) && !inputs.symbolicate_existing_crash }}" in runtime
 assert "runs-on: macos-26" in runtime
 assert "Download exact preserved simulator candidate without rebuilding" in runtime
 assert "verify-runtime-candidate.py" in runtime
@@ -82,6 +84,14 @@ assert "com.apple.CoreSimulator.SimRuntime.iOS-26-5" in runtime
 assert "expected exactly one available iOS 26.5 runtime" in runtime
 assert "interface-world-simulator-smoke.sh" in runtime
 assert 'OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS: "6"' in runtime
+assert "Capture preserved candidate SIGSEGV with LLDB" in runtime
+assert "interface-world-simulator-lldb.sh" in runtime
+assert 'if: ${{ inputs.lldb_runtime_only }}' in runtime
+assert "symbol_bundle=$symbol_bundle" in runtime
+assert "the preserved candidate has no matching dSYM" in runtime
+assert "Require captured LLDB crash and keep runtime acceptance red" in runtime
+assert "capture_status=captured_sigsegv" in runtime
+assert "runtime acceptance remains failed" in runtime
 assert "symbolicate-simulator-crash.py" in runtime
 assert "*-overte-crash-report.log" in runtime and "*-symbolicated-crash.json" in runtime
 assert "${stem}-overte-crash-report.log" in SMOKE
@@ -103,6 +113,26 @@ assert "world-evidence-set.json" in runtime
 assert "Require successful preserved-candidate runtime evidence" in runtime
 assert "cmake --build" not in runtime and "build-ios.sh build" not in runtime
 assert RUN_TESTS.count("simulator-install-diagnostic-workflow-test.py") == 1
+assert RUN_TESTS.count("interface-world-simulator-lldb-test.py") == 1
+
+for required in (
+    "xcrun dwarfdump --uuid",
+    "--wait-for-debugger",
+    "SIMCTL_CHILD_MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=0",
+    "SIMCTL_CHILD_MVK_CONFIG_TRACE_VULKAN_CALLS=6",
+    "--source-on-crash",
+    "thread backtrace all -c 48",
+    "thread backtrace -c 128",
+    "OVERTE_LLDB_CRASH_CAPTURE_COMPLETE",
+    "capture_status=\"captured_sigsegv\"",
+):
+    assert required in LLDB, required
+assert "frame variable" not in LLDB
+assert "target variable" not in LLDB
+assert "memory read" not in LLDB
+assert "process save-core" not in LLDB
+assert "simctl io" not in LLDB
+assert "validate-world" not in LLDB
 
 symbolicate = WORKFLOW[WORKFLOW.index("symbolicate-existing-crash:") :]
 assert "if: ${{ inputs.symbolicate_existing_crash }}" in symbolicate
