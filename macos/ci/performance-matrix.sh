@@ -10,6 +10,7 @@ readonly output_dir="${2:-$source_root/build/macos-performance-matrix}"
 readonly executable="$app/Contents/MacOS/Overte"
 readonly profiles_file="$source_root/macos/tests/performance-profiles.json"
 readonly template="$source_root/macos/tests/profile-performance-smoke.js"
+readonly procedural_shader="$source_root/macos/tests/fixtures/profile-procedural.fs"
 readonly scene="$source_root/macos/tests/fixtures/serverless-render.json"
 readonly default_scripts_override="$source_root/macos/tests/fixtures/no-default-scripts.js"
 readonly mode="${OVERTE_MACOS_PROFILE_MATRIX_MODE:-quick}"
@@ -34,6 +35,14 @@ system_profiler -json SPHardwareDataType SPDisplaysDataType > "$output_dir/hardw
 sw_vers > "$output_dir/macos-version.txt"
 uname -a > "$output_dir/kernel.txt"
 shasum -a 256 "$executable" > "$output_dir/application.sha256"
+readonly fixture_sha256="$(python3 - "$template" "$procedural_shader" <<'PY'
+import hashlib
+from pathlib import Path
+import sys
+
+print(hashlib.sha256(Path(sys.argv[1]).read_bytes() + b"\0" + Path(sys.argv[2]).read_bytes()).hexdigest())
+PY
+)"
 
 detected_runner_class="$(python3 - "$output_dir/hardware.json" "$(uname -m)" <<'PY'
 import json
@@ -82,7 +91,8 @@ PY
 
 translated="$(sysctl -in sysctl.proc_translated 2>/dev/null || printf '0')"
 python3 - "$output_dir/matrix-manifest.json" "$mode" "$runner_class" "$fixture_mode" \
-    "$repeats" "$output_dir/application.sha256" "$profiles_file" "$(uname -m)" "$translated" \
+    "$repeats" "$output_dir/application.sha256" "$profiles_file" "$fixture_sha256" \
+    "$(uname -m)" "$translated" \
     "${profiles[@]}" <<'PY'
 import hashlib
 import json
@@ -90,11 +100,11 @@ import os
 from pathlib import Path
 import sys
 
-path, mode, runner_class, fixture_mode, repeats, app_sha_path, profiles_path, machine, translated, *profiles = sys.argv[1:]
+path, mode, runner_class, fixture_mode, repeats, app_sha_path, profiles_path, fixture_sha, machine, translated, *profiles = sys.argv[1:]
 app_sha = Path(app_sha_path).read_text(encoding="utf-8").split()[0]
 catalog = Path(profiles_path).read_bytes()
 payload = {
-    "schema_version": 1,
+    "schema_version": 2,
     "mode": mode,
     "runner_class": runner_class,
     "fixture_mode": fixture_mode,
@@ -102,6 +112,7 @@ payload = {
     "expected_profiles": profiles,
     "application_sha256": app_sha,
     "profiles_sha256": hashlib.sha256(catalog).hexdigest(),
+    "fixture_sha256": fixture_sha,
     "machine": machine,
     "translated": translated == "1",
 }
@@ -121,16 +132,21 @@ run_case() {
     local process_result="$run_dir/profile-process.json"
     local sample="$run_dir/profile.sample.txt"
     local crash_report="$run_dir/profile.crash.ips"
+    local warmup_snapshot="$run_dir/macos-profile-warmup.png"
     local snapshot="$run_dir/macos-profile.png"
     local screenshot_result="$run_dir/profile-screenshot.json"
     local status=0
     local accepted=false
+    local screenshot_sha256=""
+    local visual_validation_passed=false
 
     mkdir -p "$run_dir" "$output_dir/cache/$profile"
-    rm -f "$snapshot" "$screenshot_result" "$run_dir/macos-profile.json" \
+    rm -f "$warmup_snapshot" "$snapshot" "$screenshot_result" \
+        "$run_dir/macos-profile.json" \
         "$run_dir/profile-accepted"
     python3 "$source_root/macos/tools/render-performance-profile.py" \
         --profiles "$profiles_file" --profile "$profile" --template "$template" \
+        --procedural-shader "$procedural_shader" \
         --output "$generated_script" --trace "$trace" --run-index "$run_index" \
         --fixture-mode "$fixture_mode"
 
@@ -153,18 +169,26 @@ run_case() {
 
     if (( status == 0 )); then
         grep -Fq "OVERTE_MACOS_PROFILE passed id=$profile" "$log" || status=1
-        [[ -s "$snapshot" && -s "$run_dir/macos-profile.json" ]] || status=1
+        grep -Fq "OVERTE_MACOS_PROFILE warmup_snapshot=" "$log" || status=1
+        grep -Fq "OVERTE_MACOS_PROFILE warmup_cooldown_ms=" "$log" || status=1
+        grep -Fq "OVERTE_MACOS_PROFILE final_snapshot=" "$log" || status=1
+        [[ -s "$warmup_snapshot" && -s "$snapshot" && \
+            -s "$run_dir/macos-profile.json" ]] || status=1
     fi
     if (( status == 0 )); then
         python3 "$source_root/macos/tools/validate-screenshot.py" "$snapshot" \
-            --result "$screenshot_result" || status=$?
+            --result "$screenshot_result" \
+            --require-red-pixels 128 --require-cyan-pixels 128 \
+            --require-red-left --require-cyan-right || status=$?
     fi
     if (( status == 0 )); then
+        screenshot_sha256="$(shasum -a 256 "$snapshot" | awk '{print $1}')"
+        visual_validation_passed=true
         printf 'accepted\n' > "$run_dir/profile-accepted"
         accepted=true
     fi
     python3 - "$output_dir/attempts.jsonl" "$profile" "$label" "$run_index" "$status" \
-        "$accepted" "$run_dir" <<'PY'
+        "$accepted" "$run_dir" "$screenshot_sha256" "$visual_validation_passed" <<'PY'
 import json
 import os
 from pathlib import Path
@@ -179,6 +203,8 @@ with path.open("a", encoding="utf-8") as output:
         "exit_code": int(sys.argv[5]),
         "accepted": sys.argv[6] == "true",
         "result_directory": str(Path(sys.argv[7]).relative_to(path.parent)),
+        "screenshot_sha256": sys.argv[8] or None,
+        "visual_validation_passed": sys.argv[9] == "true",
     }, sort_keys=True) + "\n")
 os.chmod(path, 0o600)
 PY
@@ -211,6 +237,7 @@ done
 
 python3 "$source_root/macos/tools/analyze-performance-matrix.py" "$output_dir" \
     --profiles "$profiles_file" \
+    --fixture-source "$template" --procedural-shader "$procedural_shader" \
     --result "$output_dir/matrix-result.json" \
     --junit "$output_dir/TEST-overte-macos-performance-matrix.xml" \
     --minimum-runs "$repeats"

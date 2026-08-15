@@ -37,13 +37,16 @@ CATALOG_FIELDS = {
 PROFILE_CATALOG_FIELDS = {"id", "quality_score", *PROFILE_FIELDS}
 MANIFEST_FIELDS = {
     "schema_version", "mode", "runner_class", "fixture_mode", "repeats",
-    "expected_profiles", "application_sha256", "profiles_sha256", "machine", "translated",
+    "expected_profiles", "application_sha256", "profiles_sha256", "fixture_sha256",
+    "machine", "translated",
 }
 ATTEMPT_FIELDS = {
     "profile", "label", "run_index", "exit_code", "accepted", "result_directory",
+    "screenshot_sha256", "visual_validation_passed",
 }
 RUN_FIELDS = {
-    "schema_version", "platform", "fixture_version", "fixture_mode", "profile_id",
+    "schema_version", "platform", "fixture_version", "fixture_mode", "fixture_features",
+    "fixture_present_delta", "fixture_sha256", "profile_id",
     "run_index", "quality_score", "requested_profile", "actual_profile", "platform_info",
     "stress_entities", "warmup_to_snapshot_ms", "duration_ms", "measurement_complete",
     "sample_count", "frame_time_unit", "samples_us", "mean_frame_ms", "min_frame_ms",
@@ -63,6 +66,20 @@ STATS_FIELDS = (
     "gpuTextureFramebufferMemory", "texturePendingTransfers",
 )
 LOD_TIMING_FIELDS = ("present_ms", "engine_ms", "batch_ms", "gpu_ms")
+FIXTURE_FEATURES = {
+    "diagnostic-lite": ["semantic-red-cyan", "unlit-grid"],
+    "full": [
+        "ambient-occlusion-geometry",
+        "antialiasing-edge-target",
+        "bloom-emissive-material",
+        "directional-shadow",
+        "haze-zone",
+        "lit-pbr-material",
+        "local-point-lights",
+        "procedural-material",
+        "semantic-red-cyan",
+    ],
+}
 
 
 def finite(value: object, field: str, *, minimum: float | None = None) -> float:
@@ -118,6 +135,17 @@ def load_object(path: Path, description: str) -> dict[str, object]:
     if not isinstance(value, dict):
         raise MatrixError(f"{description} must be a JSON object")
     return value
+
+
+def sha256_path(path: Path, description: str) -> str:
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as source:
+            for block in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(block)
+    except OSError as error:
+        raise MatrixError(f"could not read {description}: {error}") from error
+    return digest.hexdigest()
 
 
 def load_catalog(
@@ -179,11 +207,14 @@ def load_catalog(
     return profiles, orders, hashlib.sha256(path.read_bytes()).hexdigest(), fixture_version
 
 
-def load_manifest(matrix: Path, catalog_hash: str, orders: dict[str, list[str]]) -> dict[str, object]:
+def load_manifest(
+        matrix: Path, catalog_hash: str, fixture_hash: str,
+        orders: dict[str, list[str]],
+) -> dict[str, object]:
     manifest = load_object(matrix / "matrix-manifest.json", "matrix manifest")
     if set(manifest) != MANIFEST_FIELDS:
-        raise MatrixError("matrix manifest fields do not match schema 1")
-    if manifest.get("schema_version") != 1:
+        raise MatrixError("matrix manifest fields do not match schema 2")
+    if manifest.get("schema_version") != 2:
         raise MatrixError("unsupported matrix manifest")
     mode = manifest.get("mode")
     runner_class = manifest.get("runner_class")
@@ -202,6 +233,8 @@ def load_manifest(matrix: Path, catalog_hash: str, orders: dict[str, list[str]])
         raise MatrixError("manifest expected profiles do not match the trusted catalog order")
     if manifest.get("profiles_sha256") != catalog_hash:
         raise MatrixError("profile catalog hash does not match the matrix manifest")
+    if manifest.get("fixture_sha256") != fixture_hash:
+        raise MatrixError("fixture source hash does not match the matrix manifest")
     app_sha = manifest.get("application_sha256")
     if not isinstance(app_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", app_sha):
         raise MatrixError("matrix manifest has no valid application SHA-256")
@@ -267,6 +300,14 @@ def load_attempts(matrix: Path, manifest: dict[str, object]) -> tuple[list[dict[
             raise MatrixError(f"attempt record {number} has invalid acceptance state")
         if attempt["accepted"] != (attempt["exit_code"] == 0):
             raise MatrixError(f"attempt record {number} acceptance and exit status disagree")
+        screenshot_sha = attempt.get("screenshot_sha256")
+        if attempt.get("visual_validation_passed") is not attempt["accepted"]:
+            raise MatrixError(f"attempt record {number} visual validation and acceptance disagree")
+        if attempt["accepted"]:
+            if not isinstance(screenshot_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", screenshot_sha):
+                raise MatrixError(f"attempt record {number} has no valid screenshot SHA-256")
+        elif screenshot_sha is not None:
+            raise MatrixError(f"failed attempt record {number} must not claim a screenshot SHA-256")
         if attempt["accepted"] and not (resolved_directory / "profile-accepted").is_file():
             raise MatrixError(f"accepted attempt record {number} has no acceptance marker")
         attempts.append(attempt)
@@ -417,16 +458,37 @@ def load_run(attempt: dict[str, object], manifest: dict[str, object],
     marker = directory / "profile-accepted"
     if not marker.is_file():
         raise MatrixError(f"accepted attempt {attempt['profile']}/{attempt['label']} has no marker")
+    screenshot = directory / "macos-profile.png"
+    if sha256_path(screenshot, "profile screenshot") != attempt["screenshot_sha256"]:
+        raise MatrixError(f"profile screenshot hash mismatch for {attempt['profile']}/{attempt['label']}")
+    visual = load_object(directory / "profile-screenshot.json", "profile screenshot result")
+    if visual.get("passed") is not True or visual.get("failures") != []:
+        raise MatrixError(f"profile screenshot did not pass for {attempt['profile']}/{attempt['label']}")
+    if (integer(visual.get("red_pixels"), "profile screenshot red pixels") < 128 or
+            integer(visual.get("cyan_pixels"), "profile screenshot cyan pixels") < 128):
+        raise MatrixError(f"profile screenshot lacks semantic fixture pixels for {attempt['profile']}")
+    red_x = finite(visual.get("red_centroid_x_ratio"), "profile screenshot red centroid")
+    cyan_x = finite(visual.get("cyan_centroid_x_ratio"), "profile screenshot cyan centroid")
+    if red_x >= 0.5 or cyan_x <= 0.5:
+        raise MatrixError(f"profile screenshot semantic layout is invalid for {attempt['profile']}")
     payload = load_object(directory / "macos-profile.json", "profile result")
     identifier = str(attempt["profile"])
     if set(payload) != RUN_FIELDS:
-        raise MatrixError(f"profile result fields do not match schema 2 for {identifier}/{attempt['label']}")
-    if payload.get("schema_version") != 2 or payload.get("platform") != "macos":
+        raise MatrixError(f"profile result fields do not match schema 3 for {identifier}/{attempt['label']}")
+    if payload.get("schema_version") != 3 or payload.get("platform") != "macos":
         raise MatrixError(f"unsupported profile result for {identifier}/{attempt['label']}")
     if (payload.get("profile_id") != identifier or
             payload.get("fixture_mode") != manifest["fixture_mode"] or
             payload.get("fixture_version") != fixture_version):
         raise MatrixError(f"profile identity or fixture mode mismatch for {identifier}/{attempt['label']}")
+    if payload.get("fixture_sha256") != manifest["fixture_sha256"]:
+        raise MatrixError(f"profile fixture source hash mismatch for {identifier}/{attempt['label']}")
+    if payload.get("fixture_features") != FIXTURE_FEATURES[manifest["fixture_mode"]]:
+        raise MatrixError(f"profile fixture feature coverage mismatch for {identifier}/{attempt['label']}")
+    minimum_present_delta = 1 if manifest["fixture_mode"] == "diagnostic-lite" else 2
+    if integer(payload.get("fixture_present_delta"),
+               f"{identifier}.fixture_present_delta") < minimum_present_delta:
+        raise MatrixError(f"profile {identifier} acceptance image lacks post-warmup presents")
     if payload.get("run_index") != attempt["run_index"] or payload.get("measurement_complete") is not True:
         raise MatrixError(f"incomplete or mismatched run index for {identifier}/{attempt['label']}")
     trusted = catalog[identifier]
@@ -450,7 +512,7 @@ def load_run(attempt: dict[str, object], manifest: dict[str, object],
     if trusted["render_method"] == 0 and platform_info.get("deferred_capable") is not True:
         raise MatrixError(f"profile {identifier} requested deferred rendering on an incapable GPU")
 
-    expected_entities = 13 if manifest["fixture_mode"] == "diagnostic-lite" else 50
+    expected_entities = 13 if manifest["fixture_mode"] == "diagnostic-lite" else 52
     if integer(payload.get("stress_entities"), f"{identifier}.stress_entities", minimum=1) != expected_entities:
         raise MatrixError(f"profile {identifier} stress entity count does not match its fixture")
     minimum_duration = 20000 if manifest["fixture_mode"] == "diagnostic-lite" else 30000
@@ -540,15 +602,69 @@ def renderer_name(payload: dict[str, object]) -> str:
     return " | ".join(names) if names else "unknown"
 
 
-def hardware_key(payload: dict[str, object], manifest: dict[str, object]) -> str:
+def _identity_string(value: object, *names: str) -> str:
+    if not isinstance(value, dict):
+        return "unknown"
+    for name in names:
+        candidate = value.get(name)
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate.strip()
+    return "unknown"
+
+
+def _identity_integer(value: object, *names: str) -> int | None:
+    if not isinstance(value, dict):
+        return None
+    for name in names:
+        candidate = value.get(name)
+        if isinstance(candidate, int) and not isinstance(candidate, bool) and candidate >= 0:
+            return candidate
+    return None
+
+
+def sanitized_hardware_identity(
+        payload: dict[str, object], manifest: dict[str, object],
+) -> dict[str, object]:
+    """Return stable rendering hardware identity without volatile/private platform data."""
     info = payload.get("platform_info")
-    fragments = [str(manifest["machine"]), str(manifest["application_sha256"])]
-    if isinstance(info, dict):
-        for section_name in ("computer", "cpu", "gpu", "display", "platform"):
-            section = info.get(section_name)
-            if isinstance(section, dict):
-                fragments.append(json.dumps(section, sort_keys=True, separators=(",", ":")))
-    return "|".join(fragments)
+    if not isinstance(info, dict):
+        raise MatrixError("profile result has no platform identity")
+    computer = info.get("computer")
+    cpu = info.get("cpu")
+    gpu = info.get("gpu")
+    display = info.get("display")
+    platform = info.get("platform")
+    graphics_api: object = None
+    if isinstance(platform, dict):
+        graphics_apis = platform.get("graphicsAPIs")
+        if isinstance(graphics_apis, list):
+            graphics_api = next((item for item in graphics_apis if isinstance(item, dict)), None)
+    gpu_model = _identity_string(gpu, "model", "name", "description")
+    if gpu_model == "unknown":
+        gpu_model = _identity_string(graphics_api, "renderer")
+    identity = {
+        "schema_version": 1,
+        "architecture": str(manifest["machine"]),
+        "translated": manifest.get("translated") is True,
+        "computer_model": _identity_string(computer, "model"),
+        "cpu_model": _identity_string(cpu, "model", "name"),
+        "gpu_model": gpu_model,
+        "graphics_renderer": _identity_string(graphics_api, "renderer"),
+        "graphics_vendor": _identity_string(graphics_api, "vendor"),
+        "display_width": _identity_integer(display, "modeWidth", "width"),
+        "display_height": _identity_integer(display, "modeHeight", "height"),
+        "display_refresh_hz": _identity_integer(display, "modeRefreshrate", "refreshRate"),
+    }
+    if identity["computer_model"] == "unknown" or identity["graphics_renderer"] == "unknown":
+        raise MatrixError("profile result has incomplete rendering hardware identity")
+    return identity
+
+
+def hardware_key(payload: dict[str, object], manifest: dict[str, object]) -> str:
+    canonical = json.dumps(
+        sanitized_hardware_identity(payload, manifest), sort_keys=True, separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
 
 
 def evidence_class(payload: dict[str, object], manifest: dict[str, object]) -> str:
@@ -651,10 +767,15 @@ def aggregate(runs: list[dict[str, object]], manifest: dict[str, object],
     if not runs and not attempt_failures:
         raise MatrixError("no accepted profile results found")
     hardware_keys = {hardware_key(run, manifest) for run in runs}
+    hardware_identities = {
+        json.dumps(sanitized_hardware_identity(run, manifest), sort_keys=True, separators=(",", ":"))
+        for run in runs
+    }
     fixture_versions = {run.get("fixture_version") for run in runs}
     fixture_modes = {run.get("fixture_mode") for run in runs}
     evidence_classes = {evidence_class(run, manifest) for run in runs}
-    if len(hardware_keys) > 1 or len(fixture_versions) > 1 or len(fixture_modes) > 1:
+    if (len(hardware_keys) > 1 or len(hardware_identities) > 1 or
+            len(fixture_versions) > 1 or len(fixture_modes) > 1):
         raise MatrixError("profile results mix hardware, fixture versions, or fixture modes")
     if len(evidence_classes) > 1:
         raise MatrixError("profile results mix incompatible evidence classes")
@@ -746,7 +867,9 @@ def aggregate(runs: list[dict[str, object]], manifest: dict[str, object],
         "fixture_mode": manifest["fixture_mode"],
         "application_sha256": manifest["application_sha256"],
         "profiles_sha256": manifest["profiles_sha256"],
+        "fixture_sha256": manifest["fixture_sha256"],
         "hardware_key": next(iter(hardware_keys), "unknown"),
+        "hardware_identity": json.loads(next(iter(hardware_identities), "{}")),
         "renderer": renderer_name(runs[0]) if runs else "unknown",
         "evidence_class": evidence,
         "diagnostic_only": diagnostic_only,
@@ -803,6 +926,8 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("matrix_directory", type=Path)
     parser.add_argument("--profiles", type=Path, required=True)
+    parser.add_argument("--fixture-source", type=Path, required=True)
+    parser.add_argument("--procedural-shader", type=Path, required=True)
     parser.add_argument("--result", type=Path, required=True)
     parser.add_argument("--junit", type=Path, required=True)
     parser.add_argument("--minimum-runs", type=int, default=3)
@@ -811,7 +936,11 @@ def main() -> int:
         parser.error("--minimum-runs is outside 1..20")
     try:
         catalog, orders, catalog_hash, fixture_version = load_catalog(arguments.profiles)
-        manifest = load_manifest(arguments.matrix_directory, catalog_hash, orders)
+        fixture_hash = hashlib.sha256(
+            arguments.fixture_source.read_bytes() + b"\0" +
+            arguments.procedural_shader.read_bytes()
+        ).hexdigest()
+        manifest = load_manifest(arguments.matrix_directory, catalog_hash, fixture_hash, orders)
         if arguments.minimum_runs != int(manifest["repeats"]):
             raise MatrixError("minimum runs must match the immutable matrix manifest")
         attempts, attempt_failures = load_attempts(arguments.matrix_directory, manifest)

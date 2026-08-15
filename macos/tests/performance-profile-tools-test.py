@@ -18,17 +18,45 @@ GENERATOR = ROOT / "macos/tools/render-performance-profile.py"
 ANALYZER = ROOT / "macos/tools/analyze-performance-matrix.py"
 PROFILES = ROOT / "macos/tests/performance-profiles.json"
 TEMPLATE = ROOT / "macos/tests/profile-performance-smoke.js"
+PROCEDURAL_SHADER = ROOT / "macos/tests/fixtures/profile-procedural.fs"
+FIXTURE_SHA256 = hashlib.sha256(
+    TEMPLATE.read_bytes() + b"\0" + PROCEDURAL_SHADER.read_bytes()
+).hexdigest()
 CATALOG = json.loads(PROFILES.read_text(encoding="utf-8"))
 PROFILE_BY_ID = {profile["id"]: profile for profile in CATALOG["profiles"]}
 PROFILE_FIELDS = (
     "render_method", "shadows", "haze", "bloom", "ambient_occlusion", "local_lighting",
     "procedural_materials", "antialiasing", "viewport_scale", "forward_samples",
 )
+FIXTURE_FEATURES = {
+    "diagnostic-lite": ["semantic-red-cyan", "unlit-grid"],
+    "full": [
+        "ambient-occlusion-geometry", "antialiasing-edge-target",
+        "bloom-emissive-material", "directional-shadow", "haze-zone",
+        "lit-pbr-material", "local-point-lights", "procedural-material",
+        "semantic-red-cyan",
+    ],
+}
 
 
 def distribution(value: float) -> dict[str, float | int]:
     return {"count": 120, "mean": value, "min": value, "p10": value,
             "p50": value, "p95": value, "max": value}
+
+
+def write_visual_evidence(directory: Path) -> str:
+    screenshot = directory / "macos-profile.png"
+    screenshot.write_bytes(b"deterministic semantic profile screenshot")
+    digest = hashlib.sha256(screenshot.read_bytes()).hexdigest()
+    (directory / "profile-screenshot.json").write_text(json.dumps({
+        "passed": True,
+        "failures": [],
+        "red_pixels": 256,
+        "cyan_pixels": 256,
+        "red_centroid_x_ratio": 0.25,
+        "cyan_centroid_x_ratio": 0.75,
+    }), encoding="utf-8")
+    return digest
 
 
 def run_result(profile_id: str, index: int, present: float, p95: float,
@@ -77,10 +105,13 @@ def run_result(profile_id: str, index: int, present: float, p95: float,
         }.items()
     }
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "platform": "macos",
-        "fixture_version": "lit-grid-v1",
+        "fixture_version": CATALOG["fixture_version"],
         "fixture_mode": fixture_mode,
+        "fixture_features": FIXTURE_FEATURES[fixture_mode],
+        "fixture_present_delta": 1 if fixture_mode == "diagnostic-lite" else 2,
+        "fixture_sha256": FIXTURE_SHA256,
         "profile_id": profile_id,
         "run_index": index,
         "quality_score": profile["quality_score"],
@@ -90,12 +121,12 @@ def run_result(profile_id: str, index: int, present: float, p95: float,
             "computer": {"model": "Mac"},
             "cpu": {"model": "CPU"},
             "gpu": None if "Software" in renderer else {"model": renderer},
-            "display": {"width": 1380},
-            "platform": {"graphicsAPIs": [{"renderer": renderer}]},
+            "display": {"modeWidth": 1380, "modeHeight": 776, "modeRefreshrate": 60},
+            "platform": {"graphicsAPIs": [{"renderer": renderer, "vendor": "Apple"}]},
             "tier": 2,
             "deferred_capable": True,
         },
-        "stress_entities": 13 if fixture_mode == "diagnostic-lite" else 50,
+        "stress_entities": 13 if fixture_mode == "diagnostic-lite" else 52,
         "warmup_to_snapshot_ms": 15000,
         "duration_ms": 30000,
         "sample_count": len(samples),
@@ -131,7 +162,7 @@ def create_matrix(root: Path, *, mode: str, repeats: int, runner_class: str,
     order_name = "diagnostic_order" if runner_class == "diagnostic" else f"{mode}_order"
     profiles = CATALOG[order_name]
     manifest = {
-        "schema_version": 1,
+        "schema_version": 2,
         "mode": mode,
         "runner_class": runner_class,
         "fixture_mode": fixture_mode,
@@ -139,6 +170,7 @@ def create_matrix(root: Path, *, mode: str, repeats: int, runner_class: str,
         "expected_profiles": profiles,
         "application_sha256": "a" * 64,
         "profiles_sha256": hashlib.sha256(PROFILES.read_bytes()).hexdigest(),
+        "fixture_sha256": FIXTURE_SHA256,
         "machine": "x86_64" if runner_class == "diagnostic" else "arm64",
         "translated": False,
     }
@@ -150,6 +182,7 @@ def create_matrix(root: Path, *, mode: str, repeats: int, runner_class: str,
             warmup_directory = root / profile / "warmup"
             warmup_directory.mkdir(parents=True)
             (warmup_directory / "profile-accepted").write_text("accepted\n", encoding="utf-8")
+            warmup_screenshot_sha = write_visual_evidence(warmup_directory)
             attempts.append({
                 "profile": profile,
                 "label": "warmup",
@@ -157,6 +190,8 @@ def create_matrix(root: Path, *, mode: str, repeats: int, runner_class: str,
                 "exit_code": 0,
                 "accepted": True,
                 "result_directory": f"{profile}/warmup",
+                "screenshot_sha256": warmup_screenshot_sha,
+                "visual_validation_passed": True,
             })
         for repeat in range(1, repeats + 1):
             directory = root / profile / f"run-{repeat}"
@@ -167,6 +202,9 @@ def create_matrix(root: Path, *, mode: str, repeats: int, runner_class: str,
                 payload = run_result(profile, repeat + 1, present, p95, renderer, fixture_mode)
                 (directory / "macos-profile.json").write_text(json.dumps(payload), encoding="utf-8")
                 (directory / "profile-accepted").write_text("accepted\n", encoding="utf-8")
+                screenshot_sha = write_visual_evidence(directory)
+            else:
+                screenshot_sha = None
             attempts.append({
                 "profile": profile,
                 "label": f"run-{repeat}",
@@ -174,6 +212,8 @@ def create_matrix(root: Path, *, mode: str, repeats: int, runner_class: str,
                 "exit_code": 0 if accepted else 124,
                 "accepted": accepted,
                 "result_directory": f"{profile}/run-{repeat}",
+                "screenshot_sha256": screenshot_sha,
+                "visual_validation_passed": accepted,
             })
     (root / "attempts.jsonl").write_text(
         "".join(json.dumps(row, sort_keys=True) + "\n" for row in attempts), encoding="utf-8"
@@ -185,6 +225,7 @@ def analyze(matrix: Path, result: Path, junit: Path, repeats: int,
             profiles: Path = PROFILES) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(ANALYZER), str(matrix), "--profiles", str(profiles),
+         "--fixture-source", str(TEMPLATE), "--procedural-shader", str(PROCEDURAL_SHADER),
          "--result", str(result), "--junit", str(junit), "--minimum-runs", str(repeats)],
         text=True, capture_output=True, check=False,
     )
@@ -196,25 +237,35 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     generation = subprocess.run(
         [sys.executable, str(GENERATOR), "--profiles", str(PROFILES), "--profile", "forward-compat",
          "--template", str(TEMPLATE), "--output", str(generated), "--trace", str(temporary / "trace.gz"),
+         "--procedural-shader", str(PROCEDURAL_SHADER),
          "--run-index", "2"], text=True, capture_output=True, check=False,
     )
     assert generation.returncode == 0, generation.stderr
-    assert generated.read_text(encoding="utf-8").startswith("var OVERTE_MACOS_PERFORMANCE_CASE = ")
+    generated_source = generated.read_text(encoding="utf-8")
+    assert generated_source.startswith("var OVERTE_MACOS_PERFORMANCE_CASE = ")
+    assert f'"fixture_sha256": "{FIXTURE_SHA256}"' in generated_source
+    assert '"procedural-material"' in generated_source
+    assert f'"procedural_shader_url": "{PROCEDURAL_SHADER.resolve().as_uri()}"' in generated_source
     assert generated.stat().st_mode & 0o777 == 0o600
 
     diagnostic_generated = temporary / "diagnostic.js"
     diagnostic_generation = subprocess.run(
         [sys.executable, str(GENERATOR), "--profiles", str(PROFILES), "--profile", "forward-compat",
          "--template", str(TEMPLATE), "--output", str(diagnostic_generated),
+         "--procedural-shader", str(PROCEDURAL_SHADER),
          "--trace", str(temporary / "trace.gz"), "--run-index", "1",
          "--fixture-mode", "diagnostic-lite"], text=True, capture_output=True, check=False,
     )
     assert diagnostic_generation.returncode == 0, diagnostic_generation.stderr
-    assert '"fixture_mode": "diagnostic-lite"' in diagnostic_generated.read_text(encoding="utf-8")
+    diagnostic_source = diagnostic_generated.read_text(encoding="utf-8")
+    assert '"fixture_mode": "diagnostic-lite"' in diagnostic_source
+    assert '"fixture_features": ["semantic-red-cyan", "unlit-grid"]' in diagnostic_source
+    assert '"procedural-material"' not in diagnostic_source.split(";\n", 1)[0]
 
     rejected = subprocess.run(
         [sys.executable, str(GENERATOR), "--profiles", str(PROFILES), "--profile", "../escape",
          "--template", str(TEMPLATE), "--output", str(temporary / "bad.js"),
+         "--procedural-shader", str(PROCEDURAL_SHADER),
          "--trace", str(temporary / "trace.gz"), "--run-index", "1"],
         text=True, capture_output=True, check=False,
     )
@@ -237,6 +288,9 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     assert summary["bottleneck_summary"] == {"forward-compat": "gpu"}
     assert summary["profiles"][0]["dominant_bottleneck"] == "gpu"
     assert summary["profiles"][0]["lod_timing_p95_ms_median"]["gpu_ms"] == 450.0
+    assert len(summary["hardware_key"]) == 64
+    assert summary["hardware_identity"]["graphics_renderer"] == "Apple Software Renderer"
+    assert "a" * 64 not in summary["hardware_key"]
 
     quick = temporary / "quick"
     create_matrix(quick, mode="quick", repeats=1, runner_class="hardware", renderer="Apple M4")
@@ -250,6 +304,49 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     assert set(quick_summary["bottleneck_summary"].values()) == {
         "balanced-or-refresh-limited"
     }
+
+    stable_key = temporary / "stable-hardware-key"
+    stable_profiles = create_matrix(
+        stable_key, mode="quick", repeats=1, runner_class="hardware", renderer="Apple M4"
+    )
+    stable_manifest_path = stable_key / "matrix-manifest.json"
+    stable_manifest = json.loads(stable_manifest_path.read_text(encoding="utf-8"))
+    stable_manifest["application_sha256"] = "b" * 64
+    stable_manifest_path.write_text(json.dumps(stable_manifest), encoding="utf-8")
+    (stable_key / "application.sha256").write_text(
+        "b" * 64 + "  /private/runner/Overte\n", encoding="utf-8"
+    )
+    for profile in stable_profiles:
+        path = stable_key / profile / "run-1/macos-profile.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["platform_info"]["platform"]["nics"] = [
+            {"name": "en0", "mac": "SECRET-MAC-ADDRESS"}
+        ]
+        payload["platform_info"]["platform"]["graphicsAPIs"][0]["extensions"] = [
+            "VOLATILE_EXTENSION"
+        ]
+        path.write_text(json.dumps(payload), encoding="utf-8")
+    stable_result = temporary / "stable-hardware-key.json"
+    stable_junit = temporary / "stable-hardware-key.xml"
+    stable_analysis = analyze(stable_key, stable_result, stable_junit, 1)
+    assert stable_analysis.returncode == 0, stable_analysis.stdout + stable_analysis.stderr
+    stable_summary = json.loads(stable_result.read_text(encoding="utf-8"))
+    assert stable_summary["hardware_key"] == quick_summary["hardware_key"]
+    assert "SECRET" not in json.dumps(stable_summary["hardware_identity"])
+    assert "VOLATILE" not in json.dumps(stable_summary["hardware_identity"])
+    assert "b" * 64 not in stable_summary["hardware_key"]
+
+    different_hardware = temporary / "different-hardware-key"
+    create_matrix(
+        different_hardware, mode="quick", repeats=1,
+        runner_class="hardware", renderer="Apple M3",
+    )
+    different_result = temporary / "different-hardware-key.json"
+    different_junit = temporary / "different-hardware-key.xml"
+    different_analysis = analyze(different_hardware, different_result, different_junit, 1)
+    assert different_analysis.returncode == 0, different_analysis.stdout
+    different_summary = json.loads(different_result.read_text(encoding="utf-8"))
+    assert different_summary["hardware_key"] != quick_summary["hardware_key"]
 
     full = temporary / "full"
     create_matrix(full, mode="full", repeats=3, runner_class="hardware", renderer="Apple M4")
@@ -368,6 +465,59 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     assert forged_analysis.returncode != 0
     assert int(ET.parse(forged_junit).getroot().attrib["failures"]) >= 1
 
+    forged_visual = temporary / "forged-visual"
+    create_matrix(
+        forged_visual, mode="quick", repeats=1,
+        runner_class="hardware", renderer="Apple M4",
+    )
+    forged_visual_attempts = [json.loads(line) for line in
+        (forged_visual / "attempts.jsonl").read_text(encoding="utf-8").splitlines()]
+    forged_visual_attempts[1]["screenshot_sha256"] = "b" * 64
+    (forged_visual / "attempts.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in forged_visual_attempts), encoding="utf-8"
+    )
+    forged_visual_result = temporary / "forged-visual.json"
+    forged_visual_junit = temporary / "forged-visual.xml"
+    forged_visual_analysis = analyze(
+        forged_visual, forged_visual_result, forged_visual_junit, 1
+    )
+    assert forged_visual_analysis.returncode != 0
+    assert "screenshot hash mismatch" in forged_visual_analysis.stdout
+
+    missing_feature = temporary / "missing-fixture-feature"
+    create_matrix(
+        missing_feature, mode="quick", repeats=1,
+        runner_class="hardware", renderer="Apple M4",
+    )
+    missing_feature_path = missing_feature / "forward-compat/run-1/macos-profile.json"
+    missing_feature_payload = json.loads(missing_feature_path.read_text(encoding="utf-8"))
+    missing_feature_payload["fixture_features"].remove("procedural-material")
+    missing_feature_path.write_text(json.dumps(missing_feature_payload), encoding="utf-8")
+    missing_feature_result = temporary / "missing-fixture-feature.json"
+    missing_feature_junit = temporary / "missing-fixture-feature.xml"
+    missing_feature_analysis = analyze(
+        missing_feature, missing_feature_result, missing_feature_junit, 1
+    )
+    assert missing_feature_analysis.returncode != 0
+    assert "fixture feature coverage mismatch" in missing_feature_analysis.stdout
+
+    early_snapshot = temporary / "early-fixture-snapshot"
+    create_matrix(
+        early_snapshot, mode="quick", repeats=1,
+        runner_class="hardware", renderer="Apple M4",
+    )
+    early_snapshot_path = early_snapshot / "forward-compat/run-1/macos-profile.json"
+    early_snapshot_payload = json.loads(early_snapshot_path.read_text(encoding="utf-8"))
+    early_snapshot_payload["fixture_present_delta"] = 1
+    early_snapshot_path.write_text(json.dumps(early_snapshot_payload), encoding="utf-8")
+    early_snapshot_result = temporary / "early-fixture-snapshot.json"
+    early_snapshot_junit = temporary / "early-fixture-snapshot.xml"
+    early_snapshot_analysis = analyze(
+        early_snapshot, early_snapshot_result, early_snapshot_junit, 1
+    )
+    assert early_snapshot_analysis.returncode != 0
+    assert "lacks post-warmup presents" in early_snapshot_analysis.stdout
+
     forged_lod = temporary / "forged-lod"
     create_matrix(forged_lod, mode="quick", repeats=1,
                   runner_class="hardware", renderer="Apple M4")
@@ -468,6 +618,25 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     assert wrong_catalog_analysis.returncode != 0
     assert "catalog hash" in wrong_catalog_analysis.stdout
 
+    wrong_fixture_hash = temporary / "wrong-fixture-hash"
+    create_matrix(wrong_fixture_hash, mode="quick", repeats=1,
+                  runner_class="hardware", renderer="Apple M4")
+    wrong_fixture_manifest_path = wrong_fixture_hash / "matrix-manifest.json"
+    wrong_fixture_manifest = json.loads(
+        wrong_fixture_manifest_path.read_text(encoding="utf-8")
+    )
+    wrong_fixture_manifest["fixture_sha256"] = "b" * 64
+    wrong_fixture_manifest_path.write_text(
+        json.dumps(wrong_fixture_manifest), encoding="utf-8"
+    )
+    wrong_fixture_hash_result = temporary / "wrong-fixture-hash.json"
+    wrong_fixture_hash_junit = temporary / "wrong-fixture-hash.xml"
+    wrong_fixture_hash_analysis = analyze(
+        wrong_fixture_hash, wrong_fixture_hash_result, wrong_fixture_hash_junit, 1
+    )
+    assert wrong_fixture_hash_analysis.returncode != 0
+    assert "fixture source hash" in wrong_fixture_hash_analysis.stdout
+
     strict_catalog_path = temporary / "strict-profiles.json"
     strict_catalog = json.loads(PROFILES.read_text(encoding="utf-8"))
     strict_catalog["unexpected"] = True
@@ -541,6 +710,8 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
                    (broken_warmup / "attempts.jsonl").read_text(encoding="utf-8").splitlines()]
     warmup_rows[0]["accepted"] = False
     warmup_rows[0]["exit_code"] = 139
+    warmup_rows[0]["screenshot_sha256"] = None
+    warmup_rows[0]["visual_validation_passed"] = False
     (broken_warmup / "attempts.jsonl").write_text(
         "".join(json.dumps(row) + "\n" for row in warmup_rows), encoding="utf-8"
     )

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -22,6 +23,20 @@ BOOLEAN_FIELDS = (
     "local_lighting",
     "procedural_materials",
 )
+FIXTURE_FEATURES = {
+    "diagnostic-lite": ["semantic-red-cyan", "unlit-grid"],
+    "full": [
+        "ambient-occlusion-geometry",
+        "antialiasing-edge-target",
+        "bloom-emissive-material",
+        "directional-shadow",
+        "haze-zone",
+        "lit-pbr-material",
+        "local-point-lights",
+        "procedural-material",
+        "semantic-red-cyan",
+    ],
+}
 
 
 class ProfileError(RuntimeError):
@@ -107,6 +122,7 @@ def main() -> int:
     parser.add_argument("--template", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--trace", type=Path, required=True)
+    parser.add_argument("--procedural-shader", type=Path, required=True)
     parser.add_argument("--run-index", type=int, required=True)
     parser.add_argument(
         "--fixture-mode", choices=("full", "diagnostic-lite"), default="full"
@@ -117,11 +133,20 @@ def main() -> int:
             raise ProfileError("run index is outside 1..20")
         payload = load_profiles(arguments.profiles)
         profile = select_profile(payload, arguments.profile)
-        template = arguments.template.read_text(encoding="utf-8")
+        template_bytes = arguments.template.read_bytes()
+        template = template_bytes.decode("utf-8")
+        procedural_shader = arguments.procedural_shader.resolve()
+        procedural_bytes = procedural_shader.read_bytes()
+        fixture_digest = hashlib.sha256(
+            template_bytes + b"\0" + procedural_bytes
+        ).hexdigest()
         injected = {
             "profile": profile,
             "fixture_version": payload.get("fixture_version"),
             "fixture_mode": arguments.fixture_mode,
+            "fixture_features": FIXTURE_FEATURES[arguments.fixture_mode],
+            "fixture_sha256": fixture_digest,
+            "procedural_shader_url": procedural_shader.as_uri(),
             "run_index": arguments.run_index,
             "trace_path": str(arguments.trace.resolve()),
         }

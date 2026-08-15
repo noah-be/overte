@@ -78,8 +78,9 @@ OVERTE_MACOS_PERFORMANCE_MAXIMUM_P95_MS=33.33 \
 The single-profile smoke is only a fast regression signal. It deliberately
 uses unlit primitives and cannot choose a production quality profile. The
 profiling matrix exercises a deterministic local scene with 45 lit shapes, a
-shadow-casting directional light, two point lights, haze, bloom, PBR material,
-fixed LOD, and a moving camera:
+shadow-casting directional light, two point lights, haze, bloom, PBR and local
+procedural materials, an explicit antialiasing edge target, fixed LOD, and a
+moving camera:
 
 ```bash
 OVERTE_MACOS_PROFILE_MATRIX_MODE=quick \
@@ -102,7 +103,12 @@ Deferred configurations. The analyzer reconstructs the LOD timing summaries
 from the raw 250-ms samples, rejects forged or inconsistent distributions, and
 classifies each run as GPU-, CPU-engine-, CPU-submit-, present/pacing-, or
 refresh-limited. The aggregate includes the dominant class and median p95 for
-present, engine, batch, and GPU stages per profile.
+present, engine, batch, and GPU stages per profile. Each case first captures a
+separate shader-warmup image, waits five seconds and at least two additional
+display presents, and only then captures the acceptance image and starts the
+measurement. The final image must contain the red fixture on the left and cyan
+fixture on the right; a sky-only or prematurely captured frame fails even if
+the generic nonblank-image checks pass.
 
 Hardware classes never share results. The hosted paravirtualized/software-GL
 runner is detected automatically and executes only a bounded `forward-compat`
@@ -123,9 +129,14 @@ p99 MAD/spread 3/8 ms. The separate 30 Hz fallback uses 1.5/4 Hz, 4/10 ms, and
 5/14 ms respectively and is only reported when no 60 Hz candidate exists; it is
 never promoted to the selected gameplay profile. The analyzer binds every
 result to the catalog fixture version and SHA-256, independently recorded
-application SHA-256, exact requested and observed settings, expected stress
-entity count, measurement duration, and internally recomputed raw-sample
-statistics. The hosted renderer uses only a bounded diagnostic contract.
+application SHA-256, the combined fixture/script SHA-256, the accepted image
+SHA-256 and semantic validation result, the required fixture-feature list,
+post-warmup present delta, exact requested and observed settings, expected
+stress entity count, measurement duration, and internally recomputed
+raw-sample statistics. Its stable hardware key is derived only from an
+allowlisted architecture/model/GPU/renderer/display identity; application
+hashes, network interfaces, extensions, serial data, and other volatile
+platform blobs are excluded. The hosted renderer uses only a bounded diagnostic contract.
 Its result is useful for shader, correctness, and regression diagnosis, but
 cannot certify fluid gameplay or choose an Apple Silicon profile.
 
@@ -153,6 +164,11 @@ case was nevertheless unambiguously GPU-bound: GPU/batch p95 was about 897 ms,
 present p95 about 852 ms, and engine p95 about 8.96 ms. The analyzer therefore
 reported `diagnostic-only`, `decision_ready=false`, and no selected profile.
 This prevents fast CPU submission from being mistaken for fluid gameplay.
+The stricter matrix-image/fixture binding was added after that run exposed that
+its early profile screenshot contained only the sky. A hermetic image with the
+same failure mode is now a negative regression fixture and is rejected; a
+runtime-only validation of the new matrix contract is required before recording
+a replacement diagnostic baseline.
 
 Online connectivity acceptance remains separate from loading performance. The
 loading benchmark intentionally does **not** enable the lightweight entity

@@ -14,13 +14,15 @@ if (!scriptPath) {
 
 const source = fs.readFileSync(scriptPath, "utf8");
 const clock = { now: 1000 };
+const present = { count: 100 };
 const fixtureMode = process.env.OVERTE_TEST_FIXTURE_MODE || "full";
-const expectedStressEntities = fixtureMode === "diagnostic-lite" ? 13 : 50;
+const expectedStressEntities = fixtureMode === "diagnostic-lite" ? 13 : 52;
 const settleMilliseconds = fixtureMode === "diagnostic-lite" ? 5000 : 10000;
 const minimumSamples = fixtureMode === "diagnostic-lite" ? 15 : 90;
 const output = [];
 const saved = [];
 const deleted = [];
+const created = [];
 let nextEntity = 10;
 const forwardConfig = {};
 const frameTimings = {
@@ -41,8 +43,12 @@ const script = {
 const windowObject = {
     snapshotHandler: null,
     snapshotName: null,
+    snapshotNames: [],
     stillSnapshotTaken: { connect(callback) { windowObject.snapshotHandler = callback; } },
-    takeSnapshot(_notify, _includeAnimated, _aspect, name) { this.snapshotName = name; }
+    takeSnapshot(_notify, _includeAnimated, _aspect, name) {
+        this.snapshotName = name;
+        this.snapshotNames.push(name);
+    }
 };
 const baseNames = {
     red: "macOS smoke red cube",
@@ -75,8 +81,17 @@ const lodManager = {
 };
 const context = {
     OVERTE_MACOS_PERFORMANCE_CASE: {
-        fixture_version: "lit-grid-v1",
+        fixture_version: "lit-grid-v2",
         fixture_mode: fixtureMode,
+        fixture_features: fixtureMode === "diagnostic-lite" ?
+            ["semantic-red-cyan", "unlit-grid"] : [
+                "ambient-occlusion-geometry", "antialiasing-edge-target",
+                "bloom-emissive-material", "directional-shadow", "haze-zone",
+                "lit-pbr-material", "local-point-lights", "procedural-material",
+                "semantic-red-cyan"
+            ],
+        fixture_sha256: "a".repeat(64),
+        procedural_shader_url: "file:///tmp/profile-procedural.fs",
         run_index: 2,
         trace_path: "/tmp/profile-trace.json.gz",
         profile: {
@@ -102,6 +117,7 @@ const context = {
     Stats: stats,
     FrameTimings: frameTimings,
     Test: {
+        getPresentCount() { return present.count; },
         startTracing() { return true; },
         stopTracing(path) { assert.strictEqual(path, "/tmp/profile-trace.json.gz"); return true; },
         saveObject(value, name) { saved.push({ value, name }); }
@@ -111,7 +127,11 @@ const context = {
     Entities: {
         findEntities() { return Object.keys(baseNames); },
         getEntityProperties(id) { return { name: baseNames[id] }; },
-        addEntity(_properties, scope) { assert.strictEqual(scope, "local"); return ++nextEntity; },
+        addEntity(properties, scope) {
+            assert.strictEqual(scope, "local");
+            created.push(properties);
+            return ++nextEntity;
+        },
         deleteEntity(id) { deleted.push(id); }
     },
     MyAvatar: { position: {}, setOrientationVar() {} },
@@ -143,7 +163,33 @@ script.interval();
 assert(output.some((line) => line.includes("stress_entities=" + expectedStressEntities)));
 clock.now += settleMilliseconds;
 script.interval();
-assert.strictEqual(windowObject.snapshotName, "macos-profile.png");
+assert.strictEqual(windowObject.snapshotName, "macos-profile-warmup.png");
+windowObject.snapshotHandler("/tmp/macos-profile-warmup.png");
+assert.strictEqual(frameTimings.active, false,
+    "the shader-warmup image must not start performance sampling");
+clock.now += 4999;
+script.interval();
+assert.deepStrictEqual(windowObject.snapshotNames, ["macos-profile-warmup.png"],
+    "the final image must wait for the complete cooldown");
+clock.now += 1;
+script.interval();
+assert.deepStrictEqual(windowObject.snapshotNames, ["macos-profile-warmup.png"],
+    "elapsed cooldown alone must not substitute for new display presents");
+const requiredPresents = fixtureMode === "diagnostic-lite" ? 1 : 2;
+for (let index = 1; index < requiredPresents; index += 1) {
+    present.count += 1;
+    script.interval();
+    assert.deepStrictEqual(windowObject.snapshotNames, ["macos-profile-warmup.png"],
+        "the final image must wait for every required display present");
+}
+present.count += 1;
+script.interval();
+assert.deepStrictEqual(windowObject.snapshotNames, [
+    "macos-profile-warmup.png",
+    "macos-profile.png"
+]);
+assert.strictEqual(frameTimings.active, false,
+    "requesting the final image must not start sampling before it is saved");
 windowObject.snapshotHandler("/tmp/macos-profile.png");
 assert.strictEqual(frameTimings.active, true);
 frameTimings.values = Array(Math.max(120, minimumSamples)).fill(9000);
@@ -166,9 +212,20 @@ script.interval();
 assert.strictEqual(script.stopped, true);
 assert.strictEqual(saved.length, 1);
 assert.strictEqual(saved[0].name, "macos-profile.json");
-assert.strictEqual(saved[0].value.schema_version, 2);
+assert.strictEqual(saved[0].value.schema_version, 3);
 assert.strictEqual(saved[0].value.measurement_complete, true);
 assert.strictEqual(saved[0].value.fixture_mode, fixtureMode);
+assert.strictEqual(saved[0].value.fixture_sha256, "a".repeat(64));
+assert.strictEqual(saved[0].value.fixture_present_delta, requiredPresents);
+assert(saved[0].value.fixture_features.includes("semantic-red-cyan"));
+if (fixtureMode === "full") {
+    const procedural = created.find((item) =>
+        item.name === "macOS profile procedural material target");
+    const antialiasing = created.find((item) =>
+        item.name === "macOS profile antialiasing edge target");
+    assert(procedural && procedural.userData.includes("profile-procedural.fs"));
+    assert(antialiasing && antialiasing.dimensions.y === 0.08);
+}
 assert.strictEqual(saved[0].value.profile_id, "forward-compat");
 assert.strictEqual(saved[0].value.stress_entities, expectedStressEntities);
 assert.strictEqual(saved[0].value.rates_hz.present.p50, 59);
@@ -185,6 +242,9 @@ assert.strictEqual(saved[0].value.lod_timings_ms.raw_samples[0].gpu_ms, null);
 assert.strictEqual(saved[0].value.lod_timings_ms.raw_samples[1].gpu_ms, 0);
 assert.strictEqual(saved[0].value.lod_timings_ms.raw_samples[2].gpu_ms, 7);
 assert.strictEqual(deleted.length, expectedStressEntities);
+assert(output.some((line) => line.includes("warmup_snapshot=/tmp/macos-profile-warmup.png")));
+assert(output.some((line) => line.includes("fixture_present_delta=" + requiredPresents)));
+assert(output.some((line) => line.includes("final_snapshot=/tmp/macos-profile.png")));
 assert(output.some((line) => line.includes("OVERTE_MACOS_PROFILE passed id=forward-compat")));
 
 console.log("macOS profile performance script contract valid");

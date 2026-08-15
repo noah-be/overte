@@ -1101,9 +1101,17 @@ profile_script = (ROOT / "macos/tests/profile-performance-smoke.js").read_text(e
 profile_analyzer = (
     ROOT / "macos/tools/analyze-performance-matrix.py"
 ).read_text(encoding="utf-8")
+profile_generator = (
+    ROOT / "macos/tools/render-performance-profile.py"
+).read_text(encoding="utf-8")
+profile_procedural = (
+    ROOT / "macos/tests/fixtures/profile-procedural.fs"
+).read_text(encoding="utf-8")
 profile_definitions = json.loads(
     (ROOT / "macos/tests/performance-profiles.json").read_text(encoding="utf-8")
 )
+if profile_definitions.get("fixture_version") != "lit-grid-v2":
+    raise SystemExit("performance profile catalog must identify the feature-complete fixture")
 profile_ids = [profile["id"] for profile in profile_definitions["profiles"]]
 for required_profile in (
     "forward-compat",
@@ -1127,6 +1135,15 @@ for profile_contract in (
     "profile-accepted",
     "matrix-manifest.json",
     "attempts.jsonl",
+    "macos-profile-warmup.png",
+    "macos-profile.png",
+    "warmup_cooldown_ms=",
+    "--require-red-pixels 128 --require-cyan-pixels 128",
+    "--require-red-left --require-cyan-right",
+    "screenshot_sha256",
+    "visual_validation_passed",
+    '--procedural-shader "$procedural_shader"',
+    '--fixture-source "$template"',
     "refusing to upgrade diagnostic graphics evidence to hardware",
     "refusing to mix a performance matrix with existing evidence",
     '--profiles "$profiles_file"',
@@ -1156,6 +1173,16 @@ for profile_contract in (
     "lod_timings_ms",
     "polled_latest_and_moving_averages",
     "invalid_count",
+    "testCase.procedural_shader_url",
+    "macOS profile procedural material target",
+    "macOS profile antialiasing edge target",
+    "fixture_features",
+    "fixture_present_delta",
+    "fixture_sha256",
+    "macos-profile-warmup.png",
+    "MINIMUM_FINAL_PRESENTS",
+    "Test.getPresentCount()",
+    "macos-profile.png",
 ):
     if profile_contract not in profile_script:
         raise SystemExit(f"performance profile script missing: {profile_contract}")
@@ -1167,9 +1194,35 @@ for analyzer_contract in (
     '"gpu_to_engine_ratio"',
     "STATS_FIELDS",
     "LOD_TIMING_FIELDS",
+    "sanitized_hardware_identity",
+    "fixture source hash does not match the matrix manifest",
+    "profile screenshot hash mismatch",
+    "visual validation and acceptance disagree",
+    "fixture feature coverage mismatch",
+    "lacks post-warmup presents",
+    "--fixture-source",
+    "--procedural-shader",
 ):
     if analyzer_contract not in profile_analyzer:
         raise SystemExit(f"performance analyzer missing: {analyzer_contract}")
+for generator_contract in (
+    "FIXTURE_FEATURES",
+    "fixture_features",
+    "fixture_sha256",
+    "procedural_shader_url",
+    "--procedural-shader",
+    'template_bytes + b"\\0" + procedural_bytes',
+):
+    if generator_contract not in profile_generator:
+        raise SystemExit(f"performance profile generator missing: {generator_contract}")
+for procedural_contract in (
+    "vec4 getProceduralColor()",
+    "_position.xz",
+):
+    if procedural_contract not in profile_procedural:
+        raise SystemExit(f"performance procedural fixture missing: {procedural_contract}")
+if 'str(manifest["application_sha256"])' in profile_analyzer:
+    raise SystemExit("performance hardware identity must not contain the application hash")
 
 online_loading_runner = (ROOT / "macos/ci/online-loading-benchmark.sh").read_text(encoding="utf-8")
 online_loading_script = (ROOT / "macos/tests/online-loading-benchmark.js").read_text(encoding="utf-8")
@@ -1934,6 +1987,11 @@ if "_engine->getScopeGuard()" in shutdown_wait:
     )
 subprocess.run(
     [sys.executable, str(ROOT / "macos/tests/screenshot-validator-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/profile-screenshot-validator-test.py")],
     cwd=ROOT,
     check=True,
 )

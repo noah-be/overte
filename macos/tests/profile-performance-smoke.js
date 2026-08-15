@@ -10,12 +10,18 @@
 
     var testCase = OVERTE_MACOS_PERFORMANCE_CASE;
     var profile = testCase.profile;
+    if (!Array.isArray(testCase.fixture_features) ||
+            !/^[0-9a-f]{64}$/.test(String(testCase.fixture_sha256 || ""))) {
+        throw new Error("missing validated macOS performance fixture identity");
+    }
     var diagnosticLite = testCase.fixture_mode === "diagnostic-lite";
     var localEntities = [];
     var MINIMUM_MEASUREMENT_MS = diagnosticLite ? 20000 : 30000;
     var MAXIMUM_MEASUREMENT_MS = diagnosticLite ? 60000 : 90000;
     var MINIMUM_SAMPLE_COUNT = diagnosticLite ? 15 : 90;
     var SETTLE_MS = diagnosticLite ? 5000 : 10000;
+    var WARMUP_COOLDOWN_MS = 5000;
+    var MINIMUM_FINAL_PRESENTS = diagnosticLite ? 1 : 2;
     var scriptStartedAt = Date.now();
     var deadline = scriptStartedAt + 360000;
     var expectedNames = {
@@ -26,6 +32,9 @@
     var stage = "waiting";
     var completed = false;
     var settleStartedAt = 0;
+    var cooldownStartedAt = 0;
+    var cooldownPresentBaseline = 0;
+    var finalPresentDelta = 0;
     var measurementStartedAt = 0;
     var nextProgressAt = 0;
     var rateSamples = [];
@@ -220,6 +229,33 @@
                 falloffRadius: 1.5,
                 isSpotlight: false
             });
+            addEntity({
+                type: "Shape",
+                shape: "Cube",
+                name: "macOS profile procedural material target",
+                position: { x: 5.4, y: 1.15, z: -7.5 },
+                dimensions: { x: 1.4, y: 1.4, z: 1.4 },
+                color: { red: 255, green: 255, blue: 255 },
+                collisionless: true,
+                canCastShadow: true,
+                userData: JSON.stringify({
+                    ProceduralEntity: {
+                        version: 2,
+                        shaderUrl: testCase.procedural_shader_url
+                    }
+                })
+            });
+            addEntity({
+                type: "Shape",
+                shape: "Cube",
+                name: "macOS profile antialiasing edge target",
+                position: { x: -5.4, y: 1.4, z: -7.2 },
+                dimensions: { x: 3.2, y: 0.08, z: 0.08 },
+                rotation: { x: 0, y: 0, z: 0.3826834324, w: 0.9238795325 },
+                color: { red: 255, green: 255, blue: 255 },
+                unlit: true,
+                collisionless: true
+            });
         }
         print("OVERTE_MACOS_PROFILE stress_entities=" + localEntities.length +
             " fixture_mode=" + testCase.fixture_mode);
@@ -272,10 +308,13 @@
             lodTimings[name] = summarizeOptionalSamples(lodTimingSamples, name);
         });
         var metrics = {
-            schema_version: 2,
+            schema_version: 3,
             platform: "macos",
             fixture_version: testCase.fixture_version,
             fixture_mode: testCase.fixture_mode,
+            fixture_features: testCase.fixture_features.slice(),
+            fixture_present_delta: finalPresentDelta,
+            fixture_sha256: testCase.fixture_sha256,
             profile_id: profile.id,
             run_index: testCase.run_index,
             quality_score: profile.quality_score,
@@ -337,15 +376,22 @@
     }
 
     Window.stillSnapshotTaken.connect(function (path) {
-        if (stage !== "warmup") {
+        if (stage !== "warmup" && stage !== "final") {
             return;
         }
         if (!path) {
             finish(false, "snapshot_save_failed");
             return;
         }
-        print("OVERTE_MACOS_PROFILE warmup_snapshot=" + path);
-        startMeasurement();
+        if (stage === "warmup") {
+            stage = "cooldown";
+            cooldownStartedAt = Date.now();
+            cooldownPresentBaseline = Number(Test.getPresentCount()) || 0;
+            print("OVERTE_MACOS_PROFILE warmup_snapshot=" + path);
+        } else {
+            print("OVERTE_MACOS_PROFILE final_snapshot=" + path);
+            startMeasurement();
+        }
     });
 
     if (Script.scriptEnding && Script.scriptEnding.connect) {
@@ -372,7 +418,21 @@
             }
         } else if (stage === "settling" && Date.now() - settleStartedAt >= SETTLE_MS) {
             stage = "warmup";
-            Window.takeSnapshot(false, false, 16 / 9, "macos-profile.png");
+            Window.takeSnapshot(false, false, 16 / 9, "macos-profile-warmup.png");
+        } else if (stage === "cooldown") {
+            // The warmup image forces lazy shaders and the entity-tree handoff
+            // through a present. Do not accept or measure that first frame.
+            var fixturePresentDelta = Math.max(0,
+                (Number(Test.getPresentCount()) || 0) - cooldownPresentBaseline);
+            if (Date.now() - cooldownStartedAt >= WARMUP_COOLDOWN_MS &&
+                    fixturePresentDelta >= MINIMUM_FINAL_PRESENTS) {
+                stage = "final";
+                finalPresentDelta = fixturePresentDelta;
+                print("OVERTE_MACOS_PROFILE warmup_cooldown_ms=" +
+                    (Date.now() - cooldownStartedAt) + " fixture_present_delta=" +
+                    fixturePresentDelta);
+                Window.takeSnapshot(false, false, 16 / 9, "macos-profile.png");
+            }
         } else if (stage === "measuring") {
             var elapsedMs = Date.now() - measurementStartedAt;
             var seconds = elapsedMs / 1000;

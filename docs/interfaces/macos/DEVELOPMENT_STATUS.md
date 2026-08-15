@@ -21,6 +21,11 @@
   software/virtual renderer as gameplay hardware;
 - present, engine, batch, and GPU timing distributions alongside raw
   render-submit samples, without mutating the global resource-cache policy;
+- a feature-complete local graphics fixture with procedural material and
+  antialiasing targets, a post-warmup multi-present image gate, and immutable
+  fixture/screenshot evidence binding;
+- a stable allowlisted graphics-hardware identity that excludes application
+  hashes and volatile or private platform inventory;
 - tested collidable-first Safe Landing resource priority and a cross-platform
   16-entity bound for unbudgeted renderable updates;
 - an owning trace-output path that remains valid across the application event
@@ -61,6 +66,15 @@ and present p95 about 852 ms while engine p95 was about 8.96 ms. It therefore
 correctly reported `diagnostic-only`, left `decision_ready` false, and selected
 no gameplay profile.
 
+Post-run audit found that the matrix case's own early screenshot contained only
+the sky even though the separate performance-smoke image was valid. The current
+matrix now takes distinct warmup and acceptance images, requires five seconds
+and at least two further presents, verifies the red/cyan semantic layout, and
+binds fixture features plus fixture and image hashes into the strict analyzer
+schema. A hermetic sky-only image represents the failure as a negative
+regression fixture and is rejected locally. This new harness contract still needs a runtime-only rerun
+before it replaces the diagnostic baseline above.
+
 Native arm64 capability probe
 [`31853662830`](https://github.com/noah-be/overte/actions/runs/31853662830)
 also completed successfully as a test, but the standard M1 runner offered no
@@ -98,7 +112,8 @@ stability iterations exited cleanly.
 
 ## Open gates
 
-1. Run the full profile matrix three times on native, non-Rosetta Apple Silicon
+1. Validate the hardened matrix contract in a runtime-only hosted run, then run
+   the full profile matrix three times on native, non-Rosetta Apple Silicon
    hardware; establish reviewed per-renderer image baselines before selecting a
    production quality profile.
 2. Run online loading against a pinned, controlled domain for at least three

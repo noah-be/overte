@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "fixture_version": "lit-grid-v1",
+  "fixture_version": "lit-grid-v2",
   "profiles": [
     {
       "id": "forward-compat",
