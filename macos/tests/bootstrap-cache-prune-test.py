@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import os
 from pathlib import Path
 import sys
@@ -95,6 +96,7 @@ class BootstrapCachePruneTests(unittest.TestCase):
             "--token-env", "TEST_TOKEN", "--settle-attempts", "1", "--execute",
         ]
         deleted: list[int] = []
+        output = io.StringIO()
         with (
             mock.patch.object(sys, "argv", argv),
             mock.patch.dict(os.environ, {"TEST_TOKEN": "secret-token"}, clear=False),
@@ -103,9 +105,13 @@ class BootstrapCachePruneTests(unittest.TestCase):
                 prune, "delete_cache",
                 side_effect=lambda _repo, cache_id, _token, _api: deleted.append(cache_id),
             ),
+            mock.patch.object(sys, "stdout", output),
         ):
             self.assertEqual(prune.main(), 0)
         self.assertEqual(deleted, [4, 5, 6, 7, 12, 13])
+        self.assertNotIn("secret-token", output.getvalue())
+        self.assertNotIn(BUILD, output.getvalue())
+        self.assertIn("entries=6 bytes=47000", output.getvalue())
 
     def test_main_never_deletes_when_inventory_cannot_prove_active_set(self) -> None:
         argv = [

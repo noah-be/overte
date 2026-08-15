@@ -471,8 +471,23 @@ if (APPLE AND NOT IOS)
   set(SCRIPTS_INSTALL_DIR "${INTERFACE_INSTALL_APP_PATH}/Contents/Resources")
   set(RESOURCES_DEV_DIR "$<TARGET_FILE_DIR:${TARGET_NAME}>/../Resources")
 
+  # Scripts are runtime bundle inputs rather than compiled sources.  Make them
+  # explicit Ninja link dependencies so an incremental build cannot retain a
+  # stale script tree while skipping all of this target's POST_BUILD staging.
+  # CONFIGURE_DEPENDS also makes additions and removals update the dependency
+  # list, while ordinary edits trigger only the Interface relink/deploy path.
+  file(GLOB_RECURSE MACOS_RUNTIME_BUNDLE_FILES CONFIGURE_DEPENDS
+    "${CMAKE_SOURCE_DIR}/scripts/*"
+    "${PROJECT_SOURCE_DIR}/resources/fonts/*"
+    "${PROJECT_SOURCE_DIR}/resources/serverless/*")
+  set_property(TARGET ${TARGET_NAME} APPEND PROPERTY
+    LINK_DEPENDS ${MACOS_RUNTIME_BUNDLE_FILES})
+
   add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-    # copy script files beside the executable
+    # Mirror application-owned runtime trees rather than merging them so a
+    # deleted source file cannot survive in a restored incremental bundle.
+    COMMAND "${CMAKE_COMMAND}" -E remove_directory
+      "${RESOURCES_DEV_DIR}/scripts"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
       "${CMAKE_SOURCE_DIR}/scripts"
       "${RESOURCES_DEV_DIR}/scripts"
@@ -485,10 +500,13 @@ if (APPLE AND NOT IOS)
     # we should be able to modify the CSS to reference the QRC path to
     # the ttf files, but doing so generates a CORS policy violation,
     # so we have to retain a copy of the fonts outside of the resources binary
+    COMMAND "${CMAKE_COMMAND}" -E remove_directory
+      "${RESOURCES_DEV_DIR}/fonts"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
       "${PROJECT_SOURCE_DIR}/resources/fonts"
       "${RESOURCES_DEV_DIR}/fonts"
-    #copy serverless for android
+    COMMAND "${CMAKE_COMMAND}" -E remove_directory
+      "${RESOURCES_DEV_DIR}/serverless"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
       "${PROJECT_SOURCE_DIR}/resources/serverless"
       "${RESOURCES_DEV_DIR}/serverless"
@@ -496,14 +514,18 @@ if (APPLE AND NOT IOS)
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
       "${PROJECT_SOURCE_DIR}/resources/serverless/redirect.json"
       "${RESOURCES_DEV_DIR}/serverless/redirect.json"
+    # Always remove generated documentation so changing JSDOC_ENABLED from ON
+    # to OFF cannot leave an old developer payload in a restored app bundle.
+    COMMAND "${CMAKE_COMMAND}" -E remove_directory
+      "${RESOURCES_DEV_DIR}/jsdoc"
     )
 
   if (JSDOC_ENABLED)
     add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
       # copy JSDoc files beside the executable
       COMMAND "${CMAKE_COMMAND}" -E copy_directory
-      "${JSDOC_OUTPUT_PATH}"
-      "${RESOURCES_DEV_DIR}/jsdoc")
+        "${JSDOC_OUTPUT_PATH}"
+        "${RESOURCES_DEV_DIR}/jsdoc")
   endif()
   # call the fixup_interface macro to add required bundling commands for installation
   fixup_interface()

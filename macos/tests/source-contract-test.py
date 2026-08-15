@@ -57,9 +57,23 @@ for native_test_contract in (
     'build_tests="${OVERTE_MACOS_BUILD_TESTS:-OFF}"',
     "OVERTE_MACOS_BUILD_TESTS must be ON or OFF",
     '-DOVERTE_BUILD_TESTS="$build_tests"',
+    'OVERTE_MACOS_SKIP_CONFIGURE:-OFF',
+    'reusing exact verified CMake/Ninja graph',
+    'exact graph reuse was requested but cache invariants failed; configuring safely',
+    'OVERTE_MACOS_EXPECTED_BUILD_TREE_KEY:-',
+    '.overte-macos-complete-key',
+    'cache_value CMAKE_HOME_DIRECTORY',
+    'cache_value CMAKE_GENERATOR',
+    'cache_value CMAKE_OSX_ARCHITECTURES',
+    'cache_value OVERTE_BUILD_TESTS',
 ):
     if native_test_contract not in build_script:
         raise SystemExit(f"macOS native test build contract missing: {native_test_contract}")
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/build-macos-configure-reuse-test.py")],
+    cwd=ROOT,
+    check=True,
+)
 
 native_runner = (ROOT / "tests/project-native-test.sh").read_text(encoding="utf-8")
 for native_runtime_contract in (
@@ -443,6 +457,10 @@ if warmup.index("shader_warmup_skipped") > warmup.index("pushProgramsToSync"):
     raise SystemExit("software-renderer warmup bypass must precede eager compilation")
 
 deploy_tool = (ROOT / "macos/tools/deploy-conan-dylibs.py").read_text(encoding="utf-8")
+incremental_bundle_tool = (
+    ROOT / "macos/tools/deploy-macos-dev-bundle.py"
+).read_text(encoding="utf-8")
+interface_build = (ROOT / "interface/CMakeLists.txt").read_text(encoding="utf-8")
 bundle_verify = (ROOT / "macos/ci/verify-glad-linkage.sh").read_text(encoding="utf-8")
 for webengine_contract in (
     "QtWebEngineProcess.app/Contents/MacOS/QtWebEngineProcess",
@@ -451,12 +469,21 @@ for webengine_contract in (
 ):
     if webengine_contract not in deploy_tool or webengine_contract not in bundle_verify:
         raise SystemExit(f"QtWebEngine bundle contract missing: {webengine_contract}")
-if not re.search(
-    r'OVERTE_RELEASE_TYPE STREQUAL "DEV".*?add_custom_command\(TARGET \$\{TARGET_NAME\} POST_BUILD.*?MACDEPLOYQT_COMMAND',
-    fixup_interface,
-    re.DOTALL,
+dev_fixup = fixup_interface.split('if (OVERTE_RELEASE_TYPE STREQUAL "DEV")', 1)[1].split(
+    "else ()", 1
+)[0]
+for dev_deploy_contract in (
+    "macos/tools/deploy-macos-dev-bundle.py",
+    '--executable "$<TARGET_FILE:${TARGET_NAME}>"',
+    '--macdeployqt "${MACDEPLOYQT_COMMAND}"',
+    "--deploy-conan-tool",
+    'macos-deploy/$<CONFIG>/${TARGET_NAME}-bundle.json',
+    "VERBATIM",
 ):
-    raise SystemExit("macOS DEV bundles must run macdeployqt before direct launch")
+    if dev_deploy_contract not in dev_fixup:
+        raise SystemExit(f"macOS incremental DEV deployment missing: {dev_deploy_contract}")
+if "remove_directory" in dev_fixup:
+    raise SystemExit("macOS DEV deployment must let the validated helper select full versus incremental cleanup")
 if '"-libpath=${CMAKE_BINARY_DIR}/conanlibs/$<CONFIG>"' not in fixup_interface:
     raise SystemExit("macdeployqt must search the collected versioned Conan dylibs")
 if fixup_interface.count('macos/tools/deploy-conan-dylibs.py') != 2:
@@ -466,6 +493,80 @@ subprocess.run(
     cwd=ROOT,
     check=True,
 )
+for incremental_contract in (
+    "inputs.cacheable",
+    'reason = "dependency-inspection-incomplete"',
+    'reason = "bundle-state-changed"',
+    'reason = "incremental-mutated-stable-bundle"',
+    'stamp.unlink(missing_ok=True)',
+    "remove_frameworks(app)",
+    "stable_bundle_fingerprint",
+    "add_dependency_closure",
+    'value.file("bundle-deploy-tool", Path(__file__).resolve())',
+    'value.file("install-name-tool", install_name_tool)',
+    'value.tree("qt-prefix", qt_root)',
+    'value.tree("conan-libraries", lib_dir)',
+    'value.tree("qml-input", qml_dir)',
+    'deploy_conan_command.append("--preserve-existing")',
+    "write_stamp(stamp, inputs, deployed_bundle)",
+    'application_resources / "scripts"',
+    'application_resources / "resources.rcc"',
+):
+    if incremental_contract not in incremental_bundle_tool:
+        raise SystemExit(f"macOS incremental bundle helper missing: {incremental_contract}")
+for runtime_staging_contract in (
+    "GLOB_RECURSE MACOS_RUNTIME_BUNDLE_FILES CONFIGURE_DEPENDS",
+    '"${CMAKE_SOURCE_DIR}/scripts/*"',
+    '"${PROJECT_SOURCE_DIR}/resources/fonts/*"',
+    '"${PROJECT_SOURCE_DIR}/resources/serverless/*"',
+    "LINK_DEPENDS ${MACOS_RUNTIME_BUNDLE_FILES}",
+    'remove_directory\n      "${RESOURCES_DEV_DIR}/scripts"',
+    'remove_directory\n      "${RESOURCES_DEV_DIR}/fonts"',
+    'remove_directory\n      "${RESOURCES_DEV_DIR}/serverless"',
+):
+    if runtime_staging_contract not in interface_build:
+        raise SystemExit(
+            f"macOS incremental runtime staging dependency missing: {runtime_staging_contract}"
+        )
+jsdoc_cleanup = interface_build.index(
+    'remove_directory\n      "${RESOURCES_DEV_DIR}/jsdoc"'
+)
+if jsdoc_cleanup > interface_build.index("if (JSDOC_ENABLED)"):
+    raise SystemExit("macOS JSDoc cleanup must run even after JSDOC_ENABLED is disabled")
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/deploy-macos-dev-bundle-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/fixup-interface-dev-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/interface-runtime-staging-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+if "if preserve_existing and destination.is_file()" not in deploy_tool:
+    raise SystemExit("Conan preservation must require explicit outer-manifest proof")
+for macho_magic in (
+    r'b"\xfe\xed\xfa\xce"',
+    r'b"\xce\xfa\xed\xfe"',
+    r'b"\xfe\xed\xfa\xcf"',
+    r'b"\xcf\xfa\xed\xfe"',
+    r'b"\xca\xfe\xba\xbe"',
+    r'b"\xbe\xba\xfe\xca"',
+    r'b"\xca\xfe\xba\xbf"',
+    r'b"\xbf\xba\xfe\xca"',
+):
+    if macho_magic not in deploy_tool:
+        raise SystemExit(f"Conan Mach-O prefilter missing magic: {macho_magic}")
+deploy_scan = deploy_tool.split('for candidate in sorted(contents.rglob("*")):', 1)[1]
+if deploy_scan.index("if not is_macho(candidate)") > deploy_scan.index(
+        "deps = dependencies(candidate, otool)"
+):
+    raise SystemExit("Conan deployment must reject non-Mach files before starting otool")
 
 package_libraries = (
     ROOT / "cmake/macros/PackageLibrariesForDeployment.cmake"
@@ -1976,12 +2077,14 @@ for pause_contract in (
     if pause_contract not in shared_object_source:
         raise SystemExit(f"offscreen QML pause synchronization missing: {pause_contract}")
 
-fixup_interface = (
-    ROOT / "cmake/macros/FixupInterface.cmake"
-).read_text(encoding="utf-8")
-for post_build in fixup_interface.split(
+fixup_post_builds = fixup_interface.split(
     "add_custom_command(TARGET ${TARGET_NAME} POST_BUILD"
-)[1:]:
+)[1:]
+if len(fixup_post_builds) != 2:
+    raise SystemExit("macOS Interface must have exactly one DEV and one full post-build deployment")
+if "deploy-macos-dev-bundle.py" not in fixup_post_builds[0]:
+    raise SystemExit("first macOS post-build deployment must be the fail-closed DEV helper")
+for post_build in fixup_post_builds[1:]:
     if post_build.index("remove_directory") > post_build.index("${MACDEPLOYQT_COMMAND}"):
         raise SystemExit("macOS bundle Frameworks must be cleared before macdeployqt")
     if '"$<TARGET_FILE_DIR:${TARGET_NAME}>/../Frameworks"' not in post_build:
@@ -2136,6 +2239,11 @@ subprocess.run(
 )
 subprocess.run(
     [sys.executable, str(ROOT / "macos/tests/build-tree-checkpoint-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/bootstrap-cache-prune-test.py")],
     cwd=ROOT,
     check=True,
 )

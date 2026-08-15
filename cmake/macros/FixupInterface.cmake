@@ -92,22 +92,18 @@ macro(fixup_interface)
             # local workflows and smoke tests.  Make that bundle relocatable;
             # the install-time deployment below only covers `cmake --install`.
             add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-                # A restored Ninja tree can contain a complete app from an
-                # older source revision. macdeployqt treats dylibs already in
-                # Frameworks as deployed and does not refresh them, even when
-                # their build-tree targets were relinked. Recreate the staging
-                # directory so the app cannot mix a new executable with stale
-                # internal Overte libraries.
-                COMMAND ${CMAKE_COMMAND} -E remove_directory
-                    "$<TARGET_FILE_DIR:${TARGET_NAME}>/../Frameworks"
-                COMMAND ${MACDEPLOYQT_COMMAND} "$<TARGET_FILE_DIR:${TARGET_NAME}>/../.."
-                    -verbose=2
-                    -qmldir=${CMAKE_SOURCE_DIR}/interface/resources/qml/
-                    "-libpath=${CMAKE_BINARY_DIR}/conanlibs/$<CONFIG>"
                 COMMAND ${Python3_EXECUTABLE}
-                    "${CMAKE_SOURCE_DIR}/macos/tools/deploy-conan-dylibs.py"
+                    "${CMAKE_SOURCE_DIR}/macos/tools/deploy-macos-dev-bundle.py"
                     --app "$<TARGET_FILE_DIR:${TARGET_NAME}>/../.."
+                    --executable "$<TARGET_FILE:${TARGET_NAME}>"
+                    --qml-dir "${CMAKE_SOURCE_DIR}/interface/resources/qml"
                     --lib-dir "${CMAKE_BINARY_DIR}/conanlibs/$<CONFIG>"
+                    --macdeployqt "${MACDEPLOYQT_COMMAND}"
+                    --deploy-conan-tool
+                        "${CMAKE_SOURCE_DIR}/macos/tools/deploy-conan-dylibs.py"
+                    --stamp
+                        "${CMAKE_BINARY_DIR}/macos-deploy/$<CONFIG>/${TARGET_NAME}-bundle.json"
+                VERBATIM
             )
             install(CODE "
                 execute_process(COMMAND ${MACDEPLOYQT_COMMAND}\

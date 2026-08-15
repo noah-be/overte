@@ -92,6 +92,33 @@ deps() {
 
 configure() {
     doctor
+    local skip_configure="${OVERTE_MACOS_SKIP_CONFIGURE:-OFF}"
+    case "$skip_configure" in ON|OFF) ;; *) fail "OVERTE_MACOS_SKIP_CONFIGURE must be ON or OFF" ;; esac
+    local cache_file="$build_dir/CMakeCache.txt"
+    local ninja_file="$build_dir/build.ninja"
+    local exact_key_file="$build_dir/.overte-macos-complete-key"
+    local expected_exact_key="${OVERTE_MACOS_EXPECTED_BUILD_TREE_KEY:-}"
+    cache_value() {
+        local key="$1"
+        sed -n "s/^${key}:[^=]*=//p" "$cache_file" | tail -n 1
+    }
+    if [[ "$skip_configure" == ON && -n "$expected_exact_key" ]] &&
+       [[ -s "$exact_key_file" && "$(<"$exact_key_file")" == "$expected_exact_key" ]] &&
+       [[ -s "$cache_file" && -s "$ninja_file" ]] &&
+       [[ "$(cache_value CMAKE_HOME_DIRECTORY)" == "$source_root" ]] &&
+       [[ "$(cache_value CMAKE_GENERATOR)" == Ninja ]] &&
+       [[ "$(cache_value CMAKE_BUILD_TYPE)" == "$build_type" ]] &&
+       [[ "$(cache_value CMAKE_OSX_ARCHITECTURES)" == "$architecture" ]] &&
+       [[ "$(cache_value CMAKE_OSX_DEPLOYMENT_TARGET)" == "${MACOSX_DEPLOYMENT_TARGET:-11.0}" ]] &&
+       [[ "$(cache_value OVERTE_BUILD_TESTS)" == "$build_tests" ]] &&
+       [[ "$(cache_value OVERTE_RELEASE_TYPE)" == DEV ]] &&
+       [[ "$(cache_value OVERTE_RENDERING_BACKEND)" == OpenGL ]]; then
+        note "reusing exact verified CMake/Ninja graph"
+        return
+    fi
+    if [[ "$skip_configure" == ON ]]; then
+        note "exact graph reuse was requested but cache invariants failed; configuring safely"
+    fi
     local preset="conan-$(printf '%s' "$build_type" | tr '[:upper:]' '[:lower:]')"
     local compiler_watchdog="$source_root/macos/ci/compiler-watchdog.py"
     local launcher_args=()

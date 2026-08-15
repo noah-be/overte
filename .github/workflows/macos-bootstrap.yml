@@ -184,7 +184,12 @@ jobs:
           source_inputs="$({
             git ls-files -s -- conanfile.py 'macos/conan/**' \
               CMakeLists.txt 'cmake/**' 'interface/**' 'libraries/**' 'plugins/**' \
-              'server-console/**' 'tests/**' 'scripts/**' 'unpublishedScripts/**' \
+              'server-console/**' tests/CMakeLists.txt 'tests/**/CMakeLists.txt' \
+              'tests/**/*.cmake' 'tests/**/*.c' 'tests/**/*.cc' 'tests/**/*.cpp' \
+              'tests/**/*.cxx' 'tests/**/*.m' 'tests/**/*.mm' 'tests/**/*.h' \
+              'tests/**/*.hh' 'tests/**/*.hpp' 'tests/**/*.inl' 'tests/**/*.qrc' \
+              'tests/**/*.qml' 'tests/**/*.js' 'tests/**/*.json' 'tests/**/*.txt' \
+              'scripts/**' \
               macos/build-macos.sh macos/requirements-build.txt \
               macos/tools/deploy-conan-dylibs.py \
               macos/tools/deploy-macos-dev-bundle.py tools/CMakeLists.txt \
@@ -699,6 +704,11 @@ jobs:
         id: configure-client
         continue-on-error: true
         timeout-minutes: 30
+        env:
+          OVERTE_MACOS_SKIP_CONFIGURE: >-
+            ${{ steps.build-tree-restore.outputs.cache-matched-key ==
+                steps.cache-key.outputs.build_complete && 'ON' || 'OFF' }}
+          OVERTE_MACOS_EXPECTED_BUILD_TREE_KEY: ${{ steps.cache-key.outputs.build_complete }}
         run: |
           mkdir -p "$MACOS_RUNNER_TELEMETRY_DIR"
           python3 macos/ci/runner-telemetry.py \
@@ -718,9 +728,14 @@ jobs:
           ${{ always() && !cancelled() &&
               (steps.configure-client.outcome == 'success' ||
                steps.configure-client.outcome == 'failure') }}
-        run: >-
-          python3 macos/ci/build-tree-checkpoint.py record
-          --repository "$GITHUB_WORKSPACE" --build-dir build
+        run: |
+          python3 macos/ci/build-tree-checkpoint.py record \
+            --repository "$GITHUB_WORKSPACE" --build-dir build
+          if [[ "${{ steps.configure-client.outcome }}" == success ]]; then
+            printf '%s\n' "${{ steps.cache-key.outputs.build_complete }}" \
+              > build/.overte-macos-complete-key
+            chmod 0600 build/.overte-macos-complete-key
+          fi
 
       - name: Save configured build-tree checkpoint
         if: >-

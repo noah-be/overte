@@ -463,6 +463,27 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("macos-sccache-v4-", key_step)
         self.assertIn("macos-conan-v3-", key_step)
 
+        dependency_hash = key_step.split('dependency_inputs="', 1)[1].split(
+            'source_inputs="', 1
+        )[0]
+        for required in (
+            "conanfile.py",
+            "'macos/conan/**'",
+            "macos/build-macos.sh",
+            "macos/requirements-build.txt",
+        ):
+            self.assertIn(required, dependency_hash)
+        self.assertNotIn("CMakeLists.txt", dependency_hash)
+        self.assertNotIn("'cmake/**'", dependency_hash)
+
+        legacy_hash = key_step.split('legacy_toolchain_inputs="', 1)[1].split(
+            'dependency_inputs="', 1
+        )[0]
+        self.assertIn("CMakeLists.txt", legacy_hash)
+        self.assertIn("'cmake/**'", legacy_hash)
+        self.assertIn("legacy_conan_key=", key_step)
+        self.assertIn("${legacy_toolchain_fingerprint}", key_step)
+
     def test_native_test_graph_is_always_configured_without_splitting_dependencies(self):
         self.assertIn("run_native_tests:", self.source)
         self.assertIn("OVERTE_MACOS_BUILD_TESTS: 'ON'", self.source)
@@ -474,7 +495,9 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "- name: Select deterministic toolchain and cache keys", 1
         )[1].split("- name: Restore bounded compiler recovery cache", 1)[0]
         self.assertNotIn('if [[ "$OVERTE_MACOS_BUILD_TESTS" == ON ]]', key_step)
-        self.assertIn("'tests/**'", key_step)
+        self.assertIn("tests/CMakeLists.txt", key_step)
+        self.assertIn("'tests/**/*.cpp'", key_step)
+        self.assertNotIn("'tests/**'", key_step)
         self.assertNotIn("build_profile_fingerprint", key_step)
         conan_section = key_step.split('conan_key="', 1)[1].split(
             'echo "conan=', 1
@@ -486,6 +509,25 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "- name: Upload smoke diagnostics", 1
         )[0]
         self.assertIn("inputs.run_native_tests", native)
+
+    def test_exact_complete_tree_is_the_only_configuration_skip(self):
+        configure_step = self.source.split(
+            "- name: Configure client build graph", 1
+        )[1].split("- name: Record configured build-tree checkpoint metadata", 1)[0]
+        self.assertIn("OVERTE_MACOS_SKIP_CONFIGURE", configure_step)
+        self.assertIn(
+            "steps.build-tree-restore.outputs.cache-matched-key ==",
+            configure_step,
+        )
+        self.assertIn("steps.cache-key.outputs.build_complete", configure_step)
+        self.assertIn("&& 'ON' || 'OFF'", configure_step)
+        self.assertIn("OVERTE_MACOS_EXPECTED_BUILD_TREE_KEY", configure_step)
+        metadata_step = self.source.split(
+            "- name: Record configured build-tree checkpoint metadata", 1
+        )[1].split("- name: Save configured build-tree checkpoint", 1)[0]
+        self.assertIn(".overte-macos-complete-key", metadata_step)
+        self.assertIn("steps.cache-key.outputs.build_complete", metadata_step)
+        self.assertIn("chmod 0600", metadata_step)
 
     def test_exact_build_tree_hash_covers_build_and_bundle_inputs_only(self):
         key_step = self.source.split(
@@ -503,9 +545,13 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "'libraries/**'",
             "'plugins/**'",
             "'server-console/**'",
-            "'tests/**'",
+            "tests/CMakeLists.txt",
+            "'tests/**/CMakeLists.txt'",
+            "'tests/**/*.cpp'",
+            "'tests/**/*.h'",
+            "'tests/**/*.qrc'",
+            "'tests/**/*.js'",
             "'scripts/**'",
-            "'unpublishedScripts/**'",
             "macos/build-macos.sh",
             "macos/requirements-build.txt",
             "macos/tools/deploy-conan-dylibs.py",
@@ -522,6 +568,8 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "runner-telemetry.py",
             "performance-matrix.sh",
             "analyze-performance-matrix.py",
+            "tests/workflow-contract-test.py",
+            "'unpublishedScripts/**'",
         ):
             self.assertNotIn(excluded, source_hash)
 

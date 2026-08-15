@@ -4,9 +4,9 @@ The `macOS bootstrap` workflow is defined in
 `.github/workflows/macos-bootstrap.yml`. It runs manually and on relevant pushes
 to `apple-macos`.
 
-The `client-opengl-x86_64` job uses an Intel macOS runner. The first hardened
-generation intentionally uses new Conan, compiler, and build-tree namespaces,
-so its initial run builds from source while creating the recovery state used by
+The `client-opengl-x86_64` job uses an Intel macOS runner. New namespace
+generations migrate from explicitly compatible prior complete caches before
+falling back to a source build, then publish one exact current generation for
 later runs. Build tools themselves are version-pinned and cached against the
 runner's exact Python identity.
 
@@ -86,18 +86,25 @@ and executed. An exact source match is preferred; otherwise the newest tree
 with the same compiler, Xcode, SDK, architecture, configuration, and dependency
 inputs is restored and CMake incrementally rebuilds changed sources. During the
 key migration, compatible test-enabled and client-only v2 trees remain ordered
-fallbacks behind the shared v3 key, and every restored tree is reconfigured with
-tests enabled. This preserves
+fallbacks behind the shared v3 key, and every non-exact restored tree is
+reconfigured with tests enabled. Once an exact complete v3 tree is available,
+the workflow checks the restored cache's architecture, configuration,
+deployment target, rendering
+backend, release type, test-graph invariants, and the private exact-key marker
+written into the completed tree before safely skipping the otherwise redundant
+CMake generation pass. A missing or mismatched marker or invariant falls back
+to normal configuration. This preserves
 generated build state and objects in addition to sccache's content-addressed
 compiler results. A GitHub-hosted runner remains ephemeral and cannot be kept
 alive after a job, so caches and uploaded artifacts are the durable recovery
 boundary.
 
-The exact tree content hash covers CMake, client/library/plugin/test sources,
-packaged scripts and unpublished scripts, the server-console graph, dependency
+The exact tree content hash covers CMake, client/library/plugin/native-test
+sources, packaged scripts, the server-console graph, dependency
 recipes, and the exact JSDoc, shader, and dylib-deployment inputs used by the
 bundle. Runtime smokes, performance analyzers, watchdogs, telemetry, and
-checkpoint implementations do not change the graph or application bundle and
+checkpoint implementations, Python/shell contract tests, and unpublished
+developer content do not change the native graph or application bundle and
 therefore do not invalidate an exact tree. A restored complete or partial tree
 is not redundantly uploaded as a configured-only checkpoint, and the libnode
 disk-sccache snapshot is saved only when validated statistics prove new local
