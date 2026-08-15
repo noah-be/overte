@@ -276,7 +276,12 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "- name: Probe latest compatible durable Conan checkpoint", 1
         )[0]
         self.assertIn("key: ${{ steps.cache-key.outputs.conan }}", restore)
+        self.assertIn("steps.cache-key.outputs.legacy_conan", restore)
         self.assertIn("steps.cache-key.outputs.conan_stage_prefix", restore)
+        self.assertLess(
+            restore.index("steps.cache-key.outputs.legacy_conan"),
+            restore.index("steps.cache-key.outputs.conan_stage_prefix"),
+        )
         self.assertNotIn("macos-conan-v2-", restore)
         self.assertNotIn("macos-complete-x86_64-qt-aqt-", restore)
 
@@ -323,8 +328,8 @@ class MacOSWorkflowContracts(unittest.TestCase):
         key_step = self.source.split(
             "- name: Select deterministic toolchain and cache keys", 1
         )[1].split("- name: Cache Conan packages", 1)[0]
-        self.assertIn("conan_checkpoint=overte-macos-conan-checkpoint-v3-", key_step)
-        self.assertIn("${toolchain_fingerprint}", key_step)
+        self.assertIn("conan_checkpoint=overte-macos-conan-checkpoint-v4-", key_step)
+        self.assertIn("${dependency_fingerprint}", key_step)
         self.assertIn("${conan_inputs}", key_step)
 
         probe_name = "- name: Probe latest compatible durable Conan checkpoint"
@@ -392,8 +397,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("server_startup_timeout_ms = 60000", sccache_config)
         maximum = re.search(r"(?m)^\s+SCCACHE_CACHE_SIZE:\s*(\d+)M\s*$", self.source)
         self.assertIsNotNone(maximum)
-        self.assertGreaterEqual(int(maximum.group(1)), 256)
-        self.assertLessEqual(int(maximum.group(1)), 1024)
+        self.assertEqual(int(maximum.group(1)), 512)
         self.assertIn(
             "mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba",
             self.source,
@@ -447,7 +451,9 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "$OVERTE_MACOS_BUILD_TYPE",
             "$MACOSX_DEPLOYMENT_TARGET",
             "$OVERTE_MACOS_QT_SOURCE",
-            "toolchain_inputs",
+            "legacy_toolchain_inputs",
+            "dependency_inputs",
+            "dependency_fingerprint",
             "source_inputs",
             "git ls-files -s",
             "shasum -a 256",
@@ -457,27 +463,67 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("macos-sccache-v4-", key_step)
         self.assertIn("macos-conan-v3-", key_step)
 
-    def test_native_test_build_tree_is_profiled_without_splitting_dependencies(self):
+    def test_native_test_graph_is_always_configured_without_splitting_dependencies(self):
         self.assertIn("run_native_tests:", self.source)
-        self.assertIn(
-            "OVERTE_MACOS_BUILD_TESTS: ${{ inputs.run_native_tests && 'ON' || 'OFF' }}",
+        self.assertIn("OVERTE_MACOS_BUILD_TESTS: 'ON'", self.source)
+        self.assertNotIn(
+            "OVERTE_MACOS_BUILD_TESTS: ${{ inputs.run_native_tests",
             self.source,
         )
         key_step = self.source.split(
             "- name: Select deterministic toolchain and cache keys", 1
         )[1].split("- name: Restore bounded compiler recovery cache", 1)[0]
-        self.assertIn('if [[ "$OVERTE_MACOS_BUILD_TESTS" == ON ]]', key_step)
-        self.assertIn("git ls-files -s -- 'tests/**'", key_step)
-        self.assertIn(
-            '"$toolchain_fingerprint" "$OVERTE_MACOS_BUILD_TESTS"', key_step
-        )
-        self.assertIn("build_profile_fingerprint", key_step)
+        self.assertNotIn('if [[ "$OVERTE_MACOS_BUILD_TESTS" == ON ]]', key_step)
+        self.assertIn("'tests/**'", key_step)
+        self.assertNotIn("build_profile_fingerprint", key_step)
         conan_section = key_step.split('conan_key="', 1)[1].split(
             'echo "conan=', 1
         )[0]
-        self.assertNotIn("build_profile_fingerprint", conan_section)
+        self.assertNotIn("run_native_tests", conan_section)
         build_section = key_step.split('build_base="', 1)[1]
-        self.assertIn("build_profile_fingerprint", build_section)
+        self.assertIn("${dependency_fingerprint}", build_section)
+        native = self.source.split("- name: Run native C++ and Qt code tests", 1)[1].split(
+            "- name: Upload smoke diagnostics", 1
+        )[0]
+        self.assertIn("inputs.run_native_tests", native)
+
+    def test_exact_build_tree_hash_covers_build_and_bundle_inputs_only(self):
+        key_step = self.source.split(
+            "- name: Select deterministic toolchain and cache keys", 1
+        )[1].split("- name: Restore bounded compiler recovery cache", 1)[0]
+        source_hash = key_step.split('source_inputs="$({', 1)[1].split(
+            '} | shasum -a 256', 1
+        )[0]
+        for required in (
+            "conanfile.py",
+            "'macos/conan/**'",
+            "CMakeLists.txt",
+            "'cmake/**'",
+            "'interface/**'",
+            "'libraries/**'",
+            "'plugins/**'",
+            "'server-console/**'",
+            "'tests/**'",
+            "'scripts/**'",
+            "'unpublishedScripts/**'",
+            "macos/build-macos.sh",
+            "macos/requirements-build.txt",
+            "macos/tools/deploy-conan-dylibs.py",
+            "macos/tools/deploy-macos-dev-bundle.py",
+            "tools/CMakeLists.txt",
+            "'tools/jsdoc/**'",
+            "tools/shadergen.py",
+        ):
+            self.assertIn(required, source_hash)
+        for excluded in (
+            "'macos/tools/**'",
+            "'macos/ci/**'",
+            "build-tree-checkpoint.py",
+            "runner-telemetry.py",
+            "performance-matrix.sh",
+            "analyze-performance-matrix.py",
+        ):
+            self.assertNotIn(excluded, source_hash)
 
     def test_monitoring_only_changes_do_not_strand_compatible_sccache_entries(self):
         key_step = self.source.split(
@@ -488,10 +534,16 @@ class MacOSWorkflowContracts(unittest.TestCase):
         )[0]
         self.assertIn("${compiler_fingerprint}", compiler_key)
         compiler_fingerprint = key_step.split('compiler_fingerprint="', 1)[1].split(
-            'toolchain_fingerprint="', 1
+            'dependency_fingerprint="', 1
         )[0]
         self.assertNotIn("compiler-watchdog.py", compiler_fingerprint)
         self.assertNotIn("source_inputs", compiler_fingerprint)
+        remote_namespace = key_step.split('remote_namespace="', 1)[1].split(
+            'echo "SCCACHE_GHA_VERSION', 1
+        )[0]
+        self.assertIn("overte-macos-objects-v2-", remote_namespace)
+        self.assertIn("${compiler_fingerprint}", remote_namespace)
+        self.assertNotIn("toolchain_fingerprint", remote_namespace)
         restore = self.source.split(
             "- name: Restore bounded compiler recovery cache", 1
         )[1].split("- name: Restore resumable build-tree checkpoint", 1)[0]
@@ -527,16 +579,29 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("steps.build-client.outcome == 'failure'", failure_gate)
         self.assertIn("run: exit 1", failure_gate)
 
-    def test_build_tree_restores_exact_complete_then_same_toolchain_partial(self):
+    def test_build_tree_restores_shared_v3_then_legacy_profiles_without_cold_start(self):
         key_step = self.source.split(
             "- name: Select deterministic toolchain and cache keys", 1
         )[1].split("- name: Cache Conan packages", 1)[0]
-        self.assertIn("build_base=\"macos-build-tree-v2-", key_step)
-        self.assertIn("${toolchain_fingerprint}", key_step)
+        key_script = key_step.split(
+            "- name: Restore bounded compiler recovery cache", 1
+        )[0]
+        self.assertIn("build_base=\"macos-build-tree-v3-", key_step)
+        self.assertIn("${dependency_fingerprint}", key_step)
         self.assertIn("build_complete=${build_base}-complete-${source_inputs}", key_step)
         self.assertIn("build_complete_prefix=${build_base}-complete-", key_step)
         self.assertIn("build_partial_prefix=${build_base}-partial-", key_step)
-        self.assertIn("macos/ci/build-tree-checkpoint.py", key_step)
+        self.assertNotIn("macos/ci/build-tree-checkpoint.py", key_script)
+        self.assertIn('"$legacy_toolchain_fingerprint" ON', key_step)
+        self.assertIn('"$legacy_toolchain_fingerprint" OFF', key_step)
+        toolchain_hash = key_script.split('legacy_toolchain_inputs="', 1)[1].split(
+            'dependency_inputs="', 1
+        )[0]
+        self.assertNotIn("macos/requirements-build.txt", toolchain_hash)
+        self.assertIn("legacy_on_base=\"macos-build-tree-v2-", key_step)
+        self.assertIn("legacy_off_base=\"macos-build-tree-v2-", key_step)
+        self.assertNotRegex(key_step, r"macos-build-tree-v2-[^\n]*a4a75")
+        self.assertNotRegex(key_step, r"macos-build-tree-v2-[^\n]*41511")
 
         restore = self.source.split(
             "- name: Restore resumable build-tree checkpoint", 1
@@ -544,15 +609,67 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("id: build-tree-restore", restore)
         self.assertIn("path: build", restore)
         self.assertIn("key: ${{ steps.cache-key.outputs.build_complete }}", restore)
-        self.assertIn("steps.cache-key.outputs.build_complete_prefix", restore)
-        self.assertIn("steps.cache-key.outputs.build_partial_prefix", restore)
-        self.assertLess(
-            restore.index("steps.cache-key.outputs.build_complete_prefix"),
-            restore.index("steps.cache-key.outputs.build_partial_prefix"),
+        ordered = (
+            "steps.cache-key.outputs.build_complete_prefix",
+            "steps.cache-key.outputs.legacy_on_complete_prefix",
+            "steps.cache-key.outputs.legacy_off_complete_prefix",
+            "steps.cache-key.outputs.build_partial_prefix",
+            "steps.cache-key.outputs.legacy_on_partial_prefix",
+            "steps.cache-key.outputs.legacy_off_partial_prefix",
+            "steps.cache-key.outputs.build_configured",
         )
+        for earlier, later in zip(ordered, ordered[1:]):
+            self.assertLess(restore.index(earlier), restore.index(later))
         self.assertIn("- name: Normalize restored Ninja source timestamps", restore)
         self.assertIn("build-tree-checkpoint.py restore", restore)
         self.assertIn('--repository "$GITHUB_WORKSPACE" --build-dir build', restore)
+        configure = self.source.split("- name: Configure client build graph", 1)[1].split(
+            "- name: Record configured build-tree checkpoint metadata", 1
+        )[0]
+        self.assertIn("macos/build-macos.sh configure", configure)
+
+    def test_reused_build_tree_and_idle_dependency_cache_are_not_resaved(self):
+        configured = self.source.split(
+            "- name: Save configured build-tree checkpoint", 1
+        )[1].split("- name: Save failed configure checkpoint", 1)[0]
+        self.assertIn("steps.configure-client.outcome == 'success'", configured)
+        self.assertIn(
+            "steps.build-tree-restore.outputs.cache-matched-key == ''", configured
+        )
+
+        verify = self.source.split(
+            "- name: Verify libnode objects were checkpointed", 1
+        )[1].split("- name: Save compiler cache after libnode stage", 1)[0]
+        dependency_save = self.source.split(
+            "- name: Save compiler cache after libnode stage", 1
+        )[1].split("- name: Save Conan cache after libnode stage", 1)[0]
+        self.assertIn('--github-output "$GITHUB_OUTPUT"', verify)
+        self.assertIn(
+            "steps.dependency-compiler-verify.outputs.local_cache_changed == 'true'",
+            dependency_save,
+        )
+        self.assertIn(
+            "steps.dependency-compiler-verify.outcome == 'success'", dependency_save
+        )
+
+    def test_bootstrap_cache_retention_is_fail_closed_and_architecture_scoped(self):
+        prune = self.source.split(
+            "- name: Prune superseded macOS bootstrap caches", 1
+        )[1]
+        for contract in (
+            "steps.application-upload.outcome == 'success'",
+            "steps.build-client.outcome == 'success'",
+            "steps.conan-integrity.outcome == 'success'",
+            "macos/ci/bootstrap-cache-prune.py",
+            '--ref "$GITHUB_REF"',
+            '--architecture "$OVERTE_MACOS_ARCH"',
+            "steps.cache-key.outputs.build_complete",
+            "steps.cache-key.outputs.conan",
+            "steps.cache-key.outputs.sccache_complete",
+            "--execute",
+        ):
+            self.assertIn(contract, prune)
+        self.assertNotIn("continue-on-error: true", prune)
 
     def test_build_tree_is_saved_after_orderly_success_or_failure(self):
         stop = self.source.index("- name: Stop compiler-cache server before snapshot")

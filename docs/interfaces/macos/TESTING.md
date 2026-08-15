@@ -316,8 +316,9 @@ substitute for the 3D graphics gates.
 
 ## Native code suite
 
-The manual `macOS bootstrap` input `run_native_tests` configures the application
-with `OVERTE_BUILD_TESTS=ON`, builds every CTest-registered C++/Qt executable,
+The `macOS bootstrap` workflow always configures the application with
+`OVERTE_BUILD_TESTS=ON`, keeping one reusable CMake/Ninja graph. Its manual
+`run_native_tests` input only builds every CTest-registered C++/Qt executable
 and runs CTest after the runtime gates. Compiler invocations retain the same
 per-file watchdog and independent live log as the client build. The phase has
 five-second host samples, 30-second aggregates, a 115-minute internal deadline,
@@ -325,10 +326,10 @@ a 120-minute step cap, a 15-minute limit per individual CTest, stall samples,
 and an always-uploaded JUnit report. Set `OVERTE_TEST_TIMEOUT` to another
 positive number of seconds for a deliberately longer test.
 
-The native-test option gets a separate Ninja build-tree profile because its
-generated graph differs from the client-only graph. It deliberately shares
-Conan packages and content-addressed sccache objects with normal builds, so
-enabling tests does not discard already compiled compatible code.
+Normal runs still build only the `Overte` target and therefore do not compile
+the optional test executables. Native-test runs share the same build-tree key,
+Conan packages, and content-addressed sccache objects, so enabling test
+execution does not discard already compiled compatible code.
 
 ## Physical Mac matrix
 

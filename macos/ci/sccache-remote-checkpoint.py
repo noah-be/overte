@@ -96,7 +96,8 @@ def validate_stats(path: Path, mode: str) -> dict[str, int]:
         )
         return {
             "requests": 0, "cacheable": 0, "writes": 0,
-            "remote_writes": 0, "remote_hits": 0,
+            "local_writes": 0, "remote_writes": 0, "remote_hits": 0,
+            "remote_failures": 0,
         }
     if len(local) != 1:
         raise CheckpointError("compiler checkpoint did not expose exactly one disk level")
@@ -329,6 +330,7 @@ def main() -> int:
     stats = commands.add_parser("verify-stats")
     stats.add_argument("--stats", type=Path, required=True)
     stats.add_argument("--mode", choices=("probe", "build", "phase"), required=True)
+    stats.add_argument("--github-output", type=Path)
     for name in ("discover", "prune"):
         remote = commands.add_parser(name)
         remote.add_argument("--repository", required=True)
@@ -346,7 +348,17 @@ def main() -> int:
     arguments = parser.parse_args()
     try:
         if arguments.command == "verify-stats":
-            validate_stats(arguments.stats, arguments.mode)
+            summary = validate_stats(arguments.stats, arguments.mode)
+            for name in (
+                "requests", "cacheable", "writes", "local_writes",
+                "remote_writes", "remote_hits", "remote_failures",
+            ):
+                _output(arguments.github_output, name, str(summary[name]))
+            _output(
+                arguments.github_output,
+                "local_cache_changed",
+                "true" if summary["requests"] > 0 and summary["local_writes"] > 0 else "false",
+            )
             return 0
         token = _token(arguments.token_env)
         if arguments.command == "discover":

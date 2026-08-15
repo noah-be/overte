@@ -67,10 +67,12 @@ The checked-in sccache configuration gives a newly started server up to 60
 seconds to index a restored disk cache; the upstream ten-second default is too
 short for a full 512 MiB generation on a fresh hosted runner.
 
-Its namespace fingerprints the
-compiler binary and version, Xcode build, macOS SDK, architecture, build type,
-deployment target, Qt source, and relevant repository inputs. The sccache
-server is stopped before either a successful or failure snapshot. Complete
+Its per-object namespace fingerprints the compiler binary and version, Xcode
+build, macOS SDK, architecture, build type, and deployment target. Source,
+preprocessor output, and compile flags remain part of sccache's own object key,
+so CMake-, Qt-recipe-, and monitoring-only edits do not strand compatible
+objects in a new remote generation. The sccache server is stopped before either
+a successful or failure snapshot. Complete
 generations are preferred on restore, with partial failure generations as a
 fallback. Only after the application has been uploaded does a branch- and
 version-scoped pruner remove obsolete `sccache/*` objects; the current and one
@@ -78,13 +80,36 @@ previous verified generation remain. Expensive builds are not automatically
 cancelled by a newer push.
 
 The generated `build` tree is checkpointed separately after an orderly build
-success or failure. An exact source match is preferred; otherwise the newest
-tree with the same compiler, Xcode, SDK, architecture, configuration, and
-dependency inputs is restored and CMake incrementally rebuilds changed sources. This preserves
+success or failure. All bootstrap runs configure one test-enabled CMake graph;
+the dispatch input controls only whether the registered test targets are built
+and executed. An exact source match is preferred; otherwise the newest tree
+with the same compiler, Xcode, SDK, architecture, configuration, and dependency
+inputs is restored and CMake incrementally rebuilds changed sources. During the
+key migration, compatible test-enabled and client-only v2 trees remain ordered
+fallbacks behind the shared v3 key, and every restored tree is reconfigured with
+tests enabled. This preserves
 generated build state and objects in addition to sccache's content-addressed
 compiler results. A GitHub-hosted runner remains ephemeral and cannot be kept
 alive after a job, so caches and uploaded artifacts are the durable recovery
 boundary.
+
+The exact tree content hash covers CMake, client/library/plugin/test sources,
+packaged scripts and unpublished scripts, the server-console graph, dependency
+recipes, and the exact JSDoc, shader, and dylib-deployment inputs used by the
+bundle. Runtime smokes, performance analyzers, watchdogs, telemetry, and
+checkpoint implementations do not change the graph or application bundle and
+therefore do not invalidate an exact tree. A restored complete or partial tree
+is not redundantly uploaded as a configured-only checkpoint, and the libnode
+disk-sccache snapshot is saved only when validated statistics prove new local
+compiler writes.
+
+After a successful application upload, branch-local cache retention first
+requires the exact current Ninja, Conan, and bounded disk-sccache generations to
+be visible and nonempty through the GitHub API. Only then are older macOS
+bootstrap generations for the same architecture and ref removed. The pruning
+helper never selects iOS keys, another architecture/ref, or the remote
+content-addressed `sccache/*` objects. If any current recovery layer cannot be
+proven, it deletes nothing and fails the retention step.
 
 The aggregate build supervisor also writes a sanitized 30-second heartbeat to
 the same live channel. Compiler activity can therefore be distinguished from a
@@ -226,10 +251,12 @@ cache restore/save ordering, round-trip checkpoint recovery, corruption and
 path-traversal rejection, candidate fallback, token redaction, and remote upload
 digest validation.
 
-For code-level platform regression coverage, the manual bootstrap input
-`run_native_tests` enables all registered C++/Qt CTest targets. The native phase
-uses the same four-language compiler watchdog, runner telemetry, process-group
-cleanup, and compiler-stall diagnostics as the application build, then publishes
-CTest JUnit output. Test-enabled and client-only Ninja trees have distinct
-profile keys; Conan and sccache remain shared because their artifacts are
-content-addressed and configuration-compatible.
+For code-level platform regression coverage, every bootstrap configures all
+registered C++/Qt CTest targets. The manual `run_native_tests` input controls
+only their build and execution after the client and runtime gates, so ordinary
+runs pay no test-target compile cost while reusing one compatible Ninja graph.
+The native phase uses the same four-language compiler watchdog, runner
+telemetry, process-group cleanup, and compiler-stall diagnostics as the
+application build, then publishes CTest JUnit output. Conan and sccache remain
+shared because their artifacts are content-addressed and
+configuration-compatible.

@@ -99,6 +99,68 @@ class RemoteSccacheCheckpointTests(unittest.TestCase):
             self.assertEqual(result["remote_failures"], 1)
             self.assertIn("status=degraded", output.call_args.args[0])
 
+    def test_verify_stats_cli_emits_write_gate_only_after_valid_local_writes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            path = directory / "stats.json"
+            output = directory / "github-output"
+            path.write_text(json.dumps(stats()), encoding="utf-8")
+            arguments = [
+                str(TOOL), "verify-stats", "--stats", str(path),
+                "--mode", "phase", "--github-output", str(output),
+            ]
+            with mock.patch("sys.argv", arguments):
+                self.assertEqual(checkpoint.main(), 0)
+            values = dict(
+                line.split("=", 1)
+                for line in output.read_text(encoding="utf-8").splitlines()
+            )
+            self.assertEqual(values["requests"], "1")
+            self.assertEqual(values["local_writes"], "1")
+            self.assertEqual(values["local_cache_changed"], "true")
+
+            output.unlink()
+            path.write_text(
+                json.dumps(stats(requests=1, writes=0, hits=1)), encoding="utf-8"
+            )
+            with mock.patch("sys.argv", arguments):
+                self.assertEqual(checkpoint.main(), 0)
+            values = dict(
+                line.split("=", 1)
+                for line in output.read_text(encoding="utf-8").splitlines()
+            )
+            self.assertEqual(values["requests"], "1")
+            self.assertEqual(values["local_writes"], "0")
+            self.assertEqual(values["local_cache_changed"], "false")
+
+            output.unlink()
+            path.write_text(
+                json.dumps(stats(requests=0, writes=0)), encoding="utf-8"
+            )
+            with mock.patch("sys.argv", arguments):
+                self.assertEqual(checkpoint.main(), 0)
+            values = dict(
+                line.split("=", 1)
+                for line in output.read_text(encoding="utf-8").splitlines()
+            )
+            self.assertEqual(values["requests"], "0")
+            self.assertEqual(values["local_writes"], "0")
+            self.assertEqual(values["local_cache_changed"], "false")
+
+    def test_verify_stats_cli_does_not_emit_outputs_for_invalid_statistics(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            path = directory / "stats.json"
+            output = directory / "github-output"
+            path.write_text(json.dumps(stats(errors=1)), encoding="utf-8")
+            arguments = [
+                str(TOOL), "verify-stats", "--stats", str(path),
+                "--mode", "probe", "--github-output", str(output),
+            ]
+            with mock.patch("sys.argv", arguments), mock.patch("sys.stderr"):
+                self.assertEqual(checkpoint.main(), 1)
+            self.assertFalse(output.exists())
+
     def test_current_generation_uses_latest_branch_local_marker(self):
         ref = "refs/heads/apple-macos"
         old = "1" * 64

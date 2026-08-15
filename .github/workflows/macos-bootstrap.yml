@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       run_native_tests:
-        description: Configure, build, and execute every registered C++/Qt CTest
+        description: Build and execute every registered C++/Qt CTest target
         required: true
         default: false
         type: boolean
@@ -45,7 +45,9 @@ jobs:
       OVERTE_MACOS_ARCH: x86_64
       OVERTE_MACOS_BUILD_TYPE: RelWithDebInfo
       OVERTE_MACOS_QT_SOURCE: aqt
-      OVERTE_MACOS_BUILD_TESTS: ${{ inputs.run_native_tests && 'ON' || 'OFF' }}
+      # Keep one reusable CMake/Ninja graph. The workflow input below controls
+      # only whether the registered test targets are compiled and executed.
+      OVERTE_MACOS_BUILD_TESTS: 'ON'
       MACOSX_DEPLOYMENT_TARGET: '11.0'
       SCCACHE_DIR: ${{ github.workspace }}/.sccache
       SCCACHE_CONF: ${{ github.workspace }}/macos/ci/sccache.toml
@@ -164,56 +166,86 @@ jobs:
           xcode_build="$(xcodebuild -version | awk '/Build version/{print $3}')"
           sdk_version="$(xcrun --sdk macosx --show-sdk-version)"
           sdk_build="$(xcrun --sdk macosx --show-sdk-build-version)"
-          toolchain_inputs="$(git ls-files -s -- conanfile.py 'macos/conan/**' \
+          # Preserve the superseded v2 formula only for the one-time ordered
+          # build-tree migration. New dependency/build namespaces deliberately
+          # exclude CMake graph files: CMake is an exact-tree input and sccache
+          # hashes flags itself; changing a deploy macro must not discard Conan.
+          legacy_toolchain_inputs="$(git ls-files -s -- conanfile.py 'macos/conan/**' \
             CMakeLists.txt 'cmake/**' macos/build-macos.sh \
             | shasum -a 256 | awk '{print $1}')"
+          dependency_inputs="$(git ls-files -s -- conanfile.py 'macos/conan/**' \
+            macos/build-macos.sh macos/requirements-build.txt \
+            | shasum -a 256 | awk '{print $1}')"
+          # Exact build-tree reuse tracks inputs that CMake scans, compiles, or
+          # copies into Overte.app. Runtime smokes, benchmark analyzers,
+          # telemetry, watchdogs, and checkpoint implementations deliberately
+          # remain outside this content hash: they do not change the graph or
+          # bundle and should reuse its exact checkpoint.
           source_inputs="$({
             git ls-files -s -- conanfile.py 'macos/conan/**' \
               CMakeLists.txt 'cmake/**' 'interface/**' 'libraries/**' 'plugins/**' \
-              macos/build-macos.sh 'macos/tools/**' \
-              macos/ci/build-tree-checkpoint.py
-            if [[ "$OVERTE_MACOS_BUILD_TESTS" == ON ]]; then
-              git ls-files -s -- 'tests/**'
-            fi
+              'server-console/**' 'tests/**' 'scripts/**' 'unpublishedScripts/**' \
+              macos/build-macos.sh macos/requirements-build.txt \
+              macos/tools/deploy-conan-dylibs.py \
+              macos/tools/deploy-macos-dev-bundle.py tools/CMakeLists.txt \
+              'tools/jsdoc/**' tools/shadergen.py
           } | shasum -a 256 | awk '{print $1}')"
           compiler_fingerprint="$(printf '%s\n' \
             "$compiler_digest" "$compiler_version" "$xcode_build" \
             "$sdk_version" "$sdk_build" "$OVERTE_MACOS_ARCH" \
             "$OVERTE_MACOS_BUILD_TYPE" "$MACOSX_DEPLOYMENT_TARGET" | \
             shasum -a 256 | awk '{print $1}')"
-          toolchain_fingerprint="$(printf '%s\n' \
+          dependency_fingerprint="$(printf '%s\n' \
             "$compiler_digest" "$compiler_version" "$xcode_build" \
             "$sdk_version" "$sdk_build" "$OVERTE_MACOS_ARCH" \
             "$OVERTE_MACOS_BUILD_TYPE" "$MACOSX_DEPLOYMENT_TARGET" \
-            "$OVERTE_MACOS_QT_SOURCE" "$toolchain_inputs" | \
+            "$OVERTE_MACOS_QT_SOURCE" "$dependency_inputs" | \
             shasum -a 256 | awk '{print $1}')"
-          build_profile_fingerprint="$(printf '%s\n' \
-            "$toolchain_fingerprint" "$OVERTE_MACOS_BUILD_TESTS" | \
+          legacy_toolchain_fingerprint="$(printf '%s\n' \
+            "$compiler_digest" "$compiler_version" "$xcode_build" \
+            "$sdk_version" "$sdk_build" "$OVERTE_MACOS_ARCH" \
+            "$OVERTE_MACOS_BUILD_TYPE" "$MACOSX_DEPLOYMENT_TARGET" \
+            "$OVERTE_MACOS_QT_SOURCE" "$legacy_toolchain_inputs" | \
             shasum -a 256 | awk '{print $1}')"
+          legacy_on_profile_fingerprint="$(printf '%s\n' \
+            "$legacy_toolchain_fingerprint" ON | shasum -a 256 | awk '{print $1}')"
+          legacy_off_profile_fingerprint="$(printf '%s\n' \
+            "$legacy_toolchain_fingerprint" OFF | shasum -a 256 | awk '{print $1}')"
           conan_inputs="$(git ls-files -s -- conanfile.py 'macos/conan/**' | \
             shasum -a 256 | awk '{print $1}')"
           # sccache validates each entry by content, so monitoring-only changes
           # must not strand compatible compiler results.  The non-content-
           # addressed build tree below deliberately retains the stricter key.
           base="macos-sccache-v4-${OVERTE_MACOS_ARCH}-${compiler_fingerprint}"
-          # v3/v2 start deliberately clean: the first hardened run must prove
-          # every checkpoint layer rather than consume the evicted/partial
-          # generations produced by the superseded workflow.
-          conan_key="macos-conan-v3-${OVERTE_MACOS_ARCH}-${toolchain_fingerprint}-${conan_inputs}"
+          # Conan v3 starts clean. Build-tree v3 below has an explicit,
+          # ordered v2 migration path so the unified test graph does not force
+          # an otherwise avoidable cold client rebuild.
+          conan_key="macos-conan-v3-${OVERTE_MACOS_ARCH}-${dependency_fingerprint}-${conan_inputs}"
           echo "conan=${conan_key}" >> "$GITHUB_OUTPUT"
           echo "conan_stage_prefix=${conan_key}-stage-" >> "$GITHUB_OUTPUT"
-          echo "conan_checkpoint=overte-macos-conan-checkpoint-v3-${OVERTE_MACOS_ARCH}-${toolchain_fingerprint}-${conan_inputs}" >> "$GITHUB_OUTPUT"
+          legacy_conan_key="macos-conan-v3-${OVERTE_MACOS_ARCH}-${legacy_toolchain_fingerprint}-${conan_inputs}"
+          echo "legacy_conan=${legacy_conan_key}" >> "$GITHUB_OUTPUT"
+          echo "conan_checkpoint=overte-macos-conan-checkpoint-v4-${OVERTE_MACOS_ARCH}-${dependency_fingerprint}-${conan_inputs}" >> "$GITHUB_OUTPUT"
           echo "sccache_complete=${base}-complete-${source_inputs}" >> "$GITHUB_OUTPUT"
           echo "sccache_complete_prefix=${base}-complete-" >> "$GITHUB_OUTPUT"
           echo "sccache_partial_prefix=${base}-partial-" >> "$GITHUB_OUTPUT"
-          remote_namespace="overte-macos-objects-v1-${OVERTE_MACOS_ARCH}-${toolchain_fingerprint}"
+          # sccache already hashes source, preprocessor output, flags, and the
+          # compiler. Keep the per-object namespace tied to the actual compiler
+          # environment so CMake/recipe-only edits do not strand valid objects.
+          remote_namespace="overte-macos-objects-v2-${OVERTE_MACOS_ARCH}-${compiler_fingerprint}"
           echo "SCCACHE_GHA_VERSION=${remote_namespace}" >> "$GITHUB_ENV"
           echo "sccache_remote_namespace=${remote_namespace}" >> "$GITHUB_OUTPUT"
-          build_base="macos-build-tree-v2-${OVERTE_MACOS_ARCH}-${build_profile_fingerprint}"
+          build_base="macos-build-tree-v3-${OVERTE_MACOS_ARCH}-${dependency_fingerprint}"
           echo "build_configured=${build_base}-configured-${source_inputs}" >> "$GITHUB_OUTPUT"
           echo "build_complete=${build_base}-complete-${source_inputs}" >> "$GITHUB_OUTPUT"
           echo "build_complete_prefix=${build_base}-complete-" >> "$GITHUB_OUTPUT"
           echo "build_partial_prefix=${build_base}-partial-" >> "$GITHUB_OUTPUT"
+          legacy_on_base="macos-build-tree-v2-${OVERTE_MACOS_ARCH}-${legacy_on_profile_fingerprint}"
+          legacy_off_base="macos-build-tree-v2-${OVERTE_MACOS_ARCH}-${legacy_off_profile_fingerprint}"
+          echo "legacy_on_complete_prefix=${legacy_on_base}-complete-" >> "$GITHUB_OUTPUT"
+          echo "legacy_on_partial_prefix=${legacy_on_base}-partial-" >> "$GITHUB_OUTPUT"
+          echo "legacy_off_complete_prefix=${legacy_off_base}-complete-" >> "$GITHUB_OUTPUT"
+          echo "legacy_off_partial_prefix=${legacy_off_base}-partial-" >> "$GITHUB_OUTPUT"
 
       - name: Restore bounded compiler recovery cache
         id: sccache-restore
@@ -274,7 +306,12 @@ jobs:
           key: ${{ steps.cache-key.outputs.build_complete }}
           restore-keys: |
             ${{ steps.cache-key.outputs.build_complete_prefix }}
+            ${{ steps.cache-key.outputs.legacy_on_complete_prefix }}
+            ${{ steps.cache-key.outputs.legacy_off_complete_prefix }}
             ${{ steps.cache-key.outputs.build_partial_prefix }}
+            ${{ steps.cache-key.outputs.legacy_on_partial_prefix }}
+            ${{ steps.cache-key.outputs.legacy_off_partial_prefix }}
+            ${{ steps.cache-key.outputs.build_configured }}
 
       - name: Normalize restored Ninja source timestamps
         run: >-
@@ -290,6 +327,7 @@ jobs:
             ${{ env.CONAN_HOME }}/sources
           key: ${{ steps.cache-key.outputs.conan }}
           restore-keys: |
+            ${{ steps.cache-key.outputs.legacy_conan }}
             ${{ steps.cache-key.outputs.conan_stage_prefix }}
 
       # actions/cache is an evictable speed optimization shared with every
@@ -377,7 +415,7 @@ jobs:
         if: >-
           ${{ always() && !cancelled() &&
               steps.resolve-qt.outcome == 'success' &&
-              steps.conan-cache.outputs.cache-hit != 'true' &&
+              steps.conan-cache.outputs.cache-matched-key == '' &&
               steps.conan-checkpoint-restore.outputs.restored != 'true' }}
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
@@ -443,10 +481,13 @@ jobs:
           python3 macos/ci/sccache-remote-checkpoint.py verify-stats
           --stats "$MACOS_RUNNER_TELEMETRY_DIR/dependency-sccache-stats.json"
           --mode phase
+          --github-output "$GITHUB_OUTPUT"
 
       - name: Save compiler cache after libnode stage
         if: >-
           ${{ always() && !cancelled() &&
+              steps.dependency-compiler-verify.outcome == 'success' &&
+              steps.dependency-compiler-verify.outputs.local_cache_changed == 'true' &&
               (steps.resolve-libnode.outcome == 'success' ||
                steps.resolve-libnode.outcome == 'failure') }}
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
@@ -458,7 +499,7 @@ jobs:
         if: >-
           ${{ always() && !cancelled() &&
               steps.resolve-libnode.outcome == 'success' &&
-              steps.conan-cache.outputs.cache-hit != 'true' &&
+              steps.conan-cache.outputs.cache-matched-key == '' &&
               steps.conan-checkpoint-restore.outputs.restored != 'true' }}
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
@@ -682,7 +723,10 @@ jobs:
           --repository "$GITHUB_WORKSPACE" --build-dir build
 
       - name: Save configured build-tree checkpoint
-        if: ${{ always() && !cancelled() && steps.configure-client.outcome == 'success' }}
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.configure-client.outcome == 'success' &&
+              steps.build-tree-restore.outputs.cache-matched-key == '' }}
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: build
@@ -952,5 +996,24 @@ jobs:
           --ref "$GITHUB_REF"
           --active-version "${{ steps.remote-compiler-generation.outputs.version }}"
           --retain-previous 1
+          --token-env OVERTE_CHECKPOINT_TOKEN
+          --execute
+
+      - name: Prune superseded macOS bootstrap caches
+        if: >-
+          ${{ always() && steps.application-upload.outcome == 'success' &&
+              steps.build-client.outcome == 'success' &&
+              steps.conan-integrity.outcome == 'success' }}
+        timeout-minutes: 10
+        env:
+          OVERTE_CHECKPOINT_TOKEN: ${{ github.token }}
+        run: >-
+          python3 macos/ci/bootstrap-cache-prune.py
+          --repository "$GITHUB_REPOSITORY"
+          --ref "$GITHUB_REF"
+          --architecture "$OVERTE_MACOS_ARCH"
+          --active-build "${{ steps.cache-key.outputs.build_complete }}"
+          --active-conan "${{ steps.cache-key.outputs.conan }}"
+          --active-sccache "${{ steps.cache-key.outputs.sccache_complete }}"
           --token-env OVERTE_CHECKPOINT_TOKEN
           --execute
