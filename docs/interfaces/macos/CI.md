@@ -164,7 +164,14 @@ single label.
 The application is retained for fourteen days and smoke diagnostics for seven
 days. The workflow does not verify a
 distribution signature or notarization, so the application is a developer build
-rather than a release. The workflow currently has no native Apple Silicon job.
+rather than a release. Native Apple Silicon eligibility is probed separately by
+`.github/workflows/macos-apple-silicon-probe.yml` on GitHub's standard
+`macos-15` M1 runner. It compiles a minimal CGL 4.1 client and records the actual
+GL renderer, context acceleration flag, architecture, and Rosetta state. Only
+arm64, untranslated, accelerated, non-virtual renderer evidence is classified
+as `native-hardware`; every missing or software/paravirtual result fails closed
+to `diagnostic-only`. This small probe must pass before adding an arm64 app build
+or using hosted results for profile selection.
 
 The monitoring contracts are exercised before dependency restore by
 `macos/tests/source-contract-test.py` and

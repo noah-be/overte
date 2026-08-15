@@ -122,6 +122,21 @@ gameplay profile. The hosted renderer uses only a bounded diagnostic contract.
 Its result is useful for shader, correctness, and regression diagnosis, but
 cannot certify fluid gameplay or choose an Apple Silicon profile.
 
+Before spending a full native build on GitHub's standard M1 runner, run the
+Apple Silicon graphics capability probe:
+
+```bash
+gh workflow run macos-apple-silicon-probe.yml \
+  -R noah-be/overte --ref apple-macos
+```
+
+The probe requires a native untranslated arm64 process, an accelerated CGL 4.1
+pixel format, a created context, and a renderer name without software,
+paravirtual, virtual, SwiftShader, llvmpipe, or softpipe markers. It uploads the
+raw OpenGL and `system_profiler` evidence for fourteen days. GitHub documents
+`macos-15` as a standard three-core M1 runner, but the repository deliberately
+does not infer GPU suitability from that label alone.
+
 Run [`31834975878`](https://github.com/noah-be/overte/actions/runs/31834975878)
 established the first diagnostic baseline. Its Forward case completed with a
 valid 1380x776 image and a 9.658 ms render-submit p95, but the actual

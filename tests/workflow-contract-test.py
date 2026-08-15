@@ -17,6 +17,9 @@ DOCUMENTATION_WORKFLOW = ROOT / ".github/workflows/documentation-checks.yml"
 IOS_WORKFLOW = ROOT / ".github/workflows/ios-bootstrap.yml"
 MACOS_WORKFLOW = ROOT / ".github/workflows/macos-bootstrap.yml"
 MACOS_RUNTIME_WORKFLOW = ROOT / ".github/workflows/macos-runtime.yml"
+MACOS_APPLE_SILICON_PROBE_WORKFLOW = (
+    ROOT / ".github/workflows/macos-apple-silicon-probe.yml"
+)
 ACTION_USE = re.compile(r"^\s*uses:\s*([^\s#]+)", re.MULTILINE)
 FULL_SHA_ACTION = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 
@@ -50,6 +53,62 @@ class GeneralBuildWorkflowContracts(unittest.TestCase):
         for workflow in (IOS_WORKFLOW, MACOS_WORKFLOW):
             if workflow.exists():
                 self.assertIn("'!**/*.md'", workflow.read_text(encoding="utf-8"))
+
+
+class MacOSAppleSiliconProbeWorkflowContracts(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.source = MACOS_APPLE_SILICON_PROBE_WORKFLOW.read_text(encoding="utf-8")
+        cls.probe = (ROOT / "macos/tools/apple-gpu-probe.mm").read_text(encoding="utf-8")
+
+    def test_probe_uses_a_bounded_native_arm_runner_and_immutable_actions(self):
+        self.assertIn("runs-on: macos-15", self.source)
+        self.assertNotIn("runs-on: macos-15-intel", self.source)
+        self.assertIn("timeout-minutes: 15", self.source)
+        self.assertIn("permissions:\n  contents: read", self.source)
+        self.assertIn("cancel-in-progress: false", self.source)
+        actions = ACTION_USE.findall(self.source)
+        self.assertEqual(len(actions), 2)
+        for action in actions:
+            self.assertRegex(action, FULL_SHA_ACTION)
+        checkout = self.source.split("actions/checkout@", 1)[1].split("- name:", 1)[0]
+        self.assertIn("persist-credentials: false", checkout)
+
+    def test_probe_measures_real_cgl_context_and_fails_closed_to_diagnostic(self):
+        for token in (
+            "kCGLOGLPVersion_4_1_Core",
+            "kCGLPFAAccelerated",
+            "kCGLPFANoRecovery",
+            "CGLCreateContext",
+            "glGetString(name)",
+            "glString(GL_RENDERER)",
+            '@"accelerated": @(accelerated != 0)',
+            'result[@"gl_renderer"]',
+        ):
+            self.assertIn(token, self.probe)
+        for token in (
+            'machine == "arm64"',
+            'translated == "0"',
+            'gl.get("context_created") is True',
+            'gl.get("accelerated") is True',
+            '"paravirtual"',
+            '"hardware_eligible": eligible',
+            '"classification": "native-hardware" if eligible else "diagnostic-only"',
+        ):
+            self.assertIn(token, self.source)
+
+    def test_probe_preserves_a_small_auditable_evidence_bundle(self):
+        for token in (
+            "system_profiler -json SPHardwareDataType SPDisplaysDataType",
+            "sw_vers",
+            "xcodebuild -version",
+            "opengl.json",
+            "result.json",
+            "if: ${{ always() }}",
+            "if-no-files-found: error",
+            "retention-days: 14",
+        ):
+            self.assertIn(token, self.source)
 
 
 class MacOSWorkflowContracts(unittest.TestCase):
