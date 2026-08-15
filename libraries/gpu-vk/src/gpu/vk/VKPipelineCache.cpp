@@ -791,6 +791,15 @@ const Cache::PipelineLayout& Cache::getPipeline(const vks::Context& context) {
     // MoltenVK can build a complete Metal vertex descriptor.
     if (vertexReflection.validInput(gpu::slot::attr::DrawCallInfo)) {
         const auto drawCallInfo = gpu::slot::attr::DrawCallInfo;
+        auto drawCallInfoBinding = static_cast<uint32_t>(drawCallInfo);
+#if defined(Q_OS_IOS)
+        // A format-free draw has no competing vertex streams. Keep the shader
+        // location stable, but avoid forcing MoltenVK to reserve every sparse
+        // Metal buffer slot through binding 15 for this one four-byte input.
+        if (!pipelineState.format) {
+            drawCallInfoBinding = 0;
+        }
+#endif
         const auto attribute = std::find_if(
             attributeDescriptions.cbegin(), attributeDescriptions.cend(),
             [drawCallInfo](const VkVertexInputAttributeDescription& description) {
@@ -798,8 +807,8 @@ const Cache::PipelineLayout& Cache::getPipeline(const vks::Context& context) {
             });
         if (attribute == attributeDescriptions.cend()) {
             attributeDescriptions.push_back(
-                { drawCallInfo, drawCallInfo, VK_FORMAT_R16G16_SINT, 0 });
-        } else if (attribute->binding != drawCallInfo ||
+                { drawCallInfo, drawCallInfoBinding, VK_FORMAT_R16G16_SINT, 0 });
+        } else if (attribute->binding != drawCallInfoBinding ||
                    attribute->format != VK_FORMAT_R16G16_SINT ||
                    attribute->offset != 0) {
             throw std::runtime_error("DrawCallInfo vertex attribute conflicts with the reflected slot");
@@ -807,13 +816,13 @@ const Cache::PipelineLayout& Cache::getPipeline(const vks::Context& context) {
 
         const auto binding = std::find_if(
             bindingDescriptions.cbegin(), bindingDescriptions.cend(),
-            [drawCallInfo](const VkVertexInputBindingDescription& description) {
-                return description.binding == drawCallInfo;
+            [drawCallInfoBinding](const VkVertexInputBindingDescription& description) {
+                return description.binding == drawCallInfoBinding;
             });
         const auto drawCallInfoStride = static_cast<uint32_t>(sizeof(uint16_t) * 2);
         if (binding == bindingDescriptions.cend()) {
             bindingDescriptions.push_back(
-                { drawCallInfo, drawCallInfoStride, VK_VERTEX_INPUT_RATE_INSTANCE });
+                { drawCallInfoBinding, drawCallInfoStride, VK_VERTEX_INPUT_RATE_INSTANCE });
         } else if (binding->stride != drawCallInfoStride ||
                    binding->inputRate != VK_VERTEX_INPUT_RATE_INSTANCE) {
             throw std::runtime_error("DrawCallInfo vertex binding conflicts with the reflected slot");

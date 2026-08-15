@@ -1443,6 +1443,17 @@ void VKBackend::renderPassDraw(const Batch& batch) {
             }
             CommandCall call = _commandCalls[(*command)];
             (this->*(call))(batch, *offset);
+#if defined(Q_OS_IOS)
+            // A format-free DrawCallInfo input temporarily occupies physical
+            // binding 0 on iOS. Restore the cached regular vertex buffer only
+            // after the draw has consumed it, so backend and Vulkan state stay
+            // synchronized without contaminating the format-free pipeline key.
+            if (!_cache.pipelineState.format && _input._bufferVBOs[0] != VK_NULL_HANDLE) {
+                const VkBuffer vkBuffer = _input._bufferVBOs[0];
+                const VkDeviceSize vkOffset = _input._bufferOffsets[0];
+                vkCmdBindVertexBuffers(_currentCommandBuffer, 0, 1, &vkBuffer, &vkOffset);
+            }
+#endif
             break;
         }
         case Batch::COMMAND_setFramebuffer: {
@@ -2514,6 +2525,15 @@ void VKBackend::initTransform() {
 void VKBackend::updateTransform(const gpu::Batch& batch) {
     _transform.update(_commandIndex, _stereo, _uniform, *_currentFrame);
 
+    auto drawCallInfoBinding = static_cast<uint32_t>(gpu::Stream::DRAW_CALL_INFO);
+#if defined(Q_OS_IOS)
+    // Match the compact binding used by the iOS format-free pipeline
+    // descriptor. Regular mesh formats retain the reserved logical slot.
+    if (!_cache.pipelineState.format) {
+        drawCallInfoBinding = 0;
+    }
+#endif
+
     if (batch._currentNamedCall.empty()) {
         if (_transform._enabledDrawcallInfoBuffer) {
             _transform._enabledDrawcallInfoBuffer = false;
@@ -2523,7 +2543,7 @@ void VKBackend::updateTransform(const gpu::Batch& batch) {
         VkDeviceSize vkOffset = _currentDraw * sizeof(gpu::Batch::DrawCallInfo);
         Q_ASSERT(_currentFrame->_drawCallInfoBuffer);
         auto gpuBuffer = syncGPUObject(_currentFrame->_drawCallInfoBuffer.get());
-        vkCmdBindVertexBuffers(_currentCommandBuffer, gpu::Stream::DRAW_CALL_INFO, 1, &gpuBuffer->buffer, &vkOffset);
+        vkCmdBindVertexBuffers(_currentCommandBuffer, drawCallInfoBinding, 1, &gpuBuffer->buffer, &vkOffset);
     } else {
         if (!_transform._enabledDrawcallInfoBuffer) {
             // VKTODO: I'm not sure what to do here, I will figure it out when we get to stereo rendering.
@@ -2541,7 +2561,7 @@ void VKBackend::updateTransform(const gpu::Batch& batch) {
         VkDeviceSize vkOffset = _transform._drawCallInfoOffsets[batch._currentNamedCall];
         Q_ASSERT(_currentFrame->_drawCallInfoBuffer);
         auto gpuBuffer = syncGPUObject(_currentFrame->_drawCallInfoBuffer.get());
-        vkCmdBindVertexBuffers(_currentCommandBuffer, gpu::Stream::DRAW_CALL_INFO, 1, &gpuBuffer->buffer, &vkOffset);
+        vkCmdBindVertexBuffers(_currentCommandBuffer, drawCallInfoBinding, 1, &gpuBuffer->buffer, &vkOffset);
     }
 
     // VKTODO: camera correction
