@@ -371,7 +371,9 @@ safe_resume = application_ui_source.index(
     "_resumeAfterLoginDialogActionTaken_SafeToRun = true;"
 )
 queued_resume = application_ui_source.index(
-    'QMetaObject::invokeMethod(this, "resumeAfterLoginDialogActionTaken",',
+    "QMetaObject::invokeMethod(this, [this] {\n"
+    "            resumeAfterLoginDialogActionTaken();\n"
+    "        }, Qt::QueuedConnection);",
     safe_resume,
 )
 resume_method = application_ui_source.index(
@@ -381,6 +383,8 @@ assert safe_resume < queued_resume < resume_method
 ios_resume_boundary = application_ui_source[safe_resume:resume_method]
 assert "if (_noLoginSuggestion)" in ios_resume_boundary
 assert "Qt::QueuedConnection" in ios_resume_boundary
+assert 'invokeMethod(this, "resumeAfterLoginDialogActionTaken"' not in application_ui_source
+assert 'invokeMethod(this, "pauseUntilLoginDetermined"' not in application_ui_source
 assert "sandbox_probe_skipped=unsupported_platform" in application_source
 assert "suppressAudioForWorldEvidence" in application_setup_source
 assert 'QStringLiteral("--ios-world-evidence")' in application_setup_source

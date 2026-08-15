@@ -1173,7 +1173,9 @@ bool Application::initMenu() {
 
 void Application::pauseUntilLoginDetermined() {
     if (QThread::currentThread() != qApp->thread()) {
-        QMetaObject::invokeMethod(this, "pauseUntilLoginDetermined");
+        QMetaObject::invokeMethod(this, [this] {
+            pauseUntilLoginDetermined();
+        }, Qt::QueuedConnection);
         return;
     }
 
@@ -1240,8 +1242,9 @@ void Application::pauseUntilLoginDetermined() {
     // selected. A later focus signal is harmless because the resume method is
     // guarded against duplicate execution.
     if (_noLoginSuggestion) {
-        QMetaObject::invokeMethod(this, "resumeAfterLoginDialogActionTaken",
-                                  Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this] {
+            resumeAfterLoginDialogActionTaken();
+        }, Qt::QueuedConnection);
     } else if (_resumeAfterLoginDialogActionTaken_WasPostponed) {
         resumeAfterLoginDialogActionTaken();
     }
@@ -1255,7 +1258,9 @@ void Application::pauseUntilLoginDetermined() {
 
 void Application::resumeAfterLoginDialogActionTaken() {
     if (QThread::currentThread() != qApp->thread()) {
-        QMetaObject::invokeMethod(this, "resumeAfterLoginDialogActionTaken");
+        QMetaObject::invokeMethod(this, [this] {
+            resumeAfterLoginDialogActionTaken();
+        }, Qt::QueuedConnection);
         return;
     }
 
