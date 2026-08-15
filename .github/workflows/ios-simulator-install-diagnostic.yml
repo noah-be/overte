@@ -380,11 +380,11 @@ jobs:
   world-runtime-only:
     name: Reuse exact candidate for serverless and online screenshots
     if: ${{ inputs.world_runtime_only && !inputs.symbolicate_existing_crash }}
-    # macOS 26.5.2's CoreSimulatorService can accept the app installation but
-    # then leave `simctl launch` blocked without ever creating an app PID. The
-    # same arm64 candidate has a deployment target of iOS 17 and is therefore
-    # executed on the already install-validated macOS 15 / iOS 18.5 runtime.
-    runs-on: macos-15
+    # Reuse the exact Xcode/CoreSimulator pair from the trusted producer. The
+    # Xcode 16.4 fallback proved inconclusive when LaunchServices never created
+    # an app PID, while Xcode 26.5 launched this exact candidate and reached the
+    # first Metal pipeline deterministically.
+    runs-on: macos-26
     timeout-minutes: 35
     env:
       RUNTIME_ROOT: ${{ github.workspace }}/build-ios/world-runtime-only
@@ -525,13 +525,13 @@ jobs:
           )"
           echo "domain=$domain" >> "$GITHUB_OUTPUT"
 
-      - name: Select stable macOS 15 CoreSimulator runtime
+      - name: Select stable Xcode 26.5 CoreSimulator runtime
         run: |
           set -euo pipefail
-          developer_dir=/Applications/Xcode_16.4.app/Contents/Developer
+          developer_dir=/Applications/Xcode_26.5.app/Contents/Developer
           test -x "$developer_dir/usr/bin/xcodebuild"
           xcode_build="$(DEVELOPER_DIR="$developer_dir" xcodebuild -version | awk '/Build version/{print $3}')"
-          [[ "$xcode_build" == 16F6 ]]
+          [[ "$xcode_build" == 17F42 ]]
           runtime_json="$RUNTIME_ROOT/runtimes.json"
           DEVELOPER_DIR="$developer_dir" xcrun simctl list runtimes --json > "$runtime_json"
           python3 - "$runtime_json" <<'PY'
@@ -540,10 +540,10 @@ jobs:
           import sys
           runtimes = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")).get("runtimes", [])
           matches = [runtime for runtime in runtimes
-                     if runtime.get("identifier") == "com.apple.CoreSimulator.SimRuntime.iOS-18-5"
+                     if runtime.get("identifier") == "com.apple.CoreSimulator.SimRuntime.iOS-26-5"
                      and runtime.get("isAvailable") is True]
           if len(matches) != 1:
-              raise SystemExit("expected exactly one available iOS 18.5 runtime")
+              raise SystemExit("expected exactly one available iOS 26.5 runtime")
           PY
           echo "DEVELOPER_DIR=$developer_dir" >> "$GITHUB_ENV"
 
@@ -574,9 +574,9 @@ jobs:
           set -euo pipefail
           app="${{ steps.candidate.outputs.app }}"
           symbol_binary="${{ steps.candidate.outputs.symbol_binary }}"
-          for crash in "$RUNTIME_ROOT"/raw-diagnostics/*-crash-report.log; do
+          for crash in "$RUNTIME_ROOT"/raw-diagnostics/*-overte-crash-report.log; do
             [[ -s "$crash" ]] || continue
-            symbolicated="${crash%-crash-report.log}-symbolicated-crash.json"
+            symbolicated="${crash%-overte-crash-report.log}-symbolicated-crash.json"
             if ! python3 ios/tools/symbolicate-simulator-crash.py \
               "$crash" "$symbol_binary" "$symbolicated"; then
               # Driver/service crash reports (for example SimMetalHost) do not
@@ -595,6 +595,15 @@ jobs:
             [[ -f "$source" ]] || continue
             python3 ios/tools/sanitize-ci-log.py "$source" \
               "$RUNTIME_ROOT/upload-diagnostics/$(basename "$source")"
+          done
+          for source_dir in "$RUNTIME_ROOT"/raw-diagnostics/*-moltenvk-shaders; do
+            [[ -d "$source_dir" ]] || continue
+            destination="$RUNTIME_ROOT/upload-diagnostics/$(basename "$source_dir")"
+            if ! python3 ios/tools/prepare-moltenvk-diagnostics.py \
+              "$source_dir" "$destination"; then
+              rm -rf "$destination"
+              echo "::warning::MoltenVK diagnostics failed validation and will not be uploaded"
+            fi
           done
 
       - name: Upload runtime-only world evidence and diagnostics

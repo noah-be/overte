@@ -818,9 +818,9 @@ jobs:
           mkdir -p build-ios/world-upload-diagnostics
           symbol_binary="build-ios/simulator/interface/Release-iphonesimulator/Overte.app.dSYM/Contents/Resources/DWARF/Overte"
           if [[ -f "$symbol_binary" ]]; then
-            for crash in build-ios/world-raw-diagnostics/*-crash-report.log; do
+            for crash in build-ios/world-raw-diagnostics/*-overte-crash-report.log; do
               [[ -s "$crash" ]] || continue
-              symbolicated="${crash%-crash-report.log}-symbolicated-crash.json"
+              symbolicated="${crash%-overte-crash-report.log}-symbolicated-crash.json"
               if ! python3 ios/tools/symbolicate-simulator-crash.py \
                 "$crash" "$symbol_binary" "$symbolicated"; then
                 rm -f "$symbolicated"
@@ -833,6 +833,15 @@ jobs:
             [[ -f "$source" ]] || continue
             python3 ios/tools/sanitize-ci-log.py "$source" \
               "build-ios/world-upload-diagnostics/$(basename "$source")"
+          done
+          for source_dir in build-ios/world-raw-diagnostics/*-moltenvk-shaders; do
+            [[ -d "$source_dir" ]] || continue
+            destination="build-ios/world-upload-diagnostics/$(basename "$source_dir")"
+            if ! python3 ios/tools/prepare-moltenvk-diagnostics.py \
+              "$source_dir" "$destination"; then
+              rm -rf "$destination"
+              echo "::warning::MoltenVK diagnostics failed validation and will not be uploaded"
+            fi
           done
 
       - name: Upload world-build diagnostics and telemetry

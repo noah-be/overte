@@ -149,11 +149,19 @@ if [ "$1 $2 $3" = "simctl list devices" ]; then
 elif [ -n "${FAKE_FAIL_MATCH:-}" ] && [ "$*" = "$FAKE_FAIL_MATCH" ]; then
     printf '%s\n' "${FAKE_FAILURE_DETAIL:-fixture command failure}" >&2
     exit "${FAKE_FAIL_STATUS:-13}"
+elif [ "$1 $2" = "simctl get_app_container" ]; then
+    mkdir -p "$FAKE_DATA_CONTAINER/tmp"
+    printf '%s\n' "$FAKE_DATA_CONTAINER"
 elif [ "$1 $2" = "simctl launch" ]; then
     [ "${SIMCTL_CHILD_MVK_CONFIG_LOG_LEVEL:-}" = 4 ] || {
         printf '%s\n' "missing MoltenVK diagnostic log level" >&2
         exit 65
     }
+    [ -n "${SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR:-}" ] || exit 66
+    case "$SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR" in
+        "$FAKE_DATA_CONTAINER"/tmp/overte-mvk-shaders-*) ;;
+        *) exit 70 ;;
+    esac
     app_stdout=""
     app_stderr=""
     for argument in "$@"; do
@@ -165,6 +173,17 @@ elif [ "$1 $2" = "simctl launch" ]; then
     [ -n "$app_stdout" ] && [ -n "$app_stderr" ]
     : > "$app_stdout"
     printf '%s' "${FAKE_APP_STDERR:-}" > "$app_stderr"
+    if [ "${FAKE_CREATE_SHADER_DUMP:-0}" = 1 ]; then
+        mkdir -p "$SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR"
+        printf '%s\n' 'synthetic metal shader' > \
+            "$SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR/shader-vs-0000000000001234.metal"
+        printf '\003\002#\007\000\000\001\000\000\000\000\000\001\000\000\000\000\000\000\000' > \
+            "$SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR/shader-vs-0000000000001234.spv"
+        printf '%s\n' 'synthetic pipeline' > \
+            "$SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR/pipeline-0000000000001234.txt"
+        printf '%s\n' 'must not escape diagnostics' > \
+            "$SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR/unrelated.secret"
+    fi
     if [ "${FAKE_APP_EXIT_EARLY:-0}" = 1 ]; then
         sleep "${FAKE_APP_EXIT_SECONDS:-0.2}" >/dev/null 2>&1 &
     else
@@ -179,6 +198,15 @@ elif [ "$1 $2" = "simctl launch" ]; then
             sleep "${FAKE_CRASH_REPORT_DELAY:-0}"
             printf '%s\n' "${FAKE_CRASH_REPORT:-synthetic crash report}" > \
                 "$crash_root/Overte-fixture.ips"
+        ) >/dev/null 2>&1 &
+    fi
+    if [ "${FAKE_CREATE_DRIVER_CRASH_REPORT:-0}" = 1 ]; then
+        crash_root="$HOME/Library/Logs/DiagnosticReports"
+        mkdir -p "$crash_root"
+        (
+            sleep "${FAKE_DRIVER_CRASH_REPORT_DELAY:-1}"
+            printf '%s\n' "${FAKE_DRIVER_CRASH_REPORT:-synthetic driver crash report}" > \
+                "$crash_root/SimMetalHost-fixture.ips"
         ) >/dev/null 2>&1 &
     fi
     printf 'fixture: %s\n' "$app_pid"
@@ -203,6 +231,8 @@ elif [ "$1 $2" = "simctl terminate" ]; then
     if [ -s "$FAKE_APP_PID_FILE" ]; then
         kill "$(cat "$FAKE_APP_PID_FILE")" 2>/dev/null || true
     fi
+elif [ "$1 $2" = "simctl uninstall" ]; then
+    rm -rf "$FAKE_DATA_CONTAINER"
 elif [ "$1 $2" = "simctl io" ] && [ "$4" = "screenshot" ]; then
     cp "$FAKE_SCREENSHOT" "$5"
 fi
@@ -229,6 +259,15 @@ printf '%s\n' "${FAKE_SAMPLE_TEXT:-synthetic process stack}" > "$output"
         encoding="utf-8",
     )
     fake_sample.chmod(fake_sample.stat().st_mode | stat.S_IXUSR)
+    fake_log = bin_dir / "log"
+    fake_log.write_text(
+        """#!/bin/sh
+set -eu
+printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
+""",
+        encoding="utf-8",
+    )
+    fake_log.chmod(fake_log.stat().st_mode | stat.S_IXUSR)
     environment = os.environ.copy()
     environment.update(
         {
@@ -236,11 +275,13 @@ printf '%s\n' "${FAKE_SAMPLE_TEXT:-synthetic process stack}" > "$output"
             "TMPDIR": str(scratch),
             "FAKE_XCRUN_COMMAND_LOG": str(command_log),
             "FAKE_APP_PID_FILE": str(app_pid_file),
+            "FAKE_DATA_CONTAINER": str(root / "fake-data-container"),
             "FAKE_DEVICE_JSON": json.dumps(device_fixture),
             "FAKE_SCREENSHOT": str(screenshot_fixture),
             "OVERTE_IOS_WORLD_TIMEOUT_SECONDS": "1",
             "OVERTE_IOS_WORLD_POLL_SECONDS": "1",
             "OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS": "0",
+            "OVERTE_IOS_WORLD_CRASH_REPORT_WAIT_SECONDS": "1",
             "OVERTE_IOS_WORLD_DIAGNOSTICS_DIR": str(root / "raw-diagnostics"),
         }
     )
@@ -277,7 +318,12 @@ printf '%s\n' "${FAKE_SAMPLE_TEXT:-synthetic process stack}" > "$output"
             assert runtime["scenario"] == scenario
             assert runtime["screenshot"]["sha256"] == screenshot_report["sha256"]
             assert not (output / f"{family}-{scenario}-failure.png").exists()
-            for suffix in ("process-samples", "postmortem", "crash-report"):
+            for suffix in (
+                "process-samples",
+                "postmortem",
+                "overte-crash-report",
+                "simmetalhost-crash-report",
+            ):
                 assert not (root / f"raw-diagnostics/{family}-{scenario}-{suffix}.log").exists()
             assert_no_raw_log(output, scratch)
             assert_private(result, app)
@@ -458,10 +504,15 @@ printf '%s\n' "${FAKE_SAMPLE_TEXT:-synthetic process stack}" > "$output"
             "FAKE_APP_EXIT_EARLY": "1",
             "FAKE_APP_EXIT_SECONDS": "2",
             "FAKE_CREATE_CRASH_REPORT": "1",
-            "FAKE_CRASH_REPORT_DELAY": "2",
+            "FAKE_CRASH_REPORT_DELAY": "0.5",
             "FAKE_CRASH_REPORT": "synthetic dyld crash cause",
+            "FAKE_CREATE_DRIVER_CRASH_REPORT": "1",
+            "FAKE_DRIVER_CRASH_REPORT_DELAY": "3",
+            "FAKE_DRIVER_CRASH_REPORT": "synthetic delayed SimMetalHost cause",
             "FAKE_POSTMORTEM_LOG": "synthetic RunningBoard exit cause",
             "FAKE_SAMPLE_TEXT": "synthetic main-thread stack",
+            "FAKE_CREATE_SHADER_DUMP": "1",
+            "FAKE_HOST_METAL_LOG": "synthetic SimMetalHost pipeline failure",
             "OVERTE_IOS_WORLD_TIMEOUT_SECONDS": "5",
             "OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS": "1",
             "OVERTE_IOS_WORLD_CRASH_REPORT_WAIT_SECONDS": "5",
@@ -482,8 +533,21 @@ printf '%s\n' "${FAKE_SAMPLE_TEXT:-synthetic process stack}" > "$output"
     postmortem = root / "raw-diagnostics/iphone-serverless-postmortem.log"
     assert "synthetic RunningBoard exit cause" in postmortem.read_text(encoding="utf-8")
     assert "postmortem_status=0" in postmortem.read_text(encoding="utf-8")
-    crash = root / "raw-diagnostics/iphone-serverless-crash-report.log"
+    crash = root / "raw-diagnostics/iphone-serverless-overte-crash-report.log"
     assert "synthetic dyld crash cause" in crash.read_text(encoding="utf-8")
+    driver_crash = root / "raw-diagnostics/iphone-serverless-simmetalhost-crash-report.log"
+    assert "synthetic delayed SimMetalHost cause" in driver_crash.read_text(encoding="utf-8")
+    host_metal = root / "raw-diagnostics/iphone-serverless-host-metal.log"
+    assert "synthetic SimMetalHost pipeline failure" in host_metal.read_text(encoding="utf-8")
+    shader_dump = root / "raw-diagnostics/iphone-serverless-moltenvk-shaders"
+    assert sorted(path.name for path in shader_dump.iterdir()) == [
+        "pipeline-0000000000001234.txt",
+        "shader-vs-0000000000001234.metal",
+        "shader-vs-0000000000001234.spv",
+    ]
+    assert "synthetic metal shader" in (shader_dump / "shader-vs-0000000000001234.metal").read_text(
+        encoding="utf-8"
+    )
     assert (early_exit_output / "iphone-serverless-failure.png").is_file()
     assert_no_raw_log(early_exit_output, scratch)
 

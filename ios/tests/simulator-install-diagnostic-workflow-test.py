@@ -11,6 +11,7 @@ import re
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = (ROOT / ".github/workflows/ios-simulator-install-diagnostic.yml").read_text(encoding="utf-8")
 RUN_TESTS = (ROOT / "ios/tests/run-tests.sh").read_text(encoding="utf-8")
+SMOKE = (ROOT / "ios/ci/interface-world-simulator-smoke.sh").read_text(encoding="utf-8")
 
 
 assert re.search(r"^\s+workflow_dispatch:\s*$", WORKFLOW, re.MULTILINE)
@@ -66,8 +67,7 @@ assert "retention-days: 14" in WORKFLOW
 
 runtime = WORKFLOW[WORKFLOW.index("world-runtime-only:") :]
 assert "if: ${{ inputs.world_runtime_only && !inputs.symbolicate_existing_crash }}" in runtime
-assert "runs-on: macos-15" in runtime
-assert "runs-on: macos-26" not in runtime
+assert "runs-on: macos-26" in runtime
 assert "Download exact preserved simulator candidate without rebuilding" in runtime
 assert "verify-runtime-candidate.py" in runtime
 assert "LATEST-OverteIOSClient.json" in runtime
@@ -76,18 +76,23 @@ assert 'printf \'%s\\n\' "$SOURCE_CANDIDATE_NAME"' in runtime
 assert "--mode simulator" in runtime
 assert "--expected-source-revision \"$EXPECTED_SOURCE_REVISION\"" in runtime
 assert "--expected-sha256 \"$EXPECTED_SHA256\"" in runtime
-assert "/Applications/Xcode_16.4.app/Contents/Developer" in runtime
-assert '"$xcode_build" == 16F6' in runtime
-assert "com.apple.CoreSimulator.SimRuntime.iOS-18-5" in runtime
-assert "expected exactly one available iOS 18.5 runtime" in runtime
+assert "/Applications/Xcode_26.5.app/Contents/Developer" in runtime
+assert '"$xcode_build" == 17F42' in runtime
+assert "com.apple.CoreSimulator.SimRuntime.iOS-26-5" in runtime
+assert "expected exactly one available iOS 26.5 runtime" in runtime
 assert "interface-world-simulator-smoke.sh" in runtime
 assert "symbolicate-simulator-crash.py" in runtime
-assert "*-crash-report.log" in runtime and "*-symbolicated-crash.json" in runtime
+assert "*-overte-crash-report.log" in runtime and "*-symbolicated-crash.json" in runtime
+assert "${stem}-overte-crash-report.log" in SMOKE
+assert "${stem}-simmetalhost-crash-report.log" in SMOKE
 assert "Overte.app.dSYM/Contents/Resources/DWARF/Overte" in runtime
 assert '"$crash" "$symbol_binary" "$symbolicated"' in runtime
 assert 'if ! python3 ios/tools/symbolicate-simulator-crash.py' in runtime
 assert "preserving sanitized raw crash diagnostics" in runtime
 assert 'rm -f "$symbolicated"' in runtime
+assert "*-moltenvk-shaders" in runtime
+assert "prepare-moltenvk-diagnostics.py" in runtime
+assert "MoltenVK diagnostics failed validation and will not be uploaded" in runtime
 assert "for family in iphone ipad" in runtime
 assert "serverless -" in runtime and 'online "$ONLINE_DOMAIN"' in runtime
 assert "validate-world-evidence-set.py" in runtime

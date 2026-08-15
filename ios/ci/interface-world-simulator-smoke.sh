@@ -104,12 +104,20 @@ readonly command_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-comman
 readonly application_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-application.log}"
 readonly process_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-process-samples.log}"
 readonly postmortem_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-postmortem.log}"
-readonly crash_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-crash-report.log}"
+readonly overte_crash_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-overte-crash-report.log}"
+readonly simmetalhost_crash_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-simmetalhost-crash-report.log}"
+readonly host_metal_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-host-metal.log}"
+readonly mvk_dump_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-moltenvk-shaders}"
 
 if [[ -n "$diagnostics_dir" ]]; then
     mkdir -p "$diagnostics_dir"
     rm -f "$command_diagnostics" "$application_diagnostics" "$process_diagnostics" \
-        "$postmortem_diagnostics" "$crash_diagnostics"
+        "$postmortem_diagnostics" "$overte_crash_diagnostics" \
+        "$simmetalhost_crash_diagnostics" "$host_metal_diagnostics"
+    [[ ! -e "$mvk_dump_diagnostics" ]] || {
+        echo "MoltenVK diagnostic destination already exists" >&2
+        exit 2
+    }
 fi
 
 # These files must exist before any fallible simulator operation because the
@@ -125,6 +133,7 @@ app_launched=0
 app_installed=0
 log_stream_pid=""
 launch_pid=""
+mvk_dump_root=""
 
 run_bounded() {
     local label="$1" seconds="$2" status=0
@@ -245,40 +254,100 @@ capture_postmortem_log() {
     chmod 0600 "$postmortem_diagnostics"
 }
 
+capture_host_metal_log() {
+    [[ -n "$host_metal_diagnostics" ]] || return 0
+    local log_tool temp_log="$temp_root/host-metal.log" status=0
+    log_tool="$(command -v log || true)"
+    if [[ -z "$log_tool" ]]; then
+        printf 'host_metal_log=unavailable\n' > "$host_metal_diagnostics"
+        chmod 0600 "$host_metal_diagnostics"
+        return 0
+    fi
+    : > "$temp_log"
+    "$timeout_runner" 45 "$log_tool" show --last 20m --style compact --info --debug \
+        --predicate 'process == "SimMetalHost" OR process == "MTLCompilerService" OR eventMessage CONTAINS "OS_REASON_METAL" OR eventMessage CONTAINS "MTLRenderPipeline"' \
+        > "$temp_log" 2>&1 || status=$?
+    {
+        tail -c 2097152 "$temp_log"
+        printf '\nhost_metal_status=%s\n' "$status"
+    } > "$host_metal_diagnostics"
+    chmod 0600 "$host_metal_diagnostics"
+}
+
+preserve_moltenvk_shader_dump() {
+    [[ -n "$mvk_dump_diagnostics" && -n "$mvk_dump_root" && -d "$mvk_dump_root" ]] || return 0
+    local source name size count=0 total=0
+    mkdir "$mvk_dump_diagnostics"
+    while IFS= read -r -d '' source; do
+        name="$(basename "$source")"
+        case "$name" in
+            shader*.metal|shader*.spv|pipeline*.txt) ;;
+            *) continue ;;
+        esac
+        [[ -f "$source" && ! -L "$source" ]] || continue
+        size="$(wc -c < "$source" | tr -d '[:space:]')"
+        [[ "$size" =~ ^[0-9]+$ ]] || continue
+        ((size <= 4194304)) || continue
+        count=$((count + 1))
+        total=$((total + size))
+        ((count <= 128 && total <= 67108864)) || {
+            echo "MoltenVK shader diagnostic bound exceeded" >&2
+            break
+        }
+        cp "$source" "$mvk_dump_diagnostics/$name"
+        chmod 0600 "$mvk_dump_diagnostics/$name"
+    done < <(find "$mvk_dump_root" -maxdepth 1 -type f -print0 2>/dev/null)
+    if ((count == 0)); then
+        rmdir "$mvk_dump_diagnostics"
+    fi
+}
+
 capture_crash_reports() {
-    [[ -n "$crash_diagnostics" && -f "$launch_marker" ]] || return 0
+    [[ -n "$overte_crash_diagnostics" && -n "$simmetalhost_crash_diagnostics" && -f "$launch_marker" ]] || return 0
     local wait_seconds="${1:-0}" root report deadline
-    local -a reports=()
+    local -a overte_reports=() simmetalhost_reports=()
     deadline=$(( $(date +%s) + 10#$wait_seconds ))
     while :; do
-        reports=()
+        overte_reports=()
+        simmetalhost_reports=()
         for root in \
             "$HOME/Library/Logs/DiagnosticReports" \
             "$HOME/Library/Developer/CoreSimulator/Devices/$active_udid/data/Library/Logs/CrashReporter"; do
             [[ -d "$root" ]] || continue
             while IFS= read -r -d '' report; do
-                reports+=("$report")
+                case "$(basename "$report")" in
+                    Overte*) overte_reports+=("$report") ;;
+                    SimMetalHost*) simmetalhost_reports+=("$report") ;;
+                esac
             done < <(find "$root" -maxdepth 3 -type f \
                 \( -name 'Overte*.ips' -o -name 'Overte*.crash' -o \
                    -name 'SimMetalHost*.ips' -o -name 'SimMetalHost*.crash' \) \
                 -newer "$launch_marker" -print0 2>/dev/null)
         done
-        if ((${#reports[@]} > 0)); then
-            : > "$crash_diagnostics"
-            for report in "${reports[@]}"; do
-                printf '=== %s ===\n' "$(basename "$report")" >> "$crash_diagnostics"
-                tail -c 2097152 "$report" >> "$crash_diagnostics" 2>/dev/null || true
-                printf '\n' >> "$crash_diagnostics"
-            done
-            chmod 0600 "$crash_diagnostics"
-            return 0
-        fi
         if (( $(date +%s) >= deadline )); then
-            rm -f "$crash_diagnostics"
-            return 0
+            break
         fi
         sleep 1
     done
+    rm -f "$overte_crash_diagnostics" "$simmetalhost_crash_diagnostics"
+    if ((${#overte_reports[@]} > 0)); then
+        : > "$overte_crash_diagnostics"
+        for report in "${overte_reports[@]}"; do
+            printf '=== %s ===\n' "$(basename "$report")" >> "$overte_crash_diagnostics"
+            tail -c 2097152 "$report" >> "$overte_crash_diagnostics" 2>/dev/null || true
+            printf '\n' >> "$overte_crash_diagnostics"
+        done
+        chmod 0600 "$overte_crash_diagnostics"
+    fi
+    if ((${#simmetalhost_reports[@]} > 0)); then
+        : > "$simmetalhost_crash_diagnostics"
+        for report in "${simmetalhost_reports[@]}"; do
+            printf '=== %s ===\n' "$(basename "$report")" >> "$simmetalhost_crash_diagnostics"
+            tail -c 2097152 "$report" >> "$simmetalhost_crash_diagnostics" 2>/dev/null || true
+            printf '\n' >> "$simmetalhost_crash_diagnostics"
+        done
+        chmod 0600 "$simmetalhost_crash_diagnostics"
+    fi
 }
 
 runtime_log_contains() {
@@ -342,11 +411,13 @@ finish() {
             "$failure_screenshot" >/dev/null || true
     fi
     if ((status != 0)); then
-        capture_postmortem_log
-        if ((app_launched)) && ! process_is_running; then
+        if ((app_launched)); then
             report_wait=$((10#$crash_report_wait))
         fi
-        capture_crash_reports "$report_wait"
+        capture_crash_reports "$report_wait" || true
+        capture_postmortem_log || true
+        capture_host_metal_log || true
+        preserve_moltenvk_shader_dump || true
     fi
     if ((app_launched)) && [[ -n "$active_udid" ]]; then
         run_bounded "application cleanup" 30 xcrun simctl terminate \
@@ -390,6 +461,16 @@ if ((stale_remove_status != 0)); then
 fi
 run_bounded "application install" 120 xcrun simctl install "$active_udid" "$app_path" >/dev/null
 app_installed=1
+data_container="$(run_bounded "application data container" 30 xcrun simctl get_app_container \
+    "$active_udid" "$bundle_id" data)"
+[[ -n "$data_container" && "$data_container" == /* && -d "$data_container" ]] || {
+    echo "application data container is unavailable" >&2
+    exit 1
+}
+mvk_dump_root="$data_container/tmp/overte-mvk-shaders-$stem"
+[[ ! -e "$mvk_dump_root" ]] || { echo "MoltenVK dump path already exists" >&2; exit 1; }
+mkdir "$mvk_dump_root"
+chmod 0700 "$mvk_dump_root"
 
 # The world evidence is a rendering/navigation test, not a permission-dialog
 # test. Grant the simulator-only microphone privacy permission before launch so the
@@ -427,6 +508,7 @@ fi
 touch "$launch_marker"
 launch_output="$(run_bounded "application launch" 60 env \
     SIMCTL_CHILD_MVK_CONFIG_LOG_LEVEL=4 \
+    SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR="$mvk_dump_root" \
     xcrun simctl launch \
     --stdout="$app_stdout" --stderr="$app_stderr" \
     "$active_udid" "$bundle_id" --url "$launch_url" --ios-world-evidence \

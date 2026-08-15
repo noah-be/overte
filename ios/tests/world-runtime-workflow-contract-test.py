@@ -14,6 +14,7 @@ BOOTSTRAP = (ROOT / ".github/workflows/ios-bootstrap.yml").read_text(encoding="u
 QT = (ROOT / ".github/workflows/ios-qt-source.yml").read_text(encoding="utf-8")
 MOLTENVK_SIMULATOR = (ROOT / "ios/moltenvk-simulator.env").read_text(encoding="utf-8")
 RUN_TESTS = (ROOT / "ios/tests/run-tests.sh").read_text(encoding="utf-8")
+SMOKE = (ROOT / "ios/ci/interface-world-simulator-smoke.sh").read_text(encoding="utf-8")
 PINNED_ACTION = re.compile(r"^\s*uses:\s+[^\s]+@[0-9a-f]{40}(?:\s+#.*)?$", re.MULTILINE)
 
 
@@ -112,7 +113,7 @@ assert "*-failure.png" in failure_candidate
 assert "if-no-files-found: error" in failure_candidate
 require(
     WORKFLOW,
-    r"Sanitize world-build failure diagnostics[\s\S]*Overte[.]app[.]dSYM/Contents/Resources/DWARF/Overte[\s\S]*symbolicate-simulator-crash[.]py",
+    r"Sanitize world-build failure diagnostics[\s\S]*Overte[.]app[.]dSYM/Contents/Resources/DWARF/Overte[\s\S]*[*]-overte-crash-report[.]log[\s\S]*symbolicate-simulator-crash[.]py",
     "world crashes must be symbolicated with the preserved dSYM before upload",
 )
 require(
@@ -120,6 +121,11 @@ require(
     r"if ! python3 ios/tools/symbolicate-simulator-crash[.]py[\s\S]*preserving sanitized raw crash diagnostics",
     "driver-only crashes must not suppress the sanitized raw diagnostics",
 )
+assert "*-moltenvk-shaders" in WORKFLOW
+assert "${stem}-overte-crash-report.log" in SMOKE
+assert "${stem}-simmetalhost-crash-report.log" in SMOKE
+assert "prepare-moltenvk-diagnostics.py" in WORKFLOW
+assert "MoltenVK diagnostics failed validation and will not be uploaded" in WORKFLOW
 
 require(BOOTSTRAP, r"world_evidence:[\s\S]*type: boolean[\s\S]*default: false", "manual world acceptance needs an explicit opt-in")
 require(
