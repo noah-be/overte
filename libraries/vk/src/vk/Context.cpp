@@ -14,6 +14,8 @@
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDebug>
 
+#include <stdexcept>
+
 #include "Context.h"
 #include "VKWindow.h"
 #include "VKWidget.h"
@@ -102,6 +104,12 @@ void Context::createInstance() {
         throw std::runtime_error("Vulkan device already exists");
     }
 
+#if !defined(Q_OS_IOS)
+    // The desktop GL interoperability path exports Vulkan memory and
+    // semaphores as POSIX file descriptors. MoltenVK on iOS deliberately has
+    // no external-memory-fd support, and gpu-vk compiles that interoperability
+    // path out there. Requesting these unused extensions makes vkCreateDevice
+    // fail and leaves no logical device from which a queue can be obtained.
     requireDeviceExtensions({
 #ifdef WIN32
                         VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME,
@@ -112,6 +120,7 @@ void Context::createInstance() {
 #endif
                         VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
                         VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME});
+#endif
 
     if (isExtensionPresent(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
         requireExtensions({ VK_EXT_DEBUG_UTILS_EXTENSION_NAME });
@@ -125,9 +134,11 @@ void Context::createInstance() {
     appInfo.pEngineName = "VulkanExamples";
     appInfo.apiVersion = VK_API_VERSION_1_1;
 
-    std::set<std::string> instanceExtensions = { VK_KHR_SURFACE_EXTENSION_NAME,
-                                                 VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME,
-                                                 VK_KHR_EXTERNAL_SEMAPHORE_CAPABILITIES_EXTENSION_NAME };
+    std::set<std::string> instanceExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
+#if !defined(Q_OS_IOS)
+    instanceExtensions.insert(VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME);
+    instanceExtensions.insert(VK_KHR_EXTERNAL_SEMAPHORE_CAPABILITIES_EXTENSION_NAME);
+#endif
 
 // Enable surface extensions depending on OS
 #if defined(_WIN32)
@@ -185,8 +196,11 @@ void Context::createInstance() {
         //Q_ASSERT(false);
     }
 
-    VkResult result = vkCreateInstance(&instanceCreateInfo, nullptr, &instance);
-    Q_ASSERT(result == VK_SUCCESS);
+    const VkResult result = vkCreateInstance(&instanceCreateInfo, nullptr, &instance);
+    if (result != VK_SUCCESS) {
+        instance = VK_NULL_HANDLE;
+        throw std::runtime_error("Could not create Vulkan instance: " + vks::tools::errorString(result));
+    }
 
     if (enableValidation) {
         debug::setupDebugging(instance);
@@ -196,7 +210,11 @@ void Context::createInstance() {
         debugutils::setup(instance);
     }
 
+#if !defined(Q_OS_IOS)
     gpu::vk::vkGetMemoryFdKHR = reinterpret_cast<PFN_vkGetMemoryFdKHR>(vkGetInstanceProcAddr(instance, "vkGetMemoryFdKHR"));
+#else
+    gpu::vk::vkGetMemoryFdKHR = nullptr;
+#endif
 }
 
 void Context::destroyContext() {
@@ -214,6 +232,10 @@ void Context::createDevice() {
 
     buildDevice();
 
+    if (!device || device->logicalDevice == VK_NULL_HANDLE) {
+        throw std::runtime_error("Vulkan logical device creation returned no device");
+    }
+
 #if VULKAN_USE_VMA
     vks::Allocation::initAllocator(physicalDevice, device->logicalDevice);
 #endif
@@ -228,8 +250,11 @@ void Context::createDevice() {
 
 void Context::pickDevice() {
     // Physical device
-    uint32_t physicalDeviceCount;
+    uint32_t physicalDeviceCount{ 0 };
     VK_CHECK_RESULT(vkEnumeratePhysicalDevices(instance, &physicalDeviceCount, nullptr));
+    if (physicalDeviceCount == 0) {
+        throw std::runtime_error("No Vulkan physical device is available");
+    }
     physicalDevices.resize(physicalDeviceCount);
     VK_CHECK_RESULT(vkEnumeratePhysicalDevices(instance, &physicalDeviceCount, physicalDevices.data()));
 
@@ -262,8 +287,13 @@ void Context::buildDevice() {
 
     Q_ASSERT(!device);
     device.reset(new VulkanDevice(physicalDevice));
-    device->createLogicalDevice(enabledFeatures, enabledExtensions, pNextChain, true,
-                                VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_TRANSFER_BIT | VK_QUEUE_COMPUTE_BIT);
+    const VkResult result = device->createLogicalDevice(
+        enabledFeatures, enabledExtensions, pNextChain, true,
+        VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_TRANSFER_BIT | VK_QUEUE_COMPUTE_BIT);
+    if (result != VK_SUCCESS) {
+        device.reset();
+        throw std::runtime_error("Could not create Vulkan logical device: " + vks::tools::errorString(result));
+    }
 }
 
 VkCommandBuffer Context::createCommandBuffer(VkCommandPool commandPool, VkCommandBufferLevel level) const {

@@ -292,6 +292,7 @@ namespace vks
             {
                 if (!extensionSupported(enabledExtension)) {
                     std::cerr << "Enabled device extension \"" << enabledExtension << "\" is not present at device level\n";
+                    return VK_ERROR_EXTENSION_NOT_PRESENT;
                 }
             }
 
