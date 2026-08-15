@@ -57,7 +57,14 @@ DomainHandler::DomainHandler(QObject* parent) :
     _apiRefreshTimer.setInterval(API_REFRESH_TIMEOUT_MSEC); // 2.5s, Qt::CoarseTimer acceptable
 
     auto addressManager = DependencyManager::get<AddressManager>();
-    connect(&_apiRefreshTimer, &QTimer::timeout, addressManager.data(), &AddressManager::refreshPreviousLookup);
+    connect(&_apiRefreshTimer, &QTimer::timeout, addressManager.data(), [this, addressManager] {
+        // The timeout signal may already be queued on AddressManager's thread
+        // when a serverless load stops the timer. Check the current ownership
+        // at delivery time so that stale retries cannot restart navigation.
+        if (_apiRefreshEnabled.load(std::memory_order_acquire)) {
+            addressManager->refreshPreviousLookup();
+        }
+    });
 
     // stop the refresh timer if we connect to a domain
     connect(this, &DomainHandler::connectedToDomain, &_apiRefreshTimer, &QTimer::stop);
@@ -118,6 +125,7 @@ void DomainHandler::softReset(QString reason) {
 
     // restart the API refresh timer in case we fail to connect and need to refresh information
     if (!_isInErrorState) {
+        _apiRefreshEnabled.store(true, std::memory_order_release);
         QMetaObject::invokeMethod(&_apiRefreshTimer, "start");
     }
 }
@@ -397,6 +405,18 @@ bool DomainHandler::canConnectWithoutAvatarEntities() {
         }
     }
     return _canConnectWithoutAvatarEntities;
+}
+
+void DomainHandler::prepareForServerlessConnection() {
+    _apiRefreshEnabled.store(false, std::memory_order_release);
+    if (_apiRefreshTimer.thread() == QThread::currentThread()) {
+        _apiRefreshTimer.stop();
+        return;
+    }
+    if (!QMetaObject::invokeMethod(
+            &_apiRefreshTimer, "stop", Qt::BlockingQueuedConnection)) {
+        qCWarning(networking) << "Unable to stop domain API refresh before serverless import";
+    }
 }
 
 void DomainHandler::connectedToServerless(std::map<QString, QString> namedPaths) {

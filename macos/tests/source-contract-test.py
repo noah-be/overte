@@ -840,6 +840,50 @@ for marker, relative in (CONTRACT | ONLINE_CONTRACT).items():
     if guard < 0 or end < 0 or source.find("#endif", guard, position) >= 0:
         raise SystemExit(f"{marker} is not inside the desktop macOS guard")
 
+application_source = (ROOT / "interface/src/Application.cpp").read_text(encoding="utf-8")
+application_header = (ROOT / "interface/src/Application.h").read_text(encoding="utf-8")
+domain_handler_source = (ROOT / "libraries/networking/src/DomainHandler.cpp").read_text(
+    encoding="utf-8"
+)
+domain_handler_header = (ROOT / "libraries/networking/src/DomainHandler.h").read_text(
+    encoding="utf-8"
+)
+test_interface_header = (
+    ROOT / "interface/src/scripting/TestScriptingInterface.h"
+).read_text(encoding="utf-8")
+test_interface_source = (
+    ROOT / "interface/src/scripting/TestScriptingInterface.cpp"
+).read_text(encoding="utf-8")
+for source, token in (
+    (domain_handler_header, "void prepareForServerlessConnection();"),
+    (domain_handler_source, "void DomainHandler::prepareForServerlessConnection()"),
+    (domain_handler_source, "Qt::BlockingQueuedConnection"),
+    (domain_handler_source, '_apiRefreshTimer, "stop"'),
+    (domain_handler_header, "std::atomic<bool> _apiRefreshEnabled"),
+    (domain_handler_source, "_apiRefreshEnabled.load(std::memory_order_acquire)"),
+    (domain_handler_source, "_apiRefreshEnabled.store(false, std::memory_order_release)"),
+    (domain_handler_source, "_apiRefreshEnabled.store(true, std::memory_order_release)"),
+    (application_header, "bool isServerlessSceneImportComplete() const"),
+    (application_header, "std::atomic<bool> _serverlessSceneImportInProgress"),
+    (application_header, "std::atomic<bool> _serverlessSceneImportCommitted"),
+    (application_header, "_serverlessSceneImportCommitted.load(std::memory_order_acquire)"),
+    (application_header, "_serverlessSceneImportInProgress.load(std::memory_order_acquire)"),
+    (application_source, "getDomainHandler().prepareForServerlessConnection()"),
+    (test_interface_header, "Q_INVOKABLE bool isServerlessSceneImportComplete() const;"),
+    (test_interface_source, "qApp->isServerlessSceneImportComplete()"),
+):
+    if token not in source:
+        raise SystemExit(f"serverless import stabilization contract missing: {token}")
+load_serverless = application_source.split(
+    "void Application::loadServerlessDomain(QUrl domainURL)", 1
+)[1].split("void Application::loadErrorDomain", 1)[0]
+if load_serverless.index("prepareForServerlessConnection()") > load_serverless.index(
+        "prepareServerlessDomainContents"):
+    raise SystemExit("serverless API refresh must stop before scene parsing begins")
+if load_serverless.index("_serverlessSceneImportCommitted = true") > load_serverless.index(
+        '"OVERTE_MACOS_ENTITY_GATE serverless_import_committed"'):
+    raise SystemExit("serverless test readiness must commit before its runtime marker")
+
 smoke = (ROOT / "macos/ci/serverless-smoke.sh").read_text(encoding="utf-8")
 assert "--display Desktop" in smoke, "serverless smoke must never block on display selection"
 for marker in CONTRACT:
@@ -1064,6 +1108,15 @@ for smoke_name, smoke_source, maximum, cleanup_contract in (
 
 serverless_script = (ROOT / "macos/tests/serverless-smoke.js").read_text(encoding="utf-8")
 online_script = (ROOT / "macos/tests/online-smoke.js").read_text(encoding="utf-8")
+subprocess.run(
+    [
+        "node",
+        str(ROOT / "macos/tests/serverless-smoke-script-test.js"),
+        str(ROOT / "macos/tests/serverless-smoke.js"),
+    ],
+    cwd=ROOT,
+    check=True,
+)
 for inventory_contract in (
     "inspectEntityInventory(entities, 64)",
     "inspectEntityInventory(entities, entities.length)",
@@ -1081,7 +1134,12 @@ for script_name, script_source, snapshot_name, stage_contracts in (
         "serverless",
         serverless_script,
         "macos-serverless-smoke.png",
-        ("warmup_snapshot=", 'snapshotStage = "final"', "5000"),
+        (
+            "warmup_snapshot=", 'snapshotStage = "final"', "5000",
+            "Test.isServerlessSceneImportComplete()",
+            "Test.getPresentCount() >= cooldownPresentCount + 2",
+            "fixture_reset_during_cooldown",
+        ),
     ),
     (
         "online",

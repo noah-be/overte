@@ -15,6 +15,8 @@
 #ifndef hifi_Application_h
 #define hifi_Application_h
 
+#include <atomic>
+
 #include <QtWidgets/QApplication>
 
 #include <AbstractScriptingServicesInterface.h>
@@ -109,6 +111,10 @@ public:
 
     bool isAboutToQuit() const { return _aboutToQuit; }
     bool isServerlessMode() const;
+    bool isServerlessSceneImportComplete() const {
+        return _serverlessSceneImportCommitted.load(std::memory_order_acquire) &&
+            !_serverlessSceneImportInProgress.load(std::memory_order_acquire);
+    }
     bool isInterstitialMode() const { return _interstitialMode; }
     bool failedToConnectToEntityServer() const { return _failedToConnectToEntityServer; }
 
@@ -1000,6 +1006,9 @@ private:
     // It's set to true by Application::clearDomainOctreeData and is cleared by Application::setIsServerlessMode
     bool _waitForServerlessToBeSet { true };
     quint64 _serverlessDomainRequestGeneration { 0 };
+    std::atomic<bool> _serverlessSceneImportInProgress { false };
+    std::atomic<bool> _serverlessSceneImportCommitted { false };
+    QUrl _serverlessSceneURL;
 #if defined(ANDROID_APP_PICO_INTERFACE)
     bool _picoServerlessLoadFailed { false };
 #endif

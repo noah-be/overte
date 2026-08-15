@@ -236,6 +236,10 @@ quint32 TestScriptingInterface::getPresentCount() const {
     return displayPlugin ? displayPlugin->presentCount() : 0;
 }
 
+bool TestScriptingInterface::isServerlessSceneImportComplete() const {
+    return qApp->isServerlessSceneImportComplete();
+}
+
 bool TestScriptingInterface::beginOnlineLoadingNavigation() const {
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     const QByteArray targetBytes = qgetenv(ONLINE_LOADING_TARGET_ENV);

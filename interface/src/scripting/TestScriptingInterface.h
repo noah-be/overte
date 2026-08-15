@@ -187,6 +187,14 @@ public slots:
     Q_INVOKABLE quint32 getPresentCount() const;
 
     /*@jsdoc
+     * Reports whether the current serverless scene import has committed.
+     * Available to explicit application test scripts only.
+     * @function Test.isServerlessSceneImportComplete
+     * @returns {boolean} <code>true</code> after the imported tree is authoritative.
+     */
+    Q_INVOKABLE bool isServerlessSceneImportComplete() const;
+
+    /*@jsdoc
      * Begins the validated macOS online-loading navigation after the local
      * benchmark baseline is ready. Available to explicit test scripts only.
      * The target is supplied out-of-band and is never exposed to JavaScript.

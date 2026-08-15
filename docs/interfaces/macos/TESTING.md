@@ -24,7 +24,13 @@ macos/ci/online-smoke.sh build/interface/Overte.app build/macos-online-smoke
 The serverless gate requires a populated entity tree and render handoff from the
 deterministic three-entity fixture. It validates a 1380x776-or-larger PNG,
 non-black content, opacity and contrast, red/cyan pixel populations, and their
-expected left/right placement. The online gate additionally requires directory,
+expected left/right placement. The fixture names alone are not readiness:
+the import must be committed, all three entities must still exist after the
+warm-up capture, and at least two new display presents plus a five-second
+cooldown must complete before the acceptance image is requested. The online
+domain refresh timer is stopped before a serverless import starts so a delayed
+lookup retry cannot clear or re-import the scene while it is being validated.
+The online gate additionally requires directory,
 entity-server, query, receive, and render progress before accepting a non-empty
 image. Immediately before capture it writes the complete nearby entity
 inventory. A domain-hosted Box, Sphere, or Shape render-handoff UUID must occur

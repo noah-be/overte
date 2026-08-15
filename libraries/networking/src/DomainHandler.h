@@ -13,6 +13,8 @@
 #ifndef hifi_DomainHandler_h
 #define hifi_DomainHandler_h
 
+#include <atomic>
+
 #include <QProcessEnvironment>
 
 #include <QtCore/QJsonObject>
@@ -150,6 +152,10 @@ public:
     bool getInterstitialModeEnabled() const;
     void setInterstitialModeEnabled(bool enableInterstitialMode);
 
+    // A local/serverless resource request owns navigation until it either
+    // commits or fails. Stop the online lookup retry timer before parsing so
+    // it cannot hard-reset the entity tree in the middle of that import.
+    void prepareForServerlessConnection();
     void connectedToServerless(std::map<QString, QString> namedPaths);
 
     void loadedErrorDomain(std::map<QString, QString> namedPaths);
@@ -325,6 +331,7 @@ private:
     int _checkInPacketsSinceLastReply { 0 };
 
     QTimer _apiRefreshTimer;
+    std::atomic<bool> _apiRefreshEnabled { true };
 
     std::map<QString, QString> _namedPaths;
 
