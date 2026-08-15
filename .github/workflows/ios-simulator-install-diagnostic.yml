@@ -472,8 +472,31 @@ jobs:
           app="$RUNTIME_ROOT/expanded/Overte.app"
           test -x "$app/Overte"
           [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")" == "$BUNDLE_ID" ]]
+          read -r symbols_name symbols_sha < <(python3 - "$manifest" <<'PY'
+          import json
+          import pathlib
+          import sys
+          symbols = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")).get("debugSymbols")
+          if not isinstance(symbols, dict):
+              print("- -")
+          else:
+              print(symbols.get("artifact", "-"), symbols.get("sha256", "-"))
+          PY
+          )
+          symbol_binary="$app/Overte"
+          if [[ "$symbols_name" != - ]]; then
+            [[ "$symbols_name" =~ ^[0-9]+-OverteIOSClient-Release-simulator-symbols[.]zip$ ]]
+            [[ "$symbols_sha" =~ ^[0-9a-f]{64}$ ]]
+            symbols="$RUNTIME_ROOT/source/artifacts/$symbols_name"
+            test -f "$symbols"
+            [[ "$(shasum -a 256 "$symbols" | awk '{print $1}')" == "$symbols_sha" ]]
+            ditto -x -k "$symbols" "$RUNTIME_ROOT/symbols"
+            symbol_binary="$RUNTIME_ROOT/symbols/Overte.app.dSYM/Contents/Resources/DWARF/Overte"
+            test -f "$symbol_binary"
+          fi
           echo "app=$app" >> "$GITHUB_OUTPUT"
           echo "manifest=$manifest" >> "$GITHUB_OUTPUT"
+          echo "symbol_binary=$symbol_binary" >> "$GITHUB_OUTPUT"
 
       - name: Resolve current overte_hub domain identity
         id: online-place
@@ -550,11 +573,12 @@ jobs:
         run: |
           set -euo pipefail
           app="${{ steps.candidate.outputs.app }}"
+          symbol_binary="${{ steps.candidate.outputs.symbol_binary }}"
           for crash in "$RUNTIME_ROOT"/raw-diagnostics/*-crash-report.log; do
             [[ -s "$crash" ]] || continue
             symbolicated="${crash%-crash-report.log}-symbolicated-crash.json"
             python3 ios/tools/symbolicate-simulator-crash.py \
-              "$crash" "$app/Overte" "$symbolicated"
+              "$crash" "$symbol_binary" "$symbolicated"
           done
           for source in "$RUNTIME_ROOT"/raw-diagnostics/*.log; do
             [[ -f "$source" ]] || continue
@@ -679,13 +703,36 @@ jobs:
         run: |
           set -euo pipefail
           candidate="$SYMBOLICATE_ROOT/candidate/artifacts/$SOURCE_CANDIDATE_NAME"
+          manifest="${candidate%.zip}.json"
           crash="$SYMBOLICATE_ROOT/crash/upload-diagnostics/iphone-serverless-crash-report.log"
           test -f "$candidate"
+          test -f "$manifest"
           test -f "$crash"
           [[ "$(shasum -a 256 "$candidate" | awk '{print $1}')" == "$EXPECTED_SHA256" ]]
           ditto -x -k "$candidate" "$SYMBOLICATE_ROOT/expanded"
           binary="$SYMBOLICATE_ROOT/expanded/Overte.app/Overte"
           test -x "$binary"
+          read -r symbols_name symbols_sha < <(python3 - "$manifest" <<'PY'
+          import json
+          import pathlib
+          import sys
+          symbols = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")).get("debugSymbols")
+          if not isinstance(symbols, dict):
+              print("- -")
+          else:
+              print(symbols.get("artifact", "-"), symbols.get("sha256", "-"))
+          PY
+          )
+          if [[ "$symbols_name" != - ]]; then
+            [[ "$symbols_name" =~ ^[0-9]+-OverteIOSClient-Release-simulator-symbols[.]zip$ ]]
+            [[ "$symbols_sha" =~ ^[0-9a-f]{64}$ ]]
+            symbols="$SYMBOLICATE_ROOT/candidate/artifacts/$symbols_name"
+            test -f "$symbols"
+            [[ "$(shasum -a 256 "$symbols" | awk '{print $1}')" == "$symbols_sha" ]]
+            ditto -x -k "$symbols" "$SYMBOLICATE_ROOT/symbols"
+            binary="$SYMBOLICATE_ROOT/symbols/Overte.app.dSYM/Contents/Resources/DWARF/Overte"
+            test -f "$binary"
+          fi
           python3 ios/tools/symbolicate-simulator-crash.py \
             "$crash" "$binary" "$SYMBOLICATE_ROOT/output/iphone-serverless-symbolicated-crash.json"
 

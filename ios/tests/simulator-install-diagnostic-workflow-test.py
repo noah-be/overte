@@ -83,7 +83,8 @@ assert "expected exactly one available iOS 18.5 runtime" in runtime
 assert "interface-world-simulator-smoke.sh" in runtime
 assert "symbolicate-simulator-crash.py" in runtime
 assert "*-crash-report.log" in runtime and "*-symbolicated-crash.json" in runtime
-assert '"$crash" "$app/Overte" "$symbolicated"' in runtime
+assert "Overte.app.dSYM/Contents/Resources/DWARF/Overte" in runtime
+assert '"$crash" "$symbol_binary" "$symbolicated"' in runtime
 assert "for family in iphone ipad" in runtime
 assert "serverless -" in runtime and 'online "$ONLINE_DOMAIN"' in runtime
 assert "validate-world-evidence-set.py" in runtime
@@ -103,6 +104,8 @@ assert "Download exact preserved candidate" in symbolicate
 assert "Download exact preserved crash report" in symbolicate
 assert "shasum -a 256" in symbolicate
 assert "symbolicate-simulator-crash.py" in symbolicate
+assert "Overte.app.dSYM/Contents/Resources/DWARF/Overte" in symbolicate
+assert "debugSymbols" in symbolicate
 assert "ios-symbolicated-crash-${{ github.run_id }}" in symbolicate
 assert "cmake --build" not in symbolicate and "build-ios.sh build" not in symbolicate
 

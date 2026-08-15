@@ -76,6 +76,10 @@ def main() -> None:
         make_executable(
             shims / "xcrun",
             'case "$*" in\n'
+            '  dwarfdump\\ --uuid*)\n'
+            '    if [[ "$*" == *".dSYM/"* ]]; then uuid="${FAKE_DSYM_UUID:-$FAKE_APP_UUID}"; '
+            'else uuid="$FAKE_APP_UUID"; fi\n'
+            '    printf "UUID: %s (arm64) %s\\n" "$uuid" "${@: -1}" ;;\n'
             '  *--show-sdk-version*) echo "${FAKE_SDK_VERSION:-26.1}" ;;\n'
             '  *--show-sdk-path*) echo "$FAKE_SDK_PATH" ;;\n'
             '  *) echo "unexpected xcrun invocation: $*" >&2; exit 64 ;;\n'
@@ -120,6 +124,7 @@ def main() -> None:
                 "PATH": f"{shims}{os.pathsep}{environment['PATH']}",
                 "FAKE_SDK_PATH": str(sdk),
                 "FAKE_TOOL_LOG": str(log),
+                "FAKE_APP_UUID": "87810988-b99f-37df-b30d-599a85a641b6",
             }
         )
 
@@ -313,7 +318,7 @@ def main() -> None:
         assert "<--target> <OverteIOSBootstrap>" in invocation
 
         integrated_build = root / "integrated-package"
-        integrated_app = integrated_build / "interface/Debug-iphonesimulator/Overte.app"
+        integrated_app = integrated_build / "interface/Release-iphonesimulator/Overte.app"
         integrated_app.mkdir(parents=True)
         with (integrated_app / "Info.plist").open("wb") as stream:
             plistlib.dump(
@@ -343,18 +348,26 @@ def main() -> None:
             SOURCE_ROOT / "ios/resources/PrivacyInfo.xcprivacy",
             integrated_app / "PrivacyInfo.xcprivacy",
         )
+        integrated_dwarf = (
+            integrated_build
+            / "interface/Release-iphonesimulator/Overte.app.dSYM/Contents/Resources/DWARF/Overte"
+        )
+        integrated_dwarf.parent.mkdir(parents=True)
+        integrated_dwarf.write_bytes(b"fixture DWARF")
         integrated_package = run_cli(
             environment | {"OVERTE_IOS_ARTIFACT_SEQUENCE": "42"},
             "package-client",
             "--platform",
             "simulator",
+            "--configuration",
+            "Release",
             "--build-dir",
             str(integrated_build),
         )
         assert integrated_package.returncode == 0, integrated_package.stderr
         artifact_root = SOURCE_ROOT / "build-ios/artifacts"
         integrated_manifest = json.loads(
-            (artifact_root / "0042-OverteIOSClient-Debug-simulator.json").read_text(encoding="utf-8")
+            (artifact_root / "0042-OverteIOSClient-Release-simulator.json").read_text(encoding="utf-8")
         )
         assert integrated_manifest["buildNumber"] == 42
         assert integrated_manifest["product"] == "overte-ios-integrated-client"
@@ -364,6 +377,15 @@ def main() -> None:
             "getTaskAllow": None,
         }
         assert integrated_manifest["artifact"].startswith("0042-")
+        assert integrated_manifest["debugSymbols"] == {
+            "artifact": "0042-OverteIOSClient-Release-simulator-symbols.zip",
+            "sha256": integrated_manifest["debugSymbols"]["sha256"],
+            "uuid": environment["FAKE_APP_UUID"],
+            "format": "dSYM",
+            "architecture": "arm64",
+        }
+        assert len(integrated_manifest["debugSymbols"]["sha256"]) == 64
+        assert (artifact_root / integrated_manifest["debugSymbols"]["artifact"]).is_file()
         assert integrated_manifest["windowsVm"]["sharedFolderRelativePath"] == integrated_manifest["artifact"]
         latest = json.loads(
             (artifact_root / "LATEST-OverteIOSClient.json").read_text(encoding="utf-8")
@@ -374,6 +396,38 @@ def main() -> None:
         (artifact_root / "LATEST-OverteIOSClient.json").unlink()
         (artifact_root / "LATEST-OverteIOSClient.txt").unlink()
 
+        mismatched_symbols = run_cli(
+            environment
+            | {
+                "OVERTE_IOS_ARTIFACT_SEQUENCE": "44",
+                "FAKE_DSYM_UUID": "123e4567-e89b-12d3-a456-426614174000",
+            },
+            "package-client",
+            "--platform",
+            "simulator",
+            "--configuration",
+            "Release",
+            "--build-dir",
+            str(integrated_build),
+        )
+        assert mismatched_symbols.returncode == 1
+        assert "dSYM does not match" in mismatched_symbols.stderr
+
+        integrated_dwarf.unlink()
+        missing_symbols = run_cli(
+            environment | {"OVERTE_IOS_ARTIFACT_SEQUENCE": "45"},
+            "package-client",
+            "--platform",
+            "simulator",
+            "--configuration",
+            "Release",
+            "--build-dir",
+            str(integrated_build),
+        )
+        assert missing_symbols.returncode == 1
+        assert "dSYM has no Overte DWARF image" in missing_symbols.stderr
+        integrated_dwarf.write_bytes(b"fixture DWARF")
+
         with (integrated_app / "PrivacyInfo.xcprivacy").open("wb") as stream:
             plistlib.dump({"NSPrivacyTracking": True}, stream)
         rejected_privacy = run_cli(
@@ -381,6 +435,8 @@ def main() -> None:
             "package-client",
             "--platform",
             "simulator",
+            "--configuration",
+            "Release",
             "--build-dir",
             str(integrated_build),
         )

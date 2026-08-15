@@ -59,6 +59,7 @@ require(WORKFLOW, r"configure --platform simulator --client-graph", "the real Fu
 require(WORKFLOW, r"cmake --build build-ios/simulator[\s\S]*--target Overte", "the real Overte client target must be built")
 require(WORKFLOW, r"package-client --platform simulator --configuration Release", "the tested simulator app must be packaged")
 require(WORKFLOW, r"verify-runtime-candidate\.py build-ios/artifacts[\s\S]*--mode simulator", "candidate platform and Mach-O must be verified")
+assert WORKFLOW.count("*-OverteIOSClient-Release-simulator-symbols.zip") == 2
 
 for phase in (
     "v8-simulator-build",
@@ -106,8 +107,14 @@ failure_candidate = WORKFLOW[
 ]
 assert "if: failure()" in failure_candidate
 assert "*-OverteIOSClient-Release-simulator.zip" in failure_candidate
+assert "*-OverteIOSClient-Release-simulator-symbols.zip" in failure_candidate
 assert "*-failure.png" in failure_candidate
 assert "if-no-files-found: error" in failure_candidate
+require(
+    WORKFLOW,
+    r"Sanitize world-build failure diagnostics[\s\S]*Overte[.]app[.]dSYM/Contents/Resources/DWARF/Overte[\s\S]*symbolicate-simulator-crash[.]py",
+    "world crashes must be symbolicated with the preserved dSYM before upload",
+)
 
 require(BOOTSTRAP, r"world_evidence:[\s\S]*type: boolean[\s\S]*default: false", "manual world acceptance needs an explicit opt-in")
 require(

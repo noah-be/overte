@@ -554,6 +554,7 @@ run_package_client() {
     require_macos
     require_command ditto
     require_command shasum
+    require_command xcrun
 
     local artifact_sequence="${OVERTE_IOS_ARTIFACT_SEQUENCE:-${GITHUB_RUN_NUMBER:-}}"
     [[ "$artifact_sequence" =~ ^[1-9][0-9]*$ ]] \
@@ -582,6 +583,43 @@ run_package_client() {
         || fail "integrated client privacy manifest failed the audited contract"
     python3 "$script_dir/tools/verify-ios-static-runtime.py" "$app_path" \
         || fail "integrated client has unsafe or unresolved Mach-O runtime dependencies"
+
+    local dsym_path="$build_dir/interface/${configuration}-${sdk_suffix}/Overte.app.dSYM"
+    local dsym_binary="$dsym_path/Contents/Resources/DWARF/Overte"
+    local app_uuid="" symbols_archive="" symbols_sha=""
+    if [[ "$configuration" == "Release" ]]; then
+        [[ -d "$dsym_path" ]] \
+            || fail "Release integrated client dSYM is missing: $dsym_path"
+        [[ -f "$dsym_binary" ]] \
+            || fail "Release integrated client dSYM has no Overte DWARF image: $dsym_binary"
+        local binary_uuid symbol_uuid
+        binary_uuid="$(xcrun dwarfdump --uuid "$app_path/Overte")" \
+            || fail "could not read the Release client Mach-O UUID"
+        symbol_uuid="$(xcrun dwarfdump --uuid "$dsym_binary")" \
+            || fail "could not read the Release client dSYM UUID"
+        app_uuid="$(python3 - "$binary_uuid" "$symbol_uuid" <<'PY'
+import re
+import sys
+
+uuid_pattern = re.compile(
+    r"^UUID: ([0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}) \(arm64\)(?: .*)?$"
+)
+
+def one_uuid(label, output):
+    values = [match.group(1).lower() for line in output.splitlines()
+              if (match := uuid_pattern.fullmatch(line.strip()))]
+    if len(values) != 1:
+        raise SystemExit(f"{label} must contain exactly one arm64 UUID")
+    return values[0]
+
+binary_uuid = one_uuid("application binary", sys.argv[1])
+symbol_uuid = one_uuid("dSYM DWARF image", sys.argv[2])
+if binary_uuid != symbol_uuid:
+    raise SystemExit("application binary and dSYM UUIDs differ")
+print(binary_uuid)
+PY
+)" || fail "Release integrated client dSYM does not match the packaged executable"
+    fi
 
     local artifact_dir="$source_root/build-ios/artifacts"
     mkdir -p "$artifact_dir"
@@ -643,6 +681,12 @@ PY
     [[ "$platform" == "simulator" ]] || stem="${stem}-${signing_label}"
     local archive="$artifact_dir/${stem}.${extension}"
 
+    if [[ "$configuration" == "Release" ]]; then
+        symbols_archive="$artifact_dir/${stem}-symbols.zip"
+        ditto -c -k --sequesterRsrc --keepParent "$dsym_path" "$symbols_archive"
+        symbols_sha="$(shasum -a 256 "$symbols_archive" | awk '{print $1}')"
+    fi
+
     if [[ "$platform" == "simulator" ]]; then
         ditto -c -k --sequesterRsrc --keepParent "$app_path" "$archive"
     else
@@ -665,12 +709,13 @@ PY
     python3 - "$manifest" "$latest_json" "$latest_text" "$archive" "$archive_sha" \
         "$source_revision" "$configuration" "$sdk_suffix" "$signed_state" "$artifact_sequence" \
         "$(xcodebuild -version | tr '\n' ' ')" "$(xcrun --sdk "$sdk_name" --show-sdk-version)" \
-        "$provisioned_state" "$application_identifier" "$get_task_allow" <<'PY'
+        "$provisioned_state" "$application_identifier" "$get_task_allow" \
+        "$symbols_archive" "$symbols_sha" "$app_uuid" <<'PY'
 import json
 import pathlib
 import sys
 
-manifest_name, latest_name, latest_text_name, archive_name, digest, revision, configuration, platform, signed, sequence, xcode, sdk, provisioned, application_identifier, get_task_allow = sys.argv[1:]
+manifest_name, latest_name, latest_text_name, archive_name, digest, revision, configuration, platform, signed, sequence, xcode, sdk, provisioned, application_identifier, get_task_allow, symbols_name, symbols_digest, binary_uuid = sys.argv[1:]
 archive = pathlib.Path(archive_name)
 manifest = pathlib.Path(manifest_name)
 payload = {
@@ -693,6 +738,13 @@ payload = {
         "applicationIdentifier": application_identifier or None,
         "getTaskAllow": None if get_task_allow == "null" else get_task_allow == "true",
     },
+    "debugSymbols": None if not symbols_name else {
+        "artifact": pathlib.Path(symbols_name).name,
+        "sha256": symbols_digest,
+        "uuid": binary_uuid,
+        "format": "dSYM",
+        "architecture": "arm64",
+    },
     "windowsVm": {
         "sharedFolderRelativePath": archive.name,
         "verifyCommand": f"certutil -hashfile {archive.name} SHA256",
@@ -703,6 +755,9 @@ pathlib.Path(latest_name).write_text(json.dumps(payload, indent=2) + "\n", encod
 pathlib.Path(latest_text_name).write_text(archive.name + "\n", encoding="utf-8")
 PY
     note "Created numbered integrated client artifact: $archive"
+    if [[ -n "$symbols_archive" ]]; then
+        note "Created matching integrated client dSYM artifact: $symbols_archive"
+    fi
     note "Created manifest and Windows VM transfer metadata: $manifest, $latest_json, $latest_text"
 }
 

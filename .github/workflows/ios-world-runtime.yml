@@ -790,6 +790,7 @@ jobs:
           name: ${{ github.run_number }}-overte-ios-world-evidence-${{ github.run_id }}
           path: |
             build-ios/artifacts/*-OverteIOSClient-Release-simulator.zip
+            build-ios/artifacts/*-OverteIOSClient-Release-simulator-symbols.zip
             build-ios/artifacts/*-OverteIOSClient-Release-simulator.json
             build-ios/world-evidence/*.png
             build-ios/world-evidence/*-screenshot.json
@@ -805,6 +806,7 @@ jobs:
           name: ${{ github.run_number }}-overte-ios-world-candidate-${{ github.run_id }}
           path: |
             build-ios/artifacts/*-OverteIOSClient-Release-simulator.zip
+            build-ios/artifacts/*-OverteIOSClient-Release-simulator-symbols.zip
             build-ios/artifacts/*-OverteIOSClient-Release-simulator.json
             build-ios/world-evidence/*-failure.png
           if-no-files-found: error
@@ -814,6 +816,15 @@ jobs:
         if: failure()
         run: |
           mkdir -p build-ios/world-upload-diagnostics
+          symbol_binary="build-ios/simulator/interface/Release-iphonesimulator/Overte.app.dSYM/Contents/Resources/DWARF/Overte"
+          if [[ -f "$symbol_binary" ]]; then
+            for crash in build-ios/world-raw-diagnostics/*-crash-report.log; do
+              [[ -s "$crash" ]] || continue
+              python3 ios/tools/symbolicate-simulator-crash.py \
+                "$crash" "$symbol_binary" \
+                "${crash%-crash-report.log}-symbolicated-crash.json"
+            done
+          fi
           for source in build-ios/world-raw-diagnostics/*.log \
             build-ios/world-raw-diagnostics/*.json; do
             [[ -f "$source" ]] || continue

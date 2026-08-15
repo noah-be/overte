@@ -69,8 +69,10 @@ a fast native crash can destroy it. On failure the harness additionally queries
 a bounded bundle-specific dyld/RunningBoard/FrontBoard postmortem. If the
 launched PID has exited, it then waits up to 20 seconds for CrashReporter and
 retains only reports created after this launch; ordinary live-process gate
-failures do not pay that delay. The failure workflow verifies the Mach-O UUID
-against the report and symbolicates the faulting Overte frames with `atos`
+failures do not pay that delay. Every Release candidate is packaged with a
+separate dSYM archive whose arm64 UUID must exactly match the executable before
+either artifact is published. The failure workflow verifies that UUID against
+the report and symbolicates the faulting Overte frames with the dSYM and `atos`
 before redaction and upload. Raw logs, process samples and
 crash data remain private runner scratch data; only their size-bounded,
 secret-redacted diagnostic copies are uploaded on failure, and otherwise they
@@ -87,7 +89,9 @@ runtime checks prevent silent runner-image drift.
 The same diagnostic workflow also has a symbolicate-only recovery mode. It
 accepts an exact failed runtime run and artifact, revalidates both producer
 workflows and the candidate SHA-256, then uses the preserved `.ips` report and
-the matching Mach-O on macOS to produce UUID-checked `atos` output. It neither
+matching dSYM on macOS to produce UUID-checked `atos` output. Older candidates
+without a dSYM retain the stripped Mach-O fallback for forensic compatibility,
+but only newly packaged candidates can provide source-level symbols. It neither
 boots a Simulator nor rebuilds the application, so nondeterministic
 CrashReporter timing cannot destroy an already captured report.
 

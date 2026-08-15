@@ -46,8 +46,12 @@ and numbering remain unchanged.
 Each package has a same-stem JSON manifest plus
 `LATEST-OverteIOSClient.json` and `LATEST-OverteIOSClient.txt`. The JSON records
 the exact artifact name, source revision, SHA-256, platform, signing state, and
-a Windows `certutil` verification command. GitHub Actions uploads all four files
-in one numbered artifact. Download or copy that complete artifact into the
+a Windows `certutil` verification command. Release packaging additionally
+requires `Overte.app.dSYM`, proves that its arm64 UUID matches the packaged
+executable, archives it as a same-stem `-symbols.zip`, and records the symbol
+archive SHA-256 and UUID under `debugSymbols`. A missing or mismatched Release
+dSYM fails packaging before the application archive is published. GitHub
+Actions uploads the numbered files in one artifact. Download or copy that complete artifact into the
 VirtualBox shared folder; the Windows VM should select the filename from
 `LATEST-OverteIOSClient.txt` and verify it against the JSON digest before
 passing an unsigned IPA to the separately authorized signing tool.
