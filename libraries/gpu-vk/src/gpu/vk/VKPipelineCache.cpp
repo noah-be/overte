@@ -362,11 +362,17 @@ std::string Cache::Pipeline::getKey(const vks::Context& context) const {
     const gpu::State& state = *pipeline.getState();
     const auto& vertexShader = pipeline.getProgram()->getShaders()[0]->getSource();
     const auto& fragmentShader = pipeline.getProgram()->getShaders()[1]->getSource();
+    const auto vertexFormat = gpu::acquire(format);
+    // A draw without vertex input has no Stream::Format. Keep that valid state
+    // distinct from an empty-but-present format without dereferencing null.
+    const std::string formatKey = vertexFormat
+        ? "present:" + vertexFormat->getKey()
+        : "absent";
     // VKTODO account for customized shaders (preferably by forcing shaders to have a new unique ID at runtime when they're using replacement strings)
     std::string key = bytesToAscii(shader::makeProgramId(vertexShader.id, fragmentShader.id)) +
           + "_" + getRenderpassKeyString(renderpassKey)
           + "_" + state.getKey()
-          + "_" + format->getKey()
+          + "_" + formatKey
           + "_" + bytesToAscii(primitiveTopology)
           + "_" + getStridesKey();
     return key;

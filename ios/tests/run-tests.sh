@@ -69,6 +69,7 @@ readonly rendering_contracts=(
     ios-vulkan-device-creation-contract-test.py
     ios-vulkan-external-texture-gate-test.py
     ios-vulkan-hybrid-gl-migration-test.py
+    ios-vulkan-pipeline-key-contract-test.py
     ios-vulkan-platform-backend-test.py
     ios-vulkan-quick-copy-gate-test.py
     ios-vulkan-shader-dialect-contract-test.py
