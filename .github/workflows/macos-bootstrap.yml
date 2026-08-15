@@ -349,6 +349,8 @@ jobs:
 
       - name: Cache Conan packages
         id: conan-cache
+        timeout-minutes: 12
+        continue-on-error: true
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: |
@@ -359,6 +361,12 @@ jobs:
             ${{ steps.cache-key.outputs.migration_conan }}
             ${{ steps.cache-key.outputs.legacy_conan }}
             ${{ steps.cache-key.outputs.conan_stage_prefix }}
+
+      - name: Discard interrupted Conan fast-cache restore
+        if: ${{ steps.conan-cache.outcome == 'failure' }}
+        run: >-
+          python3 macos/ci/conan-checkpoint.py discard-partial
+          --conan-home "$CONAN_HOME"
 
       # actions/cache is an evictable speed optimization shared with every
       # other workflow in the repository.  The artifact checkpoint below is an

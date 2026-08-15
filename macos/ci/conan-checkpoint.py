@@ -630,6 +630,17 @@ def _remove_path(path: Path) -> None:
         shutil.rmtree(path)
 
 
+def discard_partial_cache(conan_home: Path) -> None:
+    """Remove only the two managed Conan roots after an interrupted fast restore."""
+    conan_home = conan_home.resolve()
+    if conan_home == Path(conan_home.anchor):
+        raise CheckpointError("refusing to discard Conan roots from a filesystem root")
+    conan_home.mkdir(parents=True, exist_ok=True)
+    for root_name in ROOTS:
+        _remove_path(conan_home / root_name)
+    print("conan-checkpoint phase=discard-partial status=complete roots=2", flush=True)
+
+
 def restore_checkpoint(
     checkpoint_dir: Path,
     conan_home: Path,
@@ -1175,6 +1186,9 @@ def main() -> int:
     restore.add_argument("--repository-id", type=int, required=True)
     restore.add_argument("--branch", required=True)
 
+    discard = subparsers.add_parser("discard-partial")
+    discard.add_argument("--conan-home", type=Path, required=True)
+
     probe = subparsers.add_parser("probe")
     _common_remote(probe)
     probe.add_argument("--github-output", type=Path)
@@ -1217,6 +1231,8 @@ def main() -> int:
                 arguments.repository_id,
                 arguments.branch,
             )
+        elif arguments.operation == "discard-partial":
+            discard_partial_cache(arguments.conan_home)
         elif arguments.operation == "probe":
             probe_remote(
                 arguments.repository,

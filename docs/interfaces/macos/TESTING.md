@@ -38,10 +38,11 @@ in that inventory, and the same inventory must contain at least one visible
 primitive. The correlated protocol, tree, primitive-render, inventory, and
 image gates prevent local helper entities or entity scripts from substituting
 for an entity streamed by the domain's entity server. A passing process exit
-without every marker and the correlated inventory is not acceptance. If the
-software renderer writes the PNG but delays Qt's completion signal behind
-render-thread work, the script stops after a bounded 300-second settle;
-the shell still requires and fully decodes the resulting image.
+without every marker and the correlated inventory is not acceptance. The
+script writes its controlled-completion sentinel only after Qt reports a
+nonempty saved-snapshot path. A still-pending or failed callback never becomes
+success evidence; the outer 600-second supervisor instead captures a macOS
+thread sample before terminating the renderer, and the shell fails closed.
 
 The hosted Intel runner exposes Apple's software OpenGL renderer. Compiling the
 public Hub's complete model and text pipeline can take many minutes per shader,

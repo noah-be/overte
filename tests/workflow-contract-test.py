@@ -285,6 +285,20 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertNotIn("macos-conan-v2-", restore)
         self.assertNotIn("macos-complete-x86_64-qt-aqt-", restore)
 
+    def test_conan_fast_restore_is_bounded_and_falls_back_cleanly(self):
+        restore_name = "- name: Cache Conan packages"
+        discard_name = "- name: Discard interrupted Conan fast-cache restore"
+        probe_name = "- name: Probe latest compatible durable Conan checkpoint"
+        restore = self.source.split(restore_name, 1)[1].split(discard_name, 1)[0]
+        discard = self.source.split(discard_name, 1)[1].split(probe_name, 1)[0]
+        self.assertIn("timeout-minutes: 12", restore)
+        self.assertIn("continue-on-error: true", restore)
+        self.assertIn("steps.conan-cache.outcome == 'failure'", discard)
+        self.assertIn("conan-checkpoint.py discard-partial", discard)
+        self.assertIn('--conan-home "$CONAN_HOME"', discard)
+        self.assertLess(self.source.index(restore_name), self.source.index(discard_name))
+        self.assertLess(self.source.index(discard_name), self.source.index(probe_name))
+
     def test_cancelled_runs_never_save_conan_caches(self):
         complete_save = self.source.split("- name: Save complete Conan cache", 1)[1].split(
             "- name: Save partial Conan cache", 1

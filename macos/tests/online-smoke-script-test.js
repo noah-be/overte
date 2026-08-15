@@ -96,9 +96,8 @@ function createRun() {
     run.windowObject.snapshotHandler("");
     const completion = run.saved.find((entry) =>
         entry.name === "macos-online-smoke-completion.json");
-    assert(completion);
-    assert.strictEqual(completion.value.ready_for_external_validation, false);
-    assert.strictEqual(completion.value.script_success, false);
+    assert.strictEqual(completion, undefined,
+        "failed snapshots must leave the process available for supervisor sampling");
     assert.strictEqual(run.script.stopped, true);
 }
 
@@ -109,8 +108,15 @@ function createRun() {
     run.script.interval();
     const completion = run.saved.find((entry) =>
         entry.name === "macos-online-smoke-completion.json");
-    assert(completion, "deferred callback must leave durable validation evidence");
-    assert.strictEqual(completion.value.ready_for_external_validation, true);
+    assert.strictEqual(completion, undefined,
+        "a pending callback is not successful completion evidence");
+    assert.strictEqual(run.script.stopped, false);
+    run.clock.now += 120000;
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, true);
+    assert.strictEqual(run.saved.some((entry) =>
+        entry.name === "macos-online-smoke-completion.json"), false,
+    "timeout failures must be sampled by the outer supervisor");
 }
 
 console.log("macOS online smoke script contract valid");

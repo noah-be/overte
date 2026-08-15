@@ -24,6 +24,11 @@ repeated before the durable checkpoint is packaged. CMake configuration and
 compilation are separate stages with independent build-tree checkpoints.
 
 The evictable repository-wide Actions cache is only the fast path for Conan.
+Its restore is capped at twelve minutes. A timeout or cache-service failure is
+non-fatal: the workflow removes only the possibly partial `p` and `sources`
+roots, then continues through the independently validated durable checkpoint.
+This prevents an unavailable GitHub cache generation from consuming the whole
+job or contaminating the artifact fallback.
 The workflow also publishes a complete Conan checkpoint as an immutable Actions
 artifact immediately after successful dependency resolution. Its compatibility
 name fingerprints the compiler, Xcode build, macOS SDK, architecture, build

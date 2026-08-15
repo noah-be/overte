@@ -57,6 +57,30 @@ class ConanCheckpointTests(unittest.TestCase):
             archive_chunk_bytes=4096,
         )
 
+    def test_discard_partial_cache_removes_only_managed_roots(self):
+        conan_home = self.root / "partial-home"
+        (conan_home / "p/incomplete").mkdir(parents=True)
+        (conan_home / "sources/incomplete").mkdir(parents=True)
+        (conan_home / "profiles").mkdir()
+        keep = conan_home / "profiles/default"
+        keep.write_text("keep\n", encoding="utf-8")
+        outside = self.root / "outside"
+        outside.mkdir()
+        sentinel = outside / "sentinel"
+        sentinel.write_text("keep\n", encoding="utf-8")
+        os.symlink(outside, conan_home / "p/external")
+
+        checkpoint.discard_partial_cache(conan_home)
+
+        self.assertFalse((conan_home / "p").exists())
+        self.assertFalse((conan_home / "sources").exists())
+        self.assertEqual(keep.read_text(encoding="utf-8"), "keep\n")
+        self.assertEqual(sentinel.read_text(encoding="utf-8"), "keep\n")
+
+    def test_discard_partial_cache_refuses_a_filesystem_root(self):
+        with self.assertRaisesRegex(checkpoint.CheckpointError, "filesystem root"):
+            checkpoint.discard_partial_cache(Path(Path.cwd().anchor))
+
     def test_round_trip_preserves_files_modes_and_safe_links(self):
         manifest = self.create()
         self.assertEqual(manifest["schema"], checkpoint.SCHEMA)

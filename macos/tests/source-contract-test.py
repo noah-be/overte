@@ -1195,7 +1195,8 @@ for online_timing_contract in (
     "latestInventory.visible_primitive_count > 0",
     "saveEntityInventory(latestInventory)",
     "snapshotSettleDeadline = Date.now() + 300000",
-    "snapshot_callback_deferred",
+    "snapshot_still_pending",
+    "if (success)",
     "Date.now() + 420000",
 ):
     if online_timing_contract not in online_script:
@@ -1208,6 +1209,8 @@ if online_script.index("saveEntityInventory(latestInventory)") > online_script.i
     raise SystemExit("online smoke must freeze its correlated inventory before capture")
 if 'OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-600' not in online_smoke:
     raise SystemExit("online smoke must cover the measured software-renderer frame budget")
+if 'finish(true, "snapshot_settle_elapsed")' in online_script:
+    raise SystemExit("online smoke must never treat a pending PNG callback as success")
 
 for transition_geometry_contract in (
     "visibleGeometryCount",

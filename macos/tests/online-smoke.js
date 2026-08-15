@@ -30,6 +30,7 @@
     var deadline = Date.now() + 420000;
     var snapshotStage = "waiting";
     var snapshotSettleDeadline = 0;
+    var snapshotPendingReported = false;
     var visibleGeometryReadyAt = 0;
     var snapshotPath = "";
     var latestInventory = null;
@@ -109,15 +110,19 @@
         }
         completed = true;
         print("OVERTE_MACOS_SMOKE " + (success ? "passed " : "failed ") + detail);
-        // The app's main thread can be blocked in Qt render synchronization
-        // after the test script finishes.  Persist a small, fail-closed
-        // sentinel so the outer supervisor can stop the process; the shell
-        // still validates the process evidence, gates, inventory and PNG.
-        Test.saveObject({
-            schema_version: 1,
-            ready_for_external_validation: success,
-            script_success: success
-        }, "macos-online-smoke-completion.json");
+        // A successful snapshot can leave the app's main thread blocked in Qt
+        // render synchronization after the script finishes. Persist the
+        // sentinel only after that concrete proof exists. On failure, leave
+        // the process to the outer bounded supervisor so it captures a macOS
+        // sample before terminating the renderer instead of stopping early
+        // with no stack evidence.
+        if (success) {
+            Test.saveObject({
+                schema_version: 1,
+                ready_for_external_validation: true,
+                script_success: true
+            }, "macos-online-smoke-completion.json");
+        }
         Script.stop();
     }
 
@@ -178,9 +183,9 @@
             snapshotSettleDeadline = Date.now() + 300000;
         }
         if (snapshotStage === "capturing" && snapshotSettleDeadline !== 0 &&
-                Date.now() >= snapshotSettleDeadline) {
-            print("OVERTE_MACOS_SMOKE snapshot_callback_deferred");
-            finish(true, "snapshot_settle_elapsed");
+                Date.now() >= snapshotSettleDeadline && !snapshotPendingReported) {
+            snapshotPendingReported = true;
+            print("OVERTE_MACOS_SMOKE snapshot_still_pending");
         }
         if (Date.now() >= deadline) {
             finish(false, snapshotStage === "waiting" ? "entity_timeout" :
