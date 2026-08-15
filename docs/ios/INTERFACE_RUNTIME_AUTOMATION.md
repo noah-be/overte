@@ -63,12 +63,15 @@ runner files because Qt startup messages are not guaranteed to enter Unified
 Logging. The returned simulator PID and its argument-free CPU/RAM/process state
 are checked during every poll, turning an early app exit into an immediate
 failure instead of a four-minute timeout. If startup has not produced a gate
-after one second, one bounded one-second `sample` captures the live stack before
+after one second, one bounded one-second `sample` captures the live stack into
+the private diagnostic set before
 a fast native crash can destroy it. On failure the harness additionally queries
 a bounded bundle-specific dyld/RunningBoard/FrontBoard postmortem. If the
 launched PID has exited, it then waits up to 20 seconds for CrashReporter and
 retains only reports created after this launch; ordinary live-process gate
-failures do not pay that delay. Raw logs, process samples and
+failures do not pay that delay. The failure workflow verifies the Mach-O UUID
+against the report and symbolicates the faulting Overte frames with `atos`
+before redaction and upload. Raw logs, process samples and
 crash data remain private runner scratch data; only their size-bounded,
 secret-redacted diagnostic copies are uploaded on failure, and otherwise they
 are deleted.

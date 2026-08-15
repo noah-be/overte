@@ -80,6 +80,9 @@ assert '"$xcode_build" == 16F6' in runtime
 assert "com.apple.CoreSimulator.SimRuntime.iOS-18-5" in runtime
 assert "expected exactly one available iOS 18.5 runtime" in runtime
 assert "interface-world-simulator-smoke.sh" in runtime
+assert "symbolicate-simulator-crash.py" in runtime
+assert "*-crash-report.log" in runtime and "*-symbolicated-crash.json" in runtime
+assert '"$crash" "$app/Overte" "$symbolicated"' in runtime
 assert "for family in iphone ipad" in runtime
 assert "serverless -" in runtime and 'online "$ONLINE_DOMAIN"' in runtime
 assert "validate-world-evidence-set.py" in runtime

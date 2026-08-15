@@ -534,7 +534,19 @@ jobs:
         if: ${{ always() && steps.worlds.outcome == 'failure' }}
         run: |
           set -euo pipefail
+          app="${{ steps.candidate.outputs.app }}"
+          for crash in "$RUNTIME_ROOT"/raw-diagnostics/*-crash-report.log; do
+            [[ -s "$crash" ]] || continue
+            symbolicated="${crash%-crash-report.log}-symbolicated-crash.json"
+            python3 ios/tools/symbolicate-simulator-crash.py \
+              "$crash" "$app/Overte" "$symbolicated"
+          done
           for source in "$RUNTIME_ROOT"/raw-diagnostics/*.log; do
+            [[ -f "$source" ]] || continue
+            python3 ios/tools/sanitize-ci-log.py "$source" \
+              "$RUNTIME_ROOT/upload-diagnostics/$(basename "$source")"
+          done
+          for source in "$RUNTIME_ROOT"/raw-diagnostics/*-symbolicated-crash.json; do
             [[ -f "$source" ]] || continue
             python3 ios/tools/sanitize-ci-log.py "$source" \
               "$RUNTIME_ROOT/upload-diagnostics/$(basename "$source")"

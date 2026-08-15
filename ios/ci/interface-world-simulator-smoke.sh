@@ -201,18 +201,26 @@ process_is_running() {
 
 capture_startup_stack() {
     [[ -n "$launch_pid" ]] || return 0
-    local sample_tool status=0
+    local sample_tool sample_output="$temp_root/startup.sample" status=0
     sample_tool="$(command -v sample || true)"
     [[ -n "$sample_tool" ]] || {
         printf 'stack_sample=unavailable\n---\n' >> "$process_state_log"
         chmod 0600 "$process_state_log"
         return 0
     }
+    rm -f "$sample_output"
     {
         printf 'stack_sample_utc=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-        "$timeout_runner" 15 "$sample_tool" "$launch_pid" 1 1 || status=$?
+        "$timeout_runner" 15 "$sample_tool" "$launch_pid" 1 1 \
+            -file "$sample_output" || status=$?
+        if [[ -s "$sample_output" ]]; then
+            tail -c 2097152 "$sample_output"
+        else
+            printf 'stack_sample_output=empty\n'
+        fi
         printf 'stack_sample_status=%s\n---\n' "$status"
     } >> "$process_state_log" 2>&1
+    rm -f "$sample_output"
     chmod 0600 "$process_state_log"
     # Stack capture is supplementary.  Its failure must not replace the
     # actual app/gate result, which remains fail-closed below.
@@ -337,7 +345,7 @@ finish() {
         run_bounded "simulator cleanup" 60 xcrun simctl shutdown "$active_udid" >/dev/null || true
     fi
     rm -f "$raw_log" "$app_stdout" "$app_stderr" "$runtime_log" "$process_state_log" \
-        "$command_stderr" "$log_stream_stderr" "$device_list"
+        "$command_stderr" "$log_stream_stderr" "$device_list" "$temp_root/startup.sample"
     rm -rf "$temp_root"
     exit "$status"
 }

@@ -200,7 +200,20 @@ fi
     fake_xcrun.chmod(fake_xcrun.stat().st_mode | stat.S_IXUSR)
     fake_sample = bin_dir / "sample"
     fake_sample.write_text(
-        "#!/bin/sh\nprintf '%s\\n' \"${FAKE_SAMPLE_TEXT:-synthetic process stack}\"\n",
+        """#!/bin/sh
+set -eu
+output=
+while [ "$#" -gt 0 ]; do
+    if [ "$1" = -file ]; then
+        output=$2
+        shift 2
+    else
+        shift
+    fi
+done
+[ -n "$output" ]
+printf '%s\n' "${FAKE_SAMPLE_TEXT:-synthetic process stack}" > "$output"
+""",
         encoding="utf-8",
     )
     fake_sample.chmod(fake_sample.stat().st_mode | stat.S_IXUSR)
