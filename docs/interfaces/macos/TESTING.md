@@ -117,8 +117,15 @@ one of the three runs of a selectable 60 Hz profile must sustain a present-rate
 p10/p50 of at least 55/58 Hz, a new-frame-rate p10/p50 of at least 50/55 Hz,
 dropped-frame p95 no greater than 0.5 Hz, render-submit p95/p99 no greater than
 18/25 ms, and at most 0.5 percent of render-submit samples above 33.33 ms. A
-separately reported 30 Hz fallback is never promoted to the selected 60 Hz
-gameplay profile. The hosted renderer uses only a bounded diagnostic contract.
+profile must also be repeatable: at 60 Hz, repeat-to-repeat present/new-frame
+MAD and spread may not exceed 2/6 Hz, render-submit p95 MAD/spread 2/6 ms, or
+p99 MAD/spread 3/8 ms. The separate 30 Hz fallback uses 1.5/4 Hz, 4/10 ms, and
+5/14 ms respectively and is only reported when no 60 Hz candidate exists; it is
+never promoted to the selected gameplay profile. The analyzer binds every
+result to the catalog fixture version and SHA-256, independently recorded
+application SHA-256, exact requested and observed settings, expected stress
+entity count, measurement duration, and internally recomputed raw-sample
+statistics. The hosted renderer uses only a bounded diagnostic contract.
 Its result is useful for shader, correctness, and regression diagnosis, but
 cannot certify fluid gameplay or choose an Apple Silicon profile.
 

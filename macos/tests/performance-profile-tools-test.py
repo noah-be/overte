@@ -44,7 +44,7 @@ def run_result(profile_id: str, index: int, present: float, p95: float,
     }
     lod_rows = [
         {"elapsed_ms": offset * 250, **lod_values}
-        for offset in range(1, 4)
+        for offset in range(1, 121)
     ]
     lod_timings = {
         "sampling_interval_ms": 250,
@@ -54,11 +54,11 @@ def run_result(profile_id: str, index: int, present: float, p95: float,
     for name, value in lod_values.items():
         lod_timings[name] = {
             **distribution(value),
-            "count": 3,
+            "count": 120,
             "available": True,
             "invalid_count": 0,
-            "zero_count": int(value == 0) * 3,
-            "positive_count": int(value > 0) * 3,
+            "zero_count": int(value == 0) * 120,
+            "positive_count": int(value > 0) * 120,
         }
     stats = {
         name: distribution(value)
@@ -92,15 +92,25 @@ def run_result(profile_id: str, index: int, present: float, p95: float,
             "gpu": None if "Software" in renderer else {"model": renderer},
             "display": {"width": 1380},
             "platform": {"graphicsAPIs": [{"renderer": renderer}]},
+            "tier": 2,
             "deferred_capable": True,
         },
+        "stress_entities": 13 if fixture_mode == "diagnostic-lite" else 50,
+        "warmup_to_snapshot_ms": 15000,
+        "duration_ms": 30000,
         "sample_count": len(samples),
+        "frame_time_unit": "microseconds",
         "samples_us": samples,
         "measurement_complete": True,
+        "mean_frame_ms": p95,
+        "min_frame_ms": p95,
+        "p50_frame_ms": p95,
+        "p90_frame_ms": p95,
         "p95_frame_ms": p95,
         "p99_frame_ms": p95,
-        "over_16_67_ms": 0,
-        "over_33_33_ms": 0,
+        "max_frame_ms": p95,
+        "over_16_67_ms": 120 if p95 > 16.667 else 0,
+        "over_33_33_ms": 120 if p95 > 33.333 else 0,
         "rates_hz": {
             "render": distribution(present),
             "present": distribution(present),
@@ -133,9 +143,13 @@ def create_matrix(root: Path, *, mode: str, repeats: int, runner_class: str,
         "translated": False,
     }
     (root / "matrix-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (root / "application.sha256").write_text("a" * 64 + "  /fixture/Overte\n", encoding="utf-8")
     attempts = []
     for profile in profiles:
         if runner_class == "hardware":
+            warmup_directory = root / profile / "warmup"
+            warmup_directory.mkdir(parents=True)
+            (warmup_directory / "profile-accepted").write_text("accepted\n", encoding="utf-8")
             attempts.append({
                 "profile": profile,
                 "label": "warmup",
@@ -167,9 +181,10 @@ def create_matrix(root: Path, *, mode: str, repeats: int, runner_class: str,
     return profiles
 
 
-def analyze(matrix: Path, result: Path, junit: Path, repeats: int) -> subprocess.CompletedProcess[str]:
+def analyze(matrix: Path, result: Path, junit: Path, repeats: int,
+            profiles: Path = PROFILES) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(ANALYZER), str(matrix), "--profiles", str(PROFILES),
+        [sys.executable, str(ANALYZER), str(matrix), "--profiles", str(profiles),
          "--result", str(result), "--junit", str(junit), "--minimum-runs", str(repeats)],
         text=True, capture_output=True, check=False,
     )
@@ -215,6 +230,7 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     summary = json.loads(diagnostic_result.read_text(encoding="utf-8"))
     assert summary["diagnostic_only"] is True
     assert summary["selected_profile"] is None
+    assert summary["selected_profile_60hz"] is None
     assert summary["provisional_profile"] is None
     assert summary["diagnostic_profile"] == "forward-compat"
     assert summary["decision_ready"] is False
@@ -243,6 +259,22 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     full_summary = json.loads(full_result.read_text(encoding="utf-8"))
     assert full_summary["decision_ready"] is True
     assert full_summary["selected_profile"] == "deferred-quality"
+    assert full_summary["selected_profile_60hz"] == "deferred-quality"
+    assert full_summary["fallback_profile_30hz"] is None
+
+    full_single = temporary / "full-single"
+    create_matrix(full_single, mode="full", repeats=1,
+                  runner_class="hardware", renderer="Apple M4")
+    full_single_result = temporary / "full-single.json"
+    full_single_junit = temporary / "full-single.xml"
+    full_single_analysis = analyze(
+        full_single, full_single_result, full_single_junit, 1
+    )
+    assert full_single_analysis.returncode == 0, full_single_analysis.stdout
+    full_single_summary = json.loads(full_single_result.read_text(encoding="utf-8"))
+    assert full_single_summary["measurement_passed"] is True
+    assert full_single_summary["decision_ready"] is False
+    assert full_single_summary["selected_profile_60hz"] is None
 
     outlier = temporary / "outlier"
     create_matrix(outlier, mode="full", repeats=3, runner_class="hardware", renderer="Apple M4",
@@ -251,6 +283,45 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     outlier_analysis = analyze(outlier, outlier_result, outlier_junit, 3)
     assert outlier_analysis.returncode == 0, outlier_analysis.stdout + outlier_analysis.stderr
     assert json.loads(outlier_result.read_text(encoding="utf-8"))["selected_profile"] == "deferred-balanced"
+
+    spread = temporary / "spread"
+    spread_overrides = {
+        ("deferred-quality", 1): (60.0, 8.0),
+        ("deferred-quality", 2): (60.0, 8.0),
+        ("deferred-quality", 3): (60.0, 17.0),
+    }
+    create_matrix(spread, mode="full", repeats=3, runner_class="hardware",
+                  renderer="Apple M4", override=spread_overrides)
+    spread_result, spread_junit = temporary / "spread.json", temporary / "spread.xml"
+    spread_analysis = analyze(spread, spread_result, spread_junit, 3)
+    assert spread_analysis.returncode == 0, spread_analysis.stdout + spread_analysis.stderr
+    spread_summary = json.loads(spread_result.read_text(encoding="utf-8"))
+    assert spread_summary["selected_profile"] == "deferred-balanced"
+    spread_profile = next(item for item in spread_summary["profiles"]
+                          if item["profile_id"] == "deferred-quality")
+    assert spread_profile["variation_60hz"]["metrics"]["frame_p95_ms"]["mad"] == 0
+    assert spread_profile["variation_60hz"]["metrics"]["frame_p95_ms"]["spread"] == 9
+    assert spread_profile["variation_60hz"]["passed"] is False
+
+    high_mad = temporary / "high-mad"
+    mad_overrides = {
+        ("deferred-quality", 1): (60.0, 8.0),
+        ("deferred-quality", 2): (60.0, 11.0),
+        ("deferred-quality", 3): (60.0, 14.0),
+    }
+    create_matrix(high_mad, mode="full", repeats=3, runner_class="hardware",
+                  renderer="Apple M4", override=mad_overrides)
+    high_mad_result = temporary / "high-mad.json"
+    high_mad_junit = temporary / "high-mad.xml"
+    high_mad_analysis = analyze(high_mad, high_mad_result, high_mad_junit, 3)
+    assert high_mad_analysis.returncode == 0, high_mad_analysis.stdout
+    high_mad_summary = json.loads(high_mad_result.read_text(encoding="utf-8"))
+    assert high_mad_summary["selected_profile"] == "deferred-balanced"
+    high_mad_profile = next(item for item in high_mad_summary["profiles"]
+                            if item["profile_id"] == "deferred-quality")
+    assert high_mad_profile["variation_60hz"]["metrics"]["frame_p95_ms"]["spread"] == 6
+    assert high_mad_profile["variation_60hz"]["metrics"]["frame_p95_ms"]["mad"] == 3
+    assert high_mad_profile["variation_60hz"]["passed"] is False
 
     low_tail = temporary / "low-tail"
     create_matrix(low_tail, mode="full", repeats=3, runner_class="hardware", renderer="Apple M4")
@@ -283,7 +354,8 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     failed_result, failed_junit = temporary / "failed.json", temporary / "failed.xml"
     failed_analysis = analyze(failed, failed_result, failed_junit, 1)
     assert failed_analysis.returncode != 0
-    assert json.loads(failed_result.read_text(encoding="utf-8"))["measurement_passed"] is False
+    failed_summary = json.loads(failed_result.read_text(encoding="utf-8"))
+    assert failed_summary.get("measurement_passed") is False, failed_analysis.stdout
 
     forged = temporary / "forged"
     create_matrix(forged, mode="quick", repeats=1, runner_class="hardware", renderer="Apple M4")
@@ -323,7 +395,7 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
         missing_stats, missing_stats_result, missing_stats_junit, 1
     )
     assert missing_stats_analysis.returncode != 0
-    assert "stats.gpuFrameTime must be an object" in missing_stats_analysis.stdout
+    assert "statistics fields do not match schema 2" in missing_stats_analysis.stdout
 
     mismatched = temporary / "mismatched"
     create_matrix(mismatched, mode="quick", repeats=1, runner_class="hardware", renderer="Apple M4")
@@ -334,6 +406,112 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     mismatch_result, mismatch_junit = temporary / "mismatch.json", temporary / "mismatch.xml"
     mismatch_analysis = analyze(mismatched, mismatch_result, mismatch_junit, 1)
     assert mismatch_analysis.returncode != 0
+
+    wrong_fixture = temporary / "wrong-fixture"
+    create_matrix(wrong_fixture, mode="quick", repeats=1,
+                  runner_class="hardware", renderer="Apple M4")
+    wrong_fixture_path = wrong_fixture / "forward-compat/run-1/macos-profile.json"
+    wrong_fixture_payload = json.loads(wrong_fixture_path.read_text(encoding="utf-8"))
+    wrong_fixture_payload["fixture_version"] = "stale-fixture"
+    wrong_fixture_path.write_text(json.dumps(wrong_fixture_payload), encoding="utf-8")
+    wrong_fixture_result = temporary / "wrong-fixture.json"
+    wrong_fixture_junit = temporary / "wrong-fixture.xml"
+    wrong_fixture_analysis = analyze(
+        wrong_fixture, wrong_fixture_result, wrong_fixture_junit, 1
+    )
+    assert wrong_fixture_analysis.returncode != 0
+    assert "fixture mode mismatch" in wrong_fixture_analysis.stdout
+
+    nonfinite = temporary / "nonfinite"
+    create_matrix(nonfinite, mode="quick", repeats=1,
+                  runner_class="hardware", renderer="Apple M4")
+    nonfinite_path = nonfinite / "forward-compat/run-1/macos-profile.json"
+    nonfinite_payload = json.loads(nonfinite_path.read_text(encoding="utf-8"))
+    nonfinite_payload["samples_us"][0] = float("nan")
+    nonfinite_path.write_text(json.dumps(nonfinite_payload), encoding="utf-8")
+    nonfinite_result = temporary / "nonfinite.json"
+    nonfinite_junit = temporary / "nonfinite.xml"
+    nonfinite_analysis = analyze(nonfinite, nonfinite_result, nonfinite_junit, 1)
+    assert nonfinite_analysis.returncode != 0
+    assert "samples_us must be finite" in nonfinite_analysis.stdout
+
+    wrong_app = temporary / "wrong-app"
+    create_matrix(wrong_app, mode="quick", repeats=1,
+                  runner_class="hardware", renderer="Apple M4")
+    (wrong_app / "application.sha256").write_text("b" * 64 + "  /fixture/Overte\n",
+                                                   encoding="utf-8")
+    wrong_app_result = temporary / "wrong-app.json"
+    wrong_app_junit = temporary / "wrong-app.xml"
+    wrong_app_analysis = analyze(wrong_app, wrong_app_result, wrong_app_junit, 1)
+    assert wrong_app_analysis.returncode != 0
+    wrong_app_summary = json.loads(wrong_app_result.read_text(encoding="utf-8"))
+    assert wrong_app_summary["measurement_passed"] is False
+    assert wrong_app_summary["selected_profile_60hz"] is None
+    wrong_app_suite = ET.parse(wrong_app_junit).getroot()
+    assert int(wrong_app_suite.attrib["tests"]) >= 1
+    assert int(wrong_app_suite.attrib["failures"]) >= 1
+
+    wrong_catalog_hash = temporary / "wrong-catalog-hash"
+    create_matrix(wrong_catalog_hash, mode="quick", repeats=1,
+                  runner_class="hardware", renderer="Apple M4")
+    wrong_catalog_manifest_path = wrong_catalog_hash / "matrix-manifest.json"
+    wrong_catalog_manifest = json.loads(
+        wrong_catalog_manifest_path.read_text(encoding="utf-8")
+    )
+    wrong_catalog_manifest["profiles_sha256"] = "b" * 64
+    wrong_catalog_manifest_path.write_text(json.dumps(wrong_catalog_manifest), encoding="utf-8")
+    wrong_catalog_result = temporary / "wrong-catalog-hash.json"
+    wrong_catalog_junit = temporary / "wrong-catalog-hash.xml"
+    wrong_catalog_analysis = analyze(
+        wrong_catalog_hash, wrong_catalog_result, wrong_catalog_junit, 1
+    )
+    assert wrong_catalog_analysis.returncode != 0
+    assert "catalog hash" in wrong_catalog_analysis.stdout
+
+    strict_catalog_path = temporary / "strict-profiles.json"
+    strict_catalog = json.loads(PROFILES.read_text(encoding="utf-8"))
+    strict_catalog["unexpected"] = True
+    strict_catalog_path.write_text(json.dumps(strict_catalog), encoding="utf-8")
+    strict_catalog_result = temporary / "strict-catalog.json"
+    strict_catalog_junit = temporary / "strict-catalog.xml"
+    strict_catalog_analysis = analyze(
+        quick, strict_catalog_result, strict_catalog_junit, 1, strict_catalog_path
+    )
+    assert strict_catalog_analysis.returncode != 0
+    assert "catalog fields do not match schema 1" in strict_catalog_analysis.stdout
+
+    conflicting_renderer = temporary / "conflicting-renderer"
+    conflicting_profiles = create_matrix(
+        conflicting_renderer, mode="quick", repeats=1,
+        runner_class="hardware", renderer="Apple M4",
+    )
+    for profile in conflicting_profiles:
+        path = conflicting_renderer / profile / "run-1/macos-profile.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["platform_info"]["platform"]["graphicsAPIs"][0]["renderer"] = (
+            "Apple Software Renderer"
+        )
+        path.write_text(json.dumps(payload), encoding="utf-8")
+    conflicting_result = temporary / "conflicting-renderer.json"
+    conflicting_junit = temporary / "conflicting-renderer.xml"
+    conflicting_analysis = analyze(
+        conflicting_renderer, conflicting_result, conflicting_junit, 1
+    )
+    assert conflicting_analysis.returncode != 0
+    conflicting_summary = json.loads(conflicting_result.read_text(encoding="utf-8"))
+    assert conflicting_summary["selected_profile"] is None
+    assert conflicting_summary["fallback_profile_30hz"] is None
+
+    unknown_renderer = temporary / "unknown-renderer"
+    create_matrix(unknown_renderer, mode="quick", repeats=1,
+                  runner_class="hardware", renderer="")
+    unknown_result = temporary / "unknown-renderer.json"
+    unknown_junit = temporary / "unknown-renderer.xml"
+    unknown_analysis = analyze(unknown_renderer, unknown_result, unknown_junit, 1)
+    assert unknown_analysis.returncode != 0
+    unknown_summary = json.loads(unknown_result.read_text(encoding="utf-8"))
+    assert unknown_summary["selected_profile"] is None
+    assert unknown_summary["fallback_profile_30hz"] is None
 
     rosetta = temporary / "rosetta"
     create_matrix(rosetta, mode="quick", repeats=1, runner_class="hardware", renderer="Apple M4")

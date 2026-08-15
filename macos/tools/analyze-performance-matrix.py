@@ -22,6 +22,7 @@ class MatrixError(RuntimeError):
 
 
 RUN_LABEL = re.compile(r"run-([1-9][0-9]*)\Z")
+PROFILE_ID = re.compile(r"[a-z0-9][a-z0-9-]{0,47}\Z")
 DIAGNOSTIC_RENDERER_TOKENS = (
     "software", "paravirtual", "virtual", "swiftshader", "llvmpipe", "softpipe", "offscreen",
 )
@@ -29,6 +30,33 @@ PROFILE_FIELDS = (
     "render_method", "shadows", "haze", "bloom", "ambient_occlusion", "local_lighting",
     "procedural_materials", "antialiasing", "viewport_scale", "forward_samples",
 )
+CATALOG_FIELDS = {
+    "schema_version", "fixture_version", "profiles", "diagnostic_order", "quick_order",
+    "full_order",
+}
+PROFILE_CATALOG_FIELDS = {"id", "quality_score", *PROFILE_FIELDS}
+MANIFEST_FIELDS = {
+    "schema_version", "mode", "runner_class", "fixture_mode", "repeats",
+    "expected_profiles", "application_sha256", "profiles_sha256", "machine", "translated",
+}
+ATTEMPT_FIELDS = {
+    "profile", "label", "run_index", "exit_code", "accepted", "result_directory",
+}
+RUN_FIELDS = {
+    "schema_version", "platform", "fixture_version", "fixture_mode", "profile_id",
+    "run_index", "quality_score", "requested_profile", "actual_profile", "platform_info",
+    "stress_entities", "warmup_to_snapshot_ms", "duration_ms", "measurement_complete",
+    "sample_count", "frame_time_unit", "samples_us", "mean_frame_ms", "min_frame_ms",
+    "p50_frame_ms", "p90_frame_ms", "p95_frame_ms", "p99_frame_ms", "max_frame_ms",
+    "over_16_67_ms", "over_33_33_ms", "rates_hz", "stats", "lod_timings_ms",
+}
+PLATFORM_INFO_FIELDS = {
+    "platform", "computer", "cpu", "gpu", "display", "tier", "deferred_capable",
+}
+BASE_DISTRIBUTION_FIELDS = {"count", "mean", "min", "p10", "p50", "p95", "max"}
+LOD_DISTRIBUTION_FIELDS = {
+    *BASE_DISTRIBUTION_FIELDS, "available", "invalid_count", "zero_count", "positive_count",
+}
 STATS_FIELDS = (
     "gpuFrameTime", "batchFrameTime", "engineFrameTime", "drawcalls", "triangles",
     "itemRendered", "shadowRendered", "gpuTextureMemory", "gpuTextureResidentMemory",
@@ -92,37 +120,51 @@ def load_object(path: Path, description: str) -> dict[str, object]:
     return value
 
 
-def load_catalog(path: Path) -> tuple[dict[str, dict[str, object]], dict[str, list[str]], str]:
+def load_catalog(
+        path: Path,
+) -> tuple[dict[str, dict[str, object]], dict[str, list[str]], str, str]:
     payload = load_object(path, "profile catalog")
+    if set(payload) != CATALOG_FIELDS:
+        raise MatrixError("profile catalog fields do not match schema 1")
     if payload.get("schema_version") != 1 or not isinstance(payload.get("profiles"), list):
         raise MatrixError("unsupported profile catalog")
+    fixture_version = payload.get("fixture_version")
+    if not isinstance(fixture_version, str) or not fixture_version.strip():
+        raise MatrixError("profile catalog has no fixture version")
     profiles: dict[str, dict[str, object]] = {}
     quality_scores: set[int] = set()
     for index, profile in enumerate(payload["profiles"]):
-        if not isinstance(profile, dict) or not isinstance(profile.get("id"), str):
+        if not isinstance(profile, dict) or set(profile) != PROFILE_CATALOG_FIELDS:
+            raise MatrixError(f"invalid profile catalog entry {index}")
+        if not isinstance(profile.get("id"), str):
             raise MatrixError(f"invalid profile catalog entry {index}")
         identifier = profile["id"]
+        if not PROFILE_ID.fullmatch(identifier):
+            raise MatrixError(f"invalid profile id in catalog entry {index}")
         if identifier in profiles:
             raise MatrixError(f"duplicate profile id {identifier}")
         quality_score = integer(profile.get("quality_score"), f"profile {identifier} quality_score")
+        if quality_score > 100:
+            raise MatrixError(f"profile {identifier} quality score is outside 0..100")
         if quality_score in quality_scores:
             raise MatrixError(f"duplicate profile quality score {quality_score}")
         quality_scores.add(quality_score)
         for field in PROFILE_FIELDS:
             if field not in profile:
                 raise MatrixError(f"profile {identifier} is missing {field}")
-        if profile["render_method"] not in (0, 1):
+        if integer(profile["render_method"], f"profile {identifier} render_method") not in (0, 1):
             raise MatrixError(f"profile {identifier} has invalid render method")
         for field in ("shadows", "haze", "bloom", "ambient_occlusion", "local_lighting",
                       "procedural_materials"):
             if not isinstance(profile[field], bool):
                 raise MatrixError(f"profile {identifier} has non-boolean {field}")
-        integer(profile["antialiasing"], f"profile {identifier} antialiasing")
-        if not 0.1 <= finite(profile["viewport_scale"], f"profile {identifier} viewport_scale") <= 2.0:
-            raise MatrixError(f"profile {identifier} viewport scale is outside 0.1..2.0")
-        if not 1 <= integer(profile["forward_samples"],
-                            f"profile {identifier} forward_samples", minimum=1) <= 32:
-            raise MatrixError(f"profile {identifier} forward samples are outside 1..32")
+        if integer(profile["antialiasing"], f"profile {identifier} antialiasing") not in (0, 1, 2):
+            raise MatrixError(f"profile {identifier} antialiasing is invalid")
+        if not 0.5 <= finite(profile["viewport_scale"], f"profile {identifier} viewport_scale") <= 1.0:
+            raise MatrixError(f"profile {identifier} viewport scale is outside 0.5..1.0")
+        if integer(profile["forward_samples"],
+                   f"profile {identifier} forward_samples", minimum=1) not in (1, 2, 4):
+            raise MatrixError(f"profile {identifier} forward samples are invalid")
         profiles[identifier] = profile
     orders: dict[str, list[str]] = {}
     for name in ("diagnostic_order", "quick_order", "full_order"):
@@ -132,11 +174,15 @@ def load_catalog(path: Path) -> tuple[dict[str, dict[str, object]], dict[str, li
         if len(set(order)) != len(order):
             raise MatrixError(f"duplicate profile in {name}")
         orders[name] = order
-    return profiles, orders, hashlib.sha256(path.read_bytes()).hexdigest()
+    if set(orders["full_order"]) != set(profiles):
+        raise MatrixError("full_order must contain every catalog profile exactly once")
+    return profiles, orders, hashlib.sha256(path.read_bytes()).hexdigest(), fixture_version
 
 
 def load_manifest(matrix: Path, catalog_hash: str, orders: dict[str, list[str]]) -> dict[str, object]:
     manifest = load_object(matrix / "matrix-manifest.json", "matrix manifest")
+    if set(manifest) != MANIFEST_FIELDS:
+        raise MatrixError("matrix manifest fields do not match schema 1")
     if manifest.get("schema_version") != 1:
         raise MatrixError("unsupported matrix manifest")
     mode = manifest.get("mode")
@@ -148,6 +194,8 @@ def load_manifest(matrix: Path, catalog_hash: str, orders: dict[str, list[str]])
     if fixture_mode != expected_fixture:
         raise MatrixError("runner class and fixture mode disagree")
     repeats = integer(manifest.get("repeats"), "manifest repeats", minimum=1)
+    if repeats > 10:
+        raise MatrixError("manifest repeats is outside 1..10")
     expected_profiles = manifest.get("expected_profiles")
     expected_order = orders["diagnostic_order" if runner_class == "diagnostic" else f"{mode}_order"]
     if expected_profiles != expected_order:
@@ -157,6 +205,19 @@ def load_manifest(matrix: Path, catalog_hash: str, orders: dict[str, list[str]])
     app_sha = manifest.get("application_sha256")
     if not isinstance(app_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", app_sha):
         raise MatrixError("matrix manifest has no valid application SHA-256")
+    machine = manifest.get("machine")
+    if machine not in ("arm64", "x86_64") or not isinstance(manifest.get("translated"), bool):
+        raise MatrixError("matrix manifest has invalid architecture evidence")
+    try:
+        sha_text = (matrix / "application.sha256").read_text(encoding="utf-8")
+    except OSError as error:
+        raise MatrixError(f"could not read application SHA-256 evidence: {error}") from error
+    sha_lines = sha_text.splitlines()
+    recorded_sha = sha_lines[0].split(maxsplit=1) if len(sha_lines) == 1 else []
+    if len(recorded_sha) != 2 or not re.fullmatch(r"[0-9a-f]{64}", recorded_sha[0]):
+        raise MatrixError("application SHA-256 evidence is invalid")
+    if recorded_sha[0] != app_sha:
+        raise MatrixError("application SHA-256 evidence does not match the matrix manifest")
     return manifest
 
 
@@ -174,6 +235,8 @@ def load_attempts(matrix: Path, manifest: dict[str, object]) -> tuple[list[dict[
             raise MatrixError(f"invalid attempt record {number}: {error}") from error
         if not isinstance(attempt, dict):
             raise MatrixError(f"attempt record {number} must be an object")
+        if set(attempt) != ATTEMPT_FIELDS:
+            raise MatrixError(f"attempt record {number} fields do not match schema 1")
         profile = attempt.get("profile")
         label = attempt.get("label")
         result_directory = attempt.get("result_directory")
@@ -186,13 +249,26 @@ def load_attempts(matrix: Path, manifest: dict[str, object]) -> tuple[list[dict[
         relative = Path(result_directory)
         if relative.is_absolute() or ".." in relative.parts:
             raise MatrixError(f"attempt record {number} escapes the matrix directory")
-        attempt["resolved_directory"] = matrix / relative
-        integer(attempt.get("run_index"), f"attempt {number} run_index", minimum=1)
+        if relative != Path(str(profile)) / label:
+            raise MatrixError(f"attempt record {number} result directory does not match its identity")
+        resolved_directory = matrix / relative
+        if attempt.get("accepted") is True:
+            try:
+                resolved_directory.resolve(strict=True).relative_to(matrix.resolve(strict=True))
+            except (OSError, ValueError) as error:
+                raise MatrixError(f"attempt record {number} resolves outside the matrix") from error
+        attempt["resolved_directory"] = resolved_directory
+        run_index = integer(attempt.get("run_index"), f"attempt {number} run_index", minimum=1)
+        expected_index = 1 if label == "warmup" else int(RUN_LABEL.fullmatch(label).group(1)) + 1
+        if run_index != expected_index:
+            raise MatrixError(f"attempt record {number} run index does not match its label")
         integer(attempt.get("exit_code"), f"attempt {number} exit_code")
         if not isinstance(attempt.get("accepted"), bool):
             raise MatrixError(f"attempt record {number} has invalid acceptance state")
         if attempt["accepted"] != (attempt["exit_code"] == 0):
             raise MatrixError(f"attempt record {number} acceptance and exit status disagree")
+        if attempt["accepted"] and not (resolved_directory / "profile-accepted").is_file():
+            raise MatrixError(f"accepted attempt record {number} has no acceptance marker")
         attempts.append(attempt)
 
     failures: list[str] = []
@@ -218,9 +294,13 @@ def load_attempts(matrix: Path, manifest: dict[str, object]) -> tuple[list[dict[
     return measured, failures
 
 
-def validate_distribution(value: object, field: str) -> dict[str, object]:
+def validate_distribution(
+        value: object, field: str, *, expected_fields: set[str] = BASE_DISTRIBUTION_FIELDS,
+) -> dict[str, object]:
     if not isinstance(value, dict):
         raise MatrixError(f"{field} must be an object")
+    if set(value) != expected_fields:
+        raise MatrixError(f"{field} fields do not match its schema")
     integer(value.get("count"), f"{field}.count", minimum=1)
     numbers = {
         name: finite(value.get(name), f"{field}.{name}", minimum=0)
@@ -238,6 +318,9 @@ def validate_lod_timings(value: object, identifier: str) -> dict[str, object]:
     field = f"{identifier}.lod_timings_ms"
     if not isinstance(value, dict):
         raise MatrixError(f"{field} must be an object")
+    expected_fields = {"sampling_interval_ms", "semantics", "raw_samples", *LOD_TIMING_FIELDS}
+    if set(value) != expected_fields:
+        raise MatrixError(f"{field} fields do not match schema 2")
     if value.get("sampling_interval_ms") != 250 or value.get("semantics") != (
             "polled_latest_and_moving_averages"):
         raise MatrixError(f"{field} has unsupported sampling semantics")
@@ -248,7 +331,7 @@ def validate_lod_timings(value: object, identifier: str) -> dict[str, object]:
     invalid: Counter[str] = Counter()
     previous_elapsed = -1.0
     for index, row in enumerate(rows):
-        if not isinstance(row, dict):
+        if not isinstance(row, dict) or set(row) != {"elapsed_ms", *LOD_TIMING_FIELDS}:
             raise MatrixError(f"{field}.raw_samples[{index}] must be an object")
         elapsed = finite(row.get("elapsed_ms"), f"{field}.raw_samples[{index}].elapsed_ms")
         if elapsed <= previous_elapsed:
@@ -267,7 +350,9 @@ def validate_lod_timings(value: object, identifier: str) -> dict[str, object]:
         values = observed[name]
         if not values:
             raise MatrixError(f"{field}.{name} has no valid samples")
-        validate_distribution(summary, f"{field}.{name}")
+        validate_distribution(
+            summary, f"{field}.{name}", expected_fields=LOD_DISTRIBUTION_FIELDS,
+        )
         expected = {
             "count": len(values),
             "invalid_count": invalid[name],
@@ -327,16 +412,20 @@ def bottleneck_classification(run: dict[str, object]) -> dict[str, object]:
 
 
 def load_run(attempt: dict[str, object], manifest: dict[str, object],
-             catalog: dict[str, dict[str, object]]) -> dict[str, object]:
+             catalog: dict[str, dict[str, object]], fixture_version: str) -> dict[str, object]:
     directory = attempt["resolved_directory"]
     marker = directory / "profile-accepted"
     if not marker.is_file():
         raise MatrixError(f"accepted attempt {attempt['profile']}/{attempt['label']} has no marker")
     payload = load_object(directory / "macos-profile.json", "profile result")
     identifier = str(attempt["profile"])
+    if set(payload) != RUN_FIELDS:
+        raise MatrixError(f"profile result fields do not match schema 2 for {identifier}/{attempt['label']}")
     if payload.get("schema_version") != 2 or payload.get("platform") != "macos":
         raise MatrixError(f"unsupported profile result for {identifier}/{attempt['label']}")
-    if payload.get("profile_id") != identifier or payload.get("fixture_mode") != manifest["fixture_mode"]:
+    if (payload.get("profile_id") != identifier or
+            payload.get("fixture_mode") != manifest["fixture_mode"] or
+            payload.get("fixture_version") != fixture_version):
         raise MatrixError(f"profile identity or fixture mode mismatch for {identifier}/{attempt['label']}")
     if payload.get("run_index") != attempt["run_index"] or payload.get("measurement_complete") is not True:
         raise MatrixError(f"incomplete or mismatched run index for {identifier}/{attempt['label']}")
@@ -344,57 +433,111 @@ def load_run(attempt: dict[str, object], manifest: dict[str, object],
     if payload.get("quality_score") != trusted["quality_score"] or payload.get("requested_profile") != trusted:
         raise MatrixError(f"profile {identifier} does not match the trusted catalog")
     actual = payload.get("actual_profile")
-    if not isinstance(actual, dict) or any(actual.get(field) != trusted[field] for field in PROFILE_FIELDS):
+    if (not isinstance(actual, dict) or set(actual) != set(PROFILE_FIELDS) or
+            any(actual.get(field) != trusted[field] for field in PROFILE_FIELDS)):
         raise MatrixError(f"profile {identifier} did not apply the requested settings")
     platform_info = payload.get("platform_info")
-    if not isinstance(platform_info, dict):
+    if not isinstance(platform_info, dict) or set(platform_info) != PLATFORM_INFO_FIELDS:
         raise MatrixError(f"profile {identifier} is missing platform information")
+    for section in ("platform", "computer", "cpu", "display"):
+        if not isinstance(platform_info[section], dict):
+            raise MatrixError(f"profile {identifier} has invalid platform information for {section}")
+    if platform_info["gpu"] is not None and not isinstance(platform_info["gpu"], dict):
+        raise MatrixError(f"profile {identifier} has invalid GPU information")
+    finite(platform_info["tier"], f"{identifier}.platform_info.tier", minimum=0)
+    if not isinstance(platform_info["deferred_capable"], bool):
+        raise MatrixError(f"profile {identifier} has invalid deferred capability")
     if trusted["render_method"] == 0 and platform_info.get("deferred_capable") is not True:
         raise MatrixError(f"profile {identifier} requested deferred rendering on an incapable GPU")
+
+    expected_entities = 13 if manifest["fixture_mode"] == "diagnostic-lite" else 50
+    if integer(payload.get("stress_entities"), f"{identifier}.stress_entities", minimum=1) != expected_entities:
+        raise MatrixError(f"profile {identifier} stress entity count does not match its fixture")
+    minimum_duration = 20000 if manifest["fixture_mode"] == "diagnostic-lite" else 30000
+    finite(payload.get("warmup_to_snapshot_ms"), f"{identifier}.warmup_to_snapshot_ms", minimum=0)
+    if finite(payload.get("duration_ms"), f"{identifier}.duration_ms", minimum=0) < minimum_duration:
+        raise MatrixError(f"profile {identifier} measurement duration is too short")
+    if payload.get("frame_time_unit") != "microseconds":
+        raise MatrixError(f"profile {identifier} has an unsupported frame time unit")
 
     samples_value = payload.get("samples_us")
     if not isinstance(samples_value, list) or not samples_value:
         raise MatrixError(f"profile {identifier} has no frame samples")
     samples = [finite(value, f"{identifier}.samples_us", minimum=0.000001) for value in samples_value]
-    if integer(payload.get("sample_count"), f"{identifier}.sample_count", minimum=1) != len(samples):
+    minimum_samples = 15 if manifest["fixture_mode"] == "diagnostic-lite" else 90
+    if integer(payload.get("sample_count"), f"{identifier}.sample_count", minimum=minimum_samples) != len(samples):
         raise MatrixError(f"profile {identifier} sample count is inconsistent")
-    reported_p95 = finite(payload.get("p95_frame_ms"), f"{identifier}.p95_frame_ms", minimum=0)
-    reported_p99 = finite(payload.get("p99_frame_ms"), f"{identifier}.p99_frame_ms", minimum=0)
-    if not math.isclose(reported_p95, percentile(samples, 0.95) / 1000.0, abs_tol=1e-6):
-        raise MatrixError(f"profile {identifier} has a forged or stale p95")
-    if not math.isclose(reported_p99, percentile(samples, 0.99) / 1000.0, abs_tol=1e-6):
-        raise MatrixError(f"profile {identifier} has a forged or stale p99")
-    for field in ("over_16_67_ms", "over_33_33_ms"):
-        integer(payload.get(field), f"{identifier}.{field}")
+    sorted_samples = sorted(samples)
+    recomputed_frames = {
+        "mean_frame_ms": statistics.fmean(samples) / 1000.0,
+        "min_frame_ms": sorted_samples[0] / 1000.0,
+        "p50_frame_ms": percentile(sorted_samples, 0.50) / 1000.0,
+        "p90_frame_ms": percentile(sorted_samples, 0.90) / 1000.0,
+        "p95_frame_ms": percentile(sorted_samples, 0.95) / 1000.0,
+        "p99_frame_ms": percentile(sorted_samples, 0.99) / 1000.0,
+        "max_frame_ms": sorted_samples[-1] / 1000.0,
+    }
+    for field, expected in recomputed_frames.items():
+        reported = finite(payload.get(field), f"{identifier}.{field}", minimum=0)
+        if not math.isclose(reported, expected, rel_tol=1e-9, abs_tol=1e-6):
+            raise MatrixError(f"profile {identifier} has forged or stale {field}")
+    recomputed_jank = {
+        "over_16_67_ms": sum(value > 16667 for value in samples),
+        "over_33_33_ms": sum(value > 33333 for value in samples),
+    }
+    for field, expected in recomputed_jank.items():
+        if integer(payload.get(field), f"{identifier}.{field}") != expected:
+            raise MatrixError(f"profile {identifier} has inconsistent {field}")
     rates = payload.get("rates_hz")
     if not isinstance(rates, dict):
         raise MatrixError(f"profile {identifier} has no rate distributions")
-    for name in ("render", "present", "new_frame", "dropped", "simulation"):
+    expected_rate_names = {"render", "present", "new_frame", "dropped", "simulation"}
+    if set(rates) != expected_rate_names:
+        raise MatrixError(f"profile {identifier} rate fields do not match schema 2")
+    for name in expected_rate_names:
         validate_distribution(rates.get(name), f"{identifier}.rates_hz.{name}")
+    rate_counts = {int(rates[name]["count"]) for name in expected_rate_names}
+    if len(rate_counts) != 1 or next(iter(rate_counts)) < minimum_samples:
+        raise MatrixError(f"profile {identifier} has incomplete rate sampling")
     stats = payload.get("stats")
     if not isinstance(stats, dict):
         raise MatrixError(f"profile {identifier} has no render statistics")
+    if set(stats) != set(STATS_FIELDS):
+        raise MatrixError(f"profile {identifier} statistics fields do not match schema 2")
     for name in STATS_FIELDS:
         validate_distribution(stats.get(name), f"{identifier}.stats.{name}")
+    stats_counts = {int(stats[name]["count"]) for name in STATS_FIELDS}
+    if stats_counts != rate_counts:
+        raise MatrixError(f"profile {identifier} rate and statistics sample counts disagree")
     payload["lod_timings_ms"] = validate_lod_timings(payload.get("lod_timings_ms"), identifier)
+    if len(payload["lod_timings_ms"]["raw_samples"]) != next(iter(rate_counts)):
+        raise MatrixError(f"profile {identifier} LOD and rate sample counts disagree")
     payload["bottleneck"] = bottleneck_classification(payload)
     return payload
 
 
-def renderer_name(payload: dict[str, object]) -> str:
+def renderer_names(payload: dict[str, object]) -> list[str]:
     info = payload.get("platform_info")
+    names: list[str] = []
     gpu = info.get("gpu") if isinstance(info, dict) else None
     if isinstance(gpu, dict):
         for key in ("model", "name", "description"):
             if isinstance(gpu.get(key), str) and gpu[key].strip():
-                return gpu[key].strip()
+                names.append(gpu[key].strip())
     platform = info.get("platform") if isinstance(info, dict) else None
     graphics_apis = platform.get("graphicsAPIs") if isinstance(platform, dict) else None
     if isinstance(graphics_apis, list):
         for api in graphics_apis:
-            if isinstance(api, dict) and isinstance(api.get("renderer"), str) and api["renderer"].strip():
-                return api["renderer"].strip()
-    return "unknown"
+            if isinstance(api, dict):
+                for key in ("renderer", "name", "vendor"):
+                    if isinstance(api.get(key), str) and api[key].strip():
+                        names.append(api[key].strip())
+    return list(dict.fromkeys(names))
+
+
+def renderer_name(payload: dict[str, object]) -> str:
+    names = renderer_names(payload)
+    return " | ".join(names) if names else "unknown"
 
 
 def hardware_key(payload: dict[str, object], manifest: dict[str, object]) -> str:
@@ -409,14 +552,16 @@ def hardware_key(payload: dict[str, object], manifest: dict[str, object]) -> str
 
 
 def evidence_class(payload: dict[str, object], manifest: dict[str, object]) -> str:
-    renderer = renderer_name(payload).lower()
+    renderer = " ".join(renderer_names(payload)).lower()
     if (manifest["runner_class"] == "diagnostic" or manifest.get("translated") is True or
-            renderer == "unknown" or
+            not renderer or
             any(token in renderer for token in DIAGNOSTIC_RENDERER_TOKENS)):
         return "diagnostic-software"
     machine = str(manifest.get("machine", "unknown"))
     if machine == "arm64" and "apple" in renderer:
         return "apple-silicon-native"
+    if machine == "arm64":
+        return "diagnostic-unknown"
     return "mac-hardware-other"
 
 
@@ -447,6 +592,60 @@ def run_contract(run: dict[str, object], target: int) -> bool:
     )
 
 
+def variation_contract(runs: list[dict[str, object]], target: int) -> dict[str, object]:
+    """Reject repeat-to-repeat instability even when every run clears its absolute floor."""
+    limits = {
+        60: {
+            "present_hz_p50": (2.0, 6.0),
+            "new_frame_hz_p50": (2.0, 6.0),
+            "frame_p95_ms": (2.0, 6.0),
+            "frame_p99_ms": (3.0, 8.0),
+        },
+        30: {
+            "present_hz_p50": (1.5, 4.0),
+            "new_frame_hz_p50": (1.5, 4.0),
+            "frame_p95_ms": (4.0, 10.0),
+            "frame_p99_ms": (5.0, 14.0),
+        },
+    }[target]
+    if not runs:
+        return {
+            "passed": False,
+            "metrics": {
+                name: {
+                    "mad": None,
+                    "spread": None,
+                    "maximum_mad": mad_limit,
+                    "maximum_spread": spread_limit,
+                    "passed": False,
+                }
+                for name, (mad_limit, spread_limit) in limits.items()
+            },
+        }
+    series = {
+        "present_hz_p50": [float(run["rates_hz"]["present"]["p50"]) for run in runs],
+        "new_frame_hz_p50": [float(run["rates_hz"]["new_frame"]["p50"]) for run in runs],
+        "frame_p95_ms": [float(run["p95_frame_ms"]) for run in runs],
+        "frame_p99_ms": [float(run["p99_frame_ms"]) for run in runs],
+    }
+    metrics: dict[str, object] = {}
+    passed = bool(runs)
+    for name, values in series.items():
+        mad_limit, spread_limit = limits[name]
+        mad = median_absolute_deviation(values)
+        spread = max(values) - min(values)
+        within_limit = mad <= mad_limit and spread <= spread_limit
+        metrics[name] = {
+            "mad": mad,
+            "spread": spread,
+            "maximum_mad": mad_limit,
+            "maximum_spread": spread_limit,
+            "passed": within_limit,
+        }
+        passed = passed and within_limit
+    return {"passed": passed, "metrics": metrics}
+
+
 def aggregate(runs: list[dict[str, object]], manifest: dict[str, object],
               minimum_runs: int, attempt_failures: list[str]) -> dict[str, object]:
     if not runs and not attempt_failures:
@@ -475,9 +674,13 @@ def aggregate(runs: list[dict[str, object]], manifest: dict[str, object],
         p99 = [float(run["p99_frame_ms"]) for run in profile_runs]
         present = [float(run["rates_hz"]["present"]["p50"]) for run in profile_runs]
         new_frame = [float(run["rates_hz"]["new_frame"]["p50"]) for run in profile_runs]
-        enough = len(profile_runs) >= minimum_runs
-        stable_60 = enough and all(run_contract(run, 60) for run in profile_runs)
-        stable_30 = enough and all(run_contract(run, 30) for run in profile_runs)
+        enough = len(profile_runs) == minimum_runs
+        variation_60 = variation_contract(profile_runs, 60)
+        variation_30 = variation_contract(profile_runs, 30)
+        stable_60 = (enough and all(run_contract(run, 60) for run in profile_runs)
+                     and bool(variation_60["passed"]))
+        stable_30 = (enough and all(run_contract(run, 30) for run in profile_runs)
+                     and bool(variation_30["passed"]))
         bottlenecks = Counter(str(run["bottleneck"]["primary"]) for run in profile_runs)
         dominant_bottleneck = bottlenecks.most_common(1)[0][0] if bottlenecks else None
         lod_medians = {
@@ -492,6 +695,8 @@ def aggregate(runs: list[dict[str, object]], manifest: dict[str, object],
             "enough_runs": enough,
             "all_runs_60hz": stable_60,
             "all_runs_30hz": stable_30,
+            "variation_60hz": variation_60,
+            "variation_30hz": variation_30,
             "p95_frame_ms_median": statistics.median(p95) if p95 else None,
             "p95_frame_ms_mad": median_absolute_deviation(p95) if p95 else None,
             "p99_frame_ms_max": max(p99) if p99 else None,
@@ -518,7 +723,7 @@ def aggregate(runs: list[dict[str, object]], manifest: dict[str, object],
     stable_60.sort(key=order, reverse=True)
     stable_30.sort(key=order, reverse=True)
     provisional = stable_60[0]["profile_id"] if stable_60 else None
-    fallback = stable_30[0]["profile_id"] if stable_30 else None
+    fallback = stable_30[0]["profile_id"] if not stable_60 and stable_30 else None
     selected = provisional if decision_ready else None
     diagnostic_profile = None
     if diagnostic_only:
@@ -550,6 +755,7 @@ def aggregate(runs: list[dict[str, object]], manifest: dict[str, object],
         "decision_ready": decision_ready,
         "measurement_passed": evidence_complete,
         "selected_profile": selected,
+        "selected_profile_60hz": selected,
         "provisional_profile": provisional,
         "fallback_profile_30hz": fallback,
         "diagnostic_profile": diagnostic_profile,
@@ -604,12 +810,15 @@ def main() -> int:
     if not 1 <= arguments.minimum_runs <= 20:
         parser.error("--minimum-runs is outside 1..20")
     try:
-        catalog, orders, catalog_hash = load_catalog(arguments.profiles)
+        catalog, orders, catalog_hash, fixture_version = load_catalog(arguments.profiles)
         manifest = load_manifest(arguments.matrix_directory, catalog_hash, orders)
         if arguments.minimum_runs != int(manifest["repeats"]):
             raise MatrixError("minimum runs must match the immutable matrix manifest")
         attempts, attempt_failures = load_attempts(arguments.matrix_directory, manifest)
-        runs = [load_run(attempt, manifest, catalog) for attempt in attempts if attempt["accepted"]]
+        runs = [
+            load_run(attempt, manifest, catalog, fixture_version)
+            for attempt in attempts if attempt["accepted"]
+        ]
         result = aggregate(runs, manifest, arguments.minimum_runs, attempt_failures)
         atomic_write(arguments.result, (json.dumps(result, sort_keys=True) + "\n").encode("utf-8"))
         write_junit(arguments.junit, result)
@@ -617,7 +826,13 @@ def main() -> int:
         result = {
             "schema_version": 2,
             "passed": False,
+            "measurement_passed": False,
             "decision_ready": False,
+            "selected_profile": None,
+            "selected_profile_60hz": None,
+            "provisional_profile": None,
+            "fallback_profile_30hz": None,
+            "diagnostic_profile": None,
             "profiles": [],
             "failures": [str(error)],
         }
