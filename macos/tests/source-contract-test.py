@@ -71,6 +71,13 @@ for native_runtime_contract in (
         raise SystemExit(f"macOS native dylib lookup contract missing: {native_runtime_contract}")
 
 application_source = (ROOT / "interface/src/Application.cpp").read_text(encoding="utf-8")
+online_loading_telemetry = (
+    ROOT / "libraries/shared/src/MacOSOnlineLoadingTelemetry.cpp"
+).read_text(encoding="utf-8")
+if '#include "shared/GlobalAppProperties.h"' not in online_loading_telemetry:
+    raise SystemExit("shared macOS online telemetry must use the target-local quoted include path")
+if "#include <shared/GlobalAppProperties.h>" in online_loading_telemetry:
+    raise SystemExit("shared macOS online telemetry must not use the unavailable angled include path")
 shutdown = application_source.split("void Application::cleanupBeforeQuit()", 1)[1].split(
     "static const float FOCUS_HIGHLIGHT_EXPANSION_FACTOR", 1
 )[0]

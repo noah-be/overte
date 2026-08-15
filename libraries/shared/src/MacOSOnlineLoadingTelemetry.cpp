@@ -20,7 +20,7 @@
 #include <QtCore/QMutexLocker>
 #include <QtCore/QSet>
 
-#include <shared/GlobalAppProperties.h>
+#include "shared/GlobalAppProperties.h"
 
 namespace macos::online_loading {
 namespace {
