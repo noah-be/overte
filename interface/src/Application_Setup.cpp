@@ -22,6 +22,7 @@
 #include <QDesktopServices>
 #include <QFontDatabase>
 #include <QtCore/QCommandLineParser>
+#include <QtCore/QCoreApplication>
 #include <QtCore/QResource>
 #include <QtQml/QQmlContext>
 #include <QtQuick/QQuickWindow>
@@ -2294,7 +2295,22 @@ void Application::setupSignalsAndOperators() {
                 recorder->recordFrame(AUDIO_FRAME_TYPE, audio);
             }
         });
+#if defined(Q_OS_IOS)
+        // CoreSimulator's RemoteIO unit can enter a tight kAudio_ParamError
+        // loop that starves simctl screenshot and hides the bounded world-gate
+        // diagnostics. Audio is outside this explicitly requested rendering
+        // acceptance mode; physical-device and normal iOS launches keep the
+        // production audio path unchanged.
+        const bool suppressAudioForWorldEvidence =
+            QCoreApplication::arguments().contains(QStringLiteral("--ios-world-evidence"));
+        if (!suppressAudioForWorldEvidence) {
+            audioIO->startThread();
+        } else {
+            qInfo().noquote() << "OVERTE_IOS_WORLD_DIAGNOSTIC audio_suppressed=evidence_mode";
+        }
+#else
         audioIO->startThread();
+#endif
 
         auto audioScriptingInterface = DependencyManager::get<AudioScriptingInterface>().data();
         connect(audioIO, &AudioClient::mutedByMixer, audioScriptingInterface, &AudioScriptingInterface::mutedByMixer);

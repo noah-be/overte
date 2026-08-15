@@ -222,6 +222,12 @@ elif [ "$1 $2" = "simctl launch" ]; then
     printf 'fixture: %s\n' "$app_pid"
 elif [ "$1 $2" = "simctl spawn" ] && [ "$4 $5" = "log stream" ]; then
     printf '%s' "$FAKE_PROCESS_LOG"
+    noise_lines=${FAKE_PROCESS_NOISE_LINES:-0}
+    noise_index=0
+    while [ "$noise_index" -lt "$noise_lines" ]; do
+        printf '%s\n' 'Overte synthetic repetitive audio diagnostic payload'
+        noise_index=$((noise_index + 1))
+    done
     if [ -n "${FAKE_DELAYED_PROCESS_LOG:-}" ]; then
         sleep "${FAKE_DELAYED_PROCESS_LOG_SECONDS:-0.2}"
         printf '%s' "$FAKE_DELAYED_PROCESS_LOG"
@@ -503,6 +509,33 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
     stream_diagnostics = root / "raw-diagnostics/iphone-serverless-command-errors.log"
     assert "command_label=process log stream" in stream_diagnostics.read_text(encoding="utf-8")
     assert_no_raw_log(stopped_stream_output, scratch)
+
+    noisy_output = root / "bounded-noisy-diagnostics"
+    noisy_marker = (
+        "Overte OVERTE_IOS_WORLD_GATE navigation_requested "
+        "kind= serverless destination= serverless_tutorial\n"
+    )
+    noisy = invoke(
+        app,
+        noisy_output,
+        {
+            **environment,
+            "FAKE_PROCESS_LOG": noisy_marker,
+            "FAKE_PROCESS_NOISE_LINES": "60000",
+        },
+        "iphone",
+        "serverless",
+        "-",
+    )
+    assert noisy.returncode == 124, (noisy.stdout, noisy.stderr)
+    noisy_diagnostics = (
+        root / "raw-diagnostics/iphone-serverless-application.log"
+    )
+    noisy_text = noisy_diagnostics.read_text(encoding="utf-8")
+    assert len(noisy_text.encode("utf-8")) < 2 * 1024 * 1024
+    assert "OVERTE_IOS_WORLD_GATE navigation_requested" in noisy_text
+    assert "middle omitted" in noisy_text
+    assert_no_raw_log(noisy_output, scratch)
 
     early_exit_output = root / "early-exit"
     early_exit = invoke(

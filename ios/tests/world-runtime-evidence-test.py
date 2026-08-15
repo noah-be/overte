@@ -349,11 +349,19 @@ with tempfile.TemporaryDirectory(prefix="overte-ios-world-evidence-test-") as di
 
 main_source = (ROOT / "interface/src/main.cpp").read_text(encoding="utf-8")
 application_source = (ROOT / "interface/src/Application.cpp").read_text(encoding="utf-8")
+application_setup_source = (ROOT / "interface/src/Application_Setup.cpp").read_text(
+    encoding="utf-8"
+)
 assert '"ios-world-evidence"' in main_source
 assert '"OVERTE_IOS_WORLD_GATE navigation_requested"' in main_source
 assert 'QStringLiteral("file:///~/serverless/tutorial.json")' in main_source
 assert 'QStringLiteral("hifi://overte_hub")' in main_source
 assert '"OVERTE_IOS_WORLD_GATE serverless_import_committed"' in application_source
 assert 'QStringLiteral("serverless_tutorial")' in application_source
+assert "suppressAudioForWorldEvidence" in application_setup_source
+assert 'QStringLiteral("--ios-world-evidence")' in application_setup_source
+assert "if (!suppressAudioForWorldEvidence)" in application_setup_source
+assert "audioIO->startThread();" in application_setup_source
+assert "OVERTE_IOS_WORLD_DIAGNOSTIC audio_suppressed=evidence_mode" in application_setup_source
 
 print("PASS fail-closed iOS serverless/online world and screenshot evidence validators")

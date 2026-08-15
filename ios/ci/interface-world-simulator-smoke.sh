@@ -180,13 +180,27 @@ stop_log_stream() {
 
 preserve_failure_application_log() {
     [[ -n "$application_diagnostics" ]] || return 0
+    local source label size
     {
-        printf '%s\n' '=== unified lifecycle log ==='
-        cat "$raw_log"
-        printf '%s\n' '=== application stdout ==='
-        cat "$app_stdout"
-        printf '%s\n' '=== application stderr ==='
-        cat "$app_stderr"
+        printf '%s\n' '=== retained acceptance markers ==='
+        grep -Eh 'OVERTE_IOS_(WORLD|ENTITY)_GATE|OVERTE_IOS_(WORLD_DIAGNOSTIC|VULKAN_FATAL|VULKAN_DEBUG|VULKAN_PIPELINE_CONTEXT|VULKAN_PIPELINE_CREATE)' \
+            "$raw_log" "$app_stdout" "$app_stderr" 2>/dev/null | tail -c 131072 || true
+        for source in "$raw_log" "$app_stdout" "$app_stderr"; do
+            case "$source" in
+                "$raw_log") label="unified lifecycle log" ;;
+                "$app_stdout") label="application stdout" ;;
+                *) label="application stderr" ;;
+            esac
+            size="$(wc -c < "$source" | tr -d '[:space:]')"
+            printf '=== %s bytes=%s ===\n' "$label" "$size"
+            if ((size <= 524288)); then
+                cat "$source"
+            else
+                head -c 262144 "$source"
+                printf '\n=== %s middle omitted ===\n' "$label"
+                tail -c 262144 "$source"
+            fi
+        done
     } > "$application_diagnostics"
     chmod 0600 "$application_diagnostics"
 }
