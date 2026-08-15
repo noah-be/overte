@@ -164,6 +164,14 @@ the runtime gates, the bootstrap also uploads:
 
 - `overte-macos-smoke-<run-id>` with smoke diagnostics.
 
+The diagnostic upload is retried once after a short bounded delay. A persistent
+upload failure still fails the workflow so missing evidence cannot silently look
+successful. The subsequent compiler-object and bootstrap-cache pruners are
+best-effort cleanup: they fail closed before deleting anything when GitHub's
+cache API is unavailable, but a transient cleanup outage does not turn an
+otherwise fully tested application run red. A later successful run retries the
+same branch-scoped retention policy.
+
 The separate `.github/workflows/macos-runtime.yml` workflow restores one
 explicit application artifact without rebuilding it. Before downloading, a
 pinned GitHub API step requires a completed, successful bootstrap run from the

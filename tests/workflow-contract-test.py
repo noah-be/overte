@@ -259,6 +259,35 @@ class MacOSWorkflowContracts(unittest.TestCase):
         diagnostics = self.source.split("- name: Upload smoke diagnostics", 1)[1]
         self.assertIn("include-hidden-files: true", diagnostics)
 
+    def test_smoke_diagnostics_upload_retries_once_and_remains_fail_closed(self):
+        primary = self.source.split("- name: Upload smoke diagnostics", 1)[1].split(
+            "- name: Wait before retrying smoke diagnostics upload", 1
+        )[0]
+        wait = self.source.split(
+            "- name: Wait before retrying smoke diagnostics upload", 1
+        )[1].split("- name: Retry smoke diagnostics upload", 1)[0]
+        retry = self.source.split("- name: Retry smoke diagnostics upload", 1)[1].split(
+            "- name: Prune superseded branch-local compiler generations", 1
+        )[0]
+        self.assertIn("id: smoke-upload", primary)
+        self.assertIn("if: always()", primary)
+        self.assertIn("continue-on-error: true", primary)
+        self.assertIn("steps.smoke-upload.outcome == 'failure'", wait)
+        self.assertIn("!cancelled()", wait)
+        self.assertIn("run: sleep 15", wait)
+        self.assertIn("steps.smoke-upload.outcome == 'failure'", retry)
+        self.assertNotIn("continue-on-error: true", retry)
+        self.assertIn("overwrite: true", retry)
+        for contract in (
+            "overte-macos-smoke-${{ github.run_id }}",
+            ".macos-runner-telemetry",
+            "build/macos-build-diagnostics",
+            "include-hidden-files: true",
+            "retention-days: 7",
+        ):
+            self.assertIn(contract, primary)
+            self.assertIn(contract, retry)
+
     def test_remote_compiler_pruning_is_delayed_scoped_and_keeps_a_fallback(self):
         upload = self.source.index("- name: Upload application bundle immediately")
         prune = self.source.index("- name: Prune superseded branch-local compiler generations")
@@ -270,6 +299,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("steps.remote-compiler-generation.outputs.version", section)
         self.assertIn("--retain-previous 1", section)
         self.assertIn("--execute", section)
+        self.assertIn("continue-on-error: true", section)
 
     def test_conan_cache_uses_the_deterministic_toolchain_key(self):
         restore = self.source.split("- name: Cache Conan packages", 1)[1].split(
@@ -746,7 +776,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "--execute",
         ):
             self.assertIn(contract, prune)
-        self.assertNotIn("continue-on-error: true", prune)
+        self.assertIn("continue-on-error: true", prune)
 
     def test_build_tree_is_saved_after_orderly_success_or_failure(self):
         stop = self.source.index("- name: Stop compiler-cache server before snapshot")

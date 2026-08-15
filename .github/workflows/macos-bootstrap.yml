@@ -1020,7 +1020,9 @@ jobs:
             tests/project-native-test.sh build
 
       - name: Upload smoke diagnostics
+        id: smoke-upload
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: overte-macos-smoke-${{ github.run_id }}
@@ -1036,8 +1038,35 @@ jobs:
           include-hidden-files: true
           retention-days: 7
 
+      - name: Wait before retrying smoke diagnostics upload
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.smoke-upload.outcome == 'failure' }}
+        run: sleep 15
+
+      - name: Retry smoke diagnostics upload
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.smoke-upload.outcome == 'failure' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: overte-macos-smoke-${{ github.run_id }}
+          path: |
+            .macos-runner-telemetry
+            build/macos-build-diagnostics
+            build/macos-startup-preflight
+            build/macos-smoke
+            build/macos-online-smoke
+            build/macos-performance
+            build/macos-native-test-results
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 7
+          overwrite: true
+
       - name: Prune superseded branch-local compiler generations
         if: ${{ always() && steps.application-upload.outcome == 'success' }}
+        continue-on-error: true
         timeout-minutes: 20
         env:
           OVERTE_CHECKPOINT_TOKEN: ${{ github.token }}
@@ -1056,6 +1085,7 @@ jobs:
               steps.build-client.outcome == 'success' &&
               steps.conan-integrity.outcome == 'success' }}
         timeout-minutes: 10
+        continue-on-error: true
         env:
           OVERTE_CHECKPOINT_TOKEN: ${{ github.token }}
         run: >-
