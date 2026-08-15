@@ -464,7 +464,20 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     DependencyManager::set<UserInputMapper>();
     DependencyManager::set<controller::ScriptingInterface, ControllerScriptingInterface>();
     DependencyManager::set<InterfaceParentFinder>();
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    const bool macosTestDisableEntityScripts = parser.isSet("testScript") &&
+        parser.isSet("macosTestDisableEntityScripts");
+    DependencyManager::set<EntityTreeRenderer>(!macosTestDisableEntityScripts, qApp, qApp);
+    if (macosTestDisableEntityScripts) {
+        // Public domains can attach arbitrary client entity scripts which in
+        // turn create unrelated local models.  The online entity smoke tests
+        // streaming and scene submission, so isolate it from those scripts
+        // before EntityTreeRenderer creates their script engines.
+        qCInfo(interfaceapp) << "OVERTE_MACOS_RENDER_PHASE entity_scripts_skipped";
+    }
+#else
     DependencyManager::set<EntityTreeRenderer>(true, qApp, qApp);
+#endif
     DependencyManager::set<CompositorHelper>();
     DependencyManager::set<OffscreenQmlSurfaceCache>();
     DependencyManager::set<EntityScriptClient>();

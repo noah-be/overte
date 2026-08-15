@@ -877,14 +877,28 @@ transition_smoke = (ROOT / "macos/ci/transition-smoke.sh").read_text(
 transition_script = (ROOT / "macos/tests/transition-smoke.js").read_text(
     encoding="utf-8"
 )
+if "macosTestDisableEntityScripts" not in online_smoke or \
+        "entity_scripts_skipped" not in online_smoke:
+    raise SystemExit(
+        "online smoke must isolate arbitrary public entity scripts before rendering"
+    )
+for completion_contract in (
+    "macos-online-smoke-completion.json",
+    "--completion-file",
+    "validate-online-smoke-completion.py",
+):
+    if completion_contract not in online_smoke:
+        raise SystemExit(
+            f"online smoke must validate controlled completion: {completion_contract}"
+        )
+if "disableEntityScripts" in transition_smoke or "entity_scripts_disabled" in transition_smoke:
+    raise SystemExit(
+        "serverless/online transition smoke must retain the production entity-script lifecycle"
+    )
 for smoke_name, smoke_source in (
     ("online", online_smoke),
     ("serverless/online transition", transition_smoke),
 ):
-    if "disableEntityScripts" in smoke_source or "entity_scripts_disabled" in smoke_source:
-        raise SystemExit(
-            f"{smoke_name} smoke must retain the production entity-script lifecycle"
-        )
     for lightweight_runner_contract in (
         "--macosTestLightweightEntities",
         "lightweight_entity_filter_active",
@@ -1847,15 +1861,25 @@ if main_source.count('"disableLocalAvatar"') != 1:
     raise SystemExit("the local-avatar suppression option must be declared exactly once")
 if "parser.addOption(disableLocalAvatarOption);" not in main_source:
     raise SystemExit("the local-avatar suppression option is not registered")
-if "disableEntityScripts" in main_source:
-    raise SystemExit(
-        "Interface must not expose the incomplete no-entity-script lifecycle"
-    )
+if main_source.count('"macosTestDisableEntityScripts"') != 1:
+    raise SystemExit("the macOS entity-script isolation option must be declared exactly once")
+if "parser.addOption(macosTestDisableEntityScriptsOption);" not in main_source:
+    raise SystemExit("the macOS entity-script isolation option is not registered")
 
-if "DependencyManager::set<EntityTreeRenderer>(true, qApp, qApp)" not in application_setup_source:
-    raise SystemExit("Interface must initialize the complete entity-script lifecycle")
-if "disableEntityScripts" in application_setup_source:
-    raise SystemExit("Interface must not construct a partially initialized entity renderer")
+entity_script_isolation = application_setup_source.split(
+    "DependencyManager::set<InterfaceParentFinder>();", 1
+)[1].split("DependencyManager::set<CompositorHelper>", 1)[0]
+for contract in (
+    "Q_OS_MAC",
+    "!defined(Q_OS_IOS)",
+    'parser.isSet("testScript")',
+    'parser.isSet("macosTestDisableEntityScripts")',
+    "!macosTestDisableEntityScripts",
+    "OVERTE_MACOS_RENDER_PHASE entity_scripts_skipped",
+    "DependencyManager::set<EntityTreeRenderer>(true, qApp, qApp)",
+):
+    if contract not in entity_script_isolation:
+        raise SystemExit(f"macOS entity-script isolation contract missing: {contract}")
 reload_entity_scripts = entity_renderer_source.split(
     "void EntityTreeRenderer::reloadEntityScripts()", 1
 )[1].split("void EntityTreeRenderer::init()", 1)[0]
@@ -2182,6 +2206,20 @@ subprocess.run(
 )
 subprocess.run(
     [sys.executable, str(ROOT / "macos/tests/online-entity-validator-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/online-smoke-completion-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [
+        "node",
+        str(ROOT / "macos/tests/online-smoke-script-test.js"),
+        str(ROOT / "macos/tests/online-smoke.js"),
+    ],
     cwd=ROOT,
     check=True,
 )

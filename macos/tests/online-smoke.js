@@ -6,8 +6,10 @@
 
     // Match the supported desktop scene path. The local avatar and default
     // client scripts are disabled by the runner before they can submit
-    // unrelated skinned or overlay pipelines. Domain entity scripts keep the
-    // production Interface lifecycle used outside the smoke test.
+    // unrelated skinned or overlay pipelines. The runner also disables
+    // streamed entity scripts before EntityTreeRenderer creates its script
+    // engines: public scripts can create unrelated local models and make the
+    // hosted software renderer compile pipelines outside this test's scope.
     Render.renderMethod = 1;
     Render.shadowsEnabled = false;
     Render.hazeEnabled = false;
@@ -107,6 +109,15 @@
         }
         completed = true;
         print("OVERTE_MACOS_SMOKE " + (success ? "passed " : "failed ") + detail);
+        // The app's main thread can be blocked in Qt render synchronization
+        // after the test script finishes.  Persist a small, fail-closed
+        // sentinel so the outer supervisor can stop the process; the shell
+        // still validates the process evidence, gates, inventory and PNG.
+        Test.saveObject({
+            schema_version: 1,
+            ready_for_external_validation: success,
+            script_success: success
+        }, "macos-online-smoke-completion.json");
         Script.stop();
     }
 

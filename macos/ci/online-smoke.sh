@@ -23,6 +23,8 @@ readonly snapshot="$output_dir/macos-online-smoke.png"
 readonly screenshot_result="$output_dir/online-screenshot.json"
 readonly entity_inventory="$output_dir/macos-online-entities.json"
 readonly entity_validation="$output_dir/online-entity-validation.json"
+readonly completion="$output_dir/macos-online-smoke-completion.json"
+readonly completion_validation="$output_dir/online-completion-validation.json"
 readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-600}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
 readonly lldb_timeout_seconds="${OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-90}"
@@ -33,11 +35,12 @@ export OVERTE_MACOS_GL_DIAGNOSTICS=1
 [[ -x "$executable" ]] || { echo "missing executable: $executable" >&2; exit 1; }
 [[ -f "$default_scripts_override" ]] || { echo "missing default script override: $default_scripts_override" >&2; exit 1; }
 mkdir -p "$output_dir"
-rm -f "$snapshot" "$screenshot_result" "$entity_inventory" "$entity_validation"
+rm -f "$snapshot" "$screenshot_result" "$entity_inventory" "$entity_validation" \
+    "$completion" "$completion_validation"
 
 readonly -a app_command=(
     "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog --display Desktop
-    --disableLocalAvatar --macosTestLightweightEntities
+    --disableLocalAvatar --macosTestLightweightEntities --macosTestDisableEntityScripts
     --defaultScriptsOverride "file://$default_scripts_override" --url "$location"
     --testScript "$test_script" --testResultsLocation "$output_dir" --quitWhenFinished
 )
@@ -46,7 +49,8 @@ set +e
 python3 "$source_root/macos/tools/run-process-with-timeout.py" \
     --timeout "$timeout_seconds" --grace "$shutdown_grace_seconds" \
     --log "$log" --result "$process_result" --sample "$process_sample" \
-    --crash-report "$crash_report" -- \
+    --crash-report "$crash_report" --completion-file "$completion" \
+    --completion-settle 1 -- \
     "${app_command[@]}"
 status=$?
 set -e
@@ -64,6 +68,8 @@ if (( status > 128 && status < 192 )); then
 fi
 
 [[ $status -eq 0 ]] || { echo "Overte supervisor exited with status $status" >&2; exit "$status"; }
+python3 "$source_root/macos/tools/validate-online-smoke-completion.py" \
+    "$completion" "$process_result" --result "$completion_validation"
 for marker in domain_list_connected entity_server_active entity_query_sent entity_data_received render_handoff lightweight_primitive_handoff; do
     grep -Fq "OVERTE_MACOS_ENTITY_GATE $marker" "$log" || {
         echo "missing online runtime gate: $marker" >&2
@@ -80,6 +86,10 @@ for marker in local_avatar_skipped local_avatar_scene_submission_skipped; do
         exit 1
     }
 done
+grep -Fq "OVERTE_MACOS_RENDER_PHASE entity_scripts_skipped" "$log" || {
+    echo "online entity-script isolation gate was not active" >&2
+    exit 1
+}
 grep -Fq "OVERTE_MACOS_SMOKE passed" "$log" || {
     echo "online smoke script did not pass" >&2
     exit 1

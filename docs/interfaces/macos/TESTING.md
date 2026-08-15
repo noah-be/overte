@@ -34,7 +34,7 @@ image gates prevent local helper entities or entity scripts from substituting
 for an entity streamed by the domain's entity server. A passing process exit
 without every marker and the correlated inventory is not acceptance. If the
 software renderer writes the PNG but delays Qt's completion signal behind
-domain-script startup, the script stops after a bounded 150-second settle;
+render-thread work, the script stops after a bounded 300-second settle;
 the shell still requires and fully decodes the resulting image.
 
 The hosted Intel runner exposes Apple's software OpenGL renderer. Compiling the
@@ -43,15 +43,17 @@ even while the runner remains CPU-active. The smoke runner therefore passes the
 explicit `--macosTestLightweightEntities` option together with its test script.
 Only in that combination, scene submission is limited to Zones and primitive
 Box, Sphere, and Shape entities. Network decoding, the complete entity tree,
-inventory, and domain entity-script lifecycle remain active. The local avatar
-and default client scripts are also suppressed; complex Web entities remain in
-the inventory but never instantiate their WebEngine surface in this mode. Thus
-unrelated local, model, text, and WebEngine pipelines cannot block the primitive
-rendering proof. Normal application launches never enable this filter and
-continue to submit the complete online scene. Consequently, this virtual-runner
-gate proves online connectivity, entity streaming, primitive scene submission,
-and visible OpenGL output; it does not replace full-scene model/Web validation
-on a physical Mac.
+and inventory remain active. The online smoke additionally opts out of client
+entity-script engines before `EntityTreeRenderer` initializes: arbitrary public
+scripts can create unrelated local models which bypass the streamed-entity
+filter and monopolize the hosted software shader compiler. The local avatar and
+default client scripts are also suppressed; complex Web entities remain in the
+inventory but never instantiate their WebEngine surface in this mode. Normal
+application launches and the serverless-to-online transition test never enable
+the entity-script isolation and retain the production lifecycle. Consequently,
+this virtual-runner gate proves online connectivity, entity streaming,
+primitive scene submission, and visible OpenGL output; it does not replace
+full-scene model/Web/entity-script validation on a physical Mac.
 
 ## Performance and stability
 
