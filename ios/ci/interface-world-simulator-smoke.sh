@@ -217,7 +217,7 @@ capture_postmortem_log() {
     local status=0
     : > "$postmortem_diagnostics"
     "$timeout_runner" 45 xcrun simctl spawn "$active_udid" log show \
-        --last 5m --style compact --level debug \
+        --last 5m --style compact --info --debug \
         --predicate "process == \"Overte\" OR process == \"launchd_sim\" OR composedMessage CONTAINS \"$bundle_id\" OR composedMessage CONTAINS \"Overte\"" \
         > "$postmortem_diagnostics" 2>&1 || status=$?
     printf '\npostmortem_status=%s\n' "$status" >> "$postmortem_diagnostics"

@@ -365,7 +365,11 @@ jobs:
   world-runtime-only:
     name: Reuse exact candidate for serverless and online screenshots
     if: ${{ inputs.world_runtime_only }}
-    runs-on: macos-26
+    # macOS 26.5.2's CoreSimulatorService can accept the app installation but
+    # then leave `simctl launch` blocked without ever creating an app PID. The
+    # same arm64 candidate has a deployment target of iOS 17 and is therefore
+    # executed on the already install-validated macOS 15 / iOS 18.5 runtime.
+    runs-on: macos-15
     timeout-minutes: 35
     env:
       RUNTIME_ROOT: ${{ github.workspace }}/build-ios/world-runtime-only
@@ -483,14 +487,26 @@ jobs:
           )"
           echo "domain=$domain" >> "$GITHUB_OUTPUT"
 
-      - name: Select stable CoreSimulator installation tools
+      - name: Select stable macOS 15 CoreSimulator runtime
         run: |
           set -euo pipefail
-          developer_dir=/Applications/Xcode_26.5.app/Contents/Developer
+          developer_dir=/Applications/Xcode_16.4.app/Contents/Developer
           test -x "$developer_dir/usr/bin/xcodebuild"
           xcode_build="$(DEVELOPER_DIR="$developer_dir" xcodebuild -version | awk '/Build version/{print $3}')"
-          [[ "$xcode_build" == 17F42 ]]
-          DEVELOPER_DIR="$developer_dir" xcrun simctl list runtimes --json >/dev/null
+          [[ "$xcode_build" == 16F6 ]]
+          runtime_json="$RUNTIME_ROOT/runtimes.json"
+          DEVELOPER_DIR="$developer_dir" xcrun simctl list runtimes --json > "$runtime_json"
+          python3 - "$runtime_json" <<'PY'
+          import json
+          import pathlib
+          import sys
+          runtimes = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")).get("runtimes", [])
+          matches = [runtime for runtime in runtimes
+                     if runtime.get("identifier") == "com.apple.CoreSimulator.SimRuntime.iOS-18-5"
+                     and runtime.get("isAvailable") is True]
+          if len(matches) != 1:
+              raise SystemExit("expected exactly one available iOS 18.5 runtime")
+          PY
           echo "DEVELOPER_DIR=$developer_dir" >> "$GITHUB_ENV"
 
       - name: Load serverless and online worlds from preserved candidate

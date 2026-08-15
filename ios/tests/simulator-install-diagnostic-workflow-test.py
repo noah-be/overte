@@ -65,7 +65,8 @@ assert "retention-days: 14" in WORKFLOW
 
 runtime = WORKFLOW[WORKFLOW.index("world-runtime-only:") :]
 assert "if: ${{ inputs.world_runtime_only }}" in runtime
-assert "runs-on: macos-26" in runtime
+assert "runs-on: macos-15" in runtime
+assert "runs-on: macos-26" not in runtime
 assert "Download exact preserved simulator candidate without rebuilding" in runtime
 assert "verify-runtime-candidate.py" in runtime
 assert "LATEST-OverteIOSClient.json" in runtime
@@ -74,7 +75,10 @@ assert 'printf \'%s\\n\' "$SOURCE_CANDIDATE_NAME"' in runtime
 assert "--mode simulator" in runtime
 assert "--expected-source-revision \"$EXPECTED_SOURCE_REVISION\"" in runtime
 assert "--expected-sha256 \"$EXPECTED_SHA256\"" in runtime
-assert "/Applications/Xcode_26.5.app/Contents/Developer" in runtime
+assert "/Applications/Xcode_16.4.app/Contents/Developer" in runtime
+assert '"$xcode_build" == 16F6' in runtime
+assert "com.apple.CoreSimulator.SimRuntime.iOS-18-5" in runtime
+assert "expected exactly one available iOS 18.5 runtime" in runtime
 assert "interface-world-simulator-smoke.sh" in runtime
 assert "for family in iphone ipad" in runtime
 assert "serverless -" in runtime and 'online "$ONLINE_DOMAIN"' in runtime

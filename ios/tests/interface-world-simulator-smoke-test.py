@@ -179,6 +179,10 @@ elif [ "$1 $2" = "simctl spawn" ] && [ "$4 $5" = "log stream" ]; then
     trap 'exit 0' TERM INT
     while :; do sleep 1; done
 elif [ "$1 $2" = "simctl spawn" ] && [ "$4 $5" = "log show" ]; then
+    case " $* " in
+        *" --last 5m --style compact --info --debug --predicate "*) ;;
+        *) printf '%s\n' "invalid log show options" >&2; exit 64 ;;
+    esac
     printf '%s\n' "${FAKE_POSTMORTEM_LOG:-synthetic RunningBoard postmortem}"
 elif [ "$1 $2" = "simctl terminate" ]; then
     if [ -s "$FAKE_APP_PID_FILE" ]; then
@@ -377,6 +381,7 @@ fi
     assert "command" not in process_diagnostics.read_text(encoding="utf-8")
     postmortem = root / "raw-diagnostics/iphone-serverless-postmortem.log"
     assert "synthetic RunningBoard exit cause" in postmortem.read_text(encoding="utf-8")
+    assert "postmortem_status=0" in postmortem.read_text(encoding="utf-8")
     crash = root / "raw-diagnostics/iphone-serverless-crash-report.log"
     assert "synthetic dyld crash cause" in crash.read_text(encoding="utf-8")
     assert (early_exit_output / "iphone-serverless-failure.png").is_file()

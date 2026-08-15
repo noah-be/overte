@@ -71,6 +71,14 @@ crash data remain private runner scratch data; only their size-bounded,
 secret-redacted diagnostic copies are uploaded on failure, and otherwise they
 are deleted.
 
+The no-rebuild recovery consumer runs the verified arm64 simulator candidate on
+the pinned macOS 15 / Xcode 16.4 / iOS 18.5 image. This is intentional: the
+macOS 26.5.2 hosted CoreSimulator service has been observed to accept an
+installation through Xcode 26.5 and then block `simctl launch` without ever
+creating an application PID. The candidate's iOS 17 deployment target makes
+the older runtime a valid compatibility execution, while exact Xcode build and
+runtime checks prevent silent runner-image drift.
+
 `.github/workflows/ios-interface-simulator-acceptance.yml` remains available as
 a manual consumer for an already published simulator candidate. Its older
 six-gate route is useful for generic entity acceptance, but the world workflow
