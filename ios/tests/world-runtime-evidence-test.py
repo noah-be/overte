@@ -367,6 +367,20 @@ assert 'QStringLiteral("serverless_tutorial")' in application_source
 assert "PathUtils::expandToLocalDataAbsolutePath(tutorialURL)" in application_source
 assert "handleSandboxStatus(nullptr);" in application_ui_source
 assert "#if defined(Q_OS_IOS)" in application_ui_source
+safe_resume = application_ui_source.index(
+    "_resumeAfterLoginDialogActionTaken_SafeToRun = true;"
+)
+queued_resume = application_ui_source.index(
+    'QMetaObject::invokeMethod(this, "resumeAfterLoginDialogActionTaken",',
+    safe_resume,
+)
+resume_method = application_ui_source.index(
+    "void Application::resumeAfterLoginDialogActionTaken()", queued_resume
+)
+assert safe_resume < queued_resume < resume_method
+ios_resume_boundary = application_ui_source[safe_resume:resume_method]
+assert "if (_noLoginSuggestion)" in ios_resume_boundary
+assert "Qt::QueuedConnection" in ios_resume_boundary
 assert "sandbox_probe_skipped=unsupported_platform" in application_source
 assert "suppressAudioForWorldEvidence" in application_setup_source
 assert 'QStringLiteral("--ios-world-evidence")' in application_setup_source

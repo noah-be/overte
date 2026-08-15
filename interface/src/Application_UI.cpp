@@ -1232,10 +1232,25 @@ void Application::pauseUntilLoginDetermined() {
     // From now on, it's permissible to call resumeAfterLoginDialogActionTaken()
     _resumeAfterLoginDialogActionTaken_SafeToRun = true;
 
+#if defined(Q_OS_IOS)
+    // The desktop QML path normally resumes when keyboardFocusActive is
+    // emitted. iOS disables the startup login screen, and that focus signal is
+    // not guaranteed to arrive. Queue the one-shot resume so main.cpp can
+    // finish initialize() and apply --url/overrideEntry before navigation is
+    // selected. A later focus signal is harmless because the resume method is
+    // guarded against duplicate execution.
+    if (_noLoginSuggestion) {
+        QMetaObject::invokeMethod(this, "resumeAfterLoginDialogActionTaken",
+                                  Qt::QueuedConnection);
+    } else if (_resumeAfterLoginDialogActionTaken_WasPostponed) {
+        resumeAfterLoginDialogActionTaken();
+    }
+#else
     if (_resumeAfterLoginDialogActionTaken_WasPostponed) {
         // resumeAfterLoginDialogActionTaken() was already called, but it aborted. Now it's safe to call it again.
         resumeAfterLoginDialogActionTaken();
     }
+#endif
 }
 
 void Application::resumeAfterLoginDialogActionTaken() {
