@@ -68,6 +68,9 @@ assert "if: ${{ inputs.world_runtime_only }}" in runtime
 assert "runs-on: macos-26" in runtime
 assert "Download exact preserved simulator candidate without rebuilding" in runtime
 assert "verify-runtime-candidate.py" in runtime
+assert "LATEST-OverteIOSClient.json" in runtime
+assert "LATEST-OverteIOSClient.txt" in runtime
+assert 'printf \'%s\\n\' "$SOURCE_CANDIDATE_NAME"' in runtime
 assert "--mode simulator" in runtime
 assert "--expected-source-revision \"$EXPECTED_SOURCE_REVISION\"" in runtime
 assert "--expected-sha256 \"$EXPECTED_SHA256\"" in runtime
