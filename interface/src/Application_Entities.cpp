@@ -18,8 +18,12 @@
 #include <AnimationCache.h>
 #include <input-plugins/KeyboardMouseDevice.h>
 #include <MainWindow.h>
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#include <MacOSOnlineLoadingTelemetry.h>
+#endif
 #include <recording/ClipCache.h>
 #include <RenderableEntityItem.h>
+#include <ResourceCache.h>
 #include <SoundCache.h>
 #include <QSaveFile>
 
@@ -513,6 +517,11 @@ void Application::queryOctree(NodeType_t serverType, PacketType packetType) {
         nodeList->sendUnreliablePacket(*queryPacket, *node);
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
         if (packetType == PacketType::EntityQuery) {
+            macos::online_loading::recordOnce("entity_query", {
+                { "bytes", packetSize },
+                { "resource_loading", static_cast<qint64>(ResourceCache::getLoadingRequestCount()) },
+                { "resource_pending", static_cast<qint64>(ResourceCache::getPendingRequestCount()) },
+            });
             static bool loggedFirstMacOSEntityQuery { false };
             if (!loggedFirstMacOSEntityQuery) {
                 loggedFirstMacOSEntityQuery = true;

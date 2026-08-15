@@ -12,6 +12,9 @@
 #include "OctreePacketProcessor.h"
 
 #include <PerfStat.h>
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#include <MacOSOnlineLoadingTelemetry.h>
+#endif
 
 #include "Application.h"
 #include "Menu.h"
@@ -121,6 +124,14 @@ void OctreePacketProcessor::processPacket(QSharedPointer<ReceivedMessage> messag
         }
         return; // bail since piggyback version doesn't match
     }
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    if (packetType == PacketType::EntityData) {
+        macos::online_loading::recordOnce("entity_data", {
+            { "bytes", message->getSize() },
+            { "packet_queue", static_cast<qint64>(packetsToProcessCount()) },
+        });
+    }
+#endif
 
     if (packetType != PacketType::EntityQueryInitialResultsComplete) {
         trackIncomingOctreePacket(*message, sendingNode, wasStatsPacket);

@@ -173,6 +173,16 @@ as `native-hardware`; every missing or software/paravirtual result fails closed
 to `diagnostic-only`. This small probe must pass before adding an arm64 app build
 or using hosted results for profile selection.
 
+Probe run
+[`31853662830`](https://github.com/noah-be/overte/actions/runs/31853662830)
+completed natively on the standard `macos-15` arm64 runner, but CGL exposed no
+usable pixel format (`pixel_format_count: 0`, error `10002`), created no
+context, and reported no accelerated renderer. The runner is therefore
+correctly classified as `diagnostic-only`. A native CPU architecture label is
+not sufficient evidence of GPU access; graphics-profile certification requires
+a physical or self-hosted Mac whose probe reports an accelerated OpenGL 4.1
+context and a non-virtual renderer.
+
 The monitoring contracts are exercised before dependency restore by
 `macos/tests/source-contract-test.py` and
 `macos/tests/conan-checkpoint-test.py`, with workflow integration covered by

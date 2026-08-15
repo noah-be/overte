@@ -40,6 +40,9 @@
 #include <NumericalConstants.h>
 #include <DependencyManager.h>
 #include <GLMHelpers.h>
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#include <MacOSOnlineLoadingTelemetry.h>
+#endif
 
 #include <gl/QOpenGLContextWrapper.h>
 // VKTODO: Replace these with a header for a common class (for example GraphicsWidget) from which GLWidget and VKWidget would inherit.
@@ -997,6 +1000,7 @@ void OpenGLDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
     }
     incrementPresentCount();
 
+    bool presentedNewFrame { false };
     if (_currentFrame) {
         auto correction = getViewCorrection();
         getBackend()->updatePresentFrame(correction);
@@ -1005,6 +1009,7 @@ void OpenGLDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                 _renderRate.increment();
                 if (_currentFrame.get() != _lastFrame) {
                     _newFrameRate.increment();
+                    presentedNewFrame = true;
 #if defined(ANDROID_APP_PHONE_INTERFACE)
                     _phonePresentHasNewFrame = true;
 #endif
@@ -1041,6 +1046,13 @@ void OpenGLDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
             PROFILE_RANGE_EX(render, "internalPresent", 0xff00ffff, frameId)
             internalPresent();
         }
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+        if (presentedNewFrame && macos::online_loading::hasRecorded("render_handoff")) {
+            macos::online_loading::recordOnce("first_presented", {
+                { "present_count", static_cast<qint64>(presentCount()) },
+            });
+        }
+#endif
 #if defined(ANDROID_APP_PHONE_INTERFACE)
         // Phone swapBuffers can block on Android's compositor. Include that
         // time in pacing so it is subtracted from the subsequent sleep rather

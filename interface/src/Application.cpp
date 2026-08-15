@@ -70,6 +70,9 @@
 #include <LogHandler.h>
 #include <MainWindow.h>
 #include <MessagesClient.h>
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#include <MacOSOnlineLoadingTelemetry.h>
+#endif
 #include <material-networking/TextureCacheScriptingInterface.h>
 #include <model-networking/ModelCacheScriptingInterface.h>
 #include <networking/CloseEventSender.h>
@@ -2046,6 +2049,10 @@ void Application::nodeActivated(SharedNodePointer node) {
         _queryExpiry = SteadyClock::now();
         _octreeQuery.incrementConnectionID();
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+        macos::online_loading::recordOnce("entity_server_active", {
+            { "resource_loading", static_cast<qint64>(ResourceCache::getLoadingRequestCount()) },
+            { "resource_pending", static_cast<qint64>(ResourceCache::getPendingRequestCount()) },
+        });
         qInfo().noquote() << "OVERTE_MACOS_ENTITY_GATE entity_server_active"
                           << "node=" << node->getUUID().toString(QUuid::WithoutBraces);
 #endif

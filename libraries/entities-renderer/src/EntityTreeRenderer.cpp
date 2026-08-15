@@ -29,6 +29,9 @@
 
 #include <shared/QtHelpers.h>
 #include <shared/GlobalAppProperties.h>
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#include <MacOSOnlineLoadingTelemetry.h>
+#endif
 #include <AbstractScriptingServicesInterface.h>
 #include <AbstractViewStateInterface.h>
 #include <AddressManager.h>
@@ -613,6 +616,12 @@ void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, r
                 _entitiesInScene.insert({ entityID, renderable });
                 processedIds.insert(entityID);
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+                if (entity->getEntityHostType() == entity::HostType::DOMAIN) {
+                    macos::online_loading::recordOnce("render_handoff", {
+                        { "entities_pending_add", static_cast<qint64>(_entitiesToAdd.size()) },
+                        { "renderables_pending_update", static_cast<qint64>(_renderablesToUpdate.size()) },
+                    });
+                }
                 static bool loggedFirstMacOSRenderHandoff { false };
                 if (!loggedFirstMacOSRenderHandoff) {
                     loggedFirstMacOSRenderHandoff = true;

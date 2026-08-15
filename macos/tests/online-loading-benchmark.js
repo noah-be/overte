@@ -23,6 +23,7 @@
     var snapshotRequested = false;
     var samples = [];
     var maxEntityCount = 0;
+    var visiblePresentBaseline = null;
 
     Render.renderMethod = 1;
     Render.shadowsEnabled = false;
@@ -80,8 +81,10 @@
         }
         completed = true;
         var result = {
-            schema_version: 1,
+            schema_version: 2,
             platform: "macos",
+            navigation_id: testCase.navigation_id,
+            location_sha256: testCase.location_sha256,
             cache_mode: testCase.cache_mode,
             concurrency: testCase.concurrency,
             run_index: testCase.run_index,
@@ -120,7 +123,8 @@
         print("OVERTE_MACOS_ONLINE_LOADING snapshot_complete_ms=" + snapshotCompletedMs);
     });
 
-    print("OVERTE_MACOS_ONLINE_LOADING started cache=" + testCase.cache_mode +
+    print("OVERTE_MACOS_ONLINE_LOADING started navigation_id=" + testCase.navigation_id +
+        " cache=" + testCase.cache_mode +
         " concurrency=" + testCase.concurrency + " run=" + testCase.run_index);
 
     Script.setInterval(function () {
@@ -154,10 +158,20 @@
                 " count=" + entities.length);
         }
         if (firstVisibleMs === null && visible > 0) {
-            firstVisibleMs = elapsed;
-            measurementDeadline = now + (diagnosticOnly ? 30000 : 180000);
-            print("OVERTE_MACOS_ONLINE_LOADING first_visible_ms=" + firstVisibleMs +
-                " count=" + visible);
+            var currentPresentCount = finiteNumber(Test.getPresentCount());
+            if (visiblePresentBaseline === null) {
+                visiblePresentBaseline = currentPresentCount;
+                print("OVERTE_MACOS_ONLINE_LOADING visible_candidate_ms=" + elapsed +
+                    " count=" + visible + " present_baseline=" + visiblePresentBaseline);
+            } else if (currentPresentCount > visiblePresentBaseline &&
+                    Test.recordOnlineLoadingVisible(visible)) {
+                firstVisibleMs = elapsed;
+                measurementDeadline = now + (diagnosticOnly ? 30000 : 180000);
+                print("OVERTE_MACOS_ONLINE_LOADING first_visible_ms=" + firstVisibleMs +
+                    " count=" + visible + " present_count=" + currentPresentCount);
+            }
+        } else if (firstVisibleMs === null) {
+            visiblePresentBaseline = null;
         }
         if (firstVisibleMs !== null && !snapshotRequested && elapsed - firstVisibleMs >= 2000) {
             snapshotRequested = true;

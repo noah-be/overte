@@ -17,6 +17,7 @@ readonly repeats="${OVERTE_MACOS_ONLINE_REPEATS:-1}"
 readonly timeout_seconds="${OVERTE_MACOS_ONLINE_LOADING_TIMEOUT_SECONDS:-420}"
 readonly diagnostic_timeout_seconds="${OVERTE_MACOS_ONLINE_DIAGNOSTIC_TIMEOUT_SECONDS:-210}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
+readonly lldb_timeout_seconds="${OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-300}"
 
 [[ "$(uname -s)" == Darwin ]] || { echo "online loading benchmark requires macOS" >&2; exit 1; }
 [[ -x "$executable" ]] || { echo "missing executable: $executable" >&2; exit 1; }
@@ -95,11 +96,24 @@ target = Path(path)
 target.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
 os.chmod(target, 0o600)
 PY
+location_sha256="$(python3 - "$output_dir/online-loading-manifest.json" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+value = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))["location_sha256"]
+if not isinstance(value, str) or len(value) != 64:
+    raise SystemExit("online-loading manifest has an invalid location identity")
+print(value)
+PY
+)"
+readonly location_sha256
 
 run_case() {
     local concurrency="$1"
     local pair="$2"
     local cache_mode="$3"
+    local navigation_id="c${concurrency}-p${pair}-${cache_mode}"
     local cache_dir="$output_dir/c$concurrency/pair-$pair/cache"
     local run_dir="$output_dir/c$concurrency/pair-$pair/$cache_mode"
     local generated_script="$run_dir/online-loading-script.js"
@@ -107,6 +121,9 @@ run_case() {
     local result="$run_dir/online-loading-process.json"
     local sample="$run_dir/online-loading.sample.txt"
     local crash="$run_dir/online-loading.crash.ips"
+    local lldb_dir="$run_dir/lldb"
+    local lldb_log="$lldb_dir/online-loading-lldb.log"
+    local lldb_result="$lldb_dir/online-loading-lldb-process.json"
     local snapshot="$run_dir/macos-online-loading.png"
     local screenshot_result="$run_dir/online-loading-screenshot.json"
     local status=0
@@ -127,6 +144,7 @@ run_case() {
     python3 "$source_root/macos/tools/render-online-loading-case.py" \
         --template "$template" --output "$generated_script" --cache-mode "$cache_mode" \
         --concurrency "$concurrency" --run-index "$pair" --location-label "$location_label" \
+        --location-sha256 "$location_sha256" --navigation-id "$navigation_id" \
         --runner-class "$runner_class"
 
     app_command=(
@@ -136,6 +154,8 @@ run_case() {
         --testScript "$generated_script" --testResultsLocation "$run_dir" --quitWhenFinished
     )
     set +e
+    OVERTE_MACOS_ONLINE_LOADING_NAVIGATION_ID="$navigation_id" \
+    OVERTE_MACOS_ONLINE_LOADING_LOCATION_SHA256="$location_sha256" \
     python3 "$source_root/macos/tools/run-process-with-timeout.py" \
         --timeout "$case_timeout_seconds" --grace "$shutdown_grace_seconds" \
         --log "$log" --result "$result" --sample "$sample" --crash-report "$crash" \
@@ -143,6 +163,31 @@ run_case() {
         "${app_command[@]}"
     status=$?
     set -e
+    if (( status > 128 && status < 192 )) && [[ "$runner_class" == diagnostic ]]; then
+        if command -v lldb >/dev/null 2>&1; then
+            echo "online loading exited after signal $((status - 128)); rerunning once under LLDB" >&2
+            mkdir -p "$lldb_dir"
+            rm -f "$lldb_dir/macos-online-loading.json"
+            local -a lldb_app_command=(
+                "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog
+                --display Desktop --disableLocalAvatar --cache "$cache_dir"
+                --concurrent-downloads "$concurrency"
+                --defaultScriptsOverride "file://$default_scripts_override" --url "$location"
+                --testScript "$generated_script" --testResultsLocation "$lldb_dir"
+                --quitWhenFinished
+            )
+            OVERTE_MACOS_ONLINE_LOADING_NAVIGATION_ID="$navigation_id" \
+            OVERTE_MACOS_ONLINE_LOADING_LOCATION_SHA256="$location_sha256" \
+            python3 "$source_root/macos/tools/run-process-with-timeout.py" \
+                --timeout "$lldb_timeout_seconds" --grace "$shutdown_grace_seconds" \
+                --log "$lldb_log" --result "$lldb_result" \
+                --completion-file "$lldb_dir/macos-online-loading.json" -- \
+                lldb --batch -o run -k "thread backtrace all" -k "register read" \
+                -- "${lldb_app_command[@]}" || true
+        else
+            echo "LLDB unavailable; no automatic online-loading crash backtrace was captured" >&2
+        fi
+    fi
     if (( status == 0 )) && [[ "$runner_class" != diagnostic ]]; then
         grep -Fq "OVERTE_MACOS_ONLINE_LOADING passed" "$log" || status=1
         [[ -s "$snapshot" && -s "$run_dir/macos-online-loading.json" ]] || status=1
@@ -159,7 +204,7 @@ run_case() {
         accepted=true
     fi
     [[ -s "$run_dir/macos-online-loading.json" ]] && metrics_present=true
-    python3 - "$output_dir/attempts.jsonl" "$concurrency" "$pair" "$cache_mode" "$status" \
+    python3 - "$output_dir/attempts.jsonl" "$concurrency" "$pair" "$cache_mode" "$navigation_id" "$status" \
         "$accepted" "$metrics_present" "$run_dir" <<'PY'
 import json
 import os
@@ -172,10 +217,11 @@ with path.open("a", encoding="utf-8") as output:
         "concurrency": int(sys.argv[2]),
         "pair": int(sys.argv[3]),
         "cache_mode": sys.argv[4],
-        "exit_code": int(sys.argv[5]),
-        "accepted": sys.argv[6] == "true",
-        "metrics_present": sys.argv[7] == "true",
-        "result_directory": str(Path(sys.argv[8]).relative_to(path.parent)),
+        "navigation_id": sys.argv[5],
+        "exit_code": int(sys.argv[6]),
+        "accepted": sys.argv[7] == "true",
+        "metrics_present": sys.argv[8] == "true",
+        "result_directory": str(Path(sys.argv[9]).relative_to(path.parent)),
     }, sort_keys=True) + "\n")
 os.chmod(path, 0o600)
 PY

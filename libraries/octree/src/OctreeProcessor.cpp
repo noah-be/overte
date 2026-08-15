@@ -17,6 +17,9 @@
 #include <NumericalConstants.h>
 #include <PerfStat.h>
 #include <SharedUtil.h>
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#include <MacOSOnlineLoadingTelemetry.h>
+#endif
 
 #include "OctreeLogging.h"
 
@@ -93,6 +96,10 @@ void OctreeProcessor::processDatagram(ReceivedMessage& message, SharedNodePointe
         quint64 totalWaitingForLock = 0;
         quint64 totalUncompress = 0;
         quint64 totalReadBitsteam = 0;
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+        quint64 firstDecompressionCompletedAt { 0 };
+        quint64 firstTreeUpdatedAt { 0 };
+#endif
 
         const QUuid& sourceUUID = sourceNode->getUUID();
 
@@ -143,8 +150,20 @@ void OctreeProcessor::processDatagram(ReceivedMessage& message, SharedNodePointe
                         qCDebug(octree) << "OctreeProcessor::processDatagram() ******* START _tree->readBitstreamToTree()...";
                     }
                     startReadBitsteam = usecTimestampNow();
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+                    // loadFinalizedContent has finished packet decompression;
+                    // readBitstreamToTree below is the separately timed tree mutation.
+                    if (firstDecompressionCompletedAt == 0) {
+                        firstDecompressionCompletedAt = macos::online_loading::steadyClockUsec();
+                    }
+#endif
                     _tree->readBitstreamToTree(packetData.getUncompressedData(), packetData.getUncompressedSize(), args);
                     endReadBitsteam = usecTimestampNow();
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+                    if (firstTreeUpdatedAt == 0) {
+                        firstTreeUpdatedAt = macos::online_loading::steadyClockUsec();
+                    }
+#endif
                     if (extraDebugging) {
                         qCDebug(octree) << "OctreeProcessor::processDatagram() ******* END _tree->readBitstreamToTree()...";
                     }
@@ -172,6 +191,20 @@ void OctreeProcessor::processDatagram(ReceivedMessage& message, SharedNodePointe
         _waitLockPerPacket.updateAverage(totalWaitingForLock);
         _uncompressPerPacket.updateAverage(totalUncompress);
         _readBitstreamPerPacket.updateAverage(totalReadBitsteam);
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+        if (message.getType() == PacketType::EntityData &&
+                firstDecompressionCompletedAt != 0 && firstTreeUpdatedAt != 0) {
+            macos::online_loading::recordOnceAt("entity_decode", firstDecompressionCompletedAt, {
+                { "decompress_us", static_cast<qint64>(totalUncompress) },
+                { "wait_lock_us", static_cast<qint64>(totalWaitingForLock) },
+            });
+            macos::online_loading::recordOnceAt("entity_tree", firstTreeUpdatedAt, {
+                { "entities", entitiesPerPacket },
+                { "elements", elementsPerPacket },
+                { "tree_us", static_cast<qint64>(totalReadBitsteam) },
+            });
+        }
+#endif
 
         quint64 now = usecTimestampNow();
         if (_lastWindowAt == 0) {
@@ -212,4 +245,3 @@ void OctreeProcessor::clear() {
         });
     }
 }
-

@@ -58,6 +58,13 @@ frames per second and spent roughly 1.34 seconds per GPU/batch frame at the
 median. It is therefore an effective correctness, crash, and cold-shader oracle,
 but cannot select a real-Mac quality profile.
 
+Native arm64 capability probe
+[`31853662830`](https://github.com/noah-be/overte/actions/runs/31853662830)
+also completed successfully as a test, but the standard M1 runner offered no
+CGL pixel format or accelerated renderer. It therefore cannot execute the
+graphics matrix or certify an Apple Silicon profile. The remaining native
+profile gate explicitly requires a physical or self-hosted Apple-GPU runner.
+
 The same run found the dominant online-world bottleneck on that environment.
 Cold attempts reached visible entities in 6.938 and 8.758 seconds before native
 Apple software-GL crashes. Warm attempts reached visible entities in 66.942 and

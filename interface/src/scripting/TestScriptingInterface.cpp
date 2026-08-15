@@ -16,11 +16,15 @@
 #include <shared/FileUtils.h>
 #include <shared/QtHelpers.h>
 #include <DependencyManager.h>
+#include <display-plugins/DisplayPlugin.h>
 #include <MainWindow.h>
 #include <OffscreenUi.h>
 #include <ScriptValue.h>
 #include <StatTracker.h>
 #include <Trace.h>
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#include <MacOSOnlineLoadingTelemetry.h>
+#endif
 
 #include "Application.h"
 #include "NetworkingConstants.h"
@@ -212,4 +216,24 @@ bool TestScriptingInterface::isTextureLoadingComplete() {
     bool result;
     QMetaObject::invokeMethod(qApp, "gpuTextureMemSizeStable", Qt::DirectConnection, Q_RETURN_ARG(bool, result));
     return result;
+}
+
+quint32 TestScriptingInterface::getPresentCount() const {
+    const auto displayPlugin = qApp->getActiveDisplayPlugin();
+    return displayPlugin ? displayPlugin->presentCount() : 0;
+}
+
+bool TestScriptingInterface::recordOnlineLoadingVisible(int visibleCount) const {
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    if (visibleCount <= 0 || !macos::online_loading::hasRecorded("first_presented")) {
+        return false;
+    }
+    return macos::online_loading::recordOnce("first_visible", {
+        { "present_count", static_cast<qint64>(getPresentCount()) },
+        { "visible_count", visibleCount },
+    });
+#else
+    Q_UNUSED(visibleCount)
+    return false;
+#endif
 }

@@ -26,6 +26,9 @@
 #include <shared/QtHelpers.h>
 #include <ThreadHelpers.h>
 #include <LogHandler.h>
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#include <MacOSOnlineLoadingTelemetry.h>
+#endif
 #include <UUID.h>
 #include <platform/Platform.h>
 #include <platform/PlatformKeys.h>
@@ -862,6 +865,7 @@ void NodeList::processDomainList(QSharedPointer<ReceivedMessage> message) {
         _domainHandler.setUUID(domainUUID);
         _domainHandler.setIsConnected(true);
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+        macos::online_loading::recordOnce("domain_connected");
         qInfo().noquote() << "OVERTE_MACOS_ENTITY_GATE domain_list_connected"
                           << "domain=" << domainUUID.toString(QUuid::WithoutBraces)
                           << "session=" << newUUID.toString(QUuid::WithoutBraces);

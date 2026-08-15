@@ -178,6 +178,24 @@ public slots:
      */
     Q_INVOKABLE bool isTextureLoadingComplete();
 
+    /*@jsdoc
+     * Returns the active display plugin's process-local present counter.
+     * Available to explicit application test scripts only.
+     * @function Test.getPresentCount
+     * @returns {number} Number of presents attempted by the active display plugin.
+     */
+    Q_INVOKABLE quint32 getPresentCount() const;
+
+    /*@jsdoc
+     * Records the macOS online-loading benchmark's first visible milestone.
+     * The record is accepted only after a new frame has been presented and
+     * only when validated navigation-scoped test telemetry is enabled.
+     * @function Test.recordOnlineLoadingVisible
+     * @param {number} visibleCount - Visible render-affecting domain entities.
+     * @returns {boolean} <code>true</code> when the milestone was recorded.
+     */
+    Q_INVOKABLE bool recordOnlineLoadingVisible(int visibleCount) const;
+
 private:
     bool waitForCondition(qint64 maxWaitMs, std::function<bool()> condition);
     QString _testResultsLocation;

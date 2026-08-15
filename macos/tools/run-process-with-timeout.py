@@ -17,7 +17,7 @@ import time
 def capture_macos_crash_report(
     command: list[str],
     destination: Path,
-    report_directory: Path,
+    report_directories: list[Path],
     started_wall_time: float,
     wait_seconds: float,
 ) -> tuple[bool, str | None]:
@@ -26,9 +26,10 @@ def capture_macos_crash_report(
     deadline = time.monotonic() + wait_seconds
     while True:
         candidates = []
-        if report_directory.is_dir():
-            for suffix in ("ips", "crash"):
-                candidates.extend(report_directory.glob(f"{executable_name}*.{suffix}"))
+        for report_directory in report_directories:
+            if report_directory.is_dir():
+                for suffix in ("ips", "crash"):
+                    candidates.extend(report_directory.glob(f"{executable_name}*.{suffix}"))
         candidates = [
             candidate
             for candidate in candidates
@@ -190,14 +191,18 @@ def main() -> int:
                     return_code = process.wait()
             reader.join(timeout=5)
             if return_code is not None and return_code < 0 and args.crash_report:
-                report_directory = args.crash_report_dir
-                if report_directory is None and sys.platform == "darwin":
-                    report_directory = Path.home() / "Library/Logs/DiagnosticReports"
-                if report_directory is not None:
+                report_directories = [args.crash_report_dir] if args.crash_report_dir else []
+                if not report_directories and sys.platform == "darwin":
+                    report_directories = [
+                        Path.home() / "Library/Logs/DiagnosticReports",
+                        Path.home() / "Library/Logs/CrashReporter",
+                        Path("/Library/Logs/DiagnosticReports"),
+                    ]
+                if report_directories:
                     crash_report_succeeded, crash_report_source = capture_macos_crash_report(
                         command,
                         args.crash_report,
-                        report_directory,
+                        report_directories,
                         started_wall_time,
                         args.crash_report_wait,
                     )

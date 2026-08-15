@@ -9,7 +9,7 @@ const vm = require("vm");
 
 const source = fs.readFileSync(process.argv[2], "utf8");
 function createHarness(runnerClass) {
-    const clock = { now: 1000 };
+    const clock = { now: 1000, presentCount: 10 };
     const output = [];
     const saved = [];
     const forwardConfig = {};
@@ -25,7 +25,8 @@ function createHarness(runnerClass) {
     const context = {
         OVERTE_MACOS_ONLINE_LOADING_CASE: {
             cache_mode: "cold", concurrency: 10, run_index: 1, location_label: "hub",
-            runner_class: runnerClass
+            runner_class: runnerClass, navigation_id: "c10-p1-cold",
+            location_sha256: "b".repeat(64)
         },
         Date: { now: () => clock.now },
         Render: { getConfig() { return forwardConfig; } },
@@ -35,6 +36,8 @@ function createHarness(runnerClass) {
         Rates: { present: 60, newFrame: 59 },
         Test: {
             isTextureLoadingComplete() { return true; },
+            getPresentCount() { return clock.presentCount; },
+            recordOnlineLoadingVisible(visibleCount) { return visibleCount > 0; },
             saveObject(value, name) { saved.push({ value, name }); }
         },
         Script: script,
@@ -53,12 +56,18 @@ function createHarness(runnerClass) {
 const hardware = createHarness("hardware");
 assert.strictEqual(typeof hardware.script.interval, "function");
 hardware.script.interval();
-assert(hardware.output.some((line) => line.includes("first_visible_ms=0")));
+assert(hardware.output.some((line) => line.includes("visible_candidate_ms=0")));
 hardware.clock.now += 2000;
+hardware.clock.presentCount += 1;
+hardware.script.interval();
+assert(hardware.output.some((line) => line.includes("first_visible_ms=2000")));
+hardware.clock.now += 2000;
+hardware.clock.presentCount += 1;
 hardware.script.interval();
 assert.strictEqual(hardware.windowObject.snapshotName, "macos-online-loading.png");
 hardware.windowObject.snapshotHandler("/tmp/macos-online-loading.png");
 hardware.clock.now += 3000;
+hardware.clock.presentCount += 1;
 hardware.script.interval();
 assert.strictEqual(hardware.script.stopped, true);
 assert.strictEqual(hardware.saved.length, 1);
@@ -66,10 +75,15 @@ assert.strictEqual(hardware.saved[0].name, "macos-online-loading.json");
 assert.strictEqual(hardware.saved[0].value.runner_class, "hardware");
 assert.strictEqual(hardware.saved[0].value.completed_idle, true);
 assert.strictEqual(hardware.saved[0].value.completed_snapshot, true);
-assert.strictEqual(hardware.saved[0].value.sustained_idle_ms, 5000);
+assert.strictEqual(hardware.saved[0].value.sustained_idle_ms, 7000);
+assert.strictEqual(hardware.saved[0].value.navigation_id, "c10-p1-cold");
+assert.strictEqual(hardware.saved[0].value.schema_version, 2);
 assert(hardware.output.some((line) => line.includes("OVERTE_MACOS_ONLINE_LOADING passed")));
 
 const diagnostic = createHarness("diagnostic");
+diagnostic.script.interval();
+diagnostic.clock.now += 1000;
+diagnostic.clock.presentCount += 1;
 diagnostic.script.interval();
 diagnostic.clock.now += 60000;
 diagnostic.script.interval();

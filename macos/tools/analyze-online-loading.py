@@ -25,6 +25,33 @@ MARKERS = {
     "render_handoff": "OVERTE_MACOS_ENTITY_GATE render_handoff",
     "first_visible": "OVERTE_MACOS_ONLINE_LOADING first_visible_ms=",
 }
+TELEMETRY_PREFIX = "OVERTE_MACOS_ONLINE_NAV "
+SAFE_NAVIGATION_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+SHA256 = re.compile(r"^[0-9a-f]{64}$")
+NAVIGATION_EVENT_ORDER = (
+    "url_accepted",
+    "domain_connected",
+    "entity_server_active",
+    "entity_query",
+    "entity_data",
+    "entity_decode",
+    "entity_tree",
+    "render_handoff",
+    "first_presented",
+    "first_visible",
+)
+NAVIGATION_EVENT_FIELDS = {
+    "url_accepted": set(),
+    "domain_connected": set(),
+    "entity_server_active": {"resource_loading", "resource_pending"},
+    "entity_query": {"bytes", "resource_loading", "resource_pending"},
+    "entity_data": {"bytes", "packet_queue"},
+    "entity_decode": {"decompress_us", "wait_lock_us"},
+    "entity_tree": {"entities", "elements", "tree_us"},
+    "render_handoff": {"entities_pending_add", "renderables_pending_update"},
+    "first_presented": {"present_count"},
+    "first_visible": {"present_count", "visible_count"},
+}
 
 
 class LoadingError(RuntimeError):
@@ -93,6 +120,88 @@ def log_milestones(path: Path) -> dict[str, float | None]:
     return result
 
 
+def navigation_milestones(path: Path, navigation_id: str,
+                          location_sha256: str) -> tuple[dict[str, float | None], dict[str, dict[str, float]]]:
+    """Load the test-gated JSON records; legacy process markers are not evidence."""
+    if not SAFE_NAVIGATION_ID.fullmatch(navigation_id) or not SHA256.fullmatch(location_sha256):
+        raise LoadingError("invalid expected navigation telemetry identity")
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError as error:
+        raise LoadingError(f"could not read online-loading telemetry: {error}") from error
+
+    records: list[dict[str, object]] = []
+    for number, line in enumerate(lines, 1):
+        prefix_at = line.find(TELEMETRY_PREFIX)
+        if prefix_at < 0:
+            continue
+        encoded = line[prefix_at + len(TELEMETRY_PREFIX):].strip()
+        try:
+            record = json.loads(encoded)
+        except json.JSONDecodeError as error:
+            raise LoadingError(f"invalid navigation telemetry line {number}: {error}") from error
+        if not isinstance(record, dict) or record.get("schema_version") != 1:
+            raise LoadingError(f"unsupported navigation telemetry line {number}")
+        if record.get("navigation_id") != navigation_id:
+            raise LoadingError(f"navigation telemetry line {number} belongs to another navigation")
+        if record.get("location_sha256") != location_sha256:
+            raise LoadingError(f"navigation telemetry line {number} has another location identity")
+        event = record.get("event")
+        if event not in NAVIGATION_EVENT_ORDER:
+            raise LoadingError(f"navigation telemetry line {number} has an unknown event")
+        allowed_fields = NAVIGATION_EVENT_FIELDS[str(event)]
+        for key, value in record.items():
+            if key in ("navigation_id", "location_sha256", "event"):
+                if not isinstance(value, str):
+                    raise LoadingError(f"navigation telemetry line {number} has an invalid identity field")
+            elif key == "schema_version":
+                if value != 1:
+                    raise LoadingError(f"navigation telemetry line {number} has an invalid schema")
+            elif key != "monotonic_us" and key not in allowed_fields:
+                raise LoadingError(f"navigation telemetry line {number} has an unexpected field: {key}")
+            elif isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+                raise LoadingError(f"navigation telemetry line {number} field {key} is not finite numeric data")
+            elif float(value) < 0:
+                raise LoadingError(f"navigation telemetry line {number} field {key} is negative")
+        records.append(record)
+
+    seen: set[str] = set()
+    last_index = -1
+    last_timestamp = -1.0
+    by_event: dict[str, float] = {}
+    for record in records:
+        event = str(record["event"])
+        if event in seen:
+            raise LoadingError(f"duplicate navigation telemetry event: {event}")
+        seen.add(event)
+        event_index = NAVIGATION_EVENT_ORDER.index(event)
+        if event_index != last_index + 1:
+            expected = NAVIGATION_EVENT_ORDER[last_index + 1]
+            raise LoadingError(f"navigation telemetry is not a contiguous sequence: expected {expected}, got {event}")
+        timestamp = finite(record.get("monotonic_us"), f"{event}.monotonic_us")
+        if timestamp <= last_timestamp:
+            raise LoadingError("navigation telemetry times are not strictly increasing")
+        last_index = event_index
+        last_timestamp = timestamp
+        by_event[event] = timestamp
+
+    result: dict[str, float | None] = {event: None for event in NAVIGATION_EVENT_ORDER}
+    if not records:
+        return result, {}
+    origin = by_event["url_accepted"]
+    for event, timestamp in by_event.items():
+        result[event] = round((timestamp - origin) / 1000.0, 3)
+    details = {
+        str(record["event"]): {
+            key: float(value)
+            for key, value in record.items()
+            if key in NAVIGATION_EVENT_FIELDS[str(record["event"])]
+        }
+        for record in records
+    }
+    return result, details
+
+
 def sample_percentile(values: list[float], fraction: float) -> float | None:
     if not values:
         return None
@@ -115,7 +224,7 @@ def queue_diagnostics(value: dict[str, object]) -> dict[str, object]:
         seconds = (float(current["elapsed_ms"]) - float(previous["elapsed_ms"])) / 1000.0
         pending_area += float(previous["downloads_pending"]) * seconds
         texture_area += float(previous["texture_pending_mb"]) * seconds
-    milestones = value.get("host_milestones_ms")
+    milestones = value.get("navigation_milestones_ms")
     milestones = milestones if isinstance(milestones, dict) else {}
 
     def delta(start: str, end: str) -> float | None:
@@ -149,7 +258,12 @@ def queue_diagnostics(value: dict[str, object]) -> dict[str, object]:
         ),
         "domain_to_query_ms": delta("domain_connected", "entity_query"),
         "query_to_data_ms": delta("entity_query", "entity_data"),
-        "data_to_handoff_ms": delta("entity_data", "render_handoff"),
+        "data_to_decode_ms": delta("entity_data", "entity_decode"),
+        "decode_to_tree_ms": delta("entity_decode", "entity_tree"),
+        "tree_to_handoff_ms": delta("entity_tree", "render_handoff"),
+        "handoff_to_present_ms": delta("render_handoff", "first_presented"),
+        "present_to_visible_ms": delta("first_presented", "first_visible"),
+        "navigation_event_details": value.get("navigation_event_details", {}),
     }
     signals: list[str] = []
     present_p50 = diagnostics["post_visible_present_hz_p50"]
@@ -164,7 +278,9 @@ def queue_diagnostics(value: dict[str, object]) -> dict[str, object]:
     if value.get("first_visible_ms") is not None and value.get("snapshot_completed_ms") is None:
         signals.append("screenshot-incomplete")
 
-    if milestones.get("domain_connected") is None:
+    if milestones.get("url_accepted") is None:
+        primary = "navigation-identity"
+    elif milestones.get("domain_connected") is None:
         primary = "domain-connection"
     elif milestones.get("entity_query") is None:
         primary = "entity-server-or-query"
@@ -226,6 +342,9 @@ def load_attempts(root: Path, manifest: dict[str, object]) -> tuple[list[dict[st
             raise LoadingError(f"online attempt record {number} is outside the immutable plan")
         if attempt.get("cache_mode") not in ("cold", "warm"):
             raise LoadingError(f"online attempt record {number} has invalid cache mode")
+        expected_navigation_id = f"c{concurrency}-p{pair}-{attempt['cache_mode']}"
+        if attempt.get("navigation_id") != expected_navigation_id:
+            raise LoadingError(f"online attempt record {number} has an invalid navigation identity")
         exit_code = integer(attempt.get("exit_code"), f"attempt {number} exit_code")
         if not isinstance(attempt.get("accepted"), bool) or not isinstance(attempt.get("metrics_present"), bool):
             raise LoadingError(f"online attempt record {number} has invalid evidence flags")
@@ -260,12 +379,16 @@ def load_metrics(attempt: dict[str, object], manifest: dict[str, object]) -> dic
     if not attempt["metrics_present"]:
         return None
     payload = load_object(directory / "macos-online-loading.json", "online-loading metrics")
-    if payload.get("schema_version") != 1 or payload.get("platform") != "macos":
+    if payload.get("schema_version") != 2 or payload.get("platform") != "macos":
         raise LoadingError("unsupported online-loading result")
     if (payload.get("cache_mode") != attempt["cache_mode"] or
             payload.get("concurrency") != attempt["concurrency"] or
             payload.get("run_index") != attempt["pair"]):
         raise LoadingError("online-loading result does not match its attempt")
+    if payload.get("navigation_id") != attempt["navigation_id"]:
+        raise LoadingError("online-loading result does not match its navigation identity")
+    if payload.get("location_sha256") != manifest["location_sha256"]:
+        raise LoadingError("online-loading result does not match its sanitized location identity")
     if payload.get("runner_class") != manifest["runner_class"]:
         raise LoadingError("online-loading result runner class does not match its manifest")
     samples = payload.get("queue_samples")
@@ -285,7 +408,23 @@ def load_metrics(attempt: dict[str, object], manifest: dict[str, object]) -> dic
     for name in ("first_entities_ms", "first_visible_ms", "snapshot_completed_ms", "sustained_idle_ms"):
         if payload.get(name) is not None:
             finite(payload[name], name)
-    payload["host_milestones_ms"] = log_milestones(directory / "online-loading.log")
+    navigation_values, navigation_details = navigation_milestones(
+        directory / "online-loading.log",
+        str(payload["navigation_id"]),
+        str(payload["location_sha256"]),
+    )
+    payload["navigation_milestones_ms"] = navigation_values
+    payload["navigation_event_details"] = navigation_details
+    # Retain old wall-clock markers for troubleshooting only. They are neither
+    # navigation-scoped nor used for validation, completion, or bottleneck decisions.
+    payload["legacy_host_milestones_ms"] = log_milestones(directory / "online-loading.log")
+    if navigation_values["url_accepted"] is None:
+        raise LoadingError("online-loading result has no navigation-scoped telemetry")
+    if payload.get("first_visible_ms") is not None and navigation_values["first_visible"] is None:
+        raise LoadingError("online-loading result claims visibility without a navigation-scoped milestone")
+    if payload.get("success") is True and any(
+            navigation_values[event] is None for event in NAVIGATION_EVENT_ORDER):
+        raise LoadingError("successful online-loading result has an incomplete navigation event sequence")
     process = load_object(directory / "online-loading-process.json", "online-loading process result")
     payload["process_exit_code"] = process.get("exit_code")
     payload["process_timed_out"] = process.get("timed_out") is True
@@ -322,7 +461,7 @@ def diagnostic_capture(value: dict[str, object], manifest: dict[str, object]) ->
         value.get("process_completion_file_observed") is True or
         (value.get("process_timed_out") is True and value.get("process_sample_succeeded") is True)
     )
-    milestones = value.get("host_milestones_ms")
+    milestones = value.get("navigation_milestones_ms")
     network_bounded = isinstance(milestones, dict) and milestones.get("domain_connected") is not None and (
         milestones.get("entity_query") is not None or milestones.get("entity_data") is not None
     )

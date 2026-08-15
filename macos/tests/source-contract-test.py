@@ -858,6 +858,13 @@ for sanitized_contract in (
 ):
     if sanitized_contract not in runtime_supervisor:
         raise SystemExit(f"runtime evidence redaction missing: {sanitized_contract}")
+for crash_report_location in (
+    'Path.home() / "Library/Logs/DiagnosticReports"',
+    'Path.home() / "Library/Logs/CrashReporter"',
+    'Path("/Library/Logs/DiagnosticReports")',
+):
+    if crash_report_location not in runtime_supervisor:
+        raise SystemExit(f"runtime crash-report search missing: {crash_report_location}")
 for smoke_name, smoke_source, maximum, cleanup_contract in (
     ("serverless", smoke, 720, 'rm -f "$snapshot" "$warmup_snapshot" "$screenshot_result"'),
     ("online", online_smoke, 720, 'rm -f "$snapshot" "$screenshot_result"'),
@@ -1146,9 +1153,26 @@ for loading_contract in (
     'case_timeout_seconds="$diagnostic_timeout_seconds"',
     '--completion-file "$run_dir/macos-online-loading.json"',
     'OVERTE_MACOS_ONLINE_DIAGNOSTIC_TIMEOUT_SECONDS:-210',
+    "OVERTE_MACOS_LLDB_TIMEOUT_SECONDS",
+    "online-loading-lldb.log",
+    "status > 128 && status < 192",
+    'lldb --batch -o run -k "thread backtrace all" -k "register read"',
+    '--completion-file "$lldb_dir/macos-online-loading.json"',
+    'location_sha256="$(python3 - "$output_dir/online-loading-manifest.json"',
+    'local navigation_id="c${concurrency}-p${pair}-${cache_mode}"',
+    '--location-sha256 "$location_sha256" --navigation-id "$navigation_id"',
+    '"navigation_id": sys.argv[5]',
 ):
     if loading_contract not in online_loading_runner:
         raise SystemExit(f"online loading runner missing: {loading_contract}")
+for telemetry_environment in (
+    'OVERTE_MACOS_ONLINE_LOADING_NAVIGATION_ID="$navigation_id"',
+    'OVERTE_MACOS_ONLINE_LOADING_LOCATION_SHA256="$location_sha256"',
+):
+    if online_loading_runner.count(telemetry_environment) < 2:
+        raise SystemExit(
+            f"online loading runner must pass telemetry identity to normal and LLDB runs: {telemetry_environment}"
+        )
 if "--macosTestLightweightEntities" in online_loading_runner:
     raise SystemExit("online loading benchmark must exercise full online entity content")
 for loading_contract in (
@@ -1179,7 +1203,14 @@ for analyzer_contract in (
     '"post_visible_zero_present_fraction"',
     '"domain_to_query_ms"',
     '"query_to_data_ms"',
-    '"data_to_handoff_ms"',
+    '"data_to_decode_ms"',
+    '"decode_to_tree_ms"',
+    '"tree_to_handoff_ms"',
+    '"handoff_to_present_ms"',
+    '"present_to_visible_ms"',
+    '"navigation_event_details"',
+    "navigation_milestones",
+    "legacy_host_milestones_ms",
 ):
     if analyzer_contract not in online_loading_analyzer:
         raise SystemExit(f"online loading analyzer missing: {analyzer_contract}")

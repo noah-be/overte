@@ -70,6 +70,9 @@
 #include <MainWindow.h>
 #include <material-networking/TextureCacheScriptingInterface.h>
 #include <MessagesClient.h>
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#include <MacOSOnlineLoadingTelemetry.h>
+#endif
 #include <Midi.h>
 #include <model-networking/ModelCacheScriptingInterface.h>
 #include <OffscreenUi.h>
@@ -593,6 +596,11 @@ void Application::initialize(const QCommandLineParser &parser) {
             }
         }
         _urlParam = parser.value("url");
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+        if (_urlParam.scheme() == URL_SCHEME_OVERTE) {
+            macos::online_loading::recordOnce("url_accepted");
+        }
+#endif
 
         if (parser.isSet("disableWatchdog")) {
             DISABLE_WATCHDOG = true;

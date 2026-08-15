@@ -1,0 +1,52 @@
+# macOS online-loading telemetry
+
+The online-loading benchmark assigns every cold or warm process one navigation ID. The ID has the form
+`c<concurrency>-p<pair>-<cache-mode>` and is meaningful only inside that benchmark artifact. The runner also supplies the
+SHA-256 identity already stored in `online-loading-manifest.json`. Interface enables the telemetry only when all of the
+following are true:
+
+- an explicit `--testScript` is active;
+- `OVERTE_MACOS_ONLINE_LOADING_NAVIGATION_ID` is a lowercase, bounded identifier;
+- `OVERTE_MACOS_ONLINE_LOADING_LOCATION_SHA256` is exactly 64 lowercase hexadecimal characters.
+
+Invalid configuration fails closed. No URL, host, entity or node UUID, compiler argument, environment dump, token, or
+signing value is included in a telemetry record. Event-specific fields are integers only.
+
+## Event contract
+
+Each line starts with `OVERTE_MACOS_ONLINE_NAV` followed by one compact JSON object. `monotonic_us` uses
+`std::chrono::steady_clock`; it is not a wall-clock timestamp. Events are emitted once per navigation and must form this
+contiguous order:
+
+1. `url_accepted`
+2. `domain_connected`
+3. `entity_server_active`
+4. `entity_query`
+5. `entity_data`
+6. `entity_decode` — packet decompression has completed, immediately before tree mutation
+7. `entity_tree`
+8. `render_handoff`
+9. `first_presented`
+10. `first_visible`
+
+`first_presented` means that a new OpenGL frame was executed and swapped after a domain entity entered the render scene.
+`first_visible` is later: the benchmark observed at least one visible render-affecting entity and then observed another
+display present. The deterministic screenshot remains the pixel-level evidence; neither an entity property nor the old
+process-wide `OVERTE_MACOS_ENTITY_GATE` marker is treated as proof of visibility.
+
+The JSON validator retains only these nonnegative numeric details: resource loading/pending counts at server activation
+and query, query/data byte counts, packet queue depth, decompression/lock/tree time in microseconds, decoded entity/element
+counts, render add/update queue depths, and present/visible counts. They are exposed in the analysis as
+`navigation_event_details`; arbitrary keys and all string details are rejected.
+
+The result file `macos-online-loading.json` carries the same `navigation_id` and sanitized location digest. Its 500 ms
+queue samples cover active and pending downloads, active and pending processing, pending texture transfers, entity counts,
+and display rates. `analyze-online-loading.py` rejects another navigation ID, another location identity, duplicate or
+out-of-order events, non-monotonic timestamps, and a successful result with an incomplete event sequence.
+
+## Scope and limitations
+
+This is additive test instrumentation, not a production analytics channel. It intentionally does not copy the Pico loading
+state machine. The first presented frame is correlated with render handoff and a later visible-entity observation, but it
+does not identify a particular mesh draw call. A future deterministic-domain fixture can strengthen that last association
+without changing the navigation identity or event format.

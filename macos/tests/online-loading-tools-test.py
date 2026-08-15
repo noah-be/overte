@@ -16,6 +16,40 @@ ROOT = Path(__file__).resolve().parents[2]
 GENERATOR = ROOT / "macos/tools/render-online-loading-case.py"
 ANALYZER = ROOT / "macos/tools/analyze-online-loading.py"
 TEMPLATE = ROOT / "macos/tests/online-loading-benchmark.js"
+LOCATION_SHA256 = "b" * 64
+EVENT_ORDER = (
+    "url_accepted", "domain_connected", "entity_server_active", "entity_query",
+    "entity_data", "entity_decode", "entity_tree", "render_handoff",
+    "first_presented", "first_visible",
+)
+
+
+def telemetry_lines(navigation_id: str, through: str = "first_visible") -> str:
+    lines = []
+    for index, event in enumerate(EVENT_ORDER[:EVENT_ORDER.index(through) + 1], 1):
+        details = {
+            "entity_server_active": {"resource_loading": 1, "resource_pending": 2},
+            "entity_query": {"bytes": 64, "resource_loading": 1, "resource_pending": 2},
+            "entity_data": {"bytes": 1200, "packet_queue": 3},
+            "entity_decode": {"decompress_us": 40, "wait_lock_us": 10},
+            "entity_tree": {"entities": 8, "elements": 4, "tree_us": 500},
+            "render_handoff": {"entities_pending_add": 7, "renderables_pending_update": 2},
+            "first_presented": {"present_count": 12},
+            "first_visible": {"present_count": 13, "visible_count": 5},
+        }.get(event, {})
+        record = {
+            "schema_version": 1,
+            "navigation_id": navigation_id,
+            "location_sha256": LOCATION_SHA256,
+            "event": event,
+            "monotonic_us": 1_000_000 + index * 100_000,
+        }
+        record.update(details)
+        lines.append("[12:00:%02d.000] OVERTE_MACOS_ONLINE_NAV %s\n" % (
+            index,
+            json.dumps(record, sort_keys=True),
+        ))
+    return "".join(lines)
 
 
 def payload(mode: str, concurrency: int, index: int, first_visible: int,
@@ -24,8 +58,10 @@ def payload(mode: str, concurrency: int, index: int, first_visible: int,
     snapshot = first_visible + 2000 if success else None
     idle = first_visible + 5000 if success else None
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "platform": "macos",
+        "navigation_id": f"c{concurrency}-p{index}-{mode}",
+        "location_sha256": LOCATION_SHA256,
         "cache_mode": mode,
         "concurrency": concurrency,
         "run_index": index,
@@ -68,7 +104,7 @@ def create_benchmark(root: Path, *, runner_class: str = "hardware",
         "runner_class": runner_class,
         "repeats": repeats,
         "location_label": "hub",
-        "location_sha256": "b" * 64,
+        "location_sha256": LOCATION_SHA256,
         "application_sha256": "a" * 64,
         "machine": "arm64" if runner_class == "hardware" else "x86_64",
         "translated": False,
@@ -86,6 +122,7 @@ def create_benchmark(root: Path, *, runner_class: str = "hardware",
                 directory.mkdir(parents=True)
                 failed_attempt = (concurrency, pair, mode) in (failed or set())
                 incomplete_diagnostic = diagnostic_partial and runner_class == "diagnostic"
+                navigation_id = f"c{concurrency}-p{pair}-{mode}"
                 (directory / "macos-online-loading.json").write_text(
                     json.dumps(payload(mode, concurrency, pair, visible,
                                        success=not failed_attempt and not incomplete_diagnostic,
@@ -106,7 +143,8 @@ def create_benchmark(root: Path, *, runner_class: str = "hardware",
                     "[12:00:03.000] OVERTE_MACOS_ENTITY_GATE entity_query_sent\n"
                     "[12:00:04.000] OVERTE_MACOS_ENTITY_GATE entity_data_received\n"
                     "[12:00:05.000] OVERTE_MACOS_ENTITY_GATE render_handoff\n"
-                    f"[12:00:06.000] OVERTE_MACOS_ONLINE_LOADING first_visible_ms={visible}\n",
+                    f"[12:00:06.000] OVERTE_MACOS_ONLINE_LOADING first_visible_ms={visible}\n" +
+                    telemetry_lines(navigation_id),
                     encoding="utf-8",
                 )
                 accepted = not failed_attempt
@@ -116,6 +154,7 @@ def create_benchmark(root: Path, *, runner_class: str = "hardware",
                     "concurrency": concurrency,
                     "pair": pair,
                     "cache_mode": mode,
+                    "navigation_id": navigation_id,
                     "exit_code": 124 if failed_attempt else 0,
                     "accepted": accepted,
                     "metrics_present": True,
@@ -140,7 +179,8 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     generation = subprocess.run(
         [sys.executable, str(GENERATOR), "--template", str(TEMPLATE), "--output", str(generated),
          "--cache-mode", "cold", "--concurrency", "10", "--run-index", "1",
-         "--location-label", "hub", "--runner-class", "hardware"],
+         "--location-label", "hub", "--location-sha256", LOCATION_SHA256,
+         "--navigation-id", "c10-p1-cold", "--runner-class", "hardware"],
         text=True, capture_output=True, check=False,
     )
     assert generation.returncode == 0, generation.stderr
@@ -151,10 +191,37 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
         [sys.executable, str(GENERATOR), "--template", str(TEMPLATE),
          "--output", str(temporary / "bad.js"), "--cache-mode", "warm",
          "--concurrency", "100", "--run-index", "1", "--location-label", "hub",
+         "--location-sha256", LOCATION_SHA256, "--navigation-id", "c10-p1-warm",
          "--runner-class", "hardware"],
         text=True, capture_output=True, check=False,
     )
     assert rejected.returncode != 0
+
+    unsafe_navigation = subprocess.run(
+        [sys.executable, str(GENERATOR), "--template", str(TEMPLATE),
+         "--output", str(temporary / "unsafe-navigation.js"), "--cache-mode", "warm",
+         "--concurrency", "10", "--run-index", "1", "--location-label", "hub",
+         "--location-sha256", LOCATION_SHA256, "--navigation-id", "https://token@secret.invalid/",
+         "--runner-class", "hardware"],
+        text=True, capture_output=True, check=False,
+    )
+    assert unsafe_navigation.returncode != 0
+    assert "--navigation-id is invalid" in unsafe_navigation.stderr
+    assert "secret.invalid" not in unsafe_navigation.stderr
+    assert not (temporary / "unsafe-navigation.js").exists()
+
+    unsafe_location = subprocess.run(
+        [sys.executable, str(GENERATOR), "--template", str(TEMPLATE),
+         "--output", str(temporary / "unsafe-location.js"), "--cache-mode", "warm",
+         "--concurrency", "10", "--run-index", "1", "--location-label", "hub",
+         "--location-sha256", "https://secret.invalid/", "--navigation-id", "c10-p1-warm",
+         "--runner-class", "hardware"],
+        text=True, capture_output=True, check=False,
+    )
+    assert unsafe_location.returncode != 0
+    assert "--location-sha256 is invalid" in unsafe_location.stderr
+    assert "secret.invalid" not in unsafe_location.stderr
+    assert not (temporary / "unsafe-location.js").exists()
 
     benchmark = temporary / "benchmark"
     create_benchmark(benchmark)
@@ -170,6 +237,10 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     assert set(summary["bottleneck_summary"].values()) == {"none-observed"}
     assert all(group["dominant_bottleneck"] == "none-observed" for group in summary["groups"])
     assert all(group["bottleneck_signal_counts"] == {} for group in summary["groups"])
+    assert all(group["queue_diagnostics"][0]["navigation_event_details"]["entity_decode"] == {
+        "decompress_us": 40.0,
+        "wait_lock_us": 10.0,
+    } for group in summary["groups"])
     assert result.stat().st_mode & 0o777 == 0o600
     assert int(ET.parse(junit).getroot().attrib["failures"]) == 0
 
@@ -199,6 +270,64 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     assert corrupt_analysis.returncode != 0
     assert "strictly increasing" in corrupt_analysis.stdout
     assert int(ET.parse(corrupt_junit).getroot().attrib["failures"]) >= 1
+
+    sequence_gap = temporary / "sequence-gap"
+    create_benchmark(sequence_gap, concurrencies=(10,))
+    gap_log = sequence_gap / "c10/pair-1/cold/online-loading.log"
+    gap_log.write_text("\n".join(
+        line for line in gap_log.read_text(encoding="utf-8").splitlines()
+        if '"event": "entity_decode"' not in line
+    ) + "\n", encoding="utf-8")
+    gap_result, gap_junit = temporary / "gap.json", temporary / "gap.xml"
+    gap_analysis = analyze(sequence_gap, gap_result, gap_junit)
+    assert gap_analysis.returncode != 0
+    assert "contiguous sequence" in gap_analysis.stdout
+
+    wrong_navigation = temporary / "wrong-navigation"
+    create_benchmark(wrong_navigation, concurrencies=(10,))
+    wrong_log = wrong_navigation / "c10/pair-1/cold/online-loading.log"
+    wrong_log.write_text(
+        wrong_log.read_text(encoding="utf-8").replace(
+            '"navigation_id": "c10-p1-cold"',
+            '"navigation_id": "c10-p1-warm"',
+            1,
+        ),
+        encoding="utf-8",
+    )
+    wrong_result, wrong_junit = temporary / "wrong.json", temporary / "wrong.xml"
+    wrong_analysis = analyze(wrong_navigation, wrong_result, wrong_junit)
+    assert wrong_analysis.returncode != 0
+    assert "belongs to another navigation" in wrong_analysis.stdout
+
+    unsafe_detail = temporary / "unsafe-detail"
+    create_benchmark(unsafe_detail, concurrencies=(10,))
+    unsafe_log = unsafe_detail / "c10/pair-1/cold/online-loading.log"
+    unsafe_lines = unsafe_log.read_text(encoding="utf-8").splitlines()
+    for index, line in enumerate(unsafe_lines):
+        prefix_at = line.find("OVERTE_MACOS_ONLINE_NAV ")
+        if prefix_at >= 0 and '"event": "entity_data"' in line:
+            prefix = line[:prefix_at + len("OVERTE_MACOS_ONLINE_NAV ")]
+            record = json.loads(line[len(prefix):])
+            record["url"] = "https://token@secret.invalid/"
+            unsafe_lines[index] = prefix + json.dumps(record, sort_keys=True)
+            break
+    unsafe_log.write_text("\n".join(unsafe_lines) + "\n", encoding="utf-8")
+    unsafe_result, unsafe_junit = temporary / "unsafe.json", temporary / "unsafe.xml"
+    unsafe_analysis = analyze(unsafe_detail, unsafe_result, unsafe_junit)
+    assert unsafe_analysis.returncode != 0
+    assert "unexpected field: url" in unsafe_analysis.stdout
+
+    negative_detail = temporary / "negative-detail"
+    create_benchmark(negative_detail, concurrencies=(10,))
+    negative_log = negative_detail / "c10/pair-1/cold/online-loading.log"
+    negative_log.write_text(
+        negative_log.read_text(encoding="utf-8").replace('"packet_queue": 3', '"packet_queue": -3', 1),
+        encoding="utf-8",
+    )
+    negative_result, negative_junit = temporary / "negative.json", temporary / "negative.xml"
+    negative_analysis = analyze(negative_detail, negative_result, negative_junit)
+    assert negative_analysis.returncode != 0
+    assert "field packet_queue is negative" in negative_analysis.stdout
 
     stale = temporary / "stale"
     create_benchmark(stale)
@@ -277,7 +406,8 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     cold_log_path.write_text(
         "[12:00:00.000] start\n"
         "[12:00:01.000] OVERTE_MACOS_ENTITY_GATE domain_list_connected\n"
-        "[12:00:03.000] OVERTE_MACOS_ENTITY_GATE entity_query_sent\n",
+        "[12:00:03.000] OVERTE_MACOS_ENTITY_GATE entity_query_sent\n" +
+        telemetry_lines("c10-p1-cold", "entity_query"),
         encoding="utf-8",
     )
     mixed_result = temporary / "diagnostic-mixed.json"
@@ -340,7 +470,8 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     missing_analysis = analyze(missing_network, missing_result, missing_junit)
     assert missing_analysis.returncode != 0
     missing_summary = json.loads(missing_result.read_text(encoding="utf-8"))
-    assert missing_summary["diagnostic_capture_complete"] is False
+    assert missing_summary["passed"] is False
+    assert any("navigation-scoped telemetry" in failure for failure in missing_summary["failures"])
     assert int(ET.parse(missing_junit).getroot().attrib["failures"]) >= 1
 
     mismatched_runner = temporary / "mismatched-runner"
