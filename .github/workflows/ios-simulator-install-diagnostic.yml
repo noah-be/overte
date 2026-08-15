@@ -552,6 +552,10 @@ jobs:
         continue-on-error: true
         env:
           ONLINE_DOMAIN: ${{ steps.online-place.outputs.domain }}
+          # Diagnostic-only tracing distinguishes a crash inside pipeline
+          # creation from descriptor binding or the first draw. The normal
+          # producer workflow remains free of this high-volume trace.
+          OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS: "6"
         run: |
           set -euo pipefail
           app="${{ steps.candidate.outputs.app }}"

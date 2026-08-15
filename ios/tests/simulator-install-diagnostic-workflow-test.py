@@ -81,6 +81,7 @@ assert '"$xcode_build" == 17F42' in runtime
 assert "com.apple.CoreSimulator.SimRuntime.iOS-26-5" in runtime
 assert "expected exactly one available iOS 26.5 runtime" in runtime
 assert "interface-world-simulator-smoke.sh" in runtime
+assert 'OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS: "6"' in runtime
 assert "symbolicate-simulator-crash.py" in runtime
 assert "*-overte-crash-report.log" in runtime and "*-symbolicated-crash.json" in runtime
 assert "${stem}-overte-crash-report.log" in SMOKE

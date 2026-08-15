@@ -161,6 +161,12 @@ elif [ "$1 $2" = "simctl launch" ]; then
         printf '%s\n' "Metal argument buffers must be disabled for simulator runtime evidence" >&2
         exit 71
     }
+    if [ "${FAKE_EXPECT_MVK_TRACE:-0}" = 1 ]; then
+        [ "${SIMCTL_CHILD_MVK_CONFIG_TRACE_VULKAN_CALLS:-}" = 6 ] || {
+            printf '%s\n' "missing requested MoltenVK Vulkan call trace" >&2
+            exit 72
+        }
+    fi
     [ -n "${SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR:-}" ] || exit 66
     case "$SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR" in
         "$FAKE_DATA_CONTAINER"/tmp/overte-mvk-shaders-*) ;;
@@ -286,6 +292,8 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
             "OVERTE_IOS_WORLD_POLL_SECONDS": "1",
             "OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS": "0",
             "OVERTE_IOS_WORLD_CRASH_REPORT_WAIT_SECONDS": "1",
+            "OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS": "6",
+            "FAKE_EXPECT_MVK_TRACE": "1",
             "OVERTE_IOS_WORLD_DIAGNOSTICS_DIR": str(root / "raw-diagnostics"),
         }
     )

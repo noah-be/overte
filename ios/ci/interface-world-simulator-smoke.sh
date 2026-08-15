@@ -22,6 +22,7 @@ screenshot_settle="${OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS:-2}"
 stack_sample_delay="${OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS:-1}"
 crash_report_wait="${OVERTE_IOS_WORLD_CRASH_REPORT_WAIT_SECONDS:-20}"
 diagnostics_dir="${OVERTE_IOS_WORLD_DIAGNOSTICS_DIR:-}"
+mvk_trace_vulkan_calls="${OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS:-}"
 
 [[ -d "$app_path" && "$app_path" == *.app ]] || {
     echo "usage: $0 APP_PATH BUNDLE_ID iphone|ipad serverless|online EXPECTED_DOMAIN|- OUTPUT_DIR" >&2
@@ -58,6 +59,10 @@ diagnostics_dir="${OVERTE_IOS_WORLD_DIAGNOSTICS_DIR:-}"
 }
 [[ "$crash_report_wait" =~ ^[0-9]+$ ]] && ((10#$crash_report_wait <= 60)) || {
     echo "OVERTE_IOS_WORLD_CRASH_REPORT_WAIT_SECONDS must be an integer from 0 through 60" >&2
+    exit 2
+}
+[[ -z "$mvk_trace_vulkan_calls" || "$mvk_trace_vulkan_calls" =~ ^[0-7]$ ]] || {
+    echo "OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS must be empty or an integer from 0 through 7" >&2
     exit 2
 }
 for helper in "$timeout_runner" "$simulator_selector" "$screenshot_validator" "$world_validator"; do
@@ -506,10 +511,16 @@ if ! kill -0 "$log_stream_pid" 2>/dev/null; then
 fi
 
 touch "$launch_marker"
+launch_environment=(
+    "SIMCTL_CHILD_MVK_CONFIG_LOG_LEVEL=4"
+    "SIMCTL_CHILD_MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=0"
+    "SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR=$mvk_dump_root"
+)
+if [[ -n "$mvk_trace_vulkan_calls" ]]; then
+    launch_environment+=("SIMCTL_CHILD_MVK_CONFIG_TRACE_VULKAN_CALLS=$mvk_trace_vulkan_calls")
+fi
 launch_output="$(run_bounded "application launch" 60 env \
-    SIMCTL_CHILD_MVK_CONFIG_LOG_LEVEL=4 \
-    SIMCTL_CHILD_MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=0 \
-    SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR="$mvk_dump_root" \
+    "${launch_environment[@]}" \
     xcrun simctl launch \
     --stdout="$app_stdout" --stderr="$app_stderr" \
     "$active_udid" "$bundle_id" --url "$launch_url" --ios-world-evidence \
