@@ -8,6 +8,21 @@ on:
         required: false
         default: false
         type: boolean
+      symbolicate_existing_crash:
+        description: Symbolicate a preserved runtime crash instead of launching a simulator
+        required: false
+        default: false
+        type: boolean
+      crash_run_id:
+        description: Trusted failed runtime-only run containing the crash report
+        required: false
+        default: "31863725210"
+        type: string
+      crash_artifact_name:
+        description: Exact runtime-only artifact containing the crash report
+        required: false
+        default: "ios-world-runtime-only-31863725210"
+        type: string
       source_run_id:
         description: Trusted iOS world producer run ID
         required: true
@@ -49,7 +64,7 @@ defaults:
 jobs:
   diagnose-install:
     name: Reuse candidate and isolate CoreSimulator install failure
-    if: ${{ !inputs.world_runtime_only }}
+    if: ${{ !inputs.world_runtime_only && !inputs.symbolicate_existing_crash }}
     # macOS 26.5.2 currently reproduces IXErrorDomain 13 across all installed
     # Xcode versions because CoreSimulatorService belongs to the host OS. Use
     # the ARM64 macOS 15 image to isolate the already-built candidate from that
@@ -364,7 +379,7 @@ jobs:
 
   world-runtime-only:
     name: Reuse exact candidate for serverless and online screenshots
-    if: ${{ inputs.world_runtime_only }}
+    if: ${{ inputs.world_runtime_only && !inputs.symbolicate_existing_crash }}
     # macOS 26.5.2's CoreSimulatorService can accept the app installation but
     # then leave `simctl launch` blocked without ever creating an app PID. The
     # same arm64 candidate has a deployment target of iOS 17 and is therefore
@@ -570,3 +585,114 @@ jobs:
         if: ${{ always() && !cancelled() }}
         run: |
           [[ "${{ steps.worlds.outcome }}" == success ]]
+
+  symbolicate-existing-crash:
+    name: Symbolicate preserved Simulator crash without rebuilding
+    if: ${{ inputs.symbolicate_existing_crash }}
+    runs-on: macos-15
+    timeout-minutes: 12
+    env:
+      SYMBOLICATE_ROOT: ${{ github.workspace }}/build-ios/symbolicate-existing-crash
+      SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+      SOURCE_ARTIFACT_NAME: ${{ inputs.source_artifact_name }}
+      SOURCE_CANDIDATE_NAME: ${{ inputs.source_candidate_name }}
+      EXPECTED_SHA256: ${{ inputs.expected_sha256 }}
+      EXPECTED_SOURCE_REVISION: ${{ inputs.expected_source_revision }}
+      CRASH_RUN_ID: ${{ inputs.crash_run_id }}
+      CRASH_ARTIFACT_NAME: ${{ inputs.crash_artifact_name }}
+    steps:
+      - name: Check out reviewed symbolication helper without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Validate trusted candidate and crash producers
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$CRASH_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$SOURCE_ARTIFACT_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
+          [[ "$CRASH_ARTIFACT_NAME" =~ ^ios-world-runtime-only-[1-9][0-9]*$ ]]
+          [[ "$SOURCE_CANDIDATE_NAME" =~ ^[0-9]+-OverteIOSClient-Release-simulator[.]zip$ ]]
+          [[ "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$EXPECTED_SOURCE_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          test ! -e "$SYMBOLICATE_ROOT"
+          install -d -m 0700 "$SYMBOLICATE_ROOT/candidate" \
+            "$SYMBOLICATE_ROOT/crash" "$SYMBOLICATE_ROOT/output"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" \
+            > "$SYMBOLICATE_ROOT/candidate-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CRASH_RUN_ID" \
+            > "$SYMBOLICATE_ROOT/crash-run.json"
+          python3 - "$SYMBOLICATE_ROOT/candidate-run.json" \
+            "$SYMBOLICATE_ROOT/crash-run.json" <<'PY'
+          import json
+          import os
+          import pathlib
+          import sys
+
+          candidate = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          crash = json.loads(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
+          repository = os.environ["GITHUB_REPOSITORY"]
+          candidate_path = str(candidate.get("path", "")).split("@", 1)[0]
+          crash_path = str(crash.get("path", "")).split("@", 1)[0]
+          if candidate.get("status") != "completed" or candidate.get("conclusion") != "failure":
+              raise SystemExit("candidate producer must be the reviewed failed world run")
+          if (candidate.get("head_repository") or {}).get("full_name") != repository:
+              raise SystemExit("candidate producer repository mismatch")
+          if candidate.get("head_branch") != "apple-ios":
+              raise SystemExit("candidate producer branch mismatch")
+          if candidate.get("head_sha") != os.environ["EXPECTED_SOURCE_REVISION"]:
+              raise SystemExit("candidate producer revision mismatch")
+          if candidate_path != ".github/workflows/ios-bootstrap.yml":
+              raise SystemExit("candidate producer workflow mismatch")
+          if crash.get("status") != "completed" or crash.get("conclusion") != "failure":
+              raise SystemExit("crash producer must be a completed failed runtime run")
+          if (crash.get("head_repository") or {}).get("full_name") != repository:
+              raise SystemExit("crash producer repository mismatch")
+          if crash.get("head_branch") != "apple-ios":
+              raise SystemExit("crash producer branch mismatch")
+          if crash_path != ".github/workflows/ios-simulator-install-diagnostic.yml":
+              raise SystemExit("crash producer workflow mismatch")
+          PY
+
+      - name: Download exact preserved candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ env.SOURCE_ARTIFACT_NAME }}
+          path: ${{ env.SYMBOLICATE_ROOT }}/candidate
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
+
+      - name: Download exact preserved crash report
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ env.CRASH_ARTIFACT_NAME }}
+          path: ${{ env.SYMBOLICATE_ROOT }}/crash
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.CRASH_RUN_ID }}
+
+      - name: Verify binary identity and symbolicate crash
+        run: |
+          set -euo pipefail
+          candidate="$SYMBOLICATE_ROOT/candidate/artifacts/$SOURCE_CANDIDATE_NAME"
+          crash="$SYMBOLICATE_ROOT/crash/upload-diagnostics/iphone-serverless-crash-report.log"
+          test -f "$candidate"
+          test -f "$crash"
+          [[ "$(shasum -a 256 "$candidate" | awk '{print $1}')" == "$EXPECTED_SHA256" ]]
+          ditto -x -k "$candidate" "$SYMBOLICATE_ROOT/expanded"
+          binary="$SYMBOLICATE_ROOT/expanded/Overte.app/Overte"
+          test -x "$binary"
+          python3 ios/tools/symbolicate-simulator-crash.py \
+            "$crash" "$binary" "$SYMBOLICATE_ROOT/output/iphone-serverless-symbolicated-crash.json"
+
+      - name: Upload symbolicated Simulator crash
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ios-symbolicated-crash-${{ github.run_id }}
+          path: ${{ env.SYMBOLICATE_ROOT }}/output
+          if-no-files-found: error
+          retention-days: 14

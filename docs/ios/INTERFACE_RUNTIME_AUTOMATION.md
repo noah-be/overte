@@ -84,6 +84,13 @@ creating an application PID. The candidate's iOS 17 deployment target makes
 the older runtime a valid compatibility execution, while exact Xcode build and
 runtime checks prevent silent runner-image drift.
 
+The same diagnostic workflow also has a symbolicate-only recovery mode. It
+accepts an exact failed runtime run and artifact, revalidates both producer
+workflows and the candidate SHA-256, then uses the preserved `.ips` report and
+the matching Mach-O on macOS to produce UUID-checked `atos` output. It neither
+boots a Simulator nor rebuilds the application, so nondeterministic
+CrashReporter timing cannot destroy an already captured report.
+
 `.github/workflows/ios-interface-simulator-acceptance.yml` remains available as
 a manual consumer for an already published simulator candidate. Its older
 six-gate route is useful for generic entity acceptance, but the world workflow

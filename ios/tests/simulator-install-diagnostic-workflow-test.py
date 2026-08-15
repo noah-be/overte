@@ -17,6 +17,7 @@ assert re.search(r"^\s+workflow_dispatch:\s*$", WORKFLOW, re.MULTILINE)
 assert "pull_request:" not in WORKFLOW
 assert "push:" not in WORKFLOW
 assert re.search(r"world_runtime_only:[\s\S]*type: boolean", WORKFLOW)
+assert re.search(r"symbolicate_existing_crash:[\s\S]*type: boolean", WORKFLOW)
 assert "inputs.source_run_id || '31818380576'" in WORKFLOW
 assert "actions: read" in WORKFLOW and "contents: read" in WORKFLOW
 assert "persist-credentials: false" in WORKFLOW
@@ -64,7 +65,7 @@ assert "cmake --build" not in WORKFLOW and "build-ios.sh build" not in WORKFLOW
 assert "retention-days: 14" in WORKFLOW
 
 runtime = WORKFLOW[WORKFLOW.index("world-runtime-only:") :]
-assert "if: ${{ inputs.world_runtime_only }}" in runtime
+assert "if: ${{ inputs.world_runtime_only && !inputs.symbolicate_existing_crash }}" in runtime
 assert "runs-on: macos-15" in runtime
 assert "runs-on: macos-26" not in runtime
 assert "Download exact preserved simulator candidate without rebuilding" in runtime
@@ -92,5 +93,17 @@ assert "world-evidence-set.json" in runtime
 assert "Require successful preserved-candidate runtime evidence" in runtime
 assert "cmake --build" not in runtime and "build-ios.sh build" not in runtime
 assert RUN_TESTS.count("simulator-install-diagnostic-workflow-test.py") == 1
+
+symbolicate = WORKFLOW[WORKFLOW.index("symbolicate-existing-crash:") :]
+assert "if: ${{ inputs.symbolicate_existing_crash }}" in symbolicate
+assert "runs-on: macos-15" in symbolicate
+assert "Validate trusted candidate and crash producers" in symbolicate
+assert 'crash_path != ".github/workflows/ios-simulator-install-diagnostic.yml"' in symbolicate
+assert "Download exact preserved candidate" in symbolicate
+assert "Download exact preserved crash report" in symbolicate
+assert "shasum -a 256" in symbolicate
+assert "symbolicate-simulator-crash.py" in symbolicate
+assert "ios-symbolicated-crash-${{ github.run_id }}" in symbolicate
+assert "cmake --build" not in symbolicate and "build-ios.sh build" not in symbolicate
 
 print("PASS no-rebuild CoreSimulator installation diagnostic workflow contract")
