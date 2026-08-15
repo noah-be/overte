@@ -1880,6 +1880,20 @@ for contract in (
 ):
     if contract not in entity_script_isolation:
         raise SystemExit(f"macOS entity-script isolation contract missing: {contract}")
+
+packet_sender_setup = application_setup_source.split(
+    "auto entityScriptingInterface = DependencyManager::get<EntityScriptingInterface>();\n"
+    "    OctreeEditPacketSender* packetSender", 1
+)[1].split('qCDebug(interfaceapp, "Startup time:', 1)[0]
+if "if (entityPacketSender)" not in packet_sender_setup or \
+        "entityPacketSender->setMyAvatar(myAvatar.get());" not in packet_sender_setup:
+    raise SystemExit(
+        "application startup must tolerate a deferred entity-script packet sender"
+    )
+if "_entityEditSender->setMyAvatar(myAvatar.get());" not in application_setup_source:
+    raise SystemExit(
+        "application startup must initialize its owned entity packet sender independently of scripts"
+    )
 reload_entity_scripts = entity_renderer_source.split(
     "void EntityTreeRenderer::reloadEntityScripts()", 1
 )[1].split("void EntityTreeRenderer::init()", 1)[0]

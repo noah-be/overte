@@ -1413,7 +1413,14 @@ void Application::initialize(const QCommandLineParser &parser) {
     auto entityScriptingInterface = DependencyManager::get<EntityScriptingInterface>();
     OctreeEditPacketSender* packetSender = entityScriptingInterface->getPacketSender();
     EntityEditPacketSender* entityPacketSender = static_cast<EntityEditPacketSender*>(packetSender);
-    entityPacketSender->setMyAvatar(myAvatar.get());
+    // EntityTreeRenderer normally creates entity-script engines before this
+    // point, and their initializer installs the application's packet sender.
+    // Explicit test isolation can intentionally defer those engines, leaving
+    // this optional scripting sender null.  The application-owned sender has
+    // already received MyAvatar above, so only mirror it when one exists.
+    if (entityPacketSender) {
+        entityPacketSender->setMyAvatar(myAvatar.get());
+    }
 
     qCDebug(interfaceapp, "Startup time: %4.2f seconds.", (double)_sessionRunTimer.elapsed() / MSECS_PER_SECOND);
 
