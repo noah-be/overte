@@ -71,6 +71,7 @@ readonly rendering_contracts=(
     ios-vulkan-hybrid-gl-migration-test.py
     ios-vulkan-platform-backend-test.py
     ios-vulkan-quick-copy-gate-test.py
+    ios-vulkan-shader-dialect-contract-test.py
     offscreen-qml-context-contract-test.py
     quick-texture-copy-abi-test.py
     rendering-compatibility-cmake-preflight-test.py
