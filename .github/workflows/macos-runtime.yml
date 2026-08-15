@@ -206,10 +206,15 @@ jobs:
           SOURCE_RUN_SHA: ${{ steps.source-run.outputs.sha }}
         run: |
           set -euo pipefail
-          app=build/runtime-artifact/interface/Overte.app
+          archive=build/runtime-artifact/application-archive/Overte.app.tar
           manifest=build/runtime-artifact/application-artifact/application-manifest.json
-          test -d "$app"
+          test -f "$archive"
           test -f "$manifest"
+          python3 macos/ci/application-artifact.py extract \
+            --archive "$archive" \
+            --destination build/runtime-artifact/interface
+          app=build/runtime-artifact/interface/Overte.app
+          test -d "$app"
           test "$(stat -f %z "$manifest")" -le 4194304
           test "$(find build/runtime-artifact -type d -name Overte.app | wc -l | tr -d ' ')" = 1
           test "$(find build/runtime-artifact -type f -name application-manifest.json | wc -l | tr -d ' ')" = 1
@@ -241,8 +246,6 @@ jobs:
             --build-type RelWithDebInfo \
             --deployment-target 11.0
           cp "$manifest" build/macos-runtime-provenance/application-manifest.json
-          # GitHub's artifact extraction does not retain executable modes.
-          chmod -R u+rx "$app/Contents/MacOS" "$app/Contents/Frameworks" "$app/Contents/PlugIns"
           test -x "$app/Contents/MacOS/Overte"
           test -f "$app/Contents/Info.plist"
           plutil -lint "$app/Contents/Info.plist"

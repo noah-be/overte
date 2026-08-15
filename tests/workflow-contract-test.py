@@ -922,11 +922,14 @@ class MacOSWorkflowContracts(unittest.TestCase):
             'xcrun --sdk macosx --show-sdk-version',
             '--build-type "$OVERTE_MACOS_BUILD_TYPE"',
             '--deployment-target "$MACOSX_DEPLOYMENT_TARGET"',
+            "macos/ci/application-artifact.py archive",
+            "--archive build/application-archive/Overte.app.tar",
         ):
             self.assertIn(token, package)
         self.assertNotIn("Overte.app/Contents", package.split("--manifest", 1)[1])
-        self.assertIn("build/interface/Overte.app", upload)
+        self.assertIn("build/application-archive/Overte.app.tar", upload)
         self.assertIn("build/application-artifact/application-manifest.json", upload)
+        self.assertNotIn("build/interface/Overte.app", upload)
         self.assertIn("compression-level: 0", upload)
 
     def test_runtime_source_run_and_exact_artifact_are_validated_before_download(self):
@@ -1097,8 +1100,12 @@ execute(github, context, core, require).then(
             "- name: Run application startup preflight", 1
         )[0]
         for token in (
+            "build/runtime-artifact/application-archive/Overte.app.tar",
             "build/runtime-artifact/interface/Overte.app",
             "build/runtime-artifact/application-artifact/application-manifest.json",
+            "macos/ci/application-artifact.py extract",
+            '--archive "$archive"',
+            "--destination build/runtime-artifact/interface",
             'stat -f %z "$manifest"',
             "macos/ci/application-artifact.py verify",
             'SOURCE_RUN_SHA: ${{ steps.source-run.outputs.sha }}',
@@ -1113,6 +1120,11 @@ execute(github, context, core, require).then(
             "build/macos-runtime-provenance/application-manifest.json",
         ):
             self.assertIn(token, verify)
+        self.assertLess(
+            verify.index("macos/ci/application-artifact.py extract"),
+            verify.index("macos/ci/application-artifact.py verify"),
+        )
+        self.assertNotIn("chmod -R", verify)
         self.assertNotIn('--sha "$GITHUB_SHA"', verify)
         diagnostics = source.split("- name: Upload runtime diagnostics", 1)[1]
         self.assertIn("build/macos-runtime-provenance", diagnostics)
@@ -1157,8 +1169,12 @@ execute(github, context, core, require).then(
         self.assertIn("if: github.event_name == 'workflow_dispatch'", source)
         self.assertIn("actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53", source)
         self.assertIn("run-id: ${{ inputs.artifact_run_id }}", source)
+        self.assertIn(
+            "build/runtime-artifact/application-archive/Overte.app.tar", source
+        )
+        self.assertIn("macos/ci/application-artifact.py extract", source)
         self.assertIn("build/runtime-artifact/interface/Overte.app", source)
-        self.assertIn('chmod -R u+rx "$app/Contents/MacOS" "$app/Contents/Frameworks" "$app/Contents/PlugIns"', source)
+        self.assertNotIn("chmod -R u+rx", source)
         self.assertIn("OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '300'", source)
         self.assertIn("macos/ci/serverless-smoke.sh", source)
         self.assertIn("macos/ci/online-smoke.sh", source)

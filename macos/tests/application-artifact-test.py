@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tarfile
 import tempfile
 import unittest
 
@@ -31,7 +32,13 @@ class ApplicationArtifactTests(unittest.TestCase):
         self.main = self.app / "Contents/MacOS/Overte"
         self.framework = self.app / "Contents/Frameworks/QtCore.framework/Versions/5/QtCore"
         self.main.write_text("MACHO:arm64\nmain\n", encoding="utf-8")
+        self.main.chmod(0o755)
         self.framework.write_text("MACHO:arm64 x86_64\nframework\n", encoding="utf-8")
+        os.symlink("5", self.app / "Contents/Frameworks/QtCore.framework/Versions/Current")
+        os.symlink(
+            "Versions/Current/QtCore",
+            self.app / "Contents/Frameworks/QtCore.framework/QtCore",
+        )
         (self.app / "Contents/Info.plist").write_text("not Mach-O\n", encoding="utf-8")
         self.file_tool = self.root / "fake-file.py"
         self.lipo_tool = self.root / "fake-lipo.py"
@@ -281,6 +288,85 @@ class ApplicationArtifactTests(unittest.TestCase):
                 self.app, self.manifest, self.metadata,
                 file_tool=non_utf8_file, lipo_tool=non_ascii_lipo,
             )
+
+    def test_transport_archive_preserves_symlinks_modes_and_manifest(self):
+        manifest = self.package()
+        archive_path = self.root / "transport/Overte.app.tar"
+        artifact.archive_application(self.app, archive_path)
+        self.assertEqual(archive_path.stat().st_mode & 0o777, 0o600)
+
+        destination = self.root / "restored/interface"
+        restored = artifact.extract_application_archive(archive_path, destination)
+        self.assertEqual(restored, destination / "Overte.app")
+        current = restored / "Contents/Frameworks/QtCore.framework/Versions/Current"
+        public_binary = restored / "Contents/Frameworks/QtCore.framework/QtCore"
+        self.assertTrue(current.is_symlink())
+        self.assertEqual(os.readlink(current), "5")
+        self.assertTrue(public_binary.is_symlink())
+        self.assertEqual(os.readlink(public_binary), "Versions/Current/QtCore")
+        self.assertEqual((restored / "Contents/MacOS/Overte").stat().st_mode & 0o777, 0o755)
+        self.assertEqual(
+            artifact.verify_application(
+                restored, self.manifest, self.metadata,
+                file_tool=self.file_tool, lipo_tool=self.lipo_tool,
+            ),
+            manifest,
+        )
+
+    def test_transport_archive_rejects_traversal_and_escaping_symlinks(self):
+        traversal = self.root / "traversal.tar"
+        with tarfile.open(traversal, "w") as archive:
+            member = tarfile.TarInfo("../escape")
+            member.size = 0
+            archive.addfile(member)
+        with self.assertRaisesRegex(artifact.ArtifactError, "unsafe path"):
+            artifact.extract_application_archive(traversal, self.root / "bad-one")
+        self.assertFalse((self.root / "escape").exists())
+
+        escaping_link = self.root / "escaping-link.tar"
+        with tarfile.open(escaping_link, "w") as archive:
+            root = tarfile.TarInfo("Overte.app")
+            root.type = tarfile.DIRTYPE
+            archive.addfile(root)
+            link = tarfile.TarInfo("Overte.app/Contents/escape")
+            link.type = tarfile.SYMTYPE
+            link.linkname = "../../../outside"
+            archive.addfile(link)
+        with self.assertRaisesRegex(artifact.ArtifactError, "escaping symlink"):
+            artifact.extract_application_archive(escaping_link, self.root / "bad-two")
+
+    def test_transport_cli_round_trip_and_nonempty_destination_fail_closed(self):
+        archive_path = self.root / "cli/Overte.app.tar"
+        archived = subprocess.run(
+            [
+                sys.executable, str(TOOL), "archive",
+                "--app", str(self.app), "--archive", str(archive_path),
+            ],
+            text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(archived.returncode, 0, archived.stderr)
+        self.assertEqual(json.loads(archived.stdout)["mode"], "archive")
+
+        destination = self.root / "cli-restored"
+        extracted = subprocess.run(
+            [
+                sys.executable, str(TOOL), "extract",
+                "--archive", str(archive_path), "--destination", str(destination),
+            ],
+            text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(extracted.returncode, 0, extracted.stderr)
+        self.assertEqual(json.loads(extracted.stdout)["mode"], "extract")
+        rejected = subprocess.run(
+            [
+                sys.executable, str(TOOL), "extract",
+                "--archive", str(archive_path), "--destination", str(destination),
+            ],
+            text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(rejected.returncode, 1)
+        self.assertIn("destination is not empty", rejected.stderr)
+        self.assertNotIn(str(self.root), rejected.stderr)
 
 
 if __name__ == "__main__":

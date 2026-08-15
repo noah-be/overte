@@ -14,9 +14,12 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import posixpath
 import re
+import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 from typing import Any
 
@@ -27,6 +30,10 @@ MANIFEST_MAX_BYTES = 4 * 1024 * 1024
 HASH_CHUNK_BYTES = 1024 * 1024
 MAIN_EXECUTABLE = "Contents/MacOS/Overte"
 TARGET_ARCHITECTURES = ("arm64", "x86_64")
+ARCHIVE_ROOT = "Overte.app"
+ARCHIVE_MAX_BYTES = 8 * 1024 * 1024 * 1024
+ARCHIVE_MAX_EXPANDED_BYTES = 16 * 1024 * 1024 * 1024
+ARCHIVE_MAX_MEMBERS = 100_000
 
 ROOT_FIELDS = {"schema_version", "kind", "provenance", "build", "application"}
 PROVENANCE_FIELDS = {
@@ -151,6 +158,186 @@ def _sha256(path: Path) -> str:
     except OSError as error:
         raise ArtifactError("could not hash bundle member") from error
     return digest.hexdigest()
+
+
+def _safe_archive_name(name: str) -> list[str]:
+    if (
+        not isinstance(name, str) or not name or name.startswith("/")
+        or any(ord(character) < 32 for character in name)
+    ):
+        raise ArtifactError("application archive contains an unsafe path")
+    parts = name.split("/")
+    if parts[0] != ARCHIVE_ROOT or any(part in ("", ".", "..") for part in parts):
+        raise ArtifactError("application archive contains an unsafe path")
+    return parts
+
+
+def _safe_symlink_target(member_name: str, link_name: str) -> None:
+    if (
+        not link_name or link_name.startswith("/")
+        or any(ord(character) < 32 for character in link_name)
+    ):
+        raise ArtifactError("application archive contains an unsafe symlink")
+    resolved = posixpath.normpath(
+        posixpath.join(posixpath.dirname(member_name), link_name)
+    )
+    if resolved != ARCHIVE_ROOT and not resolved.startswith(f"{ARCHIVE_ROOT}/"):
+        raise ArtifactError("application archive contains an escaping symlink")
+
+
+def _validated_archive_members(archive_path: Path) -> list[tarfile.TarInfo]:
+    if archive_path.is_symlink() or not archive_path.is_file():
+        raise ArtifactError("application archive is missing or unsafe")
+    try:
+        if archive_path.stat().st_size > ARCHIVE_MAX_BYTES:
+            raise ArtifactError("application archive exceeds the size limit")
+        with tarfile.open(archive_path, mode="r:") as archive:
+            members = archive.getmembers()
+    except ArtifactError:
+        raise
+    except (OSError, tarfile.TarError) as error:
+        raise ArtifactError("application archive is unreadable") from error
+
+    if not members or len(members) > ARCHIVE_MAX_MEMBERS:
+        raise ArtifactError("application archive member count is invalid")
+    names: set[str] = set()
+    symlinks: set[str] = set()
+    expanded_bytes = 0
+    root_found = False
+    for member in members:
+        parts = _safe_archive_name(member.name)
+        if member.name in names:
+            raise ArtifactError("application archive contains duplicate paths")
+        names.add(member.name)
+        root_found = root_found or (parts == [ARCHIVE_ROOT] and member.isdir())
+        if member.isfile():
+            if member.size < 0:
+                raise ArtifactError("application archive contains an invalid file")
+            expanded_bytes += member.size
+        elif member.isdir():
+            pass
+        elif member.issym():
+            _safe_symlink_target(member.name, member.linkname)
+            symlinks.add(member.name)
+        else:
+            raise ArtifactError("application archive contains an unsupported member")
+    if not root_found:
+        raise ArtifactError("application archive root is missing")
+    if expanded_bytes > ARCHIVE_MAX_EXPANDED_BYTES:
+        raise ArtifactError("application archive expansion exceeds the size limit")
+
+    for member in members:
+        if member.issym():
+            continue
+        parts = member.name.split("/")
+        for index in range(1, len(parts)):
+            if "/".join(parts[:index]) in symlinks:
+                raise ArtifactError("application archive traverses a symlink")
+    return members
+
+
+def archive_application(app: Path, archive_path: Path) -> None:
+    """Create a deterministic transport archive that preserves bundle symlinks."""
+    if not app.is_dir() or app.is_symlink() or app.name != ARCHIVE_ROOT:
+        raise ArtifactError("application bundle is missing or unsafe")
+    archive_path.parent.mkdir(parents=True, exist_ok=True)
+    if archive_path.is_symlink() or archive_path.is_dir():
+        raise ArtifactError("application archive path is unsafe")
+    temporary: Path | None = None
+    try:
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{archive_path.name}.", dir=archive_path.parent,
+        )
+        os.close(descriptor)
+        temporary = Path(temporary_name)
+
+        def normalize(member: tarfile.TarInfo) -> tarfile.TarInfo:
+            if not (member.isfile() or member.isdir() or member.issym()):
+                raise ArtifactError("application bundle contains an unsupported member")
+            if member.issym():
+                _safe_symlink_target(member.name, member.linkname)
+            member.uid = 0
+            member.gid = 0
+            member.uname = ""
+            member.gname = ""
+            member.mtime = 0
+            member.mode &= 0o777
+            member.pax_headers = {}
+            return member
+
+        with tarfile.open(
+                temporary, mode="w", format=tarfile.PAX_FORMAT,
+                dereference=False,
+        ) as archive:
+            archive.add(app, arcname=ARCHIVE_ROOT, recursive=True, filter=normalize)
+        _validated_archive_members(temporary)
+        os.replace(temporary, archive_path)
+        temporary = None
+        os.chmod(archive_path, 0o600)
+    except ArtifactError:
+        raise
+    except (OSError, tarfile.TarError) as error:
+        raise ArtifactError("could not create application archive") from error
+    finally:
+        if temporary is not None:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
+def extract_application_archive(archive_path: Path, destination: Path) -> Path:
+    """Safely and atomically restore one Overte.app from a transport archive."""
+    members = _validated_archive_members(archive_path)
+    if destination.is_symlink() or (destination.exists() and not destination.is_dir()):
+        raise ArtifactError("application extraction destination is unsafe")
+    if destination.exists() and any(destination.iterdir()):
+        raise ArtifactError("application extraction destination is not empty")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging: Path | None = Path(
+        tempfile.mkdtemp(prefix=f".{destination.name}.", dir=destination.parent)
+    )
+    try:
+        with tarfile.open(archive_path, mode="r:") as archive:
+            by_name = {member.name: member for member in archive.getmembers()}
+            for member in members:
+                if not member.isdir():
+                    continue
+                target = staging.joinpath(*member.name.split("/"))
+                target.mkdir(parents=True, exist_ok=True)
+                target.chmod(member.mode & 0o777)
+            for member in members:
+                if not member.isfile():
+                    continue
+                target = staging.joinpath(*member.name.split("/"))
+                target.parent.mkdir(parents=True, exist_ok=True)
+                source = archive.extractfile(by_name[member.name])
+                if source is None:
+                    raise ArtifactError("application archive file is unreadable")
+                with source, target.open("xb") as output:
+                    shutil.copyfileobj(source, output, HASH_CHUNK_BYTES)
+                target.chmod(member.mode & 0o777)
+            for member in members:
+                if not member.issym():
+                    continue
+                target = staging.joinpath(*member.name.split("/"))
+                target.parent.mkdir(parents=True, exist_ok=True)
+                os.symlink(member.linkname, target)
+        restored = staging / ARCHIVE_ROOT
+        if not restored.is_dir() or restored.is_symlink():
+            raise ArtifactError("restored application bundle is missing or unsafe")
+        if destination.exists():
+            destination.rmdir()
+        os.replace(staging, destination)
+        staging = None
+        return destination / ARCHIVE_ROOT
+    except ArtifactError:
+        raise
+    except (OSError, tarfile.TarError) as error:
+        raise ArtifactError("could not extract application archive") from error
+    finally:
+        if staging is not None:
+            shutil.rmtree(staging, ignore_errors=True)
 
 
 def _run_tool(tool: Path, arguments: list[str], label: str) -> bytes:
@@ -449,8 +636,33 @@ def main() -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
     for name in ("package", "verify"):
         _add_common_arguments(subparsers.add_parser(name))
+    archive_parser = subparsers.add_parser("archive")
+    archive_parser.add_argument("--app", type=Path, required=True)
+    archive_parser.add_argument("--archive", type=Path, required=True)
+    extract_parser = subparsers.add_parser("extract")
+    extract_parser.add_argument("--archive", type=Path, required=True)
+    extract_parser.add_argument("--destination", type=Path, required=True)
     arguments = parser.parse_args()
     try:
+        if arguments.command == "archive":
+            archive_application(arguments.app, arguments.archive)
+            print(json.dumps({
+                "kind": KIND,
+                "mode": arguments.command,
+                "schema_version": SCHEMA_VERSION,
+                "status": "ok",
+            }, sort_keys=True), flush=True)
+            return 0
+        if arguments.command == "extract":
+            extract_application_archive(arguments.archive, arguments.destination)
+            print(json.dumps({
+                "kind": KIND,
+                "mode": arguments.command,
+                "schema_version": SCHEMA_VERSION,
+                "status": "ok",
+            }, sort_keys=True), flush=True)
+            return 0
+
         metadata = _metadata_from_arguments(arguments)
         if arguments.command == "package":
             manifest = package_application(

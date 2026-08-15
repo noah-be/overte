@@ -143,9 +143,13 @@ immediately. The telemetry supervisor preserves the supervised command's exit
 status and never records commands, environment variables, paths, or secrets.
 
 Immediately after bundle verification and before runtime testing, it creates a
-versioned external application manifest and uploads
-`overte-macos-x86_64-<run-id>` with both `build/interface/Overte.app` and
-`build/application-artifact/application-manifest.json`. The manifest binds the
+versioned external application manifest and a deterministic inner transport
+archive, then uploads `overte-macos-x86_64-<run-id>` with both
+`build/application-archive/Overte.app.tar` and
+`build/application-artifact/application-manifest.json`. The inner archive is
+required because GitHub's artifact transport dereferences macOS framework and
+QML symlinks; it preserves the original symlink topology and executable modes.
+The manifest binds the
 repository, bootstrap workflow path, ref, commit, run/attempt, target
 architecture, Xcode/SDK, build configuration, deployment target, main
 executable digest, and the digest plus architecture slices of every Mach-O in
@@ -159,9 +163,12 @@ The separate `.github/workflows/macos-runtime.yml` workflow restores one
 explicit application artifact without rebuilding it. Before downloading, a
 pinned GitHub API step requires a completed, successful bootstrap run from the
 same repository and the exact `apple-macos` branch, then selects exactly one
-live artifact with the expected run-scoped name. After extraction, the runtime
-workflow requires the unique documented bundle/manifest layout and revalidates
-the complete manifest and Mach-O inventory. The current runtime-test checkout
+live artifact with the expected run-scoped name. The runtime workflow safely
+extracts the inner archive, requires the unique documented bundle/manifest
+layout, and revalidates the complete manifest and Mach-O inventory. Unsafe
+paths, escaping links, duplicate members, unsupported file types, and excessive
+archive sizes fail closed before the bundle is used. The current runtime-test
+checkout
 may be newer than the application commit so script-only test improvements can
 reuse an immutable build; the original application and source-run provenance
 are copied into the runtime diagnostics result. It always runs startup

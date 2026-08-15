@@ -919,6 +919,9 @@ jobs:
             --sdk-version "$sdk_version" \
             --build-type "$OVERTE_MACOS_BUILD_TYPE" \
             --deployment-target "$MACOSX_DEPLOYMENT_TARGET"
+          python3 macos/ci/application-artifact.py archive \
+            --app "$app" \
+            --archive build/application-archive/Overte.app.tar
 
       - name: Upload application bundle immediately
         id: application-upload
@@ -926,10 +929,10 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: overte-macos-x86_64-${{ github.run_id }}
-          # Multiple paths retain their unique paths below the common `build`
-          # root: interface/Overte.app and the external provenance manifest.
+          # The inner tar preserves framework/QML symlinks and executable modes;
+          # upload-artifact otherwise dereferences macOS bundle symlinks.
           path: |
-            build/interface/Overte.app
+            build/application-archive/Overte.app.tar
             build/application-artifact/application-manifest.json
           if-no-files-found: error
           compression-level: 0
