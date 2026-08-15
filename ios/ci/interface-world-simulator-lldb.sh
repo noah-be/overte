@@ -80,6 +80,7 @@ readonly command_stderr="$temp_root/command.stderr"
 readonly app_stdout="$temp_root/application.stdout"
 readonly app_stderr="$temp_root/application.stderr"
 readonly crash_commands="$temp_root/on-crash.lldb"
+readonly startup_commands="$temp_root/startup-trace.lldb"
 
 : > "$app_stdout"
 : > "$app_stderr"
@@ -92,6 +93,9 @@ app_installed=0
 app_launched=0
 lldb_status="not_run"
 capture_status="not_captured"
+resume_trace="not_observed"
+sandbox_trace="not_observed"
+exit_trace="not_observed"
 xcode_build="unknown"
 
 run_bounded() {
@@ -140,6 +144,9 @@ finish() {
         printf 'xcode_build=%s\n' "$xcode_build"
         printf 'lldb_status=%s\n' "$lldb_status"
         printf 'capture_status=%s\n' "$capture_status"
+        printf 'resume_trace=%s\n' "$resume_trace"
+        printf 'sandbox_trace=%s\n' "$sandbox_trace"
+        printf 'exit_trace=%s\n' "$exit_trace"
         printf 'runner_status=%s\n' "$status"
     } > "$result_log"
     chmod 0600 "$result_log"
@@ -215,6 +222,27 @@ script print("OVERTE_LLDB_CRASH_CAPTURE_COMPLETE")
 LLDB
 chmod 0600 "$crash_commands"
 
+# Trace the startup boundary and every ordinary process-exit route without
+# exposing arguments, environment variables, local variables, or memory.
+# Breakpoint commands auto-continue so the trace does not alter startup order.
+cat > "$startup_commands" <<'LLDB'
+breakpoint set -r 'Application::resumeAfterLoginDialogActionTaken'
+breakpoint command add 1 -o 'script print("OVERTE_LLDB_TRACE resume_entry")' -o 'thread backtrace -c 24' -o 'continue'
+breakpoint set -r 'Application::handleSandboxStatus'
+breakpoint command add 2 -o 'script print("OVERTE_LLDB_TRACE sandbox_entry")' -o 'thread backtrace -c 24' -o 'continue'
+breakpoint set -r 'QCoreApplication::(exit|quit)'
+breakpoint command add 3 -o 'script print("OVERTE_LLDB_TRACE qt_exit")' -o 'thread backtrace -c 32' -o 'continue'
+breakpoint set -n exit
+breakpoint command add 4 -o 'script print("OVERTE_LLDB_TRACE libc_exit")' -o 'thread backtrace -c 32' -o 'continue'
+breakpoint set -n _exit
+breakpoint command add 5 -o 'script print("OVERTE_LLDB_TRACE posix_exit")' -o 'thread backtrace -c 32' -o 'continue'
+breakpoint set -n abort
+breakpoint command add 6 -o 'script print("OVERTE_LLDB_TRACE abort")' -o 'thread backtrace -c 32' -o 'continue'
+breakpoint set -r 'Application::~Application'
+breakpoint command add 7 -o 'script print("OVERTE_LLDB_TRACE application_destructor")' -o 'thread backtrace -c 32' -o 'continue'
+LLDB
+chmod 0600 "$startup_commands"
+
 lldb_status=0
 "$timeout_runner" "$lldb_timeout" xcrun lldb \
     --no-lldbinit \
@@ -224,9 +252,18 @@ lldb_status=0
     -o 'settings set auto-confirm true' \
     -o "target symbols add \"$symbol_bundle\"" \
     -o 'process handle -s true -n false -p false SIGSEGV' \
+    --source "$startup_commands" \
     --source-on-crash "$crash_commands" \
     -o 'process continue' \
+    -o 'script print("OVERTE_LLDB_STARTUP_TRACE_COMPLETE")' \
     > "$lldb_log" 2>&1 || lldb_status=$?
+
+grep -Fq 'OVERTE_LLDB_TRACE resume_entry' "$lldb_log" && resume_trace="observed" || true
+grep -Fq 'OVERTE_LLDB_TRACE sandbox_entry' "$lldb_log" && sandbox_trace="observed" || true
+if grep -Eq 'OVERTE_LLDB_TRACE (qt_exit|libc_exit|posix_exit|abort|application_destructor)' "$lldb_log" || \
+        grep -Eq 'Process [0-9]+ exited with status' "$lldb_log"; then
+    exit_trace="observed"
+fi
 
 if grep -Fq 'OVERTE_LLDB_CRASH_CAPTURE_COMPLETE' "$lldb_log" && \
         grep -Eq 'stop reason = (EXC_BAD_ACCESS|signal SIGSEGV)' "$lldb_log" && \
@@ -234,6 +271,11 @@ if grep -Fq 'OVERTE_LLDB_CRASH_CAPTURE_COMPLETE' "$lldb_log" && \
     capture_status="captured_sigsegv"
     # A captured crash is diagnostic success but runtime failure.  Keep the
     # workflow red so it can never be mistaken for world acceptance evidence.
+    exit 1
+fi
+
+if [[ "$resume_trace" == observed && "$exit_trace" == observed ]]; then
+    capture_status="traced_process_exit"
     exit 1
 fi
 

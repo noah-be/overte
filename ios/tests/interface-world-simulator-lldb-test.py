@@ -110,6 +110,19 @@ elif [ "$1" = lldb ]; then
     if [ "${FAKE_LLDB_SLEEP:-0}" = 1 ]; then
         sleep 10
     fi
+    if [ "${FAKE_LLDB_NORMAL_EXIT:-0}" = 1 ]; then
+        cat <<'EOF'
+OVERTE_LLDB_TRACE resume_entry
+* thread #1
+  frame #0: Overte`Application::resumeAfterLoginDialogActionTaken
+OVERTE_LLDB_TRACE qt_exit
+* thread #1
+  frame #0: QtCore`QCoreApplication::exit
+Process 4242 exited with status = 0 (0x00000000)
+OVERTE_LLDB_STARTUP_TRACE_COMPLETE
+EOF
+        exit 0
+    fi
     cat <<'EOF'
 Process 4242 stopped
 * thread #1, stop reason = signal SIGSEGV
@@ -157,6 +170,24 @@ fi
     assert "simctl launch --wait-for-debugger" in commands
     assert "lldb --no-lldbinit --no-use-colors --batch --attach-pid 4242" in commands
     assert "simctl terminate" in commands and "simctl shutdown" in commands
+
+    command_log.write_text("", encoding="utf-8")
+    normal_exit_environment = {**base_environment, "FAKE_LLDB_NORMAL_EXIT": "1"}
+    normal_exit_output = root / "normal-exit"
+    normal_exit = invoke(app, symbols, normal_exit_output, normal_exit_environment)
+    assert normal_exit.returncode == 1, (normal_exit.stdout, normal_exit.stderr)
+    normal_exit_result = (
+        normal_exit_output / "iphone-serverless-lldb-result.log"
+    ).read_text(encoding="utf-8")
+    assert "capture_status=traced_process_exit" in normal_exit_result
+    assert "resume_trace=observed" in normal_exit_result
+    assert "sandbox_trace=not_observed" in normal_exit_result
+    assert "exit_trace=observed" in normal_exit_result
+    normal_exit_log = (
+        normal_exit_output / "iphone-serverless-lldb.log"
+    ).read_text(encoding="utf-8")
+    assert "OVERTE_LLDB_TRACE resume_entry" in normal_exit_log
+    assert "OVERTE_LLDB_TRACE qt_exit" in normal_exit_log
 
     command_log.write_text("", encoding="utf-8")
     mismatch_environment = {**base_environment, "FAKE_SYMBOL_UUID": "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"}

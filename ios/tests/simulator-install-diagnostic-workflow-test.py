@@ -120,11 +120,18 @@ for required in (
     "--wait-for-debugger",
     "SIMCTL_CHILD_MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=0",
     "SIMCTL_CHILD_MVK_CONFIG_TRACE_VULKAN_CALLS=6",
+    "startup-trace.lldb",
+    "OVERTE_LLDB_TRACE resume_entry",
+    "OVERTE_LLDB_TRACE sandbox_entry",
+    "OVERTE_LLDB_TRACE qt_exit",
+    "OVERTE_LLDB_TRACE application_destructor",
+    "OVERTE_LLDB_STARTUP_TRACE_COMPLETE",
     "--source-on-crash",
     "thread backtrace all -c 48",
     "thread backtrace -c 128",
     "OVERTE_LLDB_CRASH_CAPTURE_COMPLETE",
     "capture_status=\"captured_sigsegv\"",
+    "capture_status=\"traced_process_exit\"",
 ):
     assert required in LLDB, required
 assert "frame variable" not in LLDB
