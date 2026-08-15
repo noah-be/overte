@@ -1311,6 +1311,15 @@ void Application::resumeAfterLoginDialogActionTaken() {
     // restart domain handler.
     nodeList->getDomainHandler().resetting();
 
+#if defined(Q_OS_IOS)
+    // iOS cannot host Overte's companion desktop Sandbox process, so waiting
+    // for http://localhost:60332/status only delays (or can indefinitely block)
+    // the startup URL. Preserve the asynchronous startup boundary while
+    // deterministically selecting the supported "sandbox absent" path.
+    QMetaObject::invokeMethod(this, [this] {
+        handleSandboxStatus(nullptr);
+    }, Qt::QueuedConnection);
+#else
     QVariant testProperty = property(hifi::properties::TEST);
     if (testProperty.isValid()) {
         const auto testScript = property(hifi::properties::TEST).toUrl();
@@ -1325,6 +1334,7 @@ void Application::resumeAfterLoginDialogActionTaken() {
         auto reply = SandboxUtils::getStatus();
         connect(reply, &QNetworkReply::finished, this, [this, reply] { handleSandboxStatus(reply); });
     }
+#endif
 
     auto menu = Menu::getInstance();
     menu->getMenu("Edit")->setVisible(true);

@@ -1065,6 +1065,10 @@ bool Application::prepareServerlessDomainContents(const QUrl& domainURL, const Q
         return false;
     }
 
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+    beginIOSRuntimeEntityEvidence();
+#endif
+
     const QUuid serverlessSessionID = QUuid::createUuid();
     myAvatar->setSessionUUID(serverlessSessionID);
     auto nodeList = DependencyManager::get<NodeList>();
@@ -1078,7 +1082,18 @@ bool Application::prepareServerlessDomainContents(const QUrl& domainURL, const Q
     nodeList->setPermissions(permissions);
 
     tmpTree->reaverageOctreeElements();
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+    const auto importedEntityIDs = tmpTree->sendEntities(
+        _entityEditSender.get(), getEntities()->getTree(), "domain", 0, 0, 0);
+    QStringList importedEntities;
+    importedEntities.reserve(importedEntityIDs.size());
+    for (const auto& entityID : importedEntityIDs) {
+        importedEntities.push_back(entityID.toString());
+    }
+    setExpectedIOSRuntimeEntities(importedEntities);
+#else
     tmpTree->sendEntities(_entityEditSender.get(), getEntities()->getTree(), "domain", 0, 0, 0);
+#endif
     namedPaths = tmpTree->getNamedPaths();
 
     // we must manually eraseAllOctreeElements(false) else the tmpTree will mem-leak
@@ -1223,13 +1238,17 @@ void Application::loadServerlessDomain(QUrl domainURL) {
 #endif
 #if defined(Q_OS_IOS)
             if (QCoreApplication::arguments().contains(QStringLiteral("--ios-world-evidence"))) {
-                const QString scene = domainURL.toString() ==
-                        QStringLiteral("file:///~/serverless/tutorial.json")
+                const QUrl tutorialURL(QStringLiteral("file:///~/serverless/tutorial.json"));
+                const QString scene = (domainURL == tutorialURL ||
+                        domainURL == PathUtils::expandToLocalDataAbsolutePath(tutorialURL))
                     ? QStringLiteral("serverless_tutorial")
                     : QStringLiteral("unsupported");
                 logIOSRuntimeMarker("OVERTE_IOS_WORLD_GATE serverless_import_committed",
                                     "scene=", scene);
             }
+#endif
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+            logIOSRuntimeEntityEvidence(commitIOSRuntimeEntityEvidence());
 #endif
 #if defined(ANDROID_APP_PICO_INTERFACE)
             _picoServerlessSceneURL = domainURL;
@@ -2153,7 +2172,12 @@ void Application::nodeKilled(SharedNodePointer node) {
 void Application::handleSandboxStatus(QNetworkReply* reply) {
     PROFILE_RANGE(render, __FUNCTION__);
 
-    bool sandboxIsRunning = SandboxUtils::readStatus(reply->readAll());
+    bool sandboxIsRunning = reply ? SandboxUtils::readStatus(reply->readAll()) : false;
+#if defined(Q_OS_IOS)
+    if (!reply && QCoreApplication::arguments().contains(QStringLiteral("--ios-world-evidence"))) {
+        logIOSRuntimeMarker("OVERTE_IOS_WORLD_DIAGNOSTIC sandbox_probe_skipped=unsupported_platform");
+    }
+#endif
 
     enum HandControllerType {
         Vive,

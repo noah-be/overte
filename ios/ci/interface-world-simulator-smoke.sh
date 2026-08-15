@@ -136,6 +136,7 @@ active_udid=""
 boot_requested=0
 app_launched=0
 app_installed=0
+app_suspended=0
 log_stream_pid=""
 launch_pid=""
 mvk_dump_root=""
@@ -225,6 +226,23 @@ process_is_running() {
     kill -0 "$launch_pid" 2>/dev/null || return 1
     state="$(ps -p "$launch_pid" -o state= 2>/dev/null || true)"
     [[ -n "$state" && "$state" != *Z* ]]
+}
+
+pause_application_for_screenshot() {
+    ((app_launched)) && [[ -n "$launch_pid" ]] || return 1
+    kill -0 "$launch_pid" 2>/dev/null || return 1
+    kill -STOP "$launch_pid" 2>/dev/null || return 1
+    app_suspended=1
+    # Let already-submitted Metal work settle while preserving the last
+    # presented framebuffer. This keeps simctl's screenshot service responsive
+    # when the Vulkan present thread would otherwise continuously submit work.
+    sleep 1
+}
+
+resume_application_after_screenshot() {
+    ((app_suspended)) || return 0
+    kill -CONT "$launch_pid" 2>/dev/null || true
+    app_suspended=0
 }
 
 capture_startup_stack() {
@@ -419,6 +437,7 @@ fail_stopped_log_stream() {
 finish() {
     local status=$? report_wait=0
     trap - EXIT
+    resume_application_after_screenshot
     stop_log_stream
     if ((status != 0)); then
         preserve_failure_application_log
@@ -426,8 +445,10 @@ finish() {
         preserve_failure_process_log
     fi
     if ((status != 0)) && [[ -n "$active_udid" && ! -f "$failure_screenshot" ]]; then
+        pause_application_for_screenshot || true
         run_bounded "failure screenshot" 30 xcrun simctl io "$active_udid" screenshot \
             "$failure_screenshot" >/dev/null || true
+        resume_application_after_screenshot
     fi
     if ((status != 0)); then
         if ((app_launched)); then
@@ -605,7 +626,9 @@ kill -0 "$log_stream_pid" 2>/dev/null || {
     fail_stopped_log_stream || stream_status=$?
     exit "$stream_status"
 }
+pause_application_for_screenshot
 run_bounded "world screenshot" 30 xcrun simctl io "$active_udid" screenshot "$screenshot" >/dev/null
+resume_application_after_screenshot
 fail_if_vulkan_fatal || exit 1
 process_is_running || { echo "application process exited while capturing the world screenshot" >&2; exit 1; }
 kill -0 "$log_stream_pid" 2>/dev/null || {

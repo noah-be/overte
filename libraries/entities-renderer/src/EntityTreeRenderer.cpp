@@ -579,12 +579,8 @@ void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, r
                 }
 #endif
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
-                static bool loggedFirstRenderHandoff { false };
-                if (!loggedFirstRenderHandoff) {
-                    loggedFirstRenderHandoff = true;
-                    logIOSRuntimeMarker("OVERTE_IOS_ENTITY_GATE render_handoff",
-                                        "entity=", entityID.toString());
-                }
+                logIOSRuntimeEntityEvidence(
+                    recordIOSRuntimeRenderableEntity(entityID.toString()));
 #endif
             }
         }
@@ -1281,12 +1277,8 @@ void EntityTreeRenderer::addingEntity(const EntityItemID& entityID) {
         }
 #endif
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
-        static bool loggedFirstTreeEntity { false };
-        if (!loggedFirstTreeEntity) {
-            loggedFirstTreeEntity = true;
-            logIOSRuntimeMarker("OVERTE_IOS_ENTITY_GATE entity_tree_nonempty",
-                                "entity=", entityID.toString());
-        }
+        logIOSRuntimeEntityEvidence(
+            recordIOSRuntimeTreeEntity(entityID.toString()));
 #endif
         _entitiesToAdd.insert({ entity->getEntityItemID(),  entity });
         checkAndCallPreload(entityID, "", entity->getScript());

@@ -50,7 +50,7 @@ Acceptance is deliberately split into three gates:
 
 1. Source contracts and host validators must pass locally.
 2. A real Apple toolchain must configure and link the complete iphoneos Overte graph; host inspection cannot mark this complete.
-3. An iPad run must present through the Metal-backed Vulkan swapchain and emit `OVERTE_IOS_ENTITY_GATE stage=render_handoff`; bootstrap geometry alone is rejected.
+3. An iPad run must present through the Metal-backed Vulkan swapchain and emit `OVERTE_IOS_ENTITY_GATE render_handoff` for the same world entity UUID previously reported by `entity_tree_nonempty`; bootstrap geometry alone is rejected.
 
 The latter two stay `unverified` in the machine inventory until CI/device evidence is attached.
 

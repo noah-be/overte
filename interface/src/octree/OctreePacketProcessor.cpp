@@ -93,17 +93,6 @@ void OctreePacketProcessor::processPacket(QSharedPointer<ReceivedMessage> messag
             }
         }
 #endif
-#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
-        if (packetType == PacketType::EntityData) {
-            static bool loggedFirstEntityData { false };
-            if (!loggedFirstEntityData) {
-                loggedFirstEntityData = true;
-                logIOSRuntimeMarker("OVERTE_IOS_ENTITY_GATE entity_data_received",
-                                    "node=", sendingNode->getUUID().toString(QUuid::WithoutBraces),
-                                    "bytes=", message->getSize());
-            }
-        }
-#endif
     }
 
     // check version of piggyback packet against expected version
@@ -123,6 +112,21 @@ void OctreePacketProcessor::processPacket(QSharedPointer<ReceivedMessage> messag
         }
         return; // bail since piggyback version doesn't match
     }
+
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+    bool commitEntityEvidenceAfterDecode { false };
+    if (packetType == PacketType::EntityData) {
+        static bool loggedFirstEntityData { false };
+        if (!loggedFirstEntityData) {
+            loggedFirstEntityData = true;
+            beginIOSRuntimeEntityEvidence();
+            commitEntityEvidenceAfterDecode = true;
+            logIOSRuntimeMarker("OVERTE_IOS_ENTITY_GATE entity_data_received",
+                                "node=", sendingNode->getUUID().toString(QUuid::WithoutBraces),
+                                "bytes=", message->getSize());
+        }
+    }
+#endif
 
     if (packetType != PacketType::EntityQueryInitialResultsComplete) {
         trackIncomingOctreePacket(*message, sendingNode, wasStatsPacket);
@@ -162,6 +166,11 @@ void OctreePacketProcessor::processPacket(QSharedPointer<ReceivedMessage> messag
                     }
                 }
             }
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+            if (commitEntityEvidenceAfterDecode) {
+                logIOSRuntimeEntityEvidence(commitIOSRuntimeEntityEvidence());
+            }
+#endif
         } break;
 
         case PacketType::EntityQueryInitialResultsComplete: {

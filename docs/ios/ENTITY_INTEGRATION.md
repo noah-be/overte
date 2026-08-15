@@ -27,7 +27,9 @@ The production client emits the following structured `qInfo` markers only when c
 | 5 | `entity_tree_nonempty` | The existing decoder produces an entity found in `EntityTree`. |
 | 6 | `render_handoff` | The first real entity produces a renderable and enters the scene transaction. |
 
-The last three high-frequency paths log only their first successful observation where applicable. These markers report execution of existing client paths; they do not alter packets, decoding, query cadence, or rendering behavior.
+The last three high-frequency paths log only their first successful observation where applicable. The tree/render pair is armed only after a serverless scene has parsed successfully or a version-compatible `EntityData` packet is about to be decoded. Both markers carry the same entity UUID: the entity must belong to that decoded/imported world and must have produced a real renderable. Startup and UI entities cannot satisfy these gates. The markers report execution of existing client paths; they do not alter packets, decoding, query cadence, or rendering behavior.
+
+iOS skips the desktop-only `http://localhost:60332/status` Sandbox probe and asynchronously enters the existing "Sandbox absent" startup path. iOS cannot host that companion process; waiting for it would otherwise delay the command-line world URL before any serverless or online lookup begins.
 
 Export the Overte device log to a text file and produce an offline acceptance report with:
 

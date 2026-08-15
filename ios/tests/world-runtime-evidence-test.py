@@ -352,6 +352,9 @@ application_source = (ROOT / "interface/src/Application.cpp").read_text(encoding
 application_setup_source = (ROOT / "interface/src/Application_Setup.cpp").read_text(
     encoding="utf-8"
 )
+application_ui_source = (ROOT / "interface/src/Application_UI.cpp").read_text(
+    encoding="utf-8"
+)
 ios_runtime_logging = (
     ROOT / "libraries/shared/src/shared/IOSRuntimeLogging.h"
 ).read_text(encoding="utf-8")
@@ -361,6 +364,10 @@ assert 'QStringLiteral("file:///~/serverless/tutorial.json")' in main_source
 assert 'QStringLiteral("hifi://overte_hub")' in main_source
 assert '"OVERTE_IOS_WORLD_GATE serverless_import_committed"' in application_source
 assert 'QStringLiteral("serverless_tutorial")' in application_source
+assert "PathUtils::expandToLocalDataAbsolutePath(tutorialURL)" in application_source
+assert "handleSandboxStatus(nullptr);" in application_ui_source
+assert "#if defined(Q_OS_IOS)" in application_ui_source
+assert "sandbox_probe_skipped=unsupported_platform" in application_source
 assert "suppressAudioForWorldEvidence" in application_setup_source
 assert 'QStringLiteral("--ios-world-evidence")' in application_setup_source
 assert "if (!suppressAudioForWorldEvidence)" in application_setup_source

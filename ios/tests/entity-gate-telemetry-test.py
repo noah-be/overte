@@ -10,8 +10,8 @@ CONTRACT = {
     "entity_server_active": "interface/src/Application.cpp",
     "entity_query_sent": "interface/src/Application_Entities.cpp",
     "entity_data_received": "interface/src/octree/OctreePacketProcessor.cpp",
-    "entity_tree_nonempty": "libraries/entities-renderer/src/EntityTreeRenderer.cpp",
-    "render_handoff": "libraries/entities-renderer/src/EntityTreeRenderer.cpp",
+    "entity_tree_nonempty": "libraries/shared/src/shared/IOSRuntimeLogging.h",
+    "render_handoff": "libraries/shared/src/shared/IOSRuntimeLogging.h",
 }
 
 all_occurrences = []
@@ -35,6 +35,14 @@ helper = (ROOT / "libraries/shared/src/shared/IOSRuntimeLogging.h").read_text(
 )
 if 'os_log_info(OS_LOG_DEFAULT, "%{public}s", utf8.constData())' not in helper:
     raise SystemExit("iOS runtime marker helper must mirror markers to unified logging")
+if "recordIOSRuntimeRenderableEntity" not in helper or "commitIOSRuntimeEntityEvidence" not in helper:
+    raise SystemExit("tree and renderer evidence must be correlated across the commit boundary")
+
+renderer = (ROOT / "libraries/entities-renderer/src/EntityTreeRenderer.cpp").read_text(
+    encoding="utf-8"
+)
+if "recordIOSRuntimeRenderableEntity(entityID.toString())" not in renderer:
+    raise SystemExit("render handoff must record the exact renderable entity")
 
 document = (ROOT / "docs/ios/ENTITY_INTEGRATION.md").read_text(encoding="utf-8")
 for marker in CONTRACT:
