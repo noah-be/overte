@@ -10,7 +10,10 @@
 
 #include "VKPipelineCache.h"
 
+#include <cstring>
 #include <iomanip>
+#include <stdexcept>
+#include <string_view>
 
 #include "VKShared.h"
 #include <vk/Pipelines.h>
@@ -19,12 +22,130 @@
 using namespace gpu;
 using namespace gpu::vk;
 
+namespace {
+
+const shader::Binary& getVulkanShaderSpirv(const shader::Source& source) {
+    const auto dialect = source.dialectSources.find(shader::Dialect::glsl450);
+    if (dialect == source.dialectSources.end()) {
+        throw std::runtime_error("Vulkan shader has no glsl450 dialect");
+    }
+
+    const auto variant = dialect->second.variantSources.find(shader::Variant::Mono);
+    if (variant == dialect->second.variantSources.end()) {
+        throw std::runtime_error("Vulkan shader has no mono variant");
+    }
+    return variant->second.spirv;
+}
+
+uint32_t readSpirvWord(const shader::Binary& spirv, size_t wordIndex) {
+    uint32_t word { 0 };
+    std::memcpy(&word, spirv.data() + wordIndex * sizeof(uint32_t), sizeof(word));
+    return word;
+}
+
+bool hasVulkanShaderEntryPoint(const shader::Binary& spirv, VkShaderStageFlagBits stage) {
+    constexpr uint32_t SPIRV_MAGIC = 0x07230203;
+    constexpr uint16_t OP_ENTRY_POINT = 15;
+    constexpr uint32_t EXECUTION_MODEL_VERTEX = 0;
+    constexpr uint32_t EXECUTION_MODEL_FRAGMENT = 4;
+    constexpr size_t SPIRV_HEADER_WORDS = 5;
+
+    if (spirv.size() < SPIRV_HEADER_WORDS * sizeof(uint32_t) ||
+        spirv.size() % sizeof(uint32_t) != 0 ||
+        readSpirvWord(spirv, 0) != SPIRV_MAGIC) {
+        return false;
+    }
+
+    const uint32_t expectedExecutionModel = stage == VK_SHADER_STAGE_VERTEX_BIT
+        ? EXECUTION_MODEL_VERTEX
+        : stage == VK_SHADER_STAGE_FRAGMENT_BIT
+            ? EXECUTION_MODEL_FRAGMENT
+            : UINT32_MAX;
+    if (expectedExecutionModel == UINT32_MAX) {
+        return false;
+    }
+
+    const size_t wordCount = spirv.size() / sizeof(uint32_t);
+    bool foundEntryPoint = false;
+    for (size_t wordIndex = SPIRV_HEADER_WORDS; wordIndex < wordCount;) {
+        const uint32_t instruction = readSpirvWord(spirv, wordIndex);
+        const uint16_t instructionWordCount = static_cast<uint16_t>(instruction >> 16);
+        const uint16_t opcode = static_cast<uint16_t>(instruction & 0xffff);
+        if (instructionWordCount == 0 || wordIndex + instructionWordCount > wordCount) {
+            return false;
+        }
+
+        if (opcode == OP_ENTRY_POINT && instructionWordCount >= 4 &&
+            readSpirvWord(spirv, wordIndex + 1) == expectedExecutionModel) {
+            const char* entryPoint = reinterpret_cast<const char*>(
+                spirv.data() + (wordIndex + 3) * sizeof(uint32_t));
+            const size_t entryPointCapacity =
+                (instructionWordCount - 3) * sizeof(uint32_t);
+            const void* terminator = std::memchr(entryPoint, '\0', entryPointCapacity);
+            if (terminator &&
+                std::string_view(entryPoint,
+                                 static_cast<const char*>(terminator) - entryPoint) == "main") {
+                foundEntryPoint = true;
+            }
+        }
+
+        wordIndex += instructionWordCount;
+    }
+    return foundEntryPoint;
+}
+
+const shader::Binary& getValidatedVulkanShaderSpirv(const shader::Source& source,
+                                                     VkShaderStageFlagBits stage) {
+    const shader::Binary* spirv { nullptr };
+    try {
+        spirv = &getVulkanShaderSpirv(source);
+    } catch (const std::runtime_error& error) {
+        qCCritical(gpu_vk_logging)
+            << "Vulkan shader rejected before pipeline allocation:"
+            << error.what()
+            << "name=" << source.name.c_str()
+            << "sourceId=" << source.id
+            << "stage=" << static_cast<uint32_t>(stage);
+        throw;
+    }
+
+    if (!hasVulkanShaderEntryPoint(*spirv, stage)) {
+        qCCritical(gpu_vk_logging)
+            << "Vulkan shader rejected before pipeline allocation: missing valid main entry point"
+            << "name=" << source.name.c_str()
+            << "sourceId=" << source.id
+            << "stage=" << static_cast<uint32_t>(stage)
+            << "bytes=" << spirv->size();
+        throw std::runtime_error("Invalid Vulkan shader entry point");
+    }
+    return *spirv;
+}
+
+std::string getVulkanShaderCacheKey(const shader::Source& source,
+                                    VkShaderStageFlagBits stage,
+                                    const shader::Binary& spirv) {
+    std::string key = "stage:" + std::to_string(static_cast<uint32_t>(stage)) + ":";
+    if (source.id != shader::INVALID_SHADER) {
+        key += "static:" + bytesToAscii(source.id);
+        return key;
+    }
+
+    key += "dynamic:" + std::to_string(spirv.size()) + ":";
+    if (!spirv.empty()) {
+        key.append(reinterpret_cast<const char*>(spirv.data()), spirv.size());
+    }
+    return key;
+}
+
+} // namespace
+
 void Cache::Pipeline::setPipeline(const gpu::PipelinePointer& pipeline) {
     if (!gpu::compare(this->pipeline, pipeline)) {
         gpu::assign(this->pipeline, pipeline);
         if (pipeline) {
             program = pipeline->getProgram();
         }
+        _pipelineOwner = pipeline;
         clearStrides(); // VKTODO: this doesn't fix the issue with strides for basic shapes being corrupted, sometimes strides are still cleared wile they shouldn't be so more investigation is needed
     }
 }
@@ -355,27 +476,55 @@ std::string Cache::Pipeline::getStridesKey() const {
 }
 
 // VKTODO: use binary key if performance with text key is not good enough
-std::string Cache::Pipeline::getKey(const vks::Context& context) const {
+std::string Cache::Pipeline::getKey(const vks::Context& context, Cache& cache) const {
+    const auto pipelineOwner = _pipelineOwner.lock();
+    if (!pipelineOwner || pipelineOwner.get() != gpu::acquire(this->pipeline)) {
+        throw std::runtime_error("Vulkan pipeline identity owner expired");
+    }
     const auto framebuffer = gpu::acquire(this->framebuffer);
     RenderpassKey renderpassKey = getRenderPassKey(framebuffer, context);
     const gpu::Pipeline& pipeline = *gpu::acquire(this->pipeline);
     const gpu::State& state = *pipeline.getState();
-    const auto& vertexShader = pipeline.getProgram()->getShaders()[0]->getSource();
-    const auto& fragmentShader = pipeline.getProgram()->getShaders()[1]->getSource();
     const auto vertexFormat = gpu::acquire(format);
     // A draw without vertex input has no Stream::Format. Keep that valid state
     // distinct from an empty-but-present format without dereferencing null.
     const std::string formatKey = vertexFormat
         ? "present:" + vertexFormat->getKey()
         : "absent";
-    // VKTODO account for customized shaders (preferably by forcing shaders to have a new unique ID at runtime when they're using replacement strings)
-    std::string key = bytesToAscii(shader::makeProgramId(vertexShader.id, fragmentShader.id)) +
-          + "_" + getRenderpassKeyString(renderpassKey)
-          + "_" + state.getKey()
-          + "_" + formatKey
-          + "_" + bytesToAscii(primitiveTopology)
-          + "_" + getStridesKey();
+    const auto shaderIdentity = cache.getShaderIdentity(pipelineOwner);
+    std::string key = "shader:" + std::to_string(shaderIdentity);
+    key += "_" + getRenderpassKeyString(renderpassKey);
+    key += "_" + state.getKey();
+    key += "_" + formatKey;
+    key += "_" + bytesToAscii(primitiveTopology);
+    key += "_" + getStridesKey();
     return key;
+}
+
+uint64_t Cache::getShaderIdentity(const gpu::PipelinePointer& pipeline) {
+    const auto* pointer = pipeline.get();
+    const auto existing = shaderIdentityMap.find(pointer);
+    if (existing != shaderIdentityMap.end()) {
+        const auto owner = existing->second.owner.lock();
+        if (owner && owner.get() == pointer) {
+            return existing->second.identity;
+        }
+        shaderIdentityMap.erase(existing);
+    }
+
+    const auto& shaders = pipeline->getProgram()->getShaders();
+    if (shaders.size() < 2) {
+        throw std::runtime_error("Vulkan graphics pipeline has fewer than two shader stages");
+    }
+    // Validate the immutable pipeline once, before getPipeline() allocates any
+    // render-pass or descriptor/pipeline-layout resources. A unique cache-local
+    // identity also keeps distinct reflection/layout metadata from aliasing.
+    getValidatedVulkanShaderSpirv(shaders[0]->getSource(), VK_SHADER_STAGE_VERTEX_BIT);
+    getValidatedVulkanShaderSpirv(shaders[1]->getSource(), VK_SHADER_STAGE_FRAGMENT_BIT);
+
+    const uint64_t identity = nextShaderIdentity++;
+    shaderIdentityMap.emplace(pointer, ShaderIdentityEntry { pipeline, identity });
+    return identity;
 }
 
 VkStencilOpState Cache::getStencilOp(const gpu::State::StencilTest& stencil) {
@@ -390,26 +539,27 @@ VkStencilOpState Cache::getStencilOp(const gpu::State::StencilTest& stencil) {
     return result;
 }
 
-VkShaderModule Cache::getShaderModule(const vks::Context& context, const shader::Source& source) {
-    auto itr = moduleMap.find(source.id);
+VkShaderModule Cache::getShaderModule(const vks::Context& context,
+                                      const shader::Source& source,
+                                      VkShaderStageFlagBits stage) {
+    const auto& spirv = getValidatedVulkanShaderSpirv(source, stage);
+    const auto cacheKey = getVulkanShaderCacheKey(source, stage, spirv);
+    auto itr = moduleMap.find(cacheKey);
     if (moduleMap.end() == itr) {
-        const auto& dialectSource = source.dialectSources.find(shader::Dialect::glsl450)->second;
-        const auto& variantSource = dialectSource.variantSources.find(shader::Variant::Mono)->second;
-        const auto& spirv = variantSource.spirv;
         VkShaderModule result;
         VkShaderModuleCreateInfo shaderModuleCreateInfo{};
         shaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
         shaderModuleCreateInfo.codeSize = spirv.size();
         shaderModuleCreateInfo.pCode = (const uint32_t*)spirv.data();
         VK_CHECK_RESULT(vkCreateShaderModule(context.device->logicalDevice, &shaderModuleCreateInfo, nullptr, &result));
-        moduleMap[source.id] = result;
+        moduleMap[cacheKey] = result;
         return result;
     }
     return itr->second;
 }
 
 const Cache::PipelineLayout& Cache::getPipeline(const vks::Context& context) {
-    auto key = pipelineState.getKey(context);
+    auto key = pipelineState.getKey(context, *this);
     auto pipelineIterator = pipelineMap.find(key);
     if (pipelineIterator != pipelineMap.end()) {
         return pipelineIterator->second;
@@ -445,14 +595,14 @@ const Cache::PipelineLayout& Cache::getPipeline(const vks::Context& context) {
             shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
             shaderStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
             shaderStage.pName = "main";
-            shaderStage.module = getShaderModule(context, vertexShader);
+            shaderStage.module = getShaderModule(context, vertexShader, VK_SHADER_STAGE_VERTEX_BIT);
         }
         {
             auto& shaderStage = builder.shaderStages[1];
             shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
             shaderStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
             shaderStage.pName = "main";
-            shaderStage.module = getShaderModule(context, fragmentShader);
+            shaderStage.module = getShaderModule(context, fragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT);
         }
     }
 

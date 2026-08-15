@@ -376,6 +376,14 @@ fi
 run_bounded "application install" 120 xcrun simctl install "$active_udid" "$app_path" >/dev/null
 app_installed=1
 
+# The world evidence is a rendering/navigation test, not a permission-dialog
+# test. Grant the simulator-only microphone privacy permission before launch so the
+# deterministic screenshots cannot be obscured by AVAudioSession's consent
+# sheet. Physical-device consent remains a separate manual/device acceptance
+# gate and is never bypassed here.
+run_bounded "simulator microphone permission" 60 xcrun simctl privacy \
+    "$active_udid" grant microphone "$bundle_id" >/dev/null
+
 # Capture the app process, its lifecycle messages and the privacy-bounded
 # world/entity markers. Starting the stream before launch prevents immediate
 # startup failures or fast gates from falling into the gap between launch and

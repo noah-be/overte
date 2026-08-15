@@ -48,6 +48,18 @@
         assert(res == VK_SUCCESS);                                                                        \
     }                                                                                                    \
 }
+#elif defined(VK_USE_PLATFORM_METAL_EXT)
+#define VK_CHECK_RESULT(f)                                                                                \
+{                                                                                                        \
+    VkResult res = (f);                                                                                   \
+    if (res != VK_SUCCESS)                                                                                \
+    {                                                                                                    \
+        std::string message = "Fatal iOS Vulkan result: " + vks::tools::errorString(res) +               \
+            " in " + __FILE__ + " at line " + std::to_string(__LINE__);                                 \
+        std::cout << message << "\n" << std::flush;                                                       \
+        throw std::runtime_error(message);                                                               \
+    }                                                                                                    \
+}
 #else
 #define VK_CHECK_RESULT(f)                                                                                \
 {                                                                                                        \

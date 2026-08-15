@@ -22,6 +22,7 @@
 
 #include <QtCore/QCoreApplication>
 #include <QtCore/QBuffer>
+#include <QtCore/QPointer>
 #include <QtCore/QSharedPointer>
 #include <QtCore/QThread>
 #include <QtCore/QTimer>
@@ -312,7 +313,13 @@ bool VulkanDisplayPlugin::activate() {
         _vkWindow->setVisible(true);
         _vkWindow->createSurface();
         _vkWindow->createSwapchain();
+#if defined(Q_OS_IOS)
+        // VKWindow owns Qt's native QUIMetalView/CAMetalLayer and must retain
+        // its GUI-thread affinity. The present thread only requests bounded
+        // resize transactions through queueIOSFramebufferResize().
+#else
         _vkWindow->moveToThread(presentThread.get());
+#endif
 #endif
         //_vkWindow->connectResizeTimer(presentThread.get());
 
@@ -321,6 +328,12 @@ bool VulkanDisplayPlugin::activate() {
         // Start execution
         presentThread->start();
     }
+#if defined(Q_OS_IOS)
+    // Re-enable the dispatcher on every activation, including reuse of the
+    // existing presentation thread after a previous deactivate().
+    _iosFramebufferResizeQueued.store(false, std::memory_order_release);
+    _iosFramebufferResizeEnabled.store(true, std::memory_order_release);
+#endif
     _presentThread = presentThread.data();
     if (!RENDER_THREAD) {
         RENDER_THREAD = _presentThread;
@@ -356,6 +369,12 @@ bool VulkanDisplayPlugin::activate() {
 }
 
 void VulkanDisplayPlugin::deactivate() {
+#if defined(Q_OS_IOS)
+    // A queued callback is context-bound to this QObject and observes this
+    // flag before touching the window. Disable it before waiting for the
+    // presentation thread to release the plugin.
+    _iosFramebufferResizeEnabled.store(false, std::memory_order_release);
+#endif
     auto compositorHelper = DependencyManager::get<CompositorHelper>();
     disconnect(compositorHelper.data());
 
@@ -747,8 +766,14 @@ void VulkanDisplayPlugin::internalPresent() {
 
 void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& refreshRateController) {
     if (_vkWindow->_needsResizing) {
-        _vkWindow->resizeFramebuffer();
-        _vkWindow->_needsResizing = false;
+#if defined(Q_OS_IOS)
+        queueIOSFramebufferResize();
+        return;
+#else
+        if (_vkWindow->resizeFramebuffer()) {
+            _vkWindow->_needsResizing = false;
+        }
+#endif
     }
     auto frameId = (uint64_t)presentCount();
     PROFILE_RANGE_EX(render, __FUNCTION__, 0xffffff00, frameId)
@@ -776,13 +801,37 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
 
         if(_vkWindow->_swapchain.acquireNextImage(_vkWindow->_acquireCompleteSemaphore, &currentImageIndex) != VK_SUCCESS) {
             qDebug() << "_vkWindow->_swapchain.acquireNextImage fail";
+#if defined(Q_OS_IOS)
+            _vkWindow->_needsResizing.store(true, std::memory_order_release);
+            queueIOSFramebufferResize();
+            refreshRateController->clockEndTime();
+            return;
+#else
             _vkWindow->resizeFramebuffer(); //VKTODO: workaround
+#endif
         }
         if (currentImageIndex == UINT32_MAX) {
             refreshRateController->clockEndTime();
             return;
         }
         const auto& commandBuffer = _vkWindow->_drawCommandBuffers[currentImageIndex];
+
+        // Retire the previous frame as a fence/command-buffer pair before
+        // beginning any buffer again. Waiting for the previous submission on
+        // this queue also makes all older swapchain-image command buffers safe
+        // for reuse.
+        Q_ASSERT((_vkWindow->_previousFrameFence == VK_NULL_HANDLE) ==
+                 (_vkWindow->_previousCommandBuffer == VK_NULL_HANDLE));
+        if (_vkWindow->_previousFrameFence != VK_NULL_HANDLE) {
+            VK_CHECK_RESULT(vkWaitForFences(vkDevice, 1,
+                                             &_vkWindow->_previousFrameFence,
+                                             VK_TRUE, DEFAULT_FENCE_TIMEOUT));
+            vkDestroyFence(vkDevice, _vkWindow->_previousFrameFence, nullptr);
+            _vkWindow->_previousFrameFence = VK_NULL_HANDLE;
+            VK_CHECK_RESULT(vkResetCommandBuffer(_vkWindow->_previousCommandBuffer, 0));
+            _vkWindow->_previousCommandBuffer = VK_NULL_HANDLE;
+            vkBackend->recyclePreviousFrame();
+        }
 
         VkCommandBufferBeginInfo commandBufferBeginInfo = vks::initializers::commandBufferBeginInfo();
         commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -943,18 +992,8 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
             submitInfo.commandBufferCount = 1;
             VkFenceCreateInfo fenceCI = vks::initializers::fenceCreateInfo();
             VkFence frameFence;
-            vkCreateFence(vkDevice, &fenceCI, nullptr, &frameFence);
-            vkQueueSubmit(vkBackend->getContext().graphicsQueue, 1, &submitInfo, frameFence);
-            if (_vkWindow->_previousFrameFence != VK_NULL_HANDLE) {
-                VK_CHECK_RESULT(vkWaitForFences(vkDevice, 1, &frameFence, VK_TRUE, DEFAULT_FENCE_TIMEOUT));
-                vkDestroyFence(vkDevice, frameFence, nullptr);
-            }
-            if (_vkWindow->_previousCommandBuffer != VK_NULL_HANDLE) {
-                VK_CHECK_RESULT(vkResetCommandBuffer(commandBuffer, 0));
-            }
-
-            // Recycles frame to which _previousFrameFence and _previousCommandBuffer belongs.
-            vkBackend->recyclePreviousFrame();
+            VK_CHECK_RESULT(vkCreateFence(vkDevice, &fenceCI, nullptr, &frameFence));
+            VK_CHECK_RESULT(vkQueueSubmit(vkBackend->getContext().graphicsQueue, 1, &submitInfo, frameFence));
 
             _vkWindow->_previousFrameFence = frameFence;
             _vkWindow->_previousCommandBuffer = commandBuffer;
@@ -986,6 +1025,64 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
     }
     _movingAveragePresent.addSample((float)(usecTimestampNow() - startPresent));
 }
+
+#if defined(Q_OS_IOS)
+void VulkanDisplayPlugin::queueIOSFramebufferResize() {
+    if (!_iosFramebufferResizeEnabled.load(std::memory_order_acquire)) {
+        return;
+    }
+
+    bool expected = false;
+    if (!_iosFramebufferResizeQueued.compare_exchange_strong(
+            expected, true, std::memory_order_acq_rel)) {
+        return;
+    }
+
+    QPointer<VulkanDisplayPlugin> plugin(this);
+    QPointer<VKWindow> window(_vkWindow);
+    if (thread() != qApp->thread() || !window || window->thread() != qApp->thread()) {
+        _iosFramebufferResizeQueued.store(false, std::memory_order_release);
+        qCritical() << "Could not queue iOS Vulkan resize: VKWindow is not GUI-thread-affined";
+        return;
+    }
+
+    const bool queued = QMetaObject::invokeMethod(this, [plugin, window] {
+        Q_ASSERT(QThread::currentThread() == qApp->thread());
+        if (!plugin) {
+            return;
+        }
+        if (!window) {
+            plugin->_iosFramebufferResizeEnabled.store(false, std::memory_order_release);
+            plugin->_iosFramebufferResizeQueued.store(false, std::memory_order_release);
+            qCritical() << "iOS Vulkan framebuffer resize lost its GUI window";
+            QCoreApplication::exit(1);
+            return;
+        }
+        try {
+            if (plugin->_iosFramebufferResizeEnabled.load(std::memory_order_acquire) &&
+                window->_needsResizing.load(std::memory_order_acquire)) {
+                // Keep _needsResizing true for the complete device-idle,
+                // CAMetalLayer/swapchain, depth and framebuffer transaction. The
+                // present thread returns before acquiring an image while it is
+                // true and may resume only after this release store.
+                if (window->resizeFramebuffer()) {
+                    window->_needsResizing.store(false, std::memory_order_release);
+                }
+            }
+        } catch (const std::exception& error) {
+            plugin->_iosFramebufferResizeEnabled.store(false, std::memory_order_release);
+            qCritical() << "iOS Vulkan framebuffer resize failed closed:" << error.what();
+            QCoreApplication::exit(1);
+        }
+        plugin->_iosFramebufferResizeQueued.store(false, std::memory_order_release);
+    }, Qt::QueuedConnection);
+
+    if (!queued) {
+        _iosFramebufferResizeQueued.store(false, std::memory_order_release);
+        qCritical() << "Could not queue the iOS Vulkan framebuffer resize on the GUI thread";
+    }
+}
+#endif
 
 float VulkanDisplayPlugin::newFramePresentRate() const {
     return _newFrameRate.rate();

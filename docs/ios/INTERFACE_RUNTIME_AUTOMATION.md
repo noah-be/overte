@@ -55,6 +55,10 @@ are validated. The final evidence-set report binds all four screenshots to the
 candidate SHA-256 and source revision and rejects byte-identical serverless and
 online frames. iOS deterministically selects its sole window-backed display
 plugin instead of presenting the desktop/XR first-launch chooser. One bounded
+simulator-only privacy command grants microphone access after each clean install
+and before launch, so the rendering screenshots cannot be covered by the audio
+consent sheet; real-device microphone consent remains a separate acceptance
+case and is never bypassed. One bounded
 unified-log stream starts before the app and captures its process/lifecycle
 messages together with the runtime gates, so immediate startup failures and
 early markers cannot be missed and polling never repeatedly scans the log

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Guard Vulkan pipeline keys for draws without vertex input formats."""
+"""Guard Vulkan pipeline identity and format handling."""
 
 import pathlib
 
@@ -11,9 +11,12 @@ pipeline_cache = (
 backend = (ROOT / "libraries/gpu-vk/src/gpu/vk/VKBackend.cpp").read_text(
     encoding="utf-8"
 )
+pipeline_header = (
+    ROOT / "libraries/gpu-vk/src/gpu/vk/VKPipelineCache.h"
+).read_text(encoding="utf-8")
 
 key_start = pipeline_cache.index(
-    "std::string Cache::Pipeline::getKey(const vks::Context& context) const"
+    "std::string Cache::Pipeline::getKey(const vks::Context& context, Cache& cache) const"
 )
 key_end = pipeline_cache.index("VkStencilOpState Cache::getStencilOp", key_start)
 key_body = pipeline_cache[key_start:key_end]
@@ -23,7 +26,7 @@ required_key_fragments = (
     'const std::string formatKey = vertexFormat',
     '? "present:" + vertexFormat->getKey()',
     ': "absent";',
-    '+ "_" + formatKey',
+    'key += "_" + formatKey;',
 )
 for fragment in required_key_fragments:
     if fragment not in key_body:
@@ -33,6 +36,137 @@ for fragment in required_key_fragments:
 
 if "format->getKey()" in key_body:
     raise SystemExit("Vulkan pipeline key still dereferences an absent vertex format")
+
+for fragment in (
+    "cache.getShaderIdentity(pipelineOwner)",
+    'std::string key = "shader:" + std::to_string(shaderIdentity);',
+):
+    if fragment not in key_body:
+        raise SystemExit(
+            f"Vulkan dynamic pipeline identity lost its payload boundary: {fragment}"
+        )
+if "makeProgramId(vertexShader.id, fragmentShader.id)" in key_body:
+    raise SystemExit(
+        "Vulkan pipeline identity still aliases all INVALID_SHADER programs"
+    )
+
+helper_start = pipeline_cache.index(
+    "std::string getVulkanShaderCacheKey(const shader::Source& source,"
+)
+helper_end = pipeline_cache.index("} // namespace", helper_start)
+helper_body = pipeline_cache[helper_start:helper_end]
+for fragment in (
+    '"stage:" + std::to_string(static_cast<uint32_t>(stage))',
+    "source.id != shader::INVALID_SHADER",
+    'key += "static:" + bytesToAscii(source.id);',
+    'key += "dynamic:" + std::to_string(spirv.size()) + ":"',
+    "if (!spirv.empty())",
+    "key.append(reinterpret_cast<const char*>(spirv.data()), spirv.size());",
+):
+    if fragment not in helper_body:
+        raise SystemExit(
+            f"Vulkan shader-module identity is not exact for dynamic payloads: {fragment}"
+        )
+
+if "std::unordered_map<std::string, VkShaderModule> moduleMap;" not in pipeline_header:
+    raise SystemExit("Vulkan shader module cache is still keyed only by numeric shader ID")
+for fragment in (
+    "std::weak_ptr<gpu::Pipeline> owner;",
+    "std::unordered_map<const gpu::Pipeline*, ShaderIdentityEntry> shaderIdentityMap;",
+    "uint64_t nextShaderIdentity { 1 };",
+    "std::weak_ptr<gpu::Pipeline> _pipelineOwner;",
+    "_pipelineOwner = pipeline;",
+    "Cache::getShaderIdentity(const gpu::PipelinePointer& pipeline)",
+    "existing->second.owner.lock()",
+    "getValidatedVulkanShaderSpirv(shaders[0]->getSource(), VK_SHADER_STAGE_VERTEX_BIT)",
+    "getValidatedVulkanShaderSpirv(shaders[1]->getSource(), VK_SHADER_STAGE_FRAGMENT_BIT)",
+    "shaderIdentityMap.emplace(pointer, ShaderIdentityEntry { pipeline, identity });",
+):
+    if fragment not in pipeline_header + pipeline_cache:
+        raise SystemExit(
+            f"Vulkan shader identity is recomputed on every draw: {fragment}"
+        )
+
+module_start = pipeline_cache.index("VkShaderModule Cache::getShaderModule")
+module_end = pipeline_cache.index(
+    "const Cache::PipelineLayout& Cache::getPipeline", module_start
+)
+module_body = pipeline_cache[module_start:module_end]
+for fragment in (
+    "VkShaderStageFlagBits stage",
+    "getValidatedVulkanShaderSpirv(source, stage)",
+    "getVulkanShaderCacheKey(source, stage, spirv)",
+    "moduleMap.find(cacheKey)",
+    "moduleMap[cacheKey] = result;",
+):
+    if fragment not in module_body:
+        raise SystemExit(
+            f"Vulkan module cache lost its fail-closed stage/payload contract: {fragment}"
+        )
+
+validator_start = pipeline_cache.index("bool hasVulkanShaderEntryPoint")
+validator_end = pipeline_cache.index("} // namespace", validator_start)
+validator_body = pipeline_cache[validator_start:validator_end]
+for fragment in (
+    "SPIRV_MAGIC = 0x07230203",
+    "spirv.size() % sizeof(uint32_t) != 0",
+    "OP_ENTRY_POINT = 15",
+    "EXECUTION_MODEL_VERTEX = 0",
+    "EXECUTION_MODEL_FRAGMENT = 4",
+    "instructionWordCount == 0",
+    "wordIndex + instructionWordCount > wordCount",
+    "bool foundEntryPoint = false;",
+    "foundEntryPoint = true;",
+    "return foundEntryPoint;",
+    '== "main"',
+):
+    if fragment not in validator_body:
+        raise SystemExit(
+            f"Vulkan SPIR-V preflight no longer validates stage/main: {fragment}"
+        )
+
+lookup_start = pipeline_cache.index(
+    "const shader::Binary& getVulkanShaderSpirv"
+)
+lookup_end = pipeline_cache.index("uint32_t readSpirvWord", lookup_start)
+lookup_body = pipeline_cache[lookup_start:lookup_end]
+for fragment in (
+    "dialect == source.dialectSources.end()",
+    'throw std::runtime_error("Vulkan shader has no glsl450 dialect")',
+    "variant == dialect->second.variantSources.end()",
+    'throw std::runtime_error("Vulkan shader has no mono variant")',
+):
+    if fragment not in lookup_body:
+        raise SystemExit(
+            f"Vulkan shader payload lookup is not fail-closed: {fragment}"
+        )
+if ".find(shader::Dialect::glsl450)->second" in pipeline_cache or \
+        ".find(shader::Variant::Mono)->second" in pipeline_cache:
+    raise SystemExit("Vulkan shader lookup still dereferences a missing payload")
+
+preflight_start = pipeline_cache.index(
+    "const shader::Binary& getValidatedVulkanShaderSpirv"
+)
+preflight_end = pipeline_cache.index(
+    "std::string getVulkanShaderCacheKey", preflight_start
+)
+preflight_body = pipeline_cache[preflight_start:preflight_end]
+for fragment in (
+    "getVulkanShaderSpirv(source)",
+    "hasVulkanShaderEntryPoint(*spirv, stage)",
+    "Vulkan shader rejected before pipeline allocation",
+):
+    if fragment not in preflight_body:
+        raise SystemExit(f"Vulkan shader preflight lost: {fragment}")
+
+if pipeline_cache.count(
+    "getShaderModule(context, vertexShader, VK_SHADER_STAGE_VERTEX_BIT)"
+) != 1:
+    raise SystemExit("Vulkan vertex module is not validated against the vertex stage")
+if pipeline_cache.count(
+    "getShaderModule(context, fragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT)"
+) != 1:
+    raise SystemExit("Vulkan fragment module is not validated against the fragment stage")
 
 pipeline_start = pipeline_cache.index(
     "const Cache::PipelineLayout& Cache::getPipeline(const vks::Context& context)"
@@ -58,6 +192,6 @@ for fragment in (
         )
 
 print(
-    "iOS Vulkan pipeline key contract valid: absent and present vertex formats "
-    "are distinct, and format-free draws remain supported"
+    "iOS Vulkan pipeline contract valid: dynamic shader payloads are distinct, "
+    "SPIR-V entry points are stage-checked, and format-free draws remain supported"
 )

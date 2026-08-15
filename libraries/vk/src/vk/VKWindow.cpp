@@ -10,6 +10,7 @@
 //
 
 #include <QtCore/QCoreApplication>
+#include <QtCore/QThread>
 #include <QGuiApplication>
 #include <QtGui/QWindow>
 #include <QtGui/qevent.h>
@@ -51,6 +52,9 @@ VKWindow::VKWindow(QScreen* screen) : QWindow(screen) {
 }*/
 
 void VKWindow::createSurface() {
+#if defined(Q_OS_IOS)
+    Q_ASSERT(QThread::currentThread() == qApp->thread());
+#endif
     _swapchain.setContext(&_context);
 #ifdef WIN32
     // TODO
@@ -77,6 +81,9 @@ void VKWindow::createSurface() {
 }
 
 void VKWindow::createSwapchain() {
+#if defined(Q_OS_IOS)
+    Q_ASSERT(QThread::currentThread() == qApp->thread());
+#endif
     {
         auto qsize = size();
         _extent = VkExtent2D{(uint32_t)qsize.width(), (uint32_t)qsize.height()};
@@ -97,10 +104,38 @@ void VKWindow::createCommandBuffers() {
     // Create a semaphore used to synchronize command submission
     // Ensures that the image is not presented until all commands have been submitted and executed
     VK_CHECK_RESULT(vkCreateSemaphore(_context.device->logicalDevice, &semaphoreCreateInfo, nullptr, &_renderCompleteSemaphore));
-    // Create one command buffer for each swap chain image
+    recreateDrawCommandBuffers();
+}
+
+void VKWindow::recreateDrawCommandBuffers() {
+    if (_previousFrameFence != VK_NULL_HANDLE) {
+        // resizeFramebuffer() waits for the whole device before reaching this
+        // point, so the fence paired with the old command-buffer set can be
+        // retired synchronously.
+        vkDestroyFence(_context.device->logicalDevice, _previousFrameFence, nullptr);
+        _previousFrameFence = VK_NULL_HANDLE;
+        _previousCommandBuffer = VK_NULL_HANDLE;
+    }
+    if (!_drawCommandBuffers.empty()) {
+        vkFreeCommandBuffers(_context.device->logicalDevice,
+                             _context.device->graphicsCommandPool,
+                             static_cast<uint32_t>(_drawCommandBuffers.size()),
+                             _drawCommandBuffers.data());
+        _drawCommandBuffers.clear();
+        _previousCommandBuffer = VK_NULL_HANDLE;
+    }
+
+    // The implementation may change imageCount when a surface is recreated.
+    // Keep one primary command buffer for every new swapchain image.
     _drawCommandBuffers.resize(_swapchain.imageCount);
-    VkCommandBufferAllocateInfo cmdBufAllocateInfo = vks::initializers::commandBufferAllocateInfo(_context.device->graphicsCommandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, static_cast<uint32_t>(_drawCommandBuffers.size()));
-    VK_CHECK_RESULT(vkAllocateCommandBuffers(_context.device->logicalDevice, &cmdBufAllocateInfo, _drawCommandBuffers.data()));
+    VkCommandBufferAllocateInfo cmdBufAllocateInfo =
+        vks::initializers::commandBufferAllocateInfo(
+            _context.device->graphicsCommandPool,
+            VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            static_cast<uint32_t>(_drawCommandBuffers.size()));
+    VK_CHECK_RESULT(vkAllocateCommandBuffers(_context.device->logicalDevice,
+                                              &cmdBufAllocateInfo,
+                                              _drawCommandBuffers.data()));
 }
 
 void VKWindow::vulkanCleanup() {
@@ -373,8 +408,14 @@ bool VKWindow::event(QEvent* event) {
     return QWindow::event(event);
 }
 
-void VKWindow::resizeFramebuffer() {
+bool VKWindow::resizeFramebuffer() {
+#if defined(Q_OS_IOS)
+    Q_ASSERT(QThread::currentThread() == qApp->thread());
+#endif
     auto qsize = size();
+    if (qsize.width() <= 0 || qsize.height() <= 0) {
+        return false;
+    }
     _extent = VkExtent2D{
         .width = (uint32_t)qsize.width(),
         .height = (uint32_t)qsize.height()
@@ -385,9 +426,11 @@ void VKWindow::resizeFramebuffer() {
     //vkQueueWaitIdle();
     VK_CHECK_RESULT(vkDeviceWaitIdle(_context.device->logicalDevice));
     _swapchain.create(&_extent.width, &_extent.height, false, false);
+    recreateDrawCommandBuffers();
     // TODO: add an assert here to see if width and height changed?
     setupDepthStencil();
     setupFramebuffers();
+    return true;
 }
 
 VKWindow::~VKWindow() {

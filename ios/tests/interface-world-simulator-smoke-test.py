@@ -271,6 +271,8 @@ printf '%s\n' "${FAKE_SAMPLE_TEXT:-synthetic process stack}" > "$output"
             assert_private(result, app)
             commands = command_log.read_text(encoding="utf-8").splitlines()
             assert f"simctl boot {udid}" in commands, commands
+            permission = f"simctl privacy {udid} grant microphone org.overte.interface.dev"
+            assert permission in commands, commands
             launch = [
                 line
                 for line in commands
@@ -278,6 +280,7 @@ printf '%s\n' "${FAKE_SAMPLE_TEXT:-synthetic process stack}" > "$output"
                 and f" {udid} org.overte.interface.dev " in line
             ]
             assert len(launch) == 1, launch
+            assert commands.index(permission) < commands.index(launch[0]), commands
             streams = [line for line in commands if line.startswith(f"simctl spawn {udid} log stream ")]
             assert len(streams) == 1, streams
             assert commands.index(streams[0]) < commands.index(launch[0]), commands
@@ -330,6 +333,40 @@ printf '%s\n' "${FAKE_SAMPLE_TEXT:-synthetic process stack}" > "$output"
     assert "command_status=13" in diagnostic_text
     assert "IXErrorDomain Code=13 Missing bundle ID" in diagnostic_text
     assert_no_raw_log(install_failure_output, scratch)
+
+    command_log.write_text("", encoding="utf-8")
+    permission_failure_output = root / "permission-failure"
+    permission_failure = invoke(
+        app,
+        permission_failure_output,
+        {
+            **environment,
+            "FAKE_PROCESS_LOG": SERVERLESS_LOG,
+            "FAKE_FAIL_MATCH": (
+                "simctl privacy phone-udid grant microphone "
+                "org.overte.interface.dev"
+            ),
+            "FAKE_FAIL_STATUS": "19",
+            "FAKE_FAILURE_DETAIL": "fixture microphone permission failure",
+        },
+        "iphone",
+        "serverless",
+        "-",
+    )
+    assert permission_failure.returncode == 19, (
+        permission_failure.stdout,
+        permission_failure.stderr,
+    )
+    permission_diagnostics = (
+        root / "raw-diagnostics/iphone-serverless-command-errors.log"
+    )
+    permission_text = permission_diagnostics.read_text(encoding="utf-8")
+    assert "command_label=simulator microphone permission" in permission_text
+    assert "command_status=19" in permission_text
+    assert "fixture microphone permission failure" in permission_text
+    permission_commands = command_log.read_text(encoding="utf-8")
+    assert "simctl launch" not in permission_commands
+    assert_no_raw_log(permission_failure_output, scratch)
 
     blank_output = root / "blank"
     blank = invoke(

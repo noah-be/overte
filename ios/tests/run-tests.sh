@@ -84,6 +84,7 @@ readonly rendering_contracts=(
     vulkan-display-ios-context-restore-test.py
     vulkan-display-ios-gl-helper-isolation-test.py
     vulkan-display-ios-ktx-capture-gate-test.py
+    vulkan-display-ios-main-thread-resize-test.py
     vulkan-ios-surface-contract-test.py
 )
 for contract in "${rendering_contracts[@]}"; do
