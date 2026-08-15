@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 import math
 import os
@@ -90,6 +91,98 @@ def log_milestones(path: Path) -> dict[str, float | None]:
         for name, moment in list(result.items()):
             result[name] = None if moment is None else round((moment - first_time) * 1000, 3)
     return result
+
+
+def sample_percentile(values: list[float], fraction: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    return ordered[max(0, math.ceil(len(ordered) * fraction) - 1)]
+
+
+def queue_diagnostics(value: dict[str, object]) -> dict[str, object]:
+    samples = value["queue_samples"]
+    assert isinstance(samples, list)
+    first_visible = value.get("first_visible_ms")
+    visible_time = float(first_visible) if isinstance(first_visible, (int, float)) else None
+    after_visible = [sample for sample in samples if visible_time is not None and
+                     float(sample["elapsed_ms"]) >= visible_time]
+    present = [float(sample["present_hz"]) for sample in after_visible]
+    new_frame = [float(sample["new_frame_hz"]) for sample in after_visible]
+    pending_area = 0.0
+    texture_area = 0.0
+    for previous, current in zip(samples, samples[1:]):
+        seconds = (float(current["elapsed_ms"]) - float(previous["elapsed_ms"])) / 1000.0
+        pending_area += float(previous["downloads_pending"]) * seconds
+        texture_area += float(previous["texture_pending_mb"]) * seconds
+    milestones = value.get("host_milestones_ms")
+    milestones = milestones if isinstance(milestones, dict) else {}
+
+    def delta(start: str, end: str) -> float | None:
+        left, right = milestones.get(start), milestones.get(end)
+        if isinstance(left, (int, float)) and isinstance(right, (int, float)) and right >= left:
+            return round(float(right) - float(left), 3)
+        return None
+
+    last = samples[-1]
+    diagnostics = {
+        "sample_count": len(samples),
+        "last_sample_ms": float(last["elapsed_ms"]),
+        "peak_downloads": max(float(sample["downloads"]) for sample in samples),
+        "peak_downloads_pending": max(float(sample["downloads_pending"]) for sample in samples),
+        "peak_processing": max(float(sample["processing"]) for sample in samples),
+        "peak_processing_pending": max(float(sample["processing_pending"]) for sample in samples),
+        "peak_texture_pending_mb": max(float(sample["texture_pending_mb"]) for sample in samples),
+        "pending_download_seconds": round(pending_area, 3),
+        "texture_pending_mb_seconds": round(texture_area, 3),
+        "final_downloads": float(last["downloads"]),
+        "final_downloads_pending": float(last["downloads_pending"]),
+        "final_processing": float(last["processing"]),
+        "final_processing_pending": float(last["processing_pending"]),
+        "final_texture_pending_mb": float(last["texture_pending_mb"]),
+        "post_visible_present_hz_p10": sample_percentile(present, 0.10),
+        "post_visible_present_hz_p50": sample_percentile(present, 0.50),
+        "post_visible_new_frame_hz_p10": sample_percentile(new_frame, 0.10),
+        "post_visible_new_frame_hz_p50": sample_percentile(new_frame, 0.50),
+        "post_visible_zero_present_fraction": (
+            sum(item <= 0.01 for item in present) / len(present) if present else None
+        ),
+        "domain_to_query_ms": delta("domain_connected", "entity_query"),
+        "query_to_data_ms": delta("entity_query", "entity_data"),
+        "data_to_handoff_ms": delta("entity_data", "render_handoff"),
+    }
+    signals: list[str] = []
+    present_p50 = diagnostics["post_visible_present_hz_p50"]
+    zero_present = diagnostics["post_visible_zero_present_fraction"]
+    if (isinstance(present_p50, float) and present_p50 < 5.0 and
+            isinstance(zero_present, float) and zero_present >= 0.5):
+        signals.append("render-present")
+    if any(float(last[name]) > 0 for name in (
+            "downloads", "downloads_pending", "processing", "processing_pending",
+            "texture_pending_mb")):
+        signals.append("resource-backlog")
+    if value.get("first_visible_ms") is not None and value.get("snapshot_completed_ms") is None:
+        signals.append("screenshot-incomplete")
+
+    if milestones.get("domain_connected") is None:
+        primary = "domain-connection"
+    elif milestones.get("entity_query") is None:
+        primary = "entity-server-or-query"
+    elif milestones.get("entity_data") is None:
+        primary = "entity-stream-or-public-domain"
+    elif value.get("first_visible_ms") is None:
+        primary = "entity-decode-or-visibility"
+    elif value.get("snapshot_completed_ms") is None:
+        primary = "render-present" if isinstance(present_p50, float) and present_p50 < 5.0 else (
+            "screenshot-completion"
+        )
+    elif value.get("sustained_idle_ms") is None:
+        primary = "resource-backlog"
+    else:
+        primary = "none-observed"
+    diagnostics["primary_bottleneck"] = primary
+    diagnostics["bottleneck_signals"] = signals
+    return diagnostics
 
 
 def load_manifest(root: Path) -> dict[str, object]:
@@ -198,6 +291,7 @@ def load_metrics(attempt: dict[str, object], manifest: dict[str, object]) -> dic
     payload["process_timed_out"] = process.get("timed_out") is True
     payload["process_sample_succeeded"] = process.get("sample_succeeded") is True
     payload["process_completion_file_observed"] = process.get("completion_file_observed") is True
+    payload["queue_diagnostics"] = queue_diagnostics(payload)
     return payload
 
 
@@ -254,6 +348,14 @@ def aggregate(attempts: list[dict[str, object]], metrics: list[dict[str, object]
                      item.get("sustained_idle_ms") is not None]
             observed = [item for item in group_metrics if diagnostic_observation(item, manifest)]
             captured = [item for item in group_metrics if diagnostic_capture(item, manifest)]
+            bottlenecks = Counter(
+                str(item["queue_diagnostics"]["primary_bottleneck"]) for item in group_metrics
+            )
+            signals = Counter(
+                signal
+                for item in group_metrics
+                for signal in item["queue_diagnostics"]["bottleneck_signals"]
+            )
             visible = [finite(item["first_visible_ms"], "first_visible_ms") for item in group_metrics
                        if item.get("first_visible_ms") is not None]
             snapshot = [finite(item["snapshot_completed_ms"], "snapshot_completed_ms") for item in valid]
@@ -272,6 +374,10 @@ def aggregate(attempts: list[dict[str, object]], metrics: list[dict[str, object]
                 "first_visible_ms_median_partial": median_or_none(visible),
                 "snapshot_ms_median": median_or_none(snapshot),
                 "sustained_idle_ms_median": median_or_none(idle),
+                "dominant_bottleneck": bottlenecks.most_common(1)[0][0] if bottlenecks else None,
+                "bottleneck_counts": dict(sorted(bottlenecks.items())),
+                "bottleneck_signal_counts": dict(sorted(signals.items())),
+                "queue_diagnostics": [item["queue_diagnostics"] for item in group_metrics],
             })
     diagnostic = manifest["runner_class"] == "diagnostic" or manifest.get("translated") is True
     complete = not failures and all(item["valid_count"] >= minimum_runs for item in groups)
@@ -316,6 +422,10 @@ def aggregate(attempts: list[dict[str, object]], metrics: list[dict[str, object]
         "decision_ready": decision_ready,
         "selected_concurrency": observed_best if decision_ready else None,
         "observed_best_concurrency": observed_best,
+        "bottleneck_summary": {
+            f"c{item['concurrency']}-{item['cache_mode']}": item["dominant_bottleneck"]
+            for item in groups
+        },
         "passed": complete or diagnostic_observation_complete,
         "groups": groups,
         "failures": hard_failures if diagnostic_observation_complete else failures,

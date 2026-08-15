@@ -153,6 +153,13 @@ connection and entity query in both cache modes plus first-visible evidence in
 at least one mode. Transient public-world failures remain explicit skipped
 diagnostics rather than completed loading measurements. `measurement_passed`
 remains false and no profile or concurrency can be selected from that evidence.
+Each online attempt is also reduced to queue peaks and integrals, post-visible
+present/new-frame behavior, connection-to-query/data/handoff phase durations,
+and one explicit primary bottleneck. Cold and warm classifications stay separate
+so a public-domain disconnect cannot be confused with an asset backlog or a
+renderer that stopped presenting. Secondary signals are retained as counts, so
+simultaneous present starvation and resource backlog are not collapsed into a
+single label.
 
 The application is retained for fourteen days and smoke diagnostics for seven
 days. The workflow does not verify a

@@ -167,6 +167,9 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     assert summary["selected_concurrency"] is None
     assert summary["observed_best_concurrency"] == 16
     assert summary["public_world_informational"] is True
+    assert set(summary["bottleneck_summary"].values()) == {"none-observed"}
+    assert all(group["dominant_bottleneck"] == "none-observed" for group in summary["groups"])
+    assert all(group["bottleneck_signal_counts"] == {} for group in summary["groups"])
     assert result.stat().st_mode & 0o777 == 0o600
     assert int(ET.parse(junit).getroot().attrib["failures"]) == 0
 
@@ -247,6 +250,9 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
                for group in partial_diagnostic_summary["groups"])
     assert all(group["diagnostic_capture_count"] == 1
                for group in partial_diagnostic_summary["groups"])
+    assert set(partial_diagnostic_summary["bottleneck_summary"].values()) == {
+        "screenshot-completion"
+    }
     partial_suite = ET.parse(partial_diagnostic_junit).getroot()
     assert int(partial_suite.attrib["failures"]) == 0
     assert int(partial_suite.attrib["skipped"]) >= 2
@@ -267,6 +273,13 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
         "reason": "visible_timeout",
     })
     cold_metrics_path.write_text(json.dumps(cold_metrics), encoding="utf-8")
+    cold_log_path = mixed_diagnostic / "c10/pair-1/cold/online-loading.log"
+    cold_log_path.write_text(
+        "[12:00:00.000] start\n"
+        "[12:00:01.000] OVERTE_MACOS_ENTITY_GATE domain_list_connected\n"
+        "[12:00:03.000] OVERTE_MACOS_ENTITY_GATE entity_query_sent\n",
+        encoding="utf-8",
+    )
     mixed_result = temporary / "diagnostic-mixed.json"
     mixed_junit = temporary / "diagnostic-mixed.xml"
     mixed_analysis = analyze(mixed_diagnostic, mixed_result, mixed_junit)
@@ -280,7 +293,38 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
                       if group["cache_mode"] == "warm")
     assert cold_group["diagnostic_capture_count"] == 1
     assert cold_group["diagnostic_observation_count"] == 0
+    assert cold_group["dominant_bottleneck"] == "entity-stream-or-public-domain"
     assert warm_group["diagnostic_observation_count"] == 1
+    assert warm_group["dominant_bottleneck"] == "screenshot-completion"
+
+    render_stall = temporary / "diagnostic-render-stall"
+    create_benchmark(
+        render_stall,
+        runner_class="diagnostic",
+        concurrencies=(10,),
+        diagnostic_partial=True,
+    )
+    for mode in ("cold", "warm"):
+        render_path = render_stall / f"c10/pair-1/{mode}/macos-online-loading.json"
+        render_payload = json.loads(render_path.read_text(encoding="utf-8"))
+        for sample in render_payload["queue_samples"]:
+            if sample["elapsed_ms"] >= render_payload["first_visible_ms"]:
+                sample["present_hz"] = 0
+                sample["new_frame_hz"] = 0
+        render_path.write_text(json.dumps(render_payload), encoding="utf-8")
+    render_result = temporary / "diagnostic-render-stall.json"
+    render_junit = temporary / "diagnostic-render-stall.xml"
+    render_analysis = analyze(render_stall, render_result, render_junit)
+    assert render_analysis.returncode == 0, render_analysis.stdout + render_analysis.stderr
+    render_summary = json.loads(render_result.read_text(encoding="utf-8"))
+    assert set(render_summary["bottleneck_summary"].values()) == {"render-present"}
+    assert all(group["queue_diagnostics"][0]["post_visible_zero_present_fraction"] == 1.0
+               for group in render_summary["groups"])
+    assert all(group["bottleneck_signal_counts"] == {
+        "render-present": 1,
+        "screenshot-incomplete": 1,
+    }
+               for group in render_summary["groups"])
 
     missing_network = temporary / "diagnostic-missing-network"
     create_benchmark(

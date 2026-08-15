@@ -157,8 +157,13 @@ process. The driver-dependent GL program-binary cache is not covered by
 `--cache`; this limitation is included in every aggregate. Every planned
 cold/warm attempt is manifest-driven, and partial metrics from crashes or
 timeouts are retained instead of disappearing from the report. Stale result
-directories are ignored. On the hosted software renderer the suite deliberately
-runs only the first requested concurrency, because two driver-pathological runs
+directories are ignored. The aggregator computes peak and time-integrated
+download/processing/texture pressure, post-visible present/new-frame rates, and
+domain-to-query, query-to-data, and data-to-handoff durations. It classifies
+each cache-mode run as connection, entity-server/query, entity-stream/public
+domain, decode/visibility, render/present, screenshot completion, resource
+backlog, or no observed bottleneck. On the hosted software renderer the suite
+deliberately runs only the first requested concurrency, because two driver-pathological runs
 cannot produce a meaningful download-concurrency comparison. Its script records
 at most 70 seconds without visible content or 30 seconds after first-visible.
 The 210-second outer bound includes variable application startup; a private
@@ -204,6 +209,20 @@ supervisor now stops on a fresh private completion checkpoint, while the
 aggregator separately requires connection/query capture in both cache modes and
 at least one first-visible observation. A missing result, an unobserved network
 path, or a real process crash still fails closed.
+
+Run `31852625900` validated the completion checkpoint end to end. Cold and warm
+both wrote durable diagnostics and the supervisor stopped them without a wall
+timeout or SIGKILL. Cold reached 580 entities and first-visible in 6.195 seconds;
+warm reached 579 in 8.494 seconds and completed a screenshot in 11.889 seconds.
+Cold domain-to-query/query-to-data/data-to-handoff phases were 5/1/2 seconds;
+warm was 3/1/2 seconds. The cold post-visible present median was zero and 87.1%
+of samples had no presentation; it ended with 34 pending downloads and 63 MB of
+pending texture transfer. Warm captured a frame but ended with 172 pending
+downloads and about 60 MB of texture transfer, while 86.9% of its post-visible
+samples also had no presentation. The automated classifications are therefore
+`render-present` for cold and `resource-backlog` for warm, with both signals
+retained. This mutable-world pair does not support changing the default download
+concurrency.
 
 Repeated clean launch, local-scene render, screenshot, and shutdown cycles are
 available with:

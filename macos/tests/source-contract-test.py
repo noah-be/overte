@@ -1123,6 +1123,9 @@ for analyzer_contract in (
 
 online_loading_runner = (ROOT / "macos/ci/online-loading-benchmark.sh").read_text(encoding="utf-8")
 online_loading_script = (ROOT / "macos/tests/online-loading-benchmark.js").read_text(encoding="utf-8")
+online_loading_analyzer = (
+    ROOT / "macos/tools/analyze-online-loading.py"
+).read_text(encoding="utf-8")
 for loading_contract in (
     "OVERTE_MACOS_ONLINE_CONCURRENCIES",
     "OVERTE_MACOS_ONLINE_REPEATS",
@@ -1166,6 +1169,20 @@ for loading_contract in (
 ):
     if loading_contract not in online_loading_script:
         raise SystemExit(f"online loading script missing: {loading_contract}")
+for analyzer_contract in (
+    "queue_diagnostics",
+    '"primary_bottleneck"',
+    '"bottleneck_signals"',
+    '"bottleneck_signal_counts"',
+    '"bottleneck_summary"',
+    '"pending_download_seconds"',
+    '"post_visible_zero_present_fraction"',
+    '"domain_to_query_ms"',
+    '"query_to_data_ms"',
+    '"data_to_handoff_ms"',
+):
+    if analyzer_contract not in online_loading_analyzer:
+        raise SystemExit(f"online loading analyzer missing: {analyzer_contract}")
 
 frame_timings_header = (
     ROOT / "interface/src/FrameTimingsScriptingInterface.h"
