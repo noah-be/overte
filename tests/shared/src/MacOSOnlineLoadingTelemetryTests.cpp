@@ -49,6 +49,17 @@ void configureTarget(const QByteArray& target, const QByteArray& navigationId = 
         QCryptographicHash::hash(target, QCryptographicHash::Sha256).toHex());
 }
 
+bool recordThroughEntityTree(quint64 firstTimestamp) {
+    return
+        macos::online_loading::recordOnceAt("url_accepted", firstTimestamp) &&
+        macos::online_loading::recordOnceAt("domain_connected", firstTimestamp + 1) &&
+        macos::online_loading::recordOnceAt("entity_server_active", firstTimestamp + 2) &&
+        macos::online_loading::recordOnceAt("entity_query", firstTimestamp + 3) &&
+        macos::online_loading::recordOnceAt("entity_data", firstTimestamp + 4) &&
+        macos::online_loading::recordOnceAt("entity_decode", firstTimestamp + 5) &&
+        macos::online_loading::recordOnceAt("entity_tree", firstTimestamp + 6);
+}
+
 } // namespace
 
 QTEST_MAIN(MacOSOnlineLoadingTelemetryTests)
@@ -136,6 +147,52 @@ void MacOSOnlineLoadingTelemetryTests::testDeduplicatesPerNavigation() {
 
     QCOMPARE(capturedMessages.size(), 2);
     QCOMPARE(lastRecord().value("navigation_id").toString(), QStringLiteral("c10-p1-second"));
+}
+
+void MacOSOnlineLoadingTelemetryTests::testReturnsRecordedTimestampPerNavigation() {
+    configure("c10-p1-timestamp");
+    QVERIFY(recordThroughEntityTree(100));
+    QCOMPARE(macos::online_loading::recordedTimestampUsec("entity_tree"), quint64(106));
+    QCOMPARE(macos::online_loading::recordedTimestampUsec("render_handoff"), quint64(0));
+    QCOMPARE(macos::online_loading::recordedTimestampUsec("unknown_event"), quint64(0));
+
+    qputenv("OVERTE_MACOS_ONLINE_LOADING_NAVIGATION_ID", "c10-p1-timestamp-reset");
+    QCOMPARE(macos::online_loading::recordedTimestampUsec("entity_tree"), quint64(0));
+    QVERIFY(macos::online_loading::recordOnceAt("url_accepted", 200));
+    QCOMPARE(macos::online_loading::recordedTimestampUsec("url_accepted"), quint64(200));
+    QCOMPARE(macos::online_loading::recordedTimestampUsec("entity_tree"), quint64(0));
+}
+
+void MacOSOnlineLoadingTelemetryTests::testAllowsConsistentRenderHandoffAttribution() {
+    configure("c10-p1-render-attribution");
+    const auto previousHandler = qInstallMessageHandler(captureMessage);
+    QVERIFY(recordThroughEntityTree(100));
+    QVERIFY(!macos::online_loading::recordOnceAt("render_handoff", 205, {
+        { "unattributed_us", 1 },
+    }));
+    QVERIFY(macos::online_loading::recordOnceAt("render_handoff", 206, {
+        { "entities_pending_add", 7 },
+        { "renderables_pending_update", 2 },
+        { "tree_to_add_slot_us", 10 },
+        { "add_slot_to_pending_pass_us", 20 },
+        { "pending_pass_to_handoff_us", 70 },
+        { "adding_slots", 8 },
+        { "preload_us", 1200 },
+        { "add_passes", 2 },
+        { "parent_incomplete_skips", 1 },
+    }));
+    qInstallMessageHandler(previousHandler);
+
+    const auto record = lastRecord();
+    QCOMPARE(record.value("event").toString(), QStringLiteral("render_handoff"));
+    QCOMPARE(record.value("tree_to_add_slot_us").toInt(), 10);
+    QCOMPARE(record.value("add_slot_to_pending_pass_us").toInt(), 20);
+    QCOMPARE(record.value("pending_pass_to_handoff_us").toInt(), 70);
+    QCOMPARE(record.value("adding_slots").toInt(), 8);
+    QCOMPARE(record.value("preload_us").toInt(), 1200);
+    QCOMPARE(record.value("add_passes").toInt(), 2);
+    QCOMPARE(record.value("parent_incomplete_skips").toInt(), 1);
+    QCOMPARE(macos::online_loading::recordedTimestampUsec("render_handoff"), quint64(206));
 }
 
 void MacOSOnlineLoadingTelemetryTests::testBeginsOnlyForExactTargetBytes() {

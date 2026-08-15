@@ -104,14 +104,29 @@ five-minute build/Conan/sccache size samples. Threshold transitions are emitted
 immediately. The telemetry supervisor preserves the supervised command's exit
 status and never records commands, environment variables, paths, or secrets.
 
-Immediately after bundle verification and before runtime testing, it uploads
-`overte-macos-x86_64-<run-id>` with `build/interface/Overte.app`. After the
-runtime gates, it also uploads:
+Immediately after bundle verification and before runtime testing, it creates a
+versioned external application manifest and uploads
+`overte-macos-x86_64-<run-id>` with both `build/interface/Overte.app` and
+`build/application-artifact/application-manifest.json`. The manifest binds the
+repository, bootstrap workflow path, ref, commit, run/attempt, target
+architecture, Xcode/SDK, build configuration, deployment target, main
+executable digest, and the digest plus architecture slices of every Mach-O in
+the bundle. Every Mach-O must contain the requested `x86_64` slice. Keeping the
+manifest outside the bundle avoids a self-referential application hash. After
+the runtime gates, the bootstrap also uploads:
 
 - `overte-macos-smoke-<run-id>` with smoke diagnostics.
 
 The separate `.github/workflows/macos-runtime.yml` workflow restores one
-explicit application artifact without rebuilding it. It always runs startup
+explicit application artifact without rebuilding it. Before downloading, a
+pinned GitHub API step requires a completed, successful bootstrap run from the
+same repository and the exact `apple-macos` branch, then selects exactly one
+live artifact with the expected run-scoped name. After extraction, the runtime
+workflow requires the unique documented bundle/manifest layout and revalidates
+the complete manifest and Mach-O inventory. The current runtime-test checkout
+may be newer than the application commit so script-only test improvements can
+reuse an immutable build; the original application and source-run provenance
+are copied into the runtime diagnostics result. It always runs startup
 and serverless visual acceptance, optionally runs the public online world, and
 can additionally record deterministic frame timings, compare five explicit
 graphics-quality profiles, compare cold/warm full-world loading at controlled
@@ -127,6 +142,22 @@ automatically uses the small Forward diagnostic fixture; full lit/effect
 profiles are reserved for physical Macs. Software-renderer results are
 diagnostic only, and public-world loading is informational until a
 versioned controlled domain exists.
+
+Performance artifacts contain only allowlisted hardware evidence. Raw
+`system_profiler` output and `uname -a` are never written into the upload tree;
+serial numbers, UUIDs, UDIDs, host names, NIC addresses, EDID data, and unknown
+nested platform fields are discarded. The application writes its raw profile
+result into a private temporary directory, and only the atomically sanitized
+result is moved into the evidence tree. Runtime caches and generated profile
+scripts containing absolute runner paths are excluded from the artifact.
+
+GitHub currently reports `apple-macos` as unprotected. Enabling branch
+protection or an equivalent repository ruleset remains recommended hardening,
+but the runtime workflow does not require or attempt to change repository
+settings. Until then, its trust boundary is the exact repository/head-repository
+identity, workflow path, branch name, immutable commit SHA and run ID, successful
+completion state, and unique live artifact checked above.
+
 The graphics aggregator independently recomputes frame quantiles, validates
 every polled LOD timing row and render-stat distribution, and reports a dominant
 GPU, CPU-engine, CPU-submit, present/pacing, or balanced bottleneck per profile.

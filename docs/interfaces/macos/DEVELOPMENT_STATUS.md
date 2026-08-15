@@ -26,6 +26,10 @@
   fixture/screenshot evidence binding;
 - a stable allowlisted graphics-hardware identity that excludes application
   hashes and volatile or private platform inventory;
+- allowlist-only performance artifacts that never persist raw hardware or
+  network-interface identifiers;
+- an external application provenance manifest that revalidates every Mach-O
+  hash and architecture slice before runtime-only reuse;
 - tested collidable-first Safe Landing resource priority and a cross-platform
   16-entity bound for unbudgeted renderable updates;
 - an owning trace-output path that remains valid across the application event
@@ -72,8 +76,12 @@ matrix now takes distinct warmup and acceptance images, requires five seconds
 and at least two further presents, verifies the red/cyan semantic layout, and
 binds fixture features plus fixture and image hashes into the strict analyzer
 schema. A hermetic sky-only image represents the failure as a negative
-regression fixture and is rejected locally. This new harness contract still needs a runtime-only rerun
-before it replaces the diagnostic baseline above.
+regression fixture. Runtime-only run
+[`31878060076`](https://github.com/noah-be/overte/actions/runs/31878060076)
+validated this hardened path: the final 1380x776 image contained 55,187 red and
+30,216 cyan pixels after seven new presents, the independent re-analysis was
+byte-for-byte equivalent, and the Software Renderer remained diagnostic-only
+with no selected profile.
 
 Native arm64 capability probe
 [`31853662830`](https://github.com/noah-be/overte/actions/runs/31853662830)
@@ -96,6 +104,14 @@ gate. The analyzer consequently classified both attempts as
 world pair is diagnostic evidence only; the default concurrency intentionally
 remains unchanged.
 
+The current source adds navigation-scoped attribution inside the previously
+dominant tree-to-render-handoff interval: queued add-slot delay, first pending
+pass delay, first-domain-renderable handoff time, synchronous preload cost, add
+pass count, adding-slot count, and incomplete-parent skips. The analyzer checks
+that the three phase durations exactly reconstruct the original interval. This
+instrumentation is behavior-neutral and requires the next application build
+and runtime benchmark before an optimization is selected.
+
 Earlier transition run
 [`31778713708`](https://github.com/noah-be/overte/actions/runs/31778713708)
 passed startup, the deterministic three-entity serverless scene, and the full
@@ -112,8 +128,7 @@ stability iterations exited cleanly.
 
 ## Open gates
 
-1. Validate the hardened matrix contract in a runtime-only hosted run, then run
-   the full profile matrix three times on native, non-Rosetta Apple Silicon
+1. Run the full profile matrix three times on native, non-Rosetta Apple Silicon
    hardware; establish reviewed per-renderer image baselines before selecting a
    production quality profile.
 2. Run online loading against a pinned, controlled domain for at least three

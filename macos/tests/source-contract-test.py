@@ -74,6 +74,12 @@ application_source = (ROOT / "interface/src/Application.cpp").read_text(encoding
 online_loading_telemetry = (
     ROOT / "libraries/shared/src/MacOSOnlineLoadingTelemetry.cpp"
 ).read_text(encoding="utf-8")
+online_loading_renderer = (
+    ROOT / "libraries/entities-renderer/src/EntityTreeRenderer.cpp"
+).read_text(encoding="utf-8")
+online_loading_native_test = (
+    ROOT / "tests/shared/src/MacOSOnlineLoadingTelemetryTests.cpp"
+).read_text(encoding="utf-8")
 if '#include "shared/GlobalAppProperties.h"' not in online_loading_telemetry:
     raise SystemExit("shared macOS online telemetry must use the target-local quoted include path")
 if "#include <shared/GlobalAppProperties.h>" in online_loading_telemetry:
@@ -85,6 +91,47 @@ for telemetry_start_contract in (
 ):
     if telemetry_start_contract not in online_loading_telemetry:
         raise SystemExit(f"shared macOS online telemetry start contract missing: {telemetry_start_contract}")
+for telemetry_attribution_contract in (
+    "recordedTimestamps.clear()",
+    "quint64 recordedTimestampUsec(const char* event)",
+    'recordOnceAt("render_handoff", handoffUsec',
+    "prepareOnlineLoadingRenderAttribution()",
+):
+    sources = online_loading_telemetry + online_loading_renderer
+    if telemetry_attribution_contract not in sources:
+        raise SystemExit(
+            "macOS online render attribution contract missing: " + telemetry_attribution_contract
+        )
+for render_attribution_field in (
+    "tree_to_add_slot_us",
+    "add_slot_to_pending_pass_us",
+    "pending_pass_to_handoff_us",
+    "adding_slots",
+    "preload_us",
+    "add_passes",
+    "parent_incomplete_skips",
+):
+    for source_name, source in (
+        ("telemetry allowlist", online_loading_telemetry),
+        ("render handoff", online_loading_renderer),
+        ("native telemetry test", online_loading_native_test),
+    ):
+        if render_attribution_field not in source:
+            raise SystemExit(
+                f"macOS online {source_name} missing attribution field: {render_attribution_field}"
+            )
+if 'recordOnce("render_handoff"' in online_loading_renderer:
+    raise SystemExit("macOS online render handoff must not emit a partial fallback record")
+for renderer_thread_contract in (
+    "EntityTree::addingEntity, this, &EntityTreeRenderer::addingEntity, Qt::QueuedConnection",
+    "addingEntity() and addPendingEntities() are serialized",
+):
+    if renderer_thread_contract not in online_loading_renderer + (
+            ROOT / "libraries/entities-renderer/src/EntityTreeRenderer.h"
+    ).read_text(encoding="utf-8"):
+        raise SystemExit(
+            "macOS online render attribution thread contract missing: " + renderer_thread_contract
+        )
 shutdown = application_source.split("void Application::cleanupBeforeQuit()", 1)[1].split(
     "static const float FOCUS_HIGHLIGHT_EXPANSION_FACTOR", 1
 )[0]
@@ -1328,6 +1375,13 @@ for analyzer_contract in (
     '"data_to_decode_ms"',
     '"decode_to_tree_ms"',
     '"tree_to_handoff_ms"',
+    '"tree_to_add_slot_ms"',
+    '"add_slot_to_pending_pass_ms"',
+    '"pending_pass_to_handoff_ms"',
+    '"render_preload_ms"',
+    '"render_adding_slots"',
+    '"render_add_passes"',
+    '"render_parent_incomplete_skips"',
     '"handoff_to_present_ms"',
     '"present_to_visible_ms"',
     '"navigation_event_details"',
@@ -1342,6 +1396,9 @@ for analyzer_contract in (
     "load_signal_process",
     "diagnostic_signal_evidence",
     "visible online-loading evidence has an incomplete navigation event sequence",
+    "render_handoff is missing attribution fields",
+    "render_handoff attribution does not equal the entity_tree-to-handoff interval",
+    "single-pass render_handoff preload exceeds its add-slot-to-pending-pass interval",
 ):
     if analyzer_contract not in online_loading_analyzer:
         raise SystemExit(f"online loading analyzer missing: {analyzer_contract}")
@@ -2084,6 +2141,16 @@ subprocess.run(
 )
 subprocess.run(
     [sys.executable, str(ROOT / "macos/tests/native-test-runner-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/application-artifact-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/performance-hardware-sanitizer-test.py")],
     cwd=ROOT,
     check=True,
 )

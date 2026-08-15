@@ -36,6 +36,7 @@ bool beginNavigation(const QByteArray& target);
 bool recordOnce(const char* event, NumericFields fields = {});
 bool recordOnceAt(const char* event, quint64 monotonicUsec, NumericFields fields = {});
 bool hasRecorded(const char* event);
+quint64 recordedTimestampUsec(const char* event);
 quint64 steadyClockUsec();
 
 } // namespace macos::online_loading

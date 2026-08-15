@@ -2,7 +2,12 @@
 """Security and reproducibility contracts for the Pico 4 CI workflow."""
 
 from pathlib import Path
+import json
+import os
 import re
+import subprocess
+import tempfile
+import textwrap
 import unittest
 
 
@@ -702,14 +707,254 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("build/macos-native-test-results", self.source[diagnostics:])
 
     def test_built_application_is_preserved_when_runtime_smoke_fails(self):
+        package = self.source.index("- name: Package application artifact provenance")
         upload = self.source.index("- name: Upload application bundle immediately")
         startup = self.source.index("- name: Run application startup preflight")
         serverless = self.source.index("- name: Run serverless entity smoke")
+        self.assertLess(package, upload)
         self.assertLess(upload, startup)
         self.assertLess(upload, serverless)
         upload_section = self.source[upload:startup]
         self.assertIn("id: application-upload", upload_section)
         self.assertIn("if-no-files-found: error", upload_section)
+
+    def test_application_upload_has_external_strict_provenance(self):
+        package = self.source.split(
+            "- name: Package application artifact provenance", 1
+        )[1].split("- name: Upload application bundle immediately", 1)[0]
+        upload = self.source.split(
+            "- name: Upload application bundle immediately", 1
+        )[1].split("- name: Run application startup preflight", 1)[0]
+        for token in (
+            "macos/ci/application-artifact.py package",
+            "--app \"$app\"",
+            "--manifest build/application-artifact/application-manifest.json",
+            '--repository "$GITHUB_REPOSITORY"',
+            '--repository-id "$GITHUB_REPOSITORY_ID"',
+            "--workflow .github/workflows/macos-bootstrap.yml",
+            '--ref "$GITHUB_REF"',
+            '--sha "$GITHUB_SHA"',
+            '--run-id "$GITHUB_RUN_ID"',
+            '--run-attempt "$GITHUB_RUN_ATTEMPT"',
+            '--target-arch "$OVERTE_MACOS_ARCH"',
+            'xcodebuild -version',
+            'xcrun --sdk macosx --show-sdk-version',
+            '--build-type "$OVERTE_MACOS_BUILD_TYPE"',
+            '--deployment-target "$MACOSX_DEPLOYMENT_TARGET"',
+        ):
+            self.assertIn(token, package)
+        self.assertNotIn("Overte.app/Contents", package.split("--manifest", 1)[1])
+        self.assertIn("build/interface/Overte.app", upload)
+        self.assertIn("build/application-artifact/application-manifest.json", upload)
+        self.assertIn("compression-level: 0", upload)
+
+    def test_runtime_source_run_and_exact_artifact_are_validated_before_download(self):
+        source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
+        validation_start = source.index("- name: Validate requested bootstrap source run")
+        download_start = source.index("- name: Restore built application checkpoint")
+        verify_start = source.index("- name: Verify restored application bundle")
+        self.assertLess(validation_start, download_start)
+        self.assertLess(download_start, verify_start)
+        validation = source[validation_start:download_start]
+        for token in (
+            "actions/github-script@d746ffe35508b1917358783b479e04febd2b8f71",
+            "github.rest.actions.getWorkflowRun",
+            "run.repository?.id === repositoryId",
+            "run.repository?.full_name === context.repo.owner + '/' + context.repo.repo",
+            "run.head_repository?.id === repositoryId",
+            "run.path === expectedWorkflow",
+            "run.head_branch === expectedBranch",
+            "run.status === 'completed'",
+            "run.conclusion === 'success'",
+            "github.rest.actions.listWorkflowRunArtifacts",
+            "matches.length !== 1",
+            "matches[0].expired === true",
+            "matches[0].size_in_bytes <= 0",
+            "^sha256:[0-9a-f]{64}$",
+            "overte-macos-x86_64-${runId}",
+            "core.setOutput('attempt'",
+            "core.setOutput('sha'",
+        ):
+            self.assertIn(token, validation)
+        self.assertNotIn("getBranch", validation)
+        self.assertNotIn(".protected", validation)
+        download = source[download_start:verify_start]
+        self.assertIn("artifact-ids: ${{ steps.source-run.outputs.artifact-id }}", download)
+        self.assertIn("merge-multiple: true", download)
+        self.assertNotIn("\n          name:", download)
+        self.assertIn("run-id: ${{ inputs.artifact_run_id }}", download)
+
+    def test_runtime_source_validation_accepts_unprotected_branch_and_rejects_tampering(self):
+        source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
+        step = source.split("- name: Validate requested bootstrap source run", 1)[1].split(
+            "\n      - name: Restore built application checkpoint", 1
+        )[0]
+        script = textwrap.dedent(step.split("          script: |\n", 1)[1])
+        run_id = 31868069780
+        repository_id = 1319052603
+        base = {
+            "requested_run_id": str(run_id),
+            "context_ref": "refs/heads/apple-macos",
+            "repository_id": repository_id,
+            "run": {
+                "id": run_id,
+                "repository": {
+                    "id": repository_id,
+                    "full_name": "noah-be/overte",
+                },
+                "head_repository": {"id": repository_id},
+                "path": ".github/workflows/macos-bootstrap.yml",
+                "head_branch": "apple-macos",
+                "head_sha": "a" * 40,
+                "run_attempt": 1,
+                "status": "completed",
+                "conclusion": "success",
+                "event": "workflow_dispatch",
+            },
+            "artifacts": [{
+                "id": 9242921918,
+                "name": f"overte-macos-x86_64-{run_id}",
+                "expired": False,
+                "size_in_bytes": 1373090872,
+                "digest": "sha256:" + "b" * 64,
+            }],
+        }
+        harness = r"""
+const scenario = JSON.parse(process.env.SCENARIO);
+process.env.REQUESTED_RUN_ID = scenario.requested_run_id;
+const failures = [];
+const outputs = {};
+const core = {
+  setFailed: (message) => failures.push(message),
+  setOutput: (name, value) => { outputs[name] = value; },
+};
+const context = {
+  payload: { repository: { id: scenario.repository_id } },
+  ref: scenario.context_ref,
+  repo: { owner: 'noah-be', repo: 'overte' },
+};
+const github = {
+  rest: {
+    actions: {
+      getWorkflowRun: async () => ({ data: scenario.run }),
+      listWorkflowRunArtifacts: async () => {
+        throw new Error('paginate contract violated');
+      },
+    },
+    repos: {
+      getBranch: async () => {
+        throw new Error('branch protection must not be queried');
+      },
+    },
+  },
+  paginate: async () => scenario.artifacts,
+};
+const embedded = require('fs').readFileSync(0, 'utf8');
+const execute = new Function(
+  'github', 'context', 'core', 'require',
+  '\"use strict\"; return (async () => {\n' + embedded + '\n})();',
+);
+execute(github, context, core, require).then(
+  () => console.log(JSON.stringify({ failures, outputs })),
+  (error) => {
+    console.error(error.stack || String(error));
+    process.exitCode = 2;
+  },
+);
+"""
+
+        def execute(scenario):
+            with tempfile.TemporaryDirectory() as directory:
+                environment = os.environ.copy()
+                environment["SCENARIO"] = json.dumps(scenario)
+                result = subprocess.run(
+                    ["node", "-e", harness], input=script, cwd=directory,
+                    env=environment, text=True, capture_output=True, check=False,
+                )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            return json.loads(result.stdout)
+
+        accepted = execute(base)
+        self.assertEqual(accepted["failures"], [])
+        self.assertEqual(accepted["outputs"]["sha"], "a" * 40)
+        self.assertEqual(accepted["outputs"]["attempt"], "1")
+        self.assertEqual(accepted["outputs"]["artifact-id"], "9242921918")
+
+        cases = {
+            "run ID": ("run.id", run_id + 1),
+            "repository": ("run.repository.id", repository_id + 1),
+            "head repository": ("run.head_repository.id", repository_id + 1),
+            "branch": ("run.head_branch", "feature/untrusted"),
+            "workflow": ("run.path", ".github/workflows/other.yml"),
+            "conclusion": ("run.conclusion", "failure"),
+            "SHA": ("run.head_sha", "not-a-commit"),
+            "artifact name": ("artifacts.0.name", "overte-macos-x86_64-wrong"),
+            "expired artifact": ("artifacts.0.expired", True),
+            "artifact digest": ("artifacts.0.digest", "sha256:invalid"),
+        }
+        for description, (path, value) in cases.items():
+            with self.subTest(description=description):
+                changed = json.loads(json.dumps(base))
+                target = changed
+                parts = path.split(".")
+                for part in parts[:-1]:
+                    target = target[int(part)] if part.isdigit() else target[part]
+                target[parts[-1]] = value
+                rejected = execute(changed)
+                self.assertNotEqual(rejected["failures"], [])
+                self.assertEqual(rejected["outputs"], {})
+
+        duplicated = json.loads(json.dumps(base))
+        duplicated["artifacts"].append(dict(duplicated["artifacts"][0]))
+        rejected = execute(duplicated)
+        self.assertNotEqual(rejected["failures"], [])
+        self.assertEqual(rejected["outputs"], {})
+
+    def test_runtime_verifies_manifest_bundle_and_preserves_app_provenance(self):
+        source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
+        verify = source.split("- name: Verify restored application bundle", 1)[1].split(
+            "- name: Run application startup preflight", 1
+        )[0]
+        for token in (
+            "build/runtime-artifact/interface/Overte.app",
+            "build/runtime-artifact/application-artifact/application-manifest.json",
+            'stat -f %z "$manifest"',
+            "macos/ci/application-artifact.py verify",
+            'SOURCE_RUN_SHA: ${{ steps.source-run.outputs.sha }}',
+            'SOURCE_RUN_ATTEMPT: ${{ steps.source-run.outputs.attempt }}',
+            '--workflow .github/workflows/macos-bootstrap.yml',
+            "--ref refs/heads/apple-macos",
+            '--sha "$SOURCE_RUN_SHA"',
+            '--run-attempt "$SOURCE_RUN_ATTEMPT"',
+            "--target-arch x86_64",
+            "--build-type RelWithDebInfo",
+            "--deployment-target 11.0",
+            "build/macos-runtime-provenance/application-manifest.json",
+        ):
+            self.assertIn(token, verify)
+        self.assertNotIn('--sha "$GITHUB_SHA"', verify)
+        diagnostics = source.split("- name: Upload runtime diagnostics", 1)[1]
+        self.assertIn("build/macos-runtime-provenance", diagnostics)
+
+    def test_runtime_actions_are_pinned_and_flow_remains_x86_only(self):
+        source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
+        actions = ACTION_USE.findall(source)
+        self.assertGreaterEqual(len(actions), 4)
+        self.assertEqual(
+            [action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], []
+        )
+        self.assertIn("runs-on: macos-15-intel", source)
+        self.assertNotIn("self-hosted", source)
+        self.assertNotIn("runtime-arm64", source)
+
+    def test_runtime_diagnostics_exclude_cache_and_generated_path_bearing_scripts(self):
+        source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
+        diagnostics = source.split("- name: Upload runtime diagnostics", 1)[1]
+        self.assertIn("build/macos-performance-matrix", diagnostics)
+        self.assertIn("!build/macos-performance-matrix/cache/**", diagnostics)
+        self.assertIn(
+            "!build/macos-performance-matrix/**/profile-script.js", diagnostics
+        )
 
     def test_runtime_reuses_a_built_app_without_rebuilding(self):
         source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
@@ -731,7 +976,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("if: github.event_name == 'workflow_dispatch'", source)
         self.assertIn("actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53", source)
         self.assertIn("run-id: ${{ inputs.artifact_run_id }}", source)
-        self.assertIn("mv build/runtime-artifact/Contents build/runtime-artifact/Overte.app/Contents", source)
+        self.assertIn("build/runtime-artifact/interface/Overte.app", source)
         self.assertIn('chmod -R u+rx "$app/Contents/MacOS" "$app/Contents/Frameworks" "$app/Contents/PlugIns"', source)
         self.assertIn("OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '300'", source)
         self.assertIn("macos/ci/serverless-smoke.sh", source)

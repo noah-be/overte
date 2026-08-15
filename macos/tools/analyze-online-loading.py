@@ -48,10 +48,24 @@ NAVIGATION_EVENT_FIELDS = {
     "entity_data": {"bytes", "packet_queue"},
     "entity_decode": {"decompress_us", "wait_lock_us"},
     "entity_tree": {"entities", "elements", "tree_us"},
-    "render_handoff": {"entities_pending_add", "renderables_pending_update"},
+    "render_handoff": {
+        "entities_pending_add", "renderables_pending_update",
+        "tree_to_add_slot_us", "add_slot_to_pending_pass_us",
+        "pending_pass_to_handoff_us", "adding_slots", "preload_us",
+        "add_passes", "parent_incomplete_skips",
+    },
     "first_presented": {"present_count"},
     "first_visible": {"present_count", "visible_count"},
 }
+RENDER_HANDOFF_ATTRIBUTION_FIELDS = (
+    "tree_to_add_slot_us",
+    "add_slot_to_pending_pass_us",
+    "pending_pass_to_handoff_us",
+    "adding_slots",
+    "preload_us",
+    "add_passes",
+    "parent_incomplete_skips",
+)
 
 
 class LoadingError(RuntimeError):
@@ -203,6 +217,26 @@ def navigation_milestones(path: Path, navigation_id: str,
         }
         for record in records
     }
+    if "render_handoff" in by_event:
+        handoff = details["render_handoff"]
+        missing = [field for field in RENDER_HANDOFF_ATTRIBUTION_FIELDS if field not in handoff]
+        if missing:
+            raise LoadingError(
+                "render_handoff is missing attribution fields: " + ", ".join(missing)
+            )
+        attributed_us = sum(handoff[field] for field in RENDER_HANDOFF_ATTRIBUTION_FIELDS[:3])
+        tree_to_handoff_us = by_event["render_handoff"] - by_event["entity_tree"]
+        if abs(attributed_us - tree_to_handoff_us) > 0.5:
+            raise LoadingError(
+                "render_handoff attribution does not equal the entity_tree-to-handoff interval"
+            )
+        if handoff["add_passes"] < 1:
+            raise LoadingError("render_handoff attribution requires at least one add pass")
+        if (handoff["add_passes"] == 1 and
+                handoff["preload_us"] > handoff["add_slot_to_pending_pass_us"] + 0.5):
+            raise LoadingError(
+                "single-pass render_handoff preload exceeds its add-slot-to-pending-pass interval"
+            )
     return result, details
 
 
@@ -238,6 +272,15 @@ def queue_diagnostics(value: dict[str, object]) -> dict[str, object]:
         return None
 
     last = samples[-1]
+    event_details = value.get("navigation_event_details", {})
+    event_details = event_details if isinstance(event_details, dict) else {}
+    handoff_details = event_details.get("render_handoff", {})
+    handoff_details = handoff_details if isinstance(handoff_details, dict) else {}
+
+    def handoff_milliseconds(field: str) -> float | None:
+        value_us = handoff_details.get(field)
+        return round(float(value_us) / 1000.0, 3) if isinstance(value_us, (int, float)) else None
+
     diagnostics = {
         "sample_count": len(samples),
         "last_sample_ms": float(last["elapsed_ms"]),
@@ -265,9 +308,16 @@ def queue_diagnostics(value: dict[str, object]) -> dict[str, object]:
         "data_to_decode_ms": delta("entity_data", "entity_decode"),
         "decode_to_tree_ms": delta("entity_decode", "entity_tree"),
         "tree_to_handoff_ms": delta("entity_tree", "render_handoff"),
+        "tree_to_add_slot_ms": handoff_milliseconds("tree_to_add_slot_us"),
+        "add_slot_to_pending_pass_ms": handoff_milliseconds("add_slot_to_pending_pass_us"),
+        "pending_pass_to_handoff_ms": handoff_milliseconds("pending_pass_to_handoff_us"),
+        "render_preload_ms": handoff_milliseconds("preload_us"),
+        "render_adding_slots": handoff_details.get("adding_slots"),
+        "render_add_passes": handoff_details.get("add_passes"),
+        "render_parent_incomplete_skips": handoff_details.get("parent_incomplete_skips"),
         "handoff_to_present_ms": delta("render_handoff", "first_presented"),
         "present_to_visible_ms": delta("first_presented", "first_visible"),
-        "navigation_event_details": value.get("navigation_event_details", {}),
+        "navigation_event_details": event_details,
         "navigation_clock_skew_ms": value.get("navigation_clock_skew_ms"),
     }
     signals: list[str] = []

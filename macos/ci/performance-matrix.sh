@@ -31,9 +31,17 @@ if [[ -n "$(find "$output_dir" -mindepth 1 -print -quit)" ]]; then
     echo "refusing to mix a performance matrix with existing evidence: $output_dir" >&2
     exit 2
 fi
-system_profiler -json SPHardwareDataType SPDisplaysDataType > "$output_dir/hardware.json"
-sw_vers > "$output_dir/macos-version.txt"
-uname -a > "$output_dir/kernel.txt"
+os_name="$(sw_vers -productName)"
+os_version="$(sw_vers -productVersion)"
+os_build="$(sw_vers -buildVersion)"
+cpu_model="$(sysctl -n machdep.cpu.brand_string 2>/dev/null || :)"
+LC_ALL=C system_profiler -json SPHardwareDataType SPDisplaysDataType | \
+    python3 "$source_root/macos/tools/sanitize-performance-hardware.py" \
+        --output "$output_dir/hardware.json" \
+        --os-name "$os_name" --os-version "$os_version" --os-build "$os_build" \
+        --cpu-model "$cpu_model"
+printf 'ProductName:\t%s\nProductVersion:\t%s\nBuildVersion:\t%s\n' \
+    "$os_name" "$os_version" "$os_build" > "$output_dir/macos-version.txt"
 shasum -a 256 "$executable" > "$output_dir/application.sha256"
 readonly fixture_sha256="$(python3 - "$template" "$procedural_shader" <<'PY'
 import hashlib
@@ -44,17 +52,9 @@ print(hashlib.sha256(Path(sys.argv[1]).read_bytes() + b"\0" + Path(sys.argv[2]).
 PY
 )"
 
-detected_runner_class="$(python3 - "$output_dir/hardware.json" "$(uname -m)" <<'PY'
-import json
-from pathlib import Path
-import sys
-
-text = json.dumps(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))).lower()
-tokens = ("software", "paravirtual", "virtual", "swiftshader", "llvmpipe", "softpipe", "offscreen")
-has_display = "spdisplays" in text or "sppci" in text or "chipset_model" in text
-print("diagnostic" if not has_display or any(token in text for token in tokens) else "hardware")
-PY
-)"
+detected_runner_class="$(python3 \
+    "$source_root/macos/tools/sanitize-performance-hardware.py" \
+    --classify "$output_dir/hardware.json")"
 runner_class="${OVERTE_MACOS_PROFILE_RUNNER_CLASS:-auto}"
 [[ "$runner_class" == diagnostic || "$runner_class" == hardware ]] || {
     [[ "$runner_class" == auto ]] || {
@@ -135,6 +135,12 @@ run_case() {
     local warmup_snapshot="$run_dir/macos-profile-warmup.png"
     local snapshot="$run_dir/macos-profile.png"
     local screenshot_result="$run_dir/profile-screenshot.json"
+    local profile_result="$run_dir/macos-profile.json"
+    local private_results
+    private_results="$(mktemp -d "${TMPDIR:-/tmp}/overte-macos-profile.XXXXXX")"
+    local private_warmup_snapshot="$private_results/macos-profile-warmup.png"
+    local private_snapshot="$private_results/macos-profile.png"
+    local private_profile_result="$private_results/macos-profile.json"
     local status=0
     local accepted=false
     local screenshot_sha256=""
@@ -142,7 +148,7 @@ run_case() {
 
     mkdir -p "$run_dir" "$output_dir/cache/$profile"
     rm -f "$warmup_snapshot" "$snapshot" "$screenshot_result" \
-        "$run_dir/macos-profile.json" \
+        "$profile_result" \
         "$run_dir/profile-accepted"
     python3 "$source_root/macos/tools/render-performance-profile.py" \
         --profiles "$profiles_file" --profile "$profile" --template "$template" \
@@ -155,7 +161,7 @@ run_case() {
         --disableLocalAvatar --cache "$output_dir/cache/$profile"
         --defaultScriptsOverride "file://$default_scripts_override"
         --url "file://$scene" --testScript "$generated_script"
-        --testResultsLocation "$run_dir" --quitWhenFinished
+        --testResultsLocation "$private_results" --quitWhenFinished
     )
 
     set +e
@@ -167,13 +173,28 @@ run_case() {
     status=$?
     set -e
 
+    # PlatformInfo.getPlatform() contains NIC identifiers on macOS. The app
+    # writes outside the uploaded artifact tree; only the atomically sanitized
+    # result can cross into it. A cancelled run therefore cannot upload raw
+    # runtime platform data.
+    if [[ -e "$private_profile_result" ]]; then
+        if python3 "$source_root/macos/tools/sanitize-performance-hardware.py" \
+                --profile-result "$private_profile_result"; then
+            mv "$private_profile_result" "$profile_result"
+        else
+            status=1
+        fi
+    fi
+    [[ ! -e "$private_warmup_snapshot" ]] || mv "$private_warmup_snapshot" "$warmup_snapshot"
+    [[ ! -e "$private_snapshot" ]] || mv "$private_snapshot" "$snapshot"
+
     if (( status == 0 )); then
         grep -Fq "OVERTE_MACOS_PROFILE passed id=$profile" "$log" || status=1
         grep -Fq "OVERTE_MACOS_PROFILE warmup_snapshot=" "$log" || status=1
         grep -Fq "OVERTE_MACOS_PROFILE warmup_cooldown_ms=" "$log" || status=1
         grep -Fq "OVERTE_MACOS_PROFILE final_snapshot=" "$log" || status=1
         [[ -s "$warmup_snapshot" && -s "$snapshot" && \
-            -s "$run_dir/macos-profile.json" ]] || status=1
+            -s "$profile_result" ]] || status=1
     fi
     if (( status == 0 )); then
         python3 "$source_root/macos/tools/validate-screenshot.py" "$snapshot" \

@@ -31,7 +31,8 @@ contiguous order:
 5. `entity_data`
 6. `entity_decode` — packet decompression has completed, immediately before tree mutation
 7. `entity_tree`
-8. `render_handoff`
+8. `render_handoff` — first domain entity accepted by the render scene; includes additive attribution for the full
+   `entity_tree`-to-handoff interval
 9. `first_presented`
 10. `first_visible`
 
@@ -42,8 +43,17 @@ process-wide `OVERTE_MACOS_ENTITY_GATE` marker is treated as proof of visibility
 
 The JSON validator retains only these nonnegative numeric details: resource loading/pending counts at server activation
 and query, query/data byte counts, packet queue depth, decompression/lock/tree time in microseconds, decoded entity/element
-counts, render add/update queue depths, and present/visible counts. They are exposed in the analysis as
-`navigation_event_details`; arbitrary keys and all string details are rejected.
+counts, render add/update queue depths, and present/visible counts. The render handoff additionally records
+`tree_to_add_slot_us`, `add_slot_to_pending_pass_us`, `pending_pass_to_handoff_us`, `adding_slots`, cumulative synchronous
+`preload_us`, `add_passes`, and `parent_incomplete_skips`. The first three intervals must add up exactly to the measured
+`entity_tree`-to-handoff interval; the analyzer rejects missing or inconsistent attribution. These values are exposed in
+the analysis as `navigation_event_details` and as millisecond queue diagnostics; arbitrary keys and all string details are
+rejected.
+
+`preload_us` is the cumulative synchronous `checkAndCallPreload()` time on the EntityTreeRenderer thread. With one add
+pass it is wholly contained in `add_slot_to_pending_pass_us`, and the analyzer validates that bound. With multiple add
+passes, additional queued add slots and their preload work may occur after the first pending pass, so the cumulative value
+may legitimately exceed that first interval; it remains contained in the overall first-add-slot-to-handoff window.
 
 Immediately after the validated `first_visible` event, the script synchronously writes the immutable one-shot
 `macos-online-loading-checkpoint.json`. This is not the supervisor's completion file and therefore cannot stop the process

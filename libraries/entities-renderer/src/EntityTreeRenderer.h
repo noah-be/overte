@@ -188,6 +188,9 @@ protected:
 private:
     void addPendingEntities(const render::ScenePointer& scene, render::Transaction& transaction);
     void updateChangedEntities(const render::ScenePointer& scene, render::Transaction& transaction);
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    bool prepareOnlineLoadingRenderAttribution();
+#endif
     EntityRendererPointer renderableForEntity(const EntityItemPointer& entity) const { return renderableForEntityId(entity->getID()); }
     render::ItemID renderableIdForEntity(const EntityItemPointer& entity) const { return renderableIdForEntityId(entity->getID()); }
 
@@ -287,6 +290,21 @@ private:
     std::unordered_set<EntityRendererPointer> _renderablesToUpdate;
     std::unordered_map<EntityItemID, EntityRendererPointer> _entitiesInScene;
     std::unordered_map<EntityItemID, EntityItemWeakPointer> _entitiesToAdd;
+
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    // addingEntity() and addPendingEntities() are serialized on this QObject's
+    // renderer/Application thread; no cross-thread attribution lock is needed.
+    struct OnlineLoadingRenderAttribution {
+        QString navigationId;
+        quint64 treeUsec { 0 };
+        quint64 firstAddSlotUsec { 0 };
+        quint64 firstPendingPassUsec { 0 };
+        qint64 addingSlots { 0 };
+        qint64 preloadUsec { 0 };
+        qint64 addPasses { 0 };
+        qint64 parentIncompleteSkips { 0 };
+    } _onlineLoadingRenderAttribution;
+#endif
 
     // For Scene.shouldRenderEntities
     QList<EntityItemID> _entityIDsLastInScene;

@@ -810,13 +810,43 @@ jobs:
           macos/ci/verify-glad-linkage.sh "$app"
           macos/ci/verify-bundle-freshness.sh "$app" build
 
+      - name: Package application artifact provenance
+        timeout-minutes: 30
+        run: |
+          set -euo pipefail
+          app="$(find build -type d -name Overte.app -print -quit)"
+          test "$app" = build/interface/Overte.app
+          xcode_version="$(xcodebuild -version | awk 'NR == 1 {print $2}')"
+          xcode_build="$(xcodebuild -version | awk '/Build version/{print $3}')"
+          sdk_version="$(xcrun --sdk macosx --show-sdk-version)"
+          python3 macos/ci/application-artifact.py package \
+            --app "$app" \
+            --manifest build/application-artifact/application-manifest.json \
+            --repository "$GITHUB_REPOSITORY" \
+            --repository-id "$GITHUB_REPOSITORY_ID" \
+            --workflow .github/workflows/macos-bootstrap.yml \
+            --ref "$GITHUB_REF" \
+            --sha "$GITHUB_SHA" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --target-arch "$OVERTE_MACOS_ARCH" \
+            --xcode-version "$xcode_version" \
+            --xcode-build "$xcode_build" \
+            --sdk-version "$sdk_version" \
+            --build-type "$OVERTE_MACOS_BUILD_TYPE" \
+            --deployment-target "$MACOSX_DEPLOYMENT_TARGET"
+
       - name: Upload application bundle immediately
         id: application-upload
         timeout-minutes: 30
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: overte-macos-x86_64-${{ github.run_id }}
-          path: build/interface/Overte.app
+          # Multiple paths retain their unique paths below the common `build`
+          # root: interface/Overte.app and the external provenance manifest.
+          path: |
+            build/interface/Overte.app
+            build/application-artifact/application-manifest.json
           if-no-files-found: error
           compression-level: 0
           retention-days: 14

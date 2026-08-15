@@ -91,25 +91,156 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Validate requested bootstrap source run
+        id: source-run
+        timeout-minutes: 5
+        uses: actions/github-script@d746ffe35508b1917358783b479e04febd2b8f71 # v9.0.0
+        env:
+          REQUESTED_RUN_ID: ${{ inputs.artifact_run_id }}
+        with:
+          script: |
+            const rawRunId = process.env.REQUESTED_RUN_ID || '';
+            if (!/^[1-9][0-9]*$/.test(rawRunId)) {
+              core.setFailed('artifact_run_id must be a canonical positive integer');
+              return;
+            }
+            const runId = Number(rawRunId);
+            if (!Number.isSafeInteger(runId) || String(runId) !== rawRunId) {
+              core.setFailed('artifact_run_id is outside the safe integer range');
+              return;
+            }
+
+            const expectedRef = 'refs/heads/apple-macos';
+            const expectedBranch = 'apple-macos';
+            const expectedWorkflow = '.github/workflows/macos-bootstrap.yml';
+            const expectedArtifact = `overte-macos-x86_64-${runId}`;
+            const repositoryId = Number(context.payload.repository?.id);
+            if (!Number.isSafeInteger(repositoryId) || context.ref !== expectedRef) {
+              core.setFailed('runtime verification must execute from the trusted apple-macos ref');
+              return;
+            }
+
+            const response = await github.rest.actions.getWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: runId,
+            });
+            const run = response.data;
+            const validRun =
+              run.id === runId &&
+              run.repository?.id === repositoryId &&
+              run.repository?.full_name === context.repo.owner + '/' + context.repo.repo &&
+              run.head_repository?.id === repositoryId &&
+              run.path === expectedWorkflow &&
+              run.head_branch === expectedBranch &&
+              /^[0-9a-f]{40}$/.test(run.head_sha || '') &&
+              Number.isSafeInteger(run.run_attempt) && run.run_attempt > 0 &&
+              run.status === 'completed' &&
+              run.conclusion === 'success' &&
+              (run.event === 'push' || run.event === 'workflow_dispatch');
+            if (!validRun) {
+              core.setFailed('requested run is not a successful trusted macOS bootstrap run');
+              return;
+            }
+
+            const artifacts = await github.paginate(
+              github.rest.actions.listWorkflowRunArtifacts,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: runId,
+                per_page: 100,
+              },
+            );
+            const matches = artifacts.filter((artifact) => artifact.name === expectedArtifact);
+            if (
+              matches.length !== 1 ||
+              matches[0].expired === true ||
+              !Number.isSafeInteger(matches[0].id) || matches[0].id <= 0 ||
+              !Number.isSafeInteger(matches[0].size_in_bytes) || matches[0].size_in_bytes <= 0 ||
+              !/^sha256:[0-9a-f]{64}$/.test(matches[0].digest || '')
+            ) {
+              core.setFailed('requested run does not contain exactly one live application artifact');
+              return;
+            }
+
+            const fs = require('fs');
+            fs.mkdirSync('build/macos-runtime-provenance', { recursive: true });
+            fs.writeFileSync(
+              'build/macos-runtime-provenance/source-run.json',
+              `${JSON.stringify({
+                artifact_id: matches[0].id,
+                artifact_digest: matches[0].digest,
+                artifact_name: matches[0].name,
+                artifact_size_bytes: matches[0].size_in_bytes,
+                ref: expectedRef,
+                repository: context.repo.owner + '/' + context.repo.repo,
+                repository_id: repositoryId,
+                run_attempt: run.run_attempt,
+                run_id: run.id,
+                schema_version: 1,
+                sha: run.head_sha,
+                workflow: expectedWorkflow,
+              }, null, 2)}\n`,
+              { encoding: 'utf8', mode: 0o600 },
+            );
+            core.setOutput('artifact-id', String(matches[0].id));
+            core.setOutput('attempt', String(run.run_attempt));
+            core.setOutput('sha', run.head_sha);
+
       - name: Restore built application checkpoint
+        timeout-minutes: 30
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
-          name: overte-macos-x86_64-${{ inputs.artifact_run_id }}
+          artifact-ids: ${{ steps.source-run.outputs.artifact-id }}
+          merge-multiple: true
           path: build/runtime-artifact
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
           run-id: ${{ inputs.artifact_run_id }}
 
       - name: Verify restored application bundle
+        timeout-minutes: 30
+        env:
+          SOURCE_RUN_ATTEMPT: ${{ steps.source-run.outputs.attempt }}
+          SOURCE_RUN_SHA: ${{ steps.source-run.outputs.sha }}
         run: |
-          # upload-artifact stores the contents of a directory at the artifact
-          # root. Recreate the bundle directory around that preserved tree.
-          if [[ -d build/runtime-artifact/Contents && ! -d build/runtime-artifact/Overte.app ]]; then
-            mkdir build/runtime-artifact/Overte.app
-            mv build/runtime-artifact/Contents build/runtime-artifact/Overte.app/Contents
-          fi
-          app="$(find build/runtime-artifact -type d -name Overte.app -print -quit)"
-          test -n "$app"
+          set -euo pipefail
+          app=build/runtime-artifact/interface/Overte.app
+          manifest=build/runtime-artifact/application-artifact/application-manifest.json
+          test -d "$app"
+          test -f "$manifest"
+          test "$(stat -f %z "$manifest")" -le 4194304
+          test "$(find build/runtime-artifact -type d -name Overte.app | wc -l | tr -d ' ')" = 1
+          test "$(find build/runtime-artifact -type f -name application-manifest.json | wc -l | tr -d ' ')" = 1
+          build_metadata="$(python3 - "$manifest" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          build = payload.get("build", {})
+          print(build.get("xcode_version", ""), build.get("xcode_build", ""), build.get("sdk_version", ""))
+          PY
+          )"
+          read -r artifact_xcode_version artifact_xcode_build artifact_sdk_version <<< "$build_metadata"
+          python3 macos/ci/application-artifact.py verify \
+            --app "$app" \
+            --manifest "$manifest" \
+            --repository "$GITHUB_REPOSITORY" \
+            --repository-id "$GITHUB_REPOSITORY_ID" \
+            --workflow .github/workflows/macos-bootstrap.yml \
+            --ref refs/heads/apple-macos \
+            --sha "$SOURCE_RUN_SHA" \
+            --run-id "${{ inputs.artifact_run_id }}" \
+            --run-attempt "$SOURCE_RUN_ATTEMPT" \
+            --target-arch x86_64 \
+            --xcode-version "$artifact_xcode_version" \
+            --xcode-build "$artifact_xcode_build" \
+            --sdk-version "$artifact_sdk_version" \
+            --build-type RelWithDebInfo \
+            --deployment-target 11.0
+          cp "$manifest" build/macos-runtime-provenance/application-manifest.json
           # GitHub's artifact extraction does not retain executable modes.
           chmod -R u+rx "$app/Contents/MacOS" "$app/Contents/Frameworks" "$app/Contents/PlugIns"
           test -x "$app/Contents/MacOS/Overte"
@@ -249,9 +380,12 @@ jobs:
             build/macos-transition
             build/macos-performance
             build/macos-performance-matrix
+            !build/macos-performance-matrix/cache/**
+            !build/macos-performance-matrix/**/profile-script.js
             build/macos-online-loading
             build/macos-stability
             build/macos-runtime-telemetry
+            build/macos-runtime-provenance
           if-no-files-found: ignore
           retention-days: 7
 

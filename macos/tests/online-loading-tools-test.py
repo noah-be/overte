@@ -29,13 +29,38 @@ def telemetry_lines(navigation_id: str, through: str = "first_visible",
     lines = []
     emitted_events = EVENT_ORDER[:EVENT_ORDER.index(through) + 1]
     for index, event in enumerate(emitted_events):
+        monotonic_us = 1_000_000 + (
+            round(index * first_visible_ms * 1000 / (len(EVENT_ORDER) - 1))
+            if through == "first_visible" else index * 100_000
+        )
+        tree_to_handoff_us = monotonic_us - (
+            1_000_000 + (
+                round(EVENT_ORDER.index("entity_tree") * first_visible_ms * 1000 /
+                      (len(EVENT_ORDER) - 1))
+                if through == "first_visible" else EVENT_ORDER.index("entity_tree") * 100_000
+            )
+        )
+        first_render_phase_us = tree_to_handoff_us // 3
+        second_render_phase_us = tree_to_handoff_us // 3
         details = {
             "entity_server_active": {"resource_loading": 1, "resource_pending": 2},
             "entity_query": {"bytes": 64, "resource_loading": 1, "resource_pending": 2},
             "entity_data": {"bytes": 1200, "packet_queue": 3},
             "entity_decode": {"decompress_us": 40, "wait_lock_us": 10},
             "entity_tree": {"entities": 8, "elements": 4, "tree_us": 500},
-            "render_handoff": {"entities_pending_add": 7, "renderables_pending_update": 2},
+            "render_handoff": {
+                "entities_pending_add": 7,
+                "renderables_pending_update": 2,
+                "tree_to_add_slot_us": first_render_phase_us,
+                "add_slot_to_pending_pass_us": second_render_phase_us,
+                "pending_pass_to_handoff_us": (
+                    tree_to_handoff_us - first_render_phase_us - second_render_phase_us
+                ),
+                "adding_slots": 8,
+                "preload_us": 1200,
+                "add_passes": 2,
+                "parent_incomplete_skips": 1,
+            },
             "first_presented": {"present_count": 12},
             "first_visible": {"present_count": 13, "visible_count": 5},
         }.get(event, {})
@@ -44,10 +69,7 @@ def telemetry_lines(navigation_id: str, through: str = "first_visible",
             "navigation_id": navigation_id,
             "location_sha256": LOCATION_SHA256,
             "event": event,
-            "monotonic_us": 1_000_000 + (
-                round(index * first_visible_ms * 1000 / (len(EVENT_ORDER) - 1))
-                if through == "first_visible" else index * 100_000
-            ),
+            "monotonic_us": monotonic_us,
         }
         record.update(details)
         lines.append("[12:00:%02d.000] OVERTE_MACOS_ONLINE_NAV %s\n" % (
@@ -262,6 +284,25 @@ def analyze(root: Path, result: Path, junit: Path, repeats: int = 1) -> subproce
     )
 
 
+def rewrite_telemetry_event(path: Path, event: str, update) -> None:
+    prefix = "OVERTE_MACOS_ONLINE_NAV "
+    lines = path.read_text(encoding="utf-8").splitlines()
+    changed = False
+    for index, line in enumerate(lines):
+        prefix_at = line.find(prefix)
+        if prefix_at < 0:
+            continue
+        record = json.loads(line[prefix_at + len(prefix):])
+        if record.get("event") != event:
+            continue
+        update(record)
+        lines[index] = line[:prefix_at + len(prefix)] + json.dumps(record, sort_keys=True)
+        changed = True
+        break
+    assert changed, f"missing telemetry event {event}"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name:
     temporary = Path(temporary_name)
     generated = temporary / "online.js"
@@ -330,6 +371,23 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
         "decompress_us": 40.0,
         "wait_lock_us": 10.0,
     } for group in summary["groups"])
+    assert all(
+        group["queue_diagnostics"][0]["navigation_event_details"]["render_handoff"]["add_passes"]
+        == 2.0 for group in summary["groups"]
+    )
+    assert all(
+        round(
+            group["queue_diagnostics"][0]["tree_to_add_slot_ms"] +
+            group["queue_diagnostics"][0]["add_slot_to_pending_pass_ms"] +
+            group["queue_diagnostics"][0]["pending_pass_to_handoff_ms"],
+            3,
+        ) == group["queue_diagnostics"][0]["tree_to_handoff_ms"]
+        for group in summary["groups"]
+    )
+    assert all(group["queue_diagnostics"][0]["render_preload_ms"] == 1.2
+               for group in summary["groups"])
+    assert all(group["queue_diagnostics"][0]["render_parent_incomplete_skips"] == 1.0
+               for group in summary["groups"])
     assert all(group["queue_diagnostics"][0]["navigation_clock_skew_ms"] <= 1.0
                for group in summary["groups"])
     assert result.stat().st_mode & 0o777 == 0o600
@@ -443,6 +501,65 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     negative_analysis = analyze(negative_detail, negative_result, negative_junit)
     assert negative_analysis.returncode != 0
     assert "field packet_queue is negative" in negative_analysis.stdout
+
+    missing_handoff_attribution = temporary / "missing-handoff-attribution"
+    create_benchmark(missing_handoff_attribution, concurrencies=(10,))
+    missing_handoff_log = (
+        missing_handoff_attribution / "c10/pair-1/cold/online-loading.log"
+    )
+    rewrite_telemetry_event(
+        missing_handoff_log,
+        "render_handoff",
+        lambda record: record.pop("parent_incomplete_skips"),
+    )
+    missing_handoff_result = temporary / "missing-handoff-attribution.json"
+    missing_handoff_junit = temporary / "missing-handoff-attribution.xml"
+    missing_handoff_analysis = analyze(
+        missing_handoff_attribution, missing_handoff_result, missing_handoff_junit
+    )
+    assert missing_handoff_analysis.returncode != 0
+    assert "missing attribution fields: parent_incomplete_skips" in missing_handoff_analysis.stdout
+
+    inconsistent_handoff = temporary / "inconsistent-handoff-attribution"
+    create_benchmark(inconsistent_handoff, concurrencies=(10,))
+    inconsistent_handoff_log = inconsistent_handoff / "c10/pair-1/cold/online-loading.log"
+
+    def add_unattributed_interval(record: dict[str, object]) -> None:
+        record["pending_pass_to_handoff_us"] = (
+            int(record["pending_pass_to_handoff_us"]) + 1000
+        )
+
+    rewrite_telemetry_event(
+        inconsistent_handoff_log, "render_handoff", add_unattributed_interval
+    )
+    inconsistent_handoff_result = temporary / "inconsistent-handoff-attribution.json"
+    inconsistent_handoff_junit = temporary / "inconsistent-handoff-attribution.xml"
+    inconsistent_handoff_analysis = analyze(
+        inconsistent_handoff, inconsistent_handoff_result, inconsistent_handoff_junit
+    )
+    assert inconsistent_handoff_analysis.returncode != 0
+    assert "does not equal the entity_tree-to-handoff interval" in inconsistent_handoff_analysis.stdout
+
+    impossible_single_pass_preload = temporary / "impossible-single-pass-preload"
+    create_benchmark(impossible_single_pass_preload, concurrencies=(10,))
+    impossible_preload_log = (
+        impossible_single_pass_preload / "c10/pair-1/cold/online-loading.log"
+    )
+
+    def exceed_single_pass_interval(record: dict[str, object]) -> None:
+        record["add_passes"] = 1
+        record["preload_us"] = int(record["add_slot_to_pending_pass_us"]) + 1
+
+    rewrite_telemetry_event(
+        impossible_preload_log, "render_handoff", exceed_single_pass_interval
+    )
+    impossible_preload_result = temporary / "impossible-single-pass-preload.json"
+    impossible_preload_junit = temporary / "impossible-single-pass-preload.xml"
+    impossible_preload_analysis = analyze(
+        impossible_single_pass_preload, impossible_preload_result, impossible_preload_junit
+    )
+    assert impossible_preload_analysis.returncode != 0
+    assert "single-pass render_handoff preload exceeds" in impossible_preload_analysis.stdout
 
     stale = temporary / "stale"
     create_benchmark(stale)

@@ -20,6 +20,8 @@ private slots:
     void testEmitsSanitizedMonotonicJSON();
     void testRequiresStrictOrderAndMonotonicTime();
     void testDeduplicatesPerNavigation();
+    void testReturnsRecordedTimestampPerNavigation();
+    void testAllowsConsistentRenderHandoffAttribution();
     void testBeginsOnlyForExactTargetBytes();
     void testRejectsUnsafeTargets();
 };

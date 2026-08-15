@@ -17,6 +17,7 @@
 #include <QtCore/QCryptographicHash>
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
+#include <QtCore/QHash>
 #include <QtCore/QMutex>
 #include <QtCore/QMutexLocker>
 #include <QtCore/QSet>
@@ -59,6 +60,7 @@ struct TelemetryState {
     QString navigationId;
     QString locationSha256;
     QSet<QString> recordedEvents;
+    QHash<QString, quint64> recordedTimestamps;
     quint64 lastMonotonicUsec { 0 };
 };
 
@@ -138,7 +140,10 @@ bool allowedNumericField(int index, const char* field) {
         case 6:
             return is("entities") || is("elements") || is("tree_us");
         case 7:
-            return is("entities_pending_add") || is("renderables_pending_update");
+            return is("entities_pending_add") || is("renderables_pending_update") ||
+                is("tree_to_add_slot_us") || is("add_slot_to_pending_pass_us") ||
+                is("pending_pass_to_handoff_us") || is("adding_slots") ||
+                is("preload_us") || is("add_passes") || is("parent_incomplete_skips");
         case 8:
             return is("present_count");
         case 9:
@@ -210,6 +215,7 @@ bool recordOnceAt(const char* event, quint64 monotonicUsec, NumericFields fields
         telemetryState.navigationId = current.navigationId;
         telemetryState.locationSha256 = current.locationSha256;
         telemetryState.recordedEvents.clear();
+        telemetryState.recordedTimestamps.clear();
         telemetryState.lastMonotonicUsec = 0;
     }
     const QString eventName = QString::fromLatin1(event);
@@ -222,6 +228,7 @@ bool recordOnceAt(const char* event, quint64 monotonicUsec, NumericFields fields
     }
     telemetryState.lastMonotonicUsec = monotonicUsec;
     telemetryState.recordedEvents.insert(eventName);
+    telemetryState.recordedTimestamps.insert(eventName, monotonicUsec);
 
     QJsonObject record {
         { "schema_version", 1 },
@@ -250,6 +257,20 @@ bool hasRecorded(const char* event) {
     QMutexLocker locker(&telemetryState.mutex);
     return telemetryState.navigationId == current.navigationId &&
         telemetryState.recordedEvents.contains(QString::fromLatin1(event));
+}
+
+quint64 recordedTimestampUsec(const char* event) {
+    const auto current = configuration();
+    if (!current.valid() || eventIndex(event) < 0) {
+        return 0;
+    }
+    auto& telemetryState = state();
+    QMutexLocker locker(&telemetryState.mutex);
+    if (telemetryState.navigationId != current.navigationId ||
+            telemetryState.locationSha256 != current.locationSha256) {
+        return 0;
+    }
+    return telemetryState.recordedTimestamps.value(QString::fromLatin1(event), 0);
 }
 
 } // namespace macos::online_loading

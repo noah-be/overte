@@ -555,6 +555,26 @@ void EntityTreeRenderer::shutdown() {
     clear(); // always clear() on shutdown
 }
 
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+bool EntityTreeRenderer::prepareOnlineLoadingRenderAttribution() {
+    const quint64 treeUsec = macos::online_loading::recordedTimestampUsec("entity_tree");
+    if (treeUsec == 0 || macos::online_loading::hasRecorded("render_handoff")) {
+        return false;
+    }
+    const QString navigationId = macos::online_loading::navigationId();
+    if (navigationId.isEmpty()) {
+        return false;
+    }
+    if (_onlineLoadingRenderAttribution.navigationId != navigationId ||
+            _onlineLoadingRenderAttribution.treeUsec != treeUsec) {
+        _onlineLoadingRenderAttribution = {};
+        _onlineLoadingRenderAttribution.navigationId = navigationId;
+        _onlineLoadingRenderAttribution.treeUsec = treeUsec;
+    }
+    return true;
+}
+#endif
+
 void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, render::Transaction& transaction) {
     PROFILE_RANGE_EX(simulation_physics, "AddToScene", 0xffff00ff, (uint64_t)_entitiesToAdd.size());
     PerformanceTimer pt("add");
@@ -568,6 +588,25 @@ void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, r
             ++itr;
         }
     }
+
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    const bool captureOnlineLoadingAttribution =
+        !_entitiesToAdd.empty() && prepareOnlineLoadingRenderAttribution();
+    if (captureOnlineLoadingAttribution) {
+        ++_onlineLoadingRenderAttribution.addPasses;
+        if (_onlineLoadingRenderAttribution.firstAddSlotUsec == 0) {
+            // The queued add slot may have run concurrently just before the
+            // octree thread published entity_tree. Treat that boundary as zero
+            // dispatch delay instead of inventing a negative duration.
+            _onlineLoadingRenderAttribution.firstAddSlotUsec =
+                _onlineLoadingRenderAttribution.treeUsec;
+        }
+        if (_onlineLoadingRenderAttribution.firstPendingPassUsec == 0) {
+            _onlineLoadingRenderAttribution.firstPendingPassUsec =
+                macos::online_loading::steadyClockUsec();
+        }
+    }
+#endif
 
     if (!_entitiesToAdd.empty()) {
         std::unordered_set<EntityItemID> processedIds;
@@ -597,6 +636,11 @@ void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, r
             // Path to the parent transforms is not valid,
             // don't add to the scene graph yet
             if (!entity->isParentPathComplete()) {
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+                if (captureOnlineLoadingAttribution) {
+                    ++_onlineLoadingRenderAttribution.parentIncompleteSkips;
+                }
+#endif
                 continue;
             }
             if (entity->getSpaceIndex() == -1) {
@@ -617,10 +661,31 @@ void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, r
                 processedIds.insert(entityID);
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
                 if (entity->getEntityHostType() == entity::HostType::DOMAIN) {
-                    macos::online_loading::recordOnce("render_handoff", {
-                        { "entities_pending_add", static_cast<qint64>(_entitiesToAdd.size()) },
-                        { "renderables_pending_update", static_cast<qint64>(_renderablesToUpdate.size()) },
-                    });
+                    if (captureOnlineLoadingAttribution &&
+                            !macos::online_loading::hasRecorded("render_handoff")) {
+                        const quint64 handoffUsec = macos::online_loading::steadyClockUsec();
+                        quint64 addSlotUsec = _onlineLoadingRenderAttribution.firstAddSlotUsec;
+                        quint64 pendingPassUsec = _onlineLoadingRenderAttribution.firstPendingPassUsec;
+                        if (addSlotUsec < _onlineLoadingRenderAttribution.treeUsec ||
+                                addSlotUsec > handoffUsec) {
+                            addSlotUsec = _onlineLoadingRenderAttribution.treeUsec;
+                        }
+                        if (pendingPassUsec < addSlotUsec || pendingPassUsec > handoffUsec) {
+                            pendingPassUsec = addSlotUsec;
+                        }
+                        macos::online_loading::recordOnceAt("render_handoff", handoffUsec, {
+                            { "entities_pending_add", static_cast<qint64>(_entitiesToAdd.size()) },
+                            { "renderables_pending_update", static_cast<qint64>(_renderablesToUpdate.size()) },
+                            { "tree_to_add_slot_us", static_cast<qint64>(addSlotUsec -
+                                _onlineLoadingRenderAttribution.treeUsec) },
+                            { "add_slot_to_pending_pass_us", static_cast<qint64>(pendingPassUsec - addSlotUsec) },
+                            { "pending_pass_to_handoff_us", static_cast<qint64>(handoffUsec - pendingPassUsec) },
+                            { "adding_slots", _onlineLoadingRenderAttribution.addingSlots },
+                            { "preload_us", _onlineLoadingRenderAttribution.preloadUsec },
+                            { "add_passes", _onlineLoadingRenderAttribution.addPasses },
+                            { "parent_incomplete_skips", _onlineLoadingRenderAttribution.parentIncompleteSkips },
+                        });
+                    }
                 }
                 static bool loggedFirstMacOSRenderHandoff { false };
                 if (!loggedFirstMacOSRenderHandoff) {
@@ -1346,8 +1411,24 @@ void EntityTreeRenderer::addingEntity(const EntityItemID& entityID) {
                               << "entity=" << entityID.toString();
         }
 #endif
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+        quint64 onlineLoadingPreloadStartedAt { 0 };
+        if (prepareOnlineLoadingRenderAttribution()) {
+            onlineLoadingPreloadStartedAt = macos::online_loading::steadyClockUsec();
+            if (_onlineLoadingRenderAttribution.firstAddSlotUsec == 0) {
+                _onlineLoadingRenderAttribution.firstAddSlotUsec = onlineLoadingPreloadStartedAt;
+            }
+            ++_onlineLoadingRenderAttribution.addingSlots;
+        }
+#endif
         _entitiesToAdd.insert({ entity->getEntityItemID(),  entity });
         checkAndCallPreload(entityID, "", entity->getScript());
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+        if (onlineLoadingPreloadStartedAt != 0) {
+            _onlineLoadingRenderAttribution.preloadUsec += static_cast<qint64>(
+                macos::online_loading::steadyClockUsec() - onlineLoadingPreloadStartedAt);
+        }
+#endif
     }
 }
 

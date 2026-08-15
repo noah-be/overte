@@ -155,20 +155,21 @@ raw OpenGL and `system_profiler` evidence for fourteen days. GitHub documents
 `macos-15` as a standard three-core M1 runner, but the repository deliberately
 does not infer GPU suitability from that label alone.
 
-Run [`31871253541`](https://github.com/noah-be/overte/actions/runs/31871253541)
-is the current hosted diagnostic baseline. Its final 1380x776 smoke image
-passed the semantic layout gate with 55,187 red and 30,216 cyan pixels after a
-separate shader-warmup image, a five-second cooldown, and two additional
-presents. The smoke's render-submit p95 was 4.663 ms. The richer Forward matrix
-case was nevertheless unambiguously GPU-bound: GPU/batch p95 was about 897 ms,
-present p95 about 852 ms, and engine p95 about 8.96 ms. The analyzer therefore
-reported `diagnostic-only`, `decision_ready=false`, and no selected profile.
-This prevents fast CPU submission from being mistaken for fluid gameplay.
-The stricter matrix-image/fixture binding was added after that run exposed that
-its early profile screenshot contained only the sky. A hermetic image with the
-same failure mode is now a negative regression fixture and is rejected; a
-runtime-only validation of the new matrix contract is required before recording
-a replacement diagnostic baseline.
+Run [`31878060076`](https://github.com/noah-be/overte/actions/runs/31878060076)
+is the current hosted diagnostic baseline for the hardened matrix contract. It
+reused the application from bootstrap run `31868069780`, passed startup and the
+serverless smoke, and independently reproduced the checked-in analyzer result.
+The matrix's final 1380x776 image contained 55,187 red and 30,216 cyan fixture
+pixels after a distinct shader-warmup image, a five-second cooldown, and seven
+additional presents. Fixture, image, and hardware-identity hashes all matched.
+The Forward diagnostic remained unambiguously GPU-bound: GPU/batch p95 was
+about 1614.6 ms, present p95 about 1876.3 ms, engine p95 about 26.82 ms, and
+render-submit p95 35.346 ms. The analyzer correctly reported
+`diagnostic-only`, `decision_ready=false`, and no selected profile. This
+prevents CPU submission or a valid image from being mistaken for fluid
+gameplay. The earlier run `31871253541` exposed that the matrix's own early
+profile screenshot could contain only the sky; a hermetic image with that
+failure mode is now rejected by the regression suite.
 
 Online connectivity acceptance remains separate from loading performance. The
 loading benchmark intentionally does **not** enable the lightweight entity
