@@ -98,7 +98,11 @@ distributions, GPU/batch/engine time, draw calls, triangles, rendered items,
 shadow work, texture/framebuffer memory, the exact requested and observed
 settings, platform data, screenshots, traces, process diagnostics, Median, and
 MAD. It compares Forward at 1/2/4 samples with balanced and maximum-quality
-Deferred configurations.
+Deferred configurations. The analyzer reconstructs the LOD timing summaries
+from the raw 250-ms samples, rejects forged or inconsistent distributions, and
+classifies each run as GPU-, CPU-engine-, CPU-submit-, present/pacing-, or
+refresh-limited. The aggregate includes the dominant class and median p95 for
+present, engine, batch, and GPU stages per profile.
 
 Hardware classes never share results. The hosted paravirtualized/software-GL
 runner is detected automatically and executes only a bounded `forward-compat`
@@ -125,6 +129,12 @@ present/new-frame rate was only about 0.64 Hz and Apple software-GL GPU/batch
 time was roughly 1.34 seconds at the median. This demonstrates why CPU-submit
 timings alone are not a gameplay result and why hosted software-renderer data is
 kept diagnostic-only.
+
+Re-analysis of the raw profile evidence from run `31848707317` identifies the
+hosted baseline as GPU-bound: median-p95 GPU/batch time is about 488 ms while
+engine time is 3.69 ms and present time is 615.89 ms. This is consistent with
+the independent native thread samples in Apple's software shader compiler and
+prevents the 30.876-ms CPU-submit p95 from being mistaken for the primary cost.
 
 Online connectivity acceptance remains separate from loading performance. The
 loading benchmark intentionally does **not** enable the lightweight entity

@@ -35,6 +35,47 @@ def run_result(profile_id: str, index: int, present: float, p95: float,
                renderer: str, fixture_mode: str) -> dict[str, object]:
     profile = PROFILE_BY_ID[profile_id]
     samples = [int(p95 * 1000)] * 120
+    software = "software" in renderer.lower()
+    lod_values = {
+        "present_ms": 500.0 if software else 16.0,
+        "engine_ms": 4.0,
+        "batch_ms": 450.0 if software else 8.0,
+        "gpu_ms": 450.0 if software else 8.0,
+    }
+    lod_rows = [
+        {"elapsed_ms": offset * 250, **lod_values}
+        for offset in range(1, 4)
+    ]
+    lod_timings = {
+        "sampling_interval_ms": 250,
+        "semantics": "polled_latest_and_moving_averages",
+        "raw_samples": lod_rows,
+    }
+    for name, value in lod_values.items():
+        lod_timings[name] = {
+            **distribution(value),
+            "count": 3,
+            "available": True,
+            "invalid_count": 0,
+            "zero_count": int(value == 0) * 3,
+            "positive_count": int(value > 0) * 3,
+        }
+    stats = {
+        name: distribution(value)
+        for name, value in {
+            "gpuFrameTime": lod_values["gpu_ms"],
+            "batchFrameTime": lod_values["batch_ms"],
+            "engineFrameTime": lod_values["engine_ms"],
+            "drawcalls": 20,
+            "triangles": 10000,
+            "itemRendered": 50,
+            "shadowRendered": int(profile["shadows"]),
+            "gpuTextureMemory": 128,
+            "gpuTextureResidentMemory": 64,
+            "gpuTextureFramebufferMemory": 32,
+            "texturePendingTransfers": 0,
+        }.items()
+    }
     return {
         "schema_version": 2,
         "platform": "macos",
@@ -67,6 +108,8 @@ def run_result(profile_id: str, index: int, present: float, p95: float,
             "dropped": distribution(0),
             "simulation": distribution(60),
         },
+        "stats": stats,
+        "lod_timings_ms": lod_timings,
     }
 
 
@@ -175,6 +218,9 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     assert summary["provisional_profile"] is None
     assert summary["diagnostic_profile"] == "forward-compat"
     assert summary["decision_ready"] is False
+    assert summary["bottleneck_summary"] == {"forward-compat": "gpu"}
+    assert summary["profiles"][0]["dominant_bottleneck"] == "gpu"
+    assert summary["profiles"][0]["lod_timing_p95_ms_median"]["gpu_ms"] == 450.0
 
     quick = temporary / "quick"
     create_matrix(quick, mode="quick", repeats=1, runner_class="hardware", renderer="Apple M4")
@@ -185,6 +231,9 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     assert quick_summary["decision_ready"] is False
     assert quick_summary["selected_profile"] is None
     assert quick_summary["provisional_profile"] == "deferred-balanced"
+    assert set(quick_summary["bottleneck_summary"].values()) == {
+        "balanced-or-refresh-limited"
+    }
 
     full = temporary / "full"
     create_matrix(full, mode="full", repeats=3, runner_class="hardware", renderer="Apple M4")
@@ -208,6 +257,7 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     low_tail_path = low_tail / "deferred-quality/run-3/macos-profile.json"
     low_tail_payload = json.loads(low_tail_path.read_text(encoding="utf-8"))
     low_tail_payload["rates_hz"]["present"]["p10"] = 1
+    low_tail_payload["rates_hz"]["present"]["min"] = 1
     low_tail_path.write_text(json.dumps(low_tail_payload), encoding="utf-8")
     low_tail_result, low_tail_junit = temporary / "low-tail.json", temporary / "low-tail.xml"
     low_tail_analysis = analyze(low_tail, low_tail_result, low_tail_junit, 3)
@@ -245,6 +295,35 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     forged_analysis = analyze(forged, forged_result, forged_junit, 1)
     assert forged_analysis.returncode != 0
     assert int(ET.parse(forged_junit).getroot().attrib["failures"]) >= 1
+
+    forged_lod = temporary / "forged-lod"
+    create_matrix(forged_lod, mode="quick", repeats=1,
+                  runner_class="hardware", renderer="Apple M4")
+    forged_lod_path = forged_lod / "forward-compat/run-1/macos-profile.json"
+    forged_lod_payload = json.loads(forged_lod_path.read_text(encoding="utf-8"))
+    forged_lod_payload["lod_timings_ms"]["gpu_ms"]["p95"] = 999
+    forged_lod_payload["lod_timings_ms"]["gpu_ms"]["max"] = 999
+    forged_lod_path.write_text(json.dumps(forged_lod_payload), encoding="utf-8")
+    forged_lod_result = temporary / "forged-lod.json"
+    forged_lod_junit = temporary / "forged-lod.xml"
+    forged_lod_analysis = analyze(forged_lod, forged_lod_result, forged_lod_junit, 1)
+    assert forged_lod_analysis.returncode != 0
+    assert "lod_timings_ms.gpu_ms.p95 is inconsistent" in forged_lod_analysis.stdout
+
+    missing_stats = temporary / "missing-stats"
+    create_matrix(missing_stats, mode="quick", repeats=1,
+                  runner_class="hardware", renderer="Apple M4")
+    missing_stats_path = missing_stats / "forward-compat/run-1/macos-profile.json"
+    missing_stats_payload = json.loads(missing_stats_path.read_text(encoding="utf-8"))
+    del missing_stats_payload["stats"]["gpuFrameTime"]
+    missing_stats_path.write_text(json.dumps(missing_stats_payload), encoding="utf-8")
+    missing_stats_result = temporary / "missing-stats.json"
+    missing_stats_junit = temporary / "missing-stats.xml"
+    missing_stats_analysis = analyze(
+        missing_stats, missing_stats_result, missing_stats_junit, 1
+    )
+    assert missing_stats_analysis.returncode != 0
+    assert "stats.gpuFrameTime must be an object" in missing_stats_analysis.stdout
 
     mismatched = temporary / "mismatched"
     create_matrix(mismatched, mode="quick", repeats=1, runner_class="hardware", renderer="Apple M4")

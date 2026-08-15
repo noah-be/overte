@@ -127,6 +127,11 @@ automatically uses the small Forward diagnostic fixture; full lit/effect
 profiles are reserved for physical Macs. Software-renderer results are
 diagnostic only, and public-world loading is informational until a
 versioned controlled domain exists.
+The graphics aggregator independently recomputes frame quantiles, validates
+every polled LOD timing row and render-stat distribution, and reports a dominant
+GPU, CPU-engine, CPU-submit, present/pacing, or balanced bottleneck per profile.
+Those classifications explain a result but do not weaken the 60 Hz selection
+contract.
 
 Both profiling suites create a new immutable plan manifest plus an append-only
 attempt manifest and refuse non-empty output directories. Aggregators consume

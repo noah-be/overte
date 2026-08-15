@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import hashlib
 import json
 import math
@@ -28,6 +29,12 @@ PROFILE_FIELDS = (
     "render_method", "shadows", "haze", "bloom", "ambient_occlusion", "local_lighting",
     "procedural_materials", "antialiasing", "viewport_scale", "forward_samples",
 )
+STATS_FIELDS = (
+    "gpuFrameTime", "batchFrameTime", "engineFrameTime", "drawcalls", "triangles",
+    "itemRendered", "shadowRendered", "gpuTextureMemory", "gpuTextureResidentMemory",
+    "gpuTextureFramebufferMemory", "texturePendingTransfers",
+)
+LOD_TIMING_FIELDS = ("present_ms", "engine_ms", "batch_ms", "gpu_ms")
 
 
 def finite(value: object, field: str, *, minimum: float | None = None) -> float:
@@ -214,9 +221,109 @@ def load_attempts(matrix: Path, manifest: dict[str, object]) -> tuple[list[dict[
 def validate_distribution(value: object, field: str) -> dict[str, object]:
     if not isinstance(value, dict):
         raise MatrixError(f"{field} must be an object")
-    for name in ("count", "mean", "min", "p10", "p50", "p95", "max"):
-        finite(value.get(name), f"{field}.{name}", minimum=0)
+    integer(value.get("count"), f"{field}.count", minimum=1)
+    numbers = {
+        name: finite(value.get(name), f"{field}.{name}", minimum=0)
+        for name in ("mean", "min", "p10", "p50", "p95", "max")
+    }
+    if not (numbers["min"] <= numbers["p10"] <= numbers["p50"] <=
+            numbers["p95"] <= numbers["max"]):
+        raise MatrixError(f"{field} percentiles are not monotonic")
+    if not numbers["min"] <= numbers["mean"] <= numbers["max"]:
+        raise MatrixError(f"{field} mean is outside its observed range")
     return value
+
+
+def validate_lod_timings(value: object, identifier: str) -> dict[str, object]:
+    field = f"{identifier}.lod_timings_ms"
+    if not isinstance(value, dict):
+        raise MatrixError(f"{field} must be an object")
+    if value.get("sampling_interval_ms") != 250 or value.get("semantics") != (
+            "polled_latest_and_moving_averages"):
+        raise MatrixError(f"{field} has unsupported sampling semantics")
+    rows = value.get("raw_samples")
+    if not isinstance(rows, list) or not rows or len(rows) > 1000:
+        raise MatrixError(f"{field}.raw_samples must contain 1..1000 rows")
+    observed: dict[str, list[float]] = {name: [] for name in LOD_TIMING_FIELDS}
+    invalid: Counter[str] = Counter()
+    previous_elapsed = -1.0
+    for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            raise MatrixError(f"{field}.raw_samples[{index}] must be an object")
+        elapsed = finite(row.get("elapsed_ms"), f"{field}.raw_samples[{index}].elapsed_ms")
+        if elapsed <= previous_elapsed:
+            raise MatrixError(f"{field} sample times are not strictly increasing")
+        previous_elapsed = elapsed
+        for name in LOD_TIMING_FIELDS:
+            sample = row.get(name)
+            if sample is None:
+                invalid[name] += 1
+            else:
+                observed[name].append(finite(sample, f"{field}.raw_samples[{index}].{name}", minimum=0))
+    for name in LOD_TIMING_FIELDS:
+        summary = value.get(name)
+        if not isinstance(summary, dict):
+            raise MatrixError(f"{field}.{name} must be an object")
+        values = observed[name]
+        if not values:
+            raise MatrixError(f"{field}.{name} has no valid samples")
+        validate_distribution(summary, f"{field}.{name}")
+        expected = {
+            "count": len(values),
+            "invalid_count": invalid[name],
+            "zero_count": sum(item == 0 for item in values),
+            "positive_count": sum(item > 0 for item in values),
+        }
+        for count_name, count_value in expected.items():
+            if integer(summary.get(count_name), f"{field}.{name}.{count_name}") != count_value:
+                raise MatrixError(f"{field}.{name}.{count_name} is inconsistent")
+        if summary.get("available") is not True:
+            raise MatrixError(f"{field}.{name} must report available samples")
+        sorted_values = sorted(values)
+        recomputed = {
+            "mean": statistics.fmean(values),
+            "min": sorted_values[0],
+            "p10": percentile(sorted_values, 0.10),
+            "p50": percentile(sorted_values, 0.50),
+            "p95": percentile(sorted_values, 0.95),
+            "max": sorted_values[-1],
+        }
+        for metric, expected_value in recomputed.items():
+            actual = finite(summary.get(metric), f"{field}.{name}.{metric}", minimum=0)
+            if not math.isclose(actual, expected_value, rel_tol=1e-9, abs_tol=1e-6):
+                raise MatrixError(f"{field}.{name}.{metric} is inconsistent")
+    return value
+
+
+def bottleneck_classification(run: dict[str, object]) -> dict[str, object]:
+    timings = run["lod_timings_ms"]
+    present = float(timings["present_ms"]["p95"])
+    engine = float(timings["engine_ms"]["p95"])
+    batch = float(timings["batch_ms"]["p95"])
+    gpu = float(timings["gpu_ms"]["p95"])
+    submit = float(run["p95_frame_ms"])
+    if gpu > 0 and gpu >= max(16.67, engine * 1.25):
+        primary = "gpu"
+    elif engine >= max(16.67, gpu * 1.25):
+        primary = "cpu-engine"
+    elif submit >= max(16.67, engine * 1.25, gpu * 1.25):
+        primary = "cpu-submit"
+    elif present >= max(20.0, engine * 1.25, gpu * 1.25):
+        primary = "present-or-pacing"
+    else:
+        primary = "balanced-or-refresh-limited"
+    return {
+        "primary": primary,
+        "p95_ms": {
+            "render_submit": submit,
+            "present": present,
+            "engine": engine,
+            "batch": batch,
+            "gpu": gpu,
+        },
+        "gpu_to_engine_ratio": None if engine == 0 else gpu / engine,
+        "frame_budget_60hz_ms": 16.67,
+    }
 
 
 def load_run(attempt: dict[str, object], manifest: dict[str, object],
@@ -264,6 +371,13 @@ def load_run(attempt: dict[str, object], manifest: dict[str, object],
         raise MatrixError(f"profile {identifier} has no rate distributions")
     for name in ("render", "present", "new_frame", "dropped", "simulation"):
         validate_distribution(rates.get(name), f"{identifier}.rates_hz.{name}")
+    stats = payload.get("stats")
+    if not isinstance(stats, dict):
+        raise MatrixError(f"profile {identifier} has no render statistics")
+    for name in STATS_FIELDS:
+        validate_distribution(stats.get(name), f"{identifier}.stats.{name}")
+    payload["lod_timings_ms"] = validate_lod_timings(payload.get("lod_timings_ms"), identifier)
+    payload["bottleneck"] = bottleneck_classification(payload)
     return payload
 
 
@@ -364,6 +478,13 @@ def aggregate(runs: list[dict[str, object]], manifest: dict[str, object],
         enough = len(profile_runs) >= minimum_runs
         stable_60 = enough and all(run_contract(run, 60) for run in profile_runs)
         stable_30 = enough and all(run_contract(run, 30) for run in profile_runs)
+        bottlenecks = Counter(str(run["bottleneck"]["primary"]) for run in profile_runs)
+        dominant_bottleneck = bottlenecks.most_common(1)[0][0] if bottlenecks else None
+        lod_medians = {
+            name: statistics.median(float(run["lod_timings_ms"][name]["p95"])
+                                    for run in profile_runs) if profile_runs else None
+            for name in LOD_TIMING_FIELDS
+        }
         profiles.append({
             "profile_id": identifier,
             "quality_score": int(profile_runs[0]["quality_score"]) if profile_runs else None,
@@ -380,6 +501,9 @@ def aggregate(runs: list[dict[str, object]], manifest: dict[str, object],
             "new_frame_hz_median": statistics.median(new_frame) if new_frame else None,
             "run_indices": sorted(int(run["run_index"]) for run in profile_runs),
             "requested_profile": profile_runs[0].get("requested_profile") if profile_runs else None,
+            "dominant_bottleneck": dominant_bottleneck,
+            "bottleneck_counts": dict(sorted(bottlenecks.items())),
+            "lod_timing_p95_ms_median": lod_medians,
         })
 
     diagnostic_only = evidence.startswith("diagnostic")
@@ -429,6 +553,9 @@ def aggregate(runs: list[dict[str, object]], manifest: dict[str, object],
         "provisional_profile": provisional,
         "fallback_profile_30hz": fallback,
         "diagnostic_profile": diagnostic_profile,
+        "bottleneck_summary": {
+            str(item["profile_id"]): item["dominant_bottleneck"] for item in profiles
+        },
         "passed": passed,
         "profiles": profiles,
         "failures": attempt_failures,

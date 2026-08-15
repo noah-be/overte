@@ -1048,6 +1048,9 @@ if performance_script.index('stage = "settling"') > performance_script.index(
 
 profile_matrix = (ROOT / "macos/ci/performance-matrix.sh").read_text(encoding="utf-8")
 profile_script = (ROOT / "macos/tests/profile-performance-smoke.js").read_text(encoding="utf-8")
+profile_analyzer = (
+    ROOT / "macos/tools/analyze-performance-matrix.py"
+).read_text(encoding="utf-8")
 profile_definitions = json.loads(
     (ROOT / "macos/tests/performance-profiles.json").read_text(encoding="utf-8")
 )
@@ -1106,6 +1109,17 @@ for profile_contract in (
 ):
     if profile_contract not in profile_script:
         raise SystemExit(f"performance profile script missing: {profile_contract}")
+for analyzer_contract in (
+    "validate_lod_timings",
+    "bottleneck_classification",
+    '"dominant_bottleneck"',
+    '"bottleneck_summary"',
+    '"gpu_to_engine_ratio"',
+    "STATS_FIELDS",
+    "LOD_TIMING_FIELDS",
+):
+    if analyzer_contract not in profile_analyzer:
+        raise SystemExit(f"performance analyzer missing: {analyzer_contract}")
 
 online_loading_runner = (ROOT / "macos/ci/online-loading-benchmark.sh").read_text(encoding="utf-8")
 online_loading_script = (ROOT / "macos/tests/online-loading-benchmark.js").read_text(encoding="utf-8")
