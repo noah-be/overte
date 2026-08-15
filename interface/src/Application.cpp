@@ -68,6 +68,7 @@
 #include <input-plugins/InputPlugin.h>
 #include <input-plugins/KeyboardMouseDevice.h>
 #include <LocationScriptingInterface.h>
+#include <shared/IOSRuntimeLogging.h>
 #include <LogHandler.h>
 #include <MainWindow.h>
 #include <MessagesClient.h>
@@ -1226,8 +1227,8 @@ void Application::loadServerlessDomain(QUrl domainURL) {
                         QStringLiteral("file:///~/serverless/tutorial.json")
                     ? QStringLiteral("serverless_tutorial")
                     : QStringLiteral("unsupported");
-                qInfo().noquote() << "OVERTE_IOS_WORLD_GATE serverless_import_committed"
-                                  << "scene=" << scene;
+                logIOSRuntimeMarker("OVERTE_IOS_WORLD_GATE serverless_import_committed",
+                                    "scene=", scene);
             }
 #endif
 #if defined(ANDROID_APP_PICO_INTERFACE)
@@ -2059,8 +2060,8 @@ void Application::nodeActivated(SharedNodePointer node) {
                           << "node=" << node->getUUID().toString(QUuid::WithoutBraces);
 #endif
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
-        qInfo().noquote() << "OVERTE_IOS_ENTITY_GATE entity_server_active"
-                          << "node=" << node->getUUID().toString(QUuid::WithoutBraces);
+        logIOSRuntimeMarker("OVERTE_IOS_ENTITY_GATE entity_server_active",
+                            "node=", node->getUUID().toString(QUuid::WithoutBraces));
 #endif
 
         if  (!_failedToConnectToEntityServer) {

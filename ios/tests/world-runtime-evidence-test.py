@@ -352,6 +352,9 @@ application_source = (ROOT / "interface/src/Application.cpp").read_text(encoding
 application_setup_source = (ROOT / "interface/src/Application_Setup.cpp").read_text(
     encoding="utf-8"
 )
+ios_runtime_logging = (
+    ROOT / "libraries/shared/src/shared/IOSRuntimeLogging.h"
+).read_text(encoding="utf-8")
 assert '"ios-world-evidence"' in main_source
 assert '"OVERTE_IOS_WORLD_GATE navigation_requested"' in main_source
 assert 'QStringLiteral("file:///~/serverless/tutorial.json")' in main_source
@@ -363,5 +366,9 @@ assert 'QStringLiteral("--ios-world-evidence")' in application_setup_source
 assert "if (!suppressAudioForWorldEvidence)" in application_setup_source
 assert "audioIO->startThread();" in application_setup_source
 assert "OVERTE_IOS_WORLD_DIAGNOSTIC audio_suppressed=evidence_mode" in application_setup_source
+for source in (main_source, application_source, application_setup_source):
+    assert 'qInfo().noquote() << "OVERTE_IOS_WORLD_' not in source
+    assert "logIOSRuntimeMarker(" in source
+assert 'os_log_info(OS_LOG_DEFAULT, "%{public}s", utf8.constData())' in ios_runtime_logging
 
 print("PASS fail-closed iOS serverless/online world and screenshot evidence validators")

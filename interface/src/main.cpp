@@ -36,6 +36,7 @@
 #include <plugins/DisplayPlugin.h>
 #include <plugins/CodecPlugin.h>
 #include <shared/GlobalAppProperties.h>
+#include <shared/IOSRuntimeLogging.h>
 
 #ifdef Q_OS_IOS
 #include <QtWebView/QtWebView>
@@ -469,9 +470,9 @@ int main(int argc, const char* argv[]) {
                 kind = QStringLiteral("online");
                 destination = QStringLiteral("overte_hub");
             }
-            qInfo().noquote() << "OVERTE_IOS_WORLD_GATE navigation_requested"
-                              << "kind=" << kind
-                              << "destination=" << destination;
+            logIOSRuntimeMarker("OVERTE_IOS_WORLD_GATE navigation_requested",
+                                "kind=", kind,
+                                "destination=", destination);
         }
 #endif
 

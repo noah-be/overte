@@ -17,6 +17,8 @@
 #include "Menu.h"
 #include "SceneScriptingInterface.h"
 
+#include <shared/IOSRuntimeLogging.h>
+
 #if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS) && !defined(OVERTE_IOS)
 #include <shared/FileLogger.h>
 #endif
@@ -96,9 +98,9 @@ void OctreePacketProcessor::processPacket(QSharedPointer<ReceivedMessage> messag
             static bool loggedFirstEntityData { false };
             if (!loggedFirstEntityData) {
                 loggedFirstEntityData = true;
-                qInfo().noquote() << "OVERTE_IOS_ENTITY_GATE entity_data_received"
-                                  << "node=" << sendingNode->getUUID().toString(QUuid::WithoutBraces)
-                                  << "bytes=" << message->getSize();
+                logIOSRuntimeMarker("OVERTE_IOS_ENTITY_GATE entity_data_received",
+                                    "node=", sendingNode->getUUID().toString(QUuid::WithoutBraces),
+                                    "bytes=", message->getSize());
             }
         }
 #endif

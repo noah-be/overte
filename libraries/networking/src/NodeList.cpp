@@ -24,6 +24,7 @@
 #include <QtNetwork/QNetworkInterface>
 
 #include <shared/QtHelpers.h>
+#include <shared/IOSRuntimeLogging.h>
 #include <ThreadHelpers.h>
 #include <LogHandler.h>
 #include <UUID.h>
@@ -855,9 +856,9 @@ void NodeList::processDomainList(QSharedPointer<ReceivedMessage> message) {
                           << "session=" << newUUID.toString(QUuid::WithoutBraces);
 #endif
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
-        qInfo().noquote() << "OVERTE_IOS_ENTITY_GATE domain_list_connected"
-                          << "domain=" << domainUUID.toString(QUuid::WithoutBraces)
-                          << "session=" << newUUID.toString(QUuid::WithoutBraces);
+        logIOSRuntimeMarker("OVERTE_IOS_ENTITY_GATE domain_list_connected",
+                            "domain=", domainUUID.toString(QUuid::WithoutBraces),
+                            "session=", newUUID.toString(QUuid::WithoutBraces));
 #endif
 
         // in case we didn't use a place name to get to this domain,

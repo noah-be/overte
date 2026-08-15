@@ -25,6 +25,7 @@
 #endif
 
 #include <shared/QtHelpers.h>
+#include <shared/IOSRuntimeLogging.h>
 #include <AbstractScriptingServicesInterface.h>
 #include <AbstractViewStateInterface.h>
 #include <AddressManager.h>
@@ -581,8 +582,8 @@ void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, r
                 static bool loggedFirstRenderHandoff { false };
                 if (!loggedFirstRenderHandoff) {
                     loggedFirstRenderHandoff = true;
-                    qInfo().noquote() << "OVERTE_IOS_ENTITY_GATE render_handoff"
-                                      << "entity=" << entityID.toString();
+                    logIOSRuntimeMarker("OVERTE_IOS_ENTITY_GATE render_handoff",
+                                        "entity=", entityID.toString());
                 }
 #endif
             }
@@ -1283,8 +1284,8 @@ void EntityTreeRenderer::addingEntity(const EntityItemID& entityID) {
         static bool loggedFirstTreeEntity { false };
         if (!loggedFirstTreeEntity) {
             loggedFirstTreeEntity = true;
-            qInfo().noquote() << "OVERTE_IOS_ENTITY_GATE entity_tree_nonempty"
-                              << "entity=" << entityID.toString();
+            logIOSRuntimeMarker("OVERTE_IOS_ENTITY_GATE entity_tree_nonempty",
+                                "entity=", entityID.toString());
         }
 #endif
         _entitiesToAdd.insert({ entity->getEntityItemID(),  entity });

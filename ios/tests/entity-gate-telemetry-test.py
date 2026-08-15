@@ -25,7 +25,16 @@ for marker, relative_path in CONTRACT.items():
     end = source.find("#endif", position)
     if guard < 0 or end < 0 or source.find("#endif", guard, position) >= 0:
         raise SystemExit(f"marker {marker} is not enclosed by its iOS compile guard")
+    call = source.rfind("logIOSRuntimeMarker(", 0, position)
+    if call < guard:
+        raise SystemExit(f"marker {marker} is not emitted through Apple unified logging")
     all_occurrences.append(token)
+
+helper = (ROOT / "libraries/shared/src/shared/IOSRuntimeLogging.h").read_text(
+    encoding="utf-8"
+)
+if 'os_log_info(OS_LOG_DEFAULT, "%{public}s", utf8.constData())' not in helper:
+    raise SystemExit("iOS runtime marker helper must mirror markers to unified logging")
 
 document = (ROOT / "docs/ios/ENTITY_INTEGRATION.md").read_text(encoding="utf-8")
 for marker in CONTRACT:

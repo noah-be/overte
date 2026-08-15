@@ -68,6 +68,7 @@
 #include <input-plugins/KeyboardMouseDevice.h>
 #include <input-plugins/TouchscreenDevice.h>
 #include <input-plugins/TouchscreenVirtualPadDevice.h>
+#include <shared/IOSRuntimeLogging.h>
 #include <networking/CloseEventSender.h>
 #include <MainWindow.h>
 #include <material-networking/TextureCacheScriptingInterface.h>
@@ -2306,7 +2307,7 @@ void Application::setupSignalsAndOperators() {
         if (!suppressAudioForWorldEvidence) {
             audioIO->startThread();
         } else {
-            qInfo().noquote() << "OVERTE_IOS_WORLD_DIAGNOSTIC audio_suppressed=evidence_mode";
+            logIOSRuntimeMarker("OVERTE_IOS_WORLD_DIAGNOSTIC audio_suppressed=evidence_mode");
         }
 #else
         audioIO->startThread();
