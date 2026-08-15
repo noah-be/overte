@@ -34,6 +34,10 @@ DYLIB_COMMANDS = {
 }
 ALLOWED_DEPENDENCY_PREFIXES = ("/System/Library/Frameworks/", "/usr/lib/")
 ALLOWED_RPATHS = {"@executable_path/Frameworks", "@loader_path/Frameworks"}
+FORBIDDEN_IOS_UI_MARKERS = (
+    b"Choose a display mode to start with:",
+)
+SCAN_CHUNK_BYTES = 1024 * 1024
 
 
 def command_string(commands: bytes, offset: int, size: int) -> str:
@@ -104,6 +108,20 @@ def audit_macho_parts(header: bytes, commands: bytes) -> dict:
     return {"dependencies": dependencies, "rpaths": rpaths}
 
 
+def audit_ios_ui_markers(stream: BinaryIO) -> None:
+    """Reject an iOS executable that still contains a desktop-only startup dialog."""
+    overlap = max(len(marker) for marker in FORBIDDEN_IOS_UI_MARKERS) - 1
+    previous = b""
+    while True:
+        chunk = stream.read(SCAN_CHUNK_BYTES)
+        if not chunk:
+            return
+        searchable = previous + chunk
+        if any(marker in searchable for marker in FORBIDDEN_IOS_UI_MARKERS):
+            raise ValueError("executable contains the legacy desktop display-mode selector")
+        previous = searchable[-overlap:] if overlap else b""
+
+
 def audit_macho_stream(stream: BinaryIO) -> dict:
     header = stream.read(32)
     if len(header) != 32:
@@ -111,7 +129,9 @@ def audit_macho_stream(stream: BinaryIO) -> dict:
     command_size = struct.unpack_from("<I", header, 20)[0]
     if command_size > MAX_COMMAND_BYTES:
         raise ValueError("Mach-O load-command table is unreasonable")
-    return audit_macho_parts(header, stream.read(command_size))
+    report = audit_macho_parts(header, stream.read(command_size))
+    audit_ios_ui_markers(stream)
+    return report
 
 
 def audit_app(app: Path) -> dict:

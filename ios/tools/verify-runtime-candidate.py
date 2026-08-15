@@ -131,6 +131,7 @@ def require_regular_file(
 def require_arm64_macho(
     archive: zipfile.ZipFile, entry: zipfile.ZipInfo, mode: str
 ) -> None:
+    static_runtime_verifier = load_static_runtime_verifier()
     with archive.open(entry) as stream:
         header = stream.read(32)
         if len(header) != 32:
@@ -143,6 +144,7 @@ def require_arm64_macho(
         if command_count > 4096 or command_size > MAX_MACHO_COMMAND_BYTES:
             raise ValueError("Overte executable has unreasonable Mach-O commands")
         commands = stream.read(command_size)
+        static_runtime_verifier.audit_ios_ui_markers(stream)
     if len(commands) != command_size:
         raise ValueError("Overte executable has truncated Mach-O commands")
 
@@ -161,7 +163,7 @@ def require_arm64_macho(
         offset += size
     if offset != len(commands):
         raise ValueError("Overte executable Mach-O command size mismatch")
-    load_static_runtime_verifier().audit_macho_parts(header, commands)
+    static_runtime_verifier.audit_macho_parts(header, commands)
     expected = PLATFORM_IOS_SIMULATOR if mode == "simulator" else PLATFORM_IOS
     if platforms != [expected]:
         raise ValueError("Overte executable targets the wrong Apple platform")

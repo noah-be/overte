@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import plistlib
 import struct
 import subprocess
@@ -79,6 +80,16 @@ def main() -> None:
         "/usr/lib/libSystem.B.dylib",
     ]
     assert report["rpaths"] == ["@executable_path/Frameworks"]
+
+    verifier.audit_macho_stream(io.BytesIO(payload))
+    marker = verifier.FORBIDDEN_IOS_UI_MARKERS[0]
+    split = len(marker) // 2
+    boundary_payload = payload + b"x" * (verifier.SCAN_CHUNK_BYTES - len(payload) - split)
+    boundary_payload += marker + b"fixture tail"
+    expect_failure(
+        lambda: verifier.audit_macho_stream(io.BytesIO(boundary_payload)),
+        "legacy desktop display-mode selector",
+    )
 
     for dependency in (
         "/lib/libwebrtc-audio-processing-2.1.dylib",

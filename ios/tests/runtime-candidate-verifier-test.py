@@ -50,6 +50,7 @@ def write_archive(
     info_updates: dict | None = None,
     extra_entries: list[tuple[str, bytes | str | None]] | None = None,
     omit: set[str] | None = None,
+    executable_suffix: bytes = b"",
 ) -> None:
     root = "Overte.app" if mode == "simulator" else "Payload/Overte.app"
     bundle_info = {
@@ -73,7 +74,7 @@ def write_archive(
             f"{root}/Info.plist",
             plistlib.dumps(bundle_info),
         ),
-        (f"{root}/Overte", macho_fixture(macho_mode or mode)),
+        (f"{root}/Overte", macho_fixture(macho_mode or mode) + executable_suffix),
         (f"{root}/PrivacyInfo.xcprivacy", b"privacy fixture"),
     ]
     if mode == "ipad":
@@ -115,6 +116,7 @@ def write_candidate(
     manifest_updates: dict | None = None,
     extra_entries: list[tuple[str, bytes | str | None]] | None = None,
     omit: set[str] | None = None,
+    executable_suffix: bytes = b"",
 ) -> tuple[dict, str]:
     if mode == "simulator":
         artifact_name = "0042-OverteIOSClient-Debug-simulator.zip"
@@ -132,6 +134,7 @@ def write_candidate(
         info_updates=info_updates,
         extra_entries=extra_entries,
         omit=omit,
+        executable_suffix=executable_suffix,
     )
     digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
     manifest_name = str(Path(artifact_name).with_suffix(".json"))
@@ -210,6 +213,19 @@ def main() -> None:
         assert ipad_plan["artifact"] == ipad_payload["artifact"]
         assert ipad_plan["appRoot"] == "Payload/Overte.app"
         assert ipad_plan["platform"] == "iphoneos"
+
+        legacy_selector = isolated_case(root, "legacy-display-selector")
+        _, legacy_digest = write_candidate(
+            legacy_selector,
+            "simulator",
+            executable_suffix=b"Choose a display mode to start with:",
+        )
+        expect_failure(
+            lambda: verifier.verify_candidate(
+                legacy_selector, "simulator", REVISION, legacy_digest
+            ),
+            "legacy desktop display-mode selector",
+        )
 
         github_output = root / "github-output"
         completed = subprocess.run(
