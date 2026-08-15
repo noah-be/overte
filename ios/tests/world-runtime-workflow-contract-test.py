@@ -115,6 +115,11 @@ require(
     r"Sanitize world-build failure diagnostics[\s\S]*Overte[.]app[.]dSYM/Contents/Resources/DWARF/Overte[\s\S]*symbolicate-simulator-crash[.]py",
     "world crashes must be symbolicated with the preserved dSYM before upload",
 )
+require(
+    WORKFLOW,
+    r"if ! python3 ios/tools/symbolicate-simulator-crash[.]py[\s\S]*preserving sanitized raw crash diagnostics",
+    "driver-only crashes must not suppress the sanitized raw diagnostics",
+)
 
 require(BOOTSTRAP, r"world_evidence:[\s\S]*type: boolean[\s\S]*default: false", "manual world acceptance needs an explicit opt-in")
 require(

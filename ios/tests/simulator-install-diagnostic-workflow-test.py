@@ -85,6 +85,9 @@ assert "symbolicate-simulator-crash.py" in runtime
 assert "*-crash-report.log" in runtime and "*-symbolicated-crash.json" in runtime
 assert "Overte.app.dSYM/Contents/Resources/DWARF/Overte" in runtime
 assert '"$crash" "$symbol_binary" "$symbolicated"' in runtime
+assert 'if ! python3 ios/tools/symbolicate-simulator-crash.py' in runtime
+assert "preserving sanitized raw crash diagnostics" in runtime
+assert 'rm -f "$symbolicated"' in runtime
 assert "for family in iphone ipad" in runtime
 assert "serverless -" in runtime and 'online "$ONLINE_DOMAIN"' in runtime
 assert "validate-world-evidence-set.py" in runtime

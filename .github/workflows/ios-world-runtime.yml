@@ -820,9 +820,12 @@ jobs:
           if [[ -f "$symbol_binary" ]]; then
             for crash in build-ios/world-raw-diagnostics/*-crash-report.log; do
               [[ -s "$crash" ]] || continue
-              python3 ios/tools/symbolicate-simulator-crash.py \
-                "$crash" "$symbol_binary" \
-                "${crash%-crash-report.log}-symbolicated-crash.json"
+              symbolicated="${crash%-crash-report.log}-symbolicated-crash.json"
+              if ! python3 ios/tools/symbolicate-simulator-crash.py \
+                "$crash" "$symbol_binary" "$symbolicated"; then
+                rm -f "$symbolicated"
+                echo "::warning::Overte symbolication was not applicable; preserving sanitized raw crash diagnostics"
+              fi
             done
           fi
           for source in build-ios/world-raw-diagnostics/*.log \

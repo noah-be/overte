@@ -577,8 +577,14 @@ jobs:
           for crash in "$RUNTIME_ROOT"/raw-diagnostics/*-crash-report.log; do
             [[ -s "$crash" ]] || continue
             symbolicated="${crash%-crash-report.log}-symbolicated-crash.json"
-            python3 ios/tools/symbolicate-simulator-crash.py \
-              "$crash" "$symbol_binary" "$symbolicated"
+            if ! python3 ios/tools/symbolicate-simulator-crash.py \
+              "$crash" "$symbol_binary" "$symbolicated"; then
+              # Driver/service crash reports (for example SimMetalHost) do not
+              # contain one Overte image. Preserve their sanitized raw report
+              # instead of letting optional symbolication suppress all logs.
+              rm -f "$symbolicated"
+              echo "::warning::Overte symbolication was not applicable; preserving sanitized raw crash diagnostics"
+            fi
           done
           for source in "$RUNTIME_ROOT"/raw-diagnostics/*.log; do
             [[ -f "$source" ]] || continue
