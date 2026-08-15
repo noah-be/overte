@@ -149,10 +149,14 @@ cold/warm attempt is manifest-driven, and partial metrics from crashes or
 timeouts are retained instead of disappearing from the report. Stale result
 directories are ignored. On the hosted software renderer the suite deliberately
 runs only the first requested concurrency, because two driver-pathological runs
-cannot produce a meaningful download-concurrency comparison. It records a
-60-second post-visible diagnostic window and then bounds each process at 150
-seconds. If entities and first-visible evidence were captured but Apple's
-software GL compiler prevents the screenshot/idle gates, the aggregate remains
+cannot produce a meaningful download-concurrency comparison. Its script records
+at most 70 seconds without visible content or 30 seconds after first-visible.
+The 210-second outer bound includes variable application startup; a private
+completion-file checkpoint lets the supervisor stop the process group as soon
+as the result is durable instead of waiting for the blocked renderer teardown.
+The aggregate requires bounded connection/query evidence for both cold and warm
+and first-visible evidence in at least one of them. If Apple's software GL
+compiler prevents the screenshot/idle gates, it remains
 `measurement_passed: false`, marks the cases skipped in JUnit, and reports
 `diagnostic_observation_complete: true`; it never promotes that partial evidence
 to a loading or gameplay decision. A mutable public world is informational and
@@ -179,6 +183,17 @@ still compiling. Host telemetry remained CPU-active with ample RAM and disk.
 This proves that the hosted full-world failure is a graphics-driver bottleneck,
 not slow domain/entity discovery, cache loss, runner freeze, or resource
 exhaustion.
+
+Run `31851152345` validated the shorter diagnostic window and exposed two
+independent result-handling cases. Warm c10 wrote a durable bounded result after
+74.190 seconds with 580 entities and first-visible at 13.648 seconds, but the
+outer supervisor later returned 124 because the software-renderer teardown did
+not exit. Cold c10 connected and sent an entity query, then the mutable public
+domain repeatedly disconnected before any EntityData arrived. This is why the
+supervisor now stops on a fresh private completion checkpoint, while the
+aggregator separately requires connection/query capture in both cache modes and
+at least one first-visible observation. A missing result, an unobserved network
+path, or a real process crash still fails closed.
 
 Repeated clean launch, local-scene render, screenshot, and shutdown cycles are
 available with:

@@ -137,11 +137,17 @@ requested-versus-observed settings, consistent hardware/fixture identity, and
 the per-run 60 Hz contract. A one-run matrix is provisional; 30 Hz is reported
 only as a fallback. Online reports preserve partial metrics, timeout state, and
 crash counts from failed attempts but never select a concurrency from a mutable
-public world. A diagnostic software renderer runs only one cold/warm pair,
-bounds each process at 150 seconds, and treats a first-visible, sampled
-software-GL limitation as an explicit skipped diagnostic observation rather
-than a completed loading measurement. `measurement_passed` remains false and
-no profile or concurrency can be selected from that evidence.
+public world. A diagnostic software renderer runs only one cold/warm pair and
+gives the test script 70 seconds to capture a bounded network observation or 30
+seconds after first-visible. The process supervisor permits up to 210 seconds
+for application startup, watches the private result file, and terminates the
+software-renderer process group immediately after durable evidence is written.
+A normal crash is still preserved as a failure; only supervisor-initiated
+teardown after that checkpoint is accepted. The aggregate requires a domain
+connection and entity query in both cache modes plus first-visible evidence in
+at least one mode. Transient public-world failures remain explicit skipped
+diagnostics rather than completed loading measurements. `measurement_passed`
+remains false and no profile or concurrency can be selected from that evidence.
 
 The application is retained for fourteen days and smoke diagnostics for seven
 days. The workflow does not verify a

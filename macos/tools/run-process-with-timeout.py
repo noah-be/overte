@@ -54,11 +54,16 @@ def main() -> int:
     parser.add_argument("--crash-report", type=Path)
     parser.add_argument("--crash-report-dir", type=Path)
     parser.add_argument("--crash-report-wait", type=float, default=10.0)
+    parser.add_argument("--completion-file", type=Path)
+    parser.add_argument("--completion-settle", type=float, default=0.25)
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
-    if not command or args.timeout <= 0 or args.grace < 0 or args.crash_report_wait < 0:
+    if (not command or args.timeout <= 0 or args.grace < 0 or args.crash_report_wait < 0 or
+            args.completion_settle < 0):
         parser.error("a command, positive timeout, and non-negative grace/report wait are required")
+    if args.completion_file and args.completion_file.exists():
+        parser.error("completion file must not exist before the supervised process starts")
 
     args.log.parent.mkdir(parents=True, exist_ok=True)
     args.result.parent.mkdir(parents=True, exist_ok=True)
@@ -71,6 +76,8 @@ def main() -> int:
     sample_timed_out = False
     crash_report_succeeded = False
     crash_report_source: str | None = None
+    completion_file_observed = False
+    terminated_after_completion = False
     started_wall_time = time.time()
 
     with args.log.open("w", encoding="utf-8", errors="replace") as log_stream:
@@ -97,9 +104,46 @@ def main() -> int:
 
             reader = threading.Thread(target=copy_output, daemon=True)
             reader.start()
-            try:
-                return_code = process.wait(timeout=args.timeout)
-            except subprocess.TimeoutExpired:
+            deadline = time.monotonic() + args.timeout
+            while return_code is None:
+                remaining = deadline - time.monotonic()
+                try:
+                    return_code = process.wait(timeout=max(0.01, min(0.1, remaining)))
+                except subprocess.TimeoutExpired:
+                    if (args.completion_file and args.completion_file.is_file() and
+                            args.completion_file.stat().st_size > 0):
+                        completion_file_observed = True
+                        break
+                    if time.monotonic() >= deadline:
+                        break
+
+            if (args.completion_file and args.completion_file.is_file() and
+                    args.completion_file.stat().st_size > 0):
+                completion_file_observed = True
+
+            if completion_file_observed and process.poll() is None and args.completion_settle > 0:
+                try:
+                    return_code = process.wait(timeout=args.completion_settle)
+                except subprocess.TimeoutExpired:
+                    pass
+
+            if completion_file_observed and process.poll() is None:
+                terminated_after_completion = True
+                sent_term = True
+                print("completion evidence observed; sending SIGTERM", file=sys.stderr, flush=True)
+                os.killpg(process.pid, signal.SIGTERM)
+                try:
+                    return_code = process.wait(timeout=args.grace)
+                except subprocess.TimeoutExpired:
+                    sent_kill = True
+                    print(
+                        f"process ignored SIGTERM for {args.grace:g}s; sending SIGKILL",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    os.killpg(process.pid, signal.SIGKILL)
+                    return_code = process.wait()
+            elif return_code is None:
                 timed_out = True
                 if args.sample:
                     args.sample.parent.mkdir(parents=True, exist_ok=True)
@@ -176,6 +220,8 @@ def main() -> int:
                 "elapsed_seconds": round(elapsed, 3),
                 "exit_code": return_code,
                 "timed_out": timed_out,
+                "completion_file_observed": completion_file_observed,
+                "terminated_after_completion": terminated_after_completion,
                 "sent_sigterm": sent_term,
                 "sent_sigkill": sent_kill,
                 "sample_name": args.sample.name if args.sample else None,
@@ -197,6 +243,8 @@ def main() -> int:
                 result_stream.write("\n")
             os.chmod(args.result, 0o600)
 
+    if terminated_after_completion or (completion_file_observed and return_code == 0):
+        return 0
     if timed_out:
         return 124
     if return_code is None:

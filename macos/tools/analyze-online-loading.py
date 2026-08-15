@@ -197,6 +197,7 @@ def load_metrics(attempt: dict[str, object], manifest: dict[str, object]) -> dic
     payload["process_exit_code"] = process.get("exit_code")
     payload["process_timed_out"] = process.get("timed_out") is True
     payload["process_sample_succeeded"] = process.get("sample_succeeded") is True
+    payload["process_completion_file_observed"] = process.get("completion_file_observed") is True
     return payload
 
 
@@ -211,9 +212,27 @@ def diagnostic_observation(value: dict[str, object], manifest: dict[str, object]
     bounded = value.get("reason") == "diagnostic_observation_complete"
     process_bounded = (
         value.get("process_exit_code") == 0 or
+        value.get("process_completion_file_observed") is True or
         (value.get("process_timed_out") is True and value.get("process_sample_succeeded") is True)
     )
     return bounded and process_bounded
+
+
+def diagnostic_capture(value: dict[str, object], manifest: dict[str, object]) -> bool:
+    if manifest["runner_class"] != "diagnostic" or value.get("runner_class") != "diagnostic":
+        return False
+    if value.get("reason") not in ("diagnostic_observation_complete", "visible_timeout"):
+        return False
+    process_bounded = (
+        value.get("process_exit_code") == 0 or
+        value.get("process_completion_file_observed") is True or
+        (value.get("process_timed_out") is True and value.get("process_sample_succeeded") is True)
+    )
+    milestones = value.get("host_milestones_ms")
+    network_bounded = isinstance(milestones, dict) and milestones.get("domain_connected") is not None and (
+        milestones.get("entity_query") is not None or milestones.get("entity_data") is not None
+    )
+    return process_bounded and network_bounded
 
 
 def median_or_none(values: list[float]) -> float | None:
@@ -234,6 +253,7 @@ def aggregate(attempts: list[dict[str, object]], metrics: list[dict[str, object]
                      item.get("snapshot_completed_ms") is not None and
                      item.get("sustained_idle_ms") is not None]
             observed = [item for item in group_metrics if diagnostic_observation(item, manifest)]
+            captured = [item for item in group_metrics if diagnostic_capture(item, manifest)]
             visible = [finite(item["first_visible_ms"], "first_visible_ms") for item in group_metrics
                        if item.get("first_visible_ms") is not None]
             snapshot = [finite(item["snapshot_completed_ms"], "snapshot_completed_ms") for item in valid]
@@ -245,6 +265,7 @@ def aggregate(attempts: list[dict[str, object]], metrics: list[dict[str, object]
                 "metrics_count": len(group_metrics),
                 "valid_count": len(valid),
                 "diagnostic_observation_count": len(observed),
+                "diagnostic_capture_count": len(captured),
                 "failure_count": sum(not item["accepted"] for item in group_attempts),
                 "crash_count": sum(int(item["exit_code"]) in (134, 136, 139) for item in group_attempts),
                 "timeout_count": sum(item.get("process_timed_out") is True for item in group_metrics),
@@ -254,17 +275,19 @@ def aggregate(attempts: list[dict[str, object]], metrics: list[dict[str, object]
             })
     diagnostic = manifest["runner_class"] == "diagnostic" or manifest.get("translated") is True
     complete = not failures and all(item["valid_count"] >= minimum_runs for item in groups)
-    diagnostic_observation_complete = (
-        diagnostic and all(item["diagnostic_observation_count"] >= minimum_runs for item in groups)
+    diagnostic_capture_complete = (
+        diagnostic and all(item["diagnostic_capture_count"] >= minimum_runs for item in groups)
     )
-    observed_attempts = {
+    diagnostic_visibility_observed = any(item["diagnostic_observation_count"] > 0 for item in groups)
+    diagnostic_observation_complete = diagnostic_capture_complete and diagnostic_visibility_observed
+    captured_attempts = {
         (int(item["concurrency"]), int(item["run_index"]), str(item["cache_mode"]))
-        for item in metrics if diagnostic_observation(item, manifest)
+        for item in metrics if diagnostic_capture(item, manifest)
     }
     expected_incomplete = {
         f"c{item['concurrency']}/pair-{item['pair']}/{item['cache_mode']} failed with exit {item['exit_code']}"
         for item in attempts
-        if (int(item["concurrency"]), int(item["pair"]), str(item["cache_mode"])) in observed_attempts
+        if (int(item["concurrency"]), int(item["pair"]), str(item["cache_mode"])) in captured_attempts
         and not item["accepted"]
     }
     hard_failures = [failure for failure in failures if failure not in expected_incomplete]
@@ -288,6 +311,8 @@ def aggregate(attempts: list[dict[str, object]], metrics: list[dict[str, object]
         "metrics_count": len(metrics),
         "measurement_passed": complete,
         "diagnostic_observation_complete": diagnostic_observation_complete,
+        "diagnostic_capture_complete": diagnostic_capture_complete,
+        "diagnostic_visibility_observed": diagnostic_visibility_observed,
         "decision_ready": decision_ready,
         "selected_concurrency": observed_best if decision_ready else None,
         "observed_best_concurrency": observed_best,
@@ -327,7 +352,7 @@ def write_junit(path: Path, result: dict[str, object]) -> None:
         case = ET.SubElement(suite, "testcase", classname="overte.macos.online-loading",
                              name=f"c{item['concurrency']}-{item['cache_mode']}")
         if (item["valid_count"] < result.get("minimum_runs", 1) and
-                item.get("diagnostic_observation_count", 0) >= result.get("minimum_runs", 1)):
+                item.get("diagnostic_capture_count", 0) >= result.get("minimum_runs", 1)):
             ET.SubElement(
                 case, "skipped",
                 message="diagnostic software renderer did not complete full render and idle gates",

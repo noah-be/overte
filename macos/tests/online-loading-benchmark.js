@@ -11,7 +11,7 @@
     var testCase = OVERTE_MACOS_ONLINE_LOADING_CASE;
     var diagnosticOnly = testCase.runner_class === "diagnostic";
     var startedAt = Date.now();
-    var deadline = startedAt + (diagnosticOnly ? 120000 : 360000);
+    var deadline = startedAt + (diagnosticOnly ? 70000 : 360000);
     var measurementDeadline = 0;
     var firstEntitiesMs = null;
     var firstVisibleMs = null;
@@ -155,7 +155,7 @@
         }
         if (firstVisibleMs === null && visible > 0) {
             firstVisibleMs = elapsed;
-            measurementDeadline = now + (diagnosticOnly ? 60000 : 180000);
+            measurementDeadline = now + (diagnosticOnly ? 30000 : 180000);
             print("OVERTE_MACOS_ONLINE_LOADING first_visible_ms=" + firstVisibleMs +
                 " count=" + visible);
         }

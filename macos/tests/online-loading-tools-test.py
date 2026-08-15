@@ -93,9 +93,11 @@ def create_benchmark(root: Path, *, runner_class: str = "hardware",
                                        diagnostic_observation=incomplete_diagnostic)), encoding="utf-8"
                 )
                 (directory / "online-loading-process.json").write_text(json.dumps({
-                    "exit_code": 124 if failed_attempt or incomplete_diagnostic else 0,
-                    "timed_out": failed_attempt or incomplete_diagnostic,
-                    "sample_succeeded": incomplete_diagnostic,
+                    "exit_code": -15 if incomplete_diagnostic else 124 if failed_attempt else 0,
+                    "timed_out": failed_attempt,
+                    "sample_succeeded": False,
+                    "completion_file_observed": incomplete_diagnostic,
+                    "terminated_after_completion": incomplete_diagnostic,
                 }), encoding="utf-8")
                 (directory / "online-loading.log").write_text(
                     "[12:00:00.000] start\n"
@@ -107,14 +109,14 @@ def create_benchmark(root: Path, *, runner_class: str = "hardware",
                     f"[12:00:06.000] OVERTE_MACOS_ONLINE_LOADING first_visible_ms={visible}\n",
                     encoding="utf-8",
                 )
-                accepted = not failed_attempt and not incomplete_diagnostic
+                accepted = not failed_attempt
                 if accepted:
                     (directory / "online-loading-accepted").write_text("accepted\n", encoding="utf-8")
                 attempts.append({
                     "concurrency": concurrency,
                     "pair": pair,
                     "cache_mode": mode,
-                    "exit_code": 124 if failed_attempt or incomplete_diagnostic else 0,
+                    "exit_code": 124 if failed_attempt else 0,
                     "accepted": accepted,
                     "metrics_present": True,
                     "result_directory": str(directory.relative_to(root)),
@@ -238,12 +240,64 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     assert partial_diagnostic_summary["diagnostic_observation_complete"] is True
     assert partial_diagnostic_summary["passed"] is True
     assert partial_diagnostic_summary["failures"] == []
-    assert len(partial_diagnostic_summary["incomplete_attempts"]) == 2
+    assert partial_diagnostic_summary["incomplete_attempts"] == []
+    assert partial_diagnostic_summary["diagnostic_capture_complete"] is True
+    assert partial_diagnostic_summary["diagnostic_visibility_observed"] is True
     assert all(group["diagnostic_observation_count"] == 1
+               for group in partial_diagnostic_summary["groups"])
+    assert all(group["diagnostic_capture_count"] == 1
                for group in partial_diagnostic_summary["groups"])
     partial_suite = ET.parse(partial_diagnostic_junit).getroot()
     assert int(partial_suite.attrib["failures"]) == 0
     assert int(partial_suite.attrib["skipped"]) >= 2
+
+    mixed_diagnostic = temporary / "diagnostic-mixed"
+    create_benchmark(
+        mixed_diagnostic,
+        runner_class="diagnostic",
+        concurrencies=(10,),
+        diagnostic_partial=True,
+    )
+    cold_metrics_path = mixed_diagnostic / "c10/pair-1/cold/macos-online-loading.json"
+    cold_metrics = json.loads(cold_metrics_path.read_text(encoding="utf-8"))
+    cold_metrics.update({
+        "first_entities_ms": None,
+        "first_visible_ms": None,
+        "max_entity_count": 0,
+        "reason": "visible_timeout",
+    })
+    cold_metrics_path.write_text(json.dumps(cold_metrics), encoding="utf-8")
+    mixed_result = temporary / "diagnostic-mixed.json"
+    mixed_junit = temporary / "diagnostic-mixed.xml"
+    mixed_analysis = analyze(mixed_diagnostic, mixed_result, mixed_junit)
+    assert mixed_analysis.returncode == 0, mixed_analysis.stdout + mixed_analysis.stderr
+    mixed_summary = json.loads(mixed_result.read_text(encoding="utf-8"))
+    assert mixed_summary["diagnostic_observation_complete"] is True
+    assert mixed_summary["diagnostic_visibility_observed"] is True
+    cold_group = next(group for group in mixed_summary["groups"]
+                      if group["cache_mode"] == "cold")
+    warm_group = next(group for group in mixed_summary["groups"]
+                      if group["cache_mode"] == "warm")
+    assert cold_group["diagnostic_capture_count"] == 1
+    assert cold_group["diagnostic_observation_count"] == 0
+    assert warm_group["diagnostic_observation_count"] == 1
+
+    missing_network = temporary / "diagnostic-missing-network"
+    create_benchmark(
+        missing_network,
+        runner_class="diagnostic",
+        concurrencies=(10,),
+        diagnostic_partial=True,
+    )
+    missing_log = missing_network / "c10/pair-1/cold/online-loading.log"
+    missing_log.write_text("[12:00:00.000] start\n", encoding="utf-8")
+    missing_result = temporary / "diagnostic-missing-network.json"
+    missing_junit = temporary / "diagnostic-missing-network.xml"
+    missing_analysis = analyze(missing_network, missing_result, missing_junit)
+    assert missing_analysis.returncode != 0
+    missing_summary = json.loads(missing_result.read_text(encoding="utf-8"))
+    assert missing_summary["diagnostic_capture_complete"] is False
+    assert int(ET.parse(missing_junit).getroot().attrib["failures"]) >= 1
 
     mismatched_runner = temporary / "mismatched-runner"
     create_benchmark(mismatched_runner, runner_class="hardware", concurrencies=(10,))

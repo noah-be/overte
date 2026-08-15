@@ -853,6 +853,8 @@ for sanitized_contract in (
     '"argument_count": len(command) - 1',
     '"sample_name": args.sample.name',
     '"crash_report_source_name"',
+    '"completion_file_observed"',
+    '"terminated_after_completion"',
 ):
     if sanitized_contract not in runtime_supervisor:
         raise SystemExit(f"runtime evidence redaction missing: {sanitized_contract}")
@@ -1125,6 +1127,8 @@ for loading_contract in (
     "OVERTE_MACOS_ONLINE_DIAGNOSTIC_TIMEOUT_SECONDS",
     '--runner-class "$runner_class"',
     'case_timeout_seconds="$diagnostic_timeout_seconds"',
+    '--completion-file "$run_dir/macos-online-loading.json"',
+    'OVERTE_MACOS_ONLINE_DIAGNOSTIC_TIMEOUT_SECONDS:-210',
 ):
     if loading_contract not in online_loading_runner:
         raise SystemExit(f"online loading runner missing: {loading_contract}")
@@ -1143,6 +1147,8 @@ for loading_contract in (
     "queue_samples",
     'testCase.runner_class === "diagnostic"',
     "diagnostic_observation_complete",
+    "diagnosticOnly ? 70000 : 360000",
+    "diagnosticOnly ? 30000 : 180000",
 ):
     if loading_contract not in online_loading_script:
         raise SystemExit(f"online loading script missing: {loading_contract}")

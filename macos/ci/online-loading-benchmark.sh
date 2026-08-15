@@ -15,7 +15,7 @@ readonly location_label="${OVERTE_MACOS_ONLINE_LOCATION_LABEL:-overte-hub}"
 readonly concurrency_csv="${OVERTE_MACOS_ONLINE_CONCURRENCIES:-10,16}"
 readonly repeats="${OVERTE_MACOS_ONLINE_REPEATS:-1}"
 readonly timeout_seconds="${OVERTE_MACOS_ONLINE_LOADING_TIMEOUT_SECONDS:-420}"
-readonly diagnostic_timeout_seconds="${OVERTE_MACOS_ONLINE_DIAGNOSTIC_TIMEOUT_SECONDS:-150}"
+readonly diagnostic_timeout_seconds="${OVERTE_MACOS_ONLINE_DIAGNOSTIC_TIMEOUT_SECONDS:-210}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
 
 [[ "$(uname -s)" == Darwin ]] || { echo "online loading benchmark requires macOS" >&2; exit 1; }
@@ -114,9 +114,11 @@ run_case() {
     local metrics_present=false
     local case_timeout_seconds="$timeout_seconds"
     local -a app_command
+    local -a completion_args=()
 
     if [[ "$runner_class" == diagnostic ]]; then
         case_timeout_seconds="$diagnostic_timeout_seconds"
+        completion_args=(--completion-file "$run_dir/macos-online-loading.json")
     fi
 
     mkdir -p "$cache_dir" "$run_dir"
@@ -136,15 +138,19 @@ run_case() {
     set +e
     python3 "$source_root/macos/tools/run-process-with-timeout.py" \
         --timeout "$case_timeout_seconds" --grace "$shutdown_grace_seconds" \
-        --log "$log" --result "$result" --sample "$sample" --crash-report "$crash" -- \
+        --log "$log" --result "$result" --sample "$sample" --crash-report "$crash" \
+        "${completion_args[@]}" -- \
         "${app_command[@]}"
     status=$?
     set -e
-    if (( status == 0 )); then
+    if (( status == 0 )) && [[ "$runner_class" != diagnostic ]]; then
         grep -Fq "OVERTE_MACOS_ONLINE_LOADING passed" "$log" || status=1
         [[ -s "$snapshot" && -s "$run_dir/macos-online-loading.json" ]] || status=1
     fi
-    if (( status == 0 )); then
+    if (( status == 0 )) && [[ "$runner_class" == diagnostic ]]; then
+        [[ -s "$run_dir/macos-online-loading.json" ]] || status=1
+    fi
+    if (( status == 0 )) && [[ "$runner_class" != diagnostic ]]; then
         python3 "$source_root/macos/tools/validate-screenshot.py" "$snapshot" \
             --result "$screenshot_result" || status=$?
     fi

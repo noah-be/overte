@@ -27,6 +27,7 @@ with tempfile.TemporaryDirectory() as temporary:
     assert success_metadata["timed_out"] is False
     assert success_metadata["executable"] == Path(sys.executable).name
     assert success_metadata["argument_count"] == 2
+    assert success_metadata["completion_file_observed"] is False
     assert "command" not in success_metadata
     assert success_result.stat().st_mode & 0o777 == 0o600
 
@@ -71,6 +72,63 @@ with tempfile.TemporaryDirectory() as temporary:
     assert timeout_metadata["sample_name"] == timeout_sample.name
     assert str(timeout_sample) not in timeout_result.read_text(encoding="utf-8")
     assert timeout_sample.read_text(encoding="utf-8") == "sampled blocked process\n"
+
+    completion_file = output / "private-completion-secret.json"
+    completion_result = output / "completion.json"
+    completion_child = (
+        "import pathlib,signal,sys,time; "
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+        "pathlib.Path(sys.argv[1]).write_text('complete\\n'); "
+        "print('completion written', flush=True); time.sleep(30)"
+    )
+    completed_by_file = subprocess.run(
+        [sys.executable, str(SUPERVISOR), "--timeout", "5", "--grace", "0.1",
+         "--log", str(output / "completion.log"), "--result", str(completion_result),
+         "--completion-file", str(completion_file), "--",
+         sys.executable, "-c", completion_child, str(completion_file)],
+        check=False,
+        timeout=5,
+    )
+    assert completed_by_file.returncode == 0
+    completion_metadata = json.loads(completion_result.read_text(encoding="utf-8"))
+    assert completion_metadata["completion_file_observed"] is True
+    assert completion_metadata["terminated_after_completion"] is True
+    assert completion_metadata["timed_out"] is False
+    assert completion_metadata["sent_sigterm"] is True
+    assert completion_metadata["sent_sigkill"] is True
+    assert str(completion_file) not in completion_result.read_text(encoding="utf-8")
+
+    stale_completion = subprocess.run(
+        [sys.executable, str(SUPERVISOR), "--timeout", "1", "--grace", "0.1",
+         "--log", str(output / "stale.log"), "--result", str(output / "stale.json"),
+         "--completion-file", str(completion_file), "--", sys.executable, "-c", "pass"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert stale_completion.returncode != 0
+    assert "must not exist" in stale_completion.stderr
+
+    crash_completion_file = output / "crash-completion.json"
+    crash_completion_result = output / "crash-completion-result.json"
+    crash_after_completion = subprocess.run(
+        [sys.executable, str(SUPERVISOR), "--timeout", "5", "--grace", "0.1",
+         "--log", str(output / "crash-completion.log"),
+         "--result", str(crash_completion_result),
+         "--completion-file", str(crash_completion_file), "--",
+         sys.executable, "-c",
+         "import os,pathlib,signal,sys; "
+         "pathlib.Path(sys.argv[1]).write_text('complete\\n'); "
+         "os.kill(os.getpid(), signal.SIGSEGV)", str(crash_completion_file)],
+        check=False,
+        timeout=5,
+    )
+    assert crash_after_completion.returncode == 139
+    crash_completion_metadata = json.loads(
+        crash_completion_result.read_text(encoding="utf-8")
+    )
+    assert crash_completion_metadata["completion_file_observed"] is True
+    assert crash_completion_metadata["terminated_after_completion"] is False
 
     hanging_tools = output / "hanging-tools"
     hanging_tools.mkdir()
