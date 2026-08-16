@@ -550,10 +550,34 @@ jobs:
           path: ${{ env.SCCACHE_DIR }}
           key: ${{ steps.cache-key.outputs.sccache_partial_prefix }}dependencies-${{ github.run_id }}-${{ github.run_attempt }}
 
+      - name: Compact completed libnode Conan stage
+        id: libnode-conan-compact
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.resolve-libnode.outcome == 'success' &&
+              steps.conan-cache.outputs.cache-matched-key == '' &&
+              steps.conan-checkpoint-restore.outputs.restored != 'true' }}
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          python3 macos/ci/runner-telemetry.py \
+            --phase conan-libnode-compact \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/conan-libnode-compact.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/conan-libnode-compact-stall" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 300 --max-runtime 780 \
+            --watch conan="$CONAN_HOME" -- \
+            bash -euo pipefail -c '
+              conan cache check-integrity "*"
+              conan cache clean "*" --build --source --temp
+              conan cache check-integrity "*"
+            '
+
       - name: Save Conan cache after libnode stage
         if: >-
           ${{ always() && !cancelled() &&
               steps.resolve-libnode.outcome == 'success' &&
+              steps.libnode-conan-compact.outcome == 'success' &&
               steps.conan-cache.outputs.cache-matched-key == '' &&
               steps.conan-checkpoint-restore.outputs.restored != 'true' }}
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
@@ -568,7 +592,8 @@ jobs:
           ${{ always() && steps.resolve-libnode.outcome != 'skipped' &&
               (steps.resolve-libnode.outcome == 'failure' ||
                steps.dependency-compiler-stats.outcome == 'failure' ||
-               steps.dependency-compiler-verify.outcome == 'failure') }}
+               steps.dependency-compiler-verify.outcome == 'failure' ||
+               steps.libnode-conan-compact.outcome == 'failure') }}
         run: exit 1
 
       - name: Configure compiler checkpoint for remaining dependencies

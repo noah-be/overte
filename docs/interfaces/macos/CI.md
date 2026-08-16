@@ -26,7 +26,11 @@ is removed by normal retention only after the new exact recovery layers exist.
 
 Dependency resolution is divided into Qt, libnode/V8, and remaining-graph
 stages. Qt is snapshotted before V8 begins; after libnode, both the Conan cache
-and compiler cache are snapshotted again. The completed graph is integrity
+and compiler cache are snapshotted again. Before the libnode Conan snapshot,
+the completed packages are integrity-checked and their reproducible source,
+build, and temporary trees are removed; the packaged libraries remain while a
+multi-gigabyte V8 build tree cannot consume the shared Actions-cache quota.
+The completed graph is integrity
 checked, transient build directories are removed, and the integrity check is
 repeated before the durable checkpoint is packaged. CMake configuration and
 compilation are separate stages with independent build-tree checkpoints.

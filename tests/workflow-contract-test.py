@@ -196,13 +196,15 @@ class MacOSWorkflowContracts(unittest.TestCase):
         qt_save = self.source.index("- name: Save Qt Conan stage immediately")
         node = self.source.index("- name: Resolve libnode dependency stage")
         node_compiler_save = self.source.index("- name: Save compiler cache after libnode stage")
+        node_compact = self.source.index("- name: Compact completed libnode Conan stage")
         node_conan_save = self.source.index("- name: Save Conan cache after libnode stage")
         graph = self.source.index("- name: Resolve remaining dependency graph")
         durable = self.source.index("- name: Package durable Conan checkpoint")
         self.assertLess(qt, qt_save)
         self.assertLess(qt_save, node)
         self.assertLess(node, node_compiler_save)
-        self.assertLess(node_compiler_save, node_conan_save)
+        self.assertLess(node_compiler_save, node_compact)
+        self.assertLess(node_compact, node_conan_save)
         self.assertLess(node_conan_save, graph)
         self.assertLess(graph, durable)
         for phase in ("dependency-qt", "dependency-libnode", "dependency-graph"):
@@ -216,6 +218,16 @@ class MacOSWorkflowContracts(unittest.TestCase):
         )[1].split("- name: Save compiler cache after libnode stage", 1)[0]
         self.assertIn("--mode phase", libnode_verify)
         self.assertNotIn("--mode build", libnode_verify)
+        compact = self.source.split(
+            "- name: Compact completed libnode Conan stage", 1
+        )[1].split("- name: Save Conan cache after libnode stage", 1)[0]
+        self.assertIn("--phase conan-libnode-compact", compact)
+        self.assertIn('conan cache clean "*" --build --source --temp', compact)
+        self.assertGreaterEqual(compact.count('conan cache check-integrity "*"'), 2)
+        libnode_save = self.source.split(
+            "- name: Save Conan cache after libnode stage", 1
+        )[1].split("- name: Require healthy libnode dependency stage", 1)[0]
+        self.assertIn("steps.libnode-conan-compact.outcome == 'success'", libnode_save)
 
     def test_each_expensive_stage_has_heartbeat_timeout_health_gate_and_checkpoint(self):
         for phase in (
@@ -242,6 +254,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "Save pinned build tools",
             "Save Qt Conan stage immediately",
             "Save compiler cache after libnode stage",
+            "Compact completed libnode Conan stage",
             "Save Conan cache after libnode stage",
             "Upload durable Conan checkpoint",
             "Save configured build-tree checkpoint",
