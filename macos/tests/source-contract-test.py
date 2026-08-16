@@ -106,6 +106,9 @@ for native_runtime_contract in (
         raise SystemExit(f"macOS native dylib lookup contract missing: {native_runtime_contract}")
 
 application_source = (ROOT / "interface/src/Application.cpp").read_text(encoding="utf-8")
+application_entities_source = (
+    ROOT / "interface/src/Application_Entities.cpp"
+).read_text(encoding="utf-8")
 online_loading_telemetry = (
     ROOT / "libraries/shared/src/MacOSOnlineLoadingTelemetry.cpp"
 ).read_text(encoding="utf-8")
@@ -126,6 +129,18 @@ for telemetry_start_contract in (
 ):
     if telemetry_start_contract not in online_loading_telemetry:
         raise SystemExit(f"shared macOS online telemetry start contract missing: {telemetry_start_contract}")
+for query_attempt_contract in (
+    "_macosFirstEntityQueryAttemptCaptured",
+    '"server_to_first_attempt_us"',
+    '"first_attempt_to_send_us"',
+    '"attempt_settings_loaded"',
+    '"attempt_physics_enabled"',
+    '"attempt_safe_landing_active"',
+):
+    if query_attempt_contract not in application_entities_source:
+        raise SystemExit(
+            f"macOS online query-attempt attribution missing: {query_attempt_contract}"
+        )
 for telemetry_attribution_contract in (
     "recordedTimestamps.clear()",
     "quint64 recordedTimestampUsec(const char* event)",
@@ -1568,6 +1583,10 @@ for analyzer_contract in (
     '"pending_download_seconds"',
     '"post_visible_zero_present_fraction"',
     '"domain_to_query_ms"',
+    '"domain_to_entity_server_active_ms"',
+    '"entity_server_active_to_query_ms"',
+    '"entity_server_active_to_first_query_attempt_ms"',
+    '"first_query_attempt_to_send_ms"',
     '"query_to_data_ms"',
     '"data_to_decode_ms"',
     '"decode_to_tree_ms"',
@@ -1596,6 +1615,7 @@ for analyzer_contract in (
     "render_handoff is missing attribution fields",
     "render_handoff attribution does not equal the entity_tree-to-handoff interval",
     "single-pass render_handoff preload exceeds its add-slot-to-pending-pass interval",
+    "entity_query first-attempt attribution does not equal the entity-server-active-to-query interval",
 ):
     if analyzer_contract not in online_loading_analyzer:
         raise SystemExit(f"online loading analyzer missing: {analyzer_contract}")

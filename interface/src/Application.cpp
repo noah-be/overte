@@ -2095,6 +2095,12 @@ void Application::nodeActivated(SharedNodePointer node) {
         _queryExpiry = SteadyClock::now();
         _octreeQuery.incrementConnectionID();
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+        _macosEntityServerActivatedAt = SteadyClock::now();
+        _macosFirstEntityQueryAttemptAt = {};
+        _macosFirstEntityQueryAttemptCaptured = false;
+        _macosFirstEntityQueryAttemptSettingsLoaded = false;
+        _macosFirstEntityQueryAttemptPhysicsEnabled = false;
+        _macosFirstEntityQueryAttemptSafeLandingActive = false;
         macos::online_loading::recordOnce("entity_server_active", {
             { "resource_loading", static_cast<qint64>(ResourceCache::getLoadingRequestCount()) },
             { "resource_pending", static_cast<qint64>(ResourceCache::getPendingRequestCount()) },

@@ -757,6 +757,14 @@ private:
     using SteadyClock = std::chrono::steady_clock;
     using TimePoint = SteadyClock::time_point;
     TimePoint _queryExpiry;
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    TimePoint _macosEntityServerActivatedAt {};
+    TimePoint _macosFirstEntityQueryAttemptAt {};
+    bool _macosFirstEntityQueryAttemptCaptured { false };
+    bool _macosFirstEntityQueryAttemptSettingsLoaded { false };
+    bool _macosFirstEntityQueryAttemptPhysicsEnabled { false };
+    bool _macosFirstEntityQueryAttemptSafeLandingActive { false };
+#endif
 
     quint64 _lastNackTime;
     quint64 _lastSendDownstreamAudioStats;

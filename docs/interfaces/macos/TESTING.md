@@ -231,8 +231,13 @@ cold/warm attempt is manifest-driven, and partial metrics from crashes or
 timeouts are retained instead of disappearing from the report. Stale result
 directories are ignored. The aggregator computes peak and time-integrated
 download/processing/texture pressure, post-visible present/new-frame rates, and
-domain-to-query, query-to-data, data-to-decode, decode-to-tree,
+domain-to-entity-server-active, entity-server-active-to-query, query-to-data,
+data-to-decode, decode-to-tree,
 tree-to-handoff, handoff-to-present, and present-to-visible durations. Event
+details from new app builds further split entity-server-active-to-query into
+main-loop time until the first query attempt and guarded time until the query
+is actually sent. Older evidence remains valid and reports this optional split
+as unavailable.
 records are accepted only for the run's validated navigation ID and sanitized
 location digest; arbitrary fields, duplicate/out-of-order records, and missing
 success milestones fail closed. It preserves the legacy end-to-end

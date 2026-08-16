@@ -44,7 +44,12 @@ NAVIGATION_EVENT_FIELDS = {
     "url_accepted": set(),
     "domain_connected": set(),
     "entity_server_active": {"resource_loading", "resource_pending"},
-    "entity_query": {"bytes", "resource_loading", "resource_pending"},
+    "entity_query": {
+        "bytes", "resource_loading", "resource_pending",
+        "server_to_first_attempt_us", "first_attempt_to_send_us",
+        "attempt_settings_loaded", "attempt_physics_enabled",
+        "attempt_safe_landing_active",
+    },
     "entity_data": {"bytes", "packet_queue"},
     "entity_decode": {"decompress_us", "wait_lock_us"},
     "entity_tree": {"entities", "elements", "tree_us"},
@@ -237,6 +242,30 @@ def navigation_milestones(path: Path, navigation_id: str,
             raise LoadingError(
                 "single-pass render_handoff preload exceeds its add-slot-to-pending-pass interval"
             )
+    if "entity_query" in by_event:
+        query = details["entity_query"]
+        split_fields = (
+            "server_to_first_attempt_us",
+            "first_attempt_to_send_us",
+            "attempt_settings_loaded",
+            "attempt_physics_enabled",
+            "attempt_safe_landing_active",
+        )
+        present_split_fields = [field for field in split_fields if field in query]
+        if present_split_fields and len(present_split_fields) != len(split_fields):
+            raise LoadingError("entity_query has an incomplete first-attempt attribution")
+        if present_split_fields:
+            if query["server_to_first_attempt_us"] < 0 or query["first_attempt_to_send_us"] < 0:
+                raise LoadingError("entity_query first-attempt durations must be non-negative")
+            for field in split_fields[2:]:
+                if query[field] not in (0.0, 1.0):
+                    raise LoadingError(f"entity_query {field} must be zero or one")
+            attributed_us = query["server_to_first_attempt_us"] + query["first_attempt_to_send_us"]
+            active_to_query_us = by_event["entity_query"] - by_event["entity_server_active"]
+            if abs(attributed_us - active_to_query_us) > 5000.0:
+                raise LoadingError(
+                    "entity_query first-attempt attribution does not equal the entity-server-active-to-query interval"
+                )
     return result, details
 
 
@@ -281,6 +310,10 @@ def queue_diagnostics(value: dict[str, object]) -> dict[str, object]:
         value_us = handoff_details.get(field)
         return round(float(value_us) / 1000.0, 3) if isinstance(value_us, (int, float)) else None
 
+    def query_milliseconds(field: str) -> float | None:
+        value_us = event_details.get("entity_query", {}).get(field)
+        return round(float(value_us) / 1000.0, 3) if isinstance(value_us, (int, float)) and value_us >= 0 else None
+
     diagnostics = {
         "sample_count": len(samples),
         "last_sample_ms": float(last["elapsed_ms"]),
@@ -304,6 +337,18 @@ def queue_diagnostics(value: dict[str, object]) -> dict[str, object]:
             sum(item <= 0.01 for item in present) / len(present) if present else None
         ),
         "domain_to_query_ms": delta("domain_connected", "entity_query"),
+        "domain_to_entity_server_active_ms": delta(
+            "domain_connected", "entity_server_active"
+        ),
+        "entity_server_active_to_query_ms": delta(
+            "entity_server_active", "entity_query"
+        ),
+        "entity_server_active_to_first_query_attempt_ms": query_milliseconds(
+            "server_to_first_attempt_us"
+        ),
+        "first_query_attempt_to_send_ms": query_milliseconds(
+            "first_attempt_to_send_us"
+        ),
         "query_to_data_ms": delta("entity_query", "entity_data"),
         "data_to_decode_ms": delta("entity_data", "entity_decode"),
         "decode_to_tree_ms": delta("entity_decode", "entity_tree"),

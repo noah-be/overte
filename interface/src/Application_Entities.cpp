@@ -451,6 +451,16 @@ void Application::resettingDomain() {
 }
 
 void Application::queryOctree(NodeType_t serverType, PacketType packetType) {
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    if (packetType == PacketType::EntityQuery && !_macosFirstEntityQueryAttemptCaptured &&
+            _macosEntityServerActivatedAt != TimePoint {}) {
+        _macosFirstEntityQueryAttemptAt = SteadyClock::now();
+        _macosFirstEntityQueryAttemptCaptured = true;
+        _macosFirstEntityQueryAttemptSettingsLoaded = _settingsLoaded;
+        _macosFirstEntityQueryAttemptPhysicsEnabled = _physicsEnabled;
+        _macosFirstEntityQueryAttemptSafeLandingActive = _octreeProcessor->safeLandingIsActive();
+    }
+#endif
     if (!_settingsLoaded) {
         return; // bail early if settings are not loaded
     }
@@ -517,10 +527,24 @@ void Application::queryOctree(NodeType_t serverType, PacketType packetType) {
         nodeList->sendUnreliablePacket(*queryPacket, *node);
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
         if (packetType == PacketType::EntityQuery) {
+            const auto querySentAt = SteadyClock::now();
+            const auto serverToAttempt = _macosFirstEntityQueryAttemptCaptured
+                ? std::chrono::duration_cast<std::chrono::microseconds>(
+                    _macosFirstEntityQueryAttemptAt - _macosEntityServerActivatedAt).count()
+                : -1;
+            const auto attemptToSend = _macosFirstEntityQueryAttemptCaptured
+                ? std::chrono::duration_cast<std::chrono::microseconds>(
+                    querySentAt - _macosFirstEntityQueryAttemptAt).count()
+                : -1;
             macos::online_loading::recordOnce("entity_query", {
                 { "bytes", packetSize },
                 { "resource_loading", static_cast<qint64>(ResourceCache::getLoadingRequestCount()) },
                 { "resource_pending", static_cast<qint64>(ResourceCache::getPendingRequestCount()) },
+                { "server_to_first_attempt_us", static_cast<qint64>(serverToAttempt) },
+                { "first_attempt_to_send_us", static_cast<qint64>(attemptToSend) },
+                { "attempt_settings_loaded", _macosFirstEntityQueryAttemptSettingsLoaded ? 1 : 0 },
+                { "attempt_physics_enabled", _macosFirstEntityQueryAttemptPhysicsEnabled ? 1 : 0 },
+                { "attempt_safe_landing_active", _macosFirstEntityQueryAttemptSafeLandingActive ? 1 : 0 },
             });
             static bool loggedFirstMacOSEntityQuery { false };
             if (!loggedFirstMacOSEntityQuery) {

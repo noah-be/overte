@@ -42,9 +42,27 @@ def telemetry_lines(navigation_id: str, through: str = "first_visible",
         )
         first_render_phase_us = tree_to_handoff_us // 3
         second_render_phase_us = tree_to_handoff_us // 3
+        server_active_us = 1_000_000 + (
+            round(EVENT_ORDER.index("entity_server_active") * first_visible_ms * 1000 /
+                  (len(EVENT_ORDER) - 1))
+            if through == "first_visible"
+            else EVENT_ORDER.index("entity_server_active") * 100_000
+        )
+        server_to_attempt_us = min(200_000, max(0, monotonic_us - server_active_us))
         details = {
             "entity_server_active": {"resource_loading": 1, "resource_pending": 2},
-            "entity_query": {"bytes": 64, "resource_loading": 1, "resource_pending": 2},
+            "entity_query": {
+                "bytes": 64,
+                "resource_loading": 1,
+                "resource_pending": 2,
+                "server_to_first_attempt_us": server_to_attempt_us,
+                "first_attempt_to_send_us": max(
+                    0, monotonic_us - server_active_us - server_to_attempt_us
+                ),
+                "attempt_settings_loaded": 1,
+                "attempt_physics_enabled": 0,
+                "attempt_safe_landing_active": 1,
+            },
             "entity_data": {"bytes": 1200, "packet_queue": 3},
             "entity_decode": {"decompress_us": 40, "wait_lock_us": 10},
             "entity_tree": {"entities": 8, "elements": 4, "tree_us": 500},
@@ -386,6 +404,22 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     )
     assert all(group["queue_diagnostics"][0]["render_preload_ms"] == 1.2
                for group in summary["groups"])
+    assert all(
+        round(
+            group["queue_diagnostics"][0]["domain_to_entity_server_active_ms"] +
+            group["queue_diagnostics"][0]["entity_server_active_to_query_ms"],
+            3,
+        ) == group["queue_diagnostics"][0]["domain_to_query_ms"]
+        for group in summary["groups"]
+    )
+    assert all(
+        round(
+            group["queue_diagnostics"][0]["entity_server_active_to_first_query_attempt_ms"] +
+            group["queue_diagnostics"][0]["first_query_attempt_to_send_ms"],
+            3,
+        ) == group["queue_diagnostics"][0]["entity_server_active_to_query_ms"]
+        for group in summary["groups"]
+    )
     assert all(group["queue_diagnostics"][0]["render_parent_incomplete_skips"] == 1.0
                for group in summary["groups"])
     assert all(group["queue_diagnostics"][0]["navigation_clock_skew_ms"] <= 1.0
