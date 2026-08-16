@@ -52,6 +52,16 @@ class Overte(ConanFile):
     def layout(self):
         self.folders.generators = os.path.join(self.folders.build, "generators")
 
+    def configure(self):
+        # Consumer-level dependency options take precedence over Qt's own
+        # defaults. Setting them here is intentional: passing options to the
+        # force requirement is overwritten while Conan evaluates this root
+        # recipe's wildcard defaults.
+        if self.settings.os == "Macos" and self.options.qt_source == "source":
+            self.options["qt"].with_mysql = False
+            self.options["qt"].with_odbc = False
+            self.options["qt"].with_pq = False
+
     def requirements(self):
         self.requires("artery-font-format/1.0.1") # FIXME: update to 1.1
         self.requires("bullet3/3.25")
@@ -117,15 +127,9 @@ class Overte(ConanFile):
             # graph on macOS independent of PostgreSQL/MySQL/ODBC; in
             # particular, libpq 15.5 cannot safely target macOS 11 with the
             # declarations shipped by Xcode 16.4's macOS 15.5 SDK.
-            qt_options = ({
-                "with_mysql": False,
-                "with_odbc": False,
-                "with_pq": False,
-            } if self.settings.os == "Macos" else {})
             self.requires(
                 "qt/5.15.18@overte/experimental#3a9079f3023351a7319be352cc6f4665",
                 force=True,
-                options=qt_options,
             )
             # Replace Conan Center's glib package with our own duplicate to avoid their outdated binary cache. https://github.com/conan-io/conan-center-index/issues/17876
             self.requires("glib/2.78.3@overte/conancenter", override=True)
