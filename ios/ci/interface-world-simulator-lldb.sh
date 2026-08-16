@@ -116,6 +116,7 @@ readonly app_stderr="$temp_root/application.stderr"
 readonly crash_commands="$temp_root/on-crash.lldb"
 readonly startup_commands="$temp_root/startup-trace.lldb"
 readonly world_gate_log="$temp_root/world-gate.log"
+readonly world_gate_stderr="$temp_root/world-gate.stderr"
 
 : > "$app_stdout"
 : > "$app_stderr"
@@ -134,6 +135,7 @@ sandbox_trace="not_observed"
 exit_trace="not_observed"
 world_gate_trace="not_requested"
 xcode_build="unknown"
+world_gate_log_pid=""
 
 run_bounded() {
     local label="$1" seconds="$2" status=0
@@ -155,6 +157,11 @@ uuid_identity() {
 finish() {
     local status=$?
     trap - EXIT
+    if [[ "$world_gate_log_pid" =~ ^[1-9][0-9]*$ ]]; then
+        kill "$world_gate_log_pid" 2>/dev/null || true
+        wait "$world_gate_log_pid" 2>/dev/null || true
+        world_gate_log_pid=""
+    fi
     if ((app_launched)) && [[ -n "$active_udid" ]]; then
         run_bounded "application cleanup" 30 xcrun simctl terminate \
             "$active_udid" "$bundle_id" >/dev/null || true
@@ -241,6 +248,26 @@ chmod 0700 "$mvk_dump_root"
 run_bounded "simulator microphone permission" 60 xcrun simctl privacy \
     "$active_udid" grant microphone "$bundle_id" >/dev/null
 
+# Subscribe before launch so the durable render-handoff marker is already in
+# a local file even if the simulator stops servicing later `log show` calls.
+# The predicate banner contains only the marker family, not the complete gate
+# string matched below, so it cannot create a false positive.
+if ((attach_after_world_gate)); then
+    : > "$world_gate_log"
+    : > "$world_gate_stderr"
+    gate_stream_timeout=$((10#$world_gate_timeout + 30))
+    "$timeout_runner" "$gate_stream_timeout" xcrun simctl spawn "$active_udid" \
+        log stream --style compact --level info \
+        --predicate 'eventMessage CONTAINS "OVERTE_IOS_ENTITY_GATE"' \
+        > "$world_gate_log" 2> "$world_gate_stderr" &
+    world_gate_log_pid=$!
+    sleep 1
+    kill -0 "$world_gate_log_pid" 2>/dev/null || {
+        echo "world render gate log stream stopped before application launch" >&2
+        exit 1
+    }
+fi
+
 launch_arguments=(xcrun simctl launch)
 if ((wait_for_debugger)); then
     launch_arguments+=(--wait-for-debugger)
@@ -265,21 +292,23 @@ app_launched=1
 # failure enough that it no longer reproduced.  The serverless render handoff
 # is emitted about eight seconds before the known crash window, so diagnostic
 # CI can let startup run normally and attach immediately after that durable
-# unified-log marker.  Query the persisted simulator log instead of relying on
-# redirected `log stream`, which CoreSimulator can block-buffer.
+# unified-log marker.  The stream started before launch avoids any dependency
+# on new CoreSimulator requests once the failing render path has begun.
 if ((attach_after_world_gate)); then
     world_gate_trace="waiting"
     gate_deadline=$(( $(date +%s) + 10#$world_gate_timeout ))
     while :; do
-        gate_status=0
-        run_bounded "world render gate query" 10 xcrun simctl spawn "$active_udid" \
-            log show --last 2m --style compact --info \
-            --predicate "processIdentifier == $launch_pid AND composedMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\"" \
-            > "$world_gate_log" || gate_status=$?
-        if ((gate_status == 0)) && \
-                grep -Eq 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' "$world_gate_log"; then
+        if grep -Eq 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' "$world_gate_log"; then
             world_gate_trace="observed"
+            kill "$world_gate_log_pid" 2>/dev/null || true
+            wait "$world_gate_log_pid" 2>/dev/null || true
+            world_gate_log_pid=""
             break
+        fi
+        if ! kill -0 "$world_gate_log_pid" 2>/dev/null; then
+            world_gate_trace="stream_stopped"
+            echo "world render gate log stream stopped before the marker" >&2
+            exit 1
         fi
         if (( $(date +%s) >= gate_deadline )); then
             world_gate_trace="timed_out"

@@ -146,7 +146,7 @@ for required in (
 assert 'OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS:-1' in LLDB
 assert 'OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE:-0' in LLDB
 assert 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' in LLDB
-assert 'processIdentifier == $launch_pid' in LLDB
+assert 'log stream --style compact --level info' in LLDB
 assert "frame variable" not in LLDB
 assert "target variable" not in LLDB
 assert "memory read" not in LLDB

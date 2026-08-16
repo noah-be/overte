@@ -22,6 +22,9 @@ UUID = "12345678-1234-1234-1234-1234567890AB"
 
 
 def invoke(app: Path, symbols: Path, output: Path, environment: dict[str, str]):
+    launch_marker = environment.get("FAKE_LAUNCH_MARKER")
+    if launch_marker:
+        Path(launch_marker).unlink(missing_ok=True)
     return subprocess.run(
         [
             str(RUNNER),
@@ -62,6 +65,7 @@ with tempfile.TemporaryDirectory(prefix="overte-ios-lldb-test-") as directory:
     scratch.mkdir()
     command_log = root / "commands.log"
     data_container = root / "data-container"
+    launch_marker = root / "application-launched"
 
     fake_xcodebuild = bin_dir / "xcodebuild"
     fake_xcodebuild.write_text(
@@ -86,8 +90,10 @@ elif [ "$1 $2 $3" = "simctl list devices" ]; then
 elif [ "$1 $2" = "simctl get_app_container" ]; then
     mkdir -p "$FAKE_DATA_CONTAINER/tmp"
     printf '%s\n' "$FAKE_DATA_CONTAINER"
-elif [ "$1 $2" = "simctl spawn" ] && [ "${4:-} ${5:-}" = "log show" ]; then
+elif [ "$1 $2" = "simctl spawn" ] && [ "${4:-} ${5:-}" = "log stream" ]; then
+    while [ ! -f "$FAKE_LAUNCH_MARKER" ]; do sleep 0.01; done
     printf '%s\n' 'fixture OVERTE_IOS_ENTITY_GATE render_handoff entity={fixture}'
+    sleep 10
 elif [ "$1 $2" = "simctl launch" ]; then
     [ "${SIMCTL_CHILD_MVK_CONFIG_LOG_LEVEL:-}" = 4 ]
     [ "${SIMCTL_CHILD_MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS:-}" = 0 ]
@@ -111,6 +117,7 @@ elif [ "$1 $2" = "simctl launch" ]; then
     done
     : > "$stdout"
     : > "$stderr"
+    : > "$FAKE_LAUNCH_MARKER"
     printf '%s\n' 'fixture: 4242'
 elif [ "$1" = lldb ]; then
     if [ -n "${FAKE_LLDB_COUNT_FILE:-}" ]; then
@@ -168,6 +175,7 @@ fi
         "FAKE_COMMAND_LOG": str(command_log),
         "FAKE_DEVICE_JSON": json.dumps(device_fixture),
         "FAKE_DATA_CONTAINER": str(data_container),
+        "FAKE_LAUNCH_MARKER": str(launch_marker),
         "FAKE_APP_UUID": UUID,
         "FAKE_SYMBOL_UUID": UUID,
         "OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS": "0",
@@ -194,12 +202,12 @@ fi
     assert "OVERTE_LLDB_CRASH_CAPTURE_COMPLETE" in lldb_log
     commands = command_log.read_text(encoding="utf-8")
     assert "simctl launch --stdout=" in commands
-    assert "simctl spawn private-udid log show --last 2m" in commands
+    assert "simctl spawn private-udid log stream --style compact --level info" in commands
     assert "--wait-for-debugger" not in commands
     assert "lldb --no-lldbinit --no-use-colors --batch --attach-pid 4242" in commands
     assert (
-        commands.index("simctl launch")
-        < commands.index("simctl spawn private-udid log show")
+        commands.index("simctl spawn private-udid log stream")
+        < commands.index("simctl launch")
         < commands.index("lldb --no-lldbinit")
     )
     assert "startup-trace.lldb" not in commands
