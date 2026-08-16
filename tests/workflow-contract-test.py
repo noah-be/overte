@@ -195,6 +195,9 @@ class MacOSWorkflowContracts(unittest.TestCase):
         node_compiler_save = self.source.index("- name: Save compiler cache after libnode stage")
         node_compact = self.source.index("- name: Compact completed libnode Conan stage")
         node_conan_save = self.source.index("- name: Save Conan cache after libnode stage")
+        node_durable_package = self.source.index("- name: Package durable libnode Conan checkpoint")
+        node_durable_upload = self.source.index("- name: Upload durable libnode Conan checkpoint")
+        node_durable_verify = self.source.index("- name: Verify durable libnode Conan checkpoint upload")
         graph = self.source.index("- name: Resolve remaining dependency graph")
         durable = self.source.index("- name: Package durable Conan checkpoint")
         self.assertLess(qt, qt_save)
@@ -202,6 +205,10 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertLess(node, node_compiler_save)
         self.assertLess(node_compiler_save, node_compact)
         self.assertLess(node_compact, node_conan_save)
+        self.assertLess(node_conan_save, node_durable_package)
+        self.assertLess(node_durable_package, node_durable_upload)
+        self.assertLess(node_durable_upload, node_durable_verify)
+        self.assertLess(node_durable_verify, graph)
         self.assertLess(node_conan_save, graph)
         self.assertLess(graph, durable)
         graph_section = self.source.split(
@@ -226,12 +233,31 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "- name: Compact completed libnode Conan stage", 1
         )[1].split("- name: Save Conan cache after libnode stage", 1)[0]
         self.assertIn("--phase conan-libnode-compact", compact)
+        self.assertIn("steps.conan-cache.outputs.cache-hit != 'true'", compact)
+        self.assertNotIn("cache-matched-key == ''", compact)
         self.assertIn('conan cache clean "*" --build --source --temp', compact)
         self.assertGreaterEqual(compact.count('conan cache check-integrity "*"'), 2)
         libnode_save = self.source.split(
             "- name: Save Conan cache after libnode stage", 1
         )[1].split("- name: Require healthy libnode dependency stage", 1)[0]
         self.assertIn("steps.libnode-conan-compact.outcome == 'success'", libnode_save)
+        self.assertIn("!contains(steps.conan-cache.outputs.cache-matched-key, '-stage-libnode-')", libnode_save)
+        for token in (
+            "conan_libnode_checkpoint",
+            "Probe latest compatible durable libnode checkpoint",
+            "conan-libnode-durable-package",
+            "macos-conan-libnode-checkpoint",
+            "conan-libnode-durable-verify",
+            "conan-libnode-checkpoint-upload.outputs.artifact-id",
+            "conan-libnode-checkpoint-upload.outputs.artifact-digest",
+            "retention-days: 14",
+        ):
+            self.assertIn(token, self.source)
+        restore = self.source.split(
+            "- name: Restore latest compatible durable Conan checkpoint", 1
+        )[1].split("- name: Prepare deterministic Conan configuration", 1)[0]
+        self.assertIn("steps.conan-libnode-checkpoint-probe.outputs.found == 'true'", restore)
+        self.assertIn("steps.cache-key.outputs.conan_libnode_checkpoint", restore)
 
     def test_each_expensive_stage_has_heartbeat_timeout_health_gate_and_checkpoint(self):
         for phase in (
@@ -260,6 +286,8 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "Save compiler cache after libnode stage",
             "Compact completed libnode Conan stage",
             "Save Conan cache after libnode stage",
+            "Upload durable libnode Conan checkpoint",
+            "Verify durable libnode Conan checkpoint upload",
             "Upload durable Conan checkpoint",
             "Save configured build-tree checkpoint",
             "Save complete compiler cache",

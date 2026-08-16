@@ -287,6 +287,7 @@ jobs:
             echo "arm_sql_migration_conan_partial=macos-conan-v3-arm64-f578deb9b5226d69128d2c1de58f14a72f07ccb6c15bee8b81af54e5ef769dfc-eb7bd0d0944860cdae421d276456750c8205b84f7c54f0497aed9cce2bbb093c-partial-" >> "$GITHUB_OUTPUT"
           fi
           echo "conan_checkpoint=overte-macos-conan-checkpoint-v4-${OVERTE_MACOS_ARCH}-${dependency_fingerprint}-${conan_inputs}" >> "$GITHUB_OUTPUT"
+          echo "conan_libnode_checkpoint=overte-macos-conan-libnode-checkpoint-v1-${OVERTE_MACOS_ARCH}-${dependency_fingerprint}-${conan_inputs}" >> "$GITHUB_OUTPUT"
           echo "sccache_complete=${base}-complete-${source_inputs}" >> "$GITHUB_OUTPUT"
           echo "sccache_complete_prefix=${base}-complete-" >> "$GITHUB_OUTPUT"
           echo "sccache_partial_prefix=${base}-partial-" >> "$GITHUB_OUTPUT"
@@ -420,12 +421,27 @@ jobs:
           --token-env OVERTE_CHECKPOINT_TOKEN
           --github-output "$GITHUB_OUTPUT"
 
+      - name: Probe latest compatible durable libnode checkpoint
+        id: conan-libnode-checkpoint-probe
+        if: ${{ steps.conan-checkpoint-probe.outputs.found != 'true' }}
+        env:
+          OVERTE_CHECKPOINT_TOKEN: ${{ github.token }}
+        run: >-
+          python3 macos/ci/conan-checkpoint.py probe
+          --repository "$GITHUB_REPOSITORY"
+          --artifact-name "${{ steps.cache-key.outputs.conan_libnode_checkpoint }}"
+          --repository-id "$GITHUB_REPOSITORY_ID"
+          --branch "$GITHUB_REF_NAME"
+          --token-env OVERTE_CHECKPOINT_TOKEN
+          --github-output "$GITHUB_OUTPUT"
+
       - name: Restore latest compatible durable Conan checkpoint
         id: conan-checkpoint-restore
         timeout-minutes: 45
         if: >-
           ${{ steps.conan-cache.outputs.cache-hit != 'true' &&
-              steps.conan-checkpoint-probe.outputs.found == 'true' }}
+              (steps.conan-checkpoint-probe.outputs.found == 'true' ||
+               steps.conan-libnode-checkpoint-probe.outputs.found == 'true') }}
         env:
           OVERTE_CHECKPOINT_TOKEN: ${{ github.token }}
         run: |
@@ -438,7 +454,7 @@ jobs:
             --watch conan="$CONAN_HOME" -- \
             python3 macos/ci/conan-checkpoint.py restore-remote \
               --repository "$GITHUB_REPOSITORY" \
-              --artifact-name "${{ steps.cache-key.outputs.conan_checkpoint }}" \
+              --artifact-name "${{ steps.conan-checkpoint-probe.outputs.found == 'true' && steps.cache-key.outputs.conan_checkpoint || steps.cache-key.outputs.conan_libnode_checkpoint }}" \
               --repository-id "$GITHUB_REPOSITORY_ID" \
               --branch "$GITHUB_REF_NAME" \
               --token-env OVERTE_CHECKPOINT_TOKEN \
@@ -585,7 +601,7 @@ jobs:
         if: >-
           ${{ always() && !cancelled() &&
               steps.resolve-libnode.outcome == 'success' &&
-              steps.conan-cache.outputs.cache-matched-key == '' &&
+              steps.conan-cache.outputs.cache-hit != 'true' &&
               steps.conan-checkpoint-restore.outputs.restored != 'true' }}
         continue-on-error: true
         timeout-minutes: 15
@@ -608,7 +624,8 @@ jobs:
           ${{ always() && !cancelled() &&
               steps.resolve-libnode.outcome == 'success' &&
               steps.libnode-conan-compact.outcome == 'success' &&
-              steps.conan-cache.outputs.cache-matched-key == '' &&
+              steps.conan-cache.outputs.cache-hit != 'true' &&
+              !contains(steps.conan-cache.outputs.cache-matched-key, '-stage-libnode-') &&
               steps.conan-checkpoint-restore.outputs.restored != 'true' }}
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
@@ -617,13 +634,78 @@ jobs:
             ${{ env.CONAN_HOME }}/sources
           key: ${{ steps.cache-key.outputs.conan_stage_prefix }}libnode-${{ github.run_id }}-${{ github.run_attempt }}
 
+      - name: Package durable libnode Conan checkpoint
+        id: conan-libnode-checkpoint-package
+        timeout-minutes: 45
+        if: >-
+          ${{ always() && !cancelled() &&
+              steps.resolve-libnode.outcome == 'success' &&
+              steps.libnode-conan-compact.outcome == 'success' &&
+              steps.conan-cache.outputs.cache-hit != 'true' &&
+              steps.conan-checkpoint-probe.outputs.found != 'true' &&
+              steps.conan-libnode-checkpoint-probe.outputs.found != 'true' }}
+        run: |
+          python3 macos/ci/runner-telemetry.py \
+            --phase conan-libnode-durable-package \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/conan-libnode-durable-package.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/conan-libnode-durable-package-stall" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 900 --max-runtime 2400 \
+            --watch conan="$CONAN_HOME" \
+            --watch checkpoint="$RUNNER_TEMP/macos-conan-libnode-checkpoint" -- \
+            python3 macos/ci/conan-checkpoint.py create \
+              --conan-home "$CONAN_HOME" \
+              --output-dir "$RUNNER_TEMP/macos-conan-libnode-checkpoint" \
+              --key "${{ steps.cache-key.outputs.conan }}" \
+              --repository-id "$GITHUB_REPOSITORY_ID" \
+              --branch "$GITHUB_REF_NAME"
+
+      - name: Upload durable libnode Conan checkpoint
+        id: conan-libnode-checkpoint-upload
+        timeout-minutes: 60
+        if: ${{ always() && steps.conan-libnode-checkpoint-package.outcome == 'success' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ steps.cache-key.outputs.conan_libnode_checkpoint }}
+          path: ${{ runner.temp }}/macos-conan-libnode-checkpoint
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Verify durable libnode Conan checkpoint upload
+        id: conan-libnode-checkpoint-verify
+        timeout-minutes: 60
+        if: ${{ always() && steps.conan-libnode-checkpoint-upload.outcome == 'success' }}
+        env:
+          OVERTE_CHECKPOINT_TOKEN: ${{ github.token }}
+        run: |
+          python3 macos/ci/runner-telemetry.py \
+            --phase conan-libnode-durable-verify \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/conan-libnode-durable-verify.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/conan-libnode-durable-verify-stall" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 900 --max-runtime 3300 \
+            --watch conan="$CONAN_HOME" -- \
+            python3 macos/ci/conan-checkpoint.py verify-remote \
+              --repository "$GITHUB_REPOSITORY" \
+              --artifact-name "${{ steps.cache-key.outputs.conan_libnode_checkpoint }}" \
+              --artifact-id "${{ steps.conan-libnode-checkpoint-upload.outputs.artifact-id }}" \
+              --expected-digest "${{ steps.conan-libnode-checkpoint-upload.outputs.artifact-digest }}" \
+              --key "${{ steps.cache-key.outputs.conan }}" \
+              --repository-id "$GITHUB_REPOSITORY_ID" \
+              --branch "$GITHUB_REF_NAME" \
+              --token-env OVERTE_CHECKPOINT_TOKEN
+
       - name: Require healthy libnode dependency stage
         if: >-
           ${{ always() && steps.resolve-libnode.outcome != 'skipped' &&
               (steps.resolve-libnode.outcome == 'failure' ||
                steps.dependency-compiler-stats.outcome == 'failure' ||
                steps.dependency-compiler-verify.outcome == 'failure' ||
-               steps.libnode-conan-compact.outcome == 'failure') }}
+               steps.libnode-conan-compact.outcome == 'failure' ||
+               steps.conan-libnode-checkpoint-package.outcome == 'failure' ||
+               steps.conan-libnode-checkpoint-upload.outcome == 'failure' ||
+               steps.conan-libnode-checkpoint-verify.outcome == 'failure') }}
         run: exit 1
 
       - name: Configure compiler checkpoint for remaining dependencies
