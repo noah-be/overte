@@ -239,6 +239,10 @@ elif [ "$1 $2" = "simctl spawn" ] && [ "$4 $5" = "log stream" ]; then
     while :; do sleep 1; done
 elif [ "$1 $2" = "simctl spawn" ] && [ "$4 $5" = "log show" ]; then
     case " $* " in
+        *" --last 2m --style compact --info --debug --predicate processIdentifier == "*)
+            printf '%s' "$FAKE_PROCESS_LOG"
+            exit 0
+            ;;
         *" --last 5m --style compact --info --debug --predicate "*) ;;
         *) printf '%s\n' "invalid log show options" >&2; exit 64 ;;
     esac
@@ -360,7 +364,9 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
             streams = [line for line in commands if line.startswith(f"simctl spawn {udid} log stream ")]
             assert len(streams) == 1, streams
             assert commands.index(streams[0]) < commands.index(launch[0]), commands
-            assert "log show" not in "\n".join(commands), commands
+            snapshots = [line for line in commands if " log show --last 2m " in f" {line} "]
+            assert snapshots and f"processIdentifier == {app_pid_file.read_text().strip()}" in snapshots[-1]
+            assert not any(" log show --last 5m " in f" {line} " for line in commands), commands
             assert 'process == "Overte"' in streams[0], streams
             assert "--level debug" in streams[0], streams
             assert "OVERTE_IOS_VULKAN_FATAL" in streams[0], streams

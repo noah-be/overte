@@ -19,7 +19,7 @@ output_dir="${6:-}"
 poll_timeout="${OVERTE_IOS_WORLD_TIMEOUT_SECONDS:-240}"
 poll_interval="${OVERTE_IOS_WORLD_POLL_SECONDS:-2}"
 screenshot_settle="${OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS:-2}"
-stack_sample_delay="${OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS:-1}"
+stack_sample_delay="${OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS:-30}"
 crash_report_wait="${OVERTE_IOS_WORLD_CRASH_REPORT_WAIT_SECONDS:-20}"
 diagnostics_dir="${OVERTE_IOS_WORLD_DIAGNOSTICS_DIR:-}"
 mvk_trace_vulkan_calls="${OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS:-}"
@@ -98,6 +98,7 @@ temp_root="$(mktemp -d "${TMPDIR:-/tmp}/overte-ios-world-smoke.XXXXXX")"
 readonly temp_root
 readonly device_list="$temp_root/devices.json"
 readonly raw_log="$temp_root/process.log"
+readonly log_snapshot="$temp_root/process-snapshot.log"
 readonly app_stdout="$temp_root/application.stdout"
 readonly app_stderr="$temp_root/application.stderr"
 readonly runtime_log="$temp_root/runtime.log"
@@ -128,6 +129,7 @@ fi
 # These files must exist before any fallible simulator operation because the
 # EXIT trap preserves them even when discovery, boot or installation fails.
 : > "$raw_log"
+: > "$log_snapshot"
 : > "$app_stdout"
 : > "$app_stderr"
 : > "$process_state_log"
@@ -185,9 +187,10 @@ preserve_failure_application_log() {
     {
         printf '%s\n' '=== retained acceptance markers ==='
         grep -Eh 'OVERTE_IOS_(WORLD|ENTITY)_GATE|OVERTE_IOS_(WORLD_DIAGNOSTIC|VULKAN_FATAL|VULKAN_DEBUG|VULKAN_PIPELINE_CONTEXT|VULKAN_PIPELINE_CREATE)' \
-            "$raw_log" "$app_stdout" "$app_stderr" 2>/dev/null | tail -c 131072 || true
-        for source in "$raw_log" "$app_stdout" "$app_stderr"; do
+            "$log_snapshot" "$raw_log" "$app_stdout" "$app_stderr" 2>/dev/null | tail -c 131072 || true
+        for source in "$log_snapshot" "$raw_log" "$app_stdout" "$app_stderr"; do
             case "$source" in
+                "$log_snapshot") label="bounded unified-log snapshot" ;;
                 "$raw_log") label="unified lifecycle log" ;;
                 "$app_stdout") label="application stdout" ;;
                 *) label="application stderr" ;;
@@ -389,7 +392,25 @@ capture_crash_reports() {
 
 runtime_log_contains() {
     local pattern="$1"
-    grep -Eq "$pattern" "$raw_log" "$app_stdout" "$app_stderr"
+    grep -Eq "$pattern" "$log_snapshot" "$raw_log" "$app_stdout" "$app_stderr"
+}
+
+refresh_runtime_log_snapshot() {
+    [[ -n "$active_udid" && "$launch_pid" =~ ^[1-9][0-9]*$ ]] || return 0
+    local snapshot_candidate="$temp_root/process-snapshot.next" status=0
+    rm -f "$snapshot_candidate"
+    "$timeout_runner" 8 xcrun simctl spawn "$active_udid" log show \
+        --last 2m --style compact --info --debug \
+        --predicate "processIdentifier == $launch_pid AND (eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\")" \
+        > "$snapshot_candidate" 2>/dev/null || status=$?
+    if ((status == 0)); then
+        mv "$snapshot_candidate" "$log_snapshot"
+    else
+        rm -f "$snapshot_candidate"
+    fi
+    # The continuously running stream remains the fallback. A failed snapshot
+    # query is supplementary and must never replace the runtime result.
+    return 0
 }
 
 fail_if_vulkan_fatal() {
@@ -407,7 +428,11 @@ fail_if_vulkan_fatal() {
 }
 
 assemble_runtime_log() {
-    cat "$raw_log" "$app_stdout" "$app_stderr" > "$runtime_log"
+    if [[ -s "$log_snapshot" ]]; then
+        cat "$log_snapshot" "$app_stdout" "$app_stderr" > "$runtime_log"
+    else
+        cat "$raw_log" "$app_stdout" "$app_stderr" > "$runtime_log"
+    fi
 }
 
 fail_stopped_log_stream() {
@@ -570,6 +595,10 @@ deadline=$(( $(date +%s) + 10#$poll_timeout ))
 sample_deadline=$(( $(date +%s) + 10#$stack_sample_delay ))
 startup_stack_captured=0
 while :; do
+    # `log stream` can block-buffer when redirected to a file. Query the
+    # simulator's persisted log for this exact process so accepted gates become
+    # visible promptly, while retaining the continuous stream for crash tails.
+    refresh_runtime_log_snapshot
     fail_if_vulkan_fatal || exit 1
     if ! process_is_running; then
         # Give the unified log stream one bounded opportunity to flush a fatal
