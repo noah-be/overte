@@ -21,7 +21,8 @@ source_revision="${5:-}"
 candidate_sha256="${6:-}"
 output_dir="${7:-}"
 lldb_timeout="${OVERTE_IOS_LLDB_TIMEOUT_SECONDS:-240}"
-attach_delay="${OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS:-5}"
+attach_delay="${OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS:-1}"
+attach_attempts="${OVERTE_IOS_LLDB_ATTACH_ATTEMPTS:-3}"
 startup_trace="${OVERTE_IOS_LLDB_STARTUP_TRACE:-0}"
 wait_for_debugger="${OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER:-0}"
 
@@ -47,6 +48,10 @@ wait_for_debugger="${OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER:-0}"
 }
 [[ "$attach_delay" =~ ^[0-9]+$ ]] && ((10#$attach_delay <= 20)) || {
     echo "OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS must be an integer from 0 through 20" >&2
+    exit 2
+}
+[[ "$attach_attempts" =~ ^[1-5]$ ]] || {
+    echo "OVERTE_IOS_LLDB_ATTACH_ATTEMPTS must be an integer from 1 through 5" >&2
     exit 2
 }
 [[ "$startup_trace" =~ ^[01]$ ]] || {
@@ -107,6 +112,7 @@ boot_requested=0
 app_installed=0
 app_launched=0
 lldb_status="not_run"
+attach_attempts_used=0
 capture_status="not_captured"
 resume_trace="not_observed"
 sandbox_trace="not_observed"
@@ -158,6 +164,8 @@ finish() {
         printf 'candidate_sha256=%s\n' "$candidate_sha256"
         printf 'xcode_build=%s\n' "$xcode_build"
         printf 'attach_delay_seconds=%s\n' "$attach_delay"
+        printf 'attach_attempts_requested=%s\n' "$attach_attempts"
+        printf 'attach_attempts_used=%s\n' "$attach_attempts_used"
         printf 'wait_for_debugger=%s\n' "$wait_for_debugger"
         printf 'startup_trace=%s\n' "$startup_trace"
         printf 'lldb_status=%s\n' "$lldb_status"
@@ -237,8 +245,7 @@ app_launched=1
 
 # Attaching at dyld start without --wait-for-debugger can race the simulator's
 # task-port setup and fail with "could not pause execution".  A short bounded
-# delay keeps normal startup ordering while attaching well before the observed
-# post-import crash.
+# delay keeps normal startup ordering while attaching before an early crash.
 if ((!wait_for_debugger && 10#$attach_delay > 0)); then
     sleep "$attach_delay"
 fi
@@ -295,9 +302,28 @@ lldb_arguments+=(
     -o 'process continue' \
     -o 'script print("OVERTE_LLDB_STARTUP_TRACE_COMPLETE")'
 )
-"$timeout_runner" "$lldb_timeout" xcrun lldb \
-    "${lldb_arguments[@]}" \
-    > "$lldb_log" 2>&1 || lldb_status=$?
+for ((attach_attempt = 1; attach_attempt <= 10#$attach_attempts; attach_attempt++)); do
+    attach_attempts_used="$attach_attempt"
+    attempt_log="$temp_root/lldb-attempt-$attach_attempt.log"
+    attempt_status=0
+    "$timeout_runner" "$lldb_timeout" xcrun lldb \
+        "${lldb_arguments[@]}" \
+        > "$attempt_log" 2>&1 || attempt_status=$?
+    {
+        printf '=== LLDB attach attempt %d ===\n' "$attach_attempt"
+        cat "$attempt_log"
+    } >> "$lldb_log"
+    lldb_status="$attempt_status"
+
+    # Retry only the known transient CoreSimulator task-port race.  All other
+    # failures, a completed process, a timeout, and a captured crash are final.
+    if ((attempt_status == 0)) || \
+            ! grep -Fq 'could not pause execution' "$attempt_log" || \
+            ((attach_attempt == 10#$attach_attempts)); then
+        break
+    fi
+    sleep 1
+done
 
 grep -Fxq 'OVERTE_LLDB_TRACE resume_entry' "$lldb_log" && resume_trace="observed" || true
 grep -Fxq 'OVERTE_LLDB_TRACE sandbox_entry' "$lldb_log" && sandbox_trace="observed" || true

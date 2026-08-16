@@ -111,6 +111,16 @@ elif [ "$1 $2" = "simctl launch" ]; then
     : > "$stderr"
     printf '%s\n' 'fixture: 4242'
 elif [ "$1" = lldb ]; then
+    if [ -n "${FAKE_LLDB_COUNT_FILE:-}" ]; then
+        count=0
+        [ ! -f "$FAKE_LLDB_COUNT_FILE" ] || count=$(cat "$FAKE_LLDB_COUNT_FILE")
+        count=$((count + 1))
+        printf '%s\n' "$count" > "$FAKE_LLDB_COUNT_FILE"
+        if [ "${FAKE_LLDB_FAIL_FIRST_ATTACH:-0}" = 1 ] && [ "$count" = 1 ]; then
+            printf '%s\n' 'error: attach failed: attach failed (attached to process, but could not pause execution; attach failed)' >&2
+            exit 1
+        fi
+    fi
     if [ "${FAKE_LLDB_SLEEP:-0}" = 1 ]; then
         sleep 10
     fi
@@ -168,6 +178,8 @@ fi
     assert "capture_status=captured_sigsegv" in result
     assert "lldb_status=0" in result
     assert "attach_delay_seconds=0" in result
+    assert "attach_attempts_requested=3" in result
+    assert "attach_attempts_used=1" in result
     assert "wait_for_debugger=0" in result
     assert "startup_trace=0" in result
     assert f"source_revision={SOURCE_REVISION}" in result
@@ -180,6 +192,26 @@ fi
     assert "lldb --no-lldbinit --no-use-colors --batch --attach-pid 4242" in commands
     assert "startup-trace.lldb" not in commands
     assert "simctl terminate" in commands and "simctl shutdown" in commands
+
+    command_log.write_text("", encoding="utf-8")
+    retry_count = root / "retry-count.txt"
+    retry_environment = {
+        **base_environment,
+        "FAKE_LLDB_COUNT_FILE": str(retry_count),
+        "FAKE_LLDB_FAIL_FIRST_ATTACH": "1",
+    }
+    retry_output = root / "retry"
+    retried = invoke(app, symbols, retry_output, retry_environment)
+    assert retried.returncode == 1, (retried.stdout, retried.stderr)
+    retry_result = (retry_output / "iphone-serverless-lldb-result.log").read_text(
+        encoding="utf-8"
+    )
+    assert "capture_status=captured_sigsegv" in retry_result
+    assert "attach_attempts_used=2" in retry_result
+    assert retry_count.read_text(encoding="utf-8").strip() == "2"
+    retry_log = (retry_output / "iphone-serverless-lldb.log").read_text(encoding="utf-8")
+    assert "could not pause execution" in retry_log
+    assert "OVERTE_LLDB_CRASH_CAPTURE_COMPLETE" in retry_log
 
     command_log.write_text("", encoding="utf-8")
     normal_exit_environment = {
