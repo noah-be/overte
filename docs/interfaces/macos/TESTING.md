@@ -235,10 +235,13 @@ domain-to-query, query-to-data, data-to-decode, decode-to-tree,
 tree-to-handoff, handoff-to-present, and present-to-visible durations. Event
 records are accepted only for the run's validated navigation ID and sanitized
 location digest; arbitrary fields, duplicate/out-of-order records, and missing
-success milestones fail closed. It classifies each cache-mode run as
-connection, entity-server/query, entity-stream/public domain,
-decode/visibility, render/present, screenshot completion, resource backlog, or
-no observed bottleneck. On the hosted software renderer the suite
+success milestones fail closed. It preserves the legacy end-to-end
+classification, and separately classifies the largest measured phase before
+first-visible (connection, query, stream, decode, tree mutation, render
+handoff, first present, or visibility) and the post-visible health outcome
+(render/present, screenshot completion, resource backlog, or no observed
+bottleneck). This prevents a renderer that stops presenting after visibility
+from hiding a much slower network/query phase in the loading path. On the hosted software renderer the suite
 deliberately runs only the first requested concurrency, because two driver-pathological runs
 cannot produce a meaningful download-concurrency comparison. Its script records
 at most 70 seconds without visible content or 30 seconds after first-visible.
@@ -311,6 +314,21 @@ samples also had no presentation. The automated classifications are therefore
 `render-present` for cold and `resource-backlog` for warm, with both signals
 retained. This mutable-world pair does not support changing the default download
 concurrency.
+
+Run `31924286980` validated three diagnostic cold/warm repetitions with the
+navigation epoch and detailed render-handoff attribution. One cold process
+crashed with SIGSEGV; the remaining five exited normally, but none completed
+both screenshot and sustained-idle gates. Octree decompression and tree
+mutation were only 0.1--0.3 ms and synchronous preload work was at most 0.02 ms,
+so neither is a measured bottleneck. Domain-to-query was 2.24--12.94 seconds
+and was the dominant pre-visible phase in five of six attempts; render handoff
+was 0.36--2.41 seconds when observed. After visibility, four attempts spent
+more than 93% of samples at zero present rate, while every attempt retained a
+resource backlog. The split classifier therefore reports
+`entity-server-or-query` as the dominant first-visible latency bottleneck and
+`render-present` as the dominant post-visible bottleneck for both cold and
+warm. The diagnostic runner intentionally omitted c16, so this run still does
+not justify changing download concurrency or production rendering defaults.
 
 Repeated clean launch, local-scene render, screenshot, and shutdown cycles are
 available with:

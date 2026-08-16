@@ -333,6 +333,50 @@ def queue_diagnostics(value: dict[str, object]) -> dict[str, object]:
     if value.get("first_visible_ms") is not None and value.get("snapshot_completed_ms") is None:
         signals.append("screenshot-incomplete")
 
+    # Keep time-to-first-visible attribution separate from the health of the
+    # renderer after visibility.  A software renderer can reach a visible
+    # entity after a slow domain query and then stop presenting; collapsing
+    # both observations into one label hides the actionable loading phase.
+    loading_phases = (
+        ("domain_to_query_ms", "entity-server-or-query"),
+        ("query_to_data_ms", "entity-stream-or-public-domain"),
+        ("data_to_decode_ms", "entity-data-to-decode"),
+        ("decode_to_tree_ms", "entity-tree-mutation"),
+        ("tree_to_handoff_ms", "render-handoff"),
+        ("handoff_to_present_ms", "first-present"),
+        ("present_to_visible_ms", "first-visible"),
+    )
+    measured_loading_phases = [
+        (float(diagnostics[field]), label)
+        for field, label in loading_phases
+        if isinstance(diagnostics[field], (int, float))
+    ]
+    if milestones.get("url_accepted") is None:
+        loading_primary = "navigation-identity"
+    elif milestones.get("domain_connected") is None:
+        loading_primary = "domain-connection"
+    elif milestones.get("entity_query") is None:
+        loading_primary = "entity-server-or-query"
+    elif milestones.get("entity_data") is None:
+        loading_primary = "entity-stream-or-public-domain"
+    elif value.get("first_visible_ms") is None:
+        loading_primary = "entity-decode-or-visibility"
+    elif measured_loading_phases:
+        loading_primary = max(measured_loading_phases, key=lambda item: item[0])[1]
+    else:
+        loading_primary = "unattributed"
+
+    if value.get("first_visible_ms") is None:
+        post_visible_primary = "not-reached"
+    elif "render-present" in signals:
+        post_visible_primary = "render-present"
+    elif value.get("snapshot_completed_ms") is None:
+        post_visible_primary = "screenshot-completion"
+    elif value.get("sustained_idle_ms") is None:
+        post_visible_primary = "resource-backlog"
+    else:
+        post_visible_primary = "none-observed"
+
     if milestones.get("url_accepted") is None:
         primary = "navigation-identity"
     elif milestones.get("domain_connected") is None:
@@ -352,6 +396,8 @@ def queue_diagnostics(value: dict[str, object]) -> dict[str, object]:
     else:
         primary = "none-observed"
     diagnostics["primary_bottleneck"] = primary
+    diagnostics["first_visible_latency_bottleneck"] = loading_primary
+    diagnostics["post_visible_bottleneck"] = post_visible_primary
     diagnostics["bottleneck_signals"] = signals
     return diagnostics
 
@@ -670,6 +716,14 @@ def aggregate(attempts: list[dict[str, object]], metrics: list[dict[str, object]
             bottlenecks = Counter(
                 str(item["queue_diagnostics"]["primary_bottleneck"]) for item in group_metrics
             )
+            loading_bottlenecks = Counter(
+                str(item["queue_diagnostics"]["first_visible_latency_bottleneck"])
+                for item in group_metrics
+            )
+            post_visible_bottlenecks = Counter(
+                str(item["queue_diagnostics"]["post_visible_bottleneck"])
+                for item in group_metrics
+            )
             signals = Counter(
                 signal
                 for item in group_metrics
@@ -700,6 +754,17 @@ def aggregate(attempts: list[dict[str, object]], metrics: list[dict[str, object]
                 "sustained_idle_ms_median": median_or_none(idle),
                 "dominant_bottleneck": bottlenecks.most_common(1)[0][0] if bottlenecks else None,
                 "bottleneck_counts": dict(sorted(bottlenecks.items())),
+                "dominant_first_visible_latency_bottleneck": (
+                    loading_bottlenecks.most_common(1)[0][0] if loading_bottlenecks else None
+                ),
+                "first_visible_latency_bottleneck_counts": dict(
+                    sorted(loading_bottlenecks.items())
+                ),
+                "dominant_post_visible_bottleneck": (
+                    post_visible_bottlenecks.most_common(1)[0][0]
+                    if post_visible_bottlenecks else None
+                ),
+                "post_visible_bottleneck_counts": dict(sorted(post_visible_bottlenecks.items())),
                 "bottleneck_signal_counts": dict(sorted(signals.items())),
                 "queue_diagnostics": [item["queue_diagnostics"] for item in group_metrics],
             })
@@ -748,6 +813,16 @@ def aggregate(attempts: list[dict[str, object]], metrics: list[dict[str, object]
         "observed_best_concurrency": observed_best,
         "bottleneck_summary": {
             f"c{item['concurrency']}-{item['cache_mode']}": item["dominant_bottleneck"]
+            for item in groups
+        },
+        "first_visible_latency_bottleneck_summary": {
+            f"c{item['concurrency']}-{item['cache_mode']}":
+                item["dominant_first_visible_latency_bottleneck"]
+            for item in groups
+        },
+        "post_visible_bottleneck_summary": {
+            f"c{item['concurrency']}-{item['cache_mode']}":
+                item["dominant_post_visible_bottleneck"]
             for item in groups
         },
         "passed": complete or diagnostic_observation_complete,

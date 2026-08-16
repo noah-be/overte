@@ -834,12 +834,22 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     assert render_analysis.returncode == 0, render_analysis.stdout + render_analysis.stderr
     render_summary = json.loads(render_result.read_text(encoding="utf-8"))
     assert set(render_summary["bottleneck_summary"].values()) == {"render-present"}
+    assert set(render_summary["first_visible_latency_bottleneck_summary"].values()) == {
+        "entity-server-or-query"
+    }
+    assert set(render_summary["post_visible_bottleneck_summary"].values()) == {
+        "render-present"
+    }
     assert all(group["queue_diagnostics"][0]["post_visible_zero_present_fraction"] == 1.0
                for group in render_summary["groups"])
     assert all(group["bottleneck_signal_counts"] == {
         "render-present": 1,
         "screenshot-incomplete": 1,
     }
+               for group in render_summary["groups"])
+    assert all(group["dominant_first_visible_latency_bottleneck"] ==
+               "entity-server-or-query" for group in render_summary["groups"])
+    assert all(group["dominant_post_visible_bottleneck"] == "render-present"
                for group in render_summary["groups"])
 
     missing_network = temporary / "diagnostic-missing-network"
