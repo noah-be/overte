@@ -12,6 +12,8 @@
 
 #include "Platform.h"
 #include "PlatformKeys.h"
+#include <algorithm>
+#include <cctype>
 #include <qglobal.h>
 
 using namespace platform;
@@ -70,6 +72,26 @@ bool filterOnComputerMACOS(const platform::json& computer, Profiler::Tier& tier)
     auto gpu = platform::getGPU(platform::getPrimaryGPU());
     if (gpu.count(keys::gpu::vendor)) {
         std::string gpuVendor = gpu[keys::gpu::vendor].get<std::string>();
+        std::string gpuModel = gpu.value(keys::gpu::model, std::string {});
+        std::string normalizedGPU = gpuVendor + " " + gpuModel;
+        std::transform(normalizedGPU.begin(), normalizedGPU.end(), normalizedGPU.begin(),
+            [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
+
+        // Virtualized and software-only macOS GPUs cannot sustain the deferred
+        // shader set.  Starting them at MID caused multi-minute first-frame
+        // compilation on Apple's software OpenGL implementation.  Keep this
+        // detection deliberately narrow so real Apple/AMD/NVIDIA hardware is
+        // still profiled by the existing policy and can be measured normally.
+        static constexpr std::array<const char*, 4> DIAGNOSTIC_GPU_TOKENS {{
+            "paravirtual", "software renderer", "swiftshader", "virtual gpu"
+        }};
+        if (std::any_of(DIAGNOSTIC_GPU_TOKENS.begin(), DIAGNOSTIC_GPU_TOKENS.end(),
+                [&normalizedGPU](const char* token) {
+                    return normalizedGPU.find(token) != std::string::npos;
+                })) {
+            tier = Profiler::Tier::LOW_POWER;
+            return true;
+        }
         
         // intel integrated graphics
         if (gpuVendor.find(keys::gpu::vendor_Intel) != std::string::npos) {

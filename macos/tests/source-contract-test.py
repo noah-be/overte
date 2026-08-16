@@ -492,6 +492,26 @@ for warmup_contract in (
 if warmup.index("shader_warmup_skipped") > warmup.index("pushProgramsToSync"):
     raise SystemExit("software-renderer warmup bypass must precede eager compilation")
 
+platform_profiler = (
+    ROOT / "libraries/platform/src/platform/Profiler.cpp"
+).read_text(encoding="utf-8")
+for diagnostic_gpu_contract in (
+    '"paravirtual"',
+    '"software renderer"',
+    '"swiftshader"',
+    '"virtual gpu"',
+    "Profiler::Tier::LOW_POWER",
+):
+    if diagnostic_gpu_contract not in platform_profiler:
+        raise SystemExit(
+            f"macOS diagnostic GPU profile contract missing: {diagnostic_gpu_contract}"
+        )
+diagnostic_gpu_block = platform_profiler.split(
+    "DIAGNOSTIC_GPU_TOKENS", 1
+)[1].split("// intel integrated graphics", 1)[0]
+if "Profiler::Tier::MID" in diagnostic_gpu_block:
+    raise SystemExit("virtual/software macOS GPUs must not start in the MID profile")
+
 deploy_tool = (ROOT / "macos/tools/deploy-conan-dylibs.py").read_text(encoding="utf-8")
 incremental_bundle_tool = (
     ROOT / "macos/tools/deploy-macos-dev-bundle.py"
