@@ -1755,9 +1755,9 @@ void Application::loadSettings(const QCommandLineParser& parser) {
     // dictated that we should be in first person
     Menu::getInstance()->setIsOptionChecked(MenuOption::FirstPersonLookAt, isFirstPerson);
     Menu::getInstance()->setIsOptionChecked(MenuOption::ThirdPerson, !isFirstPerson);
-#if defined(ANDROID_APP_PHONE_INTERFACE)
-    // The native desktop menu bar is neither reachable nor appropriate in
-    // Android's fullscreen activity. Phone controls live in the touch UI.
+#if defined(Q_OS_IOS) || defined(ANDROID_APP_PHONE_INTERFACE)
+    // The native desktop menu bar is neither reachable nor appropriate in a
+    // fullscreen mobile client. Mobile controls live in the touch UI.
     Menu::getInstance()->setVisible(false);
 #else
     Menu::getInstance()->setVisible(_menuBarVisible.get());

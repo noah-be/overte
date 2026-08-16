@@ -10,10 +10,13 @@ import re
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = (ROOT / "interface/src/Application_Plugins.cpp").read_text(encoding="utf-8")
+APPLICATION = (ROOT / "interface/src/Application.cpp").read_text(encoding="utf-8")
+APPLICATION_SETUP = (ROOT / "interface/src/Application_Setup.cpp").read_text(encoding="utf-8")
+APPLICATION_UI = (ROOT / "interface/src/Application_UI.cpp").read_text(encoding="utf-8")
 
 
-def require(pattern: str, message: str) -> None:
-    if re.search(pattern, SOURCE, re.MULTILINE | re.DOTALL) is None:
+def require(pattern: str, message: str, source: str = SOURCE) -> None:
+    if re.search(pattern, source, re.MULTILINE | re.DOTALL) is None:
         raise SystemExit(message)
 
 
@@ -50,5 +53,33 @@ ios_choice_branch = SOURCE.split("#if defined(Q_OS_IOS)", 1)[1].split(
 for forbidden in ("QInputDialog", "setPreferredDisplayPlugins", "DESKTOP_DISPLAY_PLUGIN_NAME"):
     if forbidden in ios_choice_branch:
         raise SystemExit(f"iOS display selection still depends on desktop behavior: {forbidden}")
+
+if not re.search(
+    r"#if defined\(Q_OS_IOS\) \|\| defined\(ANDROID_APP_PHONE_INTERFACE\)\s+"
+    r"// Mobile window managers own the screen bounds\.[\s\S]*?"
+    r"_window->showFullScreen\(\);\s+#else\s+"
+    r"_window->restoreGeometry\(\);\s+_window->setVisible\(true\);",
+    APPLICATION_SETUP,
+    re.MULTILINE,
+):
+    raise SystemExit("iOS can still restore an offset desktop window instead of claiming the screen")
+
+if not re.search(
+    r"#if defined\(Q_OS_IOS\) \|\| defined\(ANDROID_APP_PHONE_INTERFACE\)\s+"
+    r"// The native desktop menu bar[\s\S]*?"
+    r"Menu::getInstance\(\)->setVisible\(false\);\s+#else\s+"
+    r"Menu::getInstance\(\)->setVisible\(_menuBarVisible\.get\(\)\);",
+    APPLICATION,
+    re.MULTILINE,
+):
+    raise SystemExit("iOS startup can still expose the native desktop menu bar")
+
+require(
+    r"void Application::setMenuBarVisible\(bool visible\)[\s\S]*?"
+    r"#if defined\(Q_OS_IOS\)[\s\S]*?visible = false;\s+#endif\s+"
+    r"auto\* menuBar = qApp->getWindow\(\)->menuBar\(\);",
+    "iOS scripts or persisted settings can reveal desktop menu chrome",
+    APPLICATION_UI,
+)
 
 print("PASS iOS deterministic display-plugin selection contract")

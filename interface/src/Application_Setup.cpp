@@ -844,9 +844,10 @@ void Application::initialize(const QCommandLineParser &parser) {
     _window->setCentralWidget(_vkWindowWrapper);
 #endif
 
-#if defined(ANDROID_APP_PHONE_INTERFACE)
-    // Do not restore desktop window geometry on Android. The Activity owns
-    // the fullscreen landscape bounds.
+#if defined(Q_OS_IOS) || defined(ANDROID_APP_PHONE_INTERFACE)
+    // Mobile window managers own the screen bounds. Restoring desktop window
+    // geometry can leave the client as a small, offset widget on iOS/Android
+    // and expose the otherwise hidden desktop chrome around the render view.
     _window->showFullScreen();
 #else
     _window->restoreGeometry();

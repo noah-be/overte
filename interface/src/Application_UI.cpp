@@ -1562,6 +1562,11 @@ void Application::setMenuBarVisible(bool visible) {
         return;
     }
 
+#if defined(Q_OS_IOS)
+    // Scripts and persisted desktop settings must not reveal native desktop
+    // chrome over the fullscreen iOS render surface.
+    visible = false;
+#endif
     auto* menuBar = qApp->getWindow()->menuBar();
     bool wasVisible = menuBar->isVisible();
 
