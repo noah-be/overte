@@ -85,6 +85,8 @@ assert "expected exactly one available iOS 26.5 runtime" in runtime
 assert "interface-world-simulator-smoke.sh" in runtime
 assert "processIdentifier == $launch_pid" in SMOKE
 assert 'OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS:-0' in SMOKE
+assert 'OVERTE_IOS_WORLD_LAUNCH_TIMEOUT_SECONDS:-180' in SMOKE
+assert 'run_bounded "application launch" "$launch_timeout"' in SMOKE
 assert "OVERTE_IOS_WORLD_SYMBOL_BUNDLE" in SMOKE
 for snapshot_command in (
     "--attach-pid \"$launch_pid\"",

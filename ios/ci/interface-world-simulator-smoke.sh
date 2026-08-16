@@ -19,6 +19,11 @@ output_dir="${6:-}"
 poll_timeout="${OVERTE_IOS_WORLD_TIMEOUT_SECONDS:-240}"
 poll_interval="${OVERTE_IOS_WORLD_POLL_SECONDS:-2}"
 screenshot_settle="${OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS:-2}"
+# CoreSimulatorBridge itself retries app launches for 120 seconds. Keep the
+# outer watchdog above that boundary so a large freshly installed app can
+# finish LaunchServices registration and return either its PID or a causal
+# launch error instead of being killed mid-handshake.
+launch_timeout="${OVERTE_IOS_WORLD_LAUNCH_TIMEOUT_SECONDS:-180}"
 # External macOS samplers can perturb or stall CoreSimulator. Keep the
 # supplementary snapshot explicitly opt-in; in-process Vulkan breadcrumbs are
 # the normal fail-closed diagnostic path.
@@ -55,6 +60,10 @@ mvk_trace_vulkan_calls="${OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS:-}"
 }
 [[ "$screenshot_settle" =~ ^[0-9]+$ ]] && ((10#$screenshot_settle <= 30)) || {
     echo "OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS must be an integer from 0 through 30" >&2
+    exit 2
+}
+[[ "$launch_timeout" =~ ^[0-9]+$ ]] && ((10#$launch_timeout >= 130 && 10#$launch_timeout <= 300)) || {
+    echo "OVERTE_IOS_WORLD_LAUNCH_TIMEOUT_SECONDS must be an integer from 130 through 300" >&2
     exit 2
 }
 [[ "$stack_sample_delay" =~ ^[0-9]+$ ]] && ((10#$stack_sample_delay <= 120)) || {
@@ -645,7 +654,7 @@ launch_environment=(
 if [[ -n "$mvk_trace_vulkan_calls" ]]; then
     launch_environment+=("SIMCTL_CHILD_MVK_CONFIG_TRACE_VULKAN_CALLS=$mvk_trace_vulkan_calls")
 fi
-launch_output="$(run_bounded "application launch" 60 env \
+launch_output="$(run_bounded "application launch" "$launch_timeout" env \
     "${launch_environment[@]}" \
     xcrun simctl launch \
     --stdout="$app_stdout" --stderr="$app_stderr" \
