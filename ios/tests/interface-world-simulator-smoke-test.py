@@ -261,6 +261,9 @@ elif [ "$1 $2" = "simctl uninstall" ]; then
     rm -rf "$FAKE_DATA_CONTAINER"
 elif [ "$1 $2" = "simctl io" ] && [ "$4" = "screenshot" ]; then
     cp "$FAKE_SCREENSHOT" "$5"
+elif [ "$1" = "lldb" ]; then
+    printf '%s\n' 'thread #1 synthetic Vulkan present stack'
+    printf '%s\n' 'OVERTE_IOS_STACK_SNAPSHOT_COMPLETE'
 fi
 """,
         encoding="utf-8",
@@ -294,6 +297,10 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
         encoding="utf-8",
     )
     fake_log.chmod(fake_log.stat().st_mode | stat.S_IXUSR)
+    fake_dsym = root / "Overte.app.dSYM"
+    fake_dwarf = fake_dsym / "Contents/Resources/DWARF/Overte"
+    fake_dwarf.parent.mkdir(parents=True)
+    fake_dwarf.write_bytes(b"synthetic dSYM fixture")
     environment = os.environ.copy()
     environment.update(
         {
@@ -328,6 +335,9 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
             command_log.write_text("", encoding="utf-8")
             output = root / f"success-{family}-{scenario}"
             case_environment = {**environment, "FAKE_PROCESS_LOG": process_log}
+            expect_lldb_snapshot = family == "iphone" and scenario == "serverless"
+            if expect_lldb_snapshot:
+                case_environment["OVERTE_IOS_WORLD_SYMBOL_BUNDLE"] = str(fake_dsym)
             result = invoke(app, output, case_environment, family, scenario, domain)
             assert result.returncode == 0, (result.stdout, result.stderr)
             assert f"PASS full-client {family} simulator {scenario} world with screenshot" in result.stdout
@@ -386,6 +396,15 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
             assert f"simctl terminate {udid} org.overte.interface.dev" in commands, commands
             assert f"simctl uninstall {udid} org.overte.interface.dev" in commands, commands
             assert f"simctl shutdown {udid}" in commands, commands
+            lldb_snapshots = [line for line in commands if line.startswith("lldb ")]
+            if expect_lldb_snapshot:
+                assert len(lldb_snapshots) == 1, lldb_snapshots
+                assert "--attach-pid" in lldb_snapshots[0], lldb_snapshots
+                assert f'target symbols add "{fake_dsym}"' in lldb_snapshots[0], lldb_snapshots
+                assert "thread backtrace all -c 64" in lldb_snapshots[0], lldb_snapshots
+                assert "process detach" in lldb_snapshots[0], lldb_snapshots
+            else:
+                assert not lldb_snapshots, lldb_snapshots
 
     wrong_domain_output = root / "wrong-domain"
     wrong_domain = invoke(

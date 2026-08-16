@@ -23,6 +23,7 @@ screenshot_settle="${OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS:-2}"
 # the supplementary all-thread sample before that window so a normal process
 # exit cannot erase the only non-debugger stack evidence.
 stack_sample_delay="${OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS:-20}"
+stack_symbol_bundle="${OVERTE_IOS_WORLD_SYMBOL_BUNDLE:-}"
 crash_report_wait="${OVERTE_IOS_WORLD_CRASH_REPORT_WAIT_SECONDS:-20}"
 diagnostics_dir="${OVERTE_IOS_WORLD_DIAGNOSTICS_DIR:-}"
 mvk_trace_vulkan_calls="${OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS:-}"
@@ -60,6 +61,19 @@ mvk_trace_vulkan_calls="${OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS:-}"
     echo "OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS must be an integer from 1 through 120" >&2
     exit 2
 }
+if [[ -n "$stack_symbol_bundle" ]]; then
+    [[ "$stack_symbol_bundle" == /* && -d "$stack_symbol_bundle" && "$stack_symbol_bundle" == *.dSYM && \
+        -f "$stack_symbol_bundle/Contents/Resources/DWARF/Overte" ]] || {
+        echo "OVERTE_IOS_WORLD_SYMBOL_BUNDLE must name an absolute Overte dSYM bundle" >&2
+        exit 2
+    }
+    case "$stack_symbol_bundle" in
+        *$'\n'*|*$'\r'*|*'"'*|*'\\'*)
+            echo "OVERTE_IOS_WORLD_SYMBOL_BUNDLE cannot be represented safely in LLDB" >&2
+            exit 2
+            ;;
+    esac
+fi
 [[ "$crash_report_wait" =~ ^[0-9]+$ ]] && ((10#$crash_report_wait <= 60)) || {
     echo "OVERTE_IOS_WORLD_CRASH_REPORT_WAIT_SECONDS must be an integer from 0 through 60" >&2
     exit 2
@@ -275,6 +289,35 @@ resume_application_after_screenshot() {
 capture_startup_stack() {
     [[ -n "$launch_pid" ]] || return 0
     local sample_tool sample_output="$temp_root/startup.sample" status=0
+    if [[ -n "$stack_symbol_bundle" ]]; then
+        rm -f "$sample_output"
+        {
+            printf 'stack_sample_utc=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+            printf 'stack_snapshot_tool=lldb\n'
+        } >> "$process_state_log"
+        "$timeout_runner" 20 xcrun lldb \
+            --no-lldbinit --no-use-colors --batch --attach-pid "$launch_pid" \
+            -o 'settings set auto-confirm true' \
+            -o "target symbols add \"$stack_symbol_bundle\"" \
+            -o 'thread list' \
+            -o 'thread backtrace all -c 64' \
+            -o 'script print("OVERTE_IOS_STACK_SNAPSHOT_COMPLETE")' \
+            -o 'process detach' > "$sample_output" 2>&1 || status=$?
+        # A timeout or failed debugger detach must not leave the application
+        # suspended and turn a diagnostic failure into a renderer hang.
+        kill -CONT "$launch_pid" 2>/dev/null || true
+        {
+            if [[ -s "$sample_output" ]]; then
+                tail -c 2097152 "$sample_output"
+            else
+                printf 'stack_sample_output=empty\n'
+            fi
+            printf 'stack_sample_status=%s\n---\n' "$status"
+        } >> "$process_state_log"
+        rm -f "$sample_output"
+        chmod 0600 "$process_state_log"
+        return 0
+    fi
     sample_tool="$(command -v sample || true)"
     [[ -n "$sample_tool" ]] || {
         printf 'stack_sample=unavailable\n---\n' >> "$process_state_log"
