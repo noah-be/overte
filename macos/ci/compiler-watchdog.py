@@ -398,18 +398,33 @@ def run(command: list[str], interval: float, inactivity_timeout: float, grace: f
         signal.signal(signal.SIGINT, old_int)
 
 
-def main() -> int:
+def _parse_cli(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     parser = argparse.ArgumentParser()
     parser.add_argument("--interval", type=float,
                         default=float(os.environ.get("OVERTE_COMPILER_WATCHDOG_INTERVAL", "30")))
     parser.add_argument("--inactivity-timeout", type=float,
                         default=float(os.environ.get("OVERTE_COMPILER_STALL_TIMEOUT", "600")))
     parser.add_argument("--term-grace", type=float, default=10.0)
-    parser.add_argument("command", nargs=argparse.REMAINDER)
-    args = parser.parse_args()
-    command = args.command[1:] if args.command[:1] == ["--"] else args.command
+    # CMake may split ``CC="watchdog -- clang"`` into CMAKE_C_COMPILER and
+    # CMAKE_C_COMPILER_ARG1, then place probe flags before ARG1.  This produces
+    # ``watchdog -E -isysroot <sdk> -- clang``.  Parse our known options only
+    # before the separator and preserve every other token as a compiler
+    # argument after the compiler executable.  Normal launcher invocations
+    # remain ``watchdog -- clang <args>``.
+    if "--" not in argv:
+        parser.error("the compiler command must follow --")
+    separator = argv.index("--")
+    args, compiler_arguments = parser.parse_known_args(argv[:separator])
+    command_tail = argv[separator + 1:]
+    command = ([command_tail[0], *compiler_arguments, *command_tail[1:]]
+               if command_tail else [])
     if not command or args.interval <= 0 or args.inactivity_timeout <= 0 or args.term_grace < 0:
         parser.error("a compiler command and positive timing values are required")
+    return args, command
+
+
+def main() -> int:
+    args, command = _parse_cli(sys.argv[1:])
     return run(command, args.interval, args.inactivity_timeout, args.term_grace)
 
 

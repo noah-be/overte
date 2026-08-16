@@ -51,6 +51,18 @@ class CompilerWatchdogTest(unittest.TestCase):
         self.assertEqual(records[0]["source"], "private-unit.cpp")
         self.assertEqual(records[-1]["exit_code"], 23)
 
+    def test_forwards_cmake_preprocessor_flags_placed_before_compiler(self) -> None:
+        module = load_watchdog()
+        args, command = module._parse_cli([
+            "--interval", "0.25", "-E", "-isysroot", "/private/macos-sdk",
+            "--", "/usr/bin/clang", "-DPNG_PREFIX=1", "source.c",
+        ])
+        self.assertEqual(args.interval, 0.25)
+        self.assertEqual(command, [
+            "/usr/bin/clang", "-E", "-isysroot", "/private/macos-sdk",
+            "-DPNG_PREFIX=1", "source.c",
+        ])
+
     def test_normalizes_compiler_signal_exit_status(self) -> None:
         result = self.invoke("import os,signal; os.kill(os.getpid(), signal.SIGTERM)")
         self.assertEqual(result.returncode, 128 + signal.SIGTERM, result.stdout + result.stderr)
