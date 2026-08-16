@@ -2,9 +2,10 @@
 """Package and verify provenance for a native macOS application artifact.
 
 The manifest deliberately covers every Mach-O image in the bundle.  It does
-not trust file extensions: ``file`` identifies Mach-O payloads and ``lipo``
-reports their architecture slices.  Tool paths are injectable so the complete
-contract can be tested without macOS hardware.
+not trust file extensions: the complete Mach-O/fat magic set cheaply filters
+resources before ``file`` confirms payloads and ``lipo`` reports architecture
+slices.  Tool paths are injectable so the contract can be tested without
+macOS hardware.
 """
 
 from __future__ import annotations
@@ -34,6 +35,12 @@ ARCHIVE_ROOT = "Overte.app"
 ARCHIVE_MAX_BYTES = 8 * 1024 * 1024 * 1024
 ARCHIVE_MAX_EXPANDED_BYTES = 16 * 1024 * 1024 * 1024
 ARCHIVE_MAX_MEMBERS = 100_000
+MACH_O_MAGICS = frozenset({
+    b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe",  # 32-bit Mach-O
+    b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe",  # 64-bit Mach-O
+    b"\xca\xfe\xba\xbe", b"\xbe\xba\xfe\xca",  # fat Mach-O
+    b"\xca\xfe\xba\xbf", b"\xbf\xba\xfe\xca",  # fat64 Mach-O
+})
 
 ROOT_FIELDS = {"schema_version", "kind", "provenance", "build", "application"}
 PROVENANCE_FIELDS = {
@@ -379,6 +386,15 @@ def _bundle_files(app: Path) -> list[tuple[str, Path]]:
     return sorted(files)
 
 
+def _has_mach_o_magic(path: Path) -> bool:
+    """Recognize every Mach-O container byte order without spawning a tool."""
+    try:
+        with path.open("rb") as stream:
+            return stream.read(4) in MACH_O_MAGICS
+    except OSError as error:
+        raise ArtifactError("could not inspect application bundle member") from error
+
+
 def inspect_mach_o_bundle(
         app: Path, target_arch: str, *, file_tool: Path, lipo_tool: Path,
 ) -> list[dict[str, object]]:
@@ -387,6 +403,8 @@ def inspect_mach_o_bundle(
         raise ArtifactError("invalid target architecture")
     inventory: list[dict[str, object]] = []
     for relative, path in _bundle_files(app):
+        if not _has_mach_o_magic(path):
+            continue
         description = _run_tool(file_tool, ["-b", str(path)], "file")
         if b"Mach-O" not in description:
             continue

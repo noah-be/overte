@@ -23,6 +23,12 @@ SPEC.loader.exec_module(artifact)
 
 
 class ApplicationArtifactTests(unittest.TestCase):
+    MACHO64 = b"\xcf\xfa\xed\xfe"
+
+    @classmethod
+    def write_macho(cls, path: Path, architectures: str, payload: str) -> None:
+        path.write_bytes(cls.MACHO64 + f"MACHO:{architectures}\n{payload}\n".encode("ascii"))
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR"))
         self.root = Path(self.temporary.name)
@@ -31,9 +37,9 @@ class ApplicationArtifactTests(unittest.TestCase):
         (self.app / "Contents/Frameworks/QtCore.framework/Versions/5").mkdir(parents=True)
         self.main = self.app / "Contents/MacOS/Overte"
         self.framework = self.app / "Contents/Frameworks/QtCore.framework/Versions/5/QtCore"
-        self.main.write_text("MACHO:arm64\nmain\n", encoding="utf-8")
+        self.write_macho(self.main, "arm64", "main")
         self.main.chmod(0o755)
-        self.framework.write_text("MACHO:arm64 x86_64\nframework\n", encoding="utf-8")
+        self.write_macho(self.framework, "arm64 x86_64", "framework")
         os.symlink("5", self.app / "Contents/Frameworks/QtCore.framework/Versions/Current")
         os.symlink(
             "Versions/Current/QtCore",
@@ -46,18 +52,19 @@ class ApplicationArtifactTests(unittest.TestCase):
             "#!/usr/bin/env python3\n"
             "from pathlib import Path\n"
             "import sys\n"
-            "text = Path(sys.argv[-1]).read_text(encoding='utf-8')\n"
-            "print('Mach-O 64-bit binary' if text.startswith('MACHO:') else 'ASCII text')\n",
+            "data = Path(sys.argv[-1]).read_bytes()\n"
+            "print('Mach-O 64-bit binary' if b'MACHO:' in data[:64] else 'ASCII text')\n",
             encoding="utf-8",
         )
         self.lipo_tool.write_text(
             "#!/usr/bin/env python3\n"
             "from pathlib import Path\n"
             "import sys\n"
-            "line = Path(sys.argv[-1]).read_text(encoding='utf-8').splitlines()[0]\n"
-            "if not line.startswith('MACHO:'):\n"
+            "data = Path(sys.argv[-1]).read_bytes()\n"
+            "marker = data.find(b'MACHO:')\n"
+            "if marker < 0:\n"
             "    raise SystemExit(1)\n"
-            "print(line.split(':', 1)[1])\n",
+            "print(data[marker + 6:].splitlines()[0].decode('ascii'))\n",
             encoding="utf-8",
         )
         self.file_tool.chmod(0o755)
@@ -114,27 +121,38 @@ class ApplicationArtifactTests(unittest.TestCase):
         self.assertEqual(self.manifest.stat().st_mode & 0o777, 0o600)
         self.assertEqual(self.verify(), manifest)
 
+    def test_mach_o_magic_prefilter_is_complete_and_rejects_resources(self):
+        candidate = self.root / "candidate"
+        for magic in artifact.MACH_O_MAGICS:
+            with self.subTest(magic=magic.hex()):
+                candidate.write_bytes(magic + b"payload")
+                self.assertTrue(artifact._has_mach_o_magic(candidate))
+        for payload in (b"", b"Mach-O text", b"\x89PNG", b"!<arch>\n"):
+            with self.subTest(payload=payload):
+                candidate.write_bytes(payload)
+                self.assertFalse(artifact._has_mach_o_magic(candidate))
+
     def test_every_mach_o_must_have_the_target_slice_during_package_and_verify(self):
-        self.framework.write_text("MACHO:x86_64\nframework\n", encoding="utf-8")
+        self.write_macho(self.framework, "x86_64", "framework")
         with self.assertRaisesRegex(artifact.ArtifactError, "lacks arm64"):
             self.package()
 
-        self.framework.write_text("MACHO:arm64\nframework\n", encoding="utf-8")
+        self.write_macho(self.framework, "arm64", "framework")
         self.package()
-        self.framework.write_text("MACHO:x86_64\nframework\n", encoding="utf-8")
+        self.write_macho(self.framework, "x86_64", "framework")
         with self.assertRaisesRegex(artifact.ArtifactError, "lacks arm64"):
             self.verify()
 
     def test_bundle_tampering_and_inventory_changes_fail_closed(self):
         self.package()
-        self.main.write_text("MACHO:arm64\ntampered\n", encoding="utf-8")
+        self.write_macho(self.main, "arm64", "tampered")
         with self.assertRaisesRegex(artifact.ArtifactError, "does not match"):
             self.verify()
 
-        self.main.write_text("MACHO:arm64\nmain\n", encoding="utf-8")
+        self.write_macho(self.main, "arm64", "main")
         extra = self.app / "Contents/PlugIns/extra.dylib"
         extra.parent.mkdir()
-        extra.write_text("MACHO:arm64\nextra\n", encoding="utf-8")
+        self.write_macho(extra, "arm64", "extra")
         with self.assertRaisesRegex(artifact.ArtifactError, "does not match"):
             self.verify()
 
@@ -256,7 +274,7 @@ class ApplicationArtifactTests(unittest.TestCase):
             "from pathlib import Path\n"
             "import sys\n"
             "data = Path(sys.argv[-1]).read_bytes()\n"
-            "output = b'Mach-O 64-bit binary\\n' if data.startswith(b'MACHO:') else b'font metadata \\xa9\\n'\n"
+            "output = b'Mach-O 64-bit binary\\n' if b'MACHO:' in data[:64] else b'font metadata \\xa9\\n'\n"
             "sys.stdout.buffer.write(output)\n",
             encoding="utf-8",
         )
