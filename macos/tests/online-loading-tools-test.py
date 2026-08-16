@@ -536,6 +536,65 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     assert negative_analysis.returncode != 0
     assert "field packet_queue is negative" in negative_analysis.stdout
 
+    legacy_query_attribution = temporary / "legacy-query-attribution"
+    create_benchmark(legacy_query_attribution, concurrencies=(10,))
+    legacy_query_log = legacy_query_attribution / "c10/pair-1/cold/online-loading.log"
+    query_split_fields = (
+        "server_to_first_attempt_us", "first_attempt_to_send_us",
+        "attempt_settings_loaded", "attempt_physics_enabled",
+        "attempt_safe_landing_active",
+    )
+    rewrite_telemetry_event(
+        legacy_query_log,
+        "entity_query",
+        lambda record: [record.pop(field) for field in query_split_fields],
+    )
+    legacy_query_result = temporary / "legacy-query-attribution.json"
+    legacy_query_junit = temporary / "legacy-query-attribution.xml"
+    legacy_query_analysis = analyze(
+        legacy_query_attribution, legacy_query_result, legacy_query_junit
+    )
+    assert legacy_query_analysis.returncode == 0, legacy_query_analysis.stdout
+    legacy_diagnostics = json.loads(
+        legacy_query_result.read_text(encoding="utf-8")
+    )["groups"][0]["queue_diagnostics"][0]
+    assert legacy_diagnostics["entity_server_active_to_first_query_attempt_ms"] is None
+    assert legacy_diagnostics["first_query_attempt_to_send_ms"] is None
+
+    incomplete_query_attribution = temporary / "incomplete-query-attribution"
+    create_benchmark(incomplete_query_attribution, concurrencies=(10,))
+    incomplete_query_log = incomplete_query_attribution / "c10/pair-1/cold/online-loading.log"
+    rewrite_telemetry_event(
+        incomplete_query_log,
+        "entity_query",
+        lambda record: record.pop("attempt_safe_landing_active"),
+    )
+    incomplete_query_result = temporary / "incomplete-query-attribution.json"
+    incomplete_query_junit = temporary / "incomplete-query-attribution.xml"
+    incomplete_query_analysis = analyze(
+        incomplete_query_attribution, incomplete_query_result, incomplete_query_junit
+    )
+    assert incomplete_query_analysis.returncode != 0
+    assert "incomplete first-attempt attribution" in incomplete_query_analysis.stdout
+
+    inconsistent_query_attribution = temporary / "inconsistent-query-attribution"
+    create_benchmark(inconsistent_query_attribution, concurrencies=(10,))
+    inconsistent_query_log = inconsistent_query_attribution / "c10/pair-1/cold/online-loading.log"
+    rewrite_telemetry_event(
+        inconsistent_query_log,
+        "entity_query",
+        lambda record: record.__setitem__(
+            "first_attempt_to_send_us", int(record["first_attempt_to_send_us"]) + 10000
+        ),
+    )
+    inconsistent_query_result = temporary / "inconsistent-query-attribution.json"
+    inconsistent_query_junit = temporary / "inconsistent-query-attribution.xml"
+    inconsistent_query_analysis = analyze(
+        inconsistent_query_attribution, inconsistent_query_result, inconsistent_query_junit
+    )
+    assert inconsistent_query_analysis.returncode != 0
+    assert "does not equal the entity-server-active-to-query interval" in inconsistent_query_analysis.stdout
+
     missing_handoff_attribution = temporary / "missing-handoff-attribution"
     create_benchmark(missing_handoff_attribution, concurrencies=(10,))
     missing_handoff_log = (
