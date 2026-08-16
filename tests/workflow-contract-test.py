@@ -92,24 +92,18 @@ class MacOSAppleSiliconProbeWorkflowContracts(unittest.TestCase):
         ):
             self.assertIn(token, self.probe)
         for token in (
-            'machine == "arm64"',
-            'translated == "0"',
-            'gl.get("context_created") is True',
-            'gl.get("accelerated") is True',
-            "and opengl_41 and hardware_renderer",
-            '"opengl_41": opengl_41',
-            '"paravirtual"',
-            '"hardware_eligible": eligible',
-            '"classification": "native-hardware" if eligible else "diagnostic-only"',
+            "validate-apple-gpu-probe.py",
+            '"$RUNNER_TEMP/opengl.json"',
+            '--machine "$(uname -m)"',
+            '--translated "$translated"',
+            "build/macos-apple-silicon-probe/result.json",
         ):
             self.assertIn(token, self.source)
 
     def test_probe_preserves_a_small_auditable_evidence_bundle(self):
         for token in (
-            "system_profiler -json SPHardwareDataType SPDisplaysDataType",
             "sw_vers",
             "xcodebuild -version",
-            "opengl.json",
             "compile.log",
             "result.json",
             "Classify native hardware eligibility\n        if: ${{ always() }}",
@@ -118,6 +112,9 @@ class MacOSAppleSiliconProbeWorkflowContracts(unittest.TestCase):
             "retention-days: 14",
         ):
             self.assertIn(token, self.source)
+        self.assertNotIn("system-profiler.json", self.source)
+        self.assertNotIn("kernel.txt", self.source)
+        self.assertNotIn("uname -a", self.source)
 
 
 class MacOSWorkflowContracts(unittest.TestCase):

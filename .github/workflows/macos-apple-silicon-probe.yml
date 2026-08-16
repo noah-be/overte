@@ -11,6 +11,7 @@ on:
     paths:
       - '.github/workflows/macos-apple-silicon-probe.yml'
       - 'macos/tools/apple-gpu-probe.mm'
+      - 'macos/tools/validate-apple-gpu-probe.py'
 
 permissions:
   contents: read
@@ -33,77 +34,24 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build/macos-apple-silicon-probe
-          uname -a > build/macos-apple-silicon-probe/kernel.txt
           sw_vers > build/macos-apple-silicon-probe/macos-version.txt
           xcodebuild -version > build/macos-apple-silicon-probe/xcode-version.txt
-          system_profiler -json SPHardwareDataType SPDisplaysDataType > \
-            build/macos-apple-silicon-probe/system-profiler.json
           clang++ -std=c++20 -fobjc-arc -DGL_SILENCE_DEPRECATION \
             -framework Foundation -framework OpenGL \
             macos/tools/apple-gpu-probe.mm \
-            -o build/macos-apple-silicon-probe/apple-gpu-probe 2>&1 | \
+            -o "$RUNNER_TEMP/overte-apple-gpu-probe" 2>&1 | \
             tee build/macos-apple-silicon-probe/compile.log
-          build/macos-apple-silicon-probe/apple-gpu-probe | \
-            tee build/macos-apple-silicon-probe/opengl.json
+          "$RUNNER_TEMP/overte-apple-gpu-probe" > "$RUNNER_TEMP/opengl.json"
 
       - name: Classify native hardware eligibility
         if: ${{ always() }}
         run: |
           set -euo pipefail
           translated="$(sysctl -in sysctl.proc_translated 2>/dev/null || printf '0')"
-          python3 - build/macos-apple-silicon-probe/opengl.json \
-            build/macos-apple-silicon-probe/system-profiler.json \
-            build/macos-apple-silicon-probe/result.json "$(uname -m)" "$translated" <<'PY'
-          import json
-          import os
-          from pathlib import Path
-          import re
-          import sys
-
-          gl_path, system_path, output_path, machine, translated = sys.argv[1:]
-          def load_json(path):
-              try:
-                  value = json.loads(Path(path).read_text(encoding="utf-8"))
-                  return value if isinstance(value, dict) else {}
-              except (OSError, json.JSONDecodeError):
-                  return {}
-
-          gl = load_json(gl_path)
-          system = load_json(system_path)
-          renderer = str(gl.get("gl_renderer", ""))
-          version = str(gl.get("gl_version", ""))
-          version_match = re.match(r"^(\d+)\.(\d+)", version)
-          opengl_41 = bool(version_match and tuple(map(int, version_match.groups())) >= (4, 1))
-          diagnostic_tokens = (
-              "software", "paravirtual", "virtual", "swiftshader", "llvmpipe", "softpipe",
-          )
-          native = machine == "arm64" and translated == "0"
-          hardware_renderer = bool(renderer) and not any(
-              token in renderer.lower() for token in diagnostic_tokens
-          )
-          eligible = (
-              native and gl.get("context_created") is True and gl.get("accelerated") is True
-              and opengl_41 and hardware_renderer
-          )
-          result = {
-              "schema_version": 1,
-              "machine": machine,
-              "translated": translated == "1",
-              "context_created": gl.get("context_created") is True,
-              "accelerated": gl.get("accelerated") is True,
-              "gl_vendor": gl.get("gl_vendor", ""),
-              "gl_renderer": renderer,
-              "gl_version": version,
-              "opengl_41": opengl_41,
-              "hardware_eligible": eligible,
-              "classification": "native-hardware" if eligible else "diagnostic-only",
-              "system_profiler_present": bool(system),
-          }
-          target = Path(output_path)
-          target.write_text(json.dumps(result, sort_keys=True) + "\n", encoding="utf-8")
-          os.chmod(target, 0o600)
-          print(json.dumps(result, sort_keys=True), flush=True)
-          PY
+          python3 macos/tools/validate-apple-gpu-probe.py \
+            "$RUNNER_TEMP/opengl.json" --machine "$(uname -m)" \
+            --translated "$translated" \
+            --result build/macos-apple-silicon-probe/result.json
 
       - name: Upload probe evidence
         if: ${{ always() }}
