@@ -647,6 +647,13 @@ while :; do
             runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' && ready=1
         fi
     fi
+    # A fast gate sequence can complete just before the wall-clock sample
+    # deadline.  Capture at the acceptance boundary as well, before screenshot
+    # or simulator-service failures can erase the only all-thread snapshot.
+    if ((ready)) && ((!startup_stack_captured)); then
+        capture_startup_stack
+        startup_stack_captured=1
+    fi
     ((ready)) && break
     if ((!startup_stack_captured)) && (( $(date +%s) >= sample_deadline )); then
         capture_startup_stack

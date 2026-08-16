@@ -85,6 +85,12 @@ assert "expected exactly one available iOS 26.5 runtime" in runtime
 assert "interface-world-simulator-smoke.sh" in runtime
 assert "processIdentifier == $launch_pid" in SMOKE
 assert 'OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS:-20' in SMOKE
+assert re.search(
+    r"if \(\(ready\)\) && \(\(!startup_stack_captured\)\); then\s+"
+    r"capture_startup_stack\s+startup_stack_captured=1\s+fi\s+"
+    r"\(\(ready\)\) && break",
+    SMOKE,
+)
 assert 'OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS: "6"' in runtime
 assert "Capture preserved candidate SIGSEGV with LLDB" in runtime
 assert "interface-world-simulator-lldb.sh" in runtime
