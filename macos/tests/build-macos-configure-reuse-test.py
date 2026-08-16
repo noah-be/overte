@@ -72,6 +72,10 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
         {
             "PATH": f"{fake_bin}:/usr/bin:/bin",
             "FAKE_CMAKE_LOG": str(cmake_log),
+            # Do not inherit architecture or bounded-parallelism inputs from
+            # the workflow executing this hermetic x86_64 contract.
+            "OVERTE_MACOS_ARCH": "x86_64",
+            "OVERTE_MACOS_BUILD_JOBS": "2",
             "OVERTE_MACOS_BUILD_DIR": str(build),
             "OVERTE_MACOS_BUILD_TESTS": "ON",
             "OVERTE_MACOS_SKIP_CONFIGURE": "ON",
