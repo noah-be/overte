@@ -150,6 +150,12 @@ elif [ -n "${FAKE_FAIL_MATCH:-}" ] && [ "$*" = "$FAKE_FAIL_MATCH" ]; then
     printf '%s\n' "${FAKE_FAILURE_DETAIL:-fixture command failure}" >&2
     exit "${FAKE_FAIL_STATUS:-13}"
 elif [ "$1 $2" = "simctl get_app_container" ]; then
+    if [ -n "${FAKE_GET_APP_CONTAINER_FAIL_ONCE_FILE:-}" ] && \
+            [ ! -e "$FAKE_GET_APP_CONTAINER_FAIL_ONCE_FILE" ]; then
+        : > "$FAKE_GET_APP_CONTAINER_FAIL_ONCE_FILE"
+        printf '%s\n' 'synthetic transient CoreSimulator timeout' >&2
+        exit 75
+    fi
     mkdir -p "$FAKE_DATA_CONTAINER/tmp"
     printf '%s\n' "$FAKE_DATA_CONTAINER"
 elif [ "$1 $2" = "simctl launch" ]; then
@@ -418,6 +424,38 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
     assert "command_status=13" in diagnostic_text
     assert "IXErrorDomain Code=13 Missing bundle ID" in diagnostic_text
     assert_no_raw_log(install_failure_output, scratch)
+
+    command_log.write_text("", encoding="utf-8")
+    container_retry_marker = root / "get-app-container-failed-once"
+    container_retry_output = root / "container-retry"
+    container_retry = invoke(
+        app,
+        container_retry_output,
+        {
+            **environment,
+            "FAKE_PROCESS_LOG": SERVERLESS_LOG,
+            "FAKE_GET_APP_CONTAINER_FAIL_ONCE_FILE": str(container_retry_marker),
+        },
+        "iphone",
+        "serverless",
+        "-",
+    )
+    assert container_retry.returncode == 0, (
+        container_retry.stdout,
+        container_retry.stderr,
+    )
+    container_commands = command_log.read_text(encoding="utf-8").splitlines()
+    get_container = [
+        command
+        for command in container_commands
+        if command.startswith("simctl get_app_container phone-udid ")
+    ]
+    assert len(get_container) == 2, get_container
+    retry_diagnostics = root / "raw-diagnostics/iphone-serverless-command-errors.log"
+    retry_text = retry_diagnostics.read_text(encoding="utf-8")
+    assert "command_label=application data container attempt 1" in retry_text
+    assert "synthetic transient CoreSimulator timeout" in retry_text
+    assert_no_raw_log(container_retry_output, scratch)
 
     command_log.write_text("", encoding="utf-8")
     permission_failure_output = root / "permission-failure"

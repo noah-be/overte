@@ -167,6 +167,27 @@ run_bounded() {
     return "$status"
 }
 
+get_application_data_container() {
+    local attempt candidate="" status=1
+    for attempt in 1 2 3; do
+        status=0
+        candidate="$(run_bounded "application data container attempt $attempt" 20 \
+            xcrun simctl get_app_container "$active_udid" "$bundle_id" data)" || status=$?
+        if ((status == 0)) && [[ -n "$candidate" && "$candidate" == /* && -d "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+        if ((status == 0)); then
+            status=1
+            echo "application data container attempt $attempt returned an invalid path" >&2
+        fi
+        if ((attempt < 3)); then
+            sleep "$attempt"
+        fi
+    done
+    return "$status"
+}
+
 stop_log_stream() {
     local status=0
     [[ -n "$log_stream_pid" ]] || return 0
@@ -526,8 +547,7 @@ if ((stale_remove_status != 0)); then
 fi
 run_bounded "application install" 120 xcrun simctl install "$active_udid" "$app_path" >/dev/null
 app_installed=1
-data_container="$(run_bounded "application data container" 30 xcrun simctl get_app_container \
-    "$active_udid" "$bundle_id" data)"
+data_container="$(get_application_data_container)"
 [[ -n "$data_container" && "$data_container" == /* && -d "$data_container" ]] || {
     echo "application data container is unavailable" >&2
     exit 1
