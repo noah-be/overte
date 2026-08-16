@@ -17,6 +17,12 @@ on:
         default: x86_64
         type: choice
         options: [x86_64, arm64]
+      arm_runner_size:
+        description: ARM runner size (standard is slower; xlarge requires larger-runner billing)
+        required: true
+        default: standard
+        type: choice
+        options: [standard, xlarge]
   push:
     branches: [apple-macos]
     paths:
@@ -44,13 +50,14 @@ concurrency:
 
 jobs:
   client-opengl-x86_64:
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.target_arch == 'arm64' && 'macos-15-xlarge' || 'macos-15-intel' }}
+    runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.target_arch == 'arm64' && inputs.arm_runner_size == 'xlarge' && 'macos-15-xlarge' || github.event_name == 'workflow_dispatch' && inputs.target_arch == 'arm64' && 'macos-15' || 'macos-15-intel' }}
     timeout-minutes: 360
     env:
       CONAN_HOME: ${{ github.workspace }}/.conan2
       OVERTE_MACOS_ARCH: ${{ github.event_name == 'workflow_dispatch' && inputs.target_arch == 'arm64' && 'arm64' || 'x86_64' }}
       OVERTE_MACOS_BUILD_TYPE: RelWithDebInfo
       OVERTE_MACOS_QT_SOURCE: ${{ github.event_name == 'workflow_dispatch' && inputs.target_arch == 'arm64' && 'source' || 'aqt' }}
+      OVERTE_MACOS_BUILD_JOBS: ${{ github.event_name == 'workflow_dispatch' && inputs.target_arch == 'arm64' && inputs.arm_runner_size == 'standard' && '2' || '' }}
       # Keep one reusable CMake/Ninja graph. The workflow input below controls
       # only whether the registered test targets are compiled and executed.
       OVERTE_MACOS_BUILD_TESTS: 'ON'
@@ -155,8 +162,12 @@ jobs:
           set -euo pipefail
           available_kib="$(df -Pk "$GITHUB_WORKSPACE" | awk 'NR == 2 {print $4}')"
           physical_bytes="$(sysctl -n hw.memsize)"
+          minimum_memory_bytes=12884901888
+          if [[ "$OVERTE_MACOS_ARCH" == arm64 && "${{ inputs.arm_runner_size }}" == standard ]]; then
+            minimum_memory_bytes=6442450944
+          fi
           [[ "$available_kib" -ge 41943040 ]] || { echo "less than 40 GiB runner disk available" >&2; exit 1; }
-          [[ "$physical_bytes" -ge 12884901888 ]] || { echo "less than 12 GiB runner RAM available" >&2; exit 1; }
+          [[ "$physical_bytes" -ge "$minimum_memory_bytes" ]] || { echo "runner RAM is below the selected route's safe minimum" >&2; exit 1; }
           macos/build-macos.sh doctor
 
       - name: Verify macOS monitoring contracts

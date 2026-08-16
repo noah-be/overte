@@ -10,10 +10,18 @@ readonly architecture="${OVERTE_MACOS_ARCH:-x86_64}"
 readonly qt_source="${OVERTE_MACOS_QT_SOURCE:-aqt}"
 readonly build_dir="${OVERTE_MACOS_BUILD_DIR:-$source_root/build}"
 readonly build_tests="${OVERTE_MACOS_BUILD_TESTS:-OFF}"
+readonly requested_build_jobs="${OVERTE_MACOS_BUILD_JOBS:-}"
 
 fail() { echo "macOS build error: $*" >&2; exit 1; }
 note() { echo "macOS build: $*"; }
 require_macos() { [[ "$(uname -s)" == "Darwin" ]] || fail "this command must run on macOS"; }
+effective_build_jobs() {
+    if [[ -n "$requested_build_jobs" ]]; then
+        printf '%s\n' "$requested_build_jobs"
+    else
+        sysctl -n hw.logicalcpu
+    fi
+}
 
 doctor() {
     require_macos
@@ -25,12 +33,14 @@ doctor() {
     [[ "$(conan --version)" =~ Conan\ version\ 2\. ]] || fail "Conan 2 is required"
     case "$architecture" in x86_64|arm64) ;; *) fail "OVERTE_MACOS_ARCH must be x86_64 or arm64" ;; esac
     case "$build_tests" in ON|OFF) ;; *) fail "OVERTE_MACOS_BUILD_TESTS must be ON or OFF" ;; esac
+    [[ -z "$requested_build_jobs" || "$requested_build_jobs" =~ ^[1-9][0-9]*$ ]] ||
+        fail "OVERTE_MACOS_BUILD_JOBS must be a positive integer"
     if [[ "$qt_source" == aqt ]]; then
         command -v aqt >/dev/null || fail "aqtinstall is missing (install it in a Python virtual environment)"
     fi
     note "Xcode: $(xcodebuild -version | tr '\n' ' ')"
     note "host: $(uname -m); target: $architecture; configuration: $build_type"
-    note "Qt source: $qt_source; deployment target: ${MACOSX_DEPLOYMENT_TARGET:-11.0}; tests: $build_tests"
+    note "Qt source: $qt_source; deployment target: ${MACOSX_DEPLOYMENT_TARGET:-11.0}; tests: $build_tests; jobs: $(effective_build_jobs)"
 }
 
 ensure_conan_profile() {
@@ -68,6 +78,7 @@ deps_qt() {
         -s "build_type=$build_type" -b missing)
     conan install --requires=qt/5.15.2@overte/aqt \
         -o 'qt/*:modules=qtwebengine' "${args[@]}" \
+        -c "tools.build:jobs=$(effective_build_jobs)" \
         -of "$build_dir/conan-stage-qt"
 }
 
@@ -77,14 +88,16 @@ deps_libnode() {
     local args=(-s "arch=$(conan_architecture)" -s compiler.cppstd=20
         -s "build_type=$build_type" -b missing)
     conan install --requires=libnode/22.22.3@overte/macos \
-        "${args[@]}" -of "$build_dir/conan-stage-libnode"
+        "${args[@]}" -c "tools.build:jobs=$(effective_build_jobs)" \
+        -of "$build_dir/conan-stage-libnode"
 }
 
 deps() {
     prepare_dependencies
     mkdir -p "$build_dir"
     local args=("$source_root" -s "arch=$(conan_architecture)" -s compiler.cppstd=20
-        -s "build_type=$build_type" -o "Overte/*:qt_source=$qt_source" -b missing -of "$build_dir")
+        -s "build_type=$build_type" -o "Overte/*:qt_source=$qt_source"
+        -c "tools.build:jobs=$(effective_build_jobs)" -b missing -of "$build_dir")
     # Some legacy recipes only expose OpenSSL correctly on the second graph resolution.
     conan install "${args[@]}"
     conan install "${args[@]}"
@@ -149,7 +162,7 @@ compile() {
         --live-log "$diagnostics_dir/compiler-watchdog.jsonl" \
         --compiler-diagnostics-dir "$diagnostics_dir/compiler-stalls" -- \
         cmake --build --preset "$preset" --target Overte \
-        --parallel "$(sysctl -n hw.logicalcpu)"
+        --parallel "$(effective_build_jobs)"
     find "$build_dir" -type d -name Overte.app -print -quit
 }
 

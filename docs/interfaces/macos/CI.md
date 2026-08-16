@@ -5,11 +5,12 @@ The `macOS bootstrap` workflow is defined in
 to `apple-macos`.
 
 The bootstrap defaults to an `x86_64` Intel runner. Manual dispatches may select
-`target_arch=arm64`; that route uses GitHub's native `macos-15-xlarge` M2
-runner with 14 GB RAM and GPU acceleration, and builds Qt from source because
-the pinned aqt Qt 5 package is Intel-only. The smaller standard `macos-15`
-runner has only 7 GB RAM and is deliberately rejected by the existing 12-GB
-host gate before dependency work. Every cache,
+`target_arch=arm64`; that route builds Qt from source because the pinned aqt Qt
+5 package is Intel-only. `arm_runner_size=standard` uses the available 7-GB
+runner with dependency and compiler parallelism capped at two jobs. The
+recommended `arm_runner_size=xlarge` route uses GitHub's M2 runner with 14 GB
+RAM and GPU acceleration, but requires larger-runner billing to be enabled.
+Every cache,
 durable dependency checkpoint, compiler-object namespace and application
 artifact includes the selected architecture, so ARM and Intel outputs cannot
 be mixed. New namespace generations migrate from explicitly compatible prior complete caches before

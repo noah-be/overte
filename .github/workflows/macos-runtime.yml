@@ -16,6 +16,12 @@ on:
         default: x86_64
         type: choice
         options: [x86_64, arm64]
+      arm_runner_size:
+        description: ARM runner size used to execute the artifact
+        required: true
+        default: standard
+        type: choice
+        options: [standard, xlarge]
       run_online:
         description: Run the public-domain smoke after the serverless smoke succeeds
         required: true
@@ -87,7 +93,7 @@ concurrency:
 jobs:
   runtime-x86_64:
     if: github.event_name == 'workflow_dispatch'
-    runs-on: ${{ inputs.target_arch == 'arm64' && 'macos-15-xlarge' || 'macos-15-intel' }}
+    runs-on: ${{ inputs.target_arch == 'arm64' && inputs.arm_runner_size == 'xlarge' && 'macos-15-xlarge' || inputs.target_arch == 'arm64' && 'macos-15' || 'macos-15-intel' }}
     timeout-minutes: 330
     env:
       OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '300'

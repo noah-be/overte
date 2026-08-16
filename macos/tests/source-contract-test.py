@@ -14,6 +14,16 @@ libnode_recipe = (ROOT / "macos/conan/libnode/conanfile.py").read_text(encoding=
 libnode_data = (ROOT / "macos/conan/libnode/conandata.yml").read_text(encoding="utf-8")
 build_script = (ROOT / "macos/build-macos.sh").read_text(encoding="utf-8")
 root_recipe = (ROOT / "conanfile.py").read_text(encoding="utf-8")
+for required_build_parallelism_contract in (
+    'readonly requested_build_jobs="${OVERTE_MACOS_BUILD_JOBS:-}"',
+    "effective_build_jobs()",
+    'tools.build:jobs=$(effective_build_jobs)',
+    '--parallel "$(effective_build_jobs)"',
+):
+    if required_build_parallelism_contract not in build_script:
+        raise AssertionError(
+            f"missing bounded build parallelism contract: {required_build_parallelism_contract}"
+        )
 LIBNODE_CONTRACT = {
     "official release archive": (
         libnode_data,
