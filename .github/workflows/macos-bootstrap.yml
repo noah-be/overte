@@ -604,7 +604,7 @@ jobs:
       - name: Resolve remaining dependency graph
         id: resolve-dependencies
         continue-on-error: true
-        timeout-minutes: 120
+        timeout-minutes: 175
         env:
           CC: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang
           CXX: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang++
@@ -623,7 +623,7 @@ jobs:
             --compiler-live-log "$MACOS_RUNNER_TELEMETRY_DIR/dependency-compilers.jsonl" \
             --compiler-diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/dependency-compiler-stalls" \
             --sample-interval 5 --publish-interval 30 --directory-interval 300 \
-            --inactivity-timeout 900 --max-runtime 6900 \
+            --inactivity-timeout 900 --max-runtime 9900 \
             --watch conan="$CONAN_HOME" \
             --watch sccache="$SCCACHE_DIR" \
             -- macos/build-macos.sh deps

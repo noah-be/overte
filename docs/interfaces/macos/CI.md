@@ -34,6 +34,10 @@ The completed graph is integrity
 checked, transient build directories are removed, and the integrity check is
 repeated before the durable checkpoint is packaged. CMake configuration and
 compilation are separate stages with independent build-tree checkpoints.
+The remaining source-build stage has a 175-minute outer bound and a
+165-minute supervisor bound. This accommodates a two-job ARM QtWebEngine build
+while preserving a ten-minute CI cleanup window and the independent
+15-minute inactivity detector.
 
 The evictable repository-wide Actions cache is only the fast path for Conan.
 Its restore is capped at twelve minutes. A timeout or cache-service failure is

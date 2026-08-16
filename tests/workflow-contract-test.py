@@ -207,6 +207,12 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertLess(node_compact, node_conan_save)
         self.assertLess(node_conan_save, graph)
         self.assertLess(graph, durable)
+        graph_section = self.source.split(
+            "- name: Resolve remaining dependency graph", 1
+        )[1].split("- name: Report remaining dependency compiler statistics", 1)[0]
+        self.assertIn("timeout-minutes: 175", graph_section)
+        self.assertIn("--max-runtime 9900", graph_section)
+        self.assertIn("--inactivity-timeout 900", graph_section)
         for phase in ("dependency-qt", "dependency-libnode", "dependency-graph"):
             self.assertIn(f"--phase {phase}", self.source)
         for command in ("deps-qt", "deps-libnode", "deps"):
@@ -267,8 +273,8 @@ class MacOSWorkflowContracts(unittest.TestCase):
     def test_phase_wall_limits_precede_ci_timeouts_and_hidden_diagnostics_upload(self):
         self.assertIn("timeout-minutes: 240", self.source)
         self.assertIn("--max-runtime 13800", self.source)
-        self.assertIn("timeout-minutes: 175", self.source)
-        self.assertIn("--max-runtime 9900", self.source)
+        self.assertGreaterEqual(self.source.count("timeout-minutes: 175"), 2)
+        self.assertGreaterEqual(self.source.count("--max-runtime 9900"), 2)
         diagnostics = self.source.split("- name: Upload smoke diagnostics", 1)[1]
         self.assertIn("include-hidden-files: true", diagnostics)
 
