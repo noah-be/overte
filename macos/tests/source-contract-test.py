@@ -512,6 +512,24 @@ for diagnostic_gpu_contract in (
         raise SystemExit(
             f"macOS diagnostic GPU profile contract missing: {diagnostic_gpu_contract}"
         )
+
+menu_source = (ROOT / "interface/src/Menu.cpp").read_text(encoding="utf-8")
+texture_memory_mappings = re.findall(
+    r"MenuOption::RenderMaxTexture(\d+)MB\s*==\s*text\)\s*\{\s*"
+    r"newMaxTextureMemory\s*=\s*MB_TO_BYTES\((\d+)\)",
+    menu_source,
+)
+expected_texture_limits = {
+    "4", "64", "256", "512", "1024", "2048", "4096", "6144", "8192",
+    "10240", "12288", "16384", "20480", "24576", "28672", "32768",
+}
+if {option for option, _ in texture_memory_mappings} != expected_texture_limits:
+    raise SystemExit("texture-memory menu must map every declared fixed limit exactly once")
+for option, value in texture_memory_mappings:
+    if option != value:
+        raise SystemExit(
+            f"texture-memory menu option {option} MB incorrectly maps to {value} MB"
+        )
 diagnostic_gpu_block = platform_profiler.split(
     "if (std::any_of(DIAGNOSTIC_GPU_TOKENS", 1
 )[1].split('if (normalizedGPU.find("intel")', 1)[0]
