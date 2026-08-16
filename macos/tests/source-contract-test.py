@@ -495,6 +495,12 @@ if warmup.index("shader_warmup_skipped") > warmup.index("pushProgramsToSync"):
 platform_profiler = (
     ROOT / "libraries/platform/src/platform/Profiler.cpp"
 ).read_text(encoding="utf-8")
+platform_profiler_header = (
+    ROOT / "libraries/platform/src/platform/Profiler.h"
+).read_text(encoding="utf-8")
+platform_profiler_test = (
+    ROOT / "tests/platform/src/ProfilerTests.cpp"
+).read_text(encoding="utf-8")
 for diagnostic_gpu_contract in (
     '"paravirtual"',
     '"software renderer"',
@@ -507,10 +513,28 @@ for diagnostic_gpu_contract in (
             f"macOS diagnostic GPU profile contract missing: {diagnostic_gpu_contract}"
         )
 diagnostic_gpu_block = platform_profiler.split(
-    "DIAGNOSTIC_GPU_TOKENS", 1
-)[1].split("// intel integrated graphics", 1)[0]
-if "Profiler::Tier::MID" in diagnostic_gpu_block:
+    "if (std::any_of(DIAGNOSTIC_GPU_TOKENS", 1
+)[1].split('if (normalizedGPU.find("intel")', 1)[0]
+if "return Profiler::Tier::MID" in diagnostic_gpu_block:
     raise SystemExit("virtual/software macOS GPUs must not start in the MID profile")
+if "profileMacGPU" not in platform_profiler_header:
+    raise SystemExit("macOS GPU profile policy must expose a deterministic test seam")
+for profiler_test_contract in (
+    "Apple Paravirtualized Graphics Device",
+    "Apple Software Renderer",
+    "ANGLE SwiftShader",
+    "Virtual GPU",
+    "Intel",
+    "Apple M4",
+    "Radeon Pro 5600M",
+    "Tier::LOW_POWER",
+    "Tier::LOW",
+    "Tier::MID",
+):
+    if profiler_test_contract not in platform_profiler_test:
+        raise SystemExit(
+            f"macOS GPU profile runtime test missing: {profiler_test_contract}"
+        )
 
 deploy_tool = (ROOT / "macos/tools/deploy-conan-dylibs.py").read_text(encoding="utf-8")
 incremental_bundle_tool = (

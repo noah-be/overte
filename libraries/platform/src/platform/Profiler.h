@@ -12,6 +12,7 @@
 #define hifi_platform_Profiler_h
 
 #include <array>
+#include <string>
 
 namespace platform {
 
@@ -30,6 +31,12 @@ public:
     static const std::array<const char*, Tier::NumTiers> TierNames;
 
     static Tier profilePlatform();
+
+    // Deterministic macOS GPU policy, exposed for platform regression tests.
+    // Virtual/software renderers must start conservatively; hardware vendors
+    // retain the established Intel=LOW, other=MID behavior until measured
+    // native-hardware profiles provide a stronger policy.
+    static Tier profileMacGPU(const std::string& vendor, const std::string& model);
 
     // Ugly very adhoc capability check to know if a particular hw can REnder with Deferred method or not
     static bool isRenderMethodDeferredCapable();
