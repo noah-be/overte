@@ -257,6 +257,7 @@ jobs:
           # an otherwise avoidable cold client rebuild.
           conan_key="macos-conan-v3-${OVERTE_MACOS_ARCH}-${dependency_fingerprint}-${conan_inputs}"
           echo "conan=${conan_key}" >> "$GITHUB_OUTPUT"
+          echo "conan_partial_prefix=${conan_key}-partial-" >> "$GITHUB_OUTPUT"
           echo "conan_stage_prefix=${conan_key}-stage-" >> "$GITHUB_OUTPUT"
           legacy_conan_key="macos-conan-v3-${OVERTE_MACOS_ARCH}-${legacy_toolchain_fingerprint}-${conan_inputs}"
           echo "legacy_conan=${legacy_conan_key}" >> "$GITHUB_OUTPUT"
@@ -377,6 +378,7 @@ jobs:
           restore-keys: |
             ${{ steps.cache-key.outputs.migration_conan }}
             ${{ steps.cache-key.outputs.legacy_conan }}
+            ${{ steps.cache-key.outputs.conan_partial_prefix }}
             ${{ steps.cache-key.outputs.conan_stage_prefix }}
 
       - name: Discard interrupted Conan fast-cache restore
@@ -610,6 +612,11 @@ jobs:
           CXX: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang++
           OBJC: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang
           OBJCXX: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang++
+          # Xcode 16.4's macOS 15.5 SDK declares strchrnul, but the application
+          # still targets macOS 11. Force Autoconf packages such as libpq to
+          # compile their portable replacement instead of calling a symbol
+          # that is unavailable at the deployment target.
+          ac_cv_func_strchrnul: 'no'
           CMAKE_C_COMPILER_LAUNCHER: ''
           CMAKE_CXX_COMPILER_LAUNCHER: ''
           CMAKE_OBJC_COMPILER_LAUNCHER: ''

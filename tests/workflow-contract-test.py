@@ -213,6 +213,8 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("timeout-minutes: 175", graph_section)
         self.assertIn("--max-runtime 9900", graph_section)
         self.assertIn("--inactivity-timeout 900", graph_section)
+        self.assertIn("ac_cv_func_strchrnul: 'no'", graph_section)
+        self.assertIn("macOS 11", graph_section)
         for phase in ("dependency-qt", "dependency-libnode", "dependency-graph"):
             self.assertIn(f"--phase {phase}", self.source)
         for command in ("deps-qt", "deps-libnode", "deps"):
@@ -326,10 +328,18 @@ class MacOSWorkflowContracts(unittest.TestCase):
         )[0]
         self.assertIn("key: ${{ steps.cache-key.outputs.conan }}", restore)
         self.assertIn("steps.cache-key.outputs.legacy_conan", restore)
+        self.assertIn("steps.cache-key.outputs.conan_partial_prefix", restore)
         self.assertIn("steps.cache-key.outputs.conan_stage_prefix", restore)
         self.assertLess(
             restore.index("steps.cache-key.outputs.legacy_conan"),
+            restore.index("steps.cache-key.outputs.conan_partial_prefix"),
+        )
+        self.assertLess(
+            restore.index("steps.cache-key.outputs.conan_partial_prefix"),
             restore.index("steps.cache-key.outputs.conan_stage_prefix"),
+        )
+        self.assertIn(
+            'conan_partial_prefix=${conan_key}-partial-', self.source
         )
         self.assertNotIn("macos-conan-v2-", restore)
         self.assertNotIn("macos-complete-x86_64-qt-aqt-", restore)

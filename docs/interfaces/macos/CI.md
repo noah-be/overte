@@ -38,6 +38,13 @@ The remaining source-build stage has a 175-minute outer bound and a
 165-minute supervisor bound. This accommodates a two-job ARM QtWebEngine build
 while preserving a ten-minute CI cleanup window and the independent
 15-minute inactivity detector.
+Its environment also forces the Autoconf `strchrnul` capability result to
+false. Xcode 16.4 exposes that symbol through the macOS 15.5 SDK, but it is not
+available at the application's macOS 11 deployment target; dependency recipes
+therefore compile their portable fallback instead of linking an unavailable
+runtime symbol. Failed dependency runs publish a partial Conan generation, and
+that exact partial prefix is preferred over older stage checkpoints on the
+next attempt.
 
 The evictable repository-wide Actions cache is only the fast path for Conan.
 Its restore is capped at twelve minutes. A timeout or cache-service failure is
