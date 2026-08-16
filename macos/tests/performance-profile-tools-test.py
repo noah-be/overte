@@ -105,13 +105,25 @@ def run_result(profile_id: str, index: int, present: float, p95: float,
         }.items()
     }
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "platform": "macos",
         "fixture_version": CATALOG["fixture_version"],
         "fixture_mode": fixture_mode,
         "fixture_features": FIXTURE_FEATURES[fixture_mode],
         "fixture_present_delta": 1 if fixture_mode == "diagnostic-lite" else 2,
         "fixture_sha256": FIXTURE_SHA256,
+        "resource_idle_required": fixture_mode == "full",
+        "resource_idle_observed": fixture_mode == "full",
+        "resource_idle_ms": 0 if fixture_mode == "diagnostic-lite" else 2000,
+        "resource_queue_status": {
+            "loading": 0,
+            "pending": 0,
+            "processing": 0,
+            "processing_pending": 0,
+            "texture_transfers": 0,
+            "texture_transfer_bytes": 0,
+            "idle": True,
+        },
         "profile_id": profile_id,
         "run_index": index,
         "quality_score": profile["quality_score"],
@@ -358,6 +370,14 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     assert full_summary["selected_profile"] == "deferred-quality"
     assert full_summary["selected_profile_60hz"] == "deferred-quality"
     assert full_summary["fallback_profile_30hz"] is None
+    selected_summary = next(
+        item for item in full_summary["profiles"]
+        if item["profile_id"] == full_summary["selected_profile"]
+    )
+    assert selected_summary["resource_idle_required"] is True
+    assert selected_summary["resource_idle_ms_minimum"] == 2000
+    assert len(selected_summary["resource_queue_statuses"]) == 3
+    assert all(item["idle"] is True for item in selected_summary["resource_queue_statuses"])
 
     full_single = temporary / "full-single"
     create_matrix(full_single, mode="full", repeats=1,
@@ -517,6 +537,40 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     )
     assert early_snapshot_analysis.returncode != 0
     assert "lacks post-warmup presents" in early_snapshot_analysis.stdout
+
+    busy_resources = temporary / "busy-resources"
+    create_matrix(
+        busy_resources, mode="quick", repeats=1,
+        runner_class="hardware", renderer="Apple M4",
+    )
+    busy_path = busy_resources / "forward-compat/run-1/macos-profile.json"
+    busy_payload = json.loads(busy_path.read_text(encoding="utf-8"))
+    busy_payload["resource_idle_observed"] = False
+    busy_payload["resource_idle_ms"] = 0
+    busy_payload["resource_queue_status"]["texture_transfers"] = 3
+    busy_payload["resource_queue_status"]["texture_transfer_bytes"] = 4096
+    busy_payload["resource_queue_status"]["idle"] = False
+    busy_path.write_text(json.dumps(busy_payload), encoding="utf-8")
+    busy_result = temporary / "busy-resources.json"
+    busy_junit = temporary / "busy-resources.xml"
+    busy_analysis = analyze(busy_resources, busy_result, busy_junit, 1)
+    assert busy_analysis.returncode != 0
+    assert "did not prove sustained resource idle" in busy_analysis.stdout
+
+    short_idle = temporary / "short-resource-idle"
+    create_matrix(
+        short_idle, mode="quick", repeats=1,
+        runner_class="hardware", renderer="Apple M4",
+    )
+    short_path = short_idle / "forward-compat/run-1/macos-profile.json"
+    short_payload = json.loads(short_path.read_text(encoding="utf-8"))
+    short_payload["resource_idle_ms"] = 1999
+    short_path.write_text(json.dumps(short_payload), encoding="utf-8")
+    short_result = temporary / "short-resource-idle.json"
+    short_junit = temporary / "short-resource-idle.xml"
+    short_analysis = analyze(short_idle, short_result, short_junit, 1)
+    assert short_analysis.returncode != 0
+    assert "did not prove sustained resource idle" in short_analysis.stdout
 
     forged_lod = temporary / "forged-lod"
     create_matrix(forged_lod, mode="quick", repeats=1,

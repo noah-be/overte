@@ -25,6 +25,8 @@ RUN_RESULT_FIELDS = {
     "p50_frame_ms", "p90_frame_ms", "p95_frame_ms", "p99_frame_ms", "max_frame_ms",
     "over_16_67_ms", "over_33_33_ms", "rates_hz", "stats", "lod_timings_ms",
     "fixture_features", "fixture_present_delta", "fixture_sha256",
+    "resource_idle_required", "resource_idle_observed", "resource_idle_ms",
+    "resource_queue_status",
 }
 DIAGNOSTIC_RENDERER_TOKENS = (
     "software", "paravirtual", "virtual", "swiftshader", "llvmpipe", "softpipe", "offscreen",

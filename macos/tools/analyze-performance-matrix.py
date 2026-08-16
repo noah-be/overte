@@ -46,12 +46,17 @@ ATTEMPT_FIELDS = {
 }
 RUN_FIELDS = {
     "schema_version", "platform", "fixture_version", "fixture_mode", "fixture_features",
-    "fixture_present_delta", "fixture_sha256", "profile_id",
+    "fixture_present_delta", "fixture_sha256", "resource_idle_required",
+    "resource_idle_observed", "resource_idle_ms", "resource_queue_status", "profile_id",
     "run_index", "quality_score", "requested_profile", "actual_profile", "platform_info",
     "stress_entities", "warmup_to_snapshot_ms", "duration_ms", "measurement_complete",
     "sample_count", "frame_time_unit", "samples_us", "mean_frame_ms", "min_frame_ms",
     "p50_frame_ms", "p90_frame_ms", "p95_frame_ms", "p99_frame_ms", "max_frame_ms",
     "over_16_67_ms", "over_33_33_ms", "rates_hz", "stats", "lod_timings_ms",
+}
+RESOURCE_QUEUE_FIELDS = {
+    "loading", "pending", "processing", "processing_pending",
+    "texture_transfers", "texture_transfer_bytes", "idle",
 }
 PLATFORM_INFO_FIELDS = {
     "platform", "computer", "cpu", "gpu", "display", "tier", "deferred_capable",
@@ -474,8 +479,8 @@ def load_run(attempt: dict[str, object], manifest: dict[str, object],
     payload = load_object(directory / "macos-profile.json", "profile result")
     identifier = str(attempt["profile"])
     if set(payload) != RUN_FIELDS:
-        raise MatrixError(f"profile result fields do not match schema 3 for {identifier}/{attempt['label']}")
-    if payload.get("schema_version") != 3 or payload.get("platform") != "macos":
+        raise MatrixError(f"profile result fields do not match schema 4 for {identifier}/{attempt['label']}")
+    if payload.get("schema_version") != 4 or payload.get("platform") != "macos":
         raise MatrixError(f"unsupported profile result for {identifier}/{attempt['label']}")
     if (payload.get("profile_id") != identifier or
             payload.get("fixture_mode") != manifest["fixture_mode"] or
@@ -489,6 +494,28 @@ def load_run(attempt: dict[str, object], manifest: dict[str, object],
     if integer(payload.get("fixture_present_delta"),
                f"{identifier}.fixture_present_delta") < minimum_present_delta:
         raise MatrixError(f"profile {identifier} acceptance image lacks post-warmup presents")
+    queue = payload.get("resource_queue_status")
+    if not isinstance(queue, dict) or set(queue) != RESOURCE_QUEUE_FIELDS:
+        raise MatrixError(f"profile {identifier} has invalid resource queue evidence")
+    queue_counts = {
+        name: integer(queue.get(name), f"{identifier}.resource_queue_status.{name}")
+        for name in RESOURCE_QUEUE_FIELDS - {"idle"}
+    }
+    computed_idle = all(queue_counts[name] == 0 for name in (
+        "loading", "pending", "processing", "processing_pending", "texture_transfers",
+    ))
+    if not isinstance(queue.get("idle"), bool) or queue["idle"] is not computed_idle:
+        raise MatrixError(f"profile {identifier} resource idle flag is inconsistent")
+    full_fixture = manifest["fixture_mode"] == "full"
+    if (payload.get("resource_idle_required") is not full_fixture or
+            not isinstance(payload.get("resource_idle_observed"), bool)):
+        raise MatrixError(f"profile {identifier} resource idle policy is inconsistent")
+    idle_ms = integer(payload.get("resource_idle_ms"), f"{identifier}.resource_idle_ms")
+    if full_fixture:
+        if payload["resource_idle_observed"] is not True or not computed_idle or idle_ms < 2000:
+            raise MatrixError(f"profile {identifier} did not prove sustained resource idle")
+    elif payload["resource_idle_observed"] is not False or idle_ms != 0:
+        raise MatrixError(f"diagnostic profile {identifier} forged resource idle certification")
     if payload.get("run_index") != attempt["run_index"] or payload.get("measurement_complete") is not True:
         raise MatrixError(f"incomplete or mismatched run index for {identifier}/{attempt['label']}")
     trusted = catalog[identifier]
@@ -827,6 +854,19 @@ def aggregate(runs: list[dict[str, object]], manifest: dict[str, object],
             "new_frame_hz_median": statistics.median(new_frame) if new_frame else None,
             "run_indices": sorted(int(run["run_index"]) for run in profile_runs),
             "requested_profile": profile_runs[0].get("requested_profile") if profile_runs else None,
+            "resource_idle_required": all(
+                bool(run["resource_idle_required"]) for run in profile_runs
+            ) if profile_runs else None,
+            "resource_idle_ms_minimum": min(
+                int(run["resource_idle_ms"]) for run in profile_runs
+            ) if profile_runs else None,
+            "resource_queue_statuses": [
+                {
+                    "run_index": int(run["run_index"]),
+                    **dict(run["resource_queue_status"]),
+                }
+                for run in sorted(profile_runs, key=lambda run: int(run["run_index"]))
+            ],
             "dominant_bottleneck": dominant_bottleneck,
             "bottleneck_counts": dict(sorted(bottlenecks.items())),
             "lod_timing_p95_ms_median": lod_medians,

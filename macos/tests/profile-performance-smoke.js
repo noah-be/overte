@@ -22,6 +22,7 @@
     var SETTLE_MS = diagnosticLite ? 5000 : 10000;
     var WARMUP_COOLDOWN_MS = 5000;
     var MINIMUM_FINAL_PRESENTS = diagnosticLite ? 1 : 2;
+    var RESOURCE_IDLE_REQUIRED_MS = 2000;
     var scriptStartedAt = Date.now();
     var deadline = scriptStartedAt + 360000;
     var expectedNames = {
@@ -32,6 +33,10 @@
     var stage = "waiting";
     var completed = false;
     var settleStartedAt = 0;
+    var resourceIdleStartedAt = 0;
+    var resourceIdleDurationMs = 0;
+    var resourceIdleObserved = false;
+    var resourceQueueStatus = null;
     var cooldownStartedAt = 0;
     var cooldownPresentBaseline = 0;
     var finalPresentDelta = 0;
@@ -72,6 +77,19 @@
     function optionalNonnegativeNumber(value) {
         value = Number(value);
         return isFinite(value) && value >= 0 ? value : null;
+    }
+
+    function queueStatus() {
+        var raw = Test.getResourceQueueStatus();
+        var status = {};
+        ["loading", "pending", "processing", "processing_pending",
+            "texture_transfers", "texture_transfer_bytes"].forEach(function (name) {
+            status[name] = Math.max(0, Math.floor(finiteNumber(raw[name])));
+        });
+        status.idle = status.loading === 0 && status.pending === 0 &&
+            status.processing === 0 && status.processing_pending === 0 &&
+            status.texture_transfers === 0;
+        return status;
     }
 
     function summarizeOptionalSamples(rows, name) {
@@ -308,13 +326,17 @@
             lodTimings[name] = summarizeOptionalSamples(lodTimingSamples, name);
         });
         var metrics = {
-            schema_version: 3,
+            schema_version: 4,
             platform: "macos",
             fixture_version: testCase.fixture_version,
             fixture_mode: testCase.fixture_mode,
             fixture_features: testCase.fixture_features.slice(),
             fixture_present_delta: finalPresentDelta,
             fixture_sha256: testCase.fixture_sha256,
+            resource_idle_required: !diagnosticLite,
+            resource_idle_observed: resourceIdleObserved,
+            resource_idle_ms: resourceIdleDurationMs,
+            resource_queue_status: resourceQueueStatus,
             profile_id: profile.id,
             run_index: testCase.run_index,
             quality_score: profile.quality_score,
@@ -387,6 +409,9 @@
             stage = "cooldown";
             cooldownStartedAt = Date.now();
             cooldownPresentBaseline = Number(Test.getPresentCount()) || 0;
+            resourceIdleStartedAt = 0;
+            resourceIdleDurationMs = 0;
+            resourceIdleObserved = false;
             print("OVERTE_MACOS_PROFILE warmup_snapshot=" + path);
         } else {
             print("OVERTE_MACOS_PROFILE final_snapshot=" + path);
@@ -420,17 +445,37 @@
             stage = "warmup";
             Window.takeSnapshot(false, false, 16 / 9, "macos-profile-warmup.png");
         } else if (stage === "cooldown") {
+            resourceQueueStatus = queueStatus();
+            if (!diagnosticLite) {
+                if (!resourceQueueStatus.idle) {
+                    resourceIdleStartedAt = 0;
+                    resourceIdleDurationMs = 0;
+                    resourceIdleObserved = false;
+                } else {
+                    if (resourceIdleStartedAt === 0) {
+                        resourceIdleStartedAt = Date.now();
+                        print("OVERTE_MACOS_PROFILE resource_idle_started");
+                    }
+                    resourceIdleDurationMs = Date.now() - resourceIdleStartedAt;
+                    var resourceIdleWasObserved = resourceIdleObserved;
+                    resourceIdleObserved = resourceIdleDurationMs >= RESOURCE_IDLE_REQUIRED_MS;
+                    if (resourceIdleObserved && !resourceIdleWasObserved) {
+                        print("OVERTE_MACOS_PROFILE resource_idle_ms=" + resourceIdleDurationMs);
+                    }
+                }
+            }
             // The warmup image forces lazy shaders and the entity-tree handoff
             // through a present. Do not accept or measure that first frame.
             var fixturePresentDelta = Math.max(0,
                 (Number(Test.getPresentCount()) || 0) - cooldownPresentBaseline);
             if (Date.now() - cooldownStartedAt >= WARMUP_COOLDOWN_MS &&
-                    fixturePresentDelta >= MINIMUM_FINAL_PRESENTS) {
+                    fixturePresentDelta >= MINIMUM_FINAL_PRESENTS &&
+                    (diagnosticLite || resourceIdleObserved)) {
                 stage = "final";
                 finalPresentDelta = fixturePresentDelta;
                 print("OVERTE_MACOS_PROFILE warmup_cooldown_ms=" +
                     (Date.now() - cooldownStartedAt) + " fixture_present_delta=" +
-                    fixturePresentDelta);
+                    fixturePresentDelta + " resource_idle_ms=" + resourceIdleDurationMs);
                 Window.takeSnapshot(false, false, 16 / 9, "macos-profile.png");
             }
         } else if (stage === "measuring") {

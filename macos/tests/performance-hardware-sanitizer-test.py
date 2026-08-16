@@ -139,11 +139,19 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as directory:
 
     profile_result = temporary / "macos-profile.json"
     profile_result.write_text(json.dumps({
-        "schema_version": 3,
+        "schema_version": 4,
         "platform": "macos",
         "fixture_features": ["semantic-markers"],
         "fixture_present_delta": 2,
         "fixture_sha256": "a" * 64,
+        "resource_idle_required": True,
+        "resource_idle_observed": True,
+        "resource_idle_ms": 2000,
+        "resource_queue_status": {
+            "loading": 0, "pending": 0, "processing": 0,
+            "processing_pending": 0, "texture_transfers": 0,
+            "texture_transfer_bytes": 0, "idle": True,
+        },
         "platform_info": {
             "platform": {
                 "graphicsAPIs": [{
@@ -192,6 +200,8 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as directory:
         "deferred_capable": True,
     }
     assert profile["fixture_present_delta"] == 2
+    assert profile["resource_idle_observed"] is True
+    assert profile["resource_queue_status"]["texture_transfers"] == 0
     assert profile_result.stat().st_mode & 0o777 == 0o600
     profile_serialized = profile_result.read_text(encoding="utf-8").lower()
     for forbidden in ("secret", "serial", "nics", '"mac":', "aa:bb:cc:dd:ee:ff"):

@@ -80,6 +80,26 @@ void TestScriptingInterface::waitIdle() {
     waitForTextureIdle();
 }
 
+QVariantMap TestScriptingInterface::getResourceQueueStatus() {
+    const auto statTracker = DependencyManager::get<StatTracker>();
+    const auto loading = ResourceCache::getLoadingRequestCount();
+    const auto pending = ResourceCache::getPendingRequestCount();
+    const auto processing = statTracker->getStat("Processing").toInt();
+    const auto processingPending = statTracker->getStat("PendingProcessing").toInt();
+    const auto textureTransfers = gpu::Context::getTexturePendingGPUTransferCount();
+    const auto textureTransferBytes = gpu::Context::getTexturePendingGPUTransferMemSize();
+    return {
+        { "loading", static_cast<qulonglong>(loading) },
+        { "pending", static_cast<qulonglong>(pending) },
+        { "processing", processing },
+        { "processing_pending", processingPending },
+        { "texture_transfers", static_cast<qulonglong>(textureTransfers) },
+        { "texture_transfer_bytes", static_cast<qulonglong>(textureTransferBytes) },
+        { "idle", loading == 0 && pending == 0 && processing == 0 &&
+                  processingPending == 0 && textureTransfers == 0 },
+    };
+}
+
 bool TestScriptingInterface::loadTestScene(QString scene) {
     if (QThread::currentThread() != thread()) {
         bool result;

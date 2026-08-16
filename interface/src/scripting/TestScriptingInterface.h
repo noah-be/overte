@@ -14,6 +14,7 @@
 
 #include <functional>
 #include <QtCore/QObject>
+#include <QtCore/QVariantMap>
 #include <ScriptValue.h>
 
 class TestScriptingInterface : public QObject {
@@ -55,6 +56,13 @@ public slots:
     * @function Test.waitIdle
     */
     void waitIdle();
+
+    /*@jsdoc
+    * Returns a non-blocking snapshot of the queues used by waitIdle.
+    * @function Test.getResourceQueueStatus
+    * @returns {object} Loading, parsing and GPU-transfer counts plus idle.
+    */
+    QVariantMap getResourceQueueStatus();
 
     /*@jsdoc
     * Waits for establishment of connection to server

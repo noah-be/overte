@@ -32,6 +32,10 @@ const frameTimings = {
     finish() { this.active = false; },
     getValues() { return this.values.slice(); }
 };
+const resourceQueue = {
+    loading: 0, pending: 0, processing: 0, processing_pending: 0,
+    texture_transfers: 0, texture_transfer_bytes: 0, idle: true
+};
 const script = {
     stopped: false,
     interval: null,
@@ -118,6 +122,7 @@ const context = {
     FrameTimings: frameTimings,
     Test: {
         getPresentCount() { return present.count; },
+        getResourceQueueStatus() { return Object.assign({}, resourceQueue); },
         startTracing() { return true; },
         stopTracing(path) { assert.strictEqual(path, "/tmp/profile-trace.json.gz"); return true; },
         saveObject(value, name) { saved.push({ value, name }); }
@@ -167,6 +172,23 @@ assert.strictEqual(windowObject.snapshotName, "macos-profile-warmup.png");
 windowObject.snapshotHandler("/tmp/macos-profile-warmup.png");
 assert.strictEqual(frameTimings.active, false,
     "the shader-warmup image must not start performance sampling");
+if (fixtureMode === "full") {
+    clock.now += 1000;
+    resourceQueue.texture_transfers = 1;
+    resourceQueue.texture_transfer_bytes = 4096;
+    resourceQueue.idle = false;
+    script.interval();
+    resourceQueue.texture_transfers = 0;
+    resourceQueue.texture_transfer_bytes = 0;
+    resourceQueue.idle = true;
+    script.interval();
+    clock.now += 1999;
+    script.interval();
+    assert.deepStrictEqual(windowObject.snapshotNames, ["macos-profile-warmup.png"],
+        "post-warmup resource idle must remain continuous for the full interval");
+    clock.now += 1;
+    script.interval();
+}
 clock.now += 4999;
 script.interval();
 assert.deepStrictEqual(windowObject.snapshotNames, ["macos-profile-warmup.png"],
@@ -212,11 +234,18 @@ script.interval();
 assert.strictEqual(script.stopped, true);
 assert.strictEqual(saved.length, 1);
 assert.strictEqual(saved[0].name, "macos-profile.json");
-assert.strictEqual(saved[0].value.schema_version, 3);
+assert.strictEqual(saved[0].value.schema_version, 4);
 assert.strictEqual(saved[0].value.measurement_complete, true);
 assert.strictEqual(saved[0].value.fixture_mode, fixtureMode);
 assert.strictEqual(saved[0].value.fixture_sha256, "a".repeat(64));
 assert.strictEqual(saved[0].value.fixture_present_delta, requiredPresents);
+assert.strictEqual(saved[0].value.resource_idle_required, fixtureMode === "full");
+assert.strictEqual(saved[0].value.resource_idle_observed, fixtureMode === "full");
+assert(fixtureMode !== "full" || saved[0].value.resource_idle_ms >= 2000);
+if (fixtureMode === "diagnostic-lite") {
+    assert.strictEqual(saved[0].value.resource_idle_ms, 0);
+}
+assert.strictEqual(saved[0].value.resource_queue_status.idle, true);
 assert(saved[0].value.fixture_features.includes("semantic-red-cyan"));
 if (fixtureMode === "full") {
     const procedural = created.find((item) =>

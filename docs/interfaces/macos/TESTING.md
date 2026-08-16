@@ -206,6 +206,13 @@ window. The analyzer correctly reported the dominant class as `gpu`,
 prevents CPU submission or a valid image from being mistaken for fluid
 gameplay. These approximately one-second GPU/present values characterize only
 the Apple Software Renderer and are not an estimate of Apple Silicon hardware.
+This run also exposed 12--60 MiB of pending GPU texture transfers throughout
+the diagnostic window. Schema 4 therefore records exact download, processing,
+and texture-transfer queue counts and requires every Full hardware run to
+remain completely resource-idle for two continuous seconds before its warmup
+snapshot. Diagnostic-lite continues without claiming that gate so a slow
+software renderer remains useful for bounded diagnostics without contaminating
+a native quality decision.
 The earlier run `31871253541` exposed that the matrix's own early
 profile screenshot could contain only the sky; a hermetic image with that
 failure mode is now rejected by the regression suite.
