@@ -10,6 +10,19 @@ import subprocess
 import sys
 
 
+def signal_process_tree(process: subprocess.Popen[object], signum: int) -> None:
+    """Signal the owned process group, falling back to its direct child."""
+    try:
+        os.killpg(process.pid, signum)
+        return
+    except (ProcessLookupError, PermissionError):
+        pass
+    try:
+        process.send_signal(signum)
+    except ProcessLookupError:
+        pass
+
+
 def main() -> int:
     if len(sys.argv) < 3:
         print(f"usage: {sys.argv[0]} SECONDS COMMAND [ARG ...]", file=sys.stderr)
@@ -34,10 +47,7 @@ def main() -> int:
     def forward_signal(signum: int, _frame: object) -> None:
         nonlocal forwarded_signal
         forwarded_signal = signum
-        try:
-            os.killpg(process.pid, signum)
-        except ProcessLookupError:
-            pass
+        signal_process_tree(process, signum)
 
     previous_handlers = {
         signum: signal.signal(signum, forward_signal)
@@ -54,26 +64,28 @@ def main() -> int:
                     try:
                         process.wait(timeout=5)
                     except subprocess.TimeoutExpired:
-                        os.killpg(process.pid, signal.SIGKILL)
-                        process.wait()
+                        signal_process_tree(process, signal.SIGKILL)
+                        try:
+                            process.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            pass
                     return 128 + forwarded_signal
     except subprocess.TimeoutExpired:
         print(
             f"command timed out after {timeout:g}s: {' '.join(sys.argv[2:])}",
             file=sys.stderr,
         )
-        try:
-            os.killpg(process.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            return process.wait()
+        signal_process_tree(process, signal.SIGTERM)
         try:
             process.wait(timeout=5)
         except subprocess.TimeoutExpired:
+            signal_process_tree(process, signal.SIGKILL)
             try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                # A kernel- or service-blocked child must not strand the CI
+                # wrapper indefinitely or replace the timeout with a traceback.
                 pass
-            process.wait()
         return 124
     finally:
         for signum, handler in previous_handlers.items():
