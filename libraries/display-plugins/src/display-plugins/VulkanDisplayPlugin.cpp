@@ -34,6 +34,10 @@
 #include <QtGui/QOpenGLFramebufferObject>
 #endif
 
+#if defined(Q_OS_IOS)
+#include <os/log.h>
+#endif
+
 #include <NumericalConstants.h>
 #include <DependencyManager.h>
 #include <GLMHelpers.h>
@@ -210,7 +214,26 @@ public:
             {
                 //PROFILE_RANGE(render, "PluginPresent")
                 //gl::globalLock(); // VKTODO: is this needed?
+#if defined(Q_OS_IOS)
+                try {
+                    currentPlugin->present(_refreshRateController);
+                } catch (const std::exception& error) {
+                    os_log_fault(OS_LOG_DEFAULT,
+                                 "OVERTE_IOS_VULKAN_FATAL present_exception=%{public}s",
+                                 error.what());
+                    QMetaObject::invokeMethod(qApp, [] { QCoreApplication::exit(1); },
+                                              Qt::QueuedConnection);
+                    break;
+                } catch (...) {
+                    os_log_fault(OS_LOG_DEFAULT,
+                                 "OVERTE_IOS_VULKAN_FATAL present_exception=unknown");
+                    QMetaObject::invokeMethod(qApp, [] { QCoreApplication::exit(1); },
+                                              Qt::QueuedConnection);
+                    break;
+                }
+#else
                 currentPlugin->present(_refreshRateController);
+#endif
                 //gl::globalRelease(false);
                 //CHECK_GL_ERROR();
             }
@@ -333,6 +356,13 @@ bool VulkanDisplayPlugin::activate() {
     // existing presentation thread after a previous deactivate().
     _iosFramebufferResizeQueued.store(false, std::memory_order_release);
     _iosFramebufferResizeEnabled.store(true, std::memory_order_release);
+    _iosOutputPendingReported = false;
+    _iosPresentAcquireReported = false;
+    _iosPresentOutputReported = false;
+    _iosPresentOutputReady = false;
+    _iosPresentSubmitReported = false;
+    _iosPresentCompleteReported = false;
+    _iosPresentFenceReported = false;
 #endif
     _presentThread = presentThread.data();
     if (!RENDER_THREAD) {
@@ -799,8 +829,11 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
             VK_CHECK_RESULT(vkCreateSemaphore(_vkWindow->_context.device->logicalDevice, &semaphoreCreateInfo, nullptr, &_vkWindow->_acquireCompleteSemaphore));
         }
 
-        if(_vkWindow->_swapchain.acquireNextImage(_vkWindow->_acquireCompleteSemaphore, &currentImageIndex) != VK_SUCCESS) {
-            qDebug() << "_vkWindow->_swapchain.acquireNextImage fail";
+        const auto acquireResult =
+            _vkWindow->_swapchain.acquireNextImage(_vkWindow->_acquireCompleteSemaphore,
+                                                    &currentImageIndex);
+        bool swapchainNeedsResize = acquireResult == VK_SUBOPTIMAL_KHR;
+        if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR) {
 #if defined(Q_OS_IOS)
             _vkWindow->_needsResizing.store(true, std::memory_order_release);
             queueIOSFramebufferResize();
@@ -809,11 +842,24 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
 #else
             _vkWindow->resizeFramebuffer(); //VKTODO: workaround
 #endif
+        } else if (acquireResult != VK_SUCCESS && acquireResult != VK_SUBOPTIMAL_KHR) {
+            VK_CHECK_RESULT(acquireResult);
         }
         if (currentImageIndex == UINT32_MAX) {
             refreshRateController->clockEndTime();
             return;
         }
+#if defined(Q_OS_IOS)
+        if (!_iosPresentAcquireReported) {
+            os_log_info(OS_LOG_DEFAULT,
+                        "OVERTE_IOS_VULKAN_PRESENT acquired image=%u extent=%ux%u result=%d",
+                        static_cast<unsigned int>(currentImageIndex),
+                        static_cast<unsigned int>(_vkWindow->_swapchain.extent.width),
+                        static_cast<unsigned int>(_vkWindow->_swapchain.extent.height),
+                        static_cast<int>(acquireResult));
+            _iosPresentAcquireReported = true;
+        }
+#endif
         const auto& commandBuffer = _vkWindow->_drawCommandBuffers[currentImageIndex];
 
         // Retire the previous frame as a fence/command-buffer pair before
@@ -831,6 +877,13 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
             VK_CHECK_RESULT(vkResetCommandBuffer(_vkWindow->_previousCommandBuffer, 0));
             _vkWindow->_previousCommandBuffer = VK_NULL_HANDLE;
             vkBackend->recyclePreviousFrame();
+#if defined(Q_OS_IOS)
+            if (!_iosPresentFenceReported) {
+                os_log_info(OS_LOG_DEFAULT,
+                            "OVERTE_IOS_VULKAN_PRESENT frame_retired");
+                _iosPresentFenceReported = true;
+            }
+#endif
         }
 
         VkCommandBufferBeginInfo commandBufferBeginInfo = vks::initializers::commandBufferBeginInfo();
@@ -908,6 +961,19 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                 outputTexture->_gpuObject.getWidth() > 0 &&
                 outputTexture->_gpuObject.getHeight() > 0;
 #if defined(Q_OS_IOS)
+            if (!_iosPresentOutputReported || _iosPresentOutputReady != outputReady) {
+                const auto sourceWidth = outputReady ? outputTexture->_gpuObject.getWidth() : 0;
+                const auto sourceHeight = outputReady ? outputTexture->_gpuObject.getHeight() : 0;
+                os_log_info(OS_LOG_DEFAULT,
+                            "OVERTE_IOS_VULKAN_PRESENT output_ready=%d source=%ux%u target=%ux%u",
+                            static_cast<int>(outputReady),
+                            static_cast<unsigned int>(sourceWidth),
+                            static_cast<unsigned int>(sourceHeight),
+                            static_cast<unsigned int>(_vkWindow->_swapchain.extent.width),
+                            static_cast<unsigned int>(_vkWindow->_swapchain.extent.height));
+                _iosPresentOutputReported = true;
+                _iosPresentOutputReady = outputReady;
+            }
             if (!outputReady && !_iosOutputPendingReported) {
                 qCWarning(displayPlugins) << "OVERTE_IOS_VULKAN_OUTPUT_PENDING";
                 _iosOutputPendingReported = true;
@@ -1033,6 +1099,14 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
             VkFence frameFence;
             VK_CHECK_RESULT(vkCreateFence(vkDevice, &fenceCI, nullptr, &frameFence));
             VK_CHECK_RESULT(vkQueueSubmit(vkBackend->getContext().graphicsQueue, 1, &submitInfo, frameFence));
+#if defined(Q_OS_IOS)
+            if (!_iosPresentSubmitReported) {
+                os_log_info(OS_LOG_DEFAULT,
+                            "OVERTE_IOS_VULKAN_PRESENT submitted image=%u",
+                            static_cast<unsigned int>(currentImageIndex));
+                _iosPresentSubmitReported = true;
+            }
+#endif
 
             _vkWindow->_previousFrameFence = frameFence;
             _vkWindow->_previousCommandBuffer = commandBuffer;
@@ -1043,11 +1117,33 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                 _vkWindow->_context.recycler.trashVkSemaphore(_vkWindow->_previousRenderCompleteSemaphore);
             }
         }
-        _vkWindow->_swapchain.queuePresent(_vkWindow->_context.graphicsQueue, currentImageIndex, _vkWindow->_renderCompleteSemaphore);
+        const auto presentResult = _vkWindow->_swapchain.queuePresent(
+            _vkWindow->_context.graphicsQueue, currentImageIndex,
+            _vkWindow->_renderCompleteSemaphore);
         _vkWindow->_previousAcquireCompleteSemaphore = _vkWindow->_acquireCompleteSemaphore;
         _vkWindow->_previousRenderCompleteSemaphore = _vkWindow->_renderCompleteSemaphore;
         _vkWindow->_acquireCompleteSemaphore = VK_NULL_HANDLE;
         _vkWindow->_renderCompleteSemaphore = VK_NULL_HANDLE;
+#if defined(Q_OS_IOS)
+        if (!_iosPresentCompleteReported) {
+            os_log_info(OS_LOG_DEFAULT,
+                        "OVERTE_IOS_VULKAN_PRESENT presented image=%u result=%d",
+                        static_cast<unsigned int>(currentImageIndex),
+                        static_cast<int>(presentResult));
+            _iosPresentCompleteReported = true;
+        }
+#endif
+        if (presentResult == VK_ERROR_OUT_OF_DATE_KHR ||
+            presentResult == VK_SUBOPTIMAL_KHR || swapchainNeedsResize) {
+#if defined(Q_OS_IOS)
+            _vkWindow->_needsResizing.store(true, std::memory_order_release);
+            queueIOSFramebufferResize();
+#else
+            _vkWindow->resizeFramebuffer();
+#endif
+        } else if (presentResult != VK_SUCCESS) {
+            VK_CHECK_RESULT(presentResult);
+        }
 
         // GL driver memory queries do not describe Metal allocations on iOS.
 #if defined(Q_OS_IOS)
@@ -1105,6 +1201,11 @@ void VulkanDisplayPlugin::queueIOSFramebufferResize() {
                 // present thread returns before acquiring an image while it is
                 // true and may resume only after this release store.
                 if (window->resizeFramebuffer()) {
+                    os_log_info(OS_LOG_DEFAULT,
+                                "OVERTE_IOS_VULKAN_PRESENT resize_complete extent=%ux%u images=%u",
+                                static_cast<unsigned int>(window->_swapchain.extent.width),
+                                static_cast<unsigned int>(window->_swapchain.extent.height),
+                                static_cast<unsigned int>(window->_swapchain.imageCount));
                     window->_needsResizing.store(false, std::memory_order_release);
                 }
             }

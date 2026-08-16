@@ -35,9 +35,26 @@ for fragment in (
     "static const VkPipelineStageFlags waitFlags{ VK_PIPELINE_STAGE_TRANSFER_BIT };",
     "VK_CHECK_RESULT(vkQueueSubmit",
     "_vkWindow->_swapchain.queuePresent(",
+    "const auto presentResult = _vkWindow->_swapchain.queuePresent(",
+    "presentResult == VK_ERROR_OUT_OF_DATE_KHR",
+    "presentResult == VK_SUBOPTIMAL_KHR",
+    "VK_CHECK_RESULT(presentResult);",
+    '"OVERTE_IOS_VULKAN_PRESENT acquired image=%u extent=%ux%u result=%d"',
+    '"OVERTE_IOS_VULKAN_PRESENT output_ready=%d source=%ux%u target=%ux%u"',
+    '"OVERTE_IOS_VULKAN_PRESENT submitted image=%u"',
+    '"OVERTE_IOS_VULKAN_PRESENT presented image=%u result=%d"',
+    '"OVERTE_IOS_VULKAN_PRESENT frame_retired"',
 ):
     if fragment not in present:
         raise SystemExit(f"Vulkan pending-output contract missing: {fragment}")
+
+for fragment in (
+    '"OVERTE_IOS_VULKAN_PRESENT resize_complete extent=%ux%u images=%u"',
+    '"OVERTE_IOS_VULKAN_FATAL present_exception=%{public}s"',
+    '"OVERTE_IOS_VULKAN_FATAL present_exception=unknown"',
+):
+    if fragment not in SOURCE:
+        raise SystemExit(f"Vulkan iOS lifecycle telemetry missing: {fragment}")
 
 if "vkBackend->_outputTexture->_gpuObject" in present or \
         "vkBackend->_outputTexture->attachments" in present:

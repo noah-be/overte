@@ -218,6 +218,12 @@ protected:
     std::atomic<bool> _iosFramebufferResizeEnabled{ false };
     std::atomic<bool> _iosFramebufferResizeQueued{ false };
     bool _iosOutputPendingReported{ false };
+    bool _iosPresentAcquireReported{ false };
+    bool _iosPresentOutputReported{ false };
+    bool _iosPresentOutputReady{ false };
+    bool _iosPresentSubmitReported{ false };
+    bool _iosPresentCompleteReported{ false };
+    bool _iosPresentFenceReported{ false };
 #endif
 };
 
