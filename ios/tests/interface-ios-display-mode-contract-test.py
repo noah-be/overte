@@ -82,4 +82,25 @@ require(
     APPLICATION_UI,
 )
 
+require(
+    r"auto\* menu = new Menu\(\);\s+"
+    r"_window->setMenuBar\(menu\);\s+"
+    r"#if defined\(Q_OS_IOS\)[\s\S]*?"
+    r"menu->hide\(\);\s+#endif",
+    "the final desktop-created iOS menu instance can become visible",
+    APPLICATION_UI,
+)
+require(
+    r"auto menu = Menu::getInstance\(\);\s+"
+    r"#if defined\(Q_OS_IOS\)[\s\S]*?"
+    r"menu->hide\(\);\s+"
+    r"_primaryWidget->setFocus\(\);\s+"
+    r"if \(auto\* inputMethod = QGuiApplication::inputMethod\(\)\) \{\s+"
+    r"inputMethod->hide\(\);\s+\}[\s\S]*?"
+    r"OVERTE_IOS_UI_POLICY menu_hidden=1 keyboard_hidden=1[\s\S]*?"
+    r"#else\s+menu->getMenu\(\"Edit\"\)->setVisible\(true\);",
+    "iOS desktop completion can reveal its menu or leave the native keyboard active",
+    APPLICATION_UI,
+)
+
 print("PASS iOS deterministic display-plugin selection contract")

@@ -16,6 +16,9 @@
 #include "Application.h"
 
 #include <QtQml/QQmlContext>
+#if defined(Q_OS_IOS)
+#include <QtGui/QInputMethod>
+#endif
 #include <QStyle>
 #include <QStyleFactory>
 #if defined(Q_OS_WIN)
@@ -980,7 +983,14 @@ void Application::onDesktopRootContextCreated(QQmlContext* surfaceContext) {
         surfaceContext->setContextProperty("Steam", new SteamScriptingInterface(engine, steamClient.get()));
     }
 
-    _window->setMenuBar(new Menu());
+    auto* menu = new Menu();
+    _window->setMenuBar(menu);
+#if defined(Q_OS_IOS)
+    // onDesktopRootContextCreated replaces the menu that was hidden during
+    // Application startup. Hide this final instance at the point where it is
+    // installed so QMainWindow cannot expose desktop chrome on iPhone/iPad.
+    menu->hide();
+#endif
 }
 
 void Application::showDesktop() {}
@@ -1368,11 +1378,25 @@ void Application::resumeAfterLoginDialogActionTaken() {
 #endif
 
     auto menu = Menu::getInstance();
+#if defined(Q_OS_IOS)
+    // The offscreen desktop can focus a hidden QML text field while it is
+    // finishing startup. That would leave UIKit's keyboard over the native
+    // render surface even though no dialog is visible on iOS. Restore focus to
+    // the render widget, dismiss the input method, and keep the final menu
+    // instance hidden after all desktop initialization has completed.
+    menu->hide();
+    _primaryWidget->setFocus();
+    if (auto* inputMethod = QGuiApplication::inputMethod()) {
+        inputMethod->hide();
+    }
+    qInfo().noquote() << "OVERTE_IOS_UI_POLICY menu_hidden=1 keyboard_hidden=1";
+#else
     menu->getMenu("Edit")->setVisible(true);
     menu->getMenu("View")->setVisible(true);
     menu->getMenu("Navigate")->setVisible(true);
     menu->getMenu("Settings")->setVisible(true);
     menu->getMenu("Developer")->setVisible(_developerMenuVisible);
+#endif
     _myCamera.setMode(_previousCameraMode);
     cameraModeChanged();
     _startUpFinished = true;
