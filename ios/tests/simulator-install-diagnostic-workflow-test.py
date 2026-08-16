@@ -117,7 +117,8 @@ assert RUN_TESTS.count("interface-world-simulator-lldb-test.py") == 1
 
 for required in (
     "xcrun dwarfdump --uuid",
-    "--wait-for-debugger",
+    "OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER",
+    "OVERTE_IOS_LLDB_STARTUP_TRACE",
     "SIMCTL_CHILD_MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=0",
     "SIMCTL_CHILD_MVK_CONFIG_TRACE_VULKAN_CALLS=6",
     "startup-trace.lldb",

@@ -21,6 +21,8 @@ source_revision="${5:-}"
 candidate_sha256="${6:-}"
 output_dir="${7:-}"
 lldb_timeout="${OVERTE_IOS_LLDB_TIMEOUT_SECONDS:-240}"
+startup_trace="${OVERTE_IOS_LLDB_STARTUP_TRACE:-0}"
+wait_for_debugger="${OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER:-0}"
 
 [[ -d "$app_path" && "$app_path" == *.app && -x "$app_path/Overte" ]] || {
     echo "usage: $0 APP_PATH DSYM_BUNDLE BUNDLE_ID iphone SOURCE_REVISION CANDIDATE_SHA256 OUTPUT_DIR" >&2
@@ -40,6 +42,14 @@ lldb_timeout="${OVERTE_IOS_LLDB_TIMEOUT_SECONDS:-240}"
 [[ -n "$output_dir" ]] || { echo "output directory is required" >&2; exit 2; }
 [[ "$lldb_timeout" =~ ^[1-9][0-9]*$ ]] && ((10#$lldb_timeout <= 600)) || {
     echo "OVERTE_IOS_LLDB_TIMEOUT_SECONDS must be an integer from 1 through 600" >&2
+    exit 2
+}
+[[ "$startup_trace" =~ ^[01]$ ]] || {
+    echo "OVERTE_IOS_LLDB_STARTUP_TRACE must be 0 or 1" >&2
+    exit 2
+}
+[[ "$wait_for_debugger" =~ ^[01]$ ]] || {
+    echo "OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER must be 0 or 1" >&2
     exit 2
 }
 for helper in "$timeout_runner" "$simulator_selector"; do
@@ -197,15 +207,21 @@ chmod 0700 "$mvk_dump_root"
 run_bounded "simulator microphone permission" 60 xcrun simctl privacy \
     "$active_udid" grant microphone "$bundle_id" >/dev/null
 
+launch_arguments=(xcrun simctl launch)
+if ((wait_for_debugger)); then
+    launch_arguments+=(--wait-for-debugger)
+fi
+launch_arguments+=(
+    --stdout="$app_stdout" --stderr="$app_stderr"
+    "$active_udid" "$bundle_id" --url 'file:///~/serverless/tutorial.json'
+    --ios-world-evidence --no-login-suggestion
+)
 launch_output="$(run_bounded "application launch for LLDB" 60 env \
     SIMCTL_CHILD_MVK_CONFIG_LOG_LEVEL=4 \
     SIMCTL_CHILD_MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=0 \
     SIMCTL_CHILD_MVK_CONFIG_TRACE_VULKAN_CALLS=6 \
     SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR="$mvk_dump_root" \
-    xcrun simctl launch --wait-for-debugger \
-    --stdout="$app_stdout" --stderr="$app_stderr" \
-    "$active_udid" "$bundle_id" --url 'file:///~/serverless/tutorial.json' \
-    --ios-world-evidence --no-login-suggestion)"
+    "${launch_arguments[@]}")"
 [[ "$launch_output" == *":"* ]] || { echo "application launch returned no process identifier" >&2; exit 1; }
 launch_pid="${launch_output##*: }"
 [[ "$launch_pid" =~ ^[1-9][0-9]*$ ]] || { echo "application launch returned an invalid process identifier" >&2; exit 1; }
@@ -222,10 +238,11 @@ script print("OVERTE_LLDB_CRASH_CAPTURE_COMPLETE")
 LLDB
 chmod 0600 "$crash_commands"
 
-# Trace the startup boundary and every ordinary process-exit route without
-# exposing arguments, environment variables, local variables, or memory.
-# Breakpoint commands auto-continue so the trace does not alter startup order.
-cat > "$startup_commands" <<'LLDB'
+# Startup tracing is useful when diagnosing an early controlled exit, but its
+# repeated breakpoints materially perturb thread scheduling.  Keep it opt-in
+# so the default post-import crash capture follows normal startup timing.
+if ((startup_trace)); then
+    cat > "$startup_commands" <<'LLDB'
 breakpoint set -r 'Application::resumeAfterLoginDialogActionTaken'
 breakpoint command add 1 -o 'script print("OVERTE_LLDB_TRACE resume_entry")' -o 'thread backtrace -c 24' -o 'continue'
 breakpoint set -r 'Application::handleSandboxStatus'
@@ -241,21 +258,29 @@ breakpoint command add 6 -o 'script print("OVERTE_LLDB_TRACE abort")' -o 'thread
 breakpoint set -r 'Application::~Application'
 breakpoint command add 7 -o 'script print("OVERTE_LLDB_TRACE application_destructor")' -o 'thread backtrace -c 32' -o 'continue'
 LLDB
-chmod 0600 "$startup_commands"
+    chmod 0600 "$startup_commands"
+fi
 
 lldb_status=0
-"$timeout_runner" "$lldb_timeout" xcrun lldb \
+lldb_arguments=(
     --no-lldbinit \
     --no-use-colors \
     --batch \
     --attach-pid "$launch_pid" \
     -o 'settings set auto-confirm true' \
     -o "target symbols add \"$symbol_bundle\"" \
-    -o 'process handle -s true -n false -p false SIGSEGV' \
-    --source "$startup_commands" \
+    -o 'process handle -s true -n false -p false SIGSEGV'
+)
+if ((startup_trace)); then
+    lldb_arguments+=(--source "$startup_commands")
+fi
+lldb_arguments+=(
     --source-on-crash "$crash_commands" \
     -o 'process continue' \
-    -o 'script print("OVERTE_LLDB_STARTUP_TRACE_COMPLETE")' \
+    -o 'script print("OVERTE_LLDB_STARTUP_TRACE_COMPLETE")'
+)
+"$timeout_runner" "$lldb_timeout" xcrun lldb \
+    "${lldb_arguments[@]}" \
     > "$lldb_log" 2>&1 || lldb_status=$?
 
 grep -Fxq 'OVERTE_LLDB_TRACE resume_entry' "$lldb_log" && resume_trace="observed" || true

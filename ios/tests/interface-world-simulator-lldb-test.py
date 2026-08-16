@@ -92,9 +92,13 @@ elif [ "$1 $2" = "simctl launch" ]; then
     [ "${SIMCTL_CHILD_MVK_CONFIG_TRACE_VULKAN_CALLS:-}" = 6 ]
     [ -n "${SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR:-}" ]
     case " $* " in
-        *" --wait-for-debugger "*) ;;
-        *) printf '%s\n' 'launch did not wait for debugger' >&2; exit 70 ;;
+        *" --wait-for-debugger "*) observed_wait=1 ;;
+        *) observed_wait=0 ;;
     esac
+    [ "$observed_wait" = "${FAKE_EXPECT_WAIT_FOR_DEBUGGER:-0}" ] || {
+        printf '%s\n' 'unexpected wait-for-debugger mode' >&2
+        exit 70
+    }
     stdout=
     stderr=
     for argument in "$@"; do
@@ -167,12 +171,20 @@ fi
     lldb_log = (captured_output / "iphone-serverless-lldb.log").read_text(encoding="utf-8")
     assert "OVERTE_LLDB_CRASH_CAPTURE_COMPLETE" in lldb_log
     commands = command_log.read_text(encoding="utf-8")
-    assert "simctl launch --wait-for-debugger" in commands
+    assert "simctl launch --stdout=" in commands
+    assert "--wait-for-debugger" not in commands
     assert "lldb --no-lldbinit --no-use-colors --batch --attach-pid 4242" in commands
+    assert "startup-trace.lldb" not in commands
     assert "simctl terminate" in commands and "simctl shutdown" in commands
 
     command_log.write_text("", encoding="utf-8")
-    normal_exit_environment = {**base_environment, "FAKE_LLDB_NORMAL_EXIT": "1"}
+    normal_exit_environment = {
+        **base_environment,
+        "FAKE_LLDB_NORMAL_EXIT": "1",
+        "FAKE_EXPECT_WAIT_FOR_DEBUGGER": "1",
+        "OVERTE_IOS_LLDB_STARTUP_TRACE": "1",
+        "OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER": "1",
+    }
     normal_exit_output = root / "normal-exit"
     normal_exit = invoke(app, symbols, normal_exit_output, normal_exit_environment)
     assert normal_exit.returncode == 1, (normal_exit.stdout, normal_exit.stderr)
@@ -188,6 +200,9 @@ fi
     ).read_text(encoding="utf-8")
     assert "OVERTE_LLDB_TRACE resume_entry" in normal_exit_log
     assert "OVERTE_LLDB_TRACE qt_exit" in normal_exit_log
+    normal_exit_commands = command_log.read_text(encoding="utf-8")
+    assert "simctl launch --wait-for-debugger" in normal_exit_commands
+    assert "startup-trace.lldb" in normal_exit_commands
 
     command_log.write_text("", encoding="utf-8")
     mismatch_environment = {**base_environment, "FAKE_SYMBOL_UUID": "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"}
