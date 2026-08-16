@@ -1270,6 +1270,10 @@ execute(github, context, core, require).then(
             "--build-type RelWithDebInfo",
             "--deployment-target 11.0",
             "build/macos-runtime-provenance/application-manifest.json",
+            "application artifact is incompatible: missing normalized Overte.app archive",
+            "application artifact is incompatible: missing provenance manifest",
+            "application artifact contains an ambiguous Overte.app layout",
+            "application artifact contains an ambiguous provenance layout",
         ):
             self.assertIn(token, verify)
         self.assertLess(

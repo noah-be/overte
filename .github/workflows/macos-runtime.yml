@@ -278,16 +278,34 @@ jobs:
           set -euo pipefail
           archive=build/runtime-artifact/application-archive/Overte.app.tar
           manifest=build/runtime-artifact/application-artifact/application-manifest.json
-          test -f "$archive"
-          test -f "$manifest"
+          [[ -f "$archive" ]] || {
+            echo "application artifact is incompatible: missing normalized Overte.app archive" >&2
+            exit 1
+          }
+          [[ -f "$manifest" ]] || {
+            echo "application artifact is incompatible: missing provenance manifest" >&2
+            exit 1
+          }
           python3 macos/ci/application-artifact.py extract \
             --archive "$archive" \
             --destination build/runtime-artifact/interface
           app=build/runtime-artifact/interface/Overte.app
-          test -d "$app"
-          test "$(stat -f %z "$manifest")" -le 4194304
-          test "$(find build/runtime-artifact -type d -name Overte.app | wc -l | tr -d ' ')" = 1
-          test "$(find build/runtime-artifact -type f -name application-manifest.json | wc -l | tr -d ' ')" = 1
+          [[ -d "$app" ]] || {
+            echo "application artifact extraction did not produce exactly one normalized Overte.app" >&2
+            exit 1
+          }
+          [[ "$(stat -f %z "$manifest")" -le 4194304 ]] || {
+            echo "application provenance manifest exceeds the 4 MiB safety limit" >&2
+            exit 1
+          }
+          [[ "$(find build/runtime-artifact -type d -name Overte.app | wc -l | tr -d ' ')" = 1 ]] || {
+            echo "application artifact contains an ambiguous Overte.app layout" >&2
+            exit 1
+          }
+          [[ "$(find build/runtime-artifact -type f -name application-manifest.json | wc -l | tr -d ' ')" = 1 ]] || {
+            echo "application artifact contains an ambiguous provenance layout" >&2
+            exit 1
+          }
           build_metadata="$(python3 - "$manifest" <<'PY'
           import json
           from pathlib import Path
