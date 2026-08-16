@@ -165,7 +165,8 @@ raw OpenGL and `system_profiler` evidence for fourteen days. GitHub documents
 does not infer GPU suitability from that label alone.
 
 The native application build and matching runtime restore are explicit manual
-choices:
+choices. They use `macos-15-xlarge`; the standard 7-GB ARM runner is too small
+for the source-built Qt/QtWebEngine graph:
 
 ```bash
 gh workflow run macos-bootstrap.yml -R noah-be/overte --ref apple-macos \

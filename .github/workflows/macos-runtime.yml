@@ -87,7 +87,7 @@ concurrency:
 jobs:
   runtime-x86_64:
     if: github.event_name == 'workflow_dispatch'
-    runs-on: ${{ inputs.target_arch == 'arm64' && 'macos-15' || 'macos-15-intel' }}
+    runs-on: ${{ inputs.target_arch == 'arm64' && 'macos-15-xlarge' || 'macos-15-intel' }}
     timeout-minutes: 330
     env:
       OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '300'

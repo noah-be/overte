@@ -44,7 +44,7 @@ concurrency:
 
 jobs:
   client-opengl-x86_64:
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.target_arch == 'arm64' && 'macos-15' || 'macos-15-intel' }}
+    runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.target_arch == 'arm64' && 'macos-15-xlarge' || 'macos-15-intel' }}
     timeout-minutes: 360
     env:
       CONAN_HOME: ${{ github.workspace }}/.conan2

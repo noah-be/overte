@@ -563,7 +563,8 @@ class MacOSWorkflowContracts(unittest.TestCase):
     def test_bootstrap_architecture_choice_is_native_and_cache_separated(self):
         self.assertIn("target_arch:", self.source)
         self.assertIn("options: [x86_64, arm64]", self.source)
-        self.assertIn("inputs.target_arch == 'arm64' && 'macos-15' || 'macos-15-intel'", self.source)
+        self.assertIn("inputs.target_arch == 'arm64' && 'macos-15-xlarge' || 'macos-15-intel'", self.source)
+        self.assertNotIn("inputs.target_arch == 'arm64' && 'macos-15' ||", self.source)
         self.assertIn("inputs.target_arch == 'arm64' && 'arm64' || 'x86_64'", self.source)
         self.assertIn("inputs.target_arch == 'arm64' && 'source' || 'aqt'", self.source)
         self.assertIn(
@@ -1209,7 +1210,8 @@ execute(github, context, core, require).then(
         )
         self.assertIn("target_arch:", source)
         self.assertIn("options: [x86_64, arm64]", source)
-        self.assertIn("inputs.target_arch == 'arm64' && 'macos-15' || 'macos-15-intel'", source)
+        self.assertIn("inputs.target_arch == 'arm64' && 'macos-15-xlarge' || 'macos-15-intel'", source)
+        self.assertNotIn("inputs.target_arch == 'arm64' && 'macos-15' ||", source)
         self.assertIn("OVERTE_MACOS_TARGET_ARCH: ${{ inputs.target_arch }}", source)
         self.assertNotIn("self-hosted", source)
 
