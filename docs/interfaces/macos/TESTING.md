@@ -187,19 +187,26 @@ artifact cannot silently run under Rosetta in an ARM measurement. A Full/3 run
 still remains diagnostic-only when CGL exposes software, paravirtual or no
 renderer; only an accelerated physical Apple-GPU result is decision-ready.
 
-Run [`31878060076`](https://github.com/noah-be/overte/actions/runs/31878060076)
+Run [`31929316508`](https://github.com/noah-be/overte/actions/runs/31929316508)
 is the current hosted diagnostic baseline for the hardened matrix contract. It
-reused the application from bootstrap run `31868069780`, passed startup and the
+reused the normalized, provenance-bound application archive from successful
+bootstrap run `31917486365`, passed bundle re-inventory, startup, and the
 serverless smoke, and independently reproduced the checked-in analyzer result.
 The matrix's final 1380x776 image contained 55,187 red and 30,216 cyan fixture
-pixels after a distinct shader-warmup image, a five-second cooldown, and seven
-additional presents. Fixture, image, and hardware-identity hashes all matched.
+pixels after a distinct shader-warmup image, a five-second cooldown, and eight
+additional presents after the fixture baseline. Fixture, image,
+application, and hardware-identity hashes all matched, and the process exited
+naturally with status zero in 128.767 seconds.
 The Forward diagnostic remained unambiguously GPU-bound: GPU/batch p95 was
-about 1614.6 ms, present p95 about 1876.3 ms, engine p95 about 26.82 ms, and
-render-submit p95 35.346 ms. The analyzer correctly reported
+about 1011.3 ms, present p95 about 1091.5 ms, engine p95 about 6.74 ms, and
+render-submit p95 37.506 ms. It retained 19 draw calls, 9,058 triangles, zero
+dropped frames, and 12--60 pending texture transfers throughout the measured
+window. The analyzer correctly reported the dominant class as `gpu`,
 `diagnostic-only`, `decision_ready=false`, and no selected profile. This
 prevents CPU submission or a valid image from being mistaken for fluid
-gameplay. The earlier run `31871253541` exposed that the matrix's own early
+gameplay. These approximately one-second GPU/present values characterize only
+the Apple Software Renderer and are not an estimate of Apple Silicon hardware.
+The earlier run `31871253541` exposed that the matrix's own early
 profile screenshot could contain only the sky; a hermetic image with that
 failure mode is now rejected by the regression suite.
 
