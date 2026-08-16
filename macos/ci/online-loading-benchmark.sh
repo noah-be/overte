@@ -13,6 +13,9 @@ readonly default_scripts_override="$source_root/macos/tests/fixtures/no-default-
 readonly baseline_scene="$source_root/macos/tests/fixtures/serverless-render.json"
 readonly location="${OVERTE_MACOS_ONLINE_LOCATION:-hifi://overte_hub}"
 readonly location_label="${OVERTE_MACOS_ONLINE_LOCATION_LABEL:-overte-hub}"
+readonly target_mode="${OVERTE_MACOS_ONLINE_TARGET_MODE:-public}"
+readonly expected_domain_id="${OVERTE_MACOS_ONLINE_EXPECTED_DOMAIN_ID:-}"
+readonly expected_sentinel_name="${OVERTE_MACOS_ONLINE_EXPECTED_SENTINEL_NAME:-}"
 readonly concurrency_csv="${OVERTE_MACOS_ONLINE_CONCURRENCIES:-10,16}"
 readonly repeats="${OVERTE_MACOS_ONLINE_REPEATS:-1}"
 readonly timeout_seconds="${OVERTE_MACOS_ONLINE_LOADING_TIMEOUT_SECONDS:-420}"
@@ -30,6 +33,23 @@ readonly lldb_timeout_seconds="${OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-420}"
     echo "diagnostic online timeout must be a positive integer" >&2
     exit 2
 }
+[[ "$target_mode" == public || "$target_mode" == controlled ]] || {
+    echo "online target mode must be public or controlled" >&2
+    exit 2
+}
+if [[ "$target_mode" == controlled ]]; then
+    [[ "$expected_domain_id" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] || {
+        echo "controlled target requires a canonical expected domain UUID" >&2
+        exit 2
+    }
+    [[ "$expected_sentinel_name" =~ ^[a-z0-9][a-z0-9-]{0,47}$ ]] || {
+        echo "controlled target requires a safe versioned sentinel name" >&2
+        exit 2
+    }
+elif [[ -n "$expected_domain_id" || -n "$expected_sentinel_name" ]]; then
+    echo "public target cannot carry controlled identity" >&2
+    exit 2
+fi
 
 mkdir -p "$output_dir"
 if [[ -n "$(find "$output_dir" -mindepth 1 -print -quit)" ]]; then
@@ -72,16 +92,17 @@ fi
 translated="$(sysctl -in sysctl.proc_translated 2>/dev/null || printf '0')"
 python3 - "$output_dir/online-loading-manifest.json" "$runner_class" "$repeats" \
     "$location_label" "$location" "$output_dir/application.sha256" "$(uname -m)" "$translated" \
-    "${concurrencies[*]}" "${requested_concurrencies[*]}" <<'PY'
+    "${concurrencies[*]}" "${requested_concurrencies[*]}" "$target_mode" \
+    "$expected_domain_id" "$expected_sentinel_name" <<'PY'
 import hashlib
 import json
 import os
 from pathlib import Path
 import sys
 
-path, runner_class, repeats, label, location, app_sha_path, machine, translated, executed, requested = sys.argv[1:]
+path, runner_class, repeats, label, location, app_sha_path, machine, translated, executed, requested, target_mode, expected_domain_id, expected_sentinel_name = sys.argv[1:]
 payload = {
-    "schema_version": 2,
+    "schema_version": 3,
     "runner_class": runner_class,
     "repeats": int(repeats),
     "location_label": label,
@@ -91,7 +112,10 @@ payload = {
     "translated": translated == "1",
     "executed_concurrencies": [int(value) for value in executed.split()],
     "requested_concurrencies": [int(value) for value in requested.split()],
-    "public_world_informational": True,
+    "target_mode": target_mode,
+    "expected_domain_id": expected_domain_id,
+    "expected_sentinel_name": expected_sentinel_name,
+    "public_world_informational": target_mode == "public",
     "navigation_after_startup": True,
 }
 target = Path(path)
@@ -150,7 +174,9 @@ run_case() {
         --template "$template" --output "$generated_script" --cache-mode "$cache_mode" \
         --concurrency "$concurrency" --run-index "$pair" --location-label "$location_label" \
         --location-sha256 "$location_sha256" --navigation-id "$navigation_id" \
-        --runner-class "$runner_class"
+        --runner-class "$runner_class" --target-mode "$target_mode" \
+        --expected-domain-id "$expected_domain_id" \
+        --expected-sentinel-name "$expected_sentinel_name"
 
     app_command=(
         "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog --display Desktop

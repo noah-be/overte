@@ -28,6 +28,8 @@ MARKERS = {
 TELEMETRY_PREFIX = "OVERTE_MACOS_ONLINE_NAV "
 SAFE_NAVIGATION_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
+UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+SAFE_LABEL = re.compile(r"^[a-z0-9][a-z0-9-]{0,47}$")
 NAVIGATION_EVENT_ORDER = (
     "url_accepted",
     "domain_connected",
@@ -449,7 +451,7 @@ def queue_diagnostics(value: dict[str, object]) -> dict[str, object]:
 
 def load_manifest(root: Path) -> dict[str, object]:
     manifest = load_object(root / "online-loading-manifest.json", "online-loading manifest")
-    if manifest.get("schema_version") != 2 or manifest.get("runner_class") not in ("diagnostic", "hardware"):
+    if manifest.get("schema_version") != 3 or manifest.get("runner_class") not in ("diagnostic", "hardware"):
         raise LoadingError("unsupported online-loading manifest")
     if manifest.get("navigation_after_startup") is not True:
         raise LoadingError("online benchmark must begin navigation after the ready-app baseline")
@@ -465,8 +467,21 @@ def load_manifest(root: Path) -> dict[str, object]:
         raise LoadingError("manifest has no valid application SHA-256")
     if not isinstance(location_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", location_sha):
         raise LoadingError("manifest has no sanitized location identity")
-    if manifest.get("public_world_informational") is not True:
-        raise LoadingError("online benchmark must classify mutable public-world evidence")
+    target_mode = manifest.get("target_mode")
+    if target_mode not in ("public", "controlled"):
+        raise LoadingError("online benchmark has no valid target mode")
+    expected_domain_id = manifest.get("expected_domain_id")
+    expected_sentinel_name = manifest.get("expected_sentinel_name")
+    if target_mode == "controlled":
+        if (not isinstance(expected_domain_id, str) or not UUID.fullmatch(expected_domain_id) or
+                not isinstance(expected_sentinel_name, str) or
+                not SAFE_LABEL.fullmatch(expected_sentinel_name)):
+            raise LoadingError("controlled target identity is invalid")
+        if manifest.get("public_world_informational") is not False:
+            raise LoadingError("controlled target cannot be classified as public")
+    elif (expected_domain_id != "" or expected_sentinel_name != "" or
+          manifest.get("public_world_informational") is not True):
+        raise LoadingError("public target must remain informational and carry no controlled identity")
     manifest["repeats"] = repeats
     return manifest
 
@@ -549,7 +564,7 @@ def validate_metrics_candidate(attempt: dict[str, object], manifest: dict[str, o
                                evidence_source: str,
                                primary_signal_process: dict[str, object] | None) -> dict[str, object]:
     payload = load_object(metrics_path, f"{evidence_source} online-loading metrics")
-    if payload.get("schema_version") != 2 or payload.get("platform") != "macos":
+    if payload.get("schema_version") != 3 or payload.get("platform") != "macos":
         raise LoadingError("unsupported online-loading result")
     if (payload.get("cache_mode") != attempt["cache_mode"] or
             payload.get("concurrency") != attempt["concurrency"] or
@@ -561,6 +576,15 @@ def validate_metrics_candidate(attempt: dict[str, object], manifest: dict[str, o
         raise LoadingError("online-loading result does not match its sanitized location identity")
     if payload.get("runner_class") != manifest["runner_class"]:
         raise LoadingError("online-loading result runner class does not match its manifest")
+    for field in ("target_mode", "expected_domain_id", "expected_sentinel_name"):
+        if payload.get(field) != manifest.get(field):
+            raise LoadingError(f"online-loading result {field} does not match its manifest")
+    if not isinstance(payload.get("target_verified"), bool):
+        raise LoadingError("online-loading result target verification is invalid")
+    if manifest["target_mode"] == "controlled" and payload["target_verified"] is not True:
+        raise LoadingError("controlled online target was not verified")
+    if manifest["target_mode"] == "public" and payload["target_verified"] is not False:
+        raise LoadingError("public online target must not claim controlled verification")
     if not isinstance(payload.get("success"), bool) or not isinstance(payload.get("reason"), str):
         raise LoadingError("online-loading result has invalid completion fields")
     evidence_stage = payload.get("evidence_stage")
@@ -838,13 +862,15 @@ def aggregate(attempts: list[dict[str, object]], metrics: list[dict[str, object]
     warm.sort(key=lambda item: (float(item["first_visible_ms_median_partial"]), int(item["concurrency"])))
     observed_best = int(warm[0]["concurrency"]) if warm else None
     decision_ready = (not diagnostic and minimum_runs >= 3 and complete and
+                      manifest.get("target_mode") == "controlled" and
                       manifest.get("public_world_informational") is False)
     return {
         "schema_version": 2,
         "platform": "macos",
         "application_sha256": manifest["application_sha256"],
         "location_sha256": manifest["location_sha256"],
-        "public_world_informational": True,
+        "target_mode": manifest["target_mode"],
+        "public_world_informational": manifest["public_world_informational"],
         "diagnostic_only": diagnostic,
         "minimum_runs": minimum_runs,
         "attempt_count": len(attempts),
@@ -874,8 +900,9 @@ def aggregate(attempts: list[dict[str, object]], metrics: list[dict[str, object]
         "groups": groups,
         "failures": hard_failures if diagnostic_observation_complete else failures,
         "incomplete_attempts": sorted(expected_incomplete),
-        "limitations": [
+        "limitations": ([
             "public world and network are mutable; concurrency observations are informational",
+        ] if manifest["target_mode"] == "public" else []) + [
             "--cache isolates resource caches but not the driver-dependent GL shader cache",
             "software-renderer observations may terminate after bounded evidence without a completed frame or idle queues",
         ],

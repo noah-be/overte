@@ -8,16 +8,18 @@ const fs = require("fs");
 const vm = require("vm");
 
 const source = fs.readFileSync(process.argv[2], "utf8");
-function createHarness(runnerClass) {
+function createHarness(runnerClass, targetMode) {
+    targetMode = targetMode || "public";
     const clock = { now: 1000, presentCount: 10 };
-    const addressManager = { isConnected: true, protocol: "file" };
+    const addressManager = { isConnected: true, protocol: "file", domainID: "" };
     const entities = {
         ids: ["red", "cyan", "label"],
         properties: {
             red: { name: "macOS smoke red cube", type: "Shape", visible: true },
             cyan: { name: "macOS smoke cyan sphere", type: "Shape", visible: true },
             label: { name: "macOS smoke label", type: "Text", visible: true },
-            online: { name: "online primitive", type: "Shape", visible: true }
+            online: { name: "online primitive", type: "Shape", visible: true },
+            sentinel: { name: "overte-macos-benchmark-v1", type: "Box", visible: true }
         }
     };
     const test = { beginCount: 0, entityTreeReady: false };
@@ -37,7 +39,11 @@ function createHarness(runnerClass) {
         OVERTE_MACOS_ONLINE_LOADING_CASE: {
             cache_mode: "cold", concurrency: 10, run_index: 1, location_label: "hub",
             runner_class: runnerClass, navigation_id: "c10-p1-cold",
-            location_sha256: "b".repeat(64)
+            location_sha256: "b".repeat(64), target_mode: targetMode,
+            expected_domain_id: targetMode === "controlled" ?
+                "12345678-1234-4234-9234-123456789abc" : "",
+            expected_sentinel_name: targetMode === "controlled" ?
+                "overte-macos-benchmark-v1" : ""
         },
         Date: { now: () => clock.now },
         Render: { getConfig() { return forwardConfig; } },
@@ -114,7 +120,9 @@ assert.strictEqual(hardware.saved[1].value.completed_idle, true);
 assert.strictEqual(hardware.saved[1].value.completed_snapshot, true);
 assert.strictEqual(hardware.saved[1].value.sustained_idle_ms, 6500);
 assert.strictEqual(hardware.saved[1].value.navigation_id, "c10-p1-cold");
-assert.strictEqual(hardware.saved[1].value.schema_version, 2);
+assert.strictEqual(hardware.saved[1].value.schema_version, 3);
+assert.strictEqual(hardware.saved[1].value.target_mode, "public");
+assert.strictEqual(hardware.saved[1].value.target_verified, false);
 assert.strictEqual(hardware.saved[1].value.evidence_stage, "final");
 assert(hardware.saved[1].value.queue_samples.length > checkpointSampleCount);
 assert(hardware.output.some((line) => line.includes("OVERTE_MACOS_ONLINE_LOADING passed")));
@@ -153,5 +161,38 @@ assert.strictEqual(diagnostic.saved[1].value.success, false);
 assert.strictEqual(diagnostic.saved[1].value.completed_snapshot, false);
 assert.strictEqual(diagnostic.saved[1].value.reason, "diagnostic_observation_complete");
 assert(diagnostic.output.some((line) => line.includes("diagnostic_observation_complete")));
+
+const controlled = createHarness("hardware", "controlled");
+controlled.script.interval();
+controlled.clock.now += 500;
+controlled.clock.presentCount += 1;
+controlled.script.interval();
+controlled.addressManager.protocol = "hifi";
+controlled.addressManager.domainID = "{12345678-1234-4234-9234-123456789abc}";
+controlled.test.entityTreeReady = true;
+controlled.entities.ids = ["online", "sentinel"];
+controlled.clock.now += 500;
+controlled.script.interval();
+assert(controlled.output.some((line) => line.includes("controlled_target_verified")));
+controlled.clock.now += 500;
+controlled.clock.presentCount += 1;
+controlled.script.interval();
+assert.strictEqual(controlled.saved[0].value.target_mode, "controlled");
+assert.strictEqual(controlled.saved[0].value.target_verified, true);
+
+const wrongDomain = createHarness("hardware", "controlled");
+wrongDomain.script.interval();
+wrongDomain.clock.now += 500;
+wrongDomain.clock.presentCount += 1;
+wrongDomain.script.interval();
+wrongDomain.addressManager.protocol = "hifi";
+wrongDomain.addressManager.domainID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+wrongDomain.test.entityTreeReady = true;
+wrongDomain.entities.ids = ["online", "sentinel"];
+wrongDomain.clock.now += 500;
+wrongDomain.script.interval();
+assert.strictEqual(wrongDomain.script.stopped, true);
+assert.strictEqual(wrongDomain.saved[0].value.reason, "controlled_domain_mismatch");
+assert.strictEqual(wrongDomain.saved[0].value.target_verified, false);
 
 console.log("macOS online loading script contract valid");

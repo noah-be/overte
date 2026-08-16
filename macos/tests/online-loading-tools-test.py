@@ -17,6 +17,8 @@ GENERATOR = ROOT / "macos/tools/render-online-loading-case.py"
 ANALYZER = ROOT / "macos/tools/analyze-online-loading.py"
 TEMPLATE = ROOT / "macos/tests/online-loading-benchmark.js"
 LOCATION_SHA256 = "b" * 64
+CONTROLLED_DOMAIN_ID = "12345678-1234-4234-9234-123456789abc"
+CONTROLLED_SENTINEL = "overte-macos-benchmark-v1"
 EVENT_ORDER = (
     "url_accepted", "domain_connected", "entity_server_active", "entity_query",
     "entity_data", "entity_decode", "entity_tree", "render_handoff",
@@ -99,11 +101,11 @@ def telemetry_lines(navigation_id: str, through: str = "first_visible",
 
 def payload(mode: str, concurrency: int, index: int, first_visible: int,
             *, success: bool = True, runner_class: str = "hardware",
-            diagnostic_observation: bool = False) -> dict[str, object]:
+            diagnostic_observation: bool = False, target_mode: str = "public") -> dict[str, object]:
     snapshot = first_visible + 2000 if success else None
     idle = first_visible + 5000 if success else None
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "platform": "macos",
         "navigation_id": f"c{concurrency}-p{index}-{mode}",
         "location_sha256": LOCATION_SHA256,
@@ -112,6 +114,10 @@ def payload(mode: str, concurrency: int, index: int, first_visible: int,
         "run_index": index,
         "location_label": "hub",
         "runner_class": runner_class,
+        "target_mode": target_mode,
+        "expected_domain_id": CONTROLLED_DOMAIN_ID if target_mode == "controlled" else "",
+        "expected_sentinel_name": CONTROLLED_SENTINEL if target_mode == "controlled" else "",
+        "target_verified": target_mode == "controlled",
         "duration_ms": first_visible + 6000,
         "first_entities_ms": first_visible - 100,
         "first_visible_ms": first_visible,
@@ -142,10 +148,11 @@ def payload(mode: str, concurrency: int, index: int, first_visible: int,
 def create_benchmark(root: Path, *, runner_class: str = "hardware",
                      concurrencies: tuple[int, ...] = (10, 16), repeats: int = 1,
                      failed: set[tuple[int, int, str]] | None = None,
-                     diagnostic_partial: bool = False) -> None:
+                     diagnostic_partial: bool = False,
+                     target_mode: str = "public") -> None:
     root.mkdir(parents=True)
     manifest = {
-        "schema_version": 2,
+        "schema_version": 3,
         "runner_class": runner_class,
         "repeats": repeats,
         "location_label": "hub",
@@ -155,7 +162,10 @@ def create_benchmark(root: Path, *, runner_class: str = "hardware",
         "translated": False,
         "executed_concurrencies": list(concurrencies),
         "requested_concurrencies": list(concurrencies),
-        "public_world_informational": True,
+        "target_mode": target_mode,
+        "expected_domain_id": CONTROLLED_DOMAIN_ID if target_mode == "controlled" else "",
+        "expected_sentinel_name": CONTROLLED_SENTINEL if target_mode == "controlled" else "",
+        "public_world_informational": target_mode == "public",
         "navigation_after_startup": True,
     }
     (root / "online-loading-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
@@ -173,7 +183,8 @@ def create_benchmark(root: Path, *, runner_class: str = "hardware",
                     json.dumps(payload(mode, concurrency, pair, visible,
                                        success=not failed_attempt and not incomplete_diagnostic,
                                        runner_class=runner_class,
-                                       diagnostic_observation=incomplete_diagnostic)), encoding="utf-8"
+                                       diagnostic_observation=incomplete_diagnostic,
+                                       target_mode=target_mode)), encoding="utf-8"
                 )
                 (directory / "online-loading-process.json").write_text(json.dumps({
                     "exit_code": -15 if incomplete_diagnostic else 124 if failed_attempt else 0,
@@ -328,19 +339,60 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
         [sys.executable, str(GENERATOR), "--template", str(TEMPLATE), "--output", str(generated),
          "--cache-mode", "cold", "--concurrency", "10", "--run-index", "1",
          "--location-label", "hub", "--location-sha256", LOCATION_SHA256,
-         "--navigation-id", "c10-p1-cold", "--runner-class", "hardware"],
+         "--navigation-id", "c10-p1-cold", "--runner-class", "hardware",
+         "--target-mode", "public"],
         text=True, capture_output=True, check=False,
     )
     assert generation.returncode == 0, generation.stderr
     assert generated.read_text(encoding="utf-8").startswith("var OVERTE_MACOS_ONLINE_LOADING_CASE = ")
     assert generated.stat().st_mode & 0o777 == 0o600
 
+    controlled_generated = temporary / "controlled-online.js"
+    controlled_generation = subprocess.run(
+        [sys.executable, str(GENERATOR), "--template", str(TEMPLATE),
+         "--output", str(controlled_generated), "--cache-mode", "cold",
+         "--concurrency", "10", "--run-index", "1", "--location-label", "fixture-v1",
+         "--location-sha256", LOCATION_SHA256, "--navigation-id", "c10-p1-cold",
+         "--runner-class", "hardware", "--target-mode", "controlled",
+         "--expected-domain-id", CONTROLLED_DOMAIN_ID,
+         "--expected-sentinel-name", CONTROLLED_SENTINEL],
+        text=True, capture_output=True, check=False,
+    )
+    assert controlled_generation.returncode == 0, controlled_generation.stderr
+    controlled_source = controlled_generated.read_text(encoding="utf-8")
+    assert CONTROLLED_DOMAIN_ID in controlled_source
+    assert CONTROLLED_SENTINEL in controlled_source
+
+    missing_controlled_identity = subprocess.run(
+        [sys.executable, str(GENERATOR), "--template", str(TEMPLATE),
+         "--output", str(temporary / "missing-controlled.js"), "--cache-mode", "cold",
+         "--concurrency", "10", "--run-index", "1", "--location-label", "fixture-v1",
+         "--location-sha256", LOCATION_SHA256, "--navigation-id", "c10-p1-cold",
+         "--runner-class", "hardware", "--target-mode", "controlled"],
+        text=True, capture_output=True, check=False,
+    )
+    assert missing_controlled_identity.returncode != 0
+    assert "--expected-domain-id" in missing_controlled_identity.stderr
+
+    forged_public_identity = subprocess.run(
+        [sys.executable, str(GENERATOR), "--template", str(TEMPLATE),
+         "--output", str(temporary / "forged-public.js"), "--cache-mode", "cold",
+         "--concurrency", "10", "--run-index", "1", "--location-label", "hub",
+         "--location-sha256", LOCATION_SHA256, "--navigation-id", "c10-p1-cold",
+         "--runner-class", "hardware", "--target-mode", "public",
+         "--expected-domain-id", CONTROLLED_DOMAIN_ID,
+         "--expected-sentinel-name", CONTROLLED_SENTINEL],
+        text=True, capture_output=True, check=False,
+    )
+    assert forged_public_identity.returncode != 0
+    assert "public targets must not claim controlled identity" in forged_public_identity.stderr
+
     rejected = subprocess.run(
         [sys.executable, str(GENERATOR), "--template", str(TEMPLATE),
          "--output", str(temporary / "bad.js"), "--cache-mode", "warm",
          "--concurrency", "100", "--run-index", "1", "--location-label", "hub",
          "--location-sha256", LOCATION_SHA256, "--navigation-id", "c10-p1-warm",
-         "--runner-class", "hardware"],
+         "--runner-class", "hardware", "--target-mode", "public"],
         text=True, capture_output=True, check=False,
     )
     assert rejected.returncode != 0
@@ -350,7 +402,7 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
          "--output", str(temporary / "unsafe-navigation.js"), "--cache-mode", "warm",
          "--concurrency", "10", "--run-index", "1", "--location-label", "hub",
          "--location-sha256", LOCATION_SHA256, "--navigation-id", "https://token@secret.invalid/",
-         "--runner-class", "hardware"],
+         "--runner-class", "hardware", "--target-mode", "public"],
         text=True, capture_output=True, check=False,
     )
     assert unsafe_navigation.returncode != 0
@@ -363,7 +415,7 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
          "--output", str(temporary / "unsafe-location.js"), "--cache-mode", "warm",
          "--concurrency", "10", "--run-index", "1", "--location-label", "hub",
          "--location-sha256", "https://secret.invalid/", "--navigation-id", "c10-p1-warm",
-         "--runner-class", "hardware"],
+         "--runner-class", "hardware", "--target-mode", "public"],
         text=True, capture_output=True, check=False,
     )
     assert unsafe_location.returncode != 0
@@ -382,6 +434,7 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     assert summary["selected_concurrency"] is None
     assert summary["observed_best_concurrency"] == 16
     assert summary["public_world_informational"] is True
+    assert summary["target_mode"] == "public"
     assert set(summary["bottleneck_summary"].values()) == {"none-observed"}
     assert all(group["dominant_bottleneck"] == "none-observed" for group in summary["groups"])
     assert all(group["bottleneck_signal_counts"] == {} for group in summary["groups"])
@@ -402,6 +455,48 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
         ) == group["queue_diagnostics"][0]["tree_to_handoff_ms"]
         for group in summary["groups"]
     )
+
+    controlled_benchmark = temporary / "controlled-benchmark"
+    create_benchmark(
+        controlled_benchmark, concurrencies=(10, 16), repeats=3,
+        target_mode="controlled",
+    )
+    controlled_result = temporary / "controlled-result.json"
+    controlled_junit = temporary / "controlled-junit.xml"
+    controlled_analysis = analyze(
+        controlled_benchmark, controlled_result, controlled_junit, repeats=3
+    )
+    assert controlled_analysis.returncode == 0, controlled_analysis.stderr + controlled_analysis.stdout
+    controlled_summary = json.loads(controlled_result.read_text(encoding="utf-8"))
+    assert controlled_summary["measurement_passed"] is True
+    assert controlled_summary["decision_ready"] is True
+    assert controlled_summary["selected_concurrency"] == 16
+    assert controlled_summary["target_mode"] == "controlled"
+    assert controlled_summary["public_world_informational"] is False
+
+    unverified_target = temporary / "unverified-target"
+    create_benchmark(unverified_target, concurrencies=(10,), target_mode="controlled")
+    unverified_metrics = unverified_target / "c10/pair-1/warm/macos-online-loading.json"
+    unverified_payload = json.loads(unverified_metrics.read_text(encoding="utf-8"))
+    unverified_payload["target_verified"] = False
+    unverified_metrics.write_text(json.dumps(unverified_payload), encoding="utf-8")
+    unverified_analysis = analyze(
+        unverified_target, temporary / "unverified.json", temporary / "unverified.xml"
+    )
+    assert unverified_analysis.returncode != 0
+    assert "controlled online target was not verified" in unverified_analysis.stdout
+
+    forged_public = temporary / "forged-public-target"
+    create_benchmark(forged_public, concurrencies=(10,))
+    forged_metrics = forged_public / "c10/pair-1/cold/macos-online-loading.json"
+    forged_payload = json.loads(forged_metrics.read_text(encoding="utf-8"))
+    forged_payload["target_verified"] = True
+    forged_metrics.write_text(json.dumps(forged_payload), encoding="utf-8")
+    forged_analysis = analyze(
+        forged_public, temporary / "forged-public.json", temporary / "forged-public.xml"
+    )
+    assert forged_analysis.returncode != 0
+    assert "public online target must not claim controlled verification" in forged_analysis.stdout
     assert all(group["queue_diagnostics"][0]["render_preload_ms"] == 1.2
                for group in summary["groups"])
     assert all(

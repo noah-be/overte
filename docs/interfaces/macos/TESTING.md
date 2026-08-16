@@ -335,6 +335,17 @@ resource backlog. The split classifier therefore reports
 warm. The diagnostic runner intentionally omitted c16, so this run still does
 not justify changing download concurrency or production rendering defaults.
 
+Public-world runs always remain informational, even on native hardware. A
+concurrency or cache-policy decision requires runtime input
+`online_loading_target_mode=controlled`, three repeats, a canonical expected
+domain UUID, and a safe versioned sentinel entity name (for example
+`overte-macos-benchmark-v1`). Every process must connect to that exact UUID and
+find the sentinel after the local baseline entities disappear; this verified
+state is persisted in both the first-visible checkpoint and final result. The
+analyzer rejects mismatched UUIDs, missing sentinels, forged verification, and
+public results claiming controlled identity. Only a complete native-hardware
+controlled matrix may set `decision_ready` or `selected_concurrency`.
+
 Repeated clean launch, local-scene render, screenshot, and shutdown cycles are
 available with:
 

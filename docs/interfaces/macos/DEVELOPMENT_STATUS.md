@@ -134,6 +134,8 @@ stability iterations exited cleanly.
    production quality profile.
 2. Run online loading against a pinned, controlled domain for at least three
    cold/warm pairs before considering a download-concurrency or cache-policy
-   change.
+   change. The harness now binds such evidence to the expected domain UUID and
+   a versioned sentinel entity; a public or unverified target cannot become
+   decision-ready.
 3. Validate native Apple Silicon dependencies and runtime.
 4. Define signing, notarization, privacy, and packaging requirements.

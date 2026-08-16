@@ -1332,6 +1332,10 @@ execute(github, context, core, require).then(
         self.assertIn("profile_matrix_mode:", source)
         self.assertIn("profile_repeats:", source)
         self.assertIn("run_online_loading:", source)
+        self.assertIn("online_loading_target_mode:", source)
+        self.assertIn("options: [public, controlled]", source)
+        self.assertIn("online_controlled_domain_id:", source)
+        self.assertIn("online_controlled_sentinel_name:", source)
         self.assertIn("online_loading_repeats:", source)
         self.assertIn("online_download_concurrencies:", source)
         self.assertIn("stability_iterations:", source)
@@ -1340,6 +1344,17 @@ execute(github, context, core, require).then(
         self.assertIn("default: hifi://overte_hub", source)
         self.assertIn(
             "OVERTE_MACOS_ONLINE_LOCATION: ${{ inputs.online_location }}", source
+        )
+        self.assertIn(
+            "OVERTE_MACOS_ONLINE_TARGET_MODE: ${{ inputs.online_loading_target_mode }}", source
+        )
+        self.assertIn(
+            "OVERTE_MACOS_ONLINE_EXPECTED_DOMAIN_ID: ${{ inputs.online_controlled_domain_id }}",
+            source,
+        )
+        self.assertIn(
+            "OVERTE_MACOS_ONLINE_EXPECTED_SENTINEL_NAME: ${{ inputs.online_controlled_sentinel_name }}",
+            source,
         )
         self.assertIn("if: github.event_name == 'workflow_dispatch'", source)
         self.assertIn("actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53", source)

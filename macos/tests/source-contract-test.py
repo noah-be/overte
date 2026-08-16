@@ -1584,7 +1584,13 @@ for loading_contract in (
     '--location-sha256 "$location_sha256" --navigation-id "$navigation_id"',
     '"navigation_id": sys.argv[5]',
     '"navigation_after_startup": True',
-    '"schema_version": 2',
+    '"schema_version": 3',
+    'OVERTE_MACOS_ONLINE_TARGET_MODE',
+    'OVERTE_MACOS_ONLINE_EXPECTED_DOMAIN_ID',
+    'OVERTE_MACOS_ONLINE_EXPECTED_SENTINEL_NAME',
+    '--target-mode "$target_mode"',
+    '--expected-domain-id "$expected_domain_id"',
+    '--expected-sentinel-name "$expected_sentinel_name"',
     'readonly baseline_scene="$source_root/macos/tests/fixtures/serverless-render.json"',
     '--url "file://$baseline_scene"',
 ):
@@ -1633,6 +1639,11 @@ for loading_contract in (
     '"macOS smoke cyan sphere"',
     '"macOS smoke label"',
     'fixture.count === 0',
+    'testCase.target_mode === "controlled"',
+    "AddressManager.domainID",
+    "controlled_target_verified",
+    "controlled_domain_mismatch",
+    "target_verified: targetVerified",
 ):
     if loading_contract not in online_loading_script:
         raise SystemExit(f"online loading script missing: {loading_contract}")
@@ -1678,6 +1689,9 @@ for analyzer_contract in (
     "render_handoff attribution does not equal the entity_tree-to-handoff interval",
     "single-pass render_handoff preload exceeds its add-slot-to-pending-pass interval",
     "entity_query first-attempt attribution does not equal the entity-server-active-to-query interval",
+    'manifest.get("target_mode") == "controlled"',
+    "controlled online target was not verified",
+    "public online target must not claim controlled verification",
 ):
     if analyzer_contract not in online_loading_analyzer:
         raise SystemExit(f"online loading analyzer missing: {analyzer_contract}")

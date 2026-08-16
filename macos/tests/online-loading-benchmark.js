@@ -28,6 +28,7 @@
     var visiblePresentBaseline = null;
     var baselinePresentCount = null;
     var navigationStarted = false;
+    var targetVerified = false;
     var expectedFixtureNames = {
         "macOS smoke red cube": false,
         "macOS smoke cyan sphere": false,
@@ -101,9 +102,36 @@
         return visible;
     }
 
+    function canonicalDomainID(value) {
+        return String(value || "").replace(/[{}]/g, "").toLowerCase();
+    }
+
+    function verifyControlledTarget(entities) {
+        if (testCase.target_mode !== "controlled") {
+            return false;
+        }
+        var actualDomainID = canonicalDomainID(AddressManager.domainID);
+        if (actualDomainID && actualDomainID !== testCase.expected_domain_id) {
+            publish(false, "controlled_domain_mismatch");
+            return false;
+        }
+        if (actualDomainID !== testCase.expected_domain_id) {
+            return false;
+        }
+        var sentinelFound = entities.some(function (id) {
+            return Entities.getEntityProperties(id, ["name"]).name ===
+                testCase.expected_sentinel_name;
+        });
+        if (sentinelFound && !targetVerified) {
+            targetVerified = true;
+            print("OVERTE_MACOS_ONLINE_LOADING controlled_target_verified");
+        }
+        return targetVerified;
+    }
+
     function resultObject(success, reason, evidenceStage) {
         return {
-            schema_version: 2,
+            schema_version: 3,
             platform: "macos",
             evidence_stage: evidenceStage,
             navigation_id: testCase.navigation_id,
@@ -113,6 +141,10 @@
             run_index: testCase.run_index,
             location_label: testCase.location_label,
             runner_class: testCase.runner_class,
+            target_mode: testCase.target_mode,
+            expected_domain_id: testCase.expected_domain_id,
+            expected_sentinel_name: testCase.expected_sentinel_name,
+            target_verified: targetVerified,
             duration_ms: Date.now() - (startedAt === null ? baselineStartedAt : startedAt),
             first_entities_ms: firstEntitiesMs,
             first_visible_ms: firstVisibleMs,
@@ -199,6 +231,12 @@
         var elapsed = now - startedAt;
         var onlineReady = AddressManager.isConnected && AddressManager.protocol === "hifi" &&
             Test.isOnlineLoadingEntityTreeReady() && fixture.count === 0;
+        if (onlineReady && testCase.target_mode === "controlled") {
+            onlineReady = verifyControlledTarget(entities);
+            if (completed) {
+                return;
+            }
+        }
         var visible = onlineReady ? inspectVisible(entities) : 0;
         if (onlineReady) {
             maxEntityCount = Math.max(maxEntityCount, entities.length);

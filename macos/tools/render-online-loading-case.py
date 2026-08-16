@@ -15,6 +15,7 @@ import tempfile
 SAFE_LABEL = re.compile(r"^[a-z0-9][a-z0-9-]{0,47}$")
 SAFE_NAVIGATION_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
+UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 
 
 def main() -> int:
@@ -28,6 +29,9 @@ def main() -> int:
     parser.add_argument("--location-sha256", required=True)
     parser.add_argument("--navigation-id", required=True)
     parser.add_argument("--runner-class", choices=("diagnostic", "hardware"), required=True)
+    parser.add_argument("--target-mode", choices=("public", "controlled"), required=True)
+    parser.add_argument("--expected-domain-id", default="")
+    parser.add_argument("--expected-sentinel-name", default="")
     arguments = parser.parse_args()
     if not 1 <= arguments.concurrency <= 64:
         parser.error("--concurrency is outside 1..64")
@@ -39,6 +43,13 @@ def main() -> int:
         parser.error("--location-sha256 is invalid")
     if not SAFE_NAVIGATION_ID.fullmatch(arguments.navigation_id):
         parser.error("--navigation-id is invalid")
+    if arguments.target_mode == "controlled":
+        if not UUID.fullmatch(arguments.expected_domain_id):
+            parser.error("--expected-domain-id must be a canonical non-null UUID")
+        if not SAFE_LABEL.fullmatch(arguments.expected_sentinel_name):
+            parser.error("--expected-sentinel-name is invalid")
+    elif arguments.expected_domain_id or arguments.expected_sentinel_name:
+        parser.error("public targets must not claim controlled identity")
     payload = {
         "cache_mode": arguments.cache_mode,
         "concurrency": arguments.concurrency,
@@ -47,6 +58,9 @@ def main() -> int:
         "location_sha256": arguments.location_sha256,
         "navigation_id": arguments.navigation_id,
         "runner_class": arguments.runner_class,
+        "target_mode": arguments.target_mode,
+        "expected_domain_id": arguments.expected_domain_id,
+        "expected_sentinel_name": arguments.expected_sentinel_name,
     }
     try:
         template = arguments.template.read_text(encoding="utf-8")
