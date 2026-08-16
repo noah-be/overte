@@ -348,14 +348,24 @@ jobs:
       - name: Discover verified remote compiler generation
         id: remote-compiler-generation
         timeout-minutes: 5
+        continue-on-error: true
         env:
           OVERTE_CHECKPOINT_TOKEN: ${{ github.token }}
-        run: >-
-          python3 macos/ci/sccache-remote-checkpoint.py discover
-          --repository "$GITHUB_REPOSITORY"
-          --ref "$GITHUB_REF"
-          --token-env OVERTE_CHECKPOINT_TOKEN
-          --github-output "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          local_output="$(mktemp)"
+          trap 'rm -f "$local_output"' EXIT
+          printf '%s\n' "discovered=false" >> "$GITHUB_OUTPUT"
+          if python3 macos/ci/sccache-remote-checkpoint.py discover \
+              --repository "$GITHUB_REPOSITORY" \
+              --ref "$GITHUB_REF" \
+              --token-env OVERTE_CHECKPOINT_TOKEN \
+              --github-output "$local_output"; then
+            cat "$local_output" >> "$GITHUB_OUTPUT"
+            printf '%s\n' "discovered=true" >> "$GITHUB_OUTPUT"
+          else
+            printf '%s\n' "version=" >> "$GITHUB_OUTPUT"
+          fi
 
       # Restore generated objects before Conan writes the current toolchain and
       # presets.  Restoring this tree after dependency resolution could replace
@@ -378,6 +388,7 @@ jobs:
             ${{ steps.cache-key.outputs.build_configured }}
 
       - name: Normalize restored Ninja source timestamps
+        if: ${{ steps.build-tree-restore.outputs.cache-matched-key != '' }}
         run: >-
           python3 macos/ci/build-tree-checkpoint.py restore
           --repository "$GITHUB_WORKSPACE" --build-dir build
@@ -1002,6 +1013,7 @@ jobs:
         if: >-
           ${{ always() && !cancelled() &&
               steps.build-client.outcome == 'success' &&
+              steps.client-compiler-verify.outputs.local_cache_changed == 'true' &&
               steps.sccache-restore.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
@@ -1219,7 +1231,9 @@ jobs:
           overwrite: true
 
       - name: Prune superseded branch-local compiler generations
-        if: ${{ always() && steps.application-upload.outcome == 'success' }}
+        if: >-
+          ${{ always() && steps.application-upload.outcome == 'success' &&
+              steps.remote-compiler-generation.outputs.discovered == 'true' }}
         continue-on-error: true
         timeout-minutes: 20
         env:
