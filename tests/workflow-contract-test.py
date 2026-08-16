@@ -488,6 +488,10 @@ class MacOSWorkflowContracts(unittest.TestCase):
                 "${{ github.workspace }}/macos/ci/compiler-watchdog.py;--",
                 self.source,
             )
+        self.assertIn(
+            "OVERTE_COMPILER_WATCHDOG_FALLBACK_COMPILER: /usr/bin/clang",
+            self.source,
+        )
 
     def test_monitoring_contracts_run_before_cache_restore_and_build(self):
         monitoring = self.source.index("- name: Verify macOS monitoring contracts")

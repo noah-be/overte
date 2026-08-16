@@ -63,6 +63,37 @@ class CompilerWatchdogTest(unittest.TestCase):
             "-DPNG_PREFIX=1", "source.c",
         ])
 
+    def test_uses_explicit_compiler_for_cmake_probe_without_separator(self) -> None:
+        module = load_watchdog()
+        with mock.patch.dict(os.environ, {
+            "OVERTE_COMPILER_WATCHDOG_FALLBACK_COMPILER": "/usr/bin/clang"
+        }):
+            args, command = module._parse_cli([
+                "-E", "-isysroot", "/private/macos-sdk", "source.c",
+            ])
+        self.assertEqual(args.interval, 30.0)
+        self.assertEqual(command, [
+            "/usr/bin/clang", "-E", "-isysroot", "/private/macos-sdk", "source.c",
+        ])
+
+        env = os.environ.copy()
+        env.update({
+            "OVERTE_COMPILER_WATCHDOG_DISABLE_SCCACHE": "1",
+            "OVERTE_COMPILER_WATCHDOG_FALLBACK_COMPILER": sys.executable,
+        })
+        result = subprocess.run([
+            sys.executable, str(WATCHDOG), "--interval", "0.05",
+            "--inactivity-timeout", "2", "-c",
+            "import sys; assert sys.argv[1:] == ['-E', '-isysroot', '/sdk']",
+            "-E", "-isysroot", "/sdk",
+        ], text=True, capture_output=True, env=env, timeout=5, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_rejects_separatorless_probe_without_explicit_compiler(self) -> None:
+        module = load_watchdog()
+        with mock.patch.dict(os.environ, {}, clear=True), self.assertRaises(SystemExit):
+            module._parse_cli(["-E", "source.c"])
+
     def test_normalizes_compiler_signal_exit_status(self) -> None:
         result = self.invoke("import os,signal; os.kill(os.getpid(), signal.SIGTERM)")
         self.assertEqual(result.returncode, 128 + signal.SIGTERM, result.stdout + result.stderr)

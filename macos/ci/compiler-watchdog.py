@@ -411,15 +411,23 @@ def _parse_cli(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     # before the separator and preserve every other token as a compiler
     # argument after the compiler executable.  Normal launcher invocations
     # remain ``watchdog -- clang <args>``.
-    if "--" not in argv:
-        parser.error("the compiler command must follow --")
-    separator = argv.index("--")
-    args, compiler_arguments = parser.parse_known_args(argv[:separator])
-    command_tail = argv[separator + 1:]
-    command = ([command_tail[0], *compiler_arguments, *command_tail[1:]]
-               if command_tail else [])
+    if "--" in argv:
+        separator = argv.index("--")
+        args, compiler_arguments = parser.parse_known_args(argv[:separator])
+        command_tail = argv[separator + 1:]
+        command = ([command_tail[0], *compiler_arguments, *command_tail[1:]]
+                   if command_tail else [])
+    else:
+        # Some dependency projects invoke CMAKE_C_COMPILER directly for
+        # preprocessing and omit CMAKE_C_COMPILER_ARG1 entirely.  In that
+        # specific CMake form the wrapper receives only compiler arguments.
+        # Require an explicitly provisioned real compiler rather than guessing
+        # from PATH, then forward the complete argument vector unchanged.
+        fallback = os.environ.get("OVERTE_COMPILER_WATCHDOG_FALLBACK_COMPILER", "")
+        args, compiler_arguments = parser.parse_known_args(argv)
+        command = [fallback, *compiler_arguments] if fallback else []
     if not command or args.interval <= 0 or args.inactivity_timeout <= 0 or args.term_grace < 0:
-        parser.error("a compiler command and positive timing values are required")
+        parser.error("a compiler command (or explicit fallback) and positive timing values are required")
     return args, command
 
 

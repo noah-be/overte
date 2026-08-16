@@ -73,6 +73,11 @@ jobs:
       MACOS_RUNNER_TELEMETRY_DIR: ${{ github.workspace }}/.macos-runner-telemetry
       PYTHONUNBUFFERED: '1'
       OVERTE_COMPILER_WATCHDOG: ${{ github.workspace }}/macos/ci/compiler-watchdog.py
+      # CMake dependency projects can invoke CMAKE_C_COMPILER directly and
+      # drop CMAKE_C_COMPILER_ARG1 (`-- /usr/bin/clang`) for preprocessor-only
+      # generated-header probes. The watchdog uses this explicit compiler only
+      # when that separatorless CMake form occurs.
+      OVERTE_COMPILER_WATCHDOG_FALLBACK_COMPILER: /usr/bin/clang
       # A cold LLDB launch on the hosted Intel runner spends close to 90 seconds
       # in startup before the online smoke reaches the reproducible crash site.
       # Keep enough bounded time to capture the stopped process and backtrace.
