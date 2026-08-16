@@ -100,7 +100,10 @@ OVERTE_MACOS_PROFILE_REPEATS=1 \
 
 Use `full` and three repeats for a profile decision on a physical Mac. A quick
 matrix or a one-run matrix can only report a provisional profile and never a
-production selection. Every
+production selection. The full matrix has a 9,000-second supervised budget
+inside a 160-minute workflow-step cap. This covers all five profile warm-ups
+and fifteen measured processes at their individual bounded runtime while still
+reserving ten minutes for orderly diagnostics and artifact upload. Every
 hardware profile first gets a throwaway warm-up process; measured processes are
 then interleaved and their order is reversed on alternating repetitions to
 reduce runner drift. The suite records raw render CPU samples, present/new-frame/drop

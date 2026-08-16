@@ -340,7 +340,7 @@ jobs:
 
       - name: Run macOS graphics quality profile matrix
         if: ${{ always() && inputs.profile_matrix_mode != 'off' && steps.serverless-smoke.outcome == 'success' }}
-        timeout-minutes: 120
+        timeout-minutes: 160
         env:
           OVERTE_MACOS_PROFILE_MATRIX_MODE: ${{ inputs.profile_matrix_mode }}
           OVERTE_MACOS_PROFILE_REPEATS: ${{ inputs.profile_repeats }}
@@ -351,7 +351,7 @@ jobs:
             --log build/macos-runtime-telemetry/performance-matrix.jsonl \
             --diagnostics-dir build/macos-runtime-telemetry/performance-matrix-stall \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 360 --max-runtime 7000 \
+            --inactivity-timeout 360 --max-runtime 9000 \
             --watch performance-matrix=build/macos-performance-matrix -- \
             macos/ci/performance-matrix.sh "$app" build/macos-performance-matrix
 

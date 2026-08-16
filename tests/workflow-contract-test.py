@@ -1297,7 +1297,11 @@ execute(github, context, core, require).then(
         self.assertIn("build/macos-performance", source)
         self.assertIn("macos/ci/performance-matrix.sh", source)
         self.assertIn("--phase runtime-performance-matrix", source)
-        self.assertIn("--inactivity-timeout 360 --max-runtime 7000", source)
+        matrix_section = source.split(
+            "- name: Run macOS graphics quality profile matrix", 1
+        )[1].split("- name: Run macOS online world-loading benchmark", 1)[0]
+        self.assertIn("timeout-minutes: 160", matrix_section)
+        self.assertIn("--inactivity-timeout 360 --max-runtime 9000", matrix_section)
         self.assertIn("build/macos-performance-matrix", source)
         self.assertIn("macos/ci/online-loading-benchmark.sh", source)
         self.assertIn("--phase runtime-online-loading", source)
