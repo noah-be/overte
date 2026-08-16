@@ -338,6 +338,7 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
             expect_lldb_snapshot = family == "iphone" and scenario == "serverless"
             if expect_lldb_snapshot:
                 case_environment["OVERTE_IOS_WORLD_SYMBOL_BUNDLE"] = str(fake_dsym)
+                case_environment["OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS"] = "1"
             result = invoke(app, output, case_environment, family, scenario, domain)
             assert result.returncode == 0, (result.stdout, result.stderr)
             assert f"PASS full-client {family} simulator {scenario} world with screenshot" in result.stdout

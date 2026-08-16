@@ -875,6 +875,11 @@ const Cache::PipelineLayout& Cache::getPipeline(const vks::Context& context) {
 #endif
     try {
         result = builder.create();
+#if defined(Q_OS_IOS)
+        const auto createdDetails =
+            makePipelineDetails("OVERTE_IOS_VULKAN_PIPELINE_CREATED", nullptr);
+        os_log_info(OS_LOG_DEFAULT, "%{public}s", createdDetails.c_str());
+#endif
     } catch (const std::exception& error) {
 #if defined(Q_OS_IOS)
         const auto failureDetails =

@@ -19,10 +19,10 @@ output_dir="${6:-}"
 poll_timeout="${OVERTE_IOS_WORLD_TIMEOUT_SECONDS:-240}"
 poll_interval="${OVERTE_IOS_WORLD_POLL_SECONDS:-2}"
 screenshot_settle="${OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS:-2}"
-# The current simulator failure occurs roughly 24 seconds after launch.  Take
-# the supplementary all-thread sample before that window so a normal process
-# exit cannot erase the only non-debugger stack evidence.
-stack_sample_delay="${OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS:-20}"
+# External macOS samplers can perturb or stall CoreSimulator. Keep the
+# supplementary snapshot explicitly opt-in; in-process Vulkan breadcrumbs are
+# the normal fail-closed diagnostic path.
+stack_sample_delay="${OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS:-0}"
 stack_symbol_bundle="${OVERTE_IOS_WORLD_SYMBOL_BUNDLE:-}"
 crash_report_wait="${OVERTE_IOS_WORLD_CRASH_REPORT_WAIT_SECONDS:-20}"
 diagnostics_dir="${OVERTE_IOS_WORLD_DIAGNOSTICS_DIR:-}"
@@ -57,8 +57,8 @@ mvk_trace_vulkan_calls="${OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS:-}"
     echo "OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS must be an integer from 0 through 30" >&2
     exit 2
 }
-[[ "$stack_sample_delay" =~ ^[1-9][0-9]*$ ]] && ((10#$stack_sample_delay <= 120)) || {
-    echo "OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS must be an integer from 1 through 120" >&2
+[[ "$stack_sample_delay" =~ ^[0-9]+$ ]] && ((10#$stack_sample_delay <= 120)) || {
+    echo "OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS must be an integer from 0 through 120" >&2
     exit 2
 }
 if [[ -n "$stack_symbol_bundle" ]]; then
@@ -693,12 +693,13 @@ while :; do
     # A fast gate sequence can complete just before the wall-clock sample
     # deadline.  Capture at the acceptance boundary as well, before screenshot
     # or simulator-service failures can erase the only all-thread snapshot.
-    if ((ready)) && ((!startup_stack_captured)); then
+    if ((ready)) && ((10#$stack_sample_delay > 0)) && ((!startup_stack_captured)); then
         capture_startup_stack
         startup_stack_captured=1
     fi
     ((ready)) && break
-    if ((!startup_stack_captured)) && (( $(date +%s) >= sample_deadline )); then
+    if ((10#$stack_sample_delay > 0)) && ((!startup_stack_captured)) && \
+            (( $(date +%s) >= sample_deadline )); then
         capture_startup_stack
         startup_stack_captured=1
     fi

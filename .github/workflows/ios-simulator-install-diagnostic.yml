@@ -569,10 +569,6 @@ jobs:
         run: |
           set -euo pipefail
           app="${{ steps.candidate.outputs.app }}"
-          symbol_bundle="${{ steps.candidate.outputs.symbol_bundle }}"
-          if [[ "$symbol_bundle" != - ]]; then
-            export OVERTE_IOS_WORLD_SYMBOL_BUNDLE="$symbol_bundle"
-          fi
           evidence="$RUNTIME_ROOT/evidence"
           for family in iphone ipad; do
             ios/ci/interface-world-simulator-smoke.sh \
