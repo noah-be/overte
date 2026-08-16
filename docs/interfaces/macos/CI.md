@@ -38,13 +38,13 @@ The remaining source-build stage has a 175-minute outer bound and a
 165-minute supervisor bound. This accommodates a two-job ARM QtWebEngine build
 while preserving a ten-minute CI cleanup window and the independent
 15-minute inactivity detector.
-Its environment also forces the Autoconf `strchrnul` capability result to
-false. Xcode 16.4 exposes that symbol through the macOS 15.5 SDK, but it is not
-available at the application's macOS 11 deployment target; dependency recipes
-therefore compile their portable fallback instead of linking an unavailable
-runtime symbol. Failed dependency runs publish a partial Conan generation, and
-that exact partial prefix is preferred over older stage checkpoints on the
-next attempt.
+The macOS source-Qt graph disables its unused PostgreSQL, MySQL, and ODBC
+plugins. This keeps Qt independent of libpq 15.5, whose `strchrnul` fallback
+cannot coexist safely with Xcode 16.4's macOS 15.5 SDK declarations while the
+application still targets macOS 11. Failed dependency runs publish a partial
+Conan generation, and that exact partial prefix is preferred over older stage
+checkpoints on the next attempt. A one-time ARM migration prefix preserves the
+completed libnode, Qt-stage, and dependency work from the pre-fix graph.
 
 The evictable repository-wide Actions cache is only the fast path for Conan.
 Its restore is capped at twelve minutes. A timeout or cache-service failure is

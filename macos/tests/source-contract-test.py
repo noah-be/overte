@@ -14,6 +14,17 @@ libnode_recipe = (ROOT / "macos/conan/libnode/conanfile.py").read_text(encoding=
 libnode_data = (ROOT / "macos/conan/libnode/conandata.yml").read_text(encoding="utf-8")
 build_script = (ROOT / "macos/build-macos.sh").read_text(encoding="utf-8")
 root_recipe = (ROOT / "conanfile.py").read_text(encoding="utf-8")
+for disabled_macos_qt_sql_driver in (
+    '"with_mysql": False',
+    '"with_odbc": False',
+    '"with_pq": False',
+):
+    if disabled_macos_qt_sql_driver not in root_recipe:
+        raise SystemExit(
+            f"macOS source Qt must disable unused SQL driver: {disabled_macos_qt_sql_driver}"
+        )
+if 'if self.settings.os == "Macos" else {}' not in root_recipe:
+    raise SystemExit("Qt SQL driver disablement must remain macOS-specific")
 for required_build_parallelism_contract in (
     'readonly requested_build_jobs="${OVERTE_MACOS_BUILD_JOBS:-}"',
     "effective_build_jobs()",

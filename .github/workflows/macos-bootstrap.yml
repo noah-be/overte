@@ -269,6 +269,11 @@ jobs:
             echo "migration_conan=macos-conan-v3-${OVERTE_MACOS_ARCH}-${migration_v3_dependency_fingerprint}-${conan_inputs}" >> "$GITHUB_OUTPUT"
             echo "migration_build_complete_prefix=macos-build-tree-v3-${OVERTE_MACOS_ARCH}-${migration_v3_dependency_fingerprint}-complete-" >> "$GITHUB_OUTPUT"
             echo "migration_build_partial_prefix=macos-build-tree-v3-${OVERTE_MACOS_ARCH}-${migration_v3_dependency_fingerprint}-partial-" >> "$GITHUB_OUTPUT"
+          else
+            # One-time migration from the ARM graph that still enabled Qt's
+            # unused SQL drivers. It contains the expensive libnode/Qt-stage
+            # work and all dependencies completed before libpq failed.
+            echo "arm_sql_migration_conan_partial=macos-conan-v3-arm64-f578deb9b5226d69128d2c1de58f14a72f07ccb6c15bee8b81af54e5ef769dfc-eb7bd0d0944860cdae421d276456750c8205b84f7c54f0497aed9cce2bbb093c-partial-" >> "$GITHUB_OUTPUT"
           fi
           echo "conan_checkpoint=overte-macos-conan-checkpoint-v4-${OVERTE_MACOS_ARCH}-${dependency_fingerprint}-${conan_inputs}" >> "$GITHUB_OUTPUT"
           echo "sccache_complete=${base}-complete-${source_inputs}" >> "$GITHUB_OUTPUT"
@@ -378,6 +383,7 @@ jobs:
           restore-keys: |
             ${{ steps.cache-key.outputs.migration_conan }}
             ${{ steps.cache-key.outputs.legacy_conan }}
+            ${{ steps.cache-key.outputs.arm_sql_migration_conan_partial }}
             ${{ steps.cache-key.outputs.conan_partial_prefix }}
             ${{ steps.cache-key.outputs.conan_stage_prefix }}
 
@@ -612,11 +618,6 @@ jobs:
           CXX: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang++
           OBJC: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang
           OBJCXX: ${{ github.workspace }}/macos/ci/compiler-watchdog.py -- /usr/bin/clang++
-          # Xcode 16.4's macOS 15.5 SDK declares strchrnul, but the application
-          # still targets macOS 11. Force Autoconf packages such as libpq to
-          # compile their portable replacement instead of calling a symbol
-          # that is unavailable at the deployment target.
-          ac_cv_func_strchrnul: 'no'
           CMAKE_C_COMPILER_LAUNCHER: ''
           CMAKE_CXX_COMPILER_LAUNCHER: ''
           CMAKE_OBJC_COMPILER_LAUNCHER: ''

@@ -113,7 +113,20 @@ class Overte(ConanFile):
                 # Use system OpenSSL to work around OpenSSL being missing from libnode's rpath and this cascading down to Interface.
                 openssl = "openssl/system@overte/stable#24c4df65c52791c4955f7d47d9faef0d"
                 self.requires("fcitx5-qt/5.1.13@overte/stable#41b7ae9082f32e1ad83fd8a43a2c8460")
-            self.requires("qt/5.15.18@overte/experimental#3a9079f3023351a7319be352cc6f4665", force=True)
+            # Overte does not use Qt's SQL driver plugins. Keep the source Qt
+            # graph on macOS independent of PostgreSQL/MySQL/ODBC; in
+            # particular, libpq 15.5 cannot safely target macOS 11 with the
+            # declarations shipped by Xcode 16.4's macOS 15.5 SDK.
+            qt_options = ({
+                "with_mysql": False,
+                "with_odbc": False,
+                "with_pq": False,
+            } if self.settings.os == "Macos" else {})
+            self.requires(
+                "qt/5.15.18@overte/experimental#3a9079f3023351a7319be352cc6f4665",
+                force=True,
+                options=qt_options,
+            )
             # Replace Conan Center's glib package with our own duplicate to avoid their outdated binary cache. https://github.com/conan-io/conan-center-index/issues/17876
             self.requires("glib/2.78.3@overte/conancenter", override=True)
 
