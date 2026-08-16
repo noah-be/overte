@@ -392,3 +392,14 @@ Record the exact source revision, macOS version, Xcode version, architecture,
 application hash, and result. Validate Intel first. Treat Apple Silicon as a
 separate target and do not substitute a Rosetta result for a native `arm64`
 build.
+
+For an Apple-Silicon profile decision, dispatch the runtime workflow with
+`runtime_runner=apple-silicon-self-hosted`, `target_arch=arm64`, matrix mode
+`full`, and three repeats. That choice resolves only to the fixed labels
+`self-hosted`, `macOS`, `ARM64`, and
+`overte-macos-apple-silicon-performance`; arbitrary runner labels are not
+accepted. Before downloading or launching the application, the job requires a
+native non-Rosetta process and compiles the repository CGL probe on that exact
+machine. It fails closed unless the probe creates an accelerated OpenGL 4.1
+context whose renderer is neither software nor virtualized. Hosted ARM remains
+the diagnostic path and cannot certify a gameplay profile.

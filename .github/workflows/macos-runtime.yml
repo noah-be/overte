@@ -22,6 +22,12 @@ on:
         default: standard
         type: choice
         options: [standard, xlarge]
+      runtime_runner:
+        description: Hosted diagnostics or a fixed-label physical Apple-Silicon performance Mac
+        required: true
+        default: github-hosted
+        type: choice
+        options: [github-hosted, apple-silicon-self-hosted]
       run_online:
         description: Run the public-domain smoke after the serverless smoke succeeds
         required: true
@@ -93,16 +99,45 @@ concurrency:
 jobs:
   runtime-x86_64:
     if: github.event_name == 'workflow_dispatch'
-    runs-on: ${{ inputs.target_arch == 'arm64' && inputs.arm_runner_size == 'xlarge' && 'macos-15-xlarge' || inputs.target_arch == 'arm64' && 'macos-15' || 'macos-15-intel' }}
+    runs-on: ${{ inputs.runtime_runner == 'apple-silicon-self-hosted' && fromJSON('["self-hosted","macOS","ARM64","overte-macos-apple-silicon-performance"]') || inputs.target_arch == 'arm64' && inputs.arm_runner_size == 'xlarge' && 'macos-15-xlarge' || inputs.target_arch == 'arm64' && 'macos-15' || 'macos-15-intel' }}
     timeout-minutes: 330
     env:
       OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '300'
       OVERTE_MACOS_TARGET_ARCH: ${{ inputs.target_arch }}
+      OVERTE_MACOS_RUNTIME_RUNNER: ${{ inputs.runtime_runner }}
     steps:
       - name: Check out runtime tests
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
         with:
           persist-credentials: false
+
+      - name: Verify physical Apple-Silicon performance runner
+        if: ${{ inputs.runtime_runner == 'apple-silicon-self-hosted' }}
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          [[ "$OVERTE_MACOS_TARGET_ARCH" == arm64 ]] || {
+            echo "self-hosted performance runner requires an arm64 application" >&2
+            exit 1
+          }
+          [[ "$RUNNER_ENVIRONMENT" == self-hosted ]] || {
+            echo "fixed-label performance route did not reach a self-hosted runner" >&2
+            exit 1
+          }
+          machine="$(uname -m)"
+          translated="$(sysctl -in sysctl.proc_translated 2>/dev/null || printf '0')"
+          mkdir -p build/macos-runtime-provenance
+          clang++ -std=c++20 -fobjc-arc -DGL_SILENCE_DEPRECATION \
+            -framework Foundation -framework OpenGL \
+            macos/tools/apple-gpu-probe.mm \
+            -o "$RUNNER_TEMP/overte-apple-gpu-probe"
+          "$RUNNER_TEMP/overte-apple-gpu-probe" > \
+            "$RUNNER_TEMP/overte-apple-gpu-probe.json"
+          python3 macos/tools/validate-apple-gpu-probe.py \
+            "$RUNNER_TEMP/overte-apple-gpu-probe.json" \
+            --machine "$machine" --translated "$translated" \
+            --result build/macos-runtime-provenance/apple-gpu-runner.json \
+            --require-hardware
 
       - name: Validate requested bootstrap source run
         id: source-run

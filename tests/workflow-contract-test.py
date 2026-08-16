@@ -1267,10 +1267,28 @@ execute(github, context, core, require).then(
         self.assertIn("options: [x86_64, arm64]", source)
         self.assertIn("arm_runner_size:", source)
         self.assertIn("options: [standard, xlarge]", source)
+        self.assertIn("runtime_runner:", source)
+        self.assertIn("options: [github-hosted, apple-silicon-self-hosted]", source)
         self.assertIn("inputs.arm_runner_size == 'xlarge' && 'macos-15-xlarge'", source)
         self.assertIn("inputs.target_arch == 'arm64' && 'macos-15'", source)
         self.assertIn("OVERTE_MACOS_TARGET_ARCH: ${{ inputs.target_arch }}", source)
-        self.assertNotIn("self-hosted", source)
+        self.assertIn(
+            "fromJSON('[\"self-hosted\",\"macOS\",\"ARM64\","
+            "\"overte-macos-apple-silicon-performance\"]')", source
+        )
+        runner_gate = source.split(
+            "- name: Verify physical Apple-Silicon performance runner", 1
+        )[1].split("- name: Validate requested bootstrap source run", 1)[0]
+        for token in (
+            "inputs.runtime_runner == 'apple-silicon-self-hosted'",
+            '"$OVERTE_MACOS_TARGET_ARCH" == arm64',
+            '"$RUNNER_ENVIRONMENT" == self-hosted',
+            "sysctl.proc_translated",
+            "macos/tools/apple-gpu-probe.mm",
+            "validate-apple-gpu-probe.py",
+            "--require-hardware",
+        ):
+            self.assertIn(token, runner_gate)
 
     def test_runtime_diagnostics_exclude_cache_and_generated_path_bearing_scripts(self):
         source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
