@@ -21,6 +21,7 @@ source_revision="${5:-}"
 candidate_sha256="${6:-}"
 output_dir="${7:-}"
 lldb_timeout="${OVERTE_IOS_LLDB_TIMEOUT_SECONDS:-240}"
+attach_delay="${OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS:-5}"
 startup_trace="${OVERTE_IOS_LLDB_STARTUP_TRACE:-0}"
 wait_for_debugger="${OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER:-0}"
 
@@ -42,6 +43,10 @@ wait_for_debugger="${OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER:-0}"
 [[ -n "$output_dir" ]] || { echo "output directory is required" >&2; exit 2; }
 [[ "$lldb_timeout" =~ ^[1-9][0-9]*$ ]] && ((10#$lldb_timeout <= 600)) || {
     echo "OVERTE_IOS_LLDB_TIMEOUT_SECONDS must be an integer from 1 through 600" >&2
+    exit 2
+}
+[[ "$attach_delay" =~ ^[0-9]+$ ]] && ((10#$attach_delay <= 20)) || {
+    echo "OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS must be an integer from 0 through 20" >&2
     exit 2
 }
 [[ "$startup_trace" =~ ^[01]$ ]] || {
@@ -152,6 +157,9 @@ finish() {
         printf 'source_revision=%s\n' "$source_revision"
         printf 'candidate_sha256=%s\n' "$candidate_sha256"
         printf 'xcode_build=%s\n' "$xcode_build"
+        printf 'attach_delay_seconds=%s\n' "$attach_delay"
+        printf 'wait_for_debugger=%s\n' "$wait_for_debugger"
+        printf 'startup_trace=%s\n' "$startup_trace"
         printf 'lldb_status=%s\n' "$lldb_status"
         printf 'capture_status=%s\n' "$capture_status"
         printf 'resume_trace=%s\n' "$resume_trace"
@@ -226,6 +234,14 @@ launch_output="$(run_bounded "application launch for LLDB" 60 env \
 launch_pid="${launch_output##*: }"
 [[ "$launch_pid" =~ ^[1-9][0-9]*$ ]] || { echo "application launch returned an invalid process identifier" >&2; exit 1; }
 app_launched=1
+
+# Attaching at dyld start without --wait-for-debugger can race the simulator's
+# task-port setup and fail with "could not pause execution".  A short bounded
+# delay keeps normal startup ordering while attaching well before the observed
+# post-import crash.
+if ((!wait_for_debugger && 10#$attach_delay > 0)); then
+    sleep "$attach_delay"
+fi
 
 cat > "$crash_commands" <<'LLDB'
 process status

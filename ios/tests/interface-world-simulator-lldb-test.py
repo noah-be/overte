@@ -158,6 +158,7 @@ fi
         "FAKE_DATA_CONTAINER": str(data_container),
         "FAKE_APP_UUID": UUID,
         "FAKE_SYMBOL_UUID": UUID,
+        "OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS": "0",
     }
 
     captured_output = root / "captured"
@@ -166,6 +167,9 @@ fi
     result = (captured_output / "iphone-serverless-lldb-result.log").read_text(encoding="utf-8")
     assert "capture_status=captured_sigsegv" in result
     assert "lldb_status=0" in result
+    assert "attach_delay_seconds=0" in result
+    assert "wait_for_debugger=0" in result
+    assert "startup_trace=0" in result
     assert f"source_revision={SOURCE_REVISION}" in result
     assert f"candidate_sha256={CANDIDATE_SHA256}" in result
     lldb_log = (captured_output / "iphone-serverless-lldb.log").read_text(encoding="utf-8")
@@ -192,6 +196,8 @@ fi
         normal_exit_output / "iphone-serverless-lldb-result.log"
     ).read_text(encoding="utf-8")
     assert "capture_status=traced_process_exit" in normal_exit_result
+    assert "wait_for_debugger=1" in normal_exit_result
+    assert "startup_trace=1" in normal_exit_result
     assert "resume_trace=observed" in normal_exit_result
     assert "sandbox_trace=not_observed" in normal_exit_result
     assert "exit_trace=observed" in normal_exit_result
