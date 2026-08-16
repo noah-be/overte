@@ -92,6 +92,12 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Reclaim unused hosted ARM build space
+        if: ${{ env.OVERTE_MACOS_ARCH == 'arm64' }}
+        env:
+          OVERTE_ALLOW_EPHEMERAL_RUNNER_CLEANUP: '1'
+        run: macos/ci/reclaim-hosted-macos-space.sh
+
       - name: Install pinned per-object remote compiler checkpoint
         uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
         with:
@@ -443,6 +449,17 @@ jobs:
       - name: Prepare deterministic Conan configuration
         timeout-minutes: 10
         run: macos/build-macos.sh prepare
+
+      - name: Require Qt source-build disk headroom
+        if: ${{ env.OVERTE_MACOS_ARCH == 'arm64' }}
+        run: |
+          set -euo pipefail
+          free_mib="$(df -Pm . | awk 'NR == 2 {print $4}')"
+          echo "Qt source-build free space: ${free_mib} MiB"
+          test "$free_mib" -ge 51200 || {
+            echo "ARM Qt source build requires at least 51200 MiB free after cache restore" >&2
+            exit 1
+          }
 
       - name: Configure compiler checkpoint for dependency stages
         run: |

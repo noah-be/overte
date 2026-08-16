@@ -2474,6 +2474,11 @@ subprocess.run(
     check=True,
 )
 subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/reclaim-hosted-macos-space-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
     [sys.executable, str(ROOT / "macos/tests/performance-hardware-sanitizer-test.py")],
     cwd=ROOT,
     check=True,

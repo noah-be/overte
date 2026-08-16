@@ -286,6 +286,17 @@ to `diagnostic-only`. The ARM build route is therefore useful for dependency,
 architecture and native-code validation, but hosted results must not be used
 for profile selection unless the probe itself reports `native-hardware`.
 
+Qt WebEngine's Chromium checkout needs both its Conan source tree and a large
+out-of-source build tree. On the ephemeral hosted ARM route the bootstrap
+removes only allowlisted, non-macOS Xcode platforms, device support, and
+simulator runtimes before restoring caches. The cleanup refuses local and
+self-hosted machines, preserves the active MacOSX platform, logs disk space
+before and after, and requires at least 50 GiB free after cache restore. This
+prevents a late source-copy failure while leaving Conan recipe integrity and
+the reusable Qt source checkpoint intact. Run `31925330624` established the
+failure boundary: dependencies compiled for 49 minutes, then Qt's Chromium
+source copy exhausted the final 11 GiB.
+
 Probe run
 [`31853662830`](https://github.com/noah-be/overte/actions/runs/31853662830)
 completed natively on the standard `macos-15` arm64 runner, but CGL exposed no
@@ -300,8 +311,9 @@ The monitoring contracts are exercised before dependency restore by
 `macos/tests/source-contract-test.py` and
 `macos/tests/conan-checkpoint-test.py`, with workflow integration covered by
 `tests/workflow-contract-test.py`. The per-object remote store and safe pruning
-policy are exercised by `macos/tests/sccache-remote-checkpoint-test.py`. These
-tests include normal and signalled exit
+policy are exercised by `macos/tests/sccache-remote-checkpoint-test.py`. The
+suite also exercises the hosted-runner cleanup allowlist and its self-hosted
+refusal, along with normal and signalled exit
 codes, active long-running work, artificial inactivity, daemon-owned compiler
 correlation, process-group cleanup, diagnostic redaction, live append behavior,
 cache restore/save ordering, round-trip checkpoint recovery, corruption and

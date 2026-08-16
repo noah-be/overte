@@ -610,6 +610,18 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("minimum_memory_bytes=12884901888", self.source)
         self.assertIn("inputs.target_arch == 'arm64' && 'arm64' || 'x86_64'", self.source)
         self.assertIn("inputs.target_arch == 'arm64' && 'source' || 'aqt'", self.source)
+        cleanup = self.source.split(
+            "- name: Reclaim unused hosted ARM build space", 1
+        )[1].split("- name: Install pinned per-object remote compiler checkpoint", 1)[0]
+        self.assertIn("env.OVERTE_MACOS_ARCH == 'arm64'", cleanup)
+        self.assertIn("OVERTE_ALLOW_EPHEMERAL_RUNNER_CLEANUP: '1'", cleanup)
+        self.assertIn("macos/ci/reclaim-hosted-macos-space.sh", cleanup)
+        headroom = self.source.split(
+            "- name: Require Qt source-build disk headroom", 1
+        )[1].split("- name: Configure compiler checkpoint for dependency stages", 1)[0]
+        self.assertIn("env.OVERTE_MACOS_ARCH == 'arm64'", headroom)
+        self.assertIn("df -Pm .", headroom)
+        self.assertIn('test "$free_mib" -ge 51200', headroom)
         self.assertIn(
             "name: overte-macos-${{ env.OVERTE_MACOS_ARCH }}-${{ github.run_id }}",
             self.source,
