@@ -84,7 +84,7 @@ assert "com.apple.CoreSimulator.SimRuntime.iOS-26-5" in runtime
 assert "expected exactly one available iOS 26.5 runtime" in runtime
 assert "interface-world-simulator-smoke.sh" in runtime
 assert "processIdentifier == $launch_pid" in SMOKE
-assert 'OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS:-30' in SMOKE
+assert 'OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS:-20' in SMOKE
 assert 'OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS: "6"' in runtime
 assert "Capture preserved candidate SIGSEGV with LLDB" in runtime
 assert "interface-world-simulator-lldb.sh" in runtime

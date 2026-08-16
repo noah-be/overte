@@ -19,7 +19,10 @@ output_dir="${6:-}"
 poll_timeout="${OVERTE_IOS_WORLD_TIMEOUT_SECONDS:-240}"
 poll_interval="${OVERTE_IOS_WORLD_POLL_SECONDS:-2}"
 screenshot_settle="${OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS:-2}"
-stack_sample_delay="${OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS:-30}"
+# The current simulator failure occurs roughly 24 seconds after launch.  Take
+# the supplementary all-thread sample before that window so a normal process
+# exit cannot erase the only non-debugger stack evidence.
+stack_sample_delay="${OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS:-20}"
 crash_report_wait="${OVERTE_IOS_WORLD_CRASH_REPORT_WAIT_SECONDS:-20}"
 diagnostics_dir="${OVERTE_IOS_WORLD_DIAGNOSTICS_DIR:-}"
 mvk_trace_vulkan_calls="${OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS:-}"
