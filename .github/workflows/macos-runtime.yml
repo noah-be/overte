@@ -10,6 +10,12 @@ on:
         description: Successful macOS bootstrap run containing the Overte.app artifact
         required: true
         type: string
+      target_arch:
+        description: Architecture of the bootstrap artifact and runtime runner
+        required: true
+        default: x86_64
+        type: choice
+        options: [x86_64, arm64]
       run_online:
         description: Run the public-domain smoke after the serverless smoke succeeds
         required: true
@@ -81,10 +87,11 @@ concurrency:
 jobs:
   runtime-x86_64:
     if: github.event_name == 'workflow_dispatch'
-    runs-on: macos-15-intel
+    runs-on: ${{ inputs.target_arch == 'arm64' && 'macos-15' || 'macos-15-intel' }}
     timeout-minutes: 330
     env:
       OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '300'
+      OVERTE_MACOS_TARGET_ARCH: ${{ inputs.target_arch }}
     steps:
       - name: Check out runtime tests
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
@@ -97,6 +104,7 @@ jobs:
         uses: actions/github-script@d746ffe35508b1917358783b479e04febd2b8f71 # v9.0.0
         env:
           REQUESTED_RUN_ID: ${{ inputs.artifact_run_id }}
+          TARGET_ARCH: ${{ inputs.target_arch }}
         with:
           script: |
             const rawRunId = process.env.REQUESTED_RUN_ID || '';
@@ -113,7 +121,12 @@ jobs:
             const expectedRef = 'refs/heads/apple-macos';
             const expectedBranch = 'apple-macos';
             const expectedWorkflow = '.github/workflows/macos-bootstrap.yml';
-            const expectedArtifact = `overte-macos-x86_64-${runId}`;
+            const targetArch = process.env.TARGET_ARCH || '';
+            if (!['x86_64', 'arm64'].includes(targetArch)) {
+              core.setFailed('target_arch must be x86_64 or arm64');
+              return;
+            }
+            const expectedArtifact = `overte-macos-${targetArch}-${runId}`;
             const repositoryId = Number(context.payload.repository?.id);
             if (!Number.isSafeInteger(repositoryId) || context.ref !== expectedRef) {
               core.setFailed('runtime verification must execute from the trusted apple-macos ref');
@@ -239,7 +252,7 @@ jobs:
             --sha "$SOURCE_RUN_SHA" \
             --run-id "${{ inputs.artifact_run_id }}" \
             --run-attempt "$SOURCE_RUN_ATTEMPT" \
-            --target-arch x86_64 \
+            --target-arch "$OVERTE_MACOS_TARGET_ARCH" \
             --xcode-version "$artifact_xcode_version" \
             --xcode-build "$artifact_xcode_build" \
             --sdk-version "$artifact_sdk_version" \

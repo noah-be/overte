@@ -38,7 +38,8 @@
   checks before, during, and after the domain visit;
 - optional monitored build and JUnit execution of every registered native
   C++/Qt CTest; and
-- accepted `arm64` configuration value for future dependency work.
+- opt-in native `arm64` bootstrap/runtime routing with source-built Qt,
+  architecture-separated recovery caches and fail-closed Mach-O provenance.
 
 ## Current evidence
 

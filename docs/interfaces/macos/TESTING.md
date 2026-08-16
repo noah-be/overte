@@ -164,6 +164,23 @@ raw OpenGL and `system_profiler` evidence for fourteen days. GitHub documents
 `macos-15` as a standard three-core M1 runner, but the repository deliberately
 does not infer GPU suitability from that label alone.
 
+The native application build and matching runtime restore are explicit manual
+choices:
+
+```bash
+gh workflow run macos-bootstrap.yml -R noah-be/overte --ref apple-macos \
+  -f target_arch=arm64 -f run_native_tests=true
+gh workflow run macos-runtime.yml -R noah-be/overte --ref apple-macos \
+  -f artifact_run_id=<successful-bootstrap-run> -f target_arch=arm64 \
+  -f profile_matrix_mode=full -f profile_repeats=3 -f run_online=false
+```
+
+The runtime workflow verifies the requested architecture against the external
+application manifest and re-inventories every Mach-O before launch. An Intel
+artifact cannot silently run under Rosetta in an ARM measurement. A Full/3 run
+still remains diagnostic-only when CGL exposes software, paravirtual or no
+renderer; only an accelerated physical Apple-GPU result is decision-ready.
+
 Run [`31878060076`](https://github.com/noah-be/overte/actions/runs/31878060076)
 is the current hosted diagnostic baseline for the hardened matrix contract. It
 reused the application from bootstrap run `31868069780`, passed startup and the

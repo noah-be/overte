@@ -11,6 +11,12 @@ on:
         required: true
         default: false
         type: boolean
+      target_arch:
+        description: Target architecture (arm64 builds Qt from source)
+        required: true
+        default: x86_64
+        type: choice
+        options: [x86_64, arm64]
   push:
     branches: [apple-macos]
     paths:
@@ -38,13 +44,13 @@ concurrency:
 
 jobs:
   client-opengl-x86_64:
-    runs-on: macos-15-intel
+    runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.target_arch == 'arm64' && 'macos-15' || 'macos-15-intel' }}
     timeout-minutes: 360
     env:
       CONAN_HOME: ${{ github.workspace }}/.conan2
-      OVERTE_MACOS_ARCH: x86_64
+      OVERTE_MACOS_ARCH: ${{ github.event_name == 'workflow_dispatch' && inputs.target_arch == 'arm64' && 'arm64' || 'x86_64' }}
       OVERTE_MACOS_BUILD_TYPE: RelWithDebInfo
-      OVERTE_MACOS_QT_SOURCE: aqt
+      OVERTE_MACOS_QT_SOURCE: ${{ github.event_name == 'workflow_dispatch' && inputs.target_arch == 'arm64' && 'source' || 'aqt' }}
       # Keep one reusable CMake/Ninja graph. The workflow input below controls
       # only whether the registered test targets are compiled and executed.
       OVERTE_MACOS_BUILD_TESTS: 'ON'
@@ -936,7 +942,7 @@ jobs:
         timeout-minutes: 30
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: overte-macos-x86_64-${{ github.run_id }}
+          name: overte-macos-${{ env.OVERTE_MACOS_ARCH }}-${{ github.run_id }}
           # The inner tar preserves framework/QML symlinks and executable modes;
           # upload-artifact otherwise dereferences macOS bundle symlinks.
           path: |

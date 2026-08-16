@@ -4,8 +4,12 @@ The `macOS bootstrap` workflow is defined in
 `.github/workflows/macos-bootstrap.yml`. It runs manually and on relevant pushes
 to `apple-macos`.
 
-The `client-opengl-x86_64` job uses an Intel macOS runner. New namespace
-generations migrate from explicitly compatible prior complete caches before
+The bootstrap defaults to an `x86_64` Intel runner. Manual dispatches may select
+`target_arch=arm64`; that route uses the native `macos-15` runner and builds Qt
+from source because the pinned aqt Qt 5 package is Intel-only. Every cache,
+durable dependency checkpoint, compiler-object namespace and application
+artifact includes the selected architecture, so ARM and Intel outputs cannot
+be mixed. New namespace generations migrate from explicitly compatible prior complete caches before
 falling back to a source build, then publish one exact current generation for
 later runs. Build tools themselves are version-pinned and cached against the
 runner's exact Python identity.
@@ -149,7 +153,7 @@ status and never records commands, environment variables, paths, or secrets.
 
 Immediately after bundle verification and before runtime testing, it creates a
 versioned external application manifest and a deterministic inner transport
-archive, then uploads `overte-macos-x86_64-<run-id>` with both
+archive, then uploads `overte-macos-<architecture>-<run-id>` with both
 `build/application-archive/Overte.app.tar` and
 `build/application-artifact/application-manifest.json`. The inner archive is
 required because GitHub's artifact transport dereferences macOS framework and
@@ -158,7 +162,7 @@ The manifest binds the
 repository, bootstrap workflow path, ref, commit, run/attempt, target
 architecture, Xcode/SDK, build configuration, deployment target, main
 executable digest, and the digest plus architecture slices of every Mach-O in
-the bundle. Every Mach-O must contain the requested `x86_64` slice. Keeping the
+the bundle. Every Mach-O must contain the requested target slice. Keeping the
 manifest outside the bundle avoids a self-referential application hash. After
 the runtime gates, the bootstrap also uploads:
 
@@ -259,8 +263,9 @@ rather than a release. Native Apple Silicon eligibility is probed separately by
 GL renderer, context acceleration flag, architecture, and Rosetta state. Only
 arm64, untranslated, accelerated, non-virtual renderer evidence is classified
 as `native-hardware`; every missing or software/paravirtual result fails closed
-to `diagnostic-only`. This small probe must pass before adding an arm64 app build
-or using hosted results for profile selection.
+to `diagnostic-only`. The ARM build route is therefore useful for dependency,
+architecture and native-code validation, but hosted results must not be used
+for profile selection unless the probe itself reports `native-hardware`.
 
 Probe run
 [`31853662830`](https://github.com/noah-be/overte/actions/runs/31853662830)

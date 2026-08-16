@@ -560,6 +560,17 @@ class MacOSWorkflowContracts(unittest.TestCase):
         )[0]
         self.assertIn("inputs.run_native_tests", native)
 
+    def test_bootstrap_architecture_choice_is_native_and_cache_separated(self):
+        self.assertIn("target_arch:", self.source)
+        self.assertIn("options: [x86_64, arm64]", self.source)
+        self.assertIn("inputs.target_arch == 'arm64' && 'macos-15' || 'macos-15-intel'", self.source)
+        self.assertIn("inputs.target_arch == 'arm64' && 'arm64' || 'x86_64'", self.source)
+        self.assertIn("inputs.target_arch == 'arm64' && 'source' || 'aqt'", self.source)
+        self.assertIn(
+            "name: overte-macos-${{ env.OVERTE_MACOS_ARCH }}-${{ github.run_id }}",
+            self.source,
+        )
+
     def test_exact_complete_tree_is_the_only_configuration_skip(self):
         configure_step = self.source.split(
             "- name: Configure client build graph", 1
@@ -999,7 +1010,8 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "matches[0].expired === true",
             "matches[0].size_in_bytes <= 0",
             "^sha256:[0-9a-f]{64}$",
-            "overte-macos-x86_64-${runId}",
+            "overte-macos-${targetArch}-${runId}",
+            "['x86_64', 'arm64'].includes(targetArch)",
             "core.setOutput('attempt'",
             "core.setOutput('sha'",
         ):
@@ -1022,6 +1034,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
         repository_id = 1319052603
         base = {
             "requested_run_id": str(run_id),
+            "target_arch": "x86_64",
             "context_ref": "refs/heads/apple-macos",
             "repository_id": repository_id,
             "run": {
@@ -1050,6 +1063,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
         harness = r"""
 const scenario = JSON.parse(process.env.SCENARIO);
 process.env.REQUESTED_RUN_ID = scenario.requested_run_id;
+process.env.TARGET_ARCH = scenario.target_arch;
 const failures = [];
 const outputs = {};
 const core = {
@@ -1108,6 +1122,13 @@ execute(github, context, core, require).then(
         self.assertEqual(accepted["outputs"]["attempt"], "1")
         self.assertEqual(accepted["outputs"]["artifact-id"], "9242921918")
 
+        arm64 = json.loads(json.dumps(base))
+        arm64["target_arch"] = "arm64"
+        arm64["artifacts"][0]["name"] = f"overte-macos-arm64-{run_id}"
+        accepted_arm64 = execute(arm64)
+        self.assertEqual(accepted_arm64["failures"], [])
+        self.assertEqual(accepted_arm64["outputs"]["artifact-id"], "9242921918")
+
         cases = {
             "run ID": ("run.id", run_id + 1),
             "repository": ("run.repository.id", repository_id + 1),
@@ -1138,6 +1159,12 @@ execute(github, context, core, require).then(
         self.assertNotEqual(rejected["failures"], [])
         self.assertEqual(rejected["outputs"], {})
 
+        invalid_arch = json.loads(json.dumps(base))
+        invalid_arch["target_arch"] = "universal"
+        rejected = execute(invalid_arch)
+        self.assertNotEqual(rejected["failures"], [])
+        self.assertEqual(rejected["outputs"], {})
+
     def test_runtime_verifies_manifest_bundle_and_preserves_app_provenance(self):
         source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
         verify = source.split("- name: Verify restored application bundle", 1)[1].split(
@@ -1158,7 +1185,7 @@ execute(github, context, core, require).then(
             "--ref refs/heads/apple-macos",
             '--sha "$SOURCE_RUN_SHA"',
             '--run-attempt "$SOURCE_RUN_ATTEMPT"',
-            "--target-arch x86_64",
+            '--target-arch "$OVERTE_MACOS_TARGET_ARCH"',
             "--build-type RelWithDebInfo",
             "--deployment-target 11.0",
             "build/macos-runtime-provenance/application-manifest.json",
@@ -1173,16 +1200,18 @@ execute(github, context, core, require).then(
         diagnostics = source.split("- name: Upload runtime diagnostics", 1)[1]
         self.assertIn("build/macos-runtime-provenance", diagnostics)
 
-    def test_runtime_actions_are_pinned_and_flow_remains_x86_only(self):
+    def test_runtime_actions_are_pinned_and_architecture_is_explicit(self):
         source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
         actions = ACTION_USE.findall(source)
         self.assertGreaterEqual(len(actions), 4)
         self.assertEqual(
             [action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], []
         )
-        self.assertIn("runs-on: macos-15-intel", source)
+        self.assertIn("target_arch:", source)
+        self.assertIn("options: [x86_64, arm64]", source)
+        self.assertIn("inputs.target_arch == 'arm64' && 'macos-15' || 'macos-15-intel'", source)
+        self.assertIn("OVERTE_MACOS_TARGET_ARCH: ${{ inputs.target_arch }}", source)
         self.assertNotIn("self-hosted", source)
-        self.assertNotIn("runtime-arm64", source)
 
     def test_runtime_diagnostics_exclude_cache_and_generated_path_bearing_scripts(self):
         source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
