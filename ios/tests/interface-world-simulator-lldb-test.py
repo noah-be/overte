@@ -86,6 +86,8 @@ elif [ "$1 $2 $3" = "simctl list devices" ]; then
 elif [ "$1 $2" = "simctl get_app_container" ]; then
     mkdir -p "$FAKE_DATA_CONTAINER/tmp"
     printf '%s\n' "$FAKE_DATA_CONTAINER"
+elif [ "$1 $2" = "simctl spawn" ] && [ "${4:-} ${5:-}" = "log show" ]; then
+    printf '%s\n' 'fixture OVERTE_IOS_ENTITY_GATE render_handoff entity={fixture}'
 elif [ "$1 $2" = "simctl launch" ]; then
     [ "${SIMCTL_CHILD_MVK_CONFIG_LOG_LEVEL:-}" = 4 ]
     [ "${SIMCTL_CHILD_MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS:-}" = 0 ]
@@ -169,18 +171,22 @@ fi
         "FAKE_APP_UUID": UUID,
         "FAKE_SYMBOL_UUID": UUID,
         "OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS": "0",
+        "OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE": "1",
+        "OVERTE_IOS_LLDB_WORLD_GATE_TIMEOUT_SECONDS": "2",
     }
 
     captured_output = root / "captured"
     captured = invoke(app, symbols, captured_output, base_environment)
     assert captured.returncode == 1, (captured.stdout, captured.stderr)
     result = (captured_output / "iphone-serverless-lldb-result.log").read_text(encoding="utf-8")
-    assert "capture_status=captured_sigsegv" in result
+    assert "capture_status=captured_sigsegv" in result, (result, captured.stdout, captured.stderr)
     assert "lldb_status=0" in result
     assert "attach_delay_seconds=0" in result
     assert "attach_attempts_requested=3" in result
     assert "attach_attempts_used=1" in result
     assert "wait_for_debugger=0" in result
+    assert "attach_after_world_gate=1" in result
+    assert "world_gate_trace=observed" in result
     assert "startup_trace=0" in result
     assert f"source_revision={SOURCE_REVISION}" in result
     assert f"candidate_sha256={CANDIDATE_SHA256}" in result
@@ -188,8 +194,14 @@ fi
     assert "OVERTE_LLDB_CRASH_CAPTURE_COMPLETE" in lldb_log
     commands = command_log.read_text(encoding="utf-8")
     assert "simctl launch --stdout=" in commands
+    assert "simctl spawn private-udid log show --last 2m" in commands
     assert "--wait-for-debugger" not in commands
     assert "lldb --no-lldbinit --no-use-colors --batch --attach-pid 4242" in commands
+    assert (
+        commands.index("simctl launch")
+        < commands.index("simctl spawn private-udid log show")
+        < commands.index("lldb --no-lldbinit")
+    )
     assert "startup-trace.lldb" not in commands
     assert "simctl terminate" in commands and "simctl shutdown" in commands
 
@@ -220,6 +232,7 @@ fi
         "FAKE_EXPECT_WAIT_FOR_DEBUGGER": "1",
         "OVERTE_IOS_LLDB_STARTUP_TRACE": "1",
         "OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER": "1",
+        "OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE": "0",
     }
     normal_exit_output = root / "normal-exit"
     normal_exit = invoke(app, symbols, normal_exit_output, normal_exit_environment)

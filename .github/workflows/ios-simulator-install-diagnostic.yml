@@ -586,6 +586,12 @@ jobs:
         if: ${{ inputs.lldb_runtime_only }}
         id: lldb
         continue-on-error: true
+        env:
+          # An early debugger attach suppressed the normal timing-sensitive
+          # simulator crash.  Let startup and world import run normally, then
+          # attach in the short interval after the durable render-handoff gate.
+          OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE: "1"
+          OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS: "0"
         run: |
           set -euo pipefail
           symbol_bundle="${{ steps.candidate.outputs.symbol_bundle }}"

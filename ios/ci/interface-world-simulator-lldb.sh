@@ -25,6 +25,8 @@ attach_delay="${OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS:-1}"
 attach_attempts="${OVERTE_IOS_LLDB_ATTACH_ATTEMPTS:-3}"
 startup_trace="${OVERTE_IOS_LLDB_STARTUP_TRACE:-0}"
 wait_for_debugger="${OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER:-0}"
+attach_after_world_gate="${OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE:-0}"
+world_gate_timeout="${OVERTE_IOS_LLDB_WORLD_GATE_TIMEOUT_SECONDS:-60}"
 
 [[ -d "$app_path" && "$app_path" == *.app && -x "$app_path/Overte" ]] || {
     echo "usage: $0 APP_PATH DSYM_BUNDLE BUNDLE_ID iphone SOURCE_REVISION CANDIDATE_SHA256 OUTPUT_DIR" >&2
@@ -62,6 +64,18 @@ wait_for_debugger="${OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER:-0}"
     echo "OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER must be 0 or 1" >&2
     exit 2
 }
+[[ "$attach_after_world_gate" =~ ^[01]$ ]] || {
+    echo "OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE must be 0 or 1" >&2
+    exit 2
+}
+[[ "$world_gate_timeout" =~ ^[1-9][0-9]*$ ]] && ((10#$world_gate_timeout <= 180)) || {
+    echo "OVERTE_IOS_LLDB_WORLD_GATE_TIMEOUT_SECONDS must be an integer from 1 through 180" >&2
+    exit 2
+}
+if ((wait_for_debugger && attach_after_world_gate)); then
+    echo "wait-for-debugger cannot be combined with attach-after-world-gate" >&2
+    exit 2
+fi
 for helper in "$timeout_runner" "$simulator_selector"; do
     [[ -f "$helper" ]] || { echo "iOS LLDB helper is unavailable" >&2; exit 2; }
 done
@@ -101,6 +115,7 @@ readonly app_stdout="$temp_root/application.stdout"
 readonly app_stderr="$temp_root/application.stderr"
 readonly crash_commands="$temp_root/on-crash.lldb"
 readonly startup_commands="$temp_root/startup-trace.lldb"
+readonly world_gate_log="$temp_root/world-gate.log"
 
 : > "$app_stdout"
 : > "$app_stderr"
@@ -117,6 +132,7 @@ capture_status="not_captured"
 resume_trace="not_observed"
 sandbox_trace="not_observed"
 exit_trace="not_observed"
+world_gate_trace="not_requested"
 xcode_build="unknown"
 
 run_bounded() {
@@ -167,6 +183,8 @@ finish() {
         printf 'attach_attempts_requested=%s\n' "$attach_attempts"
         printf 'attach_attempts_used=%s\n' "$attach_attempts_used"
         printf 'wait_for_debugger=%s\n' "$wait_for_debugger"
+        printf 'attach_after_world_gate=%s\n' "$attach_after_world_gate"
+        printf 'world_gate_trace=%s\n' "$world_gate_trace"
         printf 'startup_trace=%s\n' "$startup_trace"
         printf 'lldb_status=%s\n' "$lldb_status"
         printf 'capture_status=%s\n' "$capture_status"
@@ -243,10 +261,39 @@ launch_pid="${launch_output##*: }"
 [[ "$launch_pid" =~ ^[1-9][0-9]*$ ]] || { echo "application launch returned an invalid process identifier" >&2; exit 1; }
 app_launched=1
 
+# Attaching at process start changed the scheduling of the observed simulator
+# failure enough that it no longer reproduced.  The serverless render handoff
+# is emitted about eight seconds before the known crash window, so diagnostic
+# CI can let startup run normally and attach immediately after that durable
+# unified-log marker.  Query the persisted simulator log instead of relying on
+# redirected `log stream`, which CoreSimulator can block-buffer.
+if ((attach_after_world_gate)); then
+    world_gate_trace="waiting"
+    gate_deadline=$(( $(date +%s) + 10#$world_gate_timeout ))
+    while :; do
+        gate_status=0
+        run_bounded "world render gate query" 10 xcrun simctl spawn "$active_udid" \
+            log show --last 2m --style compact --info \
+            --predicate "processIdentifier == $launch_pid AND composedMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\"" \
+            > "$world_gate_log" || gate_status=$?
+        if ((gate_status == 0)) && \
+                grep -Eq 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' "$world_gate_log"; then
+            world_gate_trace="observed"
+            break
+        fi
+        if (( $(date +%s) >= gate_deadline )); then
+            world_gate_trace="timed_out"
+            echo "serverless render handoff was not observed before LLDB attach" >&2
+            exit 124
+        fi
+        sleep 1
+    done
+fi
+
 # Attaching at dyld start without --wait-for-debugger can race the simulator's
 # task-port setup and fail with "could not pause execution".  A short bounded
 # delay keeps normal startup ordering while attaching before an early crash.
-if ((!wait_for_debugger && 10#$attach_delay > 0)); then
+if ((!wait_for_debugger && !attach_after_world_gate && 10#$attach_delay > 0)); then
     sleep "$attach_delay"
 fi
 

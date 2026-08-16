@@ -89,6 +89,8 @@ assert 'OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS: "6"' in runtime
 assert "Capture preserved candidate SIGSEGV with LLDB" in runtime
 assert "interface-world-simulator-lldb.sh" in runtime
 assert 'if: ${{ inputs.lldb_runtime_only }}' in runtime
+assert 'OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE: "1"' in runtime
+assert 'OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS: "0"' in runtime
 assert "symbol_bundle=$symbol_bundle" in runtime
 assert "the preserved candidate has no matching dSYM" in runtime
 assert "Require captured LLDB crash and keep runtime acceptance red" in runtime
@@ -121,6 +123,8 @@ for required in (
     "xcrun dwarfdump --uuid",
     "OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS",
     "OVERTE_IOS_LLDB_ATTACH_ATTEMPTS",
+    "OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE",
+    "OVERTE_IOS_LLDB_WORLD_GATE_TIMEOUT_SECONDS",
     "OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER",
     "OVERTE_IOS_LLDB_STARTUP_TRACE",
     "SIMCTL_CHILD_MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=0",
@@ -140,6 +144,9 @@ for required in (
 ):
     assert required in LLDB, required
 assert 'OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS:-1' in LLDB
+assert 'OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE:-0' in LLDB
+assert 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' in LLDB
+assert 'processIdentifier == $launch_pid' in LLDB
 assert "frame variable" not in LLDB
 assert "target variable" not in LLDB
 assert "memory read" not in LLDB
