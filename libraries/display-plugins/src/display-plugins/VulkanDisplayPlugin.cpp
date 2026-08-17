@@ -1052,8 +1052,35 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
             if (outputReady) {
 #if defined(Q_OS_IOS)
                 if (traceIOSPresentCommands) {
-                    os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT blit_begin");
+                    os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT transfer_begin");
                 }
+#endif
+#if defined(Q_OS_IOS)
+                // The compositor output and the iOS swapchain normally have
+                // identical extents. Avoid creating a filtered Metal blit
+                // pipeline for that no-scale case; this has been the first
+                // submit that reaches SimMetalHost after startup.
+                if (outputTexture->_gpuObject.getWidth() == _vkWindow->_swapchain.extent.width &&
+                    outputTexture->_gpuObject.getHeight() == _vkWindow->_swapchain.extent.height) {
+                    VkImageCopy imageCopy{};
+                    imageCopy.srcSubresource = imageBlit.srcSubresource;
+                    imageCopy.dstSubresource = imageBlit.dstSubresource;
+                    imageCopy.srcOffset = imageBlit.srcOffsets[0];
+                    imageCopy.dstOffset = imageBlit.dstOffsets[0];
+                    imageCopy.extent = {
+                        _vkWindow->_swapchain.extent.width,
+                        _vkWindow->_swapchain.extent.height,
+                        1
+                    };
+                    vkCmdCopyImage(
+                        commandBuffer,
+                        outputTexture->attachments[0].image,
+                        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                        _vkWindow->_swapchain.images[currentImageIndex],
+                        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                        1,
+                        &imageCopy);
+                } else {
 #endif
                 vkCmdBlitImage(
                     commandBuffer,
@@ -1065,8 +1092,11 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                     &imageBlit,
                     VK_FILTER_LINEAR);
 #if defined(Q_OS_IOS)
+                }
+#endif
+#if defined(Q_OS_IOS)
                 if (traceIOSPresentCommands) {
-                    os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT blit_complete");
+                    os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT transfer_complete");
                 }
 #endif
             } else {

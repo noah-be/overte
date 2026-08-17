@@ -45,8 +45,8 @@ for fragment in (
     '"OVERTE_IOS_VULKAN_PRESENT source_barrier_complete"',
     '"OVERTE_IOS_VULKAN_PRESENT destination_barrier_begin"',
     '"OVERTE_IOS_VULKAN_PRESENT destination_barrier_complete"',
-    '"OVERTE_IOS_VULKAN_PRESENT blit_begin"',
-    '"OVERTE_IOS_VULKAN_PRESENT blit_complete"',
+    '"OVERTE_IOS_VULKAN_PRESENT transfer_begin"',
+    '"OVERTE_IOS_VULKAN_PRESENT transfer_complete"',
     '"OVERTE_IOS_VULKAN_PRESENT present_barrier_begin"',
     '"OVERTE_IOS_VULKAN_PRESENT present_barrier_complete"',
     '"OVERTE_IOS_VULKAN_PRESENT restore_barrier_begin"',
@@ -63,6 +63,9 @@ for fragment in (
 
 if "const bool traceIOSPresentCommands = outputReady && !_iosPresentOutputReady;" not in present:
     raise SystemExit("ready-output commands are not traced on their first state transition")
+
+if "vkCmdCopyImage(" not in present or "vkCmdBlitImage(" not in present:
+    raise SystemExit("iOS output must copy identical extents and retain the scaled blit fallback")
 
 for fragment in (
     '"OVERTE_IOS_VULKAN_PRESENT resize_complete extent=%ux%u images=%u"',
