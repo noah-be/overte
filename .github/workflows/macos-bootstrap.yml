@@ -389,9 +389,16 @@ jobs:
 
       - name: Normalize restored Ninja source timestamps
         if: ${{ steps.build-tree-restore.outputs.cache-matched-key != '' }}
-        run: >-
-          python3 macos/ci/build-tree-checkpoint.py restore
-          --repository "$GITHUB_WORKSPACE" --build-dir build
+        run: |
+          python3 macos/ci/build-tree-checkpoint.py restore \
+            --repository "$GITHUB_WORKSPACE" --build-dir build
+          for graph_file in CMakeCache.txt build.ninja; do
+            if [[ -s "build/$graph_file" ]]; then
+              echo "macOS Ninja graph probe phase=post-restore file=$graph_file status=present"
+            else
+              echo "macOS Ninja graph probe phase=post-restore file=$graph_file status=missing"
+            fi
+          done
 
       - name: Cache Conan packages
         id: conan-cache
@@ -895,6 +902,13 @@ jobs:
 
       - name: Configure compiler cache
         run: |
+          for graph_file in CMakeCache.txt build.ninja; do
+            if [[ -s "build/$graph_file" ]]; then
+              echo "macOS Ninja graph probe phase=pre-configure file=$graph_file status=present"
+            else
+              echo "macOS Ninja graph probe phase=pre-configure file=$graph_file status=missing"
+            fi
+          done
           sccache --start-server
           sccache --zero-stats
 
