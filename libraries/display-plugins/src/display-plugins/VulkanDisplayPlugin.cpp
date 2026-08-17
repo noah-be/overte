@@ -961,6 +961,7 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                 outputTexture->_gpuObject.getWidth() > 0 &&
                 outputTexture->_gpuObject.getHeight() > 0;
 #if defined(Q_OS_IOS)
+            const bool traceIOSPresentCommands = outputReady && !_iosPresentSubmitReported;
             if (!_iosPresentOutputReported || _iosPresentOutputReady != outputReady) {
                 const auto sourceWidth = outputReady ? outputTexture->_gpuObject.getWidth() : 0;
                 const auto sourceHeight = outputReady ? outputTexture->_gpuObject.getHeight() : 0;
@@ -1005,6 +1006,11 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
             mipSubRange.layerCount = 1;
 
             if (outputReady) {
+#if defined(Q_OS_IOS)
+                if (traceIOSPresentCommands) {
+                    os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT source_barrier_begin");
+                }
+#endif
                 vks::tools::insertImageMemoryBarrier(
                     commandBuffer,
                     outputTexture->attachments[0].image,
@@ -1015,8 +1021,18 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                     VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                     VK_PIPELINE_STAGE_TRANSFER_BIT,
                     mipSubRange);
+#if defined(Q_OS_IOS)
+                if (traceIOSPresentCommands) {
+                    os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT source_barrier_complete");
+                }
+#endif
             }
 
+#if defined(Q_OS_IOS)
+            if (traceIOSPresentCommands) {
+                os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT destination_barrier_begin");
+            }
+#endif
             vks::tools::insertImageMemoryBarrier(
                 commandBuffer,
                 _vkWindow->_swapchain.images[currentImageIndex],
@@ -1027,8 +1043,18 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                 VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                 VK_PIPELINE_STAGE_TRANSFER_BIT,
                 mipSubRange);
+#if defined(Q_OS_IOS)
+            if (traceIOSPresentCommands) {
+                os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT destination_barrier_complete");
+            }
+#endif
 
             if (outputReady) {
+#if defined(Q_OS_IOS)
+                if (traceIOSPresentCommands) {
+                    os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT blit_begin");
+                }
+#endif
                 vkCmdBlitImage(
                     commandBuffer,
                     outputTexture->attachments[0].image,
@@ -1038,6 +1064,11 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                     1,
                     &imageBlit,
                     VK_FILTER_LINEAR);
+#if defined(Q_OS_IOS)
+                if (traceIOSPresentCommands) {
+                    os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT blit_complete");
+                }
+#endif
             } else {
                 VkClearColorValue clearColor{};
                 clearColor.float32[3] = 1.0f;
@@ -1050,6 +1081,11 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                     &mipSubRange);
             }
 
+#if defined(Q_OS_IOS)
+            if (traceIOSPresentCommands) {
+                os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT present_barrier_begin");
+            }
+#endif
             vks::tools::insertImageMemoryBarrier(
                 commandBuffer,
                 _vkWindow->_swapchain.images[currentImageIndex],
@@ -1060,8 +1096,18 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                 VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
                 mipSubRange);
+#if defined(Q_OS_IOS)
+            if (traceIOSPresentCommands) {
+                os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT present_barrier_complete");
+            }
+#endif
 
             if (outputReady) {
+#if defined(Q_OS_IOS)
+                if (traceIOSPresentCommands) {
+                    os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT restore_barrier_begin");
+                }
+#endif
                 vks::tools::insertImageMemoryBarrier(
                     commandBuffer,
                     outputTexture->attachments[0].image,
@@ -1072,10 +1118,25 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                     VK_PIPELINE_STAGE_TRANSFER_BIT,
                     VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                     mipSubRange);
+#if defined(Q_OS_IOS)
+                if (traceIOSPresentCommands) {
+                    os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT restore_barrier_complete");
+                }
+#endif
             }
 
             cmdEndLabel(commandBuffer);
+#if defined(Q_OS_IOS)
+            if (traceIOSPresentCommands) {
+                os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT command_buffer_end_begin");
+            }
+#endif
             VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer));
+#if defined(Q_OS_IOS)
+            if (traceIOSPresentCommands) {
+                os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT command_buffer_end_complete");
+            }
+#endif
 
             if (!_vkWindow->_renderCompleteSemaphore) {
                 VkSemaphoreCreateInfo semaphoreCreateInfo = vks::initializers::semaphoreCreateInfo();
@@ -1098,6 +1159,11 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
             VkFenceCreateInfo fenceCI = vks::initializers::fenceCreateInfo();
             VkFence frameFence;
             VK_CHECK_RESULT(vkCreateFence(vkDevice, &fenceCI, nullptr, &frameFence));
+#if defined(Q_OS_IOS)
+            if (traceIOSPresentCommands) {
+                os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT queue_submit_begin");
+            }
+#endif
             VK_CHECK_RESULT(vkQueueSubmit(vkBackend->getContext().graphicsQueue, 1, &submitInfo, frameFence));
 #if defined(Q_OS_IOS)
             if (!_iosPresentSubmitReported) {
