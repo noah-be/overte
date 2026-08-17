@@ -900,6 +900,30 @@ jobs:
                steps.remaining-dependency-compiler-verify.outcome == 'failure') }}
         run: exit 1
 
+      # Conan intentionally refreshes its generated toolchain files while
+      # validating dependencies.  On an exact complete-key hit that makes the
+      # restored build.ninja older than a CMake input, forcing Ninja to rerun
+      # CMake and all Qt AUTORCC rules.  Reapply only the exact, fully proven
+      # tree after dependency validation so graph files and generated inputs
+      # come from one atomic checkpoint generation.
+      - name: Reapply exact complete build-tree checkpoint
+        if: >-
+          ${{ steps.build-tree-restore.outputs.cache-matched-key ==
+              steps.cache-key.outputs.build_complete }}
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: build
+          key: ${{ steps.cache-key.outputs.build_complete }}
+          fail-on-cache-miss: true
+
+      - name: Renormalize exact Ninja source timestamps
+        if: >-
+          ${{ steps.build-tree-restore.outputs.cache-matched-key ==
+              steps.cache-key.outputs.build_complete }}
+        run: >-
+          python3 macos/ci/build-tree-checkpoint.py restore
+          --repository "$GITHUB_WORKSPACE" --build-dir build
+
       - name: Configure compiler cache
         run: |
           for graph_file in CMakeCache.txt build.ninja; do
