@@ -37,7 +37,10 @@ class CompilerWatchdogTest(unittest.TestCase):
              "--inactivity-timeout", str(timeout), "--term-grace", "0.1", "--",
              sys.executable, "-c", code, "/secret/work/private-unit.cpp", "-o",
              "/secret/work/private-unit.o"],
-            text=True, capture_output=True, env=env, timeout=5, check=False,
+            # macOS process sampling can briefly exceed five seconds on a busy
+            # hosted runner; this outer harness limit must not race the
+            # watchdog's much shorter, explicitly tested timeout.
+            text=True, capture_output=True, env=env, timeout=15, check=False,
         )
 
     def test_preserves_exit_code_and_redacts_arguments_and_environment(self) -> None:
