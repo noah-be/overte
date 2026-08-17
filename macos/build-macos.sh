@@ -27,6 +27,7 @@ doctor() {
     require_macos
     command -v xcodebuild >/dev/null || fail "Xcode command-line tools are missing"
     command -v cmake >/dev/null || fail "CMake is missing"
+    command -v ninja >/dev/null || fail "Ninja is missing"
     command -v conan >/dev/null || fail "Conan 2 is missing"
     command -v python3 >/dev/null || fail "Python 3 is missing"
     command -v node >/dev/null || fail "Node.js is missing"
@@ -162,7 +163,7 @@ configure() {
             -D "CMAKE_OBJCXX_COMPILER_LAUNCHER=$compiler_watchdog;--"
         )
     fi
-    cmake --preset "$preset" \
+    cmake --preset "$preset" -G Ninja \
         -DOVERTE_RENDERING_BACKEND=OpenGL -DOVERTE_BUILD_CLIENT=ON \
         -DOVERTE_BUILD_SERVER=OFF -DOVERTE_BUILD_TOOLS=OFF \
         -DOVERTE_BUILD_TESTS="$build_tests" -DOVERTE_BUILD_INSTALLER=OFF \

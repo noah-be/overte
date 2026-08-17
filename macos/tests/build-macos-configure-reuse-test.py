@@ -41,6 +41,7 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
         fake_bin / "cmake",
         "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$FAKE_CMAKE_LOG\"\n",
     )
+    executable(fake_bin / "ninja", "#!/bin/sh\nexit 0\n")
 
     build = temporary / "build"
     build.mkdir()
@@ -108,6 +109,7 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temporary_name
     assert "cache invariants failed; configuring safely" in fallback.stdout
     invoked = cmake_log.read_text(encoding="utf-8")
     assert "--preset conan-relwithdebinfo" in invoked
+    assert "-G Ninja" in invoked
     assert "-DOVERTE_BUILD_TESTS=ON" in invoked
     assert "-DCMAKE_OSX_ARCHITECTURES=x86_64" in invoked
 
