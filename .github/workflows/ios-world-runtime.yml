@@ -506,6 +506,7 @@ jobs:
             "${{ needs.v8-simulator.outputs.cache-key }}" "$key" \
             "overte-moltenvk-ios-simulator-v1-${{ runner.arch }}-${{ hashFiles('ios/moltenvk-simulator.env') }}" | \
             shasum -a 256 | awk '{print $1}')"
+          echo "namespace=$namespace" >> "$GITHUB_OUTPUT"
           echo "SCCACHE_GHA_VERSION=overte-ios-world-client-objects-v1-${namespace}" >> "$GITHUB_ENV"
           echo "SCCACHE_C_CUSTOM_CACHE_BUSTER=${namespace}" >> "$GITHUB_ENV"
 
@@ -623,6 +624,28 @@ jobs:
           ios/build-ios.sh doctor --platform simulator --require-qt --require-moltenvk
           ios/tools/build-v8-ios.sh validate
 
+      - name: Restore local Full Client compiler fallback
+        id: client-sccache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: overte-ios-world-client-local-v1-${{ steps.conan-key.outputs.namespace }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            overte-ios-world-client-local-v1-${{ steps.conan-key.outputs.namespace }}-${{ github.sha }}-
+            overte-ios-world-client-local-v1-${{ steps.conan-key.outputs.namespace }}-
+
+      - name: Restore incremental Full Client build tree
+        id: client-build-tree
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            build-ios/simulator
+            !build-ios/simulator/conan
+          key: overte-ios-world-build-tree-v1-${{ steps.conan-key.outputs.namespace }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            overte-ios-world-build-tree-v1-${{ steps.conan-key.outputs.namespace }}-${{ github.sha }}-
+            overte-ios-world-build-tree-v1-${{ steps.conan-key.outputs.namespace }}-
+
       - name: Start full-client simulator compiler checkpoint
         run: |
           sccache --stop-server || true
@@ -698,7 +721,8 @@ jobs:
             --watch build=build-ios/simulator --watch conan="$CONAN_HOME" \
             --watch sccache="$SCCACHE_DIR" -- \
             cmake --build build-ios/simulator --config Release \
-              --parallel "$(sysctl -n hw.logicalcpu)" --target Overte
+              --parallel "$(sysctl -n hw.logicalcpu)" --target Overte -- \
+              -showBuildTimingSummary
 
       - name: Snapshot and stop Full Client simulator checkpoint
         if: ${{ always() && !cancelled() && steps.client-build.outcome != 'skipped' }}
@@ -706,6 +730,26 @@ jobs:
           sccache --show-stats --stats-format=json > build-ios/world-raw-diagnostics/sccache-stats.json
           sccache --show-stats
           sccache --stop-server
+          python3 ios/ci/report-sccache-stats.py \
+            build-ios/world-raw-diagnostics/sccache-stats.json \
+            --cache-dir "$SCCACHE_DIR" --phase after --require-activity \
+            --max-remote-write-failure-rate 0.10
+
+      - name: Save local Full Client compiler fallback
+        if: ${{ always() && !cancelled() && steps.client-build.outcome != 'skipped' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: overte-ios-world-client-local-v1-${{ steps.conan-key.outputs.namespace }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Save incremental Full Client build tree
+        if: ${{ steps.client-build.outcome == 'success' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            build-ios/simulator
+            !build-ios/simulator/conan
+          key: overte-ios-world-build-tree-v1-${{ steps.conan-key.outputs.namespace }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Require successful Full Client simulator build
         if: ${{ always() && steps.client-build.outcome == 'failure' }}
@@ -725,6 +769,18 @@ jobs:
             --mode simulator --expected-source-revision "$GITHUB_SHA" \
             --expected-sha256 "$sha" --github-output "$GITHUB_OUTPUT"
           echo "manifest=$manifest" >> "$GITHUB_OUTPUT"
+
+      - name: Preserve verified simulator candidate before runtime
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: overte-ios-world-candidate-v2-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            build-ios/artifacts/*-OverteIOSClient-Release-simulator.zip
+            build-ios/artifacts/*-OverteIOSClient-Release-simulator-symbols.zip
+            build-ios/artifacts/*-OverteIOSClient-Release-simulator.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
 
       - name: Resolve current overte_hub domain identity
         id: online-world
@@ -784,14 +840,11 @@ jobs:
             --candidate-sha256 "${{ steps.candidate.outputs.sha256 }}" \
             --output build-ios/world-evidence-set.json
 
-      - name: Upload simulator candidate and world screenshot evidence
+      - name: Upload world screenshot evidence
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: ${{ github.run_number }}-overte-ios-world-evidence-${{ github.run_id }}
           path: |
-            build-ios/artifacts/*-OverteIOSClient-Release-simulator.zip
-            build-ios/artifacts/*-OverteIOSClient-Release-simulator-symbols.zip
-            build-ios/artifacts/*-OverteIOSClient-Release-simulator.json
             build-ios/world-evidence/*.png
             build-ios/world-evidence/*-screenshot.json
             build-ios/world-evidence/*-runtime.json
@@ -799,17 +852,13 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Preserve simulator candidate after runtime failure
+      - name: Preserve runtime failure screenshots
         if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: ${{ github.run_number }}-overte-ios-world-candidate-${{ github.run_id }}
-          path: |
-            build-ios/artifacts/*-OverteIOSClient-Release-simulator.zip
-            build-ios/artifacts/*-OverteIOSClient-Release-simulator-symbols.zip
-            build-ios/artifacts/*-OverteIOSClient-Release-simulator.json
-            build-ios/world-evidence/*-failure.png
-          if-no-files-found: error
+          name: ${{ github.run_number }}-overte-ios-world-failures-${{ github.run_id }}
+          path: build-ios/world-evidence/*-failure.png
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Sanitize world-build failure diagnostics

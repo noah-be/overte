@@ -76,24 +76,24 @@ def summarize(stats: dict, cache_dir: pathlib.Path, phase: str) -> dict:
     }
 
 
-def validate_activity(summary: dict) -> None:
+def validate_activity(summary: dict, max_remote_write_failure_rate: float = 0.05) -> None:
     if summary["requests"] < 1:
-        raise ValueError("V8 rebuild produced no sccache compiler requests")
+        raise ValueError("build produced no sccache compiler requests")
     if summary["hits"] + summary["misses"] < 1:
-        raise ValueError("V8 rebuild produced no cacheable compiler requests")
+        raise ValueError("build produced no cacheable compiler requests")
     if summary["localCacheFiles"] < 1 or summary["localCacheBytes"] < 4096:
-        raise ValueError("V8 rebuild left no reusable local compiler checkpoint")
+        raise ValueError("build left no reusable local compiler checkpoint")
     remote = [level for level in summary["levels"] if "gha" in level["name"].lower()]
     if not remote:
-        raise ValueError("V8 rebuild did not configure the remote GitHub cache level")
+        raise ValueError("build did not configure the remote GitHub cache level")
     if summary["misses"] and not any(level["writes"] for level in remote):
-        raise ValueError("V8 cache misses produced no remote compiler checkpoint writes")
+        raise ValueError("cache misses produced no remote compiler checkpoint writes")
     remote_writes = sum(level["writes"] for level in remote)
     remote_failures = sum(level["writeFailures"] for level in remote)
     attempts = remote_writes + remote_failures
-    if attempts and remote_failures / attempts > 0.05:
+    if attempts and remote_failures / attempts > max_remote_write_failure_rate:
         raise ValueError(
-            f"remote V8 compiler checkpoint write failure rate is too high: {remote_failures}/{attempts}"
+            f"remote compiler checkpoint write failure rate is too high: {remote_failures}/{attempts}"
         )
 
 
@@ -103,16 +103,19 @@ def main() -> int:
     parser.add_argument("--cache-dir", type=pathlib.Path, required=True)
     parser.add_argument("--phase", choices=("before", "after"), required=True)
     parser.add_argument("--require-activity", action="store_true")
+    parser.add_argument("--max-remote-write-failure-rate", type=float, default=0.05)
     args = parser.parse_args()
     try:
         summary = summarize(load_stats(args.stats), args.cache_dir, args.phase)
         if args.require_activity:
-            validate_activity(summary)
+            if not 0.0 <= args.max_remote_write_failure_rate <= 1.0:
+                raise ValueError("remote write failure rate limit must be between zero and one")
+            validate_activity(summary, args.max_remote_write_failure_rate)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"report-sccache-stats: {exc}", file=sys.stderr)
         return 1
     line = json.dumps(summary, sort_keys=True, separators=(",", ":"))
-    print(f"V8 sccache summary: {line}")
+    print(f"sccache summary: {line}")
     return 0
 
 

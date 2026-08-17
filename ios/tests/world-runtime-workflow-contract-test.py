@@ -58,9 +58,20 @@ require(WORKFLOW, r"OVERTE_IOS_MOLTENVK_SIMULATOR_SHA256", "simulator MoltenVK d
 require(WORKFLOW, r"deps --platform simulator --graphics-toolchain", "Conan must resolve the simulator graph")
 require(WORKFLOW, r"configure --platform simulator --client-graph", "the real Full Client simulator graph must be configured")
 require(WORKFLOW, r"cmake --build build-ios/simulator[\s\S]*--target Overte", "the real Overte client target must be built")
+assert "-showBuildTimingSummary" in WORKFLOW
 require(WORKFLOW, r"package-client --platform simulator --configuration Release", "the tested simulator app must be packaged")
 require(WORKFLOW, r"verify-runtime-candidate\.py build-ios/artifacts[\s\S]*--mode simulator", "candidate platform and Mach-O must be verified")
-assert WORKFLOW.count("*-OverteIOSClient-Release-simulator-symbols.zip") == 2
+assert WORKFLOW.count("*-OverteIOSClient-Release-simulator-symbols.zip") == 1
+for checkpoint in (
+    "Restore local Full Client compiler fallback",
+    "Restore incremental Full Client build tree",
+    "Save local Full Client compiler fallback",
+    "Save incremental Full Client build tree",
+):
+    assert checkpoint in WORKFLOW
+require(WORKFLOW, r"overte-ios-world-build-tree-v1-.*steps[.]conan-key[.]outputs[.]namespace", "incremental build tree must be toolchain namespaced")
+require(WORKFLOW, r"overte-ios-world-client-local-v1-.*steps[.]conan-key[.]outputs[.]namespace", "local compiler fallback must be toolchain namespaced")
+require(WORKFLOW, r"report-sccache-stats[.]py[\s\S]*--max-remote-write-failure-rate 0[.]10", "Full Client remote cache failures must be bounded")
 
 for phase in (
     "v8-simulator-build",
@@ -82,7 +93,7 @@ require(WORKFLOW, r'xcode_build[^\n]*17F42', "stable CoreSimulator selection mus
 require(WORKFLOW, r"OVERTE_IOS_WORLD_DIAGNOSTICS_DIR:.*world-raw-diagnostics", "simctl failures must be retained for sanitization")
 world_step = WORKFLOW[
     WORKFLOW.index("Load serverless and online worlds with screenshots"):
-    WORKFLOW.index("Upload simulator candidate and world screenshot evidence")
+    WORKFLOW.index("Upload world screenshot evidence")
 ]
 for family in ("iphone ipad",):
     assert f"for family in {family}" in world_step
@@ -94,7 +105,7 @@ assert "--source-revision \"$GITHUB_SHA\"" in world_step
 assert "steps.candidate.outputs.sha256" in world_step
 
 upload = WORKFLOW[
-    WORKFLOW.index("Upload simulator candidate and world screenshot evidence"):
+    WORKFLOW.index("Upload world screenshot evidence"):
     WORKFLOW.index("Sanitize world-build failure diagnostics")
 ]
 for retained in ("*.png", "*-screenshot.json", "*-runtime.json", "world-evidence-set.json"):
@@ -102,15 +113,23 @@ for retained in ("*.png", "*-screenshot.json", "*-runtime.json", "world-evidence
 assert "*.log" not in upload and "raw" not in upload.lower()
 assert "retention-days: 14" in upload
 
+candidate_checkpoint = WORKFLOW[
+    WORKFLOW.index("Preserve verified simulator candidate before runtime"):
+    WORKFLOW.index("Resolve current overte_hub domain identity")
+]
+assert "overte-ios-world-candidate-v2-${{ github.sha }}-${{ github.run_id }}" in candidate_checkpoint
+assert "*-OverteIOSClient-Release-simulator.zip" in candidate_checkpoint
+assert "*-OverteIOSClient-Release-simulator-symbols.zip" in candidate_checkpoint
+assert "if-no-files-found: error" in candidate_checkpoint
+assert "retention-days: 30" in candidate_checkpoint
+
 failure_candidate = WORKFLOW[
-    WORKFLOW.index("Preserve simulator candidate after runtime failure"):
+    WORKFLOW.index("Preserve runtime failure screenshots"):
     WORKFLOW.index("Sanitize world-build failure diagnostics")
 ]
 assert "if: failure()" in failure_candidate
-assert "*-OverteIOSClient-Release-simulator.zip" in failure_candidate
-assert "*-OverteIOSClient-Release-simulator-symbols.zip" in failure_candidate
 assert "*-failure.png" in failure_candidate
-assert "if-no-files-found: error" in failure_candidate
+assert "if-no-files-found: warn" in failure_candidate
 require(
     WORKFLOW,
     r"Sanitize world-build failure diagnostics[\s\S]*Overte[.]app[.]dSYM/Contents/Resources/DWARF/Overte[\s\S]*[*]-overte-crash-report[.]log[\s\S]*symbolicate-simulator-crash[.]py",
