@@ -130,7 +130,26 @@ configure() {
         return
     fi
     if [[ "$skip_configure" == ON ]]; then
+        local failed_invariants=()
+        [[ -n "$expected_exact_key" ]] || failed_invariants+=(expected-key)
+        [[ -s "$exact_key_file" ]] || failed_invariants+=(complete-key-file)
+        [[ -s "$exact_key_file" && "$(<"$exact_key_file")" == "$expected_exact_key" ]] ||
+            failed_invariants+=(complete-key-match)
+        [[ -s "$cache_file" ]] || failed_invariants+=(cmake-cache)
+        [[ -s "$ninja_file" ]] || failed_invariants+=(ninja-graph)
+        if [[ -s "$cache_file" ]]; then
+            [[ "$(cache_value CMAKE_HOME_DIRECTORY)" == "$source_root" ]] || failed_invariants+=(source-root)
+            [[ "$(cache_value CMAKE_GENERATOR)" == Ninja ]] || failed_invariants+=(generator)
+            [[ "$(cache_value CMAKE_BUILD_TYPE)" == "$build_type" ]] || failed_invariants+=(build-type)
+            [[ "$(cache_value CMAKE_OSX_ARCHITECTURES)" == "$architecture" ]] || failed_invariants+=(architecture)
+            [[ "$(cache_value CMAKE_OSX_DEPLOYMENT_TARGET)" == "${MACOSX_DEPLOYMENT_TARGET:-11.0}" ]] ||
+                failed_invariants+=(deployment-target)
+            [[ "$(cache_value OVERTE_BUILD_TESTS)" == "$build_tests" ]] || failed_invariants+=(tests)
+            [[ "$(cache_value OVERTE_RELEASE_TYPE)" == DEV ]] || failed_invariants+=(release-type)
+            [[ "$(cache_value OVERTE_RENDERING_BACKEND)" == OpenGL ]] || failed_invariants+=(rendering-backend)
+        fi
         note "exact graph reuse was requested but cache invariants failed; configuring safely"
+        note "failed exact graph invariants: ${failed_invariants[*]}"
     fi
     local preset="conan-$(printf '%s' "$build_type" | tr '[:upper:]' '[:lower:]')"
     local compiler_watchdog="$source_root/macos/ci/compiler-watchdog.py"
