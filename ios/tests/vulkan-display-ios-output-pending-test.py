@@ -61,6 +61,9 @@ for fragment in (
     if fragment not in present:
         raise SystemExit(f"Vulkan pending-output contract missing: {fragment}")
 
+if "const bool traceIOSPresentCommands = outputReady && !_iosPresentOutputReady;" not in present:
+    raise SystemExit("ready-output commands are not traced on their first state transition")
+
 for fragment in (
     '"OVERTE_IOS_VULKAN_PRESENT resize_complete extent=%ux%u images=%u"',
     '"OVERTE_IOS_VULKAN_FATAL present_exception=%{public}s"',

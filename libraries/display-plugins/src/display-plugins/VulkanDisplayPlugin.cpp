@@ -961,7 +961,7 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                 outputTexture->_gpuObject.getWidth() > 0 &&
                 outputTexture->_gpuObject.getHeight() > 0;
 #if defined(Q_OS_IOS)
-            const bool traceIOSPresentCommands = outputReady && !_iosPresentSubmitReported;
+            const bool traceIOSPresentCommands = outputReady && !_iosPresentOutputReady;
             if (!_iosPresentOutputReported || _iosPresentOutputReady != outputReady) {
                 const auto sourceWidth = outputReady ? outputTexture->_gpuObject.getWidth() : 0;
                 const auto sourceHeight = outputReady ? outputTexture->_gpuObject.getHeight() : 0;
