@@ -11,6 +11,9 @@ SOURCE = (
 HEADER = (
     ROOT / "libraries/display-plugins/src/display-plugins/VulkanDisplayPlugin.h"
 ).read_text(encoding="utf-8")
+FRAMEBUFFER_CACHE = (
+    ROOT / "libraries/render-utils/src/FramebufferCache.cpp"
+).read_text(encoding="utf-8")
 
 start = SOURCE.index("void VulkanDisplayPlugin::present(")
 end = SOURCE.index("void VulkanDisplayPlugin::queueIOSFramebufferResize", start)
@@ -26,6 +29,7 @@ for fragment in (
     'qCWarning(displayPlugins) << "OVERTE_IOS_VULKAN_OUTPUT_PENDING";',
     'qCInfo(displayPlugins) << "OVERTE_IOS_VULKAN_OUTPUT_READY";',
     "if (outputReady)",
+    "vkCmdCopyImage(",
     "vkCmdBlitImage(",
     "VkClearColorValue clearColor{};",
     "clearColor.float32[3] = 1.0f;",
@@ -47,6 +51,7 @@ for fragment in (
     '"OVERTE_IOS_VULKAN_PRESENT destination_barrier_complete"',
     '"OVERTE_IOS_VULKAN_PRESENT transfer_begin"',
     '"OVERTE_IOS_VULKAN_PRESENT transfer_complete"',
+    '"OVERTE_IOS_VULKAN_PRESENT transfer_mode=%{public}s source_format=%d target_format=%d"',
     '"OVERTE_IOS_VULKAN_PRESENT present_barrier_begin"',
     '"OVERTE_IOS_VULKAN_PRESENT present_barrier_complete"',
     '"OVERTE_IOS_VULKAN_PRESENT restore_barrier_begin"',
@@ -64,8 +69,12 @@ for fragment in (
 if "const bool traceIOSPresentCommands = outputReady && !_iosPresentOutputReady;" not in present:
     raise SystemExit("ready-output commands are not traced on their first state transition")
 
-if "VkFilter transferFilter = VK_FILTER_LINEAR;" not in present or "VK_FILTER_NEAREST" not in present:
-    raise SystemExit("iOS output must use nearest filtering for identical extents")
+if "sourceFormat == _vkWindow->_swapchain.colorFormat" not in present:
+    raise SystemExit("iOS output copy must require identical Vulkan formats")
+
+if "#if defined(Q_OS_IOS)" not in FRAMEBUFFER_CACHE or \
+        "gpu::Element::COLOR_SBGRA_32" not in FRAMEBUFFER_CACHE:
+    raise SystemExit("iOS final framebuffer must match the native BGRA swapchain format")
 
 for fragment in (
     '"OVERTE_IOS_VULKAN_PRESENT resize_complete extent=%ux%u images=%u"',
@@ -84,6 +93,7 @@ destination_transition = present.index(
     "                0,\n"
     "                VK_ACCESS_TRANSFER_WRITE_BIT"
 )
+copy = present.index("vkCmdCopyImage(")
 blit = present.index("vkCmdBlitImage(")
 clear = present.index("vkCmdClearColorImage(")
 present_transition = present.index(
@@ -94,8 +104,8 @@ command_end = present.index("VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer));
 submit = present.index("VK_CHECK_RESULT(vkQueueSubmit")
 queue_present = present.index("_vkWindow->_swapchain.queuePresent(")
 if not (
-    destination_transition < min(blit, clear)
-    and max(blit, clear) < present_transition < command_end < submit < queue_present
+    destination_transition < min(copy, blit, clear)
+    and max(copy, blit, clear) < present_transition < command_end < submit < queue_present
 ):
     raise SystemExit("pending and ready frames no longer share a complete submit/present transaction")
 

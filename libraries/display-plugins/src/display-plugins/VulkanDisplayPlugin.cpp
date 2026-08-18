@@ -1055,22 +1055,49 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                     os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT transfer_begin");
                 }
 #endif
-            VkFilter transferFilter = VK_FILTER_LINEAR;
+                const auto sourceFormat = gpu::vk::evalTexelFormatInternal(
+                    outputTexture->_gpuObject.getTexelFormat(), vkBackend->getContext());
+                const bool copyCompatible =
+                    sourceFormat == _vkWindow->_swapchain.colorFormat &&
+                    outputTexture->_gpuObject.getWidth() == _vkWindow->_swapchain.extent.width &&
+                    outputTexture->_gpuObject.getHeight() == _vkWindow->_swapchain.extent.height;
 #if defined(Q_OS_IOS)
-            if (outputTexture->_gpuObject.getWidth() == _vkWindow->_swapchain.extent.width &&
-                outputTexture->_gpuObject.getHeight() == _vkWindow->_swapchain.extent.height) {
-                transferFilter = VK_FILTER_NEAREST;
-            }
+                if (traceIOSPresentCommands) {
+                    os_log_info(OS_LOG_DEFAULT,
+                                "OVERTE_IOS_VULKAN_PRESENT transfer_mode=%{public}s source_format=%d target_format=%d",
+                                copyCompatible ? "copy" : "blit",
+                                static_cast<int>(sourceFormat),
+                                static_cast<int>(_vkWindow->_swapchain.colorFormat));
+                }
 #endif
-                vkCmdBlitImage(
-                    commandBuffer,
-                    outputTexture->attachments[0].image,
-                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                    _vkWindow->_swapchain.images[currentImageIndex],
-                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                    1,
-                    &imageBlit,
-                    transferFilter);
+                if (copyCompatible) {
+                    VkImageCopy imageCopy{};
+                    imageCopy.srcSubresource = imageBlit.srcSubresource;
+                    imageCopy.dstSubresource = imageBlit.dstSubresource;
+                    imageCopy.extent = {
+                        _vkWindow->_swapchain.extent.width,
+                        _vkWindow->_swapchain.extent.height,
+                        1
+                    };
+                    vkCmdCopyImage(
+                        commandBuffer,
+                        outputTexture->attachments[0].image,
+                        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                        _vkWindow->_swapchain.images[currentImageIndex],
+                        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                        1,
+                        &imageCopy);
+                } else {
+                    vkCmdBlitImage(
+                        commandBuffer,
+                        outputTexture->attachments[0].image,
+                        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                        _vkWindow->_swapchain.images[currentImageIndex],
+                        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                        1,
+                        &imageBlit,
+                        VK_FILTER_LINEAR);
+                }
 #if defined(Q_OS_IOS)
                 if (traceIOSPresentCommands) {
                     os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT transfer_complete");

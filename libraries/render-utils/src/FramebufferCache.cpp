@@ -38,7 +38,14 @@ void FramebufferCache::createPrimaryFramebuffer() {
 gpu::FramebufferPointer FramebufferCache::getFramebuffer() {
     std::unique_lock<std::mutex> lock(_mutex);
     if (_cachedFramebuffers.empty()) {
-        _cachedFramebuffers.push_back(gpu::FramebufferPointer(gpu::Framebuffer::create("cached", gpu::Element::COLOR_SRGBA_32, gpu::Element::DEPTH24_STENCIL8, _frameBufferSize.width(), _frameBufferSize.height())));
+#if defined(Q_OS_IOS)
+        // Match MoltenVK's native iOS swapchain format so presentation can use
+        // a direct image copy instead of a Metal format-conversion blit.
+        const auto colorFormat = gpu::Element::COLOR_SBGRA_32;
+#else
+        const auto colorFormat = gpu::Element::COLOR_SRGBA_32;
+#endif
+        _cachedFramebuffers.push_back(gpu::FramebufferPointer(gpu::Framebuffer::create("cached", colorFormat, gpu::Element::DEPTH24_STENCIL8, _frameBufferSize.width(), _frameBufferSize.height())));
     }
     gpu::FramebufferPointer result = _cachedFramebuffers.front();
     _cachedFramebuffers.pop_front();
