@@ -455,9 +455,13 @@ jobs:
         run: |
           set -euo pipefail
           candidate="$RUNTIME_ROOT/source/artifacts/$SOURCE_CANDIDATE_NAME"
+          if [[ ! -f "$candidate" ]]; then
+            candidate="$RUNTIME_ROOT/source/$SOURCE_CANDIDATE_NAME"
+          fi
           manifest="${candidate%.zip}.json"
           test -f "$candidate"
           test -f "$manifest"
+          candidate_directory="$(dirname "$candidate")"
           actual_sha="$(shasum -a 256 "$candidate" | awk '{print $1}')"
           [[ "$actual_sha" == "$EXPECTED_SHA256" ]]
           # Failure-preservation artifacts intentionally contain only the
@@ -465,10 +469,10 @@ jobs:
           # handoff pointers inside this private staging directory, then let
           # the existing verifier check their exact equality and all payload
           # metadata before expansion.
-          cp "$manifest" "$RUNTIME_ROOT/source/artifacts/LATEST-OverteIOSClient.json"
+          cp "$manifest" "$candidate_directory/LATEST-OverteIOSClient.json"
           printf '%s\n' "$SOURCE_CANDIDATE_NAME" \
-            > "$RUNTIME_ROOT/source/artifacts/LATEST-OverteIOSClient.txt"
-          python3 ios/tools/verify-runtime-candidate.py "$RUNTIME_ROOT/source/artifacts" \
+            > "$candidate_directory/LATEST-OverteIOSClient.txt"
+          python3 ios/tools/verify-runtime-candidate.py "$candidate_directory" \
             --mode simulator \
             --expected-source-revision "$EXPECTED_SOURCE_REVISION" \
             --expected-sha256 "$EXPECTED_SHA256" \
@@ -493,7 +497,7 @@ jobs:
           if [[ "$symbols_name" != - ]]; then
             [[ "$symbols_name" =~ ^[0-9]+-OverteIOSClient-Release-simulator-symbols[.]zip$ ]]
             [[ "$symbols_sha" =~ ^[0-9a-f]{64}$ ]]
-            symbols="$RUNTIME_ROOT/source/artifacts/$symbols_name"
+            symbols="$candidate_directory/$symbols_name"
             test -f "$symbols"
             [[ "$(shasum -a 256 "$symbols" | awk '{print $1}')" == "$symbols_sha" ]]
             ditto -x -k "$symbols" "$RUNTIME_ROOT/symbols"
