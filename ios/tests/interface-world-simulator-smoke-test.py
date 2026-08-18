@@ -262,6 +262,9 @@ elif [ "$1 $2" = "simctl uninstall" ]; then
 elif [ "$1 $2" = "simctl io" ] && [ "$4" = "screenshot" ]; then
     cp "$FAKE_SCREENSHOT" "$5"
 elif [ "$1" = "lldb" ]; then
+    if [ "${FAKE_LLDB_FAIL:-0}" = 1 ]; then
+        exit 1
+    fi
     printf '%s\n' 'thread #1 synthetic Vulkan present stack'
     printf '%s\n' 'OVERTE_IOS_STACK_SNAPSHOT_COMPLETE'
 fi
@@ -528,6 +531,27 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
     assert "blank or lacks visible world detail" in blank.stderr
     assert (blank_output / "ipad-serverless-failure.png").is_file()
     assert_no_raw_log(blank_output, scratch)
+
+    lldb_fallback_output = root / "lldb-fallback"
+    lldb_fallback = invoke(
+        app,
+        lldb_fallback_output,
+        {
+            **environment,
+            "FAKE_PROCESS_LOG": SERVERLESS_LOG,
+            "FAKE_SCREENSHOT": str(blank_fixture),
+            "FAKE_LLDB_FAIL": "1",
+            "OVERTE_IOS_WORLD_SYMBOL_BUNDLE": str(fake_dsym),
+            "OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS": "1",
+        },
+        "iphone",
+        "serverless",
+        "-",
+    )
+    assert lldb_fallback.returncode == 1, (lldb_fallback.stdout, lldb_fallback.stderr)
+    fallback_diagnostics = root / "raw-diagnostics/iphone-serverless-process-samples.log"
+    assert "stack_snapshot_fallback_tool=sample" in fallback_diagnostics.read_text(encoding="utf-8")
+    assert "synthetic process stack" in fallback_diagnostics.read_text(encoding="utf-8")
 
     fatal_after_gates_output = root / "fatal-after-gates"
     fatal_after_gates = invoke(

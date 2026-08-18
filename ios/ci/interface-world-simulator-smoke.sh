@@ -323,6 +323,29 @@ capture_startup_stack() {
             fi
             printf 'stack_sample_status=%s\n---\n' "$status"
         } >> "$process_state_log"
+        # Simulator LLDB can block in attach before producing any thread
+        # output. In that case, use macOS' non-debugger sampler as a bounded
+        # fallback. This is diagnostic-only and must not change world-test
+        # acceptance or leave the app suspended.
+        if ((status != 0)); then
+            sample_tool="$(command -v sample || true)"
+            if [[ -n "$sample_tool" ]]; then
+                local fallback_output="$temp_root/startup-sample-fallback.txt" fallback_status=0
+                rm -f "$fallback_output"
+                {
+                    printf 'stack_snapshot_fallback_tool=sample\n'
+                    "$timeout_runner" 15 "$sample_tool" "$launch_pid" 1 1 \
+                        -file "$fallback_output" || fallback_status=$?
+                    if [[ -s "$fallback_output" ]]; then
+                        tail -c 2097152 "$fallback_output"
+                    else
+                        printf 'stack_snapshot_fallback_output=empty\n'
+                    fi
+                    printf 'stack_snapshot_fallback_status=%s\n---\n' "$fallback_status"
+                } >> "$process_state_log" 2>&1
+                rm -f "$fallback_output"
+            fi
+        fi
         rm -f "$sample_output"
         chmod 0600 "$process_state_log"
         return 0
