@@ -1055,8 +1055,7 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                     os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT transfer_begin");
                 }
 #endif
-                const auto sourceFormat = gpu::vk::evalTexelFormatInternal(
-                    outputTexture->_gpuObject.getTexelFormat(), vkBackend->getContext());
+                const auto sourceFormat = outputTexture->attachments[0].format;
                 const bool copyCompatible =
                     sourceFormat == _vkWindow->_swapchain.colorFormat &&
                     outputTexture->_gpuObject.getWidth() == _vkWindow->_swapchain.extent.width &&

@@ -69,7 +69,8 @@ for fragment in (
 if "const bool traceIOSPresentCommands = outputReady && !_iosPresentOutputReady;" not in present:
     raise SystemExit("ready-output commands are not traced on their first state transition")
 
-if "sourceFormat == _vkWindow->_swapchain.colorFormat" not in present:
+if "outputTexture->attachments[0].format" not in present or \
+        "sourceFormat == _vkWindow->_swapchain.colorFormat" not in present:
     raise SystemExit("iOS output copy must require identical Vulkan formats")
 
 if "#if defined(Q_OS_IOS)" not in FRAMEBUFFER_CACHE or \
