@@ -562,6 +562,10 @@ jobs:
         continue-on-error: true
         env:
           ONLINE_DOMAIN: ${{ steps.online-place.outputs.domain }}
+          # Capture one symbolicated all-thread snapshot after the first real
+          # frame has had time to reach the Vulkan submit boundary.
+          OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS: "70"
+          OVERTE_IOS_WORLD_SYMBOL_BUNDLE: ${{ steps.candidate.outputs.symbol_bundle }}
           # Diagnostic-only tracing distinguishes a crash inside pipeline
           # creation from descriptor binding or the first draw. The normal
           # producer workflow remains free of this high-volume trace.
