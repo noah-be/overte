@@ -64,8 +64,8 @@ for fragment in (
 if "const bool traceIOSPresentCommands = outputReady && !_iosPresentOutputReady;" not in present:
     raise SystemExit("ready-output commands are not traced on their first state transition")
 
-if "vkCmdCopyImage(" not in present or "vkCmdBlitImage(" not in present:
-    raise SystemExit("iOS output must copy identical extents and retain the scaled blit fallback")
+if "VkFilter transferFilter = VK_FILTER_LINEAR;" not in present or "VK_FILTER_NEAREST" not in present:
+    raise SystemExit("iOS output must use nearest filtering for identical extents")
 
 for fragment in (
     '"OVERTE_IOS_VULKAN_PRESENT resize_complete extent=%ux%u images=%u"',
