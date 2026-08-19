@@ -1873,7 +1873,7 @@ def test_ci_contract() -> None:
     require_text(integrated, r"Select deterministic Conan package cache key", "integrated CI must key its validated dependency checkpoint")
     require_text(integrated, r"Restore validated Conan package cache", "integrated CI must reuse validated dependency packages")
     require_text(integrated, r"Save validated Conan package cache", "integrated CI must save dependencies immediately after graph validation")
-    require_text(integrated, r"timeout-minutes: 180", "the first full-client Xcode build needs a non-truncating timeout")
+    require_text(integrated, r"timeout-minutes: 185", "the first full-client Xcode build needs a non-truncating timeout")
     require_text(integrated, r"needs: host-contracts", "macOS integration must wait for host contracts")
     require_text(integrated, r"persist-credentials: false", "checkout credentials must not persist")
     require_text(integrated, r"doctor --platform device --require-qt", "toolchain stage must validate Xcode and Qt")

@@ -52,7 +52,7 @@ jobs:
   normalize-and-verify:
     name: Normalize and verify unsigned device IPA
     runs-on: macos-26
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
       SIDELOAD_ROOT: ${{ github.workspace }}/build-ios/sideload-${{ github.run_id }}-${{ github.run_attempt }}
       SOURCE_RUN_ID: ${{ inputs.source_run_id || '31796177166' }}

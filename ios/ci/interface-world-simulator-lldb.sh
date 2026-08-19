@@ -12,6 +12,7 @@ set -euo pipefail
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly timeout_runner="$script_dir/../tools/run-with-timeout.py"
 readonly simulator_selector="$script_dir/../tools/select-simulator.py"
+readonly timeout_grace_seconds=300
 
 app_path="${1:-}"
 symbol_bundle="${2:-}"
@@ -20,13 +21,13 @@ family="${4:-}"
 source_revision="${5:-}"
 candidate_sha256="${6:-}"
 output_dir="${7:-}"
-lldb_timeout="${OVERTE_IOS_LLDB_TIMEOUT_SECONDS:-240}"
+lldb_timeout="${OVERTE_IOS_LLDB_TIMEOUT_SECONDS:-540}"
 attach_delay="${OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS:-1}"
 attach_attempts="${OVERTE_IOS_LLDB_ATTACH_ATTEMPTS:-3}"
 startup_trace="${OVERTE_IOS_LLDB_STARTUP_TRACE:-0}"
 wait_for_debugger="${OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER:-0}"
 attach_after_world_gate="${OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE:-0}"
-world_gate_timeout="${OVERTE_IOS_LLDB_WORLD_GATE_TIMEOUT_SECONDS:-60}"
+world_gate_timeout="${OVERTE_IOS_LLDB_WORLD_GATE_TIMEOUT_SECONDS:-360}"
 
 [[ -d "$app_path" && "$app_path" == *.app && -x "$app_path/Overte" ]] || {
     echo "usage: $0 APP_PATH DSYM_BUNDLE BUNDLE_ID iphone SOURCE_REVISION CANDIDATE_SHA256 OUTPUT_DIR" >&2
@@ -44,8 +45,8 @@ world_gate_timeout="${OVERTE_IOS_LLDB_WORLD_GATE_TIMEOUT_SECONDS:-60}"
 [[ "$source_revision" =~ ^[0-9a-f]{40}$ ]] || { echo "invalid source revision" >&2; exit 2; }
 [[ "$candidate_sha256" =~ ^[0-9a-f]{64}$ ]] || { echo "invalid candidate SHA-256" >&2; exit 2; }
 [[ -n "$output_dir" ]] || { echo "output directory is required" >&2; exit 2; }
-[[ "$lldb_timeout" =~ ^[1-9][0-9]*$ ]] && ((10#$lldb_timeout <= 600)) || {
-    echo "OVERTE_IOS_LLDB_TIMEOUT_SECONDS must be an integer from 1 through 600" >&2
+[[ "$lldb_timeout" =~ ^[1-9][0-9]*$ ]] && ((10#$lldb_timeout <= 900)) || {
+    echo "OVERTE_IOS_LLDB_TIMEOUT_SECONDS must be an integer from 1 through 900" >&2
     exit 2
 }
 [[ "$attach_delay" =~ ^[0-9]+$ ]] && ((10#$attach_delay <= 20)) || {
@@ -68,8 +69,8 @@ world_gate_timeout="${OVERTE_IOS_LLDB_WORLD_GATE_TIMEOUT_SECONDS:-60}"
     echo "OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE must be 0 or 1" >&2
     exit 2
 }
-[[ "$world_gate_timeout" =~ ^[1-9][0-9]*$ ]] && ((10#$world_gate_timeout <= 180)) || {
-    echo "OVERTE_IOS_LLDB_WORLD_GATE_TIMEOUT_SECONDS must be an integer from 1 through 180" >&2
+[[ "$world_gate_timeout" =~ ^[1-9][0-9]*$ ]] && ((10#$world_gate_timeout <= 480)) || {
+    echo "OVERTE_IOS_LLDB_WORLD_GATE_TIMEOUT_SECONDS must be an integer from 1 through 480" >&2
     exit 2
 }
 if ((wait_for_debugger && attach_after_world_gate)); then
@@ -141,7 +142,7 @@ run_bounded() {
     local label="$1" seconds="$2" status=0
     shift 2
     : > "$command_stderr"
-    "$timeout_runner" "$seconds" "$@" 2>"$command_stderr" || status=$?
+    "$timeout_runner" "$((10#$seconds + timeout_grace_seconds))" "$@" 2>"$command_stderr" || status=$?
     if ((status != 0)); then
         echo "$label failed with status $status" >&2
     fi

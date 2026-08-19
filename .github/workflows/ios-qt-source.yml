@@ -46,7 +46,7 @@ concurrency:
 jobs:
   qt-ios-source:
     runs-on: macos-26
-    timeout-minutes: 360
+    timeout-minutes: 365
     outputs:
       qt_host_cache_key: ${{ steps.cache-key.outputs.host }}
       qt_ios_cache_key: ${{ steps.cache-key.outputs.ios }}

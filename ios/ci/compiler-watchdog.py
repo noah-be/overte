@@ -246,7 +246,7 @@ def main() -> int:
     parser.add_argument("--interval", type=float,
                         default=float(os.environ.get("OVERTE_COMPILER_WATCHDOG_INTERVAL", "30")))
     parser.add_argument("--inactivity-timeout", type=float,
-                        default=float(os.environ.get("OVERTE_COMPILER_STALL_TIMEOUT", "600")))
+                        default=float(os.environ.get("OVERTE_COMPILER_STALL_TIMEOUT", "900")))
     parser.add_argument("--term-grace", type=float, default=10.0)
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()

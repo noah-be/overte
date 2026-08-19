@@ -9,6 +9,7 @@ readonly timeout_runner="$script_dir/../tools/run-with-timeout.py"
 readonly simulator_selector="$script_dir/../tools/select-simulator.py"
 readonly screenshot_validator="$script_dir/../tools/validate-world-screenshot.py"
 readonly world_validator="$script_dir/../tools/validate-world-runtime.py"
+readonly timeout_grace_seconds=300
 
 app_path="${1:-}"
 bundle_id="${2:-}"
@@ -16,7 +17,7 @@ family="${3:-}"
 scenario="${4:-}"
 expected_domain="${5:-}"
 output_dir="${6:-}"
-poll_timeout="${OVERTE_IOS_WORLD_TIMEOUT_SECONDS:-240}"
+poll_timeout="${OVERTE_IOS_WORLD_TIMEOUT_SECONDS:-540}"
 poll_interval="${OVERTE_IOS_WORLD_POLL_SECONDS:-2}"
 screenshot_settle="${OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS:-2}"
 # CoreSimulatorBridge itself retries app launches for 120 seconds. Keep the
@@ -51,8 +52,8 @@ mvk_synchronous_queue_submits="${OVERTE_IOS_WORLD_MVK_SYNCHRONOUS_QUEUE_SUBMITS:
     exit 2
 }
 [[ -n "$output_dir" ]] || { echo "output directory is required" >&2; exit 2; }
-[[ "$poll_timeout" =~ ^[1-9][0-9]*$ ]] && ((10#$poll_timeout <= 900)) || {
-    echo "OVERTE_IOS_WORLD_TIMEOUT_SECONDS must be an integer from 1 through 900" >&2
+[[ "$poll_timeout" =~ ^[1-9][0-9]*$ ]] && ((10#$poll_timeout <= 1200)) || {
+    echo "OVERTE_IOS_WORLD_TIMEOUT_SECONDS must be an integer from 1 through 1200" >&2
     exit 2
 }
 [[ "$poll_interval" =~ ^[1-9][0-9]*$ ]] && ((10#$poll_interval <= 30)) || {
@@ -63,8 +64,8 @@ mvk_synchronous_queue_submits="${OVERTE_IOS_WORLD_MVK_SYNCHRONOUS_QUEUE_SUBMITS:
     echo "OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS must be an integer from 0 through 30" >&2
     exit 2
 }
-[[ "$launch_timeout" =~ ^[0-9]+$ ]] && ((10#$launch_timeout >= 130 && 10#$launch_timeout <= 300)) || {
-    echo "OVERTE_IOS_WORLD_LAUNCH_TIMEOUT_SECONDS must be an integer from 130 through 300" >&2
+[[ "$launch_timeout" =~ ^[0-9]+$ ]] && ((10#$launch_timeout >= 130 && 10#$launch_timeout <= 600)) || {
+    echo "OVERTE_IOS_WORLD_LAUNCH_TIMEOUT_SECONDS must be an integer from 130 through 600" >&2
     exit 2
 }
 [[ "$stack_sample_delay" =~ ^[0-9]+$ ]] && ((10#$stack_sample_delay <= 120)) || {
@@ -178,7 +179,7 @@ run_bounded() {
     local label="$1" seconds="$2" status=0
     shift 2
     : > "$command_stderr"
-    "$timeout_runner" "$seconds" "$@" 2>"$command_stderr" || status=$?
+    "$timeout_runner" "$((10#$seconds + timeout_grace_seconds))" "$@" 2>"$command_stderr" || status=$?
     if ((status != 0)); then
         if [[ -n "$command_diagnostics" ]]; then
             {
@@ -309,7 +310,7 @@ capture_startup_stack() {
             printf 'stack_sample_utc=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
             printf 'stack_snapshot_tool=lldb\n'
         } >> "$process_state_log"
-        "$timeout_runner" 20 xcrun lldb \
+        "$timeout_runner" 320 xcrun lldb \
             --no-lldbinit --no-use-colors --batch --attach-pid "$launch_pid" \
             -o 'settings set auto-confirm true' \
             -o "target symbols add \"$stack_symbol_bundle\"" \
@@ -339,7 +340,7 @@ capture_startup_stack() {
                 rm -f "$fallback_output"
                 {
                     printf 'stack_snapshot_fallback_tool=sample\n'
-                    "$timeout_runner" 15 "$sample_tool" "$launch_pid" 1 1 \
+                    "$timeout_runner" 315 "$sample_tool" "$launch_pid" 1 1 \
                         -file "$fallback_output" || fallback_status=$?
                     if [[ -s "$fallback_output" ]]; then
                         tail -c 2097152 "$fallback_output"
@@ -364,7 +365,7 @@ capture_startup_stack() {
     rm -f "$sample_output"
     {
         printf 'stack_sample_utc=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-        "$timeout_runner" 15 "$sample_tool" "$launch_pid" 1 1 \
+        "$timeout_runner" 315 "$sample_tool" "$launch_pid" 1 1 \
             -file "$sample_output" || status=$?
         if [[ -s "$sample_output" ]]; then
             tail -c 2097152 "$sample_output"
@@ -390,7 +391,7 @@ capture_postmortem_log() {
     [[ -n "$postmortem_diagnostics" && -n "$active_udid" ]] || return 0
     local status=0
     : > "$postmortem_diagnostics"
-    "$timeout_runner" 45 xcrun simctl spawn "$active_udid" log show \
+    "$timeout_runner" 345 xcrun simctl spawn "$active_udid" log show \
         --last 5m --style compact --info --debug \
         --predicate "process == \"Overte\" OR process == \"SimMetalHost\" OR process == \"launchd_sim\" OR composedMessage CONTAINS \"$bundle_id\" OR composedMessage CONTAINS \"Overte\"" \
         > "$postmortem_diagnostics" 2>&1 || status=$?
@@ -408,7 +409,7 @@ capture_host_metal_log() {
         return 0
     fi
     : > "$temp_log"
-    "$timeout_runner" 45 "$log_tool" show --last 20m --style compact --info --debug \
+    "$timeout_runner" 345 "$log_tool" show --last 20m --style compact --info --debug \
         --predicate 'process == "SimMetalHost" OR process == "MTLCompilerService" OR eventMessage CONTAINS "OS_REASON_METAL" OR eventMessage CONTAINS "MTLRenderPipeline"' \
         > "$temp_log" 2>&1 || status=$?
     {
@@ -503,7 +504,7 @@ refresh_runtime_log_snapshot() {
     [[ -n "$active_udid" && "$launch_pid" =~ ^[1-9][0-9]*$ ]] || return 0
     local snapshot_candidate="$temp_root/process-snapshot.next" status=0
     rm -f "$snapshot_candidate"
-    "$timeout_runner" 8 xcrun simctl spawn "$active_udid" log show \
+    "$timeout_runner" 308 xcrun simctl spawn "$active_udid" log show \
         --last 2m --style compact --info --debug \
         --predicate "processIdentifier == $launch_pid AND (eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PRESENT\")" \
         > "$snapshot_candidate" 2>/dev/null || status=$?

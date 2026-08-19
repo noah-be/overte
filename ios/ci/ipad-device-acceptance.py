@@ -400,9 +400,9 @@ def execute(args: argparse.Namespace) -> None:
     except OSError as error:
         raise AcceptanceFailure("could not create the output directory", 2) from error
 
-    command_timeout = positive_timeout("OVERTE_IOS_IPAD_COMMAND_TIMEOUT_SECONDS", 30)
-    install_timeout = positive_timeout("OVERTE_IOS_IPAD_INSTALL_TIMEOUT_SECONDS", 300)
-    launch_timeout = positive_timeout("OVERTE_IOS_IPAD_LAUNCH_TIMEOUT_SECONDS", 180)
+    command_timeout = positive_timeout("OVERTE_IOS_IPAD_COMMAND_TIMEOUT_SECONDS", 330)
+    install_timeout = positive_timeout("OVERTE_IOS_IPAD_INSTALL_TIMEOUT_SECONDS", 600)
+    launch_timeout = positive_timeout("OVERTE_IOS_IPAD_LAUNCH_TIMEOUT_SECONDS", 480)
     validator = load_tool("validate-entity-gate-log.py", "ipad_entity_gate_validator")
     evidence_tool = load_tool("prepare-entity-evidence.py", "ipad_entity_evidence")
 

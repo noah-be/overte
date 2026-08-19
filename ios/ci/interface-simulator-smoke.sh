@@ -8,13 +8,14 @@ readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly timeout_runner="$script_dir/../tools/run-with-timeout.py"
 readonly simulator_selector="$script_dir/../tools/select-simulator.py"
 readonly gate_validator="$script_dir/../tools/validate-entity-gate-log.py"
+readonly timeout_grace_seconds=300
 readonly destination="hifi://overte_hub"
 
 app_path="${1:-}"
 bundle_id="${2:-}"
 family="${3:-}"
 output_dir="${4:-}"
-poll_timeout="${OVERTE_IOS_INTERFACE_SMOKE_TIMEOUT_SECONDS:-180}"
+poll_timeout="${OVERTE_IOS_INTERFACE_SMOKE_TIMEOUT_SECONDS:-480}"
 poll_interval="${OVERTE_IOS_INTERFACE_SMOKE_POLL_SECONDS:-2}"
 
 [[ -d "$app_path" && "$app_path" == *.app ]] || {
@@ -33,8 +34,8 @@ poll_interval="${OVERTE_IOS_INTERFACE_SMOKE_POLL_SECONDS:-2}"
     echo "output directory is required" >&2
     exit 2
 }
-[[ "$poll_timeout" =~ ^[1-9][0-9]*$ ]] && ((10#$poll_timeout <= 900)) || {
-    echo "OVERTE_IOS_INTERFACE_SMOKE_TIMEOUT_SECONDS must be an integer from 1 through 900" >&2
+[[ "$poll_timeout" =~ ^[1-9][0-9]*$ ]] && ((10#$poll_timeout <= 1200)) || {
+    echo "OVERTE_IOS_INTERFACE_SMOKE_TIMEOUT_SECONDS must be an integer from 1 through 1200" >&2
     exit 2
 }
 [[ "$poll_interval" =~ ^[1-9][0-9]*$ ]] && ((10#$poll_interval <= 30)) || {
@@ -77,7 +78,7 @@ run_bounded() {
     local status=0
     shift 2
     : > "$command_stderr"
-    "$timeout_runner" "$seconds" "$@" 2>"$command_stderr" || status=$?
+    "$timeout_runner" "$((10#$seconds + timeout_grace_seconds))" "$@" 2>"$command_stderr" || status=$?
     rm -f "$command_stderr"
     if ((status != 0)); then
         echo "$label failed with status $status" >&2

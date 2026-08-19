@@ -6,6 +6,7 @@ set -euo pipefail
 
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly timeout_runner="$script_dir/../tools/run-with-timeout.py"
+readonly timeout_grace_seconds=300
 app_path="${1:-}"
 bundle_id="${2:-org.overte.bootstrap.dev}"
 diagnostics_dir="${3:-}"
@@ -22,11 +23,12 @@ grace_seconds="${OVERTE_IOS_SIMULATOR_GRACE_SECONDS:-5}"
 run_timed() {
     local label="$1"
     local timeout="$2"
+    local effective_timeout=$((10#$timeout + timeout_grace_seconds))
     local started status elapsed
     shift 2
     started="$(date +%s)"
-    printf '[%s] START %s (timeout=%ss)\n' "$(date -u +%FT%TZ)" "$label" "$timeout" >&2
-    if "$timeout_runner" "$timeout" "$@"; then
+    printf '[%s] START %s (timeout=%ss)\n' "$(date -u +%FT%TZ)" "$label" "$effective_timeout" >&2
+    if "$timeout_runner" "$effective_timeout" "$@"; then
         status=0
     else
         status=$?

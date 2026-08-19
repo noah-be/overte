@@ -924,7 +924,7 @@ def main() -> int:
     parser.add_argument("--disk-free-warning-mib", type=float, default=4096.0)
     parser.add_argument("--memory-available-warning-pct", type=float, default=10.0)
     parser.add_argument("--swap-used-warning-pct", type=float, default=80.0)
-    parser.add_argument("--inactivity-timeout", type=float, default=900.0)
+    parser.add_argument("--inactivity-timeout", type=float, default=1200.0)
     parser.add_argument(
         "--max-runtime", type=float,
         help="controlled wall-clock limit below the surrounding CI step timeout",

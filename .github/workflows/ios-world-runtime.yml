@@ -26,7 +26,7 @@ jobs:
   v8-simulator:
     name: Static JITless V8 simulator checkpoint
     runs-on: macos-26
-    timeout-minutes: 240
+    timeout-minutes: 245
     permissions:
       actions: read
       contents: read
@@ -229,7 +229,7 @@ jobs:
             --compiler-live-log "$IOS_RUNNER_TELEMETRY_DIR/compiler-live.jsonl" \
             --compiler-diagnostics-dir "$OVERTE_COMPILER_WATCHDOG_DIAGNOSTICS" \
             --sample-interval 5 --publish-interval 30 --directory-interval 300 \
-            --inactivity-timeout 900 --max-runtime 12600 \
+            --inactivity-timeout 1200 --max-runtime 12900 \
             --watch work="$OVERTE_IOS_V8_WORK_ROOT" \
             --watch output="$OVERTE_IOS_V8_ROOT" -- \
             env OVERTE_IOS_V8_COMPILER_LAUNCHER="$GITHUB_WORKSPACE/ios/ci/xcode-compiler-launcher.sh" \
@@ -317,7 +317,7 @@ jobs:
     name: Build and verify serverless and online worlds
     needs: [qt-simulator, v8-simulator]
     runs-on: macos-26
-    timeout-minutes: 240
+    timeout-minutes: 245
     permissions:
       actions: write
       contents: read
@@ -568,7 +568,7 @@ jobs:
             --output-log build-ios/world-raw-diagnostics/conan.log \
             --diagnostics-dir "$IOS_RUNNER_TELEMETRY_DIR/conan-stall" \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 900 --max-runtime 6900 \
+            --inactivity-timeout 1200 --max-runtime 7200 \
             --watch conan="$CONAN_HOME" --watch graph=build-ios/simulator/conan -- \
             ios/build-ios.sh deps --platform simulator --graphics-toolchain
 
@@ -663,7 +663,7 @@ jobs:
             --output-log build-ios/world-raw-diagnostics/configure.log \
             --diagnostics-dir "$IOS_RUNNER_TELEMETRY_DIR/configure-stall" \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 600 --max-runtime 1500 \
+            --inactivity-timeout 900 --max-runtime 1800 \
             --watch build=build-ios/simulator --watch conan="$CONAN_HOME" -- \
             env OVERTE_IOS_COMPILER_LAUNCHER="$compiler_launcher" \
               ios/build-ios.sh configure --platform simulator --client-graph
@@ -717,7 +717,7 @@ jobs:
             --compiler-live-log "$IOS_RUNNER_TELEMETRY_DIR/compiler-live.jsonl" \
             --compiler-diagnostics-dir "$OVERTE_COMPILER_WATCHDOG_DIAGNOSTICS" \
             --sample-interval 5 --publish-interval 30 --directory-interval 300 \
-            --inactivity-timeout 900 --max-runtime 12600 \
+            --inactivity-timeout 1200 --max-runtime 12900 \
             --watch build=build-ios/simulator --watch conan="$CONAN_HOME" \
             --watch sccache="$SCCACHE_DIR" -- \
             cmake --build build-ios/simulator --config Release \

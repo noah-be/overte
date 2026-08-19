@@ -75,7 +75,7 @@ jobs:
     # the ARM64 macOS 15 image to isolate the already-built candidate from that
     # host regression without changing its Mach-O architecture.
     runs-on: macos-15
-    timeout-minutes: 35
+    timeout-minutes: 40
     env:
       DIAGNOSTIC_ROOT: ${{ github.workspace }}/build-ios/simulator-install-diagnostic
       SOURCE_RUN_ID: ${{ inputs.source_run_id || '31818380576' }}
@@ -390,7 +390,7 @@ jobs:
     # an app PID, while Xcode 26.5 launched this exact candidate and reached the
     # first Metal pipeline deterministically.
     runs-on: macos-26
-    timeout-minutes: 35
+    timeout-minutes: 40
     env:
       RUNTIME_ROOT: ${{ github.workspace }}/build-ios/world-runtime-only
       SOURCE_RUN_ID: ${{ inputs.source_run_id }}
@@ -692,7 +692,7 @@ jobs:
     name: Symbolicate preserved Simulator crash without rebuilding
     if: ${{ inputs.symbolicate_existing_crash }}
     runs-on: macos-15
-    timeout-minutes: 12
+    timeout-minutes: 17
     env:
       SYMBOLICATE_ROOT: ${{ github.workspace }}/build-ios/symbolicate-existing-crash
       SOURCE_RUN_ID: ${{ inputs.source_run_id }}
