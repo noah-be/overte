@@ -108,7 +108,8 @@ assert 'export OVERTE_IOS_WORLD_SYMBOL_BUNDLE="$symbol_bundle"' not in runtime
 assert "Capture preserved candidate SIGSEGV with LLDB" in runtime
 assert "interface-world-simulator-lldb.sh" in runtime
 assert 'if: ${{ inputs.lldb_runtime_only }}' in runtime
-assert 'OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE: "1"' in runtime
+assert "OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE: ${{ inputs.lldb_wait_for_debugger && '0' || '1' }}" in runtime
+assert "OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER: ${{ inputs.lldb_wait_for_debugger && '1' || '0' }}" in runtime
 assert 'OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS: "0"' in runtime
 assert "symbol_bundle=$symbol_bundle" in runtime
 assert "the preserved candidate has no matching dSYM" in runtime
