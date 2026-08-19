@@ -917,12 +917,16 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
             _renderedFrameCount++;
         }
 
-        // Write all layers to a local framebuffer
-        // VKTODO
-        /*{
+        // Compose the rendered scene into the display framebuffer before the
+        // iOS swapchain copy.  The former name-based backend workaround could
+        // select an unrelated intermediate framebuffer and present black.
+#if defined(Q_OS_IOS)
+        {
             PROFILE_RANGE_EX(render, "composite", 0xff00ffff, frameId)
             compositeLayers();
-        }*/
+            vkBackend->setPresentOutputFramebuffer(_compositeFramebuffer);
+        }
+#endif
 
         // VKTODO
         /*{ // If we have any snapshots this frame, handle them

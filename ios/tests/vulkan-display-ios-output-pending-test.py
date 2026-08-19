@@ -20,6 +20,8 @@ end = SOURCE.index("void VulkanDisplayPlugin::queueIOSFramebufferResize", start)
 present = SOURCE[start:end]
 
 for fragment in (
+    "compositeLayers();",
+    "vkBackend->setPresentOutputFramebuffer(_compositeFramebuffer);",
     "const auto outputTexture = vkBackend->_outputTexture;",
     "const bool outputReady = outputTexture &&",
     "!outputTexture->attachments.empty()",
@@ -68,6 +70,9 @@ for fragment in (
 
 if "const bool traceIOSPresentCommands = outputReady && !_iosPresentOutputReady;" not in present:
     raise SystemExit("ready-output commands are not traced on their first state transition")
+
+if present.index("compositeLayers();") > present.index("const auto outputTexture = vkBackend->_outputTexture;"):
+    raise SystemExit("iOS present selects its output before composing the frame")
 
 if "outputTexture->attachments[0].format" not in present or \
         "sourceFormat == _vkWindow->_swapchain.colorFormat" not in present:

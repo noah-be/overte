@@ -392,6 +392,9 @@ public:
     const std::string& getVersion() const override;
     void downloadFramebuffer(const FramebufferPointer& srcFramebuffer, const Vec4i& region, QImage& destImage) final;
     void setDrawCommandBuffer(VkCommandBuffer commandBuffer);
+    // Select the framebuffer copied to the platform swapchain after the display
+    // plugin has completed its regular composition pass.
+    void setPresentOutputFramebuffer(const FramebufferPointer& framebuffer);
     size_t getNumInputBuffers() const { return _input._invalidBuffers.size(); }
     VkDescriptorImageInfo getDefaultTextureDescriptorInfo();
     // Used by GPU frame player to move camera around

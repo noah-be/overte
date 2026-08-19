@@ -355,6 +355,10 @@ void VKBackend::setDrawCommandBuffer(VkCommandBuffer commandBuffer) {
     _currentCommandBuffer = commandBuffer;
 }
 
+void VKBackend::setPresentOutputFramebuffer(const FramebufferPointer& framebuffer) {
+    _outputTexture = syncGPUObject(framebuffer);
+}
+
 VkDescriptorImageInfo VKBackend::getDefaultTextureDescriptorInfo() {
     return _defaultTextureVk->getDescriptorImageInfo();
 }
