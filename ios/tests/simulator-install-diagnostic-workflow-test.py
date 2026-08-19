@@ -158,7 +158,7 @@ for required in (
     "OVERTE_LLDB_TRACE application_destructor",
     "OVERTE_LLDB_STARTUP_TRACE_COMPLETE",
     "--source-on-crash",
-    "thread backtrace all -c 48",
+    "thread backtrace all -c 256",
     "thread backtrace -c 128",
     "OVERTE_LLDB_CRASH_CAPTURE_COMPLETE",
     "capture_status=\"captured_sigsegv\"",
