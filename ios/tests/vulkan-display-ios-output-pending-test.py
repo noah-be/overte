@@ -14,6 +14,7 @@ HEADER = (
 FRAMEBUFFER_CACHE = (
     ROOT / "libraries/render-utils/src/FramebufferCache.cpp"
 ).read_text(encoding="utf-8")
+BACKEND = (ROOT / "libraries/gpu-vk/src/gpu/vk/VKBackend.cpp").read_text(encoding="utf-8")
 
 start = SOURCE.index("void VulkanDisplayPlugin::present(")
 end = SOURCE.index("void VulkanDisplayPlugin::queueIOSFramebufferResize", start)
@@ -73,6 +74,9 @@ if "const bool traceIOSPresentCommands = outputReady && !_iosPresentOutputReady;
 
 if present.index("compositeLayers();") > present.index("const auto outputTexture = vkBackend->_outputTexture;"):
     raise SystemExit("iOS present selects its output before composing the frame")
+
+if "_outputTexture = syncGPUObject(framebuffer.get());" not in BACKEND:
+    raise SystemExit("present output framebuffer must be converted to the backend raw-pointer API")
 
 if "outputTexture->attachments[0].format" not in present or \
         "sourceFormat == _vkWindow->_swapchain.colorFormat" not in present:
