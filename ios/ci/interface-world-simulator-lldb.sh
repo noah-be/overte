@@ -28,6 +28,7 @@ startup_trace="${OVERTE_IOS_LLDB_STARTUP_TRACE:-0}"
 wait_for_debugger="${OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER:-0}"
 attach_after_world_gate="${OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE:-0}"
 world_gate_timeout="${OVERTE_IOS_LLDB_WORLD_GATE_TIMEOUT_SECONDS:-360}"
+interrupt_after="${OVERTE_IOS_LLDB_INTERRUPT_AFTER_SECONDS:-0}"
 
 [[ -d "$app_path" && "$app_path" == *.app && -x "$app_path/Overte" ]] || {
     echo "usage: $0 APP_PATH DSYM_BUNDLE BUNDLE_ID iphone SOURCE_REVISION CANDIDATE_SHA256 OUTPUT_DIR" >&2
@@ -71,6 +72,10 @@ world_gate_timeout="${OVERTE_IOS_LLDB_WORLD_GATE_TIMEOUT_SECONDS:-360}"
 }
 [[ "$world_gate_timeout" =~ ^[1-9][0-9]*$ ]] && ((10#$world_gate_timeout <= 480)) || {
     echo "OVERTE_IOS_LLDB_WORLD_GATE_TIMEOUT_SECONDS must be an integer from 1 through 480" >&2
+    exit 2
+}
+[[ "$interrupt_after" =~ ^[0-9]+$ ]] && ((10#$interrupt_after <= 300)) || {
+    echo "OVERTE_IOS_LLDB_INTERRUPT_AFTER_SECONDS must be an integer from 0 through 300" >&2
     exit 2
 }
 if ((wait_for_debugger && attach_after_world_gate)); then
@@ -193,6 +198,7 @@ finish() {
         printf 'wait_for_debugger=%s\n' "$wait_for_debugger"
         printf 'attach_after_world_gate=%s\n' "$attach_after_world_gate"
         printf 'world_gate_trace=%s\n' "$world_gate_trace"
+        printf 'interrupt_after_seconds=%s\n' "$interrupt_after"
         printf 'startup_trace=%s\n' "$startup_trace"
         printf 'lldb_status=%s\n' "$lldb_status"
         printf 'capture_status=%s\n' "$capture_status"
@@ -374,11 +380,20 @@ lldb_arguments=(
 if ((startup_trace)); then
     lldb_arguments+=(--source "$startup_commands")
 fi
-lldb_arguments+=(
-    --source-on-crash "$crash_commands" \
-    -o 'process continue' \
-    -o 'script print("OVERTE_LLDB_STARTUP_TRACE_COMPLETE")'
-)
+lldb_arguments+=(--source-on-crash "$crash_commands")
+if ((10#$interrupt_after > 0)); then
+    lldb_arguments+=(
+        -o "script import threading; threading.Timer($interrupt_after, lambda: lldb.debugger.HandleCommand('process interrupt')).start()" \
+        -o 'process continue' \
+        -o 'thread backtrace all -c 48' \
+        -o 'script print("OVERTE_LLDB_INTERRUPT_CAPTURE_COMPLETE")'
+    )
+else
+    lldb_arguments+=(
+        -o 'process continue' \
+        -o 'script print("OVERTE_LLDB_STARTUP_TRACE_COMPLETE")'
+    )
+fi
 for ((attach_attempt = 1; attach_attempt <= 10#$attach_attempts; attach_attempt++)); do
     attach_attempts_used="$attach_attempt"
     attempt_log="$temp_root/lldb-attempt-$attach_attempt.log"
@@ -415,6 +430,12 @@ if grep -Fq 'OVERTE_LLDB_CRASH_CAPTURE_COMPLETE' "$lldb_log" && \
     capture_status="captured_sigsegv"
     # A captured crash is diagnostic success but runtime failure.  Keep the
     # workflow red so it can never be mistaken for world acceptance evidence.
+    exit 1
+fi
+
+if grep -Fq 'OVERTE_LLDB_INTERRUPT_CAPTURE_COMPLETE' "$lldb_log" && \
+        grep -Eq 'frame #[0-9]+:' "$lldb_log"; then
+    capture_status="captured_interrupt"
     exit 1
 fi
 

@@ -18,6 +18,11 @@ on:
         required: false
         default: false
         type: boolean
+      lldb_interrupt_after_seconds:
+        description: Interrupt the attached Full Client after this many seconds to capture a hang stack
+        required: false
+        default: "0"
+        type: string
       symbolicate_existing_crash:
         description: Symbolicate a preserved runtime crash instead of launching a simulator
         required: false
@@ -609,6 +614,7 @@ jobs:
           OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE: ${{ inputs.lldb_wait_for_debugger && '0' || '1' }}
           OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS: "0"
           OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER: ${{ inputs.lldb_wait_for_debugger && '1' || '0' }}
+          OVERTE_IOS_LLDB_INTERRUPT_AFTER_SECONDS: ${{ inputs.lldb_interrupt_after_seconds }}
         run: |
           set -euo pipefail
           symbol_bundle="${{ steps.candidate.outputs.symbol_bundle }}"
@@ -688,9 +694,9 @@ jobs:
           set -euo pipefail
           result="$RUNTIME_ROOT/upload-diagnostics/iphone-serverless-lldb-result.log"
           test -s "$result"
-          grep -Fxq 'capture_status=captured_sigsegv' "$result"
+          grep -Eq '^capture_status=(captured_sigsegv|captured_interrupt)$' "$result"
           [[ "${{ steps.lldb.outcome }}" == failure ]]
-          echo "LLDB captured the simulator SIGSEGV; runtime acceptance remains failed" >&2
+          echo "LLDB captured the simulator failure stack; runtime acceptance remains failed" >&2
           exit 1
 
   symbolicate-existing-crash:
