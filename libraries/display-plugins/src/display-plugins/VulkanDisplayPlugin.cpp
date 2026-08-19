@@ -1477,7 +1477,14 @@ VulkanDisplayPlugin::~VulkanDisplayPlugin() {
 void VulkanDisplayPlugin::updateCompositeFramebuffer() {
     auto renderSize = getRecommendedRenderSize();
     if (!_compositeFramebuffer || _compositeFramebuffer->getSize() != renderSize) {
-        _compositeFramebuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("VulkanDisplayPlugin::composite", gpu::Element::COLOR_SRGBA_32, renderSize.x, renderSize.y));
+#if defined(Q_OS_IOS)
+        // Match the CAMetalLayer BGRA swapchain so present() can copy rather
+        // than blit between incompatible sRGB formats on the simulator.
+        const auto colorFormat = gpu::Element::COLOR_SBGRA_32;
+#else
+        const auto colorFormat = gpu::Element::COLOR_SRGBA_32;
+#endif
+        _compositeFramebuffer = gpu::FramebufferPointer(gpu::Framebuffer::create("VulkanDisplayPlugin::composite", colorFormat, renderSize.x, renderSize.y));
     }
 }
 

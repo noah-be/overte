@@ -78,6 +78,9 @@ if present.index("compositeLayers();") > present.index("const auto outputTexture
 if "_outputTexture = syncGPUObject(framebuffer.get());" not in BACKEND:
     raise SystemExit("present output framebuffer must be converted to the backend raw-pointer API")
 
+if "const auto colorFormat = gpu::Element::COLOR_SBGRA_32;" not in SOURCE:
+    raise SystemExit("iOS composite framebuffer must match the BGRA swapchain format")
+
 if "outputTexture->attachments[0].format" not in present or \
         "sourceFormat == _vkWindow->_swapchain.colorFormat" not in present:
     raise SystemExit("iOS output copy must require identical Vulkan formats")
