@@ -384,6 +384,7 @@ lldb_arguments+=(--source-on-crash "$crash_commands")
 if ((10#$interrupt_after > 0)); then
     lldb_arguments+=(
         -o "script import threading; process = lldb.debugger.GetSelectedTarget().GetProcess(); threading.Timer($interrupt_after, process.SendAsyncInterrupt).start()" \
+        -o 'settings set target.process.stop-on-sharedlibrary-events false' \
         -o 'process continue' \
         -o 'thread backtrace all -c 48' \
         -o 'script print("OVERTE_LLDB_INTERRUPT_CAPTURE_COMPLETE")'
