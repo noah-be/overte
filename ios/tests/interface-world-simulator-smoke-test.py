@@ -167,6 +167,12 @@ elif [ "$1 $2" = "simctl launch" ]; then
         printf '%s\n' "Metal argument buffers must be disabled for simulator runtime evidence" >&2
         exit 71
     }
+    if [ "${FAKE_EXPECT_MVK_ASYNC_SUBMIT:-0}" = 1 ]; then
+        [ "${SIMCTL_CHILD_MVK_CONFIG_SYNCHRONOUS_QUEUE_SUBMITS:-}" = 0 ] || {
+            printf '%s\n' "missing requested asynchronous MoltenVK submits" >&2
+            exit 73
+        }
+    fi
     if [ "${FAKE_EXPECT_MVK_TRACE:-0}" = 1 ]; then
         [ "${SIMCTL_CHILD_MVK_CONFIG_TRACE_VULKAN_CALLS:-}" = 6 ] || {
             printf '%s\n' "missing requested MoltenVK Vulkan call trace" >&2
@@ -342,6 +348,8 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
             if expect_lldb_snapshot:
                 case_environment["OVERTE_IOS_WORLD_SYMBOL_BUNDLE"] = str(fake_dsym)
                 case_environment["OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS"] = "1"
+                case_environment["OVERTE_IOS_WORLD_MVK_SYNCHRONOUS_QUEUE_SUBMITS"] = "0"
+                case_environment["FAKE_EXPECT_MVK_ASYNC_SUBMIT"] = "1"
             result = invoke(app, output, case_environment, family, scenario, domain)
             assert result.returncode == 0, (result.stdout, result.stderr)
             assert f"PASS full-client {family} simulator {scenario} world with screenshot" in result.stdout

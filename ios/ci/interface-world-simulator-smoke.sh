@@ -32,6 +32,7 @@ stack_symbol_bundle="${OVERTE_IOS_WORLD_SYMBOL_BUNDLE:-}"
 crash_report_wait="${OVERTE_IOS_WORLD_CRASH_REPORT_WAIT_SECONDS:-20}"
 diagnostics_dir="${OVERTE_IOS_WORLD_DIAGNOSTICS_DIR:-}"
 mvk_trace_vulkan_calls="${OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS:-}"
+mvk_synchronous_queue_submits="${OVERTE_IOS_WORLD_MVK_SYNCHRONOUS_QUEUE_SUBMITS:-}"
 
 [[ -d "$app_path" && "$app_path" == *.app ]] || {
     echo "usage: $0 APP_PATH BUNDLE_ID iphone|ipad serverless|online EXPECTED_DOMAIN|- OUTPUT_DIR" >&2
@@ -68,6 +69,10 @@ mvk_trace_vulkan_calls="${OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS:-}"
 }
 [[ "$stack_sample_delay" =~ ^[0-9]+$ ]] && ((10#$stack_sample_delay <= 120)) || {
     echo "OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS must be an integer from 0 through 120" >&2
+    exit 2
+}
+[[ -z "$mvk_synchronous_queue_submits" || "$mvk_synchronous_queue_submits" == 0 || "$mvk_synchronous_queue_submits" == 1 ]] || {
+    echo "OVERTE_IOS_WORLD_MVK_SYNCHRONOUS_QUEUE_SUBMITS must be 0 or 1" >&2
     exit 2
 }
 if [[ -n "$stack_symbol_bundle" ]]; then
@@ -676,6 +681,9 @@ launch_environment=(
 )
 if [[ -n "$mvk_trace_vulkan_calls" ]]; then
     launch_environment+=("SIMCTL_CHILD_MVK_CONFIG_TRACE_VULKAN_CALLS=$mvk_trace_vulkan_calls")
+fi
+if [[ -n "$mvk_synchronous_queue_submits" ]]; then
+    launch_environment+=("SIMCTL_CHILD_MVK_CONFIG_SYNCHRONOUS_QUEUE_SUBMITS=$mvk_synchronous_queue_submits")
 fi
 launch_output="$(run_bounded "application launch" "$launch_timeout" env \
     "${launch_environment[@]}" \

@@ -574,6 +574,10 @@ jobs:
           # creation from descriptor binding or the first draw. The normal
           # producer workflow remains free of this high-volume trace.
           OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS: "6"
+          # MoltenVK defaults to synchronous submit. On the Xcode 26
+          # simulator that makes vkQueueSubmit encode on the present thread;
+          # test the supported asynchronous queue path without rebuilding.
+          OVERTE_IOS_WORLD_MVK_SYNCHRONOUS_QUEUE_SUBMITS: "0"
         run: |
           set -euo pipefail
           app="${{ steps.candidate.outputs.app }}"
