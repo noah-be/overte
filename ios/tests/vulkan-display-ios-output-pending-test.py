@@ -36,7 +36,6 @@ for fragment in (
     "vkCmdClearColorImage(",
     "cmdEndLabel(commandBuffer);",
     "VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer));",
-    "static const VkPipelineStageFlags waitFlags{ VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };",
     "static const VkPipelineStageFlags waitFlags{ VK_PIPELINE_STAGE_TRANSFER_BIT };",
     "VK_CHECK_RESULT(vkQueueSubmit",
     "_vkWindow->_swapchain.queuePresent(",
