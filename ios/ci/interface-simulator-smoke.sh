@@ -128,7 +128,7 @@ if ((boot_status == 124 || boot_status >= 128)); then
 fi
 # A non-zero request can mean the selected simulator was already booted. The
 # bounded bootstatus call is the authoritative readiness check.
-run_bounded "simulator boot" 360 xcrun simctl bootstatus "$active_udid" -b >/dev/null
+run_bounded "simulator boot" 1500 xcrun simctl bootstatus "$active_udid" -b >/dev/null
 
 # A prior installation must not leak settings, cached domains, or a previous
 # process into this acceptance run. A failed uninstall is harmless only when

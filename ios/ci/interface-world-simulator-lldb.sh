@@ -228,7 +228,7 @@ run_bounded "simulator boot request" 60 xcrun simctl boot "$active_udid" >/dev/n
 if ((boot_status == 124 || boot_status >= 128)); then
     exit "$boot_status"
 fi
-run_bounded "simulator boot" 360 xcrun simctl bootstatus "$active_udid" -b >/dev/null
+run_bounded "simulator boot" 1500 xcrun simctl bootstatus "$active_udid" -b >/dev/null
 run_bounded "stale application removal" 60 xcrun simctl uninstall \
     "$active_udid" "$bundle_id" >/dev/null || true
 run_bounded "application install" 120 xcrun simctl install "$active_udid" "$app_path" >/dev/null

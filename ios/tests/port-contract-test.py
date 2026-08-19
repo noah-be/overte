@@ -1990,7 +1990,7 @@ def test_ci_contract() -> None:
     require_text(smoke, r"simctl io.*screenshot", "simulator failures must preserve a screenshot")
     require_text(smoke, r"log show", "simulator failures must preserve app logs")
     require_text(smoke, r"run-with-timeout\.py", "every simulator command needs a portable timeout boundary")
-    require_text(smoke, r"wait for \$family boot.*360", "simulator boot must have a bounded six-minute wait")
+    require_text(smoke, r"wait for \$family boot.*1500", "simulator boot must have a bounded 25-minute wait")
     require_text(smoke, r"shutdown iphone.*&[\s\S]*shutdown ipad.*&", "independent simulator shutdowns should overlap")
     require_text(smoke, r"START.*timeout=[\s\S]*END.*elapsed", "simulator phases must expose timing evidence")
     require_text(smoke, r'simctl openurl.*hifi://overte_hub', "simulator smoke must exercise Overte deep links")

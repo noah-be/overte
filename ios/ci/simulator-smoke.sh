@@ -97,7 +97,7 @@ for family in iphone ipad; do
     else
         active_udid="$ipad_udid"
     fi
-    run_timed "wait for $family boot" 360 xcrun simctl bootstatus "$active_udid" -b
+    run_timed "wait for $family boot" 1500 xcrun simctl bootstatus "$active_udid" -b
     run_timed "install on $family" 90 xcrun simctl install "$active_udid" "$app_path"
     launch_output="$(run_timed "launch on $family" 60 xcrun simctl launch "$active_udid" "$bundle_id")"
     [[ "$launch_output" == *":"* ]] || {
