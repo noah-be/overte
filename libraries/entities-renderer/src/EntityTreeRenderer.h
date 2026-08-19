@@ -15,6 +15,7 @@
 #define hifi_EntityTreeRenderer_h
 
 #include <memory>
+#include <mutex>
 
 #include <QtCore/QSet>
 #include <QtCore/QStack>
@@ -103,7 +104,7 @@ public:
     void reloadEntityScripts();
 
     void fadeOutRenderable(const EntityRendererPointer& renderable);
-    FadeProperties getLayeredZoneFadeProperties(const TransitionType type) const { return _layeredZones.getFadeProperties(type); }
+    FadeProperties getLayeredZoneFadeProperties(const TransitionType type) const;
 
     // event handles which may generate entity related events
     QUuid mousePressEvent(QMouseEvent* event);
@@ -149,7 +150,7 @@ public:
     uint64_t getEntityScriptLoadCount() const { return _entityScriptLoadCount.load(); }
     uint64_t getEntityScriptPreloadFinishedCount() const { return _entityScriptPreloadFinishedCount.load(); }
 
-    bool layeredZonesHaveFade(const TransitionType type) const { return _layeredZones.hasFade(type); }
+    bool layeredZonesHaveFade(const TransitionType type) const;
 
     bool checkAndCallPreload(const EntityItemID& entityID,
                              const QString& oldScriptURL = "",
@@ -264,6 +265,9 @@ private:
         bool hasFade(const TransitionType type) const;
     };
 
+    // Zone membership is maintained on the entity thread and queried while
+    // render transactions are processed on RenderThread.
+    mutable std::recursive_mutex _layeredZonesLock;
     LayeredZones _layeredZones;
     uint64_t _lastZoneCheck { 0 };
 #if defined(Q_OS_ANDROID)
