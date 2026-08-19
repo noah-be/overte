@@ -62,6 +62,7 @@ SERVERLESS_LOG = LOG_STREAM_FILTER_BANNER + "\n".join(
         "Overte OVERTE_IOS_WORLD_GATE serverless_import_committed scene= serverless_tutorial",
         f"Overte OVERTE_IOS_ENTITY_GATE entity_tree_nonempty entity= {{{ENTITY}}}",
         f"Overte OVERTE_IOS_ENTITY_GATE render_handoff entity= {{{ENTITY}}}",
+        "Overte OVERTE_IOS_VULKAN_PRESENT output_ready=1 source=1206x2334 target=1206x2334",
     )
 ) + "\n"
 ONLINE_LOG = "\n".join(
@@ -73,6 +74,7 @@ ONLINE_LOG = "\n".join(
         f"Overte OVERTE_IOS_ENTITY_GATE entity_data_received node= {NODE} bytes= 1200",
         f"Overte OVERTE_IOS_ENTITY_GATE entity_tree_nonempty entity= {{{ENTITY}}}",
         f"Overte OVERTE_IOS_ENTITY_GATE render_handoff entity= {{{ENTITY}}}",
+        "Overte OVERTE_IOS_VULKAN_PRESENT output_ready=1 source=1206x2334 target=1206x2334",
     )
 ) + "\n"
 

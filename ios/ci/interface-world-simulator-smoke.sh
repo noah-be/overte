@@ -756,10 +756,24 @@ while :; do
     sleep "$poll_interval"
 done
 
-# Let the accepted scene transaction reach the presented framebuffer before
-# capturing. Keep the log subscriber alive throughout this acceptance window:
-# a fatal renderer error after the gates must invalidate the screenshot rather
-# than race with a false success.
+# The entity handoff precedes the first composited framebuffer.  On the
+# simulator that gap is material, so a fixed short sleep can capture the
+# startup clear rather than the world. Require the renderer's durable output
+# transition before the optional final settle interval.
+output_deadline=$(( $(date +%s) + 10#$poll_timeout ))
+while ! runtime_log_contains 'OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1'; do
+    refresh_runtime_log_snapshot
+    fail_if_vulkan_fatal || exit 1
+    process_is_running || { echo "application process exited before world framebuffer output" >&2; exit 1; }
+    if (( $(date +%s) >= output_deadline )); then
+        echo "$scenario world framebuffer output timed out" >&2
+        exit 124
+    fi
+    sleep "$poll_interval"
+done
+
+# Keep the log subscriber alive through the final presentation interval: a
+# fatal renderer error after output readiness must invalidate the screenshot.
 if ((10#$screenshot_settle > 0)); then
     sleep "$screenshot_settle"
 fi
