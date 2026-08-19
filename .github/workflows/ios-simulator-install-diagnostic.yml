@@ -612,6 +612,9 @@ jobs:
           # Default to the timing-preserving late attach, but permit an
           # explicit stop-at-launch capture when the crash outruns it.
           OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE: ${{ inputs.lldb_wait_for_debugger && '0' || '1' }}
+          # For a hang, attach only after the durable submit-entry marker. This
+          # freezes the exact boundary rather than an arbitrary startup phase.
+          OVERTE_IOS_LLDB_ATTACH_GATE: queue_submit_begin
           OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS: "0"
           OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER: ${{ inputs.lldb_wait_for_debugger && '1' || '0' }}
           OVERTE_IOS_LLDB_INTERRUPT_AFTER_SECONDS: ${{ inputs.lldb_interrupt_after_seconds }}

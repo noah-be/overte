@@ -27,6 +27,7 @@ attach_attempts="${OVERTE_IOS_LLDB_ATTACH_ATTEMPTS:-3}"
 startup_trace="${OVERTE_IOS_LLDB_STARTUP_TRACE:-0}"
 wait_for_debugger="${OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER:-0}"
 attach_after_world_gate="${OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE:-0}"
+attach_gate="${OVERTE_IOS_LLDB_ATTACH_GATE:-render_handoff}"
 world_gate_timeout="${OVERTE_IOS_LLDB_WORLD_GATE_TIMEOUT_SECONDS:-360}"
 interrupt_after="${OVERTE_IOS_LLDB_INTERRUPT_AFTER_SECONDS:-0}"
 
@@ -70,6 +71,10 @@ interrupt_after="${OVERTE_IOS_LLDB_INTERRUPT_AFTER_SECONDS:-0}"
     echo "OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE must be 0 or 1" >&2
     exit 2
 }
+case "$attach_gate" in
+    render_handoff|queue_submit_begin) ;;
+    *) echo "OVERTE_IOS_LLDB_ATTACH_GATE must be render_handoff or queue_submit_begin" >&2; exit 2 ;;
+esac
 [[ "$world_gate_timeout" =~ ^[1-9][0-9]*$ ]] && ((10#$world_gate_timeout <= 480)) || {
     echo "OVERTE_IOS_LLDB_WORLD_GATE_TIMEOUT_SECONDS must be an integer from 1 through 480" >&2
     exit 2
@@ -123,6 +128,8 @@ readonly crash_commands="$temp_root/on-crash.lldb"
 readonly startup_commands="$temp_root/startup-trace.lldb"
 readonly world_gate_log="$temp_root/world-gate.log"
 readonly world_gate_stderr="$temp_root/world-gate.stderr"
+readonly runtime_log="$output_dir/iphone-serverless-unified.log"
+readonly runtime_log_stderr="$temp_root/runtime-unified.stderr"
 
 : > "$app_stdout"
 : > "$app_stderr"
@@ -142,6 +149,7 @@ exit_trace="not_observed"
 world_gate_trace="not_requested"
 xcode_build="unknown"
 world_gate_log_pid=""
+runtime_log_pid=""
 
 run_bounded() {
     local label="$1" seconds="$2" status=0
@@ -167,6 +175,11 @@ finish() {
         kill "$world_gate_log_pid" 2>/dev/null || true
         wait "$world_gate_log_pid" 2>/dev/null || true
         world_gate_log_pid=""
+    fi
+    if [[ "$runtime_log_pid" =~ ^[1-9][0-9]*$ ]]; then
+        kill "$runtime_log_pid" 2>/dev/null || true
+        wait "$runtime_log_pid" 2>/dev/null || true
+        runtime_log_pid=""
     fi
     if ((app_launched)) && [[ -n "$active_udid" ]]; then
         run_bounded "application cleanup" 30 xcrun simctl terminate \
@@ -197,6 +210,7 @@ finish() {
         printf 'attach_attempts_used=%s\n' "$attach_attempts_used"
         printf 'wait_for_debugger=%s\n' "$wait_for_debugger"
         printf 'attach_after_world_gate=%s\n' "$attach_after_world_gate"
+        printf 'attach_gate=%s\n' "$attach_gate"
         printf 'world_gate_trace=%s\n' "$world_gate_trace"
         printf 'interrupt_after_seconds=%s\n' "$interrupt_after"
         printf 'startup_trace=%s\n' "$startup_trace"
@@ -265,7 +279,7 @@ if ((attach_after_world_gate)); then
     gate_stream_timeout=$((10#$world_gate_timeout + 30))
     "$timeout_runner" "$gate_stream_timeout" xcrun simctl spawn "$active_udid" \
         log stream --style compact --level info \
-        --predicate 'eventMessage CONTAINS "OVERTE_IOS_ENTITY_GATE"' \
+        --predicate 'eventMessage CONTAINS "OVERTE_IOS_ENTITY_GATE" OR eventMessage CONTAINS "OVERTE_IOS_VULKAN_PRESENT"' \
         > "$world_gate_log" 2> "$world_gate_stderr" &
     world_gate_log_pid=$!
     sleep 1
@@ -274,6 +288,16 @@ if ((attach_after_world_gate)); then
         exit 1
     }
 fi
+
+# Preserve the relevant unified-log timeline independently of LLDB. It remains
+# available when the process is frozen at the submit boundary.
+: > "$runtime_log"
+: > "$runtime_log_stderr"
+"$timeout_runner" "$((10#$lldb_timeout + 30))" xcrun simctl spawn "$active_udid" \
+    log stream --style syslog --level debug \
+    --predicate 'process == "Overte" OR process == "SimMetalHost"' \
+    > "$runtime_log" 2> "$runtime_log_stderr" &
+runtime_log_pid=$!
 
 launch_arguments=(xcrun simctl launch)
 if ((wait_for_debugger)); then
@@ -305,7 +329,11 @@ if ((attach_after_world_gate)); then
     world_gate_trace="waiting"
     gate_deadline=$(( $(date +%s) + 10#$world_gate_timeout ))
     while :; do
-        if grep -Eq 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' "$world_gate_log"; then
+        case "$attach_gate" in
+            render_handoff) gate_pattern='OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' ;;
+            queue_submit_begin) gate_pattern='OVERTE_IOS_VULKAN_PRESENT[[:space:]]+queue_submit_begin' ;;
+        esac
+        if grep -Eq "$gate_pattern" "$world_gate_log"; then
             world_gate_trace="observed"
             kill "$world_gate_log_pid" 2>/dev/null || true
             wait "$world_gate_log_pid" 2>/dev/null || true
@@ -336,10 +364,11 @@ fi
 cat > "$crash_commands" <<'LLDB'
 process status
 thread list
-thread backtrace all -c 48
+thread backtrace all -c 256
 thread backtrace -c 128
-register read pc lr sp fp
-image list -o -f Overte
+script import lldb; p = lldb.debugger.GetSelectedTarget().GetProcess(); [(print("OVERTE_LLDB_THREAD_REGISTERS %d" % t.GetIndexID()), lldb.debugger.HandleCommand("thread select %d" % t.GetIndexID()), lldb.debugger.HandleCommand("register read --all")) for t in p]
+image list -o -f
+image dump sections
 script print("OVERTE_LLDB_CRASH_CAPTURE_COMPLETE")
 LLDB
 chmod 0600 "$crash_commands"
@@ -386,7 +415,7 @@ if ((10#$interrupt_after > 0)); then
         -o "script import threading; process = lldb.debugger.GetSelectedTarget().GetProcess(); threading.Timer($interrupt_after, process.SendAsyncInterrupt).start()" \
         -o 'settings set target.process.stop-on-sharedlibrary-events false' \
         -o 'process continue' \
-        -o 'thread backtrace all -c 48' \
+        --source "$crash_commands" \
         -o 'script print("OVERTE_LLDB_INTERRUPT_CAPTURE_COMPLETE")'
     )
 else
