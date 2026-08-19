@@ -368,7 +368,6 @@ thread backtrace all -c 256
 thread backtrace -c 128
 script import lldb; p = lldb.debugger.GetSelectedTarget().GetProcess(); [(print("OVERTE_LLDB_THREAD_REGISTERS %d" % t.GetIndexID()), lldb.debugger.HandleCommand("thread select %d" % t.GetIndexID()), lldb.debugger.HandleCommand("register read --all")) for t in p]
 image list -o -f
-image dump sections
 script print("OVERTE_LLDB_CRASH_CAPTURE_COMPLETE")
 LLDB
 chmod 0600 "$crash_commands"
