@@ -1176,10 +1176,18 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                 VK_CHECK_RESULT(vkCreateSemaphore(_vkWindow->_context.device->logicalDevice, &semaphoreCreateInfo, nullptr, &_vkWindow->_renderCompleteSemaphore));
             }
 
+            // Keep the image-acquire dependency before every command on iOS.
+            // SimMetalHost can synchronously service a transfer-stage wait in
+            // vkQueueSubmit; TOP_OF_PIPE is an earlier, valid dependency and
+            // preserves the required acquire ordering without that deadlock.
+#if defined(Q_OS_IOS)
+            static const VkPipelineStageFlags waitFlags{ VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };
+#else
             // The acquired swapchain image is first accessed by the transfer
-            // clear/blit above.  Waiting at bottom-of-pipe would allow those
+            // clear/blit above. Waiting at bottom-of-pipe would allow those
             // transfer commands to run before the acquire semaphore resolves.
             static const VkPipelineStageFlags waitFlags{ VK_PIPELINE_STAGE_TRANSFER_BIT };
+#endif
             VkSubmitInfo submitInfo = vks::initializers::submitInfo();
             submitInfo.waitSemaphoreCount = 1;
             submitInfo.pWaitSemaphores = &_vkWindow->_acquireCompleteSemaphore;
