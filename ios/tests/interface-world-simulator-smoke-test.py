@@ -165,8 +165,8 @@ elif [ "$1 $2" = "simctl launch" ]; then
         printf '%s\n' "missing MoltenVK diagnostic log level" >&2
         exit 65
     }
-    [ "${SIMCTL_CHILD_MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS:-}" = 0 ] || {
-        printf '%s\n' "Metal argument buffers must be disabled for simulator runtime evidence" >&2
+    [ -z "${SIMCTL_CHILD_MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS:-}" ] || {
+        printf '%s\n' "runtime acceptance must use MoltenVK's argument-buffer default" >&2
         exit 71
     }
     if [ "${FAKE_EXPECT_MVK_ASYNC_SUBMIT:-0}" = 1 ]; then
