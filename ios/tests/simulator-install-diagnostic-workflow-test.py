@@ -96,7 +96,8 @@ for snapshot_command in (
     'kill -CONT "$launch_pid"',
 ):
     assert snapshot_command in SMOKE
-assert "output > handoff" in SMOKE
+assert "runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff'" in SMOKE
+assert "runtime_log_contains 'OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1'" in SMOKE
 assert "$(date +%s) >= sample_deadline" in SMOKE
 assert 'OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS: "900"' in runtime
 assert 'OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS: "6"' not in runtime
