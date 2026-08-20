@@ -18,6 +18,10 @@
 
 #include <QtCore/QProcessEnvironment>
 
+#if defined(Q_OS_IOS)
+#include <os/log.h>
+#endif
+
 // For hash_combine
 #include <RegisteredMetaTypes.h>
 
@@ -301,10 +305,27 @@ void VKBackend::render(const Batch& batch) {
 
     cmdBeginLabel(commandBuffer, "batch:" + batch.getName(), glm::vec4{ 1, 1, 0, 1 });
 
+#if defined(Q_OS_IOS)
+    const bool traceFullscreenBatch = batch.getName() == "Resample::run" ||
+        batch.getName() == "CompositeHUD";
+    if (traceFullscreenBatch) {
+        os_log_info(OS_LOG_DEFAULT,
+                    "OVERTE_IOS_VULKAN_DRAW batch=%{public}s stage=begin commands=%zu",
+                    batch.getName().c_str(), batch.getCommands().size());
+    }
+#endif
+
     {
         PROFILE_RANGE(gpu_vk_detail, "Transfer");
         renderPassTransfer(batch);
     }
+#if defined(Q_OS_IOS)
+    if (traceFullscreenBatch) {
+        os_log_info(OS_LOG_DEFAULT,
+                    "OVERTE_IOS_VULKAN_DRAW batch=%{public}s stage=transfer_complete",
+                    batch.getName().c_str());
+    }
+#endif
 
     //VKTODO
 /*#ifdef GPU_STEREO_DRAWCALL_INSTANCED
@@ -317,6 +338,13 @@ void VKBackend::render(const Batch& batch) {
         PROFILE_RANGE(gpu_vk_detail, _stereo._enable ? "Render Stereo" : "Render");
         renderPassDraw(batch);
     }
+#if defined(Q_OS_IOS)
+    if (traceFullscreenBatch) {
+        os_log_info(OS_LOG_DEFAULT,
+                    "OVERTE_IOS_VULKAN_DRAW batch=%{public}s stage=draw_pass_complete",
+                    batch.getName().c_str());
+    }
+#endif
 
     //VKTODO
 /*#ifdef GPU_STEREO_DRAWCALL_INSTANCED
@@ -1375,6 +1403,10 @@ void VKBackend::renderPassDraw(const Batch& batch) {
     const size_t numCommands = batch.getCommands().size();
     const Batch::Commands::value_type* command = batch.getCommands().data();
     const Batch::CommandOffsets::value_type* offset = batch.getCommandOffsets().data();
+#if defined(Q_OS_IOS)
+    const bool traceFullscreenBatch = batch.getName() == "Resample::run" ||
+        batch.getName() == "CompositeHUD";
+#endif
     for (_commandIndex = 0; _commandIndex < numCommands; ++_commandIndex) {
         switch (*command) {
             // Ignore these commands on this pass, taken care of in the transfer pass
@@ -1410,6 +1442,13 @@ void VKBackend::renderPassDraw(const Batch& batch) {
 
             bool hasPipelineChanged{ false };
             const auto &layout = _cache.getPipeline(_context);
+#if defined(Q_OS_IOS)
+            if (traceFullscreenBatch) {
+                os_log_info(OS_LOG_DEFAULT,
+                            "OVERTE_IOS_VULKAN_DRAW batch=%{public}s command=%zu stage=pipeline_ready",
+                            batch.getName().c_str(), _commandIndex);
+            }
+#endif
             if (layout.pipeline != currentPipeline) {
                 vkCmdBindPipeline(_currentCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, layout.pipeline);
                 currentPipeline = layout.pipeline;
@@ -1445,8 +1484,22 @@ void VKBackend::renderPassDraw(const Batch& batch) {
                 // TODO: allocate 3 at once?
                 updateVkDescriptorWriteSetsStorage(layout, currentStorageSets, currentStorageBufferInfos, hasPipelineChanged);
             }
+#if defined(Q_OS_IOS)
+            if (traceFullscreenBatch) {
+                os_log_info(OS_LOG_DEFAULT,
+                            "OVERTE_IOS_VULKAN_DRAW batch=%{public}s command=%zu stage=descriptors_ready",
+                            batch.getName().c_str(), _commandIndex);
+            }
+#endif
             CommandCall call = _commandCalls[(*command)];
             (this->*(call))(batch, *offset);
+#if defined(Q_OS_IOS)
+            if (traceFullscreenBatch) {
+                os_log_info(OS_LOG_DEFAULT,
+                            "OVERTE_IOS_VULKAN_DRAW batch=%{public}s command=%zu stage=command_complete",
+                            batch.getName().c_str(), _commandIndex);
+            }
+#endif
 #if defined(Q_OS_IOS)
             // A format-free DrawCallInfo input temporarily occupies physical
             // binding 0 on iOS. Restore the cached regular vertex buffer only

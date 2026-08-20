@@ -239,7 +239,7 @@ preserve_failure_application_log() {
     local source label size
     {
         printf '%s\n' '=== retained acceptance markers ==='
-        grep -Eh 'OVERTE_IOS_(WORLD|ENTITY)_GATE|OVERTE_IOS_(WORLD_DIAGNOSTIC|VULKAN_FATAL|VULKAN_DEBUG|VULKAN_PIPELINE_CONTEXT|VULKAN_PIPELINE_CREATE|VULKAN_PRESENT)' \
+        grep -Eh 'OVERTE_IOS_(WORLD|ENTITY)_GATE|OVERTE_IOS_(WORLD_DIAGNOSTIC|VULKAN_FATAL|VULKAN_DEBUG|VULKAN_PIPELINE_CONTEXT|VULKAN_PIPELINE_CREATE|VULKAN_DRAW|VULKAN_PRESENT)' \
             "$log_snapshot" "$raw_log" "$app_stdout" "$app_stderr" 2>/dev/null | tail -c 131072 || true
         for source in "$log_snapshot" "$raw_log" "$app_stdout" "$app_stderr"; do
             case "$source" in
@@ -506,7 +506,7 @@ refresh_runtime_log_snapshot() {
     rm -f "$snapshot_candidate"
     "$timeout_runner" 308 xcrun simctl spawn "$active_udid" log show \
         --last 2m --style compact --info --debug \
-        --predicate "processIdentifier == $launch_pid AND (eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PRESENT\")" \
+        --predicate "processIdentifier == $launch_pid AND (eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DRAW\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PRESENT\")" \
         > "$snapshot_candidate" 2>/dev/null || status=$?
     if ((status == 0)); then
         mv "$snapshot_candidate" "$log_snapshot"
@@ -663,7 +663,7 @@ run_bounded "simulator microphone permission" 60 xcrun simctl privacy \
 log_stream_timeout=$((10#$launch_timeout + (2 * 10#$poll_timeout) + 60))
 "$timeout_runner" "$log_stream_timeout" xcrun simctl spawn "$active_udid" log stream \
     --style compact --level debug \
-    --predicate "(process == \"Overte\" OR eventMessage CONTAINS \"$bundle_id\" OR eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PRESENT\")" \
+    --predicate "(process == \"Overte\" OR eventMessage CONTAINS \"$bundle_id\" OR eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DRAW\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PRESENT\")" \
     > "$raw_log" 2> "$log_stream_stderr" &
 log_stream_pid=$!
 # Give CoreSimulator's log subscriber a bounded head start. Merely spawning the
