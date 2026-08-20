@@ -16,6 +16,8 @@ FRAMEBUFFER_CACHE = (
 ).read_text(encoding="utf-8")
 BACKEND = (ROOT / "libraries/gpu-vk/src/gpu/vk/VKBackend.cpp").read_text(encoding="utf-8")
 
+assert "batch.setInputFormat({});" in SOURCE
+
 start = SOURCE.index("void VulkanDisplayPlugin::present(")
 end = SOURCE.index("void VulkanDisplayPlugin::queueIOSFramebufferResize", start)
 present = SOURCE[start:end]

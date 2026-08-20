@@ -1467,6 +1467,10 @@ const gpu::BackendPointer& VulkanDisplayPlugin::getBackend() const {
 
 void VulkanDisplayPlugin::render(std::function<void(gpu::Batch& batch)> f) {
     gpu::Batch batch;
+    // Immediate compositor batches generate fullscreen geometry from
+    // gl_VertexID. Explicitly clear the scene mesh format so the Vulkan
+    // backend cannot carry its vertex bindings into the Metal PSO.
+    batch.setInputFormat({});
     f(batch);
     _gpuContext->executeBatch(batch);
 }
