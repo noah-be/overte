@@ -111,6 +111,11 @@ void ToneMapAndResample::run(const RenderContextPointer& renderContext, const In
         batch.enableStereo(false);
         batch.setFramebuffer(destinationFramebuffer);
 
+        // This fullscreen pass synthesizes its quad from gl_VertexID. Vulkan
+        // backends retain input state between batches, so explicitly discard a
+        // preceding scene mesh format before creating the tone-mapping PSO.
+        batch.setInputFormat({});
+
         batch.setViewportTransform(destViewport);
         batch.setProjectionTransform(glm::mat4());
         batch.resetViewTransform();

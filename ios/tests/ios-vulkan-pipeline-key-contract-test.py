@@ -11,6 +11,9 @@ pipeline_cache = (
 backend = (ROOT / "libraries/gpu-vk/src/gpu/vk/VKBackend.cpp").read_text(
     encoding="utf-8"
 )
+tone_mapping = (
+    ROOT / "libraries/render-utils/src/ToneMapAndResampleTask.cpp"
+).read_text(encoding="utf-8")
 pipeline_header = (
     ROOT / "libraries/gpu-vk/src/gpu/vk/VKPipelineCache.h"
 ).read_text(encoding="utf-8")
@@ -23,6 +26,14 @@ vulkan_debug = (ROOT / "libraries/vk/src/vk/VulkanDebug.cpp").read_text(
 vulkan_context = (ROOT / "libraries/vk/src/vk/Context.cpp").read_text(
     encoding="utf-8"
 )
+
+tone_mapping_batch = tone_mapping.index(
+    'gpu::doInBatch("Resample::run", args->_context, [&](gpu::Batch& batch) {'
+)
+tone_mapping_pipeline = tone_mapping.index("batch.setPipeline(", tone_mapping_batch)
+tone_mapping_reset = tone_mapping.index("batch.setInputFormat({});", tone_mapping_batch)
+if tone_mapping_reset > tone_mapping_pipeline:
+    raise SystemExit("tone mapping must clear inherited vertex input before selecting its pipeline")
 
 for fragment in (
     '#include <os/log.h>',
