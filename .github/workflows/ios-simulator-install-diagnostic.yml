@@ -577,10 +577,10 @@ jobs:
         continue-on-error: true
         env:
           ONLINE_DOMAIN: ${{ steps.online-place.outputs.domain }}
-          # Keep acceptance timing non-invasive. LLDB attach can terminate a
-          # live Simulator process when CoreSimulator cannot pause it; the
-          # dedicated lldb_runtime_only path owns debugger experiments.
-          OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS: "0"
+          # Capture the mature hang without attaching LLDB. With no symbol
+          # bundle supplied the harness uses macOS sample, which previously
+          # captured all threads without terminating the Simulator process.
+          OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS: "900"
         run: |
           set -euo pipefail
           app="${{ steps.candidate.outputs.app }}"

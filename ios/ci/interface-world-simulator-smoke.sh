@@ -68,8 +68,8 @@ mvk_synchronous_queue_submits="${OVERTE_IOS_WORLD_MVK_SYNCHRONOUS_QUEUE_SUBMITS:
     echo "OVERTE_IOS_WORLD_LAUNCH_TIMEOUT_SECONDS must be an integer from 130 through 600" >&2
     exit 2
 }
-[[ "$stack_sample_delay" =~ ^[0-9]+$ ]] && ((10#$stack_sample_delay <= 120)) || {
-    echo "OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS must be an integer from 0 through 120" >&2
+[[ "$stack_sample_delay" =~ ^[0-9]+$ ]] && ((10#$stack_sample_delay <= 1200)) || {
+    echo "OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS must be an integer from 0 through 1200" >&2
     exit 2
 }
 [[ -z "$mvk_synchronous_queue_submits" || "$mvk_synchronous_queue_submits" == 0 || "$mvk_synchronous_queue_submits" == 1 ]] || {
@@ -658,7 +658,9 @@ run_bounded "simulator microphone permission" 60 xcrun simctl privacy \
 : > "$app_stdout"
 : > "$app_stderr"
 : > "$log_stream_stderr"
-log_stream_timeout=$((10#$poll_timeout + 30))
+# The subscriber starts before application launch and must survive both the
+# world-gate and post-handoff framebuffer deadlines.
+log_stream_timeout=$((10#$launch_timeout + (2 * 10#$poll_timeout) + 60))
 "$timeout_runner" "$log_stream_timeout" xcrun simctl spawn "$active_udid" log stream \
     --style compact --level debug \
     --predicate "(process == \"Overte\" OR eventMessage CONTAINS \"$bundle_id\" OR eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PRESENT\")" \
@@ -731,13 +733,6 @@ while :; do
             runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' && ready=1
         fi
     fi
-    # A fast gate sequence can complete just before the wall-clock sample
-    # deadline.  Capture at the acceptance boundary as well, before screenshot
-    # or simulator-service failures can erase the only all-thread snapshot.
-    if ((ready)) && ((10#$stack_sample_delay > 0)) && ((!startup_stack_captured)); then
-        capture_startup_stack
-        startup_stack_captured=1
-    fi
     ((ready)) && break
     if ((10#$stack_sample_delay > 0)) && ((!startup_stack_captured)) && \
             (( $(date +%s) >= sample_deadline )); then
@@ -768,10 +763,19 @@ while :; do
         /OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1/ { output = NR }
         END { exit !(handoff && output > handoff) }
     ' "$log_snapshot"; then
+        if ((10#$stack_sample_delay > 0)) && ((!startup_stack_captured)); then
+            capture_startup_stack
+            startup_stack_captured=1
+        fi
         break
     fi
     fail_if_vulkan_fatal || exit 1
     process_is_running || { echo "application process exited before world framebuffer output" >&2; exit 1; }
+    if ((10#$stack_sample_delay > 0)) && ((!startup_stack_captured)) && \
+            (( $(date +%s) >= sample_deadline )); then
+        capture_startup_stack
+        startup_stack_captured=1
+    fi
     if (( $(date +%s) >= output_deadline )); then
         echo "$scenario world framebuffer output timed out" >&2
         exit 124

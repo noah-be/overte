@@ -96,14 +96,9 @@ for snapshot_command in (
     'kill -CONT "$launch_pid"',
 ):
     assert snapshot_command in SMOKE
-assert re.search(
-    r"if \(\(ready\)\) && \(\(10#[$]stack_sample_delay > 0\)\) && "
-    r"\(\(!startup_stack_captured\)\); then\s+"
-    r"capture_startup_stack\s+startup_stack_captured=1\s+fi\s+"
-    r"\(\(ready\)\) && break",
-    SMOKE,
-)
-assert 'OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS: "0"' in runtime
+assert "output > handoff" in SMOKE
+assert "$(date +%s) >= sample_deadline" in SMOKE
+assert 'OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS: "900"' in runtime
 assert 'OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS: "6"' not in runtime
 assert "OVERTE_IOS_WORLD_MVK_SYNCHRONOUS_QUEUE_SUBMITS" not in runtime
 assert 'export OVERTE_IOS_WORLD_SYMBOL_BUNDLE="$symbol_bundle"' not in runtime
