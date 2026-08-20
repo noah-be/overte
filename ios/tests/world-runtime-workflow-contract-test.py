@@ -48,12 +48,14 @@ for token in (
     "interface-world-simulator-smoke.sh",
     "validate-world-evidence-set.py",
     "OVERTE_IOS_PRESENT_PROBE: ${{ steps.request.outputs.probe }}",
+    "OVERTE_IOS_WORLD_CAPTURE_ONLY=1",
     "''|swapchain-green|tone-input|tone-solid|tone-uv|tone-sample|frame|resample|composite",
 ):
     assert token in RUNTIME_ONLY, f"runtime-only candidate contract missing: {token}"
 assert "ref: apple-ios" in RUNTIME_ONLY
 assert "package-client" not in RUNTIME_ONLY and "cmake --build" not in RUNTIME_ONLY
 assert "SIMCTL_CHILD_OVERTE_IOS_PRESENT_PROBE=$OVERTE_IOS_PRESENT_PROBE" in SMOKE
+assert 'capture_only="${OVERTE_IOS_WORLD_CAPTURE_ONLY:-0}"' in SMOKE
 assert "${{ inputs.present_probe || 'default' }}" in RUNTIME_ONLY
 
 require(WORKFLOW, r"qt-simulator:[\s\S]*uses: \./\.github/workflows/ios-qt-source\.yml[\s\S]*target_sdk: iphonesimulator", "world workflow must provision simulator Qt")

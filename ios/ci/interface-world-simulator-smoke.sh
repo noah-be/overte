@@ -34,6 +34,7 @@ crash_report_wait="${OVERTE_IOS_WORLD_CRASH_REPORT_WAIT_SECONDS:-20}"
 diagnostics_dir="${OVERTE_IOS_WORLD_DIAGNOSTICS_DIR:-}"
 mvk_trace_vulkan_calls="${OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS:-}"
 mvk_synchronous_queue_submits="${OVERTE_IOS_WORLD_MVK_SYNCHRONOUS_QUEUE_SUBMITS:-}"
+capture_only="${OVERTE_IOS_WORLD_CAPTURE_ONLY:-0}"
 
 [[ -d "$app_path" && "$app_path" == *.app ]] || {
     echo "usage: $0 APP_PATH BUNDLE_ID iphone|ipad serverless|online EXPECTED_DOMAIN|- OUTPUT_DIR" >&2
@@ -74,6 +75,10 @@ mvk_synchronous_queue_submits="${OVERTE_IOS_WORLD_MVK_SYNCHRONOUS_QUEUE_SUBMITS:
 }
 [[ -z "$mvk_synchronous_queue_submits" || "$mvk_synchronous_queue_submits" == 0 || "$mvk_synchronous_queue_submits" == 1 ]] || {
     echo "OVERTE_IOS_WORLD_MVK_SYNCHRONOUS_QUEUE_SUBMITS must be 0 or 1" >&2
+    exit 2
+}
+[[ "$capture_only" == 0 || "$capture_only" == 1 ]] || {
+    echo "OVERTE_IOS_WORLD_CAPTURE_ONLY must be 0 or 1" >&2
     exit 2
 }
 if [[ -n "$stack_symbol_bundle" ]]; then
@@ -809,17 +814,19 @@ kill -0 "$log_stream_pid" 2>/dev/null || {
     exit "$stream_status"
 }
 assemble_runtime_log
-python3 "$screenshot_validator" "$screenshot" \
-    --scenario "$scenario" --destination "$destination" --output "$screenshot_report"
+if [[ "$capture_only" == 0 ]]; then
+    python3 "$screenshot_validator" "$screenshot" \
+        --scenario "$scenario" --destination "$destination" --output "$screenshot_report"
 
-validator_arguments=(
-    "$runtime_log" --scenario "$scenario" --destination "$destination"
-    --screenshot "$screenshot" --screenshot-report "$screenshot_report" --output "$result"
-)
-if [[ "$scenario" == online ]]; then
-    validator_arguments+=(--expected-domain "$expected_domain")
+    validator_arguments=(
+        "$runtime_log" --scenario "$scenario" --destination "$destination"
+        --screenshot "$screenshot" --screenshot-report "$screenshot_report" --output "$result"
+    )
+    if [[ "$scenario" == online ]]; then
+        validator_arguments+=(--expected-domain "$expected_domain")
+    fi
+    python3 "$world_validator" "${validator_arguments[@]}"
 fi
-python3 "$world_validator" "${validator_arguments[@]}"
 fail_if_vulkan_fatal || exit 1
 process_is_running || { echo "application process exited before world validation completed" >&2; exit 1; }
 kill -0 "$log_stream_pid" 2>/dev/null || {
@@ -836,4 +843,8 @@ app_installed=0
 run_bounded "simulator shutdown" 60 xcrun simctl shutdown "$active_udid" >/dev/null
 boot_requested=0
 
-echo "PASS full-client $family simulator $scenario world with screenshot"
+if [[ "$capture_only" == 1 ]]; then
+    echo "PASS full-client $family simulator $scenario diagnostic screenshot"
+else
+    echo "PASS full-client $family simulator $scenario world with screenshot"
+fi

@@ -139,6 +139,7 @@ jobs:
 
       - name: Resolve current overte_hub domain identity
         id: online-world
+        if: ${{ steps.request.outputs.probe == '' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -174,24 +175,32 @@ jobs:
           OVERTE_IOS_WORLD_SYMBOL_BUNDLE: ${{ steps.candidate.outputs.dsym }}
           OVERTE_IOS_PRESENT_PROBE: ${{ steps.request.outputs.probe }}
           ONLINE_DOMAIN: ${{ steps.online-world.outputs.domain }}
+          PRESENT_PROBE: ${{ steps.request.outputs.probe }}
         shell: bash
         run: |
           set -euo pipefail
           evidence=build-ios/world-evidence
           mkdir -p "$evidence"
-          for family in iphone ipad; do
-            ios/ci/interface-world-simulator-smoke.sh \
-              '${{ steps.candidate.outputs.app }}' '${{ steps.candidate.outputs.bundle_id }}' \
-              "$family" serverless - "$evidence"
-            ios/ci/interface-world-simulator-smoke.sh \
-              '${{ steps.candidate.outputs.app }}' '${{ steps.candidate.outputs.bundle_id }}' \
-              "$family" online "$ONLINE_DOMAIN" "$evidence"
-          done
-          python3 ios/tools/validate-world-evidence-set.py "$evidence" \
-            --candidate-manifest '${{ steps.candidate.outputs.manifest }}' \
-            --source-revision '${{ steps.request.outputs.revision }}' \
-            --candidate-sha256 '${{ steps.candidate.outputs.sha }}' \
-            --output build-ios/world-evidence-set.json
+          if [[ -n "$PRESENT_PROBE" ]]; then
+            OVERTE_IOS_WORLD_CAPTURE_ONLY=1 \
+              ios/ci/interface-world-simulator-smoke.sh \
+                '${{ steps.candidate.outputs.app }}' '${{ steps.candidate.outputs.bundle_id }}' \
+                iphone serverless - "$evidence"
+          else
+            for family in iphone ipad; do
+              ios/ci/interface-world-simulator-smoke.sh \
+                '${{ steps.candidate.outputs.app }}' '${{ steps.candidate.outputs.bundle_id }}' \
+                "$family" serverless - "$evidence"
+              ios/ci/interface-world-simulator-smoke.sh \
+                '${{ steps.candidate.outputs.app }}' '${{ steps.candidate.outputs.bundle_id }}' \
+                "$family" online "$ONLINE_DOMAIN" "$evidence"
+            done
+            python3 ios/tools/validate-world-evidence-set.py "$evidence" \
+              --candidate-manifest '${{ steps.candidate.outputs.manifest }}' \
+              --source-revision '${{ steps.request.outputs.revision }}' \
+              --candidate-sha256 '${{ steps.candidate.outputs.sha }}' \
+              --output build-ios/world-evidence-set.json
+          fi
 
       - name: Upload world evidence
         if: success()
