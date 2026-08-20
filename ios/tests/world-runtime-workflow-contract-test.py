@@ -10,6 +10,7 @@ import re
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = (ROOT / ".github/workflows/ios-world-runtime.yml").read_text(encoding="utf-8")
+RUNTIME_ONLY = (ROOT / ".github/workflows/ios-world-candidate-runtime.yml").read_text(encoding="utf-8")
 BOOTSTRAP = (ROOT / ".github/workflows/ios-bootstrap.yml").read_text(encoding="utf-8")
 QT = (ROOT / ".github/workflows/ios-qt-source.yml").read_text(encoding="utf-8")
 MOLTENVK_SIMULATOR = (ROOT / "ios/moltenvk-simulator.env").read_text(encoding="utf-8")
@@ -30,6 +31,24 @@ assert "persist-credentials: false" in WORKFLOW
 for line in WORKFLOW.splitlines():
     if line.lstrip().startswith("uses:") and not line.lstrip().startswith("uses: ./"):
         assert PINNED_ACTION.fullmatch(line), f"unpinned action: {line}"
+for line in RUNTIME_ONLY.splitlines():
+    if line.lstrip().startswith("uses:"):
+        assert PINNED_ACTION.fullmatch(line), f"unpinned runtime-only action: {line}"
+
+for token in (
+    "candidate_run_id:",
+    "candidate_revision:",
+    "candidate_artifact:",
+    "overte-ios-world-candidate-v2-${{ inputs.candidate_revision }}-${{ inputs.candidate_run_id }}",
+    "run-id: ${{ inputs.candidate_run_id }}",
+    "verify-runtime-candidate.py build-ios/runtime-artifact",
+    "--expected-source-revision '${{ inputs.candidate_revision }}'",
+    "interface-world-simulator-smoke.sh",
+    "validate-world-evidence-set.py",
+):
+    assert token in RUNTIME_ONLY, f"runtime-only candidate contract missing: {token}"
+assert "ref: apple-ios" in RUNTIME_ONLY
+assert "package-client" not in RUNTIME_ONLY and "cmake --build" not in RUNTIME_ONLY
 
 require(WORKFLOW, r"qt-simulator:[\s\S]*uses: \./\.github/workflows/ios-qt-source\.yml[\s\S]*target_sdk: iphonesimulator", "world workflow must provision simulator Qt")
 require(QT, r"target_sdk:[\s\S]*iphoneos[\s\S]*iphonesimulator", "Qt provisioner must keep device and simulator explicit")

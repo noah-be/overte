@@ -754,14 +754,17 @@ done
 # The entity handoff precedes the first composited framebuffer.  On the
 # simulator that gap is material, so a fixed short sleep can capture the
 # startup clear rather than the world. Require the renderer's durable output
-# transition before the optional final settle interval.
+# transition before the optional final settle interval. output_ready is a
+# durable backend state transition and can race slightly ahead of the entity
+# handoff on a fast frame; requiring log-line order would then wait forever for
+# a marker that is intentionally emitted only once.
 output_deadline=$(( $(date +%s) + 10#$poll_timeout ))
 while :; do
     refresh_runtime_log_snapshot
     if awk '
-        /OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff/ { handoff = NR }
-        /OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1/ { output = NR }
-        END { exit !(handoff && output > handoff) }
+        /OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff/ { handoff = 1 }
+        /OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1/ { output = 1 }
+        END { exit !(handoff && output) }
     ' "$log_snapshot"; then
         if ((10#$stack_sample_delay > 0)) && ((!startup_stack_captured)); then
             capture_startup_stack

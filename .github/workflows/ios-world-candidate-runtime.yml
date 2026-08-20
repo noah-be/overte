@@ -1,0 +1,163 @@
+name: iOS world candidate runtime
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: Run containing the verified simulator candidate
+        required: true
+        type: string
+      candidate_revision:
+        description: Exact 40-character candidate source revision
+        required: true
+        type: string
+      candidate_artifact:
+        description: Exact verified simulator candidate artifact name
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ios-world-candidate-runtime-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  runtime:
+    runs-on: macos-26
+    timeout-minutes: 150
+    env:
+      OVERTE_IOS_WORLD_DIAGNOSTICS_DIR: ${{ github.workspace }}/build-ios/world-raw-diagnostics
+    steps:
+      - name: Validate requested candidate identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ '${{ inputs.candidate_run_id }}' =~ ^[1-9][0-9]*$ ]]
+          [[ '${{ inputs.candidate_revision }}' =~ ^[0-9a-f]{40}$ ]]
+          [[ '${{ inputs.candidate_artifact }}' == \
+            "overte-ios-world-candidate-v2-${{ inputs.candidate_revision }}-${{ inputs.candidate_run_id }}" ]]
+
+      - name: Check out current runtime harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          ref: apple-ios
+          persist-credentials: false
+
+      - name: Download verified simulator candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ inputs.candidate_artifact }}
+          path: build-ios/runtime-artifact
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.candidate_run_id }}
+
+      - name: Verify and unpack exact candidate
+        id: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="$(find build-ios/runtime-artifact -maxdepth 1 \
+            -name '*-OverteIOSClient-Release-simulator.json' -print)"
+          archive="$(find build-ios/runtime-artifact -maxdepth 1 \
+            -name '*-OverteIOSClient-Release-simulator.zip' -print)"
+          symbols="$(find build-ios/runtime-artifact -maxdepth 1 \
+            -name '*-OverteIOSClient-Release-simulator-symbols.zip' -print)"
+          [[ -f "$manifest" && -f "$archive" && -f "$symbols" ]]
+          sha="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sha256"])' "$manifest")"
+          python3 ios/tools/verify-runtime-candidate.py build-ios/runtime-artifact \
+            --mode simulator \
+            --expected-source-revision '${{ inputs.candidate_revision }}' \
+            --expected-sha256 "$sha"
+          mkdir -p build-ios/runtime-candidate build-ios/runtime-symbols
+          ditto -x -k "$archive" build-ios/runtime-candidate
+          ditto -x -k "$symbols" build-ios/runtime-symbols
+          app="$(find build-ios/runtime-candidate -type d -name Overte.app -prune -print)"
+          dsym="$(find build-ios/runtime-symbols -type d -name Overte.app.dSYM -prune -print)"
+          [[ -d "$app" && -d "$dsym" ]]
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+          echo "dsym=$dsym" >> "$GITHUB_OUTPUT"
+          echo "manifest=$manifest" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          bundle_id="$(plutil -extract CFBundleIdentifier raw "$app/Info.plist")"
+          echo "bundle_id=$bundle_id" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve current overte_hub domain identity
+        id: online-world
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(mktemp "${TMPDIR:-/tmp}/overte-place.XXXXXX")"
+          trap 'rm -f "$response"' EXIT
+          curl --fail --silent --show-error --retry 3 --max-time 30 \
+            https://mv.overte.org/server/api/v1/places/overte_hub > "$response"
+          domain="$(python3 - "$response" <<'PY'
+          import json, pathlib, re, sys
+          payload = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          place = payload.get("data", {}).get("place", {})
+          domain = place.get("domain", {})
+          value = str(domain.get("id", "")).lower()
+          if payload.get("status") != "success" or place.get("name") != "overte_hub" or domain.get("active") is not True:
+              raise SystemExit("overte_hub is not active")
+          if re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", value) is None:
+              raise SystemExit("overte_hub returned an invalid UUID")
+          print(value)
+          PY
+          )"
+          echo "domain=$domain" >> "$GITHUB_OUTPUT"
+
+      - name: Select stable CoreSimulator tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          developer_dir=/Applications/Xcode_26.5.app/Contents/Developer
+          [[ "$(DEVELOPER_DIR="$developer_dir" xcodebuild -version | awk '/Build version/{print $3}')" == 17F42 ]]
+          echo "DEVELOPER_DIR=$developer_dir" >> "$GITHUB_ENV"
+
+      - name: Load serverless and online worlds with screenshots
+        env:
+          OVERTE_IOS_WORLD_SYMBOL_BUNDLE: ${{ steps.candidate.outputs.dsym }}
+          ONLINE_DOMAIN: ${{ steps.online-world.outputs.domain }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence=build-ios/world-evidence
+          mkdir -p "$evidence"
+          for family in iphone ipad; do
+            ios/ci/interface-world-simulator-smoke.sh \
+              '${{ steps.candidate.outputs.app }}' '${{ steps.candidate.outputs.bundle_id }}' \
+              "$family" serverless - "$evidence"
+            ios/ci/interface-world-simulator-smoke.sh \
+              '${{ steps.candidate.outputs.app }}' '${{ steps.candidate.outputs.bundle_id }}' \
+              "$family" online "$ONLINE_DOMAIN" "$evidence"
+          done
+          python3 ios/tools/validate-world-evidence-set.py "$evidence" \
+            --candidate-manifest '${{ steps.candidate.outputs.manifest }}' \
+            --source-revision '${{ inputs.candidate_revision }}' \
+            --candidate-sha256 '${{ steps.candidate.outputs.sha }}' \
+            --output build-ios/world-evidence-set.json
+
+      - name: Upload world evidence
+        if: success()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: overte-ios-runtime-only-evidence-${{ github.run_id }}
+          path: |
+            build-ios/world-evidence
+            build-ios/world-evidence-set.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload runtime-only failures
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: overte-ios-runtime-only-failures-${{ github.run_id }}
+          path: |
+            build-ios/world-evidence/*-failure.png
+            build-ios/world-raw-diagnostics
+          if-no-files-found: warn
+          retention-days: 14
