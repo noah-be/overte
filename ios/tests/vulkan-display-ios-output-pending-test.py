@@ -80,6 +80,12 @@ if present.index("compositeLayers();") > present.index("const auto outputTexture
 if "_outputTexture = syncGPUObject(framebuffer.get());" not in BACKEND:
     raise SystemExit("present output framebuffer must be converted to the backend raw-pointer API")
 
+set_present_output = BACKEND.split(
+    "void VKBackend::setPresentOutputFramebuffer", 1
+)[1].split("}", 1)[0]
+if "resetRenderPass();" not in set_present_output:
+    raise SystemExit("iOS present transfer must close the compositor render pass")
+
 if "const auto colorFormat = gpu::Element::COLOR_SBGRA_32;" not in SOURCE:
     raise SystemExit("iOS composite framebuffer must match the BGRA swapchain format")
 
