@@ -917,15 +917,12 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
             _renderedFrameCount++;
         }
 
-        // Compose the rendered scene into the display framebuffer before the
-        // iOS swapchain copy.  The former name-based backend workaround could
-        // select an unrelated intermediate framebuffer and present black.
+        // CompositeHUD is the renderer's final scene-plus-HUD framebuffer and
+        // publishes it through VKBackend::_outputTexture.  Do not resample the
+        // frame a second time here: that provisional iOS-only pass sampled the
+        // pre-composite frame and produced an undefined magenta attachment.
 #if defined(Q_OS_IOS)
-        {
-            PROFILE_RANGE_EX(render, "composite", 0xff00ffff, frameId)
-            compositeLayers();
-            vkBackend->setPresentOutputFramebuffer(_compositeFramebuffer);
-        }
+        vkBackend->finishPresentRendering();
 #endif
 
         // VKTODO

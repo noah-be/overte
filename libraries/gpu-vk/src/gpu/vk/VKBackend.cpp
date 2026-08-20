@@ -383,10 +383,9 @@ void VKBackend::setDrawCommandBuffer(VkCommandBuffer commandBuffer) {
     _currentCommandBuffer = commandBuffer;
 }
 
-void VKBackend::setPresentOutputFramebuffer(const FramebufferPointer& framebuffer) {
-    _outputTexture = syncGPUObject(framebuffer.get());
-    // Immediate compositor batches keep their render pass open for reuse, but
-    // the platform present path records barriers and an image copy next.
+void VKBackend::finishPresentRendering() {
+    // Renderer batches keep their render pass open for reuse, but the platform
+    // present path records barriers and an image copy next.
     // Vulkan requires those transfer commands to be outside a render pass.
     resetRenderPass();
 }

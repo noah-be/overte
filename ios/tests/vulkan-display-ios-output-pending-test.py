@@ -23,8 +23,7 @@ end = SOURCE.index("void VulkanDisplayPlugin::queueIOSFramebufferResize", start)
 present = SOURCE[start:end]
 
 for fragment in (
-    "compositeLayers();",
-    "vkBackend->setPresentOutputFramebuffer(_compositeFramebuffer);",
+    "vkBackend->finishPresentRendering();",
     "const auto outputTexture = vkBackend->_outputTexture;",
     "const bool outputReady = outputTexture &&",
     "!outputTexture->attachments.empty()",
@@ -74,17 +73,14 @@ for fragment in (
 if "const bool traceIOSPresentCommands = outputReady && !_iosPresentOutputReady;" not in present:
     raise SystemExit("ready-output commands are not traced on their first state transition")
 
-if present.index("compositeLayers();") > present.index("const auto outputTexture = vkBackend->_outputTexture;"):
-    raise SystemExit("iOS present selects its output before composing the frame")
-
-if "_outputTexture = syncGPUObject(framebuffer.get());" not in BACKEND:
-    raise SystemExit("present output framebuffer must be converted to the backend raw-pointer API")
-
-set_present_output = BACKEND.split(
-    "void VKBackend::setPresentOutputFramebuffer", 1
+finish_present = BACKEND.split(
+    "void VKBackend::finishPresentRendering", 1
 )[1].split("}", 1)[0]
-if "resetRenderPass();" not in set_present_output:
+if "resetRenderPass();" not in finish_present:
     raise SystemExit("iOS present transfer must close the compositor render pass")
+
+if "compositeLayers();" in present or "setPresentOutputFramebuffer" in present:
+    raise SystemExit("iOS present must use the renderer's final CompositeHUD output directly")
 
 if "const auto colorFormat = gpu::Element::COLOR_SBGRA_32;" not in SOURCE:
     raise SystemExit("iOS composite framebuffer must match the BGRA swapchain format")
