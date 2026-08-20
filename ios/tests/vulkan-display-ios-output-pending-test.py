@@ -16,8 +16,20 @@ FRAMEBUFFER_CACHE = (
 ).read_text(encoding="utf-8")
 BACKEND = (ROOT / "libraries/gpu-vk/src/gpu/vk/VKBackend.cpp").read_text(encoding="utf-8")
 BACKEND_HEADER = (ROOT / "libraries/gpu-vk/src/gpu/vk/VKBackend.h").read_text(encoding="utf-8")
+TONE_PROGRAM = (ROOT / "libraries/render-utils/src/render-utils/toneMapping.slp").read_text(encoding="utf-8")
+TONE_SHADER = (ROOT / "libraries/render-utils/src/toneMapping.slf").read_text(encoding="utf-8")
+TONE_TASK = (ROOT / "libraries/render-utils/src/ToneMapAndResampleTask.cpp").read_text(encoding="utf-8")
 
 assert "batch.setInputFormat({});" in SOURCE
+
+if "VERTEX gpu::vertex::DrawUnitQuadTexcoord" not in TONE_PROGRAM or \
+        "DrawViewportQuadTransformTexcoord" in TONE_PROGRAM:
+    raise SystemExit("tone mapping must not require format-free DrawCallInfo vertex input")
+for fragment in ("_texcoordTransform", "transformedTexCoord"):
+    if fragment not in TONE_SHADER:
+        raise SystemExit(f"tone mapping lost uniform texcoord transform: {fragment}")
+if "evalSubregionTexcoordTransformCoefficients" not in TONE_TASK:
+    raise SystemExit("tone mapping must preserve viewport subregion coordinates")
 
 start = SOURCE.index("void VulkanDisplayPlugin::present(")
 end = SOURCE.index("void VulkanDisplayPlugin::queueIOSFramebufferResize", start)

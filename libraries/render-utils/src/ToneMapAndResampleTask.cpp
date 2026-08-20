@@ -45,14 +45,14 @@ void ToneMapAndResample::init() {
 void ToneMapAndResample::setExposure(float exposure) {
     if (_exposure != exposure) {
         _exposure = exposure;
-        _parametersBuffer.edit<Parameters>()._twoPowExposure = pow(2.0, exposure);
+        _parametersBuffer.edit<Parameters>()._toneMapping.x = pow(2.0, exposure);
     }
 }
 
 void ToneMapAndResample::setCurve(TonemappingCurve curve) {
     auto& params = _parametersBuffer.get<Parameters>();
-    if (params._toneCurve != (int)curve) {
-        _parametersBuffer.edit<Parameters>()._toneCurve = (int)curve;
+    if ((int)params._toneMapping.y != (int)curve) {
+        _parametersBuffer.edit<Parameters>()._toneMapping.y = (float)curve;
     }
 }
 
@@ -122,7 +122,8 @@ void ToneMapAndResample::run(const RenderContextPointer& renderContext, const In
         bool shouldMirror = args->_numMirrorFlips >= (args->_renderMode != RenderArgs::MIRROR_RENDER_MODE ? 1 : 0);
         batch.setPipeline(shouldMirror ? _mirrorPipeline : _pipeline);
 
-        batch.setModelTransform(gpu::Framebuffer::evalSubregionTexcoordTransform(srcBufferSize, args->_viewport));
+        _parametersBuffer.edit<Parameters>()._texcoordTransform =
+            gpu::Framebuffer::evalSubregionTexcoordTransformCoefficients(srcBufferSize, args->_viewport);
         batch.setUniformBuffer(render_utils::slot::buffer::ToneMappingParams, _parametersBuffer);
         batch.setResourceTexture(render_utils::slot::texture::ToneMappingColor, lightingBuffer);
         batch.draw(gpu::TRIANGLE_STRIP, 4);
