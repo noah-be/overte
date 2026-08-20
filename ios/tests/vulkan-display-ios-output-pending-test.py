@@ -19,6 +19,7 @@ BACKEND_HEADER = (ROOT / "libraries/gpu-vk/src/gpu/vk/VKBackend.h").read_text(en
 TONE_PROGRAM = (ROOT / "libraries/render-utils/src/render-utils/toneMapping.slp").read_text(encoding="utf-8")
 TONE_SHADER = (ROOT / "libraries/render-utils/src/toneMapping.slf").read_text(encoding="utf-8")
 TONE_TASK = (ROOT / "libraries/render-utils/src/ToneMapAndResampleTask.cpp").read_text(encoding="utf-8")
+HUD_TASK = (ROOT / "libraries/render-utils/src/RenderHUDLayerTask.cpp").read_text(encoding="utf-8")
 
 assert "batch.setInputFormat({});" in SOURCE
 
@@ -36,6 +37,9 @@ for fragment in (
 ):
     if fragment not in TONE_TASK:
         raise SystemExit(f"tone-solid must bypass shader state with a direct clear: {fragment}")
+for probe in ("resample", "tone-solid", "tone-uv", "tone-sample"):
+    if f'presentProbe == "{probe}"' not in HUD_TASK:
+        raise SystemExit(f"HUD must not overwrite the iOS {probe} presentation probe")
 
 start = SOURCE.index("void VulkanDisplayPlugin::present(")
 end = SOURCE.index("void VulkanDisplayPlugin::queueIOSFramebufferResize", start)
