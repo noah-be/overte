@@ -252,9 +252,8 @@ protected:
      */
     std::atomic<bool> _programsCompiled { false };
 #else
-    // MoltenVK can spend several minutes compiling the desktop startup set.
-    // Do not keep iOS on the splash framebuffer while that cache warms; the
-    // required pipelines are still synchronized by initializeGPU().
+    // Mobile backends compile required pipelines on demand and skip the
+    // desktop startup set in initializeGPU().
     std::atomic<bool> _programsCompiled { true };
 #endif
 

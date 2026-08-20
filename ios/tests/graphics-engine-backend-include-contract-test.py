@@ -29,5 +29,7 @@ require(SOURCE.count("primaryWidget->makeCurrent();") == 2,
 require("#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)" in HEADER and
         "std::atomic<bool> _programsCompiled { true };" in HEADER,
         "iOS can again remain trapped on the startup shader splash")
+require("#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)\n    _gpuContext->pushProgramsToSync(shader::startupPrograms()" in SOURCE,
+        "iOS can again block its render queue on the desktop startup shader set")
 
 print("GraphicsEngine backend includes valid: unused Offscreen GL removed; GL/VK selection preserved")
