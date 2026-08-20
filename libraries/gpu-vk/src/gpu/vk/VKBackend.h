@@ -531,6 +531,14 @@ public:
 
     // VKTODO: quick hack
     VKFramebuffer *_outputTexture{ nullptr };
+#if defined(Q_OS_IOS)
+    // Runtime-selectable presentation boundaries let one simulator binary
+    // distinguish renderer output failures without another full client build.
+    VKFramebuffer* _resampleOutputTexture{ nullptr };
+    VKFramebuffer* _compositeHUDOutputTexture{ nullptr };
+    VKTexture* _toneMappingInputTexture{ nullptr };
+    VKFramebuffer* resolvePresentFramebuffer(const FramebufferPointer& framebuffer);
+#endif
 protected:
     struct TextureManagementStageState {
         bool _sparseCapable{ false };

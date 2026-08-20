@@ -15,6 +15,7 @@ FRAMEBUFFER_CACHE = (
     ROOT / "libraries/render-utils/src/FramebufferCache.cpp"
 ).read_text(encoding="utf-8")
 BACKEND = (ROOT / "libraries/gpu-vk/src/gpu/vk/VKBackend.cpp").read_text(encoding="utf-8")
+BACKEND_HEADER = (ROOT / "libraries/gpu-vk/src/gpu/vk/VKBackend.h").read_text(encoding="utf-8")
 
 assert "batch.setInputFormat({});" in SOURCE
 
@@ -24,12 +25,10 @@ present = SOURCE[start:end]
 
 for fragment in (
     "vkBackend->finishPresentRendering();",
-    "const auto outputTexture = vkBackend->_outputTexture;",
-    "const bool outputReady = outputTexture &&",
-    "!outputTexture->attachments.empty()",
-    "outputTexture->attachments[0].image != VK_NULL_HANDLE",
-    "outputTexture->_gpuObject.getWidth() > 0",
-    "outputTexture->_gpuObject.getHeight() > 0",
+    "auto outputTexture = vkBackend->_outputTexture;",
+    "const bool outputReady = !solidGreenProbe &&",
+    "sourceImage != VK_NULL_HANDLE",
+    "sourceWidth > 0 && sourceHeight > 0",
     'qCWarning(displayPlugins) << "OVERTE_IOS_VULKAN_OUTPUT_PENDING";',
     'qCInfo(displayPlugins) << "OVERTE_IOS_VULKAN_OUTPUT_READY";',
     "if (outputReady)",
@@ -48,7 +47,7 @@ for fragment in (
     "presentResult == VK_SUBOPTIMAL_KHR",
     "VK_CHECK_RESULT(presentResult);",
     '"OVERTE_IOS_VULKAN_PRESENT acquired image=%u extent=%ux%u result=%d"',
-    '"OVERTE_IOS_VULKAN_PRESENT output_ready=%d source=%ux%u target=%ux%u"',
+    '"OVERTE_IOS_VULKAN_PRESENT probe=%{public}s output_ready=%d source=%ux%u target=%ux%u"',
     '"OVERTE_IOS_VULKAN_PRESENT source_barrier_begin"',
     '"OVERTE_IOS_VULKAN_PRESENT source_barrier_complete"',
     '"OVERTE_IOS_VULKAN_PRESENT destination_barrier_begin"',
@@ -82,11 +81,41 @@ if "resetRenderPass();" not in finish_present:
 if "compositeLayers();" in present or "setPresentOutputFramebuffer" in present:
     raise SystemExit("iOS present must use the renderer's final CompositeHUD output directly")
 
+for probe in ("swapchain-green", "tone-input", "frame", "resample", "composite"):
+    if f'"{probe}"' not in present:
+        raise SystemExit(f"missing reusable iOS presentation boundary probe: {probe}")
+for fragment in (
+    "vkBackend->_toneMappingInputTexture",
+    "vkBackend->_resampleOutputTexture",
+    "vkBackend->_compositeHUDOutputTexture",
+    "vkBackend->resolvePresentFramebuffer(_currentFrame->framebuffer)",
+    "sourceImage",
+    "sourceLayout",
+    "sourceAccess",
+    "sourceStage",
+):
+    if fragment not in present:
+        raise SystemExit(f"incomplete reusable iOS boundary probe: {fragment}")
+for fragment in (
+    '_resource._textures[0].texture',
+    '_toneMappingInputTexture = syncGPUObject',
+    '_resampleOutputTexture = _outputTexture',
+    '_compositeHUDOutputTexture = _outputTexture',
+):
+    if fragment not in BACKEND:
+        raise SystemExit(f"backend does not preserve diagnostic boundary: {fragment}")
+for fragment in (
+    'VKTexture* _toneMappingInputTexture',
+    'VKFramebuffer* _resampleOutputTexture',
+    'VKFramebuffer* _compositeHUDOutputTexture',
+):
+    if fragment not in BACKEND_HEADER:
+        raise SystemExit(f"backend diagnostic boundary is not retained: {fragment}")
+
 if "const auto colorFormat = gpu::Element::COLOR_SBGRA_32;" not in SOURCE:
     raise SystemExit("iOS composite framebuffer must match the BGRA swapchain format")
 
-if "outputTexture->attachments[0].format" not in present or \
-        "sourceFormat == _vkWindow->_swapchain.colorFormat" not in present:
+if "sourceFormat == _vkWindow->_swapchain.colorFormat" not in present:
     raise SystemExit("iOS output copy must require identical Vulkan formats")
 
 if "#if defined(Q_OS_IOS)" not in FRAMEBUFFER_CACHE or \

@@ -182,6 +182,9 @@ elif [ "$1 $2" = "simctl launch" ]; then
         }
     fi
     [ -n "${SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR:-}" ] || exit 66
+    if [ -n "${FAKE_EXPECT_PRESENT_PROBE:-}" ]; then
+        [ "${SIMCTL_CHILD_OVERTE_IOS_PRESENT_PROBE:-}" = "$FAKE_EXPECT_PRESENT_PROBE" ] || exit 74
+    fi
     case "$SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR" in
         "$FAKE_DATA_CONTAINER"/tmp/overte-mvk-shaders-*) ;;
         *) exit 70 ;;

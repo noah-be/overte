@@ -39,6 +39,7 @@ for token in (
     "candidate_run_id:",
     "candidate_revision:",
     "candidate_artifact:",
+    "present_probe:",
     ".github/ios-world-runtime-candidate.json",
     '[[ "$artifact" == "overte-ios-world-candidate-v2-${revision}-${run_id}" ]]',
     "run-id: ${{ steps.request.outputs.run_id }}",
@@ -46,10 +47,14 @@ for token in (
     "--expected-source-revision '${{ steps.request.outputs.revision }}'",
     "interface-world-simulator-smoke.sh",
     "validate-world-evidence-set.py",
+    "OVERTE_IOS_PRESENT_PROBE: ${{ steps.request.outputs.probe }}",
+    "''|swapchain-green|tone-input|frame|resample|composite",
 ):
     assert token in RUNTIME_ONLY, f"runtime-only candidate contract missing: {token}"
 assert "ref: apple-ios" in RUNTIME_ONLY
 assert "package-client" not in RUNTIME_ONLY and "cmake --build" not in RUNTIME_ONLY
+assert "SIMCTL_CHILD_OVERTE_IOS_PRESENT_PROBE=$OVERTE_IOS_PRESENT_PROBE" in SMOKE
+assert "${{ inputs.present_probe || 'default' }}" in RUNTIME_ONLY
 
 require(WORKFLOW, r"qt-simulator:[\s\S]*uses: \./\.github/workflows/ios-qt-source\.yml[\s\S]*target_sdk: iphonesimulator", "world workflow must provision simulator Qt")
 require(QT, r"target_sdk:[\s\S]*iphoneos[\s\S]*iphonesimulator", "Qt provisioner must keep device and simulator explicit")

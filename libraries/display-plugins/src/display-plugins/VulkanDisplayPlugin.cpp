@@ -54,6 +54,7 @@
 #include <gpu/vk/VKShared.h>
 #include <gpu/vk/VKBackend.h>
 #include <gpu/vk/VKFramebuffer.h>
+#include <gpu/vk/VKTexture.h>
 #if !defined(Q_OS_IOS)
 #include <gpu/gl/GLTexelFormat.h>
 #endif
@@ -955,19 +956,62 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
             // returning here would leave the acquire semaphore signalled and
             // the command buffer recording.  Present a deterministic black
             // image until a complete output framebuffer becomes available.
-            const auto outputTexture = vkBackend->_outputTexture;
-            const bool outputReady = outputTexture &&
-                !outputTexture->attachments.empty() &&
-                outputTexture->attachments[0].image != VK_NULL_HANDLE &&
-                outputTexture->_gpuObject.getWidth() > 0 &&
-                outputTexture->_gpuObject.getHeight() > 0;
+            auto presentProbe = qEnvironmentVariable("OVERTE_IOS_PRESENT_PROBE");
+            if (presentProbe.isEmpty()) {
+                presentProbe = "composite";
+            }
+            const bool solidGreenProbe = presentProbe == "swapchain-green";
+            auto outputTexture = vkBackend->_outputTexture;
+            gpu::vk::VKTexture* sampledTexture = nullptr;
+#if defined(Q_OS_IOS)
+            if (presentProbe == "resample") {
+                outputTexture = vkBackend->_resampleOutputTexture;
+            } else if (presentProbe == "composite") {
+                outputTexture = vkBackend->_compositeHUDOutputTexture;
+            } else if (presentProbe == "tone-input") {
+                outputTexture = nullptr;
+                sampledTexture = vkBackend->_toneMappingInputTexture;
+            } else if (presentProbe == "frame") {
+                outputTexture = vkBackend->resolvePresentFramebuffer(_currentFrame->framebuffer);
+                vkBackend->finishPresentRendering();
+            } else if (!solidGreenProbe) {
+                os_log_fault(OS_LOG_DEFAULT,
+                             "OVERTE_IOS_VULKAN_FATAL unknown_present_probe=%{public}s",
+                             presentProbe.toUtf8().constData());
+                outputTexture = nullptr;
+            }
+#endif
+            VkImage sourceImage = VK_NULL_HANDLE;
+            VkFormat sourceFormat = VK_FORMAT_UNDEFINED;
+            uint32_t sourceWidth = 0;
+            uint32_t sourceHeight = 0;
+            VkAccessFlags sourceAccess = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            VkImageLayout sourceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            VkPipelineStageFlags sourceStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            if (sampledTexture) {
+                sourceImage = sampledTexture->_vkImage;
+                sourceFormat = gpu::vk::evalTexelFormatInternal(
+                    sampledTexture->_gpuObject.getTexelFormat(), vkBackend->getContext());
+                sourceWidth = sampledTexture->_gpuObject.getWidth();
+                sourceHeight = sampledTexture->_gpuObject.getHeight();
+                sourceAccess = VK_ACCESS_SHADER_READ_BIT;
+                sourceLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                sourceStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            } else if (outputTexture && !outputTexture->attachments.empty()) {
+                sourceImage = outputTexture->attachments[0].image;
+                sourceFormat = outputTexture->attachments[0].format;
+                sourceWidth = outputTexture->_gpuObject.getWidth();
+                sourceHeight = outputTexture->_gpuObject.getHeight();
+            }
+            const bool outputReady = !solidGreenProbe &&
+                sourceImage != VK_NULL_HANDLE &&
+                sourceWidth > 0 && sourceHeight > 0;
 #if defined(Q_OS_IOS)
             const bool traceIOSPresentCommands = outputReady && !_iosPresentOutputReady;
             if (!_iosPresentOutputReported || _iosPresentOutputReady != outputReady) {
-                const auto sourceWidth = outputReady ? outputTexture->_gpuObject.getWidth() : 0;
-                const auto sourceHeight = outputReady ? outputTexture->_gpuObject.getHeight() : 0;
                 os_log_info(OS_LOG_DEFAULT,
-                            "OVERTE_IOS_VULKAN_PRESENT output_ready=%d source=%ux%u target=%ux%u",
+                            "OVERTE_IOS_VULKAN_PRESENT probe=%{public}s output_ready=%d source=%ux%u target=%ux%u",
+                            presentProbe.toUtf8().constData(),
                             static_cast<int>(outputReady),
                             static_cast<unsigned int>(sourceWidth),
                             static_cast<unsigned int>(sourceHeight),
@@ -989,8 +1033,8 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
             imageBlit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             imageBlit.srcSubresource.layerCount = 1;
             imageBlit.srcSubresource.mipLevel = 0;
-            imageBlit.srcOffsets[1].x = outputReady ? outputTexture->_gpuObject.getWidth() : 0;
-            imageBlit.srcOffsets[1].y = outputReady ? outputTexture->_gpuObject.getHeight() : 0;
+            imageBlit.srcOffsets[1].x = outputReady ? sourceWidth : 0;
+            imageBlit.srcOffsets[1].y = outputReady ? sourceHeight : 0;
             imageBlit.srcOffsets[1].z = 1;
 
             imageBlit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -1014,12 +1058,12 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
 #endif
                 vks::tools::insertImageMemoryBarrier(
                     commandBuffer,
-                    outputTexture->attachments[0].image,
-                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                    sourceImage,
+                    sourceAccess,
                     VK_ACCESS_TRANSFER_READ_BIT,
-                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                    sourceLayout,
                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    sourceStage,
                     VK_PIPELINE_STAGE_TRANSFER_BIT,
                     mipSubRange);
 #if defined(Q_OS_IOS)
@@ -1056,11 +1100,10 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                     os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT transfer_begin");
                 }
 #endif
-                const auto sourceFormat = outputTexture->attachments[0].format;
                 const bool copyCompatible =
                     sourceFormat == _vkWindow->_swapchain.colorFormat &&
-                    outputTexture->_gpuObject.getWidth() == _vkWindow->_swapchain.extent.width &&
-                    outputTexture->_gpuObject.getHeight() == _vkWindow->_swapchain.extent.height;
+                    sourceWidth == _vkWindow->_swapchain.extent.width &&
+                    sourceHeight == _vkWindow->_swapchain.extent.height;
 #if defined(Q_OS_IOS)
                 if (traceIOSPresentCommands) {
                     os_log_info(OS_LOG_DEFAULT,
@@ -1081,7 +1124,7 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                     };
                     vkCmdCopyImage(
                         commandBuffer,
-                        outputTexture->attachments[0].image,
+                        sourceImage,
                         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                         _vkWindow->_swapchain.images[currentImageIndex],
                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -1090,7 +1133,7 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                 } else {
                     vkCmdBlitImage(
                         commandBuffer,
-                        outputTexture->attachments[0].image,
+                        sourceImage,
                         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                         _vkWindow->_swapchain.images[currentImageIndex],
                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -1105,6 +1148,9 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
 #endif
             } else {
                 VkClearColorValue clearColor{};
+                if (solidGreenProbe) {
+                    clearColor.float32[1] = 1.0f;
+                }
                 clearColor.float32[3] = 1.0f;
                 vkCmdClearColorImage(
                     commandBuffer,
@@ -1144,13 +1190,13 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
 #endif
                 vks::tools::insertImageMemoryBarrier(
                     commandBuffer,
-                    outputTexture->attachments[0].image,
+                    sourceImage,
                     VK_ACCESS_TRANSFER_READ_BIT,
-                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                    sourceAccess,
                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                    sourceLayout,
                     VK_PIPELINE_STAGE_TRANSFER_BIT,
-                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    sourceStage,
                     mipSubRange);
 #if defined(Q_OS_IOS)
                 if (traceIOSPresentCommands) {

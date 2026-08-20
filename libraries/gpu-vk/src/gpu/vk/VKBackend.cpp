@@ -320,6 +320,11 @@ void VKBackend::render(const Batch& batch) {
         renderPassTransfer(batch);
     }
 #if defined(Q_OS_IOS)
+    if (batch.getName() == "Resample::run" && _resource._textures[0].texture) {
+        _toneMappingInputTexture = syncGPUObject(_resource._textures[0].texture);
+    }
+#endif
+#if defined(Q_OS_IOS)
     if (traceFullscreenBatch) {
         os_log_info(OS_LOG_DEFAULT,
                     "OVERTE_IOS_VULKAN_DRAW batch=%{public}s stage=transfer_complete",
@@ -356,9 +361,15 @@ void VKBackend::render(const Batch& batch) {
     // VKTODO: This is a workaround to get image on screen for now. Later we need to look on how it's done on OpenGL branch and do it in a similar way.
     if (batch.getName() == "Resample::run") {
         _outputTexture = syncGPUObject(_cache.pipelineState.framebuffer);
+#if defined(Q_OS_IOS)
+        _resampleOutputTexture = _outputTexture;
+#endif
     }
     if (batch.getName() == "CompositeHUD") {
         _outputTexture = syncGPUObject(_cache.pipelineState.framebuffer);
+#if defined(Q_OS_IOS)
+        _compositeHUDOutputTexture = _outputTexture;
+#endif
     }
     /*if (renderpassActive) {
         cmdEndLabel(commandBuffer);
@@ -378,6 +389,12 @@ void VKBackend::render(const Batch& batch) {
 
     cmdEndLabel(commandBuffer);
 }
+
+#if defined(Q_OS_IOS)
+VKFramebuffer* VKBackend::resolvePresentFramebuffer(const FramebufferPointer& framebuffer) {
+    return framebuffer ? syncGPUObject(framebuffer.get()) : nullptr;
+}
+#endif
 
 void VKBackend::setDrawCommandBuffer(VkCommandBuffer commandBuffer) {
     _currentCommandBuffer = commandBuffer;
