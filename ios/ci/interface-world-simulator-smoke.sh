@@ -760,7 +760,6 @@ done
 # a marker that is intentionally emitted only once.
 output_deadline=$(( $(date +%s) + 10#$poll_timeout ))
 while :; do
-    refresh_runtime_log_snapshot
     if runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' && \
             runtime_log_contains 'OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1'; then
         if ((10#$stack_sample_delay > 0)) && ((!startup_stack_captured)); then
@@ -769,6 +768,7 @@ while :; do
         fi
         break
     fi
+    refresh_runtime_log_snapshot
     fail_if_vulkan_fatal || exit 1
     process_is_running || { echo "application process exited before world framebuffer output" >&2; exit 1; }
     if ((10#$stack_sample_delay > 0)) && ((!startup_stack_captured)) && \
