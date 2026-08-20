@@ -400,7 +400,7 @@ jobs:
     # an app PID, while Xcode 26.5 launched this exact candidate and reached the
     # first Metal pipeline deterministically.
     runs-on: macos-26
-    timeout-minutes: 40
+    timeout-minutes: 60
     env:
       RUNTIME_ROOT: ${{ github.workspace }}/build-ios/world-runtime-only
       SOURCE_RUN_ID: ${{ inputs.source_run_id }}
@@ -409,6 +409,7 @@ jobs:
       EXPECTED_SHA256: ${{ inputs.expected_sha256 }}
       EXPECTED_SOURCE_REVISION: ${{ inputs.expected_source_revision }}
       OVERTE_IOS_WORLD_DIAGNOSTICS_DIR: ${{ github.workspace }}/build-ios/world-runtime-only/raw-diagnostics
+      OVERTE_IOS_WORLD_TIMEOUT_SECONDS: 1200
       BUNDLE_ID: org.overte.interface.dev
     steps:
       - name: Check out reviewed runtime harness without credentials

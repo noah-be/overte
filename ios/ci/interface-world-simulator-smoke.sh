@@ -761,8 +761,15 @@ done
 # startup clear rather than the world. Require the renderer's durable output
 # transition before the optional final settle interval.
 output_deadline=$(( $(date +%s) + 10#$poll_timeout ))
-while ! runtime_log_contains 'OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1'; do
+while :; do
     refresh_runtime_log_snapshot
+    if awk '
+        /OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff/ { handoff = NR }
+        /OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1/ { output = NR }
+        END { exit !(handoff && output > handoff) }
+    ' "$log_snapshot"; then
+        break
+    fi
     fail_if_vulkan_fatal || exit 1
     process_is_running || { echo "application process exited before world framebuffer output" >&2; exit 1; }
     if (( $(date +%s) >= output_deadline )); then
