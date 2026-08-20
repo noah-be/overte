@@ -95,6 +95,15 @@ jobs:
           symbols="$(find build-ios/runtime-artifact -maxdepth 1 \
             -name '*-OverteIOSClient-Release-simulator-symbols.zip' -print)"
           [[ -f "$manifest" && -f "$archive" && -f "$symbols" ]]
+          cp -- "$manifest" build-ios/runtime-artifact/LATEST-OverteIOSClient.json
+          python3 - "$manifest" > build-ios/runtime-artifact/LATEST-OverteIOSClient.txt <<'PY'
+          import json, pathlib, sys
+          payload = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          artifact = payload.get('artifact', '')
+          if pathlib.Path(artifact).name != artifact or not artifact:
+              raise SystemExit('unsafe artifact name in candidate manifest')
+          print(artifact)
+          PY
           sha="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sha256"])' "$manifest")"
           python3 ios/tools/verify-runtime-candidate.py build-ios/runtime-artifact \
             --mode simulator \
