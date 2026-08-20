@@ -727,7 +727,10 @@ while :; do
     fi
     record_process_state
     ready=0
-    if runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+navigation_requested'; then
+    if [[ "$capture_only" == 1 ]]; then
+        runtime_log_contains 'OVERTE_IOS_VULKAN_DRAW[[:space:]]+batch=Resample::run[[:space:]]+stage=draw_pass_complete' && \
+            runtime_log_contains 'OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1' && ready=1
+    elif runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+navigation_requested'; then
         if [[ "$scenario" == serverless ]]; then
             runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+serverless_import_committed' && \
             runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_tree_nonempty' && \
@@ -766,30 +769,32 @@ done
 # durable backend state transition and can race slightly ahead of the entity
 # handoff on a fast frame; requiring log-line order would then wait forever for
 # a marker that is intentionally emitted only once.
-output_deadline=$(( $(date +%s) + 10#$poll_timeout ))
-while :; do
-    if runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' && \
-            runtime_log_contains 'OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1'; then
-        if ((10#$stack_sample_delay > 0)) && ((!startup_stack_captured)); then
+if [[ "$capture_only" == 0 ]]; then
+    output_deadline=$(( $(date +%s) + 10#$poll_timeout ))
+    while :; do
+        if runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' && \
+                runtime_log_contains 'OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1'; then
+            if ((10#$stack_sample_delay > 0)) && ((!startup_stack_captured)); then
+                capture_startup_stack
+                startup_stack_captured=1
+            fi
+            break
+        fi
+        refresh_runtime_log_snapshot
+        fail_if_vulkan_fatal || exit 1
+        process_is_running || { echo "application process exited before world framebuffer output" >&2; exit 1; }
+        if ((10#$stack_sample_delay > 0)) && ((!startup_stack_captured)) && \
+                (( $(date +%s) >= sample_deadline )); then
             capture_startup_stack
             startup_stack_captured=1
         fi
-        break
-    fi
-    refresh_runtime_log_snapshot
-    fail_if_vulkan_fatal || exit 1
-    process_is_running || { echo "application process exited before world framebuffer output" >&2; exit 1; }
-    if ((10#$stack_sample_delay > 0)) && ((!startup_stack_captured)) && \
-            (( $(date +%s) >= sample_deadline )); then
-        capture_startup_stack
-        startup_stack_captured=1
-    fi
-    if (( $(date +%s) >= output_deadline )); then
-        echo "$scenario world framebuffer output timed out" >&2
-        exit 124
-    fi
-    sleep "$poll_interval"
-done
+        if (( $(date +%s) >= output_deadline )); then
+            echo "$scenario world framebuffer output timed out" >&2
+            exit 124
+        fi
+        sleep "$poll_interval"
+    done
+fi
 
 # Keep the log subscriber alive through the final presentation interval: a
 # fatal renderer error after output readiness must invalidate the screenshot.
