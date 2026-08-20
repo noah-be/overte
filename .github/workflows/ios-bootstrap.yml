@@ -161,6 +161,8 @@ jobs:
             build-ios/simulator/ios/Debug-iphonesimulator/OverteIOSBootstrap.app
 
       - name: Launch on iPhone and iPad simulators
+        env:
+          OVERTE_IOS_SIMULATOR_LAUNCH_TIMEOUT_SECONDS: 600
         run: |
           ios/ci/simulator-smoke.sh \
             build-ios/simulator/ios/Debug-iphonesimulator/OverteIOSBootstrap.app \

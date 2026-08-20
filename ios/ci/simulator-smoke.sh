@@ -11,12 +11,17 @@ app_path="${1:-}"
 bundle_id="${2:-org.overte.bootstrap.dev}"
 diagnostics_dir="${3:-}"
 grace_seconds="${OVERTE_IOS_SIMULATOR_GRACE_SECONDS:-5}"
+launch_timeout="${OVERTE_IOS_SIMULATOR_LAUNCH_TIMEOUT_SECONDS:-300}"
 [[ -d "$app_path" && "$app_path" == *.app ]] || {
     printf 'usage: %s APP_PATH [BUNDLE_ID] [DIAGNOSTICS_DIR]\n' "$0" >&2
     exit 2
 }
 [[ "$grace_seconds" =~ ^[0-9]+$ ]] || {
     echo "OVERTE_IOS_SIMULATOR_GRACE_SECONDS must contain seconds as digits" >&2
+    exit 2
+}
+[[ "$launch_timeout" =~ ^[1-9][0-9]*$ ]] && ((10#$launch_timeout <= 1200)) || {
+    echo "OVERTE_IOS_SIMULATOR_LAUNCH_TIMEOUT_SECONDS must be an integer from 1 through 1200" >&2
     exit 2
 }
 
@@ -101,7 +106,7 @@ for family in iphone ipad; do
     fi
     run_timed "wait for $family boot" 1500 xcrun simctl bootstatus "$active_udid" -b
     run_timed "install on $family" 90 xcrun simctl install "$active_udid" "$app_path"
-    launch_output="$(run_timed "launch on $family" 60 xcrun simctl launch "$active_udid" "$bundle_id")"
+    launch_output="$(run_timed "launch on $family" "$launch_timeout" xcrun simctl launch "$active_udid" "$bundle_id")"
     [[ "$launch_output" == *":"* ]] || {
         echo "unexpected launch result for $family: $launch_output" >&2
         exit 1

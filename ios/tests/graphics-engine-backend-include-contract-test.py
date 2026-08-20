@@ -26,5 +26,8 @@ require("gpu::Context::init<gpu::vk::VKBackend>();" in SOURCE,
         "Vulkan initialization must remain available")
 require(SOURCE.count("primaryWidget->makeCurrent();") == 2,
         "GraphicsEngine context-current lifecycle changed unexpectedly")
+require("#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)" in HEADER and
+        "std::atomic<bool> _programsCompiled { true };" in HEADER,
+        "iOS can again remain trapped on the startup shader splash")
 
 print("GraphicsEngine backend includes valid: unused Offscreen GL removed; GL/VK selection preserved")

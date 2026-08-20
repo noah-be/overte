@@ -245,13 +245,16 @@ protected:
      * Splash screen texture. Shown as a skybox before the shaders load and compile.
      */
     NetworkTexturePointer _texture;
-#ifndef Q_OS_ANDROID
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
     /**
      * Changes to true when the shaders are loaded and compiled.
      * Used to show the splash screen skybox.
      */
     std::atomic<bool> _programsCompiled { false };
 #else
+    // MoltenVK can spend several minutes compiling the desktop startup set.
+    // Do not keep iOS on the splash framebuffer while that cache warms; the
+    // required pipelines are still synchronized by initializeGPU().
     std::atomic<bool> _programsCompiled { true };
 #endif
 
