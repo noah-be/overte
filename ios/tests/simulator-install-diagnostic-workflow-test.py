@@ -103,7 +103,9 @@ assert re.search(
     r"\(\(ready\)\) && break",
     SMOKE,
 )
-assert 'OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS: "6"' in runtime
+assert 'OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS: "0"' in runtime
+assert 'OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS: "6"' not in runtime
+assert "OVERTE_IOS_WORLD_MVK_SYNCHRONOUS_QUEUE_SUBMITS" not in runtime
 assert 'export OVERTE_IOS_WORLD_SYMBOL_BUNDLE="$symbol_bundle"' not in runtime
 assert "Capture preserved candidate SIGSEGV with LLDB" in runtime
 assert "interface-world-simulator-lldb.sh" in runtime
