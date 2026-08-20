@@ -30,6 +30,12 @@ for fragment in ("_texcoordTransform", "transformedTexCoord"):
         raise SystemExit(f"tone mapping lost uniform texcoord transform: {fragment}")
 if "evalSubregionTexcoordTransformCoefficients" not in TONE_TASK:
     raise SystemExit("tone mapping must preserve viewport subregion coordinates")
+for fragment in (
+    'probe == "tone-solid"',
+    "batch.clearColorFramebuffer(gpu::Framebuffer::BUFFER_COLOR0, glm::vec4(1.0f, 0.0f, 1.0f, 1.0f))",
+):
+    if fragment not in TONE_TASK:
+        raise SystemExit(f"tone-solid must bypass shader state with a direct clear: {fragment}")
 
 start = SOURCE.index("void VulkanDisplayPlugin::present(")
 end = SOURCE.index("void VulkanDisplayPlugin::queueIOSFramebufferResize", start)

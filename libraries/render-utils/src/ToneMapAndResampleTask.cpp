@@ -111,6 +111,16 @@ void ToneMapAndResample::run(const RenderContextPointer& renderContext, const In
         batch.enableStereo(false);
         batch.setFramebuffer(destinationFramebuffer);
 
+#if defined(Q_OS_IOS)
+        const auto probe = qEnvironmentVariable("OVERTE_IOS_PRESENT_PROBE");
+        // Bypass shaders, descriptors, and uniforms entirely. If this clear is
+        // not visible, the fault is after the Resample render target.
+        if (probe == "tone-solid") {
+            batch.clearColorFramebuffer(gpu::Framebuffer::BUFFER_COLOR0, glm::vec4(1.0f, 0.0f, 1.0f, 1.0f));
+            return;
+        }
+#endif
+
         // This fullscreen pass synthesizes its quad from gl_VertexID. Vulkan
         // backends retain input state between batches, so explicitly discard a
         // preceding scene mesh format before creating the tone-mapping PSO.
@@ -127,11 +137,8 @@ void ToneMapAndResample::run(const RenderContextPointer& renderContext, const In
 #if defined(Q_OS_IOS)
         // Runtime-selectable stages let one simulator binary distinguish
         // rasterization, interpolation, sampling, and tone-curve failures.
-        const auto probe = qEnvironmentVariable("OVERTE_IOS_PRESENT_PROBE");
         float probeStage { 0.0f };
-        if (probe == "tone-solid") {
-            probeStage = 1.0f;
-        } else if (probe == "tone-uv") {
+        if (probe == "tone-uv") {
             probeStage = 2.0f;
         } else if (probe == "tone-sample") {
             probeStage = 3.0f;
