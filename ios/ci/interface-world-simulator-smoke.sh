@@ -761,11 +761,8 @@ done
 output_deadline=$(( $(date +%s) + 10#$poll_timeout ))
 while :; do
     refresh_runtime_log_snapshot
-    if awk '
-        /OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff/ { handoff = 1 }
-        /OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1/ { output = 1 }
-        END { exit !(handoff && output) }
-    ' "$log_snapshot"; then
+    if runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' && \
+            runtime_log_contains 'OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1'; then
         if ((10#$stack_sample_delay > 0)) && ((!startup_stack_captured)); then
             capture_startup_stack
             startup_stack_captured=1
