@@ -115,6 +115,8 @@ jobs:
           app="$(find build-ios/runtime-candidate -type d -name Overte.app -prune -print)"
           dsym="$(find build-ios/runtime-symbols -type d -name Overte.app.dSYM -prune -print)"
           [[ -d "$app" && -d "$dsym" ]]
+          app="$GITHUB_WORKSPACE/$app"
+          dsym="$GITHUB_WORKSPACE/$dsym"
           echo "app=$app" >> "$GITHUB_OUTPUT"
           echo "dsym=$dsym" >> "$GITHUB_OUTPUT"
           echo "manifest=$manifest" >> "$GITHUB_OUTPUT"
