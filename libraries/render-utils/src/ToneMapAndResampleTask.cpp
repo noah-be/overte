@@ -124,6 +124,20 @@ void ToneMapAndResample::run(const RenderContextPointer& renderContext, const In
 
         _parametersBuffer.edit<Parameters>()._texcoordTransform =
             gpu::Framebuffer::evalSubregionTexcoordTransformCoefficients(srcBufferSize, args->_viewport);
+#if defined(Q_OS_IOS)
+        // Runtime-selectable stages let one simulator binary distinguish
+        // rasterization, interpolation, sampling, and tone-curve failures.
+        const auto probe = qEnvironmentVariable("OVERTE_IOS_PRESENT_PROBE");
+        float probeStage { 0.0f };
+        if (probe == "tone-solid") {
+            probeStage = 1.0f;
+        } else if (probe == "tone-uv") {
+            probeStage = 2.0f;
+        } else if (probe == "tone-sample") {
+            probeStage = 3.0f;
+        }
+        _parametersBuffer.edit<Parameters>()._toneMapping.z = probeStage;
+#endif
         batch.setUniformBuffer(render_utils::slot::buffer::ToneMappingParams, _parametersBuffer);
         batch.setResourceTexture(render_utils::slot::texture::ToneMappingColor, lightingBuffer);
         batch.draw(gpu::TRIANGLE_STRIP, 4);

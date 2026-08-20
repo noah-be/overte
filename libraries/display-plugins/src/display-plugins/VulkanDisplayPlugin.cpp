@@ -961,10 +961,12 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                 presentProbe = "composite";
             }
             const bool solidGreenProbe = presentProbe == "swapchain-green";
+            const bool toneStageProbe = presentProbe == "tone-solid" ||
+                presentProbe == "tone-uv" || presentProbe == "tone-sample";
             auto outputTexture = vkBackend->_outputTexture;
             gpu::vk::VKTexture* sampledTexture = nullptr;
 #if defined(Q_OS_IOS)
-            if (presentProbe == "resample") {
+            if (presentProbe == "resample" || toneStageProbe) {
                 outputTexture = vkBackend->_resampleOutputTexture;
             } else if (presentProbe == "composite") {
                 outputTexture = vkBackend->_compositeHUDOutputTexture;

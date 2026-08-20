@@ -76,7 +76,7 @@ jobs:
           fi
           probe="$REQUESTED_PRESENT_PROBE"
           case "$probe" in
-            ''|swapchain-green|tone-input|frame|resample|composite) ;;
+            ''|swapchain-green|tone-input|tone-solid|tone-uv|tone-sample|frame|resample|composite) ;;
             *) echo "unsupported presentation probe: $probe" >&2; exit 64 ;;
           esac
           [[ "$run_id" =~ ^[1-9][0-9]*$ ]]

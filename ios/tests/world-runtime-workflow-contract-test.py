@@ -48,7 +48,7 @@ for token in (
     "interface-world-simulator-smoke.sh",
     "validate-world-evidence-set.py",
     "OVERTE_IOS_PRESENT_PROBE: ${{ steps.request.outputs.probe }}",
-    "''|swapchain-green|tone-input|frame|resample|composite",
+    "''|swapchain-green|tone-input|tone-solid|tone-uv|tone-sample|frame|resample|composite",
 ):
     assert token in RUNTIME_ONLY, f"runtime-only candidate contract missing: {token}"
 assert "ref: apple-ios" in RUNTIME_ONLY

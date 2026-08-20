@@ -93,7 +93,7 @@ if "resetRenderPass();" not in finish_present:
 if "compositeLayers();" in present or "setPresentOutputFramebuffer" in present:
     raise SystemExit("iOS present must use the renderer's final CompositeHUD output directly")
 
-for probe in ("swapchain-green", "tone-input", "frame", "resample", "composite"):
+for probe in ("swapchain-green", "tone-input", "tone-solid", "tone-uv", "tone-sample", "frame", "resample", "composite"):
     if f'"{probe}"' not in present:
         raise SystemExit(f"missing reusable iOS presentation boundary probe: {probe}")
 for fragment in (
