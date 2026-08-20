@@ -1,6 +1,14 @@
 name: iOS world candidate runtime
 
 on:
+  push:
+    branches:
+      - apple-ios
+    paths:
+      - '.github/ios-world-runtime-candidate.json'
+      - '.github/workflows/ios-world-candidate-runtime.yml'
+      - 'ios/ci/interface-world-simulator-smoke.sh'
+      - 'ios/tools/validate-world-*.py'
   workflow_dispatch:
     inputs:
       candidate_run_id:
@@ -31,14 +39,34 @@ jobs:
     env:
       OVERTE_IOS_WORLD_DIAGNOSTICS_DIR: ${{ github.workspace }}/build-ios/world-raw-diagnostics
     steps:
-      - name: Validate requested candidate identity
+      - name: Resolve and validate requested candidate identity
+        id: request
         shell: bash
         run: |
           set -euo pipefail
-          [[ '${{ inputs.candidate_run_id }}' =~ ^[1-9][0-9]*$ ]]
-          [[ '${{ inputs.candidate_revision }}' =~ ^[0-9a-f]{40}$ ]]
-          [[ '${{ inputs.candidate_artifact }}' == \
-            "overte-ios-world-candidate-v2-${{ inputs.candidate_revision }}-${{ inputs.candidate_run_id }}" ]]
+          if [[ '${{ github.event_name }}' == workflow_dispatch ]]; then
+            run_id='${{ inputs.candidate_run_id }}'
+            revision='${{ inputs.candidate_revision }}'
+            artifact='${{ inputs.candidate_artifact }}'
+          else
+            readarray -t candidate < <(python3 - <<'PY'
+          import json, pathlib
+          data = json.loads(pathlib.Path('.github/ios-world-runtime-candidate.json').read_text())
+          print(data.get('runId', ''))
+          print(data.get('revision', ''))
+          print(data.get('artifact', ''))
+          PY
+            )
+            run_id="${candidate[0]:-}"
+            revision="${candidate[1]:-}"
+            artifact="${candidate[2]:-}"
+          fi
+          [[ "$run_id" =~ ^[1-9][0-9]*$ ]]
+          [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$artifact" == "overte-ios-world-candidate-v2-${revision}-${run_id}" ]]
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+          echo "artifact=$artifact" >> "$GITHUB_OUTPUT"
 
       - name: Check out current runtime harness
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
@@ -49,11 +77,11 @@ jobs:
       - name: Download verified simulator candidate
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: ${{ inputs.candidate_artifact }}
+          name: ${{ steps.request.outputs.artifact }}
           path: build-ios/runtime-artifact
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
-          run-id: ${{ inputs.candidate_run_id }}
+          run-id: ${{ steps.request.outputs.run_id }}
 
       - name: Verify and unpack exact candidate
         id: candidate
@@ -70,7 +98,7 @@ jobs:
           sha="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sha256"])' "$manifest")"
           python3 ios/tools/verify-runtime-candidate.py build-ios/runtime-artifact \
             --mode simulator \
-            --expected-source-revision '${{ inputs.candidate_revision }}' \
+            --expected-source-revision '${{ steps.request.outputs.revision }}' \
             --expected-sha256 "$sha"
           mkdir -p build-ios/runtime-candidate build-ios/runtime-symbols
           ditto -x -k "$archive" build-ios/runtime-candidate
@@ -136,7 +164,7 @@ jobs:
           done
           python3 ios/tools/validate-world-evidence-set.py "$evidence" \
             --candidate-manifest '${{ steps.candidate.outputs.manifest }}' \
-            --source-revision '${{ inputs.candidate_revision }}' \
+            --source-revision '${{ steps.request.outputs.revision }}' \
             --candidate-sha256 '${{ steps.candidate.outputs.sha }}' \
             --output build-ios/world-evidence-set.json
 
