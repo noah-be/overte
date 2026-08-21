@@ -3,7 +3,17 @@
 
 // Preserve the production startup scripts that --defaultScriptsOverride would
 // otherwise replace. The diagnostic changes only the camera mode.
+Settings.setValue(
+    "iosCameraDiagnostic",
+    "OVERTE_IOS_CAMERA_DIAGNOSTIC stage=script-start"
+);
+console.warn("OVERTE_IOS_CAMERA_DIAGNOSTIC stage=script-start");
 Script.include("/~//defaultScripts.js");
+Settings.setValue(
+    "iosCameraDiagnostic",
+    "OVERTE_IOS_CAMERA_DIAGNOSTIC stage=defaults-loaded"
+);
+console.warn("OVERTE_IOS_CAMERA_DIAGNOSTIC stage=defaults-loaded");
 
 (function () {
     "use strict";
@@ -14,7 +24,9 @@ Script.include("/~//defaultScripts.js");
         Camera.mode = "first person look at";
         attempts += 1;
         if (!reported && Camera.mode === "first person look at") {
-            print("OVERTE_IOS_CAMERA_DIAGNOSTIC mode=" + Camera.mode + " attempts=" + attempts);
+            var marker = "OVERTE_IOS_CAMERA_DIAGNOSTIC mode=" + Camera.mode + " attempts=" + attempts;
+            Settings.setValue("iosCameraDiagnostic", marker);
+            console.warn(marker);
             reported = true;
         }
         // The run has a much shorter hard deadline; this only bounds the

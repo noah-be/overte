@@ -193,6 +193,8 @@ readonly device_list="$temp_root/devices.json"
 readonly raw_log="$temp_root/process.log"
 readonly log_snapshot="$temp_root/process-snapshot.log"
 readonly marker_log="$temp_root/runtime-markers.log"
+readonly camera_state_log="$temp_root/camera-diagnostic-state.log"
+readonly camera_file_log="$temp_root/camera-diagnostic-file.log"
 readonly app_stdout="$temp_root/application.stdout"
 readonly app_stderr="$temp_root/application.stderr"
 readonly runtime_log="$temp_root/runtime.log"
@@ -230,6 +232,8 @@ fi
 : > "$raw_log"
 : > "$log_snapshot"
 : > "$marker_log"
+: > "$camera_state_log"
+: > "$camera_file_log"
 : > "$app_stdout"
 : > "$app_stderr"
 : > "$process_state_log"
@@ -368,12 +372,15 @@ preserve_failure_application_log() {
         cat "$marker_log" 2>/dev/null || true
         grep -Eh 'OVERTE_IOS_(WORLD_DIAGNOSTIC|ENTITY_TRACE|VULKAN_FATAL|VULKAN_DEBUG|VULKAN_PIPELINE_CONTEXT|VULKAN_PIPELINE_CREATE|VULKAN_PRESENT)' \
             "$log_snapshot" "$raw_log" "$app_stdout" "$app_stderr" 2>/dev/null | tail -c 131072 || true
-        for source in "$log_snapshot" "$raw_log" "$app_stdout" "$app_stderr"; do
+        for source in "$log_snapshot" "$raw_log" "$app_stdout" "$app_stderr" \
+                "$camera_state_log" "$camera_file_log"; do
             case "$source" in
                 "$log_snapshot") label="bounded unified-log snapshot" ;;
                 "$raw_log") label="unified lifecycle log" ;;
                 "$app_stdout") label="application stdout" ;;
-                *) label="application stderr" ;;
+                "$app_stderr") label="application stderr" ;;
+                "$camera_state_log") label="camera preference state" ;;
+                *) label="filtered application camera log" ;;
             esac
             size="$(wc -c < "$source" | tr -d '[:space:]')"
             printf '=== %s bytes=%s ===\n' "$label" "$size"
@@ -670,7 +677,8 @@ capture_crash_reports() {
 
 runtime_log_contains() {
     local pattern="$1"
-    grep -Eq "$pattern" "$marker_log" "$log_snapshot" "$raw_log" "$app_stdout" "$app_stderr"
+    grep -Eq "$pattern" "$marker_log" "$camera_state_log" "$camera_file_log" \
+        "$log_snapshot" "$raw_log" "$app_stdout" "$app_stderr"
 }
 
 world_progress_summary() {
@@ -755,13 +763,38 @@ retain_acceptance_markers() {
     # Gates can be visible first in the continuously streamed log but absent
     # from a later rolling `log show` snapshot. Store a canonical, timestamp-
     # free copy from every capture source before the raw sources are discarded.
-    for source in "$raw_log" "$app_stdout" "$app_stderr" "$log_snapshot"; do
+    for source in "$raw_log" "$app_stdout" "$app_stderr" "$log_snapshot" \
+            "$camera_state_log" "$camera_file_log"; do
         [[ -s "$source" ]] || continue
         sed -nE 's/^.*(OVERTE_IOS_((WORLD|ENTITY)_GATE|CAMERA_DIAGNOSTIC)[[:space:]]+.*)$/\1/p' \
             "$source" >> "$marker_log"
     done
     awk '!seen[$0]++' "$marker_log" > "$marker_log.next"
     mv "$marker_log.next" "$marker_log"
+}
+
+refresh_camera_diagnostic_state() {
+    [[ "$camera_diagnostic" == first-person && -n "$active_udid" ]] || return 0
+    local candidate="$temp_root/camera-diagnostic-state.next" status=0
+    "$timeout_runner" 4 xcrun simctl spawn "$active_udid" defaults read \
+        "$bundle_id" iosCameraDiagnostic > "$candidate" 2>/dev/null || status=$?
+    if ((status == 0)) && grep -Eq '^OVERTE_IOS_CAMERA_DIAGNOSTIC[[:space:]]' "$candidate"; then
+        mv "$candidate" "$camera_state_log"
+    else
+        rm -f "$candidate"
+    fi
+}
+
+refresh_camera_file_log() {
+    [[ "$camera_diagnostic" == first-person && -n "$data_container" ]] || return 0
+    local source candidate="$temp_root/camera-diagnostic-file.next"
+    source="$(find "$data_container/Library" -maxdepth 8 -type f \
+        -name 'overte-log.txt' -print -quit 2>/dev/null || true)"
+    [[ -n "$source" ]] || return 0
+    grep -Eai 'OVERTE_IOS_CAMERA_DIAGNOSTIC|ios-camera-first-person|defaultScriptsOverride' \
+        "$source" > "$candidate" 2>/dev/null || true
+    tail -c 131072 "$candidate" > "$camera_file_log"
+    rm -f "$candidate"
 }
 
 refresh_runtime_log_snapshot() {
@@ -895,8 +928,9 @@ finish() {
     if ((boot_requested)) && [[ -n "$active_udid" ]]; then
         run_bounded "simulator cleanup" 60 xcrun simctl shutdown "$active_udid" >/dev/null || true
     fi
-    rm -f "$raw_log" "$log_snapshot" "$marker_log" "$app_stdout" "$app_stderr" "$runtime_log" "$process_state_log" \
-        "$command_stderr" "$log_stream_stderr" "$device_list" "$temp_root/startup.sample"
+    rm -f "$raw_log" "$log_snapshot" "$marker_log" "$camera_state_log" "$camera_file_log" \
+        "$app_stdout" "$app_stderr" "$runtime_log" "$process_state_log" "$command_stderr" \
+        "$log_stream_stderr" "$device_list" "$temp_root/startup.sample"
     rm -rf "$temp_root"
     exit "$status"
 }
@@ -1075,6 +1109,8 @@ while :; do
     # simulator's persisted log for this exact process so accepted gates become
     # visible promptly, while retaining the continuous stream for crash tails.
     refresh_runtime_log_snapshot
+    refresh_camera_diagnostic_state
+    refresh_camera_file_log
     current_progress_size="$(wc -c < "$marker_log" | tr -d '[:space:]')"
     if ((current_progress_size > progress_size)); then
         progress_size=$current_progress_size

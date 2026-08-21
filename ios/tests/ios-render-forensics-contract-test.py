@@ -82,6 +82,9 @@ for token in (
 
 assert 'Camera.mode = "first person look at"' in camera_script
 assert 'Script.include("/~//defaultScripts.js")' in camera_script
+assert 'Settings.setValue("iosCameraDiagnostic", marker)' in camera_script
+assert "refresh_camera_diagnostic_state" in smoke
+assert "refresh_camera_file_log" in smoke
 assert "firstRun" not in camera_script
 
 gate_ready = smoke.index('live_log "phase=runtime-gates-ready')

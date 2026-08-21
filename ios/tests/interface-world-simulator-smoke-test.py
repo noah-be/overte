@@ -280,6 +280,9 @@ elif [ "$1 $2" = "simctl spawn" ] && [ "$4 $5" = "log stream" ]; then
     fi
     trap 'exit 0' TERM INT
     while :; do sleep 1; done
+elif [ "$1 $2" = "simctl spawn" ] && [ "$4 $5" = "defaults read" ]; then
+    [ -n "${FAKE_CAMERA_STATE:-}" ] || exit 1
+    printf '%s\n' "$FAKE_CAMERA_STATE"
 elif [ "$1 $2" = "simctl spawn" ] && [ "$4 $5" = "log show" ]; then
     case " $* " in
         *" --last 2m --style compact --info --debug --predicate processIdentifier == "*)
@@ -379,9 +382,8 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
             camera_probe = family == "ipad" and scenario == "serverless"
             if camera_probe:
                 case_environment["OVERTE_IOS_WORLD_RENDER_DIAGNOSTIC"] = "camera-first-person"
-                case_environment["FAKE_PROCESS_LOG"] += (
-                    "Overte OVERTE_IOS_CAMERA_DIAGNOSTIC "
-                    "mode=first person look at attempts=1\n"
+                case_environment["FAKE_CAMERA_STATE"] = (
+                    "OVERTE_IOS_CAMERA_DIAGNOSTIC mode=first person look at attempts=1"
                 )
             expect_lldb_snapshot = family == "iphone" and scenario == "serverless"
             if expect_lldb_snapshot:
@@ -443,6 +445,11 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
                 assert "--defaultScriptsOverride file://" in launch[0], launch
                 assert launch[0].endswith("/tmp/overte-ios-camera-first-person.js"), launch
                 assert any(" phase=camera-diagnostic-ready mode=first-person" in line for line in progress)
+                assert any(
+                    f"simctl spawn {udid} defaults read org.overte.interface.dev iosCameraDiagnostic"
+                    in command
+                    for command in commands
+                ), commands
             else:
                 assert "--defaultScriptsOverride" not in launch[0], launch
             streams = [line for line in commands if line.startswith(f"simctl spawn {udid} log stream ")]
