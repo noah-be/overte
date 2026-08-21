@@ -191,6 +191,10 @@ elif [ "$1 $2" = "simctl launch" ]; then
         printf '%s\n' "Metal argument buffers must be disabled for simulator runtime evidence" >&2
         exit 71
     }
+    [ "${SIMCTL_CHILD_OVERTE_IOS_RENDER_DIAGNOSTIC:-}" = trace ] || {
+        printf '%s\n' "missing reusable entity rendering trace mode" >&2
+        exit 76
+    }
     if [ "${FAKE_EXPECT_MVK_ASYNC_SUBMIT:-0}" = 1 ]; then
         [ "${SIMCTL_CHILD_MVK_CONFIG_SYNCHRONOUS_QUEUE_SUBMITS:-}" = 0 ] || {
             printf '%s\n' "missing requested asynchronous MoltenVK submits" >&2
@@ -437,6 +441,7 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
             assert 'process == "Overte"' not in streams[0], streams
             assert "OVERTE_IOS_WORLD_GATE" in streams[0], streams
             assert "OVERTE_IOS_ENTITY_GATE" in streams[0], streams
+            assert "OVERTE_IOS_ENTITY_TRACE" in streams[0], streams
             assert "OVERTE_IOS_VULKAN_DRAW" not in streams[0], streams
             assert "--level debug" in streams[0], streams
             assert "OVERTE_IOS_VULKAN_FATAL" in streams[0], streams

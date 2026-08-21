@@ -24,6 +24,7 @@
 #include "VKShared.h"
 #include <vk/Pipelines.h>
 #include "VKTexture.h"
+#include <shared/IOSRuntimeLogging.h>
 
 using namespace gpu;
 using namespace gpu::vk;
@@ -516,6 +517,11 @@ std::string Cache::Pipeline::getKey(const vks::Context& context, Cache& cache) c
     key += "_" + formatKey;
     key += "_" + bytesToAscii(primitiveTopology);
     key += "_" + getStridesKey();
+#if defined(Q_OS_IOS)
+    if (iosRuntimeRenderDiagnosticsEnabled()) {
+        key += "_ios-diagnostic:" + iosRuntimeRenderDiagnosticMode().toStdString();
+    }
+#endif
     return key;
 }
 
@@ -634,6 +640,11 @@ const Cache::PipelineLayout& Cache::getPipeline(const vks::Context& context) {
     {
         auto& rasterizationState = builder.rasterizationState;
         rasterizationState.cullMode = (VkCullModeFlagBits)stateData.cullMode;
+#if defined(Q_OS_IOS)
+        if (iosRuntimeRenderDiagnosticMode() == "gpu-cull-off") {
+            rasterizationState.cullMode = VK_CULL_MODE_NONE;
+        }
+#endif
         rasterizationState.depthBiasEnable = (stateData.depthBias != 0.0f && stateData.depthBiasSlopeScale != 0.0f);
         // VKTODO: How come the depth bias values behave differently on OpenGL vs Vulkan?
         // Facing a Text entity face-on that's directly touching another wall will sometimes
@@ -689,6 +700,13 @@ const Cache::PipelineLayout& Cache::getPipeline(const vks::Context& context) {
         ds.front.writeMask = stateData.stencilActivation.frontWriteMask;
         ds.back = getStencilOp(stateData.stencilTestBack);
         ds.back.writeMask = stateData.stencilActivation.backWriteMask;
+#if defined(Q_OS_IOS)
+        if (iosRuntimeRenderDiagnosticMode() == "depth-off") {
+            ds.depthTestEnable = VK_FALSE;
+            ds.depthWriteEnable = VK_FALSE;
+            ds.stencilTestEnable = VK_FALSE;
+        }
+#endif
     }
 
     // Vertex input
@@ -862,6 +880,8 @@ const Cache::PipelineLayout& Cache::getPipeline(const vks::Context& context) {
                 << " fragment_bytes=" << fragmentSpirv.size()
                 << " fragment_fingerprint=" << getVulkanShaderDiagnosticFingerprint(fragmentSpirv)
                 << " topology=" << static_cast<uint32_t>(builder.inputAssemblyState.topology)
+                << " diagnostic_mode=" << iosRuntimeRenderDiagnosticMode().constData()
+                << " cull_mode=" << builder.rasterizationState.cullMode
                 << " primitive_restart=" << builder.inputAssemblyState.primitiveRestartEnable
                 << " color_attachments=" << builder.colorBlendState.blendAttachmentStates.size()
                 << " depth_test=" << builder.depthStencilState.depthTestEnable

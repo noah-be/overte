@@ -1093,6 +1093,11 @@ bool Application::prepareServerlessDomainContents(const QUrl& domainURL, const Q
         importedEntities.push_back(entityID.toString());
     }
     setExpectedIOSRuntimeEntities(importedEntities);
+    if (iosRuntimeRenderDiagnosticsEnabled()) {
+        logIOSRuntimeMarker("OVERTE_IOS_ENTITY_TRACE stage=import",
+                            "mode=", iosRuntimeRenderDiagnosticMode(),
+                            "mapped_entities=", importedEntities.size());
+    }
 #else
     tmpTree->sendEntities(_entityEditSender.get(), getEntities()->getTree(), "domain", 0, 0, 0);
 #endif
@@ -4155,6 +4160,33 @@ void Application::update(float deltaTime) {
     {
         QMutexLocker viewLocker(&_viewMutex);
         _myCamera.loadViewFrustum(_viewFrustum);
+
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+        if (iosRuntimeRenderDiagnosticsEnabled()) {
+            const auto evidence = iosRuntimeEntityEvidenceSnapshot();
+            if (evidence.committed) {
+                static int diagnosticFrame { 0 };
+                ++diagnosticFrame;
+                if (diagnosticFrame == 1 || diagnosticFrame == 60 || diagnosticFrame == 180) {
+                    const auto& cameraPosition = _viewFrustum.getPosition();
+                    const auto& cameraDirection = _viewFrustum.getDirection();
+                    const auto avatarPosition = getMyAvatar()->getWorldPosition();
+                    logIOSRuntimeMarker("OVERTE_IOS_ENTITY_TRACE stage=camera",
+                                        "sample=", diagnosticFrame,
+                                        "mode=", iosRuntimeRenderDiagnosticMode(),
+                                        "expected=", evidence.expected,
+                                        "renderables=", evidence.renderables,
+                                        "scene=", evidence.scene,
+                                        "drawn=", evidence.drawn,
+                                        "camera=", cameraPosition.x, cameraPosition.y, cameraPosition.z,
+                                        "direction=", cameraDirection.x, cameraDirection.y, cameraDirection.z,
+                                        "avatar=", avatarPosition.x, avatarPosition.y, avatarPosition.z,
+                                        "near=", _viewFrustum.getNearClip(),
+                                        "far=", _viewFrustum.getFarClip());
+                }
+            }
+        }
+#endif
 
         _conicalViews.clear();
         _conicalViews.push_back(_viewFrustum);

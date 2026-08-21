@@ -44,6 +44,8 @@ for token in (
     "runtime_case:",
     "stack_sample_seconds:",
     "synchronous_queue_submits:",
+    "render_diagnostic:",
+    "gpu_trace:",
     "capture_sigsegv:",
     ".github/ios-world-runtime-candidate.json",
     '[[ "$artifact" == "overte-ios-world-candidate-v2-${revision}-${run_id}" ]]',
@@ -56,6 +58,8 @@ for token in (
     "OVERTE_IOS_WORLD_CAPTURE_ONLY=1",
     "OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS: ${{ steps.request.outputs.stack_sample_seconds }}",
     "OVERTE_IOS_WORLD_MVK_SYNCHRONOUS_QUEUE_SUBMITS: ${{ steps.request.outputs.synchronous_queue_submits }}",
+    "OVERTE_IOS_WORLD_RENDER_DIAGNOSTIC: ${{ steps.request.outputs.render_diagnostic }}",
+    "OVERTE_IOS_WORLD_GPU_TRACE: ${{ steps.request.outputs.gpu_trace }}",
     "interface-world-simulator-lldb.sh",
     "OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER=1",
     'elif [[ "$RUNTIME_CASE" == all ]]',
@@ -66,6 +70,9 @@ for token in (
 assert "ref: apple-ios" in RUNTIME_ONLY
 assert "package-client" not in RUNTIME_ONLY and "cmake --build" not in RUNTIME_ONLY
 assert "SIMCTL_CHILD_OVERTE_IOS_PRESENT_PROBE=$OVERTE_IOS_PRESENT_PROBE" in SMOKE
+assert "SIMCTL_CHILD_OVERTE_IOS_RENDER_DIAGNOSTIC=$render_diagnostic" in SMOKE
+assert "SIMCTL_CHILD_MVK_CONFIG_AUTO_GPU_CAPTURE_SCOPE=3" in SMOKE
+assert r'eventMessage CONTAINS \"OVERTE_IOS_ENTITY_TRACE\"' in SMOKE
 assert 'capture_only="${OVERTE_IOS_WORLD_CAPTURE_ONLY:-0}"' in SMOKE
 assert "batch=Resample::run[[:space:]]+stage=draw_pass_complete" in SMOKE
 assert "${{ inputs.present_probe || 'default' }}" in RUNTIME_ONLY

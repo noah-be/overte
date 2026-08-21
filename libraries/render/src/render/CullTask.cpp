@@ -16,6 +16,7 @@
 
 #include <PerfStat.h>
 #include <OctreeUtils.h>
+#include <shared/IOSRuntimeLogging.h>
 
 using namespace render;
 
@@ -176,6 +177,12 @@ void CullSpatialSelection::run(const RenderContextPointer& renderContext,
     outItems.clear();
     outItems.reserve(inSelection.numItems());
 
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+    const bool diagnosticSkipCulling =
+        iosRuntimeRenderDiagnosticMode() == "cpu-cull-off";
+#else
+    constexpr bool diagnosticSkipCulling = false;
+#endif
     const auto srcFilter = inputs.get1();
     if (!srcFilter.selectsNothing()) {
         auto filter = render::ItemFilter::Builder(srcFilter).withoutSubMetaCulled().build();
@@ -184,7 +191,7 @@ void CullSpatialSelection::run(const RenderContextPointer& renderContext,
         // filter individually against the _filter
         // visibility cull if partially selected ( octree cell contianing it was partial)
         // distance cull if was a subcell item ( octree cell is way bigger than the item bound itself, so now need to test per item)
-        if (_skipCulling || _overrideSkipCulling) {
+        if (_skipCulling || _overrideSkipCulling || diagnosticSkipCulling) {
             // inside & fit items: filter only, culling is disabled
             {
                 PerformanceTimer perfTimer("insideFitItems");
@@ -316,6 +323,26 @@ void CullSpatialSelection::run(const RenderContextPointer& renderContext,
     }
 
     details._rendered += (int)outItems.size();
+
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+    if (iosRuntimeRenderDiagnosticsEnabled()) {
+        const auto evidence = iosRuntimeEntityEvidenceSnapshot();
+        static int diagnosticSamples { 0 };
+        if (evidence.committed && evidence.renderables > 0 && diagnosticSamples < 24) {
+            ++diagnosticSamples;
+            logIOSRuntimeMarker("OVERTE_IOS_ENTITY_TRACE stage=cpu_cull",
+                                "sample=", diagnosticSamples,
+                                "mode=", iosRuntimeRenderDiagnosticMode(),
+                                "detail=", static_cast<int>(_detailType),
+                                "input=", static_cast<qulonglong>(inSelection.numItems()),
+                                "output=", static_cast<qulonglong>(outItems.size()),
+                                "skip=", diagnosticSkipCulling,
+                                "expected=", evidence.expected,
+                                "scene=", evidence.scene,
+                                "drawn=", evidence.drawn);
+        }
+    }
+#endif
 
     // Restore frustum if using the frozen one:
     if (_freezeFrustum) {

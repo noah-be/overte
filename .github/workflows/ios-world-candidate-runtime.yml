@@ -49,6 +49,24 @@ on:
         required: false
         default: ''
         type: string
+      render_diagnostic:
+        description: Reusable no-rebuild entity rendering diagnostic mode
+        required: false
+        default: trace
+        type: choice
+        options:
+          - trace
+          - cpu-cull-off
+          - gpu-cull-off
+          - depth-off
+          - full-scissor
+          - reset-format
+          - off
+      gpu_trace:
+        description: Capture one Metal GPU frame after the world gates
+        required: false
+        default: false
+        type: boolean
       capture_sigsegv:
         description: Run the targeted case under LLDB and preserve the first SIGSEGV
         required: false
@@ -83,6 +101,8 @@ jobs:
           REQUESTED_RUNTIME_CASE: ${{ inputs.runtime_case || 'all' }}
           REQUESTED_STACK_SAMPLE_SECONDS: ${{ inputs.stack_sample_seconds || '0' }}
           REQUESTED_SYNCHRONOUS_QUEUE_SUBMITS: ${{ inputs.synchronous_queue_submits || '' }}
+          REQUESTED_RENDER_DIAGNOSTIC: ${{ inputs.render_diagnostic || 'trace' }}
+          REQUESTED_GPU_TRACE: ${{ inputs.gpu_trace && '1' || '0' }}
           REQUESTED_CAPTURE_SIGSEGV: ${{ inputs.capture_sigsegv && '1' || '0' }}
         shell: bash
         run: |
@@ -119,7 +139,20 @@ jobs:
           [[ -z "$REQUESTED_SYNCHRONOUS_QUEUE_SUBMITS" || \
              "$REQUESTED_SYNCHRONOUS_QUEUE_SUBMITS" == 0 || \
              "$REQUESTED_SYNCHRONOUS_QUEUE_SUBMITS" == 1 ]]
+          case "$REQUESTED_RENDER_DIAGNOSTIC" in
+            off|trace|cpu-cull-off|gpu-cull-off|depth-off|full-scissor|reset-format) ;;
+            *) echo "unsupported render diagnostic: $REQUESTED_RENDER_DIAGNOSTIC" >&2; exit 64 ;;
+          esac
+          [[ "$REQUESTED_GPU_TRACE" == 0 || "$REQUESTED_GPU_TRACE" == 1 ]]
           [[ "$REQUESTED_CAPTURE_SIGSEGV" == 0 || "$REQUESTED_CAPTURE_SIGSEGV" == 1 ]]
+          if [[ "$REQUESTED_GPU_TRACE" == 1 && "$runtime_case" == all ]]; then
+            echo "Metal GPU capture requires one targeted runtime case" >&2
+            exit 64
+          fi
+          if [[ "$REQUESTED_GPU_TRACE" == 1 && "$REQUESTED_CAPTURE_SIGSEGV" == 1 ]]; then
+            echo "Metal GPU capture and LLDB capture must run separately" >&2
+            exit 64
+          fi
           if [[ "$REQUESTED_CAPTURE_SIGSEGV" == 1 && "$runtime_case" != iphone-online ]]; then
             echo "SIGSEGV capture is restricted to the targeted iPhone online case" >&2
             exit 64
@@ -138,6 +171,8 @@ jobs:
           echo "runtime_case=$runtime_case" >> "$GITHUB_OUTPUT"
           echo "stack_sample_seconds=$REQUESTED_STACK_SAMPLE_SECONDS" >> "$GITHUB_OUTPUT"
           echo "synchronous_queue_submits=$REQUESTED_SYNCHRONOUS_QUEUE_SUBMITS" >> "$GITHUB_OUTPUT"
+          echo "render_diagnostic=$REQUESTED_RENDER_DIAGNOSTIC" >> "$GITHUB_OUTPUT"
+          echo "gpu_trace=$REQUESTED_GPU_TRACE" >> "$GITHUB_OUTPUT"
           echo "capture_sigsegv=$REQUESTED_CAPTURE_SIGSEGV" >> "$GITHUB_OUTPUT"
 
       - name: Download verified simulator candidate
@@ -232,6 +267,8 @@ jobs:
           RUNTIME_CASE: ${{ steps.request.outputs.runtime_case }}
           OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS: ${{ steps.request.outputs.stack_sample_seconds }}
           OVERTE_IOS_WORLD_MVK_SYNCHRONOUS_QUEUE_SUBMITS: ${{ steps.request.outputs.synchronous_queue_submits }}
+          OVERTE_IOS_WORLD_RENDER_DIAGNOSTIC: ${{ steps.request.outputs.render_diagnostic }}
+          OVERTE_IOS_WORLD_GPU_TRACE: ${{ steps.request.outputs.gpu_trace }}
           CAPTURE_SIGSEGV: ${{ steps.request.outputs.capture_sigsegv }}
         shell: bash
         run: |

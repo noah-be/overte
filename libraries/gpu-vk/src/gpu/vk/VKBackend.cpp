@@ -10,10 +10,13 @@
 //
 #include "VKBackend.h"
 
+#include <algorithm>
 #include <mutex>
 #include <queue>
 #include <list>
 #include <functional>
+#include <cmath>
+#include <sstream>
 #include <glm/gtc/type_ptr.hpp>
 
 #include <QtCore/QProcessEnvironment>
@@ -39,6 +42,7 @@
 #include "VKPipelineCache.h"
 #include <render-utils/ShaderConstants.h>
 #include "shared/FileUtils.h"
+#include <shared/IOSRuntimeLogging.h>
 
 #define FORCE_STRICT_TEXTURE 1
 
@@ -297,6 +301,12 @@ void VKBackend::render(const Batch& batch) {
 
     // Reset jitter
     _transform._projectionJitter._isEnabled = false;
+
+#if defined(Q_OS_IOS)
+    if (iosRuntimeRenderDiagnosticMode() == "reset-format") {
+        _cache.pipelineState.setVertexFormat(nullptr);
+    }
+#endif
 
     // VKTODO: for debugging, don't remove yet.
     /*if (batch.getName() == "SubsurfaceScattering::diffuseProfileGPU") {
@@ -1489,6 +1499,14 @@ void VKBackend::renderPassDraw(const Batch& batch) {
             scissor.offset.y = _currentScissorRect.y;
             scissor.extent.width = _currentScissorRect.z;
             scissor.extent.height = _currentScissorRect.w;
+#if defined(Q_OS_IOS)
+            if (iosRuntimeRenderDiagnosticMode() == "full-scissor") {
+                scissor.offset.x = std::max(0, _transform._viewport.x);
+                scissor.offset.y = std::max(0, _transform._viewport.y);
+                scissor.extent.width = static_cast<uint32_t>(std::max(1, _transform._viewport.z));
+                scissor.extent.height = static_cast<uint32_t>(std::max(1, _transform._viewport.w));
+            }
+#endif
             vkCmdSetScissor(_currentCommandBuffer, 0, 1, &scissor);
 
             // VKTODO: Descriptor sets and associated buffers should be set up during pre-pass
@@ -1505,6 +1523,81 @@ void VKBackend::renderPassDraw(const Batch& batch) {
                 updateVkDescriptorWriteSetsStorage(layout, currentStorageSets, currentStorageBufferInfos, hasPipelineChanged);
             }
 #if defined(Q_OS_IOS)
+            if (iosRuntimeRenderDiagnosticsEnabled()) {
+                const auto evidence = iosRuntimeEntityEvidenceSnapshot();
+                const bool targetWorldBatch = batch.getName() == "DrawForward::run" ||
+                    batch.getName() == "RenderForward::Draw::run" ||
+                    batch.getName() == "DrawStateSortDeferred::run";
+                static int diagnosticWorldDraws { 0 };
+                static int diagnosticContextDraws { 0 };
+                const bool sampleAvailable = targetWorldBatch
+                    ? diagnosticWorldDraws < 32
+                    : diagnosticContextDraws < 4;
+                if (evidence.committed && evidence.drawn > 0 && sampleAvailable) {
+                    const int diagnosticDraw = targetWorldBatch
+                        ? ++diagnosticWorldDraws
+                        : ++diagnosticContextDraws;
+                    size_t boundInputBuffers { 0 };
+                    for (const auto& buffer : _input._buffers) {
+                        if (gpu::acquire(buffer)) {
+                            ++boundInputBuffers;
+                        }
+                    }
+
+                    const auto& drawInfos = batch.getDrawCallInfoBuffer();
+                    int objectIndex { -1 };
+                    glm::vec4 worldOrigin { 0.0f, 0.0f, 0.0f, 1.0f };
+                    glm::vec4 clipOrigin { 0.0f };
+                    bool clipFinite { false };
+                    if (!drawInfos.empty()) {
+                        const size_t infoIndex = batch._currentNamedCall.empty()
+                            ? std::min(static_cast<size_t>(_currentDraw), drawInfos.size() - 1)
+                            : 0;
+                        objectIndex = static_cast<int>(drawInfos[infoIndex].index);
+                        if (objectIndex >= 0 && static_cast<size_t>(objectIndex) < batch._objects.size()) {
+                            worldOrigin = batch._objects[objectIndex]._model[3];
+                            worldOrigin.w = 1.0f;
+                            auto eyeOrigin = worldOrigin;
+                            eyeOrigin -= glm::vec4(glm::vec3(_transform._camera._viewInverse[3]), 0.0f);
+                            clipOrigin = _transform._camera._projectionViewUntranslated * eyeOrigin;
+                            clipFinite = std::isfinite(clipOrigin.x) && std::isfinite(clipOrigin.y) &&
+                                std::isfinite(clipOrigin.z) && std::isfinite(clipOrigin.w);
+                        }
+                    }
+
+                    const auto& vertexSource =
+                        _cache.pipelineState.pipeline->getProgram()->getShaders()[0]->getSource();
+                    const auto& fragmentSource =
+                        _cache.pipelineState.pipeline->getProgram()->getShaders()[1]->getSource();
+                    std::ostringstream details;
+                    details << "OVERTE_IOS_ENTITY_TRACE stage=gpu_draw"
+                            << " target=" << targetWorldBatch
+                            << " sample=" << diagnosticDraw
+                            << " mode=" << iosRuntimeRenderDiagnosticMode().constData()
+                            << " batch=" << batch.getName()
+                            << " named_call=" << (batch._currentNamedCall.empty() ? "-" : batch._currentNamedCall)
+                            << " command=" << _commandIndex
+                            << " draw=" << _currentDraw
+                            << " vertex=" << vertexSource.name
+                            << " fragment=" << fragmentSource.name
+                            << " format=" << (gpu::acquire(_cache.pipelineState.format) ? "present" : "absent")
+                            << " bound_inputs=" << boundInputBuffers
+                            << " draw_infos=" << drawInfos.size()
+                            << " objects=" << batch._objects.size()
+                            << " object_index=" << objectIndex
+                            << " world_origin=" << worldOrigin.x << "," << worldOrigin.y << "," << worldOrigin.z
+                            << " clip_origin=" << clipOrigin.x << "," << clipOrigin.y << "," << clipOrigin.z << "," << clipOrigin.w
+                            << " clip_finite=" << clipFinite
+                            << " viewport=" << viewport.x << "," << viewport.y << "," << viewport.width << "," << viewport.height
+                            << " scissor=" << scissor.offset.x << "," << scissor.offset.y << ","
+                            << scissor.extent.width << "," << scissor.extent.height
+                            << " uniforms=" << layout.uniformBindingMap.size()
+                            << " textures=" << layout.textureBindingMap.size()
+                            << " storage=" << layout.storageBindingMap.size();
+                    const auto message = details.str();
+                    os_log_info(OS_LOG_DEFAULT, "%{public}s", message.c_str());
+                }
+            }
             if (traceFullscreenBatch) {
                 os_log_info(OS_LOG_DEFAULT,
                             "OVERTE_IOS_VULKAN_DRAW batch=%{public}s command=%zu stage=descriptors_ready",

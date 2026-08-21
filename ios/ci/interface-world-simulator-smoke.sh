@@ -46,6 +46,8 @@ crash_report_wait="${OVERTE_IOS_WORLD_CRASH_REPORT_WAIT_SECONDS:-20}"
 diagnostics_dir="${OVERTE_IOS_WORLD_DIAGNOSTICS_DIR:-}"
 mvk_trace_vulkan_calls="${OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS:-}"
 mvk_synchronous_queue_submits="${OVERTE_IOS_WORLD_MVK_SYNCHRONOUS_QUEUE_SUBMITS:-}"
+render_diagnostic="${OVERTE_IOS_WORLD_RENDER_DIAGNOSTIC:-trace}"
+gpu_trace="${OVERTE_IOS_WORLD_GPU_TRACE:-0}"
 capture_only="${OVERTE_IOS_WORLD_CAPTURE_ONLY:-0}"
 
 [[ -d "$app_path" && "$app_path" == *.app ]] || {
@@ -95,6 +97,17 @@ capture_only="${OVERTE_IOS_WORLD_CAPTURE_ONLY:-0}"
 }
 [[ -z "$mvk_synchronous_queue_submits" || "$mvk_synchronous_queue_submits" == 0 || "$mvk_synchronous_queue_submits" == 1 ]] || {
     echo "OVERTE_IOS_WORLD_MVK_SYNCHRONOUS_QUEUE_SUBMITS must be 0 or 1" >&2
+    exit 2
+}
+case "$render_diagnostic" in
+    off|trace|cpu-cull-off|gpu-cull-off|depth-off|full-scissor|reset-format) ;;
+    *)
+        echo "OVERTE_IOS_WORLD_RENDER_DIAGNOSTIC is unsupported" >&2
+        exit 2
+        ;;
+esac
+[[ "$gpu_trace" == 0 || "$gpu_trace" == 1 ]] || {
+    echo "OVERTE_IOS_WORLD_GPU_TRACE must be 0 or 1" >&2
     exit 2
 }
 [[ "$capture_only" == 0 || "$capture_only" == 1 ]] || {
@@ -180,6 +193,7 @@ readonly overte_crash_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-o
 readonly simmetalhost_crash_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-simmetalhost-crash-report.log}"
 readonly host_metal_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-host-metal.log}"
 readonly mvk_dump_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}-moltenvk-shaders}"
+readonly gpu_trace_diagnostics="${diagnostics_dir:+$diagnostics_dir/${stem}.gputrace}"
 
 if [[ -n "$diagnostics_dir" ]]; then
     mkdir -p "$diagnostics_dir"
@@ -188,6 +202,10 @@ if [[ -n "$diagnostics_dir" ]]; then
         "$simmetalhost_crash_diagnostics" "$host_metal_diagnostics"
     [[ ! -e "$mvk_dump_diagnostics" ]] || {
         echo "MoltenVK diagnostic destination already exists" >&2
+        exit 2
+    }
+    [[ ! -e "$gpu_trace_diagnostics" ]] || {
+        echo "Metal GPU trace diagnostic destination already exists" >&2
         exit 2
     }
 fi
@@ -209,6 +227,8 @@ app_suspended=0
 log_stream_pid=""
 launch_pid=""
 mvk_dump_root=""
+gpu_trace_file=""
+gpu_capture_triggered=0
 
 run_bounded_with_grace() {
     local label="$1" seconds="$2" command_timeout_grace="$3"
@@ -331,7 +351,7 @@ preserve_failure_application_log() {
     {
         printf '%s\n' '=== retained acceptance markers ==='
         cat "$marker_log" 2>/dev/null || true
-        grep -Eh 'OVERTE_IOS_(WORLD_DIAGNOSTIC|VULKAN_FATAL|VULKAN_DEBUG|VULKAN_PIPELINE_CONTEXT|VULKAN_PIPELINE_CREATE|VULKAN_PRESENT)' \
+        grep -Eh 'OVERTE_IOS_(WORLD_DIAGNOSTIC|ENTITY_TRACE|VULKAN_FATAL|VULKAN_DEBUG|VULKAN_PIPELINE_CONTEXT|VULKAN_PIPELINE_CREATE|VULKAN_PRESENT)' \
             "$log_snapshot" "$raw_log" "$app_stdout" "$app_stderr" 2>/dev/null | tail -c 131072 || true
         for source in "$log_snapshot" "$raw_log" "$app_stdout" "$app_stderr"; do
             case "$source" in
@@ -539,6 +559,52 @@ preserve_moltenvk_shader_dump() {
     fi
 }
 
+preserve_gpu_trace() {
+    [[ -n "$gpu_trace_diagnostics" && -n "$gpu_trace_file" && -e "$gpu_trace_file" ]] || return 0
+    local size_kib
+    size_kib="$(du -sk "$gpu_trace_file" | awk '{print $1}')"
+    [[ "$size_kib" =~ ^[0-9]+$ ]] && ((size_kib <= 524288)) || {
+        echo "Metal GPU trace exceeds the 512 MiB diagnostic bound" >&2
+        return 0
+    }
+    ditto --norsrc "$gpu_trace_file" "$gpu_trace_diagnostics"
+}
+
+trigger_gpu_trace() {
+    ((gpu_trace)) || return 0
+    local pipe_path
+    pipe_path="$(run_bounded "Metal capture pipe discovery" 20 \
+        xcrun simctl spawn "$active_udid" /usr/bin/find /tmp -maxdepth 1 -type p \
+            -name 'MoltenVKCapturePipe-*' -print | tail -n 1)"
+    [[ "$pipe_path" =~ ^/tmp/MoltenVKCapturePipe-[A-Za-z0-9]+$ ]] || {
+        echo "MoltenVK on-demand capture pipe is unavailable" >&2
+        return 1
+    }
+    run_bounded "Metal frame capture trigger" 20 \
+        xcrun simctl spawn "$active_udid" /bin/sh -c 'printf x > "$1"' overte-capture "$pipe_path"
+    gpu_capture_triggered=1
+    live_log "phase=gpu-trace-triggered"
+}
+
+collect_gpu_trace() {
+    ((gpu_trace && gpu_capture_triggered)) || return 0
+    local deadline=$(( $(date +%s) + 30 )) size_kib
+    while [[ ! -e "$gpu_trace_file" ]]; do
+        if (( $(date +%s) >= deadline )); then
+            echo "Metal GPU trace was not finalized" >&2
+            return 1
+        fi
+        sleep 1
+    done
+    size_kib="$(du -sk "$gpu_trace_file" | awk '{print $1}')"
+    [[ "$size_kib" =~ ^[0-9]+$ ]] && ((size_kib <= 524288)) || {
+        echo "Metal GPU trace exceeds the 512 MiB evidence bound" >&2
+        return 1
+    }
+    ditto --norsrc "$gpu_trace_file" "$output_dir/${stem}.gputrace"
+    live_log "phase=gpu-trace-collected"
+}
+
 capture_crash_reports() {
     [[ -n "$overte_crash_diagnostics" && -n "$simmetalhost_crash_diagnostics" && -f "$launch_marker" ]] || return 0
     local wait_seconds="${1:-0}" root report deadline
@@ -681,7 +747,7 @@ refresh_runtime_log_snapshot() {
     # is due, rather than freezing the gate loop for the former 308 seconds.
     "$timeout_runner" 4 xcrun simctl spawn "$active_udid" log show \
         --last 2m --style compact --info --debug \
-        --predicate "processIdentifier == $launch_pid AND (eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PRESENT\")" \
+        --predicate "processIdentifier == $launch_pid AND (eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_TRACE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PRESENT\")" \
         > "$snapshot_candidate" 2>/dev/null || status=$?
     if ((status == 0)); then
         mv "$snapshot_candidate" "$log_snapshot"
@@ -790,6 +856,7 @@ finish() {
         capture_postmortem_log || true
         capture_host_metal_log || true
         preserve_moltenvk_shader_dump || true
+        preserve_gpu_trace || true
     fi
     if ((app_launched)) && [[ -n "$active_udid" ]]; then
         run_bounded "application cleanup" 30 xcrun simctl terminate \
@@ -870,6 +937,10 @@ mvk_dump_root="$data_container/tmp/overte-mvk-shaders-$stem"
 [[ ! -e "$mvk_dump_root" ]] || { echo "MoltenVK dump path already exists" >&2; exit 1; }
 mkdir "$mvk_dump_root"
 chmod 0700 "$mvk_dump_root"
+if ((gpu_trace)); then
+    gpu_trace_file="$data_container/tmp/overte-$stem.gputrace"
+    [[ ! -e "$gpu_trace_file" ]] || { echo "Metal GPU trace path already exists" >&2; exit 1; }
+fi
 
 # The world evidence is a rendering/navigation test, not a permission-dialog
 # test. Grant the simulator-only microphone privacy permission before launch so the
@@ -894,7 +965,7 @@ live_log "phase=application-installed"
 log_stream_timeout=$((10#$launch_timeout + (2 * 10#$poll_timeout) + 60))
 "$timeout_runner" "$log_stream_timeout" xcrun simctl spawn "$active_udid" log stream \
     --style compact --level debug \
-    --predicate "(eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PRESENT\")" \
+    --predicate "(eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_TRACE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PRESENT\")" \
     > "$raw_log" 2> "$log_stream_stderr" &
 log_stream_pid=$!
 # Give CoreSimulator's log subscriber a bounded head start. Merely spawning the
@@ -912,7 +983,16 @@ launch_environment=(
     "SIMCTL_CHILD_MVK_CONFIG_LOG_LEVEL=4"
     "SIMCTL_CHILD_MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=0"
     "SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR=$mvk_dump_root"
+    "SIMCTL_CHILD_OVERTE_IOS_RENDER_DIAGNOSTIC=$render_diagnostic"
 )
+if ((gpu_trace)); then
+    launch_environment+=(
+        "SIMCTL_CHILD_MTL_CAPTURE_ENABLED=1"
+        "SIMCTL_CHILD_METAL_CAPTURE_ENABLED=1"
+        "SIMCTL_CHILD_MVK_CONFIG_AUTO_GPU_CAPTURE_SCOPE=3"
+        "SIMCTL_CHILD_MVK_CONFIG_AUTO_GPU_CAPTURE_OUTPUT_FILE=$gpu_trace_file"
+    )
+fi
 if [[ -n "${OVERTE_IOS_PRESENT_PROBE:-}" ]]; then
     launch_environment+=("SIMCTL_CHILD_OVERTE_IOS_PRESENT_PROBE=$OVERTE_IOS_PRESENT_PROBE")
 fi
@@ -1045,6 +1125,7 @@ while :; do
     sleep_until_next_live_update
 done
 live_log "phase=runtime-gates-ready observed=$(world_progress_summary)"
+trigger_gpu_trace
 
 # The entity handoff precedes the first composited framebuffer.  On the
 # simulator that gap is material, so a fixed short sleep can capture the
@@ -1138,6 +1219,7 @@ if [[ "$capture_only" == 0 ]]; then
     python3 "$world_validator" "${validator_arguments[@]}"
 fi
 resume_application_after_screenshot
+collect_gpu_trace
 fail_if_vulkan_fatal || exit 1
 process_is_running || { echo "application process exited before world validation completed" >&2; exit 1; }
 kill -0 "$log_stream_pid" 2>/dev/null || {

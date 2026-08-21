@@ -52,6 +52,17 @@ struct IOSRuntimeEntityEvidenceState {
     bool emitted { false };
     QSet<QString> expectedEntities;
     QSet<QString> renderedEntities;
+    QSet<QString> sceneEntities;
+    QSet<QString> drawnEntities;
+};
+
+struct IOSRuntimeEntityEvidenceSnapshot {
+    bool armed { false };
+    bool committed { false };
+    int expected { 0 };
+    int renderables { 0 };
+    int scene { 0 };
+    int drawn { 0 };
 };
 
 inline IOSRuntimeEntityEvidenceState& iosRuntimeEntityEvidenceState() {
@@ -67,6 +78,31 @@ inline void beginIOSRuntimeEntityEvidence() {
     state.emitted = false;
     state.expectedEntities.clear();
     state.renderedEntities.clear();
+    state.sceneEntities.clear();
+    state.drawnEntities.clear();
+}
+
+inline const QByteArray& iosRuntimeRenderDiagnosticMode() {
+    static const QByteArray mode = qgetenv("OVERTE_IOS_RENDER_DIAGNOSTIC").trimmed().toLower();
+    return mode;
+}
+
+inline bool iosRuntimeRenderDiagnosticsEnabled() {
+    const auto& mode = iosRuntimeRenderDiagnosticMode();
+    return !mode.isEmpty() && mode != "off";
+}
+
+inline IOSRuntimeEntityEvidenceSnapshot iosRuntimeEntityEvidenceSnapshot() {
+    auto& state = iosRuntimeEntityEvidenceState();
+    std::lock_guard<std::mutex> lock(state.mutex);
+    return {
+        state.armed,
+        state.committed,
+        static_cast<int>(state.expectedEntities.size()),
+        static_cast<int>(state.renderedEntities.size()),
+        static_cast<int>(state.sceneEntities.size()),
+        static_cast<int>(state.drawnEntities.size())
+    };
 }
 
 inline QString takeIOSRuntimeEntityEvidenceIfReady(IOSRuntimeEntityEvidenceState& state) {
@@ -113,6 +149,26 @@ inline QString recordIOSRuntimeRenderableEntity(const QString& entity) {
     }
     state.renderedEntities.insert(entity);
     return takeIOSRuntimeEntityEvidenceIfReady(state);
+}
+
+inline bool recordIOSRuntimeSceneEntity(const QString& entity) {
+    auto& state = iosRuntimeEntityEvidenceState();
+    std::lock_guard<std::mutex> lock(state.mutex);
+    if (!state.armed || state.sceneEntities.contains(entity)) {
+        return false;
+    }
+    state.sceneEntities.insert(entity);
+    return true;
+}
+
+inline bool recordIOSRuntimeDrawnEntity(const QString& entity) {
+    auto& state = iosRuntimeEntityEvidenceState();
+    std::lock_guard<std::mutex> lock(state.mutex);
+    if (!state.armed || state.drawnEntities.contains(entity)) {
+        return false;
+    }
+    state.drawnEntities.insert(entity);
+    return true;
 }
 
 inline QString commitIOSRuntimeEntityEvidence() {
