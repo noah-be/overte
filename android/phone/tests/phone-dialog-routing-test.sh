@@ -94,9 +94,9 @@ require "$body" 'loginDialog\.login\(' \
     'metaverse credentials use AccountManager through LoginDialog'
 require "$body" 'androidClickAction:' \
     'phone login actions use the Android-compatible button callback'
-require "$tablet_home" 'Math[.]max\(loginTextMetrics[.]width,[[:space:]]*touchConfiguration[.]minimumTouchTarget\)' \
+require "$tablet_home" 'Math[.]max\(loginTextMetrics[.]width,[[:space:]]*presentation[.]minimumTouchTarget\)' \
     'tablet login entry exposes a touch-sized width'
-require "$tablet_home" 'Math[.]max\(loginTextMetrics[.]height,[[:space:]]*touchConfiguration[.]minimumTouchTarget\)' \
+require "$tablet_home" 'Math[.]max\(loginTextMetrics[.]height,[[:space:]]*presentation[.]minimumTouchTarget\)' \
     'tablet login entry exposes a touch-sized height'
 if awk '
         /text:[[:space:]]*qsTr\("Cancel"\)/ { in_cancel = 1 }

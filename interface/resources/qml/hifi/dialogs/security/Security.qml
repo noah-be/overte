@@ -20,7 +20,11 @@ import "qrc:////qml//controls" as HifiControls
 
 Rectangle {
     HifiStylesUit.HifiConstants { id: hifi; }
-    SecurityTouchConfiguration { id: touchConfiguration }
+    SecurityTouchConfiguration {
+        id: touchConfiguration
+        availableWidth: root.width
+        availableHeight: root.height
+    }
 
     id: root;
     color: hifi.colors.baseGray;
@@ -43,7 +47,7 @@ Rectangle {
         id: usernameText;
         text: Account.username === "Unknown user" ? "Please Log In" : Account.username;
         // Text size
-        size: 24;
+        size: Math.round(24 * touchConfiguration.textScale);
         // Style
         color: hifi.colors.white;
         elide: Text.ElideRight;
@@ -67,7 +71,7 @@ Rectangle {
         HifiStylesUit.RalewayRegular {
             text: "Please log in for security settings."
             // Text size
-            size: 24;
+            size: Math.round(24 * touchConfiguration.textScale);
             // Style
             color: hifi.colors.white;
             // Anchors
@@ -85,7 +89,7 @@ Rectangle {
             colorScheme: hifi.colorSchemes.dark;
             anchors.centerIn: parent;
             width: 140;
-            height: 40;
+            height: touchConfiguration.buttonHeight;
             text: "Log In";
             onClicked: {
                 DialogsManager.showLoginDialog();
@@ -121,7 +125,7 @@ Rectangle {
                     anchors.fill: parent;
                     anchors.leftMargin: 20;
                     color: hifi.colors.white;
-                    size: 18;
+                    size: Math.round(18 * touchConfiguration.textScale);
                 }
             }
 
@@ -157,37 +161,47 @@ Rectangle {
 
                 HifiStylesUit.RalewaySemiBold {
                     id: autoLogoutHelp;
+                    function showHelp() {
+                        lightboxPopup.titleText = "Keep Me Logged In";
+                        lightboxPopup.bodyText = "If you choose to stay logged in, ensure that this is a trusted device.\n\n" +
+                            "Also, remember that logging out may not disconnect you from a domain.";
+                        lightboxPopup.button1text = "OK";
+                        lightboxPopup.button1method = function() {
+                            lightboxPopup.visible = false;
+                        }
+                        lightboxPopup.visible = true;
+                    }
                     text: '[?]';
                     // Anchors
                     anchors.verticalCenter: parent.verticalCenter;
                     anchors.right: autoLogoutCheckbox.right;
-                    width: 30;
-                    height: 30;
+                    width: Math.max(30, touchConfiguration.adaptiveMinimumControlHeight);
+                    height: Math.max(30, touchConfiguration.adaptiveMinimumControlHeight);
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: qsTr("Keep me logged in help")
+                    Accessible.description: qsTr("Explain persistent login")
+                    Accessible.onPressAction: showHelp()
                     // Text size
-                    size: 18;
+                    size: Math.round(18 * touchConfiguration.textScale);
                     // Style
                     color: hifi.colors.blueHighlight;
 
                     MouseArea {
                         anchors.fill: parent;
-                        hoverEnabled: true;
+                        Accessible.ignored: true
+                        hoverEnabled: touchConfiguration.hoverSupported;
                         onEntered: {
                             parent.color = hifi.colors.blueAccent;
                         }
                         onExited: {
                             parent.color = hifi.colors.blueHighlight;
                         }
-                        onClicked: {
-                            lightboxPopup.titleText = "Keep Me Logged In";
-                            lightboxPopup.bodyText = "If you choose to stay logged in, ensure that this is a trusted device.\n\n" +
-                                "Also, remember that logging out may not disconnect you from a domain.";
-                            lightboxPopup.button1text = "OK";
-                            lightboxPopup.button1method = function() {
-                                lightboxPopup.visible = false;
-                            }
-                            lightboxPopup.visible = true;
-                        }
+                        onClicked: autoLogoutHelp.showHelp()
                     }
+                    Keys.onReturnPressed: showHelp()
+                    Keys.onEnterPressed: showHelp()
+                    Keys.onSpacePressed: showHelp()
                 }
             }
         }
@@ -214,7 +228,7 @@ Rectangle {
                     anchors.fill: parent;
                     anchors.leftMargin: 20;
                     color: hifi.colors.white;
-                    size: 18;
+                    size: Math.round(18 * touchConfiguration.textScale);
                 }
             }
 
@@ -248,37 +262,47 @@ Rectangle {
 
                 HifiStylesUit.RalewaySemiBold {
                     id: kpiScriptHelp;
+                    function showHelp() {
+                        lightboxPopup.titleText = "Script Plugin Infrastructure";
+                        lightboxPopup.bodyText = "Toggles the activation of scripting plugins in the 'plugins/scripting' folder. \n\n"
+                          + "Created by:\n    humbletim@gmail.com\n    somnilibertas@gmail.com";
+                        lightboxPopup.button1text = "OK";
+                        lightboxPopup.button1method = function() {
+                            lightboxPopup.visible = false;
+                        }
+                        lightboxPopup.visible = true;
+                    }
                     text: '[?]';
                     // Anchors
                     anchors.verticalCenter: parent.verticalCenter;
                     anchors.left: kpiScriptCheckbox.right;
-                    width: 30;
-                    height: 30;
+                    width: Math.max(30, touchConfiguration.adaptiveMinimumControlHeight);
+                    height: Math.max(30, touchConfiguration.adaptiveMinimumControlHeight);
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: qsTr("Script plugins help")
+                    Accessible.description: qsTr("Explain custom script plugins")
+                    Accessible.onPressAction: showHelp()
                     // Text size
-                    size: 18;
+                    size: Math.round(18 * touchConfiguration.textScale);
                     // Style
                     color: hifi.colors.blueHighlight;
 
                     MouseArea {
                         anchors.fill: parent;
-                        hoverEnabled: true;
+                        Accessible.ignored: true
+                        hoverEnabled: touchConfiguration.hoverSupported;
                         onEntered: {
                             parent.color = hifi.colors.blueAccent;
                         }
                         onExited: {
                             parent.color = hifi.colors.blueHighlight;
                         }
-                        onClicked: {
-                            lightboxPopup.titleText = "Script Plugin Infrastructure";
-                            lightboxPopup.bodyText = "Toggles the activation of scripting plugins in the 'plugins/scripting' folder. \n\n"
-                              + "Created by:\n    humbletim@gmail.com\n    somnilibertas@gmail.com";
-                            lightboxPopup.button1text = "OK";
-                            lightboxPopup.button1method = function() {
-                                lightboxPopup.visible = false;
-                            }
-                            lightboxPopup.visible = true;
-                        }
+                        onClicked: kpiScriptHelp.showHelp()
                     }
+                    Keys.onReturnPressed: showHelp()
+                    Keys.onEnterPressed: showHelp()
+                    Keys.onSpacePressed: showHelp()
                 }
             }
         }

@@ -29,6 +29,9 @@ TabletHeader 1.0 TabletHeader.qml
 TextAction 1.0 TextAction.qml
 TextEdit 1.0 TextEdit.qml
 TextField 1.0 TextField.qml
+TouchUiMetrics 1.0 TouchUiMetrics.qml
+TouchUiProfile 1.0 TouchUiProfile.qml
+TouchUiProfileBase 1.0 TouchUiProfileBase.qml
 ToolTip 1.0 ToolTip.qml
 Tree 1.0 Tree.qml
 ProxyWebView 1.0 ProxyWebView.qml

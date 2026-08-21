@@ -23,7 +23,11 @@ Item {
     anchors.fill: parent
 
     HifiConstants { id: hifi }
-    TabletPreferencesLayout { id: preferencesLayout }
+    TabletPreferencesLayout {
+        id: preferencesLayout
+        availableWidth: dialog.width
+        availableHeight: dialog.height
+    }
     property var sections: []
     property var showCategories: []
     property var categoryProperties: ({})
