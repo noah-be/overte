@@ -605,12 +605,14 @@ jobs:
           # Default to the timing-preserving late attach, but permit an
           # explicit stop-at-launch capture when the crash outruns it.
           OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE: ${{ inputs.lldb_wait_for_debugger && '0' || '1' }}
-          # For a hang, attach only after the durable submit-entry marker. This
-          # freezes the exact boundary rather than an arbitrary startup phase.
-          OVERTE_IOS_LLDB_ATTACH_GATE: queue_submit_begin
+          # A state probe needs the entity handoff to finish before reading the
+          # camera. Crash capture keeps the earlier queue-submit boundary.
+          OVERTE_IOS_LLDB_ATTACH_GATE: ${{ inputs.lldb_interrupt_after_seconds != '0' && 'render_handoff' || 'queue_submit_begin' }}
           OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS: "0"
           OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER: ${{ inputs.lldb_wait_for_debugger && '1' || '0' }}
           OVERTE_IOS_LLDB_INTERRUPT_AFTER_SECONDS: ${{ inputs.lldb_interrupt_after_seconds }}
+          OVERTE_IOS_LLDB_STATE_PROBE: ${{ inputs.lldb_interrupt_after_seconds != '0' && '1' || '0' }}
+          OVERTE_IOS_LLDB_MVK_TRACE_VULKAN_CALLS: ${{ inputs.lldb_interrupt_after_seconds != '0' && '0' || '6' }}
         run: |
           set -euo pipefail
           symbol_bundle="${{ steps.candidate.outputs.symbol_bundle }}"
@@ -690,7 +692,7 @@ jobs:
           set -euo pipefail
           result="$RUNTIME_ROOT/upload-diagnostics/iphone-serverless-lldb-result.log"
           test -s "$result"
-          grep -Eq '^capture_status=(captured_sigsegv|captured_interrupt)$' "$result"
+          grep -Eq '^capture_status=(captured_sigsegv|captured_interrupt|captured_state)$' "$result"
           [[ "${{ steps.lldb.outcome }}" == failure ]]
           echo "LLDB captured the simulator failure stack; runtime acceptance remains failed" >&2
           exit 1

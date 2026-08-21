@@ -122,11 +122,14 @@ assert 'if: ${{ inputs.lldb_runtime_only }}' in runtime
 assert "OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE: ${{ inputs.lldb_wait_for_debugger && '0' || '1' }}" in runtime
 assert "OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER: ${{ inputs.lldb_wait_for_debugger && '1' || '0' }}" in runtime
 assert "OVERTE_IOS_LLDB_INTERRUPT_AFTER_SECONDS: ${{ inputs.lldb_interrupt_after_seconds }}" in runtime
+assert "OVERTE_IOS_LLDB_STATE_PROBE: ${{ inputs.lldb_interrupt_after_seconds != '0' && '1' || '0' }}" in runtime
+assert "OVERTE_IOS_LLDB_MVK_TRACE_VULKAN_CALLS: ${{ inputs.lldb_interrupt_after_seconds != '0' && '0' || '6' }}" in runtime
+assert "'render_handoff' || 'queue_submit_begin'" in runtime
 assert 'OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS: "0"' in runtime
 assert "symbol_bundle=$symbol_bundle" in runtime
 assert "the preserved candidate has no matching dSYM" in runtime
 assert "Require captured LLDB crash and keep runtime acceptance red" in runtime
-assert "captured_sigsegv|captured_interrupt" in runtime
+assert "captured_sigsegv|captured_interrupt|captured_state" in runtime
 assert "runtime acceptance remains failed" in runtime
 assert "symbolicate-simulator-crash.py" in runtime
 assert "*-overte-crash-report.log" in runtime and "*-symbolicated-crash.json" in runtime
@@ -159,9 +162,11 @@ for required in (
     "OVERTE_IOS_LLDB_WORLD_GATE_TIMEOUT_SECONDS",
     "OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER",
     "OVERTE_IOS_LLDB_INTERRUPT_AFTER_SECONDS",
+    "OVERTE_IOS_LLDB_STATE_PROBE",
+    "OVERTE_IOS_LLDB_MVK_TRACE_VULKAN_CALLS",
     "OVERTE_IOS_LLDB_STARTUP_TRACE",
     "SIMCTL_CHILD_MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=0",
-    "SIMCTL_CHILD_MVK_CONFIG_TRACE_VULKAN_CALLS=6",
+    'SIMCTL_CHILD_MVK_CONFIG_TRACE_VULKAN_CALLS="$mvk_trace_vulkan_calls"',
     "startup-trace.lldb",
     "OVERTE_LLDB_TRACE resume_entry",
     "OVERTE_LLDB_TRACE sandbox_entry",
@@ -174,6 +179,7 @@ for required in (
     "OVERTE_LLDB_CRASH_CAPTURE_COMPLETE",
     "capture_status=\"captured_sigsegv\"",
     "capture_status=\"captured_interrupt\"",
+    "capture_status=\"captured_state\"",
     "capture_status=\"traced_process_exit\"",
 ):
     assert required in LLDB, required

@@ -32,6 +32,8 @@ attach_after_world_gate="${OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE:-0}"
 attach_gate="${OVERTE_IOS_LLDB_ATTACH_GATE:-render_handoff}"
 world_gate_timeout="${OVERTE_IOS_LLDB_WORLD_GATE_TIMEOUT_SECONDS:-360}"
 interrupt_after="${OVERTE_IOS_LLDB_INTERRUPT_AFTER_SECONDS:-0}"
+state_probe="${OVERTE_IOS_LLDB_STATE_PROBE:-0}"
+mvk_trace_vulkan_calls="${OVERTE_IOS_LLDB_MVK_TRACE_VULKAN_CALLS:-6}"
 
 [[ -d "$app_path" && "$app_path" == *.app && -x "$app_path/Overte" ]] || {
     echo "usage: $0 APP_PATH DSYM_BUNDLE BUNDLE_ID iphone SOURCE_REVISION CANDIDATE_SHA256 OUTPUT_DIR" >&2
@@ -98,6 +100,18 @@ esac
     echo "OVERTE_IOS_LLDB_INTERRUPT_AFTER_SECONDS must be an integer from 0 through 300" >&2
     exit 2
 }
+[[ "$state_probe" =~ ^[01]$ ]] || {
+    echo "OVERTE_IOS_LLDB_STATE_PROBE must be 0 or 1" >&2
+    exit 2
+}
+[[ "$mvk_trace_vulkan_calls" =~ ^[0-6]$ ]] || {
+    echo "OVERTE_IOS_LLDB_MVK_TRACE_VULKAN_CALLS must be an integer from 0 through 6" >&2
+    exit 2
+}
+if ((state_probe && 10#$interrupt_after == 0)); then
+    echo "the LLDB state probe requires a positive interrupt delay" >&2
+    exit 2
+fi
 if ((wait_for_debugger && attach_after_world_gate)); then
     echo "wait-for-debugger cannot be combined with attach-after-world-gate" >&2
     exit 2
@@ -140,6 +154,7 @@ readonly command_stderr="$temp_root/command.stderr"
 readonly app_stdout="$temp_root/application.stdout"
 readonly app_stderr="$temp_root/application.stderr"
 readonly crash_commands="$temp_root/on-crash.lldb"
+readonly state_commands="$temp_root/world-state.lldb"
 readonly startup_commands="$temp_root/startup-trace.lldb"
 readonly world_gate_log="$temp_root/world-gate.log"
 readonly world_gate_stderr="$temp_root/world-gate.stderr"
@@ -228,6 +243,8 @@ finish() {
         printf 'attach_gate=%s\n' "$attach_gate"
         printf 'world_gate_trace=%s\n' "$world_gate_trace"
         printf 'interrupt_after_seconds=%s\n' "$interrupt_after"
+        printf 'state_probe=%s\n' "$state_probe"
+        printf 'mvk_trace_vulkan_calls=%s\n' "$mvk_trace_vulkan_calls"
         printf 'startup_trace=%s\n' "$startup_trace"
         printf 'lldb_status=%s\n' "$lldb_status"
         printf 'capture_status=%s\n' "$capture_status"
@@ -304,13 +321,18 @@ if ((attach_after_world_gate)); then
     }
 fi
 
-# Preserve the relevant unified-log timeline independently of LLDB. It remains
-# available when the process is frozen at the submit boundary.
+# Preserve the relevant unified-log timeline independently of LLDB. A compact
+# state probe excludes the per-frame draw breadcrumbs that otherwise displace
+# startup and navigation evidence from bounded diagnostics.
 : > "$runtime_log"
 : > "$runtime_log_stderr"
+runtime_log_predicate='process == "Overte" OR process == "SimMetalHost"'
+if ((state_probe)); then
+    runtime_log_predicate='(process == "Overte" AND NOT eventMessage CONTAINS "OVERTE_IOS_VULKAN_DRAW") OR process == "SimMetalHost"'
+fi
 "$timeout_runner" "$((10#$lldb_timeout + 30))" xcrun simctl spawn "$active_udid" \
     log stream --style syslog --level debug \
-    --predicate 'process == "Overte" OR process == "SimMetalHost"' \
+    --predicate "$runtime_log_predicate" \
     > "$runtime_log" 2> "$runtime_log_stderr" &
 runtime_log_pid=$!
 
@@ -326,7 +348,7 @@ launch_arguments+=(
 launch_output="$(run_bounded "application launch for LLDB" 60 env \
     SIMCTL_CHILD_MVK_CONFIG_LOG_LEVEL=4 \
     SIMCTL_CHILD_MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=0 \
-    SIMCTL_CHILD_MVK_CONFIG_TRACE_VULKAN_CALLS=6 \
+    SIMCTL_CHILD_MVK_CONFIG_TRACE_VULKAN_CALLS="$mvk_trace_vulkan_calls" \
     SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR="$mvk_dump_root" \
     "${launch_arguments[@]}")"
 [[ "$launch_output" == *":"* ]] || { echo "application launch returned no process identifier" >&2; exit 1; }
@@ -388,6 +410,33 @@ script print("OVERTE_LLDB_CRASH_CAPTURE_COMPLETE")
 LLDB
 chmod 0600 "$crash_commands"
 
+# The screenshot failure needs one causal value, not a hundred-second dump of
+# every register in every simulator thread.  On an explicit interrupt probe,
+# locate the Application update frame from debug info and read the camera and
+# active view-frustum positions without executing target-side C++ code.
+if ((state_probe)); then
+    printf 'target symbols add "%s"\n' "$symbol_bundle" > "$state_commands"
+    cat >> "$state_commands" <<'LLDB'
+process status
+script import lldb
+script process = lldb.debugger.GetSelectedTarget().GetProcess()
+script frames = [(thread, frame) for thread in process for frame in thread if (frame.GetFunctionName() or "").startswith("Application::update(")]
+script app = frames[0][1].FindVariable("this").Dereference() if frames else None
+script camera = app.GetChildMemberWithName("_myCamera") if app and app.IsValid() else None
+script camera_position = camera.GetChildMemberWithName("_position") if camera and camera.IsValid() else None
+script view = app.GetChildMemberWithName("_viewFrustum") if app and app.IsValid() else None
+script view_position = view.GetChildMemberWithName("_position") if view and view.IsValid() else None
+script component = lambda value, name: value.GetChildMemberWithName(name).GetValue() if value and value.IsValid() and value.GetChildMemberWithName(name).IsValid() else "unavailable"
+script mode = camera.GetChildMemberWithName("_mode").GetValue() if camera and camera.IsValid() and camera.GetChildMemberWithName("_mode").IsValid() else "unavailable"
+script print("OVERTE_LLDB_WORLD_STATE status=%s camera_x=%s camera_y=%s camera_z=%s view_x=%s view_y=%s view_z=%s camera_mode=%s" % ("observed" if camera_position and camera_position.IsValid() else "unavailable", component(camera_position, "x"), component(camera_position, "y"), component(camera_position, "z"), component(view_position, "x"), component(view_position, "y"), component(view_position, "z"), mode))
+script process.SetSelectedThread(frames[0][0]) if frames else None
+script frames[0][0].SetSelectedFrame(frames[0][1].GetFrameID()) if frames else None
+thread backtrace -c 48
+script print("OVERTE_LLDB_STATE_CAPTURE_COMPLETE")
+LLDB
+    chmod 0600 "$state_commands"
+fi
+
 # Startup tracing is useful when diagnosing an early controlled exit, but its
 # repeated breakpoints materially perturb thread scheduling.  Keep it opt-in
 # so the default post-import crash capture follows normal startup timing.
@@ -426,11 +475,15 @@ if ((startup_trace)); then
 fi
 lldb_arguments+=(--source-on-crash "$crash_commands")
 if ((10#$interrupt_after > 0)); then
+    interrupt_commands="$crash_commands"
+    if ((state_probe)); then
+        interrupt_commands="$state_commands"
+    fi
     lldb_arguments+=(
         -o "script import threading; process = lldb.debugger.GetSelectedTarget().GetProcess(); threading.Timer($interrupt_after, process.SendAsyncInterrupt).start()" \
         -o 'settings set target.process.stop-on-sharedlibrary-events false' \
         -o 'process continue' \
-        --source "$crash_commands" \
+        --source "$interrupt_commands" \
         -o 'script print("OVERTE_LLDB_INTERRUPT_CAPTURE_COMPLETE")'
     )
 else
@@ -475,6 +528,13 @@ if grep -Fq 'OVERTE_LLDB_CRASH_CAPTURE_COMPLETE' "$lldb_log" && \
     capture_status="captured_sigsegv"
     # A captured crash is diagnostic success but runtime failure.  Keep the
     # workflow red so it can never be mistaken for world acceptance evidence.
+    exit 1
+fi
+
+if ((state_probe)) && grep -Fxq 'OVERTE_LLDB_STATE_CAPTURE_COMPLETE' "$lldb_log" && \
+        grep -Eq 'OVERTE_LLDB_WORLD_STATE status=(observed|unavailable)' "$lldb_log" && \
+        grep -Eq 'frame #[0-9]+:' "$lldb_log"; then
+    capture_status="captured_state"
     exit 1
 fi
 

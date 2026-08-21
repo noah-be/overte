@@ -97,7 +97,7 @@ elif [ "$1 $2" = "simctl spawn" ] && [ "${4:-} ${5:-}" = "log stream" ]; then
 elif [ "$1 $2" = "simctl launch" ]; then
     [ "${SIMCTL_CHILD_MVK_CONFIG_LOG_LEVEL:-}" = 4 ]
     [ "${SIMCTL_CHILD_MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS:-}" = 0 ]
-    [ "${SIMCTL_CHILD_MVK_CONFIG_TRACE_VULKAN_CALLS:-}" = 6 ]
+    [ "${SIMCTL_CHILD_MVK_CONFIG_TRACE_VULKAN_CALLS:-}" = "${FAKE_EXPECT_MVK_TRACE:-6}" ]
     [ -n "${SIMCTL_CHILD_MVK_CONFIG_SHADER_DUMP_DIR:-}" ]
     case " $* " in
         *" --wait-for-debugger "*) observed_wait=1 ;;
@@ -133,6 +133,19 @@ elif [ "$1" = lldb ]; then
     if [ "${FAKE_LLDB_SLEEP:-0}" = 1 ]; then
         sleep 10
     fi
+    case " $* " in
+        *"world-state.lldb"*)
+            cat <<'EOF'
+Process 4242 stopped
+* thread #1, stop reason = signal SIGSTOP
+  frame #0: 0x0000000100004321 Overte`Application::update + 120
+OVERTE_LLDB_WORLD_STATE status=observed camera_x=1985.26 camera_y=1995.94 camera_z=1994.25 view_x=1985.26 view_y=1995.94 view_z=1994.25 camera_mode=1
+OVERTE_LLDB_STATE_CAPTURE_COMPLETE
+OVERTE_LLDB_INTERRUPT_CAPTURE_COMPLETE
+EOF
+            exit 0
+            ;;
+    esac
     if [ "${FAKE_LLDB_NORMAL_EXIT:-0}" = 1 ]; then
         cat <<'EOF'
 OVERTE_LLDB_TRACE resume_entry
@@ -287,5 +300,27 @@ fi
     assert "capture_status=incomplete" in timeout_result
     timeout_commands = command_log.read_text(encoding="utf-8")
     assert "simctl terminate" in timeout_commands and "simctl shutdown" in timeout_commands
+
+    command_log.write_text("", encoding="utf-8")
+    state_environment = {
+        **base_environment,
+        "OVERTE_IOS_LLDB_INTERRUPT_AFTER_SECONDS": "1",
+        "OVERTE_IOS_LLDB_STATE_PROBE": "1",
+        "OVERTE_IOS_LLDB_MVK_TRACE_VULKAN_CALLS": "0",
+        "FAKE_EXPECT_MVK_TRACE": "0",
+    }
+    state_output = root / "state"
+    state = invoke(app, symbols, state_output, state_environment)
+    assert state.returncode == 1, (state.stdout, state.stderr)
+    state_result = (state_output / "iphone-serverless-lldb-result.log").read_text(
+        encoding="utf-8"
+    )
+    assert "capture_status=captured_state" in state_result
+    assert "state_probe=1" in state_result
+    assert "mvk_trace_vulkan_calls=0" in state_result
+    state_log = (state_output / "iphone-serverless-lldb.log").read_text(encoding="utf-8")
+    assert "camera_x=1985.26" in state_log
+    state_commands = command_log.read_text(encoding="utf-8")
+    assert "world-state.lldb" in state_commands
 
 print("PASS no-rebuild Full Client simulator LLDB crash capture")
