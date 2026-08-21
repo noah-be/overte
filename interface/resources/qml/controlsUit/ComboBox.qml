@@ -17,6 +17,7 @@ import "." as HifiControls
 FocusScope {
     id: root
     HifiConstants { id: hifi }
+    HifiControls.TouchUiMetrics { id: touchMetrics }
 
     property alias model: comboBox.model;
     property alias editable: comboBox.editable
@@ -44,9 +45,10 @@ FocusScope {
     ComboBox {
         id: comboBox
         anchors.fill: parent
-        hoverEnabled: true
+        hoverEnabled: touchMetrics.hoverSupported
         visible: true
-        height: hifi.fontSizes.textFieldInput + 13  // Match height of TextField control.
+        height: Math.max(hifi.fontSizes.textFieldInput + 13,
+            touchMetrics.adaptiveMinimumControlHeight)
 
         function previousItem() { root.currentHighLightedIndex = (root.currentHighLightedIndex + comboBox.count - 1) % comboBox.count; }
         function nextItem() { root.currentHighLightedIndex = (root.currentHighLightedIndex + comboBox.count + 1) % comboBox.count; }
@@ -103,7 +105,7 @@ FocusScope {
                 leftMargin: hifi.dimensions.textPadding
                 verticalCenter: parent.verticalCenter
             }
-            size: hifi.fontSizes.textFieldInput
+            size: Math.round(hifi.fontSizes.textFieldInput * touchMetrics.textScale)
             text: comboBox.displayText ? comboBox.displayText : comboBox.currentText
             elide: Text.ElideRight
             color: comboBox.hovered || comboBox.popup.visible ? hifi.colors.baseGray : (isLightColorScheme ? hifi.colors.lightGray : hifi.colors.lightGrayText )
@@ -111,9 +113,10 @@ FocusScope {
 
         delegate: ItemDelegate {
             id: itemDelegate
-            hoverEnabled: true
+            hoverEnabled: touchMetrics.hoverSupported
             width: root.width + 4
-            height: popupText.implicitHeight * 1.4
+            height: Math.max(popupText.implicitHeight * 1.4,
+                touchMetrics.adaptiveMinimumControlHeight)
             highlighted: root.currentHighLightedIndex == index
 
             onHoveredChanged: {
@@ -136,7 +139,7 @@ FocusScope {
                 text: comboBox.model[index] ? comboBox.model[index]
                                             : (comboBox.model.get && comboBox.model.get(index).text ?
                                                    comboBox.model.get(index).text : "")
-                size: hifi.fontSizes.textFieldInput
+                size: Math.round(hifi.fontSizes.textFieldInput * touchMetrics.textScale)
                 color: hifi.colors.baseGray
             }
         }

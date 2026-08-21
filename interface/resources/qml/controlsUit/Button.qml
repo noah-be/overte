@@ -20,7 +20,8 @@ Original.Button {
     property int color: 0
     property int colorScheme: hifi.colorSchemes.light
     property string fontFamily: "Raleway"
-    property int fontSize: hifi.fontSizes.buttonLabel
+    property int fontSize: Math.round(hifi.fontSizes.buttonLabel
+        * touchMetrics.textScale)
     property bool fontBold: true
     property int radius: hifi.buttons.radius
     property alias implicitTextWidth: buttonText.implicitWidth
@@ -35,13 +36,16 @@ Original.Button {
     property var androidClickAction: null
 
     width: hifi.dimensions.buttonWidth
-    height: hifi.dimensions.controlLineHeight
+    height: Math.max(hifi.dimensions.controlLineHeight,
+        touchMetrics.adaptiveMinimumControlHeight, implicitHeight)
+    hoverEnabled: touchMetrics.hoverSupported
 
     property size implicitPadding: Qt.size(20, 16)
     property int implicitWidth: buttonContentItem.implicitWidth + implicitPadding.width
     property int implicitHeight: buttonContentItem.implicitHeight + implicitPadding.height
 
     HifiConstants { id: hifi }
+    TouchUiMetrics { id: touchMetrics }
 
     onHoveredChanged: {
         if (hovered) {

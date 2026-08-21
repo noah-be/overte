@@ -27,6 +27,8 @@ Rectangle {
 
 	SettingsTouchConfiguration {
 		id: touchConfiguration
+		availableWidth: parent.width
+		availableHeight: parent.height
 	}
 	property var pages: allPages.filter(function (page) {
 		return (!page.requiresControllerSettings || touchConfiguration.showControllerSettings)

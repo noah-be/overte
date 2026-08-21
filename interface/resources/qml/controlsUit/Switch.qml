@@ -16,12 +16,16 @@ import "../stylesUit"
 Item {
     id: rootSwitch;
 
+    implicitWidth: Math.max(switchWidth, touchMetrics.adaptiveMinimumControlHeight)
+    implicitHeight: touchMetrics.adaptiveMinimumControlHeight
+
     property int colorScheme: hifi.colorSchemes.light;
     readonly property bool isLightColorScheme: colorScheme == hifi.colorSchemes.light;
     property int switchWidth: 70;
     readonly property int switchRadius: height/2;
     property string labelTextOff: "";
-    property int labelTextSize: hifi.fontSizes.inputLabel;
+    property int labelTextSize: Math.round(hifi.fontSizes.inputLabel
+        * touchMetrics.textScale);
     property string labelGlyphOffText: "";
     property int labelGlyphOffSize: 32;
     property string labelTextOn: "";
@@ -32,6 +36,8 @@ Item {
     signal onCheckedChanged;
     signal clicked;
 
+    TouchUiMetrics { id: touchMetrics }
+
     Original.Switch {
         id: originalSwitch;
         focusPolicy: Qt.ClickFocus
@@ -40,7 +46,7 @@ Item {
         anchors.leftMargin: rootSwitch.width/2 - rootSwitch.switchWidth/2;
         onCheckedChanged: rootSwitch.onCheckedChanged();
         onClicked: rootSwitch.clicked();
-        hoverEnabled: true
+        hoverEnabled: touchMetrics.hoverSupported
 
         topPadding: 1;
         leftPadding: 3;

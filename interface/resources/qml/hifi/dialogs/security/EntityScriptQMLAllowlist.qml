@@ -23,7 +23,12 @@ import "SecuritySettings.js" as SecuritySettings
 
 Rectangle {
     id: parentBody;
-    SecurityTouchConfiguration { id: touchConfiguration }
+    HifiStylesUit.HifiConstants { id: hifi }
+    SecurityTouchConfiguration {
+        id: touchConfiguration
+        availableWidth: parentBody.width
+        availableHeight: parentBody.height
+    }
 
     function getAllowlistAsText() {
         return SecuritySettings.normalizeAllowlist(
@@ -60,7 +65,7 @@ Rectangle {
         id: titleText;
         text: "Entity Script / QML Allowlist"
         // Text size
-        size: 24;
+        size: Math.round(24 * touchConfiguration.textScale);
         // Style
         color: "white";
         elide: Text.ElideRight;
@@ -72,24 +77,23 @@ Rectangle {
         anchors.rightMargin: 20;
         height: touchConfiguration.titleHeight;
 
-        CheckBox {
+        HiFiControls.CheckBox {
             id: allowlistEnabled;
             checked: Settings.getValue("private/allowlistEnabled", false);
 
             anchors.right: parent.right;
             anchors.top: parent.top;
             anchors.topMargin: 10;
+            height: Math.max(touchConfiguration.buttonHeight,
+                touchConfiguration.adaptiveMinimumControlHeight)
+            text: qsTr("Enabled")
+            labelFontSize: Math.round(18 * touchConfiguration.textScale)
+            colorScheme: hifi.colorSchemes.dark
+            color: "white"
+            Accessible.name: qsTr("Entity script and QML allowlist")
+            Accessible.description: qsTr("Restrict entity content to trusted URLs")
             onToggled: {
                 toggleAllowlist(allowlistEnabled.checked)
-            }
-
-            Label {
-                text: "Enabled"
-                color: "white"
-                font.pixelSize: 18;
-                anchors.right: parent.left;
-                anchors.top: parent.top;
-                anchors.topMargin: 10;
             }
         }
     }
@@ -106,7 +110,7 @@ Rectangle {
             id: descriptionText;
             text: "One trusted URL or QML file per line. Changes apply when content reloads.";
             color: "white";
-            font.pixelSize: 14;
+            font.pixelSize: Math.round(14 * touchConfiguration.textScale);
             wrapMode: Text.WordWrap;
             anchors.top: parent.top;
             anchors.left: parent.left;
@@ -123,6 +127,7 @@ Rectangle {
             anchors.bottom: saveChanges.top;
             anchors.margins: 10;
             clip: true;
+            ScrollBar.vertical: HiFiControls.ScrollBar { }
 
             TextArea {
                 id: allowlistTextArea;
@@ -130,16 +135,21 @@ Rectangle {
                 onTextChanged: notificationText.text = "";
                 width: textAreaScrollView.availableWidth;
                 font.family: "Ubuntu";
-                font.pointSize: 12;
+                font.pixelSize: Math.round(16 * touchConfiguration.textScale);
                 color: "white";
                 wrapMode: TextEdit.NoWrap;
+                inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase
+                    | Qt.ImhNoPredictiveText
+                Accessible.role: Accessible.EditableText
+                Accessible.name: qsTr("Trusted entity URLs")
+                Accessible.description: qsTr("One trusted URL or QML file per line")
             }
         }
 
         HifiStylesUit.RalewayRegular {
             id: notificationText;
             text: "";
-            size: 16;
+            size: Math.round(16 * touchConfiguration.textScale);
             color: "white";
             elide: Text.ElideRight;
             anchors.left: parent.left;
@@ -148,7 +158,7 @@ Rectangle {
             anchors.margins: 10;
         }
 
-        Button {
+        HiFiControls.Button {
             id: saveChanges;
             anchors.right: parent.right;
             anchors.bottom: parent.bottom;
@@ -156,7 +166,14 @@ Rectangle {
             height: touchConfiguration.buttonHeight;
             width: 160;
             text: "Save Changes";
-            onClicked: setAllowlistAsText(allowlistTextArea.text);
+            Accessible.name: qsTr("Save entity allowlist")
+            Accessible.description: qsTr("Store the edited entity script and QML allowlist")
+            androidClickAction: function () {
+                setAllowlistAsText(allowlistTextArea.text)
+            }
+            onClicked: if (Qt.platform.os !== "android") {
+                setAllowlistAsText(allowlistTextArea.text)
+            }
         }
     }
 

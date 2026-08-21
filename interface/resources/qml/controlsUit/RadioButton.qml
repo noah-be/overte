@@ -19,14 +19,22 @@ import TabletScriptingInterface 1.0
 Original.RadioButton {
     id: radioButton
     HifiConstants { id: hifi }
+    HifiControls.TouchUiMetrics { id: touchMetrics }
 
-    hoverEnabled: true
+    hoverEnabled: touchMetrics.hoverSupported
+    implicitWidth: Math.max(contentItem ? contentItem.implicitWidth : 0,
+        indicator ? indicator.implicitWidth : 0,
+        touchMetrics.adaptiveMinimumControlHeight) + leftPadding + rightPadding
+    implicitHeight: Math.max(contentItem ? contentItem.implicitHeight : 0,
+        indicator ? indicator.implicitHeight : 0,
+        touchMetrics.adaptiveMinimumControlHeight) + topPadding + bottomPadding
 
     property int colorScheme: hifi.colorSchemes.light
     readonly property bool isLightColorScheme: colorScheme == hifi.colorSchemes.light
 
     property real letterSpacing: 1
-    property int fontSize: hifi.fontSizes.inputLabel
+    property int fontSize: Math.round(hifi.fontSizes.inputLabel
+        * touchMetrics.textScale)
     property int boxSize: defaultBoxSize
     property real scaleFactor: boxSize / defaultBoxSize
 

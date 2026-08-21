@@ -26,7 +26,11 @@ Rectangle {
     id: root;
 
     HifiConstants { id: hifi; }
-    AudioTouchConfiguration { id: touchConfiguration }
+    AudioTouchConfiguration {
+        id: touchConfiguration
+        availableWidth: root.width
+        availableHeight: root.height
+    }
 
     property var eventBridge;
     // leave as blank, this is user's volume for the avatar mixer
@@ -138,6 +142,9 @@ Rectangle {
         contentHeight: contentItem.childrenRect.height;
         boundsBehavior: Flickable.DragOverBounds;
         flickableDirection: Flickable.VerticalFlick;
+        pressDelay: touchConfiguration.pressDelay
+        flickDeceleration: touchConfiguration.flickDeceleration
+        maximumFlickVelocity: touchConfiguration.maximumFlickVelocity
         property bool isScrolling: (contentHeight - height) > 10 ? true : false;
         clip: true;
 
@@ -150,7 +157,8 @@ Rectangle {
             z: 100  // Display over top of separators.
 
             background: Item {
-                implicitWidth: verticalScrollWidth;
+                implicitWidth: Math.max(verticalScrollWidth,
+                    touchConfiguration.adaptiveMinimumControlHeight / 2);
                 Rectangle {
                     color: hifi.colors.baseGrayShadow
                     radius: 4;
@@ -161,7 +169,8 @@ Rectangle {
                 }
             }
             contentItem: Item {
-                implicitWidth: verticalScrollShaft;
+                implicitWidth: Math.max(verticalScrollShaft,
+                    touchConfiguration.adaptiveMinimumControlHeight / 2);
                 Rectangle {
                     radius: verticalScrollShaft/2;
                     color: hifi.colors.white30;
@@ -200,7 +209,7 @@ Rectangle {
                     height: root.switchHeight;
                     switchWidth: root.switchWidth;
                     labelTextOn: "Mute microphone";
-                    labelTextSize: 16;
+                    labelTextSize: Math.round(16 * touchConfiguration.textScale);
                     backgroundOnColor: "#E3E3E3";
                     checked: muted;
                     onClicked: {
@@ -222,7 +231,7 @@ Rectangle {
                     anchors.topMargin: 24
                     anchors.left: parent.left
                     labelTextOn: (bar.currentIndex === 0) ? qsTr("Push To Talk (T)") : qsTr("Push To Talk");
-                    labelTextSize: 16;
+                    labelTextSize: Math.round(16 * touchConfiguration.textScale);
                     backgroundOnColor: "#E3E3E3";
                     checked: (bar.currentIndex === 0) ? AudioScriptingInterface.pushToTalkDesktop : AudioScriptingInterface.pushToTalkHMD;
                     onCheckedChanged: {
@@ -251,7 +260,7 @@ Rectangle {
                     anchors.top: parent.top
                     anchors.left: parent.left
                     labelTextOn: qsTr("HMD Mute Warning");
-                    labelTextSize: 16;
+                    labelTextSize: Math.round(16 * touchConfiguration.textScale);
                     backgroundOnColor: "#E3E3E3";
                     checked: AudioScriptingInterface.warnWhenMuted;
                     visible: bar.currentIndex !== 0;
@@ -270,7 +279,7 @@ Rectangle {
                     anchors.topMargin: bar.currentIndex === 0 ? 0 : 24
                     anchors.left: parent.left
                     labelTextOn: qsTr("Audio Level Meter");
-                    labelTextSize: 16;
+                    labelTextSize: Math.round(16 * touchConfiguration.textScale);
                     backgroundOnColor: "#E3E3E3";
                     checked: AvatarInputs.showAudioTools;
                     onCheckedChanged: {
@@ -289,7 +298,7 @@ Rectangle {
                     anchors.topMargin: audioLevelSwitch.visible ? 24 : 0
                     anchors.left: parent.left
                     labelTextOn:  qsTr("Stereo input");
-                    labelTextSize: 16;
+                    labelTextSize: Math.round(16 * touchConfiguration.textScale);
                     backgroundOnColor: "#E3E3E3";
                     checked: AudioScriptingInterface.isStereoInput;
                     onCheckedChanged: {
@@ -316,7 +325,7 @@ Rectangle {
                 height: paintedHeight;
                 wrapMode: Text.WordWrap;
                 font.italic: true;
-                size: 16;
+                size: Math.round(16 * touchConfiguration.textScale);
 
                 text: (bar.currentIndex === 0) ? qsTr("Press and hold the button \"T\" to talk.") :
                                 qsTr("Press and hold grip triggers on both controllers to talk.");
@@ -377,7 +386,7 @@ Rectangle {
                 // The slider for my card is special, it controls the primary gain
                 id: avatarGainSliderText;
                 text: "People volume";
-                size: 16;
+                size: Math.round(16 * touchConfiguration.textScale);
                 anchors.left: parent.left;
                 color: hifi.colors.white;
                 horizontalAlignment: Text.AlignLeft;
@@ -438,7 +447,7 @@ Rectangle {
             RalewayRegular {
                 id: injectorGainSliderText;
                 text: "Environment volume";
-                size: 16;
+                size: Math.round(16 * touchConfiguration.textScale);
                 anchors.left: parent.left;
                 color: hifi.colors.white;
                 horizontalAlignment: Text.AlignLeft;
@@ -499,7 +508,7 @@ Rectangle {
             RalewayRegular {
                 id: systemInjectorGainSliderText;
                 text: "UI FX volume";
-                size: 16;
+                size: Math.round(16 * touchConfiguration.textScale);
                 anchors.left: parent.left;
                 color: hifi.colors.white;
                 horizontalAlignment: Text.AlignLeft;
@@ -517,7 +526,7 @@ Rectangle {
             id: noiseReductionHeader
             x: margins.paddings;
             width: parent.width - margins.paddings * 2;
-            height: 36;
+            height: Math.max(36, touchConfiguration.adaptiveMinimumControlHeight);
             anchors.top: secondSeparator.bottom;
             anchors.topMargin: 10;
 
@@ -528,7 +537,7 @@ Rectangle {
                 anchors.left: parent.left;
                 anchors.leftMargin: -size / 4; // The glyph has empty space at left about 25%
                 anchors.verticalCenter: parent.verticalCenter;
-                size: 30;
+                size: Math.round(30 * touchConfiguration.textScale);
             }
 
             RalewayRegular {
@@ -536,7 +545,7 @@ Rectangle {
                 width: margins.sizeText + margins.sizeLevel;
                 anchors.left: parent.left;
                 anchors.leftMargin: margins.sizeCheckBox;
-                size: 22;
+                size: Math.round(22 * touchConfiguration.textScale);
                 color: hifi.colors.white;
                 text: qsTr("Noise Reduction");
             }
@@ -567,7 +576,7 @@ Rectangle {
                     anchors.topMargin: 24
                     anchors.left: parent.left
                     labelTextOn: "Echo Cancellation";
-                    labelTextSize: 16;
+                    labelTextSize: Math.round(16 * touchConfiguration.textScale);
                     backgroundOnColor: "#E3E3E3";
                     checked: AudioScriptingInterface.acousticEchoCancellation;
                     onCheckedChanged: {
@@ -584,7 +593,7 @@ Rectangle {
                     anchors.topMargin: 24
                     anchors.left: parent.left
                     labelTextOn: "Noise Reduction";
-                    labelTextSize: 16;
+                    labelTextSize: Math.round(16 * touchConfiguration.textScale);
                     backgroundOnColor: "#E3E3E3";
                     checked: AudioScriptingInterface.noiseReduction;
                     onCheckedChanged: {
@@ -601,7 +610,7 @@ Rectangle {
                     anchors.topMargin: 24;
                     anchors.left: parent.left;
                     labelTextOn: "Manual Noise Reduction";
-                    labelTextSize: 16;
+                    labelTextSize: Math.round(16 * touchConfiguration.textScale);
                     backgroundOnColor: "#E3E3E3";
                     checked: !AudioScriptingInterface.noiseReductionAutomatic;
                     visible: AudioScriptingInterface.noiseReduction;
@@ -668,7 +677,7 @@ Rectangle {
                 // The slider for my card is special, it controls the primary gain
                 id: noiseReductionThresholdSliderText;
                 text: "Audio input threshold";
-                size: 16;
+                size: Math.round(16 * touchConfiguration.textScale);
                 anchors.left: parent.left;
                 color: hifi.colors.white;
                 horizontalAlignment: Text.AlignLeft;
@@ -786,7 +795,7 @@ Rectangle {
             id: inputDeviceHeader
             x: margins.paddings;
             width: parent.width - margins.paddings*2;
-            height: 36;
+            height: Math.max(36, touchConfiguration.adaptiveMinimumControlHeight);
             anchors.top: thirdSeparator.bottom;
             anchors.topMargin: 10;
 
@@ -797,7 +806,7 @@ Rectangle {
                 anchors.left: parent.left;
                 anchors.leftMargin: -size/4; //the glyph has empty space at left about 25%
                 anchors.verticalCenter: parent.verticalCenter;
-                size: 30;
+                size: Math.round(30 * touchConfiguration.textScale);
             }
 
             RalewayRegular {
@@ -805,7 +814,7 @@ Rectangle {
                 width: margins.sizeText + margins.sizeLevel;
                 anchors.left: parent.left;
                 anchors.leftMargin: margins.sizeCheckBox;
-                size: 22;
+                size: Math.round(22 * touchConfiguration.textScale);
                 color: hifi.colors.white;
                 text: qsTr("Choose input device");
             }
@@ -849,7 +858,7 @@ Rectangle {
                     boxSize: margins.sizeCheckBox / 2
                     isRound: true
                     text: devicename
-                    fontSize: 16;
+                    fontSize: Math.round(16 * touchConfiguration.textScale);
                     onPressed: {
                         if (!checked) {
                             stereoInput.checked = false;
@@ -891,7 +900,7 @@ Rectangle {
                 width: margins.sizeCheckBox
                 text: hifi.glyphs.unmuted;
                 color: hifi.colors.white;
-                size: 36;
+                size: Math.round(36 * touchConfiguration.textScale);
             }
 
             RalewayRegular {
@@ -899,7 +908,7 @@ Rectangle {
                 anchors.left: parent.left
                 anchors.leftMargin: margins.sizeCheckBox
                 anchors.verticalCenter: parent.verticalCenter;
-                size: 22;
+                size: Math.round(22 * touchConfiguration.textScale);
                 color: hifi.colors.white;
                 text: qsTr("Choose output device");
             }
@@ -936,7 +945,7 @@ Rectangle {
                     checked: bar.currentIndex === 0 ? selectedDesktop :  selectedHMD;
                     checkable: !checked
                     text: devicename
-                    fontSize: 16
+                    fontSize: Math.round(16 * touchConfiguration.textScale)
                     onPressed: {
                         if (!checked) {
                             AudioScriptingInterface.setOutputDevice(info, bar.currentIndex === 1);
