@@ -7,11 +7,19 @@ repo_root="$(cd -- "$script_dir/../../.." && pwd)"
 
 home="$repo_root/interface/resources/qml/hifi/tablet/TabletHome.qml"
 button="$repo_root/interface/resources/qml/hifi/tablet/TabletButton.qml"
+menu_view="$repo_root/interface/resources/qml/hifi/tablet/TabletMenuView.qml"
+menu_item="$repo_root/interface/resources/qml/hifi/tablet/TabletMenuItem.qml"
 shared_config="$repo_root/interface/resources/qml/hifi/tablet/TabletTouchConfiguration.qml"
-phone_config="$repo_root/interface/resources/qml/hifi/tablet/+android_phoneInterface/TabletTouchConfiguration.qml"
+shared_config_base="$repo_root/interface/resources/qml/hifi/tablet/TabletTouchConfigurationBase.qml"
+touch_metrics="$repo_root/interface/resources/qml/controlsUit/TouchUiMetrics.qml"
+button_control="$repo_root/interface/resources/qml/controlsUit/Button.qml"
+slider_control="$repo_root/interface/resources/qml/controlsUit/Slider.qml"
+switch_control="$repo_root/interface/resources/qml/controlsUit/Switch.qml"
+checkbox_control="$repo_root/interface/resources/qml/controlsUit/CheckBox.qml"
+text_field_control="$repo_root/interface/resources/qml/controlsUit/TextField.qml"
+base_profile="$repo_root/interface/resources/qml/controlsUit/TouchUiProfileBase.qml"
 preferences_dialog="$repo_root/interface/resources/qml/hifi/tablet/tabletWindows/TabletPreferencesDialog.qml"
 shared_preferences_layout="$repo_root/interface/resources/qml/hifi/tablet/tabletWindows/TabletPreferencesLayout.qml"
-phone_preferences_layout="$repo_root/interface/resources/qml/hifi/tablet/tabletWindows/+android_phoneInterface/TabletPreferencesLayout.qml"
 
 require() {
     local file="$1"
@@ -24,36 +32,50 @@ require() {
     printf 'PASS: %s\n' "$description"
 }
 
-require "$shared_config" 'property bool touchOptimized:[[:space:]]*false' \
+require "$base_profile" 'property bool directTouch:[[:space:]]*false' \
     'desktop and VR retain their existing pointer presentation'
-require "$phone_config" 'property bool touchOptimized:[[:space:]]*true' \
-    'the phone selector enables touchscreen presentation'
-require "$phone_config" 'availableWidth[[:space:]]*>=[[:space:]]*availableHeight[[:space:]]*\?[[:space:]]*5[[:space:]]*:[[:space:]]*3' \
-    'the phone tablet responds to landscape and transient portrait sizes'
-require "$phone_config" 'property int maximumButtonExtent:[[:space:]]*120' \
+require "$touch_metrics" 'property bool directTouch:[[:space:]]*profile[.]directTouch' \
+    'shared metrics consume the selected device profile'
+require "$shared_config_base" 'readonly property bool touchOptimized:[[:space:]]*directTouch' \
+    'feature presentation derives touch behavior from shared capabilities'
+require "$touch_metrics" 'readonly property string widthClass:' \
+    'shared touch metrics derive a reusable responsive width class'
+require "$shared_config_base" 'compact[[:space:]]*\?[[:space:]]*3[[:space:]]*:[[:space:]]*expanded[[:space:]]*\?[[:space:]]*6[[:space:]]*:[[:space:]]*5' \
+    'the shared tablet layout adapts across compact, medium and expanded surfaces'
+require "$shared_config_base" 'property int maximumButtonExtent:[[:space:]]*directTouch[[:space:]]*\?[[:space:]]*120[[:space:]]*:[[:space:]]*129' \
     'launcher cards use compact logical units before host scaling'
-require "$phone_config" 'property int buttonSpacing:[[:space:]]*5' \
+require "$shared_config_base" 'property int buttonSpacing:[[:space:]]*directTouch[[:space:]]*\?[[:space:]]*5[[:space:]]*:[[:space:]]*0' \
     'the compact app grid retains a clear gap between touch targets'
-require "$shared_preferences_layout" 'property bool compactFooter:[[:space:]]*false' \
+require "$shared_preferences_layout" 'compactFooter:[[:space:]]*profile[.]screenSpacePresentation' \
+    'General Settings derives footer layout from the shared profile'
+require "$base_profile" 'property bool screenSpacePresentation:[[:space:]]*false' \
     'desktop and VR retain their established General Settings footer'
-require "$phone_preferences_layout" 'property bool compactFooter:[[:space:]]*true' \
-    'phone General Settings select compact footer controls'
-require "$phone_preferences_layout" 'property int buttonWidth:[[:space:]]*120' \
+require "$shared_preferences_layout" 'property int buttonWidth:[[:space:]]*120' \
     'phone preference buttons use unscaled logical width before host scaling'
-require "$phone_preferences_layout" 'property int buttonHeight:[[:space:]]*28' \
+require "$shared_preferences_layout" 'property int buttonHeight:[[:space:]]*28' \
     'phone preference buttons use unscaled logical height before host scaling'
 require "$preferences_dialog" 'preferencesLayout[.]compactFooter' \
     'General Settings consumes the selector-backed footer layout'
-require "$shared_config" 'property bool showCloseButton:[[:space:]]*false' \
+require "$shared_config" 'TabletTouchConfigurationBase[[:space:]]*\{' \
     'desktop and VR do not gain Android-specific tablet chrome'
-require "$phone_config" 'property bool showCloseButton:[[:space:]]*true' \
+require "$shared_config_base" 'profile[.]screenSpacePresentation' \
     'the phone selector enables the touchscreen close control'
-require "$phone_config" 'property int closeButtonHeight:[[:space:]]*32' \
+require "$shared_config_base" 'property int closeButtonHeight:[[:space:]]*showCloseButton[[:space:]]*\?[[:space:]]*32[[:space:]]*:[[:space:]]*0' \
     'the close control uses the shared host scale'
-require "$phone_config" 'property int closeButtonBottomMargin:[[:space:]]*28' \
+require "$shared_config_base" 'property int closeButtonBottomMargin:[[:space:]]*showCloseButton[[:space:]]*\?[[:space:]]*28[[:space:]]*:[[:space:]]*0' \
     'the close control remains fully visible above the Android display edge'
-require "$phone_config" 'property int minimumTouchTarget:[[:space:]]*48' \
+require "$touch_metrics" 'readonly property int minimumTouchTarget:[[:space:]]*directTouch[[:space:]]*\?[[:space:]]*48[[:space:]]*:[[:space:]]*30' \
     'page controls expose touch-sized targets'
+require "$touch_metrics" 'readonly property int adaptiveMinimumControlHeight:[[:space:]]*directTouch' \
+    'shared controls convert rendered targets into host-local coordinates'
+for adaptive_control in "$button_control" "$slider_control" "$switch_control" "$checkbox_control" "$text_field_control"; do
+    require "$adaptive_control" 'touchMetrics[.]adaptiveMinimumControlHeight' \
+        "$(basename "$adaptive_control") consumes the universal touch target"
+done
+for hover_control in "$button_control" "$slider_control" "$switch_control" "$checkbox_control"; do
+    require "$hover_control" 'hoverEnabled:[[:space:]]*touchMetrics[.]hoverSupported' \
+        "$(basename "$hover_control") follows the selected hover capability"
+done
 require "$home" 'TabletTouchConfiguration[[:space:]]*\{' \
     'TabletHome consumes the selector-backed presentation settings'
 require "$home" 'cellWidth:[[:space:]]*width[[:space:]]*/[[:space:]]*presentation\.columns' \
@@ -79,5 +101,17 @@ require "$home" 'hoverEnabled:[[:space:]]*!presentation\.touchOptimized' \
     'touch presentation does not depend on hover input'
 require "$button" 'hoverEnabled:[[:space:]]*tabletButton\.hoverEnabled' \
     'tablet buttons suppress synthetic hover handling on direct touch'
+require "$menu_view" 'pressDelay:[[:space:]]*touchMetrics[.]pressDelay' \
+    'tablet menus share the touch scroll activation delay'
+require "$menu_view" 'hoverEnabled:[[:space:]]*touchMetrics[.]hoverSupported' \
+    'tablet menus retain hover only on capable hybrid devices'
+require "$menu_view" 'Accessible[.]onPressAction:[[:space:]]*root[.]activateItem' \
+    'tablet menu actions expose semantic activation'
+require "$menu_view" 'Keys[.]onSpacePressed:[[:space:]]*root[.]activateItem' \
+    'tablet menu actions support hardware-keyboard activation'
+require "$menu_item" 'Math[.]max\(2 \* label[.]implicitHeight, minimumControlHeight\)' \
+    'tablet menu rows consume the universal touch target'
+require "$menu_item" '20 \* root[.]touchTextScale' \
+    'tablet menu labels follow the bounded system font scale'
 
 printf 'Phone tablet touchscreen QML checks passed.\n'

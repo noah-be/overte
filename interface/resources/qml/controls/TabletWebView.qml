@@ -6,12 +6,15 @@ import stylesUit 1.0
 Item {
     id: root
     HifiConstants { id: hifi }
+    HiFiControls.TouchUiMetrics { id: touchMetrics }
     width: parent !== null ? parent.width : undefined
     height: parent !== null ? parent.height : undefined
     property var parentStackItem: null
     property int headerHeight: 70
     property string scriptURL
-    property bool keyboardEnabled: false
+    // Android screen-space presentation receives text through Qt's platform
+    // input method; only non-system-IME surfaces need the QML keyboard.
+    property bool keyboardEnabled: !touchMetrics.systemImeAvailable
     property bool keyboardRaised: false
     onKeyboardRaisedChanged: {
         if(!keyboardRaised) {
@@ -197,7 +200,7 @@ Item {
 
     Component.onCompleted: {
         root.isDesktop = (typeof desktop !== "undefined");
-        keyboardEnabled = HMD.active;
+        keyboardEnabled = !touchMetrics.systemImeAvailable && HMD.active;
     }
 
     Component.onDestruction: {

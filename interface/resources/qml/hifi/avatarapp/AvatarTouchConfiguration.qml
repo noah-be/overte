@@ -1,10 +1,11 @@
 import QtQuick 2.7
+import "../../controlsUit" as HifiControls
 
-QtObject {
-    readonly property bool favoritesFillBelowHeader: false
-    readonly property bool showDominantHand: true
-    readonly property bool showHmdAlignment: true
-    readonly property bool showGetMoreAvatars: true
-    readonly property int settingsRightMargin: 32
-    readonly property int settingsBottomMargin: 57
+HifiControls.TouchUiMetrics {
+    readonly property bool favoritesFillBelowHeader: profile.screenSpacePresentation
+    readonly property bool showDominantHand: profile.dominantHandSettingsAvailable
+    readonly property bool showHmdAlignment: profile.hmdAlignmentAvailable
+    readonly property bool showGetMoreAvatars: profile.externalAvatarCatalogAvailable
+    readonly property int settingsRightMargin: profile.screenSpacePresentation ? 12 : 32
+    readonly property int settingsBottomMargin: profile.screenSpacePresentation ? 12 : 57
 }

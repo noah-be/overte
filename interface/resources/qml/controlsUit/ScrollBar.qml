@@ -17,11 +17,14 @@ ScrollBar {
     visible: size < 1.0
 
     HifiConstants { id: hifi }
+    TouchUiMetrics { id: touchMetrics }
     property int colorScheme: hifi.colorSchemes.light
     readonly property bool isLightColorScheme: colorScheme == hifi.colorSchemes.light
 
     background: Item {
-        implicitWidth: hifi.dimensions.scrollbarBackgroundWidth
+        implicitWidth: Math.max(hifi.dimensions.scrollbarBackgroundWidth,
+            touchMetrics.directTouch
+                ? touchMetrics.adaptiveMinimumControlHeight / 2 : 0)
         Rectangle {
             anchors { fill: parent; topMargin: 3; bottomMargin: 3 }
             radius: hifi.dimensions.scrollbarHandleWidth/2
@@ -31,7 +34,9 @@ ScrollBar {
     }
 
     contentItem: Item {
-        implicitWidth: hifi.dimensions.scrollbarHandleWidth
+        implicitWidth: Math.max(hifi.dimensions.scrollbarHandleWidth,
+            touchMetrics.directTouch
+                ? touchMetrics.adaptiveMinimumControlHeight / 2 : 0)
         Rectangle {
             anchors { fill: parent; topMargin: 1; bottomMargin: 1 }
             radius: hifi.dimensions.scrollbarHandleWidth/2

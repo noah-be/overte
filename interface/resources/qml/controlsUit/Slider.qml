@@ -27,8 +27,12 @@ Slider {
     property alias step: slider.stepSize
     property bool tickmarksEnabled: false
 
-    height: hifi.fontSizes.textFieldInput + 14  // Match height of TextField control.
+    height: Math.max(hifi.fontSizes.textFieldInput + 14,
+        touchMetrics.adaptiveMinimumControlHeight)  // Match height of TextField control.
+    hoverEnabled: touchMetrics.hoverSupported
     y: sliderLabel.visible ? sliderLabel.height + sliderLabel.anchors.bottomMargin : 0
+
+    HifiControls.TouchUiMetrics { id: touchMetrics }
 
     background: Rectangle {
         x: slider.leftPadding
