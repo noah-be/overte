@@ -10,12 +10,20 @@ readonly timeout_grace_seconds=300
 app_path="${1:-}"
 bundle_id="${2:-org.overte.bootstrap.dev}"
 diagnostics_dir="${3:-}"
+families="${4:-iphone ipad}"
 grace_seconds="${OVERTE_IOS_SIMULATOR_GRACE_SECONDS:-5}"
 launch_timeout="${OVERTE_IOS_SIMULATOR_LAUNCH_TIMEOUT_SECONDS:-300}"
 [[ -d "$app_path" && "$app_path" == *.app ]] || {
-    printf 'usage: %s APP_PATH [BUNDLE_ID] [DIAGNOSTICS_DIR]\n' "$0" >&2
+    printf 'usage: %s APP_PATH [BUNDLE_ID] [DIAGNOSTICS_DIR] ["iphone [ipad]"]\n' "$0" >&2
     exit 2
 }
+read -r -a family_list <<< "$families"
+for family in "${family_list[@]}"; do
+    [[ "$family" == iphone || "$family" == ipad ]] || {
+        printf 'unsupported simulator family: %s\n' "$family" >&2
+        exit 2
+    }
+done
 [[ "$grace_seconds" =~ ^[0-9]+$ ]] || {
     echo "OVERTE_IOS_SIMULATOR_GRACE_SECONDS must contain seconds as digits" >&2
     exit 2
@@ -77,7 +85,9 @@ trap finish EXIT
 
 run_timed "list available simulators" 60 xcrun simctl list devices available --json > "$device_list"
 iphone_udid="$(select_device iphone)"
-ipad_udid="$(select_device ipad)"
+if [[ " $families " == *" ipad "* ]]; then
+    ipad_udid="$(select_device ipad)"
+fi
 
 # Start both boots before waiting for either runtime. This overlaps the iPad
 # boot with the full iPhone smoke without running two app tests concurrently.
@@ -95,9 +105,9 @@ request_boot() {
     fi
 }
 request_boot iphone "$iphone_udid"
-request_boot ipad "$ipad_udid"
+[[ -z "$ipad_udid" ]] || request_boot ipad "$ipad_udid"
 
-for family in iphone ipad; do
+for family in "${family_list[@]}"; do
     active_family="$family"
     if [[ "$family" == "iphone" ]]; then
         active_udid="$iphone_udid"
@@ -131,13 +141,16 @@ done
 # concurrently, while each command remains individually bounded.
 run_timed "shutdown iphone" 240 xcrun simctl shutdown "$iphone_udid" &
 iphone_shutdown_pid=$!
-run_timed "shutdown ipad" 240 xcrun simctl shutdown "$ipad_udid" &
-ipad_shutdown_pid=$!
+ipad_shutdown_pid=""
+if [[ -n "$ipad_udid" ]]; then
+    run_timed "shutdown ipad" 240 xcrun simctl shutdown "$ipad_udid" &
+    ipad_shutdown_pid=$!
+fi
 # Do not retry these acceptance shutdowns serially in the EXIT trap. Each one
 # is already bounded and its result is collected below.
 iphone_udid=""
 ipad_udid=""
 shutdown_status=0
 wait "$iphone_shutdown_pid" || shutdown_status=$?
-wait "$ipad_shutdown_pid" || shutdown_status=$?
+[[ -z "$ipad_shutdown_pid" ]] || wait "$ipad_shutdown_pid" || shutdown_status=$?
 ((shutdown_status == 0)) || exit "$shutdown_status"
