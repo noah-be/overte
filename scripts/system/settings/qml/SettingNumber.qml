@@ -2,6 +2,7 @@ import QtQuick 2.7
 import QtQuick.Controls 2.5
 import QtQuick.Controls.Styles 1.4
 import QtQuick.Layouts 1.3
+import controlsUit 1.0 as HifiControls
 
 Item {
 	id: root;
@@ -18,6 +19,8 @@ Item {
 
 	height: 50;
 	width: parent.width;
+
+	HifiControls.TouchUiMetrics { id: touchMetrics }
 
 	Rectangle {
         id: backgroundElement;
@@ -37,7 +40,7 @@ Item {
 				height: parent.height;
 				text: settingText;
 				color: "white";
-				font.pixelSize: 22;
+				font.pixelSize: Math.round(22 * touchMetrics.textScale);
 				width: parent.width - 200;			
 				selectByMouse: true;
 				readOnly: true;
@@ -57,6 +60,10 @@ Item {
 					Layout.alignment: Qt.AlignRight;
 					implicitWidth: 200;
 					implicitHeight: parent.height;
+					hoverEnabled: touchMetrics.hoverSupported
+					Accessible.role: Accessible.SpinBox
+					Accessible.name: settingText
+					Accessible.description: qsTr("Set %1").arg(settingText)
 
 					contentItem: TextField {
 						id: spinboxText;
@@ -66,7 +73,8 @@ Item {
 						horizontalAlignment: TextInput.AlignHCenter
 						width: parent.width;
 						clip: true;
-						font.pixelSize: 22
+						font.pixelSize: Math.round(22 * touchMetrics.textScale)
+						inputMethodHints: Qt.ImhFormattedNumbersOnly
 						validator: RegExpValidator { regExp: /[0-9]*/ }
 
 						background: Rectangle {
@@ -159,7 +167,7 @@ Item {
 
         MouseArea {
             anchors.fill: parent;
-            hoverEnabled: true;
+            hoverEnabled: touchMetrics.hoverSupported;
             propagateComposedEvents: true;
 
             onPressed: {
