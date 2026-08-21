@@ -72,6 +72,9 @@
 #if defined(Q_OS_ANDROID)
 #include "AndroidHelper.h"
 #endif
+#if defined(Q_OS_IOS)
+#include "IOSTouchUiMetrics.h"
+#endif
 
 #if !defined(Q_OS_IOS)
 Q_GUI_EXPORT void qt_gl_set_global_share_context(QOpenGLContext *context);
@@ -339,6 +342,9 @@ void Application::initializeUi() {
     OffscreenQmlSurface::addAllowlistContextHandler({
         QUrl{ "hifi/tts/TTS.qml" }
     }, ttsCallback);
+#if defined(Q_OS_IOS)
+    registerIOSTouchUiMetricsQmlType();
+#endif
     qmlRegisterType<ResourceImageItem>("Hifi", 1, 0, "ResourceImageItem");
     qmlRegisterType<Preference>("Hifi", 1, 0, "Preference");
     qmlRegisterType<WebBrowserSuggestionsEngine>("HifiWeb", 1, 0, "WebBrowserSuggestionsEngine");

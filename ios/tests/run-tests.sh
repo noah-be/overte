@@ -48,6 +48,7 @@ python3 "$script_dir/interface-ios-macos-source-isolation-test.py"
 python3 "$script_dir/interface-ios-input-platform-test.py"
 python3 "$script_dir/interface-ios-platform-reporting-test.py"
 python3 "$script_dir/interface-ios-window-platform-test.py"
+python3 "$script_dir/ios-touch-ui-adapter-contract-test.py"
 python3 "$script_dir/shared-ios-desktop-api-isolation-test.py"
 
 # Native renderer source/CMake contracts. Keep this list alphabetical so graph
