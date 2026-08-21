@@ -330,6 +330,7 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
             "OVERTE_IOS_WORLD_TIMEOUT_SECONDS": "1",
             "OVERTE_IOS_WORLD_POLL_SECONDS": "1",
             "OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS": "0",
+            "OVERTE_IOS_WORLD_SCREENSHOT_WAIT_SECONDS": "1",
             "OVERTE_IOS_WORLD_CRASH_REPORT_WAIT_SECONDS": "1",
             "OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS": "6",
             "FAKE_EXPECT_MVK_TRACE": "1",
