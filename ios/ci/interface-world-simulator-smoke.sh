@@ -67,7 +67,7 @@ case "$render_diagnostic" in
 esac
 gpu_trace="${OVERTE_IOS_WORLD_GPU_TRACE:-0}"
 capture_only="${OVERTE_IOS_WORLD_CAPTURE_ONLY:-0}"
-camera_launch_arguments=()
+camera_script=""
 
 [[ -d "$app_path" && "$app_path" == *.app ]] || {
     echo "usage: $0 APP_PATH BUNDLE_ID iphone|ipad serverless|online EXPECTED_DOMAIN|- OUTPUT_DIR" >&2
@@ -1024,7 +1024,6 @@ if [[ "$camera_diagnostic" != default ]]; then
     camera_script="$data_container/tmp/overte-$(basename "$camera_probe_script")"
     [[ ! -e "$camera_script" ]] || { echo "camera diagnostic script path already exists" >&2; exit 1; }
     install -m 0600 "$camera_probe_script" "$camera_script"
-    camera_launch_arguments=(--defaultScriptsOverride "file://$camera_script")
     live_log "phase=camera-diagnostic-ready mode=$camera_diagnostic"
 fi
 mvk_dump_root="$data_container/tmp/overte-mvk-shaders-$stem"
@@ -1099,13 +1098,21 @@ fi
 if [[ -n "$mvk_synchronous_queue_submits" ]]; then
     launch_environment+=("SIMCTL_CHILD_MVK_CONFIG_SYNCHRONOUS_QUEUE_SUBMITS=$mvk_synchronous_queue_submits")
 fi
+launch_command=(
+    env "${launch_environment[@]}"
+    xcrun simctl launch
+    "--stdout=$app_stdout" "--stderr=$app_stderr"
+    "$active_udid" "$bundle_id" --url "$launch_url" --ios-world-evidence
+    --no-login-suggestion
+)
+if [[ -n "$camera_script" ]]; then
+    # macOS still ships Bash 3.2, where expanding an initialized but empty
+    # array under `set -u` aborts before run_bounded can record command-start.
+    launch_command+=(--defaultScriptsOverride "file://$camera_script")
+fi
 live_log "phase=application-launch"
-launch_output="$(run_bounded "application launch" "$launch_timeout" env \
-    "${launch_environment[@]}" \
-    xcrun simctl launch \
-    --stdout="$app_stdout" --stderr="$app_stderr" \
-    "$active_udid" "$bundle_id" --url "$launch_url" --ios-world-evidence \
-    --no-login-suggestion "${camera_launch_arguments[@]}")"
+launch_output="$(run_bounded "application launch" "$launch_timeout" \
+    "${launch_command[@]}")"
 [[ "$launch_output" == *":"* ]] || { echo "application launch returned no process identifier" >&2; exit 1; }
 launch_pid="${launch_output##*: }"
 [[ "$launch_pid" =~ ^[1-9][0-9]*$ ]] || { echo "application launch returned an invalid process identifier" >&2; exit 1; }

@@ -40,6 +40,12 @@ assert '"$timeout_runner" 4 xcrun simctl spawn "$active_udid" log show' in SMOKE
 assert '"$timeout_runner" 308 xcrun simctl spawn "$active_udid" log show' not in SMOKE_SOURCE, (
     "persisted-log snapshots can still suppress live progress for five minutes"
 )
+assert '"${camera_launch_arguments[@]}"' not in SMOKE_SOURCE, (
+    "the default macOS Bash 3.2 launch path must not expand an empty nounset array"
+)
+assert "launch_command=(" in SMOKE_SOURCE and '"${launch_command[@]}"' in SMOKE_SOURCE, (
+    "the launch must use a non-empty command array on macOS Bash 3.2"
+)
 
 
 def png_chunk(kind: bytes, payload: bytes) -> bytes:
