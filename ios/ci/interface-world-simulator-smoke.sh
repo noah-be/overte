@@ -26,7 +26,7 @@ output_dir="${6:-}"
 poll_timeout="${OVERTE_IOS_WORLD_TIMEOUT_SECONDS:-540}"
 poll_interval="${OVERTE_IOS_WORLD_POLL_SECONDS:-2}"
 screenshot_settle="${OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS:-2}"
-screenshot_wait="${OVERTE_IOS_WORLD_SCREENSHOT_WAIT_SECONDS:-180}"
+screenshot_wait="${OVERTE_IOS_WORLD_SCREENSHOT_WAIT_SECONDS:-30}"
 # Once the source entity payload is present, a healthy client should advance
 # through tree insertion and render handoff promptly.  Keep the broader world
 # timeout for boot, navigation and network variability, but bound a proven
@@ -47,6 +47,13 @@ diagnostics_dir="${OVERTE_IOS_WORLD_DIAGNOSTICS_DIR:-}"
 mvk_trace_vulkan_calls="${OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS:-}"
 mvk_synchronous_queue_submits="${OVERTE_IOS_WORLD_MVK_SYNCHRONOUS_QUEUE_SUBMITS:-}"
 render_diagnostic="${OVERTE_IOS_WORLD_RENDER_DIAGNOSTIC:-trace}"
+camera_diagnostic=default
+if [[ "$render_diagnostic" == camera-first-person ]]; then
+    # Keep the preserved binary's renderer in trace mode while the harness
+    # changes only the disposable simulator's camera-startup preferences.
+    camera_diagnostic=first-person
+    render_diagnostic=trace
+fi
 gpu_trace="${OVERTE_IOS_WORLD_GPU_TRACE:-0}"
 capture_only="${OVERTE_IOS_WORLD_CAPTURE_ONLY:-0}"
 
@@ -933,6 +940,19 @@ data_container="$(get_application_data_container)"
     echo "application data container is unavailable" >&2
     exit 1
 }
+if [[ "$camera_diagnostic" == first-person ]]; then
+    # A fresh iOS install takes the generic first-run branch, which selects the
+    # third-person Look At camera even though the menu's mobile default is
+    # first-person. Seed only the app's disposable simulator preferences so a
+    # preserved binary can A/B that startup decision without a rebuild.
+    run_bounded "first-person first-run preference" 30 xcrun simctl spawn \
+        "$active_udid" defaults write "$bundle_id" firstRun -bool false >/dev/null
+    run_bounded "first-person camera preference" 30 xcrun simctl spawn \
+        "$active_udid" defaults write "$bundle_id" 'View/First Person' -bool true >/dev/null
+    run_bounded "look-at camera preference" 30 xcrun simctl spawn \
+        "$active_udid" defaults write "$bundle_id" 'View/Look At' -bool false >/dev/null
+    live_log "phase=camera-diagnostic-ready mode=first-person"
+fi
 mvk_dump_root="$data_container/tmp/overte-mvk-shaders-$stem"
 [[ ! -e "$mvk_dump_root" ]] || { echo "MoltenVK dump path already exists" >&2; exit 1; }
 mkdir "$mvk_dump_root"

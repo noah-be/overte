@@ -61,6 +61,7 @@ on:
           - depth-off
           - full-scissor
           - reset-format
+          - camera-first-person
           - off
       gpu_trace:
         description: Capture one Metal GPU frame after the world gates
@@ -140,7 +141,7 @@ jobs:
              "$REQUESTED_SYNCHRONOUS_QUEUE_SUBMITS" == 0 || \
              "$REQUESTED_SYNCHRONOUS_QUEUE_SUBMITS" == 1 ]]
           case "$REQUESTED_RENDER_DIAGNOSTIC" in
-            off|trace|cpu-cull-off|gpu-cull-off|depth-off|full-scissor|reset-format) ;;
+            off|trace|cpu-cull-off|gpu-cull-off|depth-off|full-scissor|reset-format|camera-first-person) ;;
             *) echo "unsupported render diagnostic: $REQUESTED_RENDER_DIAGNOSTIC" >&2; exit 64 ;;
           esac
           [[ "$REQUESTED_GPU_TRACE" == 0 || "$REQUESTED_GPU_TRACE" == 1 ]]

@@ -61,6 +61,7 @@ for mode in (
     "depth-off",
     "full-scissor",
     "reset-format",
+    "camera-first-person",
 ):
     assert mode in smoke and mode in runtime, f"no-rebuild mode is not routed: {mode}"
 

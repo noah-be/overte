@@ -376,6 +376,9 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
             command_log.write_text("", encoding="utf-8")
             output = root / f"success-{family}-{scenario}"
             case_environment = {**environment, "FAKE_PROCESS_LOG": process_log}
+            camera_probe = family == "ipad" and scenario == "serverless"
+            if camera_probe:
+                case_environment["OVERTE_IOS_WORLD_RENDER_DIAGNOSTIC"] = "camera-first-person"
             expect_lldb_snapshot = family == "iphone" and scenario == "serverless"
             if expect_lldb_snapshot:
                 case_environment["OVERTE_IOS_WORLD_SYMBOL_BUNDLE"] = str(fake_dsym)
@@ -432,6 +435,17 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
             ]
             assert len(launch) == 1, launch
             assert commands.index(permission) < commands.index(launch[0]), commands
+            camera_preferences = [
+                f"simctl spawn {udid} defaults write org.overte.interface.dev firstRun -bool false",
+                f"simctl spawn {udid} defaults write org.overte.interface.dev View/First Person -bool true",
+                f"simctl spawn {udid} defaults write org.overte.interface.dev View/Look At -bool false",
+            ]
+            if camera_probe:
+                assert all(command in commands for command in camera_preferences), commands
+                assert all(commands.index(command) < commands.index(launch[0]) for command in camera_preferences)
+                assert any(" phase=camera-diagnostic-ready mode=first-person" in line for line in progress)
+            else:
+                assert not any(command in commands for command in camera_preferences), commands
             streams = [line for line in commands if line.startswith(f"simctl spawn {udid} log stream ")]
             assert len(streams) == 1, streams
             assert commands.index(streams[0]) < commands.index(launch[0]), commands
