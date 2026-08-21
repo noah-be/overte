@@ -80,6 +80,12 @@ def main() -> None:
             '    if [[ "$*" == *".dSYM/"* ]]; then uuid="${FAKE_DSYM_UUID:-$FAKE_APP_UUID}"; '
             'else uuid="$FAKE_APP_UUID"; fi\n'
             '    printf "UUID: %s (arm64) %s\\n" "$uuid" "${@: -1}" ;;\n'
+            '  dsymutil\\ *)\n'
+            '    [[ "${FAKE_DSYMUTIL_FAIL:-0}" == "0" ]] || exit 65\n'
+            '    [[ "${3:-}" == "-o" && -n "${4:-}" ]] || exit 64\n'
+            '    mkdir -p "$4/Contents/Resources/DWARF"\n'
+            '    printf "generated fixture DWARF" > "$4/Contents/Resources/DWARF/Overte"\n'
+            '    printf "dsymutil <%s> <-o> <%s>\\n" "$2" "$4" >> "$FAKE_TOOL_LOG" ;;\n'
             '  *--show-sdk-version*) echo "${FAKE_SDK_VERSION:-26.1}" ;;\n'
             '  *--show-sdk-path*) echo "$FAKE_SDK_PATH" ;;\n'
             '  *) echo "unexpected xcrun invocation: $*" >&2; exit 64 ;;\n'
@@ -414,7 +420,7 @@ def main() -> None:
         assert "dSYM does not match" in mismatched_symbols.stderr
 
         integrated_dwarf.unlink()
-        missing_symbols = run_cli(
+        generated_symbols = run_cli(
             environment | {"OVERTE_IOS_ARTIFACT_SEQUENCE": "45"},
             "package-client",
             "--platform",
@@ -424,8 +430,32 @@ def main() -> None:
             "--build-dir",
             str(integrated_build),
         )
-        assert missing_symbols.returncode == 1
-        assert "dSYM has no Overte DWARF image" in missing_symbols.stderr
+        assert generated_symbols.returncode == 0, generated_symbols.stderr
+        assert integrated_dwarf.read_bytes() == b"generated fixture DWARF"
+        assert f"dsymutil <{integrated_app / 'Overte'}> <-o>" in log.read_text(encoding="utf-8")
+        for generated in artifact_root.glob("0045-OverteIOSClient-*"):
+            generated.unlink()
+        (artifact_root / "LATEST-OverteIOSClient.json").unlink()
+        (artifact_root / "LATEST-OverteIOSClient.txt").unlink()
+
+        integrated_dwarf.unlink()
+        failed_symbol_generation = run_cli(
+            environment
+            | {
+                "OVERTE_IOS_ARTIFACT_SEQUENCE": "46",
+                "FAKE_DSYMUTIL_FAIL": "1",
+            },
+            "package-client",
+            "--platform",
+            "simulator",
+            "--configuration",
+            "Release",
+            "--build-dir",
+            str(integrated_build),
+        )
+        assert failed_symbol_generation.returncode == 1
+        assert "could not generate the Release integrated client dSYM" in failed_symbol_generation.stderr
+        integrated_dwarf.parent.mkdir(parents=True, exist_ok=True)
         integrated_dwarf.write_bytes(b"fixture DWARF")
 
         with (integrated_app / "PrivacyInfo.xcprivacy").open("wb") as stream:

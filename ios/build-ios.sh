@@ -552,6 +552,7 @@ PY
 
 run_package_client() {
     require_macos
+    require_command cmake
     require_command ditto
     require_command shasum
     require_command xcrun
@@ -588,6 +589,12 @@ run_package_client() {
     local dsym_binary="$dsym_path/Contents/Resources/DWARF/Overte"
     local app_uuid="" symbols_archive="" symbols_sha=""
     if [[ "$configuration" == "Release" ]]; then
+        if [[ ! -f "$dsym_binary" ]]; then
+            note "Release dSYM was not emitted by the build; generating it from the packaged executable"
+            cmake -E remove_directory "$dsym_path"
+            xcrun dsymutil "$app_path/Overte" -o "$dsym_path" \
+                || fail "could not generate the Release integrated client dSYM"
+        fi
         [[ -d "$dsym_path" ]] \
             || fail "Release integrated client dSYM is missing: $dsym_path"
         [[ -f "$dsym_binary" ]] \
