@@ -541,6 +541,8 @@ refresh_runtime_log_snapshot() {
                 printf 'OVERTE_IOS_VULKAN_DRAW batch=%s stage=draw_pass_complete\n' "$marker" >> "$marker_log"
             fi
         done
+        awk '!seen[$0]++' "$marker_log" > "$marker_log.next"
+        mv "$marker_log.next" "$marker_log"
     else
         rm -f "$snapshot_candidate"
     fi
@@ -565,9 +567,9 @@ fail_if_vulkan_fatal() {
 
 assemble_runtime_log() {
     if [[ -s "$log_snapshot" ]]; then
-        cat "$log_snapshot" "$app_stdout" "$app_stderr" > "$runtime_log"
+        awk '!seen[$0]++' "$marker_log" "$log_snapshot" "$app_stdout" "$app_stderr" > "$runtime_log"
     else
-        cat "$raw_log" "$app_stdout" "$app_stderr" > "$runtime_log"
+        awk '!seen[$0]++' "$marker_log" "$raw_log" "$app_stdout" "$app_stderr" > "$runtime_log"
     fi
 }
 
