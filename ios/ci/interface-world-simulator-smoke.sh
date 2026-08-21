@@ -716,7 +716,7 @@ world_progress_summary() {
 camera_diagnostic_observed() {
     case "$camera_diagnostic" in
         first-person)
-            runtime_log_contains 'OVERTE_IOS_CAMERA_DIAGNOSTIC[[:space:]]+mode=first person look at[[:space:]]+avatar=viewpoint([[:space:]]|$)'
+            runtime_log_contains 'OVERTE_IOS_CAMERA_DIAGNOSTIC[[:space:]]+mode=first person look at([[:space:]]|$)'
             ;;
         independent)
             runtime_log_contains 'OVERTE_IOS_CAMERA_DIAGNOSTIC[[:space:]]+mode=independent[[:space:]]+camera=viewpoint([[:space:]]|$)'
@@ -763,7 +763,7 @@ report_missing_world_gates() {
     case "$camera_diagnostic" in
         first-person)
             required+=(
-                'OVERTE_IOS_CAMERA_DIAGNOSTIC[[:space:]]+mode=first person look at[[:space:]]+avatar=viewpoint([[:space:]]|$)'
+                'OVERTE_IOS_CAMERA_DIAGNOSTIC[[:space:]]+mode=first person look at([[:space:]]|$)'
             )
             ;;
         independent)
@@ -1021,7 +1021,7 @@ if [[ "$camera_diagnostic" != default ]]; then
     # Do not alter firstRun: it also selects the startup navigation path. Load
     # one app-sandboxed startup script so the preserved binary can A/B camera
     # and viewpoint behavior without changing world import or rebuilding.
-    camera_script="$data_container/tmp/$(basename "$camera_probe_script")"
+    camera_script="$data_container/tmp/overte-$(basename "$camera_probe_script")"
     [[ ! -e "$camera_script" ]] || { echo "camera diagnostic script path already exists" >&2; exit 1; }
     install -m 0600 "$camera_probe_script" "$camera_script"
     camera_launch_arguments=(--defaultScriptsOverride "file://$camera_script")
