@@ -28,8 +28,8 @@ assert.deepStrictEqual(sanitize(100, -100, -100),
 const settings = production("scripts/system/settings/Settings.qml");
 const baseConfiguration = production(
     "scripts/system/settings/qml/SettingsTouchConfiguration.qml");
-const phoneConfiguration = production(
-    "scripts/system/settings/qml/+android_phoneInterface/SettingsTouchConfiguration.qml");
+const phoneProfile = production(
+    "interface/resources/qml/controlsUit/+android_phoneInterface/TouchUiProfile.qml");
 const picoConfiguration = production(
     "scripts/system/settings/qml/+android_picoInterface/SettingsTouchConfiguration.qml");
 const questConfiguration = production(
@@ -37,7 +37,8 @@ const questConfiguration = production(
 const fileUtils = production("libraries/shared/src/shared/FileUtils.cpp");
 
 assert.match(baseConfiguration, /showPicoInteractionSettings:\s*false/);
-assert.match(phoneConfiguration, /showPicoInteractionSettings:\s*false/);
+assert.match(phoneProfile, /picoResolutionSettingsAvailable:\s*false/);
+assert.doesNotMatch(phoneProfile, /showPicoInteractionSettings/);
 assert.match(questConfiguration, /showPicoInteractionSettings:\s*false/);
 assert.match(picoConfiguration, /showPicoInteractionSettings:\s*true/);
 assert.match(fileUtils, /extraSelectors << "android_" HIFI_ANDROID_APP/);

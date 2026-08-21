@@ -15,6 +15,7 @@ def picoJava = file('../../../vr/pico/apps/picoInterface/src/main/java')
 def picoTests = file('../../../vr/pico/apps/picoInterface/src/test/java')
 def questJava = file('../../../vr/quest/apps/questInterface/src/main/java')
 def questTests = file('../../../vr/quest/apps/questInterface/src/test/java')
+def qtJava = file('../../../common/libraries/qt/src/main/java')
 
 sourceSets {
     boundary {
@@ -22,12 +23,18 @@ sourceSets {
     }
     main {
         java {
-            srcDirs phoneJava, interfaceJava, picoJava, questJava
+            srcDirs phoneJava, interfaceJava, picoJava, questJava, qtJava
+            include 'org/overte/phone/PhoneInterfaceActivity.java'
             include 'org/overte/phone/PermissionsActivity.java'
             include 'org/overte/phone/PhoneDeepLink.java'
             include 'org/overte/phone/PhoneDeepLinkNormalizer.java'
             include 'org/overte/phone/PhoneLaunchState.java'
             include 'org/overte/phone/PhonePermissionFlow.java'
+            include 'org/overte/phone/PhonePendingUrlPolicy.java'
+            include 'org/overte/phone/PhoneTouchUiMetricsPolicy.java'
+            include 'io/highfidelity/utils/HifiUtils.java'
+            include 'io/highfidelity/utils/AssetCacheExtractor.java'
+            include 'io/highfidelity/utils/SafeAssetPath.java'
             include 'io/highfidelity/hifiinterface/HifiUtils.java'
             include 'io/highfidelity/hifiinterface/PermissionChecker.java'
             include 'org/overte/pico/PermissionsActivity.java'
@@ -91,11 +98,15 @@ test {
     dependsOn extractTestAars
     classpath += fileTree(extractedTestAars) { include '*.jar' }
     useJUnit()
-    // Avoid host-wide /tmp cleanup and extraction collisions for Conscrypt's JNI helper.
+    // Keep every native/font extraction inside this build. Robolectric otherwise
+    // ignores TMPDIR for java.io.tmpdir and can exhaust a shared host /tmp quota.
+    def testTempDir = layout.buildDirectory.dir('tmp/robolectric-runtime')
     def conscryptWorkDir = layout.buildDirectory.dir('tmp/conscrypt-native')
     doFirst {
+        testTempDir.get().asFile.mkdirs()
         conscryptWorkDir.get().asFile.mkdirs()
     }
+    systemProperty 'java.io.tmpdir', testTempDir.get().asFile.absolutePath
     systemProperty 'org.conscrypt.native.workdir', conscryptWorkDir.get().asFile.absolutePath
     reports.junitXml.required = true
     reports.html.required = true

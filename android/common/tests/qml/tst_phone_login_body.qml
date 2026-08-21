@@ -222,6 +222,16 @@ TestCase {
         verify(password.Accessible.description.indexOf(password.text) < 0)
     }
 
+    function test_systemImeReceivesCredentialSpecificHints() {
+        var username = field("PhoneLoginUsername")
+        var password = field("PhoneLoginPassword")
+        verify((username.inputMethodHints & Qt.ImhEmailCharactersOnly) !== 0)
+        verify((username.inputMethodHints & Qt.ImhNoAutoUppercase) !== 0)
+        verify((password.inputMethodHints & Qt.ImhSensitiveData) !== 0)
+        verify((password.inputMethodHints & Qt.ImhNoPredictiveText) !== 0)
+        verify((password.inputMethodHints & Qt.ImhHiddenText) !== 0)
+    }
+
     function test_keyboardFocusStartsOnUsernameAndFailureMovesToPassword() {
         verify(field("PhoneLoginUsername").focus)
         field("PhoneLoginUsername").text = "alice"

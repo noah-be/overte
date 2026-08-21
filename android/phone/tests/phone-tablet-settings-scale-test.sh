@@ -5,12 +5,12 @@ set -euo pipefail
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly repo_root="$(cd -- "$script_dir/../../.." && pwd)"
 readonly settings="$repo_root/scripts/system/settings/Settings.qml"
-readonly desktop_config="$repo_root/scripts/system/settings/qml/SettingsTouchConfiguration.qml"
-readonly phone_config="$repo_root/scripts/system/settings/qml/+android_phoneInterface/SettingsTouchConfiguration.qml"
+readonly shared_config="$repo_root/scripts/system/settings/qml/SettingsTouchConfiguration.qml"
 readonly pico_config="$repo_root/scripts/system/settings/qml/+android_picoInterface/SettingsTouchConfiguration.qml"
 readonly quest_config="$repo_root/scripts/system/settings/qml/+android_questInterface/SettingsTouchConfiguration.qml"
 readonly file_utils="$repo_root/libraries/shared/src/shared/FileUtils.cpp"
 readonly base_profile="$repo_root/interface/resources/qml/controlsUit/TouchUiProfileBase.qml"
+readonly phone_profile="$repo_root/interface/resources/qml/controlsUit/+android_phoneInterface/TouchUiProfile.qml"
 
 require() {
     local file="$1" pattern="$2" description="$3"
@@ -21,9 +21,9 @@ require() {
     printf 'PASS: %s\n' "$description"
 }
 
-require "$desktop_config" 'contentScale:[[:space:]]*1[.]0' \
+require "$shared_config" 'contentScale:[[:space:]]*1[.]0' \
     'desktop Settings retain their established scale'
-require "$desktop_config" 'HifiControls[.]TouchUiMetrics' \
+require "$shared_config" 'HifiControls[.]TouchUiMetrics' \
     'phone Settings avoid compounding the shared tablet-app scale'
 require "$base_profile" 'controllerSettingsAvailable:[[:space:]]*true' \
     'the default profile preserves controller settings'
@@ -31,18 +31,16 @@ require "$base_profile" 'graphicsSettingsAvailable:[[:space:]]*true' \
     'the default profile preserves graphics settings'
 require "$base_profile" 'picoResolutionSettingsAvailable:[[:space:]]*true' \
     'the default profile preserves existing render-scale settings'
-require "$desktop_config" 'showGraphicsSettings:[[:space:]]*profile[.]graphicsSettingsAvailable' \
-    'Settings resolve policy through the shared device profile'
-require "$phone_config" 'showControllerSettings:[[:space:]]*false' \
+require "$phone_profile" 'controllerSettingsAvailable:[[:space:]]*false' \
     'phone Settings hide the unavailable desktop and VR controller page'
-require "$phone_config" 'showGraphicsSettings:[[:space:]]*false' \
+require "$phone_profile" 'graphicsSettingsAvailable:[[:space:]]*false' \
     'phone Settings hide the unbounded desktop graphics page'
-require "$phone_config" 'showPicoResolutionSettings:[[:space:]]*false' \
+require "$phone_profile" 'picoResolutionSettingsAvailable:[[:space:]]*false' \
     'phone Settings hide the Pico-only render scale restart control'
-require "$desktop_config" 'showPicoInteractionSettings:[[:space:]]*false' \
+require "$shared_config" 'showGraphicsSettings:[[:space:]]*profile[.]graphicsSettingsAvailable' \
+    'Settings resolve policy through the shared device profile'
+require "$shared_config" 'showPicoInteractionSettings:[[:space:]]*false' \
     'unselected Settings profiles fail closed for Pico interaction controls'
-require "$phone_config" 'showPicoInteractionSettings:[[:space:]]*false' \
-    'phone Settings reject the Pico interaction page'
 require "$pico_config" 'showPicoInteractionSettings:[[:space:]]*true' \
     'the compiled Pico selector enables Pico interaction controls'
 require "$quest_config" 'showPicoInteractionSettings:[[:space:]]*false' \

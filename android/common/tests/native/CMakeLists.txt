@@ -101,6 +101,10 @@ add_overte_native_test(
     phone_pending_handoff_move
     "${CMAKE_CURRENT_LIST_DIR}/phone_pending_handoff_move_test.cpp")
 
+add_overte_native_test(
+    phone_touch_ui_metrics
+    "${CMAKE_CURRENT_LIST_DIR}/phone_touch_ui_metrics_test.cpp")
+
 set(OVERTE_BUNDLED_JDK_ROOT
     "${CMAKE_CURRENT_LIST_DIR}/../../../vr/pico/pico-host-tools/jdk-21"
     CACHE PATH "Optional repository-local JDK used for JNI test headers")

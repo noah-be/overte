@@ -127,8 +127,16 @@ require "$body" 'Flickable[[:space:]]*\{' \
     'phone login remains scrollable when the IME reduces available height'
 require "$body" 'contentHeight:[[:space:]]*Math[.]max\(height,[[:space:]]*panel[.]height\)' \
     'phone login only scrolls when its form no longer fits'
-require "$body" 'anchors[.]leftMargin:[[:space:]]*Math[.]min\(24,[[:space:]]*parent[.]width[[:space:]]*/[[:space:]]*4\)' \
+require "$body" 'anchors[.]leftMargin:[[:space:]]*Math[.]min\(touchMetrics[.]spacingLarge,[[:space:]]*parent[.]width[[:space:]]*/[[:space:]]*4\)' \
     'phone login keeps non-negative usable width on narrow resize'
+require "$body" 'inputMethodHints:[[:space:]]*Qt[.]ImhEmailCharactersOnly' \
+    'phone login requests an email-capable system keyboard for account input'
+require "$body" 'Qt[.]ImhSensitiveData' \
+    'phone login marks password input as sensitive to the system IME'
+require "$body" 'touchMetrics[.]ensureVisible\(viewport,' \
+    'phone login reveals focused fields after software-keyboard resize'
+require "$address_body" 'Qt[.]ImhNoAutoUppercase' \
+    'phone address entry suppresses inappropriate automatic capitalization'
 require "$body" 'Component[.]onDestruction:' \
     'phone login releases IME state during external or programmatic teardown'
 require "$body" 'if[[:space:]]*\(phoneLogin[.]closing\)' \

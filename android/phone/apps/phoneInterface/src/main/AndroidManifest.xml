@@ -25,7 +25,7 @@
             android:name=".PermissionsActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:screenOrientation="landscape"
+            android:screenOrientation="fullSensor"
             android:theme="@style/OverteStartupTheme">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -45,7 +45,8 @@
             android:configChanges="orientation|uiMode|screenLayout|screenSize|smallestScreenSize|locale|fontScale|keyboard|keyboardHidden|navigation"
             android:exported="false"
             android:launchMode="singleTask"
-            android:screenOrientation="landscape"
+            android:screenOrientation="fullSensor"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/OverteStartupTheme">
             <meta-data android:name="android.app.lib_name" android:value="phoneInterface" />
             <meta-data android:name="android.app.qt_libs_resource_id" android:resource="@array/qt_libs" />

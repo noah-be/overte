@@ -23,6 +23,12 @@ Item {
     property bool keyDismissPending: false
     readonly property int maximumCredentialLength: 4096
 
+    HifiControls.TouchUiMetrics {
+        id: touchMetrics
+        availableWidth: phoneLogin.width
+        availableHeight: phoneLogin.height
+    }
+
     function dismiss() {
         if (closing) {
             return
@@ -57,14 +63,17 @@ Item {
     Flickable {
         id: viewport
         anchors.fill: parent
-        anchors.leftMargin: Math.min(24, parent.width / 4)
+        anchors.leftMargin: Math.min(touchMetrics.spacingLarge, parent.width / 4)
         anchors.rightMargin: anchors.leftMargin
-        anchors.topMargin: Math.min(24, parent.height / 4)
+        anchors.topMargin: Math.min(touchMetrics.spacingLarge, parent.height / 4)
         anchors.bottomMargin: anchors.topMargin
         contentWidth: width
         contentHeight: Math.max(height, panel.height)
         clip: true
         boundsBehavior: Flickable.StopAtBounds
+        pressDelay: touchMetrics.pressDelay
+        flickDeceleration: touchMetrics.flickDeceleration
+        maximumFlickVelocity: touchMetrics.maximumFlickVelocity
 
         Rectangle {
             anchors.fill: panel
@@ -86,7 +95,7 @@ Item {
                     ? qsTr("Log in to %1").arg(phoneLogin.domainName)
                     : qsTr("Log in to Overte")
                 color: "white"
-                font.pixelSize: 28
+                font.pixelSize: Math.round(28 * touchMetrics.textScale)
                 font.bold: true
                 horizontalAlignment: Text.AlignHCenter
                 Accessible.role: Accessible.StaticText
@@ -99,7 +108,7 @@ Item {
                 width: parent.width
                 visible: text.length > 0
                 color: "#ff7777"
-                font.pixelSize: 18
+                font.pixelSize: Math.round(18 * touchMetrics.textScale)
                 wrapMode: Text.WordWrap
                 horizontalAlignment: Text.AlignHCenter
                 Accessible.role: Accessible.StaticText
@@ -110,9 +119,10 @@ Item {
                 id: username
                 objectName: "PhoneLoginUsername"
                 width: parent.width
-                height: 52
+                height: Math.max(52, implicitHeight)
                 placeholderText: qsTr("Username or email")
                 maximumLength: phoneLogin.maximumCredentialLength
+                inputMethodHints: Qt.ImhEmailCharactersOnly | Qt.ImhNoAutoUppercase
                 enabled: !phoneLogin.waiting
                 activeFocusOnPress: true
                 activeFocusOnTab: true
@@ -121,18 +131,25 @@ Item {
                 Accessible.description: phoneLogin.domainLogin
                     ? qsTr("Domain account username or email")
                     : qsTr("Overte account username or email")
-                font.pixelSize: 20
+                font.pixelSize: Math.round(20 * touchMetrics.textScale)
                 Keys.onReturnPressed: password.forceActiveFocus()
+                onActiveFocusChanged: if (activeFocus) {
+                    Qt.callLater(function () {
+                        touchMetrics.ensureVisible(viewport, username)
+                    })
+                }
             }
 
             HifiControls.TextField {
                 id: password
                 objectName: "PhoneLoginPassword"
                 width: parent.width
-                height: 52
+                height: Math.max(52, implicitHeight)
                 placeholderText: qsTr("Password")
                 maximumLength: phoneLogin.maximumCredentialLength
                 echoMode: TextInput.Password
+                inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
+                    | Qt.ImhHiddenText
                 enabled: !phoneLogin.waiting
                 activeFocusOnPress: true
                 activeFocusOnTab: true
@@ -140,17 +157,24 @@ Item {
                 Accessible.name: qsTr("Password")
                 Accessible.description: qsTr("Account password")
                 Accessible.passwordEdit: true
-                font.pixelSize: 20
+                font.pixelSize: Math.round(20 * touchMetrics.textScale)
                 Keys.onReturnPressed: phoneLogin.submit()
+                onActiveFocusChanged: if (activeFocus) {
+                    Qt.callLater(function () {
+                        touchMetrics.ensureVisible(viewport, password)
+                    })
+                }
             }
 
             Row {
-                anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 16
+                id: loginActions
+                width: parent.width
+                spacing: touchMetrics.spacingMedium
 
                 HifiControls.Button {
                     objectName: "PhoneLoginSubmit"
                     text: phoneLogin.waiting ? qsTr("Logging in…") : qsTr("Log in")
+                    width: (loginActions.width - loginActions.spacing) / 2
                     enabled: !phoneLogin.waiting
                     activeFocusOnTab: true
                     Accessible.role: Accessible.Button
@@ -164,6 +188,7 @@ Item {
                 HifiControls.Button {
                     objectName: "PhoneLoginCancel"
                     text: qsTr("Cancel")
+                    width: (loginActions.width - loginActions.spacing) / 2
                     activeFocusOnTab: true
                     Accessible.role: Accessible.Button
                     Accessible.name: text
@@ -200,6 +225,19 @@ Item {
                 : qsTr("Username or password incorrect.")
             password.selectAll()
             password.forceActiveFocus()
+        }
+    }
+
+    Connections {
+        target: touchMetrics
+        function onKeyboardVisibleChanged() {
+            var focusedField = username.activeFocus ? username
+                : password.activeFocus ? password : null
+            if (touchMetrics.keyboardVisible && focusedField) {
+                Qt.callLater(function () {
+                    touchMetrics.ensureVisible(viewport, focusedField)
+                })
+            }
         }
     }
 

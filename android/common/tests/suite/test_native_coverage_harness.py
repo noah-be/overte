@@ -68,8 +68,10 @@ printf '<html>coverage</html>\n' >"$html"
             reports.mkdir()
             for name in (
                     "interface.xml", "login-state.xml", "pending-handoff.xml",
+                    "touch-ui-metrics.xml",
                     "interface.html", "interface.details.html",
-                    "login-state.html", "pending-handoff.html"):
+                    "login-state.html", "pending-handoff.html",
+                    "touch-ui-metrics.html"):
                 (reports / name).write_text("stale", encoding="utf-8")
             failing_mktemp = root / "mktemp"
             executable(failing_mktemp, "exit 8\n")
@@ -94,7 +96,9 @@ printf '<html>coverage</html>\n' >"$html"
             root = Path(directory)
             reports = root / "reports"
             reports.mkdir()
-            for name in ("interface.xml", "login-state.xml", "pending-handoff.xml"):
+            for name in (
+                    "interface.xml", "login-state.xml", "pending-handoff.xml",
+                    "touch-ui-metrics.xml"):
                 (reports / name).write_text("stale", encoding="utf-8")
             result = subprocess.run([RUNNER], env=self.fixture(root, fail_call=2),
                                     text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -111,14 +115,15 @@ printf '<html>coverage</html>\n' >"$html"
             self.assertEqual(0, result.returncode, result.stdout)
             reports = root / "reports"
             self.assertEqual(
-                {"interface.xml", "login-state.xml", "pending-handoff.xml"},
+                {"interface.xml", "login-state.xml", "pending-handoff.xml",
+                 "touch-ui-metrics.xml"},
                 {path.name for path in reports.glob("*.xml")})
-            self.assertEqual(3, len(list(reports.glob("*.html"))))
+            self.assertEqual(4, len(list(reports.glob("*.html"))))
             self.assertEqual([], list(reports.glob(".native-coverage.*")))
             gcovr_calls = [line for line in Path(environment["TOOL_LOG"])
                            .read_text(encoding="utf-8").splitlines()
                            if line.startswith("gcovr:")]
-            self.assertEqual([f"gcovr:{ANDROID_ROOT.parent}"] * 3, gcovr_calls)
+            self.assertEqual([f"gcovr:{ANDROID_ROOT.parent}"] * 4, gcovr_calls)
 
     @unittest.skipUnless(os.name == "posix", "flock fixture is POSIX-specific")
     def test_success_status_without_a_required_output_is_rejected(self):

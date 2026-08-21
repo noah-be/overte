@@ -435,6 +435,12 @@ memory/performance baselines. Device jobs must be serialized per device, use a
 bounded timeout, always clean up the installed test state, and publish only
 privacy-scrubbed summaries.
 
+The touch-specific device/posture, IME, hybrid-input, accessibility and
+performance acceptance criteria are maintained in
+[`TOUCH_DEVICE_VALIDATION.md`](../../phone/docs/TOUCH_DEVICE_VALIDATION.md).
+Unexecuted physical rows remain explicitly `not run`; device-free evidence
+must not be promoted to a hardware pass.
+
 Coverage should be reported separately for JVM, native and JavaScript code.
 Raise thresholds gradually around critical parsers and state machines; a single
 aggregate percentage is not a useful release gate for this hybrid application.
@@ -448,7 +454,9 @@ android/common/tests/run-tests.sh mutation
 ```
 
 It validates a clean baseline before applying mutations, then covers the pure
-Java boundary policies (including asset cache marker/extraction behavior), the native graphics parsers and pending handoff,
+Java boundary policies (including runtime touch metrics and asset cache
+marker/extraction behavior), the native graphics parsers, pending handoff and
+touch-metrics boundary,
 and curated lifecycle/routing decisions in five production JavaScript files.
 The JavaScript mutations are injected only by exact canonical source-path
 substitution in the existing Node VM harness; normal test runs are unchanged.

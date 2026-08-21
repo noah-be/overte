@@ -37,6 +37,22 @@ require "$phone_activity" 'void onConfigurationChanged\(Configuration newConfig\
     'Qt surface bounds are refreshed after Android orientation changes'
 require "$phone_activity" 'window\.setLayout\(' \
     'phone activity explicitly fills the complete display window'
+require "$phone_activity" 'setOnApplyWindowInsetsListener' \
+    'phone observes every runtime safe-area and IME change'
+require "$phone_activity" 'WindowInsets\.Type\.systemBars\(\)[[:space:]]*\|[[:space:]]*WindowInsets\.Type\.displayCutout\(\)' \
+    'modern safe geometry combines system bars and display cutouts'
+require "$phone_activity" 'WindowInsets\.Type\.mandatorySystemGestures\(\)' \
+    'mandatory system gestures remain outside touch controls'
+require "$phone_activity" 'WindowInsets\.Type\.ime\(\)' \
+    'software-keyboard visibility is measured independently'
+require "$phone_activity" 'normalizeLegacyInsets\(' \
+    'legacy Android separates IME and persistent safe geometry through a tested policy'
+require "$phone_activity" 'registerInputDeviceListener' \
+    'hybrid mouse, stylus and keyboard changes refresh input capabilities'
+require "$phone_activity" 'unregisterInputDeviceListener' \
+    'input capability listeners are released with the foreground lifecycle'
+require "$phone_activity" 'MAX_METRICS_RETRY_ATTEMPTS' \
+    'early runtime metrics use a finite native-startup retry budget'
 require "$repo_root/android/phone/apps/phoneInterface/src/main/java/org/qtproject/qt5/android/QtLayout.java" \
     'postDelayed\(\(\) -> QtNative\.setApplicationDisplayMetrics' \
     'phone reapplies real metrics after Qt replaces its fallback screen'
