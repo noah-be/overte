@@ -21,7 +21,7 @@ UUID = re.compile(
     r"^\{?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-"
     r"[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\}?$"
 )
-WORLD_FIELD = re.compile(r"\b(kind|destination|scene)=\s*([^\s]+)")
+WORLD_FIELD = re.compile(r"\b(kind|destination|scene|success)=\s*([^\s]+)")
 ENTITY_FIELD = re.compile(r"\b(domain|entity)=\s*([^\s]+)")
 
 
@@ -62,6 +62,7 @@ def validate_serverless(lines: list[str], navigation_index: int, destination: st
         (WORLD_PREFIX, "serverless_import_committed"),
         (ENTITY_PREFIX, "entity_tree_nonempty"),
         (ENTITY_PREFIX, "render_handoff"),
+        (WORLD_PREFIX, "serverless_viewpoint_applied"),
     )
     evidence: list[dict[str, object]] = []
     cursor = navigation_index + 1
@@ -77,6 +78,8 @@ def validate_serverless(lines: list[str], navigation_index: int, destination: st
         index, fields = found
         if expected_name == "serverless_import_committed" and fields.get("scene") != destination:
             raise ValueError("serverless import committed a different scene")
+        if expected_name == "serverless_viewpoint_applied" and fields != {"success": "1"}:
+            raise ValueError("serverless root viewpoint was not applied")
         if expected_name in ("entity_tree_nonempty", "render_handoff"):
             entity = fields.get("entity", "")
             if UUID.fullmatch(entity) is None:

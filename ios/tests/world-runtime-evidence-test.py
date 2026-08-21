@@ -114,6 +114,7 @@ def serverless_log(scene: str = "serverless_tutorial", *, reverse: bool = False)
         f"Overte OVERTE_IOS_WORLD_GATE serverless_import_committed scene= {scene}",
         f"Overte OVERTE_IOS_ENTITY_GATE entity_tree_nonempty entity= {{{ENTITY}}}",
         f"Overte OVERTE_IOS_ENTITY_GATE render_handoff entity= {{{ENTITY}}}",
+        "Overte OVERTE_IOS_WORLD_GATE serverless_viewpoint_applied success= 1",
     ]
     if reverse:
         gates[2], gates[3] = gates[3], gates[2]

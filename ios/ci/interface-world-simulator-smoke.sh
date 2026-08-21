@@ -535,6 +535,7 @@ report_missing_world_gates() {
             'OVERTE_IOS_WORLD_GATE[[:space:]]+serverless_import_committed'
             'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_tree_nonempty'
             'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff'
+            'OVERTE_IOS_WORLD_GATE[[:space:]]+serverless_viewpoint_applied[[:space:]]+success=[[:space:]]+1'
         )
     else
         required+=(
@@ -842,7 +843,8 @@ while :; do
         if [[ "$scenario" == serverless ]]; then
             runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+serverless_import_committed' && \
             runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_tree_nonempty' && \
-            runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' && ready=1
+            runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' && \
+            runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+serverless_viewpoint_applied[[:space:]]+success=[[:space:]]+1' && ready=1
         else
             runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+domain_list_connected' && \
             runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_server_active' && \
@@ -924,7 +926,6 @@ while :; do
         exit 1
     fi
     sleep 5
-    refresh_runtime_log_snapshot
     fail_if_vulkan_fatal || exit 1
     process_is_running || { echo "application process exited while waiting for world detail" >&2; exit 1; }
     kill -0 "$log_stream_pid" 2>/dev/null || {

@@ -64,6 +64,7 @@ SERVERLESS_LOG = LOG_STREAM_FILTER_BANNER + "\n".join(
         "Overte OVERTE_IOS_VULKAN_DRAW batch=CompositeHUD stage=draw_pass_complete",
         f"Overte OVERTE_IOS_ENTITY_GATE entity_tree_nonempty entity= {{{ENTITY}}}",
         f"Overte OVERTE_IOS_ENTITY_GATE render_handoff entity= {{{ENTITY}}}",
+        "Overte OVERTE_IOS_WORLD_GATE serverless_viewpoint_applied success= 1",
     )
 ) + "\n"
 ONLINE_LOG = "\n".join(

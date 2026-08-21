@@ -26,6 +26,8 @@
 #include <QDateTime>
 #include <QSaveFile>
 #include <QStandardPaths>
+#include <QTimer>
+#include <QUrlQuery>
 #include <QtGui/QClipboard>
 #include <QtNetwork/QLocalSocket>
 #include <QtNetwork/QLocalServer>
@@ -1116,6 +1118,32 @@ void Application::loadServerlessDomain(QUrl domainURL) {
     if (domainURL.isEmpty()) {
         return;
     }
+#if defined(Q_OS_IOS)
+    const auto scheduleServerlessRootViewpoint = [this, domainURL](
+            const std::map<QString, QString>& namedPaths) {
+        // AddressManager asks for the root path immediately after changing the
+        // domain URL. A synchronous local import can complete before that path
+        // request, and iOS startup can subsequently restore the avatar's old
+        // position. Re-apply the authored root once the current event turn has
+        // completed. An explicit location query remains authoritative.
+        if (QUrlQuery(domainURL).hasQueryItem(QStringLiteral("location"))) {
+            return;
+        }
+        const auto root = namedPaths.find(QStringLiteral("/"));
+        if (root == namedPaths.end() || root->second.isEmpty()) {
+            return;
+        }
+        const QString viewpoint = root->second;
+        QTimer::singleShot(0, this, [viewpoint] {
+            const bool applied = DependencyManager::get<AddressManager>()->goToViewpointForPath(
+                viewpoint, QStringLiteral("/"));
+            if (QCoreApplication::arguments().contains(QStringLiteral("--ios-world-evidence"))) {
+                logIOSRuntimeMarker("OVERTE_IOS_WORLD_GATE serverless_viewpoint_applied",
+                                    "success=", applied ? QStringLiteral("1") : QStringLiteral("0"));
+            }
+        });
+    };
+#endif
 #if defined(ANDROID_APP_PICO_INTERFACE)
     const auto finishPicoServerlessImport = [this] {
         _picoServerlessSceneImportInProgress = false;
@@ -1159,6 +1187,9 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         auto nodeList = DependencyManager::get<NodeList>();
         nodeList->getDomainHandler().connectedToServerless(namedPaths);
         setIsServerlessMode(true);
+#if defined(Q_OS_IOS)
+        scheduleServerlessRootViewpoint(namedPaths);
+#endif
         _octreeProcessor->getFullSceneReceivedCounter()++;
         if (QCoreApplication::arguments().contains(QStringLiteral("--ios-world-evidence"))) {
             const QUrl tutorialURL(QStringLiteral("file:///~/serverless/tutorial.json"));
@@ -1270,6 +1301,9 @@ void Application::loadServerlessDomain(QUrl domainURL) {
             // before the signal leaves Pico's physics handoff blocked at
             // RECEIVING_WORLD indefinitely.
             setIsServerlessMode(true);
+#if defined(Q_OS_IOS)
+            scheduleServerlessRootViewpoint(namedPaths);
+#endif
             _octreeProcessor->getFullSceneReceivedCounter()++;
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
             qInfo().noquote() << "OVERTE_MACOS_ENTITY_GATE serverless_import_committed"
