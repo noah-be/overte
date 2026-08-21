@@ -67,6 +67,8 @@ class OffscreenQmlSurface;
  */
 class TabletScriptingInterface : public QObject, public Dependency {
     Q_OBJECT
+    Q_PROPERTY(QVariantMap touchUiRuntimeMetrics READ getTouchUiRuntimeMetrics
+        NOTIFY touchUiRuntimeMetricsChanged)
 public:
 
     /*@jsdoc
@@ -131,6 +133,10 @@ public:
     QQuickWindow* getTabletWindow();
 
     QObject* getFlags();
+    QVariantMap getTouchUiRuntimeMetrics() const { return _touchUiRuntimeMetrics; }
+    // Platform-host input only. Keep this out of the scripting API so scripts
+    // cannot spoof trusted safe-area or input-capability measurements.
+    void setTouchUiRuntimeMetrics(const QVariantMap& metrics);
 signals:
     /*@jsdoc
      * Triggered when a tablet message or dialog is displayed on the tablet that needs the user's attention.
@@ -140,6 +146,7 @@ signals:
      * @returns {Signal}
      */
     void tabletNotification();
+    void touchUiRuntimeMetricsChanged();
 
 private:
     friend class TabletProxy;
@@ -152,6 +159,7 @@ protected:
     std::map<QString, TabletProxy*> _tabletProxies;
     ToolbarScriptingInterface* _toolbarScriptingInterface { nullptr };
     bool _toolbarMode { false };
+    QVariantMap _touchUiRuntimeMetrics;
 };
 
 /*@jsdoc
