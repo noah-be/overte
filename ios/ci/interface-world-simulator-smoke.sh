@@ -21,6 +21,7 @@ output_dir="${6:-}"
 poll_timeout="${OVERTE_IOS_WORLD_TIMEOUT_SECONDS:-540}"
 poll_interval="${OVERTE_IOS_WORLD_POLL_SECONDS:-2}"
 screenshot_settle="${OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS:-2}"
+screenshot_wait="${OVERTE_IOS_WORLD_SCREENSHOT_WAIT_SECONDS:-180}"
 # CoreSimulatorBridge itself retries app launches for 120 seconds. Keep the
 # outer watchdog above that boundary so a large freshly installed app can
 # finish LaunchServices registration and return either its PID or a causal
@@ -64,6 +65,10 @@ capture_only="${OVERTE_IOS_WORLD_CAPTURE_ONLY:-0}"
 }
 [[ "$screenshot_settle" =~ ^[0-9]+$ ]] && ((10#$screenshot_settle <= 30)) || {
     echo "OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS must be an integer from 0 through 30" >&2
+    exit 2
+}
+[[ "$screenshot_wait" =~ ^[1-9][0-9]*$ ]] && ((10#$screenshot_wait <= 600)) || {
+    echo "OVERTE_IOS_WORLD_SCREENSHOT_WAIT_SECONDS must be an integer from 1 through 600" >&2
     exit 2
 }
 [[ "$launch_timeout" =~ ^[0-9]+$ ]] && ((10#$launch_timeout >= 130 && 10#$launch_timeout <= 600)) || {
@@ -902,21 +907,34 @@ kill -0 "$log_stream_pid" 2>/dev/null || {
     fail_stopped_log_stream || stream_status=$?
     exit "$stream_status"
 }
-pause_application_for_screenshot
-run_bounded "world screenshot" 30 xcrun simctl io "$active_udid" screenshot "$screenshot" >/dev/null
-resume_application_after_screenshot
-fail_if_vulkan_fatal || exit 1
-process_is_running || { echo "application process exited while capturing the world screenshot" >&2; exit 1; }
-kill -0 "$log_stream_pid" 2>/dev/null || {
-    stream_status=0
-    fail_stopped_log_stream || stream_status=$?
-    exit "$stream_status"
-}
+screenshot_deadline=$(( $(date +%s) + 10#$screenshot_wait ))
+while :; do
+    pause_application_for_screenshot
+    run_bounded "world screenshot" 30 xcrun simctl io "$active_udid" screenshot "$screenshot" >/dev/null
+    if [[ "$capture_only" == 1 ]] || python3 "$screenshot_validator" "$screenshot" \
+            --scenario "$scenario" --destination "$destination" --output "$screenshot_report"; then
+        # Keep the accepted framebuffer frozen while logs and evidence are
+        # assembled. This prevents unrelated late pipeline compilation from
+        # replacing or invalidating an already proven frame.
+        break
+    fi
+    resume_application_after_screenshot
+    if (( $(date +%s) >= screenshot_deadline )); then
+        echo "$scenario world screenshot detail timed out" >&2
+        exit 1
+    fi
+    sleep 5
+    refresh_runtime_log_snapshot
+    fail_if_vulkan_fatal || exit 1
+    process_is_running || { echo "application process exited while waiting for world detail" >&2; exit 1; }
+    kill -0 "$log_stream_pid" 2>/dev/null || {
+        stream_status=0
+        fail_stopped_log_stream || stream_status=$?
+        exit "$stream_status"
+    }
+done
 assemble_runtime_log
 if [[ "$capture_only" == 0 ]]; then
-    python3 "$screenshot_validator" "$screenshot" \
-        --scenario "$scenario" --destination "$destination" --output "$screenshot_report"
-
     validator_arguments=(
         "$runtime_log" --scenario "$scenario" --destination "$destination"
         --screenshot "$screenshot" --screenshot-report "$screenshot_report" --output "$result"
@@ -926,6 +944,7 @@ if [[ "$capture_only" == 0 ]]; then
     fi
     python3 "$world_validator" "${validator_arguments[@]}"
 fi
+resume_application_after_screenshot
 fail_if_vulkan_fatal || exit 1
 process_is_running || { echo "application process exited before world validation completed" >&2; exit 1; }
 kill -0 "$log_stream_pid" 2>/dev/null || {
