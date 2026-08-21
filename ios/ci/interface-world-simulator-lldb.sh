@@ -374,7 +374,8 @@ if ((!wait_for_debugger && !attach_after_world_gate && 10#$attach_delay > 0)); t
     sleep "$attach_delay"
 fi
 
-cat > "$crash_commands" <<'LLDB'
+cat > "$crash_commands" <<LLDB
+target symbols add "$symbol_bundle"
 process status
 thread list
 thread backtrace all -c 256
@@ -415,7 +416,6 @@ lldb_arguments=(
     --batch \
     --attach-pid "$launch_pid" \
     -o 'settings set auto-confirm true' \
-    -o "target symbols add \"$symbol_bundle\"" \
     -o 'process handle -s true -n false -p false SIGSEGV'
 )
 if ((startup_trace)); then
