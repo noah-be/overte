@@ -37,18 +37,28 @@ function createRun() {
         Render: { getConfig() { return {}; } },
         Scene: {},
         Test: {
+            getPresentCount() { return clock.now; },
+            isTextureLoadingComplete() { return true; },
             saveObject(value, name) {
                 operations.push("save:" + name);
                 saved.push({ value, name });
             }
         },
         Script: script,
+        Stats: {
+            downloads: 0,
+            downloadsPending: 0,
+            processing: 0,
+            processingPending: 0,
+            texturePendingTransfers: 0,
+            forceUpdateStats() {}
+        },
         Window: windowObject,
         Entities: {
             findEntities() { return ["primitive"]; },
             getEntityProperties() {
                 return {
-                    type: "Box",
+                    type: "Model",
                     visible: true,
                     position: { x: 1, y: 2, z: 3 },
                     dimensions: { x: 1, y: 1, z: 1 }
@@ -64,7 +74,7 @@ function createRun() {
 
     function requestSnapshot() {
         script.interval();
-        clock.now += 1000;
+        clock.now += 5000;
         script.interval();
         assert.strictEqual(windowObject.snapshotName, "macos-online-smoke.png");
     }
@@ -111,7 +121,7 @@ function createRun() {
     assert.strictEqual(completion, undefined,
         "a pending callback is not successful completion evidence");
     assert.strictEqual(run.script.stopped, false);
-    run.clock.now += 120000;
+    run.clock.now += 240000;
     run.script.interval();
     assert.strictEqual(run.script.stopped, true);
     assert.strictEqual(run.saved.some((entry) =>

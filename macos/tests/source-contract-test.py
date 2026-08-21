@@ -1004,9 +1004,9 @@ for inventory_contract in (
     "validate-online-entities.py",
     "render_handoff_id",
     "--render-handoff-id",
-    "--macosTestLightweightEntities",
-    "lightweight_entity_filter_active",
-    "lightweight_primitive_handoff",
+    "--min-color-buckets 16",
+    "--max-dominant-color-ratio 0.45",
+    "--min-edge-ratio 0.003",
 ):
     if inventory_contract not in online_smoke:
         raise SystemExit(f"online smoke must correlate its rendered entity: {inventory_contract}")
@@ -1014,7 +1014,7 @@ if "web_entity_qml_paused" in online_smoke:
     raise SystemExit(
         "online lightweight mode must not require a Web renderer that it intentionally filters"
     )
-for marker in ONLINE_CONTRACT | {"render_handoff": ""}:
+for marker in (set(ONLINE_CONTRACT) - {"lightweight_primitive_handoff"}) | {"render_handoff"}:
     if marker not in online_smoke:
         raise SystemExit(f"online smoke runner does not require {marker}")
 transition_smoke = (ROOT / "macos/ci/transition-smoke.sh").read_text(
@@ -1041,10 +1041,7 @@ if "disableEntityScripts" in transition_smoke or "entity_scripts_disabled" in tr
     raise SystemExit(
         "serverless/online transition smoke must retain the production entity-script lifecycle"
     )
-for smoke_name, smoke_source in (
-    ("online", online_smoke),
-    ("serverless/online transition", transition_smoke),
-):
+for smoke_name, smoke_source in (("serverless/online transition", transition_smoke),):
     for lightweight_runner_contract in (
         "--macosTestLightweightEntities",
         "lightweight_entity_filter_active",
@@ -1054,6 +1051,8 @@ for smoke_name, smoke_source in (
                 f"{smoke_name} smoke must activate the explicit lightweight "
                 f"render mode: {lightweight_runner_contract}"
             )
+if "--macosTestLightweightEntities" in online_smoke:
+    raise SystemExit("online smoke must render the complete streamed model scene")
 
 global_properties_header = (
     ROOT / "libraries/shared/src/shared/GlobalAppProperties.h"
@@ -1284,7 +1283,7 @@ for online_entity_classification_contract in (
     'NON_VISIBLE_GEOMETRY_TYPES = NON_RENDERING_TYPES | {"Zone", "Light", "Material"}',
     'PRIMITIVE_TYPES = {"Box", "Sphere", "Shape"}',
     "entity_type not in NON_VISIBLE_GEOMETRY_TYPES",
-    "handoff_type not in PRIMITIVE_TYPES",
+    'entity_type == "Model"',
 ):
     if online_entity_classification_contract not in online_validator:
         raise SystemExit(
@@ -1293,13 +1292,15 @@ for online_entity_classification_contract in (
         )
 for online_timing_contract in (
     "snapshot_complete=",
-    "visibleGeometryReadyAt = Date.now() + 1000",
-    "latestInventory.visible_primitive_count > 0",
+    "visibleGeometryReadyAt = Date.now() + 5000",
+    "latestInventory.visible_model_count > 0",
+    "queuesEmpty(resources)",
+    "Test.getPresentCount()",
     "saveEntityInventory(latestInventory)",
     "snapshotSettleDeadline = Date.now() + 300000",
     "snapshot_still_pending",
     "if (success)",
-    "Date.now() + 420000",
+    "Date.now() + 540000",
 ):
     if online_timing_contract not in online_script:
         raise SystemExit(

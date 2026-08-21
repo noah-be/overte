@@ -127,4 +127,25 @@ with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as directory:
     assert invalid_threshold.returncode == 2
     assert "between zero and one" in invalid_threshold.stderr
 
+    flat_horizon = temporary / "flat-horizon.png"
+    write_png(
+        flat_horizon,
+        64,
+        64,
+        lambda _x, y: (255, 255, 255, 255) if y < 32 else (0, 0, 0, 255),
+    )
+    flat_horizon_run = run(
+        flat_horizon,
+        "--min-color-buckets",
+        "16",
+        "--max-dominant-color-ratio",
+        "0.45",
+        "--min-edge-ratio",
+        "0.01",
+    )
+    assert flat_horizon_run.returncode == 1, flat_horizon_run
+    assert "color diversity" in flat_horizon_run.stdout
+    assert "single coarse color" in flat_horizon_run.stdout
+    assert "spatial detail" in flat_horizon_run.stdout
+
 print("macOS screenshot validator tests passed")

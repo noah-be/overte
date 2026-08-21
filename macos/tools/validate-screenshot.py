@@ -128,6 +128,10 @@ def measure_pixels(width: int, height: int, color_type: int, pixels: bytes) -> d
     minimum = 255
     maximum = 0
     buckets: set[tuple[int, int, int]] = set()
+    bucket_counts: dict[tuple[int, int, int], int] = {}
+    edge_count = 0
+    edge_comparisons = 0
+    previous_row_luminance = [0] * width
     for offset in range(0, len(pixels), channels):
         pixel_index = offset // channels
         x = pixel_index % width
@@ -138,6 +142,16 @@ def measure_pixels(width: int, height: int, color_type: int, pixels: bytes) -> d
             r, g, b = pixels[offset : offset + 3]
         alpha = pixels[offset + channels - 1] if color_type in (4, 6) else 255
         luminance = (54 * r + 183 * g + 19 * b) // 256
+        if x > 0:
+            edge_comparisons += 1
+            if abs(luminance - previous_luminance) >= 16:
+                edge_count += 1
+        if y > 0:
+            edge_comparisons += 1
+            if abs(luminance - previous_row_luminance[x]) >= 16:
+                edge_count += 1
+        previous_luminance = luminance
+        previous_row_luminance[x] = luminance
         minimum = min(minimum, luminance)
         maximum = max(maximum, luminance)
         if max(r, g, b) > 16:
@@ -158,8 +172,10 @@ def measure_pixels(width: int, height: int, color_type: int, pixels: bytes) -> d
                 min(cyan_bounds[0], x), min(cyan_bounds[1], y),
                 max(cyan_bounds[2], x), max(cyan_bounds[3], y),
             ]
+        bucket = (r // 16, g // 16, b // 16)
+        bucket_counts[bucket] = bucket_counts.get(bucket, 0) + 1
         if len(buckets) < 4096:
-            buckets.add((r // 16, g // 16, b // 16))
+            buckets.add(bucket)
 
     total = width * height
     return {
@@ -178,6 +194,8 @@ def measure_pixels(width: int, height: int, color_type: int, pixels: bytes) -> d
         "luminance_max": maximum,
         "luminance_span": maximum - minimum,
         "color_buckets": len(buckets),
+        "dominant_color_ratio": max(bucket_counts.values(), default=0) / total,
+        "edge_ratio": edge_count / edge_comparisons if edge_comparisons else 0.0,
     }
 
 
@@ -195,6 +213,10 @@ def validate(arguments: argparse.Namespace) -> dict[str, object]:
         failures.append("image does not contain enough luminance contrast")
     if metrics["color_buckets"] < arguments.min_color_buckets:
         failures.append("image does not contain enough color diversity")
+    if metrics["dominant_color_ratio"] > arguments.max_dominant_color_ratio:
+        failures.append("image is dominated by a single coarse color")
+    if metrics["edge_ratio"] < arguments.min_edge_ratio:
+        failures.append("image does not contain enough spatial detail")
     if metrics["red_pixels"] < arguments.require_red_pixels:
         failures.append("image does not contain the required red fixture pixels")
     if metrics["cyan_pixels"] < arguments.require_cyan_pixels:
@@ -227,6 +249,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--min-opaque-ratio", type=float, default=0.99)
     parser.add_argument("--min-luminance-span", type=int, default=20)
     parser.add_argument("--min-color-buckets", type=int, default=4)
+    parser.add_argument("--max-dominant-color-ratio", type=float, default=1.0)
+    parser.add_argument("--min-edge-ratio", type=float, default=0.0)
     parser.add_argument("--require-red-pixels", type=int, default=0)
     parser.add_argument("--require-cyan-pixels", type=int, default=0)
     parser.add_argument("--require-red-left", action="store_true")
@@ -234,7 +258,12 @@ def parse_arguments() -> argparse.Namespace:
     arguments = parser.parse_args()
     if arguments.min_width <= 0 or arguments.min_height <= 0:
         parser.error("minimum dimensions must be positive")
-    for name in ("min_nonblack_ratio", "min_opaque_ratio"):
+    for name in (
+        "min_nonblack_ratio",
+        "min_opaque_ratio",
+        "max_dominant_color_ratio",
+        "min_edge_ratio",
+    ):
         value = getattr(arguments, name)
         if not 0.0 <= value <= 1.0:
             parser.error(f"--{name.replace('_', '-')} must be between zero and one")

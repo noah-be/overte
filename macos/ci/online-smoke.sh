@@ -40,7 +40,7 @@ rm -f "$snapshot" "$screenshot_result" "$entity_inventory" "$entity_validation" 
 
 readonly -a app_command=(
     "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog --display Desktop
-    --disableLocalAvatar --macosTestLightweightEntities --macosTestDisableEntityScripts
+    --disableLocalAvatar --macosTestDisableEntityScripts
     --defaultScriptsOverride "file://$default_scripts_override" --url "$location"
     --testScript "$test_script" --testResultsLocation "$output_dir" --quitWhenFinished
 )
@@ -70,16 +70,12 @@ fi
 [[ $status -eq 0 ]] || { echo "Overte supervisor exited with status $status" >&2; exit "$status"; }
 python3 "$source_root/macos/tools/validate-online-smoke-completion.py" \
     "$completion" "$process_result" --result "$completion_validation"
-for marker in domain_list_connected entity_server_active entity_query_sent entity_data_received render_handoff lightweight_primitive_handoff; do
+for marker in domain_list_connected entity_server_active entity_query_sent entity_data_received render_handoff; do
     grep -Fq "OVERTE_MACOS_ENTITY_GATE $marker" "$log" || {
         echo "missing online runtime gate: $marker" >&2
         exit 1
     }
 done
-grep -Fq "OVERTE_MACOS_RENDER_PHASE lightweight_entity_filter_active" "$log" || {
-    echo "online lightweight-entity filter was not active" >&2
-    exit 1
-}
 for marker in local_avatar_skipped local_avatar_scene_submission_skipped; do
     grep -Fq "OVERTE_MACOS_RENDER_PHASE $marker" "$log" || {
         echo "missing local-avatar isolation gate: $marker" >&2
@@ -96,11 +92,12 @@ grep -Fq "OVERTE_MACOS_SMOKE passed" "$log" || {
 }
 [[ -s "$snapshot" ]] || { echo "online snapshot is missing or empty" >&2; exit 1; }
 [[ -s "$entity_inventory" ]] || { echo "online entity inventory is missing" >&2; exit 1; }
-render_handoff_id="$(sed -nE 's/.*OVERTE_MACOS_ENTITY_GATE lightweight_primitive_handoff entity= \{([^}]*)\}.*/\1/p' "$log" | tail -n 1)"
+render_handoff_id="$(sed -nE 's/.*OVERTE_MACOS_ENTITY_GATE render_handoff entity= \{([^}]*)\}.*/\1/p' "$log" | tail -n 1)"
 [[ -n "$render_handoff_id" ]] || { echo "online render-handoff entity ID is missing" >&2; exit 1; }
 python3 "$source_root/macos/tools/validate-online-entities.py" "$entity_inventory" \
     --render-handoff-id "$render_handoff_id" --result "$entity_validation"
 python3 "$source_root/macos/tools/validate-screenshot.py" "$snapshot" \
-    --result "$screenshot_result"
+    --result "$screenshot_result" --min-color-buckets 16 \
+    --max-dominant-color-ratio 0.45 --min-edge-ratio 0.003
 
 echo "macOS online smoke passed for $location"

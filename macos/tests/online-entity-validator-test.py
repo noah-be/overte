@@ -41,29 +41,41 @@ def payload(entities: list[dict]) -> dict:
         "captured_count": len(entities),
         "visible_renderable_count": visible,
         "visible_primitive_count": visible_primitives,
+        "visible_model_count": sum(
+            item["visible"] and item["type"] == "Model" for item in entities
+        ),
         "type_counts": {},
+        "resource_queues": {
+            "downloads": 0,
+            "downloads_pending": 0,
+            "processing": 0,
+            "processing_pending": 0,
+            "texture_pending_mb": 0,
+        },
+        "present_count": 4,
         "entities": entities,
     }
 
 
 handoff = "098c4ff9-4ddd-49a0-94e4-7109a84ba216"
-valid = MODULE.validate(payload([record("{" + handoff + "}"), record("other", "Zone")]), handoff)
+valid = MODULE.validate(payload([
+    record("{" + handoff + "}"), record("model", "Model"), record("other", "Zone")
+]), handoff)
 assert valid["passed"], valid
 assert valid["render_handoff_type"] == "Shape"
 
 for environmental_type in ("Zone", "Light", "Material"):
-    environmental = MODULE.validate(payload([record(handoff, environmental_type)]), handoff)
-    assert not environmental["passed"]
-    assert "inventory has no visible render-affecting entity" in environmental["failures"]
-    assert "render-handoff entity is not a primitive" in environmental["failures"]
+    environmental = MODULE.validate(payload([
+        record(handoff, environmental_type), record("model", "Model")
+    ]), handoff)
+    assert environmental["passed"], environmental
 
-zone_handoff = MODULE.validate(
-    payload([record(handoff, "Zone"), record("visible-shape")]), handoff
-)
-assert not zone_handoff["passed"], zone_handoff
-assert "render-handoff entity is not a primitive" in zone_handoff["failures"]
+zone_handoff = MODULE.validate(payload([
+    record(handoff, "Zone"), record("visible-model", "Model")
+]), handoff)
+assert zone_handoff["passed"], zone_handoff
 
-missing = MODULE.validate(payload([record("other")]), handoff)
+missing = MODULE.validate(payload([record("other"), record("model", "Model")]), handoff)
 assert not missing["passed"]
 assert "render-handoff entity is absent from online inventory" in missing["failures"]
 
@@ -72,21 +84,30 @@ assert not non_rendering["passed"]
 assert "inventory has no visible render-affecting entity" in non_rendering["failures"]
 
 hidden_primitive_handoff = MODULE.validate(
-    payload([record(handoff, "Box", False), record("visible-box", "Box")]), handoff
+    payload([
+        record(handoff, "Box", False), record("visible-box", "Box"),
+        record("visible-model", "Model")
+    ]), handoff
 )
 assert hidden_primitive_handoff["passed"], hidden_primitive_handoff
 assert hidden_primitive_handoff["visible_primitive_count"] == 1
 
-hidden_model = MODULE.validate(
-    payload([record(handoff, "Model", False), record("visible-box", "Box")]), handoff
-)
+hidden_model = MODULE.validate(payload([
+    record(handoff, "Model", False), record("visible-box", "Box")
+]), handoff)
 assert not hidden_model["passed"]
-assert "render-handoff entity is not a primitive" in hidden_model["failures"]
+assert "inventory has no visible model entity" in hidden_model["failures"]
 
-bad_vector_payload = payload([record(handoff)])
+bad_vector_payload = payload([record(handoff), record("model", "Model")])
 bad_vector_payload["entities"][0]["position"]["x"] = float("nan")
 bad_vector = MODULE.validate(bad_vector_payload, handoff)
 assert not bad_vector["passed"]
 assert "entity 0 position is invalid" in bad_vector["failures"]
+
+busy_queues_payload = payload([record(handoff), record("model", "Model")])
+busy_queues_payload["resource_queues"]["downloads_pending"] = 1
+busy_queues = MODULE.validate(busy_queues_payload, handoff)
+assert not busy_queues["passed"]
+assert "resource queue downloads_pending was not empty" in busy_queues["failures"]
 
 print("macOS online entity validator contract valid")

@@ -15,7 +15,7 @@
     Render.hazeEnabled = false;
     Render.bloomEnabled = false;
     Render.ambientOcclusionEnabled = false;
-    Render.localLightingEnabled = false;
+    Render.localLightingEnabled = true;
     Render.proceduralMaterialsEnabled = false;
     Render.antialiasingMode = 0;
     Render.viewportResolutionScale = 1.0;
@@ -27,11 +27,12 @@
     // minutes to compile there even though the process remains CPU-active.
     // Keep the in-app deadline below the external 600-second supervisor while
     // leaving enough room for that first visible online frame.
-    var deadline = Date.now() + 420000;
+    var deadline = Date.now() + 540000;
     var snapshotStage = "waiting";
     var snapshotSettleDeadline = 0;
     var snapshotPendingReported = false;
     var visibleGeometryReadyAt = 0;
+    var readyPresentBaseline = 0;
     var snapshotPath = "";
     var latestInventory = null;
     var completed = false;
@@ -63,6 +64,7 @@
         var typeCounts = {};
         var visibleRenderableCount = 0;
         var visiblePrimitiveCount = 0;
+        var visibleModelCount = 0;
         var primitiveTypes = { Box: true, Sphere: true, Shape: true };
         var records = entities.slice(0, captureLimit).map(function (entityID) {
             var properties = Entities.getEntityProperties(entityID, [
@@ -76,6 +78,9 @@
             }
             if (visible && primitiveTypes[type]) {
                 visiblePrimitiveCount += 1;
+            }
+            if (visible && type === "Model") {
+                visibleModelCount += 1;
             }
             return {
                 id: String(entityID),
@@ -91,9 +96,27 @@
             captured_count: records.length,
             visible_renderable_count: visibleRenderableCount,
             visible_primitive_count: visiblePrimitiveCount,
+            visible_model_count: visibleModelCount,
             type_counts: typeCounts,
             entities: records
         };
+    }
+
+    function queueState() {
+        Stats.forceUpdateStats();
+        return {
+            downloads: finiteNumber(Stats.downloads),
+            downloads_pending: finiteNumber(Stats.downloadsPending),
+            processing: finiteNumber(Stats.processing),
+            processing_pending: finiteNumber(Stats.processingPending),
+            texture_pending_mb: finiteNumber(Stats.texturePendingTransfers)
+        };
+    }
+
+    function queuesEmpty(state) {
+        return state.downloads === 0 && state.downloads_pending === 0 &&
+            state.processing === 0 && state.processing_pending === 0 &&
+            state.texture_pending_mb === 0 && Test.isTextureLoadingComplete();
     }
 
     function saveEntityInventory(inventory) {
@@ -144,25 +167,30 @@
         }
         var entities = Entities.findEntities(MyAvatar.position, 16384);
         latestInventory = inspectEntityInventory(entities, 64);
+        var resources = queueState();
         if (snapshotStage === "waiting" &&
-                latestInventory.visible_primitive_count > 0) {
+                latestInventory.visible_model_count > 0 && queuesEmpty(resources)) {
             if (visibleGeometryReadyAt === 0) {
-                // Give the entity-tree/render-handoff queues one bounded
-                // interval to converge before freezing the correlated
-                // inventory used to validate the captured frame.
-                visibleGeometryReadyAt = Date.now() + 1000;
+                // Require a sustained idle resource state and a subsequently
+                // presented frame before accepting the streamed scene.
+                visibleGeometryReadyAt = Date.now() + 5000;
+                readyPresentBaseline = finiteNumber(Test.getPresentCount());
                 print("OVERTE_MACOS_SMOKE visible_geometry_ready count=" +
-                    latestInventory.visible_renderable_count);
+                    latestInventory.visible_renderable_count + " models=" +
+                    latestInventory.visible_model_count);
             }
         } else if (snapshotStage === "waiting") {
             visibleGeometryReadyAt = 0;
         }
         if (snapshotStage === "waiting" && visibleGeometryReadyAt !== 0 &&
-                Date.now() >= visibleGeometryReadyAt) {
+                Date.now() >= visibleGeometryReadyAt &&
+                finiteNumber(Test.getPresentCount()) > readyPresentBaseline) {
             // Record the complete nearby scene snapshot once. Polling stays
             // cheap above, while the final inventory correlates a streamed
             // primitive handoff with at least one visible domain primitive.
             latestInventory = inspectEntityInventory(entities, entities.length);
+            latestInventory.resource_queues = resources;
+            latestInventory.present_count = finiteNumber(Test.getPresentCount());
             saveEntityInventory(latestInventory);
             snapshotStage = "capturing";
             print("OVERTE_MACOS_SMOKE online_entities=" + entities.length);
