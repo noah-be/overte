@@ -2604,10 +2604,24 @@ void VKBackend::updateTransform(const gpu::Batch& batch) {
 
     auto drawCallInfoBinding = static_cast<uint32_t>(gpu::Stream::DRAW_CALL_INFO);
 #if defined(Q_OS_IOS)
-    // Match the compact binding used by the iOS format-free pipeline
-    // descriptor. Regular mesh formats retain the reserved logical slot.
-    if (!_cache.pipelineState.format) {
-        drawCallInfoBinding = 0;
+    // Match the compact physical binding selected by the iOS pipeline
+    // descriptor while retaining logical shader location 15.
+    std::array<bool, MAX_NUM_INPUT_BUFFERS> occupiedBindings{};
+    if (_cache.pipelineState.format) {
+        const auto format = gpu::acquire(_cache.pipelineState.format);
+        for (const auto& entry : format->getChannels()) {
+            if (entry.first < occupiedBindings.size()) {
+                occupiedBindings[entry.first] = true;
+            }
+        }
+    }
+    drawCallInfoBinding = 0;
+    while (drawCallInfoBinding < occupiedBindings.size() &&
+           occupiedBindings[drawCallInfoBinding]) {
+        ++drawCallInfoBinding;
+    }
+    if (drawCallInfoBinding == occupiedBindings.size()) {
+        drawCallInfoBinding = static_cast<uint32_t>(gpu::Stream::DRAW_CALL_INFO);
     }
 #endif
 

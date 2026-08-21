@@ -263,8 +263,12 @@ for fragment in (
     draw_call_comment,
     "if (vertexReflection.validInput(gpu::slot::attr::DrawCallInfo))",
     "auto drawCallInfoBinding = static_cast<uint32_t>(drawCallInfo);",
-    "if (!pipelineState.format)",
+    "std::array<bool, MAX_NUM_INPUT_BUFFERS> occupiedBindings{};",
+    "for (const auto& description : bindingDescriptions)",
+    "occupiedBindings[description.binding] = true;",
     "drawCallInfoBinding = 0;",
+    "occupiedBindings[drawCallInfoBinding]",
+    "drawCallInfoBinding = static_cast<uint32_t>(drawCallInfo);",
     "const auto attribute = std::find_if(",
     "return description.location == drawCallInfo;",
     "DrawCallInfo vertex attribute conflicts with the reflected slot",
@@ -309,8 +313,13 @@ transform_end = backend.index("void VKBackend::updatePipeline", transform_start)
 transform_body = backend[transform_start:transform_end]
 for fragment in (
     "auto drawCallInfoBinding = static_cast<uint32_t>(gpu::Stream::DRAW_CALL_INFO);",
-    "if (!_cache.pipelineState.format)",
+    "std::array<bool, MAX_NUM_INPUT_BUFFERS> occupiedBindings{};",
+    "if (_cache.pipelineState.format)",
+    "format->getChannels()",
+    "occupiedBindings[entry.first] = true;",
     "drawCallInfoBinding = 0;",
+    "occupiedBindings[drawCallInfoBinding]",
+    "drawCallInfoBinding = static_cast<uint32_t>(gpu::Stream::DRAW_CALL_INFO);",
 ):
     if fragment not in transform_body:
         raise SystemExit(

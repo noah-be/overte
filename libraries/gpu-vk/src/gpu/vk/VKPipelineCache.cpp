@@ -793,11 +793,25 @@ const Cache::PipelineLayout& Cache::getPipeline(const vks::Context& context) {
         const auto drawCallInfo = gpu::slot::attr::DrawCallInfo;
         auto drawCallInfoBinding = static_cast<uint32_t>(drawCallInfo);
 #if defined(Q_OS_IOS)
-        // A format-free draw has no competing vertex streams. Keep the shader
-        // location stable, but avoid forcing MoltenVK to reserve every sparse
-        // Metal buffer slot through binding 15 for this one four-byte input.
-        if (!pipelineState.format) {
-            drawCallInfoBinding = 0;
+        // Keep the shader location stable while assigning DrawCallInfo to the
+        // first unused physical vertex binding. A sparse Vulkan binding 15 is
+        // translated into a high Metal buffer slot and can overlap MoltenVK's
+        // descriptor-buffer allocation even when the Metal PSO compiles.
+        // Format-free draws select 0; ordinary meshes normally select the slot
+        // immediately after their compact vertex streams.
+        std::array<bool, MAX_NUM_INPUT_BUFFERS> occupiedBindings{};
+        for (const auto& description : bindingDescriptions) {
+            if (description.binding < occupiedBindings.size()) {
+                occupiedBindings[description.binding] = true;
+            }
+        }
+        drawCallInfoBinding = 0;
+        while (drawCallInfoBinding < occupiedBindings.size() &&
+               occupiedBindings[drawCallInfoBinding]) {
+            ++drawCallInfoBinding;
+        }
+        if (drawCallInfoBinding == occupiedBindings.size()) {
+            drawCallInfoBinding = static_cast<uint32_t>(drawCallInfo);
         }
 #endif
         const auto attribute = std::find_if(
