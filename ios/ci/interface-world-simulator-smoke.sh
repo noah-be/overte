@@ -14,6 +14,7 @@ readonly simulator_selector="$script_dir/../tools/select-simulator.py"
 readonly screenshot_validator="$script_dir/../tools/validate-world-screenshot.py"
 readonly world_validator="$script_dir/../tools/validate-world-runtime.py"
 readonly entity_gate_validator="$script_dir/../tools/validate-entity-gate-log.py"
+readonly first_person_script="$script_dir/ios-camera-first-person.js"
 readonly timeout_grace_seconds=300
 readonly live_update_interval_seconds=5
 
@@ -23,15 +24,17 @@ family="${3:-}"
 scenario="${4:-}"
 expected_domain="${5:-}"
 output_dir="${6:-}"
-poll_timeout="${OVERTE_IOS_WORLD_TIMEOUT_SECONDS:-540}"
+default_runtime_timeout=120
+[[ "$scenario" == serverless ]] && default_runtime_timeout=60
+poll_timeout="${OVERTE_IOS_WORLD_TIMEOUT_SECONDS:-$default_runtime_timeout}"
 poll_interval="${OVERTE_IOS_WORLD_POLL_SECONDS:-2}"
 screenshot_settle="${OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS:-2}"
 screenshot_wait="${OVERTE_IOS_WORLD_SCREENSHOT_WAIT_SECONDS:-30}"
 # Once the source entity payload is present, a healthy client should advance
-# through tree insertion and render handoff promptly.  Keep the broader world
-# timeout for boot, navigation and network variability, but bound a proven
-# post-data stall separately.
-entity_stall_timeout="${OVERTE_IOS_WORLD_ENTITY_STALL_TIMEOUT_SECONDS:-180}"
+# through tree insertion and render handoff promptly. Boot and launch have
+# separate watchdogs; use 60 seconds for local data and retain 120 seconds for
+# domain/network variability.
+entity_stall_timeout="${OVERTE_IOS_WORLD_ENTITY_STALL_TIMEOUT_SECONDS:-$default_runtime_timeout}"
 # CoreSimulatorBridge itself retries app launches for 120 seconds. Keep the
 # outer watchdog above that boundary so a large freshly installed app can
 # finish LaunchServices registration and return either its PID or a causal
@@ -56,6 +59,7 @@ if [[ "$render_diagnostic" == camera-first-person ]]; then
 fi
 gpu_trace="${OVERTE_IOS_WORLD_GPU_TRACE:-0}"
 capture_only="${OVERTE_IOS_WORLD_CAPTURE_ONLY:-0}"
+camera_launch_arguments=()
 
 [[ -d "$app_path" && "$app_path" == *.app ]] || {
     echo "usage: $0 APP_PATH BUNDLE_ID iphone|ipad serverless|online EXPECTED_DOMAIN|- OUTPUT_DIR" >&2
@@ -145,6 +149,10 @@ fi
 for helper in "$timeout_runner" "$simulator_selector" "$screenshot_validator" "$world_validator" "$entity_gate_validator"; do
     [[ -f "$helper" ]] || { echo "iOS world test helper is unavailable" >&2; exit 2; }
 done
+[[ "$camera_diagnostic" != first-person || -f "$first_person_script" ]] || {
+    echo "iOS first-person camera diagnostic script is unavailable" >&2
+    exit 2
+}
 
 live_log() {
     # Keep the streamed CI status deliberately free of paths, URLs, bundle
@@ -679,6 +687,7 @@ world_progress_summary() {
     fi
     runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_tree_nonempty' && observed+=(tree)
     runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' && observed+=(handoff)
+    camera_diagnostic_observed && observed+=(camera)
     renderer_output_observed && observed+=(renderer)
     if ((${#observed[@]} == 0)); then
         printf 'none'
@@ -686,6 +695,11 @@ world_progress_summary() {
         local IFS=,
         printf '%s' "${observed[*]}"
     fi
+}
+
+camera_diagnostic_observed() {
+    [[ "$camera_diagnostic" != first-person ]] ||
+        runtime_log_contains 'OVERTE_IOS_CAMERA_DIAGNOSTIC[[:space:]]+mode=first person look at([[:space:]]|$)'
 }
 
 renderer_output_observed() {
@@ -721,6 +735,11 @@ report_missing_world_gates() {
             'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff'
         )
     fi
+    if [[ "$camera_diagnostic" == first-person ]]; then
+        required+=(
+            'OVERTE_IOS_CAMERA_DIAGNOSTIC[[:space:]]+mode=first person look at([[:space:]]|$)'
+        )
+    fi
     for pattern in "${required[@]}"; do
         if ! runtime_log_contains "$pattern"; then
             marker="${pattern#*+}"
@@ -738,7 +757,7 @@ retain_acceptance_markers() {
     # free copy from every capture source before the raw sources are discarded.
     for source in "$raw_log" "$app_stdout" "$app_stderr" "$log_snapshot"; do
         [[ -s "$source" ]] || continue
-        sed -nE 's/^.*(OVERTE_IOS_(WORLD|ENTITY)_GATE[[:space:]]+.*)$/\1/p' \
+        sed -nE 's/^.*(OVERTE_IOS_((WORLD|ENTITY)_GATE|CAMERA_DIAGNOSTIC)[[:space:]]+.*)$/\1/p' \
             "$source" >> "$marker_log"
     done
     awk '!seen[$0]++' "$marker_log" > "$marker_log.next"
@@ -754,7 +773,7 @@ refresh_runtime_log_snapshot() {
     # is due, rather than freezing the gate loop for the former 308 seconds.
     "$timeout_runner" 4 xcrun simctl spawn "$active_udid" log show \
         --last 2m --style compact --info --debug \
-        --predicate "processIdentifier == $launch_pid AND (eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_TRACE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PRESENT\")" \
+        --predicate "processIdentifier == $launch_pid AND (eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_TRACE\" OR eventMessage CONTAINS \"OVERTE_IOS_CAMERA_DIAGNOSTIC\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PRESENT\")" \
         > "$snapshot_candidate" 2>/dev/null || status=$?
     if ((status == 0)); then
         mv "$snapshot_candidate" "$log_snapshot"
@@ -941,16 +960,13 @@ data_container="$(get_application_data_container)"
     exit 1
 }
 if [[ "$camera_diagnostic" == first-person ]]; then
-    # A fresh iOS install takes the generic first-run branch, which selects the
-    # third-person Look At camera even though the menu's mobile default is
-    # first-person. Seed only the app's disposable simulator preferences so a
-    # preserved binary can A/B that startup decision without a rebuild.
-    run_bounded "first-person first-run preference" 30 xcrun simctl spawn \
-        "$active_udid" defaults write "$bundle_id" firstRun -bool false >/dev/null
-    run_bounded "first-person camera preference" 30 xcrun simctl spawn \
-        "$active_udid" defaults write "$bundle_id" 'View/First Person' -bool true >/dev/null
-    run_bounded "look-at camera preference" 30 xcrun simctl spawn \
-        "$active_udid" defaults write "$bundle_id" 'View/Look At' -bool false >/dev/null
+    # Do not alter firstRun: it also selects the startup navigation path. Load
+    # one app-sandboxed startup script that changes only Camera.mode, allowing
+    # the preserved binary to A/B first-person without changing world import.
+    camera_script="$data_container/tmp/overte-ios-camera-first-person.js"
+    [[ ! -e "$camera_script" ]] || { echo "camera diagnostic script path already exists" >&2; exit 1; }
+    install -m 0600 "$first_person_script" "$camera_script"
+    camera_launch_arguments=(--defaultScriptsOverride "file://$camera_script")
     live_log "phase=camera-diagnostic-ready mode=first-person"
 fi
 mvk_dump_root="$data_container/tmp/overte-mvk-shaders-$stem"
@@ -985,7 +1001,7 @@ live_log "phase=application-installed"
 log_stream_timeout=$((10#$launch_timeout + (2 * 10#$poll_timeout) + 60))
 "$timeout_runner" "$log_stream_timeout" xcrun simctl spawn "$active_udid" log stream \
     --style compact --level debug \
-    --predicate "(eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_TRACE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PRESENT\")" \
+    --predicate "(eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_TRACE\" OR eventMessage CONTAINS \"OVERTE_IOS_CAMERA_DIAGNOSTIC\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PRESENT\")" \
     > "$raw_log" 2> "$log_stream_stderr" &
 log_stream_pid=$!
 # Give CoreSimulator's log subscriber a bounded head start. Merely spawning the
@@ -1028,7 +1044,7 @@ launch_output="$(run_bounded "application launch" "$launch_timeout" env \
     xcrun simctl launch \
     --stdout="$app_stdout" --stderr="$app_stderr" \
     "$active_udid" "$bundle_id" --url "$launch_url" --ios-world-evidence \
-    --no-login-suggestion)"
+    --no-login-suggestion "${camera_launch_arguments[@]}")"
 [[ "$launch_output" == *":"* ]] || { echo "application launch returned no process identifier" >&2; exit 1; }
 launch_pid="${launch_output##*: }"
 [[ "$launch_pid" =~ ^[1-9][0-9]*$ ]] || { echo "application launch returned an invalid process identifier" >&2; exit 1; }
@@ -1097,6 +1113,9 @@ while :; do
             runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_tree_nonempty' && \
             runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' && ready=1
         fi
+    fi
+    if ((ready)) && ! camera_diagnostic_observed; then
+        ready=0
     fi
     ((ready)) && break
     current_time="$(date +%s)"

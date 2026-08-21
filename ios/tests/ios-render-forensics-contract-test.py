@@ -19,6 +19,7 @@ backend = read("libraries/gpu-vk/src/gpu/vk/VKBackend.cpp")
 pipeline = read("libraries/gpu-vk/src/gpu/vk/VKPipelineCache.cpp")
 smoke = read("ios/ci/interface-world-simulator-smoke.sh")
 runtime = read(".github/workflows/ios-world-candidate-runtime.yml")
+camera_script = read("ios/ci/ios-camera-first-person.js")
 
 for token in (
     "OVERTE_IOS_RENDER_DIAGNOSTIC",
@@ -71,10 +72,17 @@ for token in (
     "SIMCTL_CHILD_MVK_CONFIG_AUTO_GPU_CAPTURE_SCOPE=3",
     "SIMCTL_CHILD_MVK_CONFIG_AUTO_GPU_CAPTURE_OUTPUT_FILE",
     "OVERTE_IOS_ENTITY_TRACE",
+    "OVERTE_IOS_CAMERA_DIAGNOSTIC",
     "phase=gpu-trace-triggered",
     "phase=gpu-trace-collected",
+    "--defaultScriptsOverride",
+    "ios-camera-first-person.js",
 ):
     assert token in smoke, f"simulator forensic harness missing {token}"
+
+assert 'Camera.mode = "first person look at"' in camera_script
+assert 'Script.include("/~//defaultScripts.js")' in camera_script
+assert "firstRun" not in camera_script
 
 gate_ready = smoke.index('live_log "phase=runtime-gates-ready')
 capture_call = smoke.index("\ntrigger_gpu_trace\n", gate_ready)
