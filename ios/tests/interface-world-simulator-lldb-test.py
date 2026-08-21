@@ -201,6 +201,7 @@ fi
     lldb_log = (captured_output / "iphone-serverless-lldb.log").read_text(encoding="utf-8")
     assert "OVERTE_LLDB_CRASH_CAPTURE_COMPLETE" in lldb_log
     commands = command_log.read_text(encoding="utf-8")
+    assert "process handle -s true -n false -p false SIGTRAP" in commands
     assert "simctl launch --stdout=" in commands
     assert "simctl spawn private-udid log stream --style compact --level info" in commands
     assert "--wait-for-debugger" not in commands

@@ -419,6 +419,7 @@ lldb_arguments=(
     --attach-pid "$launch_pid" \
     -o 'settings set auto-confirm true' \
     -o 'process handle -s true -n false -p false SIGSEGV'
+    -o 'process handle -s true -n false -p false SIGTRAP'
 )
 if ((startup_trace)); then
     lldb_arguments+=(--source "$startup_commands")
@@ -469,7 +470,7 @@ if grep -Exq 'OVERTE_LLDB_TRACE (qt_exit|libc_exit|posix_exit|abort|application_
 fi
 
 if grep -Fq 'OVERTE_LLDB_CRASH_CAPTURE_COMPLETE' "$lldb_log" && \
-        grep -Eq 'stop reason = (EXC_BAD_ACCESS|signal SIGSEGV)' "$lldb_log" && \
+        grep -Eq 'stop reason = (EXC_BAD_ACCESS|EXC_BREAKPOINT|signal SIG(SEGV|TRAP))' "$lldb_log" && \
         grep -Eq 'frame #[0-9]+:' "$lldb_log"; then
     capture_status="captured_sigsegv"
     # A captured crash is diagnostic success but runtime failure.  Keep the
