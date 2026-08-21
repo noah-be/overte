@@ -219,6 +219,8 @@ Rectangle {
 
     AvatarTouchConfiguration {
         id: touchConfiguration
+        availableWidth: root.width
+        availableHeight: root.height
     }
 
     AvatarAppHeader {

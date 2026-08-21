@@ -14,9 +14,10 @@ import "../stylesUit"
 
 RalewaySemiBold {
     HifiConstants { id: hifi }
+    TouchUiMetrics { id: touchMetrics }
     property int colorScheme: hifi.colorSchemes.light
 
-    size: hifi.fontSizes.inputLabel
+    size: Math.round(hifi.fontSizes.inputLabel * touchMetrics.textScale)
     color: {
         if (colorScheme === hifi.colorSchemes.dark) {
             if (enabled) {

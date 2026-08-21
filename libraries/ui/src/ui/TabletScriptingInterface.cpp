@@ -10,6 +10,8 @@
 
 #include "TabletScriptingInterface.h"
 
+#include <algorithm>
+
 #include <QtCore/QThread>
 #include <QtQml/QQmlProperty>
 
@@ -170,6 +172,7 @@ bool TabletButtonsProxyModel::filterAcceptsRow(int sourceRow,
 }
 
 TabletScriptingInterface::TabletScriptingInterface() {
+    _touchUiRuntimeMetrics.insert("valid", false);
     qmlRegisterType<TabletScriptingInterface>("TabletScriptingInterface", 1, 0, "TabletEnums");
     qRegisterMetaType<TabletScriptingInterface::TabletAudioEvents>("TabletScriptingInterface::TabletAudioEvents");
     qRegisterMetaType<TabletScriptingInterface::TabletConstants>("TabletScriptingInterface::TabletConstants");
@@ -338,6 +341,31 @@ QObject* TabletScriptingInterface::getFlags() {
     Q_ASSERT(QThread::currentThread() == qApp->thread());
     auto offscreenUI = DependencyManager::get<OffscreenUi>();
     return offscreenUI ? offscreenUI->getFlags() : nullptr;
+}
+
+void TabletScriptingInterface::setTouchUiRuntimeMetrics(const QVariantMap& metrics) {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, [this, metrics]() {
+            setTouchUiRuntimeMetrics(metrics);
+        }, Qt::QueuedConnection);
+        return;
+    }
+    if (_touchUiRuntimeMetrics == metrics) {
+        return;
+    }
+    _touchUiRuntimeMetrics = metrics;
+    emit touchUiRuntimeMetricsChanged();
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (!metrics.value("valid").toBool()) {
+        return;
+    }
+    const int width = metrics.value("surfaceWidth").toInt();
+    const int height = metrics.value("surfaceHeight").toInt();
+    for (const auto& entry : _tabletProxies) {
+        entry.second->resizeAndroidTablet(width, height);
+    }
+#endif
 }
 
 //
@@ -614,15 +642,41 @@ void TabletProxy::resizeAndroidTablet(int width, int height) {
         QMetaObject::invokeMethod(this, "resizeAndroidTablet", Q_ARG(int, width), Q_ARG(int, height));
         return;
     }
-    constexpr int ANDROID_TABLET_SAFE_INSET { 25 };
-    constexpr int ANDROID_TABLET_TOTAL_INSET { 2 * ANDROID_TABLET_SAFE_INSET };
-    if (!_androidScreenSpaceMode || !_desktopWindow ||
-            width <= ANDROID_TABLET_TOTAL_INSET || height <= ANDROID_TABLET_TOTAL_INSET) {
+    if (!_androidScreenSpaceMode || !_desktopWindow || !_desktopWindow->asQuickItem()) {
         return;
     }
-    _desktopWindow->setPosition(ANDROID_TABLET_SAFE_INSET, ANDROID_TABLET_SAFE_INSET);
-    _desktopWindow->setSize(width - ANDROID_TABLET_TOTAL_INSET,
-                            height - ANDROID_TABLET_TOTAL_INSET);
+    auto root = _desktopWindow->asQuickItem();
+    const auto* tabletInterface = qobject_cast<const TabletScriptingInterface*>(parent());
+    const QVariantMap runtimeMetrics = tabletInterface
+        ? tabletInterface->getTouchUiRuntimeMetrics() : QVariantMap();
+    const bool runtimeMetricsValid = runtimeMetrics.value("valid").toBool();
+    const int surfaceWidth = runtimeMetricsValid
+        ? runtimeMetrics.value("surfaceWidth").toInt() : width;
+    const int surfaceHeight = runtimeMetricsValid
+        ? runtimeMetrics.value("surfaceHeight").toInt() : height;
+    const int leftInset = std::max(0, runtimeMetricsValid
+        ? runtimeMetrics.value("safeInsetLeft").toInt()
+        : root->property("screenSpaceSafeInsetLeft").toInt());
+    const int topInset = std::max(0, runtimeMetricsValid
+        ? runtimeMetrics.value("safeInsetTop").toInt()
+        : root->property("screenSpaceSafeInsetTop").toInt());
+    const int rightInset = std::max(0, runtimeMetricsValid
+        ? runtimeMetrics.value("safeInsetRight").toInt()
+        : root->property("screenSpaceSafeInsetRight").toInt());
+    const int safeBottomInset = std::max(0, runtimeMetricsValid
+        ? runtimeMetrics.value("safeInsetBottom").toInt()
+        : root->property("screenSpaceSafeInsetBottom").toInt());
+    const int imeBottomInset = std::max(0, runtimeMetricsValid
+        ? runtimeMetrics.value("imeInsetBottom").toInt()
+        : root->property("screenSpaceImeInsetBottom").toInt());
+    const int bottomInset = std::max(safeBottomInset, imeBottomInset);
+    if (surfaceWidth <= leftInset + rightInset
+            || surfaceHeight <= topInset + bottomInset) {
+        return;
+    }
+    _desktopWindow->setPosition(leftInset, topInset);
+    _desktopWindow->setSize(surfaceWidth - leftInset - rightInset,
+                            surfaceHeight - topInset - bottomInset);
 }
 
 void TabletProxy::hideAndroidTablet() {

@@ -3,12 +3,15 @@ import controlsUit 1.0 as HiFiControls
 
 Item {
     id: root
+    HiFiControls.TouchUiMetrics { id: touchMetrics }
     property alias url: webroot.url
     property alias scriptURL: webroot.userScriptUrl
     property alias canGoBack: webroot.canGoBack;
     property var goBack: webroot.webViewCore.goBack;
     property alias urlTag: webroot.urlTag
-    property bool keyboardEnabled: true  // FIXME - Keyboard HMD only: Default to false
+    // Screen-space touch hosts use the operating-system IME. The legacy QML
+    // keyboard remains available to HMD/offscreen surfaces.
+    property bool keyboardEnabled: !touchMetrics.systemImeAvailable
     property bool keyboardRaised: false
     onKeyboardRaisedChanged: {
         if(!keyboardRaised) {
