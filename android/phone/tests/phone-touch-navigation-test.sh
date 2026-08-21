@@ -9,7 +9,8 @@ phone_mapping="$repo_root/interface/resources/controllers/touchscreenvirtualpad-
 phone_action_bar="$repo_root/scripts/system/+android_phoneInterface/mobileActionBar.js"
 phone_defaults="$repo_root/scripts/+android_phoneInterface/defaultScripts.js"
 phone_tablet_apps="$repo_root/scripts/system/+android_phoneInterface/mobileTabletApps.js"
-phone_preferences="$repo_root/interface/resources/qml/hifi/tablet/+android_phoneInterface/TabletGeneralPreferences.qml"
+preferences_policy="$repo_root/interface/resources/qml/hifi/tablet/TabletGeneralPreferencesPolicy.qml"
+phone_ui_profile="$repo_root/interface/resources/qml/controlsUit/+android_phoneInterface/TouchUiProfile.qml"
 preferences_cpp="$repo_root/interface/src/ui/PreferencesDialog.cpp"
 application_events="$repo_root/interface/src/Application_Events.cpp"
 application_graphics="$repo_root/interface/src/Application_Graphics.cpp"
@@ -67,7 +68,9 @@ require "$preferences_cpp" '"Navigation"' \
     'phone navigation preference category is missing'
 require "$preferences_cpp" 'Enable two-finger perspective zoom' \
     'phone pinch zoom preference is missing'
-require "$phone_preferences" 'showCategories: phonePolicy[.]allowedCategories' \
+require "$preferences_policy" 'profile[.]navigationPreferencesAvailable' \
+    'tablet settings derive Navigation availability from the device profile'
+require "$phone_ui_profile" 'navigationPreferencesAvailable:[[:space:]]*true' \
     'phone tablet settings do not expose Navigation'
 require "$phone_defaults" 'system/\+android_phoneInterface/mobileTabletApps[.]js' \
     'phone defaults do not load the phone tablet app registrar'

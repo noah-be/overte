@@ -45,16 +45,17 @@ separate aggregate Phone-core run remains informational.
 | Pico microphone capture policy | Framework-free production policy tests cover the exact diagnostic-source allowlist, mono/stereo mapping, callback/recorder buffer arithmetic, fixed-seed formats, fail-closed invalid/overflow inputs and post-read running/recorder ownership; allocations are capped at 1 MiB callback / 2 MiB recorder with exact boundary tests | No automated headset capture | **Partial**; actual `AudioRecord`, JNI delivery, thread priority, blocking-read cancellation and real device formats require Android/Pico runtime |
 | Pico Qt activity startup/restart | Framework-free production policy tests cover default/custom/null application arguments, lifecycle instance replacement/cleanup and the Android 12 exact-alarm boundary; a source contract verifies the real activity wiring and forbids logging restart arguments | No automated OpenXR/Qt process restart | **Partial**; library loading, native OpenXR initialization, AlarmManager delivery, process termination and controller events require Android/Pico runtime |
 | Activity lifecycle and Back | Robolectric executes launcher save/restore/recreation on API 26 and 35; pure pending-URL policies cover readiness, replacement, retry exhaustion and clearing; source contracts cover Qt glue | Physical smoke exercises Home, repeated resume and Back recovery | **Partial**; `PhoneInterfaceActivity` inherits Qt 5's native loader, so configuration-driven rotation, real Qt surface recreation, predictive Back registration and JNI retry timing require an Android runtime |
+| Runtime touch metrics | A 100,000-snapshot Java matrix covers compact/large/foldable/wide surfaces, asymmetric and hostile insets, legacy IME separation, density/font/content scaling and hybrid input; native JNI-boundary policy has independent 100% line/branch coverage; Robolectric compiles the real Activity observers | The physical validation matrix covers rotation, cutouts, gesture modes, IME, fold/multi-window and input-device changes | **Partial**; the policies and complete source bridge are covered, while live `WindowInsets`/Qt delivery needs the documented runtime matrix |
 | Login state machine | CTest covers native state transitions; Qt Quick loads the real Phone login body with bounded host/login fakes and exercises validation, account/domain routing, pending state, success/failure, duplicate suppression and teardown | No automated real authentication/backend test | **Partial**; real credential exchange and domain authentication require a controlled integration backend |
 | Phone deep-link JNI handoff | Source contracts | Neutral deep link in device smoke | **Partial**; cold/warm/background delivery assertions remain indirect |
-| Tablet touch layout | Qt Quick tests execute the real `TabletTouchConfiguration.qml` for responsive columns and bounded geometry | Tablet presence/routing checked by contracts; no visual device assertion | **Partial**; validate physical display sizes |
+| Tablet touch layout | Qt Quick tests execute the real `TabletTouchConfiguration.qml` for responsive columns and bounded geometry; contracts cover shared touch targets, menu scroll policy, font scale, hardware-key activation and semantic actions | Tablet presence/routing checked by contracts; physical matrix defines compact/tablet/foldable/posture assertions | **Partial**; execute and record the physical display rows |
 | Audio tablet presentation | Executed Qt Quick selector test verifies expected Phone gates | No automated audio input/output behavior | **Partial**; add controlled microphone/playback scenarios |
 | Avatar tablet presentation | Executed Qt Quick selector test verifies Phone layout and hidden HMD controls | No automated avatar load/change journey | **Partial** |
 | Security settings presentation | Executed Qt Quick selector test verifies the scripting-plugin gate and geometry | No Android UI interaction test | **Partial** |
 | General Settings presentation | Executed Qt Quick tests cover the production fail-closed category policy, bounded pages, compact footer, touch targets and orientation resize | No complete settings persistence test against the registered application backend | **Partial** |
-| Emote application | Production `phoneEmote.js` executes under Node and real `PhoneEmote.qml` state behavior executes under Qt Quick Test | No touch-to-script end-to-end test | **Partial**; bridge/touch journey remains |
-| Address dialog | The real QML executes with bounded Hifi/control fakes for initialization, validation, loading, close and visibility | Device smoke does not interact with the dialog | **Partial**; Android IME/touch and real C++ backends remain untested |
-| Login QML body | Eleven Qt Quick tests load the production component and cover validation, account/domain submission, pending/error/success states, duplicate suppression, credential bounds, password accessibility invariants, secret scrubbing and idempotent close | No Android IME or real authentication service | **Partial**; runtime backend and touch/IME integration remain |
+| Emote application | Production `phoneEmote.js` executes under Node and real `PhoneEmote.qml` state, accessibility and 2–4-column reflow behavior executes under Qt Quick Test | No touch-to-script end-to-end test | **Partial**; bridge/touch journey remains |
+| Address dialog | The real QML executes with bounded Hifi/control fakes for initialization, validation, loading, close, visibility, accessible actions and address-specific system-IME hints; contracts cover focus reveal and shared flick policy | Device matrix defines IME/touch/rotation journeys; no automated real backend interaction | **Partial**; execute the physical IME journey and real C++ backend |
+| Login QML body | Twelve Qt Quick tests load the production component and cover validation, account/domain submission, pending/error/success states, duplicate suppression, credential bounds, password accessibility/privacy, system-IME hints, secret scrubbing and idempotent close | Device matrix defines IME, hardware-keyboard and TalkBack journeys; no real authentication service | **Partial**; runtime authentication and physical IME integration remain |
 | Places application | Production JavaScript behavior tests cover Phone/Desktop transports, multi-metaverse selection, malformed directory entries, protocol/capacity/attendance classification, stale and duplicate callbacks, host changes, all UI actions, portal validation/distance/count/expiry and cleanup; `places.js` measures 98.25% lines / 94.98% branches / 97.92% functions and `portal.js` 98.74% / 84.21% / 100% | No real directory/render/navigation device journey | **Partial** |
 | Tablet app routing | Production `mobileTabletApps.js` executes in a controlled VM with route, security and cleanup flows; extensive QML/source contracts | No app-by-app device navigation suite | **Partial** |
 | Phone bootstrap and action bar | Production bootstrap and `mobileActionBar.js` execute in a controlled VM with exact startup ordering, LOD defaults, adaptive geometry, navigation/audio/camera/haptic actions, tablet touch ownership, missing-QML failure and teardown; action-bar coverage is 95.31% lines / 86.89% branches / 100% functions | No real Qt-fragment/touch journey | **Covered** for device-free policy and lifecycle; rendering and gestures require an Android runtime |
@@ -62,14 +63,14 @@ separate aggregate Phone-core run remains informational.
 | APK contents and metadata | Device-free package, permission, privacy, ZIP and asset gates | Device smoke validates the selected APK before install | **Covered** for currently enumerated package invariants; full app behavior is separate |
 | 16 KiB compatibility | ELF/alignment/package gates and dependency sentinel tests | Physical page-size lane is documented but not automated here | **Partial** |
 | Network failure/reconnect | Deterministic Places backend fakes cover repeated HTTP/transport/timeout failures, refresh cancellation, stale responses and recovery without external networking | No complete world connection/reconnect scenario | **Partial**; world-server transport and authentication reconnect need a larger integration harness |
-| Accessibility | Qt Quick tests verify accessible names, descriptions, roles, password-field privacy, tab eligibility and deterministic focus requests for Phone Login, Address Bar and Emote; General Preferences Save/Cancel semantics have source contracts | No Android TalkBack, spoken traversal, contrast, font-scaling or touch-exploration test | **Partial**; semantic host coverage exists, Android assistive-technology behavior remains |
+| Accessibility | Qt Quick tests verify accessible names, descriptions, roles, password-field privacy, tab eligibility, deterministic focus requests and bounded font scale for Phone Login, Address Bar and Emote; source contracts cover Settings, Tablet launcher/menu, action bar and General Preferences activation semantics | Physical matrix defines TalkBack, keyboard, font-scale and touch-exploration gates | **Partial**; semantic host coverage exists, but Android assistive-technology rows must be executed |
 | Memory/leak endurance | JS resource registries, native property models and QML object ownership run repeatedly without hardware | Scheduled `endurance` and order/isolation `stability` lanes | **Partial**; Android heap, JNI references, Qt surfaces and renderer resources still require a runtime soak |
-| Performance regression | Benchmark harness and telemetry contracts | No committed device baseline/threshold lane | **Missing** as a regression gate |
+| Performance regression | The metrics policy runs 100,000 deterministic snapshots under a five-second CI ceiling; benchmark parser/privacy/cleanup behavior has host contracts | The physical matrix defines 120-second median, frame-time/jank, thermal, crash and repeated Tablet/IME memory gates; no committed device results | **Partial**; establish and schedule accepted per-device-class baselines |
 
 ## QML production inventory
 
-The following Phone selector components are suitable for direct host loading
-because they are plain `QtObject` configurations:
+The following Phone selector and shared presentation components are suitable
+for direct host loading because they are non-visual configurations:
 
 - `AudioTouchConfiguration.qml`
 - `AvatarTouchConfiguration.qml`
@@ -77,6 +78,10 @@ because they are plain `QtObject` configurations:
 - `TabletTouchConfiguration.qml`
 - `TabletPreferencesLayout.qml`
 - `SettingsTouchConfiguration.qml`
+- `TouchUiMetrics.qml`
+- `TouchUiProfile.qml`
+- `TabletTouchConfigurationBase.qml`
+- `TabletGeneralPreferencesPolicy.qml`
 
 They are loaded from their real production paths by the tests in `android/common/tests/qml`;
 the tests do not copy their values into test-only components.
@@ -104,8 +109,8 @@ by contracts rather than a test-only imitation of that backend.
 ## Runtime validation
 
 The Qt Quick tests require `qmltestrunner`, Qt Quick Test and Qt Quick Controls
-2. They were executed in an isolated Ubuntu 24.04 / Qt 5.15 environment with
-38 explicit `test_*` functions pass (52 QtTest result rows when suite
+2. They were executed in an isolated Linux / Qt 5.15 environment. All
+52 explicit `test_*` functions pass (68 QtTest result rows when suite
 initialization and cleanup rows are included). The fast CI job installs the same package set and requires
 the QML tier to execute; a missing tool is a failure there. Local hosts without
 Qt still receive an explicit skip. This host evidence does not replace Android
@@ -119,17 +124,18 @@ the registered application preferences backend. These checks validate the Qt
 accessibility properties only; they do not claim Android TalkBack traversal,
 spoken output, contrast, font scaling or touch-exploration coverage.
 
-The clean-host CI coverage job executes JaCoCo directly against ten
+The clean-host CI coverage job executes JaCoCo directly against eleven
 framework-independent Phone, Pico audio, Qt utility, and legacy Interface Java
-production classes. It requires 100% line coverage for all ten, 100% branch
-coverage for nine, and 95% branches for
+production classes. It requires 100% line coverage for all eleven, 100% branch
+coverage for ten, and 95% branches for
 `AssetCacheExtractor` (currently 25/26, 96.15%) because the final branch is the
 mkdirs/isDirectory concurrent-creator race. It also installs pinned `gcovr` 8.4 in a repository
 build-directory virtual environment and enforces 95% line / 90% branch coverage
-for the native login, graphics-policy and pending-handoff code. These percentages
+for the native login, graphics-policy, pending-handoff and touch-metrics code. These percentages
 must not be interpreted as whole-application coverage. The current measured
 results exceed those gates: interface policies are at 100% lines/functions and
-98.9% branches; pending handoff is at 100% for all three metrics.
+98.9% branches; pending handoff and touch metrics are at 100% for all three
+metrics.
 
 The clean-host CI harness executes 32 Robolectric source behaviors for Phone,
 legacy Interface, Pico, and Quest (71 executions). The exact matrix is Phone
@@ -170,14 +176,15 @@ event-loop ownership cleanup, not heap size. Android-owned Qt surfaces, JNI
 references, renderer resources and framework callbacks remain runtime-only.
 
 The `mutation` suite contains a fast, dependency-free mutation gate spanning
-the pure Java boundary policies, including legacy URL/base resolution and asset cache marker validation,
-cache-hit, parent creation and stale replacement, as well as the native graphics
-parsers, pending handoff, `mobileTabletApps`, `mobileActionBar`, `quickGoto`,
+the pure Java boundary policies, including runtime touch metrics, legacy
+URL/base resolution and asset cache marker validation, cache-hit, parent
+creation and stale replacement, as well as the native graphics parsers,
+pending handoff, touch-metrics boundary, `mobileTabletApps`, `mobileActionBar`, `quickGoto`,
 Places and Portal
 lifecycle/routing decisions through their existing production-script VM tests:
 
-Extended mutations additionally cover missing asset destination roots and
-marker-directory collisions.
+Extended mutations additionally cover missing asset destination roots,
+marker-directory collisions and deeper touch-surface bounds.
 
 The extractor rules are also checked against the generated Phone
 `cache_assets.txt`: the current debug package has one 64-character lowercase
@@ -193,8 +200,8 @@ android/common/tests/run-tests.sh mutation
 ```
 
 Every listed mutant must be detected by the production-facing tests. The quick
-gate kills 31/31 curated mutants; `android/common/tests/run-tests.sh mutation-extended` kills
-47/47 and adds deeper boundary/operator mutations. Before mutation, each
+gate kills 36/36 curated mutants; `android/common/tests/run-tests.sh mutation-extended` kills
+54/54 and adds deeper boundary/operator mutations. Before mutation, each
 language harness must pass unchanged. Only its explicit assertion-failure
 signature counts as a kill; compilation errors, timeouts, signals, and JVM or
 harness crashes fail as infrastructure errors, preventing false mutation

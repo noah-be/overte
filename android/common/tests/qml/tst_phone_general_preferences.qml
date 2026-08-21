@@ -6,20 +6,33 @@ TestCase {
     width: 640
     height: 360
 
+    function createProductionComponent(relativePath) {
+        var component = Qt.createComponent(Qt.resolvedUrl("../../../../" + relativePath))
+        compare(component.status, Component.Ready, component.errorString())
+        return component
+    }
+
+    function createPhoneProfile() {
+        var component = createProductionComponent(
+            "interface/resources/qml/controlsUit/+android_phoneInterface/TouchUiProfile.qml")
+        var profile = component.createObject(null)
+        verify(profile !== null, component.errorString())
+        return profile
+    }
+
     function test_phoneCategoryAndFooterPoliciesAreBounded() {
-        var layoutComponent = Qt.createComponent(Qt.resolvedUrl(
-            "../../../../interface/resources/qml/hifi/tablet/tabletWindows/+android_phoneInterface/TabletPreferencesLayout.qml"))
-        compare(layoutComponent.status, Component.Ready, layoutComponent.errorString())
-        var layout = layoutComponent.createObject(null)
+        var phoneProfile = createPhoneProfile()
+        var layoutComponent = createProductionComponent(
+            "interface/resources/qml/hifi/tablet/tabletWindows/TabletPreferencesLayout.qml")
+        var layout = layoutComponent.createObject(null, { profile: phoneProfile })
         verify(layout !== null)
         verify(layout.compactFooter)
         verify(layout.buttonWidth >= 48)
         verify(layout.buttonHeight > 0)
 
-        var policyComponent = Qt.createComponent(Qt.resolvedUrl(
-            "../../../../interface/resources/qml/hifi/tablet/+android_phoneInterface/PhoneGeneralPreferencesPolicy.qml"))
-        compare(policyComponent.status, Component.Ready, policyComponent.errorString())
-        var policy = policyComponent.createObject(null)
+        var policyComponent = createProductionComponent(
+            "interface/resources/qml/hifi/tablet/TabletGeneralPreferencesPolicy.qml")
+        var policy = policyComponent.createObject(null, { profile: phoneProfile })
         verify(policy !== null)
         compare(policy.allowedCategories.length, 2)
         verify(policy.admits("Navigation"))
@@ -30,13 +43,15 @@ TestCase {
         verify(!policy.admits(null))
         policy.destroy()
         layout.destroy()
+        phoneProfile.destroy()
     }
 
     function test_navigationConfigurationHandlesLandscapeAndLifecycleResize() {
-        var component = Qt.createComponent(Qt.resolvedUrl(
-            "../../../../interface/resources/qml/hifi/tablet/+android_phoneInterface/TabletTouchConfiguration.qml"))
-        compare(component.status, Component.Ready, component.errorString())
+        var phoneProfile = createPhoneProfile()
+        var component = createProductionComponent(
+            "interface/resources/qml/hifi/tablet/TabletTouchConfiguration.qml")
         var configuration = component.createObject(null, {
+            profile: phoneProfile,
             availableWidth: 800,
             availableHeight: 360
         })
@@ -51,5 +66,6 @@ TestCase {
         verify(configuration.topBarHeight >= 64)
         verify(configuration.horizontalMargin >= 8)
         configuration.destroy()
+        phoneProfile.destroy()
     }
 }

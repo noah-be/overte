@@ -46,6 +46,8 @@ require "$action_bar" 'Tablet\.getTablet\("com.highfidelity.interface.tablet.sys
     'mobile action bar does not use the system TabletProxy'
 require "$action_bar" 'systemTablet\.resizeAndroidTablet\(Window.innerWidth, Window.innerHeight\)' \
     'tablet is not resized after Android surface geometry changes'
+require "$action_bar" 'touchUiRuntimeMetricsChanged' \
+    'action controls do not react to live safe-area capability changes'
 require "$action_bar" 'Controller\.setVPadHidden\(tabletShown\)' \
     'world touch controls are not suspended while the tablet owns input'
 require "$action_bar" 'navigationBar\.visible = !tabletShown' \

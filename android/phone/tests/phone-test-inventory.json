@@ -31,7 +31,9 @@
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneLaunchState.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneLaunchStateTest.java"],
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhonePendingUrlPolicy.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhonePendingUrlPolicyTest.java"],
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhonePermissionFlow.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhonePermissionFlowTest.java"],
+    "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneTouchUiMetricsPolicy.java": ["android/common/tests/java/org/overte/phone/PhoneTouchUiMetricsPolicyStandaloneTest.java"],
     "android/phone/apps/phoneInterface/src/PhonePendingHandoff.h": ["android/common/tests/native/phone_pending_handoff_lifecycle_test.cpp", "android/common/tests/native/phone_pending_handoff_replacement_test.cpp"],
+    "android/phone/apps/phoneInterface/src/PhoneTouchUiMetrics.h": ["android/common/tests/native/phone_touch_ui_metrics_test.cpp"],
     "scripts/+android_phoneInterface/defaultScripts.js": ["android/common/tests/javascript/test/default-scripts.production.test.js"],
     "scripts/system/+android_phoneInterface/mobileActionBar.js": ["android/common/tests/javascript/test/mobile-action-bar.production.test.js"],
     "scripts/system/+android_phoneInterface/mobileTabletApps.js": ["android/common/tests/javascript/test/mobile-tablet-apps.production.test.js"],
@@ -42,13 +44,7 @@
     "android/phone/apps/phoneInterface/src/main/res/xml/data_extraction_rules.xml": ["android/phone/tests/phone-data-protection-test.py"],
     "interface/resources/qml/+android_phoneInterface/AddressBarDialog.qml": ["android/common/tests/qml/tst_phone_address_bar.qml"],
     "interface/resources/qml/LoginDialog/+android_phoneInterface/LinkAccountBody.qml": ["android/common/tests/qml/tst_phone_login_body.qml"],
-    "interface/resources/qml/hifi/audio/+android_phoneInterface/AudioTouchConfiguration.qml": ["android/common/tests/qml/tst_phone_selector_configurations.qml"],
-    "interface/resources/qml/hifi/avatarapp/+android_phoneInterface/AvatarTouchConfiguration.qml": ["android/common/tests/qml/tst_phone_selector_configurations.qml"],
-    "interface/resources/qml/hifi/dialogs/security/+android_phoneInterface/SecurityTouchConfiguration.qml": ["android/common/tests/qml/tst_phone_selector_configurations.qml"],
-    "interface/resources/qml/hifi/tablet/+android_phoneInterface/PhoneGeneralPreferencesPolicy.qml": ["android/common/tests/qml/tst_phone_general_preferences.qml"],
-    "interface/resources/qml/hifi/tablet/+android_phoneInterface/TabletGeneralPreferences.qml": ["android/phone/tests/phone-tablet-general-preferences-test.sh"],
-    "interface/resources/qml/hifi/tablet/+android_phoneInterface/TabletTouchConfiguration.qml": ["android/common/tests/qml/tst_phone_tablet_touch_configuration.qml"],
-    "interface/resources/qml/hifi/tablet/tabletWindows/+android_phoneInterface/TabletPreferencesLayout.qml": ["android/common/tests/qml/tst_phone_general_preferences.qml"],
+    "interface/resources/qml/controlsUit/+android_phoneInterface/TouchUiProfile.qml": ["android/common/tests/qml/tst_touch_ui_metrics.qml", "android/common/tests/qml/tst_phone_tablet_touch_configuration.qml", "android/common/tests/qml/tst_phone_selector_configurations.qml", "android/common/tests/qml/tst_phone_general_preferences.qml"],
     "interface/src/ui/PhoneDialogRouter.h": ["android/phone/tests/phone-tablet-routing-test.sh"],
     "interface/src/ui/PhoneGraphicsPolicy.h": ["android/common/tests/native/phone_graphics_bool_policy_test.cpp"],
     "interface/src/ui/PhoneLoginState.h": ["android/common/tests/native/phone_login_state_transitions_test.cpp"],
@@ -59,8 +55,8 @@
     "android/common/src/OffscreenGLCanvas.cpp": ["android/phone/tests/phone-host-regression-test.sh"]
   },
   "runtime_boundaries": {
-    "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java": "QtActivity/native loader, WindowInsets, predictive Back and real lifecycle require Android; pure URL retry policy is separately tested",
-    "android/phone/apps/phoneInterface/src/PhoneUrlHandler.cpp": "JNI string conversion, Qt queued delivery and UI-thread Back routing require a live Qt/JNI runtime; PendingHandoff state is separately tested"
+    "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java": "QtActivity/native loader, WindowInsets callbacks, predictive Back and real lifecycle require Android; pure URL, metrics normalization and legacy IME extraction policies are separately tested",
+    "android/phone/apps/phoneInterface/src/PhoneUrlHandler.cpp": "JNI string conversion plus Qt queued URL, runtime-metrics and UI-thread Back delivery require a live Qt/JNI runtime; defensive handoff and metrics policies are separately tested"
   },
   "default_script_runtime_boundaries": {
     "system/request-service.js": "generic request service integration, not Phone-owned code",

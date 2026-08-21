@@ -1,5 +1,5 @@
 import QtQuick 2.7
-import QtQuick.Controls 2.2
+import controlsUit 1.0 as HifiControls
 
 Item {
     id: root
@@ -12,6 +12,12 @@ Item {
         "Crying", "Surprised", "Dancing", "Cheering", "Waving",
         "Fall", "Pointing", "Clapping", "Sit", "Love"
     ]
+
+    HifiControls.TouchUiMetrics {
+        id: touchMetrics
+        availableWidth: root.width
+        availableHeight: root.height
+    }
 
     Rectangle {
         anchors.fill: parent
@@ -27,7 +33,7 @@ Item {
             width: parent.width
             text: qsTr("EMOTE")
             color: "white"
-            font.pixelSize: 24
+            font.pixelSize: Math.round(24 * touchMetrics.textScale)
             font.bold: true
             horizontalAlignment: Text.AlignHCenter
             Accessible.role: Accessible.StaticText
@@ -37,10 +43,10 @@ Item {
         Text {
             objectName: "PhoneEmoteStatus"
             width: parent.width
-            height: 24
+            height: Math.max(24, implicitHeight)
             text: root.statusText
             color: root.activeEmote.length > 0 ? "#00b4ef" : "#d9e2e8"
-            font.pixelSize: 14
+            font.pixelSize: Math.round(14 * touchMetrics.textScale)
             elide: Text.ElideRight
             horizontalAlignment: Text.AlignHCenter
             Accessible.role: Accessible.StaticText
@@ -49,24 +55,30 @@ Item {
 
         GridView {
             id: emoteGrid
+            objectName: "PhoneEmoteGrid"
             width: parent.width
             height: parent.height - y
-            cellWidth: width / 2
-            cellHeight: 54
+            readonly property int adaptiveColumns: touchMetrics.columnsFor(
+                140 * touchMetrics.textScale, 4, 2)
+            cellWidth: width / adaptiveColumns
+            cellHeight: Math.max(54, touchMetrics.adaptiveMinimumControlHeight)
             clip: true
             boundsBehavior: Flickable.StopAtBounds
+            pressDelay: touchMetrics.pressDelay
+            flickDeceleration: touchMetrics.flickDeceleration
+            maximumFlickVelocity: touchMetrics.maximumFlickVelocity
             model: root.emotes
 
             delegate: Item {
                 width: emoteGrid.cellWidth
                 height: emoteGrid.cellHeight
 
-                Button {
+                HifiControls.Button {
                     objectName: "PhoneEmoteButton_" + modelData
                     anchors.fill: parent
                     anchors.margins: 4
                     text: modelData
-                    font.pixelSize: 15
+                    fontSize: Math.round(15 * touchMetrics.textScale)
                     highlighted: root.activeEmote === modelData
                     activeFocusOnTab: true
                     Accessible.role: Accessible.Button
@@ -74,10 +86,12 @@ Item {
                     Accessible.description: root.activeEmote === modelData
                         ? qsTr("Currently playing emote")
                         : qsTr("Play emote")
-                    onClicked: root.sendToScript({
-                        method: "phoneEmote.play",
-                        name: modelData
-                    })
+                    androidClickAction: function () {
+                        root.sendToScript({
+                            method: "phoneEmote.play",
+                            name: modelData
+                        })
+                    }
                 }
             }
         }

@@ -12,6 +12,12 @@ FocusScope {
     visible: shown
     anchors.fill: parent
 
+    HifiControls.TouchUiMetrics {
+        id: touchMetrics
+        availableWidth: root.width
+        availableHeight: root.height
+    }
+
     function closeDialog() {
         Qt.inputMethod.hide()
         DialogsManager.hideAddressBar()
@@ -41,11 +47,25 @@ FocusScope {
         }
     }
 
+    Flickable {
+        id: viewport
+        anchors.fill: parent
+        contentWidth: width
+        contentHeight: Math.max(height, panel.height + 2 * touchMetrics.spacingLarge)
+        clip: true
+        boundsBehavior: touchMetrics.directTouch
+            ? Flickable.DragOverBounds : Flickable.StopAtBounds
+        pressDelay: touchMetrics.pressDelay
+        flickDeceleration: touchMetrics.flickDeceleration
+        maximumFlickVelocity: touchMetrics.maximumFlickVelocity
+
     Rectangle {
         id: panel
-        width: Math.min(parent.width - 48, 720)
+        width: Math.max(1,
+            Math.min(viewport.width - 2 * touchMetrics.spacingLarge, 720))
         height: content.implicitHeight + 48
-        anchors.centerIn: parent
+        x: Math.max(touchMetrics.spacingLarge, (viewport.width - width) / 2)
+        y: Math.max(touchMetrics.spacingLarge, (viewport.height - height) / 2)
         radius: 18
         color: "#e6282d33"
         border.color: "#6679858e"
@@ -66,7 +86,7 @@ FocusScope {
                 width: parent.width
                 text: qsTr("Go to a place, user, path, or network address")
                 color: "white"
-                font.pixelSize: 24
+                font.pixelSize: Math.round(24 * touchMetrics.textScale)
                 font.bold: true
                 wrapMode: Text.WordWrap
                 horizontalAlignment: Text.AlignHCenter
@@ -76,16 +96,22 @@ FocusScope {
                 id: addressField
                 objectName: "PhoneAddressField"
                 width: parent.width
-                height: 52
+                height: Math.max(52, implicitHeight)
                 placeholderText: qsTr("Address")
                 maximumLength: root.maximumAddressLength
+                inputMethodHints: Qt.ImhNoAutoUppercase
                 activeFocusOnPress: true
                 activeFocusOnTab: true
                 Accessible.role: Accessible.EditableText
                 Accessible.name: qsTr("Destination address")
                 Accessible.description: qsTr("Place, user, path, or network address")
-                font.pixelSize: 20
+                font.pixelSize: Math.round(20 * touchMetrics.textScale)
                 Keys.onReturnPressed: root.goToAddress()
+                onActiveFocusChanged: if (activeFocus) {
+                    Qt.callLater(function () {
+                        touchMetrics.ensureVisible(viewport, addressField)
+                    })
+                }
             }
 
             Text {
@@ -94,20 +120,25 @@ FocusScope {
                 width: parent.width
                 visible: text.length > 0
                 color: "#ff7777"
-                font.pixelSize: 18
+                font.pixelSize: Math.round(18 * touchMetrics.textScale)
                 wrapMode: Text.WordWrap
                 horizontalAlignment: Text.AlignHCenter
                 Accessible.role: Accessible.StaticText
                 Accessible.name: text
             }
 
-            Row {
-                anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 12
+            Grid {
+                id: addressActions
+                width: parent.width
+                columns: touchMetrics.compact || touchMetrics.textScale > 1.25 ? 2 : 4
+                columnSpacing: touchMetrics.spacingMedium
+                rowSpacing: touchMetrics.spacingMedium
 
                 HifiControls.Button {
                     objectName: "PhoneAddressBackButton"
-                    width: Math.min(140, (content.width - 36) / 4)
+                    width: (addressActions.width
+                        - (addressActions.columns - 1) * addressActions.columnSpacing)
+                        / addressActions.columns
                     text: qsTr("Back")
                     enabled: addressDialog.backEnabled
                     activeFocusOnTab: true
@@ -118,7 +149,9 @@ FocusScope {
                 }
                 HifiControls.Button {
                     objectName: "PhoneAddressHomeButton"
-                    width: Math.min(140, (content.width - 36) / 4)
+                    width: (addressActions.width
+                        - (addressActions.columns - 1) * addressActions.columnSpacing)
+                        / addressActions.columns
                     text: qsTr("Home")
                     activeFocusOnTab: true
                     Accessible.role: Accessible.Button
@@ -128,7 +161,9 @@ FocusScope {
                 }
                 HifiControls.Button {
                     objectName: "PhoneAddressGoButton"
-                    width: Math.min(140, (content.width - 36) / 4)
+                    width: (addressActions.width
+                        - (addressActions.columns - 1) * addressActions.columnSpacing)
+                        / addressActions.columns
                     text: qsTr("Go")
                     activeFocusOnTab: true
                     Accessible.role: Accessible.Button
@@ -138,7 +173,9 @@ FocusScope {
                 }
                 HifiControls.Button {
                     objectName: "PhoneAddressCancelButton"
-                    width: Math.min(140, (content.width - 36) / 4)
+                    width: (addressActions.width
+                        - (addressActions.columns - 1) * addressActions.columnSpacing)
+                        / addressActions.columns
                     text: qsTr("Cancel")
                     activeFocusOnTab: true
                     Accessible.role: Accessible.Button
@@ -148,6 +185,7 @@ FocusScope {
                 }
             }
         }
+    }
     }
 
     AddressBarDialog {
@@ -166,6 +204,17 @@ FocusScope {
             addressField.forceActiveFocus()
         } else {
             Qt.inputMethod.hide()
+        }
+    }
+
+    Connections {
+        target: touchMetrics
+        function onKeyboardVisibleChanged() {
+            if (touchMetrics.keyboardVisible && addressField.activeFocus) {
+                Qt.callLater(function () {
+                    touchMetrics.ensureVisible(viewport, addressField)
+                })
+            }
         }
     }
 

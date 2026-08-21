@@ -25,6 +25,10 @@ require "$handler" 'Qt::QueuedConnection' 'URL handoff never blocks the Android 
 require "$handler" 'QThread::currentThread\(\) == application->thread\(\)' 'Back avoids self-deadlock on the Qt thread'
 require "$handler" 'Qt::BlockingQueuedConnection' 'cross-thread Back returns the synchronous routing result'
 require "$handler" 'return invoked && consumed \? JNI_TRUE : JNI_FALSE' 'Back reports both dispatch and consumption'
+require "$handler" 'PhoneInterfaceActivity_nativeUpdateTouchUiMetrics' 'JNI exports the runtime touch-metrics bridge'
+require "$handler" 'TouchUiMetrics::fromUntrusted' 'JNI sanitizes runtime geometry before exposing it to Qt'
+require "$handler" 'PendingTouchUiMetricsDelivery' 'native startup retains the latest accepted touch-metrics snapshot'
+require "$handler" 'setTouchUiRuntimeMetrics' 'runtime metrics reach the shared Tablet/QML host boundary'
 require "$compat" 'QtNativeInputConnection_finishComposingText' 'finish-composition ABI export remains present'
 require "$compat" 'QtNativeInputConnection_updateCursorPosition' 'cursor-update ABI export remains present'
 if ! awk '/^  fast:/{inside=1} /^  contracts:/{inside=0} inside' "$workflow" |

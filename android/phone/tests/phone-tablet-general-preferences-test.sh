@@ -7,6 +7,7 @@ readonly repo_root="$(cd -- "$script_dir/../../.." && pwd)"
 readonly shared_preferences="$repo_root/interface/resources/qml/hifi/tablet/TabletGeneralPreferences.qml"
 readonly shared_policy="$repo_root/interface/resources/qml/hifi/tablet/TabletGeneralPreferencesPolicy.qml"
 readonly base_profile="$repo_root/interface/resources/qml/controlsUit/TouchUiProfileBase.qml"
+readonly phone_profile="$repo_root/interface/resources/qml/controlsUit/+android_phoneInterface/TouchUiProfile.qml"
 readonly tablet_preferences_dialog="$repo_root/interface/resources/qml/hifi/tablet/tabletWindows/TabletPreferencesDialog.qml"
 readonly preference_source="$repo_root/interface/src/ui/PreferencesDialog.cpp"
 readonly phone_gradle="$repo_root/android/phone/apps/phoneInterface/build.gradle"
@@ -36,6 +37,18 @@ require "$shared_policy" 'categories[.]push\("Mouse Sensitivity"\)' \
     'General Settings retain the shared look-sensitivity category'
 require "$shared_preferences" 'showCategories:[[:space:]]*preferencesPolicy[.]allowedCategories' \
     'phone General Settings consume the tested fail-closed category policy'
+require "$phone_profile" 'navigationPreferencesAvailable:[[:space:]]*true' \
+    'phone General Settings expose Navigation'
+require "$phone_profile" 'userInterfacePreferencesAvailable:[[:space:]]*false' \
+    'phone General Settings exclude incomplete desktop UI controls'
+require "$phone_profile" 'hmdPreferencesAvailable:[[:space:]]*false' \
+    'phone General Settings exclude HMD controls'
+require "$phone_profile" 'snapshotPreferencesAvailable:[[:space:]]*false' \
+    'phone General Settings exclude filesystem-backed Snapshot controls'
+require "$phone_profile" 'privacyPreferencesAvailable:[[:space:]]*false' \
+    'phone General Settings exclude incomplete Privacy controls'
+require "$phone_profile" 'pluginPreferencesAvailable:[[:space:]]*false' \
+    'phone General Settings exclude unavailable plugin controls'
 require "$shared_policy" 'Individual hidden controls' \
     'phone filtering documents why whole unsupported categories are excluded'
 

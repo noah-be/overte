@@ -70,7 +70,7 @@
       "kind": "jvm",
       "tiers": ["fast", "host"],
       "command": ["phone/tests/phone-deep-link-test.sh"],
-      "description": "Pure JVM deep-link normalization tests"
+      "description": "Pure JVM deep-link and Android touch-metrics policy tests"
     },
     {
       "id": "legacy-user-story-policy",
@@ -318,7 +318,7 @@
       "kind": "mutation",
       "tiers": ["mutation"],
       "command": ["common/tests/mutation/run-critical-policy-mutations.sh"],
-      "description": "Fast mutation gate across ten pure Java policies plus native login, parsers, handoff and production scripts"
+      "description": "Fast mutation gate across eleven pure Java policies plus native login, parsers, handoff, touch metrics and production scripts"
     },
     {
       "id": "critical-policy-mutations-extended",
