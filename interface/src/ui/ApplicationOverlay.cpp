@@ -141,7 +141,14 @@ void ApplicationOverlay::renderOverlay(RenderArgs* renderArgs) {
 #endif
         renderOverlays(renderArgs); // renders Scripts Overlay and AudioScope
 #if !defined(DISABLE_QML)
+#if defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
+        // The desktop QML texture is an external GL texture. MoltenVK cannot
+        // import it on iOS, so drawing its fail-closed fallback would cover
+        // the completed scene with opaque black. Keep the transparent overlay
+        // target until a native IOSurface/Metal import path is available.
+#else
         renderQmlUi(renderArgs); // renders a unit quad with the QML UI texture, and the text overlays from scripts
+#endif
 #endif
     });
 

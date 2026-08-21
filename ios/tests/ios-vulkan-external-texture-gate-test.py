@@ -6,6 +6,7 @@ import pathlib
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 cmake = (ROOT / "libraries/gpu-vk/CMakeLists.txt").read_text(encoding="utf-8")
 backend = (ROOT / "libraries/gpu-vk/src/gpu/vk/VKBackend.cpp").read_text(encoding="utf-8")
+overlay = (ROOT / "interface/src/ui/ApplicationOverlay.cpp").read_text(encoding="utf-8")
 
 macro = "OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP"
 if "if(IOS)" not in cmake or "target_compile_definitions(${TARGET_NAME} PUBLIC" not in cmake or f"{macro}=1" not in cmake:
@@ -18,6 +19,8 @@ for diagnostic in (
 ):
     if diagnostic not in backend:
         raise SystemExit(f"missing fail-closed diagnostic {diagnostic!r}")
+if f"#if defined({macro})" not in overlay or "renderQmlUi(renderArgs);" not in overlay:
+    raise SystemExit("iOS overlay does not avoid drawing the unsupported external QML texture")
 
 texture_header = (ROOT / "libraries/gpu-vk/src/gpu/vk/VKTexture.h").read_text(encoding="utf-8")
 texture_source = (ROOT / "libraries/gpu-vk/src/gpu/vk/VKTexture.cpp").read_text(encoding="utf-8")
