@@ -17,7 +17,7 @@ SCHEME = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
 
 def changed_markdown(base: str) -> list[Path]:
     result = subprocess.run(
-        ["git", "diff", "--name-only", "--diff-filter=ACMR", f"{base}...HEAD"],
+        ["git", "diff", "--name-only", "--diff-filter=ACMR", base, "HEAD"],
         cwd=ROOT,
         check=True,
         capture_output=True,

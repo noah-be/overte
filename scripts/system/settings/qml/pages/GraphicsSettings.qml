@@ -4,7 +4,11 @@ import QtQuick.Layouts 1.3
 import "../"
 
 Flickable {
-    SettingsTouchConfiguration { id: touchConfiguration }
+    SettingsTouchConfiguration {
+        id: touchConfiguration
+        availableWidth: graphicsPage.width
+        availableHeight: graphicsPage.height
+    }
 
     property var verticalScrollBarWidth: 20;
     property bool hasPresetBeenModified: false;

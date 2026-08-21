@@ -19,12 +19,14 @@ CheckBox {
     id: checkBox
 
     HifiConstants { id: hifi; }
+    HiFiControls.TouchUiMetrics { id: touchMetrics }
 
     padding: 0
     leftPadding: 0
     property int colorScheme: hifi.colorSchemes.light
     property string color: hifi.colors.lightGrayText
-    property int fontSize: hifi.fontSizes.inputLabel
+    property int fontSize: Math.round(hifi.fontSizes.inputLabel
+        * touchMetrics.textScale)
     readonly property bool isLightColorScheme: colorScheme === hifi.colorSchemes.light
     property bool isRedCheck: false
     property bool isRound: false
@@ -34,7 +36,13 @@ CheckBox {
     readonly property int checkSize: Math.max(boxSize - 8, 10)
     readonly property int checkRadius: isRound ? checkSize / 2 : 2
     focusPolicy: Qt.ClickFocus
-    hoverEnabled: true
+    hoverEnabled: touchMetrics.hoverSupported
+    implicitWidth: Math.max(contentItem ? contentItem.implicitWidth : 0,
+        indicator ? indicator.implicitWidth : 0,
+        touchMetrics.adaptiveMinimumControlHeight)
+    implicitHeight: Math.max(contentItem ? contentItem.implicitHeight : 0,
+        indicator ? indicator.implicitHeight : 0,
+        touchMetrics.adaptiveMinimumControlHeight)
 
     onClicked: {
         Tablet.playSound(TabletEnums.ButtonClick);
@@ -123,4 +131,3 @@ CheckBox {
         leftPadding: checkBox.indicator.width + checkBox.spacing
     }
 }
-

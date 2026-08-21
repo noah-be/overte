@@ -1,9 +1,8 @@
 import QtQuick 2.7
+import "../../../controlsUit" as HifiControls
 
-// Keeps the shared preferences dialog unchanged unless a platform selector
-// explicitly adapts it for a scaled screen-space host.
-QtObject {
-    property bool compactFooter: false
+HifiControls.TouchUiMetrics {
+    readonly property bool compactFooter: profile.screenSpacePresentation
     property int buttonWidth: 120
     property int buttonHeight: 28
     property int buttonFontSize: 9
