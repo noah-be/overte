@@ -28,10 +28,16 @@ console.warn("OVERTE_IOS_CAMERA_DIAGNOSTIC stage=defaults-launched");
     var reported = false;
     var observedTarget = false;
     var resetReported = false;
+    function distanceSquared(a, b) {
+        var dx = Number(a.x) - b.x;
+        var dy = Number(a.y) - b.y;
+        var dz = Number(a.z) - b.z;
+        return dx * dx + dy * dy + dz * dz;
+    }
     var timer = Script.setInterval(function () {
         var before = MyAvatar.position;
-        var beforeError = Vec3.distance(before, targetPosition);
-        if (beforeError < 1) {
+        var beforeErrorSquared = distanceSquared(before, targetPosition);
+        if (beforeErrorSquared < 1) {
             observedTarget = true;
         } else if (observedTarget && !resetReported) {
             console.warn(
@@ -49,8 +55,8 @@ console.warn("OVERTE_IOS_CAMERA_DIAGNOSTIC stage=defaults-launched");
         MyAvatar.orientation = targetOrientation;
         Camera.mode = "first person look at";
         attempts += 1;
-        var positionError = Vec3.distance(MyAvatar.position, targetPosition);
-        if (!reported && Camera.mode === "first person look at" && positionError < 1) {
+        var positionErrorSquared = distanceSquared(MyAvatar.position, targetPosition);
+        if (!reported && Camera.mode === "first person look at" && positionErrorSquared < 1) {
             var marker = "OVERTE_IOS_CAMERA_DIAGNOSTIC mode=" + Camera.mode +
                 " avatar=viewpoint attempts=" + attempts;
             Settings.setValue("iosCameraDiagnostic", marker);
