@@ -518,6 +518,20 @@ renderer_output_observed() {
     }
 }
 
+retain_acceptance_markers() {
+    local source
+    # Gates can be visible first in the continuously streamed log but absent
+    # from a later rolling `log show` snapshot. Store a canonical, timestamp-
+    # free copy from every capture source before the raw sources are discarded.
+    for source in "$raw_log" "$app_stdout" "$app_stderr" "$log_snapshot"; do
+        [[ -s "$source" ]] || continue
+        sed -nE 's/^.*(OVERTE_IOS_(WORLD|ENTITY)_GATE[[:space:]]+.*)$/\1/p' \
+            "$source" >> "$marker_log"
+    done
+    awk '!seen[$0]++' "$marker_log" > "$marker_log.next"
+    mv "$marker_log.next" "$marker_log"
+}
+
 refresh_runtime_log_snapshot() {
     [[ -n "$active_udid" && "$launch_pid" =~ ^[1-9][0-9]*$ ]] || return 0
     local snapshot_candidate="$temp_root/process-snapshot.next" status=0
@@ -528,10 +542,10 @@ refresh_runtime_log_snapshot() {
         > "$snapshot_candidate" 2>/dev/null || status=$?
     if ((status == 0)); then
         mv "$snapshot_candidate" "$log_snapshot"
-        # Persist sparse one-shot gates across the rolling two-minute snapshot.
-        # Renderer completion is canonicalized so per-frame logs cannot grow
-        # this bounded ledger.
-        grep -Eh 'OVERTE_IOS_(WORLD|ENTITY)_GATE|(^|[[:space:]])OVERTE_IOS_VULKAN_FATAL[[:space:]]|OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1' \
+        # Persist sparse one-shot gates across the rolling two-minute snapshot
+        # and the independently captured stream/stdout/stderr sources.
+        retain_acceptance_markers
+        grep -Eh '(^|[[:space:]])OVERTE_IOS_VULKAN_FATAL[[:space:]]|OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1' \
             "$log_snapshot" >> "$marker_log" 2>/dev/null || true
         for marker in \
             'Resample::run' \
@@ -566,11 +580,10 @@ fail_if_vulkan_fatal() {
 }
 
 assemble_runtime_log() {
-    if [[ -s "$log_snapshot" ]]; then
-        awk '!seen[$0]++' "$marker_log" "$log_snapshot" "$app_stdout" "$app_stderr" > "$runtime_log"
-    else
-        awk '!seen[$0]++' "$marker_log" "$raw_log" "$app_stdout" "$app_stderr" > "$runtime_log"
-    fi
+    retain_acceptance_markers
+    # Validation consumes only the canonical ledger. Mixing timestamped raw
+    # sources back in would turn one gate into multiple logical occurrences.
+    cp "$marker_log" "$runtime_log"
 }
 
 fail_stopped_log_stream() {

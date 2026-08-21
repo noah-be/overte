@@ -258,7 +258,7 @@ elif [ "$1 $2" = "simctl spawn" ] && [ "$4 $5" = "log stream" ]; then
 elif [ "$1 $2" = "simctl spawn" ] && [ "$4 $5" = "log show" ]; then
     case " $* " in
         *" --last 2m --style compact --info --debug --predicate processIdentifier == "*)
-            printf '%s' "$FAKE_PROCESS_LOG"
+            printf '%s' "${FAKE_SNAPSHOT_LOG:-$FAKE_PROCESS_LOG}"
             exit 0
             ;;
         *" --last 5m --style compact --info --debug --predicate "*) ;;
@@ -423,6 +423,37 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
                 assert "process detach" in lldb_snapshots[0], lldb_snapshots
             else:
                 assert not lldb_snapshots, lldb_snapshots
+
+    stream_only_gates_output = root / "stream-only-gates"
+    stream_only_gates = invoke(
+        app,
+        stream_only_gates_output,
+        {
+            **environment,
+            "FAKE_PROCESS_LOG": SERVERLESS_LOG,
+            "FAKE_SNAPSHOT_LOG": "\n".join(
+                (
+                    "Overte OVERTE_IOS_WORLD_GATE navigation_requested kind= serverless destination= serverless_tutorial",
+                    "Overte OVERTE_IOS_VULKAN_DRAW batch=Resample::run stage=draw_pass_complete",
+                    "Overte OVERTE_IOS_VULKAN_DRAW batch=CompositeHUD stage=draw_pass_complete",
+                )
+            )
+            + "\n",
+        },
+        "iphone",
+        "serverless",
+        "-",
+    )
+    assert stream_only_gates.returncode == 0, (
+        stream_only_gates.stdout,
+        stream_only_gates.stderr,
+    )
+    retained_runtime = json.loads(
+        (stream_only_gates_output / "iphone-serverless-runtime.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert retained_runtime["runtime"]["accepted"] is True
 
     wrong_domain_output = root / "wrong-domain"
     wrong_domain = invoke(
