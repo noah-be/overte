@@ -364,6 +364,10 @@ assert 'QStringLiteral("file:///~/serverless/tutorial.json")' in main_source
 assert 'QStringLiteral("hifi://overte_hub")' in main_source
 assert '"OVERTE_IOS_WORLD_GATE serverless_import_committed"' in application_source
 assert 'QStringLiteral("serverless_tutorial")' in application_source
+assert application_source.count(
+    'auto assetDialog = rootItem ? rootItem->findChild<QQuickItem*>("AssetServer") : nullptr;'
+) == 2
+assert 'getRootItem()->findChild<QQuickItem*>("AssetServer")' not in application_source
 assert "PathUtils::expandToLocalDataAbsolutePath(tutorialURL)" in application_source
 assert "handleSandboxStatus(nullptr);" in application_ui_source
 assert "#if defined(Q_OS_IOS)" in application_ui_source

@@ -2057,7 +2057,8 @@ void Application::nodeActivated(SharedNodePointer node) {
 
             if (nodeList->getThisNodeCanWriteAssets()) {
                 // call reload on the shown asset browser dialog to get the mappings (if permissions allow)
-                auto assetDialog = offscreenUi ? offscreenUi->getRootItem()->findChild<QQuickItem*>("AssetServer") : nullptr;
+                auto rootItem = offscreenUi->getRootItem();
+                auto assetDialog = rootItem ? rootItem->findChild<QQuickItem*>("AssetServer") : nullptr;
                 if (assetDialog) {
                     QMetaObject::invokeMethod(assetDialog, "reload");
                 }
@@ -2159,7 +2160,8 @@ void Application::nodeKilled(SharedNodePointer node) {
 
 #if !defined(DISABLE_QML)
         auto offscreenUi = getOffscreenUI();
-        auto assetDialog = offscreenUi ? offscreenUi->getRootItem()->findChild<QQuickItem*>("AssetServer") : nullptr;
+        auto rootItem = offscreenUi ? offscreenUi->getRootItem() : nullptr;
+        auto assetDialog = rootItem ? rootItem->findChild<QQuickItem*>("AssetServer") : nullptr;
 
         if (assetDialog) {
             // call reload on the shown asset browser dialog
