@@ -91,6 +91,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Run device-free contracts
         run: ios/tests/run-tests.sh
@@ -106,12 +107,28 @@ jobs:
           ios/ci/verify-app.sh \
             build-ios/simulator/ios/Debug-iphonesimulator/OverteIOSBootstrap.app
 
-      - name: Launch on iPhone and iPad simulators
+      - name: Select simulator coverage
+        id: simulator-scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          families=iphone
+          if [[ "$EVENT_NAME" != pull_request ]]; then
+            families="iphone ipad"
+          elif git diff --name-only "$BASE_SHA" "$GITHUB_SHA" -- \
+            | grep -Eq '^(ios/|interface/resources/qml/|libraries/ui/|scripts/system/settings/)'; then
+            families="iphone ipad"
+          fi
+          printf 'families=%s\n' "$families" >> "$GITHUB_OUTPUT"
+
+      - name: Launch required simulators
         run: |
           ios/ci/simulator-smoke.sh \
             build-ios/simulator/ios/Debug-iphonesimulator/OverteIOSBootstrap.app \
             org.overte.interface.dev \
-            build-ios/diagnostics
+            build-ios/diagnostics \
+            "${{ steps.simulator-scope.outputs.families }}"
 
       - name: Upload simulator failure diagnostics
         if: failure()

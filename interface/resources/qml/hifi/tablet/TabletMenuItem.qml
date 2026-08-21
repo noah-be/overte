@@ -20,8 +20,11 @@ Item {
     property alias text: label.text
     property var source
     property bool platformEnabled: true
+    property real touchTextScale: 1.0
+    property int minimumControlHeight: 0
 
-    implicitHeight: source !== null ? source.visible ? 2 * label.implicitHeight : 0 : 0
+    implicitHeight: source !== null && source.visible
+        ? Math.max(2 * label.implicitHeight, minimumControlHeight) : 0
     implicitWidth: 2 * hifi.dimensions.menuPadding.x + check.width + label.width + tail.width
     visible: source !== null ? source.visible : false
     // A delegate is parented to ListView's content item. Binding to that
@@ -72,7 +75,7 @@ Item {
 
     RalewaySemiBold {
         id: label
-        size: 20
+        size: Math.round(20 * root.touchTextScale)
         //wrap will work only if width is set
         width: parent.width - (check.width + check.anchors.leftMargin) - tail.width
         font.capitalization: isSubMenu ? Font.MixedCase : Font.AllUppercase
@@ -121,7 +124,7 @@ Item {
         RalewayLight {
             id: shortcut
             text: source !== null ? source.shortcut ? source.shortcut : "" : ""
-            size: hifi.fontSizes.shortcutText
+            size: Math.round(hifi.fontSizes.shortcutText * root.touchTextScale)
             color: hifi.colors.baseGrayShadow
             anchors.verticalCenter: parent.verticalCenter
             anchors.right: parent.right
@@ -132,7 +135,7 @@ Item {
         HiFiGlyphs {
             text: hifi.glyphs.disclosureExpand
             color: source !== null ? source.enabled && platformEnabled ? hifi.colors.baseGrayShadow : hifi.colors.baseGrayShadow25 : "transparent"
-            size: 70
+            size: Math.round(70 * root.touchTextScale)
             anchors.verticalCenter: parent.verticalCenter
             anchors.right: parent.right
             horizontalAlignment: Text.AlignRight

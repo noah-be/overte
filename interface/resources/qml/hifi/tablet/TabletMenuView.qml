@@ -11,6 +11,7 @@
 import QtQuick 2.5
 import TabletScriptingInterface 1.0
 
+import controlsUit 1.0 as HifiControls
 import stylesUit 1.0
 import "."
 
@@ -25,6 +26,21 @@ FocusScope {
     signal selected(var item)
 
     HifiConstants { id: hifi }
+    HifiControls.TouchUiMetrics {
+        id: touchMetrics
+        availableWidth: root.width
+        availableHeight: root.height
+    }
+
+    function activateItem(menuItem, sourceItem, itemIndex) {
+        if (!menuItem || !sourceItem || !menuItem.platformEnabled
+                || !sourceItem.enabled || menuItem.text === "") {
+            return
+        }
+        listView.currentIndex = itemIndex
+        Tablet.playSound(TabletEnums.ButtonClick)
+        root.selected(sourceItem)
+    }
 
     Rectangle {
         id: background
@@ -54,6 +70,11 @@ FocusScope {
         onCountChanged: scheduleRecalcSize();
         focus: true
         highlightMoveDuration: 0
+        boundsBehavior: touchMetrics.directTouch
+            ? Flickable.DragOverBounds : Flickable.StopAtBounds
+        pressDelay: touchMetrics.pressDelay
+        flickDeceleration: touchMetrics.flickDeceleration
+        maximumFlickVelocity: touchMetrics.maximumFlickVelocity
 
         highlight: Rectangle {
             anchors {
@@ -66,26 +87,41 @@ FocusScope {
         }
 
         delegate: TabletMenuItem {
+            id: menuItem
             text: name
             source: item
             platformEnabled: phoneSupported
+            touchTextScale: touchMetrics.textScale
+            minimumControlHeight: touchMetrics.adaptiveMinimumControlHeight
+            activeFocusOnTab: name !== "" && item.enabled && phoneSupported
+            Accessible.role: item.type === MenuItemType.Menu
+                ? Accessible.Button : Accessible.MenuItem
+            Accessible.name: name
+            Accessible.description: phoneSupported
+                ? (item.type === MenuItemType.Menu
+                    ? qsTr("Open submenu") : qsTr("Activate menu item"))
+                : qsTr("Unavailable on this device")
+            Accessible.onPressAction: root.activateItem(menuItem, item, index)
             onImplicitHeightChanged: listView !== null ? listView.scheduleRecalcSize() : 0
             onImplicitWidthChanged: listView !== null ? listView.scheduleRecalcSize() : 0
 
             MouseArea {
                 enabled: name !== "" && item.enabled && phoneSupported
                 anchors.fill: parent
-                hoverEnabled: true
+                Accessible.ignored: true
+                hoverEnabled: touchMetrics.hoverSupported
+                preventStealing: false
                 onEntered: {
                     Tablet.playSound(TabletEnums.ButtonHover);
                     listView.currentIndex = index
                 }
 
-                onClicked: {
-                    Tablet.playSound(TabletEnums.ButtonClick);
-                    root.selected(item);
-                }
+                onClicked: root.activateItem(menuItem, item, index)
             }
+
+            Keys.onReturnPressed: root.activateItem(menuItem, item, index)
+            Keys.onEnterPressed: root.activateItem(menuItem, item, index)
+            Keys.onSpacePressed: root.activateItem(menuItem, item, index)
         }
 
         function scheduleRecalcSize() {
@@ -139,4 +175,3 @@ FocusScope {
     function selectCurrentItem() { if (listView.currentIndex != -1) root.selected(currentItem.source); }
     function previousPage() { root.parent.pop(); }
 }
-

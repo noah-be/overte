@@ -8,10 +8,18 @@ readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 app_path="${1:-}"
 bundle_id="${2:-org.overte.interface.dev}"
 diagnostics_dir="${3:-}"
+families="${4:-iphone}"
 [[ -d "$app_path" && "$app_path" == *.app ]] || {
-    printf 'usage: %s APP_PATH [BUNDLE_ID] [DIAGNOSTICS_DIR]\n' "$0" >&2
+    printf 'usage: %s APP_PATH [BUNDLE_ID] [DIAGNOSTICS_DIR] ["iphone [ipad]"]\n' "$0" >&2
     exit 2
 }
+read -r -a family_list <<< "$families"
+for family in "${family_list[@]}"; do
+    [[ "$family" == iphone || "$family" == ipad ]] || {
+        printf 'unsupported simulator family: %s\n' "$family" >&2
+        exit 2
+    }
+done
 
 select_device() {
     local family="$1"
@@ -40,7 +48,7 @@ finish() {
 }
 trap finish EXIT
 
-for family in iphone ipad; do
+for family in "${family_list[@]}"; do
     active_family="$family"
     active_udid="$(select_device "$family")"
     xcrun simctl boot "$active_udid" >/dev/null 2>&1 || true
