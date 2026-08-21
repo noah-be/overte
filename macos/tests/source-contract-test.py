@@ -946,6 +946,9 @@ domain_handler_source = (ROOT / "libraries/networking/src/DomainHandler.cpp").re
 domain_handler_header = (ROOT / "libraries/networking/src/DomainHandler.h").read_text(
     encoding="utf-8"
 )
+limited_node_list_source = (
+    ROOT / "libraries/networking/src/LimitedNodeList.cpp"
+).read_text(encoding="utf-8")
 test_interface_header = (
     ROOT / "interface/src/scripting/TestScriptingInterface.h"
 ).read_text(encoding="utf-8")
@@ -999,6 +1002,13 @@ assert "hifi://overte_hub" in online_smoke, "online smoke must target the active
 assert "URL_SCHEME_OVERTE" in online_smoke, "online smoke must document its compatibility scheme"
 assert "overte://overte_hub" not in online_smoke, "unsupported product-name scheme must not silently no-op"
 assert "overte://welcome" not in online_smoke, "the retired welcome place must not be used"
+for source, token in (
+    (online_smoke, "OVERTE_TEST_NETWORK_SILENCE_SECONDS=600"),
+    (domain_handler_source, "silentDomainCheckinLimit()"),
+    (limited_node_list_source, "nodeSilenceThresholdMsecs()"),
+):
+    if token not in source:
+        raise SystemExit(f"online software-renderer network grace missing: {token}")
 for inventory_contract in (
     "macos-online-entities.json",
     "validate-online-entities.py",
