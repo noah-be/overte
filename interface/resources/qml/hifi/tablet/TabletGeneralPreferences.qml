@@ -15,6 +15,7 @@ import "../../dialogs"
 
 StackView {
     id: profileRoot
+    TabletGeneralPreferencesPolicy { id: preferencesPolicy }
     initialItem: root
     objectName: "stack"
     property string title: "General Settings"
@@ -38,6 +39,6 @@ StackView {
     TabletPreferencesDialog {
         id: root
         objectName: "TabletGeneralPreferences"
-        showCategories: ["User Interface", "Mouse Sensitivity", "HMD", "Snapshots", "Privacy", "Plugins"]
+        showCategories: preferencesPolicy.allowedCategories
     }
 }

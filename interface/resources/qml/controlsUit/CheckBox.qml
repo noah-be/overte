@@ -28,10 +28,18 @@ Original.CheckBox {
     readonly property int checkSize: Math.max(boxSize - 8, 10)
     readonly property int checkRadius: 2
     property string labelFontFamily: "Raleway"
-    property int labelFontSize: 14;
+    property int labelFontSize: Math.round(14 * touchMetrics.textScale);
     property int labelFontWeight: Font.DemiBold;
     focusPolicy: Qt.ClickFocus
-    hoverEnabled: true
+    hoverEnabled: touchMetrics.hoverSupported
+    implicitWidth: Math.max(contentItem ? contentItem.implicitWidth : 0,
+        indicator ? indicator.implicitWidth : 0,
+        touchMetrics.adaptiveMinimumControlHeight) + leftPadding + rightPadding
+    implicitHeight: Math.max(contentItem ? contentItem.implicitHeight : 0,
+        indicator ? indicator.implicitHeight : 0,
+        touchMetrics.adaptiveMinimumControlHeight) + topPadding + bottomPadding
+
+    TouchUiMetrics { id: touchMetrics }
 
     onClicked: {
         Tablet.playSound(TabletEnums.ButtonClick);

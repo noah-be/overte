@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.3
 import TabletScriptingInterface 1.0
+import controlsUit 1.0 as HifiControls
 
 Item {
 	id: root;
@@ -16,6 +17,8 @@ Item {
 
 	height: 50;
 	width: parent.width;
+
+    HifiControls.TouchUiMetrics { id: touchMetrics }
 
     Rectangle {
         id: backgroundElement;
@@ -35,7 +38,7 @@ Item {
 				height: parent.height;
 				text: settingText;
 				color: "white";
-				font.pixelSize: 22;
+				font.pixelSize: Math.round(22 * touchMetrics.textScale);
 				selectByMouse: true;
 				readOnly: true;
 			}
@@ -47,6 +50,10 @@ Item {
 				implicitHeight: parent.height - 15;
 				model: options;
 				currentIndex: optionIndex;
+				hoverEnabled: touchMetrics.hoverSupported
+				Accessible.role: Accessible.ComboBox
+				Accessible.name: settingText
+				Accessible.description: qsTr("Choose %1").arg(settingText)
 
 				onCurrentIndexChanged: {
 					valueChanged(currentIndex);
@@ -85,7 +92,7 @@ Item {
 							horizontalAlignment: Text.AlignHCenter;
 							verticalAlignment: Text.AlignVCenter;
 							elide: Text.ElideRight;
-							font.pixelSize: 22;
+							font.pixelSize: Math.round(22 * touchMetrics.textScale);
 							color: "white";
 						}
 					}
@@ -149,7 +156,7 @@ Item {
 
         MouseArea {
             anchors.fill: parent;
-            hoverEnabled: true;
+            hoverEnabled: touchMetrics.hoverSupported;
             propagateComposedEvents: true;
 
             onPressed: {
