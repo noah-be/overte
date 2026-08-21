@@ -56,7 +56,9 @@ case "$scenario" in
             echo "online LLDB diagnosis requires a domain UUID" >&2
             exit 2
         }
-        launch_url="overte://$destination"
+        # Keep the human-facing place URL identical to the screenshot harness;
+        # the resolved UUID above is the fail-closed identity check.
+        launch_url='hifi://overte_hub'
         ;;
     *) echo "LLDB diagnosis scenario must be serverless or online" >&2; exit 2 ;;
 esac

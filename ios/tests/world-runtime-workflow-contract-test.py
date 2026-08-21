@@ -16,6 +16,7 @@ QT = (ROOT / ".github/workflows/ios-qt-source.yml").read_text(encoding="utf-8")
 MOLTENVK_SIMULATOR = (ROOT / "ios/moltenvk-simulator.env").read_text(encoding="utf-8")
 RUN_TESTS = (ROOT / "ios/tests/run-tests.sh").read_text(encoding="utf-8")
 SMOKE = (ROOT / "ios/ci/interface-world-simulator-smoke.sh").read_text(encoding="utf-8")
+LLDB = (ROOT / "ios/ci/interface-world-simulator-lldb.sh").read_text(encoding="utf-8")
 PINNED_ACTION = re.compile(r"^\s*uses:\s+[^\s]+@[0-9a-f]{40}(?:\s+#.*)?$", re.MULTILINE)
 
 
@@ -68,6 +69,8 @@ assert "SIMCTL_CHILD_OVERTE_IOS_PRESENT_PROBE=$OVERTE_IOS_PRESENT_PROBE" in SMOK
 assert 'capture_only="${OVERTE_IOS_WORLD_CAPTURE_ONLY:-0}"' in SMOKE
 assert "batch=Resample::run[[:space:]]+stage=draw_pass_complete" in SMOKE
 assert "${{ inputs.present_probe || 'default' }}" in RUNTIME_ONLY
+assert "launch_url='hifi://overte_hub'" in LLDB
+assert 'online LLDB diagnosis requires a domain UUID' in LLDB
 for runtime_case in ("iphone-serverless", "iphone-online", "ipad-serverless", "ipad-online"):
     assert runtime_case in RUNTIME_ONLY
 
