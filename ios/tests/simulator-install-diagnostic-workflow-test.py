@@ -189,7 +189,7 @@ assert 'OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS:-1' in LLDB
 assert 'OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE:-0' in LLDB
 assert 'OVERTE_IOS_LLDB_INTERRUPT_AFTER_SECONDS:-0' in LLDB
 assert 'OVERTE_IOS_LLDB_SIMULATOR_BOOT_TIMEOUT_SECONDS:-120' in LLDB
-assert 'run_bounded "simulator boot" "$simulator_boot_timeout"' in LLDB
+assert 'run_strict_bounded "simulator boot" "$simulator_boot_timeout"' in LLDB
 assert "OVERTE_IOS_LLDB_PROGRESS" in LLDB
 assert 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' in LLDB
 assert 'log stream --style compact --level info' in LLDB

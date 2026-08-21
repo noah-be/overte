@@ -192,9 +192,9 @@ xcode_build="unknown"
 world_gate_log_pid=""
 runtime_log_pid=""
 
-run_bounded() {
-    local label="$1" seconds="$2" status=0
-    shift 2
+run_bounded_with_grace() {
+    local label="$1" seconds="$2" grace_seconds="$3" status=0
+    shift 3
     local operation="${label// /_}"
     local started_at heartbeat_pid
     started_at="$(date +%s)"
@@ -218,7 +218,7 @@ while True:
     ).encode("utf-8"))
 PY
     heartbeat_pid=$!
-    "$timeout_runner" "$((10#$seconds + timeout_grace_seconds))" "$@" 2>"$command_stderr" || status=$?
+    "$timeout_runner" "$((10#$seconds + 10#$grace_seconds))" "$@" 2>"$command_stderr" || status=$?
     kill "$heartbeat_pid" 2>/dev/null || true
     wait "$heartbeat_pid" 2>/dev/null || true
     live_log "phase=command-finished operation=$operation result_status=$status elapsed_seconds=$(( $(date +%s) - started_at ))"
@@ -226,6 +226,14 @@ PY
         echo "$label failed with status $status" >&2
     fi
     return "$status"
+}
+
+run_bounded() {
+    run_bounded_with_grace "$1" "$2" "$timeout_grace_seconds" "${@:3}"
+}
+
+run_strict_bounded() {
+    run_bounded_with_grace "$1" "$2" 0 "${@:3}"
 }
 
 live_log() {
@@ -323,7 +331,7 @@ run_bounded "simulator boot request" 60 xcrun simctl boot "$active_udid" >/dev/n
 if ((boot_status == 124 || boot_status >= 128)); then
     exit "$boot_status"
 fi
-run_bounded "simulator boot" "$simulator_boot_timeout" xcrun simctl bootstatus "$active_udid" -b >/dev/null
+run_strict_bounded "simulator boot" "$simulator_boot_timeout" xcrun simctl bootstatus "$active_udid" -b >/dev/null
 run_bounded "stale application removal" 60 xcrun simctl uninstall \
     "$active_udid" "$bundle_id" >/dev/null || true
 run_bounded "application install" 120 xcrun simctl install "$active_udid" "$app_path" >/dev/null
