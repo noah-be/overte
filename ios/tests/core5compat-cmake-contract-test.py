@@ -9,7 +9,7 @@ LEGACY = re.compile(r"\b(?:QRegExp|QRegExpValidator|QTextCodec|QTextDecoder|QTex
 SUFFIXES = {".cpp", ".h", ".hpp", ".mm", ".in", ".tmpl", ".template", ".inc", ".ipp"}
 SKIP = {".git", "build", "build-ios", "node_modules", "vendor"}
 EXPECTED = {
-    "android/apps/interface/src/main/cpp/native.cpp",
+    "android/phone/apps/interface/src/main/cpp/native.cpp",
     "assignment-client/src/assets/AssetServer.cpp",
     "domain-server/src/ContentSettingsBackupHandler.cpp",
     "domain-server/src/DomainContentBackupManager.cpp",
@@ -49,7 +49,7 @@ require("set(PLATFORM_QT_COMPONENTS WebView Xml Core5Compat)" not in (ROOT / "CM
 contracts = {
     "assignment-client/CMakeLists.txt": "setup_hifi_project(Core Gui Network Quick WebSockets Core5Compat)",
     "domain-server/CMakeLists.txt": "setup_hifi_project(Network Core5Compat)",
-    "android/apps/interface/CMakeLists.txt": "setup_hifi_library(Core5Compat)",
+    "android/phone/apps/interface/CMakeLists.txt": "setup_hifi_library(Core5Compat)",
     "tests-manual/render-perf/CMakeLists.txt": "setup_hifi_project(Quick Gui Core5Compat)",
     "plugins/JSAPIExample/CMakeLists.txt": "overte_link_qt_modules(${TARGET_NAME} Core5Compat)",
     "tools/nitpick/CMakeLists.txt": "overte_link_qt_modules(${TARGET_NAME} Widgets Core5Compat)",

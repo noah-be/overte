@@ -20,6 +20,7 @@ SpinBox {
     HifiConstants {
         id: hifi
     }
+    HifiControls.TouchUiMetrics { id: touchMetrics }
 
     inputMethodHints: Qt.ImhFormattedNumbersOnly
     property int colorScheme: hifi.colorSchemes.light
@@ -78,8 +79,10 @@ SpinBox {
     from : Math.round(realFrom*factor)
 
     font.family: "Fira Sans SemiBold"
-    font.pixelSize: hifi.fontSizes.textFieldInput
-    height: hifi.fontSizes.textFieldInput + 13  // Match height of TextField control.
+    font.pixelSize: Math.round(hifi.fontSizes.textFieldInput * touchMetrics.textScale)
+    height: Math.max(hifi.fontSizes.textFieldInput + 13,
+        touchMetrics.adaptiveMinimumControlHeight)
+    hoverEnabled: touchMetrics.hoverSupported
 
     y: spinBoxLabel.visible ? spinBoxLabel.height + spinBoxLabel.anchors.bottomMargin : 0
 
