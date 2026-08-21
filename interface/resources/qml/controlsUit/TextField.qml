@@ -37,11 +37,15 @@ TextField {
     placeholderText: textField.placeholderText
 
     font.family: "Fira Sans"
-    font.pixelSize: hifi.fontSizes.textFieldInput
-    height: implicitHeight + 3  // Make surrounding box higher so that highlight is vertically centered.
+    font.pixelSize: Math.round(hifi.fontSizes.textFieldInput * touchMetrics.textScale)
+    height: Math.max(implicitHeight + 3,
+        touchMetrics.adaptiveMinimumControlHeight)
+        // Make surrounding box higher so that highlight is vertically centered.
     property alias textFieldLabel: textFieldLabel
 
     y: textFieldLabel.visible ? textFieldLabel.height + textFieldLabel.anchors.bottomMargin : 0
+
+    HifiControls.TouchUiMetrics { id: touchMetrics }
 
     // workaround for https://bugreports.qt.io/browse/QTBUG-49297
     Keys.onPressed: {

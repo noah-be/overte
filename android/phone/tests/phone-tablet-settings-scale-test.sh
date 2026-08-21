@@ -10,6 +10,7 @@ readonly phone_config="$repo_root/scripts/system/settings/qml/+android_phoneInte
 readonly pico_config="$repo_root/scripts/system/settings/qml/+android_picoInterface/SettingsTouchConfiguration.qml"
 readonly quest_config="$repo_root/scripts/system/settings/qml/+android_questInterface/SettingsTouchConfiguration.qml"
 readonly file_utils="$repo_root/libraries/shared/src/shared/FileUtils.cpp"
+readonly base_profile="$repo_root/interface/resources/qml/controlsUit/TouchUiProfileBase.qml"
 
 require() {
     local file="$1" pattern="$2" description="$3"
@@ -22,8 +23,16 @@ require() {
 
 require "$desktop_config" 'contentScale:[[:space:]]*1[.]0' \
     'desktop Settings retain their established scale'
-require "$phone_config" 'contentScale:[[:space:]]*1[.]0' \
+require "$desktop_config" 'HifiControls[.]TouchUiMetrics' \
     'phone Settings avoid compounding the shared tablet-app scale'
+require "$base_profile" 'controllerSettingsAvailable:[[:space:]]*true' \
+    'the default profile preserves controller settings'
+require "$base_profile" 'graphicsSettingsAvailable:[[:space:]]*true' \
+    'the default profile preserves graphics settings'
+require "$base_profile" 'picoResolutionSettingsAvailable:[[:space:]]*true' \
+    'the default profile preserves existing render-scale settings'
+require "$desktop_config" 'showGraphicsSettings:[[:space:]]*profile[.]graphicsSettingsAvailable' \
+    'Settings resolve policy through the shared device profile'
 require "$phone_config" 'showControllerSettings:[[:space:]]*false' \
     'phone Settings hide the unavailable desktop and VR controller page'
 require "$phone_config" 'showGraphicsSettings:[[:space:]]*false' \
@@ -73,8 +82,10 @@ fi
 printf 'PASS: Settings do not infer product identity from persisted state\n'
 
 readonly graphics="$repo_root/scripts/system/settings/qml/pages/GraphicsSettings.qml"
-require "$graphics" 'SettingsTouchConfiguration[[:space:]]*\{[[:space:]]*id:[[:space:]]*touchConfiguration' \
-    'Graphics Settings resolves its own lexically scoped phone selector'
+require "$graphics" 'SettingsTouchConfiguration[[:space:]]*\{' \
+    'Graphics Settings resolves its own shared capability configuration'
+require "$graphics" 'id:[[:space:]]*touchConfiguration' \
+    'Graphics Settings keeps its configuration lexically scoped'
 require "$graphics" 'visible:[[:space:]]*touchConfiguration[.]showPicoResolutionSettings' \
     'Graphics Settings selector-gates the Pico-only render scale control'
 

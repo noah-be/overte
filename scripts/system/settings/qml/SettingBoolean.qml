@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.3
 import TabletScriptingInterface 1.0
+import controlsUit 1.0 as HifiControls
 
 Item {
 	id: root;
@@ -11,6 +12,8 @@ Item {
 
 	height: 50;
 	width: parent.width;
+
+    HifiControls.TouchUiMetrics { id: touchMetrics }
 
     Rectangle {
         id: backgroundElement;
@@ -30,7 +33,7 @@ Item {
                 height: parent.height;
                 text: settingText;
                 color: "white";
-                font.pixelSize: 22;
+                font.pixelSize: Math.round(22 * touchMetrics.textScale);
                 selectByMouse: true;
                 readOnly: true;
             }
@@ -38,7 +41,11 @@ Item {
             Switch {
                 Layout.alignment: Qt.AlignVCenter | Qt.AlignRight;
                 checked: settingEnabled;
-                implicitHeight: 20;
+                implicitHeight: Math.max(20, touchMetrics.adaptiveMinimumControlHeight);
+                hoverEnabled: touchMetrics.hoverSupported
+                Accessible.role: Accessible.CheckBox
+                Accessible.name: settingText
+                Accessible.description: qsTr("Toggle %1").arg(settingText)
 
                 indicator: Item {
                     implicitWidth: 70;
@@ -85,7 +92,7 @@ Item {
 
         MouseArea {
             anchors.fill: parent;
-            hoverEnabled: true;
+            hoverEnabled: touchMetrics.hoverSupported;
             propagateComposedEvents: true;
 
             onPressed: {
@@ -126,4 +133,3 @@ Item {
         }
     }
 }
-

@@ -32,15 +32,13 @@ for method in showAndroidTablet resizeAndroidTablet hideAndroidTablet handleAndr
 done
 require "$tablet_header" '#if defined\(ANDROID_APP_PHONE_INTERFACE\)' \
     'the screen-space presenter API is restricted to the phone client'
-require "$tablet_source" 'ANDROID_TABLET_SAFE_INSET[[:space:]]*\{[[:space:]]*25[[:space:]]*\}' \
-    'the tablet surface keeps a twenty-five-pixel rounded-corner safety inset'
-require "$tablet_source" '_desktopWindow->setPosition\(ANDROID_TABLET_SAFE_INSET,[[:space:]]*ANDROID_TABLET_SAFE_INSET\)' \
-    'the tablet surface starts inside the top-left safe area'
-require "$tablet_source" 'width[[:space:]]*-[[:space:]]*ANDROID_TABLET_TOTAL_INSET' \
-    'the tablet width preserves both horizontal safety margins'
-require "$tablet_source" 'height[[:space:]]*-[[:space:]]*ANDROID_TABLET_TOTAL_INSET' \
-    'the tablet height preserves both vertical safety margins'
-require "$tablet_source" 'width <= ANDROID_TABLET_TOTAL_INSET \|\| height <= ANDROID_TABLET_TOTAL_INSET' \
+require "$tablet_source" '_desktopWindow->setPosition\(leftInset,[[:space:]]*topInset\)' \
+    'the tablet surface starts inside the profile-provided safe area'
+require "$tablet_source" 'surfaceWidth[[:space:]]*-[[:space:]]*leftInset[[:space:]]*-[[:space:]]*rightInset' \
+    'the tablet width preserves asymmetric horizontal safety margins'
+require "$tablet_source" 'surfaceHeight[[:space:]]*-[[:space:]]*topInset[[:space:]]*-[[:space:]]*bottomInset' \
+    'the tablet height preserves asymmetric vertical safety margins'
+require "$tablet_source" 'surfaceWidth <= leftInset \+ rightInset' \
     'invalid transient Android surface dimensions are ignored'
 require "$tablet_source" 'else if \(_state != State::Home\)[[:space:]]*\{[[:space:]]*$' \
     'Back distinguishes app navigation from closing the tablet home'
@@ -63,14 +61,14 @@ require "$window_root" 'Qt\.callLater\(alignScreenSpaceWindow\)' \
     'the frameless tablet corrects desktop visibility repositioning asynchronously'
 require "$window_root" 'function alignScreenSpaceWindow\(\)' \
     'the screen-space host exposes a deterministic display-origin alignment step'
-require "$window_root" 'property int screenSpaceSafeInset:[[:space:]]*25' \
-    'the QML host shares the twenty-five-pixel rounded-corner inset'
-require "$window_root" 'x[[:space:]]*=[[:space:]]*screenSpaceSafeInset' \
+require "$window_root" 'screenSpaceSafeInsetLeft:[[:space:]]*touchUiProfile[.]safeInsetLeft' \
+    'the QML host consumes the selected profile safe area'
+require "$window_root" 'x[[:space:]]*=[[:space:]]*screenSpaceSafeInsetLeft' \
     'the screen-space tablet preserves its left display margin'
-require "$window_root" 'y[[:space:]]*=[[:space:]]*screenSpaceSafeInset' \
+require "$window_root" 'y[[:space:]]*=[[:space:]]*screenSpaceSafeInsetTop' \
     'the screen-space tablet preserves its top display margin'
-require "$window_root" 'property real screenSpaceContentScale:[[:space:]]*2\.5' \
-    'Android tablet applications share a touch-readable 250 percent scale'
+require "$window_root" 'screenSpaceContentScale:[[:space:]]*touchUiProfile[.]screenSpaceContentScale' \
+    'the screen-space host obtains content scale from the device profile'
 require "$window_root" 'readonly property real contentScale:[[:space:]]*tabletRoot\.screenSpaceMode' \
     'the single host scale covers every Android tablet surface'
 require "$window_root" 'scale:[[:space:]]*contentScale' \
