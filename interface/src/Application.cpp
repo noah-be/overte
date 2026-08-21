@@ -1135,6 +1135,45 @@ void Application::loadServerlessDomain(QUrl domainURL) {
     _picoServerlessLoadFailed = false;
 #endif
 
+#if defined(Q_OS_IOS)
+    // Bundled serverless worlds are local files. Loading them through the
+    // asynchronous ResourceManager leaves a startup race where DomainHandler's
+    // empty teardown URL can retire the request before its callback runs. Read
+    // the expanded local file on this application-thread call instead; remote
+    // URL schemes continue through the generation-guarded request below.
+    const QUrl localDomainURL = PathUtils::expandToLocalDataAbsolutePath(domainURL);
+    if (localDomainURL.isLocalFile()) {
+        QFile domainFile(localDomainURL.toLocalFile());
+        if (!domainFile.open(QIODevice::ReadOnly)) {
+            os_log_error(OS_LOG_DEFAULT,
+                         "OVERTE_IOS_WORLD_GATE serverless_local_open_failed");
+            return;
+        }
+        const QByteArray domainData = domainFile.readAll();
+        std::map<QString, QString> namedPaths;
+        if (!prepareServerlessDomainContents(domainURL, domainData, namedPaths)) {
+            os_log_error(OS_LOG_DEFAULT,
+                         "OVERTE_IOS_WORLD_GATE serverless_local_parse_failed");
+            return;
+        }
+        auto nodeList = DependencyManager::get<NodeList>();
+        nodeList->getDomainHandler().connectedToServerless(namedPaths);
+        setIsServerlessMode(true);
+        _octreeProcessor->getFullSceneReceivedCounter()++;
+        if (QCoreApplication::arguments().contains(QStringLiteral("--ios-world-evidence"))) {
+            const QUrl tutorialURL(QStringLiteral("file:///~/serverless/tutorial.json"));
+            const QString scene = (domainURL == tutorialURL || localDomainURL ==
+                    PathUtils::expandToLocalDataAbsolutePath(tutorialURL))
+                ? QStringLiteral("serverless_tutorial")
+                : QStringLiteral("unsupported");
+            logIOSRuntimeMarker("OVERTE_IOS_WORLD_GATE serverless_import_committed",
+                                "scene=", scene);
+        }
+        logIOSRuntimeEntityEvidence(commitIOSRuntimeEntityEvidence());
+        return;
+    }
+#endif
+
 #if defined(ANDROID_APP_PICO_INTERFACE)
     const QUrl localDomainURL = PathUtils::expandToLocalDataAbsolutePath(domainURL);
     if (localDomainURL.isLocalFile()) {

@@ -369,6 +369,16 @@ assert application_source.count(
 ) == 2
 assert 'getRootItem()->findChild<QQuickItem*>("AssetServer")' not in application_source
 assert "PathUtils::expandToLocalDataAbsolutePath(tutorialURL)" in application_source
+ios_local_read = application_source.index(
+    "#if defined(Q_OS_IOS)\n"
+    "    // Bundled serverless worlds are local files."
+)
+async_request = application_source.index(
+    "DependencyManager::get<ResourceManager>()->createResourceRequest(",
+    ios_local_read,
+)
+assert application_source.index("QFile domainFile(localDomainURL.toLocalFile());", ios_local_read) < async_request
+assert application_source.index("return;", ios_local_read) < async_request
 assert "handleSandboxStatus(nullptr);" in application_ui_source
 assert "#if defined(Q_OS_IOS)" in application_ui_source
 safe_resume = application_ui_source.index(
