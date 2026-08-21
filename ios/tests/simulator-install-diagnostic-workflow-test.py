@@ -124,6 +124,7 @@ assert "OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER: ${{ inputs.lldb_wait_for_debugger && 
 assert "OVERTE_IOS_LLDB_INTERRUPT_AFTER_SECONDS: ${{ inputs.lldb_interrupt_after_seconds }}" in runtime
 assert "OVERTE_IOS_LLDB_STATE_PROBE: ${{ inputs.lldb_interrupt_after_seconds != '0' && '1' || '0' }}" in runtime
 assert "OVERTE_IOS_LLDB_MVK_TRACE_VULKAN_CALLS: ${{ inputs.lldb_interrupt_after_seconds != '0' && '0' || '6' }}" in runtime
+assert 'OVERTE_IOS_LLDB_SIMULATOR_BOOT_TIMEOUT_SECONDS: "120"' in runtime
 assert "'render_handoff' || 'queue_submit_begin'" in runtime
 assert 'OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS: "0"' in runtime
 assert "symbol_bundle=$symbol_bundle" in runtime
@@ -164,6 +165,7 @@ for required in (
     "OVERTE_IOS_LLDB_INTERRUPT_AFTER_SECONDS",
     "OVERTE_IOS_LLDB_STATE_PROBE",
     "OVERTE_IOS_LLDB_MVK_TRACE_VULKAN_CALLS",
+    "OVERTE_IOS_LLDB_SIMULATOR_BOOT_TIMEOUT_SECONDS",
     "OVERTE_IOS_LLDB_STARTUP_TRACE",
     "SIMCTL_CHILD_MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=0",
     'SIMCTL_CHILD_MVK_CONFIG_TRACE_VULKAN_CALLS="$mvk_trace_vulkan_calls"',
@@ -186,6 +188,9 @@ for required in (
 assert 'OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS:-1' in LLDB
 assert 'OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE:-0' in LLDB
 assert 'OVERTE_IOS_LLDB_INTERRUPT_AFTER_SECONDS:-0' in LLDB
+assert 'OVERTE_IOS_LLDB_SIMULATOR_BOOT_TIMEOUT_SECONDS:-120' in LLDB
+assert 'run_bounded "simulator boot" "$simulator_boot_timeout"' in LLDB
+assert "OVERTE_IOS_LLDB_PROGRESS" in LLDB
 assert 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' in LLDB
 assert 'log stream --style compact --level info' in LLDB
 assert "frame variable" not in LLDB

@@ -318,9 +318,11 @@ fi
     assert "capture_status=captured_state" in state_result
     assert "state_probe=1" in state_result
     assert "mvk_trace_vulkan_calls=0" in state_result
+    assert "simulator_boot_timeout_seconds=120" in state_result
     state_log = (state_output / "iphone-serverless-lldb.log").read_text(encoding="utf-8")
     assert "camera_x=1985.26" in state_log
     state_commands = command_log.read_text(encoding="utf-8")
     assert "world-state.lldb" in state_commands
+    assert "simctl bootstatus private-udid -b" in state_commands
 
 print("PASS no-rebuild Full Client simulator LLDB crash capture")

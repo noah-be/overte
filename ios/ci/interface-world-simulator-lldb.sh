@@ -9,10 +9,15 @@
 
 set -euo pipefail
 
+# Keep progress visible even when a bounded CoreSimulator command is quiet.
+# FD 3 preserves the workflow log when stdout is redirected or captured.
+exec 3>&1
+
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly timeout_runner="$script_dir/../tools/run-with-timeout.py"
 readonly simulator_selector="$script_dir/../tools/select-simulator.py"
 readonly timeout_grace_seconds=300
+readonly live_update_interval_seconds=5
 
 app_path="${1:-}"
 symbol_bundle="${2:-}"
@@ -34,6 +39,7 @@ world_gate_timeout="${OVERTE_IOS_LLDB_WORLD_GATE_TIMEOUT_SECONDS:-360}"
 interrupt_after="${OVERTE_IOS_LLDB_INTERRUPT_AFTER_SECONDS:-0}"
 state_probe="${OVERTE_IOS_LLDB_STATE_PROBE:-0}"
 mvk_trace_vulkan_calls="${OVERTE_IOS_LLDB_MVK_TRACE_VULKAN_CALLS:-6}"
+simulator_boot_timeout="${OVERTE_IOS_LLDB_SIMULATOR_BOOT_TIMEOUT_SECONDS:-120}"
 
 [[ -d "$app_path" && "$app_path" == *.app && -x "$app_path/Overte" ]] || {
     echo "usage: $0 APP_PATH DSYM_BUNDLE BUNDLE_ID iphone SOURCE_REVISION CANDIDATE_SHA256 OUTPUT_DIR" >&2
@@ -106,6 +112,11 @@ esac
 }
 [[ "$mvk_trace_vulkan_calls" =~ ^[0-6]$ ]] || {
     echo "OVERTE_IOS_LLDB_MVK_TRACE_VULKAN_CALLS must be an integer from 0 through 6" >&2
+    exit 2
+}
+[[ "$simulator_boot_timeout" =~ ^[1-9][0-9]*$ ]] && \
+        ((10#$simulator_boot_timeout >= 60 && 10#$simulator_boot_timeout <= 300)) || {
+    echo "OVERTE_IOS_LLDB_SIMULATOR_BOOT_TIMEOUT_SECONDS must be an integer from 60 through 300" >&2
     exit 2
 }
 if ((state_probe && 10#$interrupt_after == 0)); then
@@ -184,12 +195,42 @@ runtime_log_pid=""
 run_bounded() {
     local label="$1" seconds="$2" status=0
     shift 2
+    local operation="${label// /_}"
+    local started_at heartbeat_pid
+    started_at="$(date +%s)"
     : > "$command_stderr"
+    live_log "phase=command-start operation=$operation timeout_seconds=$seconds"
+    python3 - "$scenario" "$operation" "$started_at" "$live_update_interval_seconds" \
+            3>&3 >/dev/null 2>/dev/null <<'PY' &
+import datetime
+import os
+import sys
+import time
+
+scenario, operation, started_at, interval = sys.argv[1:]
+while True:
+    time.sleep(int(interval))
+    elapsed = int(time.time()) - int(started_at)
+    utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    os.write(3, (
+        f"OVERTE_IOS_LLDB_PROGRESS utc={utc} scenario={scenario} "
+        f"phase=command-running operation={operation} elapsed_seconds={elapsed}\n"
+    ).encode("utf-8"))
+PY
+    heartbeat_pid=$!
     "$timeout_runner" "$((10#$seconds + timeout_grace_seconds))" "$@" 2>"$command_stderr" || status=$?
+    kill "$heartbeat_pid" 2>/dev/null || true
+    wait "$heartbeat_pid" 2>/dev/null || true
+    live_log "phase=command-finished operation=$operation result_status=$status elapsed_seconds=$(( $(date +%s) - started_at ))"
     if ((status != 0)); then
         echo "$label failed with status $status" >&2
     fi
     return "$status"
+}
+
+live_log() {
+    printf 'OVERTE_IOS_LLDB_PROGRESS utc=%s scenario=%s %s\n' \
+        "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$scenario" "$*" >&3
 }
 
 uuid_identity() {
@@ -245,6 +286,7 @@ finish() {
         printf 'interrupt_after_seconds=%s\n' "$interrupt_after"
         printf 'state_probe=%s\n' "$state_probe"
         printf 'mvk_trace_vulkan_calls=%s\n' "$mvk_trace_vulkan_calls"
+        printf 'simulator_boot_timeout_seconds=%s\n' "$simulator_boot_timeout"
         printf 'startup_trace=%s\n' "$startup_trace"
         printf 'lldb_status=%s\n' "$lldb_status"
         printf 'capture_status=%s\n' "$capture_status"
@@ -281,7 +323,7 @@ run_bounded "simulator boot request" 60 xcrun simctl boot "$active_udid" >/dev/n
 if ((boot_status == 124 || boot_status >= 128)); then
     exit "$boot_status"
 fi
-run_bounded "simulator boot" 1500 xcrun simctl bootstatus "$active_udid" -b >/dev/null
+run_bounded "simulator boot" "$simulator_boot_timeout" xcrun simctl bootstatus "$active_udid" -b >/dev/null
 run_bounded "stale application removal" 60 xcrun simctl uninstall \
     "$active_udid" "$bundle_id" >/dev/null || true
 run_bounded "application install" 120 xcrun simctl install "$active_udid" "$app_path" >/dev/null

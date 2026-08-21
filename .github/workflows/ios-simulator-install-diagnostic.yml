@@ -613,6 +613,7 @@ jobs:
           OVERTE_IOS_LLDB_INTERRUPT_AFTER_SECONDS: ${{ inputs.lldb_interrupt_after_seconds }}
           OVERTE_IOS_LLDB_STATE_PROBE: ${{ inputs.lldb_interrupt_after_seconds != '0' && '1' || '0' }}
           OVERTE_IOS_LLDB_MVK_TRACE_VULKAN_CALLS: ${{ inputs.lldb_interrupt_after_seconds != '0' && '0' || '6' }}
+          OVERTE_IOS_LLDB_SIMULATOR_BOOT_TIMEOUT_SECONDS: "120"
         run: |
           set -euo pipefail
           symbol_bundle="${{ steps.candidate.outputs.symbol_bundle }}"
