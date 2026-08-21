@@ -28,6 +28,22 @@ on:
         required: false
         default: ''
         type: string
+      runtime_case:
+        description: Optional single runtime case; all runs final acceptance
+        required: false
+        default: all
+        type: choice
+        options:
+          - all
+          - iphone-serverless
+          - iphone-online
+          - ipad-serverless
+          - ipad-online
+      stack_sample_seconds:
+        description: Optional early stack snapshot delay for a targeted diagnostic
+        required: false
+        default: '0'
+        type: string
 
 permissions:
   actions: read
@@ -54,6 +70,8 @@ jobs:
         id: request
         env:
           REQUESTED_PRESENT_PROBE: ${{ inputs.present_probe || '' }}
+          REQUESTED_RUNTIME_CASE: ${{ inputs.runtime_case || 'all' }}
+          REQUESTED_STACK_SAMPLE_SECONDS: ${{ inputs.stack_sample_seconds || '0' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -79,6 +97,17 @@ jobs:
             ''|swapchain-green|tone-input|tone-solid|tone-uv|tone-sample|frame|resample|composite) ;;
             *) echo "unsupported presentation probe: $probe" >&2; exit 64 ;;
           esac
+          runtime_case="$REQUESTED_RUNTIME_CASE"
+          case "$runtime_case" in
+            all|iphone-serverless|iphone-online|ipad-serverless|ipad-online) ;;
+            *) echo "unsupported runtime case: $runtime_case" >&2; exit 64 ;;
+          esac
+          [[ "$REQUESTED_STACK_SAMPLE_SECONDS" =~ ^[0-9]+$ ]] && \
+            ((10#$REQUESTED_STACK_SAMPLE_SECONDS <= 1200))
+          if [[ -n "$probe" && "$runtime_case" != all ]]; then
+            echo "presentation probes cannot be combined with a targeted runtime case" >&2
+            exit 64
+          fi
           [[ "$run_id" =~ ^[1-9][0-9]*$ ]]
           [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
           [[ "$artifact" == "overte-ios-world-candidate-v2-${revision}-${run_id}" ]]
@@ -86,6 +115,8 @@ jobs:
           echo "revision=$revision" >> "$GITHUB_OUTPUT"
           echo "artifact=$artifact" >> "$GITHUB_OUTPUT"
           echo "probe=$probe" >> "$GITHUB_OUTPUT"
+          echo "runtime_case=$runtime_case" >> "$GITHUB_OUTPUT"
+          echo "stack_sample_seconds=$REQUESTED_STACK_SAMPLE_SECONDS" >> "$GITHUB_OUTPUT"
 
       - name: Download verified simulator candidate
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -176,6 +207,8 @@ jobs:
           OVERTE_IOS_PRESENT_PROBE: ${{ steps.request.outputs.probe }}
           ONLINE_DOMAIN: ${{ steps.online-world.outputs.domain }}
           PRESENT_PROBE: ${{ steps.request.outputs.probe }}
+          RUNTIME_CASE: ${{ steps.request.outputs.runtime_case }}
+          OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS: ${{ steps.request.outputs.stack_sample_seconds }}
         shell: bash
         run: |
           set -euo pipefail
@@ -186,7 +219,7 @@ jobs:
               ios/ci/interface-world-simulator-smoke.sh \
                 '${{ steps.candidate.outputs.app }}' '${{ steps.candidate.outputs.bundle_id }}' \
                 iphone serverless - "$evidence"
-          else
+          elif [[ "$RUNTIME_CASE" == all ]]; then
             for family in iphone ipad; do
               ios/ci/interface-world-simulator-smoke.sh \
                 '${{ steps.candidate.outputs.app }}' '${{ steps.candidate.outputs.bundle_id }}' \
@@ -200,6 +233,18 @@ jobs:
               --source-revision '${{ steps.request.outputs.revision }}' \
               --candidate-sha256 '${{ steps.candidate.outputs.sha }}' \
               --output build-ios/world-evidence-set.json
+          else
+            family="${RUNTIME_CASE%%-*}"
+            scenario="${RUNTIME_CASE#*-}"
+            if [[ "$scenario" == serverless ]]; then
+              ios/ci/interface-world-simulator-smoke.sh \
+                '${{ steps.candidate.outputs.app }}' '${{ steps.candidate.outputs.bundle_id }}' \
+                "$family" serverless - "$evidence"
+            else
+              ios/ci/interface-world-simulator-smoke.sh \
+                '${{ steps.candidate.outputs.app }}' '${{ steps.candidate.outputs.bundle_id }}' \
+                "$family" online "$ONLINE_DOMAIN" "$evidence"
+            fi
           fi
 
       - name: Upload world evidence
@@ -219,7 +264,7 @@ jobs:
         with:
           name: overte-ios-runtime-only-failures-${{ github.run_id }}
           path: |
-            build-ios/world-evidence/*-failure.png
+            build-ios/world-evidence
             build-ios/world-raw-diagnostics
           if-no-files-found: warn
           retention-days: 14

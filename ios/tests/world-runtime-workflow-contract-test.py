@@ -40,6 +40,8 @@ for token in (
     "candidate_revision:",
     "candidate_artifact:",
     "present_probe:",
+    "runtime_case:",
+    "stack_sample_seconds:",
     ".github/ios-world-runtime-candidate.json",
     '[[ "$artifact" == "overte-ios-world-candidate-v2-${revision}-${run_id}" ]]',
     "run-id: ${{ steps.request.outputs.run_id }}",
@@ -49,6 +51,9 @@ for token in (
     "validate-world-evidence-set.py",
     "OVERTE_IOS_PRESENT_PROBE: ${{ steps.request.outputs.probe }}",
     "OVERTE_IOS_WORLD_CAPTURE_ONLY=1",
+    "OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS: ${{ steps.request.outputs.stack_sample_seconds }}",
+    'elif [[ "$RUNTIME_CASE" == all ]]',
+    'family="${RUNTIME_CASE%%-*}"',
     "''|swapchain-green|tone-input|tone-solid|tone-uv|tone-sample|frame|resample|composite",
 ):
     assert token in RUNTIME_ONLY, f"runtime-only candidate contract missing: {token}"
@@ -58,6 +63,8 @@ assert "SIMCTL_CHILD_OVERTE_IOS_PRESENT_PROBE=$OVERTE_IOS_PRESENT_PROBE" in SMOK
 assert 'capture_only="${OVERTE_IOS_WORLD_CAPTURE_ONLY:-0}"' in SMOKE
 assert "batch=Resample::run[[:space:]]+stage=draw_pass_complete" in SMOKE
 assert "${{ inputs.present_probe || 'default' }}" in RUNTIME_ONLY
+for runtime_case in ("iphone-serverless", "iphone-online", "ipad-serverless", "ipad-online"):
+    assert runtime_case in RUNTIME_ONLY
 
 require(WORKFLOW, r"qt-simulator:[\s\S]*uses: \./\.github/workflows/ios-qt-source\.yml[\s\S]*target_sdk: iphonesimulator", "world workflow must provision simulator Qt")
 require(QT, r"target_sdk:[\s\S]*iphoneos[\s\S]*iphonesimulator", "Qt provisioner must keep device and simulator explicit")
@@ -156,7 +163,7 @@ failure_candidate = WORKFLOW[
     WORKFLOW.index("Sanitize world-build failure diagnostics")
 ]
 assert "if: failure()" in failure_candidate
-assert "*-failure.png" in failure_candidate
+assert "build-ios/world-evidence" in failure_candidate
 assert "if-no-files-found: warn" in failure_candidate
 require(
     WORKFLOW,
