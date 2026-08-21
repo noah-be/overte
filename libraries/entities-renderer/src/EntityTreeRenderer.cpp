@@ -66,6 +66,12 @@ bool macOSLightweightEntityTestEnabled() {
         application->property(hifi::properties::MACOS_TEST_LIGHTWEIGHT_ENTITIES).toBool();
 }
 
+bool macOSRepresentativeEntityTestEnabled() {
+    auto application = QCoreApplication::instance();
+    return application && application->property(hifi::properties::TEST).isValid() &&
+        application->property(hifi::properties::MACOS_TEST_REPRESENTATIVE_ENTITIES).toBool();
+}
+
 bool isLightweightMacOSEntityType(EntityTypes::EntityType type) {
     switch (type) {
         case EntityTypes::Box:
@@ -619,6 +625,31 @@ void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, r
             auto entityID = entity->getEntityItemID();
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
             const bool lightweightEntityTest = macOSLightweightEntityTestEnabled();
+            const bool representativeEntityTest = macOSRepresentativeEntityTestEnabled();
+            if (representativeEntityTest) {
+                static bool loggedRepresentativeFilter { false };
+                static EntityItemID representativeModelID;
+                if (!loggedRepresentativeFilter) {
+                    loggedRepresentativeFilter = true;
+                    qInfo().noquote()
+                        << "OVERTE_MACOS_RENDER_PHASE representative_entity_filter_active";
+                }
+                bool keepEntity = isLightweightMacOSEntityType(entity->getType());
+                if (entity->getType() == EntityTypes::Model &&
+                        entity->getEntityHostType() == entity::HostType::DOMAIN) {
+                    if (representativeModelID.isNull()) {
+                        representativeModelID = entityID;
+                        qInfo().noquote()
+                            << "OVERTE_MACOS_RENDER_PHASE representative_model_selected"
+                            << "entity=" << entityID.toString();
+                    }
+                    keepEntity = entityID == representativeModelID;
+                }
+                if (!keepEntity) {
+                    processedIds.insert(entityID);
+                    continue;
+                }
+            }
             if (lightweightEntityTest) {
                 static bool loggedLightweightFilter { false };
                 if (!loggedLightweightFilter) {

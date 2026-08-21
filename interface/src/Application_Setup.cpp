@@ -279,6 +279,8 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     qApp->setProperty(hifi::properties::MACOS_TEST_LIGHTWEIGHT_ENTITIES,
                       parser.isSet("macosTestLightweightEntities"));
+    qApp->setProperty(hifi::properties::MACOS_TEST_REPRESENTATIVE_ENTITIES,
+                      parser.isSet("macosTestRepresentativeEntities"));
 #endif
 
     bool suppressPrompt = parser.isSet("suppress-settings-reset");

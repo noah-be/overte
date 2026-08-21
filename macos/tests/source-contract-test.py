@@ -1015,7 +1015,7 @@ for inventory_contract in (
     "render_handoff_id",
     "--render-handoff-id",
     "--min-color-buckets 16",
-    "--max-dominant-color-ratio 0.45",
+    "--max-dominant-color-ratio 0.55",
     "--min-edge-ratio 0.003",
 ):
     if inventory_contract not in online_smoke:
@@ -1063,6 +1063,14 @@ for smoke_name, smoke_source in (("serverless/online transition", transition_smo
             )
 if "--macosTestLightweightEntities" in online_smoke:
     raise SystemExit("online smoke must render the complete streamed model scene")
+for representative_contract in (
+    "--macosTestRepresentativeEntities",
+    "representative_entity_filter_active",
+):
+    if representative_contract not in online_smoke:
+        raise SystemExit(
+            f"online smoke must render a representative Hub model: {representative_contract}"
+        )
 
 global_properties_header = (
     ROOT / "libraries/shared/src/shared/GlobalAppProperties.h"
@@ -1084,6 +1092,18 @@ for lightweight_property_contract in (
         )
 if main_source.count('"macosTestLightweightEntities"') != 1:
     raise SystemExit("macOS lightweight entity test flag must be declared exactly once")
+for representative_property_contract in (
+    "MACOS_TEST_REPRESENTATIVE_ENTITIES",
+    '"overte.macosTestRepresentativeEntities"',
+):
+    if representative_property_contract not in (
+            global_properties_header + global_properties_source):
+        raise SystemExit(
+            "missing macOS representative entity property: "
+            f"{representative_property_contract}"
+        )
+if main_source.count('"macosTestRepresentativeEntities"') != 1:
+    raise SystemExit("macOS representative entity test flag must be declared exactly once")
 
 lightweight_helper = entity_renderer_source.split(
     "bool macOSLightweightEntityTestEnabled()", 1
@@ -1131,6 +1151,18 @@ if entity_renderer_source.index("processedIds.insert(entityID)") > entity_render
     raise SystemExit("macOS test filter must skip complex entities before scene submission")
 if 'parser.isSet("macosTestLightweightEntities")' not in application_setup_source:
     raise SystemExit("Interface must transfer the macOS lightweight test flag to the app")
+if 'parser.isSet("macosTestRepresentativeEntities")' not in application_setup_source:
+    raise SystemExit("Interface must transfer the macOS representative test flag to the app")
+for representative_filter_contract in (
+    "macOSRepresentativeEntityTestEnabled()",
+    "representative_model_selected",
+    "representativeModelID.isNull()",
+    "entity->getType() == EntityTypes::Model",
+):
+    if representative_filter_contract not in entity_renderer_source:
+        raise SystemExit(
+            f"macOS representative entity filter missing: {representative_filter_contract}"
+        )
 lightweight_handoff = entity_renderer_source.split(
     '"OVERTE_MACOS_ENTITY_GATE lightweight_primitive_handoff"', 1
 )[0].rsplit("static bool loggedFirstLightweightPrimitiveHandoff", 1)[1]

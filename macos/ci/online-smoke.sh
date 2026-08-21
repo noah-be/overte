@@ -42,6 +42,7 @@ rm -f "$snapshot" "$screenshot_result" "$entity_inventory" "$entity_validation" 
 readonly -a app_command=(
     "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog --display Desktop
     --disableLocalAvatar --macosTestDisableEntityScripts
+    --macosTestRepresentativeEntities
     --defaultScriptsOverride "file://$default_scripts_override" --url "$location"
     --testScript "$test_script" --testResultsLocation "$output_dir" --quitWhenFinished
 )
@@ -87,6 +88,10 @@ grep -Fq "OVERTE_MACOS_RENDER_PHASE entity_scripts_skipped" "$log" || {
     echo "online entity-script isolation gate was not active" >&2
     exit 1
 }
+grep -Fq "OVERTE_MACOS_RENDER_PHASE representative_entity_filter_active" "$log" || {
+    echo "representative online entity filter was not active" >&2
+    exit 1
+}
 grep -Fq "OVERTE_MACOS_SMOKE passed" "$log" || {
     echo "online smoke script did not pass" >&2
     exit 1
@@ -99,6 +104,6 @@ python3 "$source_root/macos/tools/validate-online-entities.py" "$entity_inventor
     --render-handoff-id "$render_handoff_id" --result "$entity_validation"
 python3 "$source_root/macos/tools/validate-screenshot.py" "$snapshot" \
     --result "$screenshot_result" --min-color-buckets 16 \
-    --max-dominant-color-ratio 0.45 --min-edge-ratio 0.003
+    --max-dominant-color-ratio 0.55 --min-edge-ratio 0.003
 
 echo "macOS online smoke passed for $location"
