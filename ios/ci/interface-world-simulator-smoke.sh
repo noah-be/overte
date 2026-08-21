@@ -136,6 +136,7 @@ readonly temp_root
 readonly device_list="$temp_root/devices.json"
 readonly raw_log="$temp_root/process.log"
 readonly log_snapshot="$temp_root/process-snapshot.log"
+readonly marker_log="$temp_root/runtime-markers.log"
 readonly app_stdout="$temp_root/application.stdout"
 readonly app_stderr="$temp_root/application.stderr"
 readonly runtime_log="$temp_root/runtime.log"
@@ -167,6 +168,7 @@ fi
 # EXIT trap preserves them even when discovery, boot or installation fails.
 : > "$raw_log"
 : > "$log_snapshot"
+: > "$marker_log"
 : > "$app_stdout"
 : > "$app_stderr"
 : > "$process_state_log"
@@ -502,7 +504,7 @@ capture_crash_reports() {
 
 runtime_log_contains() {
     local pattern="$1"
-    grep -Eq "$pattern" "$log_snapshot" "$raw_log" "$app_stdout" "$app_stderr"
+    grep -Eq "$pattern" "$marker_log" "$log_snapshot" "$raw_log" "$app_stdout" "$app_stderr"
 }
 
 renderer_output_observed() {
@@ -526,6 +528,19 @@ refresh_runtime_log_snapshot() {
         > "$snapshot_candidate" 2>/dev/null || status=$?
     if ((status == 0)); then
         mv "$snapshot_candidate" "$log_snapshot"
+        # Persist sparse one-shot gates across the rolling two-minute snapshot.
+        # Renderer completion is canonicalized so per-frame logs cannot grow
+        # this bounded ledger.
+        grep -Eh 'OVERTE_IOS_(WORLD|ENTITY)_GATE|(^|[[:space:]])OVERTE_IOS_VULKAN_FATAL[[:space:]]|OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1' \
+            "$log_snapshot" >> "$marker_log" 2>/dev/null || true
+        for marker in \
+            'Resample::run' \
+            'CompositeHUD'; do
+            if grep -Eq "OVERTE_IOS_VULKAN_DRAW[[:space:]]+batch=${marker}[[:space:]]+stage=draw_pass_complete" "$log_snapshot" && \
+                    ! grep -Fq "batch=${marker} stage=draw_pass_complete" "$marker_log"; then
+                printf 'OVERTE_IOS_VULKAN_DRAW batch=%s stage=draw_pass_complete\n' "$marker" >> "$marker_log"
+            fi
+        done
     else
         rm -f "$snapshot_candidate"
     fi
@@ -616,7 +631,7 @@ finish() {
     if ((boot_requested)) && [[ -n "$active_udid" ]]; then
         run_bounded "simulator cleanup" 60 xcrun simctl shutdown "$active_udid" >/dev/null || true
     fi
-    rm -f "$raw_log" "$app_stdout" "$app_stderr" "$runtime_log" "$process_state_log" \
+    rm -f "$raw_log" "$log_snapshot" "$marker_log" "$app_stdout" "$app_stderr" "$runtime_log" "$process_state_log" \
         "$command_stderr" "$log_stream_stderr" "$device_list" "$temp_root/startup.sample"
     rm -rf "$temp_root"
     exit "$status"
