@@ -49,6 +49,11 @@ on:
         required: false
         default: ''
         type: string
+      capture_sigsegv:
+        description: Run the targeted case under LLDB and preserve the first SIGSEGV
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   actions: read
@@ -78,6 +83,7 @@ jobs:
           REQUESTED_RUNTIME_CASE: ${{ inputs.runtime_case || 'all' }}
           REQUESTED_STACK_SAMPLE_SECONDS: ${{ inputs.stack_sample_seconds || '0' }}
           REQUESTED_SYNCHRONOUS_QUEUE_SUBMITS: ${{ inputs.synchronous_queue_submits || '' }}
+          REQUESTED_CAPTURE_SIGSEGV: ${{ inputs.capture_sigsegv && '1' || '0' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -113,6 +119,11 @@ jobs:
           [[ -z "$REQUESTED_SYNCHRONOUS_QUEUE_SUBMITS" || \
              "$REQUESTED_SYNCHRONOUS_QUEUE_SUBMITS" == 0 || \
              "$REQUESTED_SYNCHRONOUS_QUEUE_SUBMITS" == 1 ]]
+          [[ "$REQUESTED_CAPTURE_SIGSEGV" == 0 || "$REQUESTED_CAPTURE_SIGSEGV" == 1 ]]
+          if [[ "$REQUESTED_CAPTURE_SIGSEGV" == 1 && "$runtime_case" != iphone-online ]]; then
+            echo "SIGSEGV capture is restricted to the targeted iPhone online case" >&2
+            exit 64
+          fi
           if [[ -n "$probe" && "$runtime_case" != all ]]; then
             echo "presentation probes cannot be combined with a targeted runtime case" >&2
             exit 64
@@ -127,6 +138,7 @@ jobs:
           echo "runtime_case=$runtime_case" >> "$GITHUB_OUTPUT"
           echo "stack_sample_seconds=$REQUESTED_STACK_SAMPLE_SECONDS" >> "$GITHUB_OUTPUT"
           echo "synchronous_queue_submits=$REQUESTED_SYNCHRONOUS_QUEUE_SUBMITS" >> "$GITHUB_OUTPUT"
+          echo "capture_sigsegv=$REQUESTED_CAPTURE_SIGSEGV" >> "$GITHUB_OUTPUT"
 
       - name: Download verified simulator candidate
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -220,12 +232,24 @@ jobs:
           RUNTIME_CASE: ${{ steps.request.outputs.runtime_case }}
           OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS: ${{ steps.request.outputs.stack_sample_seconds }}
           OVERTE_IOS_WORLD_MVK_SYNCHRONOUS_QUEUE_SUBMITS: ${{ steps.request.outputs.synchronous_queue_submits }}
+          CAPTURE_SIGSEGV: ${{ steps.request.outputs.capture_sigsegv }}
         shell: bash
         run: |
           set -euo pipefail
           evidence=build-ios/world-evidence
           mkdir -p "$evidence"
-          if [[ -n "$PRESENT_PROBE" ]]; then
+          if [[ "$CAPTURE_SIGSEGV" == 1 ]]; then
+            diagnostics=build-ios/world-raw-diagnostics
+            mkdir -p "$diagnostics"
+            OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE=0 \
+            OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER=1 \
+            OVERTE_IOS_LLDB_TIMEOUT_SECONDS=180 \
+              ios/ci/interface-world-simulator-lldb.sh \
+                '${{ steps.candidate.outputs.app }}' '${{ steps.candidate.outputs.dsym }}' \
+                '${{ steps.candidate.outputs.bundle_id }}' iphone \
+                '${{ steps.request.outputs.revision }}' '${{ steps.candidate.outputs.sha }}' \
+                "$diagnostics" online "$ONLINE_DOMAIN"
+          elif [[ -n "$PRESENT_PROBE" ]]; then
             OVERTE_IOS_WORLD_CAPTURE_ONLY=1 \
               ios/ci/interface-world-simulator-smoke.sh \
                 '${{ steps.candidate.outputs.app }}' '${{ steps.candidate.outputs.bundle_id }}' \

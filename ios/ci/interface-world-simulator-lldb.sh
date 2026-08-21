@@ -21,6 +21,8 @@ family="${4:-}"
 source_revision="${5:-}"
 candidate_sha256="${6:-}"
 output_dir="${7:-}"
+scenario="${8:-serverless}"
+destination="${9:--}"
 lldb_timeout="${OVERTE_IOS_LLDB_TIMEOUT_SECONDS:-540}"
 attach_delay="${OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS:-1}"
 attach_attempts="${OVERTE_IOS_LLDB_ATTACH_ATTEMPTS:-3}"
@@ -47,6 +49,17 @@ interrupt_after="${OVERTE_IOS_LLDB_INTERRUPT_AFTER_SECONDS:-0}"
 [[ "$source_revision" =~ ^[0-9a-f]{40}$ ]] || { echo "invalid source revision" >&2; exit 2; }
 [[ "$candidate_sha256" =~ ^[0-9a-f]{64}$ ]] || { echo "invalid candidate SHA-256" >&2; exit 2; }
 [[ -n "$output_dir" ]] || { echo "output directory is required" >&2; exit 2; }
+case "$scenario" in
+    serverless) launch_url='file:///~/serverless/tutorial.json' ;;
+    online)
+        [[ "$destination" =~ ^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$ ]] || {
+            echo "online LLDB diagnosis requires a domain UUID" >&2
+            exit 2
+        }
+        launch_url="overte://$destination"
+        ;;
+    *) echo "LLDB diagnosis scenario must be serverless or online" >&2; exit 2 ;;
+esac
 [[ "$lldb_timeout" =~ ^[1-9][0-9]*$ ]] && ((10#$lldb_timeout <= 900)) || {
     echo "OVERTE_IOS_LLDB_TIMEOUT_SECONDS must be an integer from 1 through 900" >&2
     exit 2
@@ -201,7 +214,7 @@ finish() {
     chmod 0600 "$application_log"
     {
         printf 'schema=overte-ios-lldb-result-v1\n'
-        printf 'mode=simulator-serverless\n'
+        printf 'mode=simulator-%s\n' "$scenario"
         printf 'source_revision=%s\n' "$source_revision"
         printf 'candidate_sha256=%s\n' "$candidate_sha256"
         printf 'xcode_build=%s\n' "$xcode_build"
@@ -305,7 +318,7 @@ if ((wait_for_debugger)); then
 fi
 launch_arguments+=(
     --stdout="$app_stdout" --stderr="$app_stderr"
-    "$active_udid" "$bundle_id" --url 'file:///~/serverless/tutorial.json'
+    "$active_udid" "$bundle_id" --url "$launch_url"
     --ios-world-evidence --no-login-suggestion
 )
 launch_output="$(run_bounded "application launch for LLDB" 60 env \
