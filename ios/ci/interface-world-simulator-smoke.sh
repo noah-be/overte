@@ -210,13 +210,14 @@ log_stream_pid=""
 launch_pid=""
 mvk_dump_root=""
 
-run_bounded() {
-    local label="$1" seconds="$2" status=0 command_pid heartbeat_pid
+run_bounded_with_grace() {
+    local label="$1" seconds="$2" command_timeout_grace="$3"
+    local status=0 command_pid heartbeat_pid
     local operation="${1// /_}"
-    shift 2
+    shift 3
     : > "$command_stderr"
     live_log "phase=command-start operation=$operation timeout_seconds=$seconds"
-    "$timeout_runner" "$((10#$seconds + timeout_grace_seconds))" "$@" 2>"$command_stderr" &
+    "$timeout_runner" "$((10#$seconds + 10#$command_timeout_grace))" "$@" 2>"$command_stderr" &
     command_pid=$!
     python3 - "$command_pid" "$family" "$scenario" "$operation" \
         "$live_update_interval_seconds" >&3 <<'PY' &
@@ -269,6 +270,14 @@ PY
     fi
     rm -f "$command_stderr"
     return "$status"
+}
+
+run_bounded() {
+    run_bounded_with_grace "$1" "$2" "$timeout_grace_seconds" "${@:3}"
+}
+
+run_strict_bounded() {
+    run_bounded_with_grace "$1" "$2" 0 "${@:3}"
 }
 
 sleep_until_next_live_update() {
@@ -667,7 +676,10 @@ refresh_runtime_log_snapshot() {
     [[ -n "$active_udid" && "$launch_pid" =~ ^[1-9][0-9]*$ ]] || return 0
     local snapshot_candidate="$temp_root/process-snapshot.next" status=0
     rm -f "$snapshot_candidate"
-    "$timeout_runner" 308 xcrun simctl spawn "$active_udid" log show \
+    # This persisted-log query is supplementary to the continuous stream. A
+    # wedged `log show` must return control before the five-second live update
+    # is due, rather than freezing the gate loop for the former 308 seconds.
+    "$timeout_runner" 4 xcrun simctl spawn "$active_udid" log show \
         --last 2m --style compact --info --debug \
         --predicate "processIdentifier == $launch_pid AND (eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PRESENT\")" \
         > "$snapshot_candidate" 2>/dev/null || status=$?
@@ -824,7 +836,16 @@ run_bounded "simulator boot request" 60 xcrun simctl boot "$active_udid" >/dev/n
 if ((boot_status == 124 || boot_status >= 128)); then
     exit "$boot_status"
 fi
-run_bounded "simulator boot" 1500 xcrun simctl bootstatus "$active_udid" -b >/dev/null
+if [[ "$family" == ipad ]]; then
+    # Reviewed iPad runners normally boot in about 80 seconds. Fail at 120
+    # seconds so a wedged CoreSimulator cannot consume the former 25-minute
+    # allowance plus generic command grace.
+    run_strict_bounded "simulator boot" 120 \
+        xcrun simctl bootstatus "$active_udid" -b >/dev/null
+else
+    run_bounded "simulator boot" 1500 \
+        xcrun simctl bootstatus "$active_udid" -b >/dev/null
+fi
 live_log "phase=simulator-ready"
 
 stale_remove_status=0

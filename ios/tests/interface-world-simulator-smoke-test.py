@@ -18,10 +18,27 @@ import zlib
 
 ROOT = Path(__file__).resolve().parents[2]
 SMOKE = ROOT / "ios/ci/interface-world-simulator-smoke.sh"
+SMOKE_SOURCE = SMOKE.read_text(encoding="utf-8")
 DOMAIN = "123e4567-e89b-12d3-a456-426614174000"
 SESSION = "123e4567-e89b-12d3-a456-426614174001"
 NODE = "123e4567-e89b-12d3-a456-426614174002"
 ENTITY = "123e4567-e89b-12d3-a456-426614174003"
+
+for boot_contract in (
+    'if [[ "$family" == ipad ]]',
+    'run_strict_bounded "simulator boot" 120',
+    'run_bounded "simulator boot" 1500',
+):
+    assert boot_contract in SMOKE_SOURCE, (
+        f"simulator boot timeout contract missing: {boot_contract}"
+    )
+
+assert '"$timeout_runner" 4 xcrun simctl spawn "$active_udid" log show' in SMOKE_SOURCE, (
+    "supplementary persisted-log snapshots must return before the live heartbeat"
+)
+assert '"$timeout_runner" 308 xcrun simctl spawn "$active_udid" log show' not in SMOKE_SOURCE, (
+    "persisted-log snapshots can still suppress live progress for five minutes"
+)
 
 
 def png_chunk(kind: bytes, payload: bytes) -> bytes:
