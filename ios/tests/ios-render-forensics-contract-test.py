@@ -20,6 +20,7 @@ pipeline = read("libraries/gpu-vk/src/gpu/vk/VKPipelineCache.cpp")
 smoke = read("ios/ci/interface-world-simulator-smoke.sh")
 runtime = read(".github/workflows/ios-world-candidate-runtime.yml")
 camera_script = read("ios/ci/ios-camera-first-person.js")
+independent_camera_script = read("ios/ci/ios-camera-independent.js")
 
 for token in (
     "OVERTE_IOS_RENDER_DIAGNOSTIC",
@@ -63,6 +64,7 @@ for mode in (
     "full-scissor",
     "reset-format",
     "camera-first-person",
+    "camera-independent",
 ):
     assert mode in smoke and mode in runtime, f"no-rebuild mode is not routed: {mode}"
 
@@ -93,6 +95,14 @@ assert 'Settings.setValue("iosCameraDiagnostic", marker)' in camera_script
 assert "refresh_camera_diagnostic_state" in smoke
 assert "refresh_camera_file_log" in smoke
 assert "firstRun" not in camera_script
+
+assert 'Camera.mode = "independent"' in independent_camera_script
+assert "Camera.position = targetPosition" in independent_camera_script
+assert "Camera.orientation = targetOrientation" in independent_camera_script
+assert 'ScriptDiscoveryService.loadOneScript("file:///~//defaultScripts.js")' in independent_camera_script
+assert "function distanceSquared(a, b)" in independent_camera_script
+assert "Vec3.distance" not in independent_camera_script
+assert "camera=viewpoint" in independent_camera_script
 
 gate_ready = smoke.index('live_log "phase=runtime-gates-ready')
 capture_call = smoke.index("\ntrigger_gpu_trace\n", gate_ready)

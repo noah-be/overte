@@ -15,6 +15,7 @@ readonly screenshot_validator="$script_dir/../tools/validate-world-screenshot.py
 readonly world_validator="$script_dir/../tools/validate-world-runtime.py"
 readonly entity_gate_validator="$script_dir/../tools/validate-entity-gate-log.py"
 readonly first_person_script="$script_dir/ios-camera-first-person.js"
+readonly independent_camera_script="$script_dir/ios-camera-independent.js"
 readonly timeout_grace_seconds=300
 readonly live_update_interval_seconds=5
 
@@ -51,12 +52,19 @@ mvk_trace_vulkan_calls="${OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS:-}"
 mvk_synchronous_queue_submits="${OVERTE_IOS_WORLD_MVK_SYNCHRONOUS_QUEUE_SUBMITS:-}"
 render_diagnostic="${OVERTE_IOS_WORLD_RENDER_DIAGNOSTIC:-trace}"
 camera_diagnostic=default
-if [[ "$render_diagnostic" == camera-first-person ]]; then
-    # Keep the preserved binary's renderer in trace mode while the harness
-    # changes only the disposable simulator's camera-startup preferences.
-    camera_diagnostic=first-person
-    render_diagnostic=trace
-fi
+camera_probe_script=
+case "$render_diagnostic" in
+    camera-first-person)
+        camera_diagnostic=first-person
+        camera_probe_script="$first_person_script"
+        render_diagnostic=trace
+        ;;
+    camera-independent)
+        camera_diagnostic=independent
+        camera_probe_script="$independent_camera_script"
+        render_diagnostic=trace
+        ;;
+esac
 gpu_trace="${OVERTE_IOS_WORLD_GPU_TRACE:-0}"
 capture_only="${OVERTE_IOS_WORLD_CAPTURE_ONLY:-0}"
 camera_launch_arguments=()
@@ -149,8 +157,8 @@ fi
 for helper in "$timeout_runner" "$simulator_selector" "$screenshot_validator" "$world_validator" "$entity_gate_validator"; do
     [[ -f "$helper" ]] || { echo "iOS world test helper is unavailable" >&2; exit 2; }
 done
-[[ "$camera_diagnostic" != first-person || -f "$first_person_script" ]] || {
-    echo "iOS first-person camera diagnostic script is unavailable" >&2
+[[ "$camera_diagnostic" == default || -f "$camera_probe_script" ]] || {
+    echo "iOS camera diagnostic script is unavailable" >&2
     exit 2
 }
 
@@ -706,8 +714,17 @@ world_progress_summary() {
 }
 
 camera_diagnostic_observed() {
-    [[ "$camera_diagnostic" != first-person ]] ||
-        runtime_log_contains 'OVERTE_IOS_CAMERA_DIAGNOSTIC[[:space:]]+mode=first person look at([[:space:]]|$)'
+    case "$camera_diagnostic" in
+        first-person)
+            runtime_log_contains 'OVERTE_IOS_CAMERA_DIAGNOSTIC[[:space:]]+mode=first person look at[[:space:]]+avatar=viewpoint([[:space:]]|$)'
+            ;;
+        independent)
+            runtime_log_contains 'OVERTE_IOS_CAMERA_DIAGNOSTIC[[:space:]]+mode=independent[[:space:]]+camera=viewpoint([[:space:]]|$)'
+            ;;
+        *)
+            return 0
+            ;;
+    esac
 }
 
 renderer_output_observed() {
@@ -743,11 +760,18 @@ report_missing_world_gates() {
             'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff'
         )
     fi
-    if [[ "$camera_diagnostic" == first-person ]]; then
-        required+=(
-            'OVERTE_IOS_CAMERA_DIAGNOSTIC[[:space:]]+mode=first person look at([[:space:]]|$)'
-        )
-    fi
+    case "$camera_diagnostic" in
+        first-person)
+            required+=(
+                'OVERTE_IOS_CAMERA_DIAGNOSTIC[[:space:]]+mode=first person look at[[:space:]]+avatar=viewpoint([[:space:]]|$)'
+            )
+            ;;
+        independent)
+            required+=(
+                'OVERTE_IOS_CAMERA_DIAGNOSTIC[[:space:]]+mode=independent[[:space:]]+camera=viewpoint([[:space:]]|$)'
+            )
+            ;;
+    esac
     for pattern in "${required[@]}"; do
         if ! runtime_log_contains "$pattern"; then
             marker="${pattern#*+}"
@@ -774,7 +798,7 @@ retain_acceptance_markers() {
 }
 
 refresh_camera_diagnostic_state() {
-    [[ "$camera_diagnostic" == first-person && -n "$active_udid" ]] || return 0
+    [[ "$camera_diagnostic" != default && -n "$active_udid" ]] || return 0
     local candidate="$temp_root/camera-diagnostic-state.next" status=0
     "$timeout_runner" 4 xcrun simctl spawn "$active_udid" defaults read \
         "$bundle_id" iosCameraDiagnostic > "$candidate" 2>/dev/null || status=$?
@@ -786,12 +810,12 @@ refresh_camera_diagnostic_state() {
 }
 
 refresh_camera_file_log() {
-    [[ "$camera_diagnostic" == first-person && -n "$data_container" ]] || return 0
+    [[ "$camera_diagnostic" != default && -n "$data_container" ]] || return 0
     local source candidate="$temp_root/camera-diagnostic-file.next"
     source="$(find "$data_container/Library" -maxdepth 8 -type f \
         -name 'overte-log.txt' -print -quit 2>/dev/null || true)"
     [[ -n "$source" ]] || return 0
-    grep -Eai 'OVERTE_IOS_CAMERA_DIAGNOSTIC|ios-camera-first-person|defaultScriptsOverride' \
+    grep -Eai 'OVERTE_IOS_CAMERA_DIAGNOSTIC|ios-camera-(first-person|independent)|defaultScriptsOverride' \
         "$source" > "$candidate" 2>/dev/null || true
     tail -c 131072 "$candidate" > "$camera_file_log"
     rm -f "$candidate"
@@ -993,15 +1017,15 @@ data_container="$(get_application_data_container)"
     echo "application data container is unavailable" >&2
     exit 1
 }
-if [[ "$camera_diagnostic" == first-person ]]; then
+if [[ "$camera_diagnostic" != default ]]; then
     # Do not alter firstRun: it also selects the startup navigation path. Load
-    # one app-sandboxed startup script that changes only Camera.mode, allowing
-    # the preserved binary to A/B first-person without changing world import.
-    camera_script="$data_container/tmp/overte-ios-camera-first-person.js"
+    # one app-sandboxed startup script so the preserved binary can A/B camera
+    # and viewpoint behavior without changing world import or rebuilding.
+    camera_script="$data_container/tmp/$(basename "$camera_probe_script")"
     [[ ! -e "$camera_script" ]] || { echo "camera diagnostic script path already exists" >&2; exit 1; }
-    install -m 0600 "$first_person_script" "$camera_script"
+    install -m 0600 "$camera_probe_script" "$camera_script"
     camera_launch_arguments=(--defaultScriptsOverride "file://$camera_script")
-    live_log "phase=camera-diagnostic-ready mode=first-person"
+    live_log "phase=camera-diagnostic-ready mode=$camera_diagnostic"
 fi
 mvk_dump_root="$data_container/tmp/overte-mvk-shaders-$stem"
 [[ ! -e "$mvk_dump_root" ]] || { echo "MoltenVK dump path already exists" >&2; exit 1; }
