@@ -84,6 +84,9 @@ assert 'Camera.mode = "first person look at"' in camera_script
 assert 'ScriptDiscoveryService.loadOneScript("file:///~//defaultScripts.js")' in camera_script
 assert "Script.include(" not in camera_script
 assert "Script.load(" not in camera_script
+assert "MyAvatar.position = targetPosition" in camera_script
+assert "MyAvatar.orientation = targetOrientation" in camera_script
+assert "stage=avatar-reset" in camera_script
 assert 'Settings.setValue("iosCameraDiagnostic", marker)' in camera_script
 assert "refresh_camera_diagnostic_state" in smoke
 assert "refresh_camera_file_log" in smoke
