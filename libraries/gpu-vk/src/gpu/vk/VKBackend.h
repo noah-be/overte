@@ -190,6 +190,7 @@ protected:
 
     void preUpdateTransform();
     void transferTransformState(const Batch& batch);
+    uint32_t getDrawCallInfoBinding() const;
 
 protected:
     struct InputStageState {

@@ -114,6 +114,9 @@ def assert_private(result: subprocess.CompletedProcess[str], app: Path) -> None:
     assert str(app) not in combined, combined
     assert "org.overte.interface.dev" not in combined, combined
     assert "hifi://overte_hub" not in combined, combined
+    assert DOMAIN not in combined, combined
+    assert SESSION not in combined, combined
+    assert NODE not in combined, combined
 
 
 def assert_no_raw_log(output: Path, scratch: Path) -> None:
@@ -361,6 +364,17 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
             result = invoke(app, output, case_environment, family, scenario, domain)
             assert result.returncode == 0, (result.stdout, result.stderr)
             assert f"PASS full-client {family} simulator {scenario} world with screenshot" in result.stdout
+            progress = [
+                line
+                for line in result.stdout.splitlines()
+                if line.startswith("OVERTE_IOS_WORLD_PROGRESS ")
+            ]
+            assert any(f"family={family} scenario={scenario} phase=simulator-selected " in line for line in progress)
+            assert any(" phase=application-running pid=" in line for line in progress)
+            assert any(" phase=runtime-gates-ready observed=" in line for line in progress)
+            assert any(" phase=framebuffer-ready observed=" in line for line in progress)
+            assert any(" phase=screenshot-accepted attempt=1" in line for line in progress)
+            assert any(" phase=cleanup result_status=0" in line for line in progress)
             screenshot = output / f"{family}-{scenario}.png"
             screenshot_report = json.loads(
                 (output / f"{family}-{scenario}-screenshot.json").read_text(encoding="utf-8")
@@ -579,6 +593,8 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
     )
     assert blank.returncode == 1, (blank.stdout, blank.stderr)
     assert "blank or lacks visible world detail" in blank.stderr
+    assert "phase=screenshot-retry attempt=1" in blank.stdout
+    assert "phase=cleanup result_status=1" in blank.stdout
     assert (blank_output / "ipad-serverless-failure.png").is_file()
     assert_no_raw_log(blank_output, scratch)
 
@@ -647,6 +663,40 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
     stream_diagnostics = root / "raw-diagnostics/iphone-serverless-command-errors.log"
     assert "command_label=process log stream" in stream_diagnostics.read_text(encoding="utf-8")
     assert_no_raw_log(stopped_stream_output, scratch)
+
+    stalled_handoff_output = root / "stalled-entity-handoff"
+    stalled_handoff_log = "\n".join(
+        (
+            "Overte OVERTE_IOS_WORLD_GATE navigation_requested kind= online destination= overte_hub",
+            f"Overte OVERTE_IOS_ENTITY_GATE domain_list_connected domain= {DOMAIN} session= {SESSION}",
+            f"Overte OVERTE_IOS_ENTITY_GATE entity_query_sent node= {NODE} bytes= 144",
+            f"Overte OVERTE_IOS_ENTITY_GATE entity_data_received node= {NODE} bytes= 1200",
+            "Overte OVERTE_IOS_VULKAN_PRESENT output_ready=1 source=1312x2820 target=1312x2820",
+        )
+    ) + "\n"
+    stalled_handoff = invoke(
+        app,
+        stalled_handoff_output,
+        {
+            **environment,
+            "FAKE_PROCESS_LOG": stalled_handoff_log,
+            "OVERTE_IOS_WORLD_TIMEOUT_SECONDS": "5",
+            "OVERTE_IOS_WORLD_ENTITY_STALL_TIMEOUT_SECONDS": "1",
+        },
+        "ipad",
+        "online",
+        DOMAIN,
+    )
+    assert stalled_handoff.returncode == 124, (
+        stalled_handoff.stdout,
+        stalled_handoff.stderr,
+    )
+    assert "phase=entity-handoff-stall-watch" in stalled_handoff.stdout
+    assert "world entity handoff stalled after source data became available" in stalled_handoff.stderr
+    assert "missing_runtime_gate=entity_server_active" in stalled_handoff.stderr
+    assert "missing_runtime_gate=entity_tree_nonempty" in stalled_handoff.stderr
+    assert "missing_runtime_gate=render_handoff" in stalled_handoff.stderr
+    assert_no_raw_log(stalled_handoff_output, scratch)
 
     noisy_output = root / "bounded-noisy-diagnostics"
     noisy_marker = (

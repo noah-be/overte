@@ -5,6 +5,12 @@ name: iOS Full Client world runtime evidence
 
 on:
   workflow_call:
+    inputs:
+      runtime_case:
+        description: Run all acceptance cases or one focused simulator case
+        required: false
+        type: string
+        default: all
 
 permissions:
   contents: read
@@ -784,6 +790,7 @@ jobs:
 
       - name: Resolve current overte_hub domain identity
         id: online-world
+        if: ${{ inputs.runtime_case == 'all' || endsWith(inputs.runtime_case, '-online') }}
         run: |
           response="$(mktemp "${TMPDIR:-/tmp}/overte-place.XXXXXX")"
           trap 'rm -f "$response"' EXIT
@@ -823,22 +830,43 @@ jobs:
       - name: Load serverless and online worlds with screenshots
         env:
           ONLINE_DOMAIN: ${{ steps.online-world.outputs.domain }}
+          RUNTIME_CASE: ${{ inputs.runtime_case }}
         run: |
+          set -euo pipefail
           app="build-ios/simulator/interface/Release-iphonesimulator/Overte.app"
           bundle_id="${{ steps.candidate.outputs.bundle_id }}"
           evidence="build-ios/world-evidence"
           mkdir -p "$evidence"
-          for family in iphone ipad; do
-            ios/ci/interface-world-simulator-smoke.sh \
-              "$app" "$bundle_id" "$family" serverless - "$evidence"
-            ios/ci/interface-world-simulator-smoke.sh \
-              "$app" "$bundle_id" "$family" online "$ONLINE_DOMAIN" "$evidence"
-          done
-          python3 ios/tools/validate-world-evidence-set.py "$evidence" \
-            --candidate-manifest "${{ steps.candidate.outputs.manifest }}" \
-            --source-revision "$GITHUB_SHA" \
-            --candidate-sha256 "${{ steps.candidate.outputs.sha256 }}" \
-            --output build-ios/world-evidence-set.json
+          case "$RUNTIME_CASE" in
+            all)
+              for family in iphone ipad; do
+                ios/ci/interface-world-simulator-smoke.sh \
+                  "$app" "$bundle_id" "$family" serverless - "$evidence"
+                ios/ci/interface-world-simulator-smoke.sh \
+                  "$app" "$bundle_id" "$family" online "$ONLINE_DOMAIN" "$evidence"
+              done
+              python3 ios/tools/validate-world-evidence-set.py "$evidence" \
+                --candidate-manifest "${{ steps.candidate.outputs.manifest }}" \
+                --source-revision "$GITHUB_SHA" \
+                --candidate-sha256 "${{ steps.candidate.outputs.sha256 }}" \
+                --output build-ios/world-evidence-set.json
+              ;;
+            iphone-serverless|iphone-online|ipad-serverless|ipad-online)
+              family="${RUNTIME_CASE%%-*}"
+              scenario="${RUNTIME_CASE#*-}"
+              if [[ "$scenario" == serverless ]]; then
+                ios/ci/interface-world-simulator-smoke.sh \
+                  "$app" "$bundle_id" "$family" serverless - "$evidence"
+              else
+                ios/ci/interface-world-simulator-smoke.sh \
+                  "$app" "$bundle_id" "$family" online "$ONLINE_DOMAIN" "$evidence"
+              fi
+              ;;
+            *)
+              echo "unsupported world runtime case: $RUNTIME_CASE" >&2
+              exit 64
+              ;;
+          esac
 
       - name: Upload world screenshot evidence
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0

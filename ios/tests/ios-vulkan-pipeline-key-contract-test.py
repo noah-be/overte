@@ -308,8 +308,10 @@ if "#if defined(Q_OS_IOS)" not in descriptor_binding_body or "#endif" not in des
 if "{ drawCallInfo, drawCallInfoBinding, VK_FORMAT_R16G16_SINT, 0 }" not in pipeline_body:
     raise SystemExit("DrawCallInfo shader location must remain stable while only its binding is compacted")
 
-transform_start = backend.index("void VKBackend::updateTransform")
+binding_start = backend.index("uint32_t VKBackend::getDrawCallInfoBinding() const")
+transform_start = backend.index("void VKBackend::updateTransform", binding_start)
 transform_end = backend.index("void VKBackend::updatePipeline", transform_start)
+binding_body = backend[binding_start:transform_start]
 transform_body = backend[transform_start:transform_end]
 for fragment in (
     "auto drawCallInfoBinding = static_cast<uint32_t>(gpu::Stream::DRAW_CALL_INFO);",
@@ -320,18 +322,21 @@ for fragment in (
     "drawCallInfoBinding = 0;",
     "occupiedBindings[drawCallInfoBinding]",
     "drawCallInfoBinding = static_cast<uint32_t>(gpu::Stream::DRAW_CALL_INFO);",
+    "return drawCallInfoBinding;",
 ):
-    if fragment not in transform_body:
+    if fragment not in binding_body:
         raise SystemExit(
             f"format-free iOS DrawCallInfo runtime binding diverged from its descriptor: {fragment}"
         )
-runtime_binding_start = transform_body.index(
+runtime_binding_start = binding_body.index(
     "auto drawCallInfoBinding = static_cast<uint32_t>(gpu::Stream::DRAW_CALL_INFO);"
 )
-runtime_binding_end = transform_body.index("if (batch._currentNamedCall.empty())", runtime_binding_start)
-runtime_binding_body = transform_body[runtime_binding_start:runtime_binding_end]
+runtime_binding_end = binding_body.index("return drawCallInfoBinding;", runtime_binding_start)
+runtime_binding_body = binding_body[runtime_binding_start:runtime_binding_end]
 if "#if defined(Q_OS_IOS)" not in runtime_binding_body or "#endif" not in runtime_binding_body:
     raise SystemExit("format-free DrawCallInfo runtime binding compaction must remain iOS-only")
+if "const auto drawCallInfoBinding = getDrawCallInfoBinding();" not in transform_body:
+    raise SystemExit("DrawCallInfo uploads no longer use the shared physical binding selection")
 if transform_body.count(
     "vkCmdBindVertexBuffers(_currentCommandBuffer, drawCallInfoBinding, 1,"
 ) != 2:
@@ -341,27 +346,26 @@ render_start = backend.index("void VKBackend::renderPassDraw")
 render_end = backend.index("void VKBackend::recycle", render_start)
 render_body = backend[render_start:render_end]
 draw_call = "(this->*(call))(batch, *offset);"
-restore_guard = (
-    "if (!_cache.pipelineState.format && _input._bufferVBOs[0] != VK_NULL_HANDLE)"
-)
-restore_call = "vkCmdBindVertexBuffers(_currentCommandBuffer, 0, 1, &vkBuffer, &vkOffset);"
-for fragment in (draw_call, restore_guard, restore_call):
+restore_binding = "const auto drawCallInfoBinding = getDrawCallInfoBinding();"
+restore_guard = "_input._bufferVBOs[drawCallInfoBinding] != VK_NULL_HANDLE"
+restore_call = "_currentCommandBuffer, drawCallInfoBinding, 1, &vkBuffer, &vkOffset);"
+for fragment in (draw_call, restore_binding, restore_guard, restore_call):
     if fragment not in render_body:
-        raise SystemExit(f"format-free binding 0 is not restored after its draw: {fragment}")
-if not render_body.index(draw_call) < render_body.index(restore_guard) < render_body.index(restore_call):
-    raise SystemExit("regular binding 0 must be restored only after the format-free draw")
-restore_guard_position = render_body.index(restore_guard)
+        raise SystemExit(f"DrawCallInfo physical binding is not restored after its draw: {fragment}")
+if not render_body.index(draw_call) < render_body.index(restore_binding) < render_body.index(restore_guard) < render_body.index(restore_call):
+    raise SystemExit("regular vertex state must be restored only after the DrawCallInfo draw")
+restore_guard_position = render_body.index(restore_binding)
 restore_platform_start = render_body.rfind(
     "#if defined(Q_OS_IOS)", render_body.index(draw_call), restore_guard_position
 )
 restore_platform_end = render_body.find("#endif", render_body.index(restore_call))
 if restore_platform_start < 0 or restore_platform_end < 0:
-    raise SystemExit("physical binding 0 restoration must remain iOS-only")
-restore_start = render_body.index(restore_guard)
+    raise SystemExit("physical DrawCallInfo binding restoration must remain iOS-only")
+restore_start = render_body.index(restore_binding)
 restore_end = render_body.index("#endif", restore_start)
 restore_body = render_body[restore_start:restore_end]
 if "_cache.pipelineState._bufferStrides" in restore_body or "_bufferStrideSet" in restore_body:
-    raise SystemExit("restoring physical binding 0 must not pollute the format-free pipeline key")
+    raise SystemExit("restoring the physical binding must not pollute the pipeline key")
 
 input_start = backend.index("void VKBackend::do_setInputFormat")
 input_end = backend.index("void VKBackend::do_setInputBuffer", input_start)

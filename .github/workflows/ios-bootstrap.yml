@@ -13,6 +13,17 @@ on:
         required: false
         type: boolean
         default: false
+      world_runtime_case:
+        description: Limit an opted-in world build to one simulator case
+        required: false
+        type: choice
+        default: all
+        options:
+          - all
+          - iphone-serverless
+          - iphone-online
+          - ipad-serverless
+          - ipad-online
   push:
     branches:
       - apple-ios
@@ -120,6 +131,8 @@ jobs:
       actions: write
       contents: read
     uses: ./.github/workflows/ios-world-runtime.yml
+    with:
+      runtime_case: ${{ inputs.world_runtime_case || 'all' }}
 
   host-contracts:
     runs-on: ubuntu-24.04

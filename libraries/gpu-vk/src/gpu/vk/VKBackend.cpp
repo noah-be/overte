@@ -1521,14 +1521,17 @@ void VKBackend::renderPassDraw(const Batch& batch) {
             }
 #endif
 #if defined(Q_OS_IOS)
-            // A format-free DrawCallInfo input temporarily occupies physical
-            // binding 0 on iOS. Restore the cached regular vertex buffer only
-            // after the draw has consumed it, so backend and Vulkan state stay
-            // synchronized without contaminating the format-free pipeline key.
-            if (!_cache.pipelineState.format && _input._bufferVBOs[0] != VK_NULL_HANDLE) {
-                const VkBuffer vkBuffer = _input._bufferVBOs[0];
-                const VkDeviceSize vkOffset = _input._bufferOffsets[0];
-                vkCmdBindVertexBuffers(_currentCommandBuffer, 0, 1, &vkBuffer, &vkOffset);
+            // DrawCallInfo temporarily occupies the first physical binding not
+            // used by this format. Restore any regular buffer cached there so a
+            // later format cannot skip its bind while Vulkan still sees the
+            // DrawCallInfo buffer.
+            const auto drawCallInfoBinding = getDrawCallInfoBinding();
+            if (drawCallInfoBinding < _input._bufferVBOs.size() &&
+                _input._bufferVBOs[drawCallInfoBinding] != VK_NULL_HANDLE) {
+                const VkBuffer vkBuffer = _input._bufferVBOs[drawCallInfoBinding];
+                const VkDeviceSize vkOffset = _input._bufferOffsets[drawCallInfoBinding];
+                vkCmdBindVertexBuffers(
+                    _currentCommandBuffer, drawCallInfoBinding, 1, &vkBuffer, &vkOffset);
             }
 #endif
             break;
@@ -2599,9 +2602,7 @@ void VKBackend::initTransform() {
     }
 }
 
-void VKBackend::updateTransform(const gpu::Batch& batch) {
-    _transform.update(_commandIndex, _stereo, _uniform, *_currentFrame);
-
+uint32_t VKBackend::getDrawCallInfoBinding() const {
     auto drawCallInfoBinding = static_cast<uint32_t>(gpu::Stream::DRAW_CALL_INFO);
 #if defined(Q_OS_IOS)
     // Match the compact physical binding selected by the iOS pipeline
@@ -2624,6 +2625,13 @@ void VKBackend::updateTransform(const gpu::Batch& batch) {
         drawCallInfoBinding = static_cast<uint32_t>(gpu::Stream::DRAW_CALL_INFO);
     }
 #endif
+    return drawCallInfoBinding;
+}
+
+void VKBackend::updateTransform(const gpu::Batch& batch) {
+    _transform.update(_commandIndex, _stereo, _uniform, *_currentFrame);
+
+    const auto drawCallInfoBinding = getDrawCallInfoBinding();
 
     if (batch._currentNamedCall.empty()) {
         if (_transform._enabledDrawcallInfoBuffer) {

@@ -138,8 +138,15 @@ world_step = WORKFLOW[
     WORKFLOW.index("Load serverless and online worlds with screenshots"):
     WORKFLOW.index("Upload world screenshot evidence")
 ]
-for family in ("iphone ipad",):
-    assert f"for family in {family}" in world_step
+for token in (
+    "RUNTIME_CASE: ${{ inputs.runtime_case }}",
+    'case "$RUNTIME_CASE" in',
+    "for family in iphone ipad",
+    "iphone-serverless|iphone-online|ipad-serverless|ipad-online",
+    'family="${RUNTIME_CASE%%-*}"',
+    'scenario="${RUNTIME_CASE#*-}"',
+):
+    assert token in world_step, f"focused world runtime contract missing: {token}"
 for scenario in ("serverless -", 'online "$ONLINE_DOMAIN"'):
     assert scenario in world_step
 assert "interface-world-simulator-smoke.sh" in world_step
@@ -190,6 +197,10 @@ assert "prepare-moltenvk-diagnostics.py" in WORKFLOW
 assert "MoltenVK diagnostics failed validation and will not be uploaded" in WORKFLOW
 
 require(BOOTSTRAP, r"world_evidence:[\s\S]*type: boolean[\s\S]*default: false", "manual world acceptance needs an explicit opt-in")
+require(BOOTSTRAP, r"world_runtime_case:[\s\S]*type: choice[\s\S]*default: all", "manual world acceptance needs a focused runtime selector")
+assert "runtime_case: ${{ inputs.world_runtime_case || 'all' }}" in BOOTSTRAP
+require(WORKFLOW, r"workflow_call:[\s\S]*runtime_case:[\s\S]*type: string[\s\S]*default: all", "reusable world runtime must default to full acceptance")
+assert "inputs.runtime_case == 'all' || endsWith(inputs.runtime_case, '-online')" in WORKFLOW
 require(
     BOOTSTRAP,
     r"concurrency:[\s\S]*ios-bootstrap-\$\{\{ github[.]ref \}\}-\$\{\{[\s\S]*inputs[.]world_evidence[\s\S]*'world'[\s\S]*inputs[.]integrated[\s\S]*'integrated'[\s\S]*'smoke'",

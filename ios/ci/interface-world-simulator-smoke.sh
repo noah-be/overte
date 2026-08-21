@@ -4,6 +4,10 @@
 
 set -euo pipefail
 
+# Preserve the caller's stdout for live progress even when an individual
+# command's stdout is redirected or captured by command substitution.
+exec 3>&1
+
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly timeout_runner="$script_dir/../tools/run-with-timeout.py"
 readonly simulator_selector="$script_dir/../tools/select-simulator.py"
@@ -11,6 +15,7 @@ readonly screenshot_validator="$script_dir/../tools/validate-world-screenshot.py
 readonly world_validator="$script_dir/../tools/validate-world-runtime.py"
 readonly entity_gate_validator="$script_dir/../tools/validate-entity-gate-log.py"
 readonly timeout_grace_seconds=300
+readonly live_update_interval_seconds=5
 
 app_path="${1:-}"
 bundle_id="${2:-}"
@@ -22,6 +27,11 @@ poll_timeout="${OVERTE_IOS_WORLD_TIMEOUT_SECONDS:-540}"
 poll_interval="${OVERTE_IOS_WORLD_POLL_SECONDS:-2}"
 screenshot_settle="${OVERTE_IOS_WORLD_SCREENSHOT_SETTLE_SECONDS:-2}"
 screenshot_wait="${OVERTE_IOS_WORLD_SCREENSHOT_WAIT_SECONDS:-180}"
+# Once the source entity payload is present, a healthy client should advance
+# through tree insertion and render handoff promptly.  Keep the broader world
+# timeout for boot, navigation and network variability, but bound a proven
+# post-data stall separately.
+entity_stall_timeout="${OVERTE_IOS_WORLD_ENTITY_STALL_TIMEOUT_SECONDS:-180}"
 # CoreSimulatorBridge itself retries app launches for 120 seconds. Keep the
 # outer watchdog above that boundary so a large freshly installed app can
 # finish LaunchServices registration and return either its PID or a causal
@@ -71,6 +81,10 @@ capture_only="${OVERTE_IOS_WORLD_CAPTURE_ONLY:-0}"
     echo "OVERTE_IOS_WORLD_SCREENSHOT_WAIT_SECONDS must be an integer from 1 through 600" >&2
     exit 2
 }
+[[ "$entity_stall_timeout" =~ ^[1-9][0-9]*$ ]] && ((10#$entity_stall_timeout <= 600)) || {
+    echo "OVERTE_IOS_WORLD_ENTITY_STALL_TIMEOUT_SECONDS must be an integer from 1 through 600" >&2
+    exit 2
+}
 [[ "$launch_timeout" =~ ^[0-9]+$ ]] && ((10#$launch_timeout >= 130 && 10#$launch_timeout <= 600)) || {
     echo "OVERTE_IOS_WORLD_LAUNCH_TIMEOUT_SECONDS must be an integer from 130 through 600" >&2
     exit 2
@@ -111,6 +125,14 @@ fi
 for helper in "$timeout_runner" "$simulator_selector" "$screenshot_validator" "$world_validator" "$entity_gate_validator"; do
     [[ -f "$helper" ]] || { echo "iOS world test helper is unavailable" >&2; exit 2; }
 done
+
+live_log() {
+    # Keep the streamed CI status deliberately free of paths, URLs, bundle
+    # identifiers and raw runtime markers.  The latter can contain domain and
+    # session identifiers and remain confined to the existing diagnostics.
+    printf 'OVERTE_IOS_WORLD_PROGRESS utc=%s family=%s scenario=%s %s\n' \
+        "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$family" "$scenario" "$*" >&3
+}
 
 if [[ "$scenario" == serverless ]]; then
     [[ "$expected_domain" == - ]] || { echo "serverless scenario requires '-' as domain" >&2; exit 2; }
@@ -189,10 +211,47 @@ launch_pid=""
 mvk_dump_root=""
 
 run_bounded() {
-    local label="$1" seconds="$2" status=0
+    local label="$1" seconds="$2" status=0 command_pid heartbeat_pid
+    local operation="${1// /_}"
     shift 2
     : > "$command_stderr"
-    "$timeout_runner" "$((10#$seconds + timeout_grace_seconds))" "$@" 2>"$command_stderr" || status=$?
+    live_log "phase=command-start operation=$operation timeout_seconds=$seconds"
+    "$timeout_runner" "$((10#$seconds + timeout_grace_seconds))" "$@" 2>"$command_stderr" &
+    command_pid=$!
+    python3 - "$command_pid" "$family" "$scenario" "$operation" \
+        "$live_update_interval_seconds" >&3 <<'PY' &
+import os
+import sys
+import time
+
+pid = int(sys.argv[1])
+family, scenario, operation = sys.argv[2:5]
+interval = int(sys.argv[5])
+elapsed = 0
+while True:
+    time.sleep(interval)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        raise SystemExit(0)
+    elapsed += interval
+    timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    print(
+        f"OVERTE_IOS_WORLD_PROGRESS utc={timestamp} family={family} "
+        f"scenario={scenario} phase=command-running operation={operation} "
+        f"elapsed_seconds={elapsed}",
+        flush=True,
+    )
+PY
+    heartbeat_pid=$!
+    if wait "$command_pid"; then
+        status=0
+    else
+        status=$?
+    fi
+    kill "$heartbeat_pid" 2>/dev/null || true
+    wait "$heartbeat_pid" 2>/dev/null || true
+    live_log "phase=command-finished operation=$operation result_status=$status"
     if ((status != 0)); then
         if [[ -n "$command_diagnostics" ]]; then
             {
@@ -210,6 +269,16 @@ run_bounded() {
     fi
     rm -f "$command_stderr"
     return "$status"
+}
+
+sleep_until_next_live_update() {
+    local now remaining delay=$((10#$poll_interval))
+    now="$(date +%s)"
+    remaining=$((next_live_update - now))
+    if ((remaining > 0 && remaining < delay)); then
+        delay=$remaining
+    fi
+    sleep "$delay"
 }
 
 get_application_data_container() {
@@ -514,6 +583,29 @@ runtime_log_contains() {
     grep -Eq "$pattern" "$marker_log" "$log_snapshot" "$raw_log" "$app_stdout" "$app_stderr"
 }
 
+world_progress_summary() {
+    local -a observed=()
+    runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+navigation_requested' && observed+=(navigation)
+    if [[ "$scenario" == serverless ]]; then
+        runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+serverless_import_committed' && observed+=(import)
+        runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+serverless_viewpoint_applied[[:space:]]+success=[[:space:]]+1' && observed+=(viewpoint)
+    else
+        runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+domain_list_connected' && observed+=(domain)
+        runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_server_active' && observed+=(server)
+        runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_query_sent' && observed+=(query)
+        runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_data_received' && observed+=(data)
+    fi
+    runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_tree_nonempty' && observed+=(tree)
+    runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' && observed+=(handoff)
+    renderer_output_observed && observed+=(renderer)
+    if ((${#observed[@]} == 0)); then
+        printf 'none'
+    else
+        local IFS=,
+        printf '%s' "${observed[*]}"
+    fi
+}
+
 renderer_output_observed() {
     # The state-transition marker can be emitted before unified-log capture
     # attaches. Resample plus final CompositeHUD completion is repeated every
@@ -664,6 +756,7 @@ fail_stopped_log_stream() {
 finish() {
     local status=$? report_wait=0
     trap - EXIT
+    live_log "phase=cleanup result_status=$status"
     resume_application_after_screenshot
     stop_log_stream
     if ((status != 0)); then
@@ -704,17 +797,35 @@ finish() {
 }
 trap finish EXIT
 
+live_log "phase=start gate_timeout_seconds=$poll_timeout entity_stall_timeout_seconds=$entity_stall_timeout screenshot_timeout_seconds=$screenshot_wait live_interval_seconds=$live_update_interval_seconds"
+live_log "phase=simulator-discovery"
 run_bounded "simulator discovery" 60 xcrun simctl list devices available --json > "$device_list"
 active_udid="$(python3 "$simulator_selector" "$family" < "$device_list")"
 [[ -n "$active_udid" ]] || { echo "simulator selection returned no device" >&2; exit 1; }
+device_identity="$(python3 - "$device_list" "$active_udid" <<'PY'
+import json, pathlib, sys
+payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+udid = sys.argv[2]
+for runtime, devices in payload.get("devices", {}).items():
+    for device in devices:
+        if device.get("udid") == udid:
+            name = str(device.get("name", "unknown")).replace("\n", " ").replace("\r", " ")
+            print(f"device={name} runtime={runtime.rsplit('.', 1)[-1]}")
+            raise SystemExit(0)
+raise SystemExit("selected simulator identity is unavailable")
+PY
+)"
+live_log "phase=simulator-selected $device_identity"
 
 boot_requested=1
 boot_status=0
+live_log "phase=simulator-boot"
 run_bounded "simulator boot request" 60 xcrun simctl boot "$active_udid" >/dev/null || boot_status=$?
 if ((boot_status == 124 || boot_status >= 128)); then
     exit "$boot_status"
 fi
 run_bounded "simulator boot" 1500 xcrun simctl bootstatus "$active_udid" -b >/dev/null
+live_log "phase=simulator-ready"
 
 stale_remove_status=0
 run_bounded "stale application removal" 60 xcrun simctl uninstall \
@@ -726,6 +837,7 @@ if ((stale_remove_status != 0)); then
         exit "$stale_remove_status"
     fi
 fi
+live_log "phase=application-install"
 run_bounded "application install" 120 xcrun simctl install "$active_udid" "$app_path" >/dev/null
 app_installed=1
 data_container="$(get_application_data_container)"
@@ -745,6 +857,7 @@ chmod 0700 "$mvk_dump_root"
 # gate and is never bypassed here.
 run_bounded "simulator microphone permission" 60 xcrun simctl privacy \
     "$active_udid" grant microphone "$bundle_id" >/dev/null
+live_log "phase=application-installed"
 
 # Capture the app process, its lifecycle messages and the privacy-bounded
 # world/entity markers. Starting the stream before launch prevents immediate
@@ -788,6 +901,7 @@ fi
 if [[ -n "$mvk_synchronous_queue_submits" ]]; then
     launch_environment+=("SIMCTL_CHILD_MVK_CONFIG_SYNCHRONOUS_QUEUE_SUBMITS=$mvk_synchronous_queue_submits")
 fi
+live_log "phase=application-launch"
 launch_output="$(run_bounded "application launch" "$launch_timeout" env \
     "${launch_environment[@]}" \
     xcrun simctl launch \
@@ -799,9 +913,14 @@ launch_pid="${launch_output##*: }"
 [[ "$launch_pid" =~ ^[1-9][0-9]*$ ]] || { echo "application launch returned an invalid process identifier" >&2; exit 1; }
 app_launched=1
 record_process_state
+live_log "phase=application-running pid=$launch_pid"
 
 deadline=$(( $(date +%s) + 10#$poll_timeout ))
 absolute_deadline=$(( $(date +%s) + (2 * 10#$poll_timeout) ))
+runtime_wait_started="$(date +%s)"
+next_live_update="$runtime_wait_started"
+entity_stall_started=0
+entity_stall_deadline=0
 progress_size=0
 startup_stack_captured=0
 if ((10#$stack_sample_delay > 0)); then
@@ -824,6 +943,10 @@ while :; do
         progress_size=$current_progress_size
         deadline=$(( $(date +%s) + 10#$poll_timeout ))
         ((deadline <= absolute_deadline)) || deadline=$absolute_deadline
+        if ((entity_stall_started)); then
+            entity_stall_deadline=$(( $(date +%s) + 10#$entity_stall_timeout ))
+        fi
+        live_log "phase=runtime-gates observed=$(world_progress_summary)"
     fi
     fail_if_vulkan_fatal || exit 1
     if ! process_is_running; then
@@ -855,6 +978,39 @@ while :; do
         fi
     fi
     ((ready)) && break
+    current_time="$(date +%s)"
+    entity_source_ready=0
+    entity_handoff_incomplete=0
+    if [[ "$scenario" == serverless ]]; then
+        runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+serverless_import_committed' && entity_source_ready=1
+        if ! runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_tree_nonempty' || \
+                ! runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' || \
+                ! runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+serverless_viewpoint_applied[[:space:]]+success=[[:space:]]+1'; then
+            entity_handoff_incomplete=1
+        fi
+    else
+        runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_data_received' && entity_source_ready=1
+        if ! runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_server_active' || \
+                ! runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_tree_nonempty' || \
+                ! runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff'; then
+            entity_handoff_incomplete=1
+        fi
+    fi
+    if ((entity_source_ready && entity_handoff_incomplete)); then
+        if ((!entity_stall_started)); then
+            entity_stall_started=$current_time
+            entity_stall_deadline=$((current_time + 10#$entity_stall_timeout))
+            live_log "phase=entity-handoff-stall-watch observed=$(world_progress_summary)"
+        elif ((current_time >= entity_stall_deadline)); then
+            report_missing_world_gates
+            echo "$scenario world entity handoff stalled after source data became available" >&2
+            exit 124
+        fi
+    fi
+    if ((current_time >= next_live_update)); then
+        live_log "phase=runtime-gates-wait elapsed_seconds=$((current_time - runtime_wait_started)) observed=$(world_progress_summary)"
+        next_live_update=$((current_time + live_update_interval_seconds))
+    fi
     if ! kill -0 "$log_stream_pid" 2>/dev/null; then
         stream_status=0
         fail_stopped_log_stream || stream_status=$?
@@ -865,8 +1021,9 @@ while :; do
         echo "$scenario world runtime timed out" >&2
         exit 124
     fi
-    sleep "$poll_interval"
+    sleep_until_next_live_update
 done
+live_log "phase=runtime-gates-ready observed=$(world_progress_summary)"
 
 # The entity handoff precedes the first composited framebuffer.  On the
 # simulator that gap is material, so a fixed short sleep can capture the
@@ -877,6 +1034,9 @@ done
 # final fail-closed presentation proof.
 if [[ "$capture_only" == 0 ]]; then
     output_deadline=$(( $(date +%s) + 10#$poll_timeout ))
+    framebuffer_wait_started="$(date +%s)"
+    next_live_update="$framebuffer_wait_started"
+    live_log "phase=framebuffer-wait"
     while :; do
         if runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' && \
                 renderer_output_observed; then
@@ -889,12 +1049,18 @@ if [[ "$capture_only" == 0 ]]; then
         refresh_runtime_log_snapshot
         fail_if_vulkan_fatal || exit 1
         process_is_running || { echo "application process exited before world framebuffer output" >&2; exit 1; }
+        current_time="$(date +%s)"
+        if ((current_time >= next_live_update)); then
+            live_log "phase=framebuffer-wait elapsed_seconds=$((current_time - framebuffer_wait_started)) observed=$(world_progress_summary)"
+            next_live_update=$((current_time + live_update_interval_seconds))
+        fi
         if (( $(date +%s) >= output_deadline )); then
             echo "$scenario world framebuffer output timed out" >&2
             exit 124
         fi
-        sleep "$poll_interval"
+        sleep_until_next_live_update
     done
+    live_log "phase=framebuffer-ready observed=$(world_progress_summary)"
 fi
 
 # Keep the log subscriber alive through the final presentation interval: a
@@ -910,7 +1076,10 @@ kill -0 "$log_stream_pid" 2>/dev/null || {
     exit "$stream_status"
 }
 screenshot_deadline=$(( $(date +%s) + 10#$screenshot_wait ))
+screenshot_attempt=0
 while :; do
+    screenshot_attempt=$((screenshot_attempt + 1))
+    live_log "phase=screenshot-capture attempt=$screenshot_attempt"
     pause_application_for_screenshot
     run_bounded "world screenshot" 30 xcrun simctl io "$active_udid" screenshot "$screenshot" >/dev/null
     if [[ "$capture_only" == 1 ]] || python3 "$screenshot_validator" "$screenshot" \
@@ -918,8 +1087,10 @@ while :; do
         # Keep the accepted framebuffer frozen while logs and evidence are
         # assembled. This prevents unrelated late pipeline compilation from
         # replacing or invalidating an already proven frame.
+        live_log "phase=screenshot-accepted attempt=$screenshot_attempt"
         break
     fi
+    live_log "phase=screenshot-retry attempt=$screenshot_attempt"
     resume_application_after_screenshot
     if (( $(date +%s) >= screenshot_deadline )); then
         echo "$scenario world screenshot detail timed out" >&2
