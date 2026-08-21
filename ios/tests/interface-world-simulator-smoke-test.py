@@ -60,7 +60,8 @@ SERVERLESS_LOG = LOG_STREAM_FILTER_BANNER + "\n".join(
     (
         "Overte OVERTE_IOS_WORLD_GATE navigation_requested kind= serverless destination= serverless_tutorial",
         "Overte OVERTE_IOS_WORLD_GATE serverless_import_committed scene= serverless_tutorial",
-        "Overte OVERTE_IOS_VULKAN_PRESENT output_ready=1 source=1206x2334 target=1206x2334",
+        "Overte OVERTE_IOS_VULKAN_DRAW batch=Resample::run stage=draw_pass_complete",
+        "Overte OVERTE_IOS_VULKAN_DRAW batch=CompositeHUD stage=draw_pass_complete",
         f"Overte OVERTE_IOS_ENTITY_GATE entity_tree_nonempty entity= {{{ENTITY}}}",
         f"Overte OVERTE_IOS_ENTITY_GATE render_handoff entity= {{{ENTITY}}}",
     )

@@ -505,6 +505,17 @@ runtime_log_contains() {
     grep -Eq "$pattern" "$log_snapshot" "$raw_log" "$app_stdout" "$app_stderr"
 }
 
+renderer_output_observed() {
+    # The state-transition marker can be emitted before unified-log capture
+    # attaches. Resample plus final CompositeHUD completion is repeated every
+    # frame; the later screenshot validator remains the fail-closed proof that
+    # those commands reached the swapchain with visible world detail.
+    runtime_log_contains 'OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1' || {
+        runtime_log_contains 'OVERTE_IOS_VULKAN_DRAW[[:space:]]+batch=Resample::run[[:space:]]+stage=draw_pass_complete' &&
+            runtime_log_contains 'OVERTE_IOS_VULKAN_DRAW[[:space:]]+batch=CompositeHUD[[:space:]]+stage=draw_pass_complete'
+    }
+}
+
 refresh_runtime_log_snapshot() {
     [[ -n "$active_udid" && "$launch_pid" =~ ^[1-9][0-9]*$ ]] || return 0
     local snapshot_candidate="$temp_root/process-snapshot.next" status=0
@@ -729,7 +740,7 @@ while :; do
     ready=0
     if [[ "$capture_only" == 1 ]]; then
         runtime_log_contains 'OVERTE_IOS_VULKAN_DRAW[[:space:]]+batch=Resample::run[[:space:]]+stage=draw_pass_complete' && \
-            runtime_log_contains 'OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1' && ready=1
+            renderer_output_observed && ready=1
     elif runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+navigation_requested'; then
         if [[ "$scenario" == serverless ]]; then
             runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+serverless_import_committed' && \
@@ -765,15 +776,15 @@ done
 # The entity handoff precedes the first composited framebuffer.  On the
 # simulator that gap is material, so a fixed short sleep can capture the
 # startup clear rather than the world. Require the renderer's durable output
-# transition before the optional final settle interval. output_ready is a
-# durable backend state transition and can race slightly ahead of the entity
-# handoff on a fast frame; requiring log-line order would then wait forever for
-# a marker that is intentionally emitted only once.
+# transition before the optional final settle interval. The one-shot present
+# marker can precede log attachment, so repeated completion of both final
+# renderer batches is also accepted here; screenshot validation remains the
+# final fail-closed presentation proof.
 if [[ "$capture_only" == 0 ]]; then
     output_deadline=$(( $(date +%s) + 10#$poll_timeout ))
     while :; do
         if runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' && \
-                runtime_log_contains 'OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1'; then
+                renderer_output_observed; then
             if ((10#$stack_sample_delay > 0)) && ((!startup_stack_captured)); then
                 capture_startup_stack
                 startup_stack_captured=1
