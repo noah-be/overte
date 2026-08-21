@@ -103,6 +103,8 @@ assert 'current_progress_size="$(wc -c < "$marker_log"' in SMOKE
 assert "deadline=$(( $(date +%s) + 10#$poll_timeout ))" in SMOKE
 assert "absolute_deadline=$(( $(date +%s) + (2 * 10#$poll_timeout) ))" in SMOKE
 assert "report_missing_world_gates" in SMOKE
+assert 'python3 "$entity_gate_validator" "$candidate"' in SMOKE
+assert 'for source in "$log_snapshot" "$raw_log" "$app_stdout" "$app_stderr"' in SMOKE
 stream_predicate = SMOKE[SMOKE.index('log stream \\\n'):]
 assert 'process == \\"Overte\\"' not in stream_predicate.split('> "$raw_log"', 1)[0]
 assert 'OVERTE_IOS_VULKAN_DRAW' not in stream_predicate.split('> "$raw_log"', 1)[0]

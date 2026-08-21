@@ -9,6 +9,7 @@ readonly timeout_runner="$script_dir/../tools/run-with-timeout.py"
 readonly simulator_selector="$script_dir/../tools/select-simulator.py"
 readonly screenshot_validator="$script_dir/../tools/validate-world-screenshot.py"
 readonly world_validator="$script_dir/../tools/validate-world-runtime.py"
+readonly entity_gate_validator="$script_dir/../tools/validate-entity-gate-log.py"
 readonly timeout_grace_seconds=300
 
 app_path="${1:-}"
@@ -102,7 +103,7 @@ fi
     echo "OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS must be empty or an integer from 0 through 6" >&2
     exit 2
 }
-for helper in "$timeout_runner" "$simulator_selector" "$screenshot_validator" "$world_validator"; do
+for helper in "$timeout_runner" "$simulator_selector" "$screenshot_validator" "$world_validator" "$entity_gate_validator"; do
     [[ -f "$helper" ]] || { echo "iOS world test helper is unavailable" >&2; exit 2; }
 done
 
@@ -605,8 +606,28 @@ fail_if_vulkan_fatal() {
 
 assemble_runtime_log() {
     retain_acceptance_markers
+    if [[ "$scenario" == online ]]; then
+        local source candidate="$temp_root/runtime-candidate.log"
+        local navigation
+        navigation="$(grep -Em1 'OVERTE_IOS_WORLD_GATE[[:space:]]+navigation_requested' "$marker_log")"
+        for source in "$log_snapshot" "$raw_log" "$app_stdout" "$app_stderr"; do
+            [[ -s "$source" ]] || continue
+            {
+                printf '%s\n' "$navigation"
+                sed -nE 's/^.*(OVERTE_IOS_ENTITY_GATE[[:space:]]+.*)$/\1/p' "$source"
+            } > "$candidate"
+            if python3 "$entity_gate_validator" "$candidate" >/dev/null 2>&1; then
+                mv "$candidate" "$runtime_log"
+                return
+            fi
+        done
+        rm -f "$candidate"
+    fi
     # Validation consumes only the canonical ledger. Mixing timestamped raw
     # sources back in would turn one gate into multiple logical occurrences.
+    # For online runs, prefer one individually validated chronological source
+    # above: independently refreshed snapshots can discover older events after
+    # newer ones and therefore cannot define event order by discovery time.
     cp "$marker_log" "$runtime_log"
 }
 
