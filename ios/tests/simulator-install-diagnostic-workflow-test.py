@@ -97,7 +97,15 @@ for snapshot_command in (
 ):
     assert snapshot_command in SMOKE
 assert "runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff'" in SMOKE
-assert "runtime_log_contains 'OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1'" in SMOKE
+assert "runtime_log_contains 'OVERTE_IOS_VULKAN_PRESENT.*output_ready=1'" in SMOKE
+assert 'cat "$marker_log"' in SMOKE
+assert 'current_progress_size="$(wc -c < "$marker_log"' in SMOKE
+assert "deadline=$(( $(date +%s) + 10#$poll_timeout ))" in SMOKE
+assert "absolute_deadline=$(( $(date +%s) + (2 * 10#$poll_timeout) ))" in SMOKE
+assert "report_missing_world_gates" in SMOKE
+stream_predicate = SMOKE[SMOKE.index('log stream \\\n'):]
+assert 'process == \\"Overte\\"' not in stream_predicate.split('> "$raw_log"', 1)[0]
+assert 'OVERTE_IOS_VULKAN_DRAW' not in stream_predicate.split('> "$raw_log"', 1)[0]
 stack_schedule = SMOKE.index('startup_stack_captured=0')
 assert SMOKE.index('sleep "$stack_sample_delay"', stack_schedule) < SMOKE.index(
     "refresh_runtime_log_snapshot", stack_schedule

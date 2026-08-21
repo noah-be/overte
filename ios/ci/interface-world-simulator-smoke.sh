@@ -246,7 +246,8 @@ preserve_failure_application_log() {
     local source label size
     {
         printf '%s\n' '=== retained acceptance markers ==='
-        grep -Eh 'OVERTE_IOS_(WORLD|ENTITY)_GATE|OVERTE_IOS_(WORLD_DIAGNOSTIC|VULKAN_FATAL|VULKAN_DEBUG|VULKAN_PIPELINE_CONTEXT|VULKAN_PIPELINE_CREATE|VULKAN_DRAW|VULKAN_PRESENT)' \
+        cat "$marker_log" 2>/dev/null || true
+        grep -Eh 'OVERTE_IOS_(WORLD_DIAGNOSTIC|VULKAN_FATAL|VULKAN_DEBUG|VULKAN_PIPELINE_CONTEXT|VULKAN_PIPELINE_CREATE|VULKAN_PRESENT)' \
             "$log_snapshot" "$raw_log" "$app_stdout" "$app_stderr" 2>/dev/null | tail -c 131072 || true
         for source in "$log_snapshot" "$raw_log" "$app_stdout" "$app_stderr"; do
             case "$source" in
@@ -512,10 +513,41 @@ renderer_output_observed() {
     # attaches. Resample plus final CompositeHUD completion is repeated every
     # frame; the later screenshot validator remains the fail-closed proof that
     # those commands reached the swapchain with visible world detail.
-    runtime_log_contains 'OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1' || {
+    runtime_log_contains 'OVERTE_IOS_VULKAN_PRESENT.*output_ready=1' || {
         runtime_log_contains 'OVERTE_IOS_VULKAN_DRAW[[:space:]]+batch=Resample::run[[:space:]]+stage=draw_pass_complete' &&
             runtime_log_contains 'OVERTE_IOS_VULKAN_DRAW[[:space:]]+batch=CompositeHUD[[:space:]]+stage=draw_pass_complete'
     }
+}
+
+report_missing_world_gates() {
+    local marker pattern
+    local -a required=(
+        'OVERTE_IOS_WORLD_GATE[[:space:]]+navigation_requested'
+    )
+    if [[ "$scenario" == serverless ]]; then
+        required+=(
+            'OVERTE_IOS_WORLD_GATE[[:space:]]+serverless_import_committed'
+            'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_tree_nonempty'
+            'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff'
+        )
+    else
+        required+=(
+            'OVERTE_IOS_ENTITY_GATE[[:space:]]+domain_list_connected'
+            'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_server_active'
+            'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_query_sent'
+            'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_data_received'
+            'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_tree_nonempty'
+            'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff'
+        )
+    fi
+    for pattern in "${required[@]}"; do
+        if ! runtime_log_contains "$pattern"; then
+            marker="${pattern#*+}"
+            marker="${marker//\[[:space:]\]/ }"
+            printf 'missing_runtime_gate=%s\n' "$marker" >&2
+        fi
+    done
+    renderer_output_observed || printf '%s\n' 'missing_runtime_gate=renderer_output' >&2
 }
 
 retain_acceptance_markers() {
@@ -538,23 +570,15 @@ refresh_runtime_log_snapshot() {
     rm -f "$snapshot_candidate"
     "$timeout_runner" 308 xcrun simctl spawn "$active_udid" log show \
         --last 2m --style compact --info --debug \
-        --predicate "processIdentifier == $launch_pid AND (eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DRAW\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PRESENT\")" \
+        --predicate "processIdentifier == $launch_pid AND (eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PRESENT\")" \
         > "$snapshot_candidate" 2>/dev/null || status=$?
     if ((status == 0)); then
         mv "$snapshot_candidate" "$log_snapshot"
         # Persist sparse one-shot gates across the rolling two-minute snapshot
         # and the independently captured stream/stdout/stderr sources.
         retain_acceptance_markers
-        grep -Eh '(^|[[:space:]])OVERTE_IOS_VULKAN_FATAL[[:space:]]|OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1' \
+        grep -Eh '(^|[[:space:]])OVERTE_IOS_VULKAN_FATAL[[:space:]]|OVERTE_IOS_VULKAN_PRESENT.*output_ready=1' \
             "$log_snapshot" >> "$marker_log" 2>/dev/null || true
-        for marker in \
-            'Resample::run' \
-            'CompositeHUD'; do
-            if grep -Eq "OVERTE_IOS_VULKAN_DRAW[[:space:]]+batch=${marker}[[:space:]]+stage=draw_pass_complete" "$log_snapshot" && \
-                    ! grep -Fq "batch=${marker} stage=draw_pass_complete" "$marker_log"; then
-                printf 'OVERTE_IOS_VULKAN_DRAW batch=%s stage=draw_pass_complete\n' "$marker" >> "$marker_log"
-            fi
-        done
         awk '!seen[$0]++' "$marker_log" > "$marker_log.next"
         mv "$marker_log.next" "$marker_log"
     else
@@ -709,7 +733,7 @@ run_bounded "simulator microphone permission" 60 xcrun simctl privacy \
 log_stream_timeout=$((10#$launch_timeout + (2 * 10#$poll_timeout) + 60))
 "$timeout_runner" "$log_stream_timeout" xcrun simctl spawn "$active_udid" log stream \
     --style compact --level debug \
-    --predicate "(process == \"Overte\" OR eventMessage CONTAINS \"$bundle_id\" OR eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DRAW\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PRESENT\")" \
+    --predicate "(eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PRESENT\")" \
     > "$raw_log" 2> "$log_stream_stderr" &
 log_stream_pid=$!
 # Give CoreSimulator's log subscriber a bounded head start. Merely spawning the
@@ -750,6 +774,8 @@ app_launched=1
 record_process_state
 
 deadline=$(( $(date +%s) + 10#$poll_timeout ))
+absolute_deadline=$(( $(date +%s) + (2 * 10#$poll_timeout) ))
+progress_size=0
 startup_stack_captured=0
 if ((10#$stack_sample_delay > 0)); then
     # Diagnostic runs must attach before the first persisted-log query. That
@@ -766,6 +792,12 @@ while :; do
     # simulator's persisted log for this exact process so accepted gates become
     # visible promptly, while retaining the continuous stream for crash tails.
     refresh_runtime_log_snapshot
+    current_progress_size="$(wc -c < "$marker_log" | tr -d '[:space:]')"
+    if ((current_progress_size > progress_size)); then
+        progress_size=$current_progress_size
+        deadline=$(( $(date +%s) + 10#$poll_timeout ))
+        ((deadline <= absolute_deadline)) || deadline=$absolute_deadline
+    fi
     fail_if_vulkan_fatal || exit 1
     if ! process_is_running; then
         # Give the unified log stream one bounded opportunity to flush a fatal
@@ -801,6 +833,7 @@ while :; do
         exit "$stream_status"
     fi
     if (( $(date +%s) >= deadline )); then
+        report_missing_world_gates
         echo "$scenario world runtime timed out" >&2
         exit 124
     fi

@@ -401,7 +401,10 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
             snapshots = [line for line in commands if " log show --last 2m " in f" {line} "]
             assert snapshots and f"processIdentifier == {app_pid_file.read_text().strip()}" in snapshots[-1]
             assert not any(" log show --last 5m " in f" {line} " for line in commands), commands
-            assert 'process == "Overte"' in streams[0], streams
+            assert 'process == "Overte"' not in streams[0], streams
+            assert "OVERTE_IOS_WORLD_GATE" in streams[0], streams
+            assert "OVERTE_IOS_ENTITY_GATE" in streams[0], streams
+            assert "OVERTE_IOS_VULKAN_DRAW" not in streams[0], streams
             assert "--level debug" in streams[0], streams
             assert "OVERTE_IOS_VULKAN_FATAL" in streams[0], streams
             assert "OVERTE_IOS_VULKAN_DEBUG" in streams[0], streams
