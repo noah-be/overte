@@ -155,7 +155,17 @@ def validate(path: Path, scenario: str, destination: str) -> dict[str, object]:
     luminance = [(54 * red + 183 * green + 19 * blue) / 256 for red, green, blue in pixels]
     average = sum(luminance) / len(luminance)
     deviation = math.sqrt(sum((value - average) ** 2 for value in luminance) / len(luminance))
-    if len(buckets) < 24 or deviation < 6.0:
+    # A textured skybox is valid presentation evidence, but it is not proof
+    # that world geometry is visible. Require a small amount of bright neutral
+    # or non-blue content so a star field alone cannot satisfy the world test.
+    world_detail = sum(
+        red > blue + 10
+        or green > blue + 10
+        or (max(red, green, blue) - min(red, green, blue) < 15 and max(red, green, blue) > 80)
+        for red, green, blue in pixels
+    )
+    world_detail_fraction = world_detail / len(pixels)
+    if len(buckets) < 24 or deviation < 6.0 or world_detail_fraction < 0.005:
         raise ScreenshotError("screenshot is blank or lacks visible world detail")
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     return {
@@ -170,6 +180,7 @@ def validate(path: Path, scenario: str, destination: str) -> dict[str, object]:
         "sampledVisiblePixels": len(pixels),
         "quantizedColorBuckets": len(buckets),
         "luminanceStandardDeviation": round(deviation, 3),
+        "worldDetailFraction": round(world_detail_fraction, 6),
     }
 
 

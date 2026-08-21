@@ -35,13 +35,16 @@ def chunk(kind: bytes, payload: bytes) -> bytes:
     )
 
 
-def png_bytes(width: int = 400, height: int = 400, *, blank: bool = False) -> bytes:
+def png_bytes(width: int = 400, height: int = 400, *, blank: bool = False, blue_sky: bool = False) -> bytes:
     rows = bytearray()
     for y in range(height):
         rows.append(0)
         for x in range(width):
             if blank:
                 rows.extend((24, 24, 24))
+            elif blue_sky:
+                star = 70 if (x * 17 + y * 31) % 997 == 0 else 0
+                rows.extend((6 + star, 16 + star, 70 + star))
             else:
                 rows.extend(((x * 3 + y) % 256, (y * 5 + x // 2) % 256, (x ^ y) % 256))
     header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
@@ -151,6 +154,14 @@ with tempfile.TemporaryDirectory(prefix="overte-ios-world-evidence-test-") as di
     blank_result = run_screenshot(blank, "online", "overte_hub", root / "blank.json")
     assert blank_result.returncode == 1, blank_result.stderr
     assert "blank or lacks visible world detail" in blank_result.stderr
+
+    blue_sky = root / "blue-sky.png"
+    blue_sky.write_bytes(png_bytes(blue_sky=True))
+    blue_sky_result = run_screenshot(
+        blue_sky, "serverless", "serverless_tutorial", root / "blue-sky.json"
+    )
+    assert blue_sky_result.returncode == 1, blue_sky_result.stderr
+    assert "blank or lacks visible world detail" in blue_sky_result.stderr
 
     corrupt = root / "corrupt.png"
     damaged = bytearray(png_bytes())
