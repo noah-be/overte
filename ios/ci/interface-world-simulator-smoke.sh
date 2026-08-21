@@ -750,8 +750,17 @@ app_launched=1
 record_process_state
 
 deadline=$(( $(date +%s) + 10#$poll_timeout ))
-sample_deadline=$(( $(date +%s) + 10#$stack_sample_delay ))
 startup_stack_captured=0
+if ((10#$stack_sample_delay > 0)); then
+    # Diagnostic runs must attach before the first persisted-log query. That
+    # query can itself take longer than the requested delay and otherwise miss
+    # a startup crash entirely.
+    sleep "$stack_sample_delay"
+    if process_is_running; then
+        capture_startup_stack
+    fi
+    startup_stack_captured=1
+fi
 while :; do
     # `log stream` can block-buffer when redirected to a file. Query the
     # simulator's persisted log for this exact process so accepted gates become
@@ -786,11 +795,6 @@ while :; do
         fi
     fi
     ((ready)) && break
-    if ((10#$stack_sample_delay > 0)) && ((!startup_stack_captured)) && \
-            (( $(date +%s) >= sample_deadline )); then
-        capture_startup_stack
-        startup_stack_captured=1
-    fi
     if ! kill -0 "$log_stream_pid" 2>/dev/null; then
         stream_status=0
         fail_stopped_log_stream || stream_status=$?
@@ -824,11 +828,6 @@ if [[ "$capture_only" == 0 ]]; then
         refresh_runtime_log_snapshot
         fail_if_vulkan_fatal || exit 1
         process_is_running || { echo "application process exited before world framebuffer output" >&2; exit 1; }
-        if ((10#$stack_sample_delay > 0)) && ((!startup_stack_captured)) && \
-                (( $(date +%s) >= sample_deadline )); then
-            capture_startup_stack
-            startup_stack_captured=1
-        fi
         if (( $(date +%s) >= output_deadline )); then
             echo "$scenario world framebuffer output timed out" >&2
             exit 124
