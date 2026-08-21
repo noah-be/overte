@@ -113,12 +113,14 @@ with tempfile.TemporaryDirectory() as temporary:
     crash_completion_result = output / "crash-completion-result.json"
     crash_after_completion = subprocess.run(
         [sys.executable, str(SUPERVISOR), "--timeout", "5", "--grace", "0.1",
+         "--completion-settle", "2",
          "--log", str(output / "crash-completion.log"),
          "--result", str(crash_completion_result),
          "--completion-file", str(crash_completion_file), "--",
          sys.executable, "-c",
-         "import os,pathlib,signal,sys; "
-         "pathlib.Path(sys.argv[1]).write_text('complete\\n'); "
+        "import os,pathlib,resource,signal,sys; "
+        "resource.setrlimit(resource.RLIMIT_CORE, (0, 0)); "
+        "pathlib.Path(sys.argv[1]).write_text('complete\\n'); "
          "os.kill(os.getpid(), signal.SIGSEGV)", str(crash_completion_file)],
         check=False,
         timeout=5,
