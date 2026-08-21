@@ -68,6 +68,7 @@ readonly rendering_contracts=(
     ios-offscreen-qml-backend-audit-test.py
     ios-opengles-compatibility-link-test.py
     ios-rendering-backend-contract-test.py
+    ios-vulkan-buffer-upload-barrier-test.py
     ios-vulkan-device-creation-contract-test.py
     ios-vulkan-external-texture-gate-test.py
     ios-vulkan-hybrid-gl-migration-test.py

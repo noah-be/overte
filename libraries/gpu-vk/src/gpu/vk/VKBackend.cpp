@@ -1392,7 +1392,7 @@ void VKBackend::renderPassTransfer(const Batch& batch) {
         vkCmdPipelineBarrier(
             _currentCommandBuffer,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+            VKBuffer::READ_PIPELINE_STAGES,
             VK_FLAGS_NONE,
             0, nullptr,
             _currentFrame->bufferBarriers.size(), _currentFrame->bufferBarriers.data(),
