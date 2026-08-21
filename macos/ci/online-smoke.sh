@@ -25,12 +25,12 @@ readonly entity_inventory="$output_dir/macos-online-entities.json"
 readonly entity_validation="$output_dir/online-entity-validation.json"
 readonly completion="$output_dir/macos-online-smoke-completion.json"
 readonly completion_validation="$output_dir/online-completion-validation.json"
-readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-600}"
+readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-1200}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
 readonly lldb_timeout_seconds="${OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-90}"
 
 export OVERTE_MACOS_GL_DIAGNOSTICS=1
-export OVERTE_TEST_NETWORK_SILENCE_SECONDS=600
+export OVERTE_TEST_NETWORK_SILENCE_SECONDS=1200
 
 [[ "$(uname -s)" == Darwin ]] || { echo "online smoke requires macOS" >&2; exit 1; }
 [[ -x "$executable" ]] || { echo "missing executable: $executable" >&2; exit 1; }

@@ -1003,7 +1003,7 @@ assert "URL_SCHEME_OVERTE" in online_smoke, "online smoke must document its comp
 assert "overte://overte_hub" not in online_smoke, "unsupported product-name scheme must not silently no-op"
 assert "overte://welcome" not in online_smoke, "the retired welcome place must not be used"
 for source, token in (
-    (online_smoke, "OVERTE_TEST_NETWORK_SILENCE_SECONDS=600"),
+    (online_smoke, "OVERTE_TEST_NETWORK_SILENCE_SECONDS=1200"),
     (domain_handler_source, "silentDomainCheckinLimit()"),
     (limited_node_list_source, "nodeSilenceThresholdMsecs()"),
 ):
@@ -1198,7 +1198,7 @@ for crash_report_location in (
         raise SystemExit(f"runtime crash-report search missing: {crash_report_location}")
 for smoke_name, smoke_source, maximum, cleanup_contract in (
     ("serverless", smoke, 720, 'rm -f "$snapshot" "$warmup_snapshot" "$screenshot_result"'),
-    ("online", online_smoke, 720, 'rm -f "$snapshot" "$screenshot_result"'),
+    ("online", online_smoke, 1200, 'rm -f "$snapshot" "$screenshot_result"'),
 ):
     default_timeout = re.search(
         r'OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-([0-9]+)', smoke_source
@@ -1310,7 +1310,7 @@ for online_timing_contract in (
     "snapshotSettleDeadline = Date.now() + 300000",
     "snapshot_still_pending",
     "if (success)",
-    "Date.now() + 540000",
+    "Date.now() + 1140000",
 ):
     if online_timing_contract not in online_script:
         raise SystemExit(
@@ -1320,7 +1320,7 @@ if online_script.index("saveEntityInventory(latestInventory)") > online_script.i
     "Window.takeSnapshot"
 ):
     raise SystemExit("online smoke must freeze its correlated inventory before capture")
-if 'OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-600' not in online_smoke:
+if 'OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-1200' not in online_smoke:
     raise SystemExit("online smoke must cover the measured software-renderer frame budget")
 if 'finish(true, "snapshot_settle_elapsed")' in online_script:
     raise SystemExit("online smoke must never treat a pending PNG callback as success")

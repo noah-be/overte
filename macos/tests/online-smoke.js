@@ -24,10 +24,10 @@
 
     // The hosted Intel runner exposes Apple's software OpenGL renderer.  A
     // public-domain model pipeline has been measured taking just over three
-    // minutes to compile there even though the process remains CPU-active.
-    // Keep the in-app deadline below the external 600-second supervisor while
-    // leaving enough room for that first visible online frame.
-    var deadline = Date.now() + 540000;
+    // minutes per pipeline to compile there even though the process remains
+    // CPU-active. A real Hub frame has required multiple serial pipelines, so
+    // keep the in-app deadline below the external 1200-second supervisor.
+    var deadline = Date.now() + 1140000;
     var snapshotStage = "waiting";
     var snapshotSettleDeadline = 0;
     var snapshotPendingReported = false;
