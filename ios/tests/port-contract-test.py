@@ -1356,7 +1356,10 @@ def test_ci_contract() -> None:
     require_text(workflow, r"runs-on: ubuntu-24\.04", "host contracts need an independent Linux gate")
     require_text(workflow, r"needs: host-contracts", "macOS CI must wait for host contracts")
     require_text(workflow, r"persist-credentials: false", "checkout credentials must not persist")
-    require_text(workflow, r"simulator-smoke\.sh", "CI must launch both form factors")
+    require_text(workflow, r"families=iphone", "pull requests must retain a fast iPhone smoke test")
+    require_text(workflow, r'families="iphone ipad"', "full and touch-relevant runs must cover iPhone and iPad")
+    require_text(workflow, r"interface/resources/qml/", "touch QML changes must trigger iPad coverage")
+    require_text(workflow, r"simulator-smoke\.sh", "CI must launch the selected form factors")
     require_text(workflow, r"verify-app\.sh", "CI must inspect the produced bundle")
     require_text(workflow, r"unsigned-device-sdk:", "CI must compile against the physical-device SDK")
     require_text(workflow, r"package --platform device", "device SDK CI must build and package the arm64 device target")
@@ -1447,7 +1450,8 @@ def test_ci_contract() -> None:
     require_text(ios_cmake, r"\$<CONFIG>-\$\{OVERTE_IOS_SDK_NAME\}/OverteIOSBootstrap\.app", "compiled Metal shaders must use the flat iOS app path")
 
     smoke = IOS_ROOT / "ci" / "simulator-smoke.sh"
-    require_text(smoke, r"for family in iphone ipad", "smoke tier must cover iPhone and iPad")
+    require_text(smoke, r"families=", "smoke tier must accept an explicit simulator family scope")
+    require_text(smoke, r'for family in "\$\{family_list\[@\]\}"', "smoke tier must run every selected form factor")
     require_text(smoke, r"select-simulator\.py", "simulator choice must use the tested selector")
     require_text(smoke, r"simctl io.*screenshot", "simulator failures must preserve a screenshot")
     require_text(smoke, r"log show", "simulator failures must preserve app logs")

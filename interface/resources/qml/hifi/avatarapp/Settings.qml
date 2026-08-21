@@ -9,7 +9,11 @@ import "../../controls" as HifiControls
 Rectangle {
     id: root
 
-    AvatarTouchConfiguration { id: touchConfiguration }
+    AvatarTouchConfiguration {
+        id: touchConfiguration
+        availableWidth: root.width
+        availableHeight: root.height
+    }
 
     color: 'white'
     visible: false;
@@ -91,10 +95,12 @@ Rectangle {
     MouseArea {
         anchors.fill: parent;
         propagateComposedEvents: false;
-        hoverEnabled: true;
+        hoverEnabled: touchConfiguration.hoverSupported;
+        Accessible.ignored: true
     }
 
-    Item {
+    Flickable {
+        id: settingsViewport
         anchors.left: parent.left
         anchors.leftMargin: 27
         anchors.top: parent.top
@@ -103,6 +109,22 @@ Rectangle {
         anchors.rightMargin: touchConfiguration.settingsRightMargin
         anchors.bottom: parent.bottom
         anchors.bottomMargin: touchConfiguration.settingsBottomMargin
+        contentWidth: width
+        contentHeight: Math.max(height,
+            avatarCollisionLayout.y + avatarCollisionLayout.height
+                + dialogButtons.height + touchConfiguration.spacingLarge * 2)
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        pressDelay: touchConfiguration.pressDelay
+        flickDeceleration: touchConfiguration.flickDeceleration
+        maximumFlickVelocity: touchConfiguration.maximumFlickVelocity
+
+        ScrollBar.vertical: HifiControlsUit.ScrollBar { }
+
+        Item {
+            id: settingsContent
+            width: settingsViewport.width
+            height: settingsViewport.contentHeight
 
         RowLayout {
             id: avatarScaleRow
@@ -113,7 +135,7 @@ Rectangle {
 
             // TextStyle9
             RalewaySemiBold {
-                size: 17;
+                size: Math.round(17 * touchConfiguration.textScale);
                 text: "Avatar Scale"
                 verticalAlignment: Text.AlignVCenter
                 Layout.alignment: Qt.AlignVCenter
@@ -126,7 +148,7 @@ Rectangle {
                 spacing: 0
 
                 HiFiGlyphs {
-                    size: 30
+                    size: Math.round(30 * touchConfiguration.textScale)
                     text: 'T'
                     verticalAlignment: Text.AlignVCenter
                     horizontalAlignment: Text.AlignHCenter
@@ -153,7 +175,7 @@ Rectangle {
 
                     // TextStyle9
                     RalewaySemiBold {
-                        size: 17;
+                        size: Math.round(17 * touchConfiguration.textScale);
                         anchors.left: scaleSlider.left
                         anchors.leftMargin: 5
                         anchors.top: scaleSlider.bottom
@@ -163,7 +185,7 @@ Rectangle {
 
                     // TextStyle9
                     RalewaySemiBold {
-                        size: 17;
+                        size: Math.round(17 * touchConfiguration.textScale);
                         anchors.right: scaleSlider.right
                         anchors.rightMargin: 5
                         anchors.top: scaleSlider.bottom
@@ -173,7 +195,7 @@ Rectangle {
                 }
 
                 HiFiGlyphs {
-                    size: 40
+                    size: Math.round(40 * touchConfiguration.textScale)
                     text: 'T'
                     verticalAlignment: Text.AlignVCenter
                     horizontalAlignment: Text.AlignHCenter
@@ -182,8 +204,13 @@ Rectangle {
             }
 
             ShadowRectangle {
-                width: 37
-                height: 28
+                width: Math.max(37, touchConfiguration.adaptiveMinimumControlHeight)
+                height: Math.max(28, touchConfiguration.adaptiveMinimumControlHeight)
+                activeFocusOnTab: true
+                Accessible.role: Accessible.Button
+                Accessible.name: qsTr("Reset avatar scale")
+                Accessible.description: qsTr("Set avatar scale to one")
+                Accessible.onPressAction: scaleSlider.value = 10
                 AvatarAppStyle {
                     id: style
                 }
@@ -199,15 +226,20 @@ Rectangle {
                     color: 'white'
                     anchors.centerIn: parent
                     text: "1x"
-                    size: 18
+                    size: Math.round(18 * touchConfiguration.textScale)
                 }
 
                 MouseArea {
                     anchors.fill: parent
+                    Accessible.ignored: true
                     onClicked: {
                         scaleSlider.value = 10
                     }
                 }
+
+                Keys.onReturnPressed: scaleSlider.value = 10
+                Keys.onEnterPressed: scaleSlider.value = 10
+                Keys.onSpacePressed: scaleSlider.value = 10
             }
         }
 
@@ -225,7 +257,7 @@ Rectangle {
 
             // TextStyle9
             RalewaySemiBold {
-                size: 17;
+                size: Math.round(17 * touchConfiguration.textScale);
                 Layout.row: 0
                 Layout.column: 0
                 visible: touchConfiguration.showDominantHand
@@ -249,7 +281,7 @@ Rectangle {
                 checked: true
 
                 colorScheme: hifi.colorSchemes.light
-                fontSize: 17
+                fontSize: Math.round(17 * touchConfiguration.textScale)
                 letterSpacing: 1.4
                 text: "Left"
                 boxSize: 20
@@ -266,7 +298,7 @@ Rectangle {
                 ButtonGroup.group: leftRight
 
                 colorScheme: hifi.colorSchemes.light
-                fontSize: 17
+                fontSize: Math.round(17 * touchConfiguration.textScale)
                 letterSpacing: 1.4
                 text: "Right"
                 boxSize: 20
@@ -278,7 +310,7 @@ Rectangle {
 
             // TextStyle9
             RalewaySemiBold {
-                size: 17;
+                size: Math.round(17 * touchConfiguration.textScale);
                 Layout.row: 1
                 Layout.column: 0
                 text: "Avatar to avatar collision"
@@ -298,7 +330,7 @@ Rectangle {
                 ButtonGroup.group: otherAvatarsOnOff
 
                 colorScheme: hifi.colorSchemes.light
-                fontSize: 17
+                fontSize: Math.round(17 * touchConfiguration.textScale)
                 letterSpacing: 1.4
                 text: "On"
                 boxSize: 20
@@ -314,7 +346,7 @@ Rectangle {
                 ButtonGroup.group: otherAvatarsOnOff
 
                 colorScheme: hifi.colorSchemes.light
-                fontSize: 17
+                fontSize: Math.round(17 * touchConfiguration.textScale)
                 letterSpacing: 1.4
                 text: "Off"
                 boxSize: 20
@@ -322,7 +354,7 @@ Rectangle {
 
             // TextStyle9
             RalewaySemiBold {
-                size: 17;
+                size: Math.round(17 * touchConfiguration.textScale);
                 Layout.row: 2
                 Layout.column: 0
                 text: "Avatar to environment collision"
@@ -342,7 +374,7 @@ Rectangle {
                 ButtonGroup.group: worldOnOff
 
                 colorScheme: hifi.colorSchemes.light
-                fontSize: 17
+                fontSize: Math.round(17 * touchConfiguration.textScale)
                 letterSpacing: 1.4
                 text: "On"
                 boxSize: 20
@@ -358,7 +390,7 @@ Rectangle {
                 ButtonGroup.group: worldOnOff
 
                 colorScheme: hifi.colorSchemes.light
-                fontSize: 17
+                fontSize: Math.round(17 * touchConfiguration.textScale)
                 letterSpacing: 1.4
                 text: "Off"
                 boxSize: 20
@@ -366,7 +398,7 @@ Rectangle {
 
             // TextStyle9
             RalewaySemiBold {
-                size: 17;
+                size: Math.round(17 * touchConfiguration.textScale);
                 Layout.row: 3
                 Layout.column: 0
                 visible: touchConfiguration.showHmdAlignment
@@ -389,7 +421,7 @@ Rectangle {
                 checked: true
 
                 colorScheme: hifi.colorSchemes.light
-                fontSize: 17
+                fontSize: Math.round(17 * touchConfiguration.textScale)
                 letterSpacing: 1.4
                 text: "Head"
                 boxSize: 20
@@ -406,7 +438,7 @@ Rectangle {
                 ButtonGroup.group: headEyes
 
                 colorScheme: hifi.colorSchemes.light
-                fontSize: 17
+                fontSize: Math.round(17 * touchConfiguration.textScale)
                 letterSpacing: 1.4
                 text: "Eyes"
                 boxSize: 20
@@ -425,7 +457,7 @@ Rectangle {
 
             // TextStyle9
             RalewaySemiBold {
-                size: 17;
+                size: Math.round(17 * touchConfiguration.textScale);
                 text: "Avatar Animation JSON"
                 verticalAlignment: Text.AlignVCenter
                 horizontalAlignment: Text.AlignLeft
@@ -433,12 +465,19 @@ Rectangle {
 
             InputTextStyle4 {
                 id: avatarAnimationUrlInputText
-                font.pixelSize: 17
+                font.pixelSize: Math.round(17 * touchConfiguration.textScale)
                 Layout.fillWidth: true
                 placeholderText: 'user\\ﬁle\\dir'
+                inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText
 
                 onFocusChanged: {
                     keyboardRaised = (avatarAnimationUrlInputText.focus || avatarCollisionSoundUrlInputText.focus);
+                    if (focus) {
+                        Qt.callLater(function () {
+                            touchConfiguration.ensureVisible(settingsViewport,
+                                avatarAnimationUrlInputText)
+                        })
+                    }
                 }
             }
         }
@@ -454,7 +493,7 @@ Rectangle {
 
             // TextStyle9
             RalewaySemiBold {
-                size: 17;
+                size: Math.round(17 * touchConfiguration.textScale);
                 text: "Avatar collision sound URL (optional)"
                 verticalAlignment: Text.AlignVCenter
                 horizontalAlignment: Text.AlignLeft
@@ -462,12 +501,20 @@ Rectangle {
 
             InputTextStyle4 {
                 id: avatarCollisionSoundUrlInputText
-                font.pixelSize: 17
+                font.pixelSize: Math.round(17 * touchConfiguration.textScale)
                 Layout.fillWidth: true
                 placeholderText: "https://cdn-1.vircadia.com/eu-c-1/vircadia-public/sounds/Collisions-"
+                inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase
+                    | Qt.ImhNoPredictiveText
 
                 onFocusChanged: {
                     keyboardRaised = (avatarAnimationUrlInputText.focus || avatarCollisionSoundUrlInputText.focus);
+                    if (focus) {
+                        Qt.callLater(function () {
+                            touchConfiguration.ensureVisible(settingsViewport,
+                                avatarCollisionSoundUrlInputText)
+                        })
+                    }
                 }
             }
         }
@@ -479,6 +526,22 @@ Rectangle {
 
             yesText: "SAVE"
             noText: "CANCEL"
+        }
+        }
+    }
+
+    Connections {
+        target: touchConfiguration
+        function onKeyboardVisibleChanged() {
+            var focusedField = avatarAnimationUrlInputText.activeFocus
+                ? avatarAnimationUrlInputText
+                : avatarCollisionSoundUrlInputText.activeFocus
+                    ? avatarCollisionSoundUrlInputText : null
+            if (touchConfiguration.keyboardVisible && focusedField) {
+                Qt.callLater(function () {
+                    touchConfiguration.ensureVisible(settingsViewport, focusedField)
+                })
+            }
         }
     }
 }
