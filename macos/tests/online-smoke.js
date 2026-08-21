@@ -65,6 +65,7 @@
         var visibleRenderableCount = 0;
         var visiblePrimitiveCount = 0;
         var visibleModelCount = 0;
+        var loadedVisibleModelCount = 0;
         var primitiveTypes = { Box: true, Sphere: true, Shape: true };
         var records = entities.slice(0, captureLimit).map(function (entityID) {
             var properties = Entities.getEntityProperties(entityID, [
@@ -81,6 +82,9 @@
             }
             if (visible && type === "Model") {
                 visibleModelCount += 1;
+                if (Entities.isLoaded(entityID)) {
+                    loadedVisibleModelCount += 1;
+                }
             }
             return {
                 id: String(entityID),
@@ -97,6 +101,7 @@
             visible_renderable_count: visibleRenderableCount,
             visible_primitive_count: visiblePrimitiveCount,
             visible_model_count: visibleModelCount,
+            loaded_visible_model_count: loadedVisibleModelCount,
             type_counts: typeCounts,
             entities: records
         };
@@ -111,12 +116,6 @@
             processing_pending: finiteNumber(Stats.processingPending),
             texture_pending_mb: finiteNumber(Stats.texturePendingTransfers)
         };
-    }
-
-    function queuesEmpty(state) {
-        return state.downloads === 0 && state.downloads_pending === 0 &&
-            state.processing === 0 && state.processing_pending === 0 &&
-            state.texture_pending_mb === 0 && Test.isTextureLoadingComplete();
     }
 
     function saveEntityInventory(inventory) {
@@ -169,15 +168,17 @@
         latestInventory = inspectEntityInventory(entities, 64);
         var resources = queueState();
         if (snapshotStage === "waiting" &&
-                latestInventory.visible_model_count > 0 && queuesEmpty(resources)) {
+                latestInventory.loaded_visible_model_count > 0) {
             if (visibleGeometryReadyAt === 0) {
-                // Require a sustained idle resource state and a subsequently
-                // presented frame before accepting the streamed scene.
+                // Require a sustained visually-ready model state and a
+                // subsequently presented frame before accepting the scene.
                 visibleGeometryReadyAt = Date.now() + 5000;
                 readyPresentBaseline = finiteNumber(Test.getPresentCount());
                 print("OVERTE_MACOS_SMOKE visible_geometry_ready count=" +
                     latestInventory.visible_renderable_count + " models=" +
-                    latestInventory.visible_model_count);
+                    latestInventory.visible_model_count + " loaded_models=" +
+                    latestInventory.loaded_visible_model_count + " queues=" +
+                    JSON.stringify(resources));
             }
         } else if (snapshotStage === "waiting") {
             visibleGeometryReadyAt = 0;

@@ -56,6 +56,7 @@ function createRun() {
         Window: windowObject,
         Entities: {
             findEntities() { return ["primitive"]; },
+            isLoaded() { return true; },
             getEntityProperties() {
                 return {
                     type: "Model",

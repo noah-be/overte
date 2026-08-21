@@ -62,9 +62,9 @@ def validate(payload: object, render_handoff_id: str) -> dict[str, object]:
             not isinstance(value, (int, float))
             or isinstance(value, bool)
             or not math.isfinite(float(value))
-            or value != 0
+            or value < 0
         ):
-            failures.append(f"resource queue {name} was not empty")
+            failures.append(f"resource queue {name} is not a non-negative number")
     present_count = payload.get("present_count")
     if not isinstance(present_count, int) or isinstance(present_count, bool) or present_count <= 0:
         failures.append("present_count must be a positive integer")
@@ -115,6 +115,14 @@ def validate(payload: object, render_handoff_id: str) -> dict[str, object]:
         failures.append("visible_model_count does not match inventory")
     if computed_visible_model < 1:
         failures.append("inventory has no visible model entity")
+    loaded_visible_model_count = payload.get("loaded_visible_model_count")
+    if (
+        not isinstance(loaded_visible_model_count, int)
+        or isinstance(loaded_visible_model_count, bool)
+        or loaded_visible_model_count < 1
+        or loaded_visible_model_count > computed_visible_model
+    ):
+        failures.append("loaded_visible_model_count must identify a visible model")
 
     handoff_id = normalized_id(render_handoff_id)
     handoff = records.get(handoff_id)
@@ -135,6 +143,7 @@ def validate(payload: object, render_handoff_id: str) -> dict[str, object]:
         "visible_renderable_count": computed_visible_renderable,
         "visible_primitive_count": computed_visible_primitive,
         "visible_model_count": computed_visible_model,
+        "loaded_visible_model_count": loaded_visible_model_count,
         "render_handoff_id": handoff_id,
         "render_handoff_type": handoff_type,
         "render_handoff_visible": handoff_visible,

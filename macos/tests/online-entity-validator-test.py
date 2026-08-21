@@ -44,6 +44,9 @@ def payload(entities: list[dict]) -> dict:
         "visible_model_count": sum(
             item["visible"] and item["type"] == "Model" for item in entities
         ),
+        "loaded_visible_model_count": sum(
+            item["visible"] and item["type"] == "Model" for item in entities
+        ),
         "type_counts": {},
         "resource_queues": {
             "downloads": 0,
@@ -107,7 +110,12 @@ assert "entity 0 position is invalid" in bad_vector["failures"]
 busy_queues_payload = payload([record(handoff), record("model", "Model")])
 busy_queues_payload["resource_queues"]["downloads_pending"] = 1
 busy_queues = MODULE.validate(busy_queues_payload, handoff)
-assert not busy_queues["passed"]
-assert "resource queue downloads_pending was not empty" in busy_queues["failures"]
+assert busy_queues["passed"], busy_queues
+
+unloaded_model_payload = payload([record(handoff), record("model", "Model")])
+unloaded_model_payload["loaded_visible_model_count"] = 0
+unloaded_model = MODULE.validate(unloaded_model_payload, handoff)
+assert not unloaded_model["passed"]
+assert "loaded_visible_model_count must identify a visible model" in unloaded_model["failures"]
 
 print("macOS online entity validator contract valid")
