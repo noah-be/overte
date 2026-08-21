@@ -98,7 +98,10 @@ for snapshot_command in (
     assert snapshot_command in SMOKE
 assert "runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff'" in SMOKE
 assert "runtime_log_contains 'OVERTE_IOS_VULKAN_PRESENT[[:space:]]+output_ready=1'" in SMOKE
-assert "$(date +%s) >= sample_deadline" in SMOKE
+stack_schedule = SMOKE.index('startup_stack_captured=0')
+assert SMOKE.index('sleep "$stack_sample_delay"', stack_schedule) < SMOKE.index(
+    "refresh_runtime_log_snapshot", stack_schedule
+)
 assert 'OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS: "900"' in runtime
 assert 'OVERTE_IOS_WORLD_MVK_TRACE_VULKAN_CALLS: "6"' not in runtime
 assert "OVERTE_IOS_WORLD_MVK_SYNCHRONOUS_QUEUE_SUBMITS" not in runtime
