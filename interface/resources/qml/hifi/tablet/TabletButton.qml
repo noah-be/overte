@@ -5,6 +5,13 @@ import TabletScriptingInterface 1.0
 Item {
     id: tabletButton
 
+    activeFocusOnTab: true
+    Accessible.role: Accessible.Button
+    Accessible.name: text
+    Accessible.description: isActive
+        ? qsTr("Active tablet application") : qsTr("Open tablet application")
+    Accessible.onPressAction: activate()
+
     // NOTE: These properties form part of the "TabletButtonProxy.ButtonProperties" type.
     // Keep the type's JSDoc up to date with any changes.
 
@@ -39,6 +46,21 @@ Item {
     height: 129
 
     signal clicked()
+
+    function activate() {
+        if (gridView) {
+            gridView.currentIndex = buttonIndex
+        }
+
+        if (tabletButton.inDebugMode) {
+            tabletButton.isActive = !tabletButton.isActive
+        }
+
+        tabletButton.clicked()
+        if (tabletRoot) {
+            Tablet.playSound(TabletEnums.ButtonClick)
+        }
+    }
 
     Connections {
         target: flickable
@@ -141,24 +163,13 @@ Item {
 
     MouseArea {
         anchors.fill: parent
+        Accessible.ignored: true
         hoverEnabled: tabletButton.hoverEnabled
         enabled: true
         preventStealing: false
         onClicked: {
-            gridView.currentIndex = buttonIndex
-
-            if (tabletButton.inDebugMode) {
-                if (tabletButton.isActive) {
-                    tabletButton.isActive = false;
-                } else {
-                    tabletButton.isActive = true;
-                }
-            }
-
-            tabletButton.clicked();
-            if (tabletRoot) {
-                Tablet.playSound(TabletEnums.ButtonClick);
-            }
+            tabletButton.forceActiveFocus()
+            tabletButton.activate()
         }
 
         onEntered: {
@@ -181,6 +192,10 @@ Item {
             }
         }
     }
+
+    Keys.onReturnPressed: activate()
+    Keys.onEnterPressed: activate()
+    Keys.onSpacePressed: activate()
 
     states: [
         State {
