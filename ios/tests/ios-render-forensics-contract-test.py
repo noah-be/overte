@@ -81,7 +81,8 @@ for token in (
     assert token in smoke, f"simulator forensic harness missing {token}"
 
 assert 'Camera.mode = "first person look at"' in camera_script
-assert 'Script.include("/~//defaultScripts.js")' in camera_script
+assert 'Script.load("/~//defaultScripts.js")' in camera_script
+assert "Script.include(" not in camera_script
 assert 'Settings.setValue("iosCameraDiagnostic", marker)' in camera_script
 assert "refresh_camera_diagnostic_state" in smoke
 assert "refresh_camera_file_log" in smoke

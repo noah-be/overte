@@ -8,12 +8,15 @@ Settings.setValue(
     "OVERTE_IOS_CAMERA_DIAGNOSTIC stage=script-start"
 );
 console.warn("OVERTE_IOS_CAMERA_DIAGNOSTIC stage=script-start");
-Script.include("/~//defaultScripts.js");
+// Script.include has two overloaded Q_INVOKABLE signatures and is not exposed
+// by the iOS V8 binding. Script.load is non-overloaded and starts the same
+// production default entry point in its normal independent script engine.
+Script.load("/~//defaultScripts.js");
 Settings.setValue(
     "iosCameraDiagnostic",
-    "OVERTE_IOS_CAMERA_DIAGNOSTIC stage=defaults-loaded"
+    "OVERTE_IOS_CAMERA_DIAGNOSTIC stage=defaults-launched"
 );
-console.warn("OVERTE_IOS_CAMERA_DIAGNOSTIC stage=defaults-loaded");
+console.warn("OVERTE_IOS_CAMERA_DIAGNOSTIC stage=defaults-launched");
 
 (function () {
     "use strict";
