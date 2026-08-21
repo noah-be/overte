@@ -24,13 +24,14 @@ SESSION = "123e4567-e89b-12d3-a456-426614174001"
 NODE = "123e4567-e89b-12d3-a456-426614174002"
 ENTITY = "123e4567-e89b-12d3-a456-426614174003"
 
-for boot_contract in (
+for timeout_contract in (
     'if [[ "$family" == ipad ]]',
     'run_strict_bounded "simulator boot" 120',
     'run_bounded "simulator boot" 1500',
+    '10#$launch_timeout + 10#$timeout_grace_seconds + (2 * 10#$poll_timeout) + 60',
 ):
-    assert boot_contract in SMOKE_SOURCE, (
-        f"simulator boot timeout contract missing: {boot_contract}"
+    assert timeout_contract in SMOKE_SOURCE, (
+        f"simulator timeout contract missing: {timeout_contract}"
     )
 
 assert '"$timeout_runner" 4 xcrun simctl spawn "$active_udid" log show' in SMOKE_SOURCE, (

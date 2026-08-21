@@ -1030,9 +1030,12 @@ live_log "phase=application-installed"
 : > "$app_stdout"
 : > "$app_stderr"
 : > "$log_stream_stderr"
-# The subscriber starts before application launch and must survive both the
-# world-gate and post-handoff framebuffer deadlines.
-log_stream_timeout=$((10#$launch_timeout + (2 * 10#$poll_timeout) + 60))
+# The subscriber starts before application launch and must survive the full
+# effective launch budget, including the generic CoreSimulator grace, as well
+# as both the world-gate and post-handoff framebuffer deadlines.  Omitting the
+# grace lets a slow but successful launch consume almost the entire stream
+# lifetime and produces a false status-124 runtime failure.
+log_stream_timeout=$((10#$launch_timeout + 10#$timeout_grace_seconds + (2 * 10#$poll_timeout) + 60))
 "$timeout_runner" "$log_stream_timeout" xcrun simctl spawn "$active_udid" log stream \
     --style compact --level debug \
     --predicate "(eventMessage CONTAINS \"OVERTE_IOS_WORLD_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_GATE\" OR eventMessage CONTAINS \"OVERTE_IOS_ENTITY_TRACE\" OR eventMessage CONTAINS \"OVERTE_IOS_CAMERA_DIAGNOSTIC\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_FATAL\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_DEBUG\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CONTEXT\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PIPELINE_CREATE\" OR eventMessage CONTAINS \"OVERTE_IOS_VULKAN_PRESENT\")" \
