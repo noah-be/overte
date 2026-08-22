@@ -1158,6 +1158,10 @@ for representative_filter_contract in (
     "representative_model_selected",
     "representativeModelID.isNull()",
     "entity->getType() == EntityTypes::Model",
+    "entity->getType() == EntityTypes::Light",
+    "entity->getType() == EntityTypes::Material",
+    "entity->getBoundingRadius() >= 3.0f",
+    "entity->getBoundingRadius() <= 20.0f",
 ):
     if representative_filter_contract not in entity_renderer_source:
         raise SystemExit(

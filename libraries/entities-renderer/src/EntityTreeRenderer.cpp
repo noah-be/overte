@@ -634,9 +634,13 @@ void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, r
                     qInfo().noquote()
                         << "OVERTE_MACOS_RENDER_PHASE representative_entity_filter_active";
                 }
-                bool keepEntity = isLightweightMacOSEntityType(entity->getType());
+                bool keepEntity = isLightweightMacOSEntityType(entity->getType()) ||
+                    entity->getType() == EntityTypes::Light ||
+                    entity->getType() == EntityTypes::Material;
                 if (entity->getType() == EntityTypes::Model &&
-                        entity->getEntityHostType() == entity::HostType::DOMAIN) {
+                        entity->getEntityHostType() == entity::HostType::DOMAIN &&
+                        entity->getBoundingRadius() >= 3.0f &&
+                        entity->getBoundingRadius() <= 20.0f) {
                     if (representativeModelID.isNull()) {
                         representativeModelID = entityID;
                         qInfo().noquote()
