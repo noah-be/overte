@@ -16,6 +16,7 @@
 #include <SharedUtil.h> // for MILLIMETERS_PER_METER
 
 #include "BulletUtil.h"
+#include "PhysicsLogging.h"
 
 
 class StaticMeshShape : public btBvhTriangleMeshShape {
@@ -103,7 +104,10 @@ static const btVector3 _unitSphereDirections[NUM_UNIT_SPHERE_DIRECTIONS] = {
 
 // util method
 btConvexHullShape* createConvexHull(const ShapeInfo::PointList& points) {
-    assert(points.size() > 0);
+    if (points.isEmpty()) {
+        qCWarning(physics) << "ShapeFactory rejected a convex hull without points";
+        return nullptr;
+    }
 
     btConvexHullShape* hull = new btConvexHullShape();
     glm::vec3 center = points[0];
@@ -366,9 +370,15 @@ const btCollisionShape* ShapeFactory::createShapeFromInfo(const ShapeInfo& info)
                 trans.setIdentity();
                 foreach (const ShapeInfo::PointList& hullPoints, pointCollection) {
                     btConvexHullShape* hull = createConvexHull(hullPoints);
-                    compound->addChildShape(trans, hull);
+                    if (hull) {
+                        compound->addChildShape(trans, hull);
+                    }
                 }
-                shape = compound;
+                if (compound->getNumChildShapes() > 0) {
+                    shape = compound;
+                } else {
+                    delete compound;
+                }
             }
         }
         break;
