@@ -61,7 +61,7 @@ for token in (
     "OVERTE_IOS_WORLD_RENDER_DIAGNOSTIC: ${{ steps.request.outputs.render_diagnostic }}",
     "OVERTE_IOS_WORLD_GPU_TRACE: ${{ steps.request.outputs.gpu_trace }}",
     "interface-world-simulator-lldb.sh",
-    "OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER=0",
+    "OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER=1",
     'elif [[ "$RUNTIME_CASE" == all ]]',
     'family="${RUNTIME_CASE%%-*}"',
     "''|swapchain-green|tone-input|tone-solid|tone-uv|tone-sample|frame|resample|composite",
@@ -70,7 +70,7 @@ for token in (
 for token in (
     "iphone-online|ipad-online",
     "OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE=0",
-    "OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS=3",
+    "OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS=0",
     'family="${RUNTIME_CASE%%-*}"',
     "'${{ steps.candidate.outputs.bundle_id }}' \"$family\"",
 ):
