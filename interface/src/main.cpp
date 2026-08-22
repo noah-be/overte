@@ -61,6 +61,18 @@ extern "C" {
 
 int main(int argc, const char* argv[]) {
 #ifdef Q_OS_IOS
+    // Keep the physical-device renderer on the same MoltenVK resource-binding
+    // path exercised by the iOS simulator acceptance harness. MoltenVK 1.4.2
+    // enables Metal argument buffers by default, but the existing Vulkan
+    // descriptor path can leave an argument-buffer resource at GPU address
+    // zero on Apple GPU hardware. This must be set before the first Vulkan
+    // call; Context::createInstance() verifies the effective MoltenVK value.
+    if (!qputenv("MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS", "0")) {
+        qFatal("Unable to disable MoltenVK Metal argument buffers on iOS");
+    }
+    qInfo().noquote()
+        << "OVERTE_IOS_MOLTENVK_CONFIG requested metal_argument_buffers=0 source=application";
+
     // Qt WebView must select WKWebView before the application object exists.
     QtWebView::initialize();
 #endif

@@ -16,6 +16,10 @@
 
 #include <stdexcept>
 
+#if defined(Q_OS_IOS)
+#include <MoltenVK/mvk_private_api.h>
+#endif
+
 #include "Context.h"
 #include "VKWindow.h"
 #include "VKWidget.h"
@@ -28,6 +32,29 @@ PFN_vkGetMemoryFdKHR vkGetMemoryFdKHR;
 using namespace vks;
 
 // Start of VKS code
+
+#if defined(Q_OS_IOS)
+namespace {
+
+void verifyIOSMoltenVKConfiguration() {
+    MVKConfiguration configuration{};
+    size_t configurationSize{ sizeof(configuration) };
+    const VkResult result = vkGetMoltenVKConfigurationMVK(
+        VK_NULL_HANDLE, &configuration, &configurationSize);
+    if (result != VK_SUCCESS || configurationSize != sizeof(configuration)) {
+        throw std::runtime_error(
+            "Could not verify the pinned MoltenVK configuration before Vulkan instance creation");
+    }
+    if (configuration.useMetalArgumentBuffers != VK_FALSE) {
+        throw std::runtime_error(
+            "MoltenVK Metal argument buffers must remain disabled on iOS");
+    }
+    qInfo().noquote()
+        << "OVERTE_IOS_MOLTENVK_CONFIG effective metal_argument_buffers=0 verified=true";
+}
+
+} // namespace
+#endif
 
 Context& Context::get() {
     static Context INSTANCE;
@@ -97,6 +124,13 @@ void Context::setValidationEnabled(bool enable) {
 }
 
 void Context::createInstance() {
+#if defined(Q_OS_IOS)
+    // This is deliberately the first MoltenVK/Vulkan call in instance setup.
+    // It both materializes and verifies the configuration requested by the
+    // iOS application entry point before any GPU objects can be created.
+    verifyIOSMoltenVKConfiguration();
+#endif
+
     if (instance) {
         throw std::runtime_error("Instance already exists");
     }

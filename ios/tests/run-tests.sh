@@ -67,6 +67,7 @@ readonly rendering_contracts=(
     interface-ios-gl-link-removal-test.py
     interface-ios-gl-telemetry-isolation-test.py
     ios-explicit-gl-api-debt-test.py
+    ios-moltenvk-argument-buffer-contract-test.py
     ios-offscreen-qml-backend-audit-test.py
     ios-opengles-compatibility-link-test.py
     ios-render-forensics-contract-test.py
