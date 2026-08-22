@@ -38,6 +38,10 @@ code in `phone`, and headset code below `vr/pico` or `vr/quest`. The `vr/common`
 directory is reserved for implementation genuinely shared by multiple Android
 VR targets.
 
+Changes are propagated from shared branches to increasingly specific branches;
+the reviewed order and merge rules are documented in
+[`docs/BRANCH_WORKFLOW.md`](docs/BRANCH_WORKFLOW.md).
+
 ### Interfaces in development
 
 The four ports use a shared documentation layout described in
