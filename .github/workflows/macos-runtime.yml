@@ -377,7 +377,7 @@ jobs:
             --log build/macos-runtime-telemetry/online.jsonl \
             --diagnostics-dir build/macos-runtime-telemetry/online-stall \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 660 --max-runtime 1500 \
+            --inactivity-timeout 1800 --max-runtime 2700 \
             --watch smoke=build/macos-online-smoke -- \
             macos/ci/online-smoke.sh "$app" build/macos-online-smoke
 

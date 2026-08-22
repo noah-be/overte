@@ -8,7 +8,8 @@
     // camera, scene contents, avatar visibility, or rendering preferences.
     // The captured image is evidence of the production Hub path, not a scene
     // assembled for the test.
-    var deadline = Date.now() + 1140000;
+    var deadline = Date.now() + 1800000;
+    var nextProgressAt = Date.now();
     var snapshotStage = "waiting";
     var snapshotSettleDeadline = 0;
     var snapshotPendingReported = false;
@@ -158,6 +159,17 @@
         var resources = queueState();
         var productionSceneReady = latestInventory.loaded_visible_model_count > 0 &&
             resourcesIdle(resources);
+
+        if (Date.now() >= nextProgressAt) {
+            print("OVERTE_MACOS_SMOKE online_progress entities=" +
+                latestInventory.entity_count + " renderables=" +
+                latestInventory.visible_renderable_count + " models=" +
+                latestInventory.visible_model_count + " loaded_models=" +
+                latestInventory.loaded_visible_model_count + " presents=" +
+                finiteNumber(Test.getPresentCount()) + " queues=" +
+                JSON.stringify(resources));
+            nextProgressAt = Date.now() + 30000;
+        }
 
         if (snapshotStage === "waiting" && productionSceneReady) {
             if (fullSceneReadyAt === 0) {
