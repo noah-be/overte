@@ -329,6 +329,7 @@ private:
     bool _hasCheckedForDomainAccessToken { false };
     int _connectionDenialsSinceKeypairRegen { 0 };
     int _checkInPacketsSinceLastReply { 0 };
+    quint64 _lastCheckInTimeoutUsecs { 0 };
 
     QTimer _apiRefreshTimer;
     std::atomic<bool> _apiRefreshEnabled { true };

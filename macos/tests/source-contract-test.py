@@ -1015,6 +1015,14 @@ for forbidden_network_override in (
             "online smoke must retain production network timeout behavior: "
             f"{forbidden_network_override}"
         )
+for source, token in (
+    (domain_handler_source, "Ignoring domain check-in timeout after delayed event-loop check"),
+    (domain_handler_source, "now - previousTimeout > 2 * USECS_PER_SECOND"),
+    (limited_node_list_source, "Skipping silent-node removal after delayed event-loop check"),
+    (limited_node_list_source, "2 * NODE_SILENCE_THRESHOLD_MSECS * USECS_PER_MSEC"),
+):
+    if token not in source:
+        raise SystemExit(f"production network stall recovery missing: {token}")
 for inventory_contract in (
     "macos-online-entities.json",
     "validate-online-entities.py",

@@ -669,6 +669,20 @@ void DomainHandler::processDomainServerConnectionDeniedPacket(QSharedPointer<Rec
 static const int SILENT_DOMAIN_TRAFFIC_DROP_MIN = 2;
 
 bool DomainHandler::checkInPacketTimeout() {
+    const auto now = usecTimestampNow();
+    const auto previousTimeout = _lastCheckInTimeoutUsecs;
+    _lastCheckInTimeoutUsecs = now;
+
+    // Domain replies are delivered on the same event loop as this timer.  A
+    // delayed timeout therefore cannot prove that the server was silent: its
+    // reply may still be queued behind a long render or script callback.
+    if (previousTimeout != 0 && now - previousTimeout > 2 * USECS_PER_SECOND) {
+        qCDebug(networking_ice) << "Ignoring domain check-in timeout after delayed event-loop check"
+            << (now - previousTimeout) << "usecs";
+        _checkInPacketsSinceLastReply = 0;
+        return false;
+    }
+
     ++_checkInPacketsSinceLastReply;
 
     if (_checkInPacketsSinceLastReply > 1) {

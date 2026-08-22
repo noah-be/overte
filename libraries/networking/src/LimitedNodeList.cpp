@@ -907,6 +907,20 @@ void LimitedNodeList::removeSilentNodes() {
     QSet<SharedNodePointer> killedNodes;
 
     auto startedAt = usecTimestampNow();
+    const auto previousCheck = _lastSilentNodeCheckUsecs;
+    _lastSilentNodeCheckUsecs = startedAt;
+
+    // This timer shares the NodeList event loop with packet delivery.  If the
+    // event loop was stalled, queued packets have not had an opportunity to
+    // refresh each node's last-heard timestamp yet.  Removing nodes in that
+    // state creates a false disconnect immediately after the stall.  Give the
+    // event loop one turn to drain before evaluating network silence.
+    const auto delayedCheckThreshold = 2 * NODE_SILENCE_THRESHOLD_MSECS * USECS_PER_MSEC;
+    if (previousCheck != 0 && startedAt - previousCheck > delayedCheckThreshold) {
+        qCDebug(networking_ice) << "Skipping silent-node removal after delayed event-loop check"
+            << (startedAt - previousCheck) << "usecs";
+        return;
+    }
 
     eachNodeHashIterator([&](NodeHash::iterator& it){
         SharedNodePointer node = it->second;
