@@ -16,11 +16,17 @@ MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
 
-def record(entity_id: str, entity_type: str = "Shape", visible: bool = True) -> dict:
+def record(
+    entity_id: str,
+    entity_type: str = "Shape",
+    visible: bool = True,
+    loaded: bool | None = None,
+) -> dict:
     return {
         "id": entity_id,
         "type": entity_type,
         "visible": visible,
+        "loaded": entity_type == "Model" and visible if loaded is None else loaded,
         "position": {"x": 1.0, "y": 2.0, "z": 3.0},
         "dimensions": {"x": 1.0, "y": 1.0, "z": 1.0},
     }
@@ -45,7 +51,8 @@ def payload(entities: list[dict]) -> dict:
             item["visible"] and item["type"] == "Model" for item in entities
         ),
         "loaded_visible_model_count": sum(
-            item["visible"] and item["type"] == "Model" for item in entities
+            item["visible"] and item["type"] == "Model" and item["loaded"]
+            for item in entities
         ),
         "type_counts": {},
         "resource_queues": {
@@ -62,21 +69,23 @@ def payload(entities: list[dict]) -> dict:
 
 handoff = "098c4ff9-4ddd-49a0-94e4-7109a84ba216"
 valid = MODULE.validate(payload([
-    record("{" + handoff + "}"), record("model", "Model"), record("other", "Zone")
+    record("{" + handoff + "}", "Model"), record("shape"), record("other", "Zone")
 ]), handoff)
 assert valid["passed"], valid
-assert valid["render_handoff_type"] == "Shape"
+assert valid["render_handoff_type"] == "Model"
+assert valid["render_handoff_loaded"] is True
 
 for environmental_type in ("Zone", "Light", "Material"):
     environmental = MODULE.validate(payload([
         record(handoff, environmental_type), record("model", "Model")
     ]), handoff)
-    assert environmental["passed"], environmental
+    assert not environmental["passed"], environmental
+    assert "render-handoff entity is not a model" in environmental["failures"]
 
 zone_handoff = MODULE.validate(payload([
     record(handoff, "Zone"), record("visible-model", "Model")
 ]), handoff)
-assert zone_handoff["passed"], zone_handoff
+assert not zone_handoff["passed"], zone_handoff
 
 missing = MODULE.validate(payload([record("other"), record("model", "Model")]), handoff)
 assert not missing["passed"]
@@ -92,7 +101,7 @@ hidden_primitive_handoff = MODULE.validate(
         record("visible-model", "Model")
     ]), handoff
 )
-assert hidden_primitive_handoff["passed"], hidden_primitive_handoff
+assert not hidden_primitive_handoff["passed"], hidden_primitive_handoff
 assert hidden_primitive_handoff["visible_primitive_count"] == 1
 
 hidden_model = MODULE.validate(payload([
@@ -107,14 +116,16 @@ bad_vector = MODULE.validate(bad_vector_payload, handoff)
 assert not bad_vector["passed"]
 assert "entity 0 position is invalid" in bad_vector["failures"]
 
-busy_queues_payload = payload([record(handoff), record("model", "Model")])
+busy_queues_payload = payload([record(handoff, "Model"), record("shape")])
 busy_queues_payload["resource_queues"]["downloads_pending"] = 1
 busy_queues = MODULE.validate(busy_queues_payload, handoff)
 assert busy_queues["passed"], busy_queues
 
-unloaded_model_payload = payload([record(handoff), record("model", "Model")])
-unloaded_model_payload["loaded_visible_model_count"] = 0
+unloaded_model_payload = payload([
+    record(handoff, "Model", loaded=False), record("visible-box", "Box")
+])
 unloaded_model = MODULE.validate(unloaded_model_payload, handoff)
-assert unloaded_model["passed"], unloaded_model
+assert not unloaded_model["passed"], unloaded_model
+assert "render-handoff model is not loaded" in unloaded_model["failures"]
 
 print("macOS online entity validator contract valid")

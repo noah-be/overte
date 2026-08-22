@@ -39,11 +39,15 @@
     var diagnosticLightID = null;
     var representativeCameraFramed = false;
 
+    function representativeModelID() {
+        return String(Test.getMacOSRepresentativeEntityID() || "");
+    }
+
     function frameRepresentativeModel() {
         if (representativeCameraFramed) {
             return true;
         }
-        var entityID = String(Test.getMacOSRepresentativeEntityID() || "");
+        var entityID = representativeModelID();
         if (!entityID) {
             return false;
         }
@@ -140,9 +144,10 @@
             if (visible && primitiveTypes[type]) {
                 visiblePrimitiveCount += 1;
             }
+            var loaded = visible && type === "Model" && Entities.isLoaded(entityID);
             if (visible && type === "Model") {
                 visibleModelCount += 1;
-                if (Entities.isLoaded(entityID)) {
+                if (loaded) {
                     loadedVisibleModelCount += 1;
                 }
             }
@@ -150,6 +155,7 @@
                 id: String(entityID),
                 type: type,
                 visible: visible,
+                loaded: loaded,
                 position: plainVector(properties.position),
                 dimensions: plainVector(properties.dimensions)
             };
@@ -232,18 +238,21 @@
         latestInventory = inspectEntityInventory(entities, 64);
         var resources = queueState();
         if (snapshotStage === "waiting" && latestInventory.visible_model_count > 0) {
-            if (visibleGeometryReadyAt === 0) {
-                if (!frameRepresentativeModel()) {
-                    return;
-                }
-                ensureDiagnosticLight();
+            if (!frameRepresentativeModel()) {
+                return;
+            }
+            ensureDiagnosticLight();
+            var selectedModelID = representativeModelID();
+            if (visibleGeometryReadyAt === 0 && selectedModelID &&
+                    Entities.isLoaded(selectedModelID)) {
                 // Apple's virtualized software renderer can present primitive
-                // frames before spending several minutes inside the first
-                // real model draw. Delay the present gate until that measured
-                // pipeline has started, then require a newer completed frame.
-                visibleGeometryReadyAt = Date.now() + 300000;
+                // frames while the selected model is still downloading. Only
+                // begin the render gate once that exact Hub model is loaded,
+                // then require a newer completed frame containing its draw.
+                visibleGeometryReadyAt = Date.now();
                 readyPresentBaseline = finiteNumber(Test.getPresentCount());
-                print("OVERTE_MACOS_SMOKE visible_geometry_ready count=" +
+                print("OVERTE_MACOS_SMOKE representative_model_loaded=" +
+                    selectedModelID + " visible_geometry_ready count=" +
                     latestInventory.visible_renderable_count + " models=" +
                     latestInventory.visible_model_count + " loaded_models=" +
                     latestInventory.loaded_visible_model_count + " queues=" +

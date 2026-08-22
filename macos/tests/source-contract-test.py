@@ -1343,9 +1343,10 @@ for online_entity_classification_contract in (
         )
 for online_timing_contract in (
     "snapshot_complete=",
-    "visibleGeometryReadyAt = Date.now() + 300000",
+    "visibleGeometryReadyAt = Date.now()",
     "latestInventory.visible_model_count > 0",
     "Entities.isLoaded(entityID)",
+    "Entities.isLoaded(selectedModelID)",
     "Test.getPresentCount()",
     "saveEntityInventory(latestInventory)",
     "snapshotSettleDeadline = Date.now() + 300000",

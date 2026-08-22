@@ -73,6 +73,7 @@ def validate(payload: object, render_handoff_id: str) -> dict[str, object]:
     computed_visible_renderable = 0
     computed_visible_primitive = 0
     computed_visible_model = 0
+    computed_loaded_visible_model = 0
     for index, entity in enumerate(entities):
         if not isinstance(entity, dict):
             failures.append(f"entity {index} is not an object")
@@ -88,8 +89,11 @@ def validate(payload: object, render_handoff_id: str) -> dict[str, object]:
         if not isinstance(entity_type, str) or not entity_type:
             failures.append(f"entity {index} has no type")
         visible = entity.get("visible")
+        loaded = entity.get("loaded")
         if not isinstance(visible, bool):
             failures.append(f"entity {index} visible is not boolean")
+        if not isinstance(loaded, bool):
+            failures.append(f"entity {index} loaded is not boolean")
         if not valid_vector(entity.get("position")):
             failures.append(f"entity {index} position is invalid")
         if not valid_vector(entity.get("dimensions")):
@@ -104,6 +108,8 @@ def validate(payload: object, render_handoff_id: str) -> dict[str, object]:
             computed_visible_primitive += 1
         if visible is True and entity_type == "Model":
             computed_visible_model += 1
+            if loaded is True:
+                computed_loaded_visible_model += 1
 
     if payload.get("visible_renderable_count") != computed_visible_renderable:
         failures.append("visible_renderable_count does not match inventory")
@@ -119,10 +125,9 @@ def validate(payload: object, render_handoff_id: str) -> dict[str, object]:
     if (
         not isinstance(loaded_visible_model_count, int)
         or isinstance(loaded_visible_model_count, bool)
-        or loaded_visible_model_count < 0
-        or loaded_visible_model_count > computed_visible_model
+        or loaded_visible_model_count != computed_loaded_visible_model
     ):
-        failures.append("loaded_visible_model_count must cover only visible models")
+        failures.append("loaded_visible_model_count does not match inventory")
 
     handoff_id = normalized_id(render_handoff_id)
     handoff = records.get(handoff_id)
@@ -133,6 +138,12 @@ def validate(payload: object, render_handoff_id: str) -> dict[str, object]:
     else:
         handoff_type = handoff.get("type")
         handoff_visible = handoff.get("visible")
+        if handoff_type != "Model":
+            failures.append("render-handoff entity is not a model")
+        if handoff_visible is not True:
+            failures.append("render-handoff entity is not visible")
+        if handoff.get("loaded") is not True:
+            failures.append("render-handoff model is not loaded")
 
     return {
         "schema_version": 1,
@@ -147,6 +158,7 @@ def validate(payload: object, render_handoff_id: str) -> dict[str, object]:
         "render_handoff_id": handoff_id,
         "render_handoff_type": handoff_type,
         "render_handoff_visible": handoff_visible,
+        "render_handoff_loaded": handoff.get("loaded") if handoff else None,
         "resource_queues": resource_queues,
         "present_count": present_count,
     }

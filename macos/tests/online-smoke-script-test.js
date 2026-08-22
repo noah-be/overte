@@ -17,6 +17,7 @@ function createRun() {
     const clock = { now: 1000 };
     const operations = [];
     const saved = [];
+    let representativeLoaded = true;
     const script = {
         stopped: false,
         interval: null,
@@ -62,7 +63,7 @@ function createRun() {
                 return "diagnostic-light";
             },
             deleteEntity(id) { operations.push("delete:" + id); },
-            isLoaded() { return true; },
+            isLoaded(id) { return id !== "representative-model" || representativeLoaded; },
             getEntityProperties() {
                 return {
                     type: "Model",
@@ -83,12 +84,35 @@ function createRun() {
 
     function requestSnapshot() {
         script.interval();
-        clock.now += 300000;
+        clock.now += 1;
         script.interval();
         assert.strictEqual(windowObject.snapshotName, "macos-online-smoke.png");
     }
 
-    return { clock, operations, requestSnapshot, saved, script, windowObject };
+    return {
+        clock,
+        operations,
+        requestSnapshot,
+        saved,
+        script,
+        windowObject,
+        setRepresentativeLoaded(value) { representativeLoaded = value; }
+    };
+}
+
+{
+    const run = createRun();
+    run.setRepresentativeLoaded(false);
+    run.script.interval();
+    run.clock.now += 300000;
+    run.script.interval();
+    assert.strictEqual(run.windowObject.snapshotName, null,
+        "an unloaded representative Hub model must never produce a screenshot");
+    run.setRepresentativeLoaded(true);
+    run.script.interval();
+    run.clock.now += 1;
+    run.script.interval();
+    assert.strictEqual(run.windowObject.snapshotName, "macos-online-smoke.png");
 }
 
 {
