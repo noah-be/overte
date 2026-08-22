@@ -11,9 +11,8 @@
     "device": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["model", "osVersion"],
+      "required": ["osVersion"],
       "properties": {
-        "model": { "type": "string", "minLength": 1 },
         "osVersion": { "type": "string", "pattern": "^[0-9]+(?:[.][0-9]+)+$" }
       }
     },

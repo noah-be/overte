@@ -32,8 +32,8 @@ def validate_result(matrix: dict, result: dict, source: Path) -> str:
         raise ValueError(f"invalid form factor in {source}: {form_factor}")
 
     device = result.get("device", {})
-    if not isinstance(device.get("model"), str) or not device["model"].strip():
-        raise ValueError(f"device model is missing in {source}")
+    if set(device) != {"osVersion"}:
+        raise ValueError(f"device record must contain only the OS version in {source}")
     if re.fullmatch(r"[0-9]+(?:\.[0-9]+)+", str(device.get("osVersion", ""))) is None:
         raise ValueError(f"device OS version is invalid in {source}")
 

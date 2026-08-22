@@ -29,7 +29,7 @@ def make_result(case_ids: list[str], form_factor: str) -> dict:
     return {
         "schemaVersion": 1,
         "formFactor": form_factor,
-        "device": {"model": f"Test {form_factor}", "osVersion": "26.0"},
+        "device": {"osVersion": "26.0"},
         "build": {
             "sourceRevision": "a" * 40,
             "bundleSha256": "b" * 64,
@@ -62,6 +62,15 @@ def main() -> None:
             )
             paths.append(path)
         validator.validate_files(MATRIX, paths)
+
+        private = make_result(case_ids, "ipad")
+        private["device"]["model"] = "must-not-be-published"
+        try:
+            validator.validate_result(matrix, private, root / "private.json")
+        except ValueError as error:
+            assert "only the OS version" in str(error)
+        else:
+            raise AssertionError("private device metadata was accepted")
 
         invalid = make_result(case_ids, "iphone")
         invalid["results"][0]["evidence"] = ["../outside.log"]
