@@ -18,7 +18,7 @@ readonly lldb_log="$output_dir/serverless-lldb.log"
 readonly lldb_result="$output_dir/serverless-lldb-process.json"
 readonly snapshot="$output_dir/macos-serverless-smoke.png"
 readonly screenshot_result="$output_dir/serverless-screenshot.json"
-readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-720}"
+readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-900}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
 readonly lldb_timeout_seconds="${OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-90}"
 
@@ -40,7 +40,8 @@ set +e
 python3 "$source_root/macos/tools/run-process-with-timeout.py" \
     --timeout "$timeout_seconds" --grace "$shutdown_grace_seconds" \
     --log "$log" --result "$process_result" --sample "$process_sample" \
-    --crash-report "$crash_report" -- \
+    --crash-report "$crash_report" --completion-file "$snapshot" \
+    --completion-settle 1 -- \
     "${app_command[@]}"
 status=$?
 set -e

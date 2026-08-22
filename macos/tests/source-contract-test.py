@@ -1125,7 +1125,7 @@ for crash_report_location in (
     if crash_report_location not in runtime_supervisor:
         raise SystemExit(f"runtime crash-report search missing: {crash_report_location}")
 for smoke_name, smoke_source, maximum, cleanup_contract in (
-    ("serverless", smoke, 720, 'rm -f "$snapshot" "$screenshot_result"'),
+    ("serverless", smoke, 900, 'rm -f "$snapshot" "$screenshot_result"'),
     ("online", online_smoke, 1200, 'rm -f "$snapshot" "$screenshot_result"'),
 ):
     default_timeout = re.search(

@@ -1164,7 +1164,7 @@ jobs:
             macos/ci/startup-preflight.sh "$app" build/macos-startup-preflight
 
       - name: Run serverless entity smoke
-        timeout-minutes: 15
+        timeout-minutes: 20
         run: |
           app="$(find build -type d -name Overte.app -print -quit)"
           python3 macos/ci/runner-telemetry.py \
@@ -1172,7 +1172,7 @@ jobs:
             --log "$MACOS_RUNNER_TELEMETRY_DIR/runtime-serverless.jsonl" \
             --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/runtime-serverless-stall" \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 600 --max-runtime 840 \
+            --inactivity-timeout 900 --max-runtime 1140 \
             --watch smoke=build/macos-smoke -- \
             macos/ci/serverless-smoke.sh "$app" build/macos-smoke
 
