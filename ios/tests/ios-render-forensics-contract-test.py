@@ -17,6 +17,7 @@ renderer = read("libraries/entities-renderer/src/RenderableEntityItem.cpp")
 cull = read("libraries/render/src/render/CullTask.cpp")
 backend = read("libraries/gpu-vk/src/gpu/vk/VKBackend.cpp")
 pipeline = read("libraries/gpu-vk/src/gpu/vk/VKPipelineCache.cpp")
+display = read("libraries/display-plugins/src/display-plugins/VulkanDisplayPlugin.cpp")
 smoke = read("ios/ci/interface-world-simulator-smoke.sh")
 runtime = read(".github/workflows/ios-world-candidate-runtime.yml")
 camera_script = read("ios/ci/ios-camera-first-person.js")
@@ -49,12 +50,49 @@ for token in (
     "for (const auto& binding : bindingMap)",
     "sets.reserve(bindingMap.size())",
     "OVERTE_IOS_VULKAN_DESCRIPTOR fallback=texture",
+    "OVERTE_IOS_VULKAN_DESCRIPTOR coverage=",
+    "missingDescriptorBindings",
+    "OVERTE_IOS_VULKAN_DRAW_BUFFER",
+    "range_valid=",
+    "object_valid=",
 ):
     assert token in backend, f"Vulkan draw diagnostic missing {token}"
 
 assert "for (size_t i = 0; i < _resource._textures.size(); i++)" not in backend, (
     "descriptor writes must cover every reflected texture binding"
 )
+
+for token in (
+    "ios/vulkanPendingPipelines",
+    "ios/vulkanQuarantinedPipelines",
+    "OVERTE_IOS_VULKAN_ISOLATION recovered_unretired_submit",
+    "OVERTE_IOS_VULKAN_PIPELINE_USE",
+    "OVERTE_IOS_VULKAN_BATCH_USE",
+    "action=skip_pipeline",
+    "action=skip_batch",
+    "persistIOSDiagnosticSubmit",
+    "retireIOSDiagnosticSubmit",
+):
+    assert token in backend, f"persistent physical-iPad pipeline isolation missing {token}"
+
+execute_frame = backend.index("void VKBackend::executeFrame")
+clear_candidates = backend.index("_iosCurrentUntrustedPipelines.clear()", execute_frame)
+render_batches = backend.index("for (const auto& batchPtr : frame->batches)", execute_frame)
+assert clear_candidates < render_batches, "each encoded frame must start with an empty candidate set"
+
+render_draw = backend.index("void VKBackend::renderPassDraw")
+quarantine_decision = backend.index("const bool quarantinePipeline", render_draw)
+draw_dispatch = backend.index("(this->*(call))(batch, *offset)", quarantine_decision)
+assert quarantine_decision < draw_dispatch, "pipeline quarantine must run before draw dispatch"
+
+fence_wait = display.index("vkWaitForFences")
+retire_submit = display.index("retireIOSDiagnosticSubmit", fence_wait)
+destroy_fence = display.index("vkDestroyFence", fence_wait)
+assert fence_wait < retire_submit < destroy_fence, "only a successful fence may mark candidates healthy"
+
+persist_submit = display.index("persistIOSDiagnosticSubmit")
+queue_submit = display.index("vkQueueSubmit", persist_submit)
+assert persist_submit < queue_submit, "candidate persistence must precede GPU submission"
 for token in (
     '== "gpu-cull-off"',
     '== "depth-off"',

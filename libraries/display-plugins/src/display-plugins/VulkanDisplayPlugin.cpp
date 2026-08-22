@@ -873,6 +873,9 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
             VK_CHECK_RESULT(vkWaitForFences(vkDevice, 1,
                                              &_vkWindow->_previousFrameFence,
                                              VK_TRUE, DEFAULT_FENCE_TIMEOUT));
+#if defined(Q_OS_IOS)
+            vkBackend->retireIOSDiagnosticSubmit();
+#endif
             vkDestroyFence(vkDevice, _vkWindow->_previousFrameFence, nullptr);
             _vkWindow->_previousFrameFence = VK_NULL_HANDLE;
             VK_CHECK_RESULT(vkResetCommandBuffer(_vkWindow->_previousCommandBuffer, 0));
@@ -1242,6 +1245,9 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
             VkFence frameFence;
             VK_CHECK_RESULT(vkCreateFence(vkDevice, &fenceCI, nullptr, &frameFence));
 #if defined(Q_OS_IOS)
+            static uint64_t iosDiagnosticSubmitId { 0 };
+            ++iosDiagnosticSubmitId;
+            vkBackend->persistIOSDiagnosticSubmit(iosDiagnosticSubmitId);
             if (traceIOSPresentCommands) {
                 os_log_info(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_PRESENT queue_submit_begin");
             }

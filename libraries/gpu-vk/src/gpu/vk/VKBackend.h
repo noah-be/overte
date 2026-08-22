@@ -20,6 +20,8 @@
 #include <utility>
 #include <list>
 #include <array>
+#include <set>
+#include <string>
 
 #include <gpu/Forward.h>
 #include <gpu/Context.h>
@@ -525,6 +527,10 @@ public:
     // Called after frame finishes rendering. Cleans up and puts frame data object back to the pool.
     void recyclePreviousFrame();
     void waitForGPU();
+#if defined(Q_OS_IOS)
+    void persistIOSDiagnosticSubmit(uint64_t submitId);
+    void retireIOSDiagnosticSubmit();
+#endif
 
 #if !defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
     void releaseExternalTexture(GLuint id, const Texture::ExternalRecycler& recycler);
@@ -539,6 +545,10 @@ public:
     VKFramebuffer* _compositeHUDOutputTexture{ nullptr };
     VKTexture* _toneMappingInputTexture{ nullptr };
     VKFramebuffer* resolvePresentFramebuffer(const FramebufferPointer& framebuffer);
+    std::set<std::string> _iosCurrentUntrustedPipelines;
+    std::set<std::string> _iosSubmittedUntrustedPipelines;
+    std::set<std::string> _iosHealthyPipelines;
+    std::set<std::string> _iosQuarantinedPipelines;
 #endif
 protected:
     struct TextureManagementStageState {

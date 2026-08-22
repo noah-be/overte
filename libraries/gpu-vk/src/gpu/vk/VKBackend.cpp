@@ -20,6 +20,8 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <QtCore/QProcessEnvironment>
+#include <QtCore/QSettings>
+#include <QtCore/QStringList>
 
 #if defined(Q_OS_IOS)
 #include <os/log.h>
@@ -57,6 +59,78 @@ size_t VKBackend::UNIFORM_BUFFER_OFFSET_ALIGNMENT{ 4 };
 static VKBackend* INSTANCE{ nullptr };
 static const char* VK_BACKEND_PROPERTY_NAME = "com.highfidelity.vk.backend";
 
+#if defined(Q_OS_IOS)
+static std::string missingDescriptorBindings(const Cache::BindingMap& required,
+                                             const std::vector<VkWriteDescriptorSet>& writes) {
+    std::ostringstream missing;
+    bool first { true };
+    for (const auto& binding : required) {
+        const bool written = std::any_of(writes.cbegin(), writes.cend(),
+            [&binding](const VkWriteDescriptorSet& write) {
+                return write.dstBinding == binding.first && write.descriptorCount > 0;
+            });
+        if (!written) {
+            if (!first) {
+                missing << ',';
+            }
+            missing << binding.first;
+            first = false;
+        }
+    }
+    return first ? "-" : missing.str();
+}
+
+static void reportDescriptorCoverage(const char* kind,
+                                     const Cache::BindingMap& required,
+                                     const std::vector<VkWriteDescriptorSet>& writes,
+                                     size_t invalid) {
+    const auto missing = missingDescriptorBindings(required, writes);
+    os_log_info(OS_LOG_DEFAULT,
+                "OVERTE_IOS_VULKAN_DESCRIPTOR coverage=%{public}s required=%zu written=%zu missing=%{public}s invalid=%zu",
+                kind, required.size(), writes.size(), missing.c_str(), invalid);
+}
+
+static uint64_t iosDiagnosticFingerprint(const std::string& value) {
+    uint64_t fingerprint { 1469598103934665603ULL };
+    for (const auto byte : value) {
+        fingerprint ^= static_cast<uint8_t>(byte);
+        fingerprint *= 1099511628211ULL;
+    }
+    return fingerprint;
+}
+
+static std::string iosPipelineDiagnosticId(const Cache::Pipeline& pipelineState,
+                                           const vks::Context& context,
+                                           Cache& cache) {
+    std::ostringstream id;
+    id << std::hex << iosDiagnosticFingerprint(pipelineState.getKey(context, cache));
+    return id.str();
+}
+
+static std::string iosBatchDiagnosticId(const gpu::Batch& batch) {
+    std::ostringstream signature;
+    signature << batch.getName() << ':' << batch.getCommands().size();
+    for (const auto command : batch.getCommands()) {
+        signature << ':' << static_cast<uint32_t>(command);
+    }
+    std::ostringstream id;
+    id << "batch:" << std::hex << iosDiagnosticFingerprint(signature.str());
+    return id.str();
+}
+
+static QStringList toQStringList(const std::set<std::string>& values) {
+    QStringList result;
+    for (const auto& value : values) {
+        result.push_back(QString::fromStdString(value));
+    }
+    return result;
+}
+
+static QSettings iosVulkanDiagnosticSettings() {
+    return QSettings(QStringLiteral("Overte"), QStringLiteral("iOSVulkanDiagnostics"));
+}
+#endif
+
 BackendPointer VKBackend::createBackend() {
     // FIXME provide a mechanism to override the backend for testing
     // Where the gpuContext is initialized and where the TRUE Backend is created and assigned
@@ -87,6 +161,37 @@ VKBackend::VKBackend() {
         _context.createInstance();
         _context.createDevice();
     }
+
+#if defined(Q_OS_IOS)
+    auto settings = iosVulkanDiagnosticSettings();
+    constexpr int IOS_VULKAN_DIAGNOSTIC_SCHEMA = 1;
+    if (settings.value("schemaVersion", 0).toInt() != IOS_VULKAN_DIAGNOSTIC_SCHEMA) {
+        settings.clear();
+        settings.setValue("schemaVersion", IOS_VULKAN_DIAGNOSTIC_SCHEMA);
+        settings.sync();
+    }
+    const auto pending = settings.value("ios/vulkanPendingPipelines").toStringList();
+    const auto quarantined = settings.value("ios/vulkanQuarantinedPipelines").toStringList();
+    for (const auto& id : quarantined) {
+        _iosQuarantinedPipelines.insert(id.toStdString());
+    }
+    for (const auto& id : pending) {
+        _iosQuarantinedPipelines.insert(id.toStdString());
+    }
+    if (!pending.isEmpty()) {
+        settings.remove("ios/vulkanPendingPipelines");
+        settings.setValue("ios/vulkanQuarantinedPipelines", toQStringList(_iosQuarantinedPipelines));
+        settings.sync();
+        os_log_fault(OS_LOG_DEFAULT,
+                     "OVERTE_IOS_VULKAN_ISOLATION recovered_unretired_submit candidates=%zu persistence_status=%d",
+                     _iosQuarantinedPipelines.size(), static_cast<int>(settings.status()));
+        for (const auto& id : pending) {
+            os_log_fault(OS_LOG_DEFAULT,
+                         "OVERTE_IOS_VULKAN_ISOLATION recovered_candidate=%{public}s",
+                         id.toUtf8().constData());
+        }
+    }
+#endif
 
     {
         VkPipelineCacheCreateInfo createInfo{};
@@ -244,6 +349,10 @@ bool VKBackend::supportedTextureFormat(const gpu::Element& format) const {
 void VKBackend::executeFrame(const FramePointer& frame) {
     using namespace vks::debugutils;
 
+#if defined(Q_OS_IOS)
+    _iosCurrentUntrustedPipelines.clear();
+#endif
+
     // Initialize parts that cannot be initialized in default constructor.
     if (!_isInitialized) {
         initBeforeFirstFrame();
@@ -285,6 +394,27 @@ void VKBackend::executeFrame(const FramePointer& frame) {
 
 void VKBackend::render(const Batch& batch) {
     using namespace vks::debugutils;
+
+#if defined(Q_OS_IOS)
+    const auto batchDiagnosticId = iosBatchDiagnosticId(batch);
+    if (_iosQuarantinedPipelines.contains(batchDiagnosticId)) {
+        os_log_fault(OS_LOG_DEFAULT,
+                     "OVERTE_IOS_VULKAN_ISOLATION action=skip_batch id=%{public}s batch=%{public}s commands=%zu",
+                     batchDiagnosticId.c_str(), batch.getName().c_str(), batch.getCommands().size());
+        return;
+    }
+    if (!_iosHealthyPipelines.contains(batchDiagnosticId)) {
+        _iosCurrentUntrustedPipelines.insert(batchDiagnosticId);
+    }
+    static size_t batchReports { 0 };
+    if (batchReports < 2048) {
+        ++batchReports;
+        os_log_info(OS_LOG_DEFAULT,
+                    "OVERTE_IOS_VULKAN_BATCH_USE id=%{public}s batch=%{public}s commands=%zu healthy=%d",
+                    batchDiagnosticId.c_str(), batch.getName().c_str(), batch.getCommands().size(),
+                    static_cast<int>(_iosHealthyPipelines.contains(batchDiagnosticId)));
+    }
+#endif
 
     const auto& commandBuffer = _currentCommandBuffer;
 
@@ -873,6 +1003,26 @@ void VKBackend::updateVkDescriptorWriteSetsUniform(const Cache::PipelineLayout &
         }
     }
 
+#if defined(Q_OS_IOS)
+    if (hasPipelineChanged) {
+        const auto invalid = static_cast<size_t>(std::count_if(
+            bufferInfos.cbegin(), bufferInfos.cend(), [](const VkDescriptorBufferInfo& info) {
+                return info.buffer == VK_NULL_HANDLE || info.range == 0;
+            }));
+        reportDescriptorCoverage("uniform", layout.uniformBindingMap, sets, invalid);
+        for (size_t index = 0; index < bufferInfos.size(); ++index) {
+            if (bufferInfos[index].buffer == VK_NULL_HANDLE || bufferInfos[index].range == 0) {
+                os_log_fault(OS_LOG_DEFAULT,
+                             "OVERTE_IOS_VULKAN_DESCRIPTOR invalid=uniform binding=%u buffer_null=%d offset=%llu range=%llu",
+                             sets[index].dstBinding,
+                             static_cast<int>(bufferInfos[index].buffer == VK_NULL_HANDLE),
+                             static_cast<unsigned long long>(bufferInfos[index].offset),
+                             static_cast<unsigned long long>(bufferInfos[index].range));
+            }
+        }
+    }
+#endif
+
     if (!hasPipelineChanged && !haveBufferDescriptorSetsChanged(sets, bufferInfos, oldSets,  oldBufferInfos)) {
         return;
     }
@@ -1010,6 +1160,31 @@ void VKBackend::updateVkDescriptorWriteSetsTexture(const Cache::PipelineLayout &
         }
     }
 
+
+#if defined(Q_OS_IOS)
+    if (hasPipelineChanged) {
+        const auto invalid = static_cast<size_t>(std::count_if(
+            sets.cbegin(), sets.cend(), [](const VkWriteDescriptorSet& write) {
+                return !write.pImageInfo || write.pImageInfo->imageView == VK_NULL_HANDLE ||
+                    write.pImageInfo->sampler == VK_NULL_HANDLE ||
+                    write.pImageInfo->imageLayout == VK_IMAGE_LAYOUT_UNDEFINED;
+            }));
+        reportDescriptorCoverage("texture", layout.textureBindingMap, sets, invalid);
+        for (const auto& write : sets) {
+            if (!write.pImageInfo || write.pImageInfo->imageView == VK_NULL_HANDLE ||
+                    write.pImageInfo->sampler == VK_NULL_HANDLE ||
+                    write.pImageInfo->imageLayout == VK_IMAGE_LAYOUT_UNDEFINED) {
+                os_log_fault(OS_LOG_DEFAULT,
+                             "OVERTE_IOS_VULKAN_DESCRIPTOR invalid=texture binding=%u info_null=%d view_null=%d sampler_null=%d layout=%u",
+                             write.dstBinding, static_cast<int>(!write.pImageInfo),
+                             static_cast<int>(!write.pImageInfo || write.pImageInfo->imageView == VK_NULL_HANDLE),
+                             static_cast<int>(!write.pImageInfo || write.pImageInfo->sampler == VK_NULL_HANDLE),
+                             write.pImageInfo ? static_cast<uint32_t>(write.pImageInfo->imageLayout) : 0U);
+            }
+        }
+    }
+#endif
+
     if (!hasPipelineChanged && !haveTextureDescriptorSetsChanged(sets, imageInfos, oldSets,  oldImageInfos)) {
         return;
     }
@@ -1074,6 +1249,26 @@ void VKBackend::updateVkDescriptorWriteSetsStorage(const Cache::PipelineLayout &
             sets.push_back(descriptorWriteSet);
         }
     }
+
+#if defined(Q_OS_IOS)
+    if (hasPipelineChanged) {
+        const auto invalid = static_cast<size_t>(std::count_if(
+            bufferInfos.cbegin(), bufferInfos.cend(), [](const VkDescriptorBufferInfo& info) {
+                return info.buffer == VK_NULL_HANDLE || info.range == 0;
+            }));
+        reportDescriptorCoverage("storage", layout.storageBindingMap, sets, invalid);
+        for (size_t index = 0; index < bufferInfos.size(); ++index) {
+            if (bufferInfos[index].buffer == VK_NULL_HANDLE || bufferInfos[index].range == 0) {
+                os_log_fault(OS_LOG_DEFAULT,
+                             "OVERTE_IOS_VULKAN_DESCRIPTOR invalid=storage binding=%u buffer_null=%d offset=%llu range=%llu",
+                             sets[index].dstBinding,
+                             static_cast<int>(bufferInfos[index].buffer == VK_NULL_HANDLE),
+                             static_cast<unsigned long long>(bufferInfos[index].offset),
+                             static_cast<unsigned long long>(bufferInfos[index].range));
+            }
+        }
+    }
+#endif
 
     if (!hasPipelineChanged && !haveBufferDescriptorSetsChanged(sets, bufferInfos, oldSets,  oldBufferInfos)) {
         return;
@@ -1476,6 +1671,25 @@ void VKBackend::renderPassDraw(const Batch& batch) {
             bool hasPipelineChanged{ false };
             const auto &layout = _cache.getPipeline(_context);
 #if defined(Q_OS_IOS)
+            const auto pipelineDiagnosticId = iosPipelineDiagnosticId(_cache.pipelineState, _context, _cache);
+            const bool quarantinePipeline = _iosQuarantinedPipelines.contains(pipelineDiagnosticId);
+            if (!quarantinePipeline && !_iosHealthyPipelines.contains(pipelineDiagnosticId)) {
+                _iosCurrentUntrustedPipelines.insert(pipelineDiagnosticId);
+            }
+            static size_t pipelineUseReports { 0 };
+            if (pipelineUseReports < 2048) {
+                ++pipelineUseReports;
+                const auto& vertexSource =
+                    _cache.pipelineState.pipeline->getProgram()->getShaders()[0]->getSource();
+                const auto& fragmentSource =
+                    _cache.pipelineState.pipeline->getProgram()->getShaders()[1]->getSource();
+                os_log_info(OS_LOG_DEFAULT,
+                            "OVERTE_IOS_VULKAN_PIPELINE_USE id=%{public}s batch=%{public}s command=%zu draw=%d vertex=%{public}s fragment=%{public}s quarantined=%d healthy=%d",
+                            pipelineDiagnosticId.c_str(), batch.getName().c_str(), _commandIndex,
+                            _currentDraw, vertexSource.name.c_str(), fragmentSource.name.c_str(),
+                            static_cast<int>(quarantinePipeline),
+                            static_cast<int>(_iosHealthyPipelines.contains(pipelineDiagnosticId)));
+            }
             if (traceFullscreenBatch) {
                 os_log_info(OS_LOG_DEFAULT,
                             "OVERTE_IOS_VULKAN_DRAW batch=%{public}s command=%zu stage=pipeline_ready",
@@ -1608,7 +1822,13 @@ void VKBackend::renderPassDraw(const Batch& batch) {
             }
 #endif
             CommandCall call = _commandCalls[(*command)];
-            (this->*(call))(batch, *offset);
+            if (!quarantinePipeline) {
+                (this->*(call))(batch, *offset);
+            } else {
+                os_log_fault(OS_LOG_DEFAULT,
+                             "OVERTE_IOS_VULKAN_ISOLATION action=skip_pipeline id=%{public}s batch=%{public}s command=%zu",
+                             pipelineDiagnosticId.c_str(), batch.getName().c_str(), _commandIndex);
+            }
 #if defined(Q_OS_IOS)
             if (traceFullscreenBatch) {
                 os_log_info(OS_LOG_DEFAULT,
@@ -2280,6 +2500,49 @@ void VKBackend::recyclePreviousFrame() {
     }
 }
 
+#if defined(Q_OS_IOS)
+void VKBackend::persistIOSDiagnosticSubmit(uint64_t submitId) {
+    _iosSubmittedUntrustedPipelines = _iosCurrentUntrustedPipelines;
+    if (_iosSubmittedUntrustedPipelines.empty()) {
+        os_log_info(OS_LOG_DEFAULT,
+                    "OVERTE_IOS_VULKAN_ISOLATION submit=%llu untrusted=0 persistence=not-required",
+                    static_cast<unsigned long long>(submitId));
+        return;
+    }
+    auto settings = iosVulkanDiagnosticSettings();
+    settings.setValue("ios/vulkanPendingPipelines", toQStringList(_iosSubmittedUntrustedPipelines));
+    settings.setValue("ios/vulkanPendingSubmitId", QString::number(submitId));
+    settings.sync();
+    os_log_info(OS_LOG_DEFAULT,
+                "OVERTE_IOS_VULKAN_ISOLATION submit=%llu untrusted=%zu persistence_status=%d",
+                static_cast<unsigned long long>(submitId),
+                _iosSubmittedUntrustedPipelines.size(),
+                static_cast<int>(settings.status()));
+    for (const auto& id : _iosSubmittedUntrustedPipelines) {
+        os_log_info(OS_LOG_DEFAULT,
+                    "OVERTE_IOS_VULKAN_ISOLATION submit=%llu candidate=%{public}s",
+                    static_cast<unsigned long long>(submitId), id.c_str());
+    }
+}
+
+void VKBackend::retireIOSDiagnosticSubmit() {
+    _iosHealthyPipelines.insert(_iosSubmittedUntrustedPipelines.cbegin(),
+                                _iosSubmittedUntrustedPipelines.cend());
+    if (_iosSubmittedUntrustedPipelines.empty()) {
+        return;
+    }
+    auto settings = iosVulkanDiagnosticSettings();
+    settings.remove("ios/vulkanPendingPipelines");
+    settings.remove("ios/vulkanPendingSubmitId");
+    settings.sync();
+    os_log_info(OS_LOG_DEFAULT,
+                "OVERTE_IOS_VULKAN_ISOLATION retired newly_healthy=%zu total_healthy=%zu persistence_status=%d",
+                _iosSubmittedUntrustedPipelines.size(), _iosHealthyPipelines.size(),
+                static_cast<int>(settings.status()));
+    _iosSubmittedUntrustedPipelines.clear();
+}
+#endif
+
 void VKBackend::waitForGPU() {
     VK_CHECK_RESULT(vkQueueWaitIdle(_context.graphicsQueue));
     VK_CHECK_RESULT(vkQueueWaitIdle(_context.transferQueue));
@@ -2728,6 +2991,7 @@ void VKBackend::updateTransform(const gpu::Batch& batch) {
     _transform.update(_commandIndex, _stereo, _uniform, *_currentFrame);
 
     const auto drawCallInfoBinding = getDrawCallInfoBinding();
+    VkDeviceSize diagnosticDrawCallOffset { 0 };
 
     if (batch._currentNamedCall.empty()) {
         if (_transform._enabledDrawcallInfoBuffer) {
@@ -2736,6 +3000,7 @@ void VKBackend::updateTransform(const gpu::Batch& batch) {
         // Since Vulkan has no glVertexAttrib equivalent we need to pass a buffer pointer here
         // Draw call info for unnamed calls starts at the beginning of the buffer, with offset dependent on _currentDraw
         VkDeviceSize vkOffset = _currentDraw * sizeof(gpu::Batch::DrawCallInfo);
+        diagnosticDrawCallOffset = vkOffset;
         Q_ASSERT(_currentFrame->_drawCallInfoBuffer);
         auto gpuBuffer = syncGPUObject(_currentFrame->_drawCallInfoBuffer.get());
         vkCmdBindVertexBuffers(_currentCommandBuffer, drawCallInfoBinding, 1, &gpuBuffer->buffer, &vkOffset);
@@ -2754,10 +3019,41 @@ void VKBackend::updateTransform(const gpu::Batch& batch) {
         //       so we must provide a stride.
         //       This is in contrast to VertexAttrib*Pointer, where a zero signifies tightly-packed elements.
         VkDeviceSize vkOffset = _transform._drawCallInfoOffsets[batch._currentNamedCall];
+        diagnosticDrawCallOffset = vkOffset;
         Q_ASSERT(_currentFrame->_drawCallInfoBuffer);
         auto gpuBuffer = syncGPUObject(_currentFrame->_drawCallInfoBuffer.get());
         vkCmdBindVertexBuffers(_currentCommandBuffer, drawCallInfoBinding, 1, &gpuBuffer->buffer, &vkOffset);
     }
+
+#if defined(Q_OS_IOS)
+    static size_t drawBufferReports { 0 };
+    if (drawBufferReports < 2048) {
+        ++drawBufferReports;
+        const auto& drawInfos = batch.getDrawCallInfoBuffer();
+        const auto drawInfoBytes = _currentFrame->_drawCallInfoBuffer
+            ? _currentFrame->_drawCallInfoBuffer->getSize() : 0;
+        const auto objectBytes = _currentFrame->_objectBuffer
+            ? _currentFrame->_objectBuffer->getSize() : 0;
+        const bool drawInfoRangeValid = diagnosticDrawCallOffset + sizeof(gpu::Batch::DrawCallInfo) <=
+            drawInfoBytes;
+        int objectIndex { -1 };
+        if (!drawInfos.empty()) {
+            const auto infoIndex = batch._currentNamedCall.empty()
+                ? std::min(static_cast<size_t>(_currentDraw), drawInfos.size() - 1)
+                : 0;
+            objectIndex = static_cast<int>(drawInfos[infoIndex].index);
+        }
+        os_log_info(OS_LOG_DEFAULT,
+                    "OVERTE_IOS_VULKAN_DRAW_BUFFER batch=%{public}s command=%zu draw=%d named=%d binding=%u offset=%llu draw_info_bytes=%zu draw_infos=%zu range_valid=%d object_bytes=%zu objects=%zu object_index=%d object_valid=%d",
+                    batch.getName().c_str(), _commandIndex, _currentDraw,
+                    static_cast<int>(!batch._currentNamedCall.empty()), drawCallInfoBinding,
+                    static_cast<unsigned long long>(diagnosticDrawCallOffset),
+                    static_cast<size_t>(drawInfoBytes), drawInfos.size(),
+                    static_cast<int>(drawInfoRangeValid), static_cast<size_t>(objectBytes),
+                    batch._objects.size(), objectIndex,
+                    static_cast<int>(objectIndex >= 0 && static_cast<size_t>(objectIndex) < batch._objects.size()));
+    }
+#endif
 
     // VKTODO: camera correction
     /*auto* cameraCorrectionObject = syncGPUObject(*_currentFrame->_cameraCorrectionBuffer._buffer);
