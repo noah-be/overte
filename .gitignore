@@ -48,6 +48,11 @@ local.properties
 /android/vr/pico/apps/picoInterface/.cxx/
 /android/phone/apps/phoneInterface/build/
 /android/phone/apps/phoneInterface/.cxx/
+/android/phone/.gradle/
+/android/phone/build/
+/android/phone/pico-host-tools/
+/android/vr/pico/pico-host-tools/
+/android/vr/pico/pico-precompiled-compat/
 /android/common/conan/pico4-*/
 /android/common/conan/phone-16k-debug/
 /android/common/conan/phone-nonqt-16k-debug/
