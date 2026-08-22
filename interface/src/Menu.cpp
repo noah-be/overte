@@ -106,7 +106,7 @@ Menu::Menu() {
         dialogsManager->setDomainLoginState();
         dialogsManager->showDomainLoginDialog();
     });
-    connect(domainAccountManager.data(), &DomainAccountManager::hasLogInChanged, [domainLogin](bool hasLogIn) {
+    connect(domainAccountManager.data(), &DomainAccountManager::hasLogInChanged, domainLogin, [domainLogin](bool hasLogIn) {
         domainLogin->setVisible(hasLogIn);
     });
 

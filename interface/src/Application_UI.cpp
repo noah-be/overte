@@ -1170,7 +1170,9 @@ bool Application::initMenu() {
 
 void Application::pauseUntilLoginDetermined() {
     if (QThread::currentThread() != qApp->thread()) {
-        QMetaObject::invokeMethod(this, "pauseUntilLoginDetermined");
+        QMetaObject::invokeMethod(this, [this] {
+            pauseUntilLoginDetermined();
+        }, Qt::QueuedConnection);
         return;
     }
 
@@ -1237,7 +1239,9 @@ void Application::pauseUntilLoginDetermined() {
 
 void Application::resumeAfterLoginDialogActionTaken() {
     if (QThread::currentThread() != qApp->thread()) {
-        QMetaObject::invokeMethod(this, "resumeAfterLoginDialogActionTaken");
+        QMetaObject::invokeMethod(this, [this] {
+            resumeAfterLoginDialogActionTaken();
+        }, Qt::QueuedConnection);
         return;
     }
 

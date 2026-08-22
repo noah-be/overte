@@ -514,6 +514,8 @@ for diagnostic_gpu_contract in (
         )
 
 menu_source = (ROOT / "interface/src/Menu.cpp").read_text(encoding="utf-8")
+if "&DomainAccountManager::hasLogInChanged, domainLogin, [domainLogin]" not in menu_source:
+    raise SystemExit("domain login menu updates must use the QAction as connection context")
 texture_memory_mappings = re.findall(
     r"MenuOption::RenderMaxTexture(\d+)MB\s*==\s*text\)\s*\{\s*"
     r"newMaxTextureMemory\s*=\s*MB_TO_BYTES\((\d+)\)",
@@ -2191,6 +2193,19 @@ if "serverless smoke submitted an unexpected skinned model draw" not in smoke:
 application_ui_source = (ROOT / "interface/src/Application_UI.cpp").read_text(
     encoding="utf-8"
 )
+for queued_login_contract in (
+    "pauseUntilLoginDetermined();\n        }, Qt::QueuedConnection)",
+    "resumeAfterLoginDialogActionTaken();\n        }, Qt::QueuedConnection)",
+):
+    if queued_login_contract not in application_ui_source:
+        raise SystemExit("login state transitions must queue explicitly onto the GUI thread")
+for qml_root_contract in (
+    "auto rootItem = offscreenUi->getRootItem();",
+    "auto rootItem = offscreenUi ? offscreenUi->getRootItem() : nullptr;",
+    'auto assetDialog = rootItem ? rootItem->findChild<QQuickItem*>("AssetServer") : nullptr;',
+):
+    if qml_root_contract not in application_source:
+        raise SystemExit("asset server node changes must tolerate an absent QML root")
 mesh_reenable_guard = """if (!property(hifi::properties::DISABLE_LOCAL_AVATAR).toBool()) {
         myAvatar->setEnableMeshVisible(true);
     }"""
