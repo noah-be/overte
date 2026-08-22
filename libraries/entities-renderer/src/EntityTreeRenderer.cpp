@@ -646,6 +646,7 @@ void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, r
                         !modelURL.endsWith(".glb", Qt::CaseInsensitive)) {
                     if (representativeModelID.isNull()) {
                         representativeModelID = entityID;
+                        hifi::properties::setMacOSTestRepresentativeEntityID(entityID.toString());
                         qInfo().noquote()
                             << "OVERTE_MACOS_RENDER_PHASE representative_model_selected"
                             << "entity=" << entityID.toString()

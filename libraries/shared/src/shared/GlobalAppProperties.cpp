@@ -9,8 +9,15 @@
 #include "GlobalAppProperties.h"
 
 #include <QtCore/QtGlobal>
+#include <QMutex>
+#include <QMutexLocker>
 
 namespace hifi { namespace properties {
+
+    namespace {
+        QMutex MACOS_TEST_REPRESENTATIVE_ENTITY_MUTEX;
+        QString MACOS_TEST_REPRESENTATIVE_ENTITY_ID;
+    }
 
     const char* CRASHED = "com.highfidelity.crashed";
     const char* STEAM = "com.highfidelity.launchedFromSteam";
@@ -49,6 +56,16 @@ namespace hifi { namespace properties {
 
     GraphicsAPI getGraphicsAPI() {
         return GRAPHICS_API;
+    }
+
+    void setMacOSTestRepresentativeEntityID(const QString& entityID) {
+        QMutexLocker locker(&MACOS_TEST_REPRESENTATIVE_ENTITY_MUTEX);
+        MACOS_TEST_REPRESENTATIVE_ENTITY_ID = entityID;
+    }
+
+    QString getMacOSTestRepresentativeEntityID() {
+        QMutexLocker locker(&MACOS_TEST_REPRESENTATIVE_ENTITY_MUTEX);
+        return MACOS_TEST_REPRESENTATIVE_ENTITY_ID;
     }
 
 } }

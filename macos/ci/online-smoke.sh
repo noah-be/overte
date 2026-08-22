@@ -96,6 +96,10 @@ grep -Fq "OVERTE_MACOS_SMOKE diagnostic_light=" "$log" || {
     echo "online deterministic camera light was not created" >&2
     exit 1
 }
+grep -Fq "OVERTE_MACOS_SMOKE representative_camera=" "$log" || {
+    echo "online representative Hub model was not framed by the camera" >&2
+    exit 1
+}
 grep -Fq "OVERTE_MACOS_SMOKE passed" "$log" || {
     echo "online smoke script did not pass" >&2
     exit 1

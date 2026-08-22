@@ -195,6 +195,14 @@ public slots:
     Q_INVOKABLE quint32 getPresentCount() const;
 
     /*@jsdoc
+     * Returns the domain entity selected by the explicit macOS representative
+     * render test. Empty outside that test mode.
+     * @function Test.getMacOSRepresentativeEntityID
+     * @returns {string} Selected entity UUID.
+     */
+    Q_INVOKABLE QString getMacOSRepresentativeEntityID() const;
+
+    /*@jsdoc
      * Reports whether the current serverless scene import has committed.
      * Available to explicit application test scripts only.
      * @function Test.isServerlessSceneImportComplete

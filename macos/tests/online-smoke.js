@@ -37,6 +37,42 @@
     var latestInventory = null;
     var completed = false;
     var diagnosticLightID = null;
+    var representativeCameraFramed = false;
+
+    function frameRepresentativeModel() {
+        if (representativeCameraFramed) {
+            return true;
+        }
+        var entityID = String(Test.getMacOSRepresentativeEntityID() || "");
+        if (!entityID) {
+            return false;
+        }
+        var properties = Entities.getEntityProperties(entityID, [
+            "type", "visible", "position", "dimensions"
+        ]);
+        if (String(properties.type) !== "Model" || properties.visible === false) {
+            return false;
+        }
+        var position = plainVector(properties.position);
+        var dimensions = plainVector(properties.dimensions);
+        var distance = Math.max(6, dimensions.x * 2, dimensions.y * 2, dimensions.z * 2);
+        var target = {
+            x: position.x,
+            y: position.y + dimensions.y * 0.15,
+            z: position.z
+        };
+        var cameraPosition = {
+            x: target.x,
+            y: target.y,
+            z: target.z + distance
+        };
+        MyAvatar.position = cameraPosition;
+        MyAvatar.orientation = Quat.lookAt(cameraPosition, target, { x: 0, y: 1, z: 0 });
+        representativeCameraFramed = true;
+        print("OVERTE_MACOS_SMOKE representative_camera=" + entityID +
+            " distance=" + distance);
+        return true;
+    }
 
     function ensureDiagnosticLight() {
         if (diagnosticLightID) {
@@ -196,6 +232,9 @@
         var resources = queueState();
         if (snapshotStage === "waiting" && latestInventory.visible_model_count > 0) {
             if (visibleGeometryReadyAt === 0) {
+                if (!frameRepresentativeModel()) {
+                    return;
+                }
                 ensureDiagnosticLight();
                 // Apple's virtualized software renderer can present primitive
                 // frames before spending several minutes inside the first
