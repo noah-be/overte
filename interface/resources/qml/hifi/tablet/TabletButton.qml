@@ -31,6 +31,7 @@ Item {
     property bool inDebugMode: false  // tablet only
     property bool isEntered: false
     property bool hoverEnabled: true  // tablet only; disabled for direct-touch presentation
+    property bool prioritizeTap: false  // direct touch: do not lose a tap to a parent swipe view
     property double sortOrder: 100
     property int stableOrder: 0
     property var tabletRoot;  // tablet only
@@ -166,7 +167,7 @@ Item {
         Accessible.ignored: true
         hoverEnabled: tabletButton.hoverEnabled
         enabled: true
-        preventStealing: false
+        preventStealing: tabletButton.prioritizeTap
         onClicked: {
             tabletButton.forceActiveFocus()
             tabletButton.activate()
