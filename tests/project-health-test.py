@@ -32,6 +32,20 @@ class ProjectHealthTests(unittest.TestCase):
         self.assertRegex(first_line, r"^import QtQuick 2\.(?:[1-9]|[1-9][0-9]+)$")
         self.assertIn("activeFocusOnTab:", source.read_text(encoding="utf-8"))
 
+    def test_direct_touch_tablet_actions_take_priority_over_parent_gestures(self):
+        button = (ROOT / "interface/resources/qml/hifi/tablet/TabletButton.qml").read_text(
+            encoding="utf-8"
+        )
+        home = (ROOT / "interface/resources/qml/hifi/tablet/TabletHome.qml").read_text(
+            encoding="utf-8"
+        )
+        menu = (ROOT / "interface/resources/qml/hifi/tablet/TabletMenuView.qml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("preventStealing: tabletButton.prioritizeTap", button)
+        self.assertIn("prioritizeTap: presentation.touchOptimized", home)
+        self.assertIn("preventStealing: touchMetrics.directTouch", menu)
+
     def test_all_python_files_compile(self):
         python2_allowlist = {
             Path("tools/bake-tools/bake.py"),
