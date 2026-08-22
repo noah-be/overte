@@ -260,7 +260,7 @@ int main(int argc, const char* argv[]) {
     );
     QCommandLineOption macosTestRepresentativeEntitiesOption(
         "macosTestRepresentativeEntities",
-        "In an explicit macOS test script, render environmental entities and one medium streamed model."
+        "In an explicit macOS test script, render environmental entities and one moderate streamed model."
     );
     QCommandLineOption macosTestDisableEntityScriptsOption(
         "macosTestDisableEntityScripts",

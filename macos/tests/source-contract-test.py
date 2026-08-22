@@ -1157,11 +1157,14 @@ for representative_filter_contract in (
     "macOSRepresentativeEntityTestEnabled()",
     "representative_model_selected",
     "representativeModelID.isNull()",
-    "entity->getType() == EntityTypes::Model",
+    "std::dynamic_pointer_cast<ModelEntityItem>(entity)",
     "entity->getType() == EntityTypes::Light",
     "entity->getType() == EntityTypes::Material",
-    "entity->getBoundingRadius() >= 3.0f",
-    "entity->getBoundingRadius() <= 20.0f",
+    "entity->getBoundingRadius() >= 1.5f",
+    "entity->getBoundingRadius() <= 3.0f",
+    '!modelURL.endsWith(".glb", Qt::CaseInsensitive)',
+    '"radius=" << entity->getBoundingRadius()',
+    '"url=" << modelURL',
 ):
     if representative_filter_contract not in entity_renderer_source:
         raise SystemExit(

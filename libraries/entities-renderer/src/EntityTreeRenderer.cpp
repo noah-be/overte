@@ -637,15 +637,20 @@ void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, r
                 bool keepEntity = isLightweightMacOSEntityType(entity->getType()) ||
                     entity->getType() == EntityTypes::Light ||
                     entity->getType() == EntityTypes::Material;
-                if (entity->getType() == EntityTypes::Model &&
+                auto modelEntity = std::dynamic_pointer_cast<ModelEntityItem>(entity);
+                const auto modelURL = modelEntity ? modelEntity->getModelURL() : QString();
+                if (modelEntity &&
                         entity->getEntityHostType() == entity::HostType::DOMAIN &&
-                        entity->getBoundingRadius() >= 3.0f &&
-                        entity->getBoundingRadius() <= 20.0f) {
+                        entity->getBoundingRadius() >= 1.5f &&
+                        entity->getBoundingRadius() <= 3.0f &&
+                        !modelURL.endsWith(".glb", Qt::CaseInsensitive)) {
                     if (representativeModelID.isNull()) {
                         representativeModelID = entityID;
                         qInfo().noquote()
                             << "OVERTE_MACOS_RENDER_PHASE representative_model_selected"
-                            << "entity=" << entityID.toString();
+                            << "entity=" << entityID.toString()
+                            << "radius=" << entity->getBoundingRadius()
+                            << "url=" << modelURL;
                     }
                     keepEntity = entityID == representativeModelID;
                 }
