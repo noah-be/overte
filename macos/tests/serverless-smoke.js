@@ -6,7 +6,9 @@
 
     // Observe the production render path. The test supplies only a known URL;
     // it does not change the camera, avatar, scene visibility, or renderer.
-    var deadline = Date.now() + 850000;
+    // Apple's hosted Intel software renderer can spend more than 13 minutes
+    // completing the production avatar draws before a queued snapshot is saved.
+    var deadline = Date.now() + 1500000;
     var loggedNames = {
         "macOS smoke red cube": false,
         "macOS smoke cyan sphere": false,
