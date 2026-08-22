@@ -8,6 +8,7 @@ on:
       - "libraries/**"
       - "scripts/**"
       - ".github/workflows/android-vr-tests.yml"
+      - "!**/*.md"
   push:
     branches:
       - android-main
@@ -20,6 +21,7 @@ on:
       - "libraries/**"
       - "scripts/**"
       - ".github/workflows/android-vr-tests.yml"
+      - "!**/*.md"
   workflow_dispatch:
 
 permissions:
