@@ -78,10 +78,10 @@ experimental integrated Qt/Overte client or every Universal Touch UI screen.
   not run after the requested reduction to one iPhone bootstrap smoke; its
   checked-in GitHub workflow retains content-addressed Qt checkpoint/cache
   restoration for a future run.
-- Fedora already provides the `libimobiledevice` libraries and `usbmuxd`.
-  `libimobiledevice-utils` is still required for `idevice_id` and
-  `idevicesyslog`; automatic installation stopped safely because `sudo` needs an
-  interactive local password.
+- Fedora provides the `libimobiledevice` libraries, `usbmuxd`, and
+  `libimobiledevice-utils` 1.4.0. The privacy-neutral Fedora doctor verified
+  `idevice_id`, `idevicesyslog`, and exactly one connected device without
+  publishing its identity.
 
 ## Artifact checksums (SHA-256)
 
@@ -147,6 +147,6 @@ personal information.
 - Complete iPadOS acceptance remains pending even though the unsigned device SDK
   build passed. No serial number, UDID, model, or user identity may enter logs or
   committed evidence.
-- Fedora live-capture doctor: requires local installation of
-  `libimobiledevice-utils`; all command, redaction, timeout, privacy, and artifact
-  behavior is already covered by hardware-free mocks.
+- Fedora live-capture doctor: PASS. Actual log capture remains blocked until the
+  verified integrated Full Client IPA has been signed and installed; all command,
+  redaction, timeout, privacy, and artifact behavior is already covered by mocks.
