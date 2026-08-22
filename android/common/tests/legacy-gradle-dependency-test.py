@@ -236,6 +236,7 @@ class LegacyGradleDependencyTest(unittest.TestCase):
             encoding="utf-8")
         self.assertIn("System.getenv('HIFI_ANDROID_CONAN_GENERATORS')", source)
         self.assertIn("-DCMAKE_PROJECT_INCLUDE_BEFORE=", source)
+        self.assertIn("-DHIFI_ANDROID_HOST_TOOLS=", source)
         self.assertIn("-DCMAKE_PREFIX_PATH=", source)
         self.assertIn("-DHIFI_ANDROID_CONAN_GENERATORS=", source)
         self.assertIn("private/qjni_p.h", bootstrap)

@@ -59,6 +59,7 @@ class PicoPackageContractTests(unittest.TestCase):
 
     def test_native_build_uses_pico_bootstrap_and_disables_breakpad(self):
         self.assertIn("-DHIFI_ANDROID_APP=picoInterface", GRADLE)
+        self.assertIn("-DHIFI_ANDROID_HOST_TOOLS=", GRADLE)
         self.assertIn("-DCMAKE_PROJECT_INCLUDE_BEFORE=", GRADLE)
         self.assertIn("common/cmake/pico-bootstrap.cmake", GRADLE)
         self.assertIn("-DUSE_BREAKPAD=OFF", GRADLE)

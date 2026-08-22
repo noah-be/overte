@@ -3,6 +3,7 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 android_root="$(cd -- "$script_dir/.." && pwd)"
+repo_root="$(cd -- "$android_root/.." && pwd)"
 sdk="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-${HOME}/Android/Sdk}}"
 adb="$sdk/platform-tools/adb"
 emulator="$sdk/emulator/emulator"
@@ -17,6 +18,13 @@ test_class="${PHONE_EMULATOR_TEST_CLASS:-}"
 test_repetitions="${PHONE_EMULATOR_TEST_REPETITIONS:-1}"
 lock_file="${PHONE_EMULATOR_LOCK_FILE:-${state_dir}.lock}"
 lock_timeout="${PHONE_EMULATOR_LOCK_TIMEOUT_SECONDS:-600}"
+emulator_profile="$android_root/common/conan/profiles/phone-emulator-x86_64"
+emulator_dependencies="$android_root/common/conan/phone-emulator-x86_64-debug"
+emulator_ready="$emulator_dependencies/.phone-emulator-dependencies.ready"
+emulator_host_tools="$script_dir/pico-host-tools"
+emulator_dependency_verifier="$script_dir/tests/verify-phone-emulator-dependencies.py"
+emulator_conan_cache_root="${PHONE_EMULATOR_CONAN_CACHE_DIR:-${XDG_CACHE_HOME:-${HOME}/.cache}/overte/android-phone-emulator-conan}"
+emulator_conan_cache="$emulator_conan_cache_root/libnode-x86_64-conan.tgz"
 
 fail() { echo "error: $*" >&2; exit 2; }
 
@@ -38,6 +46,55 @@ find_jdk() {
         fi
     done
     return 1
+}
+
+setup_compiler_cache() {
+    local ccache_bin cache_root
+    ccache_bin="$(command -v ccache 2>/dev/null || true)"
+    [[ -n "$ccache_bin" ]] || return
+    cache_root="${XDG_CACHE_HOME:-${HOME}/.cache}"
+    export PHONE_EMULATOR_CCACHE="$ccache_bin"
+    export CCACHE_DIR="${PHONE_EMULATOR_CCACHE_DIR:-$cache_root/overte/android-phone-emulator-ccache}"
+    export CCACHE_BASEDIR="$repo_root"
+    export CCACHE_NOHASHDIR=true
+    export CCACHE_COMPILERCHECK=content
+    export CCACHE_NAMESPACE='overte-android-phone-emulator-x86_64-api26-ndk27.3-debug'
+    mkdir -p -- "$CCACHE_DIR"
+    "$ccache_bin" --max-size "${PHONE_EMULATOR_CCACHE_MAX_SIZE:-15G}" >/dev/null
+}
+
+write_emulator_ready_marker() {
+    mkdir -p -- "$emulator_dependencies"
+    printf 'abi=x86_64\nprofile=%s\n' \
+        "$(sha256sum "$emulator_profile" | awk '{print $1}')" >"$emulator_ready.tmp"
+    mv -- "$emulator_ready.tmp" "$emulator_ready"
+}
+
+emulator_dependencies_are_ready() {
+    python3 "$emulator_dependency_verifier" "$emulator_dependencies" \
+        "$emulator_profile" "$emulator_ready" "$emulator_host_tools" >/dev/null 2>&1
+}
+
+restore_emulator_dependency_cache() {
+    [[ -f "$emulator_conan_cache" && ! -L "$emulator_conan_cache" ]] || return 1
+    echo 'Restoring the persistent x86_64 Conan package cache...'
+    conan cache restore "$emulator_conan_cache" >/dev/null 2>&1 || return 1
+    conan install "$android_root/common/conan/conanfile-pico.py" \
+        -of "$emulator_dependencies" -pr:h "$emulator_profile" -pr:b default \
+        --build=never >/dev/null 2>&1 || return 1
+    write_emulator_ready_marker
+    emulator_dependencies_are_ready
+}
+
+ensure_emulator_dependencies() {
+    emulator_dependencies_are_ready && return
+    if restore_emulator_dependency_cache; then
+        echo 'Phone emulator dependencies restored without recompilation.'
+        return
+    fi
+    "$script_dir/prepare-phone-emulator-deps.sh"
+    emulator_dependencies_are_ready \
+        || fail 'prepared phone emulator dependencies failed verification'
 }
 
 running_serial() {
@@ -97,9 +154,9 @@ start() {
 build() {
     local jdk
     jdk="$(find_jdk)" || fail "JDK 17-21 was not found"
+    setup_compiler_cache
     mkdir -p -- "$gradle_tmp"
-    [[ -f "$android_root/common/conan/phone-emulator-x86_64-debug/.phone-emulator-dependencies.ready" ]] \
-        || "$script_dir/prepare-phone-emulator-deps.sh"
+    ensure_emulator_dependencies
     PHONE_EMULATOR_BUILD=1 JAVA_HOME="$jdk" ANDROID_SDK_ROOT="$sdk" \
         TMPDIR="$gradle_tmp" JAVA_TOOL_OPTIONS="-Djava.io.tmpdir=$gradle_tmp ${JAVA_TOOL_OPTIONS:-}" \
         CMAKE_BUILD_PARALLEL_LEVEL="${PHONE_BUILD_JOBS:-$(nproc)}" \
@@ -140,6 +197,8 @@ test_emulator() {
     start
     serial="$(<"$serial_file")"
     jdk="$(find_jdk)" || fail "JDK 17-21 was not found"
+    setup_compiler_cache
+    ensure_emulator_dependencies
     mkdir -p -- "$gradle_tmp"
     gradle_arguments=(--settings-file "$script_dir/settings.gradle")
     if [[ -n "$test_class" ]]; then
@@ -182,21 +241,28 @@ acquire_lifecycle_lock() {
     [[ "$lock_timeout" =~ ^[0-9]+([.][0-9]+)?$ ]] \
         || fail "PHONE_EMULATOR_LOCK_TIMEOUT_SECONDS must be a non-negative number"
     mkdir -p -- "$(dirname -- "$lock_file")"
-    exec {emulator_lock_fd}>>"$lock_file"
-    if ! flock -x -w "$lock_timeout" "$emulator_lock_fd"; then
+    [[ "${PHONE_EMULATOR_LOCK_HELD:-0}" == 1 ]] && return
+    local status
+    set +e
+    PHONE_EMULATOR_LOCK_HELD=1 flock --close -E 75 -x -w "$lock_timeout" \
+        "$lock_file" "$script_dir/phone-emulator-test.sh" "$@"
+    status=$?
+    set -e
+    if (( status == 75 )); then
         fail "timed out waiting for phone emulator lifecycle lock"
     fi
+    exit "$status"
 }
 
 case "$command_name" in
     doctor) ;;
-    deps|start|build|test|stop|all) acquire_lifecycle_lock ;;
+    deps|start|build|test|stop|all) acquire_lifecycle_lock "$@" ;;
     *) fail "usage: $0 [doctor|deps|start|build|test|stop|all]" ;;
 esac
 
 case "$command_name" in
     doctor) doctor ;;
-    deps) "$script_dir/prepare-phone-emulator-deps.sh" ;;
+    deps) ensure_emulator_dependencies ;;
     start) start ;;
     build) build ;;
     test) test_emulator ;;

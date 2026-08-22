@@ -254,8 +254,9 @@ require_text "$gradle" "targets[[:space:]]+['\"]phoneInterface['\"]" \
     'Gradle builds the phone native target'
 require_text "$gradle" 'ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON' \
     'native build opts into flexible Android page sizes'
-require_text "$gradle" 'usePhone16kDependencies[[:space:]]*=[[:space:]]*phone16kReadySentinel\.isFile' \
-    '16 KiB dependencies are enabled only by the verified sentinel'
+require_text "$gradle" \
+    'usePhone16kDependencies[[:space:]]*=[[:space:]]*!isPhoneEmulatorBuild[[:space:]]*&&' \
+    '16 KiB dependencies are enabled only for physical-device builds'
 require_text "$gradle" 'useLegacyPackaging[[:space:]]+true' \
     'Qt 5 phone builds extract JNI libraries required by android.app.load_local_libs'
 reject_text "$gradle" 'useLegacyPackaging[[:space:]]+!usePhone16kDependencies' \

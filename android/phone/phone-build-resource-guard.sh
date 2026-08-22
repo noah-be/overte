@@ -83,7 +83,7 @@ phone_build_resource_guard() {
     [[ "$script_path" == /* ]] \
         || { phone_build_resource_guard_fail 'the guarded script path must be absolute'; return; }
 
-    echo 'Restarting build in a systemd user service (jobs=4, MemoryMax=16 GB decimal)'
+    echo 'Restarting build in a systemd user service (MemoryMax=16 GB decimal)'
     exec systemd-run --user --collect --wait --pipe --quiet --same-dir \
         --property="MemoryMax=${OVERTE_PHONE_MEMORY_MAX_PROPERTY}" \
         --setenv="PATH=${PATH}" \

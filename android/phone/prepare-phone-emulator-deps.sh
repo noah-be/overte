@@ -10,6 +10,9 @@ output_dir="$android_root/common/conan/phone-emulator-x86_64-debug"
 host_output_dir="$android_root/common/conan/phone-emulator-host"
 host_tools_dir="$script_dir/pico-host-tools"
 ready_sentinel="$output_dir/.phone-emulator-dependencies.ready"
+dependency_verifier="$script_dir/tests/verify-phone-emulator-dependencies.py"
+cache_root="${PHONE_EMULATOR_CONAN_CACHE_DIR:-${XDG_CACHE_HOME:-${HOME}/.cache}/overte/android-phone-emulator-conan}"
+cache_archive="$cache_root/libnode-x86_64-conan.tgz"
 android_sdk="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-${HOME}/Android/Sdk}}"
 export ANDROID_SDK_ROOT="$android_sdk"
 export ANDROID_HOME="$android_sdk"
@@ -92,5 +95,39 @@ find "$qt_dir" -type f -name '*x86_64.so' -print -quit | grep -q . \
 mkdir -p -- "$output_dir"
 printf 'abi=x86_64\nprofile=%s\n' "$(sha256sum "$profile" | awk '{print $1}')" \
     > "$ready_sentinel.tmp"
+python3 "$dependency_verifier" "$output_dir" "$profile" \
+    "$ready_sentinel.tmp" "$host_tools_dir"
 mv -- "$ready_sentinel.tmp" "$ready_sentinel"
+
+# The ARM64 prebuilt restore can replace the active libnode recipe revision in
+# Conan's shared cache. Preserve the expensive locally built x86_64 package in
+# a small, independently restorable archive so that switching targets never
+# forces another Node/V8 source build.
+graph_file="$output_dir/emulator-graph.json"
+conan graph info "$android_root/common/conan/conanfile-pico.py" \
+    -pr:h "$profile" -pr:b default --format=json --out-file="$graph_file"
+libnode_reference="$(python3 - "$graph_file" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as graph_file:
+    nodes = json.load(graph_file)["graph"]["nodes"].values()
+for node in nodes:
+    reference = node.get("ref") or ""
+    if reference.startswith("libnode/22.22.3@overte/stable#") and \
+            node.get("package_id"):
+        print(f"{reference}:{node['package_id']}")
+        break
+else:
+    raise SystemExit("x86_64 libnode package metadata is missing")
+PY
+)"
+mkdir -p -- "$cache_root"
+[[ ! -L "$cache_root" && ! -L "$cache_archive" ]] \
+    || fail "Phone emulator Conan cache must not use symlinks"
+cache_archive_tmp="$cache_root/.libnode-x86_64-conan.tmp.$$.tgz"
+trap 'rm -f -- "$cache_archive_tmp"' EXIT
+conan cache save "$libnode_reference" --file "$cache_archive_tmp" --no-source
+mv -- "$cache_archive_tmp" "$cache_archive"
+trap - EXIT
 echo "Phone emulator dependencies are ready: $output_dir"

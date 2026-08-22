@@ -84,6 +84,7 @@ android {
                 arguments '-DHIFI_ANDROID=1',
                     '-DOVERTE_LEGACY_ANDROID_CMAKE=ON',
                     '-DHIFI_ANDROID_APP=interface',
+                    '-DHIFI_ANDROID_HOST_TOOLS=' + file('../../../vr/pico/pico-host-tools').absolutePath,
                     '-DANDROID_PLATFORM=android-24',
                     '-DANDROID_TOOLCHAIN=clang',
                     '-DANDROID_STL=c++_shared',

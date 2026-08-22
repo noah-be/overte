@@ -149,6 +149,7 @@ android {
             cmake {
                 arguments '-DHIFI_ANDROID=1',
                     '-DHIFI_ANDROID_APP=picoInterface',
+                    '-DHIFI_ANDROID_HOST_TOOLS=' + file('../../pico-host-tools').absolutePath,
                     '-DHIFI_ANDROID_PRECOMPILED=' + file('../../pico-precompiled-compat').absolutePath,
                     '-DANDROID_STL=c++_shared',
                     '-DCMAKE_C_FLAGS=-O2 -falign-functions=32 -fPIC',

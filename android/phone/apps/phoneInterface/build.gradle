@@ -18,6 +18,9 @@ def phoneEmulatorConanDir = file('../../../common/conan/phone-emulator-x86_64-de
 def phoneEmulatorReadySentinel = new File(phoneEmulatorConanDir,
     '.phone-emulator-dependencies.ready')
 def isPhoneEmulatorBuild = System.getenv('PHONE_EMULATOR_BUILD') == '1'
+def phoneEmulatorCcache = isPhoneEmulatorBuild
+    ? System.getenv('PHONE_EMULATOR_CCACHE')
+    : null
 def phoneTargetAbi = isPhoneEmulatorBuild ? 'x86_64' : 'arm64-v8a'
 def qtAbiSuffix = isPhoneEmulatorBuild ? 'x86_64' : 'arm64-v8a'
 def phone16kReadySentinel = new File(phoneNonQtConanDir,
@@ -27,7 +30,8 @@ def phoneQtConanData = new File(phoneQtConanDir,
     'generators/Qt5-debug-armv8-data.cmake')
 // Generator files can survive an interrupted Conan rebuild. Only the atomic
 // sentinel written after checking every relevant package enables this graph.
-def usePhone16kDependencies = phone16kReadySentinel.isFile()
+def usePhone16kDependencies = !isPhoneEmulatorBuild &&
+    phone16kReadySentinel.isFile()
 def usePhoneEmulatorDependencies = isPhoneEmulatorBuild &&
     phoneEmulatorReadySentinel.isFile()
 def allowLegacy4kDependencies = System.getenv('PHONE_ALLOW_LEGACY_4K_DEPS') == '1'
@@ -79,7 +83,11 @@ if (!qtPackageMatch.find()) {
     throw new GradleException("Could not determine the Android Qt package from ${qtConanData}")
 }
 def qtPackageDir = file(qtPackageMatch.group(1))
-def phoneQtRuntimeDir = layout.buildDirectory.dir('generated/phoneQtRuntime')
+// Keep each ABI in its own source root. Gradle evaluates this build once per
+// target, but build/generated survives between emulator and device builds; a
+// shared root would therefore leak stale x86_64 libraries into an arm64 APK.
+def phoneQtRuntimeDir = layout.buildDirectory.dir(
+    "generated/phoneQtRuntime-${phoneTargetAbi}")
 def runtimeOverrides = file('../../../common/runtime-overrides/arm64-v8a')
 def phoneElfAlignmentCheck = file('../../../phone/tests/check-phone-elf-alignment.sh')
 def phone16kDependencyCheck = file('../../../phone/tests/verify-phone-16k-dependencies.sh')
@@ -231,7 +239,7 @@ tasks.register('preparePhoneQtRuntime', Sync) {
     }
     from(new File(qtPackageDir, 'plugins/platforms')) {
         include "libplugins_platforms_qtforandroid_${qtAbiSuffix}.so"
-        exclude { !usePhone16kQt && new File(runtimeOverrides,
+        exclude { !isPhoneEmulatorBuild && !usePhone16kQt && new File(runtimeOverrides,
             'libplugins_platforms_qtforandroid_arm64-v8a.so').exists() }
     }
     from(runtimeOverrides) {
@@ -291,6 +299,7 @@ android {
             cmake {
                 arguments '-DHIFI_ANDROID=1',
                     '-DHIFI_ANDROID_APP=phoneInterface',
+                    '-DHIFI_ANDROID_HOST_TOOLS=' + file('../../pico-host-tools').absolutePath,
                     '-DHIFI_ANDROID_PRECOMPILED=' + file('../../../vr/pico/pico-precompiled-compat').absolutePath,
                     '-DANDROID_STL=c++_shared',
                     '-DCMAKE_C_FLAGS=-O2 -falign-functions=32 -fPIC',
@@ -310,6 +319,10 @@ android {
                     '-DDISABLE_QML=OFF',
                     '-DDISABLE_KTX_CACHE=OFF',
                     '-DUSE_BREAKPAD=OFF'
+                if (phoneEmulatorCcache != null && !phoneEmulatorCcache.isEmpty()) {
+                    arguments '-DCMAKE_C_COMPILER_LAUNCHER=' + phoneEmulatorCcache,
+                        '-DCMAKE_CXX_COMPILER_LAUNCHER=' + phoneEmulatorCcache
+                }
                 targets 'phoneInterface'
             }
         }
@@ -378,7 +391,7 @@ android {
     }
     externalNativeBuild {
         cmake {
-            path file('../../../CMakeLists.txt')
+            path file('../../../../CMakeLists.txt')
             version '3.31.6'
         }
     }

@@ -4,7 +4,13 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 android_dir="$(cd -- "$script_dir/../.." && pwd)"
 gradle="$android_dir/phone/apps/phoneInterface/build.gradle"
+gradle_properties="$android_dir/phone/gradle.properties"
+emulator_runner="$android_dir/phone/phone-emulator-test.sh"
+emulator_deps="$android_dir/phone/prepare-phone-emulator-deps.sh"
+emulator_verifier="$android_dir/phone/tests/verify-phone-emulator-dependencies.py"
 profile="$android_dir/common/conan/profiles/phone-emulator-x86_64"
+conan_recipe="$android_dir/common/conan/conanfile-pico.py"
+pico_bootstrap="$android_dir/common/cmake/pico-bootstrap.cmake"
 resources="$android_dir/phone/apps/phoneInterface/src/emulator/res/values/qt_dependencies.xml"
 instrumentation_test="$android_dir/phone/apps/phoneInterface/src/androidTest/java/org/overte/phone/EmulatorPackagingTest.java"
 cold_launch_test="$android_dir/phone/apps/phoneInterface/src/androidTest/java/org/overte/phone/PhoneColdLaunchInstrumentedTest.java"
@@ -18,17 +24,72 @@ require_text() {
     }
 }
 
-bash -n "$android_dir/phone/phone-emulator-test.sh"
-bash -n "$android_dir/phone/prepare-phone-emulator-deps.sh"
+bash -n "$emulator_runner"
+bash -n "$emulator_deps"
+python3 - "$emulator_verifier" <<'PY'
+from pathlib import Path
+import sys
+
+compile(Path(sys.argv[1]).read_text(encoding="utf-8"), sys.argv[1], "exec")
+PY
+python3 - "$conan_recipe" "$root_dir/conanfile.py" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+recipe = Path(sys.argv[1]).resolve()
+expected = Path(sys.argv[2]).resolve()
+source = recipe.read_text(encoding="utf-8")
+match = re.search(r'parents\[(\d+)\]\s*/\s*["\x27]conanfile[.]py["\x27]', source)
+if match is None:
+    raise SystemExit("FAIL: Android Conan recipe does not declare its upstream recipe path")
+resolved = recipe.parents[int(match.group(1))] / "conanfile.py"
+if resolved != expected or not resolved.is_file():
+    raise SystemExit("FAIL: Android Conan recipe does not resolve the repository-root conanfile.py")
+PY
 require_text "$profile" '^arch=x86_64$' 'Conan emulator profile must target x86_64'
+require_text "$gradle" "path file\\('../../../../CMakeLists[.]txt'\\)" \
+    'Phone Gradle build must resolve the repository-root CMake project'
+require_text "$gradle" \
+    "HIFI_ANDROID_HOST_TOOLS=' \+ file\\('../../pico-host-tools'\\)[.]absolutePath" \
+    'Phone Gradle build must pass the prepared shader host-tool directory'
+require_text "$pico_bootstrap" '\$\{CMAKE_CURRENT_LIST_DIR\}/pico-compat' \
+    'Android CMake bootstrap must resolve the relocated compatibility headers'
+if grep -Fq '${CMAKE_CURRENT_LIST_DIR}/cmake-pico-compat' "$pico_bootstrap"; then
+    echo 'FAIL: Android CMake bootstrap still names the pre-relocation compatibility path' >&2
+    exit 1
+fi
 require_text "$gradle" "emulator \{" 'dedicated emulator build type is missing'
 require_text "$gradle" 'enableAndroidTestCoverage false' \
     'emulator build must not inherit unsupported offline JaCoCo instrumentation'
 require_text "$gradle" 'ndk \{ abiFilters phoneTargetAbi \}' \
     'selected phone ABI must control the native build graph'
+require_text "$gradle" 'generated/phoneQtRuntime-\$\{phoneTargetAbi\}' \
+    'Phone Qt runtime staging must isolate emulator and device ABIs'
 require_text "$gradle" "testBuildType isPhoneEmulatorBuild \? 'emulator' : 'debug'" \
     'instrumentation must target the selected product build type'
 require_text "$gradle" "PHONE_EMULATOR_BUILD" 'emulator dependency gate is missing'
+require_text "$gradle" \
+    'usePhone16kDependencies = !isPhoneEmulatorBuild &&' \
+    'emulator builds must not inherit physical-device 16 KiB gates'
+require_text "$gradle_properties" '^android[.]useAndroidX=true$' \
+    'the independent Phone Gradle root must enable its AndroidX test runtime'
+require_text "$gradle" 'CMAKE_CXX_COMPILER_LAUNCHER' \
+    'emulator CMake builds must accept the persistent compiler cache launcher'
+require_text "$emulator_runner" 'CCACHE_DIR=' \
+    'emulator runner must create a persistent compiler cache outside the worktree'
+require_text "$emulator_runner" 'CCACHE_BASEDIR=' \
+    'emulator compiler cache must normalize paths across Git worktrees'
+require_text "$emulator_deps" 'conan cache save' \
+    'the expensive x86_64 libnode package must be preserved independently'
+require_text "$emulator_runner" 'conan cache restore' \
+    'a stale shared Conan cache must restore x86_64 packages without compilation'
+require_text "$emulator_runner" 'emulator_dependencies_are_ready' \
+    'the emulator runner must verify package contents instead of trusting marker presence'
+require_text "$emulator_verifier" 'LIBS_DEBUG' \
+    'the emulator dependency verifier must inspect declared package libraries'
+require_text "$emulator_runner" 'flock --close' \
+    'emulator lifecycle lock must not leak into long-lived ADB or emulator children'
 require_text "$gradle" 'testInstrumentationRunner.*AndroidJUnitRunner' \
     'Android instrumentation runner is missing'
 require_text "$gradle" \
@@ -87,11 +148,16 @@ trap 'rm -rf -- "$fixture"' EXIT
 fixture_android="$fixture/android"
 fixture_home="$fixture/home"
 fixture_sdk="$fixture/sdk"
-mkdir -p "$fixture_android/common" "$fixture_android/phone" \
+mkdir -p "$fixture_android/common" "$fixture_android/phone/tests" \
     "$fixture_home/.android/avd/overte_api35.avd" \
     "$fixture_sdk/platform-tools" "$fixture_sdk/emulator" "$fixture/jdk/bin"
 cp "$android_dir/phone/phone-emulator-test.sh" "$fixture_android/phone/phone-emulator-test.sh"
 printf 'abi.type=x86_64\n' >"$fixture_home/.android/avd/overte_api35.avd/config.ini"
+
+cat >"$fixture_android/phone/tests/verify-phone-emulator-dependencies.py" <<'EOF'
+#!/usr/bin/env python3
+raise SystemExit(0)
+EOF
 
 cat >"$fixture/jdk/bin/java" <<'EOF'
 #!/usr/bin/env bash
@@ -139,7 +205,8 @@ echo "instrumentation output attempt $count"
 EOF
 chmod +x "$fixture/jdk/bin/java" "$fixture_sdk/emulator/emulator" \
     "$fixture_sdk/platform-tools/adb" "$fixture_android/common/gradlew" \
-    "$fixture_android/phone/phone-emulator-test.sh"
+    "$fixture_android/phone/phone-emulator-test.sh" \
+    "$fixture_android/phone/tests/verify-phone-emulator-dependencies.py"
 
 common_environment=(
     HOME="$fixture_home"

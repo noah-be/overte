@@ -68,6 +68,7 @@ local.properties
 /android/**/src/main/assets
 /android/**/gradle*
 !/android/common/tests/robolectric/gradle.lockfile
+!/android/phone/gradle.properties
 *.class
 
 # Visual Studio
