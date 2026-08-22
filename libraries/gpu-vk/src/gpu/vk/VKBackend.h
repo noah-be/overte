@@ -577,6 +577,9 @@ public:
     size_t _iosDrawTraceLimit { 512 };
     uint64_t _iosDrawOrdinal { 0 };
     uint64_t _iosExecuteDrawOrdinalLimit { 0 };
+    uint64_t _iosScissorEnabledDraws { 0 };
+    uint64_t _iosScissorDisabledDraws { 0 };
+    uint64_t _iosScissorInvalidDraws { 0 };
 #endif
 protected:
     struct TextureManagementStageState {

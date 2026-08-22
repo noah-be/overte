@@ -960,6 +960,14 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Upload matching device crash symbols
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ github.run_number }}-overte-ios-integrated-device-symbols-${{ github.run_id }}
+          path: build-ios/artifacts/*-OverteIOSClient-Release-device-unsigned-symbols.zip
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Sanitize failure diagnostics
         if: failure()
         shell: bash

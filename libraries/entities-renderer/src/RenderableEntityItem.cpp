@@ -410,8 +410,8 @@ void EntityRenderer::render(RenderArgs* args) {
 
     if (_visible && (!_cauterized || args->_renderMode != RenderArgs::RenderMode::DEFAULT_RENDER_MODE || args->_mirrorDepth > 0)) {
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
-        if (iosRuntimeRenderDiagnosticsEnabled() &&
-            recordIOSRuntimeDrawnEntity(_entity->getID().toString())) {
+        if (recordIOSRuntimeDrawnEntity(_entity->getID().toString()) &&
+                iosRuntimeRenderDiagnosticsEnabled()) {
             const auto evidence = iosRuntimeEntityEvidenceSnapshot();
             if (evidence.drawn == 1) {
                 const auto position = _entity->getWorldPosition();
@@ -563,8 +563,8 @@ void EntityRenderer::updateInScene(const ScenePointer& scene, Transaction& trans
         // Happens on the render thread.  Classes should use
         doRenderUpdateAsynchronous(_entity);
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
-        if (iosRuntimeRenderDiagnosticsEnabled() &&
-            recordIOSRuntimeSceneEntity(_entity->getID().toString())) {
+        if (recordIOSRuntimeSceneEntity(_entity->getID().toString()) &&
+                iosRuntimeRenderDiagnosticsEnabled()) {
             const auto evidence = iosRuntimeEntityEvidenceSnapshot();
             if (evidence.scene == 1) {
                 const auto position = _entity->getWorldPosition();

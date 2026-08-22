@@ -11,6 +11,7 @@
 #include "VKBackend.h"
 
 #include <algorithm>
+#include <chrono>
 #include <mutex>
 #include <queue>
 #include <list>
@@ -84,6 +85,9 @@ static void reportDescriptorCoverage(const char* kind,
                                      const Cache::BindingMap& required,
                                      const std::vector<VkWriteDescriptorSet>& writes,
                                      size_t invalid) {
+    if (!iosRuntimeRenderDiagnosticsEnabled()) {
+        return;
+    }
     const auto missing = missingDescriptorBindings(required, writes);
     os_log_info(OS_LOG_DEFAULT,
                 "OVERTE_IOS_VULKAN_DESCRIPTOR coverage=%{public}s required=%zu written=%zu missing=%{public}s invalid=%zu",
@@ -547,8 +551,9 @@ void VKBackend::render(const Batch& batch) {
         _iosCurrentUntrustedPipelines.insert(batchDiagnosticId);
     }
     static size_t batchReports { 0 };
-    if (_iosTraceAllDraws || batchReports < _iosBatchTraceLimit ||
-            _iosTracedBatchNames.contains(batch.getName())) {
+    if (iosRuntimeRenderDiagnosticsEnabled() &&
+            (_iosTraceAllDraws || batchReports < _iosBatchTraceLimit ||
+             _iosTracedBatchNames.contains(batch.getName()))) {
         ++batchReports;
         os_log_info(OS_LOG_DEFAULT,
                     "OVERTE_IOS_VULKAN_BATCH_USE id=%{public}s batch=%{public}s commands=%zu healthy=%d",
@@ -587,8 +592,8 @@ void VKBackend::render(const Batch& batch) {
     cmdBeginLabel(commandBuffer, "batch:" + batch.getName(), glm::vec4{ 1, 1, 0, 1 });
 
 #if defined(Q_OS_IOS)
-    const bool traceFullscreenBatch = batch.getName() == "Resample::run" ||
-        batch.getName() == "CompositeHUD";
+    const bool traceFullscreenBatch = iosRuntimeRenderDiagnosticsEnabled() &&
+        (batch.getName() == "Resample::run" || batch.getName() == "CompositeHUD");
     if (traceFullscreenBatch) {
         os_log_info(OS_LOG_DEFAULT,
                     "OVERTE_IOS_VULKAN_DRAW batch=%{public}s stage=begin commands=%zu",
@@ -1170,14 +1175,16 @@ void VKBackend::updateVkDescriptorWriteSetsUniform(const Cache::PipelineLayout &
         descriptorWriteSet.pBufferInfo = &bufferInfos.back();
         sets.push_back(descriptorWriteSet);
 #if defined(Q_OS_IOS)
-        if (!validRange && (hasPipelineChanged || _iosTraceCurrentDraw || forcedFallback)) {
+        if (iosRuntimeRenderDiagnosticsEnabled() &&
+                !validRange && (hasPipelineChanged || _iosTraceCurrentDraw || forcedFallback)) {
             os_log_info(OS_LOG_DEFAULT,
                         "OVERTE_IOS_VULKAN_DESCRIPTOR fallback=uniform binding=%zu required=%zu source_bytes=%zu offset=%llu range=%llu forced=%d",
                         i, bindingMap.size(), sourceBytes,
                         static_cast<unsigned long long>(sourceOffset),
                         static_cast<unsigned long long>(sourceRange),
                         static_cast<int>(forcedFallback));
-        } else if (hasPipelineChanged || _iosTraceCurrentDraw) {
+        } else if (iosRuntimeRenderDiagnosticsEnabled() &&
+                   (hasPipelineChanged || _iosTraceCurrentDraw)) {
             os_log_info(OS_LOG_DEFAULT,
                         "OVERTE_IOS_VULKAN_DESCRIPTOR detail=uniform binding=%zu source_bytes=%zu offset=%llu range=%llu fallback=0",
                         i, sourceBytes,
@@ -1185,17 +1192,20 @@ void VKBackend::updateVkDescriptorWriteSetsUniform(const Cache::PipelineLayout &
                         static_cast<unsigned long long>(sourceRange));
         }
         if (hadSourceBuffer && !validRange && !forcedFallback) {
-            os_log_fault(OS_LOG_DEFAULT,
-                         "OVERTE_IOS_VULKAN_DESCRIPTOR invalid=uniform_source binding=%zu source_bytes=%zu offset=%llu range=%llu",
-                         i, sourceBytes,
-                         static_cast<unsigned long long>(sourceOffset),
-                         static_cast<unsigned long long>(sourceRange));
+            static size_t invalidUniformReports { 0 };
+            if (invalidUniformReports++ < 32) {
+                os_log_fault(OS_LOG_DEFAULT,
+                             "OVERTE_IOS_VULKAN_DESCRIPTOR invalid=uniform_source binding=%zu source_bytes=%zu offset=%llu range=%llu",
+                             i, sourceBytes,
+                             static_cast<unsigned long long>(sourceOffset),
+                             static_cast<unsigned long long>(sourceRange));
+            }
         }
 #endif
     }
 
 #if defined(Q_OS_IOS)
-    if (hasPipelineChanged) {
+    if (iosRuntimeRenderDiagnosticsEnabled() && hasPipelineChanged) {
         const auto invalid = static_cast<size_t>(std::count_if(
             bufferInfos.cbegin(), bufferInfos.cend(), [](const VkDescriptorBufferInfo& info) {
                 return info.buffer == VK_NULL_HANDLE || info.range == 0;
@@ -1332,7 +1342,8 @@ void VKBackend::updateVkDescriptorWriteSetsTexture(const Cache::PipelineLayout &
         descriptorWriteSet.pImageInfo = &imageInfos.back();
         sets.push_back(descriptorWriteSet);
 #if defined(Q_OS_IOS)
-        if (hasPipelineChanged || _iosTraceCurrentDraw || forcedFallback) {
+        if (iosRuntimeRenderDiagnosticsEnabled() &&
+                (hasPipelineChanged || _iosTraceCurrentDraw || forcedFallback)) {
             os_log_info(OS_LOG_DEFAULT,
                         "OVERTE_IOS_VULKAN_TEXTURE binding=%zu required=%zu source=%{public}s bytes=%zu dimensions=%ux%ux%u mips=%u type=%u layout=%u fallback=%d forced_binding=%d forced_source=%d",
                         i, bindingMap.size(), source.empty() ? "-" : source.c_str(),
@@ -1346,27 +1357,42 @@ void VKBackend::updateVkDescriptorWriteSetsTexture(const Cache::PipelineLayout &
                         static_cast<int>(!validTexture), static_cast<int>(forcedBinding),
                         static_cast<int>(forcedSource));
         }
-        if (!validTexture && (hasPipelineChanged || _iosTraceCurrentDraw || forcedFallback)) {
+        if (iosRuntimeRenderDiagnosticsEnabled() &&
+                !validTexture && (hasPipelineChanged || _iosTraceCurrentDraw || forcedFallback)) {
             os_log_info(OS_LOG_DEFAULT,
                         "OVERTE_IOS_VULKAN_DESCRIPTOR fallback=texture binding=%zu required=%zu bound=%zu forced=%d",
                         i, bindingMap.size(), _resource._textures.size(),
                         static_cast<int>(forcedFallback));
         }
         if (texturePointer && !validTexture && !forcedFallback) {
-            os_log_fault(OS_LOG_DEFAULT,
-                         "OVERTE_IOS_VULKAN_TEXTURE invalid=bound_texture binding=%zu source=%{public}s bytes=%zu dimensions=%ux%ux%u",
-                         i, source.empty() ? "-" : source.c_str(),
-                         static_cast<size_t>(texturePointer->getSize()),
-                         static_cast<uint32_t>(texturePointer->getWidth()),
-                         static_cast<uint32_t>(texturePointer->getHeight()),
-                         static_cast<uint32_t>(texturePointer->getDepth()));
+#if defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
+            const bool expectedExternalFallback = source == "WebEntityRenderer";
+#else
+            constexpr bool expectedExternalFallback = false;
+#endif
+            static size_t invalidTextureReports { 0 };
+            static bool reportedExpectedExternalFallback { false };
+            if (expectedExternalFallback && !reportedExpectedExternalFallback) {
+                reportedExpectedExternalFallback = true;
+                os_log_info(OS_LOG_DEFAULT,
+                            "OVERTE_IOS_VULKAN_TEXTURE fallback=external_interop_disabled binding=%zu source=%{public}s",
+                            i, source.c_str());
+            } else if (!expectedExternalFallback && invalidTextureReports++ < 32) {
+                os_log_fault(OS_LOG_DEFAULT,
+                             "OVERTE_IOS_VULKAN_TEXTURE invalid=bound_texture binding=%zu source=%{public}s bytes=%zu dimensions=%ux%ux%u",
+                             i, source.empty() ? "-" : source.c_str(),
+                             static_cast<size_t>(texturePointer->getSize()),
+                             static_cast<uint32_t>(texturePointer->getWidth()),
+                             static_cast<uint32_t>(texturePointer->getHeight()),
+                             static_cast<uint32_t>(texturePointer->getDepth()));
+            }
         }
 #endif
     }
 
 
 #if defined(Q_OS_IOS)
-    if (hasPipelineChanged) {
+    if (iosRuntimeRenderDiagnosticsEnabled() && hasPipelineChanged) {
         const auto invalid = static_cast<size_t>(std::count_if(
             sets.cbegin(), sets.cend(), [](const VkWriteDescriptorSet& write) {
                 return !write.pImageInfo || write.pImageInfo->imageView == VK_NULL_HANDLE ||
@@ -1464,26 +1490,31 @@ void VKBackend::updateVkDescriptorWriteSetsStorage(const Cache::PipelineLayout &
         descriptorWriteSet.pBufferInfo = &bufferInfos.back();
         sets.push_back(descriptorWriteSet);
 #if defined(Q_OS_IOS)
-        if (!validRange && (hasPipelineChanged || _iosTraceCurrentDraw || forcedFallback)) {
+        if (iosRuntimeRenderDiagnosticsEnabled() &&
+                !validRange && (hasPipelineChanged || _iosTraceCurrentDraw || forcedFallback)) {
             os_log_info(OS_LOG_DEFAULT,
                         "OVERTE_IOS_VULKAN_DESCRIPTOR fallback=storage binding=%zu required=%zu source_bytes=%zu forced=%d",
                         i, bindingMap.size(), sourceBytes,
                         static_cast<int>(forcedFallback));
-        } else if (hasPipelineChanged || _iosTraceCurrentDraw) {
+        } else if (iosRuntimeRenderDiagnosticsEnabled() &&
+                   (hasPipelineChanged || _iosTraceCurrentDraw)) {
             os_log_info(OS_LOG_DEFAULT,
                         "OVERTE_IOS_VULKAN_DESCRIPTOR detail=storage binding=%zu source_bytes=%zu offset=0 range=%zu fallback=0",
                         i, sourceBytes, sourceBytes);
         }
         if (hadSourceBuffer && !validRange && !forcedFallback) {
-            os_log_fault(OS_LOG_DEFAULT,
-                         "OVERTE_IOS_VULKAN_DESCRIPTOR invalid=storage_source binding=%zu source_bytes=%zu",
-                         i, sourceBytes);
+            static size_t invalidStorageReports { 0 };
+            if (invalidStorageReports++ < 32) {
+                os_log_fault(OS_LOG_DEFAULT,
+                             "OVERTE_IOS_VULKAN_DESCRIPTOR invalid=storage_source binding=%zu source_bytes=%zu",
+                             i, sourceBytes);
+            }
         }
 #endif
     }
 
 #if defined(Q_OS_IOS)
-    if (hasPipelineChanged) {
+    if (iosRuntimeRenderDiagnosticsEnabled() && hasPipelineChanged) {
         const auto invalid = static_cast<size_t>(std::count_if(
             bufferInfos.cbegin(), bufferInfos.cend(), [](const VkDescriptorBufferInfo& info) {
                 return info.buffer == VK_NULL_HANDLE || info.range == 0;
@@ -1867,8 +1898,8 @@ void VKBackend::renderPassDraw(const Batch& batch) {
     const Batch::Commands::value_type* command = batch.getCommands().data();
     const Batch::CommandOffsets::value_type* offset = batch.getCommandOffsets().data();
 #if defined(Q_OS_IOS)
-    const bool traceFullscreenBatch = batch.getName() == "Resample::run" ||
-        batch.getName() == "CompositeHUD";
+    const bool traceFullscreenBatch = iosRuntimeRenderDiagnosticsEnabled() &&
+        (batch.getName() == "Resample::run" || batch.getName() == "CompositeHUD");
 #endif
     for (_commandIndex = 0; _commandIndex < numCommands; ++_commandIndex) {
         switch (*command) {
@@ -1942,7 +1973,8 @@ void VKBackend::renderPassDraw(const Batch& batch) {
                 _iosCurrentUntrustedPipelines.insert(pipelineDiagnosticId);
             }
             static size_t pipelineUseReports { 0 };
-            if (_iosTraceCurrentDraw || pipelineUseReports < _iosPipelineTraceLimit) {
+            if (iosRuntimeRenderDiagnosticsEnabled() &&
+                    (_iosTraceCurrentDraw || pipelineUseReports < _iosPipelineTraceLimit)) {
                 ++pipelineUseReports;
                 os_log_info(OS_LOG_DEFAULT,
                             "OVERTE_IOS_VULKAN_PIPELINE_USE ordinal=%llu id=%{public}s pair=%{public}s batch=%{public}s batch_command=%{public}s command=%zu draw=%d draw_command=%{public}s named_call=%{public}s vertex=%{public}s fragment=%{public}s quarantined=%d healthy=%d detailed=%d",
@@ -1976,18 +2008,43 @@ void VKBackend::renderPassDraw(const Batch& batch) {
             viewport.minDepth = 0.0f;
             viewport.maxDepth = 1.0f;
             vkCmdSetViewport(_currentCommandBuffer, 0, 1, &viewport);
-            // VKTODO: this will create too many set scissor commands, but should work
-            VkRect2D scissor;
-            scissor.offset.x = _currentScissorRect.x;
-            scissor.offset.y = _currentScissorRect.y;
-            scissor.extent.width = _currentScissorRect.z;
-            scissor.extent.height = _currentScissorRect.w;
+            // Vulkan always clips rasterization to a scissor rectangle, whereas the
+            // shared GPU state follows OpenGL semantics and can disable the scissor
+            // test.  In that case an old (or the initial empty) scissor rectangle
+            // must not leak into a later pipeline.  Cover the complete render target
+            // to preserve the meaning of a disabled GL scissor test.
+            const auto pipelineState = _cache.pipelineState.pipeline->getState();
+            const bool useStateScissor = pipelineState && pipelineState->isScissorEnable();
+            VkRect2D scissor {};
+            if (useStateScissor) {
+                scissor.offset.x = _currentScissorRect.x;
+                scissor.offset.y = _currentScissorRect.y;
+                scissor.extent.width = _currentScissorRect.z;
+                scissor.extent.height = _currentScissorRect.w;
+#if defined(Q_OS_IOS)
+                ++_iosScissorEnabledDraws;
+                if (_currentScissorRect.x < 0 || _currentScissorRect.y < 0 ||
+                        _currentScissorRect.z <= 0 || _currentScissorRect.w <= 0) {
+                    ++_iosScissorInvalidDraws;
+                }
+#endif
+            } else {
+                const auto framebuffer = _cache.pipelineState.framebuffer;
+                Q_ASSERT(framebuffer);
+                scissor.offset = { 0, 0 };
+                scissor.extent.width = framebuffer->getWidth();
+                scissor.extent.height = framebuffer->getHeight();
+#if defined(Q_OS_IOS)
+                ++_iosScissorDisabledDraws;
+#endif
+            }
 #if defined(Q_OS_IOS)
             if (iosRuntimeRenderDiagnosticMode() == "full-scissor") {
-                scissor.offset.x = std::max(0, _transform._viewport.x);
-                scissor.offset.y = std::max(0, _transform._viewport.y);
-                scissor.extent.width = static_cast<uint32_t>(std::max(1, _transform._viewport.z));
-                scissor.extent.height = static_cast<uint32_t>(std::max(1, _transform._viewport.w));
+                const auto framebuffer = _cache.pipelineState.framebuffer;
+                Q_ASSERT(framebuffer);
+                scissor.offset = { 0, 0 };
+                scissor.extent.width = framebuffer->getWidth();
+                scissor.extent.height = framebuffer->getHeight();
             }
 #endif
             vkCmdSetScissor(_currentCommandBuffer, 0, 1, &scissor);
@@ -2797,33 +2854,55 @@ void VKBackend::recyclePreviousFrame() {
 
 #if defined(Q_OS_IOS)
 void VKBackend::persistIOSDiagnosticSubmit(uint64_t submitId) {
+    using SteadyClock = std::chrono::steady_clock;
+    static auto lastProgressReport = SteadyClock::time_point {};
+    const auto now = SteadyClock::now();
+    const bool reportProgress = submitId == 1 || lastProgressReport == SteadyClock::time_point {} ||
+        now - lastProgressReport >= std::chrono::seconds(5);
+    if (reportProgress) {
+        const auto evidence = iosRuntimeEntityEvidenceSnapshot();
+        os_log_info(OS_LOG_DEFAULT,
+                    "OVERTE_IOS_VULKAN_FRAME submit=%llu mode=%{public}s scissor_enabled_draws=%llu scissor_disabled_full_draws=%llu scissor_invalid_draws=%llu scene_entities=%d entered_entity_render=%d",
+                    static_cast<unsigned long long>(submitId),
+                    iosRuntimeRenderDiagnosticMode().constData(),
+                    static_cast<unsigned long long>(_iosScissorEnabledDraws),
+                    static_cast<unsigned long long>(_iosScissorDisabledDraws),
+                    static_cast<unsigned long long>(_iosScissorInvalidDraws),
+                    evidence.scene, evidence.drawn);
+        lastProgressReport = now;
+    }
+    _iosScissorEnabledDraws = 0;
+    _iosScissorDisabledDraws = 0;
+    _iosScissorInvalidDraws = 0;
+
     _iosSubmittedUntrustedPipelines = _iosCurrentUntrustedPipelines;
     if (_iosSubmittedUntrustedPipelines.empty()) {
-        os_log_info(OS_LOG_DEFAULT,
-                    "OVERTE_IOS_VULKAN_ISOLATION submit=%llu untrusted=0 persistence=not-required",
-                    static_cast<unsigned long long>(submitId));
         return;
     }
     if (!_iosPersistSubmitCandidates) {
-        os_log_info(OS_LOG_DEFAULT,
-                    "OVERTE_IOS_VULKAN_ISOLATION submit=%llu untrusted=%zu persistence=disabled",
-                    static_cast<unsigned long long>(submitId),
-                    _iosSubmittedUntrustedPipelines.size());
+        if (iosRuntimeRenderDiagnosticsEnabled()) {
+            os_log_info(OS_LOG_DEFAULT,
+                        "OVERTE_IOS_VULKAN_ISOLATION submit=%llu untrusted=%zu persistence=disabled",
+                        static_cast<unsigned long long>(submitId),
+                        _iosSubmittedUntrustedPipelines.size());
+        }
         return;
     }
     auto settings = iosVulkanDiagnosticSettings();
     settings.setValue("ios/vulkanPendingPipelines", toQStringList(_iosSubmittedUntrustedPipelines));
     settings.setValue("ios/vulkanPendingSubmitId", QString::number(submitId));
     settings.sync();
-    os_log_info(OS_LOG_DEFAULT,
-                "OVERTE_IOS_VULKAN_ISOLATION submit=%llu untrusted=%zu persistence_status=%d",
-                static_cast<unsigned long long>(submitId),
-                _iosSubmittedUntrustedPipelines.size(),
-                static_cast<int>(settings.status()));
-    for (const auto& id : _iosSubmittedUntrustedPipelines) {
+    if (iosRuntimeRenderDiagnosticsEnabled()) {
         os_log_info(OS_LOG_DEFAULT,
-                    "OVERTE_IOS_VULKAN_ISOLATION submit=%llu candidate=%{public}s",
-                    static_cast<unsigned long long>(submitId), id.c_str());
+                    "OVERTE_IOS_VULKAN_ISOLATION submit=%llu untrusted=%zu persistence_status=%d",
+                    static_cast<unsigned long long>(submitId),
+                    _iosSubmittedUntrustedPipelines.size(),
+                    static_cast<int>(settings.status()));
+        for (const auto& id : _iosSubmittedUntrustedPipelines) {
+            os_log_info(OS_LOG_DEFAULT,
+                        "OVERTE_IOS_VULKAN_ISOLATION submit=%llu candidate=%{public}s",
+                        static_cast<unsigned long long>(submitId), id.c_str());
+        }
     }
 }
 
@@ -2834,9 +2913,11 @@ void VKBackend::retireIOSDiagnosticSubmit() {
         return;
     }
     if (!_iosPersistSubmitCandidates) {
-        os_log_info(OS_LOG_DEFAULT,
-                    "OVERTE_IOS_VULKAN_ISOLATION retired newly_healthy=%zu total_healthy=%zu persistence=disabled",
-                    _iosSubmittedUntrustedPipelines.size(), _iosHealthyPipelines.size());
+        if (iosRuntimeRenderDiagnosticsEnabled()) {
+            os_log_info(OS_LOG_DEFAULT,
+                        "OVERTE_IOS_VULKAN_ISOLATION retired newly_healthy=%zu total_healthy=%zu persistence=disabled",
+                        _iosSubmittedUntrustedPipelines.size(), _iosHealthyPipelines.size());
+        }
         _iosSubmittedUntrustedPipelines.clear();
         return;
     }
@@ -2844,10 +2925,12 @@ void VKBackend::retireIOSDiagnosticSubmit() {
     settings.remove("ios/vulkanPendingPipelines");
     settings.remove("ios/vulkanPendingSubmitId");
     settings.sync();
-    os_log_info(OS_LOG_DEFAULT,
-                "OVERTE_IOS_VULKAN_ISOLATION retired newly_healthy=%zu total_healthy=%zu persistence_status=%d",
-                _iosSubmittedUntrustedPipelines.size(), _iosHealthyPipelines.size(),
-                static_cast<int>(settings.status()));
+    if (iosRuntimeRenderDiagnosticsEnabled()) {
+        os_log_info(OS_LOG_DEFAULT,
+                    "OVERTE_IOS_VULKAN_ISOLATION retired newly_healthy=%zu total_healthy=%zu persistence_status=%d",
+                    _iosSubmittedUntrustedPipelines.size(), _iosHealthyPipelines.size(),
+                    static_cast<int>(settings.status()));
+    }
     _iosSubmittedUntrustedPipelines.clear();
 }
 #endif
@@ -3348,6 +3431,7 @@ void VKBackend::updateTransform(const gpu::Batch& batch) {
     }
 
 #if defined(Q_OS_IOS)
+    if (iosRuntimeRenderDiagnosticsEnabled()) {
         const auto& drawInfos = batch.getDrawCallInfoBuffer();
         const auto drawInfoBytes = _currentFrame->_drawCallInfoBuffer
             ? _currentFrame->_drawCallInfoBuffer->getSize() : 0;
@@ -3460,7 +3544,10 @@ void VKBackend::updateTransform(const gpu::Batch& batch) {
         size_t requiredIndexEnd { 0 };
         bool indexRangeValid { !indexed };
         if (indexed && _input._indexBuffer) {
-            indexBytes = _input._indexBuffer->getSize();
+            const auto indexGpuBuffer =
+                Backend::getGPUObject<VKBuffer>(*_input._indexBuffer);
+            indexBytes = indexGpuBuffer
+                ? static_cast<size_t>(indexGpuBuffer->allocation.size) : 0;
             const auto indexElementBytes = static_cast<size_t>(gpu::TYPE_SIZE[_input._indexBufferType]);
             requiredIndexEnd = _input._indexBufferOffset +
                 (firstElement + elementCount) * indexElementBytes;
@@ -3490,7 +3577,10 @@ void VKBackend::updateTransform(const gpu::Batch& batch) {
                 const auto& channel = channelEntry.second;
                 const auto inputBuffer = binding < _input._buffers.size()
                     ? gpu::acquire(_input._buffers[binding]) : nullptr;
-                const auto inputBytes = inputBuffer ? inputBuffer->getSize() : 0;
+                const auto inputGpuBuffer = inputBuffer
+                    ? Backend::getGPUObject<VKBuffer>(*inputBuffer) : nullptr;
+                const auto inputBytes = inputGpuBuffer
+                    ? static_cast<size_t>(inputGpuBuffer->allocation.size) : 0;
                 const auto inputOffset = binding < _input._bufferOffsets.size()
                     ? static_cast<size_t>(_input._bufferOffsets[binding]) : 0;
                 const auto stride = binding < _input._bufferStrides.size()
@@ -3533,6 +3623,7 @@ void VKBackend::updateTransform(const gpu::Batch& batch) {
                 }
             }
         }
+    }
 #endif
 
     // VKTODO: camera correction
