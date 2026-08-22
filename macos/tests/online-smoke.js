@@ -8,7 +8,9 @@
     // camera, scene contents, avatar visibility, or rendering preferences.
     // The captured image is evidence of the production Hub path, not a scene
     // assembled for the test.
-    var deadline = Date.now() + 1800000;
+    // Leave room for bounded directory retries followed by full Hub asset
+    // loading and production draws on Apple's hosted software renderer.
+    var deadline = Date.now() + 3300000;
     var nextProgressAt = Date.now();
     var snapshotStage = "waiting";
     var snapshotSettleDeadline = 0;

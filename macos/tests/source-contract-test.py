@@ -1282,7 +1282,7 @@ for online_timing_contract in (
     "snapshotSettleDeadline = Date.now() + 300000",
     "snapshot_still_pending",
     "if (success)",
-    "Date.now() + 1800000",
+    "Date.now() + 3300000",
 ):
     if online_timing_contract not in online_script:
         raise SystemExit(

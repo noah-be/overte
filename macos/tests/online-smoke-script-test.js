@@ -166,7 +166,7 @@ function createRun() {
     assert.strictEqual(completion, undefined,
         "a pending callback is not successful completion evidence");
     assert.strictEqual(run.script.stopped, false);
-    run.clock.now += 1500000;
+    run.clock.now += 3000000;
     run.script.interval();
     assert.strictEqual(run.script.stopped, true);
     assert.strictEqual(run.saved.some((entry) =>
