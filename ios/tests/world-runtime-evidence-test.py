@@ -108,7 +108,12 @@ def run_runtime(
     )
 
 
-def serverless_log(scene: str = "serverless_tutorial", *, reverse: bool = False) -> str:
+def serverless_log(
+    scene: str = "serverless_tutorial",
+    *,
+    reverse: bool = False,
+    viewpoint_before_entities: bool = False,
+) -> str:
     gates = [
         f"Overte OVERTE_IOS_WORLD_GATE navigation_requested kind= serverless destination= serverless_tutorial",
         f"Overte OVERTE_IOS_WORLD_GATE serverless_import_committed scene= {scene}",
@@ -118,6 +123,8 @@ def serverless_log(scene: str = "serverless_tutorial", *, reverse: bool = False)
     ]
     if reverse:
         gates[2], gates[3] = gates[3], gates[2]
+    if viewpoint_before_entities:
+        gates.insert(2, gates.pop())
     return "\n".join(gates) + "\n"
 
 
@@ -195,6 +202,20 @@ with tempfile.TemporaryDirectory(prefix="overte-ios-world-evidence-test-") as di
     assert serverless_payload["resolvedDomainId"] is None
     assert serverless_payload["runtime"]["evidence"][0]["gate"] == "serverless_import_committed"
     assert serverless_payload["containsRawRuntimeLog"] is False
+
+    early_viewpoint_log = root / "serverless-early-viewpoint.log"
+    early_viewpoint_log.write_text(
+        serverless_log(viewpoint_before_entities=True), encoding="utf-8"
+    )
+    early_viewpoint = run_runtime(
+        early_viewpoint_log,
+        screenshot,
+        serverless_screenshot_report,
+        "serverless",
+        "serverless_tutorial",
+        root / "serverless-early-viewpoint.json",
+    )
+    assert early_viewpoint.returncode == 0, early_viewpoint.stderr
 
     for label, content in (
         ("wrong-scene", serverless_log("different_scene")),

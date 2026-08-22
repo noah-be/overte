@@ -58,38 +58,68 @@ def require_navigation(lines: list[str], scenario: str, destination: str) -> int
 
 
 def validate_serverless(lines: list[str], navigation_index: int, destination: str) -> dict[str, object]:
-    expected = (
-        (WORLD_PREFIX, "serverless_import_committed"),
-        (ENTITY_PREFIX, "entity_tree_nonempty"),
-        (ENTITY_PREFIX, "render_handoff"),
-        (WORLD_PREFIX, "serverless_viewpoint_applied"),
-    )
-    evidence: list[dict[str, object]] = []
-    cursor = navigation_index + 1
-    for prefix, expected_name in expected:
-        found = None
+    def find_after(prefix: str, expected_name: str, cursor: int) -> tuple[int, dict[str, str]]:
         for index in range(cursor, len(lines)):
             parsed = marker(lines[index], prefix)
             if parsed and parsed[0] == expected_name:
-                found = (index, parsed[1])
-                break
-        if found is None:
-            raise ValueError(f"missing serverless runtime gate {expected_name}")
-        index, fields = found
-        if expected_name == "serverless_import_committed" and fields.get("scene") != destination:
-            raise ValueError("serverless import committed a different scene")
-        if expected_name == "serverless_viewpoint_applied" and fields != {"success": "1"}:
-            raise ValueError("serverless root viewpoint was not applied")
-        if expected_name in ("entity_tree_nonempty", "render_handoff"):
-            entity = fields.get("entity", "")
-            if UUID.fullmatch(entity) is None:
-                raise ValueError(f"{expected_name} has an invalid entity UUID")
-            if expected_name == "render_handoff":
-                previous = str(evidence[-1]["fields"]["entity"]).strip("{}").lower()
-                if entity.strip("{}").lower() != previous:
-                    raise ValueError("serverless render entity differs from the decoded entity")
-        evidence.append({"gate": expected_name, "line": index + 1, "fields": fields})
-        cursor = index + 1
+                return index, parsed[1]
+        raise ValueError(f"missing serverless runtime gate {expected_name}")
+
+    import_index, import_fields = find_after(
+        WORLD_PREFIX, "serverless_import_committed", navigation_index + 1
+    )
+    if import_fields.get("scene") != destination:
+        raise ValueError("serverless import committed a different scene")
+
+    # Viewpoint application and render-scene handoff are independent consumers
+    # of the committed import.  A queued root-viewpoint callback can complete
+    # either before or after the render thread inserts the first entity, so do
+    # not impose a false total order between those two valid paths.
+    viewpoint_index, viewpoint_fields = find_after(
+        WORLD_PREFIX, "serverless_viewpoint_applied", import_index + 1
+    )
+    if viewpoint_fields != {"success": "1"}:
+        raise ValueError("serverless root viewpoint was not applied")
+
+    tree_index, tree_fields = find_after(
+        ENTITY_PREFIX, "entity_tree_nonempty", import_index + 1
+    )
+    tree_entity = tree_fields.get("entity", "")
+    if UUID.fullmatch(tree_entity) is None:
+        raise ValueError("entity_tree_nonempty has an invalid entity UUID")
+
+    handoff_index, handoff_fields = find_after(
+        ENTITY_PREFIX, "render_handoff", tree_index + 1
+    )
+    handoff_entity = handoff_fields.get("entity", "")
+    if UUID.fullmatch(handoff_entity) is None:
+        raise ValueError("render_handoff has an invalid entity UUID")
+    if handoff_entity.strip("{}").lower() != tree_entity.strip("{}").lower():
+        raise ValueError("serverless render entity differs from the decoded entity")
+
+    evidence = [
+        {
+            "gate": "serverless_import_committed",
+            "line": import_index + 1,
+            "fields": import_fields,
+        },
+        {
+            "gate": "serverless_viewpoint_applied",
+            "line": viewpoint_index + 1,
+            "fields": viewpoint_fields,
+        },
+        {
+            "gate": "entity_tree_nonempty",
+            "line": tree_index + 1,
+            "fields": tree_fields,
+        },
+        {
+            "gate": "render_handoff",
+            "line": handoff_index + 1,
+            "fields": handoff_fields,
+        },
+    ]
+    evidence.sort(key=lambda item: int(item["line"]))
     return {"accepted": True, "evidence": evidence}
 
 
